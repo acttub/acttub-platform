@@ -9,8 +9,9 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * 글자마다 띄어진 줄의 띄어쓰기 복원 (reading.script 「띄어쓰기 복원」). 글자 인식으로 복사한 글은 「유 세 아 , 공 부」처럼
- * 온다. 어느 줄을 모델에 보낼지 고르고, 모델이 돌려준 줄에서는 띄어쓰기만 가져온다 — 글자는 모델이 바꾸지 못한다.
+ * 띄어쓰기가 망가진 줄의 복원 (reading.script 「띄어쓰기 복원」). 글자 인식으로 복사한 글은 「유 세 아 , 공 부」처럼 글자마다
+ * 띄어져 오고, 사람이 쓴 글에도 「칼군무로장비를챙겨퇴장한다.」처럼 붙어 버린 줄이 있다. 어느 줄을 모델에 보낼지 고르고, 모델이
+ * 돌려준 줄에서는 띄어쓰기만 가져온다 — 글자는 모델이 바꾸지 못한다.
  *
  * <p>덩이는 공백으로 가른 조각이고, 한글 음절(U+AC00~U+D7A3)이 하나라도 든 덩이만 센다. 숫자·영문·부호 덩이는 판정에 들지
  * 않는다.
@@ -18,6 +19,12 @@ import java.util.regex.Pattern;
 public final class LineSpacing {
 
     private static final Pattern WHITESPACE = Pattern.compile("(?U)\\s+");
+    /**
+     * 덜 띄어진 덩이의 한글 음절 수. 2026-10-13 운영·외부 대본 16편에 붙임 손상을 넣어 잰 값이다 — 8음절은 10음절보다 남은
+     * 오류가 10% 적고(검증 쪽 291 대 323) 멀쩡한 줄을 바꾼 비율은 0.06% 였다. 대신 운영·외부 대본 332편 중 54%(10음절이면 29%)가
+     * 복원 호출을 부른다(전에는 7%).
+     */
+    private static final int JOINED_SYLLABLES = 8;
     /**
      * 글자가 다른 답을 맞춰 볼 줄의 최대 글자 수. 맞춰 보기는 글자 수의 곱만큼 메모리를 쓰는데(1,000자면 4MB) 조각 16개가
      * 동시에 돈다. 띄어진 대사 줄은 이보다 훨씬 짧고, 넘는 줄은 글자가 원문과 같은 답만 받는다.
@@ -39,12 +46,25 @@ public final class LineSpacing {
         return count.hangul >= 2 && count.single == count.hangul;
     }
 
-    /** 보낼 줄. 띄어진 줄이 하나도 없으면 비고, 있으면 띄어진 줄과 짧게 띄어진 줄을 순서대로. */
-    public static List<NumberedLine> toRestore(List<NumberedLine> lines) {
-        if (lines.stream().noneMatch(line -> spaced(line.text()))) {
-            return List.of();
+    /** 한글 음절이 {@link #JOINED_SYLLABLES}개 이상 붙은 덩이가 있는 줄(「우리들의조상도지극히」). 덩이 안의 부호는 건너 센다. */
+    public static boolean joined(String text) {
+        for (String token : WHITESPACE.split(text.strip())) {
+            if (token.codePoints().filter(LineSpacing::syllable).count() >= JOINED_SYLLABLES) {
+                return true;
+            }
         }
-        return lines.stream().filter(line -> spaced(line.text()) || shortSpaced(line.text())).toList();
+        return false;
+    }
+
+    /**
+     * 보낼 줄을 순서대로. 덜 띄어진 줄은 늘 보낸다. 띄어진 줄이 하나라도 있으면 띄어진 줄과 짧게 띄어진 줄도 보낸다 — 짧게 띄어진
+     * 줄은 혼자서는 부르지 않는다.
+     */
+    public static List<NumberedLine> toRestore(List<NumberedLine> lines) {
+        boolean anySpaced = lines.stream().anyMatch(line -> spaced(line.text()));
+        return lines.stream()
+                .filter(line -> joined(line.text()) || anySpaced && (spaced(line.text()) || shortSpaced(line.text())))
+                .toList();
     }
 
     /**

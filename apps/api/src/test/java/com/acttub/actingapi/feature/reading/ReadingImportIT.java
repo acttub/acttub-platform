@@ -139,7 +139,8 @@ class ReadingImportIT {
                 "엄 마 의 시 험", "엄마의 시험",
                 "[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?", "[엄마] 유세아, 공부 열심히 하고 있지?",
                 "[ 유 세 아 ] 응 . 걱 정 하 지 마 .", "[유세아] 응. 걱정하지 마.",
-                "( 암 전 )", "(암전)");
+                "( 암 전 )", "(암전)",
+                "[엄마] 언제 돌아가실지모르겠지만그래도", "[엄마] 언제 돌아가실지 모르겠지만 그래도");
 
         /** 콜론·대괄호 형식을 완벽하게 나누는 답. 괄호 줄은 지문, 「제N막」은 장면, 「등장인물」 줄은 소개다. */
         static String oracle(Call call) {
@@ -669,6 +670,18 @@ class ReadingImportIT {
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
         assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
                 .containsExactly("dialogue|응.", "dialogue|이번엔 시험 잘 봐야지.", "direction|( 암 전 )");
+    }
+
+    @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 한글 여덟 음절 넘게 붙은 줄은 띄어진 줄이 없어도 그 줄만 복원 호출로 보내고, 고친 글로 나눈다")
+    void restoresJoinedLineWithoutSpacedLines() throws Exception {
+        String scriptId = split("[유세아] 응.\n[엄마] 언제 돌아가실지모르겠지만그래도\n( 암 전 )");
+
+        assertThat(Model.CALLS).extracting(Model.Call::spacing).containsExactly(true, false);
+        assertThat(Model.CALLS.getFirst().input()).isEqualTo("2\t[엄마] 언제 돌아가실지모르겠지만그래도");
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
+        assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
+                .containsExactly("dialogue|응.", "dialogue|언제 돌아가실지 모르겠지만 그래도", "direction|( 암 전 )");
     }
 
     @Test

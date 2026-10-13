@@ -36,6 +36,18 @@ class LineSpacingTest {
     }
 
     @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 한글 음절이 여덟 개 이상 붙은 덩이가 있으면 덜 띄어진 줄 — 영문·숫자는 세지 않는다")
+    void judgesJoinedLines() {
+        assertThat(LineSpacing.joined("칼군무로장비를챙겨퇴장한다.")).isTrue();
+        assertThat(LineSpacing.joined("[쥬부인] 우리들의조상도지극히 평범한 평민계급이었다는걸")).as("「우리들의조상도지극히」").isTrue();
+        assertThat(LineSpacing.joined("감사합니다.그럼전가봐야")).as("부호를 사이에 둬도 한 덩이의 음절을 다 센다").isTrue();
+
+        assertThat(LineSpacing.joined("가나다라마바사")).as("일곱 음절").isFalse();
+        assertThat(LineSpacing.joined("Welcome to Christopher's 2000000 theater")).isFalse();
+        assertThat(LineSpacing.joined("[엄마] 이번엔 시험 잘 봐야지.")).isFalse();
+    }
+
+    @Test
     @DisplayName("reading.script 띄어쓰기 복원: 숫자·영문·부호 덩이는 세지 않는다 — 한글 덩이만으로 판정한다")
     void countsOnlyHangulTokens() {
         assertThat(LineSpacing.spaced("S # 3 . 학 교 앞 , 밤")).isTrue();
@@ -61,6 +73,12 @@ class LineSpacingTest {
                 new NumberedLine(1, "[유세아] 응."),
                 new NumberedLine(2, "( 암 전 )"),
                 new NumberedLine(3, "사 이")))).as("짧게 띄어진 줄만으로는 부르지 않는다").isEmpty();
+
+        assertThat(LineSpacing.toRestore(List.of(
+                new NumberedLine(1, "[유세아] 응."),
+                new NumberedLine(2, "[엄마] 언제 돌아가실지모르겠지만그래도"),
+                new NumberedLine(3, "( 암 전 )")))).as("덜 띄어진 줄은 띄어진 줄 없이도 혼자 보낸다 — 짧게 띄어진 줄은 여전히 따라가지 않는다")
+                .containsExactly(new NumberedLine(2, "[엄마] 언제 돌아가실지모르겠지만그래도"));
     }
 
     @Test
