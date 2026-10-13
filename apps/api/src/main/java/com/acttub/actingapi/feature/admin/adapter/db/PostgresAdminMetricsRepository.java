@@ -17,8 +17,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallenge;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackItem;
@@ -152,6 +154,88 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.goal(),
                         turnsBySession.getOrDefault(row.coachSessionId(), List.of()),
                         row.objectKey()))
+                .toList();
+    }
+
+    @Override
+    public List<AdminAdvisorSession> advisorSessions(int limit, Set<String> advisorEmailHashes) {
+        if (advisorEmailHashes.isEmpty()) {
+            return List.of();
+        }
+        // 자문위원 판정은 코치 성격 배정(PostgresCoachPersonas)과 같은 이메일 해시다. 이메일 원문은 저장소에
+        // 두지 않으므로 DB 에서 같은 방식(소문자·앞뒤 공백 제거 → UTF-8 → SHA-256)으로 해싱해 대조한다.
+        // 영상은 읽지 않는다 — 운영 검토는 대화·입력 원문까지다.
+        List<String> hashes = advisorEmailHashes.stream().sorted().toList();
+        String sql = """
+                SELECT
+                    coach.id,
+                    coach.created_at,
+                    coach.status,
+                    coach.close_reason,
+                    coach.situation,
+                    coach.character_context,
+                    coach.goal,
+                    coach.persona,
+                    left(md5(CAST(coach.user_id AS text)), 8) AS actor
+                FROM (
+                    SELECT
+                        conversation.id,
+                        conversation.created_at,
+                        conversation.status,
+                        conversation.close_reason,
+                        practice.situation,
+                        practice.character_context,
+                        practice.goal,
+                        NULLIF(conversation.state -> 'practice_loop' ->> 'persona', '') AS persona,
+                        practice.user_id
+                    FROM coach_conversations AS conversation
+                    JOIN practices AS practice
+                      ON practice.id = conversation.practice_id
+                    UNION ALL
+                    SELECT
+                        legacy.id,
+                        legacy.created_at,
+                        legacy.status::text,
+                        legacy.close_reason::text,
+                        practice.situation,
+                        practice.character_context,
+                        practice.goal,
+                        CAST(NULL AS text) AS persona,
+                        practice.user_id
+                    FROM coach_sessions AS legacy
+                    JOIN practice_sessions AS practice
+                      ON practice.id = legacy.practice_session_id
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM coach_conversations AS moved WHERE moved.id = legacy.id)
+                ) AS coach
+                JOIN users AS app_user
+                  ON app_user.id = coach.user_id
+                WHERE encode(sha256(convert_to(lower(btrim(app_user.email)), 'UTF8')), 'hex') IN (%s)
+                ORDER BY coach.created_at DESC, coach.id
+                LIMIT :limit
+                """.formatted(namedParameters("hash", hashes.size()));
+        Query query = entityManager.createNativeQuery(sql, Tuple.class).setParameter("limit", limit);
+        for (int index = 0; index < hashes.size(); index++) {
+            query.setParameter("hash" + index, hashes.get(index));
+        }
+        List<Tuple> rows = list(query);
+        Map<UUID, List<AdminTurn>> turnsBySession = turns(
+                rows.stream().map(row -> row.get("id", UUID.class)).toList());
+        return rows.stream()
+                .map(row -> {
+                    UUID id = row.get("id", UUID.class);
+                    return new AdminAdvisorSession(
+                            id.toString(),
+                            row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
+                            row.get("actor", String.class),
+                            row.get("persona", String.class),
+                            row.get("status", String.class),
+                            row.get("close_reason", String.class),
+                            row.get("situation", String.class),
+                            row.get("character_context", String.class),
+                            row.get("goal", String.class),
+                            turnsBySession.getOrDefault(id, List.of()));
+                })
                 .toList();
     }
 
