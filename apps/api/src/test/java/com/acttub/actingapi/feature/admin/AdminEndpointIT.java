@@ -43,6 +43,8 @@ import org.springframework.test.web.servlet.MockMvc;
     "JWT_SECRET=test-secret",
     "ADMIN_OPS_TOKEN=admin-secret",
     "ADMIN_OPS_EXCLUDE_EMAILS=team@acttub.com",
+    // 저장소의 진짜 자문위원 목록 대신 advisor@example.com 하나만 든 시험 목록을 쓴다.
+    "ADMIN_ADVISORS_RESOURCE=/admin/test-advisors.txt",
     "spring.jpa.properties.hibernate.session_factory.statement_inspector="
             + "com.acttub.actingapi.feature.admin.AdminEndpointIT$RecordingInspector"
 })
@@ -64,6 +66,8 @@ class AdminEndpointIT {
             UUID.fromString("00000000-0000-4000-8000-000000000601");
     private static final UUID TEAM_USER =
             UUID.fromString("00000000-0000-4000-8000-000000000602");
+    private static final UUID ADVISOR_USER =
+            UUID.fromString("00000000-0000-4000-8000-000000000603");
     private static final OffsetDateTime NOW =
             OffsetDateTime.now(ZoneOffset.UTC).withNano(123456000);
 
@@ -208,6 +212,68 @@ class AdminEndpointIT {
                 {"sessions":[],"playback_expires_in_sec":3600}
                 """));
         assertThat(RecordingInspector.STATEMENTS.get()).hasSize(1);
+    }
+
+    /**
+     * 자문단 기록(SOMA-622): 자문위원 이메일 해시에 드는 계정의 대화만, 최신순으로 낸다.
+     * 가명·코치 성격·대화 원문은 싣고 이메일·user id·영상 주소는 싣지 않는다.
+     */
+    @Test
+    void advisorSessionsListOnlyAdvisorConversationsWithPseudonymPersonaAndNoPrivateFields() throws Exception {
+        insertUser(ADVISOR_USER, "Advisor@Example.com", NOW.minusHours(3));
+        UUID olderPractice = UUID.randomUUID();
+        insertPractice1(olderPractice, ADVISOR_USER, insertVideo(ADVISOR_USER, "advisor-old.mp4", NOW.minusMinutes(40)),
+                "closed", "conversation_closed", "three_layers_v1", NOW.minusMinutes(40));
+        UUID olderConversation = UUID.randomUUID();
+        insertConversation(olderConversation, olderPractice, "closed", "gap_stated", NOW.minusMinutes(40));
+        UUID newerPractice = UUID.randomUUID();
+        insertPractice1(newerPractice, ADVISOR_USER, insertVideo(ADVISOR_USER, "advisor-new.mp4", NOW.minusMinutes(3)),
+                "conversing", null, "three_layers_v1", NOW.minusMinutes(3));
+        UUID newerConversation = UUID.randomUUID();
+        insertConversation(newerConversation, newerPractice, "open", null, NOW.minusMinutes(3));
+        jdbc.update("UPDATE coach_conversations SET state = CAST(? AS jsonb) WHERE id=?",
+                "{\"practice_loop\":{\"persona\":\"b1\"}}", newerConversation);
+        insertMessage(newerConversation, 1, "actor", "자문 답");
+        insertMessage(newerConversation, 0, "ai", "자문 질문");
+
+        var result = mvc.perform(get("/v2/admin/advisor-sessions")
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(result.getStatus()).isEqualTo(200);
+        assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        String body = result.getContentAsString();
+        JsonNode response = mapper.readTree(body);
+        assertThat(response.path("advisor_accounts").intValue()).as("해시 줄 + id 붙은 줄, 모양 틀린 줄 제외").isEqualTo(2);
+        JsonNode sessions = response.path("sessions");
+        assertThat(sessions).as("일반·팀 배우의 옛 코치 세션은 빠진다").hasSize(2);
+
+        String actor = jdbc.queryForObject(
+                "SELECT left(md5(CAST(? AS text)), 8)", String.class, ADVISOR_USER.toString());
+        JsonNode newest = sessions.get(0);
+        assertThat(newest.path("coach_session_id").textValue()).isEqualTo(newerConversation.toString());
+        assertThat(newest.path("actor").textValue()).isEqualTo(actor);
+        assertThat(newest.path("advisor_hash").textValue())
+                .as("시험 목록의 sha256(\"advisor@example.com\")")
+                .isEqualTo("11d6d7223550b8edd504d86e14a4db458c8356ba1a5fceab66f5d2e387470d71");
+        assertThat(newest.path("persona").textValue()).isEqualTo("b1");
+        assertThat(newest.path("status").textValue()).isEqualTo("open");
+        assertThat(newest.path("turns")).isEqualTo(mapper.readTree("""
+                [{"turn_index":0,"role":"ai","text":"자문 질문"},
+                 {"turn_index":1,"role":"actor","text":"자문 답"}]
+                """));
+        JsonNode oldest = sessions.get(1);
+        assertThat(oldest.path("coach_session_id").textValue()).isEqualTo(olderConversation.toString());
+        assertThat(oldest.path("persona").isNull()).as("성격 배정 기록이 없으면 null").isTrue();
+        assertThat(oldest.path("close_reason").textValue()).isEqualTo("gap_stated");
+        assertThat(oldest.path("turns")).isEmpty();
+
+        assertThat(body).doesNotContain("example.com", "Example.com", ADVISOR_USER.toString(),
+                "advisor-old.mp4", "advisor-new.mp4", "video_url");
+        assertThat(authorized("/v2/admin/advisor-sessions?limit=1", 200).path("sessions")).hasSize(1);
+        authorized("/v2/admin/advisor-sessions?limit=200", 200);
+        authorized("/v2/admin/advisor-sessions?limit=201", 422);
+        authorized("/v2/admin/advisor-sessions?limit=0", 422);
+        assertThat(mvc.perform(get("/v2/admin/advisor-sessions")).andReturn().getResponse().getStatus())
+                .isEqualTo(401);
     }
 
     @Test
@@ -1869,7 +1935,8 @@ class AdminEndpointIT {
                 added.add(path);
             }
         });
-        assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/ops-core",
+        assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/advisor-sessions",
+                "/v2/admin/ops-core",
                 "/v2/admin/feedback", "/v2/admin/practice-migration",
                 "/v2/admin/challenges", "/v2/admin/challenges/{id}/moderation",
                 "/v2/admin/reports", "/v2/admin/reports/{id}",
