@@ -390,6 +390,95 @@ class ReadingScriptIT {
     }
 
     @Test
+    @DisplayName("reading.script: 줄 고치기 — 줄의 배역·종류·글만 바뀌고 줄 id·순서, 회차·녹음·외운 줄의 연결, request_fingerprint 는 그대로다. 대사 번호·장면 집계는 고친 대로 다시 센다(SOMA-669)")
+    void readingScript_editingALineKeepsItsIdAndEverythingPointingAtIt() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        JsonNode saved = json(post("/v2/reading/scripts").content(sample(requestId, "갈매기")), 201);
+        UUID scriptId = UUID.fromString(saved.path("id").textValue());
+        String nina = saved.path("characters").get(0).path("id").textValue();
+        String treplev = saved.path("characters").get(1).path("id").textValue();
+        String direction = saved.path("lines").get(1).path("id").textValue();
+        String hello = saved.path("lines").get(2).path("id").textValue();
+        UUID session = session(scriptId, member, List.of(UUID.fromString(nina)), "completed", clock.instant());
+        recording(member, session, UUID.fromString(hello), "reading/" + member + "/" + session + "/" + hello + "/a.m4a");
+        jdbc.update("INSERT INTO line_memorization(id,user_id,line_id,status) VALUES (?,?,?,'memorized')",
+                UUID.randomUUID(), member, UUID.fromString(hello));
+        List<String> idsBefore = jdbc.queryForList("SELECT id FROM script_lines ORDER BY ordinal", String.class);
+        String fingerprintBefore = jdbc.queryForObject("SELECT request_fingerprint FROM scripts", String.class);
+
+        // 대사가 트레플레프 것으로 잘못 잡혔다 — 배역과 글을 고친다.
+        ObjectNode speaker = mapper.createObjectNode();
+        speaker.put("character_id", treplev);
+        speaker.put("text", "  안녕하세요, 콘스탄틴  ");
+        JsonNode moved = json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello).content(speaker.toString()), 200);
+        assertThat(moved.path("lines").get(2).path("character_id").textValue()).isEqualTo(treplev);
+        assertThat(moved.path("lines").get(2).path("text").textValue()).as("앞뒤 공백을 정리한다").isEqualTo("안녕하세요, 콘스탄틴");
+        assertThat(moved.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
+                .as("배역별 대사 수를 다시 센다").containsExactly(1, 2);
+
+        // 지문이 대사로 잡혀야 했다 — 지문을 니나 대사로 바꾸면 대사 번호가 하나씩 밀린다.
+        ObjectNode toDialogue = mapper.createObjectNode();
+        toDialogue.put("kind", "dialogue");
+        toDialogue.put("character_id", nina);
+        JsonNode promoted = json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, direction).content(toDialogue.toString()), 200);
+        assertThat(promoted.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
+                .containsExactly(null, 1, 2, 3, null, 4);
+
+        // 대사를 지문으로 — 배역은 저절로 빠진다.
+        ObjectNode toDirection = mapper.createObjectNode();
+        toDirection.put("kind", "direction");
+        JsonNode demoted = json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, direction).content(toDirection.toString()), 200);
+        assertThat(demoted.path("lines").get(1).path("kind").textValue()).isEqualTo("direction");
+        assertThat(demoted.path("lines").get(1).path("character_id").isNull()).isTrue();
+
+        assertThat(jdbc.queryForList("SELECT id FROM script_lines ORDER BY ordinal", String.class)).as("줄 id·순서는 그대로").isEqualTo(idsBefore);
+        assertThat(count("reading_recordings")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT line_id FROM reading_recordings", String.class)).isEqualTo(hello);
+        assertThat(jdbc.queryForObject("SELECT line_id FROM line_memorization", String.class)).isEqualTo(hello);
+        assertThat(jdbc.queryForObject("SELECT status FROM reading_sessions WHERE id=?", String.class, session)).isEqualTo("completed");
+        assertThat(jdbc.queryForObject("SELECT request_fingerprint FROM scripts", String.class)).isEqualTo(fingerprintBefore);
+        assertThat(jdbc.queryForObject("SELECT updated_at > created_at FROM scripts", Boolean.class)).as("고친 시각이 는다").isTrue();
+
+        JsonNode replayed = json(post("/v2/reading/scripts").content(sample(requestId, "갈매기")), 200);
+        assertThat(replayed.path("lines").get(2).path("text").textValue()).as("재전송은 고친 대본을 돌려준다").isEqualTo("안녕하세요, 콘스탄틴");
+    }
+
+    @Test
+    @DisplayName("reading.script: 줄 고치기 거절 — 대사인데 배역이 없거나 다른 대본의 배역, 지문에 배역: 422 invalid_line. 빈 글: 422 배열. 없는 줄·다른 대본의 줄: 404 line_not_found. 남의 대본: 404 script_not_found. 거절되면 줄은 그대로다")
+    void readingScript_rejectedLineEditsChangeNothing() throws Exception {
+        JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
+        String scriptId = saved.path("id").textValue();
+        String nina = saved.path("characters").get(0).path("id").textValue();
+        String direction = saved.path("lines").get(1).path("id").textValue();
+        String hello = saved.path("lines").get(2).path("id").textValue();
+        JsonNode other = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "다른 대본")), 201);
+        String foreignCharacter = other.path("characters").get(0).path("id").textValue();
+        String foreignLine = other.path("lines").get(2).path("id").textValue();
+        List<Map<String, Object>> before = jdbc.queryForList("SELECT id,kind,character_id,text FROM script_lines ORDER BY script_id,ordinal");
+
+        ObjectNode noSpeaker = mapper.createObjectNode().put("kind", "dialogue");
+        ObjectNode foreignSpeaker = mapper.createObjectNode().put("character_id", foreignCharacter);
+        ObjectNode directionWithSpeaker = mapper.createObjectNode().put("character_id", nina);
+        for (var entry : List.of(Map.entry(direction, noSpeaker), Map.entry(hello, foreignSpeaker), Map.entry(direction, directionWithSpeaker))) {
+            assertThat(json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, entry.getKey()).content(entry.getValue().toString()), 422))
+                    .as(entry.getValue().toString()).isEqualTo(mapper.readTree("{\"detail\":\"invalid_line\"}"));
+        }
+        assertThat(json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello).content("{\"text\":\"   \"}"), 422).path("detail").isArray())
+                .as("빈 글은 형태 오류 422 배열").isTrue();
+        assertThat(json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello).content("{\"ordinal\":3}"), 422).path("detail").isArray())
+                .as("모르는 키는 422 배열").isTrue();
+        for (String line : List.of(UUID.randomUUID().toString(), foreignLine)) {
+            assertThat(json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, line).content("{\"text\":\"x\"}"), 404))
+                    .isEqualTo(mapper.readTree("{\"detail\":\"line_not_found\"}"));
+        }
+        var foreign = perform(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"x\"}"), "Bearer " + jwt.issueAccessToken(member()).value());
+        assertThat(foreign.getStatus()).isEqualTo(404);
+        assertThat(mapper.readTree(foreign.getContentAsString())).isEqualTo(mapper.readTree("{\"detail\":\"script_not_found\"}"));
+        assertThat(jdbc.queryForList("SELECT id,kind,character_id,text FROM script_lines ORDER BY script_id,ordinal")).isEqualTo(before);
+    }
+
+    @Test
     @DisplayName("reading.script: 이름을 빈 값으로 — 422 invalid_characters. 같은 대본의 다른 배역과 같은 이름으로 — 422 invalid_characters. 저장 때도 같고, 두 이름을 맞바꾸는 것은 된다")
     void readingScript_blankOrDuplicateNamesAreRejected() throws Exception {
         for (List<String> names : List.of(List.of("니나", "   "), List.of("니나", " 니나 "))) {

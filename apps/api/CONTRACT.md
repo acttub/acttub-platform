@@ -760,6 +760,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **등록·수정은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 본다**(`PostgresScriptRepository#lockActive`, §6-8 과 같은
   형태). 활성이 아니면 저장소가 `OwnerNotActive` 를 알리고 `ScriptService#activeOnly` 가 403 으로 바꾼다. 같은 회원의
   등록이 겹쳐도 여기서 줄을 서므로 개수 한도가 정확하다.
+- **줄 고치기**(`PostgresScriptRepository#editLine`, ADR-035): 대본 행을 `FOR UPDATE` 로 잡은 뒤 그 줄 행도 잡고, 같은
+  트랜잭션에서 `script_lines` 의 kind·character_id·text 만 바꾸고 `scripts.updated_at` 을 늘린다. 줄 id·ordinal 은 건드리지
+  않아 회차·녹음·암기의 FK 가 그대로다. 대사↔배역 규칙은 `ck_script_lines_dialogue_has_character` 와 같은 판정을 저장소가
+  먼저 해 422 `invalid_line` 으로 답한다.
 - 검색은 `%`·`_`·`\` 를 풀어(`escapeLike`) `ILIKE … ESCAPE '\'` 로 찾는다(`PostgresScriptRepository`). 찾는 칸은 reading.script.
 - **삭제**: 줄·회차·녹음·암기 행은 `PostgresScriptRepository#delete` 가 한 트랜잭션에서 지운다. 녹음 객체의 삭제는 행을
   지운 트랜잭션이 정리 장부(`reading_recording_delete`)에 올리고 커밋 뒤에 시도한다(`reading/app/

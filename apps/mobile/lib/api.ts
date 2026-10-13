@@ -88,6 +88,7 @@ import type {
   ImportTicket,
   MemorizationStatus,
   PatchScriptBody,
+  PatchScriptLineBody,
   ProgressBody,
   ProgressResponse,
   ScriptDetail,
@@ -593,10 +594,22 @@ export const api = {
     return request<ScriptDetail>(`/v2/reading/scripts/${encodeURIComponent(scriptId)}`, {}, { timeoutMs: 20_000 });
   },
 
-  /** 제목·배역 이름·목소리만 고친다. 줄은 불변이다. 빈 이름·겹치는 이름은 422 invalid_characters. */
+  /** 제목·배역 이름·목소리만 고친다(줄은 updateReadingScriptLine). 빈 이름·겹치는 이름은 422 invalid_characters. */
   updateReadingScript(scriptId: string, body: PatchScriptBody): Promise<ScriptDetail> {
     return request<ScriptDetail>(
       `/v2/reading/scripts/${encodeURIComponent(scriptId)}`,
+      jsonInit(body, 'PATCH'),
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /**
+   * 줄 하나의 종류·배역·글을 고친다(SOMA-669). 줄 id 는 그대로라 회차·녹음·외운 줄이 이어진다. 대사인데 배역이 없거나
+   * 지문에 배역이면 422 invalid_line, 없는 줄은 404 line_not_found. 고친 대본 전체가 온다.
+   */
+  updateReadingScriptLine(scriptId: string, lineId: string, body: PatchScriptLineBody): Promise<ScriptDetail> {
+    return request<ScriptDetail>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/lines/${encodeURIComponent(lineId)}`,
       jsonInit(body, 'PATCH'),
       { timeoutMs: 20_000 },
     );

@@ -20,6 +20,7 @@ import {
   importAlert,
   retryFlags,
   runScriptImport,
+  TITLE_MAX,
   scriptSplitDocument,
   uploadScriptFile,
   type ImportFlags,
@@ -97,6 +98,8 @@ export default function ReadingNew() {
   const sample = useLocalSearchParams<{ sample?: string }>().sample === '1';
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [popup, setPopup] = useState<Popup | null>(null);
+  // 배우가 적는 대본 제목(SOMA-669). 비우면 서버가 대본에서 찾아 붙인다.
+  const [title, setTitle] = useState('');
   const pasteTabTarget = useSpotlightTarget(TARGET.readingDrop);
   const nextTarget = useSpotlightTarget(TARGET.readingNext);
   const tutorialGuide = useTutorialSpotlight('readingNew');
@@ -204,7 +207,7 @@ export default function ReadingNew() {
     // 버튼 이름대로 동의 → 올리기 → 나누기까지 잇는다.
     setPopup(null);
     const next = await upload(resume.file);
-    if (next) await split(next, {});
+    if (next) await split(next, { title });
   };
 
   const setTab = (tab: ScriptTab) => dispatch({ type: 'tab', tab });
@@ -221,6 +224,21 @@ export default function ReadingNew() {
         <Text style={styles.step}>{t('reading.newStep')}</Text>
         <Text style={styles.title}>{t('reading.newHeading')}</Text>
         <Text style={styles.sub}>{t('reading.newSub')}</Text>
+
+        <View style={styles.titleField}>
+          <Text style={styles.titleLabel}>{t('reading.newTitleLabel')}</Text>
+          <TextInput
+            style={styles.titleInput}
+            value={title}
+            onChangeText={setTitle}
+            placeholder={t('reading.newTitlePlaceholder')}
+            placeholderTextColor={palette.textFaint}
+            maxLength={TITLE_MAX}
+            editable={!working}
+            returnKeyType="done"
+            accessibilityLabel={t('reading.newTitleLabel')}
+          />
+        </View>
 
         <View style={styles.segment}>
           <SegmentTab icon="paperclip" label={t('reading.tabFile')} on={input.tab === 'file'} onPress={() => setTab('file')} />
@@ -284,7 +302,7 @@ export default function ReadingNew() {
           ref={nextTarget.ref}
           onLayout={nextTarget.onLayout}
           style={[styles.primary, !pending && styles.primaryOff]}
-          onPress={() => pending && void split(pending, {})}
+          onPress={() => pending && void split(pending, { title })}
           disabled={!pending || !!popup}>
           <Text style={styles.primaryText}>{t('reading.next')}</Text>
         </Pressable>
@@ -418,6 +436,9 @@ const styles = StyleSheet.create({
   step: { color: palette.blue, fontFamily: 'Pretendard-SemiBold', fontSize: 12, letterSpacing: 0.3 },
   title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 2 },
   sub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 20 },
+  titleField: { gap: 6, marginTop: 4 },
+  titleLabel: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  titleInput: { backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: palette.text, fontFamily: 'Pretendard', fontSize: 15 },
   segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 12, padding: 4, marginTop: 4 },
   segmentSlot: { flex: 1 },
   segmentTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 9, paddingVertical: 10 },
