@@ -6,10 +6,8 @@ const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'
 
 test('스택 화면의 뒤로 버튼은 설정 화면과 같은 꺾쇠 버튼이다(네이티브 뒤로 버튼 대신, SOMA-638)', () => {
   const root = read('app/_layout.tsx');
-  assert.match(root, /headerBackVisible: false/);
-  assert.match(root, /headerLeft: \(\) => <HeaderBack \/>/);
   // iOS 는 네이티브 헤더(버튼마다 유리 배경) 대신 설정 화면처럼 꺾쇠 옆에 제목을 붙인 헤더를 직접 그린다.
-  assert.match(root, /Platform\.OS === 'ios' \? \{ header: \(props: NativeStackHeaderProps\) => <AppHeader \{\.\.\.props\} \/> \}/);
+  assert.match(root, /headerBackVisible: false,\s*headerLeft: \(\) => <HeaderBack \/>,\s*header: \(props: NativeStackHeaderProps\) => <AppHeader \{\.\.\.props\} \/>,/);
   const header = read('components/app-header.tsx');
   assert.match(header, /options\.headerLeft\?\.\(/);
   assert.match(header, /options\.headerRight\?\.\(/);
@@ -32,12 +30,11 @@ test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이
   assert.match(tabs, /!IOS && focused && <Text style=\{\[styles\.tabLabel/);
 });
 
-test('안드로이드 뒤로 버튼은 돌아갈 곳이 없어도 사라지지 않는다 — 헤더 조각이 붙었다 떨어지면 앱이 꺼진다(SOMA-665)', () => {
-  const back = read('components/header-back.tsx');
-  // 예시 코치 화면처럼 뒤로 가기를 붙잡았다 다시 보내는 화면이 닫히는 사이에 canGoBack 이 바뀌어 버튼이 사라졌다
-  // 생기면, 안드로이드 헤더(react-native-screens)가 같은 조각을 두 번 붙이려다 앱이 꺼졌다. 그래서 안드로이드에서는
-  // 늘 그려 두고 숨기기·눌러도 아무 일 없게만 한다. iOS 는 헤더를 앱이 그려서(AppHeader) 빼도 된다.
-  assert.doesNotMatch(back, /if \(!router\.canGoBack\(\)\) return null;/);
-  assert.match(back, /if \(!canGoBack && Platform\.OS === 'ios'\) return null;/);
-  assert.match(back, /disabled=\{!canGoBack\}/);
+test('안드로이드는 네이티브 뒤로 버튼에 꺾쇠 그림만 씌우고 헤더에 직접 만든 버튼을 넣지 않는다 — 넣으면 화면을 닫을 때 앱이 꺼졌다(SOMA-665)', () => {
+  const root = read('app/_layout.tsx');
+  // 예시 코치 화면처럼 뒤로 가기를 붙잡았다 다시 보내는 화면이 닫힐 때, 안드로이드 헤더(react-native-screens)가 직접 만든
+  // 뒤로 버튼을 두 번 붙이려다 앱이 꺼졌다. 숨기기만 하는 1차 수정으로는 폰 뒤로 키 경로가 여전히 꺼졌다.
+  const android = root.slice(root.indexOf(': {', root.indexOf("Platform.OS === 'ios'\n            ? {")));
+  assert.match(android, /headerBackIcon: \{ type: 'image', source: require\('@\/assets\/images\/header-back\.png'\) \}/);
+  assert.doesNotMatch(android.slice(0, android.indexOf('}>')), /headerLeft/);
 });
