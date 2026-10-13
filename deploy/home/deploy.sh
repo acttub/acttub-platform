@@ -77,18 +77,37 @@ compose() { docker compose --env-file .env --env-file "$RELEASE_FILE" "$@"; }
 state_of() { docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$1"; }
 name_of() { local n; n="$(docker inspect -f '{{.Name}}' "$1")" && printf '%s\n' "${n#/}"; }
 hash_of() { docker inspect -f '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$1"; }
-# compose 가 지금 설정으로 만들 컨테이너의 해시 — 도는 컨테이너의 라벨과 같으면 바뀐 것이 없다.
+# compose 가 지금 설정으로 만들 컨테이너의 해시 — 도는 컨테이너의 라벨과 같으면 바뀐 것이 없다. proxy 에만 쓴다(아래).
 want_hash() { local out; out="$(compose config --hash "$1")" && printf '%s\n' "${out##* }"; }
-# proxy 가 지금 넘겨주는 컨테이너 이름(web|api). active.conf 가 없으면 빈 값.
+# api·web 의 지문 — 서비스 하나의 config 출력(env_file 에서 읽은 environment 포함)의 cksum. config --hash 를 쓰지 않는다:
+# Compose 2.38 의 config --hash 는 env_file 의 내용이 바뀌어도 그대로라 .env·release.env 만 바뀐 배포를 놓쳤다(SOMA-700 시험).
+fingerprint() { local out; out="$(compose config "$1" | cksum)" && set -- $out && printf '%s-%s\n' "$1" "$2"; }
+# proxy 가 지금 넘겨주는 컨테이너 이름(web|api)과 그 컨테이너를 만든 설정의 지문. active.conf 가 없으면 빈 값.
 active_name() { [ ! -f "$ACTIVE" ] || sed -n "s/^map [$]host [$]$1_upstream { default \([^: ;]*\):.*/\1/p" "$ACTIVE"; }
+active_hash() { [ ! -f "$ACTIVE" ] || sed -n "s/^# config-hash $1 \([^ ]*\)$/\1/p" "$ACTIVE"; }
 nginx_cmd() { compose exec -T proxy nginx -c /etc/nginx/acttub/nginx.conf "$@"; }
+# 옛 worker(인자로 받은 PID) 가 하나도 손님을 받지 않고 새 worker 가 하나 이상 받으면 0. busybox 의 pgrep -x 는 nginx 를 못
+# 찾아서 comm 으로 찾고 /proc/<pid>/cmdline 의 제목으로 가른다(정리 중인 worker 는 "… is shutting down").
+RELOADED_CHECK='old=" $* "; ready=0; for p in $(pgrep nginx); do t=$(tr "\0" " " < "/proc/$p/cmdline" 2>/dev/null); case "$t" in "nginx: worker process is shutting down"*) ;; "nginx: worker process"*) case "$old" in *" $p "*) exit 1 ;; esac; ready=1 ;; esac; done; [ "$ready" = 1 ]'
+wait_reloaded() {
+  local i
+  for i in $(seq 1 50); do
+    # shellcheck disable=SC2086 # old_workers 는 공백으로 가른 PID 목록이다.
+    compose exec -T proxy sh -c "$RELOADED_CHECK" -- $old_workers && return 0
+    sleep 0.2
+  done
+  return 1
+}
 
-# write_active <web 컨테이너 이름> <api 컨테이너 이름> — 임시 파일에 쓰고 mv 로 바꾼다(reload 가 반쯤 쓴 파일을 읽지 않게).
+# write_active <web 이름> <api 이름> <web 해시> <api 해시> — 임시 파일에 쓰고 mv 로 바꾼다(reload 가 반쯤 쓴 파일을 읽지 않게).
+# 지문은 다음 배포가 "바뀐 것이 없다"를 가르는 기준이다(roll). 주석이라 nginx 는 읽지 않는다.
 write_active() {
   local tmp
   tmp="$(mktemp proxy/active.conf.XXXXXX)" || return 1
   printf '%s\n' \
     "# deploy.sh 가 배포마다 쓴다 — 손으로 고치지 않는다. proxy 가 넘겨줄 지금 판의 컨테이너(nginx.conf 가 include)." \
+    "# config-hash web $3" \
+    "# config-hash api $4" \
     "map \$host \$web_upstream { default $1:3000; }" \
     "map \$host \$api_upstream { default $2:8080; }" > "$tmp" \
     && chmod 644 "$tmp" && mv -f "$tmp" "$ACTIVE"
@@ -100,11 +119,12 @@ phase=prepare
 release_tmp=""
 created=""
 old_api="" new_api="" old_web="" new_web=""
+old_api_hash="" new_api_hash="" old_web_hash="" new_web_hash=""
 undo() {
   local id
   printf '▶ 되돌리기 — 새 컨테이너를 지우고 옛 판을 그대로 둔다\n' >&2
   if [ "$phase" = switched ] && [ -n "$old_web" ] && [ -n "$old_api" ]; then
-    if write_active "$(name_of "$old_web")" "$(name_of "$old_api")" && nginx_cmd -s reload; then
+    if write_active "$(name_of "$old_web")" "$(name_of "$old_api")" "$old_web_hash" "$old_api_hash" && nginx_cmd -s reload; then
       echo "  proxy 를 옛 컨테이너로 되돌렸다" >&2
     else
       echo "⚠ proxy 를 옛 컨테이너로 되돌리지 못했다 — proxy/active.conf 와 compose ps 를 본다" >&2
@@ -185,7 +205,7 @@ compose up -d --no-deps --wait --wait-timeout "$WAIT_SECONDS" db || fail "db 가
 # roll <서비스> → rolled_old(지금 proxy 가 넘겨주는 컨테이너)·rolled_new(넘길 컨테이너). 설정이 그대로면 둘이 같다.
 roll() {
   local svc="$1" want ids id target keep=""
-  want="$(want_hash "$svc")" || fail "$svc 의 설정 해시를 구하지 못했다"
+  want="$(fingerprint "$svc")" || fail "$svc 의 설정 지문을 구하지 못했다"
   ids="$(compose ps -a -q "$svc")" || fail "$svc 컨테이너 목록을 읽지 못했다"
   target="$(active_name "$svc")"
   # 옛 판은 proxy 가 넘겨주는 healthy 컨테이너다. active.conf 가 없거나(이 방식의 첫 배포) 가리키는 컨테이너가 없으면
@@ -199,8 +219,10 @@ roll() {
   for id in $ids; do
     [ "$id" = "$keep" ] || docker rm -f "$id" >/dev/null || fail "남은 $svc 컨테이너를 지우지 못했다: $id"
   done
-  rolled_old="$keep" rolled_new="$keep"
-  if [ -n "$keep" ] && [ "$(hash_of "$keep")" = "$want" ]; then
+  rolled_old="$keep" rolled_new="$keep" rolled_old_hash="$(active_hash "$svc")" rolled_new_hash="$want"
+  # 바뀐 것이 없다 = proxy 가 넘겨주는 그 컨테이너를 만들 때 active.conf 에 적어 둔 지문이 지금 것과 같다. 컨테이너 라벨과
+  # 견주지 않는다 — Compose 2.38 은 env_file 이 있는 서비스(api)에서 config --hash 가 라벨과 늘 달라 매번 새 판을 띄웠다.
+  if [ -n "$keep" ] && [ "$(name_of "$keep")" = "$target" ] && [ "$rolled_old_hash" = "$want" ]; then
     echo "  $svc 그대로 — $(name_of "$keep")"
     return 0
   fi
@@ -217,8 +239,8 @@ roll() {
 }
 
 step "설정이 바뀐 api·web 을 옛 것 옆에 띄운다"
-roll api; old_api="$rolled_old" new_api="$rolled_new"
-roll web; old_web="$rolled_old" new_web="$rolled_new"
+roll api; old_api="$rolled_old" new_api="$rolled_new" old_api_hash="$rolled_old_hash" new_api_hash="$rolled_new_hash"
+roll web; old_web="$rolled_old" new_web="$rolled_new" old_web_hash="$rolled_old_hash" new_web_hash="$rolled_new_hash"
 
 wait_healthy() {
   local deadline=$((SECONDS + WAIT_SECONDS)) id st
@@ -242,14 +264,18 @@ fi
 step "proxy 넘기기 — web $(name_of "$new_web"), api $(name_of "$new_api")"
 # active.conf 를 쓰는 순간부터는 실패하면 옛 컨테이너로 다시 써야 한다(undo). 남겨 두면 다음 배포가 엉뚱한 컨테이너를 옛 판으로 본다.
 phase=switched
-write_active "$(name_of "$new_web")" "$(name_of "$new_api")" || fail "proxy/active.conf 를 쓰지 못했다"
+write_active "$(name_of "$new_web")" "$(name_of "$new_api")" "$new_web_hash" "$new_api_hash" || fail "proxy/active.conf 를 쓰지 못했다"
 old_workers=""
 proxy_id="$(compose ps -q proxy)"
+# proxy 는 env_file 이 없어 라벨과 config --hash 가 Compose 버전과 무관하게 같다(roll 의 주석 참고).
 if [ -n "$proxy_id" ] && [ "$(state_of "$proxy_id")" = healthy ] && [ "$(hash_of "$proxy_id")" = "$(want_hash proxy)" ]; then
   # reload 뒤에도 옛 worker 는 이미 받은 요청을 옛 판으로 보낸다. 그것들이 끝나야 옛 컨테이너를 멈출 수 있다(8단계).
   old_workers="$(compose exec -T proxy pgrep -f 'nginx: worker process' | tr '\n' ' ')" || fail "proxy 의 nginx worker 를 읽지 못했다"
   nginx_cmd -t -q || fail "proxy 설정 검사(nginx -t)가 실패했다"
   nginx_cmd -s reload || fail "proxy reload 가 실패했다"
+  # reload 는 신호만 보내고 돌아온다. 손님을 받는 worker 가 모두 새 것이 된 뒤에 대조한다 — 그 전에 물으면 옛 worker 가 옛 판의
+  # 답으로 대조를 통과시킬 수 있다(같은 sha 로 .env 만 바꿔 다시 배포할 때 실제로 그랬다, SOMA-700 smoke).
+  wait_reloaded || fail "proxy 의 옛 worker 가 10초 안에 손님 받기를 멈추지 않았다"
 else
   # 처음이거나 proxy 의 이미지·설정이 바뀌었다 — 다시 만드는 동안은 끊긴다.
   compose up -d --no-deps --wait --wait-timeout "$WAIT_SECONDS" proxy || fail "proxy 가 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다"

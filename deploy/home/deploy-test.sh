@@ -45,10 +45,9 @@ case "${1:-}" in
   version) exit 0 ;;
   config)
     [ "${TEST_CONFIG_FAILURE:-false}" != true ] || exit 1
-    if [ "${2:-}" = --hash ]; then
-      if [ "$3" = proxy ]; then echo "proxy ${TEST_PROXY_HASH:-p1}"; else echo "$3 ${TEST_HASH:-h1}"; fi
-      exit
-    fi
+    # --hash 는 proxy 의 라벨 비교에만, 서비스 하나의 config 출력은 api·web 의 지문(deploy.sh 가 cksum)에 쓰인다.
+    if [ "${2:-}" = --hash ]; then echo "$3 ${TEST_PROXY_HASH:-p1}"; exit; fi
+    if [ "${2:-}" != --no-env-resolution ]; then printf 'services:\n  %s:\n    test: %s\n' "$2" "${TEST_HASH:-h1}"; exit; fi
     printf 'api\nweb\ndb\nproxy\ncloudflared\n'
     [ "${TEST_BACKUP_ACTIVE:-false}" != true ] || echo backup ;;
   pull) call "$*"; [ "${TEST_PULL_FAILURE:-false}" != true ] ;;
@@ -58,7 +57,8 @@ case "${1:-}" in
     case "$svc" in
       api|web)
         [ "${TEST_UP_FAILURE:-false}" != true ] || exit 1
-        create "$svc" "${TEST_HASH:-h1}" "${TEST_NEW_HEALTH:-healthy}" ;;
+        # Compose 2.38 처럼 env_file 이 있는 서비스는 라벨이 config --hash 와 다르게 남는다 — deploy.sh 가 라벨에 기대면 걸린다.
+        create "$svc" "label-${TEST_HASH:-h1}" "${TEST_NEW_HEALTH:-healthy}" ;;
       proxy) rm -f "$S"/proxy*; create proxy "${TEST_PROXY_HASH:-p1}" healthy ;;
       cloudflared) [ "${TEST_TUNNEL_FAILURE:-false}" != true ] ;;
       # 넘긴 뒤의 backup 단계만 --remove-orphans 를 쓴다(3단계의 db 와 가른다).
@@ -84,8 +84,11 @@ case "${1:-}" in
         pgrep) echo 11 ;;
         nginx) [ "${TEST_NGINX_FAILURE:-false}" != true ] ;;
         wget) [ "${TEST_STATUS:-200}" = 200 ] && printf '{"status":"ok","commit":"%s"}' "${TEST_COMMIT:-0123456}" ;;
-        # 옛 worker 확인 — TEST_WORKERS_ALIVE 번까지는 아직 살아 있다고 답한다(처리 중인 요청이 있다).
-        sh) n=$(( $(cat "$S/.sh" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$S/.sh"; [ "$n" -le "${TEST_WORKERS_ALIVE:-0}" ] ;;
+        sh)
+          if [[ "${3:-}" == *"kill -0"* ]]; then
+            # 드레인 확인 — TEST_WORKERS_ALIVE 번까지는 옛 worker 가 아직 살아 있다고 답한다(처리 중인 요청이 있다).
+            n=$(( $(cat "$S/.sh" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$S/.sh"; [ "$n" -le "${TEST_WORKERS_ALIVE:-0}" ]
+          fi ;;  # reload 확인 — 새 worker 만 손님을 받는다
         *) exit 2 ;;
       esac
     fi ;;
@@ -138,6 +141,7 @@ grep -qx 'pull --policy missing api web' "$WORK/calls"
 [ ! -e "$WORK/release.env.prev" ] || exit 1
 [ "$(active api)" = proj-api-1 ]
 [ "$(active web)" = proj-web-2 ]
+grep -q '^# config-hash api [0-9]*-[0-9]*$' "$WORK/proxy/active.conf"
 grep -q '^up -d --no-deps --wait --wait-timeout 180 proxy$' "$WORK/calls"
 ! grep -q 'reload' "$WORK/calls" || exit 1
 # 같은 설정으로 다시: 새 컨테이너 없이 reload 만 하고 아무것도 내리지 않는다(멱등).
@@ -163,9 +167,12 @@ tunnel_at="$(grep -n -x 'up -d --no-deps --wait --wait-timeout 180 cloudflared' 
 stop_at="$(grep -n -x 'stop web2' "$WORK/calls" | cut -d: -f1)"
 [ "$tunnel_at" -lt "$stop_at" ]
 # 옛 worker 가 살아 있다고 답한 동안은 옛 컨테이너를 멈추지 않는다(드레인). 세 번째 물음에서야 끝났다고 답한다.
-[ "$(grep -c '^exec -T proxy sh -c' "$WORK/calls")" = 3 ]
-drained_at="$(grep -n '^exec -T proxy sh -c' "$WORK/calls" | tail -1 | cut -d: -f1)"
+[ "$(grep -c '^exec -T proxy sh -c for p in' "$WORK/calls")" = 3 ]
+drained_at="$(grep -n '^exec -T proxy sh -c for p in' "$WORK/calls" | tail -1 | cut -d: -f1)"
 [ "$drained_at" -lt "$(grep -n -x 'stop api1' "$WORK/calls" | cut -d: -f1)" ]
+# reload 뒤 손님을 받는 worker 가 모두 새 것임을 확인한 다음에 commit 을 대조한다.
+reloaded_at="$(grep -n '^exec -T proxy sh -c old=' "$WORK/calls" | head -1 | cut -d: -f1)"
+[ "$reloaded_at" -lt "$(grep -n '^exec -T proxy wget' "$WORK/calls" | head -1 | cut -d: -f1)" ]
 # 넘긴 뒤 commit 이 다르면 proxy 를 옛 컨테이너로 되돌리고 새 것을 지우고 release.env 를 되돌린다.
 cp "$WORK/release.env" "$WORK/committed-release.env"
 : > "$WORK/calls"
