@@ -83,3 +83,8 @@ test('practice.upload: 제목 칸·업로드 중 버튼·처리 중 잠금', () 
   const ko = read('locales/ko.ts');
   assert.match(ko, /submitUploading: '업로드 중…'/);
 });
+
+test('practice.upload: 올리는 중이면 안내도 「올리는 중」이다 — 「영상을 채워주세요」와 겹쳐 말하지 않는다', () => {
+  const src = read('app/upload.tsx');
+  assert.match(src, /: !sample && uploading\s*\? t\('start\.stillUploading'\)\s*: !sample && !canStart\(plan, videoId\)/);
+});
