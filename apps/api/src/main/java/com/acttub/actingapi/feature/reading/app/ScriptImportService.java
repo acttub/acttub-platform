@@ -37,12 +37,19 @@ public class ScriptImportService {
         this.clock = clock;
     }
 
+    /**
+     * 매핑 없는 글자를 뺀다 — 저장·지문·같은 글 판정 전에. NUL 은 PDF 추출기(pdf.js·PDFBox)가 매핑 없는 글자로 내고 Postgres text 가
+     * 담지 못한다(22021). U+F000 은 Hancom PDF 가 대응표를 비운 글리프(『』, 옛한글 자모 조각)에 적는 자리표다 — 운영 대본 203편 중
+     * 2편에서 화면에 □로 남았다(SOMA-663).
+     */
+    static String unmapped(String text) {
+        return text.replace("\u0000", "").replace("\uF000", "");
+    }
+
     public Ticket request(UUID userId, boolean guest, UUID requestId, Submission submission) {
-        // PDF 추출기가 매핑 없는 글자로 내는 NUL 은 Postgres text 가 담지 못한다(22021) — 저장·지문·같은 글 판정 전에 뺀다.
-        String title = submission.title() == null ? null : submission.title().replace("\u0000", "");
-        String rawText = (submission.uploadId() == null ? submission.rawText() : uploads.text(userId, submission.uploadId(), requestId,
-                submission.allowDuplicate()))
-                .replace("\u0000", "");
+        String title = submission.title() == null ? null : unmapped(submission.title());
+        String rawText = unmapped(submission.uploadId() == null ? submission.rawText() : uploads.text(userId, submission.uploadId(), requestId,
+                submission.allowDuplicate()));
         String source = submission.source();
         if (ScriptRules.length(rawText) > ScriptRules.TEXT_MAX) {
             throw new ApiException(422, "script_too_long");

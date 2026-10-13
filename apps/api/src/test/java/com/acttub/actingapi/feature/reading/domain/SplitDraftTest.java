@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.reading.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +95,122 @@ class SplitDraftTest {
 
         assertThat(draft.lines()).extracting(ScriptDraft.Line::text)
                 .containsExactly("(sitting) Did it answer?", "왔어?", "지수야, 왔어?", "응.");
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 모델이 머리를 비워도 배역 이름 뒤가 공백·탭·U+3000이면 뗀다. 한 글자 이름은 탭·U+3000·공백 두 칸 이상일 때만")
+    void infersAMissingHeaderBeforeWhitespace() {
+        String raw = "혜진 이준호!!\n경민\t\t그 쪽지.\n설정주\u3000 잠깐만.\n나 갈래\n나\t갈래\n나  안 가";
+        Map<Integer, Row> rows = Map.of(
+                1, new Row(1, Kind.DIALOGUE, "혜진", ""),
+                2, new Row(2, Kind.DIALOGUE, "경민", ""),
+                3, new Row(3, Kind.DIALOGUE, "설정주", ""),
+                4, new Row(4, Kind.DIALOGUE, "나", ""),
+                5, new Row(5, Kind.DIALOGUE, "나", ""),
+                6, new Row(6, Kind.DIALOGUE, "나", ""));
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of());
+
+        assertThat(draft.lines()).extracting(ScriptDraft.Line::text)
+                .containsExactly("이준호!!", "그 쪽지.", "잠깐만.", "나 갈래", "갈래", "안 가");
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 머리를 찾은 줄은 같은 배역이어도 새 대사다. 이름 없는 이어지는 줄과 들여 쓴 줄은 앞 대사에 붙는다")
+    void aLineWithAFoundHeaderStartsANewSpeech() {
+        String raw = "혜진 이준호!!\n혜진 너 애들 가르치는게 장난이야??\n규원\t하고 기가 막혀서 웃기지도 않는다.\n이게 일억 팔천이래.\nMARA. Did it answer?\nMARA. No."
+                + "\n리나 그게 너무 속상해요.\n        리나 맘 모르시죠?";
+        Map<Integer, Row> rows = Map.of(
+                1, new Row(1, Kind.DIALOGUE, "혜진", ""),
+                2, new Row(2, Kind.DIALOGUE, "혜진", ""),
+                3, new Row(3, Kind.DIALOGUE, "규원", ""),
+                4, new Row(4, Kind.DIALOGUE, "규원", ""),
+                5, new Row(5, Kind.DIALOGUE, "MARA", ""),
+                6, new Row(6, Kind.DIALOGUE, "MARA", ""),
+                7, new Row(7, Kind.DIALOGUE, "리나", ""),
+                8, new Row(8, Kind.DIALOGUE, "리나", ""));
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of());
+
+        assertThat(draft.lines()).extracting(ScriptDraft.Line::text).containsExactly(
+                "이준호!!", "너 애들 가르치는게 장난이야??", "하고 기가 막혀서 웃기지도 않는다. 이게 일억 팔천이래.", "Did it answer?", "No.",
+                "그게 너무 속상해요. 리나 맘 모르시죠?");
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 「- 27 -」만 있는 쪽 번호 줄은 모델이 대사·지문이라 해도 대본 줄에 넣지 않고, 앞뒤 대사는 이어진다")
+    void dropsPageNumberLinesWhateverTheModelSays() {
+        String raw = "아내: 저런 인간보다 못한 인간하고\n- 27 -\n살고 있다니.\n\u200B— 28 —\n남편: 그만해.";
+        Map<Integer, Row> rows = Map.of(
+                1, new Row(1, Kind.DIALOGUE, "아내", "아내: "),
+                2, new Row(2, Kind.DIALOGUE, "아내", ""),
+                3, new Row(3, Kind.DIALOGUE, "아내", ""),
+                4, new Row(4, Kind.DIRECTION, "", ""),
+                5, new Row(5, Kind.DIALOGUE, "남편", "남편: "));
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of());
+
+        assertThat(draft.lines()).extracting(ScriptDraft.Line::text)
+                .containsExactly("저런 인간보다 못한 인간하고 살고 있다니.", "그만해.");
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 지문이라 한 줄도 아는 배역 이름 + 탭·U+3000·공백 세 칸 뒤에 대사가 있으면 그 배역 대사다. 괄호 지문만 있으면 지문이다")
+    void aDirectionShapedLikeNameTabSpeechIsDialogue() {
+        String raw = "베니\t그래.\n베니\t\t(무너진다.) 안돼!!!\n양 베드로   아주 대단한 결심.\n연출        [방백] 다시 가요.\n베니\t(노래한다)"
+                + "\n베니\t[무대 밑에서]\n베니\t(아무 반응을 보이지 않는다 눈을\n베니  부인이 침대로 간다.\n모르는\t사람이 온다.\n트리니\t(웃는다) 좋아.\n베니: 응.";
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        rows.put(1, new Row(1, Kind.DIRECTION, "", ""));
+        rows.put(2, new Row(2, Kind.DIRECTION, "", ""));
+        rows.put(3, new Row(3, Kind.DIRECTION, "", ""));
+        // 4번 줄은 판정이 없다
+        for (int no = 5; no <= 10; no++) {
+            rows.put(no, new Row(no, Kind.DIRECTION, "", ""));
+        }
+        rows.put(11, new Row(11, Kind.DIALOGUE, "베니", "베니: ")); // 베니는 대사에서, 나머지는 배역 목록에서 안다
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of("양 베드로", "연출", "트리니"));
+
+        assertThat(draft.lines()).extracting(line -> line.kind() + "|"
+                + (line.characterIndex() == null ? "" : draft.characterNames().get(line.characterIndex())) + "|" + line.text())
+                .containsExactly(
+                        "dialogue|베니|그래.", "dialogue|베니|(무너진다.) 안돼!!!", "dialogue|양 베드로|아주 대단한 결심.",
+                        "dialogue|연출|[방백] 다시 가요.", "direction||베니\t(노래한다)", "direction||베니\t[무대 밑에서]",
+                        "direction||베니\t(아무 반응을 보이지 않는다 눈을", "direction||베니  부인이 침대로 간다.",
+                        "direction||모르는\t사람이 온다.", "dialogue|트리니|(웃는다) 좋아.", "dialogue|베니|응.");
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 블록 대사의 줄을 이을 때 단어 중간에서 끊긴 자리는 붙이고, 노래 구절·단어 경계는 띄운다")
+    void joinsWordsBrokenAtALineEnd() {
+        // 줄 끝 → 다음 줄 머리, 기대하는 이음
+        String[][] cases = {
+                {"살아가는 법", "을 모르잖아요", "살아가는 법을 모르잖아요"},          // 조사
+                {"숨었", "다.", "숨었다."},                                           // 받침 ㅆ
+                {"해준 적 있", "어요?", "해준 적 있어요?"},
+                {"그래", "서 말이야", "그래서 말이야"},                                // 같은 대본에 「그래서」
+                {"오, 오, 오", "잠을 깨면", "오, 오, 오 잠을 깨면"},                   // 노래 구절
+                {"2년이", "다 됐네", "2년이 다 됐네"},                                 // 혼자 단어로도 흔한 「다」
+                {"빨리", "와", "빨리 와"},
+                {"그", "사람이 왔어", "그 사람이 왔어"},                               // 같은 대본에 「그 사람이」
+                {"굿모닝 볼티모어", "와~ 날", "굿모닝 볼티모어 와~ 날"},              // 감탄사 줄
+                {"쓸 ", "데 없는 소리", "쓸 데 없는 소리"},                            // 원문이 줄 끝을 띄움
+                {"안녕.", "다음에 봐", "안녕. 다음에 봐"},                             // 문장부호로 끝남
+        };
+        StringBuilder raw = new StringBuilder("그래서 왔어. 그 사람이 왔다. 볼티모어와 날. 쓸데 없다.\n");
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        rows.put(1, new Row(1, Kind.DIRECTION, "", ""));
+        for (int i = 0; i < cases.length; i++) {
+            String speaker = i % 2 == 0 ? "지수" : "민호";
+            raw.append(cases[i][0]).append('\n').append(cases[i][1]).append('\n');
+            rows.put(2 * i + 2, new Row(2 * i + 2, Kind.DIALOGUE, speaker, ""));
+            rows.put(2 * i + 3, new Row(2 * i + 3, Kind.DIALOGUE, speaker, ""));
+        }
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw.toString(), "paste", NumberedLine.of(raw.toString()), rows, List.of());
+
+        assertThat(draft.lines().subList(1, draft.lines().size())).extracting(ScriptDraft.Line::text)
+                .containsExactly(Arrays.stream(cases).map(c -> c[2]).toArray(String[]::new));
     }
 
     @Test

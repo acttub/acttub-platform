@@ -780,7 +780,7 @@ class ReadingImportIT {
     }
 
     @Test
-    @DisplayName("PDF 추출기가 매핑 없는 글자로 내는 NUL(U+0000)이 글에 섞여 와도 접수된다 — 저장 전에 지우고, 같은 글 판정에도 들어가지 않는다")
+    @DisplayName("PDF 추출기가 매핑 없는 글자로 내는 NUL(U+0000)·Hancom PDF 의 U+F000 이 글에 섞여 와도 접수된다 — 저장 전에 지우고, 같은 글 판정에도 들어가지 않는다")
     void nulCharactersAreDroppedBeforeStorage() throws Exception {
         String clean = "니나: 저는 갈매기예요.\n트레플레프: 아니에요.";
         String scriptId = split(clean);
@@ -789,7 +789,7 @@ class ReadingImportIT {
         assertThat(duplicate.path("duplicate_script_id").textValue()).as("NUL 만 다른 글은 같은 글").isEqualTo(scriptId);
 
         String importId = json(post("/v2/reading/imports")
-                .content(request(UUID.randomUUID(), "갈\u0000매기", "니나: 저는 갈\u0000매기예요!\n\u0000트레플레프: 아니에요.", "paste")), 202)
+                .content(request(UUID.randomUUID(), "갈\u0000매기", "니나: 저는 \uF000갈\u0000매기\uF000예요!\n\u0000트레플레프: 아니에요.", "paste")), 202)
                 .path("import_id").textValue();
         assertThat(jdbc.queryForObject("SELECT raw_text FROM script_imports WHERE id=?::uuid", String.class, importId))
                 .isEqualTo("니나: 저는 갈매기예요!\n트레플레프: 아니에요.");
