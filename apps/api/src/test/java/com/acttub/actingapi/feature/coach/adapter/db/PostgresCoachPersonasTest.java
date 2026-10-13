@@ -2,22 +2,23 @@ package com.acttub.actingapi.feature.coach.adapter.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.acttub.actingapi.integration.llm.StructuredJson;
 import org.junit.jupiter.api.Test;
 
 class PostgresCoachPersonasTest {
-    @Test void eachAdvisorAlternatesAndStartsFromTheirOwnSide() {
-        assertThat(PostgresCoachPersonas.order(0, 0, 0)).isEqualTo("a");
-        assertThat(PostgresCoachPersonas.order(0, 0, 1)).isEqualTo("b1");
-        assertThat(PostgresCoachPersonas.order(0, 1, 1)).isEqualTo("a");
-        assertThat(PostgresCoachPersonas.order(1, 0, 0)).isEqualTo("b1");
-        assertThat(PostgresCoachPersonas.order(1, 1, 1)).isEqualTo("b1");
-        assertThat(PostgresCoachPersonas.order(-1, 0, 0)).as("음수 해시도 두 쪽 중 하나").isEqualTo("b1");
+    @Test void eachAdvisorHashMapsToTheirOwnPromptAndCommentsAreIgnored() {
+        String a = "a".repeat(64), b = "b".repeat(64);
+        var parsed = PostgresCoachPersonas.parse("# 설명 줄\n" + a + " park-seunga\n" + b + " cho-taemin\n" + "c".repeat(64) + "\nnot-a-hash x\n");
+        assertThat(parsed).containsOnlyKeys(a, b).containsEntry(a, "park-seunga").containsEntry(b, "cho-taemin");
     }
 
-    @Test void advisorsWhoOnlyGotTheDefaultCatchUpOnB1First() {
-        assertThat(PostgresCoachPersonas.order(0, 0, 3)).isEqualTo("b1");
-        assertThat(PostgresCoachPersonas.order(1, 2, 3)).isEqualTo("b1");
-        assertThat(PostgresCoachPersonas.order(1, 3, 2)).as("b1 이 앞서면 a").isEqualTo("a");
+    @Test void everyAdvisorInTheListHasAKoreanPromptFile() {
+        var advisors = PostgresCoachPersonas.parse(StructuredJson.textResource("/coaching/direct-video/personas/advisors.txt"));
+        assertThat(advisors).hasSize(13);
+        assertThat(advisors.values()).doesNotContain("a", "b1")
+                .allSatisfy(id -> assertThat(PostgresCoachPersonas.class.getResource("/coaching/direct-video/personas/advisors/" + id + ".txt"))
+                        .as(id).isNotNull());
+        assertThat(advisors.values()).containsOnly("cha-jeonghun", "cho-taemin", "choi-jeongju", "choi-yunhee", "jung-hani", "park-seunga", "kwon-ohryong");
     }
 
     @Test void emailsAreMatchedByLowercaseTrimmedHash() {
