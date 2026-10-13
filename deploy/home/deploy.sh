@@ -35,6 +35,7 @@ WAIT_SECONDS="${DEPLOY_WAIT_SECONDS:-180}"
 THREE_LAYERS_ENABLED="${DEPLOY_THREE_LAYERS_ENABLED:-}"
 DIRECT_VIDEO_ENABLED="${DEPLOY_DIRECT_VIDEO_ENABLED:-}"
 GUEST_DAILY_LIMIT_ENABLED="${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-}"
+REMINDER_AB_ENABLED="${DEPLOY_EVENING_REMINDER_AB_ENABLED:-}"
 
 step() { printf '▶ %s\n' "$*"; }
 fail() { printf '✗ %s\n' "$*" >&2; exit 1; }
@@ -51,6 +52,7 @@ case "$PULL_POLICY" in always|missing) ;; *) fail "DEPLOY_PULL_POLICY 는 always
 case "$GUEST_DAILY_LIMIT_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED 는 true 또는 false" ;; esac
 case "$THREE_LAYERS_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_THREE_LAYERS_ENABLED 는 true 또는 false" ;; esac
 case "$DIRECT_VIDEO_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_DIRECT_VIDEO_ENABLED 는 true 또는 false" ;; esac
+case "$REMINDER_AB_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_EVENING_REMINDER_AB_ENABLED 는 true 또는 false" ;; esac
 [[ "$WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]] || fail "DEPLOY_WAIT_SECONDS 는 양의 초 단위 정수: '$WAIT_SECONDS'"
 [ -f compose.yml ] || fail "compose.yml 이 없다 — 프로젝트 디렉토리(/svc/acttub/<env>)에서 실행한다: $PWD"
 [ -f .env ] || fail ".env 가 없다 — 사람이 채우는 파일이다(deploy/home/.env.example): $PWD"
@@ -84,6 +86,7 @@ EOF
 [ -z "$THREE_LAYERS_ENABLED" ] || printf 'ACTTUB_THREE_LAYERS_ENABLED=%s\n' "$THREE_LAYERS_ENABLED" >> "$RELEASE_FILE"
 [ -z "$DIRECT_VIDEO_ENABLED" ] || printf 'ACTTUB_DIRECT_VIDEO_ENABLED=%s\n' "$DIRECT_VIDEO_ENABLED" >> "$RELEASE_FILE"
 [ -z "$GUEST_DAILY_LIMIT_ENABLED" ] || printf 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=%s\n' "$GUEST_DAILY_LIMIT_ENABLED" >> "$RELEASE_FILE"
+[ -z "$REMINDER_AB_ENABLED" ] || printf 'ACTTUB_EVENING_REMINDER_PERSONAL_AB_ENABLED=%s\n' "$REMINDER_AB_ENABLED" >> "$RELEASE_FILE"
 # --no-env-resolution 은 첫 배포의 아직 없는 release.env 를 읽지 않고 치환과 활성 프로필만 검증한다.
 services="$(compose config --no-env-resolution --services)" || fail "compose 설정 검증에 실패했다"
 release_services=(api web)
@@ -159,6 +162,14 @@ if [ -n "$GUEST_DAILY_LIMIT_ENABLED" ]; then
   [ "$actual_guest_limit" = "$GUEST_DAILY_LIMIT_ENABLED" ] \
     || fail "게스트 일일 분석 한도 설정이 반영되지 않았다"
   step "게스트 일일 분석 한도 확인: $actual_guest_limit"
+fi
+
+if [ -n "$REMINDER_AB_ENABLED" ]; then
+  actual_reminder_ab="$(compose exec -T api printenv ACTTUB_EVENING_REMINDER_PERSONAL_AB_ENABLED)" \
+    || fail "저녁 리마인드 A/B 설정을 읽지 못했다"
+  [ "$actual_reminder_ab" = "$REMINDER_AB_ENABLED" ] \
+    || fail "저녁 리마인드 A/B 설정이 반영되지 않았다 (기대 $REMINDER_AB_ENABLED)"
+  step "저녁 리마인드 A/B 확인: $actual_reminder_ab"
 fi
 
 if [ -n "$DIRECT_VIDEO_ENABLED" ]; then
