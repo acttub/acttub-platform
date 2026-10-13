@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -66,6 +67,7 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { SAMPLE_PRACTICE_ID, sampleScene } from '@/lib/tutorial-sample';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
+import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
 
 /**
  * A8·A8.1·A9.x 새 연습 준비(practice.start · practice.resume).
@@ -133,8 +135,10 @@ export default function UploadScreen() {
   }, [sample]);
 
   const previewUri = picked?.uri ?? picked?.playbackUrl ?? null;
-  const player = useVideoPlayer(previewUri, (p) => {
+  const focused = useIsFocused();
+  const player = useVideoPlayer(sourceWhileFocused(previewUri, focused), (p) => {
     p.loop = false;
+    limitVideoBuffer(p);
   });
   // 올린 영상을 사용자가 미리보기에서 실제로 틀어 보는지 센다.
   useVideoPreviewEvents(player, 'upload', previewUri, { sample, continued: plan.video.kind === 'same' });
