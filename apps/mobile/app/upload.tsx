@@ -356,12 +356,13 @@ export default function UploadScreen() {
     if (!sample) void logEvent(PRACTICE_UPLOAD_EVENTS.rightsToggle, rightsToggleParams(next));
   };
   // 준비가 끝났으면 버튼만 둔다 — 무엇이 모자란지만 알린다.
+  // 올리는 중이면 영상은 이미 고른 것이다 — 「영상을 채워주세요」가 아니라 올리는 중이라고 말한다(SOMA-671).
   const hint = ready
     ? null
-    : !sample && !canStart(plan, videoId)
-      ? t('upload.missingVideo')
-      : !sample && uploading
-        ? t('start.stillUploading')
+    : !sample && uploading
+      ? t('start.stillUploading')
+      : !sample && !canStart(plan, videoId)
+        ? t('upload.missingVideo')
         : t('upload.missingRights');
 
   return (
