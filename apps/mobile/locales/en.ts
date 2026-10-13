@@ -675,6 +675,7 @@ const en: DeepStringShape<typeof ko> = {
     submitRetake: 'Continue with this',
     submitNew: 'Get questions',
     submitUploading: 'Uploading…',
+    sending: 'Sending — your notes go to the coach as they are.',
     titleLabel: 'Practice title',
     titlePh: 'e.g. Café breakup scene, take 2',
     titleTooLong: 'Titles can be up to 200 characters.',

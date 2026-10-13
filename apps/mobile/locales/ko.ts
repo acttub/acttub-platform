@@ -666,6 +666,7 @@ const ko = {
     submitRetake: '이대로 이어가기',
     submitNew: '질문 받기',
     submitUploading: '업로드 중…',
+    sending: '보내는 중이에요. 적은 내용은 이대로 코치에게 가요.',
     titleLabel: '연습 제목',
     titlePh: '예: 카페 이별 장면 2차',
     titleTooLong: '제목은 200자까지 쓸 수 있어요.',
