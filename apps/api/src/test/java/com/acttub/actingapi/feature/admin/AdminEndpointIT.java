@@ -242,7 +242,7 @@ class AdminEndpointIT {
         assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
         String body = result.getContentAsString();
         JsonNode response = mapper.readTree(body);
-        assertThat(response.path("advisor_accounts").intValue()).isEqualTo(1);
+        assertThat(response.path("advisor_accounts").intValue()).as("해시 줄 + id 붙은 줄, 모양 틀린 줄 제외").isEqualTo(2);
         JsonNode sessions = response.path("sessions");
         assertThat(sessions).as("일반·팀 배우의 옛 코치 세션은 빠진다").hasSize(2);
 
