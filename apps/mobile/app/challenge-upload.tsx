@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -35,6 +36,7 @@ import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { confirmedVideoFor, flushLibraryUploads, localCopyFor, onLibraryChange, saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { takeRecordedVideo } from '@/lib/recorded-video';
+import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
 
 /**
  * A18.1·A18.2 올리기 → A18.3 완료(challenge.entry).
@@ -89,8 +91,10 @@ export default function ChallengeUploadScreen() {
     [],
   );
 
-  const player = useVideoPlayer(localUri, (p) => {
+  const focused = useIsFocused();
+  const player = useVideoPlayer(sourceWhileFocused(localUri, focused), (p) => {
     p.loop = true;
+    limitVideoBuffer(p);
     p.muted = true;
     p.play();
   });

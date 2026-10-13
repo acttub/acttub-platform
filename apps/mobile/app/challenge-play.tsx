@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -31,6 +32,7 @@ import { createViewTracker, VIEW_THRESHOLD_MS } from '@/lib/challenge/views';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { newRequestId } from '@/lib/request-id';
+import { limitVideoBuffer } from '@/lib/video-memory';
 
 /**
  * A15 챌린지 피드 — 고른 챌린지 **안에서만** 참여작을 위아래로 넘겨 본다.
@@ -65,8 +67,10 @@ export default function ChallengePlayScreen() {
   const [reportTarget, setReportTarget] = useState<{ type: ReportTarget; id: string } | null>(null);
   const listRef = useRef<FlatList<EntryCard>>(null);
 
+  const focused = useIsFocused();
   const player = useVideoPlayer(null, (p) => {
     p.loop = true;
+    limitVideoBuffer(p);
   });
 
   useEffect(() => {
@@ -110,6 +114,26 @@ export default function ChallengePlayScreen() {
     setPlaying(true);
     logEvent('challenge_swipe', { index: active });
   }, [active, entries, player]);
+
+  // 위에 촬영 같은 다른 화면이 올라오면 영상을 내려놓아 메모리를 돌려주고, 돌아오면 보던 참여작을 다시 튼다(SOMA-699).
+  useEffect(() => {
+    if (focused) return;
+    player.pause();
+    player.replace(null);
+    return () => {
+      const entry = entries?.[active];
+      if (!entry?.playback_url) return;
+      try {
+        player.replace(entry.playback_url);
+        player.play();
+        setPlaying(true);
+      } catch {
+        // 가려진 채로 화면이 닫히면 플레이어가 먼저 풀려 있을 수 있다 — 그때는 다시 틀 필요가 없다.
+      }
+    };
+    // 가려진 동안 entries·active 는 바뀌지 않는다 — 돌아올 때 그때의 참여작을 다시 튼다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, player]);
 
   /** 다음 20개를 이어 받는다. 정렬 기준이 바뀌면(410) 처음부터 다시 읽는다. */
   const loadMore = useCallback(async () => {

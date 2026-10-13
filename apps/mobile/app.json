@@ -96,6 +96,7 @@
       "@react-native-firebase/analytics",
       "@react-native-firebase/crashlytics",
       "./plugins/with-crashlytics-dsym.js",
+      "./plugins/with-large-heap.js",
       [
         "@react-native-google-signin/google-signin",
         {
