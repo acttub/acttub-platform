@@ -1053,8 +1053,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `ADMIN_OPS_EXCLUDE_EMAILS` 와 `exclude_actors`(ops-core 와 같은 검증)다.
 - **자문단 대화 조회**(`GET /v2/admin/advisor-sessions`, SOMA-622) — `limit`(1~200, 기본 100). 자문위원 판정은 코치 성격
   배정과 같은 `coaching/direct-video/personas/advisors.txt`(이메일 SHA-256, 소문자·앞뒤 공백 제거)를 DB 에서 같은 방식으로
-  해싱해 대조한다. 새 대화와 이관 전 옛 코치 세션을 최신순(같은 시각이면 id)으로 내고, 가명(md5(user_id) 앞 8자리)·코치
-  성격(`state.practice_loop.persona`, 없으면 null)·대화 원문만 싣는다. 이메일·원본 user id·영상 주소는 싣지 않고
+  해싱해 대조한다. 새 대화와 이관 전 옛 코치 세션을 최신순(같은 시각이면 id)으로 내고, 가명(md5(user_id) 앞 8자리)·자문위원 해시(`advisor_hash`,
+  advisors.txt 에 이미 있는 값이라 새로 드러나는 것이 없다)·코치 성격(`state.practice_loop.persona`, 없으면 null)·대화 원문만 싣는다. 이메일·원본 user id·영상 주소는 싣지 않고
   `Cache-Control: private, no-store` 다. 팀 제외는 적용하지 않는다(자문위원 목록 자체가 범위다). `AdminEndpointIT` 에서 실 DB 로 검증한다.
 - **연습 자료의 이관·삭제·탈퇴** — 제품 규칙은 specs/practice 의 처리표다.
   - **이관**은 `user_id` 가 있는 행을 한 트랜잭션에서 옮긴다: 예약 장부 → `videos` → `practice_sessions`·`practices`
