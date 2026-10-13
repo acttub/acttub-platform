@@ -1,0 +1,2 @@
+# AdminEndpointIT 전용 자문위원 목록. sha256("advisor@example.com").
+11d6d7223550b8edd504d86e14a4db458c8356ba1a5fceab66f5d2e387470d71
