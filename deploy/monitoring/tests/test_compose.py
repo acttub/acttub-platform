@@ -90,9 +90,11 @@ class ComposeContractTest(unittest.TestCase):
             self.assertEqual(api["environment"]["MANAGEMENT_SERVER_PORT"], "9091")
             self.assertEqual(api["environment"]["MONITORING_TOKEN"], "")
             self.assertFalse(model["networks"]["scrape"].get("external", False))
+            # Only the API joins the scrape network. Web and the front proxy also use the app's front/edge networks.
             for name, service in model["services"].items():
                 if name != "api":
-                    self.assertEqual(set(service["networks"]), {"default"})
+                    self.assertNotIn("scrape", service["networks"], name)
+            self.assertEqual(set(model["services"]["db"]["networks"]), {"default"})
 
     def test_rendered_project_is_isolated_and_has_a_bounded_persistent_store(self):
         with tempfile.TemporaryDirectory() as tmp:
