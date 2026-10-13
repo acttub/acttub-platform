@@ -33,6 +33,12 @@ public interface AdminMetricsRepository {
     List<SessionRow> sessions(int limit, List<String> excludeEmails);
 
     /**
+     * 이메일 SHA-256(소문자·앞뒤 공백 제거)이 {@code advisorEmailHashes} 에 든 계정의 코치 대화, 최신순.
+     * 해시가 비면 아무것도 읽지 않는다.
+     */
+    List<AdminMetrics.AdminAdvisorSession> advisorSessions(int limit, java.util.Set<String> advisorEmailHashes);
+
+    /**
      * ops 코어 지표 한 벌 — {@code resources/admin/ops-core.sql} 이 만든 JSON 문자열 그대로.
      * 팀 계정은 빼지 않고 {@code *_real}·{@code is_team} 으로 표시만 한다(수집기 계약).
      * 팀은 이메일 목록과, 이메일이 없는 게스트를 위한 가명 목록(md5(user_id) 앞 8자리) 둘로 정한다.
