@@ -37,14 +37,18 @@ final class PracticeDtos {
             @Schema(nullable = true) @Size(max = PracticeRules.BLOCKAGE_NOTE_MAX_CHARS) String note) {
     }
 
-    /** 회차 시작. 경험 판은 본문이 아니라 {@code X-Acttub-Contract} 헤더가 정한다. */
+    /**
+     * 회차 시작. 경험 판은 본문이 아니라 {@code X-Acttub-Contract} 헤더가 정한다. {@code title} 은 새 묶음의 제목이고
+     * 선택이다(앞뒤 공백을 떼고, 비면 없는 것) — 이어하기는 받지 않는다.
+     */
     @Schema(name = "PracticeCreateRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record CreateRequest(
             @NotNull UUID requestId,
             @NotNull UUID videoId,
             @Schema(nullable = true) @Valid SceneInput scene,
-            @Schema(nullable = true) @Valid BlockageInput blockage) {
+            @Schema(nullable = true) @Valid BlockageInput blockage,
+            @Schema(nullable = true) @Size(max = PracticeRules.GROUP_TITLE_MAX_CHARS) String title) {
     }
 
     /** 이어하기. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다. */
@@ -83,7 +87,7 @@ final class PracticeDtos {
     record GroupPatchRequest(
             @Schema(nullable = true) Boolean favorite,
             @Schema(nullable = true) Boolean hidden,
-            @Schema(nullable = true) @Size(max = 200) String title) {
+            @Schema(nullable = true) @Size(max = PracticeRules.GROUP_TITLE_MAX_CHARS) String title) {
     }
 
     /** 그 회차의 마지막 분석 작업. */
@@ -102,7 +106,10 @@ final class PracticeDtos {
         }
     }
 
-    /** 회차 하나. {@code stage} 는 회차의 진행이고 {@code analysis_status} 는 관찰 기록의 상태다. */
+    /**
+     * 회차 하나. {@code stage} 는 회차의 진행이고 {@code analysis_status} 는 관찰 기록의 상태다. {@code poster_url} 은
+     * 그 회차 영상의 첫 장면 JPEG 의 10분 서명 주소이고, 아직 만들지 않았거나 파일을 파기했으면 {@code null} 이다.
+     */
     @Schema(name = "Practice", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record PracticeResponse(
@@ -110,6 +117,7 @@ final class PracticeDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID rootId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int ordinal,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID videoId,
+            @Schema(nullable = true) String posterUrl,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String stage,
             @Schema(nullable = true) String closeReason,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String experienceVersion,
@@ -133,7 +141,8 @@ final class PracticeDtos {
 
         static PracticeResponse of(PracticeView view) {
             return new PracticeResponse(
-                    view.id(), view.rootId(), view.ordinal(), view.videoId(), view.stage(), view.closeReason(),
+                    view.id(), view.rootId(), view.ordinal(), view.videoId(), view.posterUrl(), view.stage(),
+                    view.closeReason(),
                     view.experienceVersion(), view.situation(), view.characterContext(), view.goal(),
                     view.blockageKind(), view.subBranch(), view.blockageNote(), view.createdAt(),
                     view.analysisStatus(), view.conversationId(), view.conversationStatus(), view.conversationCount(),

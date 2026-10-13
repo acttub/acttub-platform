@@ -72,7 +72,8 @@ class PracticeController {
             summary = "Start Practice",
             description = """
                     보관함의 영상으로 새 묶음의 첫 회차를 만든다 — 회차 하나와 분석 작업 하나가 한 트랜잭션이다.
-                    상황·인물·목표와 막힘은 모두 선택이고 시작 뒤에는 바꾸지 않는다. 영상이 없거나 남의 것이거나
+                    상황·인물·목표와 막힘은 모두 선택이고 시작 뒤에는 바꾸지 않는다. 제목(선택, 200자)을 적으면 앞뒤
+                    공백을 떼어 묶음 제목이 되고 공백뿐이면 없는 것이다 — 뒤에 바꾸는 길은 묶음 속성 수정이다. 영상이 없거나 남의 것이거나
                     파일이 파기됐으면 422 video_not_ready, 게스트가 하루 세 번을 넘기면 429
                     guest_daily_analysis_limit, 같은 요청 id 에 다른 본문이면 422 request_fingerprint_mismatch 다.""",
             operationId = "start_practice_v2_practices_post",
@@ -97,7 +98,8 @@ class PracticeController {
         requireBlockagePair(body.blockage());
         AuthenticatedUser user = auth.gatedUser(request);
         return PracticeResponse.of(practices.start(
-                user.id(), user.guest(), contract, draft(body.requestId(), body.videoId(), body.scene(), body.blockage())));
+                user.id(), user.guest(), contract,
+                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), body.title())));
     }
 
     @Operation(
@@ -130,7 +132,7 @@ class PracticeController {
         AuthenticatedUser user = auth.gatedUser(request);
         return PracticeResponse.of(practices.continueGroup(
                 user.id(), user.guest(), contract, practiceId,
-                draft(body.requestId(), body.videoId(), body.scene(), body.blockage())));
+                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), null)));
     }
 
     @Operation(
@@ -260,7 +262,7 @@ class PracticeController {
     }
 
     private static PracticeService.Draft draft(
-            UUID requestId, UUID videoId, SceneInput scene, BlockageInput blockage) {
+            UUID requestId, UUID videoId, SceneInput scene, BlockageInput blockage, String title) {
         return new PracticeService.Draft(
                 requestId,
                 videoId,
@@ -269,7 +271,8 @@ class PracticeController {
                 scene == null ? null : scene.goal(),
                 blockage == null ? null : blockage.category(),
                 blockage == null ? null : blockage.detail(),
-                blockage == null ? null : blockage.note());
+                blockage == null ? null : blockage.note(),
+                title);
     }
 
     /** 막힘의 큰 갈래와 세부는 조합이 맞아야 한다 — DB 가 거부할 값을 먼저 422 배열로 답한다. */

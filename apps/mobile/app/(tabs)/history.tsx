@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -9,7 +10,7 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import { filterGroups, groupTitle } from '@/lib/practice/groups';
+import { filterGroups, groupPoster, groupTitle } from '@/lib/practice/groups';
 import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
 
 type Row = {
@@ -17,6 +18,8 @@ type Row = {
   /** 월별로 묶는 기준 — 묶음의 마지막 회차 시각. */
   at: string;
   title: string;
+  /** 첫 장면 사진(SOMA-671). 없으면 원래 아이콘이다. */
+  poster: { uri: string; cacheKey: string } | null;
   meta: string;
   onPress: () => void;
   onLongPress?: () => void;
@@ -110,6 +113,7 @@ export default function HistoryScreen() {
         id: `g:${group.root_id}`,
         at: group.last_practiced_at ?? '',
         title: groupTitle(group),
+        poster: groupPoster(group),
         meta: `${dayLabel(group.last_practiced_at ?? '')} · ${t('history.countTimes', { count: group.ordinal_count })}`,
         chips: group.tags ?? [],
         onPress: () => openGroup(group.root_id),
@@ -195,7 +199,11 @@ export default function HistoryScreen() {
                 onLongPress={row.onLongPress}
                 accessibilityRole="button">
                 <View style={styles.iconCircle}>
-                  <Feather name="video" size={17} color={palette.blue} />
+                  {row.poster ? (
+                    <Image source={{ uri: row.poster.uri, cacheKey: row.poster.cacheKey }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+                  ) : (
+                    <Feather name="video" size={17} color={palette.blue} />
+                  )}
                 </View>
                 <View style={styles.rowBody}>
                   <Text style={styles.rowTitle} numberOfLines={1}>
@@ -295,6 +303,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   rowBody: { flex: 1, gap: 3 },
   rowTitle: { fontSize: 15, fontWeight: '700', color: palette.text },

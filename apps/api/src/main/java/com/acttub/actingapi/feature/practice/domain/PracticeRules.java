@@ -15,6 +15,12 @@ public final class PracticeRules {
     /** 막힘 서술의 상한(자). */
     public static final int BLOCKAGE_NOTE_MAX_CHARS = 500;
 
+    /** 묶음 제목의 상한(자). 시작 때 적는 제목과 묶음 속성 수정이 같은 한도다. */
+    public static final int GROUP_TITLE_MAX_CHARS = 200;
+
+    /** 회차에 싣는 포스터 서명 주소의 수명(초). 보관함의 포스터·재생 주소와 같은 10분이다. */
+    public static final int POSTER_URL_TTL_SECONDS = 600;
+
     /** 게스트의 하루 분석 요청 수. 한국 시간 자정에 끊는다. */
     public static final int GUEST_DAILY_ANALYSES = 3;
 
@@ -32,6 +38,11 @@ public final class PracticeRules {
     /** 고르지 않았으면 "그 외". */
     public static String blockage(String value) {
         return value == null || value.isBlank() ? UNSPECIFIED : value;
+    }
+
+    /** 시작 때 적는 묶음 제목. 앞뒤 공백을 떼고, 비면 없는 것이다 — 화면이 대체 규칙으로 채운다. */
+    public static String title(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 
     /** 막힘 서술은 비어 있으면 아예 없는 것이다(빈 문자열을 남기지 않는다). */

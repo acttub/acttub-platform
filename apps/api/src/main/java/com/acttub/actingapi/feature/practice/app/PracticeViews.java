@@ -18,12 +18,16 @@ public final class PracticeViews {
      * @param stage {@code analyzing}·{@code conversing}·{@code closed}. 분석 결과의 상태와 다른 것이다
      * @param analysisStatus 관찰 기록의 상태({@code ready}·{@code partial}). 아직 없으면 {@code null}
      * @param noteTitle 그 회차 노트의 제목. 없거나 record_only 면 {@code null}
+     * @param posterKey 그 회차 영상의 포스터 객체 키. 아직 없거나 영상 파일을 파기했으면 {@code null}
+     * @param posterUrl 포스터의 서명 주소. 저장소는 {@code null} 로 내고 서비스가 채운다
      */
     public record PracticeView(
             UUID id,
             UUID rootId,
             int ordinal,
             UUID videoId,
+            String posterKey,
+            String posterUrl,
             String stage,
             String closeReason,
             String experienceVersion,
@@ -43,6 +47,20 @@ public final class PracticeViews {
             String noteKind,
             JobView job,
             List<PreviousConversation> previousConversations) {
+
+        public PracticeView withPrevious(List<PreviousConversation> previous) {
+            return new PracticeView(id, rootId, ordinal, videoId, posterKey, posterUrl, stage, closeReason,
+                    experienceVersion, situation, characterContext, goal, blockageKind, subBranch, blockageNote,
+                    createdAt, analysisStatus, conversationId, conversationStatus, conversationCount, noteId,
+                    noteTitle, noteKind, job, previous);
+        }
+
+        public PracticeView withPoster(String url) {
+            return new PracticeView(id, rootId, ordinal, videoId, posterKey, url, stage, closeReason,
+                    experienceVersion, situation, characterContext, goal, blockageKind, subBranch, blockageNote,
+                    createdAt, analysisStatus, conversationId, conversationStatus, conversationCount, noteId,
+                    noteTitle, noteKind, job, previousConversations);
+        }
     }
 
     /**
@@ -78,6 +96,11 @@ public final class PracticeViews {
             Instant hiddenAt,
             UUID inProgressPracticeId,
             List<PracticeView> practices) {
+
+        public GroupView withPractices(List<PracticeView> replaced) {
+            return new GroupView(rootId, title, ordinalCount, lastConversationAt, tags, favorite, hiddenAt,
+                    inProgressPracticeId, replaced);
+        }
     }
 
     /** 회차의 진행 상태만. 화면이 폴링한다(앱 4초·웹 10초). */
