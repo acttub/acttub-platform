@@ -6,12 +6,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import com.acttub.actingapi.feature.push.app.AppVersion;
 import com.acttub.actingapi.feature.push.app.EveningReminderRepository;
-import com.acttub.actingapi.feature.push.app.PushTarget;
+import com.acttub.actingapi.feature.push.app.ReminderTarget;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -29,7 +31,7 @@ class PostgresEveningReminderRepository implements EveningReminderRepository {
     }
 
     @Override
-    public List<PushTarget> claimTargets(LocalDate day, Instant dayStart, Instant dayEnd,
+    public List<ReminderTarget> claimTargets(LocalDate day, Instant dayStart, Instant dayEnd,
             Instant recentSince, String minimumAppVersion) {
         return transaction.execute(status -> {
             List<Tuple> rows = list(entityManager.createNativeQuery("""
@@ -59,13 +61,14 @@ class PostgresEveningReminderRepository implements EveningReminderRepository {
                     .setParameter("dayStart", dayStart.atOffset(ZoneOffset.UTC))
                     .setParameter("dayEnd", dayEnd.atOffset(ZoneOffset.UTC)));
 
-            var byUser = new LinkedHashMap<UUID, List<PushTarget>>();
+            var byUser = new LinkedHashMap<UUID, List<ReminderTarget>>();
             for (Tuple row : rows) {
                 if (!AppVersion.atLeast(row.get("app_version", String.class), minimumAppVersion)) continue;
-                byUser.computeIfAbsent(row.get("user_id", UUID.class), ignored -> new ArrayList<>())
-                        .add(new PushTarget(row.get("token", String.class), row.get("locale", String.class)));
+                UUID userId = row.get("user_id", UUID.class);
+                byUser.computeIfAbsent(userId, ignored -> new ArrayList<>())
+                        .add(new ReminderTarget(userId, row.get("token", String.class), row.get("locale", String.class)));
             }
-            List<PushTarget> claimed = new ArrayList<>();
+            List<ReminderTarget> claimed = new ArrayList<>();
             byUser.forEach((userId, targets) -> {
                 List<Tuple> inserted = list(entityManager.createNativeQuery("""
                         WITH claimed AS (
@@ -79,6 +82,32 @@ class PostgresEveningReminderRepository implements EveningReminderRepository {
                 if (!inserted.isEmpty()) claimed.addAll(targets);
             });
             return List.copyOf(claimed);
+        });
+    }
+
+    @Override
+    public Map<UUID, NextTake> latestNextTakes(Collection<UUID> userIds, Instant since) {
+        if (userIds.isEmpty()) return Map.of();
+        return transaction.execute(status -> {
+            List<Tuple> rows = list(entityManager.createNativeQuery("""
+                    SELECT DISTINCT ON (p.user_id) p.user_id, p.id AS practice_id, n.next_take
+                    FROM coach_notes n
+                    JOIN coach_conversations c ON c.id=n.conversation_id
+                    JOIN practices p ON p.id=c.practice_id
+                    WHERE p.user_id IN (:userIds)
+                      AND p.hidden_at IS NULL
+                      AND n.created_at>=:since
+                    ORDER BY p.user_id, n.created_at DESC
+                    """, Tuple.class)
+                    .setParameter("userIds", List.copyOf(userIds))
+                    .setParameter("since", since.atOffset(ZoneOffset.UTC)));
+            var latest = new LinkedHashMap<UUID, NextTake>();
+            for (Tuple row : rows) {
+                String text = row.get("next_take", String.class);
+                if (text == null || text.isBlank()) continue;
+                latest.put(row.get("user_id", UUID.class), new NextTake(row.get("practice_id", UUID.class), text));
+            }
+            return Map.copyOf(latest);
         });
     }
 }
