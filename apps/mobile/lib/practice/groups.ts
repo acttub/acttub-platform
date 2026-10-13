@@ -12,6 +12,7 @@ export function practiceGroupFromResponse(group: PracticeGroupResponse): Practic
     situation: first?.situation ?? null,
     last_practiced_at: last?.created_at ?? null,
     video_id: last?.video_id ?? null,
+    poster_url: [...practices].reverse().find(p => p.poster_url)?.poster_url ?? null,
     last_conversation_id: [...practices].reverse().find(p => p.conversation_id)?.conversation_id ?? null,
     practices: practices.map(p => ({
       id: p.id, ordinal: p.ordinal, created_at: p.created_at, stage: p.stage,
@@ -41,6 +42,15 @@ export function groupTitle(group: Pick<PracticeGroup, 'title' | 'note_title' | '
   const situation = group.situation?.trim();
   if (situation && situation !== '.') return situation;
   return translate('history.noSceneTitle');
+}
+
+/**
+ * 목록 줄의 첫 장면 사진(SOMA-671). 서명 주소는 10분마다 바뀌므로 보관함처럼 서명(쿼리)을 뗀 주소를 캐시 키로 쓴다.
+ */
+export function groupPoster(group: Pick<PracticeGroup, 'poster_url'>): { uri: string; cacheKey: string } | null {
+  const uri = group.poster_url;
+  if (!uri) return null;
+  return { uri, cacheKey: uri.split('?')[0] };
 }
 
 /** 숨긴 묶음은 목록에서 빠진다. 필터는 전체·즐겨찾기·최근 30일이다. */

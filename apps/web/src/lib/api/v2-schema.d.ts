@@ -682,7 +682,8 @@ export interface paths {
         /**
          * Start Practice
          * @description 보관함의 영상으로 새 묶음의 첫 회차를 만든다 — 회차 하나와 분석 작업 하나가 한 트랜잭션이다.
-         *     상황·인물·목표와 막힘은 모두 선택이고 시작 뒤에는 바꾸지 않는다. 영상이 없거나 남의 것이거나
+         *     상황·인물·목표와 막힘은 모두 선택이고 시작 뒤에는 바꾸지 않는다. 제목(선택, 200자)을 적으면 앞뒤
+         *     공백을 떼어 묶음 제목이 되고 공백뿐이면 없는 것이다 — 뒤에 바꾸는 길은 묶음 속성 수정이다. 영상이 없거나 남의 것이거나
          *     파일이 파기됐으면 422 video_not_ready, 게스트가 하루 세 번을 넘기면 429
          *     guest_daily_analysis_limit, 같은 요청 id 에 다른 본문이면 422 request_fingerprint_mismatch 다.
          */
@@ -3180,6 +3181,8 @@ export interface components {
             video_id: string;
             scene?: components["schemas"]["PracticeScene"] | null;
             blockage?: components["schemas"]["PracticeBlockage"] | null;
+            /** Title */
+            title?: string | null;
         };
         /** PracticeScene */
         PracticeScene: {
@@ -3206,6 +3209,8 @@ export interface components {
             ordinal: number;
             /** Video Id */
             video_id: string | null;
+            /** Poster Url */
+            poster_url?: string | null;
             /** Stage */
             stage: string;
             /** Close Reason */

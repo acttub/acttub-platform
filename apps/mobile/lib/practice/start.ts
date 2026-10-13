@@ -64,18 +64,30 @@ function normalizeBlockage(blockage: BlockageDraft): PracticeBlockage {
   };
 }
 
+/** 묶음 제목 상한 — 서버의 묶음 제목 PATCH 와 같다(SOMA-671). */
+export const PRACTICE_TITLE_MAX = 200;
+
+export function titleOverflow(title: string): boolean {
+  return title.trim().length > PRACTICE_TITLE_MAX;
+}
+
 export function buildStartBody(input: {
   requestId: string;
   videoId: string;
   scene: SceneDraft;
   blockage: BlockageDraft;
+  title?: string;
 }): CreatePracticeBody {
-  return {
+  const body: CreatePracticeBody = {
     request_id: input.requestId,
     video_id: input.videoId,
     scene: normalizeScene(input.scene),
     blockage: normalizeBlockage(input.blockage),
   };
+  // 비운 제목은 싣지 않는다 — 제목 칸을 모르는 옛 서버에도 그대로 간다.
+  const title = input.title?.trim();
+  if (title) body.title = title;
+  return body;
 }
 
 /**
@@ -138,13 +150,16 @@ export function inProgressPracticeId(
 }
 
 export function fingerprintOf(body: CreatePracticeBody | ContinuePracticeBody): string {
-  return JSON.stringify([
-    'video_id' in body ? body.video_id : null,
+  const parts: (string | null)[] = [
+    'video_id' in body ? body.video_id ?? null : null,
     body.scene.situation,
     body.scene.character,
     body.scene.goal,
     body.blockage.category,
     body.blockage.detail,
     body.blockage.note,
-  ]);
+  ];
+  // 제목은 실었을 때만 붙인다 — 제목 없는 요청의 지문은 예전 그대로다(SOMA-671).
+  if ('title' in body && body.title) parts.push(body.title);
+  return JSON.stringify(parts);
 }

@@ -93,6 +93,8 @@ export type PracticeResponse = Practice & {
   note_title: string | null;
   note_kind: NoteKind | null;
   previous_conversations: PreviousConversation[];
+  /** 그 회차 영상의 첫 장면 사진(서명 주소, 10분). 서버가 만들기 전이거나 옛 서버면 없다(SOMA-671). */
+  poster_url?: string | null;
 };
 
 export type PracticeGroupResponse = {
@@ -122,6 +124,8 @@ export type PracticeGroup = {
   hidden_at: string | null;
   tags?: string[];
   last_practiced_at?: string | null;
+  /** 가장 최근 회차 중 사진이 있는 회차의 첫 장면 사진. */
+  poster_url?: string | null;
   practices: PracticeRound[];
 };
 
@@ -130,6 +134,8 @@ export type PracticeGroupFilter = 'all' | 'favorite' | 'recent30';
 export type CreatePracticeBody = {
   request_id: string;
   video_id: string;
+  /** 묶음 제목(선택, 200자). 비우면 싣지 않고, 목록은 노트 제목 → 상황 → 대체 제목으로 고른다(SOMA-671). */
+  title?: string;
   scene: PracticeScene;
   blockage: PracticeBlockage;
 };

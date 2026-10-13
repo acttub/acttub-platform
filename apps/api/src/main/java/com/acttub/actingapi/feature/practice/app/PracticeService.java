@@ -36,6 +36,7 @@ public class PracticeService {
     private final PracticeRepository practices;
     /** 아직 옮기지 않은 옛 연습을 같은 모양으로 읽는 자리 (specs/practice ②). */
     private final LegacyPracticeReader legacy;
+    private final PracticePosters posters;
     private final boolean threeLayersEnabled;
     private final boolean guestDailyAnalysisLimitEnabled;
     private final Clock clock;
@@ -43,17 +44,22 @@ public class PracticeService {
     public PracticeService(
             PracticeRepository practices,
             LegacyPracticeReader legacy,
+            PracticePosters posters,
             boolean threeLayersEnabled,
             boolean guestDailyAnalysisLimitEnabled,
             Clock clock) {
         this.practices = practices;
         this.legacy = legacy;
+        this.posters = posters;
         this.threeLayersEnabled = threeLayersEnabled;
         this.guestDailyAnalysisLimitEnabled = guestDailyAnalysisLimitEnabled;
         this.clock = clock;
     }
 
-    /** 새 묶음의 첫 회차. 영상은 보관함에 확정돼 있어야 한다. */
+    /**
+     * 새 묶음의 첫 회차. 영상은 보관함에 확정돼 있어야 한다. 제목을 적었으면 묶음 제목(첫 행)이 된다 — 묶음 속성
+     * 수정과 같은 자리다.
+     */
     public PracticeView start(UUID userId, boolean guest, String contractHeader, Draft draft) {
         return answer(practices.start(userId, newPractice(draft, contractHeader), quota(guest), clock.instant()));
     }
@@ -87,24 +93,13 @@ public class PracticeService {
             if (view == null) {
                 throw notFound();
             }
-            return view;
+            return poster(view);
         }
         // 옮긴 회차에도 옛 대화가 남아 있을 수 있다 — 전환은 최신 하나만 새 표로 옮기고 나머지는 옛 표에
         // 그대로 둔다(practice.coach "옛 자료의 복수 대화").
         List<PracticeViews.PreviousConversation> previous =
                 legacy.previousConversations(userId, practiceId);
-        return previous.isEmpty() ? view : withPrevious(view, previous);
-    }
-
-    private static PracticeView withPrevious(
-            PracticeView view, List<PracticeViews.PreviousConversation> previous) {
-        return new PracticeView(
-                view.id(), view.rootId(), view.ordinal(), view.videoId(), view.stage(), view.closeReason(),
-                view.experienceVersion(), view.situation(), view.characterContext(), view.goal(),
-                view.blockageKind(), view.subBranch(), view.blockageNote(), view.createdAt(),
-                view.analysisStatus(), view.conversationId(), view.conversationStatus(),
-                view.conversationCount(), view.noteId(), view.noteTitle(), view.noteKind(), view.job(),
-                previous);
+        return poster(previous.isEmpty() ? view : view.withPrevious(previous));
     }
 
     public StatusView status(UUID userId, UUID practiceId) {
@@ -135,7 +130,7 @@ public class PracticeService {
     public List<GroupView> groups(UUID userId, String filter) {
         List<GroupView> groups = new java.util.ArrayList<>(practices.groups(userId, filter, clock.instant()));
         groups.addAll(legacy.groups(userId, filter));
-        return List.copyOf(groups);
+        return groups.stream().map(this::posters).toList();
     }
 
     /** "그만두기". 화면 이탈은 취소가 아니다 — 그쪽은 조회만 멈춘다. */
@@ -153,10 +148,14 @@ public class PracticeService {
         if (group == null) {
             throw notFound();
         }
-        return group;
+        return posters(group);
     }
 
-    /** 시작·이어하기 요청의 값. 한도를 넘는 길이는 부르는 쪽이 값 오류(422 배열)로 거절한다. */
+    /**
+     * 시작·이어하기 요청의 값. 한도를 넘는 길이는 부르는 쪽이 값 오류(422 배열)로 거절한다.
+     *
+     * @param title 묶음 제목. 시작만 받는다 — 이어하기는 {@code null} 이다
+     */
     public record Draft(
             UUID requestId,
             UUID videoId,
@@ -165,7 +164,8 @@ public class PracticeService {
             String goal,
             String blockageKind,
             String subBranch,
-            String blockageNote) {
+            String blockageNote,
+            String title) {
     }
 
     private NewPractice newPractice(Draft draft, String contractHeader) {
@@ -175,14 +175,17 @@ public class PracticeService {
         String blockageKind = PracticeRules.blockage(draft.blockageKind());
         String subBranch = PracticeRules.blockage(draft.subBranch());
         String blockageNote = PracticeRules.note(draft.blockageNote());
+        String title = PracticeRules.title(draft.title());
         String experienceVersion = PracticeRules.threeLayers(threeLayersEnabled, contractHeader)
                 ? ExperienceVersion.THREE_LAYERS_V1.dbValue()
                 : ExperienceVersion.LEGACY.dbValue();
+        // 제목은 있을 때만 지문에 넣는다 — 제목 없는 요청의 지문이 이 변경 전과 같아야 배포를 걸친 재전송이 산다.
+        String payload = String.join("|", "practice_start",
+                String.valueOf(draft.videoId()), situation, characterContext, goal,
+                blockageKind, subBranch, String.valueOf(blockageNote));
         return new NewPractice(
                 draft.requestId(),
-                fingerprint(String.join("|", "practice_start",
-                        String.valueOf(draft.videoId()), situation, characterContext, goal,
-                        blockageKind, subBranch, String.valueOf(blockageNote))),
+                fingerprint(title == null ? payload : payload + "|title|" + title),
                 draft.videoId(),
                 experienceVersion,
                 situation,
@@ -190,7 +193,8 @@ public class PracticeService {
                 goal,
                 blockageKind,
                 subBranch,
-                blockageNote);
+                blockageNote,
+                title);
     }
 
     /** 게스트만 하루 한도가 있다. 하루는 한국 시간 자정에 끊는다. */
@@ -202,9 +206,21 @@ public class PracticeService {
         return new Quota(PracticeRules.GUEST_DAILY_ANALYSES, midnight);
     }
 
-    private static PracticeView answer(Started started) {
+    /**
+     * 회차 영상의 포스터 주소 — 보관함과 같은 서명 GET 이다. 키가 없으면(아직 안 만들었거나 파일을 파기했으면)
+     * {@code null} 이다. 서명은 서버 안의 계산이라 바깥 호출이 없다.
+     */
+    private PracticeView poster(PracticeView view) {
+        return view.posterKey() == null ? view : view.withPoster(posters.url(view.posterKey()));
+    }
+
+    private GroupView posters(GroupView group) {
+        return group.withPractices(group.practices().stream().map(this::poster).toList());
+    }
+
+    private PracticeView answer(Started started) {
         return switch (started.outcome()) {
-            case CREATED, REPLAYED -> started.practice();
+            case CREATED, REPLAYED -> poster(started.practice());
             case VIDEO_NOT_READY -> throw new ApiException(422, "video_not_ready");
             case IN_PROGRESS -> throw new ApiException(409, "practice_in_progress");
             case QUOTA -> throw new ApiException(429, "guest_daily_analysis_limit");

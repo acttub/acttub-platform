@@ -977,6 +977,15 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 경험 판은 `PracticeRules.threeLayers` 가 정한다.
   - 차수는 묶음 잠금과 `uq_practices_root_ordinal` 로 발급한다.
   - 취소는 작업의 **lease 를 지워** 늦은 완료와 재큐를 막는다.
+  - **시작 때의 묶음 제목**(`PracticeCreateRequest.title`, SOMA-671)은 첫 행의 `practices.title` 에 회차와 같은 INSERT 로
+    들어간다 — 묶음 속성 수정(`PATCH …/group`)과 같은 칸·같은 200자(`PracticeRules.GROUP_TITLE_MAX_CHARS`)이고, 앞뒤 공백을 떼며
+    공백뿐이면 NULL 이다(`PracticeRules.title`). 이어하기는 제목을 받지 않고(DTO 에 칸이 없어 unknown key 422, §6-3) 새 행의
+    title 은 NULL 이다. **지문에는 제목이 있을 때만 붙인다** — 제목 없는 요청의 지문이 이 변경 전과 같아야 배포를 걸친 재전송이
+    `request_fingerprint_mismatch` 로 바뀌지 않는다.
+  - **회차의 포스터**(`Practice.poster_url`, SOMA-671): 회차 SELECT 가 `videos` 를 LEFT JOIN 해 `purged_at IS NULL` 인 영상의
+    `poster_key` 만 읽는다(옛 표 호환 읽기도 같은 규칙). 서명은 `practice/app/PracticePosters` 포트 →
+    `adapter/storage/ObjectStoragePracticePosters` 이고 보관함과 같은 10분(`PracticeRules.POSTER_URL_TTL_SECONDS`)이다.
+    서비스가 응답 직전에 채우므로 목록도 회차마다 쿼리를 더하지 않는다(서명은 바깥 호출이 아니다). 스토리지가 없는 기동은 null.
 - **`ai_jobs` 장부**(`platform/ledger/AiJobLedger`, `platform/operation/PostgresAiJobLedger`): 상태와 lease 의 뜻은
   [공통 규칙 「공통 상태」](../../docs/specs/common.md#공통-상태)가 정본이다. 종류는 `platform/schema/AiJobKind`.
   선점(`claimNext`)은 `pending` 만 `FOR UPDATE SKIP LOCKED` 로 집는다 — 만료된 `running` 을 다시 집지 않는 점이 §5-7 과
