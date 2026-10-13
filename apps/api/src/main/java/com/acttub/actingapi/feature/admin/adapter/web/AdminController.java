@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSessions;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideoPage;
@@ -59,6 +60,8 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnExpression(AdminService.ENABLED_WHEN)
 class AdminController {
     private static final int MAX_SESSIONS = 50;
+    /** 자문단 한 기수(사람당 9회 안팎)를 한 번에 다 보는 크기다. */
+    private static final int MAX_ADVISOR_SESSIONS = 200;
     private static final int MAX_FEEDBACK = 100;
     private static final int MAX_CHALLENGE_VIDEOS = 100;
     private static final int MAX_CHALLENGES = 100;
@@ -251,6 +254,39 @@ class AdminController {
         requireToken(authorization);
         int limit = bounded(rawLimit, "limit", MAX_SESSIONS);
         return admin.sessions(limit);
+    }
+
+    @Operation(
+            summary = "Advisor Sessions",
+            description = """
+                    자문위원 계정(coaching/direct-video/personas/advisors.txt 의 이메일 해시)의 코치 대화만
+                    최신순으로 읽는다. 가명·코치 성격·대화 원문을 내고, 이메일·user id·영상 주소는 응답하지 않는다.""",
+            operationId = "advisor_sessions_v2_admin_advisor_sessions_get",
+            tags = "admin")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = AdminAdvisorSessions.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @GetMapping("/advisor-sessions")
+    ResponseEntity<AdminAdvisorSessions> advisorSessions(
+            @Parameter(schema = @Schema(
+                    type = "integer",
+                    minimum = "1",
+                    maximum = "200",
+                    exclusiveMinimum = false,
+                    exclusiveMaximum = false,
+                    defaultValue = "100"))
+            @RequestParam(name = "limit", defaultValue = "100") String rawLimit,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        int limit = bounded(rawLimit, "limit", MAX_ADVISOR_SESSIONS);
+        return privateNoStore(admin.advisorSessions(limit));
     }
 
     @Operation(
