@@ -10,6 +10,8 @@ import java.util.function.Supplier;
 
 import com.acttub.actingapi.feature.reading.app.ScriptRepository.CharacterPatch;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository.Creation;
+import com.acttub.actingapi.feature.reading.app.ScriptRepository.LineEditOutcome;
+import com.acttub.actingapi.feature.reading.app.ScriptRepository.LinePatch;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository.UpdateOutcome;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptListView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptView;
@@ -20,8 +22,8 @@ import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.acttub.actingapi.platform.web.Hashing;
 
 /**
- * 대본의 규칙 — 기기가 나눈 대본을 한 요청으로 저장하고, 목록·상세를 보이고, 제목·배역 이름만 고치고, 행째
- * 지운다 (reading.script, ADR-031).
+ * 대본의 규칙 — 기기가 나눈 대본을 한 요청으로 저장하고, 목록·상세를 보이고, 제목·배역 이름과 줄의 배역·종류·글을
+ * 고치고(줄 id 는 그대로), 행째 지운다 (reading.script, ADR-031·ADR-044).
  *
  * <p>값의 형태(필수 키·타입·값 목록·배역 자리)는 요청을 받는 자리가 보고 422 배열로 답한다. 여기서 거절하는
  * 것은 <b>규칙</b>이고 본문은 사유 코드 하나다: 배역 없음({@code no_characters}), 비거나 겹치는 이름
@@ -103,6 +105,23 @@ public class ScriptService {
         }
         if (outcome == UpdateOutcome.INVALID_CHARACTERS) {
             throw invalidCharacters();
+        }
+        return find(userId, scriptId);
+    }
+
+    /**
+     * 줄 하나의 종류·배역·글을 고친다(SOMA-669). 줄 id 는 그대로라 회차·녹음·외운 줄이 그 줄을 계속 가리킨다.
+     * 생성 지문은 바꾸지 않는다 — 고친 뒤에 원래 생성 요청이 다시 와도 같은(고친) 대본이다.
+     */
+    public ScriptView editLine(UUID userId, UUID scriptId, UUID lineId, LinePatch patch) {
+        LineEditOutcome outcome = activeOnly(() -> scripts.editLine(userId, scriptId, lineId, patch));
+        if (outcome == null) {
+            throw notFound();
+        }
+        switch (outcome) {
+            case LINE_NOT_FOUND -> throw new ApiException(404, "line_not_found");
+            case INVALID_LINE -> throw new ApiException(422, "invalid_line");
+            default -> { }
         }
         return find(userId, scriptId);
     }

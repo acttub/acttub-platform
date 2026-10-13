@@ -299,6 +299,61 @@ class PostgresScriptRepository implements ScriptRepository {
     }
 
     @Override
+    public LineEditOutcome editLine(UUID userId, UUID scriptId, UUID lineId, LinePatch patch) {
+        return transaction.execute(status -> {
+            lockActive(userId);
+            boolean owned = !NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT id FROM scripts WHERE id=:scriptId AND user_id=:userId FOR UPDATE
+                    """, Tuple.class)
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("userId", userId)).isEmpty();
+            if (!owned) {
+                return null;
+            }
+            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT kind,character_id FROM script_lines WHERE id=:lineId AND script_id=:scriptId FOR UPDATE
+                    """, Tuple.class)
+                    .setParameter("lineId", lineId)
+                    .setParameter("scriptId", scriptId));
+            if (rows.isEmpty()) {
+                return LineEditOutcome.LINE_NOT_FOUND;
+            }
+            String kind = patch.kind() == null ? rows.get(0).get("kind", String.class) : patch.kind();
+            boolean dialogue = ScriptLineKind.DIALOGUE.dbValue().equals(kind);
+            UUID character;
+            if (!dialogue) {
+                if (patch.characterId() != null) {
+                    return LineEditOutcome.INVALID_LINE;
+                }
+                character = null;
+            } else {
+                character = patch.characterId() != null ? patch.characterId() : rows.get(0).get("character_id", UUID.class);
+                if (character == null || NativeTuples.list(entityManager.createNativeQuery("""
+                        SELECT id FROM script_characters WHERE id=:characterId AND script_id=:scriptId
+                        """, Tuple.class)
+                        .setParameter("characterId", character)
+                        .setParameter("scriptId", scriptId)).isEmpty()) {
+                    return LineEditOutcome.INVALID_LINE;
+                }
+            }
+            entityManager.createNativeQuery("""
+                    UPDATE script_lines
+                    SET kind=:kind,character_id=:characterId,text=COALESCE(CAST(:text AS text),text)
+                    WHERE id=:lineId
+                    """)
+                    .setParameter("kind", kind)
+                    .setParameter("characterId", character)
+                    .setParameter("text", patch.text())
+                    .setParameter("lineId", lineId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("UPDATE scripts SET updated_at=now() WHERE id=:scriptId")
+                    .setParameter("scriptId", scriptId)
+                    .executeUpdate();
+            return LineEditOutcome.UPDATED;
+        });
+    }
+
+    @Override
     public List<UUID> delete(UUID userId, UUID scriptId, Instant now) {
         return transaction.execute(status -> {
             boolean owned = !NativeTuples.list(entityManager.createNativeQuery("""
