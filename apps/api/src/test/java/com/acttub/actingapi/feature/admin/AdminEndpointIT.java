@@ -216,13 +216,14 @@ class AdminEndpointIT {
 
     /**
      * 자문단 기록(SOMA-622): 자문위원 이메일 해시에 드는 계정의 대화만, 최신순으로 낸다.
-     * 가명·코치 성격·대화 원문은 싣고 이메일·user id·영상 주소는 싣지 않는다.
+     * 가명·코치 성격·대화 원문과 1시간 영상 재생 주소를 싣고 이메일·user id 는 싣지 않는다. 지워진 영상은 null.
      */
     @Test
     void advisorSessionsListOnlyAdvisorConversationsWithPseudonymPersonaAndNoPrivateFields() throws Exception {
         insertUser(ADVISOR_USER, "Advisor@Example.com", NOW.minusHours(3));
         UUID olderPractice = UUID.randomUUID();
-        insertPractice1(olderPractice, ADVISOR_USER, insertVideo(ADVISOR_USER, "advisor-old.mp4", NOW.minusMinutes(40)),
+        insertPractice1(olderPractice, ADVISOR_USER,
+                insertVideo(ADVISOR_USER, "advisor-old.mp4", NOW.minusMinutes(40), NOW.minusMinutes(1)),
                 "closed", "conversation_closed", "three_layers_v1", NOW.minusMinutes(40));
         UUID olderConversation = UUID.randomUUID();
         insertConversation(olderConversation, olderPractice, "closed", "gap_stated", NOW.minusMinutes(40));
@@ -242,6 +243,7 @@ class AdminEndpointIT {
         assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
         String body = result.getContentAsString();
         JsonNode response = mapper.readTree(body);
+        assertThat(response.path("playback_expires_in_sec").intValue()).isEqualTo(3600);
         assertThat(response.path("advisor_accounts").intValue()).as("해시 줄 + id 붙은 줄, 모양 틀린 줄 제외").isEqualTo(2);
         JsonNode sessions = response.path("sessions");
         assertThat(sessions).as("일반·팀 배우의 옛 코치 세션은 빠진다").hasSize(2);
@@ -256,6 +258,7 @@ class AdminEndpointIT {
                 .isEqualTo("11d6d7223550b8edd504d86e14a4db458c8356ba1a5fceab66f5d2e387470d71");
         assertThat(newest.path("persona").textValue()).isEqualTo("b1");
         assertThat(newest.path("status").textValue()).isEqualTo("open");
+        assertThat(newest.path("video_url").textValue()).isEqualTo("admin:advisor-new.mp4:3600");
         assertThat(newest.path("turns")).isEqualTo(mapper.readTree("""
                 [{"turn_index":0,"role":"ai","text":"자문 질문"},
                  {"turn_index":1,"role":"actor","text":"자문 답"}]
@@ -265,9 +268,9 @@ class AdminEndpointIT {
         assertThat(oldest.path("persona").isNull()).as("성격 배정 기록이 없으면 null").isTrue();
         assertThat(oldest.path("close_reason").textValue()).isEqualTo("gap_stated");
         assertThat(oldest.path("turns")).isEmpty();
+        assertThat(oldest.path("video_url").isNull()).as("지워진 영상은 재생 주소가 없다").isTrue();
 
-        assertThat(body).doesNotContain("example.com", "Example.com", ADVISOR_USER.toString(),
-                "advisor-old.mp4", "advisor-new.mp4", "video_url");
+        assertThat(body).doesNotContain("example.com", "Example.com", ADVISOR_USER.toString(), "advisor-old.mp4");
         assertThat(authorized("/v2/admin/advisor-sessions?limit=1", 200).path("sessions")).hasSize(1);
         authorized("/v2/admin/advisor-sessions?limit=200", 200);
         authorized("/v2/admin/advisor-sessions?limit=201", 422);

@@ -158,13 +158,13 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
     }
 
     @Override
-    public List<AdminAdvisorSession> advisorSessions(int limit, Set<String> advisorEmailHashes) {
+    public List<AdvisorSessionRow> advisorSessions(int limit, Set<String> advisorEmailHashes) {
         if (advisorEmailHashes.isEmpty()) {
             return List.of();
         }
         // 자문위원 판정은 코치 성격 배정(PostgresCoachPersonas)과 같은 이메일 해시다. 이메일 원문은 저장소에
         // 두지 않으므로 DB 에서 같은 방식(소문자·앞뒤 공백 제거 → UTF-8 → SHA-256)으로 해싱해 대조한다.
-        // 영상은 읽지 않는다 — 운영 검토는 대화·입력 원문까지다.
+        // 영상은 세션 목록과 같은 규칙으로 고른다: 새 대화는 지워지지 않은 videos, 옛 행은 확정된 업로드.
         List<String> hashes = advisorEmailHashes.stream().sorted().toList();
         String sql = """
                 SELECT
@@ -176,6 +176,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                     coach.character_context,
                     coach.goal,
                     coach.persona,
+                    coach.object_key,
                     left(md5(CAST(coach.user_id AS text)), 8) AS actor,
                     advisor.hash AS advisor_hash
                 FROM (
@@ -188,10 +189,14 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         practice.character_context,
                         practice.goal,
                         NULLIF(conversation.state -> 'practice_loop' ->> 'persona', '') AS persona,
+                        video.object_key,
                         practice.user_id
                     FROM coach_conversations AS conversation
                     JOIN practices AS practice
                       ON practice.id = conversation.practice_id
+                    LEFT JOIN videos AS video
+                      ON video.id = practice.video_id
+                     AND video.purged_at IS NULL
                     UNION ALL
                     SELECT
                         legacy.id,
@@ -202,10 +207,14 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         practice.character_context,
                         practice.goal,
                         CAST(NULL AS text) AS persona,
+                        upload.object_key,
                         practice.user_id
                     FROM coach_sessions AS legacy
                     JOIN practice_sessions AS practice
                       ON practice.id = legacy.practice_session_id
+                    LEFT JOIN upload_intents AS upload
+                      ON upload.id = practice.upload_intent_id
+                     AND upload.status = 'finalized'
                     WHERE NOT EXISTS (
                         SELECT 1 FROM coach_conversations AS moved WHERE moved.id = legacy.id)
                 ) AS coach
@@ -228,7 +237,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
         return rows.stream()
                 .map(row -> {
                     UUID id = row.get("id", UUID.class);
-                    return new AdminAdvisorSession(
+                    return new AdvisorSessionRow(new AdminAdvisorSession(
                             id.toString(),
                             row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
                             row.get("actor", String.class),
@@ -239,7 +248,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                             row.get("situation", String.class),
                             row.get("character_context", String.class),
                             row.get("goal", String.class),
-                            turnsBySession.getOrDefault(id, List.of()));
+                            turnsBySession.getOrDefault(id, List.of()),
+                            null), row.get("object_key", String.class));
                 })
                 .toList();
     }

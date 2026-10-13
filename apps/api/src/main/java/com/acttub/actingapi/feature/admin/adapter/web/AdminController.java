@@ -260,7 +260,7 @@ class AdminController {
             summary = "Advisor Sessions",
             description = """
                     자문위원 계정(coaching/direct-video/personas/advisors.txt 의 이메일 해시)의 코치 대화만
-                    최신순으로 읽는다. 가명·코치 성격·대화 원문을 내고, 이메일·user id·영상 주소는 응답하지 않는다.""",
+                    최신순으로 읽는다. 가명·코치 성격·대화 원문과 1시간 영상 재생 주소를 내고, 이메일·user id 는 응답하지 않는다.""",
             operationId = "advisor_sessions_v2_admin_advisor_sessions_get",
             tags = "admin")
     @ApiResponses({

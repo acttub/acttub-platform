@@ -188,4 +188,28 @@ class AdminServiceTest {
         assertThat(page.sessions()).isEmpty();
         assertThat(page.advisorAccounts()).isZero();
     }
+
+    @Test
+    void advisorSessionsSignOneHourPlaybackOnlyWhenAVideoRemains() {
+        AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
+        AdminPlayback playback = mock(AdminPlayback.class);
+        AdminService service = new AdminService(metrics, playback, "", "");
+        var turns = List.<AdminMetrics.AdminTurn>of();
+        var at = java.time.OffsetDateTime.parse("2026-10-13T00:00:00Z");
+        var withVideo = new AdminMetrics.AdminAdvisorSession("s1", at, "abcd1234", "h", "a", "closed", null,
+                null, null, null, turns, null);
+        var purged = new AdminMetrics.AdminAdvisorSession("s2", at, "abcd1234", "h", null, "closed", null,
+                null, null, null, turns, null);
+        when(metrics.advisorSessions(50, java.util.Set.of())).thenReturn(List.of(
+                new AdminMetricsRepository.AdvisorSessionRow(withVideo, "videos/x.mp4"),
+                new AdminMetricsRepository.AdvisorSessionRow(purged, null)));
+        when(playback.url("videos/x.mp4", 3600)).thenReturn("https://signed.test/x");
+
+        AdminMetrics.AdminAdvisorSessions page = service.advisorSessions(50);
+
+        assertThat(page.playbackExpiresInSec()).isEqualTo(3600);
+        assertThat(page.sessions()).extracting(AdminMetrics.AdminAdvisorSession::videoUrl)
+                .containsExactly("https://signed.test/x", null);
+        assertThat(page.sessions().get(0)).usingRecursiveComparison().ignoringFields("videoUrl").isEqualTo(withVideo);
+    }
 }
