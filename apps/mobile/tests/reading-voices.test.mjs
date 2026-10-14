@@ -99,3 +99,22 @@ test('reading.cast: 성별을 모르면 예전 순환이되, 이미 쓴 목소�
   const pinnedF1 = [cg('a', null, null, 'F1'), cg('b', null, null, 'M2')];
   assert.equal(autoVoiceOf(pinnedF1, {}, 'b'), 'M1', '고정한 F1 은 건너뛴다');
 });
+
+// SOMA-670: M1·F5 같은 코드 대신 목소리 느낌으로 보인다. 저장 값은 그대로 코드다.
+import { readFileSync } from 'node:fs';
+const readSrc = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
+
+test('reading.cast: 목소리 정하기는 코드 대신 이름을 보이고, 나이 순서로 줄 세운다', () => {
+  const ko = readSrc('locales/ko.ts');
+  for (const [code, name] of [
+    ['M1', '밝은 청년'], ['M4', '부드러운 청년'], ['M3', '차분한 중년'], ['M2', '낮은 중년'], ['M5', '묵직한 노년'],
+    ['F2', '밝은 소녀'], ['F4', '맑은 청년'], ['F1', '또렷한 성인'], ['F3', '차분한 중년'], ['F5', '따뜻한 노년'],
+  ]) {
+    assert.match(ko, new RegExp(`${code}: '${name}'`), code);
+  }
+  const roles = readSrc('app/reading/roles.tsx');
+  assert.match(roles, /const MALE: VoicePreset\[\] = \['M1', 'M4', 'M3', 'M2', 'M5'\];/);
+  assert.match(roles, /const FEMALE: VoicePreset\[\] = \['F2', 'F4', 'F1', 'F3', 'F5'\];/);
+  assert.doesNotMatch(roles, /\{p\}<\/Text>/, '시트에 코드가 그대로 보이지 않는다');
+  assert.match(roles, /voiceName\(p\)/);
+});
