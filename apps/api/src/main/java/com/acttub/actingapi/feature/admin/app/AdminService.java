@@ -129,7 +129,7 @@ public class AdminService {
             sessions.add(new AdminAdvisorSession(
                     s.coachSessionId(), s.createdAt(), s.actor(), s.advisorHash(), s.persona(), s.status(),
                     s.closeReason(), s.situation(), s.characterContext(), s.goal(), s.turns(),
-                    row.objectKey() == null ? null : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS)));
+                    row.objectKey() == null ? null : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS), s.coachFlow()));
         }
         return new AdminAdvisorSessions(List.copyOf(sessions), advisorEmailHashes.size(), PLAYBACK_TTL_SECONDS);
     }
@@ -148,7 +148,8 @@ public class AdminService {
                     row.turns(),
                     row.objectKey() == null
                             ? null
-                            : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS)));
+                            : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS),
+                    row.coachFlow()));
         }
         return new AdminSessions(List.copyOf(sessions), PLAYBACK_TTL_SECONDS);
     }

@@ -124,6 +124,24 @@ final class DirectVideoPrompts {
         return "";
     }
 
+    /**
+     * 흐름(SOMA-636 A/B)을 따르는 할 일 파일. B의 어긋남 보기는 질문으로 떠보지 않고 코치가 본 것을 말하는 {@code tell}이다.
+     * 그 밖의 할 일은 A와 같은 파일이다.
+     */
+    static String practiceLoopTask(String doing, java.util.Locale language, String flow) {
+        if (CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(doing)) {
+            boolean korean = language == null || "ko".equals(language.getLanguage());
+            return resource("tasks/" + (korean ? "ko" : "en") + "/tell");
+        }
+        return practiceLoopTask(doing, language);
+    }
+
+    /** B 흐름에서 [이번 응답] 끝에 붙는 흐름 안내. 공통 지시의 네 단계 순서 대신 세 단계를 따르게 한다. 한국어 대화에만 붙는다. */
+    static String flowBlock(String flow, java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return CoachFlows.B.equals(flow) && korean ? "\n\n" + resource("flows/b") : "";
+    }
+
     static String practiceLoopTask(String doing, java.util.Locale language) {
         String id = TASK_FILES.get(doing);
         if (id == null) throw new IllegalStateException("practice loop task is missing: " + doing);
