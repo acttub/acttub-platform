@@ -26,13 +26,13 @@ test('요청 본문 불일치는 글자 수 초과나 업로드 만료로 표시
   assert.equal(videoErrorMessage(error), '요청 내용이 바뀌었어요. 다시 보내 주세요.');
 });
 
-test('영상만 시작·같은 영상 이어하기는 서버 본문과 경험 헤더를 그대로 사용한다', async t => {
+test('영상만 시작·다음 테이크는 서버 본문과 경험 헤더를 그대로 사용한다', async t => {
   const calls = httpResponses(t, [{ status: 201, body: practice() }, { status: 201, body: practice({ ordinal: 2 }) }]);
   await api.createPractice(buildStartBody({ requestId: id(9), videoId: id(2), scene: emptySceneDraft, blockage: emptyBlockageDraft }));
-  await api.continuePractice(id(1), buildContinueBody({ requestId: id(10), videoId: null, scene: emptySceneDraft, blockage: emptyBlockageDraft }));
+  await api.continuePractice(id(1), buildContinueBody({ requestId: id(10), videoId: id(3), scene: emptySceneDraft, blockage: emptyBlockageDraft }));
   assert.deepEqual(calls[0].body.scene, { situation: '', character: '', goal: '' });
   assert.deepEqual(calls[0].body.blockage, { category: '그 외', detail: '그 외', note: null });
-  assert.equal(calls[1].body.video_id, undefined);
+  assert.equal(calls[1].body.video_id, id(3));
   for (const call of calls) {
     assert.equal(call.headers.get('X-Acttub-Contract'), 'three_layers_v1');
     assert.equal(call.headers.get('X-Request-Id'), call.body.request_id);

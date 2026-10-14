@@ -71,6 +71,18 @@ export function filterGroups(
   return visible;
 }
 
+/**
+ * 묶음 줄(홈 「최근 연습」·연습 기록)을 눌렀을 때 갈 곳(SOMA-672). 대화 중인 묶음(열린 테이크)은 그 대화로 바로
+ * 돌아가고 — 「대화 이어 가기」와 같은 길 — 나머지는 연습 기록 상세다.
+ */
+export function groupRowTarget(
+  group: Pick<PracticeGroup, 'root_id' | 'in_progress_practice_id'>,
+): { pathname: '/analyzing'; params: { practiceId: string } } | { pathname: '/practice-group'; params: { rootId: string } } {
+  return group.in_progress_practice_id
+    ? { pathname: '/analyzing', params: { practiceId: group.in_progress_practice_id } }
+    : { pathname: '/practice-group', params: { rootId: group.root_id } };
+}
+
 /** 홈(A1)의 최근 연습 — 숨기지 않은 묶음 3개. */
 export function recentGroups(groups: readonly PracticeGroup[], limit = 3): PracticeGroup[] {
   return [...filterGroups(groups, 'all')]

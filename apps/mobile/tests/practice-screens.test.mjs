@@ -34,8 +34,11 @@ test('practice.start: 진행 중 회차가 있으면(409) 그 회차로 돌려�
 
 test('practice.resume: 장면 미리 채움은 방금 끝낸 노트에서만 한다', () => {
   assert.match(read('app/report.tsx'), /setContinueOrigin\(\{\s*kind: 'note'/);
-  // A1.2 지난 기록은 같은 영상으로 이어가고 장면은 채우지 않는다.
-  assert.match(read('app/report-detail.tsx'), /kind: 'history'/);
+  // A12 지난 노트는 장면을 채우지 않고, 같은 영상으로 잇는 출처('history')는 없다(SOMA-672).
+  assert.match(read('app/report-detail.tsx'), /kind: 'group'/);
+  for (const file of ['app/report-detail.tsx', 'app/practice-group.tsx', 'lib/practice/resume.ts']) {
+    assert.equal(/kind: 'history'/.test(read(file)), false, file);
+  }
   assert.equal(/kind: 'note'/.test(read('app/report-detail.tsx')), false);
   assert.equal(/kind: 'note'/.test(read('app/(tabs)/history.tsx')), false);
 });

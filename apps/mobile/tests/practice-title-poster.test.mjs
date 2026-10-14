@@ -28,7 +28,7 @@ test('practice.title: 제목이 바뀌면 다른 요청이다(같은 요청 id �
   const base = { requestId: 'r', videoId: 'v', scene: emptySceneDraft, blockage: emptyBlockageDraft };
   assert.notEqual(fingerprintOf(buildStartBody({ ...base, title: 'A' })), fingerprintOf(buildStartBody({ ...base, title: 'B' })));
   // 이어하기는 묶음 제목을 바꾸지 않는다 — 본문에 제목 칸이 없다.
-  assert.equal('title' in buildContinueBody({ requestId: 'r', videoId: null, scene: emptySceneDraft, blockage: emptyBlockageDraft }), false);
+  assert.equal('title' in buildContinueBody({ requestId: 'r', videoId: 'v', scene: emptySceneDraft, blockage: emptyBlockageDraft }), false);
 });
 
 test('practice.title: 200자까지 보내고 201자는 화면이 먼저 막는다', () => {
@@ -86,7 +86,7 @@ test('practice.upload: 제목 칸·업로드 중 버튼·처리 중 잠금', () 
 
 test('practice.upload: 올리는 중이면 안내도 「올리는 중」이다 — 「영상을 채워주세요」와 겹쳐 말하지 않는다', () => {
   const src = read('app/upload.tsx');
-  assert.match(src, /: !sample && uploading\s*\? t\('start\.stillUploading'\)\s*: !sample && !canStart\(plan, videoId\)/);
+  assert.match(src, /: !sample && uploading\s*\? t\('start\.stillUploading'\)\s*: !sample && !canStart\(videoId\)/);
 });
 
 test('practice.history: 연습 기록은 영상 목록처럼 왼쪽에 큰 16:9 사진, 두 줄 제목, 사진 위 회차 배지다', () => {
