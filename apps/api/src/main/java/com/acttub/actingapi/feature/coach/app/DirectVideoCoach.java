@@ -475,7 +475,8 @@ public final class DirectVideoCoach {
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
         return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
                 DirectVideoPracticeLoop.statusField(design, "대사 확인"), PracticeLoopRouter.closesNext(classified, before),
-                actorText, withTries(materials(design, PracticeLoopRouter.answers(loopState, coachTurns), classified, before, actorText, doing),
+                actorText, withTries(materials(design, PracticeLoopRouter.answers(loopState, coachTurns), classified, before, actorText, doing,
+                        PracticeLoopRouter.latestWant(loopState, coachTurns), PracticeLoopRouter.lineFixed(loopState, coachTurns)),
                         doing, stayed, session),
                 DirectVideoPracticeLoop.statusField(design, "근본 문제"));
     }
@@ -522,12 +523,19 @@ public final class DirectVideoCoach {
     }
 
     private static java.util.List<String> materials(String design, java.util.Map<String, String> answers,
-            PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String actorText, String doing) {
+            PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String actorText, String doing,
+            String storedWant, boolean storedLineFix) {
         var lines = new java.util.ArrayList<String>();
         java.util.function.BiConsumer<String, String> add = (label, value) -> {
             if (value != null && !value.isBlank() && !value.startsWith("없음")) lines.add(label + ": " + value.strip());
         };
-        add.accept("정리에서 확인할 대사", DirectVideoPracticeLoop.statusField(design, "확인할 대사"));
+        // 배우가 코치가 짚은 대사를 다른 장면이라고 바로잡았으면(2026-10-13 18:59 "그건 교수 흉내 부분이야") 그 대사를 정리에 다시 쓰지 않게 뺀다.
+        boolean lineFixed = storedLineFix || classified.lineFix();
+        if (lineFixed) {
+            lines.add("배우가 코치가 짚은 대사를 다른 장면이라고 바로잡았다. 처음 고른 확인할 대사는 쓰지 않는다. 정리에서는 이 영상에서 들린 다른 대사를 쓰거나, 마땅한 대사가 없으면 대사 없이 행동만 말한다");
+        } else {
+            add.accept("정리에서 확인할 대사", DirectVideoPracticeLoop.statusField(design, "확인할 대사"));
+        }
         add.accept("이 배우의 문제", DirectVideoPracticeLoop.statusField(design, "버릇"));
         add.accept("왜 이 배우의 문제인가", DirectVideoPracticeLoop.statusField(design, "왜 이 배우의 문제인가"));
         add.accept("버릇이 가리는 것", DirectVideoPracticeLoop.statusField(design, "버릇이 가리는 것"));
@@ -539,6 +547,16 @@ public final class DirectVideoCoach {
         String field = PracticeLoopRouter.answerField(classified, before);
         if (field != null && actorText != null) known.put(field, actorText.strip()); // 방금 답한 단계 답도 재료로
         known.forEach((label, value) -> add.accept("배우가 말한 " + label, value));
+        // 배우가 바람을 새로 말하거나 고쳐 말했으면 첫 답보다 이 말이 기준이다. 4단계에서는 행동이 아니라서 단계 답으로 남지 않던 말이다.
+        String want = classified.want() && actorText != null && !actorText.isBlank() ? actorText : storedWant;
+        if (want != null && !want.isBlank()) {
+            add.accept("배우가 가장 나중에 말한 바람", want.replaceAll("\\s+", " "));
+            lines.add("바람은 첫 답보다 이 말이 기준이다. 바람을 다시 짐작해 묻지 않는다. 제안·정리의 행동은 이 바람을 얻는 쪽으로, 배우 낱말 그대로 잇는다. \"위로\"를 \"설득\"처럼 코치 낱말로 바꾸거나, 받고 싶은 쪽(상대가 나를 달래 주기)을 하는 쪽(상대를 달래기)으로 뒤집지 않는다. 코치가 앞서 질문이나 보기로 꺼낸 낱말은 배우 말이 아니다");
+            // 2026-10-14 재생: 바람이 이미 있는데도 답 제안이 "저는 ~로 봤어요. 맞아요?"로 바람을 다시 짐작했다(할 일 파일의 모양이 이겼다).
+            if (PracticeLoopRouter.PROPOSE.equals(doing)) {
+                lines.add("이번 제안은 위 할 일의 모양·좋은 예보다 이 줄이 먼저다. 바람은 이미 나왔으니 \"저는 ~로 봤어요\"로 바람을 짐작하지 않는다. 그 바람을 배우 낱말 그대로 앞에 두고, 그걸 얻으려고 상대에게 해 볼 행동 하나를 제안한 뒤 \"어때요?\"로 묻는다. 모양: \"〈배우의 바람〉이면, 〈이 장면에서 상대에게 하는 행동〉해 봐도 좋아요. 어때요?\" 꺾쇠 안은 이 대화의 말로 바꾸고 꺾쇠는 쓰지 않는다");
+            }
+        }
         add.accept("배우가 방금 한 말", actorText == null ? null : actorText.replaceAll("\\s+", " "));
         if (classified.kind() == PracticeLoopRouter.Kind.METHOD && PracticeLoopRouter.GAP.equals(doing)) {
             lines.add("배우가 방법을 물었다. 방법을 말하기 전에, 무엇을 고쳐야 하는지부터 이번 단계로 보여 준다. 다음 질문에서 배우가 방법을 함께 찾는다");
