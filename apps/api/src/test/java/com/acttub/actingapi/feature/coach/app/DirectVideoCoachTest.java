@@ -655,21 +655,16 @@ class DirectVideoCoachTest {
                 .isEqualTo("소리 없이 낮게 협박해 봐도 좋아요");
     }
 
-    @Test void theAppButtonsAreRoutedWithoutTheClassifier() {
+    @Test void formerButtonPhrasesAreClassifiedLikeAnyTypedMessage() {
+        // 고정 버튼을 없앴다(2026-10-14). 예전 앱에서 같은 문구가 와도 분류 AI를 거친다.
         var loopEngine = practiceLoopEngine();
-        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "붙잡고 싶었어요, 밀어내고 싶었어요?",
-                "<다음 테이크>상대를 끝까지 보며 말하기</다음 테이크>\n처음부터 끝까지 상대를 보며 말해 봐도 좋아요. 해 볼래요?");
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\",\"method\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "먼저 같이 볼게요. 상대가 붙잡혔을까요?");
         var first = loopEngine.start(session(), UUID.randomUUID());
-        clearInvocations(model);
-        // 예시 버튼(10/9 19:14): 같은 단계를 보기 둘로 쉽게 다시 묻는다.
-        var easy = loopEngine.reply(first.session(), "예시로 설명해 주세요.", UUID.randomUUID());
-        verify(model, never()).classify(anyList(), anyString(), anyList());
-        assertThat(easy.session().coachingState().path("practice_loop").path("statuses").path(1).asText()).contains("할 일: 쉽게 묻기");
-        // 나중에 버튼: 단계와 상관없이 바로 정리하고, 질문은 뗀다.
-        var later = loopEngine.reply(easy.session(), "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.", UUID.randomUUID());
-        verify(model, never()).classify(anyList(), anyString(), anyList());
-        assertThat(later.session().coachingState().path("practice_loop").path("statuses").path(2).asText()).contains("할 일: 정리하기");
-        assertThat(later.reply().message()).isEqualTo("처음부터 끝까지 상대를 보며 말해 봐도 좋아요.");
+        var later = loopEngine.reply(first.session(), "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.", UUID.randomUUID());
+        verify(model).classify(anyList(), anyString(), anyList());
+        String status = later.session().coachingState().path("practice_loop").path("statuses").path(1).asText();
+        assertThat(status).contains("분류: model").doesNotContain("button");
     }
 
     @Test void theCoachIsNotAskedToCountCharacters() {

@@ -93,7 +93,6 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.MISSED, answered)).as("코치 답을 못 알아들었으면 다시 설명한다").isEqualTo("답하기");
         var alsoAsked = PracticeLoopRouter.forRouting(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"question\"]}"), answered);
         assertThat(PracticeLoopRouter.route(alsoAsked, answered, 0)).as("답하면서 함께 물었어도 답한다").isEqualTo("답하기");
-        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요.", answered).kind()).isEqualTo(Kind.QUESTION);
         assertThat(PracticeLoopRouter.closesNext(Kind.ANSWER, answered)).isFalse();
         assertThat(PracticeLoopRouter.closesNext(Kind.STOP, answered)).isFalse();
         assertThat(route(Kind.STOP, answered)).as("그만은 바로 닫는다").isEqualTo(PracticeLoopRouter.END);
@@ -245,11 +244,6 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.CORRECTION, afterWrap)).isEqualTo("답하기");
         assertThat(PracticeLoopRouter.closesNext(Kind.PUSHBACK, afterWrap)).isTrue();
         assertThat(route(Kind.SHORT, afterWrap)).isEqualTo(PracticeLoopRouter.END);
-        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요.", at(2, 2, "비추기", null)).kind()).isEqualTo(Kind.SHORT);
-        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요.", afterWrap).kind()).isEqualTo(Kind.QUESTION);
-        assertThat(PracticeLoopRouter.button("지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.", at(2, 2, "비추기", null)).by())
-                .isEqualTo(PracticeLoopRouter.BY_LATER);
-        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요. 그리고 더", at(2, 2, "비추기", null))).isNull();
     }
 
     @Test void theClassifierOutputIsChecked() {
