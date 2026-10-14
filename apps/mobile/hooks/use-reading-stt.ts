@@ -3,6 +3,8 @@ import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-spe
 import { useCallback, useRef } from 'react';
 
 import { speechLocale } from '@/lib/i18n';
+import { READING_STT_IOS_CATEGORY } from '@/lib/reading/ios-audio';
+import { restorePlaybackAudio } from '@/lib/reading/ios-audio-restore';
 import { sttPolicy, type SttPolicy } from '@/lib/reading/stt-policy';
 import { createRecordingTracker } from '@/lib/reading/stt-recordings';
 import { DEFAULT_VAD, VAD_TICK_MS, createSilenceDetector, createVolumeFeed, type VadEvent } from '@/lib/reading/vad';
@@ -82,6 +84,7 @@ export function useReadingStt(): SttHandle {
   const finishNow = useCallback((value: string) => {
     active.current = false;
     stopTicking();
+    restorePlaybackAudio();
     const resolve = settle.current;
     settle.current = null;
     resolve?.(value);
@@ -125,6 +128,8 @@ export function useReadingStt(): SttHandle {
         continuous: true,
         requiresOnDeviceRecognition: true,
         volumeChangeEventOptions: { enabled: true, intervalMillis: VOLUME_INTERVAL_MS },
+        // 기본(measurement)은 iOS 재생·녹음 소리를 크게 줄인다 — 일반 모드로 켠다(SOMA-710).
+        iosCategory: READING_STT_IOS_CATEGORY,
         ...(persist
           ? { recordingOptions: { persist: true, outputDirectory: Paths.cache.uri, outputFileName: `reading-line-${Date.now()}.wav` } }
           : {}),
@@ -166,6 +171,7 @@ export function useReadingStt(): SttHandle {
     try {
       ExpoSpeechRecognitionModule.abort();
     } catch {}
+    restorePlaybackAudio();
   }, [stopTicking]);
 
   const takeRecordingUri = useCallback((): string | null => recordings.discard(), [recordings]);
