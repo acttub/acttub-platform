@@ -464,13 +464,10 @@ public final class DirectVideoCoach {
         var loopState = session.coachingState() == null ? null : session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY);
         int coachTurns = (int) session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         var before = PracticeLoopRouter.before(loopState, coachTurns);
-        var pressed = PracticeLoopRouter.button(actorText, before);
-        var classified = pressed != null ? pressed : PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
+        var classified = PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
         String design = loopState == null ? "" : loopState.path("design").asText("");
         int stayed = PracticeLoopRouter.stayed(loopState, coachTurns);
         String doing = PracticeLoopRouter.route(classified, before, stayed);
-        // "지금은 연습하기 어려워요" 버튼은 단계와 상관없이 바로 정리한다(그만·상한은 그대로 닫는다).
-        if (PracticeLoopRouter.BY_LATER.equals(classified.by()) && !PracticeLoopRouter.END.equals(doing)) doing = PracticeLoopRouter.WRAP_UP;
         var avoid = PracticeLoopRouter.avoidAfter(before, classified.kind(), DirectVideoPracticeLoop.habit(design));
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
         return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
