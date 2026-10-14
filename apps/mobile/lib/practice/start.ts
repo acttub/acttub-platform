@@ -91,22 +91,21 @@ export function buildStartBody(input: {
 }
 
 /**
- * 이어하기 본문. 같은 영상으로 이어갈 때는 video_id를 싣지 않아 서버가 이전 회차의 영상을 쓴다
- * (A1.2 "이어서 연습하기"). 새 영상이면 확정된 video_id를 싣는다(A8.1 "이전 연습 이어서 하기").
+ * 이어하기(다음 테이크) 본문. 앱은 늘 새로 고른 video_id를 싣는다(SOMA-672). 서버는 video_id를 빼면
+ * 이전 회차의 영상을 쓰지만, 앱은 그 길을 쓰지 않는다 — 옛 영상도 보관함에서 골라 id로 싣는다.
  */
 export function buildContinueBody(input: {
   requestId: string;
-  videoId: string | null;
+  videoId: string;
   scene: SceneDraft;
   blockage: BlockageDraft;
 }): ContinuePracticeBody {
-  const body: ContinuePracticeBody = {
+  return {
     request_id: input.requestId,
+    video_id: input.videoId,
     scene: normalizeScene(input.scene),
     blockage: normalizeBlockage(input.blockage),
   };
-  if (input.videoId) body.video_id = input.videoId;
-  return body;
 }
 
 export type StartFailure =

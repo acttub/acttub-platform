@@ -29,6 +29,19 @@ export function peekPickedVideo(): PickedVideo | null {
   return picked;
 }
 
+/**
+ * 준비 화면이 처음 그릴 영상. 다음 테이크(이어하기)는 늘 빈 영상 상자에서 시작한다 — 전에 얹혀 남은 영상이
+ * 있어도 버려서, 이 흐름에서 방금 고른 영상이 아니면 들어오지 않는다(SOMA-672). 새 연습은 보관함 상세·촬영이
+ * 넘긴 영상을 그대로 받는다(꺼내는 건 화면이 포커스될 때 takePickedVideo 가 한다).
+ */
+export function initialPickedVideo(continuing: boolean): PickedVideo | null {
+  if (continuing) {
+    picked = null;
+    return null;
+  }
+  return picked;
+}
+
 /** 꺼내며 비운다. */
 export function takePickedVideo(): PickedVideo | null {
   const v = picked;

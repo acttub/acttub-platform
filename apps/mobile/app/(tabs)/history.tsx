@@ -10,7 +10,7 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import { filterGroups, groupPoster, groupTitle } from '@/lib/practice/groups';
+import { filterGroups, groupPoster, groupRowTarget, groupTitle } from '@/lib/practice/groups';
 import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
 
 type Row = {
@@ -26,6 +26,8 @@ type Row = {
   onPress: () => void;
   onLongPress?: () => void;
   chips: string[];
+  /** 열린 테이크가 있는 묶음 — 「대화 중」 배지를 붙이고 누르면 그 대화로 간다(SOMA-672). */
+  talking: boolean;
 };
 
 /**
@@ -119,7 +121,8 @@ export default function HistoryScreen() {
         meta: dayLabel(group.last_practiced_at ?? ''),
         count: t('history.countTimes', { count: group.ordinal_count }),
         chips: group.tags ?? [],
-        onPress: () => openGroup(group.root_id),
+        talking: Boolean(group.in_progress_practice_id),
+        onPress: () => router.push(groupRowTarget(group)),
         onLongPress: () => onGroupMenu(group),
       }))
       .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
@@ -219,6 +222,11 @@ export default function HistoryScreen() {
                   <Text style={styles.rowMeta} numberOfLines={1}>
                     {row.meta}
                   </Text>
+                  {row.talking && (
+                    <View style={[styles.chip, styles.talkingChip]}>
+                      <Text style={[styles.chipText, styles.talkingChipText]}>{t('history.inConversation')}</Text>
+                    </View>
+                  )}
                   {row.chips.length > 0 && (
                     <View style={styles.chips}>
                       {row.chips.map((c) => (
@@ -325,4 +333,6 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 3 },
   chip: { borderRadius: 9999, backgroundColor: palette.bgSoft, paddingVertical: 3, paddingHorizontal: 9 },
   chipText: { fontSize: 11.5, fontWeight: '700', color: palette.textMuted },
+  talkingChip: { alignSelf: 'flex-start', backgroundColor: palette.blueSoft },
+  talkingChipText: { fontWeight: '800', color: palette.blueDeep },
 });

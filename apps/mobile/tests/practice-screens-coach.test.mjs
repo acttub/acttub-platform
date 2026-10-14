@@ -27,11 +27,12 @@ test('practice.coach: 대화는 요청 id 와 revision 을 싣고 충돌이면 �
   assert.doesNotMatch(conflictBlock.slice(0, 600), /setInput\(''\)/);
 });
 
-test('practice.coach: 닫힌 대화는 답할 수 없고 새 회차로 이어 간다', () => {
+test('practice.coach: 닫힌 대화는 답할 수 없고 「다음 테이크 찍기」로 새 회차를 연다', () => {
   const coach = read('app/coach.tsx');
 
   assert.match(coach, /setContinueOrigin\(\{ kind: 'group'/);
-  assert.match(coach, /coach\.continueNew/);
+  assert.match(coach, /history\.nextTake/);
+  assert.doesNotMatch(coach, /coach\.continueNew/);
   assert.match(coach, /isClosed/);
 });
 
@@ -59,9 +60,11 @@ test('practice.note: 노트 화면은 새 노트 계약을 읽고 확인을 강�
   assert.doesNotMatch(read('locales/ko.ts'), /분석 확정 · 배우님과 맞춘 내용/);
 });
 
-test('practice.note: "다음 연습"은 방금 끝낸 회차의 장면을 미리 채운다', () => {
+test('practice.note: 「다음 테이크 찍기」는 방금 끝낸 회차의 장면을 미리 채운다', () => {
   const report = read('app/report.tsx');
 
+  assert.match(report, /t\('history\.nextTake'\)/);
+  assert.doesNotMatch(report, /note\.nextPractice/);
   assert.match(report, /setContinueOrigin\(\{\s*kind: 'note'/);
   assert.match(report, /scene: practice\.scene/);
 });
@@ -83,17 +86,19 @@ test('practice.library: 홈은 숨기지 않은 묶음 3개와 한국 시간 연
 
   assert.match(home, /recentGroups\(groups, PREVIEW_COUNT\)/);
   assert.match(home, /practiceStreak/);
-  assert.match(home, /pathname: '\/practice-group'/);
+  // 줄을 누르면 묶음 상세로, 대화 중인 묶음은 그 대화로 바로 간다(SOMA-672).
+  assert.match(home, /groupRowTarget\(r\)/);
 });
 
-test('practice.library: 묶음 상세는 회차 흐름과 이어서 연습하기를 보여 준다', () => {
+test('practice.library: 묶음 상세는 회차 흐름과 「대화 이어 가기」·「다음 테이크 찍기」 중 하나를 보여 준다', () => {
   const group = read('app/practice-group.tsx');
 
   assert.match(group, /api\.getPracticeGroup/);
   assert.match(group, /roundSummary/);
-  assert.match(group, /history\.continueCta/);
-  assert.match(group, /setContinueOrigin/);
-  assert.match(group, /kind: 'history'/);
+  assert.match(group, /continueActionFor\(group\)/);
+  assert.match(group, /continueActionLabel\(/);
+  assert.match(group, /setContinueOrigin\(\{ kind: 'group'/);
+  assert.doesNotMatch(group, /history\.continueCta|kind: 'history'/);
 });
 
 test('practice.library: 묶음 상세 헤더에서 바로 숨기고 목록으로 돌아간다 — 영상은 보관함에 남는다', () => {

@@ -1,18 +1,21 @@
 import { emptySceneDraft, type SceneDraft } from './start.ts';
+import type { PracticeGroup } from './types.ts';
 
 /**
- * 이어하기의 준비 화면 규칙(practice.resume).
+ * 이어하기의 규칙(practice.resume, SOMA-672).
  *
- * 회차마다 상황·인물·목표·막힘을 새로 확정한다. 앱에서 방금 끝낸 노트(A13)에서 이어갈 때만
- * 이전 장면을 미리 채워 두고, 지난 기록(A1.2)이나 새 연습 화면(A8.1)에서 이어갈 때는 빈
- * 준비 화면이다. A1.2는 그 회차의 영상을 그대로 쓰고, A13·A8.1은 영상을 새로 고른다.
+ * 묶음에서 이어 가는 길은 둘이고 동시에 보이지 않는다.
+ * - 「대화 이어 가기」: 묶음에 닫히지 않은 회차(열린 테이크)가 있을 때만. 그 회차의 대화로 바로 돌아간다.
+ * - 「다음 테이크 찍기」: 열린 테이크가 없을 때만. 같은 묶음에 새 회차를 만들고, 영상은 언제나 새로 고르거나
+ *   찍는다 — 지난 영상을 몰래 다시 쓰지 않는다(옛 영상이 필요하면 보관함에서 고른다).
+ *
+ * 앱에서 방금 끝낸 노트(A13)에서 이어갈 때만 이전 장면을 미리 채워 두고, 지난 기록(A1.2·A12)이나
+ * 닫힌 코치 대화에서 이어갈 때는 장면을 비운다.
  */
 export type ContinueOrigin =
-  /** A13 연습 마치기 → 다음 연습. 장면을 미리 채우고 영상은 새로 고른다. */
+  /** A13 연습 마치기 → 다음 테이크 찍기. 장면을 미리 채운다. */
   | { kind: 'note'; rootId: string; practiceId: string; scene: SceneDraft }
-  /** A1.2 연습 기록 상세의 "이어서 연습하기". 같은 영상으로 다음 회차를 만든다. */
-  | { kind: 'history'; rootId: string; practiceId: string; videoId: string }
-  /** A8.1 새 연습 화면의 "이전 연습 이어서 하기". 새로 확정한 영상을 쓴다. */
+  /** A1.2 연습 기록 상세·A12 지난 노트·닫힌 코치 대화의 「다음 테이크 찍기」. 장면은 비운다. */
   | { kind: 'group'; rootId: string; practiceId: string };
 
 export type StartPlan = {
@@ -21,37 +24,29 @@ export type StartPlan = {
   scene: SceneDraft;
   /** 장면을 미리 채웠는지 — 화면 제목·버튼 문구가 이걸 본다. */
   prefilled: boolean;
-  video: { kind: 'same'; videoId: string } | { kind: 'pick' };
 };
 
 export function planFor(origin: ContinueOrigin | null): StartPlan {
-  if (!origin) {
-    return { continueFrom: null, scene: emptySceneDraft, prefilled: false, video: { kind: 'pick' } };
-  }
+  if (!origin) return { continueFrom: null, scene: emptySceneDraft, prefilled: false };
   const continueFrom = { rootId: origin.rootId, practiceId: origin.practiceId };
-  if (origin.kind === 'note') {
-    return { continueFrom, scene: origin.scene, prefilled: true, video: { kind: 'pick' } };
-  }
-  if (origin.kind === 'history') {
-    return {
-      continueFrom,
-      scene: emptySceneDraft,
-      prefilled: false,
-      video: { kind: 'same', videoId: origin.videoId },
-    };
-  }
-  return { continueFrom, scene: emptySceneDraft, prefilled: false, video: { kind: 'pick' } };
+  if (origin.kind === 'note') return { continueFrom, scene: origin.scene, prefilled: true };
+  return { continueFrom, scene: emptySceneDraft, prefilled: false };
 }
 
-/**
- * 이어하기 본문에 실을 video_id. 같은 영상으로 이어가면 싣지 않아 서버가 이전 회차의 영상을
- * 쓰고, 새 영상이면 확정된 id를 싣는다. 아직 영상을 못 골랐으면 시작할 수 없다.
- */
-export function continueVideoId(plan: StartPlan, pickedVideoId: string | null): string | null {
-  return plan.video.kind === 'same' ? null : pickedVideoId;
+/** 시작 버튼을 누를 수 있는 상태인지 — 새 연습이든 다음 테이크든 확정된 영상이 있어야 한다. */
+export function canStart(pickedVideoId: string | null): boolean {
+  return Boolean(pickedVideoId);
 }
 
-/** 시작 버튼을 누를 수 있는 상태인지 — 새 영상을 고르는 흐름은 확정된 영상이 있어야 한다. */
-export function canStart(plan: StartPlan, pickedVideoId: string | null): boolean {
-  return plan.video.kind === 'same' || Boolean(pickedVideoId);
+/** 묶음에서 이어 가는 버튼 하나. 열린 테이크가 있으면 그 대화로, 없으면 다음 테이크다. */
+export type ContinueAction = { kind: 'resume'; practiceId: string } | { kind: 'nextTake' };
+
+export function continueActionFor(group: Pick<PracticeGroup, 'in_progress_practice_id'> | null): ContinueAction {
+  const open = group?.in_progress_practice_id;
+  return open ? { kind: 'resume', practiceId: open } : { kind: 'nextTake' };
+}
+
+/** 버튼 문구 키 — 「대화 이어 가기」 / 「다음 테이크 찍기」. */
+export function continueActionLabel(action: ContinueAction): 'history.resumeConversation' | 'history.nextTake' {
+  return action.kind === 'resume' ? 'history.resumeConversation' : 'history.nextTake';
 }

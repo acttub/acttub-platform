@@ -39,7 +39,8 @@ coach_conversations.status — 회차의 코치 대화.
 - 끝 상태: closed. 닫히면 회차가 closed/conversation_closed가 되고(정본: [practice.start](start.md#상태)) 노트를 한 번 만든다(practice.note).
 
 ## 규칙·제약
-- 열린 대화는 같은 id로 재개하고, 닫힌 뒤 다시 코칭하려면 새 회차(practice.resume)다. 옛 자료의 복수 대화는 옛 읽기 경로로만
+- 열린 대화는 같은 id로 재개하고(앱: 「대화 이어 가기」·「대화 중」 줄), 닫힌 뒤 다시 코칭하려면 새 회차(practice.resume)다. 앱의
+  닫힌 대화 화면은 「다음 테이크 찍기」로 새 영상을 골라 새 회차를 연다(SOMA-672). 옛 자료의 복수 대화는 옛 읽기 경로로만
   본다([「0.1.0 스키마 전환」](README.md#010-스키마-전환)).
 - 시작 요청의 request_id는 대화의 start_request_id이고(영상만 올린 첫 시작에는 배우 메시지가 없다), 배우 메시지는
   (conversation_id, request_id) 유일이다. 재전송은 [공통 규칙 「요청 재전송」](../common.md#요청-재전송)을 따르고, 대화를 닫은 답장의
@@ -108,7 +109,7 @@ coach_conversations.status — 회차의 코치 대화.
 - 프로필을 바꾼 뒤 다음 턴: 새 값이 입력에 들어가고 대화 행에 프로필 스냅샷이 없다.
 - 옛 자료의 복수 대화 회차 조회: 가장 최근 대화가 "대화", 나머지가 "이전 대화" 목록으로 보인다.
 - 도움 버튼만 누름: 메시지 행 없음.
-- 닫힌 대화에 답: 409 conversation_closed. 닫힌 뒤 "다시 코칭": 새 회차가 만들어진다(practice.resume).
+- 닫힌 대화에 답: 409 conversation_closed. 닫힌 뒤 「다음 테이크 찍기」: 새 영상을 고른 새 회차가 만들어진다(practice.resume).
 - 게스트 대화: 프로필이 없어도 200.
 - 대화 중 탈퇴: 그 뒤 도착한 코치 응답이 저장되지 않고 403 account_deactivated.
 
