@@ -1,3 +1,5 @@
+import { translate } from '../i18n.ts';
+
 /**
  * 상대역 목소리(reading.cast). 값은 기기에 내장된 Supertonic 프리셋 id(M1~M5·F1~F5)이고 서버는 목록을
  * 모른다(32자 이내 문자열이면 받는다). NULL 이면 "자동"이다.
@@ -130,4 +132,10 @@ export function voiceChanges(
   chosen: Record<string, string | null>,
 ): { id: string; voice_preset: string | null }[] {
   return characters.filter((c) => c.id in chosen && chosen[c.id] !== c.voice_preset).map((c) => ({ id: c.id, voice_preset: chosen[c.id] }));
+}
+
+/** 화면에 보일 목소리 이름 — 코드(M1·F5) 대신 목소리 느낌(SOMA-670). 기기가 모르는 값은 그대로 보인다. */
+export function voiceName(preset: string | null | undefined): string {
+  if (!preset) return '-';
+  return isKnownPreset(preset) ? translate(`reading.voiceName.${preset}`) : preset;
 }

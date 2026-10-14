@@ -16,7 +16,7 @@ import { getCurrent, updateScriptMeta } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
 import { assetsPresent } from '@/lib/reading/tts/assets';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
-import { autoVoiceOf, isKnownPreset, shownVoices, voiceChanges, type VoicePreset } from '@/lib/reading/voices';
+import { autoVoiceOf, isKnownPreset, shownVoices, voiceChanges, voiceName, type VoicePreset } from '@/lib/reading/voices';
 import type { ScriptCharacter } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
 
@@ -26,8 +26,9 @@ import { translate as t } from '@/lib/i18n';
  * 미리 듣기는 연습 때 읽을 엔진으로 — 고품질 목소리를 쓰는 중이면 앱에 넣은 Gemini 샘플, 아니면 기기 목소리(Supertonic).
  */
 const NO_CHARACTERS: ScriptCharacter[] = [];
-const MALE: VoicePreset[] = ['M1', 'M2', 'M3', 'M4', 'M5'];
-const FEMALE: VoicePreset[] = ['F1', 'F2', 'F3', 'F4', 'F5'];
+// 나이 순서(젊은 → 노년). 이름은 음높이로 정한 느낌이다(SOMA-670, lib/reading/voices PREFERENCE 와 같은 판단).
+const MALE: VoicePreset[] = ['M1', 'M4', 'M3', 'M2', 'M5'];
+const FEMALE: VoicePreset[] = ['F2', 'F4', 'F1', 'F3', 'F5'];
 
 export default function ReadingRoles() {
   const router = useRouter();
@@ -208,7 +209,7 @@ export default function ReadingRoles() {
                 </View>
                 <Pressable style={styles.voiceChip} onPress={() => setSheetFor(c.id)}>
                   <Text style={styles.voiceChipText}>
-                    {isKnownPreset(c.voice_preset) ? c.voice_preset : t('reading.voiceAutoChip', { preset: assigned[c.id] ?? '-' })}
+                    {isKnownPreset(c.voice_preset) ? voiceName(c.voice_preset) : t('reading.voiceAutoChip', { preset: voiceName(assigned[c.id]) })}
                   </Text>
                   <Feather name="chevron-down" size={13} color={palette.blueDeep} />
                 </Pressable>
@@ -246,7 +247,7 @@ export default function ReadingRoles() {
               <Pressable style={[styles.autoBtn, sheetValue === null && styles.chipOn]} onPress={() => choose(sheetCharacter.id, null)}>
                 {sheetValue === null && <Feather name="check" size={15} color={palette.blueDeep} />}
                 <Text style={[styles.chipText, sheetValue === null && styles.chipTextOn]}>
-                  {t('reading.voiceAutoNow', { preset: autoVoiceOf(characters, chosen, sheetCharacter.id) ?? '-' })}
+                  {t('reading.voiceAutoNow', { preset: voiceName(autoVoiceOf(characters, chosen, sheetCharacter.id)) })}
                 </Text>
               </Pressable>
               {[
@@ -258,7 +259,7 @@ export default function ReadingRoles() {
                   <View style={styles.chips}>
                     {group.presets.map((p) => (
                       <Pressable key={p} style={[styles.chip, sheetValue === p && styles.chipOn]} onPress={() => choose(sheetCharacter.id, p)}>
-                        <Text style={[styles.chipText, sheetValue === p && styles.chipTextOn]}>{p}</Text>
+                        <Text style={[styles.chipText, sheetValue === p && styles.chipTextOn]}>{voiceName(p)}</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -317,8 +318,8 @@ const styles = StyleSheet.create({
   autoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 13, marginTop: 6 },
   group: { gap: 8, marginTop: 4 },
   groupLabel: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 12 },
-  chips: { flexDirection: 'row', gap: 8 },
-  chip: { flex: 1, alignItems: 'center', borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 12 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { flexBasis: '31%', flexGrow: 1, alignItems: 'center', borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 12 },
   chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   chipText: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
   chipTextOn: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold' },
