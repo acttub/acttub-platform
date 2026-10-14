@@ -332,4 +332,29 @@ class PracticeLoopRouterTest {
         assertThat(PracticeLoopRouter.SIGNALS).contains("want", "line_fix");
         assertThat(DirectVideoPrompts.practiceLoopClassifier()).contains("want:", "line_fix:");
     }
+
+    @Test void flowBSkipsFindingAndGoesStraightToWrapUpAfterTheCoachSaysWhatItSaw() {
+        var classified = new Classified(Kind.ANSWER, false, "model");
+        var afterGap = at(3, 4, PracticeLoopRouter.GAP, Kind.ANSWER);
+        assertThat(PracticeLoopRouter.route(classified, afterGap, 0, CoachFlows.A)).isEqualTo(PracticeLoopRouter.FIND);
+        assertThat(PracticeLoopRouter.route(classified, afterGap, 0, CoachFlows.B)).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        var afterFirst = at(2, 2, "원하는 것 묻기", Kind.ANSWER);
+        assertThat(PracticeLoopRouter.route(classified, afterFirst, 0, CoachFlows.B))
+                .isEqualTo(PracticeLoopRouter.route(classified, afterFirst, 0, CoachFlows.A));
+        var correction = new Classified(Kind.CORRECTION, false, "model");
+        assertThat(PracticeLoopRouter.route(correction, afterGap, 0, CoachFlows.B)).as("정정은 B도 먼저 받는다").isEqualTo("내려놓기");
+    }
+
+    @Test void flowBTellsInsteadOfQuizzingAndCarriesTheThreeStepNote() {
+        var b = at(2, 2, "원하는 것 묻기", Kind.ANSWER);
+        assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, b, CoachFlows.B)).startsWith("2/4 코치가 본 것");
+        assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, b, CoachFlows.A)).isEqualTo(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, b));
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null, CoachFlows.B)).contains("솔직하게 말해 주는 연출가");
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null, CoachFlows.A))
+                .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null));
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, java.util.Locale.ENGLISH, CoachFlows.B)).contains("root problem");
+        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.B, null)).contains("세 단계");
+        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.A, null)).isEmpty();
+        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.B, java.util.Locale.ENGLISH)).isEmpty();
+    }
 }

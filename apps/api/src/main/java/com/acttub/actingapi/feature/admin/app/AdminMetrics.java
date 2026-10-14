@@ -41,7 +41,10 @@ public final class AdminMetrics {
             String characterContext,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String goal,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminTurn> turns,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String videoUrl) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String videoUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, allowableValues = {"a", "b"},
+                    description = "코치 흐름 A/B(SOMA-636). 기록이 없는 예전 대화는 null")
+            String coachFlow) {
     }
 
     @Schema(name = "AdminSessions", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -72,7 +75,10 @@ public final class AdminMetrics {
             String characterContext,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String goal,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminTurn> turns,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String videoUrl) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String videoUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, allowableValues = {"a", "b"},
+                    description = "코치 흐름 A/B(SOMA-636). 기록이 없는 예전 대화는 null")
+            String coachFlow) {
     }
 
     @Schema(name = "AdminAdvisorSessions", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
