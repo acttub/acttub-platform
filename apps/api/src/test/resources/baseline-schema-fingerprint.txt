@@ -622,6 +622,12 @@ COLUMN upload_intents.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN upload_intents.video_id ord=15 type=uuid len=- null=YES default=-
 COLUMN user_active_days.day ord=2 type=date len=- null=NO default=-
 COLUMN user_active_days.user_id ord=1 type=uuid len=- null=NO default=-
+COLUMN user_airbridge_device_lookups.attempts ord=5 type=int4 len=- null=NO default=0
+COLUMN user_airbridge_device_lookups.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN user_airbridge_device_lookups.device_uuid ord=3 type=text len=- null=NO default=-
+COLUMN user_airbridge_device_lookups.next_attempt_at ord=6 type=timestamptz len=- null=NO default=now()
+COLUMN user_airbridge_device_lookups.platform ord=2 type=text len=- null=NO default=-
+COLUMN user_airbridge_device_lookups.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN user_blocks.blocked_id ord=3 type=uuid len=- null=NO default=-
 COLUMN user_blocks.blocker_id ord=2 type=uuid len=- null=NO default=-
 COLUMN user_blocks.created_at ord=4 type=timestamptz len=- null=NO default=now()
@@ -1562,6 +1568,15 @@ CONSTRAINT user_active_days user_active_days_day_not_null NOT NULL day
 CONSTRAINT user_active_days user_active_days_pkey PRIMARY KEY (user_id, day)
 CONSTRAINT user_active_days user_active_days_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT user_active_days user_active_days_user_id_not_null NOT NULL user_id
+CONSTRAINT user_airbridge_device_lookups ck_user_airbridge_device_lookups_platform CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text])))
+CONSTRAINT user_airbridge_device_lookups user_airbridge_device_lookups_attempts_not_null NOT NULL attempts
+CONSTRAINT user_airbridge_device_lookups user_airbridge_device_lookups_created_at_not_null NOT NULL created_at
+CONSTRAINT user_airbridge_device_lookups user_airbridge_device_lookups_device_uuid_not_null NOT NULL device_uuid
+CONSTRAINT user_airbridge_device_lookups user_airbridge_device_lookups_next_attempt_at_not_null NOT NULL next_attempt_at
+CONSTRAINT user_airbridge_device_lookups user_airbridge_device_lookups_pkey PRIMARY KEY (user_id)
+CONSTRAINT user_airbridge_device_lookups user_airbridge_device_lookups_platform_not_null NOT NULL platform
+CONSTRAINT user_airbridge_device_lookups user_airbridge_device_lookups_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT user_airbridge_device_lookups user_airbridge_device_lookups_user_id_not_null NOT NULL user_id
 CONSTRAINT user_blocks ck_user_blocks_other CHECK ((blocker_id <> blocked_id))
 CONSTRAINT user_blocks uq_user_blocks_pair UNIQUE (blocker_id, blocked_id)
 CONSTRAINT user_blocks user_blocks_blocked_id_fkey FOREIGN KEY (blocked_id) REFERENCES users(id)
@@ -1723,6 +1738,7 @@ INDEX CREATE INDEX idx_sessions_summary ON public.coach_sessions USING btree (su
 INDEX CREATE INDEX idx_turns_session ON public.coach_turns USING btree (session_id, turn_index)
 INDEX CREATE INDEX idx_upload_intents_expiry ON public.upload_intents USING btree (status, expires_at)
 INDEX CREATE INDEX idx_upload_intents_user_created ON public.upload_intents USING btree (user_id, created_at DESC)
+INDEX CREATE INDEX idx_user_airbridge_device_lookups_due ON public.user_airbridge_device_lookups USING btree (next_attempt_at)
 INDEX CREATE INDEX idx_user_consents_current ON public.user_consents USING btree (user_id, document_id, occurred_at DESC)
 INDEX CREATE INDEX idx_user_identities_uid_hash ON public.user_identities USING btree (uid_hash) WHERE (uid_hash IS NOT NULL)
 INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btree (user_id)
@@ -1877,6 +1893,7 @@ INDEX CREATE UNIQUE INDEX uq_user_identities_provider_uid ON public.user_identit
 INDEX CREATE UNIQUE INDEX uq_user_profile_directions_user_direction ON public.user_profile_directions USING btree (user_id, direction)
 INDEX CREATE UNIQUE INDEX uq_video_transcripts_video ON public.video_transcripts USING btree (video_id)
 INDEX CREATE UNIQUE INDEX user_active_days_pkey ON public.user_active_days USING btree (user_id, day)
+INDEX CREATE UNIQUE INDEX user_airbridge_device_lookups_pkey ON public.user_airbridge_device_lookups USING btree (user_id)
 INDEX CREATE UNIQUE INDEX user_blocks_pkey ON public.user_blocks USING btree (id)
 INDEX CREATE UNIQUE INDEX user_consents_pkey ON public.user_consents USING btree (id)
 INDEX CREATE UNIQUE INDEX user_discovery_answers_pkey ON public.user_discovery_answers USING btree (user_id)
@@ -1955,6 +1972,7 @@ TABLE summaries
 TABLE transcripts
 TABLE upload_intents
 TABLE user_active_days
+TABLE user_airbridge_device_lookups
 TABLE user_blocks
 TABLE user_consents
 TABLE user_discovery_answers

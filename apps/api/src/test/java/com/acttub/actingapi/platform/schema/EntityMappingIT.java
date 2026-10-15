@@ -123,6 +123,8 @@ class EntityMappingIT {
             "note_ratings",
             // 가입 유입 출처(V26·V28)는 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_signup_attributions",
+            // 앱이 넘긴 Airbridge 기기 ID 임시 보관(V43, SOMA-643)은 프로필 저장소·재조회 저장소의 native SQL 만 쓴다.
+            "user_airbridge_device_lookups",
             // 가입 직후 유입 경로 자기 응답(V38)도 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_discovery_answers",
             // 앱 공지 포스터(V29)는 포스터 저장소의 native SQL(만들기·고치기·고르기)만 쓴다.

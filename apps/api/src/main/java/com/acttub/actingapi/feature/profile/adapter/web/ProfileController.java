@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.AirbridgeDeviceRequest;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.Direction;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.DiscoveryAnswerRequest;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.MeResponse;
@@ -21,6 +22,7 @@ import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WebAttributi
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WithdrawnResponse;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.feature.profile.domain.Account;
+import com.acttub.actingapi.feature.profile.domain.AirbridgeDevice;
 import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
@@ -146,6 +148,41 @@ class ProfileController {
             @Valid @RequestBody SignupAttributionRequest body, HttpServletRequest request) {
         var user = auth.gatedUser(request);
         profiles.recordSignupAttribution(user.id(), signupAttribution(body));
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Record Airbridge Device",
+            description = """
+                    앱이 SDK 콜백으로 유입 광고를 못 보낼 때를 대비해, 서버가 Airbridge 에서 설치 귀속을 다시 가져오도록 Airbridge
+                    기기 ID(안드로이드 GAID, iOS IDFA/IDFV)를 한 번 넘긴다. 서버는 귀속을 적거나 24시간이 지나면 이 ID 를
+                    지운다. 이미 유입 기록이 있거나 서버 기능이 꺼져 있으면 아무것도 하지 않고 204 다 — 재시도에 안전하다.
+                    device_uuid 가 36자 UUID 가 아니거나 모두 0 이면(광고 추적 제한) 422. 동의와 프로필이 끝난 회원만 부를 수
+                    있다. 게스트는 403 member_only.""",
+            operationId = "record_airbridge_device_v2_me_airbridge_device_put",
+            tags = "v2-me",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Successful Response"),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @PutMapping("/airbridge-device")
+    ResponseEntity<Void> recordAirbridgeDevice(
+            @Valid @RequestBody AirbridgeDeviceRequest body, HttpServletRequest request) {
+        var user = auth.gatedUser(request);
+        if (!SignupAttribution.AIRBRIDGE_PLATFORMS.contains(body.platform())) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "platform"), "platform must be one of: ios, android", body.platform());
+        }
+        // 값은 기기 ID 라 오류 입력에 되돌려 싣지 않는다.
+        if (!AirbridgeDevice.isUsable(body.deviceUuid())) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "device_uuid"), "device_uuid must be a non-zero 36-character UUID", null);
+        }
+        profiles.recordAirbridgeDevice(user.id(), body.platform(), body.deviceUuid());
         return ResponseEntity.noContent().build();
     }
 
