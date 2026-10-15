@@ -146,7 +146,8 @@ class AdminEndpointIT {
                 "character_context",
                 "goal",
                 "turns",
-                "video_url");
+                "video_url",
+                "coach_flow");
         assertThat(pending.path("coach_session_id").textValue())
                 .isEqualTo(realPendingCoach.toString());
         assertThat(pending.path("status").textValue()).isEqualTo("open");
@@ -154,6 +155,7 @@ class AdminEndpointIT {
         assertThat(pending.path("turns").get(0).path("role").textValue())
                 .isEqualTo("ai");
         assertThat(pending.path("video_url").isNull()).isTrue();
+        assertThat(pending.path("coach_flow").isNull()).isTrue();
 
         JsonNode finalized = sessions.path("sessions").get(1);
         assertThat(finalized.path("coach_session_id").textValue())
@@ -233,7 +235,7 @@ class AdminEndpointIT {
         UUID newerConversation = UUID.randomUUID();
         insertConversation(newerConversation, newerPractice, "open", null, NOW.minusMinutes(3));
         jdbc.update("UPDATE coach_conversations SET state = CAST(? AS jsonb) WHERE id=?",
-                "{\"practice_loop\":{\"persona\":\"b1\"}}", newerConversation);
+                "{\"practice_loop\":{\"persona\":\"b1\",\"flow\":\"b\"}}", newerConversation);
         insertMessage(newerConversation, 1, "actor", "자문 답");
         insertMessage(newerConversation, 0, "ai", "자문 질문");
 
@@ -257,6 +259,7 @@ class AdminEndpointIT {
                 .as("시험 목록의 sha256(\"advisor@example.com\")")
                 .isEqualTo("11d6d7223550b8edd504d86e14a4db458c8356ba1a5fceab66f5d2e387470d71");
         assertThat(newest.path("persona").textValue()).isEqualTo("b1");
+        assertThat(newest.path("coach_flow").textValue()).isEqualTo("b");
         assertThat(newest.path("status").textValue()).isEqualTo("open");
         assertThat(newest.path("video_url").textValue()).isEqualTo("admin:advisor-new.mp4:3600");
         assertThat(newest.path("turns")).isEqualTo(mapper.readTree("""
@@ -266,6 +269,7 @@ class AdminEndpointIT {
         JsonNode oldest = sessions.get(1);
         assertThat(oldest.path("coach_session_id").textValue()).isEqualTo(olderConversation.toString());
         assertThat(oldest.path("persona").isNull()).as("성격 배정 기록이 없으면 null").isTrue();
+        assertThat(oldest.path("coach_flow").isNull()).as("흐름 배정 기록이 없으면 null").isTrue();
         assertThat(oldest.path("close_reason").textValue()).isEqualTo("gap_stated");
         assertThat(oldest.path("turns")).isEmpty();
         assertThat(oldest.path("video_url").isNull()).as("지워진 영상은 재생 주소가 없다").isTrue();
