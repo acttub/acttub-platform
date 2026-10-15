@@ -23,7 +23,7 @@ import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { avatarLetter, browseFailure, browseFailureMessage, isEnded, rankEntries } from '@/lib/challenge/browse';
+import { avatarLetter, browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
 import { entryShareUrl } from '@/lib/challenge/deeplink';
 import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import { canReact, optimisticLike, optimisticSave, reactFailure, reactFailureMessage } from '@/lib/challenge/react';
@@ -195,7 +195,7 @@ export default function ChallengePlayScreen() {
   };
 
   const perform = () => {
-    if (!challenge) return;
+    if (!challenge || !canPerform(challenge)) return;
     logEvent('challenge_perform_tap', { id: challenge.id });
     router.push({
       pathname: '/record-video',
