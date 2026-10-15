@@ -73,7 +73,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                     coach.situation,
                     coach.character_context,
                     coach.goal,
-                    coach.object_key
+                    coach.object_key,
+                    coach.coach_flow
                 FROM (
                     SELECT
                         conversation.id,
@@ -84,7 +85,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         practice.character_context,
                         practice.goal,
                         video.object_key,
-                        practice.user_id
+                        practice.user_id,
+                        NULLIF(conversation.state -> 'practice_loop' ->> 'flow', '') AS coach_flow
                     FROM coach_conversations AS conversation
                     JOIN practices AS practice
                       ON practice.id = conversation.practice_id
@@ -101,7 +103,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         practice.character_context,
                         practice.goal,
                         upload.object_key,
-                        practice.user_id
+                        practice.user_id,
+                        CAST(NULL AS text) AS coach_flow
                     FROM coach_sessions AS legacy
                     LEFT JOIN practice_sessions AS practice
                       ON practice.id = legacy.practice_session_id
@@ -139,7 +142,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.get("situation", String.class),
                         row.get("character_context", String.class),
                         row.get("goal", String.class),
-                        row.get("object_key", String.class)))
+                        row.get("object_key", String.class),
+                        row.get("coach_flow", String.class)))
                 .toList();
         Map<UUID, List<AdminTurn>> turnsBySession = turns(
                 rows.stream().map(SessionBaseRow::coachSessionId).toList());
@@ -153,7 +157,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.characterContext(),
                         row.goal(),
                         turnsBySession.getOrDefault(row.coachSessionId(), List.of()),
-                        row.objectKey()))
+                        row.objectKey(),
+                        row.coachFlow()))
                 .toList();
     }
 
@@ -176,6 +181,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                     coach.character_context,
                     coach.goal,
                     coach.persona,
+                    coach.coach_flow,
                     coach.object_key,
                     left(md5(CAST(coach.user_id AS text)), 8) AS actor,
                     advisor.hash AS advisor_hash
@@ -189,6 +195,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         practice.character_context,
                         practice.goal,
                         NULLIF(conversation.state -> 'practice_loop' ->> 'persona', '') AS persona,
+                        NULLIF(conversation.state -> 'practice_loop' ->> 'flow', '') AS coach_flow,
                         video.object_key,
                         practice.user_id
                     FROM coach_conversations AS conversation
@@ -207,6 +214,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         practice.character_context,
                         practice.goal,
                         CAST(NULL AS text) AS persona,
+                        CAST(NULL AS text) AS coach_flow,
                         upload.object_key,
                         practice.user_id
                     FROM coach_sessions AS legacy
@@ -249,7 +257,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                             row.get("character_context", String.class),
                             row.get("goal", String.class),
                             turnsBySession.getOrDefault(id, List.of()),
-                            null), row.get("object_key", String.class));
+                            null,
+                            row.get("coach_flow", String.class)), row.get("object_key", String.class));
                 })
                 .toList();
     }
@@ -903,6 +912,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
             String situation,
             String characterContext,
             String goal,
-            String objectKey) {
+            String objectKey,
+            String coachFlow) {
     }
 }
