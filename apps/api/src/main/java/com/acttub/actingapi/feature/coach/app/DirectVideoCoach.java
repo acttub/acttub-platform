@@ -196,7 +196,9 @@ public final class DirectVideoCoach {
                 // 종료("그만")도 연습 루프가 해 본 횟수로 닫는다. 서버는 아래에서 세션만 닫는다.
                 route = "practice_loop";
                 java.util.Locale language = DirectVideoPracticeLoop.replyLanguage(session, actorText);
-                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language) + personaBlock(persona, language);
+                // 이어서 찍은 회차면 첫 질문 대신 지난 시도부터 묻는다. 개인 프롬프트의 첫 질문 모양보다 먼저라 그 뒤에 붙인다.
+                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language) + personaBlock(persona, language)
+                        + DirectVideoPrompts.continuation(session.priorForModel(), language);
                 // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop", DirectVideoPrompts.practiceLoop())
