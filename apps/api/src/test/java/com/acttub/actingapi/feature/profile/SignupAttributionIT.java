@@ -318,7 +318,7 @@ class SignupAttributionIT {
         assertThat(rows).hasSize(1);
         JsonNode row = rows.get(0);
         assertThat(row.fieldNames()).toIterable().containsExactly(
-                "actor", "signup_at", "source", "platform", "channel", "medium", "campaign", "ad_group", "ad_creative");
+                "actor", "signup_at", "source", "platform", "channel", "medium", "campaign", "ad_group", "ad_creative", "recorded_via");
         assertThat(row.path("actor").asText()).isEqualTo("배우 " + md5(member.toString()).substring(0, 8));
         assertThat(row.path("source").asText()).isEqualTo("airbridge");
         assertThat(row.path("platform").asText()).isEqualTo("ios");
