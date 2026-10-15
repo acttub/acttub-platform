@@ -42,7 +42,7 @@ class PostgresAirbridgeLookupStore implements AirbridgeLookupStore {
                             row.get("user_id", UUID.class),
                             row.get("platform", String.class),
                             row.get("device_uuid", String.class),
-                            row.get("created_at", java.time.OffsetDateTime.class).toInstant(),
+                            row.get("created_at", java.time.Instant.class),
                             row.get("attempts", Number.class).intValue()))
                     .toList();
         });
