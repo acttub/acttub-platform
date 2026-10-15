@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -29,13 +30,12 @@ import { translate as t } from '@/lib/i18n';
 import {
   confirmedVideoFor,
   flushLibraryUploads,
-  localCopyFor,
   onLibraryChange,
   saveRecordingToLibrary,
 } from '@/lib/library/library-runner';
 import { videoErrorMessage } from '@/lib/library/video-checks';
-import { peekPickedVideo, takePickedVideo, type PickedVideo } from '@/lib/practice/picked-video';
-import { canStart, continueVideoId, planFor, type StartPlan } from '@/lib/practice/resume';
+import { initialPickedVideo, takePickedVideo, type PickedVideo } from '@/lib/practice/picked-video';
+import { canStart, planFor, type StartPlan } from '@/lib/practice/resume';
 import {
   BLOCKAGE_NOTE_MAX,
   blockageNoteOverflow,
@@ -44,8 +44,10 @@ import {
   emptyBlockageDraft,
   fingerprintOf,
   inProgressPracticeId,
+  PRACTICE_TITLE_MAX,
   sceneOverflow,
   startFailure,
+  titleOverflow,
   type BlockageDraft,
   type SceneDraft,
 } from '@/lib/practice/start';
@@ -66,14 +68,16 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { SAMPLE_PRACTICE_ID, sampleScene } from '@/lib/tutorial-sample';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
+import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
 
 /**
  * A8·A8.1·A9.x 새 연습 준비(practice.start · practice.resume).
  *
  * 영상은 보관함에서 고르거나 새로 찍는다 — 여기서 올리지 않는다(올리기는 보관함 큐가 한다).
  * 도움 갈래와 상세 설명은 선택이고, 시작을 누르면 회차 하나와 분석 작업 하나가 생긴다. 상황·인물·목표 칸과
- * 「이전 연습 이어서 하기」, 세부 칩은 SOMA-656 에서 뺐다 — 이어서 연습(연습 상세)으로 들어오면 지난 장면은 화면 없이
+ * 「이전 연습 이어서 하기」, 세부 칩은 SOMA-656 에서 뺐다 — 다음 테이크(이어하기)로 들어오면 지난 장면은 화면 없이
  * 그대로 보내고, 세부는 비워 보내 서버 기본값(그 외)이 된다.
+ * 다음 테이크도 영상은 늘 새로 고르거나 찍는다 — 빈 영상 상자에서 시작하고 본문에 고른 video_id 를 싣는다(SOMA-672).
  * 같은 시도의 재전송은 같은 요청 id 라 회차는 하나다. 묶음에 진행 중 회차가 있으면(409) 그
  * 회차로 돌려보낸다. 이론 선택은 0.1.0에서 뺐다.
  */
@@ -91,10 +95,12 @@ export default function UploadScreen() {
   const [picked, setPicked] = useState<PickedVideo | null>(() =>
     sample
       ? { videoId: null, pendingId: null, uri: sampleVideoUri(), playbackUrl: null, durationMs: null }
-      : peekPickedVideo(),
+      : initialPickedVideo(Boolean(plan.continueFrom)),
   );
   const [scene] = useState<SceneDraft>(() => (sample ? sampleScene() : plan.scene));
   const [blockage, setBlockage] = useState<BlockageDraft>(emptyBlockageDraft);
+  // 묶음 제목(SOMA-671). 이어하기는 원래 묶음 제목을 그대로 쓰므로 새 연습에서만 받는다.
+  const [title, setTitle] = useState('');
   const [agreedRights, setAgreedRights] = useState(sample);
   const pickTarget = useSpotlightTarget(TARGET.uploadPick);
   const sampleTarget = useSpotlightTarget(TARGET.uploadSample);
@@ -108,7 +114,7 @@ export default function UploadScreen() {
   const scrollRef = useRef<ScrollView>(null);
 
   // 어디서 멈추는지 세는 계측(SOMA-698, lib/practice/upload-events). 예시(튜토리얼) 화면은 세지 않는다.
-  const sourceRef = useRef<PickSource | null>(plan.video.kind === 'same' ? 'same' : null);
+  const sourceRef = useRef<PickSource | null>(null);
   const pendingSinceRef = useRef<number | null>(null);
   const blockedTapsRef = useRef(0);
   const startedRef = useRef(false);
@@ -133,11 +139,13 @@ export default function UploadScreen() {
   }, [sample]);
 
   const previewUri = picked?.uri ?? picked?.playbackUrl ?? null;
-  const player = useVideoPlayer(previewUri, (p) => {
+  const focused = useIsFocused();
+  const player = useVideoPlayer(sourceWhileFocused(previewUri, focused), (p) => {
     p.loop = false;
+    limitVideoBuffer(p);
   });
   // 올린 영상을 사용자가 미리보기에서 실제로 틀어 보는지 센다.
-  useVideoPreviewEvents(player, 'upload', previewUri, { sample, continued: plan.video.kind === 'same' });
+  useVideoPreviewEvents(player, 'upload', previewUri, { sample, continued: Boolean(plan.continueFrom) });
 
   // 보관함·촬영·갤러리에서 돌아오면 고른 영상을 받는다.
   useFocusEffect(
@@ -180,7 +188,7 @@ export default function UploadScreen() {
     return onLibraryChange(check);
   }, [picked?.pendingId, picked?.videoId, noteReady]);
 
-  const videoId = plan.video.kind === 'same' ? plan.video.videoId : picked?.videoId ?? null;
+  const videoId = picked?.videoId ?? null;
   const uploading = Boolean(picked?.pendingId && !picked.videoId);
 
   const pickFromLibrary = () => router.push({ pathname: '/archive', params: { pick: '1' } });
@@ -215,7 +223,7 @@ export default function UploadScreen() {
       if (agreedRights) router.replace({ pathname: '/analyzing', params: { practiceId: SAMPLE_PRACTICE_ID } });
       return;
     }
-    if (!agreedRights || !canStart(plan, videoId)) return;
+    if (!agreedRights || !canStart(videoId)) return;
     const overflow = sceneOverflow(scene);
     if (overflow) {
       setError(t('start.sceneTooLong'));
@@ -223,6 +231,10 @@ export default function UploadScreen() {
     }
     if (blockageNoteOverflow(blockage)) {
       setError(t('start.noteTooLong'));
+      return;
+    }
+    if (titleOverflow(title)) {
+      setError(t('upload.titleTooLong'));
       return;
     }
     startLockRef.current = true;
@@ -240,15 +252,15 @@ export default function UploadScreen() {
         noteReady();
         setPicked({ ...picked, videoId: confirmed });
       }
-      const resolvedVideoId = plan.video.kind === 'same' ? plan.video.videoId : picked?.videoId ?? confirmedVideoFor(picked?.pendingId ?? '') ?? null;
-      const continueFrom = plan.continueFrom;
-      const body = continueFrom
-        ? buildContinueBody({ requestId: 'pending', videoId: continueVideoId(plan, resolvedVideoId), scene, blockage })
-        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId as string, scene, blockage });
-      if (!continueFrom && !resolvedVideoId) {
+      const resolvedVideoId = picked?.videoId ?? confirmedVideoFor(picked?.pendingId ?? '') ?? null;
+      if (!resolvedVideoId) {
         setError(t('start.stillUploading'));
         return;
       }
+      const continueFrom = plan.continueFrom;
+      const body = continueFrom
+        ? buildContinueBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage })
+        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage, title });
       const attempt = attemptFor(attemptRef.current, fingerprintOf(body), newRequestId);
       attemptRef.current = attempt;
       const practice = continueFrom
@@ -289,26 +301,15 @@ export default function UploadScreen() {
     }
   };
 
-  // 같은 영상으로 이어하기면 그 영상의 기기 복사본을 미리보기로 쓴다.
-  useEffect(() => {
-    if (plan.video.kind !== 'same' || picked) return;
-    const sameVideoId = plan.video.videoId;
-    let alive = true;
-    void localCopyFor(sameVideoId).then((uri) => {
-      if (alive && uri) setPicked({ videoId: sameVideoId, pendingId: null, uri, playbackUrl: null, durationMs: null });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [plan.video, picked]);
-
-  const ready = sample ? agreedRights : agreedRights && canStart(plan, videoId) && !uploading;
+  // 질문 받기를 누른 뒤에는 보낸 내용이 바뀌지 않게 입력을 잠근다(SOMA-671).
+  const locked = starting;
+  const ready = sample ? agreedRights : agreedRights && canStart(videoId) && !uploading;
 
   // 화면을 떠날 때 보낼 마지막 상태. 올리는 중인 영상도 '고른 영상'으로 친다.
   useEffect(() => {
     exitRef.current = {
       ...exitRef.current,
-      hasVideo: canStart(plan, videoId) || uploading,
+      hasVideo: canStart(videoId) || uploading,
       uploading,
       rights: agreedRights,
     };
@@ -331,7 +332,7 @@ export default function UploadScreen() {
   // 준비가 안 된(회색) 질문 받기를 누르면 무엇에 막혔는지 센다.
   const noteBlocked = () => {
     if (sample) return;
-    const reason = startBlockReason({ hasVideo: canStart(plan, videoId) || uploading, uploading, rights: agreedRights });
+    const reason = startBlockReason({ hasVideo: canStart(videoId) || uploading, uploading, rights: agreedRights });
     if (!reason) return;
     blockedTapsRef.current += 1;
     void logEvent(PRACTICE_UPLOAD_EVENTS.startBlocked, startBlockedParams(reason));
@@ -342,12 +343,13 @@ export default function UploadScreen() {
     if (!sample) void logEvent(PRACTICE_UPLOAD_EVENTS.rightsToggle, rightsToggleParams(next));
   };
   // 준비가 끝났으면 버튼만 둔다 — 무엇이 모자란지만 알린다.
+  // 올리는 중이면 영상은 이미 고른 것이다 — 「영상을 채워주세요」가 아니라 올리는 중이라고 말한다(SOMA-671).
   const hint = ready
     ? null
-    : !sample && !canStart(plan, videoId)
-      ? t('upload.missingVideo')
-      : !sample && uploading
-        ? t('start.stillUploading')
+    : !sample && uploading
+      ? t('start.stillUploading')
+      : !sample && !canStart(videoId)
+        ? t('upload.missingVideo')
         : t('upload.missingRights');
 
   return (
@@ -377,7 +379,7 @@ export default function UploadScreen() {
                     <Text style={styles.sampleBadgeText}>{t('tutorial.sampleBadge')}</Text>
                   </View>
                 )}
-                {plan.video.kind !== 'same' && !sample && (
+                {!sample && (
                   <Pressable style={styles.repick} onPress={() => setSourceSheet(true)}>
                     <Text style={styles.repickText}>{t('upload.repick')}</Text>
                   </Pressable>
@@ -385,8 +387,6 @@ export default function UploadScreen() {
                 <Text style={styles.pickedMeta} numberOfLines={1}>
                   {sample
                     ? t('tutorial.sample.situation')
-                    : plan.video.kind === 'same'
-                    ? t('start.sameVideo')
                     : uploading
                       ? t('archive.statusUploading')
                       : t('archive.statusSaved')}
@@ -410,7 +410,32 @@ export default function UploadScreen() {
           )}
 
           <View style={styles.sceneCard} ref={sceneTarget.ref} onLayout={sceneTarget.onLayout}>
-            <Text style={styles.sceneTitle}>
+            {/* 질문 받기를 누른 뒤 — 적은 내용을 보내는 중이라는 걸 카드 맨 위에서 바로 보인다(SOMA-671). */}
+            {locked && (
+              <View style={styles.sendingBar} accessibilityLiveRegion="polite">
+                <ActivityIndicator size="small" color={palette.blue} />
+                <Text style={styles.sendingText}>{t('upload.sending')}</Text>
+              </View>
+            )}
+            {!plan.continueFrom && !sample && (
+              <>
+                <Text style={styles.sceneTitle}>
+                  {t('upload.titleLabel')}
+                  <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
+                </Text>
+                <TextInput
+                  style={[styles.input, locked && styles.inputLocked]}
+                  placeholder={t('upload.titlePh')}
+                  placeholderTextColor={palette.checkOff}
+                  value={title}
+                  onChangeText={setTitle}
+                  maxLength={PRACTICE_TITLE_MAX}
+                  editable={!locked}
+                  returnKeyType="done"
+                />
+              </>
+            )}
+            <Text style={[styles.sceneTitle, !plan.continueFrom && !sample && styles.blockGap]}>
               {t('blockage.helpTitle')}
               <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
@@ -420,6 +445,7 @@ export default function UploadScreen() {
                   key={category}
                   label={t(`blockage.helpLabel.${category}`)}
                   selected={blockage.category === category}
+                  disabled={locked}
                   onPress={() =>
                     setBlockage((was) => ({ ...was, category: was.category === category ? null : category, detail: null }))
                   }
@@ -432,12 +458,13 @@ export default function UploadScreen() {
               <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
             <TextInput
-              style={[styles.input, styles.inputTall]}
+              style={[styles.input, styles.inputTall, locked && styles.inputLocked]}
               placeholder={t('blockage.freePh')}
               placeholderTextColor={palette.checkOff}
               value={blockage.note}
               onChangeText={(note) => setBlockage((was) => ({ ...was, note }))}
               maxLength={BLOCKAGE_NOTE_MAX}
+              editable={!locked}
               multiline
             />
           </View>
@@ -463,7 +490,10 @@ export default function UploadScreen() {
             {starting ? (
               <ActivityIndicator color={palette.bg} />
             ) : (
-              <Text style={styles.submitText}>{plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}</Text>
+              <Text style={styles.submitText}>
+                {/* 영상이 아직 올라가는 중이면 무엇을 기다리는지 버튼이 말한다(SOMA-671). */}
+                {uploading ? t('upload.submitUploading') : plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}
+              </Text>
             )}
           </Pressable>
           {hint && <Text style={styles.submitHint}>{hint}</Text>}
@@ -486,9 +516,14 @@ export default function UploadScreen() {
   );
 }
 
-function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function Chip({ label, selected, disabled, onPress }: { label: string; selected: boolean; disabled?: boolean; onPress: () => void }) {
   return (
-    <Pressable style={[styles.chip, selected && styles.chipOn]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected }}>
+    <Pressable
+      style={[styles.chip, selected && styles.chipOn, disabled && styles.chipLocked]}
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ selected, disabled }}>
       <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
     </Pressable>
   );
@@ -527,6 +562,16 @@ const styles = StyleSheet.create({
   errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
 
 
+  sendingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: palette.blueSoft,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
   sceneCard: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.borderSoft, borderRadius: 18, padding: 16, gap: 12 },
   sceneTitle: { fontSize: 15, fontWeight: '900', color: palette.text },
   sceneOptional: { fontWeight: '700', color: palette.textFaint },
@@ -546,11 +591,13 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   inputTall: { minHeight: 72 },
+  inputLocked: { opacity: 0.4 },
 
   blockGap: { marginTop: 8 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   chip: { borderRadius: 9999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },
   chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
+  chipLocked: { opacity: 0.4 },
   chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: palette.blueDeep },
 

@@ -64,37 +64,48 @@ function normalizeBlockage(blockage: BlockageDraft): PracticeBlockage {
   };
 }
 
+/** 묶음 제목 상한 — 서버의 묶음 제목 PATCH 와 같다(SOMA-671). */
+export const PRACTICE_TITLE_MAX = 200;
+
+export function titleOverflow(title: string): boolean {
+  return title.trim().length > PRACTICE_TITLE_MAX;
+}
+
 export function buildStartBody(input: {
   requestId: string;
   videoId: string;
   scene: SceneDraft;
   blockage: BlockageDraft;
+  title?: string;
 }): CreatePracticeBody {
+  const body: CreatePracticeBody = {
+    request_id: input.requestId,
+    video_id: input.videoId,
+    scene: normalizeScene(input.scene),
+    blockage: normalizeBlockage(input.blockage),
+  };
+  // 비운 제목은 싣지 않는다 — 제목 칸을 모르는 옛 서버에도 그대로 간다.
+  const title = input.title?.trim();
+  if (title) body.title = title;
+  return body;
+}
+
+/**
+ * 이어하기(다음 테이크) 본문. 앱은 늘 새로 고른 video_id를 싣는다(SOMA-672). 서버는 video_id를 빼면
+ * 이전 회차의 영상을 쓰지만, 앱은 그 길을 쓰지 않는다 — 옛 영상도 보관함에서 골라 id로 싣는다.
+ */
+export function buildContinueBody(input: {
+  requestId: string;
+  videoId: string;
+  scene: SceneDraft;
+  blockage: BlockageDraft;
+}): ContinuePracticeBody {
   return {
     request_id: input.requestId,
     video_id: input.videoId,
     scene: normalizeScene(input.scene),
     blockage: normalizeBlockage(input.blockage),
   };
-}
-
-/**
- * 이어하기 본문. 같은 영상으로 이어갈 때는 video_id를 싣지 않아 서버가 이전 회차의 영상을 쓴다
- * (A1.2 "이어서 연습하기"). 새 영상이면 확정된 video_id를 싣는다(A8.1 "이전 연습 이어서 하기").
- */
-export function buildContinueBody(input: {
-  requestId: string;
-  videoId: string | null;
-  scene: SceneDraft;
-  blockage: BlockageDraft;
-}): ContinuePracticeBody {
-  const body: ContinuePracticeBody = {
-    request_id: input.requestId,
-    scene: normalizeScene(input.scene),
-    blockage: normalizeBlockage(input.blockage),
-  };
-  if (input.videoId) body.video_id = input.videoId;
-  return body;
 }
 
 export type StartFailure =
@@ -138,13 +149,16 @@ export function inProgressPracticeId(
 }
 
 export function fingerprintOf(body: CreatePracticeBody | ContinuePracticeBody): string {
-  return JSON.stringify([
-    'video_id' in body ? body.video_id : null,
+  const parts: (string | null)[] = [
+    'video_id' in body ? body.video_id ?? null : null,
     body.scene.situation,
     body.scene.character,
     body.scene.goal,
     body.blockage.category,
     body.blockage.detail,
     body.blockage.note,
-  ]);
+  ];
+  // 제목은 실었을 때만 붙인다 — 제목 없는 요청의 지문은 예전 그대로다(SOMA-671).
+  if ('title' in body && body.title) parts.push(body.title);
+  return JSON.stringify(parts);
 }

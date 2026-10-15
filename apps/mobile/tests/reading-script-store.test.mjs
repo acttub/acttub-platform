@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   configureScriptTransport,
   deleteScript,
+  editScriptLine,
   getCurrent,
   isMyRole,
   loadIntoCurrent,
@@ -86,6 +87,25 @@ function fakeServer() {
         characters: d.characters.map((c) => {
           const change = (body.characters ?? []).find((x) => x.id === c.id);
           return change?.name !== undefined ? { ...c, name: change.name } : c;
+        }),
+      };
+      state.scripts.set(id, next);
+      return next;
+    },
+    patchLine: async (id, lineId, body) => {
+      state.calls.push(['patchLine', id, lineId, body]);
+      const d = state.scripts.get(id);
+      const next = {
+        ...d,
+        lines: d.lines.map((l) => {
+          if (l.id !== lineId) return l;
+          const kind = body.kind ?? l.kind;
+          return {
+            ...l,
+            kind,
+            character_id: kind === 'dialogue' ? (body.character_id ?? l.character_id) : null,
+            text: body.text ?? l.text,
+          };
         }),
       };
       state.scripts.set(id, next);
@@ -179,4 +199,25 @@ test('reading.script: toSavedScript 는 기기 설정(가리기·내 배역)을 
   assert.equal(s.recordingCount, 2);
   assert.deepEqual(s.scenes, [{ no: 1, title: null, start_line_id: 'l1', end_line_id: 'l1', dialogue_count: 1 }]);
   assert.equal(toSavedScript(detail).maskMode, 'none');
+});
+
+test('reading.script(SOMA-669): 줄 고치기는 그 줄 id 로 바꾼 항목만 보내고, 현재 대본의 줄·배역·대사 수가 고친 대로 바뀐다', async () => {
+  const { state, transport, seed } = fakeServer();
+  configureScriptTransport(transport);
+  const saved = await loadIntoCurrent(seed().id);
+  const direction = saved.lineIds[3];
+
+  await editScriptLine(saved.id, direction, { kind: 'dialogue', characterId: saved.characters[1].id });
+
+  const [, id, lineId, body] = state.calls.find(([kind]) => kind === 'patchLine');
+  assert.equal(id, saved.id);
+  assert.equal(lineId, direction);
+  assert.deepEqual(body, { kind: 'dialogue', character_id: saved.characters[1].id });
+  assert.deepEqual(getCurrent()?.lines[3], { type: 'dialogue', role: '태오', text: '사이' });
+  assert.equal(getCurrent()?.dialogueCount, 5);
+  assert.deepEqual(getCurrent()?.lineIds, saved.lineIds, '줄 id 는 그대로다');
+
+  await editScriptLine(saved.id, saved.lineIds[1], { text: '여기 있을 줄 알았다.' });
+  assert.deepEqual(state.calls.filter(([kind]) => kind === 'patchLine').at(-1)[3], { text: '여기 있을 줄 알았다.' }, '글만 고치면 글만 보낸다');
+  assert.equal(getCurrent()?.lines[1].text, '여기 있을 줄 알았다.');
 });

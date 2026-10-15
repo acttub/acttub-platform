@@ -176,8 +176,8 @@ export default function CoachScreen() {
     [applyResult, closed, conversation, goToNote, loop, practice, reloadConversation, waiting],
   );
 
-  /** 닫힌 대화에서 다시 코칭하려면 새 회차다. */
-  const continueWithNewRound = () => {
+  /** 닫힌 대화에서 다시 코칭하려면 새 회차다 — 「다음 테이크 찍기」로 영상을 새로 고른다(SOMA-672). */
+  const startNextTake = () => {
     if (!practice) return;
     setContinueOrigin({ kind: 'group', rootId: practice.rootId, practiceId: practice.practiceId });
     clearPractice();
@@ -354,8 +354,8 @@ export default function CoachScreen() {
               </Pressable>
               {/* 예시 회차는 서버에 없어 이어 갈 수 없다. */}
               {!sample && (
-                <Pressable style={styles.retry} onPress={continueWithNewRound} accessibilityRole="button">
-                  <Text style={styles.retryText}>{t('coach.continueNew')}</Text>
+                <Pressable style={styles.retry} onPress={startNextTake} accessibilityRole="button">
+                  <Text style={styles.retryText}>{t('history.nextTake')}</Text>
                 </Pressable>
               )}
             </>

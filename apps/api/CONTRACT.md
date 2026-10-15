@@ -746,10 +746,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
-- **스키마(V13, V33, V34, V40)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
+- **스키마(V13, V33, V34, V40, V42)**: `scripts`·`script_characters`(V42 가 성별·나이대 `gender`·`age_band` 를 더함)·`script_lines`·`reading_sessions`·`reading_recordings`·
   `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34), 회차 평가 `reading_session_ratings`(V40). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
   `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`·
-  `ReadingSessionRatingValue`).
+  `ReadingSessionRatingValue`·`CharacterGender`·`CharacterAgeBand`).
   FK 에 `ON DELETE` 가 없다 — 삭제는 애플리케이션이 표대로 순서를 정해 지운다. `scripts.request_id`·
   `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
   `uq_script_characters_script_name` 은 DEFERRABLE 이다 — 이름 수정이 두 배역의 이름을 맞바꿀 때 문장 사이에서
@@ -762,6 +762,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **등록·수정은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 본다**(`PostgresScriptRepository#lockActive`, §6-8 과 같은
   형태). 활성이 아니면 저장소가 `OwnerNotActive` 를 알리고 `ScriptService#activeOnly` 가 403 으로 바꾼다. 같은 회원의
   등록이 겹쳐도 여기서 줄을 서므로 개수 한도가 정확하다.
+- **줄 고치기**(`PostgresScriptRepository#editLine`, ADR-035): 대본 행을 `FOR UPDATE` 로 잡은 뒤 그 줄 행도 잡고, 같은
+  트랜잭션에서 `script_lines` 의 kind·character_id·text 만 바꾸고 `scripts.updated_at` 을 늘린다. 줄 id·ordinal 은 건드리지
+  않아 회차·녹음·암기의 FK 가 그대로다. 대사↔배역 규칙은 `ck_script_lines_dialogue_has_character` 와 같은 판정을 저장소가
+  먼저 해 422 `invalid_line` 으로 답한다.
 - 검색은 `%`·`_`·`\` 를 풀어(`escapeLike`) `ILIKE … ESCAPE '\'` 로 찾는다(`PostgresScriptRepository`). 찾는 칸은 reading.script.
 - **삭제**: 줄·회차·녹음·암기 행은 `PostgresScriptRepository#delete` 가 한 트랜잭션에서 지운다. 녹음 객체의 삭제는 행을
   지운 트랜잭션이 정리 장부(`reading_recording_delete`)에 올리고 커밋 뒤에 시도한다(`reading/app/
@@ -805,9 +809,14 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   말한 대사의 원문).
 - K 는 `current_line_id` 의 대사 번호에서 센다. 시작(`start_line_id`)과 진행 저장이 구간 안 대사 줄만 받으므로 API 로는 늘
   대사 줄이다. FK 는 줄의 종류를 보지 않아, 대사가 아닌 줄이 들어 있으면 `ReadingLayout` 은 그 앞 대사로 센다.
-- `voice` 는 저장값이 프리셋 목록(M1~M5·F1~F5)에 있을 때만 그 값을 쓰고 아니면 자동 순환 값이다. 저장 검증은 여전히 길이만
-  본다(`ScriptRules.VOICE_PRESET_MAX`).
-- OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`, `ReadingSessionRangeName`·
+- `voice` 는 저장값이 프리셋 목록(M1~M5·F1~F5)에 있을 때만 그 값을 쓰고 아니면 자동 값이다. 저장 검증은 여전히 길이만
+  본다(`ScriptRules.VOICE_PRESET_MAX`). 자동 값(SOMA-670)은 `VoiceAssignment.assign` 이 배역의 `gender`·`age_band`(V42,
+  NULL 허용, CHECK `ck_script_characters_gender`·`ck_script_characters_age_band`)로 정한다 — 성별·나이대의 선호 목록에서 고정값과
+  앞서 준 값을 건너뛰고, 성별을 모르면 건너뛰는 순환이다(표는 reading.cast). 앱이 같은 규칙을 그대로 따라 한다.
+  성별·나이대는 나누기 작업만 쓴다: `ScriptSplitWorker` 가 배역 목록 답(`SplitResponse.rosterTraits`)이나 한 조각 대본의 답 끝
+  「배역」 블록(`SplitResponse.traits`)을 읽고 `SplitDraft` 가 이름을 맞춰 `ScriptDraft.characterTraits` 로 넘기면
+  `PostgresScriptRepository#create` 가 저장한다. 다른 경로의 대본은 NULL 이고 PATCH 로 고치는 칸은 없다.
+- OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`·`gender`·`age_band`(둘은 nullable), `ReadingSessionRangeName`·
   `ReadingSessionProgressCount`(`ReadingSessionCard`·`ReadingSession` 의 `range_name`·`progress`, `progress` 는 completed 면 null).
 
 **줄 단위 녹음 (SOMA-546 RA3)**
@@ -979,6 +988,15 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 경험 판은 `PracticeRules.threeLayers` 가 정한다.
   - 차수는 묶음 잠금과 `uq_practices_root_ordinal` 로 발급한다.
   - 취소는 작업의 **lease 를 지워** 늦은 완료와 재큐를 막는다.
+  - **시작 때의 묶음 제목**(`PracticeCreateRequest.title`, SOMA-671)은 첫 행의 `practices.title` 에 회차와 같은 INSERT 로
+    들어간다 — 묶음 속성 수정(`PATCH …/group`)과 같은 칸·같은 200자(`PracticeRules.GROUP_TITLE_MAX_CHARS`)이고, 앞뒤 공백을 떼며
+    공백뿐이면 NULL 이다(`PracticeRules.title`). 이어하기는 제목을 받지 않고(DTO 에 칸이 없어 unknown key 422, §6-3) 새 행의
+    title 은 NULL 이다. **지문에는 제목이 있을 때만 붙인다** — 제목 없는 요청의 지문이 이 변경 전과 같아야 배포를 걸친 재전송이
+    `request_fingerprint_mismatch` 로 바뀌지 않는다.
+  - **회차의 포스터**(`Practice.poster_url`, SOMA-671): 회차 SELECT 가 `videos` 를 LEFT JOIN 해 `purged_at IS NULL` 인 영상의
+    `poster_key` 만 읽는다(옛 표 호환 읽기도 같은 규칙). 서명은 `practice/app/PracticePosters` 포트 →
+    `adapter/storage/ObjectStoragePracticePosters` 이고 보관함과 같은 10분(`PracticeRules.POSTER_URL_TTL_SECONDS`)이다.
+    서비스가 응답 직전에 채우므로 목록도 회차마다 쿼리를 더하지 않는다(서명은 바깥 호출이 아니다). 스토리지가 없는 기동은 null.
 - **`ai_jobs` 장부**(`platform/ledger/AiJobLedger`, `platform/operation/PostgresAiJobLedger`): 상태와 lease 의 뜻은
   [공통 규칙 「공통 상태」](../../docs/specs/common.md#공통-상태)가 정본이다. 종류는 `platform/schema/AiJobKind`.
   선점(`claimNext`)은 `pending` 만 `FOR UPDATE SKIP LOCKED` 로 집는다 — 만료된 `running` 을 다시 집지 않는 점이 §5-7 과
@@ -1053,6 +1071,12 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     `[]`이며 필드 누락·형식 오류는 0이 아닌 확인 불가로 처리한다. `AdminEndpointIT`에서 실 DB로 검증한다.
 - **운영 피드백 조회**(`GET /v2/admin/feedback`) — 연락처·원본 user id·이메일은 projection 과 DTO 에 없다. 팀 판정은
   `ADMIN_OPS_EXCLUDE_EMAILS` 와 `exclude_actors`(ops-core 와 같은 검증)다.
+- **자문단 대화 조회**(`GET /v2/admin/advisor-sessions`, SOMA-622) — `limit`(1~200, 기본 100). 자문위원 판정은 코치 성격
+  배정과 같은 `coaching/direct-video/personas/advisors.txt`(이메일 SHA-256, 소문자·앞뒤 공백 제거)를 DB 에서 같은 방식으로
+  해싱해 대조한다. 새 대화와 이관 전 옛 코치 세션을 최신순(같은 시각이면 id)으로 내고, 가명(md5(user_id) 앞 8자리)·자문위원 해시(`advisor_hash`,
+  advisors.txt 에 이미 있는 값이라 새로 드러나는 것이 없다)·코치 성격(`state.practice_loop.persona`, 없으면 null)·대화 원문과 세션 목록과 같은 1시간 영상 재생 주소(`video_url`, 지워진 영상·서명 실패면 null)를
+  싣는다. 이메일·원본 user id 는 싣지 않고
+  `Cache-Control: private, no-store` 다. 팀 제외는 적용하지 않는다(자문위원 목록 자체가 범위다). `AdminEndpointIT` 에서 실 DB 로 검증한다.
 - **연습 자료의 이관·삭제·탈퇴** — 제품 규칙은 specs/practice 의 처리표다.
   - **이관**은 `user_id` 가 있는 행을 한 트랜잭션에서 옮긴다: 예약 장부 → `videos` → `practice_sessions`·`practices`
     → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 → 노트 평가 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·

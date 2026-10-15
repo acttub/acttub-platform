@@ -26,8 +26,8 @@ export const PRACTICE_UPLOAD_EVENTS = {
 
 type EventParams = Record<string, string | number>;
 
-/** gallery = 갤러리에서 고름, record = 앱에서 방금 찍음, library = 보관함에서 고름, same = 같은 영상으로 이어하기. */
-export type PickSource = 'gallery' | 'record' | 'library' | 'same';
+/** gallery = 갤러리에서 고름, record = 앱에서 방금 찍음, library = 보관함에서 고름. */
+export type PickSource = 'gallery' | 'record' | 'library';
 
 /** 질문 받기가 막힌 이유. 화면 아래 안내 문구와 같은 순서로 판정한다. */
 export type StartBlockReason = 'no_video' | 'uploading' | 'rights';

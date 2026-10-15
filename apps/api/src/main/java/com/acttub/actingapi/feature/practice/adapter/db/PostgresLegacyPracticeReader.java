@@ -80,7 +80,9 @@ class PostgresLegacyPracticeReader implements LegacyPracticeReader {
      * 전부다. 대화는 가장 최근 것이 "대화" 이고 나머지는 이전 대화 목록으로 간다.
      */
     private static final String COLUMNS = """
-            SELECT l.id,l.root_id,l.ordinal,l.video_id,l.stage,l.close_reason,l.experience_version,
+            SELECT l.id,l.root_id,l.ordinal,l.video_id,
+                   (SELECT v.poster_key FROM videos v WHERE v.id=l.video_id AND v.purged_at IS NULL) AS poster_key,
+                   l.stage,l.close_reason,l.experience_version,
                    l.situation,l.character_context,l.goal,
                    l.blockage_kind,l.sub_branch,l.blockage_detail,l.created_at,
                    (SELECT CASE WHEN jsonb_array_length(COALESCE(
@@ -206,6 +208,8 @@ class PostgresLegacyPracticeReader implements LegacyPracticeReader {
                 row.get("root_id", UUID.class),
                 ((Number) row.get("ordinal")).intValue(),
                 row.get("video_id", UUID.class),
+                row.get("poster_key", String.class),
+                null,
                 row.get("stage", String.class),
                 row.get("close_reason", String.class),
                 row.get("experience_version", String.class),

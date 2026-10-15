@@ -44,19 +44,13 @@ test("asking the coach focuses the draft without spending a turn or replacing te
   } finally { view.unmount(); }
 });
 
-test("help and practice-later shortcuts prepare explicit requests for review before sending", () => {
+test("the example and practice-later shortcuts are gone, like the app (0.1.4)", () => {
   const view = mount();
   try {
     assert.ok(view.text().includes("'그만'이라고 쓰면 언제든 마칠 수 있어요"));
-    view.click("예시로 설명");
-    assert.equal(view.input.value, "예시로 설명해 주세요.");
-    assert.deepEqual(view.sent, []);
-    view.click("보내기 →");
-    view.click("나중에 연습");
-    assert.equal(view.input.value, "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.");
-    assert.equal(view.sent.length, 1);
-    view.click("보내기 →");
-    assert.deepEqual(view.sent, ["예시로 설명해 주세요.", "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요."]);
+    const labels = [...view.input.ownerDocument.querySelectorAll("button")].map((node) => node.textContent);
+    assert.ok(!labels.includes("예시로 설명"));
+    assert.ok(!labels.includes("나중에 연습"));
   } finally { view.unmount(); }
 });
 
@@ -78,7 +72,6 @@ test("waiting or disabled sessions block shortcuts and keyboard submission", () 
   for (const state of [{ sending: true }, { inputEnabled: false }]) {
     const view = mount({ ...state, initial: "질문" });
     try {
-      view.click("예시로 설명");
       view.click("코치에게 질문");
       react.act(() => view.input.dispatchEvent(new window.KeyboardEvent("keydown", {
         key: "Enter", ctrlKey: true, bubbles: true,

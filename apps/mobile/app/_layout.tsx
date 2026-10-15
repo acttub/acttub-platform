@@ -242,6 +242,9 @@ function RootNavigator() {
     }
     if (bootstrap.stage === 'auth-gate') {
       if (bootstrap.route === '/login' && !inLogin) {
+        // 탈퇴·로그아웃 뒤 맨 위 화면만 바꾸면 아래에 홈·설정이 남아, 로그인 화면에서 뒤로 가면 그 화면이 나왔다
+        // 다시 로그인으로 바뀌기를 되풀이하다 안드로이드에서 앱이 꺼졌다(SOMA-703). 쌓인 화면을 다 닫고 바꾼다.
+        if (router.canDismiss()) router.dismissAll();
         router.replace('/login' as Href);
       }
       return;
@@ -347,12 +350,21 @@ function RootNavigator() {
   return (
     <>
       <Stack
-        screenOptions={{
-          headerBackVisible: false,
-          headerLeft: () => <HeaderBack />,
-          // iOS 는 헤더를 직접 그린다 — 네이티브 헤더는 버튼에 유리 배경을 씌워 꺾쇠가 뭉개져 보인다(components/app-header).
-          ...(Platform.OS === 'ios' ? { header: (props: NativeStackHeaderProps) => <AppHeader {...props} /> } : null),
-        }}>
+        screenOptions={
+          Platform.OS === 'ios'
+            ? {
+                // iOS 는 헤더를 직접 그린다 — 네이티브 헤더는 버튼에 유리 배경을 씌워 꺾쇠가 뭉개져 보인다(components/app-header).
+                headerBackVisible: false,
+                headerLeft: () => <HeaderBack />,
+                header: (props: NativeStackHeaderProps) => <AppHeader {...props} />,
+              }
+            : {
+                // 안드로이드는 네이티브 뒤로 버튼에 설정 화면과 같은 꺾쇠 그림만 씌운다. 헤더에 직접 만든 버튼을 넣으면,
+                // 뒤로 가기를 붙잡았다 다시 보내는 화면(예시 코치)이 닫힐 때 네이티브 헤더가 그 버튼을 두 번 붙이려다
+                // 앱이 꺼졌다(SOMA-665). 0.1.3 처럼 헤더에 우리 조각을 넣지 않으면 그 길을 타지 않는다.
+                headerBackIcon: { type: 'image', source: require('@/assets/images/header-back.png') },
+              }
+        }>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="consent" options={{ headerShown: false }} />

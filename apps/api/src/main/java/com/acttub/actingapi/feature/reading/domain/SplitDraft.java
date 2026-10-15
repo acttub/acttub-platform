@@ -27,11 +27,19 @@ public final class SplitDraft {
     private SplitDraft() {
     }
 
-    /**
-     * @param roster 배역 목록 호출이 준 이름들. 비어 있으면 이름을 바로잡지 않는다
-     */
+    /** 성별·나이대 없이 — 모두 모름. */
     public static ScriptDraft assemble(String title, String rawText, String source, List<NumberedLine> lines,
             Map<Integer, Row> rows, List<String> roster) {
+        return assemble(title, rawText, source, lines, rows, roster, Map.of());
+    }
+
+    /**
+     * @param roster 배역 목록 호출이 준 이름들. 비어 있으면 이름을 바로잡지 않는다
+     * @param traits 모델이 준 배역의 성별·나이대(SOMA-670). 이름 → 값. 배역 이름과 그대로, 띄어쓰기만 달라도, 배역 이름 바로잡기와
+     *        같은 규칙으로 맞으면 잇고 아니면 모름이다
+     */
+    public static ScriptDraft assemble(String title, String rawText, String source, List<NumberedLine> lines,
+            Map<Integer, Row> rows, List<String> roster, Map<String, CharacterTraits> traits) {
         List<Assembled> assembled = new ArrayList<>();
         List<String> castLines = new ArrayList<>();
         String modelTitle = null;
@@ -77,7 +85,17 @@ public final class SplitDraft {
             draftLines.add(new ScriptDraft.Line(draftLines.size() + 1, line.kind,
                     line.speaker == null ? null : index.get(line.speaker), line.text));
         }
-        return new ScriptDraft(title(title, modelTitle, lines), rawText, source, characters, draftLines);
+        return new ScriptDraft(title(title, modelTitle, lines), rawText, source, characters, draftLines, traitsOf(characters, traits));
+    }
+
+    private static List<CharacterTraits> traitsOf(List<String> characters, Map<String, CharacterTraits> traits) {
+        List<String> named = new ArrayList<>(traits.keySet());
+        List<CharacterTraits> result = new ArrayList<>(characters.size());
+        for (String character : characters) {
+            CharacterTraits found = named.isEmpty() ? null : traits.get(CharacterNames.fix(character, named));
+            result.add(found == null ? CharacterTraits.UNKNOWN : found);
+        }
+        return result;
     }
 
     /**

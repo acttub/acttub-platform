@@ -47,18 +47,9 @@ export function CoachComposer({
         </span>
       </div>
       <div className="flex flex-wrap gap-2 [@media(max-height:560px)]:hidden">
-        <button type="button" disabled={disabled} onClick={() => prepare("예시로 설명해 주세요.")}
-          className="min-h-10 flex-1 whitespace-nowrap rounded-[10px] bg-[#f2f4f6] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6] disabled:text-[#b0b8c1]">
-          예시로 설명
-        </button>
         <button type="button" disabled={disabled} aria-pressed={asking} onClick={() => prepare()}
           className="min-h-10 flex-1 whitespace-nowrap rounded-[10px] bg-[#f2f4f6] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6] disabled:text-[#b0b8c1]">
           코치에게 질문
-        </button>
-        <button type="button" disabled={disabled}
-          onClick={() => prepare("지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.")}
-          className="min-h-10 flex-1 whitespace-nowrap rounded-[10px] bg-[#f2f4f6] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6] disabled:text-[#b0b8c1]">
-          나중에 연습
         </button>
       </div>
       <button type="button" onClick={onSend} disabled={disabled || !answer.trim()}

@@ -50,12 +50,17 @@ final class PracticeLoopRouter {
      * 3) stop: 그만하겠다는 말
      * 4) decided: 다음 테이크에 상대에게 할 행동 하나를 배우가 정해서 말했다 / ack: 새 내용 없이 맞장구·인사만 했다
      *    (2026-10-11 운영: 배우가 "고민이 된다", "이해가 안가요"라고 해도 answered라서 바로 정리로 넘어갔다)
+     * 5) want: 배우가 상대(또는 자기)에게서 얻고 싶은 것을 새로 말하거나 고쳐 말했다 / line_fix: 코치가 짚은 대사가 다른 장면이라고 바로잡았다
+     *    (2026-10-13 18:59 운영: 4단계에서 "위로받고 싶어"는 행동이 아니라 저장되지 않았고, 정리는 첫 답만 보고 "상대를 비웃어 봐도"로 끝났다.
+     *     배우가 "그건 교수 흉내 부분"이라고 한 대사를 정리가 세 번 다시 썼다)
      */
     static final List<String> STEP = List.of("answered", "missed", "not_yet");
     static final List<String> RESPOND = List.of("correction", "pushback", "method", "evaluation", "question");
     static final String STOP_SIGNAL = "stop";
     static final String DECIDED_SIGNAL = "decided";
     static final String ACK_SIGNAL = "ack";
+    static final String WANT_SIGNAL = "want";
+    static final String LINE_FIX_SIGNAL = "line_fix";
     static final List<String> SIGNALS;
     static {
         var ids = new ArrayList<String>(STEP);
@@ -63,6 +68,8 @@ final class PracticeLoopRouter {
         ids.add(STOP_SIGNAL);
         ids.add(DECIDED_SIGNAL);
         ids.add(ACK_SIGNAL);
+        ids.add(WANT_SIGNAL);
+        ids.add(LINE_FIX_SIGNAL);
         SIGNALS = List.copyOf(ids);
     }
 
@@ -70,7 +77,11 @@ final class PracticeLoopRouter {
      * 분류 결과. {@code kind}는 코드가 분기에 쓰는 종류, {@code respond}는 단계 질문에 답하면서 함께 물은 것
      * (question / evaluation / method, 없으면 빈 문자열). {@code by}는 model / fallback.
      */
-    record Classified(Kind kind, boolean keep, String by, String respond, boolean decided, boolean ack) {
+    record Classified(Kind kind, boolean keep, String by, String respond, boolean decided, boolean ack, boolean want, boolean lineFix) {
+        Classified(Kind kind, boolean keep, String by, String respond, boolean decided, boolean ack) {
+            this(kind, keep, by, respond, decided, ack, false, false);
+        }
+
         Classified(Kind kind, boolean keep, String by) {
             this(kind, keep, by, "");
         }
@@ -82,6 +93,11 @@ final class PracticeLoopRouter {
 
         boolean alsoAsked() {
             return !respond.isEmpty();
+        }
+
+        /** 바람·대사 정정 표시를 붙인다. 종류와 상관없이 붙는다(정정하면서 바람을 고쳐 말하는 일이 흔하다). */
+        Classified with(boolean want, boolean lineFix) {
+            return new Classified(kind, keep, by, respond, decided, ack, want, lineFix);
         }
     }
 
@@ -97,17 +113,25 @@ final class PracticeLoopRouter {
         boolean stop = false;
         boolean decided = false;
         boolean ack = false;
+        boolean want = false;
+        boolean lineFix = false;
         for (JsonNode value : root.path("signals")) {
             String id = value.isTextual() ? value.asText() : "";
             if (!SIGNALS.contains(id)) throw new IllegalArgumentException("unknown practice loop classification");
             if (STOP_SIGNAL.equals(id)) stop = true;
             else if (DECIDED_SIGNAL.equals(id)) decided = true;
             else if (ACK_SIGNAL.equals(id)) ack = true;
+            else if (WANT_SIGNAL.equals(id)) want = true;
+            else if (LINE_FIX_SIGNAL.equals(id)) lineFix = true;
             else if (STEP.contains(id)) { if (step == null) step = id; }
             else if (respond == null || RESPOND.indexOf(id) < RESPOND.indexOf(respond)) respond = id;
         }
         if (stop) return new Classified(Kind.STOP, false, "model");
         if (step == null && respond == null) throw new IllegalArgumentException("empty practice loop classification");
+        return kindOf(step, respond, decided, ack).with(want, lineFix);
+    }
+
+    private static Classified kindOf(String step, String respond, boolean decided, boolean ack) {
         if ("correction".equals(respond)) return new Classified(Kind.CORRECTION, false, "model");
         if ("pushback".equals(respond)) return new Classified(Kind.PUSHBACK, false, "model");
         if ("answered".equals(step)) return new Classified(Kind.ANSWER, false, "model", respond == null ? "" : respond, decided, ack);
@@ -126,7 +150,7 @@ final class PracticeLoopRouter {
             case "method" -> Kind.METHOD;
             default -> Kind.QUESTION;
         };
-        return new Classified(asked, c.keep(), c.by());
+        return new Classified(asked, c.keep(), c.by()).with(c.want(), c.lineFix());
     }
 
     /** 지금까지 코치가 한 일의 횟수. */
@@ -254,6 +278,15 @@ final class PracticeLoopRouter {
         return route(new Classified(kind, false, "code"), b, stayed);
     }
 
+    /**
+     * 흐름(SOMA-636 A/B)을 따르는 할 일. B는 "스스로 찾기"를 건너뛴다 — 코치가 본 것을 말한 다음(어긋남 보기 자리)
+     * 배우가 받으면 바로 정리에서 코치가 행동 하나를 제안한다. 물음·정정·반박·제안 같은 나머지 표는 A와 같다.
+     */
+    static String route(Classified c, Before b, int stayed, String flow) {
+        String doing = route(c, b, stayed);
+        return CoachFlows.B.equals(flow) && FIND.equals(doing) ? WRAP_UP : doing;
+    }
+
     static String route(Classified c, Before b, int stayed) {
         Kind kind = c.kind();
         if (kind == Kind.STOP || b.reply() >= LAST_REPLY) return END;
@@ -277,7 +310,8 @@ final class PracticeLoopRouter {
                 case "evaluation" -> pointOut;
                 case "question" -> "답하기";
                 case "method" -> WRAP_UP;
-                default -> stayed >= 2 ? PROPOSE : stayed >= 1 ? EASY : REASK;
+                // 행동 대신 바람을 말했으면(위로받고 싶어) 그 바람이 답의 재료다. 보기 둘로 코치 낱말을 내밀지 않고 두 번째에는 그 바람을 얻을 행동을 제안한다.
+                default -> c.want() ? (stayed >= 1 ? PROPOSE : REASK) : stayed >= 2 ? PROPOSE : stayed >= 1 ? EASY : REASK;
             };
         }
         return switch (kind) {
@@ -329,6 +363,15 @@ final class PracticeLoopRouter {
     /** 배우가 단계 질문을 다르게 알아들었을 때. 같은 단계를 다른 말로 다시 묻는다. */
     static final String REASK = "다시 묻기";
 
+    /** 흐름을 따르는 단계 줄. B는 어긋남 보기 자리에서 코치가 본 것을 먼저 말하고, 스스로 찾기 없이 정리로 간다. */
+    static String stageLine(String doing, Before b, String flow) {
+        String line = stageLine(doing, b);
+        if (!CoachFlows.B.equals(flow)) return line;
+        if (line.startsWith("2/4 ")) return "2/4 코치가 본 것 — 근본 문제를 대사 두 곳과 이유로 코치가 먼저 말한다. 해결책은 아직 말하지 않는다";
+        if (line.startsWith("4/4 ")) return "4/4 정리 — 배우가 말한 바람을 얻을 행동 하나를 코치가 제안해 확정한다";
+        return line;
+    }
+
     static String stageLine(String doing, Before b) {
         int target = switch (doing) {
             case WANT -> 2;
@@ -377,6 +420,33 @@ final class PracticeLoopRouter {
         return found;
     }
 
+    /** 배우가 바람을 새로 말하거나 고쳐 말한 말을 남기는 상태 칸. */
+    static final String WANT_FIELD = "최신 바람";
+    /** 배우가 코치가 짚은 대사를 다른 장면이라고 바로잡았다는 상태 칸. */
+    static final String LINE_FIX_FIELD = "대사 정정";
+
+    /** 지금까지 배우가 가장 나중에 말한 바람. 없으면 빈 문자열. */
+    static String latestWant(JsonNode loop, int coachTurns) {
+        String found = "";
+        JsonNode statuses = loop == null ? null : loop.path("statuses");
+        for (int i = 0; i < coachTurns; i++) {
+            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String value = DirectVideoPracticeLoop.statusField(status, WANT_FIELD);
+            if (!value.isEmpty()) found = value;
+        }
+        return found;
+    }
+
+    /** 배우가 이 대화에서 코치가 짚은 대사를 바로잡은 적이 있는지. */
+    static boolean lineFixed(JsonNode loop, int coachTurns) {
+        JsonNode statuses = loop == null ? null : loop.path("statuses");
+        for (int i = 0; i < coachTurns; i++) {
+            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            if (DirectVideoPracticeLoop.statusField(status, LINE_FIX_FIELD).startsWith("예")) return true;
+        }
+        return false;
+    }
+
     /** 예전 판의 "답한 뒤 다음에 닫기". 이제는 단계로 정리에 가므로 쓰지 않는다. */
     /** 정리한 뒤 배우가 물었으면 이번엔 답하고, 다음 배우 말에서 닫는다. 그 말에서 또 물었으면 또 답하고 그다음에 닫는다. */
     static boolean closesNext(Kind kind, Before b) {
@@ -407,25 +477,8 @@ final class PracticeLoopRouter {
         return "답하기";
     }
 
-    /** 앱·웹의 고정 버튼 문구. 배우가 직접 쓴 말이 아니라서 분류 AI에 묻지 않고 코드가 정한다. */
-    static final java.util.Set<String> EXPLAIN_BUTTON = java.util.Set.of("예시로 설명해 주세요.", "Explain with an example.");
-    static final java.util.Set<String> LATER_BUTTON = java.util.Set.of(
-            "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.", "I can’t practice now. Please explain what I can try later.");
-    static final String BY_BUTTON = "button";
-    static final String BY_LATER = "button_later";
-
-    /**
-     * 고정 버튼 문구면 그 분류, 아니면 {@code null}.
-     * 예시 버튼은 지금 질문을 못 알아들었다는 뜻이라 같은 단계를 보기 둘로 쉽게 다시 묻는다(짧은 답과 같은 길).
-     * 나중에 버튼은 단계와 상관없이 바로 정리한다. 정리 뒤(받아 준 다음 포함)면 둘 다 물음으로 보고 답한다.
-     */
-    static Classified button(String actorText, Before b) {
-        String text = actorText == null ? "" : actorText.strip();
-        boolean afterWrap = b.lastDoing().startsWith(WRAP_UP) || b.closeNext();
-        if (EXPLAIN_BUTTON.contains(text)) return new Classified(afterWrap ? Kind.QUESTION : Kind.SHORT, false, BY_BUTTON);
-        if (LATER_BUTTON.contains(text)) return new Classified(Kind.METHOD, false, afterWrap ? BY_BUTTON : BY_LATER);
-        return null;
-    }
+    // 앱(0.1.4, #616)과 웹에서 "예시로 설명"·"나중에 연습" 고정 버튼을 없앴다(2026-10-14). 예전 앱에서 같은 문구가 와도
+    // 배우가 직접 쓴 말처럼 분류 AI가 판단한다(예시 요청은 물음, 나중에 연습은 방법 요청).
 
     /** 이번 응답 뒤의 피할 것. 정정·반박이면 지금 버릇을 더한다. */
     static List<String> avoidAfter(Before b, Kind kind, String habit) {
@@ -503,6 +556,8 @@ final class PracticeLoopRouter {
         lines.add("단계: " + stageAfter(doing, b));
         String field = answerField(classified, b);
         if (field != null && actorText != null && !actorText.isBlank()) lines.add(field + ": " + actorText.strip().replaceAll("\\s+", " "));
+        if (classified.want() && actorText != null && !actorText.isBlank()) lines.add(WANT_FIELD + ": " + actorText.strip().replaceAll("\\s+", " "));
+        if (classified.lineFix()) lines.add(LINE_FIX_FIELD + ": 예");
         lines.add("분류: " + classified.by());
         return String.join("\n", lines);
     }

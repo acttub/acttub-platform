@@ -102,7 +102,6 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.MISSED, answered)).as("코치 답을 못 알아들었으면 다시 설명한다").isEqualTo("답하기");
         var alsoAsked = PracticeLoopRouter.forRouting(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"question\"]}"), answered);
         assertThat(PracticeLoopRouter.route(alsoAsked, answered, 0)).as("답하면서 함께 물었어도 답한다").isEqualTo("답하기");
-        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요.", answered).kind()).isEqualTo(Kind.QUESTION);
         assertThat(PracticeLoopRouter.closesNext(Kind.ANSWER, answered)).isFalse();
         assertThat(PracticeLoopRouter.closesNext(Kind.STOP, answered)).isFalse();
         assertThat(route(Kind.STOP, answered)).as("그만은 바로 닫는다").isEqualTo(PracticeLoopRouter.END);
@@ -255,11 +254,6 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.CORRECTION, afterWrap)).isEqualTo("답하기");
         assertThat(PracticeLoopRouter.closesNext(Kind.PUSHBACK, afterWrap)).isTrue();
         assertThat(route(Kind.SHORT, afterWrap)).isEqualTo(PracticeLoopRouter.END);
-        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요.", at(2, 2, "비추기", null)).kind()).isEqualTo(Kind.SHORT);
-        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요.", afterWrap).kind()).isEqualTo(Kind.QUESTION);
-        assertThat(PracticeLoopRouter.button("지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.", at(2, 2, "비추기", null)).by())
-                .isEqualTo(PracticeLoopRouter.BY_LATER);
-        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요. 그리고 더", at(2, 2, "비추기", null))).isNull();
     }
 
     @Test void theClassifierOutputIsChecked() {
@@ -292,5 +286,75 @@ class PracticeLoopRouterTest {
         assertThat(DirectVideoPracticeLoop.statusField(status, "할 일")).isEqualTo("끝");
         assertThat(DirectVideoPracticeLoop.statusField(status, "배우의 말")).isEqualTo("자기 한 줄");
         assertThat(DirectVideoPracticeLoop.finished(new DirectVideoPracticeLoop.Parsed("", status, "x"))).isTrue();
+    }
+
+    @Test void aWantSaidInsteadOfAnActionIsKeptAndProposedNotAskedAsAChoice() {
+        // 2026-10-13 18:59 운영: 4단계에서 "위로받고 싶어"는 행동이 아니라 저장되지 않았고, 보기 둘("울컥하는지, 비웃어주는지")로 코치 낱말이 끼어들었다.
+        var find = at(4, 8, PracticeLoopRouter.FIND, Kind.ANSWER);
+        var want = PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"want\"]}");
+        assertThat(want.want()).isTrue();
+        assertThat(want.decided()).isFalse();
+        assertThat(PracticeLoopRouter.route(want, find, 0)).as("처음엔 그 바람으로 행동을 다시 묻는다").isEqualTo(PracticeLoopRouter.REASK);
+        assertThat(PracticeLoopRouter.route(want, find, 1)).as("두 번째는 보기 둘 대신 그 바람을 얻을 행동을 제안").isEqualTo(PracticeLoopRouter.PROPOSE);
+        var torn = PracticeLoopRouter.parse("{\"signals\":[\"answered\"]}");
+        assertThat(PracticeLoopRouter.route(torn, find, 1)).as("바람이 없으면 예전처럼 보기 둘").isEqualTo(PracticeLoopRouter.EASY);
+
+        String status = PracticeLoopRouter.status("", "", want, find, PracticeLoopRouter.REASK, null, List.of(), "", false, "설득도 있지만  위로받고 싶어해");
+        assertThat(DirectVideoPracticeLoop.statusField(status, PracticeLoopRouter.WANT_FIELD)).isEqualTo("설득도 있지만 위로받고 싶어해");
+        assertThat(DirectVideoPracticeLoop.statusField(status, PracticeLoopRouter.LINE_FIX_FIELD)).isEmpty();
+
+        var loop = StructuredJson.MAPPER.createObjectNode();
+        var statuses = loop.putArray("statuses");
+        statuses.add("할 일: 비추기");
+        statuses.add("할 일: 어긋남 보기\n" + PracticeLoopRouter.WANT_FIELD + ": 공감받고 싶어");
+        statuses.add(status);
+        statuses.add("할 일: 답하기");
+        assertThat(PracticeLoopRouter.latestWant(loop, 4)).as("가장 나중 바람").isEqualTo("설득도 있지만 위로받고 싶어해");
+        assertThat(PracticeLoopRouter.latestWant(loop, 2)).isEqualTo("공감받고 싶어");
+        assertThat(PracticeLoopRouter.lineFixed(loop, 4)).isFalse();
+    }
+
+    @Test void aCorrectedLineIsRememberedForTheRestOfTheTalk() {
+        // 2026-10-13 18:59 운영: "그건 교수 흉내 부분이야" 뒤에도 정리가 같은 대사를 세 번 썼다.
+        var fix = PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"correction\",\"line_fix\",\"want\"]}");
+        assertThat(fix.kind()).isEqualTo(Kind.CORRECTION);
+        assertThat(fix.lineFix()).isTrue();
+        assertThat(fix.want()).as("정정과 함께 붙은 바람도 남는다").isTrue();
+        var wrapped = at(5, 10, PracticeLoopRouter.WRAP_UP, Kind.ANSWER);
+        var asked = PracticeLoopRouter.forRouting(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"question\",\"line_fix\"]}"), wrapped);
+        assertThat(asked.kind()).isEqualTo(Kind.QUESTION);
+        assertThat(asked.lineFix()).as("정리 뒤 물음으로 바꿔도 표시는 남는다").isTrue();
+        String status = PracticeLoopRouter.status("", "", fix, wrapped, "답하기", null, List.of(), "", true, "그건 흉내 내는 부분이야");
+        var loop = StructuredJson.MAPPER.createObjectNode();
+        loop.putArray("statuses").add("할 일: 비추기").add(status).add("할 일: 답하기");
+        assertThat(PracticeLoopRouter.lineFixed(loop, 3)).isTrue();
+        assertThat(PracticeLoopRouter.lineFixed(loop, 1)).isFalse();
+        assertThat(PracticeLoopRouter.SIGNALS).contains("want", "line_fix");
+        assertThat(DirectVideoPrompts.practiceLoopClassifier()).contains("want:", "line_fix:");
+    }
+
+    @Test void flowBSkipsFindingAndGoesStraightToWrapUpAfterTheCoachSaysWhatItSaw() {
+        var classified = new Classified(Kind.ANSWER, false, "model");
+        var afterGap = at(3, 4, PracticeLoopRouter.GAP, Kind.ANSWER);
+        assertThat(PracticeLoopRouter.route(classified, afterGap, 0, CoachFlows.A)).isEqualTo(PracticeLoopRouter.FIND);
+        assertThat(PracticeLoopRouter.route(classified, afterGap, 0, CoachFlows.B)).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        var afterFirst = at(2, 2, "원하는 것 묻기", Kind.ANSWER);
+        assertThat(PracticeLoopRouter.route(classified, afterFirst, 0, CoachFlows.B))
+                .isEqualTo(PracticeLoopRouter.route(classified, afterFirst, 0, CoachFlows.A));
+        var correction = new Classified(Kind.CORRECTION, false, "model");
+        assertThat(PracticeLoopRouter.route(correction, afterGap, 0, CoachFlows.B)).as("정정은 B도 먼저 받는다").isEqualTo("내려놓기");
+    }
+
+    @Test void flowBTellsInsteadOfQuizzingAndCarriesTheThreeStepNote() {
+        var b = at(2, 2, "원하는 것 묻기", Kind.ANSWER);
+        assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, b, CoachFlows.B)).startsWith("2/4 코치가 본 것");
+        assertThat(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, b, CoachFlows.A)).isEqualTo(PracticeLoopRouter.stageLine(PracticeLoopRouter.GAP, b));
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null, CoachFlows.B)).contains("솔직하게 말해 주는 연출가");
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null, CoachFlows.A))
+                .isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null));
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, java.util.Locale.ENGLISH, CoachFlows.B)).contains("root problem");
+        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.B, null)).contains("세 단계");
+        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.A, null)).isEmpty();
+        assertThat(DirectVideoPrompts.flowBlock(CoachFlows.B, java.util.Locale.ENGLISH)).isEmpty();
     }
 }

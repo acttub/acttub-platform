@@ -6,6 +6,7 @@ import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
 import type { SceneContext } from '@/lib/api';
 import { translate as t, translateList } from '@/lib/i18n';
+import { limitVideoBuffer } from '@/lib/video-memory';
 import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events';
 
 /**
@@ -126,6 +127,7 @@ export function SceneFoldBody({
 }) {
   const player = useVideoPlayer(open ? videoUri : null, (p) => {
     p.loop = false;
+    limitVideoBuffer(p);
   });
   // 빈 문자열만 '없음' 으로 본다. require() 로 들어온 에셋은 숫자라 truthy 검사로는
   // 걸러지지 않아야 한다.

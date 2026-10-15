@@ -1,13 +1,20 @@
 package com.acttub.actingapi.feature.admin.app;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSession;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSessions;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallenge;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
@@ -67,20 +74,64 @@ public class AdminService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    /**
+     * 자문위원 이메일 해시 목록. 코치 성격 배정(SOMA-622)이 읽는 파일과 <b>같은 파일</b>을 읽는다 —
+     * 자문위원을 가르는 목록이 두 벌이 되면 서로 어긋난다.
+     */
+    public static final String ADVISORS_RESOURCE = "/coaching/direct-video/personas/advisors.txt";
+
     private final AdminMetricsRepository metrics;
     private final AdminPlayback playback;
     private final List<String> excludeEmails;
+    private final Set<String> advisorEmailHashes;
 
     public AdminService(
             AdminMetricsRepository metrics,
             AdminPlayback playback,
-            @Value("${ADMIN_OPS_EXCLUDE_EMAILS:}") String excludeEmails) {
+            @Value("${ADMIN_OPS_EXCLUDE_EMAILS:}") String excludeEmails,
+            @Value("${ADMIN_ADVISORS_RESOURCE:" + ADVISORS_RESOURCE + "}") String advisorsResource) {
         this.metrics = metrics;
         this.playback = playback;
         this.excludeEmails = Arrays.stream(excludeEmails.split(","))
                 .map(String::strip)
                 .filter(value -> !value.isEmpty())
                 .toList();
+        this.advisorEmailHashes = advisorEmailHashes(advisorsResource);
+    }
+
+    /**
+     * 빈 경로면 자문위원이 없다. 한 줄은 해시 하나이거나 "해시 사람-id" 다(자문위원별 프롬프트로 바뀌며 id 가 붙는다).
+     * 앞 64자 해시만 쓰고, 주석(#)·빈 줄·이 모양이 아닌 줄은 건너뛴다.
+     */
+    static Set<String> advisorEmailHashes(String resource) {
+        if (resource == null || resource.isBlank()) {
+            return Set.of();
+        }
+        try (InputStream input = AdminService.class.getResourceAsStream(resource)) {
+            if (input == null) {
+                throw new IllegalStateException("missing advisor list: " + resource);
+            }
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8).lines()
+                    .map(String::strip)
+                    .filter(line -> line.matches("[0-9a-f]{64}(\\s+[a-z][a-z-]*)?"))
+                    .map(line -> line.substring(0, 64))
+                    .collect(Collectors.toUnmodifiableSet());
+        } catch (IOException error) {
+            throw new IllegalStateException("cannot read advisor list: " + resource, error);
+        }
+    }
+
+    /** 자문위원 계정의 코치 대화만, 최신순. 영상은 세션 목록과 같은 1시간 재생 주소를 붙인다. */
+    public AdminAdvisorSessions advisorSessions(int limit) {
+        List<AdminAdvisorSession> sessions = new ArrayList<>();
+        for (AdminMetricsRepository.AdvisorSessionRow row : metrics.advisorSessions(limit, advisorEmailHashes)) {
+            AdminAdvisorSession s = row.session();
+            sessions.add(new AdminAdvisorSession(
+                    s.coachSessionId(), s.createdAt(), s.actor(), s.advisorHash(), s.persona(), s.status(),
+                    s.closeReason(), s.situation(), s.characterContext(), s.goal(), s.turns(),
+                    row.objectKey() == null ? null : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS), s.coachFlow()));
+        }
+        return new AdminAdvisorSessions(List.copyOf(sessions), advisorEmailHashes.size(), PLAYBACK_TTL_SECONDS);
     }
 
     public AdminSessions sessions(int limit) {
@@ -97,7 +148,8 @@ public class AdminService {
                     row.turns(),
                     row.objectKey() == null
                             ? null
-                            : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS)));
+                            : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS),
+                    row.coachFlow()));
         }
         return new AdminSessions(List.copyOf(sessions), PLAYBACK_TTL_SECONDS);
     }

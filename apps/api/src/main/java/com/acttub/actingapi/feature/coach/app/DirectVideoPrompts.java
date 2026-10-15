@@ -124,6 +124,24 @@ final class DirectVideoPrompts {
         return "";
     }
 
+    /**
+     * 흐름(SOMA-636 A/B)을 따르는 할 일 파일. B의 어긋남 보기는 질문으로 떠보지 않고 코치가 본 것을 말하는 {@code tell}이다.
+     * 그 밖의 할 일은 A와 같은 파일이다.
+     */
+    static String practiceLoopTask(String doing, java.util.Locale language, String flow) {
+        if (CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(doing)) {
+            boolean korean = language == null || "ko".equals(language.getLanguage());
+            return resource("tasks/" + (korean ? "ko" : "en") + "/tell");
+        }
+        return practiceLoopTask(doing, language);
+    }
+
+    /** B 흐름에서 [이번 응답] 끝에 붙는 흐름 안내. 공통 지시의 네 단계 순서 대신 세 단계를 따르게 한다. 한국어 대화에만 붙는다. */
+    static String flowBlock(String flow, java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return CoachFlows.B.equals(flow) && korean ? "\n\n" + resource("flows/b") : "";
+    }
+
     static String practiceLoopTask(String doing, java.util.Locale language) {
         String id = TASK_FILES.get(doing);
         if (id == null) throw new IllegalStateException("practice loop task is missing: " + doing);
@@ -131,17 +149,53 @@ final class DirectVideoPrompts {
         return resource("tasks/" + (korean ? "ko" : "en") + "/" + id);
     }
 
-    /** 성격 id 로 덧붙일 글. 기본 성격·모르는 id·한국어가 아닌 말이면 빈 문자열(SOMA-622). */
+    /**
+     * 프롬프트 id 로 덧붙일 글(SOMA-622). 기본("a")·빈 값·모르는 id 면 빈 문자열.
+     * 자문위원 id 는 {@code personas/advisors/<id>.txt}(한국어 대화), {@code <id>.en.txt}(그 밖의 말, 있을 때만)를 쓴다.
+     * 예전 대화에 저장된 "b1" 은 한국어 대화에서만 그대로 붙는다. 맨 앞의 길이 줄({@code [길이] 90})은 떼고 준다.
+     */
     static String persona(String id, java.util.Locale language) {
-        boolean korean = language == null || "ko".equals(language.getLanguage());
-        if (!korean || !"b1".equals(id)) return "";
-        return resource("personas/" + id);
+        return personaFile(id, language).map(DirectVideoPrompts::withoutLengthLine).orElse("");
     }
 
-    /** 성격을 받은 대화에서 줄이기가 말투를 기본 말투로 되돌리지 않게 하는 한 줄. */
+    /** 이 프롬프트를 받은 대화에서 코치 말을 줄이기 시작하는 길이. 길이 줄이 없으면 공용 상한이다. */
+    static int personaReplyLimit(String id, java.util.Locale language) {
+        return personaFile(id, language).flatMap(DirectVideoPrompts::lengthLine).orElse(DirectVideoPracticeLoop.LONG_REPLY);
+    }
+
+    /** 프롬프트를 받은 대화에서 줄이기가 말투와 길이를 공용 코치 쪽으로 되돌리지 않게 하는 줄. */
     static String personaShortenNote(String id, java.util.Locale language) {
-        return persona(id, language).isEmpty() ? ""
-                : "\n- 말투는 원래 말의 말투를 그대로 둔다. 원래 말이 \"~해요.\"로 방향을 줬으면 \"~해 봐도 좋아요\"로 바꾸지 않는다. 쿠션어나 칭찬을 더하지 않는다.";
+        if (persona(id, language).isEmpty()) return "";
+        if ("b1".equals(id)) {
+            return "\n- 말투는 원래 말의 말투를 그대로 둔다. 원래 말이 \"~해요.\"로 방향을 줬으면 \"~해 봐도 좋아요\"로 바꾸지 않는다. 쿠션어나 칭찬을 더하지 않는다.";
+        }
+        int target = personaReplyLimit(id, language) - 10;
+        return "\n- 이 배우에게는 위의 50자 대신 공백 포함 " + target + "자 안쪽이 목표다. 이유를 말하는 한 문장은 지우지 않는다. 말투는 원래 말의 말투를 그대로 둔다.";
+    }
+
+    private static java.util.Optional<String> personaFile(String id, java.util.Locale language) {
+        if (id == null || id.isBlank() || CoachPersonas.DEFAULT.equals(id)) return java.util.Optional.empty();
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        if ("b1".equals(id)) return korean ? java.util.Optional.of(resource("personas/b1")) : java.util.Optional.empty();
+        if (!id.matches("[a-z][a-z-]*")) return java.util.Optional.empty();
+        return optionalResource("personas/advisors/" + id + (korean ? "" : ".en"));
+    }
+
+    private static final java.util.regex.Pattern LENGTH_LINE = java.util.regex.Pattern.compile("\\A\\[(?:길이|length)\\]\\s*(\\d{2,3})\\s*\\R?");
+
+    private static String withoutLengthLine(String text) {
+        return LENGTH_LINE.matcher(text).replaceFirst("").strip();
+    }
+
+    private static java.util.Optional<Integer> lengthLine(String text) {
+        var match = LENGTH_LINE.matcher(text);
+        return match.find() ? java.util.Optional.of(Integer.parseInt(match.group(1))) : java.util.Optional.empty();
+    }
+
+    private static java.util.Optional<String> optionalResource(String name) {
+        String path = "/coaching/direct-video/" + name + ".txt";
+        return StructuredJson.class.getResource(path) == null ? java.util.Optional.empty()
+                : java.util.Optional.of(StructuredJson.textResource(path).strip());
     }
 
     static String forRoutes(List<DirectVideoRoute> routes) {

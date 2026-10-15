@@ -11,6 +11,7 @@ import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
 import { groupTitle, roundSummary } from '@/lib/practice/groups';
 import { orderedMessages } from '@/lib/practice/coach';
+import { continueActionFor, continueActionLabel } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -18,15 +19,16 @@ import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
 import { TARGET } from '@/lib/spotlight-targets';
 import type { CoachConversation, PracticeGroupDetail } from '@/lib/practice/types';
 
-/** 처음 한 번 비추는 자리 — "이어서 연습하기" 버튼. */
+/** 처음 한 번 비추는 자리 — 「다음 테이크 찍기」 버튼. */
 const CONTINUE_STEPS: SpotlightStep[] = [{ target: TARGET.groupContinue, text: 'guide.spotContinue' }];
 
 /**
  * A1.2 연습 기록 상세 — 묶음 하나.
  *
- * 묶음의 영상, 회차 흐름(n차 · 시각 · 대화 수 · 노트 제목 · 노트 보기), 마지막 대화,
- * "이어서 연습하기"를 보여 준다(practice.library). 이어서 연습하기는 그 회차의 영상을 그대로
- * 쓰고 장면은 비운 채 시작한다(practice.resume). 숨김은 묶음 전체이고 영상은 보관함에 남는다.
+ * 묶음의 영상, 회차 흐름(n차 · 시각 · 대화 수 · 노트 제목 · 노트 보기), 마지막 대화와 이어 가는 버튼 하나를
+ * 보여 준다(practice.library). 열린 테이크가 있으면 맨 위에 「대화 이어 가기」(그 대화로 바로), 없으면 아래에
+ * 「다음 테이크 찍기」(새 영상을 골라 장면은 비운 채 시작)다(practice.resume, SOMA-672). 숨김은 묶음 전체이고
+ * 영상은 보관함에 남는다.
  */
 export default function PracticeGroupScreen() {
   const router = useRouter();
@@ -40,12 +42,13 @@ export default function PracticeGroupScreen() {
   const [conversationLoading, setConversationLoading] = useState(false);
   const conversationRequest = useRef(0);
   // 처음 한 번만 "이어서 연습할 수 있어요!"를 비춘다. 버튼이 목록 맨 아래라 먼저 내려 준다.
+  // 대화 중인 묶음은 「다음 테이크 찍기」가 없으니 비추지 않는다(다음에 들어왔을 때 비춘다).
   const scrollRef = useRef<ScrollView>(null);
   const continueTarget = useSpotlightTarget(TARGET.groupContinue);
   const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
-    if (!group) return;
+    if (!group || group.in_progress_practice_id) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let alive = true;
     void hasSeenSpotlight('group').then((seen) => {
@@ -91,19 +94,18 @@ export default function PracticeGroupScreen() {
     return () => { conversationRequest.current += 1; };
   }, [load]);
 
-  /** 같은 영상으로 같은 묶음의 다음 회차를 만든다. 장면은 비운 채 시작한다. */
-  const continuePractice = () => {
+  const action = continueActionFor(group);
+
+  /** 열린 테이크의 대화로 바로 돌아간다 — 분석 화면이 단계를 보고 대화로 넘긴다. */
+  const resumeConversation = (practiceId: string) => {
+    router.push({ pathname: '/analyzing', params: { practiceId } });
+  };
+
+  /** 같은 묶음의 다음 회차를 만든다. 영상은 새로 고르고 장면은 비운 채 시작한다. */
+  const startNextTake = () => {
     if (!group) return;
-    if (group.in_progress_practice_id) {
-      router.push({ pathname: '/analyzing', params: { practiceId: group.in_progress_practice_id } });
-      return;
-    }
     const last = group.practices[group.practices.length - 1];
-    setContinueOrigin(
-      group.video_id
-        ? { kind: 'history', rootId: group.root_id, practiceId: last?.id ?? group.root_id, videoId: group.video_id }
-        : { kind: 'group', rootId: group.root_id, practiceId: last?.id ?? group.root_id },
-    );
+    setContinueOrigin({ kind: 'group', rootId: group.root_id, practiceId: last?.id ?? group.root_id });
     router.push('/upload');
   };
 
@@ -170,6 +172,16 @@ export default function PracticeGroupScreen() {
             <Text style={styles.meta}>{t('history.countTimes', { count: group.ordinal_count })}</Text>
           </View>
 
+          {/* 대화 중인 테이크가 있으면 그게 가장 먼저 할 일이다 — 맨 위 주 버튼(SOMA-672). */}
+          {action.kind === 'resume' && (
+            <Pressable
+              style={[styles.primary, styles.primaryTop]}
+              onPress={() => resumeConversation(action.practiceId)}
+              accessibilityRole="button">
+              <Text style={styles.primaryText}>{t(continueActionLabel(action))}</Text>
+            </Pressable>
+          )}
+
           {group.video_id && (
             <Pressable style={styles.round} onPress={() => router.push({ pathname: '/archive-detail', params: { id: group.video_id! } })} accessibilityRole="button">
               <Text style={styles.openNote}>{t('history.openVideo')}</Text>
@@ -224,14 +236,16 @@ export default function PracticeGroupScreen() {
             </View>
           ))}
 
-          <Pressable
-            ref={continueTarget.ref}
-            onLayout={continueTarget.onLayout}
-            style={styles.primary}
-            onPress={continuePractice}
-            accessibilityRole="button">
-            <Text style={styles.primaryText}>{t('history.continueCta')}</Text>
-          </Pressable>
+          {action.kind === 'nextTake' && (
+            <Pressable
+              ref={continueTarget.ref}
+              onLayout={continueTarget.onLayout}
+              style={styles.primary}
+              onPress={startNextTake}
+              accessibilityRole="button">
+              <Text style={styles.primaryText}>{t(continueActionLabel(action))}</Text>
+            </Pressable>
+          )}
           <Pressable onPress={() => void toggleHidden()} accessibilityRole="button">
             <Text style={styles.hideLink}>{group.hidden_at ? t('history.unhide') : t('history.hideConfirm')}</Text>
           </Pressable>
@@ -284,6 +298,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 16,
   },
+  primaryTop: { marginTop: 0 },
   primaryText: { fontSize: 15, fontWeight: '900', color: palette.bg },
   hideLink: { fontSize: 13, fontWeight: '800', color: palette.textFaint, textAlign: 'center', paddingVertical: 10 },
   hideNotice: { fontSize: 12, color: palette.textFaint, textAlign: 'center', lineHeight: 19 },

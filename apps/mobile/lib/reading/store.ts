@@ -15,7 +15,9 @@
 import { LEGACY_SCRIPTS_KEY } from './legacy-migration.ts';
 import type {
   DifferentLine,
+  LineKind,
   PatchScriptBody,
+  PatchScriptLineBody,
   ProgressBody,
   ProgressResponse,
   ScriptCharacter,
@@ -87,6 +89,7 @@ export type ScriptTransport = {
   list(q?: string): Promise<ScriptListResponse>;
   get(id: string): Promise<ScriptDetail>;
   patch(id: string, body: PatchScriptBody): Promise<ScriptDetail>;
+  patchLine(id: string, lineId: string, body: PatchScriptLineBody): Promise<ScriptDetail>;
   remove(id: string): Promise<void>;
   /** 회차(reading.session). */
   startSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail>;
@@ -111,6 +114,7 @@ function server(): ScriptTransport {
     list: (q) => api.listReadingScripts(q),
     get: (id) => api.getReadingScript(id),
     patch: (id, body) => api.updateReadingScript(id, body),
+    patchLine: (id, lineId, body) => api.updateReadingScriptLine(id, lineId, body),
     remove: (id) => api.deleteReadingScript(id),
     startSession: (scriptId, body) => api.startReadingSession(scriptId, body),
     getSession: (sessionId) => api.getReadingSession(sessionId),
@@ -251,6 +255,24 @@ export async function updateScriptMeta(
     });
   }
   const detail = await server().patch(id, body);
+  if (current?.id === id) current = await openScript(detail);
+  return detail;
+}
+
+/**
+ * 나누기가 틀린 줄 하나를 고친다(SOMA-669). 바꾼 항목만 보낸다. 줄 id 는 그대로라 회차·녹음·외운 줄이 이어지고,
+ * 현재 대본은 서버가 돌려준 상세로 다시 올린다(대사 수·장면이 고친 대로 바뀐다).
+ */
+export async function editScriptLine(
+  id: string,
+  lineId: string,
+  patch: { kind?: LineKind; characterId?: string; text?: string },
+): Promise<ScriptDetail> {
+  const body: PatchScriptLineBody = {};
+  if (patch.kind !== undefined) body.kind = patch.kind;
+  if (patch.characterId !== undefined) body.character_id = patch.characterId;
+  if (patch.text !== undefined) body.text = patch.text;
+  const detail = await server().patchLine(id, lineId, body);
   if (current?.id === id) current = await openScript(detail);
   return detail;
 }

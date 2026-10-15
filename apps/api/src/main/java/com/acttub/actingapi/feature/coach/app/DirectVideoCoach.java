@@ -36,6 +36,8 @@ public final class DirectVideoCoach {
     private final boolean practiceLoop;
     // 자문위원 연습만 코치 성격을 번갈아 받는다(SOMA-622). 그 밖의 배우는 늘 기본 성격이다.
     private final CoachPersonas personas;
+    /** 코치 흐름 A/B(SOMA-636). NONE 이면 모두 A(롤백). */
+    private final CoachFlows flows;
     // 코치 모델 비교(SOMA-657). 새 대화의 alternateShare% 는 코치 답을 alternate 모델로 쓴다.
     // 분류·줄이기·영상 올리기는 늘 기본 모델이다. null 이거나 0 이면 모두 기본 모델(롤백).
     private final DirectVideoModel alternate;
@@ -54,6 +56,13 @@ public final class DirectVideoCoach {
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
             DirectVideoModel alternate, int alternateShare) {
+        this(model, videos, storage, failures, telemetry, practiceLoop, personas, alternate, alternateShare, CoachFlows.NONE);
+    }
+
+    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
+            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
+            DirectVideoModel alternate, int alternateShare, CoachFlows flows) {
+        this.flows = flows == null ? CoachFlows.NONE : flows;
         this.alternate = alternate;
         this.alternateShare = alternate == null ? 0 : Math.max(0, Math.min(100, alternateShare));
         this.personas = personas == null ? CoachPersonas.NONE : personas;
@@ -77,6 +86,7 @@ public final class DirectVideoCoach {
         boolean loop = practiceLoop && DirectVideoPracticeLoop.applies(session);
         String persona = loop ? persona(session, operationId) : "";
         String arm = loop ? coachArm(session) : "a";
+        String flow = loop ? flow(session, operationId) : CoachFlows.A;
         DirectVideoModel speaker = coachModel(arm);
         var history = new ArrayList<DirectVideoModel.Message>();
         if (loop) {
@@ -97,7 +107,7 @@ public final class DirectVideoCoach {
         boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count()
                 >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1;
         // 둘째 응답부터: 배우의 말을 따로 분류하고 할 일·횟수·피할 것을 코드가 정한다(PracticeLoopRouter).
-        Branch branch = loop && !session.turns().isEmpty() && actorText != null ? branch(session, actorText, operationId) : null;
+        Branch branch = loop && !session.turns().isEmpty() && actorText != null ? branch(session, actorText, operationId, flow) : null;
         if (branch != null && PracticeLoopRouter.END.equals(branch.doing())) {
             // 그만·자기 한 줄·응답 상한: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
             String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
@@ -163,6 +173,7 @@ public final class DirectVideoCoach {
             ObjectNode state = nextState(session);
             if (!persona.isEmpty()) DirectVideoPracticeLoop.rememberPersona(state, persona);
             if (loop) DirectVideoPracticeLoop.rememberCoachModel(state, arm);
+            if (loop) DirectVideoPracticeLoop.rememberFlow(state, flow);
             if (loop) {
                 DirectVideoDialogueEvidence.discardUngroundedDesign(uploaded, state, written);
                 history.clear();
@@ -176,7 +187,8 @@ public final class DirectVideoCoach {
                 history.addAll(DirectVideoPracticeLoop.history(session.turns(), state, actorText, false));
                 String design = state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText("");
                 task = DirectVideoPrompts.practiceLoopTurn(language) + "\n\n" + branch.instruction(language,
-                        DirectVideoPrompts.practiceLoopTask(branch.doing(), language)) + personaBlock(persona, language);
+                        DirectVideoPrompts.practiceLoopTask(branch.doing(), language, flow))
+                        + DirectVideoPrompts.flowBlock(flow, language) + personaBlock(persona, language);
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop.turn", DirectVideoPrompts.practiceLoopTurn())
                         : new LlmPrompt("coach.practice-loop.turn.en", DirectVideoPrompts.practiceLoopTurnEnglish());
@@ -199,7 +211,7 @@ public final class DirectVideoCoach {
             }
             // 연습 루프는 배우가 이번 연습에 적은 것(상황·인물·목표·막힘)도 받는다. 없으면 칸이 없다.
             String prompt = DirectVideoPrompts.withAudioFacts(CoachPrompt.actorProfileBlock(session.actorProfile())
-                    + CoachPrompt.priorContextBlock(session.priorForModel(), true, false)
+                    + CoachPrompt.priorContextBlock(session.priorForModel().withoutCoachGuesses(), true, false)
                     + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + task, uploaded);
             input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
             ExternalOperationExecution.externalCall("model");
@@ -291,10 +303,16 @@ public final class DirectVideoCoach {
                 timeStripped = true;
             }
             if (shown.isBlank()) throw new IllegalStateException("empty video coaching reply");
-            // 앱이 코치 말을 아주 큰 글씨로 보여서 50자 안쪽이 목표다. 60자가 넘으면 자르지 않고 줄이기만 하는 호출로 두 번까지 줄인다.
+            // 앱이 코치 말을 아주 큰 글씨로 보여서 50자 안쪽이 목표다. 상한(공용 60자)을 넘으면 자르지 않고 줄이기만 하는 호출로 두 번까지 줄인다.
+            // 자문위원 프롬프트는 사람마다 길이 상한을 따로 둔다(SOMA-622). 없으면 공용 상한 60자다.
+            int replyLimit = loop ? DirectVideoPrompts.personaReplyLimit(persona, DirectVideoPracticeLoop.replyLanguage(session, actorText))
+                    : DirectVideoPracticeLoop.LONG_REPLY;
             int shortened = 0;
             // 배우가 설명·피드백을 달라고 한 답은 길게 둔다(줄이면 다시 한 구절 + 질문이 되어 물음에 답하지 못한다).
-            int limit = branch != null && branch.explains() ? DirectVideoPracticeLoop.EXPLAIN_REPLY : DirectVideoPracticeLoop.LONG_REPLY;
+            // 자문위원 프롬프트의 사람별 상한(SOMA-622)과 함께 쓸 때는 둘 중 큰 쪽을 쓴다.
+            int limit = branch != null && branch.explains() ? Math.max(DirectVideoPracticeLoop.EXPLAIN_REPLY, replyLimit) : replyLimit;
+            // B 흐름에서 코치가 본 것을 말하는 응답은 이유 한 문장까지 세 문장이다. 줄이면 이유가 빠져 다시 떠보는 질문이 된다.
+            if (branch != null && CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(branch.doing())) limit = Math.max(limit, TELL_REPLY);
             while (loop && !cut && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > limit) {
                 String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), persona, uploaded, written, operationId);
                 shortened++;
@@ -307,7 +325,7 @@ public final class DirectVideoCoach {
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
                             "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry), "broken_retry", Boolean.toString(brokenRetry),
-                            "persona", persona, "coach_model_arm", arm, "model_fallback", Boolean.toString(modelFallback)))
+                            "persona", persona, "coach_model_arm", arm, "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
@@ -322,7 +340,7 @@ public final class DirectVideoCoach {
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     speaker.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,
-                            "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm)).withPrompt(template));
+                            "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm, "coach_flow", flow)).withPrompt(template));
             throw new CoachReplyUnavailable();
         } finally {
             if (uploaded != null) {
@@ -353,6 +371,26 @@ public final class DirectVideoCoach {
         } catch (RuntimeException failure) {
             failures.report(failure, FailureKind.UNEXPECTED, new FailureContext("DirectVideoCoach.persona", operationId));
             return "";
+        }
+    }
+
+    /** B 흐름에서 코치가 본 것을 말하는 응답의 줄이기 기준 길이. */
+    static final int TELL_REPLY = 90;
+
+    /**
+     * 이 대화의 코치 흐름(SOMA-636 A/B). 저장된 값이 있으면 그대로, 첫 응답이면 배정을 묻는다.
+     * 배포 전에 시작한 대화(저장값 없음)와 배정 실패는 A다 — 코칭은 멈추지 않는다.
+     */
+    private String flow(CoachSessionSnapshot session, UUID operationId) {
+        String stored = DirectVideoPracticeLoop.storedFlow(session.coachingState());
+        if (!stored.isEmpty()) return stored;
+        if (!session.turns().isEmpty()) return CoachFlows.A;
+        try {
+            String assigned = flows.assign(session);
+            return CoachFlows.B.equals(assigned) ? CoachFlows.B : CoachFlows.A;
+        } catch (RuntimeException failure) {
+            failures.report(failure, FailureKind.UNEXPECTED, new FailureContext("DirectVideoCoach.flow", operationId));
+            return CoachFlows.A;
         }
     }
 
@@ -394,7 +432,7 @@ public final class DirectVideoCoach {
     /** 서버가 정한 이번 응답. 상태 칸과 모델에 줄 지시를 만든다. */
     private record Branch(PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String doing,
             String goal, java.util.List<String> avoid, String observed, String dialogue, boolean closeNext,
-            String actorText, java.util.List<String> materials, String rootField) {
+            String actorText, java.util.List<String> materials, String rootField, String flow) {
 
         /** 배우가 이유·방법·예시·설명·피드백을 달라고 해서 답하는 말인지. 길이 제한을 늘린다. */
         boolean explains() {
@@ -402,8 +440,7 @@ public final class DirectVideoCoach {
             var kind = classified.kind();
             boolean asked = kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION
                     || kind == PracticeLoopRouter.Kind.METHOD || classified.alsoAsked();
-            boolean exampleButton = actorText != null && PracticeLoopRouter.EXPLAIN_BUTTON.contains(actorText.strip());
-            return (answering && asked) || exampleButton;
+            return answering && asked;
         }
 
         String instruction(java.util.Locale language, String task) {
@@ -413,7 +450,7 @@ public final class DirectVideoCoach {
             String root = DirectVideoPrompts.practiceLoopRoot(rootField, language);
             if (!root.isEmpty()) withGoal = withGoal + "\n\n" + root;
             // 정리 뒤 한 번 답하는 말이면 단계 질문으로 돌아가지 않는다 — 배우가 답하면 바로 닫히기 때문이다.
-            String stage = closeNext ? lastWordLine(language, classified.kind()) : PracticeLoopRouter.stageLine(doing, before);
+            String stage = closeNext ? lastWordLine(language, classified.kind()) : PracticeLoopRouter.stageLine(doing, before, flow);
             return PracticeLoopRouter.instruction(language, doing, avoid, observed, dialogue, withGoal, stage, materials);
         }
 
@@ -469,24 +506,22 @@ public final class DirectVideoCoach {
         }
     }
 
-    private Branch branch(CoachSessionSnapshot session, String actorText, UUID operationId) {
+    private Branch branch(CoachSessionSnapshot session, String actorText, UUID operationId, String flow) {
         var loopState = session.coachingState() == null ? null : session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY);
         int coachTurns = (int) session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         var before = PracticeLoopRouter.before(loopState, coachTurns);
-        var pressed = PracticeLoopRouter.button(actorText, before);
-        var classified = pressed != null ? pressed : PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
+        var classified = PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
         String design = loopState == null ? "" : loopState.path("design").asText("");
         int stayed = PracticeLoopRouter.stayed(loopState, coachTurns);
-        String doing = PracticeLoopRouter.route(classified, before, stayed);
-        // "지금은 연습하기 어려워요" 버튼은 단계와 상관없이 바로 정리한다(그만·상한은 그대로 닫는다).
-        if (PracticeLoopRouter.BY_LATER.equals(classified.by()) && !PracticeLoopRouter.END.equals(doing)) doing = PracticeLoopRouter.WRAP_UP;
+        String doing = PracticeLoopRouter.route(classified, before, stayed, flow);
         var avoid = PracticeLoopRouter.avoidAfter(before, classified.kind(), DirectVideoPracticeLoop.habit(design));
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
         return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
                 DirectVideoPracticeLoop.statusField(design, "대사 확인"), PracticeLoopRouter.closesNext(classified, before),
-                actorText, withTries(materials(design, PracticeLoopRouter.answers(loopState, coachTurns), classified, before, actorText, doing),
+                actorText, withTries(materials(design, PracticeLoopRouter.answers(loopState, coachTurns), classified, before, actorText, doing,
+                        PracticeLoopRouter.latestWant(loopState, coachTurns), PracticeLoopRouter.lineFixed(loopState, coachTurns)),
                         doing, stayed, session),
-                DirectVideoPracticeLoop.statusField(design, "근본 문제"));
+                DirectVideoPracticeLoop.statusField(design, "근본 문제"), flow);
     }
 
     /**
@@ -531,12 +566,19 @@ public final class DirectVideoCoach {
     }
 
     private static java.util.List<String> materials(String design, java.util.Map<String, String> answers,
-            PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String actorText, String doing) {
+            PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String actorText, String doing,
+            String storedWant, boolean storedLineFix) {
         var lines = new java.util.ArrayList<String>();
         java.util.function.BiConsumer<String, String> add = (label, value) -> {
             if (value != null && !value.isBlank() && !value.startsWith("없음")) lines.add(label + ": " + value.strip());
         };
-        add.accept("정리에서 확인할 대사", DirectVideoPracticeLoop.statusField(design, "확인할 대사"));
+        // 배우가 코치가 짚은 대사를 다른 장면이라고 바로잡았으면(2026-10-13 18:59 "그건 교수 흉내 부분이야") 그 대사를 정리에 다시 쓰지 않게 뺀다.
+        boolean lineFixed = storedLineFix || classified.lineFix();
+        if (lineFixed) {
+            lines.add("배우가 코치가 짚은 대사를 다른 장면이라고 바로잡았다. 처음 고른 확인할 대사는 쓰지 않는다. 정리에서는 이 영상에서 들린 다른 대사를 쓰거나, 마땅한 대사가 없으면 대사 없이 행동만 말한다");
+        } else {
+            add.accept("정리에서 확인할 대사", DirectVideoPracticeLoop.statusField(design, "확인할 대사"));
+        }
         add.accept("이 배우의 문제", DirectVideoPracticeLoop.statusField(design, "버릇"));
         add.accept("왜 이 배우의 문제인가", DirectVideoPracticeLoop.statusField(design, "왜 이 배우의 문제인가"));
         add.accept("버릇이 가리는 것", DirectVideoPracticeLoop.statusField(design, "버릇이 가리는 것"));
@@ -548,6 +590,16 @@ public final class DirectVideoCoach {
         String field = PracticeLoopRouter.answerField(classified, before);
         if (field != null && actorText != null) known.put(field, actorText.strip()); // 방금 답한 단계 답도 재료로
         known.forEach((label, value) -> add.accept("배우가 말한 " + label, value));
+        // 배우가 바람을 새로 말하거나 고쳐 말했으면 첫 답보다 이 말이 기준이다. 4단계에서는 행동이 아니라서 단계 답으로 남지 않던 말이다.
+        String want = classified.want() && actorText != null && !actorText.isBlank() ? actorText : storedWant;
+        if (want != null && !want.isBlank()) {
+            add.accept("배우가 가장 나중에 말한 바람", want.replaceAll("\\s+", " "));
+            lines.add("바람은 첫 답보다 이 말이 기준이다. 바람을 다시 짐작해 묻지 않는다. 제안·정리의 행동은 이 바람을 얻는 쪽으로, 배우 낱말 그대로 잇는다. \"위로\"를 \"설득\"처럼 코치 낱말로 바꾸거나, 받고 싶은 쪽(상대가 나를 달래 주기)을 하는 쪽(상대를 달래기)으로 뒤집지 않는다. 코치가 앞서 질문이나 보기로 꺼낸 낱말은 배우 말이 아니다");
+            // 2026-10-14 재생: 바람이 이미 있는데도 답 제안이 "저는 ~로 봤어요. 맞아요?"로 바람을 다시 짐작했다(할 일 파일의 모양이 이겼다).
+            if (PracticeLoopRouter.PROPOSE.equals(doing)) {
+                lines.add("이번 제안은 위 할 일의 모양·좋은 예보다 이 줄이 먼저다. 바람은 이미 나왔으니 \"저는 ~로 봤어요\"로 바람을 짐작하지 않는다. 그 바람을 배우 낱말 그대로 앞에 두고, 그걸 얻으려고 상대에게 해 볼 행동 하나를 제안한 뒤 \"어때요?\"로 묻는다. 모양: \"〈배우의 바람〉이면, 〈이 장면에서 상대에게 하는 행동〉해 봐도 좋아요. 어때요?\" 꺾쇠 안은 이 대화의 말로 바꾸고 꺾쇠는 쓰지 않는다");
+            }
+        }
         add.accept("배우가 방금 한 말", actorText == null ? null : actorText.replaceAll("\\s+", " "));
         if (classified.kind() == PracticeLoopRouter.Kind.METHOD && PracticeLoopRouter.GAP.equals(doing)) {
             lines.add("배우가 방법을 물었다. 방법을 말하기 전에, 무엇을 고쳐야 하는지부터 이번 단계로 보여 준다. 다음 질문에서 배우가 방법을 함께 찾는다");
@@ -557,9 +609,6 @@ public final class DirectVideoCoach {
             case "question" -> lines.add("배우가 답하면서 물은 것이 있다. 첫 문장에서 쉬운 말로 바로 답하고, 이어서 이번 단계를 한다");
             case "method" -> lines.add("배우가 답하면서 방법도 물었다. 방법은 이번 단계에서 배우와 함께 찾는다. 짧게 받고 이번 단계를 한다");
             default -> { }
-        }
-        if (actorText != null && PracticeLoopRouter.EXPLAIN_BUTTON.contains(actorText.strip())) {
-            lines.add("배우가 \"예시로 설명해 주세요\"를 눌렀다. 묻기 전에, 지금 질문에 답한 예를 이 장면에 맞게 한 문장으로 먼저 든다. 그다음 질문한다");
         }
         if (PracticeLoopRouter.WRAP_UP.equals(doing) && !known.containsKey("찾은 대안")) {
             lines.add("배우가 찾은 대안: 아직 없음. \"맞아요, 그거예요\"로 인정하지 말고, 근본 문제를 푸는 길 4단계와 배우의 첫 답을 살리는 행동 하나를 코치가 제안한다");

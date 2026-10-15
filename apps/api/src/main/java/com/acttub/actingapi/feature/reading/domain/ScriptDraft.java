@@ -1,5 +1,6 @@
 package com.acttub.actingapi.feature.reading.domain;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -11,17 +12,31 @@ import java.util.List;
  *
  * @param source 입력 경로 — {@code file}·{@code paste}·{@code typed}·{@code sample}. 서버는 예시를 구분하지
  *        않는다
+ * @param characterTraits {@code characterNames} 와 같은 자리의 성별·나이대(SOMA-670). 나누기 작업만 채우고 나머지는 모두
+ *        모름이다. {@code null} 이면 모두 모름
  */
 public record ScriptDraft(
         String title,
         String rawText,
         String source,
         List<String> characterNames,
-        List<Line> lines) {
+        List<Line> lines,
+        List<CharacterTraits> characterTraits) {
 
     public ScriptDraft {
         characterNames = List.copyOf(characterNames);
         lines = List.copyOf(lines);
+        characterTraits = characterTraits == null
+                ? Collections.nCopies(characterNames.size(), CharacterTraits.UNKNOWN)
+                : List.copyOf(characterTraits);
+        if (characterTraits.size() != characterNames.size()) {
+            throw new IllegalArgumentException("characterTraits must line up with characterNames");
+        }
+    }
+
+    /** 성별·나이대를 모르는 대본 — 기기가 나눈 대본과 예시 대본. */
+    public ScriptDraft(String title, String rawText, String source, List<String> characterNames, List<Line> lines) {
+        this(title, rawText, source, characterNames, lines, null);
     }
 
     /**

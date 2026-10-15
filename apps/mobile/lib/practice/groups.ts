@@ -12,6 +12,7 @@ export function practiceGroupFromResponse(group: PracticeGroupResponse): Practic
     situation: first?.situation ?? null,
     last_practiced_at: last?.created_at ?? null,
     video_id: last?.video_id ?? null,
+    poster_url: [...practices].reverse().find(p => p.poster_url)?.poster_url ?? null,
     last_conversation_id: [...practices].reverse().find(p => p.conversation_id)?.conversation_id ?? null,
     practices: practices.map(p => ({
       id: p.id, ordinal: p.ordinal, created_at: p.created_at, stage: p.stage,
@@ -43,6 +44,15 @@ export function groupTitle(group: Pick<PracticeGroup, 'title' | 'note_title' | '
   return translate('history.noSceneTitle');
 }
 
+/**
+ * 목록 줄의 첫 장면 사진(SOMA-671). 서명 주소는 10분마다 바뀌므로 보관함처럼 서명(쿼리)을 뗀 주소를 캐시 키로 쓴다.
+ */
+export function groupPoster(group: Pick<PracticeGroup, 'poster_url'>): { uri: string; cacheKey: string } | null {
+  const uri = group.poster_url;
+  if (!uri) return null;
+  return { uri, cacheKey: uri.split('?')[0] };
+}
+
 /** 숨긴 묶음은 목록에서 빠진다. 필터는 전체·즐겨찾기·최근 30일이다. */
 export function filterGroups(
   groups: readonly PracticeGroup[],
@@ -59,6 +69,18 @@ export function filterGroups(
     });
   }
   return visible;
+}
+
+/**
+ * 묶음 줄(홈 「최근 연습」·연습 기록)을 눌렀을 때 갈 곳(SOMA-672). 대화 중인 묶음(열린 테이크)은 그 대화로 바로
+ * 돌아가고 — 「대화 이어 가기」와 같은 길 — 나머지는 연습 기록 상세다.
+ */
+export function groupRowTarget(
+  group: Pick<PracticeGroup, 'root_id' | 'in_progress_practice_id'>,
+): { pathname: '/analyzing'; params: { practiceId: string } } | { pathname: '/practice-group'; params: { rootId: string } } {
+  return group.in_progress_practice_id
+    ? { pathname: '/analyzing', params: { practiceId: group.in_progress_practice_id } }
+    : { pathname: '/practice-group', params: { rootId: group.root_id } };
 }
 
 /** 홈(A1)의 최근 연습 — 숨기지 않은 묶음 3개. */

@@ -83,8 +83,8 @@ export default function ReportScreen() {
     router.dismissAll();
   };
 
-  /** A13 "다음 연습" — 방금 끝낸 회차에서만 이전 장면을 미리 채운다. */
-  const nextPractice = () => {
+  /** A13 「다음 테이크 찍기」 — 방금 끝낸 회차에서만 이전 장면을 미리 채운다. 영상은 새로 고른다(SOMA-672). */
+  const nextTake = () => {
     finishTutorial('done');
     if (practice) {
       setContinueOrigin({
@@ -184,8 +184,8 @@ export default function ReportScreen() {
               </View>
             ) : (
             <View style={styles.buttonRow}>
-              <Pressable style={styles.primary} onPress={nextPractice}>
-                <Text style={styles.primaryText}>{t('note.nextPractice')}</Text>
+              <Pressable style={styles.primary} onPress={nextTake}>
+                <Text style={styles.primaryText}>{t('history.nextTake')}</Text>
               </Pressable>
               <Pressable style={styles.ghost} onPress={finish}>
                 <Text style={styles.ghostText}>{t('note.finish')}</Text>

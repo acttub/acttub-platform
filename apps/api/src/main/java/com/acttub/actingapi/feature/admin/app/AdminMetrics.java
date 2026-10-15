@@ -41,13 +41,51 @@ public final class AdminMetrics {
             String characterContext,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String goal,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminTurn> turns,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String videoUrl) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String videoUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, allowableValues = {"a", "b"},
+                    description = "코치 흐름 A/B(SOMA-636). 기록이 없는 예전 대화는 null")
+            String coachFlow) {
     }
 
     @Schema(name = "AdminSessions", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record AdminSessions(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminSession> sessions,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int playbackExpiresInSec) {
+    }
+
+    /**
+     * 자문위원 계정의 코치 대화 한 건(SOMA-622). 사람은 가명(md5(user_id) 앞 8자리)과 자문위원 목록의 이메일
+     * 해시(advisors.txt 에 이미 공개된 값)로만 내고, 이메일·user id 는 싣지 않는다. 영상은 세션 목록과 같은 1시간
+     * 재생 주소다(지워진 영상·서명 실패면 null). ops 는 이 해시로
+     * 자기 쪽(비공개 저장소)에서 이름을 붙인다. persona 는 코치 성격 배정(a·b1)이고, 배정 기록이 없으면 null 이다.
+     */
+    @Schema(name = "AdminAdvisorSession", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminAdvisorSession(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String coachSessionId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String actor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String advisorHash,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String persona,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String closeReason,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String situation,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            String characterContext,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String goal,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminTurn> turns,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String videoUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, allowableValues = {"a", "b"},
+                    description = "코치 흐름 A/B(SOMA-636). 기록이 없는 예전 대화는 null")
+            String coachFlow) {
+    }
+
+    @Schema(name = "AdminAdvisorSessions", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminAdvisorSessions(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminAdvisorSession> sessions,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int advisorAccounts,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int playbackExpiresInSec) {
     }
 
