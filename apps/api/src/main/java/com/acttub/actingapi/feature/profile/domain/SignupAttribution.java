@@ -34,6 +34,11 @@ public record SignupAttribution(
     public static final String WEB_SOURCE = "web_utm";
     public static final String WEB_PLATFORM = "web";
 
+    /** 이 행을 누가 적었나(V44): 앱이 SDK 콜백으로 · 서버가 Airbridge 를 조회해서 · 웹 UTM. */
+    public static final String RECORDED_VIA_APP = "app";
+    public static final String RECORDED_VIA_SERVER = "server";
+    public static final String RECORDED_VIA_WEB = "web";
+
     /** Airbridge 값 하나의 최대 글자 수. 앱은 이보다 긴 값을 잘라서 보낸다. */
     public static final int MAX_LENGTH = 200;
     /** 웹 UTM 값 하나의 최대 길이와 허용 문자. apps/web의 store-links 정책과 같다. */
