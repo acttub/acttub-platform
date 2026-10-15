@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { logEvent } from '@/lib/analytics';
 import { api, APP_VERSION } from '@/lib/api';
@@ -81,7 +82,7 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
     return () => { cancelled = true; };
   }, [blocked, cloud.enabled, cloud.status, cloud.statusFailed, loggedIn, onboardingJustFinished, posters]);
 
-  useEffect(() => () => { try { player.current?.remove(); } catch {} }, []);
+  useEffect(() => () => disposeAudioPlayer(player.current), []);
   useEffect(() => {
     if (poster?.audience === 'cloud_voice_off' && cloud.enabled && cloud.status?.consent === 'granted') setVisible(false);
   }, [cloud.enabled, cloud.status?.consent, poster?.audience]);

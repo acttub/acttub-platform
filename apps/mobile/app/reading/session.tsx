@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
@@ -57,9 +58,7 @@ export default function ReadingSession() {
 
   const stopPlayback = useCallback(() => {
     playRun.current += 1;
-    try {
-      playerRef.current?.remove();
-    } catch {}
+    disposeAudioPlayer(playerRef.current);
     playerRef.current = null;
     setPlayingId(null);
     setListen(null);
@@ -130,9 +129,7 @@ export default function ReadingSession() {
     const fresh = await freshRecording(rec);
     if (run !== playRun.current) return 'stale';
     if (!fresh?.playback_url) return 'failed';
-    try {
-      playerRef.current?.remove();
-    } catch {}
+    disposeAudioPlayer(playerRef.current);
     const player = createAudioPlayer({ uri: fresh.playback_url });
     playerRef.current = player;
     player.addListener('playbackStatusUpdate', (status) => {
