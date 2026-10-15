@@ -79,10 +79,11 @@ gh workflow run deploy.yml --ref main -f environment=prod
 Actions가 이미지 세 개를 빌드·게시한 뒤 서버의 배포·복원 파일을 전송하고 `deploy.sh`를 실행한다.
 처음 만든 GHCR 백업 패키지도 서버가 읽을 수 있는지 확인한다. 복원 도구는 `restore-db.sh`와
 `db-manifest.sql`·`schema-fingerprint.sql`을 함께 전송한다.
-이 스크립트는 설정이 바뀐 web·api만 새 컨테이너를 옛 것 옆에 띄우고, 둘 다 healthy가 되면 proxy를 reload해 한 번에
+이 스크립트는 설정이나 이미지 ID가 바뀐 web·api만 새 컨테이너를 옛 것 옆에 띄우고, 둘 다 healthy가 되면 proxy를 reload해 한 번에
 넘긴 뒤 proxy 경유 `/health.commit`을 대조한다. 옛 판은 처리 중이던 요청을 끝낸 뒤 내린다. 넘긴 것을 확인하기 전에
 실패하면(새 컨테이너가 healthy가 못 되거나 commit이 다르면) 새 컨테이너를 지우고 `release.env`를 되돌려 옛 판이 계속
-응답한다. 단계와 상한은 [`deploy.sh`](../../deploy/home/deploy.sh) 머리말이 정한다.
+응답한다. 롤백도 기존 대상으로 전환한 뒤 새 판이 처리 중이던 요청을 마칠 때까지 기다린다. 복구·요청 마무리를
+확인하지 못하면 새 컨테이너와 릴리스 설정을 남기고 실패한다. 단계와 상한은 [`deploy.sh`](../../deploy/home/deploy.sh) 머리말이 정한다.
 성공하면 컨테이너가 쓰지 않는 옛 릴리스 이미지(`<sha>`·`<env>-<sha>` 태그)를 서버에서 지운다. dev와 운영이 같은 Docker를 쓰므로 한 환경의 배포가 다른 환경의 옛 이미지도 지운다.
 배포가 겹치는 동안(새 api 기동과 옛 판의 요청 마무리) 옛·새 api가 같은 DB에서 함께 돈다. 그래서 마이그레이션은 직전 운영
 API를 깨지 않아야 한다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)). proxy·cloudflared·db의 이미지나
@@ -117,7 +118,8 @@ DB 스키마와 호환되는 직전 운영 SHA(직전 운영 태그) 및 이미�
 드러난 문제는 자동으로 되돌리지 않는다. 직전 SHA 재배포도 같은 무중단 길을 탄다.
 서버에서 지워진 직전 이미지는 `deploy.sh`가 GHCR에서 다시 받는다. proxy가 없던 SHA(SOMA-700 이전)로 되돌리면 옛
 `deploy.sh`가 proxy를 지우고 예전처럼 api·web을 다시 만들어 그동안 끊긴다.
-같은 SHA 재배포는 멱등이다. 마이그레이션은 앱 기동의 일부라([CONTRACT §5-5](../../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다))
+같은 SHA·설정·이미지로 재배포하면 컨테이너를 유지한다. `rebuild_images=true`로 같은 태그를 다시 빌드하면 새 이미지 ID를
+대조해 교체한다. 마이그레이션은 앱 기동의 일부라([CONTRACT §5-5](../../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다))
 직전 SHA 재배포도 Git revert도 이미 적용된 DB 마이그레이션이나 사용자 쓰기를 되돌리지 않는다.
 실패한 마이그레이션은 부분 적용도 이력도 남기지 않으므로(`FlywayForwardMigrationTest`) 원인을 고쳐 다시 배포한다.
 §3의 기능 스위치로 켠 경로는 같은 이미지에 그 값을 false로 넘겨 `deploy.sh`를 다시 실행하면 끈다. 다음

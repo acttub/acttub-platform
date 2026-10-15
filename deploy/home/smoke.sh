@@ -34,6 +34,7 @@
 #  12. 새 판이 healthy 가 못 되면(대기 시간 초과) exit≠0 이고 컨테이너·release.env·응답 commit 이 그대로다
 #  13. 새 판이 다른 commit 을 답하면 healthy 여도 exit≠0 이고 proxy 가 옛 판으로 돌아가 있다
 #      (나머지 빨강은 deploy-test.sh 가 가짜 docker 로 반증한다)
+#  14. 격리된 모형 앱과 실제 nginx로 롤백 중 30초 요청·같은 태그 재빌드·재실행 무변경을 검증한다
 #   cloudflared(edge)·backup(backup) 프로필은 테스트용 .env 에 COMPOSE_PROFILES 가 없어 빠진다.
 #
 # 저장소 루트는 스크립트 위치로 찾고, 임시 파일은 mktemp 로 만들며, 프로젝트명·이미지 태그에 pid 를
@@ -500,6 +501,9 @@ grep -q 'proxy 를 옛 컨테이너로 되돌렸다' <<< "$out" || { printf '%s\
 [ "$(compose ps -aq | sort | tr '\n' ' ')" = "$ids_before" ] || fail "되돌린 뒤 컨테이너가 배포 전과 다르다"
 [ "$(proxy_commit)" = "${NEXT_COMMIT:0:7}" ] || fail "되돌린 뒤 proxy 경유 /health 가 옛 판 commit 을 답하지 않는다"
 printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
+
+step "롤백 중 긴 요청·같은 태그 재빌드 (격리 모형 앱 + 실제 nginx)"
+python3 "$HOME_DIR/rollout-test.py" "$WEB_IMAGE"
 
 printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·부하 중 무중단 재배포·healthy 실패와 commit 불일치의 되돌리기)·restore-db.sh 왕복(SMOKE_RESTORE=%s)·compose(web+api+db+proxy, 망 별칭)·Flyway v1→v%s·proxy 경유 /health commit %s→%s\n' "${SMOKE_RESTORE:-true}" "$latest" "${COMMIT:0:7}" "${NEXT_COMMIT:0:7}"
 

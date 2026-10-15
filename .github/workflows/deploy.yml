@@ -344,8 +344,8 @@ jobs:
 
       # release.env 쓰기 → pull → 바뀐 api·web 을 옛 것 옆에 띄워 healthy 대기(최대 180초) → proxy reload 로 넘기기 →
       # proxy 경유 /health 의 commit 대조 → 옛 판이 처리 중인 요청을 끝내면 내리기(deploy.sh 머리말). 어느 단계든 실패하면
-      # exit≠0 이라 이 스텝이 빨강이고, 넘기기 전의 실패는 옛 판을 그대로 둡니다. 같은 sha 면 아무 컨테이너도 바꾸지
-      # 않습니다. 코드 롤백은 main 의 revert PR 이나 서버에서 이전 이미지로 deploy.sh 를 실행합니다.
+      # exit≠0 이라 이 스텝이 빨강이고, 넘기기 전의 실패는 옛 판을 그대로 둡니다. 같은 sha·설정·이미지면 컨테이너를
+      # 유지합니다. 코드 롤백은 main 의 revert PR 이나 서버에서 이전 이미지로 deploy.sh 를 실행합니다.
       - name: deploy.sh
         env:
           API_IMAGE: ${{ needs.guard.outputs.api_image }}

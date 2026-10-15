@@ -9,13 +9,13 @@
 #   sha 는 7~40자 16진수.
 #
 # 하는 일 — 어느 단계든 실패하면 exit≠0 이다. 새 판으로 넘어간 것을 확인하기 전의 실패는 새 컨테이너를 지우고
-# release.env 를 되돌린다 — 옛 판이 계속 응답한다.
+# release.env 를 되돌린다 — 옛 판이 계속 응답한다. 롤백의 전환·요청 마무리를 확인하지 못하면 새 판도 남긴다.
 #   1. 입력과 compose 를 점검한 뒤 release.env 를 새로 쓴다: API_IMAGE·WEB_IMAGE·BACKUP_IMAGE(선택)·RENDER_GIT_COMMIT·SENTRY_RELEASE.
 #      사람이 관리하는 .env 는 읽기만 한다. 어느 프로필을 띄울지(cloudflared=edge·backup)도 .env 의
 #      COMPOSE_PROFILES 가 정하고 이 스크립트는 그대로 따른다.
 #   2. docker compose pull        DEPLOY_PULL_POLICY=always(기본)|missing — 로컬 태그로 스모크할 때 missing
 #   3. db 를 띄운다. api·web 은 맨손 compose up 으로 건드리지 않는다 — Compose 는 옛 컨테이너를 먼저 내리고 새 것을 띄운다.
-#   4. 설정이 바뀐 api·web 만 새 컨테이너를 옛 것 옆에 띄우고(--scale 2 --no-recreate) healthy 를 기다린다.
+#   4. 설정이나 이미지 ID가 바뀐 api·web 만 새 컨테이너를 옛 것 옆에 띄우고(--scale 2 --no-recreate) healthy 를 기다린다.
 #      DEPLOY_WAIT_SECONDS(기본 180) 안에 healthy 가 아니면 실패. 크래시루프는 여기서 시간 초과로 걸린다.
 #   5. proxy/active.conf 를 새 컨테이너로 쓰고 proxy(nginx)를 reload 한다 — web·api 가 한 번에 넘어간다.
 #   6. proxy 안에서 GET /health(proxy → web → proxy → api 전체 길)의 commit 이 sha 앞 7자와 같은지 본다. 다르면 proxy 를
@@ -26,7 +26,7 @@
 #  10. 기능 스위치가 api 컨테이너에 실제로 들어갔는지 대조한다.
 #  11. 컨테이너가 쓰지 않는 옛 릴리스 이미지를 지운다. 이 단계의 실패는 배포를 실패시키지 않는다.
 #
-# 같은 sha 로 다시 돌리면 바뀐 컨테이너가 없어 아무것도 다시 만들지 않는다(멱등). .env 만 고쳤을 때도 같은 sha 로
+# 같은 sha·설정·이미지로 다시 돌리면 아무것도 다시 만들지 않는다(멱등). .env 만 고쳤을 때도 같은 sha 로
 # 다시 돌리면 바뀐 서비스만 같은 길로 갈아 끼운다 — 맨손 compose up 으로 적용하면 그 서비스는 끊긴다.
 # 롤백은 이전 sha·이미지로 같은 명령을 다시 부르는 것이다. 11단계가 지운 이미지는 2단계가 GHCR 에서 다시 받는다.
 #
@@ -99,6 +99,18 @@ wait_reloaded() {
   return 1
 }
 
+drain_workers() {
+  [ -n "$old_workers" ] || return 0
+  local deadline=$((SECONDS + DRAIN_SECONDS)) workers
+  step "nginx worker 가 처리 중인 요청을 끝내기를 기다린다 (최대 ${DRAIN_SECONDS}초)"
+  while :; do
+    workers="$(compose exec -T proxy sh -c "for p in $old_workers; do if kill -0 \$p 2>/dev/null; then echo busy; exit 0; fi; done; echo done")" || return 1
+    case "$workers" in done) return 0 ;; busy) ;; *) return 1 ;; esac
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 1
+  done
+}
+
 # write_active <web 이름> <api 이름> <web 해시> <api 해시> — 임시 파일에 쓰고 mv 로 바꾼다(reload 가 반쯤 쓴 파일을 읽지 않게).
 # 지문은 다음 배포가 "바뀐 것이 없다"를 가르는 기준이다(roll). 주석이라 nginx 는 읽지 않는다.
 write_active() {
@@ -113,7 +125,7 @@ write_active() {
     && chmod 644 "$tmp" && mv -f "$tmp" "$ACTIVE"
 }
 
-# 실패하면 EXIT 에서 phase 에 맞게 되돌린다. rolling·switched 는 새 컨테이너를 지우고 release.env 를 되돌린다(undo).
+# 실패하면 EXIT 에서 phase 에 맞게 되돌린다. rolling·switched 는 안전하게 복구된 뒤 새 컨테이너를 지우고 release.env 를 되돌린다.
 # committed 뒤의 실패(터널·옛 컨테이너 정리·backup)는 새 판이 이미 응답하므로 되돌리지 않는다.
 phase=prepare
 release_tmp=""
@@ -121,13 +133,18 @@ created=""
 old_api="" new_api="" old_web="" new_web=""
 old_api_hash="" new_api_hash="" old_web_hash="" new_web_hash=""
 undo() {
-  local id
+  local id old_workers=""
   printf '▶ 되돌리기 — 새 컨테이너를 지우고 옛 판을 그대로 둔다\n' >&2
   if [ "$phase" = switched ] && [ -n "$old_web" ] && [ -n "$old_api" ]; then
-    if write_active "$(name_of "$old_web")" "$(name_of "$old_api")" "$old_web_hash" "$old_api_hash" && nginx_cmd -s reload; then
+    # 역방향 전환도 새 판에 이미 들어간 요청을 끝낸 뒤에만 그 컨테이너를 지운다.
+    if old_workers="$(compose exec -T proxy pgrep -f 'nginx: worker process' | tr '\n' ' ')" \
+      && write_active "$(name_of "$old_web")" "$(name_of "$old_api")" "$old_web_hash" "$old_api_hash" \
+      && nginx_cmd -t -q && nginx_cmd -s reload && wait_reloaded && drain_workers; then
       echo "  proxy 를 옛 컨테이너로 되돌렸다" >&2
     else
-      echo "⚠ proxy 를 옛 컨테이너로 되돌리지 못했다 — proxy/active.conf 와 compose ps 를 본다" >&2
+      echo "⚠ proxy 복구·요청 마무리를 확인하지 못해 새 컨테이너를 남긴다 — proxy/active.conf 와 compose ps 를 본다" >&2
+      compose ps >&2
+      return 1
     fi
   fi
   for id in $created; do
@@ -202,10 +219,11 @@ step "db (compose up -d --no-deps --wait db, 최대 ${WAIT_SECONDS}초)"
 compose up -d --no-deps --wait --wait-timeout "$WAIT_SECONDS" db || fail "db 가 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다"
 
 # ── 4. 바뀐 api·web 을 옛 것 옆에 띄운다 ───────────────────────────────────────
-# roll <서비스> → rolled_old(지금 proxy 가 넘겨주는 컨테이너)·rolled_new(넘길 컨테이너). 설정이 그대로면 둘이 같다.
+# roll <서비스> <이미지> → rolled_old(지금 proxy 가 넘겨주는 컨테이너)·rolled_new(넘길 컨테이너).
 roll() {
-  local svc="$1" want ids id target keep=""
+  local svc="$1" want want_image ids id target keep=""
   want="$(fingerprint "$svc")" || fail "$svc 의 설정 지문을 구하지 못했다"
+  want_image="$(docker image inspect -f '{{.Id}}' "$2")" || fail "$svc 의 이미지 ID를 읽지 못했다"
   ids="$(compose ps -a -q "$svc")" || fail "$svc 컨테이너 목록을 읽지 못했다"
   target="$(active_name "$svc")"
   # 옛 판은 proxy 가 넘겨주는 healthy 컨테이너다. active.conf 가 없거나(이 방식의 첫 배포) 가리키는 컨테이너가 없으면
@@ -222,7 +240,9 @@ roll() {
   rolled_old="$keep" rolled_new="$keep" rolled_old_hash="$(active_hash "$svc")" rolled_new_hash="$want"
   # 바뀐 것이 없다 = proxy 가 넘겨주는 그 컨테이너를 만들 때 active.conf 에 적어 둔 지문이 지금 것과 같다. 컨테이너 라벨과
   # 견주지 않는다 — Compose 2.38 은 env_file 이 있는 서비스(api)에서 config --hash 가 라벨과 늘 달라 매번 새 판을 띄웠다.
-  if [ -n "$keep" ] && [ "$(name_of "$keep")" = "$target" ] && [ "$rolled_old_hash" = "$want" ]; then
+  # 같은 태그를 다시 빌드한 경우 설정 지문은 같아도 pull한 이미지와 실행 이미지가 다르다.
+  if [ -n "$keep" ] && [ "$(name_of "$keep")" = "$target" ] && [ "$rolled_old_hash" = "$want" ] \
+    && [ "$(docker inspect -f '{{.Image}}' "$keep")" = "$want_image" ]; then
     echo "  $svc 그대로 — $(name_of "$keep")"
     return 0
   fi
@@ -238,9 +258,9 @@ roll() {
   echo "  $svc 새 컨테이너 $(name_of "$rolled_new")${keep:+ (옛 $(name_of "$keep") 는 그대로 응답)}"
 }
 
-step "설정이 바뀐 api·web 을 옛 것 옆에 띄운다"
-roll api; old_api="$rolled_old" new_api="$rolled_new" old_api_hash="$rolled_old_hash" new_api_hash="$rolled_new_hash"
-roll web; old_web="$rolled_old" new_web="$rolled_new" old_web_hash="$rolled_old_hash" new_web_hash="$rolled_new_hash"
+step "설정이나 이미지가 바뀐 api·web 을 옛 것 옆에 띄운다"
+roll api "$API_IMAGE"; old_api="$rolled_old" new_api="$rolled_new" old_api_hash="$rolled_old_hash" new_api_hash="$rolled_new_hash"
+roll web "$WEB_IMAGE"; old_web="$rolled_old" new_web="$rolled_new" old_web_hash="$rolled_old_hash" new_web_hash="$rolled_new_hash"
 
 wait_healthy() {
   local deadline=$((SECONDS + WAIT_SECONDS)) id st
@@ -308,17 +328,7 @@ if [ "$tunnel" = true ]; then
 fi
 
 # ── 8. 옛 판 내리기 ────────────────────────────────────────────────────────────
-if [ -n "$old_workers" ]; then
-  step "옛 nginx worker 가 처리 중인 요청을 끝내기를 기다린다 (최대 ${DRAIN_SECONDS}초)"
-  drain_deadline=$((SECONDS + DRAIN_SECONDS))
-  while compose exec -T proxy sh -c "for p in $old_workers; do kill -0 \$p 2>/dev/null && exit 0; done; exit 1"; do
-    if [ "$SECONDS" -ge "$drain_deadline" ]; then
-      echo "⚠ 옛 nginx worker 가 ${DRAIN_SECONDS}초 안에 끝나지 않았다 — 옛 컨테이너를 그대로 멈춘다" >&2
-      break
-    fi
-    sleep 1
-  done
-fi
+drain_workers || fail "nginx worker 의 요청 마무리를 확인하지 못했다 — 옛 컨테이너를 남긴다"
 for id in $([ "$old_api" = "$new_api" ] || echo "$old_api") $([ "$old_web" = "$new_web" ] || echo "$old_web"); do
   step "옛 컨테이너 내리기 — $(name_of "$id")"
   { docker stop "$id" >/dev/null && docker rm "$id" >/dev/null; } || fail "옛 컨테이너를 내리지 못했다: $id — web·api 는 이미 새 판이다"

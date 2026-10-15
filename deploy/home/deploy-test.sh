@@ -16,11 +16,12 @@ ids_of() { local f; for f in "$S"/*; do [ -f "$f" ] && [ "$(sed -n 1p "$f")" = "
 create() {  # <서비스> <해시> <health>
   local n=$(( $(cat "$S/.seq" 2>/dev/null || echo 0) + 1 ))
   echo "$n" > "$S/.seq"
-  printf '%s\n%s\n%s\n%s\n' "$1" "$2" "$3" "proj-$1-$n" > "$S/$1$n"
+  printf '%s\n%s\n%s\n%s\n%s\n' "$1" "$2" "$3" "proj-$1-$n" "${TEST_IMAGE_ID:-image-v1}" > "$S/$1$n"
 }
 case "$1" in
   image)
     case "$2" in
+      inspect) echo "${TEST_IMAGE_ID:-image-v1}" ;;
       ls) [ "${TEST_IMAGE_LS_FAILURE:-false}" != true ] && printf '%s\n' ${TEST_IMAGES:-} ;;
       rm) echo "image rm $3" >> "$TEST_CALLS"; [ "$3" != "${TEST_IMAGE_IN_USE:-}" ] ;;
       *) exit 2 ;;
@@ -30,6 +31,7 @@ case "$1" in
     case "$3" in
       *Health*) field "$4" 3 ;;
       *.Name*) echo "/$(field "$4" 4)" ;;
+      *.Image*) field "$4" 5 ;;
       *config-hash*) field "$4" 2 ;;
       *) exit 2 ;;
     esac
@@ -87,7 +89,9 @@ case "${1:-}" in
         sh)
           if [[ "${3:-}" == *"kill -0"* ]]; then
             # 드레인 확인 — TEST_WORKERS_ALIVE 번까지는 옛 worker 가 아직 살아 있다고 답한다(처리 중인 요청이 있다).
-            n=$(( $(cat "$S/.sh" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$S/.sh"; [ "$n" -le "${TEST_WORKERS_ALIVE:-0}" ]
+            [ "${TEST_DRAIN_FAILURE:-false}" != true ] || exit 1
+            n=$(( $(cat "$S/.sh" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$S/.sh"
+            if [ "$n" -le "${TEST_WORKERS_ALIVE:-0}" ]; then echo busy; else echo done; fi
           fi ;;  # reload 확인 — 새 worker 만 손님을 받는다
         *) exit 2 ;;
       esac
@@ -176,7 +180,8 @@ reloaded_at="$(grep -n '^exec -T proxy sh -c old=' "$WORK/calls" | head -1 | cut
 # 넘긴 뒤 commit 이 다르면 proxy 를 옛 컨테이너로 되돌리고 새 것을 지우고 release.env 를 되돌린다.
 cp "$WORK/release.env" "$WORK/committed-release.env"
 : > "$WORK/calls"
-failure TEST_HASH=h3 TEST_COMMIT=fffffff TEST_IMAGES=example/api:aaaaaaa
+rm -f "$WORK/state/.sh"
+failure TEST_HASH=h3 TEST_COMMIT=fffffff TEST_IMAGES=example/api:aaaaaaa TEST_WORKERS_ALIVE=2
 grep -q '✗.*commit.*다르다' "$WORK/log"
 [ "$(active api)" = proj-api-4 ]
 [ "$(active web)" = proj-web-5 ]
@@ -185,6 +190,10 @@ grep -q '✗.*commit.*다르다' "$WORK/log"
 cmp "$WORK/committed-release.env" "$WORK/release.env"
 ! grep -q '^image rm' "$WORK/calls" || exit 1
 ! grep -q '^stop ' "$WORK/calls" || exit 1
+# 역방향 reload도 새 요청의 전환과 진행 중 요청의 종료를 확인한 뒤 새 컨테이너를 지운다.
+[ "$(grep -c '^exec -T proxy sh -c for p in' "$WORK/calls")" = 3 ]
+undo_drain_at="$(grep -n '^exec -T proxy sh -c for p in' "$WORK/calls" | tail -1 | cut -d: -f1)"
+[ "$undo_drain_at" -lt "$(grep -n '^rm api6$' "$WORK/calls" | cut -d: -f1)" ]
 failure TEST_HASH=h3 TEST_STATUS=503
 [ "$(containers api)" = "api4 " ] || exit 1
 # 새 컨테이너가 healthy 가 못 되면 넘기지 않는다 — proxy 를 건드리지 않고 옛 판이 그대로다.
@@ -198,7 +207,9 @@ for state in starting unhealthy; do
   cmp "$WORK/committed-release.env" "$WORK/release.env"
 done
 failure TEST_HASH=h3 TEST_NGINX_FAILURE=true
-[ "$(containers web)" = "web5 " ]
+# 역방향 reload까지 실패하면 응답 중일 수 있는 새 판도 남겨 수동 복구할 수 있게 한다.
+[ -f "$WORK/state/web5" ] && [ -f "$WORK/state/web15" ]
+[ "$(containers web | wc -w | tr -d ' ')" = 2 ]
 # 설정 검사에서 멈춰도 active.conf 는 옛 컨테이너를 가리켜야 한다 — 낡은 이름이 남으면 다음 배포가 응답 중인 판을 지운다.
 [ "$(active api)" = proj-api-4 ]
 [ "$(active web)" = proj-web-5 ]
@@ -264,4 +275,17 @@ success TEST_HASH=h4 DEPLOY_DIRECT_VIDEO_ENABLED=false
 grep -qx 'ACTTUB_DIRECT_VIDEO_ENABLED=false' "$WORK/release.env"
 success TEST_HASH=h4
 ! grep -q '^ACTTUB_DIRECT_VIDEO_ENABLED=' "$WORK/release.env" || exit 1
+# 설정·태그가 같아도 이미지 ID가 달라지면 API·웹을 교체하고, 다시 실행하면 그대로 유지한다.
+before_api="$(containers api)" before_web="$(containers web)"
+success TEST_HASH=h4 TEST_IMAGE_ID=image-v2
+[ "$(containers api)" != "$before_api" ] && [ "$(containers web)" != "$before_web" ]
+before_api="$(containers api)" before_web="$(containers web)"
+success TEST_HASH=h4 TEST_IMAGE_ID=image-v2
+[ "$(containers api)" = "$before_api" ] && [ "$(containers web)" = "$before_web" ]
+# drain 상태를 읽지 못한 롤백은 새 판을 삭제하거나 릴리스 설정을 덮어 되돌리지 않는다.
+failure TEST_HASH=h5 TEST_IMAGE_ID=image-v2 TEST_COMMIT=fffffff TEST_DRAIN_FAILURE=true
+grep -q '새 컨테이너를 남긴다' "$WORK/log"
+[ "$(containers api | wc -w | tr -d ' ')" = 2 ]
+[ "$(containers web | wc -w | tr -d ' ')" = 2 ]
+[ -f "$WORK/release.env.prev" ]
 echo '✔ deploy.sh: 입력 거부·backup 프로필·첫 배포·멱등·옆에 띄워 넘기기·넘기기 전후 실패의 되돌리기·스위치 대조·옛 이미지 정리 검증 통과'
