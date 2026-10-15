@@ -368,6 +368,30 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
     }
 
     /**
+     * 유입 기록이 아직 없을 때만, 계정마다 한 줄만 둔다(V43). 활성 계정을 먼저 잡는 이유는 유입 기록과 같다 — 탈퇴가 이 표의
+     * 줄을 지우므로 확인 없이 쓰면 파기한 기기 ID 가 되살아난다.
+     */
+    @Override
+    public boolean recordAirbridgeDevice(UUID userId, String platform, String deviceUuid) {
+        return Boolean.TRUE.equals(transaction.execute(status -> {
+            if (!lockActive(userId)) {
+                return false;
+            }
+            entityManager.createNativeQuery("""
+                    INSERT INTO user_airbridge_device_lookups (user_id,platform,device_uuid)
+                    SELECT :userId,:platform,:deviceUuid
+                    WHERE NOT EXISTS (SELECT 1 FROM user_signup_attributions WHERE user_id=:userId)
+                    ON CONFLICT (user_id) DO NOTHING
+                    """)
+                    .setParameter("userId", userId)
+                    .setParameter("platform", platform)
+                    .setParameter("deviceUuid", deviceUuid)
+                    .executeUpdate();
+            return true;
+        }));
+    }
+
+    /**
      * 처음 답만 남긴다 — {@code ON CONFLICT DO NOTHING}. 유입 광고 기록과 같은 이유로 활성 계정을 먼저 잡는다
      * ({@link #lockActive}): 탈퇴가 먼저면 쓰지 않는다. 탈퇴는 이 표의 행을 지운다.
      */
@@ -398,6 +422,9 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
     @Override
     public void discardTransferredGuest(UUID guestId) {
         entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:guestId")
+                .setParameter("guestId", guestId)
+                .executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM user_airbridge_device_lookups WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
         // 닫힌 게스트의 접속일(V41)은 회원에게 옮기지 않는다 — 게스트로 들어온 날은 그 계정의 날이 아니다.
@@ -720,6 +747,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                     .executeUpdate();
             // 가입 유입 기록(SOMA-588)은 사람과 끊어 남기지 않고 행째 지운다 — 통계는 탈퇴 전 값으로 충분하다.
             entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            // 재조회용 기기 ID(SOMA-643, V43)도 지운다 — 24시간 안에 남아 있을 수 있다.
+            entityManager.createNativeQuery("DELETE FROM user_airbridge_device_lookups WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
             // 가입 직후 답한 유입 경로(SOMA-649)도 행째 지운다 — 기타의 직접 입력이 남지 않게.
