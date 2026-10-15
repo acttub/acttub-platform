@@ -117,7 +117,7 @@ class OpenAiResponsesClientTest {
 
         assertThatThrownBy(() -> client.generate("s", "p"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("OpenAI 호출에는 OPENAI_API_KEY 환경변수가 필요합니다.");
+                .hasMessage("OpenAI 호출에는 OPENAI_COACH_API_KEY 또는 OPENAI_API_KEY 환경변수가 필요합니다.");
         assertThat(transport.requests).isEmpty();
     }
 

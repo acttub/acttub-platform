@@ -5,7 +5,7 @@ import java.time.Clock;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdates;
 import com.acttub.actingapi.feature.memory.app.MemoryExtractor;
-import com.acttub.actingapi.integration.llm.TextGenerator;
+import com.acttub.actingapi.integration.llm.OpenAiTextGenerators;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import org.springframework.context.annotation.Bean;
@@ -22,10 +22,10 @@ class ActorMemoryWorkerConfiguration {
     ActorMemoryUpdateWorker actorMemoryUpdateWorker(
             ActorMemoryUpdates updates,
             MemoryExtractor extractor,
-            TextGenerator generator,
+            OpenAiTextGenerators generators,
             Clock clock,
             FailureReporter failureReporter,
             LlmTelemetry telemetry) {
-        return new ActorMemoryUpdateWorker(updates, extractor, generator, clock, failureReporter, telemetry);
+        return new ActorMemoryUpdateWorker(updates, extractor, generators.memory(), clock, failureReporter, telemetry);
     }
 }

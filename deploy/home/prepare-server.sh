@@ -231,7 +231,9 @@ ENV_FILE=/dev/null
 # DATABASE_URL 은 적지 않는다 — compose 가 POSTGRES_PASSWORD 로 조립한다.
 # TUNNEL_TOKEN(cloudflared)·BACKUP_BUCKET(backup)은 그 서비스가 compose 에 아직 없어도 이 준비에서
 # 넣으므로 필수로 본다. 선택 키는 비어 있으면 경고만 한다.
-REQUIRED_ENV_KEYS="COMPOSE_PROJECT_NAME POSTGRES_PASSWORD JWT_SECRET ACCOUNT_IDENTITY_HASH_KEY ACCOUNT_TOKEN_ENCRYPTION_KEY SITE_URL ADMIN_OPS_TOKEN GEMINI_API_KEY OPENAI_API_KEY S3_BUCKET AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY TUNNEL_TOKEN BACKUP_BUCKET"
+REQUIRED_ENV_KEYS="COMPOSE_PROJECT_NAME POSTGRES_PASSWORD JWT_SECRET ACCOUNT_IDENTITY_HASH_KEY ACCOUNT_TOKEN_ENCRYPTION_KEY SITE_URL ADMIN_OPS_TOKEN S3_BUCKET AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY TUNNEL_TOKEN BACKUP_BUCKET"
+# AI 키: 기능마다 전용 키 또는 공용 키(GEMINI_API_KEY·OPENAI_API_KEY) 중 하나가 있으면 된다. 아래에서 따로 검사한다.
+AI_ENV_KEYS="GEMINI_API_KEY GEMINI_COACH_API_KEY GEMINI_TTS_API_KEY GEMINI_CHALLENGE_API_KEY OPENAI_API_KEY OPENAI_COACH_API_KEY OPENAI_SCRIPT_SPLIT_API_KEY OPENAI_REPORT_API_KEY OPENAI_MEMORY_API_KEY"
 OPTIONAL_ENV_KEYS="SENTRY_DSN SENTRY_ENVIRONMENT APPLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY"
 
 CURRENT_STAGE=""
@@ -277,6 +279,24 @@ env_file_state() {
     test -r \"\$f\" || { echo UNREADABLE; exit 0; }
     for k in $*; do grep -qE \"^\$k=.+\" \"\$f\" || echo \"MISSING \$k\"; done
   "
+}
+
+# ai_env_missing_script FILE KEY... — 서버에서 돌릴 셸 조각. FILE 에서 키마다 마지막 KEY=값 줄을 읽어 바깥 따옴표
+# (' ")와 공백을 지운 뒤 비어 있으면 "MISSING 키" 를 찍는다(KEY=, KEY="", KEY=' ' 모두 빈 값). 주석 줄은 보지 않는다.
+# 파일을 source·eval 하지 않고 값도 찍지 않는다. AI 키 검사 전용 — 다른 키는 env_file_state 의 기존 검사를 그대로 쓴다.
+ai_env_missing_script() {
+  local f="$1"; shift
+  printf '%s' "f='$f'
+    for k in $*; do
+      v=\$(grep -E \"^\$k=\" \"\$f\" 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '\\042\\047[:space:]')
+      [ -n \"\$v\" ] || echo \"MISSING \$k\"
+    done"
+}
+
+# env_file_ai_state ENV KEY... — 값이 (따옴표·공백을 걷어낸 뒤) 빈 AI 키마다 "MISSING 키" 한 줄. 값은 돌려주지 않는다.
+env_file_ai_state() {
+  local e="$1"; shift
+  on_server "$DEPLOY_USER" "$(ai_env_missing_script "$SVC_ROOT/$e/.env" "$@")"
 }
 
 # read_env_values ENV KEY... — 값을 키 순서대로 한 줄씩 돌려준다(없으면 빈 줄).
@@ -573,8 +593,19 @@ guide_aws() {
 }
 
 # ── 6. .env 둘 채우기 ────────────────────────────────────────────────────
+# ai_key_gaps MISSING_LIST — 비어 있는 AI 키 목록(앞뒤 공백 포함)을 받아, 전용 키도 공용 키도 비어 있는 기능만 돌려준다.
+ai_key_gaps() {
+  local m="$1" gaps="" pair base key
+  for pair in "GEMINI_API_KEY:GEMINI_COACH_API_KEY GEMINI_TTS_API_KEY GEMINI_CHALLENGE_API_KEY" \
+              "OPENAI_API_KEY:OPENAI_COACH_API_KEY OPENAI_SCRIPT_SPLIT_API_KEY OPENAI_REPORT_API_KEY OPENAI_MEMORY_API_KEY"; do
+    base=${pair%%:*}
+    [[ "$m" == *" $base "* ]] || continue
+    for key in ${pair#*:}; do [[ "$m" == *" $key "* ]] && gaps+="$key "; done
+  done
+  printf '%s' "$gaps"
+}
 verify_env_files() {
-  local failed=0 e out first owner mode missing vals project devauth n
+  local failed=0 e out first owner mode missing ai_missing ai_gap vals project devauth n
   n=$(printf '%s\n' $REQUIRED_ENV_KEYS | wc -l | tr -d ' ')
   for e in $ENVS; do
     out=$(env_file_state "$e" $REQUIRED_ENV_KEYS $OPTIONAL_ENV_KEYS) || { deploy_ssh_failed "$e"; failed=1; continue; }
@@ -587,6 +618,10 @@ verify_env_files() {
     missing=$(printf '%s\n' "$out" | sed -n 's/^MISSING //p' | grep -xF -f <(printf '%s\n' $REQUIRED_ENV_KEYS) | tr '\n' ' ' || true)
     if [[ -n "${missing// /}" ]]; then bad "$e: 비어 있는 필수 키 — $missing"; failed=1
     else ok "$e: 필수 키 ${n}개 모두 값이 있음"; fi
+    ai_missing=$(env_file_ai_state "$e" $AI_ENV_KEYS | sed -n 's/^MISSING //p' | tr '\n' ' ') || { deploy_ssh_failed "$e"; failed=1; continue; }
+    ai_gap=$(ai_key_gaps " $ai_missing")
+    if [[ -n "${ai_gap// /}" ]]; then bad "$e: 전용 키도 공용 키도 없는 AI 기능 — $ai_gap"; failed=1
+    else ok "$e: AI 키 — 기능마다 전용 키 또는 공용 키 있음"; fi
     missing=$(printf '%s\n' "$out" | sed -n 's/^MISSING //p' | grep -xF -f <(printf '%s\n' $OPTIONAL_ENV_KEYS) | tr '\n' ' ' || true)
     [[ -n "${missing// /}" ]] && warn "$e: 선택 키가 비어 있음(오늘 api.env 에 있으면 옮기세요) — $missing"
     vals=$(read_env_values "$e" COMPOSE_PROJECT_NAME DEVELOPMENT_AUTH_PROVIDER) || { deploy_ssh_failed "$e"; failed=1; continue; }
@@ -609,7 +644,8 @@ guide_env_files() {
       "JWT_SECRET=<지금 dev 의 값을 그대로 쓰면 기존 로그인이 유지됩니다>" \
       "ACCOUNT_IDENTITY_HASH_KEY=<openssl rand -hex 32>   ACCOUNT_TOKEN_ENCRYPTION_KEY=<openssl rand -hex 32>   # 한번 정하면 바꾸지 않습니다" \
       "SITE_URL=https://dev.acttub.com             # prod 는 https://acttub.com. 웹 빌드의 NEXT_PUBLIC_SITE_URL 과 같은 값" \
-      "ADMIN_OPS_TOKEN=…   GEMINI_API_KEY=…   OPENAI_API_KEY=…" \
+      "ADMIN_OPS_TOKEN=…" \
+      "GEMINI_API_KEY=… OPENAI_API_KEY=…   # 공용 키. 기능별 전용 키(.env.example)가 모두 있으면 생략 가능" \
       "S3_BUCKET · AWS_REGION · AWS_ACCESS_KEY_ID · AWS_SECRET_ACCESS_KEY · BACKUP_BUCKET   # 5단계" \
       "TUNNEL_TOKEN                                # 4단계" \
       "DEVELOPMENT_AUTH_PROVIDER=1                 # dev 에만. prod 에는 두지 않습니다" \

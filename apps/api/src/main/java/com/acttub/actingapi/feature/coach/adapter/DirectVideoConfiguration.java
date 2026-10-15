@@ -19,6 +19,7 @@ import org.springframework.util.unit.DataSize;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "ACTTUB_DIRECT_VIDEO_ENABLED", havingValue = "true")
 public class DirectVideoConfiguration {
+    // Client 는 한정자 없이 받는다 — @Primary 인 코칭 키 클라이언트(GEMINI_COACH_API_KEY)가 들어온다.
     @Bean
     com.acttub.actingapi.integration.observation.DirectVideoModel directVideoModel(Client client,
             @Value("${GEMINI_MODEL:gemini-3-flash-preview}") String model) {
