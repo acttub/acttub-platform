@@ -1047,7 +1047,8 @@ class AdminEndpointIT {
         JsonNode signupRow = signupRows.get(0);
         assertThat(signupRow.fieldNames()).toIterable().containsExactly(
                 "actor", "signup_at", "platform", "device", "first_upload_at", "experience", "goal", "directions",
-                "discovery_answered", "discovery_source", "discovery_detail", "active_days");
+                "discovery_answered", "discovery_source", "discovery_detail", "signup_client",
+                "airbridge_lookup_pending", "active_days");
         assertThat(signupRow.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
         assertThat(signupRow.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
         assertThat(signupRow.path("platform").textValue()).isEqualTo("웹");

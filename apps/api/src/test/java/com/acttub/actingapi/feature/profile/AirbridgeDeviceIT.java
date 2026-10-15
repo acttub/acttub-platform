@@ -37,6 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
     "JWT_SECRET=test-secret",
     "ACCOUNT_CLEANUP_ENABLED=false",
     "AIRBRIDGE_API_TOKEN=test-token",
+    "AIRBRIDGE_DEVICE_MIN_PRIVACY_VERSION=v9",
     "AIRBRIDGE_LOOKUP_INTERVAL_MS=86400000",
     "AIRBRIDGE_LOOKUP_INITIAL_DELAY_MS=86400000"
 })
@@ -99,6 +100,8 @@ class AirbridgeDeviceIT {
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", member);
         jdbc.update("INSERT INTO user_identities(id,user_id,provider,provider_uid) VALUES (?,?,'google',?)",
                 UUID.randomUUID(), member, "g-" + member);
+        // 기기 ID 를 받는다는 내용의 동의 판(v9)이 현재 판이다. 가드 테스트는 이 판을 바꿔서 본다.
+        publishPrivacy("v9", "2026-10-15T00:00:00Z");
         AccountFixtures.passGate(jdbc, member);
         bearer = "Bearer " + jwt.issueAccessToken(member).value();
     }
@@ -149,6 +152,9 @@ class AirbridgeDeviceIT {
                 .containsEntry("platform", "android")
                 .containsEntry("channel", "facebook.business")
                 .containsEntry("campaign", "ACTTUB");
+        assertThat(jdbc.queryForObject(
+                "SELECT recorded_via FROM user_signup_attributions WHERE user_id=?", String.class, member))
+                .isEqualTo("server");
         assertThat(rows()).isZero();
     }
 
@@ -183,6 +189,38 @@ class AirbridgeDeviceIT {
         assertThat(rows()).isZero();
         assertThat(send("ios", DEVICE).getStatus()).isEqualTo(403);
         assertThat(rows()).isZero();
+    }
+
+    @Test
+    @DisplayName("현재 privacy 판이 최소 판(v9)보다 낮으면 기기 ID 를 두지 않고 204 다")
+    void doesNotKeepTheDeviceBeforeTheConsentVersionIsPublished() throws Exception {
+        jdbc.update("UPDATE consent_documents SET version='v7' WHERE type='privacy'");
+
+        assertThat(send("android", DEVICE).getStatus()).isEqualTo(204);
+
+        assertThat(rows()).isZero();
+    }
+
+    @Test
+    @DisplayName("v9 가 새로 공개되면 v9 에 동의한 회원만 통과한다 — 옛 판 동의만 있으면 게이트에서 막힌다")
+    void onlyV9ConsentingMembersPassOncePublished() throws Exception {
+        jdbc.update("UPDATE consent_documents SET version='v7' WHERE type='privacy'");
+        publishPrivacy("v9", "2026-10-16T00:00:00Z");
+
+        // 아직 v9 를 결정하지 않았다 — 게이트(동의 미결정)에서 막힌다. 저장되지 않는다.
+        assertThat(send("android", DEVICE).getStatus()).isNotEqualTo(204);
+        assertThat(rows()).isZero();
+
+        AccountFixtures.grantAllConsents(jdbc, member);
+        assertThat(send("android", DEVICE).getStatus()).isEqualTo(204);
+        assertThat(rows()).isEqualTo(1);
+    }
+
+    private void publishPrivacy(String version, String publishedAt) {
+        jdbc.update("""
+                INSERT INTO consent_documents(id,type,version,title,body,required,published_at)
+                VALUES (?,'privacy',?,'개인정보 수집·이용 동의','본문',true,CAST(? AS timestamptz))
+                """, UUID.randomUUID(), version, publishedAt);
     }
 
     private int rows() {

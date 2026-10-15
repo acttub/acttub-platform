@@ -107,7 +107,7 @@ class SignupAttributionIT {
                 """).getStatus()).isEqualTo(204);
 
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT platform,channel,campaign,ad_group,ad_creative,content FROM user_signup_attributions WHERE user_id=?",
+                "SELECT platform,channel,campaign,ad_group,ad_creative,content,recorded_via FROM user_signup_attributions WHERE user_id=?",
                 member);
         assertThat(rows).hasSize(1);
         assertThat(rows.getFirst())
@@ -116,7 +116,8 @@ class SignupAttributionIT {
                 .containsEntry("campaign", "ACTTUB | iOS 앱 설치 릴스")
                 .containsEntry("ad_group", "iOS 앱 설치 | 연기")
                 .containsEntry("ad_creative", "대사분석 릴스 | iOS 앱 설치")
-                .containsEntry("content", null);
+                .containsEntry("content", null)
+                .containsEntry("recorded_via", "app");
     }
 
     @Test
@@ -204,9 +205,10 @@ class SignupAttributionIT {
                 """, guestBearer).getStatus()).isEqualTo(204);
 
         assertThat(jdbc.queryForMap("""
-                SELECT source,platform,channel,medium,campaign
+                SELECT source,platform,channel,medium,campaign,recorded_via
                 FROM user_signup_attributions WHERE user_id=?
                 """, guest))
+                .containsEntry("recorded_via", "web")
                 .containsEntry("source", "web_utm")
                 .containsEntry("platform", "web")
                 .containsEntry("channel", "instagram")
@@ -316,7 +318,7 @@ class SignupAttributionIT {
         assertThat(rows).hasSize(1);
         JsonNode row = rows.get(0);
         assertThat(row.fieldNames()).toIterable().containsExactly(
-                "actor", "signup_at", "source", "platform", "channel", "medium", "campaign", "ad_group", "ad_creative");
+                "actor", "signup_at", "source", "platform", "channel", "medium", "campaign", "ad_group", "ad_creative", "recorded_via");
         assertThat(row.path("actor").asText()).isEqualTo("배우 " + md5(member.toString()).substring(0, 8));
         assertThat(row.path("source").asText()).isEqualTo("airbridge");
         assertThat(row.path("platform").asText()).isEqualTo("ios");

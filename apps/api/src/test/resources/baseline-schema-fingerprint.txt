@@ -671,6 +671,7 @@ COLUMN user_profiles.photo_upload_expires_at ord=18 type=timestamptz len=- null=
 COLUMN user_profiles.photo_upload_key ord=15 type=text len=- null=YES default=-
 COLUMN user_profiles.photo_upload_mime_type ord=16 type=text len=- null=YES default=-
 COLUMN user_profiles.photo_upload_size_bytes ord=17 type=int8 len=- null=YES default=-
+COLUMN user_profiles.signup_client ord=19 type=text len=- null=YES default=-
 COLUMN user_profiles.updated_at ord=14 type=timestamptz len=- null=NO default=now()
 COLUMN user_profiles.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN user_signup_attributions.ad_creative ord=7 type=text len=- null=YES default=-
@@ -681,6 +682,7 @@ COLUMN user_signup_attributions.content ord=8 type=text len=- null=YES default=-
 COLUMN user_signup_attributions.medium ord=12 type=text len=- null=YES default=-
 COLUMN user_signup_attributions.platform ord=3 type=text len=- null=NO default=-
 COLUMN user_signup_attributions.recorded_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN user_signup_attributions.recorded_via ord=13 type=text len=- null=NO default='app'::text
 COLUMN user_signup_attributions.source ord=2 type=text len=- null=NO default=-
 COLUMN user_signup_attributions.sub_publisher ord=10 type=text len=- null=YES default=-
 COLUMN user_signup_attributions.term ord=9 type=text len=- null=YES default=-
@@ -1635,6 +1637,7 @@ CONSTRAINT user_profiles user_profiles_updated_at_not_null NOT NULL updated_at
 CONSTRAINT user_profiles user_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT user_profiles user_profiles_user_id_not_null NOT NULL user_id
 CONSTRAINT user_signup_attributions ck_user_signup_attributions_platform CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text, 'web'::text])))
+CONSTRAINT user_signup_attributions ck_user_signup_attributions_recorded_via CHECK ((recorded_via = ANY (ARRAY['app'::text, 'server'::text, 'web'::text])))
 CONSTRAINT user_signup_attributions ck_user_signup_attributions_source CHECK ((source = ANY (ARRAY['airbridge'::text, 'web_utm'::text])))
 CONSTRAINT user_signup_attributions ck_user_signup_attributions_source_platform CHECK ((((source = 'airbridge'::text) AND ((platform = 'ios'::text) OR (platform = 'android'::text))) OR ((source = 'web_utm'::text) AND (platform = 'web'::text))))
 CONSTRAINT user_signup_attributions ck_user_signup_attributions_web_values CHECK (((source <> 'web_utm'::text) OR ((channel ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text) AND ((medium IS NULL) OR (medium ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text)) AND ((campaign IS NULL) OR (campaign ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text)) AND ((content IS NULL) OR (content ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text)) AND ((term IS NULL) OR (term ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text)) AND (ad_group IS NULL) AND (ad_creative IS NULL) AND (sub_publisher IS NULL))))
@@ -1642,6 +1645,7 @@ CONSTRAINT user_signup_attributions user_signup_attributions_channel_not_null NO
 CONSTRAINT user_signup_attributions user_signup_attributions_pkey PRIMARY KEY (user_id)
 CONSTRAINT user_signup_attributions user_signup_attributions_platform_not_null NOT NULL platform
 CONSTRAINT user_signup_attributions user_signup_attributions_recorded_at_not_null NOT NULL recorded_at
+CONSTRAINT user_signup_attributions user_signup_attributions_recorded_via_not_null NOT NULL recorded_via
 CONSTRAINT user_signup_attributions user_signup_attributions_source_not_null NOT NULL source
 CONSTRAINT user_signup_attributions user_signup_attributions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT user_signup_attributions user_signup_attributions_user_id_not_null NOT NULL user_id
