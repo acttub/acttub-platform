@@ -129,6 +129,14 @@ public interface ProfileRepository {
     boolean recordSignupAttribution(UUID userId, SignupAttribution attribution);
 
     /**
+     * 앱이 넘긴 Airbridge 기기 ID 를 서버 재조회용으로 잠깐 둔다(SOMA-643, V43). 이미 유입 기록이 있거나 이 계정의 줄이
+     * 이미 있으면 아무것도 하지 않는다. 귀속을 적었거나 24시간이 지나면 {@link AirbridgeLookupStore} 쪽에서 지운다.
+     *
+     * @return 계정이 활성이면 {@code true}(두었든 아니든). 없거나 활성이 아니면 {@code false}
+     */
+    boolean recordAirbridgeDevice(UUID userId, String platform, String deviceUuid);
+
+    /**
      * 가입 직후 답한 "처음 어디서 알게 됐어요?"를 <b>처음 한 번만</b> 적는다(SOMA-649). 이미 있으면 바꾸지 않는다.
      *
      * @return 계정이 활성이면 {@code true}(새로 적었든 이미 있었든). 없거나 활성이 아니면 {@code false}
