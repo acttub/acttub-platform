@@ -20,6 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.practice.domain.PracticeRules;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -31,7 +33,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -56,7 +61,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
     "spring.datasource.hikari.maximum-pool-size=12"
 })
 @AutoConfigureMockMvc
-@Import(MutableClock.Fixture.class)
+@Import({MutableClock.Fixture.class, PracticeLifecycleIT.Fixture.class})
 class PracticeLifecycleIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -493,7 +498,103 @@ class PracticeLifecycleIT {
                 .getStatus()).as("남의 묶음").isEqualTo(404);
     }
 
+    @Test
+    @DisplayName("practice.start: 제목을 적고 시작 — 앞뒤 공백을 떼고 묶음 제목(첫 행)이 된다. 공백뿐인 제목은 없는 것이다. "
+            + "200자는 되고 201자는 422 배열이다. 같은 요청 id·같은 제목은 같은 회차, 다른 제목은 422 request_fingerprint_mismatch. "
+            + "이어하기는 제목을 받지 않고(422 배열) 묶음 제목을 바꾸지 않는다")
+    void practiceStart_titleBecomesTheGroupTitle() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        JsonNode titled = json(post("/v2/practices")
+                .content(startBody(requestId, video, null, null, "  갈매기 1장  ")), 201);
+        UUID rootId = UUID.fromString(titled.path("id").textValue());
+
+        assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class, rootId))
+                .isEqualTo("갈매기 1장");
+        assertThat(json(get("/v2/practices"), 200).path("groups").get(0).path("title").textValue())
+                .isEqualTo("갈매기 1장");
+
+        assertThat(json(post("/v2/practices")
+                .content(startBody(requestId, video, null, null, "  갈매기 1장  ")), 201).path("id").textValue())
+                .as("같은 요청 id·같은 제목 재전송").isEqualTo(rootId.toString());
+        assertThat(json(post("/v2/practices").content(startBody(requestId, video, null, null, "다른 제목")), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
+        assertThat(json(post("/v2/practices").content(startBody(requestId, video, null, null, null)), 422))
+                .as("제목을 빼도 다른 본문이다")
+                .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
+
+        UUID blankVideo = video(member);
+        UUID blank = UUID.fromString(json(post("/v2/practices")
+                .content(startBody(UUID.randomUUID(), blankVideo, null, null, "   ")), 201).path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class, blank))
+                .as("공백뿐인 제목은 없는 것이다").isNull();
+
+        UUID longVideo = video(member);
+        UUID longest = UUID.fromString(json(post("/v2/practices").content(
+                startBody(UUID.randomUUID(), longVideo, null, null, "가".repeat(200))), 201).path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class, longest)).hasSize(200);
+        int before = count("practices");
+        MockHttpServletResponse tooLong = perform(post("/v2/practices").contentType(MediaType.APPLICATION_JSON)
+                .content(startBody(UUID.randomUUID(), video(member), null, null, "가".repeat(201))), bearer);
+        assertThat(tooLong.getStatus()).isEqualTo(422);
+        assertThat(mapper.readTree(tooLong.getContentAsString()).path("detail").get(0).path("loc"))
+                .extracting(JsonNode::asText).containsExactly("body", "title");
+        assertThat(count("practices")).isEqualTo(before);
+
+        close(rootId);
+        MockHttpServletResponse titledContinue = perform(post("/v2/practices/{id}/continue", rootId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"request_id\":\"" + UUID.randomUUID() + "\",\"title\":\"바꾼 제목\"}"), bearer);
+        assertThat(titledContinue.getStatus()).as("이어하기는 제목을 받지 않는다").isEqualTo(422);
+        JsonNode second = json(post("/v2/practices/{id}/continue", rootId)
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201);
+        assertThat(second.path("ordinal").intValue()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class, rootId))
+                .as("이어하기는 묶음 제목을 바꾸지 않는다").isEqualTo("갈매기 1장");
+        assertThat(jdbc.queryForObject("SELECT title FROM practices WHERE id=?", String.class,
+                UUID.fromString(second.path("id").textValue()))).isNull();
+        assertThat(json(get("/v2/practices"), 200).path("groups"))
+                .filteredOn(g -> g.path("root_id").textValue().equals(rootId.toString()))
+                .extracting(g -> g.path("title").textValue()).containsExactly("갈매기 1장");
+    }
+
+    @Test
+    @DisplayName("practice.library: 회차마다 그 영상의 포스터 poster_url — 포스터가 아직 없으면 null, 있으면 10분 서명 주소이고 "
+            + "목록·묶음·상세·시작 응답이 같다. 파일만 파기한 영상은 키가 남아도 null")
+    void practiceLibrary_practicesCarryTheirVideoPoster() throws Exception {
+        JsonNode created = json(post("/v2/practices").content(startBody(UUID.randomUUID(), video, null, null)), 201);
+        UUID practiceId = UUID.fromString(created.path("id").textValue());
+        assertThat(created.has("poster_url")).isTrue();
+        assertThat(created.path("poster_url").isNull()).as("포스터는 워커가 뒤에 만든다").isTrue();
+        assertThat(json(get("/v2/practices"), 200).path("groups").get(0).path("practices").get(0)
+                .path("poster_url").isNull()).isTrue();
+
+        String posterKey = "videos/" + member + "/" + video + ".poster.jpg";
+        jdbc.update("UPDATE videos SET poster_key=? WHERE id=?", posterKey, video);
+        String signed = "https://storage.test/get/" + posterKey;
+
+        assertThat(json(get("/v2/practices"), 200).path("groups").get(0).path("practices").get(0)
+                .path("poster_url").textValue()).isEqualTo(signed);
+        assertThat(json(get("/v2/practices/{id}", practiceId), 200).path("poster_url").textValue()).isEqualTo(signed);
+        assertThat(json(patch("/v2/practices/{id}/group", practiceId).content("{\"favorite\":true}"), 200)
+                .path("practices").get(0).path("poster_url").textValue()).isEqualTo(signed);
+        close(practiceId);
+        assertThat(json(post("/v2/practices/{id}/continue", practiceId)
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("poster_url").textValue())
+                .as("같은 영상으로 이어하면 같은 포스터").isEqualTo(signed);
+
+        jdbc.update("UPDATE videos SET purged_at=now() WHERE id=?", video);
+        assertThat(json(get("/v2/practices/{id}", practiceId), 200).path("poster_url").isNull())
+                .as("파기한 영상은 포스터 객체도 없다").isTrue();
+        assertThat(json(get("/v2/practices"), 200).path("groups").get(0).path("practices"))
+                .allMatch(practice -> practice.path("poster_url").isNull());
+    }
+
     // ---- helpers ----
+
+    private String startBody(UUID requestId, UUID videoId, String scene, String blockage, String title) {
+        String body = startBody(requestId, videoId, scene, blockage);
+        return title == null ? body : body.substring(0, body.length() - 1) + ",\"title\":" + quoted(title) + "}";
+    }
 
     private String startBody(UUID requestId, UUID videoId, String scene, String blockage) {
         StringBuilder body = new StringBuilder("{\"request_id\":\"" + requestId + "\",\"video_id\":\"" + videoId + "\"");
@@ -602,5 +703,44 @@ class PracticeLifecycleIT {
 
     private int count(String table) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
+    }
+
+    /** 서명 주소를 흉내 내는 스토리지. 포스터 주소의 모양만 본다. */
+    @TestConfiguration
+    static class Fixture {
+        @Bean
+        @Primary
+        ObjectStorage fakeStorage() {
+            return new ObjectStorage() {
+                @Override
+                public String presignUpload(String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {
+                    return "https://storage.test/put/" + objectKey;
+                }
+
+                @Override
+                public String presignPlayback(String objectKey, int expiresInSeconds) {
+                    return "https://storage.test/get/" + objectKey;
+                }
+
+                @Override
+                public StoredObjectMetadata head(String objectKey) {
+                    return null;
+                }
+
+                @Override
+                public StoredObjectMetadata downloadToPath(String objectKey, java.nio.file.Path destination) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void upload(String objectKey, String mimeType, java.nio.file.Path source) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void delete(String objectKey) {
+                }
+            };
+        }
     }
 }

@@ -41,6 +41,7 @@ public interface PracticeRepository {
     /**
      * @param requestId 기기가 만든 요청 id. {@code (user_id, request_id)} 유일이라 재전송이 회차를 둘 만들지 않는다
      * @param fingerprint 생성 본문의 지문. 같은 id 에 다른 지문이면 {@link StartOutcome#FINGERPRINT_MISMATCH}
+     * @param title 새 묶음의 제목(첫 행). 시작만 쓰고 이어하기는 {@code null} 이며 묶음 제목을 건드리지 않는다
      */
     record NewPractice(
             UUID requestId,
@@ -52,7 +53,8 @@ public interface PracticeRepository {
             String goal,
             String blockageKind,
             String subBranch,
-            String blockageNote) {
+            String blockageNote,
+            String title) {
     }
 
     /**

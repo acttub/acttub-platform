@@ -24,7 +24,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `GET /v2/reading/scripts/{script_id}` | `script_id` | `ReadingScript` 200(배역의 voice_preset·voice·대사 수, `last_session`의 내 배역이 기본 선택) | `script_not_found` 404 |
+| `GET /v2/reading/scripts/{script_id}` | `script_id` | `ReadingScript` 200(배역의 voice_preset·voice·gender·age_band·대사 수, `last_session`의 내 배역이 기본 선택) | `script_not_found` 404 |
 | `PATCH /v2/reading/scripts/{script_id}`(목소리) | `ReadingScriptPatch`의 `characters[{id, voice_preset}]`, 키가 있을 때만 바꾸고 null은 자동 | `ReadingScript` 200 | 33자 이상 프리셋·이 대본에 없는 배역 id `invalid_characters` 422, `script_not_found` 404 |
 | `POST /v2/reading/scripts/{script_id}/sessions`(내 배역) | `ReadingSessionCreateRequest`의 `my_character_ids` | `ReadingSession` 201 | 비었거나 겹치거나 다른 대본의 배역 `invalid_characters` 422. 나머지는 reading.session |
 
@@ -43,13 +43,30 @@
 - 모든 배역을 내 배역으로 고르면 상대 대사가 없어 내 차례만 이어진다. 막지 않는다. 이때는 목소리 준비를
   기다리지 않고 바로 시작한다.
 - 상대역 목소리는 script_characters.voice_preset이다. 값은 기기에 내장된 프리셋 id 문자열(M1~M5·F1~F5)
-  이고 NULL이면 "자동"이다. 자동 규칙은 배역을 등장 순서로 세워 F1·M1·F2·M2·F3·M3·F4·M4·F5·M5를 순환
-  배정하는 것이다. 내 배역과 상관없이 대본의 모든 배역으로 배정하므로 R3에 보인 목소리가 연습 때 목소리다.
-  배우가 R3·"목소리 바꾸기"(웹은 배역 화면)에서 고른 배역만 고정값이 되고 자동 배정에서 빠진다. 같은 프리셋을
+  이고 NULL이면 "자동"이다. 내 배역과 상관없이 대본의 모든 배역으로 배정하므로 R3에 보인 목소리가 연습 때 목소리다.
+  배우가 R3·"목소리 바꾸기"(웹은 배역 화면)에서 고른 배역만 고정값이 된다. 같은 프리셋을
   여러 배역에 줄 수 있다. 서버는 32자 이내 문자열이면 저장한다(목록 검증 없음).
+- 자동 규칙(SOMA-670)은 배역의 성별·나이대(script_characters.gender·age_band, 나누기 작업이 대본에서 읽은 값,
+  [reading.script](script.md#규칙제약) 「배역의 성별·나이대」)를 쓴다.
+  1. 고정값(M1~M5·F1~F5인 것만)을 먼저 「쓴 것」으로 센다.
+  2. 자동 배역을 배역 순서로 돌며, 성별을 알면 아래 표의 목록에서 아직 쓰지 않은 첫 프리셋을 준다. 그 성별을 다 썼으면
+     목록의 첫 값이다(겹침 허용).
+  3. 성별을 모르면(나이대만 알아도) F1·M1·F2·M2·F3·M3·F4·M4·F5·M5 순환을 이어 돌되 쓴 프리셋은 건너뛴다. 다 썼으면
+     순환 자리의 값을 그대로 준다.
+  4. 준 값도 「쓴 것」에 더한다.
+
+  | 성별 | 어린이·청년(child·young) | 성인(adult) | 노년(senior) | 나이대 모름 |
+  |---|---|---|---|---|
+  | 남(m) | M1·M4·M3·M2·M5 | M3·M4·M2·M1·M5 | M5·M2·M3·M4·M1 | M1·M3·M4·M2·M5 |
+  | 여(f) | F2·F4·F1·F3·F5 | F1·F3·F4·F5·F2 | F5·F3·F1·F4·F2 | F1·F2·F3·F4·F5 |
+
+  목록은 프리셋 10개의 실측 음높이로 추정한 순서다. 성별·나이대를 모르는 대본(예시·기기가 나눈 대본, 옛 대본)은
+  고정값과 앞서 준 값을 건너뛰는 순환만 남는다.
 - 서버가 이 규칙으로 정한 값을 대본 상세의 `characters[].voice`로 준다. 뜻은 "내 배역이 아닐 때 읽을 목소리"다 —
   내 배역은 회차마다 달라 서버가 빼지 않고, 기기가 그 회차의 내 배역을 빼고 쓴다. voice_preset이 프리셋(M1~M5·F1~F5)이면
-  그 값이고, NULL이거나 프리셋이 아닌 값이면 자동 순환의 값이다. 웹은 이 값으로 읽는다.
+  그 값이고, NULL이거나 프리셋이 아닌 값이면 자동 규칙의 값이다(프리셋이 아닌 고정값은 쓴 것으로 세지 않는다). 웹은 이 값으로
+  읽는다. 성별·나이대는 `characters[].gender`(`m`·`f`)·`age_band`(`child`·`young`·`adult`·`senior`)로 함께 주고 모르면
+  null이다. 배우가 고치는 자리는 없다(PATCH에 없음).
 - R3의 목소리 시트(R3.5)는 자동 한 칸과 M1~M5·F1~F5 칩이고, 칩을 누르면 고르고 미리 들려준다(R3.6). 미리 듣기는
   연습 때 읽을 엔진으로 한다. 고품질 목소리를 쓸 수 있으면 그 목소리의 샘플([reading.cloud-voice](cloud-voice.md#규칙제약)),
   아니면 기기 모델이다.
@@ -87,8 +104,11 @@
 - 모든 배역을 고르고 시작: 기기가 읽는 줄 없이 내 차례만 이어지고 모델 준비를 기다리지 않는다.
 - 배역 0개로 회차 시작 API: 422 invalid_characters. 다른 대본의 배역 id: 422 invalid_characters.
 - 새 대본 저장 직후 script_characters.voice_preset: 모두 NULL이다. 배역 넷인 대본의 상세 `characters[].voice`와 앱 R3:
-  배역 순서로 F1·M1·F2·M2다. 둘째 배역을 F3으로 고정: voice가 F1·F3·M1·F2다(고정값은 순환에서 빠진다). 프리셋이 아닌
-  값("ELEVEN")을 저장한 배역: voice는 자동 순환 값이다.
+  배역 순서로 F1·M1·F2·M2다(성별을 모르는 대본). 둘째 배역을 F3으로 고정: voice가 F1·F3·M1·F2다(고정값은 순환에서 빠진다).
+  프리셋이 아닌 값("ELEVEN")을 저장한 배역: voice는 자동 값이다.
+- 짧은 대본을 나누며 모델이 「윤서 f young, 태오 m young, 할머니 f senior」라 답함: gender·age_band가 그대로 저장되고 voice가
+  F2·M1·F5다. 성인 남자 둘: M3·M4. 성인 남자 배역 앞에 M3을 고정한 배역: 성인 남자는 M4. 남자 여섯이 모두 성인: M3·M4·M2·M1·M5·M3.
+  남자 청년(M1) 뒤 성별 모르는 둘: F1·F2(쓴 M1을 건너뜀). 모델이 「여자?」·「30대」처럼 목록 밖으로 답함: 둘 다 null.
   그중 하나를 내 배역으로 회차 시작: 나머지 셋이 R3에 보인 목소리로 읽는다. 내 배역을 바꿔 다시 시작: 목소리가 그대로다.
   웹 배역 화면도 같다: 상대역 칸의 「자동」 목소리가 상세 `characters[].voice`이고 내 배역을 바꿔도 그대로다.
 - 배역 "니나"의 목소리를 M3으로 바꾼 뒤 새 회차: 니나는 M3으로, 나머지는 자동 순환으로 읽는다. 웹에서

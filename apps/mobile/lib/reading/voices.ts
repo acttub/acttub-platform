@@ -1,8 +1,10 @@
+import { translate } from '../i18n.ts';
+
 /**
  * 상대역 목소리(reading.cast). 값은 기기에 내장된 Supertonic 프리셋 id(M1~M5·F1~F5)이고 서버는 목록을
  * 모른다(32자 이내 문자열이면 받는다). NULL 이면 "자동"이다.
  *
- * 읽을 목소리는 서버가 정해 `characters[].voice`로 준다(대본 전체 배역을 F1·M1·F2·M2·… 로 순환, 고정값은 순환에서 빠짐).
+ * 읽을 목소리는 서버가 정해 `characters[].voice`로 준다(성별·나이대가 있으면 그에 맞게, 없으면 F1·M1·F2·M2·… 순환, 고정값과 겹치지 않게).
  * 기기는 그 회차의 내 배역만 빼고 그대로 읽는다. 순환을 기기도 아는 것은 목소리 정하기(R3)가 저장 전 선택을 미리 보이기
  * 때문이다. 같은 프리셋을 여러 배역에 줄 수 있고, 기기가 모르는 값은 자동으로 다룬다.
  */
@@ -16,14 +18,67 @@ export function isKnownPreset(value: unknown): value is VoicePreset {
   return typeof value === 'string' && (VOICE_PRESETS as readonly string[]).includes(value);
 }
 
-type VoicedCharacter = { id: string; voice_preset: string | null; voice: string };
+type VoicedCharacter = {
+  id: string;
+  voice_preset: string | null;
+  voice: string;
+  /** 서버가 대본에서 뽑은 성별·나이대(SOMA-670). 모르면 null/없음. */
+  gender?: 'm' | 'f' | null;
+  age_band?: 'child' | 'young' | 'adult' | 'senior' | null;
+};
 
-/** 서버 VoiceAssignment 와 같은 순환. */
-function rotate(characters: { id: string; voice_preset: string | null }[]): Record<string, VoicePreset> {
-  let auto = 0;
-  return Object.fromEntries(
-    characters.map((c) => [c.id, isKnownPreset(c.voice_preset) ? c.voice_preset : AUTO_ROTATION[auto++ % AUTO_ROTATION.length]]),
-  );
+/**
+ * 성별·나이대별 자동 목소리 후보 — 서버 VoiceAssignment 와 같은 표(SOMA-670). 프리셋 10개의 음높이를 재서 정했다
+ * (M1·F2 가 가장 높고 넓은 억양, M5·F5 가 가장 낮고 좁다). 아이는 청년 목록을 쓴다.
+ */
+const PREFERENCE: Record<'m' | 'f', Record<'young' | 'adult' | 'senior' | 'unknown', VoicePreset[]>> = {
+  m: {
+    young: ['M1', 'M4', 'M3', 'M2', 'M5'],
+    adult: ['M3', 'M4', 'M2', 'M1', 'M5'],
+    senior: ['M5', 'M2', 'M3', 'M4', 'M1'],
+    unknown: ['M1', 'M3', 'M4', 'M2', 'M5'],
+  },
+  f: {
+    young: ['F2', 'F4', 'F1', 'F3', 'F5'],
+    adult: ['F1', 'F3', 'F4', 'F5', 'F2'],
+    senior: ['F5', 'F3', 'F1', 'F4', 'F2'],
+    unknown: ['F1', 'F2', 'F3', 'F4', 'F5'],
+  },
+};
+
+/**
+ * 서버 VoiceAssignment 와 같은 배정. 고정한 목소리는 쓴 것으로 치고, 자동 배역은 순서대로 — 성별을 알면 그 목록에서 아직
+ * 안 쓴 첫 목소리(다 썼으면 첫 목소리), 모르면 예전 순환에서 아직 안 쓴 다음 목소리(다 썼으면 순환 그대로)를 받는다.
+ */
+function assign(characters: (Omit<VoicedCharacter, 'voice'>)[]): Record<string, VoicePreset> {
+  const used = new Set<VoicePreset>(characters.flatMap((c) => (isKnownPreset(c.voice_preset) ? [c.voice_preset] : [])));
+  let ptr = 0;
+  const out: Record<string, VoicePreset> = {};
+  for (const c of characters) {
+    if (isKnownPreset(c.voice_preset)) {
+      out[c.id] = c.voice_preset;
+      continue;
+    }
+    let pick: VoicePreset;
+    if (c.gender === 'm' || c.gender === 'f') {
+      const age = c.age_band === 'child' ? 'young' : c.age_band ?? 'unknown';
+      const list = PREFERENCE[c.gender][age];
+      pick = list.find((v) => !used.has(v)) ?? list[0];
+    } else {
+      const n = AUTO_ROTATION.length;
+      const k = Array.from({ length: n }, (_, i) => i).find((i) => !used.has(AUTO_ROTATION[(ptr + i) % n]));
+      if (k === undefined) {
+        pick = AUTO_ROTATION[ptr % n];
+        ptr += 1;
+      } else {
+        pick = AUTO_ROTATION[(ptr + k) % n];
+        ptr += k + 1;
+      }
+    }
+    used.add(pick);
+    out[c.id] = pick;
+  }
+  return out;
 }
 
 /**
@@ -34,7 +89,7 @@ export function shownVoices(characters: VoicedCharacter[], chosen: Record<string
   if (voiceChanges(characters, chosen).length === 0) {
     return Object.fromEntries(characters.flatMap((c) => (isKnownPreset(c.voice) ? [[c.id, c.voice]] : [])));
   }
-  return rotate(characters.map((c) => (c.id in chosen ? { ...c, voice_preset: chosen[c.id] } : c)));
+  return assign(characters.map((c) => (c.id in chosen ? { ...c, voice_preset: chosen[c.id] } : c)));
 }
 
 /** 화면의 드롭다운 값 → 저장값. "자동"·빈 값은 null(자동). */
@@ -77,4 +132,10 @@ export function voiceChanges(
   chosen: Record<string, string | null>,
 ): { id: string; voice_preset: string | null }[] {
   return characters.filter((c) => c.id in chosen && chosen[c.id] !== c.voice_preset).map((c) => ({ id: c.id, voice_preset: chosen[c.id] }));
+}
+
+/** 화면에 보일 목소리 이름 — 코드(M1·F5) 대신 목소리 느낌(SOMA-670). 기기가 모르는 값은 그대로 보인다. */
+export function voiceName(preset: string | null | undefined): string {
+  if (!preset) return '-';
+  return isKnownPreset(preset) ? translate(`reading.voiceName.${preset}`) : preset;
 }

@@ -15,8 +15,8 @@ import org.springframework.stereotype.Component;
 /**
  * IP 제한의 열쇠가 되는 <b>방문자 주소</b>를 구하는 한 자리 (account.guest · account.portfolio, SOMA-528 결정 I-8).
  *
- * <p>배포 경로는 방문자 → Cloudflare → cloudflared → web(Next rewrites) → api 다. api 가 보는 상대
- * ({@code getRemoteAddr})는 언제나 web 컨테이너라, 그것을 열쇠로 쓰면 모든 방문자가 한 칸을 나눠 쓴다 —
+ * <p>배포 경로는 방문자 → Cloudflare → cloudflared → proxy → web(Next rewrites) → proxy → api 다. api 가 보는 상대
+ * ({@code getRemoteAddr})는 언제나 proxy 컨테이너라, 그것을 열쇠로 쓰면 모든 방문자가 한 칸을 나눠 쓴다 —
  * 서로 다른 방문자 열한 명 가운데 열한 번째가 "한 IP 에서 시간당 10개"에 걸린다.
  *
  * <p><b>규칙</b>: 연결한 상대가 <b>신뢰하는 프록시</b>일 때만 {@code X-Forwarded-For} 를 보고, 오른쪽부터
@@ -30,10 +30,10 @@ import org.springframework.stereotype.Component;
  *       돌아간다. 헤더가 없을 때(로컬 개발)도 같다.</li>
  * </ul>
  *
- * <p>⚠ <b>web 은 헤더를 그대로 넘긴다</b> — Next 16.2.10 의 rewrite 는 {@code X-Forwarded-For} 를 덧붙이지도
- * 새로 만들지도 않는다(실측). 그래서 이 규칙이 서려면 <b>web 이 Cloudflare 를 거친 요청만 받아야 한다</b>
- * (Compose 는 web 의 포트를 밖으로 열지 않는다, docs/deploy/DEPLOY-HOME.md). web 을 직접 여는 길이 생기면 그
- * 길의 방문자는 헤더를 마음대로 쓸 수 있다.
+ * <p>⚠ <b>web 과 proxy 는 헤더를 그대로 넘긴다</b> — Next 16.2.10 의 rewrite 는 {@code X-Forwarded-For} 를
+ * 덧붙이지도 새로 만들지도 않고(실측), proxy(nginx)도 손대지 않는다. 그래서 이 규칙이 서려면 <b>web·proxy 가
+ * Cloudflare 를 거친 요청만 받아야 한다</b>(Compose 는 둘의 포트를 밖으로 열지 않는다, docs/deploy/DEPLOY-HOME.md).
+ * 둘 중 하나를 직접 여는 길이 생기면 그 길의 방문자는 헤더를 마음대로 쓸 수 있다.
  *
  * <p>Tomcat 의 {@code RemoteIpValve}({@code server.forward-headers-strategy}) 대신 여기서 구하는 까닭: 밸브는
  * 주소만이 아니라 scheme·host·port 까지 전달 헤더로 덮어 모든 요청에 영향을 주는데, 이 서버는 그것들을

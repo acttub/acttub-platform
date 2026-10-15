@@ -44,9 +44,10 @@ const CHALLENGE_MAX_SEC = 60;
  */
 export default function RecordVideoScreen() {
   const router = useRouter();
-  // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로.
+  // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로. 업로드 화면의 촬영 버튼에서
+  //   왔으면(picker 없음) 보관함에 저장하고 그 업로드 화면으로 되돌아간다.
   // mode=plain: "기본 촬영" → 찍으면 보관함에 저장하고 그 영상 화면으로.
-  // mode=challenge: 대사 띄운 챌린지 촬영. 그 외(업로드 화면의 촬영 버튼)는 찍고 되돌아간다.
+  // mode=challenge: 대사 띄운 챌린지 촬영.
   // picker=1: 하단 탭 가운데 버튼에서 곧장 옴 — 셔터 아래 줄을 넘겨 용도를 고른다(SOMA-494).
   const params = useLocalSearchParams<{
     mode?: string;
@@ -210,7 +211,10 @@ export default function RecordVideoScreen() {
             source: 'record',
           });
         }
-        router.replace('/upload');
+        // 하단 탭에서 곧장 왔으면 새 준비 화면을 연다. 준비 화면의 촬영 버튼에서 왔으면 그 화면으로 돌아간다 —
+        // 새 준비 화면을 또 열면 다음 테이크(이어하기)가 새 연습으로 바뀐다(SOMA-672).
+        if (picker) router.replace('/upload');
+        else router.back();
       });
       return;
     }
@@ -224,7 +228,7 @@ export default function RecordVideoScreen() {
       return;
     }
     router.back();
-  }, [challengeId, isChallenge, line, mode, router, saveToLibrary, work]);
+  }, [challengeId, isChallenge, line, mode, picker, router, saveToLibrary, work]);
 
   const finishWith = useCallback(
     (uri: string | null) => {

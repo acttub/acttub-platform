@@ -15,21 +15,26 @@
 #   2. 저장소 루트를 컨텍스트로 웹 이미지가 build-arg(사이트 URL·Sentry·PostHog·커밋)를 받아 빌드되고,
 #      안에는 standalone·.next/static·public 만 있다 — 소스 트리·.env 가 없고 prebuild 산출물(ort wasm·
 #      Pretendard)이 들어 있으며 non-root 로 돈다
-#   3. 임시 디렉토리에 compose.yml 사본과 테스트용 .env 를 둔다(서버의 프로젝트 디렉토리 흉내)
-#   4. deploy.sh 가 release.env 를 쓰고 → pull → up → healthy 대기 → web 경유 /health 의 commit 대조까지
-#      초록으로 끝난다(빈 볼륨, api → web 순 healthy. Flyway 는 api 기동의 일부). 도는 서비스는 api·db·web 뿐이고
+#   3. 임시 디렉토리에 compose.yml·proxy/nginx.conf 사본과 테스트용 .env 를 둔다(서버의 프로젝트 디렉토리 흉내)
+#   4. deploy.sh 가 release.env 를 쓰고 → pull → up → healthy 대기 → proxy 경유 /health 의 commit 대조까지
+#      초록으로 끝난다(빈 볼륨. Flyway 는 api 기동의 일부). 도는 서비스는 api·db·proxy·web 뿐이고
 #      호스트 포트를 publish 하지 않는다
 #   5. api 컨테이너 안에서 curl /health → 200, "status":"ok", services 목록, commit == 커밋 앞 7자
 #   6. web 컨테이너 안에서 GET / → 200(사이트 URL 이 HTML 에 새겨짐), GET /health → 200 이고 본문이 api 의
-#      것과 같다(rewrites 가 http://api:8080 으로 넘긴다), /ort/*·/fonts/pretendard/* → 200
+#      것과 같다(rewrites 가 http://api:8080 으로 넘기고 front 망의 그 이름은 proxy 다), /ort/*·/fonts/pretendard/* → 200.
+#      proxy 경유(터널이 보는 길) /health 도 같다. web 안의 api, edge 망의 web 이 proxy 하나로만 풀린다(망 별칭)
 #   7. Flyway 로그에 V1 부터 db/migration 의 최대 번호까지 적용됐다
 #   8. 필수 env 하나가 빠지면 compose 가 컨테이너를 만들기 전에 이름을 찍고 거부한다
 #   9. 같은 sha 로 deploy.sh 를 다시 돌리면 초록이고 컨테이너가 하나도 바뀌지 않는다(멱등 — 두 번 해도 결과가 같다)
 #  10. restore-db.sh 왕복 — 지금 DB 를 pg_dump -Fc 로 뜬 뒤 바꾸고 복원하면 덤프 시점으로 돌아온다(행 수·manifest 일치,
 #      Flyway "up to date", 컨테이너 재생성 없음). 깨진 덤프·행 수 불일치는 exit≠0 이고 원래 DB 가 그대로다
 #      (dev 이전·복원 연습·운영 컷오버가 같은 스크립트를 쓴다)
-#  11. deploy.sh 의 빨강 — /health 의 commit 불일치 — 가 실제로 exit≠0 이다
-#      (대기 시간 초과 등 나머지 빨강은 deploy-test.sh 가 가짜 docker 로 반증한다)
+#  11. 무중단 재배포(SOMA-700) — 터널 자리에서 부하를 건 채 다른 sha 로 배포하면 실패한 요청이 0 이고, 옛 판과 새 판이
+#      둘 다 응답했으며, 끝나면 api·web 이 새 컨테이너 하나씩이고 proxy 는 그대로다. 새 api 의 Flyway 는 up to date
+#  12. 새 판이 healthy 가 못 되면(대기 시간 초과) exit≠0 이고 컨테이너·release.env·응답 commit 이 그대로다
+#  13. 새 판이 다른 commit 을 답하면 healthy 여도 exit≠0 이고 proxy 가 옛 판으로 돌아가 있다
+#      (나머지 빨강은 deploy-test.sh 가 가짜 docker 로 반증한다)
+#  14. 격리된 모형 앱과 실제 nginx로 롤백 중 30초 요청·같은 태그 재빌드·재실행 무변경을 검증한다
 #   cloudflared(edge)·backup(backup) 프로필은 테스트용 .env 에 COMPOSE_PROFILES 가 없어 빠진다.
 #
 # 저장소 루트는 스크립트 위치로 찾고, 임시 파일은 mktemp 로 만들며, 프로젝트명·이미지 태그에 pid 를
@@ -84,10 +89,12 @@ cleanup() {
     docker compose -p "$PROJECT" ps -a 2>/dev/null || true
     docker compose -p "$PROJECT" logs --no-color --tail 60 api 2>/dev/null || true
     docker compose -p "$PROJECT" logs --no-color --tail 30 web 2>/dev/null || true
+    docker compose -p "$PROJECT" logs --no-color --tail 30 proxy 2>/dev/null || true
   fi
   step "정리 (down -v, 이미지 삭제)"
+  docker rm -f "$PROJECT-load" >/dev/null 2>&1 || true
   docker compose -p "$PROJECT" down -v --remove-orphans >/dev/null 2>&1 || true
-  docker image rm -f "$IMAGE" "$WEB_IMAGE" >/dev/null 2>&1 || true
+  docker image rm -f "$IMAGE" "$WEB_IMAGE" "$IMAGE-next" "$WEB_IMAGE-next" >/dev/null 2>&1 || true
   rm -rf "$WORK"
   return $status
 }
@@ -187,6 +194,7 @@ assert_non_root "$WEB_IMAGE"
 # cloudflared(edge)·backup 은 뜨지 않는다 — 그 값은 어디로도 가지 않는다.
 # release.env 는 여기서 만들지 않는다 — deploy.sh 가 쓰는 것이 이 스모크의 판정 대상이다.
 cp "$HOME_DIR/compose.yml" "$WORK/compose.yml"
+mkdir "$WORK/proxy" && cp "$HOME_DIR/proxy/nginx.conf" "$WORK/proxy/nginx.conf"
 cat > "$WORK/.env" <<ENV
 COMPOSE_PROJECT_NAME=$PROJECT
 POSTGRES_PASSWORD=smoke-pw
@@ -207,7 +215,12 @@ ENV
 # deploy <sha> [deploy.sh env...] — 서버에서 부르는 그대로. 이미지는 로컬 태그라 pull 정책만 missing.
 deploy() {
   local sha="$1"; shift
-  (cd "$WORK" && env DEPLOY_PULL_POLICY=missing "$@" "$HOME_DIR/deploy.sh" "$sha" "$IMAGE" "$WEB_IMAGE")
+  deploy_images "$sha" "$IMAGE" "$WEB_IMAGE" "$@"
+}
+# deploy_images <sha> <api 이미지> <web 이미지> [deploy.sh env...] — 11 단계부터 태그를 바꿔 web 도 새 판으로 만든다.
+deploy_images() {
+  local sha="$1" api="$2" web="$3"; shift 3
+  (cd "$WORK" && env DEPLOY_PULL_POLICY=missing "$@" "$HOME_DIR/deploy.sh" "$sha" "$api" "$web")
 }
 
 # ── 4. deploy.sh 로 첫 배포 (빈 볼륨) ──────────────────────────────────────────
@@ -221,7 +234,7 @@ compose ps
 
 step "프로필 서비스(cloudflared·backup)가 뜨지 않았고 호스트 포트를 publish 하지 않는다"
 running="$(compose ps --services --status running | sort | tr '\n' ' ')"
-[ "$running" = "api db web " ] || fail "도는 서비스가 api·db·web 이 아니다: $running"
+[ "$running" = "api db proxy web " ] || fail "도는 서비스가 api·db·proxy·web 이 아니다: $running"
 # EXPOSE 만 된 포트는 "8080/tcp", 호스트에 묶인 포트는 "0.0.0.0:8080->8080/tcp" 로 나온다.
 published="$(compose ps --format '{{.Name}} {{.Ports}}' | grep -- '->' || true)"
 [ -z "$published" ] || fail "호스트에 publish 된 포트가 있다: $published"
@@ -271,9 +284,28 @@ grep -qi '<html' <<< "$web_body" || fail "/ 의 본문이 HTML 이 아니다"
 grep -q "$SITE_URL" <<< "$web_body" \
   || fail "/ 의 HTML 에 NEXT_PUBLIC_SITE_URL($SITE_URL)이 없다 — build-arg 가 번들에 들어가지 않았다"
 
-step "web 컨테이너 안에서 GET /health — rewrites 가 api:8080 으로 넘겨 본문이 api 의 것과 같다"
+step "web 컨테이너 안에서 GET /health — rewrites 가 api:8080(front 망의 proxy)으로 넘겨 본문이 api 의 것과 같다"
 expect_web /health "rewrites"
 [ "$web_body" = "$json" ] || fail "web 경유 /health 본문이 api 의 것과 다르다: $web_body"
+
+# proxy_health → 터널이 보는 길(proxy:3000 → web → proxy:8080 → api)의 /health 본문. 런타임 nginx 이미지에는 wget 만 있다.
+proxy_health() { compose exec -T proxy wget -q -O - http://127.0.0.1:3000/health; }
+proxy_commit() { sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' <<< "$(proxy_health)"; }
+step "proxy 안에서 GET :3000/health — 터널이 보는 길의 본문이 api 의 것과 같다"
+body="$(proxy_health)" || fail "proxy 경유 /health 를 부르지 못했다"
+[ "$body" = "$json" ] || fail "proxy 경유 /health 본문이 api 의 것과 다르다: $body"
+echo "  $body"
+
+# 망 별칭(compose.yml 의 proxy 주석): 진짜 web·api 가 같은 망에 끼어들면 이름이 둘로 풀려 proxy 를 건너뛴다 — 무중단이 조용히
+# 깨지는 자리라 망마다 하나로만 풀리는지 본다. edge 망(터널 자리)은 cloudflared 가 없어 웹 이미지의 getent 로 묻는다.
+step "망 별칭: web 안의 api 와 edge 망의 web 이 proxy 하나로만 풀린다"
+proxy_id="$(compose ps -q proxy)"
+proxy_ip() { docker inspect -f "{{(index .NetworkSettings.Networks \"${PROJECT}_$1\").IPAddress}}" "$proxy_id"; }
+resolved_from_web="$(compose exec -T web getent ahostsv4 api | awk '{print $1}' | sort -u | tr '\n' ' ')"
+[ "$resolved_from_web" = "$(proxy_ip front) " ] || fail "web 안에서 api 가 proxy($(proxy_ip front)) 하나로 풀리지 않는다: $resolved_from_web"
+resolved_from_edge="$(docker run --rm --network "${PROJECT}_edge" --entrypoint getent "$WEB_IMAGE" ahostsv4 web | awk '{print $1}' | sort -u | tr '\n' ' ')"
+[ "$resolved_from_edge" = "$(proxy_ip edge) " ] || fail "edge 망에서 web 이 proxy($(proxy_ip edge)) 하나로 풀리지 않는다: $resolved_from_edge"
+echo "  web → api = ${resolved_from_web}· edge → web = ${resolved_from_edge}"
 
 step "prebuild 산출물이 서빙된다 — /ort/*, /fonts/pretendard/*"
 expect_web /ort/ort-wasm-simd-threaded.wasm "onnxruntime wasm"
@@ -366,26 +398,114 @@ else
   step "restore-db.sh 왕복 건너뜀 (SMOKE_RESTORE=${SMOKE_RESTORE})"
 fi
 
-# ── 11. deploy.sh 의 빨강 — 판정 논리 반증 ──────────────────────────────────
-# api 가 답하는 commit 이 배포한 sha 와 다른 상황 — 옛 컨테이너가 살아남은 채 초록이 되는 일의 재현. HealthController 는 Spring 프로퍼티 ${RENDER_GIT_COMMIT} 을 읽으므로 사람이 관리하는 .env 의
-# JAVA_TOOL_OPTIONS 로 시스템 프로퍼티를 주면 release.env 의 env 값을 이긴다 → 컨테이너는 healthy 인데 commit 이 다르다.
-step "deploy.sh: api 가 다른 commit 을 답하면 healthy 여도 exit≠0"
+# ── 11. 무중단 재배포 (SOMA-700) ───────────────────────────────────────────────
+# 터널 자리(edge 망의 web = proxy)에서 keep-alive 부하를 건 채 다른 sha 로 배포한다. 이미지는 같고 태그만 바꿔 api·web 둘 다
+# 새 판이 된다. 실패한 요청이 하나도 없어야 하고, 옛 판·새 판이 둘 다 응답했어야(전환이 부하 한가운데서 일어남) 한다.
+# 부하는 초당 수십 건으로 둔다. proxy 는 요청마다 연결을 새로 맺어(keepalive_timeout 0) 요청 하나가 연결 넷을 만들고, 닫힌
+# 연결은 커널 연결 추적표에 120초 남는다 — 초당 수백 건이면 표(Docker Desktop 65,536)가 차 DNS 패킷까지 버려진다(실측).
+# 기존 방식(제자리 재생성)의 끊김은 이 부하로도 수천 건으로 드러난다.
+NEXT_COMMIT="$(printf '%s' "$COMMIT" | tr '0-9a-f' '1-9a-f0')"
+IMAGE_NEXT="$IMAGE-next" WEB_IMAGE_NEXT="$WEB_IMAGE-next"
+docker tag "$IMAGE" "$IMAGE_NEXT"
+docker tag "$WEB_IMAGE" "$WEB_IMAGE_NEXT"
+LOAD_JS="$(cat <<'JS'
+const http = require("node:http");
+const agent = new http.Agent({ keepAlive: true, maxSockets: 4 });
+const counts = {}, errors = [];
+let stop = false;
+process.on("SIGTERM", () => { stop = true; });
+const get = () => new Promise((resolve) => {
+  const req = http.get("http://web:3000/health", { agent }, (res) => {
+    let body = "";
+    res.on("data", (c) => (body += c));
+    res.on("end", () => {
+      let commit = "";
+      try { commit = JSON.parse(body).commit ?? ""; } catch {}
+      resolve(res.statusCode === 200 && commit ? commit : `${res.statusCode} ${body.slice(0, 80)}`);
+    });
+  });
+  req.on("error", (e) => resolve(`ERR ${e.code}`));
+  req.setTimeout(30000, () => req.destroy(Object.assign(new Error("timeout"), { code: "TIMEOUT" })));
+});
+const loop = async () => {
+  while (!stop) {
+    const out = await get();
+    if (/^[0-9a-f]{7}$/.test(out)) counts[out] = (counts[out] ?? 0) + 1; else errors.push(out);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+};
+Promise.all(Array.from({ length: 4 }, loop)).then(() => {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0) + errors.length;
+  console.log(`total=${total} failed=${errors.length} ${JSON.stringify({ counts, errors: errors.slice(0, 10) })}`);
+  process.exit(0);
+});
+JS
+)"
+step "deploy.sh ${NEXT_COMMIT:0:7} (다른 sha·태그) — 터널 자리 부하 중 옆에 띄워 넘기기: 실패 0, 옛·새 판 모두 응답"
+api_before="$(compose ps -q api)" web_before="$(compose ps -q web)" proxy_before="$(compose ps -q proxy)"
+docker run -d --name "$PROJECT-load" --network "${PROJECT}_edge" --entrypoint node "$WEB_IMAGE" -e "$LOAD_JS" >/dev/null
+sleep 2
+deploy_images "$NEXT_COMMIT" "$IMAGE_NEXT" "$WEB_IMAGE_NEXT" || fail "다른 sha 재배포가 실패했다"
+docker stop -t 30 "$PROJECT-load" >/dev/null
+load="$(docker logs "$PROJECT-load" 2>&1)"
+docker rm -f "$PROJECT-load" >/dev/null
+echo "  $load"
+total="$(sed -n 's/^total=\([0-9]*\) .*/\1/p' <<< "$load")"
+failed="$(sed -n 's/^total=[0-9]* failed=\([0-9]*\) .*/\1/p' <<< "$load")"
+[ "${failed:-x}" = 0 ] || fail "재배포 중 터널 자리의 요청 ${failed:-?}건이 실패했다"
+[ "${total:-0}" -ge 100 ] || fail "부하가 너무 적다(${total:-0}건) — 전환을 시험했다고 볼 수 없다"
+grep -q "\"${COMMIT:0:7}\":[1-9]" <<< "$load" || fail "옛 판(${COMMIT:0:7})의 응답이 없다 — 부하가 배포 전에 시작되지 않았다"
+grep -q "\"${NEXT_COMMIT:0:7}\":[1-9]" <<< "$load" || fail "새 판(${NEXT_COMMIT:0:7})의 응답이 없다 — 부하가 전환 전에 끝났다"
+[ "$(proxy_commit)" = "${NEXT_COMMIT:0:7}" ] || fail "proxy 경유 /health 가 새 판 commit 을 답하지 않는다"
+api_after="$(compose ps -q api)" web_after="$(compose ps -q web)"
+[ "$(printf '%s\n' "$api_after" | grep -c .)" = 1 ] && [ "$(printf '%s\n' "$web_after" | grep -c .)" = 1 ] \
+  || fail "배포 뒤 api·web 컨테이너가 하나씩이 아니다: api=[$api_after] web=[$web_after]"
+[ "$api_after" != "$api_before" ] && [ "$web_after" != "$web_before" ] || fail "api·web 이 새 컨테이너로 바뀌지 않았다"
+[ "$(compose ps -q proxy)" = "$proxy_before" ] || fail "proxy 가 다시 만들어졌다 — reload 만 해야 한다"
+[ ! -e "$WORK/release.env.prev" ] || fail "성공한 배포가 release.env.prev 를 남겼다"
+
+# 새 api 는 이미 마이그레이션된 DB(10 단계를 돌렸으면 복원한 DB) 위에서 떴다 — 실제 재배포와 같다.
+step "새 api — Flyway 는 up to date 이고 새로 적용한 것이 없다"
+logs="$(compose logs --no-color api)"
+grep -q 'is up to date' <<< "$logs" || fail "새 api 의 Flyway 로그에 'up to date' 가 없다"
+! grep -q 'Successfully applied' <<< "$logs" || fail "새 api 가 이미 마이그레이션된 DB 에 마이그레이션을 새로 적용했다"
+printf '%s\n' "$logs" | grep -E 'Current version of schema|is up to date' | tail -2 | sed 's/^/  /'
+
+# ── 12. 새 판이 healthy 가 못 되면 옛 판을 그대로 둔다 ──────────────────────────
+# 대기 상한을 api 기동보다 짧게 줘 크래시루프·느린 기동을 흉내 낸다.
+THIRD_COMMIT="$(printf '%s' "$COMMIT" | tr '0-9a-f' '2-9a-f01')"
+step "deploy.sh ${THIRD_COMMIT:0:7} + DEPLOY_WAIT_SECONDS=5 — 새 api 가 healthy 가 못 되면 exit≠0, 옛 판이 그대로"
+ids_before="$(compose ps -aq | sort | tr '\n' ' ')"
+cp "$WORK/release.env" "$WORK/release.env.before"
+if out="$(deploy_images "$THIRD_COMMIT" "$IMAGE_NEXT" "$WEB_IMAGE_NEXT" DEPLOY_WAIT_SECONDS=5 2>&1)"; then
+  printf '%s\n' "$out"; fail "새 api 가 5초 안에 healthy 일 수 없는데 deploy.sh 가 초록으로 끝났다"
+fi
+grep -q '✗.*healthy 가 되지 않았다' <<< "$out" || { printf '%s\n' "$out"; fail "healthy 시간 초과가 아닌 다른 이유로 실패했다"; }
+[ "$(compose ps -aq | sort | tr '\n' ' ')" = "$ids_before" ] || fail "실패한 배포가 컨테이너를 바꿨다(새 컨테이너가 남았거나 옛 것이 사라짐)"
+cmp -s "$WORK/release.env.before" "$WORK/release.env" || fail "실패한 배포가 release.env 를 되돌리지 않았다"
+[ "$(proxy_commit)" = "${NEXT_COMMIT:0:7}" ] || fail "실패한 배포 뒤 옛 판(${NEXT_COMMIT:0:7})이 응답하지 않는다"
+printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
+
+# ── 13. 새 판이 다른 commit 을 답하면 넘긴 것을 되돌린다 ─────────────────────────
+# 옛 컨테이너가 살아남은 채 초록이 되는 일의 재현이기도 하다. HealthController 는 Spring 프로퍼티 ${RENDER_GIT_COMMIT} 을
+# 읽으므로 사람이 관리하는 .env 의 JAVA_TOOL_OPTIONS 로 시스템 프로퍼티를 주면 release.env 의 env 값을 이긴다 →
+# 새 api 는 healthy 인데 commit 이 다르다. .env 가 바뀌어 api 만 새 판이 된다.
+step "deploy.sh: 새 api 가 다른 commit 을 답하면 healthy 여도 exit≠0 — proxy 는 옛 판으로 돌아간다"
 printf 'JAVA_TOOL_OPTIONS=-DRENDER_GIT_COMMIT=0000000stale\n' >> "$WORK/.env"
-if out="$(deploy "$COMMIT" 2>&1)"; then
+ids_before="$(compose ps -aq | sort | tr '\n' ' ')"
+if out="$(deploy_images "$NEXT_COMMIT" "$IMAGE_NEXT" "$WEB_IMAGE_NEXT" 2>&1)"; then
   printf '%s\n' "$out"; fail "commit 이 0000000 인데 deploy.sh 가 초록으로 끝났다"
 fi
 grep -q '✗.*commit.*다르다' <<< "$out" || { printf '%s\n' "$out"; fail "commit 불일치가 아닌 다른 이유로 실패했다"; }
+grep -q 'proxy 를 옛 컨테이너로 되돌렸다' <<< "$out" || { printf '%s\n' "$out"; fail "proxy 를 옛 판으로 되돌렸다는 기록이 없다"; }
+[ "$(compose ps -aq | sort | tr '\n' ' ')" = "$ids_before" ] || fail "되돌린 뒤 컨테이너가 배포 전과 다르다"
+[ "$(proxy_commit)" = "${NEXT_COMMIT:0:7}" ] || fail "되돌린 뒤 proxy 경유 /health 가 옛 판 commit 을 답하지 않는다"
 printf '  %s\n' "$(grep -m1 '✗' <<< "$out")"
 
-# 위 배포가 api 를 재생성했다 — 이미 마이그레이션된 DB(10 단계를 돌렸으면 복원한 DB) 위에서 새 컨테이너가 떴다.
-# 실제 재배포가 하는 일과 같으므로 "Flyway 가 이미 적용됨으로 통과" 를 여기서 본다(컨테이너 로그는 재생성 뒤 것뿐이다).
-step "재생성된 api — Flyway 는 up to date 이고 새로 적용한 것이 없다"
-logs="$(compose logs --no-color api)"
-grep -q 'is up to date' <<< "$logs" || fail "재생성된 api 의 Flyway 로그에 'up to date' 가 없다"
-! grep -q 'Successfully applied' <<< "$logs" || fail "재생성된 api 가 이미 마이그레이션된 DB 에 마이그레이션을 새로 적용했다"
-printf '%s\n' "$logs" | grep -E 'Current version of schema|is up to date' | tail -2 | sed 's/^/  /'
+step "롤백 중 긴 요청·같은 태그 재빌드 (격리 모형 앱 + 실제 nginx)"
+python3 "$HOME_DIR/rollout-test.py" "$WEB_IMAGE"
 
-printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·commit 불일치)·restore-db.sh 왕복(SMOKE_RESTORE=%s)·compose(web+api+db)·Flyway v1→v%s·web 경유 /·/health commit %s\n' "${SMOKE_RESTORE:-true}" "$latest" "${COMMIT:0:7}"
+printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·부하 중 무중단 재배포·healthy 실패와 commit 불일치의 되돌리기)·restore-db.sh 왕복(SMOKE_RESTORE=%s)·compose(web+api+db+proxy, 망 별칭)·Flyway v1→v%s·proxy 경유 /health commit %s→%s\n' "${SMOKE_RESTORE:-true}" "$latest" "${COMMIT:0:7}" "${NEXT_COMMIT:0:7}"
 
 if [ -n "${SMOKE_EXPORT_API_IMAGE:-}" ]; then
   docker tag "$IMAGE" "$SMOKE_EXPORT_API_IMAGE"

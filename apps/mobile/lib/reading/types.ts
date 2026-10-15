@@ -54,6 +54,8 @@ export type ImportScriptBody = {
   allow_duplicate: boolean;
   /** 대본인지 묻지 않고 나눈다(R2.8 [그래도 나누기]). */
   skip_script_check: boolean;
+  /** 배우가 적은 제목(200자까지). 없으면 서버가 정한다(모델이 제목이라 한 줄, 없으면 첫 줄). */
+  title?: string;
 } & ({ raw_text: string } | { upload_id: string });
 
 /** 접수 답. 새 작업·진행 중 작업이면 import_id, 같은 글의 대본이 이미 있으면 duplicate_script_id. */
@@ -79,6 +81,9 @@ export type ScriptCharacter = {
   /** 내 배역이 아닐 때 읽을 목소리(서버가 정함). 고정값이면 그 값, 자동이면 대본 전체 순환의 값이다. */
   voice: string;
   dialogue_count: number;
+  /** 서버가 대본에서 뽑은 성별·나이대(SOMA-670). 자동 목소리를 고를 때 쓴다. 모르거나 옛 서버면 없다. */
+  gender?: 'm' | 'f' | null;
+  age_band?: 'child' | 'young' | 'adult' | 'senior' | null;
 };
 
 /** 「장면으로 찾기」의 한 줄(서버가 나눔). 대사가 없는 장면은 없다. */
@@ -154,7 +159,15 @@ export type ScriptDetail = {
   updated_at: string;
 };
 
-/** PATCH /v2/reading/scripts/{id}. 제목과 배역 이름·목소리만 고친다. 줄은 불변이다. */
+/** PATCH /v2/reading/scripts/{id}/lines/{line_id} 본문(SOMA-669). 보낸 항목만 바뀐다. 줄 id 는 그대로다. */
+export type PatchScriptLineBody = {
+  kind?: LineKind;
+  /** 대사일 때만. 대사가 아니게 바꾸면 서버가 배역을 뺀다. */
+  character_id?: string;
+  text?: string;
+};
+
+/** PATCH /v2/reading/scripts/{id}. 제목과 배역 이름·목소리만 고친다. 줄은 PatchScriptLineBody 로 고친다. */
 export type PatchScriptBody = {
   title?: string;
   characters?: { id: string; name?: string; voice_preset?: string | null }[];

@@ -120,13 +120,12 @@ test('practice.resume: 진행 중 회차가 있으면 409이고 회차 id는 묶
   assert.equal(inProgressPracticeId(groups, 'root-1'), null);
 });
 
-test('practice.resume: 같은 영상이면 video_id를 싣지 않고 새 영상이면 싣는다', () => {
+test('practice.resume: 다음 테이크 본문은 늘 새로 고른 video_id를 싣는다(SOMA-672)', () => {
   const base = { requestId: 'req-4', scene: emptySceneDraft, blockage: emptyBlockageDraft };
-
-  const same = buildContinueBody({ ...base, videoId: null });
-  assert.equal('video_id' in same, false);
 
   const fresh = buildContinueBody({ ...base, videoId: 'video-new' });
   assert.equal(fresh.video_id, 'video-new');
   assert.equal(fresh.request_id, 'req-4');
+  // 서버는 video_id를 빼면 이전 회차 영상을 쓰지만, 앱은 그 길을 쓰지 않는다.
+  assert.equal('video_id' in buildContinueBody({ ...base, videoId: 'video-2' }), true);
 });

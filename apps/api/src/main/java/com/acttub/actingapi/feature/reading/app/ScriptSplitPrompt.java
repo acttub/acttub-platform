@@ -26,7 +26,19 @@ public final class ScriptSplitPrompt {
             답의 첫 줄은 "대본<TAB>예" 또는 "대본<TAB>아니오"다. 배역 이름과 그 배역이 말하는 대사가 있는 글(희곡·시나리오·대본, 혼자 하는 독백 포함)이면 예, 소설·기사·논문·목록처럼 말하는 배역이 없는 글이면 아니오다. 아니오면 그 한 줄만 쓴다.""";
 
     private static final String ROSTER = """
-            대본 앞부분을 받는다. 말하는 배역 이름 목록을 대본에 쓰인 표기 그대로 한 줄에 하나씩만 답한다. 설명 없이 이름만.""";
+            대본 앞부분을 받는다. 말하는 배역 이름 목록을 대본에 쓰인 표기 그대로 한 줄에 하나씩 "이름<TAB>성별<TAB>나이대" 형식으로만 답한다. 설명 없이 결과 줄만.""";
+
+    /**
+     * 짧은 대본(조각 하나)의 첫 호출 끝에 붙는다 (SOMA-670). 호출을 늘리지 않고 배역의 성별·나이대를 받는다. 앞의 지시문은
+     * 그대로 두고 맨 뒤에 덧붙인다.
+     */
+    private static final String CAST_BLOCK = """
+            결과 줄을 다 쓴 뒤 맨 끝에 "배역" 한 줄을 쓰고, 그 아래에 대사가 있는 배역마다 한 줄씩 "이름<TAB>성별<TAB>나이대"를 쓴다. 이름은 결과 줄의 배역 표기와 같게 쓴다.""";
+
+    /** 배역 목록과 「배역」 블록이 함께 쓰는 성별·나이대 규칙. */
+    private static final String TRAITS = """
+            - 성별: m=남자, f=여자. 나이대: child=어린이, young=10대~20대, adult=30~50대, senior=노년.
+            - 지문·등장인물 소개·다른 인물이 그 배역을 부르는 말(형·누나·아저씨·할머니·엄마 등)처럼 대본에 근거가 있을 때만 쓴다. 알 수 없으면 그 칸을 비운다. 이름만 보고 짐작하지 않는다.""";
 
     /** 나누기 전의 띄어쓰기 복원 (reading.script 「띄어쓰기 복원」). 서버가 공백을 뺀 글자를 원문과 견주어 받는다. */
     private static final String SPACING = """
@@ -47,6 +59,13 @@ public final class ScriptSplitPrompt {
      * @param roster 배역 목록 호출이 준 이름들. 비어 있으면 붙이지 않는다
      */
     public static String split(boolean judge, List<String> roster) {
+        return split(judge, roster, false);
+    }
+
+    /**
+     * @param askTraits 답 끝에 「배역」 블록(성별·나이대)을 함께 받는가 — 배역 목록 호출이 없는 짧은 대본의 첫 호출만
+     */
+    public static String split(boolean judge, List<String> roster, boolean askTraits) {
         StringBuilder prompt = new StringBuilder(RULES);
         if (judge) {
             prompt.append('\n').append(JUDGMENT);
@@ -54,6 +73,9 @@ public final class ScriptSplitPrompt {
         if (!roster.isEmpty()) {
             prompt.append("\n알려진 배역(이 표기를 그대로 쓴다. 목록에 없는 새 배역이 나오면 대본 표기대로 쓴다): ")
                     .append(String.join(", ", roster));
+        }
+        if (askTraits) {
+            prompt.append('\n').append(CAST_BLOCK).append('\n').append(TRAITS);
         }
         return prompt.toString();
     }
@@ -64,7 +86,8 @@ public final class ScriptSplitPrompt {
      * @param judge 대본 여부 한 줄도 함께 받는가 — R2.8 「그래도 나누기」로 다시 온 요청은 묻지 않는다
      */
     public static String roster(boolean judge) {
-        return judge ? JUDGMENT + "\n" + ROSTER : ROSTER;
+        String roster = ROSTER + "\n" + TRAITS;
+        return judge ? JUDGMENT + "\n" + roster : roster;
     }
 
     public static String spacing() {

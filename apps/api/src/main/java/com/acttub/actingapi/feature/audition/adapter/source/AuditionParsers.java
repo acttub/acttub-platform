@@ -51,6 +51,7 @@ final class AuditionParsers {
         Document doc = Jsoup.parse(html);
         List<AuditionPosting> out = new ArrayList<>();
         int rows = 0;
+        int unreadable = 0;
         for (Element tr : doc.select("tr")) {
             Element a = tr.selectFirst("a[href*=Audition.aspx?mode=v]");
             List<Element> tds = tr.select("> td");
@@ -60,6 +61,7 @@ final class AuditionParsers {
             rows++;
             String ref = group(Pattern.compile("Id=(\\d+)"), a.attr("href"));
             if (ref == null) {
+                unreadable++;
                 continue;
             }
             String title = a.text().strip();
@@ -71,6 +73,7 @@ final class AuditionParsers {
             }
             LocalDate posted = dotted(tds.get(3).text());
             if (posted == null) {
+                unreadable++;
                 continue;
             }
             out.add(new AuditionPosting("shinsee", ref, title, AuditionRules.guessCategory(title), null,
@@ -79,6 +82,7 @@ final class AuditionParsers {
                     "https://www.iseensee.com/Home/Community/Audition.aspx?mode=v&Id=" + ref));
         }
         requireRows("shinsee", rows);
+        requireReadable("shinsee", rows, unreadable);
         return unique(out);
     }
 
@@ -99,22 +103,30 @@ final class AuditionParsers {
         requireRows("emk", items.getLength());
         List<AuditionPosting> out = new ArrayList<>();
         Set<String> titles = new HashSet<>();
+        int candidates = 0;
+        int unreadable = 0;
         for (int i = 0; i < items.getLength(); i++) {
             org.w3c.dom.Element item = (org.w3c.dom.Element) items.item(i);
             String title = Parser.unescapeEntities(text(item, "title"), false).strip();
             if (!title.contains("오디션")) {
                 continue;
             }
+            candidates++;
             String link = text(item, "link").strip();
             String ref = group(Pattern.compile("redirect=(\\d+)"), link);
             LocalDate posted = rfc1123(text(item, "pubDate"));
+            if (ref == null || posted == null) {
+                unreadable++;
+                continue;
+            }
             // 같은 공지가 두 게시판(Notice·Notice - Audition)에 따로 올라온다. 새것(앞)만 남긴다.
-            if (ref == null || posted == null || !titles.add(title)) {
+            if (!titles.add(title)) {
                 continue;
             }
             out.add(new AuditionPosting("emk", ref, title, "musical", null, null, null,
                     title.contains("(완료)") ? "마감" : null, posted, link));
         }
+        requireReadable("emk", candidates, unreadable);
         return unique(out);
     }
 
@@ -133,6 +145,8 @@ final class AuditionParsers {
         Document doc = Jsoup.parse(html);
         List<AuditionPosting> out = new ArrayList<>();
         int rows = 0;
+        int candidates = 0;
+        int unreadable = 0;
         for (Element tr : doc.select("tr")) {
             Element a = tr.selectFirst("a[href*=view.do?nttId=]");
             if (a == null) {
@@ -143,10 +157,12 @@ final class AuditionParsers {
             if (!SEJONG_INCLUDE.matcher(title).find() || SEJONG_EXCLUDE.matcher(title).find()) {
                 continue;
             }
+            candidates++;
             String ref = group(Pattern.compile("nttId=(\\d+)"), a.attr("href"));
             Element line = tr.selectFirst("td.line");
             LocalDate posted = line == null ? null : isoDate(line.text());
             if (ref == null || posted == null) {
+                unreadable++;
                 continue;
             }
             out.add(new AuditionPosting("sejong", ref, title, AuditionRules.guessCategory(title), null, null, null,
@@ -154,6 +170,7 @@ final class AuditionParsers {
                     "https://www.sejongpac.or.kr/portal/bbs/B0000065/view.do?nttId=" + ref + "&menuNo=200571"));
         }
         requireRows("sejong", rows);
+        requireReadable("sejong", candidates, unreadable);
         return unique(out);
     }
 
@@ -184,14 +201,18 @@ final class AuditionParsers {
             throw new AuditionSourceFailure("plfil list data is missing");
         }
         List<AuditionPosting> out = new ArrayList<>();
+        int candidates = 0;
+        int unreadable = 0;
         for (JsonNode c : data.path("list")) {
-            if (c.path("isPrivate").asBoolean(false) || !c.hasNonNull("id") || !c.hasNonNull("createdAt")) {
+            if (c.path("isPrivate").asBoolean(false)) {
                 continue;
             }
-            String ref = c.path("id").asText();
+            candidates++;
+            String ref = c.path("id").asText("");
             String title = c.path("title").asText("").strip();
-            LocalDate posted = kstDate(c.path("createdAt").asText());
-            if (title.isEmpty() || posted == null) {
+            LocalDate posted = c.hasNonNull("createdAt") ? kstDate(c.path("createdAt").asText()) : null;
+            if (ref.isEmpty() || title.isEmpty() || posted == null) {
+                unreadable++;
                 continue;
             }
             out.add(new AuditionPosting("plfil", ref, title,
@@ -200,6 +221,7 @@ final class AuditionParsers {
                     c.path("isRecruiting").asBoolean(false) ? "모집중" : "마감",
                     posted, "https://plfil.com/casting/" + ref));
         }
+        requireReadable("plfil", candidates, unreadable);
         int pages = Math.max(1, data.path("totalPage").asInt(1));
         return new PlfilPage(unique(out), pages);
     }
@@ -239,6 +261,8 @@ final class AuditionParsers {
         Document doc = Jsoup.parse(html);
         List<AuditionPosting> out = new ArrayList<>();
         int rows = 0;
+        int candidates = 0;
+        int unreadable = 0;
         for (Element tr : doc.select("tr")) {
             Element a = tr.selectFirst("a[href*=vid=]");
             List<Element> tds = tr.select("> td");
@@ -249,13 +273,14 @@ final class AuditionParsers {
             String ref = group(Pattern.compile("vid=(\\d+)"), a.attr("href"));
             String title = tds.get(1).text().strip();
             String category = group(OTR_CATEGORY_PREFIX, title);
-            if (ref == null || title.isEmpty() || OTR_BOARD_NOTICE.equals(category)
-                    || OTR_NOT_AUDITION.matcher(title).find()) {
+            if (title.isEmpty() || OTR_BOARD_NOTICE.equals(category) || OTR_NOT_AUDITION.matcher(title).find()) {
                 continue;
             }
+            candidates++;
             String postedText = tds.get(5).text().strip();
             LocalDate posted = CLOCK.matcher(postedText).matches() ? today : isoDate(postedText);
-            if (posted == null) {
+            if (ref == null || posted == null) {
+                unreadable++;
                 continue;
             }
             out.add(new AuditionPosting("otr", ref, title,
@@ -264,6 +289,7 @@ final class AuditionParsers {
                     "https://otr.co.kr/audition/?vid=" + ref));
         }
         requireRows("otr", rows);
+        requireReadable("otr", candidates, unreadable);
         return unique(out);
     }
 
@@ -272,6 +298,17 @@ final class AuditionParsers {
     private static void requireRows(String source, int rows) {
         if (rows == 0) {
             throw new AuditionSourceFailure(source + " list has no rows — the page structure changed");
+        }
+    }
+
+    /**
+     * 줄은 찾았는데 날짜·번호 칸 모양이 바뀌어 읽을 수 있는 공고가 하나도 없으면 고장이다. 조용히 0건으로 넘어가면 기존
+     * 행이 마감으로 하나씩 사라질 때까지 아무도 모른다. 제목으로 걸러서 0건인 것(세종에 배우 공고가 없는 날)은 고장이
+     * 아니다 — {@code candidates} 는 거르기를 통과한 줄만 센다.
+     */
+    private static void requireReadable(String source, int candidates, int unreadable) {
+        if (candidates > 0 && unreadable == candidates) {
+            throw new AuditionSourceFailure(source + " rows are unreadable — a date or id format changed");
         }
     }
 

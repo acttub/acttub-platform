@@ -12,9 +12,9 @@
 | A8 · A8.1 · A9.1 · A9.2 · A9.3 | `app/upload.tsx` | 준비, 막힘 선택. 영상 고르기 → 장면 적기 → 막힘 고르기가 **한 화면의 여러 상태**다 |
 | A10 | `app/analyzing.tsx` | 분석. 끝나면 대화로 넘어간다 |
 | A11 · A11.1 | `app/coach.tsx` | 대화 |
-| A13 | `app/report.tsx` | 연습 노트(방금 끝낸 회차). "다음 연습"은 준비 화면으로 간다 |
-| A12 | `app/report-detail.tsx` | 지난 연습 노트(연습 기록에서 연다) |
-| A1.1 · A1.2 | `app/(tabs)/history.tsx` · `app/practice-group.tsx` | 연습 기록과 묶음 상세. "이어서 연습하기"는 준비 화면으로, 진행 중 회차는 분석 화면으로 간다 |
+| A13 | `app/report.tsx` | 연습 노트(방금 끝낸 회차). 「다음 테이크 찍기」는 장면을 채운 준비 화면으로 간다(영상은 새로 고른다) |
+| A12 | `app/report-detail.tsx` | 지난 연습 노트(연습 기록에서 연다). 묶음에 열린 테이크가 있으면 「대화 이어 가기」, 없으면 「다음 테이크 찍기」 |
+| A1.1 · A1.2 | `app/(tabs)/history.tsx` · `app/practice-group.tsx` | 연습 기록과 묶음 상세. 열린 테이크가 있으면 「대화 중」 줄·「대화 이어 가기」가 분석 화면(→대화)으로, 없으면 「다음 테이크 찍기」가 준비 화면으로 간다 |
 
 업로드는 연습 화면에 없다. 준비 화면은 보관함의 영상을 고르기만 하고, 올리기는 보관함의 올리기 큐
 (`lib/library/library-runner.ts`)가 한다(practice.record).

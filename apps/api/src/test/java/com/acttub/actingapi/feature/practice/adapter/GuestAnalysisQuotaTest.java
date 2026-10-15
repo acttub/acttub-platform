@@ -9,6 +9,7 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.app.LegacyPracticeReader;
+import com.acttub.actingapi.feature.practice.app.PracticePosters;
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
 import com.acttub.actingapi.feature.practice.app.PracticeService;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -31,6 +32,7 @@ class GuestAnalysisQuotaTest {
                 .withUserConfiguration(PracticeConfiguration.class)
                 .withBean(PracticeRepository.class, () -> practices)
                 .withBean(LegacyPracticeReader.class, () -> mock(LegacyPracticeReader.class))
+                .withBean(PracticePosters.class, () -> mock(PracticePosters.class))
                 .withBean(Clock.class, () -> Clock.fixed(Instant.parse("2026-09-21T04:00:00Z"), ZoneOffset.UTC));
         if (!enabled.equals("default")) {
             runner = runner.withPropertyValues("ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=" + enabled);
@@ -39,7 +41,7 @@ class GuestAnalysisQuotaTest {
             assertThat(context).hasNotFailed();
             var service = context.getBean(PracticeService.class);
             var draft = new PracticeService.Draft(UUID.randomUUID(), UUID.randomUUID(),
-                    "", "", "", "그 외", "그 외", null);
+                    "", "", "", "그 외", "그 외", null, null);
             assertThatThrownBy(() -> service.start(user, guest, "three_layers_v1", draft))
                     .isInstanceOf(ApiException.class);
             assertThatThrownBy(() -> service.continueGroup(user, guest, "three_layers_v1", UUID.randomUUID(), draft))

@@ -8,6 +8,8 @@ import java.util.Map;
 
 import com.acttub.actingapi.feature.reading.domain.SplitResponse.Kind;
 import com.acttub.actingapi.feature.reading.domain.SplitResponse.Row;
+import com.acttub.actingapi.platform.schema.CharacterAgeBand;
+import com.acttub.actingapi.platform.schema.CharacterGender;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -134,5 +136,29 @@ class SplitDraftTest {
                 Map.of(1, new Row(1, Kind.DIRECTION, "", "")), List.of());
         assertThat(prose.characterNames()).isEmpty();
         assertThat(prose.lines()).containsExactly(new ScriptDraft.Line(1, "direction", null, "어느 날 밤이었다."));
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 모델이 준 성별·나이대를 배역 순서대로 싣는다 — 띄어쓰기만 다른 이름도 잇고, 없는 배역은 모름")
+    void carriesTraitsInCharacterOrder() {
+        String raw = "윤서: 안녕.\n태오: 응.\n로스: 어.\n";
+        List<NumberedLine> lines = NumberedLine.of(raw);
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        rows.put(1, new Row(1, Kind.DIALOGUE, "윤서", "윤서: "));
+        rows.put(2, new Row(2, Kind.DIALOGUE, "태오", "태오: "));
+        rows.put(3, new Row(3, Kind.DIALOGUE, "로스", "로스: "));
+        Map<String, CharacterTraits> traits = Map.of(
+                "윤서", new CharacterTraits(CharacterGender.FEMALE, CharacterAgeBand.YOUNG),
+                "태 오", new CharacterTraits(CharacterGender.MALE, CharacterAgeBand.SENIOR));
+
+        ScriptDraft draft = SplitDraft.assemble(null, raw, "paste", lines, rows, List.of(), traits);
+
+        assertThat(draft.characterNames()).containsExactly("윤서", "태오", "로스");
+        assertThat(draft.characterTraits()).containsExactly(
+                new CharacterTraits(CharacterGender.FEMALE, CharacterAgeBand.YOUNG),
+                new CharacterTraits(CharacterGender.MALE, CharacterAgeBand.SENIOR),
+                CharacterTraits.UNKNOWN);
+        assertThat(SplitDraft.assemble(null, raw, "paste", lines, rows, List.of()).characterTraits())
+                .as("성별·나이대가 없으면 모두 모름").containsOnly(CharacterTraits.UNKNOWN);
     }
 }

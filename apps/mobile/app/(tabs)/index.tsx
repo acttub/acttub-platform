@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -8,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
-import { practiceStreak, groupTitle, recentGroups } from '@/lib/practice/groups';
+import { practiceStreak, groupPoster, groupRowTarget, groupTitle, recentGroups } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
@@ -286,16 +287,31 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.recentList}>
-            {recent.map((r) => (
+            {recent.map((r) => {
+              const poster = groupPoster(r);
+              return (
               <Pressable
                 key={r.root_id}
                 style={({ pressed }) => [styles.recentRow, pressed && styles.recentRowPressed]}
-                onPress={() => router.push({ pathname: '/practice-group', params: { rootId: r.root_id } })}>
+                // 대화 중인 묶음은 그 대화로 바로 돌아간다(SOMA-672).
+                onPress={() => router.push(groupRowTarget(r))}>
                 <View style={styles.recentIcon}>
-                  <Feather name="film" size={17} color={palette.blue} />
+                  {/* 첫 장면 사진 — 서버가 만들기 전이면 원래 아이콘 그대로다(SOMA-671). */}
+                  {poster ? (
+                    <Image source={{ uri: poster.uri, cacheKey: poster.cacheKey }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+                  ) : (
+                    <Feather name="film" size={17} color={palette.blue} />
+                  )}
                 </View>
                 <View style={styles.flex}>
-                  <Text style={styles.recentTitle} numberOfLines={1}>{groupTitle(r)}</Text>
+                  <View style={styles.recentTitleRow}>
+                    <Text style={[styles.recentTitle, styles.shrink]} numberOfLines={1}>{groupTitle(r)}</Text>
+                    {r.in_progress_practice_id && (
+                      <View style={styles.talkingBadge}>
+                        <Text style={styles.talkingBadgeText}>{t('history.inConversation')}</Text>
+                      </View>
+                    )}
+                  </View>
                   <View style={styles.recentMeta}>
                     <View style={styles.recentDot} />
                     <Text style={styles.recentMetaText}>{recentDate(r.last_practiced_at ?? '')}</Text>
@@ -303,7 +319,8 @@ export default function HomeScreen() {
                 </View>
                 <Feather name="chevron-right" size={16} color={palette.checkOff} />
               </Pressable>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -482,8 +499,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  recentTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   recentTitle: { fontSize: 14.5, fontWeight: '700', color: palette.text },
+  shrink: { flexShrink: 1 },
+  talkingBadge: { borderRadius: 9999, backgroundColor: palette.blueSoft, paddingVertical: 2, paddingHorizontal: 8 },
+  talkingBadgeText: { fontSize: 11, fontWeight: '800', color: palette.blueDeep },
   recentMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   recentDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.blue },
   recentMetaText: { fontSize: 12, fontWeight: '500', color: palette.textFaint },

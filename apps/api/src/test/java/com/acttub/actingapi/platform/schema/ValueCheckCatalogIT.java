@@ -66,6 +66,9 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_reading_sessions_mode", ReadingMode.class);
         BY_CONSTRAINT.put("ck_reading_sessions_status", ReadingSessionStatus.class);
         BY_CONSTRAINT.put("ck_script_lines_kind", ScriptLineKind.class);
+        // 배역의 성별·나이대(V42, SOMA-670). 값 이름은 API 값이자 나누기 모델이 답하는 글자다.
+        BY_CONSTRAINT.put("ck_script_characters_gender", CharacterGender.class);
+        BY_CONSTRAINT.put("ck_script_characters_age_band", CharacterAgeBand.class);
         BY_CONSTRAINT.put("ck_scripts_source", ScriptSource.class);
         // 나누기 요청(V33). 입력 경로는 대본과 같은 목록이고 실패 종류는 API 값이다.
         BY_CONSTRAINT.put("ck_script_imports_source", ScriptSource.class);

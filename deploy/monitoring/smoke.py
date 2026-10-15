@@ -80,6 +80,9 @@ def main():
         directory = app_dirs[env]
         directory.mkdir()
         shutil.copyfile(REPO / "deploy/home/compose.yml", directory / "compose.yml")
+        # Mirror the server project directory: deploy.yml ships the front proxy config next to compose.yml.
+        (directory / "proxy").mkdir()
+        shutil.copyfile(REPO / "deploy/home/proxy/nginx.conf", directory / "proxy/nginx.conf")
         required = ["POSTGRES_PASSWORD", "JWT_SECRET", "ACCOUNT_IDENTITY_HASH_KEY", "ACCOUNT_TOKEN_ENCRYPTION_KEY", "SITE_URL",
                     "ADMIN_OPS_TOKEN", "GEMINI_API_KEY", "OPENAI_API_KEY",
                     "S3_BUCKET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "TUNNEL_TOKEN"]

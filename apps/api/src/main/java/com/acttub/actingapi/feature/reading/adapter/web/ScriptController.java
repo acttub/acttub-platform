@@ -12,12 +12,14 @@ import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.CreateRequest
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LastSessionResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineInput;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineKindInput;
+import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LinePatchRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.ListResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.PatchRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.SceneResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.ScriptResponse;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository.CharacterPatch;
+import com.acttub.actingapi.feature.reading.app.ScriptRepository.LinePatch;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
 import com.acttub.actingapi.feature.reading.app.ScriptViews;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
@@ -138,7 +140,7 @@ class ScriptController {
     @Operation(
             summary = "Update Script",
             description = """
-                    제목과 배역의 이름·목소리만 고친다. 줄은 불변이다. 이름은 앞뒤 공백을 정리하고 비어 있거나 같은
+                    제목과 배역의 이름·목소리만 고친다. 줄은 받지 않는다(줄은 /lines/{line_id} 로 고친다). 이름은 앞뒤 공백을 정리하고 비어 있거나 같은
                     대본 안에서 겹치면 422 invalid_characters. voice_preset 은 키가 있을 때만 바꾸며 null 은 "자동"이다.""",
             operationId = "update_script_v2_reading_scripts__script_id__patch",
             tags = "v2-reading",
@@ -169,6 +171,44 @@ class ScriptController {
             }
         }
         return script(scripts.update(user.id(), scriptId, body.title(), patches));
+    }
+
+    @Operation(
+            summary = "Update Script Line",
+            description = """
+                    줄 하나의 종류·배역·글을 고친다(나누기가 틀린 줄을 바로잡는다). 줄 id·순서는 그대로라 회차·녹음·외운 줄의
+                    연결이 남는다. 대사면 이 대본의 배역이 있어야 하고 지문·장면이면 배역이 없다 — 어기면 422 invalid_line.
+                    대사가 아니게 바꾸면 배역은 저절로 빠진다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404
+                    script_not_found. 고친 대본 전체를 돌려준다.""",
+            operationId = "update_script_line_v2_reading_scripts__script_id__lines__line_id__patch",
+            tags = "v2-reading",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = ScriptResponse.class)))
+    @ApiResponse(
+            responseCode = "422",
+            description = "Validation Error",
+            content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    @PatchMapping("/{script_id}/lines/{line_id}")
+    ScriptResponse updateLine(
+            @PathVariable("script_id") UUID scriptId,
+            @PathVariable("line_id") UUID lineId,
+            @Valid @RequestBody LinePatchRequest body,
+            HttpServletRequest request) {
+        AuthenticatedUser user = auth.gatedUser(request);
+        String text = body.text() == null ? null : body.text().strip();
+        if (text != null && text.isEmpty()) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "text"), "Value error, text must not be blank", body.text());
+        }
+        if (text != null && text.codePointCount(0, text.length()) > 5000) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "text"), "Value error, text must be at most 5000 characters", body.text());
+        }
+        LinePatch patch = new LinePatch(body.kind() == null ? null : body.kind().name(), body.characterId(), text);
+        return script(scripts.editLine(user.id(), scriptId, lineId, patch));
     }
 
     @Operation(
@@ -236,7 +276,7 @@ class ScriptController {
                 view.source(),
                 view.characters().stream().map(character -> new CharacterResponse(
                         character.id(), character.name(), character.order(), character.voicePreset(),
-                        character.voice(), character.dialogueCount())).toList(),
+                        character.voice(), character.gender(), character.ageBand(), character.dialogueCount())).toList(),
                 view.lines().stream().map(line -> new LineResponse(
                         line.id(), line.ordinal(), line.kind(), line.characterId(), line.text(), line.dialogueNo()))
                         .toList(),

@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,20 +11,25 @@ import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
 import { noteFallbackNotice, noteKindLabel, noteTitle, readOptionalPracticeNote } from '@/lib/practice/note';
+import { continueActionFor, continueActionLabel } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
-import type { PracticeDetail, PracticeNote } from '@/lib/practice/types';
+import type { PracticeDetail, PracticeGroupDetail, PracticeNote } from '@/lib/practice/types';
 
 /**
  * A12 지난 연습 노트 — 기록에서 회차를 누르면 열린다.
  *
- * 회차 id 로 노트를 읽는다(practice.note). 영상이 파기된 뒤에도 노트는 열린다. 여기서 이어가면
- * 같은 영상으로 같은 묶음의 다음 회차를 만들고, 장면은 비운 채 시작한다(practice.resume).
+ * 회차 id 로 노트를 읽는다(practice.note). 영상이 파기된 뒤에도 노트는 열린다. 묶음에 열린 테이크가 있으면
+ * 「대화 이어 가기」로 그 대화에 돌아가고, 없으면 「다음 테이크 찍기」로 같은 묶음의 다음 회차를 만든다 —
+ * 영상은 새로 고르고 장면은 비운 채 시작한다(practice.resume, SOMA-672).
  */
 export default function ReportDetailScreen() {
   const router = useRouter();
   const { practiceId } = useLocalSearchParams<{ practiceId?: string }>();
   const [note, setNote] = useState<PracticeNote | null>(null);
   const [practice, setPractice] = useState<PracticeDetail | null>(null);
+  // 열린 테이크가 있는지 보려고 묶음을 읽는다. 못 읽으면 「다음 테이크 찍기」이고, 그때 열린 테이크가 있으면
+  // 준비 화면이 409 로 그 대화에 돌려보낸다.
+  const [group, setGroup] = useState<Pick<PracticeGroupDetail, 'in_progress_practice_id'> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { alert, dialog } = useAppDialog();
@@ -61,15 +66,37 @@ export default function ReportDetailScreen() {
     return () => { loadRevision.current += 1; };
   }, [load]);
 
-  /** 같은 묶음의 다음 회차로. 그 회차의 영상을 그대로 쓴다. */
+  // 대화를 마치고 돌아오면 버튼이 바뀌어야 하므로 포커스마다 다시 읽는다.
+  const rootId = practice?.root_id;
+  useFocusEffect(
+    useCallback(() => {
+      if (!rootId) return;
+      let alive = true;
+      api
+        .getPracticeGroup(rootId)
+        .then((loaded) => {
+          if (alive) setGroup(loaded);
+        })
+        .catch(() => undefined);
+      return () => {
+        alive = false;
+      };
+    }, [rootId]),
+  );
+
+  const action = continueActionFor(group);
+
+  /** 열린 테이크면 그 대화로, 아니면 같은 묶음의 다음 회차로(영상은 새로 고른다). */
   const continuePractice = () => {
-    if (!practice) {
-      void alert({ title: t('history.continueCta'), message: t('note.loadFail') });
+    if (action.kind === 'resume') {
+      router.push({ pathname: '/analyzing', params: { practiceId: action.practiceId } });
       return;
     }
-    setContinueOrigin(practice.video_id
-      ? { kind: 'history', rootId: practice.root_id, practiceId: practice.id, videoId: practice.video_id }
-      : { kind: 'group', rootId: practice.root_id, practiceId: practice.id });
+    if (!practice) {
+      void alert({ title: t(continueActionLabel(action)), message: t('note.loadFail') });
+      return;
+    }
+    setContinueOrigin({ kind: 'group', rootId: practice.root_id, practiceId: practice.id });
     router.push('/upload');
   };
 
@@ -105,7 +132,7 @@ export default function ReportDetailScreen() {
           {practiceId && <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} />}
 
           <Pressable style={styles.primary} onPress={continuePractice} accessibilityRole="button">
-            <Text style={styles.primaryText}>{t('history.continueCta')}</Text>
+            <Text style={styles.primaryText}>{t(continueActionLabel(action))}</Text>
           </Pressable>
         </ScrollView>
       )}

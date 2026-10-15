@@ -365,3 +365,16 @@ test('reading.script(R2.7): 대본이 된 원본을 플래그 없이 다시 보�
   assert.deepEqual(calls, [['complete', 'up-1'], ['import', 'up-1', 'rid-1']]);
   assert.deepEqual(uploaded, []);
 });
+
+test('reading.script(SOMA-669): 배우가 적은 제목은 앞뒤 공백을 떼고 나누기 요청에 싣고, 비우면 싣지 않는다(서버가 정한다)', () => {
+  assert.equal(importBody(TEXT, { title: '  옥상, 밤 (2차)  ' }, 'r').title, '옥상, 밤 (2차)');
+  assert.ok(!('title' in importBody(TEXT, { title: '   ' }, 'r')));
+  assert.ok(!('title' in importBody(TEXT, {}, 'r')));
+  const file = { kind: 'file', file: { uri: 'f', name: 'a.pdf', size: 1 }, uploadId: 'up-1' };
+  assert.equal(importBody(file, { title: '햄릿' }, 'r').title, '햄릿');
+  assert.equal(importBody(TEXT, { title: 'x'.repeat(250) }, 'r').title.length, 200, '서버 한도(200자)로 자른다');
+});
+
+test('reading.script(SOMA-669): 다시 보낼 때(R2.7·R2.8)도 배우가 적은 제목을 지킨다', () => {
+  assert.deepEqual({ ...{ title: '햄릿' }, ...retryFlags({ kind: 'duplicate', scriptId: 's' }) }, { title: '햄릿', allowDuplicate: true });
+});

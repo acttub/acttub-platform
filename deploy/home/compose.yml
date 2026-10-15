@@ -11,7 +11,10 @@
 # (2) 컨테이너 환경은 아래 env_file 이 넣는다. 배포 스크립트·smoke.sh 가 이 규칙을 지킨다.
 #
 # 호스트 포트를 publish 하지 않는다 — 서버의 8080 은 다른 서비스(acttub-rag)가 쓰고, 노출은
-# 같은 네트워크의 cloudflared 가 web:3000 으로 직접 간다. 확인은 컨테이너 안에서 curl(api)·node fetch(web).
+# cloudflared → proxy → web 길뿐이다. 확인은 컨테이너 안에서 curl(api)·node fetch(web)·wget(proxy).
+#
+# 요청 길: cloudflared →(이름 web) proxy:3000 → web →(이름 api) proxy:8080 → api → db. proxy(nginx)는 배포 때
+# 다시 만들지 않고, deploy.sh 가 새 web·api 를 옛 것 옆에 띄운 뒤 proxy 를 reload 해 넘긴다(SOMA-700, 무중단).
 #
 # 조각 01 이 api·db, 02 가 web, 03 이 cloudflared(edge 프로필), 07 이 backup 프로필을 붙였다.
 
@@ -91,6 +94,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 120s
+    # Spring Boot 의 graceful shutdown 은 단계마다 30초까지 기다린다. Docker 기본(10초)이면 그 전에 SIGKILL 이다.
+    stop_grace_period: 40s
     # 호스트 메모리가 바닥나면 커널이 점수 높은 프로세스부터 죽인다. 같은 박스의 다른 스택보다
     # 늦게 죽도록 낮추되, 데이터를 쥔 db 보다는 먼저다.
     oom_score_adj: -500
@@ -132,11 +137,15 @@ services:
   web:
     image: ${WEB_IMAGE:?release.env 의 WEB_IMAGE 가 없다 — --env-file release.env 를 넘겼는지 확인}
     restart: unless-stopped
-    # 웹의 /v2/*·/health 는 rewrites 가 http://api:8080 으로 넘긴다(이미지에 굳은 API_ORIGIN).
-    # api 가 healthy 가 된 뒤에 뜨게 해 첫 요청부터 502 가 아니게 한다.
+    # 웹의 /v2/*·/health 는 rewrites 가 http://api:8080 으로 넘긴다(이미지에 굳은 API_ORIGIN). front 망에서 그 이름은
+    # proxy 가 받아 지금 판의 api 로 넘긴다. api·proxy 가 healthy 가 된 뒤에 뜨게 해 첫 요청부터 502 가 아니게 한다.
     depends_on:
       api:
         condition: service_healthy
+      proxy:
+        condition: service_healthy
+    # front 망에만 둔다 — 진짜 api 컨테이너와 같은 망에 있으면 api 가 둘로 풀려 proxy 를 건너뛴다(proxy 주석).
+    networks: [front]
     # env_file 을 일부러 두지 않는다. 웹 설정은 전부 이미지에 굳어 있어(API_ORIGIN·NEXT_PUBLIC_*,
     # apps/web/Dockerfile) 런타임 env 가 필요 없고, .env 의 시크릿이 웹 컨테이너로 흘러갈 이유도 없다.
     # PORT=3000·HOSTNAME=0.0.0.0 은 이미지가 정한다.
@@ -155,11 +164,43 @@ services:
           memory: ${WEB_MEM_LIMIT:-512m}
     logging: *logging
 
+  # 앞단 프록시(SOMA-700, proxy/nginx.conf). 배포는 이것을 다시 만들지 않고 reload 만 한다 — 터널과 web 이 붙는 상대가
+  # 배포 중에도 그대로라 끊기지 않는다. 넘겨줄 지금 판의 컨테이너는 deploy.sh 가 proxy/active.conf 에 쓴다.
+  # 이미지·망 설정을 바꾸면 이 컨테이너가 다시 만들어지며 그동안은 끊긴다.
+  proxy:
+    image: nginx:1.30.5-alpine
+    restart: unless-stopped
+    command: ["nginx", "-c", "/etc/nginx/acttub/nginx.conf", "-g", "daemon off;"]
+    volumes:
+      # 디렉토리째 붙인다. 파일 하나만 바인드하면 tar·mv 로 바뀐 파일을 컨테이너가 못 본다(바인드가 옛 inode 를 잡는다).
+      - ./proxy:/etc/nginx/acttub:ro
+    # 망 별칭으로 이름을 받는다: 터널이 부르는 web(edge 망)과 웹이 부르는 api(front 망)가 이 프록시다. 그래서
+    # Cloudflare 대시보드의 http://web:3000 과 웹 이미지에 굳은 http://api:8080 을 바꾸지 않는다. 진짜 web 은 front 에만,
+    # cloudflared 는 edge 에만 둔다 — 한 망에 진짜 컨테이너와 별칭이 같이 있으면 이름이 둘로 풀려 proxy 를 건너뛴다
+    # (smoke.sh 가 망마다 하나로만 풀리는지 본다). proxy 는 지금 판을 컨테이너 이름으로 부르므로 별칭과 섞이지 않는다.
+    networks:
+      default: {}
+      front:
+        aliases: [api]
+      edge:
+        aliases: [web]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    logging: *logging
+
   # ── 프로필 서비스 — .env 의 COMPOSE_PROFILES(edge,backup)가 켠다. CI 스모크의 테스트용 .env 에는 그 줄이
-  # 없어 아래는 뜨지 않고 web·api·db 만 돈다(deploy/home/smoke.sh).
+  # 없어 아래는 뜨지 않고 web·api·db·proxy 만 돈다(deploy/home/smoke.sh).
   cloudflared:
-    # 노출은 이것뿐이다 — Cloudflare Tunnel 이 밖에서 들어와 같은 네트워크의 web:3000 으로 간다(호스트 포트
-    # 없음). 호스트명 → http://web:3000 연결은 Cloudflare 대시보드(터널 설정)에 있어 compose 에는 없다.
+    # 노출은 이것뿐이다 — Cloudflare Tunnel 이 밖에서 들어와 web:3000 으로 간다(호스트 포트 없음). edge 망에서 그 이름은
+    # proxy 다(proxy 주석). 호스트명 → http://web:3000 연결은 Cloudflare 대시보드(터널 설정)에 있어 compose 에는 없다.
     # 버전을 고정한다 — latest 는 재생성 때 조용히 바뀐다. 올릴 때는 여기와 서버의 pull 이 같이 간다.
     image: cloudflare/cloudflared:2026.8.3
     profiles: [edge]
@@ -174,8 +215,12 @@ services:
       # unhealthy 로 둔다. 어느 쪽이든 deploy.sh 의 --wait 가 빨강이다.
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:?.env 의 TUNNEL_TOKEN 이 없다 (Cloudflare Zero Trust 터널 토큰)}
     depends_on:
+      proxy:
+        condition: service_healthy
       web:
         condition: service_healthy
+    # edge 망에만 둔다 — 그 망의 web 은 proxy 하나뿐이다(proxy 주석).
+    networks: [edge]
     healthcheck:
       # 이미지에 curl 이 없다. `cloudflared tunnel ready` 가 /ready 를 부르고 엣지에 연결된 뒤에야 0 을 준다 —
       # 밖으로 못 나가면 unhealthy 라 deploy.sh 의 --wait 가 빨강이 된다. 그래서 Cloudflare 쪽 장애 중에도 배포가
@@ -236,6 +281,10 @@ volumes:
 
 networks:
   default: {}
+  # 망 별칭(proxy 주석)을 위해 나눈 망. web 은 front 에만, cloudflared 는 edge 에만 참가한다. 둘 다 밖으로 나가는
+  # 연결(Sentry·Cloudflare)이 필요해 internal 이 아니다.
+  front: {}
+  edge: {}
   # 앱이 소유한다. 별도 모니터링 프로젝트가 없어도 앱 배포는 이 망을 직접 만든다.
   # API만 참가하며 외부 호출은 기존 default 망을 쓴다.
   scrape:
