@@ -1165,6 +1165,13 @@ class DirectVideoCoachTest {
         assertThat(ContinuedTake.sameScene(List.of(), List.of("이제 포기할래요"))).isFalse();
         assertThat(ContinuedTake.sameScene(previous, List.of())).isFalse();
         assertThat(ContinuedTake.sameScene(List.of("아버지"), List.of("아버지 왜 그러세요"))).isFalse();
+        // 셀프테이프 인사·자기소개만 겹치면 다른 장면이다.
+        var slateA = List.of("안녕하세요.", "저는 고양예술고등학교 2학년 윤진혁입니다.", "준비하겠습니다.", "세상 사람들의 마음이 무언지 저는 모릅니다.", "감사합니다.");
+        var slateB = List.of("안녕하세요.", "저는 고양예술고등학교 2학년 윤진혁입니다.", "준비하겠습니다.", "야! 적당히 좀 해라.", "이상입니다. 감사합니다.");
+        assertThat(ContinuedTake.sameScene(slateA, slateB)).isFalse();
+        assertThat(ContinuedTake.sameScene(slateA, List.of("안녕하세요.", "세상 사람들의 마음이 무언지 저는 모릅니다."))).isTrue();
+        // 긴 독백끼리 짧게 우연히 겹치는 말("하지 않았어요")은 같은 장면이 아니다.
+        assertThat(ContinuedTake.sameScene(List.of("그때 나는 아무 말도 하지 않았어요"), List.of("엄마는 끝내 나를 찾지 않았어요"))).isFalse();
         assertThat(ContinuedTake.parseHeardLines("없음")).isEmpty();
         assertThat(ContinuedTake.parseHeardLines(null)).isEmpty();
         assertThat(ContinuedTake.parseHeardLines("1. \"이제 포기할래요\"\n- 그만두겠어요")).containsExactly("이제 포기할래요", "그만두겠어요");

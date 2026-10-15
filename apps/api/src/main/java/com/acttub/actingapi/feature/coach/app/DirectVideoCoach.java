@@ -180,6 +180,10 @@ public final class DirectVideoCoach {
                 history.addAll(DirectVideoPracticeLoop.history(session.turns(), state, actorText));
             }
             String task;
+            // 이어서 찍은 회차의 같은 장면 판단(받아 적기)과 지난 시도 첫 답을 기본 첫 답과 함께 돌린다(아래).
+            String continuationBlock = null;
+            PriorContext continuationPrior = null;
+            java.util.concurrent.CompletableFuture<String> heardFuture = null;
             if (branch != null) {
                 route = "practice_loop:" + branch.doing();
                 java.util.Locale language = DirectVideoPracticeLoop.replyLanguage(session, actorText);
@@ -199,25 +203,23 @@ public final class DirectVideoCoach {
                 // 이어서 찍은 회차면 이번 영상 대사를 지난 정보 없이 따로 받아 적고, 지난 회차 대사가 다시 들렸을 때만
                 // (같은 장면) 첫 질문 대신 지난 시도부터 묻는다. 받아 적기가 실패하거나 겹치지 않으면 지금 그대로다.
                 // 개인 프롬프트의 첫 질문 모양보다 먼저라 그 뒤에 붙인다.
-                String continuation = "";
                 PriorContext prior = session.priorForModel();
                 if (prior.earlierConversation() != null && !prior.previousLines().isEmpty()
                         && !Boolean.FALSE.equals(uploaded.hasAudioTrack())) {
-                    String heardReply = null;
-                    try {
-                        ExternalOperationExecution.externalCall("model");
-                        heardReply = model.reply(uploaded, java.util.List.of(), ContinuedTake.heardLinesPrompt());
-                    } catch (RuntimeException transcriptionFailed) {
-                        heardReply = null;
-                    }
-                    java.util.List<String> heard = ContinuedTake.parseHeardLines(heardReply);
-                    ContinuedTake.remember(state, heard);
-                    if (ContinuedTake.sameScene(prior.previousLines(), heard)) {
-                        continuation = DirectVideoPrompts.continuation(prior, language);
-                    }
+                    continuationPrior = prior;
+                    continuationBlock = DirectVideoPrompts.continuation(prior, language);
+                    final DirectVideoModel.Video heardVideo = uploaded;
+                    Runnable heardCall = ExternalOperationExecution.observeCall("model");
+                    heardFuture = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                        heardCall.run();
+                        try {
+                            return model.reply(heardVideo, java.util.List.of(), ContinuedTake.heardLinesPrompt());
+                        } catch (RuntimeException transcriptionFailed) {
+                            return null;
+                        }
+                    }, SIDE_CALLS);
                 }
-                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language) + personaBlock(persona, language)
-                        + continuation;
+                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language) + personaBlock(persona, language);
                 // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop", DirectVideoPrompts.practiceLoop())
@@ -235,6 +237,25 @@ public final class DirectVideoCoach {
                     + CoachPrompt.priorContextBlock(session.priorForModel().withoutCoachGuesses(), true, false)
                     + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + task, uploaded);
             input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
+            // 이어서 찍은 회차: 받아 적기와 "지난 시도부터 묻는 첫 답"을 기본 첫 답과 동시에 돌린다. 받아 적기로 같은 장면이
+            // 확인될 때만 그 답을 쓴다. 차례로 돌리면 첫 답이 15초쯤 늦어져서(2026-10-15 로컬 재생) 기다리는 시간을 늘리지 않는다.
+            String continuedPrompt = continuationBlock == null ? null : prompt + continuationBlock;
+            java.util.concurrent.CompletableFuture<String> continuedFuture = null;
+            if (continuedPrompt != null) {
+                final DirectVideoModel speakerFinal = speaker;
+                final DirectVideoModel.Video continuedVideo = uploaded;
+                final java.util.List<DirectVideoModel.Message> continuedHistory = java.util.List.copyOf(history);
+                final boolean loopFinal = loop;
+                Runnable continuedCall = ExternalOperationExecution.observeCall("model");
+                continuedFuture = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                    continuedCall.run();
+                    try {
+                        return replyOrNull(speakerFinal, continuedVideo, continuedHistory, continuedPrompt, loopFinal);
+                    } catch (RuntimeException continuedFailed) {
+                        return null;
+                    }
+                }, SIDE_CALLS);
+            }
             ExternalOperationExecution.externalCall("model");
             String message = replyOrNull(speaker, uploaded, history, prompt, loop);
             // 연습 루프에서 배우에게 보일 말이 비었으면(빈 응답, 숨은 메모만 쓴 응답) 한 번 다시 쓰게 한다.
@@ -266,6 +287,19 @@ public final class DirectVideoCoach {
                 message = replyOrNull(model, uploaded, history, prompt, loop);
                 if (message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
                     message = null;
+                }
+            }
+            if (heardFuture != null) {
+                java.util.List<String> heard = ContinuedTake.parseHeardLines(awaitSide(heardFuture, SIDE_WAIT_SECONDS));
+                ContinuedTake.remember(state, heard);
+                String continued = ContinuedTake.sameScene(continuationPrior.previousLines(), heard)
+                        ? awaitSide(continuedFuture, SIDE_WAIT_SECONDS) : null;
+                if (continuedFuture != null && continued == null) continuedFuture.cancel(true);
+                if (continued != null && !DirectVideoPracticeLoop.parse(continued).message().isBlank()
+                        && !DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(continued).message(), replyLanguage)) {
+                    message = continued;
+                    prompt = continuedPrompt;
+                    input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
                 }
             }
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");
@@ -428,6 +462,25 @@ public final class DirectVideoCoach {
 
     private DirectVideoModel coachModel(String arm) {
         return "b".equals(arm) && alternate != null ? alternate : model;
+    }
+
+    /** 이어서 찍은 회차의 받아 적기·두 번째 첫 답을 돌리는 곳. 요청 스레드를 막지 않게 가상 스레드를 쓴다. */
+    private static final java.util.concurrent.ExecutorService SIDE_CALLS = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+    /** 기본 첫 답이 나온 뒤 곁가지 호출을 더 기다리는 최대 시간. 넘으면 기본 첫 답을 쓴다. */
+    static final long SIDE_WAIT_SECONDS = 15;
+
+    private static String awaitSide(java.util.concurrent.Future<String> future, long seconds) {
+        if (future == null) return null;
+        try {
+            return future.get(seconds, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            return null;
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException notReady) {
+            future.cancel(true);
+            return null;
+        }
     }
 
     private static String personaBlock(String persona, java.util.Locale language) {

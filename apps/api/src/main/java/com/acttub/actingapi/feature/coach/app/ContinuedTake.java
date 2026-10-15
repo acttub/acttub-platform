@@ -21,8 +21,15 @@ public final class ContinuedTake {
     static final String HEARD_KEY = "heard_lines";
     /** 지난 대사가 이번 대사 안에 그대로 들어 있다고 볼 최소 글자 수(공백·부호 뺀 뒤). "포기할래요"가 5자다. */
     static final int MIN_LINE = 5;
-    /** 서로 다른 말끼리 우연히 겹치는 것을 막는 공통 구간 최소 길이. */
-    static final int MIN_COMMON = 6;
+    /** 줄 단위로는 안 맞아도 같은 대사로 볼 공통 구간 최소 길이. 긴 독백끼리 우연히 겹치지 않게 넉넉히 둔다. */
+    static final int MIN_COMMON = 10;
+    /**
+     * 장면과 상관없이 셀프테이프 앞뒤에 붙는 말(인사·자기소개·시작/끝 알림). 이 말이 든 줄은 비교에서 뺀다 —
+     * 같은 배우가 다른 장면을 찍어도 "안녕하세요", "감사합니다"는 겹친다(2026-10-15 리뷰).
+     */
+    private static final List<String> SLATE = List.of("안녕하세요", "감사합니다", "고맙습니다", "준비하겠습니다", "준비됐습니다",
+            "시작하겠습니다", "시작할게요", "이상입니다", "마치겠습니다", "보여드릴", "보여드리겠습니다", "잘부탁드립니다",
+            "재학중", "지원자", "액션", "컷");
     /** 받아 적는 최대 줄 수. 지난 회차 대사가 장면 끝에 있어도 닿게 넉넉히 둔다(2026-10-15 재생: 8줄이면 끝 대사를 놓쳤다). */
     static final int MAX_LINES = 30;
     private static final Pattern QUOTED = Pattern.compile("\"([^\"]+)\"|“([^”]+)”");
@@ -88,8 +95,9 @@ public final class ContinuedTake {
     }
 
     /** 지난 회차 대사가 이번 테이크에서 다시 들렸으면 같은 장면이다. 어느 쪽이든 비면 다른 장면으로 본다. */
-    static boolean sameScene(List<String> previous, List<String> heard) {
-        if (previous == null || heard == null || previous.isEmpty() || heard.isEmpty()) return false;
+    static boolean sameScene(List<String> previousRaw, List<String> heardRaw) {
+        List<String> previous = scene(previousRaw), heard = scene(heardRaw);
+        if (previous.isEmpty() || heard.isEmpty()) return false;
         String heardAll = normalized(String.join(" ", heard));
         String previousAll = normalized(String.join(" ", previous));
         for (String line : previous) {
@@ -101,6 +109,20 @@ public final class ContinuedTake {
             if (value.length() >= MIN_LINE && previousAll.contains(value)) return true;
         }
         return longestCommon(previousAll, heardAll) >= MIN_COMMON;
+    }
+
+    /** 셀프테이프 인사·자기소개 줄과 짧은 줄을 뺀 장면 대사. */
+    static List<String> scene(List<String> lines) {
+        List<String> kept = new ArrayList<>();
+        if (lines == null) return kept;
+        for (String line : lines) {
+            String value = normalized(line);
+            if (value.length() < 2) continue;
+            if (SLATE.stream().anyMatch(value::contains)) continue;
+            if (value.startsWith("저는") && value.endsWith("입니다")) continue;
+            kept.add(line);
+        }
+        return kept;
     }
 
     static String normalized(String text) {
