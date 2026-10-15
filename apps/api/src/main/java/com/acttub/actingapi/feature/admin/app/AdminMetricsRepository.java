@@ -119,6 +119,7 @@ public interface AdminMetricsRepository {
             String characterContext,
             String goal,
             List<AdminMetrics.AdminTurn> turns,
-            String objectKey) {
+            String objectKey,
+            String coachFlow) {
     }
 }
