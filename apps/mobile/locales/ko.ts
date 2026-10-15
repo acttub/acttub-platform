@@ -1154,6 +1154,7 @@ const ko = {
     yesterday: '어제',
     untitled: '제목 없는 대본',
     next: '다음',
+    prev: '이전 대사',
     maskNone: '모든 대사 보기',
     maskMine: '내 대사만 가리기',
     maskAll: '모든 대사 가리기',
