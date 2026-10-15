@@ -91,6 +91,8 @@ final class DirectVideoPracticeLoop {
 
     /** 코치 말이 길다고 보는 글자 수(공백 포함). 목표는 50자 안쪽이고 이보다 길면 줄이기 호출을 한다. */
     static final int LONG_REPLY = 60;
+    /** 배우가 이유·방법·예시·설명·피드백을 달라고 했을 때의 길이. 이때는 50자에 맞추려고 답을 줄이지 않는다. */
+    static final int EXPLAIN_REPLY = 120;
 
     /** 화면에 보이는 글자 수. 줄바꿈과 이어진 공백은 한 칸으로 센다. */
     static int displayLength(String text) {
@@ -422,6 +424,16 @@ final class DirectVideoPracticeLoop {
     static void rememberPersona(ObjectNode state, String persona) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
         if (loop.path("persona").asText("").isEmpty()) loop.put("persona", persona);
+    }
+
+    /** 이 대화의 코치 흐름(SOMA-636 A/B). "a"는 지금 흐름, "b"는 세 단계 흐름. 없으면 빈 문자열(배포 전 대화). */
+    static String storedFlow(JsonNode state) {
+        return state == null ? "" : state.path(STATE_KEY).path("flow").asText("");
+    }
+
+    static void rememberFlow(ObjectNode state, String flow) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        if (loop.path("flow").asText("").isEmpty()) loop.put("flow", flow);
     }
 
     /** 이 대화의 코치 모델 쪽(SOMA-657). "a"는 기본 모델, "b"는 비교 모델. 없으면 빈 문자열. */
