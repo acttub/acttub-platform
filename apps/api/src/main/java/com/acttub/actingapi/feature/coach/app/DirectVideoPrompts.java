@@ -63,6 +63,27 @@ final class DirectVideoPrompts {
         for (int k = 0; k < at.size(); k++) lines.set(at.get(k), picked.get(k));
         return String.join("\n", lines);
     }
+    /**
+     * 같은 장면을 이어서 찍은 회차의 첫 응답에 붙이는 지시. 지난 회차가 없으면 빈 문자열이다.
+     *
+     * <p>2026-10-14 23:17 운영(자문 최윤희 2차): 1차 끝에서 배우가 "초반부터 한번 웃어볼게"라고 정했고 코치도
+     * 2차 영상의 미소를 <설계>에 적었다. 그런데 첫 응답은 1단계 첫 질문(1차와 글자까지 같은 질문)으로 다시 시작했고,
+     * 배우는 "이거 아까 답변했던 건데"라고 했다. 지난 맥락은 앞쪽 "배우에 대해 지금까지 알고 있는 것"에도 있지만
+     * 그 칸은 1,200자에서 잘리고 맨 뒤가 대화 발췌라, 지난 시도를 여기서 잘리지 않게 한 번 더 붙인다.
+     */
+    static String continuation(PriorContext prior, java.util.Locale language) {
+        if (prior == null || prior.earlierConversation() == null || prior.earlierConversation().isBlank()) return "";
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        var text = new StringBuilder("\n\n").append(resource(korean ? "practice-loop-continue" : "practice-loop-continue.en"));
+        if (!prior.sceneHistory().isEmpty()) {
+            text.append(korean ? "\n\n### 지난 회차 요약\n- " : "\n\n### Previous round summary\n- ")
+                    .append(prior.sceneHistory().getLast());
+        }
+        text.append(korean ? "\n\n### 지난 회차 마지막 대화\n" : "\n\n### Last exchange from the previous round\n")
+                .append(prior.earlierConversation());
+        return text.toString();
+    }
+
     /** 긴 코치 말을 줄이기만 하는 지시. 한국어가 아니면 그 말로 줄이라는 말을 덧붙인다. */
     static String practiceLoopShorten(java.util.Locale language) {
         String base = resource("practice-loop-shorten");

@@ -20,7 +20,10 @@ public record PriorContext(
         List<String> pendingTakes,
         // 이어한 묶음(부모+자식들)에서 차수별 카드 한 줄 요약. 직전 대화 6턴만으로는
         // 3~4차째에 처음 찾은 것을 잃는다 — 카드는 이미 요약이라 모델 호출 없이 조립한다.
-        List<String> sceneHistory) {
+        List<String> sceneHistory,
+        // 같은 묶음 앞선 회차에서 실제로 들린 대사. 이어서 찍은 테이크가 같은 장면인지 코드가 비교하는 데만 쓴다
+        // (SOMA-636). 모델에게 직접 넘기지 않는다 — 지난 대사를 보여 주면 모델이 이번 영상에서도 들었다고 지어낸다.
+        @com.fasterxml.jackson.annotation.JsonIgnore List<String> previousLines) {
 
     public static final PriorContext EMPTY =
             new PriorContext(Map.of(), null, true, List.of(), List.of());
@@ -29,6 +32,12 @@ public record PriorContext(
         memory = Map.copyOf(new LinkedHashMap<>(memory));
         pendingTakes = List.copyOf(pendingTakes);
         sceneHistory = List.copyOf(sceneHistory);
+        previousLines = previousLines == null ? List.of() : List.copyOf(previousLines);
+    }
+
+    public PriorContext(Map<String, String> memory, String earlierConversation, boolean fromSamePractice,
+            List<String> pendingTakes, List<String> sceneHistory) {
+        this(memory, earlierConversation, fromSamePractice, pendingTakes, sceneHistory, List.of());
     }
 
     /**
@@ -42,7 +51,7 @@ public record PriorContext(
         Map<String, String> kept = new LinkedHashMap<>(memory);
         kept.remove("gender");
         kept.remove("age");
-        return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory);
+        return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory, previousLines);
     }
 
     /**
@@ -59,7 +68,7 @@ public record PriorContext(
         kept.remove("blockage");
         kept.remove("speech_self");
         kept.remove("speech_actual");
-        return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory);
+        return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory, previousLines);
     }
 
     public boolean isEmpty() {

@@ -224,7 +224,10 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 .setParameter("practiceId", practiceId).setParameter("userId", userId));
         List<String> history = new ArrayList<>();
         List<String> pending = List.of();
+        List<String> previousLines = new ArrayList<>();
         for (Tuple round : rounds) {
+            previousLines.addAll(com.acttub.actingapi.feature.coach.app.ContinuedTake.linesFromState(
+                    round.get("state", String.class)));
             String format = round.get("format", String.class);
             if (format == null) {
                 continue;
@@ -253,7 +256,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
             }
         }
         String excerpt = rounds.isEmpty() ? null : practiceConversationExcerpt(rounds.getLast().get("conversation_id", UUID.class));
-        return new PriorContext(memory, excerpt, false, pending, history);
+        return new PriorContext(memory, excerpt, false, pending, history, previousLines);
     }
 
     private String loopLine(int ordinal, String title, String suggestion, String stateText, UUID conversationId) {
