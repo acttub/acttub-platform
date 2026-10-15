@@ -9,7 +9,9 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.PendingConsentDocuments;
 import com.acttub.actingapi.feature.profile.domain.Account;
+import com.acttub.actingapi.feature.profile.domain.AirbridgeDevice;
 import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.KoreanAge;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
@@ -19,6 +21,7 @@ import com.acttub.actingapi.integration.airbridge.AirbridgeAttributionClient;
 import com.acttub.actingapi.integration.storage.PhotoUploadType;
 import com.acttub.actingapi.platform.security.ProfileGate;
 import com.acttub.actingapi.platform.web.ApiException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -43,14 +46,20 @@ public class ProfileService implements ProfileGate {
     private final AccountCleanup cleanup;
     private final Clock clock;
     private final AirbridgeAttributionClient airbridge;
+    private final PendingConsentDocuments consents;
+    private final String airbridgeDeviceMinPrivacyVersion;
 
     public ProfileService(
             ProfileRepository profiles,
             ProfilePhotoStorage photos,
             AccountCleanup cleanup,
             Clock clock,
-            AirbridgeAttributionClient airbridge) {
+            AirbridgeAttributionClient airbridge,
+            PendingConsentDocuments consents,
+            @Value("${AIRBRIDGE_DEVICE_MIN_PRIVACY_VERSION:v9}") String airbridgeDeviceMinPrivacyVersion) {
         this.airbridge = airbridge;
+        this.consents = consents;
+        this.airbridgeDeviceMinPrivacyVersion = airbridgeDeviceMinPrivacyVersion;
         this.profiles = profiles;
         this.photos = photos;
         this.cleanup = cleanup;
@@ -93,6 +102,11 @@ public class ProfileService implements ProfileGate {
      * ({@code under_14}), 아니면 가입 중이라 계정을 닫는다({@code under_14_account_closed}).
      */
     public AccountView saveProfile(UUID userId, Profile submitted) {
+        return saveProfile(userId, submitted, null);
+    }
+
+    /** {@code signupClient} 는 가입을 끝낸 클라이언트 판이다. 프로필이 이미 완성돼 있었으면(설정의 수정) 남기지 않는다. */
+    public AccountView saveProfile(UUID userId, Profile submitted, String signupClient) {
         Account before = require(profiles.find(userId));
         if (KoreanAge.underMinimum(submitted.birthDate(), today())) {
             if (before.profileComplete()) {
@@ -107,6 +121,7 @@ public class ProfileService implements ProfileGate {
             throw new ApiException(422, "under_14_account_closed");
         }
         Profile kept = before.profile();
+        String client = before.profileComplete() ? null : signupClient;
         Account saved = profiles.saveProfile(userId, new Profile(
                 submitted.name(),
                 submitted.gender(),
@@ -115,7 +130,7 @@ public class ProfileService implements ProfileGate {
                 submitted.experience(),
                 submitted.goal(),
                 kept == null ? null : kept.photoKey(),
-                submitted.bio()));
+                submitted.bio()), client);
         if (saved == null) {
             throw refused(userId);
         }
@@ -148,8 +163,8 @@ public class ProfileService implements ProfileGate {
      * 가입 계정의 유입 광고를 적는다(SOMA-588). 처음 온 값만 남고 다시 와도 204 다 — 앱이 재시도해도 안전하다.
      * 적을 수 없는 계정(없음·탈퇴)은 다른 회원 자료 쓰기와 같이 거절한다.
      */
-    public void recordSignupAttribution(UUID userId, SignupAttribution attribution) {
-        if (!profiles.recordSignupAttribution(userId, attribution)) {
+    public void recordSignupAttribution(UUID userId, SignupAttribution attribution, String recordedVia) {
+        if (!profiles.recordSignupAttribution(userId, attribution, recordedVia)) {
             throw refused(userId);
         }
     }
@@ -159,12 +174,23 @@ public class ProfileService implements ProfileGate {
      * 가져오는 기능이 꺼져 있으면(API 토큰 없음) 기기 ID 를 받아 두지 않고 204 로 끝낸다. 적을 수 없는 계정은 거절한다.
      */
     public void recordAirbridgeDevice(UUID userId, String platform, String deviceUuid) {
-        if (!airbridge.enabled()) {
+        if (!airbridge.enabled() || !deviceConsentPublished()) {
             return;
         }
         if (!profiles.recordAirbridgeDevice(userId, platform, deviceUuid)) {
             throw refused(userId);
         }
+    }
+
+    /**
+     * 기기 ID 를 받는다는 내용이 담긴 개인정보 수집·이용 동의 판이 현재 판인가. 현재 판은 동의 기능이 정한 것(종류별 가장 최근
+     * 공개)을 그대로 쓴다. 이 판이 공개되기 전에는 게이트를 통과한 회원도 그 내용에 동의한 적이 없다.
+     */
+    private boolean deviceConsentPublished() {
+        return consents.currentDocuments().stream()
+                .filter(document -> "privacy".equals(document.type()))
+                .anyMatch(document -> AirbridgeDevice.privacyVersionAtLeast(
+                        document.version(), airbridgeDeviceMinPrivacyVersion));
     }
 
     /**
