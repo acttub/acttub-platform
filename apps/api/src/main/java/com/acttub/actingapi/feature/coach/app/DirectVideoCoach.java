@@ -196,7 +196,28 @@ public final class DirectVideoCoach {
                 // 종료("그만")도 연습 루프가 해 본 횟수로 닫는다. 서버는 아래에서 세션만 닫는다.
                 route = "practice_loop";
                 java.util.Locale language = DirectVideoPracticeLoop.replyLanguage(session, actorText);
-                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language) + personaBlock(persona, language);
+                // 이어서 찍은 회차면 이번 영상 대사를 지난 정보 없이 따로 받아 적고, 지난 회차 대사가 다시 들렸을 때만
+                // (같은 장면) 첫 질문 대신 지난 시도부터 묻는다. 받아 적기가 실패하거나 겹치지 않으면 지금 그대로다.
+                // 개인 프롬프트의 첫 질문 모양보다 먼저라 그 뒤에 붙인다.
+                String continuation = "";
+                PriorContext prior = session.priorForModel();
+                if (prior.earlierConversation() != null && !prior.previousLines().isEmpty()
+                        && !Boolean.FALSE.equals(uploaded.hasAudioTrack())) {
+                    String heardReply = null;
+                    try {
+                        ExternalOperationExecution.externalCall("model");
+                        heardReply = model.reply(uploaded, java.util.List.of(), ContinuedTake.heardLinesPrompt());
+                    } catch (RuntimeException transcriptionFailed) {
+                        heardReply = null;
+                    }
+                    java.util.List<String> heard = ContinuedTake.parseHeardLines(heardReply);
+                    ContinuedTake.remember(state, heard);
+                    if (ContinuedTake.sameScene(prior.previousLines(), heard)) {
+                        continuation = DirectVideoPrompts.continuation(prior, language);
+                    }
+                }
+                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language) + personaBlock(persona, language)
+                        + continuation;
                 // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop", DirectVideoPrompts.practiceLoop())
