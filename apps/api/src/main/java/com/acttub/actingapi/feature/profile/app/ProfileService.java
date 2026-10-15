@@ -15,6 +15,7 @@ import com.acttub.actingapi.feature.profile.domain.KoreanAge;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
+import com.acttub.actingapi.integration.airbridge.AirbridgeAttributionClient;
 import com.acttub.actingapi.integration.storage.PhotoUploadType;
 import com.acttub.actingapi.platform.security.ProfileGate;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -41,9 +42,15 @@ public class ProfileService implements ProfileGate {
     private final ProfilePhotoStorage photos;
     private final AccountCleanup cleanup;
     private final Clock clock;
+    private final AirbridgeAttributionClient airbridge;
 
     public ProfileService(
-            ProfileRepository profiles, ProfilePhotoStorage photos, AccountCleanup cleanup, Clock clock) {
+            ProfileRepository profiles,
+            ProfilePhotoStorage photos,
+            AccountCleanup cleanup,
+            Clock clock,
+            AirbridgeAttributionClient airbridge) {
+        this.airbridge = airbridge;
         this.profiles = profiles;
         this.photos = photos;
         this.cleanup = cleanup;
@@ -143,6 +150,19 @@ public class ProfileService implements ProfileGate {
      */
     public void recordSignupAttribution(UUID userId, SignupAttribution attribution) {
         if (!profiles.recordSignupAttribution(userId, attribution)) {
+            throw refused(userId);
+        }
+    }
+
+    /**
+     * 앱이 SDK 콜백으로 귀속을 못 보낼 때를 대비해 Airbridge 기기 ID 를 잠깐 둔다(SOMA-643). 서버가 Airbridge 에서 귀속을
+     * 가져오는 기능이 꺼져 있으면(API 토큰 없음) 기기 ID 를 받아 두지 않고 204 로 끝낸다. 적을 수 없는 계정은 거절한다.
+     */
+    public void recordAirbridgeDevice(UUID userId, String platform, String deviceUuid) {
+        if (!airbridge.enabled()) {
+            return;
+        }
+        if (!profiles.recordAirbridgeDevice(userId, platform, deviceUuid)) {
             throw refused(userId);
         }
     }
