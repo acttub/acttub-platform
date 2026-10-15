@@ -409,6 +409,42 @@
         } ]
       }
     },
+    "/v2/me/airbridge-device" : {
+      "put" : {
+        "tags" : [ "v2-me" ],
+        "summary" : "Record Airbridge Device",
+        "description" : "앱이 SDK 콜백으로 유입 광고를 못 보낼 때를 대비해, 서버가 Airbridge 에서 설치 귀속을 다시 가져오도록 Airbridge\n기기 ID(안드로이드 GAID, iOS IDFA/IDFV)를 한 번 넘긴다. 서버는 귀속을 적거나 24시간이 지나면 이 ID 를\n지운다. 이미 유입 기록이 있거나 서버 기능이 꺼져 있으면 아무것도 하지 않고 204 다 — 재시도에 안전하다.\ndevice_uuid 가 36자 UUID 가 아니거나 모두 0 이면(광고 추적 제한) 422. 동의와 프로필이 끝난 회원만 부를 수\n있다. 게스트는 403 member_only.",
+        "operationId" : "record_airbridge_device_v2_me_airbridge_device_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AirbridgeDeviceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/profile" : {
       "put" : {
         "tags" : [ "v2-me" ],
@@ -5080,6 +5116,25 @@
         },
         "required" : [ "channel", "platform", "source" ],
         "title" : "SignupAttributionRequest"
+      },
+      "AirbridgeDeviceRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "platform" : {
+            "type" : "string",
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          },
+          "device_uuid" : {
+            "type" : "string",
+            "maxLength" : 36,
+            "minLength" : 36,
+            "title" : "Device Uuid"
+          }
+        },
+        "required" : [ "device_uuid", "platform" ],
+        "title" : "AirbridgeDeviceRequest"
       },
       "ActingDirection" : {
         "type" : "string",
