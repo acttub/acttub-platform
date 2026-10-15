@@ -106,6 +106,7 @@ import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 import type { DiscoveryPayload } from '@/lib/discovery';
+import type { AirbridgeDevicePayload } from '@/lib/airbridge-device';
 import type { SignupAttributionPayload } from '@/lib/signup-attribution';
 
 /**
@@ -742,6 +743,18 @@ export const api = {
   recordSignupAttribution(payload: SignupAttributionPayload): Promise<void> {
     return request<void>(
       '/v2/me/signup-attribution',
+      { ...jsonInit(payload), method: 'PUT' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /**
+   * 서버가 Airbridge 에서 설치 귀속을 다시 가져오도록 기기 ID 를 한 번 넘긴다(SOMA-643). 서버가 귀속을 적거나 24시간이
+   * 지나면 지운다. 다시 보내도 204 다. 보내는 때는 lib/airbridge-device.ts 가 정한다.
+   */
+  recordAirbridgeDevice(payload: AirbridgeDevicePayload): Promise<void> {
+    return request<void>(
+      '/v2/me/airbridge-device',
       { ...jsonInit(payload), method: 'PUT' },
       { timeoutMs: 15_000 },
     );
