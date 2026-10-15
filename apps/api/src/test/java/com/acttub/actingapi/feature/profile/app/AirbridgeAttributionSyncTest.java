@@ -45,7 +45,7 @@ class AirbridgeAttributionSyncTest {
     void setUp() {
         airbridge = mock(AirbridgeAttributionClient.class);
         profiles = mock(ProfileRepository.class);
-        when(profiles.recordSignupAttribution(any(), any())).thenReturn(true);
+        when(profiles.recordSignupAttribution(any(), any(), any())).thenReturn(true);
         AirbridgeLookupStore store = new AirbridgeLookupStore() {
             @Override
             public List<Lookup> due(Instant now, int limit) {
@@ -86,7 +86,7 @@ class AirbridgeAttributionSyncTest {
         AirbridgeAttributionSync.Result result = sync.runOnce();
 
         ArgumentCaptor<SignupAttribution> saved = ArgumentCaptor.forClass(SignupAttribution.class);
-        verify(profiles).recordSignupAttribution(eq(user), saved.capture());
+        verify(profiles).recordSignupAttribution(eq(user), saved.capture(), eq("server"));
         assertThat(saved.getValue()).isEqualTo(new SignupAttribution(
                 "airbridge", "android", "facebook.business", null, "캠페인", null, "소재", "c", "t", "s"));
         assertThat(rows).isEmpty();
@@ -104,7 +104,7 @@ class AirbridgeAttributionSyncTest {
         sync.runOnce();
 
         ArgumentCaptor<SignupAttribution> saved = ArgumentCaptor.forClass(SignupAttribution.class);
-        verify(profiles).recordSignupAttribution(any(), saved.capture());
+        verify(profiles).recordSignupAttribution(any(), saved.capture(), eq("server"));
         assertThat(saved.getValue().campaign().codePointCount(0, saved.getValue().campaign().length()))
                 .isEqualTo(SignupAttribution.MAX_LENGTH);
     }
@@ -135,7 +135,7 @@ class AirbridgeAttributionSyncTest {
         assertThat(result.pending()).isEqualTo(2);
         assertThat(nextAt.values()).containsExactlyInAnyOrder(
                 NOW.plus(Duration.ofMinutes(5)), NOW.plus(Duration.ofHours(3)));
-        verify(profiles, never()).recordSignupAttribution(any(), any());
+        verify(profiles, never()).recordSignupAttribution(any(), any(), any());
     }
 
     @Test
@@ -164,7 +164,7 @@ class AirbridgeAttributionSyncTest {
         row(NOW, 0);
         when(airbridge.lookup(any())).thenReturn(Optional.of(
                 new AirbridgeAttribution("x", null, null, null, null, null, null)));
-        when(profiles.recordSignupAttribution(any(), any())).thenReturn(false);
+        when(profiles.recordSignupAttribution(any(), any(), any())).thenReturn(false);
 
         AirbridgeAttributionSync.Result result = sync.runOnce();
 
