@@ -224,10 +224,12 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 .setParameter("practiceId", practiceId).setParameter("userId", userId));
         List<String> history = new ArrayList<>();
         List<String> pending = List.of();
-        List<String> previousLines = new ArrayList<>();
+        // 같은 장면 비교는 바로 앞 회차 대사하고만 한다. 이어서 하는 연습 지시가 쓰는 지난 시도·대화도 바로 앞 회차 것이다
+        // (더 앞 회차와 겹쳐도 바로 앞 회차가 다른 장면이면 엉뚱한 시도를 묻게 된다).
+        List<String> previousLines = List.of();
         for (Tuple round : rounds) {
-            previousLines.addAll(com.acttub.actingapi.feature.coach.app.ContinuedTake.linesFromState(
-                    round.get("state", String.class)));
+            previousLines = com.acttub.actingapi.feature.coach.app.ContinuedTake.linesFromState(
+                    round.get("state", String.class));
             String format = round.get("format", String.class);
             if (format == null) {
                 continue;
