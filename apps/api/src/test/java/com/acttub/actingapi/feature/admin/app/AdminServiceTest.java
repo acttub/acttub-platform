@@ -197,9 +197,9 @@ class AdminServiceTest {
         var turns = List.<AdminMetrics.AdminTurn>of();
         var at = java.time.OffsetDateTime.parse("2026-10-13T00:00:00Z");
         var withVideo = new AdminMetrics.AdminAdvisorSession("s1", at, "abcd1234", "h", "a", "closed", null,
-                null, null, null, turns, null);
+                null, null, null, turns, null, "b");
         var purged = new AdminMetrics.AdminAdvisorSession("s2", at, "abcd1234", "h", null, "closed", null,
-                null, null, null, turns, null);
+                null, null, null, turns, null, null);
         when(metrics.advisorSessions(50, java.util.Set.of())).thenReturn(List.of(
                 new AdminMetricsRepository.AdvisorSessionRow(withVideo, "videos/x.mp4"),
                 new AdminMetricsRepository.AdvisorSessionRow(purged, null)));
