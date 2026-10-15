@@ -8,7 +8,7 @@ dev와 운영의 웹·API·PostgreSQL은 홈서버의 별도 Docker Compose 프�
 ## 1. 구조와 범위
 
 ```text
-Cloudflare → 환경별 Tunnel → cloudflared → web:3000 → api:8080 → db:5432
+Cloudflare → 환경별 Tunnel → cloudflared → proxy:3000 → web:3000 → proxy:8080 → api:8080 → db:5432
 GitHub Actions → GHCR 이미지 → Tailscale 임시 노드 → SSH → deploy.sh
 PostgreSQL → 매일 pg_dump → S3 백업 / 영상 → 기존 S3 영상 버킷
 ```
@@ -21,6 +21,9 @@ PostgreSQL → 매일 pg_dump → S3 백업 / 영상 → 기존 S3 영상 버킷
 | 터널 / 공개 주소 | `acttub-dev` / `https://dev.acttub.com` | `acttub-prod` / `https://acttub.com` |
 
 [`compose.yml`](../../deploy/home/compose.yml) 하나를 쓰되 DB·볼륨·시크릿·터널·자원 상한은 공유하지 않는다.
+`proxy`(nginx, [`proxy/nginx.conf`](../../deploy/home/proxy/nginx.conf))는 배포 때 다시 만들지 않는 앞단이다.
+터널의 서비스 주소 `http://web:3000`과 웹 이미지에 굳은 `http://api:8080`은 그대로 두고 Compose 망 별칭으로 proxy가 그
+이름을 받는다 — cloudflared는 `edge` 망, web은 `front` 망에만 있어 그 망의 `web`·`api`는 proxy 하나다.
 호스트 포트는 공개하지 않는다. 영상 S3 버킷과 OAuth의 운영 도메인은 유지한다.
 API 이미지는 `api:<sha>`, 웹 이미지는 빌드 시점의 공개 설정을 담은 `web:<env>-<sha>`, 백업은 `backup:<sha>`다.
 DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../../apps/api/CONTRACT.md#2-기술-스택-확정-변경-금지)),
@@ -49,7 +52,7 @@ DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../..
 | 외부 서비스 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
 | 모니터링 | `MONITORING_TOKEN`·`MONITORING_ENVIRONMENT`(선택). 값과 짝은 [수집 구성 「최초 준비」](../../deploy/monitoring/README.md#최초-준비)를 따른다 |
 | 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
-| 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000` |
+| 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000`(`edge` 망에서 proxy가 받는다, §1) |
 | 백업 | 백업 버킷과 환경별 prefix, AWS 권한, §5의 주기·실제 업로드 확인 |
 | 운영 자원 | 운영 `.env`에 `.env.example`의 prod 값으로 `API_MEM_LIMIT`·`WEB_MEM_LIMIT`·`DB_MEM_LIMIT`을 적는다. 비우면 dev 크기다 |
 | 워커·인증 | 운영의 워커·정리 작업은 켜 둔다(복원 중에는 [§7](#7-db와-호스트-복구) 2단계의 스위치를 끈다). 운영에서 `DEVELOPMENT_AUTH_PROVIDER` 비활성 |
@@ -76,9 +79,16 @@ gh workflow run deploy.yml --ref main -f environment=prod
 Actions가 이미지 세 개를 빌드·게시한 뒤 서버의 배포·복원 파일을 전송하고 `deploy.sh`를 실행한다.
 처음 만든 GHCR 백업 패키지도 서버가 읽을 수 있는지 확인한다. 복원 도구는 `restore-db.sh`와
 `db-manifest.sql`·`schema-fingerprint.sql`을 함께 전송한다.
-이 스크립트는 앱 이미지 pull → Compose 기동·healthy 대기 → api·web·db의 실제 healthy 상태 확인 → 웹 경유 `/health.commit` 대조를 한다.
+이 스크립트는 설정이나 이미지 ID가 바뀐 web·api만 새 컨테이너를 옛 것 옆에 띄우고, 둘 다 healthy가 되면 proxy를 reload해 한 번에
+넘긴 뒤 proxy 경유 `/health.commit`을 대조한다. 옛 판은 처리 중이던 요청을 끝낸 뒤 내린다. 넘긴 것을 확인하기 전에
+실패하면(새 컨테이너가 healthy가 못 되거나 commit이 다르면) 새 컨테이너를 지우고 `release.env`를 되돌려 옛 판이 계속
+응답한다. 롤백도 기존 대상으로 전환한 뒤 새 판이 처리 중이던 요청을 마칠 때까지 기다린다. 복구·요청 마무리를
+확인하지 못하면 새 컨테이너와 릴리스 설정을 남기고 실패한다. 단계와 상한은 [`deploy.sh`](../../deploy/home/deploy.sh) 머리말이 정한다.
 성공하면 컨테이너가 쓰지 않는 옛 릴리스 이미지(`<sha>`·`<env>-<sha>` 태그)를 서버에서 지운다. dev와 운영이 같은 Docker를 쓰므로 한 환경의 배포가 다른 환경의 옛 이미지도 지운다.
-Compose가 짧은 대기 상한에서 성공을 반환해도 필수 컨테이너가 아직 starting이거나 누락됐으면 배포를 실패로 처리한다.
+배포가 겹치는 동안(새 api 기동과 옛 판의 요청 마무리) 옛·새 api가 같은 DB에서 함께 돈다. 그래서 마이그레이션은 직전 운영
+API를 깨지 않아야 한다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)). proxy·cloudflared·db의 이미지나
+망 설정을 바꾼 배포는 그 컨테이너를 다시 만들어 그동안 끊긴다. `.env`를 고친 뒤 맨손 `docker compose up`으로 적용해도
+바뀐 서비스가 다시 만들어지며 끊긴다 — 같은 SHA로 `deploy.sh`를 다시 실행하면 바뀐 서비스만 같은 길로 갈아 끼운다.
 공개 URL 대조까지 성공해야 터널을 통한 배포를 확인한 것이다. `.env`나 전체 Compose 설정을
 로그에 찍지 말고, 필요한 상태·이미지 ID·릴리스 SHA만 기록한다.
 
@@ -104,9 +114,12 @@ curl -fsS https://acttub.com/health
 ## 4. 코드 배포 복구
 
 DB 스키마와 호환되는 직전 운영 SHA(직전 운영 태그) 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와
-`release.env`의 SHA를 먼저 기록한다. 실패했다고 자동으로 직전 이미지가 복구되지는 않는다.
-서버에서 지워진 직전 이미지는 `deploy.sh`가 GHCR에서 다시 받는다.
-같은 SHA 재배포는 멱등이다. 마이그레이션은 앱 기동의 일부라([CONTRACT §5-5](../../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다))
+`release.env`의 SHA를 먼저 기록한다. 넘기기 전에 실패한 배포는 `deploy.sh`가 옛 판을 그대로 남기지만(§3), 넘긴 뒤에
+드러난 문제는 자동으로 되돌리지 않는다. 직전 SHA 재배포도 같은 무중단 길을 탄다.
+서버에서 지워진 직전 이미지는 `deploy.sh`가 GHCR에서 다시 받는다. proxy가 없던 SHA(SOMA-700 이전)로 되돌리면 옛
+`deploy.sh`가 proxy를 지우고 예전처럼 api·web을 다시 만들어 그동안 끊긴다.
+같은 SHA·설정·이미지로 재배포하면 컨테이너를 유지한다. `rebuild_images=true`로 같은 태그를 다시 빌드하면 새 이미지 ID를
+대조해 교체한다. 마이그레이션은 앱 기동의 일부라([CONTRACT §5-5](../../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다))
 직전 SHA 재배포도 Git revert도 이미 적용된 DB 마이그레이션이나 사용자 쓰기를 되돌리지 않는다.
 실패한 마이그레이션은 부분 적용도 이력도 남기지 않으므로(`FlywayForwardMigrationTest`) 원인을 고쳐 다시 배포한다.
 §3의 기능 스위치로 켠 경로는 같은 이미지에 그 값을 false로 넘겨 `deploy.sh`를 다시 실행하면 끈다. 다음

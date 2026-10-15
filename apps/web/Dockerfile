@@ -15,8 +15,8 @@
 #
 # ⚠ 웹 설정은 전부 빌드 시점에 굳는다(apps/web/CLAUDE.md, next.config.ts). API_ORIGIN 은 rewrites 로
 # routes-manifest 에, NEXT_PUBLIC_* 는 브라우저 번들에 새겨져 런타임 env 로는 바뀌지 않는다. 그래서
-# 환경별로 이미지를 따로 굽는다(web:dev-<sha>·web:prod-<sha>). API 주소만은 양쪽 다 compose 서비스
-# 이름 http://api:8080 이다. build-arg 로 받는 값은 이미 브라우저에 내려가는 공개값뿐이라 이미지를
+# 환경별로 이미지를 따로 굽는다(web:dev-<sha>·web:prod-<sha>). API 주소만은 양쪽 다 http://api:8080 이다 — 웹이 있는
+# front 망에서 그 이름은 앞단 proxy 가 받는다(deploy/home/compose.yml). build-arg 로 받는 값은 이미 브라우저에 내려가는 공개값뿐이라 이미지를
 # 공개(GHCR)해도 된다 — SENTRY_AUTH_TOKEN 만 시크릿이고, 그건 --secret 마운트라 레이어에 남지 않는다.
 
 # ── deps: 워크스페이스 매니페스트만으로 설치. 소스가 바뀌어도 이 레이어는 캐시된다 ──────────────
@@ -84,6 +84,6 @@ COPY --from=build --chown=node:node /app/apps/web/public ./apps/web/public
 # node 이미지가 만들어 둔 사용자(uid 1000). api 이미지처럼 non-root 로 돈다.
 USER node
 WORKDIR /app/apps/web
-# 문서용이다 — 호스트에 publish 하지 않는다. 노출은 같은 네트워크의 cloudflared 가 web:3000 으로 간다.
+# 문서용이다 — 호스트에 publish 하지 않는다. 노출은 cloudflared → proxy 를 거쳐 들어온다(deploy/home/compose.yml).
 EXPOSE 3000
 CMD ["node", "server.js"]

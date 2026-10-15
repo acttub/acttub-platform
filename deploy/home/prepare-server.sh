@@ -480,7 +480,7 @@ guide_tunnel() {
   step "Networks → Tunnels → Create a tunnel → Cloudflared → 이름 acttub-dev → Save tunnel"
   step "다음 화면(커넥터 설치)의 명령 안에 있는 긴 토큰(eyJ… 로 시작)을 복사합니다. 설치 명령은 실행하지 않습니다 — compose 의 cloudflared 컨테이너가 대신 돕니다."
   step "Public Hostname 탭 → Add: Subdomain ${DEV_TEMP_HOST%%.*} · Domain ${DEV_TEMP_HOST#*.} · Type HTTP · URL web:3000 → Save"
-  note "web:3000 은 compose 네트워크 안의 서비스 이름입니다. localhost 가 아닙니다."
+  note "web:3000 은 compose 네트워크 안의 이름입니다(cloudflared 의 edge 망에서는 앞단 proxy). localhost 가 아닙니다."
   step "같은 방법으로 acttub-prod 도 만듭니다(호스트명은 아직 붙이지 않음 — 운영을 홈서버로 옮기는 날에)."
   note "메뉴 이름은 Cloudflare 가 가끔 바꿉니다. 'Tunnels' 가 안 보이면 Networks 아래를 찾으세요."
   printf '\n'

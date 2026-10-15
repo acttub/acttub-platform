@@ -206,7 +206,8 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 ### 5-5. Flyway 가 스키마를 소유한다
 
 **정본이다.** 스키마 변경은 Flyway 마이그레이션으로 들어가고, API 이미지는 실행 jar를 포함한다 —
-마이그레이션이 **앱 기동의 일부**다.
+마이그레이션이 **앱 기동의 일부**다. 배포 중에는 직전 판 API 가 새 마이그레이션 위에서 잠깐 함께 돌므로, 마이그레이션이
+지킬 호환 규칙은 [DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)을 따른다.
 
 **`V1__baseline.sql` 에 스키마 전체(테이블 + enum 타입 + 인덱스 + 제약 + 초기 커뮤니티
 데이터)가 동결돼 있다.** enum 타입 열아홉은 V4 가 지우지만 **V1 은 여전히 그것을 만든다** —
@@ -722,17 +723,18 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 조회, 참여작 공유 조회)의 열쇠는 **방문자 주소**이고 `platform/security/ClientAddress` 한 자리가 구한다. feature 는
 `getRemoteAddr` 를 직접 읽지 않는다(`ClientAddressTest` 가 구조로 막는다).
 
-- 배포 경로는 방문자 → Cloudflare → cloudflared → web(Next rewrites) → api 라서 api 가 보는 상대는 **언제나 web
-  컨테이너**다. 그것을 열쇠로 쓰면 모든 방문자가 한 칸을 나눠 쓴다.
+- 배포 경로는 방문자 → Cloudflare → cloudflared → proxy → web(Next rewrites) → proxy → api 라서 api 가 보는 상대는
+  **언제나 proxy 컨테이너**다(`deploy/home/proxy/nginx.conf`). 그것을 열쇠로 쓰면 모든 방문자가 한 칸을 나눠 쓴다.
 - **규칙**: 연결한 상대가 신뢰하는 프록시일 때만 `X-Forwarded-For` 를 보고, **오른쪽부터** 신뢰하는 프록시를
   건너뛴 첫 주소가 방문자다. 방문자가 위조해 보낸 값은 프록시가 덧붙인 진짜 주소의 왼쪽에 오므로 제한을 피하지도
   남의 주소를 막지도 못한다. 신뢰하지 않는 상대가 붙인 헤더는 보지 않는다. 주소가 아닌 값은 풀지 않고(이름 조회
   없음) 연결한 상대로 돌아간다 — 헤더가 없는 로컬 개발도 같다.
 - 신뢰하는 프록시의 기본은 루프백과 사설 대역이다. `CLIENT_IP_TRUSTED_PROXIES`(쉼표로 가른 CIDR)로 바꾸고
   `none` 으로 끈다(언제나 연결한 상대).
-- ⚠ **web 은 헤더를 그대로 넘긴다** — Next 16.2.10 의 rewrite 는 `X-Forwarded-For` 를 덧붙이지도 새로 만들지도
-  않는다(실측). 이 규칙은 **web 이 Cloudflare 를 거친 요청만 받는다**는 배포 조건 위에 선다(Compose 는 web 의
-  포트를 밖으로 열지 않는다). web 을 직접 여는 길을 만들면 그 길의 방문자는 헤더를 마음대로 쓴다.
+- ⚠ **web 과 proxy 는 헤더를 그대로 넘긴다** — Next 16.2.10 의 rewrite 는 `X-Forwarded-For` 를 덧붙이지도 새로
+  만들지도 않고(실측), proxy(nginx)도 손대지 않는다. 이 규칙은 **web·proxy 가 Cloudflare 를 거친 요청만 받는다**는
+  배포 조건 위에 선다(Compose 는 둘의 포트를 밖으로 열지 않는다). 둘 중 하나를 직접 여는 길을 만들면 그 길의 방문자는
+  헤더를 마음대로 쓴다.
 - Tomcat `RemoteIpValve`(`server.forward-headers-strategy`)를 쓰지 않는다: scheme·host·port 까지 전달 헤더로
   덮어 모든 요청에 영향을 주는데, 이 서버는 그것들을 헤더로 판정하지 않는다(§6-4). `CF-Connecting-IP` 도 보지
   않는다 — Cloudflare 를 거친 요청에서는 `X-Forwarded-For` 의 맨 오른쪽과 같은 값이고, 출처를 둘로 두면 다른
