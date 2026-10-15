@@ -1024,6 +1024,7 @@ const en: DeepStringShape<typeof ko> = {
     deleteAllMsg: 'Everything the coach knows about you will be gone. This can’t be undone.',
     deleteAllConfirm: 'Erase all',
     backToSettings: '← Settings',
+    backToProfile: '← Profile',
     screenTitle: 'What the coach remembers',
     introBody:
       'The coach rewrites these after your first practice and then every third one, and reads them when the next practice starts.',

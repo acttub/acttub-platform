@@ -30,7 +30,7 @@ test('위에 다른 화면이 쌓이면 아래 화면의 영상은 내려놓는�
     assert.match(src, /useVideoPlayer\(sourceWhileFocused\(/, file);
   }
   const play = read('app/challenge-play.tsx');
-  assert.match(play, /if \(focused\) return;\s*player\.pause\(\);\s*player\.replace\(null\);/);
+  assert.match(play, /if \(focused\) return;\s*player\.pause\(\);\s*void player\.replaceAsync\(null\)/);
 });
 
 test('안드로이드 앱 메모리 한도를 넓힌다 — 응급처치(SOMA-699)', () => {
