@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
 
+import { createAirbridgeDeviceTracker } from '@/lib/airbridge-device';
 import { logEvent } from '@/lib/analytics';
 import { ApiError, api } from '@/lib/api';
 import {
@@ -54,6 +55,7 @@ const tracker = createSignupAttributionTracker({
 
 type AirbridgeModule = {
   Airbridge: {
+    fetchDeviceUUID(onSuccess: (deviceUUID: string) => void, onFailure?: (error: Error) => void): Promise<boolean>;
     setOnAttributionReceived(onReceived: (attribution: Record<string, string>) => void): void;
     setUserID(id: string): void;
     clearUser(): void;
@@ -70,6 +72,38 @@ function withAirbridge(use: (module: AirbridgeModule) => void): void {
   }
 }
 
+/**
+ * 서버 재조회용 기기 ID(SOMA-643). SDK 귀속 콜백이 오지 않는 설치를 서버가 Airbridge 에서 가져오게, 가입한 계정에만 한 번 넘긴다.
+ * 기기 ID 는 저장하지 않고 보낼 때마다 SDK 에서 읽는다. 네이티브 모듈이 없으면 못 읽은 것으로 세고 끝난다.
+ */
+const deviceTracker = createAirbridgeDeviceTracker({
+  storage: AsyncStorage,
+  platform: Platform.OS,
+  fetchDevice: () =>
+    new Promise<string | null>((resolve) => {
+      // SDK 콜백이 안 오면 직렬 큐가 멈추므로 10초 뒤 못 읽은 것으로 끝낸다.
+      setTimeout(() => resolve(null), 10_000);
+      try {
+        const { Airbridge } = require('airbridge-react-native-sdk') as AirbridgeModule;
+        Airbridge.fetchDeviceUUID(
+          (uuid) => resolve(uuid),
+          () => resolve(null),
+        ).catch(() => resolve(null));
+      } catch {
+        resolve(null); // 네이티브 모듈 없음(Expo Go·웹)
+      }
+    }),
+  send: async (payload) => {
+    try {
+      await api.recordAirbridgeDevice(payload);
+    } catch (error) {
+      // 값 규칙 위반(422)은 다시 보내도 같다 — 포기한다. 나머지는 다음 기회에 다시 보낸다.
+      if (error instanceof ApiError && error.status === 422) return;
+      throw error;
+    }
+  },
+});
+
 let listening = false;
 
 /**
@@ -80,7 +114,10 @@ export function startSignupAttributionListener(): void {
   if (listening) return;
   listening = true;
   AppState.addEventListener('change', (next) => {
-    if (next === 'active') void tracker.retry();
+    if (next === 'active') {
+      void tracker.retry();
+      void deviceTracker.retry();
+    }
   });
   withAirbridge(({ Airbridge }) => {
     Airbridge.setOnAttributionReceived((attribution) => {
@@ -97,6 +134,7 @@ export function recordSignupCompleted(userId: string): void {
     Airbridge.trackEvent(AirbridgeCategory.SIGN_UP);
   });
   void tracker.signedUp(userId);
+  void deviceTracker.signedUp(userId);
 }
 
 /**
@@ -109,4 +147,5 @@ export function identifySignupAttributionAccount(userId: string | null): void {
     else Airbridge.clearUser();
   });
   void tracker.accountResolved(userId);
+  void deviceTracker.accountResolved(userId);
 }
