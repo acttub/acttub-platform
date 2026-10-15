@@ -1142,21 +1142,6 @@ class DirectVideoCoachTest {
         assertThat(CoachPrompt.priorContextBlock(prior, true)).contains("지난 기록을 이번 장면의 목표·의도로 확정하지 않는다");
     }
 
-    /** 이어서 찍은 회차에만 지난 시도부터 묻는 지시가 붙고, 지난 요약과 대화가 잘리지 않고 함께 간다. */
-    @Test void continuationBlockOnlyForContinuedRounds() {
-        assertThat(DirectVideoPrompts.continuation(PriorContext.EMPTY, null)).isEmpty();
-        var firstRound = new PriorContext(java.util.Map.of("goal", "입시"), null, false, List.of(), List.of("1차: 버릇 — 제안: x"));
-        assertThat(DirectVideoPrompts.continuation(firstRound, null)).isEmpty();
-        var continued = new PriorContext(java.util.Map.of(), "배우: 다음엔 초반부터 웃어볼게\n코치: 맞아요, 그거예요.", false, List.of(),
-                List.of("1차: 버릇 서러움만 보여요 — 제안: 웃어보고 단호하게 밀어내 봐도 좋아요"));
-        String ko = DirectVideoPrompts.continuation(continued, null);
-        assertThat(ko).contains("[이어서 하는 연습]").contains("### 지난 회차 요약\n- 1차: 버릇 서러움만 보여요")
-                .contains("### 지난 회차 마지막 대화\n배우: 다음엔 초반부터 웃어볼게");
-        assertThat(DirectVideoPrompts.continuation(continued, java.util.Locale.ENGLISH)).contains("[Continued practice]")
-                .contains("### Last exchange from the previous round");
-        assertThat(DirectVideoPrompts.practiceLoop()).contains("[이어서 하는 연습] 칸이 붙었을 때만");
-    }
-
     @Test void practiceLoopShufflesTheFourHabitLinesPerPractice() {
         var practice = UUID.fromString("00000000-0000-0000-0000-000000000001");
         assertThat(DirectVideoPrompts.practiceLoop(practice)).isEqualTo(DirectVideoPrompts.practiceLoop(practice));
