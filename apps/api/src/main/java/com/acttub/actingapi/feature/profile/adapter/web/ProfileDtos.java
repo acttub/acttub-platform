@@ -150,6 +150,16 @@ final class ProfileDtos {
     }
 
     /**
+     * 서버가 Airbridge 에서 설치 귀속을 다시 가져오게 앱이 넘기는 Airbridge 기기 ID(SOMA-643). 안드로이드 GAID,
+     * iOS IDFA/IDFV 다. 서버는 조회를 마치면(최대 24시간) 지우고 계정에 남기지 않는다.
+     */
+    @Schema(name = "AirbridgeDeviceRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record AirbridgeDeviceRequest(
+            @NotNull @Schema(allowableValues = {"ios", "android"}) String platform,
+            @JsonProperty("device_uuid") @NotNull @Schema(minLength = 36, maxLength = 36) String deviceUuid) {
+    }
+
+    /**
      * 가입 직후 답한 "액터브를 처음 어디서 알게 됐어요?"(SOMA-649). source 가 null 이면 건너뜀.
      * detail 은 instagram 일 때만, other_text 는 other 일 때만 받는다.
      */

@@ -204,6 +204,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/me/airbridge-device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record Airbridge Device
+         * @description 앱이 SDK 콜백으로 유입 광고를 못 보낼 때를 대비해, 서버가 Airbridge 에서 설치 귀속을 다시 가져오도록 Airbridge
+         *     기기 ID(안드로이드 GAID, iOS IDFA/IDFV)를 한 번 넘긴다. 서버는 귀속을 적거나 24시간이 지나면 이 ID 를
+         *     지운다. 이미 유입 기록이 있거나 서버 기능이 꺼져 있으면 아무것도 하지 않고 204 다 — 재시도에 안전하다.
+         *     device_uuid 가 36자 UUID 가 아니거나 모두 0 이면(광고 추적 제한) 422. 동의와 프로필이 끝난 회원만 부를 수
+         *     있다. 게스트는 403 member_only.
+         */
+        put: operations["record_airbridge_device_v2_me_airbridge_device_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me/profile": {
         parameters: {
             query?: never;
@@ -2402,6 +2426,16 @@ export interface components {
             term?: string | null;
             /** Sub Publisher */
             sub_publisher?: string | null;
+        };
+        /** AirbridgeDeviceRequest */
+        AirbridgeDeviceRequest: {
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "ios" | "android";
+            /** Device Uuid */
+            device_uuid: string;
         };
         /**
          * ActingDirection
@@ -5771,6 +5805,37 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SignupAttributionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_airbridge_device_v2_me_airbridge_device_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AirbridgeDeviceRequest"];
             };
         };
         responses: {

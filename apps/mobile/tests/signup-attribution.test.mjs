@@ -8,6 +8,9 @@ import {
   createSignupAttributionTracker,
   parseSignupAttributionState,
   shouldSendSignupAttribution,
+  signupAttributionErrorCode,
+  signupAttributionEventParams,
+  signupAttributionRetryDelayMs,
   toSignupAttribution,
 } from '../lib/signup-attribution.ts';
 
@@ -177,4 +180,103 @@ test('앱을 다시 열어도(새 추적기) 저장해 둔 상태로 이어서 �
   await second.accountResolved('u1');
 
   assert.equal(sent.length, 1);
+});
+
+// SOMA-643 — 가입 당일 한 번 쓰고 다시 열지 않는 사람이 많아, 다음 실행만 기다리면 기록이 빠진다.
+test('보내다 실패하면 알리고, 같은 실행 안에서 retry() 로 다시 보낸다', async () => {
+  const storage = memoryStorage();
+  let attempts = 0;
+  let failures = 0;
+  const tracker = createSignupAttributionTracker({
+    storage,
+    send: async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('offline');
+    },
+    onSendFailed: () => {
+      failures += 1;
+    },
+  });
+
+  await tracker.received(toSignupAttribution(META_INSTALL, 'android'));
+  await tracker.signedUp('u1');
+  assert.equal(failures, 1);
+  assert.equal(stored(storage).sent, false);
+
+  await tracker.retry();
+  assert.equal(attempts, 2);
+  assert.equal(stored(storage).sent, true);
+
+  await tracker.retry();
+  assert.equal(attempts, 2, '이미 보냈으면 다시 보내지 않는다');
+});
+
+test('retry() 는 가입하지 않은 계정이나 로그아웃 상태에서는 보내지 않는다', async () => {
+  const storage = memoryStorage();
+  const sent = [];
+  const tracker = createSignupAttributionTracker({ storage, send: async (p) => sent.push(p) });
+
+  await tracker.received(toSignupAttribution(META_INSTALL, 'ios'));
+  await tracker.retry();
+  await tracker.accountResolved('old-member');
+  await tracker.retry();
+  assert.equal(sent.length, 0);
+});
+
+test('진단 신호는 단계 순서대로 한 번씩, 광고 이름·계정 번호 없이 나온다', async () => {
+  const storage = memoryStorage();
+  const reports = [];
+  let attempts = 0;
+  const tracker = createSignupAttributionTracker({
+    storage,
+    send: async () => {
+      attempts += 1;
+      if (attempts === 1) throw Object.assign(new Error('forbidden'), { status: 403 });
+    },
+    report: (d) => reports.push(signupAttributionEventParams(d, 'android')),
+  });
+
+  await tracker.signedUp('u1');
+  await tracker.received(toSignupAttribution(META_INSTALL, 'android'));
+  await tracker.received(toSignupAttribution({ attributedChannel: 'unattributed' }, 'android'));
+  await tracker.retry();
+
+  assert.deepEqual(reports, [
+    { stage: 'signed_up', platform: 'android', has_attribution: false },
+    { stage: 'received', platform: 'android', attributed: true, after_signup: true },
+    { stage: 'send_failed', platform: 'android', error: 'http_403' },
+    { stage: 'sent', platform: 'android' },
+  ]);
+  const text = JSON.stringify(reports);
+  assert.ok(!text.includes('u1') && !text.includes('facebook') && !text.includes('ACTTUB'));
+});
+
+test('진단 신호를 던지는 쪽이 고장 나도 전송은 이어진다', async () => {
+  const storage = memoryStorage();
+  const sent = [];
+  const tracker = createSignupAttributionTracker({
+    storage,
+    send: async (p) => sent.push(p),
+    report: () => {
+      throw new Error('analytics down');
+    },
+  });
+
+  await tracker.received(toSignupAttribution(META_INSTALL, 'ios'));
+  await tracker.signedUp('u1');
+  assert.equal(sent.length, 1);
+  assert.equal(stored(storage).sent, true);
+});
+
+test('같은 실행 안 재시도 간격은 15초·1분·3분, 그 뒤는 멈춘다', () => {
+  assert.equal(signupAttributionRetryDelayMs(0), 15_000);
+  assert.equal(signupAttributionRetryDelayMs(1), 60_000);
+  assert.equal(signupAttributionRetryDelayMs(2), 180_000);
+  assert.equal(signupAttributionRetryDelayMs(3), null);
+});
+
+test('실패 사유는 HTTP 상태 또는 network 로만 줄인다', () => {
+  assert.equal(signupAttributionErrorCode(Object.assign(new Error('x'), { status: 401 })), 'http_401');
+  assert.equal(signupAttributionErrorCode(new Error('Network request failed')), 'network');
+  assert.equal(signupAttributionErrorCode(undefined), 'network');
 });
