@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +39,8 @@ const FIELDS: { field: MemoryField; label: string; hint: string; placeholder: st
 
 export default function MemoryScreen() {
   const router = useRouter();
+  // 설정·프로필 두 곳에서 들어온다 — 뒤로 글자를 들어온 곳에 맞춘다(SOMA-713).
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const [items, setItems] = useState<Record<string, MemoryItem>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -144,7 +146,7 @@ export default function MemoryScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-          <Text style={styles.back}>{translate('memory.backToSettings')}</Text>
+          <Text style={styles.back}>{translate(from === 'profile' ? 'memory.backToProfile' : 'memory.backToSettings')}</Text>
         </Pressable>
       </View>
       <Text style={styles.screenTitle}>{translate('memory.screenTitle')}</Text>
