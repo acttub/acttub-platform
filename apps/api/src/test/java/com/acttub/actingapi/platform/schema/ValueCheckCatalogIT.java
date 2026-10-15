@@ -147,6 +147,8 @@ class ValueCheckCatalogIT {
             // 쓰는 칸이라 Java enum이 없다. 조합·웹 안전 문자열 CHECK는 ANY 값 목록 형태가 아니라 이 검사 대상 밖이다.
             "ck_user_signup_attributions_source",
             "ck_user_signup_attributions_platform",
+            // Airbridge 기기 ID 임시 보관(V43)의 platform 은 컨트롤러의 상수로 거르고 저장소 native SQL 만 쓴다.
+            "ck_user_airbridge_device_lookups_platform",
             // 가입 직후 유입 경로 자기 응답(V38)의 값 목록은 domain 의 DiscoveryAnswer 상수가 들고 저장소 native SQL 만 쓴다.
             "ck_user_discovery_answers_source",
             "ck_user_discovery_answers_detail",
