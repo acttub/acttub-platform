@@ -65,7 +65,16 @@ public class ReportEngine {
         this(generate, mapper, telemetry, userId -> null);
     }
 
+    /** 운영 조립: 코칭 노트는 OPENAI_REPORT_API_KEY 를 읽는 생성기를 쓴다. */
     @Autowired
+    public ReportEngine(
+            com.acttub.actingapi.integration.llm.OpenAiTextGenerators generators,
+            ObjectMapper mapper,
+            LlmTelemetry telemetry,
+            ReportProfile profiles) {
+        this(generators.report(), mapper, telemetry, profiles);
+    }
+
     public ReportEngine(
             TextGenerator generate,
             ObjectMapper mapper,

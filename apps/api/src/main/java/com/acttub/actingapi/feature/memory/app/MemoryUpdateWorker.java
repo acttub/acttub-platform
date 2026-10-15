@@ -51,6 +51,20 @@ public class MemoryUpdateWorker {
     private final FailureReporter failureReporter;
     private final LlmTelemetry telemetry;
 
+    /** 운영 조립: 배우 기억은 OPENAI_MEMORY_API_KEY 를 읽는 생성기를 쓴다. */
+    @org.springframework.beans.factory.annotation.Autowired
+    public MemoryUpdateWorker(
+            MemoryRepository memory,
+            MemoryUpdateQueue queue,
+            ObjectMapper mapper,
+            com.acttub.actingapi.integration.llm.OpenAiTextGenerators generators,
+            Clock clock,
+            MemoryExtractor extractor,
+            FailureReporter failureReporter,
+            LlmTelemetry telemetry) {
+        this(memory, queue, mapper, generators.memory(), clock, extractor, failureReporter, telemetry);
+    }
+
     public MemoryUpdateWorker(
             MemoryRepository memory,
             MemoryUpdateQueue queue,

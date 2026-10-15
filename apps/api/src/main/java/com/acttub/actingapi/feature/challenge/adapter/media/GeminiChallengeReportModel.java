@@ -15,6 +15,7 @@ import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.google.genai.Client;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -30,7 +31,8 @@ class GeminiChallengeReportModel implements ChallengeReportModel {
     private final String modelName;
     private final FailureReporter failures;
 
-    GeminiChallengeReportModel(ObjectProvider<ObjectStorage> storage, ObjectProvider<Client> client,
+    GeminiChallengeReportModel(ObjectProvider<ObjectStorage> storage,
+                               @Qualifier("geminiChallengeClient") ObjectProvider<Client> client,
                                @Value("${GEMINI_MODEL:gemini-3-flash-preview}") String modelName, FailureReporter failures) {
         this.storage = storage; this.client = client; this.modelName = modelName; this.failures = failures;
     }
