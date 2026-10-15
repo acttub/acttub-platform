@@ -128,18 +128,44 @@ export type SignupAttributionStorage = {
 };
 
 /**
+ * 어디서 빠지는지 보기 위한 진단 신호(SOMA-643). 광고 이름·계정 번호는 싣지 않는다 — 단계와 참·거짓, 실패 사유만.
+ *
+ * - `received`: SDK 귀속 결과가 왔다. 광고 귀속인지(`attributed`), 그때 이미 가입했는지(`after_signup`).
+ * - `signed_up`: 이 기기에서 가입을 마쳤다. 그때 귀속 결과가 이미 와 있었는지(`has_attribution`).
+ * - `sent`: 서버가 받았다.
+ * - `send_failed`: 보내다 실패했다. `error` 는 런타임이 사유 문자열로 바꾼다.
+ */
+export type SignupAttributionDiagnostic =
+  | { stage: 'received'; attributed: boolean; after_signup: boolean }
+  | { stage: 'signed_up'; has_attribution: boolean }
+  | { stage: 'sent' }
+  | { stage: 'send_failed'; error: unknown };
+
+/**
  * 귀속 결과·가입·로그인한 계정 셋이 어떤 순서로 와도, 모두 갖춰지는 때에 한 번만 보낸다. 셋은 따로 온다 —
  * 귀속은 SDK 초기화 뒤 1~5분 안에, 가입은 사람이 프로필을 마칠 때, 계정은 앱을 열 때마다 온다.
  *
- * `send` 가 던지면 보내지 못한 것으로 두고 다음 기회(다음 계정 확인·앱 실행)에 다시 보낸다.
+ * `send` 가 던지면 보내지 못한 것으로 두고 `onSendFailed` 로 알린다. 다시 보내는 때는 다음 계정 확인·앱 실행과
+ * `retry()`(런타임이 같은 실행 안에서 잠시 뒤·앱이 앞으로 올 때 부른다)다 — 가입 당일 한 번만 쓰고 앱을 다시
+ * 열지 않는 사람이 많아서, 다음 실행만 기다리면 기록이 영영 빠진다(SOMA-643).
  * 다시 보내도 소용없는 거절은 `send` 가 삼키고 끝내면 된다 — 그때도 보낸 것으로 적는다.
  */
 export function createSignupAttributionTracker(deps: {
   storage: SignupAttributionStorage;
   send: (payload: SignupAttributionPayload) => Promise<void>;
+  report?: (diagnostic: SignupAttributionDiagnostic) => void;
+  onSendFailed?: () => void;
 }) {
   let currentUserId: string | null = null;
   let chain: Promise<void> = Promise.resolve();
+
+  function report(diagnostic: SignupAttributionDiagnostic): void {
+    try {
+      deps.report?.(diagnostic);
+    } catch {
+      // 진단은 흐름을 막지 않는다.
+    }
+  }
 
   function serial(task: () => Promise<void>): Promise<void> {
     const next = chain.then(task).catch(() => undefined);
@@ -166,19 +192,38 @@ export function createSignupAttributionTracker(deps: {
 
   async function flush(state: SignupAttributionState): Promise<void> {
     if (!shouldSendSignupAttribution(state, currentUserId) || !state.attribution) return;
-    await deps.send(state.attribution);
+    try {
+      await deps.send(state.attribution);
+    } catch (error) {
+      report({ stage: 'send_failed', error });
+      deps.onSendFailed?.();
+      throw error;
+    }
     await save({ ...state, sent: true });
+    report({ stage: 'sent' });
   }
 
   return {
     /** SDK 가 귀속 결과를 알렸다. */
     received(attribution: SignupAttributionPayload): Promise<void> {
-      return serial(async () => flush(await update((state) => withAttribution(state, attribution))));
+      return serial(async () => {
+        const before = await load();
+        if (!before.attribution) {
+          report({
+            stage: 'received',
+            attributed: attribution.channel !== 'unattributed',
+            after_signup: before.signupUserId !== null,
+          });
+        }
+        await flush(await update((state) => withAttribution(state, attribution)));
+      });
     },
     /** 이 기기에서 가입(프로필 입력)을 마쳤다. */
     signedUp(userId: string): Promise<void> {
       return serial(async () => {
         currentUserId = userId;
+        const before = await load();
+        if (!before.signupUserId) report({ stage: 'signed_up', has_attribution: before.attribution !== null });
         await flush(await update((state) => withSignup(state, userId)));
       });
     },
@@ -189,5 +234,40 @@ export function createSignupAttributionTracker(deps: {
         await flush(await load());
       });
     },
+    /** 보내지 못한 것이 있으면 지금 로그인한 계정으로 다시 보낸다. 보낼 것이 없으면 아무것도 안 한다. */
+    retry(): Promise<void> {
+      return serial(async () => flush(await load()));
+    },
   };
+}
+
+/** 같은 실행 안에서 다시 보낼 간격. 실패 횟수(0부터)에 따라 15초·1분·3분, 그 뒤는 `null`(멈춤). */
+export function signupAttributionRetryDelayMs(failedAttempts: number): number | null {
+  const delays = [15_000, 60_000, 180_000];
+  return failedAttempts >= 0 && failedAttempts < delays.length ? delays[failedAttempts] : null;
+}
+
+/** 실패 사유를 짧은 문자열로. HTTP 상태가 있으면 `http_403` 처럼, 없으면 `network`. 메시지 원문은 싣지 않는다. */
+export function signupAttributionErrorCode(error: unknown): string {
+  const status =
+    error && typeof error === 'object' && 'status' in error ? (error as { status: unknown }).status : undefined;
+  return typeof status === 'number' ? `http_${status}` : 'network';
+}
+
+/** 진단 신호를 분석 이벤트 파라미터로. 값은 단계·플랫폼·참거짓·실패 사유뿐이다. */
+export function signupAttributionEventParams(
+  diagnostic: SignupAttributionDiagnostic,
+  platform: string,
+): Record<string, string | boolean> {
+  const base = { stage: diagnostic.stage, platform };
+  switch (diagnostic.stage) {
+    case 'received':
+      return { ...base, attributed: diagnostic.attributed, after_signup: diagnostic.after_signup };
+    case 'signed_up':
+      return { ...base, has_attribution: diagnostic.has_attribution };
+    case 'send_failed':
+      return { ...base, error: signupAttributionErrorCode(diagnostic.error) };
+    default:
+      return base;
+  }
 }
