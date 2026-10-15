@@ -46,16 +46,28 @@ public class OpenAiResponsesClient implements TextGenerator {
     private final ConcurrentHashMap<Duration, OpenAiHttpTransport> byTimeout = new ConcurrentHashMap<>();
     private final Sleeper sleeper;
     private final Function<String, String> environment;
+    /** 이 클라이언트가 읽는 키 변수. 앞이 기능 전용 키, 뒤는 옛 공용 키(마이그레이션 대체). */
+    private final String featureKeyName;
 
+    static final String LEGACY_KEY = "OPENAI_API_KEY";
+    static final String COACH_KEY = "OPENAI_COACH_API_KEY";
+
+    /** 기존/비직접 코칭용 기본 클라이언트: OPENAI_COACH_API_KEY, 없으면 OPENAI_API_KEY. */
     @Autowired
     public OpenAiResponsesClient(ObjectMapper objectMapper) {
+        this(objectMapper, COACH_KEY);
+    }
+
+    /** 기능 전용 키 변수를 지정한 클라이언트. 비어 있으면 OPENAI_API_KEY 로 대체한다. */
+    OpenAiResponsesClient(ObjectMapper objectMapper, String featureKeyName) {
         this(
                 objectMapper,
                 new RestClientOpenAiTransport(REQUEST_TIMEOUT),
                 new RestClientOpenAiTransport(BOUNDED_TIMEOUT),
                 readTimeout -> new RestClientOpenAiTransport(BOUNDED_TIMEOUT, readTimeout),
                 Sleeper.real(),
-                System::getenv);
+                System::getenv,
+                featureKeyName);
     }
 
     OpenAiResponsesClient(
@@ -63,7 +75,7 @@ public class OpenAiResponsesClient implements TextGenerator {
             OpenAiHttpTransport transport,
             Sleeper sleeper,
             Function<String, String> environment) {
-        this(objectMapper, transport, transport, timeout -> transport, sleeper, environment);
+        this(objectMapper, transport, transport, timeout -> transport, sleeper, environment, COACH_KEY);
     }
 
     OpenAiResponsesClient(
@@ -73,6 +85,18 @@ public class OpenAiResponsesClient implements TextGenerator {
             Function<Duration, OpenAiHttpTransport> timedTransports,
             Sleeper sleeper,
             Function<String, String> environment) {
+        this(objectMapper, transport, boundedTransport, timedTransports, sleeper, environment, COACH_KEY);
+    }
+
+    OpenAiResponsesClient(
+            ObjectMapper objectMapper,
+            OpenAiHttpTransport transport,
+            OpenAiHttpTransport boundedTransport,
+            Function<Duration, OpenAiHttpTransport> timedTransports,
+            Sleeper sleeper,
+            Function<String, String> environment,
+            String featureKeyName) {
+        this.featureKeyName = featureKeyName;
         this.objectMapper = objectMapper;
         this.transport = transport;
         this.boundedTransport = boundedTransport;
@@ -185,9 +209,10 @@ public class OpenAiResponsesClient implements TextGenerator {
     }
 
     private Configuration requiredConfiguration() {
-        String key = value("OPENAI_API_KEY");
+        String key = ApiKeys.firstNonBlank(value(featureKeyName), value(LEGACY_KEY));
         if (key.isEmpty()) {
-            throw new IllegalStateException("OpenAI 호출에는 OPENAI_API_KEY 환경변수가 필요합니다.");
+            throw new IllegalStateException(
+                    "OpenAI 호출에는 " + featureKeyName + " 또는 " + LEGACY_KEY + " 환경변수가 필요합니다.");
         }
         String configuredModel = value("OPENAI_CHAT_MODEL");
         return new Configuration(key, configuredModel.isEmpty() ? DEFAULT_MODEL : configuredModel);

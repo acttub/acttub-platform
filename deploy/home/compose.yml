@@ -56,8 +56,18 @@ services:
       # 같은 값이다. 앱은 비어 있어도 뜨지만 공유 주소가 null 로 나가 기능이 조용히 죽으므로 여기서 요구한다.
       SITE_URL: ${SITE_URL:?.env 의 SITE_URL 이 없다}
       ADMIN_OPS_TOKEN: ${ADMIN_OPS_TOKEN:?.env 의 ADMIN_OPS_TOKEN 이 없다}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:?.env 의 GEMINI_API_KEY 가 없다}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:?.env 의 OPENAI_API_KEY 가 없다}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # 공용 키(GEMINI_API_KEY·OPENAI_API_KEY)와 기능별 키는 모두 선택이다. 기능마다 전용 키나 공용 키 중 하나는 있어야 앱이 뜨고
+      # (Gemini 코칭·TTS·챌린지, OpenAI 코칭·대본분리·리포트·기억), 전용 키가 있으면 공용 키보다 먼저 쓴다. prepare-server.sh 가 서버 .env 를 이 조건으로 검사한다.
+      # dev·prod 는 같은 변수에 각 서버 .env 가 다른 값을 넣어 가른다(URL 로 가르지 않는다).
+      GEMINI_COACH_API_KEY: ${GEMINI_COACH_API_KEY:-}
+      GEMINI_TTS_API_KEY: ${GEMINI_TTS_API_KEY:-}
+      GEMINI_CHALLENGE_API_KEY: ${GEMINI_CHALLENGE_API_KEY:-}
+      OPENAI_COACH_API_KEY: ${OPENAI_COACH_API_KEY:-}
+      OPENAI_SCRIPT_SPLIT_API_KEY: ${OPENAI_SCRIPT_SPLIT_API_KEY:-}
+      OPENAI_REPORT_API_KEY: ${OPENAI_REPORT_API_KEY:-}
+      OPENAI_MEMORY_API_KEY: ${OPENAI_MEMORY_API_KEY:-}
       S3_BUCKET: ${S3_BUCKET:?.env 의 S3_BUCKET 이 없다}
       AWS_REGION: ${AWS_REGION:?.env 의 AWS_REGION 이 없다}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?.env 의 AWS_ACCESS_KEY_ID 가 없다}

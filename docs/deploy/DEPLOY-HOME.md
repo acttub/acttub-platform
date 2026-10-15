@@ -49,7 +49,8 @@ DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../..
 | 운영 절차 | 보관 동의 철회 요청은 [RETENTION-REVOCATION.md](RETENTION-REVOCATION.md)대로 처리한다 |
 | 로그인 제공자 | `AUTH_ENABLED_PROVIDERS`, 애플 키 셋(`APPLE_TEAM_ID`·`APPLE_KEY_ID`·`APPLE_PRIVATE_KEY`. 없으면 처음 온 애플 신원의 로그인이 503). 카카오·네이버는 검수 승인 뒤에만 켜고, 그때 두 개발자 콘솔에 연결 끊기 콜백 주소를 등록한다(카카오는 POST·기본 어드민 키, [account.login](../specs/account/login.md#규칙제약)) |
 | 오디션 공고 | `AUDITION_ENABLED`(기본 false)·`AUDITION_SOURCES`(기본 `shinsee,emk,sejong,otr`, plfil 은 ADR-034 로 기본에서 뺐다)·`AUDITION_COLLECT_CRON`(기본 매일 07:00·19:00 KST). 켜면 API 가 바깥 출처의 목록 페이지에 요청을 보낸다([app.audition](../specs/app/audition.md)) |
-| 외부 서비스 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
+| 외부 서비스 | AI 키(바로 아래 행), 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
+| AI 키 | 기능마다 **전용 키 또는 공용 키(`GEMINI_API_KEY`·`OPENAI_API_KEY`) 중 하나**가 있으면 된다. 공용 키만, 전용 키만, 섞어서 모두 허용하며 전용 키가 있으면 공용 키보다 먼저 쓴다. Gemini: `GEMINI_COACH_API_KEY`(직접 영상 코칭 A/B·관찰·영상 기록·음성 전사), `GEMINI_TTS_API_KEY`(리딩 음성), `GEMINI_CHALLENGE_API_KEY`(챌린지 비교). OpenAI: `OPENAI_COACH_API_KEY`(기존·비직접 코칭), `OPENAI_SCRIPT_SPLIT_API_KEY`(대본 분리), `OPENAI_REPORT_API_KEY`(코칭 노트·리포트), `OPENAI_MEMORY_API_KEY`(배우 기억). Gemini 코칭·TTS·챌린지는 전용 키도 공용 키도 없으면 API 기동이 멈추고(다른 기능의 키로 대신하지 않는다), OpenAI는 호출할 때 실패한다. dev·prod 는 같은 변수 이름에 각 서버 `.env` 가 서로 다른 프로젝트·키의 값을 넣어 가른다(URL 로 가르지 않는다). 값은 서버 `.env` 에만 두고 저장소·로그·문서에 적지 않는다. `prepare-server.sh` 가 이 조건으로 검사한다 |
 | 모니터링 | `MONITORING_TOKEN`·`MONITORING_ENVIRONMENT`(선택). 값과 짝은 [수집 구성 「최초 준비」](../../deploy/monitoring/README.md#최초-준비)를 따른다 |
 | 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000`(`edge` 망에서 proxy가 받는다, §1) |
