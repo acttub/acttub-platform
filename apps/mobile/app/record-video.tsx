@@ -176,9 +176,9 @@ export default function RecordVideoScreen() {
       }),
     [changeMode, mode, picker],
   );
-  const showPicker = picker && !recording;
-  const slider = showPicker ? (
-    <View>
+  // 녹화 중에도 용도 줄 자리를 비워 두지 않는다 — 치우면 아래 정렬이라 정지 버튼이 그만큼 내려간다(SOMA-737).
+  const slider = picker ? (
+    <View style={recording ? styles.hiddenKeepSpace : undefined} pointerEvents={recording ? 'none' : 'auto'}>
       <RecordModeSlider
         modes={RECORD_MODES}
         value={(mode ?? 'ai') as RecordMode}
@@ -423,7 +423,7 @@ export default function RecordVideoScreen() {
         </View>
 
         <View style={styles.bottomGroup}>
-          {!recording && <Text style={styles.hint}>{picker ? t('recordMode.swipeHint') : t('record.hint')}</Text>}
+          <Text style={[styles.hint, recording && styles.hiddenKeepSpace]}>{picker ? t('recordMode.swipeHint') : t('record.hint')}</Text>
           <View style={styles.bottomRow}>
             {/* 왼쪽 슬롯: 녹화 중엔 빈 칸으로 둬서 셔터가 늘 가운데에 오게 한다. */}
             {recording ? (
@@ -526,5 +526,6 @@ const styles = StyleSheet.create({
   shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFFFFF' },
   shutterInnerRed: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E5645C' },
   shutterInnerStop: { width: 30, height: 30, borderRadius: 6, backgroundColor: palette.danger },
+  hiddenKeepSpace: { opacity: 0 },
   hint: { color: '#FFFFFF', textAlign: 'center', fontSize: 13, opacity: 0.85, paddingBottom: 8 },
 });
