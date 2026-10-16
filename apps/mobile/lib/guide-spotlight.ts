@@ -66,17 +66,22 @@ export function captionPlacement(
   hole: Rect | null,
   screen: Screen,
   captionHeight: number,
+  bottomInset = 0,
 ): { top: number } | { bottom: number } {
-  if (!hole) return { top: Math.max(0, (screen.height - captionHeight) / 2) };
+  // 안드로이드 하단 내비게이션 바·제스처 영역은 창 안쪽에 있어도 가려진다(SOMA-740).
+  // 카드는 그 위까지만 놓는다.
+  const inset = Number.isFinite(bottomInset) && bottomInset > 0 ? bottomInset : 0;
+  const limit = screen.height - inset;
+  if (!hole) return { top: Math.max(0, (limit - captionHeight) / 2) };
   const below = hole.y + hole.height + HOLE_GAP;
   const aboveEdge = hole.y - HOLE_GAP;
-  if (below + captionHeight <= screen.height) return { top: below };
-  if (aboveEdge - captionHeight >= 0) return { bottom: screen.height - aboveEdge };
+  if (below + captionHeight <= limit) return { top: below };
+  if (aboveEdge - captionHeight >= 0) return { bottom: Math.max(inset, screen.height - aboveEdge) };
   // 비출 자리가 화면을 거의 다 차지한다 — 넓은 쪽에 두고, 가리더라도 화면 안에는 둔다.
-  if (aboveEdge >= screen.height - below) {
-    return { bottom: screen.height - Math.max(aboveEdge, captionHeight) };
+  if (aboveEdge >= limit - below) {
+    return { bottom: Math.max(inset, screen.height - Math.max(aboveEdge, captionHeight + inset)) };
   }
-  return { top: Math.max(0, Math.min(below, screen.height - captionHeight)) };
+  return { top: Math.max(0, Math.min(below, limit - captionHeight)) };
 }
 
 /** 다음 단계. 마지막이면 null(끝). */

@@ -1,6 +1,6 @@
 import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
-import type { CoachConversation, CoachMessage, CoachReplyBody, CoachTurnResult, PracticeDetail, PracticeNote } from './types.ts';
+import type { CoachConversation, CoachMessage, CoachReplyBody, CoachStreamCallbacks, CoachTurnResult, PracticeDetail, PracticeNote } from './types.ts';
 import { COACH_ANSWER_MAX } from './types.ts';
 import { readOptionalPracticeNote } from './note.ts';
 
@@ -15,13 +15,13 @@ type CoachSessionApi = {
   getPractice: (id: string) => Promise<PracticeDetail>;
   getConversation: (id: string) => Promise<CoachConversation>;
   getPracticeNote: (id: string) => Promise<PracticeNote>;
-  startConversation: (id: string, requestId: string) => Promise<CoachTurnResult>;
+  startConversation: (id: string, requestId: string, stream?: CoachStreamCallbacks) => Promise<CoachTurnResult>;
 };
 
 /** 화면 재진입은 서버의 대화 id로 복원한다. 닫힌 대화에 start를 보내지 않는다. */
-export async function loadCoachSession(api: CoachSessionApi, practiceId: string, requestId: string, conversationId?: string | null): Promise<CoachTurnResult> {
+export async function loadCoachSession(api: CoachSessionApi, practiceId: string, requestId: string, conversationId?: string | null, stream?: CoachStreamCallbacks): Promise<CoachTurnResult> {
   const id = conversationId ?? (await api.getPractice(practiceId)).conversation_id;
-  if (!id) return api.startConversation(practiceId, requestId);
+  if (!id) return api.startConversation(practiceId, requestId, stream);
   const conversation = await api.getConversation(id);
   let note: PracticeNote | null = null;
   if (isClosed(conversation)) {

@@ -73,6 +73,21 @@ class ErrorContractInventoryTest {
      * 이관 중에 500 이던 자리가 404 로 바뀐 사고가 둘 있었고, 그때 응답 diff 는 0 이었다.
      */
     private static final Map<String, Coverage> EXPECTED = Map.ofEntries(
+            // PG 심사 전용 테스트 결제(SOMA-620). 쿠키 세션 전용이라 앱 인증 오류와 겹치지 않는다.
+            covered("feature.billing.adapter.web.PgReviewController|404|pg_review_unavailable", 1,
+                    "feature.billing.adapter.web.PgReviewControllerTest"),
+            covered("feature.billing.adapter.web.PgReviewController|401|invalid_credentials", 1,
+                    "feature.billing.adapter.web.PgReviewControllerTest"),
+            covered("feature.billing.adapter.web.PgReviewController|401|pg_review_login_required", 1,
+                    "feature.billing.adapter.web.PgReviewControllerTest"),
+            covered("feature.billing.adapter.web.PgReviewController|403|origin_not_allowed", 1,
+                    "feature.billing.adapter.web.PgReviewControllerTest"),
+            covered("feature.billing.adapter.web.PgReviewController|409|checkout_not_allowed", 1,
+                    "feature.billing.adapter.web.PgReviewControllerTest"),
+            covered("feature.billing.adapter.web.PgReviewController|429|rate limit exceeded", 1,
+                    "feature.billing.adapter.web.PgReviewControllerTest"),
+            covered("feature.billing.adapter.web.PgReviewController|429|pg_review_session_limit", 1,
+                    "feature.billing.adapter.web.PgReviewControllerTest"),
             covered("feature.challenge.adapter.db.PostgresChallengeRepository|422|duplicate_challenge", 1,
                     "feature.challenge.ChallengeIT"),
             covered("feature.challenge.adapter.db.PostgresChallengeRepository|422|challenge_has_entries", 1,

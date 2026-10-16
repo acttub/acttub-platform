@@ -20,7 +20,7 @@ test("practice.coach: 답은 대화 id·요청 id·revision 을 함께 보낸다
   const send = block("const send = useCallback", "const restartAfterBlocked");
   assert.match(
     send,
-    /replyConversation\(\s*\{ conversationId: coachId, text, revision: revisionRef\.current \},\s*\{ requestId \},/,
+    /replyConversation\(\s*\{ conversationId: coachId, text, revision: revisionRef\.current \},\s*\{ requestId, onDelta: appendStream, onReset: resetStream \},/,
   );
   // 같은 차례·같은 본문의 재전송은 같은 요청 id 다 — 메시지가 둘이 되지 않는다.
   assert.match(send, /const requestId = replyRequestIdFor\(coachId, turnIndex, text\)/);

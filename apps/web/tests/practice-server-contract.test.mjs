@@ -29,6 +29,7 @@ test("서버 messages와 close_reason으로 재개하고 conversation.status로 
     ], created_at: null,
   };
   globalThis.fetch = async (url, init) => {
+    if (url === "/v2/coach/start/stream") return new Response(JSON.stringify({ detail: "Not Found" }), { status: 404, headers: { "Content-Type": "application/json" } });
     if (url === "/v2/coach/start") {
       assert.deepEqual(JSON.parse(init.body), { practice_id: "p1", request_id: "r1" });
       return json({ conversation, message: "오늘은 여기까지예요", note: null });

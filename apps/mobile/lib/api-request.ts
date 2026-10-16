@@ -1,5 +1,6 @@
 import { translate } from './i18n.ts';
 import { newRequestId } from './request-id.ts';
+import { consumeCoachStream, streamFailureAction, type ByteReader } from './coach-stream.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -61,6 +62,10 @@ export type ApiRequestDependencies = {
   clientHeader: string;
   fetchImpl: typeof fetch;
   /**
+   * 본문을 스트림으로 읽을 수 있는 fetch(RN 은 expo/fetch). 없으면 postIdempotentStream 은 곧장 일반 호출로 간다.
+   */
+  streamFetchImpl?: (url: string, init: RequestInit) => Promise<Response>;
+  /**
    * 서버가 AI 답변을 어느 말로 쓸지 정하는 데 쓴다(Accept-Language).
    * 없으면 한국어 — 옛 동작 그대로다.
    */
@@ -93,6 +98,13 @@ export type ApiRequestOptions = {
 };
 
 export type RetryWaitReason = 'processing' | 'rate_limited' | 'network';
+
+export type PostIdempotentStreamOptions = PostIdempotentOptions & {
+  /** 코치가 쓰는 글이 한 조각 올 때마다. */
+  onDelta?: (text: string) => void;
+  /** 쓰던 조각을 버려야 할 때(오류·끊김·일반 호출로 전환). */
+  onReset?: () => void;
+};
 
 export type PostIdempotentOptions = ApiRequestOptions & {
   requestId?: string;
@@ -345,6 +357,30 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
       : { kind: 'session_changed' };
   }
 
+  function buildHeaders(source: HeadersInit | undefined, options: ApiRequestOptions): Headers {
+    const headers = new Headers(source);
+    headers.set('X-Acttub-Contract', 'three_layers_v1');
+    headers.set('X-Acttub-Client', dependencies.clientHeader);
+    headers.set('Accept-Language', dependencies.getLanguage?.() ?? 'ko');
+    if (options.auth !== false) {
+      const token = dependencies.getAccessToken();
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+    }
+    return headers;
+  }
+
+  /** 403 은 코드로 갈린다 — 동의와 프로필은 채우면 풀리고, 탈퇴는 풀 수 없어 내보내야 한다. */
+  function emitForbiddenSideEffects(error: ApiError): void {
+    if (error.status !== 403) return;
+    if (error.code === 'consent_required') {
+      dependencies.emitConsentRequired(pendingConsentsOf(error));
+    } else if (error.code === 'profile_required') {
+      dependencies.emitProfileRequired();
+    } else if (error.code === 'account_deactivated') {
+      dependencies.emitAccountDeactivated();
+    }
+  }
+
   async function fetchParsed(
     path: string,
     init: RequestInit,
@@ -353,14 +389,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     const timeoutMs = options.timeoutMs ?? 60_000;
     const composed = attemptSignal(options.signal, timeoutMs, clock);
     try {
-      const headers = new Headers(init.headers);
-      headers.set('X-Acttub-Contract', 'three_layers_v1');
-      headers.set('X-Acttub-Client', dependencies.clientHeader);
-      headers.set('Accept-Language', dependencies.getLanguage?.() ?? 'ko');
-      if (options.auth !== false) {
-        const token = dependencies.getAccessToken();
-        if (token) headers.set('Authorization', `Bearer ${token}`);
-      }
+      const headers = buildHeaders(init.headers, options);
       let response: Response;
       try {
         response = await dependencies.fetchImpl(`${dependencies.baseUrl}${path}`, {
@@ -503,16 +532,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
 
     if (!response.ok) {
       const error = toApiError(response.status, payload);
-      // 403 은 코드로 갈린다 — 동의와 프로필은 채우면 풀리고, 탈퇴는 풀 수 없어 내보내야 한다.
-      if (error.status === 403) {
-        if (error.code === 'consent_required') {
-          dependencies.emitConsentRequired(pendingConsentsOf(error));
-        } else if (error.code === 'profile_required') {
-          dependencies.emitProfileRequired();
-        } else if (error.code === 'account_deactivated') {
-          dependencies.emitAccountDeactivated();
-        }
-      }
+      emitForbiddenSideEffects(error);
       throw error;
     }
     return payload as T;
@@ -607,8 +627,161 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     }
   }
 
+  type StreamAttempt<T> = Awaited<ReturnType<typeof consumeCoachStream<T>>>;
+
+  /** 스트림 한 번. HTTP 오류는 일반 호출과 똑같이 던지고, 200 이면 done/error/dropped 로 돌려준다. */
+  async function streamAttempt<T>(
+    path: string,
+    serializedBody: string | undefined,
+    requestId: string,
+    options: PostIdempotentStreamOptions,
+    deadline: number,
+    authSessionEpoch: number | undefined,
+    retried = false,
+  ): Promise<StreamAttempt<T>> {
+    throwIfCancelled(options.signal);
+    if (authSessionEpoch !== undefined) assertSameAuthSession(authSessionEpoch);
+    const remainingMs = deadline - clock.now();
+    if (remainingMs <= 0) throw new RequestAbortError('timeout');
+    const failedAccess = options.auth === false ? null : dependencies.getAccessToken();
+    const composed = attemptSignal(
+      options.signal,
+      Math.min(options.timeoutMs ?? 60_000, remainingMs),
+      clock,
+    );
+    try {
+      const headers = buildHeaders(
+        { 'Content-Type': 'application/json', 'X-Request-Id': requestId, Accept: 'text/event-stream' },
+        options,
+      );
+      let response: Response;
+      try {
+        response = await dependencies.streamFetchImpl!(`${dependencies.baseUrl}${path}`, {
+          method: 'POST',
+          headers,
+          body: serializedBody,
+          signal: composed.signal,
+        });
+      } catch (error) {
+        if (composed.signal.aborted) {
+          const reason = composed.signal.reason;
+          throw reason instanceof RequestAbortError
+            ? reason
+            : new RequestAbortError(options.signal?.aborted ? 'cancelled' : 'timeout');
+        }
+        throw new NetworkError(undefined, error);
+      }
+      if (response.status === 426) dependencies.emitUpdateRequired();
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!response.ok || !contentType.includes('text/event-stream') || !response.body) {
+        if (response.ok) {
+          // 200 인데 스트림이 아니다(프록시·구버전). 일반 호출로 되돌린다.
+          throw new ApiError(501, 'stream_unsupported', 'stream_unsupported');
+        }
+        const payload = await readPayload(response);
+        if (
+          response.status === 401 &&
+          options.auth !== false &&
+          options.retryOn401 !== false &&
+          !retried
+        ) {
+          // 아래에서 토큰을 갱신하고 한 번 더 시도한다.
+        } else {
+          const error = toApiError(response.status, payload);
+          emitForbiddenSideEffects(error);
+          throw error;
+        }
+      } else {
+        const reader = (response.body as unknown as { getReader: () => ByteReader }).getReader();
+        const outcome = await consumeCoachStream<T>(reader, (text) => options.onDelta?.(text));
+        throwIfCancelled(options.signal);
+        if (composed.signal.aborted && outcome.kind === 'dropped') {
+          const reason = composed.signal.reason;
+          throw reason instanceof RequestAbortError ? reason : new RequestAbortError('timeout');
+        }
+        return outcome;
+      }
+    } finally {
+      composed.cleanup();
+    }
+    // 여기는 401 → 토큰을 갱신하고 한 번 더.
+    assertSameAuthSession(authSessionEpoch!);
+    const refresh = await waitForShared(ensureRefreshed(failedAccess ?? undefined), options.signal);
+    throwIfCancelled(options.signal);
+    if (refresh.kind === 'invalid') {
+      throw new ApiError(401, translate('errors.sessionExpired'), 'unauthorized');
+    }
+    if (refresh.kind === 'session_changed') throw sessionChangedError();
+    assertSameAuthSession(authSessionEpoch!);
+    return streamAttempt<T>(path, serializedBody, requestId, options, deadline, authSessionEpoch, true);
+  }
+
+  /**
+   * postIdempotent 의 스트리밍판. 스트림 경로(streamPath)로 시도하고, 서버가 모르거나(404·405)
+   * 스트림이 안 되거나 도중에 끊기면 같은 request_id·본문으로 일반 경로(path)를 한 번 부른다.
+   * 서버는 끊겨도 끝까지 만들어 저장하므로 일반 호출이 저장된 결과를 돌려준다(처리 중이면 409 대기 재시도는
+   * postIdempotent 가 한다). 전체 제한 시간(deadlineMs, 기본 120초)은 두 시도가 함께 쓴다.
+   */
+  async function postIdempotentStream<T>(
+    streamPath: string,
+    path: string,
+    body: unknown,
+    options: PostIdempotentStreamOptions = {},
+  ): Promise<T> {
+    const requestId = options.requestId ?? newRequestId();
+    const deadline = clock.now() + (options.deadlineMs ?? 120_000);
+    const fallback = () => {
+      const remainingMs = deadline - clock.now();
+      if (remainingMs <= 0) throw new RequestAbortError('timeout');
+      return postIdempotent<T>(path, body, { ...options, requestId, deadlineMs: remainingMs });
+    };
+    if (!dependencies.streamFetchImpl) return fallback();
+
+    if (options.auth !== false) {
+      await waitForShared(dependencies.waitForCredentialReady(), options.signal);
+      throwIfCancelled(options.signal);
+    }
+    const authSessionEpoch =
+      options.auth === false ? undefined : dependencies.getAuthSessionEpoch();
+    const serializedBody =
+      body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body);
+
+    let outcome: StreamAttempt<T>;
+    try {
+      outcome = await streamAttempt<T>(
+        streamPath,
+        serializedBody,
+        requestId,
+        options,
+        deadline,
+        authSessionEpoch,
+      );
+    } catch (error) {
+      const info =
+        error instanceof ApiError
+          ? { status: error.status, code: error.code, name: error.name }
+          : null;
+      if (!info || streamFailureAction(info) === 'throw') throw error;
+      options.onReset?.();
+      return fallback();
+    }
+    if (outcome.kind === 'done') return outcome.value;
+    options.onReset?.();
+    if (outcome.kind === 'dropped') return fallback();
+    const error = toApiError(
+      outcome.status,
+      outcome.detail === undefined ? undefined : { detail: outcome.detail },
+    );
+    emitForbiddenSideEffects(error);
+    if (streamFailureAction({ status: error.status, code: error.code }) === 'fallback') {
+      return fallback();
+    }
+    throw error;
+  }
+
   return {
     request,
     postIdempotent,
+    postIdempotentStream,
   };
 }

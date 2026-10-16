@@ -1,6 +1,7 @@
 import { apiFetch, type ApiResponse } from "./client";
 import { consentPromptElapsedMs, whenConsentPromptCloses } from "./consent-prompt";
-import { isRateLimited, isStillProcessing, NetworkError } from "./errors";
+import { ApiError, isRateLimited, isStillProcessing, NetworkError, toApiError } from "./errors";
+import { consumeCoachStream, streamFailureAction } from "./coach-stream";
 import { newRequestId } from "../../reading/request-id";
 
 export type PostIdempotentOptions = {
@@ -142,5 +143,90 @@ export async function postIdempotent<T>(
       if (leftMs <= 0) throw error;
       await wait(Math.min(delayMs, leftMs), options.signal);
     }
+  }
+}
+
+export type PostIdempotentStreamOptions = PostIdempotentOptions & {
+  /** 코치가 쓰는 글이 한 조각 올 때마다. */
+  onDelta?: (text: string) => void;
+  /** 쓰던 조각을 버려야 할 때(오류·끊김·일반 호출로 전환). */
+  onReset?: () => void;
+};
+
+/**
+ * postIdempotent 의 스트리밍판. 스트림 경로(streamPath)로 시도하고, 서버가 모르거나(404·405) 스트림이
+ * 아니거나 도중에 끊기면 같은 request_id·본문으로 일반 경로(path)를 부른다. 서버는 끊겨도 끝까지 만들어
+ * 저장하므로 일반 호출이 저장된 결과를 돌려준다(처리 중 409 는 postIdempotent 가 기다렸다 재시도한다).
+ * 전체 제한 시간(deadlineMs, 기본 120초)은 두 시도가 함께 쓴다. 동의 시트가 떠 있던 시간은 세지 않는다.
+ */
+export async function postIdempotentStream<T>(
+  streamPath: string,
+  path: string,
+  body: unknown,
+  options: PostIdempotentStreamOptions = {},
+): Promise<ApiResponse<T>> {
+  const requestId = options.requestId ?? newRequestId();
+  const deadlineMs = options.deadlineMs ?? 120_000;
+  const startedAt = Date.now();
+  const sheetMsAtStart = consentPromptElapsedMs(startedAt);
+  const remainingMs = () => {
+    const now = Date.now();
+    return deadlineMs - (now - startedAt - (consentPromptElapsedMs(now) - sheetMsAtStart));
+  };
+  const serializedBody = body === undefined ? undefined : JSON.stringify(body);
+  const fallback = () => {
+    const leftMs = remainingMs();
+    if (leftMs <= 0) throw deadlineError();
+    return postIdempotent<T>(path, body, {
+      requestId,
+      signal: options.signal,
+      deadlineMs: leftMs,
+    });
+  };
+  if (typeof ReadableStream === "undefined" || typeof TextDecoder === "undefined") return fallback();
+
+  const attempt = signalUntilDeadline(options.signal, remainingMs);
+  try {
+    let response: ApiResponse<T>;
+    try {
+      response = await apiFetch<T>(streamPath, {
+        method: "POST",
+        body: serializedBody,
+        headers: { "X-Request-Id": requestId, Accept: "text/event-stream" },
+        signal: attempt.signal,
+        stream: true,
+      });
+    } catch (error) {
+      const info =
+        error instanceof ApiError
+          ? { status: error.status, code: error.code }
+          : error instanceof NetworkError
+            ? { status: 0, network: true }
+            : null;
+      if (!info || streamFailureAction(info) === "throw") throw error;
+      attempt.cleanup();
+      options.onReset?.();
+      return await fallback();
+    }
+
+    // 스트림이 아닌 성공 응답(프록시·구버전)은 본문을 이미 읽은 일반 응답이다.
+    if (!response.stream) return response;
+
+    const outcome = await consumeCoachStream<T>(response.stream.getReader(), (text) => options.onDelta?.(text));
+    if (attempt.signal.aborted && outcome.kind === "dropped") throw abortReason(attempt.signal);
+    if (outcome.kind === "done") return { status: response.status, data: outcome.value };
+    attempt.cleanup();
+    options.onReset?.();
+    if (outcome.kind === "dropped") return await fallback();
+    const error = toApiError(
+      outcome.status,
+      outcome.detail === undefined ? undefined : { detail: outcome.detail },
+    );
+    if (streamFailureAction({ status: error.status, code: error.code }) === "fallback") {
+      return await fallback();
+    }
+    throw error;
+  } finally {
+    attempt.cleanup();
   }
 }

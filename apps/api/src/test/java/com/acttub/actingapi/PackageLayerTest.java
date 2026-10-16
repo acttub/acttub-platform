@@ -102,7 +102,9 @@ class PackageLayerTest {
             Map.entry("poster", Set.of("domain", "app", "adapter")),
             // 오디션 공고 모아보기(SOMA-564). 열림·마감 표시·연락처 모양·정렬 규칙이 domain 에 산다. 쓰기가 전부
             // ON CONFLICT upsert 와 조건 삭제라 Schema Entity 없이 native SQL 로만 읽고 쓴다(EntityMappingIT 의 대기 목록).
-            Map.entry("audition", Set.of("domain", "app", "adapter")));
+            Map.entry("audition", Set.of("domain", "app", "adapter")),
+            // PG 심사 전용 테스트 결제(SOMA-620). 메모리 세션과 토스 호출뿐이라 DB·Schema Entity·Domain Model 이 없다.
+            Map.entry("billing", Set.of("app", "adapter")));
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. docs/ARCHITECTURE.md의 <b>Domain Model</b>은 "프레임워크를

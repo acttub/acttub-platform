@@ -5,6 +5,8 @@ import { normalizeAdmissions } from './admissions';
 import { normalizeAuditions, type AuditionPostingList } from './auditions';
 
 import Constants from 'expo-constants';
+// RN 기본 fetch 는 본문을 흘려 읽지 못한다. 코치 답 스트리밍에만 쓴다(네이티브 모듈 추가 없음, SDK 52+).
+import { fetch as expoStreamFetch } from 'expo/fetch';
 import {
   createUploadTask,
   FileSystemUploadType,
@@ -26,6 +28,7 @@ import {
   ApiError,
   createApiRequestClient,
   type PostIdempotentOptions,
+  type PostIdempotentStreamOptions,
 } from '@/lib/api-request';
 import { newRequestId } from '@/lib/request-id';
 import type { SignupDecision } from '@/lib/consent-entry-submission';
@@ -79,6 +82,7 @@ import type {
   PracticeNote,
   PracticeResponse,
   PracticeStatus,
+  CoachStreamCallbacks,
 } from '@/lib/practice/types';
 import { practiceGroupFromResponse } from '@/lib/practice/groups';
 import type {
@@ -125,6 +129,7 @@ const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
   clientHeader: CLIENT_HEADER,
   fetchImpl: (...args) => fetch(...args),
+  streamFetchImpl: (url, init) => expoStreamFetch(url, init as never) as unknown as Promise<Response>,
   getLanguage: currentLanguage,
   waitForCredentialReady,
   getAccessToken,
@@ -334,6 +339,15 @@ function postIdempotent<T>(
   options: PostIdempotentOptions = {},
 ): Promise<T> {
   return requestClient.postIdempotent<T>(path, body, options);
+}
+
+function postIdempotentStream<T>(
+  streamPath: string,
+  path: string,
+  body: unknown,
+  options: PostIdempotentStreamOptions = {},
+): Promise<T> {
+  return requestClient.postIdempotentStream<T>(streamPath, path, body, options);
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -1043,11 +1057,12 @@ export const api = {
    * 회차의 대화를 시작한다. 회차에 대화는 하나이고, 열린 대화가 있으면 같은 대화를 돌려준다.
    * 같은 request_id 재전송은 같은 대화다. 분석이 끝나지 않았으면 409 analysis_not_ready.
    */
-  startConversation(practiceId: string, requestId: string): Promise<CoachTurnResult> {
-    return postIdempotent<CoachTurnResult>(
+  startConversation(practiceId: string, requestId: string, stream?: CoachStreamCallbacks): Promise<CoachTurnResult> {
+    return postIdempotentStream<CoachTurnResult>(
+      '/v2/coach/start/stream',
       '/v2/coach/start',
       { practice_id: practiceId, request_id: requestId },
-      { requestId, timeoutMs: 120_000 },
+      { requestId, timeoutMs: 120_000, ...stream },
     );
   },
 
@@ -1055,10 +1070,11 @@ export const api = {
    * 답을 보낸다. revision 이 어긋나면 409 conversation_conflict 라 화면은 입력을 보존하고
    * 최신 대화를 다시 읽는다. 닫힌 대화면 409 conversation_closed.
    */
-  replyToCoach(body: CoachReplyBody): Promise<CoachTurnResult> {
-    return postIdempotent<CoachTurnResult>('/v2/coach/reply', body, {
+  replyToCoach(body: CoachReplyBody, stream?: CoachStreamCallbacks): Promise<CoachTurnResult> {
+    return postIdempotentStream<CoachTurnResult>('/v2/coach/reply/stream', '/v2/coach/reply', body, {
       requestId: body.request_id,
       timeoutMs: 120_000,
+      ...stream,
     });
   },
 

@@ -20,11 +20,18 @@ export type ApiFetchOptions = {
    * 요청(이관 코드 받기)이 쓴다 — 게스트가 없으면 다룰 자료도 없다.
    */
   startGuest?: boolean;
+  /**
+   * true 면 성공 응답이 text/event-stream 일 때 본문을 읽지 않고 ApiResponse.stream 으로 넘긴다.
+   * 실패 응답과 스트림이 아닌 성공 응답은 평소처럼 읽는다.
+   */
+  stream?: boolean;
 };
 
 export type ApiResponse<T> = {
   status: number;
   data: T;
+  /** options.stream 이고 응답이 이벤트 스트림일 때만 있다. 이때 data 는 비어 있다. */
+  stream?: ReadableStream<Uint8Array>;
 };
 
 function apiUrl(path: string): string {
@@ -86,7 +93,16 @@ async function fetchResponse(
   }
 }
 
-function responsePayload(response: Response): Promise<unknown> {
+function isEventStream(response: Response): boolean {
+  return (response.headers.get("Content-Type") ?? "").includes("text/event-stream");
+}
+
+function wantsStream(response: Response, options: ApiFetchOptions): boolean {
+  return options.stream === true && response.ok && response.body !== null && isEventStream(response);
+}
+
+function responsePayload(response: Response, options: ApiFetchOptions): Promise<unknown> {
+  if (wantsStream(response, options)) return Promise.resolve(undefined);
   return parsePayload(response, "API");
 }
 
@@ -150,7 +166,7 @@ async function sendWithSession(
   const failedAccess = session instanceof Promise ? await session : session;
 
   let response = await fetchResponse(path, options, body, failedAccess);
-  let payload = await responsePayload(response);
+  let payload = await responsePayload(response, options);
 
   if (response.status === 401 && auth) {
     let renewedAccess = await refreshAccessToken(failedAccess ?? undefined);
@@ -161,7 +177,7 @@ async function sendWithSession(
     if (!renewedAccess) throw responseError(response, payload);
 
     response = await fetchResponse(path, options, body, renewedAccess);
-    payload = await responsePayload(response);
+    payload = await responsePayload(response, options);
   }
 
   // 앱으로 옮겨진 게스트의 남은 액세스 토큰. account_deactivated 보다 먼저 가른다. 하려던 일을
@@ -177,7 +193,7 @@ async function sendWithSession(
     if (startsGuest(options)) {
       const guestAccess = await ensureGuestSession();
       response = await fetchResponse(path, options, body, guestAccess);
-      payload = await responsePayload(response);
+      payload = await responsePayload(response, options);
     }
   }
   return { response, payload };
@@ -192,6 +208,9 @@ export async function apiFetch<T>(
   for (let prompts = 0; ; prompts += 1) {
     const { response, payload } = await sendWithSession(path, options, body);
     if (response.ok) {
+      if (wantsStream(response, options)) {
+        return { status: response.status, data: undefined as T, stream: response.body as ReadableStream<Uint8Array> };
+      }
       return {
         status: response.status,
         data: payload as T,

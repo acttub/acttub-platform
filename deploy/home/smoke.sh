@@ -296,6 +296,24 @@ body="$(proxy_health)" || fail "proxy 경유 /health 를 부르지 못했다"
 [ "$body" = "$json" ] || fail "proxy 경유 /health 본문이 api 의 것과 다르다: $body"
 echo "  $body"
 
+# PG 심사 기능은 설정하지 않으면 닫혀 있어야 한다. 두 프록시 모두 API의 JSON 404를 주고,
+# 콜백 형태의 쿼리는 프록시·앱 로그에 남기지 않는다. 표식은 실제 키가 아닌 회귀 테스트 문자열이다.
+step "PG 심사 기본 비활성·API 직결·콜백 쿼리 로그 비노출"
+pg_probe="pg-review-query-probe-$PROJECT"
+for pg_port in 3000 8080; do
+  compose exec -T web node --input-type=module -e '
+    const [port, marker] = process.argv.slice(1);
+    const r = await fetch(`http://api:${port}/v2/pg-review/config?authKey=${marker}`, { redirect: "manual" });
+    if (r.status !== 404) throw new Error(`PG review must be closed: ${r.status}`);
+    await r.json();
+  ' -- "$pg_port" "$pg_probe" || fail "PG 심사 경로가 기본 비활성 API로 연결되지 않는다"
+done
+pg_logs="$(compose logs --no-color proxy api web)"
+if grep -Fq "$pg_probe" <<< "$pg_logs"; then
+  fail "PG 심사 콜백 쿼리가 컨테이너 로그에 남았다"
+fi
+echo "  기본 비활성 · 두 API 경로 JSON 404 · 쿼리 표식 비노출"
+
 # 망 별칭(compose.yml 의 proxy 주석): 진짜 web·api 가 같은 망에 끼어들면 이름이 둘로 풀려 proxy 를 건너뛴다 — 무중단이 조용히
 # 깨지는 자리라 망마다 하나로만 풀리는지 본다. edge 망(터널 자리)은 cloudflared 가 없어 웹 이미지의 getent 로 묻는다.
 step "망 별칭: web 안의 api 와 edge 망의 web 이 proxy 하나로만 풀린다"

@@ -56,6 +56,11 @@ public class AccessTokenFilter extends OncePerRequestFilter {
         if (path.startsWith("/v2/admin/")) {
             return true;
         }
+        // PG 심사 전용 테스트 결제(SOMA-620)는 앱 액세스 토큰이 아니라 전용 쿠키 세션을 쓴다. 앱 토큰이 우연히
+        // 붙어 와도 읽지 않는다.
+        if (path.startsWith("/v2/pg-review/")) {
+            return true;
+        }
         // 푸시 토큰 삭제는 로그인 없이 받는다(account.notification). 로그아웃하는 앱이 막 만료된 액세스 토큰을
         // 붙여 보내도 401 로 막히면 안 된다 — 그 삭제가 실패하면 옛 계정의 알림이 그 폰에 계속 온다.
         if (path.equals("/v2/push-tokens") && "DELETE".equalsIgnoreCase(request.getMethod())) {

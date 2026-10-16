@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   advance,
+  applyLineEdit,
   back,
   canGoBack,
   createRun,
@@ -146,6 +147,14 @@ test('reading.session: 나가기 확인 문구는 "지금 나가면 N번 대사�
   assert.equal(exitMessage(r), '지금 나가면 2번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
 });
 
+test('reading.session: 나가기 확인 숫자는 화면 "K / N" 의 K 와 같다(구간이 중간에서 시작해도)', () => {
+  let r = run({ startIndex: 4 }); // 대본 3번째 대사부터
+  assert.equal(exitMessage(r), '지금 나가면 0번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
+  r = advance(r);
+  assert.equal(progressOf(r).done, 1);
+  assert.equal(exitMessage(r), '지금 나가면 1번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
+});
+
 test('reading.session: 이전 — 바로 앞 대사 줄로 돌아가고 지문은 건너뛴다, 차례는 그 줄 배역으로', () => {
   let r = run(); // l1 윤서(내 줄)
   r = advance(r); // l2 태오
@@ -183,4 +192,48 @@ test('reading.session: 이전 — 말한 것은 남기고 다시 말하면 마�
   assert.equal(r.said.l1, '첫 시도');
   r = recordSaid(r, '두 번째');
   assert.equal(r.said.l1, '두 번째');
+});
+
+test('reading.session: 리딩 중 줄 고치기 — 글을 고치면 같은 줄을 처음부터, 종류가 대사가 아니게 되면 다음 대사로(SOMA-728)', () => {
+  let r = advance(run()); // l2 태오(상대)
+  const edited = LINES.map((l, i) => (i === 2 ? D('태오', '고친 2') : l));
+  const a = applyLineEdit(r, { lines: edited, lineIds: IDS, myRoles: ['윤서'] });
+  assert.equal(a.index, 2);
+  assert.equal(a.lines[2].text, '고친 2');
+  assert.equal(a.status, 'partner');
+
+  const toDirection = LINES.map((l, i) => (i === 2 ? X('2를 지문으로') : l));
+  const b = applyLineEdit(r, { lines: toDirection, lineIds: IDS, myRoles: ['윤서'] });
+  assert.equal(b.index, 4, '지문이 된 줄을 건너 다음 대사로');
+  assert.equal(b.status, 'mine');
+  assert.deepEqual(progressOf(b), { done: 1, total: 4 });
+});
+
+test('reading.session: 줄 고치기 — 배역이 바뀌면 차례도 바뀌고, 멈춘 상태는 그대로 멈춰 있다가 새 차례로 재개한다', () => {
+  const paused = { ...advance(run()), status: 'paused', resumeTo: 'partner' };
+  const mine = LINES.map((l, i) => (i === 2 ? D('윤서', '2') : l));
+  const a = applyLineEdit(paused, { lines: mine, lineIds: IDS, myRoles: ['윤서'] });
+  assert.equal(a.status, 'paused');
+  assert.equal(a.resumeTo, null, '재개할 때 차례를 새로 정한다');
+  assert.equal(turnOf(a), 'mine');
+});
+
+test('reading.session: 줄 고치기 — 대사가 아니게 된 줄의 말한 기록은 버린다(서버는 대사 줄이 아닌 결과를 422 로 거절한다)', () => {
+  let r = recordSaid(run(), '말함'); // l1
+  r = advance(r);
+  const toScene = LINES.map((l, i) => (i === 1 ? { type: 'scene', text: '장면' } : l));
+  const a = applyLineEdit(r, { lines: toScene, lineIds: IDS, myRoles: ['윤서'] });
+  assert.equal(a.said.l1, undefined);
+  assert.deepEqual(progressPayload(a).line_results, []);
+});
+
+test('reading.session: 줄 고치기 — 마지막 대사를 대사가 아니게 바꾸면 앞 대사로, 대사가 하나도 없으면 끝', () => {
+  let r = run();
+  for (let i = 0; i < 4; i++) r = advance(r); // l7 윤서(마지막)
+  assert.equal(r.index, 7);
+  const lastToDir = LINES.map((l, i) => (i === 7 ? X('끝말') : l));
+  const a = applyLineEdit(r, { lines: lastToDir, lineIds: IDS, myRoles: ['윤서'] });
+  assert.equal(a.index, 5);
+  const none = LINES.map((l) => (l.type === 'dialogue' ? X(l.text) : l));
+  assert.equal(applyLineEdit(r, { lines: none, lineIds: IDS, myRoles: ['윤서'] }).status, 'done');
 });

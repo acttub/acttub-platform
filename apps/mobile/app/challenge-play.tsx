@@ -26,6 +26,7 @@ import { api } from '@/lib/api';
 import { avatarLetter, browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
 import { entryShareUrl } from '@/lib/challenge/deeplink';
 import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
+import { commentCountAfter } from '@/lib/challenge/entry';
 import { canReact, optimisticLike, optimisticSave, reactFailure, reactFailureMessage } from '@/lib/challenge/react';
 import type { ChallengeDetail, EntryCard, ReportReason, ReportTarget } from '@/lib/challenge/types';
 import { createViewTracker, VIEW_THRESHOLD_MS } from '@/lib/challenge/views';
@@ -64,6 +65,7 @@ export default function ChallengePlayScreen() {
   const [muted, setMuted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [playFailed, setPlayFailed] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ type: ReportTarget; id: string } | null>(null);
   const listRef = useRef<FlatList<EntryCard>>(null);
 
@@ -72,6 +74,15 @@ export default function ChallengePlayScreen() {
     p.loop = true;
     limitVideoBuffer(p);
   });
+
+  // 재생할 수 없는 영상(0.2초짜리 등)이면 무한 로딩 대신 안내한다.
+  useEffect(() => {
+    const sub = player.addListener('statusChange', ({ status }) => {
+      if (status === 'error') setPlayFailed(true);
+      else if (status === 'readyToPlay') setPlayFailed(false);
+    });
+    return () => sub.remove();
+  }, [player]);
 
   useEffect(() => {
     player.muted = muted;
@@ -86,14 +97,28 @@ export default function ChallengePlayScreen() {
   ).current;
 
   useEffect(() => {
-    if (!id) return;
+    if (!id && !entryId) return;
     let alive = true;
-    void Promise.all([api.getChallenge(id), api.listChallengeEntries(id, { sort: 'likes', fromEntry: entryId })])
-      .then(([detail, list]) => {
+    // 저장한 영상·내 영상에서는 챌린지 id 없이 참여작 id 만 넘어온다 — 참여작에서 챌린지를 알아낸다.
+    // 내 비공개 참여작은 피드(공개 목록)에 없어 404 가 되므로 그 참여작 한 개만 보여 준다(SOMA-738).
+    void (async () => {
+      const own = entryId ? await api.getEntry(entryId).catch(() => null) : null;
+      const challengeId = id ?? own?.challenge_id;
+      if (!challengeId) throw Object.assign(new Error('not_found'), { status: 404 });
+      const detail = await api.getChallenge(challengeId);
+      try {
+        const list = await api.listChallengeEntries(challengeId, { sort: 'likes', fromEntry: entryId });
+        return { detail, list: rankEntries(list.entries, 'likes'), next: list.next_cursor };
+      } catch (e) {
+        if (own && browseFailure(e).kind === 'not_found') return { detail, list: [own as EntryCard], next: null };
+        throw e;
+      }
+    })()
+      .then(({ detail, list, next }) => {
         if (!alive) return;
         setChallenge(detail);
-        setEntries(rankEntries(list.entries, 'likes'));
-        setCursor(list.next_cursor);
+        setEntries(list);
+        setCursor(next);
       })
       .catch((e) => {
         if (!alive) return;
@@ -108,6 +133,7 @@ export default function ChallengePlayScreen() {
   // 페이지가 바뀌면 그 참여작의 영상으로 갈아끼운다.
   useEffect(() => {
     const entry = entries?.[active];
+    setPlayFailed(!entry?.playback_url && entries !== null && entries.length > 0);
     if (!entry?.playback_url) return;
     // replaceAsync — replace 는 iOS 에서 영상을 주 스레드로 불러와 넘길 때 화면이 멈출 수 있다(SOMA-713).
     let alive = true;
@@ -118,10 +144,15 @@ export default function ChallengePlayScreen() {
         player.play();
         setPlaying(true);
       })
-      .catch(() => {});
+      .catch(() => alive && setPlayFailed(true));
+    // 불러오기가 끝나지 않는 영상은 안내로 바꾼다.
+    const timer = setTimeout(() => {
+      if (alive && player.status !== 'readyToPlay') setPlayFailed(true);
+    }, 15_000);
     logEvent('challenge_swipe', { index: active });
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [active, entries, player]);
 
@@ -331,6 +362,11 @@ export default function ChallengePlayScreen() {
         {isActive && item.playback_url && (
           <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
         )}
+        {isActive && playFailed && (
+          <View style={styles.playFail} pointerEvents="none">
+            <Text style={styles.playFailText}>{t('challenges.playFail')}</Text>
+          </View>
+        )}
         <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button">
           {isActive && !playing && (
             <View style={styles.pauseCenter}>
@@ -423,6 +459,14 @@ export default function ChallengePlayScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       {entries === null && !error && <ActivityIndicator color="#FFFFFF" style={styles.loading} />}
       {!!error && <Text style={styles.error}>{error}</Text>}
+      {/* 불러오는 중이거나 실패했을 때도 항상 닫을 수 있게 한다(SOMA-738). */}
+      {(entries === null || !!error) && (
+        <SafeAreaView style={styles.loadingClose} edges={['top']} pointerEvents="box-none">
+          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+            <Feather name="x" size={26} color="#FFFFFF" />
+          </Pressable>
+        </SafeAreaView>
+      )}
       {entries !== null && entries.length === 0 && !error && (
         <SafeAreaView style={styles.emptyWrap} edges={['top', 'bottom']}>
           <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" style={styles.emptyClose}>
@@ -460,6 +504,10 @@ export default function ChallengePlayScreen() {
         visible={commentsOpen}
         entryId={entries?.[active]?.id ?? null}
         onClose={() => setCommentsOpen(false)}
+        onCountChange={(delta) => {
+          const current = entries?.[active];
+          if (current) patchEntry(current.id, { comment_count: commentCountAfter(current.comment_count, delta) });
+        }}
         onReport={(commentId) => {
           setCommentsOpen(false);
           setReportTarget({ type: 'comment', id: commentId });
@@ -488,6 +536,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
+  loadingClose: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8 },
+  playFail: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  playFailText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', textAlign: 'center' },
   error: { color: '#FFFFFF', textAlign: 'center', marginTop: 80, paddingHorizontal: 24 },
   emptyWrap: { flex: 1, padding: 24, gap: 14, justifyContent: 'center' },
   emptyClose: { position: 'absolute', top: 16, left: 16 },

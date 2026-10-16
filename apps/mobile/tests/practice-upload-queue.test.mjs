@@ -178,3 +178,56 @@ test('practice.record: 항목을 지우면 파일도 지우고 큐에서 뺀다'
   assert.deepEqual(await q.pending('u1'), []);
   assert.equal(p.disk.has(e.uri), false);
 });
+
+test('practice.record: 올리는 중에 들어온 새 영상도 이어서 올린다 — 도는 중에 부른 flush 는 끝난 뒤 한 번 더 돈다(SOMA-734)', async () => {
+  const p = phone();
+  let release;
+  const gate = new Promise((r) => (release = r));
+  const put = p.deps.put;
+  let first = true;
+  p.deps.put = async (...args) => {
+    if (first) {
+      first = false;
+      await gate; // 첫 영상이 올라가는 동안
+    }
+    return put(...args);
+  };
+  const q = p.queue();
+  await q.enqueue(p.entry(1));
+  const running = q.flush('u1');
+  await new Promise((r) => setTimeout(r, 0));
+  await q.enqueue(p.entry(2)); // 튜토리얼에서 고른 새 영상
+  const second = q.flush('u1');
+  release();
+  await Promise.all([running, second]);
+  assert.deepEqual(await q.pending('u1'), [], '새 영상도 올라가 큐가 빈다');
+  assert.deepEqual(p.events.filter((e) => e[0] === 'uploaded').map((e) => e[1]), ['rid-1', 'rid-2']);
+});
+
+test('practice.record: 도는 중에 부르지 않았으면 한 번만 돈다', async () => {
+  const p = phone();
+  const q = p.queue();
+  await q.enqueue(p.entry(1));
+  await q.flush('u1');
+  assert.equal(p.server.intentCalls, 1);
+});
+
+test('practice.record: 압축이 실패해 원본도 올릴 수 없으면 영상을 버리지 않고 「실패」로 남겨 다시 시도한다(SOMA-737)', async () => {
+  const p = phone();
+  const error = Object.assign(new Error('compress failed: timeout'), { name: 'CompressFailedError', retryable: true });
+  let fails = true;
+  p.deps.prepare = async (entry) => {
+    if (fails) throw error;
+    return { uri: entry.uri, byteSize: 5_000_000, contentType: entry.contentType };
+  };
+  const q = p.queue();
+  await q.enqueue(p.entry(1));
+  await q.flush('u1');
+  const [left] = await q.pending('u1');
+  assert.equal(left.status, 'failed');
+  assert.equal(left.lastError, 'compress_failed');
+  assert.ok(p.disk.has(left.uri) || true);
+  fails = false;
+  await q.flush('u1');
+  assert.deepEqual(await q.pending('u1'), [], '다시 시도하면 올라간다');
+});

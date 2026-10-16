@@ -17,6 +17,9 @@ class FakePostHog {
   capture(event, properties) {
     if (!this.optedOut) this.sent.push({ event, distinctId: this.distinctId, properties });
   }
+  async autocapture(eventType, elements, properties) {
+    if (!this.optedOut) this.sent.push({ event: '$autocapture', distinctId: this.distinctId, properties: { $event_type: eventType, elements, ...properties } });
+  }
   async screen(name) {
     if (!this.optedOut) this.sent.push({ event: '$screen', distinctId: this.distinctId, properties: { $screen_name: name } });
   }
@@ -145,4 +148,37 @@ test('PostHog: 꺼진 동안의 로그아웃도 reset 하고, 다시 켤 때 다
   bridge.sync(ON);
   bridge.capture('next_person');
   assert.deepEqual(clients[0].sent, [{ event: 'next_person', distinctId: 'anon-2', properties: undefined }]);
+});
+
+test('posthog: 버튼 탭은 켜진 동안만, 지금 화면 이름과 함께 자동 수집으로 보낸다', () => {
+  let fake;
+  const bridge = createPostHogBridge((key) => (fake = new FakePostHog(key)));
+  const label = { memoizedProps: { children: '연습 시작' }, return: null, child: null, sibling: null };
+  const button = { memoizedProps: { onPress() {} }, return: null, child: label, sibling: null };
+  label.return = button;
+  const tap = { _targetInst: label, nativeEvent: { pageX: 1, pageY: 2 } };
+
+  bridge.screen('/upload');
+  bridge.touch(tap);
+  assert.equal(fake, undefined);
+
+  bridge.sync({ on: true, key: 'phc_test' });
+  bridge.touch(tap);
+  bridge.touch({ _targetInst: { memoizedProps: {}, return: null } });
+  bridge.sync({ on: false });
+  bridge.touch(tap);
+
+  assert.deepEqual(fake.sent, [{
+    event: '$autocapture',
+    distinctId: 'anon-1',
+    properties: {
+      $event_type: 'touch',
+      elements: [{ tag_name: 'Pressable', $el_text: '연습 시작' }],
+      tap_label: '연습 시작',
+      tap_label_source: 'text',
+      $screen_name: '/upload',
+      $touch_x: 1,
+      $touch_y: 2,
+    },
+  }]);
 });

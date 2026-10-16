@@ -112,7 +112,10 @@ test("현재 OpenAPI 경로로 영상·회차·코치·노트·기억·설문 HT
   try {
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
     origin = `http://127.0.0.1:${server.address().port}`;
-    globalThis.fetch = (url, init) => originalFetch(new URL(url, origin), init);
+    // 스트림 경로는 "옛 서버"(404)로 답해 일반 경로로 돌아가게 한다.
+    globalThis.fetch = (url, init) => String(url).endsWith("/stream")
+      ? Promise.resolve(new Response(JSON.stringify({ detail: "Not Found" }), { status: 404, headers: { "Content-Type": "application/json" } }))
+      : originalFetch(new URL(url, origin), init);
     const uploaded = await uploadLibraryVideo(new File(["video"], "take.mp4", { type: "video/mp4" }), {
       requestId, durationMs: 1234,
       uploader: async ({ url, file, contentType }) => { const response = await originalFetch(url, { method: "PUT", body: file, headers: { "Content-Type": contentType } }); assert.equal(response.status, 200); },

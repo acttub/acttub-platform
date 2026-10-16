@@ -73,6 +73,8 @@ function isPermanent(error: unknown): boolean {
 export function createUploadQueue(deps: UploadQueueDependencies) {
   const now = deps.now ?? Date.now;
   const flushing = new Map<string, Promise<FlushResult>>();
+  /** 도는 중에 다시 불린 계정 — 그 사이 들어온 항목은 돌던 목록에 없으니 끝난 뒤 한 번 더 돈다(SOMA-734). */
+  const rerun = new Set<string>();
 
   async function read(): Promise<QueuedVideo[]> {
     try {
@@ -113,6 +115,12 @@ export function createUploadQueue(deps: UploadQueueDependencies) {
     try {
       prepared = await deps.prepare(entry);
     } catch (error) {
+      // 압축 실패로 원본도 올릴 수 없는 경우(SOMA-737): 버리지 않고 실패로 남겨 다시 시도하게 한다.
+      if ((error as { retryable?: boolean } | null)?.retryable === true) {
+        await patch(entry.id, { status: 'failed', lastError: 'compress_failed' });
+        deps.onFailed?.(entry, 'compress_failed');
+        return 'retry';
+      }
       const code = videoErrorCodeOf(error) ?? 'prepare_failed';
       if (isPermanent(error) || code === 'prepare_failed') {
         deps.onFailed?.(entry, code);
@@ -217,11 +225,27 @@ export function createUploadQueue(deps: UploadQueueDependencies) {
       const target = list.find((e) => e.id === id);
       await drop(id, target?.uri ?? null);
     },
-    /** 계정별로 한 번에 하나씩만 돈다. 도는 중에 부르면 같은 결과를 기다린다. */
+    /**
+     * 계정별로 한 번에 하나씩만 돈다. 도는 중에 부르면 같은 결과를 기다리되, 돌던 것이 끝나면 한 번 더 돈다 — 돌기
+     * 시작할 때 읽은 목록에 없는, 그 사이 들어온 영상(튜토리얼에서 막 고른 영상 등)이 「올리는 중」에 남지 않게(SOMA-734).
+     */
     flush(owner: string): Promise<FlushResult> {
       const running = flushing.get(owner);
-      if (running) return running;
-      const next = runFlush(owner).finally(() => {
+      if (running) {
+        rerun.add(owner);
+        return running;
+      }
+      const next = (async () => {
+        const total: FlushResult = { uploaded: 0, failed: 0, discarded: 0 };
+        do {
+          rerun.delete(owner);
+          const result = await runFlush(owner);
+          total.uploaded += result.uploaded;
+          total.failed += result.failed;
+          total.discarded += result.discarded;
+        } while (rerun.has(owner));
+        return total;
+      })().finally(() => {
         if (flushing.get(owner) === next) flushing.delete(owner);
       });
       flushing.set(owner, next);

@@ -31,6 +31,7 @@ import {
   confirmedVideoFor,
   flushLibraryUploads,
   onLibraryChange,
+  pendingLibraryUploads,
   saveRecordingToLibrary,
 } from '@/lib/library/library-runner';
 import { videoErrorMessage } from '@/lib/library/video-checks';
@@ -191,6 +192,39 @@ export default function UploadScreen() {
   const videoId = picked?.videoId ?? null;
   const uploading = Boolean(picked?.pendingId && !picked.videoId);
 
+  // 올리는 중에는 미리보기를 멈춘다 — 같은 파일을 재생하면 압축이 쓰는 하드웨어 코덱과 겹쳐 압축이 멎을 수 있다(SOMA-737, 추정).
+  useEffect(() => {
+    if (!uploading) return;
+    try {
+      player.pause();
+    } catch {}
+  }, [uploading, player]);
+
+  // 압축·올리기가 실패로 남았는지. 실패해도 「올리는 중」으로만 보이면 끝나지 않는 것처럼 보인다(SOMA-737).
+  const [uploadFailed, setUploadFailed] = useState(false);
+  useEffect(() => {
+    const pendingId = picked?.pendingId;
+    if (!pendingId || picked?.videoId || !user?.id) {
+      setUploadFailed(false);
+      return;
+    }
+    let alive = true;
+    const owner = user.id;
+    const check = () => {
+      void pendingLibraryUploads(owner)
+        .then((list) => {
+          if (alive) setUploadFailed(list.find((e) => e.id === pendingId)?.status === 'failed');
+        })
+        .catch(() => undefined);
+    };
+    check();
+    const off = onLibraryChange(check);
+    return () => {
+      alive = false;
+      off();
+    };
+  }, [picked?.pendingId, picked?.videoId, user?.id]);
+
   const pickFromLibrary = () => router.push({ pathname: '/archive', params: { pick: '1' } });
   // 영상 상자를 누르면 뜨는 시트(SOMA-656). 시트가 닫힌 뒤에 다음 화면·사진 선택 창을 연다 — iOS 는 닫히는 모달 위에
   // 새 창을 띄우지 못한다.
@@ -337,6 +371,12 @@ export default function UploadScreen() {
     blockedTapsRef.current += 1;
     void logEvent(PRACTICE_UPLOAD_EVENTS.startBlocked, startBlockedParams(reason));
   };
+  // 준비 전에 누른 질문 받기. 올리는 중이면 업로드를 한 번 더 밀어 준다 — 「잠시 뒤에 다시 눌러 주세요」대로 누르면
+  // 멈춘 업로드가 다시 돈다(SOMA-734).
+  const pressBlocked = () => {
+    if (uploading && user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
+    noteBlocked();
+  };
   const toggleRights = () => {
     const next = !agreedRights;
     setAgreedRights(next);
@@ -347,7 +387,9 @@ export default function UploadScreen() {
   const hint = ready
     ? null
     : !sample && uploading
-      ? t('start.stillUploading')
+      ? uploadFailed
+        ? t('start.uploadFailed')
+        : t('start.stillUploading')
       : !sample && !canStart(videoId)
         ? t('upload.missingVideo')
         : t('upload.missingRights');
@@ -483,7 +525,7 @@ export default function UploadScreen() {
             ref={startTarget.ref}
             onLayout={startTarget.onLayout}
             style={[styles.submit, (!ready || starting) && styles.submitDisabled]}
-            onPress={() => (ready ? void start() : noteBlocked())}
+            onPress={() => (ready ? void start() : pressBlocked())}
             disabled={starting}
             accessibilityRole="button"
             accessibilityState={{ disabled: !ready || starting }}>

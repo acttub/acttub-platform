@@ -292,7 +292,56 @@ class ActorMemoryIT {
         assertThat(rows().stream().map(row -> row.get("field"))).doesNotContain("goal");
     }
 
+    @Test
+    @DisplayName("practice.memory: 0.1.0 전의 기억(옛 표)은 새 표에 없는 칸이면 호환 읽기로 보인다 — 성별·나이는 빠지고, "
+            + "워커는 옛 코치 칸을 갈아쓰되 옛 배우 칸은 덮지 않으며, 칸을 지우면 옛 값이 되살아나지 않는다")
+    void practiceMemory_legacyEntriesAreReadUntilTheNewTableHasTheField() throws Exception {
+        legacyEntry("goal", "예전 목표", "agent");
+        legacyEntry("blockage", "배우가 적은 막힘", "actor");
+        legacyEntry("speech_self", "차분하게 말하려 한다", "agent");
+        legacyEntry("age", "20대", "actor");
+
+        JsonNode before = json(get("/v2/me/memory"), 200);
+        assertThat(item(before, "goal").path("value").textValue()).isEqualTo("예전 목표");
+        assertThat(item(before, "goal").path("written_by_actor").booleanValue()).isFalse();
+        assertThat(item(before, "goal").path("source_practice_id").isNull()).isTrue();
+        assertThat(item(before, "blockage").path("written_by_actor").booleanValue()).isTrue();
+        assertThat(item(before, "speech_self").path("value").textValue()).isEqualTo("차분하게 말하려 한다");
+        assertThat(fields(before)).doesNotContain("age", "gender");
+
+        closeConversation(analyzedPractice(member));
+        assertThat(runWorker()).isTrue();
+
+        JsonNode after = json(get("/v2/me/memory"), 200);
+        assertThat(item(after, "goal").path("value").textValue()).as("옛 코치 칸은 새 값으로 갈린다").isEqualTo("새 목표");
+        assertThat(item(after, "blockage").path("value").textValue())
+                .as("옛 표의 배우 칸은 워커가 덮지 않는다").isEqualTo("배우가 적은 막힘");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM actor_memories WHERE user_id=? AND field='blockage'", Integer.class, member))
+                .isZero();
+
+        perform(delete("/v2/me/memory/speech_self"), 204);
+        assertThat(fields(json(get("/v2/me/memory"), 200))).doesNotContain("speech_self");
+
+        perform(delete("/v2/me/memory"), 204);
+        assertThat(json(get("/v2/me/memory"), 200).path("items")).isEmpty();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM actor_memory_entries WHERE user_id=? AND field='age'", Integer.class, member))
+                .as("성별·나이는 기억이 아니라 지우지 않는다").isEqualTo(1);
+    }
+
     // --- 도우미 -------------------------------------------------------------
+
+    private void legacyEntry(String field, String value, String writtenBy) {
+        jdbc.update("INSERT INTO actor_memory_entries(user_id,field,value,written_by) VALUES (?,?,?,?)",
+                member, field, value, writtenBy);
+    }
+
+    private static List<String> fields(JsonNode memory) {
+        List<String> names = new ArrayList<>();
+        memory.path("items").forEach(row -> names.add(row.path("field").textValue()));
+        return names;
+    }
 
     private boolean runWorker() {
         generator.enqueue(EXTRACTED);
