@@ -53,11 +53,30 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
      */
     static String splitDecision(String userColumn) {
         return """
+                (CASE WHEN %s THEN 'granted' ELSE
                 (SELECT c.action FROM user_consents c
                  WHERE c.user_id=%s
                    AND c.document_id=(SELECT d.id FROM consent_documents d WHERE d.type='script_split' AND d.locale='ko'
                                       ORDER BY d.published_at DESC,d.id DESC LIMIT 1)
-                 ORDER BY c.occurred_at DESC,c.id DESC LIMIT 1)""".formatted(userColumn);
+                 ORDER BY c.occurred_at DESC,c.id DESC LIMIT 1) END)""".formatted(privacyCoversReading(userColumn), userColumn);
+    }
+
+    /** 개인정보 수집·이용 동의가 대본 리딩의 AI 처리(대본 나누기·고품질 목소리)를 품기 시작한 판. */
+    static final int PRIVACY_COVERS_READING_FROM = 9;
+
+    /**
+     * 그 사용자가 개인정보 수집·이용 동의 v9 이상에 동의한 상태인지 내는 SQL 불 식. v9 부터 「대본 나누기」와 「대본 리딩
+     * 고품질 목소리」를 그 동의에 합쳤으므로(SOMA-726), 이 식이 참이면 두 처리의 동의가 있는 것으로 본다. 판마다 그 판에 대한
+     * 마지막 행위가 동의(granted)인지 본다 — 탈퇴 뒤 운영자가 남기는 철회는 동의로 치지 않는다.
+     */
+    static String privacyCoversReading(String userColumn) {
+        return """
+                EXISTS (SELECT 1 FROM consent_documents pd
+                        WHERE pd.type='privacy'
+                          AND (CASE WHEN pd.version ~ '^v[0-9]+$' THEN CAST(substring(pd.version FROM 2) AS integer) ELSE 0 END) >= %d
+                          AND (SELECT pc.action FROM user_consents pc
+                               WHERE pc.user_id=%s AND pc.document_id=pd.id
+                               ORDER BY pc.occurred_at DESC,pc.id DESC LIMIT 1)='granted')""".formatted(PRIVACY_COVERS_READING_FROM, userColumn);
     }
 
     /**
@@ -66,9 +85,10 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
      */
     static String latestSplitDecision(String userColumn) {
         return """
+                (CASE WHEN %s THEN 'granted' ELSE
                 (SELECT c.action FROM user_consents c JOIN consent_documents d ON d.id=c.document_id
                  WHERE c.user_id=%s AND d.type='script_split'
-                 ORDER BY c.occurred_at DESC,c.id DESC LIMIT 1)""".formatted(userColumn);
+                 ORDER BY c.occurred_at DESC,c.id DESC LIMIT 1) END)""".formatted(privacyCoversReading(userColumn), userColumn);
     }
 
     @Override

@@ -376,6 +376,28 @@ class ReadingImportIT {
     }
 
     @Test
+    @DisplayName("동의: 개인정보 수집·이용 동의 v9 이상에 동의한 회원은 script_split 결정이 없어도 나누기를 받는다(SOMA-726) — v8 이하는 아니다")
+    void privacyV9CoversTheSplitConsent() throws Exception {
+        jdbc.update("""
+                INSERT INTO consent_documents(id,type,version,locale,title,body,required,published_at)
+                VALUES (?,'privacy','v8','ko','privacy v8','본문',true,?)
+                """, UUID.randomUUID(), PUBLISHED.plusSeconds(1));
+        UUID onV8 = member();
+        jdbc.update("DELETE FROM user_consents WHERE user_id=? AND document_id=?", onV8, documents.get("script_split"));
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕", "paste")), 403,
+                "Bearer " + jwt.issueAccessToken(onV8).value()).path("detail").textValue()).isEqualTo("script_split_consent_required");
+
+        jdbc.update("""
+                INSERT INTO consent_documents(id,type,version,locale,title,body,required,published_at)
+                VALUES (?,'privacy','v9','ko','privacy v9','본문',true,?)
+                """, UUID.randomUUID(), PUBLISHED.plusSeconds(2));
+        UUID onV9 = member();
+        jdbc.update("DELETE FROM user_consents WHERE user_id=? AND document_id=?", onV9, documents.get("script_split"));
+        json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕", "paste")), 202,
+                "Bearer " + jwt.issueAccessToken(onV9).value());
+    }
+
+    @Test
     @DisplayName("동의: script_split 현재 판에 동의하지 않은 회원, 게스트(선택 문서를 결정할 수 없다), 문서가 아예 없을 때 모두 403 script_split_consent_required")
     void consentIsRequired() throws Exception {
         UUID undecided = member();
@@ -916,7 +938,11 @@ class ReadingImportIT {
     }
 
     private JsonNode json(MockHttpServletRequestBuilder request, int status) throws Exception {
-        var response = perform(request.contentType(MediaType.APPLICATION_JSON), bearer);
+        return json(request, status, bearer);
+    }
+
+    private JsonNode json(MockHttpServletRequestBuilder request, int status, String authorization) throws Exception {
+        var response = perform(request.contentType(MediaType.APPLICATION_JSON), authorization);
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(status);
         String body = response.getContentAsString();
         return body.isEmpty() ? mapper.nullNode() : mapper.readTree(body);
