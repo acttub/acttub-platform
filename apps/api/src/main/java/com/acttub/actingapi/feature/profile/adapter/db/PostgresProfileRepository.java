@@ -140,19 +140,20 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
      * 통째로 갈아 끼운다 — 부분 저장은 없다.
      */
     @Override
-    public Account saveProfile(UUID userId, Profile profile) {
+    public Account saveProfile(UUID userId, Profile profile, String signupClient) {
         return transaction.execute(status -> {
             if (!lockActive(userId)) {
                 return null;
             }
             int saved = entityManager.createNativeQuery("""
-                    INSERT INTO user_profiles(user_id,name,gender,birth_date,experience,goal,bio)
-                    SELECT id,:name,:gender,:birthDate,:experience,:goal,CAST(:bio AS text)
+                    INSERT INTO user_profiles(user_id,name,gender,birth_date,experience,goal,bio,signup_client)
+                    SELECT id,:name,:gender,:birthDate,:experience,:goal,CAST(:bio AS text),CAST(:signupClient AS text)
                     FROM users
                     WHERE id=:userId
                     ON CONFLICT (user_id) DO UPDATE
                     SET name=EXCLUDED.name,gender=EXCLUDED.gender,birth_date=EXCLUDED.birth_date,
                         experience=EXCLUDED.experience,goal=EXCLUDED.goal,bio=EXCLUDED.bio,
+                        signup_client=COALESCE(user_profiles.signup_client,EXCLUDED.signup_client),
                         updated_at=now()
                     """)
                     .setParameter("name", profile.name())
@@ -162,6 +163,8 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                     .setParameter("goal", profile.goal())
                     // 소개는 비어 있을 수 있다. SELECT 목록의 NULL 파라미터는 타입을 추론하지 못해 CAST 한다.
                     .setParameter("bio", profile.bio())
+                    // 가입한 판은 처음 한 번만 남는다(COALESCE). 같은 이유로 NULL 파라미터는 CAST 한다.
+                    .setParameter("signupClient", signupClient)
                     .setParameter("userId", userId)
                     .executeUpdate();
             if (saved == 0) {
@@ -337,18 +340,18 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
      * 파기한 유입 기록이 다시 생긴다.
      */
     @Override
-    public boolean recordSignupAttribution(UUID userId, SignupAttribution attribution) {
+    public boolean recordSignupAttribution(UUID userId, SignupAttribution attribution, String recordedVia) {
         return Boolean.TRUE.equals(transaction.execute(status -> {
             if (!lockActive(userId)) {
                 return false;
             }
             entityManager.createNativeQuery("""
                     INSERT INTO user_signup_attributions
-                        (user_id,source,platform,channel,medium,campaign,ad_group,ad_creative,content,term,sub_publisher)
+                        (user_id,source,platform,channel,medium,campaign,ad_group,ad_creative,content,term,sub_publisher,recorded_via)
                     VALUES
                         (:userId,:source,:platform,:channel,CAST(:medium AS text),
                          CAST(:campaign AS text),CAST(:adGroup AS text),CAST(:adCreative AS text),
-                         CAST(:content AS text),CAST(:term AS text),CAST(:subPublisher AS text))
+                         CAST(:content AS text),CAST(:term AS text),CAST(:subPublisher AS text),:recordedVia)
                     ON CONFLICT (user_id) DO NOTHING
                     """)
                     .setParameter("userId", userId)
@@ -362,6 +365,7 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                     .setParameter("content", attribution.content())
                     .setParameter("term", attribution.term())
                     .setParameter("subPublisher", attribution.subPublisher())
+                    .setParameter("recordedVia", recordedVia)
                     .executeUpdate();
             return true;
         }));
