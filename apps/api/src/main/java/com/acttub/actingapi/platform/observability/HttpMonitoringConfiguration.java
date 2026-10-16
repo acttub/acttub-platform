@@ -19,7 +19,8 @@ import org.springframework.http.server.observation.ServerRequestObservationConve
 @Configuration(proxyBeanMethods = false)
 public class HttpMonitoringConfiguration {
     static final Map<String, String> ACTIVE_POST_ROUTES = Map.of(
-            "/v2/coach/start", "coach", "/v2/coach/reply", "coach");
+            "/v2/coach/start", "coach", "/v2/coach/reply", "coach",
+            "/v2/coach/start/stream", "coach", "/v2/coach/reply/stream", "coach");
 
     static String latencyClass(ServerRequestObservationContext context) {
         String route = context.getPathPattern();
