@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BusinessInfo } from "@/features/business-info/business-info";
 import { buildNoindexMetadata } from "@/lib/seo/site-metadata";
 
 export const metadata = buildNoindexMetadata("ACTTUB Pro 해지·환불정책");
@@ -44,6 +45,7 @@ export default function RefundPage() {
         <Link href="/pricing" className="underline underline-offset-4">상품·가격 안내</Link>
         <Link href="/terms" className="underline underline-offset-4">이용약관·개인정보 처리방침</Link>
         <Link href="/" className="underline underline-offset-4">ACTTUB 홈</Link>
+        <div className="basis-full pt-2"><BusinessInfo /></div>
       </footer>
     </main>
   );
