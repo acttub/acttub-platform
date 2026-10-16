@@ -5,7 +5,6 @@
  * K 는 지난 대사 수, 시간은 일시정지를 뺀 흐른 시간이다. 내 줄마다 말한 것(음성 인식 결과)만 남겨 진행 저장에 싣고,
  * 원문과의 비교는 서버가 한다. 같은 줄을 다시 말하면 마지막 말이 이긴다. 말한 것은 흐름에 끼어들지 않는다.
  */
-import { dialogueNumbers } from './session-plan.ts';
 import type { LineSaid, ScriptLine } from './types.ts';
 import type { MaskMode } from './store.ts';
 import { translate as t } from '../i18n.ts';
@@ -204,15 +203,13 @@ export function resumeRun(run: RunState, currentLineId: string): RunState {
   return { ...next, status: turnOf(next) };
 }
 
-/** 나가기 확인 — "지금 나가면 N번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요." */
+/**
+ * 나가기 확인 — "지금 나가면 N번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요."
+ * N 은 화면 위 "K / N" 의 K 와 같은 기준(고른 구간 안에서 끝낸 대사 수)이다. 대본 전체 번호를 쓰면 장면 2의
+ * 2번째 줄에서 "13번"처럼 화면과 달라진다. 저장되는 위치(current_line_id)는 줄 id 라 번호 기준과 무관하다.
+ */
 export function exitMessage(run: RunState): string {
-  const numbers = dialogueNumbers(run.lines);
-  let last = 0;
-  for (let i = run.startIndex; i < run.index && i <= run.endIndex; i++) {
-    const n = numbers[i];
-    if (n !== null) last = n;
-  }
-  return t('reading.exitConfirmBody', { n: last });
+  return t('reading.exitConfirmBody', { n: progressOf(run).done });
 }
 
 /** 진행 저장 본문(순번은 큐가 붙인다). line_results 는 이번 실행에서 말한 내 줄을 줄 순서로. */

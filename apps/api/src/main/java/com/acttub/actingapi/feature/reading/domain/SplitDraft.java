@@ -85,7 +85,7 @@ public final class SplitDraft {
             draftLines.add(new ScriptDraft.Line(draftLines.size() + 1, line.kind,
                     line.speaker == null ? null : index.get(line.speaker), line.text));
         }
-        return new ScriptDraft(title(title, modelTitle, lines), rawText, source, characters, draftLines, traitsOf(characters, traits));
+        return new ScriptDraft(title(title, modelTitle, lines, rows, roster), rawText, source, characters, draftLines, traitsOf(characters, traits));
     }
 
     private static List<CharacterTraits> traitsOf(List<String> characters, Map<String, CharacterTraits> traits) {
@@ -166,13 +166,39 @@ public final class SplitDraft {
         return names;
     }
 
-    private static String title(String requested, String modelTitle, List<NumberedLine> lines) {
+    /**
+     * 제목은 요청의 title, 없으면 모델이 제목이라 한 줄, 없으면 첫 줄이다. 첫 줄이 화자 이름뿐(블록 형식의 "민수" 줄)이면
+     * 그 줄은 제목 후보에서 빼고 다음 줄을 쓴다. 후보가 하나도 없으면 첫 줄이다.
+     */
+    private static String title(String requested, String modelTitle, List<NumberedLine> lines, Map<Integer, Row> rows,
+            List<String> roster) {
         String title = requested != null && !requested.isBlank() ? requested.strip()
                 : modelTitle != null ? modelTitle
-                : lines.isEmpty() ? "" : ScriptText.visible(lines.getFirst().text()).strip();
+                : firstLineTitle(lines, rows, roster);
         return title.codePointCount(0, title.length()) <= TITLE_MAX
                 ? title
                 : title.substring(0, title.offsetByCodePoints(0, TITLE_MAX));
+    }
+
+    private static String firstLineTitle(List<NumberedLine> lines, Map<Integer, Row> rows, List<String> roster) {
+        if (lines.isEmpty()) {
+            return "";
+        }
+        java.util.Set<String> names = new java.util.HashSet<>(roster);
+        for (Row row : rows.values()) {
+            if (row.kind() == Kind.DIALOGUE && row.speaker() != null && !row.speaker().isBlank()) {
+                names.add(row.speaker().strip());
+            }
+        }
+        for (NumberedLine line : lines) {
+            String text = ScriptText.visible(line.text()).strip();
+            Row row = rows.get(line.no());
+            if (text.isEmpty() || names.contains(text) || (row != null && (row.kind() == Kind.IGNORE || row.kind() == Kind.CAST))) {
+                continue;
+            }
+            return text;
+        }
+        return ScriptText.visible(lines.getFirst().text()).strip();
     }
 
     private static final class Assembled {

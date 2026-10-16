@@ -57,6 +57,27 @@ class SplitDraftTest {
     }
 
     @Test
+    @DisplayName("SOMA-739: 제목을 비우고 붙여넣은 블록 형식 대본은 첫 줄 화자 이름(민수)을 제목으로 쓰지 않는다")
+    void speakerNameLineIsNotUsedAsFallbackTitle() {
+        String raw = """
+                민수
+                오늘 비 온대.
+                지수
+                우산 챙겨.
+                """;
+        List<NumberedLine> lines = NumberedLine.of(raw);
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        rows.put(1, new Row(1, Kind.IGNORE, "", ""));
+        rows.put(2, new Row(2, Kind.DIALOGUE, "민수", ""));
+        rows.put(3, new Row(3, Kind.IGNORE, "", ""));
+        rows.put(4, new Row(4, Kind.DIALOGUE, "지수", ""));
+
+        ScriptDraft draft = SplitDraft.assemble(null, raw, "paste", lines, rows, List.of("민수", "지수"));
+
+        assertThat(draft.title()).isEqualTo("오늘 비 온대.");
+    }
+
+    @Test
     @DisplayName("배역 순서: 등장인물 소개 줄에 나온 순이 먼저고, 거기 없는 배역은 대사 많은 순(같으면 먼저 말한 순)")
     void ordersCharactersByCastListThenDialogueCount() {
         String raw = """
