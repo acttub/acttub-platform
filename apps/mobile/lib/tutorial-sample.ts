@@ -14,6 +14,7 @@ import { translate as t } from './i18n.ts';
 import type {
   CoachConversation,
   CoachMessage,
+  CoachStreamCallbacks,
   CoachReplyBody,
   CoachTurnResult,
   PracticeDetail,
@@ -97,8 +98,8 @@ export type LoopApi = {
   getPractice(practiceId: string): Promise<PracticeDetail>;
   getConversation(conversationId: string): Promise<CoachConversation>;
   getPracticeNote(practiceId: string): Promise<PracticeNote>;
-  startConversation(practiceId: string, requestId: string): Promise<CoachTurnResult>;
-  replyToCoach(body: CoachReplyBody): Promise<CoachTurnResult>;
+  startConversation(practiceId: string, requestId: string, stream?: CoachStreamCallbacks): Promise<CoachTurnResult>;
+  replyToCoach(body: CoachReplyBody, stream?: CoachStreamCallbacks): Promise<CoachTurnResult>;
 };
 
 /**
