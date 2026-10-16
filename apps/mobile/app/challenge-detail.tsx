@@ -13,7 +13,9 @@ import {
   browseFailure,
   browseFailureMessage,
   canDelete,
+  canPerform,
   dDayLabel,
+  detailTitleKey,
   firstBadgeLabel,
   hostLabel,
   isEnded,
@@ -147,7 +149,7 @@ export default function ChallengeDetailScreen() {
   };
 
   const perform = () => {
-    if (!challenge) return;
+    if (!challenge || !canPerform(challenge)) return;
     logEvent('challenge_perform_tap', { id: challenge.id });
     router.push({
       pathname: '/record-video',
@@ -165,7 +167,7 @@ export default function ChallengeDetailScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: t('challenges.detailTitle'),
+          title: t(detailTitleKey(challenge)),
           headerRight: () => (
             <View style={styles.headerRight}>
               {challenge && !canDelete(challenge) && (
