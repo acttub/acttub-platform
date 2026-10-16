@@ -139,3 +139,11 @@ export function voiceName(preset: string | null | undefined): string {
   if (!preset) return '-';
   return isKnownPreset(preset) ? translate(`reading.voiceName.${preset}`) : preset;
 }
+
+/** 목소리 칩 글 — 「여성 · 따뜻한 노년」. 자동 배정도 「자동」 없이 성별과 이름으로 보인다(SOMA-742). */
+export function voiceLabel(preset: string | null | undefined): string {
+  if (!preset) return '-';
+  if (!isKnownPreset(preset)) return preset;
+  const gender = translate(preset.startsWith('M') ? 'reading.voiceGenderMale' : 'reading.voiceGenderFemale');
+  return `${gender} · ${voiceName(preset)}`;
+}

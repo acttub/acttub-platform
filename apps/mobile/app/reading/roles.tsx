@@ -16,7 +16,7 @@ import { getCurrent, updateScriptMeta } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
 import { assetsPresent } from '@/lib/reading/tts/assets';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
-import { autoVoiceOf, isKnownPreset, shownVoices, voiceChanges, voiceName, type VoicePreset } from '@/lib/reading/voices';
+import { autoVoiceOf, isKnownPreset, shownVoices, voiceChanges, voiceLabel, voiceName, type VoicePreset } from '@/lib/reading/voices';
 import type { ScriptCharacter } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
 
@@ -209,7 +209,7 @@ export default function ReadingRoles() {
                 </View>
                 <Pressable style={styles.voiceChip} onPress={() => setSheetFor(c.id)}>
                   <Text style={styles.voiceChipText}>
-                    {isKnownPreset(c.voice_preset) ? voiceName(c.voice_preset) : t('reading.voiceAutoChip', { preset: voiceName(assigned[c.id]) })}
+                    {voiceLabel(isKnownPreset(c.voice_preset) ? c.voice_preset : assigned[c.id])}
                   </Text>
                   <Feather name="chevron-down" size={13} color={palette.blueDeep} />
                 </Pressable>
@@ -247,7 +247,7 @@ export default function ReadingRoles() {
               <Pressable style={[styles.autoBtn, sheetValue === null && styles.chipOn]} onPress={() => choose(sheetCharacter.id, null)}>
                 {sheetValue === null && <Feather name="check" size={15} color={palette.blueDeep} />}
                 <Text style={[styles.chipText, sheetValue === null && styles.chipTextOn]}>
-                  {t('reading.voiceAutoNow', { preset: voiceName(autoVoiceOf(characters, chosen, sheetCharacter.id)) })}
+                  {t('reading.voiceRecommended', { voice: voiceLabel(autoVoiceOf(characters, chosen, sheetCharacter.id)) })}
                 </Text>
               </Pressable>
               {[
