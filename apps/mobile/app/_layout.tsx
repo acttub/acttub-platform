@@ -14,13 +14,13 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import 'react-native-reanimated';
 
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
-import { syncPostHog } from '@/lib/posthog';
+import { postHog, syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { installNavigationGuard } from '@/lib/navigation-guard';
@@ -419,6 +419,12 @@ function RootNavigator() {
   );
 }
 
+function captureTap(e: GestureResponderEvent) {
+  postHog.touch(e as unknown as Parameters<typeof postHog.touch>[0]);
+}
+
+const styles = StyleSheet.create({ root: { flex: 1 } });
+
 function ScreenTracker() {
   const segments = useSegments();
   useEffect(() => {
@@ -463,15 +469,18 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <AuthProvider>
-      <ThemeProvider value={theme}>
-        <ScreenTracker />
-        <RootNavigator />
-        {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
-            비출 자리의 좌표가 맞는다 (SOMA-550). */}
-        <SpotlightHost />
-        <StatusBar style="dark" />
-      </ThemeProvider>
-    </AuthProvider>
+    // 버튼 탭 기록(SOMA-732) — 손을 뗄 때마다 캡처 단계에서 한 번 본다. 탭을 막거나 바꾸지 않는다.
+    <View style={styles.root} onTouchEndCapture={captureTap}>
+      <AuthProvider>
+        <ThemeProvider value={theme}>
+          <ScreenTracker />
+          <RootNavigator />
+          {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
+              비출 자리의 좌표가 맞는다 (SOMA-550). */}
+          <SpotlightHost />
+          <StatusBar style="dark" />
+        </ThemeProvider>
+      </AuthProvider>
+    </View>
   );
 }
