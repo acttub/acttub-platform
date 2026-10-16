@@ -27,6 +27,10 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
 
     @Override
     public String consent(UUID userId) {
+        // 개인정보 수집·이용 동의 v9 이상에 동의했으면 고품질 목소리 처리도 그 동의에 들어 있다(SOMA-726).
+        Object covered = entityManager.createNativeQuery("SELECT " + PostgresScriptImportRepository.privacyCoversReading(":userId"))
+                .setParameter("userId", userId).getSingleResult();
+        if (Boolean.TRUE.equals(covered)) return "granted";
         var rows = list(entityManager.createNativeQuery("""
                 SELECT last_decision.action
                 FROM (SELECT id FROM consent_documents
