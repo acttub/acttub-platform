@@ -11,8 +11,9 @@ import type { ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
   canSubmitConsentDecisions,
-  grantAllRequired,
   signupFailureAction,
+  signupScreenLayout,
+  toggleConsentGroup,
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
 import { translate as t } from '@/lib/i18n';
@@ -29,7 +30,8 @@ function errorMessage(error: unknown, fallback: string): string {
 /**
  * A0.1 가입 동의 — 처음 온 신원만 본다. 이미 있는 계정의 새 판 동의는 홈 위 재동의 팝업이 묻는다.
  *
- * 맨 위에 만 14세 확인 줄, 그 아래 문서마다 체크 한 줄(필수를 먼저). 만 14세 확인과 필수 문서에
+ * 맨 위에 전체 동의(선택 포함, 기본 꺼짐), 그 아래 만 14세 확인 줄과 문서마다 체크 한 줄(필수를 먼저).
+ * 고품질 목소리·대본 나누기는 개인정보 동의 v9에 들어 있어 따로 보이지 않고, 광고성 이메일·앱 푸시는 한 줄로 묶는다. 만 14세 확인과 필수 문서에
  * 모두 동의해야 "동의하고 계속하기"가 켜진다. 화살표를 누르면 본문이 펼쳐진다.
  * 로그인 응답의 문서를 보여 주고, 제출이 통과하는 순간 계정이 생긴다(POST /v2/auth/signup,
  * 모든 결정을 한 번에). 나가면 아무것도 남지 않는다.
@@ -43,17 +45,20 @@ export default function ConsentScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const documents = useMemo<ConsentDocument[]>(() => signup?.documents ?? [], [signup?.documents]);
-  // 필수를 먼저, 선택을 뒤에 — 한 목록으로 보여준다.
-  const ordered = useMemo(
-    () => [...documents.filter((d) => d.required), ...documents.filter((d) => !d.required)],
-    [documents],
-  );
+  // 필수를 먼저, 선택을 뒤에. 고품질 목소리·대본 나누기는 개인정보 동의 v9에 합쳐져 따로 묻지 않고,
+  // 광고성 정보 수신(이메일·앱 푸시)은 한 줄로 묶는다. 빠진 문서는 제출 때 거절로 채워진다.
+  const layout = useMemo(() => signupScreenLayout(documents), [documents]);
+  const ordered = useMemo(() => [...layout.required, ...layout.optional], [layout]);
+  // 화면에 보이는 문서 전부(필수·선택·광고성). 맨 위 "전체 동의"가 이것과 만 14세 확인을 한 번에 켠다.
+  const visibleDocuments = useMemo(() => [...ordered, ...layout.marketing], [ordered, layout]);
+  const everythingGranted =
+    ageConfirmed &&
+    visibleDocuments.length > 0 &&
+    visibleDocuments.every((d) => choices[d.id] === 'granted');
+  const marketingAllGranted =
+    layout.marketing.length > 0 && layout.marketing.every((d) => choices[d.id] === 'granted');
   const choiceMap = useMemo(() => new Map(Object.entries(choices)), [choices]);
   const canProceed = canSubmitConsentDecisions(documents, choiceMap) && ageConfirmed;
-  const requiredDocuments = documents.filter((d) => d.required);
-  const allRequiredGranted =
-    ageConfirmed && requiredDocuments.every((d) => choices[d.id] === 'granted');
-
   useEffect(() => {
     setChoices({});
     setError(null);
@@ -70,17 +75,26 @@ export default function ConsentScreen() {
     });
   };
 
-  const toggleAllRequired = () => {
+  /**
+   * 전체 동의 — 만 14세 확인과 화면에 보이는 문서(선택 포함)를 한 번에 켜거나 끈다. 기본은 꺼져 있고,
+   * 켠 뒤에도 선택 항목은 줄마다 다시 끌 수 있다. 가입 화면에서 뺀 문서(기능 안에서 묻는 것)는 건드리지 않는다.
+   */
+  const toggleEverything = () => {
     if (busy) return;
-    setAgeConfirmed(!allRequiredGranted);
+    setAgeConfirmed(!everythingGranted);
     setChoices((current) => {
-      if (allRequiredGranted) {
-        const next = { ...current };
-        for (const d of requiredDocuments) delete next[d.id];
-        return next;
+      const next = { ...current };
+      for (const d of visibleDocuments) {
+        if (everythingGranted) delete next[d.id];
+        else next[d.id] = 'granted';
       }
-      return Object.fromEntries(grantAllRequired(documents, new Map(Object.entries(current))));
+      return next;
     });
+  };
+
+  const toggleMarketing = () => {
+    if (busy) return;
+    setChoices((current) => toggleConsentGroup(layout.marketing, current));
   };
 
   const proceed = async () => {
@@ -153,6 +167,24 @@ export default function ConsentScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.list}>
+        <Pressable
+          style={[styles.allRow, everythingGranted && styles.allRowOn]}
+          onPress={toggleEverything}
+          disabled={busy}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: everythingGranted }}>
+          <Feather
+            name="check-circle"
+            size={22}
+            color={everythingGranted ? palette.blue : palette.checkOff}
+          />
+          <View style={styles.allText}>
+            <Text style={[styles.allLabel, everythingGranted && styles.allLabelOn]}>
+              {t('consent.allAgree')}
+            </Text>
+            <Text style={styles.allHint}>{t('consent.allAgreeHint')}</Text>
+          </View>
+        </Pressable>
         <Text style={styles.sectionTitle}>{t('consent.itemsLabel')}</Text>
         <ConsentRow
           label={`${t('consent.requiredTag')} ${t('consent.ageConfirm')}`}
@@ -161,25 +193,49 @@ export default function ConsentScreen() {
           onToggle={() => setAgeConfirmed((current) => !current)}
         />
         {ordered.map(renderRow)}
+        {layout.marketing.length > 0 && (
+          <ConsentRow
+            label={`${t('consent.optionalTag')} ${t('consent.marketingGroup')}`}
+            checked={marketingAllGranted}
+            locked={busy}
+            onToggle={toggleMarketing}
+            arrow={{
+              icon: expanded.marketing ? 'chevron-down' : 'chevron-right',
+              onPress: () => setExpanded((current) => ({ ...current, marketing: !current.marketing })),
+              accessibilityLabel: expanded.marketing ? t('common.fold') : t('common.view'),
+            }}>
+            <View style={styles.subRow}>
+              {layout.marketing.map((document) => {
+                const on = choices[document.id] === 'granted';
+                return (
+                  <Pressable
+                    key={document.id}
+                    style={styles.subItem}
+                    onPress={() => toggleDocument(document)}
+                    disabled={busy}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on, disabled: busy }}>
+                    <Feather name="check" size={16} color={on ? palette.blue : palette.checkOff} />
+                    <Text style={[styles.subLabel, on && styles.subLabelOn]}>
+                      {t(document.type === 'marketing_push' ? 'consent.marketingPush' : 'consent.marketingEmail')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {expanded.marketing && (
+              <View style={styles.docBody}>
+                {layout.marketing.map((document) => (
+                  <Markdown key={document.id} source={document.body} />
+                ))}
+              </View>
+            )}
+          </ConsentRow>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
         {error && <Text style={styles.error}>{error}</Text>}
-        <Pressable
-          style={[styles.allRow, allRequiredGranted && styles.allRowOn]}
-          onPress={toggleAllRequired}
-          disabled={busy}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: allRequiredGranted }}>
-          <Feather
-            name="check-circle"
-            size={20}
-            color={allRequiredGranted ? palette.blue : palette.checkOff}
-          />
-          <Text style={[styles.allLabel, allRequiredGranted && styles.allLabelOn]}>
-            {t('consent.allAgreeShort')}
-          </Text>
-        </Pressable>
         <Pressable
           style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
           onPress={() => void proceed()}
@@ -201,9 +257,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
   subtitle: { fontSize: 14, color: palette.textDim, marginTop: 6, lineHeight: 20 },
   list: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 },
-  sectionTitle: { fontSize: 12.5, fontWeight: '800', color: palette.textDim, marginBottom: 6 },
+  sectionTitle: { fontSize: 12.5, fontWeight: '800', color: palette.textDim, marginTop: 20, marginBottom: 6 },
   exit: { alignSelf: 'flex-start', marginLeft: -6, marginBottom: 12 },
   docBody: { paddingBottom: 12 },
+  subRow: { flexDirection: 'row', gap: 20, paddingLeft: 30, paddingBottom: 14, marginTop: -6 },
+  subItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  subLabel: { fontSize: 14, fontWeight: '600', color: palette.textDim },
+  subLabelOn: { color: palette.text },
   footer: { paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
   allRow: {
     flexDirection: 'row',
@@ -215,7 +275,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   allRowOn: { backgroundColor: palette.blueSoft },
-  allLabel: { fontSize: 15, fontWeight: '800', color: palette.textDim },
+  allText: { flex: 1, gap: 3 },
+  allLabel: { fontSize: 16, fontWeight: '800', color: palette.textDim },
+  allHint: { fontSize: 12.5, color: palette.textDim, lineHeight: 17 },
   allLabelOn: { color: palette.blueDeep },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
   cta: {
