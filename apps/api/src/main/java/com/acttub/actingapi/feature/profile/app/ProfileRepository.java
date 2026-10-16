@@ -28,7 +28,15 @@ public interface ProfileRepository {
      * 여섯 항목과 소개를 <b>한 번에</b> 저장한다. 부분 저장은 없다 — 방향도 같은 트랜잭션에서 통째로
      * 갈아 끼운다. 사진과 알림 토글은 건드리지 않는다. 없거나 계정이 활성이 아니면 {@code null}.
      */
-    Account saveProfile(UUID userId, Profile profile);
+    default Account saveProfile(UUID userId, Profile profile) {
+        return saveProfile(userId, profile, null);
+    }
+
+    /**
+     * 위와 같다. {@code signupClient} 는 프로필을 처음 완성한 클라이언트 판(V44)이고 이미 값이 있으면 바꾸지 않는다.
+     * 가입 중이 아니면 {@code null} 을 넘긴다.
+     */
+    Account saveProfile(UUID userId, Profile profile, String signupClient);
 
     /**
      * 탈퇴 처리. 없으면 {@code null}.
@@ -124,9 +132,10 @@ public interface ProfileRepository {
      * 가입 계정의 유입 광고를 <b>처음 한 번만</b> 적는다(SOMA-588). 이미 있으면 그대로 두고 바꾸지 않는다 —
      * 같은 기기가 다시 보내거나 두 번째 귀속이 와도 첫 값이 남는다.
      *
+     * @param recordedVia 누가 적었나 — {@link SignupAttribution#RECORDED_VIA_APP} · {@code _SERVER} · {@code _WEB}
      * @return 계정이 활성이면 {@code true}(새로 적었든 이미 있었든). 없거나 활성이 아니면 {@code false}
      */
-    boolean recordSignupAttribution(UUID userId, SignupAttribution attribution);
+    boolean recordSignupAttribution(UUID userId, SignupAttribution attribution, String recordedVia);
 
     /**
      * 앱이 넘긴 Airbridge 기기 ID 를 서버 재조회용으로 잠깐 둔다(SOMA-643, V43). 이미 유입 기록이 있거나 이 계정의 줄이
