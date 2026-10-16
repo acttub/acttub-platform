@@ -24,4 +24,16 @@ class AirbridgeDeviceTest {
         assertThat(AirbridgeDevice.isUsable("1111111g-2222-3333-4444-555555555555")).isFalse();
         assertThat(AirbridgeDevice.isUsable("11111111-2222-3333-4444-5555555555555")).isFalse();
     }
+
+    @Test
+    @DisplayName("개인정보 동의 판은 숫자 부분만 비교한다 — 최소 판보다 낮거나 읽을 수 없으면 받지 않는다")
+    void comparesPrivacyVersionNumerically() {
+        assertThat(AirbridgeDevice.privacyVersionAtLeast("v9", "v9")).isTrue();
+        assertThat(AirbridgeDevice.privacyVersionAtLeast("v10", "v9")).isTrue();
+        assertThat(AirbridgeDevice.privacyVersionAtLeast("v7", "v9")).isFalse();
+        assertThat(AirbridgeDevice.privacyVersionAtLeast("v10", "v9")).isTrue();
+        assertThat(AirbridgeDevice.privacyVersionAtLeast("9", "v9")).isTrue();
+        assertThat(AirbridgeDevice.privacyVersionAtLeast(null, "v9")).isFalse();
+        assertThat(AirbridgeDevice.privacyVersionAtLeast("v9", "x")).isFalse();
+    }
 }
