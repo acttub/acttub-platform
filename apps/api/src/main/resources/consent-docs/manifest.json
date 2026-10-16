@@ -32,20 +32,20 @@
     "required": false
   },
   {
-    "file": "cloud_voice_v1.md",
+    "file": "cloud_voice_v2.md",
     "type": "cloud_voice",
-    "version": "v1",
-    "locale": "ko",
-    "title": "대본 리딩 고품질 목소리(선택)",
-    "required": false
-  },
-  {
-    "file": "script_split_v2.md",
-    "type": "script_split",
     "version": "v2",
     "locale": "ko",
-    "title": "대본 나누기(선택)",
-    "required": false
+    "title": "대본 리딩 고품질 목소리",
+    "required": true
+  },
+  {
+    "file": "script_split_v3.md",
+    "type": "script_split",
+    "version": "v3",
+    "locale": "ko",
+    "title": "대본 나누기",
+    "required": true
   },
   {
     "file": "marketing_email_v1.md",
@@ -96,20 +96,20 @@
     "required": false
   },
   {
-    "file": "cloud_voice_v1_en.md",
+    "file": "cloud_voice_v2_en.md",
     "type": "cloud_voice",
-    "version": "v1",
-    "locale": "en",
-    "title": "Premium reading voice (optional)",
-    "required": false
-  },
-  {
-    "file": "script_split_v2_en.md",
-    "type": "script_split",
     "version": "v2",
     "locale": "en",
-    "title": "Script splitting (optional)",
-    "required": false
+    "title": "Premium reading voice",
+    "required": true
+  },
+  {
+    "file": "script_split_v3_en.md",
+    "type": "script_split",
+    "version": "v3",
+    "locale": "en",
+    "title": "Script splitting",
+    "required": true
   },
   {
     "file": "marketing_email_v1_en.md",
