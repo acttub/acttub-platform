@@ -58,8 +58,9 @@ export default function TabLayout() {
           tabBarStyle: IOS
             ? {
                 position: 'absolute',
-                left: 20,
-                right: 20,
+                // 좌우를 조금 더 비워 알약을 좁게(SOMA-742 피드백).
+                left: 40,
+                right: 40,
                 bottom: Math.max(insets.bottom - 14, 12),
                 height: 64,
                 borderRadius: 32,
