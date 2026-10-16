@@ -12,7 +12,6 @@ import { useAuth } from '@/lib/auth';
 import {
   canSubmitConsentDecisions,
   signupFailureAction,
-  SIGNUP_DEFERRED_TYPES,
   signupScreenLayout,
   toggleConsentGroup,
   type ConsentChoice,
@@ -32,7 +31,7 @@ function errorMessage(error: unknown, fallback: string): string {
  * A0.1 가입 동의 — 처음 온 신원만 본다. 이미 있는 계정의 새 판 동의는 홈 위 재동의 팝업이 묻는다.
  *
  * 맨 위에 전체 동의(선택 포함, 기본 꺼짐), 그 아래 만 14세 확인 줄과 문서마다 체크 한 줄(필수를 먼저).
- * 고품질 목소리·대본 나누기는 기능 안에서 묻고, 광고성 이메일·앱 푸시는 한 줄로 묶는다. 만 14세 확인과 필수 문서에
+ * 고품질 목소리·대본 나누기는 개인정보 동의 v9에 들어 있어 따로 보이지 않고, 광고성 이메일·앱 푸시는 한 줄로 묶는다. 만 14세 확인과 필수 문서에
  * 모두 동의해야 "동의하고 계속하기"가 켜진다. 화살표를 누르면 본문이 펼쳐진다.
  * 로그인 응답의 문서를 보여 주고, 제출이 통과하는 순간 계정이 생긴다(POST /v2/auth/signup,
  * 모든 결정을 한 번에). 나가면 아무것도 남지 않는다.
@@ -46,7 +45,7 @@ export default function ConsentScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const documents = useMemo<ConsentDocument[]>(() => signup?.documents ?? [], [signup?.documents]);
-  // 필수를 먼저, 선택을 뒤에. 기능 안에서 묻는 선택 문서(고품질 목소리·대본 나누기)는 빼고,
+  // 필수를 먼저, 선택을 뒤에. 고품질 목소리·대본 나누기는 개인정보 동의 v9에 합쳐져 따로 묻지 않고,
   // 광고성 정보 수신(이메일·앱 푸시)은 한 줄로 묶는다. 빠진 문서는 제출 때 거절로 채워진다.
   const layout = useMemo(() => signupScreenLayout(documents), [documents]);
   const ordered = useMemo(() => [...layout.required, ...layout.optional], [layout]);
@@ -233,9 +232,6 @@ export default function ConsentScreen() {
             )}
           </ConsentRow>
         )}
-        {documents.some((d) => !d.required && SIGNUP_DEFERRED_TYPES.includes(d.type)) && (
-          <Text style={styles.deferredNote}>{t('consent.deferredNote')}</Text>
-        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -268,7 +264,6 @@ const styles = StyleSheet.create({
   subItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   subLabel: { fontSize: 14, fontWeight: '600', color: palette.textDim },
   subLabelOn: { color: palette.text },
-  deferredNote: { fontSize: 12.5, color: palette.textDim, marginTop: 12, lineHeight: 18 },
   footer: { paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
   allRow: {
     flexDirection: 'row',
