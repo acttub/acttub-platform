@@ -509,6 +509,39 @@ class DirectVideoCoachTest {
                 .hasSize(2);
     }
 
+    @Test void streamingSendsTheCoachTextAsItIsWrittenAndSavesItUntrimmed() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        var raws = new java.util.ArrayDeque<>(List.of(OPENING,
+                "<생각>\n배우가 한 말: 붙잡고 싶었다\n</생각>\n0:23에 시선이 내려가요. 그때 속으로는 어땠어요? 다른 대사에서도요?"));
+        when(model.replyStream(eq(file), anyList(), anyString(), org.mockito.ArgumentMatchers.any())).thenAnswer(call -> {
+            String raw = raws.removeFirst();
+            java.util.function.Consumer<String> onText = call.getArgument(3);
+            for (int i = 0; i < raw.length(); i += 3) onText.accept(raw.substring(i, Math.min(raw.length(), i + 3)));
+            return raw;
+        });
+        var deltas = new ArrayList<String>();
+        var begun = new java.util.concurrent.atomic.AtomicInteger();
+        CoachStream stream = new CoachStream() {
+            @Override public void begin() { begun.incrementAndGet(); }
+            @Override public void delta(String text) { deltas.add(text); }
+        };
+        var first = loopEngine.start(session(), UUID.randomUUID(), stream);
+        assertThat(first.reply().message()).isEqualTo(OPENING_SHOWN);
+        assertThat(String.join("", deltas).strip()).isEqualTo(OPENING_SHOWN);
+        assertThat(deltas.size()).as("조각으로 나간다").isGreaterThan(3);
+
+        deltas.clear();
+        var second = loopEngine.reply(first.session(), "붙잡길 바랐던 것 같아요", UUID.randomUUID(), stream);
+        String written = "0:23에 시선이 내려가요. 그때 속으로는 어땠어요? 다른 대사에서도요?";
+        assertThat(second.reply().message()).as("시간 표기·두 번째 질문을 다듬지 않고 모델이 쓴 그대로 저장한다").isEqualTo(written);
+        assertThat(String.join("", deltas)).isEqualTo(written);
+        verify(model, never()).reply(eq(file), anyList(), anyString());
+        verify(model, never()).reply(org.mockito.ArgumentMatchers.isNull(), anyList(), anyString());
+        assertThat(telemetry.calls().getLast().metadata()).containsEntry("stream", "true")
+                .containsEntry("shorten_calls", "0").containsEntry("timestamp_retry", "false");
+    }
+
     @Test void practiceLoopRewritesOnceWhenTheCoachPointsByVideoTimeAndStripsWhatIsLeft() {
         var loopEngine = practiceLoopEngine();
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");

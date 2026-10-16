@@ -292,3 +292,12 @@ export type FeedbackBody = {
   contact_email?: string;
   contact_phone?: string;
 };
+
+/** 코치 답을 스트림으로 받을 때 화면이 쥐는 끈. 모두 선택이다 — 없으면 일반 호출과 같다. */
+export type CoachStreamCallbacks = {
+  /** 코치가 쓰는 글이 한 조각 올 때마다. */
+  onDelta?: (text: string) => void;
+  /** 쓰던 조각을 버린다(오류·끊김·일반 호출로 전환). */
+  onReset?: () => void;
+  signal?: AbortSignal;
+};

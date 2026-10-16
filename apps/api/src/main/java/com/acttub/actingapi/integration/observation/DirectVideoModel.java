@@ -33,6 +33,16 @@ public interface DirectVideoModel {
     }
     boolean ready(Video video);
     String reply(Video video, List<Message> history, String instruction);
+    /**
+     * {@link #reply} 와 같은 답을 쓰면서 원문 조각을 쓰는 대로 넘긴다(코칭 스트리밍).
+     * 스트리밍을 못 하는 구현은 다 쓴 답을 한 조각으로 넘긴다.
+     */
+    default String replyStream(Video video, List<Message> history, String instruction,
+            java.util.function.Consumer<String> onText) {
+        String reply = reply(video, history, instruction);
+        if (reply != null && !reply.isEmpty()) onText.accept(reply);
+        return reply;
+    }
     /** Text-only routing; the application owns the allowed categories. */
     String classify(List<Message> history, String instruction, List<String> categories);
     void delete(Video video);

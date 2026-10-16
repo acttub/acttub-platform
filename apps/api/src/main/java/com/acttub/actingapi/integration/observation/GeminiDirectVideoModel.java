@@ -115,12 +115,39 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         return generate(video, history, instruction, null);
     }
 
+    /**
+     * 코치 답을 모델이 쓰는 대로 조각씩 넘긴다(코칭 스트리밍). 설정·끊김 처리는 {@link #reply} 와 같다.
+     * 조각은 원문 그대로다 — 숨은 메모를 거르는 것은 부르는 쪽이다.
+     */
+    @Override
+    public String replyStream(Video video, List<Message> history, String instruction,
+            java.util.function.Consumer<String> onText) {
+        Request request = request(video, history, instruction, null);
+        StringBuilder text = new StringBuilder();
+        boolean limited = false;
+        try (var stream = client.models.generateContentStream(model, request.contents(), request.config())) {
+            for (var chunk : stream) {
+                String piece = chunk.text();
+                if (piece != null && !piece.isEmpty()) {
+                    text.append(piece);
+                    onText.accept(piece);
+                }
+                if (outputLimitReached(chunk)) limited = true;
+            }
+        }
+        if (limited) throw new IllegalStateException("empty video coaching reply: output limit reached");
+        if (text.toString().isBlank()) throw new IllegalStateException("empty video coaching reply");
+        return text.toString().strip();
+    }
+
     @Override
     public String classify(List<Message> history, String instruction, List<String> categories) {
         return generate(null, history, instruction, categories);
     }
 
-    private String generate(Video video, List<Message> history, String instruction, List<String> categories) {
+    private record Request(List<Content> contents, GenerateContentConfig config) { }
+
+    private Request request(Video video, List<Message> history, String instruction, List<String> categories) {
         boolean classification = categories != null;
         List<Content> contents = new ArrayList<>();
         if (video != null) contents.add(Content.builder().role("user").parts(
@@ -150,7 +177,13 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                             "type", "array", "items", java.util.Map.of("type", "string", "enum", categories))),
                     "required", List.of("signals"), "additionalProperties", false));
         }
-        var response = client.models.generateContent(model, contents, config.build());
+        return new Request(contents, config.build());
+    }
+
+    private String generate(Video video, List<Message> history, String instruction, List<String> categories) {
+        boolean classification = categories != null;
+        Request request = request(video, history, instruction, categories);
+        var response = client.models.generateContent(model, request.contents(), request.config());
         // 한도에 걸려 끊긴 답은 중간에 잘린 글이다. 빈 답과 같이 다루어 연습 루프가 한 번 다시 쓰게 한다.
         if (!classification && outputLimitReached(response)) {
             throw new IllegalStateException("empty video coaching reply: output limit reached");

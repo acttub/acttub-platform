@@ -116,7 +116,12 @@ public class CoachEngine {
 
     /** 새 세션의 첫 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult start(CoachSessionSnapshot session, UUID operationId) {
-        if (session.threeLayers() && directVideo != null) return directVideo.turn(session, null, operationId);
+        return start(session, operationId, null);
+    }
+
+    /** {@code stream} 은 영상 코치(연습 루프)에서만 쓰인다. 다른 경로는 다 쓴 뒤 한 번에 돌려준다. */
+    public CoachResult start(CoachSessionSnapshot session, UUID operationId, CoachStream stream) {
+        if (session.threeLayers() && directVideo != null) return directVideo.turn(session, null, operationId, stream);
         if (session.threeLayers()) {
             return new StructuredCoachEngine(generate, failureReporter, telemetry, routedCoaching).turn(session, null, operationId);
         }
@@ -153,7 +158,12 @@ public class CoachEngine {
     /** 기존 세션의 다음 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult reply(
             CoachSessionSnapshot session, String actorText, UUID operationId) {
-        if (session.threeLayers() && directVideo != null) return directVideo.turn(session, actorText, operationId);
+        return reply(session, actorText, operationId, null);
+    }
+
+    public CoachResult reply(
+            CoachSessionSnapshot session, String actorText, UUID operationId, CoachStream stream) {
+        if (session.threeLayers() && directVideo != null) return directVideo.turn(session, actorText, operationId, stream);
         if (session.threeLayers()) {
             return new StructuredCoachEngine(generate, failureReporter, telemetry, routedCoaching).turn(session, actorText, operationId);
         }
