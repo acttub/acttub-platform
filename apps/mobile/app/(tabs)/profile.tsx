@@ -116,7 +116,7 @@ export default function ProfileScreen() {
           icon="cpu"
           title={t('profileTab.memoryTitle')}
           sub={t('profileTab.memorySub')}
-          onPress={() => router.push('/memory')}
+          onPress={() => router.push({ pathname: '/memory', params: { from: 'profile' } })}
         />
       </ScrollView>
 
