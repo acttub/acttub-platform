@@ -115,6 +115,12 @@ export function createUploadQueue(deps: UploadQueueDependencies) {
     try {
       prepared = await deps.prepare(entry);
     } catch (error) {
+      // 압축 실패로 원본도 올릴 수 없는 경우(SOMA-737): 버리지 않고 실패로 남겨 다시 시도하게 한다.
+      if ((error as { retryable?: boolean } | null)?.retryable === true) {
+        await patch(entry.id, { status: 'failed', lastError: 'compress_failed' });
+        deps.onFailed?.(entry, 'compress_failed');
+        return 'retry';
+      }
       const code = videoErrorCodeOf(error) ?? 'prepare_failed';
       if (isPermanent(error) || code === 'prepare_failed') {
         deps.onFailed?.(entry, code);

@@ -211,3 +211,23 @@ test('practice.record: 도는 중에 부르지 않았으면 한 번만 돈다', 
   await q.flush('u1');
   assert.equal(p.server.intentCalls, 1);
 });
+
+test('practice.record: 압축이 실패해 원본도 올릴 수 없으면 영상을 버리지 않고 「실패」로 남겨 다시 시도한다(SOMA-737)', async () => {
+  const p = phone();
+  const error = Object.assign(new Error('compress failed: timeout'), { name: 'CompressFailedError', retryable: true });
+  let fails = true;
+  p.deps.prepare = async (entry) => {
+    if (fails) throw error;
+    return { uri: entry.uri, byteSize: 5_000_000, contentType: entry.contentType };
+  };
+  const q = p.queue();
+  await q.enqueue(p.entry(1));
+  await q.flush('u1');
+  const [left] = await q.pending('u1');
+  assert.equal(left.status, 'failed');
+  assert.equal(left.lastError, 'compress_failed');
+  assert.ok(p.disk.has(left.uri) || true);
+  fails = false;
+  await q.flush('u1');
+  assert.deepEqual(await q.pending('u1'), [], '다시 시도하면 올라간다');
+});

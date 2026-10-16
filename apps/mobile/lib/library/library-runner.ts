@@ -5,6 +5,7 @@ import { deleteDeviceFile, keepDeviceFile, libraryDirectory, trackTemporaryDevic
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { compressVideo } from '@/lib/compress';
+import { CompressFailedError } from '@/lib/compress-timeout';
 import { createUploadQueue, type QueuedVideo, type UploadQueue } from '@/lib/library/upload-queue';
 import { VIDEO_MAX_MS, checkVideoForUpload } from '@/lib/library/video-checks';
 import { newRequestId } from '@/lib/request-id';
@@ -62,6 +63,8 @@ function instance(): UploadQueue {
       if (compressed.uri !== entry.uri) await trackTemporaryDeviceFile(compressed.uri).catch(() => undefined);
       const byteSize = compressed.compressedBytes ?? fileSize(compressed.uri);
       const check = checkVideoForUpload({ byteSize, durationMs });
+      // 압축이 멈추거나 실패해 원본을 올리려는데 한도를 넘으면, 영상을 버리지 않고 「실패 · 다시 시도」로 남긴다(SOMA-737).
+      if (!check.ok && compressed.fallback) throw new CompressFailedError(compressed.fallback);
       if (!check.ok) throw rejection(check.code === 'video_empty' ? 'video_too_large' : check.code);
       return { uri: compressed.uri, byteSize, contentType: 'video/mp4', durationMs };
     },

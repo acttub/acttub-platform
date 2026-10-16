@@ -1,11 +1,15 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
+import { compressTimeoutMs, withTimeout } from '@/lib/compress-timeout';
+
 export type CompressResult = {
   uri: string;
   /** 압축 전/후 바이트. 크기를 못 읽었거나 압축이 스킵되면 null. */
   originalBytes: number | null;
   compressedBytes: number | null;
+  /** 압축이 시간 안에 끝나지 않았거나 실패해 원본을 그대로 돌려준 경우의 사유(SOMA-737). */
+  fallback?: 'timeout' | 'error';
 };
 
 /**
@@ -80,7 +84,30 @@ export async function compressVideo(uri: string): Promise<CompressResult> {
           maxSize: 720,
           progressDivider: 5,
         };
-  const compressed = await compressor.Video.compress(uri, options);
+  // 코덱이 막히면 끝나지 않는다 — 길이로 정한 시간이 지나면 압축을 취소하고 원본으로 올린다(SOMA-737).
+  let cancellationId: string | null = null;
+  let compressed: string;
+  try {
+    compressed = await withTimeout(
+      compressor.Video.compress(uri, {
+        ...options,
+        getCancellationId: (id: string) => {
+          cancellationId = id;
+        },
+      }),
+      compressTimeoutMs(durationSec),
+      () => {
+        if (cancellationId) compressor.Video.cancelCompression(cancellationId);
+      },
+    );
+  } catch (error) {
+    if (cancellationId) {
+      try {
+        compressor.Video.cancelCompression(cancellationId);
+      } catch {}
+    }
+    return { ...original, originalBytes, fallback: error instanceof Error && error.name === 'CompressTimeoutError' ? 'timeout' : 'error' };
+  }
   const compressedBytes = await fileSize(compressed);
   return { uri: compressed, originalBytes, compressedBytes };
 }

@@ -647,6 +647,7 @@ const ko = {
     inProgressTitle: '진행 중인 연습이 있어요',
     inProgressBody: '먼저 하던 연습을 마치거나 그만둔 뒤에 새 연습을 시작할 수 있어요.',
     stillUploading: '영상을 아직 올리는 중이에요. 잠시 뒤에 다시 눌러 주세요.',
+    uploadFailed: '영상을 올리지 못했어요. 질문 받기를 누르면 다시 올려 볼게요.',
     dailyLimit: '오늘 분석을 다 썼어요. 내일 다시 할 수 있어요.',
     offline: '연결이 끊겼어요. 잠시 뒤 다시 시도해 주세요.',
     sceneTooLong: '상황·인물·목표는 각각 300자까지 쓸 수 있어요.',

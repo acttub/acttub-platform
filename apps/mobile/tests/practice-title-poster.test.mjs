@@ -86,7 +86,7 @@ test('practice.upload: 제목 칸·업로드 중 버튼·처리 중 잠금', () 
 
 test('practice.upload: 올리는 중이면 안내도 「올리는 중」이다 — 「영상을 채워주세요」와 겹쳐 말하지 않는다', () => {
   const src = read('app/upload.tsx');
-  assert.match(src, /: !sample && uploading\s*\? t\('start\.stillUploading'\)\s*: !sample && !canStart\(videoId\)/);
+  assert.match(src, /: !sample && uploading\s*\? uploadFailed\s*\? t\('start\.uploadFailed'\)\s*: t\('start\.stillUploading'\)\s*: !sample && !canStart\(videoId\)/);
 });
 
 test('practice.history: 연습 기록은 영상 목록처럼 왼쪽에 큰 16:9 사진, 두 줄 제목, 사진 위 회차 배지다', () => {
