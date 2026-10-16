@@ -326,6 +326,10 @@ function WorkspaceInner() {
   const [messages, setMessages] = useState<ChatLine[]>([]);
   const [answer, setAnswer] = useState("");
   const [sending, setSending] = useState(false);
+  /** 코치가 지금 쓰고 있는 답(스트리밍). 비어 있으면 첫 글자 전이거나 스트리밍이 아니라 기다림 점을 보인다. */
+  const [streamText, setStreamText] = useState("");
+  const appendStream = useCallback((text: string) => setStreamText((was) => was + text), []);
+  const resetStream = useCallback(() => setStreamText(""), []);
   const [coachOpening, setCoachOpening] = useState(false);
   const coachIdRef = useRef<string | null>(null);
   /**
@@ -630,6 +634,8 @@ function WorkspaceInner() {
       try {
         const start = await startConversation(practiceSessionId, {
           requestId: conversationRequestId(practiceSessionId),
+          onDelta: appendStream,
+          onReset: resetStream,
         });
         if (!isCurrentSession(practiceSessionId)) return;
         // 열린 대화를 재개한 것이면(revision 이 올라 있다) 지난 턴을 읽어 화면을 채운다.
@@ -653,12 +659,13 @@ function WorkspaceInner() {
         }
         throw reason;
       } finally {
+        resetStream();
         if (isCurrentSession(practiceSessionId)) setCoachOpening(false);
       }
     });
     coachCoordinatorRef.current = { sessionId: practiceSessionId, coordinator };
     return coordinator;
-  }, [conversationRequestId, countStepOnce, isCurrentSession, restoreCoach]);
+  }, [appendStream, conversationRequestId, countStepOnce, isCurrentSession, resetStream, restoreCoach]);
 
   const startConversationAfterAnalysis = useCallback((practiceSessionId: string) => {
     void coordinatorFor(practiceSessionId).update("analyzed").catch(() => {});
@@ -952,7 +959,7 @@ function WorkspaceInner() {
     try {
       const turn = await replyConversation(
         { conversationId: coachId, text, revision: revisionRef.current },
-        { requestId },
+        { requestId, onDelta: appendStream, onReset: resetStream },
       );
       if (!isCurrentSession(practiceId) || coachIdRef.current !== coachId) return;
       dialogueTurnCountRef.current = turnIndex;
@@ -998,9 +1005,10 @@ function WorkspaceInner() {
       }
     } finally {
       replyPendingRef.current = false;
+      resetStream();
       setSending(false);
     }
-  }, [answer, sending, pushAi, replyRequestIdFor, screen.kind, currentSessionId, isCurrentSession]);
+  }, [answer, appendStream, resetStream, sending, pushAi, replyRequestIdFor, screen.kind, currentSessionId, isCurrentSession]);
 
   const restartAfterBlocked = useCallback(async () => {
     const practiceSessionId = currentSessionId();
@@ -1018,6 +1026,8 @@ function WorkspaceInner() {
       // 409 conversation_closed 가 오고, 그 문구가 새 회차로 가라고 말한다(practice.resume).
       const start = await startConversation(practiceSessionId, {
         requestId: newRequestId(),
+        onDelta: appendStream,
+        onReset: resetStream,
       });
       if (!isCurrentSession(practiceSessionId)) return;
       const history = needsTurnHistory(start) ? await getConversation(start.conversation.id) : null;
@@ -1031,10 +1041,11 @@ function WorkspaceInner() {
     } finally {
       // 코치를 기다리는 표시는 화면의 것이라 지금 화면일 때만 내린다. 도는 일 쪽은
       // 자기가 켠 것을 스스로 알아보므로 가드 없이 끝맺는다.
+      resetStream();
       if (isCurrentSession(practiceSessionId)) setCoachOpening(false);
       doneRestarting();
     }
-  }, [currentSessionId, isCurrentSession, restoreCoach, startWork]);
+  }, [appendStream, currentSessionId, isCurrentSession, resetStream, restoreCoach, startWork]);
 
   // 받아 온 연습으로 화면을 옮긴다. 두 진입 경로가 이 자리를 공유하고, 그 앞뒤로
   // 저마다 더 하는 일(주소로 온 길은 자기 자리부터 잡는다)은 각자에게 남는다.
@@ -1521,6 +1532,7 @@ function WorkspaceInner() {
                 answer={answer}
                 setAnswer={setAnswer}
                 sending={sending || coachOpening}
+                streamText={streamText}
                 inputEnabled={isCoachInputEnabled({
                   coachReady: body.coachReady,
                   sending,
@@ -2457,6 +2469,7 @@ function ChatPanel({
   answer,
   setAnswer,
   sending,
+  streamText,
   inputEnabled,
   scrollRef,
   onSend,
@@ -2468,6 +2481,8 @@ function ChatPanel({
   answer: string;
   setAnswer: (v: string) => void;
   sending: boolean;
+  /** 코치가 쓰는 중인 답. 있으면 기다림 점 대신 이것이 현재 말풍선(질문 자리)에 자란다. */
+  streamText: string;
   inputEnabled: boolean;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   onSend: () => void;
@@ -2479,7 +2494,8 @@ function ChatPanel({
   const firstQuestionIndex = messages.findIndex((message) => message.role === "ai");
   const dialogueMessages = firstQuestionIndex >= 0 ? messages.slice(firstQuestionIndex) : [];
   const currentQuestionIndex = dialogueMessages.findLastIndex((message) => message.role === "ai");
-  const currentQuestion = currentQuestionIndex >= 0 ? dialogueMessages[currentQuestionIndex] : null;
+  const finishedQuestion = currentQuestionIndex >= 0 ? dialogueMessages[currentQuestionIndex] : null;
+  const currentQuestion = streamText ? { role: "ai" as const, text: streamText } : finishedQuestion;
   const pastMessages = currentQuestionIndex >= 0
     ? dialogueMessages.slice(0, currentQuestionIndex)
     : [];
@@ -2548,7 +2564,7 @@ function ChatPanel({
               {currentQuestion.text}
             </h2>
           ) : null}
-          {sending ? (
+          {sending && !streamText ? (
             <div className="mt-4 flex items-end gap-2">
               <div className="rounded-[18px] rounded-bl-[6px] bg-[#f7faff] px-4 py-3">
                 <WaitingDots />
