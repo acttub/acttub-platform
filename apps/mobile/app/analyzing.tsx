@@ -56,6 +56,7 @@ export default function AnalyzingScreen() {
 
   const [status, setStatus] = useState<PracticeStatus | null>(null);
   const [detail, setDetail] = useState<PracticeDetail | null>(null);
+  const [practiceTitle, setPracticeTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -204,6 +205,11 @@ export default function AnalyzingScreen() {
       .getPractice(practiceId)
       .then(async (loaded) => {
         setDetail(loaded);
+        // 제목은 묶음에 있다. 못 읽어도 대기 화면은 그대로 둔다.
+        void api
+          .getPracticeGroup(loaded.root_id)
+          .then((group) => setPracticeTitle(group.title?.trim() || null))
+          .catch(() => undefined);
         const localUri = loaded.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
         setVideoUri(localUri ?? loaded.playback_url ?? null);
       })
@@ -379,6 +385,7 @@ export default function AnalyzingScreen() {
             {detail && (
               <SceneSummary
                 title={t('analyzing.whatWeUse')}
+                practiceTitle={practiceTitle}
                 scene={{
                   situation: detail.scene.situation,
                   character: detail.scene.character,

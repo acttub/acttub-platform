@@ -1090,7 +1090,7 @@ const en: DeepStringShape<typeof ko> = {
     rowCharacter: 'Character',
     rowGoal: 'Goal',
     rowBlockage: 'Stuck point',
-    notWritten: 'Not written',
+    rowTitle: 'Practice title',
     intro: 'We ask about what stood out in your video, and you write the final line yourself.',
   },
   errors: {

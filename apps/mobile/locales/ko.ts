@@ -1080,7 +1080,7 @@ const ko = {
     rowCharacter: '인물',
     rowGoal: '목표',
     rowBlockage: '막힌 곳',
-    notWritten: '적지 않았어요',
+    rowTitle: '연습 제목',
     intro: '영상에서 눈에 남은 곳을 묻고, 마지막 한 문장은 배우님이 직접 써요.',
   },
   errors: {

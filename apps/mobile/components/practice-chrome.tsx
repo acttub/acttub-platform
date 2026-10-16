@@ -6,6 +6,7 @@ import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
 import type { SceneContext } from '@/lib/api';
 import { translate as t, translateList } from '@/lib/i18n';
+import { summaryRows } from '@/lib/practice/scene-summary';
 import { limitVideoBuffer } from '@/lib/video-memory';
 import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events';
 
@@ -147,38 +148,44 @@ export function SceneFoldBody({
   );
 }
 
-/** 상황·인물·목표(+막힌 곳)를 라벨 열과 값 열로 늘어놓는다. */
+/** 제목·상황·인물·목표·막힌 곳 중 실제로 값이 있는 것만 라벨 열과 값 열로 늘어놓는다. */
 export function SceneSummary({
   scene,
   blockage,
   title,
+  practiceTitle,
 }: {
   scene: SceneContext;
   blockage: { kind: string; detail: string | null } | null;
   title?: string;
+  practiceTitle?: string | null;
 }) {
-  const rows: [string, string][] = [
-    [t('practiceChrome.rowSituation'), scene.situation],
-    [t('practiceChrome.rowCharacter'), scene.character],
-    [t('practiceChrome.rowGoal'), scene.goal],
-  ];
-  if (blockage?.kind) rows.push([t('practiceChrome.rowBlockage'), blockage.kind]);
+  const labels = {
+    title: t('practiceChrome.rowTitle'),
+    situation: t('practiceChrome.rowSituation'),
+    character: t('practiceChrome.rowCharacter'),
+    goal: t('practiceChrome.rowGoal'),
+    blockage: t('practiceChrome.rowBlockage'),
+  };
+  const rows = summaryRows({ title: practiceTitle, scene, blockageKind: blockage?.kind });
+  const quote = blockage?.detail?.trim() || null;
+  if (rows.length === 0 && !quote) return null;
 
   return (
     <View style={title ? styles.summaryWithTitle : undefined}>
       {title && <Text style={styles.summaryTitle}>{title}</Text>}
       <View style={styles.rows}>
-        {rows.map(([label, value]) => (
-          <View key={label} style={styles.row}>
+        {rows.map((row) => (
+          <View key={row.key} style={styles.row}>
             <View style={styles.rowLabelCell}>
-              <Text style={styles.rowLabel}>{label}</Text>
+              <Text style={styles.rowLabel}>{labels[row.key]}</Text>
             </View>
-            <Text style={styles.rowValue}>{value.trim() || t('practiceChrome.notWritten')}</Text>
+            <Text style={styles.rowValue}>{row.value}</Text>
           </View>
         ))}
-        {blockage?.detail ? (
+        {quote ? (
           <View style={styles.quote}>
-            <Text style={styles.quoteText}>“{blockage.detail}”</Text>
+            <Text style={styles.quoteText}>“{quote}”</Text>
           </View>
         ) : null}
       </View>

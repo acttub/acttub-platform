@@ -10,6 +10,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { easing, motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
@@ -76,6 +78,7 @@ export function SpotlightGuide({
  */
 export function SpotlightHost() {
   const screen = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(0);
   const [captionHeight, setCaptionHeight] = useState(CAPTION_GUESS);
   // 띄워 달라는 요청도, 비출 자리도 화면 밖에서 바뀐다 — 바뀌면 다시 그린다.
@@ -131,7 +134,7 @@ export function SpotlightHost() {
   const step = steps.length > 0 ? steps[Math.min(index, steps.length - 1)] : null;
   const hole = step ? holeOf(relativeTo(targetRect(step.target), origin), screen) : null;
   // 카드는 미끄러뜨리지 않는다 — 단계마다 새로 떠오르고(FadeInDown), 구멍 쪽 모서리에 붙는다.
-  const placement = captionPlacement(hole, screen, captionHeight);
+  const placement = captionPlacement(hole, screen, captionHeight, insets.bottom);
   const radius = hole ? (step?.round ? hole.height / 2 : 18) : 0;
 
   // 구멍이 갈 자리. 그림(렌더)이 아니라 효과에서 옮긴다 — 렌더 중에 공유값을 쓰면 안 된다.
