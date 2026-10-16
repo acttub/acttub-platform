@@ -1,6 +1,6 @@
 import { apiFetch } from "./client";
 import { ApiError, errorMessage } from "./errors";
-import { postIdempotent } from "./idempotency";
+import { postIdempotentStream } from "./idempotency";
 import type {
   Conversation,
   ConversationReplyRequest,
@@ -18,6 +18,14 @@ import type {
 
 /** 배우 답의 길이 한도. 서버도 같은 값으로 막는다(422). */
 export const ACTOR_REPLY_MAX = 300;
+
+/** 코치 답을 스트림으로 받을 때 화면이 쥐는 끈. 모두 선택이다 — 없으면 일반 호출과 같다. */
+export type CoachStreamCallbacks = {
+  /** 코치가 쓰는 글이 한 조각 올 때마다. */
+  onDelta?: (text: string) => void;
+  /** 쓰던 조각을 버린다(오류·끊김·일반 호출로 전환). */
+  onReset?: () => void;
+};
 
 /**
  * 지문 불일치는 같은 코드를 리딩 대본 저장도 쓴다(그쪽 문구는 대본 이야기를 한다). 코드만 보는 공용
@@ -43,12 +51,14 @@ function isFingerprintMismatch(cause: unknown): boolean {
 /** 분석이 끝난 회차에서 대화를 연다. 열린 대화가 있으면 서버가 그것을 그대로 돌려준다. */
 export async function startConversation(
   practiceId: string,
-  options: { requestId: string; signal?: AbortSignal },
+  options: { requestId: string; signal?: AbortSignal } & CoachStreamCallbacks,
 ): Promise<ConversationTurnResponse> {
   const body: ConversationStartRequest = { practice_id: practiceId, request_id: options.requestId };
-  const { data } = await postIdempotent<ConversationTurnResponse>("/v2/coach/start", body, {
+  const { data } = await postIdempotentStream<ConversationTurnResponse>("/v2/coach/start/stream", "/v2/coach/start", body, {
     requestId: options.requestId,
     signal: options.signal,
+    onDelta: options.onDelta,
+    onReset: options.onReset,
   });
   return data;
 }
@@ -60,7 +70,7 @@ export async function startConversation(
  */
 export async function replyConversation(
   input: { conversationId: string; text: string; revision: number },
-  options: { requestId: string; signal?: AbortSignal },
+  options: { requestId: string; signal?: AbortSignal } & CoachStreamCallbacks,
 ): Promise<ConversationTurnResponse> {
   const text = input.text.trim();
   if ([...text].length > ACTOR_REPLY_MAX) {
@@ -72,9 +82,11 @@ export async function replyConversation(
     text,
     revision: input.revision,
   };
-  const { data } = await postIdempotent<ConversationTurnResponse>("/v2/coach/reply", body, {
+  const { data } = await postIdempotentStream<ConversationTurnResponse>("/v2/coach/reply/stream", "/v2/coach/reply", body, {
     requestId: options.requestId,
     signal: options.signal,
+    onDelta: options.onDelta,
+    onReset: options.onReset,
   });
   return data;
 }
