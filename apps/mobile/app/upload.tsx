@@ -337,6 +337,12 @@ export default function UploadScreen() {
     blockedTapsRef.current += 1;
     void logEvent(PRACTICE_UPLOAD_EVENTS.startBlocked, startBlockedParams(reason));
   };
+  // 준비 전에 누른 질문 받기. 올리는 중이면 업로드를 한 번 더 밀어 준다 — 「잠시 뒤에 다시 눌러 주세요」대로 누르면
+  // 멈춘 업로드가 다시 돈다(SOMA-734).
+  const pressBlocked = () => {
+    if (uploading && user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
+    noteBlocked();
+  };
   const toggleRights = () => {
     const next = !agreedRights;
     setAgreedRights(next);
@@ -483,7 +489,7 @@ export default function UploadScreen() {
             ref={startTarget.ref}
             onLayout={startTarget.onLayout}
             style={[styles.submit, (!ready || starting) && styles.submitDisabled]}
-            onPress={() => (ready ? void start() : noteBlocked())}
+            onPress={() => (ready ? void start() : pressBlocked())}
             disabled={starting}
             accessibilityRole="button"
             accessibilityState={{ disabled: !ready || starting }}>

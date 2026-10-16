@@ -178,3 +178,36 @@ test('practice.record: 항목을 지우면 파일도 지우고 큐에서 뺀다'
   assert.deepEqual(await q.pending('u1'), []);
   assert.equal(p.disk.has(e.uri), false);
 });
+
+test('practice.record: 올리는 중에 들어온 새 영상도 이어서 올린다 — 도는 중에 부른 flush 는 끝난 뒤 한 번 더 돈다(SOMA-734)', async () => {
+  const p = phone();
+  let release;
+  const gate = new Promise((r) => (release = r));
+  const put = p.deps.put;
+  let first = true;
+  p.deps.put = async (...args) => {
+    if (first) {
+      first = false;
+      await gate; // 첫 영상이 올라가는 동안
+    }
+    return put(...args);
+  };
+  const q = p.queue();
+  await q.enqueue(p.entry(1));
+  const running = q.flush('u1');
+  await new Promise((r) => setTimeout(r, 0));
+  await q.enqueue(p.entry(2)); // 튜토리얼에서 고른 새 영상
+  const second = q.flush('u1');
+  release();
+  await Promise.all([running, second]);
+  assert.deepEqual(await q.pending('u1'), [], '새 영상도 올라가 큐가 빈다');
+  assert.deepEqual(p.events.filter((e) => e[0] === 'uploaded').map((e) => e[1]), ['rid-1', 'rid-2']);
+});
+
+test('practice.record: 도는 중에 부르지 않았으면 한 번만 돈다', async () => {
+  const p = phone();
+  const q = p.queue();
+  await q.enqueue(p.entry(1));
+  await q.flush('u1');
+  assert.equal(p.server.intentCalls, 1);
+});
