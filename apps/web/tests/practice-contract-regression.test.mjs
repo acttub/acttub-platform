@@ -146,7 +146,7 @@ test("코치 응답을 기다리는 동안 7px 세 점 표시가 렌더된다", 
   assert.match(styles, /\.waiting-dots i \{[\s\S]*width: 7px;[\s\S]*height: 7px;/);
   assert.match(styles, /animation: waiting-dot-pulse 1\.2s/);
   assert.match(styles, /prefers-reduced-motion: reduce[\s\S]*\.waiting-dots i[\s\S]*animation: none/);
-  assert.match(workspace, /sending \? \([\s\S]*<WaitingDots \/>/);
+  assert.match(workspace, /sending && !streamText \? \([\s\S]*<WaitingDots \/>/);
 });
 
 test("이번 변경에서 다룬 화면 카피에는 금지어가 없다", () => {
