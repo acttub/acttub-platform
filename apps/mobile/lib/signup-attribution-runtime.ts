@@ -5,7 +5,9 @@ import { createAirbridgeDeviceTracker } from '@/lib/airbridge-device';
 import { logEvent } from '@/lib/analytics';
 import { ApiError, api } from '@/lib/api';
 import {
+  SIGNUP_ATTRIBUTION_STORAGE_KEY,
   createSignupAttributionTracker,
+  parseSignupAttributionState,
   signupAttributionEventParams,
   signupAttributionRetryDelayMs,
   toSignupAttribution,
@@ -148,4 +150,17 @@ export function identifySignupAttributionAccount(userId: string | null): void {
   });
   void tracker.accountResolved(userId);
   void deviceTracker.accountResolved(userId);
+}
+
+/**
+ * 이 기기에 저장된 Airbridge 귀속 채널(SOMA-733). 가입 게이트가 '처음 어디서 알게 됐어요?'를 물을지 정할 때 쓴다.
+ * 아직 귀속이 오지 않았거나 읽지 못하면 `null`.
+ */
+export async function readAttributedChannel(): Promise<string | null> {
+  try {
+    const state = parseSignupAttributionState(await AsyncStorage.getItem(SIGNUP_ATTRIBUTION_STORAGE_KEY));
+    return state.attribution?.channel ?? null;
+  } catch {
+    return null;
+  }
 }
