@@ -75,6 +75,19 @@ export default function CoachScreen() {
   const inputRef = useRef<TextInput>(null);
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
+  /** 코치가 지금 쓰고 있는 답(스트리밍). 비어 있으면 아직 첫 글자 전이거나 스트리밍이 아니다. */
+  const [streamText, setStreamText] = useState('');
+  const streamCallbacks = useMemo(
+    () => ({
+      onDelta: (text: string) => {
+        if (mountedRef.current) setStreamText((was) => was + text);
+      },
+      onReset: () => {
+        if (mountedRef.current) setStreamText('');
+      },
+    }),
+    [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [pastOpen, setPastOpen] = useState(false);
   const [sceneOpen, setSceneOpen] = useState(false);
@@ -117,16 +130,19 @@ export default function CoachScreen() {
     setConnecting(true);
     setError(null);
     try {
-      const result = await loadCoachSession(loop, practice.practiceId, startRequestIdRef.current, practice.conversationId);
+      const result = await loadCoachSession(loop, practice.practiceId, startRequestIdRef.current, practice.conversationId, streamCallbacks);
       if (!mountedRef.current) return;
       if (applyResult(result) && result.note) goToNote();
     } catch (e) {
       if (mountedRef.current) setError(coachFailureMessage(coachFailure(e)));
     } finally {
-      if (mountedRef.current) setConnecting(false);
+      if (mountedRef.current) {
+        setStreamText('');
+        setConnecting(false);
+      }
       startInFlightRef.current = false;
     }
-  }, [applyResult, goToNote, loop, practice]);
+  }, [applyResult, goToNote, loop, practice, streamCallbacks]);
 
   /** 충돌 뒤 최신 대화를 다시 읽는다. 쓰던 글은 건드리지 않는다. */
   const reloadConversation = useCallback(async () => {
@@ -157,6 +173,7 @@ export default function CoachScreen() {
       try {
         const result = await loop.replyToCoach(
           buildReplyBody({ conversation, requestId: attempt.requestId, text: trimmed }),
+          streamCallbacks,
         );
         if (!mountedRef.current) return;
         attemptRef.current = null;
@@ -170,10 +187,13 @@ export default function CoachScreen() {
         if (failure.kind === 'conflict' || failure.kind === 'closed') await reloadConversation();
         if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
       } finally {
-        if (mountedRef.current) setWaiting(false);
+        if (mountedRef.current) {
+          setStreamText('');
+          setWaiting(false);
+        }
       }
     },
-    [applyResult, closed, conversation, goToNote, loop, practice, reloadConversation, waiting],
+    [applyResult, closed, conversation, goToNote, loop, practice, reloadConversation, streamCallbacks, waiting],
   );
 
   /** 닫힌 대화에서 다시 코칭하려면 새 회차다 — 「다음 테이크 찍기」로 영상을 새로 고른다(SOMA-672). */
@@ -211,7 +231,7 @@ export default function CoachScreen() {
   useEffect(() => {
     const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     return () => clearTimeout(timer);
-  }, [messages, waiting]);
+  }, [messages, waiting, streamText]);
 
   useEffect(() => {
     if (!keyboardVisible) return;
@@ -253,6 +273,8 @@ export default function CoachScreen() {
   };
 
   const latestQuestion = [...messages].reverse().find((m) => m.role === 'coach')?.text ?? null;
+  // 스트리밍 중에는 쓰이는 글이 같은 말풍선에 자란다. 첫 글자 전에는 이전 모습(기다림 표시) 그대로다.
+  const shownQuestion = streamText || latestQuestion;
   const askedCount = messages.filter((m) => m.role === 'coach').length;
   const past = messages.slice(0, Math.max(0, messages.length - (latestQuestion ? 1 : 0)));
   const canSend = canSendAnswer({ text: input, waiting, closed, conversationId: conversation?.id ?? null });
@@ -316,20 +338,20 @@ export default function CoachScreen() {
               </View>
             ))}
 
-          {connecting && !latestQuestion ? (
+          {connecting && !latestQuestion && !streamText ? (
             <View style={styles.loading}>
               <ActivityIndicator color={palette.blue} />
               <Text style={styles.loadingText}>{t('coach.wrapping')}</Text>
             </View>
           ) : (
             <View style={styles.questionBlock} ref={questionTarget.ref} onLayout={questionTarget.onLayout}>
-              {latestQuestion && (
+              {shownQuestion && (
                 <>
                   <View style={styles.questionHead}>
                     <View style={styles.questionMain}>
                       <Text style={styles.coachLabel}>{t('coach.coachLabel')}</Text>
                       {/* 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). */}
-                      <Text style={styles.question}>{latestQuestion.trim()}</Text>
+                      <Text style={styles.question}>{shownQuestion.trim()}</Text>
                     </View>
                     <Image source={require('@/assets/images/mascot-coach.png')} style={styles.mascot} contentFit="contain" />
                   </View>
