@@ -355,3 +355,39 @@ test('account.consent: 결정을 다 고르지 않았다는 안내는 언어 파
   assert.doesNotMatch(ko.consent.undecided, /습니다|합니다/);
   assert.doesNotMatch(en.consent.undecided, /[가-힣]/);
 });
+
+test('가입 화면은 기능 안에서 묻는 선택 문서를 빼고 광고성 수신을 한 묶음으로 모은다', async () => {
+  const { signupScreenLayout } = await import('../lib/consent-entry-submission.ts');
+  const doc = (type, required) => ({ ...requiredDocument, id: `${type}-v1`, type, required });
+  const documents = [
+    doc('terms', true), doc('privacy', true), doc('ai_analysis', true),
+    doc('retention', false), doc('cloud_voice', false), doc('script_split', false),
+    doc('marketing_email', false), doc('marketing_push', false),
+  ];
+  const layout = signupScreenLayout(documents);
+  assert.deepEqual(layout.required.map((d) => d.type), ['terms', 'privacy', 'ai_analysis']);
+  assert.deepEqual(layout.optional.map((d) => d.type), ['retention']);
+  assert.deepEqual(layout.marketing.map((d) => d.type), ['marketing_email', 'marketing_push']);
+});
+
+test('가입 화면에서 뺀 선택 문서는 제출 때 거절로 채워진다', () => {
+  const cloud = { ...optionalDocument, id: 'cloud-v1', type: 'cloud_voice' };
+  const decisions = buildSignupDecisions(
+    [requiredDocument, cloud],
+    new Map([[requiredDocument.id, 'granted']]),
+  );
+  assert.deepEqual(decisions, [
+    { document_id: requiredDocument.id, action: 'granted' },
+    { document_id: 'cloud-v1', action: 'declined' },
+  ]);
+});
+
+test('광고성 수신 묶음 줄은 둘 다 켜거나 둘 다 끈다', async () => {
+  const { toggleConsentGroup } = await import('../lib/consent-entry-submission.ts');
+  const email = { ...optionalDocument, id: 'email-v1', type: 'marketing_email' };
+  const push = { ...optionalDocument, id: 'push-v1', type: 'marketing_push' };
+  const on = toggleConsentGroup([email, push], { 'push-v1': 'granted', other: 'granted' });
+  assert.deepEqual(on, { 'email-v1': 'granted', 'push-v1': 'granted', other: 'granted' });
+  const off = toggleConsentGroup([email, push], on);
+  assert.deepEqual(off, { other: 'granted' });
+});
