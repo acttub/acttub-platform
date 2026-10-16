@@ -147,6 +147,14 @@ test('reading.session: 나가기 확인 문구는 "지금 나가면 N번 대사�
   assert.equal(exitMessage(r), '지금 나가면 2번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
 });
 
+test('reading.session: 나가기 확인 숫자는 화면 "K / N" 의 K 와 같다(구간이 중간에서 시작해도)', () => {
+  let r = run({ startIndex: 4 }); // 대본 3번째 대사부터
+  assert.equal(exitMessage(r), '지금 나가면 0번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
+  r = advance(r);
+  assert.equal(progressOf(r).done, 1);
+  assert.equal(exitMessage(r), '지금 나가면 1번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
+});
+
 test('reading.session: 이전 — 바로 앞 대사 줄로 돌아가고 지문은 건너뛴다, 차례는 그 줄 배역으로', () => {
   let r = run(); // l1 윤서(내 줄)
   r = advance(r); // l2 태오
