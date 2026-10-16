@@ -21,6 +21,7 @@ import {
   entryFailureMessage,
   entryFingerprint,
   videoTooLong,
+  videoTooShort,
   type EntryAttempt,
 } from '@/lib/challenge/entry';
 import {
@@ -107,6 +108,10 @@ export default function ChallengeUploadScreen() {
     if (videoTooLong(recorded.durationMs)) {
       void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
       setError(t('challengeUpload.errTooLong'));
+      return;
+    }
+    if (videoTooShort(recorded.durationMs)) {
+      setError(t('challengeUpload.errTooShort'));
       return;
     }
     void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadStarted, uploadParams('new'));
