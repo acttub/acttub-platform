@@ -102,8 +102,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V42 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 30;
+    /** V14~V44 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 31;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -177,7 +177,9 @@ class PracticeRollbackCompatibilityTest {
                 "COLUMN script_characters.age_band ord=9 type=text len=- null=YES default=-",
                 "CONSTRAINT script_characters ck_script_characters_gender CHECK ((gender = ANY (ARRAY['m'::text, 'f'::text])))",
                 "CONSTRAINT script_characters ck_script_characters_age_band CHECK ((age_band = ANY "
-                        + "(ARRAY['child'::text, 'young'::text, 'adult'::text, 'senior'::text])))"));
+                        + "(ARRAY['child'::text, 'young'::text, 'adult'::text, 'senior'::text])))",
+                // V44 의 가입한 클라이언트 판(SOMA-643). NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
+                "COLUMN user_profiles.signup_client ord=19 type=text len=- null=YES default=-"));
         return expected.stream().sorted().toList();
     }
 
