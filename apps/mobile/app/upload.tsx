@@ -31,6 +31,7 @@ import {
   confirmedVideoFor,
   flushLibraryUploads,
   onLibraryChange,
+  pendingLibraryUploads,
   saveRecordingToLibrary,
 } from '@/lib/library/library-runner';
 import { videoErrorMessage } from '@/lib/library/video-checks';
@@ -190,6 +191,39 @@ export default function UploadScreen() {
 
   const videoId = picked?.videoId ?? null;
   const uploading = Boolean(picked?.pendingId && !picked.videoId);
+
+  // 올리는 중에는 미리보기를 멈춘다 — 같은 파일을 재생하면 압축이 쓰는 하드웨어 코덱과 겹쳐 압축이 멎을 수 있다(SOMA-737, 추정).
+  useEffect(() => {
+    if (!uploading) return;
+    try {
+      player.pause();
+    } catch {}
+  }, [uploading, player]);
+
+  // 압축·올리기가 실패로 남았는지. 실패해도 「올리는 중」으로만 보이면 끝나지 않는 것처럼 보인다(SOMA-737).
+  const [uploadFailed, setUploadFailed] = useState(false);
+  useEffect(() => {
+    const pendingId = picked?.pendingId;
+    if (!pendingId || picked?.videoId || !user?.id) {
+      setUploadFailed(false);
+      return;
+    }
+    let alive = true;
+    const owner = user.id;
+    const check = () => {
+      void pendingLibraryUploads(owner)
+        .then((list) => {
+          if (alive) setUploadFailed(list.find((e) => e.id === pendingId)?.status === 'failed');
+        })
+        .catch(() => undefined);
+    };
+    check();
+    const off = onLibraryChange(check);
+    return () => {
+      alive = false;
+      off();
+    };
+  }, [picked?.pendingId, picked?.videoId, user?.id]);
 
   const pickFromLibrary = () => router.push({ pathname: '/archive', params: { pick: '1' } });
   // 영상 상자를 누르면 뜨는 시트(SOMA-656). 시트가 닫힌 뒤에 다음 화면·사진 선택 창을 연다 — iOS 는 닫히는 모달 위에
@@ -353,7 +387,9 @@ export default function UploadScreen() {
   const hint = ready
     ? null
     : !sample && uploading
-      ? t('start.stillUploading')
+      ? uploadFailed
+        ? t('start.uploadFailed')
+        : t('start.stillUploading')
       : !sample && !canStart(videoId)
         ? t('upload.missingVideo')
         : t('upload.missingRights');
