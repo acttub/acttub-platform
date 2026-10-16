@@ -26,6 +26,8 @@ import { buildStartBody, dialogueNumbers } from '@/lib/reading/session-plan';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import {
   advance,
+  back as backRun,
+  canGoBack,
   createRun,
   exitMessage,
   formatProgress,
@@ -388,6 +390,18 @@ export default function ReadingPlay() {
     },
     [commit],
   );
+
+  /**
+   * [이전] — 바로 앞 대사로 돌아가 그 줄을 다시 한다. 줄이 바뀌면 상대 읽기·마이크 효과가 지금 줄을 닫고(하던 녹음 조각은
+   * 지운다) 앞 줄로 다시 연다. 내 차례를 닫는 중(녹음 거두기)이면 그 넘김이 끝날 때까지 받지 않는다.
+   */
+  const goBack = useCallback(() => {
+    const cur = runRef.current;
+    // turnClosing 은 다음 내 차례가 열릴 때 풀리므로 내 차례일 때만 본다.
+    if (!cur || (cur.status === 'mine' && turnClosing.current)) return;
+    const next = backRun(cur);
+    if (next !== cur) commit(next);
+  }, [commit]);
 
   const hasPartnerLines = useMemo(() => {
     if (!config) return false;
@@ -1160,6 +1174,15 @@ export default function ReadingPlay() {
           </Pressable>
         ) : (
           <>
+            <Pressable
+              style={[styles.eyeBtn, !canGoBack(run) && styles.backBtnOff]}
+              onPress={goBack}
+              disabled={hold === 'tip' || !canGoBack(run)}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={t('reading.prev')}>
+              <Feather name="skip-back" size={20} color={palette.textDim} />
+            </Pressable>
             <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={doPause}>
               <Feather name="pause" size={16} color={palette.textDim} />
               <Text style={styles.ctrlGhostText}>{t('reading.pause')}</Text>
@@ -1328,6 +1351,7 @@ const styles = StyleSheet.create({
   controls: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
   eyeBtn: { width: 52, height: 52, borderRadius: 12, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   eyeBtnOn: { backgroundColor: palette.blueSoft },
+  backBtnOff: { opacity: 0.4 },
   eyeDot: { position: 'absolute', top: 9, right: 9, width: 7, height: 7, borderRadius: 4, backgroundColor: palette.blue },
   ctrl: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 15 },
   ctrlGhost: { backgroundColor: palette.bgSoft },
