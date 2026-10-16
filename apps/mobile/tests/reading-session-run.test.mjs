@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   advance,
+  back,
+  canGoBack,
   createRun,
   currentLineIdOf,
   exitMessage,
@@ -142,4 +144,43 @@ test('reading.session: 나가기 확인 문구는 "지금 나가면 N번 대사�
   let r = run();
   r = advance(advance(r));
   assert.equal(exitMessage(r), '지금 나가면 2번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.');
+});
+
+test('reading.session: 이전 — 바로 앞 대사 줄로 돌아가고 지문은 건너뛴다, 차례는 그 줄 배역으로', () => {
+  let r = run(); // l1 윤서(내 줄)
+  r = advance(r); // l2 태오
+  r = advance(r); // l4 윤서 (l3 지문 건너뜀)
+  assert.equal(r.index, 4);
+  const b = back(r);
+  assert.equal(b.index, 2, '지문 l3을 건너뛰어 l2로');
+  assert.equal(b.status, 'partner');
+  assert.deepEqual(progressOf(b), { done: 1, total: 5 });
+  assert.equal(currentLineIdOf(b), 'l2');
+  assert.equal(back(b).status, 'mine');
+});
+
+test('reading.session: 이전 — 구간 첫 대사·완료·일시정지에서는 안 된다', () => {
+  const first = run();
+  assert.equal(canGoBack(first), false);
+  assert.equal(back(first), first, '첫 대사에서는 그대로');
+  const later = advance(first);
+  assert.equal(canGoBack(later), true);
+  const narrowed = run({ startIndex: 4 });
+  assert.equal(canGoBack(narrowed), false, '구간 밖(앞) 대사로는 못 간다');
+  let done = run();
+  for (let i = 0; i < 5; i++) done = advance(done);
+  assert.equal(done.status, 'done');
+  assert.equal(canGoBack(done), false);
+  const paused = { ...later, status: 'paused', resumeTo: later.status };
+  assert.equal(canGoBack(paused), false);
+  assert.equal(back(paused), paused);
+});
+
+test('reading.session: 이전 — 말한 것은 남기고 다시 말하면 마지막 말이 이긴다', () => {
+  let r = recordSaid(run(), '첫 시도');
+  r = back(advance(r));
+  assert.equal(r.index, 1);
+  assert.equal(r.said.l1, '첫 시도');
+  r = recordSaid(r, '두 번째');
+  assert.equal(r.said.l1, '두 번째');
 });
