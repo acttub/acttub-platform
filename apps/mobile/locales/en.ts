@@ -623,7 +623,7 @@ const en: DeepStringShape<typeof ko> = {
   voiceFeedback: {
     settingsSection: 'Experimental',
     settingsTitle: 'Pronunciation feedback (beta)',
-    settingsBody: 'After a reading, see which words sounded different from the script. Only the transcript is used — audio never leaves your device.',
+    settingsBody: 'After a reading, see which words sounded different from the script. Only the transcript is compared.',
     doneTitle: 'Pronunciation feedback',
     doneNote: 'Experimental · {{k}} of your {{n}} transcribed lines had words that sounded different',
     lineNo: 'Line {{n}}',

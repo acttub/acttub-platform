@@ -615,7 +615,7 @@ const ko = {
   voiceFeedback: {
     settingsSection: '실험 기능',
     settingsTitle: '발음 피드백 (실험)',
-    settingsBody: '리딩이 끝나면 대본과 다르게 들린 어구를 짚어 줘요. 받아쓴 글만 보고, 소리는 기기 밖으로 나가지 않아요.',
+    settingsBody: '리딩이 끝나면 대본과 다르게 들린 어구를 짚어 줘요. 받아쓴 글로만 비교해요.',
     doneTitle: '발음 피드백',
     doneNote: '실험 기능 · 받아쓴 내 대사 {{n}}줄 중 {{k}}줄에 다르게 들린 곳',
     lineNo: '{{n}}번 대사',

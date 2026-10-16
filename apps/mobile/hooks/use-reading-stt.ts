@@ -10,11 +10,12 @@ import { createRecordingTracker } from '@/lib/reading/stt-recordings';
 import { DEFAULT_VAD, VAD_TICK_MS, createSilenceDetector, createVolumeFeed, type VadEvent } from '@/lib/reading/vad';
 
 /**
- * 플랫폼 STT(reading.session · reading.memorization). 기기 안 처리를 보장할 때만 켠다 — iOS 는
- * supportsOnDeviceRecognition, 안드로이드는 requiresOnDeviceRecognition 으로 오프라인 인식만 요청한다. 아니면
- * "입력하기"다. 결과 글은 대조에 쓰고 녹음 행의 전사로 남길 뿐 화면 밖으로 나가지 않는다.
+ * 플랫폼 STT(reading.session · reading.memorization). 쓸 수 있고 권한이 있으면 켠다. 기기 안 인식만 요구하지 않는다 —
+ * 기기 안 한국어 인식기가 소리를 받고도 결과를 주지 않아 리딩이 통째로 멈춘 일이 있었다(SOMA-741). 그래서 말소리는
+ * OS 음성 인식 제공자가 처리할 수 있다. 결과 글은 대조에 쓰고 녹음 행의 전사로 남긴다.
  *
- * 인식기가 마이크를 열고 있는 동안은 녹음기와 다투지 않도록 인식기의 음량 이벤트로 침묵을 감지한다.
+ * 인식기가 마이크를 열고 있는 동안은 녹음기와 다투지 않도록 인식기의 음량 이벤트로 침묵을 감지한다. 일반 인식기는 음량을
+ * 주지 않기도 해서, 인식기가 알린 말 끝(speechend)도 침묵으로 친다.
  */
 const VOLUME_INTERVAL_MS = 50;
 
@@ -26,13 +27,12 @@ export function sttVolumeToRms(value: number): number {
 export async function detectSttPolicy(): Promise<SttPolicy> {
   try {
     const available = ExpoSpeechRecognitionModule.isRecognitionAvailable();
-    const supportsOnDevice = ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
     let permission: 'granted' | 'denied' | 'undetermined' = 'undetermined';
     const current = await ExpoSpeechRecognitionModule.getPermissionsAsync();
     if (current.granted) permission = 'granted';
     else if (current.canAskAgain) permission = (await ExpoSpeechRecognitionModule.requestPermissionsAsync()).granted ? 'granted' : 'denied';
     else permission = 'denied';
-    return sttPolicy({ available, supportsOnDevice, permission });
+    return sttPolicy({ available, permission });
   } catch {
     return { kind: 'typing', reason: 'unavailable' };
   }
@@ -103,6 +103,15 @@ export function useReadingStt(): SttHandle {
     if (!active.current) return;
     volumeFeed.current?.volume(sttVolumeToRms(event.value));
   });
+  // 일반 인식기는 음량 이벤트를 주지 않기도 한다 — 인식기가 알린 말 시작·끝도 침묵 감지에 넘긴다(SOMA-741).
+  // 받아쓴 글이 없는 말 끝(잡음)으로는 넘기지 않는다.
+  useSpeechRecognitionEvent('speechstart', () => {
+    if (active.current) callbacks.current?.onEvent('speech_start');
+  });
+  useSpeechRecognitionEvent('speechend', () => {
+    if (!active.current || !text.current.trim()) return;
+    callbacks.current?.onEvent('speech_end');
+  });
   useSpeechRecognitionEvent('audioend', (event) => {
     recordings.audioEnd(event?.uri);
   });
@@ -126,7 +135,7 @@ export function useReadingStt(): SttHandle {
         lang: speechLocale(),
         interimResults: true,
         continuous: true,
-        requiresOnDeviceRecognition: true,
+        requiresOnDeviceRecognition: false,
         volumeChangeEventOptions: { enabled: true, intervalMillis: VOLUME_INTERVAL_MS },
         // 기본(measurement)은 iOS 재생·녹음 소리를 크게 줄인다 — 일반 모드로 켠다(SOMA-710).
         iosCategory: READING_STT_IOS_CATEGORY,
