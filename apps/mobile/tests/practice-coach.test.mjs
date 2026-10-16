@@ -124,5 +124,5 @@ test('coach 화면: 코치의 마지막 말을 질문·힌트로 나누지 않�
   const screen = readFileSync(new URL('../app/coach.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(coachLib, /splitCoachQuestion/);
   assert.doesNotMatch(screen, /splitCoachQuestion|latest\.hint|styles\.hint/);
-  assert.match(screen, /<Text style=\{styles\.question\}>\{latestQuestion\.trim\(\)\}<\/Text>/);
+  assert.match(screen, /<Text style=\{styles\.question\}>\{shownQuestion\.trim\(\)\}<\/Text>/);
 });
