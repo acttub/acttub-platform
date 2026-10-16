@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BusinessInfo } from "@/features/business-info/business-info";
 import { buildNoindexMetadata } from "@/lib/seo/site-metadata";
 
 export const metadata = buildNoindexMetadata("ACTTUB Pro 구독 안내");
@@ -42,8 +43,7 @@ export default function PricingPage() {
         <Link href="/refund" className="mt-4 inline-block text-sm font-semibold text-[#3182f6] underline underline-offset-4">기간별 환불 비율과 요청 방법 보기</Link>
       </section>
       <footer className="mt-10 border-t border-[#e5e8eb] pt-6 text-sm leading-7 text-[#6b7684]">
-        <p>판매자: 액터브(ACTTUB) · 사업자등록번호: 796-11-03104</p>
-        <p>문의: <a href="mailto:acttub0527@gmail.com" className="underline underline-offset-4">acttub0527@gmail.com</a></p>
+        <BusinessInfo />
         <Link href="/terms" className="mt-3 inline-block text-[#3182f6] underline underline-offset-4">이용약관·개인정보 처리방침</Link>
       </footer>
     </main>
