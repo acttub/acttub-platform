@@ -653,6 +653,7 @@ const en: DeepStringShape<typeof ko> = {
     inProgressTitle: 'A practice is already running',
     inProgressBody: 'Finish or stop the running practice before starting a new one.',
     stillUploading: 'The video is still uploading. Try again in a moment.',
+    uploadFailed: 'The video could not be uploaded. Tap the button to try again.',
     dailyLimit: "You've used today's analyses. You can practice again tomorrow.",
     offline: 'The connection dropped. Please try again in a moment.',
     sceneTooLong: 'Situation, character and goal can each hold up to 300 characters.',
