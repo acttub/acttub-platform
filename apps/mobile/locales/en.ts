@@ -838,7 +838,6 @@ const en: DeepStringShape<typeof ko> = {
     cta: 'Agree and continue',
     ctaOptionalOnly: 'Continue with my choices',
     marketingGroup: 'Marketing messages (email, push)',
-    deferredNote: "We'll ask about premium voices and script splitting when you first use them.",
     marketingNoticeTitle: 'Advertising information preferences updated',
     marketingNoticeBody: 'Acttub · processed on {{date}}',
     marketingNoticeLine: '{{channel}}: {{result}}',
