@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { BusinessInfo } from "@/features/business-info/business-info";
 import wordmark from "@/assets/acttub-wordmark.png";
 
 /** 키워드 페이지와 가이드 목차가 같이 쓰는 머리·꼬리. 본문은 `children` 으로 받는다. */
@@ -34,6 +35,9 @@ export function KeywordShell({ children }: { children: ReactNode }) {
             <Link href="/acting-coaching">연기 코칭 안내</Link>
             <Link href="/terms">안전 약속</Link>
           </nav>
+          <div className="mt-6 border-t border-[#edf0f3] pt-4">
+            <BusinessInfo />
+          </div>
         </div>
       </footer>
     </main>
