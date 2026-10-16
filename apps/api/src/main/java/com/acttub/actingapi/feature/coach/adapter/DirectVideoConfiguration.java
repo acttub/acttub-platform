@@ -26,6 +26,15 @@ public class DirectVideoConfiguration {
         return new GeminiDirectVideoModel(client, model);
     }
 
+    // 한 대화 안에서 올린 영상을 다시 쓴다(SOMA-735). 마지막으로 쓴 뒤 이 분만큼 안 쓰면 지운다. 0 이면 답마다 올리고 지운다(롤백).
+    @Bean(destroyMethod = "close")
+    com.acttub.actingapi.feature.coach.app.CoachVideoCache coachVideoCache(
+            com.acttub.actingapi.integration.observation.DirectVideoModel model, FailureReporter failures, Clock clock,
+            @Value("${ACTTUB_COACH_VIDEO_REUSE_MINUTES:20}") int minutes) {
+        return new com.acttub.actingapi.feature.coach.app.CoachVideoCache(model,
+                java.time.Duration.ofMinutes(Math.max(0, minutes)), clock, failures);
+    }
+
     @Bean
     com.acttub.actingapi.feature.coach.app.DirectVideoCoach directVideoCoach(
             com.acttub.actingapi.integration.observation.DirectVideoModel model,
@@ -43,14 +52,16 @@ public class DirectVideoConfiguration {
             @Value("${ACTTUB_COACH_MODEL_B_SHARE:50}") int modelBShare,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachFlows> flows,
             // 코치 흐름 비교(SOMA-636). false 면 모두 지금 흐름(A)이다(롤백).
-            @Value("${ACTTUB_COACH_FLOW_AB:true}") boolean flowAb) {
+            @Value("${ACTTUB_COACH_FLOW_AB:true}") boolean flowAb,
+            com.acttub.actingapi.feature.coach.app.CoachVideoCache videoCache) {
         var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null : new GeminiDirectVideoModel(client, modelB.strip());
         return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
                 personasEnabled ? personas.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE)
                         : com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE,
                 alternate, modelBShare,
                 flowAb ? flows.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachFlows.NONE)
-                        : com.acttub.actingapi.feature.coach.app.CoachFlows.NONE);
+                        : com.acttub.actingapi.feature.coach.app.CoachFlows.NONE,
+                videoCache);
     }
 
     @Bean(destroyMethod = "close")

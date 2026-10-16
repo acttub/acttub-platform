@@ -42,6 +42,8 @@ public final class DirectVideoCoach {
     // 분류·줄이기·영상 올리기는 늘 기본 모델이다. null 이거나 0 이면 모두 기본 모델(롤백).
     private final DirectVideoModel alternate;
     private final int alternateShare;
+    /** 한 대화 안에서 올린 영상을 다시 쓴다(SOMA-735). NONE 이면 답마다 올리고 지운다(롤백). */
+    private final CoachVideoCache videoCache;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -62,6 +64,13 @@ public final class DirectVideoCoach {
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
             DirectVideoModel alternate, int alternateShare, CoachFlows flows) {
+        this(model, videos, storage, failures, telemetry, practiceLoop, personas, alternate, alternateShare, flows, CoachVideoCache.NONE);
+    }
+
+    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
+            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
+            DirectVideoModel alternate, int alternateShare, CoachFlows flows, CoachVideoCache videoCache) {
+        this.videoCache = videoCache == null ? CoachVideoCache.NONE : videoCache;
         this.flows = flows == null ? CoachFlows.NONE : flows;
         this.alternate = alternate;
         this.alternateShare = alternate == null ? 0 : Math.max(0, Math.min(100, alternateShare));
@@ -92,6 +101,10 @@ public final class DirectVideoCoach {
     public CoachResult turn(CoachSessionSnapshot session, String actorText, UUID operationId, CoachStream stream) {
         Path local = null;
         DirectVideoModel.Video uploaded = null;
+        CoachVideoCache.Key videoKey = null;
+        // 대화가 이어지면 올린 영상을 지우지 않고 다음 답에서 다시 쓴다(SOMA-735).
+        boolean keepVideo = false;
+        boolean videoReused = false;
         Instant started = Instant.now();
         boolean loop = practiceLoop && DirectVideoPracticeLoop.applies(session);
         String persona = loop ? persona(session, operationId) : "";
@@ -121,6 +134,7 @@ public final class DirectVideoCoach {
         if (branch != null && PracticeLoopRouter.END.equals(branch.doing())) {
             // 그만·자기 한 줄·응답 상한: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
             String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
+            videoCache.forget(session.practiceSessionId());
             ObjectNode state = nextState(session);
             DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("", branch.status(), closing));
             // 닫힌 사유: 배우가 그만 → user_ended, 응답 상한 → limit, 그 밖(물을 것을 다 물음) → exhausted.
@@ -140,41 +154,57 @@ public final class DirectVideoCoach {
         try {
             var source = videos.find(session.userId(), session.practiceSessionId());
             if (source == null) throw new IllegalStateException("owned video is unavailable");
-            local = Files.createTempFile("coach-original-", ".video");
-            var metadata = storage.downloadToPath(source.objectKey(), local);
-            if (source.etag() != null && !source.etag().isBlank()
-                    && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
-                throw new IllegalStateException("original video changed after upload");
-            }
-            DirectVideoModel.InputInspection inspection = null;
-            if (loop && session.turns().isEmpty()) {
-                inspecting = true;
-                inspection = model.inspect(local);
-                inspecting = false;
-                if (inspection != null && inspection.unusableAudio()) {
-                    ObjectNode cutState = nextState(session);
-                    DirectVideoPracticeLoop.markInputIssue(cutState, "silent_audio");
-                    return StructuredCoachEngine.result(session, actorText,
-                            DirectVideoPracticeLoop.audioUnavailableMessage(
-                                    DirectVideoPracticeLoop.replyLanguage(session, actorText)),
-                            cutState, "interrupted");
-                }
-                if (inspection != null && inspection.emptyInput()) {
-                    ObjectNode cutState = nextState(session);
-                    DirectVideoPracticeLoop.markNotActing(cutState, "empty_input");
-                    return StructuredCoachEngine.result(session, actorText,
-                            DirectVideoPracticeLoop.notActingMessage(
-                                    DirectVideoPracticeLoop.replyLanguage(session, actorText)),
-                            cutState, "interrupted");
+            videoKey = new CoachVideoCache.Key(session.practiceSessionId(), source.objectKey(), source.etag());
+            // 둘째 답부터는 이 대화에서 올려 둔 영상을 다시 쓴다. 첫 답은 늘 새로 올린다 — 소리·빈 영상 검사가 첫 답에서만 돈다.
+            if (!session.turns().isEmpty()) {
+                DirectVideoModel.Video remembered = videoCache.take(videoKey);
+                if (remembered != null) {
+                    try {
+                        if (model.ready(remembered)) uploaded = remembered;
+                    } catch (RuntimeException gone) {
+                        // 지워졌거나 만료됐다 — 아래에서 다시 올린다.
+                    }
+                    if (uploaded == null) videoCache.forget(session.practiceSessionId());
                 }
             }
-            ExternalOperationExecution.externalCall("video_upload");
-            uploaded = inspection == null || inspection.hasAudioTrack() == null
-                    ? model.upload(local, source.mimeType()) : model.upload(local, source.mimeType(), inspection);
-            long deadline = System.nanoTime() + Duration.ofSeconds(180).toNanos();
-            while (!model.ready(uploaded)) {
-                if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
-                Thread.sleep(1000);
+            videoReused = uploaded != null;
+            if (!videoReused) {
+                local = Files.createTempFile("coach-original-", ".video");
+                var metadata = storage.downloadToPath(source.objectKey(), local);
+                if (source.etag() != null && !source.etag().isBlank()
+                        && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
+                    throw new IllegalStateException("original video changed after upload");
+                }
+                DirectVideoModel.InputInspection inspection = null;
+                if (loop && session.turns().isEmpty()) {
+                    inspecting = true;
+                    inspection = model.inspect(local);
+                    inspecting = false;
+                    if (inspection != null && inspection.unusableAudio()) {
+                        ObjectNode cutState = nextState(session);
+                        DirectVideoPracticeLoop.markInputIssue(cutState, "silent_audio");
+                        return StructuredCoachEngine.result(session, actorText,
+                                DirectVideoPracticeLoop.audioUnavailableMessage(
+                                        DirectVideoPracticeLoop.replyLanguage(session, actorText)),
+                                cutState, "interrupted");
+                    }
+                    if (inspection != null && inspection.emptyInput()) {
+                        ObjectNode cutState = nextState(session);
+                        DirectVideoPracticeLoop.markNotActing(cutState, "empty_input");
+                        return StructuredCoachEngine.result(session, actorText,
+                                DirectVideoPracticeLoop.notActingMessage(
+                                        DirectVideoPracticeLoop.replyLanguage(session, actorText)),
+                                cutState, "interrupted");
+                    }
+                }
+                ExternalOperationExecution.externalCall("video_upload");
+                uploaded = inspection == null || inspection.hasAudioTrack() == null
+                        ? model.upload(local, source.mimeType()) : model.upload(local, source.mimeType(), inspection);
+                long deadline = System.nanoTime() + Duration.ofSeconds(180).toNanos();
+                while (!model.ready(uploaded)) {
+                    if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
+                    Thread.sleep(1000);
+                }
             }
             String written = DirectVideoPracticeLoop.actorMaterial(session) + "\n"
                     + session.turns().stream().filter(turn -> !"ai".equals(turn.role()))
@@ -399,14 +429,16 @@ public final class DirectVideoCoach {
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
                             "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry), "broken_retry", Boolean.toString(brokenRetry),
                             "persona", persona, "coach_model_arm", arm, "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow,
-                            "stream", Boolean.toString(streaming)))
+                            "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused)))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
             // Plain coaching prose is not structured evidence or a confirmed actor intention.
-            return StructuredCoachEngine.result(session, actorText, shown, state,
-                    actorFinished ? "actor_finished" : turnBudget ? "turn_budget"
-                            : cut || loop && DirectVideoPracticeLoop.finished(parsed) ? "interrupted" : null);
+            String endReason = actorFinished ? "actor_finished" : turnBudget ? "turn_budget"
+                    : cut || loop && DirectVideoPracticeLoop.finished(parsed) ? "interrupted" : null;
+            CoachResult result = StructuredCoachEngine.result(session, actorText, shown, state, endReason);
+            keepVideo = endReason == null;
+            return result;
         } catch (Exception failure) {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
             failures.report(failure, inspecting ? FailureKind.UNEXPECTED : FailureKind.EXTERNAL,
@@ -417,10 +449,16 @@ public final class DirectVideoCoach {
                             "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm, "coach_flow", flow)).withPrompt(template));
             throw new CoachReplyUnavailable();
         } finally {
-            if (uploaded != null) {
-                try { model.delete(uploaded); }
-                catch (RuntimeException failure) {
-                    failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.delete", operationId));
+            if (uploaded != null && keepVideo && videoCache.enabled()) {
+                videoCache.keep(videoKey, uploaded);
+            } else if (uploaded != null) {
+                // 대화가 닫혔거나 답이 실패했다 — 기억한 영상과 이번 영상을 지운다.
+                DirectVideoModel.Video forgotten = videoCache.forget(session.practiceSessionId());
+                if (!CoachVideoCache.same(forgotten, uploaded)) {
+                    try { model.delete(uploaded); }
+                    catch (RuntimeException failure) {
+                        failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.delete", operationId));
+                    }
                 }
             }
             if (local != null) {
