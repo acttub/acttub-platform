@@ -26,11 +26,10 @@ function memoryStorage() {
   };
 }
 
-test('reading.session: 플랫폼 STT는 기기 안 처리를 보장할 때만 켜고 아니면 대조하지 않는다', () => {
-  assert.deepEqual(sttPolicy({ available: true, supportsOnDevice: true, permission: 'granted' }), { kind: 'stt', requiresOnDevice: true });
-  assert.deepEqual(sttPolicy({ available: true, supportsOnDevice: false, permission: 'granted' }), { kind: 'typing', reason: 'not_on_device' });
-  assert.deepEqual(sttPolicy({ available: true, supportsOnDevice: true, permission: 'denied' }), { kind: 'typing', reason: 'denied' });
-  assert.deepEqual(sttPolicy({ available: false, supportsOnDevice: true, permission: 'granted' }), { kind: 'typing', reason: 'unavailable' });
+test('reading.session: 플랫폼 STT는 쓸 수 있고 권한이 있으면 켠다 — 기기 안 인식만 요구하지 않는다(SOMA-741)', () => {
+  assert.deepEqual(sttPolicy({ available: true, permission: 'granted' }), { kind: 'stt' });
+  assert.deepEqual(sttPolicy({ available: true, permission: 'denied' }), { kind: 'typing', reason: 'denied' });
+  assert.deepEqual(sttPolicy({ available: false, permission: 'granted' }), { kind: 'typing', reason: 'unavailable' });
 });
 
 test('reading.cast: 이동통신으로 처음 시작하면 용량 확인 팝업이 뜨고 Wi-Fi 나 이미 받은 모델이면 뜨지 않는다', () => {

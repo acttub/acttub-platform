@@ -623,7 +623,7 @@ const en: DeepStringShape<typeof ko> = {
   voiceFeedback: {
     settingsSection: 'Experimental',
     settingsTitle: 'Pronunciation feedback (beta)',
-    settingsBody: 'After a reading, see which words sounded different from the script. Only the transcript is used — audio never leaves your device.',
+    settingsBody: 'After a reading, see which words sounded different from the script. Only the transcript is compared.',
     doneTitle: 'Pronunciation feedback',
     doneNote: 'Experimental · {{k}} of your {{n}} transcribed lines had words that sounded different',
     lineNo: 'Line {{n}}',
@@ -1133,11 +1133,12 @@ const en: DeepStringShape<typeof ko> = {
     voicesSection: 'Role voices',
     voicesNote: 'When you practice, every role except yours is read in these voices.',
     voicesLines: '{{count}} lines',
-    voiceAutoChip: 'Auto · {{preset}}',
+    voiceGenderMale: 'Male',
+    voiceGenderFemale: 'Female',
     voicePreviewing: 'Playing preview…',
     voiceSheetTitle: 'Voice for {{name}}',
     voiceSheetNote: 'Tap a voice to hear it.',
-    voiceAutoNow: 'Auto (now {{preset}})',
+    voiceRecommended: 'Recommended ({{voice}})',
     voiceName: {
       M1: 'Bright young',
       M4: 'Soft young',

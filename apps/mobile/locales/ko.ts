@@ -615,7 +615,7 @@ const ko = {
   voiceFeedback: {
     settingsSection: '실험 기능',
     settingsTitle: '발음 피드백 (실험)',
-    settingsBody: '리딩이 끝나면 대본과 다르게 들린 어구를 짚어 줘요. 받아쓴 글만 보고, 소리는 기기 밖으로 나가지 않아요.',
+    settingsBody: '리딩이 끝나면 대본과 다르게 들린 어구를 짚어 줘요. 받아쓴 글로만 비교해요.',
     doneTitle: '발음 피드백',
     doneNote: '실험 기능 · 받아쓴 내 대사 {{n}}줄 중 {{k}}줄에 다르게 들린 곳',
     lineNo: '{{n}}번 대사',
@@ -1123,11 +1123,12 @@ const ko = {
     voicesSection: '배역 목소리',
     voicesNote: '연습할 때 내가 고른 배역 말고는 이 목소리로 읽어요.',
     voicesLines: '대사 {{count}}줄',
-    voiceAutoChip: '자동 · {{preset}}',
+    voiceGenderMale: '남성',
+    voiceGenderFemale: '여성',
     voicePreviewing: '미리 듣는 중…',
     voiceSheetTitle: '{{name}} 목소리',
     voiceSheetNote: '누르면 이 목소리로 미리 들려줘요.',
-    voiceAutoNow: '자동 (지금 {{preset}})',
+    voiceRecommended: '추천 목소리 ({{voice}})',
     voiceName: {
       M1: '밝은 청년',
       M4: '부드러운 청년',
