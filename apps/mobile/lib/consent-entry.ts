@@ -73,11 +73,36 @@ function dayLabel(iso: string | null | undefined, utcOffsetMinutes?: number): st
   return `${shifted.getUTCFullYear()}.${month}.${day}`;
 }
 
+/** 개인정보 수집·이용 동의가 대본 나누기·고품질 목소리 처리를 품기 시작한 판(SOMA-726). */
+const PRIVACY_COVERS_READING_FROM = 9;
+const COVERED_BY_PRIVACY: readonly string[] = ['cloud_voice', 'script_split'];
+
+function versionNumber(version: string): number {
+  const match = /^v(\d+)$/.exec(version);
+  return match ? Number(match[1]) : 0;
+}
+
+/**
+ * 개인정보 수집·이용 동의 v9 이상에 동의했으면 대본 나누기·고품질 목소리는 그 동의에 들어 있다. 서버도 그렇게 본다
+ * (privacyCoversReading). 그런 회원에게 두 선택 문서를 따로 보여 주면 꺼도 아무 일이 없는 칸이 되므로 숨긴다.
+ */
+export function privacyCoversReading(entry: ConsentEntryResponse): boolean {
+  return entry.documents.some(
+    (document) =>
+      document.type === 'privacy' &&
+      document.current_decision === 'granted' &&
+      versionNumber(document.version) >= PRIVACY_COVERS_READING_FROM,
+  );
+}
+
 export function consentSettingsRows(
   entry: ConsentEntryResponse,
   options: { utcOffsetMinutes?: number } = {},
 ): ConsentSettingsRow[] {
-  return entry.documents.map((document) => ({
+  const covered = privacyCoversReading(entry);
+  return entry.documents
+    .filter((document) => !(covered && COVERED_BY_PRIVACY.includes(document.type)))
+    .map((document) => ({
     id: document.id,
     type: document.type,
     title: document.title,

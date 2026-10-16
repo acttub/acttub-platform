@@ -173,3 +173,25 @@ test('account.consent: 옛 판이나 없는 문서에 결정을 보냈으면 목
   assert.equal(consentChangeFailureAction(failure(500, 'internal_server_error')), 'show_error');
   assert.equal(consentChangeFailureAction(new Error('network')), 'show_error');
 });
+
+test('개인정보 동의 v9 이상에 동의했으면 설정에서 대본 나누기·고품질 목소리를 숨긴다(SOMA-726)', () => {
+  const reading = [
+    { ...privacyDocument, id: 'voice-1', type: 'cloud_voice', title: '고품질 목소리', required: false,
+      version: 'v1', current_decision: 'declined', decided_at: '2026-10-05T04:00:00Z' },
+    { ...privacyDocument, id: 'split-2', type: 'script_split', title: '대본 나누기', required: false,
+      version: 'v2', current_decision: null, decided_at: null },
+  ];
+  const withPrivacy = (version, decision) => ({
+    ...settingsEntry,
+    documents: [
+      { ...privacyDocument, id: `privacy-${version}`, version, current_decision: decision, decided_at: '2026-10-16T03:00:00Z' },
+      ...reading,
+    ],
+  });
+  assert.deepEqual(consentSettingsRows(withPrivacy('v9', 'granted')).map((row) => row.type), ['privacy']);
+  assert.deepEqual(consentSettingsRows(withPrivacy('v10', 'granted')).map((row) => row.type), ['privacy']);
+  assert.deepEqual(consentSettingsRows(withPrivacy('v8', 'granted')).map((row) => row.type),
+    ['privacy', 'cloud_voice', 'script_split']);
+  assert.deepEqual(consentSettingsRows(withPrivacy('v9', null)).map((row) => row.type),
+    ['privacy', 'cloud_voice', 'script_split']);
+});
