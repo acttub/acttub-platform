@@ -829,7 +829,6 @@ const ko = {
     cta: '동의하고 계속하기',
     ctaOptionalOnly: '선택한 대로 계속하기',
     marketingGroup: '광고성 정보 받기 (이메일·앱 푸시)',
-    deferredNote: '고품질 목소리·대본 나누기 동의는 그 기능을 처음 쓸 때 물어봐요.',
     marketingNoticeTitle: '광고성 정보 수신 처리 결과',
     marketingNoticeBody: 'Acttub · {{date}} 처리',
     marketingNoticeLine: '{{channel}}: {{result}}',
