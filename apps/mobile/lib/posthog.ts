@@ -14,6 +14,7 @@
 import type { PostHog, PostHogOptions } from 'posthog-react-native';
 
 import { isProductionApiUrl } from './api-env.ts';
+import { tapFromTouch, type TouchEventLike } from './touch-capture.ts';
 import type { ConsentEntryState } from './auth.tsx';
 
 type ConsentStatus = ConsentEntryState['status'];
@@ -21,6 +22,7 @@ type ConsentStatus = ConsentEntryState['status'];
 type PostHogClient = Pick<
   PostHog,
   | 'capture'
+  | 'autocapture'
   | 'screen'
   | 'identify'
   | 'reset'
@@ -80,6 +82,7 @@ export function createPostHogBridge(createClient: (key: string) => PostHogClient
   let client: PostHogClient | null = null;
   let on = false;
   let userId: string | null = null;
+  let currentScreen: string | null = null;
 
   return {
     sync(decision: PostHogDecision): void {
@@ -110,7 +113,33 @@ export function createPostHogBridge(createClient: (key: string) => PostHogClient
     },
 
     screen(name: string): void {
+      currentScreen = name;
       if (on) void client?.screen(name);
+    },
+
+    /** 버튼 탭(SOMA-732). 누를 수 있는 요소를 누른 경우만 PostHog 자동 수집($autocapture)으로 남긴다. */
+    touch(e: TouchEventLike): void {
+      if (!on || !client) return;
+      let tap;
+      try {
+        tap = tapFromTouch(e);
+      } catch {
+        // 기록 실패가 탭 자체를 깨뜨리면 안 된다.
+        return;
+      }
+      if (!tap) return;
+      const element: { tag_name: string; [key: string]: string } = { tag_name: 'Pressable' };
+      if (tap.label) element.$el_text = tap.label;
+      if (tap.area) element['attr__ph-label'] = tap.area;
+      const properties: Record<string, string | number> = {
+        tap_label: tap.label,
+        tap_label_source: tap.source,
+      };
+      if (tap.area) properties.tap_area = tap.area;
+      if (currentScreen) properties.$screen_name = currentScreen;
+      if (typeof tap.x === 'number') properties.$touch_x = tap.x;
+      if (typeof tap.y === 'number') properties.$touch_y = tap.y;
+      void client.autocapture('touch', [element], properties);
     },
 
     /** null 은 로그아웃·탈퇴다. 게스트도 null 이라, 식별한 적이 있을 때만 reset 한다. */
