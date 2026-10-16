@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { BusinessInfo } from "@/features/business-info/business-info";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
@@ -563,6 +564,9 @@ export default function AppDownloadView() {
             acttub0527@gmail.com
           </a>
         </nav>
+        <div className="mx-auto mt-6 max-w-3xl border-t border-[#edf0f3] pt-4">
+          <BusinessInfo />
+        </div>
       </footer>
 
       <StickyBar />
