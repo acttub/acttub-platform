@@ -80,11 +80,16 @@ public class ConversationService {
 
     /** 분석이 끝난 회차에서 대화를 연다. 이미 열린 대화가 있으면 그것을 재개한다. */
     public Turn start(UUID userId, UUID practiceId, UUID requestId) {
-        return withRequestInFlight(new RequestKey("start", userId, practiceId, requestId),
-                () -> startTurn(userId, practiceId, requestId));
+        return start(userId, practiceId, requestId, null);
     }
 
-    private Turn startTurn(UUID userId, UUID practiceId, UUID requestId) {
+    /** 첫 응답을 쓰는 대로 {@code stream} 에 흘려보낸다(코칭 스트리밍). 저장·재전송 규칙은 {@link #start(UUID, UUID, UUID)} 와 같다. */
+    public Turn start(UUID userId, UUID practiceId, UUID requestId, CoachStream stream) {
+        return withRequestInFlight(new RequestKey("start", userId, practiceId, requestId),
+                () -> startTurn(userId, practiceId, requestId, stream));
+    }
+
+    private Turn startTurn(UUID userId, UUID practiceId, UUID requestId, CoachStream stream) {
         Loaded loaded = require(conversations.loadByPractice(userId, practiceId));
         if (loaded.conversationId() != null) {
             if ("closed".equals(loaded.session().status())) {
@@ -105,7 +110,9 @@ public class ConversationService {
             // 같은 요청이 먼저 열고 첫 응답까지 저장했다 — 시작 재전송이 턴을 늘리지 않는다.
             return turn(opened.session(), conversationId, null);
         }
-        CoachResult result = generate(() -> coach.start(withContext(opened.session()), conversationId));
+        if (stream != null) stream.begin();
+        CoachResult result = generate(() -> stream == null ? coach.start(withContext(opened.session()), conversationId)
+                : coach.start(withContext(opened.session()), conversationId, stream));
         boolean closing = COMPLETE.equals(result.reply().status());
         boolean rejected = DirectVideoPracticeLoop.wasCut(result.session().coachingState());
         activeOnly(() -> {
@@ -125,11 +132,16 @@ public class ConversationService {
      * 아무것도 쓰지 않는다.
      */
     public Turn reply(UUID userId, UUID conversationId, UUID requestId, String text, Long revision) {
-        return withRequestInFlight(new RequestKey("reply", userId, conversationId, requestId),
-                () -> replyTurn(userId, conversationId, requestId, text, revision));
+        return reply(userId, conversationId, requestId, text, revision, null);
     }
 
-    private Turn replyTurn(UUID userId, UUID conversationId, UUID requestId, String text, Long revision) {
+    /** 코치 답을 쓰는 대로 {@code stream} 에 흘려보낸다(코칭 스트리밍). 저장·재전송·충돌 규칙은 그대로다. */
+    public Turn reply(UUID userId, UUID conversationId, UUID requestId, String text, Long revision, CoachStream stream) {
+        return withRequestInFlight(new RequestKey("reply", userId, conversationId, requestId),
+                () -> replyTurn(userId, conversationId, requestId, text, revision, stream));
+    }
+
+    private Turn replyTurn(UUID userId, UUID conversationId, UUID requestId, String text, Long revision, CoachStream stream) {
         Loaded loaded = require(conversations.loadByConversation(userId, conversationId));
         String fingerprint = fingerprint("coach_reply|" + conversationId + "|" + text);
         Replay replayed = conversations.findReplay(conversationId, requestId, fingerprint);
@@ -157,7 +169,9 @@ public class ConversationService {
         if (revision != null && revision != loaded.session().stateRevision()) {
             throw new ApiException(409, "conversation_conflict");
         }
-        CoachResult result = generate(() -> coach.reply(withContext(loaded.session()), text, conversationId));
+        if (stream != null) stream.begin();
+        CoachResult result = generate(() -> stream == null ? coach.reply(withContext(loaded.session()), text, conversationId)
+                : coach.reply(withContext(loaded.session()), text, conversationId, stream));
         boolean closing = COMPLETE.equals(result.reply().status());
         Saved saved = activeOnly(() -> conversations.appendTurn(
                 conversationId,
