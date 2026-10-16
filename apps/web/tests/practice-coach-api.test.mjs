@@ -25,6 +25,8 @@ afterEach(() => {
 function stub(handler) {
   const calls = [];
   globalThis.fetch = async (url, init = {}) => {
+    // 스트림 경로는 "옛 서버"(404)로 답해 일반 경로로 돌아가게 한다. 스트림 동작은 coach-stream.test.mjs 가 본다.
+    if (String(url).endsWith("/stream")) return json({ detail: "Not Found" }, 404);
     const call = {
       path: String(url),
       method: init.method ?? "GET",
