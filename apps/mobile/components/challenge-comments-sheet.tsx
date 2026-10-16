@@ -46,11 +46,14 @@ export function ChallengeCommentsSheet({
   entryId,
   onClose,
   onReport,
+  onCountChange,
 }: {
   visible: boolean;
   entryId: string | null;
   onClose: () => void;
   onReport: (commentId: string) => void;
+  /** 댓글을 쓰거나 지운 직후 뷰어 하단 댓글 수를 바로 맞추도록 알린다(+1 / -1). */
+  onCountChange?: (delta: number) => void;
 }) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -100,6 +103,7 @@ export function ChallengeCommentsSheet({
     try {
       const created = await api.createComment(entryId, { ...body, request_id: next.requestId });
       setComments((prev) => [created, ...(prev ?? [])]);
+      onCountChange?.(1);
       setDraft('');
       setAttempt(null);
     } catch (e) {
@@ -113,6 +117,7 @@ export function ChallengeCommentsSheet({
     try {
       await api.deleteComment(comment.id);
       setComments((prev) => (prev ?? []).filter((c) => c.id !== comment.id));
+      onCountChange?.(-1);
     } catch (e) {
       setError(reactFailureMessage(reactFailure(e)));
     }

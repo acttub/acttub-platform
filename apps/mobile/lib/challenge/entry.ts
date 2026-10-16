@@ -3,6 +3,7 @@ import { translate } from '../i18n.ts';
 import {
   CAPTION_MAX,
   ENTRY_VIDEO_MAX_SEC,
+  ENTRY_VIDEO_MIN_SEC,
   type CreateEntryBody,
   type EntryVisibility,
 } from './types.ts';
@@ -26,6 +27,16 @@ export function captionTooLong(caption: string): boolean {
 /** 촬영·영상 길이 상한은 60초다. 서버가 실제 길이를 다시 본다. */
 export function videoTooLong(durationMs: number | null): boolean {
   return durationMs !== null && durationMs > ENTRY_VIDEO_MAX_SEC * 1000;
+}
+
+/** 너무 짧은 영상(0.2초 같은 것)은 재생이 안 되어 참여작으로 올리지 않는다. 길이를 모르면 막지 않는다. */
+export function videoTooShort(durationMs: number | null): boolean {
+  return durationMs !== null && durationMs < ENTRY_VIDEO_MIN_SEC * 1000;
+}
+
+/** 댓글을 쓰거나 지운 뒤 카드의 댓글 수. 0 아래로 내려가지 않는다. */
+export function commentCountAfter(count: number, delta: number): number {
+  return Math.max(0, count + delta);
 }
 
 /** 올릴 수 있는 상태인지 — 확정된 영상과 고른 공개 범위가 있어야 한다. */
