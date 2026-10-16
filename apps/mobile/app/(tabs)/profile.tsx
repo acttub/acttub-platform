@@ -44,7 +44,7 @@ export default function ProfileScreen() {
       void (async () => {
         const all: MyEntryCard[] = [];
         let cursor: string | undefined;
-        for (let page = 0; page < 25; page += 1) {
+        while (alive) {
           const r = await api.listMyChallengeEntries(undefined, cursor);
           all.push(...r.entries);
           if (!r.next_cursor) break;
