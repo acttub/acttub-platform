@@ -361,7 +361,10 @@ class AdminEndpointIT {
         JsonNode ratingItem = page.path("items").get(0);
         assertThat(ratingItem.fieldNames()).toIterable().containsExactly(
                 "id", "kind", "created_at", "actor", "is_team", "body", "rating", "status",
-                "source", "trigger", "practice_id");
+                "source", "trigger", "practice_id", "reading_session_id", "reading_mode", "reading_record");
+        assertThat(ratingItem.path("reading_session_id").isNull()).isTrue();
+        assertThat(ratingItem.path("reading_mode").isNull()).isTrue();
+        assertThat(ratingItem.path("reading_record").isNull()).isTrue();
         assertThat(ratingItem.path("id").textValue()).isEqualTo(rating.toString());
         assertThat(ratingItem.path("kind").textValue()).isEqualTo("note_rating");
         assertThat(ratingItem.path("actor").textValue())
@@ -418,6 +421,57 @@ class AdminEndpointIT {
         for (JsonNode item : inspectExcluded.path("items")) {
             assertThat(item.path("is_team").booleanValue()).isTrue();
         }
+    }
+
+    @Test
+    void feedbackIncludesReadingRatingsLinkedToTheirSessionWithoutScriptText() throws Exception {
+        UUID realSession = UUID.randomUUID();
+        insertReading(REAL_USER, realSession, "리딩 제목", NOW.plusMinutes(1), "completed", "quiz");
+        UUID realRating = UUID.fromString("00000000-0000-4000-8000-000000000721");
+        jdbc.update("""
+                INSERT INTO reading_session_ratings (
+                    id,session_id,user_id,rating,comment,request_id,created_at,updated_at
+                ) VALUES (?, ?, ?, 'bad', '아직 읽는게 어색함', ?, ?, ?)
+                """, realRating, realSession, REAL_USER, UUID.randomUUID(),
+                NOW.plusMinutes(2), NOW.plusMinutes(6));
+        UUID teamSession = UUID.randomUUID();
+        insertReading(TEAM_USER, teamSession, "팀 리딩", NOW.plusMinutes(1), "completed", "read");
+        jdbc.update("""
+                INSERT INTO reading_session_ratings (
+                    id,session_id,user_id,rating,comment,request_id,created_at,updated_at
+                ) VALUES (?, ?, ?, 'good', '팀 리딩 코멘트', ?, ?, ?)
+                """, UUID.randomUUID(), teamSession, TEAM_USER, UUID.randomUUID(),
+                NOW.plusMinutes(3), NOW.plusMinutes(3));
+
+        JsonNode page = authorized("/v2/admin/feedback", 200);
+        assertThat(page.path("items")).hasSize(1);
+        JsonNode item = page.path("items").get(0);
+        assertThat(item.path("id").textValue()).isEqualTo(realRating.toString());
+        assertThat(item.path("kind").textValue()).isEqualTo("reading_rating");
+        // 다시 눌러 덮어쓴 평가는 마지막으로 고친 시각으로 줄을 선다.
+        assertThat(OffsetDateTime.parse(item.path("created_at").textValue()).toInstant())
+                .isEqualTo(NOW.plusMinutes(6).toInstant());
+        assertThat(item.path("actor").textValue())
+                .isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(item.path("is_team").booleanValue()).isFalse();
+        assertThat(item.path("body").textValue()).isEqualTo("아직 읽는게 어색함");
+        assertThat(item.path("rating").textValue()).isEqualTo("bad");
+        assertThat(item.path("status").isNull()).isTrue();
+        assertThat(item.path("source").textValue()).isEqualTo("reading");
+        assertThat(item.path("trigger").isNull()).isTrue();
+        assertThat(item.path("practice_id").isNull()).isTrue();
+        assertThat(item.path("reading_session_id").textValue()).isEqualTo(realSession.toString());
+        assertThat(item.path("reading_mode").textValue()).isEqualTo("quiz");
+        assertThat(item.path("reading_record").booleanValue()).isTrue();
+        // 대본 원문·대사는 목록에 싣지 않는다 — 회차 상세(/v2/admin/reading-sessions/{id})에서만 읽는다.
+        assertThat(page.toString()).doesNotContain(
+                REAL_USER.toString(), TEAM_USER.toString(), "대본 원문 비밀", "내 대사", "팀 리딩 코멘트");
+
+        JsonNode withTeam = authorized("/v2/admin/feedback?include_team=true", 200);
+        assertThat(withTeam.path("items")).hasSize(2);
+        assertThat(withTeam.path("items").get(0).path("id").textValue()).isEqualTo(realRating.toString());
+        assertThat(withTeam.path("items").get(1).path("is_team").booleanValue()).isTrue();
+        assertThat(withTeam.path("items").get(1).path("reading_mode").textValue()).isEqualTo("read");
     }
 
     @Test
