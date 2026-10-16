@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { participatedChallengeCount } from '@/lib/challenge/entry';
+import type { MyEntryCard } from '@/lib/challenge/types';
 import { displayNameFor } from '@/lib/display-name';
 import { getUserName } from '@/lib/profile';
 import { translate as t } from '@/lib/i18n';
@@ -17,13 +19,14 @@ import { translate as t } from '@/lib/i18n';
  *
  * 이름·사진·한 줄 소개는 서버의 프로필(GET /v2/me)을 보여 준다. 사진과 소개는 설정에서만
  * 받으므로 여기서는 고치지 않고 프로필 수정 화면으로 보낸다. 보관함(A2.2)·저장한
- * 영상(A15.5)은 예시 데이터 화면. 챌린지 수도 계약이 없어 0을 보여준다(연습 수만 실데이터).
+ * 영상(A15.5)은 예시 데이터 화면. 챌린지 수는 내가 참여한 서로 다른 챌린지 수다(내 참여작 목록에서 센다).
  */
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const [name, setName] = useState<string | null>(null);
   const [practiceCount, setPracticeCount] = useState(0);
+  const [challengeCount, setChallengeCount] = useState(0);
   const serverProfile = profile.me?.profile ?? null;
   const photoUri = serverProfile?.photo_url ?? null;
   const bio = serverProfile?.bio?.trim() ?? '';
@@ -37,6 +40,18 @@ export default function ProfileScreen() {
         .listPracticeGroups('all')
         .then((r) => alive && setPracticeCount(r.groups.reduce((sum, g) => sum + g.ordinal_count, 0)))
         .catch(() => {});
+      // 챌린지 수는 내가 참여한 서로 다른 챌린지 수다(비공개 참여 포함, challenge.browse). 20개씩 끝까지 읽는다.
+      void (async () => {
+        const all: MyEntryCard[] = [];
+        let cursor: string | undefined;
+        for (let page = 0; page < 25; page += 1) {
+          const r = await api.listMyChallengeEntries(undefined, cursor);
+          all.push(...r.entries);
+          if (!r.next_cursor) break;
+          cursor = r.next_cursor;
+        }
+        if (alive) setChallengeCount(participatedChallengeCount(all));
+      })().catch(() => {});
       return () => {
         alive = false;
       };
@@ -82,7 +97,7 @@ export default function ProfileScreen() {
             <View style={styles.statRow}>
               <Text style={styles.statValue}>{practiceCount}</Text>
               <Text style={styles.statLabel}>{t('profileTab.statPractice')}</Text>
-              <Text style={styles.statValue}>0</Text>
+              <Text style={styles.statValue}>{challengeCount}</Text>
               <Text style={styles.statLabel}>{t('profileTab.statChallenge')}</Text>
             </View>
             <Pressable style={styles.editBtn} onPress={() => router.push('/portfolio-edit')} accessibilityRole="button">
