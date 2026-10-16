@@ -413,7 +413,7 @@ const en: DeepStringShape<typeof ko> = {
     errDuplicate: 'You already joined with this video. Try another one.',
     errVideoNotReady: 'This video cannot be used yet.',
     errTooLong: 'Challenge videos can be up to 60 seconds.',
-    errTooShort: 'The video is too short. Please record at least 1 second.',
+    errTooShort: 'The video is too short. Please record at least 3 seconds.',
     errDailyLimit: 'You can post three a day. Please try again tomorrow.',
     errHidden: 'This entry is under review, so it cannot be made public.',
     errInvalid: 'Please check what you wrote.',

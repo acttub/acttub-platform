@@ -39,6 +39,11 @@ export function commentCountAfter(count: number, delta: number): number {
   return Math.max(0, count + delta);
 }
 
+/** 프로필의 챌린지 수 — 내 삭제되지 않은 참여작(비공개 포함)이 걸린 서로 다른 챌린지 수. 같은 챌린지에 여러 번 올려도 1이다. */
+export function participatedChallengeCount(entries: ReadonlyArray<{ challenge: { id: string } }>): number {
+  return new Set(entries.map((e) => e.challenge.id)).size;
+}
+
 /** 올릴 수 있는 상태인지 — 확정된 영상과 고른 공개 범위가 있어야 한다. */
 export function canSubmitEntry(input: {
   videoId: string | null;

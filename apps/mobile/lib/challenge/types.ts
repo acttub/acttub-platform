@@ -99,8 +99,8 @@ export type EntryStatus = 'visible' | 'hidden_by_report' | 'deleted';
 
 /** 챌린지 영상은 60초 이내다(촬영 상한도 같다). */
 export const ENTRY_VIDEO_MAX_SEC = 60;
-/** 참여 영상 최소 길이(초). 스펙에 값이 없어 보수적으로 1초로 둔 기본값이다(SOMA-738, 제품 확인 필요). */
-export const ENTRY_VIDEO_MIN_SEC = 1;
+/** 참여 영상 최소 길이(초). 사용자 결정으로 3초다(SOMA-738). */
+export const ENTRY_VIDEO_MIN_SEC = 3;
 
 /** 캡션은 300자까지, 선택이다. */
 export const CAPTION_MAX = 300;

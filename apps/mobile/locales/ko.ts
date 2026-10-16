@@ -404,7 +404,7 @@ const ko = {
     errDuplicate: '이 영상으로 이미 참여했어요. 다른 영상으로 올려 주세요.',
     errVideoNotReady: '아직 올릴 수 없는 영상이에요.',
     errTooLong: '챌린지 영상은 60초까지예요.',
-    errTooShort: '영상이 너무 짧아요. 1초 이상 촬영해 주세요.',
+    errTooShort: '영상이 너무 짧아요. 3초 이상 촬영해 주세요.',
     errDailyLimit: '하루에 세 개까지 올릴 수 있어요. 내일 다시 올려 주세요.',
     errHidden: '확인 중인 참여작이라 공개로 바꿀 수 없어요.',
     errInvalid: '적은 내용을 다시 확인해 주세요.',
