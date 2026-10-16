@@ -18,6 +18,8 @@ import { DEFAULT_VAD, VAD_TICK_MS, createSilenceDetector, createVolumeFeed, type
  * 주지 않기도 해서, 인식기가 알린 말 끝(speechend)도 침묵으로 친다.
  */
 const VOLUME_INTERVAL_MS = 50;
+/** 인식기가 말 끝을 알린 뒤 넘기기 전까지 더 기다리는 시간(SOMA-741). */
+export const SPEECH_END_GRACE_MS = 1300;
 
 /** 인식기의 음량(-2~10, 0 아래는 들리지 않음)을 침묵 감지기가 아는 0~1 로. 실기기에서 맞춰 볼 근사값이다. */
 export function sttVolumeToRms(value: number): number {
@@ -79,16 +81,22 @@ export function useReadingStt(): SttHandle {
   }, []);
   const callbacks = useRef<{ onEvent: (event: VadEvent) => void; onInterim: (text: string) => void } | null>(null);
   const settle = useRef<((text: string) => void) | null>(null);
+  const speechEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelSpeechEnd = useCallback(() => {
+    if (speechEndTimer.current) clearTimeout(speechEndTimer.current);
+    speechEndTimer.current = null;
+  }, []);
   const recordings = useRef(createRecordingTracker()).current;
 
   const finishNow = useCallback((value: string) => {
     active.current = false;
+    cancelSpeechEnd();
     stopTicking();
     restorePlaybackAudio();
     const resolve = settle.current;
     settle.current = null;
     resolve?.(value);
-  }, [stopTicking]);
+  }, [cancelSpeechEnd, stopTicking]);
 
   useSpeechRecognitionEvent('result', (event) => {
     if (!active.current) return;
@@ -105,12 +113,19 @@ export function useReadingStt(): SttHandle {
   });
   // 일반 인식기는 음량 이벤트를 주지 않기도 한다 — 인식기가 알린 말 시작·끝도 침묵 감지에 넘긴다(SOMA-741).
   // 받아쓴 글이 없는 말 끝(잡음)으로는 넘기지 않는다.
+  // 인식기의 말 끝은 말이 멈추고 0.5초쯤 뒤에 와서 바로 넘기면 대사 중간의 사이에도 넘어간다 — 조금 더 기다렸다가
+  // 넘기고, 그사이 다시 말하기 시작하면 취소한다(말 끝 뒤에 오는 마지막 결과로는 취소하지 않는다). 음량 감지(1.8초 침묵)와 비슷하게 맞춘다.
   useSpeechRecognitionEvent('speechstart', () => {
+    cancelSpeechEnd();
     if (active.current) callbacks.current?.onEvent('speech_start');
   });
   useSpeechRecognitionEvent('speechend', () => {
     if (!active.current || !text.current.trim()) return;
-    callbacks.current?.onEvent('speech_end');
+    cancelSpeechEnd();
+    speechEndTimer.current = setTimeout(() => {
+      speechEndTimer.current = null;
+      if (active.current) callbacks.current?.onEvent('speech_end');
+    }, SPEECH_END_GRACE_MS);
   });
   useSpeechRecognitionEvent('audioend', (event) => {
     recordings.audioEnd(event?.uri);
@@ -171,6 +186,7 @@ export function useReadingStt(): SttHandle {
   }, [finishNow, recordings]);
 
   const abort = useCallback(() => {
+    cancelSpeechEnd();
     // 이미 finish 로 멈춘 듣기는 끊지 않는다 — 떼어 낸 녹음 파일을 인식기가 마저 쓰는 중일 수 있다.
     const listening = active.current || settle.current !== null;
     settle.current = null;
@@ -181,7 +197,7 @@ export function useReadingStt(): SttHandle {
       ExpoSpeechRecognitionModule.abort();
     } catch {}
     restorePlaybackAudio();
-  }, [stopTicking]);
+  }, [cancelSpeechEnd, stopTicking]);
 
   const takeRecordingUri = useCallback((): string | null => recordings.discard(), [recordings]);
 

@@ -13,5 +13,8 @@ test('reading.stt: 인식기가 알린 말 끝으로도 넘긴다 — 일반 인
   const handler = hook.slice(hook.indexOf("useSpeechRecognitionEvent('speechend'"), hook.indexOf("useSpeechRecognitionEvent('audioend'"));
   assert.match(handler, /if \(!active\.current \|\| !text\.current\.trim\(\)\) return;/, '받아쓴 글이 없으면(잡음) 넘기지 않는다');
   assert.match(handler, /callbacks\.current\?\.onEvent\('speech_end'\)/);
+  assert.match(handler, /setTimeout\([\s\S]*?SPEECH_END_GRACE_MS\)/, '말 끝 뒤 조금 더 기다렸다가 넘긴다');
+  assert.match(hook, /export const SPEECH_END_GRACE_MS = 1300;/);
+  assert.match(hook, /useSpeechRecognitionEvent\('speechstart', \(\) => \{\s*cancelSpeechEnd\(\);/, '기다리는 동안 다시 말하면 취소');
   assert.match(hook, /useSpeechRecognitionEvent\('speechstart'[\s\S]*?onEvent\('speech_start'\)/);
 });
