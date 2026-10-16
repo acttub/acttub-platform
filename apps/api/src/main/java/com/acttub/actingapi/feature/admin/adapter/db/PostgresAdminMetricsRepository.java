@@ -315,7 +315,10 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         CASE WHEN feedback.body IS NULL THEN 'dismissed' ELSE 'answered' END AS status,
                         feedback.screen AS source,
                         feedback.trigger,
-                        feedback.practice_id
+                        feedback.practice_id,
+                        CAST(NULL AS uuid) AS reading_session_id,
+                        CAST(NULL AS text) AS reading_mode,
+                        CAST(NULL AS boolean) AS reading_record
                     FROM practice_feedback AS feedback
                     UNION ALL
                     SELECT
@@ -328,8 +331,29 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         CAST(NULL AS text) AS status,
                         'practice_note' AS source,
                         CAST(NULL AS text) AS trigger,
-                        rating.practice_id
+                        rating.practice_id,
+                        CAST(NULL AS uuid),
+                        CAST(NULL AS text),
+                        CAST(NULL AS boolean)
                     FROM note_ratings AS rating
+                    UNION ALL
+                    -- 리딩 평가는 다시 누르면 덮어쓰므로 마지막으로 고친 시각으로 줄을 세운다.
+                    SELECT
+                        rating.id,
+                        'reading_rating' AS kind,
+                        rating.updated_at,
+                        rating.user_id,
+                        rating.comment AS body,
+                        rating.rating,
+                        CAST(NULL AS text) AS status,
+                        'reading' AS source,
+                        CAST(NULL AS text) AS trigger,
+                        CAST(NULL AS uuid),
+                        session.id,
+                        session.mode,
+                        session.record
+                    FROM reading_session_ratings AS rating
+                    JOIN reading_sessions AS session ON session.id = rating.session_id
                 ), marked AS (
                     SELECT
                         combined.*,
@@ -340,7 +364,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                     JOIN users AS app_user ON app_user.id=combined.user_id
                 )
                 SELECT
-                    id,kind,created_at,'배우 ' || actor_key AS actor,is_team,body,rating,status,source,trigger,practice_id
+                    id,kind,created_at,'배우 ' || actor_key AS actor,is_team,body,rating,status,source,trigger,practice_id,
+                    reading_session_id,reading_mode,reading_record
                 FROM marked
                 WHERE :includeTeam OR NOT is_team
                 ORDER BY created_at DESC, kind ASC, id ASC
@@ -362,7 +387,10 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.get("status", String.class),
                         row.get("source", String.class),
                         row.get("trigger", String.class),
-                        row.get("practice_id", UUID.class)))
+                        row.get("practice_id", UUID.class),
+                        row.get("reading_session_id", UUID.class),
+                        row.get("reading_mode", String.class),
+                        row.get("reading_record", Boolean.class)))
                 .toList();
     }
 
