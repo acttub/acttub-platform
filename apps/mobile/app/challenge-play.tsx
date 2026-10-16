@@ -23,7 +23,7 @@ import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { avatarLetter, browseFailure, browseFailureMessage, isEnded, rankEntries } from '@/lib/challenge/browse';
+import { avatarLetter, browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
 import { entryShareUrl } from '@/lib/challenge/deeplink';
 import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import { canReact, optimisticLike, optimisticSave, reactFailure, reactFailureMessage } from '@/lib/challenge/react';
@@ -109,27 +109,40 @@ export default function ChallengePlayScreen() {
   useEffect(() => {
     const entry = entries?.[active];
     if (!entry?.playback_url) return;
-    player.replace(entry.playback_url);
-    player.play();
-    setPlaying(true);
+    // replaceAsync — replace 는 iOS 에서 영상을 주 스레드로 불러와 넘길 때 화면이 멈출 수 있다(SOMA-713).
+    let alive = true;
+    void player
+      .replaceAsync(entry.playback_url)
+      .then(() => {
+        if (!alive) return;
+        player.play();
+        setPlaying(true);
+      })
+      .catch(() => {});
     logEvent('challenge_swipe', { index: active });
+    return () => {
+      alive = false;
+    };
   }, [active, entries, player]);
 
   // 위에 촬영 같은 다른 화면이 올라오면 영상을 내려놓아 메모리를 돌려주고, 돌아오면 보던 참여작을 다시 튼다(SOMA-699).
   useEffect(() => {
     if (focused) return;
     player.pause();
-    player.replace(null);
+    void player.replaceAsync(null).catch(() => {});
     return () => {
       const entry = entries?.[active];
       if (!entry?.playback_url) return;
+      // 가려진 채로 화면이 닫히면 플레이어가 먼저 풀려 있을 수 있다 — 그때는 다시 틀 필요가 없다.
       try {
-        player.replace(entry.playback_url);
-        player.play();
-        setPlaying(true);
-      } catch {
-        // 가려진 채로 화면이 닫히면 플레이어가 먼저 풀려 있을 수 있다 — 그때는 다시 틀 필요가 없다.
-      }
+        void player
+          .replaceAsync(entry.playback_url)
+          .then(() => {
+            player.play();
+            setPlaying(true);
+          })
+          .catch(() => {});
+      } catch {}
     };
     // 가려진 동안 entries·active 는 바뀌지 않는다 — 돌아올 때 그때의 참여작을 다시 튼다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,7 +208,7 @@ export default function ChallengePlayScreen() {
   };
 
   const perform = () => {
-    if (!challenge) return;
+    if (!challenge || !canPerform(challenge)) return;
     logEvent('challenge_perform_tap', { id: challenge.id });
     router.push({
       pathname: '/record-video',
