@@ -73,7 +73,8 @@ public class AirbridgeAttributionSync {
                 continue;
             }
             // 탈퇴해 적을 수 없는 계정이면 false — 그래도 기기 ID 는 지운다.
-            if (profiles.recordSignupAttribution(lookup.userId(), attribution(lookup.platform(), found.get()))) {
+            if (profiles.recordSignupAttribution(
+                    lookup.userId(), attribution(lookup.platform(), found.get()), SignupAttribution.RECORDED_VIA_SERVER)) {
                 recorded++;
             } else {
                 dropped++;
