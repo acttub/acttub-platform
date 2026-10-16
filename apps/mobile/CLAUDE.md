@@ -22,6 +22,9 @@
 - 이벤트는 `lib/analytics.ts`로만 보냅니다. Firebase와 PostHog에 같이 갑니다. PostHog(화면 녹화 포함)는 운영 API
   빌드이고 `EXPO_PUBLIC_POSTHOG_KEY`가 있고(`eas.json`의 production·preview-prod) 현재 판 동의를 마친 동안만 켜집니다.
   규칙은 `lib/posthog.ts`의 `decidePostHog` 한 곳이고, development build에서는 꺼져 있으므로 녹화는 preview-prod로 확인합니다.
+- 버튼 탭은 같은 조건에서 `lib/touch-capture.ts`가 자동으로 남깁니다(PostHog `$autocapture`, `tap_label`·`$screen_name`). 누를 수 있는
+  요소만 기록하고 이름은 `ph-label` → `accessibilityLabel` → 안의 글자 순입니다. 아이콘 버튼은 `ph-label`을, 기록하면 안 되는 곳은
+  `ph-no-capture`를 붙입니다.
 - lint·typecheck를 실행했다면 의존성 설치와 생성된 Expo 라우트 타입 등 검증 전제를 기록하고,
   CI에 포함된 검사와 추가로 실행한 검사를 구분합니다.
 
