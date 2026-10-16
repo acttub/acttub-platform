@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.billing.adapter.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -9,6 +10,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import ch.qos.logback.classic.Level;
@@ -46,6 +48,7 @@ class PgReviewControllerTest {
     private final FakeGateway gateway = new FakeGateway();
     private final long[] nanos = {0L};
     private ListAppender<ILoggingEvent> logs;
+    private Level previousRootLevel;
     private PgReviewController controller;
     private PgReviewService service;
 
@@ -53,14 +56,21 @@ class PgReviewControllerTest {
     void setUp() {
         build(settings("test_sk_abcdefgh12345678"));
         logs = new ListAppender<>();
+        // 다른 통합 테스트가 시작한 작업의 로그가 검사 도중 들어올 수 있다.
+        logs.list = new CopyOnWriteArrayList<>();
         logs.start();
-        ((Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME)).addAppender(logs);
-        ((Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME)).setLevel(Level.DEBUG);
+        Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        previousRootLevel = root.getLevel();
+        root.addAppender(logs);
+        root.setLevel(Level.DEBUG);
     }
 
     @AfterEach
     void tearDown() {
-        ((Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME)).detachAppender(logs);
+        Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        root.detachAppender(logs);
+        root.setLevel(previousRootLevel);
+        logs.stop();
     }
 
     private void build(PgReviewSettings settings) {
@@ -487,6 +497,20 @@ class PgReviewControllerTest {
     void passwordFieldIsMarkedAsCredentialSoValidationErrorsDoNotEchoIt() {
         var component = LoginRequest.class.getRecordComponents()[1];
         assertThat(component.isAnnotationPresent(com.acttub.actingapi.platform.web.CredentialField.class)).isTrue();
+    }
+
+    @Test
+    void logInspectionIsSafeWhenAnotherEventArrivesDuringIteration() {
+        Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        root.info("before log inspection");
+        var events = logs.list.iterator();
+        assertThat(events.hasNext()).isTrue();
+        root.info("event arriving during log inspection");
+        assertThatCode(() -> {
+            while (events.hasNext()) {
+                events.next();
+            }
+        }).doesNotThrowAnyException();
     }
 
     private void assertNoSecretInLogs() {
