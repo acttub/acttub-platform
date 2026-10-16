@@ -95,3 +95,22 @@ test('양쪽 다 모자라면 넓은 쪽에 두되 화면 밖으로 나가지 �
 test('비출 자리를 아직 못 쟀으면 가운데에 둔다', () => {
   assert.deepEqual(captionPlacement(null, SCREEN, 200), { top: (SCREEN.height - 200) / 2 });
 });
+
+test('하단 내비게이션 바 높이만큼 카드를 위로 올린다(SOMA-740)', () => {
+  const inset = 48;
+  // 인셋이 없으면 아래에 놓이던 자리라도, 카드 아랫변이 바에 걸리면 위로 올린다.
+  const hole = { x: 0, y: 610 - HOLE_GAP, width: 390, height: 60 };
+  assert.deepEqual(captionPlacement(hole, SCREEN, 160, 0), { top: hole.y + 60 + HOLE_GAP });
+  const placed = captionPlacement(hole, SCREEN, 160, inset);
+  assert.ok('bottom' in placed && placed.bottom >= inset);
+});
+
+test('아래에 두는 카드의 아랫변이 내비게이션 바를 넘지 않는다', () => {
+  const inset = 48;
+  const hole = { x: 0, y: 100, width: 390, height: 60 };
+  const placed = captionPlacement(hole, SCREEN, 160, inset);
+  assert.ok(placed.top + 160 <= SCREEN.height - inset);
+  const tall = { x: 0, y: 20, width: 390, height: 700 };
+  const p2 = captionPlacement(tall, SCREEN, 300, inset);
+  assert.ok('top' in p2 && p2.top + 300 <= SCREEN.height - inset);
+});
