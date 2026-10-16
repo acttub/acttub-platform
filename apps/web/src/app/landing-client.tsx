@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { BusinessInfo } from "@/features/business-info/business-info";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -511,6 +512,9 @@ export default function LandingClient() {
                     {COPY.footer.email}
                   </a>
                 </nav>
+              </div>
+              <div className="mx-auto mt-6 max-w-5xl border-t border-white/10 pt-4">
+                <BusinessInfo tone="dark" />
               </div>
             </footer>
           </div>
