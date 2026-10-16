@@ -72,7 +72,7 @@ export function CoachingPhone({ className = "" }: { className?: string }) {
 
 const WAVE = [8, 15, 25, 18, 10, 23, 28, 13, 20, 9, 16, 24, 11];
 
-/** 리딩 화면 느낌의 구성 도식. 대본 제목·점수 같은 실제 데이터는 넣지 않는다. */
+/** 리딩 화면 느낌의 구성 도식. 실제 대본 제목 같은 데이터는 넣지 않는다. */
 export function ReadingPanel() {
   return (
     <div className="relative mx-auto w-full max-w-[460px]">
