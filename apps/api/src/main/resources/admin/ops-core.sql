@@ -751,7 +751,9 @@ SELECT json_build_object(
       'medium', sa.medium,
       'campaign', sa.campaign,
       'ad_group', sa.ad_group,
-      'ad_creative', sa.ad_creative
+      'ad_creative', sa.ad_creative,
+      -- 누가 이 행을 적었나(V44, SOMA-643): app(SDK 콜백) · server(서버가 Airbridge 조회) · web(웹 UTM). 구분 값만 싣는다.
+      'recorded_via', sa.recorded_via
     ) ORDER BY u.created_at DESC, sa.user_id), '[]'::json)
     FROM user_signup_attributions sa
     JOIN users u ON u.id = sa.user_id
@@ -781,6 +783,11 @@ SELECT json_build_object(
       'discovery_answered', (da.user_id IS NOT NULL),
       'discovery_source', da.source,
       'discovery_detail', da.detail,
+      -- 가입 프로필을 처음 완성한 클라이언트 판(V44, SOMA-643, 예: app/0.1.4). 판 이름만 싣고 기기·주소·헤더의 다른 값은 싣지 않는다.
+      -- 이 칸이 생기기 전 가입과 프로필 없는 가입은 null 이다.
+      'signup_client', up.signup_client,
+      -- 서버가 Airbridge 에서 귀속을 아직 찾는 중인가(user_airbridge_device_lookups 행이 있다). 기기 ID 는 싣지 않고 있다·없다만 싣는다.
+      'airbridge_lookup_pending', EXISTS (SELECT 1 FROM user_airbridge_device_lookups l WHERE l.user_id = sd.user_id),
       -- 들어온 날(KST, V41). 오래된 날부터. 기록이 없으면 [] 다.
       'active_days', (SELECT COALESCE(json_agg(to_char(ad.day, 'YYYY-MM-DD') ORDER BY ad.day), '[]'::json)
           FROM user_active_days ad
