@@ -57,6 +57,12 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                          WHEN 'speech_self' THEN 7 ELSE 8 END
             """;
 
+    /**
+     * 옛 표({@code actor_memory_entries})에서 호환 읽기로 내보내는 칸 — 0.1.0 이전 기억 네 칸이다. 성별·나이는 프로필의 것이라
+     * 기억으로 읽지 않는다(practice README 「현행 → 0.1.0」).
+     */
+    private static final String LEGACY_FIELDS = "('goal','blockage','speech_self','speech_actual')";
+
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final EntityManager entityManager;
@@ -75,18 +81,31 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     /**
      * 출처 연습이 <b>숨겨졌으면 링크만 없다</b> — 값과 작성자는 그대로다(practice.memory 규칙). 묶음 속성은
      * 첫 회차 행에 있으므로 {@code root_id} 를 따라가 본다.
+     *
+     * <p><b>새 표에 없는 칸은 옛 표를 읽는다(호환 읽기).</b> 0.1.0 데이터 전환이 돌기 전까지 그 전의 기억은 옛 표에만
+     * 있다 — 새 표만 보면 화면도 코치도 그 기억을 잃는다. 옛 회차는 새 {@code practices} 에 없으므로 출처 링크는 없다.
      */
     @Override
     public List<ActorMemory> list(UUID userId) {
         return NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT m.field,m.value,m.written_by,m.updated_at,
-                       CASE WHEN root.hidden_at IS NULL THEN m.source_practice_id END AS source_practice_id
-                FROM actor_memories m
-                LEFT JOIN practices p ON p.id=m.source_practice_id
-                LEFT JOIN practices root ON root.id=p.root_id
-                WHERE m.user_id=:userId
+                SELECT m.field,m.value,m.written_by,m.updated_at,m.source_practice_id
+                FROM (
+                    SELECT n.field,n.value,n.written_by,n.updated_at,
+                           CASE WHEN root.hidden_at IS NULL THEN n.source_practice_id END AS source_practice_id
+                    FROM actor_memories n
+                    LEFT JOIN practices p ON p.id=n.source_practice_id
+                    LEFT JOIN practices root ON root.id=p.root_id
+                    WHERE n.user_id=:userId
+                    UNION ALL
+                    SELECT o.field,o.value,o.written_by,o.updated_at,CAST(NULL AS uuid) AS source_practice_id
+                    FROM actor_memory_entries o
+                    WHERE o.user_id=:userId
+                      AND o.field IN %s
+                      AND NOT EXISTS (SELECT 1 FROM actor_memories n
+                                      WHERE n.user_id=o.user_id AND n.field=o.field)
+                ) m
                 ORDER BY %s
-                """.formatted(FIELD_ORDER), Tuple.class)
+                """.formatted(LEGACY_FIELDS, FIELD_ORDER), Tuple.class)
                 .setParameter("userId", userId)).stream()
                 .map(PostgresActorMemoryStore::memory)
                 .toList();
@@ -135,6 +154,15 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                 removal.setParameter("field", field);
             }
             removal.executeUpdate();
+            // 호환 읽기로 보이던 옛 칸도 지운다 — 남기면 지운 기억이 다시 나타난다.
+            var legacyRemoval = entityManager.createNativeQuery(
+                    "DELETE FROM actor_memory_entries WHERE user_id=:userId AND field IN " + LEGACY_FIELDS
+                            + (field == null ? "" : " AND field=:field"))
+                    .setParameter("userId", userId);
+            if (field != null) {
+                legacyRemoval.setParameter("field", field);
+            }
+            legacyRemoval.executeUpdate();
             bumpEpoch(userId);
         });
     }
@@ -441,12 +469,19 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
         jobs.release(jobId, leaseToken, reason, now);
     }
 
-    /** 배우가 손댄 칸은 건너뛴다 — {@code WHERE} 가 0행을 내고 그것이 "쓰지 않았다"다. */
+    /**
+     * 배우가 손댄 칸은 건너뛴다 — {@code WHERE} 가 0행을 내고 그것이 "쓰지 않았다"다. 새 표에 아직 없고 옛 표에 배우가 적은
+     * 칸(호환 읽기로 보이는 칸)도 배우 것이므로 덮지 않는다.
+     */
     private boolean writeAsAgent(UUID userId, String field, String value, UUID practiceId, Instant now) {
         return !NativeTuples.list(entityManager.createNativeQuery("""
                 INSERT INTO actor_memories(id,user_id,field,value,written_by,source_practice_id,
                                            created_at,updated_at)
-                VALUES (:id,:userId,:field,:value,'agent',:practiceId,:now,:now)
+                SELECT :id,:userId,:field,:value,'agent',:practiceId,:now,:now
+                WHERE NOT EXISTS (SELECT 1 FROM actor_memory_entries o
+                                  WHERE o.user_id=:userId AND o.field=:field AND o.written_by='actor'
+                                    AND NOT EXISTS (SELECT 1 FROM actor_memories n
+                                                    WHERE n.user_id=o.user_id AND n.field=o.field))
                 ON CONFLICT ON CONSTRAINT uq_actor_memories_user_field DO UPDATE
                 SET value=EXCLUDED.value,written_by='agent',
                     source_practice_id=EXCLUDED.source_practice_id,updated_at=EXCLUDED.updated_at
