@@ -19,16 +19,15 @@ import { api } from '@/lib/api';
 import {
   DISCOVERY_OTHER_MAX_LENGTH,
   EMPTY_DISCOVERY,
-  INSTAGRAM_DETAILS,
   buildDiscoveryPayload,
   chooseDiscoverySource,
-  chooseInstagramDetail,
   discoveryOrder,
   limitOtherText,
+  shouldAskDiscovery,
   type DiscoveryState,
 } from '@/lib/discovery';
 import { logMetaEvent } from '@/lib/meta-events';
-import { recordSignupCompleted } from '@/lib/signup-attribution-runtime';
+import { readAttributedChannel, recordSignupCompleted } from '@/lib/signup-attribution-runtime';
 import { useAuth } from '@/lib/auth';
 import { takeProviderNameHint } from '@/lib/profile';
 import { pickAndUploadProfilePhoto, removeProfilePhoto } from '@/lib/profile-photo-upload';
@@ -89,9 +88,24 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   // 가입 직후 유입 경로(SOMA-649). 가입 게이트에서만 묻는 선택 항목이다. 순서는 화면을 열 때 한 번 섞는다.
   const [discovery, setDiscovery] = useState<DiscoveryState>(EMPTY_DISCOVERY);
   const discoverySources = useMemo(() => discoveryOrder(), []);
+  // Airbridge 가 이미 광고·추적 링크로 출처를 확인한 설치면 묻지 않는다(SOMA-733). 귀속을 읽기 전에는 묻는 쪽으로 둔다.
+  const [askDiscovery, setAskDiscovery] = useState(true);
   const prefilled = useRef(false);
 
   const me = profile.me;
+
+  useEffect(() => {
+    if (isEdit) return;
+    let alive = true;
+    void readAttributedChannel()
+      .then((channel) => {
+        if (alive) setAskDiscovery(shouldAskDiscovery(channel));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [isEdit]);
   // 서버에서 받은 값으로 한 번만 채운다. 0.1.0 이전 회원은 옛 닉네임이 이름 칸에 채워져 오고,
   // 이름이 없으면 로그인 제공자가 준 이름을 첫 값으로 쓴다(저장은 버튼을 눌러야).
   useEffect(() => {
@@ -151,8 +165,8 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
         // 이 기기에서 가입을 마친 계정에만 유입 광고를 붙인다(SOMA-588).
         if (me?.id) recordSignupCompleted(me.id);
         // 처음 어디서 알게 됐는지(SOMA-649). 고르지 않았으면 건너뜀으로 적는다. 저장은 끝났으므로 기다리지 않고,
-        // 실패해도 가입 흐름을 막지 않는다(서버는 처음 답만 남긴다).
-        void api.recordDiscoveryAnswer(buildDiscoveryPayload(discovery)).catch(() => {});
+        // 실패해도 가입 흐름을 막지 않는다(서버는 처음 답만 남긴다). 묻지 않은 사람은 보내지 않는다(SOMA-733).
+        if (askDiscovery) void api.recordDiscoveryAnswer(buildDiscoveryPayload(discovery)).catch(() => {});
       }
       // 가입 게이트에서는 저장이 곧 게이트 통과라 _layout이 화면을 옮긴다. 편집은 직접 돌아간다.
       if (isEdit) router.back();
@@ -356,7 +370,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          {!isEdit && (
+          {!isEdit && askDiscovery && (
             <Field label={t('profileName.discoveryLabel')}>
               <Text style={styles.fieldHint}>{t('profileName.discoveryHint')}</Text>
               <View style={styles.chips}>
@@ -369,21 +383,6 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
                   />
                 ))}
               </View>
-              {discovery.source === 'instagram' && (
-                <View style={styles.discoveryFollowUp}>
-                  <Text style={styles.fieldHint}>{t('profileName.discoveryInstagramLabel')}</Text>
-                  <View style={styles.chips}>
-                    {INSTAGRAM_DETAILS.map((detail) => (
-                      <Chip
-                        key={detail}
-                        label={t(`profileName.discoveryInstagramDetails.${detail}`)}
-                        selected={discovery.detail === detail}
-                        onPress={() => setDiscovery((prev) => chooseInstagramDetail(prev, detail))}
-                      />
-                    ))}
-                  </View>
-                </View>
-              )}
               {discovery.source === 'other' && (
                 <TextInput
                   style={styles.input}
@@ -477,7 +476,6 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 24, gap: 22 },
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
   subtitle: { marginTop: 8, fontSize: 14, lineHeight: 20, color: palette.textDim },
-  discoveryFollowUp: { marginTop: 10, gap: 8 },
   nameInput: {
     borderWidth: 1.5,
     borderColor: palette.blue,
