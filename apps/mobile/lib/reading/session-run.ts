@@ -75,6 +75,28 @@ export function advance(run: RunState, fromIndex?: number): RunState {
   return { ...moved, status: turnOf(moved) };
 }
 
+function prevDialogue(lines: ScriptLine[], from: number, start: number): number {
+  for (let i = from; i >= start; i--) if (lines[i]?.type === 'dialogue') return i;
+  return -1;
+}
+
+/** [이전]을 누를 수 있나 — 진행 중이고 구간 안에 앞 대사가 있을 때만. */
+export function canGoBack(run: RunState): boolean {
+  if (run.status !== 'mine' && run.status !== 'partner') return false;
+  return prevDialogue(run.lines, run.index - 1, run.startIndex) >= 0;
+}
+
+/**
+ * 바로 앞 대사 줄로 돌아간다(지문·장면은 건너뜀). 그 줄을 처음부터 다시 한다 — 상대 줄이면 다시 읽고 내 줄이면 다시
+ * 듣는다. 말한 것은 남고 다시 말하면 마지막 말이 이긴다.
+ */
+export function back(run: RunState): RunState {
+  if (!canGoBack(run)) return run;
+  const index = prevDialogue(run.lines, run.index - 1, run.startIndex);
+  const moved: RunState = { ...run, index, resumeTo: null };
+  return { ...moved, status: turnOf(moved) };
+}
+
 export function pause(run: RunState): RunState {
   if (run.status !== 'mine' && run.status !== 'partner') return run;
   return { ...run, status: 'paused', resumeTo: run.status };

@@ -28,6 +28,8 @@ import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.ProfileName;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
+import com.acttub.actingapi.feature.profile.domain.SignupClient;
+import com.acttub.actingapi.platform.security.ClientVersionFilter;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -124,7 +126,8 @@ class ProfileController {
                 body.experience().name(),
                 body.goal().name(),
                 null,
-                bio)));
+                bio),
+                SignupClient.of(request.getHeader(ClientVersionFilter.HEADER))));
     }
 
     @Operation(
@@ -147,7 +150,7 @@ class ProfileController {
     ResponseEntity<Void> recordSignupAttribution(
             @Valid @RequestBody SignupAttributionRequest body, HttpServletRequest request) {
         var user = auth.gatedUser(request);
-        profiles.recordSignupAttribution(user.id(), signupAttribution(body));
+        profiles.recordSignupAttribution(user.id(), signupAttribution(body), SignupAttribution.RECORDED_VIA_APP);
         return ResponseEntity.noContent().build();
     }
 
@@ -232,7 +235,7 @@ class ProfileController {
     ResponseEntity<Void> recordWebAttribution(
             @Valid @RequestBody WebAttributionRequest body, HttpServletRequest request) {
         var user = auth.privacyConsentedUser(request);
-        profiles.recordSignupAttribution(user.id(), webAttribution(body));
+        profiles.recordSignupAttribution(user.id(), webAttribution(body), SignupAttribution.RECORDED_VIA_WEB);
         return ResponseEntity.noContent().build();
     }
 

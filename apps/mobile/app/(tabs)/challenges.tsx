@@ -12,6 +12,7 @@ import {
   avatarLetter,
   browseFailure,
   browseFailureMessage,
+  canPerform,
   dDayLabel,
   hostLabel,
   participantsLabel,
@@ -100,6 +101,7 @@ export default function ChallengesScreen() {
     router.push({ pathname: '/challenge-detail', params: { id: challenge.id } });
   };
   const perform = (challenge: ChallengeCard) => {
+    if (!canPerform(challenge)) return;
     if (picking) {
       // 고른 영상을 그 챌린지 올리기 화면으로 보낸다.
       logEvent('challenge_pick_for_video', { id: challenge.id });
@@ -271,10 +273,12 @@ function TodayHero({
             <Text style={styles.heroGhostText}>{t('challenges.watchEntries')}</Text>
           </Pressable>
         )}
-        <Pressable style={styles.heroPrimary} onPress={onPerform} accessibilityRole="button">
-          <Feather name="video" size={15} color={palette.navy} />
-          <Text style={styles.heroPrimaryText}>{t('challenges.performCta')}</Text>
-        </Pressable>
+        {canPerform(challenge) && (
+          <Pressable style={styles.heroPrimary} onPress={onPerform} accessibilityRole="button">
+            <Feather name="video" size={15} color={palette.navy} />
+            <Text style={styles.heroPrimaryText}>{t('challenges.performCta')}</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -322,10 +326,12 @@ function Card({
         {t('challenges.likeSum', { count: challenge.like_sum })} · {dDayLabel(challenge)}
       </Text>
 
-      <Pressable style={styles.performBtn} onPress={onPerform} accessibilityRole="button">
-        <Feather name="video" size={15} color="#FFFFFF" />
-        <Text style={styles.performText}>{t('challenges.performCta')}</Text>
-      </Pressable>
+      {canPerform(challenge) && (
+        <Pressable style={styles.performBtn} onPress={onPerform} accessibilityRole="button">
+          <Feather name="video" size={15} color="#FFFFFF" />
+          <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

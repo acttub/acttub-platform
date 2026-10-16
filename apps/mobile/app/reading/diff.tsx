@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
 import { DiffText } from '@/components/diff-text';
 import { latestRecordings } from '@/lib/reading/recording-plan';
@@ -52,17 +53,13 @@ export default function ReadingDiff() {
     return () => {
       mounted.current = false;
       off();
-      try {
-        playerRef.current?.remove();
-      } catch {}
+      disposeAudioPlayer(playerRef.current);
       playerRef.current = null;
     };
   }, [load]);
 
   const stop = () => {
-    try {
-      playerRef.current?.remove();
-    } catch {}
+    disposeAudioPlayer(playerRef.current);
     playerRef.current = null;
     setPlayingLine(null);
   };

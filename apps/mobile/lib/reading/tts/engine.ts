@@ -18,6 +18,7 @@
 import { File, Paths } from 'expo-file-system';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
+import { disposeAudioPlayer } from '../../audio-dispose.ts';
 import { currentLanguage, translate as t } from '../../i18n.ts';
 import { shouldStopCloudVoiceForSession } from '../cloud-voice.ts';
 import { normalizeFloatSamples } from '../loudness.ts';
@@ -230,11 +231,7 @@ export async function play(uri: string): Promise<void> {
         // 다 쓴 재생기는 바로 놓는다. 남겨 두면 다음 줄까지 상태 갱신이 계속 돌아 메모리가 찬다(0.1.2 안드로이드 OOM).
         // 사건 처리 도중에 놓지 않도록 한 박자 뒤에.
         player = null;
-        setTimeout(() => {
-          try {
-            current.remove();
-          } catch {}
-        }, 0);
+        setTimeout(() => disposeAudioPlayer(current), 0);
       }
       resolve();
     };
@@ -303,9 +300,7 @@ export function preview(preset: string): Promise<void> {
 export function stop() {
   playbackEpoch += 1;
   finishPlayback?.();
-  try {
-    player?.remove?.();
-  } catch {}
+  disposeAudioPlayer(player);
   player = null;
 }
 

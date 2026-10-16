@@ -40,6 +40,19 @@ export function isEnded(challenge: Pick<ChallengeCard, 'ends_at'>, now: number =
   return Number.isNaN(ends) ? false : ends <= now;
 }
 
+/** 참여(촬영)를 시작할 수 있나 — 종료된 챌린지는 서버가 422 challenge_closed 로 막으니 버튼도 길도 없앤다(SOMA-712). */
+export function canPerform(challenge: Pick<ChallengeCard, 'ends_at'>, now: number = Date.now()): boolean {
+  return !isEnded(challenge, now);
+}
+
+/** 상세 화면 제목 — 오늘의 챌린지로 뽑힌 진행 중 챌린지만 "오늘의 챌린지", 나머지는 "챌린지". */
+export function detailTitleKey(
+  challenge: Pick<ChallengeCard, 'ends_at' | 'featured_on'> | null,
+  now: number = Date.now(),
+): 'challenges.detailTitle' | 'challenges.title' {
+  return challenge?.featured_on && !isEnded(challenge, now) ? 'challenges.detailTitle' : 'challenges.title';
+}
+
 /** 진행 중이면 "D-N", 끝났으면 종료다. 마감 당일은 D-0 이 아니라 D-1 로 센다(남은 날). */
 export function dDayLabel(challenge: Pick<ChallengeCard, 'ends_at'>, now: number = Date.now()): string {
   if (isEnded(challenge, now)) return translate('challenges.ended');

@@ -73,6 +73,10 @@ public class UserProfileEntity {
     @Column(name = "age_band")
     private Integer ageBand;
 
+    /** 프로필을 처음 완성한 클라이언트 판(V44, 예: app/0.1.4). 처음 한 번만 적고 저장소 native SQL 이 쓴다. */
+    @Column(name = "signup_client")
+    private String signupClient;
+
     @Column(name = "notify_analysis_done", nullable = false)
     private boolean notifyAnalysisDone = true;
 
