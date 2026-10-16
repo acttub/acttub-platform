@@ -193,3 +193,51 @@ export async function submitConsentDecisions({
     };
   }
 }
+
+/**
+ * 가입 화면에 보이지 않는 선택 문서. 개인정보 수집·이용 동의 v9 부터 이 두 처리가 그 동의에 들어 있어(SOMA-726)
+ * 서버가 v9 동의자를 두 기능의 동의자로 본다. 가입 제출에서는 안 고른 선택 문서처럼 거절로 채워진다.
+ * (v9 이전 동의자는 기능 안 팝업 — use-cloud-voice, script_split_consent_required → R2.14 — 이 그대로 묻는다.)
+ */
+export const SIGNUP_DEFERRED_TYPES: readonly string[] = ['cloud_voice', 'script_split'];
+
+/** 광고성 정보 수신 동의. 가입 화면에서는 한 줄로 묶고, 그 아래에서 수단별로 고른다. */
+export const MARKETING_TYPES: readonly string[] = ['marketing_email', 'marketing_push'];
+
+export type SignupScreenLayout = {
+  /** 필수 문서(한 줄씩). */
+  required: ConsentDocument[];
+  /** 묶지 않는 선택 문서(한 줄씩). */
+  optional: ConsentDocument[];
+  /** 광고성 정보 수신 문서들. 한 줄로 보이고 아래에서 이메일·앱 푸시를 따로 고른다. */
+  marketing: ConsentDocument[];
+};
+
+/** 가입 화면의 줄 구성. 기능 안에서 묻는 선택 문서는 빼고, 광고성 정보 수신은 한 묶음으로 모은다. */
+export function signupScreenLayout(documents: readonly ConsentDocument[]): SignupScreenLayout {
+  const visible = documents.filter(
+    (d) => d.required || !SIGNUP_DEFERRED_TYPES.includes(d.type),
+  );
+  return {
+    required: visible.filter((d) => d.required),
+    optional: visible.filter((d) => !d.required && !MARKETING_TYPES.includes(d.type)),
+    marketing: visible.filter((d) => !d.required && MARKETING_TYPES.includes(d.type)),
+  };
+}
+
+/**
+ * 묶음 줄을 눌렀을 때. 묶음의 문서가 모두 동의 상태면 모두 비우고(=거절), 아니면 모두 동의한다.
+ * 다른 문서의 결정은 건드리지 않는다.
+ */
+export function toggleConsentGroup(
+  group: readonly ConsentDocument[],
+  choices: Readonly<Record<string, ConsentChoice>>,
+): Record<string, ConsentChoice> {
+  const allGranted = group.length > 0 && group.every((d) => choices[d.id] === 'granted');
+  const next = { ...choices };
+  for (const d of group) {
+    if (allGranted) delete next[d.id];
+    else next[d.id] = 'granted';
+  }
+  return next;
+}
