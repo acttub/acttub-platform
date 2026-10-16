@@ -27,6 +27,8 @@ const COPY = {
     flow: "서비스 흐름",
     result: "결과물",
     terms: "안전 약속",
+    pricing: "Pro 구독 안내",
+    refund: "해지·환불정책",
     app: "앱 다운로드",
     aiCoaching: "AI 연기 코칭",
     coaching: "연기 코칭 안내",
@@ -34,7 +36,7 @@ const COPY = {
   },
   hero: {
     launch: "앱 출시",
-    free: "AI 연기 코칭 · iOS · Android 무료",
+    free: "AI 연기 코칭 · 현재 무료 이용",
     titleFirst: "혼자 하는 연기 연습,",
     titleSecond: "질문 받으면서 해요",
     subFirst: "연기 영상을 올리면 AI 코치가 장면에 대해 물어봐요.",
@@ -175,6 +177,9 @@ export default function LandingClient() {
                 <a href="#result" className="transition hover:text-[#191f28]">
                   {COPY.nav.result}
                 </a>
+                <Link href="/pricing" className="transition hover:text-[#191f28]">
+                  {COPY.nav.pricing}
+                </Link>
                 <Link href="/terms" className="transition hover:text-[#191f28]">
                   {COPY.nav.terms}
                 </Link>
@@ -483,6 +488,12 @@ export default function LandingClient() {
                   <a href="#flow" className="transition hover:text-white">
                     {COPY.nav.flow}
                   </a>
+                  <Link href="/pricing" className="transition hover:text-white">
+                    {COPY.nav.pricing}
+                  </Link>
+                  <Link href="/refund" className="transition hover:text-white">
+                    {COPY.nav.refund}
+                  </Link>
                   <Link href="/terms" className="transition hover:text-white">
                     {COPY.nav.terms}
                   </Link>
