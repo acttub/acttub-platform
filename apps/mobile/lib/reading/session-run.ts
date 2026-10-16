@@ -97,6 +97,26 @@ export function back(run: RunState): RunState {
   return { ...moved, status: turnOf(moved) };
 }
 
+/**
+ * 리딩 중 줄 고치기(SOMA-728) — 고친 대본을 진행에 반영한다. 줄 id 는 그대로라 위치는 같은 줄이다. 그 줄이 대사가 아니게
+ * 되면 다음 대사로(없으면 앞 대사로, 그마저 없으면 끝). 대사가 아니게 된 줄의 말한 기록은 버린다 — 서버가 대사 줄이 아닌
+ * 결과를 422 로 거절해 진행 저장이 통째로 막힌다. 멈춘 상태는 그대로 두고, 재개할 때 차례를 새로 정한다.
+ */
+export function applyLineEdit(run: RunState, next: Pick<RunConfig, 'lines' | 'lineIds' | 'myRoles'>): RunState {
+  const said: Record<string, string> = {};
+  next.lineIds.forEach((id, i) => {
+    if (run.said[id] !== undefined && next.lines[i]?.type === 'dialogue') said[id] = run.said[id];
+  });
+  const base: RunState = { ...run, ...next, said };
+  if (run.status === 'done') return base;
+  let index = nextDialogue(next.lines, run.index, run.endIndex);
+  if (index < 0) index = prevDialogue(next.lines, run.index - 1, run.startIndex);
+  if (index < 0) return { ...base, index: run.endIndex + 1, status: 'done', resumeTo: null, leadInUntil: null };
+  const moved: RunState = { ...base, index };
+  if (run.status === 'paused') return { ...moved, resumeTo: null };
+  return { ...moved, status: turnOf(moved), resumeTo: null };
+}
+
 export function pause(run: RunState): RunState {
   if (run.status !== 'mine' && run.status !== 'partner') return run;
   return { ...run, status: 'paused', resumeTo: run.status };

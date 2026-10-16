@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
+import { LineEditSheet } from '@/components/line-edit-sheet';
 import { logEvent } from '@/lib/analytics';
 import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/use-reading-mic';
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
@@ -17,6 +18,7 @@ import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { currentNetworkType } from '@/lib/reading/network';
 import { speakableText } from '@/lib/reading/tts/speakable';
+import type { LineDraft } from '@/lib/reading/line-edit';
 import type { DialogueLine, ScriptLine } from '@/lib/reading/types';
 import { closeProgressQueue, openProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
@@ -26,6 +28,7 @@ import { buildStartBody, dialogueNumbers } from '@/lib/reading/session-plan';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import {
   advance,
+  applyLineEdit,
   back as backRun,
   canGoBack,
   createRun,
@@ -167,6 +170,9 @@ export default function ReadingPlay() {
   const [sttMode, setSttMode] = useState<SttPolicy | null>(null);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [different, setDifferent] = useState<DifferentView>({ kind: 'waiting' });
+  /** 리딩 중 줄 고치기(SOMA-728) — 고치는 줄과, 열기 전에 진행 중이었는지(닫으면 이어서 한다). */
+  const [editing, setEditing] = useState<{ lineId: string; draft: LineDraft } | null>(null);
+  const editResumes = useRef(false);
   const engineRef = useRef<PartnerVoiceEngine>('supertonic');
   const deviceVoiceRef = useRef(false);
   const tipHiddenRef = useRef(true);
@@ -767,6 +773,36 @@ export default function ReadingPlay() {
     setAttempt((a) => a + 1);
   };
 
+  /** 지금 대사 줄을 고친다 — 리딩을 멈추고 대본 전체와 같은 고치기 시트를 연다. */
+  const openLineEdit = () => {
+    const cur = runRef.current;
+    const line = cur?.lines[cur.index];
+    if (!cur || !script || line?.type !== 'dialogue') return;
+    editResumes.current = cur.status === 'mine' || cur.status === 'partner';
+    doPause();
+    const characterId = script.characters.find((c) => c.name === line.role)?.id ?? null;
+    setEditing({ lineId: cur.lineIds[cur.index], draft: { kind: 'dialogue', characterId, text: line.text } });
+  };
+
+  /** 시트를 닫으면 고친 대본을 진행에 반영하고, 진행 중이었으면 그 줄부터 이어서 한다. */
+  const closeLineEdit = (saved: boolean) => {
+    setEditing(null);
+    const cur = runRef.current;
+    const fresh = getCurrent();
+    if (saved && cur && fresh && session) {
+      const myRoles = fresh.characters.filter((c) => session.my_character_ids.includes(c.id)).map((c) => c.name);
+      const next = applyLineEdit(cur, { lines: fresh.lines, lineIds: fresh.lineIds, myRoles });
+      if (next.status === 'done') {
+        commit(next);
+        return;
+      }
+      runRef.current = next;
+      setRun(next);
+      queueRef.current?.push(progressPayload(next));
+    }
+    if (editResumes.current) doResume();
+  };
+
   const changeMask = (mode: MaskMode) => {
     setMaskMode(mode);
     void updateCurrent({ maskMode: mode });
@@ -1118,9 +1154,16 @@ export default function ReadingPlay() {
                 {(line as DialogueLine).role}
                 {myTurn ? ` · ${t('reading.myTurn')}` : ''}
               </Text>
-              <View style={styles.chip}>
-                {chip.icon === 'bars' ? <ListeningBars /> : <Feather name={chip.icon} size={14} color={myTurn ? palette.blueDeep : palette.textMuted} />}
-                <Text style={[styles.chipText, myTurn && styles.chipTextMine]}>{chip.label}</Text>
+              <View style={styles.cardHeadRight}>
+                <View style={styles.chip}>
+                  {chip.icon === 'bars' ? <ListeningBars /> : <Feather name={chip.icon} size={14} color={myTurn ? palette.blueDeep : palette.textMuted} />}
+                  <Text style={[styles.chipText, myTurn && styles.chipTextMine]}>{chip.label}</Text>
+                </View>
+                {hold !== 'tip' && (
+                  <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')}>
+                    <Feather name="edit-2" size={16} color={myTurn ? palette.blueDeep : palette.textMuted} />
+                  </Pressable>
+                )}
               </View>
             </View>
             {currentText === null ? (
@@ -1201,6 +1244,15 @@ export default function ReadingPlay() {
         )}
       </View>
 
+      {script && (
+        <LineEditSheet
+          scriptId={script.id}
+          lineId={editing?.lineId ?? null}
+          original={editing?.draft ?? null}
+          characters={script.characters}
+          onClose={closeLineEdit}
+        />
+      )}
       <Modal transparent statusBarTranslucent visible={hold === 'tip'} animationType="fade" onRequestClose={() => void closeTip(false)}>
         <View style={styles.backdrop}>
           <View style={styles.tipCard}>
@@ -1329,6 +1381,7 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   cardRole: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 13, flexShrink: 1 },
   cardRoleMine: { color: palette.blueDeep },
+  cardHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   chipText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   chipTextMine: { color: palette.blueDeep },
