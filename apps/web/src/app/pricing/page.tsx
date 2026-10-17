@@ -12,7 +12,7 @@ import { buildNoindexMetadata } from "@/lib/seo/site-metadata";
 export const metadata = buildNoindexMetadata("ACTTUB Pro 구독 안내");
 
 const FAQ = [
-  ["지금 결제되나요?", "아직 구독 신청과 결제를 받지 않아요. 유료 구독은 11월 도입을 준비하고 있고, 정확한 판매 시작일은 별도로 안내해요."],
+  ["지금 결제되나요?", "유료 결제는 11월 시작을 준비하고 있어요. 결제 시작 전에는 실제로 결제되지 않고, 정확한 시작일은 별도로 안내해요."],
   ["무료 이용자가 자동으로 유료가 되나요?", "현재 무료 이용자가 동의 없이 유료로 전환되지는 않아요."],
   ["해지하면 바로 Pro를 못 쓰나요?", "자동결제만 해지하면 현재 결제기간이 끝날 때까지 Pro를 이용할 수 있어요."],
   ["구독을 해지하면 회원 탈퇴가 되나요?", "구독 해지는 회원 탈퇴와 별개예요."],
@@ -23,8 +23,8 @@ export default function PricingPage() {
     <div className="min-h-dvh break-keep bg-[#f2f4f6] text-[#191f28]">
       <aside aria-labelledby="launch-title" className="bg-[#191f28] px-5 py-2.5 text-xs leading-5 text-[#d1d6db] sm:px-8">
         <div className="mx-auto max-w-6xl">
-          <span id="launch-title" className="mr-2 rounded-full bg-[#3182f6] px-2 py-0.5 text-[11px] font-black text-white">아직 결제를 받지 않아요</span>
-          아래 내용은 출시를 준비 중인 요금제예요. 현재 서비스는 기존 무료 이용 방식으로 제공하고 있으며, 아래 무료 한도와 Pro 전용 기능은 아직 적용하지 않았어요. 기능 준비 목표는 2026년 10월 22일이며, 유료 구독은 11월 도입을 준비하고 있어요. 기능 준비일은 결제 시작일이 아니에요. 정확한 판매 시작일은 별도로 안내해요.
+          <span id="launch-title" className="mr-2 rounded-full bg-[#3182f6] px-2 py-0.5 text-[11px] font-black text-white">결제 시작 안내</span>
+          유료 결제는 11월 시작을 준비하고 있어요. 그 전에는 실제로 결제되지 않고, 무료 한도도 아직 적용하지 않아요.
         </div>
       </aside>
       <ProTopBar backHref="/" backLabel="ACTTUB 홈" />
@@ -32,7 +32,7 @@ export default function PricingPage() {
         {/* 1. 히어로 */}
         <section className="mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-12 pt-4 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:pb-16">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm font-black text-[#3182f6] shadow-[0_6px_24px_rgba(49,130,246,0.1)]">ACTTUB Pro 구독 안내 · 출시 예정</p>
+            <p className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm font-black text-[#3182f6] shadow-[0_6px_24px_rgba(49,130,246,0.1)]">ACTTUB Pro 구독 안내</p>
             <h1 className="mt-5 text-[29px] font-black leading-[1.22] tracking-[-0.04em] sm:text-5xl lg:text-[56px]">
               혼자 하는 연기 연습을
               <br />
@@ -43,6 +43,7 @@ export default function PricingPage() {
             </div>
             <p className="mt-3 text-sm font-bold text-[#6b7684]">부가세 포함 · 결제일부터 1개월 · 매월 정기결제</p>
             <div className="mt-7 flex flex-wrap gap-3">
+              <Link href="/pg-review" className="inline-flex h-12 items-center rounded-2xl bg-[#3182f6] px-6 text-base font-black text-white shadow-[0_14px_34px_rgba(49,130,246,0.28)] transition hover:bg-[#1b64da]">Pro 구독하기</Link>
               <a href="#compare" className="inline-flex h-12 items-center rounded-2xl bg-[#191f28] px-6 text-base font-black text-white shadow-[0_14px_34px_rgba(25,31,40,0.18)] transition hover:bg-[#333d4b]">무료와 Pro 비교</a>
               <Link href="/refund" className="inline-flex h-12 items-center rounded-2xl border border-[#d1d6db] bg-white px-6 text-base font-black text-[#191f28] transition hover:bg-[#f9fafb]">해지·환불정책</Link>
             </div>
@@ -70,7 +71,6 @@ export default function PricingPage() {
             <div className="relative">
               <div className="flex items-center justify-between gap-3">
                 <h2 id="pro-title" className="text-2xl font-black">ACTTUB Pro</h2>
-                <span className="rounded-full bg-[#3182f6] px-3 py-1 text-xs font-black">출시 예정</span>
               </div>
               <p className="mt-4 flex flex-wrap items-baseline gap-x-2">
                 <span className="text-5xl font-black tracking-[-0.04em]">월 3,900원</span>
@@ -82,7 +82,8 @@ export default function PricingPage() {
                 <li className="flex gap-3"><CheckIcon className="mt-1 text-[#8fbfff]" />리딩에서 발음·딕션 피드백을 확인해요. 이 기능은 Pro 전용으로 준비 중이에요.</li>
                 <li className="flex gap-3"><CheckIcon className="mt-1 text-[#8fbfff]" />챌린지 참여작·댓글·프로필에 Pro 배지를 표시해요. 구독 표시이며 배우의 실력이나 자격을 인증하는 표시는 아니에요.</li>
               </ul>
-              <p className="mt-6 rounded-2xl bg-white/10 p-4 text-sm font-bold leading-6 text-[#d1d6db]">아직 구독 신청과 결제를 받지 않아요. 현재 무료 이용자가 동의 없이 유료로 전환되지는 않아요.</p>
+              <Link href="/pg-review" className="mt-7 flex h-14 w-full items-center justify-center rounded-2xl bg-white text-lg font-black text-[#191f28] transition hover:bg-[#f2f4f6]">Pro 구독하기</Link>
+              <p className="mt-3 text-sm font-bold leading-6 text-[#b0b8c1]">결제 시작 전에는 실제로 결제되지 않아요. 무료 이용자가 동의 없이 유료로 전환되지는 않아요.</p>
             </div>
           </section>
         </section>
