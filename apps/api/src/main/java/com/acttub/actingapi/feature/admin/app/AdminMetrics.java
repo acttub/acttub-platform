@@ -93,25 +93,31 @@ public final class AdminMetrics {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record AdminFeedbackItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"exit_survey", "note_rating"})
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = {"exit_survey", "note_rating", "reading_rating"})
             String kind,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String actor,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isTeam,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String body,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
-                    allowableValues = {"helpful", "not_helpful"})
+                    allowableValues = {"helpful", "not_helpful", "good", "bad"})
             String rating,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
                     allowableValues = {"answered", "dismissed"})
             String status,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"coach", "report", "practice_note"})
+                    allowableValues = {"coach", "report", "practice_note", "reading"})
             String source,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
                     allowableValues = {"x", "leave", "back"})
             String trigger,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID practiceId) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID practiceId,
+            // 리딩 평가(reading_rating)만 채운다. 대본·대사는 회차 상세(/v2/admin/reading-sessions/{id})에서 읽는다.
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID readingSessionId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, allowableValues = {"read", "quiz"})
+            String readingMode,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Boolean readingRecord) {
     }
 
     @Schema(name = "AdminFeedbackPage", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

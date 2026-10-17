@@ -292,9 +292,10 @@ class AdminController {
     @Operation(
             summary = "Feedback",
             description = """
-                    이탈 설문과 연습 노트 평가를 최신순으로 합쳐 읽는다. 기본적으로 팀 이메일과
+                    이탈 설문과 연습 노트 평가, 리딩 회차 평가를 최신순으로 합쳐 읽는다. 기본적으로 팀 이메일과
                     exclude_actors 가 가리키는 배우는 제외한다. include_team=true 면 팀 테스트도 함께 보되
-                    is_team 으로 표시한다. 연락처·원본 user id·이메일은 응답하지 않는다.""",
+                    is_team 으로 표시한다. 연락처·원본 user id·이메일은 응답하지 않는다. 리딩 평가는 회차 id만
+                    싣고 대본·대사는 /v2/admin/reading-sessions/{id} 에서만 읽는다.""",
             operationId = "feedback_v2_admin_feedback_get",
             tags = "admin")
     @ApiResponses({
