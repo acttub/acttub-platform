@@ -1365,6 +1365,19 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   요구한다(426). 날짜 칸은 `YYYY-MM-DD` 문자열(`format: date`)이다. 검증은 `AuditionEndpointIT`·`AuditionDisabledIT`·
   `AuditionServiceTest`·`AuditionParsersTest`(fixture 는 `src/test/resources/audition`, 실제 목록을 잘라 작성자를 가짜로 바꾼 것).
 
+### 6-27. 운영용 챌린지 참여작 댓글
+
+- `GET /v2/admin/challenge-comments?limit=100&exclude_actors=…`는 `limit` 1~200, 기본 100이다. 응답은 `comments`와
+  그 묶음의 크기인 `count`다. 챌린지 참여작에 달린 댓글을 `created_at` 최신 순으로 싣는다.
+- 각 행은 `id`(댓글 UUID)·`entry_id`(참여작 UUID, §6-21 목록의 `id`와 같다)·`entry_actor`·`entry_is_team`·
+  `entry_visibility`·`challenge_ref`(`md5(challenge_id)` 앞 8자리)·`actor`(작성자 `md5(user_id)` 앞 8자리)·
+  `actor_is_team`·`body`·`status`(`visible|hidden`)·`created_at`이다.
+- 댓글은 앱에서 다른 배우에게 보이는 글이라 본문을 싣는다(§6-21 참여작 목록과 다르다). user UUID·이메일·캡션·대사·
+  영상 정보는 싣지 않는다. 지워진 댓글·삭제된 참여작·삭제된 챌린지의 댓글은 뺀다.
+- 팀(`ADMIN_OPS_EXCLUDE_EMAILS`·`exclude_actors`)이 쓴 댓글과 팀 참여작의 댓글도 빼지 않고 `actor_is_team`·
+  `entry_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은 `Cache-Control: private, no-store`다.
+  live 운영 조회 전용이며, 저장되는 `ops-core`에는 댓글 본문을 넣지 않는다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로
