@@ -173,6 +173,11 @@ public class AdminService {
         return new AdminChallengeVideoPage(entries, entries.size());
     }
 
+    public AdminMetrics.AdminChallengeCommentPage challengeComments(int limit, List<String> excludeActors) {
+        List<AdminMetrics.AdminChallengeComment> rows = metrics.challengeComments(limit, excludeEmails, excludeActors);
+        return new AdminMetrics.AdminChallengeCommentPage(rows, rows.size());
+    }
+
     public AdminChallengePlayback challengeVideoPlayback(UUID entryId, List<String> excludeActors) {
         String objectKey = metrics.challengeVideoObjectKey(entryId, excludeEmails, excludeActors)
                 .orElseThrow(() -> new ApiException(404, "challenge_video_not_found"));
