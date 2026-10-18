@@ -25,6 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminActorNames;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSessions;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
@@ -65,6 +67,7 @@ class AdminController {
     private static final int MAX_FEEDBACK = 100;
     private static final int MAX_CHALLENGE_VIDEOS = 100;
     private static final int MAX_CHALLENGES = 100;
+    private static final int MAX_CHALLENGE_COMMENTS = 200;
     private static final int MAX_READING_SESSIONS = 100;
     /** 한 묶음이 한 트랜잭션이다 — 너무 크면 그 트랜잭션이 길어진다. */
     private static final int MAX_BATCH = 1000;
@@ -290,6 +293,27 @@ class AdminController {
     }
 
     @Operation(
+            summary = "Actor Names",
+            description = """
+                    ops 화면에서 사람을 이름으로 찾기 위한 가명(md5(user_id) 앞 8자리) → 프로필 이름 표다.
+                    이름이 있는 활성 계정만 가명순으로 낸다. 이메일·user id 는 응답하지 않는다. ops 는 이 값을
+                    저장소·스냅샷에 남기지 않고 볼 때만 받아 쓴다.""",
+            operationId = "actor_names_v2_admin_actor_names_get",
+            tags = "admin")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = AdminActorNames.class)))
+    })
+    @GetMapping("/actor-names")
+    ResponseEntity<AdminActorNames> actorNames(
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        return privateNoStore(admin.actorNames());
+    }
+
+    @Operation(
             summary = "Feedback",
             description = """
                     이탈 설문과 연습 노트 평가, 리딩 회차 평가를 최신순으로 합쳐 읽는다. 기본적으로 팀 이메일과
@@ -368,6 +392,42 @@ class AdminController {
                 limit,
                 parseActors(rawExcludeActors),
                 parseVisibility(rawVisibility)));
+    }
+
+    @Operation(
+            summary = "List Challenge Comments",
+            description = """
+                    챌린지 참여작에 달린 댓글을 최근 순으로 읽는다. 댓글은 앱에서 보이는 글이라 본문을 싣지만
+                    작성자·참여작 주인은 가명뿐이다. 팀 댓글·팀 참여작 댓글도 빼지 않고 actor_is_team·entry_is_team 으로
+                    표시한다. 지워진 댓글·삭제된 참여작·삭제된 챌린지는 뺀다. live 운영 조회 전용이다.""",
+            operationId = "list_challenge_comments_v2_admin_challenge_comments_get",
+            tags = "admin")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = AdminMetrics.AdminChallengeCommentPage.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @GetMapping("/challenge-comments")
+    ResponseEntity<AdminMetrics.AdminChallengeCommentPage> challengeComments(
+            @Parameter(schema = @Schema(
+                    type = "integer",
+                    minimum = "1",
+                    maximum = "200",
+                    exclusiveMinimum = false,
+                    exclusiveMaximum = false,
+                    defaultValue = "100"))
+            @RequestParam(name = "limit", defaultValue = "100") String rawLimit,
+            @Parameter(description = "팀으로 볼 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        int limit = bounded(rawLimit, "limit", MAX_CHALLENGE_COMMENTS);
+        return privateNoStore(admin.challengeComments(limit, parseActors(rawExcludeActors)));
     }
 
     @Operation(

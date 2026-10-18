@@ -81,6 +81,20 @@ public final class AdminMetrics {
             String coachFlow) {
     }
 
+    /** ops 화면 검색용 가명(md5(user_id) 앞 8자리) → 프로필 이름. 이메일·user id 는 싣지 않는다. */
+    @Schema(name = "AdminActorName", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminActorName(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String actor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name) {
+    }
+
+    @Schema(name = "AdminActorNames", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminActorNames(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminActorName> actors) {
+    }
+
     @Schema(name = "AdminAdvisorSessions", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record AdminAdvisorSessions(
@@ -185,6 +199,36 @@ public final class AdminMetrics {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record AdminChallengeVideoPage(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminChallengeVideo> entries,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int count) {
+    }
+
+    /**
+     * 운영 화면의 챌린지 참여작 댓글 한 줄. 댓글은 앱에서 다른 배우에게 보이는 글이라 본문을 싣는다.
+     * 작성자·참여작 주인은 가명(md5 앞 8자리)뿐이고 팀 여부는 플래그로만 알린다. 지워진 댓글은 싣지 않는다.
+     * live 운영 조회 전용이다 — 저장본(ops-core)에는 본문을 넣지 않는다.
+     */
+    @Schema(name = "AdminChallengeComment", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminChallengeComment(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID entryId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$") String entryActor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean entryIsTeam,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"public", "private"})
+            String entryVisibility,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$") String challengeRef,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$") String actor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean actorIsTeam,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String body,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"visible", "hidden"})
+            String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt) {
+    }
+
+    @Schema(name = "AdminChallengeCommentPage", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminChallengeCommentPage(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminChallengeComment> comments,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int count) {
     }
 

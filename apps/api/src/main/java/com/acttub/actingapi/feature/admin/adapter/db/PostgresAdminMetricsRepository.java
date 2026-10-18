@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallenge;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
@@ -159,6 +160,25 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         turnsBySession.getOrDefault(row.coachSessionId(), List.of()),
                         row.objectKey(),
                         row.coachFlow()))
+                .toList();
+    }
+
+    @Override
+    public List<AdminMetrics.AdminActorName> actorNames() {
+        return list(entityManager.createNativeQuery("""
+                SELECT
+                    left(md5(CAST(app_user.id AS text)), 8) AS actor,
+                    btrim(profile.name) AS name
+                FROM users AS app_user
+                JOIN user_profiles AS profile
+                  ON profile.user_id = app_user.id
+                WHERE app_user.deactivated_at IS NULL
+                  AND app_user.retention_purged_at IS NULL
+                  AND NULLIF(btrim(profile.name), '') IS NOT NULL
+                ORDER BY actor
+                """, Tuple.class)).stream()
+                .map(row -> new AdminMetrics.AdminActorName(
+                        row.get("actor", String.class), row.get("name", String.class)))
                 .toList();
     }
 
@@ -524,6 +544,60 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.get("challenge_kind", String.class),
                         row.get("challenge_ref", String.class),
                         row.get("has_video", Boolean.class)))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdminMetrics.AdminChallengeComment> challengeComments(
+            int limit,
+            List<String> excludeEmails,
+            List<String> excludeActors) {
+        return list(entityManager.createNativeQuery("""
+                WITH team AS (
+                    SELECT id FROM users
+                    WHERE lower(COALESCE(email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                       OR left(md5(CAST(id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                )
+                SELECT
+                    comment.id,
+                    comment.entry_id,
+                    left(md5(CAST(entry.user_id AS text)), 8) AS entry_actor,
+                    (entry.user_id IN (SELECT id FROM team)) AS entry_is_team,
+                    entry.visibility AS entry_visibility,
+                    left(md5(CAST(entry.challenge_id AS text)), 8) AS challenge_ref,
+                    left(md5(CAST(comment.user_id AS text)), 8) AS actor,
+                    (comment.user_id IN (SELECT id FROM team)) AS actor_is_team,
+                    comment.body,
+                    comment.status,
+                    comment.created_at
+                FROM entry_comments AS comment
+                JOIN challenge_entries AS entry ON entry.id=comment.entry_id
+                JOIN challenges AS challenge ON challenge.id=entry.challenge_id
+                WHERE comment.deleted_at IS NULL
+                  AND comment.body IS NOT NULL
+                  AND entry.deleted_at IS NULL
+                  AND entry.status<>'deleted'
+                  AND challenge.deleted_at IS NULL
+                ORDER BY comment.created_at DESC, comment.id DESC
+                LIMIT :limit
+                """, Tuple.class)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors))
+                .setParameter("limit", limit)).stream()
+                .map(Tuple.class::cast)
+                .map(row -> new AdminMetrics.AdminChallengeComment(
+                        row.get("id", UUID.class),
+                        row.get("entry_id", UUID.class),
+                        row.get("entry_actor", String.class),
+                        row.get("entry_is_team", Boolean.class),
+                        row.get("entry_visibility", String.class),
+                        row.get("challenge_ref", String.class),
+                        row.get("actor", String.class),
+                        row.get("actor_is_team", Boolean.class),
+                        row.get("body", String.class),
+                        row.get("status", String.class),
+                        row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC)))
                 .toList();
     }
 

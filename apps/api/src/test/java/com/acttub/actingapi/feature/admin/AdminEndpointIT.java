@@ -655,6 +655,76 @@ class AdminEndpointIT {
     }
 
     @Test
+    void challengeCommentsListLiveCommentsWithTeamFlagsAndPseudonyms() throws Exception {
+        RecordingInspector.STATEMENTS.get().clear();
+        assertThat(json(mvc.perform(get("/v2/admin/challenge-comments")), 401))
+                .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(RecordingInspector.STATEMENTS.get()).isEmpty();
+
+        UUID challenge = insertChallenge("member", null);
+        UUID deletedChallenge = insertChallenge("member", NOW.minusMinutes(1));
+        UUID realEntry = insertChallengeEntry(challenge, REAL_USER, "a.mp4", "캡션 비밀", "public", "visible",
+                NOW.minusMinutes(50), null);
+        UUID teamEntry = insertChallengeEntry(challenge, TEAM_USER, "b.mp4", null, "private", "visible",
+                NOW.minusMinutes(40), null);
+        UUID deletedEntry = insertChallengeEntry(challenge, REAL_USER, null, null, "private", "deleted",
+                NOW.minusMinutes(30), NOW.minusMinutes(30));
+        UUID onDeletedChallenge = insertChallengeEntry(deletedChallenge, REAL_USER, "c.mp4", null, "public",
+                "visible", NOW.minusMinutes(30), null);
+
+        UUID teamOnReal = insertEntryComment(realEntry, TEAM_USER, "팀 응원 댓글", "visible", NOW.minusMinutes(20), null);
+        UUID realOnTeam = insertEntryComment(teamEntry, REAL_USER, "배우 댓글", "hidden", NOW.minusMinutes(10), null);
+        UUID removed = insertEntryComment(realEntry, REAL_USER, null, "visible", NOW.minusMinutes(5), NOW.minusMinutes(5));
+        UUID onDeleted = insertEntryComment(deletedEntry, TEAM_USER, "지운 참여작 댓글", "visible", NOW.minusMinutes(4), null);
+        UUID onGone = insertEntryComment(onDeletedChallenge, TEAM_USER, "지운 챌린지 댓글", "visible", NOW.minusMinutes(3), null);
+
+        var result = mvc.perform(get("/v2/admin/challenge-comments")
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(result.getStatus()).isEqualTo(200);
+        assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        JsonNode page = mapper.readTree(result.getContentAsString(StandardCharsets.UTF_8));
+        assertThat(page.path("count").intValue()).isEqualTo(2);
+        JsonNode rows = page.path("comments");
+        assertThat(rows).hasSize(2);
+
+        String realActor = md5(REAL_USER.toString()).substring(0, 8);
+        String teamActor = md5(TEAM_USER.toString()).substring(0, 8);
+        JsonNode first = rows.get(0);
+        assertThat(first.fieldNames()).toIterable().containsExactly(
+                "id", "entry_id", "entry_actor", "entry_is_team", "entry_visibility", "challenge_ref",
+                "actor", "actor_is_team", "body", "status", "created_at");
+        assertThat(first.path("id").textValue()).isEqualTo(realOnTeam.toString());
+        assertThat(first.path("entry_id").textValue()).isEqualTo(teamEntry.toString());
+        assertThat(first.path("entry_actor").textValue()).isEqualTo(teamActor);
+        assertThat(first.path("entry_is_team").booleanValue()).isTrue();
+        assertThat(first.path("entry_visibility").textValue()).isEqualTo("private");
+        assertThat(first.path("challenge_ref").textValue()).isEqualTo(md5(challenge.toString()).substring(0, 8));
+        assertThat(first.path("actor").textValue()).isEqualTo(realActor);
+        assertThat(first.path("actor_is_team").booleanValue()).isFalse();
+        assertThat(first.path("body").textValue()).isEqualTo("배우 댓글");
+        assertThat(first.path("status").textValue()).isEqualTo("hidden");
+
+        JsonNode second = rows.get(1);
+        assertThat(second.path("id").textValue()).isEqualTo(teamOnReal.toString());
+        assertThat(second.path("entry_is_team").booleanValue()).isFalse();
+        assertThat(second.path("actor_is_team").booleanValue()).isTrue();
+        assertThat(second.path("body").textValue()).isEqualTo("팀 응원 댓글");
+
+        assertThat(page.toString()).doesNotContain(
+                removed.toString(), onDeleted.toString(), onGone.toString(), REAL_USER.toString(),
+                TEAM_USER.toString(), "actor@example.com", "Team@Acttub.com", "캡션 비밀", "a.mp4",
+                "챌린지 대사 비밀");
+
+        JsonNode excluded = authorized("/v2/admin/challenge-comments?exclude_actors=" + realActor, 200);
+        assertThat(excluded.at("/comments/0/actor_is_team").booleanValue()).isTrue();
+        assertThat(authorized("/v2/admin/challenge-comments?limit=1", 200).path("comments")).hasSize(1);
+        assertThat(authorized("/v2/admin/challenge-comments?limit=0", 422).at("/detail/0/type").textValue())
+                .isEqualTo("greater_than_equal");
+        assertThat(authorized("/v2/admin/challenge-comments?limit=201", 422).at("/detail/0/type").textValue())
+                .isEqualTo("less_than_equal");
+    }
+
+    @Test
     void challengeVideoFiltersUseBoundedValidation() throws Exception {
         assertThat(authorized("/v2/admin/challenge-videos?limit=0", 422).at("/detail/0/type").textValue())
                 .isEqualTo("greater_than_equal");
@@ -1305,6 +1375,40 @@ class AdminEndpointIT {
                 "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
     }
 
+    /** ops 이름 검색: 가명 → 프로필 이름. 이름 없는·탈퇴 계정은 빠지고 이메일·user id 는 없다. */
+    @Test
+    void actorNamesMapPseudonymToProfileNameOnlyForActiveNamedAccounts() throws Exception {
+        jdbc.update("""
+                INSERT INTO user_profiles (user_id,name,birth_date,experience,goal,bio)
+                VALUES (?,'  홍길동 ','2001-02-03','exam_prep','audition','소개 글')
+                """, REAL_USER);
+        jdbc.update("""
+                INSERT INTO user_profiles (user_id,name,birth_date,experience,goal,bio)
+                VALUES (?,'   ','2001-02-03','exam_prep','audition','소개 글')
+                """, TEAM_USER);
+        UUID closed = UUID.randomUUID();
+        insertUser(closed, "closed-name@example.com", NOW.minusHours(3));
+        jdbc.update("""
+                INSERT INTO user_profiles (user_id,name,birth_date,experience,goal,bio)
+                VALUES (?,'탈퇴자','2001-02-03','exam_prep','audition','소개 글')
+                """, closed);
+        jdbc.update("UPDATE users SET deactivated_at=? WHERE id=?",
+                NOW, closed);
+
+        var result = mvc.perform(get("/v2/admin/actor-names")
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(result.getStatus()).isEqualTo(200);
+        assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        String body = result.getContentAsString();
+        JsonNode actors = mapper.readTree(body).path("actors");
+        assertThat(actors).hasSize(1);
+        assertThat(actors.get(0).path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(actors.get(0).path("name").textValue()).isEqualTo("홍길동");
+        assertThat(body).doesNotContain("example.com", REAL_USER.toString(), "탈퇴자", "2001-02-03", "소개 글");
+        assertThat(mvc.perform(get("/v2/admin/actor-names")).andReturn().getResponse().getStatus())
+                .isEqualTo(401);
+    }
+
     /** 가입 코호트 원장의 프로필 칸(SOMA-632): 값 이름만 싣고, 방향은 정렬된 배열이며 이름·생년월일·소개 글은 없다. */
     @Test
     void opsCoreSignupRowsCarryProfileChoicesWithoutPersonalFields() throws Exception {
@@ -1886,6 +1990,17 @@ class AdminEndpointIT {
         return entry;
     }
 
+    private UUID insertEntryComment(
+            UUID entryId, UUID userId, String body, String status, OffsetDateTime createdAt, OffsetDateTime deletedAt) {
+        UUID comment = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO entry_comments (
+                    id,entry_id,user_id,body,status,request_id,request_fingerprint,created_at,deleted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, comment, entryId, userId, body, status, UUID.randomUUID(), "f".repeat(64), createdAt, deletedAt);
+        return comment;
+    }
+
     private ReadingFixture insertReading(
             UUID userId,
             UUID sessionId,
@@ -1998,11 +2113,13 @@ class AdminEndpointIT {
             }
         });
         assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/advisor-sessions",
+                "/v2/admin/actor-names",
                 "/v2/admin/ops-core",
                 "/v2/admin/feedback", "/v2/admin/practice-migration",
                 "/v2/admin/challenges", "/v2/admin/challenges/{id}/moderation",
                 "/v2/admin/reports", "/v2/admin/reports/{id}",
                 "/v2/admin/challenge-videos", "/v2/admin/challenge-videos/{id}/playback",
+                "/v2/admin/challenge-comments",
                 "/v2/admin/upload-only-videos/{id}/playback",
                 "/v2/admin/reading-sessions", "/v2/admin/reading-sessions/{id}",
                 "/v2/admin/reading-recordings/{id}/playback",
