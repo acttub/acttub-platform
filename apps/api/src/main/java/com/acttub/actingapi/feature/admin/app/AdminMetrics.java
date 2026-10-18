@@ -202,6 +202,36 @@ public final class AdminMetrics {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int count) {
     }
 
+    /**
+     * 운영 화면의 챌린지 참여작 댓글 한 줄. 댓글은 앱에서 다른 배우에게 보이는 글이라 본문을 싣는다.
+     * 작성자·참여작 주인은 가명(md5 앞 8자리)뿐이고 팀 여부는 플래그로만 알린다. 지워진 댓글은 싣지 않는다.
+     * live 운영 조회 전용이다 — 저장본(ops-core)에는 본문을 넣지 않는다.
+     */
+    @Schema(name = "AdminChallengeComment", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminChallengeComment(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID entryId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$") String entryActor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean entryIsTeam,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"public", "private"})
+            String entryVisibility,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$") String challengeRef,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$") String actor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean actorIsTeam,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String body,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"visible", "hidden"})
+            String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt) {
+    }
+
+    @Schema(name = "AdminChallengeCommentPage", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminChallengeCommentPage(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminChallengeComment> comments,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int count) {
+    }
+
     @Schema(name = "AdminChallengePlayback", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record AdminChallengePlayback(
