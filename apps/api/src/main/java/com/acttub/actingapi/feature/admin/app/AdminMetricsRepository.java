@@ -81,6 +81,15 @@ public interface AdminMetricsRepository {
             List<String> excludeActors,
             String visibility);
 
+    /**
+     * 챌린지 참여작에 달린 댓글을 최근 순으로. 지워진 댓글·삭제된 참여작·삭제된 챌린지는 뺀다.
+     * 팀(팀 이메일·exclude_actors)의 댓글과 팀 참여작의 댓글도 빼지 않고 플래그로 알린다.
+     */
+    List<AdminMetrics.AdminChallengeComment> challengeComments(
+            int limit,
+            List<String> excludeEmails,
+            List<String> excludeActors);
+
     /** 재생이 허용된 참여작의 오브젝트 키. 없음·팀·삭제·파기된 영상은 모두 빈 값이다. */
     Optional<String> challengeVideoObjectKey(
             UUID entryId,
