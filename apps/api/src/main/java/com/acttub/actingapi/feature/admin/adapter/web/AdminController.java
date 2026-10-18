@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminActorNames;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSessions;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
@@ -287,6 +288,27 @@ class AdminController {
         requireToken(authorization);
         int limit = bounded(rawLimit, "limit", MAX_ADVISOR_SESSIONS);
         return privateNoStore(admin.advisorSessions(limit));
+    }
+
+    @Operation(
+            summary = "Actor Names",
+            description = """
+                    ops 화면에서 사람을 이름으로 찾기 위한 가명(md5(user_id) 앞 8자리) → 프로필 이름 표다.
+                    이름이 있는 활성 계정만 가명순으로 낸다. 이메일·user id 는 응답하지 않는다. ops 는 이 값을
+                    저장소·스냅샷에 남기지 않고 볼 때만 받아 쓴다.""",
+            operationId = "actor_names_v2_admin_actor_names_get",
+            tags = "admin")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = AdminActorNames.class)))
+    })
+    @GetMapping("/actor-names")
+    ResponseEntity<AdminActorNames> actorNames(
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        return privateNoStore(admin.actorNames());
     }
 
     @Operation(
