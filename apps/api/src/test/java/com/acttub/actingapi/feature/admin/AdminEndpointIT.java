@@ -1305,6 +1305,40 @@ class AdminEndpointIT {
                 "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
     }
 
+    /** ops 이름 검색: 가명 → 프로필 이름. 이름 없는·탈퇴 계정은 빠지고 이메일·user id 는 없다. */
+    @Test
+    void actorNamesMapPseudonymToProfileNameOnlyForActiveNamedAccounts() throws Exception {
+        jdbc.update("""
+                INSERT INTO user_profiles (user_id,name,birth_date,experience,goal,bio)
+                VALUES (?,'  홍길동 ','2001-02-03','exam_prep','audition','소개 글')
+                """, REAL_USER);
+        jdbc.update("""
+                INSERT INTO user_profiles (user_id,name,birth_date,experience,goal,bio)
+                VALUES (?,'   ','2001-02-03','exam_prep','audition','소개 글')
+                """, TEAM_USER);
+        UUID closed = UUID.randomUUID();
+        insertUser(closed, "closed-name@example.com", NOW.minusHours(3));
+        jdbc.update("""
+                INSERT INTO user_profiles (user_id,name,birth_date,experience,goal,bio)
+                VALUES (?,'탈퇴자','2001-02-03','exam_prep','audition','소개 글')
+                """, closed);
+        jdbc.update("UPDATE users SET deactivated_at=? WHERE id=?",
+                NOW, closed);
+
+        var result = mvc.perform(get("/v2/admin/actor-names")
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(result.getStatus()).isEqualTo(200);
+        assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        String body = result.getContentAsString();
+        JsonNode actors = mapper.readTree(body).path("actors");
+        assertThat(actors).hasSize(1);
+        assertThat(actors.get(0).path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(actors.get(0).path("name").textValue()).isEqualTo("홍길동");
+        assertThat(body).doesNotContain("example.com", REAL_USER.toString(), "탈퇴자", "2001-02-03", "소개 글");
+        assertThat(mvc.perform(get("/v2/admin/actor-names")).andReturn().getResponse().getStatus())
+                .isEqualTo(401);
+    }
+
     /** 가입 코호트 원장의 프로필 칸(SOMA-632): 값 이름만 싣고, 방향은 정렬된 배열이며 이름·생년월일·소개 글은 없다. */
     @Test
     void opsCoreSignupRowsCarryProfileChoicesWithoutPersonalFields() throws Exception {
@@ -1998,6 +2032,7 @@ class AdminEndpointIT {
             }
         });
         assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/advisor-sessions",
+                "/v2/admin/actor-names",
                 "/v2/admin/ops-core",
                 "/v2/admin/feedback", "/v2/admin/practice-migration",
                 "/v2/admin/challenges", "/v2/admin/challenges/{id}/moderation",

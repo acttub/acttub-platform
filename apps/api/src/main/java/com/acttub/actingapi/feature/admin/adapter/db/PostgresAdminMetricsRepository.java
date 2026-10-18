@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallenge;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
@@ -159,6 +160,25 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         turnsBySession.getOrDefault(row.coachSessionId(), List.of()),
                         row.objectKey(),
                         row.coachFlow()))
+                .toList();
+    }
+
+    @Override
+    public List<AdminMetrics.AdminActorName> actorNames() {
+        return list(entityManager.createNativeQuery("""
+                SELECT
+                    left(md5(CAST(app_user.id AS text)), 8) AS actor,
+                    btrim(profile.name) AS name
+                FROM users AS app_user
+                JOIN user_profiles AS profile
+                  ON profile.user_id = app_user.id
+                WHERE app_user.deactivated_at IS NULL
+                  AND app_user.retention_purged_at IS NULL
+                  AND NULLIF(btrim(profile.name), '') IS NOT NULL
+                ORDER BY actor
+                """, Tuple.class)).stream()
+                .map(row -> new AdminMetrics.AdminActorName(
+                        row.get("actor", String.class), row.get("name", String.class)))
                 .toList();
     }
 

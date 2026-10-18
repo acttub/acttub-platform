@@ -81,6 +81,20 @@ public final class AdminMetrics {
             String coachFlow) {
     }
 
+    /** ops 화면 검색용 가명(md5(user_id) 앞 8자리) → 프로필 이름. 이메일·user id 는 싣지 않는다. */
+    @Schema(name = "AdminActorName", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminActorName(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String actor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name) {
+    }
+
+    @Schema(name = "AdminActorNames", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminActorNames(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminActorName> actors) {
+    }
+
     @Schema(name = "AdminAdvisorSessions", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record AdminAdvisorSessions(
