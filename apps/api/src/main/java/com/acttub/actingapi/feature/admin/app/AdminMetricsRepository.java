@@ -38,6 +38,12 @@ public interface AdminMetricsRepository {
      */
     List<AdvisorSessionRow> advisorSessions(int limit, java.util.Set<String> advisorEmailHashes);
 
+    /**
+     * ops 화면에서 사람을 이름으로 찾기 위한 가명 → 프로필 이름 표. 이름이 있는 활성 계정만, 가명순.
+     * 탈퇴·보존기간 만료 계정은 넣지 않는다. 이메일·user id 는 projection 에 넣지 않는다.
+     */
+    List<AdminMetrics.AdminActorName> actorNames();
+
     /** 자문단 대화 한 건과 그 영상의 오브젝트 키(지워졌거나 없으면 null). 재생 주소는 서비스가 만든다. */
     record AdvisorSessionRow(AdminMetrics.AdminAdvisorSession session, String objectKey) {
     }

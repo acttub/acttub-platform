@@ -121,6 +121,11 @@ public class AdminService {
         }
     }
 
+    /** ops 검색용 가명 → 프로필 이름. 이름이 있는 활성 계정만. */
+    public AdminMetrics.AdminActorNames actorNames() {
+        return new AdminMetrics.AdminActorNames(metrics.actorNames());
+    }
+
     /** 자문위원 계정의 코치 대화만, 최신순. 영상은 세션 목록과 같은 1시간 재생 주소를 붙인다. */
     public AdminAdvisorSessions advisorSessions(int limit) {
         List<AdminAdvisorSession> sessions = new ArrayList<>();
