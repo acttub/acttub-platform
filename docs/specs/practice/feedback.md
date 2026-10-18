@@ -26,7 +26,7 @@
 | `GET /v2/me/practice-feedback/status` | — | `PracticeFeedbackStatus` 200(asked, asked_now false) | — |
 | `POST /v2/me/practice-feedback/claim` | — | `PracticeFeedbackStatus` 200, 선점한 기기만 asked_now true | — |
 | `POST /v2/practice-feedback` | 필수 `request_id`·`screen`(coach·report)·`trigger`(x·leave·back), 선택 `practice_id`·`body`(없으면 dismissed)·`contact_email`·`contact_phone` (`PracticeFeedbackRequest`) | `PracticeFeedbackResponse` 201, 재전송 200 | `feedback_body_required` 422(공백뿐인 본문), 길이 초과 422(배열), `practice_not_found` 404, `account_deactivated` 403 |
-| `GET /v2/admin/feedback` (운영, `ADMIN_OPS_TOKEN`) | 선택 `limit`(1~100, 기본 50)·`exclude_actors`(팀으로 볼 배우 가명, 쉼표)·`include_team` | `AdminFeedbackPage` 200(`{items, limit, has_more}`). 이탈 설문과 노트 평가(practice.note)를 최신순 한 목록으로 | 토큰이 다르면 401, 값 오류 422(배열) |
+| `GET /v2/admin/feedback` (운영, `ADMIN_OPS_TOKEN`) | 선택 `limit`(1~100, 기본 50)·`exclude_actors`(팀으로 볼 배우 가명, 쉼표)·`include_team` | `AdminFeedbackPage` 200(`{items, limit, has_more}`). 이탈 설문과 노트 평가(practice.note), 리딩 회차 평가(reading.session, `kind=reading_rating`·`source=reading`·`rating` good·bad)를 최신순 한 목록으로. 리딩 평가는 마지막으로 고친 시각으로 줄을 서고 `reading_session_id`·`reading_mode`·`reading_record`만 싣는다(다른 종류는 셋 다 null). 대본·대사는 `GET /v2/admin/reading-sessions/{id}`에서만 읽는다 | 토큰이 다르면 401, 값 오류 422(배열) |
 | `ExitSurveySyncScheduler.run` (`EXIT_SURVEY_SYNC_INTERVAL_MS`, 기본 하루) | sheet_synced_at 없는 행, 90일 지난 연락처 | 시트 전송 뒤 sheet_synced_at, 연락처 NULL·sheet_seq +1 | 전송 실패는 NULL로 두고 다음 실행에 다시 보낸다 |
 
 ## 상태
