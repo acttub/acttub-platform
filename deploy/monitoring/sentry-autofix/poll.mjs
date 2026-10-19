@@ -15,9 +15,10 @@ const DAILY_LIMIT = 3;
 const DAY_MS = 86_400_000;
 const REGRESS_COOLDOWN_MS = 7 * DAY_MS;
 const RUN_TIMEOUT_MS = 60 * 60_000;
+// Mac mini의 RTK 훅이 명령을 `rtk <명령>`으로 바꾸므로 두 모양을 다 허용한다.
 const TOOLS = [
   "Read", "Grep", "Glob", "Edit", "Write",
-  "Bash(git:*)", "Bash(./gradlew:*)", "Bash(pnpm:*)", "Bash(gh pr create:*)", "Bash(gh pr view:*)",
+  ...["git", "./gradlew", "pnpm", "gh pr create", "gh pr view"].flatMap((c) => [`Bash(${c}:*)`, `Bash(rtk ${c}:*)`]),
   "mcp__atlassian__createJiraIssue", "mcp__atlassian__getJiraIssue",
 ].join(",");
 
@@ -156,4 +157,4 @@ async function main() {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
