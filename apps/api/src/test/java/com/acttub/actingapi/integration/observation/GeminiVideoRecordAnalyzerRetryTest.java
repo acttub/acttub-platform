@@ -129,6 +129,25 @@ class GeminiVideoRecordAnalyzerRetryTest {
     }
 
     @Test
+    void alignedWordsWithAGapAndADifferentTranscriptAreRecordedWithADisagreementLimit() {
+        answers.add(() -> validChunk("chunk_0_8000"));
+        SpeechAnalysis speech = new SpeechAnalysis("가지 말라고", 3.0, java.util.List.of(), java.util.List.of(),
+                List.of(new SpeechFacts.Word("가지", 4.0, 4.5), new SpeechFacts.Word("말라고", 5.0, 5.8)));
+
+        ObjectNode record = analyzer(true).analyze(directory.resolve("take.mp4"),
+                new ActorMaterial("", "", "", "그 외", "", 8000), PRACTICE, null, speech);
+
+        assertThat(record.path("speech").path("reference_transcript").asText()).isEqualTo("가지 말라고");
+        assertThat(record.path("speech").path("word_timings").path("items").findValuesAsText("text"))
+                .containsExactly("가지", "말라고");
+        assertThat(record.path("speech").path("word_gaps").path("items").toString())
+                .isEqualTo("[{\"start_ms\":4500,\"end_ms\":5000,\"before_word_id\":\"word:0\","
+                        + "\"after_word_id\":\"word:1\",\"kind\":\"word_gap\"}]");
+        assertThat(record.path("limitations").findValuesAsText("id")).contains("transcription:disagreement");
+        assertThat(record.path("speech").path("status").asText()).isEqualTo("partial");
+    }
+
+    @Test
     void chunkThatKeepsFailingIsSplitInHalvesUntilTheBudgetRunsOutAndThenLeftMissing() {
         deleteFailure = new IllegalStateException("delete failed");
 
