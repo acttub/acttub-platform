@@ -585,6 +585,11 @@ const ko = {
     menuPurge: '영상까지 모두 지우기',
     menuPurgeSub: '서버와 보관함에서 영상 파일을 지워요',
     renameHint: '비우면 노트 첫 줄을 제목으로 써요',
+    renameFail: '제목을 바꾸지 못했어요. 다시 눌러 주세요.',
+    purgeTitle: '영상까지 지울까요?',
+    purgeBody: '이 연습의 영상 파일이 서버와 보관함에서 지워져요. 노트와 대화는 남아요.',
+    purgeConfirm: '영상 지우기',
+    purgeDone: '영상을 지웠어요.',
   },
   settings: {
     contactSubject: '[Acttub] 문의·신고',

@@ -1,18 +1,23 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { PracticeMenu, type PracticeMenuItem } from '@/components/ui/coach-practice-menu';
+import { RenameDialog } from '@/components/ui/coach-rename-dialog';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
+import { forgetLocalCopy } from '@/lib/library/library-runner';
+import { videoErrorMessage } from '@/lib/library/video-checks';
 import { translate as t } from '@/lib/i18n';
 import { groupTitle, roundSummary } from '@/lib/practice/groups';
 import { orderedMessages } from '@/lib/practice/coach';
 import { continueActionFor, continueActionLabel } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
+import { PRACTICE_TITLE_MAX } from '@/lib/practice/start';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
@@ -29,6 +34,9 @@ const CONTINUE_STEPS: SpotlightStep[] = [{ target: TARGET.groupContinue, text: '
  * 보여 준다(practice.library). 열린 테이크가 있으면 맨 위에 「대화 이어 가기」(그 대화로 바로), 없으면 아래에
  * 「다음 테이크 찍기」(새 영상을 골라 장면은 비운 채 시작)다(practice.resume, SOMA-672). 숨김은 묶음 전체이고
  * 영상은 보관함에 남는다.
+ *
+ * 머리 「⋯」는 pen 「추가 · 연습 ⋯ 메뉴」(SOMA-748)다 — 제목 바꾸기(묶음 제목 PATCH)와 영상까지 모두 지우기(파일만 파기).
+ * 디자인의 「지난 테이크와 비교」·「이 테이크만 지우기」는 서버 기능(테이크 비교문·회차 삭제)이 없어 두지 않는다.
  */
 export default function PracticeGroupScreen() {
   const router = useRouter();
@@ -46,6 +54,8 @@ export default function PracticeGroupScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const continueTarget = useSpotlightTarget(TARGET.groupContinue);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
 
   useEffect(() => {
     if (!group || group.in_progress_practice_id) return;
@@ -137,6 +147,53 @@ export default function PracticeGroupScreen() {
     }
   };
 
+  // 메뉴가 닫힌 뒤에 다음 창을 연다 — iOS 는 닫히는 모달 위에 새 창을 띄우지 못한다.
+  const fromMenu = (action: () => void) => () => {
+    setMenuOpen(false);
+    setTimeout(action, Platform.OS === 'ios' ? 450 : 0);
+  };
+
+  const rename = async (title: string) => {
+    if (!group) return;
+    setGroup(await api.patchPracticeGroup(group.root_id, { title }));
+  };
+
+  /** 영상까지 지우기 — 회차·노트·대화는 남기고 영상 파일만 파기한다(practice.library 「파일만 파기」). */
+  const purgeVideo = async () => {
+    if (!group?.video_id) return;
+    const ok = await confirm({
+      title: t('history.purgeTitle'),
+      message: t('history.purgeBody'),
+      confirmLabel: t('history.purgeConfirm'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api.purgeVideoFile(group.video_id);
+      await forgetLocalCopy(group.video_id).catch(() => undefined);
+      void alert({ title: t('history.purgeConfirm'), message: t('history.purgeDone') });
+      void load();
+    } catch (e) {
+      void alert({ title: t('history.purgeConfirm'), message: videoErrorMessage(e) });
+    }
+  };
+
+  const menuItems: PracticeMenuItem[] = [
+    { key: 'rename', icon: 'edit-2', title: t('history.menuRename'), onPress: fromMenu(() => setRenameOpen(true)) },
+    ...(group?.video_id
+      ? [
+          {
+            key: 'purge',
+            icon: 'trash-2' as const,
+            title: t('history.menuPurge'),
+            sub: t('history.menuPurgeSub'),
+            danger: true,
+            onPress: fromMenu(() => void purgeVideo()),
+          },
+        ]
+      : []),
+  ];
+
   const openNote = (practiceId: string) => {
     router.push({ pathname: '/report-detail', params: { practiceId } });
   };
@@ -149,13 +206,22 @@ export default function PracticeGroupScreen() {
           headerShadowVisible: false,
           headerRight: () =>
             group && !group.hidden_at ? (
-              <Pressable
-                onPress={() => void toggleHidden({ leave: true })}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel={t('history.hideConfirm')}>
-                <Feather name="trash-2" size={20} color={palette.textMuted} />
-              </Pressable>
+              <View style={styles.headerActions}>
+                <Pressable
+                  onPress={() => setMenuOpen(true)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('history.menuOpen')}>
+                  <Feather name="more-horizontal" size={22} color={palette.textMuted} />
+                </Pressable>
+                <Pressable
+                  onPress={() => void toggleHidden({ leave: true })}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('history.hideConfirm')}>
+                  <Feather name="trash-2" size={20} color={palette.textMuted} />
+                </Pressable>
+              </View>
             ) : null,
         }}
       />
@@ -252,6 +318,20 @@ export default function PracticeGroupScreen() {
           <Text style={styles.hideNotice}>{t('history.hideNotice')}</Text>
         </ScrollView>
       )}
+      <PracticeMenu visible={menuOpen} title={t('history.menuTitle')} items={menuItems} onClose={() => setMenuOpen(false)} />
+      <RenameDialog
+        visible={renameOpen}
+        title={t('history.menuRename')}
+        initial={group?.title?.trim() ?? ''}
+        placeholder={group ? groupTitle(group) : ''}
+        hint={t('history.renameHint')}
+        failText={t('history.renameFail')}
+        cancelLabel={t('common.cancel')}
+        saveLabel={t('common.save')}
+        maxLength={PRACTICE_TITLE_MAX}
+        onSave={rename}
+        onClose={() => setRenameOpen(false)}
+      />
       {dialog}
       <SpotlightGuide
         visible={guideOpen}
@@ -268,6 +348,7 @@ export default function PracticeGroupScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   center: { paddingVertical: 48, alignItems: 'center' },
   error: { color: palette.danger, textAlign: 'center', paddingVertical: 16 },
   body: { padding: 20, paddingBottom: 48, gap: 14 },

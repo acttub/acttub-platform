@@ -593,6 +593,11 @@ const en: DeepStringShape<typeof ko> = {
     menuPurge: 'Delete the video too',
     menuPurgeSub: 'Removes the video file from the server and your library',
     renameHint: 'Leave it empty to use the note’s first line',
+    renameFail: 'Couldn’t rename. Please try again.',
+    purgeTitle: 'Delete the video too?',
+    purgeBody: 'The video file for this practice is removed from the server and your library. Notes and conversations stay.',
+    purgeConfirm: 'Delete video',
+    purgeDone: 'Video deleted.',
   },
   settings: {
     contactSubject: '[Acttub] Question or report',
