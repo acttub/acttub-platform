@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { guessLanguage, isKoreanLine, lineLanguage, speechLocaleFor, speechTextOf, voiceLanguage } from '../lib/reading/line-language.ts';
+import { guessLanguage, isKoreanLine, lineLanguage, speechLocaleFor, speechParts, speechTextOf, voiceLanguage } from '../lib/reading/line-language.ts';
 import { createSpeechQueue } from '../lib/reading/tts/prefetch.ts';
 import { toSavedScript } from '../lib/reading/store.ts';
 
@@ -57,11 +57,22 @@ test('reading.line-language: 서버 상세의 lang·speech 를 대사 줄에 싣
   assert.deepEqual(saved.lines[1], { type: 'dialogue', role: '여자', text: '3anni ana? 안니 아나?', lang: 'ar', speech: 'عني أنا؟' });
 });
 
+test('reading.line-language: 한 줄에 다른 말이 이어지면 조각마다 그 말로 읽는다', () => {
+  const line = { text: '고맙습니다. minshān ḥēk labse naḍḍarāt.', lang: 'ar', speech: '\u27E6ko\u27E7고맙습니다. \u27E6ar\u27E7منشان هيك لابسة نظارات.' };
+  assert.deepEqual(speechParts(line), [{ lang: 'ko', text: '고맙습니다.' }, { lang: 'ar', text: 'منشان هيك لابسة نظارات.' }]);
+  assert.equal(speechTextOf(line), '고맙습니다. منشان هيك لابسة نظارات.');
+  assert.equal(lineLanguage(line), 'ar', '받아쓰기는 한국어가 아닌 첫 조각의 말');
+  assert.deepEqual(speechParts({ text: '3anni ana? 안니 아나?', lang: 'ar', speech: 'عني أنا؟' }), [{ lang: 'ar', text: 'عني أنا؟' }]);
+  assert.deepEqual(speechParts({ text: '안녕' }), [{ lang: 'ko', text: '안녕' }]);
+});
+
 test('reading.play: 상대 대사·받아쓰기·발음 피드백이 줄의 말을 따른다(SOMA-751)', () => {
   const play = read('../app/reading/play.tsx');
-  assert.match(play, /speakableText\(speechTextOf\(line\)\)/);
-  assert.match(play, /take\(\{ text, preset, lang: voiceLang \}\)/);
+  assert.match(play, /const parts = speechParts\(line\)\.map/);
+  assert.match(play, /for \(const \{ text, lang \} of parts\)/);
+  assert.match(play, /take\(\{ text, preset, lang \}\)/);
   assert.match(play, /speakWithDevice\(text, preset, \{ locale: speechLocaleFor\(lang\) \}\)/);
+  assert.match(play, /\.flatMap\(\(line\) => speechParts\(line\)\.map/);
   assert.match(play, /locale: speechLocaleFor\(lineLanguage\(mine\)\)/);
   assert.match(play, /if \(!isKoreanLine\(line\)\) return;/);
   const hook = read('../hooks/use-reading-stt.ts');
