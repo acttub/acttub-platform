@@ -9,7 +9,7 @@ import { resetNavigation } from "./fixtures/features-next-shims.mjs";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
 
-const { cleanup, fireEvent, render, screen, waitFor, within } = await import("@testing-library/react");
+const { cleanup, fireEvent, render, screen, within } = await import("@testing-library/react");
 const { AuditionsPage } = await import("../src/features/auditions/auditions-page.tsx");
 const { readMarks, writeMarks } = await import("../src/features/auditions/marks.ts");
 
