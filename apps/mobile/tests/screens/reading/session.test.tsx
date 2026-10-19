@@ -294,3 +294,9 @@ test('화면을 떠나면 틀던 녹음을 멈춘다', async () => {
   await screen.unmount();
   expect(mockPlayers[0].release).toHaveBeenCalled();
 });
+
+test('구간이 장면 줄부터 시작하면 장면 이름도 대본에 보인다', async () => {
+  await show(sessionDetail({ start_line_id: 'l1' }));
+
+  expect(await screen.findByText('1장 카페')).toBeOnTheScreen();
+});
