@@ -27,7 +27,8 @@ test('코치 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 �
   assert.equal(helpButtonDraft('no'), '아니요');
   const coach = read('app/coach.tsx');
   assert.match(coach, /\['yes', t\('coach\.quickYes'\)\],\s*\['no', t\('coach\.quickNo'\)\],/);
-  assert.match(coach, /onPress=\{\(\) => void endConversation\(\)\}[^>]*>\s*<Text style=\{styles\.quickText\}>\{t\('coach\.quickEnd'\)\}/);
+  // 그만하기는 오른쪽 위 머리 버튼이다(pen 질문 대화, SOMA-748) — 확인을 받고 대화를 마친다.
+  assert.match(coach, /headerRight:[\s\S]{0,300}onPress=\{\(\) => void endConversation\(\)\}[^>]*>\s*<Text style=\{styles\.endText\}>\{t\('coach\.quickEnd'\)\}/);
   assert.doesNotMatch(coach, /coach\.endHint|styles\.endBtn|quickExplain|quickLater/);
   assert.match(read('locales/ko.ts'), /composerLabel: '답이나 질문을 편하게 적어 주세요'/);
 });
@@ -55,8 +56,10 @@ test('새 연습 준비: 영상 상자를 누르면 아래 시트에서 보관�
   assert.match(sheet, /onRequestClose=\{onClose\}/);
 });
 
-test('코치 질문 글자는 21pt 다(19pt 는 작았다)', () => {
-  assert.match(read('app/coach.tsx'), /question: \{ fontSize: 21,/);
+test('코치 질문은 회색 말풍선 16pt 다(pen 질문 대화 「코치 말」, SOMA-748 — 예전 21pt 맨글자 대신)', () => {
+  const coach = read('app/coach.tsx');
+  assert.match(coach, /question: \{ fontSize: 16,/);
+  assert.match(coach, /<View style=\{styles\.bubble\}>/);
 });
 
 test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 받아 미리보기를 채운다(목록은 playback_url 이 null)', () => {
