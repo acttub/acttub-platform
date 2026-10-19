@@ -120,6 +120,9 @@ class VideoLibraryIT {
     @Autowired
     FakeFrames frames;
 
+    @Autowired
+    com.acttub.actingapi.feature.video.app.VideoService videoService;
+
     private final Map<String, UUID> documents = new LinkedHashMap<>();
     private UUID member;
     private String bearer;
@@ -415,6 +418,45 @@ class VideoLibraryIT {
         assertThat(mapper.readTree(unknown.getContentAsString()).path("detail").isArray()).isTrue();
         assertThat(perform(patch("/v2/videos/{id}", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"favorite\":true}"), bearer).getStatus()).as("없는 영상").isEqualTo(404);
+    }
+
+    @Test
+    @DisplayName("practice.library: 보관함은 30개씩 넘기고 다음 자리 커서로 나머지를 준다. 못 읽는 커서는 처음부터다")
+    void practiceLibrary_pagesThirtyAtATimeAndIgnoresAnUnreadableCursor() throws Exception {
+        List<UUID> saved = new java.util.ArrayList<>();
+        for (int i = 0; i < VideoRules.PAGE_SIZE + 2; i++) {
+            saved.add(0, seedVideo(member, 1_000, clock.instant().minus(Duration.ofMinutes(100 - i))));
+        }
+        JsonNode first = json(get("/v2/videos"), 200);
+        assertThat(first.path("videos")).hasSize(VideoRules.PAGE_SIZE);
+        assertThat(first.path("videos").get(0).path("id").textValue()).isEqualTo(saved.get(0).toString());
+        String cursor = first.path("next_cursor").textValue();
+        assertThat(cursor).isNotBlank();
+        JsonNode second = json(get("/v2/videos").param("cursor", cursor), 200);
+        assertThat(second.path("videos")).extracting(video -> video.path("id").textValue())
+                .containsExactly(saved.get(VideoRules.PAGE_SIZE).toString(), saved.get(VideoRules.PAGE_SIZE + 1).toString());
+        assertThat(second.path("next_cursor").isNull()).isTrue();
+        assertThat(json(get("/v2/videos").param("cursor", "not-a-cursor!"), 200).path("videos").get(0).path("id").textValue())
+                .isEqualTo(saved.get(0).toString());
+    }
+
+    @Test
+    @DisplayName("practice.record: 없는 예약의 마무리는 404 upload_intent_not_found. 매일 정리가 시한 지난 예약을 치우고 객체를 지운다")
+    void practiceRecord_unknownIntentsAreNotFoundAndTheDailySweepExpiresStaleIntents() throws Exception {
+        assertThat(json(post("/v2/videos/intents/{id}/complete", UUID.randomUUID()), 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"upload_intent_not_found\"}"));
+        JsonNode stale = json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/mp4", 5_000, 9_000)), 201);
+        deviceUploads(stale, 5_000);
+        JsonNode fresh = json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/mp4", 5_000, 9_000)), 201);
+        clock.advance(VideoRules.INTENT_TTL.plusMinutes(1));
+        json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/mp4", 5_000, 9_000)), 201);
+
+        assertThat(videoService.sweepExpiredIntents()).isEqualTo(2);
+        assertThat(jdbc.queryForList("SELECT status FROM upload_intents WHERE id IN (?,?)", String.class,
+                intentId(stale), intentId(fresh))).containsOnly("expired");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM upload_intents WHERE status='pending'", Long.class)).isEqualTo(1L);
+        assertThat(storage.objects).isEmpty();
+        assertThat(videoService.sweepExpiredIntents()).isZero();
     }
 
     @Test
