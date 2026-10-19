@@ -23,7 +23,21 @@ npx wrangler@4.151.2 deploy
 
 Sentry 설정 위치:
 - Settings > Developer Settings > Custom Integrations > `acttub-slack-relay`: Webhook URL `https://<worker 주소>/<RELAY_TOKEN>`, Alert Action 켬, 구독 없음.
-- Monitors > Alerts의 `acttub-api`·`acttub-web` 규칙: 액션 "Send a notification via acttub-slack-relay".
+- `acttub-api`·`acttub-web` Settings > Issue Grouping > Fingerprint Rules: 두 환경이 한 프로젝트를 쓰므로 이슈를 환경별로 나눈다.
+  이게 없으면 dev에서 먼저 난 에러는 운영에서 "새 이슈"가 아니라 알림이 오지 않는다.
+  ```
+  tags.environment:"prod" -> {{ default }}, prod
+  tags.environment:"dev" -> {{ default }}, dev
+  ```
+- Monitors > Alerts(세 규칙 모두 두 프로젝트에 연결, 액션 "Send a notification via acttub-slack-relay"):
+
+  | 규칙 | 조건 | 환경 | 이메일 | 간격 |
+  |---|---|---|---|---|
+  | 운영 기본 | 새 이슈 / 해결한 이슈 재발 / 이슈 escalates | prod | 보냄 | 매번 |
+  | 운영 급증 | 이슈 이벤트 1시간 10건 초과 | prod | 보냄 | 24시간 |
+  | dev 기본 | 새 이슈 / 해결한 이슈 재발 | dev | 안 보냄 | 매번 |
+
+  우리 코드는 `captureException`(기본 레벨 error)으로만 보내 새 이슈가 모두 high priority라 priority 조건은 두지 않는다.
 
 확인은 규칙 편집 화면의 "Send Test Notification"이 `#sentry`에 오는지로 한다.
 토큰이나 client secret을 바꾸면 `secret put` 뒤 integration의 Webhook URL을 함께 바꾼다.
