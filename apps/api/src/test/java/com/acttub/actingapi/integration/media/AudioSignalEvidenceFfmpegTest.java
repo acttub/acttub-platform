@@ -40,6 +40,21 @@ class AudioSignalEvidenceFfmpegTest {
     }
 
     @Test
+    void interruptedInspectionFailsAndKeepsTheInterrupt() throws Exception {
+        Path tone = audio("interrupted.m4a", "sine=frequency=440:duration=1");
+
+        Thread.currentThread().interrupt();
+        try {
+            assertThatThrownBy(() -> evidence.hasSignal(tone))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("audio signal inspection failed");
+            assertThat(Thread.interrupted()).isTrue();
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
     void measurementsOutsideAFrameOrRepeatedOrFractionalAreRejected() {
         assertThatThrownBy(() -> parse("lavfi.astats.Overall.Peak_level=-20\n"))
                 .hasMessage("invalid audio measurements");

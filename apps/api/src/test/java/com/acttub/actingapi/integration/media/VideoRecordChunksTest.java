@@ -54,6 +54,30 @@ class VideoRecordChunksTest {
         }
     }
 
+    @Test
+    void interruptedWorkStopsTheProcessKeepsTheInterruptAndLeavesNoChunk() throws Exception {
+        Path source = video("interrupted.mp4", true);
+
+        Thread.currentThread().interrupt();
+        try {
+            assertThatThrownBy(() -> chunks.extract(source, 0, 1_000))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("video chunk extraction failed");
+            assertThat(Thread.interrupted()).isTrue();
+
+            Thread.currentThread().interrupt();
+            assertThatThrownBy(() -> chunks.hasAudio(source))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("audio track probe interrupted");
+            assertThat(Thread.interrupted()).isTrue();
+        } finally {
+            Thread.interrupted();
+        }
+        try (Stream<Path> files = Files.list(directory)) {
+            assertThat(files.map(path -> path.getFileName().toString())).containsExactly("interrupted.mp4");
+        }
+    }
+
     private Path video(String name, boolean audio) throws Exception {
         assumeTrue(available("ffmpeg") && available("ffprobe"), "ffmpeg/ffprobe 가 없다");
         Path output = directory.resolve(name);
