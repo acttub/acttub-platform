@@ -1,32 +1,48 @@
 import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState, type ComponentProps } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { participatedChallengeCount } from '@/lib/challenge/entry';
-import type { MyEntryCard } from '@/lib/challenge/types';
+import type { EntryCard, MyEntryCard } from '@/lib/challenge/types';
 import { displayNameFor } from '@/lib/display-name';
+import { formatKoreanDate } from '@/lib/format';
+import { translate as t, translateList } from '@/lib/i18n';
+import { groupPoster, groupRowTarget, groupTitle } from '@/lib/practice/groups';
+import type { PracticeGroupDetail } from '@/lib/practice/types';
 import { getUserName } from '@/lib/profile';
-import { translate as t } from '@/lib/i18n';
+import { EXPERIENCE_VALUES, GOAL_VALUES } from '@/lib/profile-form';
+import { inMonth, monthPracticeCounts, profileTabCards, type MonthPracticeCounts } from '@/lib/profile-month-stats';
+
+type Tab = 'practice' | 'entries' | 'saved';
+/** 탭마다 보여 줄 카드 수. 나머지는 「전체 보기」로 원래 화면에서 본다. */
+const CARD_LIMIT = 6;
+const EMPTY_COUNTS: MonthPracticeCounts = { coaching: 0, reading: 0, challenge: 0, total: 0 };
 
 /**
- * A4 프로필 — 하단 탭 "프로필"이 여는 페이지. 설정(⚙)·포트폴리오 편집·활동·코치 기억으로 간다.
- * "포트폴리오 편집"은 가입 때 받는 프로필 여섯 항목과 다른 기능이다(account.portfolio).
+ * S14 프로필 탭(pen Y0tPDI·luafK·ktdNI, SOMA-748) — 사진·이름·한 줄 정보·편집, 이번 달 연습(코칭·리딩·챌린지),
+ * 코치가 기억하는 것, 그리고 탭(연습 기록 · 참여작 · 저장됨) + 영상 카드.
  *
- * 이름·사진·한 줄 소개는 서버의 프로필(GET /v2/me)을 보여 준다. 사진과 소개는 설정에서만
- * 받으므로 여기서는 고치지 않고 프로필 수정 화면으로 보낸다. 보관함(A2.2)·저장한
- * 영상(A15.5)은 예시 데이터 화면. 챌린지 수는 내가 참여한 서로 다른 챌린지 수다(내 참여작 목록에서 센다).
+ * 집계 API 가 없어 이번 달 연습은 이미 받는 목록(연습 묶음·리딩 회차·내 참여작)으로 기기에서 센다(lib/profile-month-stats).
+ * 챌린지 수는 참여작 수가 아니라 참여한 서로 다른 챌린지 수다(SOMA-738).
+ * pen 의 PRO 배지·공유·「내 목표」(이루고 싶은 것)·「내 일정」은 서버 기능이 없어 그리지 않는다.
+ * 보관함·포트폴리오는 설정과 프로필 편집으로 옮겼다.
  */
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const [name, setName] = useState<string | null>(null);
-  const [practiceCount, setPracticeCount] = useState(0);
-  const [challengeCount, setChallengeCount] = useState(0);
+  const [tab, setTab] = useState<Tab>('practice');
+  const [groups, setGroups] = useState<PracticeGroupDetail[] | null>(null);
+  const [entries, setEntries] = useState<MyEntryCard[] | null>(null);
+  const [saved, setSaved] = useState<EntryCard[] | null>(null);
+  const [memoryCount, setMemoryCount] = useState<number | null>(null);
+  const [counts, setCounts] = useState<MonthPracticeCounts>(EMPTY_COUNTS);
   const serverProfile = profile.me?.profile ?? null;
   const photoUri = serverProfile?.photo_url ?? null;
   const bio = serverProfile?.bio?.trim() ?? '';
@@ -35,23 +51,51 @@ export default function ProfileScreen() {
     useCallback(() => {
       let alive = true;
       void getUserName().then((n) => alive && setName(n?.trim() || null));
-      // 연습 횟수는 묶음의 회차 수를 더한 값이다(practice.library).
-      void api
-        .listPracticeGroups('all')
-        .then((r) => alive && setPracticeCount(r.groups.reduce((sum, g) => sum + g.ordinal_count, 0)))
-        .catch(() => {});
-      // 챌린지 수는 내가 참여한 서로 다른 챌린지 수다(비공개 참여 포함, challenge.browse). 20개씩 끝까지 읽는다.
       void (async () => {
-        const all: MyEntryCard[] = [];
-        let cursor: string | undefined;
-        while (alive) {
-          const r = await api.listMyChallengeEntries(undefined, cursor);
-          all.push(...r.entries);
-          if (!r.next_cursor) break;
-          cursor = r.next_cursor;
-        }
-        if (alive) setChallengeCount(participatedChallengeCount(all));
-      })().catch(() => {});
+        const now = new Date();
+        const [groupList, entryList, readingSessions] = await Promise.all([
+          api
+            .listPracticeGroups('all')
+            .then((r) => r.groups)
+            .catch(() => [] as PracticeGroupDetail[]),
+          // 내 참여작은 20개씩이다. 끝까지 읽어 이번 달 챌린지 수와 카드를 같이 만든다(비공개 참여 포함, challenge.browse).
+          (async () => {
+            const all: MyEntryCard[] = [];
+            let cursor: string | undefined;
+            while (alive) {
+              const r = await api.listMyChallengeEntries(undefined, cursor);
+              all.push(...r.entries);
+              if (!r.next_cursor) break;
+              cursor = r.next_cursor;
+            }
+            return all;
+          })().catch(() => [] as MyEntryCard[]),
+          // 리딩 회차는 대본별로만 받는다. 이번 달에 연습한 대본만 회차를 읽는다.
+          api
+            .listReadingScripts()
+            .then((r) =>
+              Promise.all(
+                r.scripts
+                  .filter((s) => inMonth(s.last_practiced_at, now))
+                  .map((s) => api.listReadingSessions(s.id).then((x) => x.sessions).catch(() => [])),
+              ),
+            )
+            .then((lists) => lists.flat())
+            .catch(() => []),
+        ]);
+        if (!alive) return;
+        setGroups(groupList);
+        setEntries(entryList);
+        setCounts(monthPracticeCounts({ groups: groupList, readingSessions, entries: entryList }, now));
+      })();
+      void api
+        .listSavedEntries()
+        .then((r) => alive && setSaved(r.entries))
+        .catch(() => alive && setSaved([]));
+      void api
+        .actorMemory()
+        .then((r) => alive && setMemoryCount(r.items.length))
+        .catch(() => {});
       return () => {
         alive = false;
       };
@@ -59,146 +103,283 @@ export default function ProfileScreen() {
   );
 
   // 정본은 서버의 프로필 이름이다. 아직 못 읽었으면 기기에 적어 둔 이름으로 부른다.
-  const display =
-    displayNameFor(serverProfile?.name ?? name, user?.email ?? null) || t('profileTab.title');
+  const display = displayNameFor(serverProfile?.name ?? name, user?.email ?? null) || t('profileTab.title');
   const initial = display.trim().charAt(0) || '?';
-  const openProfileEdit = () => router.push('/profile-edit');
+  // 「배우 활동 · 연기 1년 미만」 — 가입 때 받은 최종 목표와 연기 경력.
+  const goalIndex = serverProfile?.goal ? GOAL_VALUES.indexOf(serverProfile.goal) : -1;
+  const careerIndex = serverProfile?.experience ? EXPERIENCE_VALUES.indexOf(serverProfile.experience) : -1;
+  const summary = [translateList('profileName.goalOptions')[goalIndex], translateList('profileName.careerOptions')[careerIndex]]
+    .filter(Boolean)
+    .join(' · ');
+
+  const practiceCards = groups ? profileTabCards(groups).slice(0, CARD_LIMIT) : null;
+  const entryCards = entries ? entries.slice(0, CARD_LIMIT) : null;
+  const savedCards = saved ? saved.slice(0, CARD_LIMIT) : null;
+  const shortDate = (iso: string | null | undefined) => formatKoreanDate(iso, { month: 'long', day: 'numeric' });
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
+        <View style={styles.top}>
           <Text style={styles.title}>{t('profileTab.title')}</Text>
-          <Pressable style={styles.gear} onPress={() => router.push('/settings')} accessibilityRole="button">
-            <Feather name="settings" size={22} color={palette.textDim} />
+          <Pressable
+            style={styles.iconBtn}
+            onPress={() => router.push('/settings')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.title')}>
+            <Feather name="settings" size={24} color={palette.text} />
           </Pressable>
         </View>
 
-        {/* 배우 프로필 카드 */}
-        <View style={styles.card}>
-          <View style={styles.avatarCol}>
-            <View style={styles.avatar}>
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.avatarImg} />
-              ) : (
-                <Text style={styles.avatarText}>{initial}</Text>
-              )}
-            </View>
-            <Pressable style={styles.avatarBtn} onPress={openProfileEdit} accessibilityRole="button">
-              <Feather name="camera" size={12} color={palette.blueDeep} />
-              <Text style={styles.avatarBtnText}>{t(photoUri ? 'profileTab.changePhoto' : 'profileTab.addPhoto')}</Text>
-            </Pressable>
+        <View style={styles.me}>
+          <View style={styles.photo}>
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.photoImg} contentFit="cover" />
+            ) : (
+              <Text style={styles.photoText}>{initial}</Text>
+            )}
           </View>
-          <View style={styles.cardBody}>
-            <Text style={styles.actorLabel}>{t('profileTab.actorProfile')}</Text>
-            <Text style={styles.name}>{display}</Text>
-            {!!user?.email && <Text style={styles.email}>{user.email}</Text>}
-            <Text style={styles.addInfo}>{t('profileTab.addInfo')}</Text>
-            <View style={styles.statRow}>
-              <Text style={styles.statValue}>{practiceCount}</Text>
-              <Text style={styles.statLabel}>{t('profileTab.statPractice')}</Text>
-              <Text style={styles.statValue}>{challengeCount}</Text>
-              <Text style={styles.statLabel}>{t('profileTab.statChallenge')}</Text>
-            </View>
-            <Pressable style={styles.editBtn} onPress={() => router.push('/portfolio-edit')} accessibilityRole="button">
-              <Feather name="edit-3" size={13} color={palette.blueDeep} />
-              <Text style={styles.editBtnText}>{t('profileTab.editPortfolio')}</Text>
-            </Pressable>
+          <View style={styles.meText}>
+            <Text style={styles.name} numberOfLines={1}>
+              {display}
+            </Text>
+            {!!summary && (
+              <Text style={styles.summary} numberOfLines={1}>
+                {summary}
+              </Text>
+            )}
+            {!!bio && (
+              <Text style={styles.bio} numberOfLines={2}>
+                {bio}
+              </Text>
+            )}
+          </View>
+          <Pressable style={styles.editBtn} onPress={() => router.push('/profile-edit')} accessibilityRole="button">
+            <Text style={styles.editText}>{t('profileTab.edit')}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.month}>
+          <Text style={styles.monthTitle}>{t('profileTab.monthTitle', { count: counts.total })}</Text>
+          <View style={styles.monthRow}>
+            <MonthCell dot={palette.blue} label={t('profileTab.kindCoaching')} count={counts.coaching} />
+            <MonthCell dot={palette.green} label={t('profileTab.kindReading')} count={counts.reading} />
+            <MonthCell dot={palette.flame} label={t('profileTab.kindChallenge')} count={counts.challenge} />
           </View>
         </View>
 
-        {/* 한 줄 소개 */}
-        <Pressable style={styles.bioCard} onPress={openProfileEdit} accessibilityRole="button">
-          <Text style={styles.bioLabel}>{t('profileTab.bioLabel')}</Text>
-          <Text style={bio ? styles.bioText : styles.bioPh}>{bio || t('profileTab.bioPlaceholder')}</Text>
+        <Pressable
+          style={({ pressed }) => [styles.line, pressed && styles.pressed]}
+          onPress={() => router.push({ pathname: '/memory', params: { from: 'profile' } })}
+          accessibilityRole="button">
+          <Ionicons name="sparkles-outline" size={20} color={palette.textDim} />
+          <Text style={styles.lineTitle}>{t('profileTab.memoryTitle')}</Text>
+          <Text style={styles.lineValue}>
+            {memoryCount === null ? '' : t('profileTab.memoryCount', { count: memoryCount })}
+          </Text>
+          <Feather name="chevron-right" size={18} color={palette.checkOff} />
         </Pressable>
 
-        {/* 나의 활동 */}
-        <Text style={styles.sectionLabel}>{t('profileTab.activitySection')}</Text>
-        <Row icon="video" title={t('profileTab.archiveTitle')} sub={t('profileTab.archiveSub')} onPress={() => router.push('/archive')} />
-        <Row icon="bookmark" title={t('profileTab.savedTitle')} sub={t('profileTab.savedSub')} onPress={() => router.push('/saved-videos')} />
-        {/* P03 내 참여작 — 전체·공개·비공개·확인 중으로 센다(challenge.browse). */}
-        <Row
-          icon="award"
-          title={t('challengeEntries.title')}
-          sub={t('profileTab.challengeSub')}
-          onPress={() => router.push('/challenge-entries')}
-        />
+        <View style={styles.tabs}>
+          {(
+            [
+              ['practice', t('profileTab.tabPractice')],
+              ['entries', t('profileTab.tabEntries')],
+              ['saved', t('profileTab.tabSaved')],
+            ] as const
+          ).map(([key, label]) => (
+            <Pressable
+              key={key}
+              style={[styles.tab, tab === key && styles.tabOn]}
+              onPress={() => setTab(key)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: tab === key }}>
+              <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
 
-        {/* 코치의 기억 */}
-        <Text style={styles.sectionLabel}>{t('profileTab.memorySection')}</Text>
-        <Row
-          icon="cpu"
-          title={t('profileTab.memoryTitle')}
-          sub={t('profileTab.memorySub')}
-          onPress={() => router.push({ pathname: '/memory', params: { from: 'profile' } })}
-        />
+        {tab === 'practice' && (
+          <CardGrid
+            loading={practiceCards === null}
+            empty={t('profileTab.emptyPractice')}
+            more={groups && groups.length > CARD_LIMIT ? () => router.push('/history') : undefined}
+            cards={(practiceCards ?? []).map(({ group, at }) => ({
+              key: group.root_id,
+              poster: groupPoster(group),
+              title: groupTitle(group),
+              meta: [shortDate(at), t('profileTab.kindCoaching')].filter(Boolean).join(' · '),
+              onPress: () => router.push(groupRowTarget(group)),
+            }))}
+          />
+        )}
+        {tab === 'entries' && (
+          <CardGrid
+            loading={entryCards === null}
+            empty={t('challengeEntries.empty')}
+            // P03 내 참여작 — 공개 범위 바꾸기·지우기는 원래 화면에서 한다(challenge.browse).
+            more={() => router.push('/challenge-entries')}
+            cards={(entryCards ?? []).map((entry) => ({
+              key: entry.id,
+              poster: null,
+              title: t('profileTab.entryTitle', { line: entry.challenge.line }),
+              meta: [
+                t('profileTab.likes', { count: entry.like_count }),
+                t(entry.visibility === 'public' ? 'profileTab.visibilityPublic' : 'profileTab.visibilityPrivate'),
+              ].join(' · '),
+              // 참여작을 누르면 AI 리포트(pen luafK).
+              onPress: () => router.push({ pathname: '/ai-report', params: { entryId: entry.id } }),
+            }))}
+          />
+        )}
+        {tab === 'saved' && (
+          <CardGrid
+            loading={savedCards === null}
+            empty={t('savedVideos.empty')}
+            more={saved && saved.length > CARD_LIMIT ? () => router.push('/saved-videos') : undefined}
+            cards={(savedCards ?? []).map((entry) => ({
+              key: entry.id,
+              poster: null,
+              title: entry.caption?.trim() || entry.author.name,
+              meta: [entry.author.name, t('profileTab.likes', { count: entry.like_count })].join(' · '),
+              onPress: () => router.push({ pathname: '/challenge-play', params: { entryId: entry.id } }),
+            }))}
+          />
+        )}
       </ScrollView>
-
     </SafeAreaView>
   );
 }
 
-function Row({
-  icon,
-  title,
-  sub,
-  onPress,
-}: {
-  icon: ComponentProps<typeof Feather>['name'];
-  title: string;
-  sub: string;
-  onPress: () => void;
-}) {
+function MonthCell({ dot, label, count }: { dot: string; label: string; count: number }) {
   return (
-    <Pressable style={({ pressed }) => [styles.row, pressed && styles.pressed]} onPress={onPress} accessibilityRole="button">
-      <View style={styles.rowIcon}>
-        <Feather name={icon} size={18} color={palette.blue} />
+    <View style={styles.monthCell}>
+      <View style={styles.monthHead}>
+        <View style={[styles.monthDot, { backgroundColor: dot }]} />
+        <Text style={styles.monthLabel}>{label}</Text>
       </View>
-      <View style={styles.flex}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        <Text style={styles.rowSub}>{sub}</Text>
+      <Text style={styles.monthCount}>{t('profileTab.times', { count })}</Text>
+    </View>
+  );
+}
+
+type Card = {
+  key: string;
+  poster: { uri: string; cacheKey: string } | null;
+  title: string;
+  meta: string;
+  onPress: () => void;
+};
+
+function CardGrid({ loading, empty, cards, more }: { loading: boolean; empty: string; cards: Card[]; more?: () => void }) {
+  if (loading) return <ActivityIndicator color={palette.blue} style={styles.loading} />;
+  if (cards.length === 0) return <Text style={styles.empty}>{empty}</Text>;
+  return (
+    <View style={styles.gridWrap}>
+      <View style={styles.grid}>
+        {cards.map((card) => (
+          <Pressable key={card.key} style={styles.card} onPress={card.onPress} accessibilityRole="button" accessibilityLabel={card.title}>
+            <View style={styles.thumb}>
+              {card.poster ? (
+                <Image
+                  source={{ uri: card.poster.uri, cacheKey: card.poster.cacheKey }}
+                  style={styles.thumbImg}
+                  contentFit="cover"
+                />
+              ) : (
+                <Feather name="play" size={22} color={palette.checkOff} />
+              )}
+            </View>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {card.title}
+            </Text>
+            <Text style={styles.cardMeta} numberOfLines={1}>
+              {card.meta}
+            </Text>
+          </Pressable>
+        ))}
       </View>
-      <Feather name="chevron-right" size={18} color={palette.checkOff} />
-    </Pressable>
+      {more && (
+        <Pressable style={styles.more} onPress={more} accessibilityRole="button">
+          <Text style={styles.moreText}>{t('profileTab.seeAll')}</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  flex: { flex: 1 },
-  pressed: { opacity: 0.75 },
-  content: { padding: 20, paddingBottom: 130, gap: 14 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 },
-  title: { fontSize: 26, fontWeight: '800', color: palette.text },
-  gear: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.7 },
+  content: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 130 },
+  top: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  title: { fontSize: 22, fontWeight: '800', color: palette.text },
+  iconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 
-  card: { flexDirection: 'row', gap: 14, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 18, padding: 16 },
-  avatarCol: { alignItems: 'center', gap: 8 },
-  avatar: { width: 84, height: 84, borderRadius: 18, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarText: { fontSize: 34, fontWeight: '800', color: palette.blue },
-  avatarBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  avatarBtnText: { fontSize: 11, fontWeight: '800', color: palette.blueDeep },
-  cardBody: { flex: 1, gap: 3 },
-  actorLabel: { fontSize: 11, fontWeight: '800', color: palette.blue, letterSpacing: 0.5 },
-  name: { fontSize: 20, fontWeight: '800', color: palette.text },
-  email: { fontSize: 12.5, fontWeight: '500', color: palette.textMuted },
-  addInfo: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, marginTop: 2 },
-  statRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 8 },
-  statValue: { fontSize: 16, fontWeight: '800', color: palette.text },
-  statLabel: { fontSize: 12, fontWeight: '600', color: palette.textMuted, marginRight: 8 },
-  editBtn: { flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 5, backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginTop: 10 },
-  editBtnText: { fontSize: 12.5, fontWeight: '800', color: palette.blueDeep },
+  me: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  photo: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: palette.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  photoImg: { width: '100%', height: '100%' },
+  photoText: { fontSize: 26, fontWeight: '800', color: palette.blue },
+  meText: { flex: 1, minWidth: 0, gap: 2 },
+  name: { fontSize: 18, fontWeight: '800', color: palette.text },
+  summary: { fontSize: 13, fontWeight: '600', color: palette.textMuted },
+  bio: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textDim },
+  editBtn: { backgroundColor: palette.bgSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
+  editText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
 
-  bioCard: { backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
-  bioLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
-  bioPh: { fontSize: 13, fontWeight: '500', color: palette.textFaint },
-  bioText: { fontSize: 14, fontWeight: '600', color: palette.text },
+  month: {
+    marginTop: 18,
+    backgroundColor: palette.blueMist,
+    borderWidth: 1,
+    borderColor: palette.blueLine,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  monthTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
+  monthRow: { flexDirection: 'row', gap: 8 },
+  monthCell: { flex: 1, backgroundColor: palette.card, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, gap: 2 },
+  monthHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  monthDot: { width: 7, height: 7, borderRadius: 4 },
+  monthLabel: { fontSize: 12, fontWeight: '700', color: palette.textMuted },
+  monthCount: { fontSize: 17, fontWeight: '800', color: palette.text },
 
-  sectionLabel: { fontSize: 13, fontWeight: '800', color: palette.textMuted, marginTop: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14 },
-  rowIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  rowTitle: { fontSize: 14.5, fontWeight: '700', color: palette.text },
-  rowSub: { fontSize: 12, fontWeight: '500', color: palette.textFaint, marginTop: 3 },
+  line: { marginTop: 14, height: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  lineTitle: { fontSize: 15, fontWeight: '700', color: palette.text },
+  lineValue: { flex: 1, textAlign: 'right', fontSize: 13, fontWeight: '600', color: palette.textMuted },
+
+  tabs: { marginTop: 10, flexDirection: 'row', gap: 4, padding: 4, borderRadius: 12, backgroundColor: palette.bgSoft },
+  tab: { flex: 1, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  tabOn: { backgroundColor: palette.card },
+  tabText: { fontSize: 14, fontWeight: '600', color: palette.textMuted },
+  tabTextOn: { fontWeight: '800', color: palette.text },
+
+  loading: { marginTop: 32 },
+  empty: { marginTop: 28, textAlign: 'center', fontSize: 14, fontWeight: '600', color: palette.textFaint },
+  gridWrap: { marginTop: 12, gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 16 },
+  card: { width: '48%', flexGrow: 1, maxWidth: '50%', gap: 6 },
+  thumb: {
+    height: 120,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: palette.bgSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbImg: { width: '100%', height: '100%' },
+  cardTitle: { fontSize: 13, fontWeight: '700', color: palette.text },
+  cardMeta: { fontSize: 12, fontWeight: '600', color: palette.textMuted },
+  more: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 },
+  moreText: { fontSize: 14, fontWeight: '700', color: palette.blue },
 });
