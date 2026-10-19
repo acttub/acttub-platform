@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { memoryStorage } from './helpers/m4-stubs.mjs';
+import { memoryStorage } from './helpers/stub-modules.mjs';
 
 // AsyncStorage 만 메모리 저장소로 바꾸고, 마지막으로 본 연속일 읽기·쓰기 규칙은 그대로 돈다.
 const storage = memoryStorage();

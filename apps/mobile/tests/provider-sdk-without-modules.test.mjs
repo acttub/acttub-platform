@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { stubModules } from './helpers/m4-stubs.mjs';
+import { stubModules } from './helpers/stub-modules.mjs';
 
 // 네이티브 로그인 모듈이 없는 안드로이드 빌드(재빌드 전 dev client). 앱은 떠야 하고 버튼은 그려지지 않는다.
 delete process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;

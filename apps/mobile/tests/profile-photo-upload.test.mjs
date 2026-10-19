@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { stubModules } from './helpers/m4-stubs.mjs';
+import { stubModules } from './helpers/stub-modules.mjs';
 
 // 사진 고르기·압축·파일 크기·서버만 바꾸고 줄여 올리는 순서(profile-photo)는 그대로 돈다.
 const state = { calls: [], picked: null, compressor: true, sizes: new Map(), upload: 'uploaded' };

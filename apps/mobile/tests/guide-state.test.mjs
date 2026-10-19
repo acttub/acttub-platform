@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { memoryStorage, stubModules } from './helpers/m4-stubs.mjs';
+import { memoryStorage, stubModules } from './helpers/stub-modules.mjs';
 
 const storage = memoryStorage();
 let broken = false;

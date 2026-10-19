@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { stubModules } from './helpers/m4-stubs.mjs';
+import { stubModules } from './helpers/stub-modules.mjs';
 
 // iOS 빌드에 구글·애플 SDK 가 모두 있는 경우. SDK 만 바꾸고 어댑터 규칙은 그대로 돈다.
 process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = 'web-client';

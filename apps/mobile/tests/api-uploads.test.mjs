@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { api, id, sample } from './helpers/m4-N1-api.mjs';
+import { api, id, sample } from './helpers/api-upload-task.mjs';
 
 const UPLOAD_FAIL = '영상 업로드에 실패했어요. 네트워크를 확인해주세요.';
 
@@ -14,7 +14,7 @@ function fakeUploadTask() {
   });
   task.resolve = value => settle.resolve(value);
   task.reject = error => settle.reject(error);
-  globalThis.__m4n1CreateUploadTask = (...args) => {
+  globalThis.__createUploadTask = (...args) => {
     task.created.push(args);
     return {
       uploadAsync: () => task.outcome,

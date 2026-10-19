@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { api, httpResponses, id, jwtWithSubject, practice, sample, tokenStore, video } from './helpers/m4-N1-api.mjs';
+import { api, httpResponses, id, jwtWithSubject, practice, sample, tokenStore, video } from './helpers/api-upload-task.mjs';
 
 // 화면이 부르는 api.* 가 서버 OpenAPI 에 있는 경로·메서드로, 스키마에 맞는 본문을 보내고,
 // 서버 응답을 그대로(또는 정해진 정규화를 거쳐) 돌려주는지 본다. 요청·응답 스키마 검사는 httpResponses 가 한다.

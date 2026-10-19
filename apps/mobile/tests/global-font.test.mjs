@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { stubModules } from './helpers/m4-stubs.mjs';
+import { stubModules } from './helpers/stub-modules.mjs';
 
 // RN 의 Text·TextInput 대신 render 를 가진 가짜 컴포넌트를 주고, 모듈을 불러온 뒤 그린 결과의 글꼴을 본다.
 globalThis.__globalFont = {

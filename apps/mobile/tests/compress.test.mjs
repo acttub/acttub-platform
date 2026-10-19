@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 
-import { stubModules } from './helpers/m4-stubs.mjs';
+import { stubModules } from './helpers/stub-modules.mjs';
 
 // react-native-compressor·파일 크기·OS 만 바꾸고 비트레이트·시간 상한 규칙은 그대로 돈다.
 mock.timers.enable({ apis: ['setTimeout'] });

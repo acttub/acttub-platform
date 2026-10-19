@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { memoryStorage, stubModules } from './helpers/m4-stubs.mjs';
+import { memoryStorage, stubModules } from './helpers/stub-modules.mjs';
 
 globalThis.__analysisStorage = memoryStorage();
 stubModules({ '@react-native-async-storage/async-storage': 'export default globalThis.__analysisStorage;' });

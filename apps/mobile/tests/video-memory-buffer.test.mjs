@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { stubModules } from './helpers/m4-stubs.mjs';
+import { stubModules } from './helpers/stub-modules.mjs';
 
 globalThis.__videoMemory = { os: 'android' };
 stubModules({ 'react-native': 'export const Platform = { get OS() { return globalThis.__videoMemory.os; } };' });

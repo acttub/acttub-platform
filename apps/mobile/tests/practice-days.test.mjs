@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { memoryStorage } from './helpers/m4-stubs.mjs';
+import { memoryStorage } from './helpers/stub-modules.mjs';
 
 // 이 모듈은 AsyncStorage 를 늦게 require 한다. 그 자리에 메모리 저장소를 준다.
 const storage = memoryStorage();

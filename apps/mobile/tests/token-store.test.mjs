@@ -4,9 +4,9 @@ import test from 'node:test';
 
 // 키체인(SecureStore)만 메모리 Map 으로 바꾼다. 저장 형식·큐·구독은 실제 lib 코드가 돈다.
 const secureStore = new Map();
-globalThis.__m4n1SecureStore = secureStore;
+globalThis.__apiSecureStore = secureStore;
 const stubs = {
-  'expo-secure-store': 'const v = globalThis.__m4n1SecureStore; export const getItemAsync = async k => v.get(k) ?? null; export const setItemAsync = async (k, x) => { v.set(k, x); }; export const deleteItemAsync = async k => { v.delete(k); };',
+  'expo-secure-store': 'const v = globalThis.__apiSecureStore; export const getItemAsync = async k => v.get(k) ?? null; export const setItemAsync = async (k, x) => { v.set(k, x); }; export const deleteItemAsync = async k => { v.delete(k); };',
 };
 registerHooks({
   resolve(specifier, context, next) {

@@ -6,7 +6,7 @@ import { registerHooks } from 'node:module';
 const nativeModules = {
   'expo-constants': 'export default { expoConfig: { version: "0.1.0" } };',
   'expo/fetch': 'export const fetch = async () => new Response("", { status: 404 });',
-  'expo-file-system/legacy': 'export const FileSystemUploadType = { BINARY_CONTENT: 0 }; export const createUploadTask = (...args) => globalThis.__m4n1CreateUploadTask(...args);',
+  'expo-file-system/legacy': 'export const FileSystemUploadType = { BINARY_CONTENT: 0 }; export const createUploadTask = (...args) => globalThis.__createUploadTask(...args);',
   'expo-secure-store': 'const values = new Map(); export const getItemAsync = async k => values.get(k) ?? null; export const setItemAsync = async (k,v) => { values.set(k,v); }; export const deleteItemAsync = async k => { values.delete(k); };',
 };
 registerHooks({

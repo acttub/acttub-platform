@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { memoryStorage, stubModules } from './helpers/m4-stubs.mjs';
+import { memoryStorage, stubModules } from './helpers/stub-modules.mjs';
 
 // 파일 시스템과 저장소만 바꾸고 장부 규칙(device-files)·음성 파일 이름 규칙은 그대로 돈다.
 const state = { storage: memoryStorage(), files: new Set(), deleted: [], dirs: new Set(), cache: 'file:///cache/', listFails: false, createFails: false };

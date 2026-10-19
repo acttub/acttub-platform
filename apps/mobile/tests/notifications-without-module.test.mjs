@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { memoryStorage, stubModules } from './helpers/m4-stubs.mjs';
+import { memoryStorage, stubModules } from './helpers/stub-modules.mjs';
 
 // 0.0.4 이하 빌드처럼 expo-notifications·expo-device 가 없는 앱. 알림은 최선 노력이라 아무 일도 하지 않아야 한다.
 const state = { storage: memoryStorage(), calls: [] };

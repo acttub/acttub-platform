@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { memoryStorage, stubModules } from './helpers/m4-stubs.mjs';
+import { memoryStorage, stubModules } from './helpers/stub-modules.mjs';
 
 // 파일·저장소·압축·API 만 바꾸고 큐(upload-queue)와 검사(video-checks)는 그대로 돈다.
 const state = {

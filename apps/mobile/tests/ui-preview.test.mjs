@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { stubModules } from './helpers/m4-stubs.mjs';
+import { stubModules } from './helpers/stub-modules.mjs';
 
 stubModules({});
 const { seedPractice, seedPreviewAnalyzing } = await import('../lib/ui-preview.ts');

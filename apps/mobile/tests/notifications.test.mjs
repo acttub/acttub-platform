@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import { memoryStorage, stubModules } from './helpers/m4-stubs.mjs';
+import { memoryStorage, stubModules } from './helpers/stub-modules.mjs';
 
 // expo-notifications·expo-device·서버 API·OS 만 바꾸고 알림 동기화·토큰 생애 규칙은 그대로 돈다.
 const state = {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 
-import { memoryStorage, stubModules } from './helpers/m4-stubs.mjs';
+import { memoryStorage, stubModules } from './helpers/stub-modules.mjs';
 
 // 저장소·OS·분석·서버·Airbridge SDK 만 바꾼다. 귀속·기기 ID 추적 규칙(signup-attribution, airbridge-device)은 그대로 돈다.
 mock.timers.enable({ apis: ['setTimeout'] });

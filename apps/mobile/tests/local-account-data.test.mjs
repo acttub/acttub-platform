@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { memoryStorage, stubModules } from './helpers/m4-stubs.mjs';
+import { memoryStorage, stubModules } from './helpers/stub-modules.mjs';
 
 // 저장소·파일·이름 캐시만 바꾸고 지우는 순서(local-account-wipe)는 그대로 돈다.
 const state = { storage: memoryStorage(), calls: [] };
