@@ -41,6 +41,9 @@ const { act, cleanup, fireEvent, render, screen, within } = await import(
   "@testing-library/react"
 );
 const { default: AppDownloadView } = await import("../src/app/app/app-download-view.tsx");
+const { default: AppDownloadPage, metadata: appPageMetadata } = await import(
+  "../src/app/app/page.tsx"
+);
 
 /** 화면에 들어오고 나가는 것을 테스트가 직접 알린다. */
 class FakeIntersectionObserver {
@@ -304,4 +307,35 @@ test("아래 고정 바는 첫 화면과 마지막 다운로드 구역이 둘 �
 
   intersect(end, true);
   assert.equal(start().getAttribute("tabindex"), "-1");
+});
+
+test("주소의 UTM 이 바뀌면(뒤로 가기) 배지가 새 출처 칸과 캠페인으로 다시 걸린다", () => {
+  render(react.createElement(AppDownloadView));
+
+  act(() => {
+    window.history.pushState(null, "", "/app?utm_source=instagram&utm_medium=paid_social");
+    window.dispatchEvent(new window.PopStateEvent("popstate"));
+  });
+
+  assert.deepEqual(
+    screen
+      .getAllByRole("link", { name: "App Store에서 다운로드" })
+      .map((link) => link.getAttribute("href")),
+    [
+      "/go/ios/app_page/instagram_ad?utm_source=instagram&utm_medium=paid_social",
+      "/go/ios/app_page/instagram_ad?utm_source=instagram&utm_medium=paid_social",
+    ],
+  );
+  window.history.replaceState(null, "", "/");
+});
+
+test("/app 페이지는 앱과 운영사 구조화 데이터를 싣고 주소를 /app 으로 알린다", () => {
+  const { container } = render(react.createElement(AppDownloadPage));
+
+  const types = [...container.querySelectorAll('script[type="application/ld+json"]')].map(
+    (script) => JSON.parse(script.textContent)["@type"],
+  );
+  assert.deepEqual(types, ["MobileApplication", "MobileApplication", "Organization"]);
+  assert.equal(appPageMetadata.alternates.canonical, "/app");
+  assert.equal(appPageMetadata.title, "AI 연기 코칭 앱 액터브 — iOS·Android 무료");
 });
