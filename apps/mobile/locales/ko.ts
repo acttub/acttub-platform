@@ -169,7 +169,6 @@ const ko = {
     firstGuide: '처음이면 「영상 보여 주고 코칭 받기」를 누르세요.',
     withVideo: '영상 보여 주고 코칭 받기',
     lastNext: '지난번 다음에 해볼 것',
-    untitled: '지난 연습',
     againGuide: '이걸 해 보려면 「이전 연습 한 번 더」를 누르세요.',
     again: '이전 연습 한 번 더',
     others: '다른 연습',

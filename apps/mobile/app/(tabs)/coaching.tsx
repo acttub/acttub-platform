@@ -10,6 +10,7 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { coachingEntry, type CoachingEntry } from '@/lib/practice/coaching-entry';
+import { groupTitle } from '@/lib/practice/groups';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 
@@ -93,7 +94,7 @@ export default function CoachingTab() {
         <ScrollView contentContainerStyle={styles.nextBody}>
           <View style={styles.card}>
             <Text style={styles.cardEyebrow}>{t('coachingTab.lastNext')}</Text>
-            <Text style={styles.cardTitle}>{entry.noteTitle ?? entry.group.title ?? t('coachingTab.untitled')}</Text>
+            <Text style={styles.cardTitle}>{entry.noteTitle ?? groupTitle(entry.group)}</Text>
             {nextTake ? <Text style={styles.cardBody}>{nextTake}</Text> : null}
             <Text style={styles.cardGuide}>{t('coachingTab.againGuide')}</Text>
             <PrimaryButton label={t('coachingTab.again')} onPress={again} />

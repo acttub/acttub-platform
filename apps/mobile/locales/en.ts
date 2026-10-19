@@ -178,7 +178,6 @@ const en: DeepStringShape<typeof ko> = {
     firstGuide: 'If this is your first time, tap “Get coaching on a video”.',
     withVideo: 'Get coaching on a video',
     lastNext: 'What to try next, from last time',
-    untitled: 'Last practice',
     againGuide: 'To try it, tap “Practice it again”.',
     again: 'Practice it again',
     others: 'Other practice',
