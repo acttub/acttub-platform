@@ -89,3 +89,21 @@ test('리딩 완료: 발음 보고서 PRO 카드는 없고, 완료 뒤 마무리
   assert.match(play, /wrapUpProgress\(/);
   assert.match(play, /t\('reading\.wrapBadge'\)/);
 });
+
+test('첫 리딩 안내는 기기에 한 번 본 것으로 남고, 못 읽으면 본 것으로 친다', async () => {
+  const { hasSeenFirstReadingGuide, markFirstReadingGuideSeen } = await import('../lib/reading/guide-flag.ts');
+  const map = new Map();
+  const store = { getItem: async (k) => map.get(k) ?? null, setItem: async (k, v) => void map.set(k, v) };
+  assert.equal(await hasSeenFirstReadingGuide(store), false);
+  await markFirstReadingGuideSeen(store);
+  assert.equal(await hasSeenFirstReadingGuide(store), true);
+  assert.equal(await hasSeenFirstReadingGuide({ getItem: async () => { throw new Error('x'); }, setItem: async () => {} }), true);
+});
+
+test('리딩 실행: 시작 전 안내는 팝업 대신 아래 [시작]이고, 첫 리딩 안내는 진행 상태로만 띄운다', () => {
+  const play = src('app/reading/play.tsx');
+  assert.match(play, /t\('reading\.startHint'\)/);
+  assert.match(play, /onPress=\{\(\) => void closeTip\(false\)\}/);
+  assert.doesNotMatch(play, /visible=\{hold === 'tip'\}/);
+  assert.match(play, /coachMarkFor\(\{ done: coachDone, status: run\.status/);
+});

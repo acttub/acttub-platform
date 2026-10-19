@@ -13,7 +13,12 @@ import { logEvent } from '@/lib/analytics';
 import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/use-reading-mic';
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
 import { deleteDeviceFile } from '@/lib/account-files';
-import { hideAutoAdvanceTip, isAutoAdvanceTipHidden } from '@/lib/reading/guide-flag';
+import { hasSeenFirstReadingGuide, hideAutoAdvanceTip, isAutoAdvanceTipHidden, markFirstReadingGuideSeen } from '@/lib/reading/guide-flag';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { ReadingCoachMark } from '@/components/ui/reading-coach-mark';
+import { ReadingStatus } from '@/components/ui/reading-status';
+import { COACH_MARKS, coachMarkFor, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
+import { Image } from 'expo-image';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { currentNetworkType } from '@/lib/reading/network';
@@ -126,6 +131,14 @@ const MASKS: { key: MaskMode; label: string; desc: string }[] = [
   { key: 'all', label: t('reading.maskAll'), desc: t('reading.maskAllDesc') },
 ];
 const NOTICE_MS = 4000;
+const MASCOT = require('@/assets/images/mascot-reading.png');
+
+const COACH_TEXT: Record<CoachMark, string> = {
+  partner: 'reading.coachPartner',
+  mine: 'reading.coachMine',
+  next: 'reading.coachNext',
+  alone: 'reading.coachAlone',
+};
 
 export default function ReadingPlay() {
   const router = useRouter();
@@ -200,6 +213,12 @@ export default function ReadingPlay() {
   // [다시 연습]의 회차 요청 id — 실패 뒤 다시 눌러도 같은 회차 하나가 된다.
   const readAgainRequestId = useRef(newRequestId());
   const [restarting, setRestarting] = useState(false);
+  /** 완료 화면 [완료] 뒤의 리딩 마무리(pen 「새 · 리딩 마무리」). */
+  const [wrapUp, setWrapUp] = useState(false);
+  /** 첫 리딩 안내 — 본 적이 없을 때만. done 은 이미 지나간 안내. */
+  const [coachOn, setCoachOn] = useState(false);
+  const [coachDone, setCoachDone] = useState<ReadonlySet<CoachMark>>(() => new Set());
+  const coachShown = useRef<CoachMark | null>(null);
   /** 발음 피드백(실험). 켜져 있으면 내 차례마다 받아쓴 글을 대본과 맞춰 끝난 화면에 다르게 들린 어구를 모은다. */
   const voiceFeedbackOn = useRef(false);
   const [lineFeedback, setLineFeedback] = useState<LineFeedback[]>([]);
@@ -557,6 +576,48 @@ export default function ReadingPlay() {
 
   const tipOpen = phase.kind === 'running' && phase.hold === 'tip';
 
+  // ── 첫 리딩 안내(SOMA-748) — 진행 상태를 보고 띄울 뿐, 진행 규칙은 건드리지 않는다 ─────────────
+  useEffect(() => {
+    let alive = true;
+    void hasSeenFirstReadingGuide().then((seen) => alive && setCoachOn(!seen));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const coachLine = run ? run.lines[run.index] : undefined;
+  const coachHiddenMine =
+    !!run && !!coachLine && coachLine.type === 'dialogue' && run.myRoles.includes(coachLine.role) &&
+    isHidden({ maskMode, line: coachLine, isMine: true });
+  const coachMark =
+    coachOn && phase.kind === 'running' && !phase.hold && run
+      ? coachMarkFor({ done: coachDone, status: run.status, said: said.trim().length > 0, hiddenMine: coachHiddenMine })
+      : null;
+  const finishCoachMark = useCallback((mark: CoachMark) => {
+    setCoachDone((prev) => {
+      if (prev.has(mark)) return prev;
+      const next = new Set(prev);
+      next.add(mark);
+      if (next.size === COACH_MARKS.length) {
+        setCoachOn(false);
+        void markFirstReadingGuideSeen();
+      }
+      return next;
+    });
+  }, []);
+  // 띄웠던 안내는 그 때(상대 차례·내 차례)가 지나가면 본 것으로 친다.
+  useEffect(() => {
+    const prev = coachShown.current;
+    coachShown.current = coachMark;
+    if (prev && prev !== coachMark) finishCoachMark(prev);
+  }, [coachMark, finishCoachMark]);
+  // 리딩을 끝까지 했으면 다 못 봤어도 다음부터는 띄우지 않는다.
+  useEffect(() => {
+    if (phase.kind === 'done' && coachOn) {
+      setCoachOn(false);
+      void markFirstReadingGuideSeen();
+    }
+  }, [phase.kind, coachOn]);
+
   // ── 상대 차례: 목소리로 읽고 넘어간다 ─────────────────────────────────────────
   useEffect(() => {
     const current = runRef.current;
@@ -880,17 +941,14 @@ export default function ReadingPlay() {
 
   if (phase.kind === 'need_mic') {
     return (
-      <View style={[styles.root, styles.center]}>
-        <Feather name="mic-off" size={30} color={palette.amber} />
-        <Text style={styles.doneTitle}>{t('reading.micNeededTitle')}</Text>
-        <Text style={styles.dim}>{t('reading.micNeededBody')}</Text>
-        <Pressable style={styles.primaryWide} onPress={() => void Linking.openSettings()}>
-          <Text style={styles.primaryWideText}>{t('reading.micOpenSettings')}</Text>
-        </Pressable>
-        <Pressable onPress={exitToDetail} hitSlop={8}>
-          <Text style={styles.textButton}>{t('reading.exitLeave')}</Text>
-        </Pressable>
-      </View>
+      <ReadingStatus
+        icon="mic-off"
+        title={t('reading.micNeededTitle')}
+        body={t('reading.micNeededBody')}
+        onBack={exitToDetail}
+        primary={{ label: t('reading.micOpenSettings'), onPress: () => void Linking.openSettings() }}
+        secondary={{ label: t('reading.exitLeave'), onPress: exitToDetail }}
+      />
     );
   }
 
@@ -940,21 +998,29 @@ export default function ReadingPlay() {
 
   if (phase.kind === 'voice_failed') {
     const { failure } = phase;
+    // pen 「상대역 목소리를 못 만들었어요」 — [다시 시도] 또는 기기 목소리(없으면 글로 보기)로 그대로 시작한다.
     return (
-      <View style={[styles.root, styles.center]}>
-        <Feather name="alert-circle" size={30} color={palette.amber} />
-        <Text style={styles.doneTitle}>{t('reading.voiceFailTitle')}</Text>
-        {failure.kind === 'storage' ? (
-          <Text style={styles.dim}>{t('reading.voiceFailStorage', { size: formatMegabytes(failure.neededBytes ?? modelDownloadBytes('fp32')) })}</Text>
-        ) : failure.kind === 'network' ? (
-          <Text style={styles.dim}>{t('reading.voiceFailNetwork')}</Text>
-        ) : null}
-        <Pressable style={styles.primaryWide} onPress={() => void prepare()}>
-          <Text style={styles.primaryWideText}>{t('reading.voiceRetry')}</Text>
-        </Pressable>
-        <Pressable onPress={exitToDetail} hitSlop={8}>
-          <Text style={styles.textButton}>{t('reading.exitLeave')}</Text>
-        </Pressable>
+      <View style={styles.root}>
+        <ReadingStatus
+          title={t('reading.voiceFailTitle')}
+          body={t('reading.voiceFailBody')}
+          note={
+            failure.kind === 'storage'
+              ? t('reading.voiceFailStorage', { size: formatMegabytes(failure.neededBytes ?? modelDownloadBytes('fp32')) })
+              : failure.kind === 'network'
+                ? t('reading.voiceFailNetwork')
+                : undefined
+          }
+          onBack={exitToDetail}
+          primary={{ label: t('reading.voiceRetry'), onPress: () => void prepare() }}
+          secondary={{
+            label: t('reading.voiceUseDevice'),
+            onPress: () => {
+              chooseEngine(choosePartnerVoice({ cloud: false, appVoice: false, deviceVoice: deviceVoiceRef.current }));
+              startRunning();
+            },
+          }}
+        />
         {dialog}
       </View>
     );
@@ -962,32 +1028,57 @@ export default function ReadingPlay() {
 
   if (phase.kind === 'voice_unsupported') {
     return (
-      <View style={[styles.root, styles.center]}>
-        <Feather name="smartphone" size={30} color={palette.textMuted} />
-        <Text style={styles.doneTitle}>{t('reading.voiceUnsupportedTitle')}</Text>
-        <Text style={styles.dim}>{t('reading.voiceUnsupportedBody')}</Text>
-        <Pressable
-          style={styles.primaryWide}
-          onPress={() => {
+      <ReadingStatus
+        icon="smartphone"
+        title={t('reading.voiceUnsupportedTitle')}
+        body={t('reading.voiceUnsupportedBody')}
+        onBack={exitToDetail}
+        primary={{
+          label: t('reading.continueAnyway'),
+          onPress: () => {
             void markAppVoiceNoticed();
             startRunning();
-          }}>
-          <Text style={styles.primaryWideText}>{t('reading.continueAnyway')}</Text>
-        </Pressable>
-        <Pressable onPress={exitToDetail} hitSlop={8}>
-          <Text style={styles.textButton}>{t('reading.exitLeave')}</Text>
-        </Pressable>
-      </View>
+          },
+        }}
+      />
     );
   }
 
   if (phase.kind === 'closed') {
+    return <ReadingStatus title={phase.message} onBack={exitToDetail} primary={{ label: t('reading.toDetail'), onPress: exitToDetail }} />;
+  }
+
+  if (phase.kind === 'done' && wrapUp) {
+    const wrap = wrapUpProgress(run.lines, run.endIndex);
+    // pen 「새 · 리딩 마무리」. 이어 읽기 알림·「일정 붙여 두기」는 서버·알림 기능이 없어 숨긴다.
     return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{phase.message}</Text>
-        <Pressable style={styles.pill} onPress={exitToDetail}>
-          <Text style={styles.pillText}>{t('reading.toDetail')}</Text>
-        </Pressable>
+      <View style={[styles.root, { paddingTop: insets.top + 24 }]}>
+        <ScrollView contentContainerStyle={styles.wrapContent}>
+          <View style={styles.wrapBadge}>
+            <Feather name="check-circle" size={16} color={palette.green} />
+            <Text style={styles.wrapBadgeText}>{t('reading.wrapBadge')}</Text>
+          </View>
+          <View style={styles.wrapHead}>
+            <Image source={MASCOT} style={styles.wrapMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Text style={styles.wrapHeading}>{t('reading.wrapHeading')}</Text>
+          </View>
+          <View style={styles.wrapCard}>
+            <Text style={styles.wrapMeta}>{t('reading.wrapMeta', { title: script.title, total: wrap.total })}</Text>
+            <Text style={styles.wrapNext}>
+              {wrap.next === null ? t('reading.wrapAll') : t('reading.wrapNext', { readTo: wrap.readTo, next: wrap.next })}
+            </Text>
+          </View>
+          <Pressable style={styles.wrapRow} onPress={() => router.replace('/upload')} accessibilityRole="button">
+            <Feather name="video" size={18} color={palette.textDim} />
+            <Text style={styles.wrapRowText}>{t('reading.wrapCoach')}</Text>
+            <Feather name="chevron-right" size={18} color={palette.checkOff} />
+          </Pressable>
+        </ScrollView>
+        <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
+          <PrimaryButton label={t('common.confirm')} onPress={exitToDetail} />
+        </View>
+        {dialog}
+        {ratingSheet}
       </View>
     );
   }
@@ -1057,23 +1148,10 @@ export default function ReadingPlay() {
             </View>
           )}
 
-          <Pressable style={styles.coachCard} onPress={() => router.replace('/upload')}>
-            <Feather name="video" size={18} color={palette.blueDeep} />
-            <View style={styles.coachBody}>
-              <Text style={styles.coachTitle}>{t('reading.coachTitle')}</Text>
-              <Text style={styles.coachText}>{t('reading.coachBody')}</Text>
-            </View>
-            <Text style={styles.coachGo}>{t('reading.coachGo')}</Text>
-          </Pressable>
         </ScrollView>
-        <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
-          <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={() => void readAgain()} disabled={restarting}>
-            {restarting ? <ActivityIndicator size="small" color={palette.textDim} /> : <Feather name="rotate-ccw" size={16} color={palette.textDim} />}
-            <Text style={styles.ctrlGhostText}>{t('reading.readAgain')}</Text>
-          </Pressable>
-          <Pressable style={[styles.ctrl, styles.ctrlPrimary]} onPress={exitToDetail}>
-            <Text style={styles.ctrlPrimaryText}>{t('reading.finish')}</Text>
-          </Pressable>
+        <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
+          <PrimaryButton label={t('reading.finish')} onPress={() => setWrapUp(true)} />
+          <SecondaryButton label={t('reading.readAgain')} onPress={() => void readAgain()} loading={restarting} />
         </View>
         {dialog}
         {ratingSheet}
@@ -1108,6 +1186,14 @@ export default function ReadingPlay() {
   })();
 
   const hint = paused ? t('reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
+
+  const coachElement = coachMark ? (
+    <ReadingCoachMark
+      label={t('reading.coachLabel', { n: COACH_MARKS.indexOf(coachMark) + 1, total: COACH_MARKS.length })}
+      text={t(COACH_TEXT[coachMark])}
+      onClose={() => finishCoachMark(coachMark)}
+    />
+  ) : null;
 
   const past: { key: string; line: ScriptLine }[] = [];
   for (let i = run.startIndex; i < run.index && i <= run.endIndex; i++) past.push({ key: run.lineIds[i], line: run.lines[i] });
@@ -1146,6 +1232,8 @@ export default function ReadingPlay() {
             <Text key={key} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>
           ),
         )}
+
+        {coachMark !== 'next' && coachElement}
 
         {isDialogue && (
           <View style={[styles.card, myTurn ? styles.cardMine : styles.cardOther]}>
@@ -1204,7 +1292,18 @@ export default function ReadingPlay() {
       </ScrollView>
 
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
+      {coachMark === 'next' && <View style={styles.coachAboveControls}>{coachElement}</View>}
 
+      {hold === 'tip' ? (
+        // pen 「새 · 리딩 시작 전」 — 자동 넘김 안내를 팝업 대신 아래에 두고 [시작]으로 첫 줄을 연다.
+        <View style={[styles.startBar, { paddingBottom: insets.bottom + 12 }]}>
+          <Text style={styles.startHint}>{t('reading.startHint')}</Text>
+          <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
+          <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
+            <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
+          </Pressable>
+        </View>
+      ) : (
       <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable style={[styles.eyeBtn, masking && styles.eyeBtnOn]} onPress={openMaskSheet} hitSlop={4} accessibilityLabel={t('reading.maskSheetTitle')}>
           <Feather name={masking ? 'eye-off' : 'eye'} size={20} color={masking ? palette.blueDeep : palette.textDim} />
@@ -1220,7 +1319,7 @@ export default function ReadingPlay() {
             <Pressable
               style={[styles.eyeBtn, !canGoBack(run) && styles.backBtnOff]}
               onPress={goBack}
-              disabled={hold === 'tip' || !canGoBack(run)}
+              disabled={!canGoBack(run)}
               hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel={t('reading.prev')}>
@@ -1231,8 +1330,7 @@ export default function ReadingPlay() {
               <Text style={styles.ctrlGhostText}>{t('reading.pause')}</Text>
             </Pressable>
             <Pressable
-              style={[styles.ctrl, styles.ctrlPrimary, hold === 'tip' && styles.ctrlOff]}
-              disabled={hold === 'tip'}
+              style={[styles.ctrl, styles.ctrlPrimary]}
               onPress={() => {
                 if (myTurn) void endMyTurn(run.index);
                 else goNext(run.index);
@@ -1243,6 +1341,7 @@ export default function ReadingPlay() {
           </>
         )}
       </View>
+      )}
 
       {script && (
         <LineEditSheet
@@ -1253,22 +1352,6 @@ export default function ReadingPlay() {
           onClose={closeLineEdit}
         />
       )}
-      <Modal transparent statusBarTranslucent visible={hold === 'tip'} animationType="fade" onRequestClose={() => void closeTip(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.tipCard}>
-            <Text style={styles.tipTitle}>{t('reading.autoAdvanceTip')}</Text>
-            <View style={styles.tipRow}>
-              <Pressable style={[styles.tipBtn, styles.tipBtnGhost]} onPress={() => void closeTip(true)}>
-                <Text style={styles.tipBtnGhostText}>{t('reading.dontShowAgain')}</Text>
-              </Pressable>
-              <Pressable style={[styles.tipBtn, styles.tipBtnPrimary]} onPress={() => void closeTip(false)}>
-                <Text style={styles.tipBtnPrimaryText}>{t('common.confirm')}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       <Modal transparent statusBarTranslucent visible={hold === 'mask_sheet'} animationType="slide" onRequestClose={releaseHold}>
         <Pressable style={[styles.backdrop, styles.backdropSheet]} onPress={releaseHold}>
           <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={(e) => e.stopPropagation()}>
@@ -1353,11 +1436,22 @@ const styles = StyleSheet.create({
   diffAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
   ratingSlot: { alignSelf: 'stretch' },
-  coachCard: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.blueMist, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 14, padding: 14 },
-  coachBody: { flex: 1, gap: 2 },
-  coachTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 14 },
-  coachText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12, lineHeight: 17 },
-  coachGo: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  doneBar: { paddingHorizontal: 16, paddingTop: 12, gap: 10, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
+  wrapContent: { paddingHorizontal: 24, paddingBottom: 24 },
+  wrapBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.greenSoft, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  wrapBadgeText: { color: palette.green, fontSize: 13, fontWeight: '800' },
+  wrapHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
+  wrapMascot: { width: 52, height: 58 },
+  wrapHeading: { flex: 1, color: palette.text, fontSize: 22, fontWeight: '800', lineHeight: 29 },
+  wrapCard: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, gap: 6, marginTop: 18 },
+  wrapMeta: { color: palette.textMuted, fontSize: 12, fontWeight: '800' },
+  wrapNext: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 23 },
+  wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
+  wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700' },
+  coachAboveControls: { paddingHorizontal: 16, paddingBottom: 8 },
+  startBar: { paddingHorizontal: 24, paddingTop: 14, gap: 10, alignItems: 'stretch' },
+  startHint: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21, textAlign: 'center' },
+  startSkip: { color: palette.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },
 
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   exitBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
@@ -1417,14 +1511,6 @@ const styles = StyleSheet.create({
 
   backdrop: { flex: 1, backgroundColor: 'rgba(15, 21, 37, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
   backdropSheet: { justifyContent: 'flex-end', padding: 0 },
-  tipCard: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 26, paddingBottom: 18, gap: 22 },
-  tipTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 17, textAlign: 'center' },
-  tipRow: { flexDirection: 'row', gap: 8 },
-  tipBtn: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  tipBtnGhost: { backgroundColor: palette.bgSoft },
-  tipBtnGhostText: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  tipBtnPrimary: { backgroundColor: palette.blue },
-  tipBtnPrimaryText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 15 },
   sheet: { width: '100%', backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 22, paddingTop: 10, gap: 4 },
   sheetHandle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 14 },
   sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
