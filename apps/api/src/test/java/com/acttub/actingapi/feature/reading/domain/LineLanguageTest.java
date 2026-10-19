@@ -56,4 +56,26 @@ class LineLanguageTest {
         assertThat(next.lines().get(1)).isEqualTo(new ScriptDraft.Line(2, "dialogue", 0, "3anni ana? 안니 아나?", "ar", "عني أنا؟"));
         assertThat(draft.withLanguages(Map.of())).isSameAs(draft);
     }
+
+    @Test
+    @DisplayName("한 줄에 다른 말이 이어지면 조각 표시로 잇고, 줄의 말은 한국어가 아닌 첫 조각이다")
+    void joinsMixedLine() {
+        List<NumberedLine> sent = List.of(
+                new NumberedLine(777, "고맙습니다. minshān ḥēk labse naḍḍarāt. 민샨 헤크"),
+                new NumberedLine(9, "괜찮아. 고마워."));
+        Map<Integer, LineLanguage.Result> parsed = LineLanguage.parse(
+                "777\tko\t고맙습니다.\tar\tمنشان هيك لابسة نظارات.\n9\tko\t괜찮아.\tko\t고마워.", sent);
+        assertThat(parsed.get(777)).isEqualTo(new LineLanguage.Result("ar", "\u27E6ko\u27E7고맙습니다. \u27E6ar\u27E7منشان هيك لابسة نظارات."));
+        assertThat(parsed.get(9)).isEqualTo(new LineLanguage.Result("ko", null));
+        assertThat("\u27E6ko\u27E7고맙습니다. \u27E6ar\u27E7شكرا".replaceAll(LineLanguage.MARK_PATTERN, " ").strip())
+                .isEqualTo("고맙습니다.  شكرا");
+    }
+
+    @Test
+    @DisplayName("조각 하나라도 목록 밖 말이거나 글이 비면 그 줄을 버린다")
+    void dropsBrokenMixedLine() {
+        List<NumberedLine> sent = List.of(new NumberedLine(1, "괜찮아. Je t'aime."));
+        assertThat(LineLanguage.parse("1\tko\t괜찮아.\tzz\tJe t'aime.", sent)).isEmpty();
+        assertThat(LineLanguage.parse("1\tko\t괜찮아.\tfr\t", sent)).isEmpty();
+    }
 }
