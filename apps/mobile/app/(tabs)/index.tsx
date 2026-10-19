@@ -15,7 +15,7 @@ import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
-import { currentTutorial, startTutorial } from '@/lib/tutorial';
+import { currentTutorial } from '@/lib/tutorial';
 import {
   localDate,
   upcomingNotices,
@@ -28,7 +28,6 @@ import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
 import { loadIntoCurrent } from '@/lib/reading/store';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
-import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { AnnouncementPoster } from '@/components/announcement-poster';
@@ -101,8 +100,6 @@ export default function HomeScreen() {
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
-  // 그보다 먼저, 처음 연 사람에게 연습 한 바퀴를 권한다(SOMA-494). 이걸 닫아야 위 가이드가 뜬다.
-  const [introOpen, setIntroOpen] = useState(false);
   const [introChecked, setIntroChecked] = useState(false);
   const [onboardingJustFinished, setOnboardingJustFinished] = useState(false);
   const startTarget = useSpotlightTarget(TARGET.homeStart);
@@ -113,23 +110,6 @@ export default function HomeScreen() {
     });
   }, []);
 
-  const chooseTutorial = (choice: TutorialChoice) => {
-    setIntroOpen(false);
-    setOnboardingJustFinished(true);
-    if (choice === 'later') {
-      void markTutorialSeen();
-      openHomeGuideIfNew();
-      return;
-    }
-    if (choice === 'sample') {
-      startTutorial('sample');
-      router.push({ pathname: '/upload', params: { sample: '1' } });
-      return;
-    }
-    startTutorial('own');
-    router.push('/upload');
-  };
-
   useFocusEffect(
     useCallback(() => {
       // 올 때마다 본 적 있는지 묻는다(기기에서 읽는 값이라 싸다). 한 번만 묻고 말면,
@@ -138,8 +118,12 @@ export default function HomeScreen() {
       if (currentTutorial()) finishTutorial('left');
       void hasSeenTutorial().then((seen) => {
         setIntroChecked(true);
-        if (!seen) setIntroOpen(true);
-        else openHomeGuideIfNew();
+        // 예전 「연습 한 바퀴」 시트는 새 디자인에서 첫 사용자 홈(뭐부터 해 볼까요?)이 대신한다(SOMA-748).
+        if (!seen) {
+          void markTutorialSeen();
+          setOnboardingJustFinished(true);
+        }
+        openHomeGuideIfNew();
       });
       let cancelled = false;
       api
@@ -521,9 +505,8 @@ export default function HomeScreen() {
           )}
         </ScrollView>
       )}
-      <TutorialIntroSheet visible={introOpen && overlaysReady} onChoose={chooseTutorial} />
       <SpotlightGuide
-        visible={guideOpen && !introOpen && overlaysReady && loaded}
+        visible={guideOpen && overlaysReady && loaded}
         topic="home"
         steps={HOME_STEPS}
         onDone={() => {
@@ -533,7 +516,7 @@ export default function HomeScreen() {
       />
       <AnnouncementPoster
         loggedIn={!!user}
-        blocked={!overlaysReady || !introChecked || introOpen || guideOpen || celebrateStreak !== null}
+        blocked={!overlaysReady || !introChecked || guideOpen || celebrateStreak !== null}
         onboardingJustFinished={onboardingJustFinished}
       />
     </SafeAreaView>
