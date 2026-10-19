@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { easing, motion } from '@/constants/motion';
@@ -27,6 +28,8 @@ import { currentSpotlight, onSpotlightChanged, showSpotlight } from '@/lib/spotl
 import { onTargetsChanged, remeasureTargets, targetRect } from '@/lib/spotlight-targets';
 
 export type { SpotlightStep };
+
+const MASCOT = require('@/assets/images/mascot-home.png');
 
 /** 설명 카드를 아직 못 쟀을 때 쓸 어림값. 첫 그림 한 번만 쓰이고 바로 실제 높이로 바뀐다. */
 const CAPTION_GUESS = 190;
@@ -235,30 +238,28 @@ export function SpotlightHost() {
         <View style={[styles.shroud, { left: 0, top: 0, width: screen.width, height: screen.height }]} />
       )}
 
+      {/* 설명 — 왼쪽에 액터브(마스코트), 오른쪽 말풍선(pen 「첫 연습 끝 홈 · 안내」, SOMA-748). */}
       <View
         style={[styles.caption, placement]}
         onLayout={(e) => setCaptionHeight(e.nativeEvent.layout.height)}>
-        <Animated.View
-          key={index}
-          style={styles.captionInner}
-          entering={FadeInDown.duration(motion.standard).easing(easing.enter)}>
-          <View style={styles.progress}>
-            <View style={styles.dots}>
-              {steps.map((_, i) => (
-                <StepDot key={i} active={i === index} done={i < index} />
-              ))}
+        <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+        <View style={styles.bubble}>
+          <View style={styles.tail} />
+          <Animated.View
+            key={index}
+            style={styles.captionInner}
+            entering={FadeInDown.duration(motion.standard).easing(easing.enter)}>
+            <View style={styles.progress}>
+              <Text style={styles.step}>
+                {t('guide.speakerStep', { at: index + 1, total: steps.length })}
+              </Text>
+              <Pressable onPress={() => finish('skip')} hitSlop={12} accessibilityRole="button">
+                <Text style={styles.skip}>{t('guide.skip')}</Text>
+              </Pressable>
             </View>
-            <Text style={styles.step}>
-              {t('guide.stepOf', { at: index + 1, total: steps.length })}
-            </Text>
-          </View>
-          <Text style={styles.title}>{t(`${step.text}Title`)}</Text>
-          <Text style={styles.body}>{t(`${step.text}Body`)}</Text>
-        </Animated.View>
-        <View style={styles.row}>
-          <Pressable onPress={() => finish('skip')} hitSlop={12} accessibilityRole="button">
-            <Text style={styles.skip}>{t('guide.skip')}</Text>
-          </Pressable>
+            <Text style={styles.title}>{t(`${step.text}Title`)}</Text>
+            <Text style={styles.body}>{t(`${step.text}Body`)}</Text>
+          </Animated.View>
           <Pressable
             style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
             onPress={next}
@@ -271,43 +272,41 @@ export function SpotlightHost() {
   );
 }
 
-/** 진행 점 — 지금 단계는 길게 늘어나고, 지난 단계는 파랑으로 남는다. */
-function StepDot({ active, done }: { active: boolean; done: boolean }) {
-  const width = useSharedValue(active ? 18 : 6);
-  useEffect(() => {
-    width.value = withTiming(active ? 18 : 6, { duration: motion.standard, easing: easing.standard });
-  }, [active, width]);
-  const style = useAnimatedStyle(() => ({ width: width.value }));
-  return <Animated.View style={[styles.dot, (active || done) && styles.dotOn, style]} />;
-}
-
 const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100 },
-  shroud: { position: 'absolute', backgroundColor: 'rgba(11, 18, 38, 0.82)' },
-  shroudRing: { position: 'absolute', borderColor: 'rgba(11, 18, 38, 0.82)' },
+  shroud: { position: 'absolute', backgroundColor: 'rgba(0, 0, 0, 0.55)' },
+  shroudRing: { position: 'absolute', borderColor: 'rgba(0, 0, 0, 0.55)' },
   hole: { position: 'absolute' },
   // 밝은 배경 위에서도 보이게 파랑으로 두른다 — 흰 테두리는 흰 화면에 묻힌다.
   ring: { position: 'absolute', borderWidth: 3, borderColor: palette.blue },
   caption: {
     position: 'absolute',
-    left: 20,
-    right: 20,
-    backgroundColor: palette.card,
-    borderRadius: 20,
-    padding: 20,
-    gap: 8,
+    left: 14,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  captionInner: { gap: 8 },
+  mascot: { width: 86, height: 96 },
+  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.card, borderRadius: 18, padding: 16, gap: 10 },
+  // 말꼬리 — 마스코트 쪽으로 돌린 작은 네모.
+  tail: {
+    position: 'absolute',
+    left: -6,
+    top: '50%',
+    marginTop: -7,
+    width: 14,
+    height: 14,
+    backgroundColor: palette.card,
+    transform: [{ rotate: '45deg' }],
+  },
+  captionInner: { gap: 6 },
   progress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  dots: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  dot: { height: 6, borderRadius: 3, backgroundColor: palette.border },
-  dotOn: { backgroundColor: palette.blue },
-  step: { fontSize: 12, fontWeight: '800', color: palette.blue, letterSpacing: 0.4 },
-  title: { fontSize: 19, fontWeight: '800', color: palette.text, lineHeight: 26 },
-  body: { fontSize: 14, color: palette.textDim, lineHeight: 21 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  skip: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
-  cta: { backgroundColor: palette.blue, borderRadius: 14, paddingHorizontal: 22, paddingVertical: 12 },
+  step: { fontSize: 12, fontWeight: '800', lineHeight: 17, color: palette.flameDeep },
+  title: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 23 },
+  body: { fontSize: 13, fontWeight: '500', color: palette.textDim, lineHeight: 19 },
+  skip: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
+  cta: { height: 44, borderRadius: 22, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.9 },
-  ctaText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  ctaText: { fontSize: 15, fontWeight: '800', color: palette.onAccent },
 });

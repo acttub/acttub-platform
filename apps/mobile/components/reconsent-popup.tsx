@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   },
   head: { gap: 6 },
   title: { fontSize: 19, fontWeight: '800', color: palette.text },
-  subtitle: { fontSize: 14, color: palette.textDim },
+  subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
   list: { flexGrow: 0, flexShrink: 1 },
   checking: { paddingVertical: 24, alignItems: 'center' },
   loadFailed: { alignItems: 'center', gap: 4 },
