@@ -1,0 +1,519 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { useVideoPlayer } from 'expo-video';
+
+import UploadScreen from '@/app/upload';
+import { logEvent } from '@/lib/analytics';
+import { api } from '@/lib/api';
+import { ApiError } from '@/lib/api-request';
+import {
+  confirmedVideoFor,
+  flushLibraryUploads,
+  onLibraryChange,
+  pendingLibraryUploads,
+  saveRecordingToLibrary,
+} from '@/lib/library/library-runner';
+import { setPickedVideo, takePickedVideo } from '@/lib/practice/picked-video';
+import { setContinueOrigin } from '@/lib/practice/session-state';
+
+const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+let mockParams: Record<string, string> = {};
+let mockFocusEffect: () => void = () => undefined;
+const mockPlayer = { pause: jest.fn(), addListener: jest.fn(() => ({ remove: jest.fn() })), loop: true };
+
+jest.mock('expo-router', () => {
+  const { useEffect } = require('react');
+  const { Text } = require('react-native');
+  return {
+    Stack: { Screen: ({ options }: { options?: { title?: string } }) => <Text>{options?.title}</Text> },
+    useRouter: () => mockRouter,
+    useLocalSearchParams: () => mockParams,
+    useFocusEffect: (effect: () => void) => {
+      mockFocusEffect = effect;
+      useEffect(effect, [effect]);
+    },
+  };
+});
+jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
+jest.mock('expo-video', () => ({
+  useVideoPlayer: jest.fn((_source: unknown, setup?: (p: unknown) => void) => {
+    setup?.(mockPlayer);
+    return mockPlayer;
+  }),
+  VideoView: () => null,
+}));
+jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
+jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
+jest.mock('@/lib/tutorial-loop', () => ({ sampleVideoUri: () => 'file:///sample.mp4' }));
+jest.mock('@/lib/api', () => ({
+  api: { getVideo: jest.fn(), createPractice: jest.fn(), continuePractice: jest.fn(), listPracticeGroups: jest.fn() },
+}));
+jest.mock('@/lib/library/library-runner', () => {
+  const listeners = new Set<() => void>();
+  return {
+    confirmedVideoFor: jest.fn(() => null),
+    flushLibraryUploads: jest.fn(async () => undefined),
+    onLibraryChange: jest.fn((fn: () => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    }),
+    pendingLibraryUploads: jest.fn(async () => []),
+    saveRecordingToLibrary: jest.fn(),
+    __emit: () => listeners.forEach((fn) => fn()),
+  };
+});
+
+async function returnWithPicked(video: Parameters<typeof setPickedVideo>[0]) {
+  setPickedVideo(video);
+  await act(async () => mockFocusEffect());
+}
+
+const emitLibraryChange = () => (jest.requireMock('@/lib/library/library-runner') as { __emit: () => void }).__emit();
+const logged = (name: string) => (logEvent as jest.Mock).mock.calls.filter(([n]) => n === name).map(([, p]) => p);
+
+const serverError = (status: number, code?: string) => new ApiError(status, '서버 오류', code ?? 'unknown_error', code);
+
+const RIGHTS = '본인이 촬영·업로드할 권리가 있고, 영상에 나오는 다른 사람의 촬영·처리 동의를 받았으며, 대본·음원·영상의 저작권과 초상권을 침해하지 않습니다.';
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockParams = {};
+  takePickedVideo();
+  setContinueOrigin(null);
+  (confirmedVideoFor as jest.Mock).mockReturnValue(null);
+  (pendingLibraryUploads as jest.Mock).mockResolvedValue([]);
+  (api.getVideo as jest.Mock).mockResolvedValue({ id: 'v1', playback_url: 'https://play/v1' });
+  (api.listPracticeGroups as jest.Mock).mockResolvedValue({ groups: [] });
+  (api.createPractice as jest.Mock).mockResolvedValue({ id: 'p1', ordinal: 1 });
+  (api.continuePractice as jest.Mock).mockResolvedValue({ id: 'p2', ordinal: 2 });
+});
+
+async function renderWithSavedVideo() {
+  setPickedVideo({ videoId: 'v1', pendingId: null, uri: null, playbackUrl: null, durationMs: 12_000 });
+  await render(<UploadScreen />);
+  await waitFor(() => expect(useVideoPlayer).toHaveBeenLastCalledWith('https://play/v1', expect.any(Function)));
+}
+
+async function checkRightsAndStart() {
+  await fireEvent.press(screen.getByText(RIGHTS));
+  await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
+}
+
+describe('영상을 고르기 전', () => {
+  test('빈 영상 상자와 무엇이 모자란지 보여 주고, 막힌 질문 받기는 이유를 센다', async () => {
+    const view = await render(<UploadScreen />);
+
+    expect(screen.getByText('새 연습')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '어떤 영상으로 연습할까요?' })).toBeOnTheScreen();
+    expect(screen.getByText('영상을 채워주세요')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
+    expect(logged('practice_start_blocked')).toEqual([{ reason: 'no_video' }]);
+    expect(api.createPractice).not.toHaveBeenCalled();
+
+    await view.unmount();
+    expect(logged('practice_upload_exit')).toEqual([
+      { stage: 'no_video', source: 'none', rights: 'off', blocked_taps: 1, stay_s: 0 },
+    ]);
+  });
+
+  test('영상 상자를 누르면 시트가 뜨고, 보관함·촬영을 고르면 시트가 닫힌 뒤 그 화면으로 간다', async () => {
+    await render(<UploadScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: '어떤 영상으로 연습할까요?' }));
+    await fireEvent.press(screen.getByRole('button', { name: '보관함에서 고르기' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/archive', params: { pick: '1' } }));
+    expect(screen.queryByRole('button', { name: '보관함에서 고르기' })).not.toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: '어떤 영상으로 연습할까요?' }));
+    await fireEvent.press(screen.getByRole('button', { name: '촬영하기' }));
+    await waitFor(() =>
+      expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-video', params: { mode: 'ai' } }),
+    );
+  });
+});
+
+describe('갤러리에서 고르기', () => {
+  async function pickFromGallery() {
+    await fireEvent.press(screen.getByRole('button', { name: '어떤 영상으로 연습할까요?' }));
+    await fireEvent.press(screen.getByRole('button', { name: '갤러리에서 고르기' }));
+    await waitFor(() => expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalled());
+  }
+
+  test('고른 영상을 보관함 큐에 넣고, 올라가는 동안 질문 받기를 막고 업로드를 다시 민다', async () => {
+    (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///g.mov', duration: 42_000.4 }],
+    });
+    (saveRecordingToLibrary as jest.Mock).mockResolvedValue({
+      kind: 'queued',
+      entry: { id: 'pend-1', uri: 'file:///doc/g.mov' },
+    });
+    await render(<UploadScreen />);
+    await pickFromGallery();
+
+    expect(await screen.findByText('올리는 중…')).toBeOnTheScreen();
+    expect(saveRecordingToLibrary).toHaveBeenCalledWith({ uri: 'file:///g.mov', durationMs: 42_000, owner: 'u1' });
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith({ mediaTypes: ['videos'], allowsEditing: true, quality: 1 });
+    expect(useVideoPlayer).toHaveBeenLastCalledWith('file:///doc/g.mov', expect.any(Function));
+    expect(mockPlayer.pause).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: '업로드 중…' })).toBeOnTheScreen();
+    expect(screen.getByText('영상을 아직 올리는 중이에요. 잠시 뒤에 다시 눌러 주세요.')).toBeOnTheScreen();
+    expect(logged('practice_video_picked')).toEqual([{ source: 'gallery', needs_upload: 'yes', length: '30_60s' }]);
+
+    await fireEvent.press(screen.getByRole('button', { name: '업로드 중…' }));
+    expect(flushLibraryUploads).toHaveBeenCalledWith('u1');
+    expect(logged('practice_start_blocked')).toEqual([{ reason: 'uploading' }]);
+    expect(api.createPractice).not.toHaveBeenCalled();
+  });
+
+  test('올리기가 실패로 남으면 다시 올려 볼 수 있다고 알린다', async () => {
+    (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///g.mov' }] });
+    (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'pend-1', uri: 'file:///doc/g.mov' } });
+    (pendingLibraryUploads as jest.Mock).mockResolvedValue([{ id: 'pend-1', status: 'failed' }]);
+    await render(<UploadScreen />);
+    await pickFromGallery();
+
+    expect(await screen.findByText('영상을 올리지 못했어요. 질문 받기를 누르면 다시 올려 볼게요.')).toBeOnTheScreen();
+    expect(pendingLibraryUploads).toHaveBeenCalledWith('u1');
+  });
+
+  test('올리기 상태를 못 읽어도 올리는 중으로 둔다', async () => {
+    (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///g.mov' }] });
+    (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'pend-1', uri: 'file:///doc/g.mov' } });
+    (pendingLibraryUploads as jest.Mock).mockRejectedValue(new Error('storage'));
+    await render(<UploadScreen />);
+    await pickFromGallery();
+
+    expect(await screen.findByText('영상을 아직 올리는 중이에요. 잠시 뒤에 다시 눌러 주세요.')).toBeOnTheScreen();
+  });
+
+  test('올리던 영상이 확정되면 질문 받기를 열고 기다린 시간을 센다', async () => {
+    (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///g.mov' }] });
+    (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'pend-1', uri: 'file:///doc/g.mov' } });
+    await render(<UploadScreen />);
+    await pickFromGallery();
+    await screen.findByRole('button', { name: '업로드 중…' });
+
+    (confirmedVideoFor as jest.Mock).mockImplementation((id: string) => (id === 'pend-1' ? 'v9' : null));
+    await act(async () => emitLibraryChange());
+
+    expect(await screen.findByText('보관함 저장')).toBeOnTheScreen();
+    expect(logged('practice_video_ready')).toEqual([{ source: 'gallery', wait_s: 0 }]);
+    await checkRightsAndStart();
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'p1' } }));
+    expect((api.createPractice as jest.Mock).mock.calls[0][0].video_id).toBe('v9');
+  });
+
+  test('너무 긴 영상은 큐에 넣지 않고 알린다', async () => {
+    (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///g.mov', duration: 400_000 }] });
+    (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'rejected', code: 'video_too_long' });
+    await render(<UploadScreen />);
+    await pickFromGallery();
+
+    expect(await screen.findByText('영상이 너무 길어요(5분 이내)')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '어떤 영상으로 연습할까요?' })).toBeOnTheScreen();
+    expect(logged('practice_video_picked')).toEqual([]);
+  });
+
+  test('선택 창을 닫으면 아무것도 바뀌지 않는다', async () => {
+    (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({ canceled: true, assets: [] });
+    await render(<UploadScreen />);
+    await pickFromGallery();
+
+    expect(saveRecordingToLibrary).not.toHaveBeenCalled();
+    expect(screen.getByText('영상을 채워주세요')).toBeOnTheScreen();
+  });
+});
+
+describe('보관함에서 고른 영상으로 시작', () => {
+  test('재생 주소를 받아 미리보기를 채우고, 권리를 체크하면 회차를 만들어 분석으로 간다', async () => {
+    await renderWithSavedVideo();
+
+    expect(screen.getByText('보관함 저장')).toBeOnTheScreen();
+    expect(api.getVideo).toHaveBeenCalledWith('v1');
+    expect(logged('practice_video_picked')).toEqual([{ source: 'library', needs_upload: 'no', length: '10_30s' }]);
+
+    await fireEvent.press(screen.getByText('영상 다시 선택'));
+    await fireEvent.press(screen.getByRole('button', { name: '보관함에서 고르기' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/archive', params: { pick: '1' } }));
+    expect(screen.getByText('권리 확인에 체크해주세요')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
+    expect(logged('practice_start_blocked')).toEqual([{ reason: 'rights' }]);
+
+    await fireEvent.changeText(screen.getByPlaceholderText('예: 카페 이별 장면 2차'), '  카페 장면  ');
+    await fireEvent.press(screen.getByRole('button', { name: '대사 분석' }));
+    await fireEvent.changeText(screen.getByPlaceholderText('편하게 적어 주세요'), '첫 대사가 어색해요');
+    await checkRightsAndStart();
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'p1' } }));
+    expect(logged('practice_rights_toggle')).toEqual([{ checked: 'on' }]);
+    expect(api.createPractice).toHaveBeenCalledWith({
+      request_id: expect.any(String),
+      video_id: 'v1',
+      scene: { situation: '', character: '', goal: '' },
+      blockage: { category: '분석', detail: '그 외', note: '첫 대사가 어색해요' },
+      title: '카페 장면',
+    });
+    expect(logged('practice_start')).toEqual([{ ordinal: 1, continued: false }]);
+  });
+
+  test('같은 갈래를 다시 누르면 고른 것을 푼다', async () => {
+    await renderWithSavedVideo();
+    await fireEvent.press(screen.getByRole('button', { name: '연기 표현' }));
+    expect(screen.getByRole('button', { name: '연기 표현' })).toBeSelected();
+    await fireEvent.press(screen.getByRole('button', { name: '연기 표현' }));
+    expect(screen.getByRole('button', { name: '연기 표현' })).not.toBeSelected();
+
+    await checkRightsAndStart();
+    await waitFor(() => expect(api.createPractice).toHaveBeenCalled());
+    expect((api.createPractice as jest.Mock).mock.calls[0][0].blockage).toEqual({ category: '그 외', detail: '그 외', note: null });
+    expect((api.createPractice as jest.Mock).mock.calls[0][0]).not.toHaveProperty('title');
+  });
+
+  test('보내는 동안 입력을 잠그고 두 번 눌러도 한 번만 보낸다', async () => {
+    let resolve: (v: unknown) => void = () => undefined;
+    (api.createPractice as jest.Mock).mockReturnValue(new Promise((r) => (resolve = r)));
+    await renderWithSavedVideo();
+    await fireEvent.press(screen.getByText(RIGHTS));
+    const submit = screen.getByRole('button', { name: '질문 받기' });
+    await fireEvent.press(submit);
+    await fireEvent.press(submit);
+
+    expect(await screen.findByText('보내는 중이에요. 적은 내용은 이대로 코치에게 가요.')).toBeOnTheScreen();
+    expect(screen.getByPlaceholderText('편하게 적어 주세요')).toHaveProp('editable', false);
+    expect(screen.getByRole('button', { name: '대사 분석' })).toBeDisabled();
+    expect(api.createPractice).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolve({ id: 'p1', ordinal: 3 }));
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'p1' } });
+  });
+
+  test('목록에서 고른 영상의 재생 주소가 없으면 미리보기를 비운 채로 둔다', async () => {
+    (api.getVideo as jest.Mock).mockResolvedValue({ id: 'v1', playback_url: null });
+    setPickedVideo({ videoId: 'v1', pendingId: null, uri: null, playbackUrl: null, durationMs: null });
+    await render(<UploadScreen />);
+    await waitFor(() => expect(api.getVideo).toHaveBeenCalledWith('v1'));
+    expect(useVideoPlayer).toHaveBeenLastCalledWith(null, expect.any(Function));
+    expect(screen.getByText('보관함 저장')).toBeOnTheScreen();
+  });
+
+  test('상세를 못 받아도 화면은 그대로다', async () => {
+    (api.getVideo as jest.Mock).mockRejectedValue(new Error('down'));
+    setPickedVideo({ videoId: 'v1', pendingId: null, uri: null, playbackUrl: null, durationMs: null });
+    await render(<UploadScreen />);
+    await waitFor(() => expect(api.getVideo).toHaveBeenCalled());
+    expect(screen.getByText('보관함 저장')).toBeOnTheScreen();
+  });
+
+  test('다른 영상의 상세가 늦게 오면 덮어쓰지 않는다', async () => {
+    (api.getVideo as jest.Mock).mockResolvedValue({ id: 'other', playback_url: 'https://play/other' });
+    setPickedVideo({ videoId: 'v1', pendingId: null, uri: null, playbackUrl: null, durationMs: null });
+    await render(<UploadScreen />);
+    await waitFor(() => expect(api.getVideo).toHaveBeenCalled());
+    expect(useVideoPlayer).not.toHaveBeenCalledWith('https://play/other', expect.any(Function));
+  });
+
+  test('화면을 떠나면 상세 응답을 버린다', async () => {
+    let resolve: (v: unknown) => void = () => undefined;
+    (api.getVideo as jest.Mock).mockReturnValue(new Promise((r) => (resolve = r)));
+    setPickedVideo({ videoId: 'v1', pendingId: null, uri: null, playbackUrl: null, durationMs: null });
+    const view = await render(<UploadScreen />);
+    await view.unmount();
+    await act(async () => resolve({ id: 'v1', playback_url: 'https://play/v1' }));
+    expect(useVideoPlayer).not.toHaveBeenCalledWith('https://play/v1', expect.any(Function));
+  });
+});
+
+describe('시작이 실패하면', () => {
+  test.each([
+    ['영상이 아직 확정 전', serverError(422, 'video_not_ready'), '영상을 아직 올리는 중이에요. 잠시 뒤에 다시 눌러 주세요.'],
+    ['오늘 분석을 다 씀', serverError(429, 'guest_daily_analysis_limit'), '오늘 분석을 다 썼어요. 내일 다시 할 수 있어요.'],
+    ['연결이 끊김', serverError(503), '연결이 끊겼어요. 잠시 뒤 다시 시도해 주세요.'],
+    ['그 밖의 서버 오류', new ApiError(400, '잘못된 요청이에요'), '잘못된 요청이에요'],
+  ])('%s: 알맞은 문구를 보여 주고 머문다', async (_name, error, message) => {
+    (api.createPractice as jest.Mock).mockRejectedValue(error);
+    await renderWithSavedVideo();
+    await checkRightsAndStart();
+
+    expect(await screen.findByText(message)).toBeOnTheScreen();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: '질문 받기' })).toBeOnTheScreen();
+  });
+
+  test('같은 요청 id로 다른 본문을 보냈다고 하면 다음 시도는 새 요청 id를 쓴다', async () => {
+    (api.createPractice as jest.Mock)
+      .mockRejectedValueOnce(serverError(422, 'request_fingerprint_mismatch'))
+      .mockRejectedValueOnce(serverError(503))
+      .mockResolvedValueOnce({ id: 'p1', ordinal: 1 });
+    await renderWithSavedVideo();
+    await checkRightsAndStart();
+    await screen.findByText('요청 내용이 바뀌었어요. 다시 보내 주세요.');
+
+    await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
+    await screen.findByText('연결이 끊겼어요. 잠시 뒤 다시 시도해 주세요.');
+    await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
+
+    const ids = (api.createPractice as jest.Mock).mock.calls.map(([body]) => body.request_id);
+    expect(ids[1]).not.toBe(ids[0]);
+    expect(ids[2]).toBe(ids[1]);
+  });
+
+  test('진행 중인 회차가 있으면 알리고 그 회차의 분석 화면으로 돌려보낸다', async () => {
+    (api.createPractice as jest.Mock).mockRejectedValue(serverError(409, 'practice_in_progress'));
+    (api.listPracticeGroups as jest.Mock).mockResolvedValue({
+      groups: [{ root_id: 'r1', in_progress_practice_id: 'open-1' }],
+    });
+    await renderWithSavedVideo();
+    await checkRightsAndStart();
+
+    expect(await screen.findByText('진행 중인 연습이 있어요')).toBeOnTheScreen();
+    expect(api.listPracticeGroups).toHaveBeenCalledWith('all');
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'open-1' } });
+  });
+
+  test('진행 중이라는데 그 회차를 찾지 못하면 먼저 마치라고 알린다', async () => {
+    (api.createPractice as jest.Mock).mockRejectedValue(serverError(409));
+    (api.listPracticeGroups as jest.Mock).mockRejectedValue(new Error('down'));
+    await renderWithSavedVideo();
+    await checkRightsAndStart();
+
+    expect(await screen.findByText('먼저 하던 연습을 마치거나 그만둔 뒤에 새 연습을 시작할 수 있어요.')).toBeOnTheScreen();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe('보내기 전에 화면이 먼저 막는 길이', () => {
+  test('막힌 곳 설명이 500자를 넘으면 보내지 않는다', async () => {
+    await renderWithSavedVideo();
+    await fireEvent.changeText(screen.getByPlaceholderText('편하게 적어 주세요'), '가'.repeat(501));
+    await checkRightsAndStart();
+
+    expect(await screen.findByText('막힌 곳 설명은 500자까지 쓸 수 있어요.')).toBeOnTheScreen();
+    expect(api.createPractice).not.toHaveBeenCalled();
+  });
+
+  test('제목이 200자를 넘으면 보내지 않는다', async () => {
+    await renderWithSavedVideo();
+    await fireEvent.changeText(screen.getByPlaceholderText('예: 카페 이별 장면 2차'), '가'.repeat(201));
+    await checkRightsAndStart();
+
+    expect(await screen.findByText('제목은 200자까지 쓸 수 있어요.')).toBeOnTheScreen();
+    expect(api.createPractice).not.toHaveBeenCalled();
+  });
+
+  test('이어받은 장면이 300자를 넘으면 보내지 않는다', async () => {
+    setContinueOrigin({
+      kind: 'note',
+      rootId: 'r1',
+      practiceId: 'p0',
+      scene: { situation: '가'.repeat(301), character: '', goal: '' },
+    });
+    await render(<UploadScreen />);
+    await returnWithPicked({ videoId: 'v1', pendingId: null, uri: 'file:///v1.mp4', playbackUrl: null, durationMs: 2_000, source: 'record' });
+    await fireEvent.press(screen.getByText(RIGHTS));
+    await fireEvent.press(screen.getByRole('button', { name: '이대로 이어가기' }));
+
+    expect(await screen.findByText('상황·인물·목표는 각각 300자까지 쓸 수 있어요.')).toBeOnTheScreen();
+    expect(api.continuePractice).not.toHaveBeenCalled();
+  });
+});
+
+describe('다음 테이크', () => {
+  test('노트에서 이어오면 지난 장면을 그대로 실어 같은 묶음에 이어 만든다', async () => {
+    setContinueOrigin({
+      kind: 'note',
+      rootId: 'r1',
+      practiceId: 'p0',
+      scene: { situation: '카페', character: '서연', goal: '' },
+    });
+    await render(<UploadScreen />);
+    await returnWithPicked({ videoId: 'v1', pendingId: null, uri: 'file:///v1.mp4', playbackUrl: null, durationMs: 2_000, source: 'record' });
+
+    expect(screen.getByText('다음 테이크 찍기')).toBeOnTheScreen();
+    expect(logged('practice_video_picked')).toEqual([{ source: 'record', needs_upload: 'no', length: 'lt3s' }]);
+    expect(screen.queryByPlaceholderText('예: 카페 이별 장면 2차')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByText(RIGHTS));
+    await fireEvent.press(screen.getByRole('button', { name: '이대로 이어가기' }));
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'p2' } }));
+    expect(api.continuePractice).toHaveBeenCalledWith('p0', {
+      request_id: expect.any(String),
+      video_id: 'v1',
+      scene: { situation: '카페', character: '서연', goal: '' },
+      blockage: { category: '그 외', detail: '그 외', note: null },
+    });
+    expect(logged('practice_start')).toEqual([{ ordinal: 2, continued: true }]);
+  });
+
+  test('기록에서 이어오면 남아 있던 영상을 버리고 빈 상자에서 시작한다', async () => {
+    setPickedVideo({ videoId: 'stale', pendingId: null, uri: 'file:///stale.mp4', playbackUrl: null, durationMs: null });
+    setContinueOrigin({ kind: 'group', rootId: 'r1', practiceId: 'p0' });
+    await render(<UploadScreen />);
+
+    expect(screen.getByText('다음 테이크 찍기')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '어떤 영상으로 연습할까요?' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '질문 받기' })).toBeOnTheScreen();
+  });
+
+  test('진행 중 회차는 이어 가는 묶음 안에서만 찾는다', async () => {
+    setContinueOrigin({ kind: 'group', rootId: 'r1', practiceId: 'p0' });
+    (api.continuePractice as jest.Mock).mockRejectedValue(serverError(409, 'practice_in_progress'));
+    (api.listPracticeGroups as jest.Mock).mockResolvedValue({
+      groups: [
+        { root_id: 'r2', in_progress_practice_id: 'elsewhere' },
+        { root_id: 'r1', in_progress_practice_id: 'open-r1' },
+      ],
+    });
+    await render(<UploadScreen />);
+    await returnWithPicked({ videoId: 'v1', pendingId: null, uri: 'file:///v1.mp4', playbackUrl: null, durationMs: 2_000, source: 'record' });
+    await checkRightsAndStart();
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'open-r1' } }));
+  });
+});
+
+describe('튜토리얼 예시', () => {
+  test('예시 영상과 장면을 채워 두고 시작하면 서버 없이 예시 회차로 간다', async () => {
+    mockParams = { sample: '1' };
+    const view = await render(<UploadScreen />);
+
+    expect(screen.getByText('예시')).toBeOnTheScreen();
+    expect(screen.getByText('카페에서 오래 만난 연인에게 헤어지자는 말을 꺼내는 장면')).toBeOnTheScreen();
+    expect(screen.queryByText('영상 다시 선택')).not.toBeOnTheScreen();
+    expect(screen.queryByPlaceholderText('예: 카페 이별 장면 2차')).not.toBeOnTheScreen();
+    expect(useVideoPlayer).toHaveBeenLastCalledWith('file:///sample.mp4', expect.any(Function));
+
+    await fireEvent.press(screen.getByText(RIGHTS));
+    expect(screen.getByText('권리 확인에 체크해주세요')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByText(RIGHTS));
+    await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: '/analyzing',
+      params: { practiceId: 'tutorial-sample-practice' },
+    });
+    expect(api.createPractice).not.toHaveBeenCalled();
+
+    await view.unmount();
+    expect(logEvent).not.toHaveBeenCalledWith('practice_upload_exit', expect.anything());
+    expect(logEvent).not.toHaveBeenCalledWith('practice_rights_toggle', expect.anything());
+    expect(logEvent).not.toHaveBeenCalledWith('practice_start_blocked', expect.anything());
+  });
+});
+
+test('보관함 변경 구독은 화면을 떠나면 푼다', async () => {
+  setPickedVideo({ videoId: null, pendingId: 'pend-1', uri: 'file:///p.mov', playbackUrl: null, durationMs: null });
+  const view = await render(<UploadScreen />);
+  const subscribed = (onLibraryChange as jest.Mock).mock.results.length;
+  expect(subscribed).toBeGreaterThan(0);
+  await view.unmount();
+  (confirmedVideoFor as jest.Mock).mockReturnValue('v1');
+  emitLibraryChange();
+  expect(logged('practice_video_ready')).toEqual([]);
+});
