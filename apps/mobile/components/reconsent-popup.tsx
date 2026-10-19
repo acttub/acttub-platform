@@ -155,6 +155,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
               checked={choices[document.id] === 'granted'}
               locked={locked(document.id)}
               onToggle={() => toggleDocument(document)}
+              divided
               arrow={{
                 icon: 'chevron-right',
                 onPress: () => setOpenDocument(document),
@@ -199,7 +200,9 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         <View style={[styles.card, { maxHeight: height * 0.85 }]}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('consent.reconsentTitle')}</Text>
-            <Text style={styles.subtitle}>{t('consent.reconsentSubtitle')}</Text>
+            <Text style={styles.subtitle}>
+              {documents.some((d) => d.required) ? t('consent.reconsentHint') : t('consent.reconsentSubtitle')}
+            </Text>
           </View>
           {renderBody()}
         </View>
@@ -243,7 +246,8 @@ const styles = StyleSheet.create({
   },
   head: { gap: 6 },
   title: { fontSize: 19, fontWeight: '800', color: palette.text },
-  subtitle: { fontSize: 14, color: palette.textDim },
+  // pen S4R.1 — 파란 안내(14/700).
+  subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
   list: { flexGrow: 0, flexShrink: 1 },
   checking: { paddingVertical: 24, alignItems: 'center' },
   loadFailed: { alignItems: 'center', gap: 4 },

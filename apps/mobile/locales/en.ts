@@ -41,7 +41,7 @@ const en: DeepStringShape<typeof ko> = {
     naver: 'Continue with Naver',
     lastUsed: 'Last used',
     lastUsedA11y: '{{label}}, the method you used last time',
-    failed: 'Sign-in failed. Please try again.',
+    failed: 'Sign-in failed. Tap the button for the account you use to try again.',
     providersFail: 'Could not load the sign-in options.',
     providersEmpty: 'No sign-in option is available right now. Please try again later.',
     reload: 'Reload',
@@ -904,6 +904,11 @@ const en: DeepStringShape<typeof ko> = {
     marketingPush: 'App push',
     marketingGranted: 'Opted in',
     marketingDeclined: 'Opted out',
+    // SOMA-748 consent screen redesign
+    reconsentHint: 'Review the changes and tap “Agree and continue”.',
+    headerTitle: 'Terms',
+    heading: 'Acttub needs your consent',
+    headingHint: 'Tap “Agree to all”, then “Agree and continue”.',
   },
   profileName: {
     title: 'Tell us about you',

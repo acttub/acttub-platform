@@ -32,7 +32,7 @@ const ko = {
     naver: '네이버로 계속하기',
     lastUsed: '최근 로그인',
     lastUsedA11y: '{{label}}, 지난번에 쓴 방식',
-    failed: '로그인에 실패했어요. 다시 시도해주세요.',
+    failed: '로그인에 실패했어요. 쓰던 계정 버튼을 다시 눌러 주세요.',
     providersFail: '로그인 방식을 불러오지 못했어요.',
     providersEmpty: '지금은 로그인할 수 있는 방식이 없어요. 잠시 후 다시 시도해주세요.',
     reload: '다시 불러오기',
@@ -895,6 +895,11 @@ const ko = {
     marketingPush: '앱 푸시',
     marketingGranted: '수신 동의',
     marketingDeclined: '수신 거부',
+    // SOMA-748 동의 화면 개편
+    reconsentHint: '바뀐 내용을 보고 「동의하고 계속하기」를 누르세요.',
+    headerTitle: '약관 동의',
+    heading: '액터브를 쓰려면 동의가 필요해요',
+    headingHint: '「전체 동의」를 누르고 「동의하고 계속하기」를 누르세요.',
   },
   profileName: {
     title: '프로필을 알려주세요',
