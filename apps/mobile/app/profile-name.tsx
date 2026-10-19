@@ -1,21 +1,19 @@
-import { Stack, useRouter } from 'expo-router';
+import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
+import { Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { AccountStatus } from '@/components/ui/account-status';
+import { OptionRow } from '@/components/ui/account-rows';
+import { OnboardingAsk, OnboardingStepHeader } from '@/components/ui/account-onboarding';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import {
   DISCOVERY_OTHER_MAX_LENGTH,
   EMPTY_DISCOVERY,
@@ -26,76 +24,65 @@ import {
   shouldAskDiscovery,
   type DiscoveryState,
 } from '@/lib/discovery';
+import { translate as t, translateList } from '@/lib/i18n';
 import { logMetaEvent } from '@/lib/meta-events';
-import { readAttributedChannel, recordSignupCompleted } from '@/lib/signup-attribution-runtime';
-import { useAuth } from '@/lib/auth';
-import { takeProviderNameHint } from '@/lib/profile';
-import { pickAndUploadProfilePhoto, removeProfilePhoto } from '@/lib/profile-photo-upload';
 import {
-  BIO_MAX_LENGTH,
+  birthStepOutcome,
+  onboardingSteps,
+  stepAfter,
+  stepBefore,
+  stepReady,
+  type OnboardingStep,
+} from '@/lib/onboarding-steps';
+import { takeProviderNameHint } from '@/lib/profile';
+import { DIRECTION_LABEL_KEYS, GENDER_LABEL_KEYS } from '@/lib/profile-labels';
+import {
   DIRECTION_VALUES,
   EXPERIENCE_VALUES,
-  GENDER_VALUES,
   GOAL_VALUES,
   NAME_MAX_LENGTH,
   buildProfilePayload,
   checkBirthDate,
   formatBirthDateInput,
   initialProfileForm,
-  isBioValid,
-  isProfileFormComplete,
   profileSaveFailure,
-  type Direction,
   type Gender,
   type ProfileFormState,
 } from '@/lib/profile-form';
-import { translate as t, translateList } from '@/lib/i18n';
+import { readAttributedChannel, recordSignupCompleted } from '@/lib/signup-attribution-runtime';
 
-const GENDER_LABEL_KEYS: Record<Gender, string> = {
-  female: 'profileName.genderFemale',
-  male: 'profileName.genderMale',
-  unspecified: 'profileName.genderNone',
-};
-const DIRECTION_LABEL_KEYS: Record<Direction, string> = {
-  media: 'profileName.mediumMedia',
-  stage: 'profileName.mediumStage',
-};
+const MASCOT_HELLO = require('@/assets/images/mascot-home.png');
+const MASCOT_COACH = require('@/assets/images/mascot-coach.png');
+
+type Screen = 'intro' | OnboardingStep | 'blocked';
+/** pen ①-3 순서 — 남성 · 여성 · 선택 안 함. 값은 서버 그대로(GENDER_VALUES). */
+const GENDER_ORDER: readonly Gender[] = ['male', 'female', 'unspecified'];
 
 /**
- * A0.2 프로필 설정 — 이름·성별·생년월일·추구하는 방향·연기 경력·최종 목표 여섯을 모두 받는다.
+ * A0.2 가입 게이트 — pen 온보딩(시작 → ①-1 닉네임 … ⑧ 어디서 알게 됐나요, SOMA-748). 게이트가 프로필이 빈 회원에게만 띄운다.
  *
- * 가입 게이트(edit=false)와 설정의 프로필 편집(edit=true)이 같은 폼과 같은 API
- * (PUT /v2/me/profile)를 쓴다. 여섯 항목을 한 번에 저장하고 부분 저장은 없다 — 입력 도중
- * 앱을 닫으면 다음에 처음부터 다시 시작한다. 고칠 때도 필수 규칙은 같아 비워서 저장할 수 없다.
- *
- * 사진과 한 줄 소개(80자)는 선택 항목이고 설정에서만 받는다 — 편집(edit=true)에만 보인다.
- * 사진은 고르는 즉시 올리고(올리기 전에 항상 긴 변 2048px JPEG 로 줄인다), 소개는 여섯
- * 항목과 함께 저장한다.
- *
- * 편집은 별도 라우트(/profile-edit)에서 렌더한다. `profile-name` 라우트는 _layout의
- * 부트스트랩 게이트가 가입 게이트 전용으로 취급해 게이트를 지난 회원을 홈으로 되돌리기 때문이다.
+ * 서버가 받는 여섯 항목(이름·생년월일·성별·최종 목표·연기 경력·추구하는 방향)을 한 화면에 하나씩 묻고 끝에서 한 번
+ * 저장한다(PUT /v2/me/profile, 부분 저장 없음 — 도중에 앱을 닫으면 처음부터). 어디서 알게 됐나(SOMA-649)는 Airbridge 가
+ * 출처를 모를 때만 맨 끝에 묻는다(SOMA-733). 만 14세 미만 생년월일은 「가입할 수 없어요」로 보낸다.
+ * pen 의 「요즘 연습 방식」「이루고 싶은 것」·출생연도만 받기·연기 목표/경력 값 바꾸기는 서버 변경이 필요해 넣지 않았다.
  */
-export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
-  const { profile, reloadProfile, saveProfile, setMe, closeAccountUnder14 } = useAuth();
-  const router = useRouter();
+export default function ProfileNameScreen() {
+  const { profile, reloadProfile, saveProfile, closeAccountUnder14, signOut } = useAuth();
   const [form, setForm] = useState<ProfileFormState>(() => initialProfileForm(null, null));
-  const [bio, setBio] = useState('');
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [screen, setScreen] = useState<Screen>('intro');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [birthInvalid, setBirthInvalid] = useState(false);
   const keyboardHeight = useKeyboardHeight();
-  // 가입 직후 유입 경로(SOMA-649). 가입 게이트에서만 묻는 선택 항목이다. 순서는 화면을 열 때 한 번 섞는다.
   const [discovery, setDiscovery] = useState<DiscoveryState>(EMPTY_DISCOVERY);
   const discoverySources = useMemo(() => discoveryOrder(), []);
   // Airbridge 가 이미 광고·추적 링크로 출처를 확인한 설치면 묻지 않는다(SOMA-733). 귀속을 읽기 전에는 묻는 쪽으로 둔다.
   const [askDiscovery, setAskDiscovery] = useState(true);
+  const steps = onboardingSteps(askDiscovery);
   const prefilled = useRef(false);
-
   const me = profile.me;
 
   useEffect(() => {
-    if (isEdit) return;
     let alive = true;
     void readAttributedChannel()
       .then((channel) => {
@@ -105,80 +92,60 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
     return () => {
       alive = false;
     };
-  }, [isEdit]);
+  }, []);
+
   // 서버에서 받은 값으로 한 번만 채운다. 0.1.0 이전 회원은 옛 닉네임이 이름 칸에 채워져 오고,
-  // 이름이 없으면 로그인 제공자가 준 이름을 첫 값으로 쓴다(저장은 버튼을 눌러야).
+  // 이름이 없으면 로그인 제공자가 준 이름을 첫 값으로 쓴다(저장은 끝에서).
   useEffect(() => {
     if (prefilled.current || !me) return;
     prefilled.current = true;
-    setForm(initialProfileForm(me.profile, isEdit ? null : takeProviderNameHint()));
-    setBio(me.profile?.bio ?? '');
-  }, [me, isEdit]);
+    setForm(initialProfileForm(me.profile, takeProviderNameHint()));
+  }, [me]);
 
-  const careers = translateList('profileName.careerOptions');
-  const goals = translateList('profileName.goalOptions');
-  const bioTooLong = isEdit && !isBioValid(bio);
-  const complete = isProfileFormComplete(form, new Date()) && !bioTooLong;
-  const nameTooLong = [...form.name.trim()].length > NAME_MAX_LENGTH;
-  const birthCheck = checkBirthDate(form.birthDate, new Date());
-  const birthError =
-    birthCheck.kind === 'invalid'
-      ? t('profileName.birthInvalid')
-      : birthCheck.kind === 'under_minimum'
-        ? t('profileName.under14')
-        : null;
-  // 가입 게이트에서는 안 채운 칸의 별표를 회색으로 둔다. 편집은 이미 완성된 프로필이다.
-  const missing = {
-    name: !isEdit && form.name.trim().length === 0,
-    gender: !isEdit && form.gender === null,
-    birthDate: !isEdit && birthCheck.kind !== 'ok',
-    directions: !isEdit && form.directions.length === 0,
-    experience: !isEdit && form.experience === null,
-    goal: !isEdit && form.goal === null,
+  const goBack = (): boolean => {
+    if (busy) return true;
+    if (screen === 'intro') return false;
+    setError(null);
+    if (screen === 'blocked') setScreen('birth');
+    else setScreen(stepBefore(steps, screen));
+    return true;
   };
+
+  // 안드로이드 뒤로 키도 앞 단계로 간다. 시작 화면에서는 OS 기본 동작에 맡긴다.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', goBack);
+    return () => sub.remove();
+  });
 
   const update = (patch: Partial<ProfileFormState>) => setForm((prev) => ({ ...prev, ...patch }));
 
-  const toggleDirection = (direction: Direction) =>
-    update({
-      directions: form.directions.includes(direction)
-        ? form.directions.filter((d) => d !== direction)
-        : [...form.directions, direction],
-    });
-
-  const submit = async () => {
+  const submit = async (answer: DiscoveryState = discovery) => {
     setBusy(true);
     setError(null);
     try {
       const now = new Date();
-      await saveProfile(
-        // 한 줄 소개는 설정에서만 받는다. 가입 게이트에서는 키를 싣지 않는다.
-        isEdit ? buildProfilePayload(form, now, { bio }) : buildProfilePayload(form, now),
-      );
-      logEvent(isEdit ? 'profile_edit' : 'profile_setup', {
+      await saveProfile(buildProfilePayload(form, now));
+      logEvent('profile_setup', {
         mediums: form.directions.join(',') || 'none',
         career: form.experience ?? 'none',
         goal: form.goal ?? 'none',
       });
-      if (!isEdit) {
-        logMetaEvent('fb_mobile_complete_registration');
-        // 이 기기에서 가입을 마친 계정에만 유입 광고를 붙인다(SOMA-588).
-        if (me?.id) recordSignupCompleted(me.id);
-        // 처음 어디서 알게 됐는지(SOMA-649). 고르지 않았으면 건너뜀으로 적는다. 저장은 끝났으므로 기다리지 않고,
-        // 실패해도 가입 흐름을 막지 않는다(서버는 처음 답만 남긴다). 묻지 않은 사람은 보내지 않는다(SOMA-733).
-        if (askDiscovery) void api.recordDiscoveryAnswer(buildDiscoveryPayload(discovery)).catch(() => {});
-      }
-      // 가입 게이트에서는 저장이 곧 게이트 통과라 _layout이 화면을 옮긴다. 편집은 직접 돌아간다.
-      if (isEdit) router.back();
+      logMetaEvent('fb_mobile_complete_registration');
+      // 이 기기에서 가입을 마친 계정에만 유입 광고를 붙인다(SOMA-588).
+      if (me?.id) recordSignupCompleted(me.id);
+      // 처음 어디서 알게 됐는지(SOMA-649). 고르지 않았으면 건너뜀으로 적는다. 저장은 끝났으므로 기다리지 않고,
+      // 실패해도 가입 흐름을 막지 않는다(서버는 처음 답만 남긴다). 묻지 않은 사람은 보내지 않는다(SOMA-733).
+      if (askDiscovery) void api.recordDiscoveryAnswer(buildDiscoveryPayload(answer)).catch(() => {});
+      // 저장이 곧 게이트 통과라 _layout 이 화면을 옮긴다.
     } catch (cause) {
       const failure = profileSaveFailure(cause);
       if (failure.kind === 'account_closed') {
-        // 가입 게이트의 만 14세 미만. 서버가 계정을 닫았다 — 안내를 남기고 로그인으로 간다.
+        // 만 14세 미만. 서버가 계정을 닫았다 — 안내를 남기고 로그인으로 간다.
         await closeAccountUnder14();
         return;
       }
       // 칸에서 이미 막으므로 여기 오는 것은 기기 날짜가 어긋난 경우 같은 안전망이다.
-      if (failure.kind === 'under_14') setError(t('profileName.under14'));
+      if (failure.kind === 'under_14') setScreen('blocked');
       else if (failure.kind === 'client_bug') setError(t('profileName.appBug'));
       else setError(cause instanceof Error ? cause.message : t('profileName.fail'));
     } finally {
@@ -186,45 +153,31 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
     }
   };
 
-  // 사진은 여섯 항목과 따로, 고르는 즉시 올린다. 큰 사진도 앱이 줄여서 올리므로 거절되지 않는다.
-  const changePhoto = async () => {
-    setPhotoBusy(true);
-    setPhotoError(null);
-    try {
-      const next = await pickAndUploadProfilePhoto();
-      if (next) setMe(next);
-    } catch (cause) {
-      setPhotoError(cause instanceof Error ? cause.message : t('profileName.photoFail'));
-    } finally {
-      setPhotoBusy(false);
+  /** 이 단계를 마치고 다음으로. 마지막이면 저장한다. */
+  const advance = (from: OnboardingStep, patch?: Partial<ProfileFormState>, answer?: DiscoveryState) => {
+    if (patch) update(patch);
+    setError(null);
+    if (from === 'birth') {
+      const outcome = birthStepOutcome(form.birthDate, new Date());
+      if (outcome === 'invalid') {
+        setBirthInvalid(true);
+        return;
+      }
+      if (outcome === 'blocked') {
+        setScreen('blocked');
+        return;
+      }
     }
+    const next = stepAfter(steps, from);
+    if (next) setScreen(next);
+    else void submit(answer);
   };
-
-  const removePhoto = async () => {
-    setPhotoBusy(true);
-    setPhotoError(null);
-    try {
-      setMe(await removeProfilePhoto());
-    } catch (cause) {
-      setPhotoError(cause instanceof Error ? cause.message : t('profileName.photoFail'));
-    } finally {
-      setPhotoBusy(false);
-    }
-  };
-
-  const edges = isEdit
-    ? keyboardHeight > 0
-      ? []
-      : (['bottom'] as const)
-    : keyboardHeight > 0
-      ? (['top'] as const)
-      : (['top', 'bottom'] as const);
 
   if (!me) {
     // 내 계정을 아직 못 읽었다. 읽기 전에 빈 폼을 보여 주면 옛 닉네임을 덮어쓰게 된다.
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ headerShown: isEdit, title: t('profileName.editTitle') }} />
+        <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.center}>
           {profile.status === 'error' ? (
             <>
@@ -241,306 +194,290 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.safe} edges={[...edges]}>
-      <Stack.Screen options={{ headerShown: isEdit, title: t('profileName.editTitle') }} />
-      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
-        <KeyboardAwareScroll
-          contentContainerStyle={styles.content}
-          automaticallyAdjustKeyboardInsets={false}>
-          <View>
-            <Text style={styles.title}>{t('profileName.title')}</Text>
-            <Text style={styles.subtitle}>{t('profileName.subtitle')}</Text>
+  // 시작 화면 — 코치 캐릭터 인사(pen mmutfq).
+  if (screen === 'intro') {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.introCenter}>
+          <Image source={MASCOT_HELLO} style={styles.introMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Text style={styles.introTitle}>{t('profileName.introTitle')}</Text>
+          <Text style={styles.introBody}>{t('profileName.introBody', { count: steps.length })}</Text>
+          <View style={styles.introBadge}>
+            <Feather name="clock" size={16} color={palette.blue} />
+            <Text style={styles.introBadgeText}>{t('profileName.introBadge')}</Text>
           </View>
+        </View>
+        <View style={styles.bottom}>
+          <PrimaryButton label={t('profileName.introCta')} onPress={() => setScreen(steps[0])} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-          {isEdit && (
-            <Field label={t('profileName.photoLabel')}>
-              <View style={styles.photoRow}>
-                <View style={styles.avatar}>
-                  {photoBusy ? (
-                    <ActivityIndicator color={palette.blue} />
-                  ) : me.profile?.photo_url ? (
-                    <Image source={{ uri: me.profile.photo_url }} style={styles.avatarImg} />
-                  ) : (
-                    <Text style={styles.avatarText}>{form.name.trim().charAt(0) || '?'}</Text>
-                  )}
-                </View>
-                <View style={styles.photoActions}>
-                  <Pressable
-                    style={styles.photoBtn}
-                    onPress={() => void changePhoto()}
-                    disabled={photoBusy}
-                    accessibilityRole="button">
-                    <Text style={styles.photoBtnText}>
-                      {t(me.profile?.photo_url ? 'profileName.photoChange' : 'profileName.photoAdd')}
-                    </Text>
-                  </Pressable>
-                  {!!me.profile?.photo_url && (
-                    <Pressable
-                      style={styles.photoGhost}
-                      onPress={() => void removePhoto()}
-                      disabled={photoBusy}
-                      accessibilityRole="button">
-                      <Text style={styles.photoGhostText}>{t('profileName.photoRemove')}</Text>
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-              {photoError && <Text style={styles.fieldError}>{photoError}</Text>}
-            </Field>
+  // 가입할 수 없어요(pen uU9cWO) — 동의의 「[필수] 만 14세 이상」과 같은 기준. 확인을 누르면 로그아웃해 로그인으로 간다.
+  if (screen === 'blocked') {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.plainHeader}>
+          <Pressable onPress={goBack} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+            <Feather name="chevron-left" size={26} color={palette.text} />
+          </Pressable>
+        </View>
+        <AccountStatus
+          mascot={MASCOT_COACH}
+          title={t('profileName.blockedTitle')}
+          body={t('profileName.blockedBody')}
+          actions={<PrimaryButton label={t('common.confirm')} onPress={() => void signOut()} />}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  const step = screen;
+  const index = steps.indexOf(step) + 1;
+  const name = form.name.trim();
+  const ready = stepReady(step, form, new Date());
+  const careers = translateList('profileName.careerOptions');
+  const goals = translateList('profileName.goalOptions');
+  const nameTooLong = [...name].length > NAME_MAX_LENGTH;
+  const birthCheck = checkBirthDate(form.birthDate, new Date());
+
+  let body: ReactNode = null;
+  let footer: ReactNode = null;
+  const continueButton = (onPress: () => void) => (
+    <PrimaryButton label={t('profileName.continue')} onPress={onPress} disabled={!ready} loading={busy} />
+  );
+  // 하나를 누르면 바로 다음으로 가는 단계(pen ③ 연기 경력) — 아래엔 안내 한 줄만.
+  const tapHint = <Text style={styles.tapHint}>{t('profileName.tapHint')}</Text>;
+
+  switch (step) {
+    case 'name':
+      body = (
+        <>
+          <OnboardingAsk title={t('profileName.askName')} hint={t('profileName.askNameHint')} />
+          <Text style={styles.label}>{t('profileName.nicknameLabel')}</Text>
+          <TextInput
+            style={styles.input}
+            placeholder={t('profileName.placeholder')}
+            placeholderTextColor={palette.textFaint}
+            value={form.name}
+            onChangeText={(value) => update({ name: value })}
+            autoFocus={form.name.length === 0}
+            returnKeyType="next"
+            onSubmitEditing={() => ready && advance('name')}
+            accessibilityLabel={t('profileName.nicknameLabel')}
+          />
+          {nameTooLong && <Text style={styles.fieldError}>{t('profileName.nameTooLong')}</Text>}
+        </>
+      );
+      footer = continueButton(() => advance('name'));
+      break;
+    case 'birth':
+      body = (
+        <>
+          <OnboardingAsk title={t('profileName.askBirth', { name })} hint={t('profileName.askBirthHint')} />
+          <Text style={styles.label}>{t('profileName.birthLabel')}</Text>
+          <TextInput
+            style={styles.input}
+            placeholder={t('profileName.birthPlaceholder')}
+            placeholderTextColor={palette.textFaint}
+            value={form.birthDate}
+            onChangeText={(text) => {
+              setBirthInvalid(false);
+              update({ birthDate: formatBirthDateInput(text) });
+            }}
+            keyboardType="number-pad"
+            maxLength={10}
+            autoFocus
+            accessibilityLabel={t('profileName.birthLabel')}
+          />
+          {(birthInvalid || birthCheck.kind === 'invalid') && (
+            <Text style={styles.fieldError}>{t('profileName.birthInvalid')}</Text>
           )}
-
-          <Field label={t('profileName.nameLabel')} required missing={missing.name}>
-            <TextInput
-              style={styles.nameInput}
-              placeholder={t('profileName.placeholder')}
-              placeholderTextColor={palette.textDim}
-              value={form.name}
-              onChangeText={(name) => update({ name })}
-              autoFocus={!isEdit && form.name.length === 0}
-              returnKeyType="next"
+        </>
+      );
+      footer = continueButton(() => advance('birth'));
+      break;
+    case 'gender':
+      body = (
+        <>
+          <OnboardingAsk title={t('profileName.askGender', { name })} hint={t('profileName.askGenderHint')} />
+          {GENDER_ORDER.map((gender) => (
+            <OptionRow
+              key={gender}
+              label={t(GENDER_LABEL_KEYS[gender])}
+              selected={form.gender === gender}
+              trailing="check"
+              onPress={() => update({ gender })}
             />
-            <Text style={nameTooLong ? styles.fieldError : styles.fieldHint}>
-              {nameTooLong ? t('profileName.nameTooLong') : t('profileName.nameHint')}
-            </Text>
-          </Field>
-
-          <Field label={t('profileName.genderLabel')} required missing={missing.gender}>
-            <View style={styles.chips}>
-              {GENDER_VALUES.map((gender) => (
-                <Chip
-                  key={gender}
-                  label={t(GENDER_LABEL_KEYS[gender])}
-                  selected={form.gender === gender}
-                  onPress={() => update({ gender })}
-                />
-              ))}
-            </View>
-          </Field>
-
-          <Field label={t('profileName.birthLabel')} required missing={missing.birthDate}>
+          ))}
+        </>
+      );
+      footer = (
+        <>
+          {continueButton(() => advance('gender'))}
+          {/* 건너뛰기는 「선택 안 함」으로 저장한다 — 서버 값 그대로(unspecified). */}
+          <SecondaryButton label={t('profileName.skip')} onPress={() => advance('gender', { gender: 'unspecified' })} />
+        </>
+      );
+      break;
+    case 'goal':
+      body = (
+        <>
+          <OnboardingAsk title={t('profileName.askGoal', { name })} />
+          {GOAL_VALUES.map((goal, i) => (
+            <OptionRow
+              key={goal}
+              label={goals[i] ?? goal}
+              selected={form.goal === goal}
+              onPress={() => advance('goal', { goal })}
+            />
+          ))}
+        </>
+      );
+      footer = tapHint;
+      break;
+    case 'career':
+      body = (
+        <>
+          <OnboardingAsk title={t('profileName.askCareer', { name })} />
+          {EXPERIENCE_VALUES.map((experience, i) => (
+            <OptionRow
+              key={experience}
+              label={careers[i] ?? experience}
+              selected={form.experience === experience}
+              onPress={() => advance('career', { experience })}
+            />
+          ))}
+        </>
+      );
+      footer = tapHint;
+      break;
+    case 'directions':
+      body = (
+        <>
+          <OnboardingAsk title={t('profileName.askDirections', { name })} hint={t('profileName.askDirectionsHint')} />
+          {DIRECTION_VALUES.map((direction) => (
+            <OptionRow
+              key={direction}
+              label={t(DIRECTION_LABEL_KEYS[direction])}
+              multi
+              selected={form.directions.includes(direction)}
+              onPress={() =>
+                update({
+                  directions: form.directions.includes(direction)
+                    ? form.directions.filter((d) => d !== direction)
+                    : [...form.directions, direction],
+                })
+              }
+            />
+          ))}
+        </>
+      );
+      footer = continueButton(() => advance('directions'));
+      break;
+    case 'discovery':
+      body = (
+        <>
+          <OnboardingAsk title={t('profileName.askDiscovery', { name })} hint={t('profileName.askDiscoveryHint')} />
+          {discoverySources.map((source) => (
+            <OptionRow
+              key={source}
+              label={t(`profileName.discoverySources.${source}`)}
+              selected={discovery.source === source}
+              onPress={() => setDiscovery((prev) => chooseDiscoverySource(prev, source))}
+            />
+          ))}
+          {discovery.source === 'other' && (
             <TextInput
               style={styles.input}
-              placeholder={t('profileName.birthPlaceholder')}
+              placeholder={t('profileName.discoveryOtherPlaceholder')}
               placeholderTextColor={palette.textFaint}
-              value={form.birthDate}
-              onChangeText={(text) => update({ birthDate: formatBirthDateInput(text) })}
-              keyboardType="number-pad"
-              maxLength={10}
+              value={discovery.otherText}
+              onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
+              maxLength={DISCOVERY_OTHER_MAX_LENGTH * 2}
             />
-            {birthError && <Text style={styles.fieldError}>{birthError}</Text>}
-          </Field>
-
-          <Field label={t('profileName.mediumLabel')} required missing={missing.directions}>
-            <View style={styles.chips}>
-              {DIRECTION_VALUES.map((direction) => (
-                <Chip
-                  key={direction}
-                  label={t(DIRECTION_LABEL_KEYS[direction])}
-                  selected={form.directions.includes(direction)}
-                  onPress={() => toggleDirection(direction)}
-                />
-              ))}
-            </View>
-          </Field>
-
-          <Field label={t('profileName.careerLabel')} required missing={missing.experience}>
-            <View style={styles.chips}>
-              {EXPERIENCE_VALUES.map((experience, i) => (
-                <Chip
-                  key={experience}
-                  label={careers[i] ?? experience}
-                  selected={form.experience === experience}
-                  onPress={() => update({ experience })}
-                />
-              ))}
-            </View>
-          </Field>
-
-          <Field label={t('profileName.goalLabel')} required missing={missing.goal}>
-            <View style={styles.chips}>
-              {GOAL_VALUES.map((goal, i) => (
-                <Chip
-                  key={goal}
-                  label={goals[i] ?? goal}
-                  selected={form.goal === goal}
-                  onPress={() => update({ goal })}
-                />
-              ))}
-            </View>
-          </Field>
-
-          {!isEdit && askDiscovery && (
-            <Field label={t('profileName.discoveryLabel')}>
-              <Text style={styles.fieldHint}>{t('profileName.discoveryHint')}</Text>
-              <View style={styles.chips}>
-                {discoverySources.map((source) => (
-                  <Chip
-                    key={source}
-                    label={t(`profileName.discoverySources.${source}`)}
-                    selected={discovery.source === source}
-                    onPress={() => setDiscovery((prev) => chooseDiscoverySource(prev, source))}
-                  />
-                ))}
-              </View>
-              {discovery.source === 'other' && (
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('profileName.discoveryOtherPlaceholder')}
-                  placeholderTextColor={palette.textFaint}
-                  value={discovery.otherText}
-                  onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
-                  maxLength={DISCOVERY_OTHER_MAX_LENGTH * 2}
-                />
-              )}
-            </Field>
           )}
+        </>
+      );
+      footer = (
+        <>
+          <PrimaryButton
+            label={t('profileName.continue')}
+            onPress={() => advance('discovery')}
+            disabled={discovery.source === null}
+            loading={busy}
+          />
+          {/* 건너뛰면 고르지 않은 것으로 적는다(source=null). */}
+          <Pressable
+            style={styles.skipText2Wrap}
+            onPress={() => {
+              setDiscovery(EMPTY_DISCOVERY);
+              advance('discovery', undefined, EMPTY_DISCOVERY);
+            }}
+            disabled={busy}
+            accessibilityRole="button">
+            <Text style={styles.skipText2}>{t('profileName.skip')}</Text>
+          </Pressable>
+        </>
+      );
+      break;
+  }
 
-          {isEdit && (
-            <Field label={t('profileName.bioLabel')}>
-              <TextInput
-                style={styles.input}
-                placeholder={t('profileName.bioPlaceholder')}
-                placeholderTextColor={palette.textFaint}
-                value={bio}
-                onChangeText={setBio}
-                multiline
-              />
-              <Text style={bioTooLong ? styles.fieldError : styles.fieldHint}>
-                {bioTooLong
-                  ? t('profileName.bioTooLong')
-                  : t('profileName.bioCount', { count: [...bio.trim()].length, max: BIO_MAX_LENGTH })}
-              </Text>
-            </Field>
-          )}
-
+  return (
+    <SafeAreaView style={styles.safe} edges={keyboardHeight > 0 ? ['top'] : ['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <OnboardingStepHeader step={index} total={steps.length} onBack={goBack} />
+      <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          {body}
           {error && <Text style={styles.error}>{error}</Text>}
-        </KeyboardAwareScroll>
-        <Pressable
-          style={[styles.cta, (!complete || busy) && styles.ctaDisabled]}
-          onPress={() => void submit()}
-          disabled={!complete || busy}>
-          {busy ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.ctaText}>{t(isEdit ? 'profileName.editCta' : 'profileName.cta')}</Text>
-          )}
-        </Pressable>
+        </ScrollView>
+        <View style={styles.bottom}>{footer}</View>
       </View>
     </SafeAreaView>
-  );
-}
-
-/** 가입 게이트 라우트(/profile-name) — 게이트가 프로필이 빈 회원에게만 띄운다. */
-export default function ProfileNameScreen() {
-  return <ProfileForm edit={false} />;
-}
-
-function Field({
-  label,
-  required,
-  missing,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  missing?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>
-        {label}
-        {required && <Text style={missing ? styles.requiredStarMissing : styles.requiredStar}> *</Text>}
-      </Text>
-      {children}
-    </View>
-  );
-}
-
-function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      style={[styles.chip, selected && styles.chipOn]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}>
-      <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
-    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 24, gap: 22 },
-  title: { fontSize: 24, fontWeight: '800', color: palette.text },
-  subtitle: { marginTop: 8, fontSize: 14, lineHeight: 20, color: palette.textDim },
-  nameInput: {
-    borderWidth: 1.5,
-    borderColor: palette.blue,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    color: palette.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   reload: { paddingHorizontal: 16, paddingVertical: 8 },
   reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
-  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  avatar: {
-    width: 84,
-    height: 84,
-    borderRadius: 18,
-    backgroundColor: palette.blueSoft,
+  plainHeader: { height: 52, justifyContent: 'center', paddingHorizontal: 14 },
+
+  introCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 24 },
+  introMascot: { width: 150, height: 168 },
+  introTitle: { fontSize: 28, fontWeight: '900', lineHeight: 38, color: palette.text, textAlign: 'center' },
+  introBody: { fontSize: 17, fontWeight: '500', lineHeight: 26, color: palette.textDim, textAlign: 'center' },
+  introBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    gap: 6,
+    backgroundColor: palette.blueSoft,
+    borderRadius: 9999,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
   },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarText: { fontSize: 34, fontWeight: '800', color: palette.blue },
-  photoActions: { gap: 6, alignItems: 'flex-start' },
-  photoBtn: { backgroundColor: palette.blueSoft, borderRadius: 9999, paddingHorizontal: 14, paddingVertical: 9 },
-  photoBtnText: { fontSize: 13, fontWeight: '800', color: palette.blueDeep },
-  photoGhost: { paddingHorizontal: 14, paddingVertical: 6 },
-  photoGhostText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
-  field: { gap: 10 },
-  fieldLabel: { fontSize: 13, fontWeight: '800', color: palette.textMuted },
-  fieldHint: { fontSize: 12.5, color: palette.textFaint },
-  fieldError: { fontSize: 12.5, color: palette.danger },
+  introBadgeText: { fontSize: 14, fontWeight: '700', color: palette.blueDeep },
+
+  body: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 4 },
+  label: { marginTop: 18, marginBottom: 10, fontSize: 14, fontWeight: '800', color: palette.textDim },
   input: {
     backgroundColor: palette.bgSoft,
-    borderRadius: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    color: palette.text,
-    fontSize: 15,
+    borderRadius: 14,
+    padding: 16,
+    fontSize: 17,
     fontWeight: '600',
+    color: palette.text,
   },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
-    paddingVertical: 11,
-    paddingHorizontal: 16,
-  },
-  chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
-  chipTextOn: { color: palette.blueDeep },
-  error: { color: palette.danger, fontSize: 13 },
-  requiredStar: { color: palette.blue },
-  requiredStarMissing: { color: palette.textFaint },
-  cta: {
-    backgroundColor: palette.blue,
-    borderRadius: 16,
-    padding: 17,
-    alignItems: 'center',
-    margin: 20,
-  },
-  ctaDisabled: { opacity: 0.4 },
-  ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  fieldError: { marginTop: 8, fontSize: 13, color: palette.danger },
+  error: { marginTop: 12, color: palette.danger, fontSize: 13 },
+  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, gap: 10 },
+  tapHint: { fontSize: 13, fontWeight: '700', lineHeight: 20, color: palette.blueDeep, textAlign: 'center' },
+  skipText2Wrap: { alignItems: 'center', paddingVertical: 6 },
+  skipText2: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
 });
