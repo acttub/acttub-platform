@@ -1,5 +1,6 @@
 plugins {
     java
+    jacoco
     id("org.springframework.boot") version "3.4.7"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -101,6 +102,16 @@ tasks.withType<Test>().configureEach {
         showStandardStreams = false
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
+}
+
+// `./gradlew test jacocoTestReport` → build/reports/jacoco/test/ (html, Sonar 가 읽는 xml).
+// schema(JPA 엔티티·JpaConverter)는 JPQL 이 이름으로만 참조해 0% 로 잡히는 선언이라 뺀다.
+tasks.named<JacocoReport>("jacocoTestReport") {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+    classDirectories.setFrom(files(classDirectories.files.map { fileTree(it) { exclude("**/schema/**") } }))
 }
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
