@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -14,11 +15,16 @@ import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
+import com.acttub.actingapi.platform.web.ApiErrorAdvice;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class CoachStreamControllerTest {
     private final ConversationService service = mock(ConversationService.class);
@@ -67,6 +73,25 @@ class CoachStreamControllerTest {
         assertThatThrownBy(() -> controller.reply(body(), request, response))
                 .isInstanceOf(ApiException.class).hasMessage("conversation_conflict");
         assertThat(response.isCommitted()).isFalse();
+    }
+
+    @Test void rejectionsReachAStreamOnlyClientAsTheJsonError() throws Exception {
+        // 앱·웹은 Accept: text/event-stream 만 보낸다. 409 본문(JSON)이 협상에 막히면 처리 못 한 예외로 500·Sentry 가 된다.
+        when(auth.gatedUser(any())).thenReturn(new AuthenticatedUser(user, "a@b.c", UserStatus.ACTIVE, false));
+        when(service.reply(any(), any(), any(), any(), any(), any())).thenThrow(new ApiException(409, "conversation_conflict"));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new ApiErrorAdvice(new ObjectMapper(), failures))
+                .build();
+        String json = new ObjectMapper().writeValueAsString(body());
+
+        MvcResult result = mvc.perform(post("/v2/coach/reply/stream")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .content(json)).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(409);
+        assertThat(result.getResponse().getContentType()).startsWith("application/json");
+        assertThat(result.getResponse().getContentAsString()).isEqualTo("{\"detail\":\"conversation_conflict\"}");
     }
 
     @Test void failuresAfterTheStreamOpenedArriveAsAnErrorEvent() throws Exception {
