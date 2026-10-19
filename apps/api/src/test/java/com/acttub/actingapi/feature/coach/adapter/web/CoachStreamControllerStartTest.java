@@ -74,8 +74,10 @@ class CoachStreamControllerStartTest {
             throw new IllegalStateException("bug");
         });
         controller.start(new ConversationDtos.StartRequest(practice, requestId), request, response);
-        assertThat(response.getContentAsString(StandardCharsets.UTF_8))
-                .endsWith("event: error\ndata: {\"status\":500,\"detail\":\"internal_server_error\"}\n\n");
+        String sent = response.getContentAsString(StandardCharsets.UTF_8);
+        String error = sent.substring(sent.indexOf("event: error\ndata: ") + "event: error\ndata: ".length()).strip();
+        assertThat(new ObjectMapper().readTree(error)).isEqualTo(new ObjectMapper().readTree("{\"status\":500,\"detail\":\"internal_server_error\"}"));
+        assertThat(sent).doesNotContain("event: done");
         assertThat(failures.contexts()).containsExactly("CoachStreamController");
     }
 
