@@ -5,6 +5,9 @@ import { AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { Image } from 'expo-image';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { firstPracticeRange } from '@/lib/reading/redesign-748';
 import { useAppDialog } from '@/components/app-dialog';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -44,8 +47,12 @@ const MASKS: { key: MaskMode; label: string }[] = [
   { key: 'all', label: t('reading.maskAll') },
 ];
 
-type Tab = 'recent' | 'scene' | 'line';
+const MASCOT = require('@/assets/images/mascot-reading.png');
+
+/** suggest 는 첫 연습(회차 없음)의 추천 — 짧은 구간 · 처음부터 끝까지(pen 「새 · 연습 구역 첫 연습」). */
+type Tab = 'suggest' | 'recent' | 'scene' | 'line';
 const TAB_LABEL: Record<Tab, string> = {
+  suggest: t('reading.bySuggest'),
   recent: t('reading.byRecent'),
   scene: t('reading.byScene'),
   line: t('reading.byLine'),
@@ -143,15 +150,18 @@ export default function ReadingRange() {
   }
 
   const whole = snapRangeToDialogues(lines, 0, lines.length - 1) ?? { startIndex: 0, endIndex: Math.max(0, lines.length - 1) };
-  const range = picked ?? recents[0]?.range ?? whole;
+  const pickedCast = cast.filter((c) => selected.includes(c.id));
+  // 첫 연습이면 처음부터 대사 10줄을 짧은 구간으로 골라 둔다 — 기기에서만 정한다.
+  const short = hasHistory ? null : firstPracticeRange(lines, pickedCast.map((c) => c.name));
+  const range = picked ?? recents[0]?.range ?? short ?? whole;
   const showRecent = hasHistory && (sessions === null || recents.length > 0);
-  const tabs: Tab[] = showRecent ? ['recent', 'scene', 'line'] : ['scene', 'line'];
+  const tabs: Tab[] = showRecent ? ['recent', 'scene', 'line'] : short ? ['suggest', 'scene', 'line'] : ['scene', 'line'];
   const activeTab = tab && tabs.includes(tab) ? tab : tabs[0];
   const isActive = (r: LineRange) => r.startIndex === range.startIndex && r.endIndex === range.endIndex;
   const dlgIn = dialogues.filter((x) => x.i >= range.startIndex && x.i <= range.endIndex).length;
   const loadingDefault = picked === null && sessions === null;
   const gate = startGate({ roleCount: selected.length, micGranted, loading: loadingDefault });
-  const pickedCast = cast.filter((c) => selected.includes(c.id));
+  const wholeDialogues = dialogues.length;
 
   const toggleRole = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -216,47 +226,67 @@ export default function ReadingRange() {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>{t('reading.rangeHeading')}</Text>
+        <View style={styles.mascotRow}>
+          <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Text style={styles.title}>{t('reading.rangeHeading')}</Text>
+        </View>
         <Text style={styles.sub}>
           {script.title} · {t('reading.dialogueCount', { count: script.dialogueCount })}
         </Text>
 
         <Text style={styles.section}>{t('reading.myRolesLabel')}</Text>
-        <Text style={styles.hint}>{t('reading.myRolesHint')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bleed} contentContainerStyle={styles.roleChips}>
           {cast.map((c) => {
             const on = selected.includes(c.id);
             return (
-              <Pressable key={c.id} style={[styles.roleChip, on && styles.roleChipOn]} onPress={() => toggleRole(c.id)}>
-                {on && <Feather name="check" size={14} color={palette.blue} />}
+              <Pressable
+                key={c.id}
+                style={[styles.roleChip, on && styles.roleChipOn]}
+                onPress={() => toggleRole(c.id)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on }}>
                 <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{c.name}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
-        <View style={styles.pickedRow}>
-          <Text style={styles.pickedLabel}>{t('reading.pickedRoles')}</Text>
-          {pickedCast.length === 0 ? (
-            <Text style={styles.pickedNone}>{t('reading.pickedNone')}</Text>
-          ) : (
-            pickedCast.map((c) => (
-              <Pressable key={c.id} style={styles.pickedChip} onPress={() => toggleRole(c.id)} hitSlop={4}>
-                <Text style={styles.pickedChipText}>{c.name}</Text>
-                <Feather name="x" size={12} color={palette.onAccent} />
-              </Pressable>
-            ))
-          )}
-        </View>
+        <Text style={styles.hint}>{pickedCast.length === 0 ? t('reading.startNeedsRole') : t('reading.myRolesHint')}</Text>
+
+        {short && activeTab === 'suggest' && isActive(short) && (
+          <View style={styles.tip}>
+            <Feather name="star" size={18} color={palette.blue} />
+            <Text style={styles.tipText}>{t('reading.rangeFirstTip', { label: t('reading.startSession', { count: short.dialogueCount }) })}</Text>
+          </View>
+        )}
 
         <Text style={[styles.section, styles.sectionGap]}>{t('reading.rangeLabel')}</Text>
         <View style={styles.rangeBlock} ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout}>
-          <View style={styles.tabs}>
-            {tabs.map((k) => (
-              <Pressable key={k} style={[styles.tab, activeTab === k && styles.tabOn]} onPress={() => setTab(k)}>
-                <Text style={[styles.tabText, activeTab === k && styles.tabTextOn]}>{TAB_LABEL[k]}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {tabs.length > 1 && (
+            <View style={styles.tabs}>
+              {tabs.map((k) => (
+                <Pressable key={k} style={[styles.tab, activeTab === k && styles.tabOn]} onPress={() => setTab(k)}>
+                  <Text style={[styles.tabText, activeTab === k && styles.tabTextOn]}>{TAB_LABEL[k]}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {activeTab === 'suggest' && short && (
+            <View style={styles.list}>
+              <RangeOption
+                title={t('reading.rangeShortTitle', { text: short.lastText })}
+                meta={t('reading.rangeShortMeta', { count: short.dialogueCount, mine: short.myCount })}
+                on={isActive(short)}
+                onPress={() => pickRange(short)}
+              />
+              <RangeOption
+                title={t('reading.rangeAll')}
+                meta={t('reading.rangeWholeMeta', { count: wholeDialogues })}
+                on={isActive(whole)}
+                onPress={() => pickRange(whole)}
+              />
+            </View>
+          )}
 
           {activeTab === 'recent' && (
             <View style={styles.list}>
@@ -357,14 +387,9 @@ export default function ReadingRange() {
             </Pressable>
           </View>
         )}
-        <Pressable
-          ref={rangeStartTarget.ref}
-          onLayout={rangeStartTarget.onLayout}
-          style={[styles.primary, (gate !== 'ready' || busy) && styles.primaryOff]}
-          onPress={onStart}
-          disabled={gate !== 'ready' || busy}>
-          <Text style={styles.primaryText}>{startLabel}</Text>
-        </Pressable>
+        <View ref={rangeStartTarget.ref} onLayout={rangeStartTarget.onLayout}>
+          <PrimaryButton label={startLabel} onPress={() => void onStart()} disabled={gate !== 'ready' || busy} />
+        </View>
       </View>
       {dialog}
       {tutorialGuide.element}
@@ -372,27 +397,51 @@ export default function ReadingRange() {
   );
 }
 
+/** pen 「줄 카드」 — 목록 아이콘 · 제목 16/800 · 보조 13/600, 고르면 파란 바탕과 체크. */
+function RangeOption({ title, meta, on, onPress }: { title: string; meta: string; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={[styles.option, on && styles.optionOn]}
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: on }}>
+      <View style={styles.optionIcon}>
+        <Feather name="list" size={20} color={palette.blue} />
+      </View>
+      <View style={styles.rowBody}>
+        <Text style={styles.optionTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.optionMeta} numberOfLines={1}>{meta}</Text>
+      </View>
+      {on && <Feather name="check-circle" size={22} color={palette.blue} />}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
-  content: { padding: 20, gap: 10 },
-  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 2 },
-  sub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginBottom: 8 },
-  section: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  sectionGap: { marginTop: 8 },
+  content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
+  mascotRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mascot: { width: 52, height: 58 },
+  title: { flex: 1, color: palette.text, fontSize: 21, fontWeight: '900', lineHeight: 30 },
+  sub: { color: palette.textFaint, fontSize: 13, fontWeight: '600', marginTop: -4 },
+  section: { color: palette.textDim, fontSize: 14, fontWeight: '800' },
+  sectionGap: { marginTop: 4 },
   hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12, marginTop: -6 },
-  bleed: { marginHorizontal: -20 },
-  roleChips: { gap: 8, paddingHorizontal: 20 },
-  roleChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: palette.card },
-  roleChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  roleChipText: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  bleed: { marginHorizontal: -24 },
+  roleChips: { gap: 8, paddingHorizontal: 24 },
+  roleChip: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: palette.bgSoft },
+  roleChipOn: { backgroundColor: palette.blueSoft },
+  roleChipText: { color: palette.textDim, fontSize: 15, fontWeight: '700' },
   roleChipTextOn: { color: palette.blueDeep },
-  pickedRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  pickedLabel: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 12, marginRight: 2 },
-  pickedNone: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12 },
-  pickedChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  pickedChipText: { color: palette.onAccent, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  tip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.blueMist, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16 },
+  tipText: { flex: 1, color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 16 },
+  optionOn: { backgroundColor: palette.blueSoft },
+  optionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  optionTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
+  optionMeta: { color: palette.textFaint, fontSize: 13, fontWeight: '600' },
   rangeBlock: { gap: 10 },
   tabs: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 10, padding: 3 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 8 },
@@ -417,7 +466,7 @@ const styles = StyleSheet.create({
   tag: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   tagEnd: { backgroundColor: palette.textDim },
   tagText: { color: palette.onAccent, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1, backgroundColor: palette.bg, gap: 10 },
+  footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg, gap: 10 },
   maskRow: { flexDirection: 'row', gap: 6 },
   maskChip: { flex: 1, alignItems: 'center', backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingVertical: 8 },
   maskChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
