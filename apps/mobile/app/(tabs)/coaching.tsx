@@ -55,7 +55,8 @@ export default function CoachingTab() {
     }, []),
   );
 
-  const startNew = () => router.push('/upload');
+  // 새 연습은 세션 목적 → 영상 고르기 → 장면 순서다(app/upload). 첫 코칭이면 단계마다 파란 안내를 켠다.
+  const startNew = () => router.push({ pathname: '/upload', params: entry?.kind === 'first' ? { first: '1' } : {} });
 
   const again = () => {
     if (entry?.kind !== 'next') return;

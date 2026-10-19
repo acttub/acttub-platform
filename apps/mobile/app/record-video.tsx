@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { RecordModeSlider } from '@/components/record-mode-slider';
+import { CoachNotice } from '@/components/ui/coach-notice';
 import { palette } from '@/constants/palette';
 import { keepDeviceFile } from '@/lib/account-files';
 import { formatClipDuration } from '@/lib/archive-format';
@@ -295,26 +296,25 @@ export default function RecordVideoScreen() {
   }, [goNext, isChallenge]);
 
   // 권한이 아직 없으면 화면 안에서 직접 묻는다 — 닫기·권한 버튼이 늘 보인다.
+  // 모양은 pen 「카메라와 마이크가 필요해요」(SOMA-748) — 흰 바탕 한 장, 거절됐으면 설정 열기·닫기.
   if (!ready) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.topRow}>
-          <Pressable style={styles.closeBtn} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('common.close')}>
-            <Feather name="x" size={22} color="#FFFFFF" />
+      <SafeAreaView style={styles.permSafe}>
+        <View style={styles.permHead}>
+          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+            <Feather name="chevron-left" size={26} color={palette.text} />
           </Pressable>
         </View>
         {camPerm && micPerm && (
-          <View style={styles.permBox}>
-            <Feather name="video" size={34} color="#FFFFFF" />
-            <Text style={styles.permTitle}>{t('record.permissionTitle')}</Text>
-            <Text style={styles.permBody}>{t('record.permissionBody')}</Text>
-            <Pressable
-              style={styles.permBtn}
-              onPress={() => (blocked ? void Linking.openSettings() : void askPermissions())}
-              accessibilityRole="button">
-              <Text style={styles.permBtnText}>{t(blocked ? 'record.openSettings' : 'record.permissionAllow')}</Text>
-            </Pressable>
-          </View>
+          <CoachNotice
+            title={t('record.permissionTitle')}
+            body={blocked ? t('record.deniedBody') : t('record.permissionBody')}
+            primary={{
+              label: t(blocked ? 'record.deniedOpen' : 'record.permissionAllow'),
+              onPress: () => (blocked ? void Linking.openSettings() : void askPermissions()),
+            }}
+            secondary={{ label: t('common.close'), onPress: () => router.back() }}
+          />
         )}
         {dialog}
       </SafeAreaView>
@@ -453,11 +453,8 @@ export default function RecordVideoScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#000' },
-  permBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 80, gap: 12 },
-  permTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', textAlign: 'center' },
-  permBody: { color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 21, textAlign: 'center' },
-  permBtn: { marginTop: 8, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 22, paddingVertical: 13 },
-  permBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  permSafe: { flex: 1, backgroundColor: palette.bg },
+  permHead: { height: 52, justifyContent: 'center', paddingHorizontal: 14 },
   camera: { ...StyleSheet.absoluteFillObject },
   overlay: { flex: 1, justifyContent: 'space-between' },
   topRow: { flexDirection: 'row', justifyContent: 'flex-start', padding: 16 },

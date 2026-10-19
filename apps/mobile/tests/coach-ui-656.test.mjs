@@ -12,7 +12,9 @@ test('새 연습 준비(P3.1): 상황·인물·목표 칸과 「이전 연습 �
   assert.doesNotMatch(upload, /start\.continueCta|chooseGroup/);
   // 세부 칩은 없다 — 세부는 비워 보내고 서버 기본값(그 외)이 된다
   assert.doesNotMatch(upload, /blockage\.kindLabel|EXPRESSION_DETAILS|ANALYSIS_DETAILS/);
-  assert.match(upload, /blockage\.helpLabel\./);
+  // 큰 갈래는 세션 목적 단계의 세 줄로 고른다(SOMA-748) — 평가 받기·막힌 곳 풀기·인물 이해하기가 기존 갈래로 간다.
+  assert.match(upload, /upload\.purpose\./);
+  assert.match(upload, /blockageCategoryFor\(next\)/);
   assert.match(upload, /blockage\.freePh/);
   // 이어서 연습(연습 상세)으로 들어오면 지난 장면은 화면 없이 그대로 보낸다
   assert.match(upload, /buildContinueBody\(\{[^}]*scene,/);
@@ -25,7 +27,8 @@ test('코치 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 �
   assert.equal(helpButtonDraft('no'), '아니요');
   const coach = read('app/coach.tsx');
   assert.match(coach, /\['yes', t\('coach\.quickYes'\)\],\s*\['no', t\('coach\.quickNo'\)\],/);
-  assert.match(coach, /onPress=\{\(\) => void endConversation\(\)\}[^>]*>\s*<Text style=\{styles\.quickText\}>\{t\('coach\.quickEnd'\)\}/);
+  // 그만하기는 오른쪽 위 머리 버튼이다(pen 질문 대화, SOMA-748) — 확인을 받고 대화를 마친다.
+  assert.match(coach, /headerRight:[\s\S]{0,300}onPress=\{\(\) => void endConversation\(\)\}[^>]*>\s*<Text style=\{styles\.endText\}>\{t\('coach\.quickEnd'\)\}/);
   assert.doesNotMatch(coach, /coach\.endHint|styles\.endBtn|quickExplain|quickLater/);
   assert.match(read('locales/ko.ts'), /composerLabel: '답이나 질문을 편하게 적어 주세요'/);
 });
@@ -53,8 +56,10 @@ test('새 연습 준비: 영상 상자를 누르면 아래 시트에서 보관�
   assert.match(sheet, /onRequestClose=\{onClose\}/);
 });
 
-test('코치 질문 글자는 21pt 다(19pt 는 작았다)', () => {
-  assert.match(read('app/coach.tsx'), /question: \{ fontSize: 21,/);
+test('코치 질문은 회색 말풍선 16pt 다(pen 질문 대화 「코치 말」, SOMA-748 — 예전 21pt 맨글자 대신)', () => {
+  const coach = read('app/coach.tsx');
+  assert.match(coach, /question: \{ fontSize: 16,/);
+  assert.match(coach, /<View style=\{styles\.bubble\}>/);
 });
 
 test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 받아 미리보기를 채운다(목록은 playback_url 이 null)', () => {

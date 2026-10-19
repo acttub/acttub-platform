@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView, type VideoSource } from 'expo-video';
 
@@ -18,10 +19,10 @@ import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events'
  */
 
 /**
- * 번호가 붙은 3단계 스텝퍼 — ①영상 올리기 ②장면 적기 ③질문 받기.
+ * 번호가 붙은 3단계 스텝퍼 — ①목적 ②영상 ③장면 · 질문(pen P/Stepper, SOMA-748).
  *
  * 업로드 화면에 이게 없어서, 다음 화면의 '3단계 · 질문 받기' 가 맥락 없이 튀어나왔다.
- * 지나온 단계는 체크로, 지금 단계는 진하게 둔다.
+ * 지나온 단계와 지금 단계는 파란 동그라미에 번호, 지금 단계 이름만 진하게 둔다.
  */
 export function Stepper({ current }: { current: 1 | 2 | 3 }) {
   const labels = translateList('practiceChrome.steps');
@@ -36,7 +37,7 @@ export function Stepper({ current }: { current: 1 | 2 | 3 }) {
             {index > 0 && <View style={styles.stepperLine} />}
             <View style={[styles.circle, (passed || active) && styles.circleOn]}>
               <Text style={[styles.circleText, (passed || active) && styles.circleTextOn]}>
-                {passed ? '✓' : step}
+                {step}
               </Text>
             </View>
             <Text style={[styles.stepperLabel, active && styles.stepperLabelOn]}>
@@ -120,16 +121,41 @@ export function SceneFoldBody({
   open,
   videoUri,
   track,
+  startAt,
 }: {
   open: boolean;
   videoUri: VideoSource | null;
   /** 펼친 영상을 실제로 틀었는지 기록한다(video_preview_play·end). */
   track?: PreviewScreen;
+  /**
+   * 코치 말 속 「0:12」를 눌렀을 때 그 초부터 튼다(pen 「추가 · 시간 눌러 장면 보기」, SOMA-748).
+   * 같은 시간을 다시 눌러도 다시 감기도록 누를 때마다 `key`를 바꿔 준다. 영상 위에 「0:12부터」 표를 단다.
+   */
+  startAt?: { seconds: number; label: string; key: number } | null;
 }) {
   const player = useVideoPlayer(open ? videoUri : null, (p) => {
     p.loop = false;
     limitVideoBuffer(p);
   });
+  // 원본을 막 불러온 참이면 아직 감을 수 없다 — 재생 준비가 끝날 때 한 번 더 감는다.
+  const pendingSeek = useRef<number | null>(null);
+  useEffect(() => {
+    if (!open || !startAt) return;
+    pendingSeek.current = startAt.seconds;
+    const seek = () => {
+      if (pendingSeek.current === null) return;
+      try {
+        player.currentTime = pendingSeek.current;
+        player.play();
+        if (player.status === 'readyToPlay') pendingSeek.current = null;
+      } catch {}
+    };
+    seek();
+    const sub = player.addListener('statusChange', ({ status }) => {
+      if (status === 'readyToPlay') seek();
+    });
+    return () => sub.remove();
+  }, [open, player, startAt]);
   // 빈 문자열만 '없음' 으로 본다. require() 로 들어온 에셋은 숫자라 truthy 검사로는
   // 걸러지지 않아야 한다.
   const hasVideo = videoUri != null && videoUri !== '';
@@ -140,7 +166,14 @@ export function SceneFoldBody({
   return (
     <View style={styles.foldBody}>
       {hasVideo ? (
-        <VideoView style={styles.video} player={player} nativeControls contentFit="contain" />
+        <View>
+          <VideoView style={styles.video} player={player} nativeControls contentFit="contain" />
+          {startAt ? (
+            <View style={styles.seekBadge} pointerEvents="none">
+              <Text style={styles.seekBadgeText}>{startAt.label}</Text>
+            </View>
+          ) : null}
+        </View>
       ) : (
         <Text style={styles.foldEmpty}>{t('practiceChrome.noVideo')}</Text>
       )}
@@ -243,6 +276,16 @@ const styles = StyleSheet.create({
   foldBody: { paddingHorizontal: 20, paddingTop: 14 },
   foldEmpty: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
   video: { width: '100%', aspectRatio: 16 / 9, borderRadius: 14, backgroundColor: palette.bgSoft },
+  seekBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: palette.blue,
+    borderRadius: 9999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  seekBadgeText: { fontSize: 12, fontWeight: '800', color: palette.onAccent },
 
   summaryWithTitle: { borderTopWidth: 1, borderTopColor: palette.borderSoft, paddingTop: 20 },
   summaryTitle: { fontSize: 11.5, fontWeight: '900', color: palette.textFaint },

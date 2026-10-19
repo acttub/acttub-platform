@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
@@ -8,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
+import { CoachNotice } from '@/components/ui/coach-notice';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
@@ -25,6 +27,7 @@ import {
   orderedMessages,
   type HelpButton,
 } from '@/lib/practice/coach';
+import { splitTimestamps } from '@/lib/practice/coach-timestamps';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
 import type { CoachConversation, CoachTurnResult } from '@/lib/practice/types';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
@@ -91,6 +94,10 @@ export default function CoachScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pastOpen, setPastOpen] = useState(false);
   const [sceneOpen, setSceneOpen] = useState(false);
+  // 코치 말 속 시간을 눌러 연 영상의 시작점(pen 「추가 · 시간 눌러 장면 보기」).
+  const [seek, setSeek] = useState<{ seconds: number; label: string; key: number } | null>(null);
+  // 대화를 여는 데 실패한 까닭 — 연결이 끊긴 것이면 「대화가 잠깐 끊겼어요」 한 장으로 보인다.
+  const [startFailureKind, setStartFailureKind] = useState<string | null>(null);
   const [leaveAllowed, setLeaveAllowed] = useState(false);
   const { confirm, dialog } = useAppDialog();
 
@@ -129,12 +136,17 @@ export default function CoachScreen() {
     startInFlightRef.current = true;
     setConnecting(true);
     setError(null);
+    setStartFailureKind(null);
     try {
       const result = await loadCoachSession(loop, practice.practiceId, startRequestIdRef.current, practice.conversationId, streamCallbacks);
       if (!mountedRef.current) return;
       if (applyResult(result) && result.note) goToNote();
     } catch (e) {
-      if (mountedRef.current) setError(coachFailureMessage(coachFailure(e)));
+      if (mountedRef.current) {
+        const failure = coachFailure(e);
+        setStartFailureKind(failure.kind);
+        setError(coachFailureMessage(failure));
+      }
     } finally {
       if (mountedRef.current) {
         setStreamText('');
@@ -256,6 +268,7 @@ export default function CoachScreen() {
     const ok = await confirm({
       title: t('coach.endTitle'),
       message: t('coach.endMsg'),
+      cancelLabel: t('coach.endContinue'),
       confirmLabel: t('coach.endConfirm'),
     });
     if (ok) await sendText(COACH_END_WORD);
@@ -275,59 +288,111 @@ export default function CoachScreen() {
   const latestQuestion = [...messages].reverse().find((m) => m.role === 'coach')?.text ?? null;
   // 스트리밍 중에는 쓰이는 글이 같은 말풍선에 자란다. 첫 글자 전에는 이전 모습(기다림 표시) 그대로다.
   const shownQuestion = streamText || latestQuestion;
-  const askedCount = messages.filter((m) => m.role === 'coach').length;
   const past = messages.slice(0, Math.max(0, messages.length - (latestQuestion ? 1 : 0)));
   const canSend = canSendAnswer({ text: input, waiting, closed, conversationId: conversation?.id ?? null });
   const wrapping = conversation ? nextReplyWraps(conversation) : false;
+  const sceneVideo = practice.videoUri || practice.playbackUrl;
+  const sceneWritten = [practice.scene.situation, practice.scene.character, practice.scene.goal].some((v) => v?.trim());
+  // 대화를 열지 못하고 연결만 끊겼으면(pen 「추가 · 끊긴 코칭 이어 하기」) 한 장 안내로 바꾼다. 답한 것은 서버에 남아 있다.
+  const interrupted = !!error && !conversation && !waiting && !connecting && (startFailureKind === 'offline' || startFailureKind === 'other');
+
+  /** 코치 말 속 「0:12」를 누르면 위 영상을 펼쳐 그 초부터 튼다. */
+  const seekTo = (seconds: number, label: string) => {
+    if (!sceneOpen) logFoldOpen('coach');
+    setSceneOpen(true);
+    setSeek((was) => ({ seconds, label: t('coach.seekFrom', { time: label }), key: (was?.key ?? 0) + 1 }));
+  };
+  const withTimestamps = (text: string) =>
+    splitTimestamps(text).map((part, index) =>
+      part.kind === 'time' && sceneVideo ? (
+        <Text
+          key={index}
+          style={styles.timeLink}
+          onPress={() => seekTo(part.seconds, part.text)}
+          accessibilityRole="button"
+          accessibilityLabel={t('coach.seekLabel', { time: part.text })}>
+          {part.text}
+        </Text>
+      ) : (
+        part.text
+      ),
+    );
+
+  if (interrupted) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <Stack.Screen options={{ title: t('coach.fallbackTitle'), headerShadowVisible: false }} />
+        <CoachNotice
+          title={t('coach.interruptedTitle')}
+          body={t('coach.interruptedBody')}
+          primary={{ label: t('coach.interruptedResume'), onPress: () => void startConversation() }}
+          secondary={{ label: t('coach.interruptedLater'), onPress: () => leaveThen(() => router.dismissAll()) }}
+        />
+        {dialog}
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
       <Stack.Screen
-        options={{ title: practice.scene.situation.trim() || t('coach.fallbackTitle'), headerShadowVisible: false }}
+        options={{
+          title: practice.scene.situation.trim() || t('coach.fallbackTitle'),
+          headerShadowVisible: false,
+          // 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(pen 질문 대화 오른쪽 위, SOMA-656·748).
+          headerRight: () =>
+            !closed ? (
+              <Pressable
+                disabled={waiting || connecting || !conversation}
+                onPress={() => void endConversation()} accessibilityRole="button" hitSlop={10}>
+                <Text style={styles.endText}>{t('coach.quickEnd')}</Text>
+              </Pressable>
+            ) : null,
+        }}
       />
-
-      <View style={styles.strip}>
-        {/* 제목 「영상과 장면 보기」를 눌러도 펼친다. 예전에는 오른쪽 작은 ▾ 만 눌려서, 제목을 누른 사람은 아무 일도 안 일어났다. */}
-        <Pressable
-          style={({ pressed }) => [styles.stripRow, pressed && styles.stripRowOn]}
-          onPress={() => {
-            if (!sceneOpen) logFoldOpen('coach');
-            setSceneOpen(!sceneOpen);
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={`${t('coach.stripTitle')} ${sceneOpen ? t('common.fold') : t('common.unfold')}`}
-          accessibilityState={{ expanded: sceneOpen }}>
-          <View style={styles.stripText}>
-            <Text style={styles.stripTitle}>{t('coach.stripTitle')}</Text>
-            <Text style={styles.stripSub} numberOfLines={1}>
-              {practice.scene.situation.trim() || t('coach.noScene')}
-            </Text>
-          </View>
-          <Text style={styles.stripArrow}>{sceneOpen ? '▴' : '▾'}</Text>
-        </Pressable>
-      </View>
-      <SceneFoldBody open={sceneOpen} videoUri={practice.videoUri || practice.playbackUrl} track="coach" />
-      <View style={styles.progressHead}>
-        <View style={styles.progressLeft}>
-          <View style={styles.dots}>
-            {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={[styles.dot, i < askedCount && styles.dotOn]} />
-            ))}
-          </View>
-          {/* 남은 코치 답변 수는 보이지 않는다 — 마무리 직전에만 알린다. */}
-          {wrapping && <Text style={styles.progressText}>{t('coach.wrapNext')}</Text>}
-        </View>
-        {past.length > 0 && (
-          <Pressable onPress={() => setPastOpen((was) => !was)} accessibilityRole="button" hitSlop={8}>
-            <Text style={styles.pastToggle}>
-              {t('coach.pastToggle', { count: Math.floor(past.length / 2) })} {pastOpen ? '▴' : '▾'}
-            </Text>
-          </Pressable>
-        )}
-      </View>
 
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          {/* 오늘 영상 줄 — 누르면 영상을 펼친다. 예전 「영상과 장면 보기」 띠를 대신한다(pen 질문 대화 첫 응답). */}
+          <Pressable
+            style={({ pressed }) => [styles.videoRow, pressed && styles.videoRowOn]}
+            onPress={() => {
+              if (!sceneOpen) logFoldOpen('coach');
+              setSceneOpen(!sceneOpen);
+              setSeek(null);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('coach.stripTitle')} ${sceneOpen ? t('common.fold') : t('common.unfold')}`}
+            accessibilityState={{ expanded: sceneOpen }}>
+            <View style={styles.thumb}>
+              <View style={styles.thumbPlay}>
+                <Feather name={sceneOpen ? 'chevron-up' : 'play'} size={18} color={palette.onAccent} />
+              </View>
+            </View>
+            <View style={styles.videoText}>
+              <Text style={styles.videoTitle}>{t('coach.videoLabel')}</Text>
+              <Text style={styles.videoSub} numberOfLines={1}>
+                {sceneWritten ? t('coach.sceneWritten') : t('coach.noScene')}
+              </Text>
+            </View>
+          </Pressable>
+          <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} track="coach" startAt={seek} />
+
+          {(wrapping || past.length > 0) && (
+            <View style={styles.progressHead}>
+              {/* 남은 코치 답변 수는 보이지 않는다 — 마무리 직전에만 알린다. */}
+              {wrapping && <Text style={styles.progressText}>{t('coach.wrapNext')}</Text>}
+              <View style={styles.flex} />
+              {past.length > 0 && (
+                <Pressable onPress={() => setPastOpen((was) => !was)} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.pastToggle}>
+                    {t('coach.pastToggle', { count: Math.floor(past.length / 2) })} {pastOpen ? '▴' : '▾'}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+
           {pastOpen &&
             past.map((message) => (
               <View key={message.turn_index} style={message.role === 'coach' ? styles.pastAi : styles.pastMine}>
@@ -346,17 +411,24 @@ export default function CoachScreen() {
           ) : (
             <View style={styles.questionBlock} ref={questionTarget.ref} onLayout={questionTarget.onLayout}>
               {shownQuestion && (
-                <>
-                  <View style={styles.questionHead}>
-                    <View style={styles.questionMain}>
-                      <Text style={styles.coachLabel}>{t('coach.coachLabel')}</Text>
-                      {/* 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). */}
-                      <Text style={styles.question}>{shownQuestion.trim()}</Text>
+                <View style={styles.coachRow}>
+                  <Image source={require('@/assets/images/mascot-coach.png')} style={styles.mascot} contentFit="contain" />
+                  <View style={styles.questionMain}>
+                    <Text style={styles.coachLabel}>{t('coach.coachLabel')}</Text>
+                    <View style={styles.bubble}>
+                      {/* 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). 「0:12」만 누를 수 있게 칠한다. */}
+                      <Text style={styles.question}>{withTimestamps(shownQuestion.trim())}</Text>
                     </View>
-                    <Image source={require('@/assets/images/mascot-coach.png')} style={styles.mascot} contentFit="contain" />
                   </View>
-                </>
+                </View>
               )}
+            </View>
+          )}
+
+          {waiting && (
+            <View style={styles.thinkingRow}>
+              <ActivityIndicator size="small" color={palette.blue} />
+              <Text style={styles.thinkingText}>{t('coach.thinking')}</Text>
             </View>
           )}
 
@@ -386,26 +458,7 @@ export default function CoachScreen() {
 
         {!closed && (
           <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
-            <View style={styles.composerLabelRow}>
-              <Text style={styles.composerLabel}>{t('coach.composerLabel')}</Text>
-              <Text style={styles.counter}>
-                {input.length} / {COACH_ANSWER_MAX}
-              </Text>
-            </View>
-            <View style={styles.inputRow}>
-              {MicButton && !sample && <MicButton onText={setInput} disabled={connecting || waiting || !conversation} />}
-              <TextInput
-                ref={inputRef}
-                style={styles.input}
-                placeholder={t('coach.composerPh')}
-                placeholderTextColor={palette.checkOff}
-                value={input}
-                onChangeText={setInput}
-                maxLength={COACH_ANSWER_MAX}
-                multiline
-                editable={!connecting && !waiting && !!conversation}
-              />
-            </View>
+            <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>
             <View style={styles.quickRow}>
               {(
                 [
@@ -415,28 +468,41 @@ export default function CoachScreen() {
               ).map(([button, label]) => (
                 <Pressable
                   key={button}
-                  style={styles.quick}
+                  style={({ pressed }) => [styles.quick, pressed && styles.quickOn]}
                   disabled={waiting || connecting || !conversation}
                   onPress={() => pressHelp(button)}
                   accessibilityRole="button">
                   <Text style={styles.quickText}>{label}</Text>
                 </Pressable>
               ))}
-              {/* 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(아래 링크였던 것을 버튼 줄로 올렸다, SOMA-656). */}
+            </View>
+            <View style={styles.inputRow}>
+              {MicButton && !sample && <MicButton onText={setInput} disabled={connecting || waiting || !conversation} />}
+              <TextInput
+                ref={inputRef}
+                style={styles.input}
+                placeholder={t('coach.composerPh')}
+                placeholderTextColor={palette.textFaint}
+                accessibilityLabel={t('coach.composerLabel')}
+                value={input}
+                onChangeText={setInput}
+                maxLength={COACH_ANSWER_MAX}
+                multiline
+                editable={!connecting && !waiting && !!conversation}
+              />
               <Pressable
-                style={styles.quick}
-                disabled={waiting || connecting || !conversation}
-                onPress={() => void endConversation()} accessibilityRole="button">
-                <Text style={styles.quickText}>{t('coach.quickEnd')}</Text>
+                style={[styles.send, !canSend && styles.sendOff]}
+                disabled={!canSend}
+                onPress={() => void sendText(input)}
+                accessibilityRole="button"
+                accessibilityLabel={t('coach.send')}>
+                {waiting ? (
+                  <ActivityIndicator size="small" color={palette.onAccent} />
+                ) : (
+                  <Feather name="arrow-up" size={20} color={palette.onAccent} />
+                )}
               </Pressable>
             </View>
-            <Pressable
-              style={[styles.send, !canSend && styles.sendOff]}
-              disabled={!canSend}
-              onPress={() => void sendText(input)}
-              accessibilityRole="button">
-              <Text style={styles.sendText}>{waiting ? t('coach.thinking') : t('coach.nextQuestion')}</Text>
-            </Pressable>
           </View>
         )}
       </View>
@@ -450,47 +516,47 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
 
-  stripRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stripRowOn: { opacity: 0.5 },
-  stripArrow: { fontSize: 12, fontWeight: '700', color: palette.textFaint, paddingLeft: 8 },
-  stripText: { flex: 1, gap: 2 },
-  stripTitle: { fontSize: 13, fontWeight: '900', color: palette.textStrong },
-  stripSub: { fontSize: 11.5, fontWeight: '600', color: palette.textFaint },
-  strip: {
-    backgroundColor: palette.bgSubtle,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
+  endText: { fontSize: 15, fontWeight: '700', color: palette.textMuted },
 
-  progressHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
-    paddingVertical: 11,
-    paddingHorizontal: 16,
-  },
-  progressLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dots: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dot: { width: 14, height: 3, borderRadius: 9999, backgroundColor: palette.border },
-  dotOn: { width: 20, backgroundColor: palette.blue },
+  // pen 「영상 줄」 — 64 썸네일(모서리 14, 가운데 재생 동그라미 36) · 글 14/800 · 보조 12/600.
+  videoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  videoRowOn: { opacity: 0.6 },
+  thumb: { width: 64, height: 64, borderRadius: 14, backgroundColor: palette.textDim, alignItems: 'center', justifyContent: 'center' },
+  thumbPlay: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
+  videoText: { flex: 1, gap: 4 },
+  videoTitle: { fontSize: 14, fontWeight: '800', color: palette.text },
+  videoSub: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
+
+  progressHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   progressText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
   pastToggle: { fontSize: 12, fontWeight: '800', color: palette.textFaint },
 
-  body: { paddingTop: 22, paddingHorizontal: 20, paddingBottom: 20, gap: 20 },
+  body: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 20, gap: 14 },
 
   loading: { alignItems: 'center', gap: 12, paddingTop: 24 },
   loadingText: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint },
 
+  // pen 「코치 줄」 — 마스코트 36×40, 이름 12/800 주황, 말풍선(회색, 왼쪽 위만 뾰족) 16/600.
   questionBlock: { gap: 16 },
-  questionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  coachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  mascot: { width: 36, height: 40 },
   questionMain: { flex: 1, gap: 10 },
-  coachLabel: { fontSize: 13, fontWeight: '900', color: palette.flameDeep, letterSpacing: 0.3 },
-  question: { fontSize: 21, fontWeight: '800', color: palette.text, lineHeight: 31, letterSpacing: -0.4 },
-  mascot: { width: 84, height: 98, marginTop: 4 },
+  coachLabel: { fontSize: 12, fontWeight: '800', color: palette.flameDeep },
+  bubble: {
+    alignSelf: 'flex-start',
+    backgroundColor: palette.bgSoft,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 18,
+    borderBottomRightRadius: 18,
+    borderBottomLeftRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  question: { fontSize: 16, fontWeight: '600', color: palette.text, lineHeight: 24 },
+  timeLink: { color: palette.blueDeep, fontWeight: '800', textDecorationLine: 'underline' },
+
+  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 44 },
+  thinkingText: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
 
   pastAi: { gap: 4 },
   pastMine: { gap: 4, paddingLeft: 14, borderLeftWidth: 2, borderLeftColor: palette.blueLine },
@@ -509,27 +575,21 @@ const styles = StyleSheet.create({
   retryText: { fontSize: 13, fontWeight: '800', color: palette.textDim },
   doneText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 23 },
 
-  composer: {
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderTopWidth: 1,
-    borderTopColor: palette.borderSoft,
-  },
-  composerLabelRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  composerLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
-  counter: { fontSize: 11.5, fontWeight: '600', color: palette.checkOff },
+  composer: { gap: 10, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 10 },
+  chipGuide: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
+  // pen 「칩」 — 회색 알약(안쪽 10·16), 글 15/700. 누르면 입력칸만 채운다.
+  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  quick: { borderRadius: 9999, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },
+  quickOn: { backgroundColor: palette.blueSoft },
+  quickText: { fontSize: 15, fontWeight: '700', color: palette.textDim },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  // 한 줄로 시작해 글이 늘면 커지고, 다섯 줄쯤부터는 칸 안에서 스크롤한다(SOMA-656).
+  // 한 줄로 시작해 글이 늘면 커지고, 다섯 줄쯤부터는 칸 안에서 스크롤한다(SOMA-656). pen 「칸」 회색 알약.
   input: {
     flex: 1,
     minHeight: 48,
     maxHeight: 144,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: palette.blue,
-    backgroundColor: palette.bg,
+    borderRadius: 24,
+    backgroundColor: palette.bgSoft,
     // 줄 간격을 따로 주면 안드로이드가 남는 간격을 글자 위에 몰아 한 줄일 때 글자가 아래로 처진다 — 기본 줄 간격에
     // 위아래 여백을 같게 둔다. iOS 여러 줄 입력칸은 위에 자체 여백이 더 붙어 그만큼 위 여백을 줄인다.
     paddingTop: Platform.OS === 'ios' ? 10 : 13,
@@ -540,21 +600,6 @@ const styles = StyleSheet.create({
     color: palette.text,
     textAlignVertical: 'center',
   },
-  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  quick: {
-    flex: 1,
-    minHeight: 40,
-    minWidth: 96,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
-  send: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
   sendOff: { backgroundColor: palette.blueLine },
-  sendText: { fontSize: 15, fontWeight: '900', color: palette.bg },
 });

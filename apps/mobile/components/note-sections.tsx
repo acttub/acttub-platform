@@ -9,13 +9,14 @@ import type { PracticeNote } from '@/lib/practice/types';
  * 연습 노트의 본문 칸들(요약 → 다음 한 가지 → 응원). 방금 끝낸 노트(A13)와 지난 노트(A12)가 같은 모양으로 그린다.
  * 응원 칸은 고정 문장 대신 마스코트 말풍선(무작위 한마디)으로 그린다(SOMA-662).
  * 칸 사이 간격은 부모의 gap 을 따르도록 감싸지 않고 칸을 그대로 늘어놓는다.
+ * 모양은 pen 「새 · 배우 일지 첫 연습」(SOMA-748) — 「다음에 해 볼 것」은 옅은 파랑 카드에 굵게 둔다.
  */
 export function NoteSections({ note }: { note: PracticeNote }) {
   return (
     <>
       {noteSections(note).map((section) => (
-        <View style={styles.section} key={section.kind}>
-          {!!section.label && <Text style={styles.label}>{section.label}</Text>}
+        <View style={section.kind === 'next' ? styles.nextCard : styles.section} key={section.kind}>
+          {!!section.label && <Text style={[styles.label, section.kind === 'next' && styles.nextLabel]}>{section.label}</Text>}
           {section.kind === 'summary' ? (
             section.quotes.length > 0 ? (
               section.quotes.map((quote, index) => (
@@ -30,9 +31,7 @@ export function NoteSections({ note }: { note: PracticeNote }) {
           ) : section.kind === 'cheer' ? (
             <NoteCheer />
           ) : (
-            <Text style={[styles.text, section.kind === 'next' && styles.next]}>
-              {section.text}
-            </Text>
+            <Text style={styles.next}>{section.text}</Text>
           )}
         </View>
       ))}
@@ -41,10 +40,12 @@ export function NoteSections({ note }: { note: PracticeNote }) {
 }
 
 const styles = StyleSheet.create({
-  section: { borderTopWidth: 1, borderTopColor: palette.borderSoft, paddingTop: 16, gap: 8 },
-  label: { fontSize: 12, fontWeight: '800', color: palette.textDim },
-  text: { fontSize: 16, lineHeight: 26, color: palette.text },
-  next: { fontSize: 18, fontWeight: '700', lineHeight: 29 },
+  section: { gap: 8 },
+  label: { fontSize: 13, fontWeight: '700', color: palette.textMuted },
+  text: { fontSize: 16, fontWeight: '600', lineHeight: 25, color: palette.text },
+  nextCard: { gap: 8, backgroundColor: palette.blueMist, borderRadius: 18, padding: 16 },
+  nextLabel: { color: palette.blueDeep },
+  next: { fontSize: 18, fontWeight: '800', lineHeight: 28, color: palette.text },
   quote: { gap: 4, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 14 },
   quoteText: { fontSize: 15.5, lineHeight: 25, color: palette.text },
   quoteSource: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
