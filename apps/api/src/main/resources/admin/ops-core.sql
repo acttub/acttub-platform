@@ -27,6 +27,11 @@
 --  12. 가입 코호트 원장의 접속일('signup_rows[].active_days') — 그 사람이 서비스에 들어온 한국 날짜 목록(V41
 --      user_active_days). ops 리텐션이 가입·첫 접속 코호트가 며칠·몇 주 뒤에도 들어왔는지 센다. 날짜만 싣고
 --      시각은 싣지 않는다. V41 이전 기록은 남아 있던 토큰으로 약 30일만 채워져 있다. 수집기 정본에는 없다.
+--  13. 속도(SOMA-752). 결과 JSON 은 한 글자도 바꾸지 않고 묶는 순서만 바꿨다. 퍼널 칸마다·사람마다·세션마다
+--      CTE(classified·signup_platform·ps_all·turn_all)를 다시 훑던 LATERAL 을 사람·세션 단위로 한 번 미리
+--      묶어 두고 붙이는 방식으로 바꿨다(user_funnel·first_classified·user_device_counts·session_nearest_login·
+--      turn_role_counts). 운영 DB 같은 스냅샷에서 이전 SQL 과 출력 전체가 같음을 대조했고 2.5초 → 1.5초.
+--      수집기 정본의 같은 칸은 결과가 같으므로 따로 고치지 않아도 숫자가 어긋나지 않는다.
 -- now() 는 트랜잭션 시작 시각이다. 백업 경로는 이것을 백업 시각으로 바꿔 돌렸다.
 WITH b AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d),
 -- 분석 기준 셋. '어제'(달력)가 아니라 '최근 24시간'(구르는 창)이다 —
@@ -152,16 +157,19 @@ classified AS (
   FROM refresh_tokens rt
   WHERE rt.device_info IS NOT NULL AND rt.device_info <> ''
 ),
+-- 사람마다 가장 이른 로그인 기록 하나. 예전엔 사람마다 classified 전체를 다시 훑었다(SOMA-752).
+first_classified AS (
+  SELECT DISTINCT ON (c.user_id) c.user_id, c.device, c.browser
+  FROM classified c
+  ORDER BY c.user_id, c.issued_at ASC
+),
 signup_device AS (
   SELECT u.id AS user_id, u.created_at,
          COALESCE(f.device, '기록 없음') AS device,
          COALESCE(f.browser, '기록 없음') AS browser,
          (u.id IN (SELECT id FROM team)) AS is_team
   FROM users u
-  LEFT JOIN LATERAL (
-    SELECT c.device, c.browser FROM classified c
-    WHERE c.user_id = u.id ORDER BY c.issued_at ASC LIMIT 1
-  ) f ON TRUE
+  LEFT JOIN first_classified f ON f.user_id = u.id
 ),
 -- 네이티브 앱은 반드시 okhttp/CFNetwork UA 토큰을 남기므로 '기록 없음'은 웹으로 흘린다(2026-08-24 실측 '기록 없음' 0명).
 signup_platform AS (
@@ -275,71 +283,87 @@ chat AS (
 -- 퍼널이 거꾸로 보인다. 마지막 칸 'gap_stated' 가 제품이 성공했다고 말할 수
 -- 있는 유일한 지점이다 — 배우가 스스로 빈틈을 문장으로 남기고 대화가 닫힌 경우.
 -- LATERAL 이라 값이 0 인 조합도 행이 남는다(빠진 칸이 생기지 않는다).
+-- 사람마다 퍼널 단계를 한 번만 판정해 둔다(SOMA-752). 예전엔 칸(기간×플랫폼 9개)×단계(7개)마다
+-- users·signup_platform·ps_all·chat 을 다시 묶어 CTE 를 수천 번 훑었다(운영 DB 1.2초). 정의는 그대로다:
+-- 한 사람이 그 단계 행을 하나라도 가졌는가. 팀 여부도 같은 team CTE 로 본다.
+funnel_upload_users AS (
+  SELECT DISTINCT user_id FROM upload_intents WHERE status = 'finalized'
+),
+funnel_session_users AS (
+  SELECT user_id, bool_or(status = 'analyzed') AS analyzed FROM ps_all GROUP BY user_id
+),
+funnel_chat_users AS (
+  SELECT user_id,
+         bool_or(status = 'closed') AS closed,
+         -- status 도 같이 본다. close_reason 과 status 를 묶는 제약이 DB 에 없어서,
+         -- 이상 행이 하나 생기면 7단계가 6단계보다 커진다.
+         bool_or(close_reason = 'gap_stated' AND status = 'closed') AS gap
+  FROM chat GROUP BY user_id
+),
+user_funnel AS (
+  SELECT u.id, u.created_at, sp.platform,
+         (t.id IS NULL) AS is_real,
+         (fu.user_id IS NOT NULL) AS has_upload,
+         (fs.user_id IS NOT NULL) AS has_session,
+         COALESCE(fs.analyzed, FALSE) AS has_analyzed,
+         (fc.user_id IS NOT NULL) AS has_chat,
+         COALESCE(fc.closed, FALSE) AS has_closed,
+         COALESCE(fc.gap, FALSE) AS has_gap
+  FROM users u
+  JOIN signup_platform sp ON sp.user_id = u.id
+  LEFT JOIN team t ON t.id = u.id
+  LEFT JOIN funnel_upload_users fu ON fu.user_id = u.id
+  LEFT JOIN funnel_session_users fs ON fs.user_id = u.id
+  LEFT JOIN funnel_chat_users fc ON fc.user_id = u.id
+),
 funnel AS (
   SELECT sc.basis, sc.platform, s.ord, s.step, s.users, s.users_real
   FROM scopes sc,
   LATERAL (
-    SELECT 1 AS ord, '가입' AS step, count(*) AS users,
-           count(*) FILTER (WHERE t.id IS NULL) AS users_real
-      FROM users u
-      JOIN signup_platform sp ON sp.user_id = u.id
-        AND (sc.platform = '전체' OR sp.platform = sc.platform)
-      LEFT JOIN team t ON t.id = u.id
-      WHERE u.created_at > sc.since
+    SELECT 1 AS ord, '가입' AS step, count(*) FILTER (WHERE TRUE) AS users,
+           count(*) FILTER (WHERE TRUE AND uf.is_real) AS users_real
+      FROM user_funnel uf
+      WHERE uf.created_at > sc.since AND (sc.platform = '전체' OR uf.platform = sc.platform)
     UNION ALL
-    SELECT 2, '업로드 확정', count(DISTINCT u.id),
-           count(DISTINCT u.id) FILTER (WHERE t.id IS NULL) AS users_real
-      FROM users u JOIN upload_intents ui ON ui.user_id = u.id AND ui.status = 'finalized'
-      JOIN signup_platform sp ON sp.user_id = u.id
-        AND (sc.platform = '전체' OR sp.platform = sc.platform)
-      LEFT JOIN team t ON t.id = u.id
-      WHERE u.created_at > sc.since
+    SELECT 2, '업로드 확정', count(*) FILTER (WHERE uf.has_upload) AS users,
+           count(*) FILTER (WHERE uf.has_upload AND uf.is_real) AS users_real
+      FROM user_funnel uf
+      WHERE uf.created_at > sc.since AND (sc.platform = '전체' OR uf.platform = sc.platform)
     UNION ALL
-    SELECT 3, '연습 세션', count(DISTINCT u.id),
-           count(DISTINCT u.id) FILTER (WHERE t.id IS NULL) AS users_real
-      FROM users u JOIN ps_all ps ON ps.user_id = u.id
-      JOIN signup_platform sp ON sp.user_id = u.id
-        AND (sc.platform = '전체' OR sp.platform = sc.platform)
-      LEFT JOIN team t ON t.id = u.id
-      WHERE u.created_at > sc.since
+    SELECT 3, '연습 세션', count(*) FILTER (WHERE uf.has_session) AS users,
+           count(*) FILTER (WHERE uf.has_session AND uf.is_real) AS users_real
+      FROM user_funnel uf
+      WHERE uf.created_at > sc.since AND (sc.platform = '전체' OR uf.platform = sc.platform)
     UNION ALL
-    SELECT 4, '분석 완료', count(DISTINCT u.id),
-           count(DISTINCT u.id) FILTER (WHERE t.id IS NULL) AS users_real
-      FROM users u JOIN ps_all ps ON ps.user_id = u.id AND ps.status = 'analyzed'
-      JOIN signup_platform sp ON sp.user_id = u.id
-        AND (sc.platform = '전체' OR sp.platform = sc.platform)
-      LEFT JOIN team t ON t.id = u.id
-      WHERE u.created_at > sc.since
+    SELECT 4, '분석 완료', count(*) FILTER (WHERE uf.has_analyzed) AS users,
+           count(*) FILTER (WHERE uf.has_analyzed AND uf.is_real) AS users_real
+      FROM user_funnel uf
+      WHERE uf.created_at > sc.since AND (sc.platform = '전체' OR uf.platform = sc.platform)
     UNION ALL
-    SELECT 5, '코치 대화', count(DISTINCT u.id),
-           count(DISTINCT u.id) FILTER (WHERE t.id IS NULL) AS users_real
-      FROM users u JOIN chat c ON c.user_id = u.id
-      JOIN signup_platform sp ON sp.user_id = u.id
-        AND (sc.platform = '전체' OR sp.platform = sc.platform)
-      LEFT JOIN team t ON t.id = u.id
-      WHERE u.created_at > sc.since
+    SELECT 5, '코치 대화', count(*) FILTER (WHERE uf.has_chat) AS users,
+           count(*) FILTER (WHERE uf.has_chat AND uf.is_real) AS users_real
+      FROM user_funnel uf
+      WHERE uf.created_at > sc.since AND (sc.platform = '전체' OR uf.platform = sc.platform)
     UNION ALL
-    SELECT 6, '대화 마무리', count(DISTINCT u.id),
-           count(DISTINCT u.id) FILTER (WHERE t.id IS NULL) AS users_real
-      FROM users u JOIN chat c ON c.user_id = u.id AND c.status = 'closed'
-      JOIN signup_platform sp ON sp.user_id = u.id
-        AND (sc.platform = '전체' OR sp.platform = sc.platform)
-      LEFT JOIN team t ON t.id = u.id
-      WHERE u.created_at > sc.since
+    SELECT 6, '대화 마무리', count(*) FILTER (WHERE uf.has_closed) AS users,
+           count(*) FILTER (WHERE uf.has_closed AND uf.is_real) AS users_real
+      FROM user_funnel uf
+      WHERE uf.created_at > sc.since AND (sc.platform = '전체' OR uf.platform = sc.platform)
     UNION ALL
-    -- status 도 같이 본다. close_reason 과 status 를 묶는 제약이 DB 에 없어서,
-    -- 이상 행이 하나 생기면 7단계가 6단계보다 커진다.
-    SELECT 7, '놓친 생각 말함', count(DISTINCT u.id),
-           count(DISTINCT u.id) FILTER (WHERE t.id IS NULL) AS users_real
-      FROM users u JOIN chat c ON c.user_id = u.id
-        AND c.close_reason = 'gap_stated' AND c.status = 'closed'
-      JOIN signup_platform sp ON sp.user_id = u.id
-        AND (sc.platform = '전체' OR sp.platform = sc.platform)
-      LEFT JOIN team t ON t.id = u.id
-      WHERE u.created_at > sc.since
+    SELECT 7, '놓친 생각 말함', count(*) FILTER (WHERE uf.has_gap) AS users,
+           count(*) FILTER (WHERE uf.has_gap AND uf.is_real) AS users_real
+      FROM user_funnel uf
+      WHERE uf.created_at > sc.since AND (sc.platform = '전체' OR uf.platform = sc.platform)
   ) s
 ),
 turns AS (SELECT session_id, count(*) AS t FROM turn_all GROUP BY session_id),
+-- 코치 세션별 배우·AI 턴 수를 한 번에 센다(SOMA-752). 예전엔 세션마다 turn_all 전체를 다시 훑었다.
+turn_role_counts AS (
+  SELECT session_id,
+         count(*) FILTER (WHERE role = 'actor') AS turns_actor,
+         count(*) FILTER (WHERE role = 'ai') AS turns_ai
+  FROM turn_all GROUP BY session_id
+),
 calendar_days AS (
   SELECT day::date AS date
   FROM generate_series(
@@ -442,6 +466,18 @@ sprint_goal_daily AS (
   ) c ON c.date BETWEEN least(DATE '2026-09-07', d.date - 6) AND d.date
   GROUP BY d.date
 ),
+-- 세션마다 붙일 기기 판정을 한 번에 만든다(SOMA-752). 예전엔 세션마다 classified 전체를 두 번씩 훑었다.
+user_device_counts AS (
+  SELECT c.user_id, count(DISTINCT c.device) AS n_dev FROM classified c GROUP BY c.user_id
+),
+-- 세션 시각과 가장 가까운 로그인 하나.
+session_nearest_login AS (
+  SELECT DISTINCT ON (ps.id) ps.id, c.device, c.browser,
+         abs(EXTRACT(epoch FROM (c.issued_at - ps.created_at))) AS gap_sec
+  FROM ps_all ps
+  JOIN classified c ON c.user_id = ps.user_id
+  ORDER BY ps.id, abs(EXTRACT(epoch FROM (c.issued_at - ps.created_at))) ASC
+),
 session_device AS (
   SELECT ps.id, ps.created_at,
          COALESCE(n.device, '기록 없음') AS device,
@@ -450,18 +486,11 @@ session_device AS (
          COALESCE(uc.n_dev, 0) > 1 AS multi_device,
          (ps.user_id IN (SELECT id FROM team)) AS is_team
   FROM ps_all ps
-  LEFT JOIN LATERAL (
-    -- UA 문자열 종류를 세면 같은 폰도 OS·브라우저 업데이트마다 새 기기가 된다.
-    -- 분류된 기기로 센다. 반대로 okhttp 는 기종을 안 알려줘서 서로 다른
-    -- 안드로이드 폰이 한 기기로 뭉치는 건 못 잡는다 — 이 숫자는 하한이다.
-    SELECT count(DISTINCT c.device) AS n_dev FROM classified c WHERE c.user_id = ps.user_id
-  ) uc ON TRUE
-  LEFT JOIN LATERAL (
-    SELECT c.device, c.browser,
-           abs(EXTRACT(epoch FROM (c.issued_at - ps.created_at))) AS gap_sec
-    FROM classified c WHERE c.user_id = ps.user_id
-    ORDER BY abs(EXTRACT(epoch FROM (c.issued_at - ps.created_at))) ASC LIMIT 1
-  ) n ON TRUE
+  -- UA 문자열 종류를 세면 같은 폰도 OS·브라우저 업데이트마다 새 기기가 된다.
+  -- 분류된 기기로 센다. 반대로 okhttp 는 기종을 안 알려줘서 서로 다른
+  -- 안드로이드 폰이 한 기기로 뭉치는 건 못 잡는다 — 이 숫자는 하한이다.
+  LEFT JOIN user_device_counts uc ON uc.user_id = ps.user_id
+  LEFT JOIN session_nearest_login n ON n.id = ps.id
 )
 SELECT json_build_object(
   'metrics', (
@@ -645,23 +674,21 @@ SELECT json_build_object(
         'device', device, 'signups', signups, 'uploaded', uploaded, 'sessions', sessions_n)
         ORDER BY signups DESC) FROM (
         SELECT s.device, count(*) AS signups,
-               count(*) FILTER (WHERE ui.n > 0) AS uploaded,
-               count(*) FILTER (WHERE ps.n > 0) AS sessions_n
+               count(*) FILTER (WHERE ui.user_id IS NOT NULL) AS uploaded,
+               count(*) FILTER (WHERE ps.user_id IS NOT NULL) AS sessions_n
         FROM signup_device s
-        LEFT JOIN LATERAL (SELECT count(*) n FROM upload_intents x
-                           WHERE x.user_id = s.user_id AND x.status::text = 'finalized') ui ON TRUE
-        LEFT JOIN LATERAL (SELECT count(*) n FROM ps_all x WHERE x.user_id = s.user_id) ps ON TRUE
+        LEFT JOIN funnel_upload_users ui ON ui.user_id = s.user_id
+        LEFT JOIN funnel_session_users ps ON ps.user_id = s.user_id
         WHERE NOT s.is_team GROUP BY s.device) f),
     'by_browser', (SELECT json_agg(json_build_object(
         'browser', browser, 'signups', signups, 'uploaded', uploaded, 'sessions', sessions_n)
         ORDER BY signups DESC) FROM (
         SELECT s.browser, count(*) AS signups,
-               count(*) FILTER (WHERE ui.n > 0) AS uploaded,
-               count(*) FILTER (WHERE ps.n > 0) AS sessions_n
+               count(*) FILTER (WHERE ui.user_id IS NOT NULL) AS uploaded,
+               count(*) FILTER (WHERE ps.user_id IS NOT NULL) AS sessions_n
         FROM signup_device s
-        LEFT JOIN LATERAL (SELECT count(*) n FROM upload_intents x
-                           WHERE x.user_id = s.user_id AND x.status::text = 'finalized') ui ON TRUE
-        LEFT JOIN LATERAL (SELECT count(*) n FROM ps_all x WHERE x.user_id = s.user_id) ps ON TRUE
+        LEFT JOIN funnel_upload_users ui ON ui.user_id = s.user_id
+        LEFT JOIN funnel_session_users ps ON ps.user_id = s.user_id
         WHERE NOT s.is_team GROUP BY s.browser) f)
   ),
   -- 세션마다 '누가' 를 붙인다. ⚠️ 이메일·user_id 원본은 넣지 않는다 —
@@ -720,11 +747,7 @@ SELECT json_build_object(
         ORDER BY c.created_at DESC LIMIT 1
       ) cs ON TRUE
       -- 코치 세션이 없으면 필드는 NULL, 턴 수는 0으로 둔다.
-      LEFT JOIN LATERAL (
-        SELECT count(*) FILTER (WHERE ct.role = 'actor') AS turns_actor,
-               count(*) FILTER (WHERE ct.role = 'ai') AS turns_ai
-        FROM turn_all ct WHERE ct.session_id = cs.id
-      ) ct ON TRUE
+      LEFT JOIN turn_role_counts ct ON ct.session_id = cs.id
       ORDER BY ps.created_at DESC LIMIT 1000) sessions),
   -- 영구 저장되는 스냅샷: 기존 sessions 와 같은 분/시간 정밀도만 내보낸다.
   'activity_rows', (SELECT COALESCE(json_agg(json_build_object(
