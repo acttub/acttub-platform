@@ -5,9 +5,10 @@ import { resetReadingState, updateCurrent } from '@/lib/reading/store';
 
 import { openFixtureScript, scriptDetail, TWO_ROLE_LINES } from './fixtures';
 
-jest.mock('@react-native-async-storage/async-storage', () =>
-  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
-);
+jest.mock('@react-native-async-storage/async-storage', () => {
+  const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
+  return { __esModule: true, default: storage };
+});
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace }) }));
 
