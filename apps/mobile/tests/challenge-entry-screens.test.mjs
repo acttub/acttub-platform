@@ -35,7 +35,7 @@ test('challenge.entry: 캡션은 300자까지이고 완료 문구는 공개·비
 
   assert.match(upload, /maxLength=\{CAPTION_MAX\}/);
   assert.match(upload, /doneCopy\(created\.visibility\)/);
-  assert.match(read('locales/ko.ts'), /무대에 올렸어요/);
+  assert.match(read('locales/ko.ts'), /공개로 올렸어요/);
   assert.match(read('locales/ko.ts'), /비공개로 저장했어요/);
 });
 
