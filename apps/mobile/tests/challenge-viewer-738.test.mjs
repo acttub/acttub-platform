@@ -38,5 +38,7 @@ test('SOMA-738: 프로필 챌린지 수는 참여한 서로 다른 챌린지 수
   assert.equal(participatedChallengeCount([]), 0);
   assert.equal(participatedChallengeCount([{ challenge: { id: 'a' } }]), 1);
   assert.equal(participatedChallengeCount([{ challenge: { id: 'a' } }, { challenge: { id: 'a' } }, { challenge: { id: 'b' } }]), 2);
-  assert.match(read('app/(tabs)/profile.tsx'), /participatedChallengeCount\(all\)/);
+  // 프로필 탭은 「이번 달 연습」의 챌린지 칸으로 바뀌었다(SOMA-748). 참여작 수가 아니라 서로 다른 챌린지 수로 센다.
+  assert.match(read('app/(tabs)/profile.tsx'), /monthPracticeCounts\(/);
+  assert.match(read('lib/profile-month-stats.ts'), /new Set\(input\.entries\.filter\(\(e\) => inMonth\(e\.created_at, now\)\)\.map\(\(e\) => e\.challenge\.id\)\)\.size/);
 });

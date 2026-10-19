@@ -2,7 +2,9 @@ import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { BackHandler, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+
+import { PrimaryButton } from '@/components/ui/buttons';
 
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
@@ -19,7 +21,7 @@ const STORE_URL = storeUrlFor({
 const SPLASH_ICON_SIZE = Platform.OS === 'ios' ? 200 : 160;
 
 /**
- * 업데이트 안내 — 서버가 426으로 답하면 _layout 게이트가 이 화면만 보여 준다.
+ * 업데이트 안내(pen S2.1 gPSqcS, SOMA-748) — 서버가 426으로 답하면 _layout 게이트가 이 화면만 보여 준다.
  *
  * 스플래시와 같은 흰 바탕·가운데 아이콘을 그리고 그 위에 막과 팝업을 얹는다. 앱을 켜자마자
  * 426이 오면 스플래시가 내려가도 그림이 바뀌지 않고 팝업만 떠오른다.
@@ -59,12 +61,7 @@ export default function UpdateRequiredScreen() {
           <Text style={styles.message}>{t('updateRequired.body')}</Text>
           {openFailed && <Text style={styles.error}>{t('updateRequired.openFail')}</Text>}
           {STORE_URL ? (
-            <Pressable
-              style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
-              onPress={() => void openStore()}
-              accessibilityRole="button">
-              <Text style={styles.ctaText}>{t('updateRequired.cta')}</Text>
-            </Pressable>
+            <PrimaryButton label={t('updateRequired.cta')} onPress={() => void openStore()} style={styles.cta} />
           ) : (
             <Text style={styles.manual}>{t('updateRequired.manual')}</Text>
           )}
@@ -109,15 +106,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
   },
-  cta: {
-    marginTop: 22,
-    backgroundColor: palette.blue,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  pressed: { opacity: 0.75 },
-  ctaText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  // pen S2.1 — 대화상자 버튼은 공통 Button/Primary(높이 56·모서리 16).
+  cta: { marginTop: 22 },
   manual: {
     marginTop: 22,
     fontSize: 14,
