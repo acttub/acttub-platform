@@ -340,15 +340,16 @@ test("error 이벤트가 429 면 쓰던 조각을 버리고 같은 request_id �
 test("받는 도중 호출자가 취소하면 일반 호출로 넘기지 않고 그 취소 사유로 끝난다", async () => {
   const controller = new AbortController();
   const deltas = [];
-  const calls = recordFetch((_call, _n, options) => {
-    setTimeout(() => controller.abort(new DOMException("말풍선을 닫았다", "AbortError")), 5);
-    return openSseResponse(sse("delta", { text: "일부" }), options.signal);
-  });
+  const calls = recordFetch((_call, _n, options) => openSseResponse(sse("delta", { text: "일부" }), options.signal));
 
   const error = await runStream({
     requestId: "rid-cancel",
     signal: controller.signal,
-    onDelta: (t) => deltas.push(t),
+    onDelta: (t) => {
+      deltas.push(t);
+      // 첫 조각을 그린 뒤 배우가 말풍선을 닫는다.
+      controller.abort(new DOMException("말풍선을 닫았다", "AbortError"));
+    },
   }).catch((e) => e);
 
   assert.equal(error.name, "AbortError");
