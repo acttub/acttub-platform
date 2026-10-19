@@ -1,7 +1,9 @@
 package com.acttub.actingapi.feature.reading.domain;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -56,8 +58,18 @@ public final class LineLanguage {
     }
 
     /**
-     * 모델 답을 읽는다. 보낸 적 없는 번호, 목록 밖 말, 소리 낼 글이 빈 외국어 줄은 버린다(그 줄은 지금처럼 읽힌다).
-     * 소리 낼 글이 원문과 같으면 따로 두지 않는다.
+     * 한 줄에 서로 다른 말이 이어질 때(예: 「고맙습니다. shukran ktir.」) 소리 낼 글은 조각마다 이 표시를 앞에 붙여 잇는다 —
+     * {@code ⟦ko⟧고맙습니다. ⟦ar⟧شكراً كتير.} 앱은 조각마다 그 말로 읽고, 서버의 대조는 표시를 지우고 견준다.
+     */
+    public static final String MARK_OPEN = "\u27E6";
+    public static final String MARK_CLOSE = "\u27E7";
+    /** 소리 낼 글에서 조각 표시를 지우는 정규식(SQL {@code regexp_replace} 도 같은 모양을 쓴다). */
+    public static final String MARK_PATTERN = "\u27E6[a-z]{2}\u27E7";
+
+    /**
+     * 모델 답을 읽는다. 한 줄은 {@code 줄번호<TAB>말<TAB>글} 이고, 서로 다른 말이 이어지면 {@code <TAB>말<TAB>글} 을 더 잇는다.
+     * 보낸 적 없는 번호, 목록 밖 말, 빈 글이 있는 줄은 버린다(그 줄은 지금처럼 읽힌다). 줄의 말은 한국어가 아닌 첫 조각의 말
+     * (받아쓰기가 그 말로 듣는다)이고, 모두 한국어면 {@code ko} 다. 조각이 하나면 표시 없이 그 글이고, 원문과 같으면 따로 두지 않는다.
      */
     public static Map<Integer, Result> parse(String text, List<NumberedLine> sent) {
         Map<Integer, String> source = new LinkedHashMap<>();
@@ -77,20 +89,57 @@ public final class LineLanguage {
                 continue;
             }
             String original = source.get(no);
-            String lang = fields[1].strip().toLowerCase(java.util.Locale.ROOT);
-            if (original == null || !SUPPORTED.contains(lang)) {
+            if (original == null) {
                 continue;
             }
-            if (KOREAN.equals(lang)) {
-                results.put(no, new Result(KOREAN, null));
-                continue;
+            Result result = row(fields, original);
+            if (result != null) {
+                results.put(no, result);
             }
-            String speech = fields.length > 2 ? fields[2].strip() : "";
-            if (speech.isEmpty() || speech.codePointCount(0, speech.length()) > SPEECH_MAX) {
-                continue;
-            }
-            results.put(no, new Result(lang, speech.equals(original.strip()) ? null : speech));
         }
         return results;
     }
+
+    private static Result row(String[] fields, String original) {
+        if (KOREAN.equals(fields[1].strip().toLowerCase(Locale.ROOT)) && (fields.length < 3 || fields[2].isBlank())) {
+            return new Result(KOREAN, null);
+        }
+        List<String[]> parts = new ArrayList<>();
+        for (int i = 1; i + 1 < fields.length; i += 2) {
+            String lang = fields[i].strip().toLowerCase(Locale.ROOT);
+            String part = fields[i + 1].strip();
+            if (lang.isEmpty() && part.isEmpty()) {
+                continue;
+            }
+            if (!SUPPORTED.contains(lang) || part.isEmpty()) {
+                return null;
+            }
+            parts.add(new String[] {lang, part});
+        }
+        if (parts.isEmpty()) {
+            return null;
+        }
+        String lang = parts.stream().map(part -> part[0]).filter(code -> !KOREAN.equals(code)).findFirst().orElse(KOREAN);
+        if (KOREAN.equals(lang)) {
+            return new Result(KOREAN, null);
+        }
+        String speech;
+        if (parts.size() == 1) {
+            speech = parts.getFirst()[1];
+        } else {
+            StringBuilder joined = new StringBuilder();
+            for (String[] part : parts) {
+                if (!joined.isEmpty()) {
+                    joined.append(' ');
+                }
+                joined.append(MARK_OPEN).append(part[0]).append(MARK_CLOSE).append(part[1]);
+            }
+            speech = joined.toString();
+        }
+        if (speech.codePointCount(0, speech.length()) > SPEECH_MAX) {
+            return null;
+        }
+        return new Result(lang, speech.equals(original.strip()) ? null : speech);
+    }
+
 }
