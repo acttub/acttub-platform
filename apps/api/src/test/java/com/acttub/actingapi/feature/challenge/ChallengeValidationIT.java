@@ -25,7 +25,10 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-/** 챌린지 HTTP 의 값 검사: 모르는 정렬·탭·공개 범위·신고 대상·처리 상태는 저장소에 닿기 전에 422 배열로 거절한다. */
+/**
+ * 챌린지 HTTP 의 값 검사와 참여작 쪽 넘기기: 모르는 정렬·탭·공개 범위·신고 대상·처리 상태는 저장소에 닿기 전에 422 배열로
+ * 거절하고, 참여작 목록은 20개씩 커서로 이어 주며 다른 범위의 커서는 거절한다.
+ */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false",
         "ACCOUNT_CLEANUP_ENABLED=false", "ACCOUNT_HOUSEKEEPING_ENABLED=false", "ADMIN_OPS_TOKEN=challenge-validation-ops"})
 @AutoConfigureMockMvc
@@ -44,6 +47,7 @@ class ChallengeValidationIT {
     @Autowired ObjectMapper json;
     @Autowired JwtService jwt;
     String bearer;
+    UUID me;
 
     @BeforeEach void member() {
         jdbc.execute("TRUNCATE users,challenges RESTART IDENTITY CASCADE");
@@ -53,6 +57,7 @@ class ChallengeValidationIT {
                 UUID.randomUUID(), user, user.toString());
         AccountFixtures.passGate(jdbc, user);
         bearer = "Bearer " + jwt.issueAccessToken(user).value();
+        me = user;
     }
 
     JsonNode response(MockHttpServletRequestBuilder request, String authorization, int expected) throws Exception {
@@ -98,5 +103,76 @@ class ChallengeValidationIT {
         assertThat(location(response(post("/v2/me/notifications/read").content("{\"all_before\":{\"created_at\":\"어제\",\"id\":\"x\"}}"), bearer, 422)))
                 .isEqualTo("[\"body\",\"all_before\",\"created_at\"]");
         response(post("/v2/me/notifications/read").content("{\"all_before\":{\"created_at\":\"2026-10-01T00:00:00Z\",\"id\":\"group-key\"}}"), bearer, 204);
+    }
+
+    UUID challenge() throws Exception {
+        return UUID.fromString(response(post("/v2/admin/challenges").content(json.writeValueAsString(Map.of(
+                "request_id", UUID.randomUUID(), "line", "쪽 넘기기 " + UUID.randomUUID(), "work", "창작", "duration_days", 7))),
+                OPS, 201).path("id").asText());
+    }
+
+    UUID entry(UUID challenge, UUID owner, int minutesAgo) {
+        UUID video = UUID.randomUUID();
+        jdbc.update("INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms) VALUES (?,?,?,'video/mp4',100,30000)",
+                video, owner, "videos/" + video);
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenge_entries(id,challenge_id,user_id,video_id,visibility,status,request_id,request_fingerprint,
+                                              published_at,created_at)
+                VALUES (?,?,?,?,'public','visible',?,?,now() - make_interval(mins => ?),now() - make_interval(mins => ?))
+                """, id, challenge, owner, video, UUID.randomUUID(), "0".repeat(64), minutesAgo, minutesAgo);
+        return id;
+    }
+
+    @Test void myEntriesPageTwentyAtATimeAndRejectSomeoneElsesCursor() throws Exception {
+        UUID challenge = challenge();
+        for (int i = 0; i < 22; i++) entry(challenge, me, i + 1);
+        JsonNode first = response(get("/v2/me/challenge-entries"), bearer, 200);
+        assertThat(first.path("entries")).hasSize(20);
+        assertThat(first.path("counts").path("all").asLong()).isEqualTo(22);
+        JsonNode second = response(get("/v2/me/challenge-entries").param("cursor", first.path("next_cursor").asText()), bearer, 200);
+        assertThat(second.path("entries")).hasSize(2);
+        assertThat(second.path("next_cursor").isNull()).isTrue();
+
+        UUID other = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", other);
+        AccountFixtures.passGate(jdbc, other);
+        assertThat(location(response(get("/v2/me/challenge-entries").param("cursor", first.path("next_cursor").asText()),
+                "Bearer " + jwt.issueAccessToken(other).value(), 422))).isEqualTo("[\"query\",\"cursor\"]");
+    }
+
+    @Test void theLatestListCanStartFromASharedEntryAndPagesOnWithItsCursor() throws Exception {
+        UUID challenge = challenge();
+        java.util.List<UUID> entries = new java.util.ArrayList<>();
+        for (int i = 0; i < 23; i++) entries.add(entry(challenge, me, i + 1));
+        JsonNode fromThird = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
+                .param("from_entry", entries.get(2).toString()), bearer, 200);
+        assertThat(fromThird.path("entries").get(0).path("id").asText()).isEqualTo(entries.get(2).toString());
+        assertThat(fromThird.path("entries")).hasSize(20);
+        JsonNode rest = response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
+                .param("cursor", fromThird.path("next_cursor").asText()), bearer, 200);
+        assertThat(rest.path("entries").findValuesAsText("id")).containsExactly(entries.get(22).toString());
+        assertThat(response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest")
+                .param("from_entry", UUID.randomUUID().toString()), bearer, 404).path("detail").asText()).isEqualTo("entry_not_found");
+        UUID another = challenge();
+        assertThat(location(response(get("/v2/challenges/{id}/entries", another).param("sort", "latest")
+                .param("cursor", fromThird.path("next_cursor").asText()), bearer, 422))).isEqualTo("[\"query\",\"cursor\"]");
+    }
+
+    @Test void theLikesListKeepsItsOrderAcrossPagesAndRejectsUnknownStarts() throws Exception {
+        UUID challenge = challenge();
+        java.util.List<UUID> entries = new java.util.ArrayList<>();
+        for (int i = 0; i < 22; i++) entries.add(entry(challenge, me, i + 1));
+        JsonNode first = response(get("/v2/challenges/{id}/entries", challenge), bearer, 200);
+        assertThat(first.path("entries")).hasSize(20);
+        JsonNode second = response(get("/v2/challenges/{id}/entries", challenge).param("cursor", first.path("next_cursor").asText()), bearer, 200);
+        assertThat(second.path("entries")).hasSize(2);
+        var all = new java.util.ArrayList<String>(first.path("entries").findValuesAsText("id"));
+        all.addAll(second.path("entries").findValuesAsText("id"));
+        assertThat(all).doesNotHaveDuplicates().hasSize(22);
+        assertThat(response(get("/v2/challenges/{id}/entries", challenge).param("from_entry", UUID.randomUUID().toString()), bearer, 404)
+                .path("detail").asText()).isEqualTo("entry_not_found");
+        assertThat(location(response(get("/v2/challenges/{id}/entries", challenge).param("cursor", "bm90LWEtY3Vyc29y"), bearer, 422)))
+                .isEqualTo("[\"query\",\"cursor\"]");
     }
 }
