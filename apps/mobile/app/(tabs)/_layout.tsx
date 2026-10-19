@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -17,28 +17,25 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 const IOS = Platform.OS === 'ios';
 
 /**
- * 하단 탭 — 홈 / 대본 / [촬영(FAB)] / 챌린지 / 프로필. 글자 없이 아이콘만(pen 탭바).
+ * 하단 탭 — 홈 / 코칭 / 대본 / 챌린지 / 프로필(pen TabBar, SOMA-748). 글자 없이 아이콘만.
  *
  * 화면 위에 떠 있는 알약: 좌우·바닥을 띄우고 그림자를 깊게 준다. 아이콘은 Ionicons
  * 아웃라인↔채움 쌍으로, 활성 탭은 채운 모양 + 연한 파란 pill.
- * 촬영 버튼은 카메라를 바로 연다(인스타 만들기 화면처럼) — 용도(AI 코칭 / 오늘의 대사 / 그냥 촬영)는
- * 셔터 아래 줄을 넘겨 고른다(SOMA-494). 찍은 것은 보관함에 남아야 해서 둘러보는 중이면 로그인부터 안내한다.
+ * 예전 가운데 촬영 버튼은 없어지고 코칭은 코칭 탭에서 시작한다. 카메라 화면(record-video)은 코칭·챌린지에서 연다.
  */
 export default function TabLayout() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   // 읽지 않은 알림 묶음 수.
   const unread = useUnreadNotifications();
-  // 첫 가이드가 이 버튼을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
-  const shootTarget = useSpotlightTarget(TARGET.shoot);
+  // 홈 첫 가이드가 코칭 탭을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
+  const coachingTarget = useSpotlightTarget(TARGET.shoot);
 
-  const openCamera = () => {
-    router.push({ pathname: '/record-video', params: { mode: 'ai', picker: '1' } });
-  };
-
-  const icon = (outline: IoniconName, filled: IoniconName, label: string) => {
+  const icon = (outline: IoniconName, filled: IoniconName, label: string, target?: typeof coachingTarget) => {
     const TabIcon = ({ color, focused }: { color: string; focused: boolean }) => (
-      <View style={[styles.iconPill, IOS && focused && styles.iconPillActive]}>
+      <View
+        ref={target?.ref}
+        onLayout={target?.onLayout}
+        style={[styles.iconPill, IOS && focused && styles.iconPillActive]}>
         <Ionicons size={24} name={focused ? filled : outline} color={color} />
         {!IOS && focused && <Text style={[styles.tabLabel, { color }]}>{label}</Text>}
       </View>
@@ -92,28 +89,17 @@ export default function TabLayout() {
           tabBarButton: HapticTab,
         }}>
         <Tabs.Screen name="index" options={{ title: t('tabs.home'), tabBarIcon: icon('home-outline', 'home', t('tabs.home')) }} />
-        <Tabs.Screen name="reading" options={{ title: t('tabs.reading'), tabBarIcon: icon('book-outline', 'book', t('tabs.reading')) }} />
-        {/* 기록은 탭바에서 빠졌지만(대본으로 교체) 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
-        <Tabs.Screen name="history" options={{ href: null }} />
         <Tabs.Screen
-          name="record"
+          name="coaching"
           options={{
-            title: '',
-            tabBarButton: () => (
-              <View style={styles.fabSlot}>
-                <Pressable
-                  ref={shootTarget.ref}
-                  onLayout={shootTarget.onLayout}
-                  style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('tabs.shootA11y')}
-                  onPress={openCamera}>
-                  <Ionicons name="videocam" size={26} color="#FFFFFF" />
-                </Pressable>
-              </View>
-            ),
+            title: t('tabs.coaching'),
+            tabBarIcon: icon('chatbubble-outline', 'chatbubble', t('tabs.coaching'), coachingTarget),
           }}
         />
+        <Tabs.Screen name="reading" options={{ title: t('tabs.reading'), tabBarIcon: icon('book-outline', 'book', t('tabs.reading')) }} />
+        {/* 기록·예전 촬영 자리는 탭바에서 빠졌지만 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
+        <Tabs.Screen name="history" options={{ href: null }} />
+        <Tabs.Screen name="record" options={{ href: null }} />
         {/* 배지는 읽지 않은 알림 묶음 수다(challenge.notification). */}
         <Tabs.Screen
           name="challenges"
@@ -141,22 +127,4 @@ const styles = StyleSheet.create({
     backgroundColor: palette.blueSoft,
   },
   tabLabel: { fontSize: 11, fontWeight: '700', marginTop: 2 },
-  fabSlot: { flex: 1, alignItems: 'center' },
-  fab: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: palette.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -28,
-    borderWidth: 4,
-    borderColor: palette.card,
-    shadowColor: palette.blue,
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  fabPressed: { transform: [{ scale: 0.96 }] },
 });
