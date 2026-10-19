@@ -42,11 +42,6 @@ function json(status, payload) {
 }
 const fail = (status, code) => json(status, { detail: code });
 
-function sse(events) {
-  const text = events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
-  return new Response(text, { status: 200, headers: { "Content-Type": "text/event-stream" } });
-}
-
 /** 조각을 하나씩 흘려보낼 수 있는 SSE 응답. 코치가 쓰는 중인 글을 화면이 어떻게 그리는지 본다. */
 function liveStream() {
   const encoder = new TextEncoder();
