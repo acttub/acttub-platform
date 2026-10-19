@@ -147,7 +147,8 @@ test("reading.session: 다시 리딩은 같은 배역·방식·구간으로 새 
   await flush();
 
   const post = requests.find((r) => r.route === "POST /v2/reading/scripts/script-1/sessions");
-  const { request_id: _id, ...body } = post.body;
+  const { request_id: requestId, ...body } = post.body;
+  assert.equal(typeof requestId, "string");
   assert.deepEqual(body, {
     my_character_ids: ["c-nina"],
     mode: "read",

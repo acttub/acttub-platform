@@ -17,9 +17,12 @@ export function resetQuiz() {
 }
 resetQuiz();
 
+function recordRunnerArgs(cfg, opts) {
+  Object.assign(quiz.runner, { cfg, opts });
+}
+
 export function useRehearsalRunner(cfg, opts) {
-  quiz.runner.cfg = cfg;
-  quiz.runner.opts = opts;
+  recordRunnerArgs(cfg, opts);
   const [state, setState] = useState(() => createRehearsal(cfg));
   const { calls } = quiz.runner;
   return {
