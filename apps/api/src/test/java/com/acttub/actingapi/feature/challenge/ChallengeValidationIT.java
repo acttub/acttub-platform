@@ -175,4 +175,45 @@ class ChallengeValidationIT {
         assertThat(location(response(get("/v2/challenges/{id}/entries", challenge).param("cursor", "bm90LWEtY3Vyc29y"), bearer, 422)))
                 .isEqualTo("[\"query\",\"cursor\"]");
     }
+
+    UUID actor() {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", id);
+        AccountFixtures.passGate(jdbc, id);
+        return id;
+    }
+
+    @Test void savedEntriesPageWithTheirOwnCursorOnly() throws Exception {
+        UUID challenge = challenge();
+        UUID author = actor();
+        for (int i = 0; i < 22; i++) {
+            UUID entry = entry(challenge, author, i + 1);
+            response(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/v2/entries/{id}/save", entry), bearer, 200);
+        }
+        JsonNode first = response(get("/v2/me/saved-entries"), bearer, 200);
+        assertThat(first.path("entries")).hasSize(20);
+        JsonNode second = response(get("/v2/me/saved-entries").param("cursor", first.path("next_cursor").asText()), bearer, 200);
+        assertThat(second.path("entries")).hasSize(2);
+        assertThat(second.path("next_cursor").isNull()).isTrue();
+        assertThat(location(response(get("/v2/me/saved-entries").param("cursor", first.path("next_cursor").asText()),
+                "Bearer " + jwt.issueAccessToken(author).value(), 422))).isEqualTo("[\"query\",\"cursor\"]");
+        String broken = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                ("V|" + me + "|어제|" + UUID.randomUUID()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(location(response(get("/v2/me/saved-entries").param("cursor", broken), bearer, 422))).isEqualTo("[\"query\",\"cursor\"]");
+    }
+
+    @Test void commentAndNotificationCursorsBelongToTheirOwnList() throws Exception {
+        UUID challenge = challenge();
+        UUID entry = entry(challenge, actor(), 1);
+        String otherEntryCursor = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                ("C|" + UUID.randomUUID() + "|2026-10-01T00:00:00Z|" + UUID.randomUUID()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(location(response(get("/v2/entries/{id}/comments", entry).param("cursor", otherEntryCursor), bearer, 422)))
+                .isEqualTo("[\"query\",\"cursor\"]");
+        assertThat(location(response(get("/v2/me/notifications").param("cursor", "bm90LWEtY3Vyc29y"), bearer, 422)))
+                .isEqualTo("[\"query\",\"cursor\"]");
+        response(post("/v2/me/notifications/read").content("{\"group_keys\":[\"like:" + entry + "\"]}"), bearer, 204);
+        response(post("/v2/me/notifications/read").content("{\"all_before\":{\"created_at\":\"2026-10-01T00:00:00Z\",\"id\":\""
+                + UUID.randomUUID() + "\"}}"), bearer, 204);
+        assertThat(response(get("/v2/me/notifications/unread-count"), bearer, 200).path("count").asLong()).isZero();
+    }
 }
