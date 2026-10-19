@@ -177,7 +177,7 @@ class PostgresRecordingRepository implements RecordingRepository {
     /** 그 회차의 구간 안 내 대사 줄의 원문. 상대역 줄·지문·구간 밖·남의 줄이면 {@code null}. */
     private String myDialogueLine(UUID sessionId, UUID lineId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT l.text
+                SELECT COALESCE(l.speech,l.text) AS text
                 FROM reading_sessions rs
                 JOIN script_lines s ON s.id=rs.start_line_id
                 JOIN script_lines e ON e.id=rs.end_line_id
