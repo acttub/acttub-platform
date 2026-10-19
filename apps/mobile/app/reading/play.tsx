@@ -18,7 +18,7 @@ import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { currentNetworkType } from '@/lib/reading/network';
 import { speakableText } from '@/lib/reading/tts/speakable';
-import { isKoreanLine, lineLanguage, speechLocaleFor, speechTextOf, voiceLanguage } from '@/lib/reading/line-language';
+import { isKoreanLine, lineLanguage, speechLocaleFor, speechParts } from '@/lib/reading/line-language';
 import type { LineDraft } from '@/lib/reading/line-edit';
 import type { DialogueLine, ScriptLine } from '@/lib/reading/types';
 import { closeProgressQueue, openProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
@@ -217,7 +217,7 @@ export default function ReadingPlay() {
     });
     const upcoming = config.lines.slice(from, config.endIndex + 1)
       .filter((line): line is DialogueLine => line.type === 'dialogue' && !config.myRoles.includes(line.role))
-      .map((line) => ({ text: speakableText(speechTextOf(line)), preset: presetFor(line.role), lang: voiceLanguage(lineLanguage(line)) }));
+      .flatMap((line) => speechParts(line).map((part) => ({ text: speakableText(part.text), preset: presetFor(line.role), lang: part.lang })));
     speechQueue.current.prime(upcoming);
     return speechQueue.current;
   }, [script, config, presetFor]);
@@ -566,10 +566,9 @@ export default function ReadingPlay() {
     if (phase.kind !== 'running' || tipOpen || !current || current.status !== 'partner') return;
     const line = current.lines[current.index] as DialogueLine;
     const from = current.index;
-    // 줄의 말과 소리 낼 글(SOMA-751). 로마자 아랍어 줄은 서버가 바꿔 둔 아랍 문자를 아랍어로 읽는다.
-    const text = speakableText(speechTextOf(line));
-    const lang = lineLanguage(line);
-    const voiceLang = voiceLanguage(lang);
+    // 줄의 말과 소리 낼 글(SOMA-751). 로마자 아랍어 줄은 서버가 바꿔 둔 아랍 문자를 아랍어로 읽고, 한 줄에 다른 말이
+    // 이어지면(「고맙습니다. شكراً」) 조각마다 그 말로 차례로 읽는다.
+    const parts = speechParts(line).map((part) => ({ ...part, text: speakableText(part.text) }));
     const preset = presetFor(line.role);
     let cancelled = false;
     const finish = () => {
@@ -583,18 +582,21 @@ export default function ReadingPlay() {
           setLineEngine('text_only'); // 글로 보기 — 버튼으로 넘긴다
           return;
         }
-        if (engine === 'device_voice') {
-          setLineEngine('device_voice');
-          await speakWithDevice(text, preset, { locale: speechLocaleFor(lang) });
-        } else {
-          const ready = await primeSpeech(from)?.take({ text, preset, lang: voiceLang });
+        for (const { text, lang } of parts) {
+          if (cancelled || !mounted.current) return;
+          if (engine === 'device_voice') {
+            setLineEngine('device_voice');
+            await speakWithDevice(text, preset, { locale: speechLocaleFor(lang) });
+            continue;
+          }
+          const ready = await primeSpeech(from)?.take({ text, preset, lang });
           if (cancelled || !mounted.current) return;
           if (ready) {
             setLineEngine(engine);
             await tts.play(ready);
           } else if (engine === 'supertonic') {
             setLineEngine('supertonic');
-            await tts.speak(text, preset, { scriptId: script?.id, lang: voiceLang });
+            await tts.speak(text, preset, { scriptId: script?.id, lang });
           } else {
             // 서버 음성을 못 받은 줄 — 기기 기본 목소리로 읽고 회차에서 처음일 때 알린다. 기기 음성이 없으면 글로 보기.
             if (!deviceVoiceRef.current) {
