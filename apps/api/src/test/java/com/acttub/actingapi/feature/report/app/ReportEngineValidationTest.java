@@ -119,4 +119,30 @@ class ReportEngineValidationTest {
         assertThat(engine.buildReportInput("expression", MAPPER.readTree("{}"), noExperiment, true, "e", null, null)).isNull();
         assertThat(engine.serializeInput(MAPPER.readTree("{\"a\":{},\"b\":[]}"))).isEqualTo("{\n  \"a\": {},\n  \"b\": []\n}");
     }
+
+    @Test void missingOrWronglyTypedSummaryValuesAreNamed() throws Exception {
+        JsonNode handoff = MAPPER.readTree("{\"blocked_point\":\"대사 의미\"}");
+        assertThatThrownBy(() -> engine.buildReportInput("analysis", null, handoff, true, "h", null, null))
+                .hasMessage("video_summary must be an object");
+        assertThatThrownBy(() -> engine.buildReportInput("analysis",
+                MAPPER.readTree("{\"observations\":[{\"end_ms\":1,\"what\":\"멈춘다\",\"confidence\":1}]}"), handoff, true, "h", null, null))
+                .hasMessage("start_ms must be an integer");
+        assertThatThrownBy(() -> engine.buildReportInput("analysis",
+                MAPPER.readTree("{\"observations\":[{\"start_ms\":\"0\",\"end_ms\":1,\"what\":\"멈춘다\",\"confidence\":1}]}"), handoff, true, "h", null, null))
+                .hasMessage("start_ms must be an integer");
+        assertThatThrownBy(() -> engine.buildReportInput("analysis",
+                MAPPER.readTree("{\"observations\":[{\"start_ms\":0,\"end_ms\":1,\"what\":\"멈춘다\"}]}"), handoff, true, "h", null, null))
+                .hasMessage("confidence must be a number");
+        assertThat(engine.buildReportInput("analysis", MAPPER.readTree("{}"), MAPPER.readTree("[]"), true, "h", null, null)).isNull();
+    }
+
+    @Test void anExpressionHandoffNeedsATestedExperimentAndAnObservedChange() throws Exception {
+        for (String handoff : java.util.List.of(
+                "{\"experiment\":{\"tested\":\"yes\",\"instruction\":\"끝을 짧게\"},\"observed_change\":\"덜 애원\"}",
+                "{\"experiment\":{\"tested\":true,\"instruction\":\"끝을 짧게\"},\"observed_change\":3}",
+                "{\"experiment\":{\"tested\":true,\"instruction\":\"끝을 짧게\"}}")) {
+            assertThat(engine.buildReportInput("expression", MAPPER.readTree("{}"), MAPPER.readTree(handoff), true, "e", null, null))
+                    .as(handoff).isNull();
+        }
+    }
 }
