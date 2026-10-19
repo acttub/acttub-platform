@@ -175,5 +175,5 @@ const styles = StyleSheet.create({
   rowTextUnread: { fontWeight: '800', color: palette.text },
   rowMeta: { fontSize: 12, color: palette.textFaint },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.blue },
-  keep: { fontSize: 12, color: palette.textFaint, textAlign: 'center', paddingTop: 16 },
+  keep: { fontSize: 12, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', paddingTop: 16 },
 });
