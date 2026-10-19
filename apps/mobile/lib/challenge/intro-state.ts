@@ -30,3 +30,26 @@ export async function markChallengeIntroSeen(): Promise<void> {
     // 못 적어도 흐름은 그대로 간다.
   }
 }
+
+/**
+ * 파란 「누를 것 안내」는 첫 챌린지 참여를 끝낼 때까지만 보인다(SOMA-748 최종.pen 화면 메모).
+ * 첫 참여작을 만들면 기기에 표시한다. 계정이 아니라 기기 기준이다.
+ */
+const FIRST_ENTRY_KEY = 'acttub.challenge.firstEntryDone';
+
+export async function hasFinishedFirstChallenge(): Promise<boolean> {
+  try {
+    return (await storage().getItem(FIRST_ENTRY_KEY)) === '1';
+  } catch {
+    // 못 읽으면 안내를 보인다 — 안내가 한 번 더 보이는 쪽이 덜 나쁘다.
+    return false;
+  }
+}
+
+export async function markFirstChallengeFinished(): Promise<void> {
+  try {
+    await storage().setItem(FIRST_ENTRY_KEY, '1');
+  } catch {
+    // 못 적어도 흐름은 그대로 간다.
+  }
+}
