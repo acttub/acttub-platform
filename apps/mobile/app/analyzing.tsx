@@ -1,11 +1,13 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Image } from 'expo-image';
 import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { PracticeFooter, ProgressRow, SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
+import { ProgressRow, SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
@@ -38,6 +40,8 @@ import { isSamplePracticeId, SAMPLE_ANALYZING_STEP_MS, sampleDetail, sampleScene
 /** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않는다). */
 const STAGES = translateList('analyzing.stages');
 
+const MASCOT = require('@/assets/images/mascot-coach.png');
+
 /**
  * A10 분석 진행(practice.analyze).
  *
@@ -56,7 +60,6 @@ export default function AnalyzingScreen() {
 
   const [status, setStatus] = useState<PracticeStatus | null>(null);
   const [detail, setDetail] = useState<PracticeDetail | null>(null);
-  const [practiceTitle, setPracticeTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -205,11 +208,6 @@ export default function AnalyzingScreen() {
       .getPractice(practiceId)
       .then(async (loaded) => {
         setDetail(loaded);
-        // 제목은 묶음에 있다. 못 읽어도 대기 화면은 그대로 둔다.
-        void api
-          .getPracticeGroup(loaded.root_id)
-          .then((group) => setPracticeTitle(group.title?.trim() || null))
-          .catch(() => undefined);
         const localUri = loaded.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
         setVideoUri(localUri ?? loaded.playback_url ?? null);
       })
@@ -360,50 +358,43 @@ export default function AnalyzingScreen() {
       <SceneFoldBody open={sceneOpen} videoUri={videoUri} track="analyzing" />
       <ScrollView contentContainerStyle={styles.body}>
         {error ? (
+          // pen 「P4.6 분석 실패」 — 마스코트와 제목 한 줄, 빨간 까닭, 다시 시도, 나중에 기록에서 보기.
           <View style={styles.errorBlock}>
-            <Text style={styles.errorTitle}>{t('analyzing.errorTitle')}</Text>
-            <Text style={styles.errorBody}>{error}</Text>
-            <Text style={styles.errorHint}>{t('analyzing.errorBody')}</Text>
+            <View style={styles.errorHead}>
+              <Image source={MASCOT} style={styles.errorMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+              <Text style={styles.errorTitle}>{t('analyzing.errorTitle')}</Text>
+            </View>
+            <Text style={styles.errorBody}>
+              {error} {analysisRecoveryAction(status) !== 'none' ? t('analyzing.errorBody') : ''}
+            </Text>
             {analysisRecoveryAction(status) !== 'none' && (
-              <Pressable style={styles.retry} onPress={() => void retry()} disabled={retrying}>
-                {retrying ? <ActivityIndicator color={palette.bg} /> : <Text style={styles.retryText}>{t('common.retry')}</Text>}
-              </Pressable>
+              <PrimaryButton label={t('common.retry')} onPress={() => void retry()} loading={retrying} style={styles.wide} />
             )}
-            <Pressable onPress={() => router.replace('/(tabs)')}>
+            <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={8} accessibilityRole="button">
               <Text style={styles.backLink}>{t('analyzing.leaveLater')}</Text>
             </Pressable>
           </View>
         ) : (
-          <>
-            <View style={styles.progressBlock} ref={progressTarget.ref} onLayout={progressTarget.onLayout}>
-              <ActivityIndicator size="large" color={palette.blue} />
-              <Text style={styles.stageText}>{stageText}</Text>
-              <Text style={styles.elapsed}>{elapsedText}</Text>
-              <Text style={styles.notice}>{sample ? t('tutorial.sampleAnalyzing') : t('analyzing.canClose')}</Text>
-            </View>
-
-            {detail && (
-              <SceneSummary
-                title={t('analyzing.whatWeUse')}
-                practiceTitle={practiceTitle}
-                scene={{
-                  situation: detail.scene.situation,
-                  character: detail.scene.character,
-                  goal: detail.scene.goal,
-                }}
-                blockage={{
-                  kind: t(`blockage.helpLabel.${detail.blockage.category}`),
-                  detail: detail.blockage.note,
-                }}
-              />
+          // pen 「P4.1 분석 중 · 차례 기다리는 중」 — 장면 요약은 빼고, 기다리지 않고 나가는 길을 크게 둔다.
+          <View style={styles.progressBlock} ref={progressTarget.ref} onLayout={progressTarget.onLayout}>
+            <ActivityIndicator size="large" color={palette.blue} />
+            <Text style={styles.stageText}>{stageText}</Text>
+            <Text style={styles.elapsed}>{elapsedText}</Text>
+            {sample ? (
+              <Text style={styles.notice}>{t('tutorial.sampleAnalyzing')}</Text>
+            ) : (
+              <>
+                <Text style={styles.notice}>{t('analyzing.usualTime')}</Text>
+                <Text style={styles.leaveHint}>{t('analyzing.leaveHint')}</Text>
+                {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 여기서는 홈으로 나간다. */}
+                <SecondaryButton label={t('analyzing.notifyMe')} onPress={() => router.replace('/(tabs)')} style={styles.wide} />
+              </>
             )}
-
-            <Pressable onPress={() => void stop()} disabled={stopping}>
+            <Pressable onPress={() => void stop()} disabled={stopping} hitSlop={8} accessibilityRole="button">
               <Text style={styles.stopLink}>{stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}</Text>
             </Pressable>
-          </>
+          </View>
         )}
-        <PracticeFooter />
       </ScrollView>
       {dialog}
       {tutorialGuide.element}
@@ -414,26 +405,19 @@ export default function AnalyzingScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { paddingTop: 28, paddingHorizontal: 20, paddingBottom: 20, gap: 24 },
+  wide: { alignSelf: 'stretch', marginTop: 8 },
 
   progressBlock: { alignItems: 'center', gap: 14, paddingTop: 26, paddingBottom: 10 },
   stageText: { fontSize: 20, fontWeight: '900', color: palette.text, textAlign: 'center' },
   elapsed: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
-  notice: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, textAlign: 'center', lineHeight: 21 },
-  stopLink: { color: palette.textFaint, fontSize: 12.5, fontWeight: '700', textAlign: 'center' },
+  notice: { fontSize: 13, fontWeight: '600', color: palette.textFaint, textAlign: 'center', lineHeight: 21 },
+  leaveHint: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', lineHeight: 21 },
+  stopLink: { color: palette.textFaint, fontSize: 13, fontWeight: '700', textAlign: 'center', paddingVertical: 6 },
 
   errorBlock: { alignItems: 'center', gap: 12, paddingTop: 26 },
-  errorTitle: { fontSize: 20, fontWeight: '900', color: palette.text },
-  errorBody: { fontSize: 13.5, fontWeight: '600', color: palette.danger, textAlign: 'center', lineHeight: 22 },
-  errorHint: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
-  retry: {
-    height: 52,
-    alignSelf: 'stretch',
-    borderRadius: 14,
-    backgroundColor: palette.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  retryText: { color: palette.bg, fontSize: 15, fontWeight: '900' },
-  backLink: { color: palette.textFaint, fontSize: 12.5, fontWeight: '700', marginTop: 6 },
+  errorHead: { flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'stretch' },
+  errorMascot: { width: 44, height: 50 },
+  errorTitle: { flex: 1, fontSize: 20, fontWeight: '900', color: palette.text },
+  errorBody: { fontSize: 14, fontWeight: '600', color: palette.danger, textAlign: 'center', lineHeight: 22 },
+  backLink: { color: palette.textFaint, fontSize: 13, fontWeight: '700', marginTop: 6 },
 });
