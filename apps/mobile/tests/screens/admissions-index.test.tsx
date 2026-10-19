@@ -149,6 +149,7 @@ describe('필터', () => {
   test('필터 버튼을 다시 누르면 패널을 닫는다', async () => {
     await loaded();
     await fireEvent.press(screen.getByRole('button', { name: '필터' }));
+    expect(screen.getByText('지역')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '필터' }));
     expect(screen.queryByText('지역')).not.toBeOnTheScreen();
   });

@@ -247,6 +247,7 @@ describe('지우기', () => {
     await pressDelete();
     await fireEvent.press(screen.getByText('취소'));
     expect(deleteEntry).not.toHaveBeenCalled();
+    expect(screen.getByText('“사느냐 죽느냐”')).toBeOnTheScreen();
   });
 
   test('실패하면 이유를 알린다', async () => {

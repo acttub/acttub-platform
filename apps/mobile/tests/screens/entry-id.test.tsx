@@ -69,4 +69,8 @@ test('응답 전에 화면을 떠나면 이동하지 않는다', async () => {
 
   await new Promise((r) => setTimeout(r, 0));
   expect(mockRouter.replace).not.toHaveBeenCalled();
+
+  getEntry.mockResolvedValueOnce({ id: 'e1', challenge_id: 'c9' });
+  await render(<EntryLinkScreen />);
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledTimes(1));
 });

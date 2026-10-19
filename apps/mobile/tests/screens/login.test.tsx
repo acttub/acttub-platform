@@ -135,6 +135,7 @@ describe('이미 다른 방식으로 가입한 이메일', () => {
 
     await fireEvent.press(await screen.findByText('닫기'));
     expect(signInWith).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /Apple로 로그인/ })).toBeEnabled();
   });
 
   test('지원하지 않는 방식이면 알리기만 한다', async () => {

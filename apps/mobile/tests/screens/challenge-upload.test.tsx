@@ -244,8 +244,8 @@ describe('방금 찍은 영상', () => {
     mockParams = { challengeId: 'c1', videoId: 'v1' };
     (takeRecordedVideo as jest.Mock).mockReturnValue({ uri: 'file:///rec.mp4', durationMs: 10_000 });
     await render(<ChallengeUploadScreen />);
-    await screen.findByText('“사느냐 죽느냐”');
-
+    expect(await screen.findByText('“사느냐 죽느냐”')).toBeOnTheScreen();
+    expect(localCopyFor).toHaveBeenCalledWith('v1');
     expect(saveRecordingToLibrary).not.toHaveBeenCalled();
     expect(screen.queryByText('미리보기 영상')).not.toBeOnTheScreen();
   });
@@ -257,6 +257,7 @@ test('챌린지 id 없이 열면 읽지도 올리지도 않는다', async () => 
   await fireEvent.press(screen.getByRole('radio', { name: /챌린지에 업로드/ }));
   await fireEvent.press(submitButton());
 
+  expect(screen.getByRole('radio', { name: /챌린지에 업로드/ })).toBeSelected();
   await waitFor(() => expect(createEntry).not.toHaveBeenCalled());
   expect(getChallenge).not.toHaveBeenCalled();
 });

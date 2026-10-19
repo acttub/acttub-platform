@@ -253,6 +253,7 @@ describe('경력', () => {
     await fireEvent.press(buttons('삭제')[1]);
     await fireEvent.press(await screen.findByText('취소'));
     expect(a.deletePortfolioCredit).not.toHaveBeenCalled();
+    expect(screen.getByText('봄날')).toBeOnTheScreen();
   });
 
   test('아래로 옮기면 바뀐 순서를 보낸다', async () => {
@@ -325,6 +326,7 @@ describe('사진', () => {
     await fireEvent.press(buttons('삭제')[2]);
     await fireEvent.press(await screen.findByText('취소'));
     expect(a.deletePortfolioPhoto).not.toHaveBeenCalled();
+    expect(screen.getByText('2번째 사진')).toBeOnTheScreen();
   });
 
   test('10장이면 더 넣을 수 없다고 알린다', async () => {

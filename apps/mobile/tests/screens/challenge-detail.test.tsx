@@ -269,6 +269,7 @@ describe('주최자의 지우기', () => {
     await pressTrash();
     await fireEvent.press(screen.getByText('취소'));
     expect(deleteChallenge).not.toHaveBeenCalled();
+    expect(screen.getByText('“사느냐 죽느냐”')).toBeOnTheScreen();
   });
 
   test('그사이 참여작이 생겼으면 지울 수 없다고 알린다', async () => {
@@ -328,6 +329,7 @@ describe('남의 챌린지 신고', () => {
     await fireEvent.press(await screen.findByText('취소'));
     expect(screen.queryByText('이 대사를 신고할까요?')).not.toBeOnTheScreen();
     expect(createReport).not.toHaveBeenCalled();
+    expect(screen.getByText('“사느냐 죽느냐”')).toBeOnTheScreen();
   });
 });
 

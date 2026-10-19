@@ -182,6 +182,7 @@ test('글꼴을 읽기 전에는 화면을 그리지 않는다', async () => {
   await renderLayout();
   expect(screen.queryByText('앱 머리')).not.toBeOnTheScreen();
   expect(logScreenView).not.toHaveBeenCalled();
+  expect(initCrashlytics).toHaveBeenCalledTimes(1);
 });
 
 test('손을 뗄 때마다 탭 기록으로 넘긴다', async () => {
@@ -210,11 +211,15 @@ describe('머리', () => {
 describe('게이트', () => {
   test('인증을 읽는 중에는 아무것도 그리거나 옮기지 않는다', async () => {
     auth = signedIn({ status: 'loading', user: null });
-    await renderLayout();
+    const view = await renderLayout();
 
     expect(screen.queryByText('앱 머리')).not.toBeOnTheScreen();
     expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+
+    await update({ status: 'signedOut' }, view);
+    expect(mockRouter.replace).toHaveBeenCalledWith('/login');
+    expect(screen.getByText('앱 머리')).toBeOnTheScreen();
   });
 
   test('업데이트가 필요하면 업데이트 안내로 보내고, 이미 거기면 그대로 둔다', async () => {
@@ -281,10 +286,13 @@ describe('게이트', () => {
 
   test('동의 판정을 읽는 중에는 팝업도 이동도 없다', async () => {
     auth = signedIn({ consentEntry: { status: 'checking' } });
-    await renderLayout();
+    const view = await renderLayout();
     expect(screen.queryByText('재동의 팝업')).not.toBeOnTheScreen();
     expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+
+    await update({ consentEntry: { status: 'decision_required' } }, view);
+    expect(screen.getByText('재동의 팝업')).toBeOnTheScreen();
   });
 
   test('동의 판정을 못 읽었으면 팝업을 띄우되 다른 화면에서는 옮기지 않는다', async () => {
@@ -308,9 +316,12 @@ describe('게이트', () => {
 
   test('프로필을 읽는 중에는 스플래시를 내리지 않는다', async () => {
     auth = signedIn({ profile: { status: 'checking' } });
-    await renderLayout();
+    const view = await renderLayout();
     expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
     expect(mockRouter.replace).not.toHaveBeenCalled();
+
+    await update({ profile: { status: 'complete' } }, view);
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
   });
 
   test('프로필을 못 읽었으면 프로필 화면에서 다시 읽게 한다', async () => {
@@ -358,6 +369,7 @@ describe('게이트', () => {
     await renderLayout();
 
     expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
   });
 
   test('남은 분석을 못 읽으면 없는 것으로 보고 홈으로 간다', async () => {
@@ -382,9 +394,12 @@ describe('게이트', () => {
 
   test('계정을 읽기 전에 사용자 정보가 없으면 기다린다', async () => {
     auth = signedIn({ user: null });
-    await renderLayout();
+    const view = await renderLayout();
     expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(loadForOwner).not.toHaveBeenCalled();
+
+    await update({ user: { id: 'u1' } }, view);
+    expect(loadForOwner).toHaveBeenCalledWith('u1');
   });
 
   test.each([
@@ -427,5 +442,8 @@ describe('푸시를 누르면', () => {
     pushListener?.(null);
     expect(mockRouter.push).not.toHaveBeenCalled();
     expect(mockRouter.replace).not.toHaveBeenCalled();
+
+    pushListener?.({ kind: 'challenge_notification', notification_id: 'x1' });
+    expect(mockRouter.push).toHaveBeenCalledWith('/notifications');
   });
 });

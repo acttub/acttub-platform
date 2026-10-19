@@ -193,8 +193,8 @@ describe('일정 표시', () => {
     byUniversity.mockResolvedValue(admissions({ universities: [uni], notices: [notice({ apply_end: null, apply_start: null })] }));
     await loaded();
 
+    expect(screen.getByText('학과 미확인')).toBeOnTheScreen();
     expect(screen.queryByText(/접수/)).not.toBeOnTheScreen();
-    expect(screen.queryByText('원서접수')).not.toBeOnTheScreen();
   });
 });
 

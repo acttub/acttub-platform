@@ -211,6 +211,7 @@ describe('전부 지우기', () => {
     await pressRemoveAll();
     await fireEvent.press(screen.getByText('취소'));
     expect(deleteAll).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue('입시 합격')).toBeOnTheScreen();
   });
 
   test.each([

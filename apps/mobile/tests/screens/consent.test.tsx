@@ -203,7 +203,7 @@ test('나가기를 누르면 가입을 취소한다', async () => {
 test('진행 중인 가입이 없으면 아무것도 그리지 않는다', async () => {
   auth(null);
   await render(<ConsentScreen />);
-  expect(screen.queryByText('동의 내용을 확인해주세요')).not.toBeOnTheScreen();
+  expect(screen.toJSON()).toBeNull();
 });
 
 test('광고성 문서가 없으면 묶음 줄을 그리지 않는다', async () => {

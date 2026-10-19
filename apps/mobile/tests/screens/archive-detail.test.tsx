@@ -235,6 +235,7 @@ describe('보관함 영상', () => {
       await fireEvent.press(await screen.findByRole('button', { name: /보관함에서 삭제/ }));
       await fireEvent.press(await screen.findByText('취소'));
       expect(deleteVideo).not.toHaveBeenCalled();
+      expect(screen.getByText('영상 화면')).toBeOnTheScreen();
     });
 
     test('서버가 막으면 이유를 알리고 다시 읽는다', async () => {
@@ -357,6 +358,7 @@ describe('업로드 대기 촬영본', () => {
     await fireEvent.press(await screen.findByText('대기에서 빼기'));
     await fireEvent.press(await screen.findByText('취소'));
     expect(removePendingUpload).not.toHaveBeenCalled();
+    expect(screen.getByText('대기에서 빼기')).toBeOnTheScreen();
   });
 
   test('그사이 올라갔으면 목록으로 돌아간다', async () => {

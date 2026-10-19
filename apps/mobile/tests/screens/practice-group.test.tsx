@@ -251,6 +251,7 @@ describe('삭제(숨김)', () => {
     await fireEvent.press(await screen.findByText('삭제'));
     await fireEvent.press(await screen.findByText('취소'));
     expect(patchGroup).not.toHaveBeenCalled();
+    expect(screen.getByText('삭제')).toBeOnTheScreen();
   });
 
   test.each([
@@ -280,6 +281,7 @@ test('묶음 id 없이 열면 읽지 않는다', async () => {
   mockParams = {};
   await render(<PracticeGroupScreen />);
   expect(getGroup).not.toHaveBeenCalled();
+  expect(header().getByText('연습 기록')).toBeOnTheScreen();
 });
 
 describe('처음 한 번 비추는 안내', () => {

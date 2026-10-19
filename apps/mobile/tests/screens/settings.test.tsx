@@ -209,6 +209,8 @@ describe('알림 토글', () => {
     await fireEvent(notifSwitch(1), 'valueChange', true);
     await fireEvent.press(await screen.findByText('취소'));
     expect(openNotificationPermissionSettings).not.toHaveBeenCalled();
+    expect(screen.queryByText('알림 권한이 꺼져 있어요')).not.toBeOnTheScreen();
+    expect(setNotificationToggle).toHaveBeenCalledWith(settings, 'challenge', true);
   });
 
   test.each([
@@ -312,6 +314,7 @@ describe('로그아웃', () => {
     await fireEvent.press(screen.getByText('로그아웃'));
     await fireEvent.press(await screen.findByText('취소'));
     expect(signOut).not.toHaveBeenCalled();
+    expect(screen.getByText('로그아웃')).toBeOnTheScreen();
   });
 });
 
