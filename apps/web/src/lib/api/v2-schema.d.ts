@@ -2938,6 +2938,10 @@ export interface components {
             text: string;
             /** Dialogue No */
             dialogue_no: number | null;
+            /** Lang */
+            lang: string | null;
+            /** Speech */
+            speech: string | null;
         };
         /** ReadingScriptScene */
         ReadingScriptScene: {
