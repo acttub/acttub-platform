@@ -29,6 +29,9 @@ export default function TabLayout() {
   const unread = useUnreadNotifications();
   // 홈 첫 가이드가 코칭 탭을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
   const coachingTarget = useSpotlightTarget(TARGET.shoot);
+  const readingTarget = useSpotlightTarget(TARGET.tabReading);
+  const challengeTarget = useSpotlightTarget(TARGET.tabChallenge);
+  const profileTarget = useSpotlightTarget(TARGET.tabProfile);
 
   const icon = (outline: IoniconName, filled: IoniconName, label: string, target?: typeof coachingTarget) => {
     const TabIcon = ({ color, focused }: { color: string; focused: boolean }) => (
@@ -96,7 +99,7 @@ export default function TabLayout() {
             tabBarIcon: icon('chatbubble-outline', 'chatbubble', t('tabs.coaching'), coachingTarget),
           }}
         />
-        <Tabs.Screen name="reading" options={{ title: t('tabs.reading'), tabBarIcon: icon('book-outline', 'book', t('tabs.reading')) }} />
+        <Tabs.Screen name="reading" options={{ title: t('tabs.reading'), tabBarIcon: icon('book-outline', 'book', t('tabs.reading'), readingTarget) }} />
         {/* 기록·예전 촬영 자리는 탭바에서 빠졌지만 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
         <Tabs.Screen name="history" options={{ href: null }} />
         <Tabs.Screen name="record" options={{ href: null }} />
@@ -105,11 +108,11 @@ export default function TabLayout() {
           name="challenges"
           options={{
             title: t('tabs.challenge'),
-            tabBarIcon: icon('trophy-outline', 'trophy', t('tabs.challenge')),
+            tabBarIcon: icon('trophy-outline', 'trophy', t('tabs.challenge'), challengeTarget),
             tabBarBadge: unread.badge ?? undefined,
           }}
         />
-        <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person', t('tabs.profile')) }} />
+        <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person', t('tabs.profile'), profileTarget) }} />
       </Tabs>
     </>
   );

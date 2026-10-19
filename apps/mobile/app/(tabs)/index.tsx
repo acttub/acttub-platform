@@ -48,12 +48,14 @@ const MASCOT_HOME = require('@/assets/images/mascot-home.png');
 const MASCOT_FIRST = require('@/assets/images/mascot-coach.png');
 
 /**
- * 홈에서 처음 한 번 비추는 자리 — 오늘 할 것 카드(첫 사용자면 코칭 질문), 그리고 코칭 탭 (SOMA-550·748).
- * 촬영 버튼 자리(TARGET.shoot)는 이제 탭바의 코칭 아이콘이 적는다.
+ * 첫 연습을 끝낸 뒤 홈에서 한 번 비추는 자리(pen 「첫 연습 끝 홈 · 안내 1/4~4/4」, SOMA-748) — 오늘 할 것 카드,
+ * 그리고 대본·챌린지·프로필 탭. 첫 사용자 홈(뭐부터 해 볼까요?)에서는 띄우지 않는다.
  */
 const HOME_STEPS: SpotlightStep[] = [
-  { target: TARGET.homeStart, text: 'guide.spotHomeStart' },
-  { target: TARGET.shoot, text: 'guide.spotShoot', round: true },
+  { target: TARGET.homeStart, text: 'guide.spotFirstDone' },
+  { target: TARGET.tabReading, text: 'guide.spotReadingTab', round: true },
+  { target: TARGET.tabChallenge, text: 'guide.spotChallengeTab', round: true },
+  { target: TARGET.tabProfile, text: 'guide.spotProfileTab', round: true },
 ];
 
 function recentDate(iso: string): string {
@@ -506,7 +508,7 @@ export default function HomeScreen() {
         </ScrollView>
       )}
       <SpotlightGuide
-        visible={guideOpen && overlaysReady && loaded}
+        visible={guideOpen && overlaysReady && loaded && !firstUser}
         topic="home"
         steps={HOME_STEPS}
         onDone={() => {
