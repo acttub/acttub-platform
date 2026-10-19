@@ -133,6 +133,16 @@ class ProviderEdgeCaseTest {
     }
 
     @Test
+    void configuredVerifiersRejectSomethingThatIsNotAJwtWithoutFetchingKeys() {
+        assertThatThrownBy(() -> new KakaoProviderVerifier("kakao-app").verify("not-a-jwt"))
+                .isInstanceOf(InvalidIdentityToken.class)
+                .hasMessage("invalid kakao id_token");
+        assertThatThrownBy(() -> new AppleProviderVerifier("com.acttub.app").verify("not-a-jwt"))
+                .isInstanceOf(InvalidIdentityToken.class)
+                .hasMessage("invalid apple id_token");
+    }
+
+    @Test
     void naverNoticeWithAValidSignatureButAnUnreadableIdentifierIsRejected() throws Exception {
         NaverDisconnectNotice notice = new NaverDisconnectNotice("naver-id", "naver-secret");
         String tooShort = Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[16]);
