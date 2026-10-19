@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
 import { NoteSections } from '@/components/note-sections';
 import { ReportRating } from '@/components/report-rating';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -14,7 +15,7 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { loopApiFor } from '@/lib/tutorial-loop';
 import { isSamplePracticeId } from '@/lib/tutorial-sample';
 import { translate as t } from '@/lib/i18n';
-import { noteFallbackNotice, noteKindLabel, noteTitle, readOptionalPracticeNote } from '@/lib/practice/note';
+import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, readOptionalPracticeNote } from '@/lib/practice/note';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeNote } from '@/lib/practice/types';
 
@@ -25,6 +26,9 @@ import type { PracticeNote } from '@/lib/practice/types';
  * 요약은 배우 말·관찰의 원문 발췌라 출처를 함께 보인다. 비교 기준과 확인을 강제하는 옛 카피는
  * 없앴다 — 노트는 그 회차만 말하고 이전 연습과 견주지 않는다. "다음 연습"은 방금 끝낸 이 회차의
  * 장면을 미리 채워 이어 간다(practice.resume).
+ *
+ * 모양은 pen 「새 · 배우 일지 첫 연습」(SOMA-748). 「저장하고 마치기」는 코칭 마무리 화면(app/coaching-done)으로 간다.
+ * 디자인의 「내가 발견한 것 · 직접 써요」 칸과 「다음 연습 날에 붙여 둘게요」 줄은 노트 수정·일정 API가 없어 두지 않는다.
  */
 export default function ReportScreen() {
   const router = useRouter();
@@ -106,9 +110,13 @@ export default function ReportScreen() {
     }
     finishTutorial('done');
     // AI 코칭을 마칠 때 — 두 번에 한 번(7일 간격·최대 3번) 앱 평가를 묻고 닫힌 뒤 나간다 (SOMA-494).
+    const nextSection = note ? noteSections(note).find((section) => section.kind === 'next') : undefined;
+    const next = nextSection?.kind === 'next' && nextSection.hasProposal ? nextSection.text : null;
     const leave = () => {
       clearPractice();
       router.dismissAll();
+      // 노트를 본 뒤 마칠 때만 마무리 한 장을 보인다 — 노트를 못 읽어 홈으로 가는 길은 바로 홈이다.
+      if (note) router.push({ pathname: '/coaching-done', params: next ? { next } : {} });
     };
     if (!practice) {
       leave();
@@ -184,12 +192,8 @@ export default function ReportScreen() {
               </View>
             ) : (
             <View style={styles.buttonRow}>
-              <Pressable style={styles.primary} onPress={nextTake}>
-                <Text style={styles.primaryText}>{t('history.nextTake')}</Text>
-              </Pressable>
-              <Pressable style={styles.ghost} onPress={finish}>
-                <Text style={styles.ghostText}>{t('note.finish')}</Text>
-              </Pressable>
+              <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
+              <SecondaryButton label={t('history.nextTake')} onPress={nextTake} />
             </View>
             )}
           </ScrollView>
@@ -211,13 +215,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingBottom: 10,
   },
   kind: { fontSize: 12, fontWeight: '800', color: palette.blue },
   sceneSummary: { paddingHorizontal: 20, paddingBottom: 8 },
 
-  body: { paddingHorizontal: 20, paddingBottom: 40, gap: 22 },
+  body: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 40, gap: 20 },
   heading: { gap: 8 },
   title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
   fallback: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
@@ -225,7 +229,7 @@ const styles = StyleSheet.create({
 
   buttonRow: { gap: 10, marginTop: 8 },
   // 스크롤 본문의 gap(섹션 사이)을 노트 안에서도 그대로 둔다 — 비추려고 한 번 감쌌을 뿐이다.
-  noteBlock: { gap: 22 },
+  noteBlock: { gap: 20 },
   sampleDone: {
     gap: 8,
     borderRadius: 20,
