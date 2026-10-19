@@ -145,6 +145,59 @@ class ApiErrorAdviceShapeIT {
     }
 
     @Test
+    void everyJavaIntegerWidthGetsThePydanticIntegerErrors() throws Exception {
+        assertBodyError("/__test/advice/nested", "{\"child\":{\"big\":1.5}}", """
+                {"detail":[{"type":"int_from_float","loc":["body","child","big"],
+                  "msg":"Input should be a valid integer, got a number with a fractional part","input":1.5}]}
+                """);
+        assertBodyError("/__test/advice/nested", "{\"child\":{\"small\":true}}", """
+                {"detail":[{"type":"int_type","loc":["body","child","small"],
+                  "msg":"Input should be a valid integer","input":true}]}
+                """);
+        assertBodyError("/__test/advice/nested", "{\"child\":{\"tiny\":\"x\"}}", """
+                {"detail":[{"type":"int_parsing","loc":["body","child","tiny"],
+                  "msg":"Input should be a valid integer, unable to parse string as an integer","input":"x"}]}
+                """);
+        assertBodyError("/__test/advice/nested", "{\"child\":{\"huge\":2.5}}", """
+                {"detail":[{"type":"int_from_float","loc":["body","child","huge"],
+                  "msg":"Input should be a valid integer, got a number with a fractional part","input":2.5}]}
+                """);
+        assertBodyError("/__test/advice/nested", "{\"child\":{\"count\":99999999999999999999}}", """
+                {"detail":[{"type":"int_type","loc":["body","child","count"],
+                  "msg":"Input should be a valid integer","input":99999999999999999999}]}
+                """);
+    }
+
+    @Test
+    void primitiveBooleanAndEnumsSerializedAsNumbersUseTheirOwnShapes() throws Exception {
+        assertBodyError("/__test/advice/nested", "{\"child\":{\"on\":\"yes\"}}", """
+                {"detail":[{"type":"bool_type","loc":["body","child","on"],
+                  "msg":"Input should be a valid boolean","input":"yes"}]}
+                """);
+        assertBodyError("/__test/advice/nested", "{\"child\":{\"level\":3}}", """
+                {"detail":[{"type":"enum","loc":["body","child","level"],
+                  "msg":"Input should be 'LOW' or 'HIGH'","input":3,"ctx":{"expected":"'LOW' or 'HIGH'"}}]}
+                """);
+    }
+
+    @Test
+    void topLevelListBodyLocatesTheElementFieldFromTheIndex() throws Exception {
+        assertBodyError("/__test/advice/list", "[{\"count\":1},{\"flag\":\"no\"}]", """
+                {"detail":[{"type":"bool_type","loc":["body",1,"flag"],
+                  "msg":"Input should be a valid boolean","input":"no"}]}
+                """);
+    }
+
+    @Test
+    void primitiveIntQueryValueIsQueryIntParsing() throws Exception {
+        MvcResult result = mvc.perform(get("/__test/advice/count").param("count", "many")).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(422);
+        assertThat(JSON.readTree(result.getResponse().getContentAsString()).at("/detail/0/loc").toString())
+                .isEqualTo("[\"query\",\"count\"]");
+    }
+
+    @Test
     void listElementOfRecordsUsesTheIndexAndTheElementsField() throws Exception {
         assertBodyError("/__test/advice/nested", "{\"items\":[{\"count\":1},{\"flag\":3}]}", """
                 {"detail":[{"type":"bool_type","loc":["body","items",1,"flag"],
@@ -166,7 +219,7 @@ class ApiErrorAdviceShapeIT {
                 "/__test/advice/nulls",
                 """
                 {"s":null,"b":null,"i":null,"d":null,"u":null,"k":null,"l":null,"m":null,"c":null,"n":null,
-                 "sd":null,"f":null,"big":null,"arr":null,"lo":null,"sh":null,"by":null,"bi":null}
+                 "ff":null,"dd":null,"sd":null,"f":null,"big":null,"arr":null,"lo":null,"sh":null,"by":null,"bi":null}
                 """,
                 """
                 {"detail":[
@@ -182,6 +235,8 @@ class ApiErrorAdviceShapeIT {
                   {"type":"dict_type","loc":["body","m"],"msg":"Input should be a valid dictionary","input":null},
                   {"type":"model_type","loc":["body","c"],
                    "msg":"Input should be a valid dictionary or object to extract fields from","input":null},
+                  {"type":"float_type","loc":["body","ff"],"msg":"Input should be a valid number","input":null},
+                  {"type":"float_type","loc":["body","dd"],"msg":"Input should be a valid number","input":null},
                   {"type":"string_type","loc":["body","sd"],"msg":"Input should be a valid string","input":null},
                   {"type":"float_type","loc":["body","f"],"msg":"Input should be a valid number","input":null},
                   {"type":"float_type","loc":["body","big"],"msg":"Input should be a valid number","input":null},
@@ -304,6 +359,16 @@ class ApiErrorAdviceShapeIT {
             return ResponseEntity.status(201).build();
         }
 
+        @PostMapping("/__test/advice/list")
+        ResponseEntity<Void> list(@RequestBody List<Inner> body) {
+            return ResponseEntity.status(201).build();
+        }
+
+        @GetMapping("/__test/advice/count")
+        ResponseEntity<Void> count(@RequestParam int count) {
+            return ResponseEntity.ok().build();
+        }
+
         @GetMapping("/__test/advice/page")
         ResponseEntity<Void> page(@RequestParam Integer limit) {
             return ResponseEntity.ok().build();
@@ -318,8 +383,26 @@ class ApiErrorAdviceShapeIT {
     record NestedBody(Inner child, List<Inner> items, Map<String, String> labels) {
     }
 
-    record Inner(Boolean flag, Integer count, UUID id, Single single, None none, Double ratio) {
+    record Inner(Boolean flag, Integer count, UUID id, Single single, None none, Double ratio,
+            Long big, Short small, Byte tiny, java.math.BigInteger huge, boolean on, Level level) {
     }
+
+    enum Level {
+        LOW(1),
+        HIGH(2);
+
+        private final int value;
+
+        Level(int value) {
+            this.value = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonValue
+        int value() {
+            return value;
+        }
+    }
+
 
     record NullsBody(
             String s,
@@ -332,6 +415,8 @@ class ApiErrorAdviceShapeIT {
             Map<String, String> m,
             Inner c,
             @Schema(nullable = true) String n,
+            Float ff,
+            double dd,
             @Schema(description = "설명만 있고 null 은 받지 않는다") String sd,
             float f,
             java.math.BigDecimal big,
