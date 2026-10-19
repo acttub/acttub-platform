@@ -6,19 +6,23 @@ import { helpButtonDraft } from '../lib/practice/coach.ts';
 
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 
-test('새 연습 준비(P3.1): 상황·인물·목표 칸과 「이전 연습 이어서 하기」가 없고, 도움 갈래 칩과 상세 칸만 있다(SOMA-656)', () => {
+test('새 연습 준비(P3.1): 장면 단계에 상황·인물·원하는 것 칸이 있고(pen 장면 정보, SOMA-748) 「이전 연습 이어서 하기」는 없다', () => {
   const upload = read('app/upload.tsx');
-  assert.doesNotMatch(upload, /upload\.situation|upload\.character|upload\.goal|<Field\b/);
+  // SOMA-656 에서 숨겼던 장면 칸을 새 디자인이 다시 보인다 — 셋 다 선택이고 300자까지다.
+  assert.match(upload, /\['situation', 'character', 'goal'\] as const/);
+  assert.match(upload, /t\(`upload\.scene\.\$\{key\}Label`\)/);
+  const ko = read('locales/ko.ts');
+  assert.match(ko, /situationLabel: '상황',[\s\S]*characterLabel: '인물',[\s\S]*goalLabel: '원하는 것',/);
+  assert.match(upload, /maxLength=\{SCENE_MAX\}/);
+  assert.match(upload, /setScene\(/);
   assert.doesNotMatch(upload, /start\.continueCta|chooseGroup/);
   // 세부 칩은 없다 — 세부는 비워 보내고 서버 기본값(그 외)이 된다
   assert.doesNotMatch(upload, /blockage\.kindLabel|EXPRESSION_DETAILS|ANALYSIS_DETAILS/);
   // 큰 갈래는 세션 목적 단계의 세 줄로 고른다(SOMA-748) — 평가 받기·막힌 곳 풀기·인물 이해하기가 기존 갈래로 간다.
   assert.match(upload, /upload\.purpose\./);
   assert.match(upload, /blockageCategoryFor\(next\)/);
-  assert.match(upload, /blockage\.freePh/);
   // 이어서 연습(연습 상세)으로 들어오면 지난 장면은 화면 없이 그대로 보낸다
   assert.match(upload, /buildContinueBody\(\{[^}]*scene,/);
-  const ko = read('locales/ko.ts');
   assert.match(ko, /helpLabel: \{\s*분석: '대사 분석',\s*표현: '연기 표현',\s*'그 외': '그 외',/);
 });
 

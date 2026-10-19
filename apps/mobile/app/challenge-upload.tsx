@@ -69,7 +69,8 @@ export default function ChallengeUploadScreen() {
   const [durationMs, setDurationMs] = useState<number | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const [caption, setCaption] = useState('');
-  const [visibility, setVisibility] = useState<EntryVisibility | null>(null);
+  // pen 챌린지 올리기(SOMA-748) — 「나만 보기」가 먼저 골라져 있다. 공개는 배우가 직접 바꾼다.
+  const [visibility, setVisibility] = useState<EntryVisibility | null>('private');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** 방금 만든 참여작 — 있으면 완료 화면이고, "AI 리포트 받기"가 id 를 쓴다. */

@@ -11,13 +11,13 @@ const read = (rel) => readFileSync(path.join(appRoot, rel), 'utf8');
  * 테스트가 보고, 여기서는 요구사항이 화면에 건 조건만 원본에서 확인한다.
  */
 
-test('challenge.entry: 올리기는 서버로 참여작을 만들고 공개 범위를 미리 고르지 않는다', () => {
+test('challenge.entry: 올리기는 서버로 참여작을 만들고 공개 범위는 「나만 보기」가 먼저 골라져 있다(SOMA-748)', () => {
   const upload = read('app/challenge-upload.tsx');
 
   assert.match(upload, /api\.createEntry/);
   assert.match(upload, /entryAttemptFor/);
   // 공개 범위는 고르기 전까지 비어 있다 — 버튼도 꺼져 있다.
-  assert.match(upload, /useState<EntryVisibility \| null>\(null\)/);
+  assert.match(upload, /useState<EntryVisibility \| null>\('private'\)/);
   assert.match(upload, /canSubmitEntry/);
   assert.match(upload, /challengeUpload\.pickVisibility/);
 });

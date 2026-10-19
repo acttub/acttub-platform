@@ -50,6 +50,7 @@ import {
   inProgressPracticeId,
   PRACTICE_TITLE_MAX,
   sceneOverflow,
+  SCENE_MAX,
   startFailure,
   titleOverflow,
   type BlockageDraft,
@@ -123,7 +124,7 @@ export default function UploadScreen() {
       ? { videoId: null, pendingId: null, uri: sampleVideoUri(), playbackUrl: null, durationMs: null }
       : initialPickedVideo(Boolean(plan.continueFrom)),
   );
-  const [scene] = useState<SceneDraft>(() => (sample ? sampleScene() : plan.scene));
+  const [scene, setScene] = useState<SceneDraft>(() => (sample ? sampleScene() : plan.scene));
   const [step, setStep] = useState<UploadStep>(() =>
     firstUploadStep({ sample, tutorial: currentTutorial()?.track === stageTrack('upload') }),
   );
@@ -562,6 +563,23 @@ export default function UploadScreen() {
                 <Text style={styles.sendingText}>{t('upload.sending')}</Text>
               </View>
             )}
+            {/* pen 장면 정보(SOMA-748) — 상황·인물·원하는 것. 셋 다 선택이고 모르면 비워 둔다. 이어서 연습이면 지난 장면을 그대로 보낸다. */}
+            {!plan.continueFrom &&
+              (['situation', 'character', 'goal'] as const).map((key) => (
+                <View key={key}>
+                  <Text style={styles.fieldLabel}>{t(`upload.scene.${key}Label`)}</Text>
+                  <TextInput
+                    style={[styles.input, locked && styles.inputLocked]}
+                    placeholder={t(`upload.scene.${key}Ph`)}
+                    placeholderTextColor={palette.textFaint}
+                    value={scene[key]}
+                    onChangeText={(value) => setScene((was) => ({ ...was, [key]: value }))}
+                    maxLength={SCENE_MAX}
+                    editable={!locked && !sample}
+                    returnKeyType="done"
+                  />
+                </View>
+              ))}
             {!plan.continueFrom && !sample && (
               <>
                 <Text style={styles.fieldLabel}>
@@ -580,20 +598,6 @@ export default function UploadScreen() {
                 />
               </>
             )}
-            <Text style={styles.fieldLabel}>
-              {t('blockage.detailTitle')}
-              <Text style={styles.fieldOptional}>{t('upload.sceneOptional')}</Text>
-            </Text>
-            <TextInput
-              style={[styles.input, styles.inputTall, locked && styles.inputLocked]}
-              placeholder={t('blockage.freePh')}
-              placeholderTextColor={palette.textFaint}
-              value={blockage.note}
-              onChangeText={(note) => setBlockage((was) => ({ ...was, note }))}
-              maxLength={BLOCKAGE_NOTE_MAX}
-              editable={!locked}
-              multiline
-            />
           </View>
 
           <Pressable
