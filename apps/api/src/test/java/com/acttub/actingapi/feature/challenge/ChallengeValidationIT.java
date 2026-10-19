@@ -216,4 +216,24 @@ class ChallengeValidationIT {
                 + UUID.randomUUID() + "\"}}"), bearer, 204);
         assertThat(response(get("/v2/me/notifications/unread-count"), bearer, 200).path("count").asLong()).isZero();
     }
+
+    @Test void adminReportsPageFiftyAtATimeWithACursorForTheirStatus() throws Exception {
+        UUID challenge = challenge();
+        for (int i = 0; i < 52; i++) {
+            jdbc.update("""
+                    INSERT INTO entry_reports(id,target_type,target_id,reporter_id,reason,note,status,target_version,target_text,
+                                              request_id,request_fingerprint,created_at)
+                    VALUES (?,'challenge',?,?,'spam',NULL,'received',1,'쪽 넘기기',?,?,now() - make_interval(mins => ?))
+                    """, UUID.randomUUID(), challenge, actor(), UUID.randomUUID(), "0".repeat(64), 100 - i);
+        }
+        JsonNode first = response(get("/v2/admin/reports"), OPS, 200);
+        assertThat(first.path("reports")).hasSize(50);
+        assertThat(first.path("reports").get(0).path("open_reports").asLong()).isEqualTo(52);
+        JsonNode second = response(get("/v2/admin/reports").param("cursor", first.path("next_cursor").asText()), OPS, 200);
+        assertThat(second.path("reports")).hasSize(2);
+        assertThat(second.path("next_cursor").isNull()).isTrue();
+        assertThat(location(response(get("/v2/admin/reports").param("status", "reviewed").param("cursor", first.path("next_cursor").asText()),
+                OPS, 422))).isEqualTo("[\"query\",\"cursor\"]");
+        assertThat(location(response(get("/v2/admin/reports").param("cursor", "bm90LWEtY3Vyc29y"), OPS, 422))).isEqualTo("[\"query\",\"cursor\"]");
+    }
 }
