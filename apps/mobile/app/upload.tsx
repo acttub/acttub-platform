@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, usePreventRemove } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -18,6 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CoachBubble } from '@/components/ui/coach-bubble';
+import { ChoiceRow } from '@/components/ui/coach-choice-row';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -54,6 +57,16 @@ import {
 } from '@/lib/practice/start';
 import { takeContinueOrigin } from '@/lib/practice/session-state';
 import {
+  blockageCategoryFor,
+  DEFAULT_PURPOSE,
+  firstUploadStep,
+  previousUploadStep,
+  SESSION_PURPOSES,
+  stepperIndex,
+  type SessionPurpose,
+  type UploadStep,
+} from '@/lib/practice/session-purpose';
+import {
   PRACTICE_UPLOAD_EVENTS,
   rightsToggleParams,
   startBlockReason,
@@ -63,9 +76,9 @@ import {
   videoReadyParams,
   type PickSource,
 } from '@/lib/practice/upload-events';
-import type { BlockageCategory } from '@/lib/practice/types';
 import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 import { TARGET } from '@/lib/spotlight-targets';
+import { currentTutorial, stageTrack } from '@/lib/tutorial';
 import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { SAMPLE_PRACTICE_ID, sampleScene } from '@/lib/tutorial-sample';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
@@ -73,6 +86,11 @@ import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
 
 /**
  * A8·A8.1·A9.x 새 연습 준비(practice.start · practice.resume).
+ *
+ * 세 단계로 나눈다(pen 「새 · 오늘 세션 목적」→「새 · 영상 고르기」→「새 · 장면 정보 · 질문 받기」, SOMA-748).
+ * 세션 목적 세 갈래는 기존 막힘 큰 갈래로 보낸다(lib/practice/session-purpose). 「지금 찍기」는 찍는 법 한 장
+ * (record-guide)을 거쳐 카메라로 간다. 튜토리얼·예시는 한 장에서 비추므로 바로 장면 단계로 연다.
+ * 상황·인물·원하는 것 칸은 디자인에 있지만 practice.start 정본(SOMA-656: 앱은 장면 칸을 보이지 않는다)을 따라 두지 않는다.
  *
  * 영상은 보관함에서 고르거나 새로 찍는다 — 여기서 올리지 않는다(올리기는 보관함 큐가 한다).
  * 도움 갈래와 상세 설명은 선택이고, 시작을 누르면 회차 하나와 분석 작업 하나가 생긴다. 상황·인물·목표 칸과
@@ -82,7 +100,11 @@ import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
  * 같은 시도의 재전송은 같은 요청 id 라 회차는 하나다. 묶음에 진행 중 회차가 있으면(409) 그
  * 회차로 돌려보낸다. 이론 선택은 0.1.0에서 뺐다.
  */
-const CATEGORIES: BlockageCategory[] = ['분석', '표현', '그 외'];
+const PURPOSE_ICON: Record<SessionPurpose, 'star' | 'unlock' | 'book-open'> = {
+  review: 'star',
+  unblock: 'unlock',
+  character: 'book-open',
+};
 export default function UploadScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -91,7 +113,10 @@ export default function UploadScreen() {
   const keyboardVisible = keyboardHeight > 0;
 
   // 튜토리얼의 예시(SOMA-494) — 예시 영상과 장면을 채워 두고, 시작하면 서버 없이 예시 회차로 간다.
-  const sample = useLocalSearchParams<{ sample?: string }>().sample === '1';
+  const params = useLocalSearchParams<{ sample?: string; first?: string }>();
+  const sample = params.sample === '1';
+  // 첫 코칭을 마치기 전에만 파란 안내(어디를 누르면 되는지)를 보인다 — 코칭 탭이 처음 화면에서 넘겨 준다.
+  const firstTime = params.first === '1';
   const [plan] = useState<StartPlan>(() => planFor(sample ? null : takeContinueOrigin()));
   const [picked, setPicked] = useState<PickedVideo | null>(() =>
     sample
@@ -99,7 +124,29 @@ export default function UploadScreen() {
       : initialPickedVideo(Boolean(plan.continueFrom)),
   );
   const [scene] = useState<SceneDraft>(() => (sample ? sampleScene() : plan.scene));
-  const [blockage, setBlockage] = useState<BlockageDraft>(emptyBlockageDraft);
+  const [step, setStep] = useState<UploadStep>(() =>
+    firstUploadStep({ sample, tutorial: currentTutorial()?.track === stageTrack('upload') }),
+  );
+  const [purpose, setPurpose] = useState<SessionPurpose>(DEFAULT_PURPOSE);
+  const [blockage, setBlockage] = useState<BlockageDraft>(() => ({
+    ...emptyBlockageDraft,
+    category: blockageCategoryFor(DEFAULT_PURPOSE),
+  }));
+  const choosePurpose = (next: SessionPurpose) => {
+    setPurpose(next);
+    setBlockage((was) => ({ ...was, category: blockageCategoryFor(next), detail: null }));
+  };
+  // 뒤로 가기(헤더·안드로이드)는 앞 단계로 돌아간다. 다음 화면(분석 중)으로 넘어갈 때는 풀어 둔다 —
+  // usePreventRemove 는 렌더된 값을 보므로 풀린 값이 반영된 다음 틱에 이동한다.
+  const [leaving, setLeaving] = useState(false);
+  usePreventRemove(!leaving && previousUploadStep(step) !== null, () => {
+    const back = previousUploadStep(step);
+    if (back) setStep(back);
+  });
+  const leaveThen = (go: () => void) => {
+    setLeaving(true);
+    setTimeout(go, 0);
+  };
   // 묶음 제목(SOMA-671). 이어하기는 원래 묶음 제목을 그대로 쓰므로 새 연습에서만 받는다.
   const [title, setTitle] = useState('');
   const [agreedRights, setAgreedRights] = useState(sample);
@@ -155,6 +202,7 @@ export default function UploadScreen() {
       if (next) {
         setPicked(next);
         setError(null);
+        setStep('scene');
         notePicked(next.source ?? 'library', next);
       }
     }, [notePicked]),
@@ -234,6 +282,8 @@ export default function UploadScreen() {
     setTimeout(action, Platform.OS === 'ios' ? 450 : 0);
   };
   const record = () => router.push({ pathname: '/record-video', params: { mode: 'ai' } });
+  // 영상 고르기 단계의 「지금 찍기」 — 찍는 법 한 장을 먼저 보이고 거기서 카메라로 간다(pen 「새 · 찍는 법 한 장」).
+  const recordWithGuide = () => router.push({ pathname: '/record-guide', params: firstTime ? { first: '1' } : {} });
 
   const pickFromGallery = async () => {
     if (!user?.id) return;
@@ -248,13 +298,14 @@ export default function UploadScreen() {
     }
     const next = { videoId: null, pendingId: outcome.entry.id, uri: outcome.entry.uri, playbackUrl: null, durationMs };
     setPicked(next);
+    setStep('scene');
     notePicked('gallery', next);
   };
 
   const start = async () => {
     if (startLockRef.current || starting) return;
     if (sample) {
-      if (agreedRights) router.replace({ pathname: '/analyzing', params: { practiceId: SAMPLE_PRACTICE_ID } });
+      if (agreedRights) leaveThen(() => router.replace({ pathname: '/analyzing', params: { practiceId: SAMPLE_PRACTICE_ID } }));
       return;
     }
     if (!agreedRights || !canStart(videoId)) return;
@@ -302,7 +353,7 @@ export default function UploadScreen() {
         : await api.createPractice({ ...body, request_id: attempt.requestId } as Parameters<typeof api.createPractice>[0]);
       startedRef.current = true;
       logEvent('practice_start', { ordinal: practice.ordinal, continued: Boolean(continueFrom) });
-      router.replace({ pathname: '/analyzing', params: { practiceId: practice.id } });
+      leaveThen(() => router.replace({ pathname: '/analyzing', params: { practiceId: practice.id } }));
     } catch (e) {
       const failure = startFailure(e);
       if (failure.kind === 'in_progress') {
@@ -313,7 +364,7 @@ export default function UploadScreen() {
         if (open) {
           startedRef.current = true;
           void alert({ title: t('start.inProgressTitle'), message: t('start.inProgressBody') });
-          router.replace({ pathname: '/analyzing', params: { practiceId: open } });
+          leaveThen(() => router.replace({ pathname: '/analyzing', params: { practiceId: open } }));
           return;
         }
         setError(t('start.inProgressBody'));
@@ -394,14 +445,66 @@ export default function UploadScreen() {
         ? t('upload.missingVideo')
         : t('upload.missingRights');
 
+  const sourceOptions = [
+    { key: 'library', icon: 'archive' as const, title: t('start.fromLibrary'), sub: t('upload.fromLibrarySub'), onPress: fromSheet(pickFromLibrary) },
+    { key: 'record', icon: 'video' as const, title: t('upload.recordCta'), sub: t('upload.recordSub'), onPress: fromSheet(record) },
+    { key: 'gallery', icon: 'image' as const, title: t('upload.pickGallery'), sub: t('upload.gallerySub'), onPress: fromSheet(() => void pickFromGallery()) },
+  ];
+
   return (
     <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
       <Stack.Screen
         options={{ title: plan.continueFrom ? t('start.titleContinue') : t('upload.titleNew'), headerShadowVisible: false }}
       />
+      <View style={styles.stepRow}>
+        <Stepper current={stepperIndex(step)} />
+      </View>
+
+      {step === 'purpose' && (
+        <View style={styles.flex}>
+          <ScrollView contentContainerStyle={styles.stepBody}>
+            <CoachBubble title={t('upload.purposeBubble')} guide={firstTime ? t('upload.purposeGuide') : null} />
+            <View style={styles.choices}>
+              {SESSION_PURPOSES.map((item) => (
+                <ChoiceRow
+                  key={item}
+                  icon={PURPOSE_ICON[item]}
+                  title={t(`upload.purpose.${item}`)}
+                  sub={t(`upload.purposeSub.${item}`)}
+                  selected={purpose === item}
+                  mark="check"
+                  onPress={() => choosePurpose(item)}
+                />
+              ))}
+            </View>
+          </ScrollView>
+          <View style={styles.bottom}>
+            <PrimaryButton label={t('upload.next')} onPress={() => setStep(videoId || uploading ? 'scene' : 'source')} />
+          </View>
+        </View>
+      )}
+
+      {step === 'source' && (
+        <ScrollView contentContainerStyle={styles.stepBody}>
+          <CoachBubble title={t('upload.sourceBubble')} guide={firstTime ? t('upload.sourceGuide') : null} />
+          <View style={styles.choices}>
+            <ChoiceRow icon="folder" title={t('start.fromLibrary')} sub={t('upload.sourceLibrarySub')} onPress={pickFromLibrary} />
+            <ChoiceRow
+              icon="video"
+              title={t('upload.sourceRecord')}
+              sub={t('upload.sourceRecordSub')}
+              highlight={firstTime}
+              onPress={recordWithGuide}
+            />
+            <ChoiceRow icon="image" title={t('upload.pickGallery')} sub={t('upload.sourceGallerySub')} onPress={() => void pickFromGallery()} />
+          </View>
+        </ScrollView>
+      )}
+
+      {step === 'scene' && (
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <Stepper current={videoId || uploading || sample ? 2 : 1} />
+          {!sample && <CoachBubble title={t('upload.sceneBubble')} guide={firstTime ? t('upload.sceneGuide') : null} />}
 
           {previewUri || uploading || picked ? (
             <View
@@ -422,7 +525,7 @@ export default function UploadScreen() {
                   </View>
                 )}
                 {!sample && (
-                  <Pressable style={styles.repick} onPress={() => setSourceSheet(true)}>
+                  <Pressable style={styles.repick} onPress={() => setSourceSheet(true)} disabled={locked}>
                     <Text style={styles.repickText}>{t('upload.repick')}</Text>
                   </Pressable>
                 )}
@@ -451,8 +554,8 @@ export default function UploadScreen() {
             </Pressable>
           )}
 
-          <View style={styles.sceneCard} ref={sceneTarget.ref} onLayout={sceneTarget.onLayout}>
-            {/* 질문 받기를 누른 뒤 — 적은 내용을 보내는 중이라는 걸 카드 맨 위에서 바로 보인다(SOMA-671). */}
+          <View style={styles.fields} ref={sceneTarget.ref} onLayout={sceneTarget.onLayout}>
+            {/* 질문 받기를 누른 뒤 — 적은 내용을 보내는 중이라는 걸 칸 맨 위에서 바로 보인다(SOMA-671). */}
             {locked && (
               <View style={styles.sendingBar} accessibilityLiveRegion="polite">
                 <ActivityIndicator size="small" color={palette.blue} />
@@ -461,14 +564,14 @@ export default function UploadScreen() {
             )}
             {!plan.continueFrom && !sample && (
               <>
-                <Text style={styles.sceneTitle}>
+                <Text style={styles.fieldLabel}>
                   {t('upload.titleLabel')}
-                  <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
+                  <Text style={styles.fieldOptional}>{t('upload.sceneOptional')}</Text>
                 </Text>
                 <TextInput
                   style={[styles.input, locked && styles.inputLocked]}
                   placeholder={t('upload.titlePh')}
-                  placeholderTextColor={palette.checkOff}
+                  placeholderTextColor={palette.textFaint}
                   value={title}
                   onChangeText={setTitle}
                   maxLength={PRACTICE_TITLE_MAX}
@@ -477,32 +580,14 @@ export default function UploadScreen() {
                 />
               </>
             )}
-            <Text style={[styles.sceneTitle, !plan.continueFrom && !sample && styles.blockGap]}>
-              {t('blockage.helpTitle')}
-              <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
-            </Text>
-            <View style={styles.chipWrap}>
-              {CATEGORIES.map((category) => (
-                <Chip
-                  key={category}
-                  label={t(`blockage.helpLabel.${category}`)}
-                  selected={blockage.category === category}
-                  disabled={locked}
-                  onPress={() =>
-                    setBlockage((was) => ({ ...was, category: was.category === category ? null : category, detail: null }))
-                  }
-                />
-              ))}
-            </View>
-
-            <Text style={[styles.sceneTitle, styles.blockGap]}>
+            <Text style={styles.fieldLabel}>
               {t('blockage.detailTitle')}
-              <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
+              <Text style={styles.fieldOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
             <TextInput
               style={[styles.input, styles.inputTall, locked && styles.inputLocked]}
               placeholder={t('blockage.freePh')}
-              placeholderTextColor={palette.checkOff}
+              placeholderTextColor={palette.textFaint}
               value={blockage.note}
               onChangeText={(note) => setBlockage((was) => ({ ...was, note }))}
               maxLength={BLOCKAGE_NOTE_MAX}
@@ -511,7 +596,12 @@ export default function UploadScreen() {
             />
           </View>
 
-          <Pressable style={styles.rightsRow} onPress={toggleRights}>
+          <Pressable
+            style={styles.rightsRow}
+            onPress={toggleRights}
+            disabled={locked}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: agreedRights, disabled: locked }}>
             <View style={[styles.check, agreedRights && styles.checkOn]}>
               {agreedRights && <Text style={styles.checkMark}>✓</Text>}
             </View>
@@ -520,7 +610,7 @@ export default function UploadScreen() {
           {error && <Text style={styles.errorText}>{error}</Text>}
         </ScrollView>
 
-        <View style={styles.submitBar}>
+        <View style={styles.bottom}>
           <Pressable
             ref={startTarget.ref}
             onLayout={startTarget.onLayout}
@@ -532,7 +622,7 @@ export default function UploadScreen() {
             {starting ? (
               <ActivityIndicator color={palette.bg} />
             ) : (
-              <Text style={styles.submitText}>
+              <Text style={[styles.submitText, (!ready || starting) && styles.submitTextDisabled]}>
                 {/* 영상이 아직 올라가는 중이면 무엇을 기다리는지 버튼이 말한다(SOMA-671). */}
                 {uploading ? t('upload.submitUploading') : plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}
               </Text>
@@ -541,16 +631,14 @@ export default function UploadScreen() {
           {hint && <Text style={styles.submitHint}>{hint}</Text>}
         </View>
       </View>
+      )}
+      {/* 장면 단계에서 영상을 다시 고를 때 쓰는 시트(SOMA-656). 처음 고르기는 위의 영상 고르기 단계가 한다. */}
       <VideoSourceSheet
         visible={sourceSheet}
         title={t('start.pickTitle')}
         sub={t('upload.dropHint')}
         onClose={() => setSourceSheet(false)}
-        options={[
-          { key: 'library', icon: 'archive', title: t('start.fromLibrary'), sub: t('upload.fromLibrarySub'), onPress: fromSheet(pickFromLibrary) },
-          { key: 'record', icon: 'video', title: t('upload.recordCta'), sub: t('upload.recordSub'), onPress: fromSheet(record) },
-          { key: 'gallery', icon: 'image', title: t('upload.pickGallery'), sub: t('upload.gallerySub'), onPress: fromSheet(() => void pickFromGallery()) },
-        ]}
+        options={sourceOptions}
       />
       {dialog}
       {tutorialGuide.element}
@@ -558,28 +646,20 @@ export default function UploadScreen() {
   );
 }
 
-function Chip({ label, selected, disabled, onPress }: { label: string; selected: boolean; disabled?: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      style={[styles.chip, selected && styles.chipOn, disabled && styles.chipLocked]}
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityState={{ selected, disabled }}>
-      <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  container: { padding: 16, paddingBottom: 28, gap: 16 },
+  // pen 「단계 줄」 — 위 2 · 아래 8, 가운데 정렬.
+  stepRow: { alignItems: 'center', paddingTop: 2, paddingBottom: 8 },
+  stepBody: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
+  choices: { gap: 4 },
+  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, gap: 10, backgroundColor: palette.bg },
+  container: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
 
   dropzone: {
     backgroundColor: palette.blueMist,
     borderWidth: 1.5,
-    borderColor: '#CFE0F5',
+    borderColor: palette.blueLine,
     borderRadius: 18,
     paddingVertical: 34,
     // 버튼 두 개가 테두리에 붙지 않게 좌우 여백을 둔다 (SOMA-494).
@@ -595,14 +675,13 @@ const styles = StyleSheet.create({
   sampleBadge: { backgroundColor: palette.blueSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   sampleBadgeText: { fontSize: 12.5, fontWeight: '800', color: palette.blue },
   pickedBlock: { gap: 8 },
-  preview: { width: '100%', aspectRatio: 16 / 9, borderRadius: 18, backgroundColor: palette.text },
+  preview: { width: '100%', aspectRatio: 16 / 9, borderRadius: 16, backgroundColor: palette.text },
   previewEmpty: { alignItems: 'center', justifyContent: 'center' },
   pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   repick: { backgroundColor: palette.blueSoft, borderRadius: 9999, paddingVertical: 6, paddingHorizontal: 12 },
   repickText: { fontSize: 12, fontWeight: '800', color: palette.blueDeep },
   pickedMeta: { flex: 1, fontSize: 12, fontWeight: '600', color: palette.textFaint },
   errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
-
 
   sendingBar: {
     flexDirection: 'row',
@@ -614,52 +693,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
-  sceneCard: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.borderSoft, borderRadius: 18, padding: 16, gap: 12 },
-  sceneTitle: { fontSize: 15, fontWeight: '900', color: palette.text },
-  sceneOptional: { fontWeight: '700', color: palette.textFaint },
-  sceneOptionalHint: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, marginTop: 2 },
-  fields: { gap: 12 },
-  field: { gap: 6 },
-  fieldLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
+  // pen 「장면 정보」 — 라벨 14/800, 회색 칸(모서리 14 · 안쪽 16 · 글자 17/600).
+  fields: { gap: 14 },
+  fieldLabel: { fontSize: 14, fontWeight: '800', lineHeight: 21, color: palette.textDim },
+  fieldOptional: { fontWeight: '600', color: palette.textFaint },
   input: {
     backgroundColor: palette.bgSoft,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     color: palette.text,
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
-    minHeight: 46,
+    minHeight: 58,
     textAlignVertical: 'top',
   },
-  inputTall: { minHeight: 72 },
+  inputTall: { minHeight: 96 },
   inputLocked: { opacity: 0.4 },
 
-  blockGap: { marginTop: 8 },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
-  chip: { borderRadius: 9999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },
-  chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  chipLocked: { opacity: 0.4 },
-  chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
-  chipTextOn: { color: palette.blueDeep },
-
-  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, backgroundColor: palette.bgSubtle, borderRadius: 14 },
-  check: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center' },
+  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 4 },
+  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  checkMark: { color: palette.bg, fontSize: 12, fontWeight: '900' },
-  rightsText: { flex: 1, fontSize: 12, fontWeight: '600', color: palette.textDim, lineHeight: 19 },
+  checkMark: { color: palette.bg, fontSize: 13, fontWeight: '900' },
+  rightsText: { flex: 1, fontSize: 13, fontWeight: '600', color: palette.textStrong, lineHeight: 20 },
 
-  submitBar: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: palette.borderSoft,
-    backgroundColor: palette.bg,
-  },
-  submit: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  submitDisabled: { backgroundColor: '#C9D3DF' },
-  submitText: { fontSize: 15, fontWeight: '900', color: palette.bg },
-  submitHint: { fontSize: 12, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
+  // pen Button/Primary — 높이 56 · 모서리 16 · 글자 16/700. 막혀 있으면 Disabled 모양.
+  submit: { height: 56, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  submitDisabled: { backgroundColor: palette.border },
+  submitText: { fontSize: 16, fontWeight: '700', color: palette.onAccent },
+  submitTextDisabled: { color: palette.textFaint },
+  submitHint: { fontSize: 13, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
 });

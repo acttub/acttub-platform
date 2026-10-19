@@ -12,7 +12,9 @@ test('새 연습 준비(P3.1): 상황·인물·목표 칸과 「이전 연습 �
   assert.doesNotMatch(upload, /start\.continueCta|chooseGroup/);
   // 세부 칩은 없다 — 세부는 비워 보내고 서버 기본값(그 외)이 된다
   assert.doesNotMatch(upload, /blockage\.kindLabel|EXPRESSION_DETAILS|ANALYSIS_DETAILS/);
-  assert.match(upload, /blockage\.helpLabel\./);
+  // 큰 갈래는 세션 목적 단계의 세 줄로 고른다(SOMA-748) — 평가 받기·막힌 곳 풀기·인물 이해하기가 기존 갈래로 간다.
+  assert.match(upload, /upload\.purpose\./);
+  assert.match(upload, /blockageCategoryFor\(next\)/);
   assert.match(upload, /blockage\.freePh/);
   // 이어서 연습(연습 상세)으로 들어오면 지난 장면은 화면 없이 그대로 보낸다
   assert.match(upload, /buildContinueBody\(\{[^}]*scene,/);

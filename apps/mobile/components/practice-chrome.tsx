@@ -18,10 +18,10 @@ import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events'
  */
 
 /**
- * 번호가 붙은 3단계 스텝퍼 — ①영상 올리기 ②장면 적기 ③질문 받기.
+ * 번호가 붙은 3단계 스텝퍼 — ①목적 ②영상 ③장면 · 질문(pen P/Stepper, SOMA-748).
  *
  * 업로드 화면에 이게 없어서, 다음 화면의 '3단계 · 질문 받기' 가 맥락 없이 튀어나왔다.
- * 지나온 단계는 체크로, 지금 단계는 진하게 둔다.
+ * 지나온 단계와 지금 단계는 파란 동그라미에 번호, 지금 단계 이름만 진하게 둔다.
  */
 export function Stepper({ current }: { current: 1 | 2 | 3 }) {
   const labels = translateList('practiceChrome.steps');
@@ -36,7 +36,7 @@ export function Stepper({ current }: { current: 1 | 2 | 3 }) {
             {index > 0 && <View style={styles.stepperLine} />}
             <View style={[styles.circle, (passed || active) && styles.circleOn]}>
               <Text style={[styles.circleText, (passed || active) && styles.circleTextOn]}>
-                {passed ? '✓' : step}
+                {step}
               </Text>
             </View>
             <Text style={[styles.stepperLabel, active && styles.stepperLabelOn]}>
