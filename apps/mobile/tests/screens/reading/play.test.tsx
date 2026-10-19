@@ -20,7 +20,7 @@ import type { SessionDetail } from '@/lib/reading/types';
 import type { VadEvent } from '@/lib/reading/vad';
 import { currentTutorial, startTutorial } from '@/lib/tutorial';
 
-import { openFixtureScript, scriptDetail, sessionDetail, TWO_ROLE_LINES } from './fixtures';
+import { closeModalOf, openFixtureScript, scriptDetail, sessionDetail, TWO_ROLE_LINES } from './fixtures';
 
 jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
@@ -567,7 +567,7 @@ test('대사 보기 시트가 떠 있는 동안 말이 끝나면 넘김을 미�
   jest.useFakeTimers();
   try {
     await fireEvent.press(screen.getByText('모든 대사 보기'));
-    await fireEvent(screen.getByText('대사 보기'), 'requestClose');
+    await closeModalOf('대사 보기');
     await act(async () => jest.advanceTimersByTime(2000));
   } finally {
     jest.useRealTimers();
@@ -584,7 +584,7 @@ test('시트를 닫은 뒤 다시 말하기 시작하면 미뤄 둔 넘김을 �
   await act(async () => listener.onEvent('speech_end'));
   jest.useFakeTimers();
   try {
-    await fireEvent(screen.getByText('대사 보기'), 'requestClose');
+    await closeModalOf('대사 보기');
     await act(async () => listener.onEvent('speech_start'));
     await act(async () => jest.advanceTimersByTime(5000));
   } finally {
@@ -604,7 +604,7 @@ test('상대 대사를 읽는 동안 시트가 떠 있으면 다 읽어도 시�
   await act(async () => spoken());
   expect(screen.queryByText(ME)).not.toBeOnTheScreen();
 
-  await fireEvent(screen.getByText('대사 보기'), 'requestClose');
+  await closeModalOf('대사 보기');
   expect(await screen.findByText(ME)).toBeOnTheScreen();
 });
 
@@ -1029,7 +1029,7 @@ test('모든 대사를 가리면 지나간 대사도 막대로 보이고, 장면
 
   await fireEvent.press(screen.getByLabelText('대사 보기'));
   await fireEvent.press(screen.getByText('모든 대사 가리기'));
-  await fireEvent(screen.getByText('대사 보기'), 'requestClose');
+  await closeModalOf('대사 보기');
   await speechEnds();
   await waitFor(() => expect(tts.play).toHaveBeenCalled());
 
@@ -1120,7 +1120,8 @@ test('시작 안내를 뒤로 가기로 닫아도 숨김을 남기지 않고 시
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
   await startPlay(PARTNER_FIRST);
 
-  await fireEvent(await screen.findByText('말이 끝나면 저절로 넘어가요'), 'requestClose');
+  await screen.findByText('말이 끝나면 저절로 넘어가요');
+  await closeModalOf('말이 끝나면 저절로 넘어가요');
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBeNull();
 });

@@ -271,7 +271,7 @@ test('시작 요청 중에는 저장 중으로 바꾸고 다시 누를 수 없�
   const pressing = fireEvent.press(startButton(5));
   expect(await screen.findByText('저장 중')).toBeDisabled();
   await fireEvent.press(screen.getByText('저장 중'));
-  answer();
+  await act(async () => answer());
   await pressing;
   expect(server.startSession).toHaveBeenCalledTimes(1);
 });

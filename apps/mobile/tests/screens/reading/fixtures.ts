@@ -1,3 +1,5 @@
+import { fireEvent, screen } from '@testing-library/react-native';
+
 import { configureScriptTransport, openScript, resetReadingState, type ScriptTransport } from '@/lib/reading/store';
 import type { ScriptCharacter, ScriptDetail, ScriptLineRecord, SessionCard, SessionDetail } from '@/lib/reading/types';
 
@@ -116,4 +118,12 @@ export async function openFixtureScript(detail: ScriptDetail = scriptDetail(TWO_
   const server = fakeServer(detail);
   const script = await openScript(detail);
   return { server, script };
+}
+
+/** 글자를 품은 Modal 에 뒤로 가기(onRequestClose)를 보낸다. requestClose 는 버블링되지 않아 Modal 에 직접 쏜다. */
+export async function closeModalOf(text: string) {
+  let node: { type: string; parent: unknown } | null = screen.getByText(text) as never;
+  while (node && node.type !== 'Modal') node = node.parent as typeof node;
+  if (!node) throw new Error(`"${text}" 를 품은 Modal 이 없다`);
+  await fireEvent(node as never, 'requestClose');
 }
