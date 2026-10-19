@@ -43,9 +43,35 @@ export function lineLanguage(line: LanguageLine): string | null {
   return guessLanguage(line.speech?.trim() || line.text);
 }
 
-/** 상대역 목소리가 읽을 글. 서버가 준 소리 낼 글이 있으면 그것. */
+/** 한 줄에 다른 말이 이어질 때 서버가 조각마다 붙이는 표시(⟦ko⟧…⟦ar⟧…). */
+const PART_MARK = /\u27E6([a-z]{2})\u27E7/g;
+
+/** 상대역 목소리가 읽을 글. 서버가 준 소리 낼 글이 있으면 그것(조각 표시는 지운다). */
 export function speechTextOf(line: LanguageLine): string {
-  return line.speech?.trim() || line.text;
+  const speech = line.speech?.replace(PART_MARK, ' ').replace(/\s+/g, ' ').trim();
+  return speech || line.text;
+}
+
+export type SpeechPart = { lang: string; text: string };
+
+/**
+ * 상대역 목소리가 읽을 조각들. 보통은 한 조각(줄의 말로 소리 낼 글 전체)이고, 「고맙습니다. شكراً」처럼 한 줄에 다른 말이
+ * 이어지면 서버가 붙인 표시대로 나눠 조각마다 그 말로 읽는다. lang 은 앱 목소리에 넘길 값(voiceLanguage)이다.
+ */
+export function speechParts(line: LanguageLine): SpeechPart[] {
+  const speech = line.speech?.trim() ?? '';
+  const marks = [...speech.matchAll(PART_MARK)];
+  if (marks.length > 0 && marks[0].index === 0) {
+    const parts: SpeechPart[] = [];
+    marks.forEach((mark, i) => {
+      const start = (mark.index ?? 0) + mark[0].length;
+      const end = i + 1 < marks.length ? marks[i + 1].index ?? speech.length : speech.length;
+      const text = speech.slice(start, end).trim();
+      if (text) parts.push({ lang: voiceLanguage(known(mark[1]) ? mark[1] : null), text });
+    });
+    if (parts.length > 0) return parts;
+  }
+  return [{ lang: voiceLanguage(lineLanguage(line)), text: speechTextOf(line) }];
 }
 
 /** 앱 목소리에 넘길 말. 모르면 앱 표시 언어. */
