@@ -31,3 +31,7 @@ export const AppRail = () => null;
 export default function Link({ href, children, ...rest }) {
   return createElement("a", { href, ...rest }, children);
 }
+
+export function SessionRecordings({ sessionId, onChanged }) {
+  return createElement("button", { type: "button", onClick: onChanged }, `${sessionId} 녹음 목록`);
+}
