@@ -31,6 +31,7 @@ const shims = {
 const nav = globalThis.__featuresNavigation;
 const router = { push: (href) => nav.pushed.push(href), replace: (href) => nav.pushed.push(href), back() {}, forward() {}, refresh() {}, prefetch() {} };
 export const usePathname = () => nav.pathname;
+export const useSearchParams = () => new URLSearchParams(globalThis.location?.search ?? "");
 export const useRouter = () => router;
 `),
 };
