@@ -13,7 +13,7 @@ import { UNTITLED_PRACTICE } from "./practice-groups";
 export const MAX_SUMMARY_QUOTES = 2;
 
 /** 제안이 없는 노트가 그 자리에 두는 말. 없는 것을 지어내지 않는다. */
-export const NO_NEXT_TAKE_COPY = "이번에는 다음 촬영 과제를 정하지 않았어요";
+export const NO_NEXT_TAKE_COPY = "이번에는 다음 촬영에서 해볼 것을 정하지 않았어요.";
 /** 초점 없이 끝난 회차 */
 export const RECORD_ONLY_COPY = "오늘 나눈 것만 남겼어요";
 /** 생성이 거듭 실패해 확인된 것만 담은 노트 */
