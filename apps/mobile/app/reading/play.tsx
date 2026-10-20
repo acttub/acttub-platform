@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { File, Paths } from 'expo-file-system';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +41,7 @@ import {
   back as backRun,
   canGoBack,
   createRun,
+  discardOnExit,
   exitMessage,
   formatProgress,
   isHidden,
@@ -57,6 +58,7 @@ import {
   type RunState,
 } from '@/lib/reading/session-run';
 import {
+  deleteSession,
   fetchSession,
   getCurrent,
   getCurrentSession,
@@ -148,6 +150,7 @@ const COACH_TEXT: Record<CoachMark, string> = {
 
 export default function ReadingPlay() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { confirm, alert, dialog } = useAppDialog();
   const script = getCurrent();
@@ -175,6 +178,13 @@ export default function ReadingPlay() {
   runRef.current = run;
 
   const [phase, setPhase] = useState<Phase>({ kind: 'preparing', progress: null });
+  const phaseKindRef = useRef(phase.kind);
+  phaseKindRef.current = phase.kind;
+  /** [시작]을 눌렀는지 — 누르기 전에 나가면 이번 회차를 남기지 않는다(discardOnExit). */
+  const startedRef = useRef(false);
+  /** 이 화면이 연 회차(다시 연습으로 현재 회차가 바뀌어도 이 화면 것만 지운다)와, 이미 지웠는지. */
+  const ownSession = useRef(session).current;
+  const discardedRef = useRef(false);
   const [engine, setEngine] = useState<PartnerVoiceEngine>('supertonic');
   /** 지금 상대 줄을 실제로 내는 방식(서버 음성을 못 받은 줄은 engine 과 다르다). */
   const [lineEngine, setLineEngine] = useState<PartnerVoiceEngine | null>(null);
@@ -914,6 +924,7 @@ export default function ReadingPlay() {
   };
 
   const closeTip = async (hide: boolean) => {
+    startedRef.current = true;
     if (hide) {
       tipHiddenRef.current = true;
       await hideAutoAdvanceTip();
@@ -921,17 +932,47 @@ export default function ReadingPlay() {
     releaseHold();
   };
 
-  const exitToDetail = () => router.replace('/reading/detail');
+  const shouldDiscard = useCallback(
+    () =>
+      !!ownSession &&
+      !discardedRef.current &&
+      discardOnExit({
+        started: startedRef.current,
+        progressSeq: ownSession.progress_seq,
+        recordingCount: ownSession.recordings?.length ?? 0,
+        closed: phaseKindRef.current === 'closed',
+      }),
+    [ownSession],
+  );
+
+  /** [시작] 전에 나가면 회차를 지운다 — 상세 목록·이어 읽기에 「진행 중 · 0/N」이 쌓이지 않게. 실패해도 나가기는 막지 않는다. */
+  const discardIfUnstarted = useCallback(async () => {
+    if (!ownSession || !shouldDiscard()) return;
+    discardedRef.current = true;
+    await Promise.race([deleteSession(ownSession.id).catch(() => undefined), new Promise((r) => setTimeout(r, 3000))]);
+  }, [ownSession, shouldDiscard]);
+
+  // 버튼이 아닌 길(안드로이드 뒤로 가기·스와이프)로 [시작] 전에 내려가도 회차를 남기지 않는다.
+  useEffect(() => navigation.addListener('beforeRemove', () => void discardIfUnstarted()), [navigation, discardIfUnstarted]);
+
+  // 새 연습(R8)은 실행 화면으로 바뀌어 있어 replace 하면 상세가 하나 더 쌓인다 — 이미 있는 상세까지 내려간다.
+  const exitToDetail = () =>
+    void discardIfUnstarted().then(() => router.dismissTo('/reading/detail'));
 
   const onExit = async () => {
     const cur = runRef.current;
     if (cur && cur.status !== 'done') {
-      const ok = await confirm({ title: t('reading.exitConfirmTitle'), message: exitMessage(cur), confirmLabel: t('reading.exitLeave') });
+      const discard = shouldDiscard();
+      const ok = await confirm({ title: t('reading.exitConfirmTitle'), message: exitMessage(cur, { discard }), confirmLabel: t('reading.exitLeave') });
       if (!ok) return;
       tts.stop();
       stopDeviceVoice();
       stt.abort();
       void mic.stop();
+      if (discard) {
+        exitToDetail();
+        return;
+      }
       if (cur.status !== 'paused') {
         const paused = pauseRun(cur);
         runRef.current = paused;

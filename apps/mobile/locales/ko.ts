@@ -1532,6 +1532,7 @@ const ko = {
     // 회차(R02·R03·R03.x) · reading.cast · reading.session
     exitConfirmTitle: '리딩을 나갈까요?',
     exitConfirmBody: '지금 나가면 {{n}}번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.',
+    exitConfirmBodyUnsaved: '아직 시작하지 않아서 이번 연습은 저장되지 않아요.',
     exitLeave: '나가기',
     voiceLabel: '목소리',
     voicePreview: '미리 듣기',

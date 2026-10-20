@@ -1543,6 +1543,7 @@ const en: DeepStringShape<typeof ko> = {
     // Sessions (R02·R03·R03.x) · reading.cast · reading.session
     exitConfirmTitle: 'Leave the reading?',
     exitConfirmBody: 'If you leave now, progress is saved up to line {{n}}. You can pick it up from the script page.',
+    exitConfirmBodyUnsaved: "You haven't started yet, so this practice won't be saved.",
     exitLeave: 'Leave',
     voiceLabel: 'Voice',
     voicePreview: 'Preview',
