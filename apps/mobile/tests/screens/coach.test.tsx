@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { useVideoPlayer } from 'expo-video';
-import { ScrollView } from 'react-native';
+import { ScrollView, TextInput } from 'react-native';
 
 import CoachScreen from '@/app/coach';
 import { logEvent } from '@/lib/analytics';
@@ -19,6 +19,7 @@ const mockLoop = {
   getPractice: jest.fn(),
   getConversation: jest.fn(),
   getPracticeNote: jest.fn(),
+  getPracticeAnalysis: jest.fn(),
   startConversation: jest.fn(),
   replyToCoach: jest.fn(),
 };
@@ -36,6 +37,9 @@ jest.mock('expo-router', () => {
       ),
     },
     useRouter: () => mockRouter,
+    // 회차 id 없이 열면 기다림 없이 들고 온 회차로 바로 대화한다(분석 대기는 coach-waiting.test.tsx).
+    useLocalSearchParams: () => ({}),
+    useFocusEffect: () => undefined,
   };
 });
 jest.mock('@react-navigation/native', () => ({
@@ -52,6 +56,10 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
+// 분석 대기(components/coach-waiting)가 부르는 것 — 회차 id 없이 여는 이 파일에서는 쓰이지 않는다(coach-waiting.test.tsx 가 본다).
+jest.mock('@/lib/api', () => ({ api: {} }));
+jest.mock('@/lib/library/library-runner', () => ({ localCopyFor: jest.fn() }));
+jest.mock('@/lib/notifications', () => ({ onPushReceived: () => () => undefined }));
 jest.mock('@/hooks/use-keyboard-height', () => ({ useKeyboardHeight: () => mockKeyboardHeight }));
 jest.mock('@/lib/tutorial-loop', () => ({
   loopApiFor: (practiceId: string | null | undefined) =>
@@ -145,6 +153,7 @@ beforeEach(() => {
   mockLoop.getPractice.mockResolvedValue({ conversation_id: null });
   mockLoop.startConversation.mockResolvedValue({ conversation: conv(), message: '첫 대사 전에 무엇을 결심했나요?', note: null });
   mockLoop.replyToCoach.mockResolvedValue(turn(ANSWERED));
+  mockLoop.getPracticeAnalysis.mockRejectedValue(serverError(404, 'analysis_not_found'));
 });
 
 afterEach(() => {
@@ -231,9 +240,10 @@ describe('대화 시작', () => {
 
     await fireEvent.press(screen.getByText('지난 문답 1 ▾'));
     expect(screen.getByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
-    expect(screen.getByText('더는 미루지 않기로요')).toBeOnTheScreen();
-    expect(screen.getByText('코치')).toBeOnTheScreen();
-    expect(screen.getByText('나')).toBeOnTheScreen();
+    // 내 답은 파란 말풍선(흰 글자), 코치 말은 회색 말풍선이다(SOMA-778).
+    expect(screen.getByText('더는 미루지 않기로요')).toHaveStyle({ color: '#FFFFFF' });
+    expect(screen.getByTestId('coach-bubble-mine')).toHaveStyle({ backgroundColor: '#3182F6' });
+    expect(screen.getByTestId('coach-bubble-coach')).toHaveStyle({ backgroundColor: '#F2F4F6' });
 
     await fireEvent.press(screen.getByText('지난 문답 1 ▴'));
     expect(screen.queryByText('더는 미루지 않기로요')).not.toBeOnTheScreen();
@@ -453,14 +463,32 @@ describe('답 보내기', () => {
 });
 
 describe('빠른 답과 그만하기', () => {
-  test('맞아요·아니요는 입력칸만 채우고 보내지 않는다', async () => {
+  test('빠른 답은 2×2 — 맞아요·아니요·잘 모르겠어요는 입력칸만 채우고 보내지 않는다', async () => {
     await renderOpen();
 
+    const chips = ['맞아요', '아니요', '잘 모르겠어요', '직접 쓰기'].map((name) => screen.getByRole('button', { name }));
+    expect(chips).toHaveLength(4);
+    expect(screen.getByTestId('coach-quick-grid')).toHaveStyle({ flexDirection: 'row', flexWrap: 'wrap' });
     await fireEvent.press(screen.getByRole('button', { name: '맞아요' }));
     expect(input()).toHaveDisplayValue('맞아요');
     await fireEvent.press(screen.getByRole('button', { name: '아니요' }));
     expect(input()).toHaveDisplayValue('아니요');
+    await fireEvent.press(screen.getByRole('button', { name: '잘 모르겠어요' }));
+    expect(input()).toHaveDisplayValue('잘 모르겠어요');
     expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
+  });
+
+  test('직접 쓰기는 입력칸에 커서만 두고 쓰던 글은 그대로 둔다', async () => {
+    const focus = jest.spyOn(TextInput.prototype as unknown as { focus: () => void }, 'focus');
+    await renderOpen();
+    await fireEvent.changeText(input(), '쓰던 글');
+    focus.mockClear();
+
+    await fireEvent.press(screen.getByRole('button', { name: '직접 쓰기' }));
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(input()).toHaveDisplayValue('쓰던 글');
+    expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
+    focus.mockRestore();
   });
 
   test('마이크로 받아 적은 글이 입력칸에 들어간다', async () => {
@@ -580,15 +608,47 @@ describe('영상과 장면 보기', () => {
     expect(screen.getByRole('button', { name: '영상과 장면 보기 펼치기' })).toBeOnTheScreen();
   });
 
-  test('기기 복사본이 없으면 재생 주소로 틀고, 장면을 안 적었으면 대체 제목을 보인다', async () => {
+  test('기기 복사본이 없으면 재생 주소로 틀고, 장면이 없으면 대체 제목과 다시 보기 안내를 보인다', async () => {
     begin({ videoUri: '', scene: { situation: '   ', character: '', goal: '' } });
     await render(<CoachScreen />);
     await screen.findByText('첫 대사 전에 무엇을 결심했나요?');
 
     expect(screen.getByText('질문 대화')).toBeOnTheScreen();
-    expect(screen.getByText('장면을 적지 않았어요')).toBeOnTheScreen();
+    // 장면 칸이 없어졌으니(SOMA-778) 「장면을 적지 않았어요」라고 탓하지 않는다.
+    expect(screen.queryByText('장면을 적지 않았어요')).not.toBeOnTheScreen();
+    expect(screen.getByText('누르면 영상을 다시 봐요')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '영상과 장면 보기 펼치기' }));
     expect(useVideoPlayer).toHaveBeenLastCalledWith('https://play/p1', expect.any(Function));
+  });
+});
+
+describe('AI가 본 장면 한 줄', () => {
+  const analysis = (observed: string[]) => ({
+    id: 'a1',
+    format: 'video_record_v1',
+    status: 'ready',
+    summary: { schema_version: 'acttub.video_record_summary.v1', observed_scene: observed },
+  });
+
+  test('분석 요약의 본 장면 첫 줄을 대화 위에 한 줄로 보이고, 고치기 버튼은 아직 없다', async () => {
+    mockLoop.getPracticeAnalysis.mockResolvedValue(analysis(['카페에서 컵을 내려놓고 말을 꺼낸다', '둘째 줄']));
+    await renderOpen();
+
+    expect(await screen.findByText('AI가 본 장면 · 카페에서 컵을 내려놓고 말을 꺼낸다')).toBeOnTheScreen();
+    expect(mockLoop.getPracticeAnalysis).toHaveBeenCalledWith('p1');
+    expect(screen.queryByText('둘째 줄')).not.toBeOnTheScreen();
+    // 「고치기」는 서버 API 가 없어 두지 않는다.
+    expect(screen.queryByRole('button', { name: '고치기' })).not.toBeOnTheScreen();
+  });
+
+  test.each([
+    ['요약을 못 읽음', () => mockLoop.getPracticeAnalysis.mockRejectedValue(serverError(404, 'analysis_not_found'))],
+    ['본 장면이 비었음', () => mockLoop.getPracticeAnalysis.mockResolvedValue(analysis([]))],
+  ])('%s 이면 줄을 숨긴다', async (_name, arrange) => {
+    arrange();
+    await renderOpen();
+    await waitFor(() => expect(mockLoop.getPracticeAnalysis).toHaveBeenCalled());
+    expect(screen.queryByText(/AI가 본 장면/)).not.toBeOnTheScreen();
   });
 });
 

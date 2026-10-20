@@ -88,7 +88,7 @@ test('묶음에 열린 테이크가 있으면 그 대화로 돌아간다', async
 
   await fireEvent.press(await screen.findByRole('button', { name: '대화 이어 가기' }));
 
-  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'p9' } });
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/coach', params: { practiceId: 'p9' } });
   expect(setContinueOrigin).not.toHaveBeenCalled();
 });
 

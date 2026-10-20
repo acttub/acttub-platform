@@ -6,15 +6,15 @@ import { helpButtonDraft } from '../lib/practice/coach.ts';
 
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 
-test('새 연습 준비(P3.1): 장면 단계에 상황·인물·원하는 것 칸이 있고(pen 장면 정보, SOMA-748) 「이전 연습 이어서 하기」는 없다', () => {
+test('새 연습 준비(P3.1): 장면 정보 단계(상황·인물·원하는 것)는 없고(SOMA-778) 「이전 연습 이어서 하기」도 없다', () => {
   const upload = read('app/upload.tsx');
-  // SOMA-656 에서 숨겼던 장면 칸을 새 디자인이 다시 보인다 — 셋 다 선택이고 300자까지다.
-  assert.match(upload, /\['situation', 'character', 'goal'\] as const/);
-  assert.match(upload, /t\(`upload\.scene\.\$\{key\}Label`\)/);
+  // SOMA-748 이 되살렸던 장면 칸을 SOMA-778 에서 다시 뺐다 — 목적 → 영상 두 단계이고 장면 없이 시작한다.
+  assert.doesNotMatch(upload, /\['situation', 'character', 'goal'\] as const|upload\.scene\.|setScene\(|<TextInput/);
   const ko = read('locales/ko.ts');
-  assert.match(ko, /situationLabel: '상황',[\s\S]*characterLabel: '인물',[\s\S]*goalLabel: '원하는 것',/);
-  assert.match(upload, /maxLength=\{SCENE_MAX\}/);
-  assert.match(upload, /setScene\(/);
+  assert.doesNotMatch(ko, /situationLabel: '상황'|goalLabel: '원하는 것'/);
+  // 노트·리딩에서 넘겨받은 장면만 화면 없이 그대로 보낸다 — 넘친 값은 화면이 먼저 막는다.
+  assert.match(upload, /const scene = plan\.scene;/);
+  assert.match(upload, /sceneOverflow\(scene\)/);
   assert.doesNotMatch(upload, /start\.continueCta|chooseGroup/);
   // 세부 칩은 없다 — 세부는 비워 보내고 서버 기본값(그 외)이 된다
   assert.doesNotMatch(upload, /blockage\.kindLabel|EXPRESSION_DETAILS|ANALYSIS_DETAILS/);
@@ -48,10 +48,12 @@ test('코치 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 �
   assert.match(input, /paddingTop: Platform\.OS === 'ios' \? 10 : 13,\s*paddingBottom: 13,/);
 });
 
-test('새 연습 준비: 영상 상자를 누르면 아래 시트에서 보관함·촬영·갤러리를 고른다(상자 안 버튼 없음)', () => {
+test('새 연습 준비: 고른 영상의 「영상 다시 선택」을 누르면 아래 시트에서 보관함·촬영·갤러리를 고른다(상자 안 버튼 없음)', () => {
   const upload = read('app/upload.tsx');
   assert.doesNotMatch(upload, /styles\.pickActions|styles\.recordBtn|styles\.galleryLink/);
-  assert.match(upload, /<Pressable\s+style=\{styles\.dropzone\}[^>]*onPress=\{\(\) => setSourceSheet\(true\)\}/);
+  // 처음 고르기는 영상 단계의 세 줄이 하고(빈 영상 상자는 없다, SOMA-778), 바꾸기는 시트가 한다.
+  assert.doesNotMatch(upload, /styles\.dropzone/);
+  assert.match(upload, /<Pressable style=\{styles\.repick\} onPress=\{\(\) => setSourceSheet\(true\)\}/);
   assert.match(upload, /<VideoSourceSheet/);
   // 세 갈래는 시트의 줄로 간다 — 문구 키는 그대로 쓴다
   for (const key of ['start.fromLibrary', 'upload.recordCta', 'upload.pickGallery']) assert.match(upload, new RegExp(key.replace('.', '\\.')));
@@ -70,7 +72,7 @@ test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 
   const upload = read('app/upload.tsx');
   assert.match(upload, /api\s*\.getVideo\(picked\.videoId\)/);
   // 주소를 받기 전에도 고른 상태로 그린다 — 빈 상자로 돌아가지 않는다
-  assert.match(upload, /\{previewUri \|\| uploading \|\| picked \? \(/);
+  assert.match(upload, /\{picked \? \(/);
 });
 
 test('코치 화면 위에 「코치 답변 N번 남음」은 보이지 않는다 — 마무리 직전 안내만 남긴다', () => {

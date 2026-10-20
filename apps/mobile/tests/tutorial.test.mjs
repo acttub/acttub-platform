@@ -80,6 +80,11 @@ test('예시 경로엔 영상 고르기 안내가 없고, 내 영상 경로엔 �
   assert.ok(own.includes(TARGET.uploadPick));
   assert.ok(!sample.includes(TARGET.uploadPick));
   assert.ok(sample.includes(TARGET.uploadSample));
+  // 장면 칸은 없어졌다(SOMA-778) — 두 경로 모두 영상 다음에 권리 체크, 그다음 시작 버튼을 비춘다.
+  for (const targets of [own, sample]) {
+    assert.deepEqual(targets.slice(1), [TARGET.uploadRights, TARGET.uploadStart]);
+  }
+  assert.equal('uploadScene' in TARGET, false);
 });
 
 test('단계 문구 키는 한국어·영어 둘 다 있다', () => {
@@ -184,6 +189,11 @@ test('예시 대화를 다시 열면 같은 대화를 이어 간다 — 코치 �
 test('예시 노트는 대화가 닫히기 전엔 없다', async () => {
   const loop = createSampleLoop({ delayMs: 0 });
   await assert.rejects(loop.getPracticeNote(SAMPLE_PRACTICE_ID), (e) => e.code === 'note_not_found');
+});
+
+test('예시 회차는 분석 요약이 없다 — 코치 화면 위 「AI가 본 장면」 줄이 숨는다', async () => {
+  const loop = createSampleLoop({ delayMs: 0 });
+  await assert.rejects(loop.getPracticeAnalysis(SAMPLE_PRACTICE_ID), (e) => e.code === 'analysis_not_found');
 });
 
 test('예시 문구에 쓰면 안 되는 말이 없다', () => {

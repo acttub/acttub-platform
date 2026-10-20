@@ -1,12 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Image } from 'expo-image';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { CoachVideoRow } from '@/components/coach-video-row';
+import { CoachWaiting } from '@/components/coach-waiting';
 import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
@@ -15,6 +17,7 @@ import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
+import { observedSceneLine } from '@/lib/practice/analysis-summary';
 import {
   COACH_END_WORD,
   answerTooLong,
@@ -49,6 +52,29 @@ try {
 }
 
 /**
+ * A10·A11 코치 화면(practice.analyze · practice.coach).
+ *
+ * 회차 id(`practiceId`)를 받아 열리면 먼저 같은 화면 안에서 「영상 보는 중」으로 분석을 기다린다(components/coach-waiting,
+ * SOMA-778) — 따로 된 분석 화면은 없다. 분석이 끝나면 회차를 들고 대화를 연다. 회차 id 없이 열리면(튜토리얼·미리보기·
+ * 테스트) 이미 들고 있는 회차로 바로 대화한다.
+ */
+export default function CoachScreen() {
+  const params = useLocalSearchParams<{ practiceId?: string | string[]; preview?: string }>();
+  const preview = __DEV__ && params.preview === '1';
+  const [waiting, setWaiting] = useState(() => params.practiceId !== undefined || preview);
+  if (waiting) {
+    return (
+      <CoachWaiting
+        practiceId={typeof params.practiceId === 'string' ? params.practiceId : null}
+        preview={preview}
+        onReady={() => setWaiting(false)}
+      />
+    );
+  }
+  return <CoachTalk />;
+}
+
+/**
  * A11·A11.1 질문 대화(practice.coach).
  *
  * 회차에 대화는 하나다. 앱을 껐다 켜도 같은 대화를 이어 가고, 같은 답을 다시 보내도 같은 요청
@@ -56,7 +82,7 @@ try {
  * 글을 그대로 두고 최신 대화를 다시 읽는다. 닫힌 대화에는 답할 수 없고 새 회차로 이어 간다.
  * 도움 버튼은 입력을 준비만 하고 배우가 보내야 전송된다.
  */
-export default function CoachScreen() {
+function CoachTalk() {
   const router = useRouter();
   const navigation = useNavigation();
   const keyboardHeight = useKeyboardHeight();
@@ -102,6 +128,9 @@ export default function CoachScreen() {
   const [startFailureKind, setStartFailureKind] = useState<string | null>(null);
   const [leaveAllowed, setLeaveAllowed] = useState(false);
   const { confirm, dialog } = useAppDialog();
+  // 대화 위 한 줄 「AI가 본 장면 · …」 — 분석 공개 요약의 본 장면(SOMA-778). 없으면 줄을 숨긴다.
+  // 「고치기」는 본 장면을 바로잡는 서버 API 가 없어 아직 두지 않는다.
+  const [observedLine, setObservedLine] = useState<string | null>(null);
 
   const closed = isClosed(conversation);
 
@@ -233,6 +262,21 @@ export default function CoachScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!practice) return;
+    let alive = true;
+    void Promise.resolve()
+      .then(() => loop.getPracticeAnalysis(practice.practiceId))
+      .then((analysis) => {
+        if (alive) setObservedLine(observedSceneLine(analysis));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 예시 튜토리얼은 새 질문이 오면 답 칸에 샘플 답을 채워 둔다 — 그대로 보내도, 고쳐 써도 된다.
   useEffect(() => {
     if (!sample || closed) return;
@@ -286,6 +330,8 @@ export default function CoachScreen() {
     if (draft) setInput(draft);
     inputRef.current?.focus();
   };
+  // 「직접 쓰기」 — 쓰던 글은 두고 입력칸에 커서만 둔다.
+  const focusComposer = () => inputRef.current?.focus();
 
   const latestQuestion = [...messages].reverse().find((m) => m.role === 'coach')?.text ?? null;
   // 스트리밍 중에는 쓰이는 글이 같은 말풍선에 자란다. 첫 글자 전에는 이전 모습(기다림 표시) 그대로다.
@@ -353,31 +399,25 @@ export default function CoachScreen() {
         }}
       />
 
+      {observedLine && (
+        <View style={styles.sceneBar}>
+          <Text style={styles.sceneBarText} numberOfLines={1}>
+            {t('coach.sceneBar', { line: observedLine })}
+          </Text>
+        </View>
+      )}
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {/* 오늘 영상 줄 — 누르면 영상을 펼친다. 예전 「영상과 장면 보기」 띠를 대신한다(pen 질문 대화 첫 응답). */}
-          <Pressable
-            style={({ pressed }) => [styles.videoRow, pressed && styles.videoRowOn]}
+          <CoachVideoRow
+            open={sceneOpen}
+            sub={sceneWritten ? t('coach.sceneWritten') : t('coach.videoHint')}
             onPress={() => {
               if (!sceneOpen) logFoldOpen('coach');
               setSceneOpen(!sceneOpen);
               setSeek(null);
             }}
-            accessibilityRole="button"
-            accessibilityLabel={`${t('coach.stripTitle')} ${sceneOpen ? t('common.fold') : t('common.unfold')}`}
-            accessibilityState={{ expanded: sceneOpen }}>
-            <View style={styles.thumb}>
-              <View style={styles.thumbPlay}>
-                <Feather name={sceneOpen ? 'chevron-up' : 'play'} size={18} color={palette.onAccent} />
-              </View>
-            </View>
-            <View style={styles.videoText}>
-              <Text style={styles.videoTitle}>{t('coach.videoLabel')}</Text>
-              <Text style={styles.videoSub} numberOfLines={1}>
-                {sceneWritten ? t('coach.sceneWritten') : t('coach.noScene')}
-              </Text>
-            </View>
-          </Pressable>
+          />
           <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} track="coach" startAt={seek} />
 
           {(wrapping || past.length > 0) && (
@@ -395,15 +435,27 @@ export default function CoachScreen() {
             </View>
           )}
 
+          {/* 지난 문답 — 코치 말은 회색 말풍선(왼쪽), 내 답은 파란 말풍선·흰 글자(오른쪽, SOMA-778). */}
           {pastOpen &&
-            past.map((message) => (
-              <View key={message.turn_index} style={message.role === 'coach' ? styles.pastAi : styles.pastMine}>
-                <Text style={styles.pastLabel}>
-                  {message.role === 'coach' ? t('coach.roleCoach') : t('coach.roleMe')}
-                </Text>
-                <Text style={styles.pastText}>{message.text}</Text>
-              </View>
-            ))}
+            past.map((message) =>
+              message.role === 'coach' ? (
+                <View
+                  key={message.turn_index}
+                  testID="coach-bubble-coach"
+                  style={[styles.pastBubble, styles.pastAi]}
+                  accessibilityLabel={`${t('coach.roleCoach')}: ${message.text}`}>
+                  <Text style={styles.pastAiText}>{message.text}</Text>
+                </View>
+              ) : (
+                <View
+                  key={message.turn_index}
+                  testID="coach-bubble-mine"
+                  style={[styles.pastBubble, styles.pastMine]}
+                  accessibilityLabel={`${t('coach.roleMe')}: ${message.text}`}>
+                  <Text style={styles.pastMineText}>{message.text}</Text>
+                </View>
+              ),
+            )}
 
           {connecting && !latestQuestion && !streamText ? (
             <View style={styles.loading}>
@@ -455,20 +507,25 @@ export default function CoachScreen() {
         {!closed && (
           <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
             <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>
-            <View style={styles.quickRow}>
+            {/* 빠른 답 2×2 — 셋은 입력칸만 채우고, 「직접 쓰기」는 커서만 둔다(SOMA-778). */}
+            <View style={styles.quickRow} testID="coach-quick-grid">
               {(
                 [
                   ['yes', t('coach.quickYes')],
                   ['no', t('coach.quickNo')],
+                  ['unsure', t('coach.quickUnsure')],
+                  ['write', t('coach.quickWrite')],
                 ] as const
               ).map(([button, label]) => (
                 <Pressable
                   key={button}
                   style={({ pressed }) => [styles.quick, pressed && styles.quickOn]}
                   disabled={waiting || connecting || !conversation}
-                  onPress={() => pressHelp(button)}
+                  onPress={() => (button === 'write' ? focusComposer() : pressHelp(button))}
                   accessibilityRole="button">
-                  <Text style={styles.quickText}>{label}</Text>
+                  <Text style={styles.quickText} numberOfLines={1}>
+                    {label}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -514,14 +571,9 @@ const styles = StyleSheet.create({
 
   endText: { fontSize: 15, fontWeight: '700', color: palette.textMuted },
 
-  // pen 「영상 줄」 — 64 썸네일(모서리 14, 가운데 재생 동그라미 36) · 글 14/800 · 보조 12/600.
-  videoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  videoRowOn: { opacity: 0.6 },
-  thumb: { width: 64, height: 64, borderRadius: 14, backgroundColor: palette.textDim, alignItems: 'center', justifyContent: 'center' },
-  thumbPlay: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
-  videoText: { flex: 1, gap: 6 },
-  videoTitle: { fontSize: 14, fontWeight: '800', lineHeight: 21, color: palette.text },
-  videoSub: { fontSize: 12, fontWeight: '600', lineHeight: 18, color: palette.textFaint },
+  // 대화 위 한 줄 「AI가 본 장면 · …」 — 옅은 파랑 띠, 글 13/700 한 줄.
+  sceneBar: { backgroundColor: palette.blueSoft, paddingVertical: 9, paddingHorizontal: 24 },
+  sceneBarText: { fontSize: 13, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
 
   progressHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   progressText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
@@ -553,10 +605,12 @@ const styles = StyleSheet.create({
   thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 44 },
   thinkingText: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
 
-  pastAi: { gap: 4 },
-  pastMine: { gap: 4, paddingLeft: 14, borderLeftWidth: 2, borderLeftColor: palette.blueLine },
-  pastLabel: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
-  pastText: { fontSize: 13.5, fontWeight: '600', color: palette.textDim, lineHeight: 22 },
+  pastBubble: { maxWidth: '85%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18 },
+  pastAi: { alignSelf: 'flex-start', backgroundColor: palette.bgSoft, borderTopLeftRadius: 4 },
+  pastAiText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 22 },
+  // 내 답 — 파란 말풍선(palette.blue)에 흰 글자, 오른쪽 위만 뾰족.
+  pastMine: { alignSelf: 'flex-end', backgroundColor: palette.blue, borderTopRightRadius: 4 },
+  pastMineText: { fontSize: 14, fontWeight: '600', color: palette.onAccent, lineHeight: 22 },
 
   errorText: { fontSize: 13, fontWeight: '700', color: palette.danger },
   doneText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 23 },
@@ -564,8 +618,9 @@ const styles = StyleSheet.create({
   composer: { gap: 10, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 10 },
   chipGuide: { fontSize: 13, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
   // pen 「칩」 — 회색 알약(안쪽 10·16), 글 15/700. 누르면 입력칸만 채운다.
+  // 2×2 — 한 줄에 둘씩 같은 너비.
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  quick: { borderRadius: 9999, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },
+  quick: { flexBasis: '48%', flexGrow: 1, alignItems: 'center', borderRadius: 9999, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },
   quickOn: { backgroundColor: palette.blueSoft },
   quickText: { fontSize: 15, fontWeight: '700', color: palette.textDim },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },

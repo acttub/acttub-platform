@@ -86,6 +86,17 @@ test('노트가 있는 가장 최근 묶음의 다음에 해 볼 것을 띄우�
   expect(mockRouter.push).toHaveBeenLastCalledWith('/upload');
 });
 
+test('대화 중인 묶음이면 「이전 연습 한 번 더」가 그 회차의 코치 화면으로 바로 간다(분석 대기도 코치 화면 안이다)', async () => {
+  listPracticeGroups.mockResolvedValue({
+    groups: [group({ root_id: 'noted', in_progress_practice_id: 'open-1', practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
+  });
+  await render(<CoachingTab />);
+
+  await fireEvent.press(await screen.findByRole('button', { name: '이전 연습 한 번 더' }));
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'open-1' } });
+  expect(setContinueOrigin).not.toHaveBeenCalled();
+});
+
 test('다음에 해 볼 것을 못 받으면 그 칸 없이 장면 제목만 둔다', async () => {
   listPracticeGroups.mockResolvedValue({ groups: [group({ practices: [round('p1', '2026-10-01T00:00:00Z', true)] })] });
   getPracticeNote.mockRejectedValue(new Error('down'));

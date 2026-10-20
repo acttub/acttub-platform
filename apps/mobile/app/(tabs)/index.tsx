@@ -342,7 +342,7 @@ export default function HomeScreen() {
   const openCoaching = (group: PracticeGroup) => {
     const action = continueActionFor(group);
     if (action.kind === 'resume') {
-      router.push({ pathname: '/analyzing', params: { practiceId: action.practiceId } });
+      router.push({ pathname: '/coach', params: { practiceId: action.practiceId } });
       return;
     }
     const last = group.practices[group.practices.length - 1];

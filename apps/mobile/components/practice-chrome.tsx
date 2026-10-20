@@ -19,17 +19,15 @@ import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events'
  */
 
 /**
- * 번호가 붙은 3단계 스텝퍼 — ①목적 ②영상 ③장면 · 질문(pen P/Stepper, SOMA-748).
- *
- * 업로드 화면에 이게 없어서, 다음 화면의 '3단계 · 질문 받기' 가 맥락 없이 튀어나왔다.
+ * 번호가 붙은 2단계 스텝퍼 — ①목적 ②영상(pen P/Stepper, SOMA-748). 장면 단계는 SOMA-778에서 뺐다.
  * 지나온 단계와 지금 단계는 파란 동그라미에 번호(체크 아님), 이름은 진한 글자 — 지금 단계만 900으로 더 굵게. 남은 단계는 회색.
  */
-export function Stepper({ current }: { current: 1 | 2 | 3 }) {
+export function Stepper({ current }: { current: 1 | 2 }) {
   const labels = translateList('practiceChrome.steps');
   return (
     <View style={styles.stepper}>
       {labels.map((label, index) => {
-        const step = (index + 1) as 1 | 2 | 3;
+        const step = index + 1;
         const passed = step < current;
         const active = step === current;
         return (
