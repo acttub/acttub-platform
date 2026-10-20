@@ -119,7 +119,6 @@ class CloudVoiceIT {
         }
     }
 
-    @org.junit.jupiter.api.Disabled("버그: voice 가 없는 요청은 Map.copyOf 의 get(null)이 NullPointerException 을 던져 500 이 된다")
     @Test
     void reading_cloudVoice_aRequestWithoutVoiceIsInvalid() throws Exception {
         for (String body : List.of("{}", "{\"text\":\"가지 마\"}")) {
