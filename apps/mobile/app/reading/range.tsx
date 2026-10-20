@@ -12,7 +12,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
-import { hasMicPermission, micPermissionGranted } from '@/hooks/use-reading-mic';
+import { micPermissionState, requestMicPermission, type MicPermission } from '@/hooks/use-reading-mic';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import {
   buildStartBody,
@@ -64,7 +64,7 @@ export default function ReadingRange() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ roles?: string; start?: string; end?: string }>();
-  const { alert, dialog } = useAppDialog();
+  const { alert, confirm, dialog } = useAppDialog();
   const script = getCurrent();
   const lines = script?.lines ?? NO_LINES;
   const numbers = useMemo(() => dialogueNumbers(lines), [lines]);
@@ -90,7 +90,8 @@ export default function ReadingRange() {
   const [mask, setMask] = useState<MaskMode>(script?.maskMode ?? 'none');
   /** 회차 목록. null 은 불러오는 중. */
   const [sessions, setSessions] = useState<SessionCard[] | null>(hasHistory ? null : []);
-  const [micGranted, setMicGranted] = useState<boolean | null>(null);
+  /** null 은 확인 중. 묻는 건 [시작]을 누를 때다(SOMA-772). */
+  const [mic, setMic] = useState<MicPermission | null>(null);
   const [busy, setBusy] = useState(false);
   // 회차 시작의 요청 id — 이 화면에서 한 번 정해 재시도에도 같은 회차 하나가 된다.
   const requestId = useRef(newRequestId());
@@ -109,14 +110,13 @@ export default function ReadingRange() {
     };
   }, [script, hasHistory]);
 
-  // 들어올 때 한 번 묻고, 거절했으면 [설정 열기]로 보낸다(R8.7). 돌아올 때는 확인만 한다 — OS 팝업이 닫히면서도
-  // 앱이 다시 active 가 되니, 그때 또 물으면 팝업이 거듭 뜬다.
+  // 들어올 때·돌아올 때는 상태만 본다. OS 창은 [시작]을 누를 때 띄우고, 다시 물을 수 없으면 설정으로 보낸다(R8.7, SOMA-772).
   useEffect(() => {
     let alive = true;
-    const apply = (granted: boolean) => alive && setMicGranted(granted);
-    void hasMicPermission().then(apply);
+    const apply = (state: MicPermission) => alive && setMic(state);
+    void micPermissionState().then(apply);
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void micPermissionGranted().then(apply);
+      if (state === 'active') void micPermissionState().then(apply);
     });
     return () => {
       alive = false;
@@ -160,7 +160,7 @@ export default function ReadingRange() {
   const isActive = (r: LineRange) => r.startIndex === range.startIndex && r.endIndex === range.endIndex;
   const dlgIn = dialogues.filter((x) => x.i >= range.startIndex && x.i <= range.endIndex).length;
   const loadingDefault = picked === null && sessions === null;
-  const gate = startGate({ roleCount: selected.length, micGranted, loading: loadingDefault });
+  const gate = startGate({ roleCount: selected.length, micGranted: mic === null ? null : true, loading: loadingDefault });
   const wholeDialogues = dialogues.length;
 
   const toggleRole = (id: string) =>
@@ -187,6 +187,19 @@ export default function ReadingRange() {
     if (rangeError(lines, myRoles, range.startIndex, range.endIndex)) {
       void alert({ title: t('reading.startFailed'), message: t('reading.errorEmptyRange') });
       return;
+    }
+    if (mic !== 'granted') {
+      setBusy(true);
+      const asked = await requestMicPermission().finally(() => setBusy(false));
+      if (asked === 'blocked') {
+        setMic('blocked');
+        if (await confirm({ title: t('reading.micBlockedTitle'), message: t('reading.micBlockedBody'), confirmLabel: t('reading.micOpenSettings') })) {
+          void Linking.openSettings();
+        }
+        return;
+      }
+      if (asked !== 'granted') return;
+      setMic('granted');
     }
     setBusy(true);
     try {
@@ -219,9 +232,7 @@ export default function ReadingRange() {
     ? t('common.saving')
     : gate === 'pickRole'
       ? t('reading.startNeedsRole')
-      : gate === 'needMic'
-        ? t('reading.startNeedsMic')
-        : t('reading.startSession', { count: dlgIn });
+      : t('reading.startSession', { count: dlgIn });
 
   return (
     <View style={styles.root}>
@@ -375,7 +386,7 @@ export default function ReadingRange() {
             </Pressable>
           ))}
         </View>
-        {micGranted === false && (
+        {mic === 'blocked' && (
           <View style={styles.micBox}>
             <Feather name="mic-off" size={18} color={palette.amber} />
             <View style={styles.rowBody}>

@@ -261,13 +261,7 @@ export async function downloadAssets(variant: Variant, preset: string, onProgres
   if (!dir.exists) dir.create({ intermediates: true });
 
   const models = MODEL_KINDS.map((kind) => ({ kind, ...MODEL_FILES[variant][kind] }));
-  const needed = missingBytes(
-    models.map((m) => {
-      const done = new File(dir, m.name);
-      const present = done.exists && (done.size ?? 0) >= m.bytes ? m.bytes : (sizeOf(new File(dir, `${m.name}.part`)) ?? 0);
-      return { expectedBytes: m.bytes, presentBytes: present };
-    }),
-  );
+  const needed = missingIn(dir, variant);
   if (!hasEnoughSpace({ freeBytes: freeDiskBytes(), neededBytes: needed })) {
     throw new VoicePrepareError('storage', 'not enough space', { neededBytes: needed });
   }
@@ -317,6 +311,31 @@ export async function downloadVoiceStyle(variant: Variant, preset: string): Prom
 /** 처음 내려받을 때 보여 줄 용량(모델 4개). 이동통신이면 확인을 받는다(reading.cast). */
 export function modelDownloadBytes(variant: Variant): number {
   return variantBytes(variant);
+}
+
+function missingIn(dir: Directory, variant: Variant): number {
+  return missingBytes(
+    MODEL_KINDS.map((kind) => {
+      const m = MODEL_FILES[variant][kind];
+      const done = new File(dir, m.name);
+      const present = done.exists && (done.size ?? 0) >= m.bytes ? m.bytes : (sizeOf(new File(dir, `${m.name}.part`)) ?? 0);
+      return { expectedBytes: m.bytes, presentBytes: present };
+    }),
+  );
+}
+
+/**
+ * 아직 받아야 할 모델 용량(SOMA-772). 받아 둔 파일과 이어받을 조각(.part)만큼 뺀다 — 0 이면 이동통신에서도 묻지 않는다.
+ * Wi-Fi 미리 받기가 중간에 끊긴 기기에 전체 379.6MB 를 다시 받는다고 묻지 않게 실행 화면이 이 값을 쓴다.
+ */
+export function missingModelBytes(variant: Variant): number {
+  try {
+    const dir = dirFor(variant);
+    if (!dir.exists) return variantBytes(variant);
+    return missingIn(dir, variant);
+  } catch {
+    return variantBytes(variant);
+  }
 }
 
 export function assetsPresent(variant: Variant, preset: string): boolean {

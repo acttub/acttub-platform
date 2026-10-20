@@ -16,7 +16,9 @@ export type ContinueOrigin =
   /** A13 연습 마치기 → 다음 테이크 찍기. 장면을 미리 채운다. */
   | { kind: 'note'; rootId: string; practiceId: string; scene: SceneDraft }
   /** A1.2 연습 기록 상세·A12 지난 노트·닫힌 코치 대화의 「다음 테이크 찍기」. 장면은 비운다. */
-  | { kind: 'group'; rootId: string; practiceId: string };
+  | { kind: 'group'; rootId: string; practiceId: string }
+  /** 리딩 마무리 「이 장면, 찍어서 코치에게 보여 주기」. 새 연습에 대본의 장면을 채운다(SOMA-772). */
+  | { kind: 'reading'; scene: SceneDraft };
 
 export type StartPlan = {
   /** 이어하기면 그 묶음, 새 연습이면 null. */
@@ -28,6 +30,7 @@ export type StartPlan = {
 
 export function planFor(origin: ContinueOrigin | null): StartPlan {
   if (!origin) return { continueFrom: null, scene: emptySceneDraft, prefilled: false };
+  if (origin.kind === 'reading') return { continueFrom: null, scene: { ...emptySceneDraft, ...origin.scene }, prefilled: false };
   const continueFrom = { rootId: origin.rootId, practiceId: origin.practiceId };
   if (origin.kind === 'note') return { continueFrom, scene: origin.scene, prefilled: true };
   return { continueFrom, scene: emptySceneDraft, prefilled: false };

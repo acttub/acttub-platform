@@ -14,10 +14,11 @@ import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/u
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
 import { deleteDeviceFile } from '@/lib/account-files';
 import { hasSeenFirstReadingGuide, hideAutoAdvanceTip, isAutoAdvanceTipHidden, markFirstReadingGuideSeen } from '@/lib/reading/guide-flag';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { ReadingCoachMark } from '@/components/ui/reading-coach-mark';
 import { ReadingStatus } from '@/components/ui/reading-status';
-import { COACH_MARKS, coachMarkFor, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
+import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
+import { setContinueOrigin } from '@/lib/practice/session-state';
 import { Image } from 'expo-image';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
@@ -65,7 +66,7 @@ import {
   type MaskMode,
 } from '@/lib/reading/store';
 import type { SttPolicy } from '@/lib/reading/stt-policy';
-import { assetsPresent, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
+import { missingModelBytes, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
 import { formatDownloadProgress, loadPercent, type VoiceProgress } from '@/lib/reading/tts/download-progress';
 import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
@@ -132,6 +133,8 @@ const MASKS: { key: MaskMode; label: string; desc: string }[] = [
   { key: 'all', label: t('reading.maskAll'), desc: t('reading.maskAllDesc') },
 ];
 const NOTICE_MS = 4000;
+/** 완료 화면이 뜬 뒤 버튼을 받지 않는 시간. */
+const DONE_LOCK_MS = 800;
 const MASCOT = require('@/assets/images/mascot-reading.png');
 
 const COACH_TEXT: Record<CoachMark, string> = {
@@ -214,6 +217,10 @@ export default function ReadingPlay() {
   // [다시 연습]의 회차 요청 id — 실패 뒤 다시 눌러도 같은 회차 하나가 된다.
   const readAgainRequestId = useRef(newRequestId());
   const [restarting, setRestarting] = useState(false);
+  /** 시작 전 [시작] 위에 자동 넘김 안내를 보일지 — 숨기지 않았고 자동 넘김 회차일 때만. */
+  const [startHint, setStartHint] = useState(false);
+  /** 완료 화면이 뜬 직후 잠깐은 버튼을 받지 않는다 — 실행 중 [다음]을 연타하다 새 연습이 바로 시작되지 않게(SOMA-772). */
+  const [doneLocked, setDoneLocked] = useState(true);
   /** 완료 화면 [완료] 뒤의 리딩 마무리(pen 「새 · 리딩 마무리」). */
   const [wrapUp, setWrapUp] = useState(false);
   /** 첫 리딩 안내 — 본 적이 없을 때만. done 은 이미 지나간 안내. */
@@ -445,12 +452,14 @@ export default function ReadingPlay() {
     setEngine(next);
   }, []);
 
-  /** 실행으로 들어간다. 자동 넘김 안내 팝업을 아직 숨기지 않았으면 그 팝업부터 — 떠 있는 동안 첫 줄을 읽지 않는다. */
+  /**
+   * 준비가 끝나면 「리딩 시작 전」(pen GqB1I)에 멈춘다 — [시작]을 눌러야 첫 줄을 연다(SOMA-772). 안내를 숨겼거나
+   * 옛 회차(advance=manual)여도 바로 시작하지 않는다. 자동 넘김 안내 글만 그때 뺀다.
+   */
   const startRunning = useCallback(() => {
-    // 옛 회차(advance=manual)에는 자동 넘김이 없어 팝업도 없다.
-    const hold = tipHiddenRef.current || session?.advance !== 'silence' ? null : 'tip';
-    holdRef.current = hold;
-    setPhase({ kind: 'running', hold });
+    setStartHint(!tipHiddenRef.current && session?.advance === 'silence');
+    holdRef.current = 'tip';
+    setPhase({ kind: 'running', hold: 'tip' });
   }, [session?.advance]);
 
   // ── 목소리 준비 → 실행 ─────────────────────────────────────────────────────
@@ -477,8 +486,11 @@ export default function ReadingPlay() {
       else setPhase({ kind: 'voice_unsupported' });
       return;
     }
-    if (!assetsPresent('fp32', 'M1')) {
-      const prompt = modelDownloadPrompt({ assetsPresent: false, networkType: await currentNetworkType(), bytes: modelDownloadBytes('fp32') });
+    // 받아 둔 만큼은 빼고 남은 양으로 판단한다 — 다 받아 둔 기기는 이동통신이어도 묻지 않고, Wi-Fi 미리 받기가
+    // 중간에 끊긴 기기에는 남은 양만 묻는다(SOMA-772).
+    const missing = missingModelBytes('fp32');
+    if (missing > 0) {
+      const prompt = modelDownloadPrompt({ assetsPresent: false, networkType: await currentNetworkType(), bytes: missing });
       if (prompt.ask) {
         const ok = await confirm({
           title: t('reading.downloadAskTitle'),
@@ -918,8 +930,28 @@ export default function ReadingPlay() {
     exitToDetail();
   };
 
+  // 완료 화면이 뜨면 잠깐(DONE_LOCK_MS) 버튼을 막는다.
+  useEffect(() => {
+    if (phase.kind !== 'done') return;
+    setDoneLocked(true);
+    const timer = setTimeout(() => setDoneLocked(false), DONE_LOCK_MS);
+    return () => clearTimeout(timer);
+  }, [phase.kind]);
+
+  /** 리딩 마무리 → 코칭 새 연습. 대본 제목·장면·내 배역을 장면 칸에 채워 넘긴다(SOMA-772). */
+  const toCoach = () => {
+    const cur = runRef.current;
+    if (script && cur) {
+      setContinueOrigin({
+        kind: 'reading',
+        scene: readingCoachScene({ title: script.title, lineIds: cur.lineIds, scenes: script.scenes, startIndex: cur.startIndex, myRoles: cur.myRoles, t }),
+      });
+    }
+    router.replace('/upload');
+  };
+
   const readAgain = async () => {
-    if (!script || !session || restarting) return;
+    if (doneLocked || !script || !session || restarting) return;
     setRestarting(true);
     try {
       const next = await startSession(
@@ -1081,7 +1113,7 @@ export default function ReadingPlay() {
               {wrap.next === null ? t('reading.wrapAll') : t('reading.wrapNext', { readTo: wrap.readTo, next: wrap.next })}
             </Text>
           </View>
-          <Pressable style={styles.wrapRow} onPress={() => router.replace('/upload')} accessibilityRole="button">
+          <Pressable style={styles.wrapRow} onPress={toCoach} accessibilityRole="button">
             <Feather name="video" size={18} color={palette.textDim} />
             <Text style={styles.wrapRowText}>{t('reading.wrapCoach')}</Text>
             <Feather name="chevron-right" size={18} color={palette.checkOff} />
@@ -1154,6 +1186,18 @@ export default function ReadingPlay() {
             </View>
           ) : null}
 
+          {/* 다시 연습은 실행 중 [다음] 자리(아래 오른쪽)를 피해 본문에 둔다 — 연타로 새 연습이 바로 시작되지 않게(SOMA-772). */}
+          <Pressable
+            style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
+            onPress={() => void readAgain()}
+            disabled={doneLocked || restarting}
+            accessibilityRole="button"
+            accessibilityLabel={t('reading.readAgain')}
+            accessibilityState={{ disabled: doneLocked || restarting }}>
+            {restarting ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
+            <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
+          </Pressable>
+
           {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
           {!fromTutorialRef.current && (
             <View style={styles.ratingSlot}>
@@ -1163,8 +1207,7 @@ export default function ReadingPlay() {
 
         </ScrollView>
         <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
-          <PrimaryButton label={t('reading.finish')} onPress={() => setWrapUp(true)} />
-          <SecondaryButton label={t('reading.readAgain')} onPress={() => void readAgain()} loading={restarting} />
+          <PrimaryButton label={t('reading.finish')} onPress={() => setWrapUp(true)} disabled={doneLocked} />
         </View>
         {dialog}
         {ratingSheet}
@@ -1310,11 +1353,13 @@ export default function ReadingPlay() {
       {hold === 'tip' ? (
         // pen 「새 · 리딩 시작 전」 — 자동 넘김 안내를 팝업 대신 아래에 두고 [시작]으로 첫 줄을 연다.
         <View style={[styles.startBar, { paddingBottom: insets.bottom + 12 }]}>
-          <Text style={styles.startHint}>{t('reading.startHint')}</Text>
+          {startHint && <Text style={styles.startHint}>{t('reading.startHint')}</Text>}
           <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
-          <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
-            <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
-          </Pressable>
+          {startHint && (
+            <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
+            </Pressable>
+          )}
         </View>
       ) : (
       <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
@@ -1459,6 +1504,9 @@ const styles = StyleSheet.create({
   wrapCard: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, gap: 6, marginTop: 18 },
   wrapMeta: { color: palette.textMuted, fontSize: 12, fontWeight: '800' },
   wrapNext: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 23 },
+  readAgainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 },
+  readAgainOff: { opacity: 0.4 },
+  readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
   wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700' },
   coachAboveControls: { paddingHorizontal: 16, paddingBottom: 8 },
