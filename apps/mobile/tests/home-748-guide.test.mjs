@@ -9,8 +9,9 @@ test('홈 안내는 첫 연습을 끝낸 뒤 카드·대본·챌린지·프로�
   const steps = home.slice(home.indexOf('const HOME_STEPS'), home.indexOf('];', home.indexOf('const HOME_STEPS')));
   const targets = [...steps.matchAll(/target: TARGET\.(\w+)/g)].map((m) => m[1]);
   assert.deepEqual(targets, ['homeStart', 'tabReading', 'tabChallenge', 'tabProfile']);
-  // 첫 사용자 홈(뭐부터 해 볼까요?)에서는 띄우지 않는다.
-  assert.match(home, /visible=\{guideOpen && overlaysReady && loaded && !firstUser\}/);
+  // 첫 사용자 홈(뭐부터 해 볼까요?)에서는 띄우지 않고, 「연습 1회」(SOMA-773)를 한 뒤에만 띄운다.
+  assert.match(home, /visible=\{guideOpen && overlaysReady && loaded && !firstUser && practiced\}/);
+  assert.match(home, /const practiced = \(activityDays\?\.length \?\? 0\) > 0;/);
 
   const layout = src('app/(tabs)/_layout.tsx');
   for (const key of ['tabReading', 'tabChallenge', 'tabProfile']) assert.match(layout, new RegExp(`useSpotlightTarget\\(TARGET\\.${key}\\)`));

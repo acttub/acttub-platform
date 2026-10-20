@@ -67,13 +67,15 @@ export default function ChallengeUploadScreen() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
   const [durationMs, setDurationMs] = useState<number | null>(null);
+  /** 넘겨받은 영상의 출처 — 보관함(videoId)·갤러리·방금 촬영. 머리줄 문구가 출처를 따른다(SOMA-773). */
+  const [fromGallery, setFromGallery] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [caption, setCaption] = useState('');
   // pen 챌린지 올리기(SOMA-748) — 「나만 보기」가 먼저 골라져 있다. 공개는 배우가 직접 바꾼다.
   const [visibility, setVisibility] = useState<EntryVisibility | null>('private');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** 방금 만든 참여작 — 있으면 완료 화면이고, "AI 리포트 받기"가 id 를 쓴다. */
+  /** 방금 만든 참여작 — 있으면 완료 화면이고, 「AI 리포트 보기」가 id 를 쓴다. */
   const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility } | null>(null);
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
@@ -118,6 +120,7 @@ export default function ChallengeUploadScreen() {
     if (!recorded || !user?.id || params.videoId) return;
     setLocalUri(recorded.uri);
     setDurationMs(recorded.durationMs ?? null);
+    setFromGallery(recorded.source === 'gallery');
     if (videoTooLong(recorded.durationMs)) {
       void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
       setError(t('challengeUpload.errTooLong'));
@@ -219,14 +222,14 @@ export default function ChallengeUploadScreen() {
   if (created) {
     const copy = doneCopy(created.visibility);
     /**
-     * "AI 리포트 받기"(A18.3) — 같은 대사의 다른 참여작과 견주는 챌린지 리포트로 간다.
-     * 공개·비공개 참여작 모두 요청할 수 있다(challenge.ai-report).
+     * 「AI 리포트 보기」(A18.3) — 같은 대사의 다른 참여작과 견주는 챌린지 리포트로 간다. 이 한 번 누름이 요청이라
+     * 리포트 화면이 열리자마자 만들기를 부탁한다(request=1, SOMA-773). 공개·비공개 참여작 모두 요청할 수 있다(challenge.ai-report).
      */
     const getReport = () => {
       logEvent('challenge_upload_report', { visibility: created.visibility });
       router.replace({
         pathname: '/ai-report',
-        params: { entryId: created.id, videoId: videoId ?? '', challengeId: challengeId ?? '', visibility: created.visibility },
+        params: { entryId: created.id, videoId: videoId ?? '', challengeId: challengeId ?? '', visibility: created.visibility, request: '1' },
       });
     };
     return (
@@ -243,8 +246,9 @@ export default function ChallengeUploadScreen() {
           <Text style={styles.doneSub}>
             {copy.body} {t('challengeUpload.doneGuide')}
           </Text>
-          <PrimaryButton
-            style={styles.doneBtn}
+          <PrimaryButton style={styles.doneBtn} label={t('challengeUpload.getReport')} onPress={getReport} />
+          <SecondaryButton
+            style={[styles.doneBtn, styles.ghost]}
             label={t('challengeUpload.goHome')}
             onPress={() =>
               challengeId
@@ -252,7 +256,6 @@ export default function ChallengeUploadScreen() {
                 : router.replace('/')
             }
           />
-          <SecondaryButton style={[styles.doneBtn, styles.ghost]} label={t('challengeUpload.getReport')} onPress={getReport} />
         </View>
       </SafeAreaView>
     );
@@ -282,7 +285,7 @@ export default function ChallengeUploadScreen() {
             </Text>
             <Text style={styles.metaSub}>
               {[
-                t(params.videoId ? 'challengeUpload.fromLibrary' : 'challengeUpload.justRecorded'),
+                t(params.videoId ? 'challengeUpload.fromLibrary' : fromGallery ? 'challengeUpload.fromGallery' : 'challengeUpload.justRecorded'),
                 durationMs ? formatClipDuration(Math.round(durationMs / 1000)) : '',
                 challenge ? dDayLabel(challenge) : '',
               ]

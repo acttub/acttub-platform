@@ -3,6 +3,8 @@
  * 목록(연습 묶음·리딩 회차·내 참여작)으로 기기에서 센다. 이번 달은 기기 시각 기준 달력 달이다.
  */
 
+import { countedPractices, type CountedPracticeInput } from './practice/counted.ts';
+
 /** 기기 시각 기준 now 와 같은 달력 달인가. 날짜가 없거나 잘못됐으면 거짓. */
 export function inMonth(iso: string | null | undefined, now: Date): boolean {
   if (!iso) return false;
@@ -14,24 +16,13 @@ export function inMonth(iso: string | null | undefined, now: Date): boolean {
 export type MonthPracticeCounts = { coaching: number; reading: number; challenge: number; total: number };
 
 /**
- * 코칭은 회차(묶음 안 practices), 리딩은 회차(started_at)를 센다. 챌린지는 이번 달에 참여한 서로 다른 챌린지 수다 —
- * 프로필의 챌린지 수는 참여작 수가 아니라 챌린지 수로 센다(SOMA-738, participatedChallengeCount 와 같은 뜻).
+ * 「연습 1회」 기준(lib/practice/counted.ts) 하나로 이번 달 것만 센다(SOMA-773) — 코칭은 노트가 생긴 회차, 리딩은 끝까지
+ * 읽은 회차, 챌린지는 올린 참여작 하나가 1회다(같은 챌린지에 두 번 올리면 2회).
  */
-export function monthPracticeCounts(
-  input: {
-    groups: readonly { practices: readonly { created_at: string }[] }[];
-    readingSessions: readonly { started_at: string }[];
-    entries: readonly { created_at: string; challenge: { id: string } }[];
-  },
-  now: Date,
-): MonthPracticeCounts {
-  const coaching = input.groups.reduce(
-    (sum, group) => sum + group.practices.filter((p) => inMonth(p.created_at, now)).length,
-    0,
-  );
-  const reading = input.readingSessions.filter((s) => inMonth(s.started_at, now)).length;
-  const challenge = new Set(input.entries.filter((e) => inMonth(e.created_at, now)).map((e) => e.challenge.id)).size;
-  return { coaching, reading, challenge, total: coaching + reading + challenge };
+export function monthPracticeCounts(input: CountedPracticeInput, now: Date): MonthPracticeCounts {
+  const counts = { coaching: 0, reading: 0, challenge: 0 };
+  for (const p of countedPractices(input)) if (inMonth(p.at, now)) counts[p.kind] += 1;
+  return { ...counts, total: counts.coaching + counts.reading + counts.challenge };
 }
 
 type CardGroup = {

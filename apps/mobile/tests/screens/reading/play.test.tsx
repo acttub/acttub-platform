@@ -189,19 +189,19 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
 
   await speechEnds();
-  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  // 인식된 대사가 없으면 끝까지 가도 완료가 아니다(SOMA-773) — 완료 저장·별점 요청 없이 「연습으로 세지 않았어요」.
+  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
   expect(screen.getByText('내 배역 · 민재')).toBeOnTheScreen();
-  expect(screen.getByText('읽은 대사 3줄')).toBeOnTheScreen();
-  expect(screen.getByText('이 기기에서는 말한 것을 글자로 바꾸지 못해 비교하지 않았어요.')).toBeOnTheScreen();
-  await waitFor(() =>
-    expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: null, complete: true, line_results: [] })),
-  );
-  expect(server.saveProgress.mock.calls.map(([, body]) => body.current_line_id)).toEqual(['l4', 'l5', null]);
+  expect(screen.queryByText('읽은 대사 3줄')).not.toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenCalledTimes(2));
+  expect(server.saveProgress.mock.calls.map(([, body]) => body.current_line_id)).toEqual(['l4', 'l5']);
+  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
   expect(jest.mocked(enqueueLineRecording).mock.calls.map(([input]) => [input.lineId, input.attemptNo, input.uri, input.contentType])).toEqual([
     ['l2', 1, 'file:///turn.m4a', 'audio/mp4'],
     ['l5', 1, 'file:///turn.m4a', 'audio/mp4'],
   ]);
-  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
+  expect(mockAskRating).not.toHaveBeenCalled();
+  expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('완료'));
   expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
@@ -732,8 +732,39 @@ test('고친 줄이 대사가 아니게 되고 남은 대사가 없으면 완료
   await fireEvent.press(screen.getByText('지문'));
   await fireEvent.press(screen.getByText('저장'));
 
-  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  // 말한 대사 없이 끝났으니 완료 화면은 「연습으로 세지 않았어요」다(SOMA-773).
+  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
   expect(server.patchLine).toHaveBeenCalledWith('s1', 'l1', { kind: 'direction' });
+});
+
+test('인식된 말 없이 「다음」만으로 끝까지 가면 완료로 보내지 않고 별점도 묻지 않는다(SOMA-773)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('아직 인식된 말이 없어요');
+
+  await speechEnds(() => recognizer);
+  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
+  expect(screen.getByText('알아들은 대사가 없어서 이번 리딩은 완료로 남기지 않았어요. 대사를 소리 내어 읽으면 완료로 세요.')).toBeOnTheScreen();
+  expect(screen.queryByText('리딩 완료')).not.toBeOnTheScreen();
+  expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
+  expect(screen.queryByText('말한 것을 원문과 비교하고 있어요.')).not.toBeOnTheScreen();
+  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
+  expect(mockAskRating).not.toHaveBeenCalled();
+});
+
+test('이어하기 전에 서버가 받은 인식이 있으면 이번에 말이 없어도 완료다', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  const server = await startPlay({
+    start_line_id: 'l5',
+    end_line_id: 'l5',
+    different_lines: [{ line_id: 'l2', dialogue_no: 1, said: '오늘 왔다', different_words: [{ text: '오늘', differs: false }] }],
+  });
+  await screen.findByText('아직 인식된 말이 없어요');
+
+  await speechEnds(() => recognizer);
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: true })));
+  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 });
 
 test('진행 저장이 끝난 회차라고 거절되면 실행을 닫고 상세로 안내한다', async () => {
@@ -753,6 +784,7 @@ test('완료 저장이 끊기면 나중에 보여 준다고 알린다', async ()
   server.saveProgress.mockRejectedValue(new Error('offline'));
   await screen.findByText('아직 인식된 말이 없어요');
 
+  mockStt.finish.mockResolvedValueOnce('괜찮아');
   await speechEnds(() => recognizer);
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(await screen.findByText('연결되면 비교 결과를 보여 드릴게요.')).toBeOnTheScreen();
@@ -767,6 +799,7 @@ test('완료 저장의 응답을 잃어 끝난 회차라고 거절되면 회차 
   server.getSession.mockImplementation(() => new Promise((resolve) => (answer = () => resolve(sessionDetail({ different_lines: different })))));
   await screen.findByText('아직 인식된 말이 없어요');
 
+  mockStt.finish.mockResolvedValueOnce('괜찮다');
   await speechEnds(() => recognizer);
   expect(await screen.findByText('말한 것을 원문과 비교하고 있어요.')).toBeOnTheScreen();
   await act(async () => answer());
@@ -834,11 +867,13 @@ test('이어 하기는 저장된 줄 바로 앞 상대 대사부터 읽고, 그 
 
 test('튜토리얼로 온 리딩은 여기서 튜토리얼을 끝내고, 완료 화면에서 평가를 묻지 않는다', async () => {
   startTutorial('sample', 'reading');
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
-  await screen.findByText('듣는 중');
+  await screen.findByText('아직 인식된 말이 없어요');
   expect(currentTutorial()).toBeNull();
 
-  await speechEnds();
+  mockStt.finish.mockResolvedValueOnce('괜찮아');
+  await speechEnds(() => recognizer);
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
   expect(mockAskRating).not.toHaveBeenCalled();
@@ -924,7 +959,7 @@ test('발음 피드백이 켜져 있어도 받아쓰지 않은 줄은 다르게 
   await screen.findByText('듣는 중');
   await speechEnds();
 
-  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
   expect(screen.queryByText('발음 피드백')).not.toBeOnTheScreen();
   expect(logEvent).not.toHaveBeenCalledWith('reading_pronunciation_feedback', expect.anything());
 });
@@ -960,7 +995,7 @@ test('녹음 올리기 대기 수가 바뀌면 완료 화면에 바로 반영한
   await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
   await screen.findByText('듣는 중');
   await speechEnds();
-  await screen.findByText('리딩 완료');
+  await screen.findByText('연습으로 세지 않았어요');
 
   await act(async () => notify(3));
   expect(screen.getByText('녹음 3개 저장 중')).toBeOnTheScreen();
@@ -1142,6 +1177,7 @@ test('다르게 말한 대사가 여럿이면 두 줄까지만 보이고 수를 
     ],
   });
   await screen.findByText('아직 인식된 말이 없어요');
+  mockStt.finish.mockResolvedValueOnce('괜찮');
   await speechEnds(() => recognizer);
 
   expect(await screen.findByText('3개')).toBeOnTheScreen();
