@@ -993,6 +993,12 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     공백뿐이면 NULL 이다(`PracticeRules.title`). 이어하기는 제목을 받지 않고(DTO 에 칸이 없어 unknown key 422, §6-3) 새 행의
     title 은 NULL 이다. **지문에는 제목이 있을 때만 붙인다** — 제목 없는 요청의 지문이 이 변경 전과 같아야 배포를 걸친 재전송이
     `request_fingerprint_mismatch` 로 바뀌지 않는다.
+  - **세션 목적**(`PracticeCreateRequest.session_purpose`, SOMA-719)은 `evaluate`·`stuck`·`character` 중 하나이고, 첫 행의
+    `practices.session_purpose`(V46, NULL 허용 + CHECK)에 회차와 같은 INSERT 로 들어간다. 다른 값·공백은 422 배열(`@Pattern`)이다.
+    이어하기는 목적을 받지 않고 새 행에 묶음 첫 행의 목적을 COALESCE 로 물려준다. 지문에는 목적이 있을 때만 붙인다(제목과 같은 까닭).
+    목적이 NULL 인 회차(옛 앱)는 코치가 지금 연습 루프 그대로다. 목적이 있으면 코치는 `feature/coach/app/PurposeLoop` 의 목적별
+    단계표를 타고, 대화 응답 `CoachConversation.purpose` 에 답 버튼·AI가 본 장면·받아 적은 대사·결과 카드·인물 카드를 싣는다
+    ([practice.coach 「목적별 코칭」](../../docs/specs/practice/coach.md#목적별-코칭-soma-719)).
   - **회차의 포스터**(`Practice.poster_url`, SOMA-671): 회차 SELECT 가 `videos` 를 LEFT JOIN 해 `purged_at IS NULL` 인 영상의
     `poster_key` 만 읽는다(옛 표 호환 읽기도 같은 규칙). 서명은 `practice/app/PracticePosters` 포트 →
     `adapter/storage/ObjectStoragePracticePosters` 이고 보관함과 같은 10분(`PracticeRules.POSTER_URL_TTL_SECONDS`)이다.

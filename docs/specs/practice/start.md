@@ -21,7 +21,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/practices` | `X-Request-Id`(본문 request_id와 같아야 한다), `X-Acttub-Contract`, 필수 `request_id`·`video_id`, 선택 `scene`·`blockage`·`title` (`PracticeCreateRequest`) | `Practice` 201(`poster_url` 포함, [practice.library](library.md#규칙제약)), 같은 요청 id 재전송도 같은 회차 | `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `consent_required` 403, 값 모양 오류 422(배열) |
+| `POST /v2/practices` | `X-Request-Id`(본문 request_id와 같아야 한다), `X-Acttub-Contract`, 필수 `request_id`·`video_id`, 선택 `scene`·`blockage`·`title`·`session_purpose` (`PracticeCreateRequest`) | `Practice` 201(`poster_url` 포함, [practice.library](library.md#규칙제약)), 같은 요청 id 재전송도 같은 회차 | `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `consent_required` 403, 값 모양 오류 422(배열) |
 | `POST /v2/practices/{practice_id}/analyze` (닫힌 회차 재시도) | `X-Request-Id`, 필수 `request_id` (`PracticeAnalyzeRequest`) | `Practice` 201, 새 analyze 작업 | `analysis_not_failed` 409, `practice_in_progress` 409, `guest_daily_analysis_limit` 429, `practice_not_found` 404 |
 
 ## 상태
@@ -85,12 +85,18 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 플래그 켬·헤더 three_layers_v1·상황·막힘(표현 › 감정)을 적고 시작: 저장값이 그대로이고 experience_version three_layers_v1.
 - 헤더 없이 상황·막힘(표현 › 감정)을 적고 시작: experience_version legacy, 표현 갈래.
 - 같은 요청 id·같은 본문 두 번: 행 하나. 같은 id·다른 본문: 422 request_fingerprint_mismatch. 설정 화면만 다녀감: 행 없음.
+- 시작 때 세션 목적(`session_purpose`, 선택, SOMA-719)을 함께 보낼 수 있다: `evaluate`(평가 받기)·`stuck`(막힌 곳 풀기)·
+  `character`(인물 이해하기). 첫 행의 session_purpose에 저장하고 회차 응답에 그대로 싣는다. 다른 값·공백은 422(배열)다. 없으면 null이고
+  코치는 지금 흐름 그대로다. 이어하기는 목적을 받지 않고 묶음 첫 회차의 목적을 물려받는다. 목적은 요청 지문에 든다(목적이 없는 요청의
+  지문은 이 변경 전과 같다). 목적별 대화는 [practice.coach 「목적별 코칭」](coach.md#목적별-코칭-soma-719)이다.
 - 확정 안 된 영상: 422 video_not_ready.
 - 게스트 4번째: 429 guest_daily_analysis_limit. 자정(한국 시간) 뒤: 된다.
 - 트랜잭션을 실패시킴: practices·ai_jobs 둘 다 없다.
 - 상황 300자: 200. 301자: 422. 막힘 서술 500자: 200. 501자: 422.
 - 제목을 적고 시작: 앞뒤 공백을 뗀 값이 첫 행 title이고 묶음 목록의 title이다. 공백뿐인 제목: null. 200자: 된다. 201자: 422(배열).
   같은 요청 id·다른 제목: 422 request_fingerprint_mismatch. 그 묶음을 이어하기: 묶음 제목 그대로, 이어하기 본문의 title은 422(배열).
+- 목적을 고르고 시작: 회차 응답의 session_purpose가 그 값이다. 같은 요청 id·다른 목적·목적을 뺀 본문: 422 request_fingerprint_mismatch.
+  모르는 값(worry): 422(배열, loc body.session_purpose), 행이 늘지 않는다. 목적 없이 시작: null. 그 묶음을 이어하기: 첫 회차의 목적.
 - 시작 뒤 상황 수정 API: 없다(속성 불변). 대화에서 장면을 답함: practices의 상황은 그대로다.
 - 분석 최종 실패: stage closed. 그 회차 재시도: 새 ai_jobs, stage analyzing. 다른 진행 중 회차가 있으면 재시도: 409 practice_in_progress.
 - 하루 3회를 쓴 게스트가 아직 분석 중인 회차를 재시도: 429가 아니라 409 analysis_not_failed.

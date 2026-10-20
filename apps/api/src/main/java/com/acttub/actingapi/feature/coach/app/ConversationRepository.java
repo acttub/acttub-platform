@@ -151,7 +151,14 @@ public interface ConversationRepository {
             String experienceVersion,
             long revision,
             Instant createdAt,
-            List<Turn> turns) {
+            List<Turn> turns,
+            // 목적별 코칭(SOMA-719). 목적 없이 시작한 대화와 옛 대화는 null.
+            PurposeView purpose) {
+
+        public ConversationView(UUID id, UUID practiceId, String status, String closeReason, String experienceVersion,
+                long revision, Instant createdAt, List<Turn> turns) {
+            this(id, practiceId, status, closeReason, experienceVersion, revision, createdAt, turns, null);
+        }
     }
 
     /** @param role {@code actor}·{@code coach}(저장은 옛 값과 같은 {@code ai} 다) */

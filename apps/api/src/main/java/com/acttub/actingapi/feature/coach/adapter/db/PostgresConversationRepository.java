@@ -475,7 +475,8 @@ class PostgresConversationRepository implements ConversationRepository {
     @Override
     public ConversationView conversation(UUID userId, UUID conversationId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT c.id,c.practice_id,c.status,c.close_reason,c.state_revision,c.created_at,p.experience_version
+                SELECT c.id,c.practice_id,c.status,c.close_reason,c.state_revision,c.created_at,p.experience_version,
+                       p.session_purpose,CAST(c.state AS text) AS state
                 FROM coach_conversations c
                 JOIN practices p ON p.id=c.practice_id
                 WHERE c.id=:conversationId
@@ -508,7 +509,9 @@ class PostgresConversationRepository implements ConversationRepository {
                 row.get("experience_version", String.class),
                 ((Number) row.get("state_revision")).longValue(),
                 row.get("created_at", Instant.class),
-                turns);
+                turns,
+                com.acttub.actingapi.feature.coach.app.PurposeView.from(row.get("session_purpose", String.class),
+                        json(row.get("state", String.class))));
     }
 
     private static JsonNode json(String raw) {

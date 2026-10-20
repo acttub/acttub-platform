@@ -23,7 +23,7 @@
 |---|---|---|---|
 | `POST /v2/coach/start` | 필수 `practice_id`·`request_id` (`CoachStartRequest`) | `CoachTurnResult` 200(`{conversation, message, note}`), 이미 열린 대화면 같은 대화 | `analysis_not_ready` 409, `conversation_closed` 409, `practice_not_found` 404, `coach_response_unavailable` 502, `account_deactivated` 403, `request is still processing` 409 |
 | `POST /v2/coach/reply` | 필수 `conversation_id`·`request_id`, `text`(300자까지)·`revision` (`CoachReplyRequest`) | `CoachTurnResult` 200, 닫히면 `note` 포함 | `conversation_closed` 409, `conversation_conflict` 409, `request_fingerprint_mismatch` 422, `practice_not_found` 404, `coach_response_unavailable` 502, `account_deactivated` 403, `request is still processing` 409, 301자 422(배열) |
-| `GET /v2/coach/conversations/{conversation_id}` | conversation_id | `CoachConversation` 200(`reply_limit` 포함) | `conversation_not_found` 404 |
+| `GET /v2/coach/conversations/{conversation_id}` | conversation_id | `CoachConversation` 200(`reply_limit` 포함, 목적별 코칭이면 `purpose` 포함) | `conversation_not_found` 404 |
 | `POST /v2/coach/direct-video`, `GET·DELETE /v2/coach/direct-video/{id}`, `POST /v2/coach/direct-video/{id}/messages` (dev 전용, openapi 밖) | 영상 파일(50MiB까지), 메시지 2,000자까지 | 아래 「Gemini 직접 영상 코칭」 | `unsupported_media_type` 415, `upload_too_large` 413, `empty_video` 422, `direct_video_session_limit` 429, `direct_video_turn_limit`·`direct_video_not_ready` 409, `direct_video_not_found` 404 |
 
 ## 상태
@@ -521,3 +521,40 @@ false를 명시하면 위의 분류·지침 경로로 돌아간다(롤백). dev 
 - 그대로 하는 것: 빈 답 다시 쓰기·비교 모델 빈 답의 기본 모델 대체(보낸 글이 없다), 첫 응답의 연기 아님 끊기(`</설계>` 에서 판단해 `<코치>` 를 흘리지 않는다), 분류·할 일 결정, 상태 칸.
 - 스트리밍하지 않고 다 쓴 뒤 한 번에 보내는 경우: 이어서 찍은 회차의 첫 답(두 답 중 같은 장면 판단으로 고른다), 소리 트랙이 없는 영상(근거 검사가 말을 막을 수 있다), 연습 루프가 아닌 예전 대화. 이때도 `done` 하나로 끝난다.
 - 기록: Langfuse `COACH_TURN` 메타데이터 `stream=true`.
+
+## 목적별 코칭 (SOMA-719)
+
+회차를 목적과 함께 시작했으면([practice.start](start.md)) 코치는 목적마다 다른 단계로 대화한다. 목적이 없는 회차는 위의 연습 루프 그대로다.
+배우는 상황·인물·상대·원하는 것·제목을 적지 않는다. AI가 영상에서 알아보고 화면이 「AI가 본 장면」으로 보여 준다.
+
+### 단계
+| 목적 | 단계(응답 순서) | 끝 |
+|---|---|---|
+| evaluate 평가 받기 | card 결과 카드 → intent 하려던 것 → method 방법 고르기 → wrap 정리 | 정리 응답에서 닫힌다 |
+| stuck 막힌 곳 풀기 | reason 어떻게 막혔는지 → line 어느 대사인지 → seen 그곳에서 본 것 → method 방법 고르기 → wrap 막힌 곳 정리 | 〃 |
+| character 인물 이해하기 | view 어떤 사람으로 봤는지 → cell 인물 카드 채우기(빈 칸 최대 3번) → wrap 인물 카드 정리 | 〃 |
+
+- 단계는 코드가 정한다(`PurposeLoop`). 배우가 직전 답의 버튼을 그대로 누르면 분류 AI를 부르지 않고 다음 단계로 간다. 직접 쓴 말은
+  지금 분류 AI로 나눠 물음(답하기)·정정(받기)·짧은 답·모르겠다(쉽게 다시 묻기 → 코치 생각 내놓기)·방법 요청(방법 고르기로)·그만(닫기)을
+  가른다. 한 단계에서 두 번 머물면 다음 단계로 넘긴다.
+- 막힌 곳 풀기에서 배우가 막힌 느낌을 말하며 받아 적은 대사를 짚으면 「어느 대사인지」를 건너뛴다.
+- 인물 카드가 여섯 칸 다 차면 일찍 정리한다. 코치 응답은 시작 응답을 포함해 9번까지이고(`reply_limit`), 9번째는 정리다.
+- 평가 받기의 결과 카드에서 「다른 것도 봐 주세요」는 한 번만 다른 곳을 보여 준다(카드의 아쉬운 곳이 바뀐다).
+- 목적별 대화는 지금 흐름의 실험(코치 모델 A/B, 흐름 A/B, 자문위원 성격)에 넣지 않는다. 기본 모델로 답하고 상태에 그 표시를 남기지 않는다.
+- 이어서 찍은 회차의 「지난 시도부터 묻는 첫 답」은 붙이지 않는다(지난 맥락 칸은 그대로 받는다).
+
+### 응답의 `purpose`
+`CoachConversation.purpose`(목적 없는 대화는 null). 화면은 이것을 그대로 그린다.
+- `purpose`·`step`: 목적과 지금 단계.
+- `choices`: 이번 코치 답 아래의 답 버튼(`label`, 대사를 가리키면 영상 시간 `at` 초). 누르면 그 label을 배우 답으로 보낸다.
+  결과 카드 단계는 「코치와 같이 고치기」「다른 것도 봐 주세요」, 그 밖의 단계는 AI 보기 최대 3개 + 「잘 모르겠어요」. 정리 뒤에는 빈 목록이다.
+  「직접 쓰기」는 화면이 늘 함께 둔다.
+- `scene`: AI가 본 장면(situation·character·partner, 모르는 칸은 빈 문자열). 배우가 대화에서 바로잡으면 코치가 고친 값을 낸다.
+- `lines`: 받아 적은 대사와 영상 시간(초). 소리가 없거나 대사를 확인하지 못했으면 빈 목록이다.
+- `card`: 결과 카드(good·issue·next, 각 `at`·`text`). 평가 받기의 첫 답·다른 곳·정리, 막힌 곳 정리에서 채운다.
+- `character_card.cells`: 인물 카드 칸(key who·before·relation·want·obstacle·action, label, value, source 내 말·같이 찾음·영상·대본).
+
+### 모델 출력의 숨은 칸
+코치 말 뒤에 `<보기>`·`<카드>`·`<인물 카드>`·`<장면>`·`<다음 테이크>`를 쓴다. 서버가 걷어 상태 `purpose_loop` 에 두고, 저장·스트리밍
+코치 말에서는 뗀다. 소리 없는 영상이면 이 칸의 따옴표 대사도 근거 검사를 받는다. 프롬프트: `coaching/direct-video/purpose/`.
+

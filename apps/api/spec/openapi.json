@@ -6803,6 +6803,16 @@
               "type" : "null"
             } ],
             "title" : "Title"
+          },
+          "session_purpose" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "evaluate", "stuck", "character" ],
+              "pattern" : "evaluate|stuck|character"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Session Purpose"
           }
         },
         "required" : [ "request_id", "video_id" ],
@@ -6996,6 +7006,15 @@
               "$ref" : "#/components/schemas/PreviousConversation"
             },
             "title" : "Previous Conversations"
+          },
+          "session_purpose" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "evaluate", "stuck", "character" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Session Purpose"
           }
         },
         "required" : [ "blockage_category", "blockage_detail", "character", "conversation_count", "created_at", "experience_version", "goal", "id", "ordinal", "previous_conversations", "root_id", "situation", "stage", "video_id" ],
@@ -7710,6 +7729,65 @@
         "required" : [ "practice_id", "request_id" ],
         "title" : "CoachStartRequest"
       },
+      "CoachCharacterCard" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "cells" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachCharacterCell"
+            },
+            "title" : "Cells"
+          }
+        },
+        "required" : [ "cells" ],
+        "title" : "CoachCharacterCard"
+      },
+      "CoachCharacterCell" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "key" : {
+            "type" : "string",
+            "title" : "Key"
+          },
+          "label" : {
+            "type" : "string",
+            "title" : "Label"
+          },
+          "value" : {
+            "type" : "string",
+            "title" : "Value"
+          },
+          "source" : {
+            "type" : "string",
+            "title" : "Source"
+          }
+        },
+        "required" : [ "key", "label", "source", "value" ],
+        "title" : "CoachCharacterCell"
+      },
+      "CoachChoice" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "label" : {
+            "type" : "string",
+            "title" : "Label"
+          },
+          "at" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "At"
+          }
+        },
+        "required" : [ "label" ],
+        "title" : "CoachChoice"
+      },
       "CoachConversation" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -7767,10 +7845,34 @@
               "type" : "null"
             } ],
             "title" : "Created At"
+          },
+          "purpose" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/CoachPurpose",
+              "description" : "목적별 코칭(SOMA-719)의 버튼·장면·카드. 목적 없이 시작한 대화는 null"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
         "required" : [ "coach_reply_count", "id", "messages", "reply_limit", "revision", "status" ],
         "title" : "CoachConversation"
+      },
+      "CoachLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "at" : {
+            "type" : "integer",
+            "title" : "At"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          }
+        },
+        "required" : [ "at", "text" ],
+        "title" : "CoachLine"
       },
       "CoachNote" : {
         "type" : "object",
@@ -7896,6 +7998,134 @@
         },
         "required" : [ "kind", "quote", "source_ref" ],
         "title" : "CoachNoteQuote"
+      },
+      "CoachPurpose" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "purpose" : {
+            "type" : "string",
+            "enum" : [ "evaluate", "stuck", "character" ],
+            "title" : "Purpose"
+          },
+          "step" : {
+            "type" : "string",
+            "description" : "evaluate: card·intent·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap",
+            "title" : "Step"
+          },
+          "choices" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachChoice"
+            },
+            "title" : "Choices"
+          },
+          "scene" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/CoachScene",
+              "description" : "AI가 영상에서 알아본 장면"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "lines" : {
+            "type" : "array",
+            "description" : "AI가 받아 적은 대사와 영상 시간(초)",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachLine"
+            },
+            "title" : "Lines"
+          },
+          "card" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/CoachResultCard",
+              "description" : "평가 받기의 결과 카드"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "character_card" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/CoachCharacterCard",
+              "description" : "인물 이해하기의 인물 카드"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "choices", "lines", "purpose", "step" ],
+        "title" : "CoachPurpose"
+      },
+      "CoachResultCard" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "good" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/CoachResultCardItem",
+              "description" : "잘 된 곳"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "issue" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/CoachResultCardItem",
+              "description" : "아쉬운 곳"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "next" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/CoachResultCardItem",
+              "description" : "다음 테이크"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "title" : "CoachResultCard"
+      },
+      "CoachResultCardItem" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "at" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "At"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          }
+        },
+        "required" : [ "text" ],
+        "title" : "CoachResultCardItem"
+      },
+      "CoachScene" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "situation" : {
+            "type" : "string",
+            "title" : "Situation"
+          },
+          "character" : {
+            "type" : "string",
+            "title" : "Character"
+          },
+          "partner" : {
+            "type" : "string",
+            "title" : "Partner"
+          }
+        },
+        "required" : [ "character", "partner", "situation" ],
+        "title" : "CoachScene"
       },
       "CoachTurn" : {
         "type" : "object",

@@ -161,7 +161,8 @@ public class ConversationService {
                     (int) originalTurns.stream().filter(turn -> "coach".equals(turn.role())).count(),
                     replyLimit(loaded.session()),
                     originalTurns,
-                    "closed".equals(replayed.status()) ? conversations.note(userId, loaded.practiceId()) : null);
+                    "closed".equals(replayed.status()) ? conversations.note(userId, loaded.practiceId()) : null,
+                    PurposeView.from(loaded.session().sessionPurpose(), loaded.session().coachingState()));
         }
         if ("closed".equals(loaded.session().status())) {
             throw new ApiException(409, "conversation_closed");
@@ -204,7 +205,8 @@ public class ConversationService {
                 saved.coachReplyCount(),
                 displayLimit(result.session(), saved.coachReplyCount()),
                 turns(after.session()).stream().limit(result.session().turns().size()).toList(),
-                note);
+                note,
+                PurposeView.from(result.session().sessionPurpose(), result.session().coachingState()));
     }
 
     /** 대화 하나를 턴과 함께. 409 뒤 화면이 최신 상태를 다시 읽는 자리다. */
@@ -239,7 +241,14 @@ public class ConversationService {
             int coachReplyCount,
             int replyLimit,
             List<ConversationRepository.Turn> turns,
-            NoteView note) {
+            NoteView note,
+            // 목적별 코칭(SOMA-719)의 버튼·장면·카드. 목적 없이 시작한 대화는 null.
+            PurposeView purpose) {
+
+        public Turn(UUID conversationId, String status, String closeReason, long revision, String coachMessage,
+                int coachReplyCount, int replyLimit, List<ConversationRepository.Turn> turns, NoteView note) {
+            this(conversationId, status, closeReason, revision, coachMessage, coachReplyCount, replyLimit, turns, note, null);
+        }
     }
 
     private Turn turn(CoachSessionSnapshot session, UUID conversationId, NoteView note) {
@@ -253,7 +262,8 @@ public class ConversationService {
                 coachReplies(session),
                 displayLimit(session, coachReplies(session)),
                 turns,
-                note);
+                note,
+                PurposeView.from(session.sessionPurpose(), session.coachingState()));
     }
 
     private static List<ConversationRepository.Turn> turns(CoachSessionSnapshot session) {
@@ -277,6 +287,8 @@ public class ConversationService {
      */
     static int displayLimit(CoachSessionSnapshot session, int coachReplies) {
         int limit = replyLimit(session);
+        // 목적별 코칭은 상한을 채우는 응답이 정리이고 그 응답에서 닫힌다.
+        if (PurposeLoop.of(session) != null) return Math.min(limit, PurposeLoop.REPLY_CAP);
         if (session == null || !"open".equals(session.status()) || session.coachingState() == null) return limit;
         var statuses = session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
         if (!statuses.isArray() || statuses.isEmpty()) return limit;
