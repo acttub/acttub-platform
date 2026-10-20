@@ -109,7 +109,9 @@ test('challenge.create: 참여작이 없는 자기 챌린지만 상세에서 지
 test('challenge.browse: 챌린지 탭은 앱 언어와 상관없이 회원에게 열리고 게스트는 안내를 본다', async () => {
   const layout = read('app/(tabs)/_layout.tsx');
   assert.doesNotMatch(layout, /isKorean/);
-  assert.match(layout, /name="challenges"\s*options=\{\{\s*title: t\('tabs\.challenge'\)/);
+  // 탭 제목·읽어 줄 이름은 tab() 묶음이 t(`tabs.<키>`)로 채운다(SOMA-770).
+  assert.match(layout, /name="challenges"\s*options=\{\{\s*\.\.\.tab\('challenge'\)/);
+  assert.match(layout, /title: t\(`tabs\.\$\{key\}`\)/);
   assert.match(read('app/(tabs)/challenges.tsx'), /browseFailureMessage/);
   const { default: ko } = await import('../locales/ko.ts');
   const { default: en } = await import('../locales/en.ts');
