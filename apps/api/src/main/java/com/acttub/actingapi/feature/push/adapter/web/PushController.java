@@ -67,7 +67,7 @@ class PushController {
         if (!PushService.PLATFORMS.contains(body.platform())) {
             throw ApiValidationException.valueError(
                     List.of("body", "platform"),
-                    "platform must be one of: ios, android",
+                    "Value error, platform must be one of: ios, android",
                     body.platform());
         }
         push.register(user.id(), token, body.platform(),
@@ -105,7 +105,7 @@ class PushController {
         if (token.isEmpty() || token.length() > 512) {
             throw ApiValidationException.valueError(
                     List.of("body", "token"),
-                    "token must be a non-empty string of at most 512 characters",
+                    "Value error, token must be a non-empty string of at most 512 characters",
                     raw);
         }
         return token;
