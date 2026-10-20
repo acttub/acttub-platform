@@ -23,6 +23,9 @@ jest.mock('expo-router', () => {
     useLocalSearchParams: () => mockParams,
   };
 });
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
 jest.mock('@/lib/api', () => ({
   api: { getPracticeGroup: jest.fn(), getConversation: jest.fn(), patchPracticeGroup: jest.fn() },
 }));

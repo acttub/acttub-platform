@@ -140,7 +140,7 @@ afterEach(() => {
 });
 
 describe('기다리는 동안', () => {
-  test('차례를 기다리는 동안 대기 문구와 분석에 쓰는 내용을 보여 주고, 앱을 다시 켜도 돌아오게 기록한다', async () => {
+  test('차례를 기다리는 동안 대기 문구와 나가도 되는 길을 보여 주고, 앱을 다시 켜도 돌아오게 기록한다', async () => {
     getStatus.mockResolvedValue(status({ job: { id: 'j1', status: 'pending' } }));
     await render(<AnalyzingScreen />);
 
@@ -148,22 +148,20 @@ describe('기다리는 동안', () => {
     expect(screen.getByText('새 연습')).toBeOnTheScreen();
     expect(screen.getByText('3단계 · 질문 준비 중')).toBeOnTheScreen();
     expect(screen.getByText('0초 경과')).toBeOnTheScreen();
-    expect(
-      screen.getByText('보통 1~3분 걸려요. 이 화면을 나가도 분석은 계속되고, 끝나면 알림으로 알려드려요.'),
-    ).toBeOnTheScreen();
-    expect(screen.getByText('분석에 쓰는 내용')).toBeOnTheScreen();
-    expect(await screen.findByText('서연의 이별')).toBeOnTheScreen();
-    expect(screen.getByText('이별을 말하는 장면')).toBeOnTheScreen();
-    expect(screen.getByText('연기 표현')).toBeOnTheScreen();
-    expect(screen.getByText('“울컥하는 타이밍”')).toBeOnTheScreen();
+    expect(screen.getByText('보통 1~3분 걸려요.')).toBeOnTheScreen();
+    expect(screen.getByText('기다리지 않아도 돼요. 「끝나면 알려 주세요」를 누르고 나가세요.')).toBeOnTheScreen();
     expect(getStatus).toHaveBeenCalledWith('p1', { signal: expect.any(AbortSignal) });
-    expect(api.getPracticeGroup).toHaveBeenCalledWith('r1');
+    await waitFor(() => expect(getPracticeApi).toHaveBeenCalledWith('p1'));
     await waitFor(async () => expect(await pendingKeys()).toEqual([PENDING_KEY]));
     expect(JSON.parse((await AsyncStorage.getItem(PENDING_KEY)) as string)).toEqual({
       schemaVersion: 2,
       owner: 'u1',
       practice_id: 'p1',
     });
+
+    // 기다리지 않고 나가면 홈으로 간다 — 분석은 서버에서 계속 돌고 끝나면 알림이 온다.
+    await fireEvent.press(screen.getByRole('button', { name: '끝나면 알려 주세요' }));
+    expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
   });
 
   test('작업이 돌기 시작하면 단계 문구로 바뀌고, 영상·장면 보기를 펼치면 기기에 있는 영상을 튼다', async () => {
@@ -189,23 +187,20 @@ describe('기다리는 동안', () => {
 
     getPracticeApi.mockResolvedValue(detail({ video_purged: true, playback_url: null }));
     await render(<AnalyzingScreen />);
-    await screen.findByText('분석에 쓰는 내용');
+    await screen.findByText(STAGES[0]);
+    await waitFor(() => expect(getPracticeApi).toHaveBeenCalledTimes(2));
     await fireEvent.press(screen.getByRole('button', { name: '영상·장면 보기 펼치기' }));
     expect(await screen.findByText('다시 볼 수 있는 영상이 없어요.')).toBeOnTheScreen();
   });
 
-  test('묶음 제목을 못 읽거나 비어 있으면 제목 줄만 빼고 나머지 내용을 보인다', async () => {
-    (api.getPracticeGroup as jest.Mock).mockRejectedValue(new Error('down'));
-    const view = await render(<AnalyzingScreen />);
-    expect(await screen.findByText('이별을 말하는 장면')).toBeOnTheScreen();
-    expect(screen.queryByText('연습 제목')).not.toBeOnTheScreen();
-    await view.unmount();
-
-    (api.getPracticeGroup as jest.Mock).mockResolvedValue({ title: '   ' });
+  test('기다리는 동안 장면 요약·묶음 제목은 보이지 않고 묶음도 따로 읽지 않는다', async () => {
     await render(<AnalyzingScreen />);
-    expect(await screen.findByText('이별을 말하는 장면')).toBeOnTheScreen();
-    await waitFor(() => expect(api.getPracticeGroup).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(STAGES[0])).toBeOnTheScreen();
+    await waitFor(() => expect(getPracticeApi).toHaveBeenCalledWith('p1'));
+    expect(screen.queryByText('분석에 쓰는 내용')).not.toBeOnTheScreen();
+    expect(screen.queryByText('이별을 말하는 장면')).not.toBeOnTheScreen();
     expect(screen.queryByText('연습 제목')).not.toBeOnTheScreen();
+    expect(api.getPracticeGroup).not.toHaveBeenCalled();
   });
 
   test('회차 내용을 못 읽어도 대기 화면은 그대로 둔다', async () => {
@@ -329,7 +324,7 @@ describe('분석이 끝나면', () => {
     );
     await render(<AnalyzingScreen />);
 
-    expect(await screen.findByText(STATUS_UNAVAILABLE)).toBeOnTheScreen();
+    expect(await screen.findByText(STATUS_UNAVAILABLE, { exact: false })).toBeOnTheScreen();
     expect(mockRouter.replace).not.toHaveBeenCalledWith('/coach');
   });
 
@@ -390,7 +385,7 @@ describe('다시 읽는 때', () => {
     await act(async () => {
       mockFocusEffect();
     });
-    expect(await screen.findByText('분석 결과를 정리하지 못했어요. 다시 시도해주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('분석 결과를 정리하지 못했어요. 다시 시도해주세요.', { exact: false })).toBeOnTheScreen();
     expect(getStatus).toHaveBeenCalledTimes(2);
   });
 
@@ -437,10 +432,9 @@ describe('분석이 실패하면', () => {
     getStatus.mockResolvedValue(FAILED(reason));
     await render(<AnalyzingScreen />);
 
-    expect(await screen.findByText(message)).toBeOnTheScreen();
+    expect(await screen.findByText(`${message} 영상은 그대로 있으니 「다시 시도」를 누르세요.`)).toBeOnTheScreen();
     expect(screen.getByText('분석이 잘 안 됐어요')).toBeOnTheScreen();
     expect(screen.getByText('3단계 · 질문 준비')).toBeOnTheScreen();
-    expect(screen.getByText('올려주신 영상은 그대로 있으니 다시 시도해볼 수 있어요.')).toBeOnTheScreen();
     expect(screen.getByText('다시 시도')).toBeOnTheScreen();
     expect(logged('analysis_failed')).toEqual([{ reason }]);
   });
@@ -449,7 +443,8 @@ describe('분석이 실패하면', () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', close_reason: 'cancelled', job: null }));
     await render(<AnalyzingScreen />);
 
-    expect(await screen.findByText('분석을 그만뒀어요. 영상은 보관함에 그대로 있어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('분석을 그만뒀어요. 영상은 보관함에 그대로 있어요.', { exact: false })).toBeOnTheScreen();
+    expect(screen.queryByText('영상은 그대로 있으니 「다시 시도」를 누르세요.', { exact: false })).not.toBeOnTheScreen();
     expect(screen.queryByText('다시 시도')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByText('나중에 기록에서 보기'));
@@ -459,7 +454,7 @@ describe('분석이 실패하면', () => {
   test('사유 없이 닫히면 unknown 으로 세고, 다시 시도는 새 분석 없이 상태만 다시 읽는다', async () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', job: null }));
     await render(<AnalyzingScreen />);
-    expect(await screen.findByText('분석에 실패했어요. 다시 시도해주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('분석에 실패했어요. 다시 시도해주세요.', { exact: false })).toBeOnTheScreen();
     expect(logged('analysis_failed')).toEqual([{ reason: 'unknown' }]);
 
     getStatus.mockResolvedValue(READY);
@@ -474,7 +469,7 @@ describe('분석이 실패하면', () => {
     await render(<AnalyzingScreen />);
 
     await act(async () => jest.advanceTimersByTimeAsync(8_000));
-    expect(screen.getByText(STATUS_UNAVAILABLE)).toBeOnTheScreen();
+    expect(screen.getByText(STATUS_UNAVAILABLE, { exact: false })).toBeOnTheScreen();
     expect(getStatus).toHaveBeenCalledTimes(3);
   });
 });
@@ -524,7 +519,7 @@ describe('다시 시도', () => {
     await renderFailed();
 
     await fireEvent.press(screen.getByText('다시 시도'));
-    expect(await screen.findByText(message)).toBeOnTheScreen();
+    expect(await screen.findByText(message, { exact: false })).toBeOnTheScreen();
   });
 
   test('코드 없는 실패면 다시 누를 때 같은 요청 id 를, 요청이 바뀌었다는 거절 뒤에는 새 id 를 쓴다', async () => {
@@ -533,13 +528,13 @@ describe('다시 시도', () => {
     await renderFailed();
 
     await fireEvent.press(screen.getByText('다시 시도'));
-    await screen.findByText('다시 시도하지 못했어요. 잠시 뒤에 해 주세요.');
+    await screen.findByText('다시 시도하지 못했어요. 잠시 뒤에 해 주세요.', { exact: false });
     retry.mockRejectedValueOnce(serverError(409, 'request_fingerprint_mismatch'));
     await fireEvent.press(screen.getByText('다시 시도'));
-    await screen.findByText('요청 내용이 바뀌었어요. 다시 보내 주세요.');
+    await screen.findByText('요청 내용이 바뀌었어요. 다시 보내 주세요.', { exact: false });
     retry.mockRejectedValueOnce(serverError(500, 'internal_error'));
     await fireEvent.press(screen.getByText('다시 시도'));
-    await screen.findByText('다시 시도하지 못했어요. 잠시 뒤에 해 주세요.');
+    await screen.findByText('다시 시도하지 못했어요. 잠시 뒤에 해 주세요.', { exact: false });
 
     const ids = retry.mock.calls.map(([, options]) => options.requestId);
     expect(ids[1]).toBe(ids[0]);
@@ -580,13 +575,13 @@ describe('다시 시도', () => {
     await renderFailed();
 
     await fireEvent.press(screen.getByText('다시 시도'));
-    expect(await screen.findByText(inProgressBody)).toBeOnTheScreen();
+    expect(await screen.findByText(inProgressBody, { exact: false })).toBeOnTheScreen();
     expect(api.listPracticeGroups).toHaveBeenCalledTimes(1);
 
     (api.listPracticeGroups as jest.Mock).mockRejectedValue(new Error('down'));
     await fireEvent.press(screen.getByText('다시 시도'));
     await waitFor(() => expect(api.listPracticeGroups).toHaveBeenCalledTimes(2));
-    expect(screen.getByText(inProgressBody)).toBeOnTheScreen();
+    expect(screen.getByText(inProgressBody, { exact: false })).toBeOnTheScreen();
     expect(mockRouter.replace).not.toHaveBeenCalledWith(expect.objectContaining({ pathname: '/analyzing' }));
   });
 });
@@ -664,7 +659,7 @@ describe('그만두기', () => {
     await fireEvent.press(screen.getByText('그만두기'));
     await fireEvent.press(screen.getAllByText('그만두기')[1]);
 
-    expect(await screen.findByText('그만두지 못했어요. 잠시 뒤에 다시 해 주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('그만두지 못했어요. 잠시 뒤에 다시 해 주세요.', { exact: false })).toBeOnTheScreen();
     expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 
@@ -709,7 +704,9 @@ describe('튜토리얼 예시', () => {
 
     expect(screen.getByText(STAGES[0])).toBeOnTheScreen();
     expect(screen.getByText('예시 영상이라 금방 끝나요. 실제 연습은 보통 1~3분 걸려요.')).toBeOnTheScreen();
-    expect(screen.getByText('카페에서 오래 만난 연인에게 헤어지자는 말을 꺼내는 장면')).toBeOnTheScreen();
+    // 예시도 장면 요약은 대기 화면에 두지 않고, 「끝나면 알려 주세요」로 나가는 길도 없다.
+    expect(screen.queryByText('카페에서 오래 만난 연인에게 헤어지자는 말을 꺼내는 장면')).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '끝나면 알려 주세요' })).not.toBeOnTheScreen();
     await act(async () => jest.advanceTimersByTime(1_200));
     expect(screen.getByText(STAGES[1])).toBeOnTheScreen();
     await act(async () => jest.advanceTimersByTime(1_400));
@@ -778,8 +775,8 @@ test('개발용 미리보기는 서버 없이 예시 회차를 보인다', async
   mockParams = { preview: '1' };
   await render(<AnalyzingScreen />);
 
-  expect(screen.getByText('분석에 쓰는 내용')).toBeOnTheScreen();
-  expect(screen.getByText('이별을 통보받은 직후, 카페에서')).toBeOnTheScreen();
+  expect(screen.getByText('3단계 · 질문 준비 중')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '영상·장면 보기 펼치기' })).toBeOnTheScreen();
   expect(mockRouter.replace).not.toHaveBeenCalled();
   expect(getStatus).not.toHaveBeenCalled();
   expect(getPracticeApi).not.toHaveBeenCalled();
