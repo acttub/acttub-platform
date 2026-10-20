@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /** Gemini transport for the existing durable coach API; no layer-one model; response routing is a separate text call. */
 public final class DirectVideoCoach {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(DirectVideoCoach.class);
     /** 노트의 다음 촬영에는 행동만 남긴다 — "그 해석이면 ~"의 앞말을 뗀다(dev 시험 10/11). */
     private static final java.util.regex.Pattern READING_LEAD =
             java.util.regex.Pattern.compile("^(?:그|이|말한) ?해석(?:이면|대로라면|대로면|대로)[,]?\\s*");
@@ -106,6 +107,11 @@ public final class DirectVideoCoach {
         boolean keepVideo = false;
         boolean videoReused = false;
         Instant started = Instant.now();
+        // 단계별 시간(SOMA-780). 느려지면 분류·영상 준비·답 쓰기·줄이기 중 어디서 걸렸는지 로그와 Langfuse 에서 바로 본다.
+        long startedNanos = System.nanoTime();
+        long classifiedNanos = startedNanos;
+        long videoNanos = 0;
+        long warmWaitNanos = 0;
         boolean loop = practiceLoop && DirectVideoPracticeLoop.applies(session);
         // 목적별 코칭(SOMA-719): 앱이 목적을 골라 시작한 회차. 지금 흐름의 실험(모델·흐름 A/B, 자문위원 성격)과 섞지 않는다.
         PurposeLoop.Purpose purpose = loop ? PurposeLoop.of(session) : null;
@@ -137,6 +143,7 @@ public final class DirectVideoCoach {
         // 목적별 코칭의 둘째 응답부터: 버튼을 눌렀으면 분류 없이, 직접 썼으면 분류해서 코드가 단계를 정한다.
         PurposeLoop.Turn purposeTurn = purpose != null && !session.turns().isEmpty() && actorText != null
                 ? purposeTurn(session, purpose, actorText, actorFinished, operationId) : null;
+        classifiedNanos = System.nanoTime();
         if (purposeTurn != null && purposeTurn.end()) {
             // 그만: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
             String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
@@ -186,7 +193,9 @@ public final class DirectVideoCoach {
                 }
             } else if (firstLoop) {
                 // 첫 답: 분석 작업이 미리 검사·올려 둔 영상이 있으면 기다려 쓴다(SOMA-780). 없거나 실패했으면 아래에서 직접 한다.
+                long warmStarted = System.nanoTime();
                 CoachVideoCache.Prepared warmed = videoCache.claimWarm(videoKey, CoachVideoCache.WARM_WAIT);
+                warmWaitNanos = System.nanoTime() - warmStarted;
                 if (warmed != null) {
                     inspection = warmed.inspection();
                     uploaded = warmed.video();
@@ -238,6 +247,7 @@ public final class DirectVideoCoach {
                     Thread.sleep(500);
                 }
             }
+            videoNanos = System.nanoTime();
             String written = DirectVideoPracticeLoop.actorMaterial(session) + "\n"
                     + session.turns().stream().filter(turn -> !"ai".equals(turn.role()))
                             .map(turn -> turn.text()).collect(java.util.stream.Collectors.joining("\n"))
@@ -476,6 +486,7 @@ public final class DirectVideoCoach {
             int replyLimit = loop ? DirectVideoPrompts.personaReplyLimit(persona, DirectVideoPracticeLoop.replyLanguage(session, actorText))
                     : DirectVideoPracticeLoop.LONG_REPLY;
             int shortened = 0;
+            long repliedNanos = System.nanoTime();
             // 배우가 설명·피드백을 달라고 한 답은 길게 둔다(줄이면 다시 한 구절 + 질문이 되어 물음에 답하지 못한다).
             // 자문위원 프롬프트의 사람별 상한(SOMA-622)과 함께 쓸 때는 둘 중 큰 쪽을 쓴다.
             int limit = branch != null && branch.explains() ? Math.max(DirectVideoPracticeLoop.EXPLAIN_REPLY, replyLimit) : replyLimit;
@@ -495,8 +506,19 @@ public final class DirectVideoCoach {
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
                             "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry), "broken_retry", Boolean.toString(brokenRetry),
                             "persona", persona, "coach_model_arm", arm, "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow,
-                            "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused)))
+                            "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused),
+                            "classify_ms", Long.toString(millis(startedNanos, classifiedNanos)),
+                            "video_ms", Long.toString(millis(classifiedNanos, videoNanos)),
+                            "warm_wait_ms", Long.toString(warmWaitNanos / 1_000_000),
+                            "reply_ms", Long.toString(millis(videoNanos, repliedNanos)),
+                            "shorten_ms", Long.toString(millis(repliedNanos, System.nanoTime()))))
                     .withPrompt(template));
+            LOG.info("coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} "
+                            + "video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={}",
+                    shortId(session.practiceSessionId()), session.turns().isEmpty(), arm, streaming, videoReused,
+                    millis(startedNanos, System.nanoTime()), millis(startedNanos, classifiedNanos),
+                    millis(classifiedNanos, videoNanos), warmWaitNanos / 1_000_000, millis(videoNanos, repliedNanos),
+                    shortened, emptyRetry);
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (purpose != null && !cut) {
                 if (purposeTurn == null) PurposeLoop.rememberOpening(state, purpose, purposeOut, parsed.design());
@@ -517,6 +539,10 @@ public final class DirectVideoCoach {
                     speaker.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm, "coach_flow", flow)).withPrompt(template));
+            LOG.info("coach turn timing practice={} first={} arm={} failed={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={}",
+                    shortId(session.practiceSessionId()), session.turns().isEmpty(), arm, failure.getClass().getSimpleName(),
+                    millis(startedNanos, System.nanoTime()), millis(startedNanos, classifiedNanos),
+                    millis(classifiedNanos, videoNanos), warmWaitNanos / 1_000_000);
             throw new CoachReplyUnavailable();
         } finally {
             if (uploaded != null && keepVideo && videoCache.enabled()) {
@@ -585,6 +611,17 @@ public final class DirectVideoCoach {
         if (!stored.isEmpty()) return stored;
         if (!session.turns().isEmpty() || alternateShare <= 0 || session.practiceSessionId() == null) return "a";
         return Math.floorMod(session.practiceSessionId().hashCode(), 100) < alternateShare ? "b" : "a";
+    }
+
+    /** 두 시각(System.nanoTime) 사이의 밀리초. 그 단계까지 가지 못했으면(끝이 0) -1 이다. */
+    static long millis(long from, long to) {
+        return to == 0 ? -1 : (to - from) / 1_000_000;
+    }
+
+    /** 로그용 짧은 회차 번호(앞 8자리). */
+    static String shortId(UUID id) {
+        String text = String.valueOf(id);
+        return text.length() > 8 ? text.substring(0, 8) : text;
     }
 
     private DirectVideoModel coachModel(String arm) {

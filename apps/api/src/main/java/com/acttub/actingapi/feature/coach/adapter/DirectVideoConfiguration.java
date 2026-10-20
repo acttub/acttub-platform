@@ -60,10 +60,16 @@ public class DirectVideoConfiguration {
     // 분석 작업이 내려받은 원본으로 첫 질문용 영상을 미리 올린다(SOMA-780). false 면 첫 질문이 직접 올린다(롤백).
     @Bean
     @ConditionalOnProperty(name = "ACTTUB_COACH_VIDEO_WARMUP", havingValue = "true", matchIfMissing = true)
-    com.acttub.actingapi.feature.analysis.app.DirectVideoWarmup coachVideoWarmup(
+    com.acttub.actingapi.feature.coach.app.CoachVideoWarmup coachVideoWarmup(
             com.acttub.actingapi.integration.observation.DirectVideoModel model,
-            com.acttub.actingapi.feature.coach.app.CoachVideoCache videoCache) {
-        return new com.acttub.actingapi.feature.coach.app.CoachVideoWarmup(model, videoCache);
+            com.acttub.actingapi.feature.coach.app.CoachVideoCache videoCache,
+            com.acttub.actingapi.integration.storage.ObjectStorage storage,
+            // 영상 올리기가 끝난 순간에도 준비를 시작한다(10/21). 코칭하지 않는 영상도 잠깐 올라갔다 10분 안에 지워진다.
+            // false 면 예전처럼 분석 작업에서만 시작한다(롤백).
+            @Value("${ACTTUB_COACH_VIDEO_UPLOAD_WARMUP:true}") boolean uploadWarmup,
+            @Value("${ACTTUB_COACH_WARM_DIR:${java.io.tmpdir}}") String warmDir) {
+        return new com.acttub.actingapi.feature.coach.app.CoachVideoWarmup(model, videoCache,
+                uploadWarmup ? storage : null, uploadWarmup ? java.nio.file.Path.of(warmDir) : null);
     }
 
     @Bean
