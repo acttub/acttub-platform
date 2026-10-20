@@ -786,7 +786,7 @@ test("그만두기를 누르면 분석을 끝내고 다시 분석할 수 있으�
   assert.equal(alertText(), null);
 });
 
-test("그만두기는 배우가 고른 끝이라 상태 확인 실패 문구를 띄우지 않는다", { todo: "버그: 그만두기가 끊은 상태 조회가 실패 문구를 띄운다" }, async () => {
+test("그만두기는 배우가 고른 끝이라 상태 확인 실패 문구를 띄우지 않는다", async () => {
   startGuest();
   serve(cancellableAnalysis());
   await mount("session=p1");
