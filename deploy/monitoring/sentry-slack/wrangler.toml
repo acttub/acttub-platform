@@ -6,3 +6,6 @@ compatibility_date = "2026-09-01"
 [[kv_namespaces]]
 binding = "ALERTS"
 id = "671d673922e14541843ae50a59425b0f"
+
+[vars]
+SLACK_CHANNEL = "C0BPEVDHJFL" # #sentry
