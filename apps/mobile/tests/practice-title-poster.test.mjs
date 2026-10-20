@@ -68,17 +68,16 @@ test('practice.list: 홈 최근 연습과 연습 기록 목록은 썸네일이 �
   }
 });
 
-test('practice.upload: 제목 칸·업로드 중 버튼·처리 중 잠금', () => {
+test('practice.upload: 장면 단계는 상황·인물·원하는 것 세 칸만(연습 제목 칸 없음)·업로드 중 버튼·처리 중 잠금', () => {
   const src = read('app/upload.tsx');
-  // 도움 카드와 같은 카드 모양으로, 맨 위에 제목 칸을 둔다.
-  assert.match(src, /t\('upload\.titleLabel'\)/);
-  assert.match(src, /maxLength=\{PRACTICE_TITLE_MAX\}/);
-  assert.match(src, /buildStartBody\(\{[^}]*title/);
+  // 연습 제목 칸은 없앴다(SOMA-771) — 제목은 연습 기록에서 바꾼다.
+  assert.doesNotMatch(src, /t\('upload\.titleLabel'\)/);
+  assert.doesNotMatch(src, /buildStartBody\(\{[^}]*title/);
   // 올리는 중이면 버튼 글자가 「업로드 중」이다.
   assert.match(src, /uploading \? t\('upload\.submitUploading'\)/);
   // 시작을 누른 뒤에는 입력이 잠긴다.
   assert.match(src, /const locked = starting;/);
-  assert.match(src, /editable=\{!locked\}/);
+  assert.match(src, /editable=\{!locked && !sample\}/);
   assert.match(src, /disabled=\{locked\}/);
   const ko = read('locales/ko.ts');
   assert.match(ko, /submitUploading: '업로드 중…'/);

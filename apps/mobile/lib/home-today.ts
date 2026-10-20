@@ -14,7 +14,7 @@ import type { ScriptCard } from './reading/types.ts';
 type TodayChallenge = { id: string; line: string; work: string; ends_at: string };
 
 export type TodayItem =
-  | { kind: 'coaching'; group: PracticeGroup; noteTitle: string | null; notePracticeId: string | null }
+  | { kind: 'coaching'; group: PracticeGroup; notePracticeId: string }
   | { kind: 'reading'; script: ScriptCard }
   | { kind: 'challenge'; challenge: TodayChallenge; daysLeft: number }
   | { kind: 'start' };
@@ -33,15 +33,18 @@ function timeOf(iso: string | null | undefined): number {
   return Number.isFinite(ms) ? ms : -Infinity;
 }
 
-/** 첫 연습을 끝내기 전인가 — 코칭 묶음(숨긴 것 포함)·읽어 본 대본·기기에 남은 연습한 날이 하나도 없다. */
+/**
+ * 첫 연습을 끝내기 전인가 — 코칭 묶음(숨긴 것 포함)·만든 대본·기기에 남은 연습한 날이 하나도 없다.
+ * 대본을 만든(리딩을 시작한) 사람은 선택지 셋 대신 진행 상황에 맞춘 「오늘 할 것」을 본다.
+ */
 export function isFirstUser(input: {
   groups: readonly PracticeGroup[];
-  scripts: readonly Pick<ScriptCard, 'last_practiced_at'>[];
+  scripts: readonly unknown[];
   practicedDays: number;
 }): boolean {
   if (input.groups.length > 0) return false;
   if (input.practicedDays > 0) return false;
-  return !input.scripts.some((s) => !!s.last_practiced_at);
+  return input.scripts.length === 0;
 }
 
 /** 챌린지 마감까지 남은 한국 날짜 수. 오늘 마감이면 0, 이미 지났으면 음수, 모르면 null. */
@@ -62,16 +65,18 @@ export function pickToday(input: {
   const coaching = coachingEntry(input.groups);
   if (coaching.kind === 'next') {
     candidates.push({
-      item: { kind: 'coaching', group: coaching.group, noteTitle: coaching.noteTitle, notePracticeId: coaching.notePracticeId },
+      item: { kind: 'coaching', group: coaching.group, notePracticeId: coaching.notePracticeId },
       at: timeOf(coaching.group.last_practiced_at),
       rank: 0,
     });
   }
 
+  // 다 읽지 않은 대본 — 읽던 것은 마지막 회차 시각, 만들어 두고 아직 안 읽은 것은 등록 시각(last_activity_at)으로 견준다.
+  const readingAt = (s: ScriptCard) => timeOf(s.last_practiced_at ?? s.last_activity_at);
   const reading = input.scripts
-    .filter((s) => s.status === 'reading' && !!s.last_practiced_at)
-    .sort((a, b) => timeOf(b.last_practiced_at) - timeOf(a.last_practiced_at))[0];
-  if (reading) candidates.push({ item: { kind: 'reading', script: reading }, at: timeOf(reading.last_practiced_at), rank: 1 });
+    .filter((s) => s.status !== 'completed')
+    .sort((a, b) => readingAt(b) - readingAt(a))[0];
+  if (reading) candidates.push({ item: { kind: 'reading', script: reading }, at: readingAt(reading), rank: 1 });
 
   candidates.sort((a, b) => b.at - a.at || a.rank - b.rank);
   if (candidates.length > 0) return { main: candidates[0].item, also: candidates[1]?.item ?? null };

@@ -44,8 +44,8 @@ const NOW = new Date('2026-10-19T03:00:00Z'); // 한국 10/19 정오
 
 test('첫 사용자: 코칭 묶음·리딩 회차·연습한 날이 하나도 없을 때만(SOMA-748)', () => {
   assert.equal(isFirstUser({ groups: [], scripts: [], practicedDays: 0 }), true);
-  // 대본만 넣고 읽지 않았으면 아직 첫 연습 전이다.
-  assert.equal(isFirstUser({ groups: [], scripts: [script('s', null, 'no_cast')], practicedDays: 0 }), true);
+  // 대본을 만든(리딩을 시작한) 사람은 첫 사용자가 아니다 — 선택지 대신 진행 상황 카드를 본다.
+  assert.equal(isFirstUser({ groups: [], scripts: [script('s', null, 'no_cast')], practicedDays: 0 }), false);
   assert.equal(isFirstUser({ groups: [group('a', '2026-10-10T00:00:00Z')], scripts: [], practicedDays: 0 }), false);
   // 숨긴 묶음만 있어도 연습은 해 본 사람이다.
   assert.equal(isFirstUser({ groups: [group('a', '2026-10-10T00:00:00Z', { hidden_at: '2026-10-11T00:00:00Z' })], scripts: [], practicedDays: 0 }), false);
@@ -58,7 +58,9 @@ test('오늘 할 것: 가장 최근에 하다 만 것 하나, 나머지 하나�
   const reading = script('s', '2026-10-17T00:00:00Z');
   const pick = pickToday({ groups: [coaching], scripts: [reading], challenge: null, now: NOW });
   assert.equal(pick.main.kind, 'coaching');
-  assert.equal(pick.main.noteTitle, '한 박자 바라보기');
+  // 노트 제목(코치 관찰)은 싣지 않고, 다음 테이크 문장을 불러올 회차만 알려 준다.
+  assert.equal(pick.main.notePracticeId, 'g-1');
+  assert.equal('noteTitle' in pick.main, false);
   assert.equal(pick.also?.kind, 'reading');
 
   const newerReading = script('s2', '2026-10-18T12:00:00Z');
@@ -83,6 +85,19 @@ test('오늘 할 것: 다 읽은 대본·숨긴 묶음은 후보가 아니다', 
   });
   assert.equal(pick.main.kind, 'start');
   assert.equal(pick.also, null);
+});
+
+test('오늘 할 것: 만들어 두고 아직 안 읽은 대본도 리딩 카드로 고른다', () => {
+  const fresh = { ...script('s', null, 'no_cast'), last_activity_at: '2026-10-18T00:00:00Z' };
+  const pick = pickToday({ groups: [], scripts: [fresh], challenge: null, now: NOW });
+  assert.equal(pick.main.kind, 'reading');
+  assert.equal(pick.main.script.id, 's');
+});
+
+test('오늘 할 것: 노트 없이 나간 코칭 묶음은 숙제 후보가 아니다', () => {
+  const left = group('g', '2026-10-18T00:00:00Z', { practices: [round('g-1', '2026-10-18T00:00:00Z', null)] });
+  const pick = pickToday({ groups: [left], scripts: [], challenge: null, now: NOW });
+  assert.equal(pick.main.kind, 'start');
 });
 
 test('오늘 할 것: 코칭·리딩이 없으면 진행 중인 오늘의 챌린지, 그것도 없으면 연습 시작', () => {

@@ -27,7 +27,14 @@ let mockSampleLoop: LoopApi | null = null;
 jest.mock('expo-router', () => {
   const { Text } = require('react-native');
   return {
-    Stack: { Screen: ({ options }: { options?: { title?: string } }) => <Text>{options?.title}</Text> },
+    Stack: {
+      Screen: ({ options }: { options?: { title?: string; headerRight?: () => unknown } }) => (
+        <>
+          <Text>{options?.title}</Text>
+          {(options?.headerRight?.() ?? null) as never}
+        </>
+      ),
+    },
     useRouter: () => mockRouter,
   };
 });
@@ -61,8 +68,8 @@ jest.mock('@/components/mic-button', () => {
   };
 });
 
-const SEND = '보내기 →';
-const PLACEHOLDER = '여기에 적어 주세요';
+const SEND = '보내기';
+const PLACEHOLDER = '직접 써도 돼요';
 const LOADING = '영상을 마저 정리하고 있어요…';
 const NOTE = { id: 'n1', title: '멈춤' } as PracticeNote;
 
@@ -165,7 +172,9 @@ describe('대화 시작', () => {
     await render(<CoachScreen />);
 
     expect(screen.getByText(LOADING)).toBeOnTheScreen();
-    expect(screen.getAllByText('카페에서 이별을 말하는 장면')).toHaveLength(2);
+    expect(screen.getByText('카페에서 이별을 말하는 장면')).toBeOnTheScreen();
+    expect(screen.getByText('오늘 영상')).toBeOnTheScreen();
+    expect(screen.getByText('장면 정보 있음')).toBeOnTheScreen();
     expect(input()).toBeDisabled();
     await waitFor(() => expect(mockLoop.startConversation).toHaveBeenCalled());
     expect(mockLoop.getPractice).toHaveBeenCalledWith('p1');
@@ -178,8 +187,8 @@ describe('대화 시작', () => {
     expect(screen.getByText('첫 질문이에요.\n둘째 줄')).toBeOnTheScreen();
     expect(screen.getByText('ACTTUB 코치')).toBeOnTheScreen();
     expect(screen.queryByText(LOADING)).not.toBeOnTheScreen();
-    expect(screen.getByText('답이나 질문을 편하게 적어 주세요')).toBeOnTheScreen();
-    expect(screen.getByText('0 / 300')).toBeOnTheScreen();
+    expect(screen.getByLabelText('답이나 질문을 편하게 적어 주세요')).toBeOnTheScreen();
+    expect(input().props.maxLength).toBe(300);
     expect(input()).not.toBeDisabled();
     expect(getPractice()?.conversationId).toBe('c1');
   });
@@ -297,7 +306,8 @@ describe('답 보내기', () => {
     expect(screen.getByRole('button', { name: SEND })).toBeDisabled();
 
     await typeAndSend('  더는 미루지 않기로요  ');
-    expect(screen.getByRole('button', { name: '답을 듣고 생각 중이에요…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: SEND })).toBeDisabled();
+    expect(screen.getByText('답을 듣고 생각 중이에요…')).toBeOnTheScreen();
     expect(input()).toBeDisabled();
     const [body] = mockLoop.replyToCoach.mock.calls[0];
     expect(body).toEqual({ conversation_id: 'c1', request_id: expect.stringMatching(/^[0-9a-f-]{36}$/), text: '더는 미루지 않기로요', revision: 1 });
@@ -312,7 +322,7 @@ describe('답 보내기', () => {
     await renderOpen();
 
     await fireEvent.changeText(input(), '가'.repeat(301));
-    expect(screen.getByText('301 / 300')).toBeOnTheScreen();
+    expect(input().props.maxLength).toBe(300);
     expect(screen.getByRole('button', { name: SEND })).toBeDisabled();
   });
 
@@ -466,8 +476,8 @@ describe('빠른 답과 그만하기', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
     expect(screen.getByText('여기서 마칠까요?')).toBeOnTheScreen();
-    expect(screen.getByText('지금까지 나눈 대화로 오늘의 정리를 만들어요.')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('취소'));
+    expect(screen.getByText('다 얘기했으면 「마치기」를 누르세요. 지금까지 대화로 오늘 정리를 만들어요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('계속하기'));
     expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
 
     await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
@@ -563,7 +573,7 @@ describe('영상과 장면 보기', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: '영상과 장면 보기 펼치기' }));
     expect(useVideoPlayer).toHaveBeenLastCalledWith('file:///take.mp4', expect.any(Function));
-    expect(screen.getByText('▴')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '영상과 장면 보기 접기' })).toBeExpanded();
     await fireEvent.press(screen.getByRole('button', { name: '영상과 장면 보기 접기' }));
 
     expect(logged('video_fold_open')).toEqual([{ screen: 'coach' }]);

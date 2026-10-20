@@ -45,8 +45,15 @@ export function quoteSourceLabel(source: NoteQuote['kind']): string {
   return translate(`note.source.${source}`);
 }
 
-export function noteSections(note: PracticeNote): NoteSection[] {
-  const quotes = note.summary_quotes.slice(0, SUMMARY_QUOTE_MAX);
+/**
+ * 다음 테이크에서 해 볼 한 가지(배우 일지의 「다음에 해 볼 것」). 홈 숙제·코칭 탭·최근 연습·프로필도 이 문장을 쓴다.
+ * 근거가 없으면 null — 그 칸을 띄우지 않는다.
+ */
+export function noteNextTake(note: Pick<PracticeNote, 'next_take' | 'report'>): string | null {
+  return noteBody(note).next || null;
+}
+
+function noteBody(note: Pick<PracticeNote, 'next_take' | 'report'>): { next: string | undefined; summary: string | null } {
   const report = note.report;
   let next = note.next_take?.trim();
   let summary: string | null = null;
@@ -61,6 +68,15 @@ export function noteSections(note: PracticeNote): NoteSection[] {
     summary = report.actor_words.join('\n') || report.expression_core;
     next = report.next_take.trim();
   }
+  return { next, summary };
+}
+
+export function noteSections(note: PracticeNote): NoteSection[] {
+  // 「이번에 해 본 것」에는 배우가 한 말만 둔다. 코치 관찰(observation 인용·노트 제목과 같은 요약)은 제목과
+  // 겹쳐 같은 말이 되풀이되므로 넣지 않는다(SOMA-771).
+  const quotes = note.summary_quotes.filter((quote) => quote.kind === 'actor').slice(0, SUMMARY_QUOTE_MAX);
+  const { next, summary: rawSummary } = noteBody(note);
+  const summary = rawSummary?.trim() && rawSummary.trim() !== note.title?.trim() ? rawSummary : null;
   return [
     {
       kind: 'summary',

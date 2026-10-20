@@ -1,16 +1,18 @@
+import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
 import { EntryRow } from '@/components/ui/entry-row';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
+import { useNextTakes } from '@/hooks/use-next-takes';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { coachingEntry, type CoachingEntry } from '@/lib/practice/coaching-entry';
-import { groupTitle } from '@/lib/practice/groups';
+import { sceneTitle } from '@/lib/practice/groups';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 
@@ -25,7 +27,9 @@ const MASCOT = require('@/assets/images/mascot-coach.png');
 export default function CoachingTab() {
   const router = useRouter();
   const [entry, setEntry] = useState<CoachingEntry | null>(null);
-  const [nextTake, setNextTake] = useState<string | null>(null);
+  // 「지난번 다음에 해볼 것」은 노트의 다음 테이크 문장이다. 없으면 그 칸을 띄우지 않는다.
+  const takes = useNextTakes([entry?.kind === 'next' ? entry.notePracticeId : null]);
+  const nextTake = entry?.kind === 'next' ? takes[entry.notePracticeId] ?? null : null;
 
   useFocusEffect(
     useCallback(() => {
@@ -33,19 +37,7 @@ export default function CoachingTab() {
       api
         .listPracticeGroups('all')
         .then(({ groups }) => {
-          if (cancelled) return;
-          const next = coachingEntry(groups);
-          setEntry(next);
-          if (next.kind === 'next' && next.notePracticeId) {
-            api
-              .getPracticeNote(next.notePracticeId)
-              .then((note) => {
-                if (!cancelled) setNextTake(note.next_take);
-              })
-              .catch(() => {
-                if (!cancelled) setNextTake(null);
-              });
-          }
+          if (!cancelled) setEntry(coachingEntry(groups));
         })
         .catch(() => {
           if (!cancelled) setEntry({ kind: 'first' });
@@ -74,6 +66,15 @@ export default function CoachingTab() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
+        {/* 첫 사용자 홈에서 이 길을 고른 뒤에도 홈(뭐부터 해 볼까요?)으로 돌아가 다른 길을 고를 수 있다(SOMA-771). */}
+        <Pressable
+          onPress={() => router.navigate('/')}
+          hitSlop={8}
+          style={styles.back}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}>
+          <Feather name="chevron-left" size={26} color={palette.text} />
+        </Pressable>
         <Text style={styles.headerTitle}>{t('coachingTab.title')}</Text>
       </View>
       {!entry ? (
@@ -93,9 +94,9 @@ export default function CoachingTab() {
       ) : (
         <ScrollView contentContainerStyle={styles.nextBody}>
           <View style={styles.card}>
-            <Text style={styles.cardEyebrow}>{t('coachingTab.lastNext')}</Text>
-            <Text style={styles.cardTitle}>{entry.noteTitle ?? groupTitle(entry.group)}</Text>
-            {nextTake ? <Text style={styles.cardBody}>{nextTake}</Text> : null}
+            {nextTake ? <Text style={styles.cardEyebrow}>{t('coachingTab.lastNext')}</Text> : null}
+            <Text style={styles.cardTitle}>{nextTake ?? sceneTitle(entry.group)}</Text>
+            {nextTake ? <Text style={styles.cardBody}>{sceneTitle(entry.group)}</Text> : null}
             <Text style={styles.cardGuide}>{t('coachingTab.againGuide')}</Text>
             <PrimaryButton label={t('coachingTab.again')} onPress={again} />
           </View>
@@ -111,6 +112,7 @@ export default function CoachingTab() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   header: { height: 52, alignItems: 'center', justifyContent: 'center' },
+  back: { position: 'absolute', left: 12, top: 0, bottom: 0, width: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: palette.text },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // 아래 탭 바가 화면 위에 떠 있어 그만큼 바닥을 비운다.
