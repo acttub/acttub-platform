@@ -1,20 +1,27 @@
 # Sentry 운영 오류 자동 수정
 
-Mac mini(`insung-macmini`)의 launchd가 15분마다 `poll.mjs`를 돌린다. Sentry에서 운영(`environment:prod`)의
-새 이슈와 재발 이슈를 골라, 이슈마다 깨끗한 worktree(`origin/dev`)에서 `claude -p`에 `prompt.md`를 맡긴다.
-Claude는 코드로 고칠 문제면 Jira 버그 이슈를 만들고 `dev`로 draft PR을 연다. 아니면 아무것도 만들지 않는다.
+Mac mini(`insung-macmini`)의 launchd가 15분마다 `poll.mjs`를 돌린다. Slack `#sentry`에 간 운영 알림을
+[Slack 중계 Worker](../sentry-slack/README.md)의 KV에서 가져와, 이슈마다 운영 코드(`origin/main`)의 깨끗한 worktree에서 `claude -p`에 `prompt.md`를 맡긴다.
+그래서 자동 수정이 보는 오류는 운영 Slack 알림과 같다. 하루 한 번 오는 "운영 계속 남"만 처음 보는 이슈로 줄인다.
+Claude는 코드로 고칠 문제면 Jira 버그 이슈를 진행 중 스프린트에 만들어 진행 중으로 옮기고, `hotfix/SOMA-<번호>-…` 브랜치로 `main`에 draft PR을 연 뒤 CI를 기다려 실패하면 두 번까지 고친다(90분 한도). 아니면 아무것도 만들지 않는다.
+머지는 사람이 하고, 머지하면 운영에 배포된다. 다음 실행이 머지된 hotfix를 보면 `main` → `dev` 역병합 PR을 열고 Slack에 알린다([Hotfix](../../../docs/BRANCHING-STRATEGY.md#hotfix) 4번). 이미 열린 역병합 PR이 있으면 그것을 쓰고, 충돌은 사람이 푼다.
 결과는 Slack `#sentry`에 `[자동 수정]`으로 올라온다. 로컬 Claude Code 구독으로 돌아 API 비용이 없다.
 
-- **개수 상한:** 24시간에 3번, 이벤트가 많은 이슈부터. 새 이슈는 한 번, 재발은 7일에 한 번. Jira 이슈를 에이전트가 만드는 예외는 [ADR-022 개정](../../../docs/ADR.md)이다.
+- **고르는 규칙:** 알림마다 한 번. 같은 이슈에 알림이 여러 번 왔으면 마지막 처리 뒤에 온 것만 한 번 처리한다. 개수 제한 없이 먼저 온 알림부터 하나씩 처리한다. 알림 뒤에 사람이 해결·보관한 이슈는 건너뛴다. "운영 계속 남" 알림은 처리 기록이 없거나, 지난번에 끝내지 못했거나(fail·running), 고친 PR이 `main`(운영)에 들어갔는데도 다시 난 이슈만 처리한다. 건너뛴 이슈, PR이 열려 있거나 닫혔거나 운영 배포 전인 이슈는 Slack 알림으로 둔다. KV는 알림을 14일 남기므로 Mac mini가 그보다 오래 꺼져 있으면 그 알림은 빠진다. Jira 이슈를 에이전트가 만드는 예외는 [ADR-022 개정](../../../docs/ADR.md)이다.
+- **dev에만 고쳐진 오류:** 출시를 기다리는 것으로 보고 건너뛴다. Slack 이유에 "출시 대기"와 그 커밋이 적힌다. 그 수정을 hotfix로 당길지는 사람이 정한다.
+- **다시 온 알림:** 앞서 연 PR이 아직 열려 있으면 Claude를 돌리지 않고 Slack에 그 PR만 알린다. 닫혔거나 머지됐으면 앞 Jira 이슈·PR을 새 이슈 배경에 적게 한다. 같은 원인의 열린 PR이 있으면 Claude가 건너뛴다.
 - **넘기는 데이터:** 이슈 요약·예외·우리 코드 프레임·일부 태그만(`summarize`). 요청·사용자·breadcrumb은 넘기지 않는다.
-- **Claude 권한:** 읽기·편집, `git`, `./gradlew`, `pnpm`, `gh pr create|view`, Jira 이슈 생성·조회만(`TOOLS`). 머지·배포 권한은 없고 `main`·`dev`는 ruleset이 직접 push를 막는다.
-- **상태:** `~/.local/state/acttub-sentry-autofix/`의 `state.json`(처리한 이슈), `ctx/`(넘긴 요약과 Claude 출력), `run.log`.
+- **Claude 권한:** 읽기·편집, `git`, `./gradlew`, `pnpm`, `gh pr create|view|list|checks`, `gh run view`, Jira 이슈 생성·조회·검색·전이·댓글만(`TOOLS`). 머지·배포(`gh workflow run`) 권한은 없고 `main`·`dev`는 ruleset이 직접 push를 막는다.
+- **상태:** `~/.local/state/acttub-sentry-autofix/`의 `state.json`(이슈별 마지막 처리 시각과 결과), `ctx/`(넘긴 요약과 Claude 출력), `run.log`.
 
 ## 설치 (Mac mini)
 
 필요한 비밀(권한 600): `~/.config/acttub/sentry-read-token`(Sentry personal token, Project·Issue & Event·Organization 읽기),
-`~/.config/acttub/sentry-slack-webhook`(Slack 앱 `acttub-monitoring`의 `#sentry` webhook). `claude`·`gh`가 로그인돼 있고
+`~/.config/acttub/sentry-slack-webhook`(Slack 앱 `acttub-monitoring`의 `#sentry` webhook),
+`~/.config/acttub/sentry-relay-alerts-url`(`https://<Worker 주소>/<RELAY_TOKEN>/alerts`). `claude`·`gh`가 로그인돼 있고
 Atlassian MCP(`atlassian`)가 연결돼 있어야 한다.
+SSH 세션은 로그인 키체인을 못 읽어, 거기서 `claude`를 실행하면 Atlassian이 "인증 필요"로 `~/.claude/mcp-needs-auth-cache.json`에 기록되고
+뒤이은 자동 수정도 Atlassian을 건너뛴다. 맥미니 `claude` 확인은 화면이나 launchd에서 한다. launchd는 `~/Documents` 접근 허락이 없어 저장소 클론을 `~/acttub-autofix/repo`에 둔다.
 
 ```sh
 git clone https://github.com/acttub/acttub-platform.git ~/acttub-autofix/repo

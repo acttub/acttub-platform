@@ -2,19 +2,25 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
-import worker, { toSlack } from "./worker.js";
+import worker, { alertRecord, toSlack } from "./worker.js";
 
-const env = { RELAY_TOKEN: "secret", SENTRY_CLIENT_SECRET: "cs", SLACK_WEBHOOK_URL: "https://hooks.slack.test/x" };
+const kv = new Map();
+const ALERTS = {
+  put: async (key, _value, { metadata }) => void kv.set(key, metadata),
+  list: async () => ({ keys: [...kv].map(([name, metadata]) => ({ name, metadata })) }),
+};
+const env = { RELAY_TOKEN: "secret", SENTRY_CLIENT_SECRET: "cs", SLACK_WEBHOOK_URL: "https://hooks.slack.test/x", ALERTS };
 const event = {
   project: 4511874784231424,
   level: "error",
   culprit: "com.acttub.Foo in bar",
   web_url: "https://acttub.sentry.io/issues/1/events/abc/",
+  issue_id: "7799006287",
   title: "ApiException: a<b",
   environment: "prod",
   user: { email: "x@y.z" },
 };
-const body = JSON.stringify({ action: "triggered", data: { event, triggered_rule: "r" } });
+const body = JSON.stringify({ action: "triggered", data: { event, triggered_rule: "운영 처음 남" } });
 const sign = (b, secret = "cs") => createHmac("sha256", secret).update(b).digest("hex");
 const post = (path, b, headers) => worker.fetch(new Request(`https://r.test/${path}`, { method: "POST", body: b, headers }), env);
 
@@ -22,14 +28,15 @@ let sent;
 globalThis.fetch = async (url, init) => ((sent = { url, body: JSON.parse(init.body) }), new Response("ok"));
 
 test("운영 이슈를 라벨·링크와 함께 바꾸고 이벤트 본문은 뺀다", () => {
-  const { text } = toSlack(event);
-  assert.match(text, /^\*\[운영\]\* acttub-api · error/);
+  const { text } = toSlack(event, "운영 계속 남");
+  assert.match(text, /^\*\[운영 · 계속 남\]\* acttub-api · error/);
   assert.match(text, /<https:\/\/acttub\.sentry\.io\/issues\/1\/events\/abc\/\|ApiException: a&lt;b>/);
   assert.doesNotMatch(text, /x@y\.z/);
 });
 
 test("environment가 태그에만 있어도 읽는다", () => {
   assert.match(toSlack({ title: "m", tags: [["environment", "dev"]] }).text, /^\*\[dev\]\*/);
+  assert.match(toSlack({ title: "m", environment: "dev" }, "dev 기본").text, /^\*\[dev · 기본\]\*/);
 });
 
 test("토큰이 틀리면 404", async () => {
@@ -56,5 +63,23 @@ test("event_alert는 Slack에 보내고 Slack 실패는 502", async () => {
   const res = await post("secret", body, { "sentry-hook-signature": sign(body), "sentry-hook-resource": "event_alert" });
   assert.equal(res.status, 502);
   assert.equal(sent.url, env.SLACK_WEBHOOK_URL);
-  assert.match(sent.body.text, /\[운영\]/);
+  assert.match(sent.body.text, /\[운영 · 처음 남\]/);
+});
+
+test("운영 알림만 이슈 ID·규칙·시각으로 남긴다", () => {
+  const at = "2026-10-20T00:00:00.000Z";
+  assert.deepEqual(alertRecord(JSON.parse(body), at), { issueId: "7799006287", rule: "운영 처음 남", at });
+  assert.equal(alertRecord({ data: { event: { ...event, environment: "dev" } } }, at), null);
+  // issue_id가 없으면 web_url에서 읽는다.
+  assert.equal(alertRecord({ data: { event: { ...event, issue_id: undefined } } }, at).issueId, "1");
+});
+
+test("운영 알림은 KV에 남고 GET /<토큰>/alerts로 읽힌다", async () => {
+  kv.clear();
+  globalThis.fetch = async () => new Response("ok");
+  const res = await post("secret", body, { "sentry-hook-signature": sign(body), "sentry-hook-resource": "event_alert" });
+  assert.equal(res.status, 200);
+  const list = await (await worker.fetch(new Request("https://r.test/secret/alerts"), env)).json();
+  assert.deepEqual(list.map((a) => [a.issueId, a.rule]), [["7799006287", "운영 처음 남"]]);
+  assert.equal((await worker.fetch(new Request("https://r.test/wrong/alerts"), env)).status, 404);
 });
