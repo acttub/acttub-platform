@@ -1,10 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { DangerButton, SecondaryButton } from '@/components/ui/buttons';
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
@@ -97,24 +98,14 @@ export default function DeleteAccountScreen() {
           </Text>
         </Pressable>
 
-        <Pressable
-          style={[styles.danger, (!acknowledged || working) && styles.dangerOff]}
+        <DangerButton
+          label={t('deleteAccount.cta')}
           onPress={() => void run()}
           disabled={!acknowledged || working}
-          accessibilityRole="button">
-          {working ? (
-            <ActivityIndicator color={palette.bg} />
-          ) : (
-            <Text style={styles.dangerText}>{t('deleteAccount.cta')}</Text>
-          )}
-        </Pressable>
-        <Pressable
-          style={styles.ghost}
-          onPress={() => router.back()}
-          disabled={working}
-          accessibilityRole="button">
-          <Text style={styles.ghostText}>{t('deleteAccount.keep')}</Text>
-        </Pressable>
+          loading={working}
+          style={styles.danger}
+        />
+        <SecondaryButton label={t('deleteAccount.keep')} onPress={() => router.back()} disabled={working} style={styles.ghost} />
       </ScrollView>
       {dialog}
     </SafeAreaView>
@@ -177,15 +168,6 @@ const styles = StyleSheet.create({
   ackText: { flex: 1, fontSize: 14.5, fontWeight: '800', color: palette.textDim },
   ackTextOn: { color: palette.text },
 
-  danger: {
-    marginTop: 12,
-    backgroundColor: palette.danger,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  dangerOff: { opacity: 0.5 },
-  dangerText: { color: palette.bg, fontSize: 15, fontWeight: '800' },
-  ghost: { marginTop: 10, paddingVertical: 15, alignItems: 'center' },
-  ghostText: { color: palette.textDim, fontSize: 14.5, fontWeight: '700' },
+  danger: { marginTop: 12 },
+  ghost: { marginTop: 10 },
 });

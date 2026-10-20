@@ -22,7 +22,7 @@ import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events'
  * 번호가 붙은 3단계 스텝퍼 — ①목적 ②영상 ③장면 · 질문(pen P/Stepper, SOMA-748).
  *
  * 업로드 화면에 이게 없어서, 다음 화면의 '3단계 · 질문 받기' 가 맥락 없이 튀어나왔다.
- * 지나온 단계와 지금 단계는 파란 동그라미에 번호, 지금 단계 이름만 진하게 둔다.
+ * 지나온 단계와 지금 단계는 파란 동그라미에 번호(체크 아님), 이름은 진한 글자 — 지금 단계만 900으로 더 굵게. 남은 단계는 회색.
  */
 export function Stepper({ current }: { current: 1 | 2 | 3 }) {
   const labels = translateList('practiceChrome.steps');
@@ -40,7 +40,7 @@ export function Stepper({ current }: { current: 1 | 2 | 3 }) {
                 {step}
               </Text>
             </View>
-            <Text style={[styles.stepperLabel, active && styles.stepperLabelOn]}>
+            <Text style={[styles.stepperLabel, passed && styles.stepperLabelPassed, active && styles.stepperLabelOn]}>
               {label}
             </Text>
           </View>
@@ -251,6 +251,7 @@ const styles = StyleSheet.create({
   circleText: { fontSize: 11, fontWeight: '900', color: palette.textFaint },
   circleTextOn: { color: palette.bg },
   stepperLabel: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
+  stepperLabelPassed: { color: palette.text },
   stepperLabelOn: { fontWeight: '900', color: palette.text },
 
   progress: {

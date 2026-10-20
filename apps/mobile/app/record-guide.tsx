@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { palette } from '@/constants/palette';
 import { translate as t, translateList } from '@/lib/i18n';
 
@@ -34,12 +35,12 @@ export default function RecordGuideScreen() {
         </View>
         {firstTime && <Text style={styles.guide}>{t('record.guideHint')}</Text>}
       </ScrollView>
-      <View style={styles.bottom}>
+      <CtaBar safeBottom={false}>
         <PrimaryButton
           label={t('record.start')}
           onPress={() => router.replace({ pathname: '/record-video', params: { mode: 'ai' } })}
         />
-      </View>
+      </CtaBar>
     </SafeAreaView>
   );
 }
@@ -60,5 +61,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingHorizontal: 4 },
   rowText: { flex: 1, fontSize: 15, fontWeight: '600', lineHeight: 22, color: palette.textStrong },
   guide: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
-  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10 },
 });

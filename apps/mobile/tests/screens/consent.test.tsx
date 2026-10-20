@@ -209,6 +209,6 @@ test('진행 중인 가입이 없으면 아무것도 그리지 않는다', async
 test('광고성 문서가 없으면 묶음 줄을 그리지 않는다', async () => {
   auth([terms, privacy]);
   await render(<ConsentScreen />);
-  expect(screen.getByText('동의 내용을 확인해주세요')).toBeOnTheScreen();
+  expect(screen.getByText('액터브를 쓰려면 동의가 필요해요')).toBeOnTheScreen();
   expect(screen.queryByText("[선택] 광고성 정보 받기 (이메일·앱 푸시)")).not.toBeOnTheScreen();
 });

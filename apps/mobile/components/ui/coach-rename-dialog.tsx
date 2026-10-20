@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
+import { DialogButtons } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 
 /**
@@ -72,14 +73,13 @@ export function RenameDialog({
             onSubmitEditing={() => void save()}
           />
           <Text style={[styles.hint, failed && styles.fail]}>{failed ? failText : hint}</Text>
-          <View style={styles.buttons}>
-            <Pressable style={[styles.button, styles.cancel]} disabled={busy} onPress={onClose} accessibilityRole="button">
-              <Text style={styles.cancelText}>{cancelLabel}</Text>
-            </Pressable>
-            <Pressable style={[styles.button, styles.save]} disabled={busy} onPress={() => void save()} accessibilityRole="button">
-              {busy ? <ActivityIndicator color={palette.onAccent} /> : <Text style={styles.saveText}>{saveLabel}</Text>}
-            </Pressable>
-          </View>
+          <DialogButtons
+            cancelLabel={cancelLabel}
+            onCancel={onClose}
+            confirmLabel={saveLabel}
+            onConfirm={() => void save()}
+            busy={busy}
+          />
         </Pressable>
       </Pressable>
     </Modal>
@@ -88,26 +88,22 @@ export function RenameDialog({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 24, padding: 20, gap: 12 },
-  title: { fontSize: 19, fontWeight: '800', color: palette.text },
+  // pen 「추가 · 제목 바꾸기」(ioeo9w) — 카드 334 · 모서리 22 · 안쪽 [24,20,20,20] · 간격 12, 제목 18/800, 칸 모서리 12 · 높이 50 · 16/700.
+  card: { width: '100%', maxWidth: 334, backgroundColor: palette.card, borderRadius: 22, paddingTop: 24, paddingHorizontal: 20, paddingBottom: 20, gap: 12 },
+  title: { fontSize: 18, fontWeight: '800', lineHeight: 27, color: palette.text },
   input: {
     backgroundColor: palette.bgSoft,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: palette.bgSoft,
-    paddingVertical: 14,
+    minHeight: 50,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: palette.text,
   },
   inputBad: { borderColor: palette.danger },
-  hint: { fontSize: 13, fontWeight: '600', color: palette.textMuted },
+  hint: { fontSize: 13, fontWeight: '600', lineHeight: 20, color: palette.textMuted },
   fail: { color: palette.danger },
-  buttons: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  button: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  cancel: { backgroundColor: palette.bgSoft },
-  cancelText: { fontSize: 16, fontWeight: '700', color: palette.textDim },
-  save: { backgroundColor: palette.blue },
-  saveText: { fontSize: 16, fontWeight: '700', color: palette.onAccent },
 });

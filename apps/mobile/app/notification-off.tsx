@@ -2,14 +2,13 @@ import { Stack, useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { NavBackButton, NavHeader } from '@/components/app-header';
-import { AccountStatus } from '@/components/ui/account-status';
+import { MASCOT } from '@/components/ui/mascot';
+import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 import { openNotificationPermissionSettings } from '@/lib/notifications';
-
-const MASCOT = require('@/assets/images/mascot-coach.png');
 
 /**
  * 알림이 꺼져 있어요(pen QsOcR, SOMA-748) — 알림 토글을 켰는데 휴대폰 알림 권한이 꺼져 있을 때. 예전엔 확인창이었다.
@@ -22,10 +21,11 @@ export default function NotificationOffScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('settings.notifications')} left={<NavBackButton onPress={back} />} />
-      <AccountStatus
-        mascot={MASCOT}
+      <StatusScreen
+        mascot={MASCOT.coach}
         title={t('settings.notifPermissionTitle')}
-        hint={t('settings.notifOffHint')}
+        body={t('settings.notifOffHint')}
+        bodyTone="blue"
         actions={
           <>
             <PrimaryButton

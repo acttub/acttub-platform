@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
-import { BlueSwitch, TwoLineRow } from '@/components/ui/account-rows';
+import { BlueSwitch, TwoLineRow } from '@/components/ui/list-rows';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 import {

@@ -10,6 +10,8 @@ import { Image } from 'expo-image';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { MASCOT as MASCOTS, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -55,7 +57,7 @@ import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
  * SOMA-748(h9wxCz·bu9BAX·oiXiqF): 큰 썸네일 줄, 「나만 보기」·「공개」 선택지(체크 동그라미), 완료는 마스코트 줄 + 파란 안내.
  * 디자인은 「나만 보기」를 기본으로 골라 두지만 정본(challenge/entry)이 "미리 선택 없음"이라 고르기 전까지 비워 둔다.
  */
-const MASCOT = require('@/assets/images/mascot-home.png');
+const MASCOT = MASCOTS.home;
 export default function ChallengeUploadScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -337,7 +339,7 @@ export default function ChallengeUploadScreen() {
         {!!error && <Text style={styles.error}>{error}</Text>}
       </KeyboardAwareScroll>
 
-      <View style={styles.footer}>
+      <CtaBar safeBottom={false}>
         <PrimaryButton
           label={t(
             visibility === 'private'
@@ -350,7 +352,7 @@ export default function ChallengeUploadScreen() {
           disabled={!ready || ended}
           loading={submitting}
         />
-      </View>
+      </CtaBar>
     </SafeAreaView>
   );
 }
@@ -392,8 +394,8 @@ const styles = StyleSheet.create({
   thumb: { width: '100%', height: '100%' },
   thumbEmpty: { backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   headText: { flex: 1, minWidth: 0, gap: 6 },
-  meta: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
-  metaSub: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  meta: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 23 },
+  metaSub: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
   caption: {
     minHeight: 72,
     borderRadius: 12,
@@ -411,12 +413,12 @@ const styles = StyleSheet.create({
   noteText: { flex: 1, fontSize: 12.5, fontWeight: '600', color: palette.blueDeep, lineHeight: 19 },
   hint: { fontSize: 12.5, color: palette.textFaint },
   error: { fontSize: 13, fontWeight: '700', color: palette.danger },
-  option: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 16 },
-  optionOn: { backgroundColor: palette.blueSoft },
-  optionTitle: { fontSize: 17, fontWeight: '700', color: palette.text },
+  // pen h9wxCz — 안 고른 줄은 안쪽 [15,4], 고른 줄은 [15,16] + 연파랑 바탕.
+  option: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 4 },
+  optionOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 16 },
+  optionTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 26 },
   optionTitleOn: { color: palette.blueDeep },
-  optionSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint },
-  footer: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10 },
+  optionSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
   ghost: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 12 },
   doneIcon: {
@@ -428,8 +430,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch' },
-  mascot: { width: 52, height: 58 },
-  doneTitle: { flex: 1, fontSize: 22, fontWeight: '900', color: palette.text },
+  mascot: MASCOT_SIZE.sm,
+  doneTitle: { flex: 1, fontSize: 22, fontWeight: '900', color: palette.text, lineHeight: 31 },
   doneSub: { alignSelf: 'stretch', fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 22 },
   doneBtn: { alignSelf: 'stretch', marginTop: 8 },
 });

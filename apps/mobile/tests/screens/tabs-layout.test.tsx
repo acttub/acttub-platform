@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import TabLayout from '@/app/(tabs)/_layout';
+import { setHomeTabBarHidden } from '@/components/ui/tab-bar';
 import { api } from '@/lib/api';
 
 const mockRouter = { push: jest.fn() };
@@ -9,28 +10,32 @@ const mockRouter = { push: jest.fn() };
 // React·react-native 는 그릴 때 읽는다 — 안드로이드 시험이 따로 읽은 모듈 묶음에서도 같은 React 를 쓰게 한다.
 jest.mock('expo-router', () => {
   function Tabs({ screenOptions, children }: { screenOptions: Record<string, any>; children: unknown }) {
-    const { Children, Fragment, useState } = require('react');
-    const { Pressable, Text, View } = require('react-native');
+    const { Children, useState } = require('react');
+    const { Text, View } = require('react-native');
     const screens = (Children.toArray(children) as { props: { name: string; options: Record<string, any> } }[])
       .map((child) => child.props)
       .filter((props) => props.options.href !== null);
     const [focused, setFocused] = useState(screens[0].name);
+    const current = screens.find((s) => s.name === focused)!;
+    // 지금 탭의 화면 설정이 탭바 모양을 정한다(홈 첫 사용자 화면은 홈 탭에서만 숨긴다).
+    const barStyle = current.options.tabBarStyle ?? screenOptions.tabBarStyle;
     return (
       <View>
+        <Text>{`탭바 ${barStyle?.display === 'none' ? '숨김' : '보임'}`}</Text>
         {screens.map(({ name, options }) => {
-          if (options.tabBarButton) return <Fragment key={name}>{options.tabBarButton({})}</Fragment>;
           const on = focused === name;
           const Icon = options.tabBarIcon;
+          const Button = options.tabBarButton;
           return (
-            <Pressable
+            <Button
               key={name}
               accessibilityRole="tab"
-              accessibilityLabel={options.title}
+              accessibilityLabel={options.tabBarAccessibilityLabel}
               accessibilityState={{ selected: on }}
               onPress={() => setFocused(name)}>
               <Icon focused={on} color={on ? screenOptions.tabBarActiveTintColor : screenOptions.tabBarInactiveTintColor} />
               {options.tabBarBadge !== undefined && <Text>{`${options.title} 배지 ${options.tabBarBadge}`}</Text>}
-            </Pressable>
+            </Button>
           );
         })}
       </View>
@@ -39,6 +44,13 @@ jest.mock('expo-router', () => {
   Tabs.Screen = () => null;
   return { Tabs, useRouter: () => mockRouter };
 });
+// 진동 버튼 대신 받은 속성을 그대로 넘기는 버튼 — 탭마다 붙인 이름(ph-label)을 볼 수 있게.
+jest.mock('@/components/haptic-tab', () => ({
+  HapticTab: (props: Record<string, unknown>) => {
+    const { Pressable } = require('react-native');
+    return <Pressable {...props} />;
+  },
+}));
 jest.mock('@expo/vector-icons/Ionicons', () => ({ name }: { name: string }) => {
   const { Text } = require('react-native');
   return <Text>{`아이콘 ${name}`}</Text>;
@@ -53,32 +65,49 @@ beforeEach(() => {
   unreadCount.mockResolvedValue({ count: 0 });
 });
 
-test('홈·대본·챌린지·프로필 탭을 두고 기록은 탭바에서 뺀다', async () => {
+test('홈·코칭·대본·챌린지·프로필 탭을 두고 기록·예전 촬영 자리는 탭바에서 뺀다', async () => {
   await render(<TabLayout />);
 
-  expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(['홈', '대본', '챌린지', '프로필']);
+  expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(['홈', '코칭', '대본', '챌린지', '프로필']);
 });
 
-test('활성 탭은 채운 아이콘, 나머지는 윤곽 아이콘이고 iOS 에서는 글자를 붙이지 않는다', async () => {
+test('아이콘만 있는 탭마다 읽어 줄 이름과 누름 기록 이름을 단다', async () => {
   await render(<TabLayout />);
 
-  expect(screen.getByText('아이콘 home')).toBeOnTheScreen();
+  expect(screen.getAllByRole('tab').map((tab) => tab.props['ph-label'])).toEqual([
+    'tab_home',
+    'tab_coaching',
+    'tab_reading',
+    'tab_challenge',
+    'tab_profile',
+  ]);
+});
+
+test('활성·비활성 모두 윤곽 아이콘이고 iOS 에서는 글자를 붙이지 않는다', async () => {
+  await render(<TabLayout />);
+
+  expect(screen.getByText('아이콘 home-outline')).toBeOnTheScreen();
   expect(screen.getByText('아이콘 book-outline')).toBeOnTheScreen();
   expect(screen.queryByText('홈')).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('tab', { name: '대본' }));
 
-  expect(screen.getByText('아이콘 home-outline')).toBeOnTheScreen();
-  expect(screen.getByText('아이콘 book')).toBeOnTheScreen();
   expect(screen.getByRole('tab', { name: '대본', selected: true })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '홈', selected: false })).toBeOnTheScreen();
+  expect(screen.getByText('아이콘 book-outline')).toBeOnTheScreen();
 });
 
-test('가운데 촬영 버튼은 용도를 고르는 카메라를 바로 연다', async () => {
+test('홈 첫 사용자 화면이 숨기면 홈 탭에서만 탭바를 숨긴다', async () => {
   await render(<TabLayout />);
+  expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByRole('button', { name: '촬영 시작' }));
+  await act(async () => setHomeTabBarHidden(true));
+  expect(screen.getByText('탭바 숨김')).toBeOnTheScreen();
 
-  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/record-video', params: { mode: 'ai', picker: '1' } });
+  await fireEvent.press(screen.getByRole('tab', { name: '코칭' }));
+  expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
+
+  await act(async () => setHomeTabBarHidden(false));
 });
 
 test('읽지 않은 알림 묶음이 있으면 챌린지 탭에 그 수를 단다', async () => {

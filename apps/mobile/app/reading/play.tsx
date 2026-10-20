@@ -15,6 +15,7 @@ import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
 import { deleteDeviceFile } from '@/lib/account-files';
 import { hasSeenFirstReadingGuide, hideAutoAdvanceTip, isAutoAdvanceTipHidden, markFirstReadingGuideSeen } from '@/lib/reading/guide-flag';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { ReadingCoachMark } from '@/components/ui/reading-coach-mark';
 import { ReadingStatus } from '@/components/ui/reading-status';
 import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
@@ -1122,9 +1123,9 @@ export default function ReadingPlay() {
             <Feather name="chevron-right" size={18} color={palette.checkOff} />
           </Pressable>
         </ScrollView>
-        <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
+        <CtaBar>
           <PrimaryButton label={t('common.confirm')} onPress={exitToDetail} />
-        </View>
+        </CtaBar>
         {dialog}
         {ratingSheet}
       </View>
@@ -1311,7 +1312,7 @@ export default function ReadingPlay() {
                   <Text style={[styles.chipText, myTurn && styles.chipTextMine]}>{chip.label}</Text>
                 </View>
                 {hold !== 'tip' && (
-                  <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')}>
+                  <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
                     <Feather name="edit-2" size={16} color={myTurn ? palette.blueDeep : palette.textMuted} />
                   </Pressable>
                 )}
@@ -1370,7 +1371,7 @@ export default function ReadingPlay() {
         </View>
       ) : (
       <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={[styles.eyeBtn, masking && styles.eyeBtnOn]} onPress={openMaskSheet} hitSlop={4} accessibilityLabel={t('reading.maskSheetTitle')}>
+        <Pressable style={[styles.eyeBtn, masking && styles.eyeBtnOn]} onPress={openMaskSheet} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('reading.maskSheetTitle')} ph-label="reading_play_mask">
           <Feather name={masking ? 'eye-off' : 'eye'} size={20} color={masking ? palette.blueDeep : palette.textDim} />
           {masking && <View style={styles.eyeDot} />}
         </Pressable>
@@ -1387,7 +1388,8 @@ export default function ReadingPlay() {
               disabled={!canGoBack(run)}
               hitSlop={4}
               accessibilityRole="button"
-              accessibilityLabel={t('reading.prev')}>
+              accessibilityLabel={t('reading.prev')}
+              ph-label="reading_play_prev">
               <Feather name="skip-back" size={20} color={palette.textDim} />
             </Pressable>
             <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={doPause}>
@@ -1504,18 +1506,18 @@ const styles = StyleSheet.create({
   doneBar: { paddingHorizontal: 16, paddingTop: 12, gap: 10, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
   wrapContent: { paddingHorizontal: 24, paddingBottom: 24 },
   wrapBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.greenSoft, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
-  wrapBadgeText: { color: palette.green, fontSize: 13, fontWeight: '800' },
+  wrapBadgeText: { color: palette.green, fontSize: 13, fontWeight: '800', lineHeight: 18 },
   wrapHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
   wrapMascot: { width: 52, height: 58 },
   wrapHeading: { flex: 1, color: palette.text, fontSize: 22, fontWeight: '800', lineHeight: 29 },
   wrapCard: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, gap: 6, marginTop: 18 },
-  wrapMeta: { color: palette.textMuted, fontSize: 12, fontWeight: '800' },
+  wrapMeta: { color: palette.textMuted, fontSize: 12, fontWeight: '800', lineHeight: 17 },
   wrapNext: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 23 },
   readAgainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 },
   readAgainOff: { opacity: 0.4 },
   readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
-  wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700' },
+  wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 20 },
   coachAboveControls: { paddingHorizontal: 16, paddingBottom: 8 },
   startBar: { paddingHorizontal: 24, paddingTop: 14, gap: 10, alignItems: 'stretch' },
   startHint: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21, textAlign: 'center' },

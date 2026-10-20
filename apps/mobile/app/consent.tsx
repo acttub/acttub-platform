@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import type { ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -154,14 +156,14 @@ export default function ConsentScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         {/* 나가면 아무것도 남지 않는다. 계정도, 제공자가 준 이름도. */}
-        <Pressable
-          onPress={() => cancelSignup()}
+        <NavIconButton
+          icon="chevron-left"
+          size={26}
+          label={t('consent.exit')}
+          phLabel="consent_exit"
           disabled={busy}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel={t('consent.exit')}>
-          <Feather name="chevron-left" size={26} color={palette.text} />
-        </Pressable>
+          onPress={() => cancelSignup()}
+        />
         <Text style={styles.headerTitle}>{t('consent.headerTitle')}</Text>
       </View>
 
@@ -226,10 +228,10 @@ export default function ConsentScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <CtaBar safeBottom={false}>
         {error && <Text style={styles.error}>{error}</Text>}
         <PrimaryButton label={t('consent.cta')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} />
-      </View>
+      </CtaBar>
     </SafeAreaView>
   );
 }
@@ -237,17 +239,18 @@ export default function ConsentScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   // pen S4 동의 「머리」 — 꺾쇠 옆에 제목(19/800).
-  header: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14 },
+  // 꺾쇠 버튼 칸(44)은 그림(26)보다 넓어 왼쪽 안쪽을 줄여 그림 자리를 14 에 맞춘다.
+  header: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 0, paddingHorizontal: 5 },
   headerTitle: { fontSize: 19, fontWeight: '800', color: palette.text },
-  list: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16, gap: 4 },
-  title: { fontSize: 22, fontWeight: '900', lineHeight: 30, color: palette.text },
-  hint: { fontSize: 14, fontWeight: '700', lineHeight: 20, color: palette.blueDeep, marginTop: 10, marginBottom: 10 },
+  // pen S4 「본문」 — 안쪽 [16,24,24,24], 줄 사이 14.
+  list: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
+  title: { fontSize: 22, fontWeight: '900', lineHeight: 31, color: palette.text },
+  hint: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
   docBody: { paddingHorizontal: 16, paddingBottom: 12 },
-  subRow: { flexDirection: 'row', gap: 20, paddingLeft: 46, paddingBottom: 10, marginTop: -4 },
+  subRow: { flexDirection: 'row', gap: 20, paddingLeft: 46, paddingBottom: 10, marginTop: -14 },
   subItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   subLabel: { fontSize: 14, fontWeight: '600', color: palette.textDim },
   subLabelOn: { color: palette.text },
-  footer: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, gap: 10 },
   allRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -256,8 +259,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    marginBottom: 4,
   },
-  allLabel: { flex: 1, fontSize: 18, fontWeight: '800', color: palette.text },
+  allLabel: { flex: 1, fontSize: 18, fontWeight: '800', lineHeight: 27, color: palette.text },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
 });

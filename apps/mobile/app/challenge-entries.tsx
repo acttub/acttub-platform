@@ -170,7 +170,7 @@ export default function ChallengeEntriesScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="challenge_entries_back">
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <Text style={styles.title}>{t('challengeEntries.title')}</Text>
@@ -218,7 +218,7 @@ export default function ChallengeEntriesScreen() {
               </Text>
               <Text style={styles.rowStatus}>{entryStatusLabel(entry)}</Text>
             </View>
-            <Pressable onPress={() => openMenu(entry)} hitSlop={10} accessibilityRole="button">
+            <Pressable onPress={() => openMenu(entry)} hitSlop={10} accessibilityRole="button" ph-label="challenge_entries_more">
               <Feather name="more-horizontal" size={20} color={palette.textFaint} />
             </Pressable>
           </Pressable>

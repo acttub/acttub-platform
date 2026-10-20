@@ -14,6 +14,7 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { easing, motion } from '@/constants/motion';
+import { MASCOT } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import {
@@ -29,7 +30,6 @@ import { onTargetsChanged, remeasureTargets, targetRect } from '@/lib/spotlight-
 
 export type { SpotlightStep };
 
-const MASCOT = require('@/assets/images/mascot-home.png');
 
 /** 설명 카드를 아직 못 쟀을 때 쓸 어림값. 첫 그림 한 번만 쓰이고 바로 실제 높이로 바뀐다. */
 const CAPTION_GUESS = 190;
@@ -242,7 +242,7 @@ export function SpotlightHost() {
       <View
         style={[styles.caption, placement]}
         onLayout={(e) => setCaptionHeight(e.nativeEvent.layout.height)}>
-        <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+        <Image source={MASCOT[step.mascot ?? 'home']} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
         <View style={styles.bubble}>
           <View style={styles.tail} />
           <Animated.View
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   mascot: { width: 86, height: 96 },
-  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.card, borderRadius: 18, padding: 16, gap: 10 },
+  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.card, borderRadius: 18, padding: 16, gap: 8 },
   // 말꼬리 — 마스코트 쪽으로 돌린 작은 네모.
   tail: {
     position: 'absolute',
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.card,
     transform: [{ rotate: '45deg' }],
   },
-  captionInner: { gap: 6 },
+  captionInner: { gap: 8 },
   progress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   step: { fontSize: 12, fontWeight: '800', lineHeight: 17, color: palette.flameDeep },
   title: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 23 },

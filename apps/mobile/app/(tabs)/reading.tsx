@@ -14,7 +14,7 @@ import { currentTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
-import { EntryRow } from '@/components/ui/entry-row';
+import { IconOptionRow } from '@/components/ui/option-card';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
@@ -172,7 +172,7 @@ export default function ReadingList() {
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 110 }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 110 }]}
       keyboardShouldPersistTaps="handled">
       <View style={styles.head}>
         <Text style={styles.h1}>{empty ? t('reading.tabTitle') : t('reading.listTitle')}</Text>
@@ -254,9 +254,9 @@ export default function ReadingList() {
       ) : empty ? (
         // pen 「새 · 리딩 입구 첫」 — AI 대본 생성 입구는 서버 기능이 없어 숨긴다(SOMA-748).
         <View style={styles.entry}>
-          <MascotBubble source={MASCOT} title={t('reading.entryBubble')} body={t('reading.entryBubbleSub')} />
+          <MascotBubble source={MASCOT} title={t('reading.entryBubble')} guide={t('reading.entryBubbleSub')} />
           <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
-            <EntryRow icon="upload" title={t('reading.entryUpload')} sub={t('reading.entryUploadSub')} onPress={() => router.push('/reading/new')} />
+            <IconOptionRow flush icon="upload" title={t('reading.entryUpload')} sub={t('reading.entryUploadSub')} onPress={() => router.push('/reading/new')} />
           </View>
         </View>
       ) : (
@@ -310,7 +310,7 @@ export default function ReadingList() {
                       {chip && tone ? <Text style={{ color: tone.color }}>{` · ${chip.label}`}</Text> : null}
                     </Text>
                   </View>
-                  <Pressable style={styles.moreBtn} hitSlop={8} accessibilityLabel={t('reading.more')} onPress={() => more(s)}>
+                  <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_script_more" onPress={() => more(s)}>
                     <Feather name="more-horizontal" size={18} color={palette.textFaint} />
                   </Pressable>
                 </Pressable>
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24, gap: 12 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, minHeight: 53 },
   headRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  h1: { color: palette.text, fontSize: 24, fontWeight: '900' },
+  h1: { color: palette.text, fontSize: 24, fontWeight: '900', lineHeight: 34 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
   newText: { color: palette.onAccent, fontSize: 14, fontWeight: '800' },
   voiceBar: {
@@ -375,21 +375,21 @@ const styles = StyleSheet.create({
   loading: { alignItems: 'center', paddingVertical: 60 },
   entry: { gap: 14, marginTop: 2 },
   resumeCard: { backgroundColor: palette.blue, borderRadius: 22, padding: 20, gap: 10 },
-  resumeEyebrow: { color: palette.blueLine, fontSize: 13, fontWeight: '800' },
+  resumeEyebrow: { color: palette.blueLine, fontSize: 13, fontWeight: '800', lineHeight: 20 },
   resumeTitle: { color: palette.onAccent, fontSize: 22, fontWeight: '900', lineHeight: 31 },
   resumeHint: { color: palette.blueSoft, fontSize: 14, fontWeight: '700', lineHeight: 21 },
   resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.card, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
   resumeBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
   pressed: { opacity: 0.85 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
-  sectionTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
+  sectionTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 24 },
   sectionCount: { color: palette.textFaint, fontSize: 13, fontWeight: '600' },
   list: { gap: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 4 },
   rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 6 },
-  rowTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
-  rowMeta: { color: palette.textFaint, fontSize: 13, fontWeight: '600' },
+  rowTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 24 },
+  rowMeta: { color: palette.textFaint, fontSize: 13, fontWeight: '600', lineHeight: 20 },
   moreBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   noMatch: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
 });

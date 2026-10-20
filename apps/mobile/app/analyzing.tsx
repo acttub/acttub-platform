@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import { ProgressRow, SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
@@ -40,7 +41,6 @@ import { isSamplePracticeId, SAMPLE_ANALYZING_STEP_MS, sampleDetail, sampleScene
 /** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않는다). */
 const STAGES = translateList('analyzing.stages');
 
-const MASCOT = require('@/assets/images/mascot-coach.png');
 
 /**
  * A10 분석 진행(practice.analyze).
@@ -361,7 +361,7 @@ export default function AnalyzingScreen() {
           // pen 「P4.6 분석 실패」 — 마스코트와 제목 한 줄, 빨간 까닭, 다시 시도, 나중에 기록에서 보기.
           <View style={styles.errorBlock}>
             <View style={styles.errorHead}>
-              <Image source={MASCOT} style={styles.errorMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+              <Image source={MASCOT.coach} style={MASCOT_SIZE.sm} contentFit="contain" accessibilityIgnoresInvertColors />
               <Text style={styles.errorTitle}>{t('analyzing.errorTitle')}</Text>
             </View>
             <Text style={styles.errorBody}>
@@ -408,16 +408,15 @@ const styles = StyleSheet.create({
   wide: { alignSelf: 'stretch', marginTop: 8 },
 
   progressBlock: { alignItems: 'center', gap: 14, paddingTop: 26, paddingBottom: 10 },
-  stageText: { fontSize: 20, fontWeight: '900', color: palette.text, textAlign: 'center' },
+  stageText: { fontSize: 20, fontWeight: '900', lineHeight: 28, color: palette.text, textAlign: 'center' },
   elapsed: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
-  notice: { fontSize: 13, fontWeight: '600', color: palette.textFaint, textAlign: 'center', lineHeight: 21 },
-  leaveHint: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', lineHeight: 21 },
-  stopLink: { color: palette.textFaint, fontSize: 13, fontWeight: '700', textAlign: 'center', paddingVertical: 6 },
+  notice: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, textAlign: 'center', lineHeight: 21 },
+  leaveHint: { fontSize: 13, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', lineHeight: 20 },
+  stopLink: { color: palette.textFaint, fontSize: 12.5, fontWeight: '700', textAlign: 'center', paddingVertical: 6 },
 
   errorBlock: { alignItems: 'center', gap: 12, paddingTop: 26 },
-  errorHead: { flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'stretch' },
-  errorMascot: { width: 44, height: 50 },
+  errorHead: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch' },
   errorTitle: { flex: 1, fontSize: 20, fontWeight: '900', color: palette.text },
-  errorBody: { fontSize: 14, fontWeight: '600', color: palette.danger, textAlign: 'center', lineHeight: 22 },
-  backLink: { color: palette.textFaint, fontSize: 13, fontWeight: '700', marginTop: 6 },
+  errorBody: { fontSize: 13.5, fontWeight: '600', color: palette.danger, textAlign: 'center', lineHeight: 22 },
+  backLink: { color: palette.textFaint, fontSize: 12.5, fontWeight: '700', marginTop: 6 },
 });

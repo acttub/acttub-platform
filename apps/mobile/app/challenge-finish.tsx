@@ -6,6 +6,8 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { MASCOT as MASCOTS, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -15,7 +17,7 @@ import type { ChallengeDetail } from '@/lib/challenge/types';
 import { resultDay } from '@/lib/challenge/week-result';
 import { translate as t, translateList } from '@/lib/i18n';
 
-const MASCOT = require('@/assets/images/mascot-home.png');
+const MASCOT = MASCOTS.home;
 
 /**
  * 챌린지 마무리(SOMA-748 Ttlo3) — AI 리포트 다음, 「여기까지 할게요」·「공개하기」 뒤에 온다.
@@ -69,7 +71,7 @@ export default function ChallengeFinishScreen() {
 
         {showGuide && <Text style={styles.guide}>{t('challengeFinish.guide')}</Text>}
       </ScrollView>
-      <View style={styles.footer}>
+      <CtaBar safeBottom={false}>
         <PrimaryButton
           label={t('challengeFinish.seeOthers')}
           disabled={!challengeId}
@@ -79,7 +81,7 @@ export default function ChallengeFinishScreen() {
           }}
         />
         <SecondaryButton label={t('challengeFinish.home')} onPress={() => router.replace('/(tabs)')} />
-      </View>
+      </CtaBar>
     </SafeAreaView>
   );
 }
@@ -99,13 +101,12 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 13, fontWeight: '800', color: palette.green },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
-  mascot: { width: 52, height: 58 },
+  mascot: MASCOT_SIZE.sm,
   title: { flex: 1, fontSize: 22, fontWeight: '800', color: palette.text, lineHeight: 30 },
-  sub: { fontSize: 14, fontWeight: '600', color: palette.textMuted, marginTop: 6 },
+  sub: { fontSize: 14, fontWeight: '600', color: palette.textMuted, lineHeight: 20, marginTop: 6 },
   lineCard: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, gap: 6, marginTop: 18 },
   lineLabel: { fontSize: 12, fontWeight: '800', color: palette.flame },
   line: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 23 },
-  joined: { fontSize: 13, fontWeight: '600', color: palette.textMuted },
-  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21, marginTop: 14 },
-  footer: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16, gap: 10 },
+  joined: { fontSize: 13, fontWeight: '600', color: palette.textMuted, lineHeight: 19 },
+  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 20, marginTop: 14 },
 });

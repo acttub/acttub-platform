@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { IconOptionRow } from '@/components/ui/option-card';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -225,18 +226,18 @@ export default function AiReportScreen() {
             <Text style={styles.nextTitle}>{t('aiReport.nextTitle')}</Text>
             {showGuide && !!videoId && <Text style={styles.guide}>{t('aiReport.nextGuide')}</Text>}
             {!!videoId && (
-              <NextRow icon="message-circle" title={t('aiReport.nextCoach')} sub={t('aiReport.nextCoachSub')} primary onPress={() => void toCoach()} />
+              <IconOptionRow flush icon="message-circle" title={t('aiReport.nextCoach')} sub={t('aiReport.nextCoachSub')} highlight onPress={() => void toCoach()} />
             )}
             {visibility === 'private' && (
-              <NextRow icon="globe" title={t('aiReport.nextPublic')} sub={t('aiReport.nextPublicSub')} onPress={() => void makePublic()} />
+              <IconOptionRow flush icon="globe" title={t('aiReport.nextPublic')} sub={t('aiReport.nextPublicSub')} onPress={() => void makePublic()} />
             )}
             {visibility === 'public' && (
-              <NextRow icon="share-2" title={t('aiReport.nextShare')} sub={t('aiReport.nextShareSub')} onPress={share} />
+              <IconOptionRow flush icon="share-2" title={t('aiReport.nextShare')} sub={t('aiReport.nextShareSub')} onPress={share} />
             )}
-            <NextRow icon="check" title={t('aiReport.nextDone')} sub={t('aiReport.nextDoneSub')} onPress={finish} />
+            <IconOptionRow flush icon="check" title={t('aiReport.nextDone')} sub={t('aiReport.nextDoneSub')} onPress={finish} />
           </View>
         ) : (
-          <Pressable onPress={() => router.back()} accessibilityRole="button">
+          <Pressable onPress={() => router.back()} accessibilityRole="button" ph-label="ai_report_back">
             <Text style={styles.back}>
               <Feather name="chevron-left" size={13} color={palette.textFaint} /> {t('common.back')}
             </Text>
@@ -245,42 +246,6 @@ export default function AiReportScreen() {
       </ScrollView>
       {dialog}
     </SafeAreaView>
-  );
-}
-
-type FeatherName = React.ComponentProps<typeof Feather>['name'];
-
-/** 다음 행동 줄(8UOkFq) — 첫 줄(추천)만 연파랑 바탕. */
-function NextRow({
-  icon,
-  title,
-  sub,
-  primary,
-  onPress,
-}: {
-  icon: FeatherName;
-  title: string;
-  sub: string;
-  primary?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      style={({ pressed }) => [styles.nextRow, primary && styles.nextRowOn, pressed && styles.pressed]}>
-      <View style={styles.nextIcon}>
-        <Feather name={icon} size={22} color={palette.blue} />
-      </View>
-      <View style={styles.nextBody}>
-        <Text style={[styles.nextRowTitle, primary && styles.nextRowTitleOn]}>{title}</Text>
-        <Text style={styles.nextRowSub} numberOfLines={1}>
-          {sub}
-        </Text>
-      </View>
-      <Feather name="chevron-right" size={20} color={palette.textFaint} />
-    </Pressable>
   );
 }
 
@@ -306,11 +271,4 @@ const styles = StyleSheet.create({
   next: { gap: 6, marginTop: 8 },
   nextTitle: { fontSize: 15, fontWeight: '800', color: palette.text, marginBottom: 6 },
   guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21, marginBottom: 6 },
-  nextRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 15, paddingHorizontal: 4, borderRadius: 16 },
-  nextRowOn: { backgroundColor: palette.blueSoft },
-  nextIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  nextBody: { flex: 1, minWidth: 0, gap: 6 },
-  nextRowTitle: { fontSize: 17, fontWeight: '700', color: palette.text },
-  nextRowTitleOn: { color: palette.blueDeep },
-  nextRowSub: { fontSize: 14, fontWeight: '500', color: palette.textMuted },
 });

@@ -151,7 +151,8 @@ export default function ChallengesScreen() {
             onPress={() => router.push('/line-search')}
             hitSlop={6}
             accessibilityRole="button"
-            accessibilityLabel={t('challenges.search')}>
+            accessibilityLabel={t('challenges.search')}
+            ph-label="challenges_search">
             <Feather name="search" size={22} color={palette.text} />
           </Pressable>
           {/* 알림함 — 읽지 않은 묶음이 있으면 점이 붙는다(challenge.notification). */}
@@ -160,7 +161,8 @@ export default function ChallengesScreen() {
             onPress={() => router.push('/notifications')}
             hitSlop={6}
             accessibilityRole="button"
-            accessibilityLabel={t('notifications.title')}>
+            accessibilityLabel={t('notifications.title')}
+            ph-label="challenges_bell">
             <Feather name="bell" size={22} color={palette.text} />
             {unread.count > 0 && <View style={styles.badgeDot} />}
           </Pressable>
@@ -169,8 +171,9 @@ export default function ChallengesScreen() {
             onPress={() => router.push('/line-new')}
             hitSlop={6}
             accessibilityRole="button"
-            accessibilityLabel={t('challenges.addLine')}>
-            <Feather name="plus" size={24} color={palette.text} />
+            accessibilityLabel={t('challenges.addLine')}
+            ph-label="challenges_add_line">
+            <Feather name="plus" size={22} color={palette.text} />
           </Pressable>
         </View>
       </View>
@@ -383,7 +386,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 6,
   },
-  title: { fontSize: 24, fontWeight: '900', color: palette.text },
+  title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   iconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   badgeDot: {
@@ -404,8 +407,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: palette.flameSoft,
   },
-  bannerTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
-  bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMuted, marginTop: 6 },
+  bannerTitle: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
+  bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMuted, lineHeight: 18, marginTop: 6 },
   hero: { backgroundColor: palette.navy, borderRadius: 20, padding: 18, gap: 10 },
   heroChip: {
     flexDirection: 'row',
@@ -417,12 +420,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  heroChipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent },
+  heroChipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent, lineHeight: 20 },
   heroLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
-  heroMeta: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)' },
+  heroMeta: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)', lineHeight: 20 },
   heroStat: { flex: 1, fontSize: 12.5, fontWeight: '700', color: 'rgba(255, 255, 255, 0.67)' },
   heroAvatar: { borderColor: palette.navy },
-  guide: { fontSize: 14, fontWeight: '700', color: palette.blue, lineHeight: 21 },
+  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21 },
   heroPerform: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -436,7 +439,7 @@ const styles = StyleSheet.create({
   heroPerformText: { fontSize: 14.5, fontWeight: '800', color: palette.onAccent },
   tabRow: { flexDirection: 'row', gap: 16, paddingTop: 4 },
   tab: { paddingVertical: 4 },
-  tabText: { fontSize: 15, fontWeight: '700', color: palette.textFaint },
+  tabText: { fontSize: 15, fontWeight: '700', color: palette.textFaint, lineHeight: 23 },
   tabTextOn: { fontWeight: '800', color: palette.text },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
   row: { borderRadius: 16, gap: 4 },
@@ -444,7 +447,7 @@ const styles = StyleSheet.create({
   rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 6 },
   line: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 24 },
-  meta: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  meta: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   avatars: { flexDirection: 'row' },
   avatar: {

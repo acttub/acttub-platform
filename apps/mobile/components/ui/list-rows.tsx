@@ -7,7 +7,7 @@ import { palette } from '@/constants/palette';
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
 /**
- * 시작·가입·프로필·설정 영역(SOMA-748)이 같이 쓰는 줄 모양들.
+ * 설정·목록 화면이 같이 쓰는 줄 모양들(SOMA-770 공통).
  * pen 「설정 및 활동」「알림 설정」「동의 내역」「온보딩 선택지」의 수치를 그대로 옮겼다.
  */
 
@@ -127,39 +127,6 @@ export function TwoLineRow({
   );
 }
 
-/**
- * 온보딩·프로필 항목의 선택지 한 줄 — 글 17/700, 고르면 연파랑 바탕 + 파란 체크 원.
- * `multi`면 네모 체크(여럿 고르기).
- */
-export function OptionRow({
-  label,
-  selected,
-  onPress,
-  multi,
-  trailing = 'circle',
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-  multi?: boolean;
-  /** circle: 빈 원/체크 원(pen 선택지), check: 고른 것에만 체크(pen 성별). */
-  trailing?: 'circle' | 'check';
-}) {
-  const icon: FeatherName | null =
-    trailing === 'check' ? (selected ? 'check' : null) : multi ? (selected ? 'check-square' : 'square') : selected ? 'check-circle' : 'circle';
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.option, selected && styles.optionOn]}
-      accessibilityRole={multi ? 'checkbox' : 'radio'}
-      accessibilityState={multi ? { checked: selected } : { selected }}
-      accessibilityLabel={label}>
-      <Text style={[styles.optionText, selected && styles.optionTextOn]}>{label}</Text>
-      {icon ? <Feather name={icon} size={22} color={selected ? palette.blue : palette.checkOff} /> : null}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   sectionLabel: { paddingTop: 6, paddingBottom: 2 },
   sectionLabelText: { fontSize: 13, fontWeight: '700', lineHeight: 18, color: palette.textMuted },
@@ -173,15 +140,4 @@ const styles = StyleSheet.create({
   twoLineText: { flex: 1, minWidth: 0 },
   twoLineTitle: { fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.text },
   twoLineSub: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMuted },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-  },
-  optionOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 14 },
-  optionText: { flex: 1, fontSize: 17, fontWeight: '700', lineHeight: 25, color: palette.text },
-  optionTextOn: { color: palette.blueDeep },
 });

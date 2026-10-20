@@ -2,10 +2,12 @@ import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState, type Ref } from 'react';
+import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
+import { setHomeTabBarHidden } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
@@ -47,18 +49,16 @@ import {
 } from '@/lib/streak-celebration';
 
 const PREVIEW_COUNT = 3;
-const MASCOT_HOME = require('@/assets/images/mascot-home.png');
-const MASCOT_FIRST = require('@/assets/images/mascot-coach.png');
 
 /**
  * 첫 연습을 끝낸 뒤 홈에서 한 번 비추는 자리(pen 「첫 연습 끝 홈 · 안내 1/4~4/4」, SOMA-748) — 오늘 할 것 카드,
  * 그리고 대본·챌린지·프로필 탭. 첫 사용자 홈(뭐부터 해 볼까요?)에서는 띄우지 않는다.
  */
 const HOME_STEPS: SpotlightStep[] = [
-  { target: TARGET.homeStart, text: 'guide.spotFirstDone' },
-  { target: TARGET.tabReading, text: 'guide.spotReadingTab', round: true },
-  { target: TARGET.tabChallenge, text: 'guide.spotChallengeTab', round: true },
-  { target: TARGET.tabProfile, text: 'guide.spotProfileTab', round: true },
+  { target: TARGET.homeStart, text: 'guide.spotFirstDone', mascot: 'home' },
+  { target: TARGET.tabReading, text: 'guide.spotReadingTab', round: true, mascot: 'reading' },
+  { target: TARGET.tabChallenge, text: 'guide.spotChallengeTab', round: true, mascot: 'coach' },
+  { target: TARGET.tabProfile, text: 'guide.spotProfileTab', round: true, mascot: 'home' },
 ];
 
 /** 홈이 리딩 회차를 읽을 대본 — 최근 14일 안에 연습한 것만(연속일·주간 원에 쓰는 만큼). */
@@ -266,6 +266,12 @@ export default function HomeScreen() {
   const firstUser =
     loaded && !groupsFailed && isFirstUser({ groups, scripts: scripts ?? [], practicedDays: activityDays?.length ?? 0 });
 
+  // 첫 사용자 화면(bHxn1I)은 탭바 없이 셋 중 하나를 고르게 한다 — 홈 탭에서만 숨기고, 홈을 떠나면 되돌린다(SOMA-770).
+  useEffect(() => {
+    setHomeTabBarHidden(firstUser);
+    return () => setHomeTabBarHidden(false);
+  }, [firstUser]);
+
   const today = useMemo(
     () => pickToday({ groups, scripts: scripts ?? [], challenge: featured, now: new Date() }),
     [groups, scripts, featured],
@@ -361,6 +367,7 @@ export default function HomeScreen() {
       hitSlop={10}
       accessibilityRole="button"
       accessibilityLabel={unread.count > 0 ? t('home.bellUnreadA11y') : t('home.bellA11y')}
+      ph-label="home_bell"
       style={styles.bell}>
       <Feather name="bell" size={22} color={palette.text} />
       {unread.count > 0 && <View style={styles.bellDot} />}
@@ -384,43 +391,38 @@ export default function HomeScreen() {
         // 첫 사용자 홈(bHxn1I) — 셋 중 하나를 고른다. 첫 줄이 첫 가이드가 비추는 자리다.
         <ScrollView contentContainerStyle={styles.firstContainer}>
           <View style={styles.firstHead}>
-            <Image source={MASCOT_FIRST} style={styles.firstMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT.coach} style={MASCOT_SIZE.sm} contentFit="contain" accessibilityIgnoresInvertColors />
             <Text style={styles.firstQuestion}>{t('home.firstQuestion')}</Text>
           </View>
           <View style={styles.firstChoices}>
-            <Pressable
-              ref={startTarget.ref}
+            <FirstChoice
+              targetRef={startTarget.ref}
               onLayout={startTarget.onLayout}
+              main
+              title={t('home.firstCoaching')}
+              sub={t('home.firstCoachingSub')}
+              phLabel="home_first_coaching"
               onPress={() => router.push('/coaching')}
-              accessibilityRole="button"
-              accessibilityLabel={t('home.firstCoaching')}
-              style={({ pressed }) => [styles.choice, styles.choiceMain, pressed && styles.pressed]}>
-              <Text style={[styles.choiceText, styles.choiceTextMain]}>{t('home.firstCoaching')}</Text>
-              <Feather name="chevron-right" size={18} color={palette.blueDeep} />
-            </Pressable>
-            <Pressable
+            />
+            <FirstChoice
+              title={t('home.firstReading')}
+              sub={t('home.firstReadingSub')}
+              phLabel="home_first_reading"
               onPress={() => router.push('/reading')}
-              accessibilityRole="button"
-              accessibilityLabel={t('home.firstReading')}
-              style={({ pressed }) => [styles.choice, pressed && styles.pressed]}>
-              <Text style={styles.choiceText}>{t('home.firstReading')}</Text>
-              <Feather name="chevron-right" size={18} color={palette.textMuted} />
-            </Pressable>
-            <Pressable
+            />
+            <FirstChoice
+              title={t('home.firstChallenge')}
+              sub={t('home.firstChallengeSub')}
+              phLabel="home_first_challenge"
               onPress={() => router.push('/challenges')}
-              accessibilityRole="button"
-              accessibilityLabel={t('home.firstChallenge')}
-              style={({ pressed }) => [styles.choice, pressed && styles.pressed]}>
-              <Text style={styles.choiceText}>{t('home.firstChallenge')}</Text>
-              <Feather name="chevron-right" size={18} color={palette.textMuted} />
-            </Pressable>
+            />
           </View>
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.container}>
           {/* 머리 — 마스코트 + 인사 + 알림 종. 일정 D-day 줄은 일정 기능(서버)이 생기면 붙인다. */}
           <View style={styles.head}>
-            <Image source={MASCOT_HOME} style={styles.headMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT.home} style={MASCOT_SIZE.card} contentFit="contain" accessibilityIgnoresInvertColors />
             <Text style={styles.greeting}>{t('home.greeting')}</Text>
             {bell}
           </View>
@@ -661,6 +663,43 @@ function TodayCardBody({
   );
 }
 
+/** 첫 사용자 홈의 선택지 한 줄 — 제목 16/700(첫 줄은 파랑 16/800) + 무엇인지 한 줄 설명(13/500), 오른쪽 꺾쇠(SOMA-770 피드백 3). */
+function FirstChoice({
+  title,
+  sub,
+  main,
+  phLabel,
+  onPress,
+  targetRef,
+  onLayout,
+}: {
+  title: string;
+  sub: string;
+  main?: boolean;
+  phLabel: string;
+  onPress: () => void;
+  targetRef?: Ref<View>;
+  onLayout?: (e: LayoutChangeEvent) => void;
+}) {
+  return (
+    <Pressable
+      ref={targetRef}
+      onLayout={onLayout}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={sub}
+      ph-label={phLabel}
+      style={({ pressed }) => [styles.choice, main && styles.choiceMain, pressed && styles.pressed]}>
+      <View style={styles.choiceBody}>
+        <Text style={[styles.choiceText, main && styles.choiceTextMain]}>{title}</Text>
+        <Text style={styles.choiceSub}>{sub}</Text>
+      </View>
+      <Feather name="chevron-right" size={18} color={main ? palette.blueDeep : palette.textMuted} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -671,9 +710,8 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
 
   // 첫 사용자 홈(bHxn1I)
-  firstContainer: { paddingTop: 80, paddingHorizontal: 24, paddingBottom: 140, gap: 16 },
+  firstContainer: { paddingTop: 100, paddingHorizontal: 24, paddingBottom: 40, gap: 16 },
   firstHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  firstMascot: { width: 52, height: 58 },
   firstQuestion: { flex: 1, fontSize: 28, fontWeight: '800', lineHeight: 38, color: palette.text },
   firstChoices: { gap: 12, paddingTop: 24 },
   choice: {
@@ -686,12 +724,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgSoft,
   },
   choiceMain: { backgroundColor: palette.blueSoft },
-  choiceText: { flex: 1, fontSize: 16, fontWeight: '700', lineHeight: 24, color: palette.text },
+  choiceBody: { flex: 1, minWidth: 0, gap: 4 },
+  choiceText: { fontSize: 16, fontWeight: '700', lineHeight: 24, color: palette.text },
   choiceTextMain: { fontWeight: '800', color: palette.blueDeep },
+  choiceSub: { fontSize: 13, fontWeight: '500', lineHeight: 19, color: palette.textMuted },
 
   // 머리
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headMascot: { width: 48, height: 54 },
   greeting: { flex: 1, fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.text },
   bell: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   bellDot: {
@@ -711,7 +750,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 12, fontWeight: '800', lineHeight: 18 },
   eyebrowBlue: { color: palette.blue },
   eyebrowGreen: { color: palette.green },
-  eyebrowOrange: { color: palette.flameDeep },
+  eyebrowOrange: { color: palette.flame },
   todayTitle: { fontSize: 18, fontWeight: '800', lineHeight: 24, color: palette.text },
   barTrack: { height: 8, borderRadius: 4, backgroundColor: palette.bg, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4, backgroundColor: palette.green },

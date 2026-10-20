@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
@@ -249,18 +250,33 @@ export default function ArchiveDetailScreen() {
           </Pressable>
         )}
         <SafeAreaView edges={['top']} style={styles.topBar} pointerEvents="box-none">
-          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
-            <Feather name="chevron-left" size={28} color="#FFFFFF" />
-          </Pressable>
+          <NavIconButton
+            icon="chevron-left"
+            size={28}
+            color="#FFFFFF"
+            label={t('common.back')}
+            phLabel="archive_detail_back"
+            onPress={() => router.back()}
+          />
           <View style={styles.topRight}>
             {state.kind === 'video' && (
-              <Pressable onPress={() => void toggleFav()} hitSlop={10} accessibilityRole="button">
-                <Feather name="star" size={24} color={favorite ? '#F5B324' : '#FFFFFF'} />
-              </Pressable>
+              <NavIconButton
+                icon="star"
+                size={24}
+                color={favorite ? '#F5B324' : '#FFFFFF'}
+                label={t('archive.filterFav')}
+                phLabel="archive_detail_favorite"
+                onPress={() => void toggleFav()}
+              />
             )}
-            <Pressable onPress={() => void remove()} hitSlop={10} accessibilityRole="button">
-              <Feather name="trash-2" size={22} color="#FFFFFF" />
-            </Pressable>
+            <NavIconButton
+              icon="trash-2"
+              size={22}
+              color="#FFFFFF"
+              label={t('common.delete')}
+              phLabel="archive_detail_delete"
+              onPress={() => void remove()}
+            />
           </View>
         </SafeAreaView>
       </View>
@@ -333,8 +349,8 @@ const styles = StyleSheet.create({
   videoArea: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   noPlayback: { color: 'rgba(255,255,255,0.7)', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
-  topRight: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, paddingTop: 8 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   playBtn: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   sheet: { backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
   sheetContent: { padding: 20, paddingTop: 22, gap: 10 },
@@ -347,8 +363,8 @@ const styles = StyleSheet.create({
   smallBtnText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   nextHint: { fontSize: 13, color: palette.textDim, marginTop: 6 },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 16, padding: 14 },
-  optionIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  optionIconAmber: { backgroundColor: '#FFF4DE' },
+  optionIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  optionIconAmber: {},
   optionTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
   optionSub: { fontSize: 12, color: palette.textFaint, marginTop: 2 },
   deleteRow: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 6, paddingVertical: 12 },
