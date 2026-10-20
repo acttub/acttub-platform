@@ -22,14 +22,12 @@ final class VisibleCoachText {
     private static final Pattern HIDDEN_BLOCK = Pattern.compile("(?is)<(" + HIDDEN_NAME + ")>.*?</\\1>");
     private static final Pattern HIDDEN_OPEN = Pattern.compile("(?i)<" + HIDDEN_NAME + ">");
     private static final Pattern THINKING_CLOSE = Pattern.compile("(?i)</(?:생각|thought|think|thinking)>");
-    private static final Pattern STRAY_TAG = Pattern.compile("(?i)</?(?:설계|상태|코치|다음 테이크|보기|카드|인물 카드|장면|생각|thought|think|thinking)>");
+    private static final Pattern STRAY_TAG = Pattern.compile("(?iu)</?(?:설계|상태|코치|다음 테이크|보기|카드|인물 카드|장면|생각|thought|think|thinking)>");
     private static final List<String> MEMO_LABELS = List.of("배우가 한 말", "배우가 지금 원하는 것", "이번 목표", "내 대답", "끝 질문", "글자 수");
     private static final Pattern MEMO_LINE = Pattern.compile(
             "(?m)^\\s*(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*(?:\\R|$)");
     private static final String COACH_OPEN = "<코치>";
     private static final String COACH_CLOSE = "</코치>";
-
-    private static final Pattern TRAILING_JAMO = Pattern.compile("[\\u3131-\\u318E\\s]+$");
 
     private final boolean opening;
     private final java.util.Locale language;
@@ -118,10 +116,16 @@ final class VisibleCoachText {
 
     /** 끝에 붙은 날 자모(와 그 사이 공백)는 깨진 글의 시작일 수 있어 다음 조각까지 잡아 둔다. */
     static String holdTrailingJamo(String text) {
-        Matcher tail = TRAILING_JAMO.matcher(text);
-        if (!tail.find()) return text;
-        String held = tail.group();
-        return held.chars().anyMatch(c -> c >= 0x3131 && c <= 0x318E) ? text.substring(0, tail.start()) : text;
+        int start = text.length();
+        boolean jamo = false;
+        while (start > 0) {
+            char c = text.charAt(start - 1);
+            boolean isJamo = c >= '\u3131' && c <= '\u318E';
+            if (!isJamo && !Character.isWhitespace(c)) break;
+            jamo |= isJamo;
+            start--;
+        }
+        return jamo ? text.substring(0, start) : text;
     }
 
     /** 끝 줄이 아직 메모 이름("이번 목표:")일 수 있으면 그 줄은 다음 조각까지 잡아 둔다. */
