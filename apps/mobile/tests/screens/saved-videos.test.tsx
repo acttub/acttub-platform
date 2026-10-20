@@ -87,7 +87,7 @@ test('저장 풀기가 실패하면 목록을 다시 불러와 빠진 영상을 
   expect(listSaved).toHaveBeenCalledTimes(2);
 });
 
-test.failing('저장 풀기가 실패하면 실패 이유를 보여 준다', async () => {
+test('저장 풀기가 실패하면 실패 이유를 보여 준다', async () => {
   saveEntry.mockRejectedValue(Object.assign(new Error('gone'), { status: 404 }));
   await render(<SavedVideosScreen />);
   await screen.findByText('눈빛 참고');
