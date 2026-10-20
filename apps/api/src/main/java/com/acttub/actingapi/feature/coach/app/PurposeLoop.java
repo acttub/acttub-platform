@@ -33,7 +33,7 @@ final class PurposeLoop {
     static final int MAX_CELLS = 3;
 
     enum Purpose {
-        EVALUATE("evaluate", List.of("card", "intent", "method", "wrap")),
+        EVALUATE("evaluate", List.of("card", "method", "wrap")),
         STUCK("stuck", List.of("reason", "line", "seen", "method", "wrap")),
         CHARACTER("character", List.of("view", "cell", "wrap"));
 
@@ -75,7 +75,25 @@ final class PurposeLoop {
      * 이번 말이 답한 단계(재료로 남긴다), 없으면 {@code null}.
      */
     record Turn(Purpose purpose, String step, String doing, boolean advanced, boolean end, String kindLabel,
-            boolean chip, String answeredStep) {
+            boolean chip, String answeredStep, boolean asked, boolean direct, boolean dontKnow) {
+        Turn(Purpose purpose, String step, String doing, boolean advanced, boolean end, String kindLabel,
+                boolean chip, String answeredStep) {
+            this(purpose, step, doing, advanced, end, kindLabel, chip, answeredStep, false, false, false);
+        }
+
+        Turn asking() {
+            return new Turn(purpose, step, doing, advanced, end, kindLabel, chip, answeredStep, true, direct, dontKnow);
+        }
+
+        Turn notKnowing() {
+            return new Turn(purpose, step, doing, advanced, end, kindLabel, chip, answeredStep, asked, direct, true);
+        }
+
+        /** 배우가 방향을 원한다 — 더 묻지 않고 코치가 직접 정해 주는 정리. */
+        static Turn directing(Purpose purpose, String label, boolean chip, String answeredStep, boolean dontKnow) {
+            return new Turn(purpose, "wrap", "wrap", true, false, label, chip, answeredStep, false, true, dontKnow);
+        }
+
         boolean wrap() {
             return "wrap".equals(doing);
         }
@@ -123,25 +141,39 @@ final class PurposeLoop {
         if (replies >= REPLY_CAP - 1) {
             return new Turn(purpose, "wrap", "wrap", true, false, label, chip, answerLike ? current : null);
         }
+        // 스무고개 막기(10/20 페르소나 시험): "잘 모르겠어요"가 대화에서 두 번째이거나, 배우가 "그래서 어떻게 해요?"처럼
+        // 방법을 달라고 하면 더 묻지 않고 코치가 영상에서 본 것으로 직접 방향을 정해 주며 끝낸다.
+        boolean dontKnow = chip ? DONT_KNOW.equals(pressed)
+                : (kind == PracticeLoopRouter.Kind.MISSED || kind == PracticeLoopRouter.Kind.SHORT)
+                        && actorText != null && actorText.contains("모르");
+        boolean wantsMethod = !chip && (kind == PracticeLoopRouter.Kind.METHOD
+                || classified != null && "method".equals(classified.respond()));
+        if (dontKnow && loop.path("dont_knows").asInt(0) >= 1 || wantsMethod) {
+            return Turn.directing(purpose, label, chip, answerLike ? current : null, dontKnow);
+        }
         if (chip) {
-            if (DONT_KNOW.equals(pressed)) return stay(purpose, current, stays, label, true);
+            // "잘 모르겠어요" 버튼 처음: 코치가 자기 생각을 내놓는다.
+            if (DONT_KNOW.equals(pressed)) {
+                return new Turn(purpose, current, "propose", false, false, label, true, null).notKnowing();
+            }
             if (ANOTHER.equals(pressed) && "card".equals(current) && loop.path("another").asInt(0) < 1) {
                 return new Turn(purpose, current, "another", false, false, label, true, null);
             }
             return advance(purpose, loop, index, label, true, answerLike ? current : null, actorText);
         }
-        return switch (kind) {
+        Turn turn = switch (kind) {
             case QUESTION, EVALUATION -> stays >= MAX_STAYS ? advance(purpose, loop, index, label, false, null, actorText)
                     : new Turn(purpose, current, "answer", false, false, label, false, null);
             case CORRECTION, PUSHBACK -> stays >= MAX_STAYS ? advance(purpose, loop, index, label, false, null, actorText)
                     : new Turn(purpose, current, "accept", false, false, label, false, null);
-            case METHOD -> purpose.steps.contains("method") && index < purpose.steps.indexOf("method")
-                    ? new Turn(purpose, "method", "method", true, false, label, false, null)
-                    : new Turn(purpose, current, "answer", false, false, label, false, null);
             case MISSED, SHORT -> stays >= MAX_STAYS ? advance(purpose, loop, index, label, false, null, actorText)
                     : stay(purpose, current, stays, label, false);
             default -> advance(purpose, loop, index, label, false, current, actorText);
         };
+        // 답하면서 함께 물은 것이 있으면(왜요? 그래서 어떻게 해요?) 단계 일을 하기 전에 먼저 답하게 한다.
+        boolean answering = "answer".equals(turn.doing()) || turn.end();
+        if (dontKnow) turn = turn.notKnowing();
+        return classified != null && classified.alsoAsked() && !answering ? turn.asking() : turn;
     }
 
     /** 처음 막히면 쉽게 다시 묻고, 또 막히면 코치가 답 하나를 내놓는다. */
@@ -183,9 +215,27 @@ final class PurposeLoop {
         String said = compact(actorText);
         for (JsonNode line : lines) {
             String text = compact(line.path("text").asText(""));
-            if (text.length() >= 2 && said.contains(text)) return true;
+            // 받아 적은 대사와 배우가 쓴 말이 조금 달라도("좀 가르쳐 줘" / "가르쳐 줘 비결이 뭐야") 네 글자 이상 겹치면 짚은 것이다.
+            if (text.length() >= 2 && (said.contains(text) || commonRun(text, said) >= Math.min(4, text.length()))) return true;
         }
         return false;
+    }
+
+    /** 두 글에 함께 있는 가장 긴 연속 글자 수. */
+    static int commonRun(String a, String b) {
+        int best = 0;
+        int[] prev = new int[b.length() + 1];
+        for (int i = 1; i <= a.length(); i++) {
+            int[] cur = new int[b.length() + 1];
+            for (int j = 1; j <= b.length(); j++) {
+                if (a.charAt(i - 1) == b.charAt(j - 1)) {
+                    cur[j] = prev[j - 1] + 1;
+                    if (cur[j] > best) best = cur[j];
+                }
+            }
+            prev = cur;
+        }
+        return best;
     }
 
     private static final Pattern QUOTED_BY_ACTOR = Pattern.compile("[\"“'‘「『][^\"”'’」』]{2,}[\"”'’」』]");
@@ -273,11 +323,11 @@ final class PurposeLoop {
         ObjectNode merged = old.deepCopy();
         for (String key : List.of("good", "issue", "next")) {
             if (!fresh.has(key)) continue;
-            if (wrap && !"next".equals(key) && old.has(key)) continue;
             ObjectNode item = ((ObjectNode) fresh.get(key)).deepCopy();
             JsonNode before = old.path(key);
+            // 정리는 대화에서 배우가 바로잡은 것을 반영해 줄을 고쳐 쓸 수 있다. 같은 곳이므로 시간이 빠졌으면 앞 시간을 살린다.
             if (item.path("at").isNull() && before.path("at").isNumber()
-                    && before.path("text").asText("").equals(item.path("text").asText(""))) {
+                    && (wrap || before.path("text").asText("").equals(item.path("text").asText("")))) {
                 item.put("at", before.path("at").asInt());
             }
             merged.set(key, item);
@@ -462,6 +512,7 @@ final class PurposeLoop {
         if (index >= 0) loop.put("step", index);
         loop.put("stays", turn.advanced() ? 0 : loop.path("stays").asInt(0) + 1);
         if ("cell".equals(turn.doing())) loop.put("cells", loop.path("cells").asInt(0) + 1);
+        if (turn.dontKnow()) loop.put("dont_knows", loop.path("dont_knows").asInt(0) + 1);
         if ("another".equals(turn.doing())) loop.put("another", loop.path("another").asInt(0) + 1);
         if (output.card() != null) loop.set("card", mergeCard(loop.get("card"), output.card(), turn.wrap()));
         if (output.characterCard() != null) loop.set("character_card", output.characterCard());
@@ -552,6 +603,14 @@ final class PurposeLoop {
         if (loop.path("card").isObject()) lines.add("- 지금 결과 카드: " + loop.path("card"));
         if (loop.path("character_card").isObject()) lines.add("- 지금 인물 카드: " + loop.path("character_card"));
         if (loop.path("choices").size() > 0) lines.add("- 직전에 내준 버튼: " + loop.path("choices"));
+        if (turn.direct()) {
+            lines.add("- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 영상에서 본 것으로 "
+                    + "직접 정한다: 어느 대사에서, 상대에게 무엇을 하는지. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.");
+        }
+        if (turn.asked()) {
+            lines.add("- 배우가 이번 말에서 함께 물은 것이 있다. 이번 할 일을 하기 전에 그 물음에 먼저 한두 문장으로 솔직하게 답한다. "
+                    + "물음을 넘기거나 질문으로 되돌리지 않는다.");
+        }
         if (actorText != null && !actorText.isBlank()) {
             lines.add("- 배우가 방금 한 말: " + actorText.strip().replaceAll("\\s+", " ") + (turn.chip() ? " (버튼을 눌렀다)" : ""));
         }
@@ -576,6 +635,7 @@ final class PurposeLoop {
     /** 이번 응답의 글자 상한을 설명 길이로 늘리는가. 평가 첫 답·정리·물음에 답하기·코치 제안은 한 문장으로 줄이면 뜻이 빠진다. */
     static boolean explains(Purpose purpose, Turn turn) {
         if (turn == null) return purpose == Purpose.EVALUATE;
+        if (turn.asked()) return true;
         return switch (turn.doing()) {
             case "wrap", "answer", "another", "propose", "seen" -> true;
             default -> false;

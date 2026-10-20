@@ -3813,7 +3813,7 @@ export interface components {
             purpose: "evaluate" | "stuck" | "character";
             /**
              * Step
-             * @description evaluate: card·intent·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap
+             * @description evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap
              */
             step: string;
             /** Choices */

@@ -105,7 +105,7 @@ final class ConversationDtos {
     record PurposeResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"evaluate", "stuck", "character"}) String purpose,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    description = "evaluate: card·intent·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap")
+                    description = "evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap")
             String step,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<ChoiceResponse> choices,
             @Schema(nullable = true, description = "AI가 영상에서 알아본 장면") SceneResponse scene,

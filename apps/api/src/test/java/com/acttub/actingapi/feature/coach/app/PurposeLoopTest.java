@@ -29,7 +29,7 @@ class PurposeLoopTest {
     }
 
     @Test void eachPurposeHasItsOwnSteps() {
-        assertThat(PurposeLoop.Purpose.EVALUATE.steps).containsExactly("card", "intent", "method", "wrap");
+        assertThat(PurposeLoop.Purpose.EVALUATE.steps).containsExactly("card", "method", "wrap");
         assertThat(PurposeLoop.Purpose.STUCK.steps).containsExactly("reason", "line", "seen", "method", "wrap");
         assertThat(PurposeLoop.Purpose.CHARACTER.steps).containsExactly("view", "cell", "wrap");
         assertThat(PurposeLoop.Purpose.of(" stuck ")).isEqualTo(PurposeLoop.Purpose.STUCK);
@@ -40,7 +40,7 @@ class PurposeLoopTest {
         var card = state("{\"step\":0,\"choices\":[{\"label\":\"코치와 같이 고치기\",\"at\":null},{\"label\":\"다른 것도 봐 주세요\",\"at\":null}]}");
         String pressed = PurposeLoop.pressed(card, "코치와 같이 고치기");
         var turn = PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, card, "코치와 같이 고치기", pressed, null, 1);
-        assertThat(turn.doing()).isEqualTo("intent");
+        assertThat(turn.doing()).as("평가는 의도를 캐묻지 않고 바로 방법").isEqualTo("method");
         assertThat(turn.answeredStep()).as("고치기 버튼은 단계 답이 아니다").isNull();
 
         var another = PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, card, "다른 것도 봐 주세요",
@@ -49,7 +49,7 @@ class PurposeLoopTest {
         assertThat(another.step()).isEqualTo("card");
         var used = state("{\"step\":0,\"another\":1,\"choices\":[{\"label\":\"다른 것도 봐 주세요\",\"at\":null}]}");
         assertThat(PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, used, "다른 것도 봐 주세요", "다른 것도 봐 주세요", null, 2).doing())
-                .as("다른 곳은 한 번만 더 보여 준다").isEqualTo("intent");
+                .as("다른 곳은 한 번만 더 보여 준다").isEqualTo("method");
     }
 
     @Test void aChipMovesOnWithoutTheClassifierAndIsRememberedAsTheStepAnswer() {
@@ -74,13 +74,21 @@ class PurposeLoopTest {
         var turn = PurposeLoop.decide(PurposeLoop.Purpose.STUCK, reason, "취소해에서 감정이 안 올라와요", null, ANSWERED, 1);
         assertThat(turn.doing()).isEqualTo("seen");
         assertThat(PurposeLoop.decide(PurposeLoop.Purpose.STUCK, reason, "그냥 다 어색해요", null, ANSWERED, 1).doing()).isEqualTo("line");
+        var near = state("{\"step\":0,\"lines\":[{\"at\":49,\"text\":\"좀 가르쳐 줘\"}]}");
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.STUCK, near, "가르쳐 줘 비결이 뭐야 여기가 안돼요", null, ANSWERED, 1).doing())
+                .as("받아 적은 대사와 조금 달라도 겹치면 짚은 것").isEqualTo("seen");
         assertThat(PurposeLoop.decide(PurposeLoop.Purpose.STUCK, reason, "그 '어여쁘다는 말은 취소해' 부분이요", null, ANSWERED, 1).doing())
                 .as("받아 적지 못한 대사라도 배우가 따옴표로 따왔으면 짚은 것이다").isEqualTo("seen");
     }
 
     @Test void notKnowingIsAskedEasilyThenTheCoachProposesThenItMovesOn() {
         var first = state("{\"step\":2,\"stays\":0}");
-        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.STUCK, first, "잘 모르겠어요", "잘 모르겠어요", null, 3).doing()).isEqualTo("easy");
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.STUCK, first, "잘 모르겠어요", "잘 모르겠어요", null, 3).doing())
+                .as("모르겠다 버튼은 바로 코치 생각을 내놓는다").isEqualTo("propose");
+        var twice = PurposeLoop.decide(PurposeLoop.Purpose.STUCK, state("{\"step\":2,\"stays\":1,\"dont_knows\":1}"), "잘 모르겠어요", "잘 모르겠어요", null, 4);
+        assertThat(twice.wrap()).as("대화에서 두 번째 모르겠다면 더 묻지 않고 코치가 정해 준다").isTrue();
+        assertThat(twice.direct()).isTrue();
+        assertThat(PurposeLoop.instruction(twice, state("{}"), "잘 모르겠어요")).contains("더 묻지 않는다");
         var again = state("{\"step\":2,\"stays\":1}");
         assertThat(PurposeLoop.decide(PurposeLoop.Purpose.STUCK, again, "음", null, kind(PracticeLoopRouter.Kind.SHORT), 4).doing())
                 .isEqualTo("propose");
@@ -95,11 +103,19 @@ class PurposeLoopTest {
                 .isEqualTo("answer");
         assertThat(PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, intent, "아닌데요", null, kind(PracticeLoopRouter.Kind.CORRECTION), 2).doing())
                 .isEqualTo("accept");
-        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, intent, "어떻게 해요?", null, kind(PracticeLoopRouter.Kind.METHOD), 2).doing())
-                .isEqualTo("method");
+        var method = PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, intent, "그래서 어떻게 해요?", null, kind(PracticeLoopRouter.Kind.METHOD), 2);
+        assertThat(method.wrap() && method.direct()).as("방법을 달라면 바로 코치가 정해 준다").isTrue();
         var stop = PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, intent, "그만", null, kind(PracticeLoopRouter.Kind.STOP), 2);
         assertThat(stop.end()).isTrue();
         assertThat(PurposeLoop.status(stop, "")).contains("할 일: 끝");
+    }
+
+    @Test void aQuestionAskedAlongWithAnAnswerIsAnsweredFirst() {
+        var asked = new PracticeLoopRouter.Classified(PracticeLoopRouter.Kind.ANSWER, false, "model", "question");
+        var turn = PurposeLoop.decide(PurposeLoop.Purpose.STUCK, state("{\"step\":2}"), "알려 주려고요. 근데 왜요?", null, asked, 3);
+        assertThat(turn.doing()).isEqualTo("method");
+        assertThat(turn.asked()).isTrue();
+        assertThat(PurposeLoop.instruction(turn, state("{\"step\":2}"), "알려 주려고요. 근데 왜요?")).contains("그 물음에 먼저");
     }
 
     @Test void theReplyCapForcesTheWrap() {
@@ -202,8 +218,9 @@ class PurposeLoopTest {
         assertThat(another.path("good").path("at").asInt()).as("같은 줄은 앞 시간을 살린다").isEqualTo(10);
         assertThat(another.path("issue").path("text").asText()).isEqualTo("눈을 돌리면 상대가 없어져요");
         assertThat(another.path("issue").path("at").isNull()).isTrue();
-        var wrapped = PurposeLoop.mergeCard(first, PurposeLoop.card("잘 된 곳: 다르게 쓴 줄\n아쉬운 곳: 다르게 쓴 줄\n다음 테이크: 매달려 봐도 좋아요"), true);
-        assertThat(wrapped.path("issue").path("at").asInt()).as("정리는 고친 곳을 바꾸지 않는다").isEqualTo(22);
+        var wrapped = PurposeLoop.mergeCard(first, PurposeLoop.card("잘 된 곳: 다르게 쓴 줄\n아쉬운 곳: 배우 말대로 고친 줄\n다음 테이크: 매달려 봐도 좋아요"), true);
+        assertThat(wrapped.path("issue").path("at").asInt()).as("정리가 고쳐 쓴 줄도 같은 곳의 시간을 살린다").isEqualTo(22);
+        assertThat(wrapped.path("issue").path("text").asText()).isEqualTo("배우 말대로 고친 줄");
         assertThat(wrapped.path("next").path("text").asText()).isEqualTo("매달려 봐도 좋아요");
     }
 
@@ -235,7 +252,7 @@ class PurposeLoopTest {
             names.add(purpose.id + "/path");
         }
         names.addAll(List.of("common/answer", "common/accept", "common/easy", "common/propose", "common/method",
-                "evaluate/intent", "evaluate/another", "evaluate/wrap", "stuck/line", "stuck/seen", "stuck/wrap",
+                "evaluate/another", "evaluate/wrap", "stuck/line", "stuck/seen", "stuck/wrap",
                 "character/cell", "character/wrap"));
         for (String name : names) assertThat(DirectVideoPrompts.purposeResource(name)).as(name).isNotBlank();
         for (var purpose : PurposeLoop.Purpose.values()) {
