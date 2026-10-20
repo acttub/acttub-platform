@@ -99,12 +99,12 @@ export function tutorialSteps(stage: TutorialStage, mode: TutorialMode): Spotlig
       return mode === 'own'
         ? [
             { target: TARGET.uploadPick, text: 'tutorial.upPick' },
-            { target: TARGET.uploadScene, text: 'tutorial.upScene' },
+            { target: TARGET.uploadRights, text: 'tutorial.upRights' },
             { target: TARGET.uploadStart, text: 'tutorial.upStart' },
           ]
         : [
             { target: TARGET.uploadSample, text: 'tutorial.upSample' },
-            { target: TARGET.uploadScene, text: 'tutorial.upSampleScene' },
+            { target: TARGET.uploadRights, text: 'tutorial.upRights' },
             { target: TARGET.uploadStart, text: 'tutorial.upStart' },
           ];
     case 'analyzing':

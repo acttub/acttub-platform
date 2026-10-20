@@ -108,9 +108,9 @@ export default function PracticeGroupScreen() {
 
   const action = continueActionFor(group);
 
-  /** 열린 테이크의 대화로 바로 돌아간다 — 분석 화면이 단계를 보고 대화로 넘긴다. */
+  /** 열린 테이크의 대화로 바로 돌아간다 — 코치 화면이 단계를 보고 분석 중이면 기다렸다가 대화를 연다. */
   const resumeConversation = (practiceId: string) => {
-    router.push({ pathname: '/analyzing', params: { practiceId } });
+    router.push({ pathname: '/coach', params: { practiceId } });
   };
 
   /** 같은 묶음의 다음 회차를 만든다. 영상은 새로 고르고 장면은 비운 채 시작한다. */

@@ -64,7 +64,7 @@ const PREVIEW_NOTE: PracticeNote = {
 /**
  * 분석 화면이 미리보기로 곧장 열렸을 때 쓸 값.
  *
- * 딥링크(`actingapp://analyzing?preview=1`)로 들어오면 회차 id 가 없어서 화면이 준비
+ * 딥링크(`actingapp://coach?preview=1`)로 들어오면 회차 id 가 없어서 화면이 준비
  * 화면으로 되돌아간다. 그 경우에만 이 회차를 그려 준다.
  */
 export function seedPreviewAnalyzing(): { detail: PracticeDetail } {

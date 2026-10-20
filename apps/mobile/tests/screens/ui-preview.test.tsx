@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 test.each([
-  ['분석 진행', undefined, '/analyzing?preview=1'],
+  ['분석 진행', undefined, '/coach?preview=1'],
   ['질문 대화', undefined, '/coach'],
   ['분석 결과', { withReport: true }, '/report?preview=1'],
 ])('%s 항목을 누르면 가짜 연습을 심고 그 화면으로 간다', async (label, seedArg, path) => {

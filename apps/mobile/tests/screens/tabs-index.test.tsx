@@ -279,7 +279,7 @@ describe('오늘 할 것 · 코칭 숙제', () => {
     expect(screen.getAllByText('카페 장면').length).toBeGreaterThan(0);
     expect(screen.queryByText(/코치가 본 것/)).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '대화 이어 가기' }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/analyzing', params: { practiceId: 'open-1' } });
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'open-1' } });
   });
 
   test('노트 없이 나간 묶음(1턴만 하고 나감)은 숙제가 아니다 — 연습 시작 카드를 보인다', async () => {
@@ -331,7 +331,7 @@ test('최근 연습은 숨기지 않은 묶음 셋을 최근 순으로 보여 �
   expect(screen.getAllByText('대화 중')).toHaveLength(1);
 
   await fireEvent.press(screen.getByText('옥상 고백'));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/analyzing', params: { practiceId: 'open-2' } });
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'open-2' } });
   await fireEvent.press(screen.getByText('카페 장면'));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/practice-group', params: { rootId: 'r1' } });
   await fireEvent.press(screen.getAllByText('전체보기')[0]);

@@ -25,21 +25,19 @@ export function purposeFor(category: BlockageCategory | null): SessionPurpose {
   return SESSION_PURPOSES.find((p) => CATEGORY[p] === category) ?? DEFAULT_PURPOSE;
 }
 
-/** 준비 화면의 세 단계 — 목적 → 영상 고르기 → 장면·질문 받기. */
-export type UploadStep = 'purpose' | 'source' | 'scene';
+/** 준비 화면의 두 단계 — 목적 → 영상(권리 체크·시작 포함). 장면 단계는 없앴다(SOMA-778). */
+export type UploadStep = 'purpose' | 'source';
 
-/** 튜토리얼과 예시는 한 장(장면 단계)에서 영상·적을 칸·시작 버튼을 차례로 비추므로 바로 그 단계로 연다. */
+/** 튜토리얼과 예시는 한 장(영상 단계)에서 영상·권리 체크·시작 버튼을 차례로 비추므로 바로 그 단계로 연다. */
 export function firstUploadStep(input: { sample: boolean; tutorial: boolean }): UploadStep {
-  return input.sample || input.tutorial ? 'scene' : 'purpose';
+  return input.sample || input.tutorial ? 'source' : 'purpose';
 }
 
 /** 뒤로 가기가 돌아갈 단계. 첫 단계면 null — 화면을 닫는다. */
 export function previousUploadStep(step: UploadStep): UploadStep | null {
-  if (step === 'scene') return 'source';
-  if (step === 'source') return 'purpose';
-  return null;
+  return step === 'source' ? 'purpose' : null;
 }
 
-export function stepperIndex(step: UploadStep): 1 | 2 | 3 {
-  return step === 'purpose' ? 1 : step === 'source' ? 2 : 3;
+export function stepperIndex(step: UploadStep): 1 | 2 {
+  return step === 'purpose' ? 1 : 2;
 }

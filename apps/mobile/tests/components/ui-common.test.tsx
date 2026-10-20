@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
@@ -120,6 +121,31 @@ describe('선택지', () => {
     await fireEvent.press(screen.getByRole('checkbox', { name: '무대' }));
     expect(screen.getByRole('checkbox', { name: '무대' })).not.toBeChecked();
     expect(press).toHaveBeenCalledTimes(2);
+  });
+
+  test('누르면 바로 넘어가는 아이콘 줄(mark none)은 오른쪽에 꺾쇠도 체크도 없다', async () => {
+    // 아이콘 글리프(폰트 글자)를 먼저 얻어 둔다.
+    const glyphOf = async (name: 'chevron-right' | 'check') => {
+      const icon = await render(<Feather name={name} size={20} />);
+      const glyph = JSON.stringify(icon.toJSON());
+      await icon.unmount();
+      return JSON.parse(glyph).children[0] as string;
+    };
+    const chevron = await glyphOf('chevron-right');
+    const check = await glyphOf('check');
+    const press = jest.fn();
+    const view = await render(
+      <>
+        <IconOptionRow icon="star" title="평가 받기" mark="none" selected onPress={press} />
+        <IconOptionRow icon="unlock" title="막힌 곳 풀기" mark="none" onPress={press} />
+      </>,
+    );
+    const tree = JSON.stringify(view.toJSON());
+    expect(tree.includes(JSON.stringify(chevron))).toBe(false);
+    expect(tree.includes(JSON.stringify(check))).toBe(false);
+    expect(screen.getByRole('button', { name: '평가 받기' })).toBeSelected();
+    await fireEvent.press(screen.getByRole('button', { name: '막힌 곳 풀기' }));
+    expect(press).toHaveBeenCalledTimes(1);
   });
 
   test('칩은 고름 상태를 알리고, 누를 곳이 없으면 막힌다', async () => {

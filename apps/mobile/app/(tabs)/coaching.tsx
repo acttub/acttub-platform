@@ -55,7 +55,7 @@ export default function CoachingTab() {
     if (entry?.kind !== 'next') return;
     const action = continueActionFor(entry.group);
     if (action.kind === 'resume') {
-      router.push({ pathname: '/analyzing', params: { practiceId: action.practiceId } });
+      router.push({ pathname: '/coach', params: { practiceId: action.practiceId } });
       return;
     }
     const last = entry.group.practices[entry.group.practices.length - 1];

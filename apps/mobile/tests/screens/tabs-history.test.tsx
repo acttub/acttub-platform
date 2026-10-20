@@ -95,7 +95,7 @@ test('대화 중인 묶음은 그 대화로, 나머지는 묶음 상세로 간�
   await render(<HistoryScreen />);
 
   await fireEvent.press(await screen.findByText('옥상 고백'));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/analyzing', params: { practiceId: 'open-1' } });
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'open-1' } });
 
   await fireEvent.press(screen.getByText('카페 이별 장면'));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/practice-group', params: { rootId: 'r-cafe' } });

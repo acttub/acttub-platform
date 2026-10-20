@@ -25,16 +25,14 @@ test('세션 목적 세 갈래는 기존 막힘 큰 갈래로 간다 — 평가=
   assert.equal(purposeFor(null), 'review');
 });
 
-test('새 연습 단계: 목적 → 영상 → 장면·질문, 예시·튜토리얼은 바로 장면 단계', () => {
+test('새 연습 단계: 목적 → 영상(장면 단계 없음, SOMA-778), 예시·튜토리얼은 바로 영상 단계', () => {
   assert.equal(firstUploadStep({ sample: false, tutorial: false }), 'purpose');
-  assert.equal(firstUploadStep({ sample: true, tutorial: false }), 'scene');
-  assert.equal(firstUploadStep({ sample: false, tutorial: true }), 'scene');
-  assert.equal(previousUploadStep('scene'), 'source');
+  assert.equal(firstUploadStep({ sample: true, tutorial: false }), 'source');
+  assert.equal(firstUploadStep({ sample: false, tutorial: true }), 'source');
   assert.equal(previousUploadStep('source'), 'purpose');
   assert.equal(previousUploadStep('purpose'), null);
   assert.equal(stepperIndex('purpose'), 1);
   assert.equal(stepperIndex('source'), 2);
-  assert.equal(stepperIndex('scene'), 3);
 });
 
 test('코치 말 속 「0:12」는 누를 수 있는 시간 조각으로 나뉜다(pen 시간 눌러 장면 보기)', () => {

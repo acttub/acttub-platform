@@ -75,8 +75,8 @@ export function IconOptionRow({
   selected?: boolean;
   /** 권하는 줄 — 고르지 않아도 파랗게. */
   highlight?: boolean;
-  /** 오른쪽 표시 — 고르는 목록은 'check'(골랐을 때만), 다음 화면으로 가는 줄은 'chevron'. */
-  mark?: 'check' | 'chevron';
+  /** 오른쪽 표시 — 고르는 목록은 'check'(골랐을 때만), 다음 화면으로 가는 줄은 'chevron', 누르면 바로 넘어가는 줄은 'none'(SOMA-778). */
+  mark?: 'check' | 'chevron' | 'none';
   /** 입구 목록처럼 좌우 안쪽 여백을 4로 줄여 글줄과 맞춘다(기본 14). */
   flush?: boolean;
   disabled?: boolean;
@@ -101,7 +101,7 @@ export function IconOptionRow({
         <Text style={[styles.title, on && styles.titleOn]}>{title}</Text>
         {sub ? <Text style={styles.sub}>{sub}</Text> : null}
       </View>
-      {mark === 'check' && selected ? (
+      {mark === 'none' ? null : mark === 'check' && selected ? (
         <Feather name="check" size={20} color={palette.blue} />
       ) : (
         <Feather name="chevron-right" size={20} color={palette.textFaint} />

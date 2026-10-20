@@ -89,7 +89,7 @@ export default function ReportDetailScreen() {
   /** 열린 테이크면 그 대화로, 아니면 같은 묶음의 다음 회차로(영상은 새로 고른다). */
   const continuePractice = () => {
     if (action.kind === 'resume') {
-      router.push({ pathname: '/analyzing', params: { practiceId: action.practiceId } });
+      router.push({ pathname: '/coach', params: { practiceId: action.practiceId } });
       return;
     }
     if (!practice) {

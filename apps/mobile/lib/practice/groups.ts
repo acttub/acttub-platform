@@ -90,9 +90,9 @@ export function filterGroups(
  */
 export function groupRowTarget(
   group: Pick<PracticeGroup, 'root_id' | 'in_progress_practice_id'>,
-): { pathname: '/analyzing'; params: { practiceId: string } } | { pathname: '/practice-group'; params: { rootId: string } } {
+): { pathname: '/coach'; params: { practiceId: string } } | { pathname: '/practice-group'; params: { rootId: string } } {
   return group.in_progress_practice_id
-    ? { pathname: '/analyzing', params: { practiceId: group.in_progress_practice_id } }
+    ? { pathname: '/coach', params: { practiceId: group.in_progress_practice_id } }
     : { pathname: '/practice-group', params: { rootId: group.root_id } };
 }
 
