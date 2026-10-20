@@ -76,3 +76,32 @@ export function coachMarkFor(ctx: {
   };
   return COACH_MARKS.find((m) => !ctx.done.has(m) && holds[m]) ?? null;
 }
+
+/** 코칭 장면 칸 한 칸의 최대 글자 수(lib/practice/start SCENE_MAX 와 같다). */
+const COACH_SCENE_MAX = 300;
+
+/**
+ * 리딩 마무리 「이 장면, 찍어서 코치에게 보여 주기」로 코칭에 넘길 장면(SOMA-772). 상황 = 대본 제목 · 연습 구간의 장면,
+ * 인물 = 내 배역. 원하는 것은 배우가 적는다.
+ */
+export function readingCoachScene(input: {
+  title: string;
+  lineIds: readonly string[];
+  scenes: readonly { no: number; title: string | null; start_line_id: string; end_line_id: string }[];
+  startIndex: number;
+  myRoles: readonly string[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}): { situation: string; character: string; goal: string } {
+  const scene = input.scenes.find((s) => {
+    const from = input.lineIds.indexOf(s.start_line_id);
+    const to = input.lineIds.indexOf(s.end_line_id);
+    return from >= 0 && to >= from && input.startIndex >= from && input.startIndex <= to;
+  });
+  const label = scene ? (scene.title ?? input.t('reading.rangeScene', { n: scene.no })) : null;
+  const situation = label ? `${input.title} · ${label}` : input.title;
+  return {
+    situation: situation.slice(0, COACH_SCENE_MAX),
+    character: input.myRoles.join(', ').slice(0, COACH_SCENE_MAX),
+    goal: '',
+  };
+}

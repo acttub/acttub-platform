@@ -107,3 +107,20 @@ test('리딩 실행: 시작 전 안내는 팝업 대신 아래 [시작]이고, �
   assert.doesNotMatch(play, /visible=\{hold === 'tip'\}/);
   assert.match(play, /coachMarkFor\(\{ done: coachDone, status: run\.status/);
 });
+
+test('리딩 → 코칭: 대본 제목·장면을 상황 칸에, 내 배역을 인물 칸에 채우고 원하는 것은 비운다(SOMA-772)', async () => {
+  const { readingCoachScene } = await import('../lib/reading/redesign-748.ts');
+  const lines = [{ type: 'scene', text: '1장 카페' }, d('민재', '왔구나.'), d('서연'), { type: 'scene', text: '2장' }, d('민재')];
+  const lineIds = ['l1', 'l2', 'l3', 'l4', 'l5'];
+  const scenes = [
+    { no: 1, title: '1장 카페', start_line_id: 'l1', end_line_id: 'l3' },
+    { no: 2, title: null, start_line_id: 'l4', end_line_id: 'l5' },
+  ];
+  const t = (key, p) => (key === 'reading.rangeScene' ? `장면 ${p.n}` : key);
+  const base = { title: '봄날의 대화', lines, lineIds, scenes, myRoles: ['민재', '서연'], t };
+
+  assert.deepEqual(readingCoachScene({ ...base, startIndex: 1 }), { situation: '봄날의 대화 · 1장 카페', character: '민재, 서연', goal: '' });
+  assert.equal(readingCoachScene({ ...base, startIndex: 4 }).situation, '봄날의 대화 · 장면 2');
+  assert.equal(readingCoachScene({ ...base, scenes: [], startIndex: 1 }).situation, '봄날의 대화');
+  assert.equal(readingCoachScene({ ...base, title: 'x'.repeat(400), startIndex: 1 }).situation.length, 300);
+});

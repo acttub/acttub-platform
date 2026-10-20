@@ -42,6 +42,37 @@ export async function micPermissionGranted(): Promise<boolean> {
   }
 }
 
+/** 마이크 권한 상태 — ask 는 OS 창으로 물을 수 있음, blocked 는 다시 물을 수 없어 설정에서 켜야 함. */
+export type MicPermission = 'granted' | 'ask' | 'blocked';
+
+/** 묻지 않고 지금 상태만 본다(SOMA-772). */
+export async function micPermissionState(): Promise<MicPermission> {
+  try {
+    const current = await getRecordingPermissionsAsync();
+    if (current.granted) return 'granted';
+    return current.canAskAgain ? 'ask' : 'blocked';
+  } catch {
+    return 'ask';
+  }
+}
+
+/**
+ * 연습 시작 버튼에서 부른다(SOMA-772) — 물을 수 있으면 OS 창을 띄운다. denied 는 방금 거절(다음에 또 물을 수 있음),
+ * blocked 는 다시 물을 수 없어 설정으로 보내야 한다.
+ */
+export async function requestMicPermission(): Promise<'granted' | 'denied' | 'blocked'> {
+  try {
+    const current = await getRecordingPermissionsAsync();
+    if (current.granted) return 'granted';
+    if (!current.canAskAgain) return 'blocked';
+    const asked = await requestRecordingPermissionsAsync();
+    if (asked.granted) return 'granted';
+    return asked.canAskAgain ? 'denied' : 'blocked';
+  } catch {
+    return 'denied';
+  }
+}
+
 export function useReadingMic(): MicHandle {
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
