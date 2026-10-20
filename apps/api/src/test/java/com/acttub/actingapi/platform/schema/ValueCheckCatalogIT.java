@@ -132,6 +132,8 @@ class ValueCheckCatalogIT {
             "ck_practice_sessions_experience_version",
             // 막힘의 큰 갈래와 세부는 <b>조합</b> 검사라 값 목록 하나로 떨어지지 않는다(V14 는 옛 것과 같은 조합이다).
             "ck_practices_blockage_branch",
+            // 코칭 세션 목적(SOMA-719)은 저장소 SQL 과 PracticeRules.SESSION_PURPOSES 만 쓴다(JPA 매핑이 없다).
+            "ck_practices_session_purpose",
             // 좋아요순 커서의 기준(live·pending·final)은 저장소 SQL 만 읽고 쓰는 장부 칸이다.
             "ck_entry_ranking_snapshots_basis",
             // 행동자가 있는 알림은 좋아요·댓글뿐이라는 조합 검사다(값 목록 하나가 아니다).

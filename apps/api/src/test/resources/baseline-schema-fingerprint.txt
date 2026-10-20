@@ -450,6 +450,7 @@ COLUMN practices.ordinal ord=5 type=int4 len=- null=NO default=-
 COLUMN practices.request_fingerprint ord=10 type=bpchar len=64 null=YES default=-
 COLUMN practices.request_id ord=9 type=uuid len=- null=YES default=-
 COLUMN practices.root_id ord=4 type=uuid len=- null=NO default=-
+COLUMN practices.session_purpose ord=24 type=text len=- null=YES default=-
 COLUMN practices.situation ord=11 type=text len=- null=NO default=''::text
 COLUMN practices.stage ord=6 type=text len=- null=NO default=-
 COLUMN practices.sub_branch ord=15 type=text len=- null=NO default=-
@@ -1338,6 +1339,7 @@ CONSTRAINT practices ck_practices_blockage_branch CHECK ((((blockage_kind = '분
 CONSTRAINT practices ck_practices_close_reason CHECK ((close_reason = ANY (ARRAY['analysis_failed'::text, 'cancelled'::text, 'conversation_closed'::text])))
 CONSTRAINT practices ck_practices_experience_version CHECK ((experience_version = ANY (ARRAY['legacy'::text, 'three_layers_v1'::text])))
 CONSTRAINT practices ck_practices_ordinal CHECK ((ordinal >= 1))
+CONSTRAINT practices ck_practices_session_purpose CHECK ((session_purpose = ANY (ARRAY['evaluate'::text, 'stuck'::text, 'character'::text])))
 CONSTRAINT practices ck_practices_stage CHECK ((stage = ANY (ARRAY['analyzing'::text, 'conversing'::text, 'closed'::text])))
 CONSTRAINT practices practices_blockage_kind_not_null NOT NULL blockage_kind
 CONSTRAINT practices practices_character_context_not_null NOT NULL character_context

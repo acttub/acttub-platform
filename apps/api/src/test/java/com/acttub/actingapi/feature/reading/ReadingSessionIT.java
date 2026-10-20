@@ -299,6 +299,20 @@ class ReadingSessionIT {
     }
 
     @Test
+    @DisplayName("reading.session: int 범위를 넘는 elapsed_seconds — 500 이 아니라 그 칸의 int_type 422 다")
+    void readingSession_elapsedSecondsBeyondIntIsAValidationError() throws Exception {
+        String session = startSession(List.of(script.nina)).path("id").textValue();
+
+        JsonNode rejected = json(patch("/v2/reading/sessions/{id}/progress", session)
+                .content("{\"progress_seq\":1,\"elapsed_seconds\":99999999999}"), 422);
+
+        assertThat(rejected).isEqualTo(mapper.readTree("""
+                {"detail":[{"type":"int_type","loc":["body","elapsed_seconds"],
+                  "msg":"Input should be a valid integer","input":99999999999}]}
+                """));
+    }
+
+    @Test
     @DisplayName("reading.session: 구간 마지막 대사를 넘기고 complete — completed, ended_at 있음, current_line_id NULL. 그 회차에 진행 저장 — 409 session_closed")
     void readingSession_completingClosesTheSessionAndClosedSessionsRejectProgress() throws Exception {
         String session = startSession(List.of(script.nina)).path("id").textValue();

@@ -25,7 +25,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -108,7 +107,6 @@ class ApiErrorAdviceShapeIT {
     }
 
     @Test
-    @Disabled("버그: 16진 문자만으로 된 길이 틀린 UUID 의 msg 에 Jackson 문구와 Java 형 이름이 실린다")
     void nestedUuidOfHexCharactersWithTheWrongLengthReportsTheLengthLikePydantic() throws Exception {
         String reason = "invalid length: expected length 32 for simple format, found 3";
         assertBodyError("/__test/advice/nested", "{\"child\":{\"id\":\"abc\"}}", """
@@ -116,6 +114,26 @@ class ApiErrorAdviceShapeIT {
                   "msg":"Input should be a valid UUID, %s","input":"abc",
                   "ctx":{"error":"%s"}}]}
                 """.formatted(reason, reason));
+    }
+
+    @Test
+    void nestedUuidOfHexCharactersWithTheWrongGroupsReportsTheGroupsLikePydantic() throws Exception {
+        assertUuidReason("abc-def", "invalid group count: expected 5, found 2");
+        assertUuidReason("0123456-89ab-cdef-0123-456789abcdef0", "invalid group length in group 0: expected 8, found 7");
+        assertUuidReason("01234567-89ab-cdef-0123-456789abcdeff", "invalid group length in group 4: expected 12, found 13");
+    }
+
+    @Test
+    void nestedUuidWithANonAsciiDigitReportsThatCharacterLikePydantic() throws Exception {
+        assertUuidReason("ab٣", "invalid character: found `٣` at 3");
+    }
+
+    private void assertUuidReason(String input, String reason) throws Exception {
+        assertBodyError("/__test/advice/nested", "{\"child\":{\"id\":\"%s\"}}".formatted(input), """
+                {"detail":[{"type":"uuid_parsing","loc":["body","child","id"],
+                  "msg":"Input should be a valid UUID, %s","input":"%s",
+                  "ctx":{"error":"%s"}}]}
+                """.formatted(reason, input, reason));
     }
 
     @Test

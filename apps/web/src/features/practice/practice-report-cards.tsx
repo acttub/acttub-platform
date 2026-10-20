@@ -5,10 +5,10 @@ import type {
   PracticeReport,
 } from "@/lib/api/v2/types";
 import {
+  CHEER_COPY,
   FALLBACK_NOTICE,
   isNoteV2,
   legacyReportOf,
-  noteCheer,
   nextTakeCopy,
   noteQuotes,
   noteTitle,
@@ -80,7 +80,7 @@ function PracticeNoteV2Cards({ note, groupTitle }: { note: PracticeNote; groupTi
         <ListCard title="배우가 직접 남긴 말" items={actorWords} quoted />
       ) : null}
       <p className="border-t border-[#e5e8eb] py-6 text-sm font-medium leading-6 text-[#4e5968]">
-        {noteCheer(note) || "오늘 촬영도 수고했어요."}
+        {CHEER_COPY}
       </p>
     </div>
   );

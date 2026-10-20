@@ -48,10 +48,12 @@ final class PracticeDtos {
             @NotNull UUID videoId,
             @Schema(nullable = true) @Valid SceneInput scene,
             @Schema(nullable = true) @Valid BlockageInput blockage,
-            @Schema(nullable = true) @Size(max = PracticeRules.GROUP_TITLE_MAX_CHARS) String title) {
+            @Schema(nullable = true) @Size(max = PracticeRules.GROUP_TITLE_MAX_CHARS) String title,
+            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character"})
+            @jakarta.validation.constraints.Pattern(regexp = "evaluate|stuck|character") String sessionPurpose) {
     }
 
-    /** 이어하기. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다. */
+    /** 이어하기. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다. 세션 목적은 묶음 첫 회차의 것을 물려받는다. */
     @Schema(name = "PracticeContinueRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record ContinueRequest(
@@ -137,7 +139,8 @@ final class PracticeDtos {
             @Schema(nullable = true) String noteKind,
             @Schema(nullable = true) JobResponse job,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-            List<PreviousConversationResponse> previousConversations) {
+            List<PreviousConversationResponse> previousConversations,
+            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character"}) String sessionPurpose) {
 
         static PracticeResponse of(PracticeView view) {
             return new PracticeResponse(
@@ -147,7 +150,8 @@ final class PracticeDtos {
                     view.blockageKind(), view.subBranch(), view.blockageNote(), view.createdAt(),
                     view.analysisStatus(), view.conversationId(), view.conversationStatus(), view.conversationCount(),
                     view.noteId(), view.noteTitle(), view.noteKind(), JobResponse.of(view.job()),
-                    view.previousConversations().stream().map(PreviousConversationResponse::of).toList());
+                    view.previousConversations().stream().map(PreviousConversationResponse::of).toList(),
+                    view.sessionPurpose());
         }
     }
 

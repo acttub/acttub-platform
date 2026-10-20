@@ -3,6 +3,7 @@ package com.acttub.actingapi.platform.web;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -58,7 +60,8 @@ public class ApiErrorAdvice {
     ResponseEntity<Map<String, Object>> api(ApiException exception) {
         exception.failureKind().ifPresent(kind -> failureReporter.report(
                 Objects.requireNonNull(exception.getCause()), kind, API_EXCEPTION_CONTEXT));
-        var response = ResponseEntity.status(exception.status());
+        // 스트림 경로는 Accept: text/event-stream 만 보낸다. 형식을 못 박지 않으면 협상이 깨져 이 응답 대신 500 이 나간다.
+        var response = ResponseEntity.status(exception.status()).contentType(MediaType.APPLICATION_JSON);
         exception.headers().forEach(response::header);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("detail", exception.getMessage());
@@ -499,8 +502,25 @@ public class ApiErrorAdvice {
         if (input instanceof String value) {
             for (int index = 0; index < value.length(); index++) {
                 char character = value.charAt(index);
-                if (Character.digit(character, 16) < 0 && character != '-') {
+                if (!HexFormat.isHexDigit(character) && character != '-') {
                     return "invalid character: found `" + character + "` at " + (index + 1);
+                }
+            }
+            // 글자가 모두 맞으면 옛 Python 서버의 pydantic 2.13(Rust uuid 크레이트)처럼 길이·묶음 수·묶음 길이 순으로 사유를 댄다.
+            String[] groups = value.split("-", -1);
+            int[] expected = {8, 4, 4, 4, 12};
+            if (groups.length == 1) {
+                if (value.length() != 32) {
+                    return "invalid length: expected length 32 for simple format, found " + value.length();
+                }
+            } else if (groups.length != 5) {
+                return "invalid group count: expected 5, found " + groups.length;
+            } else {
+                for (int group = 0; group < groups.length; group++) {
+                    if (groups[group].length() != expected[group]) {
+                        return "invalid group length in group " + group + ": expected " + expected[group]
+                                + ", found " + groups[group].length();
+                    }
                 }
             }
         }

@@ -542,6 +542,52 @@ class DirectVideoCoachTest {
                 .containsEntry("shorten_calls", "0").containsEntry("timestamp_retry", "false");
     }
 
+    @Test void streamingCutsBrokenJamoAndRewritesOnce() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        String good = "\"됐어\" 할 때 시선이 내려가요. 그때 속으로는 어땠어요?";
+        var raws = new java.util.ArrayDeque<>(List.of(OPENING, "그 장면에서 ㅇㄹㄴㅁㅇㄹㄴㅁㅇㄹㄴㅁㅇㄹㄴㅁ", good));
+        when(model.replyStream(eq(file), anyList(), anyString(), org.mockito.ArgumentMatchers.any())).thenAnswer(call -> {
+            String raw = raws.removeFirst();
+            java.util.function.Consumer<String> onText = call.getArgument(3);
+            for (int i = 0; i < raw.length(); i += 3) onText.accept(raw.substring(i, Math.min(raw.length(), i + 3)));
+            return raw;
+        });
+        var deltas = new ArrayList<String>();
+        CoachStream stream = new CoachStream() {
+            @Override public void begin() { }
+            @Override public void delta(String text) { deltas.add(text); }
+        };
+        var first = loopEngine.start(session(), UUID.randomUUID(), stream);
+        deltas.clear();
+        var second = loopEngine.reply(first.session(), "잘 모르겠어요", UUID.randomUUID(), stream);
+        assertThat(second.reply().message()).isEqualTo(good);
+        assertThat(String.join("", deltas)).as("깨진 자모는 화면에 한 글자도 흘리지 않는다").doesNotContain("ㅇ", "ㄹ", "ㄴ", "ㅁ");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, times(3)).replyStream(eq(file), anyList(), prompts.capture(), org.mockito.ArgumentMatchers.any());
+        assertThat(prompts.getAllValues().get(2)).startsWith(prompts.getAllValues().get(1)).contains("[다시 쓰기]");
+        verify(model, never()).reply(eq(file), anyList(), anyString());
+    }
+
+    @Test void streamingFailsInsteadOfSavingJamoWhenTheRewriteIsBrokenToo() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        var raws = new java.util.ArrayDeque<>(List.of(OPENING, "ㅇㄹㄴㅁㅇㄹㄴㅁ", "ㅁㄴㅇㄹㅁㄴㅇㄹ"));
+        when(model.replyStream(eq(file), anyList(), anyString(), org.mockito.ArgumentMatchers.any())).thenAnswer(call -> {
+            String raw = raws.removeFirst();
+            java.util.function.Consumer<String> onText = call.getArgument(3);
+            for (int i = 0; i < raw.length(); i += 3) onText.accept(raw.substring(i, Math.min(raw.length(), i + 3)));
+            return raw;
+        });
+        CoachStream stream = new CoachStream() {
+            @Override public void begin() { }
+            @Override public void delta(String text) { }
+        };
+        var first = loopEngine.start(session(), UUID.randomUUID(), stream);
+        assertThatThrownBy(() -> loopEngine.reply(first.session(), "잘 모르겠어요", UUID.randomUUID(), stream))
+                .as("깨진 글을 저장하지 않고 다시 보내게 한다").isInstanceOf(CoachReplyUnavailable.class);
+    }
+
     @Test void practiceLoopRewritesOnceWhenTheCoachPointsByVideoTimeAndStripsWhatIsLeft() {
         var loopEngine = practiceLoopEngine();
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");

@@ -11,15 +11,16 @@ import { AppState, Platform } from 'react-native';
 
 import { createDownloadProgress, type DownloadProgress, type VoiceProgress } from './download-progress.ts';
 import { checkDownloaded, hasEnoughSpace, missingBytes, planModelDownload } from './download-plan.ts';
+import { FP16_UNPACK_CHUNK, halfToFloatBytes } from './half-float.ts';
 import { VoicePrepareError, voiceErrorKind } from './voice-errors.ts';
 
 const SUPERTONE = 'https://huggingface.co/Supertone/supertonic-3/resolve/main';
 const INT8 = 'https://huggingface.co/csukuangfj2/sherpa-onnx-supertonic-3-tts-int8-2026-05-11/resolve/main';
 
-export type Variant = 'fp32' | 'int8';
+export type Variant = 'fp32' | 'int8' | 'fp16';
 export type ModelKind = 'durationPredictor' | 'textEncoder' | 'vectorEstimator' | 'vocoder';
 
-const MODEL_FILES: Record<Variant, Record<ModelKind, { url: string; name: string; bytes: number }>> = {
+const MODEL_FILES: Record<Exclude<Variant, 'fp16'>, Record<ModelKind, { url: string; name: string; bytes: number }>> = {
   fp32: {
     durationPredictor: { url: `${SUPERTONE}/onnx/duration_predictor.onnx`, name: 'duration_predictor.onnx', bytes: 3_700_147 },
     textEncoder: { url: `${SUPERTONE}/onnx/text_encoder.onnx`, name: 'text_encoder.onnx', bytes: 36_416_150 },
@@ -34,6 +35,38 @@ const MODEL_FILES: Record<Variant, Record<ModelKind, { url: string; name: string
   },
 };
 
+/**
+ * fp16 묶음(SOMA-747). 모델마다 구조 파일(graph)과 fp16 가중치를 받고, 가중치는 폰에서 한 번 fp32 로 풀어
+ * `<이름>.weights.f32` 로 둔다. 구조 파일이 그 파일을 「외부 데이터」로 가리키므로 실행되는 모델은 fp32 판과 같다.
+ * 받는 양은 약 200MB(fp32 398MB). 만드는 법: ~/.acttub-work/tts-fp16/split.py(Supertonic 3 원본에서 변환).
+ */
+const FP16_FILES: Record<ModelKind, { base: string; graph: number; f16: number }> = {
+  durationPredictor: { base: 'duration_predictor', graph: 248_870, f16: 1_729_412 },
+  textEncoder: { base: 'text_encoder', graph: 422_962, f16: 18_001_920 },
+  vectorEstimator: { base: 'vector_estimator', graph: 508_835, f16: 128_026_898 },
+  vocoder: { base: 'vocoder', graph: 77_364, f16: 50_676_836 },
+};
+
+/** 서버가 주는 fp16 묶음의 내려받을 임시 주소(GET /v2/reading/voice-model, SOMA-747). */
+export type VoiceModelFiles = { version: string; files: { name: string; bytes: number; url: string }[]; expires_in: number };
+
+let voiceModelSource: (() => Promise<VoiceModelFiles>) | null = null;
+
+/** 앱이 시작할 때 서버 요청 함수를 꽂는다. 꽂지 않으면 fp16 묶음을 쓰지 않는다(시험·옛 화면). */
+export function setVoiceModelSource(source: (() => Promise<VoiceModelFiles>) | null): void {
+  voiceModelSource = source;
+}
+
+const fp16Names = (kind: ModelKind) => {
+  const f = FP16_FILES[kind];
+  return { graph: `${f.base}.graph.onnx`, f16: `${f.base}.weights.f16`, f32: `${f.base}.weights.f32` };
+};
+
+/** fp16 묶음을 받을 수 있는 앱인지 — 서버 요청 함수가 꽂혀 있어야 한다. 실제로 받을 수 있는지는 받을 때 서버가 정한다. */
+export function fp16Available(): boolean {
+  return voiceModelSource !== null;
+}
+
 const CONFIG_URL = `${SUPERTONE}/onnx/tts.json`;
 const INDEXER_URL = `${SUPERTONE}/onnx/unicode_indexer.json`;
 const voiceUrl = (preset: string) => `${SUPERTONE}/voice_styles/${preset}.json`;
@@ -41,6 +74,7 @@ const voiceUrl = (preset: string) => `${SUPERTONE}/voice_styles/${preset}.json`;
 export const MODEL_KINDS: ModelKind[] = ['durationPredictor', 'textEncoder', 'vectorEstimator', 'vocoder'];
 
 export function variantBytes(v: Variant): number {
+  if (v === 'fp16') return MODEL_KINDS.reduce((a, k) => a + FP16_FILES[k].graph + FP16_FILES[k].f16, 0);
   return MODEL_KINDS.reduce((a, k) => a + MODEL_FILES[v][k].bytes, 0);
 }
 
@@ -257,6 +291,7 @@ async function readJson(dir: Directory, url: string, name: string): Promise<any>
 }
 
 export async function downloadAssets(variant: Variant, preset: string, onProgress: ProgressFn = () => {}): Promise<DownloadResult> {
+  if (variant === 'fp16') return downloadFp16(preset, onProgress);
   const dir = dirFor(variant);
   if (!dir.exists) dir.create({ intermediates: true });
 
@@ -322,6 +357,7 @@ export function modelDownloadBytes(variant: Variant): number {
 export function assetsPresent(variant: Variant, preset: string): boolean {
   const dir = dirFor(variant);
   if (!dir.exists) return false;
+  if (variant === 'fp16') return MODEL_KINDS.every((k) => fp16Ready(dir, k));
   for (const kind of MODEL_KINDS) {
     const m = MODEL_FILES[variant][kind];
     const f = new File(dir, m.name);
@@ -336,4 +372,134 @@ export function removeDownloadedAssets(variant: Variant): void {
     const dir = dirFor(variant);
     if (dir.exists) dir.delete();
   } catch {}
+}
+
+/** 지금 쓸 묶음. 이미 fp32 를 받아 둔 기기는 그대로 쓰고, 새로 받는 기기는 fp16 묶음을 받을 수 있으면 그걸 받는다. */
+export function activeVariant(): Variant {
+  if (assetsPresent('fp32', 'M1')) return 'fp32';
+  return fp16Available() ? 'fp16' : 'fp32';
+}
+
+function fp16Ready(dir: Directory, kind: ModelKind): boolean {
+  const n = fp16Names(kind);
+  const graph = new File(dir, n.graph);
+  const f32 = new File(dir, n.f32);
+  return graph.exists && (graph.size ?? 0) >= FP16_FILES[kind].graph && f32.exists && (f32.size ?? 0) >= FP16_FILES[kind].f16 * 2;
+}
+
+/** fp16 가중치를 조각으로 읽어 fp32 로 늘려 쓴다. `.part` 에 다 쓴 뒤에만 제자리로 옮긴다. */
+async function unpackWeights(src: File, dst: File): Promise<void> {
+  const part = new File(dst.parentDirectory, `${dst.name}.part`);
+  if (part.exists) part.delete();
+  part.create();
+  const reader = src.open();
+  const writer = part.open();
+  try {
+    for (;;) {
+      const chunk = reader.readBytes(FP16_UNPACK_CHUNK);
+      if (chunk.byteLength === 0) break;
+      writer.writeBytes(halfToFloatBytes(chunk));
+      // 화면이 멈추지 않게 조각마다 한 번 양보한다.
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  } finally {
+    reader.close();
+    writer.close();
+  }
+  if (dst.exists) dst.delete();
+  part.move(dst);
+}
+
+async function downloadFp16(preset: string, onProgress: ProgressFn): Promise<DownloadResult> {
+  const dir = dirFor('fp16');
+  // 풀어 둔 묶음이 다 있으면 서버에 묻지 않는다.
+  let urls: Record<string, string> = {};
+  if (!MODEL_KINDS.every((k) => dir.exists && fp16Ready(dir, k))) {
+    try {
+      const model = await voiceModelSource!();
+      urls = Object.fromEntries(model.files.map((f) => [f.name, f.url]));
+    } catch {
+      // 서버가 묶음을 못 주면(옛 서버·위치 미설정·네트워크) 예전처럼 원본 fp32 를 받는다.
+      return downloadAssets('fp32', preset, onProgress);
+    }
+  }
+  const fp16Url = (name: string): string | null => urls[name] ?? null;
+  if (!dir.exists) dir.create({ intermediates: true });
+
+  // 받을 것: 구조 파일, 그리고 아직 풀지 않은 가중치(풀어 둔 fp32 가 있으면 fp16 은 다시 받지 않는다).
+  const files: { kind: ModelKind; url: string; name: string; bytes: number }[] = [];
+  for (const kind of MODEL_KINDS) {
+    const n = fp16Names(kind);
+    if (fp16Ready(dir, kind)) continue;
+    const graphUrl = fp16Url(n.graph);
+    const f16Url = fp16Url(n.f16);
+    if (!graphUrl || !f16Url) return downloadAssets('fp32', preset, onProgress);
+    files.push({ kind, url: graphUrl, name: n.graph, bytes: FP16_FILES[kind].graph });
+    const f32 = new File(dir, n.f32);
+    if (!(f32.exists && (f32.size ?? 0) >= FP16_FILES[kind].f16 * 2)) {
+      files.push({ kind, url: f16Url, name: n.f16, bytes: FP16_FILES[kind].f16 });
+    }
+  }
+  // 받는 양 + 풀 자리(fp16 의 두 배)까지 비어 있어야 한다.
+  const needed =
+    missingBytes(
+      files.map((m) => {
+        const done = new File(dir, m.name);
+        const present = done.exists && (done.size ?? 0) >= m.bytes ? m.bytes : (sizeOf(new File(dir, `${m.name}.part`)) ?? 0);
+        return { expectedBytes: m.bytes, presentBytes: present };
+      }),
+    ) + files.filter((m) => m.name.endsWith('.f16')).reduce((a, m) => a + m.bytes * 2, 0);
+  if (!hasEnoughSpace({ freeBytes: freeDiskBytes(), neededBytes: needed })) {
+    throw new VoicePrepareError('storage', 'not enough space', { neededBytes: needed });
+  }
+
+  const progress = createDownloadProgress(files.map((m) => ({ id: m.name, bytes: m.bytes })));
+  let lastEmit = 0;
+  const emit = (force = false) => {
+    if (needed <= 0) return;
+    const now = Date.now();
+    if (!force && now - lastEmit < 250) return;
+    lastEmit = now;
+    onProgress({ phase: 'download', ...progress.snapshot() });
+  };
+
+  const stopWatching = watchAppState();
+  try {
+    for (const m of files) {
+      const done = new File(dir, m.name);
+      if (done.exists && (done.size ?? 0) >= m.bytes) progress.complete(m.name);
+    }
+    emit(true);
+    for (const m of files) {
+      await ensureModel(dir, m, progress, emit);
+      emit(true);
+    }
+  } finally {
+    stopWatching();
+  }
+
+  // 풀기 — 화면에는 「불러오는 중」으로 보인다.
+  const modelPaths = {} as Record<ModelKind, string>;
+  for (const kind of MODEL_KINDS) {
+    const n = fp16Names(kind);
+    const f32 = new File(dir, n.f32);
+    const f16 = new File(dir, n.f16);
+    if (!(f32.exists && (f32.size ?? 0) >= FP16_FILES[kind].f16 * 2)) {
+      onProgress({ phase: 'load', done: 0, total: MODEL_KINDS.length });
+      try {
+        await unpackWeights(f16, f32);
+      } catch (e) {
+        throw new VoicePrepareError(voiceErrorKind(e) === 'storage' ? 'storage' : 'model_load', `unpack failed: ${n.f16}`, { cause: e });
+      }
+    }
+    try {
+      if (f16.exists) f16.delete();
+    } catch {}
+    modelPaths[kind] = new File(dir, n.graph).uri;
+  }
+
+  const cfgs = await readJson(dir, CONFIG_URL, 'tts.json');
+  const indexer = await readJson(dir, INDEXER_URL, 'unicode_indexer.json');
+  const style = await readJson(dir, voiceUrl(preset), `${preset}.json`);
+  return { modelPaths, cfgs, indexer, style };
 }

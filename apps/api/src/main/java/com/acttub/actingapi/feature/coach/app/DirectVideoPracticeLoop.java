@@ -26,7 +26,9 @@ final class DirectVideoPracticeLoop {
     private static final Pattern COACH = Pattern.compile("(?s)<코치>\\s*(.*?)\\s*(?:</코치>|$)");
     // 숨은 메모 태그 이름. 모델이 <생각> 대신 영어 <thought>·<think>로 쓰는 일이 있다(2026-10-11 00:59 운영, 배우 화면에 "<thought>"가 나갔다).
     private static final String THINKING_NAME = "(?:생각|thought|think|thinking)";
-    private static final Pattern STRAY_TAG = Pattern.compile("(?i)</?(?:설계|상태|코치|다음 테이크|" + THINKING_NAME + ")>");
+    private static final Pattern STRAY_TAG = Pattern.compile("(?i)</?(?:설계|상태|코치|다음 테이크|보기|카드|인물 카드|장면|" + THINKING_NAME + ")>");
+    /** 목적별 코칭(SOMA-719)의 숨은 칸. 서버가 응답의 버튼·결과 카드·인물 카드·장면으로 따로 내보내고 코치 말에서는 뗀다. 닫지 않았으면 끝까지 칸이다. */
+    static final Pattern PURPOSE_BLOCK = Pattern.compile("(?s)<(보기|카드|인물 카드|장면)>.*?(?:</\\1>|$)");
     // 둘째 응답부터 코치가 말하기 전에 적는 숨은 메모. 배우 화면·저장 대화에 넣지 않는다.
     private static final Pattern THINKING = Pattern.compile("(?is)<(" + THINKING_NAME + ")>.*?</\\1>");
     private static final Pattern THINKING_OPEN = Pattern.compile("(?i)<" + THINKING_NAME + ">");
@@ -66,6 +68,7 @@ final class DirectVideoPracticeLoop {
         String status = first(STATUS, text);
         String rest = NEXT_TAKE_TAG.matcher(STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("")).replaceAll("");
         rest = THINKING.matcher(rest).replaceAll("");
+        rest = PURPOSE_BLOCK.matcher(rest).replaceAll("");
         // 여는 태그 없이 </생각>만 남았으면 그 앞은 모두 메모다(실험에서 실제로 나왔다).
         Matcher close = THINKING_CLOSE.matcher(rest);
         int strayClose = -1;
@@ -142,6 +145,19 @@ final class DirectVideoPracticeLoop {
             else if (Character.isLetter(c)) letters++;
         }
         return letters > 0 && (hangul * 2 < letters || jamo >= 6);
+    }
+
+    /**
+     * 스트리밍 도중 아직 다 쓰지 않은 보일 글이 이미 깨졌는지. 앞부분만으로도 확실한 신호(날 자모 6자 이상, HTML·코드)만 본다.
+     * 한글 비율은 영어 대사 인용으로 시작하는 정상 답("\"Who knows\"에서…")을 앞부분에서 잘못 잡으므로 다 쓴 뒤 {@link #looksBroken} 에서만 본다.
+     */
+    static boolean looksBrokenSoFar(String text, java.util.Locale language) {
+        if (text == null || text.isBlank()) return false;
+        if (MARKUP_OR_CODE.matcher(text).find()) return true;
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        if (!korean) return false;
+        long jamo = text.chars().filter(c -> c >= '\u3131' && c <= '\u318E').count();
+        return jamo >= 6;
     }
 
     // 문장 끝(마침표·물음표·느낌표 뒤 공백)과 줄바꿈에서 나눈다. 따옴표 안 대사 끝의 물음표 뒤에는 공백이 아니라 따옴표가 오므로 나뉘지 않는다.

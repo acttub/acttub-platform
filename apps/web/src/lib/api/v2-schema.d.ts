@@ -204,30 +204,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/me/airbridge-device": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Record Airbridge Device
-         * @description 앱이 SDK 콜백으로 유입 광고를 못 보낼 때를 대비해, 서버가 Airbridge 에서 설치 귀속을 다시 가져오도록 Airbridge
-         *     기기 ID(안드로이드 GAID, iOS IDFA/IDFV)를 한 번 넘긴다. 서버는 귀속을 적거나 24시간이 지나면 이 ID 를
-         *     지운다. 이미 유입 기록이 있거나 서버 기능이 꺼져 있으면 아무것도 하지 않고 204 다 — 재시도에 안전하다.
-         *     device_uuid 가 36자 UUID 가 아니거나 모두 0 이면(광고 추적 제한) 422. 동의와 프로필이 끝난 회원만 부를 수
-         *     있다. 게스트는 403 member_only.
-         */
-        put: operations["record_airbridge_device_v2_me_airbridge_device_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v2/me/profile": {
         parameters: {
             query?: never;
@@ -318,6 +294,30 @@ export interface paths {
          * @description 멱등이다. 없는 차단을 풀어도 200.
          */
         delete: operations["unblock_user_v2_me_blocks__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/airbridge-device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record Airbridge Device
+         * @description 앱이 SDK 콜백으로 유입 광고를 못 보낼 때를 대비해, 서버가 Airbridge 에서 설치 귀속을 다시 가져오도록 Airbridge
+         *     기기 ID(안드로이드 GAID, iOS IDFA/IDFV)를 한 번 넘긴다. 서버는 귀속을 적거나 24시간이 지나면 이 ID 를
+         *     지운다. 이미 유입 기록이 있거나 서버 기능이 꺼져 있으면 아무것도 하지 않고 204 다 — 재시도에 안전하다.
+         *     device_uuid 가 36자 UUID 가 아니거나 모두 0 이면(광고 추적 제한) 422. 동의와 프로필이 끝난 회원만 부를 수
+         *     있다. 게스트는 403 member_only.
+         */
+        put: operations["record_airbridge_device_v2_me_airbridge_device_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2427,16 +2427,6 @@ export interface components {
             /** Sub Publisher */
             sub_publisher?: string | null;
         };
-        /** AirbridgeDeviceRequest */
-        AirbridgeDeviceRequest: {
-            /**
-             * Platform
-             * @enum {string}
-             */
-            platform: "ios" | "android";
-            /** Device Uuid */
-            device_uuid: string;
-        };
         /**
          * ActingDirection
          * @enum {string}
@@ -2549,6 +2539,16 @@ export interface components {
             user_id: string;
             /** Blocked */
             blocked: boolean;
+        };
+        /** AirbridgeDeviceRequest */
+        AirbridgeDeviceRequest: {
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "ios" | "android";
+            /** Device Uuid */
+            device_uuid: string;
         };
         /** UpdateMemoryRequest */
         UpdateMemoryRequest: {
@@ -3248,6 +3248,8 @@ export interface components {
             blockage?: components["schemas"]["PracticeBlockage"] | null;
             /** Title */
             title?: string | null;
+            /** Session Purpose */
+            session_purpose?: ("evaluate" | "stuck" | "character") | null;
         };
         /** PracticeScene */
         PracticeScene: {
@@ -3316,6 +3318,8 @@ export interface components {
             job?: components["schemas"]["PracticeJob"] | null;
             /** Previous Conversations */
             previous_conversations: components["schemas"]["PreviousConversation"][];
+            /** Session Purpose */
+            session_purpose?: ("evaluate" | "stuck" | "character") | null;
         };
         /** PracticeJob */
         PracticeJob: {
@@ -3692,6 +3696,29 @@ export interface components {
              */
             request_id: string;
         };
+        /** CoachCharacterCard */
+        CoachCharacterCard: {
+            /** Cells */
+            cells: components["schemas"]["CoachCharacterCell"][];
+        };
+        /** CoachCharacterCell */
+        CoachCharacterCell: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+            /** Source */
+            source: string;
+        };
+        /** CoachChoice */
+        CoachChoice: {
+            /** Label */
+            label: string;
+            /** At */
+            at?: number | null;
+        };
         /** CoachConversation */
         CoachConversation: {
             /**
@@ -3715,6 +3742,14 @@ export interface components {
             messages: components["schemas"]["CoachTurn"][];
             /** Created At */
             created_at?: string | null;
+            purpose?: components["schemas"]["CoachPurpose"] | null;
+        };
+        /** CoachLine */
+        CoachLine: {
+            /** At */
+            at: number;
+            /** Text */
+            text: string;
         };
         /** CoachNote */
         CoachNote: {
@@ -3768,6 +3803,51 @@ export interface components {
             kind: "actor" | "observation";
             /** Source Ref */
             source_ref: string;
+        };
+        /** CoachPurpose */
+        CoachPurpose: {
+            /**
+             * Purpose
+             * @enum {string}
+             */
+            purpose: "evaluate" | "stuck" | "character";
+            /**
+             * Step
+             * @description evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap
+             */
+            step: string;
+            /** Choices */
+            choices: components["schemas"]["CoachChoice"][];
+            scene?: components["schemas"]["CoachScene"] | null;
+            /**
+             * Lines
+             * @description AI가 받아 적은 대사와 영상 시간(초)
+             */
+            lines: components["schemas"]["CoachLine"][];
+            card?: components["schemas"]["CoachResultCard"] | null;
+            character_card?: components["schemas"]["CoachCharacterCard"] | null;
+        };
+        /** CoachResultCard */
+        CoachResultCard: {
+            good?: components["schemas"]["CoachResultCardItem"] | null;
+            issue?: components["schemas"]["CoachResultCardItem"] | null;
+            next?: components["schemas"]["CoachResultCardItem"] | null;
+        };
+        /** CoachResultCardItem */
+        CoachResultCardItem: {
+            /** At */
+            at?: number | null;
+            /** Text */
+            text: string;
+        };
+        /** CoachScene */
+        CoachScene: {
+            /** Situation */
+            situation: string;
+            /** Character */
+            character: string;
+            /** Partner */
+            partner: string;
         };
         /** CoachTurn */
         CoachTurn: {
@@ -5830,37 +5910,6 @@ export interface operations {
             };
         };
     };
-    record_airbridge_device_v2_me_airbridge_device_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AirbridgeDeviceRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     save_profile_v2_me_profile_put: {
         parameters: {
             query?: never;
@@ -6029,6 +6078,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserBlockState"];
+                };
+            };
+        };
+    };
+    record_airbridge_device_v2_me_airbridge_device_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AirbridgeDeviceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

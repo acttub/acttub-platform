@@ -1,5 +1,6 @@
-// Sentry 운영 새 이슈·재발 이슈를 골라 이슈마다 claude -p에 원인 분석·Jira 이슈·draft PR을 맡긴다.
-// Mac mini launchd에서 15분마다 돈다. 준비와 되돌리기는 README.
+// Slack에 간 Sentry 운영 알림마다 claude -p에 원인 분석·Jira 이슈·main 대상 hotfix draft PR을 맡긴다.
+// hotfix가 머지되면 main → dev 역병합 PR을 연다.
+// 알림 목록은 Slack 중계 Worker의 KV에서 가져온다. Mac mini launchd에서 15분마다 돈다. 준비와 되돌리기는 README.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -11,29 +12,42 @@ const CONF = join(HOME, ".config/acttub");
 const STATE_DIR = join(HOME, ".local/state/acttub-sentry-autofix");
 const REPO = join(HOME, "acttub-autofix/repo");
 const SENTRY = "https://us.sentry.io/api/0/organizations/acttub";
-const DAILY_LIMIT = 3;
-const DAY_MS = 86_400_000;
-const REGRESS_COOLDOWN_MS = 7 * DAY_MS;
-const RUN_TIMEOUT_MS = 60 * 60_000;
+const GH_REPO = "acttub/acttub-platform";
+const RUN_TIMEOUT_MS = 90 * 60_000; // CI 결과 기다림까지
 // Mac mini의 RTK 훅이 명령을 `rtk <명령>`으로 바꾸므로 두 모양을 다 허용한다.
 const TOOLS = [
   "Read", "Grep", "Glob", "Edit", "Write",
-  ...["git", "./gradlew", "pnpm", "gh pr create", "gh pr view"].flatMap((c) => [`Bash(${c}:*)`, `Bash(rtk ${c}:*)`]),
-  "mcp__atlassian__createJiraIssue", "mcp__atlassian__getJiraIssue",
+  ...["git", "./gradlew", "pnpm", "gh pr create", "gh pr view", "gh pr list", "gh pr checks", "gh run view"]
+    .flatMap((c) => [`Bash(${c}:*)`, `Bash(rtk ${c}:*)`]),
+  ...["createJiraIssue", "getJiraIssue", "searchJiraIssuesUsingJql", "getTransitionsForJiraIssue", "transitionJiraIssue", "addCommentToJiraIssue"].map((t) => `mcp__atlassian__${t}`),
 ].join(",");
 
-// 새 이슈는 한 번, 재발은 7일에 한 번. 24시간에 DAILY_LIMIT번까지, 이벤트가 많은 이슈부터.
-export function pick(issues, state, now) {
-  const left = DAILY_LIMIT - state.runs.filter((t) => now - t < DAY_MS).length;
-  return issues
-    .filter((i) => {
-      const prev = state.handled[i.id];
-      if (i.substatus === "new") return !prev;
-      if (i.substatus === "regressed") return !prev || now - prev.at > REGRESS_COOLDOWN_MS;
-      return false;
-    })
-    .sort((a, b) => Number(b.count) - Number(a.count))
-    .slice(0, Math.max(0, left));
+export const DAILY_RULE = "운영 계속 남";
+
+// 알림마다 한 번. 마지막 처리 뒤에 온 알림 중 같은 이슈는 가장 늦은 것만 고른다. 먼저 온 알림부터.
+// 하루 한 번 오는 "계속 남"은 처음 보는 이슈, 지난번에 끝내지 못한 이슈, 고친 PR이 운영에 나갔는데도 나는 이슈만 처리한다.
+export function pick(alerts, state, deployed = () => false) {
+  const latest = new Map();
+  for (const a of alerts) {
+    const prev = state.handled[a.issueId];
+    if (prev?.at >= Date.parse(a.at)) continue;
+    const retry = !prev || ["fail", "running"].includes(prev.verdict) || (prev.verdict === "pr" && deployed(prev));
+    if (a.rule === DAILY_RULE && !retry) continue;
+    if (!(latest.get(a.issueId)?.at > a.at)) latest.set(a.issueId, a);
+  }
+  return [...latest.values()].sort((a, b) => a.at.localeCompare(b.at));
+}
+
+// 운영(main)에 머지됐는데 아직 dev로 역병합 PR을 열지 않은 hotfix. 닫힌 PR은 역병합할 것이 없어 표시만 한다.
+export function merged(handled, prState) {
+  const due = [];
+  for (const h of Object.values(handled)) {
+    if (!h.hotfix || h.verdict !== "pr" || h.backmerge) continue;
+    const state = prState(h.pr);
+    if (state === "CLOSED") h.backmerge = "닫힘";
+    if (state === "MERGED") due.push(h);
+  }
+  return due;
 }
 
 // 요청·사용자·breadcrumb은 빼고 예외와 우리 코드 프레임만 넘긴다. 메시지 값은 외부 입력이다.
@@ -84,20 +98,38 @@ async function slack(text) {
 }
 
 const git = (...args) => spawnSync("git", ["-C", REPO, ...args], { encoding: "utf8" });
+const gh = (...args) => spawnSync("gh", args, { encoding: "utf8" }).stdout.trim();
 
-async function handle(issue, statePath, state) {
+// 머지된 PR이 운영(main)에 들어갔는지. dev는 squash, dev→main은 merge commit이라 조상 관계로 본다.
+function deployed(prev) {
+  const sha = gh("pr", "view", prev.pr, "--json", "mergeCommit", "-q", ".mergeCommit.oid");
+  return sha !== "" && git("merge-base", "--is-ancestor", sha, "origin/main").status === 0;
+}
+
+async function handle(issue, alert, statePath, state, prev) {
+  const head = `[자동 수정] <${issue.permalink}|${issue.shortId}>`;
+  // 앞서 연 PR이 아직 열려 있으면 같은 원인으로 PR을 또 만들지 않는다.
+  if (prev?.verdict === "pr") {
+    const open = gh("pr", "view", prev.pr, "--json", "state", "-q", ".state") === "OPEN";
+    if (open) {
+      state.handled[issue.id] = { ...prev, at: Date.now() };
+      writeFileSync(statePath, JSON.stringify(state, null, 2));
+      return slack(`${head} 다시 알림이 왔지만 앞의 <${prev.pr}|PR>(${prev.jira})이 아직 열려 있어 건너뜀`);
+    }
+  }
   const event = await sentry(`/issues/${issue.id}/events/latest/`);
   const ctx = join(STATE_DIR, "ctx", `${issue.shortId}.json`);
   mkdirSync(dirname(ctx), { recursive: true });
-  writeFileSync(ctx, JSON.stringify(summarize(issue, event), null, 2));
+  writeFileSync(ctx, JSON.stringify({ alert: alert.rule, ...summarize(issue, event) }, null, 2));
 
   const wt = join(HOME, "acttub-autofix", `wt-${issue.shortId}`);
   git("fetch", "-q", "origin", "dev");
   git("worktree", "remove", "--force", wt); // 지난 실행이 중간에 죽어 남긴 폴더
-  git("worktree", "add", "-q", "--detach", wt, "origin/dev");
+  git("worktree", "add", "-q", "--detach", wt, "origin/main"); // 운영 코드에서 고친다
   const prompt = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "prompt.md"), "utf8")
     .replaceAll("{{CONTEXT}}", ctx)
-    .replaceAll("{{PERMALINK}}", issue.permalink);
+    .replaceAll("{{PERMALINK}}", issue.permalink)
+    .replaceAll("{{PREVIOUS}}", prev?.verdict === "pr" ? `이 오류는 전에 ${prev.jira}(${prev.pr})로 고쳤는데 다시 알림이 왔다. 새 Jira 이슈의 배경에 그 이슈와 PR을 적는다.` : "");
   const run = spawnSync("claude", ["-p", prompt, "--output-format", "json", "--allowedTools", TOOLS], {
     cwd: wt, encoding: "utf8", timeout: RUN_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024,
   });
@@ -111,14 +143,28 @@ async function handle(issue, statePath, state) {
   // 브랜치는 push됐으므로 작업 폴더만 지운다.
   git("worktree", "remove", "--force", wt);
 
-  state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, ...result };
+  state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, hotfix: true, ...result };
   writeFileSync(statePath, JSON.stringify(state, null, 2));
-  const head = `[자동 수정] <${issue.permalink}|${issue.shortId}>`;
   await slack(
-    result.verdict === "pr" ? `${head} → ${result.jira} <${result.pr}|draft PR>\n${result.reason ?? ""}`
+    result.verdict === "pr" ? `${head} → ${result.jira} <${result.pr}|draft PR>${result.ci === "fail" ? " (CI 실패)" : ""}\n${result.reason ?? ""}`
       : result.verdict === "skip" ? `${head} 코드 수정 대상 아님: ${result.reason}`
         : `${head} 실패: ${result.reason}`,
   );
+}
+
+// 한 PR이 머지된 hotfix를 모두 싣는다. 이미 열린 main → dev PR이 있으면 그것을 쓴다.
+async function backmerge(statePath, state) {
+  const due = merged(state.handled, (pr) => gh("pr", "view", pr, "--json", "state", "-q", ".state"));
+  writeFileSync(statePath, JSON.stringify(state, null, 2));
+  if (due.length === 0) return;
+  const keys = due.map((h) => h.jira).join(" ");
+  const url = gh("pr", "list", "-R", GH_REPO, "--base", "dev", "--head", "main", "--state", "open", "--json", "url", "-q", ".[0].url")
+    || gh("pr", "create", "-R", GH_REPO, "--base", "dev", "--head", "main", "--title", `${keys} 운영 hotfix를 dev에 역병합한다`, "--body",
+      `운영에 머지된 Sentry 자동 수정 hotfix를 dev에 반영한다.\n\n${due.map((h) => `- ${h.jira} ${h.pr}`).join("\n")}\n\nMerge commit으로 합친다(squash·rebase 금지, docs/BRANCHING-STRATEGY.md 「Hotfix」).\n\n🤖 Sentry 자동 수정(Claude Code)`);
+  if (!url) return console.log("역병합 PR을 못 열었다", keys); // 다음 실행에서 다시 시도
+  for (const h of due) h.backmerge = url;
+  writeFileSync(statePath, JSON.stringify(state, null, 2));
+  await slack(`[자동 수정] ${keys} 운영 머지됨 → <${url}|dev 역병합 PR>. Merge commit으로 합쳐 주세요`);
 }
 
 async function main() {
@@ -131,26 +177,33 @@ async function main() {
   }
   try {
     const statePath = join(STATE_DIR, "state.json");
-    let state = { handled: {}, runs: [] };
+    let state = { handled: {} };
     try {
       state = JSON.parse(readFileSync(statePath, "utf8"));
     } catch {}
-    const issues = [];
-    for (const q of ["is:unresolved is:new", "is:unresolved is:regressed"]) {
-      issues.push(...(await sentry("/issues/", { query: q, environment: "prod", statsPeriod: "14d", limit: "100" })));
-    }
+    const res = await fetch(secret("sentry-relay-alerts-url"));
+    if (!res.ok) throw new Error(`alerts ${res.status}`);
     const dryRun = process.argv.includes("--dry-run");
-    const picks = pick(issues, state, Date.now());
-    for (const issue of process.argv.includes("--once") ? picks.slice(0, 1) : picks) {
+    git("fetch", "-q", "origin", "main");
+    if (!dryRun) await backmerge(statePath, state);
+    const picks = pick(await res.json(), state, deployed);
+    for (const alert of process.argv.includes("--once") ? picks.slice(0, 1) : picks) {
+      const issue = await sentry(`/issues/${alert.issueId}/`);
       if (dryRun) {
-        console.log("후보", issue.shortId, issue.substatus, issue.count, issue.title);
+        console.log("후보", issue.shortId, issue.status, alert.rule, alert.at, issue.title);
         continue;
       }
-      // claude가 죽어도 같은 이슈를 다시 돌지 않게 먼저 기록한다.
-      state.runs.push(Date.now());
+      const prev = state.handled[issue.id];
+      // 알림 뒤에 사람이 해결·보관한 이슈는 건너뛴다. 다시 나면 새 알림이 온다.
+      if (issue.status !== "unresolved") {
+        state.handled[issue.id] = { verdict: "skip", reason: `알림 뒤 ${issue.status}`, ...prev, at: Date.now(), shortId: issue.shortId };
+        writeFileSync(statePath, JSON.stringify(state, null, 2));
+        continue;
+      }
+      // claude가 죽어도 같은 알림을 다시 돌지 않게 먼저 기록한다.
       state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, verdict: "running" };
       writeFileSync(statePath, JSON.stringify(state, null, 2));
-      await handle(issue, statePath, state).catch((e) => slack(`[자동 수정] ${issue.shortId} 실패: ${e.message}`));
+      await handle(issue, alert, statePath, state, prev).catch((e) => slack(`[자동 수정] ${issue.shortId} 실패: ${e.message}`));
     }
   } finally {
     rmSync(lock, { recursive: true, force: true });

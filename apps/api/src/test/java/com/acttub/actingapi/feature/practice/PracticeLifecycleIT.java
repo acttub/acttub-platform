@@ -589,6 +589,46 @@ class PracticeLifecycleIT {
                 .allMatch(practice -> practice.path("poster_url").isNull());
     }
 
+    @Test
+    @DisplayName("practice.start: 세션 목적을 고르고 시작 — 저장되고 응답에 실린다. 같은 요청 id·같은 목적은 같은 회차, "
+            + "다른 목적·목적을 뺀 본문은 422 request_fingerprint_mismatch. 모르는 값은 422 배열. 목적 없이 시작하면 null 이고, "
+            + "이어하기는 묶음 첫 회차의 목적을 물려받는다 (SOMA-719)")
+    void practiceStart_sessionPurposeIsStoredAndInherited() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        String body = startBody(requestId, video, null, null).replace("}", ",\"session_purpose\":\"stuck\"}");
+        JsonNode started = json(post("/v2/practices").content(body), 201);
+        UUID rootId = UUID.fromString(started.path("id").textValue());
+        assertThat(started.path("session_purpose").textValue()).isEqualTo("stuck");
+        assertThat(jdbc.queryForObject("SELECT session_purpose FROM practices WHERE id=?", String.class, rootId))
+                .isEqualTo("stuck");
+        assertThat(json(post("/v2/practices").content(body), 201).path("id").textValue())
+                .as("같은 요청 id·같은 목적 재전송").isEqualTo(rootId.toString());
+        assertThat(json(post("/v2/practices").content(body.replace("stuck", "character")), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
+        assertThat(json(post("/v2/practices").content(startBody(requestId, video, null, null)), 422))
+                .as("목적을 빼도 다른 본문이다")
+                .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
+
+        int before = count("practices");
+        MockHttpServletResponse unknown = perform(post("/v2/practices").contentType(MediaType.APPLICATION_JSON)
+                .content(startBody(UUID.randomUUID(), video(member), null, null)
+                        .replace("}", ",\"session_purpose\":\"worry\"}")), bearer);
+        assertThat(unknown.getStatus()).isEqualTo(422);
+        assertThat(mapper.readTree(unknown.getContentAsString()).path("detail").get(0).path("loc"))
+                .extracting(JsonNode::asText).containsExactly("body", "session_purpose");
+        assertThat(count("practices")).isEqualTo(before);
+
+        UUID plain = UUID.fromString(json(post("/v2/practices")
+                .content(startBody(UUID.randomUUID(), video(member), null, null)), 201).path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT session_purpose FROM practices WHERE id=?", String.class, plain))
+                .as("목적 없이 시작하면 지금 코치 그대로").isNull();
+
+        close(rootId);
+        JsonNode second = json(post("/v2/practices/{id}/continue", rootId)
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201);
+        assertThat(second.path("session_purpose").textValue()).as("이어하기는 묶음 첫 회차의 목적을 물려받는다").isEqualTo("stuck");
+    }
+
     // ---- helpers ----
 
     private String startBody(UUID requestId, UUID videoId, String scene, String blockage, String title) {

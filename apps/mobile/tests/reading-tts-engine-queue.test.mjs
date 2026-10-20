@@ -31,6 +31,7 @@ const modules = {
   './assets': `const s = globalThis.__engineQueueTest;
     export const MODEL_KINDS = ['durationPredictor', 'vocoder'];
     export function assetsPresent() { return false; }
+    export function activeVariant() { return 'fp32'; }
     export async function downloadAssets(_variant, preset, onProgress) {
       s.downloads += 1;
       onProgress({ phase: 'download', receivedBytes: 1, totalBytes: 2, percent: 50, etaSeconds: null });

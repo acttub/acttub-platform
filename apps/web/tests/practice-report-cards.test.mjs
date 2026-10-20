@@ -214,11 +214,7 @@ test("노트 봉투가 아닌 공개 노트 원문이 오면 다시 불러오라
   assert.equal(screen.queryByRole("heading", { level: 2 }), null);
 });
 
-test(
-  "신형 노트의 응원은 스펙의 고정 문구 전체를 보인다",
-  { todo: "버그: 웹 응원 문구가 note.md 고정 문구의 앞 절만 보인다" },
-  () => {
-    draw(noteV2());
-    assert.equal(screen.getAllByRole("paragraph").at(-1).textContent, "오늘 촬영도 수고했어요. 다음 촬영도 응원할게요.");
-  },
-);
+test("신형 노트의 응원은 스펙의 고정 문구 전체를 보인다", () => {
+  draw(noteV2());
+  assert.equal(screen.getAllByRole("paragraph").at(-1).textContent, "오늘 촬영도 수고했어요. 다음 촬영도 응원할게요.");
+});

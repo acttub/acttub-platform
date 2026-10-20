@@ -426,6 +426,9 @@ class ErrorContractInventoryTest {
                     "feature.reading.app.CloudVoiceServiceTest"),
             covered("feature.reading.adapter.web.VoiceController|403|member_only", 1,
                     "feature.reading.CloudVoiceIT"),
+            // 리딩 기기 목소리 모델(fp16 묶음) 주소. 위치 설정·스토리지가 없으면 503 이고 앱은 원본 fp32 를 받는다.
+            covered("feature.reading.app.VoiceModelService|503|voice_model_unavailable", 1,
+                    "feature.reading.app.VoiceModelServiceTest"),
             // 0.1.0 코치 대화·노트(practice.coach, practice.note). 저장만 새 표로 옮겼고 행동 규칙은 그대로다.
             covered("feature.coach.app.ConversationService|404|conversation_not_found", 1,
                     "feature.coach.CoachConversationIT"),

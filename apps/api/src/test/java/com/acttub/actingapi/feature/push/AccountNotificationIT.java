@@ -20,7 +20,6 @@ import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -300,7 +299,6 @@ class AccountNotificationIT {
     }
 
     @Test
-    @Disabled("버그: 푸시 토큰 검증 오류의 msg 에 pydantic 의 \"Value error, \" 접두가 빠졌다")
     @DisplayName("account.notification: 푸시 토큰 검증 오류의 msg 도 다른 value_error 처럼 \"Value error, \" 로 시작한다")
     void accountNotification_pushTokenValueErrorsUseThePydanticMessage() throws Exception {
         var webPlatform = postToken(bearer, "ExponentPushToken[web]", "web");
