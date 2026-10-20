@@ -216,14 +216,14 @@ const styles = StyleSheet.create({
   kind: { fontSize: 12, fontWeight: '800', color: palette.blue },
   sceneSummary: { paddingHorizontal: 20, paddingBottom: 8 },
 
-  body: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 24, gap: 20 },
+  body: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 24, gap: 10 },
   heading: { gap: 8 },
-  title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
+  title: { fontSize: 22, fontWeight: '900', color: palette.text, lineHeight: 31 },
   fallback: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
 
   buttonRow: { gap: 10, marginTop: 8 },
   // 스크롤 본문의 gap(섹션 사이)을 노트 안에서도 그대로 둔다 — 비추려고 한 번 감쌌을 뿐이다.
-  noteBlock: { gap: 20 },
+  noteBlock: { gap: 10 },
   sampleDone: {
     gap: 8,
     borderRadius: 20,

@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -131,9 +132,9 @@ export default function ChallengeResultScreen() {
           </>
         )}
       </ScrollView>
-      <View style={styles.footer}>
+      <CtaBar safeBottom={false}>
         <PrimaryButton label={t(nextId ? 'challengeResult.seeWeek' : 'challengeResult.seeChallenges')} onPress={seeWeek} />
-      </View>
+      </CtaBar>
     </SafeAreaView>
   );
 }
@@ -144,7 +145,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
   lineCard: { backgroundColor: palette.navy, borderRadius: 20, padding: 20, gap: 8 },
-  period: { fontSize: 13, fontWeight: '700', color: 'rgba(255, 255, 255, 0.67)' },
+  period: { fontSize: 13, fontWeight: '700', color: 'rgba(255, 255, 255, 0.67)', lineHeight: 20 },
   line: { fontSize: 19, fontWeight: '800', color: palette.onAccent, lineHeight: 28 },
   section: { fontSize: 15, fontWeight: '800', color: palette.textDim },
   notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
@@ -156,10 +157,9 @@ const styles = StyleSheet.create({
   rankText: { fontSize: 14, fontWeight: '800', color: palette.onAccent },
   rowBody: { flex: 1, minWidth: 0, gap: 6 },
   name: { fontSize: 16, fontWeight: '800', color: palette.text },
-  sub: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  sub: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
   mine: { paddingVertical: 6, gap: 6, marginTop: 6 },
   mineLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim },
   mineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   mineText: { fontSize: 15, fontWeight: '700', color: palette.text },
-  footer: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10 },
 });

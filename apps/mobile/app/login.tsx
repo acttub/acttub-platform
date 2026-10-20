@@ -5,6 +5,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { SecondaryButton } from '@/components/ui/buttons';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
@@ -193,9 +194,7 @@ export default function LoginScreen() {
         ) : list.status === 'error' ? (
           <View style={styles.reloadBox}>
             <Text style={styles.error}>{t('login.providersFail')}</Text>
-            <Pressable style={styles.reload} onPress={() => void loadProviders()} accessibilityRole="button">
-              <Text style={styles.reloadText}>{t('login.reload')}</Text>
-            </Pressable>
+            <SecondaryButton label={t('login.reload')} onPress={() => void loadProviders()} style={styles.reload} />
           </View>
         ) : providers.length === 0 ? (
           <Text style={styles.error}>{t('login.providersEmpty')}</Text>
@@ -247,9 +246,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
-  reloadBox: { alignItems: 'center', gap: 4 },
-  reload: { paddingHorizontal: 16, paddingVertical: 8 },
-  reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
+  reloadBox: { alignItems: 'center', gap: 14 },
+  reload: { alignSelf: 'stretch' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
 });
 

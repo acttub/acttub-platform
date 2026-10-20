@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
@@ -326,9 +327,9 @@ export default function ChallengeDetailScreen() {
         )}
       </ScrollView>
       {challenge && canPerform(challenge) && (
-        <View style={styles.footer}>
+        <CtaBar safeBottom={false}>
           <PrimaryButton label={t('challenges.tryIt')} onPress={perform} />
-        </View>
+        </CtaBar>
       )}
       <ChallengeReportSheet
         visible={reportOpen}
@@ -362,10 +363,10 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent },
   line: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
-  work: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)' },
+  work: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)', lineHeight: 20 },
   note: { fontSize: 12.5, color: 'rgba(255, 255, 255, 0.67)', lineHeight: 19 },
   stat: { fontSize: 12.5, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)' },
-  guide: { fontSize: 14, fontWeight: '700', color: palette.blue, lineHeight: 21 },
+  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21 },
   notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber, paddingVertical: 4 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   sectionTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
@@ -379,11 +380,10 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 13, fontWeight: '900', color: palette.blueDeep },
   entryBody: { flex: 1, minWidth: 0, gap: 6 },
   entryHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  author: { flexShrink: 1, fontSize: 16, fontWeight: '800', color: palette.text },
+  author: { flexShrink: 1, fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 24 },
   newBadge: { fontSize: 10.5, fontWeight: '900', color: palette.blue },
-  entryMeta: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  entryMeta: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
   caption: { fontSize: 13, color: palette.textMuted, lineHeight: 19 },
   firstBadge: { fontSize: 12, fontWeight: '800', color: palette.blueDeep },
   empty: { fontSize: 14, color: palette.textDim, textAlign: 'center', paddingVertical: 40, lineHeight: 22 },
-  footer: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10 },
 });

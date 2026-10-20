@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -122,14 +123,7 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.top}>
           <Text style={styles.title}>{t('profileTab.title')}</Text>
-          <Pressable
-            style={styles.iconBtn}
-            onPress={() => router.push('/settings')}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('settings.title')}>
-            <Feather name="settings" size={24} color={palette.text} />
-          </Pressable>
+          <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="profile_settings" onPress={() => router.push('/settings')} />
         </View>
 
         <View style={styles.me}>
@@ -155,7 +149,7 @@ export default function ProfileScreen() {
               </Text>
             )}
           </View>
-          <Pressable style={styles.editBtn} onPress={() => router.push('/profile-edit')} accessibilityRole="button">
+          <Pressable style={styles.editBtn} onPress={() => router.push('/profile-edit')} accessibilityRole="button" ph-label="profile_edit">
             <Text style={styles.editText}>{t('profileTab.edit')}</Text>
           </Pressable>
         </View>
@@ -313,9 +307,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   pressed: { opacity: 0.7 },
   content: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 130 },
-  top: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  top: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginRight: -10 },
   title: { fontSize: 22, fontWeight: '800', color: palette.text },
-  iconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 
   me: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   photo: {

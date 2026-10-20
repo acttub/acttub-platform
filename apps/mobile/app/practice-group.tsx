@@ -6,7 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { PracticeMenu, type PracticeMenuItem } from '@/components/ui/coach-practice-menu';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { RenameDialog } from '@/components/ui/coach-rename-dialog';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
@@ -207,20 +209,21 @@ export default function PracticeGroupScreen() {
           headerRight: () =>
             group && !group.hidden_at ? (
               <View style={styles.headerActions}>
-                <Pressable
+                <NavIconButton
+                  icon="more-horizontal"
+                  color={palette.textMuted}
+                  label={t('history.menuOpen')}
+                  phLabel="practice_group_menu"
                   onPress={() => setMenuOpen(true)}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('history.menuOpen')}>
-                  <Feather name="more-horizontal" size={22} color={palette.textMuted} />
-                </Pressable>
-                <Pressable
+                />
+                <NavIconButton
+                  icon="trash-2"
+                  size={20}
+                  color={palette.textMuted}
+                  label={t('history.hideConfirm')}
+                  phLabel="practice_group_hide"
                   onPress={() => void toggleHidden({ leave: true })}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('history.hideConfirm')}>
-                  <Feather name="trash-2" size={20} color={palette.textMuted} />
-                </Pressable>
+                />
               </View>
             ) : null,
         }}
@@ -240,12 +243,7 @@ export default function PracticeGroupScreen() {
 
           {/* 대화 중인 테이크가 있으면 그게 가장 먼저 할 일이다 — 맨 위 주 버튼(SOMA-672). */}
           {action.kind === 'resume' && (
-            <Pressable
-              style={[styles.primary, styles.primaryTop]}
-              onPress={() => resumeConversation(action.practiceId)}
-              accessibilityRole="button">
-              <Text style={styles.primaryText}>{t(continueActionLabel(action))}</Text>
-            </Pressable>
+            <PrimaryButton label={t(continueActionLabel(action))} onPress={() => resumeConversation(action.practiceId)} />
           )}
 
           {group.video_id && (
@@ -303,14 +301,9 @@ export default function PracticeGroupScreen() {
           ))}
 
           {action.kind === 'nextTake' && (
-            <Pressable
-              ref={continueTarget.ref}
-              onLayout={continueTarget.onLayout}
-              style={styles.primary}
-              onPress={startNextTake}
-              accessibilityRole="button">
-              <Text style={styles.primaryText}>{t(continueActionLabel(action))}</Text>
-            </Pressable>
+            <View ref={continueTarget.ref} onLayout={continueTarget.onLayout} collapsable={false} style={styles.primaryWrap}>
+              <PrimaryButton label={t(continueActionLabel(action))} onPress={startNextTake} />
+            </View>
           )}
           <Pressable onPress={() => void toggleHidden()} accessibilityRole="button">
             <Text style={styles.hideLink}>{group.hidden_at ? t('history.unhide') : t('history.hideConfirm')}</Text>
@@ -348,7 +341,7 @@ export default function PracticeGroupScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
   center: { paddingVertical: 48, alignItems: 'center' },
   error: { color: palette.danger, textAlign: 'center', paddingVertical: 16 },
   body: { padding: 20, paddingBottom: 48, gap: 14 },
@@ -371,16 +364,7 @@ const styles = StyleSheet.create({
   roundTitle: { fontSize: 15, fontWeight: '700', color: palette.text },
   roundMeta: { fontSize: 12.5, color: palette.textFaint },
   openNote: { fontSize: 12.5, fontWeight: '800', color: palette.blueDeep },
-  primary: {
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: palette.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-  },
-  primaryTop: { marginTop: 0 },
-  primaryText: { fontSize: 15, fontWeight: '900', color: palette.bg },
+  primaryWrap: { marginTop: 16 },
   hideLink: { fontSize: 13, fontWeight: '800', color: palette.textFaint, textAlign: 'center', paddingVertical: 10 },
   hideNotice: { fontSize: 12, color: palette.textFaint, textAlign: 'center', lineHeight: 19 },
 });

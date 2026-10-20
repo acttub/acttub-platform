@@ -53,7 +53,8 @@ export function ConsentRow({
             hitSlop={10}
             onPress={arrow.onPress}
             accessibilityRole="button"
-            accessibilityLabel={arrow.accessibilityLabel}>
+            accessibilityLabel={arrow.accessibilityLabel}
+            ph-label="consent_row_open">
             <Feather name={arrow.icon} size={18} color={palette.checkOff} />
           </Pressable>
         )}

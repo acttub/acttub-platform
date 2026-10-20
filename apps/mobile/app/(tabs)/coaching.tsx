@@ -4,7 +4,9 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
+import { NavHeader } from '@/components/ui/nav-header';
 import { IconOptionRow } from '@/components/ui/option-card';
+import { MASCOT } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -14,7 +16,6 @@ import { groupTitle } from '@/lib/practice/groups';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 
-const MASCOT = require('@/assets/images/mascot-coach.png');
 
 /**
  * 코칭 탭(pen 「새 · 코칭 입구 첫/다음」, SOMA-748). 가운데 촬영 버튼을 대신해 코칭을 시작하는 곳이다.
@@ -73,16 +74,14 @@ export default function CoachingTab() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('coachingTab.title')}</Text>
-      </View>
+      <NavHeader title={t('coachingTab.title')} />
       {!entry ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} />
         </View>
       ) : entry.kind === 'first' ? (
         <View style={styles.firstBody}>
-          <MascotBubble source={MASCOT} title={t('coachingTab.firstBubble')} body={t('coachingTab.firstBubbleSub')} />
+          <MascotBubble source={MASCOT.coach} title={t('coachingTab.firstBubble')} body={t('coachingTab.firstBubbleSub')} />
           <View style={styles.firstQuestion}>
             <Text style={styles.question}>{t('coachingTab.firstQuestion')}</Text>
             <Text style={styles.guide}>{t('coachingTab.firstGuide')}</Text>
@@ -110,12 +109,10 @@ export default function CoachingTab() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  header: { height: 52, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: palette.text },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // 아래 탭 바가 화면 위에 떠 있어 그만큼 바닥을 비운다.
   firstBody: { flex: 1, paddingTop: 16, paddingHorizontal: 24, paddingBottom: 120, gap: 14 },
-  firstQuestion: { marginTop: 24, gap: 8 },
+  firstQuestion: { marginTop: 38, gap: 14 },
   question: { fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text },
   guide: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
   spacer: { flex: 1 },
@@ -125,5 +122,5 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 19, fontWeight: '800', lineHeight: 28, color: palette.text },
   cardBody: { fontSize: 14, fontWeight: '500', lineHeight: 21, color: palette.textDim },
   cardGuide: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
-  sectionLabel: { marginTop: 10, fontSize: 14, fontWeight: '800', color: palette.textFaint },
+  sectionLabel: { fontSize: 14, fontWeight: '800', lineHeight: 21, color: palette.textFaint },
 });

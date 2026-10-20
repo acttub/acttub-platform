@@ -6,12 +6,13 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+// pen 「코칭 마무리」(tEgqC)는 두 팔 든 홈 액티(52×58)를 쓴다(SOMA-770).
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 
-// pen 「코칭 마무리」(tEgqC)는 두 팔 든 홈 액티를 쓴다(SOMA-770).
-const MASCOT = require('@/assets/images/mascot-home.png');
 
 /**
  * 코칭 마무리(pen 「새 · 코칭 마무리」, SOMA-748) — 배우 일지에서 「저장하고 마치기」를 누른 뒤 한 번 보인다.
@@ -47,7 +48,7 @@ export default function CoachingDoneScreen() {
           <Text style={styles.badgeText}>{t('note.doneBadge')}</Text>
         </View>
         <View style={styles.head}>
-          <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT.home} style={MASCOT_SIZE.sm} contentFit="contain" accessibilityIgnoresInvertColors />
           <Text style={styles.title}>{next ? t('note.doneTitle') : t('note.doneTitleNoNext')}</Text>
         </View>
         {next && (
@@ -58,14 +59,14 @@ export default function CoachingDoneScreen() {
         )}
         {reminder && (
           <View style={styles.reminder}>
-            <Feather name="bell" size={18} color={palette.blue} />
+            <Feather name="bell" size={18} color={palette.blueDeep} />
             <Text style={styles.reminderText}>{t('note.doneReminder')}</Text>
           </View>
         )}
       </ScrollView>
-      <View style={styles.bottom}>
+      <CtaBar safeBottom={false}>
         <PrimaryButton label={t('note.doneConfirm')} onPress={() => router.replace('/(tabs)')} />
-      </View>
+      </CtaBar>
     </SafeAreaView>
   );
 }
@@ -85,11 +86,10 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 13, fontWeight: '800', color: palette.green },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  mascot: { width: 52, height: 58 },
-  title: { flex: 1, fontSize: 21, fontWeight: '800', lineHeight: 30, color: palette.text },
-  card: { backgroundColor: palette.bgSoft, borderRadius: 18, padding: 16, gap: 6 },
-  cardLabel: { fontSize: 12, fontWeight: '700', color: palette.textMuted },
-  cardText: { fontSize: 16, fontWeight: '800', lineHeight: 24, color: palette.text },
+  title: { flex: 1, fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text },
+  card: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, gap: 6 },
+  cardLabel: { fontSize: 12, fontWeight: '800', lineHeight: 17, color: palette.textMuted },
+  cardText: { fontSize: 16, fontWeight: '800', lineHeight: 23, color: palette.text },
   reminder: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -97,8 +97,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.blueSoft,
     borderRadius: 14,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
   },
   reminderText: { flex: 1, fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
-  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10 },
 });

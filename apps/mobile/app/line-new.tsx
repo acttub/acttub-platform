@@ -1,11 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -92,7 +94,7 @@ export default function LineNewScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Pressable onPress={back} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+        <Pressable onPress={back} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="line_new_back">
           <Feather name={step === 0 ? 'x' : 'chevron-left'} size={26} color={palette.text} />
         </Pressable>
         <View style={styles.dots}>
@@ -191,19 +193,14 @@ export default function LineNewScreen() {
         {!!error && <Text style={styles.error}>{error}</Text>}
       </KeyboardAwareScroll>
 
-      <View style={styles.footer}>
-        <Pressable
-          style={[styles.cta, (!canNext || submitting) && styles.ctaOff]}
+      <CtaBar divider safeBottom={false}>
+        <PrimaryButton
+          label={t(step === 2 ? 'lineNew.submit' : 'lineNew.next')}
           onPress={next}
-          disabled={!canNext || submitting}
-          accessibilityRole="button">
-          {submitting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.ctaText}>{t(step === 2 ? 'lineNew.submit' : 'lineNew.next')}</Text>
-          )}
-        </Pressable>
-      </View>
+          disabled={!canNext}
+          loading={submitting}
+        />
+      </CtaBar>
       {dialog}
     </SafeAreaView>
   );
@@ -252,8 +249,4 @@ const styles = StyleSheet.create({
   previewMeta: { fontSize: 12.5, color: palette.textMuted },
   previewNote: { fontSize: 12.5, color: palette.textFaint, lineHeight: 19 },
   error: { fontSize: 13.5, fontWeight: '700', color: palette.danger, marginTop: 8 },
-  footer: { padding: 16, borderTopWidth: 1, borderTopColor: palette.borderSoft },
-  cta: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  ctaOff: { backgroundColor: '#C9D3DF' },
-  ctaText: { fontSize: 15, fontWeight: '900', color: '#FFFFFF' },
 });

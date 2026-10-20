@@ -9,7 +9,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CoachNotice } from '@/components/ui/coach-notice';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
@@ -412,7 +414,7 @@ export default function CoachScreen() {
             <View style={styles.questionBlock} ref={questionTarget.ref} onLayout={questionTarget.onLayout}>
               {shownQuestion && (
                 <View style={styles.coachRow}>
-                  <Image source={require('@/assets/images/mascot-coach.png')} style={styles.mascot} contentFit="contain" />
+                  <Image source={MASCOT.coach} style={MASCOT_SIZE.xs} contentFit="contain" />
                   <View style={styles.questionMain}>
                     <Text style={styles.coachLabel}>{t('coach.coachLabel')}</Text>
                     <View style={styles.bubble}>
@@ -434,23 +436,17 @@ export default function CoachScreen() {
 
           {error && <Text style={styles.errorText}>{error}</Text>}
           {error && !conversation && !waiting && !connecting && (
-            <Pressable style={styles.retry} onPress={() => void startConversation()}>
-              <Text style={styles.retryText}>{t('coach.reconnect')}</Text>
-            </Pressable>
+            <SecondaryButton label={t('coach.reconnect')} onPress={() => void startConversation()} />
           )}
 
           {closed && (
             <>
               <Text style={styles.doneText}>{conversation?.close_reason === 'system_failure'
                 ? t('coach.doneFailure') : practice.note ? t('coach.doneNormal') : t('coach.doneShort')}</Text>
-              <Pressable style={styles.retry} onPress={practice.note ? goToNote : finishWithoutNote} accessibilityRole="button">
-                <Text style={styles.retryText}>{practice.note ? t('coach.seeSummary') : t('coach.finishBtn')}</Text>
-              </Pressable>
+              <PrimaryButton label={practice.note ? t('coach.seeSummary') : t('coach.finishBtn')} onPress={practice.note ? goToNote : finishWithoutNote} />
               {/* 예시 회차는 서버에 없어 이어 갈 수 없다. */}
               {!sample && (
-                <Pressable style={styles.retry} onPress={startNextTake} accessibilityRole="button">
-                  <Text style={styles.retryText}>{t('history.nextTake')}</Text>
-                </Pressable>
+                <SecondaryButton label={t('history.nextTake')} onPress={startNextTake} />
               )}
             </>
           )}
@@ -523,9 +519,9 @@ const styles = StyleSheet.create({
   videoRowOn: { opacity: 0.6 },
   thumb: { width: 64, height: 64, borderRadius: 14, backgroundColor: palette.textDim, alignItems: 'center', justifyContent: 'center' },
   thumbPlay: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
-  videoText: { flex: 1, gap: 4 },
-  videoTitle: { fontSize: 14, fontWeight: '800', color: palette.text },
-  videoSub: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
+  videoText: { flex: 1, gap: 6 },
+  videoTitle: { fontSize: 14, fontWeight: '800', lineHeight: 21, color: palette.text },
+  videoSub: { fontSize: 12, fontWeight: '600', lineHeight: 18, color: palette.textFaint },
 
   progressHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   progressText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
@@ -539,9 +535,8 @@ const styles = StyleSheet.create({
   // pen 「코치 줄」 — 마스코트 36×40, 이름 12/800 주황, 말풍선(회색, 왼쪽 위만 뾰족) 16/600.
   questionBlock: { gap: 16 },
   coachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  mascot: { width: 36, height: 40 },
   questionMain: { flex: 1, gap: 10 },
-  coachLabel: { fontSize: 12, fontWeight: '800', color: palette.flameDeep },
+  coachLabel: { fontSize: 12, fontWeight: '800', lineHeight: 18, color: palette.flameDeep },
   bubble: {
     alignSelf: 'flex-start',
     backgroundColor: palette.bgSoft,
@@ -564,19 +559,10 @@ const styles = StyleSheet.create({
   pastText: { fontSize: 13.5, fontWeight: '600', color: palette.textDim, lineHeight: 22 },
 
   errorText: { fontSize: 13, fontWeight: '700', color: palette.danger },
-  retry: {
-    alignSelf: 'flex-start',
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: palette.border,
-    paddingVertical: 9,
-    paddingHorizontal: 16,
-  },
-  retryText: { fontSize: 13, fontWeight: '800', color: palette.textDim },
   doneText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 23 },
 
   composer: { gap: 10, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 10 },
-  chipGuide: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
+  chipGuide: { fontSize: 13, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
   // pen 「칩」 — 회색 알약(안쪽 10·16), 글 15/700. 누르면 입력칸만 채운다.
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   quick: { borderRadius: 9999, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },

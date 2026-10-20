@@ -11,6 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { DialogButtons } from '@/components/ui/dialog';
 import { ReadingStatus } from '@/components/ui/reading-status';
 import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { Markdown } from '@/components/markdown';
@@ -349,9 +350,7 @@ export default function ReadingNew() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{popup.title}</Text>
               <Text style={styles.cardBody}>{popup.message}</Text>
-              <Pressable style={[styles.primary, styles.cardButton]} onPress={() => setPopup(null)}>
-                <Text style={styles.primaryText}>{t('common.confirm')}</Text>
-              </Pressable>
+              <PrimaryButton label={t('common.confirm')} onPress={() => setPopup(null)} style={styles.cardButton} />
             </View>
           )}
           {popup?.kind === 'duplicate' && (
@@ -381,11 +380,11 @@ export default function ReadingNew() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{t('reading.notScriptTitle')}</Text>
               <Text style={styles.cardBody}>{t('reading.notScriptBody')}</Text>
-              <ChoiceRow
-                secondary={t('reading.notScriptSplit')}
-                onSecondary={() => void split(popup.input, popup.flags)}
-                primary={t('reading.notScriptRepick')}
-                onPrimary={() => setPopup(null)}
+              <DialogButtons
+                cancelLabel={t('reading.notScriptSplit')}
+                onCancel={() => void split(popup.input, popup.flags)}
+                confirmLabel={t('reading.notScriptRepick')}
+                onConfirm={() => setPopup(null)}
               />
             </View>
           )}
@@ -407,9 +406,7 @@ export default function ReadingNew() {
                   <Markdown source={popup.document.body} />
                 </ScrollView>
               )}
-              <Pressable style={[styles.primary, styles.sheetButton]} disabled={popup.busy} onPress={() => void onAgree(popup)}>
-                {popup.busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{t('reading.consentAgree')}</Text>}
-              </Pressable>
+              <PrimaryButton label={t('reading.consentAgree')} loading={popup.busy} onPress={() => void onAgree(popup)} style={styles.sheetButton} />
               <Pressable style={styles.sheetCancel} disabled={popup.busy} onPress={() => setPopup(null)}>
                 <Text style={styles.sheetCancelText}>{t('common.cancel')}</Text>
               </Pressable>
@@ -441,19 +438,6 @@ function SplittingCard({ progress }: { progress: ImportProgress | null }) {
   );
 }
 
-function ChoiceRow(props: { secondary: string; onSecondary: () => void; primary: string; onPrimary: () => void }) {
-  return (
-    <View style={styles.choiceRow}>
-      <Pressable style={[styles.choice, styles.choiceSecondary]} onPress={props.onSecondary}>
-        <Text style={styles.choiceSecondaryText}>{props.secondary}</Text>
-      </Pressable>
-      <Pressable style={[styles.choice, styles.choicePrimary]} onPress={props.onPrimary}>
-        <Text style={styles.primaryText}>{props.primary}</Text>
-      </Pressable>
-    </View>
-  );
-}
-
 function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) {
   return (
     <View style={styles.point}>
@@ -466,7 +450,7 @@ function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) 
 function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-      <Feather name={icon} size={14} color={on ? palette.text : palette.textMuted} />
+      <Feather name={icon} size={16} color={on ? palette.text : palette.textFaint} />
       <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{label}</Text>
     </Pressable>
   );
@@ -491,36 +475,28 @@ const styles = StyleSheet.create({
   replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.card, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
   replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   textArea: { flex: 1, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
-  guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },
   spacer: { flex: 1 },
   sampleLink: { alignSelf: 'center', paddingVertical: 4 },
   sampleText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textDecorationLine: 'underline' },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
-  primary: { backgroundColor: palette.blue, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  primaryOff: { backgroundColor: palette.checkOff },
-  primaryText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
   backdropSheet: { justifyContent: 'flex-end', padding: 0 },
   card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },
   cardTitle: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   cardBody: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
   cardButton: { alignSelf: 'stretch', marginTop: 12 },
-  choiceRow: { alignSelf: 'stretch', flexDirection: 'row', gap: 8, marginTop: 12 },
-  choice: { flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  choiceSecondary: { backgroundColor: palette.bgSoft },
-  choicePrimary: { backgroundColor: palette.blue },
-  choiceSecondaryText: { color: palette.textStrong, fontFamily: 'Pretendard-Bold', fontSize: 16 },
   splitCard: { paddingBottom: 24, gap: 8 },
   splitIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: palette.blueMist, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   bar: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: palette.bgSoft, marginTop: 10, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3, backgroundColor: palette.blue },
   optionCard: { alignItems: 'stretch', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24, gap: 6 },
-  optionTitle: { color: palette.text, fontSize: 20, fontWeight: '900' },
+  optionTitle: { color: palette.text, fontSize: 20, fontWeight: '900', lineHeight: 28 },
   optionGuide: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
   optionName: { color: palette.textMuted, fontSize: 13, marginBottom: 6 },
   optionRow: { paddingVertical: 14, paddingHorizontal: 2, borderRadius: 10 },
   optionPressed: { backgroundColor: palette.bgSubtle },
-  optionText: { color: palette.text, fontSize: 16, fontWeight: '700' },
+  optionText: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 24 },
   splitCount: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 20, paddingTop: 10 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 18 },

@@ -316,6 +316,7 @@ export default function HomeScreen() {
       hitSlop={10}
       accessibilityRole="button"
       accessibilityLabel={unread.count > 0 ? t('home.bellUnreadA11y') : t('home.bellA11y')}
+      ph-label="home_bell"
       style={styles.bell}>
       <Feather name="bell" size={22} color={palette.text} />
       {unread.count > 0 && <View style={styles.bellDot} />}
@@ -679,7 +680,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 12, fontWeight: '800', lineHeight: 18 },
   eyebrowBlue: { color: palette.blue },
   eyebrowGreen: { color: palette.green },
-  eyebrowOrange: { color: palette.flameDeep },
+  eyebrowOrange: { color: palette.flame },
   todayTitle: { fontSize: 18, fontWeight: '800', lineHeight: 24, color: palette.text },
   barTrack: { height: 8, borderRadius: 4, backgroundColor: palette.bg, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4, backgroundColor: palette.green },

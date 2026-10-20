@@ -300,15 +300,18 @@ export default function ProfileNameScreen() {
       body = (
         <>
           <MascotBubble title={t('profileName.askGender', { name })} guide={t('profileName.askGenderHint')} />
-          {GENDER_ORDER.map((gender) => (
-            <SelectRow
-              key={gender}
-              label={t(GENDER_LABEL_KEYS[gender])}
-              selected={form.gender === gender}
-              trailing="check"
-              onPress={() => update({ gender })}
-            />
-          ))}
+          {/* pen ①-3 — 성별 줄 사이 22. */}
+          <View style={styles.genderList}>
+            {GENDER_ORDER.map((gender) => (
+              <SelectRow
+                key={gender}
+                label={t(GENDER_LABEL_KEYS[gender])}
+                selected={form.gender === gender}
+                trailing="check"
+                onPress={() => update({ gender })}
+              />
+            ))}
+          </View>
         </>
       );
       footer = (
@@ -456,7 +459,9 @@ const styles = StyleSheet.create({
   introBadgeText: { fontSize: 14, fontWeight: '700', color: palette.blueDeep },
 
   body: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 4 },
-  label: { marginTop: 18, marginBottom: 10, fontSize: 14, fontWeight: '800', color: palette.textDim },
+  // pen ①-1 — 말풍선·라벨·입력칸 사이 22(본문 gap 4 + 18).
+  label: { marginTop: 18, marginBottom: 18, fontSize: 14, fontWeight: '800', lineHeight: 21, color: palette.textDim },
+  genderList: { gap: 22, marginTop: 18 },
   input: {
     backgroundColor: palette.bgSoft,
     borderRadius: 14,

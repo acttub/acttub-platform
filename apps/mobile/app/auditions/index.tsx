@@ -115,8 +115,8 @@ export default function AuditionsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('common.back')}>
-          <Feather name="chevron-left" size={24} color={palette.text} />
+        <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="auditions_back">
+          <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <Text style={styles.headerTitle}>{t('auditions.title')}</Text>
         {payload && (
@@ -321,6 +321,7 @@ function AuditionCard({
         accessibilityRole="button"
         accessibilityState={{ selected: starred }}
         accessibilityLabel={starred ? t('auditions.unstarA11y') : t('auditions.starA11y')}
+        ph-label="auditions_star"
         style={styles.star}>
         <Ionicons name={starred ? 'star' : 'star-outline'} size={20} color={starred ? palette.hintIcon : palette.checkOff} />
       </Pressable>

@@ -40,12 +40,12 @@ export function NoteSections({ note }: { note: PracticeNote }) {
 }
 
 const styles = StyleSheet.create({
-  section: { gap: 8 },
-  label: { fontSize: 13, fontWeight: '700', color: palette.textMuted },
-  text: { fontSize: 16, fontWeight: '600', lineHeight: 25, color: palette.text },
-  nextCard: { gap: 8, backgroundColor: palette.blueMist, borderRadius: 18, padding: 16 },
+  section: { gap: 10 },
+  label: { fontSize: 13, fontWeight: '800', lineHeight: 20, color: palette.textDim },
+  text: { fontSize: 15, fontWeight: '600', lineHeight: 22, color: palette.text },
+  nextCard: { gap: 6, backgroundColor: palette.blueMist, borderRadius: 18, padding: 14 },
   nextLabel: { color: palette.blueDeep },
-  next: { fontSize: 18, fontWeight: '800', lineHeight: 28, color: palette.text },
+  next: { fontSize: 16, fontWeight: '800', lineHeight: 24, color: palette.text },
   quote: { gap: 4, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 14 },
   quoteText: { fontSize: 15.5, lineHeight: 25, color: palette.text },
   quoteSource: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },

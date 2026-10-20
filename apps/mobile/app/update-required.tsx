@@ -4,8 +4,7 @@ import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { BackHandler, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { PrimaryButton } from '@/components/ui/buttons';
-
+import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 import { storeUrlFor } from '@/lib/update-required';
@@ -56,16 +55,15 @@ export default function UpdateRequiredScreen() {
         />
       </View>
       <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <Text style={styles.title}>{t('updateRequired.title')}</Text>
-          <Text style={styles.message}>{t('updateRequired.body')}</Text>
+        {/* pen S2.1 — 공통 Dialog/Confirm 카드에 확인 버튼 하나(높이 50·모서리 14·15/800). */}
+        <DialogCard title={t('updateRequired.title')} message={t('updateRequired.body')}>
           {openFailed && <Text style={styles.error}>{t('updateRequired.openFail')}</Text>}
           {STORE_URL ? (
-            <PrimaryButton label={t('updateRequired.cta')} onPress={() => void openStore()} style={styles.cta} />
+            <DialogButtons confirmLabel={t('updateRequired.cta')} onConfirm={() => void openStore()} />
           ) : (
             <Text style={styles.manual}>{t('updateRequired.manual')}</Text>
           )}
-        </View>
+        </DialogCard>
       </View>
     </View>
   );
@@ -77,27 +75,10 @@ const styles = StyleSheet.create({
   splashIcon: { width: SPLASH_ICON_SIZE, height: SPLASH_ICON_SIZE },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 21, 37, 0.45)',
+    backgroundColor: palette.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 28,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: palette.card,
-    borderRadius: 22,
-    paddingHorizontal: 22,
-    paddingTop: 24,
-    paddingBottom: 18,
-  },
-  title: { fontSize: 17, fontWeight: '800', color: palette.text, textAlign: 'center' },
-  message: {
-    fontSize: 14,
-    color: palette.textDim,
-    lineHeight: 21,
-    textAlign: 'center',
-    marginTop: 10,
   },
   error: {
     fontSize: 13,
@@ -106,8 +87,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
   },
-  // pen S2.1 — 대화상자 버튼은 공통 Button/Primary(높이 56·모서리 16).
-  cta: { marginTop: 22 },
   manual: {
     marginTop: 22,
     fontSize: 14,

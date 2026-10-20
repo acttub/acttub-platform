@@ -566,7 +566,7 @@ export default function UploadScreen() {
             {/* pen 장면 정보(SOMA-748) — 상황·인물·원하는 것. 셋 다 선택이고 모르면 비워 둔다. 이어서 연습이면 지난 장면을 그대로 보낸다. */}
             {!plan.continueFrom &&
               (['situation', 'character', 'goal'] as const).map((key) => (
-                <View key={key}>
+                <View key={key} style={styles.field}>
                   <Text style={styles.fieldLabel}>{t(`upload.scene.${key}Label`)}</Text>
                   <TextInput
                     style={[styles.input, locked && styles.inputLocked]}
@@ -699,6 +699,7 @@ const styles = StyleSheet.create({
   sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
   // pen 「장면 정보」 — 라벨 14/800, 회색 칸(모서리 14 · 안쪽 16 · 글자 17/600).
   fields: { gap: 14 },
+  field: { gap: 14 },
   fieldLabel: { fontSize: 14, fontWeight: '800', lineHeight: 21, color: palette.textDim },
   fieldOptional: { fontWeight: '600', color: palette.textFaint },
   input: {
@@ -719,7 +720,7 @@ const styles = StyleSheet.create({
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   checkMark: { color: palette.bg, fontSize: 13, fontWeight: '900' },
-  rightsText: { flex: 1, fontSize: 13, fontWeight: '600', color: palette.textStrong, lineHeight: 20 },
+  rightsText: { flex: 1, fontSize: 15, fontWeight: '600', color: palette.textStrong, lineHeight: 22 },
 
   // pen Button/Primary — 높이 56 · 모서리 16 · 글자 16/700. 막혀 있으면 Disabled 모양.
   submit: { height: 56, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },

@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   mascot: { width: 86, height: 96 },
-  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.card, borderRadius: 18, padding: 16, gap: 10 },
+  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.card, borderRadius: 18, padding: 16, gap: 8 },
   // 말꼬리 — 마스코트 쪽으로 돌린 작은 네모.
   tail: {
     position: 'absolute',
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.card,
     transform: [{ rotate: '45deg' }],
   },
-  captionInner: { gap: 6 },
+  captionInner: { gap: 8 },
   progress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   step: { fontSize: 12, fontWeight: '800', lineHeight: 17, color: palette.flameDeep },
   title: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 23 },

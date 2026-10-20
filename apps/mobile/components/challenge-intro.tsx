@@ -3,10 +3,11 @@ import { useState } from 'react';
 import { Modal, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/ui/buttons';
+import { MASCOT as MASCOTS, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
-const MASCOT = require('@/assets/images/mascot-coach.png');
+const MASCOT = MASCOTS.coach;
 
 /**
  * A14~A14.2 챌린지 시작 안내 — 기기당 한 번, 세 장.
@@ -60,11 +61,11 @@ export function ChallengeIntro({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(15, 20, 25, 0.65)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', backgroundColor: palette.bg, borderRadius: 20, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 28, gap: 16 },
+  card: { width: '100%', backgroundColor: palette.bg, borderRadius: 20, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 34, gap: 16 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  mascot: { width: 52, height: 58 },
-  title: { flex: 1, fontSize: 21, fontWeight: '900', color: palette.text, lineHeight: 29 },
-  body: { fontSize: 14, fontWeight: '700', lineHeight: 22, color: palette.blueDeep },
+  mascot: MASCOT_SIZE.sm,
+  title: { flex: 1, fontSize: 21, fontWeight: '900', color: palette.text, lineHeight: 30 },
+  body: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
   dots: { flexDirection: 'row', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.border },
   dotOn: { backgroundColor: palette.blue, width: 18 },
