@@ -120,6 +120,70 @@ class ExpoPushSenderTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("account.notification: Expo 는 요청 하나에 100건까지 받으므로 나눠 보내고, 모든 요청의 DeviceNotRegistered 토큰을 돌려준다")
+    void moreThanOneHundredMessagesAreSentInRequestsOfAtMostOneHundred() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        List<Integer> requestSizes = new java.util.ArrayList<>();
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        ExpoPushSender sender = new ExpoPushSender(json, "https://exp.host/--/api/v2/push/send", reporter, request -> {
+            String body = new String(new BodySubscriber(request).bytes(), java.nio.charset.StandardCharsets.UTF_8);
+            int size = json.readTree(body).size();
+            requestSizes.add(size);
+            @SuppressWarnings("unchecked")
+            HttpResponse<String> response = mock(HttpResponse.class);
+            if (size > 100) {
+                when(response.statusCode()).thenReturn(400);
+                return response;
+            }
+            when(response.statusCode()).thenReturn(200);
+            // 각 요청의 마지막 기기만 등록되지 않은 기기로 답한다.
+            StringBuilder tickets = new StringBuilder("{\"data\":[");
+            for (int index = 0; index < size; index++) {
+                tickets.append(index == 0 ? "" : ",").append(index == size - 1
+                        ? "{\"status\":\"error\",\"details\":{\"error\":\"DeviceNotRegistered\"}}"
+                        : "{\"status\":\"ok\"}");
+            }
+            when(response.body()).thenReturn(tickets.append("]}").toString());
+            return response;
+        });
+        List<PushMessage> messages = java.util.stream.IntStream.range(0, 101)
+                .mapToObj(index -> new PushMessage("ExponentPushToken[" + index + "]", "완료", "분석 완료", Map.of()))
+                .toList();
+
+        List<String> unregistered = sender.send(messages);
+
+        assertThat(requestSizes).containsExactly(100, 1);
+        assertThat(unregistered).containsExactly("ExponentPushToken[99]", "ExponentPushToken[100]");
+        assertThat(reporter.reports()).isEmpty();
+    }
+
+    /** {@link java.net.http.HttpRequest} 의 본문을 읽는다 — 공개 API 는 Flow.Publisher 로만 내준다. */
+    private record BodySubscriber(java.net.http.HttpRequest request) {
+        byte[] bytes() throws Exception {
+            var collected = new java.io.ByteArrayOutputStream();
+            var done = new java.util.concurrent.CompletableFuture<Void>();
+            request.bodyPublisher().orElseThrow().subscribe(new java.util.concurrent.Flow.Subscriber<>() {
+                public void onSubscribe(java.util.concurrent.Flow.Subscription subscription) {
+                    subscription.request(Long.MAX_VALUE);
+                }
+                public void onNext(java.nio.ByteBuffer item) {
+                    byte[] chunk = new byte[item.remaining()];
+                    item.get(chunk);
+                    collected.writeBytes(chunk);
+                }
+                public void onError(Throwable throwable) {
+                    done.completeExceptionally(throwable);
+                }
+                public void onComplete() {
+                    done.complete(null);
+                }
+            });
+            done.get();
+            return collected.toByteArray();
+        }
+    }
+
+    @Test
     void nonSuccessResponseIsReportedWithoutPuttingItsBodyInTheFailure() {
         @SuppressWarnings("unchecked")
         HttpResponse<String> response = mock(HttpResponse.class);

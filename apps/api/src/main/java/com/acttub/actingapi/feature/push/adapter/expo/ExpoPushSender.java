@@ -35,6 +35,8 @@ class ExpoPushSender implements PushSender {
 
     private static final Logger LOGGER = Logger.getLogger(ExpoPushSender.class.getName());
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    /** Expo 는 요청 하나에 메시지를 100건까지 받고, 넘으면 요청 전체를 HTTP 400 으로 거절한다. */
+    private static final int MAX_MESSAGES_PER_REQUEST = 100;
 
     private final RequestSender sender;
     private final ObjectMapper json;
@@ -62,9 +64,17 @@ class ExpoPushSender implements PushSender {
 
     @Override
     public List<String> send(List<PushMessage> messages) {
-        if (messages.isEmpty()) {
-            return List.of();
+        List<String> unregistered = new ArrayList<>();
+        // 중단 신호를 받으면 남은 요청은 보내지 않는다.
+        for (int from = 0; from < messages.size() && !Thread.currentThread().isInterrupted();
+                from += MAX_MESSAGES_PER_REQUEST) {
+            unregistered.addAll(sendChunk(
+                    messages.subList(from, Math.min(from + MAX_MESSAGES_PER_REQUEST, messages.size()))));
         }
+        return unregistered;
+    }
+
+    private List<String> sendChunk(List<PushMessage> messages) {
         try {
             HttpRequest request = HttpRequest.newBuilder(endpoint)
                     .timeout(TIMEOUT)
