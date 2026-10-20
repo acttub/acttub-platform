@@ -27,13 +27,14 @@ public class DirectVideoConfiguration {
         return new GeminiDirectVideoModel(client, model).withHedge(coachHedge);
     }
 
-    // 느린 요청 다시 보내기(SOMA-780). 분류·답 쓰기가 이 초 안에 오지 않으면 같은 요청을 한 번 더 보낸다.
-    // 스트리밍은 첫 조각 기준이다. 0 이면 끈다(롤백).
+    // 느린 요청 다시 보내기(SOMA-780). 분류·답 쓰기가 이 초 안에 오지 않으면 같은 요청을 한 번 더 보낸다. 0 이면 끈다(롤백).
+    // 스트리밍(첫 조각 기준)은 기본으로 끈다 — 10/20 dev 스트리밍에서 깨진 글자 뒤 실패가 한 번 있었고 원인을 아직 모른다.
+    // 원인을 가린 뒤 ACTTUB_COACH_HEDGE_STREAM_SECONDS=12 로 켠다.
     @Bean
     GeminiDirectVideoModel.Hedge coachHedge(
             @Value("${ACTTUB_COACH_HEDGE_CLASSIFY_SECONDS:6}") double classify,
             @Value("${ACTTUB_COACH_HEDGE_REPLY_SECONDS:20}") double reply,
-            @Value("${ACTTUB_COACH_HEDGE_STREAM_SECONDS:12}") double stream) {
+            @Value("${ACTTUB_COACH_HEDGE_STREAM_SECONDS:0}") double stream) {
         return new GeminiDirectVideoModel.Hedge(seconds(classify), seconds(reply), seconds(stream));
     }
 
