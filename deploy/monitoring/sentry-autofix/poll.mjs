@@ -11,29 +11,24 @@ const CONF = join(HOME, ".config/acttub");
 const STATE_DIR = join(HOME, ".local/state/acttub-sentry-autofix");
 const REPO = join(HOME, "acttub-autofix/repo");
 const SENTRY = "https://us.sentry.io/api/0/organizations/acttub";
-const DAILY_LIMIT = 3;
-const DAY_MS = 86_400_000;
-const REGRESS_COOLDOWN_MS = 7 * DAY_MS;
 const RUN_TIMEOUT_MS = 60 * 60_000;
 // Mac mini의 RTK 훅이 명령을 `rtk <명령>`으로 바꾸므로 두 모양을 다 허용한다.
 const TOOLS = [
   "Read", "Grep", "Glob", "Edit", "Write",
-  ...["git", "./gradlew", "pnpm", "gh pr create", "gh pr view"].flatMap((c) => [`Bash(${c}:*)`, `Bash(rtk ${c}:*)`]),
+  ...["git", "./gradlew", "pnpm", "gh pr create", "gh pr view", "gh pr list"].flatMap((c) => [`Bash(${c}:*)`, `Bash(rtk ${c}:*)`]),
   "mcp__atlassian__createJiraIssue", "mcp__atlassian__getJiraIssue",
 ].join(",");
 
-// 새 이슈는 한 번, 재발은 7일에 한 번. 24시간에 DAILY_LIMIT번까지, 이벤트가 많은 이슈부터.
-export function pick(issues, state, now) {
-  const left = DAILY_LIMIT - state.runs.filter((t) => now - t < DAY_MS).length;
+// 새 이슈는 한 번, 재발은 재발할 때마다 한 번. 이벤트가 많은 이슈부터.
+export function pick(issues, state) {
   return issues
     .filter((i) => {
       const prev = state.handled[i.id];
       if (i.substatus === "new") return !prev;
-      if (i.substatus === "regressed") return !prev || now - prev.at > REGRESS_COOLDOWN_MS;
+      if (i.substatus === "regressed") return !prev || prev.at < Date.parse(i.regressedAt);
       return false;
     })
-    .sort((a, b) => Number(b.count) - Number(a.count))
-    .slice(0, Math.max(0, left));
+    .sort((a, b) => Number(b.count) - Number(a.count));
 }
 
 // 요청·사용자·breadcrumb은 빼고 예외와 우리 코드 프레임만 넘긴다. 메시지 값은 외부 입력이다.
@@ -85,7 +80,17 @@ async function slack(text) {
 
 const git = (...args) => spawnSync("git", ["-C", REPO, ...args], { encoding: "utf8" });
 
-async function handle(issue, statePath, state) {
+async function handle(issue, statePath, state, prev) {
+  const head = `[자동 수정] <${issue.permalink}|${issue.shortId}>`;
+  // 앞서 연 PR이 아직 열려 있으면 같은 원인으로 PR을 또 만들지 않는다.
+  if (prev?.verdict === "pr") {
+    const open = spawnSync("gh", ["pr", "view", prev.pr, "--json", "state", "-q", ".state"], { encoding: "utf8" }).stdout.trim() === "OPEN";
+    if (open) {
+      state.handled[issue.id] = { ...prev, at: Date.now() };
+      writeFileSync(statePath, JSON.stringify(state, null, 2));
+      return slack(`${head} 재발했지만 앞의 <${prev.pr}|PR>(${prev.jira})이 아직 열려 있어 건너뜀`);
+    }
+  }
   const event = await sentry(`/issues/${issue.id}/events/latest/`);
   const ctx = join(STATE_DIR, "ctx", `${issue.shortId}.json`);
   mkdirSync(dirname(ctx), { recursive: true });
@@ -97,7 +102,8 @@ async function handle(issue, statePath, state) {
   git("worktree", "add", "-q", "--detach", wt, "origin/dev");
   const prompt = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "prompt.md"), "utf8")
     .replaceAll("{{CONTEXT}}", ctx)
-    .replaceAll("{{PERMALINK}}", issue.permalink);
+    .replaceAll("{{PERMALINK}}", issue.permalink)
+    .replaceAll("{{PREVIOUS}}", prev?.verdict === "pr" ? `이 오류는 전에 ${prev.jira}(${prev.pr})로 고쳤는데 재발했다. 새 Jira 이슈의 배경에 그 이슈와 PR을 적는다.` : "");
   const run = spawnSync("claude", ["-p", prompt, "--output-format", "json", "--allowedTools", TOOLS], {
     cwd: wt, encoding: "utf8", timeout: RUN_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024,
   });
@@ -113,7 +119,6 @@ async function handle(issue, statePath, state) {
 
   state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, ...result };
   writeFileSync(statePath, JSON.stringify(state, null, 2));
-  const head = `[자동 수정] <${issue.permalink}|${issue.shortId}>`;
   await slack(
     result.verdict === "pr" ? `${head} → ${result.jira} <${result.pr}|draft PR>\n${result.reason ?? ""}`
       : result.verdict === "skip" ? `${head} 코드 수정 대상 아님: ${result.reason}`
@@ -131,7 +136,7 @@ async function main() {
   }
   try {
     const statePath = join(STATE_DIR, "state.json");
-    let state = { handled: {}, runs: [] };
+    let state = { handled: {} };
     try {
       state = JSON.parse(readFileSync(statePath, "utf8"));
     } catch {}
@@ -139,18 +144,24 @@ async function main() {
     for (const q of ["is:unresolved is:new", "is:unresolved is:regressed"]) {
       issues.push(...(await sentry("/issues/", { query: q, environment: "prod", statsPeriod: "14d", limit: "100" })));
     }
+    // 재발 시각은 이슈 상세의 활동 기록(최신순)에만 있다. 처리한 적 있는 재발 이슈만 조회한다.
+    for (const i of issues) {
+      if (i.substatus === "regressed" && state.handled[i.id]) {
+        i.regressedAt = (await sentry(`/issues/${i.id}/`)).activity.find((a) => a.type === "set_regression")?.dateCreated;
+      }
+    }
     const dryRun = process.argv.includes("--dry-run");
-    const picks = pick(issues, state, Date.now());
+    const picks = pick(issues, state);
     for (const issue of process.argv.includes("--once") ? picks.slice(0, 1) : picks) {
       if (dryRun) {
         console.log("후보", issue.shortId, issue.substatus, issue.count, issue.title);
         continue;
       }
       // claude가 죽어도 같은 이슈를 다시 돌지 않게 먼저 기록한다.
-      state.runs.push(Date.now());
+      const prev = state.handled[issue.id];
       state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, verdict: "running" };
       writeFileSync(statePath, JSON.stringify(state, null, 2));
-      await handle(issue, statePath, state).catch((e) => slack(`[자동 수정] ${issue.shortId} 실패: ${e.message}`));
+      await handle(issue, statePath, state, prev).catch((e) => slack(`[자동 수정] ${issue.shortId} 실패: ${e.message}`));
     }
   } finally {
     rmSync(lock, { recursive: true, force: true });

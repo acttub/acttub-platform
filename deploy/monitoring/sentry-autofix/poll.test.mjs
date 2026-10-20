@@ -3,26 +3,23 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { pick, summarize, verdictOf } from "./poll.mjs";
 
-const DAY = 86_400_000;
-const now = 100 * DAY;
-const issue = (id, substatus, count) => ({ id, substatus, count: String(count) });
+const issue = (id, substatus, count, regressedAt) => ({ id, substatus, count: String(count), regressedAt });
+const at = (iso) => ({ at: Date.parse(iso) });
 
-test("새 이슈는 한 번만, 이벤트 많은 순으로 고른다", () => {
-  const state = { handled: { a: { at: now - DAY } }, runs: [] };
-  const got = pick([issue("a", "new", 9), issue("b", "new", 1), issue("c", "new", 5), issue("d", "ongoing", 99)], state, now);
-  assert.deepEqual(got.map((i) => i.id), ["c", "b"]);
+test("새 이슈는 한 번만, 개수 제한 없이 이벤트 많은 순으로 고른다", () => {
+  const state = { handled: { a: at("2026-10-19T00:00Z") } };
+  const got = pick([issue("a", "new", 9), issue("b", "new", 1), issue("c", "new", 5), issue("d", "ongoing", 99), issue("e", "new", 3)], state);
+  assert.deepEqual(got.map((i) => i.id), ["c", "e", "b"]);
 });
 
-test("재발은 7일이 지나야 다시 고른다", () => {
-  const state = { handled: { a: { at: now - 2 * DAY }, b: { at: now - 8 * DAY } }, runs: [] };
-  assert.deepEqual(pick([issue("a", "regressed", 1), issue("b", "regressed", 1)], state, now).map((i) => i.id), ["b"]);
-});
-
-test("24시간에 3번까지만 돈다", () => {
-  const state = { handled: {}, runs: [now - 1000, now - 2000, now - 2 * DAY] };
-  const got = pick([issue("a", "new", 3), issue("b", "new", 2), issue("c", "new", 1)], state, now);
-  assert.deepEqual(got.map((i) => i.id), ["a"]);
-  assert.equal(pick([issue("a", "new", 1)], { handled: {}, runs: [now, now, now] }, now).length, 0);
+test("재발은 마지막 재발 뒤에 처리한 적이 없을 때만 고른다", () => {
+  const state = { handled: { a: at("2026-10-19T00:00Z"), b: at("2026-10-19T00:00Z") } };
+  const got = pick([
+    issue("a", "regressed", 1, "2026-10-19T03:00Z"), // 처리한 뒤 재발
+    issue("b", "regressed", 1, "2026-10-18T00:00Z"), // 이번 재발은 이미 처리
+    issue("c", "regressed", 1), // 처리한 적 없음
+  ], state);
+  assert.deepEqual(got.map((i) => i.id), ["a", "c"]);
 });
 
 test("요약에는 우리 코드 프레임만 남기고 요청·사용자 정보는 뺀다", () => {
