@@ -69,6 +69,8 @@ class DirectVideoConfigurationTest {
                     assertThat(hedge.classify()).isEqualTo(java.time.Duration.ofSeconds(6));
                     assertThat(hedge.reply()).isEqualTo(java.time.Duration.ofSeconds(20));
                     assertThat(hedge.stream()).as("스트리밍 다시 보내기는 기본으로 꺼져 있다").isZero();
+                    assertThat(context).as("올리기가 끝나면 첫 질문용 영상을 미리 준비한다")
+                            .hasSingleBean(com.acttub.actingapi.feature.video.app.VideoUploadWarmup.class);
                     var cache = context.getBean(com.acttub.actingapi.feature.coach.app.CoachVideoCache.class);
                     assertThat(cache.label(new com.acttub.actingapi.feature.coach.app.CoachVideoCache.Key(
                             java.util.UUID.randomUUID(), "k", "e"))).startsWith("acttub-coach:prod:");

@@ -41,6 +41,9 @@ import com.acttub.actingapi.platform.observability.FailureReporter;
  *   다시 쓴다. 서버가 꺼질 때 지우지 않는다 — 새 서버가 이어서 쓴다. 대신 아무도 기억하지 않는 이름표 파일은
  *   {@code orphanAfter} 가 지나면 주기적으로 지운다. 10/20 운영에서 배포 직후 답이 영상을 다시 올리다 38초 뒤 실패했다.</li>
  * </ul>
+ * <p>올리기 끝 준비({@link #warmSource}, 10/21): 영상 올리기가 끝난 순간 같은 준비를 시작한다. 아직 회차가 없어 원본 지문으로
+ * 기억하고, 첫 질문이 같은 원본이면 가져간다. 운영 10/17~10/20 첫 질문은 서버에서 18~21초였고, 그중 약 10초가 영상 준비 대기였다.
+ * 코칭을 하지 않는 영상도 올라가므로, {@link #SOURCE_WARM_IDLE} 안에 아무도 가져가지 않으면 지운다.
  * {@code scope} 가 없으면(옛 생성자) 이름표 없이 예전처럼 서버가 꺼질 때 다 지운다.
  */
 public final class CoachVideoCache implements AutoCloseable {
@@ -50,6 +53,13 @@ public final class CoachVideoCache implements AutoCloseable {
     public static final Duration WARM_WAIT = Duration.ofSeconds(150);
     /** 이름표 앞머리. 뒤에 배포 환경·회차·원본 지문이 붙는다. */
     static final String LABEL_PREFIX = "acttub-coach:";
+    /** 올리기 끝에서 준비한 파일의 이름표에 회차 대신 붙는 말. 회차 번호(UUID)와 겹치지 않는다. */
+    static final String UPLOAD = "upload";
+    /**
+     * 올리기 끝 준비를 아무 회차도 가져가지 않으면 버리는 시간. 올리고 '질문 받기'까지는 보통 1분이 안 된다.
+     * 늦게 눌렀으면 분석 작업이 다시 준비한다.
+     */
+    static final Duration SOURCE_WARM_IDLE = Duration.ofMinutes(10);
 
     /** 같은 연습 회차의 같은 원본이어야 다시 쓴다. etag 는 따옴표를 떼고 견준다(저장소마다 붙이는 방식이 다르다). */
     public record Key(UUID practiceId, String objectKey, String etag) {
@@ -72,6 +82,8 @@ public final class CoachVideoCache implements AutoCloseable {
     private final Duration orphanAfter;
     private final Map<UUID, Entry> entries = new ConcurrentHashMap<>();
     private final Map<UUID, Warm> warming = new ConcurrentHashMap<>();
+    /** 올리기 끝 준비. 회차가 아직 없어 원본 지문으로 기억한다. */
+    private final Map<String, Warm> sourceWarming = new ConcurrentHashMap<>();
     private final ScheduledExecutorService sweeper;
     /** 미리 준비·원격 지우기를 돌리는 곳. 요청 스레드를 막지 않게 가상 스레드를 쓴다. */
     private final ExecutorService background = Executors.newVirtualThreadPerTaskExecutor();
@@ -124,6 +136,12 @@ public final class CoachVideoCache implements AutoCloseable {
         return practicePrefix(key.practiceId()) + fingerprint(key.objectKey() + "|" + key.etag());
     }
 
+    /** 올리기 끝에서 준비할 파일의 이름표. 회차가 없어 원본 지문만 붙는다. 이름표를 쓰지 않으면 null 이다. */
+    public String sourceLabel(String objectKey, String etag) {
+        if (!labeled() || objectKey == null) return null;
+        return LABEL_PREFIX + scope + ":" + UPLOAD + ":" + sourceId(new Key(null, objectKey, etag));
+    }
+
     /** 같은 회차·같은 원본으로 올려 둔 영상이 있으면 돌려준다. 원본이 바뀌었거나 오래됐으면 옛 영상을 지우고 null. */
     public DirectVideoModel.Video take(Key key) {
         if (!enabled() || key == null) return null;
@@ -169,18 +187,49 @@ public final class CoachVideoCache implements AutoCloseable {
         Warm warm = new Warm(key, result, clock.instant());
         Warm previous = warming.put(key.practiceId(), warm);
         if (previous != null) discard(previous);
+        start(result, work, "CoachVideoCache.warm");
+        return true;
+    }
+
+    /**
+     * 올리기가 끝난 원본의 준비를 뒤에서 시작한다. 회차가 아직 없어 원본(저장소 키·etag)으로 기억하고, 첫 질문의
+     * {@link #claimWarm} 이 같은 원본이면 가져간다. 같은 원본의 준비가 이미 있으면 다시 하지 않는다.
+     */
+    public boolean warmSource(String objectKey, String etag, Supplier<Prepared> work) {
+        if (!enabled() || objectKey == null || objectKey.isBlank() || work == null) return false;
+        Key key = new Key(null, objectKey, etag);
+        var result = new CompletableFuture<Prepared>();
+        if (sourceWarming.putIfAbsent(sourceId(key), new Warm(key, result, clock.instant())) != null) return false;
+        start(result, work, "CoachVideoCache.warmSource");
+        return true;
+    }
+
+    /**
+     * 이 회차의 원본을 올리기 끝에서 이미 준비하고 있는지. 분석 작업은 그러면 다시 올리지 않는다.
+     * 그 준비가 이미 실패했으면 버리고 false — 분석 작업이 다시 한다.
+     */
+    public boolean warmingSource(Key key) {
+        if (!enabled() || key == null || key.objectKey() == null) return false;
+        String id = sourceId(key);
+        Warm warm = sourceWarming.get(id);
+        if (warm == null) return false;
+        if (warm.result().isDone() && warm.result().getNow(null) == null) {
+            sourceWarming.remove(id, warm);
+            return false;
+        }
+        return true;
+    }
+
+    private void start(CompletableFuture<Prepared> result, Supplier<Prepared> work, String where) {
         background.execute(() -> {
             Prepared prepared = null;
             try {
                 prepared = work.get();
             } catch (RuntimeException failure) {
-                if (failures != null) {
-                    failures.report(failure, FailureKind.EXTERNAL, new FailureContext("CoachVideoCache.warm"));
-                }
+                if (failures != null) failures.report(failure, FailureKind.EXTERNAL, new FailureContext(where));
             }
             result.complete(prepared);
         });
-        return true;
     }
 
     /**
@@ -189,9 +238,15 @@ public final class CoachVideoCache implements AutoCloseable {
      */
     public Prepared claimWarm(Key key, Duration wait) {
         if (!enabled() || key == null) return null;
-        Warm warm = warming.remove(key.practiceId());
+        Warm warm = key.practiceId() == null ? null : warming.remove(key.practiceId());
+        if (warm != null && !warm.key().equals(key)) {
+            discard(warm);
+            warm = null;
+        }
+        // 회차 준비가 없으면 올리기 끝에서 시작한 같은 원본의 준비를 가져간다.
+        if (warm == null && key.objectKey() != null) warm = sourceWarming.remove(sourceId(key));
         if (warm == null) return null;
-        if (!warm.key().equals(key)) {
+        if (!sameSource(warm.key(), key)) {
             discard(warm);
             return null;
         }
@@ -216,6 +271,10 @@ public final class CoachVideoCache implements AutoCloseable {
         return warming.size();
     }
 
+    int sourceWarmingSize() {
+        return sourceWarming.size();
+    }
+
     void sweep() {
         for (Entry entry : entries.values()) {
             if (expired(entry) && entries.remove(entry.key().practiceId(), entry)) delete(entry.video());
@@ -223,6 +282,14 @@ public final class CoachVideoCache implements AutoCloseable {
         // 첫 질문이 끝내 오지 않은 준비(배우가 분석 중에 나감)는 idle 이 지나면 버린다.
         for (Warm warm : warming.values()) {
             if (!warm.started().plus(idle).isAfter(clock.instant()) && warming.remove(warm.key().practiceId(), warm)) {
+                discard(warm);
+            }
+        }
+        // 올리기만 하고 코칭을 시작하지 않은 영상은 더 짧게 둔다.
+        Duration sourceIdle = idle.compareTo(SOURCE_WARM_IDLE) < 0 ? idle : SOURCE_WARM_IDLE;
+        for (Map.Entry<String, Warm> source : sourceWarming.entrySet()) {
+            Warm warm = source.getValue();
+            if (!warm.started().plus(sourceIdle).isAfter(clock.instant()) && sourceWarming.remove(source.getKey(), warm)) {
                 discard(warm);
             }
         }
@@ -238,10 +305,12 @@ public final class CoachVideoCache implements AutoCloseable {
     private DirectVideoModel.Video remote(Key key) {
         String label = label(key);
         if (label == null) return null;
+        // 올리기 끝에서 준비한 파일은 회차 없이 원본 지문만 붙는다. 목록은 한 번만 받는다(목록을 다 받아 걸러내는 방식이다).
+        String upload = sourceLabel(key.objectKey(), key.etag());
         try {
-            List<DirectVideoModel.Labeled> found = model.labeled(label);
+            List<DirectVideoModel.Labeled> found = model.labeled(LABEL_PREFIX + scope + ":");
             DirectVideoModel.Labeled newest = found.stream()
-                    .filter(file -> label.equals(file.label()))
+                    .filter(file -> label.equals(file.label()) || upload.equals(file.label()))
                     .max(Comparator.comparing(file -> file.created() == null ? Instant.EPOCH : file.created()))
                     .orElse(null);
             if (newest == null) return null;
@@ -276,7 +345,20 @@ public final class CoachVideoCache implements AutoCloseable {
             Prepared prepared = warm.result().getNow(null);
             if (prepared != null && same(prepared.video(), video)) return true;
         }
+        for (Warm warm : sourceWarming.values()) {
+            Prepared prepared = warm.result().getNow(null);
+            if (prepared != null && same(prepared.video(), video)) return true;
+        }
         return false;
+    }
+
+    /** 원본 지문. 회차와 상관없이 같은 저장소 키·etag 면 같다. */
+    private static String sourceId(Key key) {
+        return fingerprint(key.objectKey() + "|" + key.etag());
+    }
+
+    private static boolean sameSource(Key a, Key b) {
+        return java.util.Objects.equals(a.objectKey(), b.objectKey()) && java.util.Objects.equals(a.etag(), b.etag());
     }
 
     /** 버린 준비: 올린 영상이 있으면(지금 또는 끝나는 대로) 지운다. */
@@ -320,6 +402,10 @@ public final class CoachVideoCache implements AutoCloseable {
             for (UUID practiceId : entries.keySet()) forget(practiceId);
             for (UUID practiceId : warming.keySet()) {
                 Warm warm = warming.remove(practiceId);
+                if (warm != null) discard(warm);
+            }
+            for (String source : sourceWarming.keySet()) {
+                Warm warm = sourceWarming.remove(source);
                 if (warm != null) discard(warm);
             }
         }

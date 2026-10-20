@@ -1,5 +1,7 @@
 package com.acttub.actingapi.feature.coach.app;
 
+import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -165,6 +167,87 @@ class CoachVideoWarmupTest {
         assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5))).isNull();
         verify(model, never()).upload(any(), anyString());
         verify(model, never()).delete(any());
+        cache.close();
+    }
+
+    // --- 10/21: 올리기가 끝난 순간 시작하는 준비 ---
+
+    ObjectStorage storageWith(String etag) {
+        ObjectStorage storage = mock(ObjectStorage.class);
+        when(storage.downloadToPath(eq("owned/video.mp4"), any())).thenAnswer(call -> {
+            Files.writeString(call.getArgument(1), "uploaded video bytes");
+            return new StoredObjectMetadata(20, "video/mp4", etag);
+        });
+        return storage;
+    }
+
+    Path workDir() throws Exception {
+        return Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "coach-warm-test-");
+    }
+
+    @Test void aFinishedUploadIsPreparedAndTheAnalysisJobDoesNotUploadAgain() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures, "prod", Duration.ofMinutes(60));
+        Path work = workDir();
+        var inspection = new DirectVideoModel.InputInspection(true, null, true);
+        var inspected = new AtomicReference<String>();
+        when(model.inspect(any())).thenAnswer(call -> {
+            inspected.set(Files.readString(call.getArgument(0)));
+            return inspection;
+        });
+        when(model.upload(any(), eq("video/mp4"), eq(inspection), anyString())).thenReturn(file);
+        when(model.ready(file)).thenReturn(true);
+
+        new CoachVideoWarmup(model, cache, storageWith("\"etag\""), work).uploaded("owned/video.mp4", "etag", null);
+        UUID practice = UUID.randomUUID();
+        assertThat(cache.warmingSource(key(practice))).isTrue();
+        Path original = original();
+        new CoachVideoWarmup(model, cache).warm(context(practice), original);
+        Files.delete(original);
+
+        var prepared = cache.claimWarm(key(practice), Duration.ofSeconds(5));
+        assertThat(prepared).isNotNull();
+        assertThat(prepared.video()).isEqualTo(file);
+        assertThat(inspected.get()).isEqualTo("uploaded video bytes");
+        verify(model, times(1)).upload(any(), eq("video/mp4"), eq(inspection), startsWith("acttub-coach:prod:upload:"));
+        try (var left = Files.list(work)) {
+            assertThat(left).as("내려받은 원본은 지운다").isEmpty();
+        }
+        cache.close();
+    }
+
+    @Test void anOriginalThatChangedAfterUploadIsNotPrepared() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures, "prod", Duration.ofMinutes(60));
+        Path work = workDir();
+        new CoachVideoWarmup(model, cache, storageWith("other"), work).uploaded("owned/video.mp4", "etag", "video/mp4");
+        assertThat(cache.claimWarm(key(UUID.randomUUID()), Duration.ofSeconds(5))).isNull();
+        verify(model, never()).upload(any(), anyString(), any(), anyString());
+        try (var left = Files.list(work)) {
+            assertThat(left).isEmpty();
+        }
+        cache.close();
+    }
+
+    @Test void aFailedDownloadLeavesNoFileBehind() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures, "prod", Duration.ofMinutes(60));
+        Path work = workDir();
+        ObjectStorage storage = mock(ObjectStorage.class);
+        when(storage.downloadToPath(any(), any())).thenThrow(new IllegalStateException("storage down"));
+        new CoachVideoWarmup(model, cache, storage, work).uploaded("owned/video.mp4", "etag", "video/mp4");
+        assertThat(cache.claimWarm(key(UUID.randomUUID()), Duration.ofSeconds(5))).isNull();
+        try (var left = Files.list(work)) {
+            assertThat(left).isEmpty();
+        }
+        cache.close();
+    }
+
+    @Test void withoutStorageOrWithTheCacheOffAnUploadIsNotPrepared() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures, "prod", Duration.ofMinutes(60));
+        new CoachVideoWarmup(model, cache).uploaded("owned/video.mp4", "etag", "video/mp4");
+        new CoachVideoWarmup(model, cache, storageWith("etag"), workDir()).uploaded(" ", "etag", "video/mp4");
+        assertThat(cache.sourceWarmingSize()).isZero();
+        new CoachVideoWarmup(model, CoachVideoCache.NONE, storageWith("etag"), workDir()).uploaded("owned/video.mp4", "etag", "video/mp4");
+        new CoachVideoWarmup(null, cache, storageWith("etag"), workDir()).uploaded("owned/video.mp4", "etag", "video/mp4");
+        assertThat(cache.sourceWarmingSize()).isZero();
         cache.close();
     }
 }

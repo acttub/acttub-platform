@@ -39,12 +39,20 @@ public class VideoService {
     private final VideoStorage storage;
     private final VideoObjectCleanup cleanup;
     private final Clock clock;
+    private final VideoUploadWarmup warmup;
 
     public VideoService(VideoRepository videos, VideoStorage storage, VideoObjectCleanup cleanup, Clock clock) {
+        this(videos, storage, cleanup, clock, VideoUploadWarmup.NONE);
+    }
+
+    /** @param warmup 올리기가 끝난 영상으로 첫 질문용 준비를 미리 시작한다(SOMA-780). 없으면 하지 않는다 */
+    public VideoService(VideoRepository videos, VideoStorage storage, VideoObjectCleanup cleanup, Clock clock,
+            VideoUploadWarmup warmup) {
         this.videos = videos;
         this.storage = storage;
         this.cleanup = cleanup;
         this.clock = clock;
+        this.warmup = warmup == null ? VideoUploadWarmup.NONE : warmup;
     }
 
     /**
@@ -113,13 +121,25 @@ public class VideoService {
         Completed completed = videos.complete(userId, intentId, stored, VideoRules.quotaBytes(guest), now);
         cleanup.attemptObjectDelete(completed.cleanupOperationIds());
         return switch (completed.outcome()) {
-            case CREATED -> new Completion(true, playback(completed.video()));
+            case CREATED -> {
+                warm(intent.objectKey(), stored.etag(), completed.video());
+                yield new Completion(true, playback(completed.video()));
+            }
             case REPLAYED -> new Completion(false, playback(completed.video()));
             case NOT_FOUND -> throw new ApiException(404, "upload_intent_not_found");
             case EXPIRED -> throw new ApiException(422, "upload_expired");
             case QUOTA -> throw new ApiException(422, "video_quota");
             case SIZE_MISMATCH -> throw new ApiException(422, "video_not_ready");
         };
+    }
+
+    /** 첫 질문용 영상 준비를 뒤에서 시작한다(SOMA-780). 덧붙이 일이라 실패해도 올리기 완료는 그대로다. */
+    private void warm(String objectKey, String etag, VideoView video) {
+        try {
+            warmup.uploaded(objectKey, etag, video == null ? null : video.contentType());
+        } catch (RuntimeException ignored) {
+            // 분석 작업이나 첫 질문이 직접 준비한다.
+        }
     }
 
     /** @param created 새로 만들었으면 201, 재전송이면 200 이다 */
