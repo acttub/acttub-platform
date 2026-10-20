@@ -345,7 +345,7 @@ describe('기본 촬영 화면', () => {
     expect(screen.getByLabelText('촬영 시작')).toBeOnTheScreen();
   });
 
-  test.failing('촬영한 길이를 보관함에 함께 넘긴다', async () => {
+  test('촬영한 길이를 보관함에 함께 넘긴다', async () => {
     jest.useFakeTimers();
     mockParams = { mode: 'plain' };
     await render(<RecordVideoScreen />);
@@ -538,7 +538,7 @@ describe('챌린지 촬영', () => {
     expect(keepDeviceFile).toHaveBeenCalledTimes(1);
   });
 
-  test.failing('3초 미만 촬영본을 올리기 화면이 막을 수 있게 찍은 길이를 넘긴다', async () => {
+  test('3초 미만 촬영본을 올리기 화면이 막을 수 있게 찍은 길이를 넘긴다', async () => {
     jest.useFakeTimers();
     mockParams = CHALLENGE;
     await render(<RecordVideoScreen />);
@@ -550,6 +550,20 @@ describe('챌린지 촬영', () => {
     await stopRecording();
 
     expect(peekRecordedVideo()?.durationMs).toBe(2_000);
+  });
+
+  test('상한에서 네이티브가 멈추면 카메라가 켜지는 지연이 있어도 길이를 상한으로 넘긴다', async () => {
+    jest.useFakeTimers();
+    mockParams = CHALLENGE;
+    await render(<RecordVideoScreen />);
+
+    await startRecording();
+    await act(async () => {
+      jest.advanceTimersByTime(60_400);
+    });
+    await act(async () => finishRecording({ uri: 'file:///rec.mov' }));
+
+    expect(peekRecordedVideo()?.durationMs).toBe(60_000);
   });
 });
 

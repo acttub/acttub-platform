@@ -77,6 +77,8 @@ export default function RecordVideoScreen() {
   const [lineHidden, setLineHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
+  // 셔터를 누른 시각. 끝날 때의 콜백이 녹화 시작 때 잡혀 elapsed state 로는 길이를 알 수 없다.
+  const startedAtRef = useRef(0);
   const { alert, dialog } = useAppDialog();
   const { user } = useAuth();
   // 권한 요청은 화면에 들어오자마자 한 번만 — OS 팝업이 곧바로 뜬다.
@@ -239,7 +241,8 @@ export default function RecordVideoScreen() {
         void keepDeviceFile(uri);
         setRecordedVideo({
           uri,
-          durationMs: elapsed > 0 ? elapsed * 1000 : null,
+          // 카메라가 켜지는 지연만큼 길게 재므로 네이티브가 멈추는 상한을 넘기지 않는다.
+          durationMs: Math.min(Date.now() - startedAtRef.current, maxSec * 1000),
           name: `recording-${Date.now()}.mov`,
         });
         goNext();
@@ -247,13 +250,14 @@ export default function RecordVideoScreen() {
       }
       router.back();
     },
-    [elapsed, goNext, router],
+    [goNext, maxSec, router],
   );
 
   const startRecording = useCallback(async () => {
     if (!cameraRef.current || recording) return;
     setRecording(true);
     setElapsed(0);
+    startedAtRef.current = Date.now();
     try {
       // maxDuration 으로 상한에서 네이티브가 스스로 멈춘다 — resolve 되면 결과를 넘긴다.
       const result = await cameraRef.current.recordAsync({ maxDuration: maxSec });
