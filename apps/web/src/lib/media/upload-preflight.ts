@@ -63,7 +63,7 @@ export async function prepareVideoUpload(
   });
   const compressMs = Math.max(0, Math.round(now() - compressStartedAt));
   throwIfAborted(options.signal);
-  if (uploadFile.size > MAX_UPLOAD_BYTES) throw new Error("영상이 너무 커요(100MB 이내).");
+  if (uploadFile.size > MAX_UPLOAD_BYTES) throw new Error("영상이 너무 커요(100MB 이내). 다른 브라우저로 다시 올려 보세요.");
 
   return {
     durationMs,

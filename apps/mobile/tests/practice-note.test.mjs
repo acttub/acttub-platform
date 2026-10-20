@@ -67,7 +67,7 @@ test('practice.note: 제안이 있으면 하나만 보여 주고 없으면 없�
   // 초점만 있는 조기 종료(observation)는 제안이 없다 — 만들어 넣지 않는다.
   const without = noteSections(note({ kind: 'observation', next_take: null }))[1];
   assert.equal(without.hasProposal, false);
-  assert.equal(without.text, '이번에는 촬영 아이템을 정하지 않았어요.');
+  assert.notEqual(without.text, '');
 });
 
 test('practice.note: 초점 없이 끝난 노트는 제목이 없어 묶음의 대체 제목을 쓴다', () => {

@@ -784,7 +784,7 @@ const ko = {
     summaryLabel: '이번 대화에서',
     summaryEmpty: '이번에는 짧게 나눴어요.',
     nextLabel: '다음 촬영에서 해볼 한 가지',
-    nextEmpty: '이번에는 촬영 아이템을 정하지 않았어요.',
+    nextEmpty: '이번에는 다음 촬영에서 해볼 것을 정하지 않았어요.',
     cheer: '오늘 촬영도 수고했어요. 다음 촬영도 응원할게요.',
     none: '아직 정리 없음',
     fallbackNotice: '정리를 다 만들지 못해 확인된 것만 담았어요.',

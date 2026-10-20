@@ -92,7 +92,7 @@ test("practice.note: 종류마다 다음 촬영 자리가 다르다 — 제안�
 
   const observation = note({ kind: "observation", next_take: null });
   const markup = html(observation);
-  assert.match(markup, /이번에는 촬영 아이템을 정하지 않았어요\./);
+  assert.match(markup, /이번에는 다음 촬영에서 해볼 것을 정하지 않았어요\./);
   // 근거 없는 촬영 과제를 지어내지 않는다.
   assert.doesNotMatch(markup, /해볼 것을 정했어요/);
 

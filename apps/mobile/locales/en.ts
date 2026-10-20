@@ -793,7 +793,7 @@ const en: DeepStringShape<typeof ko> = {
     summaryLabel: 'In this conversation',
     summaryEmpty: 'You kept it short this time.',
     nextLabel: 'One thing to try in your next take',
-    nextEmpty: 'No shoot item was set this time.',
+    nextEmpty: "You didn't set something to try this time.",
     cheer: "Rooting for your next take.",
     none: 'No note yet',
     fallbackNotice: "The note couldn't be finished, so it holds only what was confirmed.",

@@ -190,7 +190,7 @@ test("preflight는 압축 또는 폴백 뒤 실제 업로드 파일이 100MB를 
       durationResolver: async () => 60_000,
       compressor: async () => oversizedResult,
     }),
-    { message: "영상이 너무 커요(100MB 이내)." },
+    { message: "영상이 너무 커요(100MB 이내). 다른 브라우저로 다시 올려 보세요." },
   );
 });
 
@@ -532,6 +532,6 @@ test("preflight는 100MB를 넘는 압축 결과를 스펙 문구로 거부한�
       durationResolver: async () => 60_000,
       compressor: async () => ({ name: "large.mp4", type: "video/mp4", size: MAX_UPLOAD_BYTES + 1 }),
     }),
-    { message: "영상이 너무 커요(100MB 이내)." },
+    { message: "영상이 너무 커요(100MB 이내). 다른 브라우저로 다시 올려 보세요." },
   );
 });
