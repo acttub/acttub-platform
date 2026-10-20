@@ -1,7 +1,7 @@
 // 실행: node --test deploy/monitoring/sentry-autofix/poll.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DAILY_RULE, pick, summarize, verdictOf } from "./poll.mjs";
+import { DAILY_RULE, merged, pick, summarize, verdictOf } from "./poll.mjs";
 
 const alert = (issueId, at, rule = "운영 처음 남") => ({ issueId, at, rule });
 const at = (iso) => ({ at: Date.parse(iso) });
@@ -73,4 +73,22 @@ test("요약에는 우리 코드 프레임만 남기고 요청·사용자 정보
 test("마지막 JSON 줄을 결과로 읽고, 없으면 fail", () => {
   assert.deepEqual(verdictOf('작업 끝\n{"verdict":"skip","reason":"외부 장애"}'), { verdict: "skip", reason: "외부 장애" });
   assert.equal(verdictOf("결과 없음").verdict, "fail");
+});
+
+test("main에 머지된 hotfix만 역병합 대상이고, 닫힌 hotfix는 다시 보지 않게 표시한다", () => {
+  const handled = {
+    merged: { verdict: "pr", hotfix: true, pr: "p1" },
+    open: { verdict: "pr", hotfix: true, pr: "p2" },
+    closed: { verdict: "pr", hotfix: true, pr: "p3" },
+    done: { verdict: "pr", hotfix: true, pr: "p4", backmerge: "b" },
+    devPr: { verdict: "pr", pr: "p5" }, // hotfix 전에 dev로 연 PR
+    skip: { verdict: "skip", hotfix: true },
+  };
+  const states = { p1: "MERGED", p2: "OPEN", p3: "CLOSED", p4: "MERGED", p5: "MERGED" };
+  const asked = [];
+  const got = merged(handled, (pr) => (asked.push(pr), states[pr]));
+  assert.deepEqual(got.map((h) => h.pr), ["p1"]);
+  assert.deepEqual(asked, ["p1", "p2", "p3"]);
+  assert.equal(handled.closed.backmerge, "닫힘");
+  assert.equal(handled.open.backmerge, undefined);
 });
