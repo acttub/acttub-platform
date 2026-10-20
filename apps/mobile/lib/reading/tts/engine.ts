@@ -156,10 +156,10 @@ export async function prefetchIfWifi(): Promise<void> {
 }
 
 /** 지금 설정으로 이 문장이 갖게 될 열쇠. 파일 이름과 캐시가 이것으로 갈린다. */
-export function keyFor(text: string, preset = cfg.preset, speed = cfg.speed): string {
+export function keyFor(text: string, preset = cfg.preset, speed = cfg.speed, lang: string = currentLanguage()): string {
   return speechKey({
     text,
-    locale: currentLanguage(),
+    locale: lang,
     preset,
     variant: cfg.variant,
     steps: cfg.steps,
@@ -187,29 +187,28 @@ async function styleFor(preset?: string): Promise<{ voice: any; preset: string }
 }
 
 /** 미리 생성과 화면의 즉시 요청도 같은 엔진을 한 번에 하나만 사용한다. */
-export function synthesize(text: string, scriptId: string, preset = cfg.preset, options: { speed?: number } = {}): Promise<string | null> {
-  const work = synthesisTail.then(() => synthesizeOne(text, scriptId, preset, options.speed ?? cfg.speed));
+export function synthesize(text: string, scriptId: string, preset = cfg.preset, options: { speed?: number; lang?: string } = {}): Promise<string | null> {
+  const work = synthesisTail.then(() => synthesizeOne(text, scriptId, preset, options.speed ?? cfg.speed, options.lang ?? currentLanguage()));
   synthesisTail = work.catch(() => undefined);
   return work;
 }
 
-async function synthesizeOne(text: string, scriptId: string, preset: string, speed: number): Promise<string | null> {
+async function synthesizeOne(text: string, scriptId: string, preset: string, speed: number, lang: string): Promise<string | null> {
   if (!tts) throw new Error(t('reading.voiceNotReady'));
   const clean = (text ?? '').trim();
   if (!clean) return null;
 
-  const wanted = new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, preset, speed)));
+  const wanted = new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, preset, speed, lang)));
   if (wanted.exists) return wanted.uri;
 
   const { voice, preset: used } = await styleFor(preset);
   // 요청한 목소리를 못 받아 기본 목소리로 읽었으면 기본 목소리의 열쇠로 남긴다. 요청한 열쇠로 남기면 나중에 그
   // 목소리를 받을 수 있게 돼도 저장본이 이미 있다며 계속 기본 목소리가 재생된다.
-  const out = used === preset ? wanted : new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, used, speed)));
+  const out = used === preset ? wanted : new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, used, speed, lang)));
   if (out.exists) return out.uri;
-  // 모델은 32개 말을 읽을 줄 안다. 대본이 어느 말로 쓰였는지는 알 수 없으니
-  // 앱을 쓰는 말로 읽힌다 — 한국어 사용자는 지금과 같다 (SOMA-544).
+  // 모델은 31개 말을 읽을 줄 안다. 줄의 말(SOMA-751, line-language)을 받으면 그 말로, 아니면 앱을 쓰는 말로 읽는다(SOMA-544).
   // 말속도는 호출마다 바꿀 수 있다(듣고 따라 하기의 천천히 0.7×).
-  const { wav } = await tts.call(clean, currentLanguage(), voice, cfg.steps, speed, 0.1);
+  const { wav } = await tts.call(clean, lang, voice, cfg.steps, speed, 0.1);
   // 기기 목소리는 고품질 목소리보다 작게 나와 세기를 맞춘다(SOMA-664).
   const samples = normalizeFloatSamples(Float32Array.from(wav), { maxGain: 3 });
   out.write(writeWavFile(samples, tts.sampleRate));
@@ -250,7 +249,7 @@ export async function play(uri: string): Promise<void> {
 }
 
 /** 만들어 둔 것이 없을 때 — 만들고 바로 튼다. */
-export async function speak(text: string, preset = cfg.preset, options: { speed?: number; scriptId?: string } = {}): Promise<void> {
+export async function speak(text: string, preset = cfg.preset, options: { speed?: number; scriptId?: string; lang?: string } = {}): Promise<void> {
   stop();
   const epoch = playbackEpoch;
   const uri = await synthesize(text, options.scriptId ?? 'adhoc', preset, options);
@@ -265,19 +264,19 @@ export type SpeechQueueHandle = SpeechQueue & {
 /**
  * 이 대본의 미리 만들기 큐. 만드는 일은 엔진이 하고, 순서와 취소는 큐가 본다 (SOMA-547).
  */
-export function createQueueFor(scriptId: string, options: { cloud?: boolean; synthesizeCloud?: (text: string, scriptId: string, preset: string) => Promise<string> } = {}): SpeechQueueHandle {
+export function createQueueFor(scriptId: string, options: { cloud?: boolean; synthesizeCloud?: (text: string, scriptId: string, preset: string, lang?: string) => Promise<string> } = {}): SpeechQueueHandle {
   let cloudBlocked = false;
   const queue = createSpeechQueue({
-    synthesize: async (text, _key, preset) => {
+    synthesize: async (text, _key, preset, lang) => {
       if (options.cloud && options.synthesizeCloud && !cloudBlocked) {
         try {
-          return await options.synthesizeCloud(text, scriptId, preset);
+          return await options.synthesizeCloud(text, scriptId, preset, lang);
         } catch (error) {
           cloudBlocked = shouldStopCloudVoiceForSession(error as { status?: number });
           if (!isReady()) throw error;
         }
       }
-      const uri = await synthesize(text, scriptId, preset);
+      const uri = await synthesize(text, scriptId, preset, { lang });
       if (!uri) throw new Error('빈 문장');
       return uri;
     },

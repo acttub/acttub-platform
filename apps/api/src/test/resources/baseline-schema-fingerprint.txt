@@ -564,8 +564,10 @@ COLUMN script_lines.character_id ord=5 type=uuid len=- null=YES default=-
 COLUMN script_lines.created_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN script_lines.id ord=1 type=uuid len=- null=NO default=-
 COLUMN script_lines.kind ord=4 type=text len=- null=NO default=-
+COLUMN script_lines.lang ord=8 type=text len=- null=YES default=-
 COLUMN script_lines.ordinal ord=3 type=int4 len=- null=NO default=-
 COLUMN script_lines.script_id ord=2 type=uuid len=- null=NO default=-
+COLUMN script_lines.speech ord=9 type=text len=- null=YES default=-
 COLUMN script_lines.text ord=6 type=text len=- null=NO default=-
 COLUMN script_uploads.byte_size ord=4 type=int8 len=- null=NO default=-
 COLUMN script_uploads.created_at ord=8 type=timestamptz len=- null=NO default=now()

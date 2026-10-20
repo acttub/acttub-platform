@@ -35,6 +35,10 @@ public class ScriptLineEntity extends AppGeneratedUuidEntity {
 
     @Column(name = "text", nullable = false)
     private String text;
+    @Column(name = "lang")
+    private String lang;
+    @Column(name = "speech")
+    private String speech;
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
@@ -49,6 +53,14 @@ public class ScriptLineEntity extends AppGeneratedUuidEntity {
         this.kind = kind;
         this.characterId = characterId;
         this.text = text;
+    }
+
+    /** 줄별 말과 소리 낼 글을 함께 (SOMA-751). */
+    public ScriptLineEntity(UUID id, UUID scriptId, int ordinal, ScriptLineKind kind, UUID characterId, String text, String lang,
+            String speech) {
+        this(id, scriptId, ordinal, kind, characterId, text);
+        this.lang = lang;
+        this.speech = speech;
     }
 
     public UUID getScriptId() {
@@ -69,6 +81,14 @@ public class ScriptLineEntity extends AppGeneratedUuidEntity {
 
     public String getText() {
         return text;
+    }
+
+    public String getLang() {
+        return lang;
+    }
+
+    public String getSpeech() {
+        return speech;
     }
 
     public Instant getCreatedAt() {
