@@ -195,6 +195,62 @@ class ConsentPublisherIT {
                 Integer.class)).isZero();
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidEntries")
+    @Order(4)
+    void anInvalidEntryRejectsTheWholeManifestWithItsReason(
+            String description,
+            String entry,
+            Class<? extends Exception> failure,
+            String reason,
+            @TempDir Path directory) throws Exception {
+        jdbc.update("DELETE FROM consent_documents");
+        Files.writeString(directory.resolve("valid.md"), "valid");
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"valid.md","type":"terms","version":"entry-valid","title":"Valid","required":true},
+                 %s]
+                """.formatted(entry));
+
+        assertThatThrownBy(() -> publisherFor(directory).publish()).isInstanceOf(failure).hasMessage(reason);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM consent_documents", Integer.class)).isZero();
+    }
+
+    static Stream<Arguments> invalidEntries() {
+        String body = "\"file\":\"valid.md\",\"version\":\"v9\",\"title\":\"T\",\"required\":true";
+        return Stream.of(
+                Arguments.of("모르는 종류", "{\"type\":\"newsletter\"," + body + "}",
+                        IllegalArgumentException.class, "invalid consent type: newsletter"),
+                Arguments.of("빈 파일 이름", "{\"file\":\" \",\"type\":\"privacy\",\"version\":\"v9\",\"title\":\"T\",\"required\":true}",
+                        IllegalArgumentException.class, "invalid consent manifest entry"),
+                Arguments.of("빈 판", "{\"file\":\"valid.md\",\"type\":\"privacy\",\"version\":\"\",\"title\":\"T\",\"required\":true}",
+                        IllegalArgumentException.class, "invalid consent manifest entry"),
+                Arguments.of("빈 제목", "{\"file\":\"valid.md\",\"type\":\"privacy\",\"version\":\"v9\",\"title\":\" \",\"required\":true}",
+                        IllegalArgumentException.class, "invalid consent manifest entry"),
+                Arguments.of("지원하지 않는 말", "{\"type\":\"privacy\",\"locale\":\"fr\"," + body + "}",
+                        IllegalArgumentException.class, "invalid consent locale: fr"),
+                Arguments.of("본문 파일 없음", "{\"file\":\"gone.md\",\"type\":\"privacy\",\"version\":\"v9\",\"title\":\"T\",\"required\":true}",
+                        java.io.FileNotFoundException.class, "gone.md"));
+    }
+
+    @Test
+    @Order(5)
+    void sameVersionWithADifferentRequiredFlagKeepsTheStoredMeaning(@TempDir Path directory) throws Exception {
+        jdbc.update("DELETE FROM consent_documents");
+        Files.writeString(directory.resolve("marketing.md"), "광고 수신");
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"marketing.md","type":"marketing_push","version":"m1","locale":" ","title":"광고","required":false}]
+                """);
+        assertThat(publisherFor(directory).publish()).isEqualTo(1);
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"marketing.md","type":"marketing_push","version":"m1","title":"광고","required":true}]
+                """);
+
+        assertThat(publisherFor(directory).publish()).isZero();
+        assertThat(jdbc.queryForMap("SELECT locale,required FROM consent_documents WHERE type='marketing_push'"))
+                .containsEntry("locale", "ko")
+                .containsEntry("required", false);
+    }
+
     static Stream<Arguments> invalidRequiredValues() {
         return Stream.of(
                 Arguments.of("누락", ""),

@@ -11,7 +11,8 @@ export type ScriptSource = 'file' | 'paste' | 'typed' | 'sample';
 export type LineKind = 'dialogue' | 'direction' | 'scene';
 
 /** 화면이 쓰는 대본 줄(서버 줄을 배역 이름으로 풀어 든다). 장면 줄은 구간 선택의 「장면으로 찾기」 경계다. */
-export type DialogueLine = { type: 'dialogue'; role: string; text: string };
+/** lang·speech 는 줄별 말과 상대역이 읽을 글(SOMA-751, line-language). 없으면 앱 표시 언어로 글을 읽는다. */
+export type DialogueLine = { type: 'dialogue'; role: string; text: string; lang?: string | null; speech?: string | null };
 export type DirectionLine = { type: 'direction'; text: string };
 export type SceneLine = { type: 'scene'; text: string };
 export type ScriptLine = DialogueLine | DirectionLine | SceneLine;
@@ -25,6 +26,10 @@ export type CreateScriptLine = {
   kind: LineKind;
   /** characters 배열의 자리(0부터). 지문·장면은 null. */
   character_index: number | null;
+  /** 대사의 말(ISO 639-1). 모르면 null — 옛 서버는 주지 않는다(SOMA-751). */
+  lang?: string | null;
+  /** 상대역 목소리가 읽을 글(예: 로마자 아랍어 → 아랍 문자). null 이면 text. */
+  speech?: string | null;
   text: string;
 };
 

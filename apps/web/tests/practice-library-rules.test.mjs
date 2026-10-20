@@ -10,6 +10,7 @@ const {
   LIBRARY_FILTERS,
   libraryEmptyCopy,
   PURGED_COPY,
+  savedAtLabel,
   usageLabel,
   videoPlaybackUrl,
   videoStatusLabel,
@@ -52,6 +53,12 @@ test("practice.library: 서명 재생 주소는 만료 뒤 쓰지 않는다 — 
   assert.equal(videoPlaybackUrl(v, new Date("2026-09-21T03:59:00Z")), "https://cdn/1");
   assert.equal(videoPlaybackUrl(v, new Date("2026-09-21T04:00:01Z")), null);
   assert.equal(videoPlaybackUrl({ ...v, purged_at: "2026-09-21T02:00:00Z" }, new Date("2026-09-21T03:00:00Z")), null);
+});
+
+test("practice.library: 저장 날짜는 보는 사람의 시간대로 읽고, 못 읽는 날짜는 비운다", () => {
+  assert.equal(savedAtLabel("2026-09-20T16:00:00Z", "Asia/Seoul"), "2026년 9월 21일");
+  assert.equal(savedAtLabel("2026-09-20T16:00:00Z", "UTC"), "2026년 9월 20일");
+  assert.equal(savedAtLabel("엉망", "Asia/Seoul"), "");
 });
 
 const group = (overrides = {}) => ({

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.user.acttub-sentry-autofix</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/insung/.local/share/fnm/aliases/default/bin/node</string>
+		<string>/Users/insung/acttub-autofix/bin/poll.mjs</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/Users/insung/.local/share/fnm/aliases/default/bin:/Users/insung/.local/bin:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>JAVA_HOME</key>
+		<string>/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home</string>
+	</dict>
+	<key>StartInterval</key>
+	<integer>900</integer>
+	<key>StandardOutPath</key>
+	<string>/Users/insung/.local/state/acttub-sentry-autofix/run.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/insung/.local/state/acttub-sentry-autofix/run.log</string>
+</dict>
+</plist>

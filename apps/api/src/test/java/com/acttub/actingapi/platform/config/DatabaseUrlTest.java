@@ -67,4 +67,31 @@ class DatabaseUrlTest {
         assertThatThrownBy(() -> DatabaseUrl.parse("postgresql://u:p@h:5432/"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    @DisplayName("비밀번호 없이 사용자만 있으면 사용자만 채운다")
+    void parsesUserWithoutPassword() {
+        DatabaseUrl parsed = DatabaseUrl.parse("postgresql://acting@h/db");
+
+        assertThat(parsed.username()).isEqualTo("acting");
+        assertThat(parsed.password()).isNull();
+        assertThat(parsed.jdbcUrl()).isEqualTo("jdbc:postgresql://h:5432/db");
+    }
+
+    @Test
+    @DisplayName("null·URI 문법 오류·호스트 없음·스킴 없음은 이유를 담아 실패한다")
+    void rejectsMalformedInputWithAReason() {
+        assertThatThrownBy(() -> DatabaseUrl.parse(null)).hasMessage("DATABASE_URL is required");
+        assertThatThrownBy(() -> DatabaseUrl.parse("postgresql://h:5432/my db"))
+                .hasMessage("DATABASE_URL is not a valid URI");
+        assertThatThrownBy(() -> DatabaseUrl.parse("postgresql:///db")).hasMessage("DATABASE_URL has no host");
+        assertThatThrownBy(() -> DatabaseUrl.parse("localhost:5432/db"))
+                .hasMessage("DATABASE_URL must start with postgresql:// or postgres:// (got: <none>)");
+    }
+
+    @Test
+    @DisplayName("빈 쿼리스트링은 JDBC URL 에 물음표를 남기지 않는다")
+    void dropsEmptyQuery() {
+        assertThat(DatabaseUrl.parse("postgresql://u:p@h/db?").jdbcUrl()).isEqualTo("jdbc:postgresql://h:5432/db");
+    }
 }

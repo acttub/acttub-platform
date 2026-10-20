@@ -6,7 +6,8 @@ import "./ts-module-loader.mjs";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
 
-const { completeUpload, createUpload, getImport, startImport } = await import("../src/lib/api/v2/reading-imports.ts");
+const { completeUpload, createUpload, getImport, putUpload, startImport } = await import("../src/lib/api/v2/reading-imports.ts");
+const { installXhr } = await import("./fixtures/s3-uploader-xhr.mjs");
 const { registerConsentPrompt } = await import("../src/lib/api/v2/consent-prompt.ts");
 const { clearTokens, setTokens } = await import("../src/lib/auth/token-store.ts");
 
@@ -130,4 +131,33 @@ test("reading.script: 작업 조회와 파일 올릴 자리·글자 뽑기는 �
       ["POST /v2/reading/uploads/upload-1/complete", undefined],
     ],
   );
+});
+
+test("reading.script: 원본 파일은 받은 자리 주소로 PUT 하고 서버가 정한 Content-Type 을 붙인다", async () => {
+  const xhr = installXhr();
+  try {
+    const upload = { upload_id: "upload-1", upload_url: "https://s3.example/put?sig=1", content_type: "application/x-hwp", expires_at: "2026-10-06T00:15:00Z" };
+
+    await putUpload(upload, new File([new Uint8Array(12)], "갈매기.hwp"));
+
+    assert.deepEqual(xhr.sent, [
+      { method: "PUT", url: "https://s3.example/put?sig=1", headers: { "Content-Type": "application/x-hwp" }, size: 12 },
+    ]);
+  } finally {
+    xhr.uninstall();
+  }
+});
+
+test("reading.script: 저장소가 서명 만료(403)로 거절하면 처음부터 다시 하라는 오류로 끝난다", async () => {
+  const xhr = installXhr({ status: 403 });
+  try {
+    const upload = { upload_id: "upload-1", upload_url: "https://s3.example/put", content_type: "text/plain", expires_at: "2026-10-06T00:15:00Z" };
+
+    await assert.rejects(putUpload(upload, new File(["윤서: 안녕."], "갈매기.txt")), {
+      name: "S3PutError",
+      message: "업로드 URL이 만료되었을 수 있어요. 업로드를 처음부터 다시 시도해 주세요.",
+    });
+  } finally {
+    xhr.uninstall();
+  }
 });

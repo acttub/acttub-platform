@@ -436,7 +436,7 @@ class PostgresSessionRepository implements SessionRepository {
                        CASE WHEN l.kind='dialogue'
                              AND l.ordinal BETWEEN (SELECT ordinal FROM script_lines WHERE id=CAST(:startLineId AS uuid))
                                                AND (SELECT ordinal FROM script_lines WHERE id=CAST(:endLineId AS uuid))
-                            THEN l.text END AS spoken
+                            THEN COALESCE(regexp_replace(l.speech,'⟦[a-z][a-z]⟧',' ','g'),l.text) END AS spoken
                 FROM script_lines l
                 WHERE l.script_id=:scriptId
                 ORDER BY l.ordinal

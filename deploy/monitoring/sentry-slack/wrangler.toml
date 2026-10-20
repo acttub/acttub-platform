@@ -1,0 +1,4 @@
+name = "acttub-sentry-slack"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+# RELAY_TOKEN·SLACK_WEBHOOK_URL은 `wrangler secret put`으로만 넣는다(README).

@@ -238,3 +238,66 @@ test("업로드마다 제 신호를 들고 나오고 그 파일을 기억한다"
   pending.controller.abort();
   assert.equal(pending.controller.signal.aborted, true);
 });
+
+test("업로드가 끝나면 압축·업로드 실측을 한 번 남긴다 — 원본·업로드본 크기, 걸린 시간, 이 브라우저의 WebCodecs 지원", async () => {
+  uploadStub();
+  const profiles = [];
+  const ticks = [10_000, 12_345];
+  const original = new File(["original-video"], "take.mov", { type: "video/quicktime" });
+  const compressed = new File(["small"], "take.mp4", { type: "video/mp4" });
+  globalThis.VideoDecoder = class {};
+  globalThis.VideoEncoder = class {};
+  try {
+    const pending = startVideoUpload(original, {
+      onProgress: () => {},
+      prepare: async (_file, options) => {
+        options.onCompressionProgress(1);
+        return { file: compressed, durationMs: 9_000, wasCompressed: true, compressMs: 2_000 };
+      },
+      uploader: fakeUploader(),
+      onProfile: (profile) => profiles.push(profile),
+      now: () => ticks.shift(),
+    });
+    await pending.promise;
+  } finally {
+    delete globalThis.VideoDecoder;
+    delete globalThis.VideoEncoder;
+  }
+  assert.deepEqual(profiles, [
+    {
+      compressMs: 2_000,
+      uploadMs: 2_345,
+      originalBytes: 14,
+      uploadedBytes: 5,
+      wasCompressed: true,
+      webcodecsSupported: true,
+      videoDurationMs: 9_000,
+    },
+  ]);
+});
+
+test("업로드 시간은 시계가 뒤로 가도 음수로 남지 않고, WebCodecs 가 없는 브라우저는 지원 없음으로 센다", async () => {
+  uploadStub();
+  const profiles = [];
+  const ticks = [5_000, 4_000];
+  const file = new File(["video"], "take.mp4", { type: "video/mp4" });
+  const pending = startVideoUpload(file, {
+    onProgress: () => {},
+    prepare: fakePrepare({ durationMs: 3_000, compressMs: 0 }),
+    uploader: fakeUploader(),
+    onProfile: (profile) => profiles.push(profile),
+    now: () => ticks.shift(),
+  });
+  await pending.promise;
+  assert.deepEqual(profiles, [
+    {
+      compressMs: 0,
+      uploadMs: 0,
+      originalBytes: 5,
+      uploadedBytes: 5,
+      wasCompressed: false,
+      webcodecsSupported: false,
+      videoDurationMs: 3_000,
+    },
+  ]);
+});

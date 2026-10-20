@@ -20,6 +20,7 @@ const {
   auditionSections,
   collectedAgo,
   ddayLabel,
+  shortDate,
   EMPTY_AUDITION_FILTERS,
 } = await import("../src/features/auditions/audition-list.ts");
 const { normalizeAuditions } = await import("../src/lib/api/v2/auditions.ts");
@@ -162,6 +163,37 @@ test("D-day 표시: 오늘은 D-DAY, 3일 안 급함, 7일 안 곧, 날짜 없�
   });
 });
 
+test("구간 안은 마감 빠른 순이고, 마감일 원문 확인 구간은 최근 게시 순·게시일 없는 공고는 맨 뒤다", () => {
+  const sections = auditionSections(
+    [
+      posting({ id: "d09", apply_end: "2026-10-09" }),
+      posting({ id: "d12", apply_end: "2026-10-12" }),
+      posting({ id: "old", apply_end: null, posted_on: "2026-10-01" }),
+      posting({ id: "undated", apply_end: null, posted_on: null }),
+      posting({ id: "new", apply_end: null, posted_on: "2026-10-07" }),
+    ],
+    TODAY,
+  );
+  assert.deepEqual(
+    sections.map(({ bucket, data }) => [bucket, data.map(({ id }) => id)]),
+    [
+      ["week", ["d09", "d12"]],
+      ["unknown", ["new", "old", "undated"]],
+    ],
+  );
+});
+
+test("D-day 표시: 화면을 연 채 마감일이 지나면 D-day 대신 마감, 날짜는 월/일로 줄인다", () => {
+  assert.deepEqual(ddayLabel(posting({ apply_end: "2026-10-07" }), TODAY), {
+    main: "마감",
+    sub: "10/7 마감",
+    tone: "none",
+  });
+  assert.equal(shortDate("2026-01-05"), "1/5");
+  assert.equal(shortDate(null), "");
+  assert.equal(shortDate("10월 5일"), "");
+});
+
 test("수집 시각은 지금으로부터 얼마 전인지로 읽는다", () => {
   const now = Date.parse("2026-10-08T10:00:00Z");
   assert.equal(collectedAgo("2026-10-08T09:59:30Z", now), "방금");
@@ -282,6 +314,12 @@ test("본문: 필터에 걸린 게 없으면 조건 문구, 찜 필터면 찜 �
     ),
     true,
   );
+});
+
+test("본문: 모르는 분야는 기타로 보이고, 출연료·게시일이 없으면 그 줄을 비운다", () => {
+  const html = body({ items: [posting({ category: "hologram", pay_text: null, posted_on: null })] });
+  const card = text(html.match(/<a [^>]*>.*?<\/a>/)[0]);
+  assert.equal(card, "D-2" + "10/10 마감" + "기타" + "OTR" + "[연극] 낭독극 배우 모집");
 });
 
 test("/auditions는 sitemap에 없다", async () => {

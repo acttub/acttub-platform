@@ -156,3 +156,102 @@ test("practice.start·resume·analyze: 회차 오류 코드마다 화면 문구�
   assert.equal(message("analysis_not_ready", 409), "영상을 분석해야 대화를 시작할 수 있어요.");
   assert.equal(message("guest_daily_analysis_limit", 429), "오늘은 세 번까지 분석할 수 있어요. 앱으로 옮기면 계속할 수 있어요.");
 });
+
+function routeFetch(routes) {
+  const seen = [];
+  globalThis.fetch = async (url, init = {}) => {
+    const route = `${init.method ?? "GET"} ${String(url)}`;
+    seen.push(route);
+    const reply = routes[route];
+    if (!reply) throw new Error(`예상하지 못한 요청: ${route}`);
+    return reply();
+  };
+  return seen;
+}
+
+const ANALYSIS = { id: "a-1", format: "video_record_v1", status: "ready", summary: { observations: [] } };
+
+test("practice.analyze: 분석이 ready 면 상세에 공개 요약을 붙이고, 영상이 지워졌으면(404) 영상 없이 연다", async () => {
+  const seen = routeFetch({
+    "GET /v2/practices/p-1": () => jsonResponse(practice({ video_id: "v-gone", analysis_status: "ready" })),
+    "GET /v2/videos/v-gone": () => jsonResponse({ detail: "video_not_found" }, 404),
+    "GET /v2/practices/p-1/analysis": () => jsonResponse(ANALYSIS),
+  });
+
+  const detail = await getPractice("p-1");
+
+  assert.deepEqual([detail.video, detail.analysis], [null, ANALYSIS]);
+  assert.deepEqual(seen, ["GET /v2/practices/p-1", "GET /v2/videos/v-gone", "GET /v2/practices/p-1/analysis"]);
+});
+
+test("practice.analyze: 영상·요약 조회가 404 가 아닌 오류면 상세 열기를 실패로 끝낸다", async () => {
+  routeFetch({
+    "GET /v2/practices/p-1": () => jsonResponse(practice({ video_id: "v-1", analysis_status: null })),
+    "GET /v2/videos/v-1": () => jsonResponse({ detail: "internal_error" }, 500),
+  });
+  await assert.rejects(getPractice("p-1"), { name: "ApiError", status: 500, code: "internal_error" });
+
+  routeFetch({
+    "GET /v2/practices/p-1": () => jsonResponse(practice({ analysis_status: "partial" })),
+    "GET /v2/practices/p-1/analysis": () => jsonResponse({ detail: "internal_error" }, 500),
+  });
+  await assert.rejects(getPractice("p-1"), { name: "ApiError", status: 500, code: "internal_error" });
+});
+
+test("practice.analyze: 요청 id 를 주지 않은 재시도는 UUID v4 를 만들어 본문과 헤더에 같이 싣는다", async () => {
+  const calls = recordFetch({ "POST /v2/practices/p-1/analyze": () => jsonResponse(practice(), 201) });
+
+  await reanalyzeSession("p-1");
+
+  assert.match(calls[0].body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(calls[0].requestId, calls[0].body.request_id);
+});
+
+test("practice.analyze: 작업이 없는 회차는 단계가 analyzing 을 벗어나야 멈춘다", async () => {
+  const statuses = [
+    { stage: "analyzing", job: null, analysis_status: null },
+    { stage: "conversing", job: null, analysis_status: null },
+  ];
+  let i = 0;
+  const seen = routeFetch({
+    "GET /v2/practices/p-1/status": () => jsonResponse(statuses[i++]),
+    "GET /v2/practices/p-1": () => jsonResponse(practice({ stage: "conversing", job: null })),
+  });
+
+  const settled = await pollPracticeUntilSettled("p-1", { intervalMs: 1 });
+
+  assert.equal(settled.stage, "conversing");
+  assert.deepEqual(seen, ["GET /v2/practices/p-1/status", "GET /v2/practices/p-1/status", "GET /v2/practices/p-1"]);
+});
+
+test("practice.analyze: 이미 취소된 폴링은 상태를 읽지 않고 취소 사유로 끝난다", async () => {
+  const seen = routeFetch({});
+  const controller = new AbortController();
+  controller.abort(new DOMException("화면을 떠났다", "AbortError"));
+
+  await assert.rejects(pollPracticeUntilSettled("p-1", { signal: controller.signal }), { name: "AbortError", message: "화면을 떠났다" });
+  assert.deepEqual(seen, []);
+});
+
+test("practice.analyze: 영상이 있으면 상세에 서명 재생 주소가 든 영상을 붙인다", async () => {
+  const video = {
+    id: "v-1",
+    duration_ms: 4200,
+    byte_size: 1234,
+    content_type: "video/mp4",
+    favorite: false,
+    purged_at: null,
+    created_at: "2026-09-21T03:00:00Z",
+    usage: { practice_count: 1, entry_count: 0 },
+    playback_url: "https://cdn.example/v-1.mp4?sig=1",
+    playback_expires_at: "2026-09-21T04:00:00Z",
+  };
+  routeFetch({
+    "GET /v2/practices/p-1": () => jsonResponse(practice({ video_id: "v-1", analysis_status: null })),
+    "GET /v2/videos/v-1": () => jsonResponse(video),
+  });
+
+  const detail = await getPractice("p-1");
+
+  assert.deepEqual([detail.video, detail.analysis], [video, null]);
+});

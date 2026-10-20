@@ -25,12 +25,25 @@
 `act`는 production React 빌드에 없으므로 훅 테스트는 `NODE_ENV=production`을 전제로 하지
 않습니다. `next/*` 서브패스를 직접 import하는 훅은 Node ESM용 목이나 더 작은 seam을 둡니다.
 
+## 컴포넌트·화면
+
+1. `ts-module-loader.mjs`와 `mount-probe.mjs`를 먼저 불러오고, `@testing-library/react`와 대상 컴포넌트는 그 뒤에
+   `await import`로 불러옵니다. jsdom 전역이 React보다 먼저 서야 합니다.
+2. 요소는 역할과 접근 가능한 이름(`getByRole`)으로 찾고, 사용자가 보는 결과(글자, 링크 주소, 호출된 API의 인자)를 단언합니다.
+3. `next/navigation`처럼 Node에서 돌지 않는 모듈은 `registerHooks`로 바꿔 끼웁니다(`analytics-cross-tab.test.mjs` 참고).
+4. 테스트마다 `cleanup`을 부릅니다.
+
 ## 단언 수준
 
 - 훅·상태 전이·API 어댑터·순수 로직의 행동을 단언합니다.
-- testing-library가 없는 현재 스위트에서 컴포넌트 마크업 모양을 정규식으로 고정하지
-  않습니다.
+- 컴포넌트 마크업 모양(클래스, 태그 구조)을 고정하지 않습니다.
 - 회귀 테스트는 수정 전 행동에서 실패하고 수정 후 통과하는지 확인합니다.
+
+## 커버리지
+
+`pnpm test:coverage`가 표를 출력하고 `coverage/lcov.info`를 남깁니다. Node 커버리지는 테스트가 불러온
+파일만 집계하므로 표의 비율은 한 번도 import되지 않은 파일을 빼고 계산됩니다. `readFileSync`로
+소스 문자열만 읽는 테스트도 커버리지에 잡히지 않습니다. `apps/mobile`의 `npm run test:coverage`도 같은 방식입니다.
 
 **완료 기준:** 새 동작과 실패 갈래가 실행 가능한 테스트로 고정되고, `apps/web`에서 실행한 전체
 `pnpm test`에서 다른 테스트 파일과 격리된 채 통과합니다.

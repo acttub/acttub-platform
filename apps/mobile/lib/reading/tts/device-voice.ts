@@ -18,7 +18,8 @@ export async function hasDeviceVoice(): Promise<boolean> {
   }
 }
 
-export function speakWithDevice(text: string, preset: string, options: { rate?: number } = {}): Promise<void> {
+/** locale 은 그 줄의 말의 지역 코드(SOMA-751, line-language.speechLocaleFor). 없으면 앱 표시 언어. */
+export function speakWithDevice(text: string, preset: string, options: { rate?: number; locale?: string } = {}): Promise<void> {
   const clean = (text ?? '').trim();
   if (!clean) return Promise.resolve();
   return new Promise((resolve) => {
@@ -30,7 +31,7 @@ export function speakWithDevice(text: string, preset: string, options: { rate?: 
     };
     try {
       Speech.speak(clean, {
-        language: speechLocale(),
+        language: options.locale ?? speechLocale(),
         pitch: devicePitchFor(preset),
         rate: options.rate ?? 1.0,
         onDone: done,

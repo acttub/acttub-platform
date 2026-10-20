@@ -11,6 +11,7 @@ const { deleteVideo, getVideo, listVideos, purgeVideoFile, setVideoFavorite, upl
   "../src/lib/api/v2/videos.ts"
 );
 const { ApiError, errorMessage } = await import("../src/lib/api/v2/errors.ts");
+const { installXhr } = await import("./fixtures/s3-uploader-xhr.mjs");
 const { clearTokens, setTokens } = await import("../src/lib/auth/token-store.ts");
 
 const originalFetch = globalThis.fetch;
@@ -126,4 +127,67 @@ test("practice.record·library: 영상 오류 코드마다 화면 문구가 있�
   assert.equal(message("video_in_use"), "회차나 챌린지에 쓰인 영상이라 지울 수 없어요. 파일만 파기할 수 있어요.");
   assert.equal(message("video_not_ready"), "이 영상은 아직 쓸 수 없어요. 다른 영상을 골라 주세요.");
   assert.equal(message("upload_expired"), "올릴 자리가 만료됐어요. 영상을 처음부터 다시 올려 주세요.");
+});
+
+const INTENT = { intent_id: "i-1", upload_url: "https://s3.example/put?sig=1", expires_at: "2026-09-21T03:30:00Z" };
+
+test("practice.record: 업로더를 주지 않으면 브라우저 업로더가 받은 자리로 PUT 한다", async () => {
+  const xhr = installXhr();
+  try {
+    recordFetch({
+      "POST /v2/videos/intents": () => jsonResponse(INTENT, 201),
+      "POST /v2/videos/intents/i-1/complete": () => jsonResponse(video(), 201),
+    });
+    const file = new File([new Uint8Array(10)], "take.webm", { type: " Video/WebM " });
+
+    const saved = await uploadLibraryVideo(file, { durationMs: 4200, requestId: "req-1" });
+
+    assert.equal(saved.id, "v-1");
+    assert.deepEqual(xhr.sent, [{ method: "PUT", url: "https://s3.example/put?sig=1", headers: { "Content-Type": "video/webm" }, size: 10 }]);
+  } finally {
+    xhr.uninstall();
+  }
+});
+
+test("practice.record: 비어 있는 영상은 자리를 받기 전에 거른다", async () => {
+  const calls = recordFetch({});
+  const empty = new File([], "empty.mp4", { type: "video/mp4" });
+
+  await assert.rejects(uploadLibraryVideo(empty, { durationMs: 1000, requestId: "r", uploader: async () => {} }), {
+    name: "UploadError",
+    stage: "intent",
+    message: "비어 있는 영상은 업로드할 수 없어요.",
+  });
+  assert.equal(calls.length, 0);
+});
+
+test("practice.record: 이미 취소된 올리기는 자리를 받지 않고 준비 단계의 취소로 끝난다", async () => {
+  const calls = recordFetch({});
+  const controller = new AbortController();
+  controller.abort("화면을 떠났다");
+  const file = new File([new Uint8Array(10)], "take.mp4", { type: "video/mp4" });
+
+  await assert.rejects(uploadLibraryVideo(file, { durationMs: 4200, requestId: "r", signal: controller.signal, uploader: async () => {} }), {
+    name: "AbortError",
+    stage: "intent",
+    message: "업로드가 취소되었어요.",
+  });
+  assert.equal(calls.length, 0);
+});
+
+test("practice.record: 파일을 다 올린 뒤 취소되면 마무리를 보내지 않고 마무리 단계의 취소로 끝난다", async () => {
+  const calls = recordFetch({ "POST /v2/videos/intents": () => jsonResponse(INTENT, 201) });
+  const controller = new AbortController();
+  const file = new File([new Uint8Array(10)], "take.mp4", { type: "video/mp4" });
+
+  await assert.rejects(
+    uploadLibraryVideo(file, {
+      durationMs: 4200,
+      requestId: "r",
+      signal: controller.signal,
+      uploader: async () => controller.abort(new DOMException("사용자가 그만뒀다", "AbortError")),
+    }),
+    { name: "AbortError", stage: "complete", message: "사용자가 그만뒀다" },
+  );
+  assert.deepEqual(calls.map((c) => c.route), ["POST /v2/videos/intents"]);
 });

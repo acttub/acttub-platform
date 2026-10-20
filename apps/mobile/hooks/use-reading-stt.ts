@@ -43,9 +43,10 @@ export async function detectSttPolicy(): Promise<SttPolicy> {
 export type SttHandle = {
   /**
    * 듣기 시작. 침묵 감지 사건과 중간 인식 결과를 알린다. persist 면 인식기가 들은 소리를 파일로 남긴다 —
-   * 녹음이 켜진 회차의 내 차례 녹음 파일이다(녹음기를 따로 열지 않는다, 조정자 결정).
+   * 녹음이 켜진 회차의 내 차례 녹음 파일이다(녹음기를 따로 열지 않는다, 조정자 결정). locale 은 그 줄의 말의 지역 코드다
+   * (SOMA-751, line-language.speechLocaleFor). 없으면 앱 표시 언어.
    */
-  start: (callbacks: { onEvent: (event: VadEvent) => void; onInterim: (text: string) => void }, options?: { persist?: boolean }) => boolean;
+  start: (callbacks: { onEvent: (event: VadEvent) => void; onInterim: (text: string) => void }, options?: { persist?: boolean; locale?: string }) => boolean;
   /** 듣기를 끝내고 최종 글을 받는다. 못 알아들었으면 빈 글. */
   finish: () => Promise<string>;
   abort: () => void;
@@ -147,7 +148,7 @@ export function useReadingStt(): SttHandle {
     ticker.current = setInterval(() => volumeFeed.current?.tick(), VAD_TICK_MS);
     try {
       ExpoSpeechRecognitionModule.start({
-        lang: speechLocale(),
+        lang: options?.locale ?? speechLocale(),
         interimResults: true,
         continuous: true,
         requiresOnDeviceRecognition: false,

@@ -146,6 +146,60 @@ class MemoryUpdateWorkerPayloadTest {
         }
     }
 
+    @Test
+    @DisplayName("옛 표에 없는 새 칸(바라는 것·버릇)은 옛 갈래 워커가 쓰지 않고 응답에도 싣지 않는다")
+    void fieldsTheLegacyTableDoesNotHaveAreLeftOut() {
+        RecordingQueue queue = new RecordingQueue();
+        worker(queue, "{\"wants\":\"표정을 봐 달라고 했다\",\"goal\":\"새 목표\",\"habits\":\"고개를 돌린다\"}")
+                .runOnce();
+
+        assertThat(queue.payload.toString()).isEqualTo(
+                "{\"practice_session_id\":\"11111111-2222-3333-4444-555555555555\","
+                        + "\"updated_fields\":[\"goal\"]}");
+    }
+
+    @Test
+    @DisplayName("연습이 사라졌으면 모델을 부르지 않고 빈 갱신으로 닫는다")
+    void missingPracticeClosesWithNoUpdateAndNoModelCall() {
+        RecordingQueue queue = new RecordingQueue();
+        List<String> prompts = new ArrayList<>();
+        var memory = new EmptyMemory() {
+            @Override
+            public MemoryUpdateMaterial material(UUID practiceSessionId) {
+                return null;
+            }
+        };
+        var reporter = new RecordingFailureReporter();
+        var worker = new MemoryUpdateWorker(memory, queue, new ObjectMapper(),
+                (system, user) -> {
+                    prompts.add(user);
+                    return new GeneratedText("{\"goal\":\"x\"}", null);
+                },
+                Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), new MemoryExtractor(reporter), reporter,
+                new RecordingLlmTelemetry());
+
+        assertThat(worker.runOnce()).isTrue();
+        assertThat(queue.payload.toString()).isEqualTo(
+                "{\"practice_session_id\":\"11111111-2222-3333-4444-555555555555\",\"updated_fields\":[]}");
+        assertThat(prompts).isEmpty();
+    }
+
+    @Test
+    void extractionWithoutUsageIsRecordedWithUnknownTokens() {
+        var queue = new RecordingQueue();
+        var reporter = new RecordingFailureReporter();
+        var telemetry = new RecordingLlmTelemetry();
+        var worker = new MemoryUpdateWorker(new EmptyMemory(), queue, new ObjectMapper(),
+                (system, user) -> new GeneratedText("{\"goal\":\"새 목표\"}", null, "model"),
+                Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), new MemoryExtractor(reporter), reporter, telemetry);
+
+        worker.runOnce();
+
+        assertThat(queue.payload.path("updated_fields").toString()).isEqualTo("[\"goal\"]");
+        assertThat(telemetry.calls()).singleElement().satisfies(call -> assertThat(call.tokens())
+                .isEqualTo(com.acttub.actingapi.platform.observability.LlmTokens.unknown()));
+    }
+
     private static MemoryUpdateWorker worker(RecordingQueue queue, String extracted) {
         return worker(
                 queue, new EmptyMemory(), extracted, new RecordingFailureReporter());

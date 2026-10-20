@@ -526,3 +526,71 @@ test("전이는 받은 화면을 그 자리에서 고치지 않는다", () => {
   advance(prep, { type: "uploadStarted" });
   assert.deepEqual(prep, prepBefore);
 });
+
+const { pickedVideo, currentReport } = await import("../src/features/workspace/workspace-state.ts");
+
+/** 보관함에서 고른 영상. 올릴 것이 없어 파일 대신 보관함 id 를 든다. */
+const LIBRARY_VIDEO = { libraryId: "video-9", url: "https://cdn/video-9.mp4", caption: "면접 리허설", durationMs: 30_000 };
+
+test("이어받지 않기·정리보기·대화로 돌아가기는 제 자리 밖에서 오면 화면을 그대로 둔다", () => {
+  const owners = { continueDeclined: ["prep"], noteOpened: ["chatOpening", "chat", "chatDone"], chatReopened: ["note"] };
+  for (const [type, kinds] of Object.entries(owners)) {
+    for (const screen of EVERY_SCREEN) {
+      if (kinds.includes(screen.kind)) continue;
+      assert.equal(advance(screen, { type }), screen, `${screen.kind} 이 ${type} 에 움직였다`);
+    }
+  }
+});
+
+test("준비 화면에 늦게 온 올리기 실패는 그 자리에 머문다", () => {
+  const prep = { kind: "prep", video: VIDEO, continueFrom: CONTINUE };
+  assert.equal(advance(prep, { type: "uploadFailed" }), prep);
+});
+
+test("훑어보기 자리에 온 올리기 실패는 영상만 들고 준비 화면으로 가고 이어받기는 들지 않는다", () => {
+  // 이어받을 연습은 세션을 만들며 이미 실려 갔다 — 훑어보기 자리는 그것을 들지 않는다.
+  assert.deepEqual(advance({ kind: "analyzing", video: VIDEO }, { type: "uploadFailed" }), {
+    kind: "prep",
+    video: VIDEO,
+    continueFrom: null,
+  });
+});
+
+test("보관함 영상으로 시작해도 세션이 만들어지면 훑어보는 자리가 그 영상을 든다", () => {
+  assert.deepEqual(
+    advance({ kind: "uploading", video: LIBRARY_VIDEO, continueFrom: null }, { type: "sessionCreated", status: "analyzing" }),
+    { kind: "analyzing", video: LIBRARY_VIDEO },
+  );
+});
+
+test("화면이 고른 영상을 드는 것은 준비부터 훑어보기 자리까지다", () => {
+  // 화면 밖은 이 값이 비는 순간 로컬 원본의 blob 주소를 놓아 준다.
+  assert.equal(pickedVideo({ kind: "prep", video: VIDEO, continueFrom: null }), VIDEO);
+  assert.equal(pickedVideo({ kind: "uploading", video: LIBRARY_VIDEO, continueFrom: null }), LIBRARY_VIDEO);
+  assert.equal(pickedVideo({ kind: "analyzing", video: VIDEO }), VIDEO);
+  assert.equal(pickedVideo({ kind: "analysisFailed", video: OTHER_VIDEO }), OTHER_VIDEO);
+  assert.equal(pickedVideo(EMPTY_PREP), null);
+  for (const screen of [
+    { kind: "chatOpening", report: NOTE },
+    { kind: "chat", coachId: "coach-1", report: NOTE },
+    { kind: "chatDone", coachId: "coach-1", report: NOTE },
+    { kind: "note", report: NOTE, priorChat: null },
+  ]) {
+    assert.equal(pickedVideo(screen), null, `${screen.kind} 이 영상을 들었다`);
+  }
+});
+
+test("화면이 든 노트는 대화와 노트 자리에만 있다", () => {
+  assert.equal(currentReport({ kind: "chatOpening", report: NOTE }), NOTE);
+  assert.equal(currentReport({ kind: "chat", coachId: "coach-1", report: OTHER_NOTE }), OTHER_NOTE);
+  assert.equal(currentReport({ kind: "chatDone", coachId: "coach-1", report: null }), null);
+  assert.equal(currentReport({ kind: "note", report: NOTE, priorChat: null }), NOTE);
+  for (const screen of [
+    { kind: "prep", video: VIDEO, continueFrom: CONTINUE },
+    { kind: "uploading", video: VIDEO, continueFrom: null },
+    { kind: "analyzing", video: VIDEO },
+    { kind: "analysisFailed", video: null },
+  ]) {
+    assert.equal(currentReport(screen), null, `${screen.kind} 이 노트를 들었다`);
+  }
+});

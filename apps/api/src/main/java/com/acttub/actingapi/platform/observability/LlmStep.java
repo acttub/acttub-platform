@@ -28,7 +28,9 @@ public enum LlmStep {
      */
     SCRIPT_SPLIT("script.split"),
     /** 나누기 전에 글자마다 띄어진 줄의 띄어쓰기를 고친다 (reading.script). 묶는 열쇠는 {@link #SCRIPT_SPLIT} 처럼 작업 id 다. */
-    SCRIPT_SPACING("script.spacing");
+    SCRIPT_SPACING("script.spacing"),
+    /** 나눈 뒤 외국 글자가 든 대사의 말과 소리 낼 글을 받는다 (reading.script 「줄별 말」, SOMA-751). 묶는 열쇠는 작업 id 다. */
+    SCRIPT_LANGUAGE("script.language");
 
     private final String spanName;
 
