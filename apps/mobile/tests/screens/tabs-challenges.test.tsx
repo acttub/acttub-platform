@@ -3,11 +3,12 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 
 import ChallengesScreen from '@/app/(tabs)/challenges';
 import { logEvent } from '@/lib/analytics';
+import { setFirstTimeState } from '@/lib/practice/first-time';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import type { ChallengeCard } from '@/lib/challenge/types';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), navigate: jest.fn() };
 let mockParams: Record<string, string> = {};
 /** 화면에 걸린 포커스 효과 전부 — 탭으로 돌아오는 것을 흉내 낼 때 모두 다시 부른다(화면에 포커스 효과가 둘이다). */
 const mockFocusEffects = new Set<() => void>();
@@ -395,5 +396,30 @@ describe('시작 안내', () => {
     await render(<ChallengesScreen />);
     await screen.findByText('“나는 아직 여기 있어”');
     expect(screen.queryByText('같은 대사, 다른 연기')).not.toBeOnTheScreen();
+  });
+});
+
+describe('첫 사용자라 탭바가 숨으면', () => {
+  afterEach(() => setFirstTimeState('unknown'));
+
+  test('머리에 홈으로 돌아가는 꺾쇠를 둔다', async () => {
+    setFirstTimeState('first');
+    await render(<ChallengesScreen />);
+    await screen.findByText('“나는 아직 여기 있어”');
+
+    const back = screen.getByRole('button', { name: '뒤로' });
+    expect(back.props['ph-label']).toBe('challenges_back_home');
+    await fireEvent.press(back);
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/');
+  });
+
+  test('탭바가 보이면(연습했거나 아직 모르면) 꺾쇠를 두지 않는다', async () => {
+    setFirstTimeState('practiced');
+    await render(<ChallengesScreen />);
+    await screen.findByText('“나는 아직 여기 있어”');
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+
+    await act(async () => setFirstTimeState('unknown'));
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
   });
 });
