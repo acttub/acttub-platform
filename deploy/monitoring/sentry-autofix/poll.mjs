@@ -97,6 +97,27 @@ async function slack(text) {
   await fetch(secret("sentry-slack-webhook"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) });
 }
 
+async function slackApi(method, body) {
+  const res = await fetch(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: { "content-type": "application/json; charset=utf-8", authorization: `Bearer ${secret("sentry-slack-bot-token")}` },
+    body: JSON.stringify(body),
+  });
+  const { ok, error } = await res.json();
+  if (!ok && !["already_reacted", "no_reaction"].includes(error)) console.log("slack", method, error);
+}
+
+export const EMOJI = { running: "hourglass_flowing_sand", pr: "white_check_mark", open: "link", skip: "fast_forward", fail: "x" };
+
+// 알림 메시지에 결과 이모지를 달고 스레드에 답한다. 메시지 위치가 없는 옛 알림은 채널에 따로 올린다.
+async function report(alert, verdict, text) {
+  if (!alert.ts) return text && slack(text);
+  const at = { channel: alert.channel, timestamp: alert.ts };
+  if (verdict !== "running") await slackApi("reactions.remove", { ...at, name: EMOJI.running });
+  await slackApi("reactions.add", { ...at, name: EMOJI[verdict] });
+  if (text) await slackApi("chat.postMessage", { channel: alert.channel, thread_ts: alert.ts, text });
+}
+
 const git = (...args) => spawnSync("git", ["-C", REPO, ...args], { encoding: "utf8" });
 const gh = (...args) => spawnSync("gh", args, { encoding: "utf8" }).stdout.trim();
 
@@ -114,9 +135,10 @@ async function handle(issue, alert, statePath, state, prev) {
     if (open) {
       state.handled[issue.id] = { ...prev, at: Date.now() };
       writeFileSync(statePath, JSON.stringify(state, null, 2));
-      return slack(`${head} 다시 알림이 왔지만 앞의 <${prev.pr}|PR>(${prev.jira})이 아직 열려 있어 건너뜀`);
+      return report(alert, "open", `${head} 다시 알림이 왔지만 앞의 <${prev.pr}|PR>(${prev.jira})이 아직 열려 있어 건너뜀`);
     }
   }
+  await report(alert, "running");
   const event = await sentry(`/issues/${issue.id}/events/latest/`);
   const ctx = join(STATE_DIR, "ctx", `${issue.shortId}.json`);
   mkdirSync(dirname(ctx), { recursive: true });
@@ -145,7 +167,9 @@ async function handle(issue, alert, statePath, state, prev) {
 
   state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, hotfix: true, ...result };
   writeFileSync(statePath, JSON.stringify(state, null, 2));
-  await slack(
+  await report(
+    alert,
+    ["pr", "skip"].includes(result.verdict) ? result.verdict : "fail",
     result.verdict === "pr" ? `${head} → ${result.jira} <${result.pr}|draft PR>${result.ci === "fail" ? " (CI 실패)" : ""}\n${result.reason ?? ""}`
       : result.verdict === "skip" ? `${head} 코드 수정 대상 아님: ${result.reason}`
         : `${head} 실패: ${result.reason}`,
@@ -198,12 +222,13 @@ async function main() {
       if (issue.status !== "unresolved") {
         state.handled[issue.id] = { verdict: "skip", reason: `알림 뒤 ${issue.status}`, ...prev, at: Date.now(), shortId: issue.shortId };
         writeFileSync(statePath, JSON.stringify(state, null, 2));
+        await report(alert, "skip");
         continue;
       }
       // claude가 죽어도 같은 알림을 다시 돌지 않게 먼저 기록한다.
       state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, verdict: "running" };
       writeFileSync(statePath, JSON.stringify(state, null, 2));
-      await handle(issue, alert, statePath, state, prev).catch((e) => slack(`[자동 수정] ${issue.shortId} 실패: ${e.message}`));
+      await handle(issue, alert, statePath, state, prev).catch((e) => report(alert, "fail", `[자동 수정] ${issue.shortId} 실패: ${e.message}`));
     }
   } finally {
     rmSync(lock, { recursive: true, force: true });

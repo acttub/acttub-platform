@@ -2,14 +2,14 @@
 
 Sentry 무료(Developer) 플랜은 Slack 연동을 막는다("Requires Team Plan or above", 2026-08-22 체험 종료 뒤).
 무료 플랜에서도 알림 규칙 액션으로 쓸 수 있는 internal integration `acttub-slack-relay`가 이 Cloudflare Worker로 알림을 보내고,
-Worker가 Slack `#sentry` 메시지로 바꿔 넘긴다. 홈서버가 멈춰도 다운 알림이 와야 하므로 홈서버가 아니라 Cloudflare에서 돈다.
+Worker가 Slack 앱 `acttub-monitoring` 봇(`chat.postMessage`)으로 `#sentry`에 올린다. 홈서버가 멈춰도 다운 알림이 와야 하므로 홈서버가 아니라 Cloudflare에서 돈다.
 Webhooks (Legacy)는 새 Alerts 화면의 액션 선택지에 없어 쓰지 않는다.
 
 - 메시지 첫 줄의 `[운영 · 계속 남]`에서 앞은 Sentry 이벤트의 `environment`, 뒤는 알림 규칙 이름에서 환경 단어를 뺀 것(무슨 일인지)이다. 제목·위치·Sentry 링크만 보내고 이벤트 본문은 보내지 않는다.
 - 요청은 URL 경로(`/<RELAY_TOKEN>`)와 `Sentry-Hook-Signature`(integration client secret의 HMAC)가 모두 맞아야 받는다.
 - 알림 규칙 액션(`Sentry-Hook-Resource: event_alert`)만 Slack에 넘긴다.
-- 운영 알림은 KV `ALERTS`에 이슈 ID·규칙 이름·시각만 14일 남긴다. [자동 수정](../sentry-autofix/README.md)이 `GET /<RELAY_TOKEN>/alerts`로 가져간다.
-- Slack webhook은 Slack 앱 `acttub-monitoring`의 `#sentry` webhook이다.
+- 운영 알림은 KV `ALERTS`에 이슈 ID·규칙 이름·시각·Slack 메시지 위치(channel·ts)만 14일 남긴다. [자동 수정](../sentry-autofix/README.md)이 `GET /<RELAY_TOKEN>/alerts`로 가져가 그 알림에 결과 이모지와 스레드 답글을 단다.
+- 봇 토큰 권한은 `chat:write`·`reactions:write`이고, 봇을 `#sentry`에 초대해야 한다. 채널 ID는 `wrangler.toml`의 `SLACK_CHANNEL`.
 
 ## 배포
 
@@ -17,7 +17,7 @@ Webhooks (Legacy)는 새 Alerts 화면의 액션 선택지에 없어 쓰지 않�
 cd deploy/monitoring/sentry-slack
 node --test worker.test.mjs
 npx wrangler@4.151.2 kv namespace create ALERTS   # 처음 한 번. 나온 id를 wrangler.toml에 넣는다
-npx wrangler@4.151.2 secret put SLACK_WEBHOOK_URL
+npx wrangler@4.151.2 secret put SLACK_BOT_TOKEN   # xoxb-, ~/.config/acttub/sentry-slack-bot-token과 같다
 npx wrangler@4.151.2 secret put RELAY_TOKEN
 npx wrangler@4.151.2 secret put SENTRY_CLIENT_SECRET
 npx wrangler@4.151.2 deploy
