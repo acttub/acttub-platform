@@ -204,9 +204,6 @@ final class PurposeLoop {
     private static final Pattern CARD = Pattern.compile("(?s)<카드>\\s*(.*?)\\s*(?:</카드>|$)");
     private static final Pattern CHARACTER_CARD = Pattern.compile("(?s)<인물 카드>\\s*(.*?)\\s*(?:</인물 카드>|$)");
     private static final Pattern SCENE = Pattern.compile("(?s)<장면>\\s*(.*?)\\s*(?:</장면>|$)");
-    // 줄 머리의 영상 시간. "0:11-0:35" 같은 구간이면 시작 시간만 쓴다.
-    private static final Pattern LEAD_TIME = Pattern.compile(
-            "^\\s*[\\[(]?\\s*(\\d{1,2}):(\\d{2})(?:\\s*[-~–]\\s*\\d{1,2}:\\d{2})?\\s*[\\])]?\\s*");
     private static final Pattern BULLET = Pattern.compile("^\\s*(?:[-•*·]|\\d+[.)])\\s*");
     private static final Pattern TIMED_LINE = Pattern.compile("(\\d{1,2}):(\\d{2})\\s*[\"“「『]([^\"”」』]{1,40})[\"”」』]");
     private static final int CHOICE_MAX = 3;
@@ -224,10 +221,10 @@ final class PurposeLoop {
             for (String line : m.group(1).split("\\R")) {
                 String label = BULLET.matcher(line).replaceFirst("").strip();
                 Integer at = null;
-                Matcher time = LEAD_TIME.matcher(label);
-                if (time.find()) {
-                    at = Integer.parseInt(time.group(1)) * 60 + Integer.parseInt(time.group(2));
-                    label = label.substring(time.end()).strip();
+                Lead lead = leadTime(label);
+                if (lead != null) {
+                    at = lead.seconds();
+                    label = label.substring(lead.end()).strip();
                 }
                 if (label.isEmpty() || "직접 쓰기".equals(label) || DONT_KNOW.equals(label)) continue;
                 if (label.length() > CHOICE_LENGTH) label = label.substring(0, CHOICE_LENGTH).strip();
@@ -255,10 +252,10 @@ final class PurposeLoop {
             String value = DirectVideoPracticeLoop.statusField(body, pair[0]);
             if (value.isBlank() || value.startsWith("없음")) continue;
             ObjectNode item = card.putObject(pair[1]);
-            Matcher time = LEAD_TIME.matcher(value);
-            if (time.find()) {
-                item.put("at", Integer.parseInt(time.group(1)) * 60 + Integer.parseInt(time.group(2)));
-                value = value.substring(time.end()).strip();
+            Lead lead = leadTime(value);
+            if (lead != null) {
+                item.put("at", lead.seconds());
+                value = value.substring(lead.end()).strip();
             } else {
                 item.putNull("at");
             }
@@ -292,7 +289,7 @@ final class PurposeLoop {
     static final List<String[]> CELLS = List.of(new String[] {"누구", "who"}, new String[] {"직전 상황", "before"},
             new String[] {"관계", "relation"}, new String[] {"바라는 것", "want"}, new String[] {"막는 것", "obstacle"},
             new String[] {"하는 일", "action"});
-    private static final Pattern SOURCE = Pattern.compile("\\s*[(（]\\s*(내 말|대본|같이 찾음|영상)\\s*[)）]\\s*$");
+    private static final List<String> SOURCES = List.of("내 말", "대본", "같이 찾음", "영상");
 
     /** 인물 카드: 「누구: 상처 줄까 봐 망설이는 사람 (내 말)」 같은 줄. 빈 칸·없음·모름은 빠진다. */
     static ObjectNode characterCard(String body) {
@@ -301,12 +298,9 @@ final class PurposeLoop {
         for (String[] cell : CELLS) {
             String value = DirectVideoPracticeLoop.statusField(body, cell[0]);
             if (value.isBlank() || value.startsWith("없음") || value.startsWith("모름") || value.startsWith("빈 칸")) continue;
-            String source = "같이 찾음";
-            Matcher m = SOURCE.matcher(value);
-            if (m.find()) {
-                source = m.group(1);
-                value = value.substring(0, m.start()).strip();
-            }
+            String[] split = splitSource(value);
+            value = split[0];
+            String source = split[1];
             if (value.isBlank()) continue;
             ObjectNode item = cells.addObject();
             item.put("key", cell[1]);
@@ -335,7 +329,7 @@ final class PurposeLoop {
 
     private static String part(String[] parts, int index) {
         if (index >= parts.length) return "";
-        String value = parts[index].strip().replaceAll("^\\[|\\]$", "").strip();
+        String value = unbracket(parts[index]);
         return value.startsWith("모름") || value.startsWith("없음") || value.startsWith("알 수 없") ? "" : value;
     }
 
@@ -354,7 +348,75 @@ final class PurposeLoop {
     }
 
     private static String withoutTime(String label) {
-        return LEAD_TIME.matcher(label).replaceFirst("").strip();
+        Lead lead = leadTime(label);
+        return (lead == null ? label : label.substring(lead.end())).strip();
+    }
+
+    /** 줄 머리 영상 시간의 초와 그 뒤 위치. */
+    record Lead(int seconds, int end) { }
+
+    /**
+     * 줄 머리의 영상 시간("0:12", "[0:12]", "(1:05)", "0:11-0:35")을 읽는다. 구간이면 시작 시간만 쓴다. 없으면 {@code null}.
+     * 정규식 대신 앞에서부터 한 번만 읽는다(되짚기 없음).
+     */
+    static Lead leadTime(String text) {
+        if (text == null) return null;
+        int i = spaces(text, 0);
+        if (i < text.length() && (text.charAt(i) == '[' || text.charAt(i) == '(')) i = spaces(text, i + 1);
+        int[] first = clock(text, i);
+        if (first == null) return null;
+        i = first[1];
+        int dash = spaces(text, i);
+        if (dash < text.length() && "-~–".indexOf(text.charAt(dash)) >= 0) {
+            int[] second = clock(text, spaces(text, dash + 1));
+            if (second != null) i = second[1];
+        }
+        i = spaces(text, i);
+        if (i < text.length() && (text.charAt(i) == ']' || text.charAt(i) == ')')) i++;
+        return new Lead(first[0], spaces(text, i));
+    }
+
+    /** {@code at} 부터 "m:ss"·"mm:ss" 를 읽는다: {초, 끝 위치}. 없으면 {@code null}. */
+    private static int[] clock(String text, int at) {
+        int i = at;
+        int minutes = 0;
+        while (i < text.length() && i - at < 2 && digit(text.charAt(i))) minutes = minutes * 10 + (text.charAt(i++) - '0');
+        if (i == at || i + 2 >= text.length() || text.charAt(i) != ':') return null;
+        if (!digit(text.charAt(i + 1)) || !digit(text.charAt(i + 2))) return null;
+        int end = i + 3;
+        if (end < text.length() && digit(text.charAt(end))) return null;
+        return new int[] {minutes * 60 + (text.charAt(i + 1) - '0') * 10 + (text.charAt(i + 2) - '0'), end};
+    }
+
+    private static boolean digit(char c) {
+        return c >= '0' && c <= '9';
+    }
+
+    private static int spaces(String text, int at) {
+        int i = at;
+        while (i < text.length() && Character.isWhitespace(text.charAt(i))) i++;
+        return i;
+    }
+
+    /** "한 구절 (내 말)" → {한 구절, 내 말}. 출처가 없거나 모르는 말이면 {그대로, 같이 찾음}. */
+    static String[] splitSource(String value) {
+        String text = value.strip();
+        if (text.endsWith(")") || text.endsWith("）")) {
+            int open = Math.max(text.lastIndexOf('('), text.lastIndexOf('（'));
+            if (open >= 0) {
+                String inner = text.substring(open + 1, text.length() - 1).strip();
+                if (SOURCES.contains(inner)) return new String[] {text.substring(0, open).strip(), inner};
+            }
+        }
+        return new String[] {text, "같이 찾음"};
+    }
+
+    /** 양식의 대괄호를 남겼으면 벗긴다. */
+    private static String unbracket(String value) {
+        String text = value.strip();
+        if (text.startsWith("[")) text = text.substring(1);
+        if (text.endsWith("]")) text = text.substring(0, text.length() - 1);
+        return text.strip();
     }
 
     // ---- 상태 ----

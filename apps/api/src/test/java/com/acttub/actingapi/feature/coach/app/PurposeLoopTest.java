@@ -207,6 +207,18 @@ class PurposeLoopTest {
         assertThat(wrapped.path("next").path("text").asText()).isEqualTo("매달려 봐도 좋아요");
     }
 
+    @Test void leadingTimesAreReadWithoutARegex() {
+        assertThat(PurposeLoop.leadTime("0:12 \"취소해\"")).isEqualTo(new PurposeLoop.Lead(12, 5));
+        assertThat(PurposeLoop.leadTime(" [1:05] 돌아서는 곳").seconds()).isEqualTo(65);
+        assertThat(PurposeLoop.leadTime("0:11-0:35 손이 많아요").end()).isEqualTo("0:11-0:35 ".length());
+        assertThat(PurposeLoop.leadTime("12:345 아님")).isNull();
+        assertThat(PurposeLoop.leadTime("붙잡고 싶었어요")).isNull();
+        assertThat(PurposeLoop.leadTime("3:4")).isNull();
+        assertThat(PurposeLoop.splitSource("엄마가 먼저 알아채 주기 （같이 찾음）")).containsExactly("엄마가 먼저 알아채 주기", "같이 찾음");
+        assertThat(PurposeLoop.splitSource("말을 돌려 떠보기 (내 말)")).containsExactly("말을 돌려 떠보기", "내 말");
+        assertThat(PurposeLoop.splitSource("망설이는 사람 (아마도)")).containsExactly("망설이는 사람 (아마도)", "같이 찾음");
+    }
+
     @Test void stepAnswersAreKeptForTheNextReply() {
         ObjectNode state = StructuredJson.MAPPER.createObjectNode();
         PurposeLoop.rememberAnswer(state, "reason", "  감정이  안 따라와요 ");
