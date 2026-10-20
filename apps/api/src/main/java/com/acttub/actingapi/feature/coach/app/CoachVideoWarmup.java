@@ -25,10 +25,17 @@ public final class CoachVideoWarmup implements DirectVideoWarmup {
     static final Duration PROCESSING = Duration.ofSeconds(180);
     private final DirectVideoModel model;
     private final CoachVideoCache cache;
+    private final Duration processing;
 
     public CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache) {
+        this(model, cache, PROCESSING);
+    }
+
+    /** Test-only: 처리 대기 한도를 줄여 본다. */
+    CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache, Duration processing) {
         this.model = model;
         this.cache = cache == null ? CoachVideoCache.NONE : cache;
+        this.processing = processing;
     }
 
     @Override
@@ -39,15 +46,17 @@ public final class CoachVideoWarmup implements DirectVideoWarmup {
         String mimeType = context.mimeType() == null || context.mimeType().isBlank() ? "video/mp4" : context.mimeType();
         String label = cache.label(key);
         // 분석 작업은 이 호출이 끝나면 원본 임시 파일을 지운다 — 뒤에서 쓸 사본을 지금 만든다.
-        Path copy;
+        Path made = null;
         try {
-            copy = Files.createTempFile("coach-warm-", ".video");
-            Files.copy(file, copy, StandardCopyOption.REPLACE_EXISTING);
+            // 분석 작업의 임시 파일과 같은 폴더에 둔다.
+            made = Files.createTempFile(file.toAbsolutePath().getParent(), "coach-warm-", ".video");
+            Files.copy(file, made, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException failure) {
+            if (made != null) deleteQuietly(made);
             throw new UncheckedIOException(failure);
         }
-        boolean started = cache.warm(key, () -> prepare(copy, mimeType, label));
-        if (!started) deleteQuietly(copy);
+        Path copy = made;
+        if (!cache.warm(key, () -> prepare(copy, mimeType, label))) deleteQuietly(copy);
     }
 
     private CoachVideoCache.Prepared prepare(Path copy, String mimeType, String label) {
@@ -61,7 +70,7 @@ public final class CoachVideoWarmup implements DirectVideoWarmup {
             uploaded = label != null ? model.upload(copy, mimeType, inspection, label)
                     : inspection == null || inspection.hasAudioTrack() == null
                     ? model.upload(copy, mimeType) : model.upload(copy, mimeType, inspection);
-            long deadline = System.nanoTime() + PROCESSING.toNanos();
+            long deadline = System.nanoTime() + processing.toNanos();
             while (!model.ready(uploaded)) {
                 if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
                 Thread.sleep(500);

@@ -1,13 +1,10 @@
 package com.acttub.actingapi.feature.coach.app;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -199,15 +196,9 @@ public final class CoachVideoCache implements AutoCloseable {
             return null;
         }
         try {
-            long millis = wait == null || wait.isNegative() ? 0 : wait.toMillis();
-            return warm.result().get(millis, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException slow) {
-            discard(warm);
-            return null;
-        } catch (ExecutionException failed) {
-            return null;
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
+            return warm.result().get(wait == null || wait.isNegative() ? 0 : wait.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException | ExecutionException | InterruptedException notReady) {
+            if (notReady instanceof InterruptedException) Thread.currentThread().interrupt();
             discard(warm);
             return null;
         }
@@ -299,13 +290,9 @@ public final class CoachVideoCache implements AutoCloseable {
         return LABEL_PREFIX + scope + ":" + practiceId + ":";
     }
 
+    /** 원본 키·etag 의 짧은 지문. 보안용이 아니라 같은 원본인지 가리는 이름표다. */
     private static String fingerprint(String source) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(source.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest, 0, 8);
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException(impossible);
-        }
+        return UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8)).toString().replace("-", "").substring(0, 16);
     }
 
     private boolean expired(Entry entry) {

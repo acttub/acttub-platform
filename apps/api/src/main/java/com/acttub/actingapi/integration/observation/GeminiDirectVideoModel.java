@@ -198,24 +198,19 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         if (after == null || after.isZero() || after.isNegative()) return streamOnce(request, onText, null);
         // 첫 조각이 정한 시간 안에 오지 않으면 같은 요청을 하나 더 열고, 먼저 조각을 낸 쪽만 배우에게 흘린다.
         var race = new StreamRace(onText);
-        CompletableFuture<String> first = CompletableFuture.supplyAsync(() -> streamOnce(request, race.sink(1), race), HEDGE_CALLS);
-        try {
-            if (race.awaitFirstPiece(after) || first.isDone()) return race.finish(first, null);
-            CompletableFuture<String> second = CompletableFuture.supplyAsync(() -> streamOnce(request, race.sink(2), race), HEDGE_CALLS);
-            return race.finish(first, second);
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
-            race.closeAll();
-            throw new IllegalStateException("video coaching stream interrupted", interrupted);
-        }
+        CompletableFuture<String> first = CompletableFuture.supplyAsync(
+                () -> streamOnce(request, race.sink(1), stream -> race.opened(1, stream)), HEDGE_CALLS);
+        CompletableFuture<String> second = race.awaitFirstPiece(after) || first.isDone() ? null
+                : CompletableFuture.supplyAsync(() -> streamOnce(request, race.sink(2), stream -> race.opened(2, stream)), HEDGE_CALLS);
+        return race.finish(first, second);
     }
 
-    /** 스트림 하나를 끝까지 읽는다. {@code race} 가 있으면 열린 스트림을 맡겨, 진 쪽을 닫을 수 있게 한다. */
-    private String streamOnce(Request request, Consumer<String> onText, StreamRace race) {
+    /** 스트림 하나를 끝까지 읽는다. {@code onOpen} 이 있으면 열린 스트림을 넘겨, 진 쪽을 닫을 수 있게 한다. */
+    private String streamOnce(Request request, Consumer<String> onText, Consumer<AutoCloseable> onOpen) {
         StringBuilder text = new StringBuilder();
         boolean limited = false;
         try (var stream = client.models.generateContentStream(model, request.contents(), request.config())) {
-            if (race != null) race.opened(onText, stream);
+            if (onOpen != null) onOpen.accept(stream);
             for (var chunk : stream) {
                 String piece = chunk.text();
                 if (piece != null && !piece.isEmpty()) {
@@ -230,101 +225,69 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         return text.toString().strip();
     }
 
-    /** 다시 보낸 스트림 둘 중 먼저 조각을 낸 쪽만 배우에게 흘린다. 진 쪽은 다음 조각에서 멈추고 닫힌다. */
+    /** 다시 보낸 스트림 둘 중 먼저 조각을 낸 쪽만 배우에게 흘린다. 진 쪽은 닫고, 남은 조각은 버린다. */
     private static final class StreamRace {
-        private static final class Lost extends RuntimeException {
-            Lost() { super("hedged stream lost the race", null, false, false); }
-        }
         private final Consumer<String> onText;
         private final AtomicInteger winner = new AtomicInteger();
         private final java.util.concurrent.CountDownLatch firstPiece = new java.util.concurrent.CountDownLatch(1);
-        private final java.util.Map<Consumer<String>, AutoCloseable> open = new java.util.concurrent.ConcurrentHashMap<>();
-        private final java.util.Map<Integer, Consumer<String>> sinks = new java.util.concurrent.ConcurrentHashMap<>();
+        private final java.util.Map<Integer, AutoCloseable> open = new java.util.concurrent.ConcurrentHashMap<>();
+        /** 이긴 쪽 번호. 아무도 조각을 내지 못하고 다 끝나면 0. */
+        private final CompletableFuture<Integer> decided = new CompletableFuture<>();
 
         StreamRace(Consumer<String> onText) {
             this.onText = onText;
         }
 
         Consumer<String> sink(int id) {
-            Consumer<String> sink = piece -> {
+            return piece -> {
                 if (winner.compareAndSet(0, id)) {
                     firstPiece.countDown();
-                    closeOthers(id);
+                    decided.complete(id);
+                    open.forEach((other, stream) -> { if (other != id) closeQuietly(open.remove(other)); });
                 }
-                if (winner.get() != id) throw new Lost();
+                if (winner.get() != id) throw new IllegalStateException("hedged stream lost the race");
                 onText.accept(piece);
             };
-            sinks.put(id, sink);
-            return sink;
         }
 
-        void opened(Consumer<String> sink, AutoCloseable stream) {
-            open.put(sink, stream);
-            Integer id = idOf(sink);
+        void opened(int id, AutoCloseable stream) {
+            open.put(id, stream);
             int won = winner.get();
-            if (won != 0 && id != null && won != id) close(sink);
+            if (won != 0 && won != id) closeQuietly(open.remove(id));
         }
 
-        boolean awaitFirstPiece(java.time.Duration after) throws InterruptedException {
-            return firstPiece.await(after.toMillis(), TimeUnit.MILLISECONDS);
+        boolean awaitFirstPiece(java.time.Duration after) {
+            try {
+                return firstPiece.await(after.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return true;
+            }
         }
 
-        /** 이긴 쪽의 답을 돌려준다. 아무도 조각을 내지 못했으면 먼저 실패한 쪽의 오류를 던진다. */
-        String finish(CompletableFuture<String> first, CompletableFuture<String> second) throws InterruptedException {
-            var decided = new CompletableFuture<Integer>();
-            Runnable check = () -> {
-                int won = winner.get();
-                if (won != 0) decided.complete(won);
-                else if (first.isDone() && (second == null || second.isDone())) decided.complete(0);
+        /** 이긴 쪽의 답을 돌려준다. 아무도 조각을 내지 못했으면 성공한 쪽의 답, 둘 다 실패했으면 처음 요청의 오류다. */
+        String finish(CompletableFuture<String> first, CompletableFuture<String> second) {
+            Runnable done = () -> {
+                if (first.isDone() && (second == null || second.isDone())) decided.complete(winner.get());
             };
-            first.whenComplete((value, error) -> check.run());
-            if (second != null) second.whenComplete((value, error) -> check.run());
-            Thread watcher = Thread.ofVirtual().start(() -> {
-                try {
-                    firstPiece.await();
-                    check.run();
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                }
-            });
+            first.whenComplete((value, error) -> done.run());
+            if (second != null) second.whenComplete((value, error) -> done.run());
+            int won = decided.join();
+            CompletableFuture<String> chosen = won == 2 || won == 0 && first.isCompletedExceptionally()
+                    && second != null && !second.isCompletedExceptionally() ? second : first;
             try {
-                int won = decided.get();
-                if (won == 1) return join(first);
-                if (won == 2) return join(second);
-                // 둘 다 조각 없이 끝났다 — 성공한 쪽이 있으면 그 답, 아니면 처음 요청의 오류.
-                if (!first.isCompletedExceptionally()) return join(first);
-                if (second != null && !second.isCompletedExceptionally()) return join(second);
-                return join(first);
-            } catch (ExecutionException impossible) {
-                throw new IllegalStateException(impossible.getCause());
-            } finally {
-                watcher.interrupt();
+                return chosen.join();
+            } catch (CompletionException failed) {
+                throw unwrap(failed);
             }
         }
+    }
 
-        void closeAll() {
-            open.keySet().forEach(this::close);
-        }
-
-        private void closeOthers(int id) {
-            sinks.forEach((other, sink) -> {
-                if (other != id) close(sink);
-            });
-        }
-
-        private Integer idOf(Consumer<String> sink) {
-            for (var entry : sinks.entrySet()) if (entry.getValue() == sink) return entry.getKey();
-            return null;
-        }
-
-        private void close(Consumer<String> sink) {
-            AutoCloseable stream = open.remove(sink);
-            if (stream == null) return;
-            try {
-                stream.close();
-            } catch (Exception ignored) {
-                // 진 쪽 스트림을 닫다 생긴 오류는 이긴 쪽 답과 상관없다.
-            }
+    private static void closeQuietly(AutoCloseable stream) {
+        try {
+            if (stream != null) stream.close();
+        } catch (Exception ignored) {
+            // 진 쪽 스트림을 닫다 생긴 오류는 이긴 쪽 답과 상관없다.
         }
     }
 
@@ -394,12 +357,9 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         } catch (TimeoutException slow) {
             CompletableFuture<T> second = CompletableFuture.supplyAsync(call, HEDGE_CALLS);
             return firstSuccess(first, second);
-        } catch (ExecutionException failed) {
-            throw unwrap(failed.getCause());
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
-            first.cancel(true);
-            throw new IllegalStateException("video coaching call interrupted", interrupted);
+        } catch (ExecutionException | InterruptedException failed) {
+            if (failed instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw unwrap(failed);
         }
     }
 
@@ -410,12 +370,9 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         first.whenComplete((value, error) -> settle(winner, failures, firstError, value, error, true));
         second.whenComplete((value, error) -> settle(winner, failures, firstError, value, error, false));
         try {
-            return winner.get();
-        } catch (ExecutionException failed) {
-            throw unwrap(failed.getCause());
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("video coaching call interrupted", interrupted);
+            return winner.join();
+        } catch (CompletionException failed) {
+            throw unwrap(failed);
         }
     }
 
@@ -430,22 +387,13 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         if (failures.incrementAndGet() == 2) winner.completeExceptionally(firstError.get());
     }
 
-    private static RuntimeException unwrap(Throwable error) {
+    /** 다시 보내기가 감싼 오류를 벗겨, 다시 보내지 않았을 때와 같은 오류를 던지게 한다. */
+    static RuntimeException unwrap(Throwable error) {
         Throwable cause = error;
         while ((cause instanceof CompletionException || cause instanceof ExecutionException) && cause.getCause() != null) {
             cause = cause.getCause();
         }
-        if (cause instanceof RuntimeException runtime) return runtime;
-        if (cause instanceof Error fatal) throw fatal;
-        return new IllegalStateException(cause);
-    }
-
-    private static <T> T join(CompletableFuture<T> future) throws ExecutionException, InterruptedException {
-        try {
-            return future.get();
-        } catch (ExecutionException failed) {
-            throw unwrap(failed.getCause());
-        }
+        return cause instanceof RuntimeException runtime ? runtime : new IllegalStateException(cause);
     }
 
     private static boolean outputLimitReached(com.google.genai.types.GenerateContentResponse response) {

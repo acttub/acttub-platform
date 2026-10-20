@@ -178,16 +178,17 @@ public final class DirectVideoCoach {
                 }
             }
             videoReused = uploaded != null;
-            if (!videoReused) {
-                boolean blocked = inspection != null && (inspection.unusableAudio() || inspection.emptyInput());
-                if (!blocked) {
-                    local = Files.createTempFile("coach-original-", ".video");
-                    var metadata = storage.downloadToPath(source.objectKey(), local);
-                    if (source.etag() != null && !source.etag().isBlank()
-                            && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
-                        throw new IllegalStateException("original video changed after upload");
-                    }
+            // 미리 준비의 소리 검사에서 막혔으면 내려받지 않고 아래에서 바로 안내한다.
+            boolean blocked = inspection != null && (inspection.unusableAudio() || inspection.emptyInput());
+            if (!videoReused && !blocked) {
+                local = Files.createTempFile("coach-original-", ".video");
+                var metadata = storage.downloadToPath(source.objectKey(), local);
+                if (source.etag() != null && !source.etag().isBlank()
+                        && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
+                    throw new IllegalStateException("original video changed after upload");
                 }
+            }
+            if (!videoReused) {
                 if (firstLoop) {
                     if (inspection == null) {
                         inspecting = true;

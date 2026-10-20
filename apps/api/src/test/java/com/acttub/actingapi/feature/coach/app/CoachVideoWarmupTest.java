@@ -114,4 +114,57 @@ class CoachVideoWarmupTest {
         new CoachVideoWarmup(model, CoachVideoCache.NONE).warm(context(UUID.randomUUID()), original());
         verifyNoInteractions(model);
     }
+
+    @Test void missingFactsMeanNoWarmupAndABlankTypeIsTreatedAsMp4() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        var warmup = new CoachVideoWarmup(model, cache);
+        warmup.warm(new AnalysisContext(UUID.randomUUID(), UUID.randomUUID(), null, "video/mp4", "e", 8000,
+                "", "", "", "그 외", "", "three_layers_v1", UUID.randomUUID()), original());
+        warmup.warm(null, original());
+        warmup.warm(context(UUID.randomUUID()), null);
+        verifyNoInteractions(model);
+
+        when(model.inspect(any())).thenReturn(null);
+        when(model.upload(any(), eq("video/mp4"))).thenReturn(file);
+        when(model.ready(file)).thenReturn(true);
+        UUID practice = UUID.randomUUID();
+        warmup.warm(new AnalysisContext(UUID.randomUUID(), practice, "owned/video.mp4", " ", "etag", 8000,
+                "", "", "", "그 외", "", "three_layers_v1", UUID.randomUUID()), original());
+        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5)).video()).isEqualTo(file);
+        cache.close();
+    }
+
+    @Test void anUnreadableAnalysisFileIsAnErrorTheAnalysisIgnores() {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        assertThatThrownBy(() -> new CoachVideoWarmup(model, cache).warm(context(UUID.randomUUID()),
+                Path.of(System.getProperty("java.io.tmpdir"), "no-such-analysis-" + UUID.randomUUID() + ".mp4")))
+                .isInstanceOf(java.io.UncheckedIOException.class);
+        assertThat(cache.warmingSize()).isZero();
+        cache.close();
+    }
+
+    @Test void processingThatNeverFinishesTimesOutAndDeletesTheUpload() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        when(model.inspect(any())).thenReturn(null);
+        when(model.upload(any(), eq("video/mp4"))).thenReturn(file);
+        when(model.ready(file)).thenReturn(false);
+        doThrow(new IllegalStateException("delete failed")).when(model).delete(file);
+        UUID practice = UUID.randomUUID();
+        new CoachVideoWarmup(model, cache, Duration.ofMillis(600)).warm(context(practice), original());
+        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5))).isNull();
+        verify(model).delete(file);
+        assertThat(failures.contexts()).contains("CoachVideoCache.warm");
+        cache.close();
+    }
+
+    @Test void aFailedInspectionUploadsNothingAndHasNothingToDelete() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        when(model.inspect(any())).thenThrow(new IllegalStateException("audio decoder failed"));
+        UUID practice = UUID.randomUUID();
+        new CoachVideoWarmup(model, cache, Duration.ofSeconds(5)).warm(context(practice), original());
+        assertThat(cache.claimWarm(key(practice), Duration.ofSeconds(5))).isNull();
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).delete(any());
+        cache.close();
+    }
 }

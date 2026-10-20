@@ -240,4 +240,54 @@ class GeminiDirectVideoHedgeTest {
             throw new IllegalStateException(impossible);
         }
     }
+
+    @Test
+    void streamsThatNeverWriteAnythingEndAsAnEmptyReply() {
+        handler.set((call, exchange) -> {
+            if (call == 1) Thread.sleep(500);
+            sse(exchange, chunk("", "STOP"));
+        });
+        assertThatThrownBy(() -> hedged(0, 0, 200).replyStream(VIDEO, HISTORY, "지침", piece -> { }))
+                .hasMessage("empty video coaching reply");
+        assertThat(calls.get()).isEqualTo(2);
+    }
+
+    @Test
+    void aRequestThatFailsBeforeTheDeadlineIsNotSentAgain() {
+        handler.set((call, exchange) -> {
+            byte[] bytes = "{\"error\":{\"code\":400,\"message\":\"bad-request\",\"status\":\"INVALID_ARGUMENT\"}}"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(400, bytes.length);
+            exchange.getResponseBody().write(bytes);
+        });
+        assertThatThrownBy(() -> hedged(2000, 2000, 0).classify(HISTORY, "지침", List.of("answered")))
+                .hasMessageContaining("bad-request");
+        assertThat(calls.get()).isEqualTo(1);
+        assertThat(new GeminiDirectVideoModel(client, "gemini-3-flash-preview").withHedge(null).labeled(" ")).isEmpty();
+        assertThat(calls.get()).as("빈 접두어는 목록을 부르지 않는다").isEqualTo(1);
+    }
+
+    @Test
+    void labelsWithoutAnAudioMarkAndFilesWithoutAnAddressAreHandled() {
+        handler.set((call, exchange) -> json(exchange, """
+                {"files":[
+                 {"name":"files/a","displayName":"acttub-coach:prod:p2:old","uri":"https://files.test/a","mimeType":"video/mp4","state":"ACTIVE"},
+                 {"name":"files/b","displayName":"acttub-coach:prod:p2:nouri","mimeType":"video/mp4","state":"ACTIVE"}
+                ]}"""));
+        var found = new GeminiDirectVideoModel(client, "gemini-3-flash-preview").labeled("acttub-coach:prod:p2:");
+        assertThat(found).singleElement().satisfies(file -> {
+            assertThat(file.label()).isEqualTo("acttub-coach:prod:p2:old");
+            assertThat(file.video().hasAudioTrack()).isNull();
+            assertThat(file.created()).isNull();
+        });
+    }
+
+    @Test
+    void unwrapKeepsRuntimeErrorsAndWrapsCheckedOnes() {
+        var runtime = new IllegalArgumentException("x");
+        assertThat(GeminiDirectVideoModel.unwrap(new java.util.concurrent.CompletionException(runtime))).isSameAs(runtime);
+        assertThat(GeminiDirectVideoModel.unwrap(new java.io.IOException("io"))).isInstanceOf(IllegalStateException.class)
+                .hasCauseInstanceOf(java.io.IOException.class);
+    }
 }

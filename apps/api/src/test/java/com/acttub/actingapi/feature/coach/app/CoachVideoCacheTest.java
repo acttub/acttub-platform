@@ -344,4 +344,96 @@ class CoachVideoCacheTest {
         assertThat(failures.contexts()).contains("CoachVideoCache.remote");
         cache.close();
     }
+
+    // --- SOMA-780: 가장자리 ---
+
+    @Test void aPreparationThatTakesTooLongIsDroppedAndDeletedWhenItFinishes() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        var key = new CoachVideoCache.Key(UUID.randomUUID(), "k", "e");
+        var release = new java.util.concurrent.CountDownLatch(1);
+        cache.warm(key, () -> {
+            try {
+                release.await();
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            return new CoachVideoCache.Prepared(null, file);
+        });
+        assertThat(cache.claimWarm(key, Duration.ofMillis(100))).isNull();
+        verify(model, never()).delete(any());
+        release.countDown();
+        verify(model, timeout(2000)).delete(file);
+        assertThat(cache.claimWarm(key, Duration.ofSeconds(1))).as("한 번 가져간 준비는 다시 없다").isNull();
+        cache.close();
+    }
+
+    @Test void closingOrRestartingAPreparationDiscardsTheEarlierOne() {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        UUID practice = UUID.randomUUID();
+        var key = new CoachVideoCache.Key(practice, "k", "e");
+        cache.warm(key, () -> new CoachVideoCache.Prepared(null, file));
+        cache.warm(key, () -> new CoachVideoCache.Prepared(null, other));
+        verify(model, timeout(2000)).delete(file);
+        assertThat(cache.forget(practice)).isNull();
+        verify(model, timeout(2000)).delete(other);
+        assertThat(cache.warmingSize()).isZero();
+        cache.close();
+    }
+
+    @Test void serverShutdownWithoutLabelsDeletesUnclaimedPreparations() {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        cache.warm(new CoachVideoCache.Key(UUID.randomUUID(), "k", null), () -> new CoachVideoCache.Prepared(null, file));
+        cache.close();
+        verify(model, timeout(2000)).delete(file);
+        assertThat(new CoachVideoCache.Key(UUID.randomUUID(), "k", null).etag()).isNull();
+    }
+
+    @Test void withoutLabelsAMissNeverAsksGemini() {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        assertThat(cache.take(new CoachVideoCache.Key(UUID.randomUUID(), "k", "e"))).isNull();
+        assertThat(cache.claimWarm(new CoachVideoCache.Key(UUID.randomUUID(), "k", "e"), Duration.ofSeconds(1))).isNull();
+        cache.sweepOrphans();
+        verify(model, never()).labeled(anyString());
+        cache.close();
+    }
+
+    @Test void remoteLookupTakesOnlyTheExactLabelAndTheNewestFile() {
+        var cache = scoped();
+        var key = new CoachVideoCache.Key(UUID.randomUUID(), "k", "e");
+        String label = cache.label(key);
+        when(model.labeled(label)).thenReturn(List.of(new DirectVideoModel.Labeled(other, label + "x", clock.instant())));
+        assertThat(cache.take(key)).as("이름표가 정확히 같아야 한다").isNull();
+        var older = new DirectVideoModel.Video("files/older", "gemini://older", "video/mp4", true);
+        when(model.labeled(label)).thenReturn(List.of(
+                new DirectVideoModel.Labeled(older, label, clock.instant().minus(Duration.ofMinutes(5))),
+                new DirectVideoModel.Labeled(file, label, clock.instant()),
+                new DirectVideoModel.Labeled(other, label, null)));
+        assertThat(cache.take(key)).isEqualTo(file);
+        cache.close();
+    }
+
+    @Test void orphanSweepKeepsAFinishedPreparationNobodyClaimedYet() throws Exception {
+        var cache = scoped();
+        UUID practice = UUID.randomUUID();
+        var done = new java.util.concurrent.CountDownLatch(1);
+        cache.warm(new CoachVideoCache.Key(practice, "k", "e"), () -> {
+            done.countDown();
+            return new CoachVideoCache.Prepared(null, file);
+        });
+        assertThat(done.await(2, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(100);
+        when(model.labeled("acttub-coach:prod:")).thenReturn(List.of(
+                new DirectVideoModel.Labeled(file, "acttub-coach:prod:" + practice + ":x", clock.instant().minus(Duration.ofHours(2)))));
+        cache.sweepOrphans();
+        verify(model, never()).delete(file);
+        cache.close();
+    }
+
+    @Test void remoteListingFailuresAreReportedNotThrown() {
+        var cache = scoped();
+        when(model.labeled(anyString())).thenThrow(new IllegalStateException("list failed"));
+        cache.sweepOrphans();
+        assertThat(failures.contexts()).contains("CoachVideoCache.deleteRemote");
+        cache.close();
+    }
 }
