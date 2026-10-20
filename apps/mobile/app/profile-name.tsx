@@ -2,13 +2,16 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, BackHandler, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AccountStatus } from '@/components/ui/account-status';
-import { OptionRow } from '@/components/ui/account-rows';
-import { OnboardingAsk, OnboardingStepHeader } from '@/components/ui/account-onboarding';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
+import { MascotBubble } from '@/components/ui/mascot-bubble';
+import { SelectRow } from '@/components/ui/option-card';
+import { StatusScreen } from '@/components/ui/status-screen';
+import { ProgressHeader } from '@/components/ui/step-header';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { logEvent } from '@/lib/analytics';
@@ -51,8 +54,6 @@ import {
 } from '@/lib/profile-form';
 import { readAttributedChannel, recordSignupCompleted } from '@/lib/signup-attribution-runtime';
 
-const MASCOT_HELLO = require('@/assets/images/mascot-home.png');
-const MASCOT_COACH = require('@/assets/images/mascot-coach.png');
 
 type Screen = 'intro' | OnboardingStep | 'blocked';
 /** pen ①-3 순서 — 남성 · 여성 · 선택 안 함. 값은 서버 그대로(GENDER_VALUES). */
@@ -182,9 +183,7 @@ export default function ProfileNameScreen() {
           {profile.status === 'error' ? (
             <>
               <Text style={styles.error}>{t('profileName.loadFail')}</Text>
-              <Pressable style={styles.reload} onPress={() => void reloadProfile()} accessibilityRole="button">
-                <Text style={styles.reloadText}>{t('profileName.reload')}</Text>
-              </Pressable>
+              <PrimaryButton label={t('profileName.reload')} onPress={() => void reloadProfile()} style={styles.reload} />
             </>
           ) : (
             <ActivityIndicator color={palette.blue} />
@@ -200,7 +199,7 @@ export default function ProfileNameScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.introCenter}>
-          <Image source={MASCOT_HELLO} style={styles.introMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT.home} style={MASCOT_SIZE.hero} contentFit="contain" accessibilityIgnoresInvertColors />
           <Text style={styles.introTitle}>{t('profileName.introTitle')}</Text>
           <Text style={styles.introBody}>{t('profileName.introBody', { count: steps.length })}</Text>
           <View style={styles.introBadge}>
@@ -208,9 +207,9 @@ export default function ProfileNameScreen() {
             <Text style={styles.introBadgeText}>{t('profileName.introBadge')}</Text>
           </View>
         </View>
-        <View style={styles.bottom}>
+        <CtaBar safeBottom={false}>
           <PrimaryButton label={t('profileName.introCta')} onPress={() => setScreen(steps[0])} />
-        </View>
+        </CtaBar>
       </SafeAreaView>
     );
   }
@@ -220,16 +219,13 @@ export default function ProfileNameScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.plainHeader}>
-          <Pressable onPress={goBack} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.back')}>
-            <Feather name="chevron-left" size={26} color={palette.text} />
-          </Pressable>
-        </View>
-        <AccountStatus
-          mascot={MASCOT_COACH}
+        <StatusScreen
+          size="large"
+          onBack={goBack}
+          mascot={MASCOT.coach}
           title={t('profileName.blockedTitle')}
           body={t('profileName.blockedBody')}
-          actions={<PrimaryButton label={t('common.confirm')} onPress={() => void signOut()} />}
+          primary={{ label: t('common.confirm'), onPress: () => void signOut() }}
         />
       </SafeAreaView>
     );
@@ -256,7 +252,7 @@ export default function ProfileNameScreen() {
     case 'name':
       body = (
         <>
-          <OnboardingAsk title={t('profileName.askName')} hint={t('profileName.askNameHint')} />
+          <MascotBubble title={t('profileName.askName')} guide={t('profileName.askNameHint')} />
           <Text style={styles.label}>{t('profileName.nicknameLabel')}</Text>
           <TextInput
             style={styles.input}
@@ -277,7 +273,7 @@ export default function ProfileNameScreen() {
     case 'birth':
       body = (
         <>
-          <OnboardingAsk title={t('profileName.askBirth', { name })} hint={t('profileName.askBirthHint')} />
+          <MascotBubble title={t('profileName.askBirth', { name })} guide={t('profileName.askBirthHint')} />
           <Text style={styles.label}>{t('profileName.birthLabel')}</Text>
           <TextInput
             style={styles.input}
@@ -303,9 +299,9 @@ export default function ProfileNameScreen() {
     case 'gender':
       body = (
         <>
-          <OnboardingAsk title={t('profileName.askGender', { name })} hint={t('profileName.askGenderHint')} />
+          <MascotBubble title={t('profileName.askGender', { name })} guide={t('profileName.askGenderHint')} />
           {GENDER_ORDER.map((gender) => (
-            <OptionRow
+            <SelectRow
               key={gender}
               label={t(GENDER_LABEL_KEYS[gender])}
               selected={form.gender === gender}
@@ -326,9 +322,9 @@ export default function ProfileNameScreen() {
     case 'goal':
       body = (
         <>
-          <OnboardingAsk title={t('profileName.askGoal', { name })} />
+          <MascotBubble title={t('profileName.askGoal', { name })} />
           {GOAL_VALUES.map((goal, i) => (
-            <OptionRow
+            <SelectRow
               key={goal}
               label={goals[i] ?? goal}
               selected={form.goal === goal}
@@ -342,9 +338,9 @@ export default function ProfileNameScreen() {
     case 'career':
       body = (
         <>
-          <OnboardingAsk title={t('profileName.askCareer', { name })} />
+          <MascotBubble title={t('profileName.askCareer', { name })} />
           {EXPERIENCE_VALUES.map((experience, i) => (
-            <OptionRow
+            <SelectRow
               key={experience}
               label={careers[i] ?? experience}
               selected={form.experience === experience}
@@ -358,9 +354,9 @@ export default function ProfileNameScreen() {
     case 'directions':
       body = (
         <>
-          <OnboardingAsk title={t('profileName.askDirections', { name })} hint={t('profileName.askDirectionsHint')} />
+          <MascotBubble title={t('profileName.askDirections', { name })} guide={t('profileName.askDirectionsHint')} />
           {DIRECTION_VALUES.map((direction) => (
-            <OptionRow
+            <SelectRow
               key={direction}
               label={t(DIRECTION_LABEL_KEYS[direction])}
               multi
@@ -381,9 +377,9 @@ export default function ProfileNameScreen() {
     case 'discovery':
       body = (
         <>
-          <OnboardingAsk title={t('profileName.askDiscovery', { name })} hint={t('profileName.askDiscoveryHint')} />
+          <MascotBubble title={t('profileName.askDiscovery', { name })} guide={t('profileName.askDiscoveryHint')} />
           {discoverySources.map((source) => (
-            <OptionRow
+            <SelectRow
               key={source}
               label={t(`profileName.discoverySources.${source}`)}
               selected={discovery.source === source}
@@ -411,16 +407,14 @@ export default function ProfileNameScreen() {
             loading={busy}
           />
           {/* 건너뛰면 고르지 않은 것으로 적는다(source=null). */}
-          <Pressable
-            style={styles.skipText2Wrap}
+          <SecondaryButton
+            label={t('profileName.skip')}
             onPress={() => {
               setDiscovery(EMPTY_DISCOVERY);
               advance('discovery', undefined, EMPTY_DISCOVERY);
             }}
             disabled={busy}
-            accessibilityRole="button">
-            <Text style={styles.skipText2}>{t('profileName.skip')}</Text>
-          </Pressable>
+          />
         </>
       );
       break;
@@ -429,13 +423,13 @@ export default function ProfileNameScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={keyboardHeight > 0 ? ['top'] : ['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <OnboardingStepHeader step={index} total={steps.length} onBack={goBack} />
+      <ProgressHeader step={index} total={steps.length} onBack={goBack} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {body}
           {error && <Text style={styles.error}>{error}</Text>}
         </ScrollView>
-        <View style={styles.bottom}>{footer}</View>
+        <CtaBar safeBottom={false}>{footer}</CtaBar>
       </View>
     </SafeAreaView>
   );
@@ -445,12 +439,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  reload: { paddingHorizontal: 16, paddingVertical: 8 },
-  reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
-  plainHeader: { height: 52, justifyContent: 'center', paddingHorizontal: 14 },
+  reload: { alignSelf: 'stretch' },
 
   introCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 24 },
-  introMascot: { width: 150, height: 168 },
   introTitle: { fontSize: 28, fontWeight: '900', lineHeight: 38, color: palette.text, textAlign: 'center' },
   introBody: { fontSize: 17, fontWeight: '500', lineHeight: 26, color: palette.textDim, textAlign: 'center' },
   introBadge: {
@@ -476,8 +467,5 @@ const styles = StyleSheet.create({
   },
   fieldError: { marginTop: 8, fontSize: 13, color: palette.danger },
   error: { marginTop: 12, color: palette.danger, fontSize: 13 },
-  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, gap: 10 },
   tapHint: { fontSize: 13, fontWeight: '700', lineHeight: 20, color: palette.blueDeep, textAlign: 'center' },
-  skipText2Wrap: { alignItems: 'center', paddingVertical: 6 },
-  skipText2: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
 });

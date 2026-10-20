@@ -4,7 +4,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
-import { EntryRow } from '@/components/ui/entry-row';
+import { IconOptionRow } from '@/components/ui/option-card';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -100,8 +100,8 @@ export default function CoachingTab() {
             <PrimaryButton label={t('coachingTab.again')} onPress={again} />
           </View>
           <Text style={styles.sectionLabel}>{t('coachingTab.others')}</Text>
-          <EntryRow icon="video" title={t('coachingTab.newVideo')} sub={t('coachingTab.newVideoSub')} onPress={startNew} />
-          <EntryRow icon="clock" title={t('coachingTab.history')} sub={t('coachingTab.historySub')} onPress={() => router.push('/history')} />
+          <IconOptionRow flush icon="video" title={t('coachingTab.newVideo')} sub={t('coachingTab.newVideoSub')} onPress={startNew} />
+          <IconOptionRow flush icon="clock" title={t('coachingTab.history')} sub={t('coachingTab.historySub')} onPress={() => router.push('/history')} />
         </ScrollView>
       )}
     </SafeAreaView>

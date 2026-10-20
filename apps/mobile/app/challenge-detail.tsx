@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -181,18 +182,33 @@ export default function ChallengeDetailScreen() {
           headerRight: () => (
             <View style={styles.headerRight}>
               {challenge && !canDelete(challenge) && (
-                <Pressable onPress={() => setReportOpen(true)} accessibilityRole="button" hitSlop={8}>
-                  <Feather name="flag" size={19} color={palette.textDim} />
-                </Pressable>
+                <NavIconButton
+                  icon="flag"
+                  size={19}
+                  color={palette.textDim}
+                  label={t('challenges.reportA11y')}
+                  phLabel="challenge_detail_report"
+                  onPress={() => setReportOpen(true)}
+                />
               )}
               {challenge && canDelete(challenge) && (
-                <Pressable onPress={() => void remove()} accessibilityRole="button" hitSlop={8}>
-                  <Feather name="trash-2" size={19} color={palette.textDim} />
-                </Pressable>
+                <NavIconButton
+                  icon="trash-2"
+                  size={19}
+                  color={palette.textDim}
+                  label={t('challenges.deleteA11y')}
+                  phLabel="challenge_detail_delete"
+                  onPress={() => void remove()}
+                />
               )}
-              <Pressable onPress={share} accessibilityRole="button" hitSlop={8}>
-                <Feather name="share-2" size={20} color={palette.textDim} />
-              </Pressable>
+              <NavIconButton
+                icon="share-2"
+                size={20}
+                color={palette.textDim}
+                label={t('challenges.shareA11y')}
+                phLabel="challenge_detail_share"
+                onPress={share}
+              />
             </View>
           ),
         }}
@@ -331,7 +347,7 @@ const styles = StyleSheet.create({
   moreText: { color: palette.blue, fontSize: 14, fontWeight: '600' },
   safe: { flex: 1, backgroundColor: palette.bg },
   content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
   lineCard: { backgroundColor: palette.navy, borderRadius: 20, padding: 18, gap: 10 },
   chip: {

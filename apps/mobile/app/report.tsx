@@ -1,12 +1,13 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
 import { NoteSections } from '@/components/note-sections';
 import { ReportRating } from '@/components/report-rating';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { palette } from '@/constants/palette';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -142,12 +143,8 @@ export default function ReportScreen() {
       {error && !note && (
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable style={styles.primary} onPress={() => void loadNote()}>
-            <Text style={styles.primaryText}>{t('common.retry')}</Text>
-          </Pressable>
-          <Pressable style={styles.ghost} onPress={finish}>
-            <Text style={styles.ghostText}>{t('common.goHome')}</Text>
-          </Pressable>
+          <PrimaryButton label={t('common.retry')} onPress={() => void loadNote()} style={styles.stretch} />
+          <SecondaryButton label={t('common.goHome')} onPress={finish} style={styles.stretch} />
         </View>
       )}
 
@@ -182,21 +179,19 @@ export default function ReportScreen() {
                 <Text style={styles.sampleDoneTitle}>{t('tutorial.sampleDone')}</Text>
                 <Text style={styles.sampleDoneBody}>{t('tutorial.sampleDoneBody')}</Text>
                 <View style={styles.buttonRow}>
-                  <Pressable style={styles.primary} onPress={startOwn}>
-                    <Text style={styles.primaryText}>{t('tutorial.ownTitle')}</Text>
-                  </Pressable>
-                  <Pressable style={styles.ghost} onPress={finishSample}>
-                    <Text style={styles.ghostText}>{t('common.goHome')}</Text>
-                  </Pressable>
+                  <PrimaryButton label={t('tutorial.ownTitle')} onPress={startOwn} />
+                  <SecondaryButton label={t('common.goHome')} onPress={finishSample} />
                 </View>
               </View>
-            ) : (
-            <View style={styles.buttonRow}>
+            ) : null}
+          </ScrollView>
+          {/* 저장하고 마치기·다음 테이크는 노트 길이와 상관없이 화면 아래에 붙여 둔다(pen OL9mWG, SOMA-770 피드백 14). */}
+          {!sample && (
+            <CtaBar safeBottom={false}>
               <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
               <SecondaryButton label={t('history.nextTake')} onPress={nextTake} />
-            </View>
-            )}
-          </ScrollView>
+            </CtaBar>
+          )}
         </>
       )}
       {rating.element}
@@ -221,11 +216,10 @@ const styles = StyleSheet.create({
   kind: { fontSize: 12, fontWeight: '800', color: palette.blue },
   sceneSummary: { paddingHorizontal: 20, paddingBottom: 8 },
 
-  body: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 40, gap: 20 },
+  body: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 24, gap: 20 },
   heading: { gap: 8 },
   title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
   fallback: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
-
 
   buttonRow: { gap: 10, marginTop: 8 },
   // 스크롤 본문의 gap(섹션 사이)을 노트 안에서도 그대로 둔다 — 비추려고 한 번 감쌌을 뿐이다.
@@ -240,15 +234,5 @@ const styles = StyleSheet.create({
   },
   sampleDoneTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
   sampleDoneBody: { fontSize: 14, color: palette.textDim, lineHeight: 21, marginBottom: 6 },
-  primary: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontSize: 15, fontWeight: '900', color: palette.bg },
-  ghost: {
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ghostText: { fontSize: 15, fontWeight: '800', color: palette.textDim },
+  stretch: { alignSelf: 'stretch' },
 });

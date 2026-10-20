@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
 import { Markdown } from '@/components/markdown';
-import { BlueSwitch, TwoLineRow } from '@/components/ui/account-rows';
+import { BlueSwitch, TwoLineRow } from '@/components/ui/list-rows';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { consentChangeFailureAction, consentSettingsRows, type ConsentSettingsRow } from '@/lib/consent-entry';

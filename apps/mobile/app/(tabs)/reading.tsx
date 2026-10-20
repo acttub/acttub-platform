@@ -14,7 +14,7 @@ import { currentTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
-import { EntryRow } from '@/components/ui/entry-row';
+import { IconOptionRow } from '@/components/ui/option-card';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
@@ -256,7 +256,7 @@ export default function ReadingList() {
         <View style={styles.entry}>
           <MascotBubble source={MASCOT} title={t('reading.entryBubble')} body={t('reading.entryBubbleSub')} />
           <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
-            <EntryRow icon="upload" title={t('reading.entryUpload')} sub={t('reading.entryUploadSub')} onPress={() => router.push('/reading/new')} />
+            <IconOptionRow flush icon="upload" title={t('reading.entryUpload')} sub={t('reading.entryUploadSub')} onPress={() => router.push('/reading/new')} />
           </View>
         </View>
       ) : (

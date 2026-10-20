@@ -10,7 +10,8 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 
-const MASCOT = require('@/assets/images/mascot-cheer.png');
+// pen 「코칭 마무리」(tEgqC)는 두 팔 든 홈 액티를 쓴다(SOMA-770).
+const MASCOT = require('@/assets/images/mascot-home.png');
 
 /**
  * 코칭 마무리(pen 「새 · 코칭 마무리」, SOMA-748) — 배우 일지에서 「저장하고 마치기」를 누른 뒤 한 번 보인다.

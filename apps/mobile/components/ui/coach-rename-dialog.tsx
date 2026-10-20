@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
+import { DialogButtons } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 
 /**
@@ -72,14 +73,13 @@ export function RenameDialog({
             onSubmitEditing={() => void save()}
           />
           <Text style={[styles.hint, failed && styles.fail]}>{failed ? failText : hint}</Text>
-          <View style={styles.buttons}>
-            <Pressable style={[styles.button, styles.cancel]} disabled={busy} onPress={onClose} accessibilityRole="button">
-              <Text style={styles.cancelText}>{cancelLabel}</Text>
-            </Pressable>
-            <Pressable style={[styles.button, styles.save]} disabled={busy} onPress={() => void save()} accessibilityRole="button">
-              {busy ? <ActivityIndicator color={palette.onAccent} /> : <Text style={styles.saveText}>{saveLabel}</Text>}
-            </Pressable>
-          </View>
+          <DialogButtons
+            cancelLabel={cancelLabel}
+            onCancel={onClose}
+            confirmLabel={saveLabel}
+            onConfirm={() => void save()}
+            busy={busy}
+          />
         </Pressable>
       </Pressable>
     </Modal>
@@ -104,10 +104,4 @@ const styles = StyleSheet.create({
   inputBad: { borderColor: palette.danger },
   hint: { fontSize: 13, fontWeight: '600', color: palette.textMuted },
   fail: { color: palette.danger },
-  buttons: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  button: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  cancel: { backgroundColor: palette.bgSoft },
-  cancelText: { fontSize: 16, fontWeight: '700', color: palette.textDim },
-  save: { backgroundColor: palette.blue },
-  saveText: { fontSize: 16, fontWeight: '700', color: palette.onAccent },
 });
