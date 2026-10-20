@@ -22,8 +22,11 @@ class VideoConfiguration {
 
     @Bean
     VideoService videoService(
-            VideoRepository videos, VideoStorage storage, VideoObjectCleanup cleanup, Clock clock) {
-        return new VideoService(videos, storage, cleanup, clock);
+            VideoRepository videos, VideoStorage storage, VideoObjectCleanup cleanup, Clock clock,
+            // 올리기가 끝나면 코칭이 첫 질문용 영상을 미리 준비한다(SOMA-780). 코칭이 꺼져 있으면 없다.
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.video.app.VideoUploadWarmup> warmup) {
+        return new VideoService(videos, storage, cleanup, clock,
+                warmup.getIfAvailable(() -> com.acttub.actingapi.feature.video.app.VideoUploadWarmup.NONE));
     }
 
     @Bean

@@ -1,5 +1,8 @@
 package com.acttub.actingapi.feature.video.app;
 
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -99,5 +102,27 @@ class VideoServiceOutcomeTest {
         VideoView purged = video("videos/u/r.poster.jpg", clock.instant());
         when(videos.find(user, id)).thenReturn(purged);
         assertThat(service.find(user, id)).isEqualTo(purged);
+    }
+
+    // --- SOMA-780: 올리기가 끝나면 코칭이 첫 질문용 영상을 미리 준비한다 ---
+
+    @Test void aNewUploadStartsTheCoachPreparationButAReplayDoesNot() {
+        VideoUploadWarmup warmup = mock(VideoUploadWarmup.class);
+        VideoService warming = new VideoService(videos, storage, cleanup, clock, warmup);
+        completesWith(CompleteOutcome.CREATED, video(null, null));
+        assertThat(warming.completeIntent(user, false, intent).created()).isTrue();
+        verify(warmup).uploaded("videos/u/r.mp4", "etag", "video/mp4");
+
+        completesWith(CompleteOutcome.REPLAYED, video(null, null));
+        assertThat(warming.completeIntent(user, false, intent).created()).isFalse();
+        verify(warmup, times(1)).uploaded(any(), any(), any());
+    }
+
+    @Test void aFailingPreparationDoesNotBreakTheUpload() {
+        VideoUploadWarmup warmup = mock(VideoUploadWarmup.class);
+        doThrow(new IllegalStateException("gemini down")).when(warmup).uploaded(any(), any(), any());
+        completesWith(CompleteOutcome.CREATED, video(null, null));
+        assertThat(new VideoService(videos, storage, cleanup, clock, warmup).completeIntent(user, false, intent).created()).isTrue();
+        assertThat(new VideoService(videos, storage, cleanup, clock, null).completeIntent(user, false, intent).created()).isTrue();
     }
 }
