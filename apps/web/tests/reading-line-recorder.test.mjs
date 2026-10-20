@@ -273,7 +273,6 @@ test("reading.session: 새 페이지의 완료 화면은 기기에 남은 완료
 
 test(
   "reading.recording: 두 번째로 연 실행 화면에서도 서버가 거절해 버린 녹음의 안내가 보인다",
-  { todo: "버그: 앱 전체 큐의 안내 콜백이 처음 연 화면의 setNotice 에 묶여 이후 화면에는 안내가 닿지 않는다" },
   async () => {
     replies.push(() => new Response(JSON.stringify({ detail: "recording_too_long" }), { status: 422, headers: { "Content-Type": "application/json" } }));
     const args = { script, session: session(), enabled: true };
