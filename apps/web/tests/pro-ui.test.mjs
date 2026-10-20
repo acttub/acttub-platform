@@ -64,3 +64,29 @@ test("Pro 안내의 그림 조각은 옆 문구가 약속하는 것과 같은 �
   assert.equal(within(badge).getByText("댓글").tagName, "P");
   assert.equal(within(badge).getAllByText("PRO").length, 2);
 });
+
+test("환불정책은 이용한 날짜만큼 빼는 기준과 30일 예시 금액을 보인다", () => {
+  render(h(RefundPage));
+
+  const refund = screen.getByRole("heading", { name: "이용한 날짜만큼 빼고 환불해요" }).closest("section");
+  assert.equal(within(refund).getByText("결제 후 7일 이내, 유료 기능을 쓰지 않았을 때").tagName, "DT");
+  assert.equal(within(refund).getByText("전액 환불").tagName, "DD");
+  assert.equal(within(refund).getByText("이용한 날짜만큼 빼고, 남은 금액의 10%를 더 빼고 환불").tagName, "DD");
+  assert.equal(within(refund).getByText("이용한 날짜만큼 빼고, 남은 금액의 10%를 더해서 환불").tagName, "DD");
+  assert.deepEqual(
+    ["3,900원", "3,510원", "2,340원", "1,170원"].map((won) => within(refund).getByText(won).tagName),
+    ["DD", "DD", "DD", "DD"],
+  );
+
+  // 예전 구간별 비율(80·60·40%)은 더 이상 보이지 않는다.
+  assert.equal(screen.queryByText("80%"), null);
+  assert.equal(screen.queryByText(/이용 시작 후 7일 이내는 100%/), null);
+});
+
+test("Pro 안내의 결제 구역은 바뀐 환불 기준을 짧게 알리고 환불정책으로 보낸다", () => {
+  render(h(PricingPage));
+
+  const billing = screen.getByRole("heading", { name: /언제든 다음 자동결제를/ }).closest("section");
+  assert.match(billing.textContent, /이용한 뒤에는 이용한 날짜만큼 빼고 환불해요\./);
+  assert.equal(within(billing).getByRole("link", { name: "환불 기준과 요청 방법 보기" }).getAttribute("href"), "/refund");
+});
