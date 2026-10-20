@@ -177,14 +177,16 @@ public class ScriptSplitWorker {
                 imports.progress(importId, done.addAndGet(chunk.size()), lines.size());
             });
         }
-        String instructions = ScriptSplitPrompt.split(false, roster);
+        String instructions = ScriptSplitPrompt.missing(roster);
         for (int round = 0; round < ScriptSplitRules.MISSING_ROUNDS; round++) {
             List<NumberedLine> missing = lines.stream().filter(line -> !rows.containsKey(line.no())).toList();
             if (missing.isEmpty()) {
                 break;
             }
-            inParallel(NumberedLine.chunks(missing, ScriptSplitRules.CHUNK_LINES),
-                    group -> rows.putAll(SplitResponse.parse(calls.ask(instructions, group, LlmStep.SCRIPT_SPLIT), group).rows()));
+            // 빠진 줄만 답으로 받는다 — 문맥 줄 답은 group 밖이라 parse 가 버린다.
+            inParallel(NumberedLine.chunks(missing, ScriptSplitRules.CHUNK_LINES), group -> rows.putAll(SplitResponse.parse(calls.ask(
+                    instructions, NumberedLine.withContext(lines, group, ScriptSplitRules.MISSING_CONTEXT_LINES), LlmStep.SCRIPT_SPLIT),
+                    group).rows()));
         }
         ScriptDraft draft = SplitDraft.assemble(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
@@ -253,7 +255,10 @@ public class ScriptSplitWorker {
         }
 
         String ask(String instructions, List<NumberedLine> chunk, LlmStep step) {
-            String input = NumberedLine.format(chunk);
+            return ask(instructions, NumberedLine.format(chunk), step);
+        }
+
+        String ask(String instructions, String input, LlmStep step) {
             RuntimeException last = null;
             for (int attempt = 0; attempt <= ScriptSplitRules.CALL_RETRIES; attempt++) {
                 if (attempt > 0) {

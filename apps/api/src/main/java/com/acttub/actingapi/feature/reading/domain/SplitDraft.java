@@ -1,11 +1,17 @@
 package com.acttub.actingapi.feature.reading.domain;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import com.acttub.actingapi.feature.reading.domain.SplitResponse.Kind;
 import com.acttub.actingapi.feature.reading.domain.SplitResponse.Row;
@@ -20,6 +26,8 @@ import com.acttub.actingapi.feature.reading.domain.SplitResponse.Row;
  *   <li>판정이 없는 줄은 지문이다. 다만 지문(판정 없음 포함)이 배역 이름 + 탭·U+3000·공백 세 칸 이상으로 시작하고 뒤가 괄호
  *       지문뿐이 아니면 그 배역의 대사다. 제목·등장인물·무시 줄은 대본 줄에 넣지 않는다. 「- 27 -」만 있는 쪽 번호 줄은 모델이 뭐라
  *       하든 무시 줄이다.</li>
+ *   <li>배역 이름: 원문에 없는 이름은 그 줄 머리의 표기로, 머리가 이름이 아니면 원문에 있는 다른 배역 이름으로 바로잡고
+ *       ({@link #sourceName}), 배역 목록 표기로 맞춘 뒤({@link CharacterNames#fix}), 같은 사람의 다른 표기를 묶는다({@link #mergeSameSpeakers}).</li>
  *   <li>배역 순서는 등장인물 소개 줄에 나온 순, 거기 없는 배역은 대사 많은 순(같으면 먼저 말한 순)이다.</li>
  *   <li>제목은 요청의 제목, 없으면 모델이 제목이라 한 첫 줄, 그것도 없으면 첫 줄이다(200자까지).</li>
  * </ul>
@@ -51,6 +59,9 @@ public final class SplitDraft {
         String modelTitle = null;
         LineJoin join = LineJoin.of(lines);
         List<String> known = known(rows, roster);
+        String sourceText = CharacterNames.squash(ScriptText.visible(String.join("\n", lines.stream().map(NumberedLine::text).toList())));
+        List<String> spoken = known.stream().filter(name -> sourceText.contains(CharacterNames.squash(name))).toList();
+        Set<String> headers = headers(lines, rows);
         for (NumberedLine line : lines) {
             Row row = rows.get(line.no());
             Kind kind = PAGE_NUMBER.matcher(ScriptText.visible(line.text()).strip()).matches() ? Kind.IGNORE
@@ -70,7 +81,8 @@ public final class SplitDraft {
                     if (body.isEmpty()) {
                         continue;
                     }
-                    String speaker = roster.isEmpty() ? row.speaker() : CharacterNames.fix(row.speaker(), roster);
+                    String speaker = sourceName(row.speaker(), line.text(), header, sourceText, spoken, lines);
+                    speaker = roster.isEmpty() ? speaker : CharacterNames.fix(speaker, roster, headers);
                     Assembled last = assembled.isEmpty() ? null : assembled.getLast();
                     // 대신 찾은 머리도 머리다 — 모델이 비웠다고 이름으로 시작하는 줄을 앞 대사에 붙이면 두 대사가 하나가 된다.
                     if (last != null && speaker.equals(last.speaker) && header.isEmpty()) {
@@ -95,6 +107,7 @@ public final class SplitDraft {
                 case IGNORE -> { }
             }
         }
+        Map<String, String> merged = mergeSameSpeakers(assembled, roster);
         List<String> characters = order(assembled, castLines);
         Map<String, Integer> index = new LinkedHashMap<>();
         for (int position = 0; position < characters.size(); position++) {
@@ -105,17 +118,103 @@ public final class SplitDraft {
             draftLines.add(new ScriptDraft.Line(draftLines.size() + 1, line.kind,
                     line.speaker == null ? null : index.get(line.speaker), line.text));
         }
-        return new ScriptDraft(title(title, modelTitle, lines, rows, roster), rawText, source, characters, draftLines, traitsOf(characters, traits));
+        return new ScriptDraft(title(title, modelTitle, lines, rows, roster), rawText, source, characters, draftLines, traitsOf(characters, traits, merged));
     }
 
-    private static List<CharacterTraits> traitsOf(List<String> characters, Map<String, CharacterTraits> traits) {
+    /** 배역의 성별·나이대. 묶인 배역은 남긴 이름에 없으면 묶인 이름의 값을 잇는다. */
+    private static List<CharacterTraits> traitsOf(List<String> characters, Map<String, CharacterTraits> traits,
+            Map<String, String> merged) {
         List<String> named = new ArrayList<>(traits.keySet());
         List<CharacterTraits> result = new ArrayList<>(characters.size());
         for (String character : characters) {
-            CharacterTraits found = named.isEmpty() ? null : traits.get(CharacterNames.fix(character, named));
+            CharacterTraits found = named.isEmpty() ? null
+                    : Stream.concat(Stream.of(character), merged.keySet().stream().filter(name -> merged.get(name).equals(character)))
+                            .map(name -> traits.get(CharacterNames.fix(name, named)))
+                            .filter(Objects::nonNull).findFirst().orElse(null);
             result.add(found == null ? CharacterTraits.UNKNOWN : found);
         }
         return result;
+    }
+
+    /**
+     * 모델이 준 배역 이름이 원문 어디에도(띄어쓰기 무시) 없으면 원문 표기로 바꾼다 (SOMA-663). 머리가 원문 글자이고 이름이면 머리에서
+     * 구분 부호를 뗀 것, 아니면({@code - } 머리) 원문에 있는 다른 배역 이름으로 {@link CharacterNames#fix} 한 것이다. 2026-10-20 실험
+     * R1에서 머리가 「뜨레쁠레프」·「맥베스 부인」인 줄에 모델이 「треpleф」·「레이디 맥베스」를 썼다. 외국 글자 규칙보다 먼저인 이유:
+     * 머리는 원문이 쓴 글자 그대로지만 편집 거리 2는 목록에서 비슷한 다른 사람을 고를 수 있다(「메ko」처럼 남는 글자가 적으면 못 맞춘다).
+     * 머리 표기는 원문 두 줄 이상이 그 이름으로 시작할 때만 쓴다 — 줄 바꿈으로 떨어진 대사의 머리는 「(호수를 바라본다)」 같은 지문이다(재생 099).
+     */
+    private static String sourceName(String speaker, String text, String header, String source, List<String> spoken,
+            List<NumberedLine> lines) {
+        if (source.contains(CharacterNames.squash(speaker))) {
+            return speaker;
+        }
+        String named = fromSource(text, header) ? nameOf(header) : "";
+        return named.isEmpty() || startedLines(named, lines) < 2 ? CharacterNames.fix(speaker, spoken) : named;
+    }
+
+    private static long startedLines(String name, List<NumberedLine> lines) {
+        String head = CharacterNames.squash(name);
+        return lines.stream().filter(line -> CharacterNames.squash(ScriptText.visible(line.text())).startsWith(head)).count();
+    }
+
+    /** 원문에 화자 머리로 쓰인 이름({@link CharacterNames#squash} 모양) — 대사 줄의 머리와 블록 형식의 이름만 있는 줄. */
+    private static Set<String> headers(List<NumberedLine> lines, Map<Integer, Row> rows) {
+        Set<String> names = new HashSet<>();
+        for (NumberedLine line : lines) {
+            names.add(CharacterNames.squash(nameOf(line.text())));
+            Row row = rows.get(line.no());
+            String header = row != null && row.kind() == Kind.DIALOGUE ? headerOf(line.text(), row) : "";
+            if (fromSource(line.text(), header)) {
+                names.add(CharacterNames.squash(nameOf(header)));
+            }
+        }
+        names.remove("");
+        return names;
+    }
+
+    private static boolean fromSource(String text, String header) {
+        return !header.isBlank() && ScriptText.visible(text).stripLeading().startsWith(ScriptText.visible(header).stripLeading());
+    }
+
+    /** 머리에서 구분 부호를 뗀 이름 — {@code 메드베젠코: }→메드베젠코, {@code [지수] }→지수. 글자가 없으면({@code - }) 빈 문자열. */
+    private static String nameOf(String header) {
+        String name = ScriptText.visible(header).strip().replaceAll("[\\s:：.,，、\\-—]+$", "");
+        if (name.length() > 1 && (name.startsWith("[") && name.endsWith("]") || name.startsWith("(") && name.endsWith(")"))) {
+            name = name.substring(1, name.length() - 1).strip();
+        }
+        return name.codePoints().anyMatch(Character::isLetter) ? name : "";
+    }
+
+    /**
+     * 한 대본 안에서 {@link CharacterNames#sameSpeakerKey} 가 같은 화자를 하나로 묶고, 묶인 이름 → 남긴 이름을 돌려준다 (SOMA-663).
+     * 남기는 표기는 대사가 많은 쪽, 같으면 배역 목록에 있는 쪽, 그다음 짧은 쪽, 그다음 먼저 말한 쪽이다. 새 이름은 짓지 않는다.
+     * 2026-10-20 실험 R1에서 한 사람이 「장석구」·「장석구 (소리)」, 「형사 1」·「형사1」처럼 갈렸다. 배역 목록이 없는 짧은 대본에도 묶는다.
+     */
+    private static Map<String, String> mergeSameSpeakers(List<Assembled> lines, List<String> roster) {
+        Map<String, Integer> count = new LinkedHashMap<>();
+        for (Assembled line : lines) {
+            if (line.speaker != null) {
+                count.merge(line.speaker, 1, Integer::sum);
+            }
+        }
+        Map<String, List<String>> groups = new LinkedHashMap<>();
+        for (String name : count.keySet()) {
+            groups.computeIfAbsent(CharacterNames.sameSpeakerKey(name), key -> new ArrayList<>()).add(name);
+        }
+        Map<String, String> renamed = new HashMap<>();
+        for (List<String> group : groups.values()) {
+            String kept = Collections.min(group, Comparator
+                    .comparing((String name) -> -count.get(name))
+                    .thenComparing(name -> !roster.contains(name))
+                    .thenComparing(name -> name.codePointCount(0, name.length())));
+            group.stream().filter(name -> !name.equals(kept)).forEach(name -> renamed.put(name, kept));
+        }
+        for (Assembled line : lines) {
+            if (line.speaker != null) {
+                line.speaker = renamed.getOrDefault(line.speaker, line.speaker);
+            }
+        }
+        return renamed;
     }
 
     /**
@@ -282,7 +381,7 @@ public final class SplitDraft {
 
     private static final class Assembled {
         final String kind;
-        final String speaker;
+        String speaker;
         String text;
         /** 이 대사에 마지막으로 이은 원문 줄 — 다음 줄을 붙일지 띄울지 볼 때 끝 공백이 필요하다. */
         String lastLine;

@@ -277,6 +277,83 @@ class SplitDraftTest {
     }
 
     @Test
+    @DisplayName("SOMA-663: 원문에 화자 머리로 쓰인 이름은 편집 거리 1인 목록 이름으로 바꾸지 않는다 — 할아버지는 아버지가 아니다")
+    void aNameUsedAsAHeaderIsNotMergedIntoANearbyRosterName() {
+        String raw = "할아버지 : 에엥?\n아버지 : 왜요?\n원삼처        뭐 해?\n원삼        딸기 먹자.\n검사1\n손 들어.\n형사1: 움직이지 마.";
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        rows.put(1, new Row(1, Kind.DIALOGUE, "할아버지", "할아버지 : "));
+        rows.put(2, new Row(2, Kind.DIALOGUE, "아버지", "아버지 : "));
+        rows.put(3, new Row(3, Kind.DIALOGUE, "원삼처", "원삼처        "));
+        rows.put(4, new Row(4, Kind.DIALOGUE, "원삼", "원삼        "));
+        rows.put(5, new Row(5, Kind.IGNORE, "", ""));
+        rows.put(6, new Row(6, Kind.DIALOGUE, "검사1", ""));
+        rows.put(7, new Row(7, Kind.DIALOGUE, "형사1", "형사1: "));
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of("아버지", "원삼", "형사1"));
+
+        assertThat(draft.characterNames()).containsExactlyInAnyOrder("할아버지", "아버지", "원삼처", "원삼", "검사1", "형사1");
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 원문에 없는 배역 이름은 그 줄의 머리 표기로, 머리가 이름이 아니면 원문에 있는 다른 배역 이름으로 바로잡는다")
+    void aNameMissingFromTheSourceTakesTheHeaderSpelling() {
+        String raw = "뜨레쁠레프 당신은 왜?\n메드베젠코: 그건 왜 그렇죠?\n맥베스 부인: 오세요.\n뜨레쁠레프 그래요.\n메드베젠코: 네.\n맥베스 부인: 가요.\n"
+                + "(호수를 바라본다) 아, 좋은 곳입니다.\n- 그럼 보여 드리죠, 나딸리아 스쩨빠노브나.\n- 존경하는 분.\n- 네.";
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        rows.put(1, new Row(1, Kind.DIALOGUE, "треpleф", "뜨레쁠레프 "));
+        rows.put(2, new Row(2, Kind.DIALOGUE, "메д베зенko", "메드베젠코: "));
+        rows.put(3, new Row(3, Kind.DIALOGUE, "레이디 맥베스", "맥베스 부인: "));
+        rows.put(4, new Row(4, Kind.DIALOGUE, "뜨레쁠레프", "뜨레쁠레프 "));
+        rows.put(5, new Row(5, Kind.DIALOGUE, "메드베젠코", "메드베젠코: "));
+        rows.put(6, new Row(6, Kind.DIALOGUE, "맥베스 부인", "맥베스 부인: "));
+        // 줄 바꿈으로 떨어진 대사 — 머리가 지문이라 이름으로 쓰지 않는다(재생 099)
+        rows.put(7, new Row(7, Kind.DIALOGUE, "Дорн", "(호수를 바라본다) "));
+        rows.put(8, new Row(8, Kind.DIALOGUE, "이완 바실례비치", "- "));
+        rows.put(9, new Row(9, Kind.DIALOGUE, "나딸리아 스쩨빠노브на", "- "));
+        rows.put(10, new Row(10, Kind.DIALOGUE, "나딸리아 스쩨빠노브나", "- "));
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of());
+
+        assertThat(draft.characterNames()).containsExactlyInAnyOrder("뜨레쁠레프", "메드베젠코", "맥베스 부인", "Дорн", "이완 바실례비치",
+                "나딸리아 스쩨빠노브나");
+        // 머리가 「- 」뿐이면 원문에 있는 다른 배역 이름에 맞춰 보고, 그것도 멀면(이완 바실례비치) 모델 이름 그대로다 — 지어내지 않는다
+        assertThat(draft.lines()).extracting(line -> draft.characterNames().get(line.characterIndex()))
+                .endsWith("이완 바실례비치", "나딸리아 스쩨빠노브나", "나딸리아 스쩨빠노브나");
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 한 대본에서 띄어쓰기·따옴표·화면 밖 목소리 꼬리·「여 」 머리·괄호 설명만 다른 화자는 대사 많은 표기로 묶는다. 내레이션은 묶지 않는다")
+    void mergesSpeakersThatDifferOnlyByVoiceTailsAndSpacing() {
+        String[][] said = {
+                {"장석구", "가자."}, {"장석구 (소리)", "여보세요?"}, {"장석구", "응."},
+                {"서린 목소리", "나야."}, {"서린", "왜?"},
+                {"형사1", "손 들어."}, {"형사 1", "움직이지 마."}, {"형사 1", "꼼짝 마."},
+                {"여주VO", "안녕."}, {"여주", "응."},
+                {"유리(NA)", "그날은."}, {"유리", "안녕."}, {"유리의 내레이션", "그리고."}, {"김지훈NA", "그때."}, {"김지훈", "뭐야."},
+                {"여자", "저기요."}, {"남자", "네."}, {"여 자", "있잖아요."},
+                {"여 베이어드 (로드릭의 어머니)", "얘야."}, {"여 베이어드", "그래."},
+                {"여기자‘", "질문."}, {"여기자’", "또."}, {"여기자", "저도요."},
+                {"철수(30대)", "늦었다."}, {"철수", "가자."},
+        };
+        StringBuilder raw = new StringBuilder();
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        for (int i = 0; i < said.length; i++) {
+            raw.append(said[i][0]).append(": ").append(said[i][1]).append('\n');
+            rows.put(i + 1, new Row(i + 1, Kind.DIALOGUE, said[i][0], said[i][0] + ": "));
+        }
+        Map<String, CharacterTraits> traits = Map.of("장석구 (소리)", new CharacterTraits(CharacterGender.MALE, CharacterAgeBand.ADULT));
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw.toString(), "paste", NumberedLine.of(raw.toString()), rows, List.of(), traits);
+
+        assertThat(draft.characterNames()).containsExactlyInAnyOrder("장석구", "서린", "형사 1", "여주", "유리(NA)", "유리", "유리의 내레이션",
+                "김지훈NA", "김지훈", "여자", "남자", "여 베이어드", "여기자‘", "여기자", "철수");
+        assertThat(draft.lines()).extracting(line -> draft.characterNames().get(line.characterIndex()))
+                .startsWith("장석구", "장석구", "장석구", "서린", "서린", "형사 1", "형사 1", "형사 1", "여주", "여주");
+        assertThat(draft.characterTraits().get(draft.characterNames().indexOf("장석구")))
+                .as("묶인 이름의 성별·나이대는 남긴 이름으로 옮긴다").isEqualTo(new CharacterTraits(CharacterGender.MALE, CharacterAgeBand.ADULT));
+    }
+
+    @Test
     @DisplayName("SOMA-670: 모델이 준 성별·나이대를 배역 순서대로 싣는다 — 띄어쓰기만 다른 이름도 잇고, 없는 배역은 모름")
     void carriesTraitsInCharacterOrder() {
         String raw = "윤서: 안녕.\n태오: 응.\n로스: 어.\n";

@@ -34,6 +34,22 @@ class CharacterNamesTest {
     }
 
     @Test
+    @DisplayName("SOMA-663: NA·(N)·(na)·내레이션 꼬리가 붙은 이름은 꼬리 없는 목록 이름으로 바꾸지도, 같은 사람으로 묶지도 않는다")
+    void narrationIsKeptApartFromTheCharacter() {
+        List<String> roster = List.of("제혁", "제씨", "배우1", "재이");
+        assertThat(CharacterNames.fix("제혁NA", roster)).as("외국 글자 규칙의 편집 거리 2").isEqualTo("제혁NA");
+        assertThat(CharacterNames.fix("제씨na", roster)).isEqualTo("제씨na");
+        assertThat(CharacterNames.fix("배우1N.A.", roster)).isEqualTo("배우1N.A.");
+        assertThat(CharacterNames.fix("부in", MACBETH)).as("영문 꼬리가 NA 가 아니면 그대로 바로잡는다").isEqualTo("부인");
+
+        for (String narration : List.of("재이 (N)", "태수(NA)", "제씨(na)", "배우1 NA", "제혁NA", "유리(내레이션)")) {
+            assertThat(CharacterNames.sameSpeakerKey(narration)).as(narration)
+                    .isNotEqualTo(CharacterNames.sameSpeakerKey(narration.replaceAll("\\s*\\(?(N|NA|na|내레이션)\\)?$", "")));
+        }
+        assertThat(CharacterNames.sameSpeakerKey("제혁 NA")).as("내레이션끼리는 묶는다").isEqualTo(CharacterNames.sameSpeakerKey("제혁NA"));
+    }
+
+    @Test
     void editDistanceCountsCodePoints() {
         assertThat(CharacterNames.editDistance("맥베스", "맥베")).isEqualTo(1);
         assertThat(CharacterNames.editDistance("", "로스")).isEqualTo(2);

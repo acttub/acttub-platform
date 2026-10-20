@@ -55,7 +55,20 @@ public final class ScriptSplitPrompt {
             - 줄 안의 탭은 탭으로 둔다.
             - 받은 줄 번호를 하나도 빠뜨리지 않는다.""";
 
+    /**
+     * 빠진 줄을 다시 묻는 호출에만 나누기 지시문 끝에 붙는다 (SOMA-663). 빠진 줄끼리만 보내면 블록 형식의 이름 줄·앞선 화자가 없어 배역을
+     * 못 정한다 — 앞뒤 줄을 「~」 문맥으로 함께 준다. 첫 판 지시문은 그대로다.
+     */
+    private static final String MISSING = """
+            이번 입력은 앞에서 답이 빠진 줄을 다시 묻는 것이다. 줄번호 앞에 "~"가 붙은 줄은 흐름을 보라고 함께 준 앞뒤 문맥이고, 답하지 않는다.
+            "~"가 없는 줄만 한 줄도 빠뜨리지 않고 답한다. 블록 형식의 이름 줄이나 앞선 화자가 문맥 줄에 있으면 그것을 보고 종류와 배역을 정한다.""";
+
     private ScriptSplitPrompt() {
+    }
+
+    /** 빠진 줄을 다시 묻는 지시문 — 입력은 {@code NumberedLine.withContext} 모양이다. */
+    public static String missing(List<String> roster) {
+        return split(false, roster) + '\n' + MISSING;
     }
 
     /**

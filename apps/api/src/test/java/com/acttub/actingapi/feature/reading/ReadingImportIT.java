@@ -478,6 +478,8 @@ class ReadingImportIT {
             if (call.roster()) return answer;
             StringBuilder twisted = new StringBuilder();
             for (String row : answer.split("\n")) {
+                // 다시 묻기에서 문맥 줄(~)까지 번호만 떼어 지문으로 답한다 — 빠진 줄이 아니니 버려져야 한다.
+                if (row.startsWith("~")) row = row.substring(1, row.indexOf('\t')) + "\tx\t\t";
                 if (row.startsWith("7\t")) continue;
                 // 첫 판(150줄 조각)에서만 200번째 줄을 빠뜨린다 — 다시 물으면 답한다.
                 if (row.startsWith("200\t") && call.lines().size() == 150) continue;
@@ -505,8 +507,10 @@ class ReadingImportIT {
         assertThat(calls.subList(1, 4)).extracting(call -> call.input().split("\n").length).containsExactlyInAnyOrder(150, 150, 100);
         assertThat(calls.subList(1, 4)).extracting(call -> call.input().split("\n")[0]).containsExactlyInAnyOrder(
                 "1\t등장인물: 뱅코우, 맥베스", "151\t뱅코우: 대사 151", "301\t뱅코우: 대사 301");
-        assertThat(calls.get(4).input()).isEqualTo("7\t뱅코우: 대사 7\n200\t맥베스: 대사 200");
-        assertThat(calls.get(5).input()).isEqualTo("7\t뱅코우: 대사 7");
+        // 다시 묻기는 빠진 줄 앞뒤 4줄을 ~ 문맥으로 함께 보낸다.
+        assertThat(calls.get(4).instructions()).contains("\"~\"가 없는 줄만");
+        assertThat(calls.get(4).input()).isEqualTo(context(3, 11, 7) + "\n" + context(196, 204, 200));
+        assertThat(calls.get(5).input()).isEqualTo(context(3, 11, 7));
 
         JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
         assertThat(done.path("status").textValue()).isEqualTo("succeeded");
@@ -524,6 +528,18 @@ class ReadingImportIT {
         assertThat(script.path("lines").get(5).path("kind").textValue()).as("끝까지 빠진 7번째 줄은 지문").isEqualTo("direction");
         assertThat(script.path("lines").get(5).path("text").textValue()).isEqualTo("뱅코우: 대사 7");
         assertThat(script.path("lines").get(198).path("text").textValue()).as("한 번 빠졌다 되찾은 200번째 줄").isEqualTo("대사 200");
+        assertThat(script.path("lines").get(4).path("kind").textValue()).as("문맥으로 보낸 6번째 줄의 지문 답은 버린다").isEqualTo("dialogue");
+        assertThat(script.path("lines").get(197).path("kind").textValue()).as("문맥으로 보낸 199번째 줄도").isEqualTo("dialogue");
+    }
+
+    /** {@code from}~{@code to} 줄의 다시 묻기 입력 — {@code target} 만 번호 그대로, 나머지는 {@code ~} 문맥. */
+    private static String context(int from, int to, int target) {
+        StringBuilder out = new StringBuilder();
+        for (int line = from; line <= to; line++) {
+            if (!out.isEmpty()) out.append('\n');
+            out.append(line == target ? "" : "~").append(line).append('\t').append(line % 2 == 0 ? "맥베스: 대사 " : "뱅코우: 대사 ").append(line);
+        }
+        return out.toString();
     }
 
     @Test

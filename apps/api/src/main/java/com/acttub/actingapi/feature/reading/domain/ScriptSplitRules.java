@@ -23,6 +23,9 @@ public final class ScriptSplitRules {
     /** 빠지거나 버린 줄을 다시 묻는 횟수. 그래도 남으면 지문이다. */
     public static final int MISSING_ROUNDS = 2;
 
+    /** 빠진 줄을 다시 물을 때 그 줄 앞뒤로 함께 보내는 문맥 줄 수. 블록 형식의 이름 줄·앞선 화자를 보게 한다(SOMA-663). */
+    public static final int MISSING_CONTEXT_LINES = 4;
+
     /** 호출 하나의 재시도 횟수(연결 실패·429·5xx·미완료). 소진하면 작업이 {@code failed} 다. */
     public static final int CALL_RETRIES = 2;
 
