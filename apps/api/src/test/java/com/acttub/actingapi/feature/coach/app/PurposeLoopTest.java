@@ -129,6 +129,14 @@ class PurposeLoopTest {
         assertThat(PurposeLoop.asksNothing(PurposeLoop.Purpose.EVALUATE)).isTrue();
     }
 
+    @Test void anActorQuestionTheClassifierMissedIsStillAnsweredFirst() {
+        var turn = PurposeLoop.decide(PurposeLoop.Purpose.STUCK, state("{\"step\":1,\"questions\":1}"), "그게 무슨 뜻이에요", null, ANSWERED, 2);
+        assertThat(turn.asked()).isTrue();
+        assertThat(PurposeLoop.asksSomething("그냥 알려주려고요")).isFalse();
+        var wrap = new PurposeLoop.Turn(PurposeLoop.Purpose.CHARACTER, "wrap", "wrap", true, false, "답", false, "cell");
+        assertThat(PurposeLoop.instruction(wrap, state("{}"), "엄마요")).contains("(영상)으로 채운다", "다른 가능성");
+    }
+
     @Test void theReplyCapForcesTheWrap() {
         var intent = state("{\"step\":1}");
         var turn = PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, intent, "왜요?", null, kind(PracticeLoopRouter.Kind.QUESTION),
