@@ -79,4 +79,14 @@ class DirectVideoModelTest {
                 .isInstanceOf(UnsupportedOperationException.class)
                 .hasMessage("multi-video comparison is not supported");
     }
+
+    @Test void labeledUploadFallsBackToThePlainUploadAndListsNothing() {
+        List<String> uploads = new ArrayList<>();
+        var plain = model("답", uploads);
+        assertThat(plain.upload(Path.of("a.mp4"), "video/mp4", null, "acttub-coach:prod:p:x")).isEqualTo(VIDEO);
+        assertThat(plain.upload(Path.of("b.mp4"), "video/mp4", new DirectVideoModel.InputInspection(true, null, true), "label"))
+                .isEqualTo(VIDEO);
+        assertThat(uploads).containsExactly("a.mp4 video/mp4", "b.mp4 video/mp4");
+        assertThat(plain.labeled("acttub-coach:")).isEmpty();
+    }
 }
