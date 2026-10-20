@@ -23,7 +23,9 @@ import { initMetaSdk } from '@/lib/meta-events';
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
+import { api } from '@/lib/api';
 import { installNavigationGuard } from '@/lib/navigation-guard';
+import { setVoiceModelSource } from '@/lib/reading/tts/assets';
 import { tabBackTitle } from '@/lib/tab-back-title';
 import { AppHeader } from '@/components/app-header';
 import { HeaderBack } from '@/components/header-back';
@@ -63,6 +65,8 @@ void flushPendingPushTokenDeletions();
 void sweepDeviceFiles();
 // 버튼을 연달아 눌러도 같은 화면이 한 번만 열리고, 뒤로 가기는 한 화면만 닫힌다(lib/navigation-guard.ts).
 installNavigationGuard(router);
+// 리딩 기기 목소리 모델은 서버가 주는 fp16 묶음 주소로 받는다(SOMA-747). 못 받으면 원본 fp32.
+setVoiceModelSource(() => api.getVoiceModel());
 
 export const unstable_settings = {
   anchor: '(tabs)',

@@ -52,14 +52,14 @@ export class UnicodeProcessor {
         // Replace various dashes and symbols
         const replacements = {
             '–': '-',
-            '‑': '-',
+            '\u2010': '-',  // NFKD 가 U+2011 을 U+2010 으로 바꾼다
             '—': '-',
             '_': ' ',
             '\u201C': '"',  // left double quote "
             '\u201D': '"',  // right double quote "
             '\u2018': "'",  // left single quote '
             '\u2019': "'",  // right single quote '
-            '´': "'",
+            ' \u0301': "'",  // NFKD 가 ´(U+00B4) 를 공백+U+0301 로 바꾼다
             '`': "'",
             '[': ' ',
             ']': ' ',

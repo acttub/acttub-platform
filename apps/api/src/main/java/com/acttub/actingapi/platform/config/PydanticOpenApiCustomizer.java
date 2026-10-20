@@ -454,6 +454,10 @@ class PydanticOpenApiCustomizer {
     }
 
     private static boolean isNullable(Schema<?> schema) {
+        // {"type": "null"} 자체는 감쌀 다른 타입이 없다.
+        if (isNullSchema(schema)) {
+            return false;
+        }
         return Boolean.TRUE.equals(schema.getNullable())
                 || schema.getTypes() != null && schema.getTypes().contains("null");
     }

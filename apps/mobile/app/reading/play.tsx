@@ -70,7 +70,7 @@ import {
   type MaskMode,
 } from '@/lib/reading/store';
 import type { SttPolicy } from '@/lib/reading/stt-policy';
-import { missingModelBytes, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
+import { activeVariant, missingModelBytes, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
 import { formatDownloadProgress, loadPercent, type VoiceProgress } from '@/lib/reading/tts/download-progress';
 import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
@@ -511,7 +511,7 @@ export default function ReadingPlay() {
     }
     // 받아 둔 만큼은 빼고 남은 양으로 판단한다 — 다 받아 둔 기기는 이동통신이어도 묻지 않고, Wi-Fi 미리 받기가
     // 중간에 끊긴 기기에는 남은 양만 묻는다(SOMA-772).
-    const missing = missingModelBytes('fp32');
+    const missing = missingModelBytes(activeVariant());
     if (missing > 0) {
       const prompt = modelDownloadPrompt({ assetsPresent: false, networkType: await currentNetworkType(), bytes: missing });
       if (prompt.ask) {
@@ -550,6 +550,7 @@ export default function ReadingPlay() {
       if (kind === 'model_load') {
         await markAppVoiceUnsupported();
         removeDownloadedAssets('fp32');
+        removeDownloadedAssets('fp16');
       }
       if (!mounted.current) return;
       if (kind === 'model_load') {
@@ -1105,7 +1106,7 @@ export default function ReadingPlay() {
           body={t('reading.voiceFailBody')}
           note={
             failure.kind === 'storage'
-              ? t('reading.voiceFailStorage', { size: formatMegabytes(failure.neededBytes ?? modelDownloadBytes('fp32')) })
+              ? t('reading.voiceFailStorage', { size: formatMegabytes(failure.neededBytes ?? modelDownloadBytes(activeVariant())) })
               : failure.kind === 'network'
                 ? t('reading.voiceFailNetwork')
                 : undefined

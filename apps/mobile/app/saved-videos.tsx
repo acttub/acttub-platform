@@ -31,7 +31,6 @@ export default function SavedVideosScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setError(null);
     try {
       const [savedList, myList] = await Promise.all([api.listSavedEntries(), api.listMyChallengeEntries()]);
       setSaved(savedList.entries);

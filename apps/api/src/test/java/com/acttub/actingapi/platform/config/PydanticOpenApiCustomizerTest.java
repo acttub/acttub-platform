@@ -24,7 +24,6 @@ import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -229,7 +228,6 @@ class PydanticOpenApiCustomizerTest {
     }
 
     @Test
-    @Disabled("버그: 3.1 types 집합으로 적힌 {\"type\":\"null\"} 스키마를 nullable 로 보고 다시 anyOf 로 감싼다")
     void anyOfThatAlreadyHasAnOpenApi31NullSchemaIsLeftAsIs() {
         Schema<?> nullType = typed("null");
         ComposedSchema already = new ComposedSchema();

@@ -51,7 +51,6 @@ class PostgresCoachAssignmentsIT {
         assertThat(flows.assign(session(null))).isEqualTo(CoachFlows.A);
     }
 
-    @org.junit.jupiter.api.Disabled("버그: 이메일이 없는 계정(게스트 등)은 findFirst 가 null 행에서 NullPointerException 을 던진다")
     @Test void anAccountWithoutEmailIsAnOrdinaryActor() {
         UUID noEmail = user(null);
         assertThat(flows.assign(session(noEmail))).isEqualTo(PostgresCoachFlows.byAccount(noEmail));

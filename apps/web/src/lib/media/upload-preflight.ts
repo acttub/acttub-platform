@@ -51,7 +51,7 @@ export async function prepareVideoUpload(
   const durationMs = await resolveDuration(file, options.signal);
   throwIfAborted(options.signal);
   if (!Number.isInteger(durationMs) || durationMs < 1 || durationMs > MAX_DURATION_MS) {
-    throw new Error("영상은 5분 이하여야 해요.");
+    throw new Error("영상이 너무 길어요(5분 이내).");
   }
 
   const compressor = options.compressor ?? compressVideo;
@@ -63,11 +63,7 @@ export async function prepareVideoUpload(
   });
   const compressMs = Math.max(0, Math.round(now() - compressStartedAt));
   throwIfAborted(options.signal);
-  if (uploadFile.size > MAX_UPLOAD_BYTES) {
-    throw new Error(
-      "이 브라우저에서는 영상을 충분히 줄이지 못했어요. 다른 브라우저를 사용하거나 파일 크기를 줄여 다시 올려 주세요.",
-    );
-  }
+  if (uploadFile.size > MAX_UPLOAD_BYTES) throw new Error("영상이 너무 커요(100MB 이내). 다른 브라우저로 다시 올려 보세요.");
 
   return {
     durationMs,

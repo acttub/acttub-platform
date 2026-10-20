@@ -707,7 +707,7 @@ function WorkspaceInner() {
         void coordinatorFor(practiceSessionId).update(settled.status).catch(() => {});
       },
       () => {
-        if (isCurrentSession(practiceSessionId)) {
+        if (isCurrentSession(practiceSessionId) && !controller.signal.aborted) {
           setError("장면을 살펴보는 상태를 확인하지 못했어요. 잠시 후 목록에서 다시 열어 주세요.");
         }
       },

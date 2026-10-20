@@ -187,3 +187,37 @@ test('안드로이드 뒤로 가기로 동의 시트를 닫으면 아무것도 �
   expect(apiMock.recordConsent).not.toHaveBeenCalled();
   seen('enabled:false');
 });
+
+test('동의 기록이 실패하면 시트에 남아 실패를 알리고, 다시 누르면 켠다', async () => {
+  await show();
+  await act(async () => { await voice.enable('settings'); });
+  apiMock.recordConsent.mockRejectedValueOnce(new Error('down'));
+
+  await fireEvent.press(screen.getByText('동의하고 켜기'));
+  await flush();
+
+  seen('동의 기록에 실패했어요. 다시 시도해주세요.');
+  seen('동의하고 켜기');
+  seen('enabled:false');
+  expect(await AsyncStorage.getItem('acttub.cloudVoice')).toBeNull();
+
+  await fireEvent.press(screen.getByText('동의하고 켜기'));
+  await flush();
+
+  expect(apiMock.recordConsent).toHaveBeenCalledTimes(2);
+  seen('enabled:true');
+  expect(screen.queryByText('동의 기록에 실패했어요. 다시 시도해주세요.')).not.toBeOnTheScreen();
+});
+
+test('거절 기록이 실패해도 시트에 남아 실패를 알린다', async () => {
+  await show();
+  await act(async () => { await voice.enable('settings'); });
+  apiMock.recordConsent.mockRejectedValueOnce(new Error('down'));
+
+  await fireEvent.press(screen.getByText('동의하지 않기'));
+  await flush();
+
+  seen('동의 기록에 실패했어요. 다시 시도해주세요.');
+  seen('동의하지 않기');
+  seen('consent:undecided');
+});

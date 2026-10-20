@@ -43,7 +43,7 @@ class PostgresCoachPersonas implements CoachPersonas {
     @Override
     public String assign(CoachSessionSnapshot session) {
         if (session.userId() == null || advisors.isEmpty()) return "";
-        Object email = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:id")
+        Object email = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:id AND email IS NOT NULL")
                 .setParameter("id", session.userId()).getResultList().stream().findFirst().orElse(null);
         if (!(email instanceof String text)) return "";
         return advisors.getOrDefault(hash(text), "");

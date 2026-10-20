@@ -268,7 +268,7 @@ describe('기본 촬영 화면', () => {
     expect(takePickedVideo()?.pendingId).toBe('pend1');
   });
 
-  test.failing('보관함이 받지 않으면 이유를 알리고, 준비 화면에는 영상을 넘기지 않는다', async () => {
+  test('보관함이 받지 않으면 이유를 알리고, 준비 화면에는 영상을 넘기지 않는다', async () => {
     saveToLibrary.mockResolvedValue({ kind: 'rejected', code: 'video_empty' });
     mockParams = { mode: 'ai', picker: '1' };
     await render(<RecordVideoScreen />);
@@ -348,7 +348,7 @@ describe('기본 촬영 화면', () => {
     expect(screen.getByLabelText('촬영 시작')).toBeOnTheScreen();
   });
 
-  test.failing('촬영한 길이를 보관함에 함께 넘긴다', async () => {
+  test('촬영한 길이를 보관함에 함께 넘긴다', async () => {
     jest.useFakeTimers();
     mockParams = { mode: 'plain' };
     await render(<RecordVideoScreen />);
@@ -541,7 +541,7 @@ describe('챌린지 촬영', () => {
     expect(keepDeviceFile).toHaveBeenCalledTimes(1);
   });
 
-  test.failing('3초 미만 촬영본을 올리기 화면이 막을 수 있게 찍은 길이를 넘긴다', async () => {
+  test('3초 미만 촬영본을 올리기 화면이 막을 수 있게 찍은 길이를 넘긴다', async () => {
     jest.useFakeTimers();
     mockParams = CHALLENGE;
     await render(<RecordVideoScreen />);
@@ -553,6 +553,20 @@ describe('챌린지 촬영', () => {
     await stopRecording();
 
     expect(peekRecordedVideo()?.durationMs).toBe(2_000);
+  });
+
+  test('상한에서 네이티브가 멈추면 카메라가 켜지는 지연이 있어도 길이를 상한으로 넘긴다', async () => {
+    jest.useFakeTimers();
+    mockParams = CHALLENGE;
+    await render(<RecordVideoScreen />);
+
+    await startRecording();
+    await act(async () => {
+      jest.advanceTimersByTime(60_400);
+    });
+    await act(async () => finishRecording({ uri: 'file:///rec.mov' }));
+
+    expect(peekRecordedVideo()?.durationMs).toBe(60_000);
   });
 });
 
@@ -614,7 +628,7 @@ describe('용도 고르기(하단 탭에서 곧장 연 촬영)', () => {
     expect(listChallenges).toHaveBeenCalledTimes(2);
   });
 
-  test.failing('오늘의 대사가 없으면 챌린지 탭에서 고르라고 안내한다', async () => {
+  test('오늘의 대사가 없으면 챌린지 탭에서 고르라고 안내한다', async () => {
     listChallenges.mockResolvedValue({ featured: null });
     mockParams = { mode: 'ai', picker: '1' };
     await render(<RecordVideoScreen />);

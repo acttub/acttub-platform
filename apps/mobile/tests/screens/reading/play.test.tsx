@@ -66,6 +66,7 @@ jest.mock('@/lib/reading/tts/engine', () => ({
   isReady: jest.fn(),
 }));
 jest.mock('@/lib/reading/tts/assets', () => ({
+  activeVariant: () => 'fp32',
   missingModelBytes: jest.fn(),
   modelDownloadBytes: () => 400 * 1024 * 1024,
   removeDownloadedAssets: jest.fn(),

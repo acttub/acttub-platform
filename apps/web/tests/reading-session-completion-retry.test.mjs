@@ -107,7 +107,6 @@ test("reading.session: 이미 재시도 중인 회차는 다음 진입의 이어
 
 test(
   "reading.session: 새 페이지에서 이어 시도 전에 다른 회차의 완료 저장이 실패해도 기기에 남아 있던 완료 저장을 잃지 않는다",
-  { todo: "버그: startCompletionRetry 가 메모리에 있는 회차만으로 기기 저장을 덮어써, 아직 이어 시도하지 않은 회차가 지워진다" },
   async () => {
     const timer = manualScheduler();
     const sent = [];

@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceStorage;
+import com.acttub.actingapi.feature.reading.app.VoiceModelStorage;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -30,7 +31,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false",
-        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "GEMINI_TTS_MODEL=test-tts-model"})
+        "ACCOUNT_HOUSEKEEPING_ENABLED=false", "GEMINI_TTS_MODEL=test-tts-model",
+        "READING_VOICE_MODEL_PREFIX=reading-model/supertonic3-fp16-v1"})
 @AutoConfigureMockMvc
 @Import(CloudVoiceIT.Fakes.class)
 class CloudVoiceIT {
@@ -80,6 +82,26 @@ class CloudVoiceIT {
     }
 
     @Test
+    void voiceModelListsSignedFiles() throws Exception {
+        var response = mvc.perform(get("/v2/reading/voice-model").header("Authorization", bearer)).andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode body = mapper.readTree(response.getContentAsString());
+        assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder("version", "files", "expires_in");
+        assertThat(body.path("version").textValue()).isEqualTo("supertonic3-fp16-v1");
+        assertThat(body.path("expires_in").intValue()).isEqualTo(3600);
+        assertThat(body.path("files")).hasSize(8);
+        JsonNode first = body.path("files").get(0);
+        assertThat(first.fieldNames()).toIterable().containsExactlyInAnyOrder("name", "bytes", "sha256", "url");
+        assertThat(first.path("url").textValue())
+                .isEqualTo("https://example.test/reading-model/supertonic3-fp16-v1/duration_predictor.graph.onnx");
+    }
+
+    @Test
+    void voiceModelRequiresAuthentication() throws Exception {
+        assertThat(mvc.perform(get("/v2/reading/voice-model")).andReturn().getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
     void statusRequiresAuthentication() throws Exception {
         var response = mvc.perform(get("/v2/reading/voice/status")).andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(401);
@@ -119,7 +141,6 @@ class CloudVoiceIT {
         }
     }
 
-    @org.junit.jupiter.api.Disabled("버그: voice 가 없는 요청은 Map.copyOf 의 get(null)이 NullPointerException 을 던져 500 이 된다")
     @Test
     void reading_cloudVoice_aRequestWithoutVoiceIsInvalid() throws Exception {
         for (String body : List.of("{}", "{\"text\":\"가지 마\"}")) {
@@ -154,6 +175,12 @@ class CloudVoiceIT {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class Fakes {
+        @Bean @Primary VoiceModelStorage fakeVoiceModelStorage() {
+            return new VoiceModelStorage() {
+                public boolean configured() { return true; }
+                public String downloadUrl(String key, int expiresInSeconds) { return "https://example.test/" + key; }
+            };
+        }
         @Bean @Primary VoiceSynthesizer fakeVoiceSynthesizer() { return (text, voice) -> new byte[] {1, 2}; }
         @Bean @Primary CloudVoiceStorage fakeCloudVoiceStorage() {
             return new CloudVoiceStorage() {

@@ -138,6 +138,13 @@ test("reading.supertonic: 읽지 못할 기호를 걷고 띄어쓰기·따옴표
   assert.equal(processor.preprocessText("i.e., one_two #3 / a|b", "en"), "<en>that is, one two 3 a b.</en>");
 });
 
+test("reading.supertonic: 줄바꿈 없는 하이픈(U+2011)과 양음 부호(´)도 치환표대로 바꾼다", () => {
+  const processor = new UnicodeProcessor(identityIndexer);
+
+  assert.equal(processor.preprocessText("c \u2011 d", "en"), "<en>c - d.</en>");
+  assert.equal(processor.preprocessText("it\u00b4s", "en"), "<en>it's.</en>");
+});
+
 test("reading.supertonic: 모르는 언어 태그면 지원 목록을 담아 오류를 던진다", () => {
   const processor = new UnicodeProcessor(identityIndexer);
   assert.throws(() => processor.call(["hi"], ["xx"]), /^Error: Invalid language: xx\. Available: en, ko, ja, ar, /);

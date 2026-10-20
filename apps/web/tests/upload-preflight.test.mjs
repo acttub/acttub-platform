@@ -168,7 +168,7 @@ test("preflight는 5분을 초과한 영상을 압축 전에 거부한다", asyn
         return candidate;
       },
     }),
-    /5분 이하여야 해요/,
+    { message: "영상이 너무 길어요(5분 이내)." },
   );
   assert.equal(compressionCalls, 0);
 });
@@ -190,7 +190,7 @@ test("preflight는 압축 또는 폴백 뒤 실제 업로드 파일이 100MB를 
       durationResolver: async () => 60_000,
       compressor: async () => oversizedResult,
     }),
-    /다른 브라우저를 사용하거나 파일 크기를 줄여/,
+    { message: "영상이 너무 커요(100MB 이내). 다른 브라우저로 다시 올려 보세요." },
   );
 });
 
@@ -432,7 +432,7 @@ test("preflight는 길이가 1ms 이상의 정수가 아니면 거부하고 정�
   for (const durationMs of [0, 1.5, Number.NaN]) {
     await assert.rejects(
       prepareVideoUpload(file, { durationResolver: async () => durationMs, compressor: async (given) => given }),
-      { message: "영상은 5분 이하여야 해요." },
+      { message: "영상이 너무 길어요(5분 이내)." },
     );
   }
 
@@ -516,7 +516,7 @@ test("preflight는 옵션 없이 부르면 브라우저 영상 요소로 길이�
   assert.deepEqual(await pending, { durationMs: 4_200, file, wasCompressed: false, compressMs: 0 });
 });
 
-test("preflight는 5분을 넘는 영상을 스펙 문구로 거부한다", { todo: "버그: 길이 초과 문구가 스펙(영상이 너무 길어요(5분 이내).)과 다르다" }, async () => {
+test("preflight는 5분을 넘는 영상을 스펙 문구로 거부한다", async () => {
   await assert.rejects(
     prepareVideoUpload(new File(["video"], "long.mp4", { type: "video/mp4" }), {
       durationResolver: async () => 300_001,
@@ -526,12 +526,12 @@ test("preflight는 5분을 넘는 영상을 스펙 문구로 거부한다", { to
   );
 });
 
-test("preflight는 100MB를 넘는 압축 결과를 스펙 문구로 거부한다", { todo: "버그: 크기 초과 문구가 스펙(영상이 너무 커요(100MB 이내).)과 다르다" }, async () => {
+test("preflight는 100MB를 넘는 압축 결과를 스펙 문구로 거부한다", async () => {
   await assert.rejects(
     prepareVideoUpload(new File(["video"], "large.mp4", { type: "video/mp4" }), {
       durationResolver: async () => 60_000,
       compressor: async () => ({ name: "large.mp4", type: "video/mp4", size: MAX_UPLOAD_BYTES + 1 }),
     }),
-    { message: "영상이 너무 커요(100MB 이내)." },
+    { message: "영상이 너무 커요(100MB 이내). 다른 브라우저로 다시 올려 보세요." },
   );
 });

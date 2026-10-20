@@ -15,12 +15,17 @@ import type { RehearsalState } from "@/lib/reading/rehearsal/machine";
 import { newRequestId } from "@/lib/reading/request-id";
 import type { StoredScript } from "@/lib/reading/storage";
 
+// 큐는 하나뿐이지만 화면은 다시 열리므로 안내는 지금 붙어 있는 화면들이 받는다.
+const noticeListeners = new Set<(m: string) => void>();
+
 /** 앱 전체가 함께 쓰는 큐. 회차가 끝나거나 다른 화면으로 가도 남은 파일을 이어서 보낸다. */
-export function recordingQueue(onNotice?: (m: string) => void): RecordingQueue {
+export function recordingQueue(): RecordingQueue {
   return sharedRecordingQueue(() =>
     createRecordingQueue({
       send: (item) => uploadRecording(item.sessionId, item),
-      onNotice: (m) => onNotice?.(m),
+      onNotice: (m) => {
+        for (const cb of noticeListeners) cb(m);
+      },
     }),
   );
 }
@@ -44,7 +49,7 @@ export function useLineRecorder(args: { script: StoredScript; session: SessionDe
   const { script, session, state } = args;
   const enabled = args.enabled && recorderSupported();
   const [notice, setNotice] = useState<string | null>(null);
-  const queue = useMemo(() => recordingQueue(setNotice), []);
+  const queue = useMemo(() => recordingQueue(), []);
   const attempts = useMemo(() => attemptCounter(session.recordings), [session.recordings]);
   const [pending, setPending] = useState(queue.pending());
   const [recording, setRecording] = useState(false);
@@ -54,6 +59,12 @@ export function useLineRecorder(args: { script: StoredScript; session: SessionDe
   const unavailable = useRef(false);
 
   useEffect(() => queue.subscribe(setPending), [queue]);
+  useEffect(() => {
+    noticeListeners.add(setNotice);
+    return () => {
+      noticeListeners.delete(setNotice);
+    };
+  }, []);
 
   const stopAndEnqueue = useCallback(
     (discard = false) => {

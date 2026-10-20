@@ -106,6 +106,7 @@ import type {
   StartSessionBody,
 } from '@/lib/reading/types';
 import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voice';
+import type { VoiceModelFiles } from '@/lib/reading/tts/assets';
 import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
@@ -406,6 +407,11 @@ export const api = {
   getPosters(params: { platform: 'ios' | 'android'; locale: 'ko' | 'en'; app_version: string }): Promise<PostersResponse> {
     const query = new URLSearchParams(params);
     return request(`/v2/app/posters?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
+  },
+
+  /** 리딩 기기 목소리 모델(fp16 묶음)의 내려받을 임시 주소(SOMA-747). 서버에 없으면 404·503 — 앱은 원본 fp32 로 받는다. */
+  getVoiceModel(): Promise<VoiceModelFiles> {
+    return request('/v2/reading/voice-model', {}, { auth: true, timeoutMs: 10_000 });
   },
 
   getCloudVoiceStatus(): Promise<CloudVoiceStatus> {
