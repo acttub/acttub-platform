@@ -3620,6 +3620,28 @@
         } ]
       }
     },
+    "/v2/reading/voice-model" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Device voice model download urls",
+        "operationId" : "current",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModelResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/sessions/{session_id}" : {
       "get" : {
         "tags" : [ "v2-reading" ],
@@ -9137,6 +9159,49 @@
           }
         },
         "title" : "StatusResponse"
+      },
+      "FileResponse" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "title" : "Name"
+          },
+          "bytes" : {
+            "type" : "integer",
+            "title" : "Bytes"
+          },
+          "sha256" : {
+            "type" : "string",
+            "title" : "Sha256"
+          },
+          "url" : {
+            "type" : "string",
+            "title" : "Url"
+          }
+        },
+        "title" : "FileResponse"
+      },
+      "ModelResponse" : {
+        "type" : "object",
+        "properties" : {
+          "version" : {
+            "type" : "string",
+            "title" : "Version"
+          },
+          "files" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FileResponse"
+            },
+            "title" : "Files"
+          },
+          "expires_in" : {
+            "type" : "integer",
+            "title" : "Expires In"
+          }
+        },
+        "title" : "ModelResponse"
       },
       "ReadingScriptCard" : {
         "type" : "object",

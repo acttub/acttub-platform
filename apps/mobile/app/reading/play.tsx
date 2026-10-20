@@ -60,7 +60,7 @@ import {
   type MaskMode,
 } from '@/lib/reading/store';
 import type { SttPolicy } from '@/lib/reading/stt-policy';
-import { assetsPresent, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
+import { activeVariant, assetsPresent, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
 import { formatDownloadProgress, loadPercent, type VoiceProgress } from '@/lib/reading/tts/download-progress';
 import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
@@ -458,8 +458,8 @@ export default function ReadingPlay() {
       else setPhase({ kind: 'voice_unsupported' });
       return;
     }
-    if (!assetsPresent('fp32', 'M1')) {
-      const prompt = modelDownloadPrompt({ assetsPresent: false, networkType: await currentNetworkType(), bytes: modelDownloadBytes('fp32') });
+    if (!assetsPresent(activeVariant(), 'M1')) {
+      const prompt = modelDownloadPrompt({ assetsPresent: false, networkType: await currentNetworkType(), bytes: modelDownloadBytes(activeVariant()) });
       if (prompt.ask) {
         const ok = await confirm({
           title: t('reading.downloadAskTitle'),
@@ -496,6 +496,7 @@ export default function ReadingPlay() {
       if (kind === 'model_load') {
         await markAppVoiceUnsupported();
         removeDownloadedAssets('fp32');
+        removeDownloadedAssets('fp16');
       }
       if (!mounted.current) return;
       if (kind === 'model_load') {
@@ -958,7 +959,7 @@ export default function ReadingPlay() {
         <Feather name="alert-circle" size={30} color={palette.amber} />
         <Text style={styles.doneTitle}>{t('reading.voiceFailTitle')}</Text>
         {failure.kind === 'storage' ? (
-          <Text style={styles.dim}>{t('reading.voiceFailStorage', { size: formatMegabytes(failure.neededBytes ?? modelDownloadBytes('fp32')) })}</Text>
+          <Text style={styles.dim}>{t('reading.voiceFailStorage', { size: formatMegabytes(failure.neededBytes ?? modelDownloadBytes(activeVariant())) })}</Text>
         ) : failure.kind === 'network' ? (
           <Text style={styles.dim}>{t('reading.voiceFailNetwork')}</Text>
         ) : null}
