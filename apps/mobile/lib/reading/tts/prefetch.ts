@@ -14,11 +14,12 @@ import { speechKey } from './speech-key.ts';
  * <p>만드는 일과 파일 쓰기는 주입받는다 — 이 파일은 onnxruntime 없이도 시험할 수 있다.
  */
 
-export type SpeechLine = string | { text: string; preset: string };
+/** lang 은 그 줄의 말(SOMA-751). 없으면 큐의 locale 로 읽는다. */
+export type SpeechLine = string | { text: string; preset: string; lang?: string };
 
 export type SpeechQueueOptions = {
   /** 한 줄을 만들어 파일로 남기고 그 자리를 돌려준다. */
-  synthesize: (text: string, key: string, preset: string) => Promise<string>;
+  synthesize: (text: string, key: string, preset: string, lang: string) => Promise<string>;
   /** 어느 대본의 음성인가 — 파일 이름과 캐시를 가른다. */
   scriptId: string;
   locale: string;
@@ -51,10 +52,11 @@ export function createSpeechQueue(options: SpeechQueueOptions): SpeechQueue {
 
   const textOf = (line: SpeechLine) => (typeof line === 'string' ? line : line.text).trim();
   const presetOf = (line: SpeechLine) => typeof line === 'string' ? options.preset : line.preset;
+  const langOf = (line: SpeechLine) => (typeof line === 'string' ? undefined : line.lang) || options.locale;
   const keyOf = (line: SpeechLine) =>
     speechKey({
       text: textOf(line),
-      locale: options.locale,
+      locale: langOf(line),
       preset: presetOf(line),
       variant: options.variant,
       steps: options.steps,
@@ -86,7 +88,7 @@ export function createSpeechQueue(options: SpeechQueueOptions): SpeechQueue {
     const already = inFlight.get(key);
     if (already) return already;
     const work = options
-      .synthesize(textOf(line), key, presetOf(line))
+      .synthesize(textOf(line), key, presetOf(line), langOf(line))
       .then((uri) => {
         done.set(key, uri);
         return uri;

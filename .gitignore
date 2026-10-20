@@ -7,6 +7,7 @@ node_modules/
 out/
 dist/
 build/
+coverage/
 
 # env
 .env
@@ -49,3 +50,4 @@ pnpm-debug.log*
 # 사본만 조용히 낡는다(SOMA-443 정리에서 네 커밋이 이 파일을 고쳐야 했다). 파일은
 # 디스크에 남는다(로컬 메모).
 docs/TODO.md
+.wrangler/

@@ -6204,9 +6204,25 @@
               "type" : "null"
             } ],
             "title" : "Dialogue No"
+          },
+          "lang" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Lang"
+          },
+          "speech" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Speech"
           }
         },
-        "required" : [ "character_id", "dialogue_no", "id", "kind", "ordinal", "text" ],
+        "required" : [ "character_id", "dialogue_no", "id", "kind", "lang", "ordinal", "speech", "text" ],
         "title" : "ReadingScriptLine"
       },
       "ReadingScriptScene" : {

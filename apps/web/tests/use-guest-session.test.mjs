@@ -114,3 +114,50 @@ test("account.guest: 0.1.0 이전 웹 로그인이 남긴 회원 토큰은 게�
     probe.unmount();
   }
 });
+
+/** 다른 탭의 localStorage 쓰기가 이 탭에 도착한 것. 값부터 바뀌어 있고 그 뒤에 이벤트가 온다. */
+function fromAnotherTab(key, oldValue, newValue) {
+  if (key !== null) {
+    if (newValue === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, newValue);
+  }
+  react.act(() => {
+    window.dispatchEvent(new window.StorageEvent("storage", { key, oldValue, newValue }));
+  });
+}
+
+test("account.guest: 다른 탭에서 게스트가 시작되거나 끝나면 이 탭의 화면도 따라온다", () => {
+  const probe = mount(Probe);
+  try {
+    fromAnotherTab("acttub.guest.refresh_token", null, "other-tab-refresh");
+    assert.equal(probe.latest.hasSession, true);
+
+    // 다른 탭의 SDK 가 쓰는 무관한 키는 화면을 다시 그리지 않는다.
+    const renders = probe.everyRender.length;
+    fromAnotherTab("ph_phc_project_posthog", null, "{}");
+    assert.equal(probe.everyRender.length, renders);
+
+    fromAnotherTab("acttub.guest.refresh_token", "other-tab-refresh", null);
+    assert.equal(probe.latest.hasSession, false);
+  } finally {
+    probe.unmount();
+  }
+});
+
+test(
+  "account.guest: 다른 탭이 저장소를 통째로 비우면 이 탭의 화면도 게스트 없음으로 돌아간다",
+  { todo: "버그: 다른 탭의 localStorage.clear()(key null) 뒤에도 token-store 메모리의 리프레시 토큰이 남아 게스트가 있다고 답한다" },
+  () => {
+    const probe = mount(Probe);
+    try {
+      fromAnotherTab("acttub.guest.refresh_token", null, "other-tab-refresh");
+      assert.equal(probe.latest.hasSession, true);
+
+      window.localStorage.clear();
+      fromAnotherTab(null, null, null);
+      assert.equal(probe.latest.hasSession, false);
+    } finally {
+      probe.unmount();
+    }
+  },
+);

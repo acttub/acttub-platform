@@ -69,7 +69,13 @@ jobs:
         run: pnpm typecheck
 
       - name: Test
-        run: pnpm --filter web test
+        run: pnpm --filter web test:coverage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-web
+          retention-days: 1
+          path: apps/web/coverage/lcov.info
 
   # 백엔드 테스트의 관문입니다. 계약 하네스 잡 둘(`contract-harness`·
   # `contract-harness-java`)이 SOMA-403 4단계에서 사라졌고, 그것들이 보던 계약은
@@ -123,7 +129,14 @@ jobs:
       # 러너에 Docker가 기본 탑재돼 있고, DOCKER_API_VERSION은 build.gradle.kts가 채웁니다.
       - name: Test
         if: steps.changes.outputs.api == 'true'
-        run: ./gradlew test --no-daemon
+        run: ./gradlew test jacocoTestReport --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        if: steps.changes.outputs.api == 'true'
+        with:
+          name: coverage-api
+          retention-days: 1
+          path: apps/api/build/reports/jacoco/test/jacocoTestReport.xml
 
       - name: Upload test report
         if: failure()
@@ -205,10 +218,10 @@ jobs:
   # 잡이 설치조차 하지 않습니다. 이 잡이 생기기 전에는 apps/mobile 만 고친 PR 이
   # 아무것도 돌지 않은 채 초록이었습니다.
   #
-  # 설치 단계가 없는 것은 실수가 아닙니다 — 스위트가 import 하는 것은 node: 빌트인과
-  # 프로젝트 .ts 파일뿐이고 @/ 로 들어오는 둘은 import type 이라 타입 스트리핑에
-  # 지워집니다. node_modules 를 통째로 치운 채 전부 통과하는 것을 확인했습니다.
-  # 여기에 런타임 의존이 하나라도 생기면 npm ci 가 필요해집니다.
+  # 테스트는 두 갈래입니다. node --test 는 lib 의 .ts 를 설치 없이 타입 스트리핑으로 돌리고,
+  # jest(jest-expo)는 화면·컴포넌트·훅과 lib 의 .tsx 를 React Native 렌더러로 돌립니다(SOMA-750).
+  # 같은 파일을 두 러너가 함께 재면 분기 번호 체계가 달라 Sonar 에서 분기가 두 벌로 잡히므로,
+  # 커버리지는 파일마다 한 러너만 잽니다(package.json 의 test:coverage 제외 목록과 jest.collectCoverageFrom).
   #
   # ⚠ expo lint·tsc 는 일부러 뺐습니다. expo lint 는 Expo 전체 트리 설치가 필요해
   # 20초짜리 잡을 몇 분으로 늘리고, tsc 는 typedRoutes 타입(.expo/types, gitignore)이
@@ -225,10 +238,82 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: Install
+        run: npm ci
 
       # .ts 를 그대로 import 합니다(Node 타입 스트리핑). 웹과 달리 커스텀 로더가 없습니다.
       - name: Test
-        run: node --test tests/*.test.mjs
+        run: npm run test:coverage
+
+      - name: Test screens
+        run: npm run test:screens
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-mobile
+          retention-days: 1
+          path: |
+            apps/mobile/coverage/lcov.info
+            apps/mobile/coverage/jest.lcov.info
+
+  # 세 잡의 커버리지 리포트를 모아 SonarQube Cloud 로 한 번에 보냅니다(SOMA-702). 설정은 sonar-project.properties.
+  # dev 대시보드는 매일 schedule 실행이 갱신합니다(CI 가 dev push 에는 돌지 않습니다).
+  # required check 가 아니라 ruleset 과 무관합니다. 토큰이 없으면(fork PR 포함) 스캔을 건너뜁니다.
+  sonar:
+    name: sonar (SonarQube Cloud)
+    needs: [web, api, mobile]
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - name: 토큰 확인
+        if: env.SONAR_TOKEN == ''
+        run: echo "SONAR_TOKEN 이 없어 스캔을 건너뜁니다."
+
+      # 새 코드 판정과 blame 에 전체 이력이 필요합니다.
+      - uses: actions/checkout@v7
+        if: env.SONAR_TOKEN != ''
+        with:
+          fetch-depth: 0
+
+      # Java 분석은 컴파일된 클래스가 있어야 돕니다. api 테스트를 건너뛴 PR 에서도 스캔하려고 여기서 컴파일합니다.
+      - uses: actions/setup-java@v5
+        if: env.SONAR_TOKEN != ''
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: env.SONAR_TOKEN != ''
+
+      - name: Compile api
+        if: env.SONAR_TOKEN != ''
+        working-directory: apps/api
+        run: ./gradlew classes --no-daemon
+
+      # api 테스트를 건너뛴 PR 에는 coverage-api 가 없습니다. Sonar 는 PR 에서 바뀐 줄만 보므로 괜찮습니다.
+      - uses: actions/download-artifact@v4
+        if: env.SONAR_TOKEN != ''
+        with:
+          pattern: coverage-*
+          path: coverage-reports
+
+      # node --test 와 jest 의 lcov 경로는 앱 디렉터리 기준이라 저장소 루트 기준으로 바꿉니다.
+      - name: lcov 경로 보정
+        if: env.SONAR_TOKEN != ''
+        run: |
+          for app in web mobile; do
+            for f in coverage-reports/coverage-$app/*lcov.info; do
+              [ -f "$f" ] && sed -i "s#^SF:#SF:apps/$app/#" "$f"
+            done
+          done
+          find coverage-reports -type f
+
+      - uses: SonarSource/sonarqube-scan-action@v8
+        if: env.SONAR_TOKEN != ''
 
   # 매일 schedule 실행이 실패하면 #배포알림 으로 보냅니다. PR 실행은 PR 화면이 알리므로 건너뜁니다.
   # required check 가 아니고 PR 에서는 skipped 라 ruleset 과 무관합니다.

@@ -27,3 +27,67 @@ test("이전 대화를 펼치면 해당 대화만 조회하고 답장 입력 없
     assert.equal(window.document.querySelector("textarea,input"), null);
   } finally { probe.unmount(); }
 });
+
+const { cleanup, render, screen } = await import("@testing-library/react");
+const { PreviousConversations } = await import("../src/features/practice/previous-conversations.tsx");
+
+function conversationResponse(id, text) {
+  return new Response(JSON.stringify({ id, status: "closed", revision: 2,
+    messages: [{ role: "coach", text: `${text} 코치`, turn_index: 2 }, { role: "actor", text: `${text} 배우`, turn_index: 1 }] }),
+    { headers: { "Content-Type": "application/json" } });
+}
+
+const olds = [
+  { id: "old-1", status: "closed", created_at: "2026-09-01T00:00:00Z" },
+  { id: "old-2", status: "closed", created_at: "2026-09-02T00:00:00Z" },
+];
+
+test("이전 대화는 한 번에 하나만 펼치고, 다시 누르면 접는다", async () => {
+  setTokens({ access_token: "guest", refresh_token: "refresh" });
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    return conversationResponse(String(url).split("/").at(-1), String(url).endsWith("old-1") ? "첫" : "둘째");
+  };
+  render(react.createElement(PreviousConversations, { conversations: olds }));
+  try {
+    assert.equal(screen.getByRole("heading", { name: "이전 대화" }).textContent, "이전 대화");
+    await react.act(async () => screen.getByRole("button", { name: "이전 대화 1 보기" }).click());
+    assert.deepEqual(screen.getAllByRole("listitem").map((item) => item.textContent), ["나첫 배우", "코치첫 코치"]);
+
+    await react.act(async () => screen.getByRole("button", { name: "이전 대화 2 보기" }).click());
+    assert.equal(screen.getByRole("button", { name: "이전 대화 1 보기" }).getAttribute("aria-expanded"), "false");
+    assert.equal(screen.getByRole("button", { name: "이전 대화 2 접기" }).getAttribute("aria-expanded"), "true");
+    assert.deepEqual(screen.getAllByRole("listitem").map((item) => item.textContent), ["나둘째 배우", "코치둘째 코치"]);
+
+    await react.act(async () => screen.getByRole("button", { name: "이전 대화 2 접기" }).click());
+    assert.equal(screen.queryByRole("listitem"), null);
+    assert.equal(screen.getByRole("button", { name: "이전 대화 2 보기" }).getAttribute("aria-expanded"), "false");
+    assert.deepEqual(calls, ["/v2/coach/conversations/old-1", "/v2/coach/conversations/old-2"]);
+  } finally { cleanup(); }
+});
+
+test("이전 대화를 받는 동안은 불러오는 중이라고 알리고, 못 받으면 그 자리에 알린다", async () => {
+  setTokens({ access_token: "guest", refresh_token: "refresh" });
+  let answer;
+  globalThis.fetch = () => new Promise((resolve) => { answer = resolve; });
+  render(react.createElement(PreviousConversations, { conversations: olds.slice(0, 1) }));
+  try {
+    await react.act(async () => screen.getByRole("button", { name: "이전 대화 1 보기" }).click());
+    assert.equal(screen.getByRole("status").textContent, "대화를 불러오고 있어요.");
+
+    await react.act(async () => answer(new Response(JSON.stringify({ detail: "not_found" }),
+      { status: 404, headers: { "Content-Type": "application/json" } })));
+    assert.equal(screen.getByRole("alert").textContent, "대화를 불러오지 못했어요.");
+    assert.equal(screen.queryByRole("status"), null);
+  } finally { cleanup(); }
+});
+
+test("이전 대화가 없는 회차는 이전 대화 자리를 그리지 않는다", () => {
+  const { container, rerender } = render(react.createElement(PreviousConversations, { conversations: olds.slice(0, 1) }));
+  try {
+    assert.equal(screen.getByRole("button").textContent, "이전 대화 1 보기");
+    rerender(react.createElement(PreviousConversations, { conversations: [] }));
+    assert.equal(container.textContent, "");
+  } finally { cleanup(); }
+});

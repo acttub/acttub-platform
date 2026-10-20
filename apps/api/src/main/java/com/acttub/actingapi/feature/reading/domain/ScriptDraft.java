@@ -39,10 +39,30 @@ public record ScriptDraft(
         this(title, rawText, source, characterNames, lines, null);
     }
 
+    /** 줄마다 말과 소리 낼 글을 채운 같은 대본(SOMA-751). {@code languages} 는 줄의 ordinal → 답이고, 없는 줄은 그대로다. */
+    public ScriptDraft withLanguages(java.util.Map<Integer, LineLanguage.Result> languages) {
+        if (languages.isEmpty()) {
+            return this;
+        }
+        List<Line> next = lines.stream()
+                .map(line -> {
+                    LineLanguage.Result result = languages.get(line.ordinal());
+                    return result == null ? line : new Line(line.ordinal(), line.kind(), line.characterIndex(), line.text(),
+                            result.lang(), result.speech());
+                })
+                .toList();
+        return new ScriptDraft(title, rawText, source, characterNames, next, characterTraits);
+    }
+
     /**
      * @param kind {@code dialogue}·{@code direction}·{@code scene}
      * @param characterIndex 대사면 배역의 자리, 지문·장면이면 {@code null}
+     * @param lang 대사의 말(ISO 639-1, {@link LineLanguage#SUPPORTED}). 모르면 {@code null} — SOMA-751
+     * @param speech 상대역 목소리가 읽을 글. 줄 글과 같으면 {@code null}
      */
-    public record Line(int ordinal, String kind, Integer characterIndex, String text) {
+    public record Line(int ordinal, String kind, Integer characterIndex, String text, String lang, String speech) {
+        public Line(int ordinal, String kind, Integer characterIndex, String text) {
+            this(ordinal, kind, characterIndex, text, null, null);
+        }
     }
 }

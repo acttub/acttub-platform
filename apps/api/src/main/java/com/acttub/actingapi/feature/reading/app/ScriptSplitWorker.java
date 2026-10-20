@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.Material;
 import com.acttub.actingapi.feature.reading.domain.CharacterTraits;
+import com.acttub.actingapi.feature.reading.domain.LineLanguage;
 import com.acttub.actingapi.feature.reading.domain.LineSpacing;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
@@ -189,7 +190,7 @@ public class ScriptSplitWorker {
         ScriptDraft draft = SplitDraft.assemble(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
         if (rejection == null) {
-            return Split.of(draft);
+            return Split.of(languages(jobId, calls, draft));
         }
         return Split.failed(switch (rejection) {
             case NO_CHARACTERS -> ScriptImportFailure.NO_CHARACTERS;
@@ -213,6 +214,29 @@ public class ScriptSplitWorker {
             }
         });
         return LineSpacing.apply(lines, restored);
+    }
+
+    /**
+     * 외국 글자가 든 대사만 모델에 물어 줄마다 말과 소리 낼 글을 단다 (SOMA-751). 한국어만 있는 대본은 부르지 않는다.
+     * 복원처럼 작업을 실패시키지 않는다 — 못 받은 줄은 지금처럼 읽힌다.
+     */
+    private ScriptDraft languages(UUID jobId, Calls calls, ScriptDraft draft) {
+        List<NumberedLine> targets = draft.lines().stream()
+                .filter(line -> "dialogue".equals(line.kind()) && LineLanguage.worthAsking(line.text()))
+                .map(line -> new NumberedLine(line.ordinal(), line.text()))
+                .toList();
+        if (targets.isEmpty()) {
+            return draft;
+        }
+        Map<Integer, LineLanguage.Result> found = new ConcurrentHashMap<>();
+        inParallel(NumberedLine.chunks(targets, ScriptSplitRules.CHUNK_LINES), chunk -> {
+            try {
+                found.putAll(LineLanguage.parse(calls.ask(ScriptSplitPrompt.language(), chunk, LlmStep.SCRIPT_LANGUAGE), chunk));
+            } catch (RuntimeException failure) {
+                failures.report(failure, FailureKind.EXTERNAL, new FailureContext("ScriptSplitWorker.language", jobId));
+            }
+        });
+        return draft.withLanguages(found);
     }
 
     private interface ChunkTask {

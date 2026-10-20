@@ -126,3 +126,62 @@ test("사용자 취소 코드는 오류로 보이지 않는다", () => {
   assert.equal(flow.isUserCancel({ code: "INVALID_CARD" }), false);
   assert.equal(flow.isUserCancel(null), false);
 });
+
+test("연결이 끊기면 심사용 결제 네트워크 오류로, 취소는 그대로 던진다", async () => {
+  mockFetch(() => {
+    throw new TypeError("fetch failed");
+  });
+  await assert.rejects(api.getPgReviewConfig(), {
+    name: "NetworkError",
+    message: "심사용 결제 요청에 실패했습니다.",
+  });
+
+  const aborted = new DOMException("요청을 그만뒀다", "AbortError");
+  mockFetch(() => {
+    throw aborted;
+  });
+  await assert.rejects(api.getPgReviewResult(), (error) => error === aborted);
+});
+
+test("열린 환경의 설정 오류와 모양이 틀린 설정은 열려 있지 않음으로 숨기지 않고 던진다", async () => {
+  mockFetch(() => json(500, { detail: "internal_error" }));
+  await assert.rejects(api.getPgReviewConfig(), { status: 500, code: "internal_error" });
+
+  mockFetch(() => json(200, { available: "yes" }));
+  await assert.rejects(api.getPgReviewConfig(), { status: 200, code: "malformed_response" });
+
+  const calls = mockFetch(() => json(200, { available: true }));
+  assert.deepEqual(await api.getPgReviewConfig(), { available: true, authenticated: false, testOnly: true, amount: 3900 });
+  assert.equal(new Headers(calls[0].init.headers).has("Content-Type"), false, "본문 없는 GET 에는 Content-Type 이 없다");
+});
+
+test("로그인 200 이어도 authenticated:true 가 아니면 로그인된 것으로 치지 않는다", async () => {
+  mockFetch(() => json(200, { authenticated: false }));
+  await assert.rejects(api.loginPgReview("reviewer", "secret-value"), { status: 200, code: "malformed_response" });
+});
+
+test("체크아웃·결과·로그아웃의 서버 거절은 사유 코드 그대로 던진다", async () => {
+  const calls = mockFetch(() => json(409, { detail: "checkout_not_allowed" }));
+  await assert.rejects(api.createPgReviewCheckout(), { status: 409, code: "checkout_not_allowed" });
+  assert.equal(calls[0].url, "/v2/pg-review/checkout");
+  assert.equal(calls[0].init.method, "POST");
+
+  mockFetch(() => json(401, { detail: "pg_review_login_required" }));
+  await assert.rejects(api.getPgReviewResult(), { status: 401, code: "pg_review_login_required" });
+
+  mockFetch(() => json(403, { detail: "origin_not_allowed" }));
+  await assert.rejects(api.logoutPgReview(), { status: 403, code: "origin_not_allowed" });
+});
+
+test("결과의 선택 값은 글자일 때만 옮긴다", async () => {
+  mockFetch(() => json(200, { status: "failed", errorCode: "REJECT_CARD_COMPANY", message: 42 }));
+  assert.deepEqual(await api.getPgReviewResult(), {
+    status: "failed",
+    testOnly: true,
+    amount: 3900,
+    orderId: undefined,
+    approvedAt: undefined,
+    errorCode: "REJECT_CARD_COMPANY",
+    message: undefined,
+  });
+});
