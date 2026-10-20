@@ -17,6 +17,9 @@
   제한된 경로를 전체 앱 검증으로 간주하지 않습니다.
 - `typedRoutes` 타입은 `.expo/types`에 생성됩니다. 라우트 타입 오류를 판정하기 전에 현재
   라우트에서 타입을 다시 생성하고, 오래된 `.expo/` 산출물을 코드 오류로 해석하지 않습니다.
+- 테스트는 두 러너로 나뉩니다. `lib`의 `.ts`는 `tests/*.test.mjs`(node --test, `npm run test:coverage`), 화면·컴포넌트·훅과
+  `lib`의 `.tsx`는 `tests/**/*.test.tsx`(jest-expo와 React Native Testing Library, `npm run test:screens`)입니다. 한 파일의
+  커버리지는 한 러너만 잽니다. 두 러너가 같이 재면 Sonar에서 분기가 두 벌로 잡힙니다.
 - 테스트에 런타임 외부 의존을 추가하면 CI `mobile` 잡처럼 설치 없이 실행 가능한지 확인하고,
   설치가 필요해지면 CI에 반영합니다.
 - 이벤트는 `lib/analytics.ts`로만 보냅니다. Firebase와 PostHog에 같이 갑니다. PostHog(화면 녹화 포함)는 운영 API

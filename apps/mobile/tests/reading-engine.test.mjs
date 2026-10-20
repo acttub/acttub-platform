@@ -22,6 +22,7 @@ const modules = {
   './assets': `const s=globalThis.__readingEngineTest;
     export const MODEL_KINDS=['vocoder'];
     export function assetsPresent(){return !!s.present;}
+    export function activeVariant(){return 'fp32';}
     export async function downloadAssets(variant,preset,onProgress){
       s.downloads=(s.downloads??0)+1;
       onProgress({phase:'download',receivedBytes:1,totalBytes:4,percent:25,etaSeconds:null});

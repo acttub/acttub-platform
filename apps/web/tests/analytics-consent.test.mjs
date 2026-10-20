@@ -261,3 +261,31 @@ test("계측 I-6: 계측 판단을 localStorage 에 복제하지 않는다", asy
   assert.deepEqual(Object.keys(window.localStorage).sort(), before);
   assert.equal(window.localStorage.getItem("acttub.guest.accepted_privacy"), null);
 });
+
+test("계측 I-6: privacy 가 granted 여도 이 브라우저의 게스트 id 를 모르면 켜지 않는다", async () => {
+  clearTokens();
+  setTokens({ access_token: "guest-1-access", refresh_token: "guest-1-refresh" });
+  serveEntry(entry(entryDocument("privacy", "granted")));
+  const recorded = recordSwitch();
+  const gate = createAnalyticsConsentGate(recorded.measurement);
+
+  assert.equal(await gate.check(), false);
+
+  assert.deepEqual(recorded.log, ["off"]);
+});
+
+test("계측 I-6: 조회하는 사이 게스트 토큰이 사라지면 늦게 온 granted 로 켜지 않는다", async () => {
+  const server = { calls: 0 };
+  globalThis.fetch = async () => {
+    server.calls += 1;
+    clearTokens();
+    return jsonResponse(entry(entryDocument("privacy", "granted")));
+  };
+  const recorded = recordSwitch();
+  const gate = createAnalyticsConsentGate(recorded.measurement);
+
+  assert.equal(await gate.check(), false);
+
+  assert.equal(server.calls, 1);
+  assert.deepEqual(recorded.log, ["off"]);
+});

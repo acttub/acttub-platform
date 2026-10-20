@@ -235,3 +235,74 @@ test("자리를 뺏긴 뒤에 온 조회 실패는 오류로 올라오지 않는
   );
   assert.deepEqual(result, { kind: "superseded" });
 });
+
+const { ApiError } = await import("../src/lib/api/v2/errors.ts");
+
+/** 노트 조회가 404 가 아닌 오류로 엎어지는 fetch. 대화 조회는 받아 적는다. */
+function noteFailsStub(practice) {
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    const path = String(url);
+    if (path.endsWith("/analysis")) return jsonResponse({ detail: "analysis_not_found" }, 404);
+    calls.push(path);
+    if (path === "/v2/practices/practice-1") return jsonResponse(practice);
+    if (path === "/v2/practices/practice-1/note") return jsonResponse({ detail: "internal_error" }, 500);
+    return jsonResponse({ detail: "unexpected" }, 418);
+  };
+  return calls;
+}
+
+test("대화가 열려 있는 연습은 노트 조회가 엎어져도 코치를 부를 자리라고 답한다", async () => {
+  const calls = noteFailsStub(detail({ conversation_id: "c1", conversation_status: "open" }));
+  const result = await loadPracticeSession(loadInput());
+  assert.deepEqual(result, { kind: "noNote" });
+  assert.deepEqual(calls, ["/v2/practices/practice-1", "/v2/practices/practice-1/note"]);
+});
+
+test("대화가 닫힌 연습은 노트 조회가 엎어지면 코치를 다시 부르지 않고 실패를 돌려준다", async () => {
+  // 닫힌 대화는 다시 열리지 않는다(practice.coach) — 코치를 부르면 409 conversation_closed 뿐이다.
+  const calls = noteFailsStub(detail({ stage: "closed", conversation_id: "c1", conversation_status: "closed" }));
+  const result = await loadPracticeSession(loadInput());
+  assert.equal(result.kind, "loadFailed");
+  assert.ok(result.cause instanceof ApiError);
+  assert.equal(result.cause.status, 500);
+  assert.deepEqual(calls, ["/v2/practices/practice-1", "/v2/practices/practice-1/note"]);
+});
+
+test("노트 조회가 엎어지는 사이 자리를 뺏기면 그 실패를 남의 화면에 올리지 않는다", async () => {
+  noteFailsStub(detail({ stage: "closed", conversation_id: "c1", conversation_status: "closed" }));
+  let current = true;
+  const result = await loadPracticeSession(
+    loadInput({
+      isCurrent: () => current,
+      onLoaded: () => {
+        current = false;
+      },
+    }),
+  );
+  assert.deepEqual(result, { kind: "superseded" });
+});
+
+test("저장된 대화를 읽는 사이 자리를 뺏기면 그 대화를 싣지 않는다", async () => {
+  let current = true;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    const path = String(url);
+    if (path.endsWith("/analysis")) return jsonResponse({ detail: "analysis_not_found" }, 404);
+    calls.push(path);
+    if (path === "/v2/practices/practice-1") {
+      return jsonResponse(detail({ stage: "closed", conversation_id: "c1", conversation_status: "closed" }));
+    }
+    if (path === "/v2/practices/practice-1/note") return jsonResponse({ detail: "note_not_found" }, 404);
+    // 대화를 받아 오는 사이 목록에서 다른 연습을 열었다.
+    current = false;
+    return jsonResponse({ id: "c1", status: "closed", revision: 2, close_reason: "actor_finished", messages: [], coach_reply_count: 0, reply_limit: 8 });
+  };
+  const result = await loadPracticeSession(loadInput({ isCurrent: () => current }));
+  assert.deepEqual(result, { kind: "superseded" });
+  assert.deepEqual(calls, [
+    "/v2/practices/practice-1",
+    "/v2/practices/practice-1/note",
+    "/v2/coach/conversations/c1",
+  ]);
+});

@@ -1,0 +1,218 @@
+package com.acttub.actingapi.feature.coach.app;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+
+import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
+import com.acttub.actingapi.integration.llm.StructuredJson;
+import com.acttub.actingapi.integration.observation.DirectVideoModel;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.junit.jupiter.api.Test;
+
+/** 연습 루프의 글 다듬기·언어 판단·숨은 상태 칸·노트 재료. */
+class DirectVideoPracticeLoopTest {
+    static CoachSessionSnapshot session(JsonNode state, String situation, String kind, String subBranch, String detail, String... turns) {
+        var list = new ArrayList<CoachTurnSnapshot>();
+        for (int i = 0; i < turns.length; i++) list.add(new CoachTurnSnapshot(i % 2 == 0 ? "ai" : "actor", turns[i]));
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null, situation, "", "", 8000,
+                kind, subBranch, detail, "open", "", list, PriorContext.EMPTY, "three_layers_v1", 0, state, null);
+    }
+
+    static ObjectNode state(String design, String... statuses) {
+        ObjectNode state = StructuredJson.MAPPER.createObjectNode();
+        ObjectNode loop = state.putObject(DirectVideoPracticeLoop.STATE_KEY).put("design", design);
+        ArrayNode array = loop.putArray("statuses");
+        for (String status : statuses) array.add(status);
+        return state;
+    }
+
+    @Test void textTrimmingKeepsTheOriginalWhenNothingWouldRemain() {
+        assertThat(DirectVideoPracticeLoop.onlyFirstQuestion("말끝이 길어요.\n다음에 봐요.")).isEqualTo("말끝이 길어요.\n다음에 봐요.");
+        assertThat(DirectVideoPracticeLoop.withoutQuestions("왜요? 정말요?")).isEqualTo("왜요? 정말요?");
+        assertThat(DirectVideoPracticeLoop.firstQuestionOnly("말끝이 길어요. 왜요?")).isEqualTo("말끝이 길어요. 왜요?");
+        assertThat(DirectVideoPracticeLoop.withoutEcho("한 문장뿐이에요.", "한 문장뿐이에요")).isEqualTo("한 문장뿐이에요.");
+        assertThat(DirectVideoPracticeLoop.withoutEcho("가. 나.", null)).isEqualTo("가. 나.");
+        assertThat(DirectVideoPracticeLoop.withoutEcho("붙잡고 싶었는데 애원하긴 싫었군요. 말끝을 봐요.", "붙잡고 싶었는데 애원하긴 싫었어"))
+                .isEqualTo("말끝을 봐요.");
+        assertThat(DirectVideoPracticeLoop.parse(null)).isEqualTo(new DirectVideoPracticeLoop.Parsed("", "", ""));
+        assertThat(DirectVideoPracticeLoop.displayLength(null)).isZero();
+        assertThat(DirectVideoPracticeLoop.hasTimestamp(null)).isFalse();
+        assertThat(DirectVideoPracticeLoop.nextTake(null)).isEmpty();
+        assertThat(DirectVideoPracticeLoop.designNextTake(null)).isEmpty();
+    }
+
+    @Test void brokenOutputIsRecognisedButOrdinaryWordsAreNot() {
+        assertThat(DirectVideoPracticeLoop.looksBroken(null, null)).isFalse();
+        assertThat(DirectVideoPracticeLoop.looksBroken("  ", null)).isFalse();
+        assertThat(DirectVideoPracticeLoop.looksBroken("​​", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("<div>안녕</div>", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("좋아요 <answer>", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("This is plain English text", Locale.ENGLISH)).isFalse();
+        assertThat(DirectVideoPracticeLoop.looksBroken("This is plain English 텍스트", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("말끝이 ㅋㅋㅋㅋㅋㅋ", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("123 456", null)).isFalse();
+        assertThat(DirectVideoPracticeLoop.looksBroken("말끝이 길게 남아요.", Locale.KOREAN)).isFalse();
+    }
+
+    @Test void fixedMessagesFollowTheReplyLanguage() {
+        assertThat(DirectVideoPracticeLoop.brokenRetryNote(Locale.ENGLISH)).startsWith("[Rewrite]\nYour last answer was unrelated text.");
+        assertThat(DirectVideoPracticeLoop.emptyRetryNote(Locale.ENGLISH)).startsWith("[Rewrite]\nYour last answer had no words");
+        assertThat(DirectVideoPracticeLoop.timestampRetryNote(Locale.ENGLISH)).startsWith("[Rewrite]\nYour last answer pointed to a passage");
+        assertThat(DirectVideoPracticeLoop.notActingMessage(Locale.ENGLISH))
+                .isEqualTo("I couldn't find an acting scene in this video.\nPlease upload a video with your acting in it.");
+        assertThat(DirectVideoPracticeLoop.audioUnavailableMessage(Locale.ENGLISH))
+                .isEqualTo("The video's audio is silent.\nPlease upload a video with audible sound.");
+        assertThat(DirectVideoPracticeLoop.brokenRetryNote(Locale.KOREAN)).startsWith("[다시 쓰기]");
+    }
+
+    @Test void theActionSentenceIsPickedFromTheWrapUp() {
+        assertThat(DirectVideoPracticeLoop.actionLine(null)).isEmpty();
+        assertThat(DirectVideoPracticeLoop.actionLine(" ")).isEmpty();
+        assertThat(DirectVideoPracticeLoop.actionLine("특히 끝을 봐요. 다음 테이크에서 확인해 봐요.\n상대 눈을 보며 말해 봐도 좋아요."))
+                .isEqualTo("상대 눈을 보며 말해 봐도 좋아요");
+        assertThat(DirectVideoPracticeLoop.actionLine("잘했어요.")).isEmpty();
+    }
+
+    @Test void theActorsLanguageComesFromTheirWordsOrExplicitRequests() {
+        assertThat(DirectVideoPracticeLoop.actorLanguage(null, "Please answer in English")).isEqualTo(Locale.ENGLISH);
+        assertThat(DirectVideoPracticeLoop.actorLanguage(null, "please answer in korean")).isNull();
+        assertThat(DirectVideoPracticeLoop.actorLanguage(null, "これはテストです")).isEqualTo(Locale.JAPANESE);
+        assertThat(DirectVideoPracticeLoop.actorLanguage(null, "ok")).isNull();
+        CoachSessionSnapshot english = session(null, "A woman stops her partner at the door", "그 외", "그 외", "", "질문", "그만");
+        assertThat(DirectVideoPracticeLoop.actorLanguage(english, "")).isEqualTo(Locale.ENGLISH);
+        CoachSessionSnapshot dotted = session(null, ".", "그 외", "그 외", "", "질문", "ok");
+        assertThat(DirectVideoPracticeLoop.actorLanguage(dotted, null)).isNull();
+        assertThat(DirectVideoPracticeLoop.languageOf("ok fine")).isEqualTo(Locale.ROOT);
+    }
+
+    @Test void markersAreStoredOnceUnderTheLoopKey() {
+        ObjectNode state = StructuredJson.MAPPER.createObjectNode();
+        DirectVideoPracticeLoop.rememberPersona(state, "b1");
+        DirectVideoPracticeLoop.rememberPersona(state, "b2");
+        DirectVideoPracticeLoop.rememberFlow(state, "b");
+        DirectVideoPracticeLoop.rememberFlow(state, "a");
+        DirectVideoPracticeLoop.rememberCoachModel(state, "b");
+        DirectVideoPracticeLoop.rememberCoachModel(state, "a");
+        DirectVideoPracticeLoop.markInputIssue(state, "silent");
+        DirectVideoPracticeLoop.markNotActing(state, "뉴스");
+        assertThat(DirectVideoPracticeLoop.storedPersona(state)).isEqualTo("b1");
+        assertThat(DirectVideoPracticeLoop.storedFlow(state)).isEqualTo("b");
+        assertThat(DirectVideoPracticeLoop.storedCoachModel(state)).isEqualTo("b");
+        assertThat(DirectVideoPracticeLoop.wasCut(state)).isTrue();
+        assertThat(state.path(DirectVideoPracticeLoop.STATE_KEY).path("input_issue").asText()).isEqualTo("silent");
+        assertThat(DirectVideoPracticeLoop.storedPersona(null)).isEmpty();
+        assertThat(DirectVideoPracticeLoop.storedFlow(null)).isEmpty();
+        assertThat(DirectVideoPracticeLoop.storedCoachModel(null)).isEmpty();
+        ObjectNode issueOnly = StructuredJson.MAPPER.createObjectNode();
+        DirectVideoPracticeLoop.markInputIssue(issueOnly, "silent");
+        ObjectNode notActingOnly = StructuredJson.MAPPER.createObjectNode();
+        DirectVideoPracticeLoop.markNotActing(notActingOnly, "뉴스");
+        assertThat(DirectVideoPracticeLoop.wasCut(issueOnly)).isTrue();
+        assertThat(DirectVideoPracticeLoop.wasCut(notActingOnly)).isTrue();
+        ObjectNode modelOnly = StructuredJson.MAPPER.createObjectNode();
+        DirectVideoPracticeLoop.rememberCoachModel(modelOnly, "a");
+        ObjectNode flowOnly = StructuredJson.MAPPER.createObjectNode();
+        DirectVideoPracticeLoop.rememberFlow(flowOnly, "a");
+        assertThat(DirectVideoPracticeLoop.storedCoachModel(modelOnly)).isEqualTo("a");
+        assertThat(DirectVideoPracticeLoop.storedFlow(flowOnly)).isEqualTo("a");
+    }
+
+    @Test void onlySessionsStartedAsALoopContinueAsOne() {
+        assertThat(DirectVideoPracticeLoop.applies(session(null, "", "그 외", "그 외", ""))).isTrue();
+        assertThat(DirectVideoPracticeLoop.applies(session(null, "", "그 외", "그 외", "", "질문"))).isFalse();
+        assertThat(DirectVideoPracticeLoop.applies(session(StructuredJson.MAPPER.createObjectNode(), "", "그 외", "그 외", "", "질문"))).isFalse();
+        assertThat(DirectVideoPracticeLoop.applies(session(state("버릇: 말끝"), "", "그 외", "그 외", "", "질문"))).isTrue();
+    }
+
+    @Test void theActorMaterialSkipsWhatTheActorDidNotWrite() {
+        assertThat(DirectVideoPracticeLoop.actorMaterial(session(null, ".", "그 외", "그 외", " "))).isEmpty();
+        assertThat(DirectVideoPracticeLoop.actorMaterial(session(null, "문 앞", "표현", "그 외", "빨라진다")))
+                .isEqualTo("## 배우가 적은 것\n이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.\n"
+                        + "- 상황: 문 앞\n- 막힌 곳: 표현\n- 막힌 곳 설명: 빨라진다\n\n");
+        assertThat(DirectVideoPracticeLoop.actorMaterial(session(null, "", "표현", "속도", ""))).contains("- 막힌 곳: 표현 · 속도");
+    }
+
+    @Test void historyReattachesTheDesignAndOptionallyTheStatuses() {
+        ObjectNode state = state("버릇: 말끝", "", "할 일: 파고들기");
+        var turns = session(state, "", "그 외", "그 외", "", "첫 말", "답", "둘째 말").turns();
+        List<DirectVideoModel.Message> with = DirectVideoPracticeLoop.history(turns, state, "새 답");
+        assertThat(with.get(2).text()).isEqualTo("<상태>할 일: 파고들기</상태>\n둘째 말");
+        assertThat(with.getLast()).isEqualTo(new DirectVideoModel.Message("user", "새 답"));
+        List<DirectVideoModel.Message> without = DirectVideoPracticeLoop.history(turns, state, null, false);
+        assertThat(without.get(0).text()).isEqualTo("<설계>\n버릇: 말끝\n</설계>\n<코치>\n첫 말\n</코치>");
+        assertThat(without.get(2).text()).isEqualTo("둘째 말");
+        assertThat(without).hasSize(3);
+        assertThat(DirectVideoPracticeLoop.history(turns, null, null).get(0).text()).isEqualTo("첫 말");
+    }
+
+    @Test void theDesignIsKeptFromTheFirstReplyOnly() {
+        ObjectNode state = StructuredJson.MAPPER.createObjectNode();
+        DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("버릇: 말끝", "", "첫 말"));
+        DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("버릇: 다른 것", "할 일: 파고들기", "둘째 말"));
+        assertThat(state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText()).isEqualTo("버릇: 말끝");
+        assertThat(state.path(DirectVideoPracticeLoop.STATE_KEY).path("statuses").toString()).isEqualTo("[\"\",\"할 일: 파고들기\"]");
+    }
+
+    @Test void finishingIsReadFromEitherStatusShape() {
+        assertThat(DirectVideoPracticeLoop.finished(new DirectVideoPracticeLoop.Parsed("", "순간2 · 마무리2 · 응답 6번째", ""))).isTrue();
+        assertThat(DirectVideoPracticeLoop.finished(new DirectVideoPracticeLoop.Parsed("", "할 일: 끝", ""))).isTrue();
+        assertThat(DirectVideoPracticeLoop.finished(new DirectVideoPracticeLoop.Parsed("", "할 일: 파고들기", ""))).isFalse();
+        assertThat(DirectVideoPracticeLoop.finished(new DirectVideoPracticeLoop.Parsed("", "순간1 · 파고들기", ""))).isFalse();
+        assertThat(DirectVideoPracticeLoop.action("응답 2번째 · 파고들기")).isEqualTo("파고들기");
+        assertThat(DirectVideoPracticeLoop.action("응답 2번째 · 누적 3")).isEmpty();
+    }
+
+    @Test void theNoteUsesTheActorsOwnLineReasonAndCorrections() {
+        ObjectNode state = state("버릇: 소리 빠르기\n소리 빠르기: 대사가 점점 빨라진다. 특히 끝에서\n다음 테이크: [끝을 늦춘다]",
+                "",
+                "배우의 말: 정정\n할 일: 파고들기\n피할 것: 없음",
+                "배우의 말: 답\n할 일: 마무리1",
+                "배우의 말: 자기 한 줄\n다음 테이크: 지키며: 빨라짐을 지키며 끝만 늦춘다\n이번 목표: 끝 늦추기");
+        CoachSessionSnapshot session = session(state, "", "그 외", "그 외", "",
+                "첫 말", "그건 아니야 빠른 건 의도야", "왜 그랬나요?", "인물이 급해서 그래", "한 줄?", "나는 급한 사람이다", "좋아요");
+        var note = DirectVideoPracticeLoop.note(session, 9);
+        assertThat(note.title()).isEqualTo("대사가 점점 빨라진다");
+        assertThat(note.kind()).isEqualTo("action");
+        assertThat(note.nextTake()).isEqualTo("빨라짐을 지키며 끝만 늦춘다");
+        assertThat(note.sourceRevision()).isEqualTo(9);
+        assertThat(note.corrections().toString()).isEqualTo("[\"대사가 점점 빨라진다: \\\"그건 아니야 빠른 건 의도야\\\"\"]");
+        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("나는 급한 사람이다");
+        assertThat(note.summaryQuotes().get(0).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(session, 5));
+        assertThat(note.summaryQuotes().get(1).path("quote").asText()).isEqualTo("인물이 급해서 그래");
+        DirectVideoPracticeLoop.Round round = DirectVideoPracticeLoop.round(state.path(DirectVideoPracticeLoop.STATE_KEY), session.turns());
+        assertThat(round.goal()).isEqualTo("끝 늦추기");
+    }
+
+    @Test void withoutTheActorsLineTheObservedHabitOpensTheSummary() {
+        String longHabit = "대사를 시작하기 전에 고개를 숙이고 숨을 오래 고른 뒤 아주 작은 소리로 첫 마디를 겨우 꺼낸다";
+        ObjectNode state = state("버릇: " + longHabit + "\n이번 목표: 없음", "");
+        var note = DirectVideoPracticeLoop.note(session(state, "", "그 외", "그 외", "", "첫 말"), 1);
+        assertThat(note.kind()).isEqualTo("observation");
+        assertThat(note.nextTake()).isNull();
+        assertThat(note.title()).endsWith("…").hasSizeLessThanOrEqualTo(41);
+        assertThat(note.summaryQuotes().get(0).path("kind").asText()).isEqualTo("observation");
+        assertThat(DirectVideoPracticeLoop.goal(state.path(DirectVideoPracticeLoop.STATE_KEY).path("statuses"), "이번 목표: 없음")).isNull();
+        assertThat(DirectVideoPracticeLoop.goal(null, "이번 목표: 끝 늦추기")).isEqualTo("끝 늦추기");
+        assertThat(DirectVideoPracticeLoop.closingNextTake(null)).isEmpty();
+    }
+
+    @Test void noNoteWithoutALoopDesignOrAfterACut() {
+        assertThat(DirectVideoPracticeLoop.note(session(null, "", "그 외", "그 외", ""), 1)).isNull();
+        assertThat(DirectVideoPracticeLoop.note(session(state("인물: 떠나는 사람"), "", "그 외", "그 외", ""), 1)).isNull();
+        ObjectNode cut = state("버릇: 말끝");
+        DirectVideoPracticeLoop.markNotActing(cut, "뉴스");
+        assertThat(DirectVideoPracticeLoop.note(session(cut, "", "그 외", "그 외", ""), 1)).isNull();
+    }
+
+    @Test void aHabitCategoryIsReplacedByItsDescriptionWhenThereIsOne() {
+        assertThat(DirectVideoPracticeLoop.habit("버릇: 몸")).isEqualTo("몸");
+        assertThat(DirectVideoPracticeLoop.habit("버릇: 몸\n몸: 없음")).isEqualTo("몸");
+        assertThat(DirectVideoPracticeLoop.habit("버릇: 몸\n몸: 어깨가 올라간다")).isEqualTo("어깨가 올라간다");
+    }
+}

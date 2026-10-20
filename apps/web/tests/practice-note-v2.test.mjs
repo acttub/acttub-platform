@@ -15,7 +15,6 @@ const {
   isNoteV2,
   noteQuotes,
   noteTitle,
-  NO_NEXT_TAKE_COPY,
   quoteSourceLabel,
 } = await import("../src/features/practice/practice-note.ts");
 const { getPracticeNote } = await import("../src/lib/api/v2/notes.ts");
@@ -40,7 +39,6 @@ function note(overrides = {}) {
     corrections: [],
     tags: ["말끝"],
     fallback: false,
-    report: { cheer: "오늘 촬영도 수고했어요." },
     source_revision: 9,
     created_at: "2026-09-21T03:00:00Z",
     ...overrides,
@@ -93,7 +91,7 @@ test("practice.note: 종류마다 다음 촬영 자리가 다르다 — 제안�
 
   const observation = note({ kind: "observation", next_take: null });
   const markup = html(observation);
-  assert.match(markup, new RegExp(NO_NEXT_TAKE_COPY));
+  assert.match(markup, /이번에는 다음 촬영에서 해볼 것을 정하지 않았어요\./);
   // 근거 없는 촬영 과제를 지어내지 않는다.
   assert.doesNotMatch(markup, /해볼 것을 정했어요/);
 
@@ -131,4 +129,19 @@ test("practice.note: 노트가 없는 회차는 null 이다 — 화면은 빈 �
     new Response(JSON.stringify({ detail: "not_found" }), { status: 404, headers: { "Content-Type": "application/json" } });
 
   assert.equal(await getPracticeNote("practice-1"), null);
+});
+
+test("practice.note: 404 가 아닌 실패는 빈 자리로 숨기지 않고 서버 오류로 던진다", async () => {
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ detail: "internal_error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", "X-Request-Id": "req-500" },
+    });
+
+  await assert.rejects(getPracticeNote("practice-1"), {
+    name: "ApiError",
+    status: 500,
+    code: "internal_error",
+    requestId: "req-500",
+  });
 });

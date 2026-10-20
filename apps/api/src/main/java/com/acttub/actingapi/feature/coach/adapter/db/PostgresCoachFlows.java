@@ -33,7 +33,7 @@ class PostgresCoachFlows implements CoachFlows {
     @Override
     public String assign(CoachSessionSnapshot session) {
         if (session.userId() == null) return A;
-        Object email = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:id")
+        Object email = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:id AND email IS NOT NULL")
                 .setParameter("id", session.userId()).getResultList().stream().findFirst().orElse(null);
         boolean advisor = email instanceof String text && advisors.containsKey(PostgresCoachPersonas.hash(text));
         if (!advisor) return byAccount(session.userId());

@@ -275,6 +275,41 @@ class AccountNotificationIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"rate limit exceeded\"}"));
     }
 
+    @Test
+    @DisplayName("account.notification: 모르는 플랫폼이나 빈·너무 긴 토큰은 그 칸을 가리키는 422 이고 아무것도 저장하지 않는다")
+    void accountNotification_registrationRejectsUnknownPlatformsAndBadTokens() throws Exception {
+        var webPlatform = postToken(bearer, "ExponentPushToken[web]", "web");
+        var blank = postToken(bearer, "   ");
+        var tooLong = deleteToken(null, "x".repeat(513));
+
+        for (var response : List.of(webPlatform, blank)) {
+            assertThat(response.getStatus()).isEqualTo(422);
+            assertThat(mapper.readTree(response.getContentAsString()).at("/detail/0/type").asText())
+                    .isEqualTo("value_error");
+        }
+        assertThat(tooLong.getStatus()).isEqualTo(422);
+        assertThat(mapper.readTree(tooLong.getContentAsString()).at("/detail/0/type").asText())
+                .isEqualTo("string_too_long");
+        assertThat(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/loc").toString())
+                .isEqualTo("[\"body\",\"platform\"]");
+        assertThat(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/input").asText()).isEqualTo("web");
+        assertThat(mapper.readTree(blank.getContentAsString()).at("/detail/0/loc").toString())
+                .isEqualTo("[\"body\",\"token\"]");
+        assertThat(count("push_tokens")).isZero();
+    }
+
+    @Test
+    @DisplayName("account.notification: 푸시 토큰 검증 오류의 msg 도 다른 value_error 처럼 \"Value error, \" 로 시작한다")
+    void accountNotification_pushTokenValueErrorsUseThePydanticMessage() throws Exception {
+        var webPlatform = postToken(bearer, "ExponentPushToken[web]", "web");
+        var blank = postToken(bearer, "   ");
+
+        assertThat(mapper.readTree(webPlatform.getContentAsString()).at("/detail/0/msg").asText())
+                .isEqualTo("Value error, platform must be one of: ios, android");
+        assertThat(mapper.readTree(blank.getContentAsString()).at("/detail/0/msg").asText())
+                .isEqualTo("Value error, token must be a non-empty string of at most 512 characters");
+    }
+
     // ---- helpers ----
 
     private UUID member() {
@@ -305,11 +340,15 @@ class AccountNotificationIT {
     }
 
     private MockHttpServletResponse postToken(String authorization, String token) throws Exception {
+        return postToken(authorization, token, "ios");
+    }
+
+    private MockHttpServletResponse postToken(String authorization, String token, String platform) throws Exception {
         return mvc.perform(post("/v2/push-tokens")
                         .header("Authorization", authorization)
                         .header("X-Acttub-Client", "app/0.1.2")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"token\":\"" + token + "\",\"platform\":\"ios\"}"))
+                        .content("{\"token\":\"" + token + "\",\"platform\":\"" + platform + "\"}"))
                 .andReturn().getResponse();
     }
 

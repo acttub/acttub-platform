@@ -117,7 +117,9 @@ class PostgresScriptRepository implements ScriptRepository {
                         line.ordinal(),
                         kind(line.kind()),
                         line.characterIndex() == null ? null : characterIds.get(line.characterIndex()),
-                        line.text()));
+                        line.text(),
+                        line.lang(),
+                        line.speech()));
             }
             entityManager.flush();
             return new Creation(scriptId, true, Outcome.CREATED);
@@ -342,7 +344,9 @@ class PostgresScriptRepository implements ScriptRepository {
             }
             entityManager.createNativeQuery("""
                     UPDATE script_lines
-                    SET kind=:kind,character_id=:characterId,text=COALESCE(CAST(:text AS text),text)
+                    SET kind=:kind,character_id=:characterId,text=COALESCE(CAST(:text AS text),text),
+                        lang=CASE WHEN CAST(:text AS text) IS NULL OR CAST(:text AS text)=text THEN lang END,
+                        speech=CASE WHEN CAST(:text AS text) IS NULL OR CAST(:text AS text)=text THEN speech END
                     WHERE id=:lineId
                     """)
                     .setParameter("kind", kind)
@@ -475,7 +479,7 @@ class PostgresScriptRepository implements ScriptRepository {
         List<LineView> lines = new ArrayList<>();
         int dialogueNo = 0;
         for (Tuple row : NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,ordinal,kind,character_id,text
+                SELECT id,ordinal,kind,character_id,text,lang,speech
                 FROM script_lines
                 WHERE script_id=:scriptId
                 ORDER BY ordinal
@@ -489,7 +493,9 @@ class PostgresScriptRepository implements ScriptRepository {
                     kind,
                     row.get("character_id", UUID.class),
                     row.get("text", String.class),
-                    dialogue ? ++dialogueNo : null));
+                    dialogue ? ++dialogueNo : null,
+                    row.get("lang", String.class),
+                    row.get("speech", String.class)));
         }
         return lines;
     }

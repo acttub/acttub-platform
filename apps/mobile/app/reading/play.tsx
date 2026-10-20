@@ -18,6 +18,7 @@ import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { currentNetworkType } from '@/lib/reading/network';
 import { speakableText } from '@/lib/reading/tts/speakable';
+import { isKoreanLine, lineLanguage, speechLocaleFor, speechParts } from '@/lib/reading/line-language';
 import type { LineDraft } from '@/lib/reading/line-edit';
 import type { DialogueLine, ScriptLine } from '@/lib/reading/types';
 import { closeProgressQueue, openProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
@@ -59,7 +60,7 @@ import {
   type MaskMode,
 } from '@/lib/reading/store';
 import type { SttPolicy } from '@/lib/reading/stt-policy';
-import { assetsPresent, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
+import { activeVariant, assetsPresent, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
 import { formatDownloadProgress, loadPercent, type VoiceProgress } from '@/lib/reading/tts/download-progress';
 import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
@@ -216,7 +217,7 @@ export default function ReadingPlay() {
     });
     const upcoming = config.lines.slice(from, config.endIndex + 1)
       .filter((line): line is DialogueLine => line.type === 'dialogue' && !config.myRoles.includes(line.role))
-      .map((line) => ({ text: speakableText(line.text), preset: presetFor(line.role) }));
+      .flatMap((line) => speechParts(line).map((part) => ({ text: speakableText(part.text), preset: presetFor(line.role), lang: part.lang })));
     speechQueue.current.prime(upcoming);
     return speechQueue.current;
   }, [script, config, presetFor]);
@@ -277,6 +278,8 @@ export default function ReadingPlay() {
         const idx = cur ? cur.lineIds.indexOf(lineId) : -1;
         if (!cur || idx < 0) return;
         const line = cur.lines[idx] as DialogueLine;
+        // 발음 피드백은 한국어 발음 모델·한국어 어절 대조라 외국어 줄은 건너뛴다(SOMA-751).
+        if (!isKoreanLine(line)) return;
         const no = dialogueNumbers(cur.lines)[idx];
         const upsert = (patch: Partial<LineFeedback>) =>
           setLineFeedback((prev) => {
@@ -455,8 +458,8 @@ export default function ReadingPlay() {
       else setPhase({ kind: 'voice_unsupported' });
       return;
     }
-    if (!assetsPresent('fp32', 'M1')) {
-      const prompt = modelDownloadPrompt({ assetsPresent: false, networkType: await currentNetworkType(), bytes: modelDownloadBytes('fp32') });
+    if (!assetsPresent(activeVariant(), 'M1')) {
+      const prompt = modelDownloadPrompt({ assetsPresent: false, networkType: await currentNetworkType(), bytes: modelDownloadBytes(activeVariant()) });
       if (prompt.ask) {
         const ok = await confirm({
           title: t('reading.downloadAskTitle'),
@@ -493,6 +496,7 @@ export default function ReadingPlay() {
       if (kind === 'model_load') {
         await markAppVoiceUnsupported();
         removeDownloadedAssets('fp32');
+        removeDownloadedAssets('fp16');
       }
       if (!mounted.current) return;
       if (kind === 'model_load') {
@@ -563,7 +567,9 @@ export default function ReadingPlay() {
     if (phase.kind !== 'running' || tipOpen || !current || current.status !== 'partner') return;
     const line = current.lines[current.index] as DialogueLine;
     const from = current.index;
-    const text = speakableText(line.text);
+    // 줄의 말과 소리 낼 글(SOMA-751). 로마자 아랍어 줄은 서버가 바꿔 둔 아랍 문자를 아랍어로 읽고, 한 줄에 다른 말이
+    // 이어지면(「고맙습니다. شكراً」) 조각마다 그 말로 차례로 읽는다.
+    const parts = speechParts(line).map((part) => ({ ...part, text: speakableText(part.text) }));
     const preset = presetFor(line.role);
     let cancelled = false;
     const finish = () => {
@@ -577,18 +583,21 @@ export default function ReadingPlay() {
           setLineEngine('text_only'); // 글로 보기 — 버튼으로 넘긴다
           return;
         }
-        if (engine === 'device_voice') {
-          setLineEngine('device_voice');
-          await speakWithDevice(text, preset);
-        } else {
-          const ready = await primeSpeech(from)?.take({ text, preset });
+        for (const { text, lang } of parts) {
+          if (cancelled || !mounted.current) return;
+          if (engine === 'device_voice') {
+            setLineEngine('device_voice');
+            await speakWithDevice(text, preset, { locale: speechLocaleFor(lang) });
+            continue;
+          }
+          const ready = await primeSpeech(from)?.take({ text, preset, lang });
           if (cancelled || !mounted.current) return;
           if (ready) {
             setLineEngine(engine);
             await tts.play(ready);
           } else if (engine === 'supertonic') {
             setLineEngine('supertonic');
-            await tts.speak(text, preset, { scriptId: script?.id });
+            await tts.speak(text, preset, { scriptId: script?.id, lang });
           } else {
             // 서버 음성을 못 받은 줄 — 기기 기본 목소리로 읽고 회차에서 처음일 때 알린다. 기기 음성이 없으면 글로 보기.
             if (!deviceVoiceRef.current) {
@@ -600,7 +609,7 @@ export default function ReadingPlay() {
               cloudFallbackNoticed.current = true;
               flash({ kind: 'cloud_fallback' });
             }
-            await speakWithDevice(text, preset);
+            await speakWithDevice(text, preset, { locale: speechLocaleFor(lang) });
           }
         }
       } catch (e) {
@@ -678,7 +687,12 @@ export default function ReadingPlay() {
       // 녹음이 켜진 회차인데 이 기기의 인식기가 소리를 남기지 못하면 녹음기로 받는다 — 받아쓰기보다 녹음이 먼저다.
       const recordOverStt = !!(session.record && !stt.canPersist());
       if (sttMode?.kind === 'stt' && !recordOverStt) {
-        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record || (voiceFeedbackOn.current && !!pronunciationServerUrl()) });
+        // 받아쓰기는 내 줄의 말로 듣는다(SOMA-751).
+        const mine = run.lines[from] as DialogueLine;
+        const ok = stt.start(
+          { onEvent, onInterim: setSaid },
+          { persist: !!session.record || (voiceFeedbackOn.current && !!pronunciationServerUrl()), locale: speechLocaleFor(lineLanguage(mine)) },
+        );
         sttActive.current = ok;
         opened = ok;
       }
@@ -945,7 +959,7 @@ export default function ReadingPlay() {
         <Feather name="alert-circle" size={30} color={palette.amber} />
         <Text style={styles.doneTitle}>{t('reading.voiceFailTitle')}</Text>
         {failure.kind === 'storage' ? (
-          <Text style={styles.dim}>{t('reading.voiceFailStorage', { size: formatMegabytes(failure.neededBytes ?? modelDownloadBytes('fp32')) })}</Text>
+          <Text style={styles.dim}>{t('reading.voiceFailStorage', { size: formatMegabytes(failure.neededBytes ?? modelDownloadBytes(activeVariant())) })}</Text>
         ) : failure.kind === 'network' ? (
           <Text style={styles.dim}>{t('reading.voiceFailNetwork')}</Text>
         ) : null}

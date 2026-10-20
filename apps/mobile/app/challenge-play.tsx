@@ -130,6 +130,9 @@ export default function ChallengePlayScreen() {
     };
   }, [entryId, id]);
 
+  // 보던 맨 끝 참여작을 신고로 빼면 보던 자리가 비므로 효과가 돌기 전에 남은 마지막 참여작으로 당긴다.
+  if (entries?.length && active >= entries.length) setActive(entries.length - 1);
+
   // 페이지가 바뀌면 그 참여작의 영상으로 갈아끼운다.
   useEffect(() => {
     const entry = entries?.[active];
@@ -181,15 +184,17 @@ export default function ChallengePlayScreen() {
 
   /** 다음 20개를 이어 받는다. 정렬 기준이 바뀌면(410) 처음부터 다시 읽는다. */
   const loadMore = useCallback(async () => {
-    if (!id || !cursor || loadingMore) return;
+    // 참여작 id 로만 들어오면 라우트에 챌린지 id 가 없다 — 불러온 챌린지의 id 로 이어 받는다.
+    const challengeId = challenge?.id;
+    if (!challengeId || !cursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const list = await api.listChallengeEntries(id, { sort: 'likes', cursor });
+      const list = await api.listChallengeEntries(challengeId, { sort: 'likes', cursor });
       setEntries((prev) => [...(prev ?? []), ...rankEntries(list.entries, 'likes')]);
       setCursor(list.next_cursor);
     } catch (e) {
       if (browseFailure(e).kind === 'cursor_expired') {
-        const fresh = await api.listChallengeEntries(id, { sort: 'likes' }).catch(() => null);
+        const fresh = await api.listChallengeEntries(challengeId, { sort: 'likes' }).catch(() => null);
         if (fresh) {
           setEntries(rankEntries(fresh.entries, 'likes'));
           setCursor(fresh.next_cursor);
@@ -198,7 +203,7 @@ export default function ChallengePlayScreen() {
     } finally {
       setLoadingMore(false);
     }
-  }, [cursor, id, loadingMore]);
+  }, [challenge, cursor, loadingMore]);
 
   // 3초 이상 본 재생만 조회수가 된다. 자동 반복으로 되감긴 뒤는 같은 재생으로 다시 세지 않는다.
   useEffect(() => {

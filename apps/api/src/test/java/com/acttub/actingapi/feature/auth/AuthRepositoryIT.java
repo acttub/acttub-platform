@@ -61,6 +61,66 @@ class AuthRepositoryIT {
     }
 
     @Test
+    void rotatingAnUnknownOrExpiredRefreshFailsAndTheExpiredOneIsRevoked() {
+        Instant issuedAt = Instant.parse("2026-09-01T00:00:00Z");
+        accounts.issueRefresh(FIRST_USER, "c".repeat(64), issuedAt.plusSeconds(60), "phone", issuedAt);
+
+        var unknown = accounts.rotate("d".repeat(64), "e".repeat(64), issuedAt.plusSeconds(3600), null,
+                issuedAt.plusSeconds(10));
+        var expired = accounts.rotate("c".repeat(64), "f".repeat(64), issuedAt.plusSeconds(7200), null,
+                issuedAt.plusSeconds(120));
+
+        assertThat(unknown).isEqualTo(new AuthRepository.Rotation(null, false));
+        assertThat(expired).isEqualTo(new AuthRepository.Rotation(null, false));
+        assertThat(accounts.getRefresh("c".repeat(64)).revokedAt()).isEqualTo(issuedAt.plusSeconds(120));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_tokens", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void rotationWithoutADeviceKeepsTheOldTokensDevice() {
+        Instant issuedAt = Instant.parse("2026-09-01T00:00:00Z");
+        accounts.issueRefresh(FIRST_USER, "1".repeat(64), issuedAt.plusSeconds(3600), "tablet", issuedAt);
+
+        var rotation = accounts.rotate("1".repeat(64), "2".repeat(64), issuedAt.plusSeconds(7200), null,
+                issuedAt.plusSeconds(10));
+
+        assertThat(rotation.reused()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT device_info FROM refresh_tokens WHERE id=?", String.class, rotation.id()))
+                .isEqualTo("tablet");
+    }
+
+    @Test
+    void providersWithoutAStoredTokenNeverLackOneAndStoringIsANoOp() {
+        accounts.linkIdentity(FIRST_USER, "google", "g-1", null);
+
+        accounts.storeProviderToken("google", "g-1", "encrypted");
+
+        assertThat(accounts.lacksProviderToken("google", "g-1")).isFalse();
+        assertThat(jdbc.queryForObject(
+                "SELECT apple_token_encrypted IS NULL AND naver_token_encrypted IS NULL FROM user_identities "
+                        + "WHERE provider_uid='g-1'", Boolean.class)).isTrue();
+    }
+
+    @Test
+    void onlyAnActiveGuestCountsAsAGuest() {
+        var guests = (com.acttub.actingapi.feature.auth.app.GuestAccounts) accounts;
+        UUID guest = accounts.createGuest("guest-uid-1").id();
+
+        assertThat(guests.activeGuest(guest)).isTrue();
+        assertThat(guests.activeGuest(FIRST_USER)).isFalse();
+        assertThat(guests.activeGuest(UUID.randomUUID())).isFalse();
+        jdbc.update("UPDATE users SET status='deactivated' WHERE id=?", guest);
+        assertThat(guests.activeGuest(guest)).isFalse();
+    }
+
+    @Test
+    void refreshHashMustBeLowercaseSha256Hex() {
+        // 저장소 예외 번역이 감싸도 이유는 그대로다.
+        assertThatThrownBy(() -> accounts.getRefresh("ABC")).hasRootCauseMessage("expected SHA-256 hex");
+        assertThatThrownBy(() -> accounts.getRefresh(null)).hasRootCauseMessage("expected SHA-256 hex");
+    }
+
+    @Test
     void refreshIssuePersistsTheCallersTimestampAndDevice() {
         Instant issuedAt = Instant.parse("2026-09-01T07:30:00.123456Z");
         Instant expiresAt = issuedAt.plusSeconds(3600);

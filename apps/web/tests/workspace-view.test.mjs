@@ -264,3 +264,17 @@ test("대화·노트 화면에서는 이어받기 표시가 화면에서 사라�
     );
   }
 });
+
+test("보관함에서 고른 영상은 서버 주소로 틀고 보관함의 이름을 설명으로 단다", () => {
+  const library = { libraryId: "video-9", url: "https://cdn/video-9.mp4", caption: "면접 리허설", durationMs: 30_000 };
+  const { body } = at({ kind: "prep", video: library, continueFrom: CONTINUE });
+  assert.equal(body.step, 2);
+  assert.deepEqual(body.video, {
+    kind: "player",
+    src: "https://cdn/video-9.mp4",
+    caption: "면접 리허설",
+    reselectable: true,
+  });
+  assert.deepEqual(body.footer, { kind: "start", ready: true });
+  assert.deepEqual(body.continueBanner, { label: "면접 장면", dismissible: true });
+});
