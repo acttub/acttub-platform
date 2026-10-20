@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import * as SecureStore from 'expo-secure-store';
 
 import ProfileScreen from '@/app/(tabs)/profile';
+import { setFirstTimeState } from '@/lib/practice/first-time';
 import { api } from '@/lib/api';
 
 type Me = {
@@ -14,7 +15,7 @@ type Me = {
   } | null;
 } | null;
 
-const mockRouter = { push: jest.fn() };
+const mockRouter = { push: jest.fn(), navigate: jest.fn() };
 let mockUser: { email: string | null } | null = { email: 'actor@example.com' };
 let mockMe: Me = null;
 let mockFocusEffect: () => (() => void) | void = () => undefined;
@@ -262,4 +263,29 @@ test('설정·편집·코치 기억으로 보내고, 탭을 바꾸면 그 카드
     ['/challenge-entries'],
     [{ pathname: '/challenge-play', params: { entryId: 's1' } }],
   ]);
+});
+
+describe('첫 사용자라 탭바가 숨으면', () => {
+  afterEach(() => setFirstTimeState('unknown'));
+
+  test('머리에 홈으로 돌아가는 꺾쇠를 둔다', async () => {
+    setFirstTimeState('first');
+    await render(<ProfileScreen />);
+    await act(async () => undefined);
+
+    const back = screen.getByRole('button', { name: '뒤로' });
+    expect(back.props['ph-label']).toBe('profile_back_home');
+    await fireEvent.press(back);
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/');
+  });
+
+  test('탭바가 보이면(연습했거나 아직 모르면) 꺾쇠를 두지 않는다', async () => {
+    setFirstTimeState('practiced');
+    await render(<ProfileScreen />);
+    await act(async () => undefined);
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+
+    await act(async () => setFirstTimeState('unknown'));
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+  });
 });

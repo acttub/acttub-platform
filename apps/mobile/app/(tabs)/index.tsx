@@ -7,7 +7,6 @@ import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleS
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
-import { setHomeTabBarHidden } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
@@ -26,6 +25,7 @@ import {
 } from '@/lib/admissions';
 import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
 import { dateLocale, isKorean, translate as t, translateList } from '@/lib/i18n';
+import { firstTimeStateFrom, setFirstTimeState } from '@/lib/practice/first-time';
 import { isFirstUser, pickToday, tipIndex, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
@@ -268,11 +268,11 @@ export default function HomeScreen() {
   const firstUser =
     loaded && !groupsFailed && isFirstUser({ groups, scripts: scripts ?? [], practicedDays: activityDays?.length ?? 0 });
 
-  // 첫 사용자 화면(bHxn1I)은 탭바 없이 셋 중 하나를 고르게 한다 — 홈 탭에서만 숨기고, 홈을 떠나면 되돌린다(SOMA-770).
+  // 첫 사용자(연습한 날 없음)는 모든 탭에서 탭바를 숨긴다 — 받은 기록으로 한 곳(lib/practice/first-time)에 적고 탭 레이아웃이 읽는다.
+  // 홈을 떠나도 지우지 않는다. 첫 연습 뒤 홈에 오면 practiced 가 되어 탭바가 다시 보이고 「첫 연습 끝」 안내가 탭을 비춘다.
   useEffect(() => {
-    setHomeTabBarHidden(firstUser);
-    return () => setHomeTabBarHidden(false);
-  }, [firstUser]);
+    setFirstTimeState(firstTimeStateFrom({ practicedDays: activityDays?.length ?? null, groupsFailed }));
+  }, [activityDays, groupsFailed]);
 
   const today = useMemo(
     () => pickToday({ groups, scripts: scripts ?? [], challenge: featured, now: new Date() }),
