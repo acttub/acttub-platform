@@ -1,6 +1,6 @@
 // Sentry internal integration(acttub-slack-relay)의 알림 규칙 액션을 Slack incoming webhook 메시지로 바꿔 넘긴다.
 // 요청은 URL 경로의 비밀 토큰과 Sentry-Hook-Signature(client secret HMAC) 둘 다 맞아야 받는다.
-// 운영 알림은 KV(ALERTS)에도 남겨, Mac mini 자동 수정(sentry-autofix)이 GET /<토큰>/alerts로 가져간다.
+// 운영·dev 알림은 KV(ALERTS)에도 남겨, Mac mini 자동 수정(sentry-autofix)이 GET /<토큰>/alerts로 가져간다.
 
 const ENV_LABEL = { prod: "운영", dev: "dev" };
 const PROJECT = { 4511874739273728: "acttub-web", 4511874784231424: "acttub-api" };
@@ -22,13 +22,14 @@ export function toSlack(event, rule = "") {
   return { text: lines.join("\n") };
 }
 
-// 자동 수정이 쓸 최소 정보만 남긴다. 운영이 아니거나 이슈 ID가 없으면 null.
+// 자동 수정이 쓸 최소 정보만 남긴다. 운영·dev가 아니거나 이슈 ID가 없으면 null.
 export function alertRecord(payload, at) {
   const event = payload.data?.event ?? {};
   const tags = Object.fromEntries(Array.isArray(event.tags) ? event.tags : []);
-  if ((event.environment ?? tags.environment) !== "prod") return null;
+  const env = event.environment ?? tags.environment;
+  if (env !== "prod" && env !== "dev") return null;
   const issueId = event.issue_id ?? event.web_url?.match(/\/issues\/(\d+)\//)?.[1];
-  return issueId ? { issueId: String(issueId), rule: payload.data.triggered_rule ?? "", at } : null;
+  return issueId ? { issueId: String(issueId), env, rule: payload.data.triggered_rule ?? "", at } : null;
 }
 
 async function signatureOk(body, signature, secret) {
@@ -41,7 +42,7 @@ export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
     if (env.RELAY_TOKEN && request.method === "GET" && path === `/${env.RELAY_TOKEN}/alerts`) {
-      // shortcut: 첫 1000개만 읽는다. 14일 안에 운영 알림이 1000개를 넘으면 cursor를 따라간다.
+      // shortcut: 첫 1000개만 읽는다. 14일 안에 알림이 1000개를 넘으면 cursor를 따라간다.
       const { keys } = await env.ALERTS.list();
       return Response.json(keys.map((k) => k.metadata));
     }

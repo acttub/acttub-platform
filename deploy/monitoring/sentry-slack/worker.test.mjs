@@ -66,10 +66,11 @@ test("event_alert는 Slack에 보내고 Slack 실패는 502", async () => {
   assert.match(sent.body.text, /\[운영 · 처음 남\]/);
 });
 
-test("운영 알림만 이슈 ID·규칙·시각으로 남긴다", () => {
+test("운영·dev 알림만 이슈 ID·환경·규칙·시각으로 남긴다", () => {
   const at = "2026-10-20T00:00:00.000Z";
-  assert.deepEqual(alertRecord(JSON.parse(body), at), { issueId: "7799006287", rule: "운영 처음 남", at });
-  assert.equal(alertRecord({ data: { event: { ...event, environment: "dev" } } }, at), null);
+  assert.deepEqual(alertRecord(JSON.parse(body), at), { issueId: "7799006287", env: "prod", rule: "운영 처음 남", at });
+  assert.equal(alertRecord({ data: { event: { ...event, environment: "dev" }, triggered_rule: "dev 기본" } }, at).env, "dev");
+  assert.equal(alertRecord({ data: { event: { ...event, environment: "local" } } }, at), null);
   // issue_id가 없으면 web_url에서 읽는다.
   assert.equal(alertRecord({ data: { event: { ...event, issue_id: undefined } } }, at).issueId, "1");
 });
