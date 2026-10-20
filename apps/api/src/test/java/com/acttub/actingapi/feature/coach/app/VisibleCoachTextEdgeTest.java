@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.coach.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,5 +60,34 @@ class VisibleCoachTextEdgeTest {
         assertThat(PlainCoachText.plain("첫 문단\n---\n* * *\n___\n둘째 문단")).isEqualTo("첫 문단\n둘째 문단");
         assertThat(PlainCoachText.plain("| 앞부분 |  | 차분함 |\n|")).isEqualTo("앞부분 차분함\n|");
         assertThat(PlainCoachText.plain("~~~\n대사\n~~~")).isEqualTo("대사");
+    }
+
+    @Test void brokenJamoStopsTheStreamWithoutShowingTheJamo() {
+        text.accept("그 장면에서 ");
+        text.accept("ㅇㄹㄴ");
+        assertThat(String.join("", out)).as("끝에 붙은 자모는 잡아 둔다").isEqualTo("그 장면에서 ");
+        assertThatThrownBy(() -> text.accept("ㅁㅇㄹㄴㅁ"))
+                .isInstanceOf(VisibleCoachText.Broken.class)
+                .satisfies(e -> assertThat(((VisibleCoachText.Broken) e).text()).contains("ㅇㄹㄴㅁ"));
+        assertThat(String.join("", out)).doesNotContain("ㅇ");
+    }
+
+    @Test void heldJamoIsSentOnceRealTextFollows() {
+        text.accept("ㅎ");
+        assertThat(out).isEmpty();
+        text.accept("하, 거기서 웃었군요.");
+        assertThat(String.join("", out)).isEqualTo("ㅎ하, 거기서 웃었군요.");
+    }
+
+    @Test void anEnglishQuoteAtTheStartIsNotCutMidStream() {
+        text.accept("\"Who knows what she wanted\"에서 ");
+        text.accept("고개가 내려가요. 그때 뭘 받고 싶었어요?");
+        assertThat(String.join("", out)).isEqualTo("\"Who knows what she wanted\"에서 고개가 내려가요. 그때 뭘 받고 싶었어요?");
+    }
+
+    @Test void codeInTheVisibleTextStopsTheStream() {
+        text.accept("좋아요. ");
+        assertThatThrownBy(() -> text.accept("```java\npublic class X {}"))
+                .isInstanceOf(VisibleCoachText.Broken.class);
     }
 }

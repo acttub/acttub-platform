@@ -343,7 +343,8 @@ public final class DirectVideoCoach {
             // 스트리밍: 연습 루프의 보통 턴만. 이어서 찍은 첫 답(고르기)·소리 없는 영상(근거 검사)은 다 쓴 뒤 한 번에 보낸다.
             final boolean streaming = stream != null && loop && continuedPrompt == null
                     && !Boolean.FALSE.equals(uploaded.hasAudioTrack());
-            final VisibleCoachText visible = streaming ? new VisibleCoachText(session.turns().isEmpty(), stream::delta) : null;
+            java.util.Locale replyLanguage = DirectVideoPracticeLoop.replyLanguage(session, actorText);
+            final VisibleCoachText visible = streaming ? new VisibleCoachText(session.turns().isEmpty(), replyLanguage, stream::delta) : null;
             ExternalOperationExecution.externalCall("model");
             String message = streaming ? streamOrNull(speaker, uploaded, history, prompt, visible)
                     : replyOrNull(speaker, uploaded, history, prompt, loop);
@@ -359,12 +360,14 @@ public final class DirectVideoCoach {
             }
             // 대화와 상관없는 글(웹페이지·코드·자모)이 나오면 배우에게 보내지 않고 한 번 다시 쓰게 한다.
             // 다시 써도 깨졌으면 빈 답과 같이 실패로 돌린다 — 엉뚱한 말을 보내느니 다시 보내게 하는 편이 낫다.
+            // 스트리밍도 같다: 보일 글이 깨지면 VisibleCoachText 가 그 자리에서 끊고(streamOrNull 이 깨진 글을 돌려준다) 여기서 다시 쓴다.
             boolean brokenRetry = false;
-            java.util.Locale replyLanguage = DirectVideoPracticeLoop.replyLanguage(session, actorText);
-            if (loop && !streaming && message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
+            if (loop && message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
                 brokenRetry = true;
                 ExternalOperationExecution.externalCall("model");
-                message = replyOrNull(speaker, uploaded, history, prompt + "\n\n" + DirectVideoPracticeLoop.brokenRetryNote(replyLanguage), loop);
+                String brokenPrompt = prompt + "\n\n" + DirectVideoPracticeLoop.brokenRetryNote(replyLanguage);
+                message = streaming ? streamOrNull(speaker, uploaded, history, brokenPrompt, visible)
+                        : replyOrNull(speaker, uploaded, history, brokenPrompt, loop);
                 if (message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
                     message = null;
                 }
@@ -377,7 +380,7 @@ public final class DirectVideoCoach {
                 ExternalOperationExecution.externalCall("model");
                 message = streaming ? streamOrNull(model, uploaded, history, prompt, visible)
                         : replyOrNull(model, uploaded, history, prompt, loop);
-                if (!streaming && message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
+                if (message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
                     message = null;
                 }
             }
@@ -623,6 +626,9 @@ public final class DirectVideoCoach {
         try {
             String reply = speaker.replyStream(video, history, prompt, visible::accept);
             return reply == null || reply.isBlank() ? null : reply;
+        } catch (VisibleCoachText.Broken broken) {
+            // 깨진 글을 끝까지 흘리지 않고 끊었다. 깨진 글을 돌려주면 부르는 쪽의 깨진 글 검사가 다시 쓰게 한다.
+            return broken.text();
         } catch (IllegalStateException empty) {
             if (String.valueOf(empty.getMessage()).contains("empty")) return null;
             throw empty;

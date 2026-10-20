@@ -13,13 +13,16 @@ import java.util.regex.Pattern;
  * (2026-10-16 사용자 결정). 아직 숨은 칸인지 모르는 끝부분(열리다 만 태그, 메모 이름일 수 있는 줄 머리)은 다음 조각까지 잡아 둔다.
  *
  * <p>나중 조각 때문에 이미 보낸 글이 숨은 칸이었다고 밝혀지면 더 보내지 않는다. 화면은 마지막에 오는 저장된 답으로 덮어쓴다.
+ *
+ * <p>보일 글이 깨졌으면(날 자모 반복, HTML·코드) 더 흘리지 않고 {@link Broken} 을 던져 이번 쓰기를 끊는다. 부르는 쪽이 다시 쓰게 한다.
+ * 끝에 붙은 날 자모는 깨진 글의 시작일 수 있어 다음 조각까지 잡아 둔다(2026-10-20 dev, 답 자리에 "ㅇㄹㄴㅁ…"가 11초 동안 흘렀다).
  */
 final class VisibleCoachText {
     private static final String HIDDEN_NAME = "(?:설계|상태|다음 테이크|보기|카드|인물 카드|장면|생각|thought|think|thinking)";
     private static final Pattern HIDDEN_BLOCK = Pattern.compile("(?is)<(" + HIDDEN_NAME + ")>.*?</\\1>");
     private static final Pattern HIDDEN_OPEN = Pattern.compile("(?i)<" + HIDDEN_NAME + ">");
     private static final Pattern THINKING_CLOSE = Pattern.compile("(?i)</(?:생각|thought|think|thinking)>");
-    private static final Pattern STRAY_TAG = Pattern.compile("(?i)</?(?:설계|상태|코치|다음 테이크|보기|카드|인물 카드|장면|생각|thought|think|thinking)>");
+    private static final Pattern STRAY_TAG = Pattern.compile("(?iu)</?(?:설계|상태|코치|다음 테이크|보기|카드|인물 카드|장면|생각|thought|think|thinking)>");
     private static final List<String> MEMO_LABELS = List.of("배우가 한 말", "배우가 지금 원하는 것", "이번 목표", "내 대답", "끝 질문", "글자 수");
     private static final Pattern MEMO_LINE = Pattern.compile(
             "(?m)^\\s*(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*(?:\\R|$)");
@@ -27,20 +30,43 @@ final class VisibleCoachText {
     private static final String COACH_CLOSE = "</코치>";
 
     private final boolean opening;
+    private final java.util.Locale language;
     private final Consumer<String> out;
     private final StringBuilder raw = new StringBuilder();
     private String sent = "";
 
     /** @param opening 첫 응답이면 {@code <코치>} 안만 보인다. 그 앞은 숨은 설계다. */
     VisibleCoachText(boolean opening, Consumer<String> out) {
+        this(opening, null, out);
+    }
+
+    /** @param language 답 언어. 깨진 글 판단에 쓴다({@code null} 이면 한국어). */
+    VisibleCoachText(boolean opening, java.util.Locale language, Consumer<String> out) {
         this.opening = opening;
+        this.language = language;
         this.out = out;
+    }
+
+    /** 보일 글이 깨져서 이번 쓰기를 끊었다. {@link #text()} 는 그때까지의 보일 글이다. */
+    static final class Broken extends RuntimeException {
+        private final String text;
+
+        Broken(String text) {
+            super("broken coach stream", null, false, false);
+            this.text = text;
+        }
+
+        String text() {
+            return text;
+        }
     }
 
     void accept(String piece) {
         if (piece == null || piece.isEmpty()) return;
         raw.append(piece);
         String visible = visible(raw.toString(), opening);
+        if (DirectVideoPracticeLoop.looksBrokenSoFar(visible, language)) throw new Broken(visible);
+        visible = holdTrailingJamo(visible);
         if (visible.length() > sent.length() && visible.startsWith(sent)) {
             out.accept(visible.substring(sent.length()));
             sent = visible;
@@ -86,6 +112,20 @@ final class VisibleCoachText {
         text = holdMemoHead(text);
         text = STRAY_TAG.matcher(text).replaceAll("");
         return text.stripLeading();
+    }
+
+    /** 끝에 붙은 날 자모(와 그 사이 공백)는 깨진 글의 시작일 수 있어 다음 조각까지 잡아 둔다. */
+    static String holdTrailingJamo(String text) {
+        int start = text.length();
+        boolean jamo = false;
+        while (start > 0) {
+            char c = text.charAt(start - 1);
+            boolean isJamo = c >= '\u3131' && c <= '\u318E';
+            if (!isJamo && !Character.isWhitespace(c)) break;
+            jamo |= isJamo;
+            start--;
+        }
+        return jamo ? text.substring(0, start) : text;
     }
 
     /** 끝 줄이 아직 메모 이름("이번 목표:")일 수 있으면 그 줄은 다음 조각까지 잡아 둔다. */
