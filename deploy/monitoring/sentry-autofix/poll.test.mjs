@@ -36,6 +36,14 @@ test("계속 남은 처음 보는 이슈와 지난번에 끝내지 못한 이슈
   assert.deepEqual(got.map((a) => a.issueId).sort(), ["fail", "new", "running"]);
 });
 
+test("계속 남은 머지한 PR이 운영에 나간 뒤에만 다시 고르고, 배포 전·닫힌 PR은 건너뛴다", () => {
+  const before = { ...at("2026-10-20T05:00:00.000Z"), verdict: "pr" };
+  const state = { handled: { shipped: { ...before, pr: "u/1" }, waiting: { ...before, pr: "u/2" }, closed: { ...before, pr: "u/3" } } };
+  const deployed = (prev) => prev.pr === "u/1";
+  const got = pick(["shipped", "waiting", "closed"].map((id) => alert(id, "2026-10-21T05:00:00.000Z", DAILY_RULE)), state, deployed);
+  assert.deepEqual(got.map((a) => a.issueId), ["shipped"]);
+});
+
 test("건너뛴 계속 남이 앞서 온 다시 남을 가리지 않는다", () => {
   const state = { handled: { a: { ...at("2026-10-20T05:00:00.000Z"), verdict: "skip" } } };
   const got = pick([alert("a", "2026-10-20T06:00:00.000Z", "운영 다시 남"), alert("a", "2026-10-21T06:00:00.000Z", DAILY_RULE)], state);

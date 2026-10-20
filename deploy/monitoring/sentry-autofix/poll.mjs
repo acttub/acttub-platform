@@ -22,13 +22,14 @@ const TOOLS = [
 export const DAILY_RULE = "운영 계속 남";
 
 // 알림마다 한 번. 마지막 처리 뒤에 온 알림 중 같은 이슈는 가장 늦은 것만 고른다. 먼저 온 알림부터.
-// 하루 한 번 오는 "계속 남"은 처음 보는 이슈와 지난번에 끝내지 못한 이슈만 처리한다.
-export function pick(alerts, state) {
+// 하루 한 번 오는 "계속 남"은 처음 보는 이슈, 지난번에 끝내지 못한 이슈, 고친 PR이 운영에 나갔는데도 나는 이슈만 처리한다.
+export function pick(alerts, state, deployed = () => false) {
   const latest = new Map();
   for (const a of alerts) {
     const prev = state.handled[a.issueId];
     if (prev?.at >= Date.parse(a.at)) continue;
-    if (a.rule === DAILY_RULE && prev && !["fail", "running"].includes(prev.verdict)) continue;
+    const retry = !prev || ["fail", "running"].includes(prev.verdict) || (prev.verdict === "pr" && deployed(prev));
+    if (a.rule === DAILY_RULE && !retry) continue;
     if (!(latest.get(a.issueId)?.at > a.at)) latest.set(a.issueId, a);
   }
   return [...latest.values()].sort((a, b) => a.at.localeCompare(b.at));
@@ -82,6 +83,12 @@ async function slack(text) {
 }
 
 const git = (...args) => spawnSync("git", ["-C", REPO, ...args], { encoding: "utf8" });
+
+// 머지된 PR이 운영(main)에 들어갔는지. dev는 squash, dev→main은 merge commit이라 조상 관계로 본다.
+function deployed(prev) {
+  const sha = spawnSync("gh", ["pr", "view", prev.pr, "--json", "mergeCommit", "-q", ".mergeCommit.oid"], { encoding: "utf8" }).stdout.trim();
+  return sha !== "" && git("merge-base", "--is-ancestor", sha, "origin/main").status === 0;
+}
 
 async function handle(issue, alert, statePath, state, prev) {
   const head = `[자동 수정] <${issue.permalink}|${issue.shortId}>`;
@@ -146,7 +153,8 @@ async function main() {
     const res = await fetch(secret("sentry-relay-alerts-url"));
     if (!res.ok) throw new Error(`alerts ${res.status}`);
     const dryRun = process.argv.includes("--dry-run");
-    const picks = pick(await res.json(), state);
+    git("fetch", "-q", "origin", "main");
+    const picks = pick(await res.json(), state, deployed);
     for (const alert of process.argv.includes("--once") ? picks.slice(0, 1) : picks) {
       const issue = await sentry(`/issues/${alert.issueId}/`);
       if (dryRun) {
