@@ -8,6 +8,7 @@ Webhooks (Legacy)는 새 Alerts 화면의 액션 선택지에 없어 쓰지 않�
 - 메시지 첫 줄의 `[운영]`·`[dev]`는 Sentry 이벤트의 `environment`다. 제목·위치·Sentry 링크만 보내고 이벤트 본문은 보내지 않는다.
 - 요청은 URL 경로(`/<RELAY_TOKEN>`)와 `Sentry-Hook-Signature`(integration client secret의 HMAC)가 모두 맞아야 받는다.
 - 알림 규칙 액션(`Sentry-Hook-Resource: event_alert`)만 Slack에 넘긴다.
+- 운영 알림은 KV `ALERTS`에 이슈 ID·규칙 이름·시각만 14일 남긴다. [자동 수정](../sentry-autofix/README.md)이 `GET /<RELAY_TOKEN>/alerts`로 가져간다.
 - Slack webhook은 Slack 앱 `acttub-monitoring`의 `#sentry` webhook이다.
 
 ## 배포
@@ -15,6 +16,7 @@ Webhooks (Legacy)는 새 Alerts 화면의 액션 선택지에 없어 쓰지 않�
 ```sh
 cd deploy/monitoring/sentry-slack
 node --test worker.test.mjs
+npx wrangler@4.151.2 kv namespace create ALERTS   # 처음 한 번. 나온 id를 wrangler.toml에 넣는다
 npx wrangler@4.151.2 secret put SLACK_WEBHOOK_URL
 npx wrangler@4.151.2 secret put RELAY_TOKEN
 npx wrangler@4.151.2 secret put SENTRY_CLIENT_SECRET

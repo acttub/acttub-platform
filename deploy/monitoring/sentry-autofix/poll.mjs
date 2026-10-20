@@ -1,5 +1,5 @@
-// Sentry 운영 새 이슈·재발 이슈를 골라 이슈마다 claude -p에 원인 분석·Jira 이슈·draft PR을 맡긴다.
-// Mac mini launchd에서 15분마다 돈다. 준비와 되돌리기는 README.
+// Slack에 간 Sentry 운영 알림마다 claude -p에 원인 분석·Jira 이슈·draft PR을 맡긴다.
+// 알림 목록은 Slack 중계 Worker의 KV에서 가져온다. Mac mini launchd에서 15분마다 돈다. 준비와 되돌리기는 README.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -19,16 +19,13 @@ const TOOLS = [
   "mcp__atlassian__createJiraIssue", "mcp__atlassian__getJiraIssue",
 ].join(",");
 
-// 새 이슈는 한 번, 재발은 재발할 때마다 한 번. 이벤트가 많은 이슈부터.
-export function pick(issues, state) {
-  return issues
-    .filter((i) => {
-      const prev = state.handled[i.id];
-      if (i.substatus === "new") return !prev;
-      if (i.substatus === "regressed") return !prev || prev.at < Date.parse(i.regressedAt);
-      return false;
-    })
-    .sort((a, b) => Number(b.count) - Number(a.count));
+// 알림마다 한 번. 같은 이슈의 알림은 가장 늦은 것만 보고, 마지막 처리 뒤에 온 알림만 고른다. 먼저 온 알림부터.
+export function pick(alerts, state) {
+  const latest = new Map();
+  for (const a of alerts) if (!(latest.get(a.issueId)?.at > a.at)) latest.set(a.issueId, a);
+  return [...latest.values()]
+    .filter((a) => !(state.handled[a.issueId]?.at >= Date.parse(a.at)))
+    .sort((a, b) => a.at.localeCompare(b.at));
 }
 
 // 요청·사용자·breadcrumb은 빼고 예외와 우리 코드 프레임만 넘긴다. 메시지 값은 외부 입력이다.
@@ -80,7 +77,7 @@ async function slack(text) {
 
 const git = (...args) => spawnSync("git", ["-C", REPO, ...args], { encoding: "utf8" });
 
-async function handle(issue, statePath, state, prev) {
+async function handle(issue, alert, statePath, state, prev) {
   const head = `[자동 수정] <${issue.permalink}|${issue.shortId}>`;
   // 앞서 연 PR이 아직 열려 있으면 같은 원인으로 PR을 또 만들지 않는다.
   if (prev?.verdict === "pr") {
@@ -88,13 +85,13 @@ async function handle(issue, statePath, state, prev) {
     if (open) {
       state.handled[issue.id] = { ...prev, at: Date.now() };
       writeFileSync(statePath, JSON.stringify(state, null, 2));
-      return slack(`${head} 재발했지만 앞의 <${prev.pr}|PR>(${prev.jira})이 아직 열려 있어 건너뜀`);
+      return slack(`${head} 다시 알림이 왔지만 앞의 <${prev.pr}|PR>(${prev.jira})이 아직 열려 있어 건너뜀`);
     }
   }
   const event = await sentry(`/issues/${issue.id}/events/latest/`);
   const ctx = join(STATE_DIR, "ctx", `${issue.shortId}.json`);
   mkdirSync(dirname(ctx), { recursive: true });
-  writeFileSync(ctx, JSON.stringify(summarize(issue, event), null, 2));
+  writeFileSync(ctx, JSON.stringify({ alert: alert.rule, ...summarize(issue, event) }, null, 2));
 
   const wt = join(HOME, "acttub-autofix", `wt-${issue.shortId}`);
   git("fetch", "-q", "origin", "dev");
@@ -103,7 +100,7 @@ async function handle(issue, statePath, state, prev) {
   const prompt = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "prompt.md"), "utf8")
     .replaceAll("{{CONTEXT}}", ctx)
     .replaceAll("{{PERMALINK}}", issue.permalink)
-    .replaceAll("{{PREVIOUS}}", prev?.verdict === "pr" ? `이 오류는 전에 ${prev.jira}(${prev.pr})로 고쳤는데 재발했다. 새 Jira 이슈의 배경에 그 이슈와 PR을 적는다.` : "");
+    .replaceAll("{{PREVIOUS}}", prev?.verdict === "pr" ? `이 오류는 전에 ${prev.jira}(${prev.pr})로 고쳤는데 다시 알림이 왔다. 새 Jira 이슈의 배경에 그 이슈와 PR을 적는다.` : "");
   const run = spawnSync("claude", ["-p", prompt, "--output-format", "json", "--allowedTools", TOOLS], {
     cwd: wt, encoding: "utf8", timeout: RUN_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024,
   });
@@ -140,28 +137,27 @@ async function main() {
     try {
       state = JSON.parse(readFileSync(statePath, "utf8"));
     } catch {}
-    const issues = [];
-    for (const q of ["is:unresolved is:new", "is:unresolved is:regressed"]) {
-      issues.push(...(await sentry("/issues/", { query: q, environment: "prod", statsPeriod: "14d", limit: "100" })));
-    }
-    // 재발 시각은 이슈 상세의 활동 기록(최신순)에만 있다. 처리한 적 있는 재발 이슈만 조회한다.
-    for (const i of issues) {
-      if (i.substatus === "regressed" && state.handled[i.id]) {
-        i.regressedAt = (await sentry(`/issues/${i.id}/`)).activity.find((a) => a.type === "set_regression")?.dateCreated;
-      }
-    }
+    const res = await fetch(secret("sentry-relay-alerts-url"));
+    if (!res.ok) throw new Error(`alerts ${res.status}`);
     const dryRun = process.argv.includes("--dry-run");
-    const picks = pick(issues, state);
-    for (const issue of process.argv.includes("--once") ? picks.slice(0, 1) : picks) {
+    const picks = pick(await res.json(), state);
+    for (const alert of process.argv.includes("--once") ? picks.slice(0, 1) : picks) {
+      const issue = await sentry(`/issues/${alert.issueId}/`);
       if (dryRun) {
-        console.log("후보", issue.shortId, issue.substatus, issue.count, issue.title);
+        console.log("후보", issue.shortId, issue.status, alert.rule, alert.at, issue.title);
         continue;
       }
-      // claude가 죽어도 같은 이슈를 다시 돌지 않게 먼저 기록한다.
       const prev = state.handled[issue.id];
+      // 알림 뒤에 사람이 해결·보관한 이슈는 건너뛴다. 다시 나면 새 알림이 온다.
+      if (issue.status !== "unresolved") {
+        state.handled[issue.id] = { verdict: "skip", reason: `알림 뒤 ${issue.status}`, ...prev, at: Date.now(), shortId: issue.shortId };
+        writeFileSync(statePath, JSON.stringify(state, null, 2));
+        continue;
+      }
+      // claude가 죽어도 같은 알림을 다시 돌지 않게 먼저 기록한다.
       state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, verdict: "running" };
       writeFileSync(statePath, JSON.stringify(state, null, 2));
-      await handle(issue, statePath, state, prev).catch((e) => slack(`[자동 수정] ${issue.shortId} 실패: ${e.message}`));
+      await handle(issue, alert, statePath, state, prev).catch((e) => slack(`[자동 수정] ${issue.shortId} 실패: ${e.message}`));
     }
   } finally {
     rmSync(lock, { recursive: true, force: true });

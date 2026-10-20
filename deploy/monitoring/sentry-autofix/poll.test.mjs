@@ -3,23 +3,24 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { pick, summarize, verdictOf } from "./poll.mjs";
 
-const issue = (id, substatus, count, regressedAt) => ({ id, substatus, count: String(count), regressedAt });
+const alert = (issueId, at, rule = "운영 기본") => ({ issueId, at, rule });
 const at = (iso) => ({ at: Date.parse(iso) });
 
-test("새 이슈는 한 번만, 개수 제한 없이 이벤트 많은 순으로 고른다", () => {
-  const state = { handled: { a: at("2026-10-19T00:00Z") } };
-  const got = pick([issue("a", "new", 9), issue("b", "new", 1), issue("c", "new", 5), issue("d", "ongoing", 99), issue("e", "new", 3)], state);
-  assert.deepEqual(got.map((i) => i.id), ["c", "e", "b"]);
+test("처리한 적 없는 이슈의 알림은 먼저 온 것부터 모두 고른다", () => {
+  const got = pick([alert("b", "2026-10-20T02:00:00.000Z"), alert("a", "2026-10-20T01:00:00.000Z")], { handled: {} });
+  assert.deepEqual(got.map((a) => a.issueId), ["a", "b"]);
 });
 
-test("재발은 마지막 재발 뒤에 처리한 적이 없을 때만 고른다", () => {
-  const state = { handled: { a: at("2026-10-19T00:00Z"), b: at("2026-10-19T00:00Z") } };
+test("같은 이슈의 알림은 가장 늦은 것 하나만, 마지막 처리 뒤에 온 것만 고른다", () => {
+  const state = { handled: { a: at("2026-10-20T05:00:00.000Z"), b: at("2026-10-20T05:00:00.000Z") } };
   const got = pick([
-    issue("a", "regressed", 1, "2026-10-19T03:00Z"), // 처리한 뒤 재발
-    issue("b", "regressed", 1, "2026-10-18T00:00Z"), // 이번 재발은 이미 처리
-    issue("c", "regressed", 1), // 처리한 적 없음
+    alert("a", "2026-10-20T01:00:00.000Z"), // 처리 전 알림
+    alert("b", "2026-10-20T01:00:00.000Z"),
+    alert("b", "2026-10-20T06:00:00.000Z", "운영 급증"), // 처리 뒤 다시 온 알림
+    alert("c", "2026-10-20T03:00:00.000Z"),
+    alert("c", "2026-10-20T04:00:00.000Z"),
   ], state);
-  assert.deepEqual(got.map((i) => i.id), ["a", "c"]);
+  assert.deepEqual(got.map((a) => [a.issueId, a.at]), [["c", "2026-10-20T04:00:00.000Z"], ["b", "2026-10-20T06:00:00.000Z"]]);
 });
 
 test("요약에는 우리 코드 프레임만 남기고 요청·사용자 정보는 뺀다", () => {
