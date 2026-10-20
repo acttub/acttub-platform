@@ -77,20 +77,21 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
 
     /** 원본을 내려받는다. 올린 뒤 바뀌었으면(etag 가 다르면) 준비하지 않는다 — 첫 질문이 직접 한다. */
     private Path download(String objectKey, String etag) {
-        Path local = null;
+        Path local;
         try {
             local = Files.createTempFile(workDir, "coach-upload-", ".video");
+        } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+        }
+        try {
             StoredObjectMetadata metadata = storage.downloadToPath(objectKey, local);
             if (etag != null && !etag.isBlank() && metadata != null && metadata.etag() != null
                     && !etag.replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
                 throw new IllegalStateException("original video changed after upload");
             }
             return local;
-        } catch (IOException failure) {
-            if (local != null) deleteQuietly(local);
-            throw new UncheckedIOException(failure);
         } catch (RuntimeException failure) {
-            if (local != null) deleteQuietly(local);
+            deleteQuietly(local);
             throw failure;
         }
     }
