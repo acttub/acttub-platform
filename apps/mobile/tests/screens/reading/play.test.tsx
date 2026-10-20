@@ -185,7 +185,7 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   expect(screen.getByText('응, 늦어서 미안해.')).toBeOnTheScreen();
   expect(screen.getByText('(서연이 자리에 앉는다.)')).toBeOnTheScreen();
   expect(tts.play).toHaveBeenCalledWith('file:///speech.wav');
-  expect(queue.take).toHaveBeenCalledWith({ text: '응, 늦어서 미안해.', preset: 'F1' });
+  expect(queue.take).toHaveBeenCalledWith({ text: '응, 늦어서 미안해.', preset: 'F1', lang: 'ko' });
   await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
 
   await speechEnds();
@@ -223,7 +223,7 @@ test('음성 인식이 되면 내 차례에 알아들은 말을 보이고, 완�
   }));
 
   expect(await screen.findByText('아직 인식된 말이 없어요')).toBeOnTheScreen();
-  expect(mockStt.start).toHaveBeenCalledWith(expect.anything(), { persist: true });
+  expect(mockStt.start).toHaveBeenCalledWith(expect.anything(), { persist: true, locale: 'ko-KR' });
   await act(async () => recognizer!.onInterim!('오늘 왔'));
   expect(screen.getByText('오늘 왔')).toBeOnTheScreen();
 
@@ -369,7 +369,7 @@ test('고품질 목소리를 켰고 쓸 수 있으면 서버 음성으로 읽고
 
   expect(await screen.findByText('고품질 목소리를 못 받아 기기 목소리로 읽어요')).toBeOnTheScreen();
   expect(jest.mocked(tts.createQueueFor).mock.calls[0]).toEqual(['s1', expect.objectContaining({ cloud: true })]);
-  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1');
+  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(tts.ensureReady).not.toHaveBeenCalled();
 });
@@ -395,7 +395,7 @@ test('앱 목소리를 못 쓰는 기기는 처음 한 번 안내하고, 계속�
   await fireEvent.press(screen.getByText('계속하기'));
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1');
+  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
   expect(await AsyncStorage.getItem('acttub.reading.appVoiceUnsupported')).toBe('noticed');
 });
 
@@ -404,7 +404,7 @@ test('앱 목소리를 못 쓴다는 안내를 이미 봤으면 바로 기기 �
   await startPlay(PARTNER_FIRST);
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1');
+  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
 });
 
 test('앱 목소리 안내에서 나가면 상세로 간다', async () => {
@@ -425,7 +425,7 @@ test('목소리가 없고 Wi-Fi 가 아니면 용량을 묻고, 받지 않으면
   await fireEvent.press(screen.getByText('기기 목소리로 시작'));
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1');
+  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
   expect(tts.ensureReady).not.toHaveBeenCalled();
 });
 
@@ -501,7 +501,7 @@ test('미리 만든 음성이 없으면 앱 목소리로 그 자리에서 읽는
   await startPlay(PARTNER_FIRST);
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(tts.speak).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { scriptId: 's1' });
+  expect(tts.speak).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { scriptId: 's1', lang: 'ko' });
 });
 
 test('상대 줄 하나를 못 읽어도 기록만 남기고 다음 줄로 넘어간다', async () => {
@@ -826,7 +826,7 @@ test('이어 하기는 저장된 줄 바로 앞 상대 대사부터 읽고, 그 
   const server = await startPlay({ current_line_id: 'l5', progress_seq: 3, progress: { done: 2, total: 3 } });
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(queue.take).toHaveBeenCalledWith({ text: '응, 늦어서 미안해.', preset: 'F1' });
+  expect(queue.take).toHaveBeenCalledWith({ text: '응, 늦어서 미안해.', preset: 'F1', lang: 'ko' });
   await screen.findByText('괜찮아.');
   await waitFor(() => expect(server.saveProgress).toHaveBeenCalledWith('r1', expect.objectContaining({ progress_seq: 4, current_line_id: 'l5' })));
   expect(server.saveProgress).toHaveBeenCalledTimes(1);
@@ -899,7 +899,7 @@ test('발음 채점 서버가 실패해도 완료 화면은 받아쓴 글 대조
   try {
     await startPlay({ start_line_id: 'l2', end_line_id: 'l2', record: false });
     await screen.findByText('아직 인식된 말이 없어요');
-    expect(mockStt.start).toHaveBeenCalledWith(expect.anything(), { persist: true });
+    expect(mockStt.start).toHaveBeenCalledWith(expect.anything(), { persist: true, locale: 'ko-KR' });
     await speechEnds(() => recognizer);
 
     expect(await screen.findByText('실험 기능 · 받아쓴 내 대사 1줄 중 0줄에 다르게 들린 곳')).toBeOnTheScreen();
@@ -915,7 +915,7 @@ test('녹음을 끈 회차는 음성 인식에 녹음을 남기라고 하지 않
   await startPlay({ record: false });
 
   await screen.findByText('아직 인식된 말이 없어요');
-  expect(mockStt.start).toHaveBeenCalledWith(expect.anything(), { persist: false });
+  expect(mockStt.start).toHaveBeenCalledWith(expect.anything(), { persist: false, locale: 'ko-KR' });
 });
 
 test('발음 피드백이 켜져 있어도 받아쓰지 않은 줄은 다르게 들린 곳을 찾지 않는다', async () => {
@@ -992,7 +992,7 @@ test('서버 음성을 못 받은 안내는 회차에서 한 번만 띄운다', 
   await startPlay({ start_line_id: 'l1', end_line_id: 'l3' }, detail);
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(jest.mocked(speakWithDevice).mock.calls).toEqual([['먼저 왔어?', 'M1'], ['앉아.', 'M1']]);
+  expect(jest.mocked(speakWithDevice).mock.calls).toEqual([['먼저 왔어?', 'M1', { locale: 'ko-KR' }], ['앉아.', 'M1', { locale: 'ko-KR' }]]);
   expect(screen.getAllByText('고품질 목소리를 못 받아 기기 목소리로 읽어요')).toHaveLength(1);
 });
 
