@@ -54,7 +54,16 @@ public interface PracticeRepository {
             String blockageKind,
             String subBranch,
             String blockageNote,
-            String title) {
+            String title,
+            String sessionPurpose) {
+
+        /** 세션 목적이 없던 때의 모양. */
+        public NewPractice(UUID requestId, String fingerprint, UUID videoId, String experienceVersion, String situation,
+                String characterContext, String goal, String blockageKind, String subBranch, String blockageNote,
+                String title) {
+            this(requestId, fingerprint, videoId, experienceVersion, situation, characterContext, goal, blockageKind,
+                    subBranch, blockageNote, title, null);
+        }
     }
 
     /**

@@ -46,20 +46,22 @@ public final class PracticeViews {
             String noteTitle,
             String noteKind,
             JobView job,
-            List<PreviousConversation> previousConversations) {
+            List<PreviousConversation> previousConversations,
+            // 코칭 세션 목적(SOMA-719). 목적 없이 시작한 회차·옛 자료는 null 이다.
+            String sessionPurpose) {
 
         public PracticeView withPrevious(List<PreviousConversation> previous) {
             return new PracticeView(id, rootId, ordinal, videoId, posterKey, posterUrl, stage, closeReason,
                     experienceVersion, situation, characterContext, goal, blockageKind, subBranch, blockageNote,
                     createdAt, analysisStatus, conversationId, conversationStatus, conversationCount, noteId,
-                    noteTitle, noteKind, job, previous);
+                    noteTitle, noteKind, job, previous, sessionPurpose);
         }
 
         public PracticeView withPoster(String url) {
             return new PracticeView(id, rootId, ordinal, videoId, posterKey, url, stage, closeReason,
                     experienceVersion, situation, characterContext, goal, blockageKind, subBranch, blockageNote,
                     createdAt, analysisStatus, conversationId, conversationStatus, conversationCount, noteId,
-                    noteTitle, noteKind, job, previousConversations);
+                    noteTitle, noteKind, job, previousConversations, sessionPurpose);
         }
     }
 

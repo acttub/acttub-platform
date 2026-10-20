@@ -26,7 +26,9 @@ final class DirectVideoPracticeLoop {
     private static final Pattern COACH = Pattern.compile("(?s)<코치>\\s*(.*?)\\s*(?:</코치>|$)");
     // 숨은 메모 태그 이름. 모델이 <생각> 대신 영어 <thought>·<think>로 쓰는 일이 있다(2026-10-11 00:59 운영, 배우 화면에 "<thought>"가 나갔다).
     private static final String THINKING_NAME = "(?:생각|thought|think|thinking)";
-    private static final Pattern STRAY_TAG = Pattern.compile("(?i)</?(?:설계|상태|코치|다음 테이크|" + THINKING_NAME + ")>");
+    private static final Pattern STRAY_TAG = Pattern.compile("(?i)</?(?:설계|상태|코치|다음 테이크|보기|카드|인물 카드|장면|" + THINKING_NAME + ")>");
+    /** 목적별 코칭(SOMA-719)의 숨은 칸. 서버가 응답의 버튼·결과 카드·인물 카드·장면으로 따로 내보내고 코치 말에서는 뗀다. 닫지 않았으면 끝까지 칸이다. */
+    static final Pattern PURPOSE_BLOCK = Pattern.compile("(?s)<(보기|카드|인물 카드|장면)>.*?(?:</\\1>|$)");
     // 둘째 응답부터 코치가 말하기 전에 적는 숨은 메모. 배우 화면·저장 대화에 넣지 않는다.
     private static final Pattern THINKING = Pattern.compile("(?is)<(" + THINKING_NAME + ")>.*?</\\1>");
     private static final Pattern THINKING_OPEN = Pattern.compile("(?i)<" + THINKING_NAME + ">");
@@ -66,6 +68,7 @@ final class DirectVideoPracticeLoop {
         String status = first(STATUS, text);
         String rest = NEXT_TAKE_TAG.matcher(STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("")).replaceAll("");
         rest = THINKING.matcher(rest).replaceAll("");
+        rest = PURPOSE_BLOCK.matcher(rest).replaceAll("");
         // 여는 태그 없이 </생각>만 남았으면 그 앞은 모두 메모다(실험에서 실제로 나왔다).
         Matcher close = THINKING_CLOSE.matcher(rest);
         int strayClose = -1;

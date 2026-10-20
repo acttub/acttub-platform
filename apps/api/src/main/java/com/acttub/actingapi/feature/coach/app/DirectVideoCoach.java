@@ -107,9 +107,11 @@ public final class DirectVideoCoach {
         boolean videoReused = false;
         Instant started = Instant.now();
         boolean loop = practiceLoop && DirectVideoPracticeLoop.applies(session);
-        String persona = loop ? persona(session, operationId) : "";
-        String arm = loop ? coachArm(session) : "a";
-        String flow = loop ? flow(session, operationId) : CoachFlows.A;
+        // 목적별 코칭(SOMA-719): 앱이 목적을 골라 시작한 회차. 지금 흐름의 실험(모델·흐름 A/B, 자문위원 성격)과 섞지 않는다.
+        PurposeLoop.Purpose purpose = loop ? PurposeLoop.of(session) : null;
+        String persona = loop && purpose == null ? persona(session, operationId) : "";
+        String arm = loop && purpose == null ? coachArm(session) : "a";
+        String flow = loop && purpose == null ? flow(session, operationId) : CoachFlows.A;
         DirectVideoModel speaker = coachModel(arm);
         var history = new ArrayList<DirectVideoModel.Message>();
         if (loop) {
@@ -130,7 +132,20 @@ public final class DirectVideoCoach {
         boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count()
                 >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1;
         // 둘째 응답부터: 배우의 말을 따로 분류하고 할 일·횟수·피할 것을 코드가 정한다(PracticeLoopRouter).
-        Branch branch = loop && !session.turns().isEmpty() && actorText != null ? branch(session, actorText, operationId, flow) : null;
+        Branch branch = loop && purpose == null && !session.turns().isEmpty() && actorText != null
+                ? branch(session, actorText, operationId, flow) : null;
+        // 목적별 코칭의 둘째 응답부터: 버튼을 눌렀으면 분류 없이, 직접 썼으면 분류해서 코드가 단계를 정한다.
+        PurposeLoop.Turn purposeTurn = purpose != null && !session.turns().isEmpty() && actorText != null
+                ? purposeTurn(session, purpose, actorText, actorFinished, operationId) : null;
+        if (purposeTurn != null && purposeTurn.end()) {
+            // 그만: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
+            String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
+            videoCache.forget(session.practiceSessionId());
+            ObjectNode state = nextState(session);
+            DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("", PurposeLoop.status(purposeTurn, ""), closing));
+            PurposeLoop.remember(state, purposeTurn, PurposeLoop.extract(""));
+            return StructuredCoachEngine.result(session, actorText, closing, state, "actor_finished");
+        }
         if (branch != null && PracticeLoopRouter.END.equals(branch.doing())) {
             // 그만·자기 한 줄·응답 상한: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
             String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
@@ -229,8 +244,8 @@ public final class DirectVideoCoach {
                     + "\n" + (actorText == null ? "" : actorText);
             ObjectNode state = nextState(session);
             if (!persona.isEmpty()) DirectVideoPracticeLoop.rememberPersona(state, persona);
-            if (loop) DirectVideoPracticeLoop.rememberCoachModel(state, arm);
-            if (loop) DirectVideoPracticeLoop.rememberFlow(state, flow);
+            if (loop && purpose == null) DirectVideoPracticeLoop.rememberCoachModel(state, arm);
+            if (loop && purpose == null) DirectVideoPracticeLoop.rememberFlow(state, flow);
             if (loop) {
                 DirectVideoDialogueEvidence.discardUngroundedDesign(uploaded, state, written);
                 history.clear();
@@ -241,7 +256,14 @@ public final class DirectVideoCoach {
             String continuationBlock = null;
             PriorContext continuationPrior = null;
             java.util.concurrent.CompletableFuture<String> heardFuture = null;
-            if (branch != null) {
+            if (purposeTurn != null) {
+                route = "purpose:" + purpose.id + ":" + purposeTurn.doing();
+                PurposeLoop.rememberAnswer(state, purposeTurn.answeredStep(), actorText);
+                history.clear();
+                history.addAll(DirectVideoPracticeLoop.history(session.turns(), state, actorText, false));
+                task = PurposeLoop.turnPrompt() + "\n\n" + PurposeLoop.instruction(purposeTurn, state, actorText);
+                template = new LlmPrompt("coach.purpose.turn", PurposeLoop.turnPrompt());
+            } else if (branch != null) {
                 route = "practice_loop:" + branch.doing();
                 java.util.Locale language = DirectVideoPracticeLoop.replyLanguage(session, actorText);
                 history.clear();
@@ -253,6 +275,11 @@ public final class DirectVideoCoach {
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop.turn", DirectVideoPrompts.practiceLoopTurn())
                         : new LlmPrompt("coach.practice-loop.turn.en", DirectVideoPrompts.practiceLoopTurnEnglish());
+            } else if (loop && purpose != null) {
+                // 목적별 첫 답. 이어서 찍은 회차의 "지난 시도부터 묻기"는 지금 흐름의 것이라 붙이지 않는다(지난 맥락 칸은 그대로 받는다).
+                route = "purpose:" + purpose.id;
+                task = PurposeLoop.firstPrompt(purpose);
+                template = new LlmPrompt("coach.purpose." + purpose.id, task);
             } else if (loop) {
                 // 종료("그만")도 연습 루프가 해 본 횟수로 닫는다. 서버는 아래에서 세션만 닫는다.
                 route = "practice_loop";
@@ -387,6 +414,17 @@ public final class DirectVideoCoach {
                 }
             }
             var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
+            PurposeLoop.Output purposeOut = purpose != null ? PurposeLoop.extract(message) : null;
+            String purposeTake = "";
+            if (purposeTurn != null) {
+                // 상태 칸은 서버가 쓴다. 정리의 행동 한 줄은 노트의 다음 촬영이 된다(숨은 줄을 빠뜨렸으면 정리 말의 행동 문장).
+                String take = purposeTurn.wrap() ? DirectVideoPracticeLoop.nextTake(message) : "";
+                if (purposeTurn.wrap() && take.isBlank()) take = DirectVideoPracticeLoop.actionLine(parsed.message());
+                purposeTake = take;
+                String status = PurposeLoop.status(purposeTurn, take);
+                DirectVideoDialogueEvidence.requireGrounded(uploaded, "<상태>\n" + status + "\n</상태>", written);
+                parsed = new DirectVideoPracticeLoop.Parsed("", status, parsed.message());
+            }
             if (branch != null) {
                 // 숨은 칸은 모델이 아니라 서버가 쓴다. 모델이 따라 쓴 태그는 parse 가 이미 걷어냈다.
                 // 정리의 행동, 또는 정리 뒤 배우 해석을 받아 준 답의 행동을 노트의 다음 촬영으로 남긴다(뒤의 것이 앞의 것을 덮고, 숨은 줄이 없으면 앞의 것이 남는다).
@@ -404,13 +442,20 @@ public final class DirectVideoCoach {
             boolean cut = loop && session.turns().isEmpty() && DirectVideoPracticeLoop.notActing(parsed);
             if (cut) shown = DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText));
             // 첫 응답은 질문 한 문장이다. 앞에 붙인 인사·작품 설명 같은 군말은 걷어낸다.
-            if (loop && !cut && !streaming && session.turns().isEmpty()) shown = DirectVideoPracticeLoop.onlyFirstQuestion(shown);
+            if (loop && !cut && !streaming && session.turns().isEmpty() && (purpose == null || !PurposeLoop.keepsWholeOpening(purpose))) {
+                shown = DirectVideoPracticeLoop.onlyFirstQuestion(shown);
+            }
             if (branch != null && !streaming) {
                 boolean last = PracticeLoopRouter.WRAP_UP.equals(branch.doing()) || branch.closeNext();
                 // 정리와 정리 뒤 답은 질문하지 않는다. 질문 문장은 떼고, 다 떼면 원래 말을 둔다.
                 // 그 밖의 말은 질문이 둘 이상이면 첫 질문까지만 남긴다.
                 shown = last ? DirectVideoPracticeLoop.withoutQuestions(shown) : DirectVideoPracticeLoop.firstQuestionOnly(shown);
                 // 배우가 방금 한 말을 첫 문장에서 그대로 되풀이하면 뗀다.
+                shown = DirectVideoPracticeLoop.withoutEcho(shown, actorText);
+            }
+            if (purposeTurn != null && !streaming) {
+                shown = purposeTurn.wrap() || PurposeLoop.asksNothing(purpose) ? DirectVideoPracticeLoop.withoutQuestions(shown)
+                        : DirectVideoPracticeLoop.firstQuestionOnly(shown);
                 shown = DirectVideoPracticeLoop.withoutEcho(shown, actorText);
             }
             // 배우가 대안을 말하지 않았는데 정리를 "맞아요, 그거예요"로 시작하면 그 인정 말을 뗀다.
@@ -431,6 +476,7 @@ public final class DirectVideoCoach {
             // 배우가 설명·피드백을 달라고 한 답은 길게 둔다(줄이면 다시 한 구절 + 질문이 되어 물음에 답하지 못한다).
             // 자문위원 프롬프트의 사람별 상한(SOMA-622)과 함께 쓸 때는 둘 중 큰 쪽을 쓴다.
             int limit = branch != null && branch.explains() ? Math.max(DirectVideoPracticeLoop.EXPLAIN_REPLY, replyLimit) : replyLimit;
+            if (purpose != null && PurposeLoop.explains(purpose, purposeTurn)) limit = Math.max(limit, DirectVideoPracticeLoop.EXPLAIN_REPLY);
             // B 흐름에서 코치가 본 것을 말하는 응답은 이유 한 문장까지 세 문장이다. 줄이면 이유가 빠져 다시 떠보는 질문이 된다.
             if (branch != null && CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(branch.doing())) limit = Math.max(limit, TELL_REPLY);
             while (loop && !cut && !streaming && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > limit) {
@@ -449,10 +495,14 @@ public final class DirectVideoCoach {
                             "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused)))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
+            if (purpose != null && !cut) {
+                if (purposeTurn == null) PurposeLoop.rememberOpening(state, purpose, purposeOut, parsed.design());
+                else PurposeLoop.remember(state, purposeTurn, purposeOut, purposeTake);
+            }
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
             // Plain coaching prose is not structured evidence or a confirmed actor intention.
             String endReason = actorFinished ? "actor_finished" : turnBudget ? "turn_budget"
-                    : cut || loop && DirectVideoPracticeLoop.finished(parsed) ? "interrupted" : null;
+                    : cut || loop && DirectVideoPracticeLoop.finished(parsed) || purposeTurn != null && purposeTurn.wrap() ? "interrupted" : null;
             CoachResult result = StructuredCoachEngine.result(session, actorText, shown, state, endReason);
             keepVideo = endReason == null;
             return result;
@@ -665,6 +715,16 @@ public final class DirectVideoCoach {
             return PracticeLoopRouter.status(observed, dialogue, classified, before, doing, goal, avoid,
                     nextTake == null ? "" : nextTake.strip(), closeNext, actorText);
         }
+    }
+
+    /** 목적별 코칭의 이번 응답(SOMA-719). 버튼을 그대로 눌렀으면 분류 AI를 부르지 않는다. */
+    private PurposeLoop.Turn purposeTurn(CoachSessionSnapshot session, PurposeLoop.Purpose purpose, String actorText,
+            boolean actorFinished, UUID operationId) {
+        if (actorFinished) return PurposeLoop.ended(purpose, session.coachingState());
+        int replies = (int) session.turns().stream().filter(t -> "ai".equals(t.role())).count();
+        String pressed = PurposeLoop.pressed(session.coachingState(), actorText);
+        PracticeLoopRouter.Classified classified = pressed == null ? classify(session, actorText, operationId) : null;
+        return PurposeLoop.decide(purpose, session.coachingState(), actorText, pressed, classified, replies);
     }
 
     private Branch branch(CoachSessionSnapshot session, String actorText, UUID operationId, String flow) {

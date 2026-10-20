@@ -7,6 +7,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.ConversationView;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.NoteView;
 import com.acttub.actingapi.feature.coach.app.ConversationService;
+import com.acttub.actingapi.feature.coach.app.PurposeView;
 import com.acttub.actingapi.feature.report.app.PracticeNote;
 import com.acttub.actingapi.feature.report.app.PublicReport.AnalysisReport;
 import com.acttub.actingapi.feature.report.app.PublicReport.ExpressionReport;
@@ -67,7 +68,9 @@ final class ConversationDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int coachReplyCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int replyLimit,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<TurnResponse> messages,
-            @Schema(nullable = true) Instant createdAt) {
+            @Schema(nullable = true) Instant createdAt,
+            @Schema(nullable = true, description = "목적별 코칭(SOMA-719)의 버튼·장면·카드. 목적 없이 시작한 대화는 null")
+            PurposeResponse purpose) {
 
         static ConversationResponse of(ConversationService.Turn turn) {
             return new ConversationResponse(
@@ -76,7 +79,8 @@ final class ConversationDtos {
                     turn.turns().stream()
                             .map(item -> new TurnResponse(item.turnIndex(), item.role(), CoachDisplayText.keepWhole(item.role(), item.text()), item.createdAt()))
                             .toList(),
-                    null);
+                    null,
+                    PurposeResponse.of(turn.purpose()));
         }
 
         static ConversationResponse of(ConversationView view, int replyLimit) {
@@ -87,8 +91,100 @@ final class ConversationDtos {
                     view.turns().stream()
                             .map(item -> new TurnResponse(item.turnIndex(), item.role(), CoachDisplayText.keepWhole(item.role(), item.text()), item.createdAt()))
                             .toList(),
-                    view.createdAt());
+                    view.createdAt(),
+                    PurposeResponse.of(view.purpose()));
         }
+    }
+
+    /**
+     * 목적별 코칭(SOMA-719). 화면은 서버가 준 것을 그대로 그린다. {@code choices} 는 이번 코치 답 아래의 답 버튼이고, 누르면
+     * 그 {@code label} 을 배우 답으로 보낸다(직접 쓰기는 화면이 늘 함께 둔다). 정리 뒤에는 빈 목록이다.
+     */
+    @Schema(name = "CoachPurpose", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record PurposeResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"evaluate", "stuck", "character"}) String purpose,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap")
+            String step,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<ChoiceResponse> choices,
+            @Schema(nullable = true, description = "AI가 영상에서 알아본 장면") SceneResponse scene,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "AI가 받아 적은 대사와 영상 시간(초)") List<LineResponse> lines,
+            @Schema(nullable = true, description = "평가 받기의 결과 카드") ResultCardResponse card,
+            @Schema(nullable = true, description = "인물 이해하기의 인물 카드") CharacterCardResponse characterCard) {
+
+        static PurposeResponse of(PurposeView view) {
+            if (view == null) return null;
+            return new PurposeResponse(view.purpose(), view.step(),
+                    view.choices().stream().map(c -> new ChoiceResponse(c.label(), c.at())).toList(),
+                    view.scene() == null ? null
+                            : new SceneResponse(view.scene().situation(), view.scene().character(), view.scene().partner()),
+                    view.lines().stream().map(l -> new LineResponse(l.at(), l.text())).toList(),
+                    view.card() == null ? null : new ResultCardResponse(CardItemResponse.of(view.card().good()),
+                            CardItemResponse.of(view.card().issue()), CardItemResponse.of(view.card().next())),
+                    view.characterCard() == null ? null : new CharacterCardResponse(view.characterCard().cells().stream()
+                            .map(c -> new CharacterCellResponse(c.key(), c.label(), c.value(), c.source())).toList()));
+        }
+    }
+
+    /** 답 버튼. {@code at} 은 그 버튼이 가리키는 영상 시간(초)이고 없으면 null 이다. */
+    @Schema(name = "CoachChoice", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ChoiceResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String label,
+            @Schema(nullable = true) Integer at) {
+    }
+
+    /** 모르는 칸은 빈 문자열이다. */
+    @Schema(name = "CoachScene", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record SceneResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String situation,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String character,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String partner) {
+    }
+
+    @Schema(name = "CoachLine", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record LineResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int at,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String text) {
+    }
+
+    /** 칸이 없으면 null 이다. */
+    @Schema(name = "CoachResultCard", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ResultCardResponse(
+            @Schema(nullable = true, description = "잘 된 곳") CardItemResponse good,
+            @Schema(nullable = true, description = "아쉬운 곳") CardItemResponse issue,
+            @Schema(nullable = true, description = "다음 테이크") CardItemResponse next) {
+    }
+
+    @Schema(name = "CoachResultCardItem", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record CardItemResponse(
+            @Schema(nullable = true) Integer at,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String text) {
+
+        static CardItemResponse of(PurposeView.CardItem item) {
+            return item == null ? null : new CardItemResponse(item.at(), item.text());
+        }
+    }
+
+    @Schema(name = "CoachCharacterCard", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record CharacterCardResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<CharacterCellResponse> cells) {
+    }
+
+    /** {@code key}: who·before·relation·want·obstacle·action. {@code source}: 내 말·같이 찾음·영상·대본. */
+    @Schema(name = "CoachCharacterCell", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record CharacterCellResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String key,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String label,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String value,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String source) {
     }
 
     /**

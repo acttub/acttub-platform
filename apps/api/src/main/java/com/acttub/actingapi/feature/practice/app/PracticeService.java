@@ -165,7 +165,14 @@ public class PracticeService {
             String blockageKind,
             String subBranch,
             String blockageNote,
-            String title) {
+            String title,
+            String sessionPurpose) {
+
+        /** 세션 목적이 없던 때의 모양. 이어하기와 옛 호출부가 쓴다. */
+        public Draft(UUID requestId, UUID videoId, String situation, String characterContext, String goal,
+                String blockageKind, String subBranch, String blockageNote, String title) {
+            this(requestId, videoId, situation, characterContext, goal, blockageKind, subBranch, blockageNote, title, null);
+        }
     }
 
     private NewPractice newPractice(Draft draft, String contractHeader) {
@@ -176,6 +183,7 @@ public class PracticeService {
         String subBranch = PracticeRules.blockage(draft.subBranch());
         String blockageNote = PracticeRules.note(draft.blockageNote());
         String title = PracticeRules.title(draft.title());
+        String sessionPurpose = PracticeRules.sessionPurpose(draft.sessionPurpose());
         String experienceVersion = PracticeRules.threeLayers(threeLayersEnabled, contractHeader)
                 ? ExperienceVersion.THREE_LAYERS_V1.dbValue()
                 : ExperienceVersion.LEGACY.dbValue();
@@ -183,9 +191,11 @@ public class PracticeService {
         String payload = String.join("|", "practice_start",
                 String.valueOf(draft.videoId()), situation, characterContext, goal,
                 blockageKind, subBranch, String.valueOf(blockageNote));
+        // 세션 목적도 있을 때만 넣는다(SOMA-719) — 목적 없는 요청의 지문은 이 변경 전과 같다.
+        String withTitle = title == null ? payload : payload + "|title|" + title;
         return new NewPractice(
                 draft.requestId(),
-                fingerprint(title == null ? payload : payload + "|title|" + title),
+                fingerprint(sessionPurpose == null ? withTitle : withTitle + "|purpose|" + sessionPurpose),
                 draft.videoId(),
                 experienceVersion,
                 situation,
@@ -194,7 +204,8 @@ public class PracticeService {
                 blockageKind,
                 subBranch,
                 blockageNote,
-                title);
+                title,
+                sessionPurpose);
     }
 
     /** 게스트만 하루 한도가 있다. 하루는 한국 시간 자정에 끊는다. */
