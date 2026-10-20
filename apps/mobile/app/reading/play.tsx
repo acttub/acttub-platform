@@ -187,6 +187,9 @@ export default function ReadingPlay() {
   const [notice, setNotice] = useState<Notice>(null);
   const [attempt, setAttempt] = useState(0);
   const [sttMode, setSttMode] = useState<SttPolicy | null>(null);
+  // commit 은 정책이 바뀌어도 다시 만들지 않는다 — 완료 판정은 최신 정책을 ref 로 읽는다.
+  const sttModeRef = useRef<SttPolicy | null>(null);
+  sttModeRef.current = sttMode;
   const [pendingUploads, setPendingUploads] = useState(0);
   const [different, setDifferent] = useState<DifferentView>({ kind: 'waiting' });
   /** 리딩 중 줄 고치기(SOMA-728) — 고치는 줄과, 열기 전에 진행 중이었는지(닫으면 이어서 한다). */
@@ -410,7 +413,13 @@ export default function ReadingPlay() {
     if (!prev || !session) return;
     if (next.status === 'done') {
       // 인식된 대사 없이 끝까지 넘기기만 했으면 완료로 보내지 않는다 — 회차는 열린 채 남고 별점도 묻지 않는다(SOMA-773).
-      const completed = readingRunCompleted({ reachedEnd: true, said: next.said, priorRecognized: sessionHasRecognized(session) });
+      // 음성 인식을 못 쓰는 기기(typing)는 끝까지 가면 완료다.
+      const completed = readingRunCompleted({
+        reachedEnd: true,
+        said: next.said,
+        priorRecognized: sessionHasRecognized(session),
+        recognition: sttModeRef.current?.kind ?? null,
+      });
       if (completed) queueRef.current?.push(progressPayload(next));
       setPhase({ kind: 'done' });
       if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
@@ -1133,7 +1142,12 @@ export default function ReadingPlay() {
   }
 
   if (phase.kind === 'done') {
-    const completed = readingRunCompleted({ reachedEnd: true, said: run.said, priorRecognized: sessionHasRecognized(session) });
+    const completed = readingRunCompleted({
+      reachedEnd: true,
+      said: run.said,
+      priorRecognized: sessionHasRecognized(session),
+      recognition: sttMode?.kind ?? null,
+    });
     const readCount = readDialogueCount(run.lines, run.startIndex, run.endIndex);
     const wholeScript = run.startIndex <= run.lines.findIndex((l) => l.type === 'dialogue') && run.endIndex >= run.lines.length - 1;
     const compared = sttMode?.kind === 'stt';

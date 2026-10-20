@@ -50,6 +50,7 @@ jest.mock('@/lib/api', () => ({
     listReadingScripts: jest.fn(),
     listReadingSessions: jest.fn(),
     listChallenges: jest.fn(),
+    listMyChallengeEntries: jest.fn(),
     getPracticeNote: jest.fn(),
     admissions: jest.fn(),
     auditions: jest.fn(),
@@ -76,8 +77,14 @@ jest.mock('@/components/announcement-poster', () => ({ AnnouncementPoster: jest.
 const listPracticeGroups = api.listPracticeGroups as jest.Mock;
 const listReadingScripts = api.listReadingScripts as jest.Mock;
 const getPracticeNote = api.getPracticeNote as jest.Mock;
-/** 연습한 사람(첫 사용자 아님) — 홈이 오늘 할 것·최근 연습·마감 카드를 그린다. */
-const practiced = () => listPracticeGroups.mockResolvedValue({ groups: [group({ title: '카페 장면' })] });
+/**
+ * 연습한 사람(첫 사용자 아님) — 홈이 오늘 할 것·최근 연습·마감 카드를 그린다. 「연습 1회」 기준(SOMA-773)으로도 연습한 날이
+ * 있게 사흘 전에 올린 참여작 하나를 둔다(오늘이 아니라 연속 축하는 뜨지 않는다).
+ */
+const practiced = () => {
+  listPracticeGroups.mockResolvedValue({ groups: [group({ title: '카페 장면' })] });
+  (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e-old', created_at: isoDaysAgo(3) }], next_cursor: null });
+};
 const posterProps = () => (AnnouncementPoster as unknown as jest.Mock).mock.calls.at(-1)[0];
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -182,6 +189,7 @@ beforeEach(() => {
   listReadingScripts.mockResolvedValue({ scripts: [] });
   (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [] });
   (api.listChallenges as jest.Mock).mockResolvedValue({ featured: null });
+  (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [], next_cursor: null });
   getPracticeNote.mockResolvedValue({ next_take: null, report: null });
   (api.admissions as jest.Mock).mockResolvedValue(admissionsPayload);
   (api.auditions as jest.Mock).mockResolvedValue(auditionsPayload);
@@ -340,7 +348,8 @@ test('날짜를 모르는 묶음은 날짜 칸을 비운다', async () => {
 describe('연속 연습', () => {
   test('오늘 처음 연습했으면 한 번 축하하고, 계속하기를 누르면 닫는다', async () => {
     listPracticeGroups.mockResolvedValue({
-      groups: [group({ practices: [{ created_at: isoDaysAgo(0) }, { created_at: '' }] as PracticeGroup['practices'] })],
+      // 노트가 생긴 오늘 회차 하나(시각 없는 회차는 빼고)가 연습 1회다(SOMA-773).
+      groups: [group({ practices: [round('p-today', isoDaysAgo(0), true), round('p-blank', '', true)] })],
     });
     await render(<HomeScreen />);
 

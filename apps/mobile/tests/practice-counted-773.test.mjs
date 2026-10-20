@@ -47,6 +47,16 @@ test('리딩 완료: 끝까지 갔고 인식된 대사가 한 줄 이상일 때�
   assert.equal(readingRunCompleted({ reachedEnd: false, said: {}, priorRecognized: true }), false);
 });
 
+test('리딩 완료 예외: 음성 인식을 못 쓰는 기기(typing)는 끝까지 가면 완료, 인식 기기는 인식 0줄이면 미완료', () => {
+  assert.equal(readingRunCompleted({ reachedEnd: true, said: {}, recognition: 'typing' }), true);
+  assert.equal(readingRunCompleted({ reachedEnd: false, said: {}, recognition: 'typing' }), false);
+  assert.equal(readingRunCompleted({ reachedEnd: true, said: {}, recognition: 'stt' }), false);
+  assert.equal(readingRunCompleted({ reachedEnd: true, said: { a: ' ' }, recognition: 'stt' }), false);
+  assert.equal(readingRunCompleted({ reachedEnd: true, said: { a: '안녕' }, recognition: 'stt' }), true);
+  // 정책을 아직 모르면 인식 기기처럼 본다.
+  assert.equal(readingRunCompleted({ reachedEnd: true, said: {}, recognition: null }), false);
+});
+
 test('sessionHasRecognized: 녹음 전사나 원문 대조의 말한 것이 있으면 참', () => {
   assert.equal(sessionHasRecognized({ recordings: [], different_lines: [] }), false);
   assert.equal(sessionHasRecognized({ recordings: [{ transcript: ' ' }], different_lines: [{ said: null }] }), false);

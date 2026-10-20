@@ -43,6 +43,7 @@ jest.mock('@/lib/api', () => ({
     listReadingSessions: jest.fn(),
     listSavedEntries: jest.fn(),
     actorMemory: jest.fn(),
+    getPracticeNote: jest.fn(),
   },
 }));
 
@@ -53,6 +54,7 @@ const listScripts = api.listReadingScripts as jest.Mock;
 const listSessions = api.listReadingSessions as jest.Mock;
 const listSaved = api.listSavedEntries as jest.Mock;
 const actorMemory = api.actorMemory as jest.Mock;
+const getNote = api.getPracticeNote as jest.Mock;
 
 // 이번 달·지난달 시각 — 「이번 달 연습」은 기기 시각 기준 달력 달로 센다.
 const now = new Date();
@@ -67,11 +69,19 @@ const entry = (id: string, challengeId: string, created_at = thisMonth, extra: R
   challenge: { id: challengeId, line: `대사 ${challengeId}` },
   ...extra,
 });
-const group = (root_id: string, practiceTimes: string[], extra: Record<string, unknown> = {}) => ({
+// 연습 1회 = 노트가 생긴 코칭 회차(SOMA-773). 회차는 기본으로 노트가 있고, 대화만 하다 나간 회차는 noNote(시각)로 만든다.
+type Round = string | { at: string; note: null };
+const noNote = (at: string): Round => ({ at, note: null });
+const group = (root_id: string, practiceTimes: Round[], extra: Record<string, unknown> = {}) => ({
   root_id,
   hidden_at: null,
   title: `연습 ${root_id}`,
-  practices: practiceTimes.map((created_at, i) => ({ id: `${root_id}-${i}`, created_at, scene: { situation: '' } })),
+  practices: practiceTimes.map((round, i) => ({
+    id: `${root_id}-${i}`,
+    created_at: typeof round === 'string' ? round : round.at,
+    note: typeof round === 'string' ? { id: `note-${root_id}-${i}` } : null,
+    scene: { situation: '' },
+  })),
   ...extra,
 });
 
@@ -94,27 +104,39 @@ beforeEach(() => {
   listSessions.mockResolvedValue({ sessions: [] });
   listSaved.mockResolvedValue({ entries: [] });
   actorMemory.mockResolvedValue({ items: [] });
+  getNote.mockRejectedValue(new Error('no note'));
 });
 
-test('서버 프로필의 이름·사진·목표와 경력·소개를 보이고, 이번 달 코칭 회차·리딩 회차·참여한 서로 다른 챌린지 수를 센다', async () => {
+test('서버 프로필의 이름·사진·목표와 경력·소개를 보이고, 이번 달 노트 생긴 코칭 회차·완료한 리딩 회차·올린 참여작 수를 센다', async () => {
   mockMe = {
     profile: { name: '김배우', photo_url: 'https://cdn/photo.jpg', bio: '  무대가 좋은 배우  ', goal: 'audition', experience: 'y1_to_3' },
   };
   getItem.mockResolvedValue('기기 이름');
-  listGroups.mockResolvedValue({ groups: [group('g1', [thisMonth, thisMonth, lastMonth]), group('g2', [thisMonth])] });
+  // 코칭: 이번 달 노트 회차 4개(노트 없는 회차·지난달 회차는 빼고).
+  listGroups.mockResolvedValue({
+    groups: [group('g1', [thisMonth, thisMonth, lastMonth, noNote(thisMonth)]), group('g2', [thisMonth, thisMonth])],
+  });
   listEntries
     .mockResolvedValueOnce({ entries: [entry('e1', 'c1'), entry('e2', 'c2')], next_cursor: 'n1' })
     .mockResolvedValueOnce({ entries: [entry('e3', 'c2'), entry('e4', 'c3', lastMonth)], next_cursor: null });
   listScripts.mockResolvedValue({ scripts: [{ id: 's1', last_practiced_at: thisMonth }, { id: 's2', last_practiced_at: lastMonth }] });
-  listSessions.mockResolvedValue({ sessions: [{ started_at: thisMonth }, { started_at: lastMonth }] });
+  // 리딩: 이번 달 completed 회차 1개(끝까지 안 간 회차·지난달 회차는 빼고).
+  listSessions.mockResolvedValue({
+    sessions: [
+      { status: 'completed', started_at: thisMonth },
+      { status: 'in_progress', started_at: thisMonth },
+      { status: 'completed', started_at: lastMonth },
+    ],
+  });
   actorMemory.mockResolvedValue({ items: [{}, {}, {}] });
 
   await render(<ProfileScreen />);
 
-  expect(await screen.findByText('이번 달 연습 6번')).toBeOnTheScreen();
-  expect(screen.getByText('3번')).toBeOnTheScreen();
+  // 챌린지: 이번 달 참여작 3개 — 같은 챌린지(c2)에 두 번 올린 것도 2회로 센다.
+  expect(await screen.findByText('이번 달 연습 8번')).toBeOnTheScreen();
+  expect(screen.getByText('4번')).toBeOnTheScreen();
   expect(screen.getByText('1번')).toBeOnTheScreen();
-  expect(screen.getByText('2번')).toBeOnTheScreen();
+  expect(screen.getByText('3번')).toBeOnTheScreen();
   expect(listGroups).toHaveBeenCalledWith('all');
   expect(listEntries.mock.calls).toEqual([
     [undefined, undefined],

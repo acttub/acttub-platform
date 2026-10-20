@@ -312,7 +312,8 @@ describe('보관함에서 고른 영상으로 시작', () => {
     expect(api.createPractice).toHaveBeenCalledTimes(1);
 
     await act(async () => resolve({ id: 'p1', ordinal: 3 }));
-    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'p1' } });
+    // 화면은 떠날 표시를 먼저 그리고 다음 틱에 옮긴다(leaveThen) — 옮김은 기다려서 본다.
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'p1' } }));
   });
 
   test('목록에서 고른 영상의 재생 주소가 없으면 미리보기를 비운 채로 둔다', async () => {
@@ -396,7 +397,7 @@ describe('시작이 실패하면', () => {
 
     expect(await screen.findByText('진행 중인 연습이 있어요')).toBeOnTheScreen();
     expect(api.listPracticeGroups).toHaveBeenCalledWith('all');
-    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'open-1' } });
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'open-1' } }));
   });
 
   test('진행 중이라는데 그 회차를 찾지 못하면 먼저 마치라고 알린다', async () => {
@@ -520,10 +521,13 @@ describe('튜토리얼 예시', () => {
 
     await fireEvent.press(screen.getByText(RIGHTS));
     await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
-    expect(mockRouter.replace).toHaveBeenCalledWith({
-      pathname: '/analyzing',
-      params: { practiceId: 'tutorial-sample-practice' },
-    });
+    // 화면은 떠날 표시를 먼저 그리고 다음 틱에 옮긴다(leaveThen) — 부하가 크면 누른 직후엔 아직이라 기다려서 본다.
+    await waitFor(() =>
+      expect(mockRouter.replace).toHaveBeenCalledWith({
+        pathname: '/analyzing',
+        params: { practiceId: 'tutorial-sample-practice' },
+      }),
+    );
     expect(api.createPractice).not.toHaveBeenCalled();
 
     await view.unmount();

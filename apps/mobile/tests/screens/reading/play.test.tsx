@@ -202,19 +202,21 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
 
   await speechEnds();
-  // 인식된 대사가 없으면 끝까지 가도 완료가 아니다(SOMA-773) — 완료 저장·별점 요청 없이 「연습으로 세지 않았어요」.
-  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
+  // 음성 인식을 못 쓰는 기기(typing)는 인식된 대사 없이도 끝까지 가면 완료다(SOMA-773 예외).
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
   expect(screen.getByText('내 배역 · 민재')).toBeOnTheScreen();
-  expect(screen.queryByText('읽은 대사 3줄')).not.toBeOnTheScreen();
-  await waitFor(() => expect(server.saveProgress).toHaveBeenCalledTimes(2));
-  expect(server.saveProgress.mock.calls.map(([, body]) => body.current_line_id)).toEqual(['l4', 'l5']);
-  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
+  expect(screen.getByText('읽은 대사 3줄')).toBeOnTheScreen();
+  expect(screen.getByText('이 기기에서는 말한 것을 글자로 바꾸지 못해 비교하지 않았어요.')).toBeOnTheScreen();
+  await waitFor(() =>
+    expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: null, complete: true, line_results: [] })),
+  );
+  expect(server.saveProgress.mock.calls.map(([, body]) => body.current_line_id)).toEqual(['l4', 'l5', null]);
   expect(jest.mocked(enqueueLineRecording).mock.calls.map(([input]) => [input.lineId, input.attemptNo, input.uri, input.contentType])).toEqual([
     ['l2', 1, 'file:///turn.m4a', 'audio/mp4'],
     ['l5', 1, 'file:///turn.m4a', 'audio/mp4'],
   ]);
-  expect(mockAskRating).not.toHaveBeenCalled();
-  expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
+  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 
   await pressWhenReady('완료');
   expect(await screen.findByText('오늘 리딩 끝!')).toBeOnTheScreen();
@@ -788,8 +790,8 @@ test('고친 줄이 대사가 아니게 되고 남은 대사가 없으면 완료
   await fireEvent.press(screen.getByText('지문'));
   await fireEvent.press(screen.getByText('저장'));
 
-  // 말한 대사 없이 끝났으니 완료 화면은 「연습으로 세지 않았어요」다(SOMA-773).
-  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
+  // 인식을 못 쓰는 기기(typing)라 말한 대사 없이 끝나도 완료다(SOMA-773 예외).
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(server.patchLine).toHaveBeenCalledWith('s1', 'l1', { kind: 'direction' });
 });
 
@@ -806,6 +808,18 @@ test('인식된 말 없이 「다음」만으로 끝까지 가면 완료로 보�
   expect(screen.queryByText('말한 것을 원문과 비교하고 있어요.')).not.toBeOnTheScreen();
   expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
   expect(mockAskRating).not.toHaveBeenCalled();
+});
+
+test('음성 인식을 못 쓰는 기기는 인식된 말 없이 끝까지 가도 완료로 보내고 별점을 묻는다(SOMA-773 예외)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'typing', reason: 'denied' });
+  const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('듣는 중');
+
+  await speechEnds();
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: true })));
+  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 });
 
 test('이어하기 전에 서버가 받은 인식이 있으면 이번에 말이 없어도 완료다', async () => {
@@ -1033,7 +1047,7 @@ test('발음 피드백이 켜져 있어도 받아쓰지 않은 줄은 다르게 
   await screen.findByText('듣는 중');
   await speechEnds();
 
-  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.queryByText('발음 피드백')).not.toBeOnTheScreen();
   expect(logEvent).not.toHaveBeenCalledWith('reading_pronunciation_feedback', expect.anything());
 });
@@ -1069,7 +1083,7 @@ test('녹음 올리기 대기 수가 바뀌면 완료 화면에 바로 반영한
   await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
   await screen.findByText('듣는 중');
   await speechEnds();
-  await screen.findByText('연습으로 세지 않았어요');
+  await screen.findByText('리딩 완료');
 
   await act(async () => notify(3));
   expect(screen.getByText('녹음 3개 저장 중')).toBeOnTheScreen();

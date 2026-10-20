@@ -184,12 +184,14 @@ export default function HomeScreen() {
         .then(() => api.listMyChallengeEntries())
         .then((r) => r.entries)
         .catch(() => []);
-      void Promise.all([groupsRead, readingRead, entriesRead]).then(([groupList, readingSessions, entries]) =>
+      void Promise.all([groupsRead, readingRead, entriesRead]).then(([groupList, readingSessions, entries]) => {
+        // 화면을 떠난 뒤 온 응답은 버린다 — 기기에 쌓지도 않는다.
+        if (cancelled) return;
         // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
-        rememberPracticeDays(countedPracticeDates({ groups: groupList, readingSessions, entries })).then((days) => {
+        return rememberPracticeDays(countedPracticeDates({ groups: groupList, readingSessions, entries })).then((days) => {
           if (!cancelled) setActivityDays(days);
-        }),
-      );
+        });
+      });
       return () => {
         cancelled = true;
       };
