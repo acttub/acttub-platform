@@ -5,7 +5,9 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChallengeIntro } from '@/components/challenge-intro';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
+import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
@@ -43,6 +45,7 @@ const TABS: { key: ChallengeTab; label: string }[] = [
 
 export default function ChallengesScreen() {
   const router = useRouter();
+  const firstTime = useFirstTimeUser();
   // 보관함에서 "챌린지에 올리기"로 오면 올릴 챌린지를 고르는 화면이 된다(A2.3 → A18.1).
   const { pickVideoId } = useLocalSearchParams<{ pickVideoId?: string }>();
   const picking = typeof pickVideoId === 'string' && pickVideoId.length > 0;
@@ -144,7 +147,11 @@ export default function ChallengesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>{picking ? t('challengeUpload.pickChallenge') : t('challenges.title')}</Text>
+        {/* 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로 돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
+        {firstTime && (
+          <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenges_back_home" onPress={() => router.navigate('/')} />
+        )}
+        <Text style={[styles.title, styles.titleGrow]}>{picking ? t('challengeUpload.pickChallenge') : t('challenges.title')}</Text>
         <View style={styles.headerRight}>
           <Pressable
             style={styles.iconBtn}
@@ -387,6 +394,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
+  titleGrow: { flex: 1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   iconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   badgeDot: {

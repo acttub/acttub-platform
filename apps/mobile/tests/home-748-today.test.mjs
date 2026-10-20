@@ -124,7 +124,8 @@ test('오늘의 연기 팁은 하루 동안 같고 팁 수 안에서 돈다', ()
 
 test('홈 화면: 첫 사용자 질문 3개·오늘 할 것 카드·알림 종을 그리고 일정 D-day는 없다', () => {
   const home = src('app/(tabs)/index.tsx');
-  assert.match(home, /isFirstUser\(/);
+  // 첫 사용자 판단은 lib/practice/first-time(안에서 isFirstUser)이 탭바 숨김과 함께 한 번 한다.
+  assert.match(home, /firstTimeStateFrom\(/);
   assert.match(home, /pickToday\(/);
   assert.match(home, /t\('home\.firstQuestion'\)/);
   assert.match(home, /router\.push\('\/notifications'\)/);

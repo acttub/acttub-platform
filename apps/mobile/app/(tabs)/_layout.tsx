@@ -2,7 +2,8 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 
 import { LegacyArchivePrompt } from '@/components/legacy-archive-prompt';
-import { TAB_BAR_HIDDEN, tabButton, tabIcon, useHomeTabBarHidden, useTabBarStyle } from '@/components/ui/tab-bar';
+import { TAB_BAR_HIDDEN, tabButton, tabIcon, useTabBarStyle } from '@/components/ui/tab-bar';
+import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { palette } from '@/constants/palette';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
@@ -14,11 +15,12 @@ import { TARGET } from '@/lib/spotlight-targets';
  *
  * 글자 없는 아이콘 탭이라 탭마다 화면 읽기 이름(tabBarAccessibilityLabel)과 누름 기록 이름(ph-label)을 단다(SOMA-770 피드백 9).
  * 예전 가운데 촬영 버튼은 없어지고 코칭은 코칭 탭에서 시작한다. 카메라 화면(record-video)은 코칭·챌린지에서 연다.
- * 홈 첫 사용자 화면(뭐부터 해 볼까요?)에서는 홈 탭에서만 탭바를 숨긴다(bHxn1I).
+ * 첫 사용자(홈 「뭐부터 해 볼까요?」 기준 — 묶음·대본·연습한 날이 모두 없음)로 확인되면 모든 탭에서 탭바를 숨기고, 무엇이든 시작하면 다시 보인다(bHxn1I, SOMA-781).
+ * 판단은 홈이 받은 기록으로 lib/practice/first-time 한 곳에서 한다. 아직 모르면(홈을 거치지 않고 다른 탭으로 들어온 경우) 보인다.
  */
 export default function TabLayout() {
   const tabBarStyle = useTabBarStyle();
-  const homeHidden = useHomeTabBarHidden();
+  const firstTime = useFirstTimeUser();
   // 읽지 않은 알림 묶음 수.
   const unread = useUnreadNotifications();
   // 홈 첫 가이드가 코칭 탭을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
@@ -40,7 +42,7 @@ export default function TabLayout() {
         screenOptions={{
           tabBarActiveTintColor: palette.blue,
           tabBarInactiveTintColor: palette.textFaint,
-          tabBarStyle,
+          tabBarStyle: firstTime ? TAB_BAR_HIDDEN : tabBarStyle,
           tabBarShowLabel: false,
           headerShown: false,
         }}>
@@ -49,7 +51,6 @@ export default function TabLayout() {
           options={{
             ...tab('home'),
             tabBarIcon: tabIcon('home-outline', t('tabs.home')),
-            tabBarStyle: homeHidden ? TAB_BAR_HIDDEN : tabBarStyle,
           }}
         />
         <Tabs.Screen

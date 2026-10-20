@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
+import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -37,6 +38,7 @@ const EMPTY_COUNTS: MonthPracticeCounts = { coaching: 0, reading: 0, challenge: 
  */
 export default function ProfileScreen() {
   const router = useRouter();
+  const firstTime = useFirstTimeUser();
   const { user, profile } = useAuth();
   const [name, setName] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('practice');
@@ -125,7 +127,11 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.top}>
-          <Text style={styles.title}>{t('profileTab.title')}</Text>
+          {/* 첫 사용자는 탭바가 숨으므로 홈으로 돌아갈 꺾쇠를 단다(탭바 없이는 딥링크로만 온다) — 탭바가 보이면 두지 않는다. */}
+          {firstTime && (
+            <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="profile_back_home" onPress={() => router.navigate('/')} />
+          )}
+          <Text style={[styles.title, styles.titleGrow]}>{t('profileTab.title')}</Text>
           <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="profile_settings" onPress={() => router.push('/settings')} />
         </View>
 
@@ -312,6 +318,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 130 },
   top: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginRight: -10 },
   title: { fontSize: 22, fontWeight: '800', color: palette.text },
+  titleGrow: { flex: 1 },
 
   me: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   photo: {

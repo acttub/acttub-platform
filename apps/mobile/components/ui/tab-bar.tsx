@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
-import { useSyncExternalStore, type Ref } from 'react';
+import type { Ref } from 'react';
 import { Platform, StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -54,7 +54,7 @@ export function useTabBarStyle(): ViewStyle {
       };
 }
 
-/** 탭바를 숨긴 모양 — 홈 첫 사용자 화면(bHxn1I)처럼 탭바가 없는 디자인에서. */
+/** 탭바를 숨긴 모양 — 첫 사용자(연습한 날 없음)는 모든 탭에서 숨긴다(lib/practice/first-time, bHxn1I). */
 export const TAB_BAR_HIDDEN: ViewStyle = { display: 'none' };
 
 /** 탭 아이콘 — 위 설명대로. `target`은 첫 가이드가 이 탭을 비출 때 자리를 재는 ref. */
@@ -78,26 +78,6 @@ export function tabButton(phLabel: string) {
   const TabButton = (props: BottomTabBarButtonProps) => <HapticTab {...props} ph-label={phLabel} />;
   TabButton.displayName = `TabButton(${phLabel})`;
   return TabButton;
-}
-
-// 홈 첫 사용자 화면이 탭바를 숨기는 표시. 탭 레이아웃이 홈 탭에만 숨김을 건다(다른 탭은 그대로).
-let homeTabBarHidden = false;
-const listeners = new Set<() => void>();
-
-export function setHomeTabBarHidden(hidden: boolean): void {
-  if (homeTabBarHidden === hidden) return;
-  homeTabBarHidden = hidden;
-  listeners.forEach((listener) => listener());
-}
-
-export function useHomeTabBarHidden(): boolean {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    () => homeTabBarHidden,
-  );
 }
 
 const styles = StyleSheet.create({

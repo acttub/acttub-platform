@@ -9,6 +9,7 @@ import { IconOptionRow } from '@/components/ui/option-card';
 import { MASCOT } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
+import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
@@ -26,6 +27,7 @@ import { setContinueOrigin } from '@/lib/practice/session-state';
  */
 export default function CoachingTab() {
   const router = useRouter();
+  const firstTime = useFirstTimeUser();
   const [entry, setEntry] = useState<CoachingEntry | null>(null);
   // 「지난번 다음에 해볼 것」은 노트의 다음 테이크 문장이다. 없으면 그 칸을 띄우지 않는다.
   const takes = useNextTakes([entry?.kind === 'next' ? entry.notePracticeId : null]);
@@ -69,6 +71,12 @@ export default function CoachingTab() {
       <NavHeader
         title={t('coachingTab.title')}
         left={<NavIconButton icon="chevron-left" label={t('common.back')} phLabel="coaching_back_home" onPress={() => router.navigate('/')} />}
+        right={
+          // 첫 사용자는 탭바가 숨어 프로필 탭의 설정으로 못 간다 — 로그아웃·탈퇴 길을 남긴다(SOMA-781).
+          firstTime && entry?.kind === 'first' ? (
+            <NavIconButton icon="settings" label={t('settings.title')} phLabel="coaching_first_settings" onPress={() => router.push('/settings')} />
+          ) : undefined
+        }
       />
       {!entry ? (
         <View style={styles.center}>
