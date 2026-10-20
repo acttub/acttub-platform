@@ -147,6 +147,19 @@ final class DirectVideoPracticeLoop {
         return letters > 0 && (hangul * 2 < letters || jamo >= 6);
     }
 
+    /**
+     * 스트리밍 도중 아직 다 쓰지 않은 보일 글이 이미 깨졌는지. 앞부분만으로도 확실한 신호(날 자모 6자 이상, HTML·코드)만 본다.
+     * 한글 비율은 영어 대사 인용으로 시작하는 정상 답("\"Who knows\"에서…")을 앞부분에서 잘못 잡으므로 다 쓴 뒤 {@link #looksBroken} 에서만 본다.
+     */
+    static boolean looksBrokenSoFar(String text, java.util.Locale language) {
+        if (text == null || text.isBlank()) return false;
+        if (MARKUP_OR_CODE.matcher(text).find()) return true;
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        if (!korean) return false;
+        long jamo = text.chars().filter(c -> c >= '\u3131' && c <= '\u318E').count();
+        return jamo >= 6;
+    }
+
     // 문장 끝(마침표·물음표·느낌표 뒤 공백)과 줄바꿈에서 나눈다. 따옴표 안 대사 끝의 물음표 뒤에는 공백이 아니라 따옴표가 오므로 나뉘지 않는다.
     private static final Pattern SENTENCE_BREAK = Pattern.compile("(?<=[.?!])[ \\t]+|\\R+");
 
