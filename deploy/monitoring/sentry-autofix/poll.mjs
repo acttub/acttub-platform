@@ -17,7 +17,7 @@ const TOOLS = [
   "Read", "Grep", "Glob", "Edit", "Write",
   ...["git", "./gradlew", "pnpm", "gh pr create", "gh pr view", "gh pr list", "gh pr checks", "gh run view"]
     .flatMap((c) => [`Bash(${c}:*)`, `Bash(rtk ${c}:*)`]),
-  ...["createJiraIssue", "getJiraIssue", "getTransitionsForJiraIssue", "transitionJiraIssue", "addCommentToJiraIssue"].map((t) => `mcp__atlassian__${t}`),
+  ...["createJiraIssue", "getJiraIssue", "searchJiraIssuesUsingJql", "getTransitionsForJiraIssue", "transitionJiraIssue", "addCommentToJiraIssue"].map((t) => `mcp__atlassian__${t}`),
 ].join(",");
 
 export const DAILY_RULE = "운영 계속 남";

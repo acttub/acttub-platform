@@ -16,6 +16,9 @@
 3. 코드 수정 대상이면 이 순서로 한다.
    1. `mcp__atlassian__createJiraIssue`로 Jira 이슈를 하나 만든다. cloudId `205faf1b-4810-4ed3-843d-410a3a6dcc9b`, 프로젝트 `SOMA`, 유형 `버그`.
       제목은 한국어 한 줄. 본문은 `배경` / `원하는 상태` / `완료 조건`(체크리스트) 세 절만 짧게 쓰고, 배경에 Sentry 링크 {{PERMALINK}}를 넣는다.
+      보드에 보이도록 진행 중 스프린트에 넣는다. 먼저 `searchJiraIssuesUsingJql`로 `project = SOMA AND sprint in openSprints()`를
+      maxResults 1, fields `customfield_10020`으로 찾아 state가 `active`인 스프린트 id를 얻고, 만들 때 `additional_fields`에
+      `{"customfield_10020": <id>}`를 넣는다. 진행 중 스프린트를 못 찾으면 넣지 않고 진행한다.
       만든 뒤 `getTransitionsForJiraIssue`로 "진행 중" 전이를 찾아 `transitionJiraIssue`로 옮긴다.
    2. `git switch -c Fiddich-Dev/soma-<번호>-sentry-<짧은 영문>`으로 브랜치를 만든다.
    3. 오류를 재현하는 테스트를 먼저 쓰고, 고치고, 그 앱의 가장 좁은 테스트부터 통과시킨다. `.github/workflows/ci.yml`의 해당 잡 범위도 돌릴 수 있는 만큼 돌린다.
