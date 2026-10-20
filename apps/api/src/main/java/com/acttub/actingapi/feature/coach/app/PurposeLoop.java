@@ -348,6 +348,7 @@ final class PurposeLoop {
     }
 
     private static String withoutTime(String label) {
+        if (label == null) return "";
         Lead lead = leadTime(label);
         return (lead == null ? label : label.substring(lead.end())).strip();
     }
