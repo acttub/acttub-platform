@@ -557,7 +557,7 @@ describe('넘기기', () => {
     expect(screen.getByText('태오')).toBeOnTheScreen();
   });
 
-  test.failing('참여작 id 로만 들어와도 끝에 닿으면 다음 20개를 이어 받는다', async () => {
+  test('참여작 id 로만 들어와도 끝에 닿으면 다음 20개를 이어 받는다', async () => {
     mockParams = { entryId: 'e1' };
     mocked.getEntry.mockResolvedValue(entry());
     await renderFeed([entry(), second()], 'cur-1');
@@ -829,7 +829,7 @@ describe('반응 메뉴', () => {
     expect(mocked.blockUser).toHaveBeenCalledWith('u-minji', true);
   });
 
-  test.failing('보던 마지막 참여작을 신고해 빼면 남은 참여작을 튼다', async () => {
+  test('보던 마지막 참여작을 신고해 빼면 남은 참여작을 튼다', async () => {
     mocked.createReport.mockResolvedValue({ id: 'r1', status: 'received' });
     await renderFeed([entry(), second()]);
     await swipeTo(1, '민지');
