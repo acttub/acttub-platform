@@ -72,7 +72,8 @@ test("환불정책은 이용한 날짜만큼 빼는 기준과 30일 예시 금�
   assert.equal(within(refund).getByText("결제 후 7일 이내, 유료 기능을 쓰지 않았을 때").tagName, "DT");
   assert.equal(within(refund).getByText("전액 환불").tagName, "DD");
   assert.equal(within(refund).getByText("이용한 날짜만큼 빼고, 남은 금액의 10%를 더 빼고 환불").tagName, "DD");
-  assert.equal(within(refund).getByText("이용한 날짜만큼 빼고, 남은 금액의 10%를 더해서 환불").tagName, "DD");
+  assert.equal(within(refund).getByText("이용한 날짜만큼 빼고, 남은 금액의 10%를 더해서 환불 (최대 결제금액까지)").tagName, "DD");
+  assert.match(refund.textContent, /이 기준으로 계산한 환불액은 실제 결제금액을 넘지 않아요\./);
   assert.deepEqual(
     ["3,900원", "3,510원", "2,340원", "1,170원"].map((won) => within(refund).getByText(won).tagName),
     ["DD", "DD", "DD", "DD"],
