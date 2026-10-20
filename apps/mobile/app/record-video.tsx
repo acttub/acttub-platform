@@ -392,6 +392,7 @@ export default function RecordVideoScreen() {
             {slider}
           </View>
         </SafeAreaView>
+        {dialog}
       </View>
     );
   }
@@ -447,6 +448,7 @@ export default function RecordVideoScreen() {
           {slider}
         </View>
       </SafeAreaView>
+      {dialog}
     </View>
   );
 }

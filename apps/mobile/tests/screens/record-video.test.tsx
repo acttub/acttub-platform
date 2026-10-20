@@ -265,7 +265,7 @@ describe('기본 촬영 화면', () => {
     expect(takePickedVideo()?.pendingId).toBe('pend1');
   });
 
-  test.failing('보관함이 받지 않으면 이유를 알리고, 준비 화면에는 영상을 넘기지 않는다', async () => {
+  test('보관함이 받지 않으면 이유를 알리고, 준비 화면에는 영상을 넘기지 않는다', async () => {
     saveToLibrary.mockResolvedValue({ kind: 'rejected', code: 'video_empty' });
     mockParams = { mode: 'ai', picker: '1' };
     await render(<RecordVideoScreen />);
@@ -611,7 +611,7 @@ describe('용도 고르기(하단 탭에서 곧장 연 촬영)', () => {
     expect(listChallenges).toHaveBeenCalledTimes(2);
   });
 
-  test.failing('오늘의 대사가 없으면 챌린지 탭에서 고르라고 안내한다', async () => {
+  test('오늘의 대사가 없으면 챌린지 탭에서 고르라고 안내한다', async () => {
     listChallenges.mockResolvedValue({ featured: null });
     mockParams = { mode: 'ai', picker: '1' };
     await render(<RecordVideoScreen />);
