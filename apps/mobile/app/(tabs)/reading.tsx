@@ -184,6 +184,10 @@ export default function ReadingList() {
         )}
         <Text style={[styles.h1, styles.h1Grow]}>{empty ? t('reading.tabTitle') : t('reading.listTitle')}</Text>
         <View style={styles.headRight}>
+          {/* 탭바가 숨어 프로필 탭의 설정으로 못 가므로 로그아웃·탈퇴 길을 남긴다(SOMA-781). */}
+          {firstTime && (
+            <NavIconButton icon="settings" label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
+          )}
           {!empty && (
             <Pressable
               hitSlop={8}

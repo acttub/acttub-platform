@@ -361,13 +361,26 @@ describe('첫 사용자라 탭바가 숨으면', () => {
     expect(mockRouter.navigate).toHaveBeenCalledWith('/');
   });
 
+  test('머리 오른쪽에 설정 버튼을 둔다 — 탭바가 없어도 로그아웃·탈퇴로 갈 수 있다', async () => {
+    setFirstTimeState('first');
+    await render(<ReadingList />);
+    await screen.findByText('옥상 장면');
+
+    const gear = screen.getByRole('button', { name: '설정' });
+    expect(gear.props['ph-label']).toBe('reading_first_settings');
+    await fireEvent.press(gear);
+    expect(mockRouter.push).toHaveBeenCalledWith('/settings');
+  });
+
   test('탭바가 보이면(연습했거나 아직 모르면) 꺾쇠를 두지 않는다', async () => {
     setFirstTimeState('practiced');
     await render(<ReadingList />);
     await screen.findByText('옥상 장면');
     expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '설정' })).not.toBeOnTheScreen();
 
     await act(async () => setFirstTimeState('unknown'));
     expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '설정' })).not.toBeOnTheScreen();
   });
 });

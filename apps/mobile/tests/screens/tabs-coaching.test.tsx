@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import CoachingTab from '@/app/(tabs)/coaching';
 import { api } from '@/lib/api';
+import { setFirstTimeState } from '@/lib/practice/first-time';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeGroup, PracticeRound } from '@/lib/practice/types';
 
@@ -115,4 +116,31 @@ test('꺾쇠로 홈에 돌아가 다른 길을 고를 수 있다', async () => {
 
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(mockRouter.navigate).toHaveBeenCalledWith('/');
+});
+
+describe('첫 사용자라 탭바가 숨으면', () => {
+  afterEach(() => setFirstTimeState('unknown'));
+
+  test('「코칭이 처음이죠?」 머리 오른쪽에 설정 버튼을 둔다 — 탭바가 없어도 로그아웃·탈퇴로 갈 수 있다', async () => {
+    setFirstTimeState('first');
+    listPracticeGroups.mockResolvedValue({ groups: [] });
+    await render(<CoachingTab />);
+    await screen.findByText('어떻게 코칭 받을래요?');
+
+    const gear = screen.getByRole('button', { name: '설정' });
+    expect(gear.props['ph-label']).toBe('coaching_first_settings');
+    await fireEvent.press(gear);
+    expect(mockRouter.push).toHaveBeenCalledWith('/settings');
+  });
+
+  test('탭바가 보이면(시작했거나 아직 모르면) 설정 버튼을 두지 않는다', async () => {
+    listPracticeGroups.mockResolvedValue({ groups: [] });
+    setFirstTimeState('practiced');
+    await render(<CoachingTab />);
+    await screen.findByText('어떻게 코칭 받을래요?');
+    expect(screen.queryByRole('button', { name: '설정' })).not.toBeOnTheScreen();
+
+    await act(async () => setFirstTimeState('unknown'));
+    expect(screen.queryByRole('button', { name: '설정' })).not.toBeOnTheScreen();
+  });
 });
