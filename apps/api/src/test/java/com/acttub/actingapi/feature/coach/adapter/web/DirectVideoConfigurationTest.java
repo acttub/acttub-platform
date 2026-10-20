@@ -68,7 +68,7 @@ class DirectVideoConfigurationTest {
                     var hedge = context.getBean(com.acttub.actingapi.integration.observation.GeminiDirectVideoModel.Hedge.class);
                     assertThat(hedge.classify()).isEqualTo(java.time.Duration.ofSeconds(6));
                     assertThat(hedge.reply()).isEqualTo(java.time.Duration.ofSeconds(20));
-                    assertThat(hedge.stream()).isEqualTo(java.time.Duration.ofSeconds(12));
+                    assertThat(hedge.stream()).as("스트리밍 다시 보내기는 기본으로 꺼져 있다").isZero();
                     var cache = context.getBean(com.acttub.actingapi.feature.coach.app.CoachVideoCache.class);
                     assertThat(cache.label(new com.acttub.actingapi.feature.coach.app.CoachVideoCache.Key(
                             java.util.UUID.randomUUID(), "k", "e"))).startsWith("acttub-coach:prod:");
