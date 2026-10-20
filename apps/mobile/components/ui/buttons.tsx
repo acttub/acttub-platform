@@ -79,8 +79,16 @@ export function DangerButton(props: ButtonProps) {
 
 /**
  * 글자만 있는 낮은 버튼(「건너뛰기」 같은 보조 링크) — 14/700 회색. 큰 버튼 아래 둘째·셋째 선택지에 쓴다.
+ * tone="accent"는 파란 글자 링크 — pen S3.2·S5.2 「다시 불러오기」(안쪽 [8,16]).
  */
-export function TextButton({ label, onPress, disabled, accessibilityLabel, phLabel }: ButtonProps) {
+export function TextButton({
+  label,
+  onPress,
+  disabled,
+  accessibilityLabel,
+  phLabel,
+  tone = 'muted',
+}: ButtonProps & { tone?: 'muted' | 'accent' }) {
   return (
     <Pressable
       onPress={onPress}
@@ -89,8 +97,8 @@ export function TextButton({ label, onPress, disabled, accessibilityLabel, phLab
       accessibilityLabel={accessibilityLabel ?? label}
       ph-label={phLabel}
       hitSlop={8}
-      style={({ pressed }) => [styles.text, pressed && styles.pressed]}>
-      <Text style={styles.textLabel}>{label}</Text>
+      style={({ pressed }) => [styles.text, tone === 'accent' && styles.textAccent, pressed && styles.pressed]}>
+      <Text style={[styles.textLabel, tone === 'accent' && styles.textLabelAccent]}>{label}</Text>
     </Pressable>
   );
 }
@@ -116,4 +124,6 @@ const styles = StyleSheet.create({
   disabledLabel: { color: palette.textFaint },
   text: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12 },
   textLabel: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
+  textAccent: { paddingHorizontal: 16 },
+  textLabelAccent: { color: palette.blue },
 });

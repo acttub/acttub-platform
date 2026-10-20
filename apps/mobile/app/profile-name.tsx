@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, BackHandler, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
@@ -182,8 +182,9 @@ export default function ProfileNameScreen() {
         <View style={styles.center}>
           {profile.status === 'error' ? (
             <>
-              <Text style={styles.error}>{t('profileName.loadFail')}</Text>
-              <PrimaryButton label={t('profileName.reload')} onPress={() => void reloadProfile()} style={styles.reload} />
+              <Text style={styles.loadError}>{t('profileName.loadFail')}</Text>
+              {/* pen S5.2 — 빨간 한 줄 아래 파란 글자 링크. */}
+              <TextButton tone="accent" label={t('profileName.reload')} onPress={() => void reloadProfile()} />
             </>
           ) : (
             <ActivityIndicator color={palette.blue} />
@@ -442,7 +443,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  reload: { alignSelf: 'stretch' },
 
   introCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 24 },
   introTitle: { fontSize: 28, fontWeight: '900', lineHeight: 38, color: palette.text, textAlign: 'center' },
@@ -472,5 +472,6 @@ const styles = StyleSheet.create({
   },
   fieldError: { marginTop: 8, fontSize: 13, color: palette.danger },
   error: { marginTop: 12, color: palette.danger, fontSize: 13 },
+  loadError: { color: palette.danger, fontSize: 13, textAlign: 'center' },
   tapHint: { fontSize: 13, fontWeight: '700', lineHeight: 20, color: palette.blueDeep, textAlign: 'center' },
 });

@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Button, DangerButton, PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
@@ -41,6 +41,21 @@ describe('버튼', () => {
     await render(<TextButton label="나중에" onPress={press} />);
     await fireEvent.press(screen.getByRole('button', { name: '나중에' }));
     expect(press).toHaveBeenCalled();
+  });
+
+  test('파란 글자 링크(tone=accent)는 글자만 파랗고 누름은 같다', async () => {
+    const press = jest.fn();
+    await render(
+      <>
+        <TextButton label="다시 불러오기" tone="accent" onPress={press} />
+        <TextButton label="건너뛰기" onPress={press} />
+      </>,
+    );
+    const color = (label: string) => StyleSheet.flatten(screen.getByText(label).props.style).color;
+    expect(color('다시 불러오기')).toBe('#3182F6');
+    expect(color('건너뛰기')).not.toBe('#3182F6');
+    await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
+    expect(press).toHaveBeenCalledTimes(1);
   });
 });
 
