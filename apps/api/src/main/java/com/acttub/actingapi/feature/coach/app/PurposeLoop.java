@@ -164,7 +164,7 @@ final class PurposeLoop {
             return advance(purpose, loop, index, label, true, answerLike ? current : null, actorText);
         }
         Turn turn = switch (kind) {
-            case QUESTION, EVALUATION -> stays >= MAX_STAYS ? advance(purpose, loop, index, label, false, null, actorText)
+            case QUESTION, EVALUATION -> stays >= MAX_STAYS ? advance(purpose, loop, index, label, false, null, actorText).asking()
                     : new Turn(purpose, current, "answer", false, false, label, false, null);
             case CORRECTION, PUSHBACK -> stays >= MAX_STAYS ? advance(purpose, loop, index, label, false, null, actorText)
                     : new Turn(purpose, current, "accept", false, false, label, false, null);
@@ -180,7 +180,17 @@ final class PurposeLoop {
             if (kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION) turn = turn.asking();
         }
         if (dontKnow) turn = turn.notKnowing();
-        return classified != null && classified.alsoAsked() && !answering ? turn.asking() : turn;
+        // 분류가 놓쳐도 배우 말에 물음("왜요?", "무슨 뜻이에요?")이 있으면 먼저 답하게 한다.
+        boolean asks = classified != null && classified.alsoAsked() || asksSomething(actorText);
+        return asks && !answering ? turn.asking() : turn;
+    }
+
+    /** 배우 말에 코치에게 묻는 말이 있는가. */
+    static boolean asksSomething(String actorText) {
+        if (actorText == null) return false;
+        String text = actorText.replaceAll("\\s+", "");
+        return text.contains("?") || text.contains("왜요") || text.contains("왜그래") || text.contains("무슨뜻") || text.contains("뭔뜻")
+                || text.contains("어떻게해요") || text.contains("어떻게하는") || text.contains("어케");
     }
 
     /** 처음 막히면 쉽게 다시 묻고, 또 막히면 코치가 답 하나를 내놓는다. */
@@ -615,6 +625,10 @@ final class PurposeLoop {
         if (turn.direct()) {
             lines.add("- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 영상에서 본 것으로 "
                     + "직접 정한다: 어느 대사에서, 상대에게 무엇을 하는지. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.");
+        }
+        if (turn.purpose() == Purpose.CHARACTER && turn.wrap()) {
+            lines.add("- 인물 카드에는 첫 응답 <설계>의 대본 단서·테이크 속 인물·다른 가능성에서 배우가 말하지 않은 칸을 둘 이상 (영상)으로 채운다. "
+                    + "정리 둘째 문장은 배우 해석과 다른 가능성 하나를 그 단서 대사와 함께 말하고, 그 둘로 이 인물이 어떻게 더 입체적이 되는지 말한다.");
         }
         if (turn.asked()) {
             lines.add("- 배우가 이번 말에서 함께 물은 것이 있다. 이번 할 일을 하기 전에 그 물음에 먼저 한두 문장으로 솔직하게 답한다. "

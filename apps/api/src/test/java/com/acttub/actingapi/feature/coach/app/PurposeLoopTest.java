@@ -129,6 +129,22 @@ class PurposeLoopTest {
         assertThat(PurposeLoop.asksNothing(PurposeLoop.Purpose.EVALUATE)).isTrue();
     }
 
+    @Test void anActorQuestionTheClassifierMissedIsStillAnsweredFirst() {
+        var turn = PurposeLoop.decide(PurposeLoop.Purpose.STUCK, state("{\"step\":1,\"questions\":1}"), "그게 무슨 뜻이에요", null, ANSWERED, 2);
+        assertThat(turn.asked()).isTrue();
+        assertThat(PurposeLoop.asksSomething("그냥 알려주려고요")).isFalse();
+        for (String q : List.of("왜요", "그게 무슨 뜻이죠", "뭔 뜻인지", "그래서 어떻게 해요", "어떻게 하는 건데", "어케 하라는", "이거 맞아?", "왜 그래야 돼"))
+            assertThat(PurposeLoop.asksSomething(q)).as(q).isTrue();
+        assertThat(PurposeLoop.asksSomething(null)).isFalse();
+        var stayedTwice = PurposeLoop.decide(PurposeLoop.Purpose.STUCK, state("{\"step\":1,\"stays\":2}"), "왜요", null,
+                kind(PracticeLoopRouter.Kind.QUESTION), 2);
+        assertThat(stayedTwice.advanced() && stayedTwice.asked()).as("두 번 머물러 넘어가도 물음엔 먼저 답한다").isTrue();
+        var cell = new PurposeLoop.Turn(PurposeLoop.Purpose.CHARACTER, "cell", "cell", true, false, "답", false, "view");
+        assertThat(PurposeLoop.instruction(cell, state("{}"), "엄마요")).doesNotContain("(영상)으로 채운다");
+        var wrap = new PurposeLoop.Turn(PurposeLoop.Purpose.CHARACTER, "wrap", "wrap", true, false, "답", false, "cell");
+        assertThat(PurposeLoop.instruction(wrap, state("{}"), "엄마요")).contains("(영상)으로 채운다", "다른 가능성");
+    }
+
     @Test void theReplyCapForcesTheWrap() {
         var intent = state("{\"step\":1}");
         var turn = PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, intent, "왜요?", null, kind(PracticeLoopRouter.Kind.QUESTION),
