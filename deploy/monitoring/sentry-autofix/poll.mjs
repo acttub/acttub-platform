@@ -1,7 +1,7 @@
-// Slack에 간 Sentry 운영 알림마다 Orca 워크트리를 만들고, 그 터미널의 Claude에 원인 분석·Jira 이슈·draft PR을 맡긴다.
+// Slack에 간 Sentry 운영 알림마다 claude -p에 원인 분석·Jira 이슈·draft PR을 맡긴다.
 // 알림 목록은 Slack 중계 Worker의 KV에서 가져온다. Mac mini launchd에서 15분마다 돈다. 준비와 되돌리기는 README.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -9,9 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const HOME = homedir();
 const CONF = join(HOME, ".config/acttub");
 const STATE_DIR = join(HOME, ".local/state/acttub-sentry-autofix");
-// 운영 배포 판정용 클론. launchd는 ~/Documents에 접근 허락이 없어 Orca 저장소 원본을 git으로 직접 만지지 않는다.
 const REPO = join(HOME, "acttub-autofix/repo");
-const ORCA_REPO = "49ef3819-11f4-4008-b04f-4c8c4d354e06"; // Mac mini Orca에 등록된 ~/Documents/GitHub/acttub-platform
 const SENTRY = "https://us.sentry.io/api/0/organizations/acttub";
 const RUN_TIMEOUT_MS = 90 * 60_000; // CI 결과 기다림까지
 // Mac mini의 RTK 훅이 명령을 `rtk <명령>`으로 바꾸므로 두 모양을 다 허용한다.
@@ -87,16 +85,6 @@ async function slack(text) {
 
 const git = (...args) => spawnSync("git", ["-C", REPO, ...args], { encoding: "utf8" });
 
-function orca(...args) {
-  const r = spawnSync("orca", [...args, "--json"], { encoding: "utf8" });
-  let out = {};
-  try {
-    out = JSON.parse(r.stdout);
-  } catch {}
-  if (!out.ok) throw new Error(`orca ${args.slice(0, 2).join(" ")}: ${String(r.stderr || r.stdout).slice(0, 200)}`);
-  return out.result;
-}
-
 // 머지된 PR이 운영(main)에 들어갔는지. dev는 squash, dev→main은 merge commit이라 조상 관계로 본다.
 function deployed(prev) {
   const sha = spawnSync("gh", ["pr", "view", prev.pr, "--json", "mergeCommit", "-q", ".mergeCommit.oid"], { encoding: "utf8" }).stdout.trim();
@@ -115,51 +103,37 @@ async function handle(issue, alert, statePath, state, prev) {
     }
   }
   const event = await sentry(`/issues/${issue.id}/events/latest/`);
-  const name = `sentry-${issue.shortId.replace(/^ACTTUB-/, "").toLowerCase()}-${new Date().toISOString().slice(5, 16).replace(/\D/g, "")}`;
-  const wt = orca("worktree", "create", "--repo", `id:${ORCA_REPO}`, "--name", name, "--base-branch", "origin/dev",
-    "--no-parent", "--setup", "skip", "--comment", `Sentry 자동 수정 ${issue.permalink}`).worktree;
-  // 넘길 요약과 결과는 워크트리 안에 둔다. 권한을 묶은 Claude는 저장소 밖에 쓰지 못한다. git에는 잡히지 않게 한다.
-  const io = join(wt.path, ".sentry-autofix");
-  mkdirSync(io, { recursive: true });
-  writeFileSync(join(io, ".gitignore"), "*\n");
-  writeFileSync(join(io, "context.json"), JSON.stringify({ alert: alert.rule, ...summarize(issue, event) }, null, 2));
-  const prompt = join(STATE_DIR, "ctx", `${name}.md`);
-  mkdirSync(dirname(prompt), { recursive: true });
-  writeFileSync(prompt, readFileSync(join(dirname(fileURLToPath(import.meta.url)), "prompt.md"), "utf8")
+  const ctx = join(STATE_DIR, "ctx", `${issue.shortId}.json`);
+  mkdirSync(dirname(ctx), { recursive: true });
+  writeFileSync(ctx, JSON.stringify({ alert: alert.rule, ...summarize(issue, event) }, null, 2));
+
+  const wt = join(HOME, "acttub-autofix", `wt-${issue.shortId}`);
+  git("fetch", "-q", "origin", "dev");
+  git("worktree", "remove", "--force", wt); // 지난 실행이 중간에 죽어 남긴 폴더
+  git("worktree", "add", "-q", "--detach", wt, "origin/dev");
+  const prompt = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "prompt.md"), "utf8")
+    .replaceAll("{{CONTEXT}}", ctx)
     .replaceAll("{{PERMALINK}}", issue.permalink)
-    .replaceAll("{{PREVIOUS}}", prev?.verdict === "pr" ? `이 오류는 전에 ${prev.jira}(${prev.pr})로 고쳤는데 다시 알림이 왔다. 새 Jira 이슈의 배경에 그 이슈와 PR을 적는다.` : ""));
-  // 지시를 옵션보다 앞에 둔다. --allowedTools는 뒤따르는 인자를 모두 도구 이름으로 먹는다.
-  const { handle } = orca("terminal", "create", "--worktree", `id:${wt.id}`, "--title", `Sentry ${issue.shortId}`,
-    "--command", `claude "$(cat '${prompt}')" --permission-mode dontAsk --allowedTools '${TOOLS}'`).terminal;
-  // 워크트리를 만들 때 같이 생긴 빈 셸 탭은 닫는다.
-  for (const t of orca("terminal", "list", "--worktree", `id:${wt.id}`).terminals ?? []) {
-    if (t.handle !== handle) orca("terminal", "close", "--terminal", t.handle);
+    .replaceAll("{{PREVIOUS}}", prev?.verdict === "pr" ? `이 오류는 전에 ${prev.jira}(${prev.pr})로 고쳤는데 다시 알림이 왔다. 새 Jira 이슈의 배경에 그 이슈와 PR을 적는다.` : "");
+  const run = spawnSync("claude", ["-p", prompt, "--output-format", "json", "--allowedTools", TOOLS], {
+    cwd: wt, encoding: "utf8", timeout: RUN_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024,
+  });
+  let result;
+  try {
+    result = verdictOf(JSON.parse(run.stdout).result);
+  } catch {
+    result = { verdict: "fail", reason: `claude 종료 ${run.status ?? run.signal}` };
   }
+  writeFileSync(join(STATE_DIR, "ctx", `${issue.shortId}.out.json`), run.stdout ?? "");
+  // 브랜치는 push됐으므로 작업 폴더만 지운다.
+  git("worktree", "remove", "--force", wt);
 
-  // shortcut: Claude가 결과 없이 멈춰도 시간 한도까지 기다린다. 자주 생기면 orca terminal read로 상태를 본다.
-  const resultPath = join(io, "result.json");
-  const deadline = Date.now() + RUN_TIMEOUT_MS;
-  while (!existsSync(resultPath) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 15_000));
-  const result = existsSync(resultPath) ? verdictOf(readFileSync(resultPath, "utf8"))
-    : { verdict: "fail", reason: `${RUN_TIMEOUT_MS / 60_000}분 안에 결과가 없음` };
-  // 고칠 게 없으면 워크트리를 지우고, PR·실패는 Orca에서 이어 보도록 남긴다.
-  if (result.verdict === "skip") orca("worktree", "rm", "--worktree", `id:${wt.id}`, "--force");
-  const prNumber = result.pr?.match(/\/pull\/(\d+)/)?.[1];
-  if (prNumber) {
-    try {
-      orca("worktree", "set", "--worktree", `id:${wt.id}`, "--pr", prNumber);
-    } catch (e) {
-      console.error(e.message); // PR 링크는 보기용이라 실패해도 넘어간다.
-    }
-  }
-  const where = result.verdict === "skip" ? "" : `\nOrca 워크트리: ${name}`;
-
-  state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, worktree: name, ...result };
+  state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, ...result };
   writeFileSync(statePath, JSON.stringify(state, null, 2));
   await slack(
-    (result.verdict === "pr" ? `${head} → ${result.jira} <${result.pr}|draft PR>${result.ci === "fail" ? " (CI 실패)" : ""}\n${result.reason ?? ""}`
+    result.verdict === "pr" ? `${head} → ${result.jira} <${result.pr}|draft PR>${result.ci === "fail" ? " (CI 실패)" : ""}\n${result.reason ?? ""}`
       : result.verdict === "skip" ? `${head} 코드 수정 대상 아님: ${result.reason}`
-        : `${head} 실패: ${result.reason}`) + where,
+        : `${head} 실패: ${result.reason}`,
   );
 }
 
