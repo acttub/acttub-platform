@@ -1,5 +1,5 @@
-// Slack에 간 Sentry 운영 알림마다 claude -p에 원인 분석·Jira 이슈·main 대상 hotfix draft PR을 맡긴다.
-// hotfix가 머지되면 main → dev 역병합 PR을 연다.
+// Slack에 간 Sentry 알림마다 claude -p에 원인 분석·Jira 이슈·draft PR을 맡긴다.
+// 운영 알림은 main 대상 hotfix로 고치고, 머지되면 main → dev 역병합 PR을 연다. dev 알림은 dev로 고친다.
 // 알림 목록은 Slack 중계 Worker의 KV에서 가져온다. Mac mini launchd에서 15분마다 돈다. 준비와 되돌리기는 README.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -24,7 +24,28 @@ const TOOLS = [
 
 export const DAILY_RULE = "운영 계속 남";
 
-// 알림마다 한 번. 마지막 처리 뒤에 온 알림 중 같은 이슈는 가장 늦은 것만 고른다. 먼저 온 알림부터.
+// 환경별 작업 기준과 PR 대상. prompt.md의 같은 이름 자리에 들어간다.
+export const TARGET = {
+  prod: {
+    ENV: "운영", BASE: "main", BRANCH: "hotfix/SOMA-<번호>",
+    WORKDIR: "작업 폴더는 운영 코드인 `origin/main`이다. 고친 것은 `main`으로 hotfix PR을 열어 사람이 머지하면 바로 운영에 나간다.",
+    FIXED: "   - 현재 `origin/main`에 이미 고쳐진 경우\n   - `origin/dev`에만 고쳐져 출시를 기다리는 경우. reason에 \"출시 대기\"와 그 커밋을 적는다.",
+    MERGE_NOTE: "머지하면 운영에 배포되고, 머지 뒤 자동 수정이 main → dev 역병합 PR을 연다",
+  },
+  dev: {
+    ENV: "dev", BASE: "dev", BRANCH: "Fiddich-Dev/soma-<번호>",
+    WORKDIR: "작업 폴더는 개발 코드인 `origin/dev`다. 고친 것은 `dev`로 PR을 열어 사람이 squash merge하면 개발 환경에 나가고 다음 릴리스로 운영에 간다.",
+    FIXED: "   - 현재 `origin/dev`에 이미 고쳐진 경우",
+    MERGE_NOTE: "dev 오류의 수정이다. squash merge하면 개발 환경에 배포되고 다음 릴리스로 운영에 나간다",
+  },
+};
+export const PROMPT = join(dirname(fileURLToPath(import.meta.url)), "prompt.md");
+export const renderPrompt = (template, env, values) =>
+  Object.entries({ ...TARGET[env], ...values }).reduce((p, [k, v]) => p.replaceAll(`{{${k}}}`, v), template);
+// KV의 옛 알림에는 env가 없다. 그때는 운영 알림만 남겼다.
+export const envOf = (a) => (a.env === "dev" ? "dev" : "prod");
+
+// 알림마다 한 번. 마지막 처리 뒤에 온 알림 중 같은 이슈는 가장 늦은 것만 고른다. 운영 알림 먼저, 그 안에서는 먼저 온 알림부터.
 // 하루 한 번 오는 "계속 남"은 처음 보는 이슈, 지난번에 끝내지 못한 이슈, 고친 PR이 운영에 나갔는데도 나는 이슈만 처리한다.
 export function pick(alerts, state, deployed = () => false) {
   const latest = new Map();
@@ -35,7 +56,7 @@ export function pick(alerts, state, deployed = () => false) {
     if (a.rule === DAILY_RULE && !retry) continue;
     if (!(latest.get(a.issueId)?.at > a.at)) latest.set(a.issueId, a);
   }
-  return [...latest.values()].sort((a, b) => a.at.localeCompare(b.at));
+  return [...latest.values()].sort((a, b) => (envOf(a) === "dev") - (envOf(b) === "dev") || a.at.localeCompare(b.at));
 }
 
 // 운영(main)에 머지됐는데 아직 dev로 역병합 PR을 열지 않은 hotfix. 닫힌 PR은 역병합할 것이 없어 표시만 한다.
@@ -128,7 +149,8 @@ function deployed(prev) {
 }
 
 async function handle(issue, alert, statePath, state, prev) {
-  const head = `[자동 수정] <${issue.permalink}|${issue.shortId}>`;
+  const env = envOf(alert);
+  const head = `[자동 수정${env === "dev" ? " · dev" : ""}] <${issue.permalink}|${issue.shortId}>`;
   // 앞서 연 PR이 아직 열려 있으면 같은 원인으로 PR을 또 만들지 않는다.
   if (prev?.verdict === "pr") {
     const open = gh("pr", "view", prev.pr, "--json", "state", "-q", ".state") === "OPEN";
@@ -147,11 +169,12 @@ async function handle(issue, alert, statePath, state, prev) {
   const wt = join(HOME, "acttub-autofix", `wt-${issue.shortId}`);
   git("fetch", "-q", "origin", "dev");
   git("worktree", "remove", "--force", wt); // 지난 실행이 중간에 죽어 남긴 폴더
-  git("worktree", "add", "-q", "--detach", wt, "origin/main"); // 운영 코드에서 고친다
-  const prompt = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "prompt.md"), "utf8")
-    .replaceAll("{{CONTEXT}}", ctx)
-    .replaceAll("{{PERMALINK}}", issue.permalink)
-    .replaceAll("{{PREVIOUS}}", prev?.verdict === "pr" ? `이 오류는 전에 ${prev.jira}(${prev.pr})로 고쳤는데 다시 알림이 왔다. 새 Jira 이슈의 배경에 그 이슈와 PR을 적는다.` : "");
+  git("worktree", "add", "-q", "--detach", wt, `origin/${TARGET[env].BASE}`);
+  const prompt = renderPrompt(readFileSync(PROMPT, "utf8"), env, {
+    CONTEXT: ctx,
+    PERMALINK: issue.permalink,
+    PREVIOUS: prev?.verdict === "pr" ? `이 오류는 전에 ${prev.jira}(${prev.pr})로 고쳤는데 다시 알림이 왔다. 새 Jira 이슈의 배경에 그 이슈와 PR을 적는다.` : "",
+  });
   const run = spawnSync("claude", ["-p", prompt, "--output-format", "json", "--allowedTools", TOOLS], {
     cwd: wt, encoding: "utf8", timeout: RUN_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024,
   });
@@ -165,7 +188,7 @@ async function handle(issue, alert, statePath, state, prev) {
   // 브랜치는 push됐으므로 작업 폴더만 지운다.
   git("worktree", "remove", "--force", wt);
 
-  state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, hotfix: true, ...result };
+  state.handled[issue.id] = { at: Date.now(), shortId: issue.shortId, hotfix: env === "prod", ...result };
   writeFileSync(statePath, JSON.stringify(state, null, 2));
   await report(
     alert,
