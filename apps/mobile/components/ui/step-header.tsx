@@ -17,7 +17,7 @@ export function ProgressHeader({ step, total, onBack }: { step: number; total: n
       <View style={styles.progressBack}>
         <NavBackButton onPress={onBack} phLabel="step_back" />
       </View>
-      <View style={styles.track} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: step }}>
+      <View style={styles.track} accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: step }}>
         <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
       </View>
       <Text style={styles.count}>
@@ -50,7 +50,7 @@ export function StepHeader({
           onPress={onClose}
         />
       </View>
-      <View style={styles.dots} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: total, now: step }}>
+      <View style={styles.dots} accessible accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: total, now: step }}>
         {Array.from({ length: total }, (_, i) => (
           <View key={i} style={[styles.dot, i + 1 === step && styles.dotOn]} />
         ))}
