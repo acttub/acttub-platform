@@ -149,6 +149,55 @@ class PgReviewControllerTest {
         return 200;
     }
 
+    private static String detailOf(Runnable action) {
+        try {
+            action.run();
+        } catch (ApiException e) {
+            return e.status() + " " + e.getMessage();
+        }
+        return "200";
+    }
+
+    // ---- 한도·쿠키
+
+    @Test
+    void checkoutsAndResultReadsAreRateLimitedPerAddress() {
+        String cookie = login();
+        for (int attempt = 0; attempt < 20; attempt++) {
+            statusOf(() -> checkout(cookie));
+        }
+        assertThat(detailOf(() -> checkout(cookie))).isEqualTo("429 rate limit exceeded");
+
+        for (int read = 0; read < 120; read++) {
+            assertThat(result(cookie).status()).isEqualTo("idle");
+        }
+        assertThat(detailOf(() -> result(cookie))).isEqualTo("429 rate limit exceeded");
+    }
+
+    @Test
+    void loginsFromEveryAddressShareOneMinuteBudget() {
+        for (int attempt = 0; attempt < 60; attempt++) {
+            statusOf(() -> controller.login(new LoginRequest("reviewer", PASSWORD), post(ORIGIN, null),
+                    new MockHttpServletResponse()));
+        }
+
+        assertThat(detailOf(() -> controller.login(new LoginRequest("reviewer", PASSWORD), post(ORIGIN, null),
+                new MockHttpServletResponse()))).isEqualTo("429 rate limit exceeded");
+    }
+
+    @Test
+    void loopbackHttpOriginGetsANonSecureCookieAndForeignCookiesAreIgnored() {
+        build(new PgReviewSettings("http://localhost:3000", "reviewer", sha256(PASSWORD),
+                "test_ck_abcdefgh12345678", "test_sk_abcdefgh12345678"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        controller.login(new LoginRequest("reviewer", PASSWORD), post("http://localhost:3000", null), response);
+        MockHttpServletRequest foreign = get(null);
+        foreign.setCookies(new Cookie("other", "value"));
+
+        assertThat(response.getHeader("Set-Cookie")).doesNotContain("Secure").contains("HttpOnly");
+        assertThat(controller.config(foreign, new MockHttpServletResponse()).authenticated()).isFalse();
+    }
+
     // ---- 꺼짐/잠금
 
     @Test
