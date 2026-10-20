@@ -234,6 +234,8 @@ class PostgresLegacyPracticeReader implements LegacyPracticeReader {
                                 row.get("job_status", String.class),
                                 row.get("failure_reason", String.class),
                                 ((Number) row.get("attempt_count")).intValue()),
-                previous);
+                previous,
+                // 옛 자료에는 세션 목적이 없다.
+                null);
     }
 }

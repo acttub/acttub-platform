@@ -28,11 +28,31 @@ public record CoachSessionSnapshot(
         JsonNode coachingState,
         // 배우가 저장한 완성된 프로필. 없으면 null — 그때 모델 입력은 프로필이 없던 때와 같다.
         // prior 와 같이 턴마다 새로 읽어 싣는 입력이고 저장하지 않는다.
-        ActorProfile actorProfile) {
+        ActorProfile actorProfile,
+        // 코칭 세션 목적(evaluate·stuck·character, SOMA-719). 목적 없이 시작한 회차는 null 이고 코치는 지금 그대로다.
+        String sessionPurpose) {
 
     public CoachSessionSnapshot {
         turns = List.copyOf(turns);
         prior = prior == null ? PriorContext.EMPTY : prior;
+    }
+
+    /** 세션 목적이 없던 때의 모양. 목적 없는 회차와 옛 시험이 쓴다. */
+    public CoachSessionSnapshot(UUID sessionId, UUID practiceSessionId, UUID userId, JsonNode observationPack,
+            String situation, String characterContext, String goal, int durationMs, String blockageKind,
+            String subBranch, String blockageDetail, String status, String closeReason, List<CoachTurnSnapshot> turns,
+            PriorContext prior, String experienceVersion, long stateRevision, JsonNode coachingState,
+            ActorProfile actorProfile) {
+        this(sessionId, practiceSessionId, userId, observationPack, situation, characterContext, goal, durationMs,
+                blockageKind, subBranch, blockageDetail, status, closeReason, turns, prior, experienceVersion,
+                stateRevision, coachingState, actorProfile, null);
+    }
+
+    /** 목적을 붙인 판. */
+    public CoachSessionSnapshot withSessionPurpose(String purpose) {
+        return new CoachSessionSnapshot(sessionId, practiceSessionId, userId, observationPack, situation,
+                characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail, status, closeReason, turns,
+                prior, experienceVersion, stateRevision, coachingState, actorProfile, purpose);
     }
 
     /**
@@ -51,34 +71,34 @@ public record CoachSessionSnapshot(
             JsonNode state, String newStatus, String reason) {
         return new CoachSessionSnapshot(sessionId, practiceSessionId, userId,
                 observationPack, situation, characterContext, goal, durationMs, blockageKind,
-                subBranch, blockageDetail, newStatus, reason, turns, prior, version, revision, state, actorProfile);
+                subBranch, blockageDetail, newStatus, reason, turns, prior, version, revision, state, actorProfile, sessionPurpose);
     }
 
     public CoachSessionSnapshot withPrior(PriorContext newPrior) {
         return new CoachSessionSnapshot(
                 sessionId, practiceSessionId, userId, observationPack, situation,
                 characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
-                status, closeReason, turns, newPrior, experienceVersion, stateRevision, coachingState, actorProfile);
+                status, closeReason, turns, newPrior, experienceVersion, stateRevision, coachingState, actorProfile, sessionPurpose);
     }
 
     public CoachSessionSnapshot withActorProfile(ActorProfile newProfile) {
         return new CoachSessionSnapshot(
                 sessionId, practiceSessionId, userId, observationPack, situation,
                 characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
-                status, closeReason, turns, prior, experienceVersion, stateRevision, coachingState, newProfile);
+                status, closeReason, turns, prior, experienceVersion, stateRevision, coachingState, newProfile, sessionPurpose);
     }
 
     public CoachSessionSnapshot withTurns(List<CoachTurnSnapshot> newTurns) {
         return new CoachSessionSnapshot(
                 sessionId, practiceSessionId, userId, observationPack, situation,
                 characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
-                status, closeReason, newTurns, prior, experienceVersion, stateRevision, coachingState, actorProfile);
+                status, closeReason, newTurns, prior, experienceVersion, stateRevision, coachingState, actorProfile, sessionPurpose);
     }
 
     public CoachSessionSnapshot withStatus(String newStatus) {
         return new CoachSessionSnapshot(
                 sessionId, practiceSessionId, userId, observationPack, situation,
                 characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
-                newStatus, closeReason, turns, prior, experienceVersion, stateRevision, coachingState, actorProfile);
+                newStatus, closeReason, turns, prior, experienceVersion, stateRevision, coachingState, actorProfile, sessionPurpose);
     }
 }

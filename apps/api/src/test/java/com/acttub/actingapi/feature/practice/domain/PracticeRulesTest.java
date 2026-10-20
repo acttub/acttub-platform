@@ -23,6 +23,15 @@ class PracticeRulesTest {
         assertThat(PracticeRules.note(" 빨라져요 ")).isEqualTo(" 빨라져요 ");
     }
 
+    @Test void sessionPurposeIsOneOfThreeOrNothing() {
+        assertThat(PracticeRules.sessionPurpose(null)).isNull();
+        assertThat(PracticeRules.sessionPurpose("  ")).isNull();
+        assertThat(PracticeRules.sessionPurpose(" stuck ")).isEqualTo("stuck");
+        assertThat(PracticeRules.sessionPurpose("evaluate")).isEqualTo("evaluate");
+        assertThat(PracticeRules.sessionPurpose("character")).isEqualTo("character");
+        assertThat(PracticeRules.sessionPurpose("worry")).as("고민 상담은 아직 없다").isNull();
+    }
+
     @Test void subBranchesMustBelongToTheirBlockageKind() {
         assertThat(BlockageBranch.pairs(null, "감정")).isTrue();
         assertThat(BlockageBranch.pairs("표현", null)).isTrue();

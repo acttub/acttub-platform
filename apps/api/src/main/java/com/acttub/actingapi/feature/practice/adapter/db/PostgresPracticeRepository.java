@@ -45,7 +45,7 @@ class PostgresPracticeRepository implements PracticeRepository {
      */
     private static final String PRACTICE_COLUMNS = """
             SELECT p.id,p.root_id,p.ordinal,p.video_id,p.stage,p.close_reason,p.experience_version,
-                   p.situation,p.character_context,p.goal,p.blockage_kind,p.sub_branch,p.blockage_detail,
+                   p.situation,p.character_context,p.goal,p.blockage_kind,p.sub_branch,p.blockage_detail,p.session_purpose,
                    p.created_at,
                    CASE WHEN v.purged_at IS NULL THEN v.poster_key END AS poster_key,
                    a.status AS analysis_status,
@@ -251,7 +251,7 @@ class PostgresPracticeRepository implements PracticeRepository {
         }
         var query = entityManager.createNativeQuery("""
                 SELECT p.id,p.root_id,p.ordinal,p.video_id,p.stage,p.close_reason,p.experience_version,
-                       p.situation,p.character_context,p.goal,p.blockage_kind,p.sub_branch,p.blockage_detail,
+                       p.situation,p.character_context,p.goal,p.blockage_kind,p.sub_branch,p.blockage_detail,p.session_purpose,
                        p.created_at,
                        CASE WHEN v.purged_at IS NULL THEN v.poster_key END AS poster_key,
                        a.status AS analysis_status,
@@ -508,10 +508,13 @@ class PostgresPracticeRepository implements PracticeRepository {
         entityManager.createNativeQuery("""
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,request_id,
                                       request_fingerprint,situation,character_context,goal,blockage_kind,sub_branch,
-                                      blockage_detail,title,created_at,updated_at)
+                                      blockage_detail,title,session_purpose,created_at,updated_at)
                 VALUES (:id,:userId,:videoId,:rootId,:ordinal,'analyzing',:experienceVersion,:requestId,:fingerprint,
                         :situation,:characterContext,:goal,:blockageKind,:subBranch,:blockageNote,
-                        CAST(:title AS text),:now,:now)
+                        CAST(:title AS text),
+                        COALESCE(CAST(:sessionPurpose AS text),
+                                 (SELECT r.session_purpose FROM practices r WHERE r.id=:rootId)),
+                        :now,:now)
                 """)
                 .setParameter("id", id)
                 .setParameter("userId", userId)
@@ -528,6 +531,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 .setParameter("subBranch", practice.subBranch())
                 .setParameter("blockageNote", practice.blockageNote())
                 .setParameter("title", practice.title())
+                .setParameter("sessionPurpose", practice.sessionPurpose())
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .executeUpdate();
     }
@@ -593,6 +597,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                                 row.get("failure_reason", String.class),
                                 row.get("attempt_count", Integer.class)),
                 // 새 표는 회차당 대화 하나다 — 이전 대화는 옛 자료를 읽는 호환 경로에서만 나온다.
-                List.of());
+                List.of(),
+                row.get("session_purpose", String.class));
     }
 }

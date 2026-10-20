@@ -24,6 +24,16 @@ public final class PracticeRules {
     /** 게스트의 하루 분석 요청 수. 한국 시간 자정에 끊는다. */
     public static final int GUEST_DAILY_ANALYSES = 3;
 
+    /** 코칭 세션 목적(SOMA-719). 앱이 코칭을 시작할 때 고른다. 없으면 목적 없는 회차(지금 코치)다. */
+    public static final java.util.List<String> SESSION_PURPOSES = java.util.List.of("evaluate", "stuck", "character");
+
+    /** 목적 값. 앞뒤 공백을 떼고 비면 없는 것({@code null})이다. 값 검사는 요청 검증이 먼저 한다. */
+    public static String sessionPurpose(String value) {
+        if (value == null || value.isBlank()) return null;
+        String purpose = value.strip();
+        return SESSION_PURPOSES.contains(purpose) ? purpose : null;
+    }
+
     /** 고르지 않은 막힘. */
     public static final String UNSPECIFIED = "그 외";
 

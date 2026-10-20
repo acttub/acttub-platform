@@ -52,7 +52,7 @@ class PostgresConversationRepository implements ConversationRepository {
     private Loaded load(UUID userId, String where, UUID id) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT p.id AS practice_id,p.user_id,p.stage,p.situation,p.character_context,p.goal,
-                       p.blockage_kind,p.sub_branch,p.blockage_detail,p.experience_version,
+                       p.blockage_kind,p.sub_branch,p.blockage_detail,p.experience_version,p.session_purpose,
                        v.duration_ms,
                        CAST(a.record AS text) AS record,
                        c.id AS conversation_id,c.status,c.close_reason,
@@ -102,7 +102,8 @@ class PostgresConversationRepository implements ConversationRepository {
                         row.get("experience_version", String.class),
                         revision == null ? 0L : revision.longValue(),
                         state,
-                        (ActorProfile) null));
+                        (ActorProfile) null,
+                        row.get("session_purpose", String.class)));
     }
 
     private List<CoachTurnSnapshot> turnsOf(UUID conversationId) {
