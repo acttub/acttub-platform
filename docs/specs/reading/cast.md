@@ -27,6 +27,7 @@
 | `GET /v2/reading/scripts/{script_id}` | `script_id` | `ReadingScript` 200(배역의 voice_preset·voice·gender·age_band·대사 수, `last_session`의 내 배역이 기본 선택) | `script_not_found` 404 |
 | `PATCH /v2/reading/scripts/{script_id}`(목소리) | `ReadingScriptPatch`의 `characters[{id, voice_preset}]`, 키가 있을 때만 바꾸고 null은 자동 | `ReadingScript` 200 | 33자 이상 프리셋·이 대본에 없는 배역 id `invalid_characters` 422, `script_not_found` 404 |
 | `POST /v2/reading/scripts/{script_id}/sessions`(내 배역) | `ReadingSessionCreateRequest`의 `my_character_ids` | `ReadingSession` 201 | 비었거나 겹치거나 다른 대본의 배역 `invalid_characters` 422. 나머지는 reading.session |
+| `GET /v2/reading/voice-model` | 로그인(게스트 포함) | `{version, files[{name, bytes, sha256, url}], expires_in}` 200 — fp16 묶음 8개 파일의 1시간 임시 주소 | 위치(`READING_VOICE_MODEL_PREFIX`)·스토리지 없음 `voice_model_unavailable` 503 |
 
 ## 상태
 없음 — 배역에 생애 상태가 없다. 내 배역은 회차 속성이라 시작 뒤 바뀌지 않고, voice_preset의 NULL은 "자동"이라는 값이다.
@@ -71,8 +72,10 @@
   연습 때 읽을 엔진으로 한다. 고품질 목소리를 쓸 수 있으면 그 목소리의 샘플([reading.cloud-voice](cloud-voice.md#규칙제약)),
   아니면 기기 모델이다.
 - 내 배역의 목소리 값은 그 회차에서 쓰이지 않지만 남아 있다. 다음 회차에서 상대역이 되면 그대로 쓴다.
-- 상대역 목소리 모델(Supertonic 3, 약 380MB)은 처음 한 번 기기에 내려받는다. 앱은 Wi-Fi가 아니면 용량을
-  보여 주고 확인을 받는다(R9.4). 웹은 지금처럼 바로 받되 용량을 함께 보여 준다. (디자인에 반영할 것)
+- 상대역 목소리 모델(Supertonic 3)은 처음 한 번 기기에 내려받는다. 앱은 서버가 주는 fp16 묶음(약 200MB,
+  `GET /v2/reading/voice-model`의 1시간 임시 주소)을 받아 기기에서 fp32로 풀어 쓰고, 서버가 묶음을 못 주면(옛 서버·
+  위치 미설정 503·네트워크) 원본 fp32(약 380MB)를 받는다. 이미 원본을 받은 기기는 그대로 쓴다(SOMA-747). 앱은 Wi-Fi가
+  아니면 용량을 보여 주고 확인을 받는다(R9.4). 웹은 지금처럼 바로 받되 용량을 함께 보여 준다. (디자인에 반영할 것)
 - 앱에서 모델을 준비하지 못하면(내려받기 실패, 저장 공간 부족) R9.7에 "다시 받기"와 "나가기"만 있다. 자동으로 다른
   음성으로 바꾸지 않고, 상대 대사를 읽은 것으로 자동 처리하지도 않는다. "나가기"는 대본 상세로 가고 회차는 진행
   중으로 남는다.

@@ -41,8 +41,14 @@ test('fp16 묶음은 그래프를 받아 두고 가중치를 폰에서 fp32 로 
   assert.match(assets, /\.weights\.f16/);
   assert.match(assets, /\.weights\.f32/);
   assert.match(assets, /halfToFloatBytes\(/);
-  // 받을 곳이 정해지지 않았으면 지금처럼 fp32 를 받는다.
-  assert.match(assets, /export function fp16Available\(\)/);
+  // 받을 주소는 서버가 준다(GET /v2/reading/voice-model). 못 받으면 지금처럼 원본 fp32 를 받는다.
+  assert.match(assets, /export function setVoiceModelSource\(/);
+  assert.match(assets, /return downloadAssets\('fp32', preset, onProgress\)/);
+  assert.doesNotMatch(assets, /EXPO_PUBLIC_READING_FP16_URLS/);
+  const api = src('lib/api.ts');
+  assert.match(api, /'\/v2\/reading\/voice-model'/);
+  const layout = src('app/_layout.tsx');
+  assert.match(layout, /setVoiceModelSource\(\(\) => api\.getVoiceModel\(\)\)/);
   const engine = src('lib/reading/tts/engine.ts');
   assert.match(engine, /downloadAssets\(activeVariant\(\)/);
   assert.match(assets, /if \(assetsPresent\('fp32', 'M1'\)\) return 'fp32';/);

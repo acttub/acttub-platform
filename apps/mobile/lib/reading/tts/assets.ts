@@ -47,20 +47,14 @@ const FP16_FILES: Record<ModelKind, { base: string; graph: number; f16: number }
   vocoder: { base: 'vocoder', graph: 77_364, f16: 50_676_836 },
 };
 
-/** fp16 묶음을 받을 곳. 운영 저장소가 정해지면 기본 주소를 둔다 — 그 전에는 시험 빌드가 주소표를 넣을 때만 쓴다. */
-const FP16_BASE: string | null = null;
+/** 서버가 주는 fp16 묶음의 내려받을 임시 주소(GET /v2/reading/voice-model, SOMA-747). */
+export type VoiceModelFiles = { version: string; files: { name: string; bytes: number; url: string }[]; expires_in: number };
 
-function fp16UrlTable(): Record<string, string> {
-  try {
-    const raw = process.env.EXPO_PUBLIC_READING_FP16_URLS;
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
+let voiceModelSource: (() => Promise<VoiceModelFiles>) | null = null;
 
-function fp16Url(name: string): string | null {
-  return fp16UrlTable()[name] ?? (FP16_BASE ? `${FP16_BASE}/${name}` : null);
+/** 앱이 시작할 때 서버 요청 함수를 꽂는다. 꽂지 않으면 fp16 묶음을 쓰지 않는다(시험·옛 화면). */
+export function setVoiceModelSource(source: (() => Promise<VoiceModelFiles>) | null): void {
+  voiceModelSource = source;
 }
 
 const fp16Names = (kind: ModelKind) => {
@@ -68,12 +62,9 @@ const fp16Names = (kind: ModelKind) => {
   return { graph: `${f.base}.graph.onnx`, f16: `${f.base}.weights.f16`, f32: `${f.base}.weights.f32` };
 };
 
-/** fp16 묶음을 받을 수 있는지 — 모든 파일의 주소가 있어야 한다. */
+/** fp16 묶음을 받을 수 있는 앱인지 — 서버 요청 함수가 꽂혀 있어야 한다. 실제로 받을 수 있는지는 받을 때 서버가 정한다. */
 export function fp16Available(): boolean {
-  return MODEL_KINDS.every((k) => {
-    const n = fp16Names(k);
-    return fp16Url(n.graph) !== null && fp16Url(n.f16) !== null;
-  });
+  return voiceModelSource !== null;
 }
 
 const CONFIG_URL = `${SUPERTONE}/onnx/tts.json`;
@@ -421,15 +412,28 @@ async function unpackWeights(src: File, dst: File): Promise<void> {
 
 async function downloadFp16(preset: string, onProgress: ProgressFn): Promise<DownloadResult> {
   const dir = dirFor('fp16');
+  // 풀어 둔 묶음이 다 있으면 서버에 묻지 않는다.
+  let urls: Record<string, string> = {};
+  if (!MODEL_KINDS.every((k) => dir.exists && fp16Ready(dir, k))) {
+    try {
+      const model = await voiceModelSource!();
+      urls = Object.fromEntries(model.files.map((f) => [f.name, f.url]));
+    } catch {
+      // 서버가 묶음을 못 주면(옛 서버·위치 미설정·네트워크) 예전처럼 원본 fp32 를 받는다.
+      return downloadAssets('fp32', preset, onProgress);
+    }
+  }
+  const fp16Url = (name: string): string | null => urls[name] ?? null;
   if (!dir.exists) dir.create({ intermediates: true });
 
   // 받을 것: 구조 파일, 그리고 아직 풀지 않은 가중치(풀어 둔 fp32 가 있으면 fp16 은 다시 받지 않는다).
   const files: { kind: ModelKind; url: string; name: string; bytes: number }[] = [];
   for (const kind of MODEL_KINDS) {
     const n = fp16Names(kind);
+    if (fp16Ready(dir, kind)) continue;
     const graphUrl = fp16Url(n.graph);
     const f16Url = fp16Url(n.f16);
-    if (!graphUrl || !f16Url) throw new VoicePrepareError('network', 'fp16 model url missing');
+    if (!graphUrl || !f16Url) return downloadAssets('fp32', preset, onProgress);
     files.push({ kind, url: graphUrl, name: n.graph, bytes: FP16_FILES[kind].graph });
     const f32 = new File(dir, n.f32);
     if (!(f32.exists && (f32.size ?? 0) >= FP16_FILES[kind].f16 * 2)) {
