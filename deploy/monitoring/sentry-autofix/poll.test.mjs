@@ -1,9 +1,9 @@
 // 실행: node --test deploy/monitoring/sentry-autofix/poll.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { pick, summarize, verdictOf } from "./poll.mjs";
+import { DAILY_RULE, pick, summarize, verdictOf } from "./poll.mjs";
 
-const alert = (issueId, at, rule = "운영 기본") => ({ issueId, at, rule });
+const alert = (issueId, at, rule = "운영 처음 남") => ({ issueId, at, rule });
 const at = (iso) => ({ at: Date.parse(iso) });
 
 test("처리한 적 없는 이슈의 알림은 먼저 온 것부터 모두 고른다", () => {
@@ -21,6 +21,25 @@ test("같은 이슈의 알림은 가장 늦은 것 하나만, 마지막 처리 �
     alert("c", "2026-10-20T04:00:00.000Z"),
   ], state);
   assert.deepEqual(got.map((a) => [a.issueId, a.at]), [["c", "2026-10-20T04:00:00.000Z"], ["b", "2026-10-20T06:00:00.000Z"]]);
+});
+
+test("계속 남은 처음 보는 이슈와 지난번에 끝내지 못한 이슈만 고른다", () => {
+  const before = "2026-10-20T05:00:00.000Z";
+  const state = { handled: {
+    pr: { ...at(before), verdict: "pr" },
+    skip: { ...at(before), verdict: "skip" },
+    fail: { ...at(before), verdict: "fail" },
+    running: { ...at(before), verdict: "running" },
+  } };
+  const later = "2026-10-21T05:00:00.000Z";
+  const got = pick(["new", "pr", "skip", "fail", "running"].map((id) => alert(id, later, DAILY_RULE)), state);
+  assert.deepEqual(got.map((a) => a.issueId).sort(), ["fail", "new", "running"]);
+});
+
+test("건너뛴 계속 남이 앞서 온 다시 남을 가리지 않는다", () => {
+  const state = { handled: { a: { ...at("2026-10-20T05:00:00.000Z"), verdict: "skip" } } };
+  const got = pick([alert("a", "2026-10-20T06:00:00.000Z", "운영 다시 남"), alert("a", "2026-10-21T06:00:00.000Z", DAILY_RULE)], state);
+  assert.deepEqual(got.map((a) => a.rule), ["운영 다시 남"]);
 });
 
 test("요약에는 우리 코드 프레임만 남기고 요청·사용자 정보는 뺀다", () => {

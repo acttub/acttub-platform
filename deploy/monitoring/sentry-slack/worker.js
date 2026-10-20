@@ -9,11 +9,13 @@ const QUEUE_TTL_S = 14 * 86_400;
 
 const escape = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-export function toSlack(event) {
+// 규칙 이름("운영 계속 남")에서 환경 단어를 뺀 나머지를 무슨 일인지로 붙인다.
+export function toSlack(event, rule = "") {
   const tags = Object.fromEntries(Array.isArray(event.tags) ? event.tags : []);
   const env = event.environment ?? tags.environment ?? "unknown";
   const title = escape(event.title ?? event.message ?? "(제목 없음)");
-  const head = `*[${ENV_LABEL[env] ?? env}]* ${PROJECT[event.project] ?? event.project ?? "?"} · ${escape(event.level ?? "?")}`;
+  const kind = escape(rule.replace(/^(운영|dev)\s*/, ""));
+  const head = `*[${ENV_LABEL[env] ?? env}${kind ? ` · ${kind}` : ""}]* ${PROJECT[event.project] ?? event.project ?? "?"} · ${escape(event.level ?? "?")}`;
   // 이벤트 본문(요청·사용자 정보)은 넘기지 않는다. 제목·위치·링크만 보낸다.
   const lines = [head, event.web_url ? `<${event.web_url}|${title}>` : title];
   if (event.culprit) lines.push(escape(event.culprit));
@@ -63,7 +65,7 @@ export default {
     const res = await fetch(env.SLACK_WEBHOOK_URL, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(toSlack(event)),
+      body: JSON.stringify(toSlack(event, payload.data.triggered_rule)),
     });
     // KV가 실패해도 Slack 알림은 이미 갔으므로 응답은 Slack 결과를 따른다.
     const record = alertRecord(payload, new Date().toISOString());

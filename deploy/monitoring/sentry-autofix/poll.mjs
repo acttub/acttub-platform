@@ -19,13 +19,19 @@ const TOOLS = [
   "mcp__atlassian__createJiraIssue", "mcp__atlassian__getJiraIssue",
 ].join(",");
 
-// 알림마다 한 번. 같은 이슈의 알림은 가장 늦은 것만 보고, 마지막 처리 뒤에 온 알림만 고른다. 먼저 온 알림부터.
+export const DAILY_RULE = "운영 계속 남";
+
+// 알림마다 한 번. 마지막 처리 뒤에 온 알림 중 같은 이슈는 가장 늦은 것만 고른다. 먼저 온 알림부터.
+// 하루 한 번 오는 "계속 남"은 처음 보는 이슈와 지난번에 끝내지 못한 이슈만 처리한다.
 export function pick(alerts, state) {
   const latest = new Map();
-  for (const a of alerts) if (!(latest.get(a.issueId)?.at > a.at)) latest.set(a.issueId, a);
-  return [...latest.values()]
-    .filter((a) => !(state.handled[a.issueId]?.at >= Date.parse(a.at)))
-    .sort((a, b) => a.at.localeCompare(b.at));
+  for (const a of alerts) {
+    const prev = state.handled[a.issueId];
+    if (prev?.at >= Date.parse(a.at)) continue;
+    if (a.rule === DAILY_RULE && prev && !["fail", "running"].includes(prev.verdict)) continue;
+    if (!(latest.get(a.issueId)?.at > a.at)) latest.set(a.issueId, a);
+  }
+  return [...latest.values()].sort((a, b) => a.at.localeCompare(b.at));
 }
 
 // 요청·사용자·breadcrumb은 빼고 예외와 우리 코드 프레임만 넘긴다. 메시지 값은 외부 입력이다.
