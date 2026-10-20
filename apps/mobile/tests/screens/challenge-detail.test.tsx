@@ -92,13 +92,13 @@ test('진행 중인 오늘의 챌린지와 좋아요순 순위를 보여 준다'
   expect(header().getByText('오늘의 챌린지')).toBeOnTheScreen();
   expect(screen.getByText('햄릿 · 햄릿')).toBeOnTheScreen();
   expect(screen.getByText('독백 장면')).toBeOnTheScreen();
-  expect(screen.getByText('태오 님이 연 대사')).toBeOnTheScreen();
-  expect(screen.getByText(/^참여작 2 · 좋아요 7 · D-\d+$/)).toBeOnTheScreen();
+  expect(screen.getByText(/^태오 님이 연 대사 · D-\d+$/)).toBeOnTheScreen();
+  expect(screen.getByText('참여작 2 · 좋아요 7')).toBeOnTheScreen();
   expect(screen.getByText('1')).toBeOnTheScreen();
   expect(screen.getByText('2')).toBeOnTheScreen();
   expect(screen.getByText('현재 1위 · 좋아요 5')).toBeOnTheScreen();
   expect(screen.getByText('첫 테이크')).toBeOnTheScreen();
-  expect(screen.getByText('2020년 1월 2일')).toBeOnTheScreen();
+  expect(screen.getByText('2020년 1월 2일 · 좋아요 5')).toBeOnTheScreen();
   expect(screen.queryByText('NEW')).not.toBeOnTheScreen();
 });
 
@@ -108,7 +108,7 @@ test('참여작을 누르면 그 참여작부터 재생하고, 연기하기는 �
   await fireEvent.press(await screen.findByText('윤서'));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/challenge-play', params: { id: 'c1', entryId: 'e1' } });
 
-  await fireEvent.press(screen.getByRole('button', { name: /이 대사로 연기하기/ }));
+  await fireEvent.press(screen.getByRole('button', { name: '나도 해 볼래요' }));
   expect(logEvent).toHaveBeenCalledWith('challenge_perform_tap', { id: 'c1' });
   expect(mockRouter.push).toHaveBeenLastCalledWith({
     pathname: '/record-video',
@@ -138,13 +138,13 @@ test('종료 뒤 집계 중이면 순위와 배지를 감추고 촬영 버튼을
 
   expect(await screen.findByText('집계 중이에요. 곧 순위가 정해져요.')).toBeOnTheScreen();
   expect(header().getByText('챌린지')).toBeOnTheScreen();
-  expect(screen.getByText('Acttub 공식 대사')).toBeOnTheScreen();
+  expect(screen.getByText('Acttub 공식 대사 · 종료')).toBeOnTheScreen();
   expect(screen.getByText('햄릿')).toBeOnTheScreen();
-  expect(screen.getByText('참여작 2 · 좋아요 7 · 종료')).toBeOnTheScreen();
+  expect(screen.getByText('참여작 2 · 좋아요 7')).toBeOnTheScreen();
   expect(screen.getByText('윤')).toBeOnTheScreen();
   expect(screen.queryByText('1')).not.toBeOnTheScreen();
   expect(screen.queryByText(/1위/)).not.toBeOnTheScreen();
-  expect(screen.queryByRole('button', { name: /이 대사로 연기하기/ })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '나도 해 볼래요' })).not.toBeOnTheScreen();
 });
 
 test('종료 뒤 확정되면 마감 때 좋아요 수로 1위를 표시한다', async () => {

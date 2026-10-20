@@ -508,7 +508,7 @@ describe('챌린지 촬영', () => {
 
     expect(logged('challenge_video_source')).toEqual([{ source: 'gallery', result: 'selected' }]);
     expect(keepDeviceFile).toHaveBeenCalledWith('file:///clip.mp4');
-    expect(peekRecordedVideo()).toEqual({ uri: 'file:///clip.mp4', durationMs: 12_346, name: 'clip.mp4' });
+    expect(peekRecordedVideo()).toEqual({ uri: 'file:///clip.mp4', durationMs: 12_346, name: 'clip.mp4', source: 'gallery' });
     expect(mockRouter.replace).toHaveBeenCalledWith({
       pathname: '/challenge-upload',
       params: { challengeId: 'c1', line: '나는 아직 끝나지 않았어', work: '봄날' },

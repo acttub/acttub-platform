@@ -33,6 +33,7 @@ import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads }
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, dialogueNumbers } from '@/lib/reading/session-plan';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
+import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
 import {
   advance,
   applyLineEdit,
@@ -407,9 +408,11 @@ export default function ReadingPlay() {
     setRun(next);
     if (!prev || !session) return;
     if (next.status === 'done') {
-      queueRef.current?.push(progressPayload(next));
+      // 인식된 대사 없이 끝까지 넘기기만 했으면 완료로 보내지 않는다 — 회차는 열린 채 남고 별점도 묻지 않는다(SOMA-773).
+      const completed = readingRunCompleted({ reachedEnd: true, said: next.said, priorRecognized: sessionHasRecognized(session) });
+      if (completed) queueRef.current?.push(progressPayload(next));
       setPhase({ kind: 'done' });
-      if (!fromTutorialRef.current) void askRating({ kind: 'reading' });
+      if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
       return;
     }
     // 이어하기의 앞 상대 대사(leadIn)는 저장하지 않는다 — 서버 위치가 뒤로 가지 않게.
@@ -1129,6 +1132,7 @@ export default function ReadingPlay() {
   }
 
   if (phase.kind === 'done') {
+    const completed = readingRunCompleted({ reachedEnd: true, said: run.said, priorRecognized: sessionHasRecognized(session) });
     const readCount = readDialogueCount(run.lines, run.startIndex, run.endIndex);
     const wholeScript = run.startIndex <= run.lines.findIndex((l) => l.type === 'dialogue') && run.endIndex >= run.lines.length - 1;
     const compared = sttMode?.kind === 'stt';
@@ -1139,20 +1143,23 @@ export default function ReadingPlay() {
           <View style={styles.doneIcon}>
             <Feather name="check" size={28} color="#fff" />
           </View>
-          <Text style={styles.doneTitle}>{t('reading.completeTitle')}</Text>
+          <Text style={styles.doneTitle}>{t(completed ? 'reading.completeTitle' : 'reading.notCountedTitle')}</Text>
+          {!completed && <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>}
           <Text style={styles.dim}>{script.title}</Text>
           <View style={styles.doneStats}>
             <Text style={styles.doneStat}>{t('reading.doneMyRole', { roles: run.myRoles.join(', ') })}</Text>
-            <Text style={styles.doneStat}>
-              {t('reading.doneRead', { count: readCount })}
-              {!wholeScript ? ` · ${t('reading.donePartialNote')}` : ''}
-            </Text>
+            {completed && (
+              <Text style={styles.doneStat}>
+                {t('reading.doneRead', { count: readCount })}
+                {!wholeScript ? ` · ${t('reading.donePartialNote')}` : ''}
+              </Text>
+            )}
             <Text style={styles.doneStat}>{t('reading.doneTime', { time: mmss(run.elapsedMs) })}</Text>
             {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
           </View>
           <VoiceFeedbackSummary items={lineFeedback} />
 
-          {!compared ? (
+          {!completed ? null : !compared ? (
             <View style={styles.noteBox}>
               <Feather name="info" size={16} color={palette.textMuted} />
               <Text style={styles.noteText}>{t('reading.noSttNote')}</Text>
@@ -1199,7 +1206,7 @@ export default function ReadingPlay() {
           </Pressable>
 
           {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
-          {!fromTutorialRef.current && (
+          {completed && !fromTutorialRef.current && (
             <View style={styles.ratingSlot}>
               <ReadingRating sessionId={session.id} />
             </View>

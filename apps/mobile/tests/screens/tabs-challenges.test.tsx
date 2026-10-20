@@ -9,7 +9,9 @@ import type { ChallengeCard } from '@/lib/challenge/types';
 
 const mockRouter = { push: jest.fn(), replace: jest.fn() };
 let mockParams: Record<string, string> = {};
-let mockFocusEffect: () => void = () => undefined;
+/** 화면에 걸린 포커스 효과 전부 — 탭으로 돌아오는 것을 흉내 낼 때 모두 다시 부른다(화면에 포커스 효과가 둘이다). */
+const mockFocusEffects = new Set<() => void>();
+const refocus = () => mockFocusEffects.forEach((effect) => effect());
 
 jest.mock('expo-router', () => {
   const { useEffect } = require('react');
@@ -17,8 +19,13 @@ jest.mock('expo-router', () => {
     useRouter: () => mockRouter,
     useLocalSearchParams: () => mockParams,
     useFocusEffect: (effect: () => void) => {
-      mockFocusEffect = effect;
-      useEffect(effect, [effect]);
+      useEffect(() => {
+        mockFocusEffects.add(effect);
+        effect();
+        return () => {
+          mockFocusEffects.delete(effect);
+        };
+      }, [effect]);
     },
   };
 });
@@ -90,7 +97,7 @@ beforeEach(async () => {
 });
 
 describe('인기 탭 첫 화면', () => {
-  test('오늘의 챌린지를 맨 위에 크게 두고, 카드마다 대사·작품·인물·메모·주최자·참여자·수와 남은 날을 보여 준다', async () => {
+  test('오늘의 챌린지를 맨 위에 크게 두고, 줄 카드마다 대사·주최·참여작 수·남은 날·참여자·좋아요 합을 보여 준다', async () => {
     listChallenges.mockResolvedValue(
       page(
         [
@@ -119,33 +126,33 @@ describe('인기 탭 첫 화면', () => {
     expect(listChallenges).toHaveBeenCalledWith({ tab: 'popular' });
     expect(tabButton('인기')).toBeSelected();
 
-    expect(screen.getByText('🔥 오늘의 챌린지 · D-3')).toBeOnTheScreen();
+    expect(screen.getByText('오늘의 챌린지 · D-3')).toBeOnTheScreen();
     expect(screen.getByText('“오늘은 내가 주인공이야”')).toBeOnTheScreen();
     expect(screen.getByText('무대 뒤 · 민재')).toBeOnTheScreen();
     expect(screen.getByText('참여작 4 · 좋아요 9')).toBeOnTheScreen();
 
-    expect(screen.getByText('빗속의 집 · 서연')).toBeOnTheScreen();
-    expect(screen.getByText('비 오는 밤 현관 앞')).toBeOnTheScreen();
-    expect(screen.getByText('윤서 님이 연 대사')).toBeOnTheScreen();
-    expect(screen.getByText('윤서 · 태오 +2')).toBeOnTheScreen();
-    expect(screen.getByText('참여작 3 · 좋아요 5 · D-3')).toBeOnTheScreen();
+    // 줄 카드(ZxMmEh)에는 작품·인물·메모를 두지 않는다 — 상세에서 본다.
+    expect(screen.queryByText('빗속의 집 · 서연')).not.toBeOnTheScreen();
+    expect(screen.getByText('사용자 챌린지 · 참여작 3 · D-3')).toBeOnTheScreen();
+    expect(screen.getByText('윤서 · 태오 +2 · 좋아요 5')).toBeOnTheScreen();
     expect(screen.getAllByText('윤')).toHaveLength(2);
     expect(screen.getAllByText('태')).toHaveLength(2);
 
-    expect(screen.getByText('옛 작품')).toBeOnTheScreen();
-    expect(screen.getByText('Acttub 공식 대사')).toBeOnTheScreen();
-    expect(screen.getByText('아직 참여한 배우가 없어요')).toBeOnTheScreen();
-    expect(screen.getByText('참여작 7 · 좋아요 12 · 종료')).toBeOnTheScreen();
+    expect(screen.getByText('“끝난 대사”')).toBeOnTheScreen();
+    expect(screen.getByText('Acttub 공식 대사 · 참여작 7 · 종료')).toBeOnTheScreen();
+    expect(screen.getByText('아직 참여한 배우가 없어요 · 좋아요 12')).toBeOnTheScreen();
 
-    expect(screen.getAllByRole('button', { name: endsWith('나도 이 대사 연기하기') })).toHaveLength(2);
+    // 오늘의 챌린지 카드는 통째로 누를 수 있어 이름에 안쪽 버튼 글자가 섞인다 — 버튼 글자로 센다.
+    expect(screen.getAllByText('나도 이 대사 연기하기')).toHaveLength(2);
     expect(screen.getByRole('button', { name: endsWith('찾는 대사가 없나요? 직접 등록하기') })).toBeOnTheScreen();
     expect(screen.queryByText('진행 중인 챌린지가 아직 없어요.')).not.toBeOnTheScreen();
   });
 
-  test('주최자가 탈퇴한 사용자 개설 대사는 그렇게 보인다', async () => {
+  test('사용자 개설 대사는 주최자 이름 대신 「사용자 챌린지」로 보인다(주최자가 탈퇴했어도 같다)', async () => {
     listChallenges.mockResolvedValue(page([card({ host_name: '  ' })]));
     await render(<ChallengesScreen />);
-    expect(await screen.findByText('주최자 탈퇴')).toBeOnTheScreen();
+    expect(await screen.findByText('사용자 챌린지 · 참여작 3 · D-3')).toBeOnTheScreen();
+    expect(screen.queryByText('주최자 탈퇴')).not.toBeOnTheScreen();
   });
 
   test('카드를 누르면 상세로, 연기하기를 누르면 그 대사를 실어 촬영으로 간다', async () => {
@@ -165,28 +172,25 @@ describe('인기 탭 첫 화면', () => {
 });
 
 describe('오늘의 챌린지', () => {
-  test('참여작 보기는 참여작이 있으면 그 챌린지 피드로 간다. 대사를 누르면 상세로 간다', async () => {
+  test('대사 카드를 누르면 상세로 간다', async () => {
     await render(<ChallengesScreen />);
-    await fireEvent.press(await screen.findByRole('button', { name: endsWith('참여작 보기') }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-play', params: { id: 'today' } });
-
-    await fireEvent.press(screen.getByText('“오늘은 내가 주인공이야”'));
+    await fireEvent.press(await screen.findByText('“오늘은 내가 주인공이야”'));
     expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'today' } });
+    expect(logged('challenge_open_detail')).toEqual([{ id: 'today' }]);
   });
 
-  test('참여작이 아직 없으면 참여작 보기가 상세로 간다', async () => {
+  test('참여작이 아직 없어도 오늘의 챌린지를 두고 빈 안내는 띄우지 않는다', async () => {
     listChallenges.mockResolvedValue(page([], { featured: today({ entry_count: 0, character: null }) }));
     await render(<ChallengesScreen />);
-    await fireEvent.press(await screen.findByRole('button', { name: endsWith('참여작 보기') }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'today' } });
-    expect(screen.getByText('무대 뒤')).toBeOnTheScreen();
+    expect(await screen.findByText('무대 뒤')).toBeOnTheScreen();
+    expect(screen.getByText('참여작 0 · 좋아요 9')).toBeOnTheScreen();
     expect(screen.queryByText('진행 중인 챌린지가 아직 없어요.')).not.toBeOnTheScreen();
   });
 
   test('오늘의 챌린지에서 연기하기를 누르면 촬영으로 간다', async () => {
     listChallenges.mockResolvedValue(page([], { featured: today() }));
     await render(<ChallengesScreen />);
-    await fireEvent.press(await screen.findByRole('button', { name: endsWith('나도 이 대사 연기하기') }));
+    await fireEvent.press(await screen.findByText('나도 이 대사 연기하기'));
     expect(mockRouter.push).toHaveBeenLastCalledWith({
       pathname: '/record-video',
       params: { mode: 'challenge', challengeId: 'today', line: '오늘은 내가 주인공이야', work: '무대 뒤' },
@@ -206,7 +210,7 @@ test('머리줄의 알림·추가와 검색·등록 버튼은 각 화면으로 �
   await fireEvent.press(buttons[buttons.indexOf(screen.getByRole('button', { name: '알림' })) + 1]);
   expect(mockRouter.push).toHaveBeenLastCalledWith('/line-new');
 
-  await fireEvent.press(screen.getByRole('button', { name: endsWith('대사·작품·배우 검색') }));
+  await fireEvent.press(screen.getByRole('button', { name: '대사 검색' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith('/line-search');
 
   mockRouter.push.mockClear();
@@ -254,9 +258,9 @@ describe('탭', () => {
     await render(<ChallengesScreen />);
     await screen.findByText('“나는 아직 여기 있어”');
     listChallenges.mockResolvedValue(page([card({ line: '돌아와 보니 바뀐 대사' })]));
-    await act(async () => mockFocusEffect());
+    await act(async () => refocus());
     expect(await screen.findByText('“돌아와 보니 바뀐 대사”')).toBeOnTheScreen();
-    expect(listChallenges).toHaveBeenCalledTimes(2);
+    expect(listChallenges.mock.calls.filter(([arg]: [{ tab: string }]) => arg.tab === 'popular')).toHaveLength(2);
   });
 });
 
@@ -301,7 +305,7 @@ describe('대사 더 보기', () => {
     await fireEvent.press(more);
     expect(screen.queryByText('대사 더 보기')).not.toBeOnTheScreen();
     await fireEvent.press(more);
-    expect(listChallenges).toHaveBeenCalledTimes(2);
+    expect(listChallenges.mock.calls.filter(([arg]: [{ cursor?: string }]) => arg.cursor)).toHaveLength(1);
 
     await act(async () => resolve(page([card({ id: 'c2', line: '늦게 온 대사' })], { next_cursor: 'cur-2' })));
     expect(screen.getByText('“늦게 온 대사”')).toBeOnTheScreen();
@@ -349,7 +353,7 @@ describe('보관함에서 올릴 챌린지를 고르러 왔을 때', () => {
     expect(await screen.findByText('어떤 대사에 올릴까요?')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: endsWith('참여작 보기') })).not.toBeOnTheScreen();
 
-    await fireEvent.press(screen.getAllByRole('button', { name: endsWith('나도 이 대사 연기하기') })[1]);
+    await fireEvent.press(screen.getAllByText('나도 이 대사 연기하기')[1]);
     expect(mockRouter.replace).toHaveBeenCalledWith({
       pathname: '/challenge-upload',
       params: { challengeId: 'c1', videoId: 'v9' },
@@ -363,7 +367,9 @@ describe('보관함에서 올릴 챌린지를 고르러 왔을 때', () => {
     mockParams = { pickVideoId: '' };
     await render(<ChallengesScreen />);
     expect(await screen.findByText('챌린지')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: endsWith('참여작 보기') })).toBeOnTheScreen();
+    await fireEvent.press(await screen.findByText('“나는 아직 여기 있어”'));
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
+    expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 });
 
@@ -377,10 +383,12 @@ describe('시작 안내', () => {
     expect(screen.getByText('위아래로 넘겨 보세요')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(screen.getByText('좋아요로 순위가 정해져요')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '시작하기' }));
+    // 오늘의 챌린지가 있으면 마지막 장의 버튼이 「이번 주 대사 보기」이고 그 대사 상세로 간다.
+    await fireEvent.press(screen.getByRole('button', { name: '이번 주 대사 보기' }));
 
     await waitFor(() => expect(screen.queryByText('좋아요로 순위가 정해져요')).not.toBeOnTheScreen());
     expect(await AsyncStorage.getItem('acttub.challenge.introSeen')).toBe('1');
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'today' } });
   });
 
   test('이미 본 기기에서는 띄우지 않는다', async () => {

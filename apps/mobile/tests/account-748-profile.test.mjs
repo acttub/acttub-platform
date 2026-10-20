@@ -13,12 +13,17 @@ test('inMonth: 기기 시각 기준 이번 달만 참이다', () => {
   assert.equal(inMonth(null, NOW), false);
 });
 
-test('monthPracticeCounts: 코칭·리딩은 회차, 챌린지는 참여한 서로 다른 챌린지를 이번 달 것만 센다', () => {
+test('monthPracticeCounts: 연습 1회 기준(SOMA-773)으로 이번 달 것만 센다 — 노트 생긴 코칭 회차·끝낸 리딩 회차·참여작마다 1회', () => {
+  const note = { id: 'n', title: null, kind: 'focus' };
   const groups = [
-    { practices: [{ created_at: new Date(2026, 9, 3).toISOString() }, { created_at: new Date(2026, 8, 3).toISOString() }] },
-    { practices: [{ created_at: new Date(2026, 9, 18).toISOString() }] },
+    { practices: [{ created_at: new Date(2026, 9, 3).toISOString(), note }, { created_at: new Date(2026, 8, 3).toISOString(), note }] },
+    { practices: [{ created_at: new Date(2026, 9, 18).toISOString(), note }, { created_at: new Date(2026, 9, 18).toISOString(), note: null }] },
   ];
-  const sessions = [{ started_at: new Date(2026, 9, 2).toISOString() }, { started_at: new Date(2026, 7, 2).toISOString() }];
+  const sessions = [
+    { status: 'completed', started_at: new Date(2026, 9, 2).toISOString() },
+    { status: 'in_progress', started_at: new Date(2026, 9, 3).toISOString() },
+    { status: 'completed', started_at: new Date(2026, 7, 2).toISOString() },
+  ];
   const entries = [
     { created_at: new Date(2026, 9, 5).toISOString(), challenge: { id: 'x' } },
     { created_at: new Date(2026, 9, 6).toISOString(), challenge: { id: 'x' } },
@@ -27,8 +32,8 @@ test('monthPracticeCounts: 코칭·리딩은 회차, 챌린지는 참여한 서�
   assert.deepEqual(monthPracticeCounts({ groups, readingSessions: sessions, entries }, NOW), {
     coaching: 2,
     reading: 1,
-    challenge: 1,
-    total: 4,
+    challenge: 2,
+    total: 5,
   });
   assert.deepEqual(monthPracticeCounts({ groups: [], readingSessions: [], entries: [] }, NOW), {
     coaching: 0,

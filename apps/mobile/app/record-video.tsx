@@ -291,6 +291,7 @@ export default function RecordVideoScreen() {
       // 픽커의 duration 은 플랫폼마다 초/밀리초가 섞여 온다 — 업로드 화면과 같은 정규화를 쓴다.
       durationMs: normalizeVideoDurationMs(asset.duration ?? null),
       name: asset.fileName ?? `video-${Date.now()}.mp4`,
+      source: 'gallery',
     });
     goNext();
   }, [goNext, isChallenge]);

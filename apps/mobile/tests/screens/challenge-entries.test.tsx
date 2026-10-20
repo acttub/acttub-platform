@@ -194,6 +194,11 @@ describe('공개 범위 바꾸기', () => {
     await render(<ChallengeEntriesScreen />);
     await openMenuFor('“내일은 내일의 해가”');
     await fireEvent.press(screen.getByText('공개로 바꾸기'));
+    // 공개로 바꿀 때는 한 번 묻는다(SOMA-748 Avv5P0).
+    expect(await screen.findByText('공개로 바꿀까요?')).toBeOnTheScreen();
+    expect(updateEntry).not.toHaveBeenCalled();
+    const labels = screen.getAllByText('공개로 바꾸기');
+    await fireEvent.press(labels[labels.length - 1]);
     expect(updateEntry).toHaveBeenCalledWith('e2', { visibility: 'public' });
   });
 

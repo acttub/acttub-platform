@@ -14,6 +14,7 @@ import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { rememberPracticeDays } from '@/lib/practice-days';
+import { countedPracticeDates } from '@/lib/practice/counted';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
 import { currentTutorial } from '@/lib/tutorial';
 import {
@@ -59,6 +60,15 @@ const HOME_STEPS: SpotlightStep[] = [
   { target: TARGET.tabChallenge, text: 'guide.spotChallengeTab', round: true },
   { target: TARGET.tabProfile, text: 'guide.spotProfileTab', round: true },
 ];
+
+/** 홈이 리딩 회차를 읽을 대본 — 최근 14일 안에 연습한 것만(연속일·주간 원에 쓰는 만큼). */
+const READING_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
+function recentlyPracticedScripts(scripts: readonly ScriptCard[], now = Date.now()): ScriptCard[] {
+  return scripts.filter((s) => {
+    const at = Date.parse(s.last_practiced_at ?? '');
+    return Number.isFinite(at) && now - at <= READING_LOOKBACK_MS;
+  });
+}
 
 function recentDate(iso: string): string {
   const d = new Date(iso);
@@ -136,41 +146,50 @@ export default function HomeScreen() {
         openHomeGuideIfNew();
       });
       let cancelled = false;
-      api
+      const groupsRead = api
         .listPracticeGroups('all')
         .then((r) => {
-          if (cancelled) return;
+          if (cancelled) return r.groups;
           setGroups(r.groups);
           setGroupsFailed(false);
           setGroupsLoaded(true);
-          // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
-          const practicedAt = r.groups
-            .flatMap((g) => g.practices.map((round) => round.created_at))
-            .filter((at): at is string => typeof at === 'string' && at.length > 0)
-            .map((created_at) => ({ created_at }));
-          void rememberPracticeDays(practicedAt).then((days) => {
-            if (!cancelled) setActivityDays(days);
-          });
+          return r.groups;
         })
         .catch(() => {
           if (!cancelled) {
             setGroups([]);
             setGroupsFailed(true);
             setGroupsLoaded(true);
-            void rememberPracticeDays([]).then((days) => {
-              if (!cancelled) setActivityDays(days);
-            });
           }
+          return [] as PracticeGroup[];
         });
       // 오늘 할 것의 리딩 후보 — 이어 읽을 대본. 실패하면 리딩 후보만 빠진다.
-      api
-        .listReadingScripts()
+      const scriptsRead = Promise.resolve()
+        .then(() => api.listReadingScripts())
         .then((r) => {
           if (!cancelled) setScripts(r.scripts);
+          return r.scripts;
         })
         .catch(() => {
           if (!cancelled) setScripts([]);
+          return [] as ScriptCard[];
         });
+      // 연속일·주간 원·「첫 연습 끝!」은 「연습 1회」 기준 하나로 센다(SOMA-773) — 노트가 생긴 코칭 회차, 끝까지 읽은
+      // 리딩 회차, 올린 참여작. 리딩 회차는 대본별로만 받으므로 최근에 연습한 대본만 읽는다(지난 날은 기기에 쌓여 있다).
+      const readingRead = scriptsRead
+        .then((list) => Promise.all(recentlyPracticedScripts(list).map((s) => api.listReadingSessions(s.id).then((x) => x.sessions).catch(() => []))))
+        .then((lists) => lists.flat())
+        .catch(() => []);
+      const entriesRead = Promise.resolve()
+        .then(() => api.listMyChallengeEntries())
+        .then((r) => r.entries)
+        .catch(() => []);
+      void Promise.all([groupsRead, readingRead, entriesRead]).then(([groupList, readingSessions, entries]) =>
+        // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
+        rememberPracticeDays(countedPracticeDates({ groups: groupList, readingSessions, entries })).then((days) => {
+          if (!cancelled) setActivityDays(days);
+        }),
+      );
       return () => {
         cancelled = true;
       };
@@ -221,6 +240,8 @@ export default function HomeScreen() {
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
   const streak = useMemo(() => practiceStreak((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
   const activityLoaded = activityDays !== null;
+  // 「첫 연습 끝!」 안내는 연습 1회(노트 생긴 코칭·끝낸 리딩·올린 참여작)를 한 뒤에만 띄운다(SOMA-773).
+  const practiced = (activityDays?.length ?? 0) > 0;
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
   // 기록을 받기 전엔 판단하지 않는다 — 그 판정은 streakCelebrationStep 이 한다(SOMA-494).
@@ -542,7 +563,7 @@ export default function HomeScreen() {
         </ScrollView>
       )}
       <SpotlightGuide
-        visible={guideOpen && overlaysReady && loaded && !firstUser}
+        visible={guideOpen && overlaysReady && loaded && !firstUser && practiced}
         topic="home"
         steps={HOME_STEPS}
         onDone={() => {

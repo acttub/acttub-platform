@@ -41,7 +41,7 @@ import { newRequestId } from '@/lib/request-id';
 export default function AiReportScreen() {
   const router = useRouter();
   const { alert, confirm, dialog } = useAppDialog();
-  const params = useLocalSearchParams<{ entryId?: string; videoId?: string; challengeId?: string; visibility?: string }>();
+  const params = useLocalSearchParams<{ entryId?: string; videoId?: string; challengeId?: string; visibility?: string; request?: string }>();
   const { entryId } = params;
   const challengeId = params.challengeId || null;
   const videoId = params.videoId || null;
@@ -55,6 +55,8 @@ export default function AiReportScreen() {
   const [requesting, setRequesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef<string | null>(null);
+  /** 올리기 완료의 「AI 리포트 보기」로 왔으면(request=1) 아직 없는 리포트를 한 번만 바로 부탁한다(SOMA-773). */
+  const autoRequestRef = useRef(params.request === '1');
 
   const load = useCallback(async () => {
     if (!entryId) return;
@@ -100,6 +102,14 @@ export default function AiReportScreen() {
       setRequesting(false);
     }
   };
+
+  // 처음 읽은 결과가 「없음」일 때만 — 실패한 리포트의 다시 시도는 하루 한도를 쓰니 배우가 직접 누른다.
+  useEffect(() => {
+    if (loading || error || !autoRequestRef.current) return;
+    autoRequestRef.current = false;
+    if (report === null) void request();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, error, report]);
 
   useEffect(() => {
     void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
