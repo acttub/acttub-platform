@@ -31,6 +31,8 @@ final class PurposeLoop {
     static final int REPLY_CAP = 9;
     /** 인물 카드에서 빈 칸을 묻는 응답의 최대 수. */
     static final int MAX_CELLS = 3;
+    /** 막힌 곳·인물에서 코치가 묻는 응답의 최대 수(시작 질문 포함). 넘으면 코치가 방향을 정해 주며 정리한다(10/20 사용자 결정). */
+    static final int MAX_QUESTIONS = 2;
 
     enum Purpose {
         EVALUATE("evaluate", List.of("card", "method", "wrap")),
@@ -172,6 +174,11 @@ final class PurposeLoop {
         };
         // 답하면서 함께 물은 것이 있으면(왜요? 그래서 어떻게 해요?) 단계 일을 하기 전에 먼저 답하게 한다.
         boolean answering = "answer".equals(turn.doing()) || turn.end();
+        // 질문 상한: 막힌 곳·인물은 코치가 두 번 물었으면 더 묻지 않고 정해 준다. 배우가 물은 것은 정리 첫 문장에서 답한다.
+        if (purpose != Purpose.EVALUATE && !turn.wrap() && !turn.end() && loop.path("questions").asInt(0) >= MAX_QUESTIONS) {
+            turn = Turn.directing(purpose, label, false, turn.answeredStep(), dontKnow);
+            if (kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION) turn = turn.asking();
+        }
         if (dontKnow) turn = turn.notKnowing();
         return classified != null && classified.alsoAsked() && !answering ? turn.asking() : turn;
     }
@@ -489,6 +496,7 @@ final class PurposeLoop {
         loop.put("step", 0);
         loop.put("stays", 0);
         loop.put("cells", 0);
+        loop.put("questions", purpose == Purpose.EVALUATE ? 0 : 1);
         ObjectNode scene = scene(design);
         if (scene != null) loop.set("scene", scene);
         loop.set("lines", lines(design));
@@ -513,6 +521,7 @@ final class PurposeLoop {
         loop.put("stays", turn.advanced() ? 0 : loop.path("stays").asInt(0) + 1);
         if ("cell".equals(turn.doing())) loop.put("cells", loop.path("cells").asInt(0) + 1);
         if (turn.dontKnow()) loop.put("dont_knows", loop.path("dont_knows").asInt(0) + 1);
+        if (!turn.wrap() && !turn.end()) loop.put("questions", loop.path("questions").asInt(0) + 1);
         if ("another".equals(turn.doing())) loop.put("another", loop.path("another").asInt(0) + 1);
         if (output.card() != null) loop.set("card", mergeCard(loop.get("card"), output.card(), turn.wrap()));
         if (output.characterCard() != null) loop.set("character_card", output.characterCard());
@@ -640,6 +649,11 @@ final class PurposeLoop {
             case "wrap", "answer", "another", "propose", "seen" -> true;
             default -> false;
         };
+    }
+
+    /** 코치가 묻지 않는 목적. 평가 받기는 답을 먼저 준다(10/20 사용자 결정): 결과 카드 → 방법 버튼 → 정리. */
+    static boolean asksNothing(Purpose purpose) {
+        return purpose == Purpose.EVALUATE;
     }
 
     /** 첫 응답을 질문 한 줄로 줄이지 않는 목적. 평가 첫 답은 결과를 짧게 말한다. */

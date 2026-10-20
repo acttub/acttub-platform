@@ -118,6 +118,17 @@ class PurposeLoopTest {
         assertThat(PurposeLoop.instruction(turn, state("{\"step\":2}"), "알려 주려고요. 근데 왜요?")).contains("그 물음에 먼저");
     }
 
+    @Test void stuckAndCharacterAskAtMostTwiceThenTheCoachDecides() {
+        var asked2 = state("{\"step\":1,\"questions\":2}");
+        var turn = PurposeLoop.decide(PurposeLoop.Purpose.STUCK, asked2, "0:12 \"취소해\"", null, ANSWERED, 2);
+        assertThat(turn.wrap() && turn.direct()).isTrue();
+        var why = PurposeLoop.decide(PurposeLoop.Purpose.CHARACTER, state("{\"step\":1,\"questions\":2}"), "왜요?", null, kind(PracticeLoopRouter.Kind.QUESTION), 2);
+        assertThat(why.wrap() && why.asked()).as("물음엔 정리 첫 문장에서 답한다").isTrue();
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.STUCK, state("{\"step\":0,\"questions\":1}"), "감정이 안 따라와요", null, ANSWERED, 1).doing())
+                .isEqualTo("line");
+        assertThat(PurposeLoop.asksNothing(PurposeLoop.Purpose.EVALUATE)).isTrue();
+    }
+
     @Test void theReplyCapForcesTheWrap() {
         var intent = state("{\"step\":1}");
         var turn = PurposeLoop.decide(PurposeLoop.Purpose.EVALUATE, intent, "왜요?", null, kind(PracticeLoopRouter.Kind.QUESTION),

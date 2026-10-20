@@ -437,7 +437,8 @@ public final class DirectVideoCoach {
                 shown = DirectVideoPracticeLoop.withoutEcho(shown, actorText);
             }
             if (purposeTurn != null && !streaming) {
-                shown = purposeTurn.wrap() ? DirectVideoPracticeLoop.withoutQuestions(shown) : DirectVideoPracticeLoop.firstQuestionOnly(shown);
+                shown = purposeTurn.wrap() || PurposeLoop.asksNothing(purpose) ? DirectVideoPracticeLoop.withoutQuestions(shown)
+                        : DirectVideoPracticeLoop.firstQuestionOnly(shown);
                 shown = DirectVideoPracticeLoop.withoutEcho(shown, actorText);
             }
             // 배우가 대안을 말하지 않았는데 정리를 "맞아요, 그거예요"로 시작하면 그 인정 말을 뗀다.
