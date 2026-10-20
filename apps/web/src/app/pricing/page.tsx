@@ -126,12 +126,12 @@ export default function PricingPage() {
           <div className="mx-auto max-w-6xl">
             <p className="text-sm font-black text-[#8fbfff]">결제와 해지</p>
             <h2 id="billing-title" className="mt-3 text-3xl font-black leading-[1.25] tracking-[-0.03em] sm:text-5xl">언제든 다음 자동결제를<br className="hidden sm:block" /> 해지할 수 있어요</h2>
-            <p className="mt-5 max-w-2xl text-base font-bold leading-7 text-[#b0b8c1]">웹에서 신청하는 월 정기결제 상품으로 준비하고 있어요. 언제든 다음 자동결제를 해지할 수 있고, 구독 해지는 회원 탈퇴와 별개예요. 이용 후에도 해당 결제주기의 이용기간에 따라 환불해요.</p>
+            <p className="mt-5 max-w-2xl text-base font-bold leading-7 text-[#b0b8c1]">웹에서 신청하는 월 정기결제 상품으로 준비하고 있어요. 언제든 다음 자동결제를 해지할 수 있고, 구독 해지는 회원 탈퇴와 별개예요. 유료 기능을 쓰지 않았다면 결제 후 7일 이내에 전액 환불하고, 이용한 뒤에는 이용한 날짜만큼 빼고 환불해요.</p>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               <div className="rounded-3xl bg-[#3182f6] p-6 sm:col-span-2"><p className="text-xl font-black leading-snug">자동결제만 해지하면 현재 결제기간이 끝날 때까지 Pro를 이용할 수 있어요.</p></div>
               <div className="rounded-3xl bg-white/10 p-6"><p className="text-base font-black leading-snug">구독 해지는 회원 탈퇴와 별개예요.</p></div>
             </div>
-            <Link href="/refund" className="mt-8 inline-flex h-12 items-center rounded-2xl bg-white px-6 text-base font-black text-[#191f28] transition hover:bg-[#f2f4f6]">기간별 환불 비율과 요청 방법 보기</Link>
+            <Link href="/refund" className="mt-8 inline-flex h-12 items-center rounded-2xl bg-white px-6 text-base font-black text-[#191f28] transition hover:bg-[#f2f4f6]">환불 기준과 요청 방법 보기</Link>
           </div>
         </section>
 
