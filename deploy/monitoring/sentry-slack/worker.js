@@ -1,6 +1,6 @@
-// Sentry internal integration(acttub-slack-relay)의 알림 규칙 액션을 Slack incoming webhook 메시지로 바꿔 넘긴다.
+// Sentry internal integration(acttub-slack-relay)의 알림 규칙 액션을 Slack 메시지(봇 chat.postMessage)로 바꿔 넘긴다.
 // 요청은 URL 경로의 비밀 토큰과 Sentry-Hook-Signature(client secret HMAC) 둘 다 맞아야 받는다.
-// 운영·dev 알림은 KV(ALERTS)에도 남겨, Mac mini 자동 수정(sentry-autofix)이 GET /<토큰>/alerts로 가져간다.
+// 운영·dev 알림은 KV(ALERTS)에도 메시지 위치(channel·ts)와 함께 남겨, Mac mini 자동 수정(sentry-autofix)이 가져가 그 스레드에 결과를 단다.
 
 const ENV_LABEL = { prod: "운영", dev: "dev" };
 const PROJECT = { 4511874739273728: "acttub-web", 4511874784231424: "acttub-api" };
@@ -63,17 +63,20 @@ export default {
     }
     const event = payload.data?.event;
     if (!event) return new Response("bad json", { status: 400 });
-    const res = await fetch(env.SLACK_WEBHOOK_URL, {
+    const res = await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(toSlack(event, payload.data.triggered_rule)),
+      headers: { "content-type": "application/json; charset=utf-8", authorization: `Bearer ${env.SLACK_BOT_TOKEN}` },
+      body: JSON.stringify({ channel: env.SLACK_CHANNEL, ...toSlack(event, payload.data.triggered_rule) }),
     });
+    // Slack API는 실패도 200에 ok:false로 준다.
+    const posted = res.ok ? await res.json().catch(() => ({})) : {};
     // KV가 실패해도 Slack 알림은 이미 갔으므로 응답은 Slack 결과를 따른다.
     const record = alertRecord(payload, new Date().toISOString());
     if (record) {
-      await env.ALERTS.put(`${record.at}:${record.issueId}`, "", { metadata: record, expirationTtl: QUEUE_TTL_S }).catch((e) => console.error("kv put", e));
+      const metadata = posted.ok ? { ...record, channel: posted.channel, ts: posted.ts } : record;
+      await env.ALERTS.put(`${record.at}:${record.issueId}`, "", { metadata, expirationTtl: QUEUE_TTL_S }).catch((e) => console.error("kv put", e));
     }
     // Slack 실패를 그대로 돌려줘 Sentry 쪽 기록에 남게 한다.
-    return new Response(res.ok ? "ok" : "slack failed", { status: res.ok ? 200 : 502 });
+    return new Response(posted.ok ? "ok" : "slack failed", { status: posted.ok ? 200 : 502 });
   },
 };

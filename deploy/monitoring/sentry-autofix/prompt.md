@@ -16,15 +16,15 @@
    이때는 Jira 이슈·브랜치·PR을 만들지 않고 5번의 결과 줄만 낸다.
 3. 코드 수정 대상이면 이 순서로 한다.
    1. `mcp__atlassian__createJiraIssue`로 Jira 이슈를 하나 만든다. cloudId `205faf1b-4810-4ed3-843d-410a3a6dcc9b`, 프로젝트 `SOMA`, 유형 `버그`.
-      제목은 한국어 한 줄. 본문은 `배경` / `원하는 상태` / `완료 조건`(체크리스트) 세 절만 짧게 쓰고, 배경에 Sentry 링크 {{PERMALINK}}를 넣는다.
+      제목은 한국어 한 줄. `additional_fields`에 `"labels": ["sentry-autofix"]`를 넣는다. 본문은 `배경` / `원하는 상태` / `완료 조건`(체크리스트) 세 절만 짧게 쓰고, 배경에 Sentry 링크 {{PERMALINK}}를 넣는다.
       보드에 보이도록 진행 중 스프린트에 넣는다. 먼저 `searchJiraIssuesUsingJql`로 `project = SOMA AND sprint in openSprints()`를
       maxResults 1, fields `customfield_10020`으로 찾아 state가 `active`인 스프린트 id를 얻고, 만들 때 `additional_fields`에
-      `{"customfield_10020": <id>}`를 넣는다. 진행 중 스프린트를 못 찾으면 넣지 않고 진행한다.
+      `"customfield_10020": <id>`도 넣는다. 진행 중 스프린트를 못 찾으면 넣지 않고 진행한다.
       만든 뒤 `getTransitionsForJiraIssue`로 "진행 중" 전이를 찾아 `transitionJiraIssue`로 옮긴다.
    2. `git switch -c {{BRANCH}}-sentry-<짧은 영문>`으로 브랜치를 만든다.
    3. 이 오류의 수정과 회귀 테스트만 넣는다(정리·리팩터링은 하지 않는다). 오류를 재현하는 테스트를 먼저 쓰고, 고치고, 그 앱의 가장 좁은 테스트부터 통과시킨다. `.github/workflows/ci.yml`의 해당 잡 범위도 돌릴 수 있는 만큼 돌린다.
    4. 루트 `CLAUDE.md` 「커밋」 규칙대로 커밋 하나로 만들고 `git push -u origin <브랜치>`.
-   5. `gh pr create --draft --base {{BASE}} --title "SOMA-<번호> <한국어 요약>"`. 본문에는 원인, 수정, 돌린 검증과 못 돌린 검증, Sentry 링크,
+   5. `gh pr create --draft --base {{BASE}} --label sentry-autofix --title "SOMA-<번호> [자동 수정] <한국어 요약>"`. 본문에는 원인, 수정, 돌린 검증과 못 돌린 검증, Sentry 링크,
       "{{MERGE_NOTE}}"를 쓰고, 끝에 `🤖 Sentry 자동 수정(Claude Code)`을 붙인다.
    6. `addCommentToJiraIssue`로 Jira 이슈에 PR 링크를 댓글로 남긴다.
    7. `gh pr checks <PR> --watch --interval 30`으로 CI를 기다린다(백그라운드로 돌리지 않는다. Bash 시간 한도를 10분으로 주고, 끝나지 않았으면 다시 부른다).
