@@ -1,7 +1,8 @@
 // 실행: node --test deploy/monitoring/sentry-autofix/poll.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DAILY_RULE, merged, pick, summarize, verdictOf } from "./poll.mjs";
+import { readFileSync } from "node:fs";
+import { DAILY_RULE, PROMPT, merged, pick, renderPrompt, summarize, verdictOf } from "./poll.mjs";
 
 const alert = (issueId, at, rule = "운영 처음 남") => ({ issueId, at, rule });
 const at = (iso) => ({ at: Date.parse(iso) });
@@ -91,4 +92,26 @@ test("main에 머지된 hotfix만 역병합 대상이고, 닫힌 hotfix는 다�
   assert.deepEqual(asked, ["p1", "p2", "p3"]);
   assert.equal(handled.closed.backmerge, "닫힘");
   assert.equal(handled.open.backmerge, undefined);
+});
+
+test("운영 알림을 dev 알림보다 먼저 고르고, env가 없는 옛 알림은 운영으로 본다", () => {
+  const got = pick([
+    { ...alert("d", "2026-10-20T01:00:00.000Z", "dev 기본"), env: "dev" },
+    alert("old", "2026-10-20T03:00:00.000Z"),
+    { ...alert("p", "2026-10-20T02:00:00.000Z"), env: "prod" },
+  ], { handled: {} });
+  assert.deepEqual(got.map((a) => a.issueId), ["p", "old", "d"]);
+});
+
+test("지시문은 환경별 작업 기준·브랜치·PR 대상으로 빈자리 없이 채워진다", () => {
+  const values = { CONTEXT: "ctx.json", PERMALINK: "https://sentry/1", PREVIOUS: "" };
+  const prod = renderPrompt(readFileSync(PROMPT, "utf8"), "prod", values);
+  const dev = renderPrompt(readFileSync(PROMPT, "utf8"), "dev", values);
+  for (const p of [prod, dev]) assert.doesNotMatch(p, /\{\{/);
+  assert.match(prod, /--base main /);
+  assert.match(prod, /git switch -c hotfix\/SOMA-<번호>-sentry-/);
+  assert.match(prod, /출시 대기/);
+  assert.match(dev, /--base dev /);
+  assert.match(dev, /git switch -c Fiddich-Dev\/soma-<번호>-sentry-/);
+  assert.doesNotMatch(dev, /역병합|출시 대기/);
 });
