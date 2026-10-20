@@ -3,13 +3,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
-import { practiceStreak, groupPoster, groupRowTarget, groupTitle, recentGroups } from '@/lib/practice/groups';
+import { practiceStreak, groupPoster, groupRowTarget, lastNotePracticeId, recentGroups, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
@@ -33,6 +33,8 @@ import { StreakCelebrationScreen } from '@/components/streak-celebration-screen'
 import { AnnouncementPoster } from '@/components/announcement-poster';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
+import { useAppDialog } from '@/components/app-dialog';
+import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -102,6 +104,10 @@ export default function HomeScreen() {
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
+  // 홈 안내를 띄울지 확인을 마쳤는지, 그리고 이번 방문에 안내를 봤는지. 안내를 본 방문에는 공지 포스터(AI 목소리 홍보 등)·
+  // 연속일 축하를 미룬다 — 안내 4단계가 끝나자마자 다른 팝업이 연달아 뜨지 않게(SOMA-771).
+  const [guideChecked, setGuideChecked] = useState(false);
+  const [guideShownThisVisit, setGuideShownThisVisit] = useState(false);
   const [introChecked, setIntroChecked] = useState(false);
   const [onboardingJustFinished, setOnboardingJustFinished] = useState(false);
   const startTarget = useSpotlightTarget(TARGET.homeStart);
@@ -109,6 +115,7 @@ export default function HomeScreen() {
   const openHomeGuideIfNew = useCallback(() => {
     void hasSeenSpotlight('home').then((seen) => {
       if (!seen) setGuideOpen(true);
+      setGuideChecked(true);
     });
   }, []);
 
@@ -118,6 +125,7 @@ export default function HomeScreen() {
       // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
       // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
       if (currentTutorial()) finishTutorial('left');
+      setGuideShownThisVisit(false);
       void hasSeenTutorial().then((seen) => {
         setIntroChecked(true);
         // 예전 「연습 한 바퀴」 시트는 새 디자인에서 첫 사용자 홈(뭐부터 해 볼까요?)이 대신한다(SOMA-748).
@@ -242,6 +250,28 @@ export default function HomeScreen() {
     [groups, scripts, featured],
   );
 
+  // 「다음에 해 볼 것」(노트의 다음 테이크 문장) — 코칭 숙제와 최근 연습 줄에 쓴다. 목록에 없어 노트를 따로 읽는다.
+  const nextTakes = useNextTakes([
+    today.main.kind === 'coaching' ? today.main.notePracticeId : null,
+    today.also?.kind === 'coaching' ? today.also.notePracticeId : null,
+    ...recent.map(lastNotePracticeId),
+  ]);
+
+  // 안드로이드 뒤로가기 — 홈에서는 바로 나가지 않고 앱을 종료할지 묻는다(SOMA-771).
+  const { confirm, dialog } = useAppDialog();
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        void confirm({ title: t('home.exitTitle'), confirmLabel: t('home.exitConfirm') }).then((ok) => {
+          if (ok) BackHandler.exitApp();
+        });
+        return true;
+      });
+      return () => sub.remove();
+    }, [confirm]),
+  );
+
   // 코칭·리딩 할 일이 없을 때만 오늘의 챌린지를 받아 온다.
   const needsChallenge = loaded && !firstUser && today.main.kind === 'start' && featured === null;
   useEffect(() => {
@@ -318,7 +348,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {celebrateStreak !== null && overlaysReady && (
+      {celebrateStreak !== null && overlaysReady && !guideOpen && !guideShownThisVisit && (
         <StreakCelebrationScreen
           streak={celebrateStreak}
           dots={celebrationDots(days)}
@@ -378,6 +408,7 @@ export default function HomeScreen() {
           <View ref={startTarget.ref} onLayout={startTarget.onLayout} collapsable={false} style={styles.todayCard}>
             <TodayCardBody
               item={today.main}
+              nextTake={today.main.kind === 'coaching' ? nextTakes[today.main.notePracticeId] ?? null : null}
               progress={
                 today.main.kind === 'reading' && readingProgress?.scriptId === today.main.script.id
                   ? readingProgress.progress
@@ -395,7 +426,7 @@ export default function HomeScreen() {
               style={({ pressed }) => [styles.alsoRow, pressed && styles.pressed]}>
               <View style={[styles.alsoDot, today.also.kind === 'reading' ? styles.dotGreen : styles.dotBlue]} />
               <Text style={styles.alsoText} numberOfLines={1}>
-                {alsoLabel(today.also)}
+                {alsoLabel(today.also, nextTakes)}
               </Text>
               <Feather name="chevron-right" size={18} color={palette.checkOff} />
             </Pressable>
@@ -412,6 +443,9 @@ export default function HomeScreen() {
               </View>
               {recent.map((r) => {
                 const poster = groupPoster(r);
+                const noteId = lastNotePracticeId(r);
+                // 줄 제목은 다음에 해 볼 것, 없으면 장면 제목이다. 노트 제목(코치 관찰)은 쓰지 않는다.
+                const rowTitle = (noteId && nextTakes[noteId]) || sceneTitle(r);
                 return (
                   <Pressable
                     key={r.root_id}
@@ -428,7 +462,7 @@ export default function HomeScreen() {
                     </View>
                     <View style={styles.flex}>
                       <View style={styles.listTitleRow}>
-                        <Text style={[styles.listTitle, styles.shrink]} numberOfLines={1}>{groupTitle(r)}</Text>
+                        <Text style={[styles.listTitle, styles.shrink]} numberOfLines={1}>{rowTitle}</Text>
                         {r.in_progress_practice_id && (
                           <View style={styles.talkingBadge}>
                             <Text style={styles.talkingBadgeText}>{t('history.inConversation')}</Text>
@@ -513,26 +547,38 @@ export default function HomeScreen() {
         steps={HOME_STEPS}
         onDone={() => {
           setGuideOpen(false);
+          setGuideShownThisVisit(true);
           void markSpotlightSeen('home');
         }}
       />
       <AnnouncementPoster
         loggedIn={!!user}
-        blocked={!overlaysReady || !introChecked || guideOpen || celebrateStreak !== null}
+        blocked={!overlaysReady || !introChecked || !guideChecked || guideOpen || guideShownThisVisit || celebrateStreak !== null}
         onboardingJustFinished={onboardingJustFinished}
       />
+      {dialog}
     </SafeAreaView>
   );
 }
 
-function alsoLabel(item: TodayItem): string {
-  if (item.kind === 'coaching') return t('home.alsoCoaching', { title: item.noteTitle ?? groupTitle(item.group) });
+function alsoLabel(item: TodayItem, nextTakes: Record<string, string | null>): string {
+  if (item.kind === 'coaching') return t('home.alsoCoaching', { title: nextTakes[item.notePracticeId] || sceneTitle(item.group) });
   if (item.kind === 'reading') return t('home.alsoReading', { title: item.script.title });
   return '';
 }
 
 /** 오늘 할 것 카드 속 — 종류마다 머리 한 줄(색)·제목·보조·버튼. */
-function TodayCardBody({ item, progress, onPress }: { item: TodayItem; progress: SessionProgress | null; onPress: () => void }) {
+function TodayCardBody({
+  item,
+  nextTake = null,
+  progress,
+  onPress,
+}: {
+  item: TodayItem;
+  nextTake?: string | null;
+  progress: SessionProgress | null;
+  onPress: () => void;
+}) {
   let eyebrow: string;
   let eyebrowStyle = styles.eyebrowBlue;
   let title: string;
@@ -543,8 +589,10 @@ function TodayCardBody({ item, progress, onPress }: { item: TodayItem; progress:
   if (item.kind === 'coaching') {
     const action = continueActionFor(item.group);
     eyebrow = t('home.todayCoachingEyebrow');
-    title = item.noteTitle ? `「${item.noteTitle}」` : groupTitle(item.group);
-    sub = t('home.todayCoachingSub', { title: groupTitle(item.group), n: item.group.ordinal_count + 1 });
+    // 제목은 지난 노트의 「다음에 해 볼 것」이다. 그 문장이 없으면(아직 못 받았거나 노트에 없음) 장면 제목만 둔다.
+    const n = item.group.ordinal_count + 1;
+    title = nextTake ? `「${nextTake}」` : sceneTitle(item.group);
+    sub = nextTake ? t('home.todayCoachingSub', { title: sceneTitle(item.group), n }) : t('home.todayCoachingSubTake', { n });
     cta = action.kind === 'resume' ? t('history.resumeConversation') : t('home.todayCoachingCta');
   } else if (item.kind === 'reading') {
     eyebrow = t('home.todayReadingEyebrow');
@@ -555,7 +603,8 @@ function TodayCardBody({ item, progress, onPress }: { item: TodayItem; progress:
       sub = t('home.todayReadingProgress', { total: progress.total, done: progress.done });
       cta = progress.done < progress.total ? t('home.todayReadingCta', { line: progress.done + 1 }) : t('home.todayReadingCtaPlain');
     } else {
-      cta = t('home.todayReadingCtaPlain');
+      // 만들어 두고 아직 안 읽은 대본은 「리딩 시작하기」.
+      cta = item.script.last_practiced_at ? t('home.todayReadingCtaPlain') : t('home.todayReadingCtaStart');
     }
   } else if (item.kind === 'challenge') {
     eyebrow = item.daysLeft === 0 ? t('home.todayChallengeEyebrowToday') : t('home.todayChallengeEyebrow', { days: item.daysLeft });

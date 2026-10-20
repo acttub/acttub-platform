@@ -48,11 +48,9 @@ import {
   emptyBlockageDraft,
   fingerprintOf,
   inProgressPracticeId,
-  PRACTICE_TITLE_MAX,
   sceneOverflow,
   SCENE_MAX,
   startFailure,
-  titleOverflow,
   type BlockageDraft,
   type SceneDraft,
 } from '@/lib/practice/start';
@@ -149,7 +147,6 @@ export default function UploadScreen() {
     setTimeout(go, 0);
   };
   // 묶음 제목(SOMA-671). 이어하기는 원래 묶음 제목을 그대로 쓰므로 새 연습에서만 받는다.
-  const [title, setTitle] = useState('');
   const [agreedRights, setAgreedRights] = useState(sample);
   const pickTarget = useSpotlightTarget(TARGET.uploadPick);
   const sampleTarget = useSpotlightTarget(TARGET.uploadSample);
@@ -319,10 +316,6 @@ export default function UploadScreen() {
       setError(t('start.noteTooLong'));
       return;
     }
-    if (titleOverflow(title)) {
-      setError(t('upload.titleTooLong'));
-      return;
-    }
     startLockRef.current = true;
     setStarting(true);
     setError(null);
@@ -346,7 +339,7 @@ export default function UploadScreen() {
       const continueFrom = plan.continueFrom;
       const body = continueFrom
         ? buildContinueBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage })
-        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage, title });
+        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage });
       const attempt = attemptFor(attemptRef.current, fingerprintOf(body), newRequestId);
       attemptRef.current = attempt;
       const practice = continueFrom
@@ -580,24 +573,6 @@ export default function UploadScreen() {
                   />
                 </View>
               ))}
-            {!plan.continueFrom && !sample && (
-              <>
-                <Text style={styles.fieldLabel}>
-                  {t('upload.titleLabel')}
-                  <Text style={styles.fieldOptional}>{t('upload.sceneOptional')}</Text>
-                </Text>
-                <TextInput
-                  style={[styles.input, locked && styles.inputLocked]}
-                  placeholder={t('upload.titlePh')}
-                  placeholderTextColor={palette.textFaint}
-                  value={title}
-                  onChangeText={setTitle}
-                  maxLength={PRACTICE_TITLE_MAX}
-                  editable={!locked}
-                  returnKeyType="done"
-                />
-              </>
-            )}
           </View>
 
           <Pressable
@@ -700,7 +675,6 @@ const styles = StyleSheet.create({
   // pen 「장면 정보」 — 라벨 14/800, 회색 칸(모서리 14 · 안쪽 16 · 글자 17/600).
   fields: { gap: 14 },
   fieldLabel: { fontSize: 14, fontWeight: '800', lineHeight: 21, color: palette.textDim },
-  fieldOptional: { fontWeight: '600', color: palette.textFaint },
   input: {
     backgroundColor: palette.bgSoft,
     borderRadius: 14,

@@ -68,6 +68,21 @@ test('대화와 함께 온 노트를 바로 보여 주고 서버에서 다시 �
   expect(mockGetNote).not.toHaveBeenCalled();
 });
 
+test('「이번에 해 본 것」에는 배우가 한 말만 두고 코치 관찰은 넣지 않는다', async () => {
+  const note = practiceNote({
+    summary_quotes: [
+      { quote: '먼저 미안하다고 해 주길 기다렸어요', kind: 'actor', source_ref: 'actor:1' },
+      { quote: '말을 끝낸 직후 시선이 먼저 내려간다', kind: 'observation', source_ref: 'observation:1' },
+    ],
+  });
+  (getPractice as jest.Mock).mockReturnValue(practice({ note }));
+  await render(<ReportScreen />);
+
+  expect(screen.getByText('이번에 해 본 것')).toBeOnTheScreen();
+  expect(screen.getByText('먼저 미안하다고 해 주길 기다렸어요')).toBeOnTheScreen();
+  expect(screen.queryByText('말을 끝낸 직후 시선이 먼저 내려간다')).not.toBeOnTheScreen();
+});
+
 test('노트가 없으면 만드는 중을 보이다가 서버에서 읽어 보여 준다', async () => {
   const session = practice();
   (getPractice as jest.Mock).mockReturnValue(session);
@@ -111,7 +126,7 @@ test('연습 마치기는 앱 평가 차례를 묻고, 그 뒤에 연습을 비�
   (getPractice as jest.Mock).mockReturnValue(practice({ note: practiceNote() }));
   await render(<ReportScreen />);
 
-  await fireEvent.press(screen.getByText('연습 마치기'));
+  await fireEvent.press(screen.getByText('저장하고 마치기'));
 
   expect(after).toHaveBeenCalledWith({ kind: 'coach', practiceId: 'p1' }, expect.any(Function));
   expect(clearPractice).not.toHaveBeenCalled();

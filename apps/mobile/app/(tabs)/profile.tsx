@@ -7,13 +7,14 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { useNextTakes } from '@/hooks/use-next-takes';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { EntryCard, MyEntryCard } from '@/lib/challenge/types';
 import { displayNameFor } from '@/lib/display-name';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t, translateList } from '@/lib/i18n';
-import { groupPoster, groupRowTarget, groupTitle } from '@/lib/practice/groups';
+import { groupPoster, groupRowTarget, lastNotePracticeId, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroupDetail } from '@/lib/practice/types';
 import { getUserName } from '@/lib/profile';
 import { EXPERIENCE_VALUES, GOAL_VALUES } from '@/lib/profile-form';
@@ -113,6 +114,8 @@ export default function ProfileScreen() {
     .join(' · ');
 
   const practiceCards = groups ? profileTabCards(groups).slice(0, CARD_LIMIT) : null;
+  // 연습 카드 제목은 「다음에 해 볼 것」(노트의 다음 테이크 문장), 없으면 장면 제목이다. 코치 관찰(노트 제목)은 쓰지 않는다.
+  const nextTakes = useNextTakes((practiceCards ?? []).map(({ group }) => lastNotePracticeId(group)));
   const entryCards = entries ? entries.slice(0, CARD_LIMIT) : null;
   const savedCards = saved ? saved.slice(0, CARD_LIMIT) : null;
   const shortDate = (iso: string | null | undefined) => formatKoreanDate(iso, { month: 'long', day: 'numeric' });
@@ -208,7 +211,7 @@ export default function ProfileScreen() {
             cards={(practiceCards ?? []).map(({ group, at }) => ({
               key: group.root_id,
               poster: groupPoster(group),
-              title: groupTitle(group),
+              title: nextTakes[lastNotePracticeId(group) ?? ''] || sceneTitle(group),
               meta: [shortDate(at), t('profileTab.kindCoaching')].filter(Boolean).join(' · '),
               onPress: () => router.push(groupRowTarget(group)),
             }))}
