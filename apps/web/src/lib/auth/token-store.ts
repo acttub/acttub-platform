@@ -84,6 +84,11 @@ if (typeof window !== "undefined") {
   }
   // 다른 탭에서 토큰 회전이나 게스트 끝이 일어나면 메모리 캐시를 무효화한다.
   window.addEventListener("storage", (event) => {
+    // key null 은 다른 탭의 localStorage.clear() 다.
+    if (event.key === null) {
+      memoryAccess = null;
+      memoryRefresh = null;
+    }
     if (event.key === ACCESS_KEY) memoryAccess = event.newValue;
     if (event.key === REFRESH_KEY) memoryRefresh = event.newValue;
   });

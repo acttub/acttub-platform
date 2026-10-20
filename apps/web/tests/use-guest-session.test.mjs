@@ -146,7 +146,6 @@ test("account.guest: 다른 탭에서 게스트가 시작되거나 끝나면 이
 
 test(
   "account.guest: 다른 탭이 저장소를 통째로 비우면 이 탭의 화면도 게스트 없음으로 돌아간다",
-  { todo: "버그: 다른 탭의 localStorage.clear()(key null) 뒤에도 token-store 메모리의 리프레시 토큰이 남아 게스트가 있다고 답한다" },
   () => {
     const probe = mount(Probe);
     try {
