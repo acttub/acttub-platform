@@ -155,7 +155,10 @@ public final class DirectVideoCoach {
             var source = videos.find(session.userId(), session.practiceSessionId());
             if (source == null) throw new IllegalStateException("owned video is unavailable");
             videoKey = new CoachVideoCache.Key(session.practiceSessionId(), source.objectKey(), source.etag());
-            // 둘째 답부터는 이 대화에서 올려 둔 영상을 다시 쓴다. 첫 답은 늘 새로 올린다 — 소리·빈 영상 검사가 첫 답에서만 돈다.
+            DirectVideoModel.InputInspection inspection = null;
+            boolean firstLoop = loop && session.turns().isEmpty();
+            // 둘째 답부터는 이 대화에서 올려 둔 영상을 다시 쓴다. 배포로 서버가 바뀌었으면 이름표로 찾는다(SOMA-780).
+            // 소리·빈 영상 검사는 첫 답에서만 돈다.
             if (!session.turns().isEmpty()) {
                 DirectVideoModel.Video remembered = videoCache.take(videoKey);
                 if (remembered != null) {
@@ -166,20 +169,31 @@ public final class DirectVideoCoach {
                     }
                     if (uploaded == null) videoCache.forget(session.practiceSessionId());
                 }
+            } else if (firstLoop) {
+                // 첫 답: 분석 작업이 미리 검사·올려 둔 영상이 있으면 기다려 쓴다(SOMA-780). 없거나 실패했으면 아래에서 직접 한다.
+                CoachVideoCache.Prepared warmed = videoCache.claimWarm(videoKey, CoachVideoCache.WARM_WAIT);
+                if (warmed != null) {
+                    inspection = warmed.inspection();
+                    uploaded = warmed.video();
+                }
             }
             videoReused = uploaded != null;
             if (!videoReused) {
-                local = Files.createTempFile("coach-original-", ".video");
-                var metadata = storage.downloadToPath(source.objectKey(), local);
-                if (source.etag() != null && !source.etag().isBlank()
-                        && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
-                    throw new IllegalStateException("original video changed after upload");
+                boolean blocked = inspection != null && (inspection.unusableAudio() || inspection.emptyInput());
+                if (!blocked) {
+                    local = Files.createTempFile("coach-original-", ".video");
+                    var metadata = storage.downloadToPath(source.objectKey(), local);
+                    if (source.etag() != null && !source.etag().isBlank()
+                            && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
+                        throw new IllegalStateException("original video changed after upload");
+                    }
                 }
-                DirectVideoModel.InputInspection inspection = null;
-                if (loop && session.turns().isEmpty()) {
-                    inspecting = true;
-                    inspection = model.inspect(local);
-                    inspecting = false;
+                if (firstLoop) {
+                    if (inspection == null) {
+                        inspecting = true;
+                        inspection = model.inspect(local);
+                        inspecting = false;
+                    }
                     if (inspection != null && inspection.unusableAudio()) {
                         ObjectNode cutState = nextState(session);
                         DirectVideoPracticeLoop.markInputIssue(cutState, "silent_audio");
@@ -198,12 +212,14 @@ public final class DirectVideoCoach {
                     }
                 }
                 ExternalOperationExecution.externalCall("video_upload");
-                uploaded = inspection == null || inspection.hasAudioTrack() == null
+                String label = videoCache.label(videoKey);
+                uploaded = label != null ? model.upload(local, source.mimeType(), inspection, label)
+                        : inspection == null || inspection.hasAudioTrack() == null
                         ? model.upload(local, source.mimeType()) : model.upload(local, source.mimeType(), inspection);
                 long deadline = System.nanoTime() + Duration.ofSeconds(180).toNanos();
                 while (!model.ready(uploaded)) {
                     if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
-                    Thread.sleep(1000);
+                    Thread.sleep(500);
                 }
             }
             String written = DirectVideoPracticeLoop.actorMaterial(session) + "\n"
