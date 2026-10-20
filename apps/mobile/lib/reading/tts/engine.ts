@@ -24,7 +24,7 @@ import { shouldStopCloudVoiceForSession } from '../cloud-voice.ts';
 import { normalizeFloatSamples } from '../loudness.ts';
 
 import { currentNetworkType } from '../network';
-import { assetsPresent, downloadAssets, downloadVoiceStyle, MODEL_KINDS, type Variant } from './assets';
+import { activeVariant, assetsPresent, downloadAssets, downloadVoiceStyle, MODEL_KINDS, type Variant } from './assets';
 import type { VoiceProgress } from './download-progress.ts';
 import {
   loadOnnx,
@@ -70,7 +70,7 @@ const cfg: {
   steps: number;
   speed: number;
 } = {
-  variant: 'fp32', // 음질 우선
+  variant: 'fp32', // 음질 우선 — 실제로 쓰는 묶음은 activeVariant()가 고른다(fp16 묶음, SOMA-747)
   preset: 'M1', // 기본 음성 프리셋
   ep: 'xnnpack', // 실행기
   threads: 4, // intra-op 스레드
@@ -97,7 +97,7 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
 
   lastProgress = null;
   const work = (async () => {
-    const assets = await downloadAssets(cfg.variant, cfg.preset, report);
+    const assets = await downloadAssets(activeVariant(), cfg.preset, report);
     const options = {
       executionProviders: [cfg.ep],
       graphOptimizationLevel: 'all',
@@ -147,7 +147,7 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
 export async function prefetchIfWifi(): Promise<void> {
   try {
     if (tts || readyPromise) return;
-    if (assetsPresent(cfg.variant, cfg.preset)) return;
+    if (assetsPresent(activeVariant(), cfg.preset)) return;
     if ((await readAppVoiceSupport()).unsupported) return;
     if ((await currentNetworkType()) !== 'wifi') return;
     if (tts || readyPromise) return;
@@ -161,7 +161,7 @@ export function keyFor(text: string, preset = cfg.preset, speed = cfg.speed, lan
     text,
     locale: lang,
     preset,
-    variant: cfg.variant,
+    variant: activeVariant(),
     steps: cfg.steps,
     speed,
   });
@@ -177,7 +177,7 @@ async function styleFor(preset?: string): Promise<{ voice: any; preset: string }
   const cached = styles.get(key);
   if (cached) return { voice: cached, preset: key };
   try {
-    const raw = await downloadVoiceStyle(cfg.variant, key);
+    const raw = await downloadVoiceStyle(activeVariant(), key);
     const loaded = loadVoiceStyleFromObjects([raw]);
     styles.set(key, loaded);
     return { voice: loaded, preset: key };
@@ -283,7 +283,7 @@ export function createQueueFor(scriptId: string, options: { cloud?: boolean; syn
     scriptId,
     locale: currentLanguage(),
     preset: cfg.preset,
-    variant: cfg.variant,
+    variant: activeVariant(),
     steps: cfg.steps,
     speed: cfg.speed,
   });

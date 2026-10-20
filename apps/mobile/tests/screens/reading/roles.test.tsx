@@ -29,7 +29,7 @@ jest.mock('@/lib/reading/tts/engine', () => ({
   ensureReady: jest.fn(),
   preview: jest.fn(),
 }));
-jest.mock('@/lib/reading/tts/assets', () => ({ assetsPresent: jest.fn() }));
+jest.mock('@/lib/reading/tts/assets', () => ({ activeVariant: () => 'fp32', assetsPresent: jest.fn() }));
 jest.mock('@/lib/reading/voice-samples', () => ({ cloudVoiceSampleUri: jest.fn() }));
 
 let appStateListeners: ((state: string) => void)[] = [];
