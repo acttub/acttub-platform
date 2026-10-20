@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import TabLayout from '@/app/(tabs)/_layout';
+import { setHomeTabBarHidden } from '@/components/ui/tab-bar';
 import { api } from '@/lib/api';
-import { setFirstTimeState } from '@/lib/practice/first-time';
 
 const mockRouter = { push: jest.fn() };
 
@@ -17,7 +17,7 @@ jest.mock('expo-router', () => {
       .filter((props) => props.options.href !== null);
     const [focused, setFocused] = useState(screens[0].name);
     const current = screens.find((s) => s.name === focused)!;
-    // 지금 탭의 화면 설정이 탭바 모양을 정한다(첫 사용자는 모든 탭에서 숨긴다).
+    // 지금 탭의 화면 설정이 탭바 모양을 정한다(홈 첫 사용자 화면은 홈 탭에서만 숨긴다).
     const barStyle = current.options.tabBarStyle ?? screenOptions.tabBarStyle;
     return (
       <View>
@@ -97,30 +97,17 @@ test('활성·비활성 모두 윤곽 아이콘이고 iOS 에서는 글자를 �
   expect(screen.getByText('아이콘 book-outline')).toBeOnTheScreen();
 });
 
-test('첫 사용자로 확인되면 모든 탭에서 탭바를 숨기고, 첫 연습을 하면 다시 보인다', async () => {
+test('홈 첫 사용자 화면이 숨기면 홈 탭에서만 탭바를 숨긴다', async () => {
   await render(<TabLayout />);
   expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
 
-  await act(async () => setFirstTimeState('first'));
+  await act(async () => setHomeTabBarHidden(true));
   expect(screen.getByText('탭바 숨김')).toBeOnTheScreen();
-  for (const name of ['코칭', '대본', '챌린지', '프로필', '홈']) {
-    await fireEvent.press(screen.getByRole('tab', { name }));
-    expect(screen.getByText('탭바 숨김')).toBeOnTheScreen();
-  }
 
-  await act(async () => setFirstTimeState('practiced'));
-  expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('tab', { name: '대본' }));
+  await fireEvent.press(screen.getByRole('tab', { name: '코칭' }));
   expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
 
-  await act(async () => setFirstTimeState('unknown'));
-});
-
-test('첫 사용자인지 아직 모르면(홈을 거치지 않고 다른 탭으로 바로 들어온 경우) 탭바를 보인다', async () => {
-  await render(<TabLayout />);
-  await fireEvent.press(screen.getByRole('tab', { name: '챌린지' }));
-
-  expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
+  await act(async () => setHomeTabBarHidden(false));
 });
 
 test('읽지 않은 알림 묶음이 있으면 챌린지 탭에 그 수를 단다', async () => {

@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ReadingList from '@/app/(tabs)/reading';
-import { setFirstTimeState } from '@/lib/practice/first-time';
 import { SpotlightHost } from '@/components/spotlight-guide';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { ApiError } from '@/lib/api-request';
@@ -10,7 +9,7 @@ import { deleteScript, listScripts, loadIntoCurrent, updateScriptMeta } from '@/
 import type { ScriptCard } from '@/lib/reading/types';
 import { currentTutorial, endTutorial, startTutorial } from '@/lib/tutorial';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), navigate: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 let mockFocusEffect: () => void | (() => void) = () => undefined;
 
 jest.mock('expo-router', () => {
@@ -344,30 +343,5 @@ describe('처음 온 사람', () => {
     startTutorial('own', 'practice');
     await act(async () => void mockFocusEffect());
     expect(currentTutorial()).toEqual({ mode: 'own', track: 'practice' });
-  });
-});
-
-describe('첫 사용자라 탭바가 숨으면', () => {
-  afterEach(() => setFirstTimeState('unknown'));
-
-  test('머리에 홈으로 돌아가는 꺾쇠를 둔다', async () => {
-    setFirstTimeState('first');
-    await render(<ReadingList />);
-    await screen.findByText('옥상 장면');
-
-    const back = screen.getByRole('button', { name: '뒤로' });
-    expect(back.props['ph-label']).toBe('reading_back_home');
-    await fireEvent.press(back);
-    expect(mockRouter.navigate).toHaveBeenCalledWith('/');
-  });
-
-  test('탭바가 보이면(연습했거나 아직 모르면) 꺾쇠를 두지 않는다', async () => {
-    setFirstTimeState('practiced');
-    await render(<ReadingList />);
-    await screen.findByText('옥상 장면');
-    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
-
-    await act(async () => setFirstTimeState('unknown'));
-    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
   });
 });

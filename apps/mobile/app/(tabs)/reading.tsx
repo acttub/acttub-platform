@@ -14,9 +14,7 @@ import { currentTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
-import { NavIconButton } from '@/components/ui/nav-header';
 import { IconOptionRow } from '@/components/ui/option-card';
-import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
@@ -39,7 +37,6 @@ const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guid
 
 export default function ReadingList() {
   const router = useRouter();
-  const firstTime = useFirstTimeUser();
   const insets = useSafeAreaInsets();
   const cloudVoice = useCloudVoice();
   const refreshVoice = cloudVoice.refresh;
@@ -178,11 +175,7 @@ export default function ReadingList() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 110 }]}
       keyboardShouldPersistTaps="handled">
       <View style={styles.head}>
-        {/* 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로 돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
-        {firstTime && (
-          <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="reading_back_home" onPress={() => router.navigate('/')} />
-        )}
-        <Text style={[styles.h1, styles.h1Grow]}>{empty ? t('reading.tabTitle') : t('reading.listTitle')}</Text>
+        <Text style={styles.h1}>{empty ? t('reading.tabTitle') : t('reading.listTitle')}</Text>
         <View style={styles.headRight}>
           {!empty && (
             <Pressable
@@ -357,7 +350,6 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, minHeight: 53 },
   headRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   h1: { color: palette.text, fontSize: 24, fontWeight: '900', lineHeight: 34 },
-  h1Grow: { flex: 1 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
   newText: { color: palette.onAccent, fontSize: 14, fontWeight: '800' },
   voiceBar: {
