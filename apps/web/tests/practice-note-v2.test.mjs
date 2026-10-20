@@ -40,7 +40,6 @@ function note(overrides = {}) {
     corrections: [],
     tags: ["말끝"],
     fallback: false,
-    report: { cheer: "오늘 촬영도 수고했어요." },
     source_revision: 9,
     created_at: "2026-09-21T03:00:00Z",
     ...overrides,
