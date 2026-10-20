@@ -41,9 +41,11 @@ function readStore(): Record<string, ProgressRequest> {
   }
 }
 
-function writeStore(): void {
+// 기기 저장을 읽어 합쳐 쓴다. 이 페이지가 아직 이어 시도하지 않은 회차를 지우지 않기 위해서다. drop 은 끝난 회차다.
+function writeStore(drop?: string): void {
   try {
-    const out: Record<string, ProgressRequest> = {};
+    const out = readStore();
+    if (drop !== undefined) delete out[drop];
     for (const [id, p] of pending) out[id] = p.body;
     if (Object.keys(out).length === 0) webStorage("sessionStorage")?.removeItem(STORE_KEY);
     else webStorage("sessionStorage")?.setItem(STORE_KEY, JSON.stringify(out));
@@ -83,7 +85,7 @@ function attempt(sessionId: string, deps: CompletionDeps): void {
       // 닫힌 회차(409)·없는 회차(404)·규칙 위반 — 더 보내도 달라지지 않는다.
       pending.delete(sessionId);
     }
-    writeStore();
+    writeStore(sessionId);
     notify();
   }, p.retries === 0 ? 0 : Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** (p.retries - 1)));
 }
