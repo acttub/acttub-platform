@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
@@ -34,7 +35,7 @@ class PostgresCoachFlows implements CoachFlows {
     public String assign(CoachSessionSnapshot session) {
         if (session.userId() == null) return A;
         Object email = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:id")
-                .setParameter("id", session.userId()).getResultList().stream().findFirst().orElse(null);
+                .setParameter("id", session.userId()).getResultList().stream().filter(Objects::nonNull).findFirst().orElse(null);
         boolean advisor = email instanceof String text && advisors.containsKey(PostgresCoachPersonas.hash(text));
         if (!advisor) return byAccount(session.userId());
         Object[] counts = (Object[]) entityManager.createNativeQuery("""

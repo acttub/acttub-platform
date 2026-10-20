@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.acttub.actingapi.feature.coach.app.CoachPersonas;
@@ -44,7 +45,7 @@ class PostgresCoachPersonas implements CoachPersonas {
     public String assign(CoachSessionSnapshot session) {
         if (session.userId() == null || advisors.isEmpty()) return "";
         Object email = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:id")
-                .setParameter("id", session.userId()).getResultList().stream().findFirst().orElse(null);
+                .setParameter("id", session.userId()).getResultList().stream().filter(Objects::nonNull).findFirst().orElse(null);
         if (!(email instanceof String text)) return "";
         return advisors.getOrDefault(hash(text), "");
     }
