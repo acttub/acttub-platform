@@ -81,3 +81,25 @@ test("waiting or disabled sessions block shortcuts and keyboard submission", () 
     } finally { view.unmount(); }
   }
 });
+
+test("공백뿐인 답은 보낼 수 없고, 적은 글자 수를 300자 한도와 함께 보인다", () => {
+  const view = mount({ initial: "  " });
+  try {
+    assert.ok(view.text().includes("2 / 300"));
+    const send = [...view.input.ownerDocument.querySelectorAll("button")].find((node) => node.textContent === "보내기 →");
+    assert.equal(send.disabled, true);
+    react.act(() => view.input.dispatchEvent(new window.KeyboardEvent("keydown", {
+      key: "Enter", bubbles: true, cancelable: true,
+    })));
+    assert.deepEqual(view.sent, []);
+  } finally { view.unmount(); }
+});
+
+test("코치가 답을 쓰는 동안 보내기 자리에 그 사실을 알린다", () => {
+  const view = mount({ initial: "질문", sending: true });
+  try {
+    const labels = [...view.input.ownerDocument.querySelectorAll("button")].map((node) => node.textContent);
+    assert.ok(labels.includes("코치가 생각하고 있어요"));
+    assert.equal(view.input.disabled, true);
+  } finally { view.unmount(); }
+});

@@ -431,3 +431,24 @@ test("모르는 분류는 '그 밖에'로 모은다", () => {
 test("꿀팁이 없으면 빈 배열", () => {
   assert.deepEqual(groupTips([]), []);
 });
+
+// 지역·설립형태·분야·실기 종목을 아직 모르는 대학은 그 축의 필터를 켜면 빠지지만, 검색과
+// 선택지 계산에서는 빈 값 때문에 깨지지 않는다.
+test("값을 모르는 대학·공고는 그 축의 필터에서 빠지고 선택지에는 아무것도 보태지 않는다", () => {
+  const blank = {
+    updated_at: "2026-08-04",
+    disclaimer: "d",
+    universities: [
+      ...filterPayload.universities,
+      { id: "blank", name: "미확인예대", admission_url: "x" },
+    ],
+    notices: [...filterPayload.notices, { id: "b1", university_id: "blank" }],
+  };
+  const groups = groupByUniversity(blank);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ query: "미확인" }))), ["blank"]);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ types: ["univ"] }))), ["seoul-univ"]);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ disciplines: ["acting"] }))), ["seoul-univ"]);
+  assert.deepEqual(idsOf(filterGroups(groups, withFilters({ practicals: ["dance"] }))), ["gyeonggi-col"]);
+  assert.deepEqual(availableFacets(blank), availableFacets(filterPayload));
+  assert.equal(activeFilterCount(withFilters({ noCsatOnly: true, tracks: ["수시"] })), 2);
+});

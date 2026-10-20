@@ -159,3 +159,68 @@ test("빈 문자열·공백은 블록을 만들지 않는다", () => {
   assert.deepEqual(parseMarkdown(""), []);
   assert.deepEqual(parseMarkdown("\n\n  \n"), []);
 });
+
+test("본문이 없으면(null) 블록을 만들지 않는다", () => {
+  assert.deepEqual(parseMarkdown(null), []);
+});
+
+test("이어진 > 줄은 인용 하나로 합쳐지고, > 가 끊기면 인용도 끝난다", () => {
+  assert.deepEqual(parseMarkdown("> 첫 줄\n>둘째 줄\n이어지는 문단"), [
+    { type: "quote", spans: [{ text: "첫 줄 둘째 줄" }] },
+    { type: "paragraph", spans: [{ text: "이어지는 문단" }] },
+  ]);
+});
+
+test("하위 목록이 끝나고 바깥 깊이로 돌아오면 바깥 목록의 다음 항목이다", () => {
+  assert.deepEqual(parseMarkdown("- 바깥 하나\n  - 안쪽\n- 바깥 둘"), [
+    {
+      type: "list",
+      ordered: false,
+      items: [
+        item([{ text: "바깥 하나" }], [{ type: "list", ordered: false, items: [item([{ text: "안쪽" }])] }]),
+        item([{ text: "바깥 둘" }]),
+      ],
+    },
+  ]);
+});
+
+test("탭으로 들여쓴 줄도 하위 목록이다", () => {
+  assert.deepEqual(parseMarkdown("1. 조항\n\t- 세부"), [
+    {
+      type: "list",
+      ordered: true,
+      items: [item([{ text: "조항" }], [{ type: "list", ordered: false, items: [item([{ text: "세부" }])] }])],
+    },
+  ]);
+});
+
+test("항목 아래 들여쓴 설명 줄은 목록에 넣지 않고 문단으로 둔다", () => {
+  assert.deepEqual(parseMarkdown("- 항목\n  설명 문장"), [
+    { type: "list", ordered: false, items: [item([{ text: "항목" }])] },
+    { type: "paragraph", spans: [{ text: "설명 문장" }] },
+  ]);
+});
+
+test("항목 아래 들여쓴 --- 는 하위 목록이 아니라 구분선이다", () => {
+  assert.deepEqual(parseMarkdown("- 항목\n  ---"), [
+    { type: "list", ordered: false, items: [item([{ text: "항목" }])] },
+    { type: "rule" },
+  ]);
+});
+
+test("빈 표 칸도 칸 자리를 지킨다", () => {
+  assert.deepEqual(parseMarkdown("| 항목 | |\n| --- | --- |\n| 이메일 | |"), [
+    {
+      type: "table",
+      header: [[{ text: "항목" }], [{ text: "" }]],
+      rows: [[[{ text: "이메일" }], [{ text: "" }]]],
+    },
+  ]);
+});
+
+test("표 행 뒤에 구분선 모양 줄이 다시 오면 표는 거기서 끝난다", () => {
+  assert.deepEqual(parseMarkdown("| a | b |\n| --- | --- |\n| 1 | 2 |\n| --- | --- |"), [
+    { type: "table", header: [[{ text: "a" }], [{ text: "b" }]], rows: [[[{ text: "1" }], [{ text: "2" }]]] },
+    { type: "paragraph", spans: [{ text: "| --- | --- |" }] },
+  ]);
+});
