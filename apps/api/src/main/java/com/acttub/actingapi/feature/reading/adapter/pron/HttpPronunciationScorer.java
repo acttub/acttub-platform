@@ -73,7 +73,10 @@ public class HttpPronunciationScorer implements PronunciationScorer {
             }
             words.add(new Word(w.path("index").asInt(), w.path("word").asText(), w.path("number").asBoolean(), phones));
         }
-        return new Scored(new ScoredLine(root.path("scored_text").asText(null), words), root.path("model_version").asText(null));
+        JsonNode match = root.get("script_match");
+        Double scriptMatch = match == null || match.isNull() ? null : match.asDouble();
+        return new Scored(new ScoredLine(root.path("scored_text").asText(null), words, scriptMatch),
+                root.path("model_version").asText(null));
     }
 
     private static Integer intOrNull(JsonNode node) {
