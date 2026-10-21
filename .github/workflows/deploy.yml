@@ -355,8 +355,8 @@ jobs:
           THREE_LAYERS_ENABLED: 'true'
           DIRECT_VIDEO_ENABLED: 'true'
           GUEST_DAILY_LIMIT_ENABLED: ${{ needs.guard.outputs.environment == 'dev' && 'false' || 'true' }}
-          # 개인화 연습 알림(SOMA-720). dev만 켜고 운영은 승인 뒤 이 줄을 바꿔 켠다. 켜면 옛 저녁 8시 고정 알림은 보내지 않는다.
-          PRACTICE_REMINDER_ENABLED: ${{ needs.guard.outputs.environment == 'dev' && 'true' || 'false' }}
+          # 개인화 연습 알림(SOMA-720). dev·운영 모두 켠다. 켜면 옛 저녁 8시 고정 알림은 보내지 않는다. 끄려면 'false'로 바꿔 배포한다.
+          PRACTICE_REMINDER_ENABLED: 'true'
         run: |
           set -euo pipefail
           # shellcheck disable=SC2029

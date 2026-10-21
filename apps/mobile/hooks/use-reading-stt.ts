@@ -7,6 +7,7 @@ import { READING_STT_IOS_CATEGORY } from '@/lib/reading/ios-audio';
 import { restorePlaybackAudio } from '@/lib/reading/ios-audio-restore';
 import { sttPolicy, type SttPolicy } from '@/lib/reading/stt-policy';
 import { createRecordingTracker } from '@/lib/reading/stt-recordings';
+import { EMPTY_TRANSCRIPT, addResult, transcriptText, type SttTranscript } from '@/lib/reading/stt-transcript';
 import { DEFAULT_VAD, VAD_TICK_MS, createSilenceDetector, createVolumeFeed, type VadEvent } from '@/lib/reading/vad';
 
 /**
@@ -72,6 +73,7 @@ export function sttCanPersist(): boolean {
 
 export function useReadingStt(): SttHandle {
   const text = useRef('');
+  const pieces = useRef<SttTranscript>(EMPTY_TRANSCRIPT);
   const active = useRef(false);
   const volumeFeed = useRef<ReturnType<typeof createVolumeFeed> | null>(null);
   const ticker = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -101,10 +103,13 @@ export function useReadingStt(): SttHandle {
 
   useSpeechRecognitionEvent('result', (event) => {
     if (!active.current) return;
+    // 조각마다 덮어쓰면 긴 대사의 뒷부분만 남는다 — 앞 조각에 이어 붙인다(SOMA-606).
     const transcript = event.results[0]?.transcript?.trim() ?? '';
-    if (transcript) {
-      text.current = transcript;
-      callbacks.current?.onInterim(transcript);
+    pieces.current = addResult(pieces.current, transcript, !!event.isFinal);
+    const whole = transcriptText(pieces.current);
+    if (whole && whole !== text.current) {
+      text.current = whole;
+      callbacks.current?.onInterim(whole);
     }
     if (event.isFinal && settle.current) finishNow(text.current);
   });
@@ -140,6 +145,7 @@ export function useReadingStt(): SttHandle {
 
   const start = useCallback<SttHandle['start']>((next, options) => {
     text.current = '';
+    pieces.current = EMPTY_TRANSCRIPT;
     const persist = !!options?.persist && sttCanPersist();
     recordings.begin(persist);
     callbacks.current = next;
