@@ -46,6 +46,13 @@ public interface DirectVideoModel {
     boolean ready(Video video);
     String reply(Video video, List<Message> history, String instruction);
     /**
+     * 생각을 거의 하지 않고 쓴다(SOMA-780). 이미 쓴 코치 말을 짧게 다듬기처럼 판단이 단순한 호출용이다.
+     * 따로 지원하지 않는 구현은 {@link #reply} 와 같다.
+     */
+    default String replyLight(Video video, List<Message> history, String instruction) {
+        return reply(video, history, instruction);
+    }
+    /**
      * {@link #reply} 와 같은 답을 쓰면서 원문 조각을 쓰는 대로 넘긴다(코칭 스트리밍).
      * 스트리밍을 못 하는 구현은 다 쓴 답을 한 조각으로 넘긴다.
      */
