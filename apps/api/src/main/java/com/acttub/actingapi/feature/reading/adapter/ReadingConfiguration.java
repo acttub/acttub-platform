@@ -30,6 +30,8 @@ import com.acttub.actingapi.feature.reading.app.SessionRatingService;
 import com.acttub.actingapi.feature.reading.app.SessionRatingStore;
 import com.acttub.actingapi.feature.reading.app.SessionRepository;
 import com.acttub.actingapi.feature.reading.app.SessionService;
+import com.acttub.actingapi.feature.reading.app.VoiceModelService;
+import com.acttub.actingapi.feature.reading.app.VoiceModelStorage;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
@@ -65,6 +67,13 @@ class ReadingConfiguration {
             @Value("${READING_VOICE_MONTHLY_LINE_CAP:75000}") int monthlyCap) {
         return new CloudVoiceSettings(model, com.acttub.actingapi.integration.llm.ApiKeys.firstNonBlank(ttsKey, legacyKey),
                 freeUntil == null || freeUntil.isBlank() ? null : OffsetDateTime.parse(freeUntil), dailyCap, monthlyCap);
+    }
+
+    /** 리딩 기기 목소리 모델 fp16 묶음 위치(SOMA-747). 비우면 앱은 원본 fp32 를 받는다. */
+    @Bean
+    VoiceModelService voiceModelService(VoiceModelStorage storage,
+            @Value("${READING_VOICE_MODEL_PREFIX:}") String prefix) {
+        return new VoiceModelService(storage, prefix);
     }
 
     @Bean

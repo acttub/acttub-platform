@@ -165,7 +165,14 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
   const lines = [...detail.lines].sort((a, b) => a.ordinal - b.ordinal);
   const screenLines: ScriptLine[] = lines.map((line) =>
     line.kind === 'dialogue'
-      ? { type: 'dialogue', role: nameOf.get(line.character_id ?? '') ?? '', text: line.text }
+      ? {
+          type: 'dialogue',
+          role: nameOf.get(line.character_id ?? '') ?? '',
+          text: line.text,
+          // 줄별 말(SOMA-751). 서버가 준 줄에만 싣는다.
+          ...(line.lang ? { lang: line.lang } : {}),
+          ...(line.speech ? { speech: line.speech } : {}),
+        }
       : { type: line.kind, text: line.text },
   );
   const merged: DevicePrefs = { ...DEFAULT_PREFS, ...prefs };

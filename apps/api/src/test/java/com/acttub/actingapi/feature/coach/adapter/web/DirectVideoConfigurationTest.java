@@ -60,4 +60,31 @@ class DirectVideoConfigurationTest {
                     .doesNotHaveBean(com.acttub.actingapi.integration.observation.DirectVideoModel.class);
         });
     }
+
+    @Test void coachLatencyPartsAreOnByDefaultAndEachCanBeTurnedOff() {
+        runner.withPropertyValues("SITE_URL=https://acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true", "MONITORING_ENVIRONMENT=prod")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(com.acttub.actingapi.feature.analysis.app.DirectVideoWarmup.class);
+                    var hedge = context.getBean(com.acttub.actingapi.integration.observation.GeminiDirectVideoModel.Hedge.class);
+                    assertThat(hedge.classify()).isEqualTo(java.time.Duration.ofSeconds(6));
+                    assertThat(hedge.reply()).isEqualTo(java.time.Duration.ofSeconds(20));
+                    assertThat(hedge.stream()).as("스트리밍 다시 보내기는 첫 조각 12초").isEqualTo(java.time.Duration.ofSeconds(12));
+                    assertThat(context).as("올리기가 끝나면 첫 질문용 영상을 미리 준비한다")
+                            .hasSingleBean(com.acttub.actingapi.feature.video.app.VideoUploadWarmup.class);
+                    var cache = context.getBean(com.acttub.actingapi.feature.coach.app.CoachVideoCache.class);
+                    assertThat(cache.label(new com.acttub.actingapi.feature.coach.app.CoachVideoCache.Key(
+                            java.util.UUID.randomUUID(), "k", "e"))).startsWith("acttub-coach:prod:");
+                });
+        runner.withPropertyValues("SITE_URL=https://acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true",
+                        "ACTTUB_COACH_VIDEO_WARMUP=false", "ACTTUB_COACH_VIDEO_LABELS=false", "ACTTUB_COACH_HEDGE_REPLY_SECONDS=0",
+                        "ACTTUB_COACH_MODEL_B_SHARE=0")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(com.acttub.actingapi.feature.analysis.app.DirectVideoWarmup.class);
+                    assertThat(context.getBean(com.acttub.actingapi.integration.observation.GeminiDirectVideoModel.Hedge.class).reply())
+                            .isZero();
+                    assertThat(context.getBean(com.acttub.actingapi.feature.coach.app.CoachVideoCache.class).label(
+                            new com.acttub.actingapi.feature.coach.app.CoachVideoCache.Key(java.util.UUID.randomUUID(), "k", "e")))
+                            .isNull();
+                });
+    }
 }

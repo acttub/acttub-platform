@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState, type ReactElement } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ActionSheetCard, DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
@@ -31,7 +32,7 @@ type DialogState =
   | null;
 
 /**
- * OS 기본 Alert 대신 쓰는 앱 디자인 다이얼로그.
+ * OS 기본 Alert 대신 쓰는 앱 디자인 다이얼로그. 모양은 공통 부품 components/ui/dialog(pen Dialog/Confirm·ActionSheet).
  *
  * 기본 Alert는 안드로이드·iOS가 서로 다른 모양으로 그리고 앱 톤과 따로 논다.
  * 확인/경고는 가운데 카드, 선택지는 하단 시트로 통일한다.
@@ -90,56 +91,32 @@ export function useAppDialog() {
         ]}
         onPress={() => close(false)}>
         {state.kind === 'sheet' ? (
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            {!!state.options.title && <Text style={styles.sheetTitle}>{state.options.title}</Text>}
-            {state.options.actions.map((action, index) => (
-              <Pressable
-                key={action.label}
-                style={({ pressed }) => [
-                  styles.sheetItem,
-                  index > 0 && styles.sheetItemDivided,
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => {
+          <Pressable style={styles.full} onPress={(e) => e.stopPropagation()}>
+            <ActionSheetCard
+              title={state.options.title}
+              items={state.options.actions.map((action) => ({
+                label: action.label,
+                destructive: action.destructive,
+                onPress: () => {
                   close(true);
                   action.onPress?.();
-                }}>
-                <Text style={[styles.sheetItemText, action.destructive && styles.destructiveText]}>
-                  {action.label}
-                </Text>
-              </Pressable>
-            ))}
-            <Pressable
-              style={({ pressed }) => [styles.sheetCancel, pressed && styles.pressed]}
-              onPress={() => close(false)}>
-              <Text style={styles.sheetCancelText}>{state.options.cancelLabel ?? t('common.cancel')}</Text>
-            </Pressable>
+                },
+              }))}
+              cancelLabel={state.options.cancelLabel ?? t('common.cancel')}
+              onCancel={() => close(false)}
+            />
           </Pressable>
         ) : (
-          <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.title}>{state.options.title}</Text>
-            {!!state.options.message && (
-              <Text style={styles.message}>{state.options.message}</Text>
-            )}
-            <View style={styles.buttonRow}>
-              {state.kind === 'confirm' && (
-                <Pressable
-                  style={({ pressed }) => [styles.button, styles.cancel, pressed && styles.pressed]}
-                  onPress={() => close(false)}>
-                  <Text style={styles.cancelText}>{state.options.cancelLabel ?? t('common.cancel')}</Text>
-                </Pressable>
-              )}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.button,
-                  styles.confirm,
-                  state.kind === 'confirm' && state.options.destructive && styles.confirmDanger,
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => close(true)}>
-                <Text style={styles.confirmText}>{state.options.confirmLabel ?? t('common.confirm')}</Text>
-              </Pressable>
-            </View>
+          <Pressable style={styles.full} onPress={(e) => e.stopPropagation()}>
+            <DialogCard title={state.options.title} message={state.options.message}>
+              <DialogButtons
+                cancelLabel={state.kind === 'confirm' ? (state.options.cancelLabel ?? t('common.cancel')) : undefined}
+                onCancel={() => close(false)}
+                confirmLabel={state.options.confirmLabel ?? t('common.confirm')}
+                onConfirm={() => close(true)}
+                destructive={state.kind === 'confirm' && state.options.destructive}
+              />
+            </DialogCard>
           </Pressable>
         )}
       </Pressable>
@@ -152,62 +129,11 @@ export function useAppDialog() {
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 21, 37, 0.45)',
+    backgroundColor: palette.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 28,
   },
   backdropSheet: { justifyContent: 'flex-end', padding: 12 },
-  pressed: { opacity: 0.75 },
-
-  card: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: palette.card,
-    borderRadius: 22,
-    paddingHorizontal: 22,
-    paddingTop: 24,
-    paddingBottom: 18,
-  },
-  title: { fontSize: 17, fontWeight: '800', color: palette.text, textAlign: 'center' },
-  message: {
-    fontSize: 14,
-    color: palette.textDim,
-    lineHeight: 21,
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  buttonRow: { flexDirection: 'row', gap: 8, marginTop: 22 },
-  button: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  cancel: { backgroundColor: palette.bgSoft },
-  cancelText: { fontSize: 15, fontWeight: '700', color: palette.textDim },
-  confirm: { backgroundColor: palette.blue },
-  confirmDanger: { backgroundColor: palette.danger },
-  confirmText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
-
-  sheet: {
-    width: '100%',
-    backgroundColor: palette.card,
-    borderRadius: 20,
-    paddingVertical: 4,
-  },
-  sheetTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: palette.textFaint,
-    textAlign: 'center',
-    paddingVertical: 12,
-  },
-  sheetItem: { paddingVertical: 17, alignItems: 'center' },
-  sheetItemDivided: { borderTopWidth: 1, borderTopColor: palette.border },
-  sheetItemText: { fontSize: 16, fontWeight: '600', color: palette.text },
-  destructiveText: { color: palette.danger },
-  sheetCancel: {
-    marginTop: 8,
-    paddingVertical: 17,
-    alignItems: 'center',
-    backgroundColor: palette.bgSoft,
-    borderRadius: 16,
-  },
-  sheetCancelText: { fontSize: 16, fontWeight: '800', color: palette.textDim },
+  full: { width: '100%', alignItems: 'center' },
 });

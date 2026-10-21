@@ -53,7 +53,7 @@ export default function BlockedUsersScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="blocked_users_back">
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <Text style={styles.title}>{t('block.title')}</Text>

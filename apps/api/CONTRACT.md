@@ -679,6 +679,10 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   대본·리딩 회차·리딩 녹음·암기 상태의 생성·갱신 시각으로 판정한다(`PostgresEveningReminderRepository#claimTargets`).
   `evening_reminder_sends(user_id, day)` 를 먼저 선점해 같은 날 두 번 보내지 않는다. 실패는 보고하고
   `DeviceNotRegistered` 토큰은 지운다.
+- **개인화 연습 알림**(`PracticeReminderScheduler` → `PracticeReminderService#sendDue`, V47, SOMA-720): `PRACTICE_REMINDER_ENABLED=true` 일 때만 서고
+  `EveningReminderScheduler` 는 그때 서지 않는다(`@ConditionalOnExpression`). 후보·연속 일수·이어 하기·숙제는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
+  보낼 자리는 `practice_reminder_sends(user_id, day, slot)` 를 data-modifying CTE 로 먼저 선점해(§5-8 ④) 겹쳐 돌아도 한 번만 보낸다. 모델을 부르지 않는다.
+  탈퇴·게스트 파기는 이 표를 직접 지운다(`PostgresProfileRepository`). 시각·연속 일수·문구 선택은 `PracticeReminderPolicy`·`ReminderContent`·`ReminderTemplates` 순수 코드다.
 
 ### 6-11. 포트폴리오
 
@@ -888,7 +892,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
   나누기는 늘 403 `script_split_consent_required` 다.
 - 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
-  `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING` 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
+  `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
   실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
   본다 — 모델이 판마다 다르게 읽는 자리가 있어 묶음마다 90% 를 하한으로 둔다.
@@ -993,6 +997,12 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     공백뿐이면 NULL 이다(`PracticeRules.title`). 이어하기는 제목을 받지 않고(DTO 에 칸이 없어 unknown key 422, §6-3) 새 행의
     title 은 NULL 이다. **지문에는 제목이 있을 때만 붙인다** — 제목 없는 요청의 지문이 이 변경 전과 같아야 배포를 걸친 재전송이
     `request_fingerprint_mismatch` 로 바뀌지 않는다.
+  - **세션 목적**(`PracticeCreateRequest.session_purpose`, SOMA-719)은 `evaluate`·`stuck`·`character` 중 하나이고, 첫 행의
+    `practices.session_purpose`(V46, NULL 허용 + CHECK)에 회차와 같은 INSERT 로 들어간다. 다른 값·공백은 422 배열(`@Pattern`)이다.
+    이어하기는 목적을 받지 않고 새 행에 묶음 첫 행의 목적을 COALESCE 로 물려준다. 지문에는 목적이 있을 때만 붙인다(제목과 같은 까닭).
+    목적이 NULL 인 회차(옛 앱)는 코치가 지금 연습 루프 그대로다. 목적이 있으면 코치는 `feature/coach/app/PurposeLoop` 의 목적별
+    단계표를 타고, 대화 응답 `CoachConversation.purpose` 에 답 버튼·AI가 본 장면·받아 적은 대사·결과 카드·인물 카드를 싣는다
+    ([practice.coach 「목적별 코칭」](../../docs/specs/practice/coach.md#목적별-코칭-soma-719)).
   - **회차의 포스터**(`Practice.poster_url`, SOMA-671): 회차 SELECT 가 `videos` 를 LEFT JOIN 해 `purged_at IS NULL` 인 영상의
     `poster_key` 만 읽는다(옛 표 호환 읽기도 같은 규칙). 서명은 `practice/app/PracticePosters` 포트 →
     `adapter/storage/ObjectStoragePracticePosters` 이고 보관함과 같은 10분(`PracticeRules.POSTER_URL_TTL_SECONDS`)이다.
@@ -1377,6 +1387,17 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 팀(`ADMIN_OPS_EXCLUDE_EMAILS`·`exclude_actors`)이 쓴 댓글과 팀 참여작의 댓글도 빼지 않고 `actor_is_team`·
   `entry_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은 `Cache-Control: private, no-store`다.
   live 운영 조회 전용이며, 저장되는 `ops-core`에는 댓글 본문을 넣지 않는다.
+
+### 6-28. 리딩 녹음 코치 (실험, SOMA-791)
+
+- 스위치 `ACTTUB_RECORDING_COACH_ENABLED=true` 일 때만 서비스·경로(`/v2/recording-coaches`)가 생기는 조건부 빈이다. 관리용
+  경로처럼 OpenAPI 스냅샷(`spec/openapi.json`)과 웹 생성 타입에 들지 않는다. 행동 계약은
+  [reading.recording-coach](../../docs/specs/reading/recording-coach.md)가 정본이고, `ReadingRecordingCoachIT`(스위치 켬)가 지킨다.
+- 표 `reading_recording_coaches`(V48)는 native SQL 만 쓴다(Schema Entity 없음). 회차마다 한 행(`uq_reading_recording_coaches_session`),
+  회차·사람 ON DELETE CASCADE. 넣기는 `INSERT … SELECT FROM reading_sessions WHERE id AND user_id … ON CONFLICT DO NOTHING` 로
+  소유권과 겹친 요청을 한 문장에서 가른다.
+- 모델 호출(저장소에서 녹음 받기 포함)은 트랜잭션 밖이다(§5-4). 모델은 @Primary 코칭 키 클라이언트와
+  `ACTTUB_RECORDING_COACH_MODEL`(비면 `GEMINI_MODEL`)을 쓴다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

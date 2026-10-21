@@ -45,7 +45,7 @@ public final class CloudVoiceService {
 
     public Result synthesize(UUID userId, String rawText, String preset) {
         String text = rawText == null ? "" : rawText.trim();
-        String voice = VOICES.get(preset);
+        String voice = preset == null ? null : VOICES.get(preset);
         if (text.isEmpty() || text.length() > 500 || voice == null) throw new ApiException(400, "invalid_voice_request");
         if (!available()) throw unavailable(null);
         if (!"granted".equals(repository.consent(userId))) throw new ApiException(403, "cloud_voice_consent_required");

@@ -300,6 +300,87 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     @Test
+    void practiceNoteCardsShowWhetherThePracticeWasChosenAndCardsWithoutATitleAreSkipped() {
+        UUID userId = insertUser("note-history@example.com");
+        UUID parent = insertPractice(userId);
+        setCreatedAt(parent, NOW.minusDays(3));
+        insertCardJson(parent, insertCoach(parent, "closed", NOW.minusDays(3)), practiceNote(
+                "노트 제목", "selected", "손을 쥐고 다시", "not_tried"), NOW.minusDays(3));
+        UUID untitled = insertPractice(userId, parent);
+        setCreatedAt(untitled, NOW.minusDays(2));
+        insertCardJson(untitled, insertCoach(untitled, "closed", NOW.minusDays(2)), practiceNote(
+                " ", "selected", "제목 없는 노트", "not_tried"), NOW.minusDays(2));
+        UUID proposed = insertPractice(userId, parent);
+        setCreatedAt(proposed, NOW.minusDays(1));
+        insertCardJson(proposed, insertCoach(proposed, "closed", NOW.minusDays(1)), practiceNote(
+                "둘째 노트", "proposed", "시선을 먼저", "not_tried"), NOW.minusDays(1));
+        UUID fresh = insertPractice(userId, parent);
+
+        var context = repository.priorContext(userId, fresh, OPERATION);
+
+        assertThat(context.sceneHistory()).containsExactly(
+                "1차(8/15): 노트 제목 — 선택한 연습: 손을 쥐고 다시",
+                "2차(8/17): 둘째 노트 — 제안: 시선을 먼저");
+    }
+
+    @Test
+    void onlyAChosenPracticeWhoseLatestAttemptWasNotTriedIsPending() {
+        UUID userId = insertUser("note-pending@example.com");
+        UUID notTried = insertPractice(userId);
+        insertCardJson(notTried, insertCoach(notTried, "closed", NOW), """
+                {"schema_version":"acttub.practice_note.v1","copy":{"title":"노트"},
+                 "practice":{"selection":"selected","proposal_id":"p1","instruction":{"text":"손을 쥐고 다시"}},
+                 "attempts":[{"proposal_id":"p0","execution":"not_tried"},
+                             {"proposal_id":"p1","execution":"tried"},
+                             {"proposal_id":"p1","execution":"not_tried"}]}
+                """, NOW);
+        UUID tried = insertPractice(userId);
+        insertCardJson(tried, insertCoach(tried, "closed", NOW), practiceNote(
+                "노트", "selected", "이미 해 봄", "tried"), NOW);
+        UUID neverAttempted = insertPractice(userId);
+        insertCardJson(neverAttempted, insertCoach(neverAttempted, "closed", NOW), """
+                {"schema_version":"acttub.practice_note.v1","copy":{"title":"노트"},
+                 "practice":{"selection":"selected","proposal_id":"p1","instruction":{"text":"시도 없음"}},
+                 "attempts":[]}
+                """, NOW);
+        UUID onlyProposed = insertPractice(userId);
+        insertCardJson(onlyProposed, insertCoach(onlyProposed, "closed", NOW), practiceNote(
+                "노트", "proposed", "제안만 함", "not_tried"), NOW);
+
+        assertThat(repository.priorContext(userId, notTried).pendingTakes()).containsExactly("손을 쥐고 다시");
+        assertThat(repository.priorContext(userId, tried).pendingTakes()).isEmpty();
+        assertThat(repository.priorContext(userId, neverAttempted).pendingTakes()).isEmpty();
+        assertThat(repository.priorContext(userId, onlyProposed).pendingTakes()).isEmpty();
+    }
+
+    @Test
+    void legacyCardPendingTakesIncludeUntestedTrainingAndSkipBlankDirections() {
+        UUID userId = insertUser("legacy-training@example.com");
+        UUID practiceId = insertPractice(userId);
+        insertCardJson(practiceId, insertCoach(practiceId, "closed", NOW), """
+                {"report_type":"analysis","title":"카드",
+                 "next_take":{"direction":"  ","tested":false},
+                 "actor_training":[{"title":" 호흡 훈련 ","tested":false},{"title":"이미 함","tested":true},
+                                   {"title":7,"tested":false},"문자열"]}
+                """, NOW);
+
+        assertThat(repository.priorContext(userId, practiceId).pendingTakes()).containsExactly("호흡 훈련");
+    }
+
+    @Test
+    void testedNextTakeIsNotAddedToTheSceneHistoryLine() {
+        UUID userId = insertUser("tested-history@example.com");
+        UUID parent = insertPractice(userId);
+        setCreatedAt(parent, NOW.minusDays(3));
+        insertCardJson(parent, insertCoach(parent, "closed", NOW.minusDays(3)), """
+                {"report_type":"analysis","title":"해 본 방향","next_take":{"direction":"이미 해 봄","tested":true}}
+                """, NOW.minusDays(3));
+        UUID fresh = insertPractice(userId, parent);
+
+        assertThat(repository.priorContext(userId, fresh).sceneHistory()).containsExactly("1차(8/15): 해 본 방향");
+    }
+
+    @Test
     void aHiddenPracticesConversationDoesNotComeBack() {
         // 배우가 지운 연습의 대화가 새 연습에서 되살아나면 안 된다.
         UUID userId = insertUser("hidden@example.com");
@@ -364,6 +445,18 @@ class PostgresMemoryRepositoryPriorIT {
     }
 
     @Test
+    void agentCannotWriteActorOnlyOrRetiredLegacyFields() {
+        UUID userId = insertUser("agent-actor-only@example.com");
+        UUID practiceId = insertPractice(userId);
+
+        assertThat(repository.writeAsAgent(userId, ActorMemoryField.GENDER, "추론한 성별", practiceId)).isNull();
+        assertThat(repository.writeAsAgent(userId, ActorMemoryField.SPEECH_ACTUAL, "추론한 화법", practiceId)).isNull();
+        assertThat(repository.writeAsAgent(userId, ActorMemoryField.GOAL, "추출된 목표", practiceId))
+                .isEqualTo(new com.acttub.actingapi.feature.memory.app.MemoryEntry("goal", "추출된 목표", false, practiceId));
+        assertThat(repository.list(userId)).extracting(entry -> entry.field()).containsExactly("goal");
+    }
+
+    @Test
     void memoryUpdateMaterialKeepsTranscriptOrderAndOnlyActorTurns() {
         UUID userId = insertUser("memory-material@example.com");
         UUID practiceId = insertPractice(userId);
@@ -410,6 +503,14 @@ class PostgresMemoryRepositoryPriorIT {
                     practice_session_id,report_type,report_json,source_handoff_id,created_at
                 ) VALUES (?, 'analysis', ?::jsonb, ?, ?)
                 """, practiceId, reportJson, handoffId, at);
+    }
+
+    private static String practiceNote(String title, String selection, String instruction, String execution) {
+        return """
+                {"schema_version":"acttub.practice_note.v1","copy":{"title":"%s"},
+                 "practice":{"selection":"%s","proposal_id":"p1","instruction":{"text":"%s"}},
+                 "attempts":[{"proposal_id":"p1","execution":"%s"}]}
+                """.formatted(title, selection, instruction, execution);
     }
 
     private void assertNewUnexpectedReport(int reportsBefore, String location) {

@@ -13,11 +13,13 @@ import { UNTITLED_PRACTICE } from "./practice-groups";
 export const MAX_SUMMARY_QUOTES = 2;
 
 /** 제안이 없는 노트가 그 자리에 두는 말. 없는 것을 지어내지 않는다. */
-export const NO_NEXT_TAKE_COPY = "이번에는 다음 촬영 과제를 정하지 않았어요";
+export const NO_NEXT_TAKE_COPY = "이번에는 다음 촬영에서 해볼 것을 정하지 않았어요.";
 /** 초점 없이 끝난 회차 */
 export const RECORD_ONLY_COPY = "오늘 나눈 것만 남겼어요";
 /** 생성이 거듭 실패해 확인된 것만 담은 노트 */
 export const FALLBACK_NOTICE = "대화에서 확인한 것만 남겼어요";
+/** 노트 끝의 응원. 모델 출력이 아니라 고정 문구다(스펙 note.md). */
+export const CHEER_COPY = "오늘 촬영도 수고했어요. 다음 촬영도 응원할게요.";
 
 /** 새 노트 봉투인가. format 으로 기존·신형 내용을 구분한다. */
 export function isNoteV2(report: unknown): report is PracticeNote {
@@ -74,10 +76,6 @@ export function reportTypeOf(
 /** 되돌아갈 대화가 없는 노트인가(막힌 대화). 신형 노트에는 이 자리가 없다. */
 export function isBlockedReport(report: { report_type?: string } | PracticeNote): boolean {
   return !isNoteV2(report) && ("report_type" in report ? report.report_type : undefined) === "blocked";
-}
-
-export function noteCheer(note: PracticeNote): string {
-  return note.report && "cheer" in note.report && typeof note.report.cheer === "string" ? note.report.cheer.trim() : "";
 }
 
 /** 기존 갈래는 봉투 안에 보존된 공개 원문으로 그린다. */

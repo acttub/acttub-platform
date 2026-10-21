@@ -8,6 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { RecordModeSlider } from '@/components/record-mode-slider';
+import { CoachNotice } from '@/components/ui/coach-notice';
+import { BackOnlyHeader } from '@/components/ui/step-header';
 import { palette } from '@/constants/palette';
 import { keepDeviceFile } from '@/lib/account-files';
 import { formatClipDuration } from '@/lib/archive-format';
@@ -77,6 +79,8 @@ export default function RecordVideoScreen() {
   const [lineHidden, setLineHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
+  // 셔터를 누른 시각. 끝날 때의 콜백이 녹화 시작 때 잡혀 elapsed state 로는 길이를 알 수 없다.
+  const startedAtRef = useRef(0);
   const { alert, dialog } = useAppDialog();
   const { user } = useAuth();
   // 권한 요청은 화면에 들어오자마자 한 번만 — OS 팝업이 곧바로 뜬다.
@@ -239,7 +243,8 @@ export default function RecordVideoScreen() {
         void keepDeviceFile(uri);
         setRecordedVideo({
           uri,
-          durationMs: elapsed > 0 ? elapsed * 1000 : null,
+          // 카메라가 켜지는 지연만큼 길게 재므로 네이티브가 멈추는 상한을 넘기지 않는다.
+          durationMs: Math.min(Date.now() - startedAtRef.current, maxSec * 1000),
           name: `recording-${Date.now()}.mov`,
         });
         goNext();
@@ -247,13 +252,14 @@ export default function RecordVideoScreen() {
       }
       router.back();
     },
-    [elapsed, goNext, router],
+    [goNext, maxSec, router],
   );
 
   const startRecording = useCallback(async () => {
     if (!cameraRef.current || recording) return;
     setRecording(true);
     setElapsed(0);
+    startedAtRef.current = Date.now();
     try {
       // maxDuration 으로 상한에서 네이티브가 스스로 멈춘다 — resolve 되면 결과를 넘긴다.
       const result = await cameraRef.current.recordAsync({ maxDuration: maxSec });
@@ -290,31 +296,27 @@ export default function RecordVideoScreen() {
       // 픽커의 duration 은 플랫폼마다 초/밀리초가 섞여 온다 — 업로드 화면과 같은 정규화를 쓴다.
       durationMs: normalizeVideoDurationMs(asset.duration ?? null),
       name: asset.fileName ?? `video-${Date.now()}.mp4`,
+      source: 'gallery',
     });
     goNext();
   }, [goNext, isChallenge]);
 
   // 권한이 아직 없으면 화면 안에서 직접 묻는다 — 닫기·권한 버튼이 늘 보인다.
+  // 모양은 pen 「카메라와 마이크가 필요해요」(SOMA-748) — 흰 바탕 한 장, 거절됐으면 설정 열기·닫기.
   if (!ready) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.topRow}>
-          <Pressable style={styles.closeBtn} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('common.close')}>
-            <Feather name="x" size={22} color="#FFFFFF" />
-          </Pressable>
-        </View>
+      <SafeAreaView style={styles.permSafe}>
+        <BackOnlyHeader onBack={() => router.back()} />
         {camPerm && micPerm && (
-          <View style={styles.permBox}>
-            <Feather name="video" size={34} color="#FFFFFF" />
-            <Text style={styles.permTitle}>{t('record.permissionTitle')}</Text>
-            <Text style={styles.permBody}>{t('record.permissionBody')}</Text>
-            <Pressable
-              style={styles.permBtn}
-              onPress={() => (blocked ? void Linking.openSettings() : void askPermissions())}
-              accessibilityRole="button">
-              <Text style={styles.permBtnText}>{t(blocked ? 'record.openSettings' : 'record.permissionAllow')}</Text>
-            </Pressable>
-          </View>
+          <CoachNotice
+            title={t('record.permissionTitle')}
+            body={blocked ? t('record.deniedBody') : t('record.permissionBody')}
+            primary={{
+              label: t(blocked ? 'record.deniedOpen' : 'record.permissionAllow'),
+              onPress: () => (blocked ? void Linking.openSettings() : void askPermissions()),
+            }}
+            secondary={{ label: t('common.close'), onPress: () => router.back() }}
+          />
         )}
         {dialog}
       </SafeAreaView>
@@ -334,7 +336,13 @@ export default function RecordVideoScreen() {
         <SafeAreaView style={styles.overlay} pointerEvents="box-none">
           <View>
             <View style={styles.chTopRow}>
-              <Pressable style={styles.closeBtn} onPress={() => router.back()} disabled={recording} accessibilityRole="button">
+              <Pressable
+                style={styles.closeBtn}
+                onPress={() => router.back()}
+                disabled={recording}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+                ph-label="record_close">
                 <Feather name="x" size={22} color="#FFFFFF" />
               </Pressable>
               <View style={[styles.timerPill, recording && styles.timerPillRec]}>
@@ -348,7 +356,9 @@ export default function RecordVideoScreen() {
               ) : (
                 <Pressable
                   style={styles.closeBtn}
+                  accessibilityRole="button"
                   accessibilityLabel={t('record.flip')}
+                  ph-label="record_flip"
                   onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
                   <Feather name="refresh-cw" size={20} color="#FFFFFF" />
                 </Pressable>
@@ -371,17 +381,24 @@ export default function RecordVideoScreen() {
 
           <View style={styles.bottomGroup}>
             <View style={styles.chBottomRow}>
-              <Pressable style={styles.sideBtn} onPress={() => void pickFromGallery()} disabled={recording} accessibilityRole="button">
+              <Pressable
+                style={styles.sideBtn}
+                onPress={() => void pickFromGallery()}
+                disabled={recording}
+                accessibilityRole="button"
+                ph-label="record_gallery">
                 <Feather name="image" size={24} color="#FFFFFF" />
                 <Text style={styles.sideLabel}>{t('record.upload')}</Text>
               </Pressable>
               <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={recording ? t('record.stop') : t('record.start')}
+                ph-label="record_shutter"
                 onPress={() => (recording ? stopRecording() : void startRecording())}
                 style={[styles.shutter, recording && styles.shutterRecording]}>
                 <View style={recording ? styles.shutterInnerStop : styles.shutterInnerRed} />
               </Pressable>
-              <Pressable style={styles.sideBtn} onPress={() => setLineHidden((v) => !v)} accessibilityRole="button">
+              <Pressable style={styles.sideBtn} onPress={() => setLineHidden((v) => !v)} accessibilityRole="button" ph-label="record_toggle_line">
                 <Feather name={lineHidden ? 'eye-off' : 'eye'} size={24} color="#FFFFFF" />
                 <Text style={styles.sideLabel}>{t(lineHidden ? 'record.showLine' : 'record.hideLine')}</Text>
               </Pressable>
@@ -392,6 +409,7 @@ export default function RecordVideoScreen() {
             {slider}
           </View>
         </SafeAreaView>
+        {dialog}
       </View>
     );
   }
@@ -416,7 +434,12 @@ export default function RecordVideoScreen() {
               </Text>
             </View>
           ) : (
-            <Pressable style={styles.closeBtn} onPress={() => router.back()}>
+            <Pressable
+              style={styles.closeBtn}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close')}
+              ph-label="record_close">
               <Text style={styles.closeText}>✕</Text>
             </Pressable>
           )}
@@ -431,13 +454,17 @@ export default function RecordVideoScreen() {
             ) : (
               <Pressable
                 style={styles.flipBtn}
+                accessibilityRole="button"
                 accessibilityLabel={t('record.flip')}
+                ph-label="record_flip"
                 onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
                 <Text style={styles.flipIcon}>⟲</Text>
               </Pressable>
             )}
             <Pressable
+              accessibilityRole="button"
               accessibilityLabel={recording ? t('record.stop') : t('record.start')}
+              ph-label="record_shutter"
               onPress={() => (recording ? stopRecording() : void startRecording())}
               style={[styles.shutter, recording && styles.shutterRecording]}>
               <View style={recording ? styles.shutterInnerStop : styles.shutterInner} />
@@ -447,17 +474,14 @@ export default function RecordVideoScreen() {
           {slider}
         </View>
       </SafeAreaView>
+      {dialog}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#000' },
-  permBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 80, gap: 12 },
-  permTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', textAlign: 'center' },
-  permBody: { color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 21, textAlign: 'center' },
-  permBtn: { marginTop: 8, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 22, paddingVertical: 13 },
-  permBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  permSafe: { flex: 1, backgroundColor: palette.bg },
   camera: { ...StyleSheet.absoluteFillObject },
   overlay: { flex: 1, justifyContent: 'space-between' },
   topRow: { flexDirection: 'row', justifyContent: 'flex-start', padding: 16 },

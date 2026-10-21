@@ -278,7 +278,8 @@ class ScriptController {
                         character.id(), character.name(), character.order(), character.voicePreset(),
                         character.voice(), character.gender(), character.ageBand(), character.dialogueCount())).toList(),
                 view.lines().stream().map(line -> new LineResponse(
-                        line.id(), line.ordinal(), line.kind(), line.characterId(), line.text(), line.dialogueNo()))
+                        line.id(), line.ordinal(), line.kind(), line.characterId(), line.text(), line.dialogueNo(),
+                        line.lang(), line.speech()))
                         .toList(),
                 view.scenes().stream().map(scene -> new SceneResponse(
                         scene.no(), scene.title(), scene.startLineId(), scene.endLineId(), scene.dialogueCount()))

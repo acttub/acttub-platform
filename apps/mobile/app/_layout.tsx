@@ -23,7 +23,9 @@ import { initMetaSdk } from '@/lib/meta-events';
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
+import { api } from '@/lib/api';
 import { installNavigationGuard } from '@/lib/navigation-guard';
+import { setVoiceModelSource } from '@/lib/reading/tts/assets';
 import { tabBackTitle } from '@/lib/tab-back-title';
 import { AppHeader } from '@/components/app-header';
 import { HeaderBack } from '@/components/header-back';
@@ -63,6 +65,8 @@ void flushPendingPushTokenDeletions();
 void sweepDeviceFiles();
 // 버튼을 연달아 눌러도 같은 화면이 한 번만 열리고, 뒤로 가기는 한 화면만 닫힌다(lib/navigation-guard.ts).
 installNavigationGuard(router);
+// 리딩 기기 목소리 모델은 서버가 주는 fp16 묶음 주소로 받는다(SOMA-747). 못 받으면 원본 fp32.
+setVoiceModelSource(() => api.getVoiceModel());
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -363,6 +367,10 @@ function RootNavigator() {
                 // 뒤로 가기를 붙잡았다 다시 보내는 화면(예시 코치)이 닫힐 때 네이티브 헤더가 그 버튼을 두 번 붙이려다
                 // 앱이 꺼졌다(SOMA-665). 0.1.3 처럼 헤더에 우리 조각을 넣지 않으면 그 길을 타지 않는다.
                 headerBackIcon: { type: 'image', source: require('@/assets/images/header-back.png') },
+                // pen NavHeader(SOMA-748) — 가운데 제목 17/700, 아래 줄 없음. iOS 의 AppHeader 와 모양을 맞춘다.
+                headerTitleAlign: 'center',
+                headerShadowVisible: false,
+                headerTitleStyle: { fontSize: 17, fontWeight: '700', color: palette.text },
               }
         }>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />

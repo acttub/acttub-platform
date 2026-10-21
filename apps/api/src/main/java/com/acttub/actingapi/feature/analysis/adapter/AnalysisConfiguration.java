@@ -42,9 +42,12 @@ class AnalysisConfiguration {
             SpeechAnalyzer speech,
             FailureReporter failureReporter,
             com.acttub.actingapi.integration.observation.VideoRecordAnalyzer videoRecords,
-            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.observation.DirectVideoModel> directVideo) {
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.observation.DirectVideoModel> directVideo,
+            // 코치가 첫 질문용 영상을 미리 올린다(SOMA-780). 코칭이 꺼진 배포에는 없다.
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.analysis.app.DirectVideoWarmup> warmup) {
         AnalysisProcessor analyzer = new SummaryAnalyzer(durationProbe, compressor, observations, speech, failureReporter, videoRecords);
         return directVideo.getIfAvailable() == null ? analyzer
-                : new com.acttub.actingapi.feature.analysis.app.DirectVideoPreparation(durationProbe, analyzer);
+                : new com.acttub.actingapi.feature.analysis.app.DirectVideoPreparation(durationProbe, analyzer,
+                        warmup.getIfAvailable(() -> com.acttub.actingapi.feature.analysis.app.DirectVideoWarmup.NONE));
     }
 }

@@ -287,6 +287,24 @@ class PosterEndpointIT {
     }
 
     @Test
+    void adminPatchBodyMustBeAnObjectAndBumpRevisionABoolean() throws Exception {
+        String id = json(admin(post("/v2/admin/posters"), "{\"slug\":\"shape\",\"title\":\"t\"}"), 201)
+                .path("id").textValue();
+
+        assertThat(json(admin(patch("/v2/admin/posters/" + id), "[\"title\"]"), 422)).isEqualTo(mapper.readTree("""
+                {"detail":[{"type":"value_error","loc":["body"],"msg":"Value error, body must be an object",
+                  "input":["title"],"ctx":{"error":{}}}]}
+                """));
+        assertThat(json(admin(patch("/v2/admin/posters/" + id), "{\"bump_revision\":\"yes\"}"), 422))
+                .isEqualTo(mapper.readTree("""
+                        {"detail":[{"type":"value_error","loc":["body","bump_revision"],
+                          "msg":"Value error, bump_revision must be a boolean","input":"yes","ctx":{"error":{}}}]}
+                        """));
+        assertThat(json(admin(patch("/v2/admin/posters/" + id), "{\"bump_revision\":false,\"title\":\"새 제목\"}"), 200)
+                .path("revision").asInt()).isEqualTo(1);
+    }
+
+    @Test
     void adminImageUploadReturnsAPosterKeyAndATenMinuteUploadUrl() throws Exception {
         JsonNode upload = json(admin(post("/v2/admin/poster-images"),
                 "{\"content_type\":\"image/webp\",\"size_bytes\":2048}"), 200);

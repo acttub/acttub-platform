@@ -26,7 +26,9 @@ final class DirectVideoPracticeLoop {
     private static final Pattern COACH = Pattern.compile("(?s)<코치>\\s*(.*?)\\s*(?:</코치>|$)");
     // 숨은 메모 태그 이름. 모델이 <생각> 대신 영어 <thought>·<think>로 쓰는 일이 있다(2026-10-11 00:59 운영, 배우 화면에 "<thought>"가 나갔다).
     private static final String THINKING_NAME = "(?:생각|thought|think|thinking)";
-    private static final Pattern STRAY_TAG = Pattern.compile("(?i)</?(?:설계|상태|코치|다음 테이크|" + THINKING_NAME + ")>");
+    private static final Pattern STRAY_TAG = Pattern.compile("(?i)</?(?:설계|상태|코치|다음 테이크|보기|카드|인물 카드|장면|" + THINKING_NAME + ")>");
+    /** 목적별 코칭(SOMA-719)의 숨은 칸. 서버가 응답의 버튼·결과 카드·인물 카드·장면으로 따로 내보내고 코치 말에서는 뗀다. 닫지 않았으면 끝까지 칸이다. */
+    static final Pattern PURPOSE_BLOCK = Pattern.compile("(?s)<(보기|카드|인물 카드|장면)>.*?(?:</\\1>|$)");
     // 둘째 응답부터 코치가 말하기 전에 적는 숨은 메모. 배우 화면·저장 대화에 넣지 않는다.
     private static final Pattern THINKING = Pattern.compile("(?is)<(" + THINKING_NAME + ")>.*?</\\1>");
     private static final Pattern THINKING_OPEN = Pattern.compile("(?i)<" + THINKING_NAME + ">");
@@ -36,6 +38,12 @@ final class DirectVideoPracticeLoop {
             "(?im)^\\s*(?:<" + THINKING_NAME + ">\\s*$|(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*$)\\R?");
     // 마무리2 에서 모델이 건넨 행동을 노트에 남기려고 쓰게 하는 숨은 줄. 배우에게는 보이지 않는다.
     private static final Pattern NEXT_TAKE_TAG = Pattern.compile("(?s)<다음 테이크>\\s*(.*?)\\s*</다음 테이크>");
+    /** 닫는 꺾쇠가 빠진 숨은 줄 끝("</다음 테이크"). 2026-10-21 재생: 정리 말에 "~좋아요.</다음 테이크"가 그대로 보였다. */
+    private static final Pattern NEXT_TAKE_OPEN_CLOSE = Pattern.compile("</다음 테이크(?!>)");
+
+    private static String closedNextTake(String text) {
+        return NEXT_TAKE_OPEN_CLOSE.matcher(text).replaceAll("</다음 테이크>");
+    }
     // 모델이 줄 끝에 남기는 날 자모("알려 주세요.ㄴ" 같은). 실험에서 실제로 나왔고 다음 턴에 그대로 따라 한다.
     private static final Pattern TRAILING_JAMO = Pattern.compile("(?m)(?<=[^\\s\\u3131-\\u318E])[\\u3131-\\u318E]+[ \\t]*$");
 
@@ -61,11 +69,12 @@ final class DirectVideoPracticeLoop {
     }
 
     static Parsed parse(String raw) {
-        String text = raw == null ? "" : raw.strip();
+        String text = raw == null ? "" : closedNextTake(raw.strip());
         String design = first(DESIGN, text);
         String status = first(STATUS, text);
         String rest = NEXT_TAKE_TAG.matcher(STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("")).replaceAll("");
         rest = THINKING.matcher(rest).replaceAll("");
+        rest = PURPOSE_BLOCK.matcher(rest).replaceAll("");
         // 여는 태그 없이 </생각>만 남았으면 그 앞은 모두 메모다(실험에서 실제로 나왔다).
         Matcher close = THINKING_CLOSE.matcher(rest);
         int strayClose = -1;
@@ -144,6 +153,19 @@ final class DirectVideoPracticeLoop {
         return letters > 0 && (hangul * 2 < letters || jamo >= 6);
     }
 
+    /**
+     * 스트리밍 도중 아직 다 쓰지 않은 보일 글이 이미 깨졌는지. 앞부분만으로도 확실한 신호(날 자모 6자 이상, HTML·코드)만 본다.
+     * 한글 비율은 영어 대사 인용으로 시작하는 정상 답("\"Who knows\"에서…")을 앞부분에서 잘못 잡으므로 다 쓴 뒤 {@link #looksBroken} 에서만 본다.
+     */
+    static boolean looksBrokenSoFar(String text, java.util.Locale language) {
+        if (text == null || text.isBlank()) return false;
+        if (MARKUP_OR_CODE.matcher(text).find()) return true;
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        if (!korean) return false;
+        long jamo = text.chars().filter(c -> c >= '\u3131' && c <= '\u318E').count();
+        return jamo >= 6;
+    }
+
     // 문장 끝(마침표·물음표·느낌표 뒤 공백)과 줄바꿈에서 나눈다. 따옴표 안 대사 끝의 물음표 뒤에는 공백이 아니라 따옴표가 오므로 나뉘지 않는다.
     private static final Pattern SENTENCE_BREAK = Pattern.compile("(?<=[.?!])[ \\t]+|\\R+");
 
@@ -152,6 +174,98 @@ final class DirectVideoPracticeLoop {
     }
 
     /** 물음표로 끝나는 문장을 뗀다. 다 떼어지면 원래 말을 그대로 둔다. */
+    /**
+     * 배우에게 쓰면 안 되는 비유·꾸밈말. 운영과 재생에서 실제로 나온 말이다(2026-10-17~21: "또렷하게 꽂혀요", "튕겨 나갈 거예요",
+     * "깊게 눌러주는 무게감", "발음의 날이 무너지지 않고", "에너지 있게 밀고 가는 힘"). 배우가 먼저 쓴 낱말이면 그대로 받아도 된다.
+     */
+    private static final Pattern METAPHOR = Pattern.compile(
+            "화살|꽂(?:혀|히|는|아|힌)|튕겨|뚫어지|에너지|무게|공기가|결이|결을|온도|힘을 실|힘이 실|실려 있|가 닿|묵직|날이 (?:서|무너|살아)|날카로운 힘"
+                    + "|살아 있어요|살아나|살아날|불꽃|칼날|파도|가려져요|녹아들|스며들|터져 나오는 힘|꽉 찬|뱉(?:는|어|었|기|고)|튀어나온");
+
+    /** 코치 말에 든 비유 낱말. 배우가 대화에서 먼저 쓴 낱말은 뺀다. 없으면 빈 목록. */
+    static List<String> metaphors(String text, String actorWords) {
+        if (text == null || text.isBlank()) return List.of();
+        String said = actorWords == null ? "" : actorWords;
+        var found = new java.util.LinkedHashSet<String>();
+        Matcher m = METAPHOR.matcher(text);
+        while (m.find()) {
+            String word = m.group();
+            String stem = word.length() > 2 ? word.substring(0, 2) : word;
+            if (!said.contains(stem)) found.add(word);
+        }
+        return List.copyOf(found);
+    }
+
+    /** 코치 말의 마지막 질문 문장. 없으면 빈 문자열. */
+    static String lastQuestion(String text) {
+        if (text == null) return "";
+        var all = sentences(text);
+        for (int i = all.size() - 1; i >= 0; i--) if (all.get(i).endsWith("?")) return all.get(i);
+        return "";
+    }
+
+    private static final Pattern LEAD_WORD = Pattern.compile("^(?:아|네|그럼|그러면|그렇다면)[,.\\s]++");
+
+    private static String normalizedQuestion(String q) {
+        String rest = q.strip();
+        // 앞의 "아, 그럼"처럼 받는 말을 하나씩 뗀다(중첩 반복 정규식은 긴 입력에서 스택을 넘칠 수 있다).
+        for (int i = 0; i < 4; i++) {
+            String next = LEAD_WORD.matcher(rest).replaceFirst("");
+            if (next.equals(rest)) break;
+            rest = next;
+        }
+        return rest.replaceAll("(?:그|이) 장면에(?:서는|선|서)?", "").replaceAll("[\\s\\p{Punct}“”‘’…·]++", "");
+    }
+
+    /** 두 질문이 같은 뜻으로 보이는지. 앞의 "아, 그럼", "그 장면에서" 같은 말과 띄어쓰기를 빼고 두 글자 묶음이 60% 이상 겹치면 같다고 본다. */
+    static boolean sameQuestion(String a, String b) {
+        String x = normalizedQuestion(a), y = normalizedQuestion(b);
+        if (x.length() < 6 || y.length() < 6) return false;
+        if (x.equals(y) || x.contains(y) || y.contains(x)) return true;
+        var bx = new java.util.HashSet<String>();
+        for (int i = 0; i + 2 <= x.length(); i++) bx.add(x.substring(i, i + 2));
+        var by = new java.util.HashSet<String>();
+        for (int i = 0; i + 2 <= y.length(); i++) by.add(y.substring(i, i + 2));
+        long common = bx.stream().filter(by::contains).count();
+        return 2.0 * common / (bx.size() + by.size()) >= 0.6;
+    }
+
+    /** 이번 코치 말의 마지막 질문이 앞선 코치 말(최근 것부터 최대 넷)의 질문과 같으면 그 앞 질문을, 아니면 빈 문자열. */
+    static String repeatedQuestion(String text, List<String> earlierCoach) {
+        String now = lastQuestion(text);
+        if (now.isEmpty() || earlierCoach == null) return "";
+        for (int i = earlierCoach.size() - 1, seen = 0; i >= 0 && seen < 4; i--, seen++) {
+            for (String sentence : sentences(earlierCoach.get(i))) {
+                if (sentence.endsWith("?") && sameQuestion(now, sentence)) return sentence;
+            }
+        }
+        return "";
+    }
+
+    private static double overlap(String a, String b) {
+        String x = normalizedQuestion(a), y = normalizedQuestion(b);
+        if (x.length() < 10 || y.length() < 10) return 0;
+        var bx = new java.util.HashSet<String>();
+        for (int i = 0; i + 2 <= x.length(); i++) bx.add(x.substring(i, i + 2));
+        var by = new java.util.HashSet<String>();
+        for (int i = 0; i + 2 <= y.length(); i++) by.add(y.substring(i, i + 2));
+        long common = bx.stream().filter(by::contains).count();
+        return 2.0 * common / (bx.size() + by.size());
+    }
+
+    /**
+     * 이번 코치 말에서 바로 앞 코치 말 둘의 문장을 거의 그대로 되풀이한 문장(질문 제외). 둘 이상이거나 말 전체가 되풀이면 그 문장들을,
+     * 아니면 빈 목록. 2026-10-21 재생: 반박이 이어지자 같은 피드백 세 문장이 거의 글자 그대로 다시 나갔다.
+     */
+    static List<String> repeatedLines(String text, List<String> earlierCoach) {
+        if (text == null || earlierCoach == null || earlierCoach.isEmpty()) return List.of();
+        var before = new ArrayList<String>();
+        for (int i = Math.max(0, earlierCoach.size() - 2); i < earlierCoach.size(); i++) before.addAll(sentences(earlierCoach.get(i)));
+        var mine = sentences(text).stream().filter(s -> !s.endsWith("?")).toList();
+        var repeated = mine.stream().filter(s -> before.stream().anyMatch(b -> overlap(s, b) >= 0.8)).toList();
+        return repeated.size() >= 2 || !repeated.isEmpty() && repeated.size() == mine.size() ? repeated : List.of();
+    }
+
     static String withoutQuestions(String text) {
         var kept = sentences(text).stream().filter(s -> !s.endsWith("?")).toList();
         return kept.isEmpty() ? text.strip() : String.join("\n", kept);
@@ -220,7 +334,7 @@ final class DirectVideoPracticeLoop {
 
     /** 마무리2 응답의 숨은 다음 테이크 줄. 없으면 빈 문자열. */
     static String nextTake(String raw) {
-        return raw == null ? "" : first(NEXT_TAKE_TAG, raw);
+        return raw == null ? "" : first(NEXT_TAKE_TAG, closedNextTake(raw));
     }
 
     private static final Pattern SENTENCE_END = Pattern.compile("(?<=[.!?。])\\s+|\\n+");

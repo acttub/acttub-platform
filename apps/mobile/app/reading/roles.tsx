@@ -5,6 +5,7 @@ import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { useAppDialog } from '@/components/app-dialog';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -14,7 +15,7 @@ import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { getCurrent, updateScriptMeta } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
-import { assetsPresent } from '@/lib/reading/tts/assets';
+import { activeVariant, assetsPresent } from '@/lib/reading/tts/assets';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
 import { autoVoiceOf, isKnownPreset, shownVoices, voiceChanges, voiceLabel, voiceName, type VoicePreset } from '@/lib/reading/voices';
 import type { ScriptCharacter } from '@/lib/reading/types';
@@ -111,7 +112,7 @@ export default function ReadingRoles() {
       if (await cloudVoice) {
         const uri = await cloudVoiceSampleUri(preset);
         if (current()) await engine.play(uri);
-      } else if (!engine.isReady() && !assetsPresent('fp32', 'M1')) {
+      } else if (!engine.isReady() && !assetsPresent(activeVariant(), 'M1')) {
         // 모델이 없으면 미리 듣기 대신 안내한다 — 내려받기 확인은 연습 시작 때 받는다.
         void alert({ title: t('reading.voicePreview'), message: t('reading.voiceNotReady') });
       } else {
@@ -227,14 +228,9 @@ export default function ReadingRoles() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable
-          ref={saveTarget.ref}
-          onLayout={saveTarget.onLayout}
-          style={[styles.primary, saving && styles.primaryOff]}
-          onPress={onSave}
-          disabled={saving}>
-          <Text style={styles.primaryText}>{saving ? `${t('common.saving')}…` : t('common.save')}</Text>
-        </Pressable>
+        <View ref={saveTarget.ref} onLayout={saveTarget.onLayout}>
+          <PrimaryButton label={saving ? `${t('common.saving')}…` : t('common.save')} onPress={onSave} disabled={saving} />
+        </View>
       </View>
 
       <Modal transparent statusBarTranslucent visible={!!sheetCharacter} animationType="slide" onRequestClose={() => setSheetFor(null)}>
@@ -265,9 +261,7 @@ export default function ReadingRoles() {
                   </View>
                 </View>
               ))}
-              <Pressable style={[styles.primary, styles.sheetDone]} onPress={() => setSheetFor(null)}>
-                <Text style={styles.primaryText}>{t('reading.voiceDone')}</Text>
-              </Pressable>
+              <PrimaryButton label={t('reading.voiceDone')} onPress={() => setSheetFor(null)} style={styles.sheetDone} />
             </Pressable>
           )}
         </Pressable>

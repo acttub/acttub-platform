@@ -211,3 +211,50 @@ test("연결 실패(fetch TypeError) → 일반 호출", async () => {
   assert.deepEqual(response.data, { message: "일반" });
   assert.equal(calls.plain.length, 1);
 });
+
+test("SSE: 콜론 없는 필드 줄은 값이 빈 필드다", () => {
+  assert.deepEqual(parse(["data\n\n"]), [{ event: "message", data: "" }]);
+  assert.deepEqual(parse(["event\ndata: 본문\n\n"]), [{ event: "message", data: "본문" }]);
+});
+
+test("consumeCoachStream: 깨진 delta 하나는 건너뛰고 뒤의 글을 잇는다", async () => {
+  const deltas = [];
+  const body = `event: delta\ndata: {"text":\n\n${sse("delta", { text: "이어서" })}${sse("done", { message: "끝" })}`;
+  const outcome = await consumeCoachStream(readerOf(body), (t) => deltas.push(t));
+  assert.deepEqual(deltas, ["이어서"]);
+  assert.deepEqual(outcome, { kind: "done", value: { message: "끝" } });
+});
+
+test("consumeCoachStream: done 을 읽을 수 없거나 객체가 아니면 끊긴 것으로 본다", async () => {
+  assert.deepEqual(await consumeCoachStream(readerOf("event: done\ndata: {깨짐\n\n"), () => {}), { kind: "dropped" });
+  assert.deepEqual(await consumeCoachStream(readerOf(sse("done", "문자열")), () => {}), { kind: "dropped" });
+  assert.deepEqual(await consumeCoachStream(readerOf(sse("done", null)), () => {}), { kind: "dropped" });
+});
+
+test("consumeCoachStream: 상태가 없는 error 이벤트는 500 으로 다룬다", async () => {
+  assert.deepEqual(await consumeCoachStream(readerOf(sse("error", null)), () => {}), {
+    kind: "error",
+    status: 500,
+    detail: undefined,
+  });
+  assert.deepEqual(await consumeCoachStream(readerOf(sse("error", { status: "409", detail: "x" })), () => {}), {
+    kind: "error",
+    status: 500,
+    detail: "x",
+  });
+});
+
+test("consumeCoachStream: 결과가 정해진 뒤 같은 조각에 실려 온 이벤트는 무시한다", async () => {
+  const deltas = [];
+  const body = `${sse("done", { message: "최종" })}${sse("delta", { text: "늦은 조각" })}${sse("error", { status: 502 })}`;
+  const outcome = await consumeCoachStream(readerOf(body, body.length * 4), (t) => deltas.push(t));
+  assert.deepEqual(outcome, { kind: "done", value: { message: "최종" } });
+  assert.deepEqual(deltas, []);
+});
+
+test("consumeCoachStream: 빈 글·글이 아닌 delta 는 말풍선에 붙이지 않는다", async () => {
+  const deltas = [];
+  const body = `${sse("delta", { text: "" })}${sse("delta", { text: 3 })}${sse("delta", null)}${sse("delta", { text: "가" })}${sse("done", {})}`;
+  await consumeCoachStream(readerOf(body), (t) => deltas.push(t));
+  assert.deepEqual(deltas, ["가"]);
+});

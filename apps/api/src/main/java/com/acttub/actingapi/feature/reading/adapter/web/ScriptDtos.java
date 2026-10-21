@@ -182,7 +182,11 @@ final class ScriptDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int dialogueCount) {
     }
 
-    /** @param dialogueNo 대사 번호 — 대사 줄만 센 순번(1부터). 지문·장면은 {@code null} */
+    /**
+     * @param dialogueNo 대사 번호 — 대사 줄만 센 순번(1부터). 지문·장면은 {@code null}
+     * @param lang 대사의 말(ISO 639-1 두 글자). 모르거나 한국어만 있는 줄이면 {@code null} — 앱은 표시 언어로 읽는다 (SOMA-751)
+     * @param speech 상대역 목소리가 읽고 받아쓰기와 견줄 글(예: 로마자 아랍어를 아랍 문자로). {@code null} 이면 text
+     */
     @Schema(name = "ReadingScriptLine", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record LineResponse(
@@ -191,7 +195,9 @@ final class ScriptDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, implementation = ScriptLineKind.class) String kind,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID characterId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String text,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Integer dialogueNo) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Integer dialogueNo,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String lang,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String speech) {
     }
 
     /** 대본 상세와 카드가 함께 보는 마지막 회차. */

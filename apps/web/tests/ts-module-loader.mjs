@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { registerHooks } from "node:module";
+import { registerHooks, stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -48,6 +48,20 @@ registerHooks({
 
     const filename = fileURLToPath(url);
     const source = readFileSync(filename, "utf8");
+    // 커버리지는 실행한 코드의 글자 위치를 디스크의 원문 줄에 겹쳐 센다. 타입을 같은 길이의 공백으로
+    // 지우는 strip 모드는 위치가 그대로라 줄이 맞는다. JSX 와 strip 모드가 못 다루는 문법(enum 등)만
+    // 변환하고, 그때는 소스맵을 붙여 test:coverage 의 --enable-source-maps 가 원문 줄로 되돌린다.
+    if (url.endsWith(".ts")) {
+      try {
+        return {
+          format: "module",
+          shortCircuit: true,
+          source: stripTypeScriptTypes(source, { mode: "strip" }),
+        };
+      } catch {
+        // 아래 변환으로 넘어간다.
+      }
+    }
     const transpiled = ts.transpileModule(source, {
       fileName: filename,
       compilerOptions: {
@@ -56,6 +70,8 @@ registerHooks({
         // tsconfig 와 같은 자동 런타임. 이 옵션이 있어도 JSX 가 없는 .ts 의
         // 출력은 바이트 단위로 같아서 기존 스위트에 영향이 없다.
         jsx: ts.JsxEmit.ReactJSX,
+        inlineSourceMap: true,
+        inlineSources: true,
       },
     });
     return {

@@ -51,11 +51,12 @@ class PracticeRollbackCompatibilityTest {
             "entry_ai_reports", "notifications", "notification_pushes", "note_ratings",
             "reading_voice_cache", "reading_voice_usage", "evening_reminder_sends", "user_signup_attributions",
             "app_posters", "script_imports", "script_uploads", "audition_postings", "user_discovery_answers",
-            "reading_session_ratings", "user_active_days", "user_airbridge_device_lookups");
+            "reading_session_ratings", "user_active_days", "user_airbridge_device_lookups",
+            "practice_reminder_sends", "reading_recording_coaches");
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
-            + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33)·배역의 NULL 허용 성별·나이대(V42) 말고는 V13 의 모양 그대로다")
+            + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33)·배역의 NULL 허용 성별·나이대(V42)·대사 줄의 NULL 허용 말·소리 낼 글(V45) 말고는 V13 의 모양 그대로다")
     void expandingToOneZeroLeavesEveryLegacyTableUntouched() throws Exception {
         List<String> before = fingerprintAt(BEFORE_ONE_ZERO);
         List<String> after = fingerprintAt(null);
@@ -102,8 +103,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V44 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 31;
+    /** V14~V48 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 35;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -179,7 +180,10 @@ class PracticeRollbackCompatibilityTest {
                 "CONSTRAINT script_characters ck_script_characters_age_band CHECK ((age_band = ANY "
                         + "(ARRAY['child'::text, 'young'::text, 'adult'::text, 'senior'::text])))",
                 // V44 의 가입한 클라이언트 판(SOMA-643). NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
-                "COLUMN user_profiles.signup_client ord=19 type=text len=- null=YES default=-"));
+                "COLUMN user_profiles.signup_client ord=19 type=text len=- null=YES default=-",
+                // V45 의 대사 줄의 말과 소리 낼 글(SOMA-751). NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
+                "COLUMN script_lines.lang ord=8 type=text len=- null=YES default=-",
+                "COLUMN script_lines.speech ord=9 type=text len=- null=YES default=-"));
         return expected.stream().sorted().toList();
     }
 

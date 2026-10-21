@@ -537,9 +537,55 @@ class DirectVideoCoachTest {
         assertThat(second.reply().message()).as("시간 표기·두 번째 질문을 다듬지 않고 모델이 쓴 그대로 저장한다").isEqualTo(written);
         assertThat(String.join("", deltas)).isEqualTo(written);
         verify(model, never()).reply(eq(file), anyList(), anyString());
-        verify(model, never()).reply(org.mockito.ArgumentMatchers.isNull(), anyList(), anyString());
+        verify(model, never()).replyLight(org.mockito.ArgumentMatchers.isNull(), anyList(), anyString());
         assertThat(telemetry.calls().getLast().metadata()).containsEntry("stream", "true")
                 .containsEntry("shorten_calls", "0").containsEntry("timestamp_retry", "false");
+    }
+
+    @Test void streamingCutsBrokenJamoAndRewritesOnce() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        String good = "\"됐어\" 할 때 시선이 내려가요. 그때 속으로는 어땠어요?";
+        var raws = new java.util.ArrayDeque<>(List.of(OPENING, "그 장면에서 ㅇㄹㄴㅁㅇㄹㄴㅁㅇㄹㄴㅁㅇㄹㄴㅁ", good));
+        when(model.replyStream(eq(file), anyList(), anyString(), org.mockito.ArgumentMatchers.any())).thenAnswer(call -> {
+            String raw = raws.removeFirst();
+            java.util.function.Consumer<String> onText = call.getArgument(3);
+            for (int i = 0; i < raw.length(); i += 3) onText.accept(raw.substring(i, Math.min(raw.length(), i + 3)));
+            return raw;
+        });
+        var deltas = new ArrayList<String>();
+        CoachStream stream = new CoachStream() {
+            @Override public void begin() { }
+            @Override public void delta(String text) { deltas.add(text); }
+        };
+        var first = loopEngine.start(session(), UUID.randomUUID(), stream);
+        deltas.clear();
+        var second = loopEngine.reply(first.session(), "잘 모르겠어요", UUID.randomUUID(), stream);
+        assertThat(second.reply().message()).isEqualTo(good);
+        assertThat(String.join("", deltas)).as("깨진 자모는 화면에 한 글자도 흘리지 않는다").doesNotContain("ㅇ", "ㄹ", "ㄴ", "ㅁ");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, times(3)).replyStream(eq(file), anyList(), prompts.capture(), org.mockito.ArgumentMatchers.any());
+        assertThat(prompts.getAllValues().get(2)).startsWith(prompts.getAllValues().get(1)).contains("[다시 쓰기]");
+        verify(model, never()).reply(eq(file), anyList(), anyString());
+    }
+
+    @Test void streamingFailsInsteadOfSavingJamoWhenTheRewriteIsBrokenToo() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        var raws = new java.util.ArrayDeque<>(List.of(OPENING, "ㅇㄹㄴㅁㅇㄹㄴㅁ", "ㅁㄴㅇㄹㅁㄴㅇㄹ"));
+        when(model.replyStream(eq(file), anyList(), anyString(), org.mockito.ArgumentMatchers.any())).thenAnswer(call -> {
+            String raw = raws.removeFirst();
+            java.util.function.Consumer<String> onText = call.getArgument(3);
+            for (int i = 0; i < raw.length(); i += 3) onText.accept(raw.substring(i, Math.min(raw.length(), i + 3)));
+            return raw;
+        });
+        CoachStream stream = new CoachStream() {
+            @Override public void begin() { }
+            @Override public void delta(String text) { }
+        };
+        var first = loopEngine.start(session(), UUID.randomUUID(), stream);
+        assertThatThrownBy(() -> loopEngine.reply(first.session(), "잘 모르겠어요", UUID.randomUUID(), stream))
+                .as("깨진 글을 저장하지 않고 다시 보내게 한다").isInstanceOf(CoachReplyUnavailable.class);
     }
 
     @Test void practiceLoopRewritesOnceWhenTheCoachPointsByVideoTimeAndStripsWhatIsLeft() {
@@ -599,7 +645,7 @@ class DirectVideoCoachTest {
         verify(model, times(3)).reply(eq(file), anyList(), prompts.capture());
         assertThat(prompts.getAllValues().get(2)).contains("[다시 쓰기]", "상관없는 글");
         assertThat(telemetry.calls().getLast().metadata()).containsEntry("broken_retry", "true");
-        verify(model, never()).reply(isNull(), anyList(), anyString());
+        verify(model, never()).replyLight(isNull(), anyList(), anyString());
     }
 
     @Test void lastWordsAndStageQuestionsAreTrimmedFromLiveSessions() {
@@ -783,6 +829,49 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.closingNextTake(statuses)).isEqualTo("처음부터 끝까지 상대를 붙잡아 봐도 좋아요");
     }
 
+    @Test void twoEmptyRepliesGetALightThirdTryInsteadOfAnError() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\",\"question\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING)
+                .thenThrow(new IllegalStateException("empty video coaching reply"))
+                .thenThrow(new IllegalStateException("empty video coaching reply: output limit reached"));
+        when(model.replyLight(eq(file), anyList(), anyString())).thenReturn("렌즈 옆에 아빠 얼굴이 있다고 정해 둬요. 그 얼굴이 굳는지 보며 다음 말로 가 봐도 좋아요.");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "나한테 상대역이 없는데?", UUID.randomUUID());
+        assertThat(second.reply().message()).startsWith("렌즈 옆에 아빠 얼굴이 있다고");
+        verify(model, times(1)).replyLight(eq(file), anyList(), anyString());
+        assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
+                .last().satisfies(call -> assertThat(call.metadata()).containsEntry("light_retry", "true"));
+    }
+
+    @Test void aRepeatedQuestionIsDroppedWhenPolishingFails() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "\"가\"에서 상대를 안 봐요.\n그때 상대한테 뭘 받고 싶었어요?",
+                "아, \"잡아줘\"에서 목소리가 커져요.\n그때 상대한테 뭘 받고 싶었어요?");
+        when(model.replyLight(isNull(), anyList(), anyString())).thenReturn("그때 상대한테 뭘 받고 싶었어요?");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
+        var third = loopEngine.reply(second.session(), "모르겠어요 그냥 했어요", UUID.randomUUID());
+        assertThat(third.reply().message()).doesNotContain("뭘 받고 싶었어요?").contains("목소리가 커져요");
+        assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
+                .last().satisfies(call -> assertThat(call.metadata()).containsEntry("polish_calls", "1"));
+    }
+
+    @Test void aMetaphorIsPolishedAwayWithoutTheVideo() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\",\"evaluation\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"잡아줘\"에서 말이 또렷하게 꽂혀요.");
+        when(model.replyLight(isNull(), anyList(), anyString())).thenReturn("\"잡아줘\"에서 말이 또렷하게 들려요.");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "어땠어요?", UUID.randomUUID());
+        assertThat(second.reply().message()).isEqualTo("\"잡아줘\"에서 말이 또렷하게 들려요.");
+        var prompt = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model).replyLight(isNull(), anyList(), prompt.capture());
+        assertThat(prompt.getValue()).contains("고칠 비유: 꽂혀");
+    }
+
     @Test void whenTheComparedModelStaysEmptyTheDefaultModelWritesTheReplyInsteadOfAnError() {
         var compared = mock(DirectVideoModel.class);
         when(compared.model()).thenReturn("gemini-3.8-flash");
@@ -922,7 +1011,7 @@ class DirectVideoCoachTest {
         String longReply = "차분한 톤과 담담한 표정이 잘 어울려요. \"다 뒤져 있더라\"에서 목소리가 잦아드는 것도 좋고요. 위를 본 건 인물의 습관일까요?";
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
                 "<생각>\n배우가 한 말: 붙잡고 싶었다\n끝 질문: 무엇을\n</생각>\n" + longReply);
-        when(model.reply(isNull(), anyList(), anyString())).thenReturn("\"다 뒤져 있더라\"에서 목소리가 잦아들어요.\n위를 본 건 습관인가요?");
+        when(model.replyLight(isNull(), anyList(), anyString())).thenReturn("\"다 뒤져 있더라\"에서 목소리가 잦아들어요.\n위를 본 건 습관인가요?");
         var first = loopEngine.start(session(), UUID.randomUUID());
         var second = loopEngine.reply(first.session(), "붙잡길 바랐던 것 같아요", UUID.randomUUID());
         assertThat(DirectVideoPracticeLoop.displayLength(longReply)).isGreaterThan(DirectVideoPracticeLoop.LONG_REPLY);
@@ -930,7 +1019,7 @@ class DirectVideoCoachTest {
         assertThat(second.session().turns()).extracting(CoachTurnSnapshot::text).noneMatch(text -> text.contains("생각"));
         var shortenCalls = org.mockito.ArgumentCaptor.forClass(List.class);
         // 첫 응답(질문 한 문장)은 짧아서 그대로, 둘째 응답만 줄이기를 거친다.
-        verify(model, times(1)).reply(isNull(), shortenCalls.capture(), eq(DirectVideoPrompts.practiceLoopShorten(null)));
+        verify(model, times(1)).replyLight(isNull(), shortenCalls.capture(), eq(DirectVideoPrompts.practiceLoopShorten(null)));
         assertThat(shortenCalls.getAllValues().get(0)).containsExactly(new DirectVideoModel.Message("user", longReply));
         assertThat(telemetry.calls().getLast().metadata()).containsEntry("shorten_calls", "1");
         assertThat(DirectVideoPracticeLoop.parse("<생각>\n배우가 한 말: x\n글자 수: 30\n괜찮아요. 왜요?").message())

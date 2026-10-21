@@ -48,6 +48,9 @@ final class DirectVideoDialogueEvidence {
         requireGroundedQuotes(parsed.message(), actorWrittenText, false);
         requireGroundedQuotes(parsed.design(), actorWrittenText, true);
         requireGroundedQuotes(parsed.status(), actorWrittenText, true);
+        // 목적별 코칭의 버튼·카드도 배우 화면에 나간다(SOMA-719).
+        var purposeBlocks = DirectVideoPracticeLoop.PURPOSE_BLOCK.matcher(reply == null ? "" : reply);
+        while (purposeBlocks.find()) requireGroundedQuotes(purposeBlocks.group(), actorWrittenText, true);
     }
 
     private static void requireGroundedQuotes(String text, String actorWrittenText, boolean hidden) {

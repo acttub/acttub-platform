@@ -49,8 +49,11 @@ public final class ScriptViews {
     /**
      * @param characterId 대사면 배역, 지문·장면이면 {@code null}
      * @param dialogueNo 대사 번호 — 대사 줄만 센 순번(1부터). 지문·장면은 {@code null}
+     * @param lang 대사의 말(ISO 639-1). 모르면 {@code null} (SOMA-751)
+     * @param speech 상대역 목소리가 읽을 글. 줄 글과 같으면 {@code null}
      */
-    public record LineView(UUID id, int ordinal, String kind, UUID characterId, String text, Integer dialogueNo) {
+    public record LineView(UUID id, int ordinal, String kind, UUID characterId, String text, Integer dialogueNo,
+            String lang, String speech) {
     }
 
     /** 대본 상세와 카드가 함께 보는 마지막 회차. */

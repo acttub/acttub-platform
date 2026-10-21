@@ -176,6 +176,8 @@ class AccountWithdrawIT {
         storage.put("users/p/profile/photo.jpg", "users/p/profile/pending.jpg", "users/p/portfolio/1.jpg");
         jdbc.update("INSERT INTO user_active_days(user_id,day) VALUES (?,?) ON CONFLICT DO NOTHING",
                 member.id(), java.sql.Date.valueOf(today().minusDays(3)));
+        jdbc.update("INSERT INTO practice_reminder_sends(user_id,day,slot,kind,skipped_days,template_id) VALUES (?,?,'practice','general',1,'general.1.a')",
+                member.id(), java.sql.Date.valueOf(today().minusDays(1)));
 
         var response = withdraw(member.accessToken());
 
@@ -200,6 +202,7 @@ class AccountWithdrawIT {
                 .as("리프레시 토큰은 전부 폐기").isZero();
         assertThat(count("push_tokens")).isZero();
         assertThat(count("user_active_days")).as("접속일은 사람과 끊어 남기지 않고 지운다").isZero();
+        assertThat(count("practice_reminder_sends")).as("연습 알림 보낸 기록도 지운다").isZero();
         assertThat(count("guest_transfer_codes")).isZero();
         assertThat(count("portfolios")).isZero();
         assertThat(count("portfolio_credits")).isZero();

@@ -11,6 +11,8 @@ export type RecordedVideo = {
   /** 촬영이 잰 길이(ms). 못 쟀으면 null. */
   durationMs: number | null;
   name: string;
+  /** 어디서 왔는지 — 앱에서 찍었으면 camera, 갤러리에서 골랐으면 gallery. 없으면 camera 로 본다. */
+  source?: 'camera' | 'gallery';
 };
 
 let pending: RecordedVideo | null = null;

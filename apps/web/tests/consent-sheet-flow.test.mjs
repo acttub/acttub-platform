@@ -191,6 +191,33 @@ test("account.consent: 옛 판 문서 id(409)는 건너뛰고 끝낸다 — 다�
   assert.equal(bodies.length, 3);
 });
 
+test("account.consent: 그 사이 없어진 문서 id(404)도 건너뛰고 나머지 결정을 끝낸다", async () => {
+  const bodies = recordConsents((body) =>
+    body.document_id === "terms-document"
+      ? jsonResponse({ detail: "consent_document_not_found" }, 404)
+      : undefined,
+  );
+
+  const result = await submitSheet(openSheet(PRACTICE_DOCUMENTS), true);
+
+  assert.deepEqual(result, { kind: "decided" });
+  assert.deepEqual(
+    bodies.map((body) => body.document_id),
+    ["terms-document", "privacy-document", "ai_analysis-document"],
+  );
+});
+
+test("account.consent: 404 라도 다른 사유면 실패로 돌려준다", async () => {
+  recordConsents(() => jsonResponse({ detail: "not_found" }, 404));
+
+  const result = await submitSheet(openSheet(PRACTICE_DOCUMENTS), true);
+
+  assert.deepEqual(result, {
+    kind: "failed",
+    message: "동의를 저장하지 못했어요. 다시 시도해 주세요.",
+  });
+});
+
 test("account.consent: 저장에 실패하면 시트를 닫지 않고 문구를 돌려주며, 다시 누르면 처음부터 보낸다(같은 결정 재전송은 200)", async () => {
   let failing = true;
   const bodies = recordConsents((body) =>

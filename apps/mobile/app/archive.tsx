@@ -139,7 +139,7 @@ export default function ArchiveScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="archive_back">
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <View style={styles.flex}>

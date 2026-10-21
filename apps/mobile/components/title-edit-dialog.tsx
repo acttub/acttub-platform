@@ -58,7 +58,7 @@ export function TitleEditDialog({
               autoFocus
             />
             {!!title && (
-              <Pressable hitSlop={8} onPress={() => setTitle('')} accessibilityLabel={t('common.close')}>
+              <Pressable hitSlop={8} onPress={() => setTitle('')} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="title_edit_clear">
                 <Feather name="x-circle" size={18} color={palette.textFaint} />
               </Pressable>
             )}
@@ -82,8 +82,9 @@ export function TitleEditDialog({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(15, 21, 37, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
-  card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18 },
+  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
+  // pen Dialog/Confirm — 폭 334, 모서리 22, 안쪽 [24,22,18,22]. 저장은 바뀐 게 없으면 막혀야 해서 공통 DialogButtons 대신 같은 수치로 둔다.
+  card: { width: '100%', maxWidth: 334, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18 },
   title: { fontSize: 17, fontWeight: '800', color: palette.text, textAlign: 'center' },
   field: {
     flexDirection: 'row',

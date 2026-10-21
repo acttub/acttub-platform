@@ -99,7 +99,7 @@ class PracticeController {
         AuthenticatedUser user = auth.gatedUser(request);
         return PracticeResponse.of(practices.start(
                 user.id(), user.guest(), contract,
-                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), body.title())));
+                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), body.title(), body.sessionPurpose())));
     }
 
     @Operation(
@@ -132,7 +132,7 @@ class PracticeController {
         AuthenticatedUser user = auth.gatedUser(request);
         return PracticeResponse.of(practices.continueGroup(
                 user.id(), user.guest(), contract, practiceId,
-                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), null)));
+                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), null, null)));
     }
 
     @Operation(
@@ -262,7 +262,7 @@ class PracticeController {
     }
 
     private static PracticeService.Draft draft(
-            UUID requestId, UUID videoId, SceneInput scene, BlockageInput blockage, String title) {
+            UUID requestId, UUID videoId, SceneInput scene, BlockageInput blockage, String title, String sessionPurpose) {
         return new PracticeService.Draft(
                 requestId,
                 videoId,
@@ -272,7 +272,8 @@ class PracticeController {
                 blockage == null ? null : blockage.category(),
                 blockage == null ? null : blockage.detail(),
                 blockage == null ? null : blockage.note(),
-                title);
+                title,
+                sessionPurpose);
     }
 
     /** 막힘의 큰 갈래와 세부는 조합이 맞아야 한다 — DB 가 거부할 값을 먼저 422 배열로 답한다. */

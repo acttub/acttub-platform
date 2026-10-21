@@ -415,6 +415,15 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingRecordingIT"),
             covered("feature.reading.app.RecordingService|503|audio_conversion_failed", 1,
                     "feature.reading.ReadingRecordingIT"),
+            // 리딩 녹음 코치(reading.recording-coach, 실험). 모델 실패와 빈 답은 같은 503 이다.
+            covered("feature.reading.app.RecordingCoachService|404|recording_coach_not_found", 1,
+                    "feature.reading.app.RecordingCoachServiceTest"),
+            covered("feature.reading.app.RecordingCoachService|404|session_not_found", 2,
+                    "feature.reading.app.RecordingCoachServiceTest"),
+            covered("feature.reading.app.RecordingCoachService|422|recording_coach_not_enough_audio", 2,
+                    "feature.reading.app.RecordingCoachServiceTest"),
+            covered("feature.reading.app.RecordingCoachService|503|recording_coach_unavailable", 2,
+                    "feature.reading.app.RecordingCoachServiceTest"),
             // 고품질 목소리. 모델·스토리지·기간·월 상한과 외부 실패는 한 503 헬퍼로 모인다.
             covered("feature.reading.app.CloudVoiceService|400|invalid_voice_request", 1,
                     "feature.reading.app.CloudVoiceServiceTest"),
@@ -426,6 +435,9 @@ class ErrorContractInventoryTest {
                     "feature.reading.app.CloudVoiceServiceTest"),
             covered("feature.reading.adapter.web.VoiceController|403|member_only", 1,
                     "feature.reading.CloudVoiceIT"),
+            // 리딩 기기 목소리 모델(fp16 묶음) 주소. 위치 설정·스토리지가 없으면 503 이고 앱은 원본 fp32 를 받는다.
+            covered("feature.reading.app.VoiceModelService|503|voice_model_unavailable", 1,
+                    "feature.reading.app.VoiceModelServiceTest"),
             // 0.1.0 코치 대화·노트(practice.coach, practice.note). 저장만 새 표로 옮겼고 행동 규칙은 그대로다.
             covered("feature.coach.app.ConversationService|404|conversation_not_found", 1,
                     "feature.coach.CoachConversationIT"),

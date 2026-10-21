@@ -86,6 +86,11 @@ services:
       MONITORING_ENVIRONMENT: ${MONITORING_ENVIRONMENT:-local}
       ACTTUB_THREE_LAYERS_ENABLED: ${ACTTUB_THREE_LAYERS_ENABLED:-false}
       ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED: ${ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-true}
+      # 개인화 연습 알림(SOMA-720). 값은 배포 워크플로가 release.env 로 준다. 꺼져 있으면 옛 저녁 8시 고정 알림이 돈다.
+      PRACTICE_REMINDER_ENABLED: ${ACTTUB_PRACTICE_REMINDER_ENABLED:-false}
+      # 첫 질문 미리 쓰기(SOMA-780). 스토어 앱 0.1.5는 서버가 먼저 연 대화를 첫 질문이 써지기 전에 한 번만 읽고
+      # 다시 묻지 않아 빈 화면에 멈춘다. 앱·서버를 고치기 전까지 끈다(끄면 앱의 시작 요청 때 쓴다).
+      ACTTUB_COACH_FIRST_QUESTION_PREWRITE: ${ACTTUB_COACH_FIRST_QUESTION_PREWRITE:-false}
       # PG 심사 전용 테스트 빌링(SOMA-620). dev에서만 명시적으로 켜며 기본은 꺼짐이다.
       # 실제 결제 키는 API가 거부한다. 웹 컨테이너에는 이 값을 전달하지 않는다.
       ACTTUB_PG_REVIEW_ENABLED: ${ACTTUB_PG_REVIEW_ENABLED:-false}

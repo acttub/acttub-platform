@@ -31,8 +31,27 @@ public interface DirectVideoModel {
     default Video upload(Path path, String mimeType, InputInspection inspection) {
         return upload(path, mimeType);
     }
+    /**
+     * 이름표를 달아 올린다(SOMA-780). 서버가 바뀌어도 같은 대화가 이름표로 같은 영상을 찾아 다시 쓴다.
+     * 이름표를 못 다는 구현은 그냥 올린다.
+     */
+    default Video upload(Path path, String mimeType, InputInspection inspection, String label) {
+        return inspection == null || inspection.hasAudioTrack() == null
+                ? upload(path, mimeType) : upload(path, mimeType, inspection);
+    }
+    /** 이름표를 단 파일. {@code label} 은 올릴 때 준 이름표 그대로다. */
+    record Labeled(Video video, String label, java.time.Instant created) { }
+    /** 이 접두어로 시작하는 이름표를 단 파일들. 지원하지 않는 구현은 빈 목록이다. */
+    default List<Labeled> labeled(String prefix) { return List.of(); }
     boolean ready(Video video);
     String reply(Video video, List<Message> history, String instruction);
+    /**
+     * 생각을 거의 하지 않고 쓴다(SOMA-780). 이미 쓴 코치 말을 짧게 다듬기처럼 판단이 단순한 호출용이다.
+     * 따로 지원하지 않는 구현은 {@link #reply} 와 같다.
+     */
+    default String replyLight(Video video, List<Message> history, String instruction) {
+        return reply(video, history, instruction);
+    }
     /**
      * {@link #reply} 와 같은 답을 쓰면서 원문 조각을 쓰는 대로 넘긴다(코칭 스트리밍).
      * 스트리밍을 못 하는 구현은 다 쓴 답을 한 조각으로 넘긴다.

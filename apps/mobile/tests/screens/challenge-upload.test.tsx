@@ -1,0 +1,284 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+
+import ChallengeUploadScreen from '@/app/challenge-upload';
+import { logEvent } from '@/lib/analytics';
+import { api } from '@/lib/api';
+import type { ChallengeDetail } from '@/lib/challenge/types';
+import { confirmedVideoFor, flushLibraryUploads, localCopyFor, onLibraryChange, saveRecordingToLibrary } from '@/lib/library/library-runner';
+import { takeRecordedVideo } from '@/lib/recorded-video';
+import { challengeCard, ENDED_AT, RUNNING_ENDS_AT } from '../helpers/challenge-card';
+
+const mockRouter = { replace: jest.fn() };
+let mockParams: Record<string, string | undefined> = {};
+jest.mock('expo-router', () => ({
+  Stack: { Screen: () => null },
+  useRouter: () => mockRouter,
+  useLocalSearchParams: () => mockParams,
+}));
+jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
+jest.mock('expo-video', () => {
+  const { Text } = require('react-native');
+  return {
+    useVideoPlayer: (_src: unknown, setup?: (p: object) => void) => {
+      const player = { play: () => undefined };
+      setup?.(player);
+      return player;
+    },
+    VideoView: () => <Text>미리보기 영상</Text>,
+  };
+});
+jest.mock('@/lib/api', () => ({ api: { getChallenge: jest.fn(), createEntry: jest.fn() } }));
+jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
+jest.mock('@/lib/recorded-video', () => ({ takeRecordedVideo: jest.fn() }));
+jest.mock('@/lib/library/library-runner', () => ({
+  confirmedVideoFor: jest.fn(),
+  flushLibraryUploads: jest.fn(),
+  localCopyFor: jest.fn(),
+  onLibraryChange: jest.fn(),
+  saveRecordingToLibrary: jest.fn(),
+}));
+
+const getChallenge = api.getChallenge as jest.Mock;
+const createEntry = api.createEntry as jest.Mock;
+const httpError = (status: number, code?: string) => Object.assign(new Error(`http ${status}`), { status, code });
+const events = () => (logEvent as jest.Mock).mock.calls;
+
+const running: ChallengeDetail = {
+  ...challengeCard({ id: 'c1', line: '사느냐 죽느냐', work: '햄릿', ends_at: RUNNING_ENDS_AT }),
+  ranking_state: null,
+};
+
+let libraryListener: (() => void) | null = null;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockParams = { challengeId: 'c1', videoId: 'v1' };
+  getChallenge.mockResolvedValue(running);
+  createEntry.mockResolvedValue({ id: 'entry-1' });
+  (takeRecordedVideo as jest.Mock).mockReturnValue(null);
+  (localCopyFor as jest.Mock).mockResolvedValue(null);
+  (confirmedVideoFor as jest.Mock).mockReturnValue(null);
+  (flushLibraryUploads as jest.Mock).mockResolvedValue(undefined);
+  (onLibraryChange as jest.Mock).mockImplementation((fn: () => void) => {
+    libraryListener = fn;
+    return () => {
+      libraryListener = null;
+    };
+  });
+});
+
+const submitButton = () => screen.getByRole('button', { name: /^(공개로 올리기|나만 보기로 올리기|올리기)$/ });
+const PUBLIC = /^공개$/;
+const PRIVATE = /^나만 보기$/;
+
+test('보관함 영상으로 공개 참여하면 완료 화면의 주 버튼 「AI 리포트 보기」가 리포트를 바로 요청하러 간다', async () => {
+  (localCopyFor as jest.Mock).mockResolvedValue('file:///copy.mp4');
+  await render(<ChallengeUploadScreen />);
+
+  expect(await screen.findByText('“사느냐 죽느냐”')).toBeOnTheScreen();
+  expect(screen.getByText(/^보관함 영상 · D-\d+$/)).toBeOnTheScreen();
+  expect(await screen.findByText('미리보기 영상')).toBeOnTheScreen();
+  expect(localCopyFor).toHaveBeenCalledWith('v1');
+  expect(events()).toContainEqual(['challenge_upload_succeeded', { origin: 'library' }]);
+  // 「나만 보기」가 먼저 골라져 있다(pen 챌린지 올리기, SOMA-748).
+  expect(screen.getByRole('radio', { name: PRIVATE })).toBeSelected();
+
+  await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+  expect(screen.getByText('공개 참여작은 다른 참여자의 AI 리포트 비교에 쓰일 수 있어요.')).toBeOnTheScreen();
+  expect(events()).toContainEqual(['challenge_visibility_selected', { visibility: 'public' }]);
+  await fireEvent.changeText(screen.getByPlaceholderText('캡션을 입력하세요 (선택)'), ' 첫 도전 ');
+  expect(screen.getByText('6 / 300')).toBeOnTheScreen();
+
+  await fireEvent.press(submitButton());
+
+  expect(createEntry).toHaveBeenCalledWith('c1', {
+    request_id: expect.stringMatching(/^\d+-[a-z0-9]+$/),
+    video_id: 'v1',
+    visibility: 'public',
+    caption: '첫 도전',
+  });
+  expect(logEvent).toHaveBeenCalledWith('challenge_entry_created', { visibility: 'public' });
+  expect(await screen.findByText('공개로 올렸어요')).toBeOnTheScreen();
+  expect(screen.getByText(/다른 배우들이 볼 수 있어요\. 대사 랭킹에 바로 반영됐어요\./)).toBeOnTheScreen();
+
+  // 주 버튼(첫 버튼)이 「AI 리포트 보기」다 — 한 번 누르면 리포트 화면이 열리며 요청한다(request=1).
+  const [primary, secondary] = screen.getAllByRole('button');
+  expect(primary).toHaveAccessibleName('AI 리포트 보기');
+  expect(secondary).toHaveAccessibleName('홈으로 가기');
+  await fireEvent.press(primary);
+  expect(logEvent).toHaveBeenCalledWith('challenge_upload_report', { visibility: 'public' });
+  expect(mockRouter.replace).toHaveBeenLastCalledWith({
+    pathname: '/ai-report',
+    params: { entryId: 'entry-1', videoId: 'v1', challengeId: 'c1', visibility: 'public', request: '1' },
+  });
+
+  await fireEvent.press(secondary);
+  expect(mockRouter.replace).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
+});
+
+test('비공개를 고르면 비공개로 저장하고 완료 문구가 다르다', async () => {
+  const view = await render(<ChallengeUploadScreen />);
+  await screen.findByText('“사느냐 죽느냐”');
+
+  await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+  await fireEvent.press(screen.getByRole('radio', { name: PRIVATE }));
+  await fireEvent.press(screen.getByRole('radio', { name: PRIVATE }));
+  expect(events().filter(([name]) => name === 'challenge_visibility_selected')).toEqual([
+    ['challenge_visibility_selected', { visibility: 'public' }],
+    ['challenge_visibility_selected', { visibility: 'private' }],
+  ]);
+  expect(screen.queryByText('공개 참여작은 다른 참여자의 AI 리포트 비교에 쓰일 수 있어요.')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '나만 보기로 올리기' }));
+
+  expect(createEntry).toHaveBeenCalledWith('c1', expect.objectContaining({ video_id: 'v1', visibility: 'private' }));
+  expect(createEntry.mock.calls[0][1]).not.toHaveProperty('caption');
+  expect(await screen.findByText('비공개로 저장했어요')).toBeOnTheScreen();
+  expect(screen.getByText(/^나만 볼 수 있게 보관했어요\. 언제든 공개로 바꿀 수 있어요\. 「AI 리포트 보기」를 누르면/)).toBeOnTheScreen();
+
+  await view.unmount();
+  expect(events().some(([name]) => name === 'challenge_upload_exit')).toBe(false);
+});
+
+test('같은 내용을 다시 보내면 같은 요청 id를 쓰고, 지문이 어긋났다는 답 뒤에는 새 id를 쓴다', async () => {
+  createEntry
+    .mockRejectedValueOnce(httpError(409, 'duplicate_entry'))
+    .mockRejectedValueOnce(httpError(409, 'request_fingerprint_mismatch'))
+    .mockResolvedValueOnce({ id: 'entry-1' });
+  await render(<ChallengeUploadScreen />);
+  await screen.findByText('“사느냐 죽느냐”');
+  await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+
+  await fireEvent.press(submitButton());
+  expect(await screen.findByText('이 영상으로 이미 참여했어요. 다른 영상으로 올려 주세요.')).toBeOnTheScreen();
+  expect(events()).toContainEqual(['challenge_submit_failed', { reason: 'duplicate' }]);
+  await fireEvent.press(submitButton());
+  expect(await screen.findByText('적은 내용을 다시 확인해 주세요.')).toBeOnTheScreen();
+  await fireEvent.press(submitButton());
+  expect(await screen.findByText('공개로 올렸어요')).toBeOnTheScreen();
+
+  const ids = createEntry.mock.calls.map(([, body]) => body.request_id);
+  expect(ids[1]).toBe(ids[0]);
+  expect(ids[2]).not.toBe(ids[1]);
+});
+
+test('끝난 챌린지에는 올릴 수 없다고 알리고 버튼을 막는다', async () => {
+  getChallenge.mockResolvedValue({ ...running, ends_at: ENDED_AT });
+  await render(<ChallengeUploadScreen />);
+
+  expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 보관함에 남아 있어요.')).toBeOnTheScreen();
+  expect(screen.getByText('보관함 영상 · 종료')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+  expect(submitButton()).toBeDisabled();
+});
+
+test('챌린지를 못 읽으면 없다고 알리고 넘겨받은 대사를 보여 준다', async () => {
+  mockParams = { challengeId: 'c1', videoId: 'v1', line: '넘겨받은 대사', work: '넘겨받은 작품' };
+  getChallenge.mockRejectedValue(httpError(404));
+  await render(<ChallengeUploadScreen />);
+
+  expect(await screen.findByText('없는 챌린지예요.')).toBeOnTheScreen();
+  expect(screen.getByText('넘겨받은 대사')).toBeOnTheScreen();
+});
+
+test('길이 한도를 넘는 캡션이 들어오면 다시 확인하라고 하고 버튼을 막는다', async () => {
+  await render(<ChallengeUploadScreen />);
+  await screen.findByText('“사느냐 죽느냐”');
+  await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+  await fireEvent.changeText(screen.getByPlaceholderText('캡션을 입력하세요 (선택)'), '가'.repeat(301));
+
+  expect(screen.getByText('적은 내용을 다시 확인해 주세요.')).toBeOnTheScreen();
+  expect(submitButton()).toBeDisabled();
+});
+
+test('제출 없이 떠나면 어디까지 왔는지 남긴다', async () => {
+  mockParams = { challengeId: 'c1' };
+  const view = await render(<ChallengeUploadScreen />);
+  await screen.findByText('“사느냐 죽느냐”');
+  await view.unmount();
+
+  expect(events()).toContainEqual(['challenge_upload_exit', { stage: 'no_video', visibility: 'private', stay_s: '0' }]);
+});
+
+describe('방금 찍은 영상', () => {
+  beforeEach(() => {
+    mockParams = { challengeId: 'c1' };
+  });
+
+  test('보관함 큐가 확정할 때까지 기다렸다가 그 영상으로 올린다', async () => {
+    (takeRecordedVideo as jest.Mock).mockReturnValue({ uri: 'file:///rec.mp4', durationMs: 10_000 });
+    (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'q1' } });
+    await render(<ChallengeUploadScreen />);
+
+    expect(await screen.findByText('영상을 올리는 중이에요. 잠시 뒤 다시 눌러 주세요.')).toBeOnTheScreen();
+    expect(saveRecordingToLibrary).toHaveBeenCalledWith({ uri: 'file:///rec.mp4', durationMs: 10_000, owner: 'u1' });
+    expect(events()).toContainEqual(['challenge_upload_started', { origin: 'new' }]);
+    expect(screen.getByText('미리보기 영상')).toBeOnTheScreen();
+    expect(screen.getByText(/^방금 찍은 영상 · 0:10 · D-\d+$/)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+    expect(submitButton()).toBeDisabled();
+
+    (confirmedVideoFor as jest.Mock).mockImplementation((id: string) => (id === 'q1' ? 'v9' : null));
+    await act(async () => libraryListener?.());
+
+    expect(screen.queryByText('영상을 올리는 중이에요. 잠시 뒤 다시 눌러 주세요.')).not.toBeOnTheScreen();
+    expect(events()).toContainEqual(['challenge_upload_succeeded', { origin: 'new' }]);
+    await fireEvent.press(submitButton());
+    expect(createEntry).toHaveBeenCalledWith('c1', expect.objectContaining({ video_id: 'v9' }));
+  });
+
+  test('갤러리에서 고른 영상은 「방금 찍은 영상」이 아니라 갤러리 영상으로 보인다', async () => {
+    (takeRecordedVideo as jest.Mock).mockReturnValue({ uri: 'file:///pick.mp4', durationMs: 10_000, source: 'gallery' });
+    (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'q1' } });
+    await render(<ChallengeUploadScreen />);
+
+    expect(await screen.findByText(/^갤러리 영상 · 0:10 · D-\d+$/)).toBeOnTheScreen();
+    expect(screen.queryByText(/방금 찍은 영상/)).not.toBeOnTheScreen();
+  });
+
+  test('60초를 넘으면 올리지 않고 길다고 알린다', async () => {
+    (takeRecordedVideo as jest.Mock).mockReturnValue({ uri: 'file:///rec.mp4', durationMs: 61_000 });
+    await render(<ChallengeUploadScreen />);
+
+    expect(await screen.findByText('챌린지 영상은 60초까지예요.')).toBeOnTheScreen();
+    expect(events()).toContainEqual(['challenge_upload_failed', { reason: 'video_too_long' }]);
+    expect(saveRecordingToLibrary).not.toHaveBeenCalled();
+  });
+
+  test('3초보다 짧으면 다시 찍으라고 한다', async () => {
+    (takeRecordedVideo as jest.Mock).mockReturnValue({ uri: 'file:///rec.mp4', durationMs: 2_000 });
+    await render(<ChallengeUploadScreen />);
+    expect(await screen.findByText('영상이 너무 짧아요. 3초 이상 촬영해 주세요.')).toBeOnTheScreen();
+    expect(saveRecordingToLibrary).not.toHaveBeenCalled();
+  });
+
+  test('보관함이 받지 않으면 실패를 남기고 알린다', async () => {
+    (takeRecordedVideo as jest.Mock).mockReturnValue({ uri: 'file:///rec.mp4', durationMs: null });
+    (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'rejected', code: 'video_empty' });
+    await render(<ChallengeUploadScreen />);
+
+    expect(await screen.findByText('챌린지 영상은 60초까지예요.')).toBeOnTheScreen();
+    expect(events()).toContainEqual(['challenge_upload_failed', { reason: 'video_empty' }]);
+  });
+
+  test('보관함 영상 id로 열었으면 방금 찍은 영상은 쓰지 않는다', async () => {
+    mockParams = { challengeId: 'c1', videoId: 'v1' };
+    (takeRecordedVideo as jest.Mock).mockReturnValue({ uri: 'file:///rec.mp4', durationMs: 10_000 });
+    await render(<ChallengeUploadScreen />);
+    expect(await screen.findByText('“사느냐 죽느냐”')).toBeOnTheScreen();
+    expect(localCopyFor).toHaveBeenCalledWith('v1');
+    expect(saveRecordingToLibrary).not.toHaveBeenCalled();
+    expect(screen.queryByText('미리보기 영상')).not.toBeOnTheScreen();
+  });
+});
+
+test('챌린지 id 없이 열면 읽지도 올리지도 않는다', async () => {
+  mockParams = { videoId: 'v1' };
+  await render(<ChallengeUploadScreen />);
+  await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+  await fireEvent.press(submitButton());
+
+  expect(screen.getByRole('radio', { name: PUBLIC })).toBeSelected();
+  await waitFor(() => expect(createEntry).not.toHaveBeenCalled());
+  expect(getChallenge).not.toHaveBeenCalled();
+});

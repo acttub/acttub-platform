@@ -41,7 +41,7 @@ class AnalysisWorkerConfiguration {
             Clock clock,
             @Value("${ANALYSIS_LEASE_SEC:1800}") long leaseSeconds,
             @Value("${GEMINI_MODEL:gemini-2.5-flash}") String model,
-            // 완료 통지는 선택이다 — push 도메인이 구현을 내지만, 없어도 분석은 돌아야 한다.
+            // 완료 통지는 선택이다 — push(알림)·coach(첫 질문 미리 쓰기)가 구현을 내지만, 없어도 분석은 돌아야 한다.
             ObjectProvider<AnalysisCompletionListener> completionListener,
             FailureReporter failureReporter) {
         if (leaseSeconds <= 0) {
@@ -53,7 +53,7 @@ class AnalysisWorkerConfiguration {
         }
         return new AnalysisWorker(
                 store, objectStorage, analyzer, clock, Duration.ofSeconds(leaseSeconds), model,
-                completionListener.getIfAvailable(), failureReporter);
+                AnalysisCompletionListener.all(completionListener.orderedStream().toList()), failureReporter);
     }
 
     /**
@@ -77,6 +77,6 @@ class AnalysisWorkerConfiguration {
         }
         return new AnalysisWorker(
                 store, objectStorage, analyzer, clock, Duration.ofSeconds(leaseSeconds), model,
-                completionListener.getIfAvailable(), failureReporter);
+                AnalysisCompletionListener.all(completionListener.orderedStream().toList()), failureReporter);
     }
 }
