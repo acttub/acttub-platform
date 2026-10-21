@@ -307,10 +307,10 @@ final class PracticeLoopRouter {
         // 2026-10-11 17:56 운영: 받아 준 뒤 배우가 "?반응을 어케봐?"라고 물었는데 대꾸 없이 "오늘은 여기까지 해요"로 닫혔다.
         // 정리 뒤 배우가 아니라고 해서 배우 해석을 물었으면(내려놓기), 배우가 말한 해석으로 한 번 더 정리한다.
         // 2026-10-20 23:35 운영(자문): 정리 뒤 정정 네 번에 코치가 매번 새 해석을 제안했다("그 해석이면 ~해 봐도 좋아요").
-        if (b.closeNext() && b.lastDoing().startsWith(LET_GO) && answeredStep(kind)) return WRAP_UP;
-        if (b.closeNext()) return asksAgain(c) ? answerTo(kind, b) : END;
+        if (b.closeNext() && b.lastDoing().startsWith(LET_GO) && answeredStep(kind) && !c.ack()) return WRAP_UP;
+        if (b.closeNext()) return asksAgain(c) ? answerTo(c, b) : END;
         // 정리한 다음 말: 맞장구·짧은 말이면 닫는다. 그 밖(다른 해석, 덧붙인 생각, 물음, 반박)은 한 번 받아 주고 그다음 말에서 닫는다(closesNext).
-        if (b.lastDoing().startsWith(WRAP_UP)) return endsAfterWrap(c) ? END : answerTo(kind, b);
+        if (b.lastDoing().startsWith(WRAP_UP)) return endsAfterWrap(c) ? END : answerTo(c, b);
         if (b.lastDoing().startsWith("마무리") || b.lastDoing().startsWith("끝")) return END;
         if (b.reply() >= LAST_REPLY - 1) return WRAP_UP;
         // 코치가 답을 제안했으면, 배우가 받든(네) 다르게 답하든 다음 단계로 간다. 물음·정정은 먼저 받는다.
@@ -493,10 +493,12 @@ final class PracticeLoopRouter {
         return c.kind() == Kind.SHORT || (c.kind() == Kind.ANSWER && c.ack());
     }
 
-    private static String answerTo(Kind kind, Before b) {
+    private static String answerTo(Classified c, Before b) {
+        Kind kind = c.kind();
         if (kind == Kind.EVALUATION) return "짚어주기";
-        // 정리를 아니라고 하면 코치가 새 해석을 내놓지 않고 배우가 하려던 것을 묻는다(다음 말에서 그 해석으로 다시 정리한다).
-        if (kind == Kind.CORRECTION) return LET_GO;
+        // 정리를 아니라고만 하고 자기 해석(바람)을 말하지 않았으면 코치가 새 해석을 짐작하지 않고 배우가 하려던 것을 묻는다
+        // (다음 말에서 그 해석으로 다시 정리한다). 해석을 말했으면 예전처럼 그 해석을 따라 마지막 말을 한다.
+        if (kind == Kind.CORRECTION && !c.want()) return LET_GO;
         return "답하기";
     }
 
