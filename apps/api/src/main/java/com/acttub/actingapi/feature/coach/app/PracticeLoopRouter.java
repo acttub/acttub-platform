@@ -55,7 +55,11 @@ final class PracticeLoopRouter {
      *     배우가 "그건 교수 흉내 부분"이라고 한 대사를 정리가 세 번 다시 썼다)
      */
     static final List<String> STEP = List.of("answered", "missed", "not_yet");
-    static final List<String> RESPOND = List.of("correction", "pushback", "method", "evaluation", "question");
+    // why: 코치가 왜 그렇게 봤는지·어디서 그렇게 보였는지 근거를 묻는 말. 정정·반박보다 먼저 본다 — 동의하지 않으면서 근거를 물으면 근거부터 답해야 한다
+    // (2026-10-20~21 운영: "어떤부분이 그렇게 보였을까", "왜 제가 한대로 하면 안되는건가요?"에 근거 없이 제안만 했다).
+    static final List<String> RESPOND = List.of("why", "correction", "pushback", "method", "evaluation", "question");
+    /** 근거를 묻는 말. 종류는 물음이고 {@code respond}에 이 값이 남아 재료에서 근거부터 답하게 한다. */
+    static final String WHY = "why";
     static final String STOP_SIGNAL = "stop";
     static final String DECIDED_SIGNAL = "decided";
     static final String ACK_SIGNAL = "ack";
@@ -132,6 +136,7 @@ final class PracticeLoopRouter {
     }
 
     private static Classified kindOf(String step, String respond, boolean decided, boolean ack) {
+        if (WHY.equals(respond)) return new Classified(Kind.QUESTION, false, "model", WHY, decided, ack);
         if ("correction".equals(respond)) return new Classified(Kind.CORRECTION, false, "model");
         if ("pushback".equals(respond)) return new Classified(Kind.PUSHBACK, false, "model");
         if ("answered".equals(step)) return new Classified(Kind.ANSWER, false, "model", respond == null ? "" : respond, decided, ack);
@@ -144,6 +149,7 @@ final class PracticeLoopRouter {
 
     /** 정리한 뒤의 말은 단계가 없으니, 함께 물은 게 있으면 그 물음으로 본다(답해 주고 다음 말에서 닫는다). 정리 뒤 답한 다음 말도 같다. */
     static Classified forRouting(Classified c, Before b) {
+        if (WHY.equals(c.respond())) return c; // 이미 물음이다. 근거 표시를 지우지 않는다
         if (!(b.lastDoing().startsWith(WRAP_UP) || b.closeNext()) || !c.alsoAsked()) return c;
         Kind asked = switch (c.respond()) {
             case "evaluation" -> Kind.EVALUATION;
@@ -257,6 +263,13 @@ final class PracticeLoopRouter {
 
     /** 단계를 넘기지 않고 머문 할 일. 같은 단계에서 몇 번째 묻는지 셀 때 쓴다. */
     static final String PROPOSE = "답 제안하기";
+    static final String LET_GO = "내려놓기";
+    static final String POINT_OUT_OTHER = "짚어주기(다른 쪽)";
+
+    /** 단계 질문에 답한 말(정리 뒤 다시 정리할 재료가 되는 말). */
+    private static boolean answeredStep(Kind kind) {
+        return kind == Kind.ANSWER || kind == Kind.CHOICE || kind == Kind.INSIGHT || kind == Kind.SELF_LINE;
+    }
     static final java.util.Set<String> STAYS = java.util.Set.of("다시 묻기", EASY, PROPOSE, "답하기", "짚어주기", "짚어주기(다른 쪽)", "내려놓기");
 
     /** 지금 단계에서 연달아 머문 코치 응답 수. 단계를 넘긴 응답(첫 응답, 보여 주기, 스스로 찾기, 정리)에서 0으로 돌아간다. */
@@ -292,17 +305,23 @@ final class PracticeLoopRouter {
         if (kind == Kind.STOP || b.reply() >= LAST_REPLY) return END;
         // 정리 뒤 한 번 받아 준 다음 말: 또 물었으면(물음·방법·판단 요청·반박·정정) 답하고, 그 밖이면 닫는다.
         // 2026-10-11 17:56 운영: 받아 준 뒤 배우가 "?반응을 어케봐?"라고 물었는데 대꾸 없이 "오늘은 여기까지 해요"로 닫혔다.
+        // 정리 뒤 배우가 아니라고 해서 배우 해석을 물었으면(내려놓기), 배우가 말한 해석으로 한 번 더 정리한다.
+        // 2026-10-20 23:35 운영(자문): 정리 뒤 정정 네 번에 코치가 매번 새 해석을 제안했다("그 해석이면 ~해 봐도 좋아요").
+        if (b.closeNext() && b.lastDoing().startsWith(LET_GO) && answeredStep(kind)) return WRAP_UP;
         if (b.closeNext()) return asksAgain(c) ? answerTo(kind, b) : END;
         // 정리한 다음 말: 맞장구·짧은 말이면 닫는다. 그 밖(다른 해석, 덧붙인 생각, 물음, 반박)은 한 번 받아 주고 그다음 말에서 닫는다(closesNext).
         if (b.lastDoing().startsWith(WRAP_UP)) return endsAfterWrap(c) ? END : answerTo(kind, b);
         if (b.lastDoing().startsWith("마무리") || b.lastDoing().startsWith("끝")) return END;
         if (b.reply() >= LAST_REPLY - 1) return WRAP_UP;
         // 코치가 답을 제안했으면, 배우가 받든(네) 다르게 답하든 다음 단계로 간다. 물음·정정은 먼저 받는다.
-        if (b.lastDoing().startsWith(PROPOSE) && kind != Kind.CORRECTION && kind != Kind.PUSHBACK && kind != Kind.METHOD) return next(b.stage());
+        if (b.lastDoing().startsWith(PROPOSE) && kind != Kind.CORRECTION && kind != Kind.PUSHBACK && kind != Kind.METHOD
+                && kind != Kind.QUESTION && kind != Kind.EVALUATION) return next(b.stage());
         // 같은 단계에 두 번 머물렀으면 묻기만 하지 않고 코치가 답을 제안한다.
         // 배우가 묻거나 피드백을 달라는 말에는 몇 번째든 답한다 — 제안으로 대신하면 물음에 답하지 않은 게 된다(10/12 시험 세트: 물음 34개 중 20개만 답함).
         if (stayed >= 2 && (kind == Kind.MISSED || kind == Kind.SHORT)) return PROPOSE;
-        String pointOut = b.habitDropped() ? "짚어주기(다른 쪽)" : "짚어주기";
+        // 평가 요청에는 버릇을 내려놓은 뒤에도 판단을 준다(내려놓은 주제는 피할 것으로 빠진다).
+        // 2026-10-20 21:34 운영: 정정 뒤 "연기력이랑 목소리는 어때"에 다른 쪽 강점 질문("어디서 더 써 볼래요?")으로 답했다.
+        String pointOut = "짚어주기";
         // 정리로 넘어가는 문턱: 스스로 찾기(4단계)에 답했어도 상대에게 할 행동 하나를 정하지 않았으면(고민 중, 헷갈림, 전제 반박,
         // 판단 요청) 정리하지 않는다. 물은 것이 있으면 먼저 답하고, 없으면 바꿔 묻기 → 보기 둘 → 코치가 제안 순서로 머문다.
         if (kind == Kind.ANSWER && b.stage() >= 4 && !c.decided()) {
@@ -316,7 +335,9 @@ final class PracticeLoopRouter {
         }
         return switch (kind) {
             case CORRECTION -> "내려놓기";
-            case PUSHBACK -> "짚어주기(다른 쪽)";
+            // 반박이 이어지면 같은 방식(받고 강점 묻기)을 되풀이하지 않고 질문 없이 판단을 준다.
+            // 2026-10-17 20:56 운영: "다른질문" → "너 내 대답 듣고잇니" → "너는 너 할말만 햇음"까지 반박 네 번에 같은 할 일이 네 번 나갔다.
+            case PUSHBACK -> b.lastKind() == Kind.PUSHBACK || b.lastDoing().startsWith(POINT_OUT_OTHER) ? "짚어주기" : POINT_OUT_OTHER;
             case EVALUATION -> pointOut;
             case QUESTION -> "답하기";
             // 질문이 잘못 전해졌다. 단계를 넘기지 않고 같은 것을 바꿔 묻는다. 두 번째면 보기 둘로 고르게 한다.
@@ -474,6 +495,8 @@ final class PracticeLoopRouter {
 
     private static String answerTo(Kind kind, Before b) {
         if (kind == Kind.EVALUATION) return "짚어주기";
+        // 정리를 아니라고 하면 코치가 새 해석을 내놓지 않고 배우가 하려던 것을 묻는다(다음 말에서 그 해석으로 다시 정리한다).
+        if (kind == Kind.CORRECTION) return LET_GO;
         return "답하기";
     }
 
