@@ -174,6 +174,90 @@ final class DirectVideoPracticeLoop {
     }
 
     /** 물음표로 끝나는 문장을 뗀다. 다 떼어지면 원래 말을 그대로 둔다. */
+    /**
+     * 배우에게 쓰면 안 되는 비유·꾸밈말. 운영과 재생에서 실제로 나온 말이다(2026-10-17~21: "또렷하게 꽂혀요", "튕겨 나갈 거예요",
+     * "깊게 눌러주는 무게감", "발음의 날이 무너지지 않고", "에너지 있게 밀고 가는 힘"). 배우가 먼저 쓴 낱말이면 그대로 받아도 된다.
+     */
+    private static final Pattern METAPHOR = Pattern.compile(
+            "화살|꽂(?:혀|히|는|아|힌)|튕겨|뚫어지|에너지|무게|공기가|결이|결을|온도|힘을 실|힘이 실|실려 있|가 닿|묵직|날이 (?:서|무너|살아)|날카로운 힘"
+                    + "|살아 있어요|살아나|살아날|불꽃|칼날|파도|가려져요|녹아들|스며들|터져 나오는 힘|꽉 찬|뱉(?:는|어|었|기|고)|튀어나온");
+
+    /** 코치 말에 든 비유 낱말. 배우가 대화에서 먼저 쓴 낱말은 뺀다. 없으면 빈 목록. */
+    static List<String> metaphors(String text, String actorWords) {
+        if (text == null || text.isBlank()) return List.of();
+        String said = actorWords == null ? "" : actorWords;
+        var found = new java.util.LinkedHashSet<String>();
+        Matcher m = METAPHOR.matcher(text);
+        while (m.find()) {
+            String word = m.group();
+            String stem = word.length() > 2 ? word.substring(0, 2) : word;
+            if (!said.contains(stem)) found.add(word);
+        }
+        return List.copyOf(found);
+    }
+
+    /** 코치 말의 마지막 질문 문장. 없으면 빈 문자열. */
+    static String lastQuestion(String text) {
+        if (text == null) return "";
+        var all = sentences(text);
+        for (int i = all.size() - 1; i >= 0; i--) if (all.get(i).endsWith("?")) return all.get(i);
+        return "";
+    }
+
+    private static String normalizedQuestion(String q) {
+        return q.replaceAll("^(?:(?:아|네|그럼|그러면|그렇다면)[,.\\s]+)+", "").replaceAll("(?:그|이) 장면에(?:서는|선|서)?", "")
+                .replaceAll("[\\s\\p{Punct}“”‘’…·]+", "");
+    }
+
+    /** 두 질문이 같은 뜻으로 보이는지. 앞의 "아, 그럼", "그 장면에서" 같은 말과 띄어쓰기를 빼고 두 글자 묶음이 60% 이상 겹치면 같다고 본다. */
+    static boolean sameQuestion(String a, String b) {
+        String x = normalizedQuestion(a), y = normalizedQuestion(b);
+        if (x.length() < 6 || y.length() < 6) return false;
+        if (x.equals(y) || x.contains(y) || y.contains(x)) return true;
+        var bx = new java.util.HashSet<String>();
+        for (int i = 0; i + 2 <= x.length(); i++) bx.add(x.substring(i, i + 2));
+        var by = new java.util.HashSet<String>();
+        for (int i = 0; i + 2 <= y.length(); i++) by.add(y.substring(i, i + 2));
+        long common = bx.stream().filter(by::contains).count();
+        return 2.0 * common / (bx.size() + by.size()) >= 0.6;
+    }
+
+    /** 이번 코치 말의 마지막 질문이 앞선 코치 말(최근 것부터 최대 넷)의 질문과 같으면 그 앞 질문을, 아니면 빈 문자열. */
+    static String repeatedQuestion(String text, List<String> earlierCoach) {
+        String now = lastQuestion(text);
+        if (now.isEmpty() || earlierCoach == null) return "";
+        for (int i = earlierCoach.size() - 1, seen = 0; i >= 0 && seen < 4; i--, seen++) {
+            for (String sentence : sentences(earlierCoach.get(i))) {
+                if (sentence.endsWith("?") && sameQuestion(now, sentence)) return sentence;
+            }
+        }
+        return "";
+    }
+
+    private static double overlap(String a, String b) {
+        String x = normalizedQuestion(a), y = normalizedQuestion(b);
+        if (x.length() < 10 || y.length() < 10) return 0;
+        var bx = new java.util.HashSet<String>();
+        for (int i = 0; i + 2 <= x.length(); i++) bx.add(x.substring(i, i + 2));
+        var by = new java.util.HashSet<String>();
+        for (int i = 0; i + 2 <= y.length(); i++) by.add(y.substring(i, i + 2));
+        long common = bx.stream().filter(by::contains).count();
+        return 2.0 * common / (bx.size() + by.size());
+    }
+
+    /**
+     * 이번 코치 말에서 바로 앞 코치 말 둘의 문장을 거의 그대로 되풀이한 문장(질문 제외). 둘 이상이거나 말 전체가 되풀이면 그 문장들을,
+     * 아니면 빈 목록. 2026-10-21 재생: 반박이 이어지자 같은 피드백 세 문장이 거의 글자 그대로 다시 나갔다.
+     */
+    static List<String> repeatedLines(String text, List<String> earlierCoach) {
+        if (text == null || earlierCoach == null || earlierCoach.isEmpty()) return List.of();
+        var before = new ArrayList<String>();
+        for (int i = Math.max(0, earlierCoach.size() - 2); i < earlierCoach.size(); i++) before.addAll(sentences(earlierCoach.get(i)));
+        var mine = sentences(text).stream().filter(s -> !s.endsWith("?")).toList();
+        var repeated = mine.stream().filter(s -> before.stream().anyMatch(b -> overlap(s, b) >= 0.8)).toList();
+        return repeated.size() >= 2 || !repeated.isEmpty() && repeated.size() == mine.size() ? repeated : List.of();
+    }
+
     static String withoutQuestions(String text) {
         var kept = sentences(text).stream().filter(s -> !s.endsWith("?")).toList();
         return kept.isEmpty() ? text.strip() : String.join("\n", kept);
