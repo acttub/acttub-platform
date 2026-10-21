@@ -7,7 +7,8 @@ export type BootstrapRoute =
   | '/profile-name'
   | '/(tabs)'
   | {
-      pathname: '/analyzing';
+      // 분석 대기는 코치 화면 안이다(SOMA-778).
+      pathname: '/coach';
       params: {
         recoveryKey: string;
         practiceId: string;
@@ -22,7 +23,7 @@ export type BootstrapRecoveryParams = {
 export function resolveAnalyzingBootstrapRoute(
   pathname: string,
   currentParams: BootstrapRecoveryParams,
-  target: Extract<BootstrapRoute, { pathname: '/analyzing' }>,
+  target: Extract<BootstrapRoute, { pathname: '/coach' }>,
 ): 'replace' | 'complete' {
   return pathname === target.pathname &&
     currentParams.recoveryKey === target.params.recoveryKey &&
@@ -137,7 +138,7 @@ export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
     return {
       stage: 'done',
       route: {
-        pathname: '/analyzing',
+        pathname: '/coach',
         params: {
           recoveryKey: input.pending.key,
           practiceId: input.pending.record.practice_id,

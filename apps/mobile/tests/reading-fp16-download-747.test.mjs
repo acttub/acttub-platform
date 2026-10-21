@@ -272,3 +272,11 @@ test('fp16 받은 것을 지우면 묶음 폴더가 사라진다', () => {
   assert.equal(s.dirs.has(DIR16), false);
   assert.equal(assets.assetsPresent('fp16', 'M1'), false);
 });
+
+test('남은 받을 양: fp16 묶음은 처음엔 약 200MB, 다 풀어 두면 0, 구조 파일 하나만 없으면 그만큼이다', () => {
+  assert.equal(assets.missingModelBytes('fp16'), 199_693_097);
+  installUnpacked();
+  assert.equal(assets.missingModelBytes('fp16'), 0);
+  s.files.delete(`${DIR16}/vocoder.graph.onnx`);
+  assert.equal(assets.missingModelBytes('fp16'), FP16['vocoder.graph.onnx']);
+});

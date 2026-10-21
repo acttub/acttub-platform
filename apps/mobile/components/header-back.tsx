@@ -14,7 +14,7 @@ export function HeaderBack() {
   const router = useRouter();
   if (!router.canGoBack()) return null;
   return (
-    <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+    <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="nav_back">
       <Feather name="chevron-left" size={26} color={palette.text} />
     </Pressable>
   );

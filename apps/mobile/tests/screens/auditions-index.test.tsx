@@ -120,7 +120,8 @@ test('검색어는 제목·출연료·출처를 모두 찾고, 없으면 조건�
   expect(titles()).toEqual(['연극 앙상블']);
 
   await fireEvent.changeText(screen.getByPlaceholderText('제목·출연료·출처 검색'), '없는공고');
-  expect(screen.getByText('조건에 맞는 공고가 없어요.')).toBeOnTheScreen();
+  expect(screen.getByText('찾는 공고가 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('「초기화」를 누르면 모든 공고가 다시 보여요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '초기화' }));
   expect(screen.getByDisplayValue('')).toBeOnTheScreen();
@@ -175,7 +176,7 @@ test('못 불러오면 다시 시도를 둔다', async () => {
   getAuditions.mockRejectedValueOnce(new Error('down'));
   await render(<AuditionsScreen />);
 
-  expect(await screen.findByText('오디션 공고를 불러오지 못했어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('공고를 불러오지 못했어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
   expect(await screen.findByText('장편 영화 주연')).toBeOnTheScreen();
 });

@@ -101,7 +101,12 @@ export default function NotificationsScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          ph-label="notifications_back">
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <Text style={styles.title}>{t('notifications.title')}</Text>
@@ -175,5 +180,5 @@ const styles = StyleSheet.create({
   rowTextUnread: { fontWeight: '800', color: palette.text },
   rowMeta: { fontSize: 12, color: palette.textFaint },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.blue },
-  keep: { fontSize: 12, color: palette.textFaint, textAlign: 'center', paddingTop: 16 },
+  keep: { fontSize: 12, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', paddingTop: 16 },
 });

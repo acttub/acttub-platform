@@ -57,12 +57,12 @@ export default function LineSearchScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="line_search_back">
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <Text style={styles.title}>{t('lineSearch.title')}</Text>
         <View style={styles.flex} />
-        <Pressable onPress={register} hitSlop={10} accessibilityRole="button">
+        <Pressable onPress={register} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('challenges.addLine')} ph-label="line_search_add">
           <Feather name="plus" size={26} color={palette.blue} />
         </Pressable>
       </View>
@@ -80,7 +80,7 @@ export default function LineSearchScreen() {
           onSubmitEditing={() => void search(query)}
         />
         {!!query && (
-          <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button">
+          <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.delete')} ph-label="line_search_clear">
             <Feather name="x" size={16} color={palette.textFaint} />
           </Pressable>
         )}

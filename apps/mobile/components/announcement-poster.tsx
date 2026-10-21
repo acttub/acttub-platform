@@ -125,7 +125,7 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
   return <>
     <Modal visible={visible} animationType="fade" onRequestClose={close} statusBarTranslucent>
       <View style={[styles.screen, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }]}>
-        <Pressable style={styles.close} onPress={close} accessibilityLabel={t('common.close')}><Feather name="x" size={22} color={palette.text} /></Pressable>
+        <Pressable style={styles.close} onPress={close} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="poster_close"><Feather name="x" size={22} color={palette.text} /></Pressable>
         <View style={styles.center}>
           {poster.badge ? <Text style={styles.badge}>{poster.badge}</Text> : null}
           <Text style={styles.title}>{poster.title}</Text>

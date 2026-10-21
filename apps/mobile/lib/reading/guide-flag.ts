@@ -29,3 +29,22 @@ export async function hideAutoAdvanceTip(storage: Storage = defaultStorage()): P
     // no-op
   }
 }
+
+/** 첫 리딩 안내(pen 「리딩 실행 · 처음」, SOMA-748) — 한 번 다 보거나 리딩을 끝까지 하면 다시 띄우지 않는다. */
+export const FIRST_READING_GUIDE_KEY = 'acttub.reading.firstGuideSeen';
+
+export async function hasSeenFirstReadingGuide(storage: Storage = defaultStorage()): Promise<boolean> {
+  try {
+    return (await storage.getItem(FIRST_READING_GUIDE_KEY)) === '1';
+  } catch {
+    return true; // 못 읽으면 본 것으로
+  }
+}
+
+export async function markFirstReadingGuideSeen(storage: Storage = defaultStorage()): Promise<void> {
+  try {
+    await storage.setItem(FIRST_READING_GUIDE_KEY, '1');
+  } catch {
+    // no-op
+  }
+}

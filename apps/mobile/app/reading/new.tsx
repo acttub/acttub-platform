@@ -9,6 +9,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 
 import { palette } from '@/constants/palette';
+import { Image } from 'expo-image';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { DialogButtons } from '@/components/ui/dialog';
+import { ReadingStatus } from '@/components/ui/reading-status';
+import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { Markdown } from '@/components/markdown';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -46,6 +51,8 @@ import { translate as t } from '@/lib/i18n';
  * 대본 넣기(R2, reading.script). 「파일로 넣기 | 글로 붙여넣기」 탭 하나를 골라 [다음]을 누르면 서버가 나눠 바로
  * 저장하고, 그동안 R2.11 팝업에 진행 줄 수를 보인다. 파일은 고르는 순간 서버에 올려 글자를 뽑게 한다(R2.2).
  */
+const MASCOT = require('@/assets/images/mascot-reading.png');
+
 const PICKER_TYPES = [
   'text/plain',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -85,6 +92,8 @@ type Resume = { kind: 'import'; input: ImportInput; flags: ImportFlags } | { kin
 type Popup =
   | { kind: 'splitting'; progress: ImportProgress | null } // R2.11
   | { kind: 'alert'; title: string; message: string } // R2.4·R2.12·R2.13·R2.15
+  /** pen 「대본을 못 나눴어요」 — 화면 전체로 보이고 [다시 시도]·[직접 붙여 넣기]를 준다. */
+  | { kind: 'failed'; message: string; resume: Resume }
   /** flags 는 [새로 넣기]·[그래도 나누기]가 다시 보낼 때 붙일 것이다. */
   | { kind: 'duplicate'; title: string; input: ImportInput; flags: ImportFlags } // R2.7
   | { kind: 'not_script'; input: ImportInput; flags: ImportFlags } // R2.8
@@ -118,6 +127,7 @@ export default function ReadingNew() {
 
   const showStop = async (stop: ImportStop, resume: Resume) => {
     const alert = importAlert(stop);
+    if (alert && isSplitFailure(stop)) return setPopup({ kind: 'failed', message: alert.message, resume });
     if (alert) return setPopup({ kind: 'alert', ...alert });
     if (stop.kind === 'consent') {
       try {
@@ -210,6 +220,13 @@ export default function ReadingNew() {
     if (next) await split(next, { title });
   };
 
+  const retryFailed = async (resume: Resume) => {
+    if (resume.kind === 'import') return split(resume.input, resume.flags);
+    setPopup(null);
+    const next = await upload(resume.file);
+    if (next) await split(next, { title });
+  };
+
   const setTab = (tab: ScriptTab) => dispatch({ type: 'tab', tab });
   const closable = popup !== null && popup.kind !== 'splitting' && !(popup.kind === 'consent' && popup.busy);
   // 파일을 올리는 중·나누는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일과 나누기가 버려진다(SOMA-664).
@@ -217,29 +234,35 @@ export default function ReadingNew() {
   const working = input.file.kind === 'reading' || popup?.kind === 'splitting';
   usePreventRemove(working, () => undefined);
 
+  if (popup?.kind === 'failed') {
+    return (
+      <ReadingStatus
+        title={t('reading.splitFailTitle')}
+        body={t('reading.splitFailBody')}
+        note={popup.message}
+        onBack={() => setPopup(null)}
+        primary={{ label: t('reading.splitRetry'), onPress: () => void retryFailed(popup.resume) }}
+        secondary={{
+          label: t('reading.splitPasteInstead'),
+          onPress: () => {
+            setPopup(null);
+            setTab('paste');
+          },
+        }}
+      />
+    );
+  }
+
   return (
     <View style={[styles.root, { paddingBottom: keyboard }]}>
       <Stack.Screen options={{ gestureEnabled: !working }} />
       <View style={styles.content}>
-        <Text style={styles.step}>{t('reading.newStep')}</Text>
-        <Text style={styles.title}>{t('reading.newHeading')}</Text>
-        <Text style={styles.sub}>{t('reading.newSub')}</Text>
-
-        <View style={styles.titleField}>
-          <Text style={styles.titleLabel}>{t('reading.newTitleLabel')}</Text>
-          <TextInput
-            style={styles.titleInput}
-            value={title}
-            onChangeText={setTitle}
-            placeholder={t('reading.newTitlePlaceholder')}
-            placeholderTextColor={palette.textFaint}
-            maxLength={TITLE_MAX}
-            editable={!working}
-            returnKeyType="done"
-            accessibilityLabel={t('reading.newTitleLabel')}
-          />
+        <View style={styles.mascotRow}>
+          <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Text style={styles.title}>{t('reading.newHeading')}</Text>
         </View>
 
+        {/* 「사진」 탭(사진으로 대본 넣기)은 서버에 사진 출처가 없어 숨긴다(SOMA-748). */}
         <View style={styles.segment}>
           <SegmentTab icon="paperclip" label={t('reading.tabFile')} on={input.tab === 'file'} onPress={() => setTab('file')} />
           <View ref={pasteTabTarget.ref} onLayout={pasteTabTarget.onLayout} style={styles.segmentSlot}>
@@ -247,11 +270,23 @@ export default function ReadingNew() {
           </View>
         </View>
 
+        <TextInput
+          style={styles.titleInput}
+          value={title}
+          onChangeText={setTitle}
+          placeholder={`${t('reading.newTitleLabel')} · ${t('reading.newTitlePlaceholder')}`}
+          placeholderTextColor={palette.textFaint}
+          maxLength={TITLE_MAX}
+          editable={!working}
+          returnKeyType="done"
+          accessibilityLabel={t('reading.newTitleLabel')}
+        />
+
         {input.tab === 'file' ? (
           <Pressable style={styles.dropzone} onPress={onPickFile} disabled={input.file.kind === 'reading'}>
             {input.file.kind === 'empty' && (
               <>
-                <Feather name="upload" size={26} color={palette.blue} />
+                <Feather name="upload" size={30} color={palette.blue} />
                 <Text style={styles.dropTitle}>{t('reading.attach')}</Text>
                 <Text style={styles.dropSub}>{t('reading.attachHint')}</Text>
               </>
@@ -267,7 +302,7 @@ export default function ReadingNew() {
             )}
             {input.file.kind === 'ready' && (
               <>
-                <Feather name="file-text" size={26} color={palette.blue} />
+                <Feather name="file-text" size={30} color={palette.blue} />
                 <Text style={styles.dropTitle} numberOfLines={1}>{input.file.file.name}</Text>
                 <Text style={styles.dropSub}>{formatFileSize(input.file.file.size)}</Text>
                 <View style={styles.replace}>
@@ -289,6 +324,7 @@ export default function ReadingNew() {
           />
         )}
 
+        <Text style={styles.guide}>{input.tab === 'file' ? t('reading.newGuideFile') : t('reading.newGuidePaste')}</Text>
         {input.tab === 'file' && <View style={styles.spacer} />}
         {showsSampleLink(input) && (
           <Pressable style={styles.sampleLink} hitSlop={8} onPress={() => dispatch({ type: 'sample' })}>
@@ -297,15 +333,14 @@ export default function ReadingNew() {
         )}
       </View>
 
-      <View style={[styles.footer, { paddingBottom: (keyboard > 0 ? 0 : insets.bottom) + 12 }]}>
-        <Pressable
-          ref={nextTarget.ref}
-          onLayout={nextTarget.onLayout}
-          style={[styles.primary, !pending && styles.primaryOff]}
-          onPress={() => pending && void split(pending, { title })}
-          disabled={!pending || !!popup}>
-          <Text style={styles.primaryText}>{t('reading.next')}</Text>
-        </Pressable>
+      <View style={[styles.footer, { paddingBottom: (keyboard > 0 ? 0 : insets.bottom) + 10 }]}>
+        <View ref={nextTarget.ref} onLayout={nextTarget.onLayout}>
+          <PrimaryButton
+            label={t('reading.next')}
+            onPress={() => pending && void split(pending, { title })}
+            disabled={!pending || !!popup}
+          />
+        </View>
       </View>
 
       <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
@@ -315,35 +350,41 @@ export default function ReadingNew() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{popup.title}</Text>
               <Text style={styles.cardBody}>{popup.message}</Text>
-              <Pressable style={[styles.primary, styles.cardButton]} onPress={() => setPopup(null)}>
-                <Text style={styles.primaryText}>{t('common.confirm')}</Text>
-              </Pressable>
+              <PrimaryButton label={t('common.confirm')} onPress={() => setPopup(null)} style={styles.cardButton} />
             </View>
           )}
           {popup?.kind === 'duplicate' && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{t('reading.duplicateTitle')}</Text>
-              <Text style={styles.cardBody}>{`${t('reading.duplicateBody')}\n${t('reading.duplicateName', { title: popup.title })}`}</Text>
-              <ChoiceRow
-                secondary={t('reading.duplicateNew')}
-                onSecondary={() => void split(popup.input, popup.flags)}
-                primary={t('reading.duplicateOpen')}
-                onPrimary={() => {
+            // pen 「이미 넣은 대본이에요」 — 세로 선택지 둘.
+            <View style={[styles.card, styles.optionCard]}>
+              <Text style={styles.optionTitle}>{t('reading.duplicateTitle')}</Text>
+              <Text style={styles.optionGuide}>{t('reading.duplicateGuide')}</Text>
+              <Text style={styles.optionName} numberOfLines={1}>{t('reading.duplicateName', { title: popup.title })}</Text>
+              <Pressable
+                style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
+                accessibilityRole="button"
+                onPress={() => {
                   setPopup(null);
                   router.replace('/reading/detail');
-                }}
-              />
+                }}>
+                <Text style={styles.optionText}>{t('reading.duplicateOpen')}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
+                accessibilityRole="button"
+                onPress={() => void split(popup.input, popup.flags)}>
+                <Text style={styles.optionText}>{t('reading.duplicateNew')}</Text>
+              </Pressable>
             </View>
           )}
           {popup?.kind === 'not_script' && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{t('reading.notScriptTitle')}</Text>
               <Text style={styles.cardBody}>{t('reading.notScriptBody')}</Text>
-              <ChoiceRow
-                secondary={t('reading.notScriptSplit')}
-                onSecondary={() => void split(popup.input, popup.flags)}
-                primary={t('reading.notScriptRepick')}
-                onPrimary={() => setPopup(null)}
+              <DialogButtons
+                cancelLabel={t('reading.notScriptSplit')}
+                onCancel={() => void split(popup.input, popup.flags)}
+                confirmLabel={t('reading.notScriptRepick')}
+                onConfirm={() => setPopup(null)}
               />
             </View>
           )}
@@ -365,9 +406,7 @@ export default function ReadingNew() {
                   <Markdown source={popup.document.body} />
                 </ScrollView>
               )}
-              <Pressable style={[styles.primary, styles.sheetButton]} disabled={popup.busy} onPress={() => void onAgree(popup)}>
-                {popup.busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{t('reading.consentAgree')}</Text>}
-              </Pressable>
+              <PrimaryButton label={t('reading.consentAgree')} loading={popup.busy} onPress={() => void onAgree(popup)} style={styles.sheetButton} />
               <Pressable style={styles.sheetCancel} disabled={popup.busy} onPress={() => setPopup(null)}>
                 <Text style={styles.sheetCancelText}>{t('common.cancel')}</Text>
               </Pressable>
@@ -399,19 +438,6 @@ function SplittingCard({ progress }: { progress: ImportProgress | null }) {
   );
 }
 
-function ChoiceRow(props: { secondary: string; onSecondary: () => void; primary: string; onPrimary: () => void }) {
-  return (
-    <View style={styles.choiceRow}>
-      <Pressable style={[styles.choice, styles.choiceSecondary]} onPress={props.onSecondary}>
-        <Text style={styles.choiceSecondaryText}>{props.secondary}</Text>
-      </Pressable>
-      <Pressable style={[styles.choice, styles.choicePrimary]} onPress={props.onPrimary}>
-        <Text style={styles.primaryText}>{props.primary}</Text>
-      </Pressable>
-    </View>
-  );
-}
-
 function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) {
   return (
     <View style={styles.point}>
@@ -424,7 +450,7 @@ function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) 
 function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-      <Feather name={icon} size={14} color={on ? palette.text : palette.textMuted} />
+      <Feather name={icon} size={16} color={on ? palette.text : palette.textFaint} />
       <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{label}</Text>
     </Pressable>
   );
@@ -432,47 +458,45 @@ function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  content: { flex: 1, padding: 20, gap: 12 },
-  step: { color: palette.blue, fontFamily: 'Pretendard-SemiBold', fontSize: 12, letterSpacing: 0.3 },
-  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 2 },
-  sub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 20 },
-  titleField: { gap: 6, marginTop: 4 },
-  titleLabel: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  content: { flex: 1, paddingHorizontal: 24, paddingTop: 16, gap: 14 },
+  mascotRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mascot: { width: 52, height: 58 },
+  title: { flex: 1, color: palette.text, fontSize: 21, fontWeight: '900', lineHeight: 30 },
   titleInput: { backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: palette.text, fontFamily: 'Pretendard', fontSize: 15 },
-  segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 12, padding: 4, marginTop: 4 },
+  segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 12, padding: 4 },
   segmentSlot: { flex: 1 },
-  segmentTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 9, paddingVertical: 10 },
-  segmentTabOn: { backgroundColor: palette.card, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  segmentText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  segmentTextOn: { color: palette.text, fontFamily: 'Pretendard-Bold' },
-  dropzone: { height: 190, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 20, backgroundColor: palette.blueMist, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 16 },
-  dropTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 4 },
-  dropSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
-  replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8, backgroundColor: palette.card, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
+  segmentTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, paddingVertical: 10 },
+  segmentTabOn: { backgroundColor: palette.card },
+  segmentText: { color: palette.textFaint, fontSize: 14, fontWeight: '700' },
+  segmentTextOn: { color: palette.text, fontWeight: '800' },
+  dropzone: { height: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
+  dropTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
+  dropSub: { color: palette.textFaint, fontSize: 13, fontWeight: '600' },
+  replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.card, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
   replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   textArea: { flex: 1, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },
   spacer: { flex: 1 },
   sampleLink: { alignSelf: 'center', paddingVertical: 4 },
   sampleText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textDecorationLine: 'underline' },
-  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1, backgroundColor: palette.bg },
-  primary: { backgroundColor: palette.blue, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  primaryOff: { backgroundColor: palette.checkOff },
-  primaryText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
+  footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
   backdropSheet: { justifyContent: 'flex-end', padding: 0 },
   card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },
-  cardTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 17, textAlign: 'center' },
+  cardTitle: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   cardBody: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
   cardButton: { alignSelf: 'stretch', marginTop: 12 },
-  choiceRow: { alignSelf: 'stretch', flexDirection: 'row', gap: 8, marginTop: 12 },
-  choice: { flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  choiceSecondary: { backgroundColor: palette.bgSoft },
-  choicePrimary: { backgroundColor: palette.blue },
-  choiceSecondaryText: { color: palette.textStrong, fontFamily: 'Pretendard-Bold', fontSize: 16 },
   splitCard: { paddingBottom: 24, gap: 8 },
-  splitIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  splitIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: palette.blueMist, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   bar: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: palette.bgSoft, marginTop: 10, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3, backgroundColor: palette.blue },
+  optionCard: { alignItems: 'stretch', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24, gap: 6 },
+  optionTitle: { color: palette.text, fontSize: 20, fontWeight: '900', lineHeight: 28 },
+  optionGuide: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
+  optionName: { color: palette.textMuted, fontSize: 13, marginBottom: 6 },
+  optionRow: { paddingVertical: 14, paddingHorizontal: 2, borderRadius: 10 },
+  optionPressed: { backgroundColor: palette.bgSubtle },
+  optionText: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 24 },
   splitCount: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 20, paddingTop: 10 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 18 },

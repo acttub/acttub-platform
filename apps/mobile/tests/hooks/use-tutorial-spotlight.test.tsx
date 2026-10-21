@@ -50,7 +50,7 @@ test('같은 갈래의 튜토리얼 중이면 이 화면의 단계를 비추고 
   await render(<Host stage="upload" />);
 
   expect(screen.getByText('active:true')).toBeOnTheScreen();
-  expect(screen.getByText('tutorial.upload:tutorial.upPick,tutorial.upScene,tutorial.upStart')).toBeOnTheScreen();
+  expect(screen.getByText('tutorial.upload:tutorial.upPick,tutorial.upRights,tutorial.upStart')).toBeOnTheScreen();
   expect(logEvent).toHaveBeenCalledWith('tutorial_step', { mode: 'own', track: 'practice', stage: 'upload' });
 });
 

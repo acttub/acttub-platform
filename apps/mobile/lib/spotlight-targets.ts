@@ -70,8 +70,12 @@ export function onTargetsChanged(fn: () => void): () => void {
 export const TARGET = {
   /** 홈의 "지금 바로 연습하기" 배너. */
   homeStart: 'home.start',
-  /** 탭바 가운데 촬영 버튼. */
+  /** 탭바의 코칭 아이콘(예전 가운데 촬영 버튼 자리 이름을 그대로 쓴다). */
   shoot: 'tabs.shoot',
+  /** 탭바의 대본·챌린지·프로필 아이콘 — 첫 연습 끝 홈 안내(SOMA-748). */
+  tabReading: 'tabs.reading',
+  tabChallenge: 'tabs.challenge',
+  tabProfile: 'tabs.profile',
   /** 대본 탭의 "새 대본" 버튼. */
   readingNew: 'reading.new',
   /** 연습 묶음 화면의 "이어서 연습하기" 버튼. */
@@ -81,8 +85,8 @@ export const TARGET = {
   uploadPick: 'upload.pick',
   /** 업로드 — 예시 영상이 들어간 미리보기. */
   uploadSample: 'upload.sample',
-  /** 업로드 — 장면 세 칸. */
-  uploadScene: 'upload.scene',
+  /** 업로드 — 영상 단계 맨 아래 권리 체크. */
+  uploadRights: 'upload.rights',
   /** 업로드 — 질문 받기 버튼. */
   uploadStart: 'upload.start',
   /** 분석 대기 — 진행 표시. */

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { AppState, Linking } from 'react-native';
 
 import ReadingRange from '@/app/reading/range';
-import { hasMicPermission, micPermissionGranted } from '@/hooks/use-reading-mic';
+import { micPermissionState, requestMicPermission } from '@/hooks/use-reading-mic';
 import { ApiError } from '@/lib/api-request';
 import { getCurrent, resetReadingState } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
@@ -16,7 +16,7 @@ jest.mock('@react-native-async-storage/async-storage', () => {
 const mockRouter = { replace: jest.fn() };
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams }));
-jest.mock('@/hooks/use-reading-mic', () => ({ hasMicPermission: jest.fn(), micPermissionGranted: jest.fn() }));
+jest.mock('@/hooks/use-reading-mic', () => ({ micPermissionState: jest.fn(), requestMicPermission: jest.fn() }));
 jest.mock('@/lib/reading/tts/engine', () => ({ prefetchIfWifi: jest.fn(async () => undefined) }));
 
 const TWO_SCENES = scriptDetail(
@@ -48,8 +48,8 @@ beforeEach(() => {
     appStateListeners.push(fn as (state: string) => void);
     return { remove: () => (appStateListeners = appStateListeners.filter((l) => l !== fn)) } as never;
   });
-  jest.mocked(hasMicPermission).mockResolvedValue(true);
-  jest.mocked(micPermissionGranted).mockResolvedValue(true);
+  jest.mocked(micPermissionState).mockResolvedValue('granted');
+  jest.mocked(requestMicPermission).mockResolvedValue('granted');
 });
 
 async function show(detail = TWO_SCENES) {
@@ -58,7 +58,7 @@ async function show(detail = TWO_SCENES) {
   return server;
 }
 
-const startButton = (count: number) => screen.getByText(`이 구간 대사 ${count}개 연습하기`);
+const startButton = (count: number) => screen.getByText(`이 구간 ${count}줄 연습하기`);
 
 test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준다', async () => {
   resetReadingState();
@@ -73,13 +73,12 @@ test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역
 
   expect(screen.getByText('봄날의 대화 · 대사 5개')).toBeOnTheScreen();
   expect(screen.queryByText('최근 구간')).not.toBeOnTheScreen();
-  expect(screen.getByText('아직 없어요')).toBeOnTheScreen();
-  expect(screen.getByText('내 배역을 골라 주세요')).toBeOnTheScreen();
+  expect(screen.getAllByText('내 배역을 골라 주세요')).toHaveLength(2);
   expect(engine.prefetchIfWifi).toHaveBeenCalledTimes(1);
 
   await fireEvent.press(screen.getByText('민재'));
-  expect(screen.queryByText('아직 없어요')).not.toBeOnTheScreen();
-  expect(screen.getAllByText('민재')).toHaveLength(2);
+  expect(screen.queryByText('내 배역을 골라 주세요')).not.toBeOnTheScreen();
+  expect(screen.getByRole('checkbox', { name: '민재' })).toBeChecked();
   expect(startButton(5)).toBeOnTheScreen();
 });
 
@@ -104,12 +103,13 @@ test('배역과 대사 보기를 골라 시작하면 회차를 만들고 대사 
   expect(getCurrent()?.maskMode).toBe('all');
 });
 
-test('고른 배역 칩의 x 를 누르면 그 배역을 뺀다', async () => {
+test('고른 배역 칩을 다시 누르면 그 배역을 뺀다', async () => {
   await show();
   await fireEvent.press(screen.getByText('민재'));
 
-  await fireEvent.press(screen.getAllByText('민재')[1]);
-  expect(screen.getByText('아직 없어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('민재'));
+  expect(screen.getByRole('checkbox', { name: '민재' })).not.toBeChecked();
+  expect(screen.getAllByText('내 배역을 골라 주세요')).toHaveLength(2);
 });
 
 test('장면으로 찾으면 그 장면 안 대사로 구간을 정한다', async () => {
@@ -177,7 +177,7 @@ test('연습한 적이 있으면 최근 구간을 먼저 보이고 가장 최근
   expect(screen.getByText('최근 구간')).toBeOnTheScreen();
   expect(await screen.findByText('2개 · 2회차 · 오늘')).toBeOnTheScreen();
   expect(screen.getByText('장면 2')).toBeOnTheScreen();
-  expect(screen.getAllByText('민재')).toHaveLength(2);
+  expect(screen.getByRole('checkbox', { name: '민재' })).toBeChecked();
   expect(server.listSessions).toHaveBeenCalledWith('s1');
 
   await fireEvent.press(startButton(2));
@@ -213,25 +213,58 @@ test('회차 상세의 이 구간으로 다시 연습은 넘긴 배역과 구간
   mockParams = { roles: 'c2,unknown', start: 'l4', end: 'l5' };
   await show();
 
-  expect(screen.getAllByText('서연')).toHaveLength(2);
+  expect(screen.getByRole('checkbox', { name: '서연' })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: '민재' })).not.toBeChecked();
   expect(startButton(2)).toBeOnTheScreen();
 });
 
-test('마이크 권한이 없으면 설정을 열게 하고, 켜고 돌아오면 시작할 수 있다', async () => {
-  jest.mocked(hasMicPermission).mockResolvedValue(false);
-  const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
-  await show();
+test('들어올 때는 마이크를 묻지 않고, 시작을 누르면 OS 창으로 물어 허락하면 시작한다(SOMA-772)', async () => {
+  jest.mocked(micPermissionState).mockResolvedValue('ask');
+  const server = await show();
+  await fireEvent.press(screen.getByText('민재'));
+  expect(requestMicPermission).not.toHaveBeenCalled();
+
+  await fireEvent.press(startButton(5));
+  expect(requestMicPermission).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
+  expect(server.startSession).toHaveBeenCalledTimes(1);
+});
+
+test('OS 창에서 거절하면 시작하지 않고 머물고, 다시 누르면 또 묻는다', async () => {
+  jest.mocked(micPermissionState).mockResolvedValue('ask');
+  jest.mocked(requestMicPermission).mockResolvedValue('denied');
+  const server = await show();
   await fireEvent.press(screen.getByText('민재'));
 
-  expect(await screen.findByText('마이크를 켜면 시작할 수 있어요')).toBeOnTheScreen();
-  expect(screen.getByText('녹음하려면 설정에서 마이크를 켜 주세요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('설정 열기'));
-  expect(openSettings).toHaveBeenCalledTimes(1);
+  await fireEvent.press(startButton(5));
+  await fireEvent.press(startButton(5));
+  expect(requestMicPermission).toHaveBeenCalledTimes(2);
+  expect(server.startSession).not.toHaveBeenCalled();
+  expect(screen.queryByText('설정에서 마이크 켜기')).not.toBeOnTheScreen();
+});
 
+test('다시 물을 수 없게 거절돼 있으면 시작을 누를 때 설정에서 마이크 켜기 안내와 설정 바로가기를 띄우고, 켜고 돌아오면 시작할 수 있다', async () => {
+  jest.mocked(micPermissionState).mockResolvedValue('blocked');
+  jest.mocked(requestMicPermission).mockResolvedValue('blocked');
+  const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+  const server = await show();
+  await fireEvent.press(screen.getByText('민재'));
+
+  expect(await screen.findByText('마이크 권한이 필요해요')).toBeOnTheScreen();
+  await fireEvent.press(startButton(5));
+  expect(await screen.findByText('설정에서 마이크 켜기')).toBeOnTheScreen();
+  await fireEvent.press(screen.getAllByText('설정 열기').at(-1)!);
+  expect(openSettings).toHaveBeenCalledTimes(1);
+  expect(server.startSession).not.toHaveBeenCalled();
+
+  jest.mocked(micPermissionState).mockResolvedValue('granted');
   await act(async () => appStateListeners.forEach((l) => l('background')));
-  expect(screen.getByText('마이크를 켜면 시작할 수 있어요')).toBeOnTheScreen();
+  expect(screen.getByText('마이크 권한이 필요해요')).toBeOnTheScreen();
   await act(async () => appStateListeners.forEach((l) => l('active')));
-  expect(await screen.findByText('이 구간 대사 5개 연습하기')).toBeOnTheScreen();
+  await waitFor(() => expect(screen.queryByText('마이크 권한이 필요해요')).not.toBeOnTheScreen());
+  jest.mocked(requestMicPermission).mockResolvedValue('granted');
+  await fireEvent.press(startButton(5));
+  await waitFor(() => expect(server.startSession).toHaveBeenCalledTimes(1));
 });
 
 test('구간 안에 내 대사가 없으면 서버에 보내지 않고 알린다', async () => {
@@ -280,5 +313,5 @@ test('배역이 하나뿐인 대본은 그 배역을 골라 둔다', async () =>
   await show(scriptDetail([['dialogue', '민재', '혼자야.']]));
 
   expect(startButton(1)).toBeOnTheScreen();
-  expect(screen.queryByText('아직 없어요')).not.toBeOnTheScreen();
+  expect(screen.getByRole('checkbox', { name: '민재' })).toBeChecked();
 });

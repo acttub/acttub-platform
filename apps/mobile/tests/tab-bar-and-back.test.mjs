@@ -20,7 +20,9 @@ test('스택 화면의 뒤로 버튼은 설정 화면과 같은 꺾쇠 버튼이
 });
 
 test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이드는 바닥에 붙은 전체 폭 막대', () => {
-  const tabs = read('app/(tabs)/_layout.tsx');
+  // 모양은 공통 부품 components/ui/tab-bar 에 있다(SOMA-770).
+  const tabs = read('components/ui/tab-bar.tsx');
+  assert.match(read('app/(tabs)/_layout.tsx'), /tabBarStyle,/);
   assert.match(tabs, /const IOS = Platform\.OS === 'ios'/);
   assert.match(tabs, /bottom: Math\.max\(insets\.bottom - 14, 12\)/);
   // 안드로이드: 좌우·바닥 여백 없음, 둥근 모서리 없음, 시스템 내비게이션 칸만큼 아래를 채운다

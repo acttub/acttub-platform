@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { readAuditionMarks, writeAuditionMarks } from '@/lib/audition-marks';
@@ -108,17 +109,14 @@ export default function AuditionsScreen() {
 
   const collected = payload?.collected_at ? postedAtLabel(payload.collected_at) : '';
 
-  const emptyText = filters.starred
-    ? t('auditions.emptyStarred')
-    : items.length === 0
-      ? t('auditions.empty')
-      : t('auditions.emptyFiltered');
+  const filtered = !filters.starred && items.length > 0;
+  const emptyText = filters.starred ? t('auditions.emptyStarred') : t('auditions.empty');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('common.back')}>
-          <Feather name="chevron-left" size={24} color={palette.text} />
+        <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="auditions_back">
+          <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <Text style={styles.headerTitle}>{t('auditions.title')}</Text>
         {payload && (
@@ -135,12 +133,11 @@ export default function AuditionsScreen() {
         </View>
       )}
       {!payload && error && (
-        <View style={styles.center}>
-          <Text style={styles.error}>{t('auditions.loadError')}</Text>
-          <Pressable onPress={() => void load()} accessibilityRole="button">
-            <Text style={styles.link}>{t('auditions.retry')}</Text>
-          </Pressable>
-        </View>
+        <StatusScreen
+          title={t('auditions.loadError')}
+          body={t('auditions.loadErrorBody')}
+          primary={{ label: t('auditions.retry'), onPress: () => void load() }}
+        />
       )}
 
       {payload && (
@@ -222,7 +219,14 @@ export default function AuditionsScreen() {
                 onStar={() => toggleStar(item.id)}
               />
             )}
-            ListEmptyComponent={<Text style={styles.empty}>{emptyText}</Text>}
+            ListEmptyComponent={
+              // 조건으로 걸러 비었으면 마스코트와 함께 「초기화」를 알린다(pen NQ33xk). 그 밖의 빈 목록은 한 줄 안내다.
+              filtered ? (
+                <StatusScreen title={t('auditions.emptyFiltered')} body={t('auditions.emptyFilteredHint')} bodyTone="blue" />
+              ) : (
+                <Text style={styles.empty}>{emptyText}</Text>
+              )
+            }
             ListFooterComponent={
               <View style={styles.footer}>
                 <Feather name="info" size={13} color={palette.textFaint} />
@@ -317,6 +321,7 @@ function AuditionCard({
         accessibilityRole="button"
         accessibilityState={{ selected: starred }}
         accessibilityLabel={starred ? t('auditions.unstarA11y') : t('auditions.starA11y')}
+        ph-label="auditions_star"
         style={styles.star}>
         <Ionicons name={starred ? 'star' : 'star-outline'} size={20} color={starred ? palette.hintIcon : palette.checkOff} />
       </Pressable>
@@ -362,7 +367,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
   headerMeta: { flex: 1, textAlign: 'right', fontSize: 11.5, fontWeight: '600', color: palette.textFaint },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  error: { paddingHorizontal: 30, textAlign: 'center', color: palette.danger, fontWeight: '600' },
   link: { fontSize: 13, fontWeight: '800', color: palette.blue },
 
   controls: { paddingHorizontal: 20, gap: 10, paddingBottom: 6 },

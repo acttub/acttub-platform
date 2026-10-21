@@ -208,8 +208,17 @@ export function resumeRun(run: RunState, currentLineId: string): RunState {
  * N 은 화면 위 "K / N" 의 K 와 같은 기준(고른 구간 안에서 끝낸 대사 수)이다. 대본 전체 번호를 쓰면 장면 2의
  * 2번째 줄에서 "13번"처럼 화면과 달라진다. 저장되는 위치(current_line_id)는 줄 id 라 번호 기준과 무관하다.
  */
-export function exitMessage(run: RunState): string {
+export function exitMessage(run: RunState, opts?: { discard?: boolean }): string {
+  if (opts?.discard) return t('reading.exitConfirmBodyUnsaved');
   return t('reading.exitConfirmBody', { n: progressOf(run).done });
+}
+
+/**
+ * [시작]을 누르기 전에 나가면 이번 회차를 남기지 않는다(지운다). 회차는 R8 「새 연습」에서 이미 만들어져 있어, 그대로 두면
+ * 상세 목록·이어 읽기에 「진행 중 · 0/N」이 쌓인다. 이어하기(진행 저장이 있는 회차)·녹음이 있는 회차·서버가 닫은 회차는 건드리지 않는다.
+ */
+export function discardOnExit(input: { started: boolean; progressSeq: number; recordingCount: number; closed: boolean }): boolean {
+  return !input.started && !input.closed && input.progressSeq === 0 && input.recordingCount === 0;
 }
 
 /** 진행 저장 본문(순번은 큐가 붙인다). line_results 는 이번 실행에서 말한 내 줄을 줄 순서로. */

@@ -45,6 +45,19 @@ export function groupTitle(group: Pick<PracticeGroup, 'title' | 'note_title' | '
 }
 
 /**
+ * 장면 제목 — 사람이 붙인 제목 → 첫 회차의 상황 문장 → "제목 없는 연습". 노트 제목(코치 관찰)은 쓰지 않는다.
+ * 「다음에 해 볼 것」 자리(홈 숙제·최근 연습·프로필)에서 다음 테이크 문장이 없을 때, 또는 그 옆 보조 줄에 쓴다.
+ */
+export function sceneTitle(group: Pick<PracticeGroup, 'title' | 'situation'>): string {
+  return groupTitle({ title: group.title, note_title: null, situation: group.situation });
+}
+
+/** 노트가 붙은 마지막 회차 id. 노트 없이 나간 회차만 있으면 null. */
+export function lastNotePracticeId(group: Pick<PracticeGroup, 'practices'>): string | null {
+  return [...(group.practices ?? [])].reverse().find((round) => round.note)?.id ?? null;
+}
+
+/**
  * 목록 줄의 첫 장면 사진(SOMA-671). 서명 주소는 10분마다 바뀌므로 보관함처럼 서명(쿼리)을 뗀 주소를 캐시 키로 쓴다.
  */
 export function groupPoster(group: Pick<PracticeGroup, 'poster_url'>): { uri: string; cacheKey: string } | null {
@@ -77,9 +90,9 @@ export function filterGroups(
  */
 export function groupRowTarget(
   group: Pick<PracticeGroup, 'root_id' | 'in_progress_practice_id'>,
-): { pathname: '/analyzing'; params: { practiceId: string } } | { pathname: '/practice-group'; params: { rootId: string } } {
+): { pathname: '/coach'; params: { practiceId: string } } | { pathname: '/practice-group'; params: { rootId: string } } {
   return group.in_progress_practice_id
-    ? { pathname: '/analyzing', params: { practiceId: group.in_progress_practice_id } }
+    ? { pathname: '/coach', params: { practiceId: group.in_progress_practice_id } }
     : { pathname: '/practice-group', params: { rootId: group.root_id } };
 }
 

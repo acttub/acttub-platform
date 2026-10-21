@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
 import { CHIP_TONE } from '@/lib/reading/script-cards';
@@ -206,7 +207,9 @@ export default function ReadingSession() {
       <Pressable
         style={[styles.playBtn, playing && styles.playBtnOn]}
         hitSlop={6}
+        accessibilityRole="button"
         accessibilityLabel={playing ? t('reading.nowPlaying') : t('reading.listenAll')}
+        ph-label="reading_session_play"
         onPress={() => void togglePlay(rec)}
       >
         <Feather name={playing ? 'pause' : 'play'} size={14} color={playing ? palette.onAccent : palette.blue} />
@@ -264,7 +267,7 @@ export default function ReadingSession() {
           title: t('reading.sessionOrdinal', { n: detail.ordinal }),
           headerShadowVisible: false,
           headerRight: () => (
-            <Pressable hitSlop={8} accessibilityLabel={t('reading.more')} onPress={more}>
+            <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_session_more" onPress={more}>
               <Feather name="more-horizontal" size={22} color={palette.text} />
             </Pressable>
           ),
@@ -313,15 +316,17 @@ export default function ReadingSession() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         {progress ? (
-          <Pressable style={styles.primary} onPress={resume}>
-            <Feather name="play" size={16} color={palette.onAccent} />
-            <Text style={styles.primaryText}>{t('reading.resumeSession', progress)}</Text>
-          </Pressable>
+          <PrimaryButton
+            label={t('reading.resumeSession', progress)}
+            icon={<Feather name="play" size={16} color={palette.onAccent} />}
+            onPress={resume}
+          />
         ) : (
-          <Pressable style={styles.primary} onPress={() => router.push({ pathname: '/reading/range', params: practiceAgainParams(detail) })}>
-            <Feather name="rotate-ccw" size={16} color={palette.onAccent} />
-            <Text style={styles.primaryText}>{t('reading.practiceRangeAgain')}</Text>
-          </Pressable>
+          <PrimaryButton
+            label={t('reading.practiceRangeAgain')}
+            icon={<Feather name="rotate-ccw" size={16} color={palette.onAccent} />}
+            onPress={() => router.push({ pathname: '/reading/range', params: practiceAgainParams(detail) })}
+          />
         )}
       </View>
       {dialog}

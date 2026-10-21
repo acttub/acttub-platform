@@ -361,12 +361,12 @@ describe('게이트', () => {
     loadForOwner.mockResolvedValue({ key: 'k1', record: { practice_id: 'p1' } });
     await renderLayout();
 
-    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { recoveryKey: 'k1', practiceId: 'p1' } });
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coach', params: { recoveryKey: 'k1', practiceId: 'p1' } });
   });
 
   test('이미 그 분석 화면이면 다시 보내지 않는다', async () => {
     loadForOwner.mockResolvedValue({ key: 'k1', record: { practice_id: 'p1' } });
-    mockNav.pathname = '/analyzing';
+    mockNav.pathname = '/coach';
     mockNav.params = { recoveryKey: 'k1', practiceId: 'p1' };
     await renderLayout();
 
@@ -391,7 +391,7 @@ describe('게이트', () => {
     await update({ user: { id: 'u2' } }, view);
 
     expect(loadForOwner).toHaveBeenLastCalledWith('u2');
-    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/analyzing', params: { recoveryKey: 'k2', practiceId: 'p9' } });
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coach', params: { recoveryKey: 'k2', practiceId: 'p9' } });
   });
 
   test('계정을 읽기 전에 사용자 정보가 없으면 기다린다', async () => {
@@ -421,7 +421,7 @@ describe('게이트', () => {
     await act(async () => finish(settle));
 
     expect(mockRouter.replace).toHaveBeenCalledWith('/login');
-    expect(mockRouter.replace).not.toHaveBeenCalledWith(expect.objectContaining({ pathname: '/analyzing' }));
+    expect(mockRouter.replace).not.toHaveBeenCalledWith(expect.objectContaining({ pathname: '/coach' }));
   });
 });
 

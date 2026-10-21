@@ -20,6 +20,8 @@ export type SpotlightStep = {
   text: string;
   /** 동그란 버튼이면 true — 테두리를 원으로 두른다. */
   round?: boolean;
+  /** 말풍선 옆 액티 자세(pen 첫 연습 끝 홈 안내 1~4/4, SOMA-770). 없으면 홈 액티. */
+  mascot?: 'home' | 'coach' | 'reading';
 };
 
 /** 비출 자리를 이만큼 넓힌다 — 버튼에 딱 붙으면 눌러야 할 곳이 좁아 보인다. */

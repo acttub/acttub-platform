@@ -12,7 +12,8 @@ import { currentNetworkType } from '@/lib/reading/network';
 import { deleteDeviceFile } from '@/lib/account-files';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { getLastRunReview, resetReadingState, setCurrentSession, updateCurrent } from '@/lib/reading/store';
-import { assetsPresent, removeDownloadedAssets } from '@/lib/reading/tts/assets';
+import { takeContinueOrigin } from '@/lib/practice/session-state';
+import { missingModelBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
 import { hasDeviceVoice, speakWithDevice } from '@/lib/reading/tts/device-voice';
 import * as tts from '@/lib/reading/tts/engine';
 import { VoicePrepareError } from '@/lib/reading/tts/voice-errors';
@@ -26,8 +27,15 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
   return { __esModule: true, default: storage };
 });
-const mockRouter = { replace: jest.fn(), push: jest.fn() };
-jest.mock('expo-router', () => ({ useRouter: () => mockRouter }));
+const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn() };
+const mockRemoveListeners: (() => void)[] = [];
+const mockNavigation = {
+  addListener: jest.fn((event: string, fn: () => void) => {
+    if (event === 'beforeRemove') mockRemoveListeners.push(fn);
+    return () => undefined;
+  }),
+};
+jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: () => mockNavigation }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn() } }));
 const mockAskRating = jest.fn(async () => undefined);
@@ -59,7 +67,7 @@ jest.mock('@/lib/reading/tts/engine', () => ({
 }));
 jest.mock('@/lib/reading/tts/assets', () => ({
   activeVariant: () => 'fp32',
-  assetsPresent: jest.fn(),
+  missingModelBytes: jest.fn(),
   modelDownloadBytes: () => 400 * 1024 * 1024,
   removeDownloadedAssets: jest.fn(),
 }));
@@ -102,6 +110,7 @@ const ME = '민재 · 내 차례';
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  mockRemoveListeners.length = 0;
   mockFileOps.length = 0;
   await AsyncStorage.clear();
   await AsyncStorage.setItem('acttub.reading.autoAdvanceTipHidden', '1');
@@ -118,7 +127,7 @@ beforeEach(async () => {
   jest.mocked(api.getCloudVoiceStatus).mockRejectedValue(new Error('offline'));
   jest.mocked(hasDeviceVoice).mockResolvedValue(true);
   jest.mocked(speakWithDevice).mockResolvedValue(undefined);
-  jest.mocked(assetsPresent).mockReturnValue(true);
+  jest.mocked(missingModelBytes).mockReturnValue(0);
   jest.mocked(currentNetworkType).mockResolvedValue('wifi');
   jest.mocked(tts.ensureReady).mockResolvedValue(undefined);
   jest.mocked(tts.isReady).mockReturnValue(true);
@@ -144,10 +153,22 @@ beforeEach(async () => {
   jest.mocked(pendingRecordingUploads).mockResolvedValue(0);
 });
 
-async function startPlay(over: Partial<SessionDetail> = {}, detail = scriptDetail(TWO_ROLE_LINES)) {
+/** 준비가 끝나면 「리딩 시작 전」에 멈춘다 — [시작]을 눌러 첫 줄을 연다(SOMA-772). */
+async function begin() {
+  await fireEvent.press(await screen.findByText('시작'));
+}
+
+/** 완료 화면 버튼은 뜬 직후 잠깐 막혀 있다(SOMA-772) — 풀린 뒤 누른다. */
+async function pressWhenReady(label: string) {
+  await waitFor(() => expect(screen.getByRole('button', { name: label })).toBeEnabled(), { timeout: 2000 });
+  await fireEvent.press(screen.getByRole('button', { name: label }));
+}
+
+async function startPlay(over: Partial<SessionDetail> = {}, detail = scriptDetail(TWO_ROLE_LINES), options: { begin?: boolean } = {}) {
   const { server } = await openFixtureScript(detail);
   setCurrentSession(sessionDetail({ advance: 'silence', record: true, ...over }));
   await render(<ReadingPlay />);
+  if (options.begin ?? true) await begin();
   return server;
 }
 
@@ -169,7 +190,7 @@ test('현재 대본이나 회차가 없으면 내 대본으로 돌아가는 길�
 });
 
 test('회차 구간의 줄이 대본에 없으면 실행하지 않는다', async () => {
-  await startPlay({ start_line_id: 'gone' });
+  await startPlay({ start_line_id: 'gone' }, undefined, { begin: false });
   expect(screen.getByText('대본이 없어요.')).toBeOnTheScreen();
 });
 
@@ -190,7 +211,9 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
 
   await speechEnds();
+  // 음성 인식을 못 쓰는 기기(typing)는 인식된 대사 없이도 끝까지 가면 완료다(SOMA-773 예외).
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
   expect(screen.getByText('내 배역 · 민재')).toBeOnTheScreen();
   expect(screen.getByText('읽은 대사 3줄')).toBeOnTheScreen();
   expect(screen.getByText('이 기기에서는 말한 것을 글자로 바꾸지 못해 비교하지 않았어요.')).toBeOnTheScreen();
@@ -204,8 +227,11 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   ]);
   expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 
-  await fireEvent.press(screen.getByText('완료'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
+  await pressWhenReady('완료');
+  expect(await screen.findByText('오늘 리딩 끝!')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('확인'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.deleteSession).not.toHaveBeenCalled();
 });
 
 test('음성 인식이 되면 내 차례에 알아들은 말을 보이고, 완료 저장 응답의 다르게 말한 대사를 완료 화면에 보인다', async () => {
@@ -267,7 +293,7 @@ test('녹음을 남기지 못하는 인식기면 녹음기로 받는다', async 
 test('마이크 권한이 없으면 안내하고, 설정에서 켜고 돌아오면 이어서 시작한다', async () => {
   jest.mocked(hasMicPermission).mockResolvedValue(false);
   const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
-  await startPlay();
+  await startPlay({}, undefined, { begin: false });
 
   expect(await screen.findByText('마이크 권한이 필요해요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('설정 열기'));
@@ -281,15 +307,19 @@ test('마이크 권한이 없으면 안내하고, 설정에서 켜고 돌아오�
   expect(screen.getByText('마이크 권한이 필요해요')).toBeOnTheScreen();
 
   await act(async () => appStateListeners.forEach((l) => l('active')));
+  await begin();
   expect(await screen.findByText(ME)).toBeOnTheScreen();
 });
 
 test('마이크 안내에서 나가면 대본 상세로 간다', async () => {
   jest.mocked(hasMicPermission).mockResolvedValue(false);
-  await startPlay();
+  const server = await startPlay({}, undefined, { begin: false });
 
   await fireEvent.press(await screen.findByText('나가기'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(mockRouter.replace).not.toHaveBeenCalledWith('/reading/detail');
+  // [시작] 전이라 이번 회차를 남기지 않는다.
+  expect(server.deleteSession).toHaveBeenCalledWith('r1');
 });
 
 test('일시정지하면 위치를 저장하고, 이어서를 누르면 그 줄을 처음부터 다시 듣는다', async () => {
@@ -321,11 +351,13 @@ test('나가기를 확인하면 진행한 대사 수를 알리고 위치를 저�
   expect(screen.getByText('지금 나가면 0번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('취소'));
   expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(mockRouter.dismissTo).not.toHaveBeenCalled();
 
   await fireEvent.press(screen.getByText('나가기'));
   await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
   expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l2', complete: false }));
+  expect(server.deleteSession).not.toHaveBeenCalled();
 });
 
 test('이전 대사를 누르면 앞 대사로 돌아가 다시 한다', async () => {
@@ -390,10 +422,11 @@ test('서버 음성을 못 받았는데 기기 목소리도 없으면 글로 보
 
 test('앱 목소리를 못 쓰는 기기는 처음 한 번 안내하고, 계속하면 기기 목소리로 읽으며 다시 묻지 않게 남긴다', async () => {
   await AsyncStorage.setItem('acttub.reading.appVoiceUnsupported', '1');
-  await startPlay(PARTNER_FIRST);
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
   expect(await screen.findByText('이 기기에서는\n앱 목소리를 쓸 수 없어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('계속하기'));
+  await begin();
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
@@ -410,28 +443,49 @@ test('앱 목소리를 못 쓴다는 안내를 이미 봤으면 바로 기기 �
 
 test('앱 목소리 안내에서 나가면 상세로 간다', async () => {
   await AsyncStorage.setItem('acttub.reading.appVoiceUnsupported', '1');
-  await startPlay(PARTNER_FIRST);
+  const server = await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
-  await fireEvent.press(await screen.findByText('나가기'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
+  await fireEvent.press(await screen.findByLabelText('뒤로'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.deleteSession).toHaveBeenCalledWith('r1');
 });
 
 test('목소리가 없고 Wi-Fi 가 아니면 용량을 묻고, 받지 않으면 기기 목소리로 읽는다', async () => {
-  jest.mocked(assetsPresent).mockReturnValue(false);
+  jest.mocked(missingModelBytes).mockReturnValue(400 * 1024 * 1024);
   jest.mocked(currentNetworkType).mockResolvedValue('cellular');
-  await startPlay(PARTNER_FIRST);
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
   expect(await screen.findByText('상대역 목소리를 내려받을까요?')).toBeOnTheScreen();
   expect(screen.getByText('Wi-Fi가 아니에요. 약 400.0MB를 한 번 내려받아요. 지금 받지 않으면 상대 대사를 기기 기본 목소리로 읽어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('기기 목소리로 시작'));
+  await begin();
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
   expect(tts.ensureReady).not.toHaveBeenCalled();
 });
 
+test('목소리 모델을 다 받아 둔 기기는 이동통신이어도 내려받기를 묻지 않는다(SOMA-772)', async () => {
+  jest.mocked(missingModelBytes).mockReturnValue(0);
+  jest.mocked(currentNetworkType).mockResolvedValue('cellular');
+  await startPlay(PARTNER_FIRST);
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(screen.queryByText('상대역 목소리를 내려받을까요?')).not.toBeOnTheScreen();
+  expect(tts.ensureReady).toHaveBeenCalled();
+  expect(missingModelBytes).toHaveBeenCalledWith('fp32');
+});
+
+test('받다 만 모델이 있으면 남은 양만 묻는다(SOMA-772)', async () => {
+  jest.mocked(missingModelBytes).mockReturnValue(100 * 1024 * 1024);
+  jest.mocked(currentNetworkType).mockResolvedValue('cellular');
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
+
+  expect(await screen.findByText('Wi-Fi가 아니에요. 약 100.0MB를 한 번 내려받아요. 지금 받지 않으면 상대 대사를 기기 기본 목소리로 읽어요.')).toBeOnTheScreen();
+});
+
 test('내려받기를 고르면 받는 양과 불러오는 단계를 보이고, 다 되면 앱 목소리로 읽는다', async () => {
-  jest.mocked(assetsPresent).mockReturnValue(false);
+  jest.mocked(missingModelBytes).mockReturnValue(400 * 1024 * 1024);
   jest.mocked(currentNetworkType).mockResolvedValue('cellular');
   let report: (p: Parameters<NonNullable<Parameters<typeof tts.ensureReady>[0]>>[0]) => void = () => undefined;
   let done: () => void = () => undefined;
@@ -439,7 +493,7 @@ test('내려받기를 고르면 받는 양과 불러오는 단계를 보이고, 
     report = onProgress!;
     return new Promise<void>((resolve) => (done = resolve));
   });
-  await startPlay(PARTNER_FIRST);
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
   await fireEvent.press(await screen.findByText('내려받기'));
   expect(await screen.findByText('음성 준비 중...')).toBeOnTheScreen();
@@ -458,6 +512,7 @@ test('내려받기를 고르면 받는 양과 불러오는 단계를 보이고, 
   await waitFor(async () => expect(await AsyncStorage.getItem('acttub.reading.modelLoadStarted')).toBeNull());
 
   await act(async () => done());
+  await begin();
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(tts.play).toHaveBeenCalledWith('file:///speech.wav');
 });
@@ -468,29 +523,32 @@ test.each([
   ['network', new VoicePrepareError('network', 'down'), '인터넷 연결을 확인한 뒤 다시 시도해 주세요.'],
 ])('목소리 준비가 %s 오류로 실패하면 이유를 알리고 다시 받기로 이어 간다', async (_name, error, message) => {
   jest.mocked(tts.ensureReady).mockRejectedValueOnce(error);
-  await startPlay(PARTNER_FIRST);
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
-  expect(await screen.findByText('상대역 목소리를 준비하지 못했어요')).toBeOnTheScreen();
+  expect(await screen.findByText('상대역 목소리를 못 만들었어요')).toBeOnTheScreen();
   expect(screen.getByText(message)).toBeOnTheScreen();
   expect(logEvent).toHaveBeenCalledWith('reading_voice_failed', { kind: (error as VoicePrepareError).kind });
 
-  await fireEvent.press(screen.getByText('다시 받기'));
+  await fireEvent.press(screen.getByText('다시 시도'));
+  await begin();
   expect(await screen.findByText(ME)).toBeOnTheScreen();
 });
 
-test('이유를 모르는 준비 실패는 제목만 보이고, 나가면 상세로 간다', async () => {
+test('이유를 모르는 준비 실패는 이유 줄 없이 안내만 보이고, 뒤로 가면 상세로 간다', async () => {
   jest.mocked(tts.ensureReady).mockRejectedValueOnce(new Error('boom'));
-  await startPlay(PARTNER_FIRST);
+  const server = await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
-  expect(await screen.findByText('상대역 목소리를 준비하지 못했어요')).toBeOnTheScreen();
+  expect(await screen.findByText('상대역 목소리를 못 만들었어요')).toBeOnTheScreen();
+  expect(screen.getByText('「다시 시도」를 누르세요. 안 되면 기기 목소리로 해요.')).toBeOnTheScreen();
   expect(screen.queryByText('인터넷 연결을 확인한 뒤 다시 시도해 주세요.')).not.toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('나가기'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
+  await fireEvent.press(screen.getByLabelText('뒤로'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.deleteSession).toHaveBeenCalledWith('r1');
 });
 
 test('모델을 못 올리면 이 기기를 앱 목소리 불가로 남기고 받은 모델을 지운 뒤 안내한다', async () => {
   jest.mocked(tts.ensureReady).mockRejectedValueOnce(new VoicePrepareError('model_load', 'bad model'));
-  await startPlay(PARTNER_FIRST);
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
   expect(await screen.findByText('이 기기에서는\n앱 목소리를 쓸 수 없어요')).toBeOnTheScreen();
   expect(removeDownloadedAssets).toHaveBeenCalledWith('fp32');
@@ -520,33 +578,49 @@ test('구간에 상대 대사가 없으면 목소리를 준비하지 않는다',
   expect(tts.ensureReady).not.toHaveBeenCalled();
 });
 
-test('자동 넘김 안내를 숨기지 않았으면 시작 전에 띄우고, 다시 보지 않기를 누르면 이 기기에 남긴 뒤 시작한다', async () => {
+test('자동 넘김 안내를 숨기지 않았으면 [시작] 위에 안내를 보이고, 숨기기를 누르면 이 기기에 남긴 뒤 시작한다', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
-  await startPlay(PARTNER_FIRST);
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
-  expect(await screen.findByText('말이 끝나면 저절로 넘어가요')).toBeOnTheScreen();
+  expect(await screen.findByText('말이 끝나면 저절로 넘어가요. 준비되면 「시작」을 누르세요.')).toBeOnTheScreen();
   expect(screen.getByText('시작 전')).toBeOnTheScreen();
   expect(queue.take).not.toHaveBeenCalled();
 
-  await fireEvent.press(screen.getByText('다시 보지 않기'));
+  await fireEvent.press(screen.getByText('시작하고 이 안내는 다음부터 숨기기'));
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBe('1');
 });
 
-test('자동 넘김 안내를 확인으로 닫으면 다음에 또 띄운다', async () => {
+test('자동 넘김 안내를 [시작]으로 닫으면 다음에 또 띄운다', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
   await startPlay(PARTNER_FIRST);
 
-  await fireEvent.press(await screen.findByText('확인'));
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBeNull();
 });
 
+test('자동 넘김 안내를 숨겼어도 준비가 끝나면 바로 읽지 않고 [시작]을 기다린다(SOMA-772)', async () => {
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
+
+  expect(await screen.findByText('시작')).toBeOnTheScreen();
+  expect(screen.queryByText('말이 끝나면 저절로 넘어가요. 준비되면 「시작」을 누르세요.')).not.toBeOnTheScreen();
+  expect(screen.queryByText('시작하고 이 안내는 다음부터 숨기기')).not.toBeOnTheScreen();
+  await act(async () => undefined);
+  expect(queue.take).not.toHaveBeenCalled();
+  expect(tts.play).not.toHaveBeenCalled();
+
+  await begin();
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(tts.play).toHaveBeenCalledWith('file:///speech.wav');
+});
+
 test('버튼으로 넘기는 옛 회차에는 자동 넘김 안내가 없고 말이 끝나도 넘어가지 않는다', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
-  await startPlay({ advance: 'manual' });
+  await startPlay({ advance: 'manual' }, undefined, { begin: false });
+  expect(await screen.findByText('시작')).toBeOnTheScreen();
+  expect(screen.queryByText('말이 끝나면 저절로 넘어가요. 준비되면 「시작」을 누르세요.')).not.toBeOnTheScreen();
+  await begin();
   await screen.findByText('듣는 중');
-  expect(screen.queryByText('말이 끝나면 저절로 넘어가요')).not.toBeOnTheScreen();
 
   await speechEnds();
   expect(screen.getByText(ME)).toBeOnTheScreen();
@@ -733,8 +807,51 @@ test('고친 줄이 대사가 아니게 되고 남은 대사가 없으면 완료
   await fireEvent.press(screen.getByText('지문'));
   await fireEvent.press(screen.getByText('저장'));
 
+  // 인식을 못 쓰는 기기(typing)라 말한 대사 없이 끝나도 완료다(SOMA-773 예외).
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(server.patchLine).toHaveBeenCalledWith('s1', 'l1', { kind: 'direction' });
+});
+
+test('인식된 말 없이 「다음」만으로 끝까지 가면 완료로 보내지 않고 별점도 묻지 않는다(SOMA-773)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('아직 인식된 말이 없어요');
+
+  await speechEnds(() => recognizer);
+  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
+  expect(screen.getByText('알아들은 대사가 없어서 이번 리딩은 완료로 남기지 않았어요. 대사를 소리 내어 읽으면 완료로 세요.')).toBeOnTheScreen();
+  expect(screen.queryByText('리딩 완료')).not.toBeOnTheScreen();
+  expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
+  expect(screen.queryByText('말한 것을 원문과 비교하고 있어요.')).not.toBeOnTheScreen();
+  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
+  expect(mockAskRating).not.toHaveBeenCalled();
+});
+
+test('음성 인식을 못 쓰는 기기는 인식된 말 없이 끝까지 가도 완료로 보내고 별점을 묻는다(SOMA-773 예외)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'typing', reason: 'denied' });
+  const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('듣는 중');
+
+  await speechEnds();
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: true })));
+  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
+});
+
+test('이어하기 전에 서버가 받은 인식이 있으면 이번에 말이 없어도 완료다', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  const server = await startPlay({
+    start_line_id: 'l5',
+    end_line_id: 'l5',
+    different_lines: [{ line_id: 'l2', dialogue_no: 1, said: '오늘 왔다', different_words: [{ text: '오늘', differs: false }] }],
+  });
+  await screen.findByText('아직 인식된 말이 없어요');
+
+  await speechEnds(() => recognizer);
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: true })));
+  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 });
 
 test('진행 저장이 끝난 회차라고 거절되면 실행을 닫고 상세로 안내한다', async () => {
@@ -745,7 +862,8 @@ test('진행 저장이 끝난 회차라고 거절되면 실행을 닫고 상세�
   await speechEnds();
   expect(await screen.findByText('이미 끝난 회차예요. 상세에서 새로 시작해 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('상세로'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.deleteSession).not.toHaveBeenCalled();
 });
 
 test('완료 저장이 끊기면 나중에 보여 준다고 알린다', async () => {
@@ -754,6 +872,7 @@ test('완료 저장이 끊기면 나중에 보여 준다고 알린다', async ()
   server.saveProgress.mockRejectedValue(new Error('offline'));
   await screen.findByText('아직 인식된 말이 없어요');
 
+  mockStt.finish.mockResolvedValueOnce('괜찮아');
   await speechEnds(() => recognizer);
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(await screen.findByText('연결되면 비교 결과를 보여 드릴게요.')).toBeOnTheScreen();
@@ -768,6 +887,7 @@ test('완료 저장의 응답을 잃어 끝난 회차라고 거절되면 회차 
   server.getSession.mockImplementation(() => new Promise((resolve) => (answer = () => resolve(sessionDetail({ different_lines: different })))));
   await screen.findByText('아직 인식된 말이 없어요');
 
+  mockStt.finish.mockResolvedValueOnce('괜찮다');
   await speechEnds(() => recognizer);
   expect(await screen.findByText('말한 것을 원문과 비교하고 있어요.')).toBeOnTheScreen();
   await act(async () => answer());
@@ -782,7 +902,7 @@ test('완료 화면의 다시 연습은 같은 설정으로 새 회차를 시작
   await screen.findByText('듣는 중');
   await speechEnds();
 
-  await fireEvent.press(await screen.findByText('다시 연습'));
+  await pressWhenReady('다시 연습');
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
   expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({
     my_character_ids: ['c1'],
@@ -800,18 +920,36 @@ test('다시 연습을 시작하지 못하면 이유를 알린다', async () => 
   await screen.findByText('듣는 중');
   await speechEnds();
 
-  await fireEvent.press(await screen.findByText('다시 연습'));
+  await pressWhenReady('다시 연습');
   expect(await screen.findByText('연습을 시작하지 못했어요')).toBeOnTheScreen();
   expect(mockRouter.replace).not.toHaveBeenCalledWith('/reading/play');
 });
 
-test('완료 화면에서 촬영 준비로 가면 업로드 화면을 연다', async () => {
-  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+test('리딩 마무리에서 코치에게 보여 주기로 가면 대본 제목·장면·내 배역을 장면 칸에 채워 업로드 화면을 연다(SOMA-772)', async () => {
+  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' }, scriptDetail(TWO_ROLE_LINES, {
+    scenes: [{ no: 1, title: '1장 카페', start_line_id: 'l1', end_line_id: 'l5', dialogue_count: 3 }],
+  }));
   await screen.findByText('듣는 중');
   await speechEnds();
 
-  await fireEvent.press(await screen.findByText('촬영 준비로'));
+  await pressWhenReady('완료');
+  await fireEvent.press(await screen.findByText('이 장면, 찍어서 코치에게 보여 주기'));
   expect(mockRouter.replace).toHaveBeenCalledWith('/upload');
+  expect(takeContinueOrigin()).toEqual({ kind: 'reading', scene: { situation: '봄날의 대화 · 1장 카페', character: '민재', goal: '' } });
+});
+
+test('완료 화면이 뜬 직후에는 다시 연습·완료를 받지 않고, 다시 연습은 실행 중 [다음] 자리(아래 줄)에 두지 않는다(SOMA-772)', async () => {
+  const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('듣는 중');
+  await speechEnds();
+
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다시 연습' })).toBeDisabled();
+  await fireEvent.press(screen.getByText('다시 연습'));
+  await fireEvent.press(screen.getByText('완료'));
+  expect(server.startSession).not.toHaveBeenCalled();
+  expect(screen.queryByText('오늘 리딩 끝!')).not.toBeOnTheScreen();
+  await waitFor(() => expect(screen.getByRole('button', { name: '다시 연습' })).toBeEnabled(), { timeout: 2000 });
 });
 
 test('올리는 중인 녹음이 있으면 완료 화면에 수를 보인다', async () => {
@@ -835,11 +973,13 @@ test('이어 하기는 저장된 줄 바로 앞 상대 대사부터 읽고, 그 
 
 test('튜토리얼로 온 리딩은 여기서 튜토리얼을 끝내고, 완료 화면에서 평가를 묻지 않는다', async () => {
   startTutorial('sample', 'reading');
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
-  await screen.findByText('듣는 중');
+  await screen.findByText('아직 인식된 말이 없어요');
   expect(currentTutorial()).toBeNull();
 
-  await speechEnds();
+  mockStt.finish.mockResolvedValueOnce('괜찮아');
+  await speechEnds(() => recognizer);
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
   expect(mockAskRating).not.toHaveBeenCalled();
@@ -968,7 +1108,7 @@ test('녹음 올리기 대기 수가 바뀌면 완료 화면에 바로 반영한
 });
 
 test('목소리가 없어도 Wi-Fi 면 묻지 않고 바로 받는다', async () => {
-  jest.mocked(assetsPresent).mockReturnValue(false);
+  jest.mocked(missingModelBytes).mockReturnValue(400 * 1024 * 1024);
   await startPlay(PARTNER_FIRST);
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
@@ -1047,7 +1187,7 @@ test('멈춘 채 나가면 다시 멈추지 않고 그 위치를 저장한다', 
 
   await fireEvent.press(screen.getByText('나가기'));
   await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
   expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l2' }));
 });
 
@@ -1058,26 +1198,27 @@ test('다시 연습을 여러 번 눌러도 새 회차는 하나만 시작한다
   await screen.findByText('듣는 중');
   await speechEnds();
 
-  await fireEvent.press(await screen.findByText('다시 연습'));
+  await pressWhenReady('다시 연습');
   await fireEvent.press(screen.getByText('다시 연습'));
   await act(async () => started());
   expect(server.startSession).toHaveBeenCalledTimes(1);
   expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play');
 });
 
-test('시작 안내가 떠 있는 동안에는 대사 보기 시트를 열지 않는다', async () => {
+test('시작 전에는 대사 보기·다음 버튼 대신 [시작]만 있어 대사 보기 시트를 열 수 없다', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
-  await startPlay(PARTNER_FIRST);
-  await screen.findByText('말이 끝나면 저절로 넘어가요');
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
+  await screen.findByText('말이 끝나면 저절로 넘어가요. 준비되면 「시작」을 누르세요.');
 
-  await fireEvent.press(screen.getByLabelText('대사 보기'));
+  expect(screen.queryByLabelText('대사 보기')).not.toBeOnTheScreen();
+  expect(screen.queryByText('다음')).not.toBeOnTheScreen();
   expect(screen.queryByText('고르는 동안은 다음 줄로 넘어가지 않아요')).not.toBeOnTheScreen();
 });
 
 test('목소리를 준비하는 중에 화면을 떠나면 마이크를 확인하지 않는다', async () => {
   let micAnswer: (ok: boolean) => void = () => undefined;
   jest.mocked(hasMicPermission).mockImplementation(() => new Promise((resolve) => (micAnswer = resolve)));
-  await startPlay();
+  await startPlay({}, undefined, { begin: false });
   await screen.unmount();
 
   await act(async () => micAnswer(true));
@@ -1087,7 +1228,7 @@ test('목소리를 준비하는 중에 화면을 떠나면 마이크를 확인�
 test('목소리를 받는 중에 화면을 떠나면 준비가 끝나도 실행하지 않는다', async () => {
   let ready: () => void = () => undefined;
   jest.mocked(tts.ensureReady).mockImplementation(() => new Promise<void>((resolve) => (ready = resolve)));
-  await startPlay(PARTNER_FIRST);
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
   await waitFor(() => expect(tts.ensureReady).toHaveBeenCalled());
   await screen.unmount();
 
@@ -1098,7 +1239,7 @@ test('목소리를 받는 중에 화면을 떠나면 준비가 끝나도 실행�
 test('목소리 준비가 실패한 뒤 화면을 이미 떠났으면 아무것도 바꾸지 않는다', async () => {
   let fail: () => void = () => undefined;
   jest.mocked(tts.ensureReady).mockImplementation(() => new Promise<void>((_resolve, reject) => (fail = () => reject(new VoicePrepareError('model_load', 'bad')))));
-  await startPlay(PARTNER_FIRST);
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
   await waitFor(() => expect(tts.ensureReady).toHaveBeenCalled());
   await screen.unmount();
 
@@ -1117,14 +1258,13 @@ test('녹음을 큐에 넣다 실패해도 다음 줄로 넘어간다', async ()
   expect(screen.queryByText('녹음 1개 저장 못 함')).not.toBeOnTheScreen();
 });
 
-test('시작 안내를 뒤로 가기로 닫아도 숨김을 남기지 않고 시작한다', async () => {
-  await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
-  await startPlay(PARTNER_FIRST);
+test('이어 하기도 준비가 끝나면 [시작]을 눌러야 이어 읽는다', async () => {
+  await startPlay({ current_line_id: 'l5', progress_seq: 3, progress: { done: 2, total: 3 } }, undefined, { begin: false });
 
-  await screen.findByText('말이 끝나면 저절로 넘어가요');
-  await closeModalOf('말이 끝나면 저절로 넘어가요');
-  expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBeNull();
+  expect(await screen.findByText('시작')).toBeOnTheScreen();
+  expect(queue.take).not.toHaveBeenCalled();
+  await begin();
+  await waitFor(() => expect(queue.take).toHaveBeenCalled());
 });
 
 test('다르게 말한 대사가 여럿이면 두 줄까지만 보이고 수를 알린다', async () => {
@@ -1143,10 +1283,62 @@ test('다르게 말한 대사가 여럿이면 두 줄까지만 보이고 수를 
     ],
   });
   await screen.findByText('아직 인식된 말이 없어요');
+  mockStt.finish.mockResolvedValueOnce('괜찮');
   await speechEnds(() => recognizer);
 
   expect(await screen.findByText('3개')).toBeOnTheScreen();
   expect(screen.getByText('1번 대사')).toBeOnTheScreen();
   expect(screen.getByText('3번 대사')).toBeOnTheScreen();
   expect(screen.queryByText('9번 대사')).not.toBeOnTheScreen();
+});
+
+test('[시작] 전에 나가기: 저장되지 않는다고 알리고, 회차를 지운 뒤 이미 있는 상세로 돌아간다', async () => {
+  const server = await startPlay({}, undefined, { begin: false });
+  await screen.findByText('시작');
+
+  await fireEvent.press(screen.getByText('나가기'));
+  expect(screen.getByText('아직 시작하지 않아서 이번 연습은 저장되지 않아요.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.deleteSession).toHaveBeenCalledWith('r1');
+  expect(server.deleteSession).toHaveBeenCalledTimes(1);
+  expect(server.saveProgress).not.toHaveBeenCalled();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+
+  // 화면이 내려갈 때(beforeRemove) 다시 지우지 않는다.
+  await act(async () => mockRemoveListeners.forEach((fn) => fn()));
+  expect(server.deleteSession).toHaveBeenCalledTimes(1);
+});
+
+test('[시작] 전 회차 지우기가 실패해도 상세로 나간다', async () => {
+  const server = await startPlay({}, undefined, { begin: false });
+  server.deleteSession.mockRejectedValue(new Error('offline'));
+  await screen.findByText('시작');
+
+  await fireEvent.press(screen.getByText('나가기'));
+  await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+});
+
+test('이어하기 회차는 [시작] 전에 나가도 지우지 않고 진행 위치 문구를 보인다', async () => {
+  const server = await startPlay({ progress_seq: 2, current_line_id: 'l4' }, undefined, { begin: false });
+  await screen.findByText('시작');
+
+  await fireEvent.press(screen.getByText('나가기'));
+  expect(screen.getByText(/지금 나가면 \d+번 대사까지 진행한 걸로 저장돼요/)).toBeOnTheScreen();
+  await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.deleteSession).not.toHaveBeenCalled();
+});
+
+test('[시작] 전에 버튼이 아닌 길(뒤로 가기)로 내려가도 회차를 지운다, 시작한 뒤에는 지우지 않는다', async () => {
+  const server = await startPlay({}, undefined, { begin: false });
+  await screen.findByText('시작');
+  await act(async () => mockRemoveListeners.forEach((fn) => fn()));
+  expect(server.deleteSession).toHaveBeenCalledWith('r1');
+
+  const started = await startPlay();
+  await screen.findByText('듣는 중');
+  await act(async () => mockRemoveListeners.forEach((fn) => fn()));
+  expect(started.deleteSession).not.toHaveBeenCalled();
 });

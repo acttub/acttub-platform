@@ -42,14 +42,14 @@ test('단계마다 설명과 진행을 보이고, 다음·알겠어요로 끝까
   const onDone = jest.fn();
   await render(<App onDone={onDone} />);
 
-  expect(screen.getByText('1 / 2')).toBeOnTheScreen();
+  expect(screen.getByText('액터브 · 1/2')).toBeOnTheScreen();
   expect(screen.getByText('여기서 연습을 시작해요')).toBeOnTheScreen();
   expect(screen.getByText('찍어 둔 연기 영상을 올리면 질문으로 되짚어 주고, 다음 테이크에서 해볼 한 가지를 남겨요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
 
-  expect(screen.getByText('2 / 2')).toBeOnTheScreen();
-  expect(screen.getByText('지금 바로 찍어도 돼요')).toBeOnTheScreen();
+  expect(screen.getByText('액터브 · 2/2')).toBeOnTheScreen();
+  expect(screen.getByText('코칭은 여기서 시작해요')).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '알겠어요' }));
@@ -65,9 +65,9 @@ test('비친 자리를 누르면 다음 단계로 넘어간다', async () => {
   await render(<App onDone={onDone} />);
 
   await fireEvent.press(screen.getByRole('button', { name: '여기서 연습을 시작해요' }));
-  expect(screen.getByText('2 / 2')).toBeOnTheScreen();
+  expect(screen.getByText('액터브 · 2/2')).toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByRole('button', { name: '지금 바로 찍어도 돼요' }));
+  await fireEvent.press(screen.getByRole('button', { name: '코칭은 여기서 시작해요' }));
   expect(onDone.mock.calls).toEqual([['done']]);
 });
 
@@ -116,14 +116,14 @@ test('가이드를 내리면 사라지고, 다시 띄우면 첫 단계부터 보
   const onDone = jest.fn();
   const view = await render(<App onDone={onDone} />);
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-  expect(screen.getByText('2 / 2')).toBeOnTheScreen();
+  expect(screen.getByText('액터브 · 2/2')).toBeOnTheScreen();
 
   await view.rerender(<App visible={false} onDone={onDone} />);
-  expect(screen.queryByText('지금 바로 찍어도 돼요')).not.toBeOnTheScreen();
+  expect(screen.queryByText('코칭은 여기서 시작해요')).not.toBeOnTheScreen();
   expect(screen.queryByRole('button')).not.toBeOnTheScreen();
 
   await view.rerender(<App onDone={onDone} />);
-  expect(screen.getByText('1 / 2')).toBeOnTheScreen();
+  expect(screen.getByText('액터브 · 1/2')).toBeOnTheScreen();
   expect(screen.getByText('여기서 연습을 시작해요')).toBeOnTheScreen();
 });
 
@@ -133,7 +133,7 @@ test('단계가 없으면 띄우지 않는다', async () => {
   expect(screen.toJSON()).toBeNull();
 
   await view.rerender(<App steps={[STEPS[0]]} onDone={onDone} />);
-  expect(screen.getByText('1 / 1')).toBeOnTheScreen();
+  expect(screen.getByText('액터브 · 1/1')).toBeOnTheScreen();
 });
 
 test('onDone 이 새 함수로 바뀌어도 가이드를 다시 띄우지 않고 끝날 때 마지막 것을 부른다', async () => {
@@ -144,7 +144,7 @@ test('onDone 이 새 함수로 바뀌어도 가이드를 다시 띄우지 않고
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
 
   await view.rerender(<App onDone={latest} />);
-  expect(screen.getByText('2 / 2')).toBeOnTheScreen();
+  expect(screen.getByText('액터브 · 2/2')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '알겠어요' }));
   expect(first.mock.calls).toEqual([]);
@@ -156,8 +156,9 @@ describe('덮개와 설명 카드 자리', () => {
 
   afterEach(() => nativeMethods.measureInWindow.mockReset());
 
-  // 카드 = 건너뛰기 글자 → 버튼 → 버튼 줄 → 카드. 덮개 판은 카드의 부모다.
-  const caption = () => screen.getByText('건너뛰기').parent!.parent!.parent!;
+  // 카드 = 건너뛰기 글자 → 버튼 → 진행 줄 → 말풍선 글 묶음 → 말풍선 → 카드(액티 + 말풍선, pen 첫 연습 끝 홈 안내).
+  // 덮개 판은 카드의 부모다.
+  const caption = () => screen.getByText('건너뛰기').parent!.parent!.parent!.parent!.parent!;
   const overlay = () => caption().parent!;
   const captionPlace = () => {
     const { top, bottom } = StyleSheet.flatten(caption().props.style);

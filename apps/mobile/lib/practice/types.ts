@@ -65,6 +65,17 @@ export type PracticeDetail = Practice & {
 };
 
 /** 폴링이 읽는 것(GET /v2/practices/{id}/status). */
+/**
+ * 분석 공개 요약(`GET /v2/practices/{id}/analysis`, practice.analyze). summary 는 갈래(format)마다 모양이 달라
+ * (legacy ObservationPackResponse · video_record_v1 VideoRecordSummaryResponse) 읽는 쪽이 모양을 확인한다.
+ */
+export type PracticeAnalysis = {
+  id: string;
+  format: 'legacy' | 'video_record_v1';
+  status: AnalysisStatus;
+  summary: unknown;
+};
+
 export type PracticeStatus = {
   stage: PracticeStage;
   close_reason: string | null;

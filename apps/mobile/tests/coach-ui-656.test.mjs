@@ -6,17 +6,23 @@ import { helpButtonDraft } from '../lib/practice/coach.ts';
 
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 
-test('새 연습 준비(P3.1): 상황·인물·목표 칸과 「이전 연습 이어서 하기」가 없고, 도움 갈래 칩과 상세 칸만 있다(SOMA-656)', () => {
+test('새 연습 준비(P3.1): 장면 정보 단계(상황·인물·원하는 것)는 없고(SOMA-778) 「이전 연습 이어서 하기」도 없다', () => {
   const upload = read('app/upload.tsx');
-  assert.doesNotMatch(upload, /upload\.situation|upload\.character|upload\.goal|<Field\b/);
+  // SOMA-748 이 되살렸던 장면 칸을 SOMA-778 에서 다시 뺐다 — 목적 → 영상 두 단계이고 장면 없이 시작한다.
+  assert.doesNotMatch(upload, /\['situation', 'character', 'goal'\] as const|upload\.scene\.|setScene\(|<TextInput/);
+  const ko = read('locales/ko.ts');
+  assert.doesNotMatch(ko, /situationLabel: '상황'|goalLabel: '원하는 것'/);
+  // 노트·리딩에서 넘겨받은 장면만 화면 없이 그대로 보낸다 — 넘친 값은 화면이 먼저 막는다.
+  assert.match(upload, /const scene = plan\.scene;/);
+  assert.match(upload, /sceneOverflow\(scene\)/);
   assert.doesNotMatch(upload, /start\.continueCta|chooseGroup/);
   // 세부 칩은 없다 — 세부는 비워 보내고 서버 기본값(그 외)이 된다
   assert.doesNotMatch(upload, /blockage\.kindLabel|EXPRESSION_DETAILS|ANALYSIS_DETAILS/);
-  assert.match(upload, /blockage\.helpLabel\./);
-  assert.match(upload, /blockage\.freePh/);
+  // 큰 갈래는 세션 목적 단계의 세 줄로 고른다(SOMA-748) — 평가 받기·막힌 곳 풀기·인물 이해하기가 기존 갈래로 간다.
+  assert.match(upload, /upload\.purpose\./);
+  assert.match(upload, /blockageCategoryFor\(next\)/);
   // 이어서 연습(연습 상세)으로 들어오면 지난 장면은 화면 없이 그대로 보낸다
   assert.match(upload, /buildContinueBody\(\{[^}]*scene,/);
-  const ko = read('locales/ko.ts');
   assert.match(ko, /helpLabel: \{\s*분석: '대사 분석',\s*표현: '연기 표현',\s*'그 외': '그 외',/);
 });
 
@@ -25,7 +31,8 @@ test('코치 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 �
   assert.equal(helpButtonDraft('no'), '아니요');
   const coach = read('app/coach.tsx');
   assert.match(coach, /\['yes', t\('coach\.quickYes'\)\],\s*\['no', t\('coach\.quickNo'\)\],/);
-  assert.match(coach, /onPress=\{\(\) => void endConversation\(\)\}[^>]*>\s*<Text style=\{styles\.quickText\}>\{t\('coach\.quickEnd'\)\}/);
+  // 그만하기는 오른쪽 위 머리 버튼이다(pen 질문 대화, SOMA-748) — 확인을 받고 대화를 마친다.
+  assert.match(coach, /headerRight:[\s\S]{0,300}onPress=\{\(\) => void endConversation\(\)\}[^>]*>\s*<Text style=\{styles\.endText\}>\{t\('coach\.quickEnd'\)\}/);
   assert.doesNotMatch(coach, /coach\.endHint|styles\.endBtn|quickExplain|quickLater/);
   assert.match(read('locales/ko.ts'), /composerLabel: '답이나 질문을 편하게 적어 주세요'/);
 });
@@ -41,10 +48,12 @@ test('코치 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 �
   assert.match(input, /paddingTop: Platform\.OS === 'ios' \? 10 : 13,\s*paddingBottom: 13,/);
 });
 
-test('새 연습 준비: 영상 상자를 누르면 아래 시트에서 보관함·촬영·갤러리를 고른다(상자 안 버튼 없음)', () => {
+test('새 연습 준비: 고른 영상의 「영상 다시 선택」을 누르면 아래 시트에서 보관함·촬영·갤러리를 고른다(상자 안 버튼 없음)', () => {
   const upload = read('app/upload.tsx');
   assert.doesNotMatch(upload, /styles\.pickActions|styles\.recordBtn|styles\.galleryLink/);
-  assert.match(upload, /<Pressable\s+style=\{styles\.dropzone\}[^>]*onPress=\{\(\) => setSourceSheet\(true\)\}/);
+  // 처음 고르기는 영상 단계의 세 줄이 하고(빈 영상 상자는 없다, SOMA-778), 바꾸기는 시트가 한다.
+  assert.doesNotMatch(upload, /styles\.dropzone/);
+  assert.match(upload, /<Pressable style=\{styles\.repick\} onPress=\{\(\) => setSourceSheet\(true\)\}/);
   assert.match(upload, /<VideoSourceSheet/);
   // 세 갈래는 시트의 줄로 간다 — 문구 키는 그대로 쓴다
   for (const key of ['start.fromLibrary', 'upload.recordCta', 'upload.pickGallery']) assert.match(upload, new RegExp(key.replace('.', '\\.')));
@@ -53,15 +62,17 @@ test('새 연습 준비: 영상 상자를 누르면 아래 시트에서 보관�
   assert.match(sheet, /onRequestClose=\{onClose\}/);
 });
 
-test('코치 질문 글자는 21pt 다(19pt 는 작았다)', () => {
-  assert.match(read('app/coach.tsx'), /question: \{ fontSize: 21,/);
+test('코치 질문은 회색 말풍선 16pt 다(pen 질문 대화 「코치 말」, SOMA-748 — 예전 21pt 맨글자 대신)', () => {
+  const coach = read('app/coach.tsx');
+  assert.match(coach, /question: \{ fontSize: 16,/);
+  assert.match(coach, /<View style=\{styles\.bubble\}>/);
 });
 
 test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 받아 미리보기를 채운다(목록은 playback_url 이 null)', () => {
   const upload = read('app/upload.tsx');
   assert.match(upload, /api\s*\.getVideo\(picked\.videoId\)/);
   // 주소를 받기 전에도 고른 상태로 그린다 — 빈 상자로 돌아가지 않는다
-  assert.match(upload, /\{previewUri \|\| uploading \|\| picked \? \(/);
+  assert.match(upload, /\{picked \? \(/);
 });
 
 test('코치 화면 위에 「코치 답변 N번 남음」은 보이지 않는다 — 마무리 직전 안내만 남긴다', () => {

@@ -81,14 +81,14 @@ beforeEach(() => {
 });
 
 async function paste(text = PASTED) {
-  await fireEvent.press(screen.getByRole('tab', { name: /글로 붙여넣기/ }));
+  await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
   await fireEvent.changeText(screen.getByPlaceholderText('복사한 대본을 여기에 붙여넣어 주세요.\n형식은 그대로 둬도 괜찮아요.'), text);
 }
 
 test('처음에는 파일 탭과 예시 링크를 보이고, 넣은 것이 없으면 다음을 누를 수 없다', async () => {
   await render(<ReadingNew />);
 
-  expect(screen.getByRole('tab', { name: /파일로 넣기/ })).toBeSelected();
+  expect(screen.getByRole('tab', { name: /파일/ })).toBeSelected();
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
   expect(screen.getByText('예시 대본으로 시작해보기')).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeDisabled();
@@ -127,7 +127,7 @@ test('예시 대본 링크를 누르면 글 탭에 예시를 채우고 링크를
   await render(<ReadingNew />);
 
   await fireEvent.press(screen.getByText('예시 대본으로 시작해보기'));
-  expect(screen.getByRole('tab', { name: /글로 붙여넣기/ })).toBeSelected();
+  expect(screen.getByRole('tab', { name: /글 붙여넣기/ })).toBeSelected();
   expect(screen.getByDisplayValue(SAMPLE_SCRIPT)).toBeOnTheScreen();
   expect(screen.queryByText('예시 대본으로 시작해보기')).not.toBeOnTheScreen();
 
@@ -164,9 +164,10 @@ test('같은 글의 대본이 있으면 그 대본을 열거나 새로 넣을 �
 
   await fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('이미 넣은 대본이에요')).toBeOnTheScreen();
-  expect(screen.getByText('내 대본에 같은 글이 있어요.\n「봄날의 대화」')).toBeOnTheScreen();
+  expect(screen.getByText('「봄날의 대화」')).toBeOnTheScreen();
+  expect(screen.getByText('「그 대본 열기」를 누르면 하던 데서 이어져요.')).toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByText('새로 넣기'));
+  await fireEvent.press(screen.getByText('그래도 넣기'));
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
   expect(jest.mocked(api.importScript).mock.calls[1][0]).toEqual(expect.objectContaining({ allow_duplicate: true, raw_text: PASTED }));
 });
@@ -209,8 +210,20 @@ test('대본이 아닌 것 같다면 그래도 나누거나 다시 고를 수 �
   expect(jest.mocked(api.importScript).mock.calls.at(-1)![0]).toEqual(expect.objectContaining({ skip_script_check: true }));
 });
 
+test('배역을 못 찾으면 「대본을 못 나눴어요」 화면에 이유를 보이고, 뒤로 가면 닫는다', async () => {
+  jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'no_characters', script_id: null }));
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('대본을 못 나눴어요')).toBeOnTheScreen();
+  expect(screen.getByText('대본에 말하는 사람 이름이 있는지 확인하고 다시 넣어 주세요.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByLabelText('뒤로'));
+  expect(screen.queryByText('대본을 못 나눴어요')).not.toBeOnTheScreen();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+});
+
 test.each([
-  ['배역을 못 찾으면', () => jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'no_characters', script_id: null })), '배역을 찾지 못했어요', '대본에 말하는 사람 이름이 있는지 확인하고 다시 넣어 주세요.'],
   ['하루 한도를 넘으면', () => jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(429, 'limit', 'script_split_daily_limit')), '오늘은 대본을 더 넣을 수 없어요', '대본은 하루 20번까지 나눌 수 있어요.\n내일 다시 넣어 주세요.'],
   ['대본이 너무 길면', () => jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'script_too_long', script_id: null })), '저장', '대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요.'],
 ])('%s 알리고 확인을 누르면 닫는다', async (_name, arrange, title, message) => {
@@ -237,14 +250,14 @@ test('나눈 대본을 불러오지 못하면 연결 문구를 띄운다', async
 });
 
 test('알림은 뒤로 가기로도 닫힌다', async () => {
-  jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'no_characters', script_id: null }));
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(429, 'limit', 'script_split_daily_limit'));
   await render(<ReadingNew />);
   await paste();
   await fireEvent.press(screen.getByText('다음'));
 
-  await screen.findByText('배역을 찾지 못했어요');
-  await closeModalOf('배역을 찾지 못했어요');
-  expect(screen.queryByText('배역을 찾지 못했어요')).not.toBeOnTheScreen();
+  await screen.findByText('오늘은 대본을 더 넣을 수 없어요');
+  await closeModalOf('오늘은 대본을 더 넣을 수 없어요');
+  expect(screen.queryByText('오늘은 대본을 더 넣을 수 없어요')).not.toBeOnTheScreen();
 });
 
 test('나누기 동의가 없으면 동의를 받고, 동의하면 같은 글을 이어서 나눈다', async () => {
@@ -401,7 +414,7 @@ test('올리는 중에 끊기면 연결 문구를 띄우고 파일을 비운다'
 
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
   expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해주세요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('확인'));
+  await fireEvent.press(screen.getByLabelText('뒤로'));
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
 
@@ -436,7 +449,8 @@ test('나누다 원본을 읽을 수 없다고 하면 파일 칸을 비운다', 
   jest.mocked(api.completeScriptUpload).mockRejectedValueOnce(new ApiError(404, 'gone', 'script_upload_not_found'));
 
   await fireEvent.press(screen.getByText('다음'));
-  await fireEvent.press(await screen.findByText('확인'));
+  expect(await screen.findByText('대본을 못 나눴어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByLabelText('뒤로'));
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
 
@@ -469,11 +483,11 @@ test('나누는 중에 화면을 떠나면 끝나도 다른 화면으로 옮기�
 test('탭마다 넣은 것을 따로 들고, 보고 있는 탭의 것을 보낸다', async () => {
   await render(<ReadingNew />);
   await paste();
-  await fireEvent.press(screen.getByRole('tab', { name: /파일로 넣기/ }));
+  await fireEvent.press(screen.getByRole('tab', { name: /파일/ }));
 
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeDisabled();
-  await fireEvent.press(screen.getByRole('tab', { name: /글로 붙여넣기/ }));
+  await fireEvent.press(screen.getByRole('tab', { name: /글 붙여넣기/ }));
   expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeEnabled();
 });

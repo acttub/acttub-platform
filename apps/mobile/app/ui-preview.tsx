@@ -35,10 +35,10 @@ export default function UiPreviewScreen() {
     {
       key: 'analyzing',
       label: '분석 진행',
-      hint: '진행 표시 · 분석에 쓰는 내용 · 영상 보기',
+      hint: '코치 화면 안의 영상 보는 중 · 영상 보기',
       go: () => {
         seedPractice();
-        router.push('/analyzing?preview=1');
+        router.push('/coach?preview=1');
       },
     },
     {

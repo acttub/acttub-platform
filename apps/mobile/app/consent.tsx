@@ -1,11 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import type { ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -28,7 +31,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 /**
- * A0.1 가입 동의 — 처음 온 신원만 본다. 이미 있는 계정의 새 판 동의는 홈 위 재동의 팝업이 묻는다.
+ * A0.1 가입 동의(pen S4 Bjopqw, SOMA-748) — 처음 온 신원만 본다. 이미 있는 계정의 새 판 동의는 홈 위 재동의 팝업이 묻는다.
  *
  * 맨 위에 전체 동의(선택 포함, 기본 꺼짐), 그 아래 만 14세 확인 줄과 문서마다 체크 한 줄(필수를 먼저).
  * 고품질 목소리·대본 나누기는 개인정보 동의 v9에 들어 있어 따로 보이지 않고, 광고성 이메일·앱 푸시는 한 줄로 묶는다. 만 14세 확인과 필수 문서에
@@ -153,39 +156,30 @@ export default function ConsentScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         {/* 나가면 아무것도 남지 않는다. 계정도, 제공자가 준 이름도. */}
-        <Pressable
-          style={styles.exit}
-          onPress={() => cancelSignup()}
+        <NavIconButton
+          icon="chevron-left"
+          size={26}
+          label={t('consent.exit')}
+          phLabel="consent_exit"
           disabled={busy}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel={t('consent.exit')}>
-          <Feather name="chevron-left" size={26} color={palette.text} />
-        </Pressable>
-        <Text style={styles.title}>{t('consent.title')}</Text>
-        <Text style={styles.subtitle}>{t('consent.subtitle')}</Text>
+          onPress={() => cancelSignup()}
+        />
+        <Text style={styles.headerTitle}>{t('consent.headerTitle')}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.list}>
+        <Text style={styles.title}>{t('consent.heading')}</Text>
+        <Text style={styles.hint}>{t('consent.headingHint')}</Text>
         <Pressable
-          style={[styles.allRow, everythingGranted && styles.allRowOn]}
+          style={styles.allRow}
           onPress={toggleEverything}
           disabled={busy}
           accessibilityRole="checkbox"
+          accessibilityHint={t('consent.allAgreeHint')}
           accessibilityState={{ checked: everythingGranted }}>
-          <Feather
-            name="check-circle"
-            size={22}
-            color={everythingGranted ? palette.blue : palette.checkOff}
-          />
-          <View style={styles.allText}>
-            <Text style={[styles.allLabel, everythingGranted && styles.allLabelOn]}>
-              {t('consent.allAgree')}
-            </Text>
-            <Text style={styles.allHint}>{t('consent.allAgreeHint')}</Text>
-          </View>
+          <Feather name="check-circle" size={24} color={everythingGranted ? palette.blue : palette.checkOff} />
+          <Text style={styles.allLabel}>{t('consent.allAgree')}</Text>
         </Pressable>
-        <Text style={styles.sectionTitle}>{t('consent.itemsLabel')}</Text>
         <ConsentRow
           label={`${t('consent.requiredTag')} ${t('consent.ageConfirm')}`}
           checked={ageConfirmed}
@@ -234,58 +228,38 @@ export default function ConsentScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <CtaBar safeBottom={false}>
         {error && <Text style={styles.error}>{error}</Text>}
-        <Pressable
-          style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
-          onPress={() => void proceed()}
-          disabled={!canProceed || busy}>
-          {busy ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.ctaText}>{t('consent.cta')}</Text>
-          )}
-        </Pressable>
-      </View>
+        <PrimaryButton label={t('consent.cta')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} />
+      </CtaBar>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  header: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 8 },
-  title: { fontSize: 24, fontWeight: '800', color: palette.text },
-  subtitle: { fontSize: 14, color: palette.textDim, marginTop: 6, lineHeight: 20 },
-  list: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 },
-  sectionTitle: { fontSize: 12.5, fontWeight: '800', color: palette.textDim, marginTop: 20, marginBottom: 6 },
-  exit: { alignSelf: 'flex-start', marginLeft: -6, marginBottom: 12 },
-  docBody: { paddingBottom: 12 },
-  subRow: { flexDirection: 'row', gap: 20, paddingLeft: 30, paddingBottom: 14, marginTop: -6 },
+  // pen S4 동의 「머리」 — 꺾쇠 옆에 제목(19/800).
+  // 꺾쇠 버튼 칸(44)은 그림(26)보다 넓어 왼쪽 안쪽을 줄여 그림 자리를 14 에 맞춘다.
+  header: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 0, paddingHorizontal: 5 },
+  headerTitle: { fontSize: 19, fontWeight: '800', color: palette.text },
+  // pen S4 「본문」 — 안쪽 [16,24,24,24], 줄 사이 14.
+  list: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
+  title: { fontSize: 22, fontWeight: '900', lineHeight: 31, color: palette.text },
+  hint: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
+  docBody: { paddingHorizontal: 16, paddingBottom: 12 },
+  subRow: { flexDirection: 'row', gap: 20, paddingLeft: 46, paddingBottom: 10, marginTop: -14 },
   subItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   subLabel: { fontSize: 14, fontWeight: '600', color: palette.textDim },
   subLabelOn: { color: palette.text },
-  footer: { paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
   allRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: palette.bgSubtle,
+    backgroundColor: palette.blueSoft,
     borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  allRowOn: { backgroundColor: palette.blueSoft },
-  allText: { flex: 1, gap: 3 },
-  allLabel: { fontSize: 16, fontWeight: '800', color: palette.textDim },
-  allHint: { fontSize: 12.5, color: palette.textDim, lineHeight: 17 },
-  allLabelOn: { color: palette.blueDeep },
+  allLabel: { flex: 1, fontSize: 18, fontWeight: '800', lineHeight: 27, color: palette.text },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
-  cta: {
-    backgroundColor: palette.blue,
-    borderRadius: 16,
-    padding: 17,
-    alignItems: 'center',
-  },
-  ctaDisabled: { opacity: 0.4 },
-  ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
 });
