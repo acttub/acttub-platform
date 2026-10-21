@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.UUID;
 
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
+import com.acttub.actingapi.integration.observation.ReplyTrace;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.FailureContext;
@@ -51,6 +52,12 @@ public final class DirectVideoCoach {
      * 영상을 빼면 생각 0·첫 글자 약 1.3초였고 답도 정정을 반영했다. false 면 예전처럼 영상과 함께 쓴다(롤백).
      */
     private final boolean letGoWithoutVideo;
+    /**
+     * 연습 루프의 답장(첫 질문이 아닌 턴)은 생각 단계를 MINIMAL 로 보낸다(SOMA-780). LOW 에서 가끔 생각 토큰이 약 3,900까지 늘어
+     * 빈 답·깨진 글·재시도로 20~28초 걸렸다(2026-10-22 실제 대화 10턴×3회: MINIMAL 은 루프 0회, 중앙값 4.0초·최대 8.8초, 지금은 6.3·23.2초).
+     * 첫 질문·분류·정리 노트는 LOW 그대로다. MINIMAL 을 받지 않는 모델은 LOW 로 둔다. false 면 모두 LOW(롤백).
+     */
+    private final boolean followUpMinimalThinking;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -84,6 +91,15 @@ public final class DirectVideoCoach {
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
             DirectVideoModel alternate, int alternateShare, CoachFlows flows, CoachVideoCache videoCache,
             boolean letGoWithoutVideo) {
+        this(model, videos, storage, failures, telemetry, practiceLoop, personas, alternate, alternateShare, flows, videoCache,
+                letGoWithoutVideo, true);
+    }
+
+    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
+            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
+            DirectVideoModel alternate, int alternateShare, CoachFlows flows, CoachVideoCache videoCache,
+            boolean letGoWithoutVideo, boolean followUpMinimalThinking) {
+        this.followUpMinimalThinking = followUpMinimalThinking;
         this.letGoWithoutVideo = letGoWithoutVideo;
         this.videoCache = videoCache == null ? CoachVideoCache.NONE : videoCache;
         this.flows = flows == null ? CoachFlows.NONE : flows;
@@ -126,6 +142,7 @@ public final class DirectVideoCoach {
         long classifiedNanos = startedNanos;
         long videoNanos = 0;
         long warmWaitNanos = 0;
+        ReplyTrace replyTrace = new ReplyTrace(false);
         boolean loop = practiceLoop && DirectVideoPracticeLoop.applies(session);
         // 목적별 코칭(SOMA-719): 앱이 목적을 골라 시작한 회차. 지금 흐름의 실험(모델·흐름 A/B, 자문위원 성격)과 섞지 않는다.
         PurposeLoop.Purpose purpose = loop ? PurposeLoop.of(session) : null;
@@ -362,7 +379,7 @@ public final class DirectVideoCoach {
                 continuedFuture = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
                     continuedCall.run();
                     try {
-                        return replyOrNull(speakerFinal, continuedVideo, continuedHistory, continuedPrompt, loopFinal);
+                        return replyOrNull(speakerFinal, continuedVideo, continuedHistory, continuedPrompt, loopFinal, new ReplyTrace(false));
                     } catch (RuntimeException continuedFailed) {
                         return null;
                     }
@@ -373,9 +390,12 @@ public final class DirectVideoCoach {
                     && (uploaded == null || !Boolean.FALSE.equals(uploaded.hasAudioTrack()));
             java.util.Locale replyLanguage = DirectVideoPracticeLoop.replyLanguage(session, actorText);
             final VisibleCoachText visible = streaming ? new VisibleCoachText(session.turns().isEmpty(), replyLanguage, stream::delta) : null;
+            // 답장(첫 질문이 아닌 턴)은 생각을 최소로 쓴다(SOMA-780). 첫 질문·분류·정리 노트는 그대로 LOW 다.
+            final ReplyTrace trace = new ReplyTrace(followUpMinimalThinking && !session.turns().isEmpty());
+            replyTrace = trace;
             ExternalOperationExecution.externalCall("model");
-            String message = streaming ? streamOrNull(speaker, uploaded, history, prompt, visible)
-                    : replyOrNull(speaker, uploaded, history, prompt, loop);
+            String message = streaming ? streamOrNull(speaker, uploaded, history, prompt, visible, trace)
+                    : replyOrNull(speaker, uploaded, history, prompt, loop, trace);
             // 연습 루프에서 배우에게 보일 말이 비었으면(빈 응답, 숨은 메모만 쓴 응답) 한 번 다시 쓰게 한다.
             boolean emptyRetry = false;
             boolean lightRetry = false;
@@ -384,8 +404,8 @@ public final class DirectVideoCoach {
                 ExternalOperationExecution.externalCall("model");
                 String retryPrompt = prompt + "\n\n"
                         + DirectVideoPracticeLoop.emptyRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText));
-                message = streaming ? streamOrNull(speaker, uploaded, history, retryPrompt, visible)
-                        : replyOrNull(speaker, uploaded, history, retryPrompt, loop);
+                message = streaming ? streamOrNull(speaker, uploaded, history, retryPrompt, visible, trace)
+                        : replyOrNull(speaker, uploaded, history, retryPrompt, loop, trace);
                 // 다시 써도 비었으면 생각을 거의 하지 않게 한 번 더 쓴다(스트리밍이어도 다 쓴 뒤 한 번에 보낸다).
                 // 2026-10-21 재생: 빈 답 두 번 중 하나는 영어 생각 메모만 쓰다 한도에 닿았고, 하나는 빈 글만 냈다. 같은 지시를 일반 호출로 보내면 답이 나왔다.
                 // 앱은 한 요청을 60초까지 기다린다. 이미 40초를 넘겼으면 더 쓰지 않고 실패로 돌린다(배우가 다시 보내면 된다).
@@ -393,7 +413,7 @@ public final class DirectVideoCoach {
                 if (timeLeft && (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank())) {
                     lightRetry = true;
                     ExternalOperationExecution.externalCall("model");
-                    message = lightOrNull(speaker, uploaded, history, retryPrompt);
+                    message = lightOrNull(speaker, uploaded, history, retryPrompt, trace);
                 }
             }
             // 대화와 상관없는 글(웹페이지·코드·자모)이 나오면 배우에게 보내지 않고 한 번 다시 쓰게 한다.
@@ -404,8 +424,8 @@ public final class DirectVideoCoach {
                 brokenRetry = true;
                 ExternalOperationExecution.externalCall("model");
                 String brokenPrompt = prompt + "\n\n" + DirectVideoPracticeLoop.brokenRetryNote(replyLanguage);
-                message = streaming ? streamOrNull(speaker, uploaded, history, brokenPrompt, visible)
-                        : replyOrNull(speaker, uploaded, history, brokenPrompt, loop);
+                message = streaming ? streamOrNull(speaker, uploaded, history, brokenPrompt, visible, trace)
+                        : replyOrNull(speaker, uploaded, history, brokenPrompt, loop, trace);
                 if (message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
                     message = null;
                 }
@@ -416,8 +436,8 @@ public final class DirectVideoCoach {
             if (loop && speaker != model && (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank())) {
                 modelFallback = true;
                 ExternalOperationExecution.externalCall("model");
-                message = streaming ? streamOrNull(model, uploaded, history, prompt, visible)
-                        : replyOrNull(model, uploaded, history, prompt, loop);
+                message = streaming ? streamOrNull(model, uploaded, history, prompt, visible, trace)
+                        : replyOrNull(model, uploaded, history, prompt, loop, trace);
                 if (message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
                     message = null;
                 }
@@ -444,7 +464,7 @@ public final class DirectVideoCoach {
                 ExternalOperationExecution.externalCall("model");
                 // 다시 쓴 답이 비거나 한도에 걸려 끊기면 처음 답을 쓰고 시간만 걷어낸다.
                 String again = replyOrNull(speaker, uploaded, history, prompt + "\n\n"
-                        + DirectVideoPracticeLoop.timestampRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText)), loop);
+                        + DirectVideoPracticeLoop.timestampRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText)), loop, trace);
                 if (again != null && !again.isBlank() && !DirectVideoPracticeLoop.parse(again).message().isBlank()) {
                     try {
                         DirectVideoDialogueEvidence.requireGrounded(uploaded, again, written);
@@ -569,15 +589,20 @@ public final class DirectVideoCoach {
                             "classify_ms", Long.toString(millis(startedNanos, classifiedNanos)),
                             "video_ms", Long.toString(millis(classifiedNanos, videoNanos)),
                             "warm_wait_ms", Long.toString(warmWaitNanos / 1_000_000),
+                            "thinking", replyTrace.thinking(),
+                            "thoughts_tokens", Integer.toString(replyTrace.thoughtsTokens()),
+                            "candidates_tokens", Integer.toString(replyTrace.candidatesTokens()),
                             "reply_ms", Long.toString(millis(videoNanos, repliedNanos)),
                             "shorten_ms", Long.toString(millis(repliedNanos, System.nanoTime()))))
                     .withPrompt(template));
             LOG.info("coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} "
-                            + "video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={}",
+                            + "video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={} thinking={} "
+                            + "thoughts_tokens={} candidates_tokens={}",
                     shortId(session.practiceSessionId()), session.turns().isEmpty(), arm, streaming, videoReused,
                     millis(startedNanos, System.nanoTime()), millis(startedNanos, classifiedNanos),
                     millis(classifiedNanos, videoNanos), warmWaitNanos / 1_000_000, millis(videoNanos, repliedNanos),
-                    shortened, emptyRetry, videoOmitted);
+                    shortened, emptyRetry, videoOmitted, replyTrace.thinking(), replyTrace.thoughtsTokens(),
+                    replyTrace.candidatesTokens());
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (purpose != null && !cut) {
                 if (purposeTurn == null) PurposeLoop.rememberOpening(state, purpose, purposeOut, parsed.design());
@@ -598,11 +623,14 @@ public final class DirectVideoCoach {
                     speaker.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm, "coach_flow", flow,
-                            "video_omitted", Boolean.toString(videoOmitted))).withPrompt(template));
-            LOG.info("coach turn timing practice={} first={} arm={} failed={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} video_omitted={}",
+                            "video_omitted", Boolean.toString(videoOmitted), "thinking", replyTrace.thinking(),
+                            "thoughts_tokens", Integer.toString(replyTrace.thoughtsTokens()),
+                            "candidates_tokens", Integer.toString(replyTrace.candidatesTokens()))).withPrompt(template));
+            LOG.info("coach turn timing practice={} first={} arm={} failed={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} video_omitted={} thinking={} thoughts_tokens={}",
                     shortId(session.practiceSessionId()), session.turns().isEmpty(), arm, failure.getClass().getSimpleName(),
                     millis(startedNanos, System.nanoTime()), millis(startedNanos, classifiedNanos),
-                    millis(classifiedNanos, videoNanos), warmWaitNanos / 1_000_000, videoOmitted);
+                    millis(classifiedNanos, videoNanos), warmWaitNanos / 1_000_000, videoOmitted,
+                    replyTrace.thinking(), replyTrace.thoughtsTokens());
             throw new CoachReplyUnavailable();
         } finally {
             if (uploaded != null && keepVideo && videoCache.enabled()) {
@@ -721,10 +749,10 @@ public final class DirectVideoCoach {
      */
     /** {@link #replyOrNull} 의 스트리밍판. 보일 글만 {@code visible} 로 흘려보낸다. */
     private static String streamOrNull(DirectVideoModel speaker, DirectVideoModel.Video video,
-            java.util.List<DirectVideoModel.Message> history, String prompt, VisibleCoachText visible) {
+            java.util.List<DirectVideoModel.Message> history, String prompt, VisibleCoachText visible, ReplyTrace trace) {
         visible.restart();
         try {
-            String reply = speaker.replyStream(video, history, prompt, visible::accept);
+            String reply = trace.run(() -> speaker.replyStream(video, history, prompt, visible::accept));
             return reply == null || reply.isBlank() ? null : reply;
         } catch (VisibleCoachText.Broken broken) {
             // 깨진 글을 끝까지 흘리지 않고 끊었다. 깨진 글을 돌려주면 부르는 쪽의 깨진 글 검사가 다시 쓰게 한다.
@@ -739,9 +767,9 @@ public final class DirectVideoCoach {
     static final Duration LIGHT_RETRY_BUDGET = Duration.ofSeconds(40);
 
     private static String lightOrNull(DirectVideoModel speaker, DirectVideoModel.Video video,
-            java.util.List<DirectVideoModel.Message> history, String prompt) {
+            java.util.List<DirectVideoModel.Message> history, String prompt, ReplyTrace trace) {
         try {
-            String reply = speaker.replyLight(video, history, prompt);
+            String reply = trace.run(() -> speaker.replyLight(video, history, prompt));
             return reply == null || reply.isBlank() ? null : reply;
         } catch (IllegalStateException empty) {
             if (String.valueOf(empty.getMessage()).contains("empty")) return null;
@@ -750,9 +778,9 @@ public final class DirectVideoCoach {
     }
 
     private static String replyOrNull(DirectVideoModel speaker, DirectVideoModel.Video video,
-            java.util.List<DirectVideoModel.Message> history, String prompt, boolean loop) {
+            java.util.List<DirectVideoModel.Message> history, String prompt, boolean loop, ReplyTrace trace) {
         try {
-            String reply = speaker.reply(video, history, prompt);
+            String reply = trace.run(() -> speaker.reply(video, history, prompt));
             return reply == null || reply.isBlank() ? null : reply;
         } catch (IllegalStateException empty) {
             if (loop && String.valueOf(empty.getMessage()).contains("empty")) return null;
