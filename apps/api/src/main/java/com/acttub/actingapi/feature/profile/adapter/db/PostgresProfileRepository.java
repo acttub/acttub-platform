@@ -435,6 +435,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
         entityManager.createNativeQuery("DELETE FROM user_active_days WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
+        // 연습 알림 보낸 기록(V47)도 게스트 쪽에서 지운다 — 회원에게 옮기지 않는다.
+        entityManager.createNativeQuery("DELETE FROM practice_reminder_sends WHERE user_id=:guestId")
+                .setParameter("guestId", guestId)
+                .executeUpdate();
         entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
@@ -799,6 +803,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
             // ⚠ 토큰을 폐기한 **뒤에** 지운다. 같은 토큰을 잡고 있던 갱신은 위 UPDATE 가 기다린 뒤 커밋되므로
             // 이 문장이 그 갱신이 남긴 줄까지 본다.
             entityManager.createNativeQuery("DELETE FROM user_active_days WHERE user_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            // 연습 알림 보낸 기록(V47)도 사람과 끊어 남기지 않고 지운다.
+            entityManager.createNativeQuery("DELETE FROM practice_reminder_sends WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
             entityManager.createNativeQuery("""
