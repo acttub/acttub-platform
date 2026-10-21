@@ -272,6 +272,11 @@ class PostgresSessionRepository implements SessionRepository {
             String state = change.complete()
                     ? ReadingSessionStatus.COMPLETED.dbValue()
                     : ReadingSessionStatus.IN_PROGRESS.dbValue();
+            if (!change.complete()) {
+                // 진행 저장은 가장 잦은 쓰기라 WAL fsync 가 느려지는 순간 풀 전체가 COMMIT 에 묶였다(SOMA-701).
+                // 서버가 꺼지면 마지막 몇백 ms 의 위치만 잃고 다음 저장이 덮어쓴다. 완료는 지금처럼 확정을 기다린다.
+                entityManager.createNativeQuery("SET LOCAL synchronous_commit = off").executeUpdate();
+            }
             entityManager.createNativeQuery("""
                     UPDATE reading_sessions
                     SET current_line_id=CAST(:position AS uuid),
