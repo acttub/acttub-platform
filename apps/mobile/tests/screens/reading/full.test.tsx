@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ReadingFull from '@/app/reading/full';
+import { ApiError } from '@/lib/api-request';
 import { resetReadingState, updateCurrent } from '@/lib/reading/store';
 
 import { openFixtureScript, scriptDetail, TWO_ROLE_LINES } from './fixtures';
@@ -42,6 +43,7 @@ test('대사 줄을 눌러 글을 고치면 서버에 고친 글만 보내고 �
   await render(<ReadingFull />);
 
   await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  await fireEvent.press(screen.getByText('대사 고치기'));
   await fireEvent.changeText(screen.getByLabelText('글'), '응, 늦어서 정말 미안해.');
   await fireEvent.press(screen.getByText('저장'));
 
@@ -55,8 +57,86 @@ test('지문 줄을 눌렀다가 취소하면 서버에 아무것도 보내지 �
   await render(<ReadingFull />);
 
   await fireEvent.press(screen.getByText('서연이 자리에 앉는다.'));
+  await fireEvent.press(screen.getByText('대사 고치기'));
   await fireEvent.press(screen.getByText('취소'));
 
   expect(screen.queryByText('저장')).not.toBeOnTheScreen();
   expect(server.patchLine).not.toHaveBeenCalled();
+});
+
+test('줄을 누르면 고치기·나누기·지우기 메뉴가 뜨고, 고치기는 줄 고치기 시트를 연다(SOMA-785)', async () => {
+  await openFixtureScript();
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  expect(screen.getByText('서연 · 응, 늦어서 미안해.')).toBeOnTheScreen();
+  expect(screen.getByText('둘로 나누기')).toBeOnTheScreen();
+  expect(screen.getByText('이 대사 지우기')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('대사 고치기'));
+  expect(screen.getByLabelText('글')).toBeOnTheScreen();
+});
+
+test('이 대사 지우기는 한 번 묻고 지운 뒤 서버가 돌려준 대본을 그린다(SOMA-785)', async () => {
+  const removed = scriptDetail([...TWO_ROLE_LINES.slice(0, 3), TWO_ROLE_LINES[4]]);
+  const { server } = await openFixtureScript();
+  server.deleteLine.mockResolvedValue(removed);
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  await fireEvent.press(screen.getByText('이 대사 지우기'));
+  expect(screen.getByText('이 대사를 지울까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('지우기'));
+
+  await waitFor(() => expect(screen.queryByText('응, 늦어서 미안해.')).not.toBeOnTheScreen());
+  expect(server.deleteLine).toHaveBeenCalledWith('s1', 'l4');
+});
+
+test('지우기를 취소하면 서버에 보내지 않고, 서버가 거절하면 이유를 알린다(SOMA-785)', async () => {
+  const { server } = await openFixtureScript();
+  server.deleteLine.mockRejectedValue(new ApiError(422, 'unprocessable', 'empty_range', 'empty_range'));
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  await fireEvent.press(screen.getByText('이 대사 지우기'));
+  await fireEvent.press(screen.getByText('취소'));
+  expect(server.deleteLine).not.toHaveBeenCalled();
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  await fireEvent.press(screen.getByText('이 대사 지우기'));
+  await fireEvent.press(screen.getByText('지우기'));
+  expect(await screen.findByText('이 대사 하나만 연습한 기록이 있어 지울 수 없어요.')).toBeOnTheScreen();
+  expect(screen.getByText('응, 늦어서 미안해.')).toBeOnTheScreen();
+});
+
+test('둘로 나누기는 문장 사이를 자를 곳으로 앞뒤 칸을 채워 두고, 고친 두 글을 보낸다(SOMA-785)', async () => {
+  const lines = [['dialogue', '민재', '안녕하세요. 저는 이영입니다. 만나서 반갑습니다.'], ['dialogue', '서연', '반가워요.']] as Parameters<typeof scriptDetail>[0];
+  const split = scriptDetail([['dialogue', '민재', '안녕하세요. 저는 이영입니다.'], ['dialogue', '민재', '만나서 반갑습니다.'], lines[1]]);
+  const { server } = await openFixtureScript(scriptDetail(lines));
+  server.splitLine.mockResolvedValue(split);
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('안녕하세요. 저는 이영입니다. 만나서 반갑습니다.'));
+  await fireEvent.press(screen.getByText('둘로 나누기'));
+  expect(screen.getByLabelText('앞 대사')).toHaveDisplayValue('안녕하세요. 저는 이영입니다.');
+  expect(screen.getByLabelText('뒤 대사')).toHaveDisplayValue('만나서 반갑습니다.');
+  await fireEvent.press(screen.getByText('나누기'));
+
+  expect(await screen.findByText('만나서 반갑습니다.')).toBeOnTheScreen();
+  expect(server.splitLine).toHaveBeenCalledWith('s1', 'l1', { first_text: '안녕하세요. 저는 이영입니다.', second_text: '만나서 반갑습니다.' });
+});
+
+test('나누기는 앞뒤 칸이 모두 있어야 누를 수 있고, 실패하면 시트에 알린다(SOMA-785)', async () => {
+  const { server } = await openFixtureScript();
+  server.splitLine.mockRejectedValue(new Error('offline'));
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  await fireEvent.press(screen.getByText('둘로 나누기'));
+  await fireEvent.changeText(screen.getByLabelText('뒤 대사'), '  ');
+  expect(screen.getByRole('button', { name: '나누기' })).toBeDisabled();
+  await fireEvent.changeText(screen.getByLabelText('뒤 대사'), '미안해.');
+  await fireEvent.press(screen.getByText('나누기'));
+  expect(await screen.findByText('저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('취소'));
+  expect(screen.queryByLabelText('앞 대사')).not.toBeOnTheScreen();
 });

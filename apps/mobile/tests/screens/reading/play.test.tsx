@@ -1162,7 +1162,7 @@ test('줄이 끝나기 전에 멈추면 그 줄의 녹음 조각을 지운다', 
   expect(enqueueLineRecording).not.toHaveBeenCalled();
 });
 
-test('모든 대사를 가리면 지나간 대사도 막대로 보이고, 장면 줄은 그대로 보인다', async () => {
+test('모든 대사를 가리면 상대 대사는 막대로 보이고 지나간 내 대사는 원문으로 펼치며, 장면 줄은 그대로 보인다', async () => {
   jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined));
   await startPlay({ start_line_id: 'l1' });
   await screen.findByText('듣는 중');
@@ -1174,7 +1174,8 @@ test('모든 대사를 가리면 지나간 대사도 막대로 보이고, 장면
   await speechEnds();
   await waitFor(() => expect(tts.play).toHaveBeenCalled());
 
-  expect(screen.queryByText('오늘 왔구나.')).not.toBeOnTheScreen();
+  // 지나간 내 대사는 원문으로 펼치고(SOMA-785), 상대 대사는 가린 그대로다.
+  expect(screen.getByText('오늘 왔구나.')).toBeOnTheScreen();
   expect(screen.queryByText('응, 늦어서 미안해.')).not.toBeOnTheScreen();
   expect(screen.getByText('1장 카페')).toBeOnTheScreen();
   expect(screen.queryByText('첫 단어')).not.toBeOnTheScreen();
@@ -1341,4 +1342,142 @@ test('[시작] 전에 버튼이 아닌 길(뒤로 가기)로 내려가도 회차
   await screen.findByText('듣는 중');
   await act(async () => mockRemoveListeners.forEach((fn) => fn()));
   expect(started.deleteSession).not.toHaveBeenCalled();
+});
+
+async function maskMine() {
+  await fireEvent.press(screen.getByLabelText('대사 보기'));
+  await fireEvent.press(screen.getByText('내 대사만 가리기'));
+  await closeModalOf('대사 보기');
+}
+
+test('가린 내 대사는 말한 뒤 원문으로 펼치고, 다르게 말한 어절에 밑줄을 긋고 말한 것을 아래에 보인다(SOMA-785)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined));
+  await startPlay();
+  await screen.findByText('듣는 중');
+  await maskMine();
+  expect(screen.queryByText('오늘 왔구나.')).not.toBeOnTheScreen();
+
+  mockStt.finish.mockResolvedValueOnce('오늘 왔');
+  await speechEnds(() => recognizer);
+  await waitFor(() => expect(tts.play).toHaveBeenCalled());
+
+  expect(screen.getByText('오늘 왔구나.')).toBeOnTheScreen();
+  expect(screen.getByText('왔구나.')).toHaveStyle({ textDecorationLine: 'underline' });
+  expect(screen.getByText('오늘')).not.toHaveStyle({ textDecorationLine: 'underline' });
+  expect(screen.getByText('말한 것  오늘 왔')).toBeOnTheScreen();
+});
+
+test('가린 내 대사를 말하지 않고 넘겨도 지나간 줄은 원문으로 보이고, 말한 것 줄은 없다(SOMA-785)', async () => {
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined));
+  await startPlay();
+  await screen.findByText('듣는 중');
+  await maskMine();
+
+  await fireEvent.press(screen.getByText('다음'));
+  await waitFor(() => expect(tts.play).toHaveBeenCalled());
+  expect(screen.getByText('오늘 왔구나.')).toBeOnTheScreen();
+  expect(screen.queryByText(/^말한 것/)).not.toBeOnTheScreen();
+});
+
+test('말이 끝나면 지금 내 줄 카드도 원문을 펼치고 「다 말했어요」를 보이며 첫 단어·원문 보기를 숨긴다(SOMA-785)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  await startPlay();
+  await screen.findByText('듣는 중');
+  await maskMine();
+  expect(screen.getByText('원문 보기')).toBeOnTheScreen();
+
+  mockStt.finish.mockImplementation(() => new Promise<string>(() => undefined)); // 받아쓰기를 거두는 중에 멈춰 둔다
+  await speechEnds(() => recognizer);
+
+  expect(await screen.findByText('다 말했어요')).toBeOnTheScreen();
+  expect(screen.getByText('오늘 왔구나.')).toBeOnTheScreen();
+  expect(screen.queryByText('원문 보기')).not.toBeOnTheScreen();
+  expect(screen.queryByText('첫 단어')).not.toBeOnTheScreen();
+});
+
+test('지나간 대사를 누르면 상대 목소리를 멈추고 그 줄부터 다시 하며 안내를 띄운다 — 녹음 규칙은 [이전]과 같다(SOMA-785)', async () => {
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined));
+  const server = await startPlay();
+  await screen.findByText('듣는 중');
+  await speechEnds();
+  await waitFor(() => expect(tts.play).toHaveBeenCalledTimes(1));
+
+  await fireEvent.press(screen.getByText('오늘 왔구나.'));
+
+  expect(await screen.findByText('「오늘 왔구나.」부터 다시 읽어요')).toBeOnTheScreen();
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(tts.stop).toHaveBeenCalled();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l2' })));
+  await speechEnds();
+  await waitFor(() => expect(enqueueLineRecording).toHaveBeenCalledTimes(2));
+  expect(jest.mocked(enqueueLineRecording).mock.calls.map(([input]) => [input.lineId, input.attemptNo])).toEqual([
+    ['l2', 1],
+    ['l2', 2],
+  ]);
+});
+
+test('내 차례에 녹음하던 중 지나간 상대 대사를 누르면 녹음 조각을 지우고 그 상대 대사를 다시 읽는다(SOMA-785)', async () => {
+  const server = await startPlay();
+  await screen.findByText('듣는 중');
+  await speechEnds();
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+  await screen.findByText('듣는 중');
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined));
+  jest.mocked(deleteDeviceFile).mockClear();
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+
+  expect(await screen.findByText('「응, 늦어서 미안해.」부터 다시 읽어요')).toBeOnTheScreen();
+  await waitFor(() => expect(deleteDeviceFile).toHaveBeenCalledWith('file:///turn.m4a'));
+  await waitFor(() => expect(queue.take).toHaveBeenLastCalledWith({ text: '응, 늦어서 미안해.', preset: 'F1', lang: 'ko' }));
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l4' })));
+  expect(jest.mocked(enqueueLineRecording).mock.calls.map(([input]) => input.lineId)).toEqual(['l2']);
+});
+
+test('긴 대사로 돌아가면 안내는 대사 앞부분만 보인다(SOMA-785)', async () => {
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined));
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l2' }, scriptDetail([['dialogue', '민재', '오늘은 정말 오래 기다렸어, 너 안 오는 줄 알았거든.'], ['dialogue', '서연', '미안해.']]));
+  await screen.findByText('듣는 중');
+  await speechEnds();
+  await waitFor(() => expect(tts.play).toHaveBeenCalled());
+
+  await fireEvent.press(screen.getByText('오늘은 정말 오래 기다렸어, 너 안 오는 줄 알았거든.'));
+  expect(await screen.findByText('「오늘은 정말 오래 기다렸어,…」부터 다시 읽어요')).toBeOnTheScreen();
+});
+
+/** 함께 말하는 줄(SOMA-709)이 든 대본 — 묶음 배역은 g1·g2 이고 member_ids 로 멤버를 가리킨다. */
+function togetherScript() {
+  const seeds: [string, string][] = [
+    ['민재', '오늘 왔구나.'],
+    ['민재, 서연', '같이 가자.'],
+    ['서연, 지호', '우리 먼저 갈게.'],
+    ['서연', '응.'],
+    ['지호', '그래.'],
+  ];
+  const detail = scriptDetail(seeds.map(([role, text]) => ['dialogue', role, text] as const) as never);
+  const ids: Record<string, string> = { 민재: 'c1', 서연: 'c2', 지호: 'c3', '민재, 서연': 'g1', '서연, 지호': 'g2' };
+  const members: Record<string, string[]> = { g1: ['c1', 'c2'], g2: ['c2', 'c3'] };
+  // scriptDetail 은 묶음 이름에 c1·c2… 를 겹쳐 주므로 이름으로 다시 맞춘다.
+  detail.characters = detail.characters.map((c) => ({ ...c, id: ids[c.name], member_ids: members[ids[c.name]] ?? [] }));
+  detail.lines = detail.lines.map((l, i) => ({ ...l, character_id: ids[seeds[i][0]] }));
+  return detail;
+}
+
+test('함께 말하는 줄에 내 배역이 들어 있으면 내 차례로 듣고, 들어 있지 않으면 상대역이 읽는다. 이름표는 「함께 · 멤버」다(SOMA-785)', async () => {
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined));
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l5' }, togetherScript());
+  await screen.findByText('듣는 중');
+  await speechEnds();
+
+  expect(await screen.findByText('함께 · 민재·서연 · 내 차례')).toBeOnTheScreen();
+  expect(await screen.findByText('듣는 중')).toBeOnTheScreen();
+  await speechEnds();
+
+  expect(await screen.findByText('함께 · 서연·지호')).toBeOnTheScreen();
+  await waitFor(() => expect(queue.take).toHaveBeenCalledWith(expect.objectContaining({ text: '우리 먼저 갈게.' })));
+  expect(screen.getByText('함께 · 민재·서연')).toBeOnTheScreen();
+  expect(jest.mocked(enqueueLineRecording).mock.calls.map(([input]) => input.lineId)).toEqual(['l1', 'l2']);
+  expect(queue.prime).toHaveBeenCalledWith(expect.not.arrayContaining([expect.objectContaining({ text: '같이 가자.' })]));
 });

@@ -2,7 +2,7 @@
  * 새 연습(R8, reading.cast · reading.session)의 순수 계산 — 대사 번호, 구간 이름의 글, 구간 당기기, 최근 구간,
  * 내 배역 기본값, 시작 가능 여부, 기기 사전 검사, 시작 요청 본문. 장면 나누기·구간 이름은 서버가 정한다. 화면·서버를 모른다.
  */
-import type { RangeName, ScriptLine, SessionCard, StartSessionBody } from './types.ts';
+import type { RangeName, ScriptCharacter, ScriptLine, SessionCard, StartSessionBody } from './types.ts';
 
 /** 대사 번호 — 대사 줄만 1부터, 지문·장면은 null(저장하지 않고 줄 순서에서 센다). */
 export function dialogueNumbers(lines: ScriptLine[]): (number | null)[] {
@@ -73,6 +73,22 @@ export const FEW_LINES_MAX = 2;
 /** 함께 말하는 줄의 묶음 배역(「지해, 연수」 — 서버가 member_ids 를 준다). 내 배역 칩에 두지 않는다(SOMA-709). */
 export function isGroupCharacter(character: { member_ids?: string[] }): boolean {
   return (character.member_ids?.length ?? 0) > 0;
+}
+
+/**
+ * 리딩에서 내 차례로 읽는 배역 이름 — 고른 배역과, 고른 배역이 들어 있는 함께 말하는 줄의 묶음 배역(SOMA-709·785).
+ * 들어 있지 않은 묶음 배역의 줄은 상대역이 읽는다.
+ */
+export function turnRoles(characters: Pick<ScriptCharacter, 'id' | 'name' | 'member_ids'>[], myIds: string[]): string[] {
+  return characters.filter((c) => myIds.includes(c.id) || (c.member_ids ?? []).some((id) => myIds.includes(id))).map((c) => c.name);
+}
+
+/** 리딩 화면의 이름표. 묶음 배역은 「함께 · 윤서·태오」처럼 멤버 이름을 잇는다. 모르는 이름은 그대로. */
+export function roleLabel(characters: Pick<ScriptCharacter, 'id' | 'name' | 'member_ids'>[], role: string, together: string): string {
+  const group = characters.find((c) => c.name === role && isGroupCharacter(c));
+  if (!group) return role;
+  const names = group.member_ids!.map((id) => characters.find((c) => c.id === id)?.name).filter(Boolean);
+  return `${together} · ${names.join('·')}`;
 }
 
 /** 배역 칩의 대사 수 — 서버 값이 있으면 그것, 없으면 대본 줄에서 센다. */

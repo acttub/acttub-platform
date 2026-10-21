@@ -94,6 +94,7 @@ import type {
   MemorizationStatus,
   PatchScriptBody,
   PatchScriptLineBody,
+  SplitScriptLineBody,
   ProgressBody,
   ProgressResponse,
   ScriptDetail,
@@ -633,6 +634,27 @@ export const api = {
     return request<ScriptDetail>(
       `/v2/reading/scripts/${encodeURIComponent(scriptId)}/lines/${encodeURIComponent(lineId)}`,
       jsonInit(body, 'PATCH'),
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /**
+   * 줄 하나를 지운다(SOMA-785). 그 줄을 가리키던 회차 위치는 구간 안의 가까운 대사로 옮기고 그 줄의 녹음·외운 줄은 함께
+   * 지워진다. 그 줄 하나뿐인 회차 구간이 있으면 422 empty_range, 대본의 마지막 줄이면 422 invalid_line. 고친 대본 전체가 온다.
+   */
+  deleteReadingScriptLine(scriptId: string, lineId: string): Promise<ScriptDetail> {
+    return request<ScriptDetail>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/lines/${encodeURIComponent(lineId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 줄 하나를 둘로 나눈다(SOMA-785). 앞 글은 그 줄 id 에 남고 뒤 글은 바로 뒤 새 줄이 된다. 고친 대본 전체가 온다. */
+  splitReadingScriptLine(scriptId: string, lineId: string, body: SplitScriptLineBody): Promise<ScriptDetail> {
+    return request<ScriptDetail>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/lines/${encodeURIComponent(lineId)}/split`,
+      jsonInit(body, 'POST'),
       { timeoutMs: 20_000 },
     );
   },
