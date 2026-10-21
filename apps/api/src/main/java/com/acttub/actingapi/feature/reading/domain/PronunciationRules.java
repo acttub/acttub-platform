@@ -203,9 +203,24 @@ public final class PronunciationRules {
     }
 
     /** 대본 어절과 받아쓴 어절을 편집 거리로 맞추고, 바뀐 자리 중 덜 닮은 것을 고른다. */
+    /** 받아쓰기의 숫자 읽기(원문·한자어·고유어) 가운데 대본과 가장 닮은 것. "29이야"를 "스물아홉이야"로 맞춘다. */
+    static String closestReading(LineInput line) {
+        String script = clean(line.scored().scoredText() != null ? line.scored().scoredText() : line.scriptText());
+        String best = line.transcript();
+        double bestSimilarity = -1;
+        for (String reading : KoreanNumbers.readings(line.transcript())) {
+            double sim = similarity(script, clean(reading));
+            if (sim > bestSimilarity) {
+                best = reading;
+                bestSimilarity = sim;
+            }
+        }
+        return best;
+    }
+
     static List<Misheard> misheard(LineInput line) {
         List<Word> words = line.scored().words().stream().filter(w -> !excluded(w)).toList();
-        String[] heard = line.transcript().trim().split("\\s+");
+        String[] heard = closestReading(line).trim().split("\\s+");
         int n = words.size();
         int m = heard.length;
         double[][] d = new double[n + 1][m + 1];
