@@ -461,6 +461,7 @@ function CoachTalk() {
             <View style={styles.loading}>
               <ActivityIndicator color={palette.blue} />
               <Text style={styles.loadingText}>{t('coach.wrapping')}</Text>
+              <Text style={styles.loadingHint}>{t('coach.wrappingHint')}</Text>
             </View>
           ) : (
             <View style={styles.questionBlock} ref={questionTarget.ref} onLayout={questionTarget.onLayout}>
@@ -583,6 +584,7 @@ const styles = StyleSheet.create({
 
   loading: { alignItems: 'center', gap: 12, paddingTop: 24 },
   loadingText: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint },
+  loadingHint: { fontSize: 12.5, lineHeight: 18, color: palette.textFaint, textAlign: 'center', paddingHorizontal: 24 },
 
   // pen 「코치 줄」 — 마스코트 36×40, 이름 12/800 주황, 말풍선(회색, 왼쪽 위만 뾰족) 16/600.
   questionBlock: { gap: 16 },
