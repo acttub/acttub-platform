@@ -162,6 +162,9 @@ VOWELS = set("A E EO EU I O U iA iE iEO iO iU oA oE uEO uI euI".split())
 SONOR = VOWELS | {"N", "M", "L", "NG"}
 # 정답 낭독에서만 나오던 자연스러운 변이 — 짚지 않는다
 TOLERATED = {("R", "H"), ("L", "H"), ("iEO", "iO"), ("GG", "DD"), ("EU", "E")}
+# ㅘ·ㅙ·ㅝ·ㅟ·ㅢ 는 표준 발음 낭독(맥 합성 음성 40줄 + Zeroth 공개 낭독 37줄)에서도 12~33% 를 짚었다. ㅢ→ㅣ(희망→히망),
+# ㅙ→ㅔ 처럼 표준 발음이 원래 그렇게 나는 경우도 있다. 이 모델로는 가를 수 없어 짚지 않는다.
+DIPHTHONGS = {"oA", "oE", "uEO", "uI", "euI"}
 JAMO = {"G": "ㄱ", "GG": "ㄲ", "Kh": "ㅋ", "k": "ㄱ", "N": "ㄴ", "D": "ㄷ", "DD": "ㄸ", "Th": "ㅌ", "t": "ㄷ", "R": "ㄹ", "L": "ㄹ",
         "M": "ㅁ", "B": "ㅂ", "BB": "ㅃ", "Ph": "ㅍ", "p": "ㅂ", "S": "ㅅ", "SS": "ㅆ", "J": "ㅈ", "JJ": "ㅉ", "CHh": "ㅊ", "H": "ㅎ",
         "NG": "ㅇ", "A": "ㅏ", "E": "ㅔ", "EO": "ㅓ", "EU": "ㅡ", "I": "ㅣ", "O": "ㅗ", "U": "ㅜ", "iA": "ㅑ", "iE": "ㅖ",
@@ -171,7 +174,7 @@ JAMO = {"G": "ㄱ", "GG": "ㄲ", "Kh": "ㅋ", "k": "ㄱ", "N": "ㄴ", "D": "ㄷ"
 def flagged(p, threshold=THRESHOLD):
     if p["weak"] or p["lpr"] >= threshold:
         return False
-    if (p["ph"], p["alt"]) in TOLERATED:
+    if (p["ph"], p["alt"]) in TOLERATED or p["ph"] in DIPHTHONGS:
         return False
     return (p["ph"] in VOWELS) == (p["alt"] in VOWELS)
 
@@ -356,6 +359,37 @@ def _align(logp, seq, blank):
     return spans
 
 
+def _edit_distance(a, b):
+    """음소 가족(fam) 단위 편집 거리."""
+    d = list(range(len(b) + 1))
+    for i in range(1, len(a) + 1):
+        prev, d[0] = d[0], i
+        for j in range(1, len(b) + 1):
+            cur = d[j]
+            d[j] = min(d[j] + 1, d[j - 1] + 1, prev + (fam(a[i - 1]) != fam(b[j - 1])))
+            prev = cur
+    return d[len(b)]
+
+
+def script_match(logp, text):
+    """모델이 녹음에서 바로 알아들은 음소열(CTC 최댓값 경로)이 대본 음소열과 얼마나 같은지(0~1).
+
+    앱 받아쓰기가 잘리거나 숫자로 적혀도 대본대로 읽었는지를 녹음으로 다시 보는 데 쓴다(api PronunciationRules)."""
+    proc, _ = model()
+    vocab = proc.tokenizer.get_vocab()
+    inv = {v: k for k, v in vocab.items()}
+    skip = {proc.tokenizer.pad_token_id, vocab["|"]}
+    expected = [p for _, ph in phonemes(text) for p in ph]
+    if not expected:
+        return None
+    heard, last = [], None
+    for t in logp.argmax(-1).tolist():
+        if t != last and t not in skip and not inv.get(t, "[").startswith(("[", "{", "<")):
+            heard.append(inv[t])
+        last = t
+    return round(max(0.0, 1 - _edit_distance(expected, heard) / len(expected)), 3)
+
+
 def score_line(path, script_text, threshold=THRESHOLD):
     """한 줄 녹음을 채점한다. 어절마다 음소의 lpr·바뀐 소리·음절 자리·시각(ms)·짚음 여부를 돌려준다."""
     text = normalize(script_text)
@@ -401,4 +435,4 @@ def score_line(path, script_text, threshold=THRESHOLD):
             "end_ms": None if s0 is None else offset_ms + int(((s1 if s1 is not None else s0) + 1) * FRAME_SECONDS * 1000),
             "flagged": flagged(p, threshold) and o not in numw,
         })
-    return {"scored_text": text, "threshold": threshold, "words": out_words}
+    return {"scored_text": text, "threshold": threshold, "words": out_words, "script_match": script_match(logp, text)}
