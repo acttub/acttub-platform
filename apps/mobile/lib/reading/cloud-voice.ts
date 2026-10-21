@@ -20,6 +20,11 @@ export function shouldStopCloudVoiceForSession(error: { status?: number } | null
   return error?.status === 429 || error?.status === 503;
 }
 
+/** 요청 자체가 잘못됐다는 거절 — 같은 줄을 다시 보내도 같은 답이다. */
+export function isRejectedCloudVoiceRequest(error: { status?: number } | null | undefined): boolean {
+  return error?.status === 400;
+}
+
 type Storage = { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<void> };
 function storage(): Storage {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
