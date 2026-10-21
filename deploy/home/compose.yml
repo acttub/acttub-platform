@@ -83,6 +83,8 @@ services:
       MONITORING_ENVIRONMENT: ${MONITORING_ENVIRONMENT:-local}
       ACTTUB_THREE_LAYERS_ENABLED: ${ACTTUB_THREE_LAYERS_ENABLED:-false}
       ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED: ${ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-true}
+      # 개인화 연습 알림(SOMA-720). 값은 배포 워크플로가 release.env 로 준다. 꺼져 있으면 옛 저녁 8시 고정 알림이 돈다.
+      PRACTICE_REMINDER_ENABLED: ${ACTTUB_PRACTICE_REMINDER_ENABLED:-false}
       # PG 심사 전용 테스트 빌링(SOMA-620). dev에서만 명시적으로 켜며 기본은 꺼짐이다.
       # 실제 결제 키는 API가 거부한다. 웹 컨테이너에는 이 값을 전달하지 않는다.
       ACTTUB_PG_REVIEW_ENABLED: ${ACTTUB_PG_REVIEW_ENABLED:-false}
