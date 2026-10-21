@@ -221,4 +221,38 @@ class DirectVideoPracticeLoopTest {
         org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.parse(raw).message())
                 .isEqualTo("사실에 짓눌리지 않고 덤덤하게 말해 봐도 좋아요.");
     }
+
+    @org.junit.jupiter.api.Test void findsMetaphorsUnlessTheActorUsedTheWordFirst() {
+        var a = org.assertj.core.api.Assertions.class;
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.metaphors("\"과학의 역할이야\"에서 말이 또렷하게 꽂혀요.", ""))
+                .containsExactly("꽂혀");
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.metaphors("위로가 상대에게 닿지 않고 튕겨 나갈 거예요.", "")).containsExactly("튕겨");
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.metaphors("목소리는 깊게 눌러주는 무게감이 있어요.", "")).containsExactly("무게");
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.metaphors("사실의 무게에 짓눌리지 않고 말해 봐도 좋아요.", "무게를 견디는것도 없어")).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.metaphors("\"가지 마\"에서 목소리가 커져요. 그때 상대한테 뭘 하려고 했어요?", "")).isEmpty();
+    }
+
+    @org.junit.jupiter.api.Test void findsRepeatedFeedbackLines() {
+        String before = "\"생활이 진실하게\"에서 들뜬 모습은 또렷해요. 아쉬운 건 \"아빤 꿈을 크게\"부터 상대가 아니라 계속 허공만 보며 말하는 거예요. 다음엔 상대가 내 말을 믿는지 보면서 들려줘 봐도 좋아요.";
+        String again = "미안해요, 제가 놓쳤어요.\n\"생활이 진실하게\"에서 들뜬 모습은 또렷해요. 아쉬운 건 \"아빤 꿈을 크게\"부터 상대가 아니라 계속 허공만 보며 말하는 거예요.";
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedLines(again, java.util.List.of(before))).hasSize(2);
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedLines("\"불러줄게\"에서 상대를 챙기는 흐름은 또렷해요. 아쉬운 건 끝에서 혼자 신나게 끝내는 거예요.",
+                java.util.List.of(before))).isEmpty();
+    }
+
+    @org.junit.jupiter.api.Test void findsARepeatedQuestion() {
+        var earlier = java.util.List.of("아, 그럼 그 장면에서 기록관에게 메데이아로서 하려던 건 뭐였어요?");
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedQuestion(
+                "아, 그럼 그 장면에서 기록관에게 메데이아로서 하려던 건 뭐였어요?", earlier)).isNotEmpty();
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedQuestion(
+                "\"40%는 좀\"과 사과할 때 태도가 비슷해서요.\n선배한테서 결국 뭘 얻어내고 싶었어요?",
+                java.util.List.of("\"죄송합니다\" 할 때도 대사에 집중했어요.\n이 장면에서 선배한테 결국 뭘 얻어내고 싶었어요?"))).isNotEmpty();
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedQuestion(
+                "그걸 위해 장면 내내 기록관한테 뭘 해 볼래요?", earlier)).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedQuestion("질문 없는 말이에요.", earlier)).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedQuestion("아, 그럼 이 장면에선 스스로에게 무엇을 하려고 했어요?",
+                java.util.List.of("아, 그럼 그 장면에서 인물은 스스로 무엇을 하려고 했어요?"))).isNotEmpty();
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedQuestion("상대가 어떤 표정을 짓길 원했어요?",
+                java.util.List.of("상대가 어떻게 반응하길 바랐어요?"))).isEmpty();
+    }
 }
