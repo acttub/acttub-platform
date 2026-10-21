@@ -51,7 +51,8 @@ class PracticeRollbackCompatibilityTest {
             "entry_ai_reports", "notifications", "notification_pushes", "note_ratings",
             "reading_voice_cache", "reading_voice_usage", "evening_reminder_sends", "user_signup_attributions",
             "app_posters", "script_imports", "script_uploads", "audition_postings", "user_discovery_answers",
-            "reading_session_ratings", "user_active_days", "user_airbridge_device_lookups");
+            "reading_session_ratings", "user_active_days", "user_airbridge_device_lookups",
+            "practice_reminder_sends");
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
