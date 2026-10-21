@@ -197,6 +197,34 @@ class GeminiDirectVideoModelHttpTest {
     }
 
     @Test
+    void followUpRepliesThinkMinimallyButTheFirstQuestionAndSwitchedOffTurnsStayLow() {
+        // SOMA-780: 답장은 MINIMAL(일반·스트리밍 모두), 첫 질문과 끄기 스위치(false)는 LOW, MINIMAL 을 못 받는 모델은 LOW 다.
+        GeminiDirectVideoModel flash = new GeminiDirectVideoModel(client, "gemini-3-flash-preview");
+        var history = List.of(new DirectVideoModel.Message("user", "배우의 답"));
+        ReplyTrace followUp = new ReplyTrace(true);
+        respond(chunk("답장", "STOP").replace("}]}", "}],\"usageMetadata\":{\"candidatesTokenCount\":12,\"thoughtsTokenCount\":7}}"));
+        followUp.run(() -> flash.reply(VIDEO, history, "지침"));
+        stream(chunk("스트리밍 답장", "STOP"));
+        followUp.run(() -> flash.replyStream(VIDEO, history, "지침", piece -> { }));
+        ReplyTrace first = new ReplyTrace(false);
+        respond(chunk("첫 질문", "STOP"));
+        first.run(() -> flash.reply(VIDEO, List.of(), "지침"));
+        respond(chunk("{\"signals\":[\"answer\"]}", "STOP"));
+        followUp.run(() -> flash.classify(history, "분류", List.of("answer")));
+        respond(chunk("3.8 답장", "STOP"));
+        ReplyTrace other = new ReplyTrace(true);
+        other.run(() -> new GeminiDirectVideoModel(client, "gemini-3.8-flash").reply(VIDEO, history, "지침"));
+
+        assertThat(bodies).extracting(body -> body.path("generationConfig").path("thinkingConfig").path("thinkingLevel").asText())
+                .containsExactly("MINIMAL", "MINIMAL", "LOW", "LOW", "LOW");
+        assertThat(followUp.thinking()).isEqualTo("minimal");
+        assertThat(followUp.thoughtsTokens()).isEqualTo(7);
+        assertThat(followUp.candidatesTokens()).isEqualTo(12);
+        assertThat(first.thinking()).isEqualTo("low");
+        assertThat(other.thinking()).isEqualTo("low");
+    }
+
+    @Test
     void aModelWithoutALightModeAnswersLightCallsTheUsualWay() {
         DirectVideoModel plain = org.mockito.Mockito.mock(DirectVideoModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         org.mockito.Mockito.doReturn("보통 답").when(plain).reply(null, List.of(), "지침");
