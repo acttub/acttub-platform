@@ -128,7 +128,7 @@ curl -fsS https://acttub.com/health
 - `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED`: dev는 false로 넘겨 게스트의 영상 분석·재분석 일일 한도([practice.analyze](../specs/practice/analyze.md#규칙제약))를
   걸지 않는다. 운영은 true로 한도를 유지하며, 설정 미지정 기본값도 true다.
 - `ACTTUB_PRACTICE_REMINDER_ENABLED`(컨테이너에서는 `PRACTICE_REMINDER_ENABLED`): 개인화 연습 알림([account.notification](../specs/account/notification.md#규칙제약)).
-  dev는 true, 운영은 false로 넘긴다. 켜면 옛 저녁 8시 고정 알림은 보내지 않는다. 운영은 승인 뒤 워크플로 값을 바꿔 켠다. 설정 미지정 기본값은 false다.
+  dev·운영 모두 true로 넘긴다(운영은 2026-10-21 켬). 켜면 옛 저녁 8시 고정 알림은 보내지 않는다. 끄려면 워크플로 값을 false로 바꿔 배포한다. 설정 미지정 기본값은 false다.
 
 ## 4. 코드 배포 복구
 
