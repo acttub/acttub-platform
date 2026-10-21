@@ -90,6 +90,11 @@ services:
       ACTTUB_COACH_FIRST_QUESTION_PREWRITE: ${ACTTUB_COACH_FIRST_QUESTION_PREWRITE:-false}
       # PG 심사 전용 테스트 빌링(SOMA-620). dev에서만 명시적으로 켜며 기본은 꺼짐이다.
       # 실제 결제 키는 API가 거부한다. 웹 컨테이너에는 이 값을 전달하지 않는다.
+      # 리딩 발음 보고서(SOMA-606, 실험). dev .env 에서만 켠다 — 기본은 꺼짐이고 허용 사용자 목록이 비면 아무도 받지 않는다.
+      # 채점 서비스는 아래 pron(프로필 pron)이다. 운영 .env 에는 이 값들과 프로필을 넣지 않는다.
+      PRON_REPORT_ENABLED: ${PRON_REPORT_ENABLED:-false}
+      PRON_REPORT_ALLOWED_USERS: ${PRON_REPORT_ALLOWED_USERS:-}
+      PRON_SCORER_URL: ${PRON_SCORER_URL:-}
       ACTTUB_PG_REVIEW_ENABLED: ${ACTTUB_PG_REVIEW_ENABLED:-false}
       ACTTUB_PG_REVIEW_ORIGIN: ${ACTTUB_PG_REVIEW_ORIGIN:-}
       ACTTUB_PG_REVIEW_USERNAME: ${ACTTUB_PG_REVIEW_USERNAME:-}
@@ -261,6 +266,32 @@ services:
         limits:
           # 실측 20MB 안팎. 상한 없는 컨테이너가 호스트 메모리를 다 먹는 일을 막는다.
           memory: 128m
+    logging: *logging
+
+  # 리딩 발음 채점 서비스(SOMA-606, apps/pron). 프로필 pron 이라 COMPOSE_PROFILES 에 pron 을 넣은 환경(dev)에서만 뜬다.
+  # 호스트 포트도 터널도 없다 — api 만 default 네트워크에서 http://pron:8000 으로 부른다. 이미지는 아직 배포 워크플로가
+  # 굽지 않는다: apps/pron 을 서버에서 직접 빌드해 PRON_IMAGE 로 태그하고 `compose --profile pron up -d pron` 으로 띄운다.
+  # deploy.sh 는 이 서비스를 만들거나 다시 만들지 않는다(api·web·db·proxy·cloudflared·backup 만 이름으로 올린다).
+  pron:
+    image: ${PRON_IMAGE:-acttub-pron:local}
+    profiles: [pron]
+    restart: unless-stopped
+    environment:
+      PRON_THREADS: ${PRON_THREADS:-2}
+      OMP_NUM_THREADS: ${PRON_THREADS:-2}
+    networks:
+      default: {}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "--max-time", "3", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: ${PRON_CPU_LIMIT:-1.5}
+          memory: ${PRON_MEM_LIMIT:-2g}
     logging: *logging
 
   backup:
