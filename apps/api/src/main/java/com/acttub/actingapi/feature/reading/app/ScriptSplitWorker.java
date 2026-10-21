@@ -234,6 +234,9 @@ public class ScriptSplitWorker {
             });
         }
         Set<Integer> dropped = lines.stream().map(NumberedLine::no).filter(no -> !rows.containsKey(no)).collect(Collectors.toSet());
+        // 효과음은 지문으로, 이름 조각은 원문 머리의 배역으로 고치거나 빠진 줄과 함께 다시 묻는다(SOMA-709) — 끝내 답이 없으면 첫 답으로 되돌린다.
+        SplitResponse.sounds(rows);
+        Map<Integer, SplitResponse.Row> asked = named ? SplitResponse.fragments(lines, rows, roster) : Map.of();
         String instructions = prompt.apply(ScriptSplitPrompt.missing(roster));
         for (int round = 0; round < ScriptSplitRules.MISSING_ROUNDS; round++) {
             SplitResponse.fillSpeakers(lines, rows);
@@ -245,6 +248,7 @@ public class ScriptSplitWorker {
             inParallel(NumberedLine.chunks(missing, ScriptSplitRules.CHUNK_LINES), group -> rows.putAll(calls.rows(
                     instructions, group, NumberedLine.withContext(lines, group, ScriptSplitRules.MISSING_CONTEXT_LINES)).rows()));
         }
+        asked.forEach(rows::putIfAbsent);
         SplitResponse.lineage(lines, rows, refused);
         if (named) {
             SplitResponse.ground(lines, rows);

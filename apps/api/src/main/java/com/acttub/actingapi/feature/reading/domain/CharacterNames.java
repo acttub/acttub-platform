@@ -183,7 +183,7 @@ public final class CharacterNames {
         return text.replaceAll("\\s+", "");
     }
 
-    private static boolean hasForeignLetters(String name) {
+    static boolean hasForeignLetters(String name) {
         return name.codePoints().anyMatch(CharacterNames::isForeign);
     }
 
