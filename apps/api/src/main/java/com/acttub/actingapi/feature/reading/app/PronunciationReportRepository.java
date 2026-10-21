@@ -37,6 +37,7 @@ public interface PronunciationReportRepository {
     }
 
     /** @param transcript 앱이 받아쓴 글. 없으면 {@code null} */
-    record LineSource(int lineNo, String text, String transcript, String objectKey, String contentType) {
+    /** @param durationMs 앱이 잰 녹음 길이. 모르면 {@code null} */
+    record LineSource(int lineNo, String text, String transcript, String objectKey, String contentType, Integer durationMs) {
     }
 }
