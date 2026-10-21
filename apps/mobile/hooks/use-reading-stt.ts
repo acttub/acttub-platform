@@ -41,13 +41,19 @@ export async function detectSttPolicy(): Promise<SttPolicy> {
   }
 }
 
+/**
+ * onEnd 는 finish·abort 없이 인식기가 스스로 끝났을 때(오래 쉼·시간 한도·오류) 한 번 온다 — 독백은 끊지 않고 이어 들어야 해서
+ * 새로 듣기 시작한다(SOMA-597). 그때까지 받아쓴 글과 녹음은 남아 있다.
+ */
+type SttCallbacks = { onEvent: (event: VadEvent) => void; onInterim: (text: string) => void; onEnd?: () => void };
+
 export type SttHandle = {
   /**
    * 듣기 시작. 침묵 감지 사건과 중간 인식 결과를 알린다. persist 면 인식기가 들은 소리를 파일로 남긴다 —
    * 녹음이 켜진 회차의 내 차례 녹음 파일이다(녹음기를 따로 열지 않는다, 조정자 결정). locale 은 그 줄의 말의 지역 코드다
    * (SOMA-751, line-language.speechLocaleFor). 없으면 앱 표시 언어.
    */
-  start: (callbacks: { onEvent: (event: VadEvent) => void; onInterim: (text: string) => void }, options?: { persist?: boolean; locale?: string }) => boolean;
+  start: (callbacks: SttCallbacks, options?: { persist?: boolean; locale?: string }) => boolean;
   /** 듣기를 끝내고 최종 글을 받는다. 못 알아들었으면 빈 글. */
   finish: () => Promise<string>;
   abort: () => void;
@@ -82,7 +88,7 @@ export function useReadingStt(): SttHandle {
     ticker.current = null;
     volumeFeed.current = null;
   }, []);
-  const callbacks = useRef<{ onEvent: (event: VadEvent) => void; onInterim: (text: string) => void } | null>(null);
+  const callbacks = useRef<SttCallbacks | null>(null);
   const settle = useRef<((text: string) => void) | null>(null);
   const speechEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelSpeechEnd = useCallback(() => {
@@ -137,12 +143,13 @@ export function useReadingStt(): SttHandle {
   useSpeechRecognitionEvent('audioend', (event) => {
     recordings.audioEnd(event?.uri);
   });
-  useSpeechRecognitionEvent('end', () => {
+  const ended = useCallback(() => {
+    const unasked = active.current && !settle.current;
     if (active.current || settle.current) finishNow(text.current);
-  });
-  useSpeechRecognitionEvent('error', () => {
-    if (active.current || settle.current) finishNow(text.current);
-  });
+    if (unasked) callbacks.current?.onEnd?.();
+  }, [finishNow]);
+  useSpeechRecognitionEvent('end', ended);
+  useSpeechRecognitionEvent('error', ended);
 
   const start = useCallback<SttHandle['start']>((next, options) => {
     text.current = '';

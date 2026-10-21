@@ -10,6 +10,7 @@ import { classifyUnprocessable } from '@/lib/api-request';
 import type { LineDraft } from '@/lib/reading/line-edit';
 import { deleteScriptLine, getCurrent, isMyRole, type SavedScript } from '@/lib/reading/store';
 import { translate as t } from '@/lib/i18n';
+import { isMonologue } from '@/lib/reading/monologue';
 
 /** 지우기 거절 사유 → 문구. 그 밖의 실패는 저장 실패 문구다. */
 const DELETE_REFUSED: Record<string, string> = {
@@ -74,7 +75,8 @@ export default function ReadingFull() {
     <>
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
         <Text style={styles.title}>{script.title}</Text>
-        <Text style={styles.hint}>{t('reading.lineEditHint')}</Text>
+        {/* 독백은 서버가 문장마다 나눠 둔다(SOMA-597) — 그 안내가 줄 고치기 안내 자리에 온다(pen UQWzz). */}
+        <Text style={styles.hint}>{t(isMonologue(script.characters) ? 'reading.monologueFullNote' : 'reading.lineEditHint')}</Text>
         {script.lines.map((l, i) => (
           <Pressable
             key={script.lineIds[i] ?? i}

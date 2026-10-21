@@ -140,3 +140,15 @@ test('나누기는 앞뒤 칸이 모두 있어야 누를 수 있고, 실패하�
   await fireEvent.press(screen.getByText('취소'));
   expect(screen.queryByLabelText('앞 대사')).not.toBeOnTheScreen();
 });
+
+test('SOMA-597: 독백은 문장마다 한 줄로 보이고 위 안내가 「혼자 하는 대본이라 문장마다 나눴어요」다', async () => {
+  await openFixtureScript(scriptDetail([
+    ['dialogue', '민지', '그래서 더 말하기 싫었어.'],
+    ['dialogue', '민지', '네가 그걸 아니까.'],
+  ]));
+  await render(<ReadingFull />);
+
+  expect(screen.getByText('혼자 하는 대본이라 문장마다 나눴어요')).toBeOnTheScreen();
+  expect(screen.getAllByText('민지')).toHaveLength(2);
+  expect(screen.getByText('네가 그걸 아니까.')).toBeOnTheScreen();
+});

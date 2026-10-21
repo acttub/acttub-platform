@@ -268,7 +268,9 @@ export default function ReadingRange() {
             );
           })}
         </ScrollView>
-        <Text style={styles.hint}>{pickedCast.length === 0 ? t('reading.startNeedsRole') : t('reading.myRolesHint')}</Text>
+        <Text style={styles.hint}>
+          {pickedCast.length === 0 ? t('reading.startNeedsRole') : t(cast.length === 1 ? 'reading.monologueRoleNote' : 'reading.myRolesHint')}
+        </Text>
 
         {few !== null ? (
           <View style={styles.fewBox}>
