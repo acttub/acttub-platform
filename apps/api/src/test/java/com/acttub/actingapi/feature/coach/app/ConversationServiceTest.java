@@ -157,4 +157,116 @@ class ConversationServiceTest {
         assertThatThrownBy(() -> service(listener).note(user, practice)).hasMessage("note_not_found");
         assertThatThrownBy(() -> service(listener).start(user, practice, UUID.randomUUID())).hasMessage("practice_not_found");
     }
+
+    // --- SOMA-780: 첫 질문 미리 쓰기 ---
+
+    @Test void thePrewriteOpensTheConversationAndTheAppsStartReceivesTheSavedQuestion() {
+        CoachSessionSnapshot empty = session("open", "legacy", null);
+        CoachSessionSnapshot saved = session("open", "legacy", null, "미리 쓴 첫 질문");
+        when(conversations.loadByPractice(user, practice))
+                .thenReturn(new Loaded(practice, null, "conversing", empty))
+                .thenReturn(new Loaded(practice, null, "conversing", empty))
+                .thenReturn(new Loaded(practice, conversation, "conversing", saved));
+        when(conversations.open(eq(practice), eq(ConversationService.prewriteRequest(practice)), any())).thenReturn(conversation);
+        when(conversations.loadByConversation(user, conversation))
+                .thenReturn(new Loaded(practice, conversation, "conversing", empty))
+                .thenReturn(new Loaded(practice, conversation, "conversing", saved));
+        when(coach.start(any(), eq(conversation))).thenReturn(result(empty, "미리 쓴 첫 질문", "open", null));
+        var service = service(listener);
+
+        service.prewriteStart(user, practice);
+        var turn = service.start(user, practice, UUID.randomUUID(), stream);
+
+        assertThat(turn.coachMessage()).isEqualTo("미리 쓴 첫 질문");
+        verify(coach, org.mockito.Mockito.times(1)).start(any(), eq(conversation));
+        verify(conversations).saveOpening(eq(conversation), eq("미리 쓴 첫 질문"), any(), org.mockito.ArgumentMatchers.isNull(), any());
+        assertThat(streamed).as("저장된 첫 질문은 조각 없이 끝에 한 번에 간다").isEmpty();
+        assertThat(ConversationService.prewriteRequest(practice)).isEqualTo(ConversationService.prewriteRequest(practice));
+    }
+
+    @Test void anAppStartWhileThePrewriteIsWritingWaitsForItInsteadOfWritingAgain() throws Exception {
+        CoachSessionSnapshot empty = session("open", "legacy", null);
+        CoachSessionSnapshot saved = session("open", "legacy", null, "미리 쓴 첫 질문");
+        var writing = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var savedYet = new java.util.concurrent.atomic.AtomicBoolean(false);
+        when(conversations.loadByPractice(user, practice)).thenAnswer(call -> savedYet.get()
+                ? new Loaded(practice, conversation, "conversing", saved) : new Loaded(practice, null, "conversing", empty));
+        when(conversations.open(eq(practice), any(), any())).thenReturn(conversation);
+        when(conversations.loadByConversation(user, conversation)).thenAnswer(call -> savedYet.get()
+                ? new Loaded(practice, conversation, "conversing", saved) : new Loaded(practice, conversation, "conversing", empty));
+        when(coach.start(any(), eq(conversation))).thenAnswer(call -> {
+            writing.countDown();
+            assertThat(release.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            return result(empty, "미리 쓴 첫 질문", "open", null);
+        });
+        org.mockito.Mockito.doAnswer(call -> {
+            savedYet.set(true);
+            return null;
+        }).when(conversations).saveOpening(any(), any(), any(), any(), any());
+        var service = service(listener);
+
+        var prewrite = java.util.concurrent.CompletableFuture.runAsync(() -> service.prewriteStart(user, practice));
+        assertThat(writing.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        var app = java.util.concurrent.CompletableFuture.supplyAsync(() -> service.start(user, practice, UUID.randomUUID(), stream));
+        Thread.sleep(200);
+        assertThat(app).as("앱의 시작은 미리 쓰기가 끝나길 기다린다").isNotDone();
+        release.countDown();
+
+        assertThat(app.get(5, java.util.concurrent.TimeUnit.SECONDS).coachMessage()).isEqualTo("미리 쓴 첫 질문");
+        prewrite.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        verify(coach, org.mockito.Mockito.times(1)).start(any(), eq(conversation));
+        assertThat(streamed).as("기다리는 동안 연결을 먼저 연다").containsExactly("begin");
+    }
+
+    @Test void anAppStartStopsWaitingForAStuckPrewriteAndWritesItself() throws Exception {
+        CoachSessionSnapshot empty = session("open", "legacy", null);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var writing = new java.util.concurrent.CountDownLatch(1);
+        when(conversations.loadByPractice(user, practice))
+                .thenReturn(new Loaded(practice, null, "conversing", empty))
+                .thenReturn(new Loaded(practice, null, "conversing", empty))
+                .thenReturn(new Loaded(practice, conversation, "conversing", empty));
+        when(conversations.open(eq(practice), any(), any())).thenReturn(conversation);
+        when(conversations.loadByConversation(user, conversation)).thenReturn(new Loaded(practice, conversation, "conversing", empty));
+        when(coach.start(any(), eq(conversation)))
+                .thenAnswer(call -> {
+                    writing.countDown();
+                    release.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                    throw new CoachReplyUnavailable();
+                })
+                .thenReturn(result(empty, "앱이 쓴 첫 질문", "open", null));
+        var service = service(listener).withStartWait(java.time.Duration.ofMillis(100));
+
+        var prewrite = java.util.concurrent.CompletableFuture.runAsync(() -> service.prewriteStart(user, practice));
+        assertThat(writing.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        service.start(user, practice, UUID.randomUUID());
+        release.countDown();
+        prewrite.get(5, java.util.concurrent.TimeUnit.SECONDS);
+
+        verify(conversations).saveOpening(eq(conversation), eq("앱이 쓴 첫 질문"), any(), any(), any());
+        assertThat(failures.reports()).as("코치 쪽이 이미 기록한 실패는 다시 기록하지 않는다").isEmpty();
+    }
+
+    @Test void thePrewriteDoesNothingWhenTheAppAlreadyStartedOrAnalysisIsNotDone() {
+        var service = service(listener);
+        when(conversations.loadByPractice(user, practice))
+                .thenReturn(new Loaded(practice, conversation, "conversing", session("open", "legacy", null)))
+                .thenReturn(new Loaded(practice, null, "analyzing", session("open", "legacy", null)))
+                .thenReturn(null);
+        service.prewriteStart(user, practice);
+        service.prewriteStart(user, practice);
+        service.prewriteStart(user, practice);
+        service.prewriteStart(null, practice);
+        service.prewriteStart(user, null);
+        verify(conversations, never()).open(any(), any(), any());
+        verify(coach, never()).start(any(), any());
+    }
+
+    @Test void anUnexpectedPrewriteErrorIsReportedAndLeftToTheApp() {
+        when(conversations.loadByPractice(user, practice)).thenThrow(new IllegalStateException("db down"));
+        service(listener).prewriteStart(user, practice);
+        assertThat(failures.reports()).singleElement()
+                .satisfies(report -> assertThat(report.context()).isEqualTo("ConversationService.prewriteStart"));
+    }
 }

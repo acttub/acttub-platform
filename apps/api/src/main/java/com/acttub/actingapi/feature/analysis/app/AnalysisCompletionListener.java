@@ -12,4 +12,39 @@ import java.util.UUID;
 public interface AnalysisCompletionListener {
 
     void onAnalysisComplete(UUID sessionId);
+
+    /** 회차 주인도 함께 받는다(SOMA-780, 첫 질문 미리 쓰기). 회차만 필요한 쪽은 구현하지 않아도 된다. */
+    default void onAnalysisComplete(UUID sessionId, UUID userId) {
+        onAnalysisComplete(sessionId);
+    }
+
+    /**
+     * 여럿에게 차례로 알린다(SOMA-780: 알림과 첫 질문 미리 쓰기). 하나가 실패해도 나머지는 받고, 실패는 모아 마지막에
+     * 던진다 — 워커가 로그로 남긴다. 없으면 null 이다.
+     */
+    static AnalysisCompletionListener all(java.util.List<AnalysisCompletionListener> listeners) {
+        if (listeners == null || listeners.isEmpty()) return null;
+        if (listeners.size() == 1) return listeners.getFirst();
+        var each = java.util.List.copyOf(listeners);
+        return new AnalysisCompletionListener() {
+            @Override
+            public void onAnalysisComplete(UUID sessionId) {
+                onAnalysisComplete(sessionId, null);
+            }
+
+            @Override
+            public void onAnalysisComplete(UUID sessionId, UUID userId) {
+                RuntimeException first = null;
+                for (AnalysisCompletionListener listener : each) {
+                    try {
+                        listener.onAnalysisComplete(sessionId, userId);
+                    } catch (RuntimeException failure) {
+                        if (first == null) first = failure;
+                        else first.addSuppressed(failure);
+                    }
+                }
+                if (first != null) throw first;
+            }
+        };
+    }
 }

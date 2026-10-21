@@ -797,7 +797,8 @@ public final class DirectVideoCoach {
         if (DirectVideoPracticeLoop.looksBroken(text, language)) return null;
         try {
             ExternalOperationExecution.externalCall("model");
-            String raw = model.reply(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
+            // 줄이기는 생각을 거의 하지 않게 부른다(SOMA-780, 10/21 실측 6.0초 → 1.3초).
+            String raw = model.replyLight(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
                     DirectVideoPrompts.practiceLoopShorten(language) + DirectVideoPrompts.personaShortenNote(persona, language));
             if (raw == null || raw.isBlank()) return null;
             String shorter = DirectVideoPracticeLoop.parse(raw).message();

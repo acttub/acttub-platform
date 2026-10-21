@@ -176,6 +176,34 @@ class GeminiDirectVideoModelHttpTest {
     }
 
     @Test
+    void lightCallsThinkMinimallyOnlyWhereTheModelAllowsIt() {
+        // SOMA-780: 3.0 Flash 는 줄이기를 MINIMAL 로, 분류·코치 답은 LOW 로 부른다.
+        GeminiDirectVideoModel flash = new GeminiDirectVideoModel(client, "gemini-3-flash-preview");
+        respond(chunk("짧게 다듬은 말", "STOP"));
+        assertThat(flash.replyLight(null, List.of(new DirectVideoModel.Message("user", "긴 코치 말")), "줄이기"))
+                .isEqualTo("짧게 다듬은 말");
+        respond(chunk("{\"signals\":[\"answer\"]}", "STOP"));
+        flash.classify(List.of(new DirectVideoModel.Message("user", "배우의 답")), "분류", List.of("answer"));
+        respond(chunk("코치 답", "STOP"));
+        flash.reply(VIDEO, List.of(new DirectVideoModel.Message("user", "배우의 답")), "지침");
+        // 3.8 Flash 는 MINIMAL 을 받지 않는다 — 가벼운 호출도 LOW 다.
+        respond(chunk("짧게", "STOP"));
+        new GeminiDirectVideoModel(client, "gemini-3.8-flash")
+                .replyLight(null, List.of(new DirectVideoModel.Message("user", "긴 코치 말")), "줄이기");
+
+        assertThat(bodies).extracting(body -> body.path("generationConfig").path("thinkingConfig").path("thinkingLevel").asText())
+                .containsExactly("MINIMAL", "LOW", "LOW", "LOW");
+        assertThat(GeminiDirectVideoModel.minimalThinking(null)).isFalse();
+    }
+
+    @Test
+    void aModelWithoutALightModeAnswersLightCallsTheUsualWay() {
+        DirectVideoModel plain = org.mockito.Mockito.mock(DirectVideoModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        org.mockito.Mockito.doReturn("보통 답").when(plain).reply(null, List.of(), "지침");
+        assertThat(plain.replyLight(null, List.of(), "지침")).isEqualTo("보통 답");
+    }
+
+    @Test
     void deleteRemovesTheUploadedFile() {
         new GeminiDirectVideoModel(client, "gemini-3-flash-preview").delete(VIDEO);
 

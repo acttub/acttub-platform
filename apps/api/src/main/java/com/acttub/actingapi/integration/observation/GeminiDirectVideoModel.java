@@ -183,7 +183,13 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
 
     @Override
     public String reply(Video video, List<Message> history, String instruction) {
-        return generate(video, history, instruction, null);
+        return generate(video, history, instruction, null, false);
+    }
+
+    /** 생각을 거의 하지 않고 쓴다(SOMA-780). 생각 단계만 다르고 나머지는 {@link #reply} 와 같다. */
+    @Override
+    public String replyLight(Video video, List<Message> history, String instruction) {
+        return generate(video, history, instruction, null, true);
     }
 
     /**
@@ -193,7 +199,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     @Override
     public String replyStream(Video video, List<Message> history, String instruction,
             java.util.function.Consumer<String> onText) {
-        Request request = request(video, history, instruction, null);
+        Request request = request(video, history, instruction, null, false);
         java.time.Duration after = hedge.stream();
         if (after == null || after.isZero() || after.isNegative()) return streamOnce(request, onText, null);
         // 첫 조각이 정한 시간 안에 오지 않으면 같은 요청을 하나 더 열고, 먼저 조각을 낸 쪽만 배우에게 흘린다.
@@ -293,12 +299,13 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
 
     @Override
     public String classify(List<Message> history, String instruction, List<String> categories) {
-        return generate(null, history, instruction, categories);
+        // 분류는 LOW 그대로다 — MINIMAL 은 속도 이득이 없고(10/21 dev 30건 중간 1.09→1.105초, 생각 토큰 원래 0) 5건의 분류가 달라졌다.
+        return generate(null, history, instruction, categories, false);
     }
 
     private record Request(List<Content> contents, GenerateContentConfig config) { }
 
-    private Request request(Video video, List<Message> history, String instruction, List<String> categories) {
+    private Request request(Video video, List<Message> history, String instruction, List<String> categories, boolean light) {
         boolean classification = categories != null;
         List<Content> contents = new ArrayList<>();
         if (video != null) contents.add(Content.builder().role("user").parts(
@@ -318,9 +325,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         var config = GenerateContentConfig.builder()
                         .systemInstruction(Content.fromParts(Part.fromText(instruction)))
                         .httpOptions(HttpOptions.builder().timeout(classification ? 15000 : 90000).build())
-                        .thinkingConfig(model.startsWith("gemini-3")
-                                ? ThinkingConfig.builder().thinkingLevel("LOW").build()
-                                : ThinkingConfig.builder().thinkingBudget(0).build())
+                        .thinkingConfig(thinking(light))
                         .maxOutputTokens(classification ? 1024 : REPLY_TOKEN_LIMIT);
         if (classification) {
             config.temperature(0f).responseMimeType("application/json").responseJsonSchema(java.util.Map.of(
@@ -331,9 +336,24 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         return new Request(contents, config.build());
     }
 
-    private String generate(Video video, List<Message> history, String instruction, List<String> categories) {
+    /**
+     * 생각 단계. gemini-3 계열은 LOW 이고, 가벼운 호출(줄이기)은 MINIMAL 을 받는 모델이면 MINIMAL 이다(SOMA-780).
+     * 10/21 서버 실측: 줄이기 LOW 6.0초(생각 1,051토큰) → MINIMAL 1.3초, 줄인 길이는 같았다. 3.8 Flash 는 MINIMAL 을
+     * 받지 않아 LOW 로 둔다.
+     */
+    ThinkingConfig thinking(boolean light) {
+        if (!model.startsWith("gemini-3")) return ThinkingConfig.builder().thinkingBudget(0).build();
+        return ThinkingConfig.builder().thinkingLevel(light && minimalThinking(model) ? "MINIMAL" : "LOW").build();
+    }
+
+    /** MINIMAL 생각 단계를 받는 모델. 확인한 것은 gemini-3-flash 계열뿐이다. */
+    static boolean minimalThinking(String model) {
+        return model != null && model.startsWith("gemini-3-flash");
+    }
+
+    private String generate(Video video, List<Message> history, String instruction, List<String> categories, boolean light) {
         boolean classification = categories != null;
-        Request request = request(video, history, instruction, categories);
+        Request request = request(video, history, instruction, categories, light);
         var response = hedged(() -> client.models.generateContent(model, request.contents(), request.config()),
                 classification ? hedge.classify() : hedge.reply());
         // 한도에 걸려 끊긴 답은 중간에 잘린 글이다. 빈 답과 같이 다루어 연습 루프가 한 번 다시 쓰게 한다.
