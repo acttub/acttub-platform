@@ -38,6 +38,12 @@ final class DirectVideoPracticeLoop {
             "(?im)^\\s*(?:<" + THINKING_NAME + ">\\s*$|(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*$)\\R?");
     // 마무리2 에서 모델이 건넨 행동을 노트에 남기려고 쓰게 하는 숨은 줄. 배우에게는 보이지 않는다.
     private static final Pattern NEXT_TAKE_TAG = Pattern.compile("(?s)<다음 테이크>\\s*(.*?)\\s*</다음 테이크>");
+    /** 닫는 꺾쇠가 빠진 숨은 줄 끝("</다음 테이크"). 2026-10-21 재생: 정리 말에 "~좋아요.</다음 테이크"가 그대로 보였다. */
+    private static final Pattern NEXT_TAKE_OPEN_CLOSE = Pattern.compile("</다음 테이크(?!>)");
+
+    private static String closedNextTake(String text) {
+        return NEXT_TAKE_OPEN_CLOSE.matcher(text).replaceAll("</다음 테이크>");
+    }
     // 모델이 줄 끝에 남기는 날 자모("알려 주세요.ㄴ" 같은). 실험에서 실제로 나왔고 다음 턴에 그대로 따라 한다.
     private static final Pattern TRAILING_JAMO = Pattern.compile("(?m)(?<=[^\\s\\u3131-\\u318E])[\\u3131-\\u318E]+[ \\t]*$");
 
@@ -63,7 +69,7 @@ final class DirectVideoPracticeLoop {
     }
 
     static Parsed parse(String raw) {
-        String text = raw == null ? "" : raw.strip();
+        String text = raw == null ? "" : closedNextTake(raw.strip());
         String design = first(DESIGN, text);
         String status = first(STATUS, text);
         String rest = NEXT_TAKE_TAG.matcher(STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("")).replaceAll("");
@@ -236,7 +242,7 @@ final class DirectVideoPracticeLoop {
 
     /** 마무리2 응답의 숨은 다음 테이크 줄. 없으면 빈 문자열. */
     static String nextTake(String raw) {
-        return raw == null ? "" : first(NEXT_TAKE_TAG, raw);
+        return raw == null ? "" : first(NEXT_TAKE_TAG, closedNextTake(raw));
     }
 
     private static final Pattern SENTENCE_END = Pattern.compile("(?<=[.!?。])\\s+|\\n+");

@@ -91,7 +91,7 @@ class GeminiDirectVideoModelTest {
                             List.of(new DirectVideoModel.Message("user", "배우의 답")), "코칭 지침"))
                     .isInstanceOf(IllegalStateException.class).hasMessageContaining("empty");
             JsonNode config = request.get().path("generationConfig");
-            assertThat(config.path("maxOutputTokens").asInt()).isEqualTo(GeminiDirectVideoModel.REPLY_TOKEN_LIMIT).isEqualTo(2048);
+            assertThat(config.path("maxOutputTokens").asInt()).isEqualTo(GeminiDirectVideoModel.REPLY_TOKEN_LIMIT).isEqualTo(4096);
             assertThat(config.path("thinkingConfig").path("thinkingLevel").asText()).isEqualTo("LOW");
         } finally { server.stop(0); }
     }
