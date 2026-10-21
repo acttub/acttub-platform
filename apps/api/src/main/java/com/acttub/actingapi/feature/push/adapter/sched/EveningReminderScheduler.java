@@ -1,12 +1,13 @@
 package com.acttub.actingapi.feature.push.adapter.sched;
 
 import com.acttub.actingapi.feature.push.app.EveningReminderService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "EVENING_REMINDER_ENABLED", havingValue = "true", matchIfMissing = true)
+// 개인화 연습 알림(PRACTICE_REMINDER_ENABLED, SOMA-720)이 켜지면 이 고정 알림은 서지 않는다. 꺼져 있으면 예전 그대로 돈다.
+@ConditionalOnExpression("${EVENING_REMINDER_ENABLED:true} and !${PRACTICE_REMINDER_ENABLED:false}")
 class EveningReminderScheduler {
     private final EveningReminderService reminders;
     EveningReminderScheduler(EveningReminderService reminders) { this.reminders = reminders; }
