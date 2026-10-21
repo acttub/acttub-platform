@@ -574,6 +574,7 @@ COLUMN script_characters.member_ids ord=10 type=_uuid len=- null=YES default=-
 COLUMN script_characters.name ord=3 type=text len=- null=NO default=-
 COLUMN script_characters.script_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_characters.sort_order ord=4 type=int4 len=- null=NO default=-
+COLUMN script_characters.unnamed ord=11 type=bool len=- null=NO default=false
 COLUMN script_characters.updated_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN script_characters.voice_preset ord=5 type=text len=- null=YES default=-
 COLUMN script_imports.created_at ord=15 type=timestamptz len=- null=NO default=now()
@@ -1544,6 +1545,7 @@ CONSTRAINT script_characters script_characters_pkey PRIMARY KEY (id)
 CONSTRAINT script_characters script_characters_script_id_fkey FOREIGN KEY (script_id) REFERENCES scripts(id)
 CONSTRAINT script_characters script_characters_script_id_not_null NOT NULL script_id
 CONSTRAINT script_characters script_characters_sort_order_not_null NOT NULL sort_order
+CONSTRAINT script_characters script_characters_unnamed_not_null NOT NULL unnamed
 CONSTRAINT script_characters script_characters_updated_at_not_null NOT NULL updated_at
 CONSTRAINT script_characters uq_script_characters_script_name UNIQUE (script_id, name) DEFERRABLE
 CONSTRAINT script_characters uq_script_characters_script_order UNIQUE (script_id, sort_order)

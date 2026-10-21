@@ -111,7 +111,8 @@ class PostgresScriptRepository implements ScriptRepository {
                 CharacterTraits traits = draft.characterTraits().get(order);
                 List<Integer> members = draft.characterMembers().get(order);
                 entityManager.persist(new ScriptCharacterEntity(characterIds.get(order), scriptId, draft.characterNames().get(order), order, null,
-                        traits.gender(), traits.ageBand(), members.isEmpty() ? null : members.stream().map(characterIds::get).toArray(UUID[]::new)));
+                        traits.gender(), traits.ageBand(), members.isEmpty() ? null : members.stream().map(characterIds::get).toArray(UUID[]::new),
+                        draft.unnamedCast()));
             }
             for (ScriptDraft.Line line : draft.lines()) {
                 entityManager.persist(new ScriptLineEntity(
@@ -283,6 +284,7 @@ class PostgresScriptRepository implements ScriptRepository {
                 entityManager.createNativeQuery("""
                         UPDATE script_characters
                         SET name=COALESCE(CAST(:name AS text),name),
+                            unnamed=unnamed AND CAST(:name AS text) IS NULL,
                             voice_preset=CASE WHEN :voiceSet THEN CAST(:voice AS text) ELSE voice_preset END,
                             updated_at=now()
                         WHERE id=:id
@@ -626,7 +628,7 @@ class PostgresScriptRepository implements ScriptRepository {
 
     private List<CharacterView> characters(UUID scriptId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT c.id,c.name,c.sort_order,c.voice_preset,c.gender,c.age_band,array_to_string(c.member_ids,',') AS member_ids,
+                SELECT c.id,c.name,c.sort_order,c.voice_preset,c.gender,c.age_band,array_to_string(c.member_ids,',') AS member_ids,c.unnamed,
                        (SELECT count(*) FROM script_lines l WHERE l.character_id=c.id) AS dialogue_count
                 FROM script_characters c
                 WHERE c.script_id=:scriptId
@@ -650,7 +652,8 @@ class PostgresScriptRepository implements ScriptRepository {
                     row.get("age_band", String.class),
                     row.get("dialogue_count", Number.class).intValue(),
                     row.get("member_ids", String.class) == null ? List.of()
-                            : Stream.of(row.get("member_ids", String.class).split(",")).map(UUID::fromString).toList()));
+                            : Stream.of(row.get("member_ids", String.class).split(",")).map(UUID::fromString).toList(),
+                    row.get("unnamed", Boolean.class)));
         }
         return characters;
     }

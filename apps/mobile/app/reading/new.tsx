@@ -44,6 +44,9 @@ import {
   type ScriptTab,
 } from '@/lib/reading/script-input';
 import { loadIntoCurrent } from '@/lib/reading/store';
+import { isMonologue } from '@/lib/reading/monologue';
+import { isGroupCharacter } from '@/lib/reading/session-plan';
+import { MonologueNameDialog } from '@/components/monologue-name-dialog';
 import { newRequestId } from '@/lib/request-id';
 import { translate as t } from '@/lib/i18n';
 
@@ -107,6 +110,7 @@ export default function ReadingNew() {
   const sample = useLocalSearchParams<{ sample?: string }>().sample === '1';
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [popup, setPopup] = useState<Popup | null>(null);
+  const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
   // 배우가 적는 대본 제목(SOMA-669). 비우면 서버가 대본에서 찾아 붙인다.
   const [title, setTitle] = useState('');
   const pasteTabTarget = useSpotlightTarget(TARGET.readingDrop);
@@ -171,6 +175,9 @@ export default function ReadingNew() {
     if (signal?.aborted) return;
     if (!saved) return failWith();
     setPopup(null);
+    // 이름 없는 독백은 누구의 대사인지 이름부터 받는다(SOMA-597). 닫으면 대본 상세로.
+    const solo = saved.characters.filter((c) => !isGroupCharacter(c));
+    if (isMonologue(saved.characters) && solo[0].unnamed) return setNaming({ scriptId: saved.id, characterId: solo[0].id });
     if (saved.characters.length >= 2) router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
     else router.replace('/reading/detail');
   };
@@ -343,6 +350,13 @@ export default function ReadingNew() {
         </View>
       </View>
 
+      <MonologueNameDialog
+        target={naming}
+        onClose={() => {
+          setNaming(null);
+          router.replace('/reading/detail');
+        }}
+      />
       <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
         <View style={[styles.backdrop, popup?.kind === 'consent' && styles.backdropSheet]}>
           {popup?.kind === 'splitting' && <SplittingCard progress={popup.progress} />}

@@ -16,6 +16,8 @@ import java.util.List;
  *        모름이다. {@code null} 이면 모두 모름
  * @param characterMembers {@code characterNames} 와 같은 자리의, 함께 말하는 줄의 묶음 배역이면 그 줄을 함께 말하는 배역들의 자리(SOMA-709,
  *        {@link SpeakerGroups}). 보통 배역은 비어 있다. {@code null} 이면 모두 보통 배역
+ * @param unnamedCast 원문에 배역 이름이 없어 서버가 배역 이름(「화자」)을 지은 독백인가(SOMA-597, {@link Monologue}). 배우가 이름을 정할 때까지
+ *        배역에 표시해 둔다
  */
 public record ScriptDraft(
         String title,
@@ -24,7 +26,8 @@ public record ScriptDraft(
         List<String> characterNames,
         List<Line> lines,
         List<CharacterTraits> characterTraits,
-        List<List<Integer>> characterMembers) {
+        List<List<Integer>> characterMembers,
+        boolean unnamedCast) {
 
     public ScriptDraft {
         characterNames = List.copyOf(characterNames);
@@ -41,6 +44,12 @@ public record ScriptDraft(
         if (characterMembers.size() != characterNames.size()) {
             throw new IllegalArgumentException("characterMembers must line up with characterNames");
         }
+    }
+
+    /** 배역 이름을 원문에서 읽은 대본. */
+    public ScriptDraft(String title, String rawText, String source, List<String> characterNames, List<Line> lines,
+            List<CharacterTraits> characterTraits, List<List<Integer>> characterMembers) {
+        this(title, rawText, source, characterNames, lines, characterTraits, characterMembers, false);
     }
 
     /** 묶음 배역이 없는 대본 — 나누기 조립 중간과 묶기 전. */
@@ -66,7 +75,7 @@ public record ScriptDraft(
                             result.lang(), result.speech());
                 })
                 .toList();
-        return new ScriptDraft(title, rawText, source, characterNames, next, characterTraits, characterMembers);
+        return new ScriptDraft(title, rawText, source, characterNames, next, characterTraits, characterMembers, unnamedCast);
     }
 
     /**

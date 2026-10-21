@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.reading;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.time.Duration;
@@ -44,6 +45,7 @@ import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -664,14 +666,61 @@ class ReadingImportIT {
     @Test
     @DisplayName("SOMA-663: 다시 나눠 통과한 글도 Jev 「말하는 글」 확신이 0.5 아래면 not_script. 확신이 높거나 Jev 가 실패하면 저장한다")
     void speechGate() throws Exception {
+        // 이름 없이 주고받는 글 — 차례대로 화자1·화자2. 한 사람의 독백은 묻지 않는다(monologueSkipsSpeechGate).
         Model.answer = call -> call.unnamed()
-                ? "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\td\t화자\t\n").reduce("", String::concat)
+                ? "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\td\t화자" + (Integer.parseInt(line[0]) % 2 + 1) + "\t\n").reduce("", String::concat)
                 : "대본\t아니오\n";
         assertThat(gated(() -> 0.2, "엄마, 잘 지내?\n나는 잘 지내.")).isEqualTo("not_script");
         assertThat(gated(() -> 0.9, "왜 내 마음을 몰라?\n난 아직도 손이 떨려.")).isEqualTo("succeeded");
         assertThat(failures.reports()).isEmpty();
         assertThat(gated(() -> { throw new IllegalStateException("decision HTTP 503"); }, "너 진짜 그럴 거야?\n대답 좀 해.")).isEqualTo("succeeded");
         assertThat(failures.reports()).singleElement().satisfies(report -> assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL));
+    }
+
+    @Test
+    @DisplayName("SOMA-597 1번: 이름 없이 한 사람의 글로 나뉜 독백은 Jev 「말하는 글」 확신이 낮아도 not_script 로 막지 않는다")
+    void monologueSkipsSpeechGate() throws Exception {
+        Model.answer = call -> call.unnamed()
+                ? "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\td\t화자\t\n").reduce("", String::concat)
+                : "대본\t아니오\n";
+        assertThat(gated(() -> 0.2, "엄마, 잘 지내?\n나는 잘 지내.")).isEqualTo("succeeded");
+    }
+
+    @Test
+    @DisplayName("SOMA-597 2번: 이름 없는 독백은 「화자」 한 줄이 아니라 문장마다 한 줄로 저장되고 배역에 unnamed 표시가 붙는다. 이름을 고치면 표시가 풀린다")
+    void unnamedMonologueIsSplitIntoSentences() throws Exception {
+        Model.answer = call -> call.unnamed()
+                ? "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\td\t화자\t\n").reduce("", String::concat)
+                : "대본\t아니오\n";
+        String scriptId = split("그래서 더 말하기 싫었어. 네가 그걸 아니까. 나도 내가 얼마나 준비했는지 알아.\n그래서 더 아팠어.");
+
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
+        assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
+                .containsExactly("dialogue|그래서 더 말하기 싫었어.", "dialogue|네가 그걸 아니까.", "dialogue|나도 내가 얼마나 준비했는지 알아.",
+                        "dialogue|그래서 더 아팠어.");
+        JsonNode cast = script.path("characters");
+        assertThat(cast).extracting(character -> character.path("name").textValue() + "|" + character.path("unnamed").booleanValue())
+                .containsExactly("화자|true");
+
+        ObjectNode body = mapper.createObjectNode();
+        body.putArray("characters").addObject().put("id", cast.get(0).path("id").textValue()).put("name", "민지");
+        JsonNode named = json(patch("/v2/reading/scripts/{id}", scriptId).content(body.toString()), 200);
+        assertThat(named.path("characters")).extracting(character -> character.path("name").textValue() + "|" + character.path("unnamed").booleanValue())
+                .containsExactly("민지|false");
+    }
+
+    @Test
+    @DisplayName("SOMA-597 3번: 이름이 있는 독백이 한 줄로 들어와도 문장마다 나눠 저장한다. 대화 대본의 한 배역 긴 대사는 나누지 않는다(SOMA-663)")
+    void namedMonologueIsSplitButDialoguesStayWhole() throws Exception {
+        JsonNode monologue = json(get("/v2/reading/scripts/{id}", split("민지: 그래서 더 말하기 싫었어. 네가 그걸 아니까! 왜 몰랐을까?")), 200);
+        assertThat(monologue.path("lines")).extracting(line -> line.path("text").textValue())
+                .containsExactly("그래서 더 말하기 싫었어.", "네가 그걸 아니까!", "왜 몰랐을까?");
+        assertThat(monologue.path("characters")).extracting(character -> character.path("name").textValue() + "|" + character.path("unnamed").booleanValue())
+                .containsExactly("민지|false");
+
+        JsonNode dialogue = json(get("/v2/reading/scripts/{id}", split("이영: 안녕하세요. 저는 이영입니다. 만나서 반갑습니다.\n태오: 네.")), 200);
+        assertThat(dialogue.path("lines")).extracting(line -> line.path("text").textValue())
+                .containsExactly("안녕하세요. 저는 이영입니다. 만나서 반갑습니다.", "네.");
     }
 
     /** 문지기만 붙인 워커로 하나 나누고 상태(실패면 failure)를 돌려준다. */

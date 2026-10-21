@@ -19,7 +19,8 @@ import org.hibernate.type.SqlTypes;
  * <p>줄은 이름이 아니라 이 id 로 배역에 매달리므로 이름을 고쳐도 연결은 그대로다. {@code voice_preset} 은
  * 상대역 목소리(기기 프리셋 id)이고 NULL 이면 "자동"이다. {@code gender}·{@code age_band}(V42, SOMA-670)는 나누기 모델이
  * 대본에서 읽은 값이고 모르면 NULL 이다 — 자동 목소리가 이것으로 프리셋을 고른다. {@code member_ids}(V50, SOMA-709)는 함께 말하는 줄의
- * 묶음 배역이면 그 줄을 함께 말하는 배역들의 id 이고 보통 배역이면 NULL 이다.
+ * 묶음 배역이면 그 줄을 함께 말하는 배역들의 id 이고 보통 배역이면 NULL 이다. {@code unnamed}(V51, SOMA-597)는 원문에 배역 이름이 없어
+ * 나누기 작업이 임시 이름(「화자」)을 붙인 독백 배역이면 참이고, 이름을 고치면 거짓이 된다.
  */
 @Entity
 @Table(name = "script_characters")
@@ -48,6 +49,9 @@ public class ScriptCharacterEntity extends AppGeneratedUuidEntity {
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "member_ids", columnDefinition = "uuid[]")
     private UUID[] memberIds;
+
+    @Column(name = "unnamed", nullable = false)
+    private boolean unnamed;
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
@@ -80,6 +84,13 @@ public class ScriptCharacterEntity extends AppGeneratedUuidEntity {
         this.memberIds = memberIds;
     }
 
+    /** @param unnamed 원문에 배역 이름이 없어 임시 이름을 붙인 독백 배역인가 */
+    public ScriptCharacterEntity(UUID id, UUID scriptId, String name, int sortOrder, String voicePreset,
+            CharacterGender gender, CharacterAgeBand ageBand, UUID[] memberIds, boolean unnamed) {
+        this(id, scriptId, name, sortOrder, voicePreset, gender, ageBand, memberIds);
+        this.unnamed = unnamed;
+    }
+
     public UUID getScriptId() {
         return scriptId;
     }
@@ -106,6 +117,10 @@ public class ScriptCharacterEntity extends AppGeneratedUuidEntity {
 
     public UUID[] getMemberIds() {
         return memberIds;
+    }
+
+    public boolean isUnnamed() {
+        return unnamed;
     }
 
     public Instant getCreatedAt() {

@@ -165,7 +165,9 @@ class ReadingScriptIT {
         assertThat(saved.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
                 .containsExactly(2, 1);
         assertThat(saved.path("characters").get(0).fieldNames()).toIterable()
-                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "gender", "age_band", "dialogue_count", "member_ids");
+                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "gender", "age_band", "dialogue_count", "member_ids", "unnamed");
+        assertThat(saved.path("characters")).as("SOMA-597: 기기가 나눈 대본의 배역은 이름 없는 독백 배역이 아니다")
+                .allMatch(character -> character.path("unnamed").isBoolean() && !character.path("unnamed").booleanValue());
         assertThat(saved.path("characters")).as("SOMA-709: 기기가 나눈 대본에는 묶음 배역이 없다")
                 .allMatch(character -> character.path("member_ids").isArray() && character.path("member_ids").isEmpty());
         assertThat(saved.path("characters")).as("SOMA-670: 기기가 나눈 대본은 성별·나이대를 모른다")

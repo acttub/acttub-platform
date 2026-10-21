@@ -244,6 +244,35 @@ describe('useReadingStt', () => {
     await expect(stt.finish()).resolves.toBe('');
   });
 
+  test('SOMA-597: 인식기가 스스로 끝나면 onEnd 를 한 번 알리고, 끝내기·끊기로 멈춘 끝에는 알리지 않는다', async () => {
+    const hook = await renderHook(() => useReadingStt());
+    const ends: string[] = [];
+    const listener = { onEvent: () => undefined, onInterim: () => undefined, onEnd: () => ends.push('end') };
+    await act(async () => {
+      hook.result.current.start(listener);
+    });
+    await emit('result', result('그래서 더 말하기 싫었어'));
+    await emit('end');
+    await emit('error');
+    expect(ends).toEqual(['end']);
+    await expect(hook.result.current.finish()).resolves.toBe('그래서 더 말하기 싫었어');
+
+    await act(async () => {
+      hook.result.current.start(listener);
+    });
+    await act(async () => {
+      const pending = hook.result.current.finish();
+      mockHandlers.end();
+      await pending;
+    });
+    await act(async () => {
+      hook.result.current.start(listener);
+      hook.result.current.abort();
+    });
+    await emit('end');
+    expect(ends).toEqual(['end']);
+  });
+
   test('듣고 있지 않을 때 끝내면 마지막 글을 바로 돌려준다', async () => {
     const hook = await renderHook(() => useReadingStt());
 

@@ -23,6 +23,7 @@ import com.acttub.actingapi.feature.reading.domain.CharacterTraits;
 import com.acttub.actingapi.feature.reading.domain.LineLanguage;
 import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.LineSpacing;
+import com.acttub.actingapi.feature.reading.domain.Monologue;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
@@ -56,7 +57,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>글자마다 띄어졌거나 낱말이 붙어 버린 줄이 있으면 나누기 전에 그 줄의 띄어쓰기만 모델로 고치고, 고친 줄이 공백 말고 다르거나 호출이 실패하면
  * 그 줄은 원문으로 둔다. 줄 번호를 붙인 원문을 150줄 조각으로 동시에 보내고, 조각이 둘 이상이면 앞 400줄로 배역 목록을 먼저
- * 받는다(배역마다 성별·나이대도 — 조각이 하나면 그 호출의 답 끝 「배역」 블록으로, SOMA-670). 첫 호출의 첫 줄이 「대본이 아니다」거나 나눈 결과에 배역이 없으면 이름 없는 대사 규칙(독백은 「화자」)으로 한 번 더 나누고, 그래도 대본이 아니면 거기서 멈춘다. 배역이 빈 대사는 앞 대사에 잇고({@link SplitResponse#fillSpeakers}), 잇지 못했거나 버리거나 빠진 줄은 두 번까지 다시 묻고 그래도 남으면 지문이다. 번호 줄도 판단 줄도 없는 답(설명·다른 작업의 답)은 형식 안내를 붙여 그 호출만 한 번 더 묻는다. 호출 하나는
+ * 받는다(배역마다 성별·나이대도 — 조각이 하나면 그 호출의 답 끝 「배역」 블록으로, SOMA-670). 첫 호출의 첫 줄이 「대본이 아니다」거나 나눈 결과에 배역이 없으면 이름 없는 대사 규칙(독백은 「화자」)으로 한 번 더 나누고, 그래도 대본이 아니면 거기서 멈춘다. 배역이 빈 대사는 앞 대사에 잇고({@link SplitResponse#fillSpeakers}), 잇지 못했거나 버리거나 빠진 줄은 두 번까지 다시 묻고 그래도 남으면 지문이다. 배역이 하나뿐인 독백은 대사 줄을 문장마다 한 줄로 나눈다({@link Monologue}, SOMA-597). 번호 줄도 판단 줄도 없는 답(설명·다른 작업의 답)은 형식 안내를 붙여 그 호출만 한 번 더 묻는다. 호출 하나는
  * 연결 실패·붐빔·서버 실패·미완료 답에 두 번까지 다시 시도하고, 그래도 안 되면 작업은 {@code failed} 로 끝난다 — 기기 파서
  * 대비 경로는 두지 않기로 했다(계획 「정한 것」 1). 사용자가 팝업에서 기다리므로 작업을 다시 큐에 넣지 않는다.
  */
@@ -182,8 +183,10 @@ public class ScriptSplitWorker {
             return split;
         }
         split = split(calls, importId, material, lines, ScriptSplitPrompt::unnamed, false);
-        // 다시 나눠 통과한 글도 Jev 가 「말하는 글」이라 확신하지 않으면 거절한다 — 편지·수필처럼 말투만 구어인 글을 막는다.
-        if (split.failure() == null && !material.skipScriptCheck() && decider != null && !speech(calls.jobId, material.rawText())) {
+        // 다시 나눠 통과한 글도 Jev 가 「말하는 글」이라 확신하지 않으면 거절한다 — 편지·상품평처럼 말투만 구어인 글을 막는다. 한 사람의 글로
+        // 나뉜 독백은 묻지 않는다: 편지·고백처럼 혼자 하는 말이 독백 대본이라 배역 이름 없는 독백이 「대본 아님」으로 막혔다(SOMA-597).
+        if (split.failure() == null && !material.skipScriptCheck() && decider != null && !Monologue.of(split.draft())
+                && !speech(calls.jobId, material.rawText())) {
             return Split.failed(ScriptImportFailure.NOT_SCRIPT);
         }
         return split;
@@ -297,6 +300,8 @@ public class ScriptSplitWorker {
             draft = sameSpeakers(calls.jobId, lines, draft, speakers, heads, scenes);
         }
         draft = SpeakerGroups.apply(draft);
+        // 배역이 하나뿐이면 독백이라 문장마다 한 줄로 나눈다(SOMA-597). 원문에 없는 「화자」면 배우가 이름을 정하게 표시해 둔다.
+        draft = Monologue.split(draft);
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
         if (rejection == null) {
             return Split.of(languages(calls.jobId, calls, draft));

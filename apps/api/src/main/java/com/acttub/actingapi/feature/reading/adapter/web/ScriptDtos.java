@@ -177,7 +177,10 @@ final class ScriptDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int dialogueCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                     description = "함께 말하는 줄의 묶음 배역(「지해, 연수」·「모두」)이면 그 줄을 함께 말하는 배역들의 id(둘 이상), 보통 배역이면 빈 배열. 묶음 배역은 보통 배역 뒤에 온다. 그 줄의 character_id 는 묶음 배역이다(SOMA-709)")
-            List<UUID> memberIds) {
+            List<UUID> memberIds,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "원문에 배역 이름이 없어 나누기 작업이 임시 이름(「화자」)을 붙인 독백 배역이면 true. 이름을 고치면(PATCH 의 characters[].name) false 가 된다. 앱은 이 배역의 이름을 배우에게 묻는다(SOMA-597)")
+            boolean unnamed) {
     }
 
     /** 장면 하나. 화면 이름은 {@code title}, 없으면 기기가 번호로 부른다(「장면 2」). */

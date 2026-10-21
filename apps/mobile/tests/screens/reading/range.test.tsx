@@ -351,3 +351,13 @@ test('SOMA-709: 짧은 구간 추천이 뜨는 첫 연습에서도 대사가 적
   expect(screen.getByText('고른 구간에 서연 대사가 1줄뿐이에요.\n배역을 더 고르거나 구간을 넓혀 보세요.')).toBeOnTheScreen();
   expect(screen.queryByText(/처음이라 짧은 구간으로 골라 뒀어요/)).not.toBeOnTheScreen();
 });
+
+test('SOMA-597: 배역이 하나뿐이면 처음부터 골라져 있고 혼자 하는 대본 안내를 보인다', async () => {
+  await show(scriptDetail([
+    ['dialogue', '민지', '그래서 더 말하기 싫었어.'],
+    ['dialogue', '민지', '네가 그걸 아니까.'],
+  ]));
+
+  expect(screen.getByRole('checkbox', { name: /민지/ })).toBeChecked();
+  expect(screen.getByText('혼자 하는 대본이라 배역은 자동으로 골라져 있어요.')).toBeOnTheScreen();
+});

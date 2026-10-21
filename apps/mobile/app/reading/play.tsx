@@ -34,6 +34,7 @@ import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads }
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, dialogueNumbers, roleLabel, turnRoles } from '@/lib/reading/session-plan';
 import { diffWords } from '@/lib/reading/word-diff';
+import { finishMonologueRun, isMonologue, livePosition, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
 import {
@@ -143,6 +144,8 @@ const NOTICE_MS = 4000;
 const JUMP_PREVIEW = 15;
 /** 완료 화면이 뜬 뒤 버튼을 받지 않는 시간. */
 const DONE_LOCK_MS = 800;
+/** 독백에서 받아쓴 글로 읽는 위치를 다시 재는 간격 — 중간 결과마다 전체를 맞추지 않게. */
+const MONO_POSITION_MS = 700;
 const MASCOT = require('@/assets/images/mascot-reading.png');
 
 const COACH_TEXT: Record<CoachMark, string> = {
@@ -236,8 +239,8 @@ export default function ReadingPlay() {
   const recordingClosed = useRef(false);
   /** 내 차례의 전사·녹음을 거두는 중 — 침묵 넘김·[다음]·180초가 겹쳐도 한 번만 거둔다. 새 차례가 열리면 풀린다. */
   const turnClosing = useRef(false);
-  // [다시 연습]의 회차 요청 id — 실패 뒤 다시 눌러도 같은 회차 하나가 된다.
-  const readAgainRequestId = useRef(newRequestId());
+  // [다시 연습]의 회차 요청 id(시작 줄마다) — 실패 뒤 다시 눌러도 같은 회차 하나가 된다.
+  const readAgainRequestIds = useRef<Record<string, string>>({});
   const [restarting, setRestarting] = useState(false);
   /** 시작 전 [시작] 위에 자동 넘김 안내를 보일지 — 숨기지 않았고 자동 넘김 회차일 때만. */
   const [startHint, setStartHint] = useState(false);
@@ -252,6 +255,23 @@ export default function ReadingPlay() {
   /** 발음 피드백(실험). 켜져 있으면 내 차례마다 받아쓴 글을 대본과 맞춰 끝난 화면에 다르게 들린 어구를 모은다. */
   const voiceFeedbackOn = useRef(false);
   const [lineFeedback, setLineFeedback] = useState<LineFeedback[]>([]);
+  /**
+   * 독백(SOMA-597) — 배역이 하나뿐인 대본은 처음부터 끝까지 끊지 않고 한 번에 녹음한다. 인식기가 스스로 끝나거나(오래 쉼·시간 한도)
+   * 녹음이 3분에 이르면 그 조각만 거두고 곧바로 지금 문장에서 새 조각을 연다. 받아쓴 글은 조각을 넘어 이어 붙이고, 끝낸 뒤 문장별로 맞춘다.
+   */
+  const monologue = useMemo(() => !!script && isMonologue(script.characters), [script]);
+  const monoDone = useRef('');
+  const monoPiece = useRef('');
+  /** 지금 조각을 연 줄 — 조각 녹음은 이 줄에 올린다. */
+  const monoPieceAt = useRef(0);
+  /** 이번 실행에서 처음 듣기 시작한 줄 — 맞춰 볼 문장은 여기부터다. */
+  const monoFrom = useRef<number | null>(null);
+  const monoPosAt = useRef(0);
+  const monoPosTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [monoSeq, setMonoSeq] = useState(0);
+  const [monoResult, setMonoResult] = useState<ReturnType<typeof monologueResults> | null>(null);
+  const monoItemY = useRef<Record<number, number>>({});
+  const monoCardY = useRef(0);
 
   // 서버가 정한 「내 배역이 아닐 때 읽을 목소리」. 내 배역 줄은 읽지 않으니 빼지 않아도 된다.
   const voiceByName = useMemo(() => new Map((script?.characters ?? []).map((c) => [c.name, c.voice] as const)), [script]);
@@ -777,7 +797,7 @@ export default function ReadingPlay() {
   }, [goNext]);
 
   useEffect(() => {
-    if (phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;
+    if (monologue || phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;
     const from = run.index;
     setAid('none');
     setSaid('');
@@ -862,6 +882,129 @@ export default function ReadingPlay() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.kind, tipOpen, run?.index, run?.status, attempt]);
+
+  // ── 독백: 끊지 않고 한 번에 듣는다(SOMA-597) ─────────────────────────────────────
+  const monoHeard = () => [monoDone.current, monoPiece.current].filter(Boolean).join(' ');
+
+  /** 받아쓴 글로 읽는 위치를 재 강조를 옮긴다. 판정은 하지 않는다 — 넘김·녹음은 그대로다. */
+  const followMonologue = useCallback(() => {
+    if (monoPosTimer.current) clearTimeout(monoPosTimer.current);
+    const wait = MONO_POSITION_MS - (Date.now() - monoPosAt.current);
+    if (wait > 0) {
+      monoPosTimer.current = setTimeout(() => followMonologue(), wait);
+      return;
+    }
+    monoPosAt.current = Date.now();
+    const cur = runRef.current;
+    if (!cur || cur.status !== 'mine' || monoFrom.current === null) return;
+    const idx = sentenceIndexes(cur, monoFrom.current);
+    const pos = livePosition(idx.map((i) => cur.lines[i].text), monoHeard(), Math.max(0, idx.indexOf(cur.index)));
+    if (idx[pos] !== undefined && idx[pos] !== cur.index) commit({ ...cur, index: idx[pos] });
+  }, [commit]);
+
+  /** [끝내기] — 녹음을 거두고 받아쓴 글 전체를 문장별로 맞춰 결과를 낸다. 읽는 동안에는 판정하지 않았다. */
+  const finishMonologue = useCallback(async () => {
+    const cur = runRef.current;
+    if (!cur || !session || cur.status !== 'mine' || turnClosing.current) return;
+    turnClosing.current = true;
+    setTurnDone(true);
+    if (monoPosTimer.current) clearTimeout(monoPosTimer.current);
+    const text = sttActive.current ? await stt.finish() : '';
+    if (text) monoPiece.current = text;
+    await endTurnRecording(cur.lineIds[monoPieceAt.current], '');
+    sttActive.current = false;
+    setListening(false);
+    const heard = monoHeard();
+    monoDone.current = heard;
+    monoPiece.current = '';
+    const now = runRef.current;
+    if (!now || now.status === 'done') return;
+    const idx = sentenceIndexes(now, monoFrom.current ?? now.index);
+    const result = monologueResults(idx.map((i) => now.lineIds[i]), idx.map((i) => now.lines[i].text), heard);
+    setMonoResult(result);
+    commit(finishMonologueRun(now, sttModeRef.current?.kind === 'stt' ? result.said : {}));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, stt, commit, endTurnRecording]);
+
+  useEffect(() => {
+    if (!monologue || phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;
+    const at = run.index;
+    if (monoFrom.current === null) monoFrom.current = at;
+    monoPieceAt.current = at;
+    monoPiece.current = '';
+    setTurnDone(false);
+    setTurnNote(null);
+    setSaid(monoHeard());
+    recordingClosed.current = false;
+    turnClosing.current = false;
+    turnStartedAt.current = Date.now();
+    let cancelled = false;
+    let limitTimer: ReturnType<typeof setTimeout> | null = null;
+    /** 지금 조각을 거두고 지금 문장에서 새 조각을 연다 — 인식기가 스스로 끝났거나(오래 쉼) 녹음 3분. 녹음이 잘리지 않게 바로 다시 듣는다. */
+    const rotate = async () => {
+      if (cancelled || turnClosing.current) return;
+      turnClosing.current = true;
+      const text = sttActive.current ? await stt.finish() : '';
+      if (text) monoPiece.current = text;
+      await endTurnRecording(runRef.current?.lineIds[monoPieceAt.current] ?? '', '');
+      monoDone.current = monoHeard();
+      monoPiece.current = '';
+      sttActive.current = false;
+      if (!cancelled) setMonoSeq((n) => n + 1);
+    };
+    void (async () => {
+      let opened = false;
+      const recordOverStt = !!(session.record && !stt.canPersist());
+      if (sttMode?.kind === 'stt' && !recordOverStt) {
+        const ok = stt.start(
+          {
+            // 말이 멈춰도 넘기지 않는다 — 독백의 침묵은 대부분 일부러 쉬는 연기다.
+            onEvent: () => undefined,
+            onInterim: (text) => {
+              monoPiece.current = text;
+              setSaid(monoHeard());
+              followMonologue();
+            },
+            onEnd: () => void rotate(),
+          },
+          { persist: !!session.record, locale: speechLocaleFor(lineLanguage(run.lines[at] as DialogueLine)) },
+        );
+        sttActive.current = ok;
+        opened = ok;
+      }
+      if (!opened) opened = await mic.start(() => undefined);
+      if (cancelled) return;
+      setListening(opened);
+      if (opened && session.record) limitTimer = setTimeout(() => void rotate(), RECORDING_MAX_MS);
+    })();
+    return () => {
+      cancelled = true;
+      if (limitTimer) clearTimeout(limitTimer);
+      if (monoPosTimer.current) clearTimeout(monoPosTimer.current);
+      // 일시정지·나가기로 닫히면 받아쓴 글은 남기고(이어서 하면 뒤에 붙는다) 그 조각의 녹음은 버린다 — 보통 줄과 같다.
+      if (!turnClosing.current) {
+        monoDone.current = monoHeard();
+        monoPiece.current = '';
+      }
+      stt.abort();
+      sttActive.current = false;
+      void mic.stop().then((r) => {
+        if (r?.uri) void deleteDeviceFile(r.uri).catch(() => undefined);
+      });
+      const leftover = stt.takeRecordingUri();
+      if (leftover) void deleteDeviceFile(leftover).catch(() => undefined);
+      setListening(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monologue, phase.kind, tipOpen, run?.status, attempt, monoSeq]);
+
+  // 독백은 읽는 문장이 보이게 따라 내린다. 「원문 보기」는 그 문장에만 적용된다.
+  useEffect(() => {
+    if (!monologue || !run) return;
+    setAid('none');
+    const y = monoItemY.current[run.index];
+    if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, monoCardY.current + y - 160), animated: true });
+  }, [monologue, run?.index]);
 
   // ── 흐른 시간(일시정지 제외) ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1029,16 +1172,19 @@ export default function ReadingPlay() {
     router.replace('/upload');
   };
 
-  const readAgain = async () => {
+  /** @param startLineId 독백 결과의 「여기부터 다시」 — 그 문장부터 구간 끝까지 새 회차(SOMA-597). 없으면 같은 구간. */
+  const readAgain = async (startLineId?: string) => {
     if (doneLocked || !script || !session || restarting) return;
     setRestarting(true);
     try {
+      const from = startLineId ?? session.start_line_id;
+      readAgainRequestIds.current[from] ??= newRequestId();
       const next = await startSession(
         script.id,
         buildStartBody({
-          requestId: readAgainRequestId.current,
+          requestId: readAgainRequestIds.current[from],
           myCharacterIds: session.my_character_ids,
-          startLineId: session.start_line_id,
+          startLineId: from,
           endLineId: session.end_line_id,
         }),
       );
@@ -1214,6 +1360,83 @@ export default function ReadingPlay() {
       priorRecognized: sessionHasRecognized(session),
       recognition: sttMode?.kind ?? null,
     });
+    if (monologue) {
+      // 독백 결과(pen T79rDt) — 끝난 뒤 녹음 전체를 문장별로 맞춘 결과. 「원문과 다르게 말한 대사」 칸은 두지 않는다.
+      const compared = sttMode?.kind === 'stt' && !!monoResult;
+      const total = monoResult?.rows.length ?? 0;
+      const statusLabel = { read: t('reading.monologueStatusRead'), missed: t('reading.monologueStatusMissed'), different: t('reading.monologueStatusDifferent') };
+      return (
+        <View style={styles.root}>
+          <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
+            <View style={styles.doneIcon}>
+              <Feather name="check" size={28} color="#fff" />
+            </View>
+            <Text style={styles.doneTitle}>{t(completed ? 'reading.monologueDoneTitle' : 'reading.notCountedTitle')}</Text>
+            {!completed ? (
+              <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>
+            ) : compared ? (
+              <Text style={styles.dim}>
+                {monoResult!.missed > 0 ? t('reading.monologueMissed', { total, count: monoResult!.missed }) : t('reading.monologueAllRead', { total })}
+              </Text>
+            ) : null}
+            <Text style={styles.dim}>{script.title}</Text>
+            <View style={styles.doneStats}>
+              <Text style={styles.doneStat}>{t('reading.doneMyRole', { roles: config.myNames.join(', ') })}</Text>
+              <Text style={styles.doneStat}>{t('reading.doneTime', { time: mmss(run.elapsedMs) })}</Text>
+              {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
+            </View>
+            {!compared ? (
+              <View style={styles.noteBox}>
+                <Feather name="info" size={16} color={palette.textMuted} />
+                <Text style={styles.noteText}>{t('reading.noSttNote')}</Text>
+              </View>
+            ) : (
+              <View style={styles.diffBox}>
+                {monoResult!.rows.map((r, k) =>
+                  r.status === 'missed' ? (
+                    <Pressable
+                      key={r.lineId}
+                      style={styles.monoRow}
+                      onPress={() => void readAgain(r.lineId)}
+                      disabled={doneLocked || restarting}
+                      accessibilityRole="button"
+                      ph-label="reading_monologue_retry_from">
+                      <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
+                      <Text style={styles.monoTagMissed}>{`${statusLabel.missed} · ${t('reading.monologueRetryFrom')}`}</Text>
+                    </Pressable>
+                  ) : (
+                    <View key={r.lineId} style={styles.monoRow}>
+                      <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
+                      <Text style={styles.monoTag}>{statusLabel[r.status]}</Text>
+                    </View>
+                  ),
+                )}
+              </View>
+            )}
+            <Pressable
+              style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
+              onPress={() => void readAgain()}
+              disabled={doneLocked || restarting}
+              accessibilityRole="button"
+              accessibilityLabel={t('reading.readAgain')}
+              accessibilityState={{ disabled: doneLocked || restarting }}>
+              {restarting ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
+              <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
+            </Pressable>
+            {completed && !fromTutorialRef.current && (
+              <View style={styles.ratingSlot}>
+                <ReadingRating sessionId={session.id} />
+              </View>
+            )}
+          </ScrollView>
+          <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
+            <PrimaryButton label={t('reading.finish')} onPress={() => setWrapUp(true)} disabled={doneLocked} />
+          </View>
+          {dialog}
+          {ratingSheet}
+        </View>
+      );
+    }
     const readCount = readDialogueCount(run.lines, run.startIndex, run.endIndex);
     const wholeScript = run.startIndex <= run.lines.findIndex((l) => l.type === 'dialogue') && run.endIndex >= run.lines.length - 1;
     const compared = sttMode?.kind === 'stt';
@@ -1345,7 +1568,12 @@ export default function ReadingPlay() {
   ) : null;
 
   const past: { key: string; index: number; line: ScriptLine }[] = [];
-  for (let i = run.startIndex; i < run.index && i <= run.endIndex; i++) past.push({ key: run.lineIds[i], index: i, line: run.lines[i] });
+  // 독백은 문장 목록이 지금 카드 안에 다 있어 위로 쌓지 않는다(pen c1MiZ).
+  if (!monologue) for (let i = run.startIndex; i < run.index && i <= run.endIndex; i++) past.push({ key: run.lineIds[i], index: i, line: run.lines[i] });
+  const monoIndexes = monologue ? sentenceIndexes(run, run.startIndex) : [];
+  const monoCounter = monologue
+    ? t('reading.monologueProgress', { n: Math.max(0, monoIndexes.indexOf(run.index)) + 1, total: monoIndexes.length, time: mmss(run.elapsedMs) })
+    : null;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -1355,7 +1583,7 @@ export default function ReadingPlay() {
           <Text style={styles.exitText}>{t('reading.exitLeave')}</Text>
         </Pressable>
         {notice?.kind === 'dropped' ? <Text style={styles.droppedText}>{t('reading.recordingDropped', { count: notice.count })}</Text> : <View />}
-        <Text style={styles.counter}>{formatProgress(run)}</Text>
+        <Text style={styles.counter}>{monoCounter ?? formatProgress(run)}</Text>
       </View>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.round((progressOf(run).done / Math.max(1, progressOf(run).total)) * 100)}%` }]} />
@@ -1370,7 +1598,7 @@ export default function ReadingPlay() {
         ref={scrollRef}
         style={styles.flow}
         contentContainerStyle={styles.flowContent}
-        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
+        onContentSizeChange={() => !monologue && scrollRef.current?.scrollToEnd({ animated: true })}>
         {/* 지나간 대사를 누르면 그 줄부터 다시 한다(SOMA-785). 탭 기록에 대본 글이 실리지 않게 ph-label 을 붙인다. */}
         {past.map(({ key, index, line: l }) =>
           l.type === 'dialogue' ? (
@@ -1396,7 +1624,55 @@ export default function ReadingPlay() {
 
         {coachMark !== 'next' && coachElement}
 
-        {isDialogue && (
+        {monologue && (
+          // 독백 — 문장 목록을 보이고 읽는 문장만 진하게(pen c1MiZ). 상대역 목소리는 없고 녹음은 끝낼 때까지 이어진다.
+          <View style={[styles.card, styles.cardMine]} onLayout={(e) => (monoCardY.current = e.nativeEvent.layout.y)}>
+            <View style={styles.cardHead}>
+              <Text style={[styles.cardRole, styles.cardRoleMine]}>{t('reading.monologueRole', { role: config.myNames.join(', ') })}</Text>
+              <View style={styles.cardHeadRight}>
+                <View style={styles.chip}>
+                  {hold === 'tip' || paused || !listening ? (
+                    <Feather name={paused ? 'pause' : 'mic'} size={14} color={palette.blueDeep} />
+                  ) : (
+                    <ListeningBars />
+                  )}
+                  <Text style={[styles.chipText, styles.chipTextMine]}>
+                    {hold === 'tip' ? t('reading.chipBeforeStart') : paused ? t('reading.pause') : listening ? t('reading.monologueRecording') : t('reading.chipMicOpening')}
+                  </Text>
+                </View>
+                {hold !== 'tip' && (
+                  <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
+                    <Feather name="edit-2" size={16} color={palette.blueDeep} />
+                  </Pressable>
+                )}
+              </View>
+            </View>
+            {run.lines.slice(run.startIndex, run.endIndex + 1).map((l, k) => {
+              const i = run.startIndex + k;
+              if (l.type !== 'dialogue') return <Text key={run.lineIds[i]} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
+              const now = i === run.index;
+              return (
+                <View key={run.lineIds[i]} onLayout={(e) => (monoItemY.current[i] = e.nativeEvent.layout.y)}>
+                  {hiddenOf(l) && i >= run.index && !(now && aid === 'original') ? (
+                    <HiddenBars text={l.text} tone={now ? 'current' : 'past'} />
+                  ) : (
+                    <Text style={now ? styles.monoNow : styles.monoOther}>{l.text}</Text>
+                  )}
+                </View>
+              );
+            })}
+            {hiddenOf(line) && aid !== 'original' && hold !== 'tip' && (
+              <View style={styles.aidRow}>
+                <Pressable style={styles.aidPill} onPress={() => setAid('original')}>
+                  <Feather name="eye" size={14} color={palette.blueDeep} />
+                  <Text style={styles.aidText}>{t('reading.showOriginal')}</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
+
+        {isDialogue && !monologue && (
           <View style={[styles.card, myTurn ? styles.cardMine : styles.cardOther]}>
             <View style={styles.cardHead}>
               <Text style={[styles.cardRole, myTurn && styles.cardRoleMine]}>
@@ -1485,16 +1761,19 @@ export default function ReadingPlay() {
           </Pressable>
         ) : (
           <>
-            <Pressable
-              style={[styles.eyeBtn, !canGoBack(run) && styles.backBtnOff]}
-              onPress={goBack}
-              disabled={!canGoBack(run)}
-              hitSlop={4}
-              accessibilityRole="button"
-              accessibilityLabel={t('reading.prev')}
-              ph-label="reading_play_prev">
-              <Feather name="skip-back" size={20} color={palette.textDim} />
-            </Pressable>
+            {/* 독백에는 [이전]이 없다 — 한 호흡으로 끝까지 읽고 끝난 뒤 문장부터 다시 한다. */}
+            {!monologue && (
+              <Pressable
+                style={[styles.eyeBtn, !canGoBack(run) && styles.backBtnOff]}
+                onPress={goBack}
+                disabled={!canGoBack(run)}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel={t('reading.prev')}
+                ph-label="reading_play_prev">
+                <Feather name="skip-back" size={20} color={palette.textDim} />
+              </Pressable>
+            )}
             <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={doPause}>
               <Feather name="pause" size={16} color={palette.textDim} />
               <Text style={styles.ctrlGhostText}>{t('reading.pause')}</Text>
@@ -1502,10 +1781,11 @@ export default function ReadingPlay() {
             <Pressable
               style={[styles.ctrl, styles.ctrlPrimary]}
               onPress={() => {
-                if (myTurn) void endMyTurn(run.index);
+                if (monologue) void finishMonologue();
+                else if (myTurn) void endMyTurn(run.index);
                 else goNext(run.index);
               }}>
-              <Text style={styles.ctrlPrimaryText}>{t('reading.next')}</Text>
+              <Text style={styles.ctrlPrimaryText}>{t(monologue ? 'reading.monologueFinish' : 'reading.next')}</Text>
               <Feather name="arrow-right" size={16} color="#fff" />
             </Pressable>
           </>
@@ -1617,6 +1897,12 @@ const styles = StyleSheet.create({
   primaryWideText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
   textButton: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 15, paddingVertical: 10 },
 
+  monoNow: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18, lineHeight: 27, marginTop: 6 },
+  monoOther: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 23, marginTop: 6 },
+  monoRow: { alignSelf: 'stretch', gap: 2, paddingVertical: 8, borderBottomColor: palette.borderSoft, borderBottomWidth: 1 },
+  monoRowText: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 15, lineHeight: 22 },
+  monoTag: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
+  monoTagMissed: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   doneIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
   doneTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 4, textAlign: 'center' },
   doneContent: { alignItems: 'center', gap: 12, padding: 24 },

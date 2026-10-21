@@ -6251,9 +6251,14 @@
               "format" : "uuid"
             },
             "title" : "Member Ids"
+          },
+          "unnamed" : {
+            "type" : "boolean",
+            "description" : "원문에 배역 이름이 없어 나누기 작업이 임시 이름(「화자」)을 붙인 독백 배역이면 true. 이름을 고치면(PATCH 의 characters[].name) false 가 된다. 앱은 이 배역의 이름을 배우에게 묻는다(SOMA-597)",
+            "title" : "Unnamed"
           }
         },
-        "required" : [ "age_band", "dialogue_count", "gender", "id", "member_ids", "name", "order", "voice", "voice_preset" ],
+        "required" : [ "age_band", "dialogue_count", "gender", "id", "member_ids", "name", "order", "unnamed", "voice", "voice_preset" ],
         "title" : "ReadingScriptCharacter"
       },
       "ReadingScriptLastSession" : {

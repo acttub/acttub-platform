@@ -88,6 +88,8 @@ export type ScriptCharacter = {
   dialogue_count: number;
   /** 함께 말하는 줄의 묶음 배역이면 그 줄을 함께 말하는 배역 id들(SOMA-709). 보통 배역은 빈 배열이고 옛 서버면 없다. */
   member_ids?: string[];
+  /** 원문에 배역 이름이 없어 서버가 임시 이름(「화자」)을 붙인 독백 배역이면 true(SOMA-597). 이름을 고치면 false 이고 옛 서버면 없다. */
+  unnamed?: boolean;
   /** 서버가 대본에서 뽑은 성별·나이대(SOMA-670). 자동 목소리를 고를 때 쓴다. 모르거나 옛 서버면 없다. */
   gender?: 'm' | 'f' | null;
   age_band?: 'child' | 'young' | 'adult' | 'senior' | null;
