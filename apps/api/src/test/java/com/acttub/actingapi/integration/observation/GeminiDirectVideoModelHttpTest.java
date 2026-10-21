@@ -177,7 +177,7 @@ class GeminiDirectVideoModelHttpTest {
 
     @Test
     void lightCallsThinkMinimallyOnlyWhereTheModelAllowsIt() {
-        // SOMA-780: 3.0 Flash 는 줄이기·분류를 MINIMAL 로, 코치 답은 LOW 로 부른다.
+        // SOMA-780: 3.0 Flash 는 줄이기를 MINIMAL 로, 분류·코치 답은 LOW 로 부른다.
         GeminiDirectVideoModel flash = new GeminiDirectVideoModel(client, "gemini-3-flash-preview");
         respond(chunk("짧게 다듬은 말", "STOP"));
         assertThat(flash.replyLight(null, List.of(new DirectVideoModel.Message("user", "긴 코치 말")), "줄이기"))
@@ -192,7 +192,7 @@ class GeminiDirectVideoModelHttpTest {
                 .replyLight(null, List.of(new DirectVideoModel.Message("user", "긴 코치 말")), "줄이기");
 
         assertThat(bodies).extracting(body -> body.path("generationConfig").path("thinkingConfig").path("thinkingLevel").asText())
-                .containsExactly("MINIMAL", "MINIMAL", "LOW", "LOW");
+                .containsExactly("MINIMAL", "LOW", "LOW", "LOW");
         assertThat(GeminiDirectVideoModel.minimalThinking(null)).isFalse();
     }
 
