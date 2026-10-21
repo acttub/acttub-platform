@@ -23,7 +23,7 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `GET /v2/reading/voice/status` | 헤더 `Authorization`(회원) | `StatusResponse` 200: 지금 쓸 수 있는지(`available`), 무료 종료 시각, cloud_voice 현재 판에 대한 결정(granted·denied·undecided — 거절·철회는 denied), 오늘 한도와 쓴 양 | 게스트 `member_only` 403 |
-| `POST /v2/reading/voice` | 헤더 `Authorization`(회원), `SynthesizeRequest`: `text`(앞뒤 공백을 걷은 1~500자), `voice`(M1~M5·F1~F5) | `SynthesizeResponse` 200: WAV(24kHz, 16-bit, mono) 재생 주소(600초), 캐시 적중 여부 | `invalid_voice_request` 400, `cloud_voice_consent_required` 403, `cloud_voice_daily_limit` 429, `cloud_voice_unavailable` 503, 게스트 `member_only` 403 |
+| `POST /v2/reading/voice` | 헤더 `Authorization`(회원), `SynthesizeRequest`: `text`(앞뒤 공백을 걷은 1~5,000자), `voice`(M1~M5·F1~F5) | `SynthesizeResponse` 200: WAV(24kHz, 16-bit, mono) 재생 주소(600초), 캐시 적중 여부 | `invalid_voice_request` 400, `cloud_voice_consent_required` 403, `cloud_voice_daily_limit` 429, `cloud_voice_unavailable` 503, 게스트 `member_only` 403 |
 
 ## 상태
 없음. 캐시는 문장마다 한 번 만들고 사용량은 회원·한국 날짜마다 센 줄 수다.
@@ -37,6 +37,8 @@
   쓴다. 고품질 목소리를 쓸 수 있으면(설정 켬, status.available, 동의 granted) 앱에 넣어 둔 Gemini 목소리 샘플 10개 가운데
   그 프리셋의 것을 튼다. 샘플은 앱 언어와 상관없이 한국어 한 문장 "안녕하세요, 오늘 같이 연습해요."이고, 서버와 같은
   모델·목소리로 한 번 만들어 넣는다. 서버 호출·한도·기기 모델이 필요 없다.
+- 화면의 한 줄(한 배역의 연속 대사)은 길 수 있다. 서버는 200자를 넘는 줄을 문장 끝, 없으면 쉼표·띄어쓰기에서 200자 이하로
+  나눠 Gemini에 동시에 보내고 하나의 WAV로 이어 준다. 조각이 짧아야 긴 줄도 앱의 요청 제한 시간(30초) 안에 온다. 화면의 줄은 나누지 않고, 캐시·사용량은 줄 하나로 본다.
 - 서버는 같은 모델·목소리·문장의 음성을 캐시한다. 적중하면 새로 만들지 않고 세지 않으며, 하루 한도를 넘은 뒤에도 준다.
   캐시는 사용자와 연결하지 않는다.
 - 사용자당 하루(한국 날짜) 새 합성 300줄, 서비스 전체 한 달 75,000줄. 넘으면 429 cloud_voice_daily_limit /
@@ -57,12 +59,14 @@
   목소리를 못 받아 기기 목소리로 읽어요"를 잠깐 보인다(R9.9).
 - 동의 시트에서 거절: 설정은 꺼진 채 남는다.
 - 동의 시트에서 동의·거절 기록 실패: 시트를 닫지 않고 "동의 기록에 실패했어요. 다시 시도해주세요."를 보인다. 설정은 바뀌지 않고, 다시 누르면 다시 기록한다.
-- text가 비었거나 500자 초과, 모르는 voice: 400 invalid_voice_request.
+- text가 비었거나 5,000자 초과, 모르는 voice: 400 invalid_voice_request. 앱은 그 회차에서 그 줄을 서버에 다시 보내지 않고
+  네트워크 실패와 같은 대체 순서로 읽는다.
 - TTS 모델 설정(GEMINI_TTS_MODEL)이 비어 있으면 status.available=false.
 - 설정 없음·무료 기간 종료·월 상한·Gemini 또는 저장소 실패: 모두 503 cloud_voice_unavailable이다.
 
 ## 검증 방법
 - 동의 없이 POST /v2/reading/voice: 403 cloud_voice_consent_required.
+- 500자를 넘는 줄: 200이고 나눈 조각을 이은 WAV 하나다.
 - 같은 문장을 두 번 요청: 두 번째는 cached=true이고 reading_voice_usage가 늘지 않는다.
 - 하루 300줄을 새로 만든 뒤 새 문장: 429. 이미 만든 문장: 200.
 - READING_VOICE_FREE_UNTIL을 과거로: status.available=false, POST 503, 대본 탭의 목소리 줄·팝업이 보이지 않는다.

@@ -1,9 +1,11 @@
 package com.acttub.actingapi.feature.reading.app;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * 합성 결과를 재생할 WAV 한 벌로 만든다. 모델이 PCM(16bit·mono·24kHz)만 주면 머리를 씌우고,
@@ -34,6 +36,20 @@ public final class WavPcm {
             at = (int) next;
         }
         throw new IllegalStateException("synthesized WAV has no data chunk");
+    }
+
+    /** 나눠 만든 조각들을 {@link #wrap}해 소리 부분만 차례로 이은 WAV 한 벌. 조각의 샘플레이트가 다르면 잇지 않는다. */
+    public static byte[] join(List<byte[]> audios) {
+        List<byte[]> wavs = audios.stream().map(WavPcm::wrap).toList();
+        int rate = ByteBuffer.wrap(wavs.getFirst()).order(ByteOrder.LITTLE_ENDIAN).getInt(24);
+        ByteArrayOutputStream pcm = new ByteArrayOutputStream();
+        for (byte[] wav : wavs) {
+            if (ByteBuffer.wrap(wav).order(ByteOrder.LITTLE_ENDIAN).getInt(24) != rate) {
+                throw new IllegalStateException("synthesized chunks differ in sample rate");
+            }
+            pcm.write(wav, 44, wav.length - 44);
+        }
+        return build(pcm.toByteArray(), rate);
     }
 
     private static boolean isRiffWave(byte[] audio) {
