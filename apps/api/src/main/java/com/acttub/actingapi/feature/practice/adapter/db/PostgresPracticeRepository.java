@@ -565,6 +565,16 @@ class PostgresPracticeRepository implements PracticeRepository {
 
     private static PracticeView view(Tuple row) {
         UUID jobId = row.get("job_id", UUID.class);
+        // 첫 질문이 저장되기 전의 열린 대화는 내주지 않는다(SOMA-780). 서버가 첫 질문을 미리 쓰는 동안 대화 행이 먼저 생기는데,
+        // 이미 깔린 앱은 연습에 대화가 보이면 시작 요청을 보내지 않고 빈 대화를 한 번만 읽어 빈 화면에 멈춘다.
+        // 보이지 않으면 앱이 시작 요청을 보내고, 서버는 쓰는 중인 첫 질문을 기다려 돌려준다(실패해 빈 채로 남았으면 새로 쓴다).
+        UUID conversationId = row.get("conversation_id", UUID.class);
+        String conversationStatus = row.get("conversation_status", String.class);
+        int conversationCount = ((Number) row.get("conversation_count")).intValue();
+        if (conversationId != null && conversationCount == 0 && !"closed".equals(conversationStatus)) {
+            conversationId = null;
+            conversationStatus = null;
+        }
         return new PracticeView(
                 row.get("id", UUID.class),
                 row.get("root_id", UUID.class),
@@ -583,9 +593,9 @@ class PostgresPracticeRepository implements PracticeRepository {
                 row.get("blockage_detail", String.class),
                 row.get("created_at", Instant.class),
                 row.get("analysis_status", String.class),
-                row.get("conversation_id", UUID.class),
-                row.get("conversation_status", String.class),
-                ((Number) row.get("conversation_count")).intValue(),
+                conversationId,
+                conversationStatus,
+                conversationCount,
                 row.get("note_id", UUID.class),
                 row.get("note_title", String.class),
                 row.get("note_kind", String.class),

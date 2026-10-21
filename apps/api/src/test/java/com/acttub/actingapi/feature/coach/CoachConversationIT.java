@@ -443,6 +443,57 @@ class CoachConversationIT {
         assertThat(count("coach_notes")).isZero();
     }
 
+    @Test
+    @DisplayName("practice.coach: 서버가 첫 질문을 미리 쓰는 중(대화는 열렸고 메시지가 없다) — 연습 상세·목록이 대화를 내주지 않아 "
+            + "앱이 시작 요청을 보낸다. 시작은 그 대화에 첫 질문을 쓰고(대화·모델 호출 하나), 그 뒤에는 대화가 보인다")
+    void practiceCoach_practiceHidesAnEmptyConversationUntilTheFirstQuestionIsSaved() throws Exception {
+        UUID conversationId = UUID.randomUUID();
+        jdbc.update("INSERT INTO coach_conversations(id,practice_id,start_request_id,status) VALUES (?,?,?,'open')",
+                conversationId, practice, UUID.randomUUID());
+
+        JsonNode detail = json(get("/v2/practices/{id}", practice), 200);
+        assertThat(detail.path("conversation_id").isNull()).isTrue();
+        assertThat(detail.path("conversation_status").isNull()).isTrue();
+        assertThat(detail.path("conversation_count").intValue()).isZero();
+        JsonNode listed = json(get("/v2/practices"), 200).path("groups").get(0).path("practices").get(0);
+        assertThat(listed.path("conversation_id").isNull()).isTrue();
+        assertThat(listed.path("conversation_status").isNull()).isTrue();
+
+        generator.enqueue(CONTINUE);
+        JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
+
+        assertThat(started.path("conversation").path("id").textValue()).isEqualTo(conversationId.toString());
+        assertThat(started.path("conversation").path("messages")).hasSize(1);
+        assertThat(started.path("message").textValue()).isEqualTo("무엇이 달라졌나요");
+        assertThat(count("coach_conversations")).isEqualTo(1);
+        assertThat(count("coach_messages")).isEqualTo(1);
+        assertThat(generator.calls()).isEqualTo(1);
+        JsonNode after = json(get("/v2/practices/{id}", practice), 200);
+        assertThat(after.path("conversation_id").textValue()).isEqualTo(conversationId.toString());
+        assertThat(after.path("conversation_status").textValue()).isEqualTo("open");
+        assertThat(after.path("conversation_count").intValue()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("practice.coach: 첫 질문이 저장된 열린 대화와 닫힌 대화는 연습 상세에 그대로 보인다(닫힌 대화는 메시지가 없어도)")
+    void practiceCoach_practiceKeepsTheConversationOnceItHasAQuestionOrIsClosed() throws Exception {
+        generator.enqueue(CONTINUE);
+        JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
+        String openId = started.path("conversation").path("id").textValue();
+        assertThat(json(get("/v2/practices/{id}", practice), 200).path("conversation_id").textValue())
+                .isEqualTo(openId);
+
+        UUID other = analyzedPractice(member);
+        UUID closedId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO coach_conversations(id,practice_id,start_request_id,status,close_reason,closed_at)
+                VALUES (?,?,?,'closed','system_failure',now())
+                """, closedId, other, UUID.randomUUID());
+        JsonNode closed = json(get("/v2/practices/{id}", other), 200);
+        assertThat(closed.path("conversation_id").textValue()).isEqualTo(closedId.toString());
+        assertThat(closed.path("conversation_status").textValue()).isEqualTo("closed");
+    }
+
     private String startBody(UUID practiceId, UUID requestId) {
         return "{\"practice_id\":\"" + practiceId + "\",\"request_id\":\"" + requestId + "\"}";
     }
