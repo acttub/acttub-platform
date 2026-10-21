@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.io.EOFException;
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.multipart.MultipartException;
 
 class ApiErrorAdviceTest {
 
@@ -144,6 +147,27 @@ class ApiErrorAdviceTest {
     }
 
     @Test
+    void multipartCutOffByTheClientIsABadRequestAndIsNotReported() throws Exception {
+        MvcResult result = mvc.perform(get("/test/multipart-client-abort")).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(JSON.readTree(result.getResponse().getContentAsString()))
+                .isEqualTo(JSON.readTree("{\"detail\":\"Bad Request\"}"));
+        assertThat(reporter.reports()).isEmpty();
+    }
+
+    @Test
+    void multipartFailingForAnotherReasonIsStillReported() throws Exception {
+        MvcResult result = mvc.perform(get("/test/multipart-disk-full")).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(500);
+        assertThat(JSON.readTree(result.getResponse().getContentAsString()))
+                .isEqualTo(JSON.readTree("{\"detail\":\"internal_server_error\"}"));
+        assertThat(reporter.reports()).singleElement().satisfies(report ->
+                assertThat(report.failure()).isInstanceOf(MultipartException.class));
+    }
+
+    @Test
     void repeatedUnhandledFailuresOnTheAdvicePathUseTheSentrySuppressionWindow()
             throws Exception {
         IScopes scopes = mock(IScopes.class);
@@ -190,6 +214,20 @@ class ApiErrorAdviceTest {
         @GetMapping("/test/spring-timeout")
         void springTimeout() {
             throw new AsyncRequestTimeoutException();
+        }
+
+        @GetMapping("/test/multipart-client-abort")
+        void multipartClientAbort() {
+            // 운영의 모양: MultipartException ← IOFileUploadException ← ClientAbortException ← EOFException
+            throw new MultipartException("Failed to parse multipart servlet request",
+                    new IOException("Processing of multipart/form-data request failed.",
+                            new IOException(new EOFException())));
+        }
+
+        @GetMapping("/test/multipart-disk-full")
+        void multipartDiskFull() {
+            throw new MultipartException("Failed to parse multipart servlet request",
+                    new IOException("No space left on device"));
         }
     }
 }
