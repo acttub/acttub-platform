@@ -49,7 +49,7 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
     /** 함께 말하는 화자의 이름 구분. */
     private static final Pattern SPEAKERS = Pattern.compile("[,，/·&+、]");
     /** 이름 없는 대사 규칙에서 혼자 말하는 사람의 이름 — {@code ScriptSplitPrompt} 의 「화자」와 같은 글자다. */
-    private static final String MONOLOGUE = "화자";
+    private static final String MONOLOGUE = Monologue.PLACEHOLDER;
     /** 줄 맨 앞 이름 + 쌍점 머리. */
     private static final Pattern COLON_HEAD = Pattern.compile("([^:：]{1,10}?)\\s*[:：][\\s\\p{Z}]*(?=\\S)");
     /** 여러 낱말에 문장 끝 부호로 끝나는 글 — 이름이 아니라 말이다. */
