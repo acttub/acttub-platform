@@ -142,8 +142,8 @@ describe('동의 내역', () => {
     await fireEvent(sw(), 'valueChange', true);
 
     expect(recordConsent).toHaveBeenCalledWith('d-email', 'granted');
-    expect(await screen.findByText('광고성 정보 수신 처리 결과')).toBeOnTheScreen();
-    expect(screen.getByText(/^Acttub · \d{4}\.\d{2}\.\d{2} 처리 이메일: 수신 동의$/)).toBeOnTheScreen();
+    expect(await screen.findByText('광고성 정보 수신에 동의했어요')).toBeOnTheScreen();
+    for (const text of ['보낸 곳', 'Acttub', '처리일', '이메일', '수신 동의']) expect(screen.getByText(text)).toBeOnTheScreen();
     expect(sw().props.value).toBe(true);
   });
 
@@ -161,7 +161,7 @@ describe('동의 내역', () => {
     expect(recordConsent).toHaveBeenCalledWith('d-ret', 'granted');
     expect(sw().props.value).toBe(true);
     expect(screen.getByText('동의함 · 2026.10.20')).toBeOnTheScreen();
-    expect(screen.queryByText('광고성 정보 수신 처리 결과')).not.toBeOnTheScreen();
+    expect(screen.queryByText('광고성 정보 수신에 동의했어요')).not.toBeOnTheScreen();
   });
 
   test('저장 뒤 다시 받기가 실패해도 고른 값을 그대로 둔다', async () => {

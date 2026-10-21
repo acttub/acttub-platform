@@ -1,12 +1,13 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { Alert } from 'react-native';
 
 import ConsentScreen from '@/app/consent';
 import type { ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { showMarketingNotice } from '@/lib/marketing-notice';
 
 jest.mock('expo-router', () => ({ Stack: { Screen: () => null } }));
 jest.mock('@/lib/auth', () => ({ useAuth: jest.fn() }));
+jest.mock('@/lib/marketing-notice', () => ({ showMarketingNotice: jest.fn() }));
 
 const submitSignup = jest.fn();
 const reloadSignupDocuments = jest.fn();
@@ -59,7 +60,7 @@ test('필수를 먼저, 선택을 뒤에 두고 기능 안에서 묻는 문서�
 
 test('만 14세 확인과 필수 문서에 모두 동의해야 계속할 수 있고, 고른 것만 보낸다', async () => {
   submitSignup.mockResolvedValue(true);
-  const alert = jest.spyOn(Alert, 'alert');
+  const alert = showMarketingNotice as jest.Mock;
   await render(<ConsentScreen />);
 
   await fireEvent.press(row(/이용약관/));
@@ -102,9 +103,9 @@ test('전체 동의는 보이는 것 전부를 켜고 다시 누르면 끈다', 
   expect(row(/만 14세 이상이에요/)).not.toBeChecked();
 });
 
-test('광고성 정보에 동의하고 가입하면 처리 결과를 OS 알림으로 알린다', async () => {
+test('광고성 정보에 동의하고 가입하면 처리 결과를 다음 화면 위 팝업(S5.13)으로 보낸다', async () => {
   submitSignup.mockResolvedValue(true);
-  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  const alert = showMarketingNotice as jest.Mock;
   await render(<ConsentScreen />);
 
   await fireEvent.press(row(/만 14세 이상이에요/));
@@ -116,8 +117,15 @@ test('광고성 정보에 동의하고 가입하면 처리 결과를 OS 알림�
 
   expect(decisionsSent()).toEqual({ 'd-terms': 'granted', 'd-privacy': 'granted', 'd-push': 'granted' });
   expect(alert).toHaveBeenCalledWith(
-    '광고성 정보 수신 처리 결과',
-    expect.stringMatching(/^Acttub · \d{4}\.\d{2}\.\d{2} 처리\n이메일: 수신 거부\n앱 푸시: 수신 동의$/),
+    expect.objectContaining({
+      title: '광고성 정보 수신 설정을 바꿨어요',
+      sender: 'Acttub',
+      date: expect.stringMatching(/^\d{4}\.\d{2}\.\d{2}$/),
+      rows: [
+        { channel: '이메일', result: '수신 거부', granted: false },
+        { channel: '앱 푸시', result: '수신 동의', granted: true },
+      ],
+    }),
   );
 });
 
