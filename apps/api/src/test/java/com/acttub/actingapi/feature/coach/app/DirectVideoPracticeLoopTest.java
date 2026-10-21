@@ -215,4 +215,10 @@ class DirectVideoPracticeLoopTest {
         assertThat(DirectVideoPracticeLoop.habit("버릇: 몸\n몸: 없음")).isEqualTo("몸");
         assertThat(DirectVideoPracticeLoop.habit("버릇: 몸\n몸: 어깨가 올라간다")).isEqualTo("어깨가 올라간다");
     }
+
+    @org.junit.jupiter.api.Test void hidesNextTakeLineWhoseClosingBracketIsMissing() {
+        String raw = "<다음 테이크>담담하게 말해 봐도 좋아요.</다음 테이크\n\n사실에 짓눌리지 않고 덤덤하게 말해 봐도 좋아요.";
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.parse(raw).message())
+                .isEqualTo("사실에 짓눌리지 않고 덤덤하게 말해 봐도 좋아요.");
+    }
 }
