@@ -129,6 +129,8 @@ final class DirectVideoPracticeLoop {
                     + "|\\bnamespace\\s+\\w|\\bpublic\\s+(?:class|static|void)\\b|```|\\{\\s*\"[a-z_]+\"\\s*:");
 
     private static final Pattern LEFTOVER_TAG = Pattern.compile("</?[A-Za-z][A-Za-z0-9_-]*\\s*/?>");
+    // 글머리에 남은 한글 이름 태그(<추가> 같은). 영상 없는 내려놓기 답에서 나왔다(2026-10-21). 대본 지문(<웃음>)을 말 중간에 인용할 수 있어 맨 앞에 있을 때만 본다.
+    private static final Pattern LEADING_TAG = Pattern.compile("^\\s*</?\\p{L}[\\p{L}\\p{N}_-]*\\s*/?>");
 
     /**
      * 배우에게 보낼 수 없는 출력인지. HTML·코드가 섞였거나, 한국어 대화에서 한글이 글자의 절반이 안 되거나,
@@ -140,7 +142,7 @@ final class DirectVideoPracticeLoop {
         if (text.replaceAll("[\\p{Cf}\\s]+", "").isEmpty()) return true;
         if (MARKUP_OR_CODE.matcher(text).find()) return true;
         // 숨은 칸을 걷어낸 뒤에도 꺾쇠 태그(<thought>, <answer> 같은)가 남았으면 배우에게 보내지 않는다.
-        if (LEFTOVER_TAG.matcher(text).find()) return true;
+        if (LEFTOVER_TAG.matcher(text).find() || LEADING_TAG.matcher(text).find()) return true;
         boolean korean = language == null || "ko".equals(language.getLanguage());
         if (!korean) return false;
         int hangul = 0, jamo = 0, letters = 0;
@@ -160,6 +162,8 @@ final class DirectVideoPracticeLoop {
     static boolean looksBrokenSoFar(String text, java.util.Locale language) {
         if (text == null || text.isBlank()) return false;
         if (MARKUP_OR_CODE.matcher(text).find()) return true;
+        // 남은 태그(<th-thought>, <추가>)는 화면에 한 글자도 흘리지 않고 끊는다. 부르는 쪽이 다시 쓰게 한다.
+        if (LEFTOVER_TAG.matcher(text).find() || LEADING_TAG.matcher(text).find()) return true;
         boolean korean = language == null || "ko".equals(language.getLanguage());
         if (!korean) return false;
         long jamo = text.chars().filter(c -> c >= '\u3131' && c <= '\u318E').count();
