@@ -51,8 +51,8 @@ public final class RecordingCoachMaterial {
             String transcriptSource) {
     }
 
-    /** 모델에 보일 녹음 하나. {@code label} 은 "녹음 n" 이고 n 은 1부터다. */
-    public record Clip(int number, String label, UUID lineId, String objectKey, String contentType) {
+    /** 모델에 보일 녹음 하나. {@code label} 은 "녹음 n" 이고 n 은 1부터다. {@code text} 는 그 줄의 대본 글(빠르기 계산용). */
+    public record Clip(int number, String label, UUID lineId, String objectKey, String contentType, String text) {
     }
 
     /** 모델에 보일 것 전부. */
@@ -107,7 +107,7 @@ public final class RecordingCoachMaterial {
             }
             total += recording.byteSize();
             int number = clips.size() + 1;
-            clips.add(new Clip(number, "녹음 " + number, line.id(), recording.objectKey(), recording.contentType()));
+            clips.add(new Clip(number, "녹음 " + number, line.id(), recording.objectKey(), recording.contentType(), line.text()));
             numbers.put(line.id(), number);
         }
         StringBuilder script = new StringBuilder("[대본]\n");
