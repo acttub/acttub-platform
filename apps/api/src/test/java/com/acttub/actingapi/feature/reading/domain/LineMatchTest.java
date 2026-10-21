@@ -38,6 +38,15 @@ class LineMatchTest {
     }
 
     @Test
+    @DisplayName("reading.session: 문장부호·말줄임표와 「ㅋㅋ·ㅎㅎ」 같은 낱자모 추임새는 소리 내 읽는 글자가 아니라 대조에서 뺀다(SOMA-646)")
+    void ignoresPunctuationEllipsisAndJamoInterjections() {
+        assertThat(LineMatch.normalize("진짜?! ㅋㅋㅋㅋ… 제가 301호 아랫집이라 들은 게 좀···")).isEqualTo("진짜제가301호아랫집이라들은게좀");
+        assertThat(LineMatch.compare("진짜", "ㅋㅋㅋㅋ 진짜?!")).isEqualTo(LineMatch.Result.PASS);
+        assertThat(LineMatch.compare("고마워", "ㅎㅎ 고마워...")).isEqualTo(LineMatch.Result.PASS);
+        assertThat(LineMatch.compare("ㅠㅠ", "여기")).as("낱자모만 받아썼으면 말한 게 없다").isEqualTo(LineMatch.Result.NO_SPEECH);
+    }
+
+    @Test
     @DisplayName("reading.session: 원문이나 말한 것이 1,000자를 넘으면 대조하지 않고 수동 진행을 준다(미달로 기록하지 않음)")
     void tooLong() {
         String longText = "가".repeat(1001);

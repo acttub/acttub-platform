@@ -30,6 +30,12 @@ class WordDiffTest {
     }
 
     @Test
+    @DisplayName("reading.session: 「ㅋㅋ·ㅎㅎ」 같은 낱자모 추임새는 말하지 않아도 표시하지 않는다(SOMA-646)")
+    void ignoresJamoInterjections() {
+        assertThat(marked("ㅋㅋㅋㅋ 진짜?!", "진짜")).isEmpty();
+    }
+
+    @Test
     @DisplayName("reading.session: 빠진 말은 표시하고 더한 말은 원문에 표시하지 않는다")
     void marksMissingWordsButNotAddedOnes() {
         assertThat(marked("나는 정말 몰랐어", "나는 몰랐어")).containsExactly("정말");
