@@ -34,7 +34,7 @@ public class HttpRecordingSounds implements RecordingSounds {
     private final ObjectMapper mapper;
 
     public HttpRecordingSounds(String baseUrl, Supplier<ObjectStorage> storage, ObjectMapper mapper) {
-        this.endpoint = URI.create(baseUrl.replaceAll("/+$", "") + "/measure");
+        this.endpoint = URI.create(withoutTrailingSlash(baseUrl) + "/measure");
         this.storage = storage;
         this.mapper = mapper;
     }
@@ -97,5 +97,13 @@ public class HttpRecordingSounds implements RecordingSounds {
 
     private static Double doubleOrNull(JsonNode node) {
         return node == null || node.isNull() ? null : node.asDouble();
+    }
+
+    static String withoutTrailingSlash(String url) {
+        int end = url.length();
+        while (end > 0 && url.charAt(end - 1) == '/') {
+            end -= 1;
+        }
+        return url.substring(0, end);
     }
 }
