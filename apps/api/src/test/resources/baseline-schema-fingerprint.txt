@@ -413,6 +413,13 @@ COLUMN practice_migration_entries.source_id ord=4 type=uuid len=- null=NO defaul
 COLUMN practice_migration_entries.source_table ord=3 type=text len=- null=NO default=-
 COLUMN practice_migration_entries.step ord=2 type=text len=- null=NO default=-
 COLUMN practice_migration_entries.target_id ord=5 type=uuid len=- null=YES default=-
+COLUMN practice_reminder_sends.day ord=2 type=date len=- null=NO default=-
+COLUMN practice_reminder_sends.kind ord=4 type=text len=- null=NO default=-
+COLUMN practice_reminder_sends.sent_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN practice_reminder_sends.skipped_days ord=5 type=int4 len=- null=NO default=-
+COLUMN practice_reminder_sends.slot ord=3 type=text len=- null=NO default=-
+COLUMN practice_reminder_sends.template_id ord=6 type=text len=- null=NO default=-
+COLUMN practice_reminder_sends.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN practice_reports.created_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN practice_reports.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN practice_reports.practice_session_id ord=2 type=uuid len=- null=NO default=-
@@ -1305,6 +1312,16 @@ CONSTRAINT practice_migration_entries practice_migration_entries_source_id_not_n
 CONSTRAINT practice_migration_entries practice_migration_entries_source_table_not_null NOT NULL source_table
 CONSTRAINT practice_migration_entries practice_migration_entries_step_not_null NOT NULL step
 CONSTRAINT practice_migration_entries uq_practice_migration_source UNIQUE (source_table, source_id)
+CONSTRAINT practice_reminder_sends ck_practice_reminder_sends_slot CHECK ((slot = ANY (ARRAY['practice'::text, 'streak'::text])))
+CONSTRAINT practice_reminder_sends practice_reminder_sends_day_not_null NOT NULL day
+CONSTRAINT practice_reminder_sends practice_reminder_sends_kind_not_null NOT NULL kind
+CONSTRAINT practice_reminder_sends practice_reminder_sends_pkey PRIMARY KEY (user_id, day, slot)
+CONSTRAINT practice_reminder_sends practice_reminder_sends_sent_at_not_null NOT NULL sent_at
+CONSTRAINT practice_reminder_sends practice_reminder_sends_skipped_days_not_null NOT NULL skipped_days
+CONSTRAINT practice_reminder_sends practice_reminder_sends_slot_not_null NOT NULL slot
+CONSTRAINT practice_reminder_sends practice_reminder_sends_template_id_not_null NOT NULL template_id
+CONSTRAINT practice_reminder_sends practice_reminder_sends_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT practice_reminder_sends practice_reminder_sends_user_id_not_null NOT NULL user_id
 CONSTRAINT practice_reports ck_practice_reports_report_type CHECK ((report_type = ANY (ARRAY['analysis'::text, 'expression'::text, 'practice_note'::text])))
 CONSTRAINT practice_reports practice_reports_created_at_not_null NOT NULL created_at
 CONSTRAINT practice_reports practice_reports_id_not_null NOT NULL id
@@ -1816,6 +1833,7 @@ INDEX CREATE UNIQUE INDEX portfolio_photos_pkey ON public.portfolio_photos USING
 INDEX CREATE UNIQUE INDEX portfolios_pkey ON public.portfolios USING btree (user_id)
 INDEX CREATE UNIQUE INDEX practice_feedback_pkey ON public.practice_feedback USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_migration_entries_pkey ON public.practice_migration_entries USING btree (id)
+INDEX CREATE UNIQUE INDEX practice_reminder_sends_pkey ON public.practice_reminder_sends USING btree (user_id, day, slot)
 INDEX CREATE UNIQUE INDEX practice_reports_pkey ON public.practice_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_sessions_pkey ON public.practice_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX practices_pkey ON public.practices USING btree (id)
@@ -1960,6 +1978,7 @@ TABLE portfolio_photos
 TABLE portfolios
 TABLE practice_feedback
 TABLE practice_migration_entries
+TABLE practice_reminder_sends
 TABLE practice_reports
 TABLE practice_sessions
 TABLE practices
