@@ -93,7 +93,10 @@ public class DirectVideoConfiguration {
             // 코치 흐름 비교(SOMA-636). false 면 모두 지금 흐름(A)이다(롤백).
             @Value("${ACTTUB_COACH_FLOW_AB:true}") boolean flowAb,
             com.acttub.actingapi.feature.coach.app.CoachVideoCache videoCache,
-            GeminiDirectVideoModel.Hedge coachHedge) {
+            GeminiDirectVideoModel.Hedge coachHedge,
+            // 정정에 답하는 '내려놓기'는 영상을 붙이지 않고 글만 보내 쓴다(SOMA-780). 영상이 붙으면 생각 루프에 빠져 15~20초 걸렸다.
+            // false 면 예전처럼 영상과 함께 쓴다(롤백).
+            @Value("${ACTTUB_COACH_LET_GO_WITHOUT_VIDEO:true}") boolean letGoWithoutVideo) {
         var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null
                 : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge);
         return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
@@ -102,7 +105,7 @@ public class DirectVideoConfiguration {
                 alternate, modelBShare,
                 flowAb ? flows.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachFlows.NONE)
                         : com.acttub.actingapi.feature.coach.app.CoachFlows.NONE,
-                videoCache);
+                videoCache, letGoWithoutVideo);
     }
 
     @Bean(destroyMethod = "close")
