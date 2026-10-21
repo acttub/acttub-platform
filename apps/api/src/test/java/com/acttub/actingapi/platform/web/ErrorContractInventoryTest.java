@@ -384,6 +384,11 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingSessionIT"),
             covered("feature.reading.app.SessionService|422|request_fingerprint_mismatch", 1,
                     "feature.reading.ReadingSessionIT"),
+            // 리딩 발음 보고서(SOMA-606, 실험·허용 사용자만). 404 는 꺼짐·허용 밖과 내 회차가 아님 둘이다.
+            covered("feature.reading.app.PronunciationReportService|404|pronunciation_not_available", 1,
+                    "feature.reading.app.PronunciationReportServiceTest"),
+            covered("feature.reading.app.PronunciationReportService|404|session_not_found", 1,
+                    "feature.reading.app.PronunciationReportServiceTest"),
             // 리딩 회차 평가(reading.session, SOMA-661). 노트 평가와 같은 모양이고 404 는 회차 조회와 같다.
             covered("feature.reading.app.SessionRatingService|404|session_not_found", 1,
                     "feature.reading.ReadingSessionRatingIT"),
