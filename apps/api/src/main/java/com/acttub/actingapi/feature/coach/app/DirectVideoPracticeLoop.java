@@ -204,9 +204,17 @@ final class DirectVideoPracticeLoop {
         return "";
     }
 
+    private static final Pattern LEAD_WORD = Pattern.compile("^(?:아|네|그럼|그러면|그렇다면)[,.\\s]++");
+
     private static String normalizedQuestion(String q) {
-        return q.replaceAll("^(?:(?:아|네|그럼|그러면|그렇다면)[,.\\s]+)+", "").replaceAll("(?:그|이) 장면에(?:서는|선|서)?", "")
-                .replaceAll("[\\s\\p{Punct}“”‘’…·]+", "");
+        String rest = q.strip();
+        // 앞의 "아, 그럼"처럼 받는 말을 하나씩 뗀다(중첩 반복 정규식은 긴 입력에서 스택을 넘칠 수 있다).
+        for (int i = 0; i < 4; i++) {
+            String next = LEAD_WORD.matcher(rest).replaceFirst("");
+            if (next.equals(rest)) break;
+            rest = next;
+        }
+        return rest.replaceAll("(?:그|이) 장면에(?:서는|선|서)?", "").replaceAll("[\\s\\p{Punct}“”‘’…·]++", "");
     }
 
     /** 두 질문이 같은 뜻으로 보이는지. 앞의 "아, 그럼", "그 장면에서" 같은 말과 띄어쓰기를 빼고 두 글자 묶음이 60% 이상 겹치면 같다고 본다. */
