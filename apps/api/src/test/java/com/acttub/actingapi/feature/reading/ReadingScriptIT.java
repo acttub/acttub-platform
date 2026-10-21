@@ -246,33 +246,20 @@ class ReadingScriptIT {
     }
 
     @Test
-    @DisplayName("reading.script: 줄 3,001개 — 422 script_too_long. 배역 51개 — 422 script_too_long. 3,000줄·50배역은 저장된다")
-    void readingScript_lineAndCharacterCountLimits() throws Exception {
-        List<String> fifty = new ArrayList<>();
-        for (int index = 0; index < 50; index++) {
-            fifty.add("배역" + index);
+    @DisplayName("reading.script: 줄 수·배역 수 한도는 없다(SOMA-709) — 줄 3,001개·배역 51개도 201로 저장된다")
+    void readingScript_noLineOrCharacterCountLimit() throws Exception {
+        List<String> fiftyOne = new ArrayList<>();
+        for (int index = 0; index < 51; index++) {
+            fiftyOne.add("배역" + index);
         }
-        List<Map<String, Object>> threeThousand = new ArrayList<>();
-        for (int ordinal = 1; ordinal <= 3_000; ordinal++) {
-            threeThousand.add(line(ordinal, "dialogue", ordinal % 50, "대사 " + ordinal));
+        List<Map<String, Object>> lines = new ArrayList<>();
+        for (int ordinal = 1; ordinal <= 3_001; ordinal++) {
+            lines.add(line(ordinal, "dialogue", ordinal % 51, "대사 " + ordinal));
         }
         JsonNode saved = json(post("/v2/reading/scripts")
-                .content(script(UUID.randomUUID(), "큰 대본", "file", "원문", fifty, threeThousand).toString()), 201);
-        assertThat(saved.path("lines")).hasSize(3_000);
-        assertThat(saved.path("characters")).hasSize(50);
-
-        List<Map<String, Object>> tooMany = new ArrayList<>(threeThousand);
-        tooMany.add(line(3_001, "direction", null, "(끝)"));
-        assertThat(json(post("/v2/reading/scripts")
-                .content(script(UUID.randomUUID(), "큰 대본", "file", "원문", fifty, tooMany).toString()), 422))
-                .isEqualTo(mapper.readTree("{\"detail\":\"script_too_long\"}"));
-
-        List<String> fiftyOne = new ArrayList<>(fifty);
-        fiftyOne.add("배역50");
-        assertThat(json(post("/v2/reading/scripts")
-                .content(script(UUID.randomUUID(), "큰 대본", "file", "원문", fiftyOne,
-                        List.of(line(1, "dialogue", 50, "안녕"))).toString()), 422))
-                .isEqualTo(mapper.readTree("{\"detail\":\"script_too_long\"}"));
+                .content(script(UUID.randomUUID(), "큰 대본", "file", "원문", fiftyOne, lines).toString()), 201);
+        assertThat(saved.path("lines")).hasSize(3_001);
+        assertThat(saved.path("characters")).hasSize(51);
         assertThat(count("scripts")).isEqualTo(1);
     }
 

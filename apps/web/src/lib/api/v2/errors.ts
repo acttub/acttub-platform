@@ -97,7 +97,7 @@ export function isRateLimited(error: unknown): error is ApiError {
  * 리딩 대본 넣기·수정과 회차 시작·진행 저장의 422 사유(reading.script·reading.session). 웹은 게스트뿐이라 대본 수 한도는 게스트의 20개다.
  */
 export const READING_SCRIPT_MESSAGES: Record<string, string> = {
-  script_too_long: "대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요.",
+  script_too_long: "대본이 너무 길어요. 원문 100,000자까지 저장할 수 있어요.",
   script_limit: "대본은 20개까지 저장할 수 있어요. 안 쓰는 대본을 지우면 다시 저장할 수 있어요.",
   invalid_characters: "배역 이름이 비어 있거나 다른 배역과 겹쳐요. 이름을 고쳐 주세요.",
   request_fingerprint_mismatch: "같은 요청으로 다른 대본이 저장돼 있어요. 대본을 다시 넣어 주세요.",

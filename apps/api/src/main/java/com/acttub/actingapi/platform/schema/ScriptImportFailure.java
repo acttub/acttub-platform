@@ -12,7 +12,7 @@ public enum ScriptImportFailure implements PgEnum {
     NOT_SCRIPT("not_script"),
     /** 나눴더니 말하는 배역이 하나도 없다. */
     NO_CHARACTERS("no_characters"),
-    /** 나눈 결과가 대본 한도(줄 3,000·배역 50(함께 말하기 이름 제외)·본문 총량)를 넘는다. */
+    /** 나눈 결과의 줄 본문 총량이 대본 한도(100,000자)를 넘는다. */
     SCRIPT_TOO_LONG("script_too_long"),
     /** 저장할 때 대본 수 한도에 걸렸다. */
     SCRIPT_LIMIT("script_limit"),

@@ -12,15 +12,10 @@ import org.junit.jupiter.api.Test;
 class ScriptRulesTest {
 
     @Test
-    @DisplayName("SOMA-663: 배역 50명 한도는 함께 말하기 이름을 세지 않는다 — 50명 + 함께 말하기 3개는 통과, 51명이면 script_too_long")
-    void groupNamesDoNotCountTowardTheLimit() {
-        List<String> people = IntStream.rangeClosed(1, ScriptRules.CHARACTERS_MAX).mapToObj(n -> "배역" + n).toList();
-        List<String> names = new ArrayList<>(people);
-        names.addAll(List.of("모두", "배역1, 배역2", "학생들 일동"));
+    @DisplayName("SOMA-709: 배역 수 한도는 없다 — 배역 120명도 통과")
+    void noCharacterLimit() {
+        List<String> names = new ArrayList<>(IntStream.rangeClosed(1, 120).mapToObj(n -> "배역" + n).toList());
         assertThat(ScriptRules.check(draft(names))).isNull();
-
-        names.add("배역51");
-        assertThat(ScriptRules.check(draft(names))).isEqualTo(ScriptRules.Rejection.TOO_LONG);
     }
 
     @Test

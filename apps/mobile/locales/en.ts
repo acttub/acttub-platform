@@ -1526,7 +1526,7 @@ const en: DeepStringShape<typeof ko> = {
     // Confirm screen
     dialogueCount: '{{count}} lines',
     // Limits · error codes
-    errorScriptTooLong: 'That script is too long. Up to 100,000 characters, 3,000 lines and 50 roles can be saved.',
+    errorScriptTooLong: 'That script is too long. Up to 100,000 characters can be saved.',
     errorScriptLimit: 'You can keep up to 100 scripts. Delete one you no longer use to save another.',
     errorInvalidCharacters: 'A role name is empty or repeated. Please fix the names.',
     errorFingerprintMismatch: 'This differs from the request sent earlier. Please add it as a new script.',
