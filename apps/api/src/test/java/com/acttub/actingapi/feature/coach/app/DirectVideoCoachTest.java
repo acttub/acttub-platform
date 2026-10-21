@@ -829,6 +829,34 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.closingNextTake(statuses)).isEqualTo("처음부터 끝까지 상대를 붙잡아 봐도 좋아요");
     }
 
+    @Test void twoEmptyRepliesGetALightThirdTryInsteadOfAnError() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\",\"question\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING)
+                .thenThrow(new IllegalStateException("empty video coaching reply"))
+                .thenThrow(new IllegalStateException("empty video coaching reply: output limit reached"));
+        when(model.replyLight(eq(file), anyList(), anyString())).thenReturn("렌즈 옆에 아빠 얼굴이 있다고 정해 둬요. 그 얼굴이 굳는지 보며 다음 말로 가 봐도 좋아요.");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "나한테 상대역이 없는데?", UUID.randomUUID());
+        assertThat(second.reply().message()).startsWith("렌즈 옆에 아빠 얼굴이 있다고");
+        verify(model, times(1)).replyLight(eq(file), anyList(), anyString());
+        assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
+                .last().satisfies(call -> assertThat(call.metadata()).containsEntry("light_retry", "true"));
+    }
+
+    @Test void aMetaphorIsPolishedAwayWithoutTheVideo() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\",\"evaluation\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"잡아줘\"에서 말이 또렷하게 꽂혀요.");
+        when(model.replyLight(isNull(), anyList(), anyString())).thenReturn("\"잡아줘\"에서 말이 또렷하게 들려요.");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "어땠어요?", UUID.randomUUID());
+        assertThat(second.reply().message()).isEqualTo("\"잡아줘\"에서 말이 또렷하게 들려요.");
+        var prompt = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model).replyLight(isNull(), anyList(), prompt.capture());
+        assertThat(prompt.getValue()).contains("고칠 비유: 꽂혀");
+    }
+
     @Test void whenTheComparedModelStaysEmptyTheDefaultModelWritesTheReplyInsteadOfAnError() {
         var compared = mock(DirectVideoModel.class);
         when(compared.model()).thenReturn("gemini-3.8-flash");
