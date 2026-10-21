@@ -248,6 +248,30 @@ class ConversationServiceTest {
         assertThat(failures.reports()).as("코치 쪽이 이미 기록한 실패는 다시 기록하지 않는다").isEmpty();
     }
 
+    @Test void anAppStartWritesTheFirstQuestionIntoAnEmptyConversationLeftByAFailedPrewrite() {
+        CoachSessionSnapshot empty = session("open", "legacy", null);
+        when(conversations.loadByPractice(user, practice)).thenReturn(new Loaded(practice, conversation, "conversing", empty));
+        when(conversations.open(eq(practice), any(), any())).thenReturn(conversation);
+        when(conversations.loadByConversation(user, conversation))
+                .thenReturn(new Loaded(practice, conversation, "conversing", empty))
+                .thenReturn(new Loaded(practice, conversation, "conversing", session("open", "legacy", null, "새로 쓴 첫 질문")));
+        when(coach.start(any(), eq(conversation), eq(stream))).thenReturn(result(empty, "새로 쓴 첫 질문", "open", null));
+
+        var turn = service(listener).start(user, practice, UUID.randomUUID(), stream);
+
+        assertThat(turn.coachMessage()).isEqualTo("새로 쓴 첫 질문");
+        verify(coach, org.mockito.Mockito.times(1)).start(any(), eq(conversation), eq(stream));
+        verify(conversations).saveOpening(eq(conversation), eq("새로 쓴 첫 질문"), any(), any(), any());
+    }
+
+    @Test void anAppStartOnAClosedConversationIsRefusedAndNeverWritesAgain() {
+        CoachSessionSnapshot closed = session("closed", "legacy", null, "첫 질문");
+        when(conversations.loadByPractice(user, practice)).thenReturn(new Loaded(practice, conversation, "closed", closed));
+        assertThatThrownBy(() -> service(listener).start(user, practice, UUID.randomUUID()))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(409));
+        verify(coach, never()).start(any(), any());
+    }
+
     @Test void thePrewriteDoesNothingWhenTheAppAlreadyStartedOrAnalysisIsNotDone() {
         var service = service(listener);
         when(conversations.loadByPractice(user, practice))
