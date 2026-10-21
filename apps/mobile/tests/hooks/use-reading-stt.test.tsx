@@ -150,11 +150,50 @@ describe('useReadingStt', () => {
     await act(async () => {
       const pending = stt.finish();
       mockHandlers.result(result('오늘 왔구나.', true));
+      mockHandlers.end();
       said = await pending;
     });
     expect(said).toBe('오늘 왔구나.');
     expect(recognizer.stop).toHaveBeenCalledTimes(1);
     expect(setAudioModeAsync).toHaveBeenCalledWith({ playsInSilentMode: true, allowsRecording: false });
+  });
+
+  test('멈춘 뒤 앞 구간의 확정이 먼저 와도 끝(end)까지 기다려 마지막 구간까지 담는다(SOMA-646)', async () => {
+    const { stt } = await listen();
+    await emit('result', result('그래서 더 말하기 싫었어'));
+    await emit('result', result('네가 그걸'));
+
+    let said = '';
+    let settled = false;
+    await act(async () => {
+      const pending = stt.finish().then((t) => {
+        settled = true;
+        return t;
+      });
+      mockHandlers.result(result('그래서 더 말하기 싫었어', true));
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      mockHandlers.result(result('네가 그걸 아니까', true));
+      mockHandlers.end();
+      said = await pending;
+    });
+    expect(said).toBe('그래서 더 말하기 싫었어 네가 그걸 아니까');
+  });
+
+  test('말을 마치자마자 멈춰 마지막 구간의 확정 없이 오류로 끝나도 그 구간의 중간 결과를 남긴다(expo-speech-recognition #158)', async () => {
+    const { stt } = await listen();
+    await emit('result', result('그래서 더 말하기 싫었어', true));
+    await emit('result', result('네가 그걸 아니까'));
+
+    let said = '';
+    await act(async () => {
+      const pending = stt.finish();
+      mockHandlers.result(result(''));
+      mockHandlers.error({ error: 'client' });
+      mockHandlers.end();
+      said = await pending;
+    });
+    expect(said).toBe('그래서 더 말하기 싫었어 네가 그걸 아니까');
   });
 
   test('인식기가 끝(end)을 알리면 그때까지의 글로 끝난다', async () => {
@@ -249,6 +288,15 @@ describe('useReadingStt', () => {
     await emit('speechend');
     await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
     expect(events).toEqual(['speech_start', 'speech_end']);
+  });
+
+  test('문장부호·말줄임표·추임새가 든 받아쓰기도 말 끝에 넘긴다 — 넘김은 글을 대본과 견주지 않는다(SOMA-646)', async () => {
+    const { events } = await listen();
+    await emit('result', result('진짜?! ㅋㅋㅋ… 그래서요...'));
+
+    await emit('speechend');
+    await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
+    expect(events).toEqual(['speech_end']);
   });
 
   test('받아쓴 글이 없는 말 끝은 잡음으로 보고 넘기지 않는다', async () => {

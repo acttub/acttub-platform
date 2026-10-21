@@ -111,7 +111,8 @@ export function useReadingStt(): SttHandle {
       text.current = whole;
       callbacks.current?.onInterim(whole);
     }
-    if (event.isFinal && settle.current) finishNow(text.current);
+    // 멈춘 뒤 첫 확정에서 끝내지 않는다 — 앞 구간 확정(Android 구간 인식·iOS 18)이 마지막 구간보다 먼저 올 수 있어서다.
+    // 두 플랫폼 모두 마지막 결과 뒤에 end 를 준다(SOMA-646).
   });
   useSpeechRecognitionEvent('volumechange', (event) => {
     if (!active.current) return;
