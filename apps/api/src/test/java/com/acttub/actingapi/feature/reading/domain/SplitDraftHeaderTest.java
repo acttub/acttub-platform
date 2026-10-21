@@ -27,7 +27,8 @@ class SplitDraftHeaderTest {
         String raw = "MARA. 가지 마.\n[MARA] 돌아와.\n(MARA) 제발.\nMARA   — 끝이야.\nMARA, 왜 그래.\nMARA";
         ScriptDraft draft = assemble("t", raw, dialogue("MARA", 1, 2, 3, 4, 5, 6));
         assertThat(draft.lines()).extracting(ScriptDraft.Line::text)
-                .containsExactly("가지 마. 돌아와. 제발. 끝이야. MARA, 왜 그래. MARA");
+                // 머리를 뗀 줄은 저마다 한 대사다. 「MARA, 」는 부르는 말이라 앞 대사에 잇고, 이름만 있는 끝 줄은 대사가 아니다
+                .containsExactly("가지 마.", "돌아와.", "제발.", "끝이야. MARA, 왜 그래.");
         assertThat(draft.characterNames()).containsExactly("MARA");
     }
 

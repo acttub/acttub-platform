@@ -25,7 +25,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.reading.app.LineDecider;
+import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
+import com.acttub.actingapi.feature.reading.domain.LineReview;
+import com.acttub.actingapi.feature.reading.domain.SpeakerMerge;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.feature.reading.domain.SampleScript;
 import com.acttub.actingapi.integration.llm.GeneratedText;
@@ -103,6 +108,10 @@ class ReadingImportIT {
                 return instructions.contains("답의 첫 줄은");
             }
 
+            boolean unnamed() {
+                return instructions.contains("배역 이름 표기가 없는 대사");
+            }
+
             boolean spacing() {
                 return instructions.contains("띄어쓰기를 고친다");
             }
@@ -139,7 +148,8 @@ class ReadingImportIT {
                 "엄 마 의 시 험", "엄마의 시험",
                 "[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?", "[엄마] 유세아, 공부 열심히 하고 있지?",
                 "[ 유 세 아 ] 응 . 걱 정 하 지 마 .", "[유세아] 응. 걱정하지 마.",
-                "( 암 전 )", "(암전)");
+                "( 암 전 )", "(암전)",
+                "[엄마] 언제 돌아가실지모르겠지만그래도", "[엄마] 언제 돌아가실지 모르겠지만 그래도");
 
         /** 콜론·대괄호 형식을 완벽하게 나누는 답. 괄호 줄은 지문, 「제N막」은 장면, 「등장인물」 줄은 소개다. */
         static String oracle(Call call) {
@@ -195,6 +205,9 @@ class ReadingImportIT {
     @Autowired ScriptSplitWorker worker;
     @Autowired AiJobLedger ledger;
     @Autowired RecordingFailureReporter failures;
+    @Autowired ScriptImportRepository imports;
+    @Autowired TextGenerator generator;
+    @Autowired LlmTelemetry telemetry;
 
     private final Map<String, UUID> documents = new LinkedHashMap<>();
     private UUID member;
@@ -477,6 +490,8 @@ class ReadingImportIT {
             if (call.roster()) return answer;
             StringBuilder twisted = new StringBuilder();
             for (String row : answer.split("\n")) {
+                // 다시 묻기에서 문맥 줄(~)까지 번호만 떼어 지문으로 답한다 — 빠진 줄이 아니니 버려져야 한다.
+                if (row.startsWith("~")) row = row.substring(1, row.indexOf('\t')) + "\tx\t\t";
                 if (row.startsWith("7\t")) continue;
                 // 첫 판(150줄 조각)에서만 200번째 줄을 빠뜨린다 — 다시 물으면 답한다.
                 if (row.startsWith("200\t") && call.lines().size() == 150) continue;
@@ -504,8 +519,10 @@ class ReadingImportIT {
         assertThat(calls.subList(1, 4)).extracting(call -> call.input().split("\n").length).containsExactlyInAnyOrder(150, 150, 100);
         assertThat(calls.subList(1, 4)).extracting(call -> call.input().split("\n")[0]).containsExactlyInAnyOrder(
                 "1\t등장인물: 뱅코우, 맥베스", "151\t뱅코우: 대사 151", "301\t뱅코우: 대사 301");
-        assertThat(calls.get(4).input()).isEqualTo("7\t뱅코우: 대사 7\n200\t맥베스: 대사 200");
-        assertThat(calls.get(5).input()).isEqualTo("7\t뱅코우: 대사 7");
+        // 다시 묻기는 빠진 줄 앞뒤 4줄을 ~ 문맥으로 함께 보낸다.
+        assertThat(calls.get(4).instructions()).contains("\"~\"가 없는 줄만");
+        assertThat(calls.get(4).input()).isEqualTo(context(3, 11, 7) + "\n" + context(196, 204, 200));
+        assertThat(calls.get(5).input()).isEqualTo(context(3, 11, 7));
 
         JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
         assertThat(done.path("status").textValue()).isEqualTo("succeeded");
@@ -523,10 +540,22 @@ class ReadingImportIT {
         assertThat(script.path("lines").get(5).path("kind").textValue()).as("끝까지 빠진 7번째 줄은 지문").isEqualTo("direction");
         assertThat(script.path("lines").get(5).path("text").textValue()).isEqualTo("뱅코우: 대사 7");
         assertThat(script.path("lines").get(198).path("text").textValue()).as("한 번 빠졌다 되찾은 200번째 줄").isEqualTo("대사 200");
+        assertThat(script.path("lines").get(4).path("kind").textValue()).as("문맥으로 보낸 6번째 줄의 지문 답은 버린다").isEqualTo("dialogue");
+        assertThat(script.path("lines").get(197).path("kind").textValue()).as("문맥으로 보낸 199번째 줄도").isEqualTo("dialogue");
+    }
+
+    /** {@code from}~{@code to} 줄의 다시 묻기 입력 — {@code target} 만 번호 그대로, 나머지는 {@code ~} 문맥. */
+    private static String context(int from, int to, int target) {
+        StringBuilder out = new StringBuilder();
+        for (int line = from; line <= to; line++) {
+            if (!out.isEmpty()) out.append('\n');
+            out.append(line == target ? "" : "~").append(line).append('\t').append(line % 2 == 0 ? "맥베스: 대사 " : "뱅코우: 대사 ").append(line);
+        }
+        return out.toString();
     }
 
     @Test
-    @DisplayName("SOMA-593 7-14: 첫 호출이 「대본 아니오」면 호출 하나로 failed not_script. 배역이 0명이면 failed no_characters")
+    @DisplayName("SOMA-593 7-14: 첫 호출이 「대본 아니오」면 이름 없는 대사 규칙으로 한 번 더 묻고, 그래도 아니오면 failed not_script. 배역이 0명이면 failed no_characters")
     void notScriptAndNoCharacters() throws Exception {
         Model.answer = call -> "대본\t아니오\n";
         String prose = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "어느 날 밤이었다.\n비가 내렸다.", "paste")), 202)
@@ -536,7 +565,10 @@ class ReadingImportIT {
         assertThat(failed.path("status").textValue()).isEqualTo("failed");
         assertThat(failed.path("failure").textValue()).isEqualTo("not_script");
         assertThat(failed.path("script_id").isNull()).isTrue();
-        assertThat(Model.CALLS).hasSize(1);
+        assertThat(Model.CALLS).hasSize(2);
+        assertThat(Model.CALLS.get(0).unnamed()).isFalse();
+        assertThat(Model.CALLS.get(1).unnamed()).isTrue();
+        assertThat(Model.CALLS.get(1).judging()).isTrue();
 
         Model.CALLS.clear();
         Model.answer = call -> "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\tx\t\t\n").reduce("", String::concat);
@@ -544,10 +576,84 @@ class ReadingImportIT {
                 .path("import_id").textValue();
         assertThat(worker.runOnce(clock.instant())).isTrue();
         assertThat(json(get("/v2/reading/imports/{id}", empty), 200).path("failure").textValue()).isEqualTo("no_characters");
+        assertThat(Model.CALLS).extracting(Model.Call::unnamed).containsExactly(false, true);
         assertThat(count("scripts")).isZero();
         assertThat(jdbc.queryForList("SELECT raw_text FROM script_imports", String.class)).containsExactly("", "");
         assertThat(jdbc.queryForList("SELECT status FROM ai_jobs ORDER BY created_at", String.class)).containsExactly("failed", "failed");
         assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SOMA-663 M1: 번호 줄도 판단 줄도 없는 답은 형식 안내를 붙여 그 호출만 한 번 더 묻는다 — 또 벗어나면 빠진 줄 다시 묻기로 간다")
+    void unformattedAnswerIsAskedOnceMore() throws Exception {
+        Model.answer = call -> call.instructions().contains("형식의 결과 줄이 하나도 없어") ? Model.oracle(call) : "동기화가 실패했습니다.";
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "윤서: 여기 있을 줄 알았어.\n태오: 어떻게 알았어.", "paste")), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", id), 200).path("status").textValue()).isEqualTo("succeeded");
+        assertThat(jdbc.queryForList("SELECT name FROM script_characters ORDER BY name", String.class)).containsExactly("윤서", "태오");
+        assertThat(Model.CALLS).hasSize(2);
+        assertThat(Model.CALLS.get(1).judging()).as("첫 호출의 판단 줄·배역 블록 지시는 그대로").isTrue();
+
+        Model.CALLS.clear();
+        Model.answer = call -> call.instructions().contains("다시 묻는 것이다") ? Model.oracle(call) : "동기화가 실패했습니다.";
+        String again = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "윤서: 또 왔어.\n태오: 응.", "paste")), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", again), 200).path("status").textValue()).isEqualTo("succeeded");
+        assertThat(Model.CALLS).as("첫 호출 + 형식 다시 묻기 한 번 + 빠진 줄 다시 묻기").hasSize(3);
+        assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 이름 없는 독백은 첫 판이 대본 아니오여도 이름 없는 대사 규칙으로 다시 나눠 「화자」 배역으로 저장한다")
+    void unnamedMonologue() throws Exception {
+        Model.answer = call -> call.unnamed()
+                ? "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\td\t화자\t\n").reduce("", String::concat)
+                : "대본\t아니오\n";
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "왜 내 마음을 몰라?\n난 아직도 손이 떨려.", "paste")), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(jdbc.queryForList("SELECT name FROM script_characters", String.class)).containsExactly("화자");
+        assertThat(Model.CALLS).extracting(Model.Call::unnamed).containsExactly(false, true);
+        assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 다시 나눠 통과한 글도 Jev 「말하는 글」 확신이 0.5 아래면 not_script. 확신이 높거나 Jev 가 실패하면 저장한다")
+    void speechGate() throws Exception {
+        Model.answer = call -> call.unnamed()
+                ? "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\td\t화자\t\n").reduce("", String::concat)
+                : "대본\t아니오\n";
+        assertThat(gated(() -> 0.2, "엄마, 잘 지내?\n나는 잘 지내.")).isEqualTo("not_script");
+        assertThat(gated(() -> 0.9, "왜 내 마음을 몰라?\n난 아직도 손이 떨려.")).isEqualTo("succeeded");
+        assertThat(failures.reports()).isEmpty();
+        assertThat(gated(() -> { throw new IllegalStateException("decision HTTP 503"); }, "너 진짜 그럴 거야?\n대답 좀 해.")).isEqualTo("succeeded");
+        assertThat(failures.reports()).singleElement().satisfies(report -> assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL));
+    }
+
+    /** 문지기만 붙인 워커로 하나 나누고 상태(실패면 failure)를 돌려준다. */
+    private String gated(java.util.function.DoubleSupplier speech, String text) throws Exception {
+        LineDecider decider = new LineDecider() {
+            @Override public LineReview.Decision decide(LineReview.Question question) {
+                throw new AssertionError("줄 두 번째 의견은 꺼져 있다");
+            }
+
+            @Override public double speech(String ignored) {
+                return speech.getAsDouble();
+            }
+
+            @Override public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed) {
+                throw new AssertionError("같은 사람 판단은 꺼져 있다");
+            }
+        };
+        ScriptSplitWorker gated = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, null);
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, text, "paste")), 202).path("import_id").textValue();
+        assertThat(gated.runOnce(clock.instant())).isTrue();
+        JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);
+        return done.path("status").textValue().equals("failed") ? done.path("failure").textValue() : done.path("status").textValue();
     }
 
     @Test
@@ -669,6 +775,18 @@ class ReadingImportIT {
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
         assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
                 .containsExactly("dialogue|응.", "dialogue|이번엔 시험 잘 봐야지.", "direction|( 암 전 )");
+    }
+
+    @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 한글 여덟 음절 넘게 붙은 줄은 띄어진 줄이 없어도 그 줄만 복원 호출로 보내고, 고친 글로 나눈다")
+    void restoresJoinedLineWithoutSpacedLines() throws Exception {
+        String scriptId = split("[유세아] 응.\n[엄마] 언제 돌아가실지모르겠지만그래도\n( 암 전 )");
+
+        assertThat(Model.CALLS).extracting(Model.Call::spacing).containsExactly(true, false);
+        assertThat(Model.CALLS.getFirst().input()).isEqualTo("2\t[엄마] 언제 돌아가실지모르겠지만그래도");
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
+        assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
+                .containsExactly("dialogue|응.", "dialogue|언제 돌아가실지 모르겠지만 그래도", "direction|( 암 전 )");
     }
 
     @Test
@@ -805,7 +923,7 @@ class ReadingImportIT {
     }
 
     @Test
-    @DisplayName("PDF 추출기가 매핑 없는 글자로 내는 NUL(U+0000)이 글에 섞여 와도 접수된다 — 저장 전에 지우고, 같은 글 판정에도 들어가지 않는다")
+    @DisplayName("PDF 추출기가 매핑 없는 글자로 내는 NUL(U+0000)·Hancom PDF 의 U+F000 이 글에 섞여 와도 접수된다 — 저장 전에 지우고, 같은 글 판정에도 들어가지 않는다")
     void nulCharactersAreDroppedBeforeStorage() throws Exception {
         String clean = "니나: 저는 갈매기예요.\n트레플레프: 아니에요.";
         String scriptId = split(clean);
@@ -814,7 +932,7 @@ class ReadingImportIT {
         assertThat(duplicate.path("duplicate_script_id").textValue()).as("NUL 만 다른 글은 같은 글").isEqualTo(scriptId);
 
         String importId = json(post("/v2/reading/imports")
-                .content(request(UUID.randomUUID(), "갈\u0000매기", "니나: 저는 갈\u0000매기예요!\n\u0000트레플레프: 아니에요.", "paste")), 202)
+                .content(request(UUID.randomUUID(), "갈\u0000매기", "니나: 저는 \uF000갈\u0000매기\uF000예요!\n\u0000트레플레프: 아니에요.", "paste")), 202)
                 .path("import_id").textValue();
         assertThat(jdbc.queryForObject("SELECT raw_text FROM script_imports WHERE id=?::uuid", String.class, importId))
                 .isEqualTo("니나: 저는 갈매기예요!\n트레플레프: 아니에요.");

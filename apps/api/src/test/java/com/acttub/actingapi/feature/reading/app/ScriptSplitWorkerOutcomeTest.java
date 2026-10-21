@@ -78,6 +78,7 @@ class ScriptSplitWorkerOutcomeTest {
         for (int i = 0; i < 160; i++) text.append("오늘의 장보기 목록 ").append(i).append(" 번째 줄입니다\n");
         claimed(text.toString());
         answers.add("대본\t아니오");
+        answers.add("대본\t아니오"); // 이름 없는 대사 규칙으로 한 번 더 나눠도 아니오
         worker.runOnce();
         verify(imports).fail(eq(job), any(), eq(importId), eq(ScriptImportFailure.NOT_SCRIPT), eq(true), any());
     }
