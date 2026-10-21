@@ -54,7 +54,7 @@ class CloudVoiceIT {
 
     @BeforeEach
     void setUp() {
-        jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
+        jdbc.execute("TRUNCATE TABLE users,consent_documents,reading_voice_cache RESTART IDENTITY CASCADE");
         for (String type : List.of("terms", "privacy", "ai_analysis", "retention", "cloud_voice")) {
             jdbc.update("""
                     INSERT INTO consent_documents(id,type,version,locale,title,body,required,published_at)
@@ -132,8 +132,15 @@ class CloudVoiceIT {
     }
 
     @Test
+    void reading_cloudVoice_aLineOverFiveHundredCharsIsSynthesizedNotRejected() throws Exception {
+        var response = synthesize("{\"text\":\"" + ("가".repeat(299) + ". ").repeat(2) + "\",\"voice\":\"F1\"}");
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(mapper.readTree(response.getContentAsString()).path("cached").booleanValue()).isFalse();
+    }
+
+    @Test
     void reading_cloudVoice_emptyTooLongOrUnknownVoiceRequestsAreInvalid() throws Exception {
-        for (String body : List.of("{\"text\":\"  \",\"voice\":\"F1\"}", "{\"text\":\"" + "가".repeat(501) + "\",\"voice\":\"F1\"}",
+        for (String body : List.of("{\"text\":\"  \",\"voice\":\"F1\"}", "{\"text\":\"" + "가".repeat(5001) + "\",\"voice\":\"F1\"}",
                 "{\"text\":\"가지 마\",\"voice\":\"X9\"}")) {
             var response = synthesize(body);
             assertThat(response.getStatus()).as(body).isEqualTo(400);
