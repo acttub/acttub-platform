@@ -226,6 +226,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                     onText.accept(piece);
                 }
                 if (outputLimitReached(chunk)) limited = true;
+                if (request.trace() != null) request.trace().usage(chunk);
             }
         }
         if (limited) throw new IllegalStateException("empty video coaching reply: output limit reached");
@@ -305,10 +306,12 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         return generate(null, history, instruction, categories, false);
     }
 
-    private record Request(List<Content> contents, GenerateContentConfig config) { }
+    private record Request(List<Content> contents, GenerateContentConfig config, ReplyTrace trace) { }
 
     private Request request(Video video, List<Message> history, String instruction, List<String> categories, boolean light) {
         boolean classification = categories != null;
+        // 코치 답(분류 아님)만 턴 단위 생각 단계 요청을 따른다. 분류는 늘 LOW 다.
+        ReplyTrace trace = classification ? null : ReplyTrace.current();
         List<Content> contents = new ArrayList<>();
         if (video != null) contents.add(Content.builder().role("user").parts(
                 Part.fromUri(video.uri(), video.mimeType())).build());
@@ -327,7 +330,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         var config = GenerateContentConfig.builder()
                         .systemInstruction(Content.fromParts(Part.fromText(instruction)))
                         .httpOptions(HttpOptions.builder().timeout(classification ? 15000 : 90000).build())
-                        .thinkingConfig(thinking(light))
+                        .thinkingConfig(thinking(light, trace))
                         .maxOutputTokens(classification ? 1024 : REPLY_TOKEN_LIMIT);
         if (classification) {
             config.temperature(0f).responseMimeType("application/json").responseJsonSchema(java.util.Map.of(
@@ -335,7 +338,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
                             "type", "array", "items", java.util.Map.of("type", "string", "enum", categories))),
                     "required", List.of("signals"), "additionalProperties", false));
         }
-        return new Request(contents, config.build());
+        return new Request(contents, config.build(), trace);
     }
 
     /**
@@ -344,8 +347,21 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
      * 받지 않아 LOW 로 둔다.
      */
     ThinkingConfig thinking(boolean light) {
-        if (!model.startsWith("gemini-3")) return ThinkingConfig.builder().thinkingBudget(0).build();
-        return ThinkingConfig.builder().thinkingLevel(light && minimalThinking(model) ? "MINIMAL" : "LOW").build();
+        return thinking(light, null);
+    }
+
+    /**
+     * {@code trace} 가 최소 생각을 요청한 턴(연습 루프 답장, SOMA-780)도 {@code light} 와 같이 MINIMAL 을 받는 모델이면 MINIMAL 이다.
+     * 받지 않는 모델은 LOW 그대로다. 적용한 단계는 {@code trace} 에 남긴다.
+     */
+    ThinkingConfig thinking(boolean light, ReplyTrace trace) {
+        if (!model.startsWith("gemini-3")) {
+            if (trace != null) trace.applied("off");
+            return ThinkingConfig.builder().thinkingBudget(0).build();
+        }
+        boolean minimal = (light || trace != null && trace.minimal()) && minimalThinking(model);
+        if (trace != null) trace.applied(minimal ? "minimal" : "low");
+        return ThinkingConfig.builder().thinkingLevel(minimal ? "MINIMAL" : "LOW").build();
     }
 
     /** MINIMAL 생각 단계를 받는 모델. 확인한 것은 gemini-3-flash 계열뿐이다. */
@@ -358,6 +374,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         Request request = request(video, history, instruction, categories, light);
         var response = hedged(() -> client.models.generateContent(model, request.contents(), request.config()),
                 classification ? hedge.classify() : hedge.reply());
+        if (request.trace() != null) request.trace().usage(response);
         // 한도에 걸려 끊긴 답은 중간에 잘린 글이다. 빈 답과 같이 다루어 연습 루프가 한 번 다시 쓰게 한다.
         if (!classification && outputLimitReached(response)) {
             throw new IllegalStateException("empty video coaching reply: output limit reached");
