@@ -97,6 +97,7 @@ class LineSpacingTest {
                 Map.entry(5, "윤서\t여기 있을 줄 알았어."));
         assertThat(LineSpacing.parse("2\t[엄마] 유세아, 공부 열심히 하고 있지?\r", SENT))
                 .containsExactly(Map.entry(2, "[엄마] 유세아, 공부 열심히 하고 있지?"));
+        assertThat(LineSpacing.parse("4<TAB>(암전)", SENT)).as("「<TAB>」을 글자 그대로 쓴 답(SOMA-663 M1)").containsExactly(Map.entry(4, "(암전)"));
     }
 
     @Test

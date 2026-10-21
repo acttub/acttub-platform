@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.reading.domain;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 대본의 규칙 — 한도와 배역 이름의 모양 (reading.script · reading.cast). 프레임워크를 모른다.
@@ -17,8 +18,16 @@ public final class ScriptRules {
     /** 줄 수의 상한 — 대사·지문·장면 모두. */
     public static final int LINES_MAX = 3_000;
 
-    /** 배역 수의 상한 — 전체 배역. */
+    /** 배역 수의 상한 — 함께 말하기 이름({@link #isGroupName})은 세지 않는다. */
     public static final int CHARACTERS_MAX = 50;
+
+    /**
+     * 함께 말하기 이름 — 여러 배역을 「,」「/」「·」「•」「&」로 이었거나 「모두」「다 같이」「전원」「일동」「합창」「코러스」「all」을 낱말로 쓴 이름
+     * (SOMA-663). 이름 맞추기를 고친 뒤 이런 이름까지 세어 51명이 되는 대본이 통째로 실패했다. 기준 배역 비교기(refv2 compare2)의
+     * GROUP 과 같은 뜻이되 낱말은 앞뒤에 한글·영문 글자가 붙지 않을 때만 본다 — 「전원주」 같은 이름을 빼지 않게.
+     */
+    private static final Pattern GROUP = Pattern.compile(
+            "[,/·•∙・&]|(?<![가-힣A-Za-z])(모두|다\\s*같이|전원|일동|합창|코러스|all)(?![가-힣A-Za-z])", Pattern.CASE_INSENSITIVE);
 
     /** 회원이 가질 수 있는 대본 수. 이관으로 넘으면 자료는 보존하고 새 등록만 막는다. */
     public static final int MEMBER_SCRIPT_MAX = 100;
@@ -61,6 +70,10 @@ public final class ScriptRules {
         return true;
     }
 
+    public static boolean isGroupName(String name) {
+        return GROUP.matcher(name).find();
+    }
+
     /** {@code null} 은 "자동"이라 언제나 된다. */
     public static boolean voicePresetAllowed(String preset) {
         return preset == null || length(preset) <= VOICE_PRESET_MAX;
@@ -68,7 +81,7 @@ public final class ScriptRules {
 
     /**
      * 저장 요청이 규칙에 걸리는가. 배역이 없으면 {@link Rejection#NO_CHARACTERS}, 이름이 비거나 겹치면
-     * {@link Rejection#INVALID_CHARACTERS}, 원문·줄 본문 총량·줄 수·배역 수가 한도를 넘으면
+     * {@link Rejection#INVALID_CHARACTERS}, 원문·줄 본문 총량·줄 수·배역 수(함께 말하기 이름 빼고)가 한도를 넘으면
      * {@link Rejection#TOO_LONG}. 걸리지 않으면 {@code null}.
      */
     public static Rejection check(ScriptDraft draft) {
@@ -78,7 +91,7 @@ public final class ScriptRules {
         if (!namesAllowed(draft.characterNames())) {
             return Rejection.INVALID_CHARACTERS;
         }
-        if (draft.characterNames().size() > CHARACTERS_MAX
+        if (draft.characterNames().stream().filter(name -> !isGroupName(name)).count() > CHARACTERS_MAX
                 || draft.lines().size() > LINES_MAX
                 || length(draft.rawText()) > TEXT_MAX) {
             return Rejection.TOO_LONG;

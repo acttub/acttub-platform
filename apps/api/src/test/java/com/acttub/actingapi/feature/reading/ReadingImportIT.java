@@ -25,7 +25,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.reading.app.LineDecider;
+import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
+import com.acttub.actingapi.feature.reading.domain.LineReview;
+import com.acttub.actingapi.feature.reading.domain.SpeakerMerge;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.feature.reading.domain.SampleScript;
 import com.acttub.actingapi.integration.llm.GeneratedText;
@@ -101,6 +106,10 @@ class ReadingImportIT {
 
             boolean judging() {
                 return instructions.contains("답의 첫 줄은");
+            }
+
+            boolean unnamed() {
+                return instructions.contains("배역 이름 표기가 없는 대사");
             }
 
             boolean spacing() {
@@ -196,6 +205,9 @@ class ReadingImportIT {
     @Autowired ScriptSplitWorker worker;
     @Autowired AiJobLedger ledger;
     @Autowired RecordingFailureReporter failures;
+    @Autowired ScriptImportRepository imports;
+    @Autowired TextGenerator generator;
+    @Autowired LlmTelemetry telemetry;
 
     private final Map<String, UUID> documents = new LinkedHashMap<>();
     private UUID member;
@@ -543,7 +555,7 @@ class ReadingImportIT {
     }
 
     @Test
-    @DisplayName("SOMA-593 7-14: 첫 호출이 「대본 아니오」면 호출 하나로 failed not_script. 배역이 0명이면 failed no_characters")
+    @DisplayName("SOMA-593 7-14: 첫 호출이 「대본 아니오」면 이름 없는 대사 규칙으로 한 번 더 묻고, 그래도 아니오면 failed not_script. 배역이 0명이면 failed no_characters")
     void notScriptAndNoCharacters() throws Exception {
         Model.answer = call -> "대본\t아니오\n";
         String prose = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "어느 날 밤이었다.\n비가 내렸다.", "paste")), 202)
@@ -553,7 +565,10 @@ class ReadingImportIT {
         assertThat(failed.path("status").textValue()).isEqualTo("failed");
         assertThat(failed.path("failure").textValue()).isEqualTo("not_script");
         assertThat(failed.path("script_id").isNull()).isTrue();
-        assertThat(Model.CALLS).hasSize(1);
+        assertThat(Model.CALLS).hasSize(2);
+        assertThat(Model.CALLS.get(0).unnamed()).isFalse();
+        assertThat(Model.CALLS.get(1).unnamed()).isTrue();
+        assertThat(Model.CALLS.get(1).judging()).isTrue();
 
         Model.CALLS.clear();
         Model.answer = call -> "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\tx\t\t\n").reduce("", String::concat);
@@ -561,10 +576,84 @@ class ReadingImportIT {
                 .path("import_id").textValue();
         assertThat(worker.runOnce(clock.instant())).isTrue();
         assertThat(json(get("/v2/reading/imports/{id}", empty), 200).path("failure").textValue()).isEqualTo("no_characters");
+        assertThat(Model.CALLS).extracting(Model.Call::unnamed).containsExactly(false, true);
         assertThat(count("scripts")).isZero();
         assertThat(jdbc.queryForList("SELECT raw_text FROM script_imports", String.class)).containsExactly("", "");
         assertThat(jdbc.queryForList("SELECT status FROM ai_jobs ORDER BY created_at", String.class)).containsExactly("failed", "failed");
         assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SOMA-663 M1: 번호 줄도 판단 줄도 없는 답은 형식 안내를 붙여 그 호출만 한 번 더 묻는다 — 또 벗어나면 빠진 줄 다시 묻기로 간다")
+    void unformattedAnswerIsAskedOnceMore() throws Exception {
+        Model.answer = call -> call.instructions().contains("형식의 결과 줄이 하나도 없어") ? Model.oracle(call) : "동기화가 실패했습니다.";
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "윤서: 여기 있을 줄 알았어.\n태오: 어떻게 알았어.", "paste")), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", id), 200).path("status").textValue()).isEqualTo("succeeded");
+        assertThat(jdbc.queryForList("SELECT name FROM script_characters ORDER BY name", String.class)).containsExactly("윤서", "태오");
+        assertThat(Model.CALLS).hasSize(2);
+        assertThat(Model.CALLS.get(1).judging()).as("첫 호출의 판단 줄·배역 블록 지시는 그대로").isTrue();
+
+        Model.CALLS.clear();
+        Model.answer = call -> call.instructions().contains("다시 묻는 것이다") ? Model.oracle(call) : "동기화가 실패했습니다.";
+        String again = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "윤서: 또 왔어.\n태오: 응.", "paste")), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", again), 200).path("status").textValue()).isEqualTo("succeeded");
+        assertThat(Model.CALLS).as("첫 호출 + 형식 다시 묻기 한 번 + 빠진 줄 다시 묻기").hasSize(3);
+        assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 이름 없는 독백은 첫 판이 대본 아니오여도 이름 없는 대사 규칙으로 다시 나눠 「화자」 배역으로 저장한다")
+    void unnamedMonologue() throws Exception {
+        Model.answer = call -> call.unnamed()
+                ? "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\td\t화자\t\n").reduce("", String::concat)
+                : "대본\t아니오\n";
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "왜 내 마음을 몰라?\n난 아직도 손이 떨려.", "paste")), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(jdbc.queryForList("SELECT name FROM script_characters", String.class)).containsExactly("화자");
+        assertThat(Model.CALLS).extracting(Model.Call::unnamed).containsExactly(false, true);
+        assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SOMA-663: 다시 나눠 통과한 글도 Jev 「말하는 글」 확신이 0.5 아래면 not_script. 확신이 높거나 Jev 가 실패하면 저장한다")
+    void speechGate() throws Exception {
+        Model.answer = call -> call.unnamed()
+                ? "대본\t예\n" + call.lines().stream().map(line -> line[0] + "\td\t화자\t\n").reduce("", String::concat)
+                : "대본\t아니오\n";
+        assertThat(gated(() -> 0.2, "엄마, 잘 지내?\n나는 잘 지내.")).isEqualTo("not_script");
+        assertThat(gated(() -> 0.9, "왜 내 마음을 몰라?\n난 아직도 손이 떨려.")).isEqualTo("succeeded");
+        assertThat(failures.reports()).isEmpty();
+        assertThat(gated(() -> { throw new IllegalStateException("decision HTTP 503"); }, "너 진짜 그럴 거야?\n대답 좀 해.")).isEqualTo("succeeded");
+        assertThat(failures.reports()).singleElement().satisfies(report -> assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL));
+    }
+
+    /** 문지기만 붙인 워커로 하나 나누고 상태(실패면 failure)를 돌려준다. */
+    private String gated(java.util.function.DoubleSupplier speech, String text) throws Exception {
+        LineDecider decider = new LineDecider() {
+            @Override public LineReview.Decision decide(LineReview.Question question) {
+                throw new AssertionError("줄 두 번째 의견은 꺼져 있다");
+            }
+
+            @Override public double speech(String ignored) {
+                return speech.getAsDouble();
+            }
+
+            @Override public Map<String, Double> role(SpeakerMerge.Candidate candidate, boolean reversed) {
+                throw new AssertionError("같은 사람 판단은 꺼져 있다");
+            }
+        };
+        ScriptSplitWorker gated = new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock, decider, null);
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, text, "paste")), 202).path("import_id").textValue();
+        assertThat(gated.runOnce(clock.instant())).isTrue();
+        JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);
+        return done.path("status").textValue().equals("failed") ? done.path("failure").textValue() : done.path("status").textValue();
     }
 
     @Test

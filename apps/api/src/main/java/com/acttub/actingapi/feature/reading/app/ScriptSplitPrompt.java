@@ -25,6 +25,17 @@ public final class ScriptSplitPrompt {
     private static final String JUDGMENT = """
             답의 첫 줄은 "대본<TAB>예" 또는 "대본<TAB>아니오"다. 배역 이름과 그 배역이 말하는 대사가 있는 글(희곡·시나리오·대본, 혼자 하는 독백 포함)이면 예, 소설·기사·논문·목록처럼 말하는 배역이 없는 글이면 아니오다. 아니오면 그 한 줄만 쓴다.""";
 
+    /**
+     * 이름 없는 대사로 다시 나눌 때 {@link #JUDGMENT} 자리에 쓴다 (SOMA-663). 배역 이름 표기가 없는 짧은 독백·2인 대화를 첫 판단이
+     * 「아니오」라 하거나, 「예」라 해 놓고 배역 칸을 비워 배역이 하나도 남지 않던 자리다.
+     */
+    private static final String UNNAMED_JUDGMENT = """
+            답의 첫 줄은 "대본<TAB>예" 또는 "대본<TAB>아니오"다. 배역 이름 표기가 없어도 사람이 소리 내어 하는 말(혼자 하는 독백, 이름 없이 주고받는 대화)로 된 글이면 예다. 이야기를 서술로 들려주는 소설·기사·논문·목록, 노래 가사·시, 글자가 깨져 읽을 수 없는 글이면 아니오다. 아니오면 그 한 줄만 쓴다.""";
+
+    /** 이름 없는 대사로 다시 나눌 때 끝에 붙는다. 앱은 배역이 하나 이상 있어야 저장한다. */
+    private static final String UNNAMED = """
+            - 배역 이름 표기가 없는 대사: 한 사람이 혼자 말하면 배역을 "화자"로 쓴다. 이름 없이 두 사람 이상이 주고받으면 말을 받는 차례를 보고 "화자1", "화자2"처럼 같은 사람에게 같은 이름을 준다.""";
+
     private static final String ROSTER = """
             대본 앞부분을 받는다. 말하는 배역 이름 목록을 대본에 쓰인 표기 그대로 한 줄에 하나씩 "이름<TAB>성별<TAB>나이대" 형식으로만 답한다. 설명 없이 결과 줄만.""";
 
@@ -63,7 +74,27 @@ public final class ScriptSplitPrompt {
             이번 입력은 앞에서 답이 빠진 줄을 다시 묻는 것이다. 줄번호 앞에 "~"가 붙은 줄은 흐름을 보라고 함께 준 앞뒤 문맥이고, 답하지 않는다.
             "~"가 없는 줄만 한 줄도 빠뜨리지 않고 답한다. 블록 형식의 이름 줄이나 앞선 화자가 문맥 줄에 있으면 그것을 보고 종류와 배역을 정한다.""";
 
+    /**
+     * 결과 줄이 하나도 없는 답을 한 번 더 물을 때 지시문 끝에 붙는다 (SOMA-663 M1). 같은 지시문을 다시 보내면 같은 실행 문맥에서 같은
+     * 꼴의 답이 나올 수 있어 무엇이 틀렸는지 적는다.
+     */
+    private static final String FORMAT_RETRY = """
+            앞의 답에는 정해진 형식의 결과 줄이 하나도 없어 쓰지 못했다. 설명·질문·다른 작업 없이 위 형식의 결과 줄만 쓴다. 칸 사이는 탭 글자로 띄운다.""";
+
     private ScriptSplitPrompt() {
+    }
+
+    /**
+     * 이름 없는 대사로 다시 나누는 지시문 — 나누기·배역 목록·다시 묻기 지시문 어느 것이든 판단 문장을 바꾸고 이름 규칙을 붙인다.
+     * 첫 판이 대본 아님이거나 배역이 하나도 없을 때만 쓴다(대부분의 대본은 첫 판 지시문 그대로다).
+     */
+    public static String unnamed(String instructions) {
+        return instructions.replace(JUDGMENT, UNNAMED_JUDGMENT) + '\n' + UNNAMED;
+    }
+
+    /** 형식을 벗어난 답을 다시 묻는 지시문 — 어느 나누기 지시문이든 끝에 붙인다. */
+    public static String formatRetry(String instructions) {
+        return instructions + '\n' + FORMAT_RETRY;
     }
 
     /** 빠진 줄을 다시 묻는 지시문 — 입력은 {@code NumberedLine.withContext} 모양이다. */

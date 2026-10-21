@@ -4,18 +4,23 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.UnaryOperator;
 
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.Material;
 import com.acttub.actingapi.feature.reading.domain.CharacterTraits;
+import com.acttub.actingapi.feature.reading.domain.LineReview;
 import com.acttub.actingapi.feature.reading.domain.LineSpacing;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
@@ -24,6 +29,7 @@ import com.acttub.actingapi.feature.reading.domain.ScriptRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
 import com.acttub.actingapi.feature.reading.domain.SplitDraft;
 import com.acttub.actingapi.feature.reading.domain.SplitResponse;
+import com.acttub.actingapi.feature.reading.domain.SpeakerMerge;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.GenerationOptions;
 import com.acttub.actingapi.integration.llm.OpenAiStatusException;
@@ -48,7 +54,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>글자마다 띄어졌거나 낱말이 붙어 버린 줄이 있으면 나누기 전에 그 줄의 띄어쓰기만 모델로 고치고, 고친 줄이 공백 말고 다르거나 호출이 실패하면
  * 그 줄은 원문으로 둔다. 줄 번호를 붙인 원문을 150줄 조각으로 동시에 보내고, 조각이 둘 이상이면 앞 400줄로 배역 목록을 먼저
- * 받는다(배역마다 성별·나이대도 — 조각이 하나면 그 호출의 답 끝 「배역」 블록으로, SOMA-670). 첫 호출의 첫 줄이 「대본이 아니다」면 거기서 멈춘다. 버리거나 빠진 줄은 두 번까지 다시 묻고 그래도 남으면 지문이다. 호출 하나는
+ * 받는다(배역마다 성별·나이대도 — 조각이 하나면 그 호출의 답 끝 「배역」 블록으로, SOMA-670). 첫 호출의 첫 줄이 「대본이 아니다」거나 나눈 결과에 배역이 없으면 이름 없는 대사 규칙(독백은 「화자」)으로 한 번 더 나누고, 그래도 대본이 아니면 거기서 멈춘다. 배역이 빈 대사는 앞 대사에 잇고({@link SplitResponse#fillSpeakers}), 잇지 못했거나 버리거나 빠진 줄은 두 번까지 다시 묻고 그래도 남으면 지문이다. 번호 줄도 판단 줄도 없는 답(설명·다른 작업의 답)은 형식 안내를 붙여 그 호출만 한 번 더 묻는다. 호출 하나는
  * 연결 실패·붐빔·서버 실패·미완료 답에 두 번까지 다시 시도하고, 그래도 안 되면 작업은 {@code failed} 로 끝난다 — 기기 파서
  * 대비 경로는 두지 않기로 했다(계획 「정한 것」 1). 사용자가 팝업에서 기다리므로 작업을 다시 큐에 넣지 않는다.
  */
@@ -57,7 +63,8 @@ public class ScriptSplitWorker {
     static final String KIND = AiJobKind.SCRIPT_SPLIT.dbValue();
     /**
      * 선점 lease. 최악 경로는 호출마다 3시도×(90초+대기 3초) ≈ 4.7분이 배역 목록 1번 + 조각 두 묶음(한도 16개씩, 4,256줄은
-     * 29조각) + 빠진 줄 재요청 2판 = 다섯 번 이어지는 약 24분이다. 보통은 1분 안에 끝난다(68편 최대 36초). lease 가 지나면
+     * 29조각) + 빠진 줄 재요청 2판 = 다섯 번 이어지는 약 24분이다(배역이 하나도 없어 이름 없는 대사 규칙으로 한 번 더 나누면 그 두 배까지
+     * 간다). 보통은 1분 안에 끝난다(68편 최대 36초). lease 가 지나면
      * 다른 워커가 다시 집고, 완료는 요청의 request_id 로 멱등이라 두 번 돌아도 대본은 하나다.
      */
     static final Duration LEASE = Duration.ofMinutes(30);
@@ -72,9 +79,28 @@ public class ScriptSplitWorker {
     private final LlmTelemetry telemetry;
     private final FailureReporter failures;
     private final Clock clock;
+    private final LineDecider decider;
+    private final LineReview.Settings review;
+    private final Double sameSpeaker;
 
     public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
             LlmTelemetry telemetry, FailureReporter failures, Clock clock) {
+        this(ledger, imports, generator, telemetry, failures, clock, null, null);
+    }
+
+    /** @param decider 줄 두 번째 의견(SOMA-663 J1). {@code null} 이면 그 단계를 건너뛴다 */
+    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
+            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review) {
+        this(ledger, imports, generator, telemetry, failures, clock, decider, review, null);
+    }
+
+    /** @param sameSpeaker 「같은 사람인가」로 화자를 합치는 확신 하한(SOMA-663 H4). {@code null} 이거나 decider 가 없으면 건너뛴다 */
+    public ScriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
+            LlmTelemetry telemetry, FailureReporter failures, Clock clock, LineDecider decider, LineReview.Settings review,
+            Double sameSpeaker) {
+        this.decider = decider;
+        this.review = review;
+        this.sameSpeaker = sameSpeaker;
         this.ledger = ledger;
         this.imports = imports;
         this.generator = generator;
@@ -148,47 +174,122 @@ public class ScriptSplitWorker {
     private Split split(UUID jobId, UUID importId, Material material) {
         Calls calls = new Calls(jobId, material.userId());
         List<NumberedLine> lines = restoreSpacing(jobId, calls, NumberedLine.of(material.rawText()));
+        Split split = split(calls, importId, material, lines, UnaryOperator.identity(), true);
+        // 이름 없는 독백·대화는 첫 판이 대본 아님이라 하거나 배역 칸을 비운다 — 그때만 이름 없는 대사 규칙으로 한 번 더 나눈다.
+        if (split.failure() != ScriptImportFailure.NOT_SCRIPT && split.failure() != ScriptImportFailure.NO_CHARACTERS) {
+            return split;
+        }
+        split = split(calls, importId, material, lines, ScriptSplitPrompt::unnamed, false);
+        // 다시 나눠 통과한 글도 Jev 가 「말하는 글」이라 확신하지 않으면 거절한다 — 편지·수필처럼 말투만 구어인 글을 막는다.
+        if (split.failure() == null && !material.skipScriptCheck() && decider != null && !speech(calls.jobId, material.rawText())) {
+            return Split.failed(ScriptImportFailure.NOT_SCRIPT);
+        }
+        return split;
+    }
+
+    /** Jev 가 답하지 못하면 다시 나눈 결과를 그대로 둔다 — 문지기 실패가 넣기를 막지 않게. */
+    private boolean speech(UUID jobId, String text) {
+        try {
+            return decider.speech(text) >= ScriptSplitRules.SPEECH_MIN;
+        } catch (RuntimeException failure) {
+            failures.report(failure, FailureKind.EXTERNAL, new FailureContext("ScriptSplitWorker.speech", jobId));
+            return true;
+        }
+    }
+
+    /** @param named 원문에 배역 이름이 있는 대본으로 나누는가 — 이름 없는 대사 규칙(「화자」)이면 원문에 없는 이름이 정상이다 */
+    private Split split(Calls calls, UUID importId, Material material, List<NumberedLine> lines, UnaryOperator<String> prompt, boolean named) {
         imports.progress(importId, 0, lines.size());
         List<List<NumberedLine>> chunks = NumberedLine.chunks(lines, ScriptSplitRules.CHUNK_LINES);
         Map<Integer, SplitResponse.Row> rows = new ConcurrentHashMap<>();
+        Map<Integer, SplitResponse.Row> refused = new ConcurrentHashMap<>();
         List<String> roster = List.of();
         Map<String, CharacterTraits> traits = Map.of();
         AtomicInteger done = new AtomicInteger();
         boolean judge = !material.skipScriptCheck();
         if (chunks.size() == 1) {
-            SplitResponse first = SplitResponse.parse(calls.ask(ScriptSplitPrompt.split(judge, roster, true), chunks.getFirst(), LlmStep.SCRIPT_SPLIT), chunks.getFirst());
+            SplitResponse first = calls.rows(prompt.apply(ScriptSplitPrompt.split(judge, roster, true)), chunks.getFirst(), NumberedLine.format(chunks.getFirst()));
             if (judge && first.notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
             rows.putAll(first.rows());
+            refused.putAll(first.refused());
             traits = first.traits();
             imports.progress(importId, lines.size(), lines.size());
         } else {
             List<NumberedLine> head = lines.subList(0, Math.min(lines.size(), ScriptSplitRules.ROSTER_LINES));
-            String answer = calls.ask(ScriptSplitPrompt.roster(judge), head, LlmStep.SCRIPT_SPLIT);
+            String answer = calls.ask(prompt.apply(ScriptSplitPrompt.roster(judge)), head, LlmStep.SCRIPT_SPLIT);
             if (judge && SplitResponse.parse(answer, List.of()).notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
             traits = SplitResponse.rosterTraits(answer);
             roster = List.copyOf(traits.keySet());
-            String instructions = ScriptSplitPrompt.split(false, roster);
+            String instructions = prompt.apply(ScriptSplitPrompt.split(false, roster));
             inParallel(chunks, chunk -> {
-                rows.putAll(SplitResponse.parse(calls.ask(instructions, chunk, LlmStep.SCRIPT_SPLIT), chunk).rows());
+                SplitResponse part = calls.rows(instructions, chunk, NumberedLine.format(chunk));
+                rows.putAll(part.rows());
+                refused.putAll(part.refused());
                 imports.progress(importId, done.addAndGet(chunk.size()), lines.size());
             });
         }
-        String instructions = ScriptSplitPrompt.missing(roster);
+        Set<Integer> dropped = lines.stream().map(NumberedLine::no).filter(no -> !rows.containsKey(no)).collect(Collectors.toSet());
+        String instructions = prompt.apply(ScriptSplitPrompt.missing(roster));
         for (int round = 0; round < ScriptSplitRules.MISSING_ROUNDS; round++) {
+            SplitResponse.fillSpeakers(lines, rows);
             List<NumberedLine> missing = lines.stream().filter(line -> !rows.containsKey(line.no())).toList();
             if (missing.isEmpty()) {
                 break;
             }
             // 빠진 줄만 답으로 받는다 — 문맥 줄 답은 group 밖이라 parse 가 버린다.
-            inParallel(NumberedLine.chunks(missing, ScriptSplitRules.CHUNK_LINES), group -> rows.putAll(SplitResponse.parse(calls.ask(
-                    instructions, NumberedLine.withContext(lines, group, ScriptSplitRules.MISSING_CONTEXT_LINES), LlmStep.SCRIPT_SPLIT),
-                    group).rows()));
+            inParallel(NumberedLine.chunks(missing, ScriptSplitRules.CHUNK_LINES), group -> rows.putAll(calls.rows(
+                    instructions, group, NumberedLine.withContext(lines, group, ScriptSplitRules.MISSING_CONTEXT_LINES)).rows()));
         }
-        ScriptDraft draft = SplitDraft.assemble(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
+        SplitResponse.lineage(lines, rows, refused);
+        if (named) {
+            SplitResponse.ground(lines, rows);
+        }
+        SplitResponse.fillSpeakers(lines, rows);
+        if (!named) {
+            SplitResponse.monologue(rows);
+        }
+        SplitDraft.Assembly first = SplitDraft.assembleWithSpeakers(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
+        ScriptDraft draft = first.draft();
+        Map<Integer, String> speakers = first.speakers();
+        Map<Integer, String> heads = first.heads();
+        if (decider != null && review != null) {
+            Map<Integer, SplitResponse.Row> changed = first.assembledNames(review(calls.jobId, lines, rows, dropped, draft.characterNames()), rows);
+            // 보기는 조립 이름(머리 이름 앞세우기 뒤 「은서」)인데 줄은 모델 이름(「강은서」)이다. Jev 가 바꾼 줄만 조립 이름이 되면 다시 조립할 때
+            // 안 바뀐 줄이 모델 이름으로 남아 한 사람이 갈린다(SOMA-663 통합, 215). Jev 가 안 바꾼 대사 줄도 조립 이름으로 맞춘다 — 조립 이름으로
+            // 머리도 다시 찾는다(062 「수영\t」, 모델 이름 「최수영」으로는 못 뗀다).
+            if (!changed.isEmpty()) {
+                first.speakers().forEach((no, name) -> {
+                    SplitResponse.Row row = rows.get(no);
+                    if (!changed.containsKey(no) && row != null && row.kind() == SplitResponse.Kind.DIALOGUE && !row.speaker().equals(name)) {
+                        changed.put(no, new SplitResponse.Row(no, SplitResponse.Kind.DIALOGUE, name, row.header()));
+                    }
+                });
+            }
+            if (!changed.isEmpty()) {
+                rows.putAll(changed);
+                SplitDraft.Assembly again = SplitDraft.assembleWithSpeakers(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
+                draft = again.draft();
+                speakers = again.speakers();
+                heads = again.heads();
+            }
+        }
+        Map<Integer, SplitResponse.Row> grouped = SplitDraft.groupHeads(lines, rows, heads);
+        if (!grouped.isEmpty()) {
+            rows.putAll(grouped);
+            SplitDraft.Assembly again = SplitDraft.assembleWithSpeakers(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
+            draft = again.draft();
+            speakers = again.speakers();
+            heads = again.heads();
+        }
+        if (decider != null && sameSpeaker != null) {
+            Set<Integer> scenes = rows.values().stream().filter(row -> row.kind() == SplitResponse.Kind.SCENE).map(SplitResponse.Row::no)
+                    .collect(Collectors.toSet());
+            draft = sameSpeakers(calls.jobId, lines, draft, speakers, heads, scenes);
+        }
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
         if (rejection == null) {
             return Split.of(draft);
@@ -198,6 +299,99 @@ public class ScriptSplitWorker {
             case TOO_LONG -> ScriptImportFailure.SCRIPT_TOO_LONG;
             case INVALID_CHARACTERS -> ScriptImportFailure.FAILED;
         });
+    }
+
+    /** 두 번째 의견은 작업을 실패시키지 않는다 — 답을 못 받은 줄은 나누기 답대로 둔다. 바꿀 줄만 돌려준다. */
+    private Map<Integer, SplitResponse.Row> review(UUID jobId, List<NumberedLine> lines, Map<Integer, SplitResponse.Row> rows,
+            Set<Integer> dropped, List<String> characters) {
+        List<LineReview.Question> questions = LineReview.questions(lines, rows, dropped, characters, review.mode());
+        Map<Integer, SplitResponse.Row> changed = new ConcurrentHashMap<>();
+        Map<Integer, LineReview.Decision> decisions = new ConcurrentHashMap<>();
+        AtomicInteger failed = new AtomicInteger();
+        Instant startedAt = clock.instant();
+        try (ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, Math.min(questions.size(), review.parallel())))) {
+            List<Future<?>> futures = new ArrayList<>();
+            for (LineReview.Question question : questions) {
+                futures.add(executor.submit(() -> {
+                    try {
+                        LineReview.Decision decision = decider.decide(question);
+                        decisions.put(question.no(), decision);
+                        SplitResponse.Row row = LineReview.apply(question, decision, review);
+                        if (row != null) {
+                            changed.put(row.no(), row);
+                        }
+                    } catch (RuntimeException failure) {
+                        if (failed.getAndIncrement() == 0) {
+                            failures.report(failure, FailureKind.EXTERNAL, new FailureContext("ScriptSplitWorker.review", jobId));
+                        }
+                    }
+                }));
+            }
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (ExecutionException impossible) {
+                    throw new IllegalStateException(impossible.getCause());
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("script split review was interrupted", interrupted);
+                }
+            }
+        }
+        changed.putAll(LineReview.neighbors(lines, questions, decisions, changed, characters, review));
+        LOG.info("script split review job={} asked={} changed={} failed={} took_ms={}", jobId, questions.size(), changed.size(),
+                failed.get(), Duration.between(startedAt, clock.instant()).toMillis());
+        return changed;
+    }
+
+    /**
+     * 배역 후보를 원문 쓰임과 함께 Jev 로 묻고 확신이 하한 이상이면 기존 역할로 합치거나 배역을 지운다({@link SpeakerMerge}). 작업을 실패시키지
+     * 않는다 — 답을 못 받은 후보는 그대로 둔다. 동시 수는 줄 두 번째 의견과 같다.
+     */
+    private ScriptDraft sameSpeakers(UUID jobId, List<NumberedLine> lines, ScriptDraft draft, Map<Integer, String> speakers,
+            Map<Integer, String> heads, Set<Integer> scenes) {
+        List<SpeakerMerge.Candidate> candidates = SpeakerMerge.candidates(draft, lines, speakers, heads, scenes);
+        if (candidates.isEmpty()) {
+            return draft;
+        }
+        Map<SpeakerMerge.Candidate, Map<String, Double>> answers = new ConcurrentHashMap<>();
+        Map<SpeakerMerge.Candidate, Map<String, Double>> again = new ConcurrentHashMap<>();
+        AtomicInteger failed = new AtomicInteger();
+        Instant startedAt = clock.instant();
+        int parallel = review == null ? ScriptSplitRules.REVIEW.parallel() : review.parallel();
+        try (ExecutorService executor = Executors.newFixedThreadPool(Math.min(2 * candidates.size(), parallel))) {
+            List<Future<?>> futures = new ArrayList<>();
+            // 보기 순서를 바꿔 두 번 묻는다 — 같은 묶음 안이라 왕복은 늘지 않는다.
+            for (SpeakerMerge.Candidate candidate : candidates) {
+                for (boolean reversed : List.of(false, true)) {
+                    futures.add(executor.submit(() -> {
+                        try {
+                            (reversed ? again : answers).put(candidate, decider.role(candidate, reversed));
+                        } catch (RuntimeException failure) {
+                            if (failed.getAndIncrement() == 0) {
+                                failures.report(failure, FailureKind.EXTERNAL, new FailureContext("ScriptSplitWorker.sameSpeakers", jobId));
+                            }
+                        }
+                    }));
+                }
+            }
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (ExecutionException impossible) {
+                    throw new IllegalStateException(impossible.getCause());
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("script split same-speaker check was interrupted", interrupted);
+                }
+            }
+        }
+        Map<SpeakerMerge.Candidate, LineReview.Answer> mean = new LinkedHashMap<>();
+        candidates.forEach(candidate -> mean.put(candidate, SpeakerMerge.mean(answers.get(candidate), again.get(candidate))));
+        ScriptDraft merged = SpeakerMerge.apply(draft, mean, sameSpeaker);
+        LOG.info("script split same-speaker job={} asked={} removed={} failed={} took_ms={}", jobId, candidates.size(),
+                draft.characterNames().size() - merged.characterNames().size(), failed.get(), Duration.between(startedAt, clock.instant()).toMillis());
+        return merged;
     }
 
     /** 복원은 작업을 실패시키지 않는다 — 고치지 못한 줄은 띄어진 채로 나눈다. */
@@ -252,6 +446,15 @@ public class ScriptSplitWorker {
         Calls(UUID jobId, UUID userId) {
             this.jobId = jobId;
             this.userId = userId;
+        }
+
+        /** 나누기 호출 — 형식을 벗어난 답({@link SplitResponse#unformatted})은 형식 안내를 붙여 한 번만 다시 묻는다. */
+        SplitResponse rows(String instructions, List<NumberedLine> sent, String input) {
+            String answer = ask(instructions, input, LlmStep.SCRIPT_SPLIT);
+            if (SplitResponse.unformatted(answer)) {
+                answer = ask(ScriptSplitPrompt.formatRetry(instructions), input, LlmStep.SCRIPT_SPLIT);
+            }
+            return SplitResponse.parse(answer, sent);
         }
 
         String ask(String instructions, List<NumberedLine> chunk, LlmStep step) {

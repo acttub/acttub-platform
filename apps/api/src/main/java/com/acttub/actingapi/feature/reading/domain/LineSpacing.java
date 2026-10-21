@@ -84,7 +84,7 @@ public final class LineSpacing {
             originals.put(line.no(), line.text());
         }
         Map<Integer, String> restored = new LinkedHashMap<>();
-        for (String raw : answer.split("\n")) {
+        for (String raw : SplitResponse.tabs(answer).split("\n")) {
             int tab = raw.indexOf('\t');
             if (tab < 0) {
                 continue;

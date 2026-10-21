@@ -1,12 +1,15 @@
 package com.acttub.actingapi.feature.reading.adapter;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 
 import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceService;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceSettings;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceStorage;
+import com.acttub.actingapi.feature.reading.adapter.decision.OpenRouterLineDecider;
+import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.app.MemorizationRepository;
 import com.acttub.actingapi.feature.reading.app.MemorizationService;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
@@ -29,6 +32,7 @@ import com.acttub.actingapi.feature.reading.app.SessionRepository;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
+import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
 import com.acttub.actingapi.integration.llm.OpenAiTextGenerators;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
@@ -36,6 +40,7 @@ import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.feature.reading.adapter.voice.GeminiVoiceSynthesizer;
 import com.acttub.actingapi.platform.web.CanonicalJson;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -92,10 +97,18 @@ class ReadingConfiguration {
         return new ScriptImportService(imports, uploads, canonical, clock);
     }
 
+    /** 줄 두 번째 의견(SOMA-663 J1). 키가 없으면 그 단계를 건너뛴다. */
     @Bean
     ScriptSplitWorker scriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, OpenAiTextGenerators generators,
-            LlmTelemetry telemetry, FailureReporter failures, Clock clock) {
-        return new ScriptSplitWorker(ledger, imports, generators.scriptSplit(), telemetry, failures, clock);
+            LlmTelemetry telemetry, FailureReporter failures, Clock clock, ObjectMapper json,
+            @Value("${OPENROUTER_SCRIPT_REVIEW_API_KEY:}") String reviewKey,
+            @Value("${SCRIPT_REVIEW_MODEL:" + ScriptSplitRules.REVIEW_MODEL + "}") String reviewModel) {
+        LineDecider decider = reviewKey.isBlank() ? null
+                : new OpenRouterLineDecider(json,
+                reviewModel.isBlank() ? ScriptSplitRules.REVIEW_MODEL : reviewModel.strip(), reviewKey.strip(), Duration.ofSeconds(20),
+                ScriptSplitRules.REVIEW_IN_FLIGHT);
+        return new ScriptSplitWorker(ledger, imports, generators.scriptSplit(), telemetry, failures, clock, decider,
+                ScriptSplitRules.REVIEW, ScriptSplitRules.SAME_SPEAKER_MIN);
     }
 
     @Bean
