@@ -21,8 +21,8 @@ public final class CloudVoiceService {
     public static final int EXPIRES_IN_SECONDS = 600;
     /** 한 요청의 한도. 화면의 한 줄(한 배역의 연속 대사)이 길 수 있어 나눠 만든다(SOMA-792). */
     public static final int MAX_CHARS = 5_000;
-    /** Gemini에 한 번에 보내는 길이. 나누기 전 한도였던 500자다. */
-    static final int CHUNK_CHARS = 500;
+    /** Gemini에 한 번에 보내는 길이. 2026-10-21 실측: 200자 조각을 동시에 보내면 1,199자 줄이 10초, 370자 조각이면 743자 줄이 29~47초(앱 요청 제한 30초). */
+    static final int CHUNK_CHARS = 200;
     private static final List<String> BREAKS = List.of(".!?…。！？\n", ",，、;", " ");
     public static final Map<String, String> VOICES;
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

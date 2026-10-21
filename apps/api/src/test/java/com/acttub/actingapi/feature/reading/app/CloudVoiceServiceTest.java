@@ -83,11 +83,11 @@ class CloudVoiceServiceTest {
     @Test
     void longLineIsSynthesizedInSentenceChunksAndJoinedIntoOneWav() {
         repository.consent = "granted";
-        String sentence = "가".repeat(199) + ". ";
+        String sentence = "가".repeat(79) + ". ";
         String text = sentence.repeat(5).trim();
         var result = service(settings()).synthesize(USER, text, "F1");
         assertThat(result.cached()).isFalse();
-        assertThat(asked).hasSize(3).allSatisfy(part -> assertThat(part).hasSizeBetween(1, 500).endsWith("."));
+        assertThat(asked).hasSize(3).allSatisfy(part -> assertThat(part).hasSizeBetween(1, CloudVoiceService.CHUNK_CHARS).endsWith("."));
         assertThat(String.join(" ", asked)).isEqualTo(text);
         assertThat(repository.increments).isEqualTo(1);
         assertThat(storage.lastBytes).hasSize(44 + 3 * 4);
@@ -98,10 +98,10 @@ class CloudVoiceServiceTest {
     void chunksBreakAtSentenceThenSpaceThenHardLimit() {
         assertThat(CloudVoiceService.chunks("짧은 줄.")).containsExactly("짧은 줄.");
         String words = ("가".repeat(99) + " ").repeat(8).trim();
-        assertThat(CloudVoiceService.chunks(words)).allSatisfy(part -> assertThat(part).hasSizeLessThanOrEqualTo(500).doesNotStartWith(" ").doesNotEndWith(" "));
+        assertThat(CloudVoiceService.chunks(words)).allSatisfy(part -> assertThat(part).hasSizeLessThanOrEqualTo(CloudVoiceService.CHUNK_CHARS).doesNotStartWith(" ").doesNotEndWith(" "));
         assertThat(String.join(" ", CloudVoiceService.chunks(words))).isEqualTo(words);
-        assertThat(CloudVoiceService.chunks("가".repeat(1200))).extracting(String::length).containsExactly(500, 500, 200);
-        assertThat(CloudVoiceService.chunks("가".repeat(499) + "😀" + "나")).allSatisfy(part -> assertThat(Character.isHighSurrogate(part.charAt(part.length() - 1))).isFalse());
+        assertThat(CloudVoiceService.chunks("가".repeat(500))).extracting(String::length).containsExactly(200, 200, 100);
+        assertThat(CloudVoiceService.chunks("가".repeat(199) + "😀" + "나")).allSatisfy(part -> assertThat(Character.isHighSurrogate(part.charAt(part.length() - 1))).isFalse());
     }
 
     @Test
