@@ -360,6 +360,7 @@ public final class DirectVideoCoach {
                     : replyOrNull(speaker, uploaded, history, prompt, loop);
             // 연습 루프에서 배우에게 보일 말이 비었으면(빈 응답, 숨은 메모만 쓴 응답) 한 번 다시 쓰게 한다.
             boolean emptyRetry = false;
+            boolean lightRetry = false;
             if (loop && (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank())) {
                 emptyRetry = true;
                 ExternalOperationExecution.externalCall("model");
@@ -367,6 +368,13 @@ public final class DirectVideoCoach {
                         + DirectVideoPracticeLoop.emptyRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText));
                 message = streaming ? streamOrNull(speaker, uploaded, history, retryPrompt, visible)
                         : replyOrNull(speaker, uploaded, history, retryPrompt, loop);
+                // 다시 써도 비었으면 생각을 거의 하지 않게 한 번 더 쓴다(스트리밍이어도 다 쓴 뒤 한 번에 보낸다).
+                // 2026-10-21 재생: 빈 답 두 번 중 하나는 영어 생각 메모만 쓰다 한도에 닿았고, 하나는 빈 글만 냈다. 같은 지시를 일반 호출로 보내면 답이 나왔다.
+                if (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank()) {
+                    lightRetry = true;
+                    ExternalOperationExecution.externalCall("model");
+                    message = lightOrNull(speaker, uploaded, history, retryPrompt);
+                }
             }
             // 대화와 상관없는 글(웹페이지·코드·자모)이 나오면 배우에게 보내지 않고 한 번 다시 쓰게 한다.
             // 다시 써도 깨졌으면 빈 답과 같이 실패로 돌린다 — 엉뚱한 말을 보내느니 다시 보내게 하는 편이 낫다.
@@ -486,6 +494,31 @@ public final class DirectVideoCoach {
                 timeStripped = true;
             }
             if (shown.isBlank()) throw new IllegalStateException("empty video coaching reply");
+            // 비유가 섞였거나 바로 앞에서 한 질문을 다시 하면, 그 부분만 고치는 가벼운 호출(영상 없음)로 한 번 다듬는다.
+            // 스트리밍도 같다 — 다 쓴 뒤 저장한 말이 한 번 더 나가 화면을 덮는다. 고치지 못하면 반복 질문만 뗀다.
+            // 2026-10-21 재생: "~하려던 건 뭐였어요?"를 두 번 연달아 물었고, "튕겨 나갈 거예요"·"무게감" 같은 비유가 나왔다.
+            int polished = 0;
+            if (loop && !cut) {
+                String actorWords = session.turns().stream().filter(t -> !"ai".equals(t.role())).map(t -> t.text())
+                        .collect(java.util.stream.Collectors.joining("\n")) + "\n" + (actorText == null ? "" : actorText);
+                java.util.List<String> earlier = session.turns().stream().filter(t -> "ai".equals(t.role())).map(t -> t.text()).toList();
+                java.util.List<String> figures = DirectVideoPracticeLoop.metaphors(shown, actorWords);
+                String repeated = DirectVideoPracticeLoop.repeatedQuestion(shown, earlier);
+                java.util.List<String> said = DirectVideoPracticeLoop.repeatedLines(shown, earlier);
+                if (!figures.isEmpty() || !repeated.isEmpty() || !said.isEmpty()) {
+                    String better = polish(shown, figures, repeated, said, earlier, actorWords, replyLanguage, uploaded, written, operationId);
+                    polished = 1;
+                    if (better != null) {
+                        // 다듬기가 질문을 하나 더 붙이기도 한다(재생). 정리와 정리 뒤 답은 질문 없이, 그 밖은 첫 질문까지만 남긴다.
+                        boolean closing = branch != null && (PracticeLoopRouter.WRAP_UP.equals(branch.doing()) || branch.closeNext())
+                                && !PracticeLoopRouter.LET_GO.equals(branch.doing());
+                        shown = closing ? DirectVideoPracticeLoop.withoutQuestions(better) : DirectVideoPracticeLoop.firstQuestionOnly(better);
+                    }
+                    else if (!repeated.isEmpty() && !DirectVideoPracticeLoop.repeatedQuestion(shown, earlier).isEmpty()) {
+                        shown = DirectVideoPracticeLoop.withoutQuestions(shown);
+                    }
+                }
+            }
             // 앱이 코치 말을 아주 큰 글씨로 보여서 50자 안쪽이 목표다. 상한(공용 60자)을 넘으면 자르지 않고 줄이기만 하는 호출로 두 번까지 줄인다.
             // 자문위원 프롬프트는 사람마다 길이 상한을 따로 둔다(SOMA-622). 없으면 공용 상한 60자다.
             int replyLimit = loop ? DirectVideoPrompts.personaReplyLimit(persona, DirectVideoPracticeLoop.replyLanguage(session, actorText))
@@ -509,7 +542,7 @@ public final class DirectVideoCoach {
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
-                            "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry), "broken_retry", Boolean.toString(brokenRetry),
+                            "shorten_calls", Integer.toString(shortened), "polish_calls", Integer.toString(polished), "empty_retry", Boolean.toString(emptyRetry), "light_retry", Boolean.toString(lightRetry), "broken_retry", Boolean.toString(brokenRetry),
                             "persona", persona, "coach_model_arm", arm, "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow,
                             "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused),
                             "classify_ms", Long.toString(millis(startedNanos, classifiedNanos)),
@@ -677,6 +710,17 @@ public final class DirectVideoCoach {
         }
     }
 
+    private static String lightOrNull(DirectVideoModel speaker, DirectVideoModel.Video video,
+            java.util.List<DirectVideoModel.Message> history, String prompt) {
+        try {
+            String reply = speaker.replyLight(video, history, prompt);
+            return reply == null || reply.isBlank() ? null : reply;
+        } catch (IllegalStateException empty) {
+            if (String.valueOf(empty.getMessage()).contains("empty")) return null;
+            throw empty;
+        }
+    }
+
     private static String replyOrNull(DirectVideoModel speaker, DirectVideoModel.Video video,
             java.util.List<DirectVideoModel.Message> history, String prompt, boolean loop) {
         try {
@@ -809,6 +853,46 @@ public final class DirectVideoCoach {
     }
 
     /**
+     * 비유를 본 그대로의 말로 바꾸고 반복한 질문을 다른 질문으로 바꾸는 가벼운 호출(영상 없음). 고친 결과가 여전히 비유·반복이거나
+     * 비었거나 깨졌거나 근거 검사를 못 넘으면 {@code null}.
+     */
+    private String polish(String text, java.util.List<String> figures, String repeated, java.util.List<String> said,
+            java.util.List<String> earlier, String actorWords,
+            java.util.Locale language, DirectVideoModel.Video video, String written, UUID operationId) {
+        if (DirectVideoPracticeLoop.looksBroken(text, language)) return null;
+        var notes = new StringBuilder();
+        if (!figures.isEmpty()) notes.append("\n- 고칠 비유: ").append(String.join(", ", figures));
+        if (!said.isEmpty()) notes.append("\n- 바로 앞에서 이미 한 말(그대로 되풀이하지 않는다): ").append(String.join(" / ", said));
+        if (!repeated.isEmpty() || !said.isEmpty()) {
+            if (!repeated.isEmpty()) notes.append("\n- 이미 한 질문: ").append(repeated);
+            // 바꾼 질문이 배우가 이미 아니라고 한 해석으로 돌아가지 않게 배우의 최근 말을 준다(2026-10-21 재생: "줄려고 하면 안돼" 뒤에 "설득하려면"으로 바꿨다).
+            var lines = actorWords.strip().lines().filter(l -> !l.isBlank()).toList();
+            String recent = String.join(" / ", lines.subList(Math.max(0, lines.size() - 3), lines.size()));
+            if (!recent.isBlank()) notes.append("\n- 배우가 최근에 한 말(바꾼 질문이 이 말과 어긋나거나 배우가 아니라고 한 해석으로 돌아가지 않게 한다): ").append(recent);
+        }
+        try {
+            ExternalOperationExecution.externalCall("model");
+            String raw = model.replyLight(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
+                    DirectVideoPrompts.practiceLoopPolish(language) + notes);
+            if (raw == null || raw.isBlank()) return null;
+            String better = DirectVideoPracticeLoop.parse(raw).message();
+            if (DirectVideoPracticeLoop.hasTimestamp(better)) better = DirectVideoPracticeLoop.stripTimestamps(better);
+            if (better.isBlank() || DirectVideoPracticeLoop.looksBroken(better, language)) return null;
+            if (!DirectVideoPracticeLoop.metaphors(better, actorWords).isEmpty()) return null;
+            if (!DirectVideoPracticeLoop.repeatedQuestion(better, earlier).isEmpty()) return null;
+            if (!DirectVideoPracticeLoop.repeatedLines(better, earlier).isEmpty()) return null;
+            DirectVideoDialogueEvidence.requireGrounded(video, better, written);
+            return better;
+        } catch (IllegalStateException | IllegalArgumentException rejected) {
+            return null;
+        } catch (RuntimeException failure) {
+            if (Thread.currentThread().isInterrupted()) throw failure;
+            failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.polish", operationId));
+            return null;
+        }
+    }
+
+    /**
      * 긴 코치 말을 줄이기만 하는 호출(영상 없음). 뜻과 마지막 질문은 그대로 두고 50자 안쪽으로 다시 쓰게 한다.
      * 줄지 않았거나 비었거나 근거 검사를 못 넘으면 {@code null} — 부르는 쪽이 원래 말을 그대로 쓴다.
      */
@@ -842,9 +926,12 @@ public final class DirectVideoCoach {
      * 같은 프롬프트로 같은 질문을 되풀이하지 않게 하려는 것이다.
      */
     private static java.util.List<String> withTries(java.util.List<String> materials, String doing, int stayed, CoachSessionSnapshot session) {
-        if (!PracticeLoopRouter.STAYS.contains(doing)) return materials;
         var coach = session.turns().stream().filter(t -> "ai".equals(t.role())).map(t -> t.text().replaceAll("\\s+", " ")).toList();
         var lines = new java.util.ArrayList<>(materials);
+        // 단계를 넘기든 머물든, 앞에서 한 질문을 같은 뜻으로 다시 묻지 않게 최근 질문을 준다(2026-10-21 재생: 같은 질문 두 번 연달아).
+        var asked = coach.stream().skip(Math.max(0, coach.size() - 3)).map(DirectVideoPracticeLoop::lastQuestion).filter(q -> !q.isEmpty()).toList();
+        if (!asked.isEmpty()) lines.add("코치가 앞에서 이미 한 질문(같은 뜻으로 다시 묻지 않는다. 같은 걸 알아야 하면 다른 쪽에서 묻거나 질문 없이 끝낸다): " + String.join(" / ", asked));
+        if (!PracticeLoopRouter.STAYS.contains(doing)) return lines;
         lines.add("이 단계에서 이번이 " + (stayed + 2) + "번째 응답이다. 앞의 코치 말은 배우에게 통하지 않았다. 같은 말, 같은 모양으로 다시 묻지 않는다");
         // 2026-10-21 재생: "지금 연기는 괜찮았어?", "내 실력은 어느정도야", "붙을 수 있어?"에 같은 피드백 세 문장이 네 번 그대로 나갔다.
         if ("짚어주기".equals(doing) || "답하기".equals(doing)) {
