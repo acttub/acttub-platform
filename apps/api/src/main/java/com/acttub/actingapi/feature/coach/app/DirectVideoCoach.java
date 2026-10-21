@@ -370,7 +370,9 @@ public final class DirectVideoCoach {
                         : replyOrNull(speaker, uploaded, history, retryPrompt, loop);
                 // 다시 써도 비었으면 생각을 거의 하지 않게 한 번 더 쓴다(스트리밍이어도 다 쓴 뒤 한 번에 보낸다).
                 // 2026-10-21 재생: 빈 답 두 번 중 하나는 영어 생각 메모만 쓰다 한도에 닿았고, 하나는 빈 글만 냈다. 같은 지시를 일반 호출로 보내면 답이 나왔다.
-                if (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank()) {
+                // 앱은 한 요청을 60초까지 기다린다. 이미 40초를 넘겼으면 더 쓰지 않고 실패로 돌린다(배우가 다시 보내면 된다).
+                boolean timeLeft = Duration.between(started, Instant.now()).compareTo(LIGHT_RETRY_BUDGET) < 0;
+                if (timeLeft && (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank())) {
                     lightRetry = true;
                     ExternalOperationExecution.externalCall("model");
                     message = lightOrNull(speaker, uploaded, history, retryPrompt);
@@ -709,6 +711,9 @@ public final class DirectVideoCoach {
             throw empty;
         }
     }
+
+    /** 빈 답 세 번째 시도는 이 시간 안에서만 한다. 앱 요청 한도 60초(api-request.ts)보다 넉넉히 짧게 둔다. */
+    static final Duration LIGHT_RETRY_BUDGET = Duration.ofSeconds(40);
 
     private static String lightOrNull(DirectVideoModel speaker, DirectVideoModel.Video video,
             java.util.List<DirectVideoModel.Message> history, String prompt) {
