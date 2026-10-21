@@ -40,7 +40,9 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
      * 정상 답은 생각까지 합쳐 많아야 약 1,600토큰이었다(10/11 운영 입력 재현). 8,192이던 때는 생각이 한도까지 차는
      * 폭주가 30~55초 동안 이어진 뒤 빈 답이나 엉뚱한 글이 나왔다. 2,048이면 폭주를 10~20초 안에 끊고 다시 쓴다.
      */
-    static final int REPLY_TOKEN_LIMIT = 2048;
+    // 생각 토큰도 이 한도 안에서 쓴다. 2048이면 생각(LOW)이 2,000토큰 가까이 간 답이 글 없이 끊겨 빈 답이 됐다
+    // (2026-10-21 로컬 재생: 정리 뒤 "나한테 상대역이 없는데?"에서 thoughts 1963 + 글 81 → MAX_TOKENS). 보이는 답은 짧아서 쓴 만큼만 든다.
+    static final int REPLY_TOKEN_LIMIT = 4096;
     private final Client client;
     private final String model;
     private final Predicate<Path> audioProbe;
