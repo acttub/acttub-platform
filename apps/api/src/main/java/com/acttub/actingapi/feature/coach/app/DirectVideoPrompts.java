@@ -85,6 +85,13 @@ final class DirectVideoPrompts {
     }
 
     /** 긴 코치 말을 줄이기만 하는 지시. 한국어가 아니면 그 말로 줄이라는 말을 덧붙인다. */
+    /** 비유·반복 질문만 고치는 다듬기 호출의 지시. */
+    static String practiceLoopPolish(java.util.Locale language) {
+        String base = resource("practice-loop-polish");
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean ? base : base + com.acttub.actingapi.platform.web.OutputLanguage.directiveFor(language);
+    }
+
     static String practiceLoopShorten(java.util.Locale language) {
         String base = resource("practice-loop-shorten");
         boolean korean = language == null || "ko".equals(language.getLanguage());
