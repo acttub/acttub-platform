@@ -476,6 +476,7 @@ class SplitResponseTest {
         rows.put(4, new Row(4, Kind.DIALOGUE, "철수", "철수: "));
         rows.put(5, new Row(5, Kind.DIALOGUE, "(철수)", "(철수) "));
         rows.put(6, new Row(6, Kind.DIALOGUE, "(NA)", "(NA) "));
+        rows.put(7, new Row(7, Kind.DIALOGUE, "(목소리)", "(목소리) "));
 
         SplitResponse.sounds(rows);
 
@@ -485,5 +486,6 @@ class SplitResponseTest {
         assertThat(rows.get(4).kind()).isEqualTo(Kind.DIALOGUE);
         assertThat(rows.get(5).kind()).isEqualTo(Kind.DIALOGUE);
         assertThat(rows.get(6).kind()).as("내레이션 표시").isEqualTo(Kind.DIALOGUE);
+        assertThat(rows.get(7).kind()).as("화면 밖 목소리는 들리는 말").isEqualTo(Kind.DIALOGUE);
     }
 }

@@ -59,6 +59,8 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
 
     /** 효과음 화자 표기(띄어쓰기·괄호 무시) — 「(음 향)」은 배역이 아니라 지문이다(SOMA-709). */
     private static final Pattern SOUND = Pattern.compile("(?iu)음향|효과음?|배경음악?|음악|sfx|se|bgm|sound");
+    /** 괄호 화자 중 화면 밖 목소리 — 「(목소리) 거기 누구야?」는 들리는 말이라 대사다. */
+    private static final Pattern VOICE = Pattern.compile("(?iu)목?소리|음성|전화|v\\.?o\\.?|o\\.?s\\.?|off");
     /** 이름이 아니라 대사 앞 낱말이 화자 칸에 들어간 꼴 — 접속사·대명사 낱말, 「~의/~은/~는」으로 끝나는 말(SOMA-709). */
     private static final Pattern FUNCTION_WORD = Pattern.compile("그리고|그러나|그런데|하지만|그래서|그러면|그럼|또는|혹은|및|또|내|나|너|네|저|제|우리|저희|그|그녀|그들|이것|그것|저것|당신|자네");
     private static final Pattern MODIFIER_END = Pattern.compile("\\p{IsHangul}+[의은는]");
@@ -432,7 +434,7 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
 
     /**
      * 효과음 표기(「(음 향)」·「효과음」)나 괄호로만 된 화자(「(천둥)」)의 대사 판정을 지문으로 바꾼다 (SOMA-709). 머리도 버려 줄 글이 그대로 지문이
-     * 된다. 괄호 안이 다른 줄이 쓰는 배역 이름이거나 내레이션 표시면 둔다.
+     * 된다. 괄호 안이 다른 줄이 쓰는 배역 이름이거나 내레이션·화면 밖 목소리 표시면 둔다.
      */
     public static void sounds(Map<Integer, Row> rows) {
         Set<String> known = rows.values().stream().filter(row -> row.kind() == Kind.DIALOGUE).map(row -> CharacterNames.squash(row.speaker()))
@@ -442,7 +444,8 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
             boolean wrapped = name.length() > 2 && name.startsWith("(") && name.endsWith(")");
             String inner = wrapped ? name.substring(1, name.length() - 1) : name;
             boolean sound = SOUND.matcher(inner).matches()
-                    || wrapped && !known.contains(inner) && !CharacterNames.narration(inner) && !CharacterNames.narration(name);
+                    || wrapped && !known.contains(inner) && !CharacterNames.narration(inner) && !CharacterNames.narration(name)
+                    && !VOICE.matcher(inner).matches();
             return row.kind() == Kind.DIALOGUE && sound ? new Row(no, Kind.DIRECTION, "", "") : row;
         });
     }
