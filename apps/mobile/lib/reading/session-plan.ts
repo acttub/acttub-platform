@@ -67,20 +67,50 @@ export function buildStartBody(input: {
   };
 }
 
+/** 이 줄 수 이하이면 대사가 거의 없는 배역이다 — 안내를 띄우고 다음 회차 기본값으로 다시 고르지 않는다(SOMA-709). */
+export const FEW_LINES_MAX = 2;
+
+/** 함께 말하는 줄의 묶음 배역(「지해, 연수」 — 서버가 member_ids 를 준다). 내 배역 칩에 두지 않는다(SOMA-709). */
+export function isGroupCharacter(character: { member_ids?: string[] }): boolean {
+  return (character.member_ids?.length ?? 0) > 0;
+}
+
+/** 배역 칩의 대사 수 — 서버 값이 있으면 그것, 없으면 대본 줄에서 센다. */
+export function roleLineCount(character: { name: string; dialogue_count?: number }, lines: ScriptLine[]): number {
+  return character.dialogue_count ?? lines.filter((l) => l.type === 'dialogue' && l.role === character.name).length;
+}
+
+/** 고른 배역(여럿이면 합쳐서)의 구간 안 대사가 1~{@link FEW_LINES_MAX}줄이면 그 수. 0줄은 시작할 때 empty_range 로 막으므로 null. */
+export function fewLines(lines: ScriptLine[], myRoles: string[], start: number, end: number): number | null {
+  const mine = new Set(myRoles);
+  let count = 0;
+  for (let i = Math.max(0, start); i <= end && i < lines.length; i++) {
+    const l = lines[i];
+    if (l.type === 'dialogue' && mine.has(l.role)) count++;
+  }
+  return count > 0 && count <= FEW_LINES_MAX ? count : null;
+}
+
 /**
  * 내 배역의 처음 선택. 회차 상세 「이 구간으로 다시 연습」이 넘긴 배역(쉼표로 이은 id)이 있으면 그것이고, 없으면
  * 마지막 회차의 내 배역이다. 회차가 없으면 아무것도 골라 두지 않는다. 배역이 하나뿐인 대본은 그 배역이다.
+ * 칩에 없는 묶음 배역은 고르지 않고, 지난 회차의 배역은 대본에 남아 있고 대본 전체 대사가 {@link FEW_LINES_MAX}줄보다 많은 것만
+ * 다시 고른다 — 실수로 고른 배역이 회차마다 이어지지 않게(SOMA-709). 대사 수를 모르는 옛 응답이면 대사 수로 거르지 않는다.
  */
 export function defaultMyCharacterIds(script: {
   last_session: { my_character_ids: string[] } | null;
-  characters: { id: string }[];
+  characters: { id: string; dialogue_count?: number; member_ids?: string[] }[];
   rolesParam?: string;
 }): string[] {
-  const known = new Set(script.characters.map((c) => c.id));
+  const people = script.characters.filter((c) => !isGroupCharacter(c));
+  const known = new Map(people.map((c) => [c.id, c] as const));
   const fromParam = (script.rolesParam ?? '').split(',').filter((id) => known.has(id));
   if (fromParam.length) return fromParam;
-  if (script.characters.length === 1) return [script.characters[0].id];
-  return (script.last_session?.my_character_ids ?? []).filter((id) => known.has(id));
+  if (people.length === 1) return [people[0].id];
+  return (script.last_session?.my_character_ids ?? []).filter((id) => {
+    const count = known.get(id)?.dialogue_count;
+    return known.has(id) && (count === undefined || count > FEW_LINES_MAX);
+  });
 }
 
 export type LineRange = { startIndex: number; endIndex: number };

@@ -1665,6 +1665,7 @@ const en: DeepStringShape<typeof ko> = {
     splitRetry: 'Try again',
     splitPasteInstead: 'Paste it myself',
     rangeFirstTip: 'It’s your first time, so we picked a short part. Tap “{{label}}”.',
+    rangeFewLines: '{{roles}} has only {{count}} lines in this range.\nPick more roles or widen the range.',
     bySuggest: 'Suggested',
     rangeShortTitle: 'Start ~ “{{text}}”',
     rangeShortMeta: '{{count}} lines · {{mine}} of yours',

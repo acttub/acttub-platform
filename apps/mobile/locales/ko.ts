@@ -1654,6 +1654,7 @@ const ko = {
     splitRetry: '다시 시도',
     splitPasteInstead: '직접 붙여 넣기',
     rangeFirstTip: '처음이라 짧은 구간으로 골라 뒀어요. 「{{label}}」를 누르세요.',
+    rangeFewLines: '고른 구간에 {{roles}} 대사가 {{count}}줄뿐이에요.\n배역을 더 고르거나 구간을 넓혀 보세요.',
     bySuggest: '추천',
     rangeShortTitle: '처음 ~ 「{{text}}」',
     rangeShortMeta: '대사 {{count}}줄 · 내 대사 {{mine}}줄',
