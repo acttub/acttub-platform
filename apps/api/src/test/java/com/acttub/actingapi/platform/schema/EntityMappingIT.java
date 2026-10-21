@@ -136,7 +136,9 @@ class EntityMappingIT {
             // 오디션 공고(V36)는 오디션 저장소의 native SQL(upsert·열림 후보·삭제)만 쓴다.
             "audition_postings",
             // 리딩 회차 평가(V40)는 리딩 저장소의 native SQL(upsert·잠금·이관·삭제)만 읽고 쓴다.
-            "reading_session_ratings");
+            "reading_session_ratings",
+            // 리딩 녹음 코치(V48, 실험)는 리딩 저장소의 native SQL(재료 읽기·넣기·답 남기기)만 쓴다.
+            "reading_recording_coaches");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 40개 활성 엔티티를 포함한다")
