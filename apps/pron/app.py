@@ -1,6 +1,7 @@
 """발음 채점 서비스(SOMA-606) — api 만 부르는 내부 서비스다. 호스트 포트를 열지 않는다.
 
 POST /score  multipart(audio: m4a·wav, text: 대본 한 줄, threshold?) → pronscore.score_line 결과 + model_version
+             소리 없는 앞뒤를 잘라 낸 뒤에도 PRON_MAX_SECONDS(기본 30초)보다 길면 422 audio_too_long
 GET  /health 모델을 올렸는지
 """
 import os
@@ -37,5 +38,8 @@ def score(audio: UploadFile = File(...), text: str = Form(...), threshold: float
     with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
         tmp.write(body)
         tmp.flush()
-        result = pronscore.score_line(tmp.name, text, threshold)
+        try:
+            result = pronscore.score_line(tmp.name, text, threshold)
+        except pronscore.TooLong as too_long:
+            raise HTTPException(422, "audio_too_long") from too_long
     return {**result, "model_version": pronscore.MODEL_VERSION}

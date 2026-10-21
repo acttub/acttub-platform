@@ -177,10 +177,40 @@ def flagged(p, threshold=THRESHOLD):
 
 
 # ── 채점 ─────────────────────────────────────────────────────────────────────
-def log_probs(path):
+# 줄 녹음은 대사를 못 하고 기다린 소리까지 담길 수 있다(앱이 말이 끝날 때까지 녹음한다). 소리 없는 앞뒤를 잘라 내고,
+# 그래도 길면 채점하지 않는다 — GOP 는 녹음 길이 × 음소 수 × 바꿔 볼 소리 수만큼 정렬을 돌려 긴 녹음에서 몇 분씩 걸린다.
+MAX_SECONDS = float(os.environ.get("PRON_MAX_SECONDS", "30"))
+_HOP = 320  # 20ms
+_PAD_SECONDS = 0.3
+
+
+class TooLong(ValueError):
+    """잘라 낸 뒤에도 MAX_SECONDS 보다 긴 녹음."""
+
+
+def voiced(wav, sr=16000):
+    """소리 있는 구간만 남긴다(앞뒤 0.3초 여유). (잘라 낸 파형, 앞에서 뺀 표본 수). 소리를 못 찾으면 그대로 둔다.
+
+    문턱은 녹음의 바닥 소음(20ms 구간 에너지의 하위 10%)보다 약 10dB 위, 최소 -46dBFS 다."""
+    n = len(wav) // _HOP
+    if n < 3:
+        return wav, 0
+    energy = wav[: n * _HOP].reshape(n, _HOP).pow(2).mean(1).sqrt()
+    threshold = max(torch.quantile(energy, 0.1).item() * 3.0, 0.005)
+    loud = (energy > threshold).nonzero().flatten()
+    if len(loud) == 0:
+        return wav, 0
+    pad = int(_PAD_SECONDS * sr)
+    start = max(0, int(loud[0]) * _HOP - pad)
+    end = min(len(wav), (int(loud[-1]) + 1) * _HOP + pad)
+    return wav[start:end], start
+
+
+def log_probs(path_or_wav):
     proc, m = model()
+    wav = path_or_wav if isinstance(path_or_wav, torch.Tensor) else load(path_or_wav)
     with torch.no_grad():
-        inputs = proc(load(path).numpy(), sampling_rate=16000, return_tensors="pt")
+        inputs = proc(wav.numpy(), sampling_rate=16000, return_tensors="pt")
         return torch.log_softmax(m(inputs.input_values).logits[0], -1)
 
 
@@ -333,7 +363,11 @@ def score_line(path, script_text, threshold=THRESHOLD):
     proc, m = model()
     vocab = proc.tokenizer.get_vocab()
     blank = proc.tokenizer.pad_token_id
-    logp = log_probs(path)
+    wav, offset = voiced(load(path))
+    if len(wav) / 16000 > MAX_SECONDS:
+        raise TooLong(f"{len(wav) / 16000:.1f}s > {MAX_SECONDS:.0f}s")
+    offset_ms = int(offset * 1000 / 16000)
+    logp = log_probs(wav)
     g = gop(path, text, logp)
     words = phonemes(text)
     seq, owner, syl = [], [], []
@@ -363,8 +397,8 @@ def score_line(path, script_text, threshold=THRESHOLD):
         out_words[o]["phones"].append({
             "expected": JAMO.get(p["ph"], p["ph"]), "heard": JAMO.get(p["alt"], p["alt"]), "lpr": p["lpr"],
             "vowel": p["ph"] in VOWELS, "syllable": syl[j],
-            "start_ms": None if s0 is None else int(s0 * FRAME_SECONDS * 1000),
-            "end_ms": None if s0 is None else int(((s1 if s1 is not None else s0) + 1) * FRAME_SECONDS * 1000),
+            "start_ms": None if s0 is None else offset_ms + int(s0 * FRAME_SECONDS * 1000),
+            "end_ms": None if s0 is None else offset_ms + int(((s1 if s1 is not None else s0) + 1) * FRAME_SECONDS * 1000),
             "flagged": flagged(p, threshold) and o not in numw,
         })
     return {"scored_text": text, "threshold": threshold, "words": out_words}
