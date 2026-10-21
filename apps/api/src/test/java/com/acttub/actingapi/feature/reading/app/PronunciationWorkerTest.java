@@ -76,6 +76,7 @@ class PronunciationWorkerTest {
     final List<String> scoredTexts = new ArrayList<>();
     final List<Path> tempFiles = new ArrayList<>();
     RuntimeException scorerFailure;
+    String failOnlyText;
 
     private PronunciationWorker worker(int maxAttempts) {
         PronunciationAudio audio = (key, destination) -> {
@@ -84,7 +85,7 @@ class PronunciationWorkerTest {
         };
         PronunciationScorer scorer = (path, contentType, text) -> {
             assertThat(Files.exists(path)).as("채점하는 동안 임시 파일이 있다").isTrue();
-            if (scorerFailure != null) {
+            if (scorerFailure != null && (failOnlyText == null || failOnlyText.equals(text))) {
                 throw scorerFailure;
             }
             scoredTexts.add(text);
@@ -96,7 +97,11 @@ class PronunciationWorkerTest {
     }
 
     private static PronunciationReportRepository.LineSource line(int no, String text, String transcript) {
-        return new PronunciationReportRepository.LineSource(no, text, transcript, "rec/" + no, "audio/mp4");
+        return line(no, text, transcript, 3_000);
+    }
+
+    private static PronunciationReportRepository.LineSource line(int no, String text, String transcript, Integer durationMs) {
+        return new PronunciationReportRepository.LineSource(no, text, transcript, "rec/" + no, "audio/mp4", durationMs);
     }
 
     @Test
@@ -171,5 +176,34 @@ class PronunciationWorkerTest {
         assertThatThrownBy(worker::runOnce).isInstanceOf(UncheckedIOException.class);
         assertThat(reports.failure).isEqualTo("UncheckedIOException");
         assertThat(reports.retried).isTrue();
+    }
+
+    @Test
+    void 너무_긴_줄은_보내지_않고_빠진_줄로_적는다() {
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(2, "그냥", "나지", 106_830), line(4, "다리", "다리", 20_000), line(6, "머리", "머리", null));
+
+        assertThat(worker(3).runOnce()).isTrue();
+
+        assertThat(downloaded).containsExactly("rec/4", "rec/6");
+        assertThat(reports.completedStatus).isEqualTo("done");
+        assertThat(reports.completedReport.skippedLines()).containsExactly(2);
+        assertThat(reports.completedReport.summary().linesUsed()).isEqualTo(2);
+    }
+
+    @Test
+    void 줄_하나가_실패해도_나머지로_보고서를_만든다() {
+        scorerFailure = new IllegalStateException("pronunciation scorer failed");
+        failOnlyText = "머리";
+        reports.next = new PronunciationReportRepository.Claimed(REPORT, SESSION, 1);
+        reports.lines = List.of(line(1, "다리", "다리"), line(3, "머리", "머리"), line(5, "허리", "허리"));
+
+        assertThat(worker(3).runOnce()).isTrue();
+
+        assertThat(reports.failure).isNull();
+        assertThat(reports.completedStatus).isEqualTo("done");
+        assertThat(reports.completedReport.skippedLines()).containsExactly(3);
+        assertThat(reports.completedReport.summary().linesUsed()).isEqualTo(2);
+        assertThat(tempFiles).allSatisfy(path -> assertThat(Files.exists(path)).isFalse());
     }
 }
