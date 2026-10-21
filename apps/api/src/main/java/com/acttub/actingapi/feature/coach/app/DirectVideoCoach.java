@@ -45,6 +45,12 @@ public final class DirectVideoCoach {
     private final int alternateShare;
     /** 한 대화 안에서 올린 영상을 다시 쓴다(SOMA-735). NONE 이면 답마다 올리고 지운다(롤백). */
     private final CoachVideoCache videoCache;
+    /**
+     * '내려놓기'(배우가 코치 말을 정정한 답)는 영상을 붙이지 않고 글(지시문·대화·상태)만 보내 쓴다(SOMA-780).
+     * 이 답만 영상이 붙으면 Gemini 가 글을 내기 전에 생각 루프에 빠져 15~20초 걸렸다(2026-10-21 운영 실측, 10회 중 6회).
+     * 영상을 빼면 생각 0·첫 글자 약 1.3초였고 답도 정정을 반영했다. false 면 예전처럼 영상과 함께 쓴다(롤백).
+     */
+    private final boolean letGoWithoutVideo;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -71,6 +77,14 @@ public final class DirectVideoCoach {
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
             DirectVideoModel alternate, int alternateShare, CoachFlows flows, CoachVideoCache videoCache) {
+        this(model, videos, storage, failures, telemetry, practiceLoop, personas, alternate, alternateShare, flows, videoCache, true);
+    }
+
+    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
+            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
+            DirectVideoModel alternate, int alternateShare, CoachFlows flows, CoachVideoCache videoCache,
+            boolean letGoWithoutVideo) {
+        this.letGoWithoutVideo = letGoWithoutVideo;
         this.videoCache = videoCache == null ? CoachVideoCache.NONE : videoCache;
         this.flows = flows == null ? CoachFlows.NONE : flows;
         this.alternate = alternate;
@@ -144,6 +158,8 @@ public final class DirectVideoCoach {
         PurposeLoop.Turn purposeTurn = purpose != null && !session.turns().isEmpty() && actorText != null
                 ? purposeTurn(session, purpose, actorText, actorFinished, operationId) : null;
         classifiedNanos = System.nanoTime();
+        // 내려놓기 답은 영상 없이 쓴다 — 영상 준비·기다림도 건너뛴다. 영상 파일은 대화가 이어지면 다음 답에서 다시 쓰도록 그대로 둔다.
+        final boolean videoOmitted = letGoWithoutVideo && branch != null && PracticeLoopRouter.LET_GO.equals(branch.doing());
         if (purposeTurn != null && purposeTurn.end()) {
             // 그만: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
             String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
@@ -181,7 +197,9 @@ public final class DirectVideoCoach {
             boolean firstLoop = loop && session.turns().isEmpty();
             // 둘째 답부터는 이 대화에서 올려 둔 영상을 다시 쓴다. 배포로 서버가 바뀌었으면 이름표로 찾는다(SOMA-780).
             // 소리·빈 영상 검사는 첫 답에서만 돈다.
-            if (!session.turns().isEmpty()) {
+            if (videoOmitted) {
+                // 영상을 붙이지 않는다. 올려 둔 영상은 건드리지 않는다.
+            } else if (!session.turns().isEmpty()) {
                 DirectVideoModel.Video remembered = videoCache.take(videoKey);
                 if (remembered != null) {
                     try {
@@ -204,7 +222,7 @@ public final class DirectVideoCoach {
             videoReused = uploaded != null;
             // 미리 준비의 소리 검사에서 막혔으면 내려받지 않고 아래에서 바로 안내한다.
             boolean blocked = inspection != null && (inspection.unusableAudio() || inspection.emptyInput());
-            if (!videoReused && !blocked) {
+            if (!videoReused && !blocked && !videoOmitted) {
                 local = Files.createTempFile("coach-original-", ".video");
                 var metadata = storage.downloadToPath(source.objectKey(), local);
                 if (source.etag() != null && !source.etag().isBlank()
@@ -212,7 +230,7 @@ public final class DirectVideoCoach {
                     throw new IllegalStateException("original video changed after upload");
                 }
             }
-            if (!videoReused) {
+            if (!videoReused && !videoOmitted) {
                 if (firstLoop) {
                     if (inspection == null) {
                         inspecting = true;
@@ -352,7 +370,7 @@ public final class DirectVideoCoach {
             }
             // 스트리밍: 연습 루프의 보통 턴만. 이어서 찍은 첫 답(고르기)·소리 없는 영상(근거 검사)은 다 쓴 뒤 한 번에 보낸다.
             final boolean streaming = stream != null && loop && continuedPrompt == null
-                    && !Boolean.FALSE.equals(uploaded.hasAudioTrack());
+                    && (uploaded == null || !Boolean.FALSE.equals(uploaded.hasAudioTrack()));
             java.util.Locale replyLanguage = DirectVideoPracticeLoop.replyLanguage(session, actorText);
             final VisibleCoachText visible = streaming ? new VisibleCoachText(session.turns().isEmpty(), replyLanguage, stream::delta) : null;
             ExternalOperationExecution.externalCall("model");
@@ -547,6 +565,7 @@ public final class DirectVideoCoach {
                             "shorten_calls", Integer.toString(shortened), "polish_calls", Integer.toString(polished), "empty_retry", Boolean.toString(emptyRetry), "light_retry", Boolean.toString(lightRetry), "broken_retry", Boolean.toString(brokenRetry),
                             "persona", persona, "coach_model_arm", arm, "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow,
                             "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused),
+                            "video_omitted", Boolean.toString(videoOmitted),
                             "classify_ms", Long.toString(millis(startedNanos, classifiedNanos)),
                             "video_ms", Long.toString(millis(classifiedNanos, videoNanos)),
                             "warm_wait_ms", Long.toString(warmWaitNanos / 1_000_000),
@@ -554,11 +573,11 @@ public final class DirectVideoCoach {
                             "shorten_ms", Long.toString(millis(repliedNanos, System.nanoTime()))))
                     .withPrompt(template));
             LOG.info("coach turn timing practice={} first={} arm={} stream={} video_reused={} total_ms={} classify_ms={} "
-                            + "video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={}",
+                            + "video_ms={} warm_wait_ms={} reply_ms={} shorten_calls={} empty_retry={} video_omitted={}",
                     shortId(session.practiceSessionId()), session.turns().isEmpty(), arm, streaming, videoReused,
                     millis(startedNanos, System.nanoTime()), millis(startedNanos, classifiedNanos),
                     millis(classifiedNanos, videoNanos), warmWaitNanos / 1_000_000, millis(videoNanos, repliedNanos),
-                    shortened, emptyRetry);
+                    shortened, emptyRetry, videoOmitted);
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (purpose != null && !cut) {
                 if (purposeTurn == null) PurposeLoop.rememberOpening(state, purpose, purposeOut, parsed.design());
@@ -578,15 +597,19 @@ public final class DirectVideoCoach {
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     speaker.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,
-                            "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm, "coach_flow", flow)).withPrompt(template));
-            LOG.info("coach turn timing practice={} first={} arm={} failed={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={}",
+                            "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm, "coach_flow", flow,
+                            "video_omitted", Boolean.toString(videoOmitted))).withPrompt(template));
+            LOG.info("coach turn timing practice={} first={} arm={} failed={} total_ms={} classify_ms={} video_ms={} warm_wait_ms={} video_omitted={}",
                     shortId(session.practiceSessionId()), session.turns().isEmpty(), arm, failure.getClass().getSimpleName(),
                     millis(startedNanos, System.nanoTime()), millis(startedNanos, classifiedNanos),
-                    millis(classifiedNanos, videoNanos), warmWaitNanos / 1_000_000);
+                    millis(classifiedNanos, videoNanos), warmWaitNanos / 1_000_000, videoOmitted);
             throw new CoachReplyUnavailable();
         } finally {
             if (uploaded != null && keepVideo && videoCache.enabled()) {
                 videoCache.keep(videoKey, uploaded);
+            } else if (uploaded == null && videoOmitted && !keepVideo) {
+                // 영상 없이 쓴 답으로 대화가 닫혔거나 답이 실패했다 — 기억해 둔 영상을 지운다.
+                videoCache.forget(session.practiceSessionId());
             } else if (uploaded != null) {
                 // 대화가 닫혔거나 답이 실패했다 — 기억한 영상과 이번 영상을 지운다.
                 DirectVideoModel.Video forgotten = videoCache.forget(session.practiceSessionId());
