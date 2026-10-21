@@ -293,7 +293,7 @@ public class ScriptSplitWorker {
         }
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
         if (rejection == null) {
-            return Split.of(languages(jobId, calls, draft));
+            return Split.of(languages(calls.jobId, calls, draft));
         }
         return Split.failed(switch (rejection) {
             case NO_CHARACTERS -> ScriptImportFailure.NO_CHARACTERS;
