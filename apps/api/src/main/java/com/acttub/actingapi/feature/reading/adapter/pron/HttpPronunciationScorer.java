@@ -30,7 +30,7 @@ public class HttpPronunciationScorer implements PronunciationScorer {
     private final ObjectMapper mapper;
 
     public HttpPronunciationScorer(String baseUrl, ObjectMapper mapper) {
-        this.endpoint = URI.create(baseUrl.replaceAll("/+$", "") + "/score");
+        this.endpoint = URI.create(withoutTrailingSlash(baseUrl) + "/score");
         this.mapper = mapper;
     }
 
@@ -85,5 +85,13 @@ public class HttpPronunciationScorer implements PronunciationScorer {
 
     private static void write(ByteArrayOutputStream out, String s) {
         out.writeBytes(s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    static String withoutTrailingSlash(String url) {
+        int end = url.length();
+        while (end > 0 && url.charAt(end - 1) == '/') {
+            end -= 1;
+        }
+        return url.substring(0, end);
     }
 }
