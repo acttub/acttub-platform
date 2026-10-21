@@ -53,4 +53,50 @@ class VisibleCoachTextTest {
         String raw = "0:23에 시선이 내려가요. 그때 어땠어요? 다른 대사에서도요?";
         assertThat(String.join("", feed(false, raw, 3))).isEqualTo(raw);
     }
+
+    // 영상 없는 내려놓기 답(2026-10-21 재측정 18회 중 4회)에서 나온 메모 태그 모양 넷. 배우 화면에는 태그가 한 글자도 나가면 안 된다.
+    private static final String ANSWER = "아, 그럼 이 이야기로 아빠한테 뭘 느끼게 하려 했어요?";
+
+    private static String streamed(String raw, int size) {
+        var out = new ArrayList<String>();
+        var visible = new VisibleCoachText(false, out::add);
+        try {
+            for (int i = 0; i < raw.length(); i += size) visible.accept(raw.substring(i, Math.min(raw.length(), i + size)));
+        } catch (VisibleCoachText.Broken broken) {
+            broken.text();
+            return "[끊김]" + String.join("", out);
+        }
+        return String.join("", out);
+    }
+
+    @Test void anOpenedButNeverClosedThoughtTagShowsNothingSoTheReplyIsRewritten() {
+        for (int size : new int[] {1, 5, 200}) assertThat(streamed("<thought>\n" + ANSWER, size)).as("조각 %d", size).isEmpty();
+    }
+
+    @Test void aMisspelledEnglishMemoTagIsCutBeforeAnythingIsShown() {
+        for (int size : new int[] {1, 5, 200}) {
+            String shown = streamed("<th-thought>" + ANSWER, size);
+            assertThat(shown).as("조각 %d", size).isEqualTo("[끊김]");
+            assertThat(DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse("<th-thought>" + ANSWER).message(), null)).isTrue();
+        }
+    }
+
+    @Test void aKoreanNamedLeadingTagIsCutBeforeAnythingIsShown() {
+        for (int size : new int[] {1, 5, 200}) {
+            assertThat(streamed("<추가>\n" + ANSWER, size)).as("조각 %d", size).isEqualTo("[끊김]");
+        }
+        assertThat(DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse("<추가>\n" + ANSWER).message(), null)).isTrue();
+    }
+
+    @Test void aKoreanTagInTheMiddleOfAnAnswerIsNotTreatedAsBroken() {
+        String quoted = "지문 <웃음> 뒤에 목소리가 낮아졌어요. 그때 무엇을 하려 했어요?";
+        assertThat(streamed(quoted, 3)).isEqualTo(quoted);
+        assertThat(DirectVideoPracticeLoop.looksBroken(quoted, null)).isFalse();
+    }
+
+    @Test void aMemoOpenedWithKoreanAndClosedWithEnglishHidesTheMemoAndShowsTheAnswer() {
+        String raw = "<생각>\n배우가 한 말: 밝은 모습\n이번 목표: 하려던 것\n</thought>" + ANSWER;
+        for (int size : new int[] {1, 5, 200}) assertThat(streamed(raw, size)).as("조각 %d", size).isEqualTo(ANSWER);
+        assertThat(DirectVideoPracticeLoop.parse(raw).message()).isEqualTo(ANSWER);
+    }
 }
