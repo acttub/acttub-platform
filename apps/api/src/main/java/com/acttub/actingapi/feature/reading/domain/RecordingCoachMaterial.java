@@ -164,11 +164,14 @@ public final class RecordingCoachMaterial {
      * (dev 10/21). 이런 말은 배우에게 녹음이 잘됐다는 판정으로 읽히는데, 서버가 잰 소리는 다르다는 것뿐이지 좋다는 근거가 아니다.
      */
     static final Pattern EVALUATIVE = Pattern.compile(
-            "잘\\s*(맞|어울|전달|살|표현|드러|나타)|충분|훌륭|좋(아요|네요|았|은\\s*소리)|자연스러|어색|완벽|멋지|대단");
+            "잘\\s*[가-힣]+|충분|훌륭|좋(아요|네요|았|은\\s*소리)|자연스러|어색|완벽|멋지|대단|인상적|느껴지");
+    /** 큰따옴표로 따온 대사("나도 잘 모르겠어")는 코치의 평가가 아니다. */
+    private static final Pattern QUOTED = Pattern.compile("[\"“][^\"”]*[\"”]");
 
-    /** 배우에게 보낼 말에 평가하는 말이 있으면 그 말. 없으면 {@code null}. */
+    /** 배우에게 보낼 말에 평가하는 말이 있으면 그 말. 없으면 {@code null}. 따온 대사 안은 보지 않는다. */
     public static String evaluative(String message) {
-        Matcher m = EVALUATIVE.matcher(message == null ? "" : message);
+        String own = QUOTED.matcher(message == null ? "" : message).replaceAll(" ");
+        Matcher m = EVALUATIVE.matcher(own);
         return m.find() ? m.group() : null;
     }
 }
