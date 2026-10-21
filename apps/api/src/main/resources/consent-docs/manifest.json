@@ -8,9 +8,9 @@
     "required": true
   },
   {
-    "file": "privacy_v9.md",
+    "file": "privacy_v10.md",
     "type": "privacy",
-    "version": "v9",
+    "version": "v10",
     "locale": "ko",
     "title": "개인정보 수집·이용 동의",
     "required": true
@@ -40,9 +40,9 @@
     "required": false
   },
   {
-    "file": "script_split_v2.md",
+    "file": "script_split_v3.md",
     "type": "script_split",
-    "version": "v2",
+    "version": "v3",
     "locale": "ko",
     "title": "대본 나누기(선택)",
     "required": false
@@ -80,9 +80,9 @@
     "required": true
   },
   {
-    "file": "privacy_v9_en.md",
+    "file": "privacy_v10_en.md",
     "type": "privacy",
-    "version": "v9",
+    "version": "v10",
     "locale": "en",
     "title": "Consent to Collection and Use of Personal Information",
     "required": true
@@ -104,9 +104,9 @@
     "required": false
   },
   {
-    "file": "script_split_v2_en.md",
+    "file": "script_split_v3_en.md",
     "type": "script_split",
-    "version": "v2",
+    "version": "v3",
     "locale": "en",
     "title": "Script splitting (optional)",
     "required": false
