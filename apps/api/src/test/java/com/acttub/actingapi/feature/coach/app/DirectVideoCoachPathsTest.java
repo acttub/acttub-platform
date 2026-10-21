@@ -269,7 +269,7 @@ class DirectVideoCoachPathsTest {
     @Test void aLongReplyIsKeptWhenShorteningFailsOrDoesNotHelp() {
         String longReply = "말끝을 길게 끄는 버릇이 상대를 붙잡는 마음을 가려요. 그래서 붙잡는 말이 부탁처럼 들리고 힘이 빠져요. 어디서 가장 붙잡고 싶었어요?";
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(longReply);
-        when(model.reply(isNull(), anyList(), anyString()))
+        when(model.replyLight(isNull(), anyList(), anyString()))
                 .thenReturn(" ")
                 .thenThrow(new IllegalStateException("blocked"))
                 .thenThrow(new RuntimeException("network"))

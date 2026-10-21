@@ -56,6 +56,10 @@ public class ConversationService {
     private final CoachMemory memory;
     private final FailureReporter failureReporter;
     private final Set<RequestKey> generating = ConcurrentHashMap.newKeySet();
+    /** 회차별로 모델을 부르고 있는 시작(SOMA-780). 앱의 시작 요청과 서버의 첫 질문 미리 쓰기가 같은 첫 질문을 두 번 쓰지 않게 한다. */
+    private final java.util.Map<UUID, java.util.concurrent.CompletableFuture<Void>> starting = new ConcurrentHashMap<>();
+    /** 다른 시작을 기다리는 최대 시간. 영상 처리 대기(180초)와 첫 질문 쓰기를 넉넉히 덮는다. 넘으면 기다리지 않고 직접 쓴다. */
+    private java.time.Duration startWait = java.time.Duration.ofSeconds(200);
 
     private record RequestKey(String operation, UUID userId, UUID targetId, UUID requestId) { }
 
@@ -86,7 +90,72 @@ public class ConversationService {
     /** 첫 응답을 쓰는 대로 {@code stream} 에 흘려보낸다(코칭 스트리밍). 저장·재전송 규칙은 {@link #start(UUID, UUID, UUID)} 와 같다. */
     public Turn start(UUID userId, UUID practiceId, UUID requestId, CoachStream stream) {
         return withRequestInFlight(new RequestKey("start", userId, practiceId, requestId),
-                () -> startTurn(userId, practiceId, requestId, stream));
+                () -> oneStartPerPractice(practiceId, stream, () -> startTurn(userId, practiceId, requestId, stream)));
+    }
+
+    /**
+     * 분석이 끝난 회차의 첫 질문을 앱이 청하기 전에 미리 쓴다(SOMA-780). 앱은 연습을 만든 뒤 약 5초 만에 시작을 청하는데,
+     * 영상은 올리기 끝에서 이미 준비돼 있어 그동안 모델이 놀고 있었다. 앱의 시작과 같은 경로로 대화를 열고 첫 질문을 저장해
+     * 두면, 앱의 시작 요청은 저장된 첫 질문을 바로 받는다(아직 쓰는 중이면 끝나길 기다린다). 이미 대화가 있거나 분석이 안
+     * 끝났으면 하지 않는다. 실패해도 앱의 시작 요청이 직접 쓴다 — 미리 쓰기는 덤이다.
+     */
+    public void prewriteStart(UUID userId, UUID practiceId) {
+        if (userId == null || practiceId == null) return;
+        try {
+            Loaded loaded = conversations.loadByPractice(userId, practiceId);
+            if (loaded == null || loaded.conversationId() != null || !"conversing".equals(loaded.stage())) return;
+            start(userId, practiceId, prewriteRequest(practiceId), null);
+        } catch (ApiException expected) {
+            // 이미 다른 시작이 쓰는 중이거나 첫 질문을 쓰지 못했다(코치 쪽이 이미 기록했다) — 앱의 시작 요청에 맡긴다.
+        } catch (RuntimeException failure) {
+            failureReporter.report(failure, new FailureContext("ConversationService.prewriteStart"));
+        }
+    }
+
+    /** 미리 쓰기의 시작 요청 번호. 같은 회차면 늘 같다 — 다시 불려도 대화를 두 번 열지 않는다. */
+    static UUID prewriteRequest(UUID practiceId) {
+        return UUID.nameUUIDFromBytes(("coach-prewrite:" + practiceId).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 같은 회차의 시작은 한 번에 하나만 모델을 부른다(SOMA-780). 앞선 시작(보통 서버의 미리 쓰기)이 쓰는 중이면 끝나길
+     * 기다렸다가 진행한다 — 그러면 {@link #startTurn} 이 저장된 첫 질문을 그대로 돌려준다. 스트리밍이면 기다리는 동안
+     * 연결이 끊기지 않게 먼저 연다(핑이 돈다).
+     */
+    private Turn oneStartPerPractice(UUID practiceId, CoachStream stream, java.util.function.Supplier<Turn> work) {
+        var mine = new java.util.concurrent.CompletableFuture<Void>();
+        java.util.concurrent.CompletableFuture<Void> other;
+        while ((other = starting.putIfAbsent(practiceId, mine)) != null) {
+            if (stream != null) stream.begin();
+            if (!awaitStart(other)) break;
+        }
+        try {
+            return work.get();
+        } finally {
+            starting.remove(practiceId, mine);
+            mine.complete(null);
+        }
+    }
+
+    /** 앞선 시작을 기다린다. 너무 오래 걸리면 기다리지 않고 직접 쓴다(false). */
+    private boolean awaitStart(java.util.concurrent.CompletableFuture<Void> other) {
+        try {
+            other.get(startWait.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+            return true;
+        } catch (java.util.concurrent.TimeoutException late) {
+            return false;
+        } catch (java.util.concurrent.ExecutionException finished) {
+            return true;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /** Test-only: 다른 시작을 기다리는 시간을 줄여 본다. */
+    ConversationService withStartWait(java.time.Duration wait) {
+        this.startWait = wait;
+        return this;
     }
 
     private Turn startTurn(UUID userId, UUID practiceId, UUID requestId, CoachStream stream) {
