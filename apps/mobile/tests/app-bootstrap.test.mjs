@@ -36,7 +36,7 @@ test('동의 게이트가 끝나면 같은 세션의 pending 분석을 복구한
     {
       stage: 'done',
       route: {
-        pathname: '/analyzing',
+        pathname: '/coach',
         params: {
           recoveryKey: pendingAnalysis.key,
           practiceId: 'practice-1',
@@ -93,26 +93,26 @@ test('동의 전환 뒤 stale recovery snapshot으로 tabs를 결정하지 않�
   );
 });
 
-test('analyzing 복구 경로는 pathname과 params가 모두 같아야 완료한다', () => {
+test('분석 대기(코치 화면) 복구 경로는 pathname과 params가 모두 같아야 완료한다', () => {
   const target = {
-    pathname: '/analyzing',
+    pathname: '/coach',
     params: {
       recoveryKey: 'pending:user-1:session-1:scope',
       practiceId: 'practice-1',
     },
   };
 
-  assert.equal(resolveAnalyzingBootstrapRoute('/analyzing', {}, target), 'replace');
+  assert.equal(resolveAnalyzingBootstrapRoute('/coach', {}, target), 'replace');
   assert.equal(
     resolveAnalyzingBootstrapRoute(
-      '/analyzing',
+      '/coach',
       { recoveryKey: 'pending:stale', practiceId: 'practice-old' },
       target,
     ),
     'replace',
   );
   assert.equal(
-    resolveAnalyzingBootstrapRoute('/analyzing', target.params, target),
+    resolveAnalyzingBootstrapRoute('/coach', target.params, target),
     'complete',
   );
 });

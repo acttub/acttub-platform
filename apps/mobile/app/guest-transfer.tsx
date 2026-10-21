@@ -2,7 +2,6 @@ import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   StyleSheet,
@@ -13,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { DialogButtons } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import {
@@ -109,15 +110,8 @@ export default function GuestTransferScreen() {
           <Text style={styles.heading}>{t('guestTransfer.doneTitle')}</Text>
           <Text style={styles.body}>{t('guestTransfer.doneBody')}</Text>
           {/* 목록은 화면이 열릴 때마다 서버에서 다시 받는다. 기록으로 보내면 옮긴 연습이 보인다. */}
-          <Pressable
-            style={styles.cta}
-            onPress={() => router.replace('/(tabs)/history')}
-            accessibilityRole="button">
-            <Text style={styles.ctaText}>{t('guestTransfer.seeHistory')}</Text>
-          </Pressable>
-          <Pressable style={styles.ghost} onPress={enterAnother} accessibilityRole="button">
-            <Text style={styles.ghostText}>{t('guestTransfer.another')}</Text>
-          </Pressable>
+          <PrimaryButton label={t('guestTransfer.seeHistory')} onPress={() => router.replace('/(tabs)/history')} style={styles.cta} />
+          <SecondaryButton label={t('guestTransfer.another')} onPress={enterAnother} />
         </View>
       ) : (
         <KeyboardAwareScroll contentContainerStyle={styles.content}>
@@ -138,17 +132,13 @@ export default function GuestTransferScreen() {
             accessibilityLabel={t('guestTransfer.codeLabel')}
           />
           {error && <Text style={styles.error}>{error}</Text>}
-          <Pressable
-            style={[styles.cta, (!ready || busy) && styles.disabled]}
+          <PrimaryButton
+            label={t('guestTransfer.cta')}
             onPress={() => void submit()}
-            disabled={!ready || busy}
-            accessibilityRole="button">
-            {busy && !choosing ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.ctaText}>{t('guestTransfer.cta')}</Text>
-            )}
-          </Pressable>
+            disabled={!ready || (busy && choosing)}
+            loading={busy && !choosing}
+            style={styles.cta}
+          />
           <Text style={styles.hint}>{t('guestTransfer.hint')}</Text>
         </KeyboardAwareScroll>
       )}
@@ -191,24 +181,13 @@ export default function GuestTransferScreen() {
               );
             })}
           </View>
-          <View style={styles.modalActions}>
-            <Pressable style={styles.modalBtn} onPress={dismissChoice} disabled={busy} accessibilityRole="button">
-              <Text style={styles.modalBtnText}>{t('guestTransfer.memoryClose')}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.modalBtn, styles.modalBtnPrimary, busy && styles.disabled]}
-              onPress={() => void confirmChoice()}
-              disabled={busy}
-              accessibilityRole="button">
-              {busy ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={[styles.modalBtnText, styles.modalBtnTextPrimary]}>
-                  {t('guestTransfer.memoryConfirm')}
-                </Text>
-              )}
-            </Pressable>
-          </View>
+          <DialogButtons
+            cancelLabel={t('guestTransfer.memoryClose')}
+            onCancel={dismissChoice}
+            confirmLabel={t('guestTransfer.memoryConfirm')}
+            onConfirm={() => void confirmChoice()}
+            busy={busy}
+          />
         </View>
       </Modal>
     </SafeAreaView>
@@ -234,11 +213,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   error: { color: palette.danger, fontSize: 13.5, textAlign: 'center' },
-  cta: { backgroundColor: palette.blue, borderRadius: 16, padding: 17, alignItems: 'center', marginTop: 4 },
-  ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  disabled: { opacity: 0.4 },
-  ghost: { paddingVertical: 14, alignItems: 'center' },
-  ghostText: { color: palette.textDim, fontSize: 14.5, fontWeight: '700' },
+  cta: { marginTop: 4 },
   doneIcon: {
     width: 56,
     height: 56,
@@ -274,9 +249,4 @@ const styles = StyleSheet.create({
   optionOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
   optionBody: { flex: 1, gap: 2 },
   optionTitle: { fontSize: 14.5, fontWeight: '800', color: palette.text },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
-  modalBtn: { minWidth: 72, alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 10 },
-  modalBtnPrimary: { backgroundColor: palette.blue },
-  modalBtnText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
-  modalBtnTextPrimary: { color: '#FFFFFF' },
 });

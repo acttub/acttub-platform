@@ -87,6 +87,15 @@ export default function ChallengeEntriesScreen() {
 
   const toggleVisibility = async (entry: MyEntryCard) => {
     const next = entry.visibility === 'public' ? 'private' : 'public';
+    // 공개로 바꿀 때는 한 번 묻는다(SOMA-748 Avv5P0). 비공개로 돌리는 것은 바로 한다.
+    if (next === 'public') {
+      const ok = await confirm({
+        title: t('aiReport.publicTitle'),
+        message: t('aiReport.publicBody'),
+        confirmLabel: t('aiReport.publicConfirm'),
+      });
+      if (!ok) return;
+    }
     try {
       await api.updateEntry(entry.id, { visibility: next });
       logEvent('challenge_entry_visibility', { to: next });
@@ -161,7 +170,7 @@ export default function ChallengeEntriesScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="challenge_entries_back">
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <Text style={styles.title}>{t('challengeEntries.title')}</Text>
@@ -209,7 +218,7 @@ export default function ChallengeEntriesScreen() {
               </Text>
               <Text style={styles.rowStatus}>{entryStatusLabel(entry)}</Text>
             </View>
-            <Pressable onPress={() => openMenu(entry)} hitSlop={10} accessibilityRole="button">
+            <Pressable onPress={() => openMenu(entry)} hitSlop={10} accessibilityRole="button" ph-label="challenge_entries_more">
               <Feather name="more-horizontal" size={20} color={palette.textFaint} />
             </Pressable>
           </Pressable>

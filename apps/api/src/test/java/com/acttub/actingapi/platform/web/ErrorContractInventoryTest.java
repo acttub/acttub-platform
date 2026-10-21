@@ -384,6 +384,11 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingSessionIT"),
             covered("feature.reading.app.SessionService|422|request_fingerprint_mismatch", 1,
                     "feature.reading.ReadingSessionIT"),
+            // 리딩 발음 보고서(SOMA-606, 실험·허용 사용자만). 404 는 꺼짐·허용 밖과 내 회차가 아님 둘이다.
+            covered("feature.reading.app.PronunciationReportService|404|pronunciation_not_available", 1,
+                    "feature.reading.app.PronunciationReportServiceTest"),
+            covered("feature.reading.app.PronunciationReportService|404|session_not_found", 1,
+                    "feature.reading.app.PronunciationReportServiceTest"),
             // 리딩 회차 평가(reading.session, SOMA-661). 노트 평가와 같은 모양이고 404 는 회차 조회와 같다.
             covered("feature.reading.app.SessionRatingService|404|session_not_found", 1,
                     "feature.reading.ReadingSessionRatingIT"),
@@ -415,6 +420,15 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingRecordingIT"),
             covered("feature.reading.app.RecordingService|503|audio_conversion_failed", 1,
                     "feature.reading.ReadingRecordingIT"),
+            // 리딩 녹음 코치(reading.recording-coach, 실험). 모델 실패와 빈 답은 같은 503 이다.
+            covered("feature.reading.app.RecordingCoachService|404|recording_coach_not_found", 1,
+                    "feature.reading.app.RecordingCoachServiceTest"),
+            covered("feature.reading.app.RecordingCoachService|404|session_not_found", 2,
+                    "feature.reading.app.RecordingCoachServiceTest"),
+            covered("feature.reading.app.RecordingCoachService|422|recording_coach_not_enough_audio", 2,
+                    "feature.reading.app.RecordingCoachServiceTest"),
+            covered("feature.reading.app.RecordingCoachService|503|recording_coach_unavailable", 2,
+                    "feature.reading.app.RecordingCoachServiceTest"),
             // 고품질 목소리. 모델·스토리지·기간·월 상한과 외부 실패는 한 503 헬퍼로 모인다.
             covered("feature.reading.app.CloudVoiceService|400|invalid_voice_request", 1,
                     "feature.reading.app.CloudVoiceServiceTest"),

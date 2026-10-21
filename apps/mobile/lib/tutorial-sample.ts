@@ -20,6 +20,7 @@ import type {
   PracticeDetail,
   PracticeNote,
   PracticeScene,
+  PracticeAnalysis,
 } from './practice/types.ts';
 
 export const SAMPLE_PRACTICE_ID = 'tutorial-sample-practice';
@@ -98,6 +99,8 @@ export type LoopApi = {
   getPractice(practiceId: string): Promise<PracticeDetail>;
   getConversation(conversationId: string): Promise<CoachConversation>;
   getPracticeNote(practiceId: string): Promise<PracticeNote>;
+  /** 분석 공개 요약 — 코치 화면 위 「AI가 본 장면」 한 줄. */
+  getPracticeAnalysis(practiceId: string): Promise<PracticeAnalysis>;
   startConversation(practiceId: string, requestId: string, stream?: CoachStreamCallbacks): Promise<CoachTurnResult>;
   replyToCoach(body: CoachReplyBody, stream?: CoachStreamCallbacks): Promise<CoachTurnResult>;
 };
@@ -139,6 +142,10 @@ export function createSampleLoop(options: { delayMs?: number } = {}): LoopApi {
     async getPracticeNote() {
       if (!note) throw notFound('note_not_found');
       return note;
+    },
+    // 예시 회차는 분석이 없다 — 「AI가 본 장면」 줄은 숨는다.
+    async getPracticeAnalysis() {
+      throw notFound('analysis_not_found');
     },
     async startConversation() {
       await wait();

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -135,16 +136,15 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
           <Text style={styles.error}>
             {errorMessage(consentEntry.error, t('consent.docFail'))}
           </Text>
-          <Pressable
-            style={styles.retry}
+          <SecondaryButton
+            label={t('consent.reload')}
             onPress={() => void refreshConsentEntry().catch(() => undefined)}
-            accessibilityRole="button">
-            <Text style={styles.retryText}>{t('consent.reload')}</Text>
-          </Pressable>
+            style={styles.stretch}
+          />
         </View>
       );
     }
-    const ctaDisabled = (!canProceed && !verificationOnly) || busy;
+    const ctaDisabled = !canProceed && !verificationOnly;
     return (
       <>
         <ScrollView style={styles.list}>
@@ -155,6 +155,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
               checked={choices[document.id] === 'granted'}
               locked={locked(document.id)}
               onToggle={() => toggleDocument(document)}
+              divided
               arrow={{
                 icon: 'chevron-right',
                 onPress: () => setOpenDocument(document),
@@ -165,23 +166,19 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         </ScrollView>
         <View style={styles.footer}>
           {error && <Text style={styles.error}>{error}</Text>}
-          <Pressable
-            style={[styles.cta, ctaDisabled && styles.ctaDisabled]}
+          {/* pen S4R.1 CTA — 공통 Button/Primary(56·모서리 16). 필수를 다 고르기 전엔 Button/Disabled 모양. */}
+          <PrimaryButton
+            label={
+              verificationOnly
+                ? t('consent.verifyAgain')
+                : documents.some((d) => d.required)
+                  ? t('consent.cta')
+                  : t('consent.ctaOptionalOnly')
+            }
             onPress={() => (verificationOnly ? verifyAgain() : void proceed())}
             disabled={ctaDisabled}
-            accessibilityRole="button">
-            {busy ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.ctaText}>
-                {verificationOnly
-                  ? t('consent.verifyAgain')
-                  : documents.some((d) => d.required)
-                    ? t('consent.cta')
-                    : t('consent.ctaOptionalOnly')}
-              </Text>
-            )}
-          </Pressable>
+            loading={busy}
+          />
         </View>
       </>
     );
@@ -199,7 +196,9 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         <View style={[styles.card, { maxHeight: height * 0.85 }]}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('consent.reconsentTitle')}</Text>
-            <Text style={styles.subtitle}>{t('consent.reconsentSubtitle')}</Text>
+            <Text style={styles.subtitle}>
+              {documents.some((d) => d.required) ? t('consent.reconsentHint') : t('consent.reconsentSubtitle')}
+            </Text>
           </View>
           {renderBody()}
         </View>
@@ -213,12 +212,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
             <ScrollView style={styles.sheetBody}>
               <Markdown source={openDocument.body} />
             </ScrollView>
-            <Pressable
-              style={({ pressed }) => [styles.sheetClose, pressed && styles.pressed]}
-              onPress={() => setOpenDocument(null)}
-              accessibilityRole="button">
-              <Text style={styles.sheetCloseText}>{t('common.close')}</Text>
-            </Pressable>
+            <SecondaryButton label={t('common.close')} onPress={() => setOpenDocument(null)} />
           </View>
         </View>
       )}
@@ -229,7 +223,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 21, 37, 0.45)',
+    backgroundColor: palette.scrim,
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
@@ -243,27 +237,18 @@ const styles = StyleSheet.create({
   },
   head: { gap: 6 },
   title: { fontSize: 19, fontWeight: '800', color: palette.text },
-  subtitle: { fontSize: 14, color: palette.textDim },
+  // pen S4R.1 — 파란 안내(14/700).
+  subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
   list: { flexGrow: 0, flexShrink: 1 },
   checking: { paddingVertical: 24, alignItems: 'center' },
-  loadFailed: { alignItems: 'center', gap: 4 },
+  loadFailed: { alignItems: 'center', gap: 10 },
   error: { fontSize: 14, color: palette.danger, textAlign: 'center' },
-  retry: { paddingHorizontal: 16, paddingVertical: 8 },
-  retryText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
+  stretch: { alignSelf: 'stretch' },
   footer: { gap: 12 },
-  cta: {
-    backgroundColor: palette.blue,
-    borderRadius: 16,
-    padding: 17,
-    alignItems: 'center',
-  },
-  ctaDisabled: { opacity: 0.4 },
-  ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  pressed: { opacity: 0.75 },
 
   sheetLayer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 21, 37, 0.45)',
+    backgroundColor: palette.scrim,
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -276,11 +261,4 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
   sheetBody: { flexGrow: 0, flexShrink: 1 },
-  sheetClose: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    backgroundColor: palette.bgSoft,
-    borderRadius: 14,
-  },
-  sheetCloseText: { fontSize: 15, fontWeight: '800', color: palette.textDim },
 });

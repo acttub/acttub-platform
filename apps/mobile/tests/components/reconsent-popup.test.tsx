@@ -68,7 +68,8 @@ test('제목과 바뀐 문서 줄을 필수부터 보여 주고, 필수에 모�
   await render(<ReconsentPopup visible />);
 
   expect(screen.getByText('동의 문서가 바뀌었어요')).toBeOnTheScreen();
-  expect(screen.getByText('계속 쓰려면 아래 문서를 결정해주세요.')).toBeOnTheScreen();
+  // 필수 문서가 있으면 부제 대신 누를 곳을 알려 주는 파란 안내(pen S4R.1).
+  expect(screen.getByText('바뀐 내용을 보고 「동의하고 계속하기」를 누르세요.')).toBeOnTheScreen();
   expect(rowLabels()).toEqual(['[필수] 서비스 이용약관', '[선택] 탈퇴 후 영상 보관']);
   expect(cta()).toBeDisabled();
 

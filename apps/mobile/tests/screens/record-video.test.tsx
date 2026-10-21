@@ -38,11 +38,13 @@ jest.mock('expo-camera', () => {
     };
     return [perm, ask];
   };
+  const CameraView = forwardRef(({ facing }: { facing: string }, ref: unknown) => {
+    useImperativeHandle(ref, () => mockCamera);
+    return <Text>{`camera:${facing}`}</Text>;
+  });
+  CameraView.displayName = 'CameraView';
   return {
-    CameraView: forwardRef(({ facing }: { facing: string }, ref: unknown) => {
-      useImperativeHandle(ref, () => mockCamera);
-      return <Text>{`camera:${facing}`}</Text>;
-    }),
+    CameraView,
     useCameraPermissions: permissionHook(() => mockCamPerm, () => mockRequestCam()),
     useMicrophonePermissions: permissionHook(() => mockMicPerm, () => mockRequestMic()),
   };
@@ -174,7 +176,7 @@ describe('카메라·마이크 권한', () => {
     const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
 
     await render(<RecordVideoScreen />);
-    await fireEvent.press(await screen.findByRole('button', { name: '설정에서 켜기' }));
+    await fireEvent.press(await screen.findByRole('button', { name: '설정 열기' }));
 
     expect(openSettings).toHaveBeenCalledTimes(1);
     expect(mockRequestCam).toHaveBeenCalledTimes(1);
@@ -194,7 +196,7 @@ describe('카메라·마이크 권한', () => {
     expect(mockRequestCam).not.toHaveBeenCalled();
   });
 
-  test('권한 상태를 아직 못 읽었으면 묻지 않고 닫기만 보인다', async () => {
+  test('권한 상태를 아직 못 읽었으면 묻지 않고 뒤로만 보인다', async () => {
     mockCamPerm = null;
     mockMicPerm = null;
 
@@ -202,7 +204,8 @@ describe('카메라·마이크 권한', () => {
 
     expect(screen.queryByText('카메라와 마이크가 필요해요')).not.toBeOnTheScreen();
     expect(mockRequestCam).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
+    expect(screen.queryByRole('button', { name: '닫기' })).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 });
@@ -505,7 +508,7 @@ describe('챌린지 촬영', () => {
 
     expect(logged('challenge_video_source')).toEqual([{ source: 'gallery', result: 'selected' }]);
     expect(keepDeviceFile).toHaveBeenCalledWith('file:///clip.mp4');
-    expect(peekRecordedVideo()).toEqual({ uri: 'file:///clip.mp4', durationMs: 12_346, name: 'clip.mp4' });
+    expect(peekRecordedVideo()).toEqual({ uri: 'file:///clip.mp4', durationMs: 12_346, name: 'clip.mp4', source: 'gallery' });
     expect(mockRouter.replace).toHaveBeenCalledWith({
       pathname: '/challenge-upload',
       params: { challengeId: 'c1', line: '나는 아직 끝나지 않았어', work: '봄날' },

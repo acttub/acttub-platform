@@ -5,6 +5,9 @@ import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -26,6 +29,7 @@ import {
   type RankedEntry,
 } from '@/lib/challenge/browse';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
+import { hasFinishedFirstChallenge } from '@/lib/challenge/intro-state';
 import { buildReportBody, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import type { ChallengeDetail, EntrySort, ReportReason } from '@/lib/challenge/types';
 import { newRequestId } from '@/lib/request-id';
@@ -41,6 +45,9 @@ type Ranked = RankedEntry;
  * 최신순은 순위 숫자 없이 가장 최근 하나에만 NEW 를 붙인다. 좋아요가 모두 0이면 1위 배지가
  * 없다. 종료된 챌린지는 굳은 값을 보여 주고 확정 전에는 "집계 중"이다. 좋아요 랭킹은 반응 수를
  * 세운 순서이지 연기 점수가 아니다(ADR-005 개정).
+ *
+ * SOMA-748(5fCfUn): 어두운 대사 카드 → 「다른 배우들」 줄 목록 → 아래 고정 「나도 해 볼래요」. 「팀 시범작」 줄은 서버에 시범작
+ * 표시가 없어(C) 그리지 않는다. 파란 안내는 첫 참여를 끝낼 때까지만 보인다.
  */
 export default function ChallengeDetailScreen() {
   const router = useRouter();
@@ -55,6 +62,11 @@ export default function ChallengeDetailScreen() {
   const shownSort = useRef<EntrySort>('likes');
   const [error, setError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+
+  useEffect(() => {
+    void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
+  }, []);
 
   const load = useCallback(
     async (nextSort: EntrySort) => {
@@ -171,18 +183,33 @@ export default function ChallengeDetailScreen() {
           headerRight: () => (
             <View style={styles.headerRight}>
               {challenge && !canDelete(challenge) && (
-                <Pressable onPress={() => setReportOpen(true)} accessibilityRole="button" hitSlop={8}>
-                  <Feather name="flag" size={19} color={palette.textDim} />
-                </Pressable>
+                <NavIconButton
+                  icon="flag"
+                  size={19}
+                  color={palette.textDim}
+                  label={t('challenges.reportA11y')}
+                  phLabel="challenge_detail_report"
+                  onPress={() => setReportOpen(true)}
+                />
               )}
               {challenge && canDelete(challenge) && (
-                <Pressable onPress={() => void remove()} accessibilityRole="button" hitSlop={8}>
-                  <Feather name="trash-2" size={19} color={palette.textDim} />
-                </Pressable>
+                <NavIconButton
+                  icon="trash-2"
+                  size={19}
+                  color={palette.textDim}
+                  label={t('challenges.deleteA11y')}
+                  phLabel="challenge_detail_delete"
+                  onPress={() => void remove()}
+                />
               )}
-              <Pressable onPress={share} accessibilityRole="button" hitSlop={8}>
-                <Feather name="share-2" size={20} color={palette.textDim} />
-              </Pressable>
+              <NavIconButton
+                icon="share-2"
+                size={20}
+                color={palette.textDim}
+                label={t('challenges.shareA11y')}
+                phLabel="challenge_detail_share"
+                onPress={share}
+              />
             </View>
           ),
         }}
@@ -194,54 +221,57 @@ export default function ChallengeDetailScreen() {
         {challenge && (
           <>
             <View style={styles.lineCard}>
+              <View style={styles.chip}>
+                <Feather name="zap" size={15} color={palette.onAccent} />
+                <Text style={styles.chipText}>
+                  {challenge.origin === 'team' && challenge.featured_on && !ended ? t('challenges.weekLabel') : hostLabel(challenge)} ·{' '}
+                  {dDayLabel(challenge)}
+                </Text>
+              </View>
               <Text style={styles.line}>“{challenge.line}”</Text>
-              <Text style={styles.work}>
-                {[challenge.work, challenge.character].filter(Boolean).join(' · ')}
-              </Text>
+              {!!(challenge.work || challenge.character) && (
+                <Text style={styles.work}>{[challenge.work, challenge.character].filter(Boolean).join(' · ')}</Text>
+              )}
               {!!challenge.scene_note && <Text style={styles.note}>{challenge.scene_note}</Text>}
-              <Text style={styles.host}>{hostLabel(challenge)}</Text>
               <Text style={styles.stat}>
                 {t('challenges.entryCount', { count: challenge.entry_count })} ·{' '}
-                {t('challenges.likeSum', { count: challenge.like_sum })} · {dDayLabel(challenge)}
+                {t('challenges.likeSum', { count: challenge.like_sum })}
               </Text>
-              {!ended && (
-                <Pressable style={styles.performBtn} onPress={perform} accessibilityRole="button">
-                  <Feather name="video" size={15} color="#FFFFFF" />
-                  <Text style={styles.performText}>{t('challenges.performCta2')}</Text>
-                </Pressable>
-              )}
+              {showGuide && !ended && <Text style={styles.guide}>{t('challenges.detailGuide')}</Text>}
             </View>
 
             {!!moderation && <Text style={styles.notice}>{moderation}</Text>}
             {!!notice && <Text style={styles.notice}>{notice}</Text>}
 
-            <View style={styles.tabRow}>
-              {(
-                [
-                  ['likes', 'challenges.tabLikes'],
-                  ['latest', 'challenges.tabRecent'],
-                ] as const
-              ).map(([key, label]) => (
-                <Pressable
-                  key={key}
-                  style={styles.tab}
-                  onPress={() => {
-                    setSort(key);
-                    setEntries(null);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: sort === key }}>
-                  <Text style={[styles.tabText, sort === key && styles.tabTextOn]}>{t(label)}</Text>
-                  {sort === key && <View style={styles.tabUnderline} />}
-                </Pressable>
-              ))}
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>{t('challenges.otherActors')}</Text>
+              <View style={styles.tabRow}>
+                {(
+                  [
+                    ['likes', 'challenges.tabLikes'],
+                    ['latest', 'challenges.tabRecent'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <Pressable
+                    key={key}
+                    hitSlop={6}
+                    onPress={() => {
+                      setSort(key);
+                      setEntries(null);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: sort === key }}>
+                    <Text style={[styles.tabText, sort === key && styles.tabTextOn]}>{t(label)}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
 
             {entries === null && <ActivityIndicator color={palette.blue} style={{ marginTop: 24 }} />}
             {entries?.map((entry) => (
               <Pressable
                 key={entry.id}
-                style={styles.entry}
+                style={({ pressed }) => [styles.entry, pressed && styles.pressed]}
                 onPress={() =>
                   router.push({ pathname: '/challenge-play', params: { id: challenge.id, entryId: entry.id } })
                 }
@@ -261,8 +291,12 @@ export default function ChallengeDetailScreen() {
                       {entry.author.name}
                     </Text>
                     {entry.isNew && <Text style={styles.newBadge}>{t('challenges.newBadge')}</Text>}
-                    {!!entry.published_at && <Text style={styles.postedAt}>{postedAtLabel(entry.published_at)}</Text>}
                   </View>
+                  <Text style={styles.entryMeta} numberOfLines={1}>
+                    {[entry.published_at ? postedAtLabel(entry.published_at) : null, t('challenges.likeSum', { count: entry.like_count })]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Text>
                   {!!entry.caption && (
                     <Text style={styles.caption} numberOfLines={2}>
                       {entry.caption}
@@ -272,10 +306,7 @@ export default function ChallengeDetailScreen() {
                     <Text style={styles.firstBadge}>{firstBadgeLabel(entry, ended)}</Text>
                   )}
                 </View>
-                <View style={styles.likeChip}>
-                  <Feather name="heart" size={13} color={palette.textFaint} />
-                  <Text style={styles.likeText}>{entry.like_count}</Text>
-                </View>
+                <Feather name="chevron-right" size={20} color={palette.textFaint} />
               </Pressable>
             ))}
 
@@ -295,6 +326,11 @@ export default function ChallengeDetailScreen() {
           </>
         )}
       </ScrollView>
+      {challenge && canPerform(challenge) && (
+        <CtaBar safeBottom={false}>
+          <PrimaryButton label={t('challenges.tryIt')} onPress={perform} />
+        </CtaBar>
+      )}
       <ChallengeReportSheet
         visible={reportOpen}
         target="challenge"
@@ -307,55 +343,47 @@ export default function ChallengeDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  pressed: { opacity: 0.85 },
   moreBtn: { alignItems: 'center', paddingVertical: 14 },
   moreText: { color: palette.blue, fontSize: 14, fontWeight: '600' },
   safe: { flex: 1, backgroundColor: palette.bg },
-  content: { padding: 20, paddingBottom: 60, gap: 10 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
-  lineCard: { backgroundColor: palette.navy, borderRadius: 18, padding: 18, gap: 8 },
-  line: { fontSize: 19, fontWeight: '900', color: '#FFFFFF', lineHeight: 28 },
-  work: { fontSize: 13, fontWeight: '600', color: '#9FB0C9' },
-  note: { fontSize: 12.5, color: '#9FB0C9', lineHeight: 19 },
-  host: { fontSize: 12, fontWeight: '600', color: '#8FA5FF' },
-  stat: { fontSize: 12.5, fontWeight: '600', color: '#9FB0C9' },
-  performBtn: {
+  lineCard: { backgroundColor: palette.navy, borderRadius: 20, padding: 18, gap: 10 },
+  chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 6,
-    backgroundColor: palette.blue,
-    borderRadius: 12,
-    paddingVertical: 13,
-    marginTop: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  performText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  chipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent },
+  line: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
+  work: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)', lineHeight: 20 },
+  note: { fontSize: 12.5, color: 'rgba(255, 255, 255, 0.67)', lineHeight: 19 },
+  stat: { fontSize: 12.5, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)' },
+  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21 },
   notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber, paddingVertical: 4 },
-  tabRow: { flexDirection: 'row', gap: 18, marginTop: 8 },
-  tab: { paddingBottom: 8, alignItems: 'center', gap: 8 },
-  tabText: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
-  tabTextOn: { color: palette.text },
-  tabUnderline: { height: 2, width: '100%', borderRadius: 1, backgroundColor: palette.text },
-  entry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
-  },
-  rankCell: { width: 28, alignItems: 'center' },
-  rank: { fontSize: 16, fontWeight: '900', color: palette.blue },
-  avatar: { width: 26, height: 26, borderRadius: 13, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 12, fontWeight: '900', color: palette.blueDeep },
-  entryBody: { flex: 1, gap: 3 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
+  tabRow: { flexDirection: 'row', gap: 12 },
+  tabText: { fontSize: 13, fontWeight: '700', color: palette.textFaint },
+  tabTextOn: { fontWeight: '800', color: palette.text },
+  entry: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, paddingHorizontal: 4, borderRadius: 16 },
+  rankCell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  rank: { fontSize: 17, fontWeight: '900', color: palette.blue },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 13, fontWeight: '900', color: palette.blueDeep },
+  entryBody: { flex: 1, minWidth: 0, gap: 6 },
   entryHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  author: { flexShrink: 1, fontSize: 14.5, fontWeight: '700', color: palette.text },
+  author: { flexShrink: 1, fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 24 },
   newBadge: { fontSize: 10.5, fontWeight: '900', color: palette.blue },
-  postedAt: { fontSize: 11.5, color: palette.textFaint },
-  caption: { fontSize: 12.5, color: palette.textFaint, lineHeight: 19 },
+  entryMeta: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
+  caption: { fontSize: 13, color: palette.textMuted, lineHeight: 19 },
   firstBadge: { fontSize: 12, fontWeight: '800', color: palette.blueDeep },
-  likeChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  likeText: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
   empty: { fontSize: 14, color: palette.textDim, textAlign: 'center', paddingVertical: 40, lineHeight: 22 },
 });

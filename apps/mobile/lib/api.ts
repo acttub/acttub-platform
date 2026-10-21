@@ -82,6 +82,7 @@ import type {
   PracticeNote,
   PracticeResponse,
   PracticeStatus,
+  PracticeAnalysis,
   CoachStreamCallbacks,
 } from '@/lib/practice/types';
 import { practiceGroupFromResponse } from '@/lib/practice/groups';
@@ -1031,6 +1032,15 @@ export const api = {
   getPracticeStatus(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeStatus> {
     return request<PracticeStatus>(
       `/v2/practices/${encodeURIComponent(practiceId)}/status`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /** 분석 공개 요약(practice.analyze). 코치 화면 위 「AI가 본 장면」 한 줄이 읽는다. 분석이 없으면 404 analysis_not_found. */
+  getPracticeAnalysis(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeAnalysis> {
+    return request<PracticeAnalysis>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/analysis`,
       {},
       { timeoutMs: 20_000, signal: options.signal },
     );

@@ -357,3 +357,12 @@ test('배경 전환이 끝없이 이어지면 50번에서 받기를 그만둔다
   await assert.rejects(assets.downloadAssets('fp32', 'M1'), (e) => e.kind === 'network' && e.message === 'download failed: duration_predictor.onnx');
   assert.equal(s.downloads.length, 50);
 });
+
+test('아직 받을 모델 용량은 받아 둔 파일과 이어받을 조각만큼 뺀다 — 다 있으면 0이라 다시 묻지 않는다(SOMA-772)', () => {
+  assert.equal(assets.missingModelBytes('fp32'), 398_075_273);
+  installAll();
+  assert.equal(assets.missingModelBytes('fp32'), 0);
+  s.files.delete(`${DIR}/vocoder.onnx`);
+  s.files.set(`${DIR}/vocoder.onnx.part`, { size: FP32['vocoder.onnx'] - 1000, text: '' });
+  assert.equal(assets.missingModelBytes('fp32'), 1000);
+});

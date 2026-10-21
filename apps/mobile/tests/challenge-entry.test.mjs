@@ -82,7 +82,7 @@ test('challenge.entry: 완료 문구는 공개와 비공개가 다르다', () =>
   const open = doneCopy('public');
   const closed = doneCopy('private');
 
-  assert.match(open.title, /무대에 올렸어요/);
+  assert.match(open.title, /공개로 올렸어요/);
   assert.match(closed.title, /비공개로 저장했어요/);
   assert.notEqual(open.body, closed.body);
 });

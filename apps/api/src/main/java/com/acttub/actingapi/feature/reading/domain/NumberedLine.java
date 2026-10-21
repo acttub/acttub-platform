@@ -1,7 +1,10 @@
 package com.acttub.actingapi.feature.reading.domain;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 원문의 비지 않은 줄 하나와 원래 줄 번호(1부터). 모델은 이 번호로 답하고 서버는 이 번호로 답을 원문에 되돌린다 —
@@ -29,6 +32,35 @@ public record NumberedLine(int no, String text) {
                 out.append('\n');
             }
             out.append(line.no()).append('\t').append(line.text());
+        }
+        return out.toString();
+    }
+
+    /**
+     * 빠진 줄을 다시 묻는 입력 — {@code targets} 는 {@link #format} 모양, 그 앞뒤 {@code around} 줄은 번호 앞에 {@code ~} 를 붙인
+     * 문맥 줄이다. 줄 순서는 {@code all} 순서다.
+     */
+    public static String withContext(List<NumberedLine> all, List<NumberedLine> targets, int around) {
+        Set<Integer> wanted = new HashSet<>();
+        for (NumberedLine target : targets) {
+            wanted.add(target.no());
+        }
+        boolean[] shown = new boolean[all.size()];
+        for (int index = 0; index < all.size(); index++) {
+            if (wanted.contains(all.get(index).no())) {
+                Arrays.fill(shown, Math.max(0, index - around), Math.min(all.size(), index + around + 1), true);
+            }
+        }
+        StringBuilder out = new StringBuilder();
+        for (int index = 0; index < all.size(); index++) {
+            if (!shown[index]) {
+                continue;
+            }
+            NumberedLine line = all.get(index);
+            if (!out.isEmpty()) {
+                out.append('\n');
+            }
+            out.append(wanted.contains(line.no()) ? "" : "~").append(line.no()).append('\t').append(line.text());
         }
         return out.toString();
     }

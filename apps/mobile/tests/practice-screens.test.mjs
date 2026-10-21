@@ -29,7 +29,7 @@ test('practice.start: 진행 중 회차가 있으면(409) 그 회차로 돌려�
   const upload = read('app/upload.tsx');
   assert.match(upload, /inProgressPracticeId/);
   assert.match(upload, /listPracticeGroups/);
-  assert.match(upload, /pathname: '\/analyzing', params: \{ practiceId: open \}/);
+  assert.match(upload, /pathname: '\/coach', params: \{ practiceId: open \}/);
 });
 
 test('practice.resume: 장면 미리 채움은 방금 끝낸 노트에서만 한다', () => {
@@ -43,28 +43,36 @@ test('practice.resume: 장면 미리 채움은 방금 끝낸 노트에서만 한
   assert.equal(/kind: 'note'/.test(read('app/(tabs)/history.tsx')), false);
 });
 
+// 분석 대기는 따로 된 화면이 아니라 코치 화면 안의 「영상 보는 중」이다(SOMA-778). 조회·푸시·취소·복귀는 components/coach-waiting.tsx 가 한다.
+const waiting = () => read('components/coach-waiting.tsx');
+
 test('practice.analyze: 앱은 회차 상태를 4초마다 읽고 완료 푸시도 듣는다', () => {
-  const analyzing = read('app/analyzing.tsx');
-  assert.match(analyzing, /watchAnalysis/);
-  assert.match(analyzing, /api\.getPracticeStatus/);
-  assert.match(analyzing, /onPushReceived/);
-  assert.match(analyzing, /analysisPushTarget/);
+  assert.match(waiting(), /watchAnalysis/);
+  assert.match(waiting(), /api\.getPracticeStatus/);
+  assert.match(waiting(), /onPushReceived/);
+  assert.match(waiting(), /analysisPushTarget/);
   assert.match(read('lib/practice/analysis-run.ts'), /PRACTICE_POLL_INTERVAL_MS = 4_000/);
+  // 코치 화면이 회차 id 를 받으면 대화 전에 이 대기부터 한다.
+  assert.match(read('app/coach.tsx'), /<CoachWaiting/);
 });
 
 test('practice.analyze: "그만두기"는 취소이고 옛 "분석 포기 = 숨김"은 없앴다', () => {
-  const analyzing = read('app/analyzing.tsx');
-  assert.match(analyzing, /cancelAnalysis/);
-  assert.match(analyzing, /api\.cancelPractice/);
+  assert.match(waiting(), /cancelAnalysis/);
+  assert.match(waiting(), /api\.cancelPractice/);
   // 연습을 지우거나 숨기지 않는다.
-  assert.equal(/deletePracticeSession|abandonAnalysis/.test(analyzing), false);
+  assert.equal(/deletePracticeSession|abandonAnalysis/.test(waiting()), false);
 });
 
 test('practice.analyze: 화면을 떠나면 조회만 멈추고 돌아오면 다시 읽는다', () => {
+  assert.match(waiting(), /useFocusEffect/);
+  assert.match(waiting(), /controllerRef\.current\?\.abort\(\)/);
+  assert.match(waiting(), /AppState\.addEventListener/);
+});
+
+test('practice.analyze: 옛 분석 화면 주소(/analyzing)는 코치 화면으로 넘기기만 한다', () => {
   const analyzing = read('app/analyzing.tsx');
-  assert.match(analyzing, /useFocusEffect/);
-  assert.match(analyzing, /controllerRef\.current\?\.abort\(\)/);
-  assert.match(analyzing, /AppState\.addEventListener/);
+  assert.match(analyzing, /<Redirect href=\{\{ pathname: '\/coach'/);
+  assert.equal(/watchAnalysis|api\./.test(analyzing), false);
 });
 
 test('practice.note: 방금 끝난 노트와 지난 노트 둘 다 평가를 받고 서버에 저장한다(시트로 보내지 않는다)', () => {

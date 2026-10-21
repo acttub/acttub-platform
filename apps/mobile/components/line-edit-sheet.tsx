@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
 import { canSaveLineDraft, lineDraftValid, linePatch, type LineDraft } from '@/lib/reading/line-edit';
@@ -137,12 +138,8 @@ export function LineEditSheet({
         </ScrollView>
 
         <View style={styles.buttons}>
-          <Pressable style={[styles.button, styles.cancel]} onPress={() => onClose(false)} disabled={busy}>
-            <Text style={styles.cancelText}>{t('common.cancel')}</Text>
-          </Pressable>
-          <Pressable style={[styles.button, styles.save, !canSave && styles.saveOff]} onPress={() => void save()} disabled={!canSave}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{t('common.save')}</Text>}
-          </Pressable>
+          <SecondaryButton label={t('common.cancel')} onPress={() => onClose(false)} disabled={busy} style={styles.button} />
+          <PrimaryButton label={t('common.save')} onPress={() => void save()} disabled={!canSave} loading={busy} style={styles.button} />
         </View>
       </View>
     </Modal>
@@ -193,10 +190,5 @@ const styles = StyleSheet.create({
   textInput: { minHeight: 96, maxHeight: 180, lineHeight: 22 },
   error: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
   buttons: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  button: { flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  cancel: { backgroundColor: palette.bgSoft },
-  cancelText: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  save: { backgroundColor: palette.blue },
-  saveOff: { backgroundColor: palette.checkOff },
-  saveText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
+  button: { flex: 1 },
 });

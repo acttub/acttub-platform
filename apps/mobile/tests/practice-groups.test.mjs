@@ -5,6 +5,8 @@ import {
   filterGroups,
   groupTitle,
   kstDayKey,
+  lastNotePracticeId,
+  sceneTitle,
   practiceStreak,
   recentGroups,
   roundSummary,
@@ -32,6 +34,19 @@ test('practice.library: 묶음 제목은 마지막 노트 제목 → 상황 문�
   assert.notEqual(fallback, '');
   // 옛 빌드가 빈 칸에 넣던 자리표시자는 제목이 아니다.
   assert.equal(groupTitle(group({ situation: '.' })), fallback);
+});
+
+test('장면 제목은 노트 제목(코치 관찰)을 쓰지 않는다 — 제목 → 상황 문장 → 제목 없는 연습', () => {
+  assert.equal(sceneTitle(group({ title: '카페 장면', note_title: '시선이 먼저 내려간다' })), '카페 장면');
+  assert.equal(sceneTitle(group({ note_title: '시선이 먼저 내려간다', situation: '이별 직후 카페' })), '이별 직후 카페');
+  assert.equal(sceneTitle(group({ note_title: '시선이 먼저 내려간다', situation: '.' })), groupTitle(group({})));
+});
+
+test('노트가 붙은 마지막 회차 — 없으면 null', () => {
+  const round = (id, note) => ({ id, note });
+  assert.equal(lastNotePracticeId({ practices: [round('a', { id: 'n' }), round('b', { id: 'm' }), round('c', null)] }), 'b');
+  assert.equal(lastNotePracticeId({ practices: [round('a', null)] }), null);
+  assert.equal(lastNotePracticeId({ practices: [] }), null);
 });
 
 test('practice.library: 숨긴 묶음은 목록에서 빠지고 필터는 전체·즐겨찾기·최근 30일이다', () => {

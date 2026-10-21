@@ -32,7 +32,7 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
     static final Duration PROCESSING = Duration.ofSeconds(180);
     private final DirectVideoModel model;
     private final CoachVideoCache cache;
-    private final Duration processing;
+    private final Duration processingWait;
     /** 올리기 끝 준비가 원본을 내려받는 곳. 없으면 올리기 끝 준비를 하지 않는다(분석 작업만). */
     private final ObjectStorage storage;
     private final Path workDir;
@@ -50,15 +50,15 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
     }
 
     /** Test-only: 처리 대기 한도를 줄여 본다. */
-    CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache, Duration processing) {
-        this(model, cache, null, null, processing);
+    CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache, Duration processingWait) {
+        this(model, cache, null, null, processingWait);
     }
 
     CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache, ObjectStorage storage, Path workDir,
-            Duration processing) {
+            Duration processingWait) {
         this.model = model;
         this.cache = cache == null ? CoachVideoCache.NONE : cache;
-        this.processing = processing;
+        this.processingWait = processingWait;
         this.storage = workDir == null ? null : storage;
         this.workDir = workDir;
     }
@@ -130,7 +130,7 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
             uploaded = label != null ? model.upload(copy, mimeType, inspection, label)
                     : inspection == null || inspection.hasAudioTrack() == null
                     ? model.upload(copy, mimeType) : model.upload(copy, mimeType, inspection);
-            long deadline = System.nanoTime() + processing.toNanos();
+            long deadline = System.nanoTime() + processingWait.toNanos();
             while (!model.ready(uploaded)) {
                 if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
                 Thread.sleep(500);

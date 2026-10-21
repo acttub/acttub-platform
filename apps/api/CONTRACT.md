@@ -1388,6 +1388,17 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `entry_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은 `Cache-Control: private, no-store`다.
   live 운영 조회 전용이며, 저장되는 `ops-core`에는 댓글 본문을 넣지 않는다.
 
+### 6-28. 리딩 녹음 코치 (실험, SOMA-791)
+
+- 스위치 `ACTTUB_RECORDING_COACH_ENABLED=true` 일 때만 서비스·경로(`/v2/recording-coaches`)가 생기는 조건부 빈이다. 관리용
+  경로처럼 OpenAPI 스냅샷(`spec/openapi.json`)과 웹 생성 타입에 들지 않는다. 행동 계약은
+  [reading.recording-coach](../../docs/specs/reading/recording-coach.md)가 정본이고, `ReadingRecordingCoachIT`(스위치 켬)가 지킨다.
+- 표 `reading_recording_coaches`(V48)는 native SQL 만 쓴다(Schema Entity 없음). 회차마다 한 행(`uq_reading_recording_coaches_session`),
+  회차·사람 ON DELETE CASCADE. 넣기는 `INSERT … SELECT FROM reading_sessions WHERE id AND user_id … ON CONFLICT DO NOTHING` 로
+  소유권과 겹친 요청을 한 문장에서 가른다.
+- 모델 호출(저장소에서 녹음 받기 포함)은 트랜잭션 밖이다(§5-4). 모델은 @Primary 코칭 키 클라이언트와
+  `ACTTUB_RECORDING_COACH_MODEL`(비면 `GEMINI_MODEL`)을 쓴다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로

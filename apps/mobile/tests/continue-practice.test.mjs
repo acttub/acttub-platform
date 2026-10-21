@@ -45,3 +45,14 @@ test('practice.start: 새 연습은 보관함 상세에서 넘긴 영상을 그�
   setPickedVideo(VIDEO);
   assert.deepEqual(initialPickedVideo(false), VIDEO);
 });
+
+test('practice.resume: 리딩에서 넘어온 장면은 새 연습에 채워 두고, 묶음을 잇지 않는다(SOMA-772)', async () => {
+  const { planFor } = await import('../lib/practice/resume.ts');
+  setContinueOrigin({ kind: 'reading', scene: { situation: '봄날의 대화 · 1장 카페', character: '민재', goal: '' } });
+
+  assert.deepEqual(planFor(takeContinueOrigin()), {
+    continueFrom: null,
+    scene: { situation: '봄날의 대화 · 1장 카페', character: '민재', goal: '' },
+    prefilled: false,
+  });
+});

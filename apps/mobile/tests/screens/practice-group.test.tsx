@@ -23,6 +23,9 @@ jest.mock('expo-router', () => {
     useLocalSearchParams: () => mockParams,
   };
 });
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
 jest.mock('@/lib/api', () => ({
   api: { getPracticeGroup: jest.fn(), getConversation: jest.fn(), patchPracticeGroup: jest.fn() },
 }));
@@ -188,7 +191,7 @@ test('대화 중인 테이크가 있으면 맨 위에서 그 대화로 돌아간
   await render(<PracticeGroupScreen />);
 
   await fireEvent.press(await screen.findByRole('button', { name: '대화 이어 가기' }));
-  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/analyzing', params: { practiceId: 'p2' } });
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/coach', params: { practiceId: 'p2' } });
   expect(screen.queryByRole('button', { name: '다음 테이크 찍기' })).not.toBeOnTheScreen();
   expect(hasSeenSpotlight).not.toHaveBeenCalled();
 });

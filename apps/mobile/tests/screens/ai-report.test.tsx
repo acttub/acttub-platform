@@ -6,8 +6,8 @@ import { api } from '@/lib/api';
 import type { AiReport } from '@/lib/challenge/types';
 import { newRequestId } from '@/lib/request-id';
 
-const mockRouter = { back: jest.fn() };
-let mockParams: { entryId?: string } = {};
+const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn() };
+let mockParams: { entryId?: string; request?: string } = {};
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => mockRouter,
@@ -16,6 +16,8 @@ jest.mock('expo-router', () => ({
 jest.mock('@/lib/api', () => ({ api: { getAiReport: jest.fn(), requestAiReport: jest.fn() } }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/request-id', () => ({ newRequestId: jest.fn() }));
+jest.mock('@/lib/library/library-runner', () => ({ localCopyFor: jest.fn(async () => null) }));
+jest.mock('@/lib/challenge/intro-state', () => ({ hasFinishedFirstChallenge: jest.fn(async () => true) }));
 
 const getAiReport = api.getAiReport as jest.Mock;
 const requestAiReport = api.requestAiReport as jest.Mock;
@@ -187,4 +189,27 @@ test('요청을 보내는 동안 버튼을 막는다', async () => {
   await act(async () => finish());
   expect(requestAiReport).toHaveBeenCalledTimes(1);
   expect(await screen.findByText('리포트를 만들고 있어요. 다 되면 알림으로 알려드려요.')).toBeOnTheScreen();
+});
+
+describe('올리기 완료의 「AI 리포트 보기」로 왔을 때(request=1)', () => {
+  test('아직 없는 리포트는 누르지 않아도 한 번 바로 요청한다', async () => {
+    mockParams = { entryId: 'e1', request: '1' };
+    getAiReport.mockRejectedValueOnce(status(404)).mockResolvedValueOnce(report({ status: 'pending' }));
+    requestAiReport.mockResolvedValue(undefined);
+    await render(<AiReportScreen />);
+
+    expect(await screen.findByText('리포트를 만들고 있어요. 다 되면 알림으로 알려드려요.')).toBeOnTheScreen();
+    expect(requestAiReport).toHaveBeenCalledTimes(1);
+    expect(requestAiReport).toHaveBeenCalledWith('e1', 'req-1');
+    expect(logEvent).toHaveBeenCalledWith('challenge_report_requested', {});
+  });
+
+  test('이미 있거나 실패한 리포트는 다시 요청하지 않는다(다시 시도는 한도를 쓴다)', async () => {
+    mockParams = { entryId: 'e1', request: '1' };
+    getAiReport.mockResolvedValue(report({ status: 'failed' }));
+    await render(<AiReportScreen />);
+
+    expect(await screen.findByText('리포트를 만들지 못했어요.')).toBeOnTheScreen();
+    expect(requestAiReport).not.toHaveBeenCalled();
+  });
 });

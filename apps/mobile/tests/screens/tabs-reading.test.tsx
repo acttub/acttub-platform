@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ReadingList from '@/app/(tabs)/reading';
+import { setFirstTimeState } from '@/lib/practice/first-time';
 import { SpotlightHost } from '@/components/spotlight-guide';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { ApiError } from '@/lib/api-request';
@@ -9,7 +10,7 @@ import { deleteScript, listScripts, loadIntoCurrent, updateScriptMeta } from '@/
 import type { ScriptCard } from '@/lib/reading/types';
 import { currentTutorial, endTutorial, startTutorial } from '@/lib/tutorial';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), navigate: jest.fn() };
 let mockFocusEffect: () => void | (() => void) = () => undefined;
 
 jest.mock('expo-router', () => {
@@ -28,6 +29,9 @@ jest.mock('@/lib/reading/store', () => ({
   deleteScript: jest.fn(),
   loadIntoCurrent: jest.fn(),
   updateScriptMeta: jest.fn(),
+  listSessions: jest.fn(async () => []),
+  fetchSession: jest.fn(),
+  setCurrentSession: jest.fn(),
 }));
 jest.mock('@/lib/guide-state', () => ({
   hasSeenReadingTutorial: jest.fn(),
@@ -88,19 +92,17 @@ beforeEach(() => {
   (hasSeenSpotlight as jest.Mock).mockResolvedValue(true);
 });
 
-test('대본 카드마다 배역·대사 수·마지막 활동·상태를 보여 준다', async () => {
+test('대본 카드마다 배역·대사 수·상태를 보여 준다', async () => {
   await render(<ReadingList />);
 
   expect(await screen.findByText('옥상 장면')).toBeOnTheScreen();
   expect(listScripts).toHaveBeenCalledWith('');
   expect(voice.refresh).toHaveBeenCalled();
-  expect(screen.getByText('전체 3개 · 연습 중 1개')).toBeOnTheScreen();
-  expect(screen.getAllByText('민지 · 대사 12개 · 녹음 3개')).toHaveLength(2);
-  expect(screen.getByText('어제 연습')).toBeOnTheScreen();
-  expect(screen.getByText('연습 중')).toBeOnTheScreen();
-  expect(screen.getByText('배역 미선택 · 대사 12개 · 녹음 3개')).toBeOnTheScreen();
-  expect(screen.getByText('5월 25일 업로드')).toBeOnTheScreen();
-  expect(screen.getByText('연습 완료')).toBeOnTheScreen();
+  expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
+  expect(screen.getByText('전체 3개')).toBeOnTheScreen();
+  expect(screen.getByText('민지 · 대사 12개 · 연습 중')).toBeOnTheScreen();
+  expect(screen.getByText('배역 미선택 · 대사 12개')).toBeOnTheScreen();
+  expect(screen.getByText('민지 · 대사 12개 · 연습 완료')).toBeOnTheScreen();
   expect(screen.queryByText('고품질 AI 목소리로 읽어줘요')).not.toBeOnTheScreen();
 });
 
@@ -108,11 +110,10 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   (listScripts as jest.Mock).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
   await render(<ReadingList />);
 
-  expect(await screen.findByText('아직 대본이 없어요')).toBeOnTheScreen();
+  expect(await screen.findByText('대사를 같이 맞춰 읽어 볼까요?')).toBeOnTheScreen();
   expect(screen.queryByText('업로드한 대본')).not.toBeOnTheScreen();
-  const newButtons = screen.getAllByText('새 대본');
-  expect(newButtons).toHaveLength(2);
-  await fireEvent.press(newButtons[1]);
+  expect(screen.queryByText('새 대본')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('내 대본 올리기'));
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/new');
 });
 
@@ -128,13 +129,14 @@ test('검색어는 잠깐 기다렸다가 서버에 묻고, 맞는 대본이 없
   await screen.findByText('옥상 장면');
   (listScripts as jest.Mock).mockResolvedValue({ scripts: [], total_count: 3, in_progress_count: 1 });
 
+  await fireEvent.press(screen.getByLabelText('검색'));
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '햄릿');
   expect(listScripts).toHaveBeenCalledTimes(1);
 
   expect(await screen.findByText('검색 결과가 없어요.')).toBeOnTheScreen();
   expect(listScripts).toHaveBeenLastCalledWith('햄릿');
   expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
-  expect(screen.queryByText('아직 대본이 없어요')).not.toBeOnTheScreen();
+  expect(screen.queryByText('대사를 같이 맞춰 읽어 볼까요?')).not.toBeOnTheScreen();
 });
 
 test('늦게 온 이전 검색 결과는 버린다', async () => {
@@ -143,6 +145,7 @@ test('늦게 온 이전 검색 결과는 버린다', async () => {
     .mockReturnValueOnce(new Promise((r) => (resolveFirst = r)))
     .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 });
   await render(<ReadingList />);
+  await fireEvent.press(screen.getByLabelText('검색'));
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '카페');
 
   expect(await screen.findByText('카페 장면')).toBeOnTheScreen();
@@ -156,6 +159,7 @@ test('늦게 실패한 이전 요청은 오류로 덮지 않는다', async () =>
     .mockReturnValueOnce(new Promise((_, reject) => (rejectFirst = reject)))
     .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 });
   await render(<ReadingList />);
+  await fireEvent.press(screen.getByLabelText('검색'));
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '카페');
 
   expect(await screen.findByText('카페 장면')).toBeOnTheScreen();
@@ -309,29 +313,15 @@ describe('처음 온 사람', () => {
     </>
   );
 
-  test('리딩 한 바퀴를 권하고, 나중에를 고르면 본 것으로 적고 새 대본 안내를 띄운다', async () => {
+  test('예전 「리딩 한 바퀴」 시트는 띄우지 않고 본 것으로 적은 뒤 새 대본 안내를 띄운다(SOMA-748)', async () => {
     (hasSeenReadingTutorial as jest.Mock).mockResolvedValue(false);
     (hasSeenSpotlight as jest.Mock).mockResolvedValue(false);
     await render(withHost);
 
-    expect(await screen.findByText('대본 리딩 한 바퀴 해볼까요?')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('나중에 할게요'));
-
-    expect(markReadingTutorialSeen).toHaveBeenCalled();
     expect(await screen.findByText('대본을 넣어 보세요')).toBeOnTheScreen();
+    expect(screen.queryByText('대본 리딩 한 바퀴 해볼까요?')).not.toBeOnTheScreen();
+    expect(markReadingTutorialSeen).toHaveBeenCalled();
     expect(hasSeenSpotlight).toHaveBeenCalledWith('reading');
-  });
-
-  test.each([
-    ['예시 대본으로 둘러보기', 'sample', { pathname: '/reading/new', params: { sample: '1' } }],
-    ['내 대본으로 해 보기', 'own', '/reading/new'],
-  ])('%s를 고르면 리딩 튜토리얼을 시작하고 대본 넣기로 간다', async (label, mode, target) => {
-    (hasSeenReadingTutorial as jest.Mock).mockResolvedValue(false);
-    await render(<ReadingList />);
-    await fireEvent.press(await screen.findByRole('button', { name: label }));
-
-    expect(currentTutorial()).toEqual({ mode, track: 'reading' });
-    expect(mockRouter.push).toHaveBeenCalledWith(target);
   });
 
   test('튜토리얼을 본 사람에게는 새 대본 안내만 한 번 띄우고, 닫으면 본 것으로 적는다', async () => {
@@ -354,5 +344,43 @@ describe('처음 온 사람', () => {
     startTutorial('own', 'practice');
     await act(async () => void mockFocusEffect());
     expect(currentTutorial()).toEqual({ mode: 'own', track: 'practice' });
+  });
+});
+
+describe('첫 사용자라 탭바가 숨으면', () => {
+  afterEach(() => setFirstTimeState('unknown'));
+
+  test('머리에 홈으로 돌아가는 꺾쇠를 둔다', async () => {
+    setFirstTimeState('first');
+    await render(<ReadingList />);
+    await screen.findByText('옥상 장면');
+
+    const back = screen.getByRole('button', { name: '뒤로' });
+    expect(back.props['ph-label']).toBe('reading_back_home');
+    await fireEvent.press(back);
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/');
+  });
+
+  test('머리 오른쪽에 설정 버튼을 둔다 — 탭바가 없어도 로그아웃·탈퇴로 갈 수 있다', async () => {
+    setFirstTimeState('first');
+    await render(<ReadingList />);
+    await screen.findByText('옥상 장면');
+
+    const gear = screen.getByRole('button', { name: '설정' });
+    expect(gear.props['ph-label']).toBe('reading_first_settings');
+    await fireEvent.press(gear);
+    expect(mockRouter.push).toHaveBeenCalledWith('/settings');
+  });
+
+  test('탭바가 보이면(연습했거나 아직 모르면) 꺾쇠를 두지 않는다', async () => {
+    setFirstTimeState('practiced');
+    await render(<ReadingList />);
+    await screen.findByText('옥상 장면');
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '설정' })).not.toBeOnTheScreen();
+
+    await act(async () => setFirstTimeState('unknown'));
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '설정' })).not.toBeOnTheScreen();
   });
 });

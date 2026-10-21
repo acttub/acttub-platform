@@ -7,6 +7,7 @@ import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { CHIP_TONE, relativeDay } from '@/lib/reading/script-cards';
@@ -112,7 +113,7 @@ export default function ReadingDetail() {
           title: '',
           headerShadowVisible: false,
           headerRight: () => (
-            <Pressable hitSlop={8} accessibilityLabel={t('reading.more')} onPress={more}>
+            <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_detail_more" onPress={more}>
               <Feather name="more-horizontal" size={22} color={palette.text} />
             </Pressable>
           ),
@@ -151,10 +152,11 @@ export default function ReadingDetail() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={styles.primary} onPress={() => router.push('/reading/range')}>
-          <Feather name="play" size={16} color={palette.onAccent} />
-          <Text style={styles.primaryText}>{t('reading.practice')}</Text>
-        </Pressable>
+        <PrimaryButton
+          label={t('reading.practice')}
+          icon={<Feather name="play" size={16} color={palette.onAccent} />}
+          onPress={() => router.push('/reading/range')}
+        />
       </View>
       {dialog}
       <TitleEditDialog

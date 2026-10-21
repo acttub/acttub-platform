@@ -68,18 +68,18 @@ test('practice.list: 홈 최근 연습과 연습 기록 목록은 썸네일이 �
   }
 });
 
-test('practice.upload: 제목 칸·업로드 중 버튼·처리 중 잠금', () => {
+test('practice.upload: 장면·연습 제목 칸 없음·업로드 중 버튼·처리 중 잠금', () => {
   const src = read('app/upload.tsx');
-  // 도움 카드와 같은 카드 모양으로, 맨 위에 제목 칸을 둔다.
-  assert.match(src, /t\('upload\.titleLabel'\)/);
-  assert.match(src, /maxLength=\{PRACTICE_TITLE_MAX\}/);
-  assert.match(src, /buildStartBody\(\{[^}]*title/);
+  // 연습 제목 칸은 없앴다(SOMA-771) — 제목은 연습 기록에서 바꾼다.
+  assert.doesNotMatch(src, /t\('upload\.titleLabel'\)/);
+  assert.doesNotMatch(src, /buildStartBody\(\{[^}]*title/);
   // 올리는 중이면 버튼 글자가 「업로드 중」이다.
   assert.match(src, /uploading \? t\('upload\.submitUploading'\)/);
-  // 시작을 누른 뒤에는 입력이 잠긴다.
+  // 시작을 누른 뒤에는 영상 다시 선택·권리 체크가 잠긴다(적을 칸은 SOMA-778 에서 없앴다).
   assert.match(src, /const locked = starting;/);
-  assert.match(src, /editable=\{!locked\}/);
-  assert.match(src, /disabled=\{locked\}/);
+  assert.doesNotMatch(src, /<TextInput/);
+  assert.match(src, /setSourceSheet\(true\)\} disabled=\{locked\}/);
+  assert.match(src, /accessibilityState=\{\{ checked: agreedRights, disabled: locked \}\}/);
   const ko = read('locales/ko.ts');
   assert.match(ko, /submitUploading: '업로드 중…'/);
 });
@@ -96,10 +96,10 @@ test('practice.history: 연습 기록은 영상 목록처럼 왼쪽에 큰 16:9 
   assert.match(src, /<Text style=\{styles\.thumbBadgeText\}>\{row\.count\}<\/Text>/);
 });
 
-test('practice.upload: 질문 받기를 누르면 카드 위에 「보내는 중」 띠가 뜨고 입력이 더 진하게 흐려진다', () => {
+test('practice.upload: 질문 받기를 누르면 「보내는 중」 띠가 뜨고 권리 체크가 잠긴다', () => {
   const src = read('app/upload.tsx');
   assert.match(src, /\{locked && \(\s*<View style=\{styles\.sendingBar\}/);
   assert.match(src, /t\('upload\.sending'\)/);
-  assert.match(src, /inputLocked: \{ opacity: 0\.4 \}/);
+  assert.match(src, /onPress=\{toggleRights\}\s*disabled=\{locked\}/);
   assert.match(read('locales/ko.ts'), /sending: '보내는 중이에요/);
 });

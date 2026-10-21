@@ -13,7 +13,7 @@ const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'
 
 test('SOMA-672: 묶음 줄은 대화 중이면 그 대화로, 아니면 묶음 상세로 간다', () => {
   assert.deepEqual(groupRowTarget({ root_id: 'root-1', in_progress_practice_id: 'practice-9' }), {
-    pathname: '/analyzing',
+    pathname: '/coach',
     params: { practiceId: 'practice-9' },
   });
   assert.deepEqual(groupRowTarget({ root_id: 'root-1', in_progress_practice_id: null }), {
@@ -44,7 +44,7 @@ test('SOMA-672: 묶음 상세는 대화 중이면 「대화 이어 가기」를 
   const bottom = group.indexOf("action.kind === 'nextTake' && (");
   assert.ok(top > 0 && rounds > top && bottom > rounds, '대화 이어 가기는 회차 목록 위, 다음 테이크는 아래');
   assert.match(group, /onPress=\{\(\) => resumeConversation\(action\.practiceId\)\}/);
-  assert.match(group, /pathname: '\/analyzing', params: \{ practiceId \}/);
+  assert.match(group, /pathname: '\/coach', params: \{ practiceId \}/);
 
   const ko = read('locales/ko.ts');
   assert.match(ko, /resumeConversation: '대화 이어 가기'/);
@@ -54,7 +54,7 @@ test('SOMA-672: 묶음 상세는 대화 중이면 「대화 이어 가기」를 
 test('SOMA-672: 지난 노트도 묶음에 열린 테이크가 있으면 「대화 이어 가기」다', () => {
   const detail = read('app/report-detail.tsx');
   assert.match(detail, /\.getPracticeGroup\(rootId\)/);
-  assert.match(detail, /pathname: '\/analyzing', params: \{ practiceId: action\.practiceId \}/);
+  assert.match(detail, /pathname: '\/coach', params: \{ practiceId: action\.practiceId \}/);
   assert.match(detail, /continueActionFor\(/);
   assert.match(detail, /continueActionLabel\(action\)/);
   assert.doesNotMatch(detail, /history\.continueCta/);

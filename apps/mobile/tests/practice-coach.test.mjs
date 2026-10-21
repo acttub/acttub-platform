@@ -124,5 +124,6 @@ test('coach 화면: 코치의 마지막 말을 질문·힌트로 나누지 않�
   const screen = readFileSync(new URL('../app/coach.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(coachLib, /splitCoachQuestion/);
   assert.doesNotMatch(screen, /splitCoachQuestion|latest\.hint|styles\.hint/);
-  assert.match(screen, /<Text style=\{styles\.question\}>\{shownQuestion\.trim\(\)\}<\/Text>/);
+  // 원문 한 칸 그대로 — 「0:12」 같은 시간만 누를 수 있게 칠한다(SOMA-748). 글을 나누거나 빼지 않는다.
+  assert.match(screen, /<Text style=\{styles\.question\}>\{withTimestamps\(shownQuestion\.trim\(\)\)\}<\/Text>/);
 });

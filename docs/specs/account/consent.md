@@ -63,7 +63,7 @@
 | AI 분석 동의 | ai_analysis | 필수 |
 | 탈퇴 후 영상·녹음 보관·활용 | retention | 선택 |
 | 대본 리딩 고품질 목소리 | cloud_voice | 선택 |
-| 대본 나누기(대본 글을 OpenAI로 보냄) | script_split | 선택 |
+| 대본 나누기(대본 글을 OpenAI로, 바로잡기 위해 그 일부를 OpenRouter로 보냄) | script_split | 선택 |
 | 광고성 정보 수신 동의 (이메일) | marketing_email | 선택 |
 | 광고성 정보 수신 동의 (앱 푸시) | marketing_push | 선택 |
 

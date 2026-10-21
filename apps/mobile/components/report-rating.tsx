@@ -133,22 +133,21 @@ export function RatingBox<Value extends string>({
 }
 
 const styles = StyleSheet.create({
-  box: { backgroundColor: palette.bgSubtle, borderRadius: 16, padding: 16, gap: 10 },
-  title: { fontSize: 14, fontWeight: '800', color: palette.text },
+  // pen 「배우 일지」 평가 줄(SOMA-770) — 바탕 카드 없이 제목 14/800 + 회색 알약 칩(안쪽 10·16, 글 15/700).
+  box: { gap: 10 },
+  title: { fontSize: 14, fontWeight: '800', lineHeight: 21, color: palette.text },
   row: { flexDirection: 'row', gap: 8 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.card,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    backgroundColor: palette.bgSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  chipText: { fontSize: 13.5, fontWeight: '700', color: palette.textDim },
+  chipOn: { backgroundColor: palette.blueSoft },
+  chipText: { fontSize: 15, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: palette.blueDeep },
   inputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   input: {

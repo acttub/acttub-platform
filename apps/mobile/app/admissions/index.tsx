@@ -68,7 +68,7 @@ export default function AdmissionsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="뒤로">
+        <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="뒤로" ph-label="admissions_back">
           <Feather name="chevron-left" size={24} color={palette.text} />
         </Pressable>
         <Text style={styles.headerTitle}>연기 입시 정보</Text>
