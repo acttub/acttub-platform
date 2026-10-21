@@ -98,7 +98,7 @@ public final class LineReview {
     /** 여러 번 나와도 머리말·꼬리말로 보지 않는 짧은 글(단어 중간에서 끊긴 대사 토막 「먼」, 재생 031). */
     private static final int REPEAT_MIN_CHARS = 4;
     /** 이름 뒤가 괄호 행동뿐인 줄 — 말이 없다. */
-    private static final Pattern ACTION = Pattern.compile("(\\([^()]*\\)\\s*)+");
+    private static final Pattern ACTION = Pattern.compile("(?:\\([^()]*+\\)\\s*+)++");
     private static final Pattern PAREN = Pattern.compile("\\([^()]*\\)");
     /** 줄 앞 괄호(또는 앞 줄에서 열린 괄호의 닫힘) 뒤의 글. */
     private static final Pattern LEADING_ACTION = Pattern.compile("^\\s*\\([^()]*\\)\\s*(?<rest>[^(\\s].*)$");
@@ -131,7 +131,7 @@ public final class LineReview {
     /** 사람 수로 적은 함께 말하기 머리(「셋」·「둘다」·「세 여자」) — 그 장면의 몇 사람인지 집합 보기로 묻는다(재생 022). */
     private static final Pattern COUNTED = Pattern.compile("(둘|셋|넷|다섯)\\s*(?:다|사람|명)?|(두|세|네|다섯)\\s*(?:사람|명|여자|남자)");
     /** 이름표 모양의 머리 끝 — 쌍점·닫는 대괄호, 탭·U+3000·공백 두 칸 이상. */
-    private static final Pattern LABEL_END = Pattern.compile("[:：\\]]|\\t|\\u3000|\\s{2,}");
+    private static final Pattern LABEL_END = Pattern.compile("[:：\\]\\t\\u3000]|\\s{2,}");
     private static final Map<String, Integer> COUNTS = Map.of("둘", 2, "두", 2, "셋", 3, "세", 3, "넷", 4, "네", 4, "다섯", 5);
     /** 이름표처럼 보이는 짧은 줄 — 글자만 1~8자(「All」·「앙상블」). 배역 목록에 없는 화자 표시일 수 있다. */
     private static final Pattern TAG_LINE = Pattern.compile("[\\p{L}\\s]{1,8}");
@@ -683,7 +683,7 @@ public final class LineReview {
                 continue;
             }
             String rest = stripped.substring(start + name.length());
-            if (rest.matches("(?s)(\\s*[:：\\]\\)]|\\t|\\u3000|\\s{2,}).*\\S.*")) {
+            if (rest.matches("(?s)(\\s*[:：\\]\\)]|[\\t\\u3000]|\\s{2,}).*\\S.*")) {
                 best = name;
             }
         }
@@ -880,7 +880,7 @@ public final class LineReview {
             out.append("\n- 위로 가장 가까운 화자 머리: L").append(head.line().no()).append(": ").append(clip(head.line().text(), 60))
                     .append(" → ").append(head.speaker()).append(". 그 줄부터 ▶ 줄까지 다른 화자 이름으로 시작하는 줄이 없습니다.");
         }
-        if (unfinished) {
+        if (unfinished && head != null) {
             out.append("\n- 그 머리 줄은 ▶ 줄 바로 앞 줄이고, 문서의 줄 너비만큼 차서 문장 끝 부호 없이 끊겼습니다(「").append(tail(head.line().text()))
                     .append("」). ▶ 줄이 그 끊긴 말을 이어 끝맺는 줄인지 보세요.");
         }
@@ -985,7 +985,7 @@ public final class LineReview {
         for (NumberedLine line : window) {
             Row row = rows.get(line.no());
             if (row != null && row.kind() == Kind.DIALOGUE && !row.header().isBlank()) {
-                String head = ScriptText.visible(row.header()).strip().replaceAll("^[\\[(]|[\\s:：.,，、\\-—\\])]+$", "").strip();
+                String head = ScriptText.visible(row.header()).strip().replaceAll("(?:^[\\[(])|(?:[\\s:：.,，、\\-—\\])]+$)", "").strip();
                 // 배역 이름의 일부·확장(「복례」↔「박복례」)이나 괄호가 남은 머리를 보기로 주면 같은 사람이 갈린다(재생 169·171·055)
                 String squashed = CharacterNames.squash(head);
                 boolean known = keys.contains(CharacterNames.sameSpeakerKey(head)) || characters.stream().map(CharacterNames::squash)

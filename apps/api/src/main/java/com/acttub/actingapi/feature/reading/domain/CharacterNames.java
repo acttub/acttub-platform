@@ -26,10 +26,10 @@ import java.util.regex.Pattern;
 public final class CharacterNames {
 
     /** 내레이션 표시(NA·N·N.A.·내레이션) — 본래 배역과 나눈다(2026-10-20 사용자 정책). */
-    private static final Pattern NARRATION = Pattern.compile("(?i)n\\.?(?:a\\.?)?|내레이션|나레이션");
+    private static final Pattern NARRATION = Pattern.compile("(?iu)n\\.?(?:a\\.?)?|내레이션|나레이션");
     /** 이름 끝의 내레이션 꼬리. 괄호 없는 NA는 영문 글자 뒤가 아닐 때만 — 「Anna」는 이름이다. */
     private static final Pattern NARRATION_TAIL = Pattern.compile(
-            "(?i)(?:\\(\\s*(?:n\\.?(?:a\\.?)?|내레이션|나레이션)\\s*\\)|(?<![a-z])n\\.?a\\.?|내레이션|나레이션)$");
+            "(?iu)(?:\\(\\s*(?:n\\.?(?:a\\.?)?|내레이션|나레이션)\\s*\\)|(?<![a-z])n\\.?a\\.?|내레이션|나레이션)$");
     private static final Pattern BRACKETED = Pattern.compile("\\(([^()]*)\\)");
     /** 괄호 속 역할 표시 — 「민(영혼)」·「재하(어린)」은 본래 배역과 다른 연습 배역이다(2026-10-20 사용자 정책). */
     private static final Pattern ROLE = Pattern.compile("영혼|어린|젊은");

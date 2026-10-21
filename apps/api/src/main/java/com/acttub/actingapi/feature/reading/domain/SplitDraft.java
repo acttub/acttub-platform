@@ -42,7 +42,7 @@ public final class SplitDraft {
      * 이름 머리 뒤의 화면 밖 목소리·내레이션 표시 — 「민성(소리)」·「(NA)」, 한글·숫자로 끝나는 이름에 붙은 「김지훈NA」·「엄마E」·「여주VO」·「배우1 NA」(SOMA-663 M7, 재생 065). 머리에
      * 같이 뗀다. 괄호 없는 「소리」는 보지 않는다 — 「민성 소리 지르지 마」는 대사다.
      */
-    private static final Pattern VOICE_MARK = Pattern.compile("(?i)\\((?:n\\.?(?:a\\.?)?|e|v\\.?o\\.?|o\\.?s\\.?|f|off|목?소리만?|음성|전화|내레이션|나레이션)\\)");
+    private static final Pattern VOICE_MARK = Pattern.compile("(?iu)\\((?:n\\.?(?:a\\.?)?|e|v\\.?o\\.?|o\\.?s\\.?|f|off|목?소리만?|음성|전화|내레이션|나레이션)\\)");
     private static final Pattern VOICE_TAIL = Pattern.compile("(?i)(?<=[\\p{IsHangul}\\d])\\s*(?:n\\.?a\\.?|e|v\\.?o\\.?|o\\.?s\\.?)$");
     /** 「자일즈의 음성」·「엄마 목소리」·「윤성구/음성」 꼴의 화면 밖 목소리 머리. */
     private static final Pattern VOICE_OF = Pattern.compile("(.*[^\\s/])\\s*(?:/\\s*|의\\s*)?(?:음성|목소리)");
@@ -59,7 +59,7 @@ public final class SplitDraft {
     /** 쌍점과 그 뒤 마크다운 굵게 닫힘(「**민우:** 」, 재생 209)·공백까지, 그 뒤에 글자가 더 있는 머리. */
     private static final Pattern PAST_COLON = Pattern.compile("([^:：]*[:：][*_]*+[\\s\\p{Z}]*+)\\S");
     /** 화면 밖 목소리 머리 — 모델이 주인 배역을 고른 줄은 머리로 바꾸지 않는다. */
-    private static final Pattern VOICE = Pattern.compile("(?i)목소리|소리|음성|녹음|전화|V\\.?O\\.?|O\\.S\\.?");
+    private static final Pattern VOICE = Pattern.compile("(?iu)목소리|소리|음성|녹음|전화|V\\.?O\\.?|O\\.S\\.?");
     /** 여럿이 함께 하는 머리의 구분 부호. */
     private static final Pattern MULTIPLE = Pattern.compile("[/,，&·•∙・、]");
     /** PDF·txt 의 쪽 번호 줄. 2026-10-13 105편에서 모델이 1,002줄 중 41줄을 대사·지문이라 해 대사 안에 「- 27 -」이 남았다. */
@@ -659,7 +659,7 @@ public final class SplitDraft {
     private static Boolean relation(String name, String speaker) {
         // 함께 말하기 이름의 구분 부호(「바트, 켈리」↔「바트/켈리」)는 하나로 본다(재생 183)
         String head = CharacterNames.squash(name).replaceAll("[,/·•∙・&]", ",");
-        String squashed = CharacterNames.squash(speaker).replaceAll("^[\\[(]|[\\])]$", "").replaceAll("[,/·•∙・&]", ",");
+        String squashed = CharacterNames.squash(speaker).replaceAll("(?:^[\\[(])|(?:[\\])]$)", "").replaceAll("[,/·•∙・&]", ",");
         if (head.codePoints().noneMatch(Character::isLetter) || squashed.isEmpty()) {
             return null;
         }
@@ -713,9 +713,9 @@ public final class SplitDraft {
      * 원문 두 줄 이상이 그 글자로 시작하는 머리. 머리 뒤가 말줄임표의 나머지면({@code 한여름  .}+{@code ..나도}) 믿지 않는다.
      */
     private static boolean trusted(String model, String stripped, String speaker, Heads heads) {
-        String trimmed = model.replaceAll("^[\\s\\p{Z}]+|[\\s\\p{Z}]+$", "");
+        String trimmed = model.replaceAll("(?:^[\\s\\p{Z}]+)|(?:[\\s\\p{Z}]+$)", "");
         // 마크다운 굵게(「**민우:** 」)는 머리의 일부다(재생 209)
-        String core = trimmed.replaceAll("^[*_]+|[\\s\\p{Z}:：;.\\-—–*_&]+$", "");
+        String core = trimmed.replaceAll("(?:^[*_]+)|(?:[\\s\\p{Z}:：;.\\-—–*_&]+$)", "");
         if (core.isEmpty()) {
             return trimmed.matches("[-–—:：;]+");
         }

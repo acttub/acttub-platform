@@ -27,7 +27,7 @@ public final class ScriptRules {
      * GROUP 과 같은 뜻이되 낱말은 앞뒤에 한글·영문 글자가 붙지 않을 때만 본다 — 「전원주」 같은 이름을 빼지 않게.
      */
     private static final Pattern GROUP = Pattern.compile(
-            "[,/·•∙・&]|(?<![가-힣A-Za-z])(모두|다\\s*같이|전원|일동|합창|코러스|all)(?![가-힣A-Za-z])", Pattern.CASE_INSENSITIVE);
+            "[,/·•∙・&]|(?<![가-힣A-Za-z])(모두|다\\s*같이|전원|일동|합창|코러스|all)(?![가-힣A-Za-z])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /** 회원이 가질 수 있는 대본 수. 이관으로 넘으면 자료는 보존하고 새 등록만 막는다. */
     public static final int MEMBER_SCRIPT_MAX = 100;

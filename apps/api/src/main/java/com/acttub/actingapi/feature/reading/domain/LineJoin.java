@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
 final class LineJoin {
 
     private static final Pattern GAP = Pattern.compile("\\s+");
-    private static final Pattern EDGE = Pattern.compile("^[^\\p{L}\\p{N}_]+|[^\\p{L}\\p{N}_]+$");
+    private static final Pattern EDGE = Pattern.compile("(?:^[^\\p{L}\\p{N}_]+)|(?:[^\\p{L}\\p{N}_]+$)");
     private static final List<String> ENDING_HEADS = List.of(
             "었", "았", "였", "겠", "습니", "읍니", "니다", "니까", "어요", "아요", "는데", "는지", "는구", "을", "를", "는");
     private static final Set<String> PARTICLES = Set.of(
