@@ -169,7 +169,6 @@ export default function ConsentScreen() {
 
       <ScrollView contentContainerStyle={styles.list}>
         <Text style={styles.title}>{t('consent.heading')}</Text>
-        <Text style={styles.hint}>{t('consent.headingHint')}</Text>
         <Pressable
           style={styles.allRow}
           onPress={toggleEverything}
@@ -245,7 +244,6 @@ const styles = StyleSheet.create({
   // pen S4 「본문」 — 안쪽 [16,24,24,24], 줄 사이 14.
   list: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
   title: { fontSize: 22, fontWeight: '900', lineHeight: 31, color: palette.text },
-  hint: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
   docBody: { paddingHorizontal: 16, paddingBottom: 12 },
   subRow: { flexDirection: 'row', gap: 20, paddingLeft: 46, paddingBottom: 10, marginTop: -14 },
   subItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
