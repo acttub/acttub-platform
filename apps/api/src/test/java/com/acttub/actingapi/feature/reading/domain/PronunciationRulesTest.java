@@ -91,6 +91,7 @@ class PronunciationRulesTest {
         Report report = PronunciationRules.build(List.of(new LineInput(6, "나 벌써 스물아홉이야.", "나 벌써 29이야", line)));
         assertThat(report.skippedLines()).isEmpty();
         assertThat(report.summary().linesUsed()).isEqualTo(1);
+        assertThat(report.misheard()).as("숫자로 받아쓴 것은 다르게 알아들은 말이 아니다").isEmpty();
     }
 
     @Test
