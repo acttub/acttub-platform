@@ -18,11 +18,14 @@ import {
   buildStartBody,
   defaultMyCharacterIds,
   dialogueNumbers,
+  fewLines,
+  isGroupCharacter,
   rangeError,
   rangeOfDialogueNos,
   rangeOfLineIds,
   rangeTitle,
   recentRanges,
+  roleLineCount,
   sceneTitle,
   snapRangeToDialogues,
   startGate,
@@ -77,7 +80,8 @@ export default function ReadingRange() {
     [script],
   );
   const dialogues = useMemo(() => lines.map((l, i) => ({ l, i })).filter((x) => x.l.type === 'dialogue'), [lines]);
-  const cast = script?.characters ?? [];
+  // 함께 말하는 줄의 묶음 배역은 칩에 두지 않는다(SOMA-709).
+  const cast = useMemo(() => (script?.characters ?? []).filter((c) => !isGroupCharacter(c)), [script]);
   const hasHistory = !!script?.lastSession;
 
   const [selected, setSelected] = useState<string[]>(() =>
@@ -159,6 +163,8 @@ export default function ReadingRange() {
   const activeTab = tab && tabs.includes(tab) ? tab : tabs[0];
   const isActive = (r: LineRange) => r.startIndex === range.startIndex && r.endIndex === range.endIndex;
   const dlgIn = dialogues.filter((x) => x.i >= range.startIndex && x.i <= range.endIndex).length;
+  // 고른 배역의 대사가 구간 안에 거의 없으면 처음 안내 대신 알린다 — 시작은 막지 않는다(SOMA-709).
+  const few = fewLines(lines, pickedCast.map((c) => c.name), range.startIndex, range.endIndex);
   const loadingDefault = picked === null && sessions === null;
   const gate = startGate({ roleCount: selected.length, micGranted: mic === null ? null : true, loading: loadingDefault });
   const wholeDialogues = dialogues.length;
@@ -257,13 +263,19 @@ export default function ReadingRange() {
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}>
                 <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{c.name}</Text>
+                <Text style={styles.roleChipCount}>{roleLineCount(c, lines)}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
         <Text style={styles.hint}>{pickedCast.length === 0 ? t('reading.startNeedsRole') : t('reading.myRolesHint')}</Text>
 
-        {short && activeTab === 'suggest' && isActive(short) && (
+        {few !== null ? (
+          <View style={styles.fewBox}>
+            <Feather name="alert-triangle" size={20} color={palette.amber} />
+            <Text style={styles.fewText}>{t('reading.rangeFewLines', { roles: pickedCast.map((c) => c.name).join(', '), count: few })}</Text>
+          </View>
+        ) : short && activeTab === 'suggest' && isActive(short) && (
           <View style={styles.tip}>
             <Feather name="star" size={18} color={palette.blue} />
             <Text style={styles.tipText}>{t('reading.rangeFirstTip', { label: t('reading.startSession', { count: short.dialogueCount }) })}</Text>
@@ -442,10 +454,14 @@ const styles = StyleSheet.create({
   hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12, marginTop: -6 },
   bleed: { marginHorizontal: -24 },
   roleChips: { gap: 8, paddingHorizontal: 24 },
-  roleChip: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: palette.bgSoft },
+  roleChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: palette.bgSoft },
   roleChipOn: { backgroundColor: palette.blueSoft },
   roleChipText: { color: palette.textDim, fontSize: 15, fontWeight: '700', lineHeight: 23 },
   roleChipTextOn: { color: palette.blueDeep },
+  // pen 「배역 칩」의 대사 수 — 이름보다 2pt 작은 grey500
+  roleChipCount: { color: palette.textFaint, fontSize: 13, fontWeight: '500', lineHeight: 23 },
+  fewBox: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: palette.amberSoft, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 14 },
+  fewText: { flex: 1, color: palette.amber, fontSize: 14, fontWeight: '700', lineHeight: 21 },
   tip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.blueMist, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16 },
   tipText: { flex: 1, color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 4 },

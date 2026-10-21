@@ -167,7 +167,10 @@ final class ScriptDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, allowableValues = {"child", "young", "adult", "senior"},
                     description = "대본에서 읽은 배역의 나이대(child 어린이·young 10~20대·adult 30~50대·senior 노년). 모르면 null")
             String ageBand,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int dialogueCount) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int dialogueCount,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "함께 말하는 줄의 묶음 배역(「지해, 연수」·「모두」)이면 그 줄을 함께 말하는 배역들의 id(둘 이상), 보통 배역이면 빈 배열. 묶음 배역은 보통 배역 뒤에 온다. 그 줄의 character_id 는 묶음 배역이다(SOMA-709)")
+            List<UUID> memberIds) {
     }
 
     /** 장면 하나. 화면 이름은 {@code title}, 없으면 기기가 번호로 부른다(「장면 2」). */

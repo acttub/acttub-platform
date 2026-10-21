@@ -593,8 +593,8 @@ export interface paths {
          * Create Script
          * @description 기기가 나눈 대본(원문·배역·줄)을 한 요청으로 저장한다. 같은 request_id 에 같은 본문이 다시 오면
          *     먼저 만든 대본을 200 으로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. 배역 없음
-         *     422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자·줄
-         *     3,000·배역 50(함께 말하기 이름 제외) 초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.
+         *     422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자
+         *     초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.
          */
         post: operations["create_script_v2_reading_scripts_post"];
         delete?: never;
@@ -1535,6 +1535,23 @@ export interface paths {
         };
         /** Cloud voice status */
         get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/voice-model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Device voice model download urls */
+        get: operations["current"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2901,6 +2918,11 @@ export interface components {
             age_band: ("child" | "young" | "adult" | "senior") | null;
             /** Dialogue Count */
             dialogue_count: number;
+            /**
+             * Member Ids
+             * @description 함께 말하는 줄의 묶음 배역(「지해, 연수」·「모두」)이면 그 줄을 함께 말하는 배역들의 id(둘 이상), 보통 배역이면 빈 배열. 묶음 배역은 보통 배역 뒤에 온다. 그 줄의 character_id 는 묶음 배역이다(SOMA-709)
+             */
+            member_ids: string[];
         };
         /** ReadingScriptLastSession */
         ReadingScriptLastSession: {
@@ -4402,6 +4424,26 @@ export interface components {
             daily_limit?: number;
             /** Daily Used */
             daily_used?: number;
+        };
+        /** FileResponse */
+        FileResponse: {
+            /** Name */
+            name?: string;
+            /** Bytes */
+            bytes?: number;
+            /** Sha256 */
+            sha256?: string;
+            /** Url */
+            url?: string;
+        };
+        /** ModelResponse */
+        ModelResponse: {
+            /** Version */
+            version?: string;
+            /** Files */
+            files?: components["schemas"]["FileResponse"][];
+            /** Expires In */
+            expires_in?: number;
         };
         /** ReadingScriptCard */
         ReadingScriptCard: {
@@ -8247,6 +8289,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+        };
+    };
+    current: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelResponse"];
                 };
             };
         };

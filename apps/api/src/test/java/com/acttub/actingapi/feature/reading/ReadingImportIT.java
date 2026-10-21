@@ -519,10 +519,10 @@ class ReadingImportIT {
         assertThat(calls.subList(1, 4)).extracting(call -> call.input().split("\n").length).containsExactlyInAnyOrder(150, 150, 100);
         assertThat(calls.subList(1, 4)).extracting(call -> call.input().split("\n")[0]).containsExactlyInAnyOrder(
                 "1\t등장인물: 뱅코우, 맥베스", "151\t뱅코우: 대사 151", "301\t뱅코우: 대사 301");
-        // 다시 묻기는 빠진 줄 앞뒤 4줄을 ~ 문맥으로 함께 보낸다.
+        // 다시 묻기는 빠진 줄 앞뒤 4줄을 ~ 문맥으로 함께 보낸다. 깨진 글자 화자(맥베س)의 4번째 줄도 함께 다시 묻는다(SOMA-709).
         assertThat(calls.get(4).instructions()).contains("\"~\"가 없는 줄만");
-        assertThat(calls.get(4).input()).isEqualTo(context(3, 11, 7) + "\n" + context(196, 204, 200));
-        assertThat(calls.get(5).input()).isEqualTo(context(3, 11, 7));
+        assertThat(calls.get(4).input()).isEqualTo(context(1, 11, 4, 7) + "\n" + context(196, 204, 200));
+        assertThat(calls.get(5).input()).as("다시 받은 답은 의심 이름이어도 받는다").isEqualTo(context(3, 11, 7));
 
         JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
         assertThat(done.path("status").textValue()).isEqualTo("succeeded");
@@ -536,7 +536,7 @@ class ReadingImportIT {
         assertThat(script.path("lines").get(0).path("text").textValue()).isEqualTo("대사 2");
         assertThat(script.path("lines").get(2).path("kind").textValue()).isEqualTo("dialogue");
         assertThat(script.path("lines").get(2).path("character_id").textValue())
-                .as("맥베س 로 쓴 4번째 줄은 맥베스의 대사다").isEqualTo(script.path("characters").get(1).path("id").textValue());
+                .as("다시 물어 받은 맥베س 도 4번째 줄은 맥베스의 대사다").isEqualTo(script.path("characters").get(1).path("id").textValue());
         assertThat(script.path("lines").get(5).path("kind").textValue()).as("끝까지 빠진 7번째 줄은 지문").isEqualTo("direction");
         assertThat(script.path("lines").get(5).path("text").textValue()).isEqualTo("뱅코우: 대사 7");
         assertThat(script.path("lines").get(198).path("text").textValue()).as("한 번 빠졌다 되찾은 200번째 줄").isEqualTo("대사 200");
@@ -544,12 +544,13 @@ class ReadingImportIT {
         assertThat(script.path("lines").get(197).path("kind").textValue()).as("문맥으로 보낸 199번째 줄도").isEqualTo("dialogue");
     }
 
-    /** {@code from}~{@code to} 줄의 다시 묻기 입력 — {@code target} 만 번호 그대로, 나머지는 {@code ~} 문맥. */
-    private static String context(int from, int to, int target) {
+    /** {@code from}~{@code to} 줄의 다시 묻기 입력 — {@code targets} 만 번호 그대로, 나머지는 {@code ~} 문맥. */
+    private static String context(int from, int to, Integer... targets) {
         StringBuilder out = new StringBuilder();
         for (int line = from; line <= to; line++) {
             if (!out.isEmpty()) out.append('\n');
-            out.append(line == target ? "" : "~").append(line).append('\t').append(line % 2 == 0 ? "맥베스: 대사 " : "뱅코우: 대사 ").append(line);
+            out.append(List.of(targets).contains(line) ? "" : "~").append(line).append('\t')
+                    .append(line == 1 ? "등장인물: 뱅코우, 맥베스" : (line % 2 == 0 ? "맥베스: 대사 " : "뱅코우: 대사 ") + line);
         }
         return out.toString();
     }
@@ -581,6 +582,45 @@ class ReadingImportIT {
         assertThat(jdbc.queryForList("SELECT raw_text FROM script_imports", String.class)).containsExactly("", "");
         assertThat(jdbc.queryForList("SELECT status FROM ai_jobs ORDER BY created_at", String.class)).containsExactly("failed", "failed");
         assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SOMA-709 1번: 다른 배역 이름만으로 된 화자는 묶음 배역으로 저장하고 함께 말하는 배역 id 를 싣는다 — 순서만 다른 묶음은 하나, 보통 배역 뒤")
+    void groupSpeakersAreStoredWithTheirMembers() throws Exception {
+        Model.answer = Model::oracle;
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null,
+                "지해: 가자.\n연수: 응.\n연희: 어디?\n지해,연수: 같이 가!\n연수·지해: 그래!\n모두: 만세!", "paste")), 202).path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+
+        JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);
+        JsonNode script = json(get("/v2/reading/scripts/{id}", done.path("script_id").textValue()), 200);
+        JsonNode characters = script.path("characters");
+        assertThat(characters).extracting(character -> character.path("name").textValue()).containsExactly("지해", "연수", "연희", "지해,연수", "모두");
+        String jihae = characters.get(0).path("id").textValue();
+        String yeonsu = characters.get(1).path("id").textValue();
+        assertThat(characters.get(0).path("member_ids")).isEmpty();
+        assertThat(characters.get(3).path("member_ids")).extracting(JsonNode::textValue).containsExactly(jihae, yeonsu);
+        assertThat(characters.get(4).path("member_ids")).as("모두는 모든 배역").extracting(JsonNode::textValue)
+                .containsExactly(jihae, yeonsu, characters.get(2).path("id").textValue());
+        assertThat(characters.get(3).path("dialogue_count").intValue()).isEqualTo(2);
+        assertThat(script.path("lines").get(4).path("character_id").textValue()).isEqualTo(characters.get(3).path("id").textValue());
+        assertThat(jdbc.queryForList("SELECT array_length(member_ids, 1) FROM script_characters ORDER BY sort_order", Integer.class))
+                .containsExactly(null, null, null, 2, 3);
+    }
+
+    @Test
+    @DisplayName("SOMA-709 3번: 원문 머리로 쓰인 적 없는 의심 화자의 줄은 다시 묻고, 끝내 답이 없으면 첫 답으로 되돌린다 — 지문으로 잃지 않는다")
+    void suspiciousSpeakersAreAskedAgainWithoutLosingTheLine() throws Exception {
+        Model.answer = call -> call.instructions().contains("다시 묻는 것이다") ? "~4\tx\t\t\n"
+                : Model.oracle(call).replaceAll("(?m)^5\t.*$", "5\td\t그리고\t");
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null,
+                "윤서: 가자.\n윤서: 빨리.\n태오: 응.\n태오: 그래.\n그리고 손을 흔든다.", "paste")), 202).path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+
+        assertThat(json(get("/v2/reading/imports/{id}", id), 200).path("status").textValue()).isEqualTo("succeeded");
+        assertThat(Model.CALLS).hasSize(1 + 2);
+        assertThat(Model.CALLS.get(1).input()).as("원문 머리인 드문 이름(윤서·태오)은 묻지 않는다").endsWith("\n5\t그리고 손을 흔든다.");
+        assertThat(jdbc.queryForList("SELECT name FROM script_characters ORDER BY name", String.class)).containsExactly("그리고", "윤서", "태오");
     }
 
     @Test

@@ -1268,7 +1268,7 @@
       "post" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Create Script",
-        "description" : "기기가 나눈 대본(원문·배역·줄)을 한 요청으로 저장한다. 같은 request_id 에 같은 본문이 다시 오면\n먼저 만든 대본을 200 으로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. 배역 없음\n422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자·줄\n3,000·배역 50(함께 말하기 이름 제외) 초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.",
+        "description" : "기기가 나눈 대본(원문·배역·줄)을 한 요청으로 저장한다. 같은 request_id 에 같은 본문이 다시 오면\n먼저 만든 대본을 200 으로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. 배역 없음\n422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자\n초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.",
         "operationId" : "create_script_v2_reading_scripts_post",
         "parameters" : [ {
           "name" : "X-Request-Id",
@@ -6140,9 +6140,18 @@
           "dialogue_count" : {
             "type" : "integer",
             "title" : "Dialogue Count"
+          },
+          "member_ids" : {
+            "type" : "array",
+            "description" : "함께 말하는 줄의 묶음 배역(「지해, 연수」·「모두」)이면 그 줄을 함께 말하는 배역들의 id(둘 이상), 보통 배역이면 빈 배열. 묶음 배역은 보통 배역 뒤에 온다. 그 줄의 character_id 는 묶음 배역이다(SOMA-709)",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "Member Ids"
           }
         },
-        "required" : [ "age_band", "dialogue_count", "gender", "id", "name", "order", "voice", "voice_preset" ],
+        "required" : [ "age_band", "dialogue_count", "gender", "id", "member_ids", "name", "order", "voice", "voice_preset" ],
         "title" : "ReadingScriptCharacter"
       },
       "ReadingScriptLastSession" : {

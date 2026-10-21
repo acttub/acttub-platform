@@ -41,9 +41,10 @@ public final class ScriptViews {
      * @param voice 내 배역이 아닐 때 읽을 목소리 — 자동이면 성별·나이대와 순환으로 정한 값(reading.cast)
      * @param gender 나누기 모델이 읽은 성별 {@code m}·{@code f}. 모르면 {@code null}
      * @param ageBand 나누기 모델이 읽은 나이대 {@code child}·{@code young}·{@code adult}·{@code senior}. 모르면 {@code null}
+     * @param memberIds 함께 말하는 줄의 묶음 배역이면 그 줄을 함께 말하는 배역들, 보통 배역이면 비어 있다 (SOMA-709)
      */
     public record CharacterView(UUID id, String name, int order, String voicePreset, String voice, String gender,
-            String ageBand, int dialogueCount) {
+            String ageBand, int dialogueCount, List<UUID> memberIds) {
     }
 
     /**

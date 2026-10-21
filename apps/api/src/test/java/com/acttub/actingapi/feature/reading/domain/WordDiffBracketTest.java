@@ -27,7 +27,8 @@ class WordDiffBracketTest {
 
     @Test void nameMatchingIgnoresTooShortRosterNamesAndForeignPunctuation() {
         assertThat(CharacterNames.fix("김민수수", List.of("김", "김민수"))).isEqualTo("김민수");
-        assertThat(CharacterNames.fix("Mr. 박-1", List.of("Mr. 박"))).isEqualTo("Mr. 박");
+        assertThat(CharacterNames.fix("Mr. 박-", List.of("Mr. 박"))).isEqualTo("Mr. 박");
+        assertThat(CharacterNames.fix("Mr. 박-1", List.of("Mr. 박"))).as("숫자가 붙은 이름은 다른 사람이다(SOMA-709)").isEqualTo("Mr. 박-1");
         assertThat(CharacterNames.fix("ミンス", List.of("민수"))).as("가나만 쓴 이름은 글자를 빼고 거리 2 안의 이름으로(ロス 사례)").isEqualTo("민수");
     }
 

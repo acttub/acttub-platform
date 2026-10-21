@@ -78,7 +78,7 @@ test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역
 
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.queryByText('내 배역을 골라 주세요')).not.toBeOnTheScreen();
-  expect(screen.getByRole('checkbox', { name: '민재' })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeChecked();
   expect(startButton(5)).toBeOnTheScreen();
 });
 
@@ -108,7 +108,7 @@ test('고른 배역 칩을 다시 누르면 그 배역을 뺀다', async () => {
   await fireEvent.press(screen.getByText('민재'));
 
   await fireEvent.press(screen.getByText('민재'));
-  expect(screen.getByRole('checkbox', { name: '민재' })).not.toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /^민재 / })).not.toBeChecked();
   expect(screen.getAllByText('내 배역을 골라 주세요')).toHaveLength(2);
 });
 
@@ -177,7 +177,7 @@ test('연습한 적이 있으면 최근 구간을 먼저 보이고 가장 최근
   expect(screen.getByText('최근 구간')).toBeOnTheScreen();
   expect(await screen.findByText('2개 · 2회차 · 오늘')).toBeOnTheScreen();
   expect(screen.getByText('장면 2')).toBeOnTheScreen();
-  expect(screen.getByRole('checkbox', { name: '민재' })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeChecked();
   expect(server.listSessions).toHaveBeenCalledWith('s1');
 
   await fireEvent.press(startButton(2));
@@ -213,8 +213,8 @@ test('회차 상세의 이 구간으로 다시 연습은 넘긴 배역과 구간
   mockParams = { roles: 'c2,unknown', start: 'l4', end: 'l5' };
   await show();
 
-  expect(screen.getByRole('checkbox', { name: '서연' })).toBeChecked();
-  expect(screen.getByRole('checkbox', { name: '민재' })).not.toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /^서연 / })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /^민재 / })).not.toBeChecked();
   expect(startButton(2)).toBeOnTheScreen();
 });
 
@@ -313,5 +313,41 @@ test('배역이 하나뿐인 대본은 그 배역을 골라 둔다', async () =>
   await show(scriptDetail([['dialogue', '민재', '혼자야.']]));
 
   expect(startButton(1)).toBeOnTheScreen();
-  expect(screen.getByRole('checkbox', { name: '민재' })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeChecked();
+});
+
+test('SOMA-709: 배역 칩은 이름 옆에 대사 수를 보이고, 함께 말하는 줄의 묶음 배역은 칩에 두지 않는다', async () => {
+  const detail = scriptDetail([...TWO_ROLE_LINES, ['dialogue', '민재, 서연', '같이 가!']]);
+  detail.characters[2] = { ...detail.characters[2], member_ids: ['c1', 'c2'] };
+  await show(detail);
+
+  expect(screen.getByRole('checkbox', { name: '민재 2' })).toBeOnTheScreen();
+  expect(screen.getByRole('checkbox', { name: '서연 1' })).toBeOnTheScreen();
+  expect(screen.queryByRole('checkbox', { name: /^민재, 서연/ })).not.toBeOnTheScreen();
+});
+
+test('SOMA-709: 고른 배역의 구간 안 대사가 2줄 이하면 처음 안내 대신 노란 안내를 보이고, 시작은 막지 않는다', async () => {
+  const server = await show();
+  await fireEvent.press(screen.getByText('서연'));
+
+  expect(screen.getByText('고른 구간에 서연 대사가 2줄뿐이에요.\n배역을 더 고르거나 구간을 넓혀 보세요.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('민재'));
+  expect(screen.queryByText(/대사가 \d줄뿐이에요/)).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('민재'));
+
+  await fireEvent.press(startButton(5));
+  await waitFor(() => expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c2'] })));
+});
+
+test('SOMA-709: 짧은 구간 추천이 뜨는 첫 연습에서도 대사가 적은 배역을 고르면 노란 안내가 그 자리를 대신한다', async () => {
+  const lines: Parameters<typeof scriptDetail>[0] = [];
+  for (let i = 0; i < 12; i++) lines.push(['dialogue', i === 3 ? '서연' : '민재', `대사 ${i + 1}`]);
+  await show(scriptDetail(lines));
+  await fireEvent.press(screen.getByText('민재'));
+  expect(screen.getByText(/처음이라 짧은 구간으로 골라 뒀어요/)).toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByText('민재'));
+  await fireEvent.press(screen.getByText('서연'));
+  expect(screen.getByText('고른 구간에 서연 대사가 1줄뿐이에요.\n배역을 더 고르거나 구간을 넓혀 보세요.')).toBeOnTheScreen();
+  expect(screen.queryByText(/처음이라 짧은 구간으로 골라 뒀어요/)).not.toBeOnTheScreen();
 });

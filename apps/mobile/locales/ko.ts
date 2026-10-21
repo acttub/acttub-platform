@@ -1515,7 +1515,7 @@ const ko = {
     fileTooLarge: '파일이 너무 커요. 50MB까지 열 수 있어요.',
     dialogueCount: '대사 {{count}}개',
     // 한도·오류 코드
-    errorScriptTooLong: '대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요.',
+    errorScriptTooLong: '대본이 너무 길어요. 원문 100,000자까지 저장할 수 있어요.',
     errorScriptLimit: '대본은 100개까지 둘 수 있어요. 안 쓰는 대본을 지우면 다시 저장할 수 있어요.',
     errorInvalidCharacters: '배역 이름이 비어 있거나 겹쳐요. 이름을 고쳐 주세요.',
     errorFingerprintMismatch: '앞서 보낸 요청과 내용이 달라요. 새 대본으로 다시 넣어 주세요.',
@@ -1654,6 +1654,7 @@ const ko = {
     splitRetry: '다시 시도',
     splitPasteInstead: '직접 붙여 넣기',
     rangeFirstTip: '처음이라 짧은 구간으로 골라 뒀어요. 「{{label}}」를 누르세요.',
+    rangeFewLines: '고른 구간에 {{roles}} 대사가 {{count}}줄뿐이에요.\n배역을 더 고르거나 구간을 넓혀 보세요.',
     bySuggest: '추천',
     rangeShortTitle: '처음 ~ 「{{text}}」',
     rangeShortMeta: '대사 {{count}}줄 · 내 대사 {{mine}}줄',

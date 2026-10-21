@@ -225,7 +225,7 @@ test('배역을 못 찾으면 「대본을 못 나눴어요」 화면에 이유�
 
 test.each([
   ['하루 한도를 넘으면', () => jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(429, 'limit', 'script_split_daily_limit')), '오늘은 대본을 더 넣을 수 없어요', '대본은 하루 20번까지 나눌 수 있어요.\n내일 다시 넣어 주세요.'],
-  ['대본이 너무 길면', () => jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'script_too_long', script_id: null })), '저장', '대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요.'],
+  ['대본이 너무 길면', () => jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'script_too_long', script_id: null })), '저장', '대본이 너무 길어요. 원문 100,000자까지 저장할 수 있어요.'],
 ])('%s 알리고 확인을 누르면 닫는다', async (_name, arrange, title, message) => {
   arrange();
   await render(<ReadingNew />);

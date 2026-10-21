@@ -423,4 +423,69 @@ class SplitResponseTest {
                 Map.entry(2, new Row(2, Kind.DIALOGUE, "가지", "")));
         assertThat(parsed.rejected()).isEqualTo(2);
     }
+
+    @Test
+    @DisplayName("SOMA-709 3번: 원문 머리가 더 긴 배역 이름이면 그 배역으로 고치고, 머리로 쓰인 적 없는 조각·깨진 글자·드문 이름은 다시 묻는다")
+    void repairsNameFragmentsAndAsksAgain() {
+        List<NumberedLine> lines = NumberedLine.of("""
+                젊은 시워드: 아버지!
+                젊은 시워드: 제가 가겠습니다.
+                젊은 시워드: 칼을 주십시오.
+                운명의 여신: 들어라.
+                운명의 여신: 때가 왔다.
+                그리고 모두 돌아선다.
+                દaiана 어디로 가?
+                하은: 엄마 뭐 해?
+                하은: 나 왔어.
+                하은 엄마: 왔니.
+                하은 엄마: 밥 먹자.
+                하은 엄마: 어서.
+                경찰: 멈춰!
+                젊은 시워드
+                늦지 않았습니다.
+                """);
+        Map<Integer, Row> rows = new HashMap<>();
+        String[] speakers = {"젊은 시워드", "젊은", "젊은 시워드", "운명의", "운명의 여신", "그리고", "દaiана", "하은", "하은", "하은 엄마", "하은 엄마",
+                "하은 엄마", "경찰", null, "젊은"};
+        for (int i = 0; i < speakers.length; i++) {
+            int no = i + 1;
+            rows.put(no, speakers[i] == null ? new Row(no, Kind.IGNORE, "", "")
+                    : new Row(no, Kind.DIALOGUE, speakers[i], speakers[i].equals("젊은") || speakers[i].equals("운명의") ? speakers[i] + " " : ""));
+        }
+
+        Map<Integer, Row> asked = SplitResponse.fragments(lines, rows, List.of());
+
+        assertThat(rows.get(2)).isEqualTo(new Row(2, Kind.DIALOGUE, "젊은 시워드", ""));
+        assertThat(rows.get(4)).isEqualTo(new Row(4, Kind.DIALOGUE, "운명의 여신", ""));
+        assertThat(rows.get(15)).as("블록 형식의 이름 줄도 근거다").isEqualTo(new Row(15, Kind.DIALOGUE, "젊은 시워드", ""));
+        // 「그리고」·깨진 글자 이름은 원문 머리로 쓰인 적이 없어 다시 묻는다. 「하은」은 ~은 으로 끝나도 원문 머리이고, 「경찰」은 한 번 나와도 원문 머리다
+        assertThat(asked).containsOnlyKeys(6, 7);
+        assertThat(rows).doesNotContainKeys(6, 7);
+        assertThat(asked.get(6)).isEqualTo(new Row(6, Kind.DIALOGUE, "그리고", ""));
+        assertThat(rows.get(8).speaker()).isEqualTo("하은");
+        assertThat(rows.get(13).speaker()).isEqualTo("경찰");
+    }
+
+    @Test
+    @DisplayName("SOMA-709 4번: 효과음 표기·괄호로만 된 화자는 배역이 아니라 지문이다. 괄호 안이 아는 배역이면 둔다")
+    void soundCuesAreDirections() {
+        Map<Integer, Row> rows = new HashMap<>();
+        rows.put(1, new Row(1, Kind.DIALOGUE, "(음 향)", "(음 향) "));
+        rows.put(2, new Row(2, Kind.DIALOGUE, "효과음", "효과음: "));
+        rows.put(3, new Row(3, Kind.DIALOGUE, "(천둥)", "(천둥) "));
+        rows.put(4, new Row(4, Kind.DIALOGUE, "철수", "철수: "));
+        rows.put(5, new Row(5, Kind.DIALOGUE, "(철수)", "(철수) "));
+        rows.put(6, new Row(6, Kind.DIALOGUE, "(NA)", "(NA) "));
+        rows.put(7, new Row(7, Kind.DIALOGUE, "(목소리)", "(목소리) "));
+
+        SplitResponse.sounds(rows);
+
+        assertThat(rows.get(1)).isEqualTo(new Row(1, Kind.DIRECTION, "", ""));
+        assertThat(rows.get(2)).isEqualTo(new Row(2, Kind.DIRECTION, "", ""));
+        assertThat(rows.get(3)).isEqualTo(new Row(3, Kind.DIRECTION, "", ""));
+        assertThat(rows.get(4).kind()).isEqualTo(Kind.DIALOGUE);
+        assertThat(rows.get(5).kind()).isEqualTo(Kind.DIALOGUE);
+        assertThat(rows.get(6).kind()).as("내레이션 표시").isEqualTo(Kind.DIALOGUE);
+        assertThat(rows.get(7).kind()).as("화면 밖 목소리는 들리는 말").isEqualTo(Kind.DIALOGUE);
+    }
 }

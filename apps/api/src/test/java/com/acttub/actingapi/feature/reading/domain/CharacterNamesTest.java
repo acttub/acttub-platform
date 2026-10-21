@@ -35,6 +35,19 @@ class CharacterNamesTest {
     }
 
     @Test
+    @DisplayName("SOMA-709 2번: 숫자가 다른 이름은 편집 거리 1이어도 목록 이름으로 바꾸지 않는다 — 형사1 ≠ 형사2, 배우1~배우7")
+    void numberedNamesAreKeptApart() {
+        assertThat(CharacterNames.fix("형사2", List.of("형사1", "반장"))).isEqualTo("형사2");
+        assertThat(CharacterNames.fix("형사 2", List.of("형사1"))).isEqualTo("형사 2");
+        for (int i = 2; i <= 7; i++) {
+            assertThat(CharacterNames.fix("배우" + i, List.of("배우1"))).isEqualTo("배우" + i);
+        }
+        assertThat(CharacterNames.fix("형사2ж", List.of("형사1"))).as("외국 글자 규칙의 편집 거리 2도").isEqualTo("형사2ж");
+        assertThat(CharacterNames.fix("형사1", List.of("형사 1"))).as("띄어쓰기만 다르면 그대로 묶는다").isEqualTo("형사 1");
+        assertThat(CharacterNames.fix("맥베수1", List.of("맥베스1"))).as("숫자가 같으면 한 글자 오타는 바로잡는다").isEqualTo("맥베스1");
+    }
+
+    @Test
     @DisplayName("SOMA-663: NA·(N)·(na)·내레이션 꼬리가 붙은 이름은 꼬리 없는 목록 이름으로 바꾸지도, 같은 사람으로 묶지도 않는다")
     void narrationIsKeptApartFromTheCharacter() {
         List<String> roster = List.of("제혁", "제씨", "배우1", "재이");

@@ -60,6 +60,8 @@ public final class SplitDraft {
     private static final Pattern PAST_COLON = Pattern.compile("([^:：]*[:：][*_]*+[\\s\\p{Z}]*+)\\S");
     /** 화면 밖 목소리 머리 — 모델이 주인 배역을 고른 줄은 머리로 바꾸지 않는다. */
     private static final Pattern VOICE = Pattern.compile("(?iu)목소리|소리|음성|녹음|전화|V\\.?O\\.?|O\\.S\\.?");
+    /** 이름 끝 괄호의 화면 밖 목소리 꼬리표 — 이름에서 떼어 그 대사 앞 지문으로 둔다(SOMA-709). 내레이션(NA)은 다른 배역이라 보지 않는다. */
+    private static final Pattern VOICE_TAG = Pattern.compile("(?iu)\\s*(\\(\\s*(?:목?소리만?|음성|전화|v\\.?o\\.?|o\\.?s\\.?|off)\\s*\\))$");
     /** 여럿이 함께 하는 머리의 구분 부호. */
     private static final Pattern MULTIPLE = Pattern.compile("[/,，&·•∙・、]");
     /** PDF·txt 의 쪽 번호 줄. 2026-10-13 105편에서 모델이 1,002줄 중 41줄을 대사·지문이라 해 대사 안에 「- 27 -」이 남았다. */
@@ -148,6 +150,7 @@ public final class SplitDraft {
                 .filter(line -> rows.get(line.no()) != null && rows.get(line.no()).kind() == Kind.CAST).map(NumberedLine::text).toList()));
         Map<String, Map<String, Integer>> shortened = new HashMap<>();
         Map<String, Integer> selfHeaded = new HashMap<>();
+        Map<String, String> untagged = new HashMap<>();
         record Traced(NumberedLine line, Row model, Kind kind, String header, String body, Assembled into) {
         }
         List<Traced> traced = new ArrayList<>();
@@ -196,12 +199,27 @@ public final class SplitDraft {
                     speaker = role;
                     speaker = roster.isEmpty() ? speaker : CharacterNames.fix(speaker, roster, headers);
                     speaker = headerName(speaker, line.text(), header, lines, spoken, headerUses, listed, shortened, selfHeaded);
+                    // 「강 국장 (소리)」는 「강 국장」의 화면 밖 목소리다 — 꼬리표는 화자 이름이나 원문 머리에서 떼어 대사 앞 지문으로 둔다(SOMA-709)
+                    Matcher voiced = VOICE_TAG.matcher(speaker);
+                    Matcher headed = VOICE_TAG.matcher(nameOf(header));
+                    String tag = null;
+                    if (voiced.find() && voiced.start() > 0) {
+                        tag = voiced.group(1);
+                        untagged.put(speaker, speaker.substring(0, voiced.start()));
+                        speaker = speaker.substring(0, voiced.start());
+                    } else if (headed.find() && headed.start() > 0) {
+                        tag = headed.group(1);
+                    }
                     Assembled last = assembled.isEmpty() ? null : assembled.getLast();
                     // 대신 찾은 머리도 머리다 — 모델이 비웠다고 이름으로 시작하는 줄을 앞 대사에 붙이면 두 대사가 하나가 된다.
-                    if (last != null && speaker.equals(last.speaker) && header.isEmpty()) {
+                    if (last != null && speaker.equals(last.speaker) && header.isEmpty() && Objects.equals(tag, last.tag)) {
                         last.text = last.text + join.glue(last.text, last.lastLine, body) + body;
                     } else {
+                        if (tag != null) {
+                            assembled.add(new Assembled("direction", null, tag));
+                        }
                         last = new Assembled("dialogue", speaker, body);
+                        last.tag = tag;
                         assembled.add(last);
                     }
                     last.lastLine = line.text();
@@ -225,6 +243,7 @@ public final class SplitDraft {
             traced.add(new Traced(line, model, kind, header, body, into));
         }
         Map<String, String> merged = new HashMap<>(shortenAll(assembled, shortened, selfHeaded));
+        untagged.forEach(merged::putIfAbsent);
         mergeSameSpeakers(assembled, roster).forEach(merged::put);
         merged.replaceAll((name, kept) -> merged.getOrDefault(kept, kept));
         List<String> characters = order(assembled, castLines);
@@ -317,6 +336,10 @@ public final class SplitDraft {
         }
         String key = CharacterNames.sameSpeakerKey(named);
         String speakerKey = CharacterNames.sameSpeakerKey(speaker);
+        // 숫자만 다른 머리(「형사2」 머리에 모델 화자 「형사1」)는 표기 변형이 아니라 원문이 밝힌 다른 사람이다(SOMA-709)
+        if (!CharacterNames.sameNumbers(key, speakerKey) && key.replaceAll("\\d", "").equals(speakerKey.replaceAll("\\d", ""))) {
+            return named;
+        }
         boolean variant = key.contains(speakerKey) || speakerKey.contains(key) || CharacterNames.editDistance(key, speakerKey) <= 1;
         if (key.equals(speakerKey) || variant && CharacterNames.marked(named) == CharacterNames.marked(speaker)) {
             return speaker;
@@ -965,6 +988,8 @@ public final class SplitDraft {
         String text;
         /** 이 대사에 마지막으로 이은 원문 줄 — 다음 줄을 붙일지 띄울지 볼 때 끝 공백이 필요하다. */
         String lastLine;
+        /** 대사 앞 지문으로 뗀 화면 밖 목소리 꼬리표. 꼬리표가 다른 줄은 잇지 않는다. */
+        String tag;
 
         Assembled(String kind, String speaker, String text) {
             this.kind = kind;

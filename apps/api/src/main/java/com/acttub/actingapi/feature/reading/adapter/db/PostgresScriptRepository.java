@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
@@ -104,11 +105,13 @@ class PostgresScriptRepository implements ScriptRepository {
                     requestId, fingerprint));
             List<UUID> characterIds = new ArrayList<>();
             for (int order = 0; order < draft.characterNames().size(); order++) {
-                UUID characterId = UUID.randomUUID();
-                characterIds.add(characterId);
+                characterIds.add(UUID.randomUUID());
+            }
+            for (int order = 0; order < draft.characterNames().size(); order++) {
                 CharacterTraits traits = draft.characterTraits().get(order);
-                entityManager.persist(new ScriptCharacterEntity(
-                        characterId, scriptId, draft.characterNames().get(order), order, null, traits.gender(), traits.ageBand()));
+                List<Integer> members = draft.characterMembers().get(order);
+                entityManager.persist(new ScriptCharacterEntity(characterIds.get(order), scriptId, draft.characterNames().get(order), order, null,
+                        traits.gender(), traits.ageBand(), members.isEmpty() ? null : members.stream().map(characterIds::get).toArray(UUID[]::new)));
             }
             for (ScriptDraft.Line line : draft.lines()) {
                 entityManager.persist(new ScriptLineEntity(
@@ -447,7 +450,7 @@ class PostgresScriptRepository implements ScriptRepository {
 
     private List<CharacterView> characters(UUID scriptId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT c.id,c.name,c.sort_order,c.voice_preset,c.gender,c.age_band,
+                SELECT c.id,c.name,c.sort_order,c.voice_preset,c.gender,c.age_band,array_to_string(c.member_ids,',') AS member_ids,
                        (SELECT count(*) FROM script_lines l WHERE l.character_id=c.id) AS dialogue_count
                 FROM script_characters c
                 WHERE c.script_id=:scriptId
@@ -469,7 +472,9 @@ class PostgresScriptRepository implements ScriptRepository {
                     voices.get(i),
                     row.get("gender", String.class),
                     row.get("age_band", String.class),
-                    row.get("dialogue_count", Number.class).intValue()));
+                    row.get("dialogue_count", Number.class).intValue(),
+                    row.get("member_ids", String.class) == null ? List.of()
+                            : Stream.of(row.get("member_ids", String.class).split(",")).map(UUID::fromString).toList()));
         }
         return characters;
     }

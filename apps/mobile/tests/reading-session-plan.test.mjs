@@ -5,6 +5,9 @@ import {
   buildStartBody,
   defaultMyCharacterIds,
   dialogueNumbers,
+  fewLines,
+  isGroupCharacter,
+  roleLineCount,
   rangeError,
   rangeOfDialogueNos,
   rangeOfLineIds,
@@ -84,6 +87,46 @@ test('reading.cast: 회차 상세에서 넘긴 배역이 있으면 지난 회차
   assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: 'c,b' }), ['c', 'b']);
   assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: 'zzz' }), ['a'], '대본에 없는 id 뿐이면 지난 회차');
   assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: '' }), ['a']);
+});
+
+test('SOMA-709 9번: 마지막 회차의 묶음 배역·사라진 배역·대사 2줄 이하 배역은 다음 회차 기본값으로 다시 고르지 않는다', () => {
+  const characters = [
+    { id: 'a', dialogue_count: 8 },
+    { id: 'b', dialogue_count: 2 },
+    { id: 'g', dialogue_count: 5, member_ids: ['a', 'b'] },
+    { id: 'c', dialogue_count: 3 },
+  ];
+  assert.deepEqual(defaultMyCharacterIds({ last_session: { my_character_ids: ['a', 'b', 'g', 'gone'] }, characters }), ['a']);
+  assert.deepEqual(defaultMyCharacterIds({ last_session: { my_character_ids: ['b', 'g'] }, characters }), [], '남는 배역이 없으면 고르게 둔다');
+  assert.deepEqual(defaultMyCharacterIds({ last_session: { my_character_ids: ['c'] }, characters }), ['c']);
+  assert.deepEqual(
+    defaultMyCharacterIds({ last_session: { my_character_ids: ['b'] }, characters: [{ id: 'a' }, { id: 'b' }] }),
+    ['b'],
+    '대사 수를 모르는 옛 응답이면 대사 수로 거르지 않는다',
+  );
+  assert.deepEqual(defaultMyCharacterIds({ last_session: null, characters, rolesParam: 'b,g' }), ['b'], '회차 상세가 넘긴 배역은 묶음만 뺀다');
+  assert.deepEqual(
+    defaultMyCharacterIds({ last_session: null, characters: [{ id: 'a' }, { id: 'g', member_ids: ['a', 'x'] }] }),
+    ['a'],
+    '묶음을 빼고 하나뿐이면 그 배역',
+  );
+});
+
+test('SOMA-709 7번: 묶음 배역은 칩에 두지 않고, 대사 수는 서버 값이 없으면 대본 줄에서 센다', () => {
+  assert.equal(isGroupCharacter({ member_ids: ['a', 'b'] }), true);
+  assert.equal(isGroupCharacter({ member_ids: [] }), false);
+  assert.equal(isGroupCharacter({}), false);
+  assert.equal(roleLineCount({ name: '윤서', dialogue_count: 8 }, WITH_SCENES), 8);
+  assert.equal(roleLineCount({ name: '윤서' }, WITH_SCENES), 3);
+});
+
+test('SOMA-709 8번: 고른 배역(여럿이면 합쳐서)의 구간 안 대사가 1~2줄이면 그 수, 3줄 이상이거나 없으면 null', () => {
+  assert.equal(fewLines(WITH_SCENES, ['태오'], 0, WITH_SCENES.length - 1), 2);
+  assert.equal(fewLines(WITH_SCENES, ['윤서'], 0, WITH_SCENES.length - 1), null);
+  assert.equal(fewLines(WITH_SCENES, ['윤서'], 0, 4), 2);
+  assert.equal(fewLines(WITH_SCENES, ['윤서', '태오'], 0, 4), null, '합쳐서 3줄');
+  assert.equal(fewLines(WITH_SCENES, ['태오'], 4, 6), null, '0줄은 시작할 때 막는다');
+  assert.equal(fewLines(WITH_SCENES, [], 0, 8), null);
 });
 
 test('reading.session: 대사 번호 구간을 줄 인덱스로 — 대본에 없는 번호는 null', () => {

@@ -750,7 +750,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
-- **스키마(V13, V33, V34, V40, V42)**: `scripts`·`script_characters`(V42 가 성별·나이대 `gender`·`age_band` 를 더함)·`script_lines`·`reading_sessions`·`reading_recordings`·
+- **스키마(V13, V33, V34, V40, V42, V50)**: `scripts`·`script_characters`(V42 가 성별·나이대 `gender`·`age_band` 를, V50 이 묶음 배역의
+  함께 말하는 배역 `member_ids uuid[]` 를 더함 — 원소에 FK 가 없으니 배역 하나만 지우는 경로를 만들면 묶음도 함께 고친다)·`script_lines`·`reading_sessions`·`reading_recordings`·
   `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34), 회차 평가 `reading_session_ratings`(V40). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
   `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`·
   `ReadingSessionRatingValue`·`CharacterGender`·`CharacterAgeBand`).

@@ -70,8 +70,8 @@ class ScriptController {
             description = """
                     기기가 나눈 대본(원문·배역·줄)을 한 요청으로 저장한다. 같은 request_id 에 같은 본문이 다시 오면
                     먼저 만든 대본을 200 으로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. 배역 없음
-                    422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자·줄
-                    3,000·배역 50(함께 말하기 이름 제외) 초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.""",
+                    422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자
+                    초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.""",
             operationId = "create_script_v2_reading_scripts_post",
             tags = "v2-reading",
             security = @SecurityRequirement(name = "HTTPBearer"))
@@ -276,7 +276,7 @@ class ScriptController {
                 view.source(),
                 view.characters().stream().map(character -> new CharacterResponse(
                         character.id(), character.name(), character.order(), character.voicePreset(),
-                        character.voice(), character.gender(), character.ageBand(), character.dialogueCount())).toList(),
+                        character.voice(), character.gender(), character.ageBand(), character.dialogueCount(), character.memberIds())).toList(),
                 view.lines().stream().map(line -> new LineResponse(
                         line.id(), line.ordinal(), line.kind(), line.characterId(), line.text(), line.dialogueNo(),
                         line.lang(), line.speech()))
