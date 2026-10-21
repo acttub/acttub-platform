@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.reading.app;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
@@ -73,7 +74,9 @@ public class PronunciationWorker {
     }
 
     private Scored score(LineSource line) throws IOException {
-        Path temp = Files.createTempFile("pron-", ".m4a");
+        // 배우의 목소리라 주인만 읽고 쓰게 만든다.
+        Path temp = Files.createTempFile("pron-", ".m4a",
+                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
         try {
             audio.download(line.objectKey(), temp);
             return scorer.score(temp, line.contentType(), line.text());
