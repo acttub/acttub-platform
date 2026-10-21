@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 import com.acttub.actingapi.feature.reading.app.RecordingCoachModel.Reply;
 import com.acttub.actingapi.feature.reading.app.RecordingCoachModel.Turn;
@@ -16,6 +17,8 @@ import com.acttub.actingapi.feature.reading.app.RecordingCoachRepository.Materia
 import com.acttub.actingapi.feature.reading.domain.RecordingCoachMaterial;
 import com.acttub.actingapi.feature.reading.domain.RecordingCoachMaterial.Output;
 import com.acttub.actingapi.feature.reading.domain.RecordingCoachMaterial.Prepared;
+import com.acttub.actingapi.feature.reading.domain.RecordingSoundCues;
+import com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Cue;
 import com.acttub.actingapi.platform.web.ApiException;
 
 /**
@@ -29,22 +32,30 @@ import com.acttub.actingapi.platform.web.ApiException;
  * 빈 답 503 {@code recording_coach_unavailable}.
  */
 public class RecordingCoachService {
+    private static final Logger LOGGER = Logger.getLogger(RecordingCoachService.class.getName());
 
     static final String FIRST = "\n\n[이번 차례] 차례 1";
     static final String SECOND = "\n\n[이번 차례] 차례 2";
 
     private final RecordingCoachRepository coaches;
     private final RecordingCoachModel model;
+    private final RecordingSounds sounds;
     private final String instruction;
     private final Clock clock;
 
-    public RecordingCoachService(RecordingCoachRepository coaches, RecordingCoachModel model, Clock clock) {
-        this(coaches, model, loadInstruction(), clock);
+    public RecordingCoachService(RecordingCoachRepository coaches, RecordingCoachModel model, RecordingSounds sounds, Clock clock) {
+        this(coaches, model, sounds, loadInstruction(), clock);
     }
 
     RecordingCoachService(RecordingCoachRepository coaches, RecordingCoachModel model, String instruction, Clock clock) {
+        this(coaches, model, RecordingSounds.NONE, instruction, clock);
+    }
+
+    RecordingCoachService(RecordingCoachRepository coaches, RecordingCoachModel model, RecordingSounds sounds,
+            String instruction, Clock clock) {
         this.coaches = coaches;
         this.model = model;
+        this.sounds = sounds;
         this.instruction = instruction;
         this.clock = clock;
     }
@@ -64,11 +75,16 @@ public class RecordingCoachService {
         if (prepared.clips().size() < RecordingCoachMaterial.MIN_CLIPS) {
             throw new ApiException(422, "recording_coach_not_enough_audio");
         }
-        Reply reply = call(prepared, List.of(new Turn(false, FIRST.strip())));
+        List<Cue> cues = RecordingSoundCues.pick(prepared.clips(), sounds.measure(prepared.clips()));
+        Reply reply = call(prepared, cues, List.of(new Turn(false, FIRST.strip())));
         Output output = RecordingCoachMaterial.parse(reply.text());
         requireMessage(output);
+        if (!cues.isEmpty() && cues.stream().noneMatch(c -> java.util.Objects.equals(c.clip(), output.chosenClip()))) {
+            LOGGER.warning("recording coach chose a clip outside the measured cues: " + output.chosenClip());
+        }
+        String design = RecordingSoundCues.block(cues).strip() + "\n\n" + (output.design() == null ? "" : output.design());
         Coach saved = coaches.insertFirst(userId, sessionId, new FirstTurn(
-                reply.model(), prepared.clips().size(), output.design(), output.message(),
+                reply.model(), prepared.clips().size(), design, output.message(),
                 prepared.lineOf(output.chosenClip())), clock.instant());
         if (saved == null) {
             throw new ApiException(404, "session_not_found");
@@ -101,7 +117,8 @@ public class RecordingCoachService {
             // 그사이 녹음을 지웠다 — 첫 차례에 보인 것을 다시 보일 수 없다.
             throw new ApiException(422, "recording_coach_not_enough_audio");
         }
-        Reply reply = call(prepared, List.of(
+        List<Cue> cues = RecordingSoundCues.pick(prepared.clips(), sounds.measure(prepared.clips()));
+        Reply reply = call(prepared, cues, List.of(
                 new Turn(false, FIRST.strip()),
                 new Turn(true, coach.firstMessage()),
                 new Turn(false, "배우가 방금 말한 것: " + actorReply.strip() + SECOND)));
@@ -114,9 +131,9 @@ public class RecordingCoachService {
         return saved;
     }
 
-    private Reply call(Prepared prepared, List<Turn> turns) {
+    private Reply call(Prepared prepared, List<Cue> cues, List<Turn> turns) {
         try {
-            return model.reply(instruction, prepared.script(), prepared.clips(), turns);
+            return model.reply(instruction, prepared.script() + RecordingSoundCues.block(cues), prepared.clips(), turns);
         } catch (RuntimeException failure) {
             throw ApiException.external(503, "recording_coach_unavailable", failure);
         }
