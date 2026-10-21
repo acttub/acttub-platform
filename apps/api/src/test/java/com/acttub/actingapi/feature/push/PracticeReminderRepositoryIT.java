@@ -362,7 +362,7 @@ class PracticeReminderRepositoryIT {
         List<PushMessage> mine = sent.stream().filter(m -> m.to().equals("token-service")).toList();
         assertThat(mine).hasSize(1);
         PushMessage message = mine.getFirst();
-        assertThat(message.data()).containsEntry("kind", "homework").containsEntry("skipped_days", "1")
+        assertThat(message.data()).containsEntry("kind", "evening_reminder").containsEntry("reminder_kind", "homework").containsEntry("skipped_days", "1")
                 .containsEntry("practice_id", p.toString());
         assertThat(message.title() + message.body()).doesNotContain("비밀 작품명").doesNotContain("비밀인물");
         assertThat(jdbc.queryForObject("SELECT template_id FROM practice_reminder_sends WHERE user_id=? AND slot='practice'",
