@@ -301,8 +301,8 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
 
     @Override
     public String classify(List<Message> history, String instruction, List<String> categories) {
-        // 분류는 배우 말의 종류만 고른다 — 생각을 거의 하지 않게 한다(SOMA-780).
-        return generate(null, history, instruction, categories, true);
+        // 분류는 LOW 그대로다 — MINIMAL 은 속도 이득이 없고(10/21 dev 30건 중간 1.09→1.105초, 생각 토큰 원래 0) 5건의 분류가 달라졌다.
+        return generate(null, history, instruction, categories, false);
     }
 
     private record Request(List<Content> contents, GenerateContentConfig config) { }
@@ -339,7 +339,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     }
 
     /**
-     * 생각 단계. gemini-3 계열은 LOW 이고, 가벼운 호출(줄이기·분류)은 MINIMAL 을 받는 모델이면 MINIMAL 이다(SOMA-780).
+     * 생각 단계. gemini-3 계열은 LOW 이고, 가벼운 호출(줄이기)은 MINIMAL 을 받는 모델이면 MINIMAL 이다(SOMA-780).
      * 10/21 서버 실측: 줄이기 LOW 6.0초(생각 1,051토큰) → MINIMAL 1.3초, 줄인 길이는 같았다. 3.8 Flash 는 MINIMAL 을
      * 받지 않아 LOW 로 둔다.
      */
