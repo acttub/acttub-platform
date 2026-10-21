@@ -200,6 +200,9 @@ class PracticeLoopRouterTest {
         assertThat(DirectVideoPrompts.practiceLoopClassifier()).contains("- why:");
         assertThat(DirectVideoCoach.agreeable(Kind.PUSHBACK)).isFalse();
         assertThat(DirectVideoCoach.agreeable(Kind.ANSWER)).isTrue();
+        assertThat(DirectVideoCoach.asksForAnother("다른 피드백은")).isTrue();
+        assertThat(DirectVideoCoach.asksForAnother("또 다른건")).isTrue();
+        assertThat(DirectVideoCoach.asksForAnother("지금 연기는 괜찮았어 ??")).isFalse();
     }
 
     @Test void shortAnswersInsightsAndLimits() {
@@ -272,6 +275,10 @@ class PracticeLoopRouterTest {
         var letGoAfterWrap = new Before(8, "내려놓기", Kind.CORRECTION, new Tally(0, 0, 0), List.of(), true, false, false, true, 4);
         assertThat(route(Kind.ANSWER, letGoAfterWrap)).as("배우가 해석을 말하면 그 말로 다시 정리한다").isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(route(Kind.SHORT, letGoAfterWrap)).isEqualTo(PracticeLoopRouter.END);
+        var withReading = PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"correction\",\"want\"]}");
+        assertThat(PracticeLoopRouter.route(withReading, afterWrap, 0)).as("해석을 말하며 정정하면 그 해석으로 마지막 말을 한다").isEqualTo("답하기");
+        var ackAfterLetGo = PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"ack\"]}");
+        assertThat(PracticeLoopRouter.route(ackAfterLetGo, letGoAfterWrap, 0)).as("맞장구면 다시 정리하지 않고 닫는다").isEqualTo(PracticeLoopRouter.END);
         assertThat(PracticeLoopRouter.closesNext(Kind.PUSHBACK, afterWrap)).isTrue();
         assertThat(route(Kind.SHORT, afterWrap)).isEqualTo(PracticeLoopRouter.END);
     }
