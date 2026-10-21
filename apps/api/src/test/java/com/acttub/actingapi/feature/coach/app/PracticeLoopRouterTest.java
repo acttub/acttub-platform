@@ -98,7 +98,7 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.METHOD, answered)).isEqualTo("답하기");
         assertThat(route(Kind.EVALUATION, answered)).isEqualTo("짚어주기");
         assertThat(route(Kind.PUSHBACK, answered)).isEqualTo("답하기");
-        assertThat(route(Kind.CORRECTION, answered)).isEqualTo("답하기");
+        assertThat(route(Kind.CORRECTION, answered)).isEqualTo("내려놓기");
         assertThat(route(Kind.MISSED, answered)).as("코치 답을 못 알아들었으면 다시 설명한다").isEqualTo("답하기");
         var alsoAsked = PracticeLoopRouter.forRouting(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"question\"]}"), answered);
         assertThat(PracticeLoopRouter.route(alsoAsked, answered, 0)).as("답하면서 함께 물었어도 답한다").isEqualTo("답하기");
@@ -182,7 +182,24 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.METHOD, b)).as("방법을 물으면 정리에서 행동을 준다").isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(route(Kind.METHOD, at(2, 2, "비추기", null))).as("문제를 보여 주기 전이면 먼저 보여 준다").isEqualTo(PracticeLoopRouter.GAP);
         var dropped = new Before(4, "내려놓기", Kind.CORRECTION, new Tally(0, 0, 0), List.of("고개"), true, false, false, false, 2);
-        assertThat(route(Kind.EVALUATION, dropped)).isEqualTo("짚어주기(다른 쪽)");
+        assertThat(route(Kind.EVALUATION, dropped)).as("정정 뒤에도 평가를 물으면 판단을 준다(10/20 운영)").isEqualTo("짚어주기");
+        var pushedBack = new Before(4, "짚어주기(다른 쪽)", Kind.PUSHBACK, new Tally(0, 0, 0), List.of("고개"), true, false, false, false, 2);
+        assertThat(route(Kind.PUSHBACK, pushedBack)).as("반박이 이어지면 같은 할 일을 되풀이하지 않는다(10/17 운영)").isEqualTo("짚어주기");
+    }
+
+    @Test void whyQuestionsAreAnsweredBeforeCorrectionsOrTheStep() {
+        var why = PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"correction\",\"why\"]}");
+        assertThat(why.kind()).as("근거를 물으면 정정보다 먼저 답한다").isEqualTo(Kind.QUESTION);
+        assertThat(why.respond()).isEqualTo(PracticeLoopRouter.WHY);
+        var gap = at(3, 3, PracticeLoopRouter.GAP, Kind.ANSWER);
+        assertThat(PracticeLoopRouter.route(why, gap, 0, CoachFlows.B)).as("흐름 B에서도 정리로 건너뛰지 않고 답한다").isEqualTo("답하기");
+        var afterWrap = at(4, 6, PracticeLoopRouter.WRAP_UP, Kind.ANSWER);
+        assertThat(PracticeLoopRouter.forRouting(why, afterWrap).respond()).isEqualTo(PracticeLoopRouter.WHY);
+        var proposed = at(3, 5, PracticeLoopRouter.PROPOSE, Kind.SHORT);
+        assertThat(route(Kind.QUESTION, proposed)).as("제안 뒤 물음에도 먼저 답한다").isEqualTo("답하기");
+        assertThat(DirectVideoPrompts.practiceLoopClassifier()).contains("- why:");
+        assertThat(DirectVideoCoach.agreeable(Kind.PUSHBACK)).isFalse();
+        assertThat(DirectVideoCoach.agreeable(Kind.ANSWER)).isTrue();
     }
 
     @Test void shortAnswersInsightsAndLimits() {
@@ -251,7 +268,10 @@ class PracticeLoopRouterTest {
     @Test void afterTheWrapUpPushbackAndCorrectionAreAnsweredOnce() {
         var afterWrap = at(4, 6, PracticeLoopRouter.WRAP_UP, Kind.ANSWER);
         assertThat(route(Kind.PUSHBACK, afterWrap)).isEqualTo("답하기");
-        assertThat(route(Kind.CORRECTION, afterWrap)).isEqualTo("답하기");
+        assertThat(route(Kind.CORRECTION, afterWrap)).as("정리를 아니라고 하면 새 해석 대신 배우 해석을 묻는다(10/20 운영)").isEqualTo("내려놓기");
+        var letGoAfterWrap = new Before(8, "내려놓기", Kind.CORRECTION, new Tally(0, 0, 0), List.of(), true, false, false, true, 4);
+        assertThat(route(Kind.ANSWER, letGoAfterWrap)).as("배우가 해석을 말하면 그 말로 다시 정리한다").isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(route(Kind.SHORT, letGoAfterWrap)).isEqualTo(PracticeLoopRouter.END);
         assertThat(PracticeLoopRouter.closesNext(Kind.PUSHBACK, afterWrap)).isTrue();
         assertThat(route(Kind.SHORT, afterWrap)).isEqualTo(PracticeLoopRouter.END);
     }

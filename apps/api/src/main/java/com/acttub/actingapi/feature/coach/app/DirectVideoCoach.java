@@ -475,6 +475,11 @@ public final class DirectVideoCoach {
             if (branch != null && !streaming && PracticeLoopRouter.WRAP_UP.equals(branch.doing()) && !branch.actorFoundAlternative()) {
                 shown = DirectVideoPracticeLoop.withoutAgreement(shown);
             }
+            // 배우가 반박·정정·질문·요청을 했는데 "맞아요"로 시작하면 엉뚱한 동의가 된다. 그 말을 뗀다.
+            // 2026-10-20 21:34 운영: "저게 답변이야?"에 "맞아요. ~ 또렷하게 꽂혀요."로 답했다.
+            if (branch != null && !streaming && !agreeable(branch.classified().kind())) {
+                shown = DirectVideoPracticeLoop.withoutAgreement(shown);
+            }
             boolean timeStripped = false;
             if (loop && !streaming && DirectVideoPracticeLoop.hasTimestamp(shown)) {
                 shown = DirectVideoPracticeLoop.stripTimestamps(shown);
@@ -683,6 +688,14 @@ public final class DirectVideoCoach {
         }
     }
 
+    /** "맞아요"로 받아도 되는 배우 말(단계 질문에 답한 말·짧은 답). 반박·정정·물음·요청에는 붙이지 않는다. */
+    static boolean agreeable(PracticeLoopRouter.Kind kind) {
+        return switch (kind) {
+            case PUSHBACK, CORRECTION, QUESTION, EVALUATION, METHOD, MISSED -> false;
+            default -> true;
+        };
+    }
+
     /** 서버가 정한 이번 응답. 상태 칸과 모델에 줄 지시를 만든다. */
     private record Branch(PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String doing,
             String goal, java.util.List<String> avoid, String observed, String dialogue, boolean closeNext,
@@ -871,11 +884,19 @@ public final class DirectVideoCoach {
         switch (classified.respond()) {
             case "evaluation" -> lines.add("배우가 답하면서 코치의 판단도 물었다. 첫 문장에서 판단을 먼저 분명히 말하고(괜찮아요 / 조금 어색해요 / 아쉬워요), 이유는 근본 문제에 비춰 짧게 댄 뒤 이번 단계를 한다");
             case "question" -> lines.add("배우가 답하면서 물은 것이 있다. 첫 문장에서 쉬운 말로 바로 답하고, 이어서 이번 단계를 한다");
+            case PracticeLoopRouter.WHY -> lines.add("배우가 코치가 왜 그렇게 봤는지, 어디서 그렇게 보였는지 근거를 물었다. 이번 할 일의 모양보다 이 줄이 먼저다. "
+                    + "첫 문장은 영상의 어느 대사(대사가 확인 안 됐으면 어느 동작)에서 무엇이 보이거나 들려서 그렇게 봤는지다. 둘째 문장은 그게 이 장면에서 왜 걸리는지다. "
+                    + "배우가 \"왜 내 방식은 안 돼요?\"라고 물었으면 배우 방식이 되는지 안 되는지를 먼저 분명히 말하고 이유를 댄다. 근거가 약하면 그렇다고 인정한다. "
+                    + "다음 테이크 제안(\"~해 봐도 좋아요\")이나 질문으로 근거를 대신하지 않는다. 같은 근거를 이미 말했으면 다른 대사로 말한다");
             case "method" -> lines.add("배우가 답하면서 방법도 물었다. 방법은 이번 단계에서 배우와 함께 찾는다. 짧게 받고 이번 단계를 한다");
             default -> { }
         }
         if (PracticeLoopRouter.WRAP_UP.equals(doing) && !known.containsKey("찾은 대안")) {
             lines.add("배우가 찾은 대안: 아직 없음. \"맞아요, 그거예요\"로 인정하지 말고, 근본 문제를 푸는 길 4단계와 배우의 첫 답을 살리는 행동 하나를 코치가 제안한다");
+        }
+        if (PracticeLoopRouter.WRAP_UP.equals(doing) && before.lastDoing().startsWith(PracticeLoopRouter.LET_GO)) {
+            lines.add("배우가 앞의 정리를 아니라고 하고 자기 해석을 말했다. 이 줄이 위 줄들보다 먼저다. 정리는 배우가 방금 한 말을 배우 낱말 그대로 다음 테이크에 할 일 하나로 잇는다. "
+                    + "코치가 새 해석·감정·이유를 보태지 않고, 앞에서 배우가 아니라고 한 해석으로 돌아가지 않는다");
         }
         return lines;
     }
