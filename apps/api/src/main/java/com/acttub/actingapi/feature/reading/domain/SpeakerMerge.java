@@ -48,7 +48,7 @@ public final class SpeakerMerge {
     private static final Pattern PARENTHESIS = Pattern.compile("[(（]([^()（）]+)[)）]");
 
     private static final Pattern NARRATION = Pattern.compile("(?i)(?:\\(\\s*(?:NA|N\\.A\\.|N)\\s*\\)|NA|N\\.A\\.|내레이션|나레이션)\\s*$");
-    private static final Pattern KIN = Pattern.compile("부인|엄마|아빠|아내|남편|딸|아들|언니|오빠|누나|형|동생|매제|어린|젊은|늙은|할머니|할아버지|어머니|아버지|리틀|꼬마|모$|부$");
+    private static final Pattern KIN = Pattern.compile("부인|엄마|아빠|아내|남편|딸|아들|언니|오빠|누나|형|동생|어린|젊은|늙은|할머니|할아버지|어머니|아버지|꼬마|모$|부$");
     private static final Pattern SMALL_DIFFERENCE = Pattern.compile("[0-9A-Ea-e]");
     private static final int START_LINES = 15;
     private static final int SCENE_MAX = 150;
