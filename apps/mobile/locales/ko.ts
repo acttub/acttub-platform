@@ -760,6 +760,10 @@ const ko = {
     challengeRecordRow: '챌린지 기록',
     storeReviewRow: '앱 평가',
     consentHistory: '동의 내역',
+    notificationsSub: '분석 완료·챌린지·저녁 연습 알림을 켜고 꺼요.',
+    archiveSub: '찍어 둔 내 영상을 모아 봐요.',
+    challengeRecordSub: '내가 올린 챌린지 참여작을 모아 봐요.',
+    consentHistorySub: '약관·개인정보 동의를 보고 선택 동의를 바꿔요.',
     consentHistoryNote: '필수 동의는 내용만 볼 수 있어요. 선택 동의는 눌러서 바꿀 수 있어요.',
     decisionGranted: '동의함',
     decisionDeclined: '거절함',
@@ -1060,8 +1064,7 @@ const ko = {
     // SOMA-748 동의 화면 개편
     reconsentHint: '바뀐 내용을 보고 「동의하고 계속하기」를 누르세요.',
     headerTitle: '약관 동의',
-    heading: '액터브를 쓰려면 동의가 필요해요',
-    headingHint: '「전체 동의」를 누르고 「동의하고 계속하기」를 누르세요.',
+    heading: 'acttub를 쓰려면 동의가 필요해요',
   },
   profileName: {
     title: '프로필을 알려주세요',

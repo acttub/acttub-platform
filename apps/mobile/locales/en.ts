@@ -768,6 +768,10 @@ const en: DeepStringShape<typeof ko> = {
     challengeRecordRow: 'Challenge entries',
     storeReviewRow: 'Rate the app',
     consentHistory: 'Consents',
+    notificationsSub: 'Turn analysis, challenge and evening practice alerts on or off.',
+    archiveSub: 'See all the videos you recorded.',
+    challengeRecordSub: 'See the challenge entries you posted.',
+    consentHistorySub: 'Review your consents and change optional ones.',
     consentHistoryNote: 'Required consents can only be viewed. Tap an optional one to change it.',
     decisionGranted: 'Agreed',
     decisionDeclined: 'Declined',
@@ -1070,7 +1074,6 @@ const en: DeepStringShape<typeof ko> = {
     reconsentHint: 'Review the changes and tap “Agree and continue”.',
     headerTitle: 'Terms',
     heading: 'Acttub needs your consent',
-    headingHint: 'Tap “Agree to all”, then “Agree and continue”.',
   },
   profileName: {
     title: 'Tell us about you',
