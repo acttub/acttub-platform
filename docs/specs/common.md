@@ -172,6 +172,7 @@ ai_jobs.status — 연습과 챌린지가 함께 쓰는 비동기 AI 작업 장�
 | 추가 | notifications | challenge.notification |
 | 추가 | user_blocks | challenge.block |
 | 추가 | evening_reminder_sends | account.notification |
+| 추가 | practice_reminder_sends | account.notification |
 | 추가 | user_active_days | account.login, account.withdraw |
 | 추가 | reading_voice_cache, reading_voice_usage | reading.cloud-voice |
 | 컬럼·값 | users | account.login, account.guest, practice.feedback |

@@ -76,6 +76,8 @@ case "${1:-}" in
     if [ "$svc" = api ]; then
       if [ "${2:-}" = ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED ]; then
         printf '%s\n' "${TEST_GUEST_DAILY_LIMIT:-${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-true}}"
+      elif [ "${2:-}" = PRACTICE_REMINDER_ENABLED ]; then
+        printf '%s\n' "${TEST_PRACTICE_REMINDER:-${DEPLOY_PRACTICE_REMINDER_ENABLED:-false}}"
       elif [ "${2:-}" = ACTTUB_DIRECT_VIDEO_ENABLED ]; then
         printf '%s\n' "${TEST_DIRECT_VIDEO:-${DEPLOY_DIRECT_VIDEO_ENABLED:-false}}"
       else
@@ -108,7 +110,7 @@ printf 'COMPOSE_PROFILES=edge\n' > "$WORK/.env"
 run_deploy() {
   (cd "$WORK" && env PATH="$WORK/bin:$PATH" TEST_CALLS="$WORK/calls" TEST_STATE="$WORK/state" \
     SHA=0123456789abcdef API_IMAGE=example/api:0123456 WEB_IMAGE=example/web:0123456 \
-    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_DIRECT_VIDEO_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= "$@" \
+    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_DIRECT_VIDEO_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= DEPLOY_PRACTICE_REMINDER_ENABLED= "$@" \
     "$ROOT/deploy/home/deploy.sh") > "$WORK/log" 2>&1
 }
 success() { run_deploy "$@" || { cat "$WORK/log"; exit 1; }; }
@@ -126,6 +128,7 @@ failure DEPLOY_PULL_POLICY=never
 failure DEPLOY_THREE_LAYERS_ENABLED=invalid
 failure DEPLOY_DIRECT_VIDEO_ENABLED=invalid
 failure DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=invalid
+failure DEPLOY_PRACTICE_REMINDER_ENABLED=invalid
 printf 'previous-release\n' > "$WORK/release.env"
 failure TEST_BACKUP_ACTIVE=true
 grep -qx previous-release "$WORK/release.env"
