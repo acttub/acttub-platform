@@ -14,6 +14,7 @@ import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineInput;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineKindInput;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LinePatchRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineSplitRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.ListResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.PatchRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.SceneResponse;
@@ -198,17 +199,76 @@ class ScriptController {
             @Valid @RequestBody LinePatchRequest body,
             HttpServletRequest request) {
         AuthenticatedUser user = auth.gatedUser(request);
-        String text = body.text() == null ? null : body.text().strip();
-        if (text != null && text.isEmpty()) {
-            throw ApiValidationException.valueError(
-                    List.of("body", "text"), "Value error, text must not be blank", body.text());
-        }
-        if (text != null && text.codePointCount(0, text.length()) > 5000) {
-            throw ApiValidationException.valueError(
-                    List.of("body", "text"), "Value error, text must be at most 5000 characters", body.text());
-        }
+        String text = body.text() == null ? null : lineText("text", body.text());
         LinePatch patch = new LinePatch(body.kind() == null ? null : body.kind().name(), body.characterId(), text);
         return script(scripts.editLine(user.id(), scriptId, lineId, patch));
+    }
+
+    @Operation(
+            summary = "Delete Script Line",
+            description = """
+                    줄 하나를 지운다(나누기가 잘못 넣은 줄). 그 줄을 구간 시작·끝·진행 위치로 가리키는 회차는 구간 안의 가까운
+                    대사로 옮긴다 — 시작은 뒤 대사, 끝은 앞 대사, 진행 위치는 뒤 대사(없으면 앞 대사). 그 줄의 녹음(파일 포함)·외운
+                    줄·줄 결과·말한 것은 함께 지운다. 지우면 대사가 하나도 남지 않는 회차 구간이 있으면 422 empty_range, 대본의
+                    마지막 줄이면 422 invalid_line 이고 아무것도 바꾸지 않는다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404
+                    script_not_found. 고친 대본 전체를 돌려준다.""",
+            operationId = "delete_script_line_v2_reading_scripts__script_id__lines__line_id__delete",
+            tags = "v2-reading",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = ScriptResponse.class)))
+    @DeleteMapping("/{script_id}/lines/{line_id}")
+    ScriptResponse deleteLine(
+            @PathVariable("script_id") UUID scriptId,
+            @PathVariable("line_id") UUID lineId,
+            HttpServletRequest request) {
+        return script(scripts.deleteLine(auth.gatedUser(request).id(), scriptId, lineId));
+    }
+
+    @Operation(
+            summary = "Split Script Line",
+            description = """
+                    줄 하나를 둘로 나눈다(나누기가 한 줄로 합친 대사). 앞 글은 그 줄(id 그대로)에 남고 뒤 글은 바로 뒤에 같은
+                    종류·배역의 새 줄이 되며, 뒤 줄들의 순서가 하나씩 밀린다. 회차·녹음·외운 줄은 앞 줄을 계속 가리키고, 구간이 그
+                    줄로 끝나던 회차는 끝을 뒤 줄로 옮긴다. 두 글은 앞뒤 공백을 정리하고 비거나 5,000자를 넘으면 422 배열이다. 없는
+                    줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found. 고친 대본 전체를 돌려준다.""",
+            operationId = "split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post",
+            tags = "v2-reading",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = ScriptResponse.class)))
+    @ApiResponse(
+            responseCode = "422",
+            description = "Validation Error",
+            content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    @PostMapping("/{script_id}/lines/{line_id}/split")
+    ScriptResponse splitLine(
+            @PathVariable("script_id") UUID scriptId,
+            @PathVariable("line_id") UUID lineId,
+            @Valid @RequestBody LineSplitRequest body,
+            HttpServletRequest request) {
+        AuthenticatedUser user = auth.gatedUser(request);
+        String first = lineText("first_text", body.firstText());
+        String second = lineText("second_text", body.secondText());
+        return script(scripts.splitLine(user.id(), scriptId, lineId, first, second));
+    }
+
+    /** 줄 글의 앞뒤 공백을 정리한다. 비거나 5,000자를 넘으면 422 배열이다. */
+    private static String lineText(String field, String raw) {
+        String text = raw.strip();
+        if (text.isEmpty()) {
+            throw ApiValidationException.valueError(
+                    List.of("body", field), "Value error, " + field + " must not be blank", raw);
+        }
+        if (text.codePointCount(0, text.length()) > 5000) {
+            throw ApiValidationException.valueError(
+                    List.of("body", field), "Value error, " + field + " must be at most 5000 characters", raw);
+        }
+        return text;
     }
 
     @Operation(

@@ -631,6 +631,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/scripts/{script_id}/lines/{line_id}/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Split Script Line
+         * @description 줄 하나를 둘로 나눈다(나누기가 한 줄로 합친 대사). 앞 글은 그 줄(id 그대로)에 남고 뒤 글은 바로 뒤에 같은
+         *     종류·배역의 새 줄이 되며, 뒤 줄들의 순서가 하나씩 밀린다. 회차·녹음·외운 줄은 앞 줄을 계속 가리키고, 구간이 그
+         *     줄로 끝나던 회차는 끝을 뒤 줄로 옮긴다. 두 글은 앞뒤 공백을 정리하고 비거나 5,000자를 넘으면 422 배열이다. 없는
+         *     줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found. 고친 대본 전체를 돌려준다.
+         */
+        post: operations["split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/imports": {
         parameters: {
             query?: never;
@@ -1391,7 +1414,15 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Script Line
+         * @description 줄 하나를 지운다(나누기가 잘못 넣은 줄). 그 줄을 구간 시작·끝·진행 위치로 가리키는 회차는 구간 안의 가까운
+         *     대사로 옮긴다 — 시작은 뒤 대사, 끝은 앞 대사, 진행 위치는 뒤 대사(없으면 앞 대사). 그 줄의 녹음(파일 포함)·외운
+         *     줄·줄 결과·말한 것은 함께 지운다. 지우면 대사가 하나도 남지 않는 회차 구간이 있으면 422 empty_range, 대본의
+         *     마지막 줄이면 422 invalid_line 이고 아무것도 바꾸지 않는다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404
+         *     script_not_found. 고친 대본 전체를 돌려준다.
+         */
+        delete: operations["delete_script_line_v2_reading_scripts__script_id__lines__line_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -3202,6 +3233,13 @@ export interface components {
              * @description 끝 대사 번호
              */
             end: number;
+        };
+        /** ReadingScriptLineSplit */
+        ReadingScriptLineSplit: {
+            /** First Text */
+            first_text: string;
+            /** Second Text */
+            second_text: string;
         };
         /** ReadingImportRequest */
         ReadingImportRequest: {
@@ -6689,6 +6727,42 @@ export interface operations {
             };
         };
     };
+    split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingScriptLineSplit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_script_v2_reading_imports_post: {
         parameters: {
             query?: never;
@@ -7999,6 +8073,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_script_line_v2_reading_scripts__script_id__lines__line_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
                 };
             };
         };

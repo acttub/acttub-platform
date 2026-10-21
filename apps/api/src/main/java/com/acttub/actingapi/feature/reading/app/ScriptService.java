@@ -12,6 +12,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptRepository.CharacterPatch;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository.Creation;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository.LineEditOutcome;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository.LinePatch;
+import com.acttub.actingapi.feature.reading.app.ScriptRepository.LineRemoval;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository.UpdateOutcome;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptListView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptView;
@@ -118,12 +119,43 @@ public class ScriptService {
         if (outcome == null) {
             throw notFound();
         }
+        lineOutcome(outcome);
+        return find(userId, scriptId);
+    }
+
+    /**
+     * 줄 하나를 지운다(SOMA-785). 그 줄을 가리키던 회차 위치는 구간 안의 가까운 대사로 옮기고 그 줄의 녹음·외운 줄은 함께
+     * 지운다. 녹음 객체 삭제는 트랜잭션 밖에서 시도한다(실패하면 장부가 다시 시도한다).
+     */
+    public ScriptView deleteLine(UUID userId, UUID scriptId, UUID lineId) {
+        LineRemoval removal = activeOnly(() -> scripts.deleteLine(userId, scriptId, lineId, clock.instant()));
+        if (removal == null) {
+            throw notFound();
+        }
+        lineOutcome(removal.outcome());
+        if (removal.scheduled() != null) {
+            cleanup.attempt(List.of(removal.scheduled()));
+        }
+        return find(userId, scriptId);
+    }
+
+    /** 줄 하나를 둘로 나눈다(SOMA-785). 앞 조각은 그 줄 id 에 남아 회차·녹음·외운 줄이 그대로 이어진다. */
+    public ScriptView splitLine(UUID userId, UUID scriptId, UUID lineId, String first, String second) {
+        LineEditOutcome outcome = activeOnly(() -> scripts.splitLine(userId, scriptId, lineId, first, second));
+        if (outcome == null) {
+            throw notFound();
+        }
+        lineOutcome(outcome);
+        return find(userId, scriptId);
+    }
+
+    private static void lineOutcome(LineEditOutcome outcome) {
         switch (outcome) {
             case LINE_NOT_FOUND -> throw new ApiException(404, "line_not_found");
             case INVALID_LINE -> throw new ApiException(422, "invalid_line");
+            case EMPTY_RANGE -> throw new ApiException(422, "empty_range");
             default -> { }
         }
-        return find(userId, scriptId);
     }
 
     /**
