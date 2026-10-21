@@ -101,7 +101,7 @@ class PostgresPronunciationReportRepository implements PronunciationReportReposi
         return transaction.execute(status -> NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT l.ordinal AS line_no,
                        COALESCE(regexp_replace(l.speech,'⟦[a-z][a-z]⟧',' ','g'),l.text) AS text,
-                       r.transcript, r.object_key, r.content_type
+                       r.transcript, r.object_key, r.content_type, r.duration_ms
                 FROM reading_recordings r
                 JOIN script_lines l ON l.id=r.line_id
                 WHERE r.reading_session_id=:sessionId
@@ -109,7 +109,7 @@ class PostgresPronunciationReportRepository implements PronunciationReportReposi
                 """, Tuple.class).setParameter("sessionId", sessionId)).stream()
                 .map(row -> new LineSource(row.get("line_no", Integer.class), row.get("text", String.class),
                         row.get("transcript", String.class), row.get("object_key", String.class),
-                        row.get("content_type", String.class)))
+                        row.get("content_type", String.class), row.get("duration_ms", Integer.class)))
                 .toList());
     }
 
