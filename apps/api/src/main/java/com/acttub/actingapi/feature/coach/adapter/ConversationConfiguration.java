@@ -44,4 +44,13 @@ class ConversationConfiguration {
         return new ConversationService(conversations, coach, notes, clock, closedListener.getIfAvailable(),
                 profiles, memory, failureReporter);
     }
+
+    /** 분석이 끝나면 첫 질문을 미리 쓴다(SOMA-780). false 면 예전처럼 앱의 시작 요청이 올 때 쓴다(롤백). */
+    @Bean(destroyMethod = "close")
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+            name = "ACTTUB_COACH_FIRST_QUESTION_PREWRITE", havingValue = "true", matchIfMissing = true)
+    com.acttub.actingapi.feature.coach.app.CoachFirstQuestionPrewriter coachFirstQuestionPrewriter(
+            ConversationService conversations) {
+        return new com.acttub.actingapi.feature.coach.app.CoachFirstQuestionPrewriter(conversations);
+    }
 }

@@ -154,6 +154,31 @@ class AnalysisWorkerTest {
     }
 
     @Test
+    void completionNotificationCarriesTheSessionAndItsOwner() {
+        AnalysisContext context = context();
+        FakeStore store = new FakeStore(context);
+        List<UUID> heard = new ArrayList<>();
+        AnalysisWorker worker = new AnalysisWorker(
+                store,
+                new FakeStorage(),
+                (path, analysed) -> new AnalysisResult(new ObservationPack("", List.of(), List.of()), false, 1000),
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                Duration.ofSeconds(1800),
+                "gemini-2.5-flash",
+                new AnalysisCompletionListener() {
+                    @Override public void onAnalysisComplete(UUID sessionId) { throw new AssertionError("owner missing"); }
+                    @Override public void onAnalysisComplete(UUID sessionId, UUID userId) {
+                        heard.add(sessionId);
+                        heard.add(userId);
+                    }
+                },
+                new RecordingFailureReporter());
+
+        assertThat(worker.runOnce(NOW)).isTrue();
+        assertThat(heard).containsExactly(context.sessionId(), context.userId());
+    }
+
+    @Test
     void completionNotificationFailureIsReportedWithoutChangingTheCompletedOperation() {
         FakeStore store = new FakeStore(context());
         RuntimeException pushFailure = new RuntimeException(new ConnectException("expo down"));

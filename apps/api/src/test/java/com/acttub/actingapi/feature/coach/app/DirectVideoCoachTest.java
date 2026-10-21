@@ -537,7 +537,7 @@ class DirectVideoCoachTest {
         assertThat(second.reply().message()).as("시간 표기·두 번째 질문을 다듬지 않고 모델이 쓴 그대로 저장한다").isEqualTo(written);
         assertThat(String.join("", deltas)).isEqualTo(written);
         verify(model, never()).reply(eq(file), anyList(), anyString());
-        verify(model, never()).reply(org.mockito.ArgumentMatchers.isNull(), anyList(), anyString());
+        verify(model, never()).replyLight(org.mockito.ArgumentMatchers.isNull(), anyList(), anyString());
         assertThat(telemetry.calls().getLast().metadata()).containsEntry("stream", "true")
                 .containsEntry("shorten_calls", "0").containsEntry("timestamp_retry", "false");
     }
@@ -645,7 +645,7 @@ class DirectVideoCoachTest {
         verify(model, times(3)).reply(eq(file), anyList(), prompts.capture());
         assertThat(prompts.getAllValues().get(2)).contains("[다시 쓰기]", "상관없는 글");
         assertThat(telemetry.calls().getLast().metadata()).containsEntry("broken_retry", "true");
-        verify(model, never()).reply(isNull(), anyList(), anyString());
+        verify(model, never()).replyLight(isNull(), anyList(), anyString());
     }
 
     @Test void lastWordsAndStageQuestionsAreTrimmedFromLiveSessions() {
@@ -968,7 +968,7 @@ class DirectVideoCoachTest {
         String longReply = "차분한 톤과 담담한 표정이 잘 어울려요. \"다 뒤져 있더라\"에서 목소리가 잦아드는 것도 좋고요. 위를 본 건 인물의 습관일까요?";
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
                 "<생각>\n배우가 한 말: 붙잡고 싶었다\n끝 질문: 무엇을\n</생각>\n" + longReply);
-        when(model.reply(isNull(), anyList(), anyString())).thenReturn("\"다 뒤져 있더라\"에서 목소리가 잦아들어요.\n위를 본 건 습관인가요?");
+        when(model.replyLight(isNull(), anyList(), anyString())).thenReturn("\"다 뒤져 있더라\"에서 목소리가 잦아들어요.\n위를 본 건 습관인가요?");
         var first = loopEngine.start(session(), UUID.randomUUID());
         var second = loopEngine.reply(first.session(), "붙잡길 바랐던 것 같아요", UUID.randomUUID());
         assertThat(DirectVideoPracticeLoop.displayLength(longReply)).isGreaterThan(DirectVideoPracticeLoop.LONG_REPLY);
@@ -976,7 +976,7 @@ class DirectVideoCoachTest {
         assertThat(second.session().turns()).extracting(CoachTurnSnapshot::text).noneMatch(text -> text.contains("생각"));
         var shortenCalls = org.mockito.ArgumentCaptor.forClass(List.class);
         // 첫 응답(질문 한 문장)은 짧아서 그대로, 둘째 응답만 줄이기를 거친다.
-        verify(model, times(1)).reply(isNull(), shortenCalls.capture(), eq(DirectVideoPrompts.practiceLoopShorten(null)));
+        verify(model, times(1)).replyLight(isNull(), shortenCalls.capture(), eq(DirectVideoPrompts.practiceLoopShorten(null)));
         assertThat(shortenCalls.getAllValues().get(0)).containsExactly(new DirectVideoModel.Message("user", longReply));
         assertThat(telemetry.calls().getLast().metadata()).containsEntry("shorten_calls", "1");
         assertThat(DirectVideoPracticeLoop.parse("<생각>\n배우가 한 말: x\n글자 수: 30\n괜찮아요. 왜요?").message())

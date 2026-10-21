@@ -135,7 +135,7 @@ public class AnalysisWorker {
             return;
         }
         try {
-            completionListener.onAnalysisComplete(context.sessionId());
+            completionListener.onAnalysisComplete(context.sessionId(), context.userId());
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING,
                     "analysis completion notification failed: " + context.sessionId(), exception);
