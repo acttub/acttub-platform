@@ -18,11 +18,19 @@ type CoachSessionApi = {
   startConversation: (id: string, requestId: string, stream?: CoachStreamCallbacks) => Promise<CoachTurnResult>;
 };
 
-/** 화면 재진입은 서버의 대화 id로 복원한다. 닫힌 대화에 start를 보내지 않는다. */
+/**
+ * 화면 재진입은 서버의 대화 id로 복원한다. 닫힌 대화에 start를 보내지 않는다.
+ * 대화가 열려 있는데 코치 말이 아직 없으면(서버가 첫 질문을 미리 쓰는 중에 대화가 먼저 생긴 경우, SOMA-780) 읽기만 하고
+ * 끝내지 않고 시작 요청을 한 번 보낸다. 서버는 같은 회차의 시작을 하나로 모아, 쓰는 중이면 끝나길 기다렸다가 저장된
+ * 첫 질문을 돌려주고 없으면 새로 쓴다. 재조회 반복이 아니라 요청 한 번이라 무한히 되풀이되지 않는다.
+ */
 export async function loadCoachSession(api: CoachSessionApi, practiceId: string, requestId: string, conversationId?: string | null, stream?: CoachStreamCallbacks): Promise<CoachTurnResult> {
   const id = conversationId ?? (await api.getPractice(practiceId)).conversation_id;
   if (!id) return api.startConversation(practiceId, requestId, stream);
   const conversation = await api.getConversation(id);
+  if (!isClosed(conversation) && !conversation.messages.some((m) => m.role === 'coach')) {
+    return api.startConversation(practiceId, requestId, stream);
+  }
   let note: PracticeNote | null = null;
   if (isClosed(conversation)) {
     note = await readOptionalPracticeNote(api.getPracticeNote, practiceId);
