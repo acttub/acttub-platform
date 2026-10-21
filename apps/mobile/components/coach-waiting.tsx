@@ -153,7 +153,7 @@ export function CoachWaiting({
         videoUri: localUri ?? '',
         playbackUrl: loaded.playback_url ?? null,
       });
-      logEvent('analysis_complete', { analysis });
+      void logEvent('analysis_complete', { analysis });
       logMetaEvent('practice_analysis_complete');
       onReadyRef.current();
     },
@@ -189,7 +189,7 @@ export function CoachWaiting({
       return;
     }
     if (outcome.kind === 'failed') {
-      logEvent('analysis_failed', { reason: outcome.reason ?? 'unknown' });
+      void logEvent('analysis_failed', { reason: outcome.reason ?? 'unknown' });
       setError(analysisFailureMessage(outcome.reason));
       return;
     }
@@ -302,7 +302,7 @@ export function CoachWaiting({
         pendingHandleRef.current = null;
       }
       finishedRef.current = true;
-      logEvent('analysis_cancelled', {});
+      void logEvent('analysis_cancelled', {});
       router.replace('/(tabs)');
     } catch {
       setError(t('analyzing.stopFailed'));

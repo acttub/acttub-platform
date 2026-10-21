@@ -119,7 +119,7 @@ export default function AiReportScreen() {
   /** 같은 영상으로 새 연습을 연다 — 보관함 「질문 코칭으로 보내기」와 같은 길(picked-video → upload). */
   const toCoach = async () => {
     if (!videoId) return;
-    logEvent('challenge_report_to_coach', {});
+    void logEvent('challenge_report_to_coach', {});
     const uri = await localCopyFor(videoId).catch(() => null);
     setPickedVideo({ videoId, pendingId: null, uri: uri ?? null, playbackUrl: null, durationMs: null });
     router.push('/upload');
@@ -127,7 +127,7 @@ export default function AiReportScreen() {
 
   const finish = () => {
     if (!challengeId) return;
-    logEvent('challenge_report_finish', {});
+    void logEvent('challenge_report_finish', {});
     router.replace({ pathname: '/challenge-finish', params: { challengeId } });
   };
 
@@ -143,7 +143,7 @@ export default function AiReportScreen() {
     setBusy(true);
     try {
       await api.updateEntry(entryId, { visibility: 'public' });
-      logEvent('challenge_entry_visibility', { to: 'public' });
+      void logEvent('challenge_entry_visibility', { to: 'public' });
       setVisibility('public');
       finish();
     } catch (e) {
@@ -155,7 +155,7 @@ export default function AiReportScreen() {
 
   const share = () => {
     if (!entryId) return;
-    logEvent('challenge_share', { id: entryId });
+    void logEvent('challenge_share', { id: entryId });
     void Share.share({ message: entryShareUrl(entryId), url: entryShareUrl(entryId) }).catch(() => {});
   };
 

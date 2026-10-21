@@ -190,7 +190,7 @@ export default function ChallengesScreen() {
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
             onPress={() => {
-              logEvent('challenge_last_week_open', { id: lastWeek.id });
+              void logEvent('challenge_last_week_open', { id: lastWeek.id });
               router.push({ pathname: '/challenge-result', params: { id: lastWeek.id, nextId: featured?.id ?? '' } });
             }}
             accessibilityRole="button"

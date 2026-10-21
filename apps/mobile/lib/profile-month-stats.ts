@@ -35,7 +35,7 @@ type CardGroup = {
 function lastAt(group: CardGroup): string | null {
   if (group.last_practiced_at) return group.last_practiced_at;
   const times = group.practices.map((p) => p.created_at).filter((v) => !Number.isNaN(Date.parse(v)));
-  return times.sort().at(-1) ?? null;
+  return times.sort((a, b) => a.localeCompare(b)).at(-1) ?? null;
 }
 
 /** 연습 기록 탭 카드 — 숨긴 묶음은 빼고, 마지막 연습이 최근인 것부터. */

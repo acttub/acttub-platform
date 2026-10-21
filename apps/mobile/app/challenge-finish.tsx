@@ -76,7 +76,7 @@ export default function ChallengeFinishScreen() {
           label={t('challengeFinish.seeOthers')}
           disabled={!challengeId}
           onPress={() => {
-            logEvent('challenge_finish_see_others', {});
+            void logEvent('challenge_finish_see_others', {});
             router.replace({ pathname: '/challenge-play', params: { id: challengeId as string } });
           }}
         />

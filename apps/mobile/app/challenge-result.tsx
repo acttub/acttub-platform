@@ -53,7 +53,7 @@ export default function ChallengeResultScreen() {
   }, [id]);
 
   const seeWeek = () => {
-    logEvent('challenge_result_see_week', {});
+    void logEvent('challenge_result_see_week', {});
     if (nextId) router.replace({ pathname: '/challenge-detail', params: { id: nextId } });
     else router.back();
   };

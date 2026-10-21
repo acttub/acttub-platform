@@ -29,7 +29,7 @@ function kstDayIndex(ms: number): number {
 }
 
 function timeOf(iso: string | null | undefined): number {
-  const ms = iso ? Date.parse(iso) : NaN;
+  const ms = iso ? Date.parse(iso) : Number.NaN;
   return Number.isFinite(ms) ? ms : -Infinity;
 }
 

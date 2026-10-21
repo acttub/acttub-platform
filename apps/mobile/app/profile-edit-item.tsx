@@ -77,7 +77,7 @@ export default function ProfileEditItemScreen() {
     setError(null);
     try {
       await saveProfile(buildProfilePayload(form, new Date(), { bio }));
-      logEvent('profile_edit', {
+      void logEvent('profile_edit', {
         mediums: form.directions.join(',') || 'none',
         career: form.experience ?? 'none',
         goal: form.goal ?? 'none',
