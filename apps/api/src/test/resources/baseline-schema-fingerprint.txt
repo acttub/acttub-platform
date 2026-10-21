@@ -570,6 +570,7 @@ COLUMN script_characters.age_band ord=9 type=text len=- null=YES default=-
 COLUMN script_characters.created_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN script_characters.gender ord=8 type=text len=- null=YES default=-
 COLUMN script_characters.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_characters.member_ids ord=10 type=_uuid len=- null=YES default=-
 COLUMN script_characters.name ord=3 type=text len=- null=NO default=-
 COLUMN script_characters.script_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_characters.sort_order ord=4 type=int4 len=- null=NO default=-
@@ -1533,6 +1534,7 @@ CONSTRAINT reports reports_session_id_key UNIQUE (session_id)
 CONSTRAINT reports reports_session_id_not_null NOT NULL session_id
 CONSTRAINT script_characters ck_script_characters_age_band CHECK ((age_band = ANY (ARRAY['child'::text, 'young'::text, 'adult'::text, 'senior'::text])))
 CONSTRAINT script_characters ck_script_characters_gender CHECK ((gender = ANY (ARRAY['m'::text, 'f'::text])))
+CONSTRAINT script_characters ck_script_characters_member_ids CHECK (((member_ids IS NULL) OR (cardinality(member_ids) >= 2)))
 CONSTRAINT script_characters ck_script_characters_name_trimmed CHECK (((name = btrim(name)) AND (name <> ''::text)))
 CONSTRAINT script_characters ck_script_characters_voice_preset_length CHECK ((char_length(voice_preset) <= 32))
 CONSTRAINT script_characters script_characters_created_at_not_null NOT NULL created_at

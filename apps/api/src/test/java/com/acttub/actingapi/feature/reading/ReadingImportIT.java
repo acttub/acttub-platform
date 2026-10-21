@@ -585,6 +585,30 @@ class ReadingImportIT {
     }
 
     @Test
+    @DisplayName("SOMA-709 1번: 다른 배역 이름만으로 된 화자는 묶음 배역으로 저장하고 함께 말하는 배역 id 를 싣는다 — 순서만 다른 묶음은 하나, 보통 배역 뒤")
+    void groupSpeakersAreStoredWithTheirMembers() throws Exception {
+        Model.answer = Model::oracle;
+        String id = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null,
+                "지해: 가자.\n연수: 응.\n연희: 어디?\n지해,연수: 같이 가!\n연수·지해: 그래!\n모두: 만세!", "paste")), 202).path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+
+        JsonNode done = json(get("/v2/reading/imports/{id}", id), 200);
+        JsonNode script = json(get("/v2/reading/scripts/{id}", done.path("script_id").textValue()), 200);
+        JsonNode characters = script.path("characters");
+        assertThat(characters).extracting(character -> character.path("name").textValue()).containsExactly("지해", "연수", "연희", "지해,연수", "모두");
+        String jihae = characters.get(0).path("id").textValue();
+        String yeonsu = characters.get(1).path("id").textValue();
+        assertThat(characters.get(0).path("member_ids")).isEmpty();
+        assertThat(characters.get(3).path("member_ids")).extracting(JsonNode::textValue).containsExactly(jihae, yeonsu);
+        assertThat(characters.get(4).path("member_ids")).as("모두는 모든 배역").extracting(JsonNode::textValue)
+                .containsExactly(jihae, yeonsu, characters.get(2).path("id").textValue());
+        assertThat(characters.get(3).path("dialogue_count").intValue()).isEqualTo(2);
+        assertThat(script.path("lines").get(4).path("character_id").textValue()).isEqualTo(characters.get(3).path("id").textValue());
+        assertThat(jdbc.queryForList("SELECT array_length(member_ids, 1) FROM script_characters ORDER BY sort_order", Integer.class))
+                .containsExactly(null, null, null, 2, 3);
+    }
+
+    @Test
     @DisplayName("SOMA-709 3번: 원문 머리로 쓰인 적 없는 의심 화자의 줄은 다시 묻고, 끝내 답이 없으면 첫 답으로 되돌린다 — 지문으로 잃지 않는다")
     void suspiciousSpeakersAreAskedAgainWithoutLosingTheLine() throws Exception {
         Model.answer = call -> call.instructions().contains("다시 묻는 것이다") ? "~4\tx\t\t\n"

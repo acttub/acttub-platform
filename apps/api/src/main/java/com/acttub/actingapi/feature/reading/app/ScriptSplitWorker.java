@@ -30,6 +30,7 @@ import com.acttub.actingapi.feature.reading.domain.ScriptRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
 import com.acttub.actingapi.feature.reading.domain.SplitDraft;
 import com.acttub.actingapi.feature.reading.domain.SplitResponse;
+import com.acttub.actingapi.feature.reading.domain.SpeakerGroups;
 import com.acttub.actingapi.feature.reading.domain.SpeakerMerge;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.GenerationOptions;
@@ -295,6 +296,7 @@ public class ScriptSplitWorker {
                     .collect(Collectors.toSet());
             draft = sameSpeakers(calls.jobId, lines, draft, speakers, heads, scenes);
         }
+        draft = SpeakerGroups.apply(draft);
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
         if (rejection == null) {
             return Split.of(languages(calls.jobId, calls, draft));

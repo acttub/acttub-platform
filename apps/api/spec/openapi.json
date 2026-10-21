@@ -6140,9 +6140,18 @@
           "dialogue_count" : {
             "type" : "integer",
             "title" : "Dialogue Count"
+          },
+          "member_ids" : {
+            "type" : "array",
+            "description" : "함께 말하는 줄의 묶음 배역(「지해, 연수」·「모두」)이면 그 줄을 함께 말하는 배역들의 id(둘 이상), 보통 배역이면 빈 배열. 묶음 배역은 보통 배역 뒤에 온다. 그 줄의 character_id 는 묶음 배역이다(SOMA-709)",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "Member Ids"
           }
         },
-        "required" : [ "age_band", "dialogue_count", "gender", "id", "name", "order", "voice", "voice_preset" ],
+        "required" : [ "age_band", "dialogue_count", "gender", "id", "member_ids", "name", "order", "voice", "voice_preset" ],
         "title" : "ReadingScriptCharacter"
       },
       "ReadingScriptLastSession" : {
