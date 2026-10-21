@@ -32,3 +32,9 @@ test("reading.match: 자모 14개 중 3개가 다르면 통과하고 4개가 다
   assert.equal(four.pass, false);
   assert.equal(Math.round(four.closeness * 1000) / 1000, 0.714);
 });
+
+test("reading.match: 문장부호·말줄임표와 ㅋㅋ·ㅎㅎ 같은 낱자모 추임새는 대조에서 뺀다(SOMA-646)", () => {
+  assert.equal(compare("진짜", "ㅋㅋㅋㅋ 진짜?!").pass, true);
+  assert.equal(compare("고마워", "ㅎㅎ 고마워...").pass, true);
+  assert.deepEqual(compare("ㅠㅠ", "여기"), { pass: false, closeness: 0 });
+});

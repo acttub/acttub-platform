@@ -91,7 +91,9 @@ public final class WordDiff {
     }
 
     private static boolean comparable(int code) {
-        return Character.isLetter(code) || isNumber(code);
+        // 낱자모(ㅋㅋ·ㅎㅎ)는 LineMatch 처럼 읽는 글자로 치지 않는다.
+        boolean jamo = code >= 0x3131 && code <= 0x318E;
+        return !jamo && (Character.isLetter(code) || isNumber(code));
     }
 
     private static boolean isNumber(int code) {

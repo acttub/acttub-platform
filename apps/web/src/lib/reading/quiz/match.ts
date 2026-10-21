@@ -24,7 +24,8 @@ export function toJamo(s: string): string {
 export function normalizeForMatch(s: string): string {
   return s
     .replace(/[(（\[【][^)）\]】]*[)）\]】]/g, "")
-    .replace(/[^\p{L}\p{N}]+/gu, "")
+    // 낱자모 추임새(ㅋㅋ·ㅎㅎ)는 읽는 글자가 아니다(SOMA-646).
+    .replace(/[^\p{L}\p{N}]+|[\u3131-\u318E]+/gu, "")
     .toLowerCase();
 }
 
