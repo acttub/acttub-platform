@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  roleLabel,
+  turnRoles,
   buildStartBody,
   defaultMyCharacterIds,
   dialogueNumbers,
@@ -163,4 +165,20 @@ test('reading.session: 시작 버튼 — 배역 없음 → 마이크 없음 → 
   assert.equal(startGate({ roleCount: 1, micGranted: null, loading: false }), 'wait');
   assert.equal(startGate({ roleCount: 2, micGranted: true, loading: true }), 'wait');
   assert.equal(startGate({ roleCount: 2, micGranted: true, loading: false }), 'ready');
+});
+
+test('reading.session(SOMA-785): 함께 말하는 줄은 멤버에 내 배역이 있으면 내 차례이고, 이름표는 「함께 · 윤서·태오」', () => {
+  const characters = [
+    { id: 'c1', name: '윤서', member_ids: [] },
+    { id: 'c2', name: '태오', member_ids: [] },
+    { id: 'c3', name: '민지' },
+    { id: 'g1', name: '윤서, 태오', member_ids: ['c1', 'c2'] },
+    { id: 'g2', name: '태오, 민지', member_ids: ['c2', 'c3'] },
+  ];
+  assert.deepEqual(turnRoles(characters, ['c1']), ['윤서', '윤서, 태오']);
+  assert.deepEqual(turnRoles(characters, ['c3']), ['민지', '태오, 민지']);
+  assert.deepEqual(turnRoles(characters, []), []);
+  assert.equal(roleLabel(characters, '윤서, 태오', '함께'), '함께 · 윤서·태오');
+  assert.equal(roleLabel(characters, '윤서', '함께'), '윤서', '보통 배역은 이름 그대로');
+  assert.equal(roleLabel(characters, '없는 이름', '함께'), '없는 이름');
 });

@@ -326,6 +326,8 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingScriptIT"),
             covered("feature.reading.app.ScriptService|422|invalid_characters", 1,
                     "feature.reading.ReadingScriptIT"),
+            covered("feature.reading.app.ScriptService|422|empty_range", 1,
+                    "feature.reading.ReadingScriptIT"),
             covered("feature.reading.app.ScriptService|422|invalid_line", 1,
                     "feature.reading.ReadingScriptIT"),
             covered("feature.reading.app.ScriptService|422|no_characters", 1,

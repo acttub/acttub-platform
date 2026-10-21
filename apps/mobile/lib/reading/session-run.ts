@@ -97,6 +97,17 @@ export function back(run: RunState): RunState {
 }
 
 /**
+ * 지나간 대사를 눌러 그 줄로 간다(SOMA-785, 음악 앱의 가사 누르기). [이전]과 같은 규칙이다 — 그 줄을 처음부터 다시 하고
+ * (상대 줄이면 다시 읽고 내 줄이면 다시 듣는다), 말한 것은 남되 다시 말하면 마지막 말이 이긴다. 멈춘 채 눌러도 그 줄에서
+ * 이어서 한다. 구간 밖·대사가 아닌 줄·지금 줄 뒤·끝난 실행은 받지 않는다. 이어하기의 앞 상대 대사보다 앞으로 가도 위치를 저장한다.
+ */
+export function jumpTo(run: RunState, index: number): RunState {
+  if (run.status === 'done' || index < run.startIndex || index >= run.index || run.lines[index]?.type !== 'dialogue') return run;
+  const moved: RunState = { ...run, index, resumeTo: null, leadInUntil: null };
+  return { ...moved, status: turnOf(moved) };
+}
+
+/**
  * 리딩 중 줄 고치기(SOMA-728) — 고친 대본을 진행에 반영한다. 줄 id 는 그대로라 위치는 같은 줄이다. 그 줄이 대사가 아니게
  * 되면 다음 대사로(없으면 앞 대사로, 그마저 없으면 끝). 대사가 아니게 된 줄의 말한 기록은 버린다 — 서버가 대사 줄이 아닌
  * 결과를 422 로 거절해 진행 저장이 통째로 막힌다. 멈춘 상태는 그대로 두고, 재개할 때 차례를 새로 정한다.

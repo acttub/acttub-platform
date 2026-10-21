@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { File, Paths } from 'expo-file-system';
 import { useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,7 +32,8 @@ import { closeProgressQueue, openProgressQueue, type ProgressQueue } from '@/lib
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { buildStartBody, dialogueNumbers } from '@/lib/reading/session-plan';
+import { buildStartBody, dialogueNumbers, roleLabel, turnRoles } from '@/lib/reading/session-plan';
+import { diffWords } from '@/lib/reading/word-diff';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
 import {
@@ -45,6 +46,7 @@ import {
   exitMessage,
   formatProgress,
   isHidden,
+  jumpTo,
   mmss,
   pause as pauseRun,
   progressOf,
@@ -127,7 +129,7 @@ type Phase =
 type TurnNote = null | 'silence' | 'limit';
 
 /** 위쪽에 잠깐 보이는 알림. */
-type Notice = null | { kind: 'dropped'; count: number } | { kind: 'cloud_fallback' };
+type Notice = null | { kind: 'dropped'; count: number } | { kind: 'cloud_fallback' } | { kind: 'jump'; text: string };
 
 type Deferred = null | { kind: 'advance' | 'end_turn'; from: number };
 
@@ -137,6 +139,8 @@ const MASKS: { key: MaskMode; label: string; desc: string }[] = [
   { key: 'all', label: t('reading.maskAll'), desc: t('reading.maskAllDesc') },
 ];
 const NOTICE_MS = 4000;
+/** 지나간 대사로 돌아갈 때 안내에 보이는 대사 앞부분의 글자 수. */
+const JUMP_PREVIEW = 15;
 /** 완료 화면이 뜬 뒤 버튼을 받지 않는 시간. */
 const DONE_LOCK_MS = 800;
 const MASCOT = require('@/assets/images/mascot-reading.png');
@@ -163,8 +167,9 @@ export default function ReadingPlay() {
     const startIndex = script.lineIds.indexOf(session.start_line_id);
     const endIndex = script.lineIds.indexOf(session.end_line_id);
     if (startIndex < 0 || endIndex < 0) return null;
-    const myRoles = script.characters.filter((c) => session.my_character_ids.includes(c.id)).map((c) => c.name);
-    return { lines: script.lines, lineIds: script.lineIds, myRoles, startIndex, endIndex };
+    // 진행은 함께 말하는 줄까지 내 차례로 센다(turnRoles). 화면에 「내 배역」으로 보이는 것은 고른 배역 이름만이다.
+    const myNames = script.characters.filter((c) => session.my_character_ids.includes(c.id)).map((c) => c.name);
+    return { lines: script.lines, lineIds: script.lineIds, myRoles: turnRoles(script.characters, session.my_character_ids), myNames, startIndex, endIndex };
   }, [script, session]);
 
   const [run, setRun] = useState<RunState | null>(() => {
@@ -191,6 +196,8 @@ export default function ReadingPlay() {
   const [maskMode, setMaskMode] = useState<MaskMode>(script?.maskMode ?? 'none');
   const [aid, setAid] = useState<LineAid>('none');
   const [turnNote, setTurnNote] = useState<TurnNote>(null);
+  /** 지금 내 차례를 끝냈다(말이 끝남·[다음]·녹음 3분) — 가린 내 대사를 원문으로 펼친다(SOMA-785). 새 차례가 열리면 풀린다. */
+  const [turnDone, setTurnDone] = useState(false);
   const [listening, setListening] = useState(false);
   /** 내 차례에 인식기가 지금까지 알아들은 글(중간 결과). 대사 아래 「방금 말한 것」에 보인다. */
   const [said, setSaid] = useState('');
@@ -461,6 +468,20 @@ export default function ReadingPlay() {
     if (next !== cur) commit(next);
   }, [commit]);
 
+  /**
+   * 지나간 대사를 누르면 그 줄부터 다시 한다(SOMA-785). [이전]과 같은 길이다 — 줄이 바뀌면 상대 읽기·마이크 효과가 지금 줄을
+   * 닫고(하던 녹음 조각은 지운다) 누른 줄로 다시 연다. 멈춘 채 누르면 그 줄에서 이어 한다.
+   */
+  const jumpBack = useCallback((index: number) => {
+    const cur = runRef.current;
+    if (!cur || (cur.status === 'mine' && turnClosing.current)) return;
+    const next = jumpTo(cur, index);
+    if (next === cur) return;
+    commit(next);
+    const text = [...cur.lines[index].text.trim()];
+    flash({ kind: 'jump', text: text.length > JUMP_PREVIEW ? `${text.slice(0, JUMP_PREVIEW).join('').trimEnd()}…` : text.join('') });
+  }, [commit, flash]);
+
   const hasPartnerLines = useMemo(() => {
     if (!config) return false;
     for (let i = config.startIndex; i <= config.endIndex; i++) {
@@ -729,6 +750,7 @@ export default function ReadingPlay() {
       const cur = runRef.current;
       if (!cur || !session || cur.index !== from || cur.status !== 'mine' || turnClosing.current) return;
       turnClosing.current = true;
+      setTurnDone(true);
       const text = sttActive.current ? await stt.finish() : '';
       await endTurnRecording(cur.lineIds[cur.index], text);
       sttActive.current = false;
@@ -760,6 +782,7 @@ export default function ReadingPlay() {
     setAid('none');
     setSaid('');
     setTurnNote(null);
+    setTurnDone(false);
     let cancelled = false;
     const onEvent = (event: VadEvent) => {
       if (cancelled) return;
@@ -805,6 +828,7 @@ export default function ReadingPlay() {
           const cur = runRef.current;
           if (cancelled || turnClosing.current || !cur || cur.index !== from) return;
           turnClosing.current = true;
+          setTurnDone(true);
           void (async () => {
             const text = sttActive.current ? await stt.finish() : '';
             await endTurnRecording(cur.lineIds[cur.index], text);
@@ -900,7 +924,7 @@ export default function ReadingPlay() {
     const cur = runRef.current;
     const fresh = getCurrent();
     if (saved && cur && fresh && session) {
-      const myRoles = fresh.characters.filter((c) => session.my_character_ids.includes(c.id)).map((c) => c.name);
+      const myRoles = turnRoles(fresh.characters, session.my_character_ids);
       const next = applyLineEdit(cur, { lines: fresh.lines, lineIds: fresh.lineIds, myRoles });
       if (next.status === 'done') {
         commit(next);
@@ -999,7 +1023,7 @@ export default function ReadingPlay() {
     if (script && cur) {
       setContinueOrigin({
         kind: 'reading',
-        scene: readingCoachScene({ title: script.title, lineIds: cur.lineIds, scenes: script.scenes, startIndex: cur.startIndex, myRoles: cur.myRoles, t }),
+        scene: readingCoachScene({ title: script.title, lineIds: cur.lineIds, scenes: script.scenes, startIndex: cur.startIndex, myRoles: config?.myNames ?? [], t }),
       });
     }
     router.replace('/upload');
@@ -1204,7 +1228,7 @@ export default function ReadingPlay() {
           {!completed && <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>}
           <Text style={styles.dim}>{script.title}</Text>
           <View style={styles.doneStats}>
-            <Text style={styles.doneStat}>{t('reading.doneMyRole', { roles: run.myRoles.join(', ') })}</Text>
+            <Text style={styles.doneStat}>{t('reading.doneMyRole', { roles: config.myNames.join(', ') })}</Text>
             {completed && (
               <Text style={styles.doneStat}>
                 {t('reading.doneRead', { count: readCount })}
@@ -1287,7 +1311,11 @@ export default function ReadingPlay() {
   const paused = run.status === 'paused';
   const mineOf = (l: ScriptLine) => l.type === 'dialogue' && run.myRoles.includes(l.role);
   const hiddenOf = (l: ScriptLine) => isHidden({ maskMode, line: l, isMine: mineOf(l) });
-  const currentText = line ? shownText(line.text, hiddenOf(line), aid) : null;
+  // 내 차례를 끝냈으면 가린 내 대사도 원문으로 펼친다(SOMA-785). 말하기 전에는 가린 그대로다.
+  const revealed = myTurn && turnDone;
+  const currentText = line ? shownText(line.text, hiddenOf(line) && !revealed, aid) : null;
+  const labelOf = (role: string) => roleLabel(script.characters, role, t('reading.together'));
+  const saidOf = (lineId: string) => (sttMode?.kind === 'stt' ? run.said[lineId] : undefined);
   const masking = maskMode !== 'none';
   const shownEngine = lineEngine ?? engine;
 
@@ -1299,6 +1327,7 @@ export default function ReadingPlay() {
         ? { icon: 'book-open' as const, label: t('reading.chipTextOnly') }
         : { icon: 'volume-2' as const, label: t('reading.chipReading') };
     }
+    if (turnDone && turnNote !== 'limit') return { icon: 'check' as const, label: t('reading.spokenDone') };
     if (hold === 'mask_sheet') return { icon: 'pause' as const, label: t('reading.chipHold') };
     if (turnNote === 'limit') return { icon: 'mic-off' as const, label: t('reading.chipLimit') };
     if (listening) return { icon: 'bars' as const, label: t('reading.listening') };
@@ -1315,8 +1344,8 @@ export default function ReadingPlay() {
     />
   ) : null;
 
-  const past: { key: string; line: ScriptLine }[] = [];
-  for (let i = run.startIndex; i < run.index && i <= run.endIndex; i++) past.push({ key: run.lineIds[i], line: run.lines[i] });
+  const past: { key: string; index: number; line: ScriptLine }[] = [];
+  for (let i = run.startIndex; i < run.index && i <= run.endIndex; i++) past.push({ key: run.lineIds[i], index: i, line: run.lines[i] });
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -1342,12 +1371,24 @@ export default function ReadingPlay() {
         style={styles.flow}
         contentContainerStyle={styles.flowContent}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
-        {past.map(({ key, line: l }) =>
+        {/* 지나간 대사를 누르면 그 줄부터 다시 한다(SOMA-785). 탭 기록에 대본 글이 실리지 않게 ph-label 을 붙인다. */}
+        {past.map(({ key, index, line: l }) =>
           l.type === 'dialogue' ? (
-            <View key={key} style={styles.pastRow}>
-              <Text style={styles.pastRole}>{l.role}</Text>
-              {hiddenOf(l) ? <HiddenBars text={l.text} tone="past" /> : <Text style={styles.pastText}>{l.text}</Text>}
-            </View>
+            <Pressable
+              key={key}
+              style={({ pressed }) => [styles.pastRow, pressed && styles.pastRowPressed]}
+              onPress={() => jumpBack(index)}
+              accessibilityRole="button"
+              ph-label="reading_play_jump">
+              <Text style={styles.pastRole}>{labelOf(l.role)}</Text>
+              {mineOf(l) && masking ? (
+                <SpokenText text={l.text} said={saidOf(key)} />
+              ) : hiddenOf(l) ? (
+                <HiddenBars text={l.text} tone="past" />
+              ) : (
+                <Text style={styles.pastText}>{l.text}</Text>
+              )}
+            </Pressable>
           ) : (
             <Text key={key} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>
           ),
@@ -1359,7 +1400,7 @@ export default function ReadingPlay() {
           <View style={[styles.card, myTurn ? styles.cardMine : styles.cardOther]}>
             <View style={styles.cardHead}>
               <Text style={[styles.cardRole, myTurn && styles.cardRoleMine]}>
-                {(line as DialogueLine).role}
+                {labelOf((line as DialogueLine).role)}
                 {myTurn ? ` · ${t('reading.myTurn')}` : ''}
               </Text>
               <View style={styles.cardHeadRight}>
@@ -1376,7 +1417,7 @@ export default function ReadingPlay() {
             </View>
             {currentText === null ? (
               <HiddenBars text={line.text} tone="current" />
-            ) : aid === 'first_word' && hiddenOf(line) ? (
+            ) : aid === 'first_word' && hiddenOf(line) && !revealed ? (
               <View style={styles.firstWordRow}>
                 <Text style={styles.lineText}>{currentText}</Text>
                 <View style={styles.firstWordRest}>
@@ -1386,7 +1427,7 @@ export default function ReadingPlay() {
             ) : (
               <Text style={styles.lineText}>{currentText}</Text>
             )}
-            {myTurn && hiddenOf(line) && aid !== 'original' && (
+            {myTurn && hiddenOf(line) && !revealed && aid !== 'original' && (
               <View style={styles.aidRow}>
                 {aid === 'none' && (
                   <Pressable style={styles.aidPill} onPress={() => setAid('first_word')}>
@@ -1411,6 +1452,12 @@ export default function ReadingPlay() {
         )}
       </ScrollView>
 
+      {notice?.kind === 'jump' && (
+        <View style={[styles.toast, styles.jumpToast]}>
+          <Feather name="rotate-ccw" size={14} color="#fff" />
+          <Text style={styles.toastText}>{t('reading.jumpToast', { text: notice.text })}</Text>
+        </View>
+      )}
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
       {coachMark === 'next' && <View style={styles.coachAboveControls}>{coachElement}</View>}
 
@@ -1516,6 +1563,35 @@ function HiddenBars({ text, tone }: { text: string; tone: 'past' | 'current' }) 
   );
 }
 
+/**
+ * 가렸던 내 지나간 대사(SOMA-785) — 원문을 펼치고, 받아쓴 글이 있으면 다르게 말한 어절에 주황 밑줄을 긋고 아래에
+ * 「말한 것  …」을 작게 둔다. 받아쓴 글이 없으면(말없이 넘김·음성 인식 없음) 원문만.
+ */
+function SpokenText({ text, said }: { text: string; said?: string }) {
+  const heard = said?.trim();
+  const words = heard ? diffWords(text, heard) : null;
+  return (
+    <View style={styles.spoken}>
+      <Text style={styles.pastText}>
+        {words
+          ? words.map((w, i) => (
+              <Fragment key={i}>
+                {i > 0 ? ' ' : ''}
+                <Text style={w.differs ? styles.differs : undefined}>{w.text}</Text>
+              </Fragment>
+            ))
+          : text}
+      </Text>
+      {!!heard && (
+        <Text style={styles.spokenSaid}>
+          <Text style={styles.spokenLabel}>{t('reading.spokenLabel')}</Text>
+          {`  ${heard}`}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 /** 「듣는 중」 소리 막대. */
 function ListeningBars() {
   return (
@@ -1588,6 +1664,7 @@ const styles = StyleSheet.create({
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
   toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
   toastText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  jumpToast: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 0, marginBottom: 10 },
 
   flow: { flex: 1 },
   flowContent: { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 14 },
@@ -1595,6 +1672,11 @@ const styles = StyleSheet.create({
   pastRow: { gap: 3, paddingHorizontal: 8 },
   pastRole: { color: palette.checkOff, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   pastText: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  pastRowPressed: { backgroundColor: palette.blueSoft, borderRadius: 12 },
+  spoken: { gap: 2 },
+  differs: { textDecorationLine: 'underline', textDecorationColor: palette.flame, color: palette.textMuted },
+  spokenSaid: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12, lineHeight: 18 },
+  spokenLabel: { fontFamily: 'Pretendard-SemiBold' },
   card: { borderRadius: 16, padding: 18, gap: 12, borderWidth: 1.5 },
   cardOther: { backgroundColor: palette.bgSoft, borderColor: palette.bgSoft },
   cardMine: { backgroundColor: palette.blueSoft, borderColor: palette.blue },

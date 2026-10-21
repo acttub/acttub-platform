@@ -95,6 +95,8 @@ export function fakeServer(detail: ScriptDetail) {
     get: jest.fn(async () => detail),
     patch: jest.fn(async () => detail),
     patchLine: jest.fn(async () => detail),
+    deleteLine: jest.fn(async () => detail),
+    splitLine: jest.fn(async () => detail),
     remove: jest.fn(async () => undefined),
     startSession: jest.fn(async () => sessionDetail()),
     getSession: jest.fn(async () => sessionDetail()),

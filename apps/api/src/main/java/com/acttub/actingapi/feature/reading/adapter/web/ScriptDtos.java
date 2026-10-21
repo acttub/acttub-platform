@@ -72,6 +72,13 @@ final class ScriptDtos {
             @Schema(nullable = true, maxLength = 5000) String text) {
     }
 
+    /** 줄 하나를 둘로 나눈다(SOMA-785). 앞 글은 그 줄에 남고 뒤 글은 바로 뒤의 새 줄이 된다. */
+    @Schema(name = "ReadingScriptLineSplit", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record LineSplitRequest(
+            @NotNull @Schema(maxLength = 5000) @JsonProperty("first_text") String firstText,
+            @NotNull @Schema(maxLength = 5000) @JsonProperty("second_text") String secondText) {
+    }
+
     /** 제목과 배역의 이름·목소리만 고친다. 보낸 항목만 바꾸고 줄은 받지 않는다. */
     @Schema(name = "ReadingScriptPatch", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record PatchRequest(

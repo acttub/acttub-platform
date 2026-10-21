@@ -31,3 +31,24 @@ export function lineDraftValid(draft: LineDraft): boolean {
 export function canSaveLineDraft(original: LineDraft, draft: LineDraft): boolean {
   return lineDraftValid(draft) && linePatch(original, draft) !== null;
 }
+
+/**
+ * 둘로 나누기(SOMA-785)의 처음 자를 곳 — 가운데에 가장 가까운 문장 끝(마침표·물음표·느낌표·말줄임 뒤 띄어쓰기), 없으면 가장
+ * 가까운 띄어쓰기, 그마저 없으면 가운데 글자. 사용자가 앞뒤 칸을 고쳐 정하므로 짐작만 한다.
+ */
+export function splitGuess(text: string): [string, string] {
+  const trimmed = text.trim();
+  const middle = trimmed.length / 2;
+  const nearest = (pattern: RegExp) => {
+    let best = -1;
+    for (const m of trimmed.matchAll(pattern)) {
+      const at = m.index! + m[0].length;
+      if (at < trimmed.length && (best < 0 || Math.abs(at - middle) < Math.abs(best - middle))) best = at;
+    }
+    return best;
+  };
+  let at = nearest(/[.?!…。~]+["'」』)]*\s+/g);
+  if (at < 0) at = nearest(/\s+/g);
+  if (at < 0) at = Math.floor(middle);
+  return [trimmed.slice(0, at).trim(), trimmed.slice(at).trim()];
+}

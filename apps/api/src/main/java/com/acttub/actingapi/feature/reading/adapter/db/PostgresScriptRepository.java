@@ -365,6 +365,182 @@ class PostgresScriptRepository implements ScriptRepository {
     }
 
     @Override
+    public LineRemoval deleteLine(UUID userId, UUID scriptId, UUID lineId, Instant now) {
+        return transaction.execute(status -> {
+            lockActive(userId);
+            if (!lockOwnedScript(userId, scriptId)) {
+                return null;
+            }
+            List<Tuple> target = lockLine(scriptId, lineId);
+            if (target.isEmpty()) {
+                return new LineRemoval(LineEditOutcome.LINE_NOT_FOUND, null);
+            }
+            int ordinal = target.get(0).get("ordinal", Integer.class);
+            long remaining = ((Number) entityManager.createNativeQuery(
+                            "SELECT count(*) FROM script_lines WHERE script_id=:scriptId AND id<>:lineId")
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("lineId", lineId)
+                    .getSingleResult()).longValue();
+            if (remaining == 0) {
+                return new LineRemoval(LineEditOutcome.INVALID_LINE, null);
+            }
+            // 이 줄을 구간 시작·끝·진행 위치로 가리키는 회차마다, 구간 안에 남는 대사로 옮길 자리를 먼저 다 정한다 —
+            // 하나라도 비면 아무것도 바꾸지 않는다.
+            List<Tuple> sessions = NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT rs.id,rs.start_line_id,rs.end_line_id,rs.current_line_id,s.ordinal AS start_ordinal,e.ordinal AS end_ordinal
+                    FROM reading_sessions rs
+                    JOIN script_lines s ON s.id=rs.start_line_id
+                    JOIN script_lines e ON e.id=rs.end_line_id
+                    WHERE rs.script_id=:scriptId
+                      AND :lineId IN (rs.start_line_id,rs.end_line_id,rs.current_line_id)
+                    FOR UPDATE OF rs
+                    """, Tuple.class)
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("lineId", lineId));
+            List<UUID[]> moves = new ArrayList<>();
+            for (Tuple session : sessions) {
+                List<Tuple> dialogues = NativeTuples.list(entityManager.createNativeQuery("""
+                        SELECT id,ordinal FROM script_lines
+                        WHERE script_id=:scriptId AND kind='dialogue' AND id<>:lineId AND ordinal BETWEEN :from AND :to
+                        ORDER BY ordinal
+                        """, Tuple.class)
+                        .setParameter("scriptId", scriptId)
+                        .setParameter("lineId", lineId)
+                        .setParameter("from", session.get("start_ordinal", Integer.class))
+                        .setParameter("to", session.get("end_ordinal", Integer.class)));
+                if (dialogues.isEmpty()) {
+                    return new LineRemoval(LineEditOutcome.EMPTY_RANGE, null);
+                }
+                UUID first = dialogues.get(0).get("id", UUID.class);
+                UUID last = dialogues.get(dialogues.size() - 1).get("id", UUID.class);
+                UUID after = dialogues.stream()
+                        .filter(line -> line.get("ordinal", Integer.class) > ordinal)
+                        .map(line -> line.get("id", UUID.class))
+                        .findFirst()
+                        .orElse(last);
+                moves.add(new UUID[] {
+                    session.get("id", UUID.class),
+                    lineId.equals(session.get("start_line_id", UUID.class)) ? first : session.get("start_line_id", UUID.class),
+                    lineId.equals(session.get("end_line_id", UUID.class)) ? last : session.get("end_line_id", UUID.class),
+                    lineId.equals(session.get("current_line_id", UUID.class)) ? after : session.get("current_line_id", UUID.class),
+                });
+            }
+            for (UUID[] move : moves) {
+                entityManager.createNativeQuery("""
+                        UPDATE reading_sessions SET start_line_id=:start,end_line_id=:end,current_line_id=:current WHERE id=:id
+                        """)
+                        .setParameter("id", move[0])
+                        .setParameter("start", move[1])
+                        .setParameter("end", move[2])
+                        .setParameter("current", move[3])
+                        .executeUpdate();
+            }
+            entityManager.createNativeQuery("""
+                    UPDATE reading_sessions
+                    SET line_results=COALESCE((SELECT jsonb_agg(e) FROM jsonb_array_elements(line_results) e
+                                               WHERE e->>'line_id'<>CAST(:lineId AS text)), '[]'::jsonb),
+                        line_said=line_said-CAST(:lineId AS text)
+                    WHERE script_id=:scriptId
+                    """)
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("lineId", lineId)
+                    .executeUpdate();
+            // 녹음 행을 지우면서 객체 키를 같은 트랜잭션에서 장부에 남긴다(대본 지우기와 같다).
+            List<String> objectKeys = NativeTuples.list(entityManager.createNativeQuery("""
+                    WITH removed AS (DELETE FROM reading_recordings WHERE line_id=:lineId RETURNING object_key)
+                    SELECT object_key FROM removed
+                    """, Tuple.class)
+                    .setParameter("lineId", lineId)).stream()
+                    .map(row -> row.get("object_key", String.class))
+                    .toList();
+            entityManager.createNativeQuery("DELETE FROM line_memorization WHERE line_id=:lineId")
+                    .setParameter("lineId", lineId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM script_lines WHERE id=:lineId")
+                    .setParameter("lineId", lineId)
+                    .executeUpdate();
+            touch(scriptId);
+            return new LineRemoval(LineEditOutcome.UPDATED, objectKeys.isEmpty() ? null : cleanup.schedule(userId, objectKeys, now));
+        });
+    }
+
+    @Override
+    public LineEditOutcome splitLine(UUID userId, UUID scriptId, UUID lineId, String first, String second) {
+        return transaction.execute(status -> {
+            lockActive(userId);
+            if (!lockOwnedScript(userId, scriptId)) {
+                return null;
+            }
+            List<Tuple> target = lockLine(scriptId, lineId);
+            if (target.isEmpty()) {
+                return LineEditOutcome.LINE_NOT_FOUND;
+            }
+            Tuple line = target.get(0);
+            int ordinal = line.get("ordinal", Integer.class);
+            // 순서 유일 제약은 줄마다 바로 검사돼 +1 을 한 번에 못 한다 — 음수로 비켜 두었다가 되돌린다.
+            entityManager.createNativeQuery("UPDATE script_lines SET ordinal=-(ordinal+1) WHERE script_id=:scriptId AND ordinal>:ordinal")
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("ordinal", ordinal)
+                    .executeUpdate();
+            entityManager.createNativeQuery("UPDATE script_lines SET ordinal=-ordinal WHERE script_id=:scriptId AND ordinal<0")
+                    .setParameter("scriptId", scriptId)
+                    .executeUpdate();
+            UUID secondId = UUID.randomUUID();
+            entityManager.createNativeQuery("""
+                    INSERT INTO script_lines(id,script_id,ordinal,kind,character_id,text)
+                    VALUES (:id,:scriptId,:ordinal,:kind,:characterId,:text)
+                    """)
+                    .setParameter("id", secondId)
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("ordinal", ordinal + 1)
+                    .setParameter("kind", line.get("kind", String.class))
+                    .setParameter("characterId", line.get("character_id", UUID.class))
+                    .setParameter("text", second)
+                    .executeUpdate();
+            entityManager.createNativeQuery("""
+                    UPDATE script_lines
+                    SET text=:text,
+                        lang=CASE WHEN :text=text THEN lang END,
+                        speech=CASE WHEN :text=text THEN speech END
+                    WHERE id=:lineId
+                    """)
+                    .setParameter("text", first)
+                    .setParameter("lineId", lineId)
+                    .executeUpdate();
+            // 구간이 그 줄로 끝나던 회차는 나눈 뒤 조각까지 품는다 — 구간에 있던 글이 빠지지 않게.
+            entityManager.createNativeQuery("UPDATE reading_sessions SET end_line_id=:secondId WHERE script_id=:scriptId AND end_line_id=:lineId")
+                    .setParameter("secondId", secondId)
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("lineId", lineId)
+                    .executeUpdate();
+            touch(scriptId);
+            return LineEditOutcome.UPDATED;
+        });
+    }
+
+    private boolean lockOwnedScript(UUID userId, UUID scriptId) {
+        return !NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT id FROM scripts WHERE id=:scriptId AND user_id=:userId FOR UPDATE
+                """, Tuple.class)
+                .setParameter("scriptId", scriptId)
+                .setParameter("userId", userId)).isEmpty();
+    }
+
+    private List<Tuple> lockLine(UUID scriptId, UUID lineId) {
+        return NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT ordinal,kind,character_id FROM script_lines WHERE id=:lineId AND script_id=:scriptId FOR UPDATE
+                """, Tuple.class)
+                .setParameter("lineId", lineId)
+                .setParameter("scriptId", scriptId));
+    }
+
+    private void touch(UUID scriptId) {
+        entityManager.createNativeQuery("UPDATE scripts SET updated_at=now() WHERE id=:scriptId")
+                .setParameter("scriptId", scriptId)
+                .executeUpdate();
+    }
+
+    @Override
     public List<UUID> delete(UUID userId, UUID scriptId, Instant now) {
         return transaction.execute(status -> {
             boolean owned = !NativeTuples.list(entityManager.createNativeQuery("""

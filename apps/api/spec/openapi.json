@@ -1430,6 +1430,68 @@
         } ]
       }
     },
+    "/v2/reading/scripts/{script_id}/lines/{line_id}/split" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Split Script Line",
+        "description" : "줄 하나를 둘로 나눈다(나누기가 한 줄로 합친 대사). 앞 글은 그 줄(id 그대로)에 남고 뒤 글은 바로 뒤에 같은\n종류·배역의 새 줄이 되며, 뒤 줄들의 순서가 하나씩 밀린다. 회차·녹음·외운 줄은 앞 줄을 계속 가리키고, 구간이 그\n줄로 끝나던 회차는 끝을 뒤 줄로 옮긴다. 두 글은 앞뒤 공백을 정리하고 비거나 5,000자를 넘으면 422 배열이다. 없는\n줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found. 고친 대본 전체를 돌려준다.",
+        "operationId" : "split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        }, {
+          "name" : "line_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingScriptLineSplit"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingScript"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/imports" : {
       "post" : {
         "tags" : [ "v2-reading" ],
@@ -3204,6 +3266,46 @@
       }
     },
     "/v2/reading/scripts/{script_id}/lines/{line_id}" : {
+      "delete" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Delete Script Line",
+        "description" : "줄 하나를 지운다(나누기가 잘못 넣은 줄). 그 줄을 구간 시작·끝·진행 위치로 가리키는 회차는 구간 안의 가까운\n대사로 옮긴다 — 시작은 뒤 대사, 끝은 앞 대사, 진행 위치는 뒤 대사(없으면 앞 대사). 그 줄의 녹음(파일 포함)·외운\n줄·줄 결과·말한 것은 함께 지운다. 지우면 대사가 하나도 남지 않는 회차 구간이 있으면 422 empty_range, 대본의\n마지막 줄이면 422 invalid_line 이고 아무것도 바꾸지 않는다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404\nscript_not_found. 고친 대본 전체를 돌려준다.",
+        "operationId" : "delete_script_line_v2_reading_scripts__script_id__lines__line_id__delete",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        }, {
+          "name" : "line_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingScript"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
       "patch" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Update Script Line",
@@ -6663,6 +6765,24 @@
         },
         "required" : [ "end", "kind", "scene_no", "scene_title", "start" ],
         "title" : "ReadingSessionRangeName"
+      },
+      "ReadingScriptLineSplit" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "first_text" : {
+            "type" : "string",
+            "maxLength" : 5000,
+            "title" : "First Text"
+          },
+          "second_text" : {
+            "type" : "string",
+            "maxLength" : 5000,
+            "title" : "Second Text"
+          }
+        },
+        "required" : [ "first_text", "second_text" ],
+        "title" : "ReadingScriptLineSplit"
       },
       "ReadingImportRequest" : {
         "type" : "object",

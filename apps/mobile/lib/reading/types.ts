@@ -174,6 +174,9 @@ export type PatchScriptLineBody = {
   text?: string;
 };
 
+/** POST /v2/reading/scripts/{id}/lines/{line_id}/split 본문(SOMA-785). 둘 다 앞뒤 공백을 걷어 비지 않아야 한다. */
+export type SplitScriptLineBody = { first_text: string; second_text: string };
+
 /** PATCH /v2/reading/scripts/{id}. 제목과 배역 이름·목소리만 고친다. 줄은 PatchScriptLineBody 로 고친다. */
 export type PatchScriptBody = {
   title?: string;
