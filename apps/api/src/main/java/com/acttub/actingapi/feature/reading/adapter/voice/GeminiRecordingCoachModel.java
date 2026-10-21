@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -79,7 +80,9 @@ public class GeminiRecordingCoachModel implements RecordingCoachModel {
     private byte[] download(String objectKey) {
         Path local = null;
         try {
-            local = Files.createTempFile("recording-coach-", ".m4a");
+            // 배우의 목소리라 주인만 읽고 쓰게 만든다.
+            local = Files.createTempFile("recording-coach-", ".m4a",
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
             storage.get().downloadToPath(objectKey, local);
             return Files.readAllBytes(local);
         } catch (IOException failure) {
