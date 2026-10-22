@@ -68,9 +68,9 @@ test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 
   expect(screen.queryByText('저번 코치 메모')).not.toBeOnTheScreen();
   expect(getPracticeNote).not.toHaveBeenCalled();
 
-  // 지금 찍기 — 찍는 법 → 카메라 → 새 연습 준비(next=upload). 첫 코칭이라 파란 안내를 켠다.
+  // 지금 찍기 — 카메라 → 새 연습 준비(next=upload). 첫 코칭이라 파란 안내를 켠다.
   await fireEvent.press(screen.getByRole('button', { name: '지금 찍어서 코칭 받기' }));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-guide', params: { next: 'upload', first: '1' } });
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-video', params: { mode: 'ai', next: 'upload', first: '1' } });
   // 찍어 둔 영상 — 새 연습 준비로 바로.
   await fireEvent.press(screen.getByRole('button', { name: '찍어 둔 영상 올리기' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/upload', params: { first: '1' } });

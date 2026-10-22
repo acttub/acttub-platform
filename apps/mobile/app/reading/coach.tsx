@@ -122,7 +122,7 @@ export default function ReadingCoachScreen() {
               <PrimaryButton
                 label={t('readingCoach.recordLine')}
                 phLabel="reading_coach_record_line"
-                onPress={() => router.push({ pathname: '/record-guide', params: { next: 'upload' } })}
+                onPress={() => router.push({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } })}
               />
               <SecondaryButton label={t('readingCoach.later')} phLabel="reading_coach_later" onPress={() => router.back()} />
             </>
