@@ -1,4 +1,5 @@
 import { coachingEntry } from './practice/coaching-entry.ts';
+import type { CountedPractice, PracticeKind } from './practice/counted.ts';
 import type { PracticeGroup } from './practice/types.ts';
 import type { ScriptCard } from './reading/types.ts';
 
@@ -11,7 +12,7 @@ import type { ScriptCard } from './reading/types.ts';
  * 없어 아직 빠져 있다.
  */
 
-type TodayChallenge = { id: string; line: string; work: string; ends_at: string };
+type TodayChallenge = { id: string; line: string; work: string; ends_at: string; entry_count?: number };
 
 export type TodayItem =
   | { kind: 'coaching'; group: PracticeGroup; notePracticeId: string }
@@ -54,11 +55,41 @@ export function challengeDaysLeft(endsAt: string, now: Date): number | null {
   return kstDayIndex(ends) - kstDayIndex(now.getTime());
 }
 
+/** 주 기능을 보는 기간 — 연속일·주간 점과 같은 최근 2주. */
+const PRIMARY_LOOKBACK_DAYS = 14;
+
+/**
+ * 사용자가 주로 한 기능(코칭·리딩·챌린지) — 최근 2주에 센 연습(lib/practice/counted)이 가장 많은 것.
+ * 같으면 더 최근에 한 쪽이다. 한 번도 없으면 null.
+ */
+export function primaryFeature(
+  practices: readonly CountedPractice[],
+  now: Date,
+  lookbackDays = PRIMARY_LOOKBACK_DAYS,
+): PracticeKind | null {
+  const since = now.getTime() - lookbackDays * DAY_MS;
+  const stats = new Map<PracticeKind, { count: number; last: number }>();
+  for (const p of practices) {
+    const at = timeOf(p.at);
+    if (at < since || at > now.getTime() + DAY_MS) continue;
+    const cur = stats.get(p.kind) ?? { count: 0, last: -Infinity };
+    stats.set(p.kind, { count: cur.count + 1, last: Math.max(cur.last, at) });
+  }
+  let best: PracticeKind | null = null;
+  for (const [kind, v] of stats) {
+    const b = best ? stats.get(best)! : null;
+    if (!b || v.count > b.count || (v.count === b.count && v.last > b.last)) best = kind;
+  }
+  return best;
+}
+
 export function pickToday(input: {
   groups: readonly PracticeGroup[];
   scripts: readonly ScriptCard[];
   challenge: TodayChallenge | null;
   now: Date;
+  /** 주 기능 — 그 기능으로 할 일이 있으면 가장 최근 것보다 먼저 고른다. */
+  primary?: PracticeKind | null;
 }): TodayPick {
   const candidates: { item: TodayItem; at: number; rank: number }[] = [];
 
@@ -79,14 +110,20 @@ export function pickToday(input: {
   if (reading) candidates.push({ item: { kind: 'reading', script: reading }, at: readingAt(reading), rank: 1 });
 
   candidates.sort((a, b) => b.at - a.at || a.rank - b.rank);
-  if (candidates.length > 0) return { main: candidates[0].item, also: candidates[1]?.item ?? null };
 
+  let challengeItem: TodayItem | null = null;
   if (input.challenge && timeOf(input.challenge.ends_at) > input.now.getTime()) {
     const daysLeft = challengeDaysLeft(input.challenge.ends_at, input.now);
-    if (daysLeft !== null && daysLeft >= 0) {
-      return { main: { kind: 'challenge', challenge: input.challenge, daysLeft }, also: null };
-    }
+    if (daysLeft !== null && daysLeft >= 0) challengeItem = { kind: 'challenge', challenge: input.challenge, daysLeft };
   }
+
+  // 주 기능이 챌린지면 열린 챌린지가 메인이고, 하던 코칭·리딩 하나는 그 아래로 간다.
+  if (input.primary === 'challenge' && challengeItem) return { main: challengeItem, also: candidates[0]?.item ?? null };
+  const primaryAt = candidates.findIndex((c) => c.item.kind === input.primary);
+  if (primaryAt > 0) candidates.unshift(...candidates.splice(primaryAt, 1));
+  if (candidates.length > 0) return { main: candidates[0].item, also: candidates[1]?.item ?? null };
+
+  if (challengeItem) return { main: challengeItem, also: null };
   return { main: { kind: 'start' }, also: null };
 }
 
@@ -95,4 +132,11 @@ export function tipIndex(now: Date, count: number): number {
   if (count <= 0) return 0;
   const day = Math.floor((now.getTime() - now.getTimezoneOffset() * 60_000) / DAY_MS);
   return ((day % count) + count) % count;
+}
+
+/** 그 시각이 한국 날짜로 어제인가(홈 인사 「어제 읽던 데서…」). */
+export function wasYesterday(iso: string | null | undefined, now: Date): boolean {
+  const at = iso ? Date.parse(iso) : Number.NaN;
+  if (!Number.isFinite(at)) return false;
+  return kstDayIndex(now.getTime()) - kstDayIndex(at) === 1;
 }
