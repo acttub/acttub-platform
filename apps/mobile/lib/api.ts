@@ -1147,6 +1147,19 @@ export const api = {
     });
   },
 
+  /**
+   * 정리까지 마친 대화를 같은 대화로 다시 연다(SOMA-782 「대화 이어하기」). 새 회차·새 대화가 아니라 새 코칭으로 세지 않는다.
+   * 이미 열려 있으면 그대로 돌려준다. 409: conversation_conflict(다시 읽기) · conversation_limit_reached(응답 상한 가까움) ·
+   * conversation_not_resumable(옛 갈래 등 이어 갈 수 없음).
+   */
+  continueConversation(conversationId: string, revision: number | null): Promise<CoachTurnResult> {
+    return request<CoachTurnResult>(
+      `/v2/coach/conversations/${encodeURIComponent(conversationId)}/continue`,
+      jsonInit({ revision }),
+      { timeoutMs: 20_000 },
+    );
+  },
+
   /** 충돌 뒤 다시 읽기·앱 재시작 때 쓰는 대화 조회. */
   getConversation(conversationId: string, options: ApiCallOptions = {}): Promise<CoachConversation> {
     return request<CoachConversation>(

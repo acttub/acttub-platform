@@ -1017,6 +1017,10 @@ const ko = {
     doneNormal: '오늘 대화는 여기까지예요. 정리를 만들어 보여드릴게요.',
     finishBtn: '연습 마치기',
     seeSummary: '정리 보러 가기',
+    // 정리 뒤 같은 대화를 이어 간다(SOMA-782, pen ⓐ4 「대화 이어하기」).
+    continueTalk: '대화 이어하기',
+    continueLimit: '이 대화는 많이 이어졌어요. 다음 테이크로 새로 시작해 보세요.',
+    continueNotResumable: '이 대화는 이어 갈 수 없어요. 다음 테이크로 새로 시작해 보세요.',
     composerLabel: '답이나 질문을 편하게 적어 주세요',
     composerPh: '직접 써도 돼요',
     quickYes: '맞아요',

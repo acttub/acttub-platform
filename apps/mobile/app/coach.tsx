@@ -26,6 +26,7 @@ import {
   coachFailure,
   coachFailureMessage,
   helpButtonDraft,
+  canContinueConversation,
   isClosed,
   loadCoachSession,
   nextReplyWraps,
@@ -238,6 +239,28 @@ function CoachTalk() {
     },
     [applyResult, closed, conversation, goToNote, loop, practice, reloadConversation, streamCallbacks, waiting],
   );
+
+  /**
+   * 정리 뒤 「대화 이어하기」(SOMA-782) — 같은 대화를 다시 열어 입력창을 돌려준다. 새 회차가 아니다.
+   * 실패하면 닫힌 채로 두고 안내만 보인다. 충돌이면 최신 대화를 다시 읽는다.
+   */
+  const continueTalk = useCallback(async () => {
+    if (!conversation || waiting || !canContinueConversation(conversation, sample)) return;
+    setWaiting(true);
+    setError(null);
+    try {
+      const result = await loop.continueConversation(conversation.id, conversation.revision);
+      if (!mountedRef.current) return;
+      applyResult(result);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      const failure = coachFailure(e);
+      setError(coachFailureMessage(failure));
+      if (failure.kind === 'conflict') await reloadConversation();
+    } finally {
+      if (mountedRef.current) setWaiting(false);
+    }
+  }, [applyResult, conversation, loop, reloadConversation, sample, waiting]);
 
   /** 닫힌 대화에서 다시 코칭하려면 새 회차다 — 「다음 테이크 찍기」로 영상을 새로 고른다(SOMA-672). */
   const startNextTake = () => {
@@ -500,6 +523,16 @@ function CoachTalk() {
             <>
               <Text style={styles.doneText}>{conversation?.close_reason === 'system_failure'
                 ? t('coach.doneFailure') : practice.note ? t('coach.doneNormal') : t('coach.doneShort')}</Text>
+              {canContinueConversation(conversation, sample) && (
+                <Pressable
+                  onPress={() => void continueTalk()}
+                  disabled={waiting}
+                  style={styles.continueTalk}
+                  accessibilityRole="button"
+                  testID="coach-continue-talk">
+                  <Text style={styles.continueTalkText}>{t('coach.continueTalk')}</Text>
+                </Pressable>
+              )}
               <PrimaryButton label={practice.note ? t('coach.seeSummary') : t('coach.finishBtn')} onPress={practice.note ? goToNote : finishWithoutNote} />
               {/* 예시 회차는 서버에 없어 이어 갈 수 없다. */}
               {!sample && (
@@ -582,6 +615,8 @@ function CoachTalk() {
 }
 
 const styles = StyleSheet.create({
+  continueTalk: { alignItems: 'center', paddingVertical: 12 },
+  continueTalkText: { fontSize: 15, fontWeight: '700', color: palette.blueDeep },
   purposeChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   purposeChoice: { width: '48%' },
   safe: { flex: 1, backgroundColor: palette.bg },

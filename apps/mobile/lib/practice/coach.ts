@@ -78,6 +78,14 @@ export function nextReplyWraps(conversation: Pick<CoachConversation, 'coach_repl
   return remainingCoachReplies(conversation) <= 1;
 }
 
+/**
+ * 정리 화면의 「대화 이어하기」(SOMA-782, pen ⓐ4)를 보일 수 있는가. 닫힌 대화이고 예시 회차가 아닐 때만이다.
+ * 코치 응답 상한에 가까우면 서버가 409 conversation_limit_reached 로 막고 화면은 안내만 한다.
+ */
+export function canContinueConversation(conversation: Pick<CoachConversation, 'status' | 'id'> | null, sample: boolean): boolean {
+  return Boolean(conversation && isClosed(conversation) && !sample);
+}
+
 export function isClosed(conversation: Pick<CoachConversation, 'status'> | null): boolean {
   return conversation?.status === 'closed';
 }
@@ -104,6 +112,10 @@ export type CoachFailure =
   | { kind: 'closed' }
   /** 분석이 아직 쓸 수 없다. */
   | { kind: 'not_ready' }
+  /** 응답 상한에 가까워 더 이어 갈 수 없다(대화 이어하기). */
+  | { kind: 'limit_reached' }
+  /** 옛 갈래·연기가 아니어서 끊긴 대화는 이어 갈 수 없다(대화 이어하기). */
+  | { kind: 'not_resumable' }
   | { kind: 'fingerprint_mismatch' }
   | { kind: 'too_long' }
   | { kind: 'offline' }
@@ -115,6 +127,8 @@ export function coachFailure(error: unknown): CoachFailure {
   if (code === 'conversation_conflict') return { kind: 'conflict' };
   if (code === 'conversation_closed') return { kind: 'closed' };
   if (code === 'analysis_not_ready') return { kind: 'not_ready' };
+  if (code === 'conversation_limit_reached') return { kind: 'limit_reached' };
+  if (code === 'conversation_not_resumable') return { kind: 'not_resumable' };
   if (code === 'request_fingerprint_mismatch') return { kind: 'fingerprint_mismatch' };
   if (status === 422) return { kind: 'too_long' };
   if (isOfflineError(error)) return { kind: 'offline' };
@@ -129,6 +143,10 @@ export function coachFailureMessage(failure: CoachFailure): string {
       return translate('coach.closed');
     case 'not_ready':
       return translate('coach.notReady');
+    case 'limit_reached':
+      return translate('coach.continueLimit');
+    case 'not_resumable':
+      return translate('coach.continueNotResumable');
     case 'too_long':
       return translate('coach.answerTooLong');
     case 'fingerprint_mismatch':
