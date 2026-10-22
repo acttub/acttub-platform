@@ -465,8 +465,13 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     }
 
     @Override public void delete(Video video) {
-        client.files.delete(video.name(), DeleteFileConfig.builder()
-                .httpOptions(HttpOptions.builder().timeout(15000).build()).build());
+        try {
+            client.files.delete(video.name(), DeleteFileConfig.builder()
+                    .httpOptions(HttpOptions.builder().timeout(15000).build()).build());
+        } catch (com.google.genai.errors.ClientException failure) {
+            // 이미 지워진 파일이다 — Gemini 는 없는 파일에 403("or it may not exist")·404를 준다. 지우는 경로가 여럿이라 겹칠 수 있다.
+            if (failure.code() != 403 && failure.code() != 404) throw failure;
+        }
     }
     @Override public String model() { return model; }
 }
