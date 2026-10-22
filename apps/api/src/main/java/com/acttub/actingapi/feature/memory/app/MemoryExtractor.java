@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import com.acttub.actingapi.integration.llm.TextValidation;
 import com.acttub.actingapi.integration.llm.TextValidator;
 import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
+import com.acttub.actingapi.feature.memory.domain.MeaningfulMemoryValue;
 import com.acttub.actingapi.feature.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
@@ -70,9 +71,13 @@ public final class MemoryExtractor {
               마음 상태를 단정하는 말은 적지 않는다. 배우가 스스로 말한 것과 실제로 드러난 것,
               그 관찰 가능한 사실만 남긴다.
             - 칸별로 이렇게 적는다:
-              - goal: 배우가 이번에 정리한 목표를 문장 하나로 (배우의 표현을 살리되 다듬어서)
-              - blockage: 배우가 고른 막히는 지점과 배우가 스스로 말한 어려움에서, 어디서 반복해서 막히는지를
-                문장 하나로. 코치의 진단은 옮기지 않는다. 이번에 특정되지 않았으면 칸을 뺀다
+              - goal: 이 장면에서 배우가 정리한 목표(인물이 이 장면에서 하려는 것 포함)를 문장 하나로 (배우의
+                표현을 살리되 다듬어서). 배우가 목표 칸을 비웠어도 대화에서 **배우가 자기 말로** 이 장면에서 하려는 것을
+                말했으면 그것이 목표다. 코치가 낸 말에 배우가 "맞아요"라고만 했으면 적지 않는다. **이 칸은 이 장면에만
+                붙는다** — 같은 장면을 이어 찍을 때만 코치가 읽는다
+              - blockage: 배우가 스스로 말한 어려움에서, 어디서 반복해서 막히는지를 문장 하나로. 배우가 화면에서
+                고른 항목 이름을 옮기지 않는다 — 그건 배우가 누른 버튼이지 배우에 대한 말이 아니다. 코치의 진단은
+                옮기지 않는다. 배우가 직접 말한 어려움이 없으면 칸을 뺀다
               - wants: 배우가 코치에게 바란 것(평가해 달라, 방법을 알려 달라, 표정을 봐 달라 등)을
                 문장 하나로. 배우의 말을 짧게 따옴표로 붙인다. "(평가 요청)", "(방법 요청)" 으로 분류된 말이 근거다
               - habits: 배우가 맞다고 받아들였거나 스스로 본 버릇만 한두 문장으로 쓴다. 지금까지 쌓인
@@ -83,6 +88,14 @@ public final class MemoryExtractor {
                 배우가 일부러 한 선택이라고 설명한 것은 버릇이 아니다. "일부러 한 선택: ~"으로 따로 적는다
               - tone: 배우의 말투 — 답이 짧은지 긴지, 직설을 바라는지, 존댓말인지 반말인지를 한 문장으로.
                 말 내용은 적지 않는다
+            - wants·tone·habits·blockage 는 **배우 전체에 붙는 칸**이라 다른 대본의 연습에도 실린다. 인물 이름, 대사,
+              상황처럼 이 대본에만 해당하는 내용을 적지 않는다.
+            - **배우에 대한 말만 적는다.** 아래 같은 값은 값이 아니다 — 칸을 뺀다.
+              - 배우가 화면에서 무엇을 골랐는지: "~을 골랐다", "~지점을 골랐다", "~을 선택지로"
+              - 코치가 무엇을 했는지: "~지적이 있었고", "코치가 ~를 다뤘다", "피드백을 받았다"
+              - 없다는 말: "없음", "특정되지 않음", "드러나지 않았다"
+            - [지금까지 쌓인 기억]은 지난 연습들의 정리다. **이번 연습이 더 최근이다.** 이번 연습에서 배우의 말투나
+              바라는 것이 달라 보이면 이번 것을 따라 고쳐 쓴다. 이전 값을 글자만 바꿔 다시 적지 않는다.
             - 배우가 한 말 앞의 괄호("(평가 요청)", "(정정)" 등)는 코치가 대화 중에 붙인 분류다. 배우의 말이 아니다.
             - 영상 관찰의 대사 인용은 일부 구절이다. 전체 받아쓰기로 취급하거나 빠진 말을 채우지 않는다.
               인물의 대사를 배우 개인의 성격이나 심리로 추론하지 않는다.
@@ -108,7 +121,7 @@ public final class MemoryExtractor {
      * 담지 않아 그 둘의 유무를 알지 못하고, 이 프롬프트가 아는 Scene Context 는 목표뿐이다.
      */
     private static final String GOAL_ABSENT =
-            "- 배우가 목표를 적지 않았다. 목표를 지어내지 마라.";
+            "- 배우가 목표 칸을 적지 않았다. 대화에서 배우가 직접 말한 목표가 없으면 목표를 지어내지 마라.";
 
     static String buildExtractionPrompt(
             MemoryUpdateMaterial material, Map<String, String> existing) {
@@ -148,6 +161,7 @@ public final class MemoryExtractor {
         }
         lines.add("");
         lines.add("[지금까지 쌓인 기억]");
+        lines.add("목표·다시 말하지 않을 것은 이 장면의 것만, 나머지는 배우 전체의 것이다.");
         if (existing.isEmpty()) {
             lines.add("- (아직 없음)");
         } else {
@@ -277,6 +291,11 @@ public final class MemoryExtractor {
             List<String> failures = languageFailures(name, text);
             if (!failures.isEmpty()) {
                 rejected.put(name, "검사 실패: " + String.join(", ", failures));
+                return;
+            }
+            var meaningless = MeaningfulMemoryValue.problem(name, text);
+            if (meaningless.isPresent()) {
+                rejected.put(name, "배우에 대한 말이 아님: " + meaningless.get());
                 return;
             }
             updates.put(name, text);
