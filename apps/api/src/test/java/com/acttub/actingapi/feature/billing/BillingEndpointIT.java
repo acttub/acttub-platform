@@ -3,6 +3,8 @@ package com.acttub.actingapi.feature.billing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -107,9 +109,10 @@ class BillingEndpointIT {
     }
 
     private void approveAll() {
-        when(gateway.approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString()))
-                .thenAnswer(call -> new PgReviewGateway.Approval("DONE", call.getArgument(2), call.getArgument(3),
-                        "2026-10-23T10:00:00+09:00"));
+        // doAnswer 꼴로 건다 — when(...) 꼴은 앞서 건 thenThrow 를 실제로 불러 버린다.
+        doAnswer(call -> new PgReviewGateway.Approval("DONE", call.getArgument(2), call.getArgument(3),
+                "2026-10-23T10:00:00+09:00"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString());
     }
 
     @Test
@@ -157,8 +160,8 @@ class BillingEndpointIT {
                 .isEqualTo(Instant.parse("2026-12-23T01:00:00Z"));
 
         clock.set(Instant.parse("2026-12-23T01:00:01Z"));
-        when(gateway.approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString()))
-                .thenThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.REJECTED, "REJECT_CARD"));
+        doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.REJECTED, "REJECT_CARD"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString());
         assertThat(worker.runOnce()).isTrue();
         JsonNode pastDue = me();
         assertThat(pastDue.path("status").textValue()).isEqualTo("past_due");
@@ -170,8 +173,8 @@ class BillingEndpointIT {
         assertThat(json(post("/v2/billing/subscription/retry"), 409).path("detail").asText()).contains("not_past_due");
 
         clock.set(Instant.parse("2027-01-23T01:00:01Z"));
-        when(gateway.approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString()))
-                .thenThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.UNKNOWN, "gateway_unreachable"));
+        doThrow(new PgReviewGateway.GatewayException(PgReviewGateway.GatewayException.Outcome.UNKNOWN, "gateway_unreachable"))
+                .when(gateway).approve(anyString(), anyString(), anyString(), anyLong(), anyString(), anyString());
         assertThat(worker.runOnce()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments WHERE status='unknown'", Integer.class)).isEqualTo(1);
         assertThat(worker.runOnce()).isFalse();
