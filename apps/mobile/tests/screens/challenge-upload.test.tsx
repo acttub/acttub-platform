@@ -27,7 +27,17 @@ jest.mock('expo-video', () => {
     VideoView: () => <Text>미리보기 영상</Text>,
   };
 });
-jest.mock('@/lib/api', () => ({ api: { getChallenge: jest.fn(), createEntry: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { getChallenge: jest.fn(), createEntry: jest.fn(), getEntry: jest.fn() } }));
+jest.mock('@/lib/challenge/share-native', () => ({
+  videoDeps: { download: jest.fn(), remove: jest.fn() },
+  isInstagramInstalled: jest.fn(async () => true),
+  instagramStoreUrl: jest.fn(() => null),
+  shareVideoToInstagramStory: jest.fn(),
+  saveVideoToLibrary: jest.fn(),
+  copyText: jest.fn(),
+  openSystemShare: jest.fn(),
+  openUrl: jest.fn(),
+}));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/recorded-video', () => ({ takeRecordedVideo: jest.fn() }));
@@ -102,12 +112,22 @@ test('보관함 영상으로 공개 참여하면 완료 화면의 주 버튼 「
   expect(await screen.findByText('공개로 올렸어요')).toBeOnTheScreen();
   expect(screen.getByText(/다른 배우들이 볼 수 있어요\. 대사 랭킹에 바로 반영됐어요\./)).toBeOnTheScreen();
 
-  // 주 버튼 하나가 「홈으로 가기」다(pen 「비공개로 저장했어요」, SOMA-820 — AI 리포트 없앰).
+  // 버튼은 「SNS에 공유하기」와 주 버튼 「홈으로 가기」(pen 「비공개로 저장했어요」, SOMA-820 — AI 리포트 없앰, SOMA-819 공유).
   const buttons = screen.getAllByRole('button');
-  expect(buttons).toHaveLength(1);
-  expect(buttons[0]).toHaveAccessibleName('홈으로 가기');
+  expect(buttons).toHaveLength(2);
+  expect(buttons[0]).toHaveAccessibleName('SNS에 공유하기');
+  expect(buttons[1]).toHaveAccessibleName('홈으로 가기');
   expect(screen.queryByText('AI 리포트 보기')).not.toBeOnTheScreen();
+
+  (api.getEntry as jest.Mock).mockResolvedValue({
+    id: 'entry-1', is_mine: true, published_at: '2026-10-20T00:00:00Z', playback_url: 'https://v/1.mp4', author: { name: '나' },
+  });
   await fireEvent.press(buttons[0]);
+  expect(logEvent).toHaveBeenCalledWith('challenge_upload_share', { visibility: 'public' });
+  expect(await screen.findByText('영상으로 저장')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByLabelText('닫기'));
+
+  await fireEvent.press(buttons[1]);
   expect(mockRouter.replace).toHaveBeenLastCalledWith('/');
 });
 
