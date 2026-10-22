@@ -65,6 +65,7 @@ class ChallengeSettlement {
                 UPDATE challenge_entries e
                 SET final_like_count=(SELECT count(*) FROM entry_likes l WHERE l.entry_id=e.id),
                     final_eligible=(e.visibility='public' AND e.status IN ('visible','hidden_by_report')
+                        AND (NOT e.face_mosaic OR e.mosaic_status='ready')
                         AND EXISTS(SELECT 1 FROM users u WHERE u.id=e.user_id AND u.status='active')
                         AND EXISTS(SELECT 1 FROM videos v WHERE v.id=e.video_id AND v.purged_at IS NULL)),
                     updated_at=:now

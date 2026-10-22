@@ -10,9 +10,11 @@ final class ChallengeVisibility {
             JOIN videos v ON v.id=e.video_id AND v.user_id=e.user_id
             LEFT JOIN user_profiles ep ON ep.user_id=e.user_id
             """;
+    /** 얼굴 모자이크를 켠 참여작은 모자이크본이 준비돼야 공개다(준비 전·실패는 본인에게만 보인다). */
     static final String PUBLIC_ENTRY = """
             e.visibility='public' AND e.status='visible' AND eu.status='active' AND v.purged_at IS NULL
             AND ec.moderation='visible' AND ec.deleted_at IS NULL
+            AND (NOT e.face_mosaic OR e.mosaic_status='ready')
             """;
     static final String UNBLOCKED = unblocked("e.user_id");
 

@@ -20,8 +20,8 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/challenges/{id}/entries` | `ChallengeEntryCreateRequest`(request_id·video_id·visibility 필수, caption 선택) | `MyChallengeEntry` 201, 같은 요청 재전송 200 | `member_only`·`account_deactivated` 403, `challenge_not_found` 404, `video_not_found` 404, `challenge_closed` 422, `video_not_ready` 422, `video_too_long` 422, `duplicate_entry` 422, `request_fingerprint_mismatch` 422, 캡션 길이 422, `daily_entry_limit` 429 |
-| `PATCH /v2/entries/{id}` | `ChallengeEntryPatchRequest`(caption·visibility 선택) | `MyChallengeEntry` 200 | `member_only`·`account_deactivated` 403, `entry_not_found` 404, `challenge_closed` 422, `entry_hidden` 422, `video_not_ready` 422, 캡션·visibility 값 422 |
+| `POST /v2/challenges/{id}/entries` | `ChallengeEntryCreateRequest`(request_id·video_id·visibility 필수, caption·face_mosaic 선택) | `MyChallengeEntry` 201, 같은 요청 재전송 200 | `member_only`·`account_deactivated` 403, `challenge_not_found` 404, `video_not_found` 404, `challenge_closed` 422, `video_not_ready` 422, `video_too_long` 422, `duplicate_entry` 422, `request_fingerprint_mismatch` 422, 캡션 길이 422, `daily_entry_limit` 429 |
+| `PATCH /v2/entries/{id}` | `ChallengeEntryPatchRequest`(caption·visibility·face_mosaic 선택) | `MyChallengeEntry` 200 | `member_only`·`account_deactivated` 403, `entry_not_found` 404, `challenge_closed` 422, `entry_hidden` 422, `video_not_ready` 422, 캡션·visibility 값 422 |
 | `DELETE /v2/entries/{id}` | id | 204(이미 삭제한 것도 204) | `member_only`·`account_deactivated` 403, `entry_not_found` 404 |
 
 참여작 조회(`GET /v2/entries/{id}`, `GET /v2/me/challenge-entries`)는 [challenge.browse](browse.md#입력출력)다.
@@ -63,6 +63,13 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
   겹치면 한쪽만 성공한다.
 - 공개 범위는 올리기 화면에서 「나만 보기」가 먼저 골라져 있고, 공개는 배우가 직접 바꾼다(SOMA-748, 새 디자인). 공개로 올릴 때 "공개 참여작은 다른 참여자의 AI 리포트 비교에 쓰일 수
   있어요"를 한 줄 보여 준다(challenge.ai-report).
+- **얼굴 모자이크**(SOMA-809): 올리기 화면에서 공개를 고르면 "얼굴 모자이크" 켜기 버튼이 보인다(기본 꺼짐, 공개일 때만 요청에 싣는다).
+  켜면(face_mosaic true) 서버가 원본은 그대로 두고 얼굴을 픽셀 모자이크한 사본(모자이크본)을 뒤에서 만든다. mosaic_status는 pending →
+  ready이고, 영상에서 얼굴을 하나도 찾지 못하거나 세 번 시도해도 만들지 못하면 failed다. **다른 사람에게는 ready인 모자이크본만 준다** —
+  pending·failed인 참여작은 공개여도 피드·랭킹·상세·공유 링크·표본·종료 랭킹 어디에도 나오지 않는다(fail-closed). 본인 재생과 AI 리포트는
+  원본이다. 모자이크본은 원본 옆 `videos/{사용자}/{요청}.mosaic-{참여작}.mp4`이고, 참여작 삭제·모자이크 끄기·영상 파일 파기·탈퇴 때
+  정리 장부로 간다. PATCH face_mosaic true는 켜거나(failed면 다시 만든다), false는 끄고 사본을 지운다(공개 참여작이면 원본이 보인다).
+  나중에 공개로 바꾸는 경로(P03 메뉴·AI 리포트 화면)는 공개하면서 모자이크를 켤지 묻는다. 만드는 중·실패는 P03 줄에 알린다.
 - 완료 화면(A18.3): 공개면 "공개로 올렸어요", 비공개면 "비공개로 저장했어요"와 그 아래 안내 한 줄, 옅은 파랑 알약
   "「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요". 버튼은 "AI 리포트 보기"(주)와 "홈으로 가기"(pen 10-11 「비공개로 저장했어요」).
 
@@ -90,6 +97,9 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
   본문 없이 deleted_at, videos 행은 있다. 보관함에서 그 영상 삭제: 다른 참조가 없으면 된다.
 - 삭제 뒤 같은 영상으로 새 요청 id로 참여: 새 행. 삭제된 참여작의 옛 요청 id 재전송: 새 행 없음.
 - 탈퇴: 참여작 visibility private, 목록에 없음, 공개 전환 API 403.
+- 얼굴 모자이크를 켜고 공개: 만드는 동안 다른 사람의 피드·상세·공유 조회에 없고 본인은 원본을 재생한다. 모자이크본이 붙으면 다른 사람의
+  playback_url은 모자이크본, 본인은 원본이다. 얼굴이 없는 영상: failed, 다른 사람에게 계속 없다. 다시 켜면 pending부터 다시. 끄면 원본이
+  공개된다. 만드는 사이 삭제된 참여작: 늦게 만든 사본은 붙지 않고 정리 장부로 간다(`ChallengeEntryIT` faceMosaic_*).
 
 ## 범위 밖
 - 참여작 삭제 되돌리기.

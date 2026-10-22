@@ -983,6 +983,13 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     - **스위치가 둘이고 둘 다 켜져야 돈다**: `ANALYSIS_WORKER_ENABLED`(분석·기억·챌린지 리포트 워커와 공유 — 격리 복원 때 함께 끄는 스위치는
       [DEPLOY-HOME §7](../../docs/deploy/DEPLOY-HOME.md#7-db와-호스트-복구))와 `VIDEO_POSTER_ENABLED`(포스터만). 테스트는 후자를 전역으로
       끄고 워커를 직접 부른다.
+  - **챌린지 얼굴 모자이크**(`challenge_entries.face_mosaic`·`mosaic_status`·`mosaic_key`·`mosaic_attempts`, V54, SOMA-809):
+    `challenge/app/EntryMosaicWorker` 가 포스터와 같은 모양(집기 · 받기 · 만들기 · 올리기 · 붙이기)으로 돈다. 만들기는
+    `integration/media/FaceMosaicRenderer`(ffmpeg 로 30fps 프레임을 풀어 YuNet(`YuNetFaceDetector`, openpnp OpenCV)으로 얼굴을 찾고
+    넓힌 상자를 픽셀 모자이크한 뒤 다시 압축)이다. 붙이기는 `users` → 참여작 → 영상(`FOR SHARE`) 순서로 잡고, 붙이지 못하면 사본을
+    장부에 올린다. 공개 조건(`ChallengeVisibility.PUBLIC_ENTRY`)과 종료 집계는 `NOT face_mosaic OR mosaic_status='ready'` 를 더하고,
+    다른 사람의 재생 주소는 `EntryCards` 가 모자이크본으로 바꾼다. 스위치는 `ANALYSIS_WORKER_ENABLED` 와
+    `CHALLENGE_MOSAIC_ENABLED`(테스트는 후자를 전역으로 끈다).
   - **이관**은 `video/app/VideoOwnership` 이 `videos` 와 **예약 장부**를 함께 옮긴다(§6-9의 순서에서 올린 영상 바로
     뒤다). 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다.
 - **회차**(`/v2/practices/**`, `feature/practice` 의 0.1.0 코드)
