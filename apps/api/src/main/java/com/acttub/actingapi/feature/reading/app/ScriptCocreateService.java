@@ -237,17 +237,21 @@ public class ScriptCocreateService {
      * 써서 끊긴 뒤 다시 와도 대본이 둘 생기지 않는다.
      */
     public Saved save(UUID userId, boolean guest, UUID id) {
-        Row row = ready(userId, id);
-        if (row.scriptId() != null) {
-            return new Saved(id, row.scriptId(), false);
-        }
-        if (row.busySince() != null && row.busySince().isAfter(clock.instant().minus(STALE))) {
-            throw new ApiException(409, "sample_script_busy");
-        }
-        Version current = readVersions(row.versions()).get(row.currentVersion() - 1);
-        ScriptService.Created created = scripts.create(userId, guest, id, current.script().toDraft());
-        cocreations.linkScript(userId, id, created.script().id(), clock.instant());
-        return new Saved(id, created.script().id(), created.created());
+        return cocreations.withSaveLock(userId, id, row -> {
+            if (row == null || !row.ready()) {
+                throw new ApiException(404, "sample_script_not_found");
+            }
+            if (row.scriptId() != null) {
+                return new Saved(id, row.scriptId(), false);
+            }
+            if (row.busySince() != null) {
+                throw new ApiException(409, "sample_script_busy");
+            }
+            Version current = readVersions(row.versions()).get(row.currentVersion() - 1);
+            ScriptService.Created created = scripts.create(userId, guest, id, current.script().toDraft());
+            cocreations.linkScript(userId, id, created.script().id(), clock.instant());
+            return new Saved(id, created.script().id(), created.created());
+        });
     }
 
     // ---------------------------------------------------------------- 생성

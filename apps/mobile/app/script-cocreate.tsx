@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -59,12 +59,13 @@ export default function ScriptCocreateScreen() {
 
   const fail = (e: unknown) => setError(t(errorKey(e instanceof ApiError ? e.code : undefined)));
 
+  const generation = useRef<{ payload: string; requestId: string } | null>(null);
+
   const generate = async () => {
     setError(null);
     setStep('generating');
     try {
-      const made = await api.createSampleScript({
-        request_id: newRequestId(),
+      const body = {
         experience: experienceFor(me?.experience),
         age: me?.age ?? null,
         gender: me?.gender ?? null,
@@ -74,7 +75,13 @@ export default function ScriptCocreateScreen() {
         direction: direction.trim() || null,
         character_count: characterCount,
         length_minutes: minutes,
-      });
+      };
+      const payload = JSON.stringify(body);
+      if (generation.current?.payload !== payload) {
+        generation.current = { payload, requestId: newRequestId() };
+      }
+      const made = await api.createSampleScript({ ...body, request_id: generation.current.requestId });
+      generation.current = null; // 다음 의도적인 생성은 새 요청이다. 실패한 재시도만 같은 id를 쓴다.
       setScript(made);
       setStep('result');
     } catch (e) {
@@ -98,7 +105,18 @@ export default function ScriptCocreateScreen() {
       setScript(await api.reviseSampleScript(script.id, revisionBody(script, edit)));
       setStep('result');
     } catch (e) {
-      fail(e);
+      try {
+        const latest = await api.getSampleScript(script.id);
+        setScript(latest);
+        if (latest.version_count > script.version_count || latest.version !== script.version || latest.script_id) {
+          setStep('result');
+          return; // 응답만 유실된 성공 또는 다른 기기의 최신 결과. 자동으로 다시 수정하지 않는다.
+        }
+        fail(e);
+      } catch {
+        // 결과가 불확실할 때 '원본 그대로'라고 단정하지 않는다.
+        setError(t('scriptCocreate.errorConflict'));
+      }
     } finally {
       setBusy(false);
     }

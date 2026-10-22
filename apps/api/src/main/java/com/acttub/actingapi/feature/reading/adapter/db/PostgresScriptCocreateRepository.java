@@ -44,6 +44,19 @@ class PostgresScriptCocreateRepository implements ScriptCocreateRepository {
     }
 
     @Override
+    public <T> T withSaveLock(UUID userId, UUID id, java.util.function.Function<Row, T> save) {
+        return transaction.execute(tx -> {
+            // ScriptRepository/탈퇴와 같은 순서: 사용자 → 생성 행. create와 link도 이 트랜잭션에 참여한다.
+            entityManager.createNativeQuery("SELECT id FROM users WHERE id=:userId FOR UPDATE")
+                    .setParameter("userId", userId).getResultList();
+            Row row = first(NativeTuples.list(entityManager.createNativeQuery(
+                    SELECT + " WHERE id=:id AND user_id=:userId FOR UPDATE", Tuple.class)
+                    .setParameter("id", id).setParameter("userId", userId)));
+            return save.apply(row);
+        });
+    }
+
+    @Override
     public Row findByRequest(UUID userId, UUID requestId) {
         return first(NativeTuples.list(entityManager.createNativeQuery(
                 SELECT + " WHERE user_id=:userId AND request_id=:requestId", Tuple.class)
@@ -121,13 +134,16 @@ class PostgresScriptCocreateRepository implements ScriptCocreateRepository {
 
     @Override
     public void appendVersion(UUID id, String versions, int currentVersion, Instant now) {
-        update("""
+        int changed = update("""
                 UPDATE script_cocreations
                 SET versions=:versions,current_version=:currentVersion,revisions_used=revisions_used+1,busy_since=NULL,
                     updated_at=:now
-                WHERE id=:id
+                WHERE id=:id AND script_id IS NULL AND busy_since IS NOT NULL
                 """, q -> q.setParameter("id", id).setParameter("versions", versions)
                 .setParameter("currentVersion", currentVersion).setParameter("now", at(now)));
+        if (changed != 1) {
+            throw new com.acttub.actingapi.platform.web.ApiException(409, "sample_script_version_conflict");
+        }
     }
 
     @Override

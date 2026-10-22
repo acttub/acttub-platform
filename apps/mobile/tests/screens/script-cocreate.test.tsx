@@ -19,6 +19,7 @@ jest.mock('@/lib/auth', () => ({
 jest.mock('@/lib/api', () => ({
   api: {
     createSampleScript: jest.fn(),
+    getSampleScript: jest.fn(),
     reviseSampleScript: jest.fn(),
     restoreSampleScript: jest.fn(),
     saveSampleScript: jest.fn(),
@@ -59,7 +60,10 @@ function sample(overrides: Partial<SampleScript> = {}): SampleScript {
   };
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  (api.getSampleScript as jest.Mock).mockResolvedValue(sample());
+});
 
 async function reachDirection() {
   await render(<ScriptCocreateScreen />);
@@ -188,4 +192,35 @@ test('코칭 탭의 입구 줄은 대사 같이 만들기 화면으로 간다', 
   await render(<ScriptCocreateEntry />);
   await fireEvent.press(screen.getByRole('button', { name: '찍을 대사부터 같이 만들기' }));
   expect(mockRouter.push).toHaveBeenCalledWith('/script-cocreate');
+});
+
+
+test('생성 응답 유실 뒤 같은 입력 재시도는 request_id 유지, 입력 변경은 새 id', async () => {
+  createSampleScript.mockRejectedValue(new Error('network'));
+  await reachDirection();
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  await screen.findByText('원하는 방향이 있으면 적어 주세요');
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  expect(createSampleScript.mock.calls[1][0].request_id).toBe(createSampleScript.mock.calls[0][0].request_id);
+  await fireEvent.press(screen.getByRole('radio', { name: '약 3분' }));
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  expect(createSampleScript.mock.calls[2][0].request_id).not.toBe(createSampleScript.mock.calls[0][0].request_id);
+});
+
+test('서버 수정 성공 후 응답 유실은 GET 최신 결과로 복구하고 추가 수정을 보내지 않는다', async () => {
+  createSampleScript.mockResolvedValue(sample());
+  reviseSampleScript.mockRejectedValue(new Error('response lost'));
+  (api.getSampleScript as jest.Mock).mockResolvedValue(sample({ version: 2, version_count: 2, revisions_used: 1, revisions_left: 2, title: '복구된 서랍' }));
+  await reachDirection();
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  await fireEvent.press(await screen.findByRole('button', { name: '수정하기' }));
+  await fireEvent.changeText(screen.getByLabelText('어떻게 고칠까요?'), '담담하게');
+  await fireEvent.press(screen.getByRole('button', { name: '수정 적용' }));
+  expect(await screen.findByText('복구된 서랍')).toBeOnTheScreen();
+  expect(reviseSampleScript).toHaveBeenCalledTimes(1);
+  await fireEvent.press(screen.getByRole('button', { name: '수정하기' }));
+  reviseSampleScript.mockResolvedValueOnce(sample({ version: 3, version_count: 3 }));
+  await fireEvent.changeText(screen.getByLabelText('어떻게 고칠까요?'), '짧게');
+  await fireEvent.press(screen.getByRole('button', { name: '수정 적용' }));
+  expect(reviseSampleScript.mock.calls[1][1].base_version).toBe(2);
 });

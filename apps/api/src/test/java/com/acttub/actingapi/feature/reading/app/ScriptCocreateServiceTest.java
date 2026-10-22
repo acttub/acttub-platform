@@ -340,6 +340,15 @@ class ScriptCocreateServiceTest {
     }
 
     @Test
+    void saveChecksTheLockedRowAndNeverCreatesWhileRevisionIsClaimed() {
+        model.replies.add(p -> script(1, 12));
+        View view = service.generate(USER, UUID.randomUUID(), request(1, 1));
+        repo.beforeSave = () -> repo.claim(USER, view.id(), 1, 3, clock.instant(), clock.instant().minusSeconds(300));
+        assertThatThrownBy(() -> service.save(USER, false, view.id())).hasMessage("sample_script_busy");
+        verify(scripts, never()).create(any(), anyBoolean(), any(), any());
+    }
+
+    @Test
     @DisplayName("확정하면 기존 대본 저장에 생성 기록 id 를 요청 id 로 넣고 잇는다 — 다시 확정하면 같은 대본, 확정 뒤 수정·되돌리기는 409")
     void saveUsesTheExistingScriptStore() {
         model.replies.add(p -> script(2, 12));
@@ -407,12 +416,19 @@ class ScriptCocreateServiceTest {
     }
 
     static class MemoryRepository implements ScriptCocreateRepository {
+        Runnable beforeSave = () -> {};
         final Map<UUID, Row> rows = new LinkedHashMap<>();
         final Map<UUID, UUID> owners = new LinkedHashMap<>();
 
         @Override
         public Row find(UUID userId, UUID id) {
             return userId.equals(owners.get(id)) ? rows.get(id) : null;
+        }
+
+        @Override
+        public <T> T withSaveLock(UUID userId, UUID id, java.util.function.Function<Row, T> save) {
+            beforeSave.run();
+            return save.apply(find(userId, id));
         }
 
         @Override

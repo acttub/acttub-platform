@@ -89,6 +89,10 @@ class ScriptCocreateIT {
     }
 
     @Autowired
+    com.acttub.actingapi.feature.reading.app.ScriptCocreateRepository cocreations;
+    @Autowired
+    com.acttub.actingapi.feature.reading.app.ScriptCocreateService cocreateService;
+    @Autowired
     MockMvc mvc;
     @Autowired
     JdbcTemplate jdbc;
@@ -115,6 +119,58 @@ class ScriptCocreateIT {
         FakeModel.PROMPTS.clear();
         member = member();
         bearer = bearer(member);
+    }
+
+    @Test
+    void saveSerializesWithRevisionAndRollsBackWithoutOrphan() throws Exception {
+        UUID id = UUID.fromString(json(post("/v2/sample-scripts").content("""
+                {"request_id":"%s","character_count":1,"length_minutes":1}
+                """.formatted(UUID.randomUUID())), bearer, 201).path("id").textValue());
+        Instant now = clock.instant();
+        assertThat(cocreations.claim(member, id, 1, 3, now, now.minusSeconds(300))).isTrue();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> cocreateService.save(member, false, id))
+                .hasMessage("sample_script_busy");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM scripts WHERE user_id=?", Integer.class, member)).isZero();
+        cocreations.release(id);
+
+        // create + link must both roll back, preserving a clean idempotent retry.
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> cocreations.withSaveLock(member, id, row -> {
+            cocreateService.save(member, false, id);
+            throw new IllegalStateException("rollback");
+        })).hasMessage("rollback");
+        assertThat(cocreations.find(member, id).scriptId()).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM scripts WHERE user_id=?", Integer.class, member)).isZero();
+
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            var claim = cocreations.withSaveLock(member, id, row -> {
+                var future = executor.submit(() -> {
+                    started.countDown();
+                    return cocreations.claim(member, id, 1, 3, now, now.minusSeconds(300));
+                });
+                try {
+                    assertThat(started.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                    org.assertj.core.api.Assertions.assertThatThrownBy(() -> future.get(200, java.util.concurrent.TimeUnit.MILLISECONDS))
+                            .isInstanceOf(java.util.concurrent.TimeoutException.class);
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+                cocreateService.save(member, false, id);
+                return future;
+            });
+            assertThat(claim.get(5, java.util.concurrent.TimeUnit.SECONDS)).isFalse();
+        } finally {
+            executor.shutdownNow();
+        }
+        var saved = cocreateService.save(member, false, id);
+        assertThat(saved.created()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM scripts WHERE user_id=?", Integer.class, member)).isEqualTo(1);
+        var before = cocreations.find(member, id);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> cocreations.appendVersion(id, before.versions(), 2, now))
+                .hasMessage("sample_script_version_conflict");
+        assertThat(cocreations.find(member, id).versions()).isEqualTo(before.versions());
+        assertThat(cocreations.find(member, id).currentVersion()).isEqualTo(1);
     }
 
     @Test

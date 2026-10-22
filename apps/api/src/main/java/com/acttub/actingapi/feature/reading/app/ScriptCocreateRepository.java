@@ -15,6 +15,9 @@ public interface ScriptCocreateRepository {
     /** 없으면 {@code null}. */
     Row find(UUID userId, UUID id);
 
+    /** 사용자·생성 행을 잠그고 저장 및 연결을 같은 트랜잭션에서 실행한다. 외부 호출 금지. */
+    <T> T withSaveLock(UUID userId, UUID id, java.util.function.Function<Row, T> save);
+
     /** 같은 생성 요청 id 의 줄. 없으면 {@code null}. */
     Row findByRequest(UUID userId, UUID requestId);
 
