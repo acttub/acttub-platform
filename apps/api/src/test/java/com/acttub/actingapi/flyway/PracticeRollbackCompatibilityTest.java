@@ -53,7 +53,7 @@ class PracticeRollbackCompatibilityTest {
             "app_posters", "script_imports", "script_uploads", "audition_postings", "user_discovery_answers",
             "reading_session_ratings", "user_active_days", "user_airbridge_device_lookups",
             "practice_reminder_sends", "reading_recording_coaches", "reading_pronunciation_reports",
-            "script_cocreations");
+            "script_cocreations", "actor_journals");
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
