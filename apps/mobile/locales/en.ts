@@ -1080,6 +1080,8 @@ const en: DeepStringShape<typeof ko> = {
     reconsentHint: 'Review the changes and tap “Agree and continue”.',
     headerTitle: 'Terms',
     heading: 'Acttub needs your consent',
+    headingHint: 'One tap on “Agree to all” and you are set!',
+    headingReady: 'All set! Just tap “Agree and continue”.',
   },
   profileName: {
     title: 'Tell us about you',
@@ -1168,6 +1170,13 @@ const en: DeepStringShape<typeof ko> = {
     done: 'Done',
     hintPickOne: 'Pick one and tap “Done”.',
     hintPickMany: 'You can pick more than one. Then tap “Done”.',
+    pickGender: 'Choose gender',
+    pickGoal: 'Choose acting goal',
+    pickCareer: 'Choose acting experience',
+    pickDirections: 'Choose focus · pick any',
+    pickDiscovery: 'Choose where you heard of us',
+    editHint: 'Tap a past answer to change it',
+    editManyHint: 'You can pick more than one',
     hintWrite: 'Edit it and tap “Done”.',
   },
   portfolio: {

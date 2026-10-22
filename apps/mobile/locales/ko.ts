@@ -1071,7 +1071,10 @@ const ko = {
     // SOMA-748 동의 화면 개편
     reconsentHint: '바뀐 내용을 보고 「동의하고 계속하기」를 누르세요.',
     headerTitle: '약관 동의',
-    heading: 'acttub를 쓰려면 동의가 필요해요',
+    heading: 'Acttub를 쓰려면 동의가 필요해요',
+    // 제목 아래 파란 안내 줄 — 아무것도 안 골랐을 때 / 필수를 다 골랐을 때(pen 01 약관 동의)
+    headingHint: '「전체 동의」 한 번이면 준비 끝이에요!',
+    headingReady: '준비 끝! 이제 「동의하고 계속하기」만 누르면 돼요',
   },
   profileName: {
     title: '프로필을 알려주세요',
@@ -1160,6 +1163,14 @@ const ko = {
     done: '완료',
     hintPickOne: '하나를 고르고 「완료」를 누르세요.',
     hintPickMany: '여러 개 골라도 돼요. 고르고 「완료」를 누르세요.',
+    // pen 01 가입 질문 — 말풍선 아래 회색 「○○ 선택」 제목과 지난 답변 고치기
+    pickGender: '성별 선택',
+    pickGoal: '연기 목표 선택',
+    pickCareer: '연기 경력 선택',
+    pickDirections: '추구하는 방향 선택 · 여러 개 가능',
+    pickDiscovery: '알게 된 곳 선택',
+    editHint: '지난 답변을 누르면 바로 고칠 수 있어요',
+    editManyHint: '여러 개 고를 수 있어요',
     hintWrite: '고치고 「완료」를 누르세요.',
   },
   portfolio: {
