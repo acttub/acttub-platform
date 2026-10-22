@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.billing.adapter;
 import java.time.Clock;
 
 import com.acttub.actingapi.feature.billing.adapter.toss.TossBillingGateway;
+import com.acttub.actingapi.feature.billing.app.AppBillingGateway;
 import com.acttub.actingapi.feature.billing.app.BillingKeyCipher;
 import com.acttub.actingapi.feature.billing.app.BillingRepository;
 import com.acttub.actingapi.feature.billing.app.BillingSettings;
@@ -13,6 +14,7 @@ import com.acttub.actingapi.platform.security.AccountSecrets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -53,11 +55,28 @@ class BillingConfiguration {
         return new AccountSecretsBillingKeyCipher(secrets);
     }
 
+    /** 토스 테스트 키로만 부르는 실물. 테스트는 이 빈을 가짜로 바꾼다. */
+    @Bean
+    @ConditionalOnMissingBean(AppBillingGateway.class)
+    AppBillingGateway appBillingGateway(BillingSettings settings) {
+        TossBillingGateway toss = new TossBillingGateway(settings::secretKey);
+        return new AppBillingGateway() {
+            @Override
+            public PgReviewGateway.IssuedKey issue(String authKey, String customerKey) {
+                return toss.issue(authKey, customerKey);
+            }
+
+            @Override
+            public PgReviewGateway.Approval approve(String billingKey, String customerKey, String orderId, long amount,
+                    String orderName, String idempotencyKey) {
+                return toss.approve(billingKey, customerKey, orderId, amount, orderName, idempotencyKey);
+            }
+        };
+    }
+
     @Bean
     SubscriptionService subscriptionService(BillingSettings settings, BillingRepository repository,
-            BillingKeyCipher cipher, Clock clock) {
-        // 게이트웨이를 빈으로 내지 않는다 — PG 심사 결제의 게이트웨이 빈(@ConditionalOnMissingBean)과 섞이지 않게.
-        PgReviewGateway gateway = new TossBillingGateway(settings::secretKey);
+            AppBillingGateway gateway, BillingKeyCipher cipher, Clock clock) {
         return new SubscriptionService(settings, repository, gateway, cipher, clock);
     }
 

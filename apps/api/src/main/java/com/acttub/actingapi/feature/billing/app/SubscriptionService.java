@@ -41,12 +41,12 @@ public class SubscriptionService {
 
     private final BillingSettings settings;
     private final BillingRepository repository;
-    private final PgReviewGateway gateway;
+    private final AppBillingGateway gateway;
     private final BillingKeyCipher cipher;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
-    public SubscriptionService(BillingSettings settings, BillingRepository repository, PgReviewGateway gateway,
+    public SubscriptionService(BillingSettings settings, BillingRepository repository, AppBillingGateway gateway,
             BillingKeyCipher cipher, Clock clock) {
         this.settings = settings;
         this.repository = repository;
