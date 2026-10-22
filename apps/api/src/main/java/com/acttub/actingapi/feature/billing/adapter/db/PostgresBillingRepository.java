@@ -17,7 +17,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 앱 Pro 정기결제의 장부(V59, SOMA-818). 표 셋을 native SQL 로만 읽고 쓴다(엔티티 없음). */
+/** 앱 Pro 정기결제의 장부(V60, SOMA-818). 표 셋을 native SQL 로만 읽고 쓴다(엔티티 없음). */
 @Repository
 class PostgresBillingRepository implements BillingRepository {
     private static final String SUBSCRIPTION_COLUMNS = """
