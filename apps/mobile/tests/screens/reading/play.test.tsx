@@ -1049,7 +1049,7 @@ test('리딩 마무리에서 코치에게 보여 주기로 가면 대본 제목�
 
   await pressWhenReady('완료');
   await fireEvent.press(await screen.findByText('이 장면, 찍어서 코치에게 보여 주기'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/upload');
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/record-guide', params: { next: 'upload' } });
   expect(takeContinueOrigin()).toEqual({ kind: 'reading', scene: { situation: '봄날의 대화 · 1장 카페', character: '민재', goal: '' } });
 });
 

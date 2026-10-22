@@ -137,6 +137,7 @@ const ko = {
     rdGoTitle: '시작하면 상대 대사부터 들려요',
     rdGoBody: '앱이 상대 대사를 읽고, 내 차례가 오면 멈춰요. 소리 내어 말하면 녹음돼요.',
     reading: {
+    recordForCoach: '이 대본으로 찍어서 코칭받기',
       introTitle: '대본 리딩 한 바퀴 해볼까요?',
       introBody: '대본을 넣고 내 배역을 고르면, 상대 대사는 앱이 읽어 주고 나는 내 대사만 말하면 돼요.',
       ownTitle: '내 대본으로 해 보기',

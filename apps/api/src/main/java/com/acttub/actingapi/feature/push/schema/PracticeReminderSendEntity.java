@@ -19,5 +19,6 @@ public class PracticeReminderSendEntity {
     @Column(name = "skipped_days", nullable = false) private int skippedDays;
     @Column(name = "template_id", nullable = false) private String templateId;
     @Column(name = "sent_at", nullable = false, insertable = false, updatable = false) private Instant sentAt;
+    @Column(name = "conversation_id") private UUID conversationId;
     protected PracticeReminderSendEntity() {}
 }

@@ -168,6 +168,7 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
         return transaction.execute(status -> {
             List<Tuple> rows = list(entityManager.createNativeQuery("""
                     SELECT c.id AS conversation_id, p.id AS practice_id, c.status, p.title AS practice_title,
+                           EXISTS (SELECT 1 FROM practice_reminder_sends r WHERE r.conversation_id=c.id) AS reminded,
                            last.role AS last_role, last.text AS last_text,
                            EXISTS (SELECT 1 FROM coach_messages a WHERE a.conversation_id=c.id AND a.role='actor') AS answered
                     FROM coach_conversations c
@@ -184,7 +185,7 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
             if (rows.isEmpty()) return null;
             Tuple row = rows.getFirst();
             String text = row.get("last_text", String.class);
-            if (!"open".equals(row.get("status", String.class)) || !"ai".equals(row.get("last_role", String.class))
+            if (Boolean.TRUE.equals(row.get("reminded", Boolean.class)) || !"open".equals(row.get("status", String.class)) || !"ai".equals(row.get("last_role", String.class))
                     || text == null || !ENDS_WITH_QUESTION.matcher(text.strip()).find()) {
                 return null;
             }
@@ -308,8 +309,8 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
     public boolean claim(UUID userId, LocalDate day, ReminderCopy copy) {
         List<Tuple> inserted = transaction.execute(status -> list(entityManager.createNativeQuery("""
                 WITH claimed AS (
-                    INSERT INTO practice_reminder_sends(user_id,day,slot,kind,skipped_days,template_id)
-                    VALUES (:userId,CAST(:day AS date),:slot,:kind,:skipped,:templateId)
+                    INSERT INTO practice_reminder_sends(user_id,day,slot,kind,skipped_days,template_id,conversation_id)
+                    VALUES (:userId,CAST(:day AS date),:slot,:kind,:skipped,:templateId,CAST(:conversationId AS uuid))
                     ON CONFLICT DO NOTHING
                     RETURNING user_id
                 )
@@ -317,6 +318,7 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
                 """, Tuple.class)
                 .setParameter("userId", userId).setParameter("day", day.toString())
                 .setParameter("slot", copy.kind().slot()).setParameter("kind", copy.kind().wire())
+                .setParameter("conversationId", copy.conversationId() == null ? null : copy.conversationId().toString())
                 .setParameter("skipped", copy.skippedDays()).setParameter("templateId", copy.templateId())));
         return inserted != null && !inserted.isEmpty();
     }
