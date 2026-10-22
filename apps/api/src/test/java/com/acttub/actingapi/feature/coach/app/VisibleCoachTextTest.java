@@ -99,4 +99,10 @@ class VisibleCoachTextTest {
         for (int size : new int[] {1, 5, 200}) assertThat(streamed(raw, size)).as("조각 %d", size).isEqualTo(ANSWER);
         assertThat(DirectVideoPracticeLoop.parse(raw).message()).isEqualTo(ANSWER);
     }
+
+    @Test void unclosedThinkingTagLineIsNotStreamed() {
+        assertThat(VisibleCoachText.visible("<thought\n화를 누르니까 더 집중됐군요.", false)).isEqualTo("화를 누르니까 더 집중됐군요.");
+        // 줄이 아직 안 끝났으면 다음 조각까지 잡아 둔다.
+        assertThat(VisibleCoachText.visible("<thought", false)).isEmpty();
+    }
 }
