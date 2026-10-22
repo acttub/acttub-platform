@@ -186,6 +186,20 @@ class ReminderContentTest {
                 ReminderTemplates.READING_KO, ReminderTemplates.FIRST_PRACTICE_KO, ReminderTemplates.STREAK_KO);
     }
 
+    /** 승인된 문구 그대로 세 개씩인 새 종류. 5~10개 규칙에서는 빼고 길이·금지어만 점검한다. */
+    private static Stream<List<Template>> pendingPools() {
+        return Stream.of(ReminderTemplates.VIDEO_KO, ReminderTemplates.SCRIPT_KO);
+    }
+
+    @Test
+    void pendingCopyIsShortAndHasNoPromotionOrWorkNames() {
+        pendingPools().flatMap(List::stream).forEach(t -> {
+            assertThat(t.title().length()).as(t.id()).isLessThanOrEqualTo(30);
+            assertThat(t.body().length()).as(t.id()).isLessThanOrEqualTo(45);
+            assertThat(t.title() + t.body()).as(t.id()).doesNotContain("{", "}").doesNotContain("이벤트", "할인", "혜택", "광고");
+        });
+    }
+
     @Test
     void everyKoreanSetHasFiveToTenTemplates() {
         koreanPools().forEach(pool -> assertThat(pool.size()).isBetween(5, 10));
@@ -193,9 +207,10 @@ class ReminderContentTest {
 
     @Test
     void templateIdsAreUniqueAndStable() {
-        List<Template> all = Stream.concat(koreanPools().flatMap(List::stream),
+        List<Template> all = Stream.concat(Stream.concat(koreanPools(), pendingPools()).flatMap(List::stream),
                 Stream.of(ReminderTemplates.GENERAL_EN, ReminderTemplates.HOMEWORK_EN, ReminderTemplates.READING_EN,
-                        ReminderTemplates.FIRST_PRACTICE_EN, ReminderTemplates.STREAK_EN).flatMap(List::stream)).toList();
+                        ReminderTemplates.FIRST_PRACTICE_EN, ReminderTemplates.STREAK_EN,
+                        ReminderTemplates.VIDEO_EN, ReminderTemplates.SCRIPT_EN).flatMap(List::stream)).toList();
         assertThat(all).extracting(Template::id).doesNotHaveDuplicates();
         assertThat(ReminderTemplates.GENERAL_1_KO.getFirst().id()).isEqualTo("general.1.a");
         assertThat(ReminderTemplates.GENERAL_1_KO.getFirst().title()).isEqualTo("오늘 연습 아직이에요");
@@ -213,5 +228,91 @@ class ReminderContentTest {
         // 숙제 문구는 제목만 돌리고 본문은 {take} 하나다
         Stream.of(ReminderTemplates.HOMEWORK_1_KO, ReminderTemplates.HOMEWORK_2_3_KO, ReminderTemplates.HOMEWORK_4_7_KO)
                 .flatMap(List::stream).forEach(t -> assertThat(t.body()).isEqualTo("{take}"));
+    }
+
+    private static final UUID VIDEO = UUID.fromString("00000000-0000-0000-0000-0000000000d1");
+    private static final UUID SCRIPT = UUID.fromString("00000000-0000-0000-0000-0000000000e1");
+
+    private static PracticeInput pending(int k, boolean never, UUID video, UUID script, Map<String, Integer> sent, Homework homework) {
+        return new PracticeInput(USER, TODAY, k, never, true, null, homework, true, video, script, sent);
+    }
+
+    @Test
+    void pendingVideoAndUnreadScriptFollowResumeAndPrecedeEverythingElse() {
+        Homework hw = homework("상대 눈을 보고 한 호흡 쉬고 시작해 보세요.");
+        // resume(k=1) 이 가장 앞이다
+        PracticeInput withResume = new PracticeInput(USER, TODAY, 1, false, true, resume(false, "그 장면에서 상대에게 가장 원하는 게 뭐였어요?"),
+                hw, true, VIDEO, SCRIPT, Map.of());
+        assertThat(ReminderContent.practice(withResume, Map.of()).kind()).isEqualTo(ReminderKind.RESUME);
+        // k=2 면 영상 → 대본 → 숙제 → 리딩 순이다
+        assertThat(ReminderContent.practice(pending(2, false, VIDEO, SCRIPT, Map.of(), hw), Map.of()).kind()).isEqualTo(ReminderKind.PENDING_VIDEO);
+        assertThat(ReminderContent.practice(pending(2, false, null, SCRIPT, Map.of(), hw), Map.of()).kind()).isEqualTo(ReminderKind.UNREAD_SCRIPT);
+        assertThat(ReminderContent.practice(pending(2, false, null, null, Map.of(), hw), Map.of()).kind()).isEqualTo(ReminderKind.HOMEWORK);
+        assertThat(ReminderContent.practice(pending(2, false, null, null, Map.of(), null), Map.of()).kind()).isEqualTo(ReminderKind.READING);
+    }
+
+    @Test
+    void unreadScriptBeatsFirstPracticeForSignupWhoOnlyAddedAScript() {
+        ReminderCopy copy = ReminderContent.practice(pending(2, true, null, SCRIPT, Map.of(), null), Map.of());
+        assertThat(copy.kind()).isEqualTo(ReminderKind.UNREAD_SCRIPT);
+        assertThat(ReminderContent.practice(pending(2, true, null, null, Map.of(), null), Map.of()).kind()).isEqualTo(ReminderKind.FIRST_PRACTICE);
+    }
+
+    @Test
+    void pendingKindsCarryTheirIdInDataAndKeepTheLegacyKind() {
+        Map<String, String> video = ReminderContent.practice(pending(2, false, VIDEO, SCRIPT, Map.of(), null), Map.of()).data();
+        assertThat(video).containsEntry("kind", "evening_reminder").containsEntry("reminder_kind", "pending_video")
+                .containsEntry("video_id", VIDEO.toString()).doesNotContainKey("script_id");
+        Map<String, String> script = ReminderContent.practice(pending(2, false, null, SCRIPT, Map.of(), null), Map.of()).data();
+        assertThat(script).containsEntry("reminder_kind", "unread_script").containsEntry("script_id", SCRIPT.toString())
+                .doesNotContainKey("video_id");
+    }
+
+    @Test
+    void aKindSentTwiceInSevenDaysMovesOnToTheNextKind() {
+        Homework hw = homework("상대 눈을 보고 한 호흡 쉬고 시작해 보세요.");
+        assertThat(ReminderContent.practice(pending(3, false, VIDEO, SCRIPT, Map.of("pending_video", 1), hw), Map.of()).kind())
+                .isEqualTo(ReminderKind.PENDING_VIDEO);
+        assertThat(ReminderContent.practice(pending(3, false, VIDEO, SCRIPT, Map.of("pending_video", 2), hw), Map.of()).kind())
+                .isEqualTo(ReminderKind.UNREAD_SCRIPT);
+        assertThat(ReminderContent.practice(pending(3, false, VIDEO, SCRIPT, Map.of("pending_video", 2, "unread_script", 2), hw), Map.of()).kind())
+                .isEqualTo(ReminderKind.HOMEWORK);
+        assertThat(ReminderContent.practice(pending(3, true, null, SCRIPT, Map.of("unread_script", 2), null), Map.of()).kind())
+                .isEqualTo(ReminderKind.FIRST_PRACTICE);
+    }
+
+    @Test
+    void aKindWithNoFreshTemplateInFourteenDaysIsSkipped() {
+        Map<String, LocalDate> allVideoUsed = Map.of("video.a", TODAY.minusDays(3), "video.b", TODAY.minusDays(5), "video.c", TODAY.minusDays(6));
+        assertThat(ReminderContent.practice(pending(3, false, VIDEO, SCRIPT, Map.of(), null), allVideoUsed).kind())
+                .isEqualTo(ReminderKind.UNREAD_SCRIPT);
+        Map<String, LocalDate> oneFree = Map.of("video.a", TODAY.minusDays(3), "video.b", TODAY.minusDays(5));
+        ReminderCopy copy = ReminderContent.practice(pending(3, false, VIDEO, SCRIPT, Map.of(), null), oneFree);
+        assertThat(copy.kind()).isEqualTo(ReminderKind.PENDING_VIDEO);
+        assertThat(copy.templateId()).isEqualTo("video.c");
+    }
+
+    @Test
+    void pendingCopyIsExactlyTheApprovedWordingAndEnglishIsAvailable() {
+        assertThat(ReminderTemplates.VIDEO_KO).extracting(Template::id, Template::title, Template::body).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("video.a", "올려 둔 영상이 그대로 있어요", "코치에게 보여 주면 첫 질문부터 시작해요."),
+                org.assertj.core.groups.Tuple.tuple("video.b", "찍어 둔 연기, 코치가 아직 못 봤어요", "이미 찍었으니 대화만 시작하면 돼요."),
+                org.assertj.core.groups.Tuple.tuple("video.c", "영상은 이미 올라와 있어요", "코치가 어떤 질문을 할지 들어 보세요."));
+        assertThat(ReminderTemplates.SCRIPT_KO).extracting(Template::id, Template::title, Template::body).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("script.a", "넣어 둔 대본, 상대역이 기다려요", "상대 대사는 AI가 읽어 줘요. 내 대사만 읽으면 돼요."),
+                org.assertj.core.groups.Tuple.tuple("script.b", "대본은 준비돼 있어요", "배역만 고르면 바로 맞춰 읽을 수 있어요."),
+                org.assertj.core.groups.Tuple.tuple("script.c", "넣어 둔 대본으로 바로 리딩할 수 있어요", "처음부터 다 안 읽어도 돼요. 한 장면만 맞춰 봐요."));
+        assertThat(ReminderTemplates.VIDEO_EN).singleElement().satisfies(t -> {
+            assertThat(t.id()).isEqualTo("video.en.a");
+            assertThat(t.title()).isEqualTo("Your video is still waiting");
+            assertThat(t.body()).isEqualTo("Show it to the coach and start with the first question.");
+        });
+        assertThat(ReminderTemplates.SCRIPT_EN).singleElement().satisfies(t -> {
+            assertThat(t.id()).isEqualTo("script.en.a");
+            assertThat(t.title()).isEqualTo("Your script is ready");
+            assertThat(t.body()).isEqualTo("The AI reads the other parts. You only read yours.");
+        });
+        PracticeInput english = new PracticeInput(USER, TODAY, 2, false, false, null, null, false, VIDEO, null, Map.of());
+        assertThat(ReminderContent.practice(english, Map.of()).templateId()).isEqualTo("video.en.a");
     }
 }
