@@ -527,7 +527,7 @@ class CoachConversationIT {
         assertThat(jdbc.queryForObject("SELECT status FROM coach_conversations WHERE id=?", String.class, conversationId))
                 .isEqualTo("closed");
         assertThat(json(post("/v2/coach/conversations/{id}/continue", UUID.randomUUID()).content("{}"), 404)
-                .path("detail").asText()).isEqualTo("conversation_not_found");
+                .path("detail").asText()).isEqualTo("practice_not_found");
         assertThat(json(post("/v2/coach/conversations/{id}/continue", conversationId)
                 .content("{\"revision\":\"x\"}"), 422).path("detail").isArray()).isTrue();
     }
