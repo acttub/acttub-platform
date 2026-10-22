@@ -255,4 +255,18 @@ class DirectVideoPracticeLoopTest {
         org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedQuestion("상대가 어떤 표정을 짓길 원했어요?",
                 java.util.List.of("상대가 어떻게 반응하길 바랐어요?"))).isEmpty();
     }
+
+    @org.junit.jupiter.api.Test void findsAQuestionRepeatedFromEarlyInTheConversation() {
+        // 2026-10-21 운영: 정리 단계에서 다섯 말 앞의 질문을 그대로 다시 물었다.
+        String early = "\"언제부터 예뻐 보였어?\" 뒤에도, \"질문을 질문으로 받네\"에서도 바로 다음 말을 이어가요. 그때 살짝 당황한 상대를 보고 있었나요?";
+        var earlier = java.util.List.of(
+                "이 장면에서 상대는 어디서 어떤 얼굴로 듣고 있었어요?",
+                early,
+                "네. 상대의 눈이 흔들리는지, 대답하려는지 중 장면 내내 뭘 살피면 좋을까요?",
+                "네. 상대의 눈빛이나 표정 중 무엇이 변하는 걸 봐야 내 마음이 전해졌다고 느낄까요?",
+                "상대의 눈빛이 흔들리는 걸 보고 싶어요, 확신에 차길 바라요?",
+                "상대의 눈에 확신이 생기는지 끝까지 살피며 말하는 걸로 봤어요. 맞아요?");
+        org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedQuestion(early.replace("\"", ""), earlier))
+                .isEqualTo("그때 살짝 당황한 상대를 보고 있었나요?");
+    }
 }
