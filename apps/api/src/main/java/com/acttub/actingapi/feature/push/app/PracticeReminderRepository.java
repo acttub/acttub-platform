@@ -35,6 +35,21 @@ public interface PracticeReminderRepository {
     /** 가장 최근 노트가 action 이고 다음 촬영 지시가 있으면 그 노트. 없으면 null. */
     ReminderContent.Homework latestHomework(UUID userId);
 
+    /**
+     * 직접 올린 영상 가운데 {@code since} 이후에 만들었고 파기되지 않았으며 코칭 회차·챌린지 참여작에 쓰이지 않은 것 중
+     * 가장 최근 것의 id. 없으면 null.
+     */
+    UUID latestPendingVideo(UUID userId, Instant since);
+
+    /**
+     * 직접 넣은 대본 가운데 {@code since} 이후에 만들었고 리딩 회차가 없는, 앱 예시(source=sample)가 아닌 것 중
+     * 가장 최근 것의 id. 없으면 null.
+     */
+    UUID latestUnreadScript(UUID userId, Instant since);
+
+    /** {@code since}(한국 날짜, 포함) 이후에 보낸 종류별 횟수. 키는 {@link ReminderKind#wire()}. */
+    Map<String, Integer> sentCountsByKind(UUID userId, LocalDate since);
+
     /** 최근 보낸 문구 id → 마지막으로 보낸 한국 날짜. */
     Map<String, LocalDate> recentTemplates(UUID userId, LocalDate since);
 

@@ -249,6 +249,48 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
     }
 
     @Override
+    public UUID latestPendingVideo(UUID userId, Instant since) {
+        return transaction.execute(status -> firstId(entityManager.createNativeQuery("""
+                SELECT v.id FROM videos v
+                WHERE v.user_id=:userId AND v.purged_at IS NULL AND v.created_at>=:since
+                  AND NOT EXISTS (SELECT 1 FROM practices p WHERE p.video_id=v.id)
+                  AND NOT EXISTS (SELECT 1 FROM challenge_entries e WHERE e.video_id=v.id)
+                ORDER BY v.created_at DESC, v.id DESC
+                LIMIT 1
+                """, Tuple.class).setParameter("userId", userId).setParameter("since", since.atOffset(ZoneOffset.UTC))));
+    }
+
+    @Override
+    public UUID latestUnreadScript(UUID userId, Instant since) {
+        return transaction.execute(status -> firstId(entityManager.createNativeQuery("""
+                SELECT s.id FROM scripts s
+                WHERE s.user_id=:userId AND s.created_at>=:since AND s.source<>'sample'
+                  AND NOT EXISTS (SELECT 1 FROM reading_sessions r WHERE r.script_id=s.id)
+                ORDER BY s.created_at DESC, s.id DESC
+                LIMIT 1
+                """, Tuple.class).setParameter("userId", userId).setParameter("since", since.atOffset(ZoneOffset.UTC))));
+    }
+
+    private static UUID firstId(jakarta.persistence.Query query) {
+        List<Tuple> rows = list(query);
+        return rows.isEmpty() ? null : rows.getFirst().get("id", UUID.class);
+    }
+
+    @Override
+    public Map<String, Integer> sentCountsByKind(UUID userId, LocalDate since) {
+        return transaction.execute(status -> {
+            Map<String, Integer> counts = new HashMap<>();
+            for (Tuple row : list(entityManager.createNativeQuery("""
+                    SELECT kind, count(*) AS n FROM practice_reminder_sends
+                    WHERE user_id=:userId AND day>=CAST(:since AS date) GROUP BY kind
+                    """, Tuple.class).setParameter("userId", userId).setParameter("since", since.toString()))) {
+                counts.put(row.get("kind", String.class), row.get("n", Number.class).intValue());
+            }
+            return Map.copyOf(counts);
+        });
+    }
+
+    @Override
     public Map<String, LocalDate> recentTemplates(UUID userId, LocalDate since) {
         return transaction.execute(status -> {
             Map<String, LocalDate> used = new HashMap<>();
