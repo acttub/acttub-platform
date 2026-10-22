@@ -963,7 +963,7 @@ public final class SplitDraft {
     }
 
     private static boolean titlePageNumber(String text) {
-        return pageNumber(text) || text.strip().matches("(?i)(?:\\d+\\s*(?:쪽|페이지)|(?:쪽|페이지|page)\\s*\\d+)");
+        return pageNumber(text) || text.strip().matches("(?iu)(?:\\d+\\s*(?:쪽|페이지)|(?:쪽|페이지|page)\\s*\\d+)");
     }
 
     private static String fileTitle(String fileName) {
