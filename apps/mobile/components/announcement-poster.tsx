@@ -117,7 +117,7 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
   const cta = ctaOf(poster);
 
   const advance = () => { setVisible(false); decided.current = false; setNext((value) => value + 1); };
-  const close = () => { advance(); logEvent('poster_close', ids); };
+  const close = () => { advance(); void logEvent('poster_close', ids); };
   const toggleSample = () => {
     if (!audio) return;
     if (playing) { player.current?.pause(); setPlaying(false); return; }
@@ -129,7 +129,7 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
       const state = await loadPosterState(AsyncStorage);
       await savePosterState(AsyncStorage, markHiddenToday(state, poster, localDay(Date.now())));
     } catch {}
-    logEvent('poster_dismiss', ids); advance();
+    void logEvent('poster_dismiss', ids); advance();
   };
   // 포스터를 먼저 닫고 다음 화면을 띄운다 — iOS 는 모달 위에 모달을 올리지 못한다.
   const press = async () => {
