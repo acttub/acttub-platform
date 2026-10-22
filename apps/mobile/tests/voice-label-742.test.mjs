@@ -17,3 +17,10 @@ test('reading.cast: 목소리는 「자동」 없이 성별과 이름으로 보�
   assert.match(roles, /voiceLabel\(isKnownPreset\(c\.voice_preset\) \? c\.voice_preset : assigned\[c\.id\]\)/);
   assert.match(roles, /t\('reading\.voiceRecommended', \{ voice: voiceLabel\(/);
 });
+
+test('tabs: iOS 하단 탭 바는 좌우 여백을 넓혀 폭을 줄인다(SOMA-742)', () => {
+  // 탭바 모양은 공통 부품 components/ui/tab-bar 로 옮겼다(SOMA-770).
+  const layout = src('components/ui/tab-bar.tsx');
+  const ios = layout.slice(layout.indexOf('return IOS'), layout.indexOf('left: 0'));
+  assert.match(ios, /left: 40,\s*right: 40,/);
+});

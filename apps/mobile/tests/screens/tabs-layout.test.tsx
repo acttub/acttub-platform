@@ -83,21 +83,18 @@ test('아이콘만 있는 탭마다 읽어 줄 이름과 누름 기록 이름을
   ]);
 });
 
-test('활성·비활성 모두 윤곽 아이콘이고 고른 탭 아래에만 이름을 쓴다(pen 하단 탭 바)', async () => {
+test('활성·비활성 모두 윤곽 아이콘이고 iOS 에서는 글자를 붙이지 않는다', async () => {
   await render(<TabLayout />);
 
   expect(screen.getByText('아이콘 home-outline')).toBeOnTheScreen();
   expect(screen.getByText('아이콘 book-outline')).toBeOnTheScreen();
-  expect(screen.getByText('홈')).toBeOnTheScreen();
-  expect(screen.queryByText('대본')).not.toBeOnTheScreen();
+  expect(screen.queryByText('홈')).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('tab', { name: '대본' }));
 
   expect(screen.getByRole('tab', { name: '대본', selected: true })).toBeOnTheScreen();
   expect(screen.getByRole('tab', { name: '홈', selected: false })).toBeOnTheScreen();
   expect(screen.getByText('아이콘 book-outline')).toBeOnTheScreen();
-  expect(screen.getByText('대본')).toBeOnTheScreen();
-  expect(screen.queryByText('홈')).not.toBeOnTheScreen();
 });
 
 test('첫 사용자로 확인되면 모든 탭에서 탭바를 숨기고, 첫 연습을 하면 다시 보인다', async () => {
