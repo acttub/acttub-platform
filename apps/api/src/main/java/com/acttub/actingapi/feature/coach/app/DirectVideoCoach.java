@@ -903,8 +903,9 @@ public final class DirectVideoCoach {
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
         return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
                 DirectVideoPracticeLoop.statusField(design, "대사 확인"), PracticeLoopRouter.closesNext(classified, before),
-                actorText, withTries(materials(design, PracticeLoopRouter.answers(loopState, coachTurns), classified, before, actorText, doing,
+                actorText, withTries(withContinuity(materials(design, PracticeLoopRouter.answers(loopState, coachTurns), classified, before, actorText, doing,
                         PracticeLoopRouter.latestWant(loopState, coachTurns), PracticeLoopRouter.lineFixed(loopState, coachTurns)),
+                        session, design, doing),
                         doing, stayed, session),
                 DirectVideoPracticeLoop.statusField(design, "근본 문제"), flow);
     }
@@ -982,6 +983,83 @@ public final class DirectVideoCoach {
      * 같은 단계에 머물러 다시 물을 때, 이 단계에서 이미 한 코치 말과 이번이 몇 번째인지 준다.
      * 같은 프롬프트로 같은 질문을 되풀이하지 않게 하려는 것이다.
      */
+    /**
+     * 배우가 이번 연습을 올리며 적은 말과, 같은 장면을 이어 찍은 회차의 지난 제안을 매 턴 재료로 준다.
+     *
+     * <p>2026-10-22 운영(일반 배우, 같은 장면 3회): 배우가 막힌 곳에 "첫 대사는 놀리면서 시작하고 싶었어"라고 적었는데
+     * 첫 응답 뒤로는 재료에 없어 "혼자 추억에 젖은 듯"으로 진단했다. 아빠 장면은 세 회차 모두 "따져 묻기·몰아붙이기"로
+     * 정리했고 노트 제목도 세 번 같았다. 배우가 "다시 집중됐어"라고 지난 시도의 변화를 말해도 "그것만 보여요"로 받았다.
+     * 지난 제안은 첫 응답의 [이어서 하는 연습] 칸에만 있어 둘째 응답부터는 코치가 몰랐다.
+     */
+    static java.util.List<String> withContinuity(java.util.List<String> materials, CoachSessionSnapshot session,
+            String design, String doing) {
+        var lines = new java.util.ArrayList<>(materials);
+        String written = session.blockageDetail();
+        if (written != null && !written.isBlank()) {
+            lines.add("배우가 이번 연습을 올리며 적은 것: " + written.replaceAll("\\s+", " ").strip());
+            lines.add("배우가 적은 것에 이 장면에서 하려던 것(놀리기, 버티기 같은 선택)이 있으면 그건 배우의 선택이다. "
+                    + "그 선택을 다른 해석으로 바꿔 문제 삼지 않고, 제안·정리는 그 선택을 살리는 쪽으로 한다");
+        }
+        String lastTry = continuedSuggestion(session, design);
+        if (lastTry == null) return lines;
+        lines.add("지난 회차 제안(배우가 이번 테이크에서 해 보려던 것): " + lastTry);
+        if (PracticeLoopRouter.GAP.equals(doing)) {
+            lines.add("배우가 지난 시도로 달라진 점(예: \"다시 집중됐어\", \"더 설렜어\")을 말했으면 맨 앞에 그 변화를 배우 낱말 그대로 짧게 받아 준다"
+                    + "(예: 기다리니까 다시 집중됐군요.). 그 한마디를 붙이면 80자 안쪽까지 써도 된다. 지난 시도 자체나 지난 제안대로 한 모습을"
+                    + " \"~만 보여요\"로 문제 삼지 않는다. 문제는 지난 시도를 하고도 남은 것으로 보여 준다");
+        }
+        var used = actionFamilies(lastTry);
+        if (!used.isEmpty()) {
+            lines.add("지난 회차에 이미 권한 행동: " + String.join(", ", used) + ". 이번 응답의 제안·정리에서는 이 말과 같은 묶음의 말을 쓰지 않는다."
+                    + " 배우가 이번 대화에서 그 말을 직접 다시 꺼냈을 때만 배우 말로 쓴다");
+        }
+        lines.add("이번에 권하는 행동은 지난 회차 제안과 같은 행동(같은 동사, 같은 말)이면 안 된다. 지난 시도는 이미 해 봤다. "
+                + "지난 시도 위에 이번 대화에서 배우가 새로 말한 바람·감정·느낌 낱말을 그대로 넣어 한 걸음 나아간 행동으로 준다"
+                + "(다른 영상 예: 지난 제안 \"떠보기\" + 배우가 새로 말한 \"사실 무서워\" → 무서운 걸 들키지 않으려고 웃으며 떠봐도 좋아요)");
+        return lines;
+    }
+
+    /**
+     * 제안에 든 행동을 묶음 이름(낱말 보기)으로. 같은 묶음의 다른 말("몰아붙이기"·"몰아세우기")로 바꿔 되풀이하는 것을 막는다.
+     * 2026-10-22 재생: 지난 제안을 다시 주지 말라는 줄만으로는 아빠 장면 6번 중 5번이 "몰아붙이기·따지기"로 돌아갔다.
+     */
+    private static final java.util.List<String[]> ACTION_FAMILIES = java.util.List.of(
+            new String[] {"몰아붙이기(몰아붙이다·몰아세우다·쏘아붙이다·다그치다)", "몰아붙", "몰아세", "쏘아붙", "다그치", "몰아치", "밀어붙"},
+            new String[] {"따지기(따지다·조목조목·캐묻다·추궁하다)", "따지", "따져", "조목조목", "캐묻", "캐물", "추궁"},
+            new String[] {"빤히 보기(빤히·쳐다보다·눈을 보다)", "빤히", "쳐다보", "쳐다봐", "뚫어지게", "눈을 떼지", "눈을 안 떼"},
+            new String[] {"반응 확인하기(확인하며·살피며)", "확인하며", "확인하고", "살피며", "살피고"},
+            new String[] {"놀리기", "놀리", "놀려"},
+            new String[] {"달래기", "달래"},
+            new String[] {"매달리기(매달리다·붙잡다)", "매달리", "매달려", "붙잡"},
+            new String[] {"떠보기", "떠보", "떠봐"},
+            new String[] {"밀어내기", "밀어내"},
+            new String[] {"하소연하기", "하소연"},
+            new String[] {"설득하기", "설득"});
+
+    static java.util.List<String> actionFamilies(String suggestion) {
+        var found = new java.util.ArrayList<String>();
+        if (suggestion == null) return found;
+        for (String[] family : ACTION_FAMILIES) {
+            for (int i = 1; i < family.length; i++) {
+                if (suggestion.contains(family[i])) { found.add(family[0]); break; }
+            }
+        }
+        return found;
+    }
+
+    /** 같은 장면을 이어 찍은 회차면 바로 앞 회차의 다음 테이크 제안. 이어 찍은 회차가 아니거나 제안이 없으면 null. */
+    static String continuedSuggestion(CoachSessionSnapshot session, String design) {
+        String shape = DirectVideoPracticeLoop.statusField(design, "첫 질문 모양");
+        if (shape == null || !shape.strip().startsWith("이어서")) return null;
+        PriorContext prior = session.prior();
+        if (prior == null || prior.sceneHistory().isEmpty()) return null;
+        String last = prior.sceneHistory().getLast();
+        int at = last.lastIndexOf(" — 제안: ");
+        if (at < 0) return null;
+        String suggestion = last.substring(at + " — 제안: ".length()).strip();
+        return suggestion.isEmpty() ? null : suggestion;
+    }
+
     private static java.util.List<String> withTries(java.util.List<String> materials, String doing, int stayed, CoachSessionSnapshot session) {
         var coach = session.turns().stream().filter(t -> "ai".equals(t.role())).map(t -> t.text().replaceAll("\\s+", " ")).toList();
         var lines = new java.util.ArrayList<>(materials);
