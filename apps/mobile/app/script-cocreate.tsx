@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { ApiError } from '@/lib/api-request';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { setContinueOrigin } from '@/lib/practice/session-state';
+import { loadIntoCurrent } from '@/lib/reading/store';
 import { newRequestId } from '@/lib/request-id';
 import {
   ANY_EMOTION,
@@ -44,13 +45,15 @@ type Step = 'emotion' | 'situation' | 'direction' | 'generating' | 'result' | 'e
  */
 export default function ScriptCocreateScreen() {
   const router = useRouter();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const readingMode = mode === 'reading';
   const { profile } = useAuth();
   const me = profile.me?.profile ?? null;
   const [step, setStep] = useState<Step>('emotion');
   const [emotion, setEmotion] = useState<string | null>(null);
   const [situation, setSituation] = useState('');
   const [direction, setDirection] = useState('');
-  const [characterCount, setCharacterCount] = useState<number>(1);
+  const [characterCount, setCharacterCount] = useState<number>(readingMode ? 2 : 1);
   const [minutes, setMinutes] = useState<number>(1);
   const [script, setScript] = useState<SampleScript | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +145,14 @@ export default function ScriptCocreateScreen() {
     try {
       const saved = await api.saveSampleScript(script.id);
       setScript({ ...script, script_id: saved.script_id });
-      setStep('saved');
+      if (readingMode) {
+        const loaded = await loadIntoCurrent(saved.script_id);
+        if (!loaded) throw new Error('saved_script_not_found');
+        if (loaded.characters.length >= 2) router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
+        else router.replace('/reading/detail');
+      } else {
+        setStep('saved');
+      }
     } catch (e) {
       fail(e);
     } finally {

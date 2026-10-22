@@ -980,6 +980,13 @@ const ko = {
     notifyMe: '끝나면 알려 주세요',
   },
   coach: {
+    purposeResult: '평가 결과',
+    purposeStuck: '막힌 곳 정리',
+    purposeCharacter: '인물 카드',
+    purposeGood: '잘 된 곳',
+    purposeIssue: '아쉬운 곳',
+    purposeNext: '다음 테이크',
+    purposeEmpty: '아직 함께 찾는 중이에요',
     conflict: '다른 곳에서 먼저 답이 들어갔어요. 대화를 다시 불러올게요 — 쓰던 글은 그대로예요.',
     closed: '이 대화는 마쳤어요. 이어서 하려면 새 회차로 시작해요.',
     notReady: '분석이 아직 끝나지 않았어요.',
@@ -1480,6 +1487,9 @@ const ko = {
     note: '자동으로 들은 결과라 틀릴 수 있어요.',
   },
   reading: {
+    entryCocreate: '대본 같이 만들기',
+    entryCocreateSub: '감정과 상황을 골라 읽을 대본을 만들어요',
+
     titleNew: '새 대본',
     titleDetail: '대본',
     titleFull: '대본 전체',

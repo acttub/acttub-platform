@@ -988,6 +988,13 @@ const en: DeepStringShape<typeof ko> = {
     notifyMe: 'Let me know when it’s done',
   },
   coach: {
+    purposeResult: 'Evaluation',
+    purposeStuck: 'Where you got stuck',
+    purposeCharacter: 'Character card',
+    purposeGood: 'What worked',
+    purposeIssue: 'What to improve',
+    purposeNext: 'Next take',
+    purposeEmpty: 'Still exploring together',
     conflict: 'An answer landed somewhere else first. Reloading the conversation — your draft is kept.',
     closed: 'This conversation is finished. Start a new take to continue.',
     notReady: 'The analysis is not finished yet.',
@@ -1487,6 +1494,9 @@ const en: DeepStringShape<typeof ko> = {
     note: 'This is an automatic check and can be wrong.',
   },
   reading: {
+    entryCocreate: 'Create a script together',
+    entryCocreateSub: 'Choose an emotion and situation for your script',
+
     titleNew: 'New script',
     titleDetail: 'Script',
     titleFull: 'Full script',

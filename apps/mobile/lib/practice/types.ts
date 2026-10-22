@@ -182,7 +182,19 @@ export type CoachMessage = {
  * 회차와 1:1 인 대화. 열린 대화는 같은 id 로 재개하고, 닫힌 뒤 다시 코칭하려면 새 회차다.
  * 동시 요청은 revision 으로 가른다(다르면 409 conversation_conflict).
  */
+export type CoachPurpose = {
+  purpose: 'evaluate' | 'stuck' | 'character' | 'concern';
+  step: string;
+  choices: { label: string; at: number | null }[];
+  scene: { situation: string; character: string; partner: string } | null;
+  lines: { at: number | null; text: string }[];
+  card: { good: CoachCardItem | null; issue: CoachCardItem | null; next: CoachCardItem | null } | null;
+  character_card: { cells: { key: string; label: string; value: string; source: string }[] } | null;
+};
+export type CoachCardItem = { at: number | null; text: string };
+
 export type CoachConversation = {
+  purpose?: CoachPurpose | null;
   id: string;
   practice_id: string | null;
   status: ConversationStatus;
