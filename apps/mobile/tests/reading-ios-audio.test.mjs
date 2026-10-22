@@ -23,6 +23,6 @@ test('reading.ios-audio: 인식이 끝나거나 끊기면 오디오를 일반 �
   assert.match(stt, /const finishNow = useCallback\(\(value: string\) => \{[\s\S]*?restorePlaybackAudio\(\);/);
   assert.match(stt, /ExpoSpeechRecognitionModule\.abort\(\);\s*\} catch \{\}\s*restorePlaybackAudio\(\);/);
   const lib = read('lib/reading/ios-audio-restore.ts');
-  assert.match(lib, /setAudioModeAsync\(\{ playsInSilentMode: true, allowsRecording: false \}\)/);
+  assert.match(lib, /setAudioModeAsync\(\{ playsInSilentMode: true, allowsRecording: false, \.\.\.background\(\) \}\)/);
   assert.match(lib, /if \(Platform\.OS !== 'ios'\) return;/);
 });

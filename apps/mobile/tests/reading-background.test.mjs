@@ -4,10 +4,7 @@ import test from 'node:test';
 
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 
-test('reading.background: 리딩 중 앱을 내리면 멈춘다(이미 있던 동작을 잠근다, SOMA-670)', () => {
-  const play = read('app/reading/play.tsx');
-  assert.match(play, /AppState\.addEventListener\('change', \(state\) => \{\s*if \(state !== 'active' && phase\.kind === 'running'\) doPause\(\);/);
-});
+// 리딩 실행 화면은 배경에서도 이어 간다(SOMA-802) — tests/screens/reading/play.test.tsx 가 지킨다.
 
 test('reading.background: 배역 화면 목소리 미리 듣기도 앱을 내리면 멈춘다(SOMA-670)', () => {
   const roles = read('app/reading/roles.tsx');

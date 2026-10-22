@@ -19,6 +19,9 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { ReadingCoachMark } from '@/components/ui/reading-coach-mark';
 import { ReadingStatus } from '@/components/ui/reading-status';
 import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
+import { keepReadingInBackground } from '@/lib/reading/ios-audio-restore';
+import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
+import { onReadingLiveEvent, readingKeepsRunning, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { Image } from 'expo-image';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
@@ -113,7 +116,8 @@ import { newRequestId } from '@/lib/request-id';
  * 기다린다. 내 차례는 1.8초 침묵이나 [다음]으로 넘어가고 늘 녹음된다. 말한 것은 전사해 진행 저장에 싣고, 서버가 원문과
  * 비교해 완료 저장 응답으로 돌려주면 완료 화면(R9.23)이 「원문과 다르게 말한 대사」로 그린다. 대사 보기 시트가 떠 있는
  * 동안은 자동 넘김만 멈춘다(녹음·상대 읽기는 계속). 진행 위치는 줄이 바뀔 때·일시정지·나가기·완료 때 서버에 남고(progress-queue),
- * 배경으로 가면 멈추고 재개는 그 줄을 처음부터 다시 한다.
+ * 재개는 그 줄을 처음부터 다시 한다. 다른 앱으로 넘어가거나 화면을 잠가도 리딩은 이어지고(SOMA-802, modules/reading-live),
+ * 전화 등으로 소리가 실제로 끊겼을 때만 멈춘다.
  *
  * 실기기 오디오(녹음·음성 합성·음성인식의 동시 사용)는 자동화 테스트로 검증하지 않는다 — 순수 규칙은
  * session-run·session-results·voice-capability·vad·progress-queue 가 지키고, 여기서는 그것들을 잇는다.
@@ -215,6 +219,8 @@ export default function ReadingPlay() {
   const [turnNote, setTurnNote] = useState<TurnNote>(null);
   /** 지금 내 차례를 끝냈다(말이 끝남·[다음]·녹음 3분) — 가린 내 대사를 원문으로 펼친다(SOMA-785). 새 차례가 열리면 풀린다. */
   const [turnDone, setTurnDone] = useState(false);
+  /** 다른 앱에 있는 동안 전화 등으로 끊겨 멈췄다 — 돌아온 화면에 그 까닭을 알린다(R9.18 변형). 이어서를 누르면 풀린다. */
+  const [interrupted, setInterrupted] = useState(false);
   const [listening, setListening] = useState(false);
   /** 내 차례에 인식기가 지금까지 알아들은 글(중간 결과). 대사 아래 「방금 말한 것」에 보인다. */
   const [said, setSaid] = useState('');
@@ -1054,7 +1060,7 @@ export default function ReadingPlay() {
     return () => clearInterval(timer);
   }, [phase.kind, tipOpen]);
 
-  // ── 배경 전환: 멈추고 위치를 저장한다. 돌아오면 배우가 이어서를 누른다 ─────────────
+  // ── 멈춤: 위치를 저장한다. 돌아오면 배우가 이어서를 누른다 ─────────────────────────────
   const doPause = useCallback(() => {
     const cur = runRef.current;
     if (!cur || (cur.status !== 'mine' && cur.status !== 'partner')) return;
@@ -1069,12 +1075,27 @@ export default function ReadingPlay() {
     setRun(next);
     queueRef.current?.push(progressPayload(next));
   }, []);
+  // 배경에서도 리딩이 도는 기기(SOMA-802)는 배경으로 가도 멈추지 않는다. 못 도는 기기(안드로이드에서 마이크 서비스를 못 띄움)만 예전처럼 멈춘다.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' && phase.kind === 'running') doPause();
+      if (state !== 'active' && phase.kind === 'running' && !readingKeepsRunning()) doPause();
     });
     return () => sub.remove();
   }, [phase.kind, doPause]);
+  // 잠금 화면·알림의 [일시정지], 그리고 전화 등으로 소리가 실제로 끊긴 때.
+  useEffect(() => {
+    const offPause = onReadingLiveEvent('onPause', doPause);
+    const offInterrupt = onReadingLiveEvent('onInterrupt', () => {
+      const cur = runRef.current;
+      if (!cur || (cur.status !== 'mine' && cur.status !== 'partner')) return;
+      if (AppState.currentState === 'background') setInterrupted(true);
+      doPause();
+    });
+    return () => {
+      offPause();
+      offInterrupt();
+    };
+  }, [doPause]);
 
   const doResume = () => {
     const cur = runRef.current;
@@ -1082,6 +1103,7 @@ export default function ReadingPlay() {
     const next = resumeRun(cur);
     runRef.current = next;
     setRun(next);
+    setInterrupted(false);
     setAttempt((a) => a + 1);
   };
 
@@ -1246,6 +1268,47 @@ export default function ReadingPlay() {
       if (mounted.current) setRestarting(false);
     }
   };
+
+  // ── 잠금 화면·알림의 진행(SOMA-802) ─────────────────────────────────────────────
+  const holdNow = phase.kind === 'running' ? phase.hold : null;
+  const myTurnNow = !!run && (run.status === 'mine' || (run.status === 'paused' && run.resumeTo === 'mine'));
+  const chip = turnChip({
+    hold: holdNow,
+    paused: run?.status === 'paused',
+    interrupted,
+    myTurn: myTurnNow,
+    textOnly: (lineEngine ?? engine) === 'text_only',
+    turnDone,
+    turnNote,
+    listening,
+  });
+  // 1초마다 바뀌는 시간은 싣지 않으므로 글이 같으면 네이티브를 다시 부르지 않는다.
+  const liveJson = useMemo(() => {
+    if (!run || !script) return null;
+    const live = liveStateOf({
+      run,
+      maskMode,
+      revealed: myTurnNow && turnDone,
+      showOriginal: aid === 'original',
+      chipLabel: chip.label,
+      scene: sceneLabelAt({ title: script.title, scenes: script.scenes, lineIds: run.lineIds, index: run.index }),
+      labelOf: (role) => roleLabel(script.characters, role, t('reading.together')),
+    });
+    return live && JSON.stringify(live);
+  }, [run, script, maskMode, myTurnNow, turnDone, aid, chip.label]);
+  const liveOn = phase.kind === 'running' && !tipOpen && !!run && run.status !== 'done';
+  const liveJsonRef = useRef(liveJson);
+  liveJsonRef.current = liveJson;
+  // 리딩이 시작되면(앱이 화면에 있을 때 — 안드로이드 14+ 의 마이크 서비스 조건) 띄우고, 끝나거나 화면을 떠나면 내린다.
+  useEffect(() => {
+    if (!liveOn) return;
+    keepReadingInBackground();
+    if (liveJsonRef.current) startReadingLive(JSON.parse(liveJsonRef.current), t('reading.liveChannel'));
+    return () => stopReadingLive();
+  }, [liveOn]);
+  useEffect(() => {
+    if (liveOn && liveJson) updateReadingLive(JSON.parse(liveJson));
+  }, [liveOn, liveJson]);
 
   // ── 화면 ────────────────────────────────────────────────────────────────────
   if (!script || !session || !config || !run) {
@@ -1584,7 +1647,7 @@ export default function ReadingPlay() {
   const hold = phase.hold;
   const line = run.lines[run.index];
   const isDialogue = !!line && line.type === 'dialogue';
-  const myTurn = run.status === 'mine' || (run.status === 'paused' && run.resumeTo === 'mine');
+  const myTurn = myTurnNow;
   const paused = run.status === 'paused';
   const mineOf = (l: ScriptLine) => l.type === 'dialogue' && run.myRoles.includes(l.role);
   const hiddenOf = (l: ScriptLine) => isHidden({ maskMode, line: l, isMine: mineOf(l) });
@@ -1594,24 +1657,8 @@ export default function ReadingPlay() {
   const labelOf = (role: string) => roleLabel(script.characters, role, t('reading.together'));
   const saidOf = (lineId: string) => (sttMode?.kind === 'stt' ? run.said[lineId] : undefined);
   const masking = maskMode !== 'none';
-  const shownEngine = lineEngine ?? engine;
 
-  const chip = (() => {
-    if (hold === 'tip') return { icon: 'volume-2' as const, label: t('reading.chipBeforeStart') };
-    if (paused) return { icon: 'pause' as const, label: t('reading.pause') };
-    if (!myTurn) {
-      return shownEngine === 'text_only'
-        ? { icon: 'book-open' as const, label: t('reading.chipTextOnly') }
-        : { icon: 'volume-2' as const, label: t('reading.chipReading') };
-    }
-    if (turnDone && turnNote !== 'limit') return { icon: 'check' as const, label: t('reading.spokenDone') };
-    if (hold === 'mask_sheet') return { icon: 'pause' as const, label: t('reading.chipHold') };
-    if (turnNote === 'limit') return { icon: 'mic-off' as const, label: t('reading.chipLimit') };
-    if (listening) return { icon: 'bars' as const, label: t('reading.listening') };
-    return { icon: 'mic' as const, label: t('reading.chipMicOpening') };
-  })();
-
-  const hint = paused ? t('reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
+  const hint = paused ? t(interrupted ? 'reading.interruptedBody' : 'reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
 
   const coachElement = coachMark ? (
     <ReadingCoachMark
@@ -1676,11 +1723,10 @@ export default function ReadingPlay() {
               accessibilityRole="button"
               ph-label="reading_play_jump">
               <Text style={styles.pastRole}>{labelOf(l.role)}</Text>
+              {/* 지금 줄보다 앞의 대사는 가리지 않는다(SOMA-802, 10/22 결정). 가린 내 대사는 말한 것과 함께 펼친다. */}
               {lines.map(({ id, line: g }) =>
                 mineOf(g) && masking ? (
                   <SpokenText key={id} text={g.text} said={saidOf(id)} />
-                ) : hiddenOf(g) ? (
-                  <HiddenBars key={id} text={g.text} tone="past" />
                 ) : (
                   <Text key={id} style={styles.pastText}>{g.text}</Text>
                 ),

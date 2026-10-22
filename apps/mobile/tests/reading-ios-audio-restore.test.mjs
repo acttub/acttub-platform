@@ -16,7 +16,7 @@ registerHooks({
     return next(specifier, context);
   },
 });
-const { restorePlaybackAudio } = await import('../lib/reading/ios-audio-restore.ts');
+const { keepReadingInBackground, restorePlaybackAudio } = await import('../lib/reading/ios-audio-restore.ts');
 const s = globalThis.__iosAudioTest;
 
 test('iOS 는 인식이 끝나면 오디오를 일반 재생으로 되돌리고, 실패해도 던지지 않는다', async () => {
@@ -24,7 +24,9 @@ test('iOS 는 인식이 끝나면 오디오를 일반 재생으로 되돌리고,
   s.fails = true;
   restorePlaybackAudio();
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(s.modes, [{ playsInSilentMode: true, allowsRecording: false }, { playsInSilentMode: true, allowsRecording: false }]);
+  // 배경으로 가도 멈추지 않는 리딩 설정(SOMA-802)은 되돌릴 때도 유지한다.
+  const restored = { playsInSilentMode: true, allowsRecording: false, shouldPlayInBackground: true, allowsBackgroundRecording: true };
+  assert.deepEqual(s.modes, [restored, restored]);
 });
 
 test('안드로이드는 오디오 모드를 건드리지 않는다', () => {
@@ -32,4 +34,19 @@ test('안드로이드는 오디오 모드를 건드리지 않는다', () => {
   s.modes = [];
   restorePlaybackAudio();
   assert.deepEqual(s.modes, []);
+});
+
+test('리딩을 시작하면 배경에서도 재생을 멈추지 않게 하고, 녹음 서비스는 iOS 만 expo-audio 에 맡긴다(SOMA-802)', async () => {
+  s.fails = false;
+  s.modes = [];
+  s.os = 'android';
+  keepReadingInBackground();
+  s.os = 'ios';
+  s.fails = true;
+  keepReadingInBackground();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(s.modes, [
+    { playsInSilentMode: true, shouldPlayInBackground: true, allowsBackgroundRecording: false },
+    { playsInSilentMode: true, shouldPlayInBackground: true, allowsBackgroundRecording: true },
+  ]);
 });
