@@ -19,6 +19,7 @@ import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /** Gemini transport for the existing durable coach API; no layer-one model; response routing is a separate text call. */
@@ -58,6 +59,9 @@ public final class DirectVideoCoach {
      * 첫 질문·분류·정리 노트는 LOW 그대로다. MINIMAL 을 받지 않는 모델은 LOW 로 둔다. false 면 모두 LOW(롤백).
      */
     private final boolean followUpMinimalThinking;
+    /** 코칭 1층 관찰 A/B(SOMA-815). NONE 이면 칸이 없다(롤백). */
+    static final String LAYER1 = "layer1";
+    private final CoachLayerOne layerOne;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -99,6 +103,15 @@ public final class DirectVideoCoach {
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
             DirectVideoModel alternate, int alternateShare, CoachFlows flows, CoachVideoCache videoCache,
             boolean letGoWithoutVideo, boolean followUpMinimalThinking) {
+        this(model, videos, storage, failures, telemetry, practiceLoop, personas, alternate, alternateShare, flows, videoCache,
+                letGoWithoutVideo, followUpMinimalThinking, CoachLayerOne.NONE);
+    }
+
+    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
+            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
+            DirectVideoModel alternate, int alternateShare, CoachFlows flows, CoachVideoCache videoCache,
+            boolean letGoWithoutVideo, boolean followUpMinimalThinking, CoachLayerOne layerOne) {
+        this.layerOne = layerOne == null ? CoachLayerOne.NONE : layerOne;
         this.followUpMinimalThinking = followUpMinimalThinking;
         this.letGoWithoutVideo = letGoWithoutVideo;
         this.videoCache = videoCache == null ? CoachVideoCache.NONE : videoCache;
@@ -296,6 +309,9 @@ public final class DirectVideoCoach {
                             .map(turn -> turn.text()).collect(java.util.stream.Collectors.joining("\n"))
                     + "\n" + (actorText == null ? "" : actorText);
             ObjectNode state = nextState(session);
+            // 1층 관찰(SOMA-815): 배정된 연습이고 끝났으면 칸을 붙이고 상태에 남긴다. 안 끝났으면 기다리지 않는다.
+            String layerArm = layerOneArm(session);
+            String layerBlock = loop ? layerOneBlock(session, state, layerArm) : "";
             if (!persona.isEmpty()) DirectVideoPracticeLoop.rememberPersona(state, persona);
             if (loop && purpose == null) DirectVideoPracticeLoop.rememberCoachModel(state, arm);
             if (loop && purpose == null) DirectVideoPracticeLoop.rememberFlow(state, flow);
@@ -384,7 +400,7 @@ public final class DirectVideoCoach {
             // 연습 루프는 배우가 이번 연습에 적은 것(상황·인물·목표·막힘)도 받는다. 없으면 칸이 없다.
             String prompt = DirectVideoPrompts.withAudioFacts(CoachPrompt.actorProfileBlock(session.actorProfile())
                     + CoachPrompt.priorContextBlock(session.priorForModel().withoutCoachGuesses(), true, false)
-                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + task, uploaded);
+                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) + layerBlock : "") + task, uploaded);
             // 말로 하는 회차는 영상이 없어 첫 응답의 대화 기록이 비고, 모델은 빈 대화를 받지 않는다. 시작을 알리는 배우 쪽 한 줄을
             // 대화 맨 앞에 둔다(저장하지 않는 모델 입력이다). 둘째 응답부터도 같은 줄이 맨 앞에 있어 대화가 배우 말로 시작한다.
             if (talk) history.addFirst(new DirectVideoModel.Message("user", PurposeLoop.talkOpening(purpose)));
@@ -611,7 +627,7 @@ public final class DirectVideoCoach {
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
                             "shorten_calls", Integer.toString(shortened), "polish_calls", Integer.toString(polished), "empty_retry", Boolean.toString(emptyRetry), "light_retry", Boolean.toString(lightRetry), "broken_retry", Boolean.toString(brokenRetry),
-                            "persona", persona, "coach_model_arm", arm, "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow,
+                            "persona", persona, "coach_model_arm", arm, "layer1_arm", layerArm, "layer1_used", Boolean.toString(!layerBlock.isEmpty()), "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow,
                             "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused),
                             "video_omitted", Boolean.toString(videoOmitted),
                             "classify_ms", Long.toString(millis(startedNanos, classifiedNanos)),
@@ -1210,6 +1226,35 @@ public final class DirectVideoCoach {
     }
 
     /** 저장된 상태를 복사해 다음 판으로 올린다. 저장 판이 어긋나면 실패한다. */
+    /** 1층 배정. 저장된 값이 있으면 그대로, 없으면 연습 id 로 정한다. */
+    private String layerOneArm(CoachSessionSnapshot session) {
+        JsonNode stored = session.coachingState() == null ? null : session.coachingState().path(LAYER1).path("arm");
+        if (stored != null && stored.isTextual() && !stored.asText().isEmpty()) return stored.asText();
+        return layerOne.arm(session.practiceSessionId());
+    }
+
+    /** 1층 칸. 상태에 있으면 그것, 없으면 끝난 결과를 가져와 상태에 남긴다. 배정·기다림·사용 여부도 상태에 적는다. */
+    private String layerOneBlock(CoachSessionSnapshot session, ObjectNode state, String arm) {
+        ObjectNode layer = state.path(LAYER1).isObject() ? (ObjectNode) state.path(LAYER1) : state.putObject(LAYER1);
+        layer.put("arm", arm);
+        if (!CoachLayerOne.ON.equals(arm)) return "";
+        String block = layer.path("block").asText("");
+        if (block.isEmpty()) {
+            try {
+                block = layerOne.ready(session.practiceSessionId());
+            } catch (RuntimeException failure) {
+                block = "";
+            }
+            if (!block.isEmpty()) {
+                layer.put("block", block);
+                layer.put("from_turn", session.turns().size());
+            } else {
+                layer.put("pending_turns", layer.path("pending_turns").asInt(0) + 1);
+            }
+        }
+        return block.isEmpty() ? "" : block.strip() + "\n\n";
+    }
+
     private static ObjectNode nextState(CoachSessionSnapshot session) {
         ObjectNode state = session.coachingState() == null ? CoachingStateReducer.empty()
                 : ((ObjectNode) session.coachingState()).deepCopy();
