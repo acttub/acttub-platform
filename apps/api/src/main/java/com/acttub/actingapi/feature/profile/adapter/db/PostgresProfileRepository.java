@@ -947,6 +947,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
                 .executeUpdate();
+        // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
+        entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
         entityManager.createNativeQuery("""
                 UPDATE practice_feedback
                 SET contact_email=NULL,contact_phone=NULL,
