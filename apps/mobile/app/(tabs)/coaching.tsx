@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScriptCocreateEntry } from '@/components/script-cocreate-entry';
 import { TalkEntryButton } from '@/components/talk-entry-button';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
@@ -39,7 +40,8 @@ function shortDate(iso: string | null | undefined): string {
  * - 다음: 저번 코치 메모(노트의 다음 테이크 문장) + 「한 번 더 연습」, 새 영상·지난 코칭 타일, 최근 코칭 두 줄.
  *
  * 디자인의 「n/3번 해 봤어요」 진행 점, 최근 코칭 줄의 태그(감정 기억·해결)·영상 길이는 서버에 그 값이 없어 그리지 않는다.
- * 서버 기능이 아직 없는 길(찍을 대사 같이 만들기, 하루 무료 횟수 안내)은 보이지 않는다. 「영상 없이 말로 코칭 받기」는 목적 화면(app/talk)을 연다(SOMA-745).
+ * 서버 기능이 아직 없는 길(하루 무료 횟수 안내)은 보이지 않는다. 「영상 없이 말로 코칭 받기」는 목적 화면(app/talk)을 연다(SOMA-745).
+ * 「찍을 대사부터 같이 만들기」는 처음 화면의 예시 아래와 다음 연습의 타일 아래에 있다(SOMA-721).
  */
 export default function CoachingTab() {
   const tabBarSpace = useTabBarSpace();
@@ -135,6 +137,8 @@ export default function CoachingTab() {
               <Feather name="message-circle" size={15} color={palette.blue} />
               <Text style={styles.captionText}>{t('coachingTab.exampleCaption')}</Text>
             </View>
+            {/* 찍을 대본이 없으면 대사부터 같이 만든다(SOMA-721). */}
+            <ScriptCocreateEntry style={styles.cocreate} />
           </ScrollView>
           <View style={[styles.firstFooter, { paddingBottom: 21 + tabBarSpace }]}>
             <PrimaryButton label={t('coachingTab.recordNow')} phLabel="coaching_first_record" onPress={recordNow} />
@@ -206,6 +210,8 @@ export default function CoachingTab() {
             />
           </View>
           <TalkEntryButton onPress={() => router.push('/talk')} />
+
+          <ScriptCocreateEntry style={styles.cocreate} />
 
           {visible.length > 0 && (
             <>
@@ -378,6 +384,7 @@ const styles = StyleSheet.create({
   // 탭바가 보이면(첫 사용자가 아니면) 화면 위에 떠 있는 탭바만큼 버튼을 올린다.
   secondary: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   secondaryText: { fontSize: 15, fontWeight: '600', color: palette.textDim },
+  cocreate: { marginTop: 12 },
 
   // 다음 연습(pen 「코칭 탭 · 다음 연습」)
   nextBody: { paddingTop: 11, paddingHorizontal: 21 },

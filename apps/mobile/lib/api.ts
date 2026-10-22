@@ -3,6 +3,7 @@ import type {
 } from './admissions';
 import { normalizeAdmissions } from './admissions';
 import { normalizeAuditions, type AuditionPostingList } from './auditions';
+import type { CreateSampleScriptBody, ReviseSampleScriptBody, SampleScript } from './script-cocreate';
 
 import Constants from 'expo-constants';
 // RN 기본 fetch 는 본문을 흘려 읽지 못한다. 코치 답 스트리밍에만 쓴다(네이티브 모듈 추가 없음, SDK 52+).
@@ -598,6 +599,33 @@ export const api = {
    */
   importScript(body: ImportScriptBody): Promise<ImportTicket> {
     return request<ImportTicket>('/v2/reading/imports', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  // 찍을 대사 같이 만들기(SOMA-721) ----------------------------------------------------
+  /**
+   * 감정·상황·방향으로 생성 대본을 만든다. 모델이 1분 대본에 수십 초를 쓰므로 오래 기다린다. 자동 재전송은 하지 않는다 —
+   * 같은 request_id 가 아직 만드는 중이면 409 sample_script_in_progress 다.
+   */
+  createSampleScript(body: CreateSampleScriptBody): Promise<SampleScript> {
+    return request<SampleScript>('/v2/sample-scripts', jsonInit(body), { timeoutMs: 150_000 });
+  },
+
+  getSampleScript(id: string): Promise<SampleScript> {
+    return request<SampleScript>(`/v2/sample-scripts/${encodeURIComponent(id)}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 성공한 수정만 무료 3회. 실패하면 원본·횟수 그대로(502 sample_script_revision_failed). */
+  reviseSampleScript(id: string, body: ReviseSampleScriptBody): Promise<SampleScript> {
+    return request<SampleScript>(`/v2/sample-scripts/${encodeURIComponent(id)}/revisions`, jsonInit(body), { timeoutMs: 150_000 });
+  },
+
+  restoreSampleScript(id: string, version: number): Promise<SampleScript> {
+    return request<SampleScript>(`/v2/sample-scripts/${encodeURIComponent(id)}/restore`, jsonInit({ version }), { timeoutMs: 20_000 });
+  },
+
+  /** 확정 — 「내 대본」(리딩)에 저장한다. 다시 불러도 같은 대본이다. */
+  saveSampleScript(id: string): Promise<{ id: string; script_id: string }> {
+    return request<{ id: string; script_id: string }>(`/v2/sample-scripts/${encodeURIComponent(id)}/save`, { method: 'POST' }, { timeoutMs: 20_000 });
   },
 
   getScriptImport(importId: string): Promise<ScriptImport> {

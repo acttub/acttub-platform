@@ -582,6 +582,18 @@ COLUMN script_characters.sort_order ord=4 type=int4 len=- null=NO default=-
 COLUMN script_characters.unnamed ord=11 type=bool len=- null=NO default=false
 COLUMN script_characters.updated_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN script_characters.voice_preset ord=5 type=text len=- null=YES default=-
+COLUMN script_cocreations.busy_since ord=9 type=timestamptz len=- null=YES default=-
+COLUMN script_cocreations.conditions ord=4 type=text len=- null=YES default=-
+COLUMN script_cocreations.created_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN script_cocreations.current_version ord=6 type=int4 len=- null=NO default=0
+COLUMN script_cocreations.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_cocreations.model ord=8 type=text len=- null=YES default=-
+COLUMN script_cocreations.request_id ord=3 type=uuid len=- null=NO default=-
+COLUMN script_cocreations.revisions_used ord=7 type=int4 len=- null=NO default=0
+COLUMN script_cocreations.script_id ord=10 type=uuid len=- null=YES default=-
+COLUMN script_cocreations.updated_at ord=12 type=timestamptz len=- null=NO default=now()
+COLUMN script_cocreations.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN script_cocreations.versions ord=5 type=text len=- null=YES default=-
 COLUMN script_imports.created_at ord=15 type=timestamptz len=- null=NO default=now()
 COLUMN script_imports.done_lines ord=13 type=int4 len=- null=NO default=0
 COLUMN script_imports.failure ord=11 type=text len=- null=YES default=-
@@ -1562,6 +1574,17 @@ CONSTRAINT script_characters script_characters_unnamed_not_null NOT NULL unnamed
 CONSTRAINT script_characters script_characters_updated_at_not_null NOT NULL updated_at
 CONSTRAINT script_characters uq_script_characters_script_name UNIQUE (script_id, name) DEFERRABLE
 CONSTRAINT script_characters uq_script_characters_script_order UNIQUE (script_id, sort_order)
+CONSTRAINT script_cocreations script_cocreations_created_at_not_null NOT NULL created_at
+CONSTRAINT script_cocreations script_cocreations_current_version_not_null NOT NULL current_version
+CONSTRAINT script_cocreations script_cocreations_id_not_null NOT NULL id
+CONSTRAINT script_cocreations script_cocreations_pkey PRIMARY KEY (id)
+CONSTRAINT script_cocreations script_cocreations_request_id_not_null NOT NULL request_id
+CONSTRAINT script_cocreations script_cocreations_revisions_used_not_null NOT NULL revisions_used
+CONSTRAINT script_cocreations script_cocreations_script_id_fkey FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE SET NULL
+CONSTRAINT script_cocreations script_cocreations_updated_at_not_null NOT NULL updated_at
+CONSTRAINT script_cocreations script_cocreations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT script_cocreations script_cocreations_user_id_not_null NOT NULL user_id
+CONSTRAINT script_cocreations uq_script_cocreations_request UNIQUE (user_id, request_id)
 CONSTRAINT script_imports ck_script_imports_failure CHECK ((failure = ANY (ARRAY['not_script'::text, 'no_characters'::text, 'script_too_long'::text, 'script_limit'::text, 'failed'::text])))
 CONSTRAINT script_imports ck_script_imports_outcome CHECK (((script_id IS NULL) OR (failure IS NULL)))
 CONSTRAINT script_imports ck_script_imports_progress CHECK (((done_lines >= 0) AND (total_lines >= 0) AND (done_lines <= total_lines)))
@@ -1852,6 +1875,7 @@ INDEX CREATE INDEX ix_notifications_entry ON public.notifications USING btree (e
 INDEX CREATE INDEX ix_notifications_expires ON public.notifications USING btree (expires_at)
 INDEX CREATE INDEX ix_notifications_inbox ON public.notifications USING btree (user_id, group_key, created_at DESC)
 INDEX CREATE INDEX ix_reading_recording_coaches_user ON public.reading_recording_coaches USING btree (user_id, created_at DESC)
+INDEX CREATE INDEX ix_script_cocreations_user ON public.script_cocreations USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_user_blocks_received ON public.user_blocks USING btree (blocked_id, blocker_id)
 INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_cleanup_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memories_pkey ON public.actor_memories USING btree (id)
@@ -1917,6 +1941,7 @@ INDEX CREATE UNIQUE INDEX refresh_tokens_token_hash_key ON public.refresh_tokens
 INDEX CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)
 INDEX CREATE UNIQUE INDEX reports_session_id_key ON public.reports USING btree (session_id)
 INDEX CREATE UNIQUE INDEX script_characters_pkey ON public.script_characters USING btree (id)
+INDEX CREATE UNIQUE INDEX script_cocreations_pkey ON public.script_cocreations USING btree (id)
 INDEX CREATE UNIQUE INDEX script_imports_pkey ON public.script_imports USING btree (id)
 INDEX CREATE UNIQUE INDEX script_lines_pkey ON public.script_lines USING btree (id)
 INDEX CREATE UNIQUE INDEX script_uploads_pkey ON public.script_uploads USING btree (id)
@@ -1978,6 +2003,7 @@ INDEX CREATE UNIQUE INDEX uq_reading_session_ratings_session_user ON public.read
 INDEX CREATE UNIQUE INDEX uq_reading_sessions_user_request ON public.reading_sessions USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_script_characters_script_name ON public.script_characters USING btree (script_id, name)
 INDEX CREATE UNIQUE INDEX uq_script_characters_script_order ON public.script_characters USING btree (script_id, sort_order)
+INDEX CREATE UNIQUE INDEX uq_script_cocreations_request ON public.script_cocreations USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_script_imports_user_request ON public.script_imports USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_script_lines_script_ordinal ON public.script_lines USING btree (script_id, ordinal)
 INDEX CREATE UNIQUE INDEX uq_script_uploads_object_key ON public.script_uploads USING btree (object_key)
@@ -2063,6 +2089,7 @@ TABLE reading_voice_usage
 TABLE refresh_tokens
 TABLE reports
 TABLE script_characters
+TABLE script_cocreations
 TABLE script_imports
 TABLE script_lines
 TABLE script_uploads
