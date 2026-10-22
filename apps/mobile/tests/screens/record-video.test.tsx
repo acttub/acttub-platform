@@ -345,7 +345,8 @@ describe('기본 촬영 화면', () => {
     expect(mockRouter.back).toHaveBeenCalledTimes(2);
     expect(peekRecordedVideo()).toBeNull();
     expect(saveToLibrary).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('촬영 시작')).toBeOnTheScreen();
+    // 뒤로 나가는 화면은 다시 그리지 않는다(안드로이드에서 사라지는 화면을 그리면 꺼진다).
+    expect(screen.queryByLabelText('촬영 시작')).not.toBeOnTheScreen();
   });
 
   test('촬영한 길이를 보관함에 함께 넘긴다', async () => {
@@ -445,6 +446,26 @@ describe('챌린지 촬영', () => {
       params: { challengeId: 'c1', line: '나는 아직 끝나지 않았어', work: '봄날' },
     });
     expect(peekRecordedVideo()?.uri).toBe('file:///rec.mov');
+  });
+
+  test('챌린지 올리기로 넘어간 뒤에는 떠나는 촬영 화면을 다시 그리지 않는다 (안드로이드 꺼짐 방지)', async () => {
+    jest.useFakeTimers();
+    mockParams = CHALLENGE;
+    await render(<RecordVideoScreen />);
+
+    await startRecording();
+    await act(async () => {
+      jest.advanceTimersByTime(2_000);
+    });
+    await stopRecording();
+
+    expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+    // 녹화 표시를 그대로 두고(카메라 전환이 다시 나타나지 않음), 남은 시간도 더 세지 않는다.
+    expect(screen.queryByLabelText('카메라 전환')).not.toBeOnTheScreen();
+    await act(async () => {
+      jest.advanceTimersByTime(3_000);
+    });
+    expect(screen.getByText('58초 남음')).toBeOnTheScreen();
   });
 
   test('챌린지 정보 없이 챌린지 촬영으로 열려도 빈 값으로 올리기에 넘긴다', async () => {
