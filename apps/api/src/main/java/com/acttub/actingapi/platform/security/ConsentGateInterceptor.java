@@ -37,7 +37,9 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
             route(HttpMethod.GET, "/v2/public/**"),
             route(null, "/v2/admin/**"),
             // PG 심사 전용 테스트 결제(SOMA-620) — 앱 계정이 아니라 전용 쿠키 세션으로 판정한다.
-            route(null, "/v2/pg-review/**"));
+            route(null, "/v2/pg-review/**"),
+            // 앱 Pro 카드 등록 창과 토스 콜백(SOMA-818) — 브라우저가 열고, 주소의 일회용 state 로 판정한다.
+            route(HttpMethod.GET, "/v2/billing/web/**"));
 
     /** 게스트만 쓰는 자리. 필요한 동의 문서가 없어 게이트 밖이고, 회원이 부르면 403 {@code guest_only} 다. */
     private static final List<Route> GUEST_ONLY = List.of(

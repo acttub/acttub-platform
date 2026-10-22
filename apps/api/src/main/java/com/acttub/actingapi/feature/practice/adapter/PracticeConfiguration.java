@@ -2,10 +2,12 @@ package com.acttub.actingapi.feature.practice.adapter;
 
 import java.time.Clock;
 
+import com.acttub.actingapi.feature.practice.app.CoachingPlan;
 import com.acttub.actingapi.feature.practice.app.LegacyPracticeReader;
 import com.acttub.actingapi.feature.practice.app.PracticePosters;
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
 import com.acttub.actingapi.feature.practice.app.PracticeService;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +26,10 @@ class PracticeConfiguration {
             PracticePosters posters,
             @Value("${ACTTUB_THREE_LAYERS_ENABLED:false}") boolean threeLayersEnabled,
             @Value("${ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:true}") boolean guestDailyAnalysisLimitEnabled,
+            ObjectProvider<CoachingPlan> plan,
             Clock clock) {
-        return new PracticeService(practices, legacy, posters, threeLayersEnabled, guestDailyAnalysisLimitEnabled, clock);
+        // 무료 코칭 한도(SOMA-818)는 결제 도메인이 구현한다. 그 빈이 없는 조립(좁은 테스트 등)에서는 한도가 없다.
+        return new PracticeService(practices, legacy, posters, threeLayersEnabled, guestDailyAnalysisLimitEnabled,
+                plan.getIfAvailable(() -> CoachingPlan.UNLIMITED), clock);
     }
 }

@@ -23,6 +23,8 @@ public final class PracticeRules {
 
     /** 게스트의 하루 분석 요청 수. 한국 시간 자정에 끊는다. */
     public static final int GUEST_DAILY_ANALYSES = 3;
+    /** 무료 이용자가 한국 시간 하루에 만들 수 있는 코칭 회차 수(SOMA-818, 한도 강제 플래그가 켜졌을 때만). */
+    public static final int FREE_DAILY_COACHING_SESSIONS = 1;
 
     /** 코칭 세션 목적(SOMA-719). 앱이 코칭을 시작할 때 고른다. 없으면 목적 없는 회차(지금 코치)다. */
     public static final java.util.List<String> SESSION_PURPOSES = java.util.List.of("evaluate", "stuck", "character", "concern");

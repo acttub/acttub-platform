@@ -10,6 +10,22 @@ public interface PgReviewGateway {
     /** authKey 를 빌링키로 바꾼다. 빌링키는 호출자가 메모리에서만 쓴다. */
     String issueBillingKey(String authKey, String customerKey);
 
+    /**
+     * 빌링키와 함께 토스가 준 카드 표시값(카드사·가린 번호)을 돌려준다(앱 Pro 구독, SOMA-818). 기본 구현은 카드
+     * 표시값 없이 {@link #issueBillingKey} 를 부른다.
+     */
+    default IssuedKey issue(String authKey, String customerKey) {
+        return new IssuedKey(issueBillingKey(authKey, customerKey), null, null);
+    }
+
+    /** {@code billingKey} 는 비밀 값이다. {@link #toString()} 이 싣지 않는다. */
+    record IssuedKey(String billingKey, String cardCompany, String cardNumber) {
+        @Override
+        public String toString() {
+            return "IssuedKey[billingKey=redacted, cardCompany=" + cardCompany + ", cardNumber=" + cardNumber + "]";
+        }
+    }
+
     /** 빌링키로 즉시 한 번 승인한다. 같은 {@code idempotencyKey} 는 같은 결제로 취급된다. */
     Approval approve(String billingKey, String customerKey, String orderId, long amount, String orderName,
             String idempotencyKey);

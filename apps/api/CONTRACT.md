@@ -1417,6 +1417,19 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 @Primary 코칭 키 클라이언트와 `ACTTUB_SAMPLE_SCRIPT_MODEL`(기본 gemini-4-argon)이다.
 - 확정은 `ScriptService.create`를 그대로 부른다(출처 `typed`, 요청 id 는 생성 기록 id). 리딩 대본 계약은 바뀌지 않는다.
 
+### 6-30. 앱 ACTTUB Pro 정기결제 (SOMA-818)
+
+- 행동 계약은 [billing.subscription](../../docs/specs/billing/subscription.md)이 정본이고 `SubscriptionServiceTest`(상태 전이·멱등·해지
+  후 기간 유지·재시도)가 지킨다. 플래그(`BILLING_APP_ENABLED`, 기본 false) 뒤의 기능이라 OpenAPI 에 싣지 않는다(`@Hidden`).
+- 표 셋(V59)은 native SQL 만 쓴다(Schema Entity 없음, CHECK 없음 — 값은 `BillingRules` 와 저장소 SQL 이 지킨다). 상태 쓰기는 모두
+  조건부 UPDATE 한 문장이라 사용자의 해지와 스케줄러의 결제가 겹쳐도 서로 덮지 않는다. `billing_payments.order_id` UNIQUE 가
+  멱등의 바닥이다(INSERT … ON CONFLICT DO NOTHING 뒤 승인).
+- 토스 호출은 트랜잭션 밖이다(§5-4). 빌링키는 `AccountSecrets` 암호문이고 로그·예외·응답에 싣지 않는다.
+- 무료 한도는 `practice.app.CoachingPlan`·`reading.app.ScriptPlan` Port 를 결제 adapter(`BillingPlanLimits`)가 구현한다. 오류
+  `429 free_daily_coaching_limit`·`403 free_script_limit` 은 한도 플래그가 꺼져 있으면 나가지 않는다.
+- 브라우저 경로 `/v2/billing/web/**` 는 ClientVersionFilter·AccessTokenFilter·ConsentGateInterceptor(GET) 밖이다.
+- 이 Mac 에서 Testcontainers 를 못 돌려 저장소 SQL 의 통합 테스트는 아직 없다 — 사각지대로 남긴다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로
