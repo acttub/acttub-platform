@@ -63,7 +63,12 @@ public final class FaceMosaicRenderer {
     private final String ffmpeg;
 
     public FaceMosaicRenderer() {
-        this(YuNetFaceDetector::new, FaceMosaicRenderer::launch, executable("ffmpeg"));
+        this(YuNetFaceDetector::new);
+    }
+
+    /** PATH 의 ffmpeg 로 돌리되 얼굴 찾기만 바꿔 끼운다(시험에서 네이티브 없이 전체 흐름을 볼 때). */
+    public FaceMosaicRenderer(Supplier<FaceDetector> detectors) {
+        this(detectors, FaceMosaicRenderer::launch, executable("ffmpeg"));
     }
 
     FaceMosaicRenderer(Supplier<FaceDetector> detectors, Launcher launcher, String ffmpeg) {
@@ -330,7 +335,8 @@ public final class FaceMosaicRenderer {
                         process.destroyForcibly();
                     }
                 } catch (InterruptedException stopped) {
-                    // 끝났다.
+                    // 끝났다 — 일이 시한 안에 마쳤다.
+                    Thread.currentThread().interrupt();
                 }
             });
         }

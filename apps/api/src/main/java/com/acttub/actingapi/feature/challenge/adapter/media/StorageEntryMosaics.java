@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Comparator;
 import java.util.stream.Stream;
 import com.acttub.actingapi.feature.challenge.app.EntryMosaics;
@@ -30,7 +31,9 @@ class StorageEntryMosaics implements EntryMosaics {
     public boolean render(String objectKey, String mosaicKey) {
         Path directory = null;
         try {
-            directory = Files.createTempDirectory("acttub-mosaic-");
+            // 임시 디렉터리는 모두가 쓰는 곳이라 본인만 들어가는 디렉터리로 만든다(원본 영상이 잠시 놓인다).
+            directory = Files.createTempDirectory("acttub-mosaic-",
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             Path source = directory.resolve("source");
             storage.download(objectKey, source);
             Path mosaic = renderer.render(source);

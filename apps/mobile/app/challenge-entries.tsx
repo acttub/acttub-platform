@@ -129,7 +129,7 @@ export default function ChallengeEntriesScreen() {
     }
     try {
       await api.updateEntry(entry.id, { face_mosaic: on });
-      logEvent('challenge_entry_face_mosaic', { on });
+      void logEvent('challenge_entry_face_mosaic', { on });
       void load();
     } catch (e) {
       void alert({ title: t('challengeEntries.menuTitle'), message: entryFailureMessage(entryFailure(e)) });

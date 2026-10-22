@@ -6,6 +6,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
 import org.opencv.core.Core;
@@ -74,7 +75,9 @@ public final class YuNetFaceDetector implements FaceDetector {
             if (in == null) {
                 throw new IllegalStateException("face model is missing: " + MODEL);
             }
-            Path file = Files.createTempFile("acttub-yunet-", ".onnx");
+            // 임시 디렉터리는 모두가 쓰는 곳이라 본인만 읽고 쓰는 파일로 만든다.
+            Path file = Files.createTempFile("acttub-yunet-", ".onnx",
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
             Files.copy(in, file, StandardCopyOption.REPLACE_EXISTING);
             file.toFile().deleteOnExit();
             modelFile = file;

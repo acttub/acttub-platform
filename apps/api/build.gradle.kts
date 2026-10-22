@@ -27,11 +27,14 @@ extra["testcontainers.version"] = "1.21.3"
  */
 val opencvBundle: Configuration by configurations.creating { isTransitive = false }
 val opencvLinuxJar = tasks.register<Jar>("opencvLinuxJar") {
+    val allPlatforms = findProperty("opencvAllPlatforms") != null
+    // 남길 플랫폼이 바뀌면 다시 만든다(제외 목록만으로는 최신 판정이 바뀌지 않았다).
+    inputs.property("opencvAllPlatforms", allPlatforms)
     // 이름이 갈려야 맥 실행용 jar 가 운영 jar 로 남지 않는다.
-    archiveFileName.set(if (findProperty("opencvAllPlatforms") == null) "opencv-4.9.0-0-linux-x86_64.jar" else "opencv-4.9.0-0-all.jar")
+    archiveFileName.set(if (allPlatforms) "opencv-4.9.0-0-all.jar" else "opencv-4.9.0-0-linux-x86_64.jar")
     destinationDirectory.set(layout.buildDirectory.dir("opencv"))
     from({ zipTree(opencvBundle.singleFile) }) {
-        if (findProperty("opencvAllPlatforms") == null) {
+        if (!allPlatforms) {
             exclude("nu/pattern/opencv/osx/**", "nu/pattern/opencv/windows/**",
                 "nu/pattern/opencv/linux/ARM*/**", "nu/pattern/opencv/linux/x86_32/**")
         }
