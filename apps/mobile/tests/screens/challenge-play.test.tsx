@@ -193,7 +193,7 @@ describe('불러오기', () => {
     expect(mockPlayer.replaceAsync).toHaveBeenCalledWith('https://play/e1');
     expect(mockPlayer.loop).toBe(true);
     expect(logged('challenge_swipe')).toEqual([{ index: 0 }]);
-    expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '닫기' })).not.toBeOnTheScreen();
   });
 
@@ -287,7 +287,7 @@ describe('참여작이 없을 때', () => {
 
     expect(await screen.findByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.')).toBeOnTheScreen();
     expect(screen.getByText('“나는 아직 여기 있어”')).toBeOnTheScreen();
-    expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('button', { name: endsWith('나도 이 대사 연기하기') }));
     expect(mockRouter.push).toHaveBeenCalledWith({
@@ -313,24 +313,24 @@ describe('참여작이 없을 때', () => {
 describe('재생', () => {
   test('재생 주소가 없는 참여작은 바로 재생할 수 없다고 알린다', async () => {
     await renderFeed([entry({ playback_url: null })]);
-    expect(screen.getByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+    expect(screen.getByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     expect(mockPlayer.replaceAsync).not.toHaveBeenCalled();
   });
 
   test('플레이어가 오류를 알리면 안내하고, 다시 준비되면 안내를 걷는다', async () => {
     await renderFeed();
     await act(async () => mockStatusListener({ status: 'error' }));
-    expect(screen.getByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+    expect(screen.getByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     await act(async () => mockStatusListener({ status: 'loading' }));
-    expect(screen.getByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+    expect(screen.getByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     await act(async () => mockStatusListener({ status: 'readyToPlay' }));
-    expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
   });
 
   test('영상을 불러오지 못하면 재생할 수 없다고 알린다', async () => {
     mockPlayer.replaceAsync.mockRejectedValue(new Error('decode'));
     await renderFeed();
-    expect(await screen.findByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     expect(mockPlayer.play).not.toHaveBeenCalled();
   });
 
@@ -341,9 +341,9 @@ describe('재생', () => {
       mockPlayer.replaceAsync.mockReturnValue(new Promise(() => undefined));
       await renderFeed();
       await act(async () => jest.advanceTimersByTime(14_000));
-      expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+      expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
       await act(async () => jest.advanceTimersByTime(1_000));
-      expect(screen.getByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+      expect(screen.getByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     } finally {
       jest.useRealTimers();
     }
@@ -354,7 +354,7 @@ describe('재생', () => {
     try {
       await renderFeed();
       await act(async () => jest.advanceTimersByTime(15_000));
-      expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+      expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
     } finally {
       jest.useRealTimers();
     }
@@ -490,7 +490,7 @@ describe('조회수', () => {
     await renderFeed();
     await act(async () => jest.advanceTimersByTime(4_000));
     expect(mocked.recordEntryView).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
   });
 });
 

@@ -65,6 +65,8 @@ export default function ChallengePlayScreen() {
   const [busy, setBusy] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [playFailed, setPlayFailed] = useState(false);
+  /** 「다시 시도」를 누를 때마다 올라가 같은 참여작의 영상을 다시 받는다. */
+  const [retryTick, setRetryTick] = useState(0);
   const [reportTarget, setReportTarget] = useState<{ type: ReportTarget; id: string } | null>(null);
   const listRef = useRef<FlatList<EntryCard>>(null);
 
@@ -156,7 +158,7 @@ export default function ChallengePlayScreen() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [active, entries, player]);
+  }, [active, entries, player, retryTick]);
 
   // 위에 촬영 같은 다른 화면이 올라오면 영상을 내려놓아 메모리를 돌려주고, 돌아오면 보던 참여작을 다시 튼다(SOMA-699).
   useEffect(() => {
@@ -341,6 +343,12 @@ export default function ChallengePlayScreen() {
     void sheet({
       title: entry.author.name,
       actions: [
+        ...(canReact(entry)
+          ? [
+              { label: t('react.menuLike'), onPress: () => void toggleLike(entry) },
+              { label: t('react.menuSave'), onPress: () => void toggleSave(entry) },
+            ]
+          : []),
         { label: t('react.menuShare'), onPress: () => share(entry) },
         { label: t('react.menuReport'), destructive: true, onPress: () => setReportTarget({ type: 'entry', id: entry.id }) },
         ...(challenge
@@ -367,11 +375,6 @@ export default function ChallengePlayScreen() {
         {isActive && item.playback_url && (
           <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
         )}
-        {isActive && playFailed && (
-          <View style={styles.playFail} pointerEvents="none">
-            <Text style={styles.playFailText}>{t('challenges.playFail')}</Text>
-          </View>
-        )}
         <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button" ph-label="challenge_play_toggle">
           {isActive && !playing && (
             <View style={styles.pauseCenter}>
@@ -379,6 +382,30 @@ export default function ChallengePlayScreen() {
             </View>
           )}
         </Pressable>
+        {isActive && playFailed && (
+          <View style={styles.playFail} pointerEvents="box-none">
+            <View style={styles.playFailCard}>
+              <Feather name="video-off" size={26} color="#FFFFFF" />
+              <Text style={styles.playFailTitle}>{t('challenges.playFailTitle')}</Text>
+              <Text style={styles.playFailText}>{t('challenges.playFailSub')}</Text>
+              <View style={styles.playFailRow}>
+                <Pressable style={styles.playFailClose} onPress={() => router.back()} accessibilityRole="button" ph-label="challenge_play_fail_close">
+                  <Text style={styles.playFailCloseText}>{t('challenges.playFailClose')}</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.playFailRetry}
+                  onPress={() => {
+                    setPlayFailed(false);
+                    setRetryTick((n) => n + 1);
+                  }}
+                  accessibilityRole="button"
+                  ph-label="challenge_play_fail_retry">
+                  <Text style={styles.playFailRetryText}>{t('challenges.playFailRetry')}</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
         <View style={styles.scrimTop} pointerEvents="none" />
         <View style={styles.scrimBottom} pointerEvents="none" />
 
@@ -547,7 +574,14 @@ const styles = StyleSheet.create({
   },
   loadingClose: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8 },
   playFail: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  playFailText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  playFailCard: { alignItems: 'center', gap: 8, borderRadius: 20, backgroundColor: 'rgba(30,30,30,0.85)', paddingVertical: 22, paddingHorizontal: 24, alignSelf: 'stretch' },
+  playFailTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textAlign: 'center', marginTop: 4 },
+  playFailText: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '500', textAlign: 'center' },
+  playFailRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  playFailClose: { height: 44, minWidth: 80, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  playFailCloseText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  playFailRetry: { height: 44, minWidth: 100, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  playFailRetryText: { color: '#191F28', fontSize: 14, fontWeight: '800' },
   error: { color: '#FFFFFF', textAlign: 'center', marginTop: 80, paddingHorizontal: 24 },
   emptyWrap: { flex: 1, padding: 24, gap: 14, justifyContent: 'center' },
   emptyClose: { position: 'absolute', top: 16, left: 16 },
@@ -577,9 +611,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: palette.blue,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 14,
-    paddingVertical: 15,
+    height: 48,
     marginTop: 6,
   },
   pressed: { opacity: 0.85 },
