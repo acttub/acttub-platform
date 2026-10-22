@@ -55,7 +55,6 @@ jest.mock('@expo/vector-icons/Ionicons', () => ({ name }: { name: string }) => {
   const { Text } = require('react-native');
   return <Text>{`아이콘 ${name}`}</Text>;
 });
-jest.mock('@/components/legacy-archive-prompt', () => ({ LegacyArchivePrompt: () => null }));
 jest.mock('@/lib/api', () => ({ api: { unreadNotificationCount: jest.fn() } }));
 
 const unreadCount = api.unreadNotificationCount as jest.Mock;

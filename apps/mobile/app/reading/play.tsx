@@ -1242,7 +1242,7 @@ export default function ReadingPlay() {
       });
     }
     void logEvent('reading_to_coach', { reading_session_id: session?.id ?? '' });
-    router.replace({ pathname: '/record-guide', params: { next: 'upload' } });
+    router.replace({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
   };
 
   /** @param startLineId 독백 결과의 「여기부터 다시」 — 그 문장부터 구간 끝까지 새 회차(SOMA-597). 없으면 같은 구간. */

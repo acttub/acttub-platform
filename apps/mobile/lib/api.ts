@@ -45,7 +45,6 @@ import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
 import type {
-  AiReport,
   BlockedUser,
   ChallengeDetail,
   ChallengeListResponse,
@@ -1389,28 +1388,6 @@ export const api = {
 
   listBlocks(): Promise<{ users: BlockedUser[] }> {
     return request<{ users: BlockedUser[] }>('/v2/me/blocks', {}, { timeoutMs: 20_000 });
-  },
-
-  // AI 리포트(challenge.ai-report) -----------------------------------------------
-  /**
-   * 리포트 만들기를 부탁한다. 이미 결과가 있으면 그것을 돌려주고, 같은 요청 id 의 재전송은
-   * 기존 작업이다. 하루 3회를 넘기면 429 daily_report_request_limit, 파일이 파기된 참여작은
-   * 422 video_not_ready 다.
-   */
-  requestAiReport(entryId: string, requestId: string): Promise<{ status: string }> {
-    return postIdempotent<{ status: string }>(
-      `/v2/entries/${encodeURIComponent(entryId)}/ai-report`,
-      { request_id: requestId },
-      { requestId, timeoutMs: 30_000 },
-    );
-  },
-
-  /** 본인만 본다(남의 리포트는 404). 비공개 참여작의 리포트도 본인은 본다. */
-  getAiReport(entryId: string, options: ApiCallOptions = {}): Promise<AiReport> {
-    return request<AiReport>(`/v2/entries/${encodeURIComponent(entryId)}/ai-report`, {}, {
-      timeoutMs: 20_000,
-      signal: options.signal,
-    });
   },
 
   // 알림함(challenge.notification) -------------------------------------------------

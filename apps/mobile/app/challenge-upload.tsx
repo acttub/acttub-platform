@@ -1,5 +1,4 @@
 import Feather from '@expo/vector-icons/Feather';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -81,7 +80,7 @@ export default function ChallengeUploadScreen() {
   const [faceMosaic, setFaceMosaic] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** 방금 만든 참여작 — 있으면 완료 화면이고, 「AI 리포트 보기」가 id 를 쓴다. */
+  /** 방금 만든 참여작 — 있으면 완료 화면이다. */
   const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean } | null>(null);
   const entryShare = useEntryShare(params.line ?? '', () => Alert.alert(t('entryShare.title'), t('entryShare.none')));
   const attemptRef = useRef<EntryAttempt | null>(null);
@@ -228,21 +227,10 @@ export default function ChallengeUploadScreen() {
 
   if (created) {
     const copy = doneCopy(created.visibility);
-    /**
-     * 「AI 리포트 보기」(A18.3) — 같은 대사의 다른 참여작과 견주는 챌린지 리포트로 간다. 이 한 번 누름이 요청이라
-     * 리포트 화면이 열리자마자 만들기를 부탁한다(request=1, SOMA-773). 공개·비공개 참여작 모두 요청할 수 있다(challenge.ai-report).
-     */
-    const getReport = () => {
-      logEvent('challenge_upload_report', { visibility: created.visibility });
-      router.replace({
-        pathname: '/ai-report',
-        params: { entryId: created.id, videoId: videoId ?? '', challengeId: challengeId ?? '', visibility: created.visibility, request: '1' },
-      });
-    };
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
-        {/* pen 10-11 「비공개로 저장했어요」 — 가운데 손 흔드는 액티 + 파란 체크, 제목 · 안내 · AI 리포트 안내 알약, 아래 버튼 둘. */}
+        {/* pen 10-11 「비공개로 저장했어요」 — 가운데 손 흔드는 액티 + 파란 체크, 제목 · 안내, 아래 「홈으로 가기」 버튼 하나(SOMA-820, AI 리포트 없앰). */}
         <View style={styles.doneWrap}>
           <View style={styles.doneHero}>
             <Image source={MASCOTS.cheer} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
@@ -256,13 +244,8 @@ export default function ChallengeUploadScreen() {
           <Text style={[styles.doneSub, styles.doneGap8]}>
             {created.faceMosaic ? t('challengeUpload.doneSubMosaic') : copy.body}
           </Text>
-          <View style={styles.reportHint}>
-            <Ionicons name="sparkles" size={14} color={palette.blueDeep} />
-            <Text style={styles.reportHintText}>{t('challengeUpload.doneGuide')}</Text>
-          </View>
         </View>
         <View style={styles.doneFooter}>
-          <PrimaryButton label={t('challengeUpload.getReport')} onPress={getReport} />
           <SecondaryButton
             label={t('entryShare.entry')}
             onPress={() => {
@@ -270,15 +253,7 @@ export default function ChallengeUploadScreen() {
               void entryShare.openById(created.id);
             }}
           />
-          <SecondaryButton
-            style={styles.ghost}
-            label={t('challengeUpload.goHome')}
-            onPress={() =>
-              challengeId
-                ? router.replace({ pathname: '/challenge-detail', params: { id: challengeId } })
-                : router.replace('/')
-            }
-          />
+          <PrimaryButton label={t('challengeUpload.goHome')} onPress={() => router.replace('/')} />
         </View>
         {entryShare.sheet}
       </SafeAreaView>
@@ -334,7 +309,7 @@ export default function ChallengeUploadScreen() {
           onPress={() => chooseVisibility('public')}
         />
 
-        {/* 공개를 고르면 표본 활용을 한 줄로 알린다(challenge.ai-report). */}
+        {/* 공개를 고르면 표본 활용을 한 줄로 알린다. */}
         {visibility === 'public' && (
           <View style={styles.note}>
             <Feather name="zap" size={13} color={palette.blueDeep} />
@@ -456,7 +431,6 @@ const styles = StyleSheet.create({
   optionTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 26 },
   optionTitleOn: { color: palette.blueDeep },
   optionSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
-  ghost: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, paddingHorizontal: 4 },
   mosaicTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 22 },
   // 본문 가운데 — 안쪽 [0,25,40,25]. 액티 84×88(체크 28 · 흰 테두리 3, 왼쪽 54 · 위 57) · 18 · 제목 · 8 · 안내 · 14 · 알약.
@@ -469,7 +443,5 @@ const styles = StyleSheet.create({
   doneSub: { fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette.textMuted, textAlign: 'center' },
   doneGap18: { marginTop: 18 },
   doneGap8: { marginTop: 8 },
-  reportHint: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 12, marginTop: 14, backgroundColor: palette.blueSoft, borderRadius: 10 },
-  reportHintText: { fontSize: 13, fontWeight: '600', color: palette.blueDeep },
   doneFooter: { gap: 10, paddingHorizontal: 20, paddingBottom: 11 },
 });

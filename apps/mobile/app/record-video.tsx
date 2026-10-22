@@ -235,11 +235,10 @@ export default function RecordVideoScreen() {
       return;
     }
     if (mode === 'plain') {
-      // 기본 촬영 — 기기에 저장하고 업로드 대기 큐에 넣은 뒤 그 영상 화면으로.
-      void saveToLibrary().then((pending) => {
+      // 기본 촬영 — 기기에 저장하고 업로드 대기 큐에 넣은 뒤 이전 화면으로(영상 상세 화면은 SOMA-820에서 없앴다).
+      void saveToLibrary().then(() => {
         takeRecordedVideo();
-        if (pending) router.replace({ pathname: '/archive-detail', params: { pending: pending.id } });
-        else router.back();
+        router.back();
       });
       return;
     }

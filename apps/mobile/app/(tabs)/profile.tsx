@@ -233,8 +233,8 @@ export default function ProfileScreen() {
                 t('profileTab.likes', { count: entry.like_count }),
                 t(entry.visibility === 'public' ? 'profileTab.visibilityPublic' : 'profileTab.visibilityPrivate'),
               ].join(' · '),
-              // 참여작을 누르면 AI 리포트(pen luafK).
-              onPress: () => router.push({ pathname: '/ai-report', params: { entryId: entry.id } }),
+              // 참여작을 누르면 내 참여작 목록으로 간다(AI 리포트 화면은 SOMA-820에서 없앴다).
+              onPress: () => router.push('/challenge-entries'),
             }))}
           />
         )}

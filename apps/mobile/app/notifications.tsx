@@ -27,7 +27,7 @@ import { loadNotificationSettings } from '@/lib/notifications';
  * 알림함(challenge.notification) — 묶음 20개씩, 묶음의 최신 사건 순.
  *
  * 묶음을 누르면 포함된 사건 전부가 읽음이 되고 대상으로 간다. 대상이 보이지 않으면 "볼 수 없는
- * 영상"만 알린다(내가 요청한 AI 리포트는 비공개 참여작이어도 열린다). "모두 읽음"은 그 시각까지의
+ * 영상"만 알린다. "모두 읽음"은 그 시각까지의
  * 것만 읽음으로 바꾼다. 챌린지 알림 토글을 꺼도 여기에는 쌓인다. 90일이 지나면 사라진다.
  */
 export default function NotificationsScreen() {
@@ -77,8 +77,8 @@ export default function NotificationsScreen() {
       void alert({ title: t('notifications.title'), message: unavailableMessage() });
       return;
     }
-    if (target.kind === 'report') {
-      router.push({ pathname: '/ai-report', params: { entryId: target.entryId } });
+    if (target.kind === 'home') {
+      router.replace('/(tabs)');
       return;
     }
     if (target.kind === 'challenge') {

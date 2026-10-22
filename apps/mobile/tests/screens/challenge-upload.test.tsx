@@ -112,28 +112,23 @@ test('보관함 영상으로 공개 참여하면 완료 화면의 주 버튼 「
   expect(await screen.findByText('공개로 올렸어요')).toBeOnTheScreen();
   expect(screen.getByText(/다른 배우들이 볼 수 있어요\. 대사 랭킹에 바로 반영됐어요\./)).toBeOnTheScreen();
 
-  // 주 버튼(첫 버튼)이 「AI 리포트 보기」다 — 한 번 누르면 리포트 화면이 열리며 요청한다(request=1).
-  const [primary, shareButton, secondary] = screen.getAllByRole('button');
-  expect(primary).toHaveAccessibleName('AI 리포트 보기');
-  expect(shareButton).toHaveAccessibleName('SNS에 공유하기');
-  expect(secondary).toHaveAccessibleName('홈으로 가기');
-  await fireEvent.press(primary);
-  expect(logEvent).toHaveBeenCalledWith('challenge_upload_report', { visibility: 'public' });
-  expect(mockRouter.replace).toHaveBeenLastCalledWith({
-    pathname: '/ai-report',
-    params: { entryId: 'entry-1', videoId: 'v1', challengeId: 'c1', visibility: 'public', request: '1' },
-  });
+  // 버튼은 「SNS에 공유하기」와 주 버튼 「홈으로 가기」(pen 「비공개로 저장했어요」, SOMA-820 — AI 리포트 없앰, SOMA-819 공유).
+  const buttons = screen.getAllByRole('button');
+  expect(buttons).toHaveLength(2);
+  expect(buttons[0]).toHaveAccessibleName('SNS에 공유하기');
+  expect(buttons[1]).toHaveAccessibleName('홈으로 가기');
+  expect(screen.queryByText('AI 리포트 보기')).not.toBeOnTheScreen();
 
   (api.getEntry as jest.Mock).mockResolvedValue({
     id: 'entry-1', is_mine: true, published_at: '2026-10-20T00:00:00Z', playback_url: 'https://v/1.mp4', author: { name: '나' },
   });
-  await fireEvent.press(shareButton);
+  await fireEvent.press(buttons[0]);
   expect(logEvent).toHaveBeenCalledWith('challenge_upload_share', { visibility: 'public' });
   expect(await screen.findByText('영상으로 저장')).toBeOnTheScreen();
   await fireEvent.press(screen.getByLabelText('닫기'));
 
-  await fireEvent.press(secondary);
-  expect(mockRouter.replace).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
+  await fireEvent.press(buttons[1]);
+  expect(mockRouter.replace).toHaveBeenLastCalledWith('/');
 });
 
 test('공개를 고르면 얼굴 모자이크를 켤 수 있고(기본 꺼짐), 켜면 요청에 싣고 만드는 중이라고 알린다', async () => {
@@ -168,8 +163,8 @@ test('비공개를 고르면 비공개로 저장하고 완료 문구가 다르�
   expect(createEntry.mock.calls[0][1]).not.toHaveProperty('caption');
   expect(await screen.findByText('비공개로 저장했어요')).toBeOnTheScreen();
   expect(screen.getByText('나만 볼 수 있게 보관했어요. 언제든 공개로 바꿀 수 있어요.')).toBeOnTheScreen();
-  // pen 10-11 — AI 리포트 안내는 따로 옅은 파랑 알약 한 줄이다.
-  expect(screen.getByText('「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요')).toBeOnTheScreen();
+  // SOMA-820 — AI 리포트 안내 알약은 없다.
+  expect(screen.queryByText('「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요')).not.toBeOnTheScreen();
 
   await view.unmount();
   expect(events().some(([name]) => name === 'challenge_upload_exit')).toBe(false);

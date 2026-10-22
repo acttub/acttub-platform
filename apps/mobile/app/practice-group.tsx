@@ -246,11 +246,6 @@ export default function PracticeGroupScreen() {
             <PrimaryButton label={t(continueActionLabel(action))} onPress={() => resumeConversation(action.practiceId)} />
           )}
 
-          {group.video_id && (
-            <Pressable style={styles.round} onPress={() => router.push({ pathname: '/archive-detail', params: { id: group.video_id! } })} accessibilityRole="button">
-              <Text style={styles.openNote}>{t('history.openVideo')}</Text>
-            </Pressable>
-          )}
           {group.last_conversation_id && (
             <Pressable style={styles.round} onPress={() => void openConversation(group.last_conversation_id!)} accessibilityRole="button">
               <Text style={styles.openNote}>{t('history.lastConversation')}</Text>

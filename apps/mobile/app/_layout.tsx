@@ -413,13 +413,10 @@ function RootNavigator() {
         <Stack.Screen name="auditions/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
         <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-        <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
         <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
         <Stack.Screen name="line-search" options={{ headerShown: false }} />
         <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
-        <Stack.Screen name="archive" options={{ headerShown: false }} />
-        <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
         <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
         <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
         <Stack.Screen name="reading/session" options={{ title: '' }} />

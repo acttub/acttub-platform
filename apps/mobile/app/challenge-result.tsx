@@ -116,15 +116,9 @@ export default function ChallengeResultScreen() {
               {mine === undefined ? (
                 <ActivityIndicator color={palette.blue} style={{ alignSelf: 'flex-start' }} />
               ) : mine ? (
-                <Pressable
-                  onPress={() => router.push({ pathname: '/ai-report', params: { entryId: mine.id } })}
-                  accessibilityRole="button"
-                  style={styles.mineRow}>
-                  <Text style={styles.mineText}>
-                    {mineLabel} · {t('aiReport.title')}
-                  </Text>
-                  <Feather name="chevron-right" size={18} color={palette.textFaint} />
-                </Pressable>
+                <View style={styles.mineRow}>
+                  <Text style={styles.mineText}>{mineLabel}</Text>
+                </View>
               ) : (
                 <Text style={styles.mineText}>{t('challengeResult.mineNone')}</Text>
               )}

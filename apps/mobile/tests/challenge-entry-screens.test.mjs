@@ -51,12 +51,6 @@ test('challenge.entry: 찍은 영상은 보관함을 거쳐 확정된 뒤 올라
   assert.match(record, /challengeId: challengeId \?\? ''/);
 });
 
-test('challenge.entry: 보관함의 "챌린지에 올리기"는 올릴 대사를 먼저 고른다', () => {
-  assert.match(read('app/archive-detail.tsx'), /pickVideoId: state\.video\.id/);
-  assert.match(read('app/(tabs)/challenges.tsx'), /pickVideoId/);
-  assert.match(read('app/(tabs)/challenges.tsx'), /pathname: '\/challenge-upload'/);
-});
-
 test('challenge.browse: 피드는 3초 재생 사건을 보내고 실패해도 재생을 막지 않는다', () => {
   const feed = read('app/challenge-play.tsx');
 

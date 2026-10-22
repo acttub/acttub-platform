@@ -6,7 +6,7 @@ import type { NotificationGroup } from './types.ts';
  *
  * 같은 10분 구간의 좋아요·댓글은 한 줄로 묶여 "N명이 좋아해요"·"N개의 댓글"로 보인다. 목록은
  * 묶음의 최신 사건 시각·id 역순이고 20개씩 받는다. 묶음을 누르면 포함된 사건 전부가 읽음이 되고
- * 대상으로 간다 — 대상이 보이지 않으면 "볼 수 없는 영상"만 알린다(본인 AI 리포트는 예외).
+ * 대상으로 간다 — 대상이 보이지 않으면 "볼 수 없는 영상"만 알린다.
  * 읽지 않은 **묶음** 수가 탭 배지다. 토글을 꺼도 알림함에는 쌓인다.
  */
 
@@ -21,13 +21,16 @@ export function groupLabel(group: Pick<NotificationGroup, 'kind' | 'actor_count'
     case 'challenge_ended':
       return translate('notifications.challengeEnded');
     default:
-      return translate('notifications.reportReady');
+      return translate('notifications.challengeEnded');
   }
 }
 
-/** 최신 사건이 위로. 같은 시각이면 group_key 로 갈라 안정적으로 둔다. */
+/**
+ * 최신 사건이 위로. 같은 시각이면 group_key 로 갈라 안정적으로 둔다.
+ * 없앤 AI 리포트 알림(entry_ai_report_ready)은 보일 곳이 없어 목록에서 뺀다(SOMA-820).
+ */
 export function sortGroups(groups: readonly NotificationGroup[]): NotificationGroup[] {
-  return [...groups].sort((a, b) => {
+  return groups.filter((group) => group.kind !== 'entry_ai_report_ready').sort((a, b) => {
     const at = Date.parse(b.latest_at) - Date.parse(a.latest_at);
     return at !== 0 ? at : b.group_key.localeCompare(a.group_key);
   });
@@ -42,16 +45,16 @@ export function badgeText(count: number): string | null {
 export type NotificationTarget =
   | { kind: 'entry'; challengeId: string; entryId: string }
   | { kind: 'challenge'; challengeId: string }
-  | { kind: 'report'; entryId: string }
+  | { kind: 'home' }
   | { kind: 'unavailable' };
 
 /**
- * 묶음을 눌렀을 때 갈 곳. 대상이 보이지 않으면 안내만 한다 — 다만 내가 요청한 AI 리포트는
- * 비공개 참여작이어도 열린다.
+ * 묶음을 눌렀을 때 갈 곳. 대상이 보이지 않으면 안내만 한다. 없앤 AI 리포트 알림(옛 알림이 남아 있을 수 있다)은
+ * 그 챌린지 화면으로, 챌린지를 모르면 홈으로 보낸다(SOMA-820).
  */
 export function targetOf(group: NotificationGroup): NotificationTarget {
   if (group.kind === 'entry_ai_report_ready') {
-    return group.entry_id ? { kind: 'report', entryId: group.entry_id } : { kind: 'unavailable' };
+    return group.challenge_id ? { kind: 'challenge', challengeId: group.challenge_id } : { kind: 'home' };
   }
   if (!group.target_available) return { kind: 'unavailable' };
   if (group.kind === 'challenge_ended') {
