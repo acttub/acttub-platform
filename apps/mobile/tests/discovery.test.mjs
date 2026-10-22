@@ -85,6 +85,6 @@ test('모든 선택지에 한국어·영어 문구가 있고 영어 문구에는
   }
   assert.deepEqual(Object.keys(ko.profileName.discoverySources).sort(), [...DISCOVERY_SOURCES].sort());
   assert.equal(ko.profileName.discoverySources.google_youtube, '구글');
-  assert.equal(ko.profileName.discoveryLabel, '액터브를 처음 어디서 알게 됐어요?');
+  assert.equal(ko.profileName.discoveryLabel, 'Acttub를 처음 어디서 알게 됐어요?');
   assert.doesNotMatch(en.profileName.discoveryLabel, /[가-힣]/);
 });

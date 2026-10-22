@@ -79,7 +79,7 @@ jest.mock('@/components/mic-button', () => {
 
 const SEND = '보내기';
 const PLACEHOLDER = '직접 써도 돼요';
-const LOADING = '코치가 첫 질문을 쓰고 있어요…';
+const LOADING = '액티가 첫 질문을 쓰고 있어요…';
 const LOADING_HINT = '보통 20~30초쯤 걸려요. 화면을 나가도 질문은 계속 만들어지고, 홈에서 「대화 이어 가기」를 누르면 이어서 볼 수 있어요.';
 const NOTE = { id: 'n1', title: '멈춤' } as PracticeNote;
 
@@ -199,7 +199,7 @@ describe('대화 시작', () => {
     await act(async () => resolveStart(turn(conv({ messages: [msg(0, 'coach', '  첫 질문이에요.\n둘째 줄  ')] }))));
 
     expect(screen.getByText('첫 질문이에요.\n둘째 줄')).toBeOnTheScreen();
-    expect(screen.getByText('ACTTUB 코치')).toBeOnTheScreen();
+    expect(screen.getByText('액티')).toBeOnTheScreen();
     expect(screen.queryByText(LOADING)).not.toBeOnTheScreen();
     expect(screen.queryByText(LOADING_HINT)).not.toBeOnTheScreen();
     expect(screen.getByLabelText('답이나 질문을 편하게 적어 주세요')).toBeOnTheScreen();
@@ -208,7 +208,7 @@ describe('대화 시작', () => {
     expect(getPractice()?.conversationId).toBe('c1');
   });
 
-  test('코치가 쓰는 글은 첫 글자부터 말풍선에 자라고, 다시 쓰기 시작하면 비운다', async () => {
+  test('액티가 쓰는 글은 첫 글자부터 말풍선에 자라고, 다시 쓰기 시작하면 비운다', async () => {
     let stream: CoachStreamCallbacks | undefined;
     let resolveStart: (r: CoachTurnResult) => void = () => undefined;
     mockLoop.startConversation.mockImplementation(
@@ -234,7 +234,7 @@ describe('대화 시작', () => {
     expect(screen.getByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
   });
 
-  test('대화가 먼저 열렸는데 코치 말이 없으면(미리 쓰기 중) 읽기만 하지 않고 시작 요청을 한 번 보낸다(SOMA-780)', async () => {
+  test('대화가 먼저 열렸는데 액티 말이 없으면(미리 쓰기 중) 읽기만 하지 않고 시작 요청을 한 번 보낸다(SOMA-780)', async () => {
     mockLoop.getConversation.mockResolvedValue(conv({ coach_reply_count: 0, messages: [] }));
     mockLoop.startConversation.mockResolvedValue(turn(conv()));
     begin({ conversationId: 'c1' });
@@ -274,7 +274,7 @@ describe('대화 시작', () => {
     await render(<CoachScreen />);
 
     expect(await screen.findByText('분석이 아직 끝나지 않았어요.')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('코치 다시 연결하기'));
+    await fireEvent.press(screen.getByText('액티 다시 연결하기'));
 
     expect(await screen.findByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
     expect(screen.queryByText('분석이 아직 끝나지 않았어요.')).not.toBeOnTheScreen();
@@ -395,7 +395,7 @@ describe('답 보내기', () => {
     await typeAndSend('첫 답');
     expect(await screen.findByText(message)).toBeOnTheScreen();
     expect(input()).toHaveDisplayValue('첫 답');
-    expect(screen.queryByText('코치 다시 연결하기')).not.toBeOnTheScreen();
+    expect(screen.queryByText('액티 다시 연결하기')).not.toBeOnTheScreen();
   });
 
   test('다른 곳에서 먼저 답이 들어갔으면 쓰던 글을 두고 최신 대화를 다시 읽는다', async () => {
@@ -473,7 +473,7 @@ describe('답 보내기', () => {
     expect(mockLoop.replyToCoach).toHaveBeenCalledTimes(1);
   });
 
-  test('다음 답이 마지막 코치 응답이면 마무리한다고 미리 알린다', async () => {
+  test('다음 답이 마지막 액티 응답이면 마무리한다고 미리 알린다', async () => {
     mockLoop.startConversation.mockResolvedValue(turn(conv({ coach_reply_count: 9, reply_limit: 10 })));
     await renderOpen();
 
@@ -733,7 +733,7 @@ describe('튜토리얼 예시', () => {
     });
   }
 
-  test('미리 쓴 코치와 대화하고, 질문마다 샘플 답을 채워 두며, 두 답 뒤에 정리로 간다', async () => {
+  test('미리 쓴 액티와 대화하고, 질문마다 샘플 답을 채워 두며, 두 답 뒤에 정리로 간다', async () => {
     beginSample();
     await render(<CoachScreen />);
 

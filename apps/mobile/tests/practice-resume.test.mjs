@@ -14,7 +14,7 @@ test('practice.resume: 방금 끝낸 노트에서 다음 테이크를 찍으면 
   assert.deepEqual(plan.continueFrom, { rootId: 'root-1', practiceId: 'practice-1' });
 });
 
-test('practice.resume: 지난 기록·코치에서 다음 테이크를 찍으면 장면은 비어 있다', () => {
+test('practice.resume: 지난 기록·액티에서 다음 테이크를 찍으면 장면은 비어 있다', () => {
   const plan = planFor({ kind: 'group', rootId: 'root-2', practiceId: 'practice-2' });
 
   assert.equal(plan.prefilled, false);

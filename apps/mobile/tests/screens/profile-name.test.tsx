@@ -189,7 +189,7 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
     await fireEvent.press(next());
 
-    expect(screen.getByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(screen.getByText('민지님, Acttub는 어디서 알게 됐어요?')).toBeOnTheScreen();
     expect(button('추구하는 방향 매체 (TV·영화)')).toBeOnTheScreen();
   });
 
@@ -212,7 +212,7 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     await answerToDirections();
     await fireEvent.press(next());
 
-    expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(await screen.findByText('민지님, Acttub는 어디서 알게 됐어요?')).toBeOnTheScreen();
     await fireEvent.press(radio('기타'));
     expect(saveProfile).not.toHaveBeenCalled();
     expect(done()).toBeDisabled();
@@ -255,7 +255,7 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     await answerToDirections();
     await fireEvent.press(done());
 
-    expect(screen.queryByText('민지님, 액터브는 어디서 알게 됐어요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('민지님, Acttub는 어디서 알게 됐어요?')).not.toBeOnTheScreen();
     expect(saveProfile).toHaveBeenCalledTimes(1);
     expect(recordDiscovery).not.toHaveBeenCalled();
   });
@@ -265,7 +265,7 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     await start();
     await answerToDirections();
     await fireEvent.press(next());
-    expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(await screen.findByText('민지님, Acttub는 어디서 알게 됐어요?')).toBeOnTheScreen();
   });
 
   test('계정 id가 없으면 가입 기록을 남기지 않는다', async () => {
@@ -393,7 +393,7 @@ describe('설정의 프로필 편집', () => {
 
     expect(takeProviderNameHint).not.toHaveBeenCalled();
     expect(readAttributedChannel).not.toHaveBeenCalled();
-    expect(screen.queryByText('액터브를 처음 어디서 알게 됐어요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Acttub를 처음 어디서 알게 됐어요?')).not.toBeOnTheScreen();
     expect(screen.getByText('김민지')).toBeOnTheScreen();
     expect(screen.getByText('무대를 사랑하는 배우')).toBeOnTheScreen();
     expect(screen.getByText('무대 (연극·뮤지컬)')).toBeOnTheScreen();

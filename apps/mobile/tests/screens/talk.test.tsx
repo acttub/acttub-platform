@@ -22,7 +22,7 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-test('목적 · 영상 없이 — 세 목적을 보이고, 하나를 누르면 다음 없이 영상 없이 시작해 코치 대화로 간다 (SOMA-745)', async () => {
+test('목적 · 영상 없이 — 세 목적을 보이고, 하나를 누르면 다음 없이 영상 없이 시작해 액티 대화로 간다 (SOMA-745)', async () => {
   createPractice.mockResolvedValue({ id: 'p1', root_id: 'p1', ordinal: 1, stage: 'conversing', analysis_status: null, job: null });
   await render(<TalkScreen />);
 

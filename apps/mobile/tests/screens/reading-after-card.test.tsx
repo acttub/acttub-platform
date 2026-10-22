@@ -38,7 +38,7 @@ beforeEach(() => {
   mockParams = {};
 });
 
-test('서버 스위치가 켜져 있으면 코치 카드(위)와 발음 보고서 줄(아래)을 보이고 각 화면으로 간다(SOMA-791·606)', async () => {
+test('서버 스위치가 켜져 있으면 액티 카드(위)와 발음 보고서 줄(아래)을 보이고 각 화면으로 간다(SOMA-791·606)', async () => {
   probe.mockRejectedValue(Object.assign(new Error('x'), { code: 'recording_coach_not_found' }));
   report.mockResolvedValue({ status: 'queued', report: null });
   await render(<ReadingAfterCard sessionId="s1" ready />);
@@ -64,7 +64,7 @@ test('스위치가 꺼져 있거나 허용 밖이면 아무것도 그리지 않�
   expect(report).not.toHaveBeenCalled();
 });
 
-test('녹음 코치: 첫 차례를 보이고 답하면 둘째 차례와 「이 한 줄 찍기」로 영상 촬영에 잇는다', async () => {
+test('녹음 액티: 첫 차례를 보이고 답하면 둘째 차례와 「이 한 줄 찍기」로 영상 촬영에 잇는다', async () => {
   mockParams = { sessionId: 's1' };
   startCoach.mockResolvedValue(coach());
   reply.mockResolvedValue(
@@ -86,7 +86,7 @@ test('녹음 코치: 첫 차례를 보이고 답하면 둘째 차례와 「이 �
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
 });
 
-test('녹음 코치: 소리가 든 녹음이 셋보다 적으면 이유를 알리고 닫기만 둔다', async () => {
+test('녹음 액티: 소리가 든 녹음이 셋보다 적으면 이유를 알리고 닫기만 둔다', async () => {
   mockParams = { sessionId: 's1' };
   startCoach.mockRejectedValue(Object.assign(new Error('x'), { code: 'recording_coach_not_enough_audio' }));
   await render(<ReadingCoachScreen />);
@@ -96,17 +96,17 @@ test('녹음 코치: 소리가 든 녹음이 셋보다 적으면 이유를 알�
   expect(mockRouter.back).toHaveBeenCalled();
 });
 
-test('녹음 코치: 코치가 답하지 못하면 알리고 「다시 시도」로 다시 시작한다', async () => {
+test('녹음 액티: 액티가 답하지 못하면 알리고 「다시 시도」로 다시 시작한다', async () => {
   mockParams = { sessionId: 's1' };
   startCoach.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'recording_coach_unavailable' })).mockResolvedValue(coach());
   await render(<ReadingCoachScreen />);
-  expect(await screen.findByText('코치가 지금 답하지 못했어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('액티가 지금 답하지 못했어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
   expect(await screen.findByText('「가자」 끝이 올라갔어요. 그때 서연은 뭘 원했어요?')).toBeOnTheScreen();
   expect(startCoach).toHaveBeenCalledTimes(2);
 });
 
-test('녹음 코치: 둘째 차례에 찍을 줄이 없으면 닫기만 둔다', async () => {
+test('녹음 액티: 둘째 차례에 찍을 줄이 없으면 닫기만 둔다', async () => {
   mockParams = { sessionId: 's1' };
   startCoach.mockResolvedValue(coach({ status: 'answered', video_line: null }));
   await render(<ReadingCoachScreen />);

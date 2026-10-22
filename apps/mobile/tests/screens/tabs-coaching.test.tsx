@@ -29,7 +29,7 @@ const round = (id: string, at: string, noted: boolean): PracticeRound =>
     created_at: at,
     stage: 'done',
     message_count: 4,
-    note: noted ? { id: `note-${id}`, title: '코치가 본 것: 시선이 먼저 내려간다', kind: 'action' } : null,
+    note: noted ? { id: `note-${id}`, title: '액티가 본 것: 시선이 먼저 내려간다', kind: 'action' } : null,
     conversation_id: null,
     previous_conversations: [],
   }) as unknown as PracticeRound;
@@ -65,7 +65,7 @@ test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 
   expect(screen.getByText('「갈매기」 니나 · 1분 12초')).toBeOnTheScreen();
   expect(screen.getByText('인정받고 싶었던 것 같아요')).toBeOnTheScreen();
   expect(screen.getByText('정답을 주기보다, 질문하며 고칠 점 하나를 같이 찾아요')).toBeOnTheScreen();
-  expect(screen.queryByText('저번 코치 메모')).not.toBeOnTheScreen();
+  expect(screen.queryByText('저번 액티 메모')).not.toBeOnTheScreen();
   expect(getPracticeNote).not.toHaveBeenCalled();
 
   // 지금 찍기 — 카메라 → 새 연습 준비(next=upload). 첫 코칭이라 파란 안내를 켠다.
@@ -79,7 +79,7 @@ test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 
   expect(mockRouter.push).toHaveBeenLastCalledWith('/talk');
 });
 
-test('노트가 있는 가장 최근 묶음의 다음 테이크 문장을 저번 코치 메모로 띄우고, 노트 없이 나간 더 최근 묶음은 건너뛴다', async () => {
+test('노트가 있는 가장 최근 묶음의 다음 테이크 문장을 저번 액티 메모로 띄우고, 노트 없이 나간 더 최근 묶음은 건너뛴다', async () => {
   listPracticeGroups.mockResolvedValue({
     groups: [
       group({ root_id: 'noted', title: '이별 장면', last_practiced_at: '2026-10-01T00:00:00Z', practices: [round('p1', '2026-10-01T00:00:00Z', true)] }),
@@ -91,7 +91,7 @@ test('노트가 있는 가장 최근 묶음의 다음 테이크 문장을 저번
 
   expect(await screen.findByText('한 박자 바라본 다음 시선을 거둬 보세요.')).toBeOnTheScreen();
   expect(getPracticeNote).toHaveBeenCalledWith('p1');
-  expect(screen.getByText('저번 코치 메모')).toBeOnTheScreen();
+  expect(screen.getByText('저번 액티 메모')).toBeOnTheScreen();
   expect(screen.getByText('다음엔 이렇게 해 봐요')).toBeOnTheScreen();
   expect(screen.getByText(/^10월 1일 · 이별 장면$/)).toBeOnTheScreen();
   expect(screen.queryByText(/코치가 본 것/)).not.toBeOnTheScreen();
@@ -129,7 +129,7 @@ test('타일 둘(새 영상·지난 코칭 N개)과 최근 코칭 두 줄을 보
   expect(mockRouter.push).toHaveBeenLastCalledWith('/history');
 });
 
-test('대화 중인 묶음이면 버튼이 「이어서 하기」이고 그 회차의 코치 화면으로 바로 간다(분석 대기도 코치 화면 안이다)', async () => {
+test('대화 중인 묶음이면 버튼이 「이어서 하기」이고 그 회차의 액티 화면으로 바로 간다(분석 대기도 액티 화면 안이다)', async () => {
   listPracticeGroups.mockResolvedValue({
     groups: [group({ root_id: 'noted', in_progress_practice_id: 'open-1', practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
   });
@@ -147,7 +147,7 @@ test('노트 없이 나간 대화만 있으면 「코칭이 처음이죠?」 대
   await render(<CoachingTab />);
 
   expect(await screen.findByText('하던 코칭')).toBeOnTheScreen();
-  expect(screen.getByText('코치와 하던 대화가 남아 있어요.')).toBeOnTheScreen();
+  expect(screen.getByText('액티와 하던 대화가 남아 있어요.')).toBeOnTheScreen();
   expect(screen.queryByText('코칭이 처음이죠?')).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '이어서 하기' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'open-1' } });

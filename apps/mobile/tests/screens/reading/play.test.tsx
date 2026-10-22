@@ -1042,7 +1042,7 @@ test('다시 연습을 시작하지 못하면 이유를 알린다', async () => 
   expect(mockRouter.replace).not.toHaveBeenCalledWith('/reading/play');
 });
 
-test('리딩 마무리에서 코치에게 보여 주기로 가면 대본 제목·장면·내 배역을 장면 칸에 채워 업로드 화면을 연다(SOMA-772)', async () => {
+test('리딩 마무리에서 액티에게 보여 주기로 가면 대본 제목·장면·내 배역을 장면 칸에 채워 업로드 화면을 연다(SOMA-772)', async () => {
   await startPlay({ start_line_id: 'l5', end_line_id: 'l5' }, scriptDetail(TWO_ROLE_LINES, {
     scenes: [{ no: 1, title: '1장 카페', start_line_id: 'l1', end_line_id: 'l5', dialogue_count: 3 }],
   }));
@@ -1050,7 +1050,7 @@ test('리딩 마무리에서 코치에게 보여 주기로 가면 대본 제목�
   await speechEnds();
 
   await pressWhenReady('완료');
-  await fireEvent.press(await screen.findByText('이 장면, 찍어서 코치에게 보여 주기'));
+  await fireEvent.press(await screen.findByText('이 장면, 찍어서 액티에게 보여 주기'));
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
   expect(takeContinueOrigin()).toEqual({ kind: 'reading', scene: { situation: '봄날의 대화 · 1장 카페', character: '민재', goal: '' } });
 });

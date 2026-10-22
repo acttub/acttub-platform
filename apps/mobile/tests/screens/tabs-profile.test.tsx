@@ -230,7 +230,7 @@ test('다른 화면에서 돌아오면 다시 세고, 떠나기 전 늦게 온 �
   expect(listEntries).toHaveBeenCalledTimes(2);
 });
 
-test('설정·편집·코치 기억으로 보내고, 탭을 바꾸면 그 카드와 전체 보기로 간다', async () => {
+test('설정·편집·액티 기억으로 보내고, 탭을 바꾸면 그 카드와 전체 보기로 간다', async () => {
   listGroups.mockResolvedValue({ groups: Array.from({ length: 7 }, (_, i) => group(`g${i}`, [thisMonth])) });
   listEntries.mockResolvedValue({ entries: [entry('e1', 'c1', thisMonth, { visibility: 'private' })], next_cursor: null });
   listSaved.mockResolvedValue({
@@ -241,7 +241,7 @@ test('설정·편집·코치 기억으로 보내고, 탭을 바꾸면 그 카드
 
   await fireEvent.press(screen.getByRole('button', { name: '설정' }));
   await fireEvent.press(screen.getByText('편집'));
-  await fireEvent.press(screen.getByText('코치가 기억하는 것'));
+  await fireEvent.press(screen.getByText('액티가 기억하는 것'));
   await fireEvent.press(await screen.findByText('전체 보기'));
 
   await fireEvent.press(screen.getByRole('tab', { name: '참여작' }));

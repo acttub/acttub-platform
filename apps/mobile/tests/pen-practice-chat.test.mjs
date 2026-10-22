@@ -31,7 +31,7 @@ test('③ 새 연습: 머리 오른쪽 설정, 본문 좌우 20, 권리 체크 1
   assert.match(upload, /pickedMeta: \{ flex: 1, fontSize: 15, fontWeight: '500'/);
 });
 
-test('⑨ 코치 머리줄은 한 부품 — 액티 30×36 · 「ACTTUB 코치」 15/800 · 회색 말풍선 모서리 18', () => {
+test('⑨ 액티 머리줄은 한 부품 — 액티 30×36 · 「액티」 15/800 · 회색 말풍선 모서리 18', () => {
   const message = read('components/coach-message.tsx');
   assert.match(message, /MASCOT_SIZE\.chat/);
   assert.match(read('components/ui/mascot.ts'), /chat: \{ width: 30, height: 36 \}/);

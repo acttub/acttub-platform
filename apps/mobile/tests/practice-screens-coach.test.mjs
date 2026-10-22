@@ -112,7 +112,7 @@ test('practice.library: 묶음 상세 헤더에서 바로 숨기고 목록으로
 });
 
 // 한줄평·이탈 설문은 SOMA-494에서 걷고 앱 평가 요청으로 바꿨다 — 코치·노트 화면은 나갈 때 붙잡지 않는다.
-test('코치·노트는 나갈 때 설문을 띄우지 않고, 노트를 마치면 앱 평가를 묻는다', () => {
+test('액티·노트는 나갈 때 설문을 띄우지 않고, 노트를 마치면 앱 평가를 묻는다', () => {
   const coach = read('app/coach.tsx');
   const report = read('app/report.tsx');
   assert.doesNotMatch(coach, /useExitReview|exitReview/);

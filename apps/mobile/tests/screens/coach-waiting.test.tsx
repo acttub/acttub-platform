@@ -203,7 +203,7 @@ describe('기다리는 동안', () => {
     // 따로 된 분석 화면이 아니라 대화 화면 안의 코치 말풍선이다.
     expect(screen.getByText('질문 대화')).toBeOnTheScreen();
     expect(screen.getByText(WATCHING)).toBeOnTheScreen();
-    expect(screen.getByText('ACTTUB 코치')).toBeOnTheScreen();
+    expect(screen.getByText('액티')).toBeOnTheScreen();
     expect(screen.queryByText('3단계 · 질문 준비 중')).not.toBeOnTheScreen();
     staysWaiting();
     expect(screen.getByText('0초 경과')).toBeOnTheScreen();
@@ -310,7 +310,7 @@ describe('기다리는 동안', () => {
 });
 
 describe('분석이 끝나면', () => {
-  test('회차를 들고 코치 화면으로 넘어가고 복구 기록을 지운다', async () => {
+  test('회차를 들고 액티 화면으로 넘어가고 복구 기록을 지운다', async () => {
     getStatus.mockResolvedValue(READY);
     await render(<CoachScreen />);
 
@@ -378,7 +378,7 @@ describe('분석이 끝나면', () => {
     expect(localCopyFor).not.toHaveBeenCalled();
   });
 
-  test('복구 기록을 남기지 못했어도 코치로 넘어간다', async () => {
+  test('복구 기록을 남기지 못했어도 액티로 넘어간다', async () => {
     (AsyncStorage.setItem as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
     getStatus.mockResolvedValue(READY);
     await render(<CoachScreen />);
@@ -399,7 +399,7 @@ describe('분석이 끝나면', () => {
     staysWaiting();
   });
 
-  test('코치로 넘어간 뒤 앱이 다시 활성화돼도 다시 읽지 않는다', async () => {
+  test('액티로 넘어간 뒤 앱이 다시 활성화돼도 다시 읽지 않는다', async () => {
     getStatus.mockResolvedValue(READY);
     await render(<CoachScreen />);
     await entersCoach();
@@ -734,7 +734,7 @@ describe('그만두기', () => {
     expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 
-  test('취소하는 사이 시작된 조회가 끝남을 받아도 코치로 가지 않는다', async () => {
+  test('취소하는 사이 시작된 조회가 끝남을 받아도 액티로 가지 않는다', async () => {
     let resolveCancel: () => void = () => undefined;
     (api.cancelPractice as jest.Mock).mockImplementation(
       () =>
@@ -769,7 +769,7 @@ describe('튜토리얼 예시', () => {
     mockParams = { practiceId: SAMPLE_PRACTICE_ID };
   });
 
-  test('서버 없이 단계 문구를 넘긴 뒤 예시 회차를 들고 코치로 간다', async () => {
+  test('서버 없이 단계 문구를 넘긴 뒤 예시 회차를 들고 액티로 간다', async () => {
     jest.useFakeTimers();
     await render(<CoachScreen />);
 
@@ -821,7 +821,7 @@ describe('튜토리얼 예시', () => {
     expect(screen.queryByText(WATCHING)).not.toBeOnTheScreen();
   });
 
-  test('도중에 화면을 떠나면 코치로 넘기지 않는다', async () => {
+  test('도중에 화면을 떠나면 액티로 넘기지 않는다', async () => {
     jest.useFakeTimers();
     const view = await render(<CoachScreen />);
     await act(async () => jest.advanceTimersByTime(1_200));

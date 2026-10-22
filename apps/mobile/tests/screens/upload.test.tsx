@@ -275,7 +275,7 @@ describe('갤러리에서 고르기', () => {
 });
 
 describe('보관함에서 고른 영상으로 시작', () => {
-  test('재생 주소를 받아 미리보기를 채우고, 권리를 체크하면 회차를 만들어 코치 화면(분석 대기)으로 간다', async () => {
+  test('재생 주소를 받아 미리보기를 채우고, 권리를 체크하면 회차를 만들어 액티 화면(분석 대기)으로 간다', async () => {
     await renderWithSavedVideo();
 
     expect(screen.getByText('저장했어요')).toBeOnTheScreen();
@@ -414,7 +414,7 @@ describe('시작이 실패하면', () => {
     expect(ids[2]).toBe(ids[1]);
   });
 
-  test('진행 중인 회차가 있으면 알리고 그 회차의 코치 화면으로 돌려보낸다', async () => {
+  test('진행 중인 회차가 있으면 알리고 그 회차의 액티 화면으로 돌려보낸다', async () => {
     (api.createPractice as jest.Mock).mockRejectedValue(serverError(409, 'practice_in_progress'));
     (api.listPracticeGroups as jest.Mock).mockResolvedValue({
       groups: [{ root_id: 'r1', in_progress_practice_id: 'open-1' }],

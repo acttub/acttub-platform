@@ -39,7 +39,7 @@ test('영상만 시작·다음 테이크는 서버 본문과 경험 헤더를 �
   }
 });
 
-test('코치 시작·답장·재조회는 messages와 revision·close_reason을 보존한다', async t => {
+test('액티 시작·답장·재조회는 messages와 revision·close_reason을 보존한다', async t => {
   const initial = { id: id(5), practice_id: null, status: 'open', close_reason: null, revision: 1, coach_reply_count: 1, reply_limit: 10,
     messages: [{ turn_index: 0, role: 'coach', text: '무엇을 기다리고 있었나요?', created_at: null }], created_at: null };
   const closed = { ...initial, status: 'closed', close_reason: 'user_ended', revision: 2, coach_reply_count: 2,

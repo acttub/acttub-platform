@@ -136,7 +136,7 @@ test('대화를 누르면 순서대로 펼치고, 못 읽으면 다시 누르라
   expect(getConversation).toHaveBeenCalledWith('conv-last');
   expect(screen.getAllByText(/^(긴장했어요|어땠어요\?)$/).map((n) => n.props.children)).toEqual(['긴장했어요', '어땠어요?']);
   expect(screen.getByText('나')).toBeOnTheScreen();
-  expect(screen.getByText('코치')).toBeOnTheScreen();
+  expect(screen.getByText('액티')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '이전 대화 · 3월 6일' }));
   expect(getConversation).toHaveBeenLastCalledWith('conv-old');

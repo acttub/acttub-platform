@@ -99,7 +99,7 @@ const round = (id: string, at: string, noted: boolean): PracticeRound =>
     created_at: at,
     stage: 'done',
     message_count: 4,
-    note: noted ? { id: `note-${id}`, title: '코치가 본 것: 시선이 먼저 내려간다', kind: 'action' } : null,
+    note: noted ? { id: `note-${id}`, title: '액티가 본 것: 시선이 먼저 내려간다', kind: 'action' } : null,
     conversation_id: null,
     previous_conversations: [],
   }) as unknown as PracticeRound;
@@ -205,7 +205,7 @@ describe('첫 사용자', () => {
 
     expect(await screen.findByText('뭐부터 해 볼까요?')).toBeOnTheScreen();
     expect(screen.getByText('반가워요!')).toBeOnTheScreen();
-    expect(screen.getByText('액터브는 혼자 하는 연기 연습을\n옆에서 같이 봐 주는 앱이에요.')).toBeOnTheScreen();
+    expect(screen.getByText('Acttub는 혼자 하는 연기 연습을\n옆에서 같이 봐 주는 앱이에요.')).toBeOnTheScreen();
     expect(screen.getByText('하나를 누르면 자세히 알려 드려요')).toBeOnTheScreen();
     await waitFor(() => expect(writeLastSeenStreak).toHaveBeenCalledWith(0));
 
@@ -234,7 +234,7 @@ describe('첫 사용자', () => {
     await fireEvent.press(screen.getByRole('radio', { name: '연기 코칭을 받아볼래요?' }));
     expect(screen.getByText('이렇게 진행돼요')).toBeOnTheScreen();
     expect(screen.getByText('연기 영상을 올리거나 바로 찍어요')).toBeOnTheScreen();
-    expect(screen.getByText('코치가 질문하며 같이 돌아봐요')).toBeOnTheScreen();
+    expect(screen.getByText('액티가 질문하며 같이 돌아봐요')).toBeOnTheScreen();
     expect(screen.getByText('고칠 점 하나와 다음 연습을 받아요')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '계속하기' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/coaching');
@@ -281,7 +281,7 @@ describe('첫 사용자', () => {
 });
 
 describe('오늘 할 것 · 코칭 숙제', () => {
-  test('지난 노트의 다음에 해 볼 것을 제목으로 쓰고, 코치 관찰(노트 제목)은 쓰지 않는다', async () => {
+  test('지난 노트의 다음에 해 볼 것을 제목으로 쓰고, 액티 관찰(노트 제목)은 쓰지 않는다', async () => {
     listPracticeGroups.mockResolvedValue({
       groups: [
         group({

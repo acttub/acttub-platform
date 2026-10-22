@@ -26,7 +26,7 @@ test('새 연습 준비(P3.1): 장면 정보 단계(상황·인물·원하는 �
   assert.match(ko, /helpLabel: \{\s*분석: '대사 분석',\s*표현: '연기 표현',\s*'그 외': '그 외',/);
 });
 
-test('코치 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 채움)와 그만하기, 아래 「그만하고 정리 만들기」 링크는 없다', () => {
+test('액티 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 채움)와 그만하기, 아래 「그만하고 정리 만들기」 링크는 없다', () => {
   assert.equal(helpButtonDraft('yes'), '맞아요');
   assert.equal(helpButtonDraft('no'), '아니요');
   const coach = read('app/coach.tsx');
@@ -37,7 +37,7 @@ test('코치 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 �
   assert.match(read('locales/ko.ts'), /composerLabel: '답이나 질문을 편하게 적어 주세요'/);
 });
 
-test('코치 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 높이부터는 칸 안에서 스크롤한다', () => {
+test('액티 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 높이부터는 칸 안에서 스크롤한다', () => {
   const coach = read('app/coach.tsx');
   const input = coach.slice(coach.indexOf('  input: {'), coach.indexOf('},', coach.indexOf('  input: {')));
   // pen 09 「Input」 높이 44.
@@ -63,7 +63,7 @@ test('새 연습 준비: 고른 영상의 「영상 다시 선택」을 누르�
   assert.match(sheet, /onRequestClose=\{onClose\}/);
 });
 
-test('코치 질문은 회색 말풍선 16pt 다(pen 질문 대화 「코치 말」, SOMA-748 — 예전 21pt 맨글자 대신)', () => {
+test('액티 질문은 회색 말풍선 16pt 다(pen 질문 대화 「액티 말」, SOMA-748 — 예전 21pt 맨글자 대신)', () => {
   const coach = read('app/coach.tsx');
   assert.match(coach, /question: \{ fontSize: 16,/);
   // 회색 말풍선은 코치 머리줄 공통 부품(components/coach-message)이 그린다(pen 09).
@@ -78,7 +78,7 @@ test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 
   assert.match(upload, /\{picked \? \(/);
 });
 
-test('코치 화면 위에 「코치 답변 N번 남음」은 보이지 않는다 — 마무리 직전 안내만 남긴다', () => {
+test('액티 화면 위에 「액티 답변 N번 남음」은 보이지 않는다 — 마무리 직전 안내만 남긴다', () => {
   const coach = read('app/coach.tsx');
   assert.doesNotMatch(coach, /coach\.remaining/);
   assert.match(coach, /\{wrapping && <Text style=\{styles\.progressText\}>\{t\('coach\.wrapNext'\)\}<\/Text>\}/);
