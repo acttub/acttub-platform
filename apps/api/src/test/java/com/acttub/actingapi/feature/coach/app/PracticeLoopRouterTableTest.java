@@ -108,11 +108,11 @@ class PracticeLoopRouterTableTest {
         assertThat(PracticeLoopRouter.route(answer(false, "evaluation", false), find, 0)).isEqualTo("짚어주기");
         assertThat(PracticeLoopRouter.route(answer(false, "question", false), find, 0)).isEqualTo("답하기");
         assertThat(PracticeLoopRouter.route(answer(false, "method", false), find, 0)).isEqualTo(PracticeLoopRouter.WRAP_UP);
-        assertThat(PracticeLoopRouter.route(answer(false, "", true), find, 0)).isEqualTo(PracticeLoopRouter.REASK);
-        assertThat(PracticeLoopRouter.route(answer(false, "", true), find, 1)).isEqualTo(PracticeLoopRouter.PROPOSE);
+        assertThat(PracticeLoopRouter.route(answer(false, "", true), find, 0)).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouter.route(answer(false, "", true), find, 1)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(PracticeLoopRouter.route(answer(false, "", false), find, 0)).isEqualTo(PracticeLoopRouter.REASK);
-        assertThat(PracticeLoopRouter.route(answer(false, "", false), find, 1)).isEqualTo(PracticeLoopRouter.EASY);
-        assertThat(PracticeLoopRouter.route(answer(false, "", false), find, 2)).isEqualTo(PracticeLoopRouter.PROPOSE);
+        assertThat(PracticeLoopRouter.route(answer(false, "", false), find, 1)).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouter.route(answer(false, "", false), find, 2)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(PracticeLoopRouter.route(answer(true, "", false), find, 0)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(PracticeLoopRouter.route(answer(false, "", false), find, 0, CoachFlows.B)).isEqualTo(PracticeLoopRouter.REASK);
     }

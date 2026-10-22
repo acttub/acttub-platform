@@ -317,6 +317,7 @@ public final class DirectVideoCoach {
                 task = DirectVideoPrompts.practiceLoopTurn(language) + "\n\n" + branch.instruction(language,
                         DirectVideoPrompts.practiceLoopTask(branch.doing(), language, flow))
                         + DirectVideoPrompts.flowBlock(flow, language) + personaBlock(persona, language);
+                if (!persona.isEmpty()) task = DirectVideoPrompts.withoutHowAbout(task);
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop.turn", DirectVideoPrompts.practiceLoopTurn())
                         : new LlmPrompt("coach.practice-loop.turn.en", DirectVideoPrompts.practiceLoopTurnEnglish());
