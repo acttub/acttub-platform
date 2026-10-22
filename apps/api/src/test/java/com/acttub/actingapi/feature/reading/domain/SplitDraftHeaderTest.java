@@ -53,18 +53,48 @@ class SplitDraftHeaderTest {
         assertThat(assemble(longTitle, raw, rows).title()).hasSize(200);
     }
 
-    @Test void theFirstLineTitleSkipsSpeakerNamesCastAndIgnoredLines() {
+    @Test void dialogueSpeakerCastAndIgnoredLinesAreNotFallbackTitles() {
         String raw = "\n지수\n등장인물: 지수\n쪽 1\n안녕.\n바다 이야기";
         Map<Integer, Row> rows = new LinkedHashMap<>();
         rows.put(2, new Row(2, Kind.DIALOGUE, "지수", "지수"));
         rows.put(3, new Row(3, Kind.CAST, "", ""));
         rows.put(4, new Row(4, Kind.IGNORE, "", ""));
         rows.put(5, new Row(5, Kind.DIALOGUE, "지수", ""));
-        assertThat(assemble(null, raw, rows).title()).isEqualTo("안녕.");
+        assertThat(assemble(null, raw, rows).title()).isEqualTo("제목 없는 대본");
         Map<Integer, Row> onlyNames = new LinkedHashMap<>();
         onlyNames.put(1, new Row(1, Kind.DIALOGUE, "지수", "지수"));
-        assertThat(assemble(null, "지수", onlyNames).title()).isEqualTo("지수");
-        assertThat(SplitDraft.assemble(null, "", "paste", List.of(), Map.of(), List.of()).title()).isEmpty();
+        assertThat(assemble(null, "지수", onlyNames).title()).isEqualTo("제목 없는 대본");
+        assertThat(SplitDraft.assemble(null, "", "paste", List.of(), Map.of(), List.of()).title()).isEqualTo("제목 없는 대본");
+    }
+
+    @Test void aFileNameIsOnlyUsedWhenNoRequestedOrModelTitleExists() {
+        String raw = "오늘은 먼저 문을 열 거야. 조금 무서워도 괜찮아.";
+        Map<Integer, Row> rows = dialogue("화자", 1);
+        assertThat(SplitDraft.assembleWithSpeakers(null, raw, "file", NumberedLine.of(raw), rows, List.of(), Map.of(), "독백.v2.txt").draft().title())
+                .isEqualTo("독백.v2");
+        assertThat(SplitDraft.assembleWithSpeakers("직접 정한 제목", raw, "file", NumberedLine.of(raw), rows, List.of(), Map.of(), "독백.txt").draft().title())
+                .isEqualTo("직접 정한 제목");
+        String titled = "봄날\n민호: 왔어.";
+        Map<Integer, Row> titledRows = new LinkedHashMap<>();
+        titledRows.put(1, new Row(1, Kind.TITLE, "", ""));
+        titledRows.put(2, new Row(2, Kind.DIALOGUE, "민호", "민호: "));
+        assertThat(SplitDraft.assembleWithSpeakers(null, titled, "file", NumberedLine.of(titled), titledRows, List.of(), Map.of(), "파일명.txt").draft().title())
+                .isEqualTo("봄날");
+    }
+
+    @Test void pageNumbersAreNotTitlesAndOldUploadsWithoutANameGetAnUntitledFallback() {
+        String raw = "41쪽\n봄날\n민호: 왔어.";
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        rows.put(1, new Row(1, Kind.TITLE, "", ""));
+        rows.put(2, new Row(2, Kind.TITLE, "", ""));
+        rows.put(3, new Row(3, Kind.DIALOGUE, "민호", "민호: "));
+        assertThat(assemble(null, raw, rows).title()).isEqualTo("봄날");
+        rows.put(2, new Row(2, Kind.IGNORE, "", ""));
+        assertThat(assemble(null, raw, rows).title()).isEqualTo("제목 없는 대본");
+        assertThat(SplitDraft.assembleWithSpeakers(null, raw, "file", NumberedLine.of(raw), rows, List.of(), Map.of(), "C:\\scripts\\내 대본.pdf").draft().title())
+                .isEqualTo("내 대본");
+        assertThat(SplitDraft.assembleWithSpeakers(null, raw, "file", NumberedLine.of(raw), rows, List.of(), Map.of(), ".txt").draft().title())
+                .isEqualTo("제목 없는 대본");
     }
 
     @Test void smallDomainRulesRejectOrNormaliseOddInput() {
