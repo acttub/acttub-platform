@@ -84,6 +84,24 @@ jest.mock('@/lib/reading/recording-runner', () => ({
   pendingRecordingUploads: jest.fn(),
 }));
 jest.mock('@/lib/account-files', () => ({ deleteDeviceFile: jest.fn(async () => undefined) }));
+jest.mock('@/lib/reading/ios-audio-restore', () => ({ keepReadingInBackground: jest.fn(), restorePlaybackAudio: jest.fn() }));
+const mockLive = {
+  start: jest.fn(),
+  update: jest.fn(),
+  stop: jest.fn(),
+  keepsRunning: jest.fn(),
+  listeners: {} as Record<string, () => void>,
+};
+jest.mock('@/modules/reading-live', () => ({
+  startReadingLive: (...args: unknown[]) => mockLive.start(...args),
+  updateReadingLive: (...args: unknown[]) => mockLive.update(...args),
+  stopReadingLive: () => mockLive.stop(),
+  readingKeepsRunning: () => mockLive.keepsRunning(),
+  onReadingLiveEvent: (name: string, fn: () => void) => {
+    mockLive.listeners[name] = fn;
+    return () => delete mockLive.listeners[name];
+  },
+}));
 const mockFileOps: string[][] = [];
 jest.mock('expo-file-system', () => ({
   Paths: { cache: { uri: 'file:///cache' } },
@@ -121,6 +139,7 @@ beforeEach(async () => {
     appStateListeners.push(fn as (state: string) => void);
     return { remove: () => (appStateListeners = appStateListeners.filter((l) => l !== fn)) } as never;
   });
+  mockLive.keepsRunning.mockReturnValue(true);
   jest.mocked(hasMicPermission).mockResolvedValue(true);
   jest.mocked(micPermissionGranted).mockResolvedValue(true);
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'typing', reason: 'unavailable' });
@@ -335,12 +354,82 @@ test('일시정지하면 위치를 저장하고, 이어서를 누르면 그 줄�
   expect(mockMic.start).toHaveBeenCalledTimes(2);
 });
 
-test('앱이 배경으로 가면 멈춘다', async () => {
+test('배경에서도 리딩이 도는 기기는 다른 앱으로 넘어가도 멈추지 않는다(SOMA-802)', async () => {
+  await startPlay();
+  await screen.findByText('듣는 중');
+
+  await act(async () => appStateListeners.forEach((l) => l('background')));
+  expect(screen.getByText('듣는 중')).toBeOnTheScreen();
+  expect(screen.queryByText('이어서')).toBeNull();
+});
+
+test('배경에서 못 도는 기기(마이크 서비스를 못 띄움)는 배경으로 가면 멈춘다', async () => {
+  mockLive.keepsRunning.mockReturnValue(false);
   await startPlay();
   await screen.findByText('듣는 중');
 
   await act(async () => appStateListeners.forEach((l) => l('background')));
   expect(screen.getByText('이어서')).toBeOnTheScreen();
+});
+
+test('잠금 화면·알림의 일시정지를 누르면 화면의 일시정지와 같이 멈춘다', async () => {
+  const server = await startPlay();
+  await screen.findByText('듣는 중');
+
+  await act(async () => mockLive.listeners.onPause());
+  expect(screen.getByText('이어서를 누르면 이 줄을 처음부터 다시 해요. 마이크는 그때 켜져요.')).toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenCalledWith('r1', expect.objectContaining({ current_line_id: 'l2', complete: false })));
+  await waitFor(() => expect(mockLive.update).toHaveBeenLastCalledWith(expect.objectContaining({ status: '민재 · 내 차례 · 일시정지', paused: true })));
+});
+
+test('다른 앱에 있는 동안 전화로 끊기면 멈추고, 돌아온 화면이 까닭을 알린다(R9.18 변형)', async () => {
+  await startPlay();
+  await screen.findByText('듣는 중');
+  // jest 의 AppState 대역은 currentState 가 함수라 값으로 잠깐 바꾼다.
+  const state = AppState as unknown as { currentState: unknown };
+  const original = state.currentState;
+  state.currentState = 'background';
+  await act(async () => mockLive.listeners.onInterrupt());
+  state.currentState = original;
+  expect(screen.getByText('멈춤')).toBeOnTheScreen();
+  expect(screen.getByText('다른 앱에 있는 동안 전화가 와서 멈췄어요. 이어서를 누르면 이 줄을 처음부터 다시 해요.')).toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByText('이어서'));
+  expect(await screen.findByText('듣는 중')).toBeOnTheScreen();
+  expect(screen.queryByText('멈춤')).toBeNull();
+});
+
+test('화면에 있을 때 소리가 끊기면 보통 일시정지 안내로 멈춘다', async () => {
+  await startPlay();
+  await screen.findByText('듣는 중');
+
+  await act(async () => mockLive.listeners.onInterrupt());
+  expect(screen.getByText('이어서를 누르면 이 줄을 처음부터 다시 해요. 마이크는 그때 켜져요.')).toBeOnTheScreen();
+});
+
+test('[시작]을 누르면 잠금 화면 진행을 띄우고, 줄이 바뀌면 고치고, 끝나면 내린다', async () => {
+  await startPlay({}, undefined, { begin: false });
+  await screen.findByText('시작');
+  expect(mockLive.start).not.toHaveBeenCalled();
+
+  await begin();
+  expect(mockLive.start).toHaveBeenCalledWith(expect.objectContaining({ scene: '봄날의 대화', initial: '민', mine: true, prevRole: null }), '리딩 진행');
+  await waitFor(() =>
+    expect(mockLive.update).toHaveBeenLastCalledWith(expect.objectContaining({ status: '민재 · 내 차례 · 듣는 중', text: '오늘 왔구나.', progress: '0 / 3' })),
+  );
+
+  await speechEnds();
+  await waitFor(() =>
+    expect(mockLive.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: '서연 · 읽는 중', mine: false, prevRole: '민재', prevText: '오늘 왔구나.', text: '응, 늦어서 미안해.' }),
+    ),
+  );
+  expect(mockLive.stop).not.toHaveBeenCalled();
+
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+  await speechEnds();
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(mockLive.stop).toHaveBeenCalledTimes(1);
 });
 
 test('나가기를 확인하면 진행한 대사 수를 알리고 위치를 저장한 뒤 상세로 간다', async () => {

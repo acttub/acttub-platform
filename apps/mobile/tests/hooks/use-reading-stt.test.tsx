@@ -155,7 +155,7 @@ describe('useReadingStt', () => {
     });
     expect(said).toBe('오늘 왔구나.');
     expect(recognizer.stop).toHaveBeenCalledTimes(1);
-    expect(setAudioModeAsync).toHaveBeenCalledWith({ playsInSilentMode: true, allowsRecording: false });
+    expect(setAudioModeAsync).toHaveBeenCalledWith(expect.objectContaining({ playsInSilentMode: true, allowsRecording: false }));
   });
 
   test('멈춘 뒤 앞 구간의 확정이 먼저 와도 끝(end)까지 기다려 마지막 구간까지 담는다(SOMA-646)', async () => {

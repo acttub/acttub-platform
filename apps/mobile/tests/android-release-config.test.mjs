@@ -21,13 +21,18 @@ test('안드로이드 릴리스 빌드는 R8·리소스 축소를 켜고 onnxrun
   assert.match(props.android.extraProguardRules, /-keep class ai\.onnxruntime\.\*\* \{ \*; \}/);
 });
 
-test('expo-audio 의 포그라운드 서비스·권한을 병합 매니페스트에서 뺀다 — Play 포그라운드 서비스 선언(동영상 필수)이 필요 없게', () => {
+test('expo-audio 의 포그라운드 서비스는 빼고, 리딩 서비스(재생·마이크)만 남긴다 — 알림이 둘 뜨지 않게', () => {
   const appJson = JSON.parse(readFileSync(path.join(appRoot, 'app.json'), 'utf8'));
   const plugins = appJson.expo.plugins.map((p) => (Array.isArray(p) ? p[0] : p));
   assert.ok(plugins.includes('./plugins/with-remove-audio-foreground-service.js'));
   const plugin = readFileSync(path.join(appRoot, 'plugins/with-remove-audio-foreground-service.js'), 'utf8');
-  assert.match(plugin, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/);
   assert.match(plugin, /expo\.modules\.audio\.service\.AudioControlsService/);
   assert.match(plugin, /expo\.modules\.audio\.service\.AudioRecordingService/);
   assert.match(plugin, /'tools:node': 'remove'/);
+  // 리딩 서비스가 쓰는 권한은 지우지 않는다.
+  assert.doesNotMatch(plugin, /uses-permission/);
+  const manifest = readFileSync(path.join(appRoot, 'modules/reading-live/android/src/main/AndroidManifest.xml'), 'utf8');
+  assert.match(manifest, /android:foregroundServiceType="mediaPlayback\|microphone"/);
+  assert.match(manifest, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/);
+  assert.match(manifest, /FOREGROUND_SERVICE_MICROPHONE/);
 });
