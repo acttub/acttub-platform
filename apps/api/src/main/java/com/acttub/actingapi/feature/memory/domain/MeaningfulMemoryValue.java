@@ -34,7 +34,7 @@ public final class MeaningfulMemoryValue {
 
     /** 없다는 말을 값으로 적은 것. 칸을 빼야 할 자리다. */
     private static final Pattern ABSENCE = Pattern.compile(
-            "^\\s*(없음|없다|없습니다|미정|해당\\s*없|알\\s*수\\s*없)|특정(되지|하지)\\s*않|드러나지\\s*않았|확인되지\\s*않|언급(이|하지)\\s*(없|않)");
+            "(?:^\\s*(?:없음|없다|없습니다|미정|해당\\s*없|알\\s*수\\s*없))|특정(되지|하지)\\s*않|드러나지\\s*않았|확인되지\\s*않|언급(이|하지)\\s*(없|않)");
 
     private MeaningfulMemoryValue() {
     }
