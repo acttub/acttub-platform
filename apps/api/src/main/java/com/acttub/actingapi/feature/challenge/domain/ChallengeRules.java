@@ -25,6 +25,8 @@ public final class ChallengeRules {
     public static final int REPORT_NOTE_MAX = 200;
     /** 챌린지는 처리되지 않은 신고가 서로 다른 이만큼의 사람에게서 모이면 검토(review)로 올린다. */
     public static final int CHALLENGE_REPORT_THRESHOLD = 3;
+    /** 얼굴 모자이크본을 만들려고 한 참여작을 집는 횟수의 상한. 넘으면 실패로 닫는다(다른 사람에게 보이지 않는다). */
+    public static final int MOSAIC_MAX_ATTEMPTS = 3;
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private ChallengeRules() { }
 
@@ -56,4 +58,13 @@ public final class ChallengeRules {
         return durationMs < ENTRY_VIDEO_MAX_MS + 500;
     }
 
+    /**
+     * 얼굴 모자이크본은 원본 영상 옆이다 — {@code videos/{사용자}/{요청}.mosaic-{참여작}.mp4}. 같은 영상으로 다른 챌린지에
+     * 낸 참여작은 자기 사본을 갖는다(하나를 지워도 다른 것이 남는다).
+     */
+    public static String mosaicKey(String objectKey, java.util.UUID entryId) {
+        int dot = objectKey.lastIndexOf('.');
+        int slash = objectKey.lastIndexOf('/');
+        return (dot > slash ? objectKey.substring(0, dot) : objectKey) + ".mosaic-" + entryId + ".mp4";
+    }
 }

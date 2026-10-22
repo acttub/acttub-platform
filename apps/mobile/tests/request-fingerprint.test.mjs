@@ -27,4 +27,10 @@ test('챌린지 개설 지문', () => {
 test('참여작 지문', () => {
   assert.equal(entryFingerprint({ request_id: 'r', video_id: 'v1', visibility: 'public' }), '["v1","","public"]');
   assert.equal(entryFingerprint({ request_id: 'r', video_id: 'v1', caption: '한 줄', visibility: 'private' }), '["v1","한 줄","private"]');
+  // 얼굴 모자이크를 켠 요청만 끝에 표시가 붙는다(SOMA-809) — 끈 요청은 예전 글자 그대로다.
+  assert.equal(entryFingerprint({ request_id: 'r', video_id: 'v1', visibility: 'public', face_mosaic: false }), '["v1","","public"]');
+  assert.equal(
+    entryFingerprint({ request_id: 'r', video_id: 'v1', visibility: 'public', face_mosaic: true }),
+    '["v1","","public","face_mosaic"]',
+  );
 });

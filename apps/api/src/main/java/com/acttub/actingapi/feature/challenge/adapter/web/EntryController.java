@@ -42,12 +42,21 @@ class EntryController {
     record Create(@NotNull UUID requestId, @NotNull UUID videoId,
                   @Schema(nullable = true, description = "300자(코드 포인트)까지. 앞뒤 공백을 떼고 비면 캡션 없음") String caption,
                   @NotNull @Schema(allowableValues = {"public", "private"}, description = "올리기 화면에서 명시적으로 고른다")
-                  String visibility) { }
+                  String visibility,
+                  @Schema(nullable = true, description = """
+                          얼굴 모자이크. 기본 false. 켜면 서버가 얼굴을 픽셀 모자이크한 사본을 만들고 다른 사람에게는 그 사본만
+                          준다. 사본이 준비되기 전이나 만들지 못하면(얼굴을 못 찾음 포함) 다른 사람에게 보이지 않는다.
+                          본인 재생과 AI 리포트는 원본이다.""")
+                  Boolean faceMosaic) { }
 
     @Schema(name = "ChallengeEntryPatchRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record Patch(@Schema(nullable = true, description = "빈 문자열이면 캡션을 지운다. 바뀌면 content_version 이 오른다") String caption,
-                 @Schema(nullable = true, allowableValues = {"public", "private"}) String visibility) { }
+                 @Schema(nullable = true, allowableValues = {"public", "private"}) String visibility,
+                 @Schema(nullable = true, description = """
+                         얼굴 모자이크. 생략·null 이면 그대로. true 면 켜고(실패한 것은 다시 만든다) false 면 끄고 만든 사본을
+                         지운다 — 끄면 공개 참여작은 원본이 다른 사람에게 보인다.""")
+                 Boolean faceMosaic) { }
 
     @Schema(name = "ChallengeEntryViewRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -64,7 +73,8 @@ class EntryController {
     @ApiResponse(responseCode = "201", description = "Created", content = @Content(schema = @Schema(implementation = MyEntry.class)))
     @ApiResponse(responseCode = "200", description = "Replay", content = @Content(schema = @Schema(implementation = MyEntry.class)))
     ResponseEntity<MyEntry> create(@PathVariable UUID id, @Valid @RequestBody Create body, HttpServletRequest request) {
-        var result = entries.create(members.member(request), id, body.requestId(), body.videoId(), body.caption(), body.visibility());
+        var result = entries.create(members.member(request), id, body.requestId(), body.videoId(), body.caption(), body.visibility(),
+                Boolean.TRUE.equals(body.faceMosaic()));
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK).body(result.entry());
     }
 
@@ -92,10 +102,10 @@ class EntryController {
             description = """
                     작성자만 캡션·공개 범위를 바꾼다(남의 것 404). 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지의
                     정상 참여작만 된다 — 종료 422 challenge_closed, 신고 숨김 422 entry_hidden, 파일 파기 422 video_not_ready.
-                    다시 공개해도 published_at 은 처음 값이다.""",
+                    다시 공개해도 published_at 은 처음 값이다. face_mosaic 로 얼굴 모자이크를 켜고 끈다.""",
             tags = "v2-challenges", security = @SecurityRequirement(name = "HTTPBearer"))
     MyEntry update(@PathVariable UUID id, @Valid @RequestBody Patch body, HttpServletRequest request) {
-        return entries.update(members.member(request), id, body.caption(), body.visibility());
+        return entries.update(members.member(request), id, body.caption(), body.visibility(), body.faceMosaic());
     }
 
     @DeleteMapping("/entries/{id}")

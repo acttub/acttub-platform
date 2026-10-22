@@ -20,6 +20,28 @@ repositories {
 
 extra["testcontainers.version"] = "1.21.3"
 
+/*
+ * openpnp OpenCV 는 모든 플랫폼의 네이티브(약 110MB)를 한 jar 에 싣는다. 운영 서버는 x86_64 리눅스 하나라
+ * (.github/workflows/deploy.yml) 그 네이티브만 남긴 jar 를 만들어 쓴다 — 리눅스 .so 는 glibc·libstdc++ 밖에 기대지
+ * 않아 이미지에 따로 깔 것이 없다. 로컬 맥에서 실제 얼굴 찾기를 돌려 볼 때만 -PopencvAllPlatforms 로 다 남긴다.
+ */
+val opencvBundle: Configuration by configurations.creating { isTransitive = false }
+val opencvLinuxJar = tasks.register<Jar>("opencvLinuxJar") {
+    val allPlatforms = findProperty("opencvAllPlatforms") != null
+    // 남길 플랫폼이 바뀌면 다시 만든다(제외 목록만으로는 최신 판정이 바뀌지 않았다).
+    inputs.property("opencvAllPlatforms", allPlatforms)
+    // 이름이 갈려야 맥 실행용 jar 가 운영 jar 로 남지 않는다.
+    archiveFileName.set(if (allPlatforms) "opencv-4.9.0-0-all.jar" else "opencv-4.9.0-0-linux-x86_64.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("opencv"))
+    from({ zipTree(opencvBundle.singleFile) }) {
+        if (!allPlatforms) {
+            exclude("nu/pattern/opencv/osx/**", "nu/pattern/opencv/windows/**",
+                "nu/pattern/opencv/linux/ARM*/**", "nu/pattern/opencv/linux/x86_32/**")
+        }
+        exclude("META-INF/MANIFEST.MF")
+    }
+}
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -48,6 +70,11 @@ dependencies {
 
     // 오디션 공고 목록 페이지의 표 읽기(app.audition). MIT.
     implementation("org.jsoup:jsoup:1.23.2")
+
+    // 챌린지 공개 참여작의 얼굴 찾기(challenge.entry 얼굴 모자이크). OpenCV FaceDetectorYN(YuNet) 을 쓴다.
+    // OpenCV 는 Apache-2.0, YuNet 모델은 MIT(resources/models/face/LICENSE-yunet.txt). 위 opencvLinuxJar 를 본다.
+    opencvBundle("org.openpnp:opencv:4.9.0-0")
+    implementation(files(opencvLinuxJar))
 
     // 파이썬 observability.py 대응(M5 §D). starter 가 MVC 예외를 자동으로 잡아 보내고
     // BeforeSendCallback 빈을 물어 간다. DSN 이 비면 SDK 스스로 꺼지므로 로컬·테스트는 조용하다.

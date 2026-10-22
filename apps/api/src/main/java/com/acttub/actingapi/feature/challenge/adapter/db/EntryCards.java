@@ -27,7 +27,7 @@ class EntryCards {
                    (SELECT count(*) FROM entry_comments cm WHERE cm.entry_id=e.id AND cm.status='visible'
                       AND cm.deleted_at IS NULL AND %s) AS comment_count,
                    e.view_count,e.final_like_count,e.final_rank,e.published_at,e.visibility,e.status,e.created_at,
-                   v.object_key,v.purged_at,
+                   v.object_key,v.purged_at,e.face_mosaic,e.mosaic_status,e.mosaic_key,
                    EXISTS(SELECT 1 FROM entry_likes l WHERE l.entry_id=e.id AND l.user_id=:viewer) AS liked,
                    EXISTS(SELECT 1 FROM entry_saves s WHERE s.entry_id=e.id AND s.user_id=:viewer) AS saved,
                    c.line,c.work,c.character,c.ends_at,c.moderation,c.ranking_state
@@ -60,7 +60,8 @@ class EntryCards {
             Integer rank = stored ? finalRank(row) : ranks.get(id);
             return new EntryCard(id, row.get("challenge_id", UUID.class), author(row), row.get("caption", String.class),
                     number(row, "like_count"), number(row, "comment_count"), number(row, "view_count"), rank,
-                    finalLikes(row), row.get("published_at", Instant.class), playback(row),
+                    finalLikes(row), row.get("published_at", Instant.class),
+                    playback(row, viewer.equals(row.get("user_id", UUID.class))),
                     row.get("liked", Boolean.class), row.get("saved", Boolean.class),
                     viewer.equals(row.get("user_id", UUID.class)), id.equals(newest));
         }).toList();
@@ -72,13 +73,14 @@ class EntryCards {
                 + " WHERE e.id=:id AND e.user_id=:viewer", Tuple.class).setParameter("id", id).setParameter("viewer", owner)).getFirst();
         return new MyEntry(id, row.get("challenge_id", UUID.class), author(row), row.get("caption", String.class),
                 ((Number) row.get("content_version")).intValue(), number(row, "like_count"), number(row, "comment_count"),
-                number(row, "view_count"), finalRank(row), finalLikes(row), row.get("published_at", Instant.class), playback(row),
+                number(row, "view_count"), finalRank(row), finalLikes(row), row.get("published_at", Instant.class), playback(row, true),
                 row.get("liked", Boolean.class), row.get("saved", Boolean.class), true,
                 row.get("visibility", String.class), row.get("status", String.class), row.get("category", String.class),
                 !"visible".equals(row.get("moderation", String.class)),
                 new Parent(row.get("challenge_id", UUID.class), row.get("line", String.class), row.get("work", String.class),
                         row.get("character", String.class), row.get("ends_at", Instant.class)),
-                row.get("created_at", Instant.class));
+                row.get("created_at", Instant.class), row.get("face_mosaic", Boolean.class),
+                row.get("mosaic_status", String.class));
     }
 
     private static Participant author(Tuple row) {
@@ -95,9 +97,16 @@ class EntryCards {
         return row.get("final_like_count") == null ? null : ((Number) row.get("final_like_count")).longValue();
     }
 
-    private String playback(Tuple row) {
+    /**
+     * 본인은 원본을 본다. 얼굴 모자이크를 켠 참여작은 다른 사람에게 준비된 모자이크본만 주고, 준비 전·실패면 주소가 없다
+     * (그런 참여작은 공개 조건에서도 빠지지만 여기서 한 번 더 막는다 — 원본 주소가 남에게 새지 않는다).
+     */
+    private String playback(Tuple row, boolean mine) {
         String key = row.get("object_key", String.class);
-        return key == null || row.get("purged_at", Instant.class) != null ? null : media.playbackUrl(key);
+        if (key == null || row.get("purged_at", Instant.class) != null) return null;
+        if (mine || !Boolean.TRUE.equals(row.get("face_mosaic", Boolean.class))) return media.playbackUrl(key);
+        String mosaic = row.get("mosaic_key", String.class);
+        return "ready".equals(row.get("mosaic_status", String.class)) && mosaic != null ? media.playbackUrl(mosaic) : null;
     }
 
     static long number(Tuple row, String column) { return ((Number) row.get(column)).longValue(); }

@@ -346,7 +346,17 @@ class PostgresVideoRepository implements VideoRepository {
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("videoId", videoId)
                     .executeUpdate();
-            UUID scheduled = cleanup.scheduleObjectDelete(userId, objectKeys(locked), now, now);
+            // 이 영상으로 낸 챌린지 참여작의 얼굴 모자이크본도 영상에서 나온 것이라 함께 지운다. 참여작 행은 잠그지 않는다
+            // (참여작 수정은 참여작 → 영상 순서로 잡는다). 파일이 파기된 참여작은 재생 주소가 없으므로 남은 키는 쓰이지 않고,
+            // 이 뒤에 붙으려는 모자이크본은 영상 행을 잡아 파기를 보고 스스로 지운다.
+            List<String> keys = new java.util.ArrayList<>(objectKeys(locked));
+            keys.addAll(NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT mosaic_key FROM challenge_entries WHERE video_id=:videoId AND mosaic_key IS NOT NULL
+                    """, Tuple.class)
+                    .setParameter("videoId", videoId)).stream()
+                    .map(row -> row.get("mosaic_key", String.class))
+                    .toList());
+            UUID scheduled = cleanup.scheduleObjectDelete(userId, keys, now, now);
             return new Removed(RemoveOutcome.PURGED, find(userId, videoId), List.of(scheduled));
         });
     }

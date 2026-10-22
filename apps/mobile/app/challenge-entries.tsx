@@ -9,7 +9,7 @@ import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { browseFailure, browseFailureMessage, isEnded } from '@/lib/challenge/browse';
-import { canGoPublic, deleteNotice, entryFailure, entryFailureMessage } from '@/lib/challenge/entry';
+import { canGoPublic, deleteNotice, entryFailure, entryFailureMessage, mosaicNotice } from '@/lib/challenge/entry';
 import { CAPTION_MAX, type MyEntriesResponse, type MyEntryCard } from '@/lib/challenge/types';
 import { entryStatusLabel, type EntryBucket } from '@/lib/challenge/views';
 import { formatKoreanDate } from '@/lib/format';
@@ -88,6 +88,7 @@ export default function ChallengeEntriesScreen() {
   const toggleVisibility = async (entry: MyEntryCard) => {
     const next = entry.visibility === 'public' ? 'private' : 'public';
     // 공개로 바꿀 때는 한 번 묻는다(SOMA-748 Avv5P0). 비공개로 돌리는 것은 바로 한다.
+    let faceMosaic: boolean | undefined;
     if (next === 'public') {
       const ok = await confirm({
         title: t('aiReport.publicTitle'),
@@ -95,10 +96,43 @@ export default function ChallengeEntriesScreen() {
         confirmLabel: t('aiReport.publicConfirm'),
       });
       if (!ok) return;
+      // 모자이크를 아직 켜지 않았으면 공개하면서 켤지 고른다(SOMA-809). 창을 닫거나 취소하면 공개하지 않는다.
+      if (!entry.face_mosaic) {
+        let choice: boolean | null = null;
+        await sheet({
+          title: t('challengeEntries.mosaicAskTitle'),
+          actions: [
+            { label: t('challengeEntries.mosaicAskConfirm'), onPress: () => { choice = true; } },
+            { label: t('challengeEntries.mosaicAskSkip'), onPress: () => { choice = false; } },
+          ],
+        });
+        if (choice === null) return;
+        faceMosaic = choice || undefined;
+      }
     }
     try {
-      await api.updateEntry(entry.id, { visibility: next });
+      await api.updateEntry(entry.id, faceMosaic ? { visibility: next, face_mosaic: true } : { visibility: next });
       logEvent('challenge_entry_visibility', { to: next });
+      void load();
+    } catch (e) {
+      void alert({ title: t('challengeEntries.menuTitle'), message: entryFailureMessage(entryFailure(e)) });
+    }
+  };
+
+  /** 얼굴 모자이크를 켜거나(실패했으면 다시 만들기) 끈다. 끄면 공개 참여작은 원본이 보이므로 한 번 묻는다. */
+  const toggleMosaic = async (entry: MyEntryCard) => {
+    const on = !entry.face_mosaic || entry.mosaic_status === 'failed';
+    if (!on) {
+      const ok = await confirm({
+        title: t('challengeEntries.mosaicOffTitle'),
+        message: t('challengeEntries.mosaicOffBody'),
+        confirmLabel: t('challengeEntries.mosaicOff'),
+      });
+      if (!ok) return;
+    }
+    try {
+      await api.updateEntry(entry.id, { face_mosaic: on });
+      void logEvent('challenge_entry_face_mosaic', { on });
       void load();
     } catch (e) {
       void alert({ title: t('challengeEntries.menuTitle'), message: entryFailureMessage(entryFailure(e)) });
@@ -161,6 +195,16 @@ export default function ChallengeEntriesScreen() {
             void toggleVisibility(entry);
           },
         },
+        {
+          label: t(
+            !entry.face_mosaic
+              ? 'challengeEntries.mosaicOn'
+              : entry.mosaic_status === 'failed'
+                ? 'challengeEntries.mosaicRetry'
+                : 'challengeEntries.mosaicOff',
+          ),
+          onPress: () => void toggleMosaic(entry),
+        },
         { label: t('challengeUpload.deleteConfirm'), destructive: true, onPress: () => void remove(entry) },
       ],
     });
@@ -217,6 +261,11 @@ export default function ChallengeEntriesScreen() {
                 {formatKoreanDate(entry.created_at, { month: 'long', day: 'numeric' })}
               </Text>
               <Text style={styles.rowStatus}>{entryStatusLabel(entry)}</Text>
+              {mosaicNotice(entry) && (
+                <Text style={styles.rowStatus}>
+                  {t(mosaicNotice(entry) === 'pending' ? 'challengeEntries.mosaicPending' : 'challengeEntries.mosaicFailed')}
+                </Text>
+              )}
             </View>
             <Pressable onPress={() => openMenu(entry)} hitSlop={10} accessibilityRole="button" ph-label="challenge_entries_more">
               <Feather name="more-horizontal" size={20} color={palette.textFaint} />

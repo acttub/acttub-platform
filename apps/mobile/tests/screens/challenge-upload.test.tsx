@@ -117,6 +117,20 @@ test('보관함 영상으로 공개 참여하면 완료 화면의 주 버튼 「
   expect(mockRouter.replace).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
 });
 
+test('공개를 고르면 얼굴 모자이크를 켤 수 있고(기본 꺼짐), 켜면 요청에 싣고 만드는 중이라고 알린다', async () => {
+  await render(<ChallengeUploadScreen />);
+  await screen.findByText('“사느냐 죽느냐”');
+  // 나만 보기에서는 보이지 않는다.
+  expect(screen.queryByText('얼굴 모자이크')).toBeNull();
+  await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+  const toggle = screen.getByLabelText('얼굴 모자이크');
+  expect(toggle.props.value).toBe(false);
+  await fireEvent(toggle, 'valueChange', true);
+  await fireEvent.press(submitButton());
+  expect(createEntry).toHaveBeenCalledWith('c1', expect.objectContaining({ visibility: 'public', face_mosaic: true }));
+  expect(await screen.findByText('얼굴 모자이크를 만드는 중이에요. 다 되면 다른 배우들에게 보여요.')).toBeOnTheScreen();
+});
+
 test('비공개를 고르면 비공개로 저장하고 완료 문구가 다르다', async () => {
   const view = await render(<ChallengeUploadScreen />);
   await screen.findByText('“사느냐 죽느냐”');
