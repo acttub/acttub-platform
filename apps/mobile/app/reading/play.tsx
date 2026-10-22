@@ -96,6 +96,7 @@ import { pronunciationNotes } from '@/lib/reading/pronunciation-notes';
 import { pronunciationServerUrl, scorePronunciation } from '@/lib/reading/pronunciation-server';
 import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
+import { ReadingAfterCard } from '@/components/reading-after-card';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
@@ -1433,6 +1434,8 @@ export default function ReadingPlay() {
               <Text style={styles.doneStat}>{t('reading.doneTime', { time: mmss(run.elapsedMs) })}</Text>
               {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
             </View>
+            {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
+            {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} />}
             {!compared ? (
               <View style={styles.noteBox}>
                 <Feather name="info" size={16} color={palette.textMuted} />
@@ -1509,6 +1512,8 @@ export default function ReadingPlay() {
             <Text style={styles.doneStat}>{t('reading.doneTime', { time: mmss(run.elapsedMs) })}</Text>
             {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
           </View>
+          {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
+          {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} />}
           <VoiceFeedbackSummary items={lineFeedback} />
 
           {!completed ? null : !compared ? (

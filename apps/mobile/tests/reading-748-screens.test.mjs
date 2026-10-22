@@ -83,9 +83,11 @@ test('대본 넣기: 사진 탭과 「다른 거 하고 있을게요」(알림)�
   assert.match(screen, /isSplitFailure\(/);
 });
 
-test('리딩 완료: 발음 보고서 PRO 카드는 없고, 완료 뒤 마무리 화면을 거쳐 상세로 간다', () => {
+test('리딩 완료: 녹음 코치·발음 보고서는 별도 카드(서버 스위치를 켠 배포만)로만 붙고, 완료 뒤 마무리 화면을 거쳐 상세로 간다', () => {
   const play = src('app/reading/play.tsx');
+  // 발음 보고서 PRO 줄은 완료 화면에 직접 그리지 않는다 — 서버가 허용할 때만 ReadingAfterCard 가 그린다(10/22).
   assert.doesNotMatch(play, /PRO|proReport/);
+  assert.match(play, /<ReadingAfterCard sessionId=\{session\.id\} ready=\{pendingUploads === 0\} \/>/);
   assert.match(play, /wrapUpProgress\(/);
   assert.match(play, /t\('reading\.wrapBadge'\)/);
 });
