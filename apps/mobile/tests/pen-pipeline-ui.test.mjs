@@ -61,8 +61,8 @@ test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 �
   assert.match(card, /borderRadius: 22,/);
   assert.match(card, /title: \{ fontSize: 17, fontWeight: '800'/);
   assert.match(card, /sub: \{ fontSize: 13\.5,/);
-  // 설정 화면은 이 부품만 쓴다(화면 안에 카드 모양을 따로 두지 않는다).
+  // 설정 화면(pen S15)은 테두리 없는 한 줄 목록이다 — 카드 부품을 쓰지 않고 보관함·Pro 줄도 없다.
   const settings = read('app/settings.tsx');
-  assert.match(settings, /import \{ SettingsCard \} from '@\/components\/ui\/settings-card'/);
-  assert.doesNotMatch(settings, /function SettingsCard/);
+  assert.doesNotMatch(settings, /settings-card/);
+  assert.doesNotMatch(settings, /library|보관함|Pro/);
 });

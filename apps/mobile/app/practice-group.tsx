@@ -1,12 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Image } from 'expo-image';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { PracticeMenu, type PracticeMenuItem } from '@/components/ui/coach-practice-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { RenameDialog } from '@/components/ui/coach-rename-dialog';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
@@ -51,6 +53,8 @@ export default function PracticeGroupScreen() {
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [conversationLoading, setConversationLoading] = useState(false);
   const conversationRequest = useRef(0);
+  // 지금 펼쳐 둔 대화의 id. 같은 줄을 다시 누르면 접는다(카드를 누르면 아래로 펼친다).
+  const [openId, setOpenId] = useState<string | null>(null);
   // 처음 한 번만 "이어서 연습할 수 있어요!"를 비춘다. 버튼이 목록 맨 아래라 먼저 내려 준다.
   // 대화 중인 묶음은 「다음 테이크 찍기」가 없으니 비추지 않는다(다음에 들어왔을 때 비춘다).
   const scrollRef = useRef<ScrollView>(null);
@@ -76,6 +80,14 @@ export default function PracticeGroupScreen() {
 
   const openConversation = async (id: string) => {
     const request = ++conversationRequest.current;
+    if (openId === id) {
+      setOpenId(null);
+      setConversation(null);
+      setConversationError(null);
+      setConversationLoading(false);
+      return;
+    }
+    setOpenId(id);
     setConversation(null);
     setConversationError(null);
     setConversationLoading(true);
@@ -200,6 +212,32 @@ export default function PracticeGroupScreen() {
     router.push({ pathname: '/report-detail', params: { practiceId } });
   };
 
+  /** 펼친 대화 — 액티는 왼쪽 회색 말풍선(마스코트 머리), 나는 오른쪽 파란 말풍선. 대화 줄 바로 아래에 붙는다. */
+  const renderOpen = (id: string) => {
+    if (openId !== id) return null;
+    return (
+      <View key={`open-${id}`} style={styles.chat}>
+        {conversationLoading && <ActivityIndicator color={palette.blue} />}
+        {conversationError && <Text style={styles.error}>{conversationError}</Text>}
+        {conversation &&
+          orderedMessages(conversation).map((message) =>
+            message.role === 'coach' ? (
+              <View key={message.turn_index} style={styles.coachRow}>
+                <Image source={MASCOT.coach} style={MASCOT_SIZE.chat} contentFit="contain" accessibilityLabel={t('coach.roleCoach')} />
+                <View style={styles.coachBubble}>
+                  <Text style={styles.cardText}>{message.text}</Text>
+                </View>
+              </View>
+            ) : (
+              <View key={message.turn_index} style={styles.meBubble} accessibilityLabel={t('coach.roleMe')}>
+                <Text style={styles.meText}>{message.text}</Text>
+              </View>
+            ),
+          )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen
@@ -251,19 +289,7 @@ export default function PracticeGroupScreen() {
               <Text style={styles.openNote}>{t('history.lastConversation')}</Text>
             </Pressable>
           )}
-          {conversationLoading && <ActivityIndicator color={palette.blue} />}
-          {conversationError && <Text style={styles.error}>{conversationError}</Text>}
-          {conversation && (
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>{t('history.conversation')}</Text>
-              {orderedMessages(conversation).map(message => (
-                <View key={message.turn_index}>
-                  <Text style={styles.cardLabel}>{t(message.role === 'coach' ? 'coach.roleCoach' : 'coach.roleMe')}</Text>
-                  <Text style={styles.cardText}>{message.text}</Text>
-                </View>
-              ))}
-            </View>
-          )}
+          {group.last_conversation_id && renderOpen(group.last_conversation_id)}
 
           <Text style={styles.sectionTitle}>{t('history.roundsTitle')}</Text>
           {group.practices.map((round) => (
@@ -287,11 +313,13 @@ export default function PracticeGroupScreen() {
                   <Text style={styles.openNote}>{t('history.conversation')}</Text>
                 </Pressable>
               )}
+              {round.conversation_id && renderOpen(round.conversation_id)}
               {round.previous_conversations.map(previous => (
                 <Pressable key={previous.id} style={styles.round} onPress={() => void openConversation(previous.id)} accessibilityRole="button">
                   <Text style={styles.openNote}>{t('history.previousConversation')} · {formatKoreanDate(previous.created_at, { month: 'long', day: 'numeric' })}</Text>
                 </Pressable>
               ))}
+              {round.previous_conversations.map(previous => renderOpen(previous.id))}
             </View>
           ))}
 
@@ -344,6 +372,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '900', color: palette.text, lineHeight: 32 },
   meta: { fontSize: 12.5, fontWeight: '700', color: palette.textFaint },
   card: { backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6 },
+  chat: { gap: 12, paddingVertical: 8 },
+  coachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 36 },
+  coachBubble: { flexShrink: 1, backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
+  meBubble: { alignSelf: 'flex-end', maxWidth: '78%', backgroundColor: palette.blue, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
+  meText: { fontSize: 14.5, lineHeight: 22, color: palette.onAccent },
   cardLabel: { fontSize: 12, fontWeight: '800', color: palette.textDim },
   cardText: { fontSize: 14.5, lineHeight: 23, color: palette.text },
   sectionTitle: { fontSize: 14, fontWeight: '800', color: palette.textFaint, marginTop: 8 },

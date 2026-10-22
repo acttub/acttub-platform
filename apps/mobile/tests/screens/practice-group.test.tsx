@@ -135,8 +135,8 @@ test('대화를 누르면 순서대로 펼치고, 못 읽으면 다시 누르라
   await fireEvent.press(await screen.findByRole('button', { name: '마지막 대화' }));
   expect(getConversation).toHaveBeenCalledWith('conv-last');
   expect(screen.getAllByText(/^(긴장했어요|어땠어요\?)$/).map((n) => n.props.children)).toEqual(['긴장했어요', '어땠어요?']);
-  expect(screen.getByText('나')).toBeOnTheScreen();
-  expect(screen.getByText('액티')).toBeOnTheScreen();
+  expect(screen.getByLabelText('나')).toBeOnTheScreen();
+  expect(screen.getByLabelText('액티')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '이전 대화 · 3월 6일' }));
   expect(getConversation).toHaveBeenLastCalledWith('conv-old');
@@ -155,8 +155,8 @@ test('먼저 누른 대화가 늦게 오면 버린다', async () => {
   await screen.findByText('2회');
 
   await fireEvent.press(screen.getByRole('button', { name: '마지막 대화' }));
-  await fireEvent.press(screen.getByRole('button', { name: '대화' }));
   await fireEvent.press(screen.getByRole('button', { name: '이전 대화 · 3월 6일' }));
+  await fireEvent.press(screen.getByRole('button', { name: '대화' }));
   expect(await screen.findByText('세 번째')).toBeOnTheScreen();
 
   await act(async () => {
