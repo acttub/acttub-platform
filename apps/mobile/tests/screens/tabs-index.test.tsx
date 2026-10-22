@@ -222,9 +222,8 @@ describe('첫 사용자', () => {
     await fireEvent.press(screen.getByRole('button', { name: '계속하기' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/reading');
 
-    await fireEvent.press(screen.getByRole('radio', { name: '챌린지 영상을 볼래요?' }));
-    await fireEvent.press(screen.getByRole('button', { name: '계속하기' }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith('/challenges');
+    // 챌린지 선택지는 두지 않는다(10/22 피드백 — 코칭·대본 리딩 두 개만).
+    expect(screen.queryByRole('radio', { name: '챌린지 영상을 볼래요?' })).not.toBeOnTheScreen();
   });
 
   test('코칭을 고르면 그 카드가 펼쳐져 「이렇게 진행돼요」 세 단계를 보이고, 계속하기는 코칭 탭으로 간다', async () => {
@@ -240,9 +239,13 @@ describe('첫 사용자', () => {
     await fireEvent.press(screen.getByRole('button', { name: '계속하기' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/coaching');
 
-    // 다른 걸 고르면 접힌다.
+    // 대본 리딩을 고르면 코칭 단계는 접히고 대본 리딩 단계가 펼쳐진다(10/22 피드백).
     await fireEvent.press(screen.getByRole('radio', { name: '대본 리딩을 받아볼래요?' }));
-    expect(screen.queryByText('이렇게 진행돼요')).not.toBeOnTheScreen();
+    expect(screen.queryByText('연기 영상을 올리거나 바로 찍어요')).not.toBeOnTheScreen();
+    expect(screen.getByText('이렇게 진행돼요')).toBeOnTheScreen();
+    expect(screen.getByText('대본 파일을 올리거나 붙여 넣어요')).toBeOnTheScreen();
+    expect(screen.getByText('내 배역을 고르면 상대역을 읽어 줘요')).toBeOnTheScreen();
+    expect(screen.getByText('내 대사를 소리 내 맞춰 읽어요')).toBeOnTheScreen();
   });
 
   test('이름을 알면 「{이름}님, 반가워요!」로 맞는다', async () => {

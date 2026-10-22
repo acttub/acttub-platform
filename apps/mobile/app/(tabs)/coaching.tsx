@@ -9,6 +9,7 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { MASCOT } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
+import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
@@ -40,6 +41,7 @@ function shortDate(iso: string | null | undefined): string {
  * 서버 기능이 아직 없는 길(영상 없이 말로 코칭, 찍을 대사 같이 만들기, 하루 무료 횟수 안내)도 보이지 않는다.
  */
 export default function CoachingTab() {
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const [entry, setEntry] = useState<CoachingEntry | null>(null);
@@ -121,7 +123,7 @@ export default function CoachingTab() {
               <Text style={styles.captionText}>{t('coachingTab.exampleCaption')}</Text>
             </View>
           </ScrollView>
-          <View style={[styles.firstFooter, !firstTime && styles.firstFooterTabBar]}>
+          <View style={[styles.firstFooter, { paddingBottom: 21 + tabBarSpace }]}>
             <PrimaryButton label={t('coachingTab.recordNow')} phLabel="coaching_first_record" onPress={recordNow} />
             <Pressable
               onPress={startNew}
@@ -135,7 +137,7 @@ export default function CoachingTab() {
           </View>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.nextBody}>
+        <ScrollView contentContainerStyle={[styles.nextBody, { paddingBottom: tabBarSpace + 20 }]}>
           {/* 저번 코치 메모 — 노트가 있는 가장 최근 묶음의 다음 테이크 문장. */}
           <View style={styles.memo}>
             <View style={styles.memoHead}>
@@ -353,14 +355,13 @@ const styles = StyleSheet.create({
   meText: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.onAccent },
   caption: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 2 },
   captionText: { flexShrink: 1, fontSize: 13, fontWeight: '600', color: palette.textMuted },
-  firstFooter: { gap: 4, paddingHorizontal: 20, paddingBottom: 21 },
+  firstFooter: { gap: 4, paddingHorizontal: 20 },
   // 탭바가 보이면(첫 사용자가 아니면) 화면 위에 떠 있는 탭바만큼 버튼을 올린다.
-  firstFooterTabBar: { paddingBottom: 100 },
   secondary: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   secondaryText: { fontSize: 15, fontWeight: '600', color: palette.textDim },
 
   // 다음 연습(pen 「코칭 탭 · 다음 연습」)
-  nextBody: { paddingTop: 11, paddingHorizontal: 21, paddingBottom: 120 },
+  nextBody: { paddingTop: 11, paddingHorizontal: 21 },
   memo: {
     gap: 16,
     paddingTop: 18,

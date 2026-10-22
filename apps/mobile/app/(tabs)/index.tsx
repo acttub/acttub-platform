@@ -7,6 +7,7 @@ import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleS
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
+import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
@@ -53,11 +54,10 @@ import {
 const PREVIEW_COUNT = 3;
 
 /** 첫 사용자 홈에서 고른 길 → 「계속하기」가 가는 탭(예전엔 카드를 누르면 바로 갔다). */
-type FirstPick = 'coaching' | 'reading' | 'challenge';
-const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading' | '/challenges'> = {
+type FirstPick = 'coaching' | 'reading';
+const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading'> = {
   coaching: '/coaching',
   reading: '/reading',
-  challenge: '/challenges',
 };
 
 /**
@@ -133,6 +133,7 @@ export default function HomeScreen() {
   const startTarget = useSpotlightTarget(TARGET.homeStart);
   // 첫 사용자 홈에서 고른 카드 — 고르기 전엔 아래 버튼이 「하나를 골라 주세요」로 막혀 있다.
   const [firstPick, setFirstPick] = useState<FirstPick | null>(null);
+  const tabBarSpace = useTabBarSpace();
   const firstName = profile.me?.profile?.name?.trim() ?? '';
 
   const openHomeGuideIfNew = useCallback(() => {
@@ -439,22 +440,14 @@ export default function HomeScreen() {
                 icon="book-open"
                 title={t('home.firstReading')}
                 sub={t('home.firstReadingSub')}
+                steps={translateList('home.firstReadingSteps')}
                 selected={firstPick === 'reading'}
                 phLabel="home_first_reading"
                 onPress={() => setFirstPick('reading')}
               />
-              {/* 챌린지 선택지는 pen 합친 안에 없지만 첫 사용자가 챌린지로 가는 길이 여기뿐이라 남긴다. */}
-              <FirstChoice
-                icon="award"
-                title={t('home.firstChallenge')}
-                sub={t('home.firstChallengeSub')}
-                selected={firstPick === 'challenge'}
-                phLabel="home_first_challenge"
-                onPress={() => setFirstPick('challenge')}
-              />
             </View>
           </ScrollView>
-          <View style={styles.firstFooter}>
+          <View style={[styles.firstFooter, { paddingBottom: 11 + tabBarSpace }]}>
             <PrimaryButton
               label={firstPick ? t('home.firstContinue') : t('home.firstPickNone')}
               disabled={!firstPick}
@@ -466,7 +459,7 @@ export default function HomeScreen() {
           </View>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarSpace + 20 }]}>
           {/* 머리 — 마스코트 + 인사 + 알림 종. 일정 D-day 줄은 일정 기능(서버)이 생기면 붙인다. */}
           <View style={styles.head}>
             <Image source={MASCOT.home} style={MASCOT_SIZE.card} contentFit="contain" accessibilityIgnoresInvertColors />
@@ -780,7 +773,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // 아래 탭 바가 화면 위에 떠 있어 그만큼 바닥을 비운다.
-  container: { paddingHorizontal: 20, paddingTop: 30, paddingBottom: 140 },
+  container: { paddingHorizontal: 20, paddingTop: 30 },
   flex: { flex: 1, minWidth: 0 },
   shrink: { flexShrink: 1 },
   pressed: { opacity: 0.85 },
@@ -791,7 +784,7 @@ const styles = StyleSheet.create({
   firstQuestion: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.text },
   firstSub: { fontSize: 13.5, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
   firstChoices: { gap: 12, marginTop: 16 },
-  firstFooter: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 11 },
+  firstFooter: { paddingHorizontal: 20, paddingTop: 8 },
   choice: {
     gap: 14,
     paddingVertical: 20,

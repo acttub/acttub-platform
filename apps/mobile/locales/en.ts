@@ -623,6 +623,7 @@ const en: DeepStringShape<typeof ko> = {
     firstChallenge: 'Watch challenge videos?',
     firstCoachingSub: 'Show a video and the coach asks questions to find one thing to fix together.',
     firstReadingSub: 'The app reads your partner’s lines so you can run yours on your own.',
+    firstReadingSteps: ['Upload a script file or paste the text', 'Pick your role and the app reads the other parts', 'Read your lines out loud with them'],
     firstChallengeSub: 'Each week actors perform the same line. Watch them and post your own take.',
     todayCoachingEyebrow: 'Coaching homework · from last time',
     todayCoachingSub: '{{title}} · film it as take {{n}}',

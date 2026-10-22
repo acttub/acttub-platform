@@ -18,6 +18,7 @@ import { LargeTitleHeader, NavIconButton } from '@/components/ui/nav-header';
 import { IconOptionRow } from '@/components/ui/option-card';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
+import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
@@ -38,6 +39,7 @@ const MASCOT = require('@/assets/images/mascot-reading.png');
 const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guide.spotReadingNew' }];
 
 export default function ReadingList() {
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const insets = useSafeAreaInsets();
@@ -175,7 +177,7 @@ export default function ReadingList() {
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + 110 }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: tabBarSpace + 20 }]}
       keyboardShouldPersistTaps="handled">
       {/* pen 「헤더 / 큰 제목」 — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
           돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}

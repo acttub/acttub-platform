@@ -614,6 +614,7 @@ const ko = {
     firstChallenge: '챌린지 영상을 볼래요?',
     firstCoachingSub: '영상을 보여 주면 코치가 질문하며 고칠 점 하나를 같이 찾아요.',
     firstReadingSub: '상대역 대사를 읽어 줘서 혼자서도 내 대사를 맞춰 봐요.',
+    firstReadingSteps: ['대본 파일을 올리거나 붙여 넣어요', '내 배역을 고르면 상대역을 읽어 줘요', '내 대사를 소리 내 맞춰 읽어요'],
     firstChallengeSub: '매주 같은 대사를 여러 배우가 연기해 올려요. 보고, 나도 찍어 올릴 수 있어요.',
     todayCoachingEyebrow: '코칭 숙제 · 지난번에 정한 것',
     todayCoachingSub: '{{title}} · {{n}}번째 테이크로 찍어요',

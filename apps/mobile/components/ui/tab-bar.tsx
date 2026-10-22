@@ -5,6 +5,7 @@ import { Platform, StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { palette } from '@/constants/palette';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -52,6 +53,18 @@ export function useTabBarStyle(): ViewStyle {
         paddingBottom: insets.bottom + 12,
         elevation: 16,
       };
+}
+
+/**
+ * 탭 화면 맨 아래에 비워 둘 높이. 탭바는 두 플랫폼 모두 화면 위에 떠 있어서(absolute) 탭 화면의 마지막 내용·하단 버튼이 그 밑에
+ * 깔린다. 보일 때는 탭바가 차지하는 높이 + 12, 첫 사용자로 숨길 때는 홈 표시줄 높이만 비운다. 탭 화면은 숫자를 따로 적지 말고
+ * 이 값을 쓴다(10/22 피드백 — 화면마다 100~140 을 적어 기기에 따라 버튼이 가렸다).
+ */
+export function useTabBarSpace(): number {
+  const insets = useSafeAreaInsets();
+  const firstTime = useFirstTimeUser();
+  if (firstTime) return insets.bottom;
+  return IOS ? Math.max(insets.bottom - 14, 12) + 64 + 12 : 72 + insets.bottom + 12;
 }
 
 /** 탭바를 숨긴 모양 — 첫 사용자(연습한 날 없음)는 모든 탭에서 숨긴다(lib/practice/first-time, bHxn1I). */
