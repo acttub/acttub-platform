@@ -3,10 +3,13 @@ package com.acttub.actingapi.feature.memory.app;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.observability.FailureContext;
@@ -39,6 +42,7 @@ public class ActorMemoryUpdateWorker {
     private final Clock clock;
     private final FailureReporter failureReporter;
     private final LlmTelemetry telemetry;
+    private final CoachingProfileWriter profileWriter;
 
     public ActorMemoryUpdateWorker(
             ActorMemoryUpdates updates,
@@ -47,6 +51,18 @@ public class ActorMemoryUpdateWorker {
             Clock clock,
             FailureReporter failureReporter,
             LlmTelemetry telemetry) {
+        this(updates, extractor, generator, clock, failureReporter, telemetry, new CoachingProfileWriter());
+    }
+
+    public ActorMemoryUpdateWorker(
+            ActorMemoryUpdates updates,
+            MemoryExtractor extractor,
+            TextGenerator generator,
+            Clock clock,
+            FailureReporter failureReporter,
+            LlmTelemetry telemetry,
+            CoachingProfileWriter profileWriter) {
+        this.profileWriter = profileWriter;
         this.updates = updates;
         this.extractor = extractor;
         this.generator = generator;
@@ -130,15 +146,35 @@ public class ActorMemoryUpdateWorker {
             LOG.info("기억 갱신 재료가 없다(회차가 지워졌거나 숨겨졌다): {}", claimed.jobId());
             return Map.of();
         }
-        return extractor.extract(
+        Map<String, String> written = new LinkedHashMap<>(extractor.extract(
                 material,
-                updates.current(material.userId()),
-                (system, user) -> recorded(material, system, user, claimed.jobId()),
-                claimed.jobId());
+                updates.current(material.userId(), claimed.practiceId()),
+                (system, user) -> recorded(material, system, user, claimed.jobId(), "fields"),
+                claimed.jobId()));
+        profile(claimed, material).ifPresent(text -> written.put(ActorMemoryFields.COACHING_PROFILE, text));
+        return written;
+    }
+
+    /**
+     * 맞춤 코칭을 다시 쓴다(SOMA-795). 칸 갱신과 따로 실패한다 — 이게 실패해도 목표·말투 갱신은 저장한다.
+     */
+    private Optional<String> profile(ActorMemoryUpdates.Claimed claimed, MemoryUpdateMaterial material) {
+        if (!ActorMemoryFields.contains(ActorMemoryFields.COACHING_PROFILE)) return Optional.empty();
+        try {
+            ProfileMaterial profile = updates.profileMaterial(material.userId(), clock.instant());
+            if (profile == null) return Optional.empty();
+            return profileWriter.write(profile,
+                    (system, user) -> recorded(material, system, user, claimed.jobId(), "coaching_profile"));
+        } catch (RuntimeException failure) {
+            LOG.warn("맞춤 코칭 갱신 실패: {}", claimed.jobId(), failure);
+            failureReporter.report(
+                    failure, new FailureContext("ActorMemoryUpdateWorker.profile", claimed.jobId()));
+            return Optional.empty();
+        }
     }
 
     /** 기억을 뽑는 호출 한 번을 남긴다 — 람다가 이미 이음매라 추출기는 문자열만 안다. */
-    private String recorded(MemoryUpdateMaterial material, String system, String user, UUID jobId) {
+    private String recorded(MemoryUpdateMaterial material, String system, String user, UUID jobId, String part) {
         Instant startedAt = Instant.now();
         try {
             var generated = generator.generate(system, user);
@@ -156,7 +192,8 @@ public class ActorMemoryUpdateWorker {
                     startedAt,
                     Duration.between(startedAt, Instant.now()),
                     null,
-                    LlmCall.metadata("blockage_kind", material.blockageKind(), "operation_id", jobId.toString())));
+                    LlmCall.metadata("blockage_kind", material.blockageKind(), "operation_id", jobId.toString(),
+                            "memory_part", part)));
             return generated.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(
@@ -170,7 +207,8 @@ public class ActorMemoryUpdateWorker {
                     startedAt,
                     Duration.between(startedAt, Instant.now()),
                     failure.getClass().getSimpleName(),
-                    LlmCall.metadata("blockage_kind", material.blockageKind(), "operation_id", jobId.toString())));
+                    LlmCall.metadata("blockage_kind", material.blockageKind(), "operation_id", jobId.toString(),
+                            "memory_part", part)));
             throw failure;
         }
     }
