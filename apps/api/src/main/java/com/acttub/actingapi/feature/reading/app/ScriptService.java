@@ -149,6 +149,16 @@ public class ScriptService {
         return find(userId, scriptId);
     }
 
+    /** 고른 줄 바로 아래에 새 줄을 넣는다(SOMA-816). 기존 줄의 id 는 그대로라 회차·녹음·외운 줄이 이어진다. */
+    public ScriptView insertLineAfter(UUID userId, UUID scriptId, UUID lineId, String kind, UUID characterId, String text) {
+        LineEditOutcome outcome = activeOnly(() -> scripts.insertLineAfter(userId, scriptId, lineId, kind, characterId, text));
+        if (outcome == null) {
+            throw notFound();
+        }
+        lineOutcome(outcome);
+        return find(userId, scriptId);
+    }
+
     private static void lineOutcome(LineEditOutcome outcome) {
         switch (outcome) {
             case LINE_NOT_FOUND -> throw new ApiException(404, "line_not_found");

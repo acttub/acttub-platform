@@ -117,6 +117,15 @@ public interface ScriptRepository {
     LineEditOutcome splitLine(UUID userId, UUID scriptId, UUID lineId, String first, String second);
 
     /**
+     * 고른 줄 바로 아래에 새 줄을 넣는다(SOMA-816). 뒤 줄들의 순서가 하나씩 밀린다. 기존 줄의 id 는 그대로라 회차·녹음·
+     * 외운 줄의 연결이 남고, 회차의 구간(시작·끝·진행 위치)도 바꾸지 않는다. 대사면 배역이 이 대본의 것이어야 하고
+     * 지문·장면이면 배역이 없어야 한다({@link LineEditOutcome#INVALID_LINE}). 글은 이미 공백이 정리돼 있고 비어 있지 않다.
+     *
+     * @return 없는 대본이면 {@code null}
+     */
+    LineEditOutcome insertLineAfter(UUID userId, UUID scriptId, UUID lineId, String kind, UUID characterId, String text);
+
+    /**
      * 배역·줄·회차·녹음·암기 상태와 함께 행째 지우고, 녹음 객체의 삭제를 <b>같은 트랜잭션에서</b> 정리 장부에
      * 올린다({@link ReadingRecordingCleanup}).
      *

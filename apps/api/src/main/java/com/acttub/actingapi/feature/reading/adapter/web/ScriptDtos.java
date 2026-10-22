@@ -79,6 +79,14 @@ final class ScriptDtos {
             @NotNull @Schema(maxLength = 5000) @JsonProperty("second_text") String secondText) {
     }
 
+    /** 고른 줄 바로 아래에 새 줄을 넣는다(SOMA-816). 대사면 배역이 있고 지문·장면이면 배역이 없다. */
+    @Schema(name = "ReadingScriptLineInsert", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record LineInsertRequest(
+            @NotNull LineKindInput kind,
+            @Schema(nullable = true) @JsonProperty("character_id") UUID characterId,
+            @NotNull @Schema(maxLength = 5000) String text) {
+    }
+
     /** 제목과 배역의 이름·목소리만 고친다. 보낸 항목만 바꾸고 줄은 받지 않는다. */
     @Schema(name = "ReadingScriptPatch", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record PatchRequest(

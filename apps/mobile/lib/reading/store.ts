@@ -19,6 +19,7 @@ import type {
   PatchScriptBody,
   PatchScriptLineBody,
   SplitScriptLineBody,
+  InsertScriptLineBody,
   ProgressBody,
   ProgressResponse,
   ScriptCharacter,
@@ -93,6 +94,7 @@ export type ScriptTransport = {
   patchLine(id: string, lineId: string, body: PatchScriptLineBody): Promise<ScriptDetail>;
   deleteLine(id: string, lineId: string): Promise<ScriptDetail>;
   splitLine(id: string, lineId: string, body: SplitScriptLineBody): Promise<ScriptDetail>;
+  insertLineAfter(id: string, lineId: string, body: InsertScriptLineBody): Promise<ScriptDetail>;
   remove(id: string): Promise<void>;
   /** 회차(reading.session). */
   startSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail>;
@@ -120,6 +122,7 @@ function server(): ScriptTransport {
     patchLine: (id, lineId, body) => api.updateReadingScriptLine(id, lineId, body),
     deleteLine: (id, lineId) => api.deleteReadingScriptLine(id, lineId),
     splitLine: (id, lineId, body) => api.splitReadingScriptLine(id, lineId, body),
+    insertLineAfter: (id, lineId, body) => api.insertReadingScriptLineAfter(id, lineId, body),
     remove: (id) => api.deleteReadingScript(id),
     startSession: (scriptId, body) => api.startReadingSession(scriptId, body),
     getSession: (sessionId) => api.getReadingSession(sessionId),
@@ -299,6 +302,22 @@ export async function deleteScriptLine(id: string, lineId: string): Promise<Scri
 /** 줄 하나를 둘로 나눈다(SOMA-785). 앞 글은 그 줄 id 에 남는다. */
 export async function splitScriptLine(id: string, lineId: string, first: string, second: string): Promise<ScriptDetail> {
   const detail = await server().splitLine(id, lineId, { first_text: first.trim(), second_text: second.trim() });
+  if (current?.id === id) current = await openScript(detail);
+  return detail;
+}
+
+/**
+ * 고른 줄 바로 아래에 새 줄을 넣는다(SOMA-816). 대사면 배역을 같이 보내고 지문·장면이면 배역을 보내지 않는다. 기존 줄 id 는 그대로라
+ * 회차·녹음·외운 줄이 이어진다. 현재 대본은 서버가 돌려준 상세로 다시 올린다.
+ */
+export async function insertScriptLineAfter(
+  id: string,
+  lineId: string,
+  line: { kind: LineKind; characterId?: string | null; text: string },
+): Promise<ScriptDetail> {
+  const body: InsertScriptLineBody = { kind: line.kind, text: line.text.trim() };
+  if (line.kind === 'dialogue' && line.characterId) body.character_id = line.characterId;
+  const detail = await server().insertLineAfter(id, lineId, body);
   if (current?.id === id) current = await openScript(detail);
   return detail;
 }

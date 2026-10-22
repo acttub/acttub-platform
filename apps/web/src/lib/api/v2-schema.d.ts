@@ -772,6 +772,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/scripts/{script_id}/lines/{line_id}/insert-after": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Insert Script Line After
+         * @description 고른 줄 바로 아래에 새 줄 하나를 넣는다(SOMA-816). 뒤 줄들의 순서가 하나씩 밀리고 기존 줄의 id 는 그대로라
+         *     회차·녹음·외운 줄의 연결이 남는다. 구간이 그 줄로 끝나던 회차의 구간은 그대로다(새 줄은 구간 밖). 대사면 이
+         *     대본의 배역이 있어야 하고 지문·장면이면 배역이 없다 — 어기면 422 invalid_line. 글은 앞뒤 공백을 정리하고
+         *     비거나 5,000자를 넘으면 422 배열이다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found.
+         *     고친 대본 전체를 돌려준다.
+         */
+        post: operations["insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/imports": {
         parameters: {
             query?: never;
@@ -3672,6 +3696,14 @@ export interface components {
             first_text: string;
             /** Second Text */
             second_text: string;
+        };
+        /** ReadingScriptLineInsert */
+        ReadingScriptLineInsert: {
+            kind: components["schemas"]["ReadingScriptLineKindInput"];
+            /** Character Id */
+            character_id?: string | null;
+            /** Text */
+            text: string;
         };
         /** ReadingImportRequest */
         ReadingImportRequest: {
@@ -7410,6 +7442,42 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ReadingScriptLineSplit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingScriptLineInsert"];
             };
         };
         responses: {
