@@ -151,6 +151,14 @@ export type CreatePracticeBody = {
   blockage: PracticeBlockage;
 };
 
+/**
+ * 영상 없이 말로 시작(SOMA-745). video_id 를 싣지 않고 목적만 보낸다 — 서버가 분석 없이 바로 대화 단계 회차를 만든다.
+ */
+export type CreateTalkPracticeBody = {
+  request_id: string;
+  session_purpose: 'stuck' | 'character' | 'concern';
+};
+
 /** 이어하기. video_id가 없으면 서버가 이전 회차의 영상을 그대로 쓴다. */
 export type ContinuePracticeBody = {
   request_id: string;

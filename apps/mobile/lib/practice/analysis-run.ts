@@ -79,6 +79,10 @@ export async function watchAnalysis(
     if (status.stage !== 'analyzing' && status.analysis_status) {
       return { kind: 'ready', analysis: status.analysis_status };
     }
+    // 영상 없이 말로 시작한 회차(SOMA-745)는 분석 작업도 결과도 없이 바로 대화 단계다.
+    if (status.stage === 'conversing' && !status.job) {
+      return { kind: 'ready', analysis: 'ready' };
+    }
     if (status.job?.status === 'failed' || status.stage === 'closed') {
       const reason = status.job?.failure_reason ?? status.close_reason ?? null;
       return { kind: 'failed', reason, retriable: reason !== 'cancelled' && reason !== 'account_deactivated' };

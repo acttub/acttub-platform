@@ -408,6 +408,8 @@ function CoachTalk() {
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {/* 오늘 영상 줄 — 누르면 영상을 펼친다. 예전 「영상과 장면 보기」 띠를 대신한다(pen 질문 대화 첫 응답). */}
+          {/* 영상 없이 말로 시작한 회차(SOMA-745)는 펼칠 영상이 없어 줄을 두지 않는다. */}
+          {sceneVideo ? (
           <CoachVideoRow
             open={sceneOpen}
             sub={sceneWritten ? t('coach.sceneWritten') : t('coach.videoHint')}
@@ -417,7 +419,8 @@ function CoachTalk() {
               setSeek(null);
             }}
           />
-          <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} track="coach" startAt={seek} />
+          ) : null}
+          {sceneVideo ? <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} track="coach" startAt={seek} /> : null}
 
           {(wrapping || past.length > 0) && (
             <View style={styles.progressHead}>

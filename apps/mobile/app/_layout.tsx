@@ -390,6 +390,7 @@ function RootNavigator() {
           options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
         />
         <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
+        <Stack.Screen name="talk" options={{ title: t('talk.title') }} />
         <Stack.Screen
           name="record-video"
           // 헤더는 여기 한 곳에서 숨긴다 — 화면이 따로 바꾸면 iOS에서 다시 그릴 때마다 뒤집혀 깜빡였다.
