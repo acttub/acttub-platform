@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
+import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdates;
 import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -99,6 +100,8 @@ class ActorMemoryIT {
     StubGenerator generator;
     @Autowired
     ActorMemoryUpdateWorker worker;
+    @Autowired
+    ActorMemoryUpdates updates;
 
     private UUID member;
     private String bearer;
@@ -179,24 +182,25 @@ class ActorMemoryIT {
     }
 
     @Test
-    @DisplayName("practice.memory: 확인 연습으로 세는 것은 노트가 남은 회차다 — action·observation 은 세고 "
-            + "record_only 는 세지 않는다")
+    @DisplayName("practice.memory: 끝난 대화로 세는 것은 노트가 남은 회차다 — action·observation 은 세고 record_only 는 "
+            + "세지 않는다(배우 답이 두 번 이상이면 노트가 없어도 센다). 셈은 그 회차만 본다 — 앞 회차의 셈과 상관없다(SOMA-795)")
     void practiceMemory_onlyActionAndObservationNotesCountAsConfirmedPractices() throws Exception {
-        // record_only 를 세었다면 이번 종료가 2회째라 예약이 없다.
-        seedNote(analyzedPractice(member), "v2", "record_only");
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).hasSize(1);
+        java.time.Instant now = java.time.Instant.now();
+        // 예전에는 앞 회차들의 누적 순번(1·3·6…)으로 정했다. 이제는 이 회차의 대화가 끝났는지만 본다.
+        UUID recordOnly = analyzedPractice(member);
+        seedNote(recordOnly, "v2", "record_only");
+        assertThat(updates.schedule(member, recordOnly, now)).isFalse();
 
-        // action 을 세지 않았다면 이번 종료가 1회째라 예약이 생긴다.
-        useNewMember();
-        seedNote(analyzedPractice(member), "v2", "action");
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).isEmpty();
+        UUID action = analyzedPractice(member);
+        seedNote(action, "v2", "action");
+        assertThat(updates.schedule(member, action, now)).isTrue();
+        assertThat(updates.schedule(member, action, now)).as("같은 회차는 작업 하나").isFalse();
 
-        useNewMember();
-        seedNote(analyzedPractice(member), "v2", "observation");
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).isEmpty();
+        UUID observation = analyzedPractice(member);
+        seedNote(observation, "v2", "observation");
+        assertThat(updates.schedule(member, observation, now)).isTrue();
+
+        assertThat(memoryJobs()).hasSize(2);
     }
 
     @Test
