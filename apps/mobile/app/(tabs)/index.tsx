@@ -37,6 +37,8 @@ import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { AnnouncementPoster } from '@/components/announcement-poster';
+import { HomeUploadCard } from '@/components/home-upload-card';
+import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
 import { useAppDialog } from '@/components/app-dialog';
@@ -301,6 +303,7 @@ export default function HomeScreen() {
     setFirstTimeState(firstTime);
   }, [firstTime]);
 
+  const waitingUpload = useWaitingUpload();
   const today = useMemo(
     () => pickToday({ groups, scripts: scripts ?? [], challenge: featured, now: new Date() }),
     [groups, scripts, featured],
@@ -474,7 +477,8 @@ export default function HomeScreen() {
           </View>
 
           {/* 오늘 할 것 — 카드 하나. 첫 가이드가 비추는 자리다. */}
-          <View ref={startTarget.ref} onLayout={startTarget.onLayout} collapsable={false} style={styles.todayCard}>
+          {waitingUpload.card && <HomeUploadCard upload={waitingUpload} />}
+          {!waitingUpload.card && <View ref={startTarget.ref} onLayout={startTarget.onLayout} collapsable={false} style={styles.todayCard}>
             <TodayCardBody
               item={today.main}
               nextTake={today.main.kind === 'coaching' ? nextTakes[today.main.notePracticeId] ?? null : null}
@@ -485,7 +489,7 @@ export default function HomeScreen() {
               }
               onPress={() => openItem(today.main)}
             />
-          </View>
+          </View>}
 
           {/* 하던 거 한 줄 — 오늘 할 것으로 고르지 않은 나머지 하나. */}
           {today.also && (
