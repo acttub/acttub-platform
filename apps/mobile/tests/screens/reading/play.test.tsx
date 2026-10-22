@@ -1252,8 +1252,9 @@ test('줄이 끝나기 전에 멈추면 그 줄의 녹음 조각을 지운다', 
   expect(enqueueLineRecording).not.toHaveBeenCalled();
 });
 
-test('모든 대사를 가리면 상대 대사는 막대로 보이고 지나간 내 대사는 원문으로 펼치며, 장면 줄은 그대로 보인다', async () => {
-  jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined));
+test('모든 대사를 가리면 지금 줄만 가리고, 지나간 대사(내 것·상대 것)와 장면 줄은 그대로 보인다', async () => {
+  let finishPartner: () => void = () => undefined;
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>((resolve) => (finishPartner = resolve)));
   await startPlay({ start_line_id: 'l1' });
   await screen.findByText('듣는 중');
   expect(screen.getByText('1장 카페')).toBeOnTheScreen();
@@ -1264,11 +1265,16 @@ test('모든 대사를 가리면 상대 대사는 막대로 보이고 지나간 
   await speechEnds();
   await waitFor(() => expect(tts.play).toHaveBeenCalled());
 
-  // 지나간 내 대사는 원문으로 펼치고(SOMA-785), 상대 대사는 가린 그대로다.
+  // 지나간 내 대사는 원문으로 펼치고(SOMA-785), 지금 읽는 상대 대사는 가린 그대로다.
   expect(screen.getByText('오늘 왔구나.')).toBeOnTheScreen();
   expect(screen.queryByText('응, 늦어서 미안해.')).not.toBeOnTheScreen();
   expect(screen.getByText('1장 카페')).toBeOnTheScreen();
   expect(screen.queryByText('첫 단어')).not.toBeOnTheScreen();
+
+  // 상대 대사가 지나가면 원문으로 보이고(SOMA-802, 10/22 결정), 지금 내 줄만 가린다.
+  await act(async () => finishPartner());
+  expect(await screen.findByText('응, 늦어서 미안해.')).toBeOnTheScreen();
+  expect(screen.queryByText('괜찮아.')).not.toBeOnTheScreen();
 });
 
 test('멈춘 채 나가면 다시 멈추지 않고 그 위치를 저장한다', async () => {

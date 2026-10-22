@@ -68,13 +68,13 @@ test('내 차례: 앞 대사를 흐리게 실을 수 있게 따로 두고, 차�
   assert.equal(live(pause(advance(run())), { chipLabel: '일시정지' }).paused, true);
 });
 
-test('가린 대사는 「대사 가림」 — 말한 뒤·원문 보기는 원문, 지나간 내 대사는 화면처럼 원문', () => {
+test('가린 지금 대사는 「대사 가림」 — 말한 뒤·원문 보기는 원문, 앞 대사는 가리기와 상관없이 원문', () => {
   const mine = advance(run());
   assert.equal(live(mine, { maskMode: 'mine' }).text, '대사 가림');
   assert.equal(live(mine, { maskMode: 'mine', revealed: true }).text, '어떻게 알았어.');
   assert.equal(live(mine, { maskMode: 'mine', showOriginal: true }).text, '어떻게 알았어.');
-  // 모두 가리기: 앞 상대 대사도 가린다.
-  assert.equal(live(mine, { maskMode: 'all' }).prevText, '대사 가림');
+  // 모두 가리기여도 지금 줄보다 앞의 대사는 가리지 않는다(10/22 결정).
+  assert.equal(live(mine, { maskMode: 'all' }).prevText, '여기 있을 줄 알았어.');
   // 내 대사만 가리기: 상대 대사는 그대로.
   assert.equal(live(advance(mine), { maskMode: 'mine' }).text, '그냥.');
   assert.equal(live(advance(mine), { maskMode: 'all' }).prevText, '어떻게 알았어.');

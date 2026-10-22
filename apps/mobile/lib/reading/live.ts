@@ -2,8 +2,8 @@
  * 리딩을 화면 밖에서 보이는 모습(SOMA-802) — iOS Live Activity·Android Live Update 에 넘길 값. 순수 함수.
  *
  * 화면의 지금 줄 카드와 같은 정보만 싣는다: 장면, 진행(화면 위 카운터와 같은 K / N), 앞 줄(흐리게), 지금 줄(굵게), 차례 표시.
- * 다음 차례는 싣지 않는다. 대사 글자는 리딩 화면의 가리기를 따르고, 가렸으면 「대사 가림」이다. 지나간 내 대사는 화면처럼
- * 가리지 않는다(말한 뒤 원문으로 보인다).
+ * 다음 차례는 싣지 않는다. 지금 대사는 리딩 화면의 가리기를 따르고, 가렸으면 「대사 가림」이다. 지금 줄보다 앞의 대사는
+ * 화면처럼 가리지 않는다.
  */
 import { translate as t } from '../i18n.ts';
 import type { MaskMode } from './store.ts';
@@ -100,10 +100,7 @@ export function liveStateOf(input: {
   for (let i = run.index - 1; i >= run.startIndex; i--) {
     const l = run.lines[i];
     if (l?.type !== 'dialogue') continue;
-    const prevMine = mineOf(l.role);
-    // 지나간 내 대사는 화면처럼 원문으로 보인다.
-    const prevHidden = !prevMine && isHidden({ maskMode: input.maskMode, line: l, isMine: false });
-    prev = { role: input.labelOf(l.role), text: prevHidden ? masked : l.text };
+    prev = { role: input.labelOf(l.role), text: l.text };
     break;
   }
 

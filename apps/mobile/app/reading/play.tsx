@@ -1656,10 +1656,9 @@ export default function ReadingPlay() {
               accessibilityRole="button"
               ph-label="reading_play_jump">
               <Text style={styles.pastRole}>{labelOf(l.role)}</Text>
+              {/* 지금 줄보다 앞의 대사는 가리지 않는다(SOMA-802, 10/22 결정). 가린 내 대사는 말한 것과 함께 펼친다. */}
               {mineOf(l) && masking ? (
                 <SpokenText text={l.text} said={saidOf(key)} />
-              ) : hiddenOf(l) ? (
-                <HiddenBars text={l.text} tone="past" />
               ) : (
                 <Text style={styles.pastText}>{l.text}</Text>
               )}
