@@ -34,19 +34,19 @@ test('서버가 켜고 이 빌드가 지원하는 제공자 버튼만 그린다'
   await render(<LoginScreen />);
 
   expect(await screen.findByRole('button', { name: /Google로 계속하기/ })).toBeOnTheScreen();
-  expect(screen.getByText('그 장면에서 뭘 하려 했는지부터')).toBeOnTheScreen();
+  expect(screen.getByText('혼자 하는 연기 연습, 액티랑 같이')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: /Apple로 로그인/ })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: /Apple로 로그인/ })).toHaveStyle({ width: 60, height: 60, borderRadius: 30 });
   expect(screen.getByRole('button', { name: /카카오로 계속하기/ })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: /네이버로 계속하기/ })).not.toBeOnTheScreen();
-  expect(screen.queryByText('최근 로그인')).not.toBeOnTheScreen();
+  
 });
 
-test('지난번에 쓴 제공자에 최근 로그인 표시를 붙인다', async () => {
+test('지난번에 쓴 제공자는 접근성 이름에만 표시한다(화면에는 동그라미만)', async () => {
   (lastProviderStore.read as jest.Mock).mockResolvedValue('kakao');
   await render(<LoginScreen />);
 
   expect(await screen.findByRole('button', { name: '카카오로 계속하기, 지난번에 쓴 방식' })).toBeOnTheScreen();
-  expect(screen.getByText('최근 로그인')).toBeOnTheScreen();
 });
 
 test('버튼을 누르면 그 제공자로 로그인하고 그동안 다른 버튼을 막는다', async () => {
@@ -63,7 +63,7 @@ test('버튼을 누르면 그 제공자로 로그인하고 그동안 다른 버�
 
   await act(async () => finish());
   expect(screen.getByRole('button', { name: /카카오로 계속하기/ })).toBeEnabled();
-  expect(screen.queryByText('로그인에 실패했어요. 다시 시도해주세요.')).not.toBeOnTheScreen();
+  expect(screen.queryByText('로그인하지 못했어요.\n잠시 뒤 다시 시도해 주세요.')).not.toBeOnTheScreen();
 });
 
 test('로그인이 실패하면 한 문장만 보이고 원인은 크래시 리포트에 남긴다', async () => {
@@ -73,7 +73,7 @@ test('로그인이 실패하면 한 문장만 보이고 원인은 크래시 리�
 
   await fireEvent.press(await screen.findByRole('button', { name: /카카오로 계속하기/ }));
 
-  expect(await screen.findByText('로그인에 실패했어요. 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('로그인하지 못했어요.\n잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
   expect(recordHandledError).toHaveBeenCalledWith(err);
   expect(authProviders).toHaveBeenCalledTimes(1);
 });
@@ -85,7 +85,7 @@ test('꺼 둔 제공자였으면 목록을 다시 받아 버튼을 새로 그린
 
   await fireEvent.press(await screen.findByRole('button', { name: /카카오로 계속하기/ }));
 
-  expect(await screen.findByText('로그인에 실패했어요. 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('로그인하지 못했어요.\n잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
   expect(authProviders).toHaveBeenCalledTimes(2);
   expect(screen.queryByRole('button', { name: /카카오로 계속하기/ })).not.toBeOnTheScreen();
   expect(screen.getByRole('button', { name: /Google로 계속하기/ })).toBeOnTheScreen();

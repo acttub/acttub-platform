@@ -35,7 +35,7 @@ function auth(documents: ConsentDocument[] | null = allDocs) {
 }
 
 const row = (name: string | RegExp) => screen.getByRole('checkbox', { name });
-const cta = () => screen.getByText('동의하고 계속하기');
+const cta = () => screen.getByText('동의하고 시작하기');
 const decisionsSent = () => Object.fromEntries(submitSignup.mock.calls[0][0] as Map<string, string>);
 
 beforeEach(() => {
@@ -43,30 +43,31 @@ beforeEach(() => {
   auth();
 });
 
-test('필수를 먼저, 선택을 뒤에 두고 기능 안에서 묻는 문서는 보이지 않는다', async () => {
+test('줄은 넷이다 — 필수 둘, 선택 둘(탈퇴 후 영상·녹음 보관, 혜택·이벤트 소식)이고 기능 안에서 묻는 문서는 보이지 않는다', async () => {
   await render(<ConsentScreen />);
 
-  expect(screen.getAllByText(/^\[(필수|선택)\]/).map((n) => n.props.children)).toEqual([
-    '[필수] 만 14세 이상이에요',
-    '[필수] 이용약관',
-    '[필수] 개인정보 처리방침',
-    '[선택] 탈퇴 후 보관',
-    '[선택] 광고성 정보 (이메일 · 앱 푸시)',
+  expect(screen.getByText('시작하기 전에\n동의가 필요해요')).toBeOnTheScreen();
+  expect(screen.getByText('필수 2개만 동의하면 바로 시작할 수 있어요.')).toBeOnTheScreen();
+  expect(screen.getAllByRole('checkbox').map((n) => n.props.accessibilityLabel ?? null)).toEqual([
+    '필수 만 14세 이상 · 이용약관',
+    '필수 개인정보 처리 · AI 분석',
+    '선택 탈퇴 후 영상·녹음 보관',
+    '선택 혜택·이벤트 소식 받기',
+    null, // 모두 동의하기
   ]);
-  expect(screen.getAllByRole('checkbox')).toHaveLength(8);
   expect(screen.queryByText(/고품질 목소리/)).not.toBeOnTheScreen();
+  expect(screen.getByText('모두 동의하기')).toBeOnTheScreen();
   expect(cta()).toBeDisabled();
 });
 
-test('만 14세 확인과 필수 문서에 모두 동의해야 계속할 수 있고, 고른 것만 보낸다', async () => {
+test('필수 둘에 동의해야 시작할 수 있고, 고른 것만 보낸다(만 14세 확인은 이용약관 줄이 함께 켠다)', async () => {
   submitSignup.mockResolvedValue(true);
   const alert = showMarketingNotice as jest.Mock;
   await render(<ConsentScreen />);
 
   await fireEvent.press(row(/이용약관/));
-  await fireEvent.press(row(/개인정보 처리방침/));
   expect(cta()).toBeDisabled();
-  await fireEvent.press(row(/만 14세 이상이에요/));
+  await fireEvent.press(row(/개인정보 처리/));
   expect(cta()).toBeEnabled();
 
   await fireEvent.press(cta());
@@ -75,69 +76,70 @@ test('만 14세 확인과 필수 문서에 모두 동의해야 계속할 수 있
   expect(alert).not.toHaveBeenCalled();
 });
 
-test('필수 문서를 다시 누르면 결정을 비워 다시 막는다', async () => {
+test('필수 줄을 다시 누르면 결정을 비워 다시 막는다', async () => {
   await render(<ConsentScreen />);
-  await fireEvent.press(row(/만 14세 이상이에요/));
-  await fireEvent.press(row(/이용약관/));
-  await fireEvent.press(row(/개인정보 처리방침/));
+  await agreeRequired();
   await fireEvent.press(row(/이용약관/));
 
   expect(row(/이용약관/)).not.toBeChecked();
   expect(cta()).toBeDisabled();
 });
 
-test('전체 동의는 보이는 것 전부를 켜고 다시 누르면 끈다', async () => {
+test('모두 동의하기는 선택까지 전부 켜고, 다시 누르면 끈다. 켠 뒤에도 줄마다 끌 수 있다', async () => {
   await render(<ConsentScreen />);
 
-  await fireEvent.press(row(/전체 동의/));
-  expect(row(/전체 동의/)).toBeChecked();
-  expect(row(/만 14세 이상이에요/)).toBeChecked();
-  expect(row(/\[선택\] 탈퇴 후 보관/)).toBeChecked();
-  expect(row(/\[선택\] 광고성 정보 \(/)).toBeChecked();
+  await fireEvent.press(row(/모두 동의하기/));
+  expect(row(/모두 동의하기/)).toBeChecked();
+  expect(row(/이용약관/)).toBeChecked();
+  expect(row(/탈퇴 후 영상·녹음 보관/)).toBeChecked();
+  expect(row(/혜택·이벤트 소식/)).toBeChecked();
+  expect(cta()).toBeEnabled();
 
-  await fireEvent.press(row(/\[선택\] 탈퇴 후 보관/));
-  expect(row(/전체 동의/)).not.toBeChecked();
-  await fireEvent.press(row(/\[선택\] 탈퇴 후 보관/));
-  await fireEvent.press(row(/전체 동의/));
+  await fireEvent.press(row(/탈퇴 후 영상·녹음 보관/));
+  expect(row(/모두 동의하기/)).not.toBeChecked();
+  await fireEvent.press(row(/탈퇴 후 영상·녹음 보관/));
+  expect(row(/모두 동의하기/)).toBeChecked();
+  await fireEvent.press(row(/모두 동의하기/));
   expect(row(/이용약관/)).not.toBeChecked();
-  expect(row(/만 14세 이상이에요/)).not.toBeChecked();
+  expect(cta()).toBeDisabled();
 });
 
-test('광고성 정보에 동의하고 가입하면 처리 결과를 다음 화면 위 팝업(S5.13)으로 보낸다', async () => {
+test('선택 줄 둘은 따로 켜고 끈다 — 탈퇴 후 보관만 켜면 광고성 정보는 거절로 간다', async () => {
+  submitSignup.mockResolvedValue(true);
+  await render(<ConsentScreen />);
+  await agreeRequired();
+  await fireEvent.press(row(/탈퇴 후 영상·녹음 보관/));
+
+  expect(row(/혜택·이벤트 소식/)).not.toBeChecked();
+  await fireEvent.press(cta());
+  expect(decisionsSent()).toEqual({ 'd-terms': 'granted', 'd-privacy': 'granted', 'd-ret': 'granted' });
+});
+
+test('혜택·이벤트 소식에 동의하고 가입하면 이메일·푸시를 함께 보내고 처리 결과를 다음 화면 위 안내(S5.13)로 보낸다', async () => {
   submitSignup.mockResolvedValue(true);
   const alert = showMarketingNotice as jest.Mock;
   await render(<ConsentScreen />);
-
-  await fireEvent.press(row(/만 14세 이상이에요/));
-  await fireEvent.press(row(/이용약관/));
-  await fireEvent.press(row(/개인정보 처리방침/));
-  await fireEvent.press(row(/^\S+ 앱 푸시$/));
-  expect(row(/\[선택\] 광고성 정보 \(/)).not.toBeChecked();
+  await agreeRequired();
+  await fireEvent.press(row(/혜택·이벤트 소식/));
   await fireEvent.press(cta());
 
-  expect(decisionsSent()).toEqual({ 'd-terms': 'granted', 'd-privacy': 'granted', 'd-push': 'granted' });
+  expect(decisionsSent()).toEqual({
+    'd-terms': 'granted',
+    'd-privacy': 'granted',
+    'd-email': 'granted',
+    'd-push': 'granted',
+  });
   expect(alert).toHaveBeenCalledWith(
     expect.objectContaining({
-      title: '광고성 정보 수신 설정을 바꿨어요',
+      title: '광고성 정보 수신에 동의했어요',
       sender: 'Acttub',
       date: expect.stringMatching(/^\d{4}\.\d{2}\.\d{2}$/),
       rows: [
-        { channel: '이메일', result: '수신 거부', granted: false },
+        { channel: '이메일', result: '수신 동의', granted: true },
         { channel: '앱 푸시', result: '수신 동의', granted: true },
       ],
     }),
   );
-});
-
-test('광고성 묶음 줄은 이메일·푸시를 함께 켜고 끈다', async () => {
-  await render(<ConsentScreen />);
-
-  await fireEvent.press(row(/\[선택\] 광고성 정보 \(/));
-  expect(row(/^\S+ 이메일$/)).toBeChecked();
-  expect(row(/^\S+ 앱 푸시$/)).toBeChecked();
-
-  await fireEvent.press(row(/\[선택\] 광고성 정보 \(/));
-  expect(row(/^\S+ 이메일$/)).not.toBeChecked();
 });
 
 test('화살표를 누르면 문서 본문을 펼치고 다시 누르면 접는다', async () => {
@@ -157,25 +159,9 @@ test('화살표를 누르면 문서 본문을 펼치고 다시 누르면 접는�
   expect(screen.queryByText('광고성 이메일 본문')).not.toBeOnTheScreen();
 });
 
-test('제목 아래 파란 안내 줄은 처음엔 전체 동의를, 필수를 다 고르면 계속하기를 알려 준다', async () => {
-  await render(<ConsentScreen />);
-
-  expect(screen.getByText('Acttub를 쓰려면 동의가 필요해요')).toBeOnTheScreen();
-  expect(screen.getByText('「전체 동의」 한 번이면 준비 끝이에요!')).toBeOnTheScreen();
-  expect(screen.queryByText('준비 끝! 이제 「동의하고 계속하기」만 누르면 돼요')).not.toBeOnTheScreen();
-
-  await agreeRequired();
-  expect(screen.getByText('준비 끝! 이제 「동의하고 계속하기」만 누르면 돼요')).toBeOnTheScreen();
-  expect(screen.queryByText('「전체 동의」 한 번이면 준비 끝이에요!')).not.toBeOnTheScreen();
-
-  await fireEvent.press(row(/이용약관/));
-  expect(screen.getByText('「전체 동의」 한 번이면 준비 끝이에요!')).toBeOnTheScreen();
-});
-
 async function agreeRequired() {
-  await fireEvent.press(row(/만 14세 이상이에요/));
   await fireEvent.press(row(/이용약관/));
-  await fireEvent.press(row(/개인정보 처리방침/));
+  await fireEvent.press(row(/개인정보 처리/));
 }
 
 test('보는 사이 문서가 바뀌었으면 알리고 문서를 다시 받는다', async () => {
@@ -209,8 +195,8 @@ test('보내는 동안 모든 줄과 나가기를 막는다', async () => {
   await agreeRequired();
 
   await fireEvent.press(cta());
-  expect(screen.queryByText('동의하고 계속하기')).not.toBeOnTheScreen();
-  expect(row(/\[선택\] 탈퇴 후 보관/)).toBeDisabled();
+  expect(screen.queryByText('동의하고 시작하기')).not.toBeOnTheScreen();
+  expect(row(/탈퇴 후 영상·녹음 보관/)).toBeDisabled();
   expect(screen.getByRole('button', { name: '동의하지 않고 나가기' })).toBeDisabled();
 
   await act(async () => finish(false));
@@ -229,9 +215,10 @@ test('진행 중인 가입이 없으면 아무것도 그리지 않는다', async
   expect(screen.toJSON()).toBeNull();
 });
 
-test('광고성 문서가 없으면 묶음 줄을 그리지 않는다', async () => {
+test('선택 문서가 없으면 그 줄을 그리지 않는다', async () => {
   auth([terms, privacy]);
   await render(<ConsentScreen />);
-  expect(screen.getByText('Acttub를 쓰려면 동의가 필요해요')).toBeOnTheScreen();
-  expect(screen.queryByText("[선택] 광고성 정보 (이메일 · 앱 푸시)")).not.toBeOnTheScreen();
+  expect(screen.getByText('시작하기 전에\n동의가 필요해요')).toBeOnTheScreen();
+  expect(screen.queryByText('혜택·이벤트 소식 받기')).not.toBeOnTheScreen();
+  expect(screen.queryByText('탈퇴 후 영상·녹음 보관')).not.toBeOnTheScreen();
 });

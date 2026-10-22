@@ -4,7 +4,6 @@
  * - 서버 계약 값(blockage_kind 등)은 여기 없다 — 값은 한국어 그대로 보내고, 표시만 번역한다.
  */
 const ko = {
-  trackingIntro: {"title":"Acttub를 어떻게 찾아오셨나요?","body":"다음 화면에서 추적을 허용하면 어떤 광고를 보고 Acttub를 찾아오셨는지 알 수 있어요. 연기하는 분들께 닿는 광고를 찾는 데 써요.","optional":"허용하지 않아도 모든 기능은 똑같이 쓸 수 있어요.","continue":"계속"},
   uploadReason: {"title":"영상 올리기가 망설여지나요?","optional":"답하지 않고 넘어가도 괜찮아요.","noVideo":"영상 없어요","no_video":"아직 찍어 둔 영상이 없어요","privacy":"얼굴을 보이기가 부담스러워요","other":"다른 이유가 있어요","next":"이렇게 시작해 볼까요?","privacyHelp":"코칭 영상은 다른 사용자에게 공개되지 않아요. 얼굴이 나오지 않게 목소리 위주로 찍어도 괜찮아요. 표정은 살펴보기 어려울 수 있어요.","talkSub":"영상 없이 지금 고민부터 이야기해요.","script":"찍을 대사부터 같이 만들기","scriptSub":"찍고 싶은 장면을 함께 준비해요.","recordSub":"준비가 되면 짧게 찍어도 괜찮아요.","skip":"지금은 넘어갈게요"},
   common: {
     confirm: '확인',
@@ -27,14 +26,15 @@ const ko = {
     tryLater: '잠시 후 다시 시도해주세요.',
   },
   login: {
-    tagline: '그 장면에서 뭘 하려 했는지부터',
+    tagline: '혼자 하는 연기 연습, 액티랑 같이',
     google: 'Google로 계속하기',
     apple: 'Apple로 로그인',
     kakao: '카카오로 계속하기',
     naver: '네이버로 계속하기',
     lastUsed: '최근 로그인',
     lastUsedA11y: '{{label}}, 지난번에 쓴 방식',
-    failed: '로그인에 실패했어요. 다시 시도해주세요.',
+    failed: '로그인하지 못했어요.\n잠시 뒤 다시 시도해 주세요.',
+    signingIn: '로그인하는 중…',
     providersFail: '로그인 방식을 불러오지 못했어요.',
     providersEmpty: '지금은 로그인할 수 있는 방식이 없어요. 잠시 후 다시 시도해주세요.',
     reload: '다시 불러오기',
@@ -1171,6 +1171,18 @@ const ko = {
     making: '대화를 정리해서 카드를 만들고 있어요…',
   },
   consent: {
+    adSuffix: '(광고)',
+    changedSuffix: '(바뀜)',
+    tagRequired: '필수',
+    tagOptional: '선택',
+    startHeading: '시작하기 전에\n동의가 필요해요',
+    startHint: '필수 2개만 동의하면 바로 시작할 수 있어요.',
+    allAgreeStart: '모두 동의하기',
+    ctaStart: '동의하고 시작하기',
+    rowTerms: '만 14세 이상 · 이용약관',
+    rowPrivacy: '개인정보 처리 · AI 분석',
+    rowRetention: '탈퇴 후 영상·녹음 보관',
+    rowMarketing: '혜택·이벤트 소식 받기',
     itemsLabel: '동의 항목',
     requiredTag: '[필수]',
     optionalTag: '[선택]',
@@ -1184,7 +1196,7 @@ const ko = {
     undecided: '모든 동의 문서의 결정을 선택해주세요.',
     title: '동의 내용을 확인해주세요',
     subtitle: '서비스를 시작하기 전에 각 문서의 결정을 선택해주세요.',
-    reconsentTitle: '동의 문서가 바뀌었어요',
+    reconsentTitle: '바뀐 약관에\n동의가 필요해요',
     reconsentSubtitle: '계속 쓰려면 아래 문서를 결정해주세요.',
     outdated: '동의 문서가 새로 바뀌었어요. 다시 확인해주세요.',
     exit: '동의하지 않고 나가기',
@@ -1206,7 +1218,7 @@ const ko = {
     marketingGranted: '수신 동의',
     marketingDeclined: '수신 거부',
     // SOMA-748 동의 화면 개편
-    reconsentHint: '바뀐 내용을 보고 「동의하고 계속하기」를 누르세요.',
+    reconsentHint: '고품질 목소리와 대본 나누기가 개인정보 수집·이용에 들어갔어요.',
     headerTitle: '약관 동의',
     heading: 'Acttub를 쓰려면 동의가 필요해요',
     // 제목 아래 파란 안내 줄 — 아무것도 안 골랐을 때 / 필수를 다 골랐을 때(pen 01 약관 동의)
@@ -1214,6 +1226,12 @@ const ko = {
     headingReady: '준비 끝! 이제 「동의하고 계속하기」만 누르면 돼요',
   },
   profileName: {
+    yearUnit: '년',
+    monthUnit: '월',
+    dayUnit: '일',
+    yearLabel: '연도',
+    monthLabel: '월',
+    dayLabel: '일',
     title: '프로필을 알려주세요',
     subtitle: '맞춤 피드백을 위해 몇 가지만 여쭤볼게요.',
     placeholder: '실명 또는 활동명',

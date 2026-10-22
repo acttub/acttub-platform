@@ -23,7 +23,6 @@ import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TrackingIntro } from '@/components/tracking-intro';
 import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
@@ -454,18 +453,6 @@ function ScreenTracker() {
 }
 
 export default function RootLayout() {
-  const [trackingIntro, setTrackingIntro] = useState(false);
-  const trackingDone = useRef<(() => void) | null>(null);
-  const finishTrackingIntro = () => {
-    const done = trackingDone.current;
-    trackingDone.current = null;
-    done?.();
-  };
-  const closeTrackingIntro = () => {
-    setTrackingIntro(false);
-    // iOS는 모달이 닫힌 뒤 시스템 권한 창을 연다.
-    if (Platform.OS !== 'ios') finishTrackingIntro();
-  };
   const [fontsLoaded] = useFonts({
     ...Feather.font,
     // 굵기별 static 서브셋 — 가변폰트는 안드로이드에서 fontWeight가 안 먹는다([[global-font]]).
@@ -488,7 +475,8 @@ export default function RootLayout() {
       getStatus: async () => (await getTrackingPermissionsAsync()).status,
       getSeen: () => AsyncStorage.getItem(TRACKING_INTRO_KEY),
       markSeen: () => AsyncStorage.setItem(TRACKING_INTRO_KEY, '1'),
-      show: () => new Promise<void>((resolve) => { trackingDone.current = resolve; setTrackingIntro(true); }),
+      // pen S1.2 — 설명 화면 없이 로그인 화면 위에 바로 iOS 시스템 팝업만 띄운다.
+      show: async () => undefined,
     }));
     // 설치 귀속 결과는 SDK 초기화 뒤 곧 온다. 받는 쪽은 먼저 세워 둔다(SOMA-588).
     startSignupAttributionListener();
@@ -516,7 +504,6 @@ export default function RootLayout() {
           {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
               비출 자리의 좌표가 맞는다 (SOMA-550). */}
           <SpotlightHost />
-          <TrackingIntro visible={trackingIntro} onContinue={closeTrackingIntro} onDismiss={finishTrackingIntro} />
           <StatusBar style="dark" />
         </ThemeProvider>
       </AuthProvider>

@@ -19,6 +19,7 @@ import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
   canSubmitConsentDecisions,
+  MARKETING_TYPES,
   documentsForConsentEntry,
   submitConsentDecisions,
   type ConsentChoice,
@@ -33,6 +34,12 @@ import { showMarketingNotice } from '@/lib/marketing-notice';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
+}
+
+/** 줄 끝 표시(pen S4.8) — 필수는 「(바뀜)」, 광고성 정보는 「(광고)」. */
+function consentSuffix(document: ConsentEntryDocument): string {
+  if (MARKETING_TYPES.includes(document.type)) return ` ${t('consent.adSuffix')}`;
+  return document.required ? ` ${t('consent.changedSuffix')}` : '';
 }
 
 function requiredFirst(documents: ConsentEntryDocument[]): ConsentEntryDocument[] {
@@ -151,11 +158,10 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
           {documents.map((document) => (
             <ConsentRow
               key={document.id}
-              label={`${t(document.required ? 'consent.requiredTag' : 'consent.optionalTag')} ${document.title}`}
+              label={`${t(document.required ? 'consent.requiredTag' : 'consent.optionalTag')} ${document.title}${consentSuffix(document)}`}
               checked={choices[document.id] === 'granted'}
               locked={locked(document.id)}
               onToggle={() => toggleDocument(document)}
-              divided
               arrow={{
                 icon: 'chevron-right',
                 onPress: () => setOpenDocument(document),
@@ -186,14 +192,13 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
 
   return (
     <Modal
-      transparent
       statusBarTranslucent
       visible={visible}
       animationType="fade"
       // 문서 시트만 닫는다. 팝업 자체는 결정해야만 사라진다.
       onRequestClose={() => setOpenDocument(null)}>
-      <View style={styles.backdrop}>
-        <View style={[styles.card, { maxHeight: height * 0.85 }]}>
+      <View style={[styles.backdrop, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 12 }]}>
+        <View style={styles.card}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('consent.reconsentTitle')}</Text>
             <Text style={styles.subtitle}>
@@ -221,25 +226,13 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: palette.scrim,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  card: {
-    backgroundColor: palette.card,
-    borderRadius: 22,
-    paddingTop: 24,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 16,
-  },
-  head: { gap: 6 },
-  title: { fontSize: 19, fontWeight: '800', color: palette.text },
-  // pen S4R.1 — 파란 안내(14/700).
-  subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
-  list: { flexGrow: 0, flexShrink: 1 },
+  // pen S4.8 — 상태 막대 아래 흰 전체 화면. 좌우 여백 24, 제목 26/800(줄높이 1.34) · 설명 15/400 회색, 맨 아래 주 버튼.
+  backdrop: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 24 },
+  card: { flex: 1, gap: 20 },
+  head: { gap: 8 },
+  title: { fontSize: 26, fontWeight: '800', lineHeight: 35, color: palette.text },
+  subtitle: { fontSize: 15, fontWeight: '400', lineHeight: 22, color: palette.textMuted },
+  list: { flex: 1 },
   checking: { paddingVertical: 24, alignItems: 'center' },
   loadFailed: { alignItems: 'center', gap: 10 },
   error: { fontSize: 14, color: palette.danger, textAlign: 'center' },

@@ -475,24 +475,10 @@ describe('추적 허용 전 안내', () => {
     (initMetaSdk as jest.Mock).mockReset();
   });
 
-  test('iOS 미결정이면 안내를 띄우고 모달이 닫힌 뒤에만 기존 ATT 요청을 이어 간다', async () => {
-    const view = await renderLayout();
-    expect(screen.getByText('Acttub를 어떻게 찾아오셨나요?')).toBeOnTheScreen();
-    expect(getTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
-    expect(requestTrackingPermissionsAsync).not.toHaveBeenCalled();
-    expect(await AsyncStorage.getItem(TRACKING_INTRO_KEY)).toBeNull();
-
-    const modal = view.container.queryAll((node) => node.type === 'Modal')[0];
-    expect(modal).toBeDefined();
-    await fireEvent.press(screen.getByRole('button', { name: '계속' }));
+  test('iOS 미결정이면 설명 화면 없이 바로 시스템 추적 팝업만 요청한다(pen S1.2)', async () => {
+    await renderLayout();
     expect(screen.queryByText('Acttub를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
-    expect(requestTrackingPermissionsAsync).not.toHaveBeenCalled();
-    // RN 테스트 렌더러는 네이티브 Modal의 종료 콜백을 자동으로 보내지 않는다.
-    await act(async () => modal.props.onDismiss());
-    expect(await AsyncStorage.getItem(TRACKING_INTRO_KEY)).toBe('1');
-    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
-    // 중복 종료 알림에도 진행 콜백은 한 번만 소비한다.
-    await act(async () => modal.props.onDismiss());
+    expect(getTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
     expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
   });
 

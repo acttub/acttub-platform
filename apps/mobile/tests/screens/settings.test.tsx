@@ -141,7 +141,8 @@ describe('동의 내역', () => {
 
     expect(recordConsent).toHaveBeenCalledWith('d-email', 'granted');
     expect(await screen.findByText('광고성 정보 수신에 동의했어요')).toBeOnTheScreen();
-    for (const text of ['보낸 곳', 'Acttub', '처리일', '이메일', '수신 동의']) expect(screen.getByText(text)).toBeOnTheScreen();
+    // S5.13 토스트 — 「매체 · 보낸 곳 · 처리일」 한 줄과 바꾸는 곳 안내.
+    expect(screen.getByText(/^이메일 · Acttub · \d{4}\.\d{2}\.\d{2}$/)).toBeOnTheScreen();
     expect(sw().props.value).toBe(true);
   });
 
