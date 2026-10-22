@@ -410,23 +410,36 @@ class DirectVideoCoachTest {
     private static final String SWITCHES = new ActorCoaching("propose_one", null, null, List.of("붙잡고 싶었어요"), null, true, null,
             null, List.of(), 90, "이 배우는 코치가 하나를 제안했을 때 움직였다.", null).toJson();
 
-    @Test void aStuckActorWithTheProposeSwitchGetsTheSwappedStepInsteadOfTheChoiceQuestion() {
+    /** 짧은 답("몰라") 한 번이면 쉽게 묻기다. 둘째 코치 호출의 프롬프트. */
+    private String easyPrompt(String profile) {
         var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> "")));
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\"]}");
-        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가지 마\"에서 붙잡아 봐도 좋아요. 떠나려는 사람이라서요.");
-        CoachSessionSnapshot start = session().withPrior(new PriorContext(java.util.Map.of("coaching_profile", SWITCHES),
-                null, true, List.of(), List.of()));
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가지 마\"에서 붙잡으려는 것처럼 보였어요. 맞아요?");
+        CoachSessionSnapshot start = profile == null ? session() : session().withPrior(new PriorContext(
+                java.util.Map.of("coaching_profile", profile), null, true, List.of(), List.of()));
         var first = loopEngine.start(start, UUID.randomUUID());
-        var second = loopEngine.reply(first.session().withPrior(start.prior()), "몰라", UUID.randomUUID());
-        assertThat(second.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("actor-profile");
+        loopEngine.reply(first.session().withPrior(start.prior()), "몰라", UUID.randomUUID());
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model, atLeast(2)).reply(eq(file), anyList(), prompts.capture());
         String turn = prompts.getAllValues().get(1);
-        assertThat(turn).contains("역할: 너는 말이 막힌 배우에게 길 하나를 먼저 보여 주는 코치다.")
+        org.mockito.Mockito.clearInvocations(model);
+        return turn;
+    }
+
+    @Test void aStuckActorGetsTheCommonProposalAndOnlyAChoiceActorGetsTheChoiceQuestionBack() {
+        String common = easyPrompt(null);
+        assertThat(common).contains("역할: 너는 말이 막힌 배우에게 길 하나를 먼저 보여 주는 선배다.")
+                .doesNotContain("모양: 둘 중 고르는 질문 한 문장").contains(ActorCoaching.COMMON_TURN_CHOICE);
+        String propose = easyPrompt(SWITCHES);
+        assertThat(propose).contains("역할: 너는 말이 막힌 배우에게 길 하나를 먼저 보여 주는 선배다.")
                 .doesNotContain("모양: 둘 중 고르는 질문 한 문장")
-                .doesNotContain("좋은 예(다른 영상): \"가지 마\" 할 때 붙잡고 싶었어요, 밀어내고 싶었어요?")
                 .endsWith(DirectVideoPrompts.persona("actor-profile", null, SWITCHES));
+        String choiceProfile = new ActorCoaching("choice", null, null, List.of(), null, null, null, null, List.of(), null,
+                "이 배우는 고를 거리를 받을 때 답했다.", null).toJson();
+        String choice = easyPrompt(choiceProfile);
+        assertThat(choice).contains("모양: 둘 중 고르는 질문 한 문장").contains(ActorCoaching.TURN_CHOICE_ALLOWED)
+                .doesNotContain(ActorCoaching.COMMON_TURN_CHOICE);
     }
 
     @Test void theHowAboutExampleIsDroppedForCoachingProfileActorsButKeptForActorsWithoutOne() {
@@ -434,8 +447,7 @@ class DirectVideoCoachTest {
         assertThat(plainPropose).as("맞춤 코칭이 없는 배우는 지금 그대로").contains("떠봐도 좋을 것 같아요. 어때요?");
         String profilePropose = proposePrompt(new ActorCoaching(null, null, null, List.of(), null, null, null, null, List.of(), null,
                 "이 배우는 이유를 들을 때 움직였다.", null).toJson());
-        assertThat(profilePropose).contains("떠봐도 좋을 것 같아요.\")").doesNotContain("어때요?")
-                .contains(ActorCoaching.COMMON_BANS);
+        assertThat(profilePropose).contains("떠봐도 좋을 것 같아요.\")").doesNotContain("어때요?");
     }
 
     /** 짧은 답 두 번이면 쉽게 묻기 다음 답 제안하기로 간다. 셋째 코치 호출의 프롬프트. */

@@ -17,8 +17,9 @@ import java.util.Set;
  * 이 칸들을 근거가 있을 때만 정하고({@code coaching_profile} 에 JSON 으로 저장), 코치는 이걸로 세 군데를 바꾼다.
  * <ol>
  *   <li>단계 지시 바꿔 끼우기 — "둘 중 고르는 질문" 같은 공통 지시를 그 배우용 지시로 바꾸거나 뺀다({@link #stepTask},
- *   {@link #firstTask}, {@link #withoutNeverSay}). 끝에 덧붙인 메모만으로는 단계 지시가 이겼다(2026-10-22 재생: 맞춤 코칭을
- *   붙여도 양자택일이 그대로 나왔다).</li>
+ *   {@link #firstTask}, {@link #turnTask}, {@link #withoutNeverSay}). 끝에 덧붙인 메모만으로는 단계 지시가 이겼다(2026-10-22 재생: 맞춤
+ *   코칭을 붙여도 양자택일이 그대로 나왔다). 자문위원 7명이 모두 막은 것(양자택일, 시키는 말, 칭찬·감상, "확인하며" 류)은 공통
+ *   지시에서 고쳤고, 여기에는 사람마다 다른 것만 남는다 — 예를 들어 고를 거리에 답한 배우(stuck=choice)에게만 고르기를 되돌린다.</li>
  *   <li>자문위원 파일 모양의 글 — 코치 성격 자리에 붙는다({@link #personaText}).</li>
  *   <li>서버 진행 값 — 정리 전 질문 수 상한({@link #maxQuestions})과 답 길이({@code [길이]}).</li>
  * </ol>
@@ -38,7 +39,7 @@ public record ActorCoaching(
         String summary,
         String legacyText) {
 
-    /** 막혔을 때: 지금처럼 둘 중 고르기 / 코치가 이유와 함께 하나 제안 / 더 쉬운 열린 질문 한 번. */
+    /** 막혔을 때: 둘 중 고르기 / 코치가 이유와 함께 하나 제안(공통 기본) / 더 쉬운 열린 질문 한 번. */
     public static final Set<String> STUCK = Set.of("choice", "propose_one", "easier_open");
     /** 원하는 피드백 쪽: 근본(인물이 상대에게 하는 일) / 표현 방법(구체적 실행법) / 둘 다. */
     public static final Set<String> FOCUS = Set.of("root", "method", "both");
@@ -118,10 +119,6 @@ public record ActorCoaching(
                 || !skip.isEmpty() || replyLength != null;
     }
 
-    private boolean avoidsChoice() {
-        return "propose_one".equals(stuck) || "easier_open".equals(stuck);
-    }
-
     // --- 2) 자문위원 파일 모양의 글 -------------------------------------------------
 
     /** 코치 성격 자리에 붙는 글. 맨 앞 {@code [길이] N} 은 답 길이 상한이 읽고 떼어 낸다. */
@@ -148,8 +145,9 @@ public record ActorCoaching(
         if (Boolean.TRUE.equals(answerDirectly)) {
             out.add("- 배우가 \"왜요?\", \"어떻게 해요?\"처럼 이유나 방법을 물으면 질문으로 돌리지 않고 첫 문장에서 바로 답한다.");
         }
-        if ("propose_one".equals(stuck)) {
-            out.add("- 배우 답이 짧거나 막히면 둘 중 고르게 묻지 않는다. 코치가 하나를 이유와 함께 제안한다.");
+        // 막혔을 때 코치가 하나를 이유와 함께 제안하는 것은 공통 동작이다(SOMA-795 공통 수정). 다른 방식이 통한 배우만 적는다.
+        if ("choice".equals(stuck)) {
+            out.add("- 이 배우에게는 답이 짧거나 막히면 둘 중 고르는 질문을 해도 된다. 이 배우는 고를 거리를 받을 때 답했다.");
         } else if ("easier_open".equals(stuck)) {
             out.add("- 배우 답이 짧거나 막히면 둘 중 고르게 묻지 않는다. 같은 것을 더 쉬운 열린 질문으로 한 번만 묻는다.");
         }
@@ -166,9 +164,6 @@ public record ActorCoaching(
         if (maxQuestions != null) {
             out.add("- 정리 전에 묻는 질문은 " + maxQuestions + "개까지다. 그보다 길게 묻지 않는다.");
         }
-        out.add("- 칭찬, 감상을 하지 않는다.");
-        out.add("- 시키는 말(\"~하세요\", \"~보세요\", \"~마세요\")을 쓰지 않는다. 방향은 \"~해 봐도 좋아요\"로 말한다.");
-        out.add("- 제안은 상대에게 하는 일로 하되, \"확인하며\", \"살피며\", \"흔들리는지\"를 쓰지 않는다.");
         if (replyLength != null) {
             out.add("- 한 번에 하는 말은 공백 포함 " + replyLength + "자 안쪽이다.");
         }
@@ -177,19 +172,24 @@ public record ActorCoaching(
 
     // --- 1) 단계 지시 바꿔 끼우기 ---------------------------------------------------
 
-    /** 쉽게 묻기 바꿔 끼우기: 코치가 하나 제안. */
-    static final String EASY_PROPOSE = """
-            역할: 너는 말이 막힌 배우에게 길 하나를 먼저 보여 주는 코치다.
-            이번 목표: 아래 "이번에 알아낼 것"을 코치가 하나로 정해 이유와 함께 제안하고, 배우가 그걸로 답하게 한다.
-            왜 중요한가: 이 배우는 막혔을 때 고를 거리보다 코치의 제안 하나를 받을 때 다음 말을 꺼냈다.
+    /**
+     * 쉽게 묻기 바꿔 끼우기: 둘 중 고르기(SOMA-795 공통 수정 전의 공통 지시). 공통은 이제 코치가 하나를 이유와 함께 제안한다.
+     * 고를 거리를 받을 때 답한 배우(stuck=choice)에게만 이 지시를 되돌려 끼운다.
+     */
+    static final String EASY_CHOICE = """
+            역할: 너는 말이 막힌 배우가 쉽게 다음 말을 꺼내게 돕는 코치다.
+            이번 목표: 아래 "이번에 알아낼 것"을 배우가 고르기만 하면 답할 수 있게 묻는다.
+            왜 중요한가: 짧은 답은 몰라서가 아니라 말로 꺼내기 어려워서인 경우가 많다. 고를 거리를 주면 생각이 열린다.
             도움이 되는 말:
-            - 받는 말 없이 바로 말한다.
-            - 대사 하나를 짚고, 인물이 상대에게 하는 일 하나를 "~해 봐도 좋아요"로 제안한다.
-            - 이유는 영상에서 본 것과 인물·상대의 관계로 한 문장 댄다.
+            - 받는 말 없이 바로 묻는다.
+            - 대사 하나를 짚고, 서로 반대되는 보기 둘을 준다. "붙잡고 싶었어요, 밀어내고 싶었어요?"
+            - 보기는 인물이 상대에게 하는 일로 쓴다.
             피할 말:
-            - 둘 중 고르게 묻기("~할래요, ~할래요?", "~중에 골라")
-            - 바로 앞 질문을 그대로 다시 묻기, 긴 설명
-            모양: 제안 한 문장과 이유 한 문장. 60자 안쪽. 질문으로 끝내지 않는다.""";
+            - 바로 앞 질문을 그대로 다시 묻기
+            - 긴 설명, 보기 셋 이상
+            모양: 둘 중 고르는 질문 한 문장. 40자 안쪽.
+            좋은 예(다른 영상): "가지 마" 할 때 붙잡고 싶었어요, 밀어내고 싶었어요?
+            나쁜 예: 혹시 그때 무슨 생각을 하셨는지 조금 더 자세히 말해 줄 수 있어요? (열린 질문이라 또 막힘)""";
 
     /** 쉽게 묻기 바꿔 끼우기: 더 쉬운 열린 질문 한 번. */
     static final String EASY_OPEN = """
@@ -204,19 +204,15 @@ public record ActorCoaching(
             - 바로 앞 질문을 그대로 다시 묻기, 긴 설명
             모양: 열린 질문 한 문장. 40자 안쪽.""";
 
-    /**
-     * 자문위원 7명 파일에 공통으로 적힌 말투 금지(SOMA-795). 공통 지시에도 비슷한 줄이 있지만 맞춤 코칭 배우 재생에서 "~해 보세요"가
-     * 늘었다(2026-10-22 재생 v2: 2→6). 자문위원 파일처럼 그 배우의 단계 지시 "피할 말"에 직접 넣는다.
-     */
-    static final String COMMON_BANS = "- 이 배우에게는 시키는 말(\"~하세요\", \"~보세요\", \"~마세요\")을 쓰지 않는다. 방향은 \"~해 봐도 좋아요\"로 말한다."
-            + " 칭찬, 감상을 하지 않는다. \"확인하며\", \"살피며\", \"흔들리는지\"를 쓰지 않는다.";
-    /** 공통 금지 표현이 든 줄. 따옴표 안(배우가 한 말·경고 대상 낱말)은 보지 않는다. */
-    private static final java.util.regex.Pattern BANNED = java.util.regex.Pattern.compile(
-            "확인하며|살피며|흔들리는지|(하|해|봐|보|주|마|지)세요");
-    private static final java.util.regex.Pattern QUOTED = java.util.regex.Pattern.compile("\"[^\"]*\"|“[^”]*”");
-
     private static final String FIND_CHOICE = "- 배우가 막힐 것 같으면 둘 중 고르게 묻는다(멈추기, 상대를 끝까지 보기, 따지기, 달래기 같은 행동 중 둘).";
-    private static final String GAP_CHOICE = " 고르게 하고 싶으면 한 질문 안에 둘을 넣는다.";
+    private static final String GAP_CHOICE = "\"아니면 ~?\"로 한 번 더 묻지 않는다. 고르게 하고 싶으면 한 질문 안에 둘을 넣는다.";
+    private static final String LET_GO_CHOICE = "같은 걸 물어야 하면 보기 둘을 주거나 상대가 할 행동으로 바꿔 묻는다.";
+    /** 공통 지시(SOMA-795 공통 수정 뒤)의 줄들 — 막힘 방식이 다른 배우에게만 바꿔 끼운다. */
+    static final String COMMON_FIND = "- 배우가 막힐 것 같아도 둘 중 고르게 묻지 않는다. 대사 하나로 데려가 쉬운 말로 한 번만 묻는다. 그래도 막히면 다음 응답에서 코치가 하나를 이유와 함께 제안한다.";
+    static final String COMMON_GAP = "\"아니면 ~?\"로 한 번 더 묻지 않는다. 둘 중 고르게 묻지 않는다.";
+    static final String COMMON_LET_GO = "같은 걸 물어야 하면 상대가 할 행동으로 바꿔 묻는다. 둘 중 고르게 묻지 않는다.";
+    static final String COMMON_TURN_CHOICE = "- 둘 중 고르게 하는 질문(\"~할래요, ~할래요?\", \"~예요, ~예요?\")을 쓰지 않는다. 배우 답이 짧거나 막히면 코치가 하나를 이유와 함께 제안한다.";
+    static final String TURN_CHOICE_ALLOWED = "- 이 배우에게는 답이 짧거나 막히면 둘 중 고르는 질문을 해도 된다. 보기는 인물이 상대에게 하는 일로 쓴다.";
     private static final String WRAP_SHAPE_PREFIX = "- 장면 전체를 꿰는 행동 하나와 그게 되는지 확인할 대사 하나로 말한다.";
 
     /**
@@ -226,15 +222,14 @@ public record ActorCoaching(
      */
     public String stepTask(String doing, String task) {
         if (task == null || legacyText != null) return task;
-        String out = afterAvoidHeader(task, COMMON_BANS);
-        if (avoidsChoice()) {
-            if (PracticeLoopRouter.EASY.equals(doing)) {
-                out = "propose_one".equals(stuck) ? EASY_PROPOSE : EASY_OPEN;
-            }
-            out = out.replace(FIND_CHOICE, "propose_one".equals(stuck)
-                    ? "- 배우가 막힐 것 같아도 둘 중 고르게 묻지 않는다. 쉬운 말로 한 번만 묻고, 그래도 막히면 다음 응답에서 코치가 하나를 제안한다."
-                    : "- 배우가 막힐 것 같아도 둘 중 고르게 묻지 않는다. 대사 하나로 데려가는 쉬운 열린 질문으로 묻는다.");
-            out = out.replace(GAP_CHOICE, " 둘 중 고르게 묻지 않는다.");
+        String out = task;
+        if ("choice".equals(stuck)) {
+            if (PracticeLoopRouter.EASY.equals(doing)) out = EASY_CHOICE;
+            out = out.replace(COMMON_FIND, FIND_CHOICE).replace(COMMON_LET_GO, LET_GO_CHOICE).replace(COMMON_GAP, GAP_CHOICE);
+        } else if ("easier_open".equals(stuck)) {
+            if (PracticeLoopRouter.EASY.equals(doing)) out = EASY_OPEN;
+            out = out.replace(COMMON_FIND,
+                    "- 배우가 막힐 것 같아도 둘 중 고르게 묻지 않는다. 대사 하나로 데려가는 쉬운 열린 질문으로 묻는다.");
         }
         if (closing != null && PracticeLoopRouter.WRAP_UP.equals(doing)) {
             out = withClosing(out);
@@ -270,7 +265,7 @@ public record ActorCoaching(
      */
     public String firstTask(String task) {
         if (task == null || legacyText != null) return task;
-        String out = afterAvoidHeader(task, COMMON_BANS);
+        String out = task;
         if (firstQuestion != null) {
             List<String> kept = new ArrayList<>();
             for (String line : out.split("\n", -1)) {
@@ -323,25 +318,10 @@ public record ActorCoaching(
         return String.join("\n", kept);
     }
 
-    /**
-     * 공통 금지 표현(시키는 말, "확인하며/살피며/흔들리는지")이 든 줄을 공통 지시·예문에서 뺀다. 따옴표 안의 말(배우 말 예시, 쓰지 말라는
-     * 낱말)과 "피할 말"·"나쁜 예" 줄은 남긴다. 예전 글 형식의 맞춤 코칭에는 쓰지 않는다.
-     */
-    public String withoutCommonBans(String task) {
-        if (task == null || legacyText != null) return task;
-        List<String> kept = new ArrayList<>();
-        boolean inAvoid = false;
-        boolean inMaterial = false;
-        for (String line : task.split("\n", -1)) {
-            String trimmed = line.strip();
-            inMaterial = material(trimmed, inMaterial);
-            if (trimmed.endsWith(":") && !trimmed.startsWith("-")) inAvoid = trimmed.startsWith("피할 말");
-            else if (trimmed.startsWith("모양") || trimmed.startsWith("좋은 예") || trimmed.startsWith("[")) inAvoid = false;
-            boolean warns = inAvoid || inMaterial || trimmed.startsWith("나쁜 예") || trimmed.equals(COMMON_BANS.strip());
-            if (!warns && BANNED.matcher(QUOTED.matcher(trimmed).replaceAll("\"\"")).find()) continue;
-            kept.add(line);
-        }
-        return String.join("\n", kept);
+    /** 연습 루프 공통 턴 지시를 이 배우용으로 바꾼다 — 고르기가 통한 배우에게만 공통의 "둘 중 고르기 금지" 줄을 되돌린다. */
+    public String turnTask(String common) {
+        if (common == null || legacyText != null || !"choice".equals(stuck)) return common;
+        return common.replace(COMMON_TURN_CHOICE, TURN_CHOICE_ALLOWED);
     }
 
     /**

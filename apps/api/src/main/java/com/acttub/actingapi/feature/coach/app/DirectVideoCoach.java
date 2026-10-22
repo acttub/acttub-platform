@@ -324,7 +324,7 @@ public final class DirectVideoCoach {
                 if (coaching != null && koreanTurn) stepTask = coaching.stepTask(branch.doing(), stepTask);
                 String common = DirectVideoPrompts.practiceLoopTurn(language) + "\n\n" + branch.instruction(language, stepTask)
                         + DirectVideoPrompts.flowBlock(flow, language);
-                if (coaching != null && koreanTurn) common = coaching.withoutCommonBans(coaching.withoutNeverSay(common));
+                if (coaching != null && koreanTurn) common = coaching.turnTask(coaching.withoutNeverSay(common));
                 task = common + personaBlock(persona, profile, language);
                 // 자문위원과 맞춤 코칭 배우 모두 "어때요?" 예문을 뺀다(SOMA-795 재생 v2: 맞춤 코칭 배우에게 "~해 보는 건 어때요?"가 남았다).
                 // 성격이 없는 배우(맞춤 코칭 없음)의 할 일 파일은 그대로다.
@@ -362,7 +362,7 @@ public final class DirectVideoCoach {
                 }
                 String first = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language);
                 if (coaching != null && (language == null || "ko".equals(language.getLanguage()))) {
-                    first = coaching.withoutCommonBans(coaching.withoutNeverSay(coaching.firstTask(first)));
+                    first = coaching.withoutNeverSay(coaching.firstTask(first));
                 }
                 task = first + personaBlock(persona, profile, language);
                 // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
