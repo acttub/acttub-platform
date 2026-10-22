@@ -79,6 +79,9 @@ export default function RecordVideoScreen() {
   const [lineHidden, setLineHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
+  // 이 화면을 곧바로 떠나는 중이다. 안드로이드에서 사라지는 화면의 뷰를 다시 그리면 앱이 꺼지므로
+  // (화면 전환 중 뷰를 옮겨 붙이다 실패 — react-native-screens #4677) 떠난 뒤에는 상태를 바꾸지 않는다.
+  const leavingRef = useRef(false);
   // 셔터를 누른 시각. 끝날 때의 콜백이 녹화 시작 때 잡혀 elapsed state 로는 길이를 알 수 없다.
   const startedAtRef = useRef(0);
   const { alert, dialog } = useAppDialog();
@@ -90,7 +93,9 @@ export default function RecordVideoScreen() {
 
   useEffect(() => {
     if (!recording) return;
-    const id = setInterval(() => setElapsed((s) => s + 1), 1000);
+    const id = setInterval(() => {
+      if (!leavingRef.current) setElapsed((s) => s + 1);
+    }, 1000);
     return () => clearInterval(id);
   }, [recording]);
 
@@ -182,7 +187,7 @@ export default function RecordVideoScreen() {
   );
   // 녹화 중에도 용도 줄 자리를 비워 두지 않는다 — 치우면 아래 정렬이라 정지 버튼이 그만큼 내려간다(SOMA-737).
   const slider = picker ? (
-    <View style={recording ? styles.hiddenKeepSpace : undefined} pointerEvents={recording ? 'none' : 'auto'}>
+    <View style={recording ? styles.hiddenKeepSpace : undefined} pointerEvents={recording ? 'none' : 'auto'} collapsable={false}>
       <RecordModeSlider
         modes={RECORD_MODES}
         value={(mode ?? 'ai') as RecordMode}
@@ -195,6 +200,7 @@ export default function RecordVideoScreen() {
 
   const goNext = useCallback(() => {
     if (isChallenge) {
+      leavingRef.current = true;
       router.replace({
         pathname: '/challenge-upload',
         params: { challengeId: challengeId ?? '', line: line ?? '', work: work ?? '' },
@@ -231,6 +237,7 @@ export default function RecordVideoScreen() {
       });
       return;
     }
+    leavingRef.current = true;
     router.back();
   }, [challengeId, isChallenge, line, mode, picker, router, saveToLibrary, work]);
 
@@ -250,6 +257,7 @@ export default function RecordVideoScreen() {
         goNext();
         return;
       }
+      leavingRef.current = true;
       router.back();
     },
     [goNext, maxSec, router],
@@ -272,7 +280,8 @@ export default function RecordVideoScreen() {
       if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', 'failed'));
       finishWith(null);
     } finally {
-      setRecording(false);
+      // 곧바로 다른 화면으로 넘어갔으면 녹화 표시를 되돌리지 않는다 — 같은 순간에 바꾸면 안드로이드에서 꺼진다.
+      if (!leavingRef.current) setRecording(false);
     }
   }, [recording, finishWith, isChallenge, maxSec]);
 
