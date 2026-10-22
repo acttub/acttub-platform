@@ -18,7 +18,8 @@ import com.acttub.actingapi.platform.schema.MemoryField;
 public final class ActorMemoryFields {
 
     public static final List<String> NAMES =
-            known("goal", "blockage", "wants", "habits", "avoid", "tone", "speech_self", "speech_actual");
+            known("goal", "blockage", "wants", "habits", "avoid", "tone", "speech_self", "speech_actual",
+                    "coaching_profile");
 
     /** 배우가 화면에서 읽고 고치는 칸. */
     public static final List<String> ACTOR_VISIBLE =
@@ -26,6 +27,16 @@ public final class ActorMemoryFields {
 
     /** 기억 갱신(모델)이 쓰는 칸. 다시 말하지 않을 것은 회차가 끝날 때 코드가 덧붙이고, 옛 화법 두 칸은 더 쓰지 않는다. */
     public static final List<String> EXTRACTED = known("goal", "blockage", "wants", "habits", "tone");
+
+    /**
+     * 장면 단위 칸(SOMA-795). 그 장면(같은 {@code practices.root_id})의 회차에서만 코치가 읽는다 — 한 대본의 인물 목표나
+     * "아버지에게서…" 같은 정정이 다른 대본의 코칭에 섞이지 않게 한다. 배우가 장면 없이 직접 쓴 값(scene_root_id NULL)은
+     * 배우의 말이라 어느 장면에서나 읽는다. 나머지 칸은 배우 단위다.
+     */
+    public static final List<String> SCENE_SCOPED = known("goal", "avoid");
+
+    /** 자문위원 프롬프트 모양의 맞춤 코칭 칸. 기억 갱신이 따로 만들고 코치는 성격(persona) 자리로 읽는다. */
+    public static final String COACHING_PROFILE = "coaching_profile";
 
     /**
      * DB 값 목록({@link MemoryField}, {@code ck_actor_memories_field})에 있는 칸만 남긴다. 새 칸의 마이그레이션이 아직 없는
@@ -42,6 +53,10 @@ public final class ActorMemoryFields {
 
     public static boolean contains(String field) {
         return NAMES.contains(field);
+    }
+
+    public static boolean sceneScoped(String field) {
+        return SCENE_SCOPED.contains(field);
     }
 
     public static boolean actorVisible(String field) {
