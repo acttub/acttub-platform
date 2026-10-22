@@ -86,7 +86,7 @@ public final class CoachingProfileWriter {
      * 하려 했는지는 그 장면의 것이라 배우 단위 글에 남기지 않는다.
      */
     private static final Pattern SCENE_INTERPRETATION = Pattern.compile(
-            "(반응|대답|사과|인정|위로|관심|교훈)[을를이가]?\\s*(끌어내|끌어 내|얻어내|얻어\\s*내|받아\\s*내|얻으려|얻고\\s*싶)|"
+            "(반응|대답|사과|인정|위로|관심|교훈)[을를이가]?\\s*(끌어\\s*내|얻어\\s*내|받아\\s*내|얻으려|얻고\\s*싶)|"
                     + "(의도|목적|마음|감정)[은는이가]\\s*[^.]{0,30}(아니라|아니다|아니었)|"
                     + "(놀리|매달리|따지|달래|위로하|사과하)(려는|려고|려던)\\s*(것|거|의도|마음)|"
                     + "(라고|다고)\\s*정정했(으므로|으니|기\\s*때문)");
@@ -378,7 +378,8 @@ public final class CoachingProfileWriter {
     }
 
     private static String stripQuotes(String text) {
-        return PythonText.strip(text).replaceAll("^[\"“‘'「]+|[\"”’'」]+$", "").strip();
+        String stripped = PythonText.strip(text);
+        return stripped == null ? "" : stripped.replaceAll("(?:^[\"“‘'「]+)|(?:[\"”’'」]+$)", "").strip();
     }
 
     private static String text(JsonNode node, String key) {
