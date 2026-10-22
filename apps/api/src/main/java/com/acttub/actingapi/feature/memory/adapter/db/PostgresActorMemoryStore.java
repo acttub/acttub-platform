@@ -17,8 +17,11 @@ import com.acttub.actingapi.feature.coach.app.PracticeLoopRound;
 import com.acttub.actingapi.feature.memory.app.ActorMemory;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdates;
+import com.acttub.actingapi.feature.memory.app.CoachingProfileWriter;
+import com.acttub.actingapi.feature.memory.app.MemoryScope;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
+import com.acttub.actingapi.feature.memory.app.ProfileMaterial;
 import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.domain.MemoryValue;
@@ -54,7 +57,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     private static final String FIELD_ORDER = """
             CASE m.field WHEN 'goal' THEN 1 WHEN 'blockage' THEN 2 WHEN 'wants' THEN 3
                          WHEN 'habits' THEN 4 WHEN 'avoid' THEN 5 WHEN 'tone' THEN 6
-                         WHEN 'speech_self' THEN 7 ELSE 8 END
+                         WHEN 'speech_self' THEN 7 WHEN 'speech_actual' THEN 8 ELSE 9 END
             """;
 
     /**
@@ -87,27 +90,77 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
      */
     @Override
     public List<ActorMemory> list(UUID userId) {
+        // 장면 단위 칸은 장면마다 행이 있다(SOMA-795). 화면은 칸마다 하나를 보여 준다 — 배우가 쓴 행이 먼저이고, 없으면 가장
+        // 최근 행이다. 스토어에 나간 앱이 칸마다 한 줄을 기대하므로 응답 모양은 그대로다.
         return NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT m.field,m.value,m.written_by,m.updated_at,m.source_practice_id
                 FROM (
-                    SELECT n.field,n.value,n.written_by,n.updated_at,
-                           CASE WHEN root.hidden_at IS NULL THEN n.source_practice_id END AS source_practice_id
+                    SELECT DISTINCT ON (u.field) u.*
+                    FROM (
+                        SELECT n.field,n.value,n.written_by,n.updated_at,
+                               CASE WHEN root.hidden_at IS NULL THEN n.source_practice_id END AS source_practice_id
+                        FROM actor_memories n
+                        LEFT JOIN practices p ON p.id=n.source_practice_id
+                        LEFT JOIN practices root ON root.id=p.root_id
+                        WHERE n.user_id=:userId
+                        UNION ALL
+                        SELECT o.field,o.value,o.written_by,o.updated_at,CAST(NULL AS uuid) AS source_practice_id
+                        FROM actor_memory_entries o
+                        WHERE o.user_id=:userId
+                          AND o.field IN %s
+                          AND NOT EXISTS (SELECT 1 FROM actor_memories n
+                                          WHERE n.user_id=o.user_id AND n.field=o.field)
+                    ) u
+                    ORDER BY u.field,(u.written_by='actor') DESC,u.updated_at DESC
+                ) m
+                ORDER BY %s
+                """.formatted(LEGACY_FIELDS, FIELD_ORDER), Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(PostgresActorMemoryStore::memory)
+                .toList();
+    }
+
+    /**
+     * 이 회차의 코치가 읽는 칸 (SOMA-795). 고르는 규칙은 {@link MemoryScope} 에 있다 — 여기는 행과 이 회차의 장면만 읽는다.
+     * 옛 표의 칸은 장면 없는 행이다.
+     */
+    @Override
+    public Map<String, String> forPractice(UUID userId, UUID practiceId) {
+        UUID sceneRoot = practiceId == null ? null : sceneRoot(userId, practiceId);
+        return MemoryScope.forScene(scopedRows(userId), sceneRoot);
+    }
+
+    private UUID sceneRoot(UUID userId, UUID practiceId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
+                "SELECT root_id FROM practices WHERE id=:practiceId AND user_id=:userId", Tuple.class)
+                .setParameter("practiceId", practiceId)
+                .setParameter("userId", userId));
+        return rows.isEmpty() ? null : rows.getFirst().get("root_id", UUID.class);
+    }
+
+    private List<MemoryScope.Row> scopedRows(UUID userId) {
+        return NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT m.field,m.value,m.written_by,m.scene_root_id
+                FROM (
+                    SELECT n.field,n.value,n.written_by,n.scene_root_id,n.updated_at
                     FROM actor_memories n
-                    LEFT JOIN practices p ON p.id=n.source_practice_id
-                    LEFT JOIN practices root ON root.id=p.root_id
                     WHERE n.user_id=:userId
                     UNION ALL
-                    SELECT o.field,o.value,o.written_by,o.updated_at,CAST(NULL AS uuid) AS source_practice_id
+                    SELECT o.field,o.value,o.written_by,CAST(NULL AS uuid),o.updated_at
                     FROM actor_memory_entries o
                     WHERE o.user_id=:userId
                       AND o.field IN %s
                       AND NOT EXISTS (SELECT 1 FROM actor_memories n
                                       WHERE n.user_id=o.user_id AND n.field=o.field)
                 ) m
-                ORDER BY %s
-                """.formatted(LEGACY_FIELDS, FIELD_ORDER), Tuple.class)
+                ORDER BY m.updated_at DESC
+                """.formatted(LEGACY_FIELDS), Tuple.class)
                 .setParameter("userId", userId)).stream()
-                .map(PostgresActorMemoryStore::memory)
+                .map(row -> new MemoryScope.Row(
+                        row.get("field", String.class),
+                        row.get("value", String.class),
+                        "actor".equals(row.get("written_by", String.class)),
+                        row.get("scene_root_id", UUID.class)))
                 .toList();
     }
 
@@ -118,17 +171,36 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     @Override
     public ActorMemory writeAsActor(UUID userId, String field, String value) {
         Instant now = Instant.now();
+        // 화면이 보여 준 행({@link #list} 와 같은 순서로 고른 것)을 고친다 — 장면 칸이면 그 장면에 남는다(SOMA-795).
+        // 그 칸에 행이 없으면 장면 없는 배우 단위 행으로 만든다. 배우가 장면 없이 쓴 값은 어느 장면에서나 읽힌다.
         return transaction.execute(tx -> {
             List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                    INSERT INTO actor_memories(id,user_id,field,value,written_by,source_practice_id,
-                                               created_at,updated_at)
-                    SELECT :id,u.id,:field,:value,'actor',NULL,:now,:now
-                    FROM users u
-                    WHERE u.id=:userId AND u.status='active'
-                    ON CONFLICT ON CONSTRAINT uq_actor_memories_user_field DO UPDATE
-                    SET value=EXCLUDED.value,written_by='actor',source_practice_id=NULL,
-                        updated_at=EXCLUDED.updated_at
-                    RETURNING field,value,written_by,source_practice_id,updated_at
+                    WITH target AS (
+                        SELECT m.id FROM actor_memories m
+                        WHERE m.user_id=:userId AND m.field=:field
+                        ORDER BY (m.written_by='actor') DESC,m.updated_at DESC
+                        LIMIT 1
+                    ), updated AS (
+                        UPDATE actor_memories m
+                        SET value=:value,written_by='actor',source_practice_id=NULL,updated_at=:now
+                        FROM target,users u
+                        WHERE m.id=target.id AND u.id=m.user_id AND u.status='active'
+                        RETURNING m.field,m.value,m.written_by,m.source_practice_id,m.updated_at
+                    ), inserted AS (
+                        INSERT INTO actor_memories(id,user_id,field,value,written_by,source_practice_id,
+                                                   scene_root_id,created_at,updated_at)
+                        SELECT :id,u.id,:field,:value,'actor',NULL,NULL,:now,:now
+                        FROM users u
+                        WHERE u.id=:userId AND u.status='active'
+                          AND NOT EXISTS (SELECT 1 FROM target)
+                        ON CONFLICT ON CONSTRAINT uq_actor_memories_user_field_scene DO UPDATE
+                        SET value=EXCLUDED.value,written_by='actor',source_practice_id=NULL,
+                            updated_at=EXCLUDED.updated_at
+                        RETURNING field,value,written_by,source_practice_id,updated_at
+                    )
+                    SELECT field,value,written_by,source_practice_id,updated_at FROM updated
+                    UNION ALL
+                    SELECT field,value,written_by,source_practice_id,updated_at FROM inserted
                     """, Tuple.class)
                     .setParameter("id", UUID.randomUUID())
                     .setParameter("field", field)
@@ -216,31 +288,23 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     @Override
     public boolean schedule(UUID userId, UUID practiceId, Instant now) {
         return Boolean.TRUE.equals(transaction.execute(tx -> {
-            // 세는 회차: 노트가 남은 회차(record_only 제외)와, 열린 채 남았어도 배우가 두 번 이상 답한 회차(SOMA-603).
-            // 이 회차가 그 가운데 몇 번째인지로 정한다 — 같은 회차는 언제 다시 불려도 같은 번호다.
-            List<Tuple> counted = NativeTuples.list(entityManager.createNativeQuery("""
-                    WITH counted AS (
-                        SELECT p.id,p.created_at
-                        FROM practices p
-                        WHERE p.user_id=:userId
-                          AND (EXISTS (SELECT 1 FROM coach_notes n
-                                       JOIN coach_conversations c ON c.id=n.conversation_id
-                                       WHERE c.practice_id=p.id AND n.kind<>'record_only')
-                               OR EXISTS (SELECT 1 FROM coach_conversations c
-                                          WHERE c.practice_id=p.id
-                                            AND (SELECT count(*) FROM coach_messages m
-                                                 WHERE m.conversation_id=c.id AND m.role='actor')>=2))
-                    )
-                    SELECT (SELECT count(*) FROM counted o
-                            WHERE (o.created_at,o.id)<=(t.created_at,t.id)) AS ordinal
-                    FROM counted t
-                    WHERE t.id=:practiceId
+            // 끝난 대화마다 예약한다(SOMA-795) — 노트가 남은 회차(record_only 제외)와, 열린 채 남았어도 배우가 두 번 이상 답한
+            // 회차다. 예전의 1·3·6·9번째 규칙은 자주 연습하는 배우의 기억을 낡게 했다.
+            boolean finished = !NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT p.id
+                    FROM practices p
+                    WHERE p.id=:practiceId AND p.user_id=:userId
+                      AND (EXISTS (SELECT 1 FROM coach_notes n
+                                   JOIN coach_conversations c ON c.id=n.conversation_id
+                                   WHERE c.practice_id=p.id AND n.kind<>'record_only')
+                           OR EXISTS (SELECT 1 FROM coach_conversations c
+                                      WHERE c.practice_id=p.id
+                                        AND (SELECT count(*) FROM coach_messages m
+                                             WHERE m.conversation_id=c.id AND m.role='actor')>=2))
                     """, Tuple.class)
                     .setParameter("userId", userId)
-                    .setParameter("practiceId", practiceId));
-            long confirmed = counted.isEmpty() ? 0 : ((Number) counted.getFirst().get("ordinal")).longValue();
-            // 첫 회차와 그 뒤 3의 배수(1·3·6·9…).
-            if (confirmed == 0 || (confirmed != 1 && confirmed % 3 != 0)) {
+                    .setParameter("practiceId", practiceId)).isEmpty();
+            if (!finished) {
                 return false;
             }
             UUID requestId = uuid5(MEMORY_UPDATE_NAMESPACE, practiceId.toString());
@@ -360,11 +424,14 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                     SELECT m.value,m.written_by
                     FROM users u
                     LEFT JOIN actor_memories m ON m.user_id=u.id AND m.field='avoid'
+                         AND m.scene_root_id IS NOT DISTINCT FROM
+                             (SELECT p.root_id FROM practices p WHERE p.id=:practiceId)
                     WHERE u.id=:userId AND u.status='active'
                     FOR UPDATE OF u
                     """, Tuple.class)
-                    .setParameter("userId", userId));
-            // 닫힌 계정이거나 배우가 직접 고친 칸이면 손대지 않는다.
+                    .setParameter("userId", userId)
+                    .setParameter("practiceId", practiceId));
+            // 닫힌 계정이거나 배우가 직접 고친 칸이면 손대지 않는다. 다시 말하지 않을 것은 장면 단위다(SOMA-795) — 이 장면의 행만 본다.
             if (current.isEmpty() || "actor".equals(current.getFirst().get("written_by", String.class))) {
                 return false;
             }
@@ -417,10 +484,100 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     }
 
     @Override
-    public Map<String, String> current(UUID userId) {
-        Map<String, String> values = new LinkedHashMap<>();
-        list(userId).forEach(row -> values.put(row.field(), row.value()));
+    public Map<String, String> current(UUID userId, UUID practiceId) {
+        Map<String, String> values = new LinkedHashMap<>(forPractice(userId, practiceId));
+        // 맞춤 코칭은 칸 갱신의 입력이 아니다 — 따로 다시 쓴다({@link #profileMaterial}).
+        values.remove(ActorMemoryFields.COACHING_PROFILE);
         return values;
+    }
+
+    /** 맞춤 코칭이 읽는 기간. 그보다 오래된 대화는 지금의 배우를 말해 주지 않는다. */
+    static final Duration PROFILE_WINDOW = Duration.ofDays(60);
+
+    @Override
+    public ProfileMaterial profileMaterial(UUID userId, Instant now) {
+        boolean active = !NativeTuples.list(entityManager.createNativeQuery(
+                "SELECT id FROM users WHERE id=:userId AND status='active'", Tuple.class)
+                .setParameter("userId", userId)).isEmpty();
+        if (!active) {
+            return null;
+        }
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT c.id,c.close_reason,CAST(c.state AS text) AS state,
+                       to_char(c.created_at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD') AS day,
+                       (SELECT count(*) FROM coach_messages m WHERE m.conversation_id=c.id AND m.role='actor') AS replies,
+                       r.rating,r.comment,n.title AS note_title,n.next_take,
+                       CAST(p.goal AS text) AS goal,CAST(p.situation AS text) AS situation,
+                       CAST(p.character_context AS text) AS character_context
+                FROM coach_conversations c
+                JOIN practices p ON p.id=c.practice_id
+                LEFT JOIN LATERAL (
+                    SELECT nr.rating,nr.comment FROM coach_notes n
+                    JOIN note_ratings nr ON nr.note_id=n.id AND nr.user_id=p.user_id
+                    WHERE n.conversation_id=c.id
+                    ORDER BY nr.updated_at DESC LIMIT 1
+                ) r ON true
+                LEFT JOIN LATERAL (
+                    SELECT n.title,n.next_take FROM coach_notes n WHERE n.conversation_id=c.id
+                    ORDER BY n.created_at DESC LIMIT 1
+                ) n ON true
+                WHERE p.user_id=:userId AND c.created_at>=:since
+                  AND EXISTS (SELECT 1 FROM coach_messages m WHERE m.conversation_id=c.id AND m.role='actor')
+                ORDER BY c.created_at DESC,c.id DESC
+                LIMIT :limit
+                """, Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("since", now.minus(PROFILE_WINDOW).atOffset(ZoneOffset.UTC))
+                .setParameter("limit", CoachingProfileWriter.MAX_CONVERSATIONS));
+        List<ProfileMaterial.Conversation> conversations = new ArrayList<>();
+        List<String> sceneTexts = new ArrayList<>();
+        for (Tuple row : rows) {
+            List<PracticeLoopRound.Turn> turns = NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT role,text FROM coach_messages WHERE conversation_id=:id ORDER BY turn_index
+                    """, Tuple.class)
+                    .setParameter("id", row.get("id", UUID.class))).stream()
+                    .map(turn -> new PracticeLoopRound.Turn(turn.get("role", String.class), turn.get("text", String.class)))
+                    .toList();
+            JsonNode state = json(row.get("state", String.class));
+            conversations.add(new ProfileMaterial.Conversation(
+                    row.get("day", String.class),
+                    row.get("close_reason", String.class),
+                    ((Number) row.get("replies")).intValue(),
+                    profileTurns(state, turns),
+                    row.get("rating", String.class),
+                    row.get("comment", String.class),
+                    PracticeLoopRound.corrections(state, turns)));
+            // 노트 제목·다음 테이크에도 인물·상대가 들어 있다("아빠한테 무엇을 얻으려는지") — 장면 내용 검사에 함께 쓴다.
+            for (String column : List.of("goal", "situation", "character_context", "note_title", "next_take")) {
+                String text = row.get(column, String.class);
+                if (text != null && !text.isBlank()) sceneTexts.add(text);
+            }
+        }
+        Map<String, String> actorLevel = new LinkedHashMap<>();
+        Map<String, String> memory = forPractice(userId, null);
+        for (String field : List.of("wants", "tone")) {
+            if (memory.containsKey(field)) actorLevel.put(field, memory.get(field));
+        }
+        return new ProfileMaterial(userId, conversations, actorLevel,
+                memory.get(ActorMemoryFields.COACHING_PROFILE), sceneTexts);
+    }
+
+    /** 코치 말은 그대로, 배우 말은 대화 중에 붙인 분류("(정정) …")를 앞에 붙여 담는다. */
+    private static List<ProfileMaterial.Turn> profileTurns(JsonNode state, List<PracticeLoopRound.Turn> turns) {
+        List<String> classified = PracticeLoopRound.classifiedActorWords(state, turns);
+        List<ProfileMaterial.Turn> out = new ArrayList<>();
+        int actor = 0;
+        for (PracticeLoopRound.Turn turn : turns) {
+            String text = turn.text() == null ? "" : turn.text().strip();
+            if (text.isEmpty()) continue;
+            if ("ai".equals(turn.role())) {
+                out.add(new ProfileMaterial.Turn("ai", text));
+            } else {
+                out.add(new ProfileMaterial.Turn("actor", actor < classified.size() ? classified.get(actor) : text));
+                actor++;
+            }
+        }
+        return out;
     }
 
     @Override
@@ -474,15 +631,19 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
      * 칸(호환 읽기로 보이는 칸)도 배우 것이므로 덮지 않는다.
      */
     private boolean writeAsAgent(UUID userId, String field, String value, UUID practiceId, Instant now) {
+        // 장면 단위 칸은 그 회차의 장면(root_id)에 쓴다(SOMA-795). 배우가 그 장면의 행을 고쳤으면 0행이고 그것이 "쓰지 않았다"다.
         return !NativeTuples.list(entityManager.createNativeQuery("""
                 INSERT INTO actor_memories(id,user_id,field,value,written_by,source_practice_id,
-                                           created_at,updated_at)
-                SELECT :id,:userId,:field,:value,'agent',:practiceId,:now,:now
+                                           scene_root_id,created_at,updated_at)
+                SELECT :id,:userId,:field,:value,'agent',:practiceId,
+                       CASE WHEN CAST(:scoped AS boolean)
+                            THEN (SELECT p.root_id FROM practices p WHERE p.id=:practiceId) END,
+                       :now,:now
                 WHERE NOT EXISTS (SELECT 1 FROM actor_memory_entries o
                                   WHERE o.user_id=:userId AND o.field=:field AND o.written_by='actor'
                                     AND NOT EXISTS (SELECT 1 FROM actor_memories n
                                                     WHERE n.user_id=o.user_id AND n.field=o.field))
-                ON CONFLICT ON CONSTRAINT uq_actor_memories_user_field DO UPDATE
+                ON CONFLICT ON CONSTRAINT uq_actor_memories_user_field_scene DO UPDATE
                 SET value=EXCLUDED.value,written_by='agent',
                     source_practice_id=EXCLUDED.source_practice_id,updated_at=EXCLUDED.updated_at
                 WHERE actor_memories.written_by<>'actor'
@@ -493,6 +654,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                 .setParameter("field", field)
                 .setParameter("value", value)
                 .setParameter("practiceId", practiceId)
+                .setParameter("scoped", ActorMemoryFields.sceneScoped(field))
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))).isEmpty();
     }
 
