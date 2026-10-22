@@ -268,6 +268,18 @@ describe('기본 촬영 화면', () => {
     expect(takePickedVideo()?.pendingId).toBe('pend1');
   });
 
+  test('코칭 탭 「지금 찍어서 코칭 받기」(next=upload)에서 왔으면 용도 줄 없이 찍고, 새 준비 화면을 첫 안내와 함께 연다', async () => {
+    mockParams = { mode: 'ai', next: 'upload', first: '1' };
+    await render(<RecordVideoScreen />);
+
+    expect(screen.queryByText('옆으로 넘겨 용도를 바꿔요')).not.toBeOnTheScreen();
+    await recordAndStop();
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/upload', params: { first: '1' } }));
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(takePickedVideo()?.pendingId).toBe('pend1');
+  });
+
   test('보관함이 받지 않으면 이유를 알리고, 준비 화면에는 영상을 넘기지 않는다', async () => {
     saveToLibrary.mockResolvedValue({ kind: 'rejected', code: 'video_empty' });
     mockParams = { mode: 'ai', picker: '1' };

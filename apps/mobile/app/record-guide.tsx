@@ -11,10 +11,14 @@ import { translate as t, translateList } from '@/lib/i18n';
 /**
  * 찍는 법 한 장(pen 「새 · 찍는 법 한 장」, SOMA-748). 새 연습의 영상 고르기에서 「지금 찍기」를 누르면 카메라 전에 한 번 보인다.
  * 「촬영 시작」은 이 화면을 카메라로 바꾼다 — 찍고 나면 카메라가 뒤로 가며 바로 새 연습 준비로 돌아간다.
+ * 코칭 탭의 「지금 찍어서 코칭 받기」(next=upload)에서 왔으면 찍은 뒤 새 연습 준비를 새로 연다.
  */
 export default function RecordGuideScreen() {
   const router = useRouter();
-  const firstTime = useLocalSearchParams<{ first?: string }>().first === '1';
+  const params = useLocalSearchParams<{ first?: string; next?: string }>();
+  const firstTime = params.first === '1';
+  // next=upload: 코칭 탭 「지금 찍어서 코칭 받기」에서 옴 — 찍은 뒤 뒤로 가지 않고 새 연습 준비를 연다.
+  const toUpload = params.next === 'upload';
   const tips = translateList('record.guideTips');
 
   return (
@@ -38,7 +42,12 @@ export default function RecordGuideScreen() {
       <CtaBar safeBottom={false}>
         <PrimaryButton
           label={t('record.start')}
-          onPress={() => router.replace({ pathname: '/record-video', params: { mode: 'ai' } })}
+          onPress={() =>
+            router.replace({
+              pathname: '/record-video',
+              params: toUpload ? { mode: 'ai', next: 'upload', ...(firstTime ? { first: '1' } : {}) } : { mode: 'ai' },
+            })
+          }
         />
       </CtaBar>
     </SafeAreaView>

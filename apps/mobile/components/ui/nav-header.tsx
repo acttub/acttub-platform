@@ -111,10 +111,21 @@ export function BackTitleHeader({ title, onBack, back }: { title: string; onBack
 }
 
 /** pen 「헤더 / 큰 제목」 — 높이 72, 안쪽 [0,28], (꺾쇠 24 ·) 제목 28/800 · 오른쪽 아이콘. 탭 첫 화면 머리. */
-export function LargeTitleHeader({ title, onBack, right }: { title: string; onBack?: () => void; right?: ReactNode }) {
+export function LargeTitleHeader({
+  title,
+  onBack,
+  backPhLabel,
+  right,
+}: {
+  title: string;
+  onBack?: () => void;
+  /** 꺾쇠 누름 기록 이름(기본 nav_back). */
+  backPhLabel?: string;
+  right?: ReactNode;
+}) {
   return (
     <View style={styles.large}>
-      {onBack ? <BareBackButton onPress={onBack} /> : null}
+      {onBack ? <BareBackButton onPress={onBack} phLabel={backPhLabel} /> : null}
       <Text style={styles.largeTitle} numberOfLines={1} accessibilityRole="header">
         {title}
       </Text>

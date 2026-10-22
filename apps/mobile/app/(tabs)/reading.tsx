@@ -14,7 +14,7 @@ import { currentTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
-import { NavIconButton } from '@/components/ui/nav-header';
+import { LargeTitleHeader, NavIconButton } from '@/components/ui/nav-header';
 import { IconOptionRow } from '@/components/ui/option-card';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
@@ -175,41 +175,45 @@ export default function ReadingList() {
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 110 }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + 110 }]}
       keyboardShouldPersistTaps="handled">
-      <View style={styles.head}>
-        {/* 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로 돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
-        {firstTime && (
-          <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="reading_back_home" onPress={() => router.navigate('/')} />
-        )}
-        <Text style={[styles.h1, styles.h1Grow]}>{empty ? t('reading.tabTitle') : t('reading.listTitle')}</Text>
-        <View style={styles.headRight}>
-          {/* 탭바가 숨어 프로필 탭의 설정으로 못 가므로 로그아웃·탈퇴 길을 남긴다(SOMA-781). */}
-          {firstTime && (
-            <NavIconButton icon="settings" label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
-          )}
-          {!empty && (
-            <Pressable
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('reading.search')}
-              ph-label="reading_search"
-              onPress={() => setSearchOpen((v) => !v || searching)}>
-              <Feather name="search" size={22} color={palette.text} />
-            </Pressable>
-          )}
-          {!empty && (
-            <Pressable
-              ref={newTarget.ref}
-              onLayout={newTarget.onLayout}
-              style={styles.newBtn}
-              accessibilityRole="button"
-              onPress={() => router.push('/reading/new')}>
-              <Feather name="plus" size={16} color={palette.onAccent} />
-              <Text style={styles.newText}>{t('reading.titleNew')}</Text>
-            </Pressable>
-          )}
-        </View>
+      {/* pen 「헤더 / 큰 제목」 — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
+          돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
+      <View style={styles.headWrap}>
+        <LargeTitleHeader
+          title={empty ? t('reading.tabTitle') : t('reading.listTitle')}
+          onBack={firstTime ? () => router.navigate('/') : undefined}
+          backPhLabel="reading_back_home"
+          right={
+            <View style={styles.headRight}>
+              {/* 탭바가 숨어 프로필 탭의 설정으로 못 가므로 로그아웃·탈퇴 길을 남긴다(SOMA-781). */}
+              {firstTime && (
+                <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
+              )}
+              {!empty && (
+                <Pressable
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('reading.search')}
+                  ph-label="reading_search"
+                  onPress={() => setSearchOpen((v) => !v || searching)}>
+                  <Feather name="search" size={22} color={palette.text} />
+                </Pressable>
+              )}
+              {!empty && (
+                <Pressable
+                  ref={newTarget.ref}
+                  onLayout={newTarget.onLayout}
+                  style={styles.newBtn}
+                  accessibilityRole="button"
+                  onPress={() => router.push('/reading/new')}>
+                  <Feather name="plus" size={16} color={palette.onAccent} />
+                  <Text style={styles.newText}>{t('reading.titleNew')}</Text>
+                </Pressable>
+              )}
+            </View>
+          }
+        />
       </View>
 
       {!empty && (searchOpen || searching) && (
@@ -269,6 +273,15 @@ export default function ReadingList() {
           <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
             <IconOptionRow flush icon="upload" title={t('reading.entryUpload')} sub={t('reading.entryUploadSub')} onPress={() => router.push('/reading/new')} />
           </View>
+          {/* 대본이 없어도 바로 — 대본 넣기 화면을 예시 대본으로 채워 연다(pen 「대본 탭」). */}
+          <IconOptionRow
+            flush
+            icon="file-text"
+            title={t('reading.entrySample')}
+            sub={t('reading.entrySampleSub')}
+            phLabel="reading_entry_sample"
+            onPress={() => router.push({ pathname: '/reading/new', params: { sample: '1' } })}
+          />
         </View>
       ) : (
         <>
@@ -357,35 +370,34 @@ export default function ReadingList() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: 24, gap: 12 },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, minHeight: 53 },
+  content: { paddingHorizontal: 20, gap: 12 },
+  // 큰 제목 머리는 제 안쪽 여백(28)을 가지므로 목록 여백(20)을 거둔다.
+  headWrap: { marginHorizontal: -20 },
   headRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  h1: { color: palette.text, fontSize: 24, fontWeight: '900', lineHeight: 34 },
-  h1Grow: { flex: 1 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
   newText: { color: palette.onAccent, fontSize: 14, fontWeight: '800' },
+  // pen 「AI 목소리 배너」 — 높이 39, 모서리 20, 옅은 파랑 바탕, 글 12.5/700, 무료 배지 모서리 8.
   voiceBar: {
+    minHeight: 39,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     backgroundColor: palette.blueMist,
-    borderWidth: 1,
-    borderColor: palette.blueLine,
-    borderRadius: 14,
+    borderRadius: 20,
     paddingLeft: 12,
-    paddingRight: 8,
-    paddingVertical: 8,
+    paddingRight: 10,
+    paddingVertical: 4,
   },
-  voiceText: { flex: 1, fontSize: 13, fontWeight: '700', color: palette.text },
-  voiceBadge: { backgroundColor: palette.blueSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
-  voiceBadgeText: { fontSize: 11, fontWeight: '800', color: palette.blueDeep },
+  voiceText: { flex: 1, fontSize: 12.5, fontWeight: '700', color: palette.text },
+  voiceBadge: { backgroundColor: palette.blueSoft, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
+  voiceBadgeText: { fontSize: 12.5, fontWeight: '700', color: palette.blueDeep },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.bgSoft, borderRadius: 12, paddingHorizontal: 12, height: 46 },
   searchInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 14, padding: 0 },
   errorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.dangerSoft, borderRadius: 12, padding: 12 },
   errorText: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
   retry: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   loading: { alignItems: 'center', paddingVertical: 60 },
-  entry: { gap: 14, marginTop: 2 },
+  entry: { gap: 6, marginTop: 1 },
   resumeCard: { backgroundColor: palette.blue, borderRadius: 22, padding: 20, gap: 10 },
   resumeEyebrow: { color: palette.blueLine, fontSize: 13, fontWeight: '800', lineHeight: 20 },
   resumeTitle: { color: palette.onAccent, fontSize: 22, fontWeight: '900', lineHeight: 31 },

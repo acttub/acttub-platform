@@ -287,8 +287,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  mascot: { width: 86, height: 96 },
-  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.card, borderRadius: 18, padding: 16, gap: 8 },
+  // pen 「대본 탭 · 첫 안내 말풍선」 코치마크 — 액티 72×82, 흰 말풍선 모서리 20 · 안쪽 [15,15,13,14].
+  mascot: { width: 72, height: 82 },
+  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.card, borderRadius: 20, paddingTop: 15, paddingRight: 15, paddingBottom: 13, paddingLeft: 14, gap: 8 },
   // 말꼬리 — 마스코트 쪽으로 돌린 작은 네모.
   tail: {
     position: 'absolute',
@@ -300,13 +301,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.card,
     transform: [{ rotate: '45deg' }],
   },
-  captionInner: { gap: 8 },
+  captionInner: { gap: 4 },
   progress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  step: { fontSize: 12, fontWeight: '800', lineHeight: 17, color: palette.flameDeep },
-  title: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 23 },
-  body: { fontSize: 13, fontWeight: '500', color: palette.textDim, lineHeight: 19 },
-  skip: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
-  cta: { height: 44, borderRadius: 22, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  step: { fontSize: 13, fontWeight: '700', lineHeight: 18, color: palette.flameDeep },
+  title: { fontSize: 18, fontWeight: '700', color: palette.text, lineHeight: 23 },
+  body: { fontSize: 14, fontWeight: '400', color: palette.textDim, lineHeight: 18 },
+  skip: { fontSize: 13, fontWeight: '500', color: palette.textFaint },
+  cta: { height: 38, borderRadius: 19, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.9 },
-  ctaText: { fontSize: 15, fontWeight: '800', color: palette.onAccent },
+  ctaText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
 });
