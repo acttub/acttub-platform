@@ -6,23 +6,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Image } from 'expo-image';
-
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { ChallengeDone } from '@/components/challenge-done';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { BlueSwitch } from '@/components/ui/list-rows';
-import { MASCOT as MASCOTS } from '@/components/ui/mascot';
+import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { dDayLabel, isEnded } from '@/lib/challenge/browse';
+import { isEnded } from '@/lib/challenge/browse';
 import {
   buildEntryBody,
   canSubmitEntry,
   captionTooLong,
-  doneCopy,
   entryAttemptFor,
   entryFailure,
   entryFailureMessage,
@@ -41,9 +39,9 @@ import {
 } from '@/lib/challenge/funnel';
 import { hasFinishedFirstChallenge, markFirstChallengeFinished } from '@/lib/challenge/intro-state';
 import { CAPTION_MAX, type ChallengeDetail, type EntryVisibility } from '@/lib/challenge/types';
-import { formatClipDuration } from '@/lib/archive-format';
 import { useAuth } from '@/lib/auth';
-import { translate as t } from '@/lib/i18n';
+import { resultDay } from '@/lib/challenge/week-result';
+import { translate as t, translateList } from '@/lib/i18n';
 import { confirmedVideoFor, flushLibraryUploads, localCopyFor, onLibraryChange, saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { takeRecordedVideo } from '@/lib/recorded-video';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
@@ -69,19 +67,15 @@ export default function ChallengeUploadScreen() {
   const [videoId, setVideoId] = useState<string | null>(params.videoId ?? null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
-  const [durationMs, setDurationMs] = useState<number | null>(null);
-  /** 넘겨받은 영상의 출처 — 보관함(videoId)·갤러리·방금 촬영. 머리줄 문구가 출처를 따른다(SOMA-773). */
-  const [fromGallery, setFromGallery] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
-  const [caption, setCaption] = useState('');
-  // pen 챌린지 올리기(SOMA-748) — 「나만 보기」가 먼저 골라져 있다. 공개는 배우가 직접 바꾼다.
-  const [visibility, setVisibility] = useState<EntryVisibility | null>('private');
+    const [caption, setCaption] = useState('');
+  // pen C9.16·C9.17 — 「공개」가 위에 있고 먼저 골라져 있다.
+  const [visibility, setVisibility] = useState<EntryVisibility | null>('public');
   /** 얼굴 모자이크(SOMA-809) — 공개를 고르면 보이는 켜기 버튼. 기본 꺼짐이고 공개일 때만 요청에 실린다. */
   const [faceMosaic, setFaceMosaic] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** 방금 만든 참여작 — 있으면 완료 화면이다. */
-  const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean } | null>(null);
+  const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean; first: boolean } | null>(null);
   const entryShare = useEntryShare(params.line ?? '', () => Alert.alert(t('entryShare.title'), t('entryShare.none')));
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
@@ -125,8 +119,6 @@ export default function ChallengeUploadScreen() {
     const recorded = takeRecordedVideo();
     if (!recorded || !user?.id || params.videoId) return;
     setLocalUri(recorded.uri);
-    setDurationMs(recorded.durationMs ?? null);
-    setFromGallery(recorded.source === 'gallery');
     if (videoTooLong(recorded.durationMs)) {
       void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
       setError(t('challengeUpload.errTooLong'));
@@ -172,10 +164,6 @@ export default function ChallengeUploadScreen() {
   }, [params.videoId]);
 
   useEffect(() => {
-    void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
-  }, []);
-
-  useEffect(() => {
     if (!challengeId) return;
     void api
       .getChallenge(challengeId)
@@ -212,8 +200,9 @@ export default function ChallengeUploadScreen() {
       attemptRef.current = attempt;
       const entry = await api.createEntry(challengeId, { ...body, request_id: attempt.requestId });
       logEvent('challenge_entry_created', { visibility });
+      const first = !(await hasFinishedFirstChallenge());
       void markFirstChallengeFinished();
-      setCreated({ id: entry.id, visibility, faceMosaic: body.face_mosaic === true });
+      setCreated({ id: entry.id, visibility, faceMosaic: body.face_mosaic === true, first });
     } catch (e) {
       const failure = entryFailure(e);
       void logEvent(CHALLENGE_FUNNEL_EVENTS.submitFailed, submitFailedParams(failure));
@@ -226,37 +215,49 @@ export default function ChallengeUploadScreen() {
   }, [caption, challengeId, faceMosaic, pendingId, submitting, user?.id, videoId, visibility]);
 
   if (created) {
-    const copy = doneCopy(created.visibility);
+    const day = challenge ? resultDay(challenge.ends_at) : null;
+    const date = day
+      ? t('challengeDone.date', { month: day.month, day: day.day, weekday: translateList('challengeDone.weekdays')[day.weekday] ?? '' })
+      : null;
+    const isPublic = created.visibility === 'public';
+    const line = challenge?.line ?? params.line ?? '';
+    const parts = [
+      line ? `“${line}”` : '',
+      created.first ? t(isPublic ? 'challengeDone.visPublic' : 'challengeUpload.optPrivate') : '',
+      isPublic ? (date ? t('challengeDone.resultAt', { date }) : '') : created.first ? '' : t('challengeDone.onlyMe'),
+      created.faceMosaic ? t('challengeUpload.doneSubMosaic') : '',
+    ].filter(Boolean);
+    const share = () => {
+      void logEvent('challenge_upload_share', { visibility: created.visibility });
+      void entryShare.openById(created.id);
+    };
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ headerShown: false }} />
-        {/* pen 10-11 「비공개로 저장했어요」 — 가운데 손 흔드는 액티 + 파란 체크, 제목 · 안내, 아래 「홈으로 가기」 버튼 하나(SOMA-820, AI 리포트 없앰). */}
-        <View style={styles.doneWrap}>
-          <View style={styles.doneHero}>
-            <Image source={MASCOTS.cheer} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
-            <View style={styles.doneBadgeRing}>
-              <View style={styles.doneBadge}>
-                <Feather name="check" size={16} color={palette.onAccent} />
-              </View>
-            </View>
-          </View>
-          <Text style={[styles.doneTitle, styles.doneGap18]}>{copy.title}</Text>
-          <Text style={[styles.doneSub, styles.doneGap8]}>
-            {created.faceMosaic ? t('challengeUpload.doneSubMosaic') : copy.body}
-          </Text>
-        </View>
-        <View style={styles.doneFooter}>
-          <SecondaryButton
-            label={t('entryShare.entry')}
-            onPress={() => {
-              void logEvent('challenge_upload_share', { visibility: created.visibility });
-              void entryShare.openById(created.id);
-            }}
-          />
-          <PrimaryButton label={t('challengeUpload.goHome')} onPress={() => router.replace('/')} />
-        </View>
+      <>
+        <ChallengeDone
+          first={created.first}
+          title={created.first ? t('challengeDone.titleFirst') : t(isPublic ? 'challengeDone.titlePublic' : 'challengeDone.titlePrivate')}
+          sub={parts.join(' · ')}
+          rows={[
+            ...(isPublic ? [{ key: 'share', icon: 'share-2' as const, title: t('challengeDone.share'), sub: t('challengeDone.shareSub'), onPress: share }] : []),
+            // 코칭은 기존 올리기(/upload) 흐름으로 이어진다 — 거기서 방금 영상을 고른다.
+            { key: 'coach', icon: 'video' as const, title: t('challengeDone.coach'), sub: t('challengeDone.coachSub'), onPress: () => router.push('/upload') },
+            ...(challengeId
+              ? [
+                  {
+                    key: 'others',
+                    icon: 'play' as const,
+                    title: t('challengeDone.others'),
+                    sub: t('challengeDone.othersSub'),
+                    onPress: () => router.replace({ pathname: '/challenge-play', params: { id: challengeId } }),
+                  },
+                ]
+              : []),
+          ]}
+          onShare={isPublic ? share : null}
+          onHome={() => router.replace('/')}
+        />
         {entryShare.sheet}
-      </SafeAreaView>
+      </>
     );
   }
 
@@ -268,54 +269,29 @@ export default function ChallengeUploadScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: t('challengeUpload.title') }} />
       <KeyboardAwareScroll contentContainerStyle={styles.content}>
-        <View style={styles.headRow}>
-          <View style={styles.thumbWrap}>
-            {localUri ? (
-              <VideoView style={styles.thumb} player={player} contentFit="cover" nativeControls={false} />
-            ) : (
-              <View style={[styles.thumb, styles.thumbEmpty]}>
-                <Feather name="video" size={20} color={palette.textFaint} />
-              </View>
-            )}
-          </View>
-          <View style={styles.headText}>
-            <Text style={styles.meta} numberOfLines={2}>
-              {challenge ? `“${challenge.line}”` : (params.line ?? '')}
-            </Text>
-            <Text style={styles.metaSub}>
-              {[
-                t(params.videoId ? 'challengeUpload.fromLibrary' : fromGallery ? 'challengeUpload.fromGallery' : 'challengeUpload.justRecorded'),
-                durationMs ? formatClipDuration(Math.round(durationMs / 1000)) : '',
-                challenge ? dDayLabel(challenge) : '',
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </Text>
-          </View>
+        <MascotBubble title={t('challengeUpload.bubble')} guide={t('challengeUpload.bubbleGuide')} />
+        <View style={styles.thumbWrap}>
+          {localUri ? (
+            <VideoView style={styles.thumb} player={player} contentFit="cover" nativeControls={false} />
+          ) : (
+            <View style={[styles.thumb, styles.thumbEmpty]}>
+              <Feather name="video" size={20} color={palette.textFaint} />
+            </View>
+          )}
         </View>
 
-        <Text style={styles.pickLabel}>{t('challengeUpload.pickVisibility')}</Text>
-        {showGuide && <Text style={styles.guide}>{t('challengeUpload.guide')}</Text>}
-        <Option
-          title={t('challengeUpload.optPrivate')}
-          sub={t('challengeUpload.optPrivateSub')}
-          selected={visibility === 'private'}
-          onPress={() => chooseVisibility('private')}
-        />
         <Option
           title={t('challengeUpload.optPublic')}
           sub={t('challengeUpload.optPublicSub')}
           selected={visibility === 'public'}
           onPress={() => chooseVisibility('public')}
         />
-
-        {/* 공개를 고르면 표본 활용을 한 줄로 알린다. */}
-        {visibility === 'public' && (
-          <View style={styles.note}>
-            <Feather name="zap" size={13} color={palette.blueDeep} />
-            <Text style={styles.noteText}>{t('challengeUpload.note')}</Text>
-          </View>
-        )}
+        <Option
+          title={t('challengeUpload.optPrivate')}
+          sub={t('challengeUpload.optPrivateSub')}
+          selected={visibility === 'private'}
+          onPress={() => chooseVisibility('private')}
+        />
 
         {/* 공개를 고르면 얼굴 모자이크를 켤 수 있다(SOMA-809). 켜면 다른 사람에게는 얼굴을 가린 사본만 간다. */}
         {visibility === 'public' && (
@@ -324,11 +300,7 @@ export default function ChallengeUploadScreen() {
               <Text style={styles.mosaicTitle}>{t('challengeUpload.mosaicTitle')}</Text>
               <Text style={styles.optionSub}>{t('challengeUpload.mosaicSub')}</Text>
             </View>
-            <BlueSwitch
-              value={faceMosaic}
-              onValueChange={setFaceMosaic}
-              accessibilityLabel={t('challengeUpload.mosaicTitle')}
-            />
+            <BlueSwitch value={faceMosaic} onValueChange={setFaceMosaic} accessibilityLabel={t('challengeUpload.mosaicTitle')} />
           </View>
         )}
 
@@ -341,9 +313,7 @@ export default function ChallengeUploadScreen() {
           maxLength={CAPTION_MAX}
           multiline
         />
-        <Text style={styles.counter}>
-          {t('challengeUpload.captionCounter', { count: [...caption].length, max: CAPTION_MAX })}
-        </Text>
+        <Text style={styles.counter}>{t('challengeUpload.captionCounter', { count: [...caption].length, max: CAPTION_MAX })}</Text>
 
         {uploading && <Text style={styles.hint}>{t('challengeUpload.waitingVideo')}</Text>}
         {captionTooLong(caption) && <Text style={styles.error}>{t('challengeUpload.errInvalid')}</Text>}
@@ -352,24 +322,13 @@ export default function ChallengeUploadScreen() {
       </KeyboardAwareScroll>
 
       <CtaBar safeBottom={false}>
-        <PrimaryButton
-          label={t(
-            visibility === 'private'
-              ? 'challengeUpload.submitPrivate'
-              : visibility === 'public'
-                ? 'challengeUpload.submit'
-                : 'challengeUpload.submitNone',
-          )}
-          onPress={() => void submit()}
-          disabled={!ready || ended}
-          loading={submitting}
-        />
+        <PrimaryButton label={t('challengeUpload.submit')} onPress={() => void submit()} disabled={!ready || ended} loading={submitting} />
       </CtaBar>
     </SafeAreaView>
   );
 }
 
-/** 선택지 줄(h9wxCz) — 고르면 연파랑 바탕·파란 글자·체크 동그라미, 안 고르면 빈 동그라미. */
+/** 선택지 줄(pen C9.17) — 고르면 연파랑 바탕·파란 테두리·파란 글자·오른쪽 체크, 안 고르면 흰 바탕 · 회색 테두리. */
 function Option({
   title,
   sub,
@@ -392,7 +351,7 @@ function Option({
         <Text style={[styles.optionTitle, selected && styles.optionTitleOn]}>{title}</Text>
         <Text style={styles.optionSub}>{sub}</Text>
       </View>
-      <Feather name={selected ? 'check-circle' : 'circle'} size={22} color={selected ? palette.blue : palette.checkOff} />
+      {selected && <Feather name="check" size={20} color={palette.blue} />}
     </Pressable>
   );
 }
@@ -401,13 +360,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1, gap: 6 },
   content: { paddingHorizontal: 24, paddingTop: 16, gap: 14, paddingBottom: 24 },
-  headRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  thumbWrap: { width: 100, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.textDim },
+  thumbWrap: { width: '100%', height: 200, borderRadius: 20, overflow: 'hidden', backgroundColor: palette.textDim },
   thumb: { width: '100%', height: '100%' },
   thumbEmpty: { backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  headText: { flex: 1, minWidth: 0, gap: 6 },
-  meta: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 23 },
-  metaSub: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
   caption: {
     minHeight: 72,
     borderRadius: 12,
@@ -419,29 +374,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   counter: { fontSize: 11.5, color: palette.textFaint, textAlign: 'right', marginTop: -8 },
-  pickLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim, marginTop: 4 },
-  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21 },
-  note: { flexDirection: 'row', gap: 8, backgroundColor: palette.blueSoft, borderRadius: 12, padding: 12 },
-  noteText: { flex: 1, fontSize: 12.5, fontWeight: '600', color: palette.blueDeep, lineHeight: 19 },
   hint: { fontSize: 12.5, color: palette.textFaint },
   error: { fontSize: 13, fontWeight: '700', color: palette.danger },
   // pen h9wxCz — 안 고른 줄은 안쪽 [15,4], 고른 줄은 [15,16] + 연파랑 바탕.
-  option: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 4 },
-  optionOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 16 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 18, borderWidth: 1, borderColor: palette.border },
+  optionOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   optionTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 26 },
   optionTitleOn: { color: palette.blueDeep },
   optionSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
   mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, paddingHorizontal: 4 },
   mosaicTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 22 },
-  // 본문 가운데 — 안쪽 [0,25,40,25]. 액티 84×88(체크 28 · 흰 테두리 3, 왼쪽 54 · 위 57) · 18 · 제목 · 8 · 안내 · 14 · 알약.
-  doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25, paddingBottom: 40 },
-  doneHero: { width: 84, height: 88 },
-  doneMascot: { width: 84, height: 88 },
-  doneBadgeRing: { position: 'absolute', left: 51, top: 54, padding: 3, borderRadius: 17, backgroundColor: palette.bg },
-  doneBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  doneTitle: { fontSize: 22, fontWeight: '800', lineHeight: 28, color: palette.text, textAlign: 'center' },
-  doneSub: { fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette.textMuted, textAlign: 'center' },
-  doneGap18: { marginTop: 18 },
-  doneGap8: { marginTop: 8 },
-  doneFooter: { gap: 10, paddingHorizontal: 20, paddingBottom: 11 },
 });
