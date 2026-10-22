@@ -38,7 +38,7 @@ final class DirectVideoPracticeLoop {
      * 2026-10-14~10-22 운영에서 8번, 배우 화면 맨 앞에 "<thought"가 그대로 나갔다(닫는 꺾쇠가 없어 위 태그 패턴에 안 걸렸다).
      */
     static final Pattern UNCLOSED_THINKING_LINE = Pattern.compile(
-            "(?im)^[ \\t]*</?" + THINKING_NAME + "(?![\\p{L}\\p{N}_>-])[^>\\n]*$\\R?");
+            "(?imu)^[ \\t]*</?" + THINKING_NAME + "(?![\\p{L}\\p{N}_>-])[^>\\n]*$\\R?");
     // 닫는 태그를 빠뜨렸을 때 메모의 칸 줄만 걷어낸다.
     private static final Pattern THINKING_LINE = Pattern.compile(
             "(?im)^\\s*(?:<" + THINKING_NAME + ">\\s*$|(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*$)\\R?");
