@@ -112,7 +112,7 @@ class SplitDraftTest {
 
         ScriptDraft draft = SplitDraft.assemble(null, raw, "paste", lines, rows, List.of("민수", "지수"));
 
-        assertThat(draft.title()).isEqualTo("오늘 비 온대.");
+        assertThat(draft.title()).isEqualTo("제목 없는 대본");
     }
 
     @Test
@@ -197,7 +197,7 @@ class SplitDraftTest {
 
         assertThat(draft.lines()).extracting(ScriptDraft.Line::text).containsExactly(
                 "그냥 오늘 연습은 그만하자. 오늘은 못할 것 같아. 니네들끼리 알아서해. (드러누워 버린다)", "(겁을 집어먹고) 그만하세요",
-                "[당황하며] 안 될 게 뭐 있나요?", "박 선생님. 증거는 아닙니다.", "“당신은 나 때문에 살았어.”", "...나도.", "둘이 무슨 얘기해?",
+                "[당황하며] 안 될 게 뭐 있나요?", "박 선생님. 증거는 아닙니다.", "“당신은 나 때문에 살았어.”", "...나도.", "(소리)", "둘이 무슨 얘기해?",
                 "(꿈꾸듯) 나도 알아요.");
     }
 
@@ -228,7 +228,7 @@ class SplitDraftTest {
         // 「서윤 씨」는 한서윤 줄에 한 번뿐이라 머리로 보지 않는다. 「지수」는 화자 이름과 이어지지 않는다
         assertThat(draft.lines()).extracting(ScriptDraft.Line::text).containsExactly(
                 "집에 없는 건가.", "왜.", "(도현을 보며) 누구?", "아니야.", "성부와, 성자와.", "서윤 씨 어디 가?", "지수 너 왜 그래",
-                "(닫힌 문 너머로) 밥 먹어!", "저희 다음 기수도.", "(큰 소리로) 언니!!!",
+                "(닫힌 문 너머로) 밥 먹어!", "(소리만)", "저희 다음 기수도.", "(큰 소리로) 언니!!!",
                 "네. 루이스 할머니가 고맙대요.", "이소가 키에타.", "와 이거 진짜 나인 것 같네.", "(빅토르 모드) 아니, 왜 늦어?");
     }
 
@@ -335,6 +335,7 @@ class SplitDraftTest {
     void invisibleCharactersDoNotSurvive() {
         String raw = "\uFEFF\u200B반지하 라디오\n\u200B(낡은 라디오에서 잡음이 난다.)\n\u200B하은: 오빠, 그거 고장 난 거 아니야?";
         Map<Integer, Row> rows = Map.of(
+                1, new Row(1, Kind.TITLE, "", ""),
                 2, new Row(2, Kind.DIRECTION, "", ""),
                 3, new Row(3, Kind.DIALOGUE, "하은", "\u200B하은: "));
 
@@ -342,14 +343,13 @@ class SplitDraftTest {
 
         assertThat(draft.title()).isEqualTo("반지하 라디오");
         assertThat(draft.lines()).containsExactly(
-                new ScriptDraft.Line(1, "direction", null, "반지하 라디오"),
-                new ScriptDraft.Line(2, "direction", null, "(낡은 라디오에서 잡음이 난다.)"),
-                new ScriptDraft.Line(3, "dialogue", 0, "오빠, 그거 고장 난 거 아니야?"));
+                new ScriptDraft.Line(1, "direction", null, "(낡은 라디오에서 잡음이 난다.)"),
+                new ScriptDraft.Line(2, "dialogue", 0, "오빠, 그거 고장 난 거 아니야?"));
     }
 
     @Test
-    @DisplayName("배역 이름은 목록으로 바로잡아 저장하고, 모델이 쓴 제목이 없으면 첫 줄이 제목이다. 배역이 없으면 빈 배역 목록이다")
-    void fixesNamesAndFallsBackToFirstLineTitle() {
+    @DisplayName("배역 이름은 목록으로 바로잡아 저장하고, 제목도 파일명도 없으면 제목 없는 대본이다. 배역이 없으면 빈 배역 목록이다")
+    void fixesNamesAndFallsBackToUntitledScript() {
         String raw = "맥베스: 내일, 또 내일.\n맥베س: 그리고 또 내일.";
         List<NumberedLine> lines = NumberedLine.of(raw);
         Map<Integer, Row> rows = Map.of(
@@ -358,7 +358,7 @@ class SplitDraftTest {
 
         ScriptDraft draft = SplitDraft.assemble(" ", raw, "file", lines, rows, List.of("맥베스"));
 
-        assertThat(draft.title()).isEqualTo("맥베스: 내일, 또 내일.");
+        assertThat(draft.title()).isEqualTo("제목 없는 대본");
         assertThat(draft.characterNames()).containsExactly("맥베스");
         assertThat(draft.lines()).containsExactly(
                 new ScriptDraft.Line(1, "dialogue", 0, "내일, 또 내일."),
@@ -435,6 +435,37 @@ class SplitDraftTest {
     }
 
     @Test
+    @DisplayName("SOMA-709 2번: 화면 밖 목소리 꼬리표는 이름에서 떼어 그 대사 앞 지문으로 남기고, 공백만 다른 이름은 합치며, 숫자가 다른 머리는 다른 배역이다")
+    void voiceTagsBecomeDirectionsAndNumbersStayApart() {
+        String raw = """
+                강 국장: 들어와.
+                강 국장 (소리): 거기 누구야?
+                부검의 (V.O.): 사인은 질식입니다.
+                부검의: 확실해요.
+                형사1: 손 들어.
+                형사2: 움직이지 마.
+                장노인: 왔나.
+                장 노인: 앉게.
+                장노인: 먹게.
+                """;
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        String[][] said = {{"강 국장", "강 국장: "}, {"강 국장 (소리)", "강 국장 (소리): "}, {"부검의 (V.O.)", "부검의 (V.O.): "}, {"부검의", "부검의: "},
+                {"형사1", "형사1: "}, {"형사1", "형사2: "}, {"장노인", "장노인: "}, {"장 노인", "장 노인: "}, {"장노인", "장노인: "}};
+        for (int i = 0; i < said.length; i++) {
+            rows.put(i + 1, new Row(i + 1, Kind.DIALOGUE, said[i][0], said[i][1]));
+        }
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of("강 국장", "부검의", "형사1", "장노인"));
+
+        assertThat(draft.characterNames()).containsExactlyInAnyOrder("강 국장", "부검의", "형사1", "형사2", "장노인");
+        assertThat(draft.lines()).extracting(line -> line.kind() + ":" + (line.characterIndex() == null ? "" : draft.characterNames().get(line.characterIndex()))
+                + ":" + line.text()).containsExactly(
+                "dialogue:강 국장:들어와.", "direction::(소리)", "dialogue:강 국장:거기 누구야?", "direction::(V.O.)", "dialogue:부검의:사인은 질식입니다.",
+                "dialogue:부검의:확실해요.", "dialogue:형사1:손 들어.", "dialogue:형사2:움직이지 마.", "dialogue:장노인:왔나.", "dialogue:장노인:앉게.",
+                "dialogue:장노인:먹게.");
+    }
+
+    @Test
     @DisplayName("SOMA-663: 한 대본에서 띄어쓰기·따옴표·화면 밖 목소리 꼬리·「여 」 머리·괄호 설명만 다른 화자는 대사 많은 표기로 묶는다. 내레이션은 묶지 않는다")
     void mergesSpeakersThatDifferOnlyByVoiceTailsAndSpacing() {
         String[][] said = {
@@ -461,7 +492,7 @@ class SplitDraftTest {
 
         assertThat(draft.characterNames()).containsExactlyInAnyOrder("장석구", "서린", "형사 1", "여주", "유리(NA)", "유리", "유리의 내레이션",
                 "김지훈NA", "김지훈", "여자", "남자", "여 베이어드", "여기자‘", "여기자", "철수", "민(영혼)", "민");
-        assertThat(draft.lines()).extracting(line -> draft.characterNames().get(line.characterIndex()))
+        assertThat(draft.lines().stream().filter(line -> line.characterIndex() != null).toList()).extracting(line -> draft.characterNames().get(line.characterIndex()))
                 .startsWith("장석구", "장석구", "장석구", "서린", "서린", "형사 1", "형사 1", "형사 1", "여주", "여주");
         assertThat(draft.characterTraits().get(draft.characterNames().indexOf("장석구")))
                 .as("묶인 이름의 성별·나이대는 남긴 이름으로 옮긴다").isEqualTo(new CharacterTraits(CharacterGender.MALE, CharacterAgeBand.ADULT));
@@ -516,7 +547,7 @@ class SplitDraftTest {
 
         ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of("민", "연"));
 
-        assertThat(draft.lines()).extracting(line -> draft.characterNames().get(line.characterIndex())).containsExactly("민", "연", "민(영혼)", "민");
+        assertThat(draft.lines().stream().filter(line -> line.characterIndex() != null).toList()).extracting(line -> draft.characterNames().get(line.characterIndex())).containsExactly("민", "연", "민(영혼)", "민");
     }
 
     @Test

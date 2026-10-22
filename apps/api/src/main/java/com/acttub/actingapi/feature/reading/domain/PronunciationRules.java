@@ -14,7 +14,8 @@ import java.util.Set;
  * <ol>
  *   <li>전체 진단 — 대본대로 읽은 줄에서 또렷하게 들린 소리의 비율.</li>
  *   <li>다르게 알아들을 수 있는 말 — 대본대로 읽은 줄인데 받아쓰기가 다른 말로 적은 어절.</li>
- *   <li>자주 보인 습관 하나 — 짚힌 소리를 자음 첫소리·받침·모음으로 나눠 가장 많은 것(2번 이상일 때만).</li>
+ *   <li>자주 보인 습관 하나 — 같은 소리가 같은 소리로 바뀐 것(예: ㅓ→ㅗ)이 {@link #HABIT_MAX_LPR} 이하로 2번 이상일 때만.
+ *       표시 분류는 그 소리의 자리(자음 첫소리·받침·모음)다.</li>
  * </ol>
  *
  * <p>빼는 것: 받아쓴 글이 없거나 대본과 자모 유사도가 {@link #MIN_LINE_SIMILARITY} 보다 낮은 줄(대사를 바꿔 말했거나
@@ -27,6 +28,16 @@ public final class PronunciationRules {
     public static final double MISHEARD_SIMILARITY = 0.8;
     public static final int MAX_MISHEARD = 3;
     public static final int MIN_HABIT_COUNT = 2;
+    /**
+     * 습관으로 셀 만큼 확실히 다른 소리. 표준 발음 낭독 77줄로 6줄 리딩을 2,000번 뽑아 보니, 짚힌 소리를 자리(첫소리·받침·모음)로만
+     * 묶으면 79~91% 리딩에서 가짜 습관이 나왔고, 같은 소리 쌍 + 이 문턱이면 약 4% 였다.
+     */
+    public static final double HABIT_MAX_LPR = -5.0;
+    /**
+     * 앱 받아쓰기로는 대본과 달라 보여도(잘림·숫자 표기) 채점 모델이 들은 소리가 대본과 이만큼 같으면 대본대로 읽은 줄로
+     * 쓴다. 표준 발음 낭독(합성 음성·Zeroth 공개 낭독)과 반만 읽은·다른 줄을 읽은 경우로 정했다 — PR 본문 참고.
+     */
+    public static final double MIN_SCRIPT_MATCH = 0.7;
     private static final Set<String> INTERJECTIONS = Set.of(
             "아", "어", "오", "음", "으", "흠", "하", "허", "에", "예", "네", "응", "와", "헐", "아니", "어머", "엥", "쩝", "휴", "후");
 
@@ -40,7 +51,14 @@ public final class PronunciationRules {
     public record Word(int index, String word, boolean number, List<Phone> phones) {
     }
 
-    public record ScoredLine(String scoredText, List<Word> words) {
+    /**
+     * @param scriptMatch 채점 모델이 녹음에서 직접 알아들은 소리가 대본 소리와 얼마나 같은지(0~1). 앱 받아쓰기가 잘렸을 때
+     *                    대본대로 읽었는지를 이것으로 다시 본다. 옛 채점 서비스는 주지 않는다({@code null}).
+     */
+    public record ScoredLine(String scoredText, List<Word> words, Double scriptMatch) {
+        public ScoredLine(String scoredText, List<Word> words) {
+            this(scoredText, words, null);
+        }
     }
 
     /** @param transcript 앱이 받아쓴 글. 없으면 {@code null} */
@@ -85,10 +103,12 @@ public final class PronunciationRules {
         int clear = 0;
         List<Integer> skipped = new ArrayList<>();
         List<Misheard> misheard = new ArrayList<>();
-        Map<Habit, List<Example>> habits = new LinkedHashMap<>();
+        Map<String, List<Example>> habits = new LinkedHashMap<>();
+        Map<String, Habit> habitKinds = new LinkedHashMap<>();
         int used = 0;
         for (LineInput line : lines) {
-            if (line.scored() == null || !usable(line)) {
+            Use use = line.scored() == null ? Use.NO : use(line);
+            if (use == Use.NO) {
                 skipped.add(line.lineNo());
                 continue;
             }
@@ -107,18 +127,23 @@ public final class PronunciationRules {
                         worst = phone;
                     }
                 }
-                if (worst != null) {
-                    habits.computeIfAbsent(habitOf(word, worst), h -> new ArrayList<>()).add(new Example(
+                if (worst != null && worst.lpr() <= HABIT_MAX_LPR) {
+                    String pair = worst.expected() + "→" + worst.heard();
+                    habitKinds.putIfAbsent(pair, habitOf(word, worst));
+                    habits.computeIfAbsent(pair, h -> new ArrayList<>()).add(new Example(
                             line.lineNo(), clean(word.word()), worst.expected(), worst.heard(), worst.lpr(),
                             wordStart(word), wordEnd(word)));
                 }
             }
-            misheard.addAll(misheard(line));
+            if (use == Use.TRANSCRIPT) {
+                // 받아쓰기가 잘린 줄은 받아쓰기와 대본의 차이가 발음 때문이 아니다.
+                misheard.addAll(misheard(line));
+            }
         }
         HabitItem habit = habits.entrySet().stream()
                 .filter(e -> e.getValue().size() >= MIN_HABIT_COUNT)
                 .max(Comparator.comparingInt(e -> e.getValue().size()))
-                .map(e -> new HabitItem(e.getKey(), e.getKey().label(), e.getValue().size(),
+                .map(e -> new HabitItem(habitKinds.get(e.getKey()), habitKinds.get(e.getKey()).label(), e.getValue().size(),
                         e.getValue().stream().sorted(Comparator.comparingDouble(Example::lpr)).limit(3).toList()))
                 .orElse(null);
         double ratio = sounds == 0 ? 0 : Math.round(clear * 1000.0 / sounds) / 1000.0;
@@ -126,13 +151,26 @@ public final class PronunciationRules {
                 misheard.stream().limit(MAX_MISHEARD).toList(), habit, skipped);
     }
 
+    /** 줄을 쓰는 근거. {@code TRANSCRIPT}: 받아쓰기가 대본과 닮음. {@code AUDIO}: 받아쓰기는 다르지만 들은 소리가 대본과 같음. */
+    enum Use { NO, TRANSCRIPT, AUDIO }
+
     static boolean usable(LineInput line) {
+        return use(line) != Use.NO;
+    }
+
+    static Use use(LineInput line) {
         String heard = line.transcript() == null ? "" : clean(line.transcript());
         if (heard.isEmpty()) {
-            return false;
+            return Use.NO;
         }
         String script = clean(line.scored().scoredText() != null ? line.scored().scoredText() : line.scriptText());
-        return similarity(script, heard) >= MIN_LINE_SIMILARITY;
+        for (String reading : KoreanNumbers.readings(line.transcript())) {
+            if (similarity(script, clean(reading)) >= MIN_LINE_SIMILARITY) {
+                return Use.TRANSCRIPT;
+            }
+        }
+        Double match = line.scored().scriptMatch();
+        return match != null && match >= MIN_SCRIPT_MATCH ? Use.AUDIO : Use.NO;
     }
 
     static boolean excluded(Word word) {
@@ -165,9 +203,24 @@ public final class PronunciationRules {
     }
 
     /** 대본 어절과 받아쓴 어절을 편집 거리로 맞추고, 바뀐 자리 중 덜 닮은 것을 고른다. */
+    /** 받아쓰기의 숫자 읽기(원문·한자어·고유어) 가운데 대본과 가장 닮은 것. "29이야"를 "스물아홉이야"로 맞춘다. */
+    static String closestReading(LineInput line) {
+        String script = clean(line.scored().scoredText() != null ? line.scored().scoredText() : line.scriptText());
+        String best = line.transcript();
+        double bestSimilarity = -1;
+        for (String reading : KoreanNumbers.readings(line.transcript())) {
+            double sim = similarity(script, clean(reading));
+            if (sim > bestSimilarity) {
+                best = reading;
+                bestSimilarity = sim;
+            }
+        }
+        return best;
+    }
+
     static List<Misheard> misheard(LineInput line) {
         List<Word> words = line.scored().words().stream().filter(w -> !excluded(w)).toList();
-        String[] heard = line.transcript().trim().split("\\s+");
+        String[] heard = closestReading(line).trim().split("\\s+");
         int n = words.size();
         int m = heard.length;
         double[][] d = new double[n + 1][m + 1];

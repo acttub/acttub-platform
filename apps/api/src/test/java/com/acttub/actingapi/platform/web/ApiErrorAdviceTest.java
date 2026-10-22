@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.multipart.MultipartException;
 
@@ -147,6 +148,14 @@ class ApiErrorAdviceTest {
     }
 
     @Test
+    void clientDisconnectWhileWritingTheResponseIsNotReported() throws Exception {
+        MvcResult result = mvc.perform(get("/test/client-gone")).andReturn();
+
+        assertThat(result.getResponse().getContentAsString()).isEmpty();
+        assertThat(reporter.reports()).isEmpty();
+    }
+
+    @Test
     void multipartCutOffByTheClientIsABadRequestAndIsNotReported() throws Exception {
         MvcResult result = mvc.perform(get("/test/multipart-client-abort")).andReturn();
 
@@ -214,6 +223,13 @@ class ApiErrorAdviceTest {
         @GetMapping("/test/spring-timeout")
         void springTimeout() {
             throw new AsyncRequestTimeoutException();
+        }
+
+        @GetMapping("/test/client-gone")
+        void clientGone() throws AsyncRequestNotUsableException {
+            throw new AsyncRequestNotUsableException(
+                    "ServletOutputStream failed to write: java.io.IOException: Broken pipe",
+                    new IOException("Broken pipe"));
         }
 
         @GetMapping("/test/multipart-client-abort")

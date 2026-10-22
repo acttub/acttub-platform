@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 ENV HF_HOME=/models
-COPY pronscore.py app.py ./
+COPY pronscore.py acoustics.py app.py ./
 RUN python -c "import pronscore; pronscore.model()"
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PRON_THREADS=2 OMP_NUM_THREADS=2
 EXPOSE 8000

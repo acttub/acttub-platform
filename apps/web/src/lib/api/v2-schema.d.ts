@@ -593,8 +593,8 @@ export interface paths {
          * Create Script
          * @description 기기가 나눈 대본(원문·배역·줄)을 한 요청으로 저장한다. 같은 request_id 에 같은 본문이 다시 오면
          *     먼저 만든 대본을 200 으로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. 배역 없음
-         *     422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자·줄
-         *     3,000·배역 50(함께 말하기 이름 제외) 초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.
+         *     422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자
+         *     초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.
          */
         post: operations["create_script_v2_reading_scripts_post"];
         delete?: never;
@@ -625,6 +625,29 @@ export interface paths {
          *     없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.
          */
         post: operations["start_reading_session_v2_reading_scripts__script_id__sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/scripts/{script_id}/lines/{line_id}/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Split Script Line
+         * @description 줄 하나를 둘로 나눈다(나누기가 한 줄로 합친 대사). 앞 글은 그 줄(id 그대로)에 남고 뒤 글은 바로 뒤에 같은
+         *     종류·배역의 새 줄이 되며, 뒤 줄들의 순서가 하나씩 밀린다. 회차·녹음·외운 줄은 앞 줄을 계속 가리키고, 구간이 그
+         *     줄로 끝나던 회차는 끝을 뒤 줄로 옮긴다. 두 글은 앞뒤 공백을 정리하고 비거나 5,000자를 넘으면 422 배열이다. 없는
+         *     줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found. 고친 대본 전체를 돌려준다.
+         */
+        post: operations["split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1391,7 +1414,15 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Script Line
+         * @description 줄 하나를 지운다(나누기가 잘못 넣은 줄). 그 줄을 구간 시작·끝·진행 위치로 가리키는 회차는 구간 안의 가까운
+         *     대사로 옮긴다 — 시작은 뒤 대사, 끝은 앞 대사, 진행 위치는 뒤 대사(없으면 앞 대사). 그 줄의 녹음(파일 포함)·외운
+         *     줄·줄 결과·말한 것은 함께 지운다. 지우면 대사가 하나도 남지 않는 회차 구간이 있으면 422 empty_range, 대본의
+         *     마지막 줄이면 422 invalid_line 이고 아무것도 바꾸지 않는다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404
+         *     script_not_found. 고친 대본 전체를 돌려준다.
+         */
+        delete: operations["delete_script_line_v2_reading_scripts__script_id__lines__line_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -1535,6 +1566,23 @@ export interface paths {
         };
         /** Cloud voice status */
         get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/voice-model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Device voice model download urls */
+        get: operations["current"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2901,6 +2949,16 @@ export interface components {
             age_band: ("child" | "young" | "adult" | "senior") | null;
             /** Dialogue Count */
             dialogue_count: number;
+            /**
+             * Member Ids
+             * @description 함께 말하는 줄의 묶음 배역(「지해, 연수」·「모두」)이면 그 줄을 함께 말하는 배역들의 id(둘 이상), 보통 배역이면 빈 배열. 묶음 배역은 보통 배역 뒤에 온다. 그 줄의 character_id 는 묶음 배역이다(SOMA-709)
+             */
+            member_ids: string[];
+            /**
+             * Unnamed
+             * @description 원문에 배역 이름이 없어 나누기 작업이 임시 이름(「화자」)을 붙인 독백 배역이면 true. 이름을 고치면(PATCH 의 characters[].name) false 가 된다. 앱은 이 배역의 이름을 배우에게 묻는다(SOMA-597)
+             */
+            unnamed: boolean;
         };
         /** ReadingScriptLastSession */
         ReadingScriptLastSession: {
@@ -3180,6 +3238,13 @@ export interface components {
              * @description 끝 대사 번호
              */
             end: number;
+        };
+        /** ReadingScriptLineSplit */
+        ReadingScriptLineSplit: {
+            /** First Text */
+            first_text: string;
+            /** Second Text */
+            second_text: string;
         };
         /** ReadingImportRequest */
         ReadingImportRequest: {
@@ -4402,6 +4467,26 @@ export interface components {
             daily_limit?: number;
             /** Daily Used */
             daily_used?: number;
+        };
+        /** FileResponse */
+        FileResponse: {
+            /** Name */
+            name?: string;
+            /** Bytes */
+            bytes?: number;
+            /** Sha256 */
+            sha256?: string;
+            /** Url */
+            url?: string;
+        };
+        /** ModelResponse */
+        ModelResponse: {
+            /** Version */
+            version?: string;
+            /** Files */
+            files?: components["schemas"]["FileResponse"][];
+            /** Expires In */
+            expires_in?: number;
         };
         /** ReadingScriptCard */
         ReadingScriptCard: {
@@ -6647,6 +6732,42 @@ export interface operations {
             };
         };
     };
+    split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingScriptLineSplit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_script_v2_reading_imports_post: {
         parameters: {
             query?: never;
@@ -7961,6 +8082,29 @@ export interface operations {
             };
         };
     };
+    delete_script_line_v2_reading_scripts__script_id__lines__line_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+        };
+    };
     update_script_line_v2_reading_scripts__script_id__lines__line_id__patch: {
         parameters: {
             query?: never;
@@ -8247,6 +8391,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+        };
+    };
+    current: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelResponse"];
                 };
             };
         };

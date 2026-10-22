@@ -248,7 +248,7 @@ final class PracticeLoopRouter {
     static final String WANT = "원하는 것 묻기";
     static final String GAP = "어긋남 보기";
     static final String FIND = "스스로 찾기";
-    /** 짧은 답이 왔을 때, 다음 단계의 질문을 둘 중 고르는 모양으로 쉽게 묻는다. */
+    /** 짧은 답이 왔을 때, 다음 단계의 답을 코치가 하나 짐작해 이유와 함께 내밀고 맞는지 묻는다(SOMA-795 공통 수정 전에는 둘 중 고르기). */
     static final String EASY = "쉽게 묻기";
 
     /**
@@ -285,7 +285,7 @@ final class PracticeLoopRouter {
 
     /**
      * @param stayed 이 단계에서 이미 머문 횟수. 같은 단계에서 같은 방식으로 다시 묻지 않게, 횟수에 따라 묻는 법을 바꾼다:
-     *               엇나감은 바꿔 묻기 → 보기 둘 → 코치가 답을 제안, 모름·짧은 답은 보기 둘 → 코치가 답을 제안.
+     *               엇나감은 바꿔 묻기 → 쉽게 묻기(코치 짐작 하나) → 코치가 답을 제안, 모름·짧은 답은 쉽게 묻기 → 코치가 답을 제안.
      */
     static String route(Kind kind, Before b, int stayed) {
         return route(new Classified(kind, false, "code"), b, stayed);
@@ -298,6 +298,33 @@ final class PracticeLoopRouter {
     static String route(Classified c, Before b, int stayed, String flow) {
         String doing = route(c, b, stayed);
         return CoachFlows.B.equals(flow) && FIND.equals(doing) ? WRAP_UP : doing;
+    }
+
+    /** 묻는 할 일 — 맞춤 코칭의 질문 수 상한이 세는 것. 물음·정정에 답하는 말(답하기·내려놓기)은 세지도 막지도 않는다. */
+    static final java.util.Set<String> ASKING = java.util.Set.of(WANT, GAP, FIND, EASY, "다시 묻기", PROPOSE, POINT_OUT_OTHER);
+
+    /**
+     * 맞춤 코칭의 정리 전 질문 수 상한(SOMA-795). 상한만큼 물었으면 더 묻는 할 일 대신 정리로 넘긴다. 배우가 묻거나 고쳐 말한
+     * 것에는 그대로 답한다(답하기·내려놓기·짚어주기). 상한이 없으면 지금 그대로다.
+     *
+     * @param asked 지금까지 코치가 물은 수(첫 질문 포함, {@link #questionsAsked})
+     */
+    static String route(Classified c, Before b, int stayed, String flow, Integer maxQuestions, int asked) {
+        String doing = route(c, b, stayed, flow);
+        if (maxQuestions == null || asked < maxQuestions || !ASKING.contains(doing)) return doing;
+        return WRAP_UP;
+    }
+
+    /** 지금까지 코치가 물은 수. 첫 응답(첫 질문)과 그 뒤 묻는 할 일({@link #ASKING})을 센다. */
+    static int questionsAsked(JsonNode loop, int coachTurns) {
+        if (coachTurns <= 0) return 0;
+        JsonNode statuses = loop == null ? null : loop.path("statuses");
+        int asked = 1;
+        for (int i = 1; i < coachTurns; i++) {
+            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            if (ASKING.contains(DirectVideoPracticeLoop.action(status))) asked++;
+        }
+        return asked;
     }
 
     static String route(Classified c, Before b, int stayed) {
@@ -323,7 +350,7 @@ final class PracticeLoopRouter {
         // 2026-10-20 21:34 운영: 정정 뒤 "연기력이랑 목소리는 어때"에 다른 쪽 강점 질문("어디서 더 써 볼래요?")으로 답했다.
         String pointOut = "짚어주기";
         // 정리로 넘어가는 문턱: 스스로 찾기(4단계)에 답했어도 상대에게 할 행동 하나를 정하지 않았으면(고민 중, 헷갈림, 전제 반박,
-        // 판단 요청) 정리하지 않는다. 물은 것이 있으면 먼저 답하고, 없으면 바꿔 묻기 → 보기 둘 → 코치가 제안 순서로 머문다.
+        // 판단 요청) 정리하지 않는다. 물은 것이 있으면 먼저 답하고, 없으면 바꿔 묻기 → 쉽게 묻기 → 코치가 제안 순서로 머문다.
         if (kind == Kind.ANSWER && b.stage() >= 4 && !c.decided()) {
             return switch (c.respond()) {
                 case "evaluation" -> pointOut;

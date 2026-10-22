@@ -78,7 +78,8 @@ jest.mock('@/components/mic-button', () => {
 
 const SEND = '보내기';
 const PLACEHOLDER = '직접 써도 돼요';
-const LOADING = '영상을 마저 정리하고 있어요…';
+const LOADING = '코치가 첫 질문을 쓰고 있어요…';
+const LOADING_HINT = '보통 20~30초쯤 걸려요. 화면을 나가도 질문은 계속 만들어지고, 홈에서 「대화 이어 가기」를 누르면 이어서 볼 수 있어요.';
 const NOTE = { id: 'n1', title: '멈춤' } as PracticeNote;
 
 function msg(turn: number, role: CoachMessage['role'], text: string): CoachMessage {
@@ -181,7 +182,10 @@ describe('대화 시작', () => {
     await render(<CoachScreen />);
 
     expect(screen.getByText(LOADING)).toBeOnTheScreen();
-    expect(screen.getByText('카페에서 이별을 말하는 장면')).toBeOnTheScreen();
+    expect(screen.getByText(LOADING_HINT)).toBeOnTheScreen();
+    // 머리 제목은 장면과 상관없이 늘 「질문 대화」다(pen 09).
+    expect(screen.getByText('질문 대화')).toBeOnTheScreen();
+    expect(screen.queryByText('카페에서 이별을 말하는 장면')).not.toBeOnTheScreen();
     expect(screen.getByText('오늘 영상')).toBeOnTheScreen();
     expect(screen.getByText('장면 정보 있음')).toBeOnTheScreen();
     expect(input()).toBeDisabled();
@@ -196,6 +200,7 @@ describe('대화 시작', () => {
     expect(screen.getByText('첫 질문이에요.\n둘째 줄')).toBeOnTheScreen();
     expect(screen.getByText('ACTTUB 코치')).toBeOnTheScreen();
     expect(screen.queryByText(LOADING)).not.toBeOnTheScreen();
+    expect(screen.queryByText(LOADING_HINT)).not.toBeOnTheScreen();
     expect(screen.getByLabelText('답이나 질문을 편하게 적어 주세요')).toBeOnTheScreen();
     expect(input().props.maxLength).toBe(300);
     expect(input()).not.toBeDisabled();
@@ -228,6 +233,19 @@ describe('대화 시작', () => {
     expect(screen.getByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
   });
 
+  test('대화가 먼저 열렸는데 코치 말이 없으면(미리 쓰기 중) 읽기만 하지 않고 시작 요청을 한 번 보낸다(SOMA-780)', async () => {
+    mockLoop.getConversation.mockResolvedValue(conv({ coach_reply_count: 0, messages: [] }));
+    mockLoop.startConversation.mockResolvedValue(turn(conv()));
+    begin({ conversationId: 'c1' });
+    await render(<CoachScreen />);
+
+    expect(await screen.findByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
+    expect(mockLoop.getConversation).toHaveBeenCalledTimes(1);
+    expect(mockLoop.startConversation).toHaveBeenCalledTimes(1);
+    expect(mockLoop.startConversation.mock.calls[0][0]).toBe('p1');
+    expect(screen.queryByText(LOADING)).not.toBeOnTheScreen();
+  });
+
   test('이미 시작한 대화는 같은 id 로 이어 가고 지난 문답을 펼쳐 볼 수 있다', async () => {
     mockLoop.getConversation.mockResolvedValue(ANSWERED);
     begin({ conversationId: 'c1' });
@@ -238,14 +256,14 @@ describe('대화 시작', () => {
     expect(mockLoop.startConversation).not.toHaveBeenCalled();
     expect(screen.queryByText('더는 미루지 않기로요')).not.toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByText('지난 문답 1 ▾'));
+    await fireEvent.press(screen.getByText('지난 문답 1'));
     expect(screen.getByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
     // 내 답은 파란 말풍선(흰 글자), 코치 말은 회색 말풍선이다(SOMA-778).
     expect(screen.getByText('더는 미루지 않기로요')).toHaveStyle({ color: '#FFFFFF' });
-    expect(screen.getByTestId('coach-bubble-mine')).toHaveStyle({ backgroundColor: '#3182F6' });
+    expect(screen.getByTestId('coach-bubble-mine')).toHaveStyle({ backgroundColor: '#4880EE' });
     expect(screen.getByTestId('coach-bubble-coach')).toHaveStyle({ backgroundColor: '#F2F4F6' });
 
-    await fireEvent.press(screen.getByText('지난 문답 1 ▴'));
+    await fireEvent.press(screen.getByText('지난 문답 1'));
     expect(screen.queryByText('더는 미루지 않기로요')).not.toBeOnTheScreen();
   });
 
@@ -325,7 +343,7 @@ describe('답 보내기', () => {
     await act(async () => resolveReply(turn(ANSWERED)));
     expect(screen.getByText('그때 시선은 어디에 있었나요?')).toBeOnTheScreen();
     expect(input()).toHaveDisplayValue('');
-    expect(screen.getByText('지난 문답 1 ▾')).toBeOnTheScreen();
+    expect(screen.getByText('지난 문답 1')).toBeOnTheScreen();
   });
 
   test('글자 수를 세고 300자를 넘으면 보낼 수 없다', async () => {
@@ -463,12 +481,12 @@ describe('답 보내기', () => {
 });
 
 describe('빠른 답과 그만하기', () => {
-  test('빠른 답은 2×2 — 맞아요·아니요·잘 모르겠어요는 입력칸만 채우고 보내지 않는다', async () => {
+  test('빠른 답은 한 줄 셋 — 맞아요·아니요·잘 모르겠어요는 입력칸만 채우고 보내지 않는다(pen 09)', async () => {
     await renderOpen();
 
-    const chips = ['맞아요', '아니요', '잘 모르겠어요', '직접 쓰기'].map((name) => screen.getByRole('button', { name }));
-    expect(chips).toHaveLength(4);
-    expect(screen.getByTestId('coach-quick-grid')).toHaveStyle({ flexDirection: 'row', flexWrap: 'wrap' });
+    const chips = ['맞아요', '아니요', '잘 모르겠어요'].map((name) => screen.getByRole('button', { name }));
+    expect(chips).toHaveLength(3);
+    expect(screen.getByTestId('coach-quick-grid')).toHaveStyle({ flexDirection: 'row' });
     await fireEvent.press(screen.getByRole('button', { name: '맞아요' }));
     expect(input()).toHaveDisplayValue('맞아요');
     await fireEvent.press(screen.getByRole('button', { name: '아니요' }));
@@ -478,17 +496,12 @@ describe('빠른 답과 그만하기', () => {
     expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
   });
 
-  test('직접 쓰기는 입력칸에 커서만 두고 쓰던 글은 그대로 둔다', async () => {
-    const focus = jest.spyOn(TextInput.prototype as unknown as { focus: () => void }, 'focus');
+  test('「직접 쓰기」 칩은 없다 — 위 안내 「답이나 질문을 편하게 적어 주세요」, 입력칸 자리표시 「직접 써도 돼요」', async () => {
     await renderOpen();
-    await fireEvent.changeText(input(), '쓰던 글');
-    focus.mockClear();
 
-    await fireEvent.press(screen.getByRole('button', { name: '직접 쓰기' }));
-    expect(focus).toHaveBeenCalledTimes(1);
-    expect(input()).toHaveDisplayValue('쓰던 글');
-    expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
-    focus.mockRestore();
+    expect(screen.queryByRole('button', { name: '직접 쓰기' })).not.toBeOnTheScreen();
+    expect(screen.getByText('답이나 질문을 편하게 적어 주세요')).toBeOnTheScreen();
+    expect(screen.getByPlaceholderText('직접 써도 돼요')).toBeOnTheScreen();
   });
 
   test('마이크로 받아 적은 글이 입력칸에 들어간다', async () => {

@@ -89,9 +89,32 @@ public interface ScriptRepository {
         UPDATED,
         /** 이 대본에 없는 줄. */
         LINE_NOT_FOUND,
-        /** 대사인데 배역이 없음, 이 대본에 없는 배역, 지문·장면에 배역. */
-        INVALID_LINE
+        /** 대사인데 배역이 없음, 이 대본에 없는 배역, 지문·장면에 배역. 지우기에서는 대본의 마지막 줄. */
+        INVALID_LINE,
+        /** 지우면 대사가 하나도 남지 않는 회차 구간이 있다(그 줄 하나뿐인 구간). */
+        EMPTY_RANGE
     }
+
+    /**
+     * 줄 하나를 지운다(SOMA-785). 그 줄을 구간 시작·끝·진행 위치로 가리키는 회차는 구간 안의 가까운 대사로 옮기고
+     * (시작은 뒤, 끝은 앞, 진행 위치는 뒤 — 없으면 앞), 그 줄의 녹음·외운 줄·줄 결과·말한 것을 함께 지운다. 녹음 객체의
+     * 삭제는 같은 트랜잭션에서 정리 장부에 올린다.
+     *
+     * @return 결과와 장부에 올린 객체 삭제(없으면 {@code null}). 없는 대본이면 {@code null}
+     */
+    LineRemoval deleteLine(UUID userId, UUID scriptId, UUID lineId, Instant now);
+
+    record LineRemoval(LineEditOutcome outcome, UUID scheduled) {
+    }
+
+    /**
+     * 줄 하나를 둘로 나눈다(SOMA-785). 앞 조각은 그 줄(id 그대로)에 남고 뒤 조각은 바로 뒤에 같은 종류·배역의 새 줄로
+     * 들어간다. 뒤 줄들의 순서는 하나씩 밀린다. 그 줄을 구간 끝으로 가리키는 회차는 끝을 뒤 조각으로 옮긴다.
+     * 앞뒤 글은 이미 공백이 정리돼 있고 비어 있지 않다.
+     *
+     * @return 없는 대본이면 {@code null}
+     */
+    LineEditOutcome splitLine(UUID userId, UUID scriptId, UUID lineId, String first, String second);
 
     /**
      * 배역·줄·회차·녹음·암기 상태와 함께 행째 지우고, 녹음 객체의 삭제를 <b>같은 트랜잭션에서</b> 정리 장부에

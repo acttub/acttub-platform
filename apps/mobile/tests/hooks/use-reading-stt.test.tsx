@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { setAudioModeAsync } from 'expo-audio';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+import { Platform } from 'react-native';
 
 import { detectSttPolicy, SPEECH_END_GRACE_MS, sttCanPersist, sttVolumeToRms, useReadingStt } from '@/hooks/use-reading-stt';
 import type { VadEvent } from '@/lib/reading/vad';
@@ -42,6 +43,7 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 async function listen(options?: { persist?: boolean }) {
@@ -150,11 +152,50 @@ describe('useReadingStt', () => {
     await act(async () => {
       const pending = stt.finish();
       mockHandlers.result(result('오늘 왔구나.', true));
+      mockHandlers.end();
       said = await pending;
     });
     expect(said).toBe('오늘 왔구나.');
     expect(recognizer.stop).toHaveBeenCalledTimes(1);
     expect(setAudioModeAsync).toHaveBeenCalledWith({ playsInSilentMode: true, allowsRecording: false });
+  });
+
+  test('멈춘 뒤 앞 구간의 확정이 먼저 와도 끝(end)까지 기다려 마지막 구간까지 담는다(SOMA-646)', async () => {
+    const { stt } = await listen();
+    await emit('result', result('그래서 더 말하기 싫었어'));
+    await emit('result', result('네가 그걸'));
+
+    let said = '';
+    let settled = false;
+    await act(async () => {
+      const pending = stt.finish().then((t) => {
+        settled = true;
+        return t;
+      });
+      mockHandlers.result(result('그래서 더 말하기 싫었어', true));
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      mockHandlers.result(result('네가 그걸 아니까', true));
+      mockHandlers.end();
+      said = await pending;
+    });
+    expect(said).toBe('그래서 더 말하기 싫었어 네가 그걸 아니까');
+  });
+
+  test('말을 마치자마자 멈춰 마지막 구간의 확정 없이 오류로 끝나도 그 구간의 중간 결과를 남긴다(expo-speech-recognition #158)', async () => {
+    const { stt } = await listen();
+    await emit('result', result('그래서 더 말하기 싫었어', true));
+    await emit('result', result('네가 그걸 아니까'));
+
+    let said = '';
+    await act(async () => {
+      const pending = stt.finish();
+      mockHandlers.result(result(''));
+      mockHandlers.error({ error: 'client' });
+      mockHandlers.end();
+      said = await pending;
+    });
+    expect(said).toBe('그래서 더 말하기 싫었어 네가 그걸 아니까');
   });
 
   test('인식기가 끝(end)을 알리면 그때까지의 글로 끝난다', async () => {
@@ -205,6 +246,35 @@ describe('useReadingStt', () => {
     await expect(stt.finish()).resolves.toBe('');
   });
 
+  test('SOMA-597: 인식기가 스스로 끝나면 onEnd 를 한 번 알리고, 끝내기·끊기로 멈춘 끝에는 알리지 않는다', async () => {
+    const hook = await renderHook(() => useReadingStt());
+    const ends: string[] = [];
+    const listener = { onEvent: () => undefined, onInterim: () => undefined, onEnd: () => ends.push('end') };
+    await act(async () => {
+      hook.result.current.start(listener);
+    });
+    await emit('result', result('그래서 더 말하기 싫었어'));
+    await emit('end');
+    await emit('error');
+    expect(ends).toEqual(['end']);
+    await expect(hook.result.current.finish()).resolves.toBe('그래서 더 말하기 싫었어');
+
+    await act(async () => {
+      hook.result.current.start(listener);
+    });
+    await act(async () => {
+      const pending = hook.result.current.finish();
+      mockHandlers.end();
+      await pending;
+    });
+    await act(async () => {
+      hook.result.current.start(listener);
+      hook.result.current.abort();
+    });
+    await emit('end');
+    expect(ends).toEqual(['end']);
+  });
+
   test('듣고 있지 않을 때 끝내면 마지막 글을 바로 돌려준다', async () => {
     const hook = await renderHook(() => useReadingStt());
 
@@ -249,6 +319,49 @@ describe('useReadingStt', () => {
     await emit('speechend');
     await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
     expect(events).toEqual(['speech_start', 'speech_end']);
+  });
+
+  test('문장부호·말줄임표·추임새가 든 받아쓰기도 말 끝에 넘긴다 — 넘김은 글을 대본과 견주지 않는다(SOMA-646)', async () => {
+    const { events } = await listen();
+    await emit('result', result('진짜?! ㅋㅋㅋ… 그래서요...'));
+
+    await emit('speechend');
+    await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
+    expect(events).toEqual(['speech_end']);
+  });
+
+  describe('SOMA-801: 아이폰 인식기는 말 끝(speechend)을 주지 않는다', () => {
+    test('아이폰은 받아쓴 글이 있는 결과가 1.3초 끊기면 말 끝으로 넘기고, 그사이 결과가 또 오면 다시 잰다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'ios');
+      const { events } = await listen();
+
+      await emit('result', result('여기'));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 200));
+      await emit('result', result('여기 있을 줄'));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 200));
+      expect(events).toEqual([]);
+
+      await act(async () => jest.advanceTimersByTime(200));
+      expect(events).toEqual(['speech_end']);
+    });
+
+    test('아이폰도 빈 결과로는 넘기지 않는다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'ios');
+      const { events } = await listen();
+
+      await emit('result', result(''));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS * 2));
+      expect(events).toEqual([]);
+    });
+
+    test('안드로이드는 결과만으로 넘기지 않고 인식기의 말 끝을 기다린다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      const { events } = await listen();
+
+      await emit('result', result('여기 있을 줄 알았어'));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS * 2));
+      expect(events).toEqual([]);
+    });
   });
 
   test('받아쓴 글이 없는 말 끝은 잡음으로 보고 넘기지 않는다', async () => {

@@ -165,7 +165,11 @@ class ReadingScriptIT {
         assertThat(saved.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
                 .containsExactly(2, 1);
         assertThat(saved.path("characters").get(0).fieldNames()).toIterable()
-                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "gender", "age_band", "dialogue_count");
+                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "gender", "age_band", "dialogue_count", "member_ids", "unnamed");
+        assertThat(saved.path("characters")).as("SOMA-597: 기기가 나눈 대본의 배역은 이름 없는 독백 배역이 아니다")
+                .allMatch(character -> character.path("unnamed").isBoolean() && !character.path("unnamed").booleanValue());
+        assertThat(saved.path("characters")).as("SOMA-709: 기기가 나눈 대본에는 묶음 배역이 없다")
+                .allMatch(character -> character.path("member_ids").isArray() && character.path("member_ids").isEmpty());
         assertThat(saved.path("characters")).as("SOMA-670: 기기가 나눈 대본은 성별·나이대를 모른다")
                 .allMatch(character -> character.path("gender").isNull() && character.path("age_band").isNull());
         assertThat(saved.path("characters")).extracting(character -> character.path("voice").textValue())
@@ -246,33 +250,20 @@ class ReadingScriptIT {
     }
 
     @Test
-    @DisplayName("reading.script: 줄 3,001개 — 422 script_too_long. 배역 51개 — 422 script_too_long. 3,000줄·50배역은 저장된다")
-    void readingScript_lineAndCharacterCountLimits() throws Exception {
-        List<String> fifty = new ArrayList<>();
-        for (int index = 0; index < 50; index++) {
-            fifty.add("배역" + index);
+    @DisplayName("reading.script: 줄 수·배역 수 한도는 없다(SOMA-709) — 줄 3,001개·배역 51개도 201로 저장된다")
+    void readingScript_noLineOrCharacterCountLimit() throws Exception {
+        List<String> fiftyOne = new ArrayList<>();
+        for (int index = 0; index < 51; index++) {
+            fiftyOne.add("배역" + index);
         }
-        List<Map<String, Object>> threeThousand = new ArrayList<>();
-        for (int ordinal = 1; ordinal <= 3_000; ordinal++) {
-            threeThousand.add(line(ordinal, "dialogue", ordinal % 50, "대사 " + ordinal));
+        List<Map<String, Object>> lines = new ArrayList<>();
+        for (int ordinal = 1; ordinal <= 3_001; ordinal++) {
+            lines.add(line(ordinal, "dialogue", ordinal % 51, "대사 " + ordinal));
         }
         JsonNode saved = json(post("/v2/reading/scripts")
-                .content(script(UUID.randomUUID(), "큰 대본", "file", "원문", fifty, threeThousand).toString()), 201);
-        assertThat(saved.path("lines")).hasSize(3_000);
-        assertThat(saved.path("characters")).hasSize(50);
-
-        List<Map<String, Object>> tooMany = new ArrayList<>(threeThousand);
-        tooMany.add(line(3_001, "direction", null, "(끝)"));
-        assertThat(json(post("/v2/reading/scripts")
-                .content(script(UUID.randomUUID(), "큰 대본", "file", "원문", fifty, tooMany).toString()), 422))
-                .isEqualTo(mapper.readTree("{\"detail\":\"script_too_long\"}"));
-
-        List<String> fiftyOne = new ArrayList<>(fifty);
-        fiftyOne.add("배역50");
-        assertThat(json(post("/v2/reading/scripts")
-                .content(script(UUID.randomUUID(), "큰 대본", "file", "원문", fiftyOne,
-                        List.of(line(1, "dialogue", 50, "안녕"))).toString()), 422))
-                .isEqualTo(mapper.readTree("{\"detail\":\"script_too_long\"}"));
+                .content(script(UUID.randomUUID(), "큰 대본", "file", "원문", fiftyOne, lines).toString()), 201);
+        assertThat(saved.path("lines")).hasSize(3_001);
+        assertThat(saved.path("characters")).hasSize(51);
         assertThat(count("scripts")).isEqualTo(1);
     }
 
@@ -478,6 +469,113 @@ class ReadingScriptIT {
         assertThat(foreign.getStatus()).isEqualTo(404);
         assertThat(mapper.readTree(foreign.getContentAsString())).isEqualTo(mapper.readTree("{\"detail\":\"script_not_found\"}"));
         assertThat(jdbc.queryForList("SELECT id,kind,character_id,text FROM script_lines ORDER BY script_id,ordinal")).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("reading.script: 줄 지우기 — 줄이 사라지고 그 줄의 녹음(객체 포함)·외운 줄·줄 결과·말한 것도 사라진다. 그 줄을 구간 시작·끝·진행 위치로 가리키던 회차는 구간 안의 가까운 대사로 옮긴다(SOMA-785)")
+    void readingScript_deletingALineMovesSessionsOffIt() throws Exception {
+        JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
+        UUID scriptId = UUID.fromString(saved.path("id").textValue());
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
+        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
+        UUID reply = UUID.fromString(saved.path("lines").get(3).path("id").textValue());
+        UUID last = UUID.fromString(saved.path("lines").get(5).path("id").textValue());
+        // 구간 hello~last, 진행 위치 hello. 다른 회차는 구간 hello~reply 에서 reply 를 진행 중.
+        UUID atStart = session(scriptId, member, List.of(nina), "in_progress", clock.instant());
+        UUID atEnd = session(scriptId, member, List.of(nina), "in_progress", clock.instant());
+        jdbc.update("UPDATE reading_sessions SET end_line_id=?,current_line_id=? WHERE id=?", reply, reply, atEnd);
+        jdbc.update("UPDATE reading_sessions SET line_results=CAST(? AS jsonb),line_said=CAST(? AS jsonb) WHERE id=?",
+                "[{\"line_id\":\"" + hello + "\",\"outcome\":\"unmatched\",\"misses\":1},{\"line_id\":\"" + last + "\",\"outcome\":\"passed\",\"misses\":0}]",
+                "{\"" + hello + "\":\"안녕\",\"" + last + "\":\"네\"}", atStart);
+        String objectKey = "reading/" + member + "/" + atStart + "/" + hello + "/a.m4a";
+        recording(member, atStart, hello, objectKey);
+        recording(member, atStart, last, "reading/" + member + "/" + atStart + "/" + last + "/a.m4a");
+        jdbc.update("INSERT INTO line_memorization(id,user_id,line_id,status) VALUES (?,?,?,'memorized')", UUID.randomUUID(), member, hello);
+
+        JsonNode removed = json(delete("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello), 200);
+
+        assertThat(removed.path("lines")).hasSize(5);
+        assertThat(removed.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
+                .as("대사 번호를 다시 센다").containsExactly(null, null, 1, null, 2);
+        assertThat(removed.path("characters").get(0).path("dialogue_count").intValue()).isEqualTo(1);
+        assertThat(jdbc.queryForMap("SELECT start_line_id,end_line_id,current_line_id FROM reading_sessions WHERE id=?", atStart))
+                .as("시작·진행 위치는 뒤 대사로").containsEntry("start_line_id", reply).containsEntry("end_line_id", last).containsEntry("current_line_id", reply);
+        assertThat(jdbc.queryForMap("SELECT start_line_id,end_line_id,current_line_id FROM reading_sessions WHERE id=?", atEnd))
+                .containsEntry("start_line_id", reply).containsEntry("current_line_id", reply);
+        assertThat(jdbc.queryForObject("SELECT CAST(line_results AS text) FROM reading_sessions WHERE id=?", String.class, atStart))
+                .doesNotContain(hello.toString()).contains(last.toString());
+        assertThat(jdbc.queryForObject("SELECT CAST(line_said AS text) FROM reading_sessions WHERE id=?", String.class, atStart))
+                .doesNotContain(hello.toString()).contains(last.toString());
+        assertThat(jdbc.queryForList("SELECT line_id FROM reading_recordings", UUID.class)).containsExactly(last);
+        assertThat(storage.objects).as("지운 줄의 녹음 객체도 지운다").doesNotContainKey(objectKey).hasSize(1);
+        assertThat(count("line_memorization")).isZero();
+
+        // 진행 위치가 구간의 마지막 대사였으면 앞 대사로 간다.
+        jdbc.update("UPDATE reading_sessions SET current_line_id=? WHERE id=?", last, atStart);
+        json(delete("/v2/reading/scripts/{id}/lines/{line}", scriptId, last), 200);
+        assertThat(jdbc.queryForMap("SELECT start_line_id,end_line_id,current_line_id FROM reading_sessions WHERE id=?", atStart))
+                .containsEntry("end_line_id", reply).containsEntry("current_line_id", reply);
+    }
+
+    @Test
+    @DisplayName("reading.script: 줄 지우기 거절 — 그 줄 하나뿐인 회차 구간: 422 empty_range, 대본의 마지막 줄: 422 invalid_line, 없는 줄: 404 line_not_found, 남의 대본: 404 script_not_found. 거절되면 아무것도 바뀌지 않는다")
+    void readingScript_rejectedLineDeletesChangeNothing() throws Exception {
+        JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
+        UUID scriptId = UUID.fromString(saved.path("id").textValue());
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
+        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
+        UUID only = session(scriptId, member, List.of(nina), "completed", clock.instant());
+        jdbc.update("UPDATE reading_sessions SET end_line_id=? WHERE id=?", hello, only);
+        List<Map<String, Object>> before = jdbc.queryForList("SELECT id,ordinal FROM script_lines ORDER BY ordinal");
+
+        assertThat(json(delete("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"empty_range\"}"));
+        assertThat(json(delete("/v2/reading/scripts/{id}/lines/{line}", scriptId, UUID.randomUUID()), 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"line_not_found\"}"));
+        var foreign = perform(delete("/v2/reading/scripts/{id}/lines/{line}", scriptId, hello),
+                "Bearer " + jwt.issueAccessToken(member()).value());
+        assertThat(foreign.getStatus()).isEqualTo(404);
+        assertThat(jdbc.queryForList("SELECT id,ordinal FROM script_lines ORDER BY ordinal")).isEqualTo(before);
+
+        ObjectNode single = script(UUID.randomUUID(), "한 줄", "paste", "니나: 안녕", List.of("니나"), List.of(line(1, "dialogue", 0, "안녕")));
+        JsonNode one = json(post("/v2/reading/scripts").content(single.toString()), 201);
+        assertThat(json(delete("/v2/reading/scripts/{id}/lines/{line}", one.path("id").textValue(), one.path("lines").get(0).path("id").textValue()), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"invalid_line\"}"));
+    }
+
+    @Test
+    @DisplayName("reading.script: 줄 나누기 — 앞 글은 그 줄 id 에 남고 뒤 글은 바로 뒤에 같은 배역의 새 줄이 된다. 뒤 줄들은 하나씩 밀리고, 녹음·외운 줄은 앞 줄에 남으며, 구간이 그 줄로 끝나던 회차는 끝을 뒤 줄로 옮긴다(SOMA-785)")
+    void readingScript_splittingALineKeepsTheFirstHalfInPlace() throws Exception {
+        JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
+        UUID scriptId = UUID.fromString(saved.path("id").textValue());
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
+        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
+        UUID ends = session(scriptId, member, List.of(nina), "in_progress", clock.instant());
+        jdbc.update("UPDATE reading_sessions SET end_line_id=? WHERE id=?", hello, ends);
+        recording(member, ends, hello, "reading/" + member + "/" + ends + "/" + hello + "/a.m4a");
+
+        ObjectNode body = mapper.createObjectNode().put("first_text", " 안녕 ").put("second_text", "하세요 ");
+        JsonNode split = json(post("/v2/reading/scripts/{id}/lines/{line}/split", scriptId, hello).content(body.toString()), 200);
+
+        JsonNode lines = split.path("lines");
+        assertThat(lines).hasSize(7);
+        assertThat(lines.get(2).path("id").textValue()).isEqualTo(hello.toString());
+        assertThat(lines.get(2).path("text").textValue()).isEqualTo("안녕");
+        assertThat(lines.get(3).path("text").textValue()).isEqualTo("하세요");
+        assertThat(lines.get(3).path("character_id").textValue()).isEqualTo(nina.toString());
+        assertThat(lines).extracting(line -> line.path("ordinal").intValue()).containsExactly(1, 2, 3, 4, 5, 6, 7);
+        assertThat(lines).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
+                .containsExactly(null, null, 1, 2, 3, null, 4);
+        assertThat(jdbc.queryForObject("SELECT line_id FROM reading_recordings", UUID.class)).isEqualTo(hello);
+        assertThat(jdbc.queryForObject("SELECT end_line_id FROM reading_sessions WHERE id=?", UUID.class, ends))
+                .isEqualTo(UUID.fromString(lines.get(3).path("id").textValue()));
+
+        assertThat(json(post("/v2/reading/scripts/{id}/lines/{line}/split", scriptId, hello)
+                .content(mapper.createObjectNode().put("first_text", "안녕").put("second_text", "  ").toString()), 422).path("detail").isArray())
+                .as("빈 글은 422 배열").isTrue();
+        assertThat(json(post("/v2/reading/scripts/{id}/lines/{line}/split", scriptId, UUID.randomUUID()).content(body.toString()), 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"line_not_found\"}"));
+        assertThat(count("script_lines")).isEqualTo(7);
     }
 
     @Test

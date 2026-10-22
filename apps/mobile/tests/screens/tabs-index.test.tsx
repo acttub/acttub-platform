@@ -200,17 +200,62 @@ beforeEach(() => {
 });
 
 describe('첫 사용자', () => {
-  test('기록·대본·연습한 날이 없으면 「뭐부터 해 볼까요?」 세 갈래를 보이고 각 탭으로 간다', async () => {
+  test('기록·대본·연습한 날이 없으면 인사·소개 말풍선과 「뭐부터 해 볼까요?」 선택 카드를 보이고, 고른 뒤 「계속하기」로 그 탭에 간다', async () => {
     await render(<HomeScreen />);
 
     expect(await screen.findByText('뭐부터 해 볼까요?')).toBeOnTheScreen();
+    expect(screen.getByText('반가워요!')).toBeOnTheScreen();
+    expect(screen.getByText('액터브는 혼자 하는 연기 연습을\n옆에서 같이 봐 주는 앱이에요.')).toBeOnTheScreen();
+    expect(screen.getByText('하나를 누르면 자세히 알려 드려요')).toBeOnTheScreen();
     await waitFor(() => expect(writeLastSeenStreak).toHaveBeenCalledWith(0));
-    await fireEvent.press(screen.getByRole('button', { name: '연기 코칭을 받아볼래요?' }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith('/coaching');
-    await fireEvent.press(screen.getByRole('button', { name: '대본 리딩을 받아볼래요?' }));
+
+    // 고르기 전엔 버튼이 막혀 있다.
+    const blocked = screen.getByRole('button', { name: '하나를 골라 주세요' });
+    expect(blocked).toBeDisabled();
+    await fireEvent.press(blocked);
+    expect(mockRouter.push).not.toHaveBeenCalled();
+
+    // 누르면 바로 가지 않고 골라 둔다.
+    await fireEvent.press(screen.getByRole('radio', { name: '대본 리딩을 받아볼래요?' }));
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(screen.getByRole('radio', { name: '대본 리딩을 받아볼래요?', selected: true })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '계속하기' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/reading');
-    await fireEvent.press(screen.getByRole('button', { name: '챌린지 영상을 볼래요?' }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith('/challenges');
+
+    // 챌린지 선택지는 두지 않는다(10/22 피드백 — 코칭·대본 리딩 두 개만).
+    expect(screen.queryByRole('radio', { name: '챌린지 영상을 볼래요?' })).not.toBeOnTheScreen();
+  });
+
+  test('코칭을 고르면 그 카드가 펼쳐져 「이렇게 진행돼요」 세 단계를 보이고, 계속하기는 코칭 탭으로 간다', async () => {
+    await render(<HomeScreen />);
+    await screen.findByText('뭐부터 해 볼까요?');
+    expect(screen.queryByText('이렇게 진행돼요')).not.toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('radio', { name: '연기 코칭을 받아볼래요?' }));
+    expect(screen.getByText('이렇게 진행돼요')).toBeOnTheScreen();
+    expect(screen.getByText('연기 영상을 올리거나 바로 찍어요')).toBeOnTheScreen();
+    expect(screen.getByText('코치가 질문하며 같이 돌아봐요')).toBeOnTheScreen();
+    expect(screen.getByText('고칠 점 하나와 다음 연습을 받아요')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '계속하기' }));
+    expect(mockRouter.push).toHaveBeenLastCalledWith('/coaching');
+
+    // 대본 리딩을 고르면 코칭 단계는 접히고 대본 리딩 단계가 펼쳐진다(10/22 피드백).
+    await fireEvent.press(screen.getByRole('radio', { name: '대본 리딩을 받아볼래요?' }));
+    expect(screen.queryByText('연기 영상을 올리거나 바로 찍어요')).not.toBeOnTheScreen();
+    expect(screen.getByText('이렇게 진행돼요')).toBeOnTheScreen();
+    expect(screen.getByText('대본 파일을 올리거나 붙여 넣어요')).toBeOnTheScreen();
+    expect(screen.getByText('내 배역을 고르면 상대역을 읽어 줘요')).toBeOnTheScreen();
+    expect(screen.getByText('내 대사를 소리 내 맞춰 읽어요')).toBeOnTheScreen();
+  });
+
+  test('이름을 알면 「{이름}님, 반가워요!」로 맞는다', async () => {
+    mockAuth.profile = { me: { profile: { experience: 'none', birth_date: null, name: '지성' } } } as typeof mockAuth.profile;
+    try {
+      await render(<HomeScreen />);
+      expect(await screen.findByText('지성님, 반가워요!')).toBeOnTheScreen();
+    } finally {
+      mockAuth.profile = { me: null };
+    }
   });
 
   test('대본을 만든 사람은 선택지 대신 그 대본으로 시작하는 오늘 할 것 카드를 본다', async () => {
@@ -219,7 +264,9 @@ describe('첫 사용자', () => {
 
     expect(await screen.findByText('갈매기 2막')).toBeOnTheScreen();
     expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
-    expect(screen.getByText('리딩 · 하던 대본')).toBeOnTheScreen();
+    // 한 번도 안 읽은 대본은 「하던 대본」이 아니다(10/22 피드백).
+    expect(screen.getByText('리딩 · 새 대본')).toBeOnTheScreen();
+    expect(screen.queryByText('리딩 · 하던 대본')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '리딩 시작하기' }));
     await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading'));
   });

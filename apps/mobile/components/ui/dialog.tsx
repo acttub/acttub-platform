@@ -11,12 +11,24 @@ import { palette } from '@/constants/palette';
  * - DialogButtons — 같은 카드의 [취소 | 확인] 두 칸: 모서리 14, 위아래 14, 간격 8. 취소 #F2F4F6 · 15/700, 확인 파랑(위험이면 빨강) · 15/800.
  * - ActionSheetCard — pen 「ActionSheet」: 흰 카드 모서리 20 · 위아래 4, 제목 13/700 회색, 항목 16/600(위 1px #E5E8EB 줄),
  *   8 띄우고 취소 칸(#F2F4F6 · 모서리 16 · 16/800).
+ * - `compact` — pen 09 「여기서 마칠까요?」 창: 폭 292 · 모서리 20 · 안쪽 [20,19,15,19], 제목 18/800(줄 23), 설명 16/400(줄 20),
+ *   버튼 줄(위 26 · 사이 7) 높이 46 · 17/700.
  */
-export function DialogCard({ title, message, children }: { title: string; message?: string | null; children?: ReactNode }) {
+export function DialogCard({
+  title,
+  message,
+  children,
+  compact,
+}: {
+  title: string;
+  message?: string | null;
+  children?: ReactNode;
+  compact?: boolean;
+}) {
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>{title}</Text>
-      {message ? <Text style={styles.message}>{message}</Text> : null}
+    <View style={[styles.card, compact && styles.compactCard]}>
+      <Text style={[styles.title, compact && styles.compactTitle]}>{title}</Text>
+      {message ? <Text style={[styles.message, compact && styles.compactMessage]}>{message}</Text> : null}
       {children}
     </View>
   );
@@ -29,7 +41,9 @@ export function DialogButtons({
   onConfirm,
   destructive,
   busy,
+  compact,
 }: {
+  compact?: boolean;
   /** 없으면 확인 하나만(알림창). */
   cancelLabel?: string;
   onCancel?: () => void;
@@ -39,23 +53,23 @@ export function DialogButtons({
   busy?: boolean;
 }) {
   return (
-    <View style={styles.buttonRow}>
+    <View style={[styles.buttonRow, compact && styles.compactButtonRow]}>
       {cancelLabel ? (
         <Pressable
-          style={({ pressed }) => [styles.button, styles.cancel, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.button, compact && styles.compactButton, styles.cancel, pressed && styles.pressed]}
           onPress={onCancel}
           disabled={busy}
           accessibilityRole="button">
-          <Text style={styles.cancelText}>{cancelLabel}</Text>
+          <Text style={[styles.cancelText, compact && styles.compactButtonText]}>{cancelLabel}</Text>
         </Pressable>
       ) : null}
       <Pressable
-        style={({ pressed }) => [styles.button, styles.confirm, destructive && styles.confirmDanger, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.button, compact && styles.compactButton, styles.confirm, destructive && styles.confirmDanger, pressed && styles.pressed]}
         onPress={onConfirm}
         disabled={busy}
         accessibilityRole="button"
         accessibilityLabel={confirmLabel}>
-        {busy ? <ActivityIndicator color={palette.onAccent} /> : <Text style={styles.confirmText}>{confirmLabel}</Text>}
+        {busy ? <ActivityIndicator color={palette.onAccent} /> : <Text style={[styles.confirmText, compact && styles.compactButtonText]}>{confirmLabel}</Text>}
       </Pressable>
     </View>
   );
@@ -115,6 +129,12 @@ const styles = StyleSheet.create({
   confirm: { backgroundColor: palette.blue },
   confirmDanger: { backgroundColor: palette.danger },
   confirmText: { fontSize: 15, fontWeight: '800', color: palette.onAccent },
+  compactCard: { maxWidth: 292, borderRadius: 20, paddingTop: 20, paddingHorizontal: 19, paddingBottom: 15 },
+  compactTitle: { fontSize: 18, lineHeight: 23 },
+  compactMessage: { fontSize: 16, lineHeight: 20 },
+  compactButtonRow: { gap: 7, marginTop: 26 },
+  compactButton: { minHeight: 46, paddingVertical: 0 },
+  compactButtonText: { fontSize: 17, fontWeight: '700' },
 
   sheetWrap: { width: '100%', gap: 8 },
   sheet: { width: '100%', backgroundColor: palette.card, borderRadius: 20, paddingVertical: 4 },

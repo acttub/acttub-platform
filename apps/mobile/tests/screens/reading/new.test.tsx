@@ -123,6 +123,41 @@ test('배역이 하나뿐인 대본은 나눈 뒤 대본 상세로 간다', asyn
   expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'typed', raw_text: '민재: 혼자야.' }));
 });
 
+const MONO_LINES: Parameters<typeof scriptDetail>[0] = [
+  ['dialogue', '민지', '그래서 더 말하기 싫었어.'],
+  ['dialogue', '민지', '네가 그걸 아니까.'],
+  ['dialogue', '민지', '나도 내가 얼마나 준비했는지 알아.'],
+  ['dialogue', '민지', '그래서 더 아팠어.'],
+];
+
+test('SOMA-597: 이름 없는 독백으로 나뉘면 「혼자 하는 대본이에요」에서 배역 이름을 받아 고친 뒤 대본 상세로 간다', async () => {
+  const mono = scriptDetail(MONO_LINES);
+  server.get.mockResolvedValue({ ...mono, characters: [{ ...mono.characters[0], name: '화자', unnamed: true }] });
+  await render(<ReadingNew />);
+  await paste('그래서 더 말하기 싫었어. 네가 그걸 아니까.');
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('혼자 하는 대본이에요')).toBeOnTheScreen();
+  expect(screen.getByText('배역 이름이 없어서 한 사람의 독백으로 나눴어요.\n누구의 대사인지 이름을 정해 주세요.')).toBeOnTheScreen();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: '이 이름으로 저장' })).toBeDisabled();
+
+  await fireEvent.changeText(screen.getByPlaceholderText('배역 이름'), '  민지 ');
+  await fireEvent.press(screen.getByRole('button', { name: '이 이름으로 저장' }));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.patch).toHaveBeenCalledWith('s1', { characters: [{ id: 'c1', name: '민지' }] });
+});
+
+test('SOMA-597: 이름이 있는 독백은 이름을 묻지 않고 대본 상세로 간다', async () => {
+  server.get.mockResolvedValue(scriptDetail(MONO_LINES));
+  await render(<ReadingNew />);
+  await paste('민지: 그래서 더 말하기 싫었어.');
+
+  await fireEvent.press(screen.getByText('다음'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  expect(screen.queryByText('혼자 하는 대본이에요')).not.toBeOnTheScreen();
+});
+
 test('예시 대본 링크를 누르면 글 탭에 예시를 채우고 링크를 숨긴다', async () => {
   await render(<ReadingNew />);
 
@@ -225,7 +260,7 @@ test('배역을 못 찾으면 「대본을 못 나눴어요」 화면에 이유�
 
 test.each([
   ['하루 한도를 넘으면', () => jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(429, 'limit', 'script_split_daily_limit')), '오늘은 대본을 더 넣을 수 없어요', '대본은 하루 20번까지 나눌 수 있어요.\n내일 다시 넣어 주세요.'],
-  ['대본이 너무 길면', () => jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'script_too_long', script_id: null })), '저장', '대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요.'],
+  ['대본이 너무 길면', () => jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'script_too_long', script_id: null })), '저장', '대본이 너무 길어요. 원문 100,000자까지 저장할 수 있어요.'],
 ])('%s 알리고 확인을 누르면 닫는다', async (_name, arrange, title, message) => {
   arrange();
   await render(<ReadingNew />);

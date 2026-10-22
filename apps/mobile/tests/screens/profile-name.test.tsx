@@ -62,7 +62,9 @@ function auth(me: unknown, status = 'ready') {
 const button = (name: string) => screen.getByRole('button', { name });
 const radio = (name: string) => screen.getByRole('radio', { name });
 const checkbox = (name: string) => screen.getByRole('checkbox', { name });
-const next = () => button('계속하기');
+const next = () => button('다음');
+const done = () => button('완료');
+const BIRTH = '예: 2004-03-14 (숫자만 입력)';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -73,27 +75,25 @@ beforeEach(() => {
   (takeProviderNameHint as jest.Mock).mockReturnValue('민지');
 });
 
-/** 시작 화면에서 「시작하기」를 눌러 닉네임 단계로 간다. 제공자 이름이 채워질 때까지 기다린다. */
+/** 시작 화면에서 「시작하기」를 눌러 닉네임 질문으로 간다. 제공자 이름이 채워질 때까지 기다린다. */
 async function start() {
   await render(<ProfileNameScreen />);
   await fireEvent.press(await screen.findByRole('button', { name: '시작하기' }));
   expect(await screen.findByDisplayValue('민지')).toBeOnTheScreen();
 }
 
-/** 닉네임부터 추구하는 방향까지 답하고 그 단계의 「계속하기」를 누르기 직전에 멈춘다. */
+/** 닉네임부터 추구하는 방향까지 답한다 — 방향은 두 개 고르고 마지막 버튼은 누르지 않는다. */
 async function answerToDirections() {
   await fireEvent.press(next());
-  await fireEvent.changeText(screen.getByPlaceholderText('예: 2004-03-14 (숫자만 입력)'), '20040314');
-  await fireEvent.press(next());
-  await fireEvent.press(radio('여성'));
-  await fireEvent.press(next());
-  await fireEvent.press(radio('전문 배우')); // 연기 목표 — 누르면 바로 다음
-  await fireEvent.press(radio('입시생')); // 연기 경력 — 누르면 바로 다음
+  await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20040314'); // 8자리면 바로 다음
+  await fireEvent.press(radio('여성')); // 누르면 바로 다음
+  await fireEvent.press(radio('전문 배우'));
+  await fireEvent.press(radio('입시생'));
   await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
   await fireEvent.press(checkbox('매체 (TV·영화)'));
 }
 
-/** 유입 경로를 묻지 않는 설치(광고 링크) — 마지막 단계가 추구하는 방향이다. */
+/** 유입 경로를 묻지 않는 설치(광고 링크) — 마지막 질문이 추구하는 방향이다. */
 async function startWithoutDiscovery() {
   (readAttributedChannel as jest.Mock).mockResolvedValue('facebook');
   await start();
@@ -109,54 +109,97 @@ const PAYLOAD = {
   goal: 'professional',
 };
 
-describe('가입 게이트', () => {
-  test('시작 화면 다음부터 한 단계씩 묻고, 답해야 계속할 수 있다', async () => {
+describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 위에 나온다', () => {
+  test('「계속하기」 없이 답하면 넘어가고, 캐릭터 말이 질문마다 바뀐다', async () => {
     await render(<ProfileNameScreen />);
     expect(await screen.findByText('반가워요, 배우님!')).toBeOnTheScreen();
     await fireEvent.press(button('시작하기'));
 
-    // 닉네임 — 로그인 제공자가 준 이름으로 시작한다. 사진·소개는 묻지 않는다.
+    // 닉네임 — 로그인 제공자가 준 이름으로 시작한다. 글자를 다 적었는지는 알 수 없으니 「다음」만 둔다.
     expect(await screen.findByDisplayValue('민지')).toBeOnTheScreen();
+    expect(screen.getByText('뭐라고 불러 드릴까요?')).toBeOnTheScreen();
     expect(screen.getByText('1/7')).toBeOnTheScreen();
     expect(screen.queryByText('프로필 사진')).not.toBeOnTheScreen();
-    expect(screen.queryByText('한 줄 소개')).not.toBeOnTheScreen();
     await fireEvent.changeText(screen.getByDisplayValue('민지'), '  ');
     expect(next()).toBeDisabled();
     await fireEvent.changeText(screen.getByLabelText('닉네임'), '민지');
-    expect(next()).toBeEnabled();
     await fireEvent.press(next());
 
-    // 생년월일
-    expect(next()).toBeDisabled();
-    await fireEvent.changeText(screen.getByPlaceholderText('예: 2004-03-14 (숫자만 입력)'), '20040314');
-    expect(screen.getByDisplayValue('2004-03-14')).toBeOnTheScreen();
-    await fireEvent.press(next());
+    // 생년월일 — 8자리를 채우면 바로 다음
+    expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '2004031');
+    expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20040314');
 
-    // 성별
-    expect(next()).toBeDisabled();
+    // 성별·목표·경력 — 말풍선 아래 회색 「○○ 선택」 제목, 누르면 바로 다음
+    expect(screen.getByText('민지님, 성별을 알려 주실래요?')).toBeOnTheScreen();
+    expect(screen.getByText('성별 선택')).toBeOnTheScreen();
     await fireEvent.press(radio('여성'));
-    expect(radio('여성')).toBeSelected();
-    await fireEvent.press(next());
-
-    // 연기 목표·경력은 누르면 바로 다음 단계다.
-    expect(screen.getByText('가장 가까운 걸 하나 누르세요.')).toBeOnTheScreen();
+    expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
+    expect(screen.getByText('연기 목표 선택')).toBeOnTheScreen();
     await fireEvent.press(radio('전문 배우'));
+    expect(screen.getByText('민지님, 연기한 지 얼마나 됐어요?')).toBeOnTheScreen();
+    expect(screen.getByText('연기 경력 선택')).toBeOnTheScreen();
     await fireEvent.press(radio('입시생'));
 
-    // 추구하는 방향 — 하나 이상
+    // 추구하는 방향 — 여러 개라 「다음」으로 마친다
+    expect(screen.getByText('민지님, 어떤 연기를 하고 싶어요?')).toBeOnTheScreen();
+    expect(screen.getByText('추구하는 방향 선택 · 여러 개 가능')).toBeOnTheScreen();
+    // 처음 답하는 중에는 고치기 안내가 없다
+    expect(screen.queryByText('지난 답변을 누르면 바로 고칠 수 있어요')).not.toBeOnTheScreen();
     expect(next()).toBeDisabled();
     await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
     expect(next()).toBeEnabled();
+    expect(screen.queryByText('계속하기')).not.toBeOnTheScreen();
     expect(saveProfile).not.toHaveBeenCalled();
   });
 
-  test('뒤로는 앞 단계로 가고 답한 값은 남긴다', async () => {
+  test('답한 칸은 아래에 쌓이고, 누르면 그 질문으로 돌아가 고친 뒤 하던 질문으로 온다', async () => {
     await start();
     await fireEvent.press(next());
-    await fireEvent.changeText(screen.getByPlaceholderText('예: 2004-03-14 (숫자만 입력)'), '20040314');
+    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20040314');
+    await fireEvent.press(radio('여성'));
+
+    expect(button('닉네임 민지')).toBeOnTheScreen();
+    expect(button('생년월일 2004-03-14')).toBeOnTheScreen();
+    expect(button('성별 여성')).toBeOnTheScreen();
+
+    await fireEvent.press(button('성별 여성'));
+    expect(screen.getByText('민지님, 성별을 알려 주실래요?')).toBeOnTheScreen();
+    // 고치는 중 — 요약 행 자리가 파란 테두리 칸이 되고 위에 안내가 붙는다(pen 7/7 · 지난 답변 수정)
+    expect(screen.getByText('지난 답변을 누르면 바로 고칠 수 있어요')).toBeOnTheScreen();
+    expect(screen.queryByText('성별 선택')).not.toBeOnTheScreen();
+    expect(radio('여성')).toBeSelected();
+    await fireEvent.press(radio('남성'));
+
+    expect(button('성별 남성')).toBeOnTheScreen();
+    expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
+    expect(screen.queryByText('지난 답변을 누르면 바로 고칠 수 있어요')).not.toBeOnTheScreen();
+  });
+
+  test('추구하는 방향을 고치러 가면 「여러 개 고를 수 있어요」를 보이고 「다음」으로 하던 질문에 돌아온다', async () => {
+    await start();
+    await answerToDirections();
+    await fireEvent.press(next());
+    expect(await screen.findByText('알게 된 곳 선택')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: /^추구하는 방향 / }));
+    expect(screen.getByText('여러 개 고를 수 있어요')).toBeOnTheScreen();
+    expect(screen.getByText('지난 답변을 누르면 바로 고칠 수 있어요')).toBeOnTheScreen();
+    await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
     await fireEvent.press(next());
 
+    expect(screen.getByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(button('추구하는 방향 매체 (TV·영화)')).toBeOnTheScreen();
+  });
+
+  test('뒤로는 앞 질문으로 가고 답한 값은 남긴다', async () => {
+    await start();
+    await fireEvent.press(next());
+    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20040314');
+
     await fireEvent.press(button('뒤로'));
+    expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
     expect(screen.getByDisplayValue('2004-03-14')).toBeOnTheScreen();
     await fireEvent.press(button('뒤로'));
     expect(screen.getByDisplayValue('민지')).toBeOnTheScreen();
@@ -170,10 +213,11 @@ describe('가입 게이트', () => {
     await fireEvent.press(next());
 
     expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
-    expect(next()).toBeDisabled();
     await fireEvent.press(radio('기타'));
+    expect(saveProfile).not.toHaveBeenCalled();
+    expect(done()).toBeDisabled();
     await fireEvent.changeText(screen.getByPlaceholderText('어디서 알게 됐는지 적어주세요 (30자까지)'), '연기 학원 선생님');
-    await fireEvent.press(next());
+    await fireEvent.press(done());
 
     expect(saveProfile).toHaveBeenCalledWith(PAYLOAD);
     expect(logEvent).toHaveBeenCalledWith('profile_setup', { mediums: 'stage,media', career: 'exam_prep', goal: 'professional' });
@@ -183,26 +227,33 @@ describe('가입 게이트', () => {
     expect(mockRouter.back).not.toHaveBeenCalled();
   });
 
-  test('유입 경로를 고르지 않고 건너뛰면 건너뜀으로 보내고, 같은 것을 다시 누르면 고른 것을 푼다', async () => {
-    recordDiscovery.mockRejectedValue(new Error('down'));
+  test('유입 경로는 하나 누르면 바로 저장한다', async () => {
     await start();
     await answerToDirections();
     await fireEvent.press(next());
 
     await fireEvent.press(radio('인스타그램'));
-    expect(radio('인스타그램')).toBeSelected();
-    await fireEvent.press(radio('인스타그램'));
-    expect(radio('인스타그램')).not.toBeSelected();
+
+    expect(saveProfile).toHaveBeenCalledWith(PAYLOAD);
+    expect(recordDiscovery).toHaveBeenCalledWith({ source: 'instagram', detail: null, other_text: null });
+  });
+
+  test('유입 경로를 건너뛰면 건너뜀으로 보낸다', async () => {
+    recordDiscovery.mockRejectedValue(new Error('down'));
+    await start();
+    await answerToDirections();
+    await fireEvent.press(next());
+
     await fireEvent.press(button('건너뛰기'));
 
     expect(saveProfile).toHaveBeenCalledWith(PAYLOAD);
     expect(recordDiscovery).toHaveBeenCalledWith({ source: null, detail: null, other_text: null });
   });
 
-  test('광고 링크로 들어온 설치면 유입 경로를 묻지 않는다', async () => {
+  test('광고 링크로 들어온 설치면 유입 경로를 묻지 않고 방향에서 「완료」로 저장한다', async () => {
     await startWithoutDiscovery();
     await answerToDirections();
-    await fireEvent.press(next());
+    await fireEvent.press(done());
 
     expect(screen.queryByText('민지님, 액터브는 어디서 알게 됐어요?')).not.toBeOnTheScreen();
     expect(saveProfile).toHaveBeenCalledTimes(1);
@@ -221,31 +272,30 @@ describe('가입 게이트', () => {
     auth({ profile: null });
     await startWithoutDiscovery();
     await answerToDirections();
-    await fireEvent.press(next());
+    await fireEvent.press(done());
 
     expect(saveProfile).toHaveBeenCalledTimes(1);
     expect(recordSignupCompleted).not.toHaveBeenCalled();
   });
 
-  test('있을 수 없는 생년월일은 이유를 보이고 막는다', async () => {
+  test('있을 수 없는 생년월일은 이유를 보이고 넘어가지 않는다', async () => {
     await start();
     await fireEvent.press(next());
-    await fireEvent.changeText(screen.getByPlaceholderText('예: 2004-03-14 (숫자만 입력)'), '20300101');
+    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20300101');
 
     expect(screen.getByText('생년월일을 다시 확인해주세요.')).toBeOnTheScreen();
-    expect(next()).toBeDisabled();
+    expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
   });
 
   test('만 14세 미만 생년월일은 「가입할 수 없어요」로 보내고, 확인하면 로그아웃한다', async () => {
     await start();
     await fireEvent.press(next());
-    await fireEvent.changeText(screen.getByPlaceholderText('예: 2004-03-14 (숫자만 입력)'), '20200101');
-    await fireEvent.press(next());
+    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20200101');
 
     expect(screen.getByText('지금은 가입할 수 없어요')).toBeOnTheScreen();
     await fireEvent.press(button('뒤로'));
     expect(screen.getByDisplayValue('2020-01-01')).toBeOnTheScreen();
-    await fireEvent.press(next());
+    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20200101');
     await fireEvent.press(button('확인'));
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(saveProfile).not.toHaveBeenCalled();
@@ -273,7 +323,7 @@ describe('가입 게이트', () => {
     saveProfile.mockRejectedValue(new ApiError(422, 'closed', 'validation_failed', 'under_14_account_closed'));
     await startWithoutDiscovery();
     await answerToDirections();
-    await fireEvent.press(next());
+    await fireEvent.press(done());
 
     expect(closeAccountUnder14).toHaveBeenCalledTimes(1);
     expect(logEvent).not.toHaveBeenCalled();
@@ -283,7 +333,7 @@ describe('가입 게이트', () => {
     saveProfile.mockRejectedValue(new ApiError(422, 'young', 'validation_failed', 'under_14'));
     await startWithoutDiscovery();
     await answerToDirections();
-    await fireEvent.press(next());
+    await fireEvent.press(done());
 
     expect(await screen.findByText('지금은 가입할 수 없어요')).toBeOnTheScreen();
   });
@@ -296,10 +346,10 @@ describe('가입 게이트', () => {
     saveProfile.mockRejectedValue(cause);
     await startWithoutDiscovery();
     await answerToDirections();
-    await fireEvent.press(next());
+    await fireEvent.press(done());
 
     expect(await screen.findByText(message)).toBeOnTheScreen();
-    expect(next()).toBeEnabled();
+    expect(done()).toBeEnabled();
   });
 
   test('저장하는 동안 버튼을 막는다', async () => {
@@ -308,11 +358,10 @@ describe('가입 게이트', () => {
     await startWithoutDiscovery();
     await answerToDirections();
 
-    await fireEvent.press(next());
-    expect(screen.queryByText('계속하기')).not.toBeOnTheScreen();
-    expect(next()).toBeDisabled();
+    await fireEvent.press(done());
+    expect(done()).toBeDisabled();
     await act(async () => finish());
-    expect(next()).toBeEnabled();
+    expect(done()).toBeEnabled();
   });
 });
 

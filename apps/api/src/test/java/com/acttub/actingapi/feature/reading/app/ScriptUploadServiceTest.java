@@ -70,7 +70,7 @@ class ScriptUploadServiceTest {
     private static final class Uploads implements ScriptUploadRepository {
         final List<String> failures = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-        @Override public void reserve(UUID userId, UUID uploadId, String objectKey, long byteSize, Instant expiresAt, Instant now) {
+        @Override public void reserve(UUID userId, UUID uploadId, String objectKey, String fileName, long byteSize, Instant expiresAt, Instant now) {
             throw new UnsupportedOperationException();
         }
 

@@ -53,7 +53,7 @@ class MemoryExtractorTest {
     void keepsOnlyTheFieldsTheModelWrites() {
         MemoryExtractor extractor = new MemoryExtractor(new RecordingFailureReporter());
         Map<String, String> result = extractor.extract(material(), Map.of(), (system, user) -> """
-                {"goal":"새 목표","wants":"표정을 봐 달라고 했다","habits":"감정이 올라오면 고개를 돌린다",
+                {"goal":"문 앞에서 멈추지 않기","wants":"표정을 봐 달라고 했다","habits":"감정이 올라오면 고개를 돌린다",
                  "tone":"짧게 답한다","avoid":"지어낸 것","speech_self":"또박또박"}
                 """, OPERATION);
         // 칸 목록은 DB 값 목록을 따른다 — 새 칸 마이그레이션이 없는 배포에서는 목표만 남는다.

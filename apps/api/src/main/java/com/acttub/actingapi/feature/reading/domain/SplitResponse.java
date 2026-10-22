@@ -3,12 +3,16 @@ package com.acttub.actingapi.feature.reading.domain;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 모델의 답을 읽는다 (SOMA-593 7-2 6번·7-14). 답은 {@code 줄번호<TAB>종류<TAB>배역<TAB>떼어낼머리} 한 줄씩이고, 첫 호출은
@@ -45,13 +49,23 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
     /** 함께 말하는 화자의 이름 구분. */
     private static final Pattern SPEAKERS = Pattern.compile("[,，/·&+、]");
     /** 이름 없는 대사 규칙에서 혼자 말하는 사람의 이름 — {@code ScriptSplitPrompt} 의 「화자」와 같은 글자다. */
-    private static final String MONOLOGUE = "화자";
+    private static final String MONOLOGUE = Monologue.PLACEHOLDER;
     /** 줄 맨 앞 이름 + 쌍점 머리. */
     private static final Pattern COLON_HEAD = Pattern.compile("([^:：]{1,10}?)\\s*[:：][\\s\\p{Z}]*(?=\\S)");
     /** 여러 낱말에 문장 끝 부호로 끝나는 글 — 이름이 아니라 말이다. */
     private static final Pattern SENTENCE = Pattern.compile("\\S+\\s.*[.?!…。]");
     /** 블록 형식의 이름 줄로 볼 짧은 이름(글자·숫자·공백 10자까지). */
     private static final Pattern NAME_LINE = Pattern.compile("[\\p{L}\\p{N}][\\p{L}\\p{N} ]{0,9}");
+
+    /** 효과음 화자 표기(띄어쓰기·괄호 무시) — 「(음 향)」은 배역이 아니라 지문이다(SOMA-709). */
+    private static final Pattern SOUND = Pattern.compile("(?iu)음향|효과음?|배경음악?|음악|sfx|se|bgm|sound");
+    /** 괄호 화자 중 화면 밖 목소리 — 「(목소리) 거기 누구야?」는 들리는 말이라 대사다. */
+    private static final Pattern VOICE = Pattern.compile("(?iu)목?소리|음성|전화|v\\.?o\\.?|o\\.?s\\.?|off");
+    /** 이름이 아니라 대사 앞 낱말이 화자 칸에 들어간 꼴 — 접속사·대명사 낱말, 「~의/~은/~는」으로 끝나는 말(SOMA-709). */
+    private static final Pattern FUNCTION_WORD = Pattern.compile("그리고|그러나|그런데|하지만|그래서|그러면|그럼|또는|혹은|및|또|내|나|너|네|저|제|우리|저희|그|그녀|그들|이것|그것|저것|당신|자네");
+    private static final Pattern MODIFIER_END = Pattern.compile("\\p{IsHangul}+[의은는]");
+    /** 원문 머리로 쓰인 이름 뒤의 구분 — 줄 끝, 쌍점·쌍반점·마침표·닫는 괄호·탭·U+3000, 공백 두 칸, 괄호 설명. */
+    private static final Pattern HEAD_END = Pattern.compile("(?s)(?:[:：;.)\\]\\t\\u3000]|\\s{2}|\\s*\\().*|");
 
     public SplitResponse {
         rows = Map.copyOf(rows);
@@ -416,6 +430,106 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
         }
         rows.replaceAll((no, row) -> row.kind() == Kind.DIALOGUE && row.speaker().equals(MONOLOGUE)
                 ? new Row(no, Kind.DIALOGUE, named, row.header()) : row);
+    }
+
+    /**
+     * 효과음 표기(「(음 향)」·「효과음」)나 괄호로만 된 화자(「(천둥)」)의 대사 판정을 지문으로 바꾼다 (SOMA-709). 머리도 버려 줄 글이 그대로 지문이
+     * 된다. 괄호 안이 다른 줄이 쓰는 배역 이름이거나 내레이션·화면 밖 목소리 표시면 둔다.
+     */
+    public static void sounds(Map<Integer, Row> rows) {
+        Set<String> known = rows.values().stream().filter(row -> row.kind() == Kind.DIALOGUE).map(row -> CharacterNames.squash(row.speaker()))
+                .collect(Collectors.toSet());
+        rows.replaceAll((no, row) -> {
+            String name = CharacterNames.squash(row.speaker());
+            boolean wrapped = name.length() > 2 && name.startsWith("(") && name.endsWith(")");
+            String inner = wrapped ? name.substring(1, name.length() - 1) : name;
+            boolean sound = SOUND.matcher(inner).matches()
+                    || wrapped && !known.contains(inner) && !CharacterNames.narration(inner) && !CharacterNames.narration(name)
+                    && !VOICE.matcher(inner).matches();
+            return row.kind() == Kind.DIALOGUE && sound ? new Row(no, Kind.DIRECTION, "", "") : row;
+        });
+    }
+
+    /**
+     * 화자 칸에 이름 조각이 든 대사 판정을 고친다 (SOMA-709). 그 줄(블록 형식이면 위 이름 줄)이 원문 머리로 더 긴 배역 이름을 쓰면 그 배역이다
+     * (「젊은」 → 「젊은 시워드」). 원문 머리로 한 번도 쓰이지 않은 의심 이름 — 접속사·대명사 낱말, 「~의/~은/~는」으로 끝나는 말, 깨진 글자가
+     * 섞인 이름, 대본 전체에서 {@link SpeakerMerge#RARE} 줄 이하인 이름 — 은 판정에서 빼고 돌려준다. 빠진 줄 다시 묻기가 이 줄을 다시 묻고,
+     * 그래도 답이 없으면 돌려받은 판정으로 되돌린다. 「하은」처럼 ~은 으로 끝나는 이름도 원문 머리면 이름이다. 배역 이름만 이은 함께 말하기
+     * 화자는 보지 않는다.
+     *
+     * @param roster 배역 목록 호출이 준 이름들 — 더 긴 배역 이름 후보에 더한다
+     * @return 다시 물을 줄의 원래 판정
+     */
+    public static Map<Integer, Row> fragments(List<NumberedLine> lines, Map<Integer, Row> rows, List<String> roster) {
+        Map<String, Integer> count = new LinkedHashMap<>();
+        rows.values().stream().filter(row -> row.kind() == Kind.DIALOGUE && !row.speaker().isBlank())
+                .forEach(row -> count.merge(row.speaker(), 1, Integer::sum));
+        Set<String> names = new LinkedHashSet<>(roster);
+        names.addAll(count.keySet());
+        Set<String> squashed = names.stream().map(CharacterNames::squash).collect(Collectors.toSet());
+        Map<String, Boolean> headed = new HashMap<>();
+        String block = null;
+        for (NumberedLine line : lines) {
+            Row row = rows.get(line.no());
+            if (row == null || row.kind() != Kind.DIALOGUE && row.kind() != Kind.IGNORE) {
+                block = null;
+                continue;
+            }
+            if (row.kind() == Kind.IGNORE) {
+                block = line.text();
+                continue;
+            }
+            String speaker = row.speaker();
+            if (speaker.isBlank()) {
+                continue;
+            }
+            String source = block;
+            String longer = names.stream().filter(name -> !name.equals(speaker) && CharacterNames.squash(name).length() > CharacterNames.squash(speaker).length()
+                    && CharacterNames.squash(name).startsWith(CharacterNames.squash(speaker))
+                    && (headed(line.text(), name) || source != null && CharacterNames.squash(source).equals(CharacterNames.squash(name))))
+                    .max(Comparator.comparingInt(String::length)).orElse(null);
+            if (longer != null) {
+                rows.put(line.no(), new Row(line.no(), Kind.DIALOGUE, longer, ""));
+            } else if (headed(line.text(), speaker) || source != null && CharacterNames.squash(source).equals(CharacterNames.squash(speaker))) {
+                headed.put(speaker, true);
+            }
+        }
+        Map<Integer, Row> asked = new LinkedHashMap<>();
+        rows.forEach((no, row) -> {
+            String name = row.speaker();
+            if (row.kind() != Kind.DIALOGUE || name.isBlank() || headed.containsKey(name)
+                    || Stream.of(SPEAKERS.split(name)).count() > 1 && Stream.of(SPEAKERS.split(name)).allMatch(part -> squashed.contains(CharacterNames.squash(part)))) {
+                return;
+            }
+            String bare = CharacterNames.squash(name);
+            boolean fragment = FUNCTION_WORD.matcher(bare).matches() || MODIFIER_END.matcher(bare).matches()
+                    || CharacterNames.mixesScripts(name) || CharacterNames.hasForeignLetters(name);
+            if (fragment || count.getOrDefault(name, 0) <= SpeakerMerge.RARE) {
+                asked.put(no, row);
+            }
+        });
+        asked.keySet().forEach(rows::remove);
+        return asked;
+    }
+
+    /** 줄이 그 이름(띄어쓰기 무시, 앞 대괄호·괄호 허용)을 원문 머리로 쓰는가 — 이름 뒤가 {@link #HEAD_END} 다. */
+    static boolean headed(String text, String name) {
+        String shown = ScriptText.visible(text).stripLeading();
+        int at = shown.startsWith("[") || shown.startsWith("(") ? 1 : 0;
+        String wanted = CharacterNames.squash(name);
+        int matched = 0;
+        while (at < shown.length() && matched < wanted.length()) {
+            char c = shown.charAt(at);
+            if (Character.isWhitespace(c)) {
+                at++;
+            } else if (c == wanted.charAt(matched)) {
+                at++;
+                matched++;
+            } else {
+                return false;
+            }
+        }
+        return matched == wanted.length() && HEAD_END.matcher(shown.substring(at)).matches();
     }
 
     private static boolean grounded(String speaker, String source) {

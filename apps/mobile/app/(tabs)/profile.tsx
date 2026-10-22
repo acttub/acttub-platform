@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavIconButton } from '@/components/ui/nav-header';
+import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
@@ -37,6 +38,7 @@ const EMPTY_COUNTS: MonthPracticeCounts = { coaching: 0, reading: 0, challenge: 
  * 보관함·포트폴리오는 설정과 프로필 편집으로 옮겼다.
  */
 export default function ProfileScreen() {
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const { user, profile } = useAuth();
@@ -125,7 +127,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + 20 }]}>
         <View style={styles.top}>
           {/* 첫 사용자는 탭바가 숨으므로 홈으로 돌아갈 꺾쇠를 단다(탭바 없이는 딥링크로만 온다) — 탭바가 보이면 두지 않는다. */}
           {firstTime && (
@@ -315,7 +317,7 @@ function CardGrid({ loading, empty, cards, more }: { loading: boolean; empty: st
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   pressed: { opacity: 0.7 },
-  content: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 130 },
+  content: { paddingHorizontal: 20, paddingTop: 4 },
   top: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginRight: -10 },
   title: { fontSize: 22, fontWeight: '800', color: palette.text },
   titleGrow: { flex: 1 },

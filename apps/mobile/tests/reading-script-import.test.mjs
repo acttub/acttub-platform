@@ -109,7 +109,7 @@ test('reading.script: 작업 실패 종류마다 팝업이 갈린다 — 대본 
   ]);
   assert.deepEqual(await outcome('script_too_long'), [
     'too_long',
-    { title: '저장', message: '대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요.' },
+    { title: '저장', message: '대본이 너무 길어요. 원문 100,000자까지 저장할 수 있어요.' },
   ]);
   assert.deepEqual(await outcome('script_limit'), [
     'script_limit',

@@ -148,6 +148,32 @@ test('서버 음성이 실패했는데 기기 엔진도 준비 전이면 그 줄
   assert.equal(await queue.take({ text: '하나', preset: 'M1' }), null);
 });
 
+test('서버가 요청을 거절(400)한 줄은 줄이 넘어가 큐를 다시 잡아도 서버에 다시 보내지 않는다', async () => {
+  // 화면은 줄이 바뀔 때마다 prime 을 다시 부르고, 못 만든 줄은 다시 만들 대상으로 남는다(10/19 같은 줄 99번 요청).
+  const asked = [];
+  const queue = engine.createQueueFor('s1', {
+    cloud: true,
+    synthesizeCloud: async (text) => {
+      asked.push(text);
+      throw Object.assign(new Error('invalid'), { status: 400 });
+    },
+  });
+  const lines = [{ text: '긴 대사', preset: 'M1' }];
+
+  for (let i = 0; i < 3; i += 1) {
+    queue.prime(lines);
+    await queue.first();
+  }
+  assert.deepEqual(asked, ['긴 대사']);
+  assert.equal(await queue.take(lines[0]), null);
+
+  await ready();
+  queue.prime(lines);
+  await queue.first();
+  assert.deepEqual(asked, ['긴 대사']);
+  assert.match(await queue.take(lines[0]), /^file:\/\/\/cache\/.+\.wav$/);
+});
+
 test('기기 엔진이 준비 전이면 합성은 준비되지 않았다는 오류다', async () => {
   await assert.rejects(engine.synthesize('하나', 's1'), /reading.voiceNotReady/);
   await ready();

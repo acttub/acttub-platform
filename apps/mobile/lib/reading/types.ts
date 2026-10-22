@@ -86,6 +86,10 @@ export type ScriptCharacter = {
   /** 내 배역이 아닐 때 읽을 목소리(서버가 정함). 고정값이면 그 값, 자동이면 대본 전체 순환의 값이다. */
   voice: string;
   dialogue_count: number;
+  /** 함께 말하는 줄의 묶음 배역이면 그 줄을 함께 말하는 배역 id들(SOMA-709). 보통 배역은 빈 배열이고 옛 서버면 없다. */
+  member_ids?: string[];
+  /** 원문에 배역 이름이 없어 서버가 임시 이름(「화자」)을 붙인 독백 배역이면 true(SOMA-597). 이름을 고치면 false 이고 옛 서버면 없다. */
+  unnamed?: boolean;
   /** 서버가 대본에서 뽑은 성별·나이대(SOMA-670). 자동 목소리를 고를 때 쓴다. 모르거나 옛 서버면 없다. */
   gender?: 'm' | 'f' | null;
   age_band?: 'child' | 'young' | 'adult' | 'senior' | null;
@@ -171,6 +175,9 @@ export type PatchScriptLineBody = {
   character_id?: string;
   text?: string;
 };
+
+/** POST /v2/reading/scripts/{id}/lines/{line_id}/split 본문(SOMA-785). 둘 다 앞뒤 공백을 걷어 비지 않아야 한다. */
+export type SplitScriptLineBody = { first_text: string; second_text: string };
 
 /** PATCH /v2/reading/scripts/{id}. 제목과 배역 이름·목소리만 고친다. 줄은 PatchScriptLineBody 로 고친다. */
 export type PatchScriptBody = {

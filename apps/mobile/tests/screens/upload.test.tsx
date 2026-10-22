@@ -117,7 +117,8 @@ describe('영상을 고르기 전', () => {
     expect(screen.getByText('영상')).toBeOnTheScreen();
     expect(screen.queryByText('장면 · 질문')).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: '평가 받기' })).toBeSelected();
+    // 기본 목적은 있지만 직접 고르기 전에는 고른 것처럼 칠하지 않는다(10/22 피드백).
+    expect(screen.getByRole('button', { name: '평가 받기' })).not.toBeSelected();
     await toSourceStep();
     // 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있다 — 영상이 없으면 막혀 있다.
     expect(screen.getByRole('checkbox')).not.toBeChecked();
@@ -142,17 +143,17 @@ describe('영상을 고르기 전', () => {
     expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-guide', params: {} });
   });
 
-  test('첫 코칭이면 단계마다 안내를 보이고 찍는 법에도 첫 코칭이라고 넘긴다', async () => {
+  test('첫 코칭이어도 단계마다 「처음이면 ~를 누르세요」를 반복하지 않고, 찍는 법에는 첫 코칭이라고 넘긴다(10/20 피드백)', async () => {
     mockParams = { first: '1' };
     await render(<UploadScreen />);
-    expect(screen.getByText('처음이면 「평가 받기」를 누르세요.')).toBeOnTheScreen();
+    expect(screen.queryByText('처음이면 「평가 받기」를 누르세요.')).not.toBeOnTheScreen();
     await toSourceStep();
-    expect(screen.getByText('처음이면 「지금 찍기」를 누르세요.')).toBeOnTheScreen();
+    expect(screen.queryByText('처음이면 「지금 찍기」를 누르세요.')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '지금 찍기' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-guide', params: { first: '1' } });
-    // 영상을 고르고 오면 맨 아래 체크를 누르라고 안내한다.
+    // 영상을 고르고 와도 같은 안내를 반복하지 않는다.
     await returnWithPicked({ videoId: 'v1', pendingId: null, uri: 'file:///v1.mp4', playbackUrl: null, durationMs: 2_000, source: 'record' });
-    expect(screen.getByText('맨 아래 체크를 누른 뒤 「질문 받기」를 누르세요.')).toBeOnTheScreen();
+    expect(screen.queryByText('맨 아래 체크를 누른 뒤 「질문 받기」를 누르세요.')).not.toBeOnTheScreen();
   });
 
   test('영상 단계에서 뒤로 가면 목적 단계로 돌아가고, 목적 단계에서는 막지 않는다', async () => {

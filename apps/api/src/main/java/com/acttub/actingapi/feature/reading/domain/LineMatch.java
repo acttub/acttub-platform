@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 /**
  * 글자 대조 (reading.session · reading.recording) — 기기가 말한 것을 글자로 바꾼 결과를 대본 원문과만 맞춰 본다.
- * 괄호 안 지시를 빼고 문자·숫자만 소문자로 남긴 뒤 자모 단위 편집 거리로 잰 가까움이 통과선 이상이면 통과다. 가까움은
+ * 괄호 안 지시와 낱자모 추임새를 빼고 문자·숫자만 소문자로 남긴 뒤 자모 단위 편집 거리로 잰 가까움이 통과선 이상이면 통과다. 가까움은
  * 저장하지도 응답에 싣지도 않는다(README 「판정 금지」).
  *
  * <p>앱 {@code lib/reading/match.ts} 에서 옮긴 규칙이고 웹 {@code quiz/match.ts} 와 같다. 기기와 결과가 같도록 글자를
@@ -24,7 +24,8 @@ public final class LineMatch {
     static final int INPUT_MAX = 1000;
 
     private static final Pattern BRACKETED = Pattern.compile("[(（\\[【][^)）\\]】]*[)）\\]】]");
-    private static final Pattern NOT_LETTER_OR_DIGIT = Pattern.compile("[^\\p{L}\\p{N}]+");
+    /** 문자·숫자가 아닌 것과 「ㅋㅋ·ㅎㅎ·ㅠㅠ」 같은 낱자모(한글 호환 자모) — 소리 내 읽는 글자가 아니다(SOMA-646). */
+    private static final Pattern NOT_SPOKEN = Pattern.compile("[^\\p{L}\\p{N}]+|[\\u3131-\\u318E]+");
     private static final String CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
     private static final String JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ";
     private static final String[] JONG = {"", "ㄱ", "ㄲ", "ㄳ", "ㄴ", "ㄵ", "ㄶ", "ㄷ", "ㄹ", "ㄺ", "ㄻ", "ㄼ", "ㄽ", "ㄾ", "ㄿ",
@@ -54,7 +55,7 @@ public final class LineMatch {
 
     static String normalize(String text) {
         String withoutDirections = BRACKETED.matcher(text).replaceAll("");
-        return NOT_LETTER_OR_DIGIT.matcher(withoutDirections).replaceAll("").toLowerCase(Locale.ROOT);
+        return NOT_SPOKEN.matcher(withoutDirections).replaceAll("").toLowerCase(Locale.ROOT);
     }
 
     static double similarity(String said, String target) {

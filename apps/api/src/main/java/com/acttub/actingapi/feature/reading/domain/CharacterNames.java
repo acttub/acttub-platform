@@ -19,7 +19,8 @@ import java.util.regex.Pattern;
  *       편집 거리 2 이하의 목록 이름으로. 실제로 나온 예: {@code 맥베س}·{@code 맥베斯}·{@code 뱅коу}·{@code ロス}·{@code 부in}.</li>
  *   <li>편집 거리 1이면 목록 이름으로 — 세 글자 이상인 이름만. 두 글자 한국어 이름은 한 글자가 다르면 대개 다른 사람이다
  *       (운영 68편 재측정에서 「기자」가 「여자」로 합쳐졌다). 원문에 화자 머리로 쓰인 이름도 그대로 둔다 — 2026-10-20 실험 R1에서
- *       「할아버지」가 「아버지」로, 「원삼처」가 「원삼」으로, 「검사1」이 「형사1」로 합쳐졌다.</li>
+ *       「할아버지」가 「아버지」로, 「원삼처」가 「원삼」으로, 「검사1」이 「형사1」로 합쳐졌다. 숫자가 다르면(「형사1」·「형사2」) 거리와 상관없이
+ *       다른 사람이다(SOMA-709).</li>
  *   <li>그래도 안 맞으면 새 배역(목록을 만든 앞 400줄 뒤에 처음 나오는 인물).</li>
  * </ol>
  */
@@ -86,7 +87,7 @@ public final class CharacterNames {
         boolean narration = narration(name);
         for (String known : roster) {
             // 「제혁NA」는 외국 글자 규칙으로 「제혁」과 거리 2다 — 내레이션은 본래 배역과 나눈다(실험 R1 002·065·146·203)
-            if (known.codePointCount(0, known.length()) < 2 || narration(known) != narration) {
+            if (known.codePointCount(0, known.length()) < 2 || narration(known) != narration || !sameNumbers(cleaned, known)) {
                 continue;
             }
             int distance = editDistance(cleaned, known);
@@ -159,6 +160,11 @@ public final class CharacterNames {
         return core.isEmpty() ? squash(name) : core;
     }
 
+    /** 이름 속 숫자가 같은가 — 숫자만 다른 이름(「형사1」·「형사2」)은 다른 사람이다(SOMA-709). */
+    static boolean sameNumbers(String a, String b) {
+        return a.replaceAll("\\D", "").equals(b.replaceAll("\\D", ""));
+    }
+
     static boolean narration(String name) {
         return NARRATION_TAIL.matcher(name.strip()).find();
     }
@@ -177,7 +183,7 @@ public final class CharacterNames {
         return text.replaceAll("\\s+", "");
     }
 
-    private static boolean hasForeignLetters(String name) {
+    static boolean hasForeignLetters(String name) {
         return name.codePoints().anyMatch(CharacterNames::isForeign);
     }
 

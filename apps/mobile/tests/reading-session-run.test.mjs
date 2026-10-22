@@ -11,6 +11,7 @@ import {
   exitMessage,
   formatProgress,
   isHidden,
+  jumpTo,
   progressOf,
   progressPayload,
   recordSaid,
@@ -236,4 +237,31 @@ test('reading.session: 줄 고치기 — 마지막 대사를 대사가 아니게
   assert.equal(a.index, 5);
   const none = LINES.map((l) => (l.type === 'dialogue' ? X(l.text) : l));
   assert.equal(applyLineEdit(r, { lines: none, lineIds: IDS, myRoles: ['윤서'] }).status, 'done');
+});
+
+test('reading.session(SOMA-785): 지나간 대사를 누르면 그 줄로 가 처음부터 다시 하고, 말한 것은 남는다', () => {
+  let r = advance(advance(recordSaid(run(), '하나'))); // l1(내 줄)을 말하고 l2·l4 를 지나 l4 에서
+  assert.equal(r.index, 4);
+  const jumped = jumpTo(r, 2);
+  assert.equal(jumped.index, 2);
+  assert.equal(jumped.status, 'partner', '상대 줄이면 다시 읽는다');
+  assert.equal(jumpTo(r, 1).status, 'mine', '내 줄이면 다시 듣는다');
+  assert.deepEqual(jumpTo(r, 1).said, { l1: '하나' });
+  assert.equal(progressPayload(jumped).current_line_id, 'l2', '진행 위치도 그 줄이다');
+});
+
+test('reading.session(SOMA-785): 지문·구간 밖·지금 줄과 뒤 줄·끝난 실행으로는 가지 않고, 멈춘 채 누르면 그 줄에서 이어 한다', () => {
+  const r = advance(advance(run()));
+  assert.equal(jumpTo(r, 3), r, '지문');
+  assert.equal(jumpTo(r, 0), r, '구간 앞');
+  assert.equal(jumpTo(r, 4), r, '지금 줄');
+  assert.equal(jumpTo(r, 5), r, '뒤 줄');
+  const done = { ...r, status: 'done' };
+  assert.equal(jumpTo(done, 1), done);
+  const paused = { ...r, status: 'paused', resumeTo: 'mine' };
+  const resumed = jumpTo(paused, 2);
+  assert.equal(resumed.status, 'partner');
+  assert.equal(resumed.resumeTo, null);
+  const leadIn = { ...r, leadInUntil: 5 };
+  assert.equal(jumpTo(leadIn, 2).leadInUntil, null, '이어하기 앞 상대 대사보다 앞으로 가도 위치를 저장한다');
 });

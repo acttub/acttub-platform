@@ -94,4 +94,13 @@ class RecordingCoachMaterialTest {
     private static Recording recording(UUID lineId, String source, String transcript, int durationMs) {
         return new Recording(lineId, "k/" + lineId, "audio/mp4", durationMs, 20_000, transcript, source);
     }
+
+    @Test
+    void 평가하는_말을_찾는다() {
+        assertThat(RecordingCoachMaterial.evaluative("느리게 말한 게 잘 맞네요.")).isEqualTo("잘 맞");
+        assertThat(RecordingCoachMaterial.evaluative("소리로는 충분하니 영상으로 찍어 봐요.")).isEqualTo("충분");
+        assertThat(RecordingCoachMaterial.evaluative("빠르게 말한 소리와 잘 어울려요.")).isEqualTo("잘 어울");
+        assertThat(RecordingCoachMaterial.evaluative("\"말 안 하려고\"는 다른 대사들보다 빨라요. 왜 그렇게 말해요?")).isNull();
+        assertThat(RecordingCoachMaterial.evaluative("방금 말한 것은 느리게 말한 소리와 맞아요.")).isNull();
+    }
 }

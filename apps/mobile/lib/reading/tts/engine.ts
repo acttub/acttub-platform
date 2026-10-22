@@ -20,7 +20,7 @@ import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 import { disposeAudioPlayer } from '../../audio-dispose.ts';
 import { currentLanguage, translate as t } from '../../i18n.ts';
-import { shouldStopCloudVoiceForSession } from '../cloud-voice.ts';
+import { isRejectedCloudVoiceRequest, shouldStopCloudVoiceForSession } from '../cloud-voice.ts';
 import { normalizeFloatSamples } from '../loudness.ts';
 
 import { currentNetworkType } from '../network';
@@ -266,13 +266,16 @@ export type SpeechQueueHandle = SpeechQueue & {
  */
 export function createQueueFor(scriptId: string, options: { cloud?: boolean; synthesizeCloud?: (text: string, scriptId: string, preset: string, lang?: string) => Promise<string> } = {}): SpeechQueueHandle {
   let cloudBlocked = false;
+  // 서버가 요청 자체를 거절(400)한 줄. 큐는 줄이 넘어갈 때마다 못 만든 줄을 다시 잡으므로 여기서 막는다(SOMA-792).
+  const rejected = new Set<string>();
   const queue = createSpeechQueue({
-    synthesize: async (text, _key, preset, lang) => {
-      if (options.cloud && options.synthesizeCloud && !cloudBlocked) {
+    synthesize: async (text, key, preset, lang) => {
+      if (options.cloud && options.synthesizeCloud && !cloudBlocked && !rejected.has(key)) {
         try {
           return await options.synthesizeCloud(text, scriptId, preset, lang);
         } catch (error) {
           cloudBlocked = shouldStopCloudVoiceForSession(error as { status?: number });
+          if (isRejectedCloudVoiceRequest(error as { status?: number })) rejected.add(key);
           if (!isReady()) throw error;
         }
       }

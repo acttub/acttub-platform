@@ -1,6 +1,7 @@
 import { Paths } from 'expo-file-system';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
 
 import { speechLocale } from '@/lib/i18n';
 import { READING_STT_IOS_CATEGORY } from '@/lib/reading/ios-audio';
@@ -16,7 +17,8 @@ import { DEFAULT_VAD, VAD_TICK_MS, createSilenceDetector, createVolumeFeed, type
  * OS 음성 인식 제공자가 처리할 수 있다. 결과 글은 대조에 쓰고 녹음 행의 전사로 남긴다.
  *
  * 인식기가 마이크를 열고 있는 동안은 녹음기와 다투지 않도록 인식기의 음량 이벤트로 침묵을 감지한다. 일반 인식기는 음량을
- * 주지 않기도 해서, 인식기가 알린 말 끝(speechend)도 침묵으로 친다.
+ * 주지 않기도 해서, 인식기가 알린 말 끝(speechend)도 침묵으로 친다. 아이폰 인식기는 말 끝을 알리지 않아 결과가 끊긴 때를
+ * 말 끝으로 본다(SOMA-801).
  */
 const VOLUME_INTERVAL_MS = 50;
 /** 인식기가 말 끝을 알린 뒤 넘기기 전까지 더 기다리는 시간(SOMA-741). */
@@ -41,13 +43,19 @@ export async function detectSttPolicy(): Promise<SttPolicy> {
   }
 }
 
+/**
+ * onEnd 는 finish·abort 없이 인식기가 스스로 끝났을 때(오래 쉼·시간 한도·오류) 한 번 온다 — 독백은 끊지 않고 이어 들어야 해서
+ * 새로 듣기 시작한다(SOMA-597). 그때까지 받아쓴 글과 녹음은 남아 있다.
+ */
+type SttCallbacks = { onEvent: (event: VadEvent) => void; onInterim: (text: string) => void; onEnd?: () => void };
+
 export type SttHandle = {
   /**
    * 듣기 시작. 침묵 감지 사건과 중간 인식 결과를 알린다. persist 면 인식기가 들은 소리를 파일로 남긴다 —
    * 녹음이 켜진 회차의 내 차례 녹음 파일이다(녹음기를 따로 열지 않는다, 조정자 결정). locale 은 그 줄의 말의 지역 코드다
    * (SOMA-751, line-language.speechLocaleFor). 없으면 앱 표시 언어.
    */
-  start: (callbacks: { onEvent: (event: VadEvent) => void; onInterim: (text: string) => void }, options?: { persist?: boolean; locale?: string }) => boolean;
+  start: (callbacks: SttCallbacks, options?: { persist?: boolean; locale?: string }) => boolean;
   /** 듣기를 끝내고 최종 글을 받는다. 못 알아들었으면 빈 글. */
   finish: () => Promise<string>;
   abort: () => void;
@@ -82,12 +90,20 @@ export function useReadingStt(): SttHandle {
     ticker.current = null;
     volumeFeed.current = null;
   }, []);
-  const callbacks = useRef<{ onEvent: (event: VadEvent) => void; onInterim: (text: string) => void } | null>(null);
+  const callbacks = useRef<SttCallbacks | null>(null);
   const settle = useRef<((text: string) => void) | null>(null);
   const speechEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelSpeechEnd = useCallback(() => {
     if (speechEndTimer.current) clearTimeout(speechEndTimer.current);
     speechEndTimer.current = null;
+  }, []);
+  /** 말 끝을 조금 더 기다렸다가 알린다. 다시 부르면 처음부터 다시 잰다. */
+  const armSpeechEnd = useCallback(() => {
+    if (speechEndTimer.current) clearTimeout(speechEndTimer.current);
+    speechEndTimer.current = setTimeout(() => {
+      speechEndTimer.current = null;
+      if (active.current) callbacks.current?.onEvent('speech_end');
+    }, SPEECH_END_GRACE_MS);
   }, []);
   const recordings = useRef(createRecordingTracker()).current;
 
@@ -111,7 +127,12 @@ export function useReadingStt(): SttHandle {
       text.current = whole;
       callbacks.current?.onInterim(whole);
     }
-    if (event.isFinal && settle.current) finishNow(text.current);
+    // 아이폰 인식기는 말 끝(speechend)을 주지 않고, 음량은 최댓값 기준이라 방 소음에도 「소리 있음」이 되어 침묵을 못 잰다
+    // (SOMA-801). 그래서 아이폰은 받아쓴 글이 있는 결과가 끊기고 조금 지나면 말 끝으로 본다 — 말하는 동안은 중간 결과가
+    // 계속 와서 다시 잰다.
+    if (Platform.OS === 'ios' && whole) armSpeechEnd();
+    // 멈춘 뒤 첫 확정에서 끝내지 않는다 — 앞 구간 확정(Android 구간 인식·iOS 18)이 마지막 구간보다 먼저 올 수 있어서다.
+    // 두 플랫폼 모두 마지막 결과 뒤에 end 를 준다(SOMA-646).
   });
   useSpeechRecognitionEvent('volumechange', (event) => {
     if (!active.current) return;
@@ -127,21 +148,18 @@ export function useReadingStt(): SttHandle {
   });
   useSpeechRecognitionEvent('speechend', () => {
     if (!active.current || !text.current.trim()) return;
-    cancelSpeechEnd();
-    speechEndTimer.current = setTimeout(() => {
-      speechEndTimer.current = null;
-      if (active.current) callbacks.current?.onEvent('speech_end');
-    }, SPEECH_END_GRACE_MS);
+    armSpeechEnd();
   });
   useSpeechRecognitionEvent('audioend', (event) => {
     recordings.audioEnd(event?.uri);
   });
-  useSpeechRecognitionEvent('end', () => {
+  const ended = useCallback(() => {
+    const unasked = active.current && !settle.current;
     if (active.current || settle.current) finishNow(text.current);
-  });
-  useSpeechRecognitionEvent('error', () => {
-    if (active.current || settle.current) finishNow(text.current);
-  });
+    if (unasked) callbacks.current?.onEnd?.();
+  }, [finishNow]);
+  useSpeechRecognitionEvent('end', ended);
+  useSpeechRecognitionEvent('error', ended);
 
   const start = useCallback<SttHandle['start']>((next, options) => {
     text.current = '';

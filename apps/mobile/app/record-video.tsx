@@ -57,8 +57,13 @@ export default function RecordVideoScreen() {
     work?: string;
     challengeId?: string;
     picker?: string;
+    next?: string;
+    first?: string;
   }>();
   const picker = params.picker === '1';
+  // next=upload: 코칭 탭 「지금 찍어서 코칭 받기」 → 찍는 법 → 여기. 준비 화면이 뒤에 없으니 찍은 뒤 새로 연다.
+  const toUpload = params.next === 'upload';
+  const firstCoaching = params.first === '1';
   const [mode, setMode] = useState<string | undefined>(params.mode);
   // 오늘의 대사로 넘기면 여기에 그 챌린지를 채운다 — 챌린지 화면에서 오면 처음부터 들어 있다.
   const [challengeParams, setChallengeParams] = useState({
@@ -79,6 +84,9 @@ export default function RecordVideoScreen() {
   const [lineHidden, setLineHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
+  // 이 화면을 곧바로 떠나는 중이다. 안드로이드에서 사라지는 화면의 뷰를 다시 그리면 앱이 꺼지므로
+  // (화면 전환 중 뷰를 옮겨 붙이다 실패 — react-native-screens #4677) 떠난 뒤에는 상태를 바꾸지 않는다.
+  const leavingRef = useRef(false);
   // 셔터를 누른 시각. 끝날 때의 콜백이 녹화 시작 때 잡혀 elapsed state 로는 길이를 알 수 없다.
   const startedAtRef = useRef(0);
   const { alert, dialog } = useAppDialog();
@@ -90,7 +98,9 @@ export default function RecordVideoScreen() {
 
   useEffect(() => {
     if (!recording) return;
-    const id = setInterval(() => setElapsed((s) => s + 1), 1000);
+    const id = setInterval(() => {
+      if (!leavingRef.current) setElapsed((s) => s + 1);
+    }, 1000);
     return () => clearInterval(id);
   }, [recording]);
 
@@ -182,7 +192,7 @@ export default function RecordVideoScreen() {
   );
   // 녹화 중에도 용도 줄 자리를 비워 두지 않는다 — 치우면 아래 정렬이라 정지 버튼이 그만큼 내려간다(SOMA-737).
   const slider = picker ? (
-    <View style={recording ? styles.hiddenKeepSpace : undefined} pointerEvents={recording ? 'none' : 'auto'}>
+    <View style={recording ? styles.hiddenKeepSpace : undefined} pointerEvents={recording ? 'none' : 'auto'} collapsable={false}>
       <RecordModeSlider
         modes={RECORD_MODES}
         value={(mode ?? 'ai') as RecordMode}
@@ -195,6 +205,7 @@ export default function RecordVideoScreen() {
 
   const goNext = useCallback(() => {
     if (isChallenge) {
+      leavingRef.current = true;
       router.replace({
         pathname: '/challenge-upload',
         params: { challengeId: challengeId ?? '', line: line ?? '', work: work ?? '' },
@@ -218,6 +229,7 @@ export default function RecordVideoScreen() {
         // 하단 탭에서 곧장 왔으면 새 준비 화면을 연다. 준비 화면의 촬영 버튼에서 왔으면 그 화면으로 돌아간다 —
         // 새 준비 화면을 또 열면 다음 테이크(이어하기)가 새 연습으로 바뀐다(SOMA-672).
         if (picker) router.replace('/upload');
+        else if (toUpload) router.replace({ pathname: '/upload', params: firstCoaching ? { first: '1' } : {} });
         else router.back();
       });
       return;
@@ -231,8 +243,9 @@ export default function RecordVideoScreen() {
       });
       return;
     }
+    leavingRef.current = true;
     router.back();
-  }, [challengeId, isChallenge, line, mode, picker, router, saveToLibrary, work]);
+  }, [challengeId, firstCoaching, isChallenge, line, mode, picker, router, saveToLibrary, toUpload, work]);
 
   const finishWith = useCallback(
     (uri: string | null) => {
@@ -250,6 +263,7 @@ export default function RecordVideoScreen() {
         goNext();
         return;
       }
+      leavingRef.current = true;
       router.back();
     },
     [goNext, maxSec, router],
@@ -272,7 +286,8 @@ export default function RecordVideoScreen() {
       if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', 'failed'));
       finishWith(null);
     } finally {
-      setRecording(false);
+      // 곧바로 다른 화면으로 넘어갔으면 녹화 표시를 되돌리지 않는다 — 같은 순간에 바꾸면 안드로이드에서 꺼진다.
+      if (!leavingRef.current) setRecording(false);
     }
   }, [recording, finishWith, isChallenge, maxSec]);
 

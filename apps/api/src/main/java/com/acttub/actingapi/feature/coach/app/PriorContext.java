@@ -71,6 +71,23 @@ public record PriorContext(
         return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory, previousLines);
     }
 
+    /** 기억 갱신이 쓰는 "이 배우에게 맞춘 코칭" 칸의 이름(SOMA-795). 기억 블록이 아니라 코치 성격 자리로 붙는다. */
+    public static final String COACHING_PROFILE = "coaching_profile";
+
+    /** 이 배우에게 맞춘 코칭. 없으면 빈 문자열. */
+    public String coachingProfile() {
+        String value = memory.get(COACHING_PROFILE);
+        return value == null ? "" : value.strip();
+    }
+
+    /** 맞춤 코칭을 뺀 사본 — 기억 블록은 이 칸을 싣지 않는다. 같은 글이 두 번 실리면 모델이 그 글을 사실 목록으로 읽는다. */
+    public PriorContext withoutCoachingProfile() {
+        if (!memory.containsKey(COACHING_PROFILE)) return this;
+        Map<String, String> kept = new LinkedHashMap<>(memory);
+        kept.remove(COACHING_PROFILE);
+        return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory, previousLines);
+    }
+
     public boolean isEmpty() {
         return memory.isEmpty() && earlierConversation == null && pendingTakes.isEmpty()
                 && sceneHistory.isEmpty();

@@ -142,6 +142,59 @@ class RecordingCoachServiceTest {
         });
     }
 
+    @Test
+    void measuredSoundsAreShownToTheModelAndKeptInTheDesign() {
+        repository.material = material(3);
+        model.next = "<설계>\n고른 녹음: 2\n</설계>\n\"대사 1\"은 다른 대사들보다 크게 들려요. 윤서는 왜 이 말을 해요?";
+        RecordingSounds sounds = clips -> java.util.Map.of(
+                1, new com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Sound(-17, 5.0, 0, -1.0, -1.0, 2_000),
+                2, new com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Sound(-12, 5.0, 0, -1.0, -1.0, 2_000),
+                3, new com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Sound(-17.5, 5.0, 0, -1.0, -1.0, 2_000));
+        RecordingCoachService measured = new RecordingCoachService(
+                repository, model, sounds, "지시문", Clock.fixed(NOW, ZoneId.of("Asia/Seoul")));
+
+        measured.start(USER, SESSION);
+
+        assertThat(model.scripts.getFirst()).contains("[서버가 잰 소리]", "- 녹음 2: 다른 대사들보다 크게 들려요");
+        assertThat(repository.first.design()).startsWith("[서버가 잰 소리]").contains("고른 녹음: 2");
+    }
+
+    @Test
+    void withoutMeasurementsTheModelIsToldThereIsNoSoundToMention() {
+        repository.material = material(3);
+        model.next = "<설계>\n고른 녹음: 1\n</설계>\n윤서는 왜 이 말을 해요?";
+
+        service.start(USER, SESSION);
+
+        assertThat(model.scripts.getFirst()).contains("확실히 다르게 잰 소리가 없다");
+    }
+
+    @Test
+    void evaluativeFirstAnswerIsRewrittenOnce() {
+        repository.material = material(3);
+        model.queue.add("<설계>\n고른 녹음: 1\n</설계>\n\"대사 0\"은 잘 전달돼요. 윤서는 왜 이 말을 해요?");
+        model.queue.add("<설계>\n고른 녹음: 1\n</설계>\n윤서는 왜 이 말을 해요?");
+
+        RecordingCoachService.Started started = service.start(USER, SESSION);
+
+        assertThat(started.coach().firstMessage()).isEqualTo("윤서는 왜 이 말을 해요?");
+        assertThat(model.calls).hasSize(2);
+        assertThat(model.calls.get(1).turns().getLast().text()).contains("[다시 쓰기]", "잘 전달");
+    }
+
+    @Test
+    void secondAnswerKeepsTheOriginalWhenTheRewriteIsStillEvaluative() {
+        repository.material = material(3);
+        repository.stored = coach(null);
+        model.queue.add("느리게 말한 게 잘 맞네요. 그 줄을 영상으로 찍어 봐요.");
+        model.queue.add("소리로는 충분해요. 그 줄을 영상으로 찍어 봐요.");
+
+        RecordingCoachRepository.Coach answered = service.reply(USER, repository.stored.id(), "털어놓고 싶은 마음이요");
+
+        assertThat(model.calls).hasSize(2);
+        assertThat(answered.secondMessage()).isEqualTo("느리게 말한 게 잘 맞네요. 그 줄을 영상으로 찍어 봐요.");
+    }
+
     private static RecordingCoachRepository.Material material(int audible) {
         List<Line> lines = new ArrayList<>();
         List<Recording> recordings = new ArrayList<>();
@@ -205,16 +258,19 @@ class RecordingCoachServiceTest {
 
     private static final class FakeModel implements RecordingCoachModel {
         final List<Call> calls = new ArrayList<>();
+        final List<String> scripts = new ArrayList<>();
         String next;
+        final java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
         RuntimeException failure;
 
         @Override
         public Reply reply(String instruction, String script, List<Clip> clips, List<Turn> turns) {
             calls.add(new Call(clips, turns));
+            scripts.add(script);
             if (failure != null) {
                 throw failure;
             }
-            return new Reply(next, "gemini-test");
+            return new Reply(queue.isEmpty() ? next : queue.poll(), "gemini-test");
         }
     }
 }

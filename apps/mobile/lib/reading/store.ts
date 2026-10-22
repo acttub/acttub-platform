@@ -18,6 +18,7 @@ import type {
   LineKind,
   PatchScriptBody,
   PatchScriptLineBody,
+  SplitScriptLineBody,
   ProgressBody,
   ProgressResponse,
   ScriptCharacter,
@@ -90,6 +91,8 @@ export type ScriptTransport = {
   get(id: string): Promise<ScriptDetail>;
   patch(id: string, body: PatchScriptBody): Promise<ScriptDetail>;
   patchLine(id: string, lineId: string, body: PatchScriptLineBody): Promise<ScriptDetail>;
+  deleteLine(id: string, lineId: string): Promise<ScriptDetail>;
+  splitLine(id: string, lineId: string, body: SplitScriptLineBody): Promise<ScriptDetail>;
   remove(id: string): Promise<void>;
   /** 회차(reading.session). */
   startSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail>;
@@ -115,6 +118,8 @@ function server(): ScriptTransport {
     get: (id) => api.getReadingScript(id),
     patch: (id, body) => api.updateReadingScript(id, body),
     patchLine: (id, lineId, body) => api.updateReadingScriptLine(id, lineId, body),
+    deleteLine: (id, lineId) => api.deleteReadingScriptLine(id, lineId),
+    splitLine: (id, lineId, body) => api.splitReadingScriptLine(id, lineId, body),
     remove: (id) => api.deleteReadingScript(id),
     startSession: (scriptId, body) => api.startReadingSession(scriptId, body),
     getSession: (sessionId) => api.getReadingSession(sessionId),
@@ -280,6 +285,20 @@ export async function editScriptLine(
   if (patch.characterId !== undefined) body.character_id = patch.characterId;
   if (patch.text !== undefined) body.text = patch.text;
   const detail = await server().patchLine(id, lineId, body);
+  if (current?.id === id) current = await openScript(detail);
+  return detail;
+}
+
+/** 줄 하나를 지운다(SOMA-785). 그 줄의 녹음·외운 줄도 서버에서 함께 지워진다. */
+export async function deleteScriptLine(id: string, lineId: string): Promise<ScriptDetail> {
+  const detail = await server().deleteLine(id, lineId);
+  if (current?.id === id) current = await openScript(detail);
+  return detail;
+}
+
+/** 줄 하나를 둘로 나눈다(SOMA-785). 앞 글은 그 줄 id 에 남는다. */
+export async function splitScriptLine(id: string, lineId: string, first: string, second: string): Promise<ScriptDetail> {
+  const detail = await server().splitLine(id, lineId, { first_text: first.trim(), second_text: second.trim() });
   if (current?.id === id) current = await openScript(detail);
   return detail;
 }

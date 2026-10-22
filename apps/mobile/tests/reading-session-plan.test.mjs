@@ -2,9 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  roleLabel,
+  turnRoles,
   buildStartBody,
   defaultMyCharacterIds,
   dialogueNumbers,
+  fewLines,
+  isGroupCharacter,
+  roleLineCount,
   rangeError,
   rangeOfDialogueNos,
   rangeOfLineIds,
@@ -86,6 +91,46 @@ test('reading.cast: 회차 상세에서 넘긴 배역이 있으면 지난 회차
   assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: '' }), ['a']);
 });
 
+test('SOMA-709 9번: 마지막 회차의 묶음 배역·사라진 배역·대사 2줄 이하 배역은 다음 회차 기본값으로 다시 고르지 않는다', () => {
+  const characters = [
+    { id: 'a', dialogue_count: 8 },
+    { id: 'b', dialogue_count: 2 },
+    { id: 'g', dialogue_count: 5, member_ids: ['a', 'b'] },
+    { id: 'c', dialogue_count: 3 },
+  ];
+  assert.deepEqual(defaultMyCharacterIds({ last_session: { my_character_ids: ['a', 'b', 'g', 'gone'] }, characters }), ['a']);
+  assert.deepEqual(defaultMyCharacterIds({ last_session: { my_character_ids: ['b', 'g'] }, characters }), [], '남는 배역이 없으면 고르게 둔다');
+  assert.deepEqual(defaultMyCharacterIds({ last_session: { my_character_ids: ['c'] }, characters }), ['c']);
+  assert.deepEqual(
+    defaultMyCharacterIds({ last_session: { my_character_ids: ['b'] }, characters: [{ id: 'a' }, { id: 'b' }] }),
+    ['b'],
+    '대사 수를 모르는 옛 응답이면 대사 수로 거르지 않는다',
+  );
+  assert.deepEqual(defaultMyCharacterIds({ last_session: null, characters, rolesParam: 'b,g' }), ['b'], '회차 상세가 넘긴 배역은 묶음만 뺀다');
+  assert.deepEqual(
+    defaultMyCharacterIds({ last_session: null, characters: [{ id: 'a' }, { id: 'g', member_ids: ['a', 'x'] }] }),
+    ['a'],
+    '묶음을 빼고 하나뿐이면 그 배역',
+  );
+});
+
+test('SOMA-709 7번: 묶음 배역은 칩에 두지 않고, 대사 수는 서버 값이 없으면 대본 줄에서 센다', () => {
+  assert.equal(isGroupCharacter({ member_ids: ['a', 'b'] }), true);
+  assert.equal(isGroupCharacter({ member_ids: [] }), false);
+  assert.equal(isGroupCharacter({}), false);
+  assert.equal(roleLineCount({ name: '윤서', dialogue_count: 8 }, WITH_SCENES), 8);
+  assert.equal(roleLineCount({ name: '윤서' }, WITH_SCENES), 3);
+});
+
+test('SOMA-709 8번: 고른 배역(여럿이면 합쳐서)의 구간 안 대사가 1~2줄이면 그 수, 3줄 이상이거나 없으면 null', () => {
+  assert.equal(fewLines(WITH_SCENES, ['태오'], 0, WITH_SCENES.length - 1), 2);
+  assert.equal(fewLines(WITH_SCENES, ['윤서'], 0, WITH_SCENES.length - 1), null);
+  assert.equal(fewLines(WITH_SCENES, ['윤서'], 0, 4), 2);
+  assert.equal(fewLines(WITH_SCENES, ['윤서', '태오'], 0, 4), null, '합쳐서 3줄');
+  assert.equal(fewLines(WITH_SCENES, ['태오'], 4, 6), null, '0줄은 시작할 때 막는다');
+  assert.equal(fewLines(WITH_SCENES, [], 0, 8), null);
+});
+
 test('reading.session: 대사 번호 구간을 줄 인덱스로 — 대본에 없는 번호는 null', () => {
   assert.deepEqual(rangeOfDialogueNos(WITH_SCENES, 3, 5), { startIndex: 4, endIndex: 8 });
   assert.deepEqual(rangeOfDialogueNos(WITH_SCENES, 2, 2), { startIndex: 2, endIndex: 2 });
@@ -120,4 +165,38 @@ test('reading.session: 시작 버튼 — 배역 없음 → 마이크 없음 → 
   assert.equal(startGate({ roleCount: 1, micGranted: null, loading: false }), 'wait');
   assert.equal(startGate({ roleCount: 2, micGranted: true, loading: true }), 'wait');
   assert.equal(startGate({ roleCount: 2, micGranted: true, loading: false }), 'ready');
+});
+
+test('reading.session(SOMA-785): 함께 말하는 줄은 멤버에 내 배역이 있으면 내 차례이고, 이름표는 「함께 · 윤서·태오」', () => {
+  const characters = [
+    { id: 'c1', name: '윤서', member_ids: [] },
+    { id: 'c2', name: '태오', member_ids: [] },
+    { id: 'c3', name: '민지' },
+    { id: 'g1', name: '윤서, 태오', member_ids: ['c1', 'c2'] },
+    { id: 'g2', name: '태오, 민지', member_ids: ['c2', 'c3'] },
+  ];
+  assert.deepEqual(turnRoles(characters, ['c1']), ['윤서', '윤서, 태오']);
+  assert.deepEqual(turnRoles(characters, ['c3']), ['민지', '태오, 민지']);
+  assert.deepEqual(turnRoles(characters, []), []);
+  assert.equal(roleLabel(characters, '윤서, 태오', '함께'), '함께 · 윤서·태오');
+  assert.equal(roleLabel(characters, '윤서', '함께'), '윤서', '보통 배역은 이름 그대로');
+  assert.equal(roleLabel(characters, '없는 이름', '함께'), '없는 이름');
+});
+
+test('리딩 3번: 서버 대사 수가 없으면 그 배역이 든 함께 말하는 줄까지 센다 — 범위 안내도 turnRoles 기준', () => {
+  const characters = [
+    { id: 'a', name: '윤서', member_ids: [] },
+    { id: 'b', name: '태오', member_ids: [] },
+    { id: 'g', name: '윤서, 태오', member_ids: ['a', 'b'] },
+  ];
+  const lines = [D('윤서', '1'), D('태오', '2'), D('윤서', '3'), D('윤서', '4'), D('윤서', '5'), D('윤서, 태오', '6')];
+  assert.equal(roleLineCount({ id: 'a', name: '윤서' }, lines, characters), 5, '보통 4줄 + 묶음 1줄');
+  assert.equal(roleLineCount({ id: 'b', name: '태오' }, lines, characters), 2);
+  assert.equal(roleLineCount({ id: 'a', name: '윤서', dialogue_count: 5 }, lines, characters), 5, '서버 값이 이긴다');
+  assert.equal(roleLineCount({ id: 'a', name: '윤서' }, lines), 4, 'characters 가 없으면 이름 줄만');
+  // 태오 혼자면 구간 전체에 1줄 + 묶음 1줄 = 2줄 → 안내, 묶음을 빼면 1줄로 잘못 셌다.
+  assert.equal(fewLines(lines, turnRoles(characters, ['b']), 0, lines.length - 1), 2);
+  assert.equal(fewLines(lines, turnRoles(characters, ['b']), 2, 5), 1, '묶음 줄만 있는 구간도 0줄이 아니다');
+  assert.equal(fewLines(lines, turnRoles(characters, ['a', 'b']), 0, 2), null, '여럿 골라도 한 줄을 두 번 세지 않는다(3줄)');
+  assert.equal(fewLines(lines, turnRoles(characters, ['a', 'b']), 4, 5), 2, '묶음 줄은 한 번');
 });

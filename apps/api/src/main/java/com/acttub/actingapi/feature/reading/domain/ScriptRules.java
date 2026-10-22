@@ -12,18 +12,12 @@ import java.util.regex.Pattern;
  */
 public final class ScriptRules {
 
-    /** 원문 한 편의 상한. 줄 본문의 총량도 같은 값으로 본다. */
+    /** 원문 한 편의 상한. 줄 본문의 총량도 같은 값으로 본다. 줄 수·배역 수는 따로 세지 않는다(SOMA-709, 2026-10-21). */
     public static final int TEXT_MAX = 100_000;
-
-    /** 줄 수의 상한 — 대사·지문·장면 모두. */
-    public static final int LINES_MAX = 3_000;
-
-    /** 배역 수의 상한 — 함께 말하기 이름({@link #isGroupName})은 세지 않는다. */
-    public static final int CHARACTERS_MAX = 50;
 
     /**
      * 함께 말하기 이름 — 여러 배역을 「,」「/」「·」「•」「&」로 이었거나 「모두」「다 같이」「전원」「일동」「합창」「코러스」「all」을 낱말로 쓴 이름
-     * (SOMA-663). 이름 맞추기를 고친 뒤 이런 이름까지 세어 51명이 되는 대본이 통째로 실패했다. 기준 배역 비교기(refv2 compare2)의
+     * (SOMA-663). 배역 합치기({@link SpeakerMerge})가 이 이름을 한 사람으로 보지 않는다. 기준 배역 비교기(refv2 compare2)의
      * GROUP 과 같은 뜻이되 낱말은 앞뒤에 한글·영문 글자가 붙지 않을 때만 본다 — 「전원주」 같은 이름을 빼지 않게.
      */
     private static final Pattern GROUP = Pattern.compile(
@@ -81,7 +75,7 @@ public final class ScriptRules {
 
     /**
      * 저장 요청이 규칙에 걸리는가. 배역이 없으면 {@link Rejection#NO_CHARACTERS}, 이름이 비거나 겹치면
-     * {@link Rejection#INVALID_CHARACTERS}, 원문·줄 본문 총량·줄 수·배역 수(함께 말하기 이름 빼고)가 한도를 넘으면
+     * {@link Rejection#INVALID_CHARACTERS}, 원문·줄 본문 총량이 한도를 넘으면
      * {@link Rejection#TOO_LONG}. 걸리지 않으면 {@code null}.
      */
     public static Rejection check(ScriptDraft draft) {
@@ -91,9 +85,7 @@ public final class ScriptRules {
         if (!namesAllowed(draft.characterNames())) {
             return Rejection.INVALID_CHARACTERS;
         }
-        if (draft.characterNames().stream().filter(name -> !isGroupName(name)).count() > CHARACTERS_MAX
-                || draft.lines().size() > LINES_MAX
-                || length(draft.rawText()) > TEXT_MAX) {
+        if (length(draft.rawText()) > TEXT_MAX) {
             return Rejection.TOO_LONG;
         }
         long total = 0;

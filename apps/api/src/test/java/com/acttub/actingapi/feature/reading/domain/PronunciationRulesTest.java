@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Habit;
+import com.acttub.actingapi.feature.reading.domain.PronunciationRules.HabitItem;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.LineInput;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Phone;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Report;
@@ -81,5 +82,62 @@ class PronunciationRulesTest {
         assertThat(PronunciationRules.similarity("전액", "전액")).isEqualTo(1.0);
         assertThat(PronunciationRules.similarity("전액", "전에")).isBetween(0.5, 0.8);
         assertThat(PronunciationRules.similarity("", "")).isEqualTo(1.0);
+    }
+
+    @Test
+    void 받아쓰기의_숫자는_한글로_읽어_대본과_맞춘다() {
+        ScoredLine line = new ScoredLine("나 벌써 스물아홉이야", List.of(
+                word(0, "나", ok("ㄴ", false, 0)), word(1, "벌써", ok("ㅂ", false, 0)), word(2, "스물아홉이야", ok("ㅅ", false, 0))));
+        Report report = PronunciationRules.build(List.of(new LineInput(6, "나 벌써 스물아홉이야.", "나 벌써 29이야", line)));
+        assertThat(report.skippedLines()).isEmpty();
+        assertThat(report.summary().linesUsed()).isEqualTo(1);
+        assertThat(report.misheard()).as("숫자로 받아쓴 것은 다르게 알아들은 말이 아니다").isEmpty();
+    }
+
+    @Test
+    void 받아쓰기가_잘렸어도_들은_소리가_대본과_같으면_쓰되_다르게_알아들은_말은_내지_않는다() {
+        List<Word> words = List.of(word(0, "오디션", bad("ㅗ", "ㅓ", -5, true, 0)), word(1, "떨어진", ok("ㄸ", false, 0)),
+                word(2, "거", ok("ㄱ", false, 0)));
+        Report heard = PronunciationRules.build(List.of(new LineInput(4, "오디션 떨어진 거", "김", new ScoredLine("오디션 떨어진 거", words, 0.86))));
+        assertThat(heard.skippedLines()).isEmpty();
+        assertThat(heard.summary().linesUsed()).isEqualTo(1);
+        assertThat(heard.misheard()).isEmpty();
+
+        Report half = PronunciationRules.build(List.of(new LineInput(4, "오디션 떨어진 거", "김", new ScoredLine("오디션 떨어진 거", words, 0.42))));
+        assertThat(half.skippedLines()).containsExactly(4);
+        Report old = PronunciationRules.build(List.of(new LineInput(4, "오디션 떨어진 거", "김", new ScoredLine("오디션 떨어진 거", words))));
+        assertThat(old.skippedLines()).containsExactly(4);
+    }
+
+    @Test
+    void 숫자_읽기() {
+        assertThat(KoreanNumbers.readings("나 29이야")).containsExactly("나 29이야", "나 이십구이야", "나 스물아홉이야");
+        assertThat(KoreanNumbers.sino(6_000_000)).isEqualTo("육백만");
+        assertThat(KoreanNumbers.sino(10_000)).isEqualTo("만");
+        assertThat(KoreanNumbers.sino(1_150)).isEqualTo("천백오십");
+        assertThat(KoreanNumbers.readings("숫자 없음")).containsExactly("숫자 없음");
+    }
+
+    @Test
+    void 습관은_같은_소리가_같은_소리로_확실히_바뀐_것이_두_번_이상일_때만_낸다() {
+        ScoredLine mixed = new ScoredLine("너 머리", List.of(
+                word(0, "너", ok("ㄴ", false, 0), bad("ㅓ", "ㅗ", -7, true, 0)),
+                word(1, "머리", ok("ㅁ", false, 0), bad("ㅓ", "ㅏ", -7, true, 0), ok("ㄹ", false, 1), ok("ㅣ", true, 1))));
+        assertThat(PronunciationRules.build(List.of(new LineInput(1, "너 머리", "너 머리", mixed))).habit())
+                .as("모음이 두 번 짚혔어도 바뀐 소리가 다르면 습관이 아니다").isNull();
+
+        ScoredLine weak = new ScoredLine("너 거기", List.of(
+                word(0, "너", ok("ㄴ", false, 0), bad("ㅓ", "ㅗ", -4, true, 0)),
+                word(1, "거기", ok("ㄱ", false, 0), bad("ㅓ", "ㅗ", -4.5, true, 0))));
+        assertThat(PronunciationRules.build(List.of(new LineInput(1, "너 거기", "너 거기", weak))).habit())
+                .as("lpr -5 보다 덜 확실하면 세지 않는다").isNull();
+
+        ScoredLine sure = new ScoredLine("너 거기", List.of(
+                word(0, "너", ok("ㄴ", false, 0), bad("ㅓ", "ㅗ", -6, true, 0)),
+                word(1, "거기", ok("ㄱ", false, 0), bad("ㅓ", "ㅗ", -5.5, true, 0))));
+        HabitItem habit = PronunciationRules.build(List.of(new LineInput(1, "너 거기", "너 거기", sure))).habit();
+        assertThat(habit.habit()).isEqualTo(Habit.VOWEL);
+        assertThat(habit.count()).isEqualTo(2);
+        assertThat(habit.examples()).extracting(e -> e.expected() + e.heard()).containsOnly("ㅓㅗ");
     }
 }

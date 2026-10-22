@@ -51,8 +51,8 @@ public final class RecordingCoachMaterial {
             String transcriptSource) {
     }
 
-    /** 모델에 보일 녹음 하나. {@code label} 은 "녹음 n" 이고 n 은 1부터다. */
-    public record Clip(int number, String label, UUID lineId, String objectKey, String contentType) {
+    /** 모델에 보일 녹음 하나. {@code label} 은 "녹음 n" 이고 n 은 1부터다. {@code text} 는 그 줄의 대본 글(빠르기 계산용). */
+    public record Clip(int number, String label, UUID lineId, String objectKey, String contentType, String text) {
     }
 
     /** 모델에 보일 것 전부. */
@@ -107,7 +107,7 @@ public final class RecordingCoachMaterial {
             }
             total += recording.byteSize();
             int number = clips.size() + 1;
-            clips.add(new Clip(number, "녹음 " + number, line.id(), recording.objectKey(), recording.contentType()));
+            clips.add(new Clip(number, "녹음 " + number, line.id(), recording.objectKey(), recording.contentType(), line.text()));
             numbers.put(line.id(), number);
         }
         StringBuilder script = new StringBuilder("[대본]\n");
@@ -157,5 +157,18 @@ public final class RecordingCoachMaterial {
             }
         }
         return new Output(design, text, chosen);
+    }
+
+    /**
+     * 코치가 소리를 평가하는 말. 프롬프트로 막아도 둘째 차례에 "잘 맞네요", "잘 어울려요", "소리로는 충분하니"가 나왔다
+     * (dev 10/21). 이런 말은 배우에게 녹음이 잘됐다는 판정으로 읽히는데, 서버가 잰 소리는 다르다는 것뿐이지 좋다는 근거가 아니다.
+     */
+    static final Pattern EVALUATIVE = Pattern.compile(
+            "잘\\s*(맞|어울|전달|살|표현|드러|나타)|충분|훌륭|좋(아요|네요|았|은\\s*소리)|자연스러|어색|완벽|멋지|대단");
+
+    /** 배우에게 보낼 말에 평가하는 말이 있으면 그 말. 없으면 {@code null}. */
+    public static String evaluative(String message) {
+        Matcher m = EVALUATIVE.matcher(message == null ? "" : message);
+        return m.find() ? m.group() : null;
     }
 }

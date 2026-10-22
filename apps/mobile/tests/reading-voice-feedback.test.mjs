@@ -141,7 +141,7 @@ test('발음 피드백: 설정에서 켜야만(기본 꺼짐) 짚는다 — 소�
   assert.equal(await loadVoiceFeedbackEnabled(store), true);
 
   const play = read('app/reading/play.tsx');
-  assert.match(play, /if \(voiceFeedbackOn\.current\) collectPronunciation\(lineId, sttUsed \? text : ''/);
+  assert.match(play, /if \(voiceFeedbackOn\.current && single\) collectPronunciation\(lineId, sttUsed \? text : ''/);
   assert.match(play, /<VoiceFeedbackSummary items=\{lineFeedback\} \/>/);
   assert.match(play, /persist: !!session\.record \|\| \(voiceFeedbackOn\.current && !!pronunciationServerUrl\(\)\)/);
   assert.match(play, /if \(audio && pronunciationServerUrl\(\)\)/, '서버 주소가 없으면 소리를 보내지 않는다');

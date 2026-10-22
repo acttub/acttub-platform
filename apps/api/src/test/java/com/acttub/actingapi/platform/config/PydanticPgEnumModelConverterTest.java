@@ -26,7 +26,8 @@ class PydanticPgEnumModelConverterTest {
         Map<String, Schema> schemas = converters.readAll(Holder.class);
 
         assertThat(schemas.get("MemoryField").getEnum()).isEqualTo(List.of(
-                "goal", "blockage", "speech_self", "speech_actual", "wants", "habits", "avoid", "tone"));
+                "goal", "blockage", "speech_self", "speech_actual", "wants", "habits", "avoid", "tone",
+                "coaching_profile"));
         assertThat(((Schema<?>) schemas.get("Holder").getProperties().get("field")).get$ref())
                 .isEqualTo("#/components/schemas/MemoryField");
     }

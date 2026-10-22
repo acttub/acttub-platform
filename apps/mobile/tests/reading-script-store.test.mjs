@@ -4,7 +4,9 @@ import test from 'node:test';
 import {
   configureScriptTransport,
   deleteScript,
+  deleteScriptLine,
   editScriptLine,
+  splitScriptLine,
   getCurrent,
   isMyRole,
   loadIntoCurrent,
@@ -111,6 +113,23 @@ function fakeServer() {
       state.scripts.set(id, next);
       return next;
     },
+    deleteLine: async (id, lineId) => {
+      state.calls.push(['deleteLine', id, lineId]);
+      const d = state.scripts.get(id);
+      const next = { ...d, lines: d.lines.filter((l) => l.id !== lineId) };
+      state.scripts.set(id, next);
+      return next;
+    },
+    splitLine: async (id, lineId, body) => {
+      state.calls.push(['splitLine', id, lineId, body]);
+      const d = state.scripts.get(id);
+      const lines = d.lines.flatMap((l) =>
+        l.id === lineId ? [{ ...l, text: body.first_text }, { ...l, id: `${lineId}b`, text: body.second_text }] : [l],
+      );
+      const next = { ...d, lines: lines.map((l, i) => ({ ...l, ordinal: i + 1 })) };
+      state.scripts.set(id, next);
+      return next;
+    },
     remove: async (id) => {
       state.calls.push(['delete', id]);
       state.scripts.delete(id);
@@ -199,6 +218,24 @@ test('reading.script: toSavedScript 는 기기 설정(가리기·내 배역)을 
   assert.equal(s.recordingCount, 2);
   assert.deepEqual(s.scenes, [{ no: 1, title: null, start_line_id: 'l1', end_line_id: 'l1', dialogue_count: 1 }]);
   assert.equal(toSavedScript(detail).maskMode, 'none');
+});
+
+test('reading.script(SOMA-785): 줄 지우기·나누기는 그 줄 id 로 보내고 현재 대본을 서버가 돌려준 대본으로 바꾼다', async () => {
+  const { state, transport, seed } = fakeServer();
+  configureScriptTransport(transport);
+  const saved = await loadIntoCurrent(seed().id);
+  const target = saved.lineIds[1];
+
+  await splitScriptLine(saved.id, target, ' 여기 ', ' 있을 줄 알았어. ');
+  assert.deepEqual(state.calls.find(([kind]) => kind === 'splitLine'), ['splitLine', saved.id, target, { first_text: '여기', second_text: '있을 줄 알았어.' }]);
+  assert.equal(getCurrent()?.lines.length, saved.lines.length + 1);
+  assert.equal(getCurrent()?.lineIds[1], target, '앞 조각은 그 줄 id 에 남는다');
+  assert.equal(getCurrent()?.lines[2].text, '있을 줄 알았어.');
+
+  await deleteScriptLine(saved.id, target);
+  assert.deepEqual(state.calls.at(-1), ['deleteLine', saved.id, target]);
+  assert.equal(getCurrent()?.lineIds.includes(target), false);
+  assert.equal(getCurrent()?.lines.length, saved.lines.length);
 });
 
 test('reading.script(SOMA-669): 줄 고치기는 그 줄 id 로 바꾼 항목만 보내고, 현재 대본의 줄·배역·대사 수가 고친 대로 바뀐다', async () => {

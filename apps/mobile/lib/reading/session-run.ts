@@ -7,6 +7,8 @@
  */
 import type { LineSaid, ScriptLine } from './types.ts';
 import type { MaskMode } from './store.ts';
+import { lineGroups, type LineGroup } from './line-groups.ts';
+import { alignSentences } from './monologue.ts';
 import { translate as t } from '../i18n.ts';
 
 export type RunStatus = 'mine' | 'partner' | 'paused' | 'done';
@@ -17,6 +19,8 @@ export type RunConfig = {
   myRoles: string[];
   startIndex: number;
   endIndex: number;
+  /** 독백 대본이면 같은 배역 연속 대사를 묶지 않는다(SOMA-806). */
+  monologue?: boolean;
 };
 
 export type RunState = RunConfig & {
@@ -40,6 +44,17 @@ function nextDialogue(lines: ScriptLine[], from: number, end: number): number {
 function isMine(run: RunConfig, index: number): boolean {
   const line = run.lines[index];
   return line?.type === 'dialogue' && run.myRoles.includes(line.role);
+}
+
+/** 줄이 속한 같은 배역 묶음을 구간으로 자른 것(SOMA-806). 묶음은 한 차례다. */
+function groupOf(run: RunConfig, index: number): LineGroup {
+  const g = lineGroups(run.lines, { monologue: !!run.monologue }).find((x) => x.start <= index && index <= x.end) ?? { start: index, end: index };
+  return { start: Math.max(g.start, run.startIndex), end: Math.min(g.end, run.endIndex) };
+}
+
+/** 지금 차례의 줄 — 지금 줄부터 그 묶음 끝까지. 상대 차례는 이어서 읽고, 내 차례는 한 번에 말한다. */
+export function turnSpan(run: RunState): LineGroup {
+  return { start: run.index, end: Math.max(run.index, groupOf(run, run.index).end) };
 }
 
 export function turnOf(run: RunState): 'mine' | 'partner' {
@@ -67,7 +82,7 @@ export function currentLineIdOf(run: RunState): string | null {
 export function advance(run: RunState, fromIndex?: number): RunState {
   if (run.status === 'done') return run;
   if (fromIndex !== undefined && fromIndex !== run.index) return run;
-  const next = nextDialogue(run.lines, run.index + 1, run.endIndex);
+  const next = nextDialogue(run.lines, turnSpan(run).end + 1, run.endIndex);
   if (next < 0) return { ...run, index: run.endIndex + 1, status: 'done', resumeTo: null, leadInUntil: null };
   const leadInUntil = run.leadInUntil !== null && next >= run.leadInUntil ? null : run.leadInUntil;
   const moved: RunState = { ...run, index: next, leadInUntil, resumeTo: null };
@@ -79,10 +94,16 @@ function prevDialogue(lines: ScriptLine[], from: number, start: number): number 
   return -1;
 }
 
+/** 바로 앞 차례의 첫 줄. 없으면 -1. */
+function prevTurn(run: RunState): number {
+  const prev = prevDialogue(run.lines, run.index - 1, run.startIndex);
+  return prev < 0 ? -1 : groupOf(run, prev).start;
+}
+
 /** [이전]을 누를 수 있나 — 진행 중이고 구간 안에 앞 대사가 있을 때만. */
 export function canGoBack(run: RunState): boolean {
   if (run.status !== 'mine' && run.status !== 'partner') return false;
-  return prevDialogue(run.lines, run.index - 1, run.startIndex) >= 0;
+  return prevTurn(run) >= 0;
 }
 
 /**
@@ -91,8 +112,20 @@ export function canGoBack(run: RunState): boolean {
  */
 export function back(run: RunState): RunState {
   if (!canGoBack(run)) return run;
-  const index = prevDialogue(run.lines, run.index - 1, run.startIndex);
+  const index = prevTurn(run);
   const moved: RunState = { ...run, index, resumeTo: null };
+  return { ...moved, status: turnOf(moved) };
+}
+
+/**
+ * 지나간 대사를 눌러 그 줄로 간다(SOMA-785, 음악 앱의 가사 누르기). [이전]과 같은 규칙이다 — 그 줄을 처음부터 다시 하고
+ * (상대 줄이면 다시 읽고 내 줄이면 다시 듣는다), 말한 것은 남되 다시 말하면 마지막 말이 이긴다. 멈춘 채 눌러도 그 줄에서
+ * 이어서 한다. 구간 밖·대사가 아닌 줄·지금 줄 뒤·끝난 실행은 받지 않는다. 이어하기의 앞 상대 대사보다 앞으로 가도 위치를 저장한다.
+ */
+export function jumpTo(run: RunState, index: number): RunState {
+  if (run.status === 'done' || index < run.startIndex || index >= run.index || run.lines[index]?.type !== 'dialogue') return run;
+  // 묶인 대사 안의 줄을 눌러도 그 묶음 처음부터 — 묶음이 한 차례다.
+  const moved: RunState = { ...run, index: groupOf(run, index).start, resumeTo: null, leadInUntil: null };
   return { ...moved, status: turnOf(moved) };
 }
 
@@ -154,10 +187,22 @@ export function formatProgress(run: RunState): string {
   return `${done} / ${total} · ${mmss(run.elapsedMs)}`;
 }
 
-/** 지금 내 줄에 말한 것을 남긴다. 흐름은 그대로다. */
+/**
+ * 지금 내 차례에 말한 것을 남긴다. 흐름은 그대로다. 묶인 차례(SOMA-806)는 한 번에 받아쓴 글을 독백과 같은 글자 맞춤
+ * (alignSentences)으로 줄마다 떼어 줄별로 남긴다 — 서버 대조가 줄마다 말한 것을 받기 때문이다. 빠뜨린 줄은 남기지 않고,
+ * 어느 줄에도 맞지 않으면 전체를 첫 줄의 말한 것으로 둔다(따로 말했을 때 그 줄이 다르게 말한 대사가 되는 것과 같게).
+ */
 export function recordSaid(run: RunState, said: string): RunState {
   if (run.status !== 'mine') return run;
-  return { ...run, said: { ...run.said, [run.lineIds[run.index]]: said } };
+  const { start, end } = turnSpan(run);
+  if (start === end) return { ...run, said: { ...run.said, [run.lineIds[start]]: said } };
+  const ids = run.lineIds.slice(start, end + 1);
+  const pieces: Record<string, string> = {};
+  alignSentences(run.lines.slice(start, end + 1).map((l) => l.text), said).forEach((a, k) => {
+    if (a.status !== 'missed' && a.said) pieces[ids[k]] = a.said;
+  });
+  if (!Object.keys(pieces).length) pieces[ids[0]] = said;
+  return { ...run, said: { ...run.said, ...pieces } };
 }
 
 /** 가리기 — 대사에만 적용되고 배역 이름·지문·장면은 남긴다. */
@@ -195,7 +240,7 @@ export function resumeRun(run: RunState, currentLineId: string): RunState {
   let leadIn = -1;
   for (let i = at - 1; i >= run.startIndex; i--) {
     if (run.lines[i].type !== 'dialogue') continue;
-    if (!isMine(run, i)) leadIn = i;
+    if (!isMine(run, i)) leadIn = groupOf(run, i).start;
     break;
   }
   const index = leadIn >= 0 ? leadIn : at;

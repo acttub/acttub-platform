@@ -14,6 +14,10 @@ import java.util.List;
  *        않는다
  * @param characterTraits {@code characterNames} 와 같은 자리의 성별·나이대(SOMA-670). 나누기 작업만 채우고 나머지는 모두
  *        모름이다. {@code null} 이면 모두 모름
+ * @param characterMembers {@code characterNames} 와 같은 자리의, 함께 말하는 줄의 묶음 배역이면 그 줄을 함께 말하는 배역들의 자리(SOMA-709,
+ *        {@link SpeakerGroups}). 보통 배역은 비어 있다. {@code null} 이면 모두 보통 배역
+ * @param unnamedCast 원문에 배역 이름이 없어 서버가 배역 이름(「화자」)을 지은 독백인가(SOMA-597, {@link Monologue}). 배우가 이름을 정할 때까지
+ *        배역에 표시해 둔다
  */
 public record ScriptDraft(
         String title,
@@ -21,7 +25,9 @@ public record ScriptDraft(
         String source,
         List<String> characterNames,
         List<Line> lines,
-        List<CharacterTraits> characterTraits) {
+        List<CharacterTraits> characterTraits,
+        List<List<Integer>> characterMembers,
+        boolean unnamedCast) {
 
     public ScriptDraft {
         characterNames = List.copyOf(characterNames);
@@ -32,11 +38,29 @@ public record ScriptDraft(
         if (characterTraits.size() != characterNames.size()) {
             throw new IllegalArgumentException("characterTraits must line up with characterNames");
         }
+        characterMembers = characterMembers == null
+                ? Collections.nCopies(characterNames.size(), List.of())
+                : characterMembers.stream().map(List::copyOf).toList();
+        if (characterMembers.size() != characterNames.size()) {
+            throw new IllegalArgumentException("characterMembers must line up with characterNames");
+        }
+    }
+
+    /** 배역 이름을 원문에서 읽은 대본. */
+    public ScriptDraft(String title, String rawText, String source, List<String> characterNames, List<Line> lines,
+            List<CharacterTraits> characterTraits, List<List<Integer>> characterMembers) {
+        this(title, rawText, source, characterNames, lines, characterTraits, characterMembers, false);
+    }
+
+    /** 묶음 배역이 없는 대본 — 나누기 조립 중간과 묶기 전. */
+    public ScriptDraft(String title, String rawText, String source, List<String> characterNames, List<Line> lines,
+            List<CharacterTraits> characterTraits) {
+        this(title, rawText, source, characterNames, lines, characterTraits, null);
     }
 
     /** 성별·나이대를 모르는 대본 — 기기가 나눈 대본과 예시 대본. */
     public ScriptDraft(String title, String rawText, String source, List<String> characterNames, List<Line> lines) {
-        this(title, rawText, source, characterNames, lines, null);
+        this(title, rawText, source, characterNames, lines, null, null);
     }
 
     /** 줄마다 말과 소리 낼 글을 채운 같은 대본(SOMA-751). {@code languages} 는 줄의 ordinal → 답이고, 없는 줄은 그대로다. */
@@ -51,7 +75,7 @@ public record ScriptDraft(
                             result.lang(), result.speech());
                 })
                 .toList();
-        return new ScriptDraft(title, rawText, source, characterNames, next, characterTraits);
+        return new ScriptDraft(title, rawText, source, characterNames, next, characterTraits, characterMembers, unnamedCast);
     }
 
     /**

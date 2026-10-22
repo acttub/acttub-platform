@@ -1,14 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { NavIconButton } from '@/components/ui/nav-header';
+import { BackTitleHeader, BareBackButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import type { ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -25,14 +25,16 @@ import {
   marketingDecisionNotice,
   shouldNoticeEntryDecisions,
 } from '@/lib/marketing-consent';
+import { showMarketingNotice } from '@/lib/marketing-notice';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
 /**
- * A0.1 가입 동의(pen S4 Bjopqw, SOMA-748) — 처음 온 신원만 본다. 이미 있는 계정의 새 판 동의는 홈 위 재동의 팝업이 묻는다.
+ * A0.1 가입 동의(pen 01 「약관 동의」, 파이프라인 반영버전) — 처음 온 신원만 본다. 이미 있는 계정의 새 판 동의는 홈 위 재동의 팝업이 묻는다.
  *
+ * 제목 아래 파란 안내 줄이 지금 누를 곳을 알려 준다 — 필수를 다 고르기 전엔 「전체 동의」, 다 고르면 「동의하고 계속하기」.
  * 맨 위에 전체 동의(선택 포함, 기본 꺼짐), 그 아래 만 14세 확인 줄과 문서마다 체크 한 줄(필수를 먼저).
  * 고품질 목소리·대본 나누기는 개인정보 동의 v9에 들어 있어 따로 보이지 않고, 광고성 이메일·앱 푸시는 한 줄로 묶는다. 만 14세 확인과 필수 문서에
  * 모두 동의해야 "동의하고 계속하기"가 켜진다. 화살표를 누르면 본문이 펼쳐진다.
@@ -106,12 +108,12 @@ export default function ConsentScreen() {
     try {
       const created = await submitSignup(choiceMap);
       // 광고성 정보 수신에 동의했으면 처리 결과를 알린다(정보통신망법 제50조 제7항). 가입이 끝나면 이 화면이
-      // 내려가므로 앱 다이얼로그 대신 OS 알림창을 쓴다.
+      // 내려가므로 앱 전체 자리로 보내 다음 화면 위에 S5.13 팝업으로 띄운다.
       const decisions = entryMarketingDecisions(documents, choiceMap);
       const notice = created && shouldNoticeEntryDecisions(decisions)
         ? marketingDecisionNotice(decisions, new Date())
         : null;
-      if (notice) Alert.alert(notice.title, notice.message);
+      if (notice) showMarketingNotice(notice);
     } catch (cause) {
       if (signupFailureAction(cause) === 'reload_documents') {
         // 보는 사이 새 판이 나왔다. 문서를 다시 받아 화면을 새로 그린다.
@@ -154,22 +156,15 @@ export default function ConsentScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.header}>
-        {/* 나가면 아무것도 남지 않는다. 계정도, 제공자가 준 이름도. */}
-        <NavIconButton
-          icon="chevron-left"
-          size={26}
-          label={t('consent.exit')}
-          phLabel="consent_exit"
-          disabled={busy}
-          onPress={() => cancelSignup()}
-        />
-        <Text style={styles.headerTitle}>{t('consent.headerTitle')}</Text>
-      </View>
+      {/* 나가면 아무것도 남지 않는다. 계정도, 제공자가 준 이름도. */}
+      <BackTitleHeader
+        title={t('consent.headerTitle')}
+        back={<BareBackButton label={t('consent.exit')} phLabel="consent_exit" disabled={busy} onPress={() => cancelSignup()} />}
+      />
 
       <ScrollView contentContainerStyle={styles.list}>
         <Text style={styles.title}>{t('consent.heading')}</Text>
-        <Text style={styles.hint}>{t('consent.headingHint')}</Text>
+        <Text style={styles.hint}>{t(canProceed ? 'consent.headingReady' : 'consent.headingHint')}</Text>
         <Pressable
           style={styles.allRow}
           onPress={toggleEverything}
@@ -188,47 +183,50 @@ export default function ConsentScreen() {
         />
         {ordered.map(renderRow)}
         {layout.marketing.length > 0 && (
-          <ConsentRow
-            label={`${t('consent.optionalTag')} ${t('consent.marketingGroup')}`}
-            checked={marketingAllGranted}
-            locked={busy}
-            onToggle={toggleMarketing}
-            arrow={{
-              icon: expanded.marketing ? 'chevron-down' : 'chevron-right',
-              onPress: () => setExpanded((current) => ({ ...current, marketing: !current.marketing })),
-              accessibilityLabel: expanded.marketing ? t('common.fold') : t('common.view'),
-            }}>
-            <View style={styles.subRow}>
-              {layout.marketing.map((document) => {
-                const on = choices[document.id] === 'granted';
-                return (
-                  <Pressable
-                    key={document.id}
-                    style={styles.subItem}
-                    onPress={() => toggleDocument(document)}
-                    disabled={busy}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on, disabled: busy }}>
-                    <Feather name="check" size={16} color={on ? palette.blue : palette.checkOff} />
-                    <Text style={[styles.subLabel, on && styles.subLabelOn]}>
-                      {t(document.type === 'marketing_push' ? 'consent.marketingPush' : 'consent.marketingEmail')}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {expanded.marketing && (
-              <View style={styles.docBody}>
-                {layout.marketing.map((document) => (
-                  <Markdown key={document.id} source={document.body} />
-                ))}
+          <View style={styles.marketing}>
+            <ConsentRow
+              compact
+              label={`${t('consent.optionalTag')} ${t('consent.marketingGroup')}`}
+              checked={marketingAllGranted}
+              locked={busy}
+              onToggle={toggleMarketing}
+              arrow={{
+                icon: expanded.marketing ? 'chevron-down' : 'chevron-right',
+                onPress: () => setExpanded((current) => ({ ...current, marketing: !current.marketing })),
+                accessibilityLabel: expanded.marketing ? t('common.fold') : t('common.view'),
+              }}>
+              <View style={styles.subRow}>
+                {layout.marketing.map((document) => {
+                  const on = choices[document.id] === 'granted';
+                  return (
+                    <Pressable
+                      key={document.id}
+                      style={styles.subItem}
+                      onPress={() => toggleDocument(document)}
+                      disabled={busy}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: on, disabled: busy }}>
+                      <Feather name="check" size={14} color={on ? palette.blue : palette.checkOff} />
+                      <Text style={styles.subLabel}>
+                        {t(document.type === 'marketing_push' ? 'consent.marketingPush' : 'consent.marketingEmail')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-            )}
-          </ConsentRow>
+              {expanded.marketing && (
+                <View style={styles.docBody}>
+                  {layout.marketing.map((document) => (
+                    <Markdown key={document.id} source={document.body} />
+                  ))}
+                </View>
+              )}
+            </ConsentRow>
+          </View>
         )}
       </ScrollView>
 
-      <CtaBar safeBottom={false}>
+      <CtaBar safeBottom={false} style={styles.footer}>
         {error && <Text style={styles.error}>{error}</Text>}
         <PrimaryButton label={t('consent.cta')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} />
       </CtaBar>
@@ -238,28 +236,30 @@ export default function ConsentScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  // pen S4 동의 「머리」 — 꺾쇠 옆에 제목(19/800).
-  // 꺾쇠 버튼 칸(44)은 그림(26)보다 넓어 왼쪽 안쪽을 줄여 그림 자리를 14 에 맞춘다.
-  header: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 0, paddingHorizontal: 5 },
-  headerTitle: { fontSize: 19, fontWeight: '800', color: palette.text },
-  // pen S4 「본문」 — 안쪽 [16,24,24,24], 줄 사이 14.
-  list: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
-  title: { fontSize: 22, fontWeight: '900', lineHeight: 31, color: palette.text },
-  hint: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
-  docBody: { paddingHorizontal: 16, paddingBottom: 12 },
-  subRow: { flexDirection: 'row', gap: 20, paddingLeft: 46, paddingBottom: 10, marginTop: -14 },
-  subItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  subLabel: { fontSize: 14, fontWeight: '600', color: palette.textDim },
-  subLabelOn: { color: palette.text },
+  // pen 01 약관 동의 「Body」 — 안쪽 [13,20,0,20]. 동의 행(높이 55)은 사이 간격 없이 붙인다.
+  list: { paddingHorizontal: 20, paddingTop: 13, paddingBottom: 24 },
+  title: { fontSize: 20, fontWeight: '800', color: palette.text },
+  // 누를 것 안내 — 제목 아래 6, 14/700 파랑.
+  hint: { paddingTop: 6, fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
+  // 전체 동의 — 위 12 · 아래 6 띄운 높이 48, 안쪽 14, 모서리 16, #EAF3FE.
   allRow: {
+    height: 48,
+    marginTop: 12,
+    marginBottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     backgroundColor: palette.blueSoft,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingHorizontal: 14,
   },
-  allLabel: { flex: 1, fontSize: 18, fontWeight: '800', lineHeight: 27, color: palette.text },
+  allLabel: { flex: 1, fontSize: 18, fontWeight: '800', color: palette.text },
+  docBody: { paddingHorizontal: 14, paddingBottom: 12 },
+  // 광고성 정보 — 위 20 띄우고, 이메일·앱 푸시는 체크 글자 밑(41)에서 시작해 18 간격.
+  marketing: { paddingTop: 20 },
+  subRow: { flexDirection: 'row', alignItems: 'center', gap: 18, paddingTop: 10, paddingLeft: 41, paddingBottom: 10 },
+  subItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  subLabel: { fontSize: 15, fontWeight: '600', color: palette.textStrong },
+  footer: { paddingTop: 8, paddingHorizontal: 20, paddingBottom: 11 },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
 });

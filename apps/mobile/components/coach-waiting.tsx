@@ -1,15 +1,14 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image } from 'expo-image';
 import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
-import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -373,20 +372,18 @@ export function CoachWaiting({
         />
         <SceneFoldBody open={sceneOpen} videoUri={videoUri} track="analyzing" />
 
-        {/* 코치 말풍선 자리에서 기다린다(pen 옛 「분석 중」 문구, 질문 대화 첫 응답 모양). */}
-        <View style={styles.coachRow} ref={progressTarget.ref} onLayout={progressTarget.onLayout}>
-          <Image source={MASCOT.coach} style={MASCOT_SIZE.xs} contentFit="contain" accessibilityIgnoresInvertColors />
-          <View style={styles.main}>
-            <Text style={styles.coachLabel}>{t('coach.coachLabel')}</Text>
+        {/* 코치 말풍선 자리에서 기다린다(pen 09 「질문 대화 · 영상 보는 중」). */}
+        <View ref={progressTarget.ref} onLayout={progressTarget.onLayout}>
+          <CoachMessage below={error ? null : <Text style={styles.elapsed}>{elapsedText}</Text>}>
             {error ? (
-              <View style={styles.bubble}>
+              <>
                 <Text style={styles.errorTitle}>{t('analyzing.errorTitle')}</Text>
                 <Text style={styles.errorBody}>
                   {error} {recovery !== 'none' ? t('analyzing.errorBody') : ''}
                 </Text>
-              </View>
+              </>
             ) : (
-              <View style={styles.bubble} accessibilityLiveRegion="polite">
+              <View style={styles.watchingBox} accessibilityLiveRegion="polite">
                 <View style={styles.typingRow}>
                   <ActivityIndicator size="small" color={palette.blue} />
                   <Text style={styles.watching}>{t('coach.watching')}</Text>
@@ -394,8 +391,7 @@ export function CoachWaiting({
                 <Text style={styles.stageText}>{stageText}</Text>
               </View>
             )}
-            {!error && <Text style={styles.elapsed}>{elapsedText}</Text>}
-          </View>
+          </CoachMessage>
         </View>
 
         {error && (
@@ -419,10 +415,16 @@ export function CoachWaiting({
               <Text style={styles.notice}>{t('analyzing.usualTime')}</Text>
               <Text style={styles.leaveHint}>{t('analyzing.leaveHint')}</Text>
               {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 여기서는 홈으로 나간다. */}
-              <SecondaryButton label={t('analyzing.notifyMe')} onPress={() => router.replace('/(tabs)')} style={styles.wide} />
+              <Pressable
+                style={({ pressed }) => [styles.notify, pressed && styles.pressed]}
+                onPress={() => router.replace('/(tabs)')}
+                accessibilityRole="button"
+                accessibilityLabel={t('analyzing.notifyMe')}>
+                <Text style={styles.notifyText}>{t('analyzing.notifyMe')}</Text>
+              </Pressable>
             </>
           )}
-          <Pressable onPress={() => void stop()} disabled={stopping} hitSlop={8} accessibilityRole="button">
+          <Pressable style={styles.quit} onPress={() => void stop()} disabled={stopping} hitSlop={8} accessibilityRole="button">
             <Text style={styles.link}>{stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}</Text>
           </Pressable>
         </View>
@@ -435,35 +437,28 @@ export function CoachWaiting({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 20, gap: 14 },
+  // pen 09 본문 안쪽 [14,21,0,21] · 오늘 영상 줄과 코치 줄 사이 14.
+  body: { paddingTop: 14, paddingHorizontal: 21, paddingBottom: 20, gap: 14 },
   wide: { alignSelf: 'stretch' },
+  pressed: { opacity: 0.75 },
 
-  // 대화 화면의 「코치 줄」과 같다 — 마스코트, 이름 12/800 주황, 회색 말풍선(왼쪽 위만 뾰족).
-  coachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  main: { flex: 1, gap: 8 },
-  coachLabel: { fontSize: 12, fontWeight: '800', lineHeight: 18, color: palette.flameDeep },
-  bubble: {
-    alignSelf: 'flex-start',
-    gap: 6,
-    backgroundColor: palette.bgSoft,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 18,
-    borderBottomRightRadius: 18,
-    borderBottomLeftRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
+  // 말풍선 안 — 도는 표시 · 「영상 보는 중이에요」 17/700, 아래 단계 문구 15/500 #333D4B.
+  watchingBox: { gap: 6 },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  watching: { fontSize: 16, fontWeight: '700', color: palette.text, lineHeight: 24 },
-  stageText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 21 },
-  elapsed: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
+  watching: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.text },
+  stageText: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textStrong },
+  elapsed: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
 
-  errorTitle: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 24 },
-  errorBody: { fontSize: 13.5, fontWeight: '600', color: palette.danger, lineHeight: 22 },
-  errorActions: { alignItems: 'center', gap: 12, paddingLeft: 44 },
+  errorTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 21 },
+  errorBody: { fontSize: 15, fontWeight: '600', color: palette.danger, lineHeight: 21 },
+  errorActions: { alignItems: 'center', gap: 12, paddingLeft: 39 },
 
-  bottom: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 10, gap: 10, alignItems: 'center' },
-  notice: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, textAlign: 'center', lineHeight: 21 },
-  leaveHint: { fontSize: 13, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', lineHeight: 20 },
-  link: { color: palette.textFaint, fontSize: 12.5, fontWeight: '700', textAlign: 'center', paddingVertical: 6 },
+  // pen 09 아래 — 안쪽 [0,21,11,21], 안내 15/500 회색 · 14 · 파란 안내 14.5/700 · 10 · 회색 버튼 48 · 13 · 그만두기 15/700.
+  bottom: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11, alignItems: 'center' },
+  notice: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint, textAlign: 'center' },
+  leaveHint: { fontSize: 14.5, fontWeight: '700', lineHeight: 19, color: palette.blueDeep, textAlign: 'center', marginTop: 14 },
+  notify: { alignSelf: 'stretch', height: 48, borderRadius: 16, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  notifyText: { fontSize: 18, fontWeight: '700', color: palette.textStrong },
+  quit: { marginTop: 7 },
+  link: { color: palette.textFaint, fontSize: 15, fontWeight: '700', lineHeight: 19, textAlign: 'center', paddingVertical: 6 },
 });
