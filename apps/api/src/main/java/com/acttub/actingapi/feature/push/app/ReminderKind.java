@@ -3,6 +3,8 @@ package com.acttub.actingapi.feature.push.app;
 /** 연습 알림의 종류. {@link #wire()} 가 푸시 data 의 {@code kind} 값이다. */
 public enum ReminderKind {
     RESUME("resume"),
+    PENDING_VIDEO("pending_video"),
+    UNREAD_SCRIPT("unread_script"),
     HOMEWORK("homework"),
     READING("reading"),
     GENERAL("general"),
