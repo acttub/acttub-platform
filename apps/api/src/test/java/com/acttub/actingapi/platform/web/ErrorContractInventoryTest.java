@@ -423,7 +423,7 @@ class ErrorContractInventoryTest {
             covered("feature.reading.app.RecordingService|503|audio_conversion_failed", 1,
                     "feature.reading.ReadingRecordingIT"),
             // 찍을 대사 같이 만들기(reading.cocreate, SOMA-721). 모델 실패와 검사 불통과는 같은 502 다.
-            covered("feature.reading.app.ScriptCocreateService|404|sample_script_not_found", 1,
+            covered("feature.reading.app.ScriptCocreateService|404|sample_script_not_found", 2,
                     "feature.reading.app.ScriptCocreateServiceTest"),
             covered("feature.reading.app.ScriptCocreateService|409|sample_script_busy", 3,
                     "feature.reading.app.ScriptCocreateServiceTest"),
