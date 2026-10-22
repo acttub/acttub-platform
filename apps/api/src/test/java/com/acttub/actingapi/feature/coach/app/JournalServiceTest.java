@@ -183,6 +183,15 @@ class JournalServiceTest {
         assertThat(edited.editedAt()).isNotNull();
     }
 
+    @Test
+    void unfencedStripsOnlyAWrappingCodeFence() {
+        assertThat(JournalService.unfenced("```json\n{\"a\":1}\n```")).isEqualTo("{\"a\":1}");
+        assertThat(JournalService.unfenced("```{}```")).isEqualTo("{}");
+        assertThat(JournalService.unfenced(" {\"a\":1} ")).isEqualTo("{\"a\":1}");
+        assertThat(JournalService.unfenced("```")).isEqualTo("```");
+        assertThat(JournalService.unfenced(null)).isNull();
+    }
+
     /** 표 하나를 흉내 낸다 — 회차마다 한 줄, 본인 것만, 고친 뒤엔 생성 결과가 덮지 않는다. */
     static final class FakeJournals implements JournalRepository {
         private final Map<UUID, Row> byPractice = new HashMap<>();

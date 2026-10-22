@@ -26,7 +26,8 @@ export function useNextTakes(practiceIds: readonly (string | null | undefined)[]
         .then(async (fromNote) => {
           const fromJournal = journalNext(await journal);
           if (!cancelled) setTakes((was) => ({ ...was, [id]: fromJournal ?? fromNote }));
-        });
+        })
+        .catch(() => undefined);
     }
     return () => {
       cancelled = true;

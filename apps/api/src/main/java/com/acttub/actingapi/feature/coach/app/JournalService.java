@@ -5,8 +5,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.app.ActorJournal.Answers;
 import com.acttub.actingapi.feature.coach.app.ActorJournal.Draft;
@@ -38,7 +36,6 @@ public class JournalService {
 
     static final String PROMPT = StructuredJson.textResource(ActorJournal.PROMPT_RESOURCE);
     static final int ATTEMPTS = 2;
-    private static final Pattern FENCED_JSON = Pattern.compile("^```(?:json)?\\s*([\\s\\S]*?)\\s*```$", Pattern.CASE_INSENSITIVE);
 
     private final JournalRepository journals;
     private final ConversationRepository conversations;
@@ -146,10 +143,14 @@ public class JournalService {
         }
     }
 
-    private static String unfenced(String text) {
+    /** 모델이 JSON 을 ```json … ``` 로 감싸 보냈으면 벗긴다(정규식 되짚기 없이 앞뒤만 본다). */
+    static String unfenced(String text) {
         if (text == null) return null;
-        Matcher fenced = FENCED_JSON.matcher(text.strip());
-        return fenced.matches() ? fenced.group(1) : text.strip();
+        String body = text.strip();
+        if (!body.startsWith("```") || !body.endsWith("```") || body.length() < 6) return body;
+        body = body.substring(3, body.length() - 3);
+        if (body.regionMatches(true, 0, "json", 0, 4)) body = body.substring(4);
+        return body.strip();
     }
 
     /** 앞뒤 공백만 걷는다 — 배우의 글은 고쳐 쓰지 않는다. 빈 글은 null 이고, 아무것도 없는 질문은 건너뛴 것(null)이다. */
