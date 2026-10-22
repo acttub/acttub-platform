@@ -22,6 +22,7 @@ const mockLoop = {
   getPracticeAnalysis: jest.fn(),
   startConversation: jest.fn(),
   replyToCoach: jest.fn(),
+  continueConversation: jest.fn(),
 };
 let mockSampleLoop: LoopApi | null = null;
 
@@ -577,6 +578,44 @@ describe('닫힌 대화', () => {
     expect(
       await screen.findByText('대화를 마무리하는 중 연결이 끊겼어요. 남아 있는 기록을 확인하거나 새 회차로 이어갈 수 있어요.'),
     ).toBeOnTheScreen();
+  });
+
+  describe('대화 이어하기(SOMA-782)', () => {
+    async function renderClosed(over: Partial<CoachConversation> = {}) {
+      mockLoop.getConversation.mockResolvedValue(conv({ status: 'closed', close_reason: 'user_ended', revision: 5, ...over }));
+      mockLoop.getPracticeNote.mockRejectedValue(serverError(404, 'note_not_found'));
+      begin({ conversationId: 'c1' });
+      await render(<CoachScreen />);
+      return screen.findByRole('button', { name: '대화 이어하기' });
+    }
+
+    test('정리 뒤 「대화 이어하기」를 누르면 같은 대화가 다시 열려 입력칸이 돌아온다', async () => {
+      mockLoop.continueConversation.mockResolvedValue(turn(conv({ status: 'open', revision: 6, coach_reply_count: 3 })));
+      await fireEvent.press(await renderClosed());
+
+      expect(mockLoop.continueConversation).toHaveBeenCalledWith('c1', 5);
+      expect(await screen.findByPlaceholderText(PLACEHOLDER)).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: '대화 이어하기' })).not.toBeOnTheScreen();
+      expect(mockLoop.startConversation).not.toHaveBeenCalled();
+      expect(mockRouter.replace).not.toHaveBeenCalled();
+    });
+
+    test('이어 갈 수 없으면 안내만 보이고 닫힌 채로 둔다', async () => {
+      mockLoop.continueConversation.mockRejectedValue(serverError(409, 'conversation_limit_reached'));
+      await fireEvent.press(await renderClosed());
+
+      expect(await screen.findByText('이 대화는 많이 이어졌어요. 다음 테이크로 새로 시작해 보세요.')).toBeOnTheScreen();
+      expect(screen.queryByPlaceholderText(PLACEHOLDER)).not.toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: '대화 이어하기' })).toBeOnTheScreen();
+    });
+
+    test('다른 곳에서 먼저 바뀌었으면 최신 대화를 다시 읽는다', async () => {
+      mockLoop.continueConversation.mockRejectedValue(serverError(409, 'conversation_conflict'));
+      await fireEvent.press(await renderClosed());
+
+      await waitFor(() => expect(mockLoop.getConversation).toHaveBeenCalledTimes(2));
+      expect(screen.queryByPlaceholderText(PLACEHOLDER)).not.toBeOnTheScreen();
+    });
   });
 
   test('다음 테이크 찍기는 이 묶음에 이어 새 영상을 고르러 간다', async () => {

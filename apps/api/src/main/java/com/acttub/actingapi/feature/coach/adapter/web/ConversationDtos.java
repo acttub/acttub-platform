@@ -43,6 +43,12 @@ final class ConversationDtos {
             @Schema(nullable = true) Long revision) {
     }
 
+    /** 닫힌 대화를 이어 간다(SOMA-782). revision 을 주면 화면이 본 상태와 다를 때 409 conversation_conflict 다. */
+    @Schema(name = "CoachContinueRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ContinueRequest(@Schema(nullable = true) Long revision) {
+    }
+
     /** 대화의 한 턴. 저장은 옛 값과 같은 {@code ai} 이고 화면에는 {@code coach} 로 보인다. */
     @Schema(name = "CoachTurn", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

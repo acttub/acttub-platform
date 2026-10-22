@@ -293,4 +293,73 @@ class ConversationServiceTest {
         assertThat(failures.reports()).singleElement()
                 .satisfies(report -> assertThat(report.context()).isEqualTo("ConversationService.prewriteStart"));
     }
+
+    // SOMA-782 대화 이어하기: 닫힌 대화를 같은 대화로 다시 연다.
+    private void closedConversation(String version, ObjectNode state, String... turns) {
+        CoachSessionSnapshot closed = session("closed", version, state, turns);
+        when(conversations.loadByConversation(user, conversation)).thenReturn(new Loaded(practice, conversation, "closed", closed));
+    }
+
+    private static ObjectNode loopState(String... statuses) {
+        ObjectNode state = StructuredJson.MAPPER.createObjectNode().put("revision", 2);
+        var array = state.putObject("practice_loop").putArray("statuses");
+        for (String status : statuses) array.add(status);
+        return state;
+    }
+
+    @Test void resumingAClosedConversationReopensTheSameOneAndMarksWhereItWasResumed() {
+        closedConversation("three_layers_v1", loopState("비추기", "답하기", "끝"), "첫", "답", "둘째", "답2", "정리");
+        when(conversations.reopen(eq(conversation), eq(2L), any(), any())).thenReturn(new Saved(3, "open", null, 3));
+        var turn = service(listener).resume(user, conversation, 2L);
+        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class);
+        verify(conversations).reopen(eq(conversation), eq(2L), captured.capture(), any());
+        assertThat(captured.getValue().path("revision").asLong()).isEqualTo(3);
+        assertThat(captured.getValue().path("practice_loop").path("resumed_at").asInt()).isEqualTo(3);
+        assertThat(captured.getValue().path("practice_loop").path("statuses")).hasSize(3);
+        verify(conversations, never()).open(any(), any(), any());
+        verify(listener, never()).onConversationClosed(any(), any());
+        assertThat(turn.conversationId()).isEqualTo(conversation);
+    }
+
+    @Test void resumingAnOpenConversationJustReturnsIt() {
+        openConversation(session("open", "three_layers_v1", loopState("비추기"), "첫 질문"));
+        var turn = service(listener).resume(user, conversation, null);
+        assertThat(turn.status()).isEqualTo("open");
+        verify(conversations, never()).reopen(any(), anyLong(), any(), any());
+    }
+
+    @Test void resumingRefusesStaleRevisionLegacyAndNearlyFullConversations() {
+        closedConversation("three_layers_v1", loopState("비추기"), "첫", "답", "정리");
+        assertThatThrownBy(() -> service(listener).resume(user, conversation, 1L))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(409))
+                .hasMessage("conversation_conflict");
+        closedConversation("legacy", null, "첫", "답", "정리");
+        assertThatThrownBy(() -> service(listener).resume(user, conversation, null)).hasMessage("conversation_not_resumable");
+        String[] many = new String[ConversationService.THREE_LAYERS_REPLY_LIMIT * 2];
+        java.util.Arrays.fill(many, "말");
+        closedConversation("three_layers_v1", loopState("비추기"), many);
+        assertThatThrownBy(() -> service(listener).resume(user, conversation, null)).hasMessage("conversation_limit_reached");
+        verify(conversations, never()).reopen(any(), anyLong(), any(), any());
+    }
+
+    @Test void aReopenThatLostTheRaceIsAConflict() {
+        closedConversation("three_layers_v1", loopState("비추기"), "첫", "답", "정리");
+        when(conversations.reopen(any(), anyLong(), any(), any())).thenReturn(null);
+        assertThatThrownBy(() -> service(listener).resume(user, conversation, null)).hasMessage("conversation_conflict");
+    }
+
+    @Test void aResumedConversationThatClosesAgainRefreshesTheNoteAndDoesNotScheduleMemoryAgain() {
+        ObjectNode state = loopState("비추기", "답하기", "끝");
+        ((ObjectNode) state.get("practice_loop")).put("resumed_at", 3);
+        CoachSessionSnapshot open = session("open", "three_layers_v1", state, "첫", "답", "정리");
+        openConversation(open);
+        when(coach.reply(any(), eq("그만할게"), eq(conversation))).thenReturn(result(open, "여기까지.", "complete", null));
+        when(conversations.appendTurn(any(), anyLong(), any(), anyString(), anyString(), anyString(), any(), anyString(), any(), any()))
+                .thenReturn(new Saved(4, "closed", "user_ended", 4));
+        when(conversations.note(user, practice)).thenReturn(null);
+        service(listener).reply(user, conversation, UUID.randomUUID(), "그만할게", 2L);
+        verify(notes).write(any(), any(), anyLong(), any(), eq(true));
+        verify(notes, never()).write(any(), any(), anyLong(), any());
+        verify(listener, never()).onConversationClosed(any(), any());
+    }
 }

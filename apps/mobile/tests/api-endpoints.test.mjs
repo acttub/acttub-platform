@@ -168,6 +168,12 @@ const CASES = [
     { method: 'get', path: `/v2/entries/${id(51)}/comments?cursor=c%207` }, { body: sample('EntryCommentPage') }],
   ['saveEntry(저장 취소)', () => api.saveEntry(id(51), false),
     { method: 'delete', path: `/v2/entries/${id(51)}/save` }, { body: { saved: false } }],
+  ['continueConversation', () => api.continueConversation(id(60), 4),
+    { method: 'post', path: `/v2/coach/conversations/${id(60)}/continue`, body: { revision: 4 } },
+    { body: sample('CoachTurnResult') }],
+  ['continueConversation(revision 없음)', () => api.continueConversation(id(60), null),
+    { method: 'post', path: `/v2/coach/conversations/${id(60)}/continue`, body: { revision: null } },
+    { body: sample('CoachTurnResult') }],
   ['auditions', () => api.auditions(),
     { method: 'get', path: '/v2/auditions', auth: false }, { body: sample('AuditionPostingList') }],
 ];

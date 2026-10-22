@@ -982,6 +982,10 @@ const en: DeepStringShape<typeof ko> = {
     doneNormal: 'That’s it for today’s conversation. I’ll build your summary now.',
     finishBtn: 'Finish practice',
     seeSummary: 'Write journal and finish',
+    // Continue the same conversation after the summary (SOMA-782, pen ⓐ4).
+    continueTalk: 'Keep talking',
+    continueLimit: 'This conversation has gone on a long while. Start fresh with your next take.',
+    continueNotResumable: 'This conversation can’t be continued. Start fresh with your next take.',
     composerLabel: 'Write your answer or question freely',
     composerPh: 'Or write your own',
     quickYes: 'Yes',

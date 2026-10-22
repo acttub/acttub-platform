@@ -103,6 +103,8 @@ export type LoopApi = {
   getPracticeAnalysis(practiceId: string): Promise<PracticeAnalysis>;
   startConversation(practiceId: string, requestId: string, stream?: CoachStreamCallbacks): Promise<CoachTurnResult>;
   replyToCoach(body: CoachReplyBody, stream?: CoachStreamCallbacks): Promise<CoachTurnResult>;
+  /** 닫힌 대화를 이어 간다(SOMA-782). 예시 회차는 서버에 없어 이어 갈 수 없다. */
+  continueConversation(conversationId: string, revision: number | null): Promise<CoachTurnResult>;
 };
 
 /**
@@ -166,6 +168,9 @@ export function createSampleLoop(options: { delayMs?: number } = {}): LoopApi {
         return { conversation: snapshot(conversation), message: questions[0], note: null };
       }
       return { conversation: snapshot(conversation), message: null, note };
+    },
+    async continueConversation() {
+      throw notFound('conversation_not_resumable');
     },
     async replyToCoach(body) {
       await wait();

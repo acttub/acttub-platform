@@ -2968,6 +2968,59 @@
         } ]
       }
     },
+    "/v2/coach/conversations/{conversation_id}/continue" : {
+      "post" : {
+        "tags" : [ "v2-coach" ],
+        "summary" : "Continue Coach Conversation",
+        "description" : "정리까지 마친(닫힌) 대화를 같은 대화로 다시 연다(「더 얘기하기」). 새 회차·새 대화를 만들지 않아 새 코칭으로\n세지 않는다. 이미 열려 있으면 그대로 돌려준다. revision 이 다르면 409 conversation_conflict, 코치 응답\n상한에 가까우면 409 conversation_limit_reached, 이어 갈 수 없는 대화(옛 갈래·연기가 아니어서 끊김)면\n409 conversation_not_resumable. 이어 간 대화가 다시 닫히면 노트는 새 내용으로 고쳐진다.",
+        "operationId" : "continue_coach_conversation_v2_coach_conversations__conversation_id__continue_post",
+        "parameters" : [ {
+          "name" : "conversation_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CoachContinueRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoachTurnResult"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/challenges" : {
       "get" : {
         "tags" : [ "v2-challenges" ],
@@ -9566,6 +9619,21 @@
         },
         "required" : [ "conversation_id", "request_id" ],
         "title" : "CoachReplyRequest"
+      },
+      "CoachContinueRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "revision" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Revision"
+          }
+        },
+        "title" : "CoachContinueRequest"
       },
       "ChallengeCreateRequest" : {
         "type" : "object",
