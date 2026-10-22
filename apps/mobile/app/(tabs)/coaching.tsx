@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { TalkEntryButton } from '@/components/talk-entry-button';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { MASCOT } from '@/components/ui/mascot';
@@ -38,7 +39,7 @@ function shortDate(iso: string | null | undefined): string {
  * - 다음: 저번 코치 메모(노트의 다음 테이크 문장) + 「한 번 더 연습」, 새 영상·지난 코칭 타일, 최근 코칭 두 줄.
  *
  * 디자인의 「n/3번 해 봤어요」 진행 점, 최근 코칭 줄의 태그(감정 기억·해결)·영상 길이는 서버에 그 값이 없어 그리지 않는다.
- * 서버 기능이 아직 없는 길(영상 없이 말로 코칭, 찍을 대사 같이 만들기, 하루 무료 횟수 안내)도 보이지 않는다.
+ * 서버 기능이 아직 없는 길(찍을 대사 같이 만들기, 하루 무료 횟수 안내)은 보이지 않는다. 「영상 없이 말로 코칭 받기」는 목적 화면(app/talk)을 연다(SOMA-745).
  */
 export default function CoachingTab() {
   const tabBarSpace = useTabBarSpace();
@@ -146,6 +147,7 @@ export default function CoachingTab() {
               <Feather name="upload" size={15} color={palette.textDim} />
               <Text style={styles.secondaryText}>{t('coachingTab.uploadTaken')}</Text>
             </Pressable>
+            <TalkEntryButton onPress={() => router.push('/talk')} />
           </View>
         </View>
       ) : (
@@ -203,6 +205,7 @@ export default function CoachingTab() {
               onPress={() => router.push('/history')}
             />
           </View>
+          <TalkEntryButton onPress={() => router.push('/talk')} />
 
           {visible.length > 0 && (
             <>

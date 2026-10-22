@@ -131,6 +131,19 @@ class PostgresPracticeRepository implements PracticeRepository {
     }
 
     @Override
+    public Started startWithoutVideo(UUID userId, NewPractice practice, Instant now) {
+        return transaction.execute(tx -> {
+            Started replayed = replay(userId, practice);
+            if (replayed != null) {
+                return replayed;
+            }
+            UUID id = UUID.randomUUID();
+            insertPractice(id, id, 1, userId, practice, now, "conversing");
+            return new Started(StartOutcome.CREATED, find(userId, id));
+        });
+    }
+
+    @Override
     public Started continueGroup(UUID userId, UUID from, UUID videoId, NewPractice practice, Quota quota, Instant now) {
         return transaction.execute(tx -> {
             Started replayed = replay(userId, practice);
@@ -505,11 +518,16 @@ class PostgresPracticeRepository implements PracticeRepository {
     }
 
     private void insertPractice(UUID id, UUID rootId, int ordinal, UUID userId, NewPractice practice, Instant now) {
+        insertPractice(id, rootId, ordinal, userId, practice, now, "analyzing");
+    }
+
+    private void insertPractice(UUID id, UUID rootId, int ordinal, UUID userId, NewPractice practice, Instant now,
+            String stage) {
         entityManager.createNativeQuery("""
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,request_id,
                                       request_fingerprint,situation,character_context,goal,blockage_kind,sub_branch,
                                       blockage_detail,title,session_purpose,created_at,updated_at)
-                VALUES (:id,:userId,:videoId,:rootId,:ordinal,'analyzing',:experienceVersion,:requestId,:fingerprint,
+                VALUES (:id,:userId,CAST(:videoId AS uuid),:rootId,:ordinal,:stage,:experienceVersion,:requestId,:fingerprint,
                         :situation,:characterContext,:goal,:blockageKind,:subBranch,:blockageNote,
                         CAST(:title AS text),
                         COALESCE(CAST(:sessionPurpose AS text),
@@ -521,6 +539,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 .setParameter("videoId", practice.videoId())
                 .setParameter("rootId", rootId)
                 .setParameter("ordinal", ordinal)
+                .setParameter("stage", stage)
                 .setParameter("experienceVersion", practice.experienceVersion())
                 .setParameter("requestId", practice.requestId())
                 .setParameter("fingerprint", practice.fingerprint())

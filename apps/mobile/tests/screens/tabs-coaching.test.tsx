@@ -74,6 +74,9 @@ test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 
   // 찍어 둔 영상 — 새 연습 준비로 바로.
   await fireEvent.press(screen.getByRole('button', { name: '찍어 둔 영상 올리기' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/upload', params: { first: '1' } });
+  // 영상 없이 말로 — 목적 화면으로(SOMA-745).
+  await fireEvent.press(screen.getByRole('button', { name: '영상 없이 말로 코칭 받기' }));
+  expect(mockRouter.push).toHaveBeenLastCalledWith('/talk');
 });
 
 test('노트가 있는 가장 최근 묶음의 다음 테이크 문장을 저번 코치 메모로 띄우고, 노트 없이 나간 더 최근 묶음은 건너뛴다', async () => {

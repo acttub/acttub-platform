@@ -70,6 +70,7 @@ import type {
   CoachTurnResult,
   ContinuePracticeBody,
   CreatePracticeBody,
+  CreateTalkPracticeBody,
   FeedbackBody,
   GroupPatch,
   NoteRating,
@@ -978,7 +979,7 @@ export const api = {
    * 하나가 한 트랜잭션으로 생긴다. 같은 request_id 의 재전송은 같은 회차이고, 같은 id 에 다른
    * 본문이면 422 request_fingerprint_mismatch 다. 확정 전 영상은 422 video_not_ready.
    */
-  createPractice(body: CreatePracticeBody, options: ApiCallOptions = {}): Promise<Practice> {
+  createPractice(body: CreatePracticeBody | CreateTalkPracticeBody, options: ApiCallOptions = {}): Promise<Practice> {
     return postIdempotent<Practice>('/v2/practices', body, {
       requestId: body.request_id,
       timeoutMs: 30_000,

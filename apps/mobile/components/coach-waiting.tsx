@@ -121,7 +121,7 @@ export function CoachWaiting({
 
   /** 분석이 끝났다. 장면·재생 주소를 받아 대화를 연다. */
   const enterCoach = useCallback(
-    async (analysis: 'ready' | 'partial', signal: AbortSignal) => {
+    async (analysis: 'ready' | 'partial' | null, signal: AbortSignal) => {
       if (!practiceId || finishedRef.current) return;
       const loaded = await api.getPractice(practiceId, { signal }).catch(() => null);
       if (!loaded || signal.aborted) {
@@ -133,7 +133,7 @@ export function CoachWaiting({
         await pendingAnalysisStore.remove(pendingHandleRef.current).catch(() => undefined);
         pendingHandleRef.current = null;
       }
-      const notice = analysisPartialNotice(analysis);
+      const notice = analysis ? analysisPartialNotice(analysis) : null;
       if (notice) await alert({ title: t('analyzing.screenTitle'), message: notice });
       if (signal.aborted) {
         return;
@@ -152,8 +152,11 @@ export function CoachWaiting({
         videoUri: localUri ?? '',
         playbackUrl: loaded.playback_url ?? null,
       });
-      void logEvent('analysis_complete', { analysis });
-      logMetaEvent('practice_analysis_complete');
+      // 말로 하는 회차는 분석을 하지 않았으므로 분석·광고 전환으로 집계하지 않는다.
+      if (analysis && loaded.video_id) {
+        void logEvent('analysis_complete', { analysis });
+        logMetaEvent('practice_analysis_complete');
+      }
       onReadyRef.current();
     },
     [alert, practiceId],

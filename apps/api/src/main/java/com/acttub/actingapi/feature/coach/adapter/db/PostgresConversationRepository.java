@@ -39,6 +39,13 @@ class PostgresConversationRepository implements ConversationRepository {
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
+    /**
+     * 코치가 읽는 세션 목적. 영상 없이 말로 하는 회차(SOMA-745)는 목적 앞에 말 표시({@code talk:})를 붙인다 — 코치는 이 표시로
+     * 영상 없는 갈래를 탄다({@code PurposeLoop}). 저장된 값과 API 의 목적은 붙이지 않은 그대로다.
+     */
+    private static final String SESSION_PURPOSE =
+            "CASE WHEN p.video_id IS NULL AND p.session_purpose IS NOT NULL THEN 'talk:' || p.session_purpose ELSE p.session_purpose END";
+
     @Override
     public Loaded loadByPractice(UUID userId, UUID practiceId) {
         return load(userId, "p.id=:id", practiceId);
@@ -52,18 +59,19 @@ class PostgresConversationRepository implements ConversationRepository {
     private Loaded load(UUID userId, String where, UUID id) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT p.id AS practice_id,p.user_id,p.stage,p.situation,p.character_context,p.goal,
-                       p.blockage_kind,p.sub_branch,p.blockage_detail,p.experience_version,p.session_purpose,
+                       p.blockage_kind,p.sub_branch,p.blockage_detail,p.experience_version,
+                       %s AS session_purpose,
                        v.duration_ms,
                        CAST(a.record AS text) AS record,
                        c.id AS conversation_id,c.status,c.close_reason,
                        c.state_revision,CAST(c.state AS text) AS state
                 FROM practices p
-                JOIN videos v ON v.id=p.video_id
+                LEFT JOIN videos v ON v.id=p.video_id
                 LEFT JOIN analyses a ON a.practice_id=p.id
                 LEFT JOIN coach_conversations c ON c.practice_id=p.id
                 WHERE %s
                   AND p.user_id=:userId
-                """.formatted(where), Tuple.class)
+                """.formatted(SESSION_PURPOSE, where), Tuple.class)
                 .setParameter("id", id)
                 .setParameter("userId", userId));
         if (rows.isEmpty()) {
@@ -91,7 +99,7 @@ class PostgresConversationRepository implements ConversationRepository {
                         row.get("situation", String.class),
                         row.get("character_context", String.class),
                         row.get("goal", String.class),
-                        row.get("duration_ms", Integer.class),
+                        row.get("duration_ms", Integer.class) == null ? 0 : row.get("duration_ms", Integer.class),
                         row.get("blockage_kind", String.class),
                         row.get("sub_branch", String.class),
                         row.get("blockage_detail", String.class),
@@ -476,12 +484,12 @@ class PostgresConversationRepository implements ConversationRepository {
     public ConversationView conversation(UUID userId, UUID conversationId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT c.id,c.practice_id,c.status,c.close_reason,c.state_revision,c.created_at,p.experience_version,
-                       p.session_purpose,CAST(c.state AS text) AS state
+                       %s AS session_purpose,CAST(c.state AS text) AS state
                 FROM coach_conversations c
                 JOIN practices p ON p.id=c.practice_id
                 WHERE c.id=:conversationId
                   AND p.user_id=:userId
-                """, Tuple.class)
+                """.formatted(SESSION_PURPOSE), Tuple.class)
                 .setParameter("conversationId", conversationId)
                 .setParameter("userId", userId));
         if (rows.isEmpty()) {

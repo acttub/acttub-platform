@@ -103,9 +103,10 @@ final class ConversationDtos {
     @Schema(name = "CoachPurpose", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record PurposeResponse(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"evaluate", "stuck", "character"}) String purpose,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"evaluate", "stuck", "character", "concern"}) String purpose,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    description = "evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap")
+                    description = "evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap"
+                            + " / 영상 없이 말로(SOMA-745) stuck: reason·line·method·wrap, character: view·cell·wrap, concern: concern·need·wrap")
             String step,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<ChoiceResponse> choices,
             @Schema(nullable = true, description = "AI가 영상에서 알아본 장면") SceneResponse scene,

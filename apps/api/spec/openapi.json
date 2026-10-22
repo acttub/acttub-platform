@@ -6932,8 +6932,12 @@
             "title" : "Request Id"
           },
           "video_id" : {
-            "type" : "string",
-            "format" : "uuid",
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
             "title" : "Video Id"
           },
           "scene" : {
@@ -6963,15 +6967,15 @@
           "session_purpose" : {
             "anyOf" : [ {
               "type" : "string",
-              "enum" : [ "evaluate", "stuck", "character" ],
-              "pattern" : "evaluate|stuck|character"
+              "enum" : [ "evaluate", "stuck", "character", "concern" ],
+              "pattern" : "evaluate|stuck|character|concern"
             }, {
               "type" : "null"
             } ],
             "title" : "Session Purpose"
           }
         },
-        "required" : [ "request_id", "video_id" ],
+        "required" : [ "request_id" ],
         "title" : "PracticeCreateRequest"
       },
       "PracticeScene" : {
@@ -7166,7 +7170,7 @@
           "session_purpose" : {
             "anyOf" : [ {
               "type" : "string",
-              "enum" : [ "evaluate", "stuck", "character" ]
+              "enum" : [ "evaluate", "stuck", "character", "concern" ]
             }, {
               "type" : "null"
             } ],
@@ -8161,12 +8165,12 @@
         "properties" : {
           "purpose" : {
             "type" : "string",
-            "enum" : [ "evaluate", "stuck", "character" ],
+            "enum" : [ "evaluate", "stuck", "character", "concern" ],
             "title" : "Purpose"
           },
           "step" : {
             "type" : "string",
-            "description" : "evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap",
+            "description" : "evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap / 영상 없이 말로(SOMA-745) stuck: reason·line·method·wrap, character: view·cell·wrap, concern: concern·need·wrap",
             "title" : "Step"
           },
           "choices" : {

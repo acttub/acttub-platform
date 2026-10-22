@@ -34,22 +34,53 @@ final class PurposeLoop {
     /** 막힌 곳·인물에서 코치가 묻는 응답의 최대 수(시작 질문 포함). 넘으면 코치가 방향을 정해 주며 정리한다(10/20 사용자 결정). */
     static final int MAX_QUESTIONS = 2;
 
+    /**
+     * 영상 없이 말로 하는 회차(SOMA-745)의 목적 앞 표시. 저장소가 영상 없는 회차의 목적에 붙여 넘긴다({@code talk:stuck}).
+     * API·화면의 목적 값은 붙이지 않은 그대로다({@link Purpose#id}).
+     */
+    static final String TALK_PREFIX = "talk:";
+
+    /**
+     * 목적. 영상 없이 말로 하는 갈래(TALK_STUCK·TALK_CHARACTER·CONCERN, SOMA-745)는 같은 단계 기계를 쓰되, 영상을 보는 단계(그곳에서
+     * 본 것)가 없고 프롬프트는 {@code purpose/talk/} 에서 읽는다. 공통 지시({@code turn}·{@code first-common})에는 영상 없는 모드
+     * 지시({@code talk/mode})를 덧붙인다.
+     */
     enum Purpose {
-        EVALUATE("evaluate", List.of("card", "method", "wrap")),
-        STUCK("stuck", List.of("reason", "line", "seen", "method", "wrap")),
-        CHARACTER("character", List.of("view", "cell", "wrap"));
+        EVALUATE("evaluate", "evaluate", List.of("card", "method", "wrap")),
+        STUCK("stuck", "stuck", List.of("reason", "line", "seen", "method", "wrap")),
+        CHARACTER("character", "character", List.of("view", "cell", "wrap")),
+        TALK_STUCK("stuck", "talk/stuck", List.of("reason", "line", "method", "wrap")),
+        TALK_CHARACTER("character", "talk/character", List.of("view", "cell", "wrap")),
+        CONCERN("concern", "talk/concern", List.of("concern", "need", "wrap"));
 
         final String id;
+        /** 프롬프트 폴더({@code coaching/direct-video/purpose/<dir>}). */
+        final String dir;
         final List<String> steps;
 
-        Purpose(String id, List<String> steps) {
+        Purpose(String id, String dir, List<String> steps) {
             this.id = id;
+            this.dir = dir;
             this.steps = steps;
         }
 
+        /** 영상 없이 말로 하는 갈래인가. */
+        boolean talk() {
+            return dir.startsWith("talk/");
+        }
+
+        /** 인물 이해하기(영상 있음·없음). 인물 카드를 채운다. */
+        boolean character() {
+            return this == CHARACTER || this == TALK_CHARACTER;
+        }
+
+        /** 코치가 읽는 목적 값으로 찾는다. 말 표시({@link #TALK_PREFIX})가 있으면 말로 하는 갈래에서만 찾는다. */
         static Purpose of(String value) {
             if (value == null) return null;
-            for (Purpose purpose : values()) if (purpose.id.equals(value.strip())) return purpose;
+            String key = value.strip();
+            boolean talk = key.startsWith(TALK_PREFIX);
+            if (talk) key = key.substring(TALK_PREFIX.length());
+            for (Purpose purpose : values()) if (purpose.talk() == talk && purpose.id.equals(key)) return purpose;
             return null;
         }
     }
@@ -67,7 +98,8 @@ final class PurposeLoop {
     private static final Map<String, String> STEP_NAMES = Map.ofEntries(
             Map.entry("card", "결과 카드"), Map.entry("intent", "하려던 것"), Map.entry("method", "방법 고르기"),
             Map.entry("reason", "어떻게 막혔는지"), Map.entry("line", "어느 대사인지"), Map.entry("seen", "그곳에서 본 것"),
-            Map.entry("view", "어떤 사람으로 봤는지"), Map.entry("cell", "인물 카드 채우기"), Map.entry("wrap", "정리"));
+            Map.entry("view", "어떤 사람으로 봤는지"), Map.entry("cell", "인물 카드 채우기"), Map.entry("wrap", "정리"),
+            Map.entry("concern", "어떤 고민인지"), Map.entry("need", "무엇이 필요한지"));
 
     // ---- 이번 응답 정하기 ----
 
@@ -201,7 +233,7 @@ final class PurposeLoop {
     private static Turn advance(Purpose purpose, ObjectNode loop, int index, String label, boolean chip,
             String answeredStep, String actorText) {
         String current = purpose.steps.get(index);
-        if (purpose == Purpose.CHARACTER && ("view".equals(current) || "cell".equals(current))) {
+        if (purpose.character() && ("view".equals(current) || "cell".equals(current))) {
             int cells = loop.path("cells").asInt(0);
             if (cells < MAX_CELLS && filledCells(loop) < CELLS.size()) {
                 return new Turn(purpose, "cell", "cell", true, false, label, chip, answeredStep);
@@ -211,6 +243,10 @@ final class PurposeLoop {
         // 막힌 곳을 말하면서 대사까지 짚었으면 어느 대사인지 다시 묻지 않는다.
         if (purpose == Purpose.STUCK && "reason".equals(current) && mentionsLine(loop.path("lines"), actorText)) {
             return new Turn(purpose, "seen", "seen", true, false, label, chip, answeredStep);
+        }
+        // 영상 없이: 막힌 곳을 말하면서 대사를 따왔으면 어느 대사인지 다시 묻지 않고 방법으로 간다.
+        if (purpose == Purpose.TALK_STUCK && "reason".equals(current) && QUOTED_BY_ACTOR.matcher(actorText == null ? "" : actorText).find()) {
+            return new Turn(purpose, "method", "method", true, false, label, chip, answeredStep);
         }
         String next = purpose.steps.get(Math.min(index + 1, purpose.steps.size() - 1));
         return new Turn(purpose, next, next, true, false, label, chip, answeredStep);
@@ -518,7 +554,7 @@ final class PurposeLoop {
     /** 둘째 응답부터: 단계를 옮기고 이번 답의 버튼·카드·장면을 둔다. 정리의 행동 한 줄은 결과 카드의 다음 테이크가 된다. */
     static void remember(ObjectNode state, Turn turn, Output output, String take) {
         remember(state, turn, output);
-        if (!turn.wrap() || take == null || take.isBlank() || turn.purpose() == Purpose.CHARACTER) return;
+        if (!turn.wrap() || take == null || take.isBlank() || turn.purpose().character()) return;
         ObjectNode loop = writable(state);
         ObjectNode card = loop.get("card") instanceof ObjectNode existing ? existing : loop.putObject("card");
         card.putObject("next").putNull("at").put("text", take.strip());
@@ -592,11 +628,54 @@ final class PurposeLoop {
     // ---- 프롬프트 ----
 
     static String firstPrompt(Purpose purpose) {
-        return DirectVideoPrompts.purposeResource("first-common") + "\n\n" + DirectVideoPrompts.purposeResource(purpose.id + "/first");
+        return DirectVideoPrompts.purposeResource("first-common") + talkMode(purpose)
+                + "\n\n" + DirectVideoPrompts.purposeResource(purpose.dir + "/first");
     }
 
     static String turnPrompt() {
         return DirectVideoPrompts.purposeResource("turn");
+    }
+
+    /** 목적에 맞는 둘째 응답부터의 공통 지시. 영상 없이 말로 하는 갈래면 영상 없는 모드 지시를 덧붙인다. */
+    static String turnPrompt(Purpose purpose) {
+        return turnPrompt() + talkMode(purpose);
+    }
+
+    private static final Pattern QUOTE = Pattern.compile("[\"“”「『]([^\"“”」』]{1,60})[\"“”」』]");
+    private static final Pattern SENTENCE_END = Pattern.compile("(?<=[.!?。])\\s+|\\n+");
+
+    /**
+     * 배우가 이 대화에서 적지 않은 말을 큰따옴표로 따온 문장을 뗀다(SOMA-745, 영상 없이 말로). 영상도 받아 적은 대사도 없으니
+     * 그 따옴표는 모델이 작품 기억이나 짐작으로 지어낸 대사다. 띄어쓰기는 보지 않는다. 전부 근거 밖이면 판단할 수 없다고 알린다.
+     */
+    static String withoutUngroundedQuotes(String shown, String actorWords) {
+        if (shown == null || shown.isBlank()) return shown;
+        String said = actorWords == null ? "" : actorWords.replaceAll("\\s+", "");
+        var kept = new ArrayList<String>();
+        boolean dropped = false;
+        for (String sentence : SENTENCE_END.split(shown.strip())) {
+            if (sentence.isBlank()) continue;
+            Matcher quote = QUOTE.matcher(sentence);
+            boolean grounded = true;
+            while (quote.find()) {
+                String inner = quote.group(1).replaceAll("\\s+", "");
+                if (!inner.isEmpty() && !said.contains(inner)) grounded = false;
+            }
+            if (grounded) kept.add(sentence.strip());
+            else dropped = true;
+        }
+        if (!dropped) return shown;
+        return kept.isEmpty() ? "이 부분은 말해 준 내용만으로는 판단하기 어려워요." : String.join("\n", kept);
+    }
+
+    /** 말로 하는 회차의 모델 입력 맨 앞 한 줄(SOMA-745). 저장하지 않는다. */
+    static String talkOpening(Purpose purpose) {
+        return "(영상 없이 말로 코칭을 시작했어요. 고른 목적: " + label(purpose) + ")";
+    }
+
+    /** 영상 없는 모드 지시(SOMA-745). 영상이 있는 갈래면 빈 문자열이다 — 영상 있는 코치의 지시는 한 글자도 바뀌지 않는다. */
+    private static String talkMode(Purpose purpose) {
+        return purpose != null && purpose.talk() ? "\n\n" + DirectVideoPrompts.purposeResource("talk/mode") : "";
     }
 
     /** 이번 응답의 지시: 할 일, 목적의 길, 배우가 단계마다 한 말, 카드, 직전 버튼, 방금 한 말. */
@@ -608,7 +687,7 @@ final class PurposeLoop {
         lines.add("이번 응답이 하는 단계: " + STEP_NAMES.getOrDefault(turn.step(), turn.step()));
         lines.add(DirectVideoPrompts.purposeResource(taskFile(turn)));
         lines.add("");
-        lines.add(DirectVideoPrompts.purposeResource(turn.purpose().id + "/path"));
+        lines.add(DirectVideoPrompts.purposeResource(turn.purpose().dir + "/path"));
         lines.add("");
         lines.add("재료");
         JsonNode answers = loop.path("answers");
@@ -622,11 +701,17 @@ final class PurposeLoop {
         if (loop.path("card").isObject()) lines.add("- 지금 결과 카드: " + loop.path("card"));
         if (loop.path("character_card").isObject()) lines.add("- 지금 인물 카드: " + loop.path("character_card"));
         if (loop.path("choices").size() > 0) lines.add("- 직전에 내준 버튼: " + loop.path("choices"));
-        if (turn.direct()) {
+        if (turn.direct() && turn.purpose().talk()) {
+            lines.add("- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 배우가 한 말과 "
+                    + "배우가 적은 대사로 직접 정한다. 영상은 없다 — 본 것처럼 말하지 않는다. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.");
+        } else if (turn.direct()) {
             lines.add("- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 영상에서 본 것으로 "
                     + "직접 정한다: 어느 대사에서, 상대에게 무엇을 하는지. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.");
         }
-        if (turn.purpose() == Purpose.CHARACTER && turn.wrap()) {
+        if (turn.purpose() == Purpose.TALK_CHARACTER && turn.wrap()) {
+            lines.add("- 인물 카드는 배우가 한 말(내 말)과 함께 찾은 것(같이 찾음)으로만 채운다. 영상이 없으므로 (영상) 칸은 쓰지 않는다. "
+                    + "정리 둘째 문장은 배우 해석과 다른 가능성 하나를 배우가 말한 대사·상황에 기대어 말한다.");
+        } else if (turn.purpose() == Purpose.CHARACTER && turn.wrap()) {
             lines.add("- 인물 카드에는 첫 응답 <설계>의 대본 단서·테이크 속 인물·다른 가능성에서 배우가 말하지 않은 칸을 둘 이상 (영상)으로 채운다. "
                     + "정리 둘째 문장은 배우 해석과 다른 가능성 하나를 그 단서 대사와 함께 말하고, 그 둘로 이 인물이 어떻게 더 입체적이 되는지 말한다.");
         }
@@ -643,7 +728,7 @@ final class PurposeLoop {
     private static String taskFile(Turn turn) {
         return switch (turn.doing()) {
             case "answer", "accept", "easy", "propose", "method" -> "common/" + turn.doing();
-            default -> turn.purpose().id + "/" + turn.doing();
+            default -> turn.purpose().dir + "/" + turn.doing();
         };
     }
 
@@ -652,6 +737,9 @@ final class PurposeLoop {
             case EVALUATE -> "평가 받기";
             case STUCK -> "막힌 곳 풀기";
             case CHARACTER -> "인물 이해하기";
+            case TALK_STUCK -> "막힌 곳 풀기 (영상 없이 말로)";
+            case TALK_CHARACTER -> "인물 이해하기 (영상 없이 말로)";
+            case CONCERN -> "고민 상담 (영상 없이 말로)";
         };
     }
 
