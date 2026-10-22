@@ -10,6 +10,8 @@ import {
   imageAssetOf,
   audioAssetOf,
   koreaDay,
+  localDay,
+  markHiddenToday,
   loadPosterState,
   markDismissed,
   markShown,
@@ -156,4 +158,24 @@ test('소스 계약: 홈은 AnnouncementPoster 를 쓰고 옛 홍보 컴포넌�
   const api = read('../lib/api.ts');
   assert.match(api, /getPosters\(/);
   assert.match(api, /\/v2\/app\/posters/);
+});
+
+ test('every 는 같은 날 재진입해도 표시하고 오늘 숨김만 현지 자정까지 유지한다', () => {
+  const p = poster({ frequency: 'every' });
+  const seen = markShown({}, p, today);
+  assert.equal(pickPoster([p], seen, { today, cloudVoice: off }), p);
+  const hidden = markHiddenToday(seen, p, today);
+  assert.equal(pickPoster([p], hidden, { today, cloudVoice: off }), null);
+  assert.equal(pickPoster([{ ...p, revision: 2 }], hidden, { today, cloudVoice: off }), null);
+  assert.equal(pickPoster([p], hidden, { today: '2026-10-06', cloudVoice: off }), p);
+  assert.equal(pickPoster([p], markDismissed({}, p), { today, cloudVoice: off }), p);
+});
+test('localDay 는 기기 현지 날짜를 사용한다', () => {
+  assert.equal(localDay(new Date(2026, 9, 5, 23, 59).getTime()), '2026-10-05');
+  assert.equal(localDay(new Date(2026, 9, 6, 0, 0).getTime()), '2026-10-06');
+});
+test('상위 every 를 이번 진입에서 본 뒤에는 다음 공지도 고를 수 있다', () => {
+  const a = poster({ slug: 'a', frequency: 'every' });
+  const b = poster({ slug: 'b', frequency: 'every' });
+  assert.equal(pickPoster([a, b].filter(p => p.slug !== 'a'), {}, { today, cloudVoice: off }), b);
 });

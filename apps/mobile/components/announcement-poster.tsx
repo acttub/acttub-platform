@@ -3,8 +3,9 @@ import Feather from '@expo/vector-icons/Feather';
 import { createAudioPlayer } from 'expo-audio';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
@@ -16,9 +17,9 @@ import {
   audioAssetOf,
   ctaOf,
   imageAssetOf,
-  koreaDay,
+  localDay,
   loadPosterState,
-  markDismissed,
+  markHiddenToday,
   markShown,
   pickPoster,
   savePosterState,
@@ -48,18 +49,35 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
   const [playing, setPlaying] = useState(false);
   const player = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
   const decided = useRef(false);
+  const seen = useRef(new Set<string>());
+  const focused = useIsFocused();
+  const [entry, setEntry] = useState(0);
+  const [next, setNext] = useState(0);
 
   useEffect(() => {
-    if (!loggedIn) return;
+    let previous = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && previous !== 'active') setEntry((value) => value + 1);
+      previous = state;
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!loggedIn || !focused) return;
+    decided.current = true;
+    seen.current.clear();
+    setPosters(null);
+    setVisible(false);
     let cancelled = false;
     api.getPosters({ platform: Platform.OS === 'ios' ? 'ios' : 'android', locale: currentLanguage(), app_version: APP_VERSION })
-      .then((response) => { if (!cancelled) setPosters(response.posters); })
+      .then((response) => { if (!cancelled) { decided.current = false; setPosters(response.posters); } })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [loggedIn]);
+  }, [loggedIn, focused, entry]);
 
   useEffect(() => {
-    if (decided.current || !loggedIn || blocked || onboardingJustFinished || !posters || posters.length === 0) return;
+    if (decided.current || !focused || !loggedIn || blocked || onboardingJustFinished || !posters || posters.length === 0) return;
     // 고품질 목소리를 아직 안 켠 사람에게만 보일 포스터가 있으면 그 상태를 받은 뒤에 고른다.
     // 상태 요청이 실패했으면 기다리지 않는다 — 그 포스터만 빼고(cloudVoice null) 나머지에서 고른다.
     if (!cloud.status && !cloud.statusFailed && posters.some((item) => item.audience === 'cloud_voice_off')) return;
@@ -67,20 +85,21 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
     void loadPosterState(AsyncStorage).then((state) => {
       if (cancelled || decided.current) return;
       decided.current = true;
-      const today = koreaDay(Date.now());
+      const today = localDay(Date.now());
       const status = cloud.status;
-      const picked = pickPoster(posters, state, {
+      const picked = pickPoster(posters.filter((item) => !seen.current.has(item.slug)), state, {
         today,
         cloudVoice: status ? { available: status.available, enabled: cloud.enabled, consent: status.consent } : null,
       });
       if (!picked) return;
+      seen.current.add(picked.slug);
       setPoster(picked);
       setVisible(true);
       void savePosterState(AsyncStorage, markShown(state, picked, today)).catch(() => undefined);
       logEvent('poster_shown', { slug: picked.slug, revision: picked.revision });
     }).catch(() => undefined);
     return () => { cancelled = true; };
-  }, [blocked, cloud.enabled, cloud.status, cloud.statusFailed, loggedIn, onboardingJustFinished, posters]);
+  }, [blocked, cloud.enabled, cloud.status, cloud.statusFailed, loggedIn, onboardingJustFinished, posters, focused, entry, next]);
 
   useEffect(() => () => disposeAudioPlayer(player.current), []);
   useEffect(() => {
@@ -97,19 +116,20 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
   const audio = audioAssetOf(poster);
   const cta = ctaOf(poster);
 
-  const close = () => { setVisible(false); logEvent('poster_close', ids); };
+  const advance = () => { setVisible(false); decided.current = false; setNext((value) => value + 1); };
+  const close = () => { advance(); logEvent('poster_close', ids); };
   const toggleSample = () => {
     if (!audio) return;
     if (playing) { player.current?.pause(); setPlaying(false); return; }
     if (!player.current) player.current = createAudioPlayer(AUDIO[audio]);
     player.current.play(); setPlaying(true);
   };
-  const dismissForever = async () => {
+  const dismissToday = async () => {
     try {
       const state = await loadPosterState(AsyncStorage);
-      await savePosterState(AsyncStorage, markDismissed(state, poster));
+      await savePosterState(AsyncStorage, markHiddenToday(state, poster, localDay(Date.now())));
     } catch {}
-    logEvent('poster_dismiss', ids); setVisible(false);
+    logEvent('poster_dismiss', ids); advance();
   };
   // 포스터를 먼저 닫고 다음 화면을 띄운다 — iOS 는 모달 위에 모달을 올리지 못한다.
   const press = async () => {
@@ -138,7 +158,7 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
           ) : null}
         </View>
         {cta ? <Pressable style={styles.enable} onPress={() => void press()}><Text style={styles.enableText}>{cta.label}</Text></Pressable> : null}
-        {poster.dismissible ? <Pressable style={styles.dismiss} onPress={() => void dismissForever()}><Text style={styles.dismissText}>{t('poster.dismissForever')}</Text></Pressable> : null}
+        {poster.dismissible ? <Pressable style={styles.dismiss} onPress={() => void dismissToday()}><Text style={styles.dismissText}>{t('poster.hideToday')}</Text></Pressable> : null}
       </View>
     </Modal>
     {cloud.consentSheet}
