@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import type { Ref } from 'react';
-import { Platform, StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -9,50 +9,35 @@ import { palette } from '@/constants/palette';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-const IOS = Platform.OS === 'ios';
-
 /**
- * 하단 탭바 공통 부품 — pen 「TabBar」(SOMA-770).
+ * 하단 탭바 공통 부품 — pen 「하단 탭 바」(파이프라인 반영버전).
  *
- * iOS: 화면 위에 뜬 흰 알약(좌우 40 — pen 은 폭 350(좌우 20)이지만 SOMA-742 피드백으로 더 좁게 둔다, 높이 64, 모서리 32, 1px #EDF0F3 테두리, 그림자 #191F28 18% · 아래 12 · 흐림 24).
- * 안드로이드: 바닥에 붙은 전체 폭 막대(pen 일반 홈 BTT6at 하단).
- * 아이콘은 활성·비활성 모두 윤곽선(24). 활성은 파랑 #3182F6 + 옅은 파랑 알약(48×34, 모서리 17), 비활성은 회색 #8B95A1 · 바탕 없음.
- * 글자는 iOS 에는 없고, 안드로이드는 활성 탭 아래에만 이름(11/700)을 쓴다(BTT6at). 화면 읽기는 탭마다 이름을 읽는다.
+ * iOS·안드로이드 모두 바닥에 붙은 전체 폭 흰 막대: 높이 61.5(+홈 인디케이터·시스템 내비게이션 칸), 위 1px #F2F4F6 줄,
+ * 안쪽 [8,12,0,12]. (예전 iOS 의 뜬 알약(SOMA-742)은 새 디자인에서 없앴다.)
+ * 아이콘은 활성·비활성 모두 윤곽선 22. 활성은 파랑 #4880EE, 비활성은 회색 #8B95A1.
+ * 글자는 활성 탭 아래에만 이름(12/700, 줄 15, 아이콘과 2 띄움)을 쓴다. 화면 읽기는 탭마다 이름을 읽는다.
  */
 export function useTabBarStyle(): ViewStyle {
   const insets = useSafeAreaInsets();
-  return IOS
-    ? {
-        position: 'absolute',
-        left: 40,
-        right: 40,
-        bottom: Math.max(insets.bottom - 14, 12),
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: palette.card,
-        borderTopWidth: 0,
-        borderWidth: 1,
-        borderColor: palette.borderSoft,
-        paddingTop: 11,
-        paddingBottom: 11,
-        shadowColor: palette.navy,
-        shadowOpacity: 0.18,
-        shadowRadius: 24,
-        shadowOffset: { width: 0, height: 12 },
-      }
-    : {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height: 72 + insets.bottom,
-        backgroundColor: palette.card,
-        borderTopWidth: 0,
-        paddingTop: 12,
-        paddingBottom: insets.bottom + 12,
-        elevation: 16,
-      };
+  return {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: TAB_BAR_HEIGHT + insets.bottom,
+    backgroundColor: palette.card,
+    borderTopWidth: 1,
+    borderTopColor: palette.bgSoft,
+    paddingTop: 8,
+    paddingHorizontal: 12,
+    paddingBottom: insets.bottom,
+    elevation: 0,
+    shadowOpacity: 0,
+  };
 }
+
+/** 탭바 높이(홈 인디케이터 칸 제외). */
+export const TAB_BAR_HEIGHT = 61.5;
 
 /** 탭바를 숨긴 모양 — 첫 사용자(연습한 날 없음)는 모든 탭에서 숨긴다(lib/practice/first-time, bHxn1I). */
 export const TAB_BAR_HIDDEN: ViewStyle = { display: 'none' };
@@ -64,9 +49,9 @@ export function tabIcon(
   target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void },
 ) {
   const TabIcon = ({ color, focused }: { color: string; focused: boolean }) => (
-    <View ref={target?.ref} onLayout={target?.onLayout} style={[styles.pill, focused && styles.pillOn]}>
-      <Ionicons size={24} name={name} color={color} />
-      {!IOS && focused && <Text style={[styles.tabLabel, { color }]}>{label}</Text>}
+    <View ref={target?.ref} onLayout={target?.onLayout} style={styles.item}>
+      <Ionicons size={22} name={name} color={color} />
+      {focused && <Text style={[styles.tabLabel, { color }]}>{label}</Text>}
     </View>
   );
   TabIcon.displayName = `TabIcon(${name})`;
@@ -81,7 +66,6 @@ export function tabButton(phLabel: string) {
 }
 
 const styles = StyleSheet.create({
-  pill: { minWidth: 48, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17 },
-  pillOn: IOS ? { backgroundColor: palette.blueSoft } : {},
-  tabLabel: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+  item: { width: 48, minHeight: 39, alignItems: 'center', justifyContent: 'flex-start', gap: 2 },
+  tabLabel: { fontSize: 12, fontWeight: '700', lineHeight: 15 },
 });

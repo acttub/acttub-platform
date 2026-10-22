@@ -258,7 +258,7 @@ describe('대화 시작', () => {
     expect(screen.getByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
     // 내 답은 파란 말풍선(흰 글자), 코치 말은 회색 말풍선이다(SOMA-778).
     expect(screen.getByText('더는 미루지 않기로요')).toHaveStyle({ color: '#FFFFFF' });
-    expect(screen.getByTestId('coach-bubble-mine')).toHaveStyle({ backgroundColor: '#3182F6' });
+    expect(screen.getByTestId('coach-bubble-mine')).toHaveStyle({ backgroundColor: '#4880EE' });
     expect(screen.getByTestId('coach-bubble-coach')).toHaveStyle({ backgroundColor: '#F2F4F6' });
 
     await fireEvent.press(screen.getByText('지난 문답 1 ▴'));

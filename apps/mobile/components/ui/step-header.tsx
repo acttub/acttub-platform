@@ -1,22 +1,21 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { NavBackButton, NavIconButton } from '@/components/ui/nav-header';
+import { BareBackButton, NavBackButton, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
 /**
  * 단계 머리 공통 부품(SOMA-770).
  *
- * - ProgressHeader — pen 온보딩 「진행 머리」: 꺾쇠 26 · 진행 막대(높이 8, 둥근 4, #F2F4F6 위 파랑) · n/N 14/700 회색. 안쪽 [10,20].
+ * - ProgressHeader — pen 「헤더 / 온보딩 진행」: 높이 44, 안쪽 [0,18,0,12], 꺾쇠 24 · 진행 막대(앞 21 · 뒤 11, 높이 7, 둥근 4,
+ *   #F2F4F6 위 #4880EE) · n/N 15/700 #8B95A1.
  * - StepHeader — pen 「C/StepHeader」: 닫기(✕ 26) · 가운데 점(지금 18×7 파랑, 나머지 7×7 #E5E8EB, 간격 6) · 「1 / 3」 12.5/700 회색.
  */
 export function ProgressHeader({ step, total, onBack }: { step: number; total: number; onBack: () => void }) {
   const ratio = total > 0 ? Math.min(1, Math.max(0, step / total)) : 0;
   return (
     <View style={styles.progress}>
-      <View style={styles.progressBack}>
-        <NavBackButton onPress={onBack} phLabel="step_back" />
-      </View>
+      <BareBackButton onPress={onBack} phLabel="step_back" />
       <View style={styles.track} accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: step }}>
         <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
       </View>
@@ -74,12 +73,18 @@ export function BackOnlyHeader({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  progress: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 9, paddingRight: 20 },
-  // 꺾쇠 버튼 칸은 44 지만 그림(26)은 디자인처럼 왼쪽 20 에 맞춘다.
-  progressBack: { marginVertical: -9 },
-  track: { flex: 1, height: 8, borderRadius: 4, backgroundColor: palette.bgSoft, overflow: 'hidden' },
-  fill: { height: 8, borderRadius: 4, backgroundColor: palette.blue },
-  count: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.textFaint },
+  progress: { height: 44, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 18 },
+  track: {
+    flex: 1,
+    height: 7,
+    marginLeft: 21,
+    marginRight: 11,
+    borderRadius: 4,
+    backgroundColor: palette.bgSoft,
+    overflow: 'hidden',
+  },
+  fill: { height: 7, borderRadius: 4, backgroundColor: palette.blue },
+  count: { fontSize: 15, fontWeight: '700', color: palette.textFaint },
 
   dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 6, paddingHorizontal: 6, backgroundColor: palette.bg },
   dotsSide: { width: 56, flexDirection: 'row', alignItems: 'center' },

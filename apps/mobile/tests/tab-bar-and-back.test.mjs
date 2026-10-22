@@ -12,24 +12,26 @@ test('스택 화면의 뒤로 버튼은 설정 화면과 같은 꺾쇠 버튼이
   assert.match(header, /options\.headerLeft\?\.\(/);
   assert.match(header, /options\.headerRight\?\.\(/);
   const back = read('components/header-back.tsx');
-  assert.match(back, /name="chevron-left" size=\{26\}/);
+  assert.match(back, /name="chevron-left" size=\{24\}/);
   assert.match(back, /router\.back\(\)/);
   assert.match(back, /canGoBack\(\)/);
   // 노트 화면은 뒤로 버튼을 두지 않는다(원래대로).
   assert.match(read('app/report.tsx'), /headerLeft: \(\) => null/);
 });
 
-test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이드는 바닥에 붙은 전체 폭 막대', () => {
+test('탭바: pen 「하단 탭 바」 — iOS·안드로이드 모두 바닥에 붙은 전체 폭 막대(높이 61.5, 위 1px 줄)', () => {
   // 모양은 공통 부품 components/ui/tab-bar 에 있다(SOMA-770).
   const tabs = read('components/ui/tab-bar.tsx');
   assert.match(read('app/(tabs)/_layout.tsx'), /tabBarStyle,/);
-  assert.match(tabs, /const IOS = Platform\.OS === 'ios'/);
-  assert.match(tabs, /bottom: Math\.max\(insets\.bottom - 14, 12\)/);
-  // 안드로이드: 좌우·바닥 여백 없음, 둥근 모서리 없음, 시스템 내비게이션 칸만큼 아래를 채운다
+  assert.doesNotMatch(tabs, /Platform\.OS/);
   assert.match(tabs, /left: 0,\s*right: 0,\s*bottom: 0,/);
-  assert.match(tabs, /height: 72 \+ insets\.bottom/);
-  // 안드로이드는 고른 탭만 아이콘 아래 이름을 보인다(pen 하단 탭 바)
-  assert.match(tabs, /!IOS && focused && <Text style=\{\[styles\.tabLabel/);
+  assert.match(tabs, /TAB_BAR_HEIGHT = 61\.5/);
+  assert.match(tabs, /height: TAB_BAR_HEIGHT \+ insets\.bottom/);
+  assert.match(tabs, /borderTopWidth: 1,\s*borderTopColor: palette\.bgSoft/);
+  // 고른 탭만 아이콘(22) 아래 이름(12/700)을 보인다
+  assert.match(tabs, /<Ionicons size=\{22\}/);
+  assert.match(tabs, /focused && <Text style=\{\[styles\.tabLabel/);
+  assert.match(tabs, /tabLabel: \{ fontSize: 12, fontWeight: '700', lineHeight: 15 \}/);
 });
 
 test('안드로이드는 네이티브 뒤로 버튼에 꺾쇠 그림만 씌우고 헤더에 직접 만든 버튼을 넣지 않는다 — 넣으면 화면을 닫을 때 앱이 꺼졌다(SOMA-665)', () => {

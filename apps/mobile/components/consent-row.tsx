@@ -16,7 +16,8 @@ type Arrow = {
  * 필수·선택 모두 체크 한 줄이다. 선택 문서는 체크하면 동의, 비워 두면 거절이다(SOMA-544).
  * 거절 버튼을 두면 안 고르고 지나갈 수가 없어 '선택'이라는 말과 어긋났다.
  * children은 줄 아래에 펼쳐 보일 것(가입 화면의 문서 본문)이다.
- * 모양은 pen 「S4 동의」의 동의 줄(SOMA-748) — 체크 20 · 글 16/700 · 꺾쇠 18, 줄 사이 선 없음.
+ * 모양은 pen 「약관 / 동의 행」(파이프라인 반영버전) — 높이 55, 안쪽 [0,14], 체크 18 · 10 띄워 글 16/700 #333D4B · 꺾쇠 18, 줄 사이 선 없음.
+ * `compact`는 아래에 하위 항목을 다는 줄(광고성 정보) — 높이를 글 높이(20)로 줄인다.
  */
 export function ConsentRow({
   label,
@@ -26,6 +27,7 @@ export function ConsentRow({
   arrow,
   children,
   divided,
+  compact,
 }: {
   label: string;
   checked: boolean;
@@ -35,17 +37,18 @@ export function ConsentRow({
   children?: ReactNode;
   /** 줄 아래 선을 긋는 옛 모양(pen S/ConsentRow) — 재동의 팝업. */
   divided?: boolean;
+  compact?: boolean;
 }) {
   return (
     <View style={divided && styles.dividedWrap}>
       <Pressable
-        style={[styles.row, divided && styles.dividedRow, locked && styles.locked]}
+        style={[styles.row, compact && styles.compact, divided && styles.dividedRow, locked && styles.locked]}
         onPress={onToggle}
         disabled={locked}
         accessibilityRole="checkbox"
         accessibilityState={{ checked, disabled: locked }}>
-        <Feather name="check" size={20} color={checked ? palette.blue : palette.checkOff} />
-        <Text style={[styles.label, divided && styles.dividedLabel, checked && styles.labelOn]} numberOfLines={1}>
+        <Feather name="check" size={18} color={checked ? palette.blue : palette.checkOff} />
+        <Text style={[styles.label, divided && styles.dividedLabel]} numberOfLines={1}>
           {label}
         </Text>
         {arrow && (
@@ -66,16 +69,16 @@ export function ConsentRow({
 
 const styles = StyleSheet.create({
   dividedWrap: { borderBottomWidth: 1, borderBottomColor: palette.borderSoft },
-  dividedRow: { paddingVertical: 16, paddingHorizontal: 0, gap: 12 },
+  dividedRow: { height: undefined, paddingVertical: 16, paddingHorizontal: 0, gap: 12 },
   dividedLabel: { fontSize: 15, fontWeight: '600' },
   row: {
+    height: 55,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
   },
+  compact: { height: 20 },
   locked: { opacity: 0.6 },
-  label: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.textDim },
-  labelOn: { color: palette.text },
+  label: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.textStrong },
 });

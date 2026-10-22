@@ -24,9 +24,9 @@ export const palette = {
   checkOff: '#B0B8C1', // web-ink-5
 
   // 파랑
-  blue: '#3182F6', // web-blue
-  blueDeep: '#1B64DA', // web-blue-dark
-  blueSoft: '#E8F3FF', // web-blue-soft
+  blue: '#4880EE', // pen 파이프라인 반영버전 Primary(옛 web-blue #3182F6)
+  blueDeep: '#3268D8', // 말풍선 안내·고른 글자(옛 #1B64DA)
+  blueSoft: '#EAF3FE', // 전체 동의·설정 아이콘 원(옛 #E8F3FF)
   blueMist: '#F8FBFF', // web-blue-mist
   blueLine: '#DCE9FF', // web-blue-line
 

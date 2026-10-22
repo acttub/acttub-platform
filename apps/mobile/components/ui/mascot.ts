@@ -22,7 +22,9 @@ export const MASCOT_SIZE = {
   card: { width: 48, height: 54 },
   /** 마스코트 줄·리딩/챌린지 마무리(52×58). */
   sm: { width: 52, height: 58 },
-  /** 말풍선 옆(70×78). */
+  /** 질문 말풍선 옆(52×61) — pen 「온보딩 / 질문 말풍선」. */
+  bubble: { width: 52, height: 61 },
+  /** 예전 말풍선 옆(70×78). */
   md: { width: 70, height: 78 },
   /** 상태 화면 가운데(84×94). */
   lg: { width: 84, height: 94 },
@@ -30,6 +32,8 @@ export const MASCOT_SIZE = {
   guide: { width: 86, height: 96 },
   /** 가입할 수 없어요(120×132). */
   xl: { width: 120, height: 132 },
+  /** 가입 시작·광고성 정보 결과 팝업 뒤(127×142). */
+  intro: { width: 127, height: 142 },
   /** 온보딩 시작(150×168). */
   hero: { width: 150, height: 168 },
 } as const;
