@@ -14,7 +14,7 @@ const IOS = Platform.OS === 'ios';
 /**
  * 하단 탭바 공통 부품 — pen 「TabBar」(SOMA-770).
  *
- * iOS: 화면 위에 뜬 흰 알약(좌우 40 — pen 은 폭 350(좌우 20)이지만 SOMA-742 피드백으로 더 좁게 둔다, 높이 64, 모서리 32, 1px #EDF0F3 테두리, 그림자 #191F28 18% · 아래 12 · 흐림 24).
+ * iOS: 화면 위에 뜬 흰 알약(좌우 20 — pen TabBar 폭 350, 높이 64, 모서리 32, 1px #EDF0F3 테두리, 그림자 #191F28 18% · 아래 12 · 흐림 24).
  * 안드로이드: 바닥에 붙은 전체 폭 막대(pen 일반 홈 BTT6at 하단).
  * 아이콘은 활성·비활성 모두 윤곽선(24). 활성은 파랑 #3182F6 + 옅은 파랑 알약(48×34, 모서리 17), 비활성은 회색 #8B95A1 · 바탕 없음.
  * 글자는 iOS 에는 없고, 안드로이드는 활성 탭 아래에만 이름(11/700)을 쓴다(BTT6at). 화면 읽기는 탭마다 이름을 읽는다.
@@ -24,8 +24,9 @@ export function useTabBarStyle(): ViewStyle {
   return IOS
     ? {
         position: 'absolute',
-        left: 40,
-        right: 40,
+        // 라이브러리 기본 start·end: 0 이 left·right 를 이겨서 start·end 로 준다.
+        start: 20,
+        end: 20,
         bottom: Math.max(insets.bottom - 14, 12),
         height: 64,
         borderRadius: 32,
