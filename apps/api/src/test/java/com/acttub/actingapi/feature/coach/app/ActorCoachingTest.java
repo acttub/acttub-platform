@@ -28,58 +28,73 @@ class ActorCoachingTest {
     }
 
     @Test
-    void fieldsWithoutEvidenceOnlyAddTheCommonBansLine() {
+    void fieldsWithoutEvidenceLeaveEveryCommonInstructionByteForByteTheSame() {
         ActorCoaching none = only("이 배우는 방법을 바로 들을 때 움직였다.");
         for (String doing : STEPS) {
             String task = DirectVideoPrompts.practiceLoopTask(doing, null);
-            String swapped = none.stepTask(doing, task);
-            assertThat(swapped.replace(ActorCoaching.COMMON_BANS + "\n", "")).as(doing).isEqualTo(task);
-            assertThat(swapped.indexOf(ActorCoaching.COMMON_BANS)).as(doing + " 피할 말 바로 아래")
-                    .isEqualTo(swapped.indexOf("피할 말:") + "피할 말:\n".length());
+            assertThat(none.stepTask(doing, task)).as(doing).isEqualTo(task);
             assertThat(none.withoutNeverSay(task)).as(doing).isEqualTo(task);
         }
         String first = DirectVideoPrompts.practiceLoop(UUID.randomUUID(), null);
-        assertThat(none.firstTask(first).replace(ActorCoaching.COMMON_BANS + "\n", "")).isEqualTo(first);
-        assertThat(stuck("choice").stepTask(PracticeLoopRouter.EASY, DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.EASY, null))
-                .replace(ActorCoaching.COMMON_BANS + "\n", ""))
-                .as("둘 중 고르기가 통한 배우는 고르기 지시 그대로").isEqualTo(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.EASY, null));
+        assertThat(none.firstTask(first)).isEqualTo(first);
+        String turn = DirectVideoPrompts.practiceLoopTurn();
+        assertThat(none.turnTask(turn)).isEqualTo(turn);
+        for (String doing : STEPS) {
+            String task = DirectVideoPrompts.practiceLoopTask(doing, null);
+            assertThat(stuck("propose_one").stepTask(doing, task)).as("코치 제안은 공통 기본이라 그대로: " + doing).isEqualTo(task);
+        }
+    }
+
+    /** 공통 지시는 자문위원 7명이 모두 막은 것을 직접 시키지 않는다 (SOMA-795 공통 수정). */
+    @Test
+    void theCommonInstructionsNoLongerAskForChoiceQuestionsCommandsOrCheckingWords() {
+        java.util.regex.Pattern quoted = java.util.regex.Pattern.compile("\"[^\"]*\"|“[^”]*”");
+        java.util.regex.Pattern banned = java.util.regex.Pattern.compile("확인하며|살피며|흔들리는지|(하|해|봐|보|주|마|지)세요");
+        List<String> texts = new java.util.ArrayList<>();
+        for (String doing : STEPS) texts.add(DirectVideoPrompts.practiceLoopTask(doing, null));
+        texts.add(DirectVideoPrompts.practiceLoopTurn());
+        texts.add(DirectVideoPrompts.practiceLoop());
+        for (String text : texts) {
+            assertThat(text).doesNotContain("모양: 둘 중 고르는 질문").doesNotContain("둘 중 고르게 묻는다(")
+                    .doesNotContain("고르게 하고 싶으면 한 질문 안에 둘을 넣는다").doesNotContain("보기 둘을 주거나")
+                    .doesNotContain("서로 반대되는 보기 둘을 준다");
+            boolean inAvoid = false;
+            for (String line : text.split("\n")) {
+                String t = line.strip();
+                if (t.endsWith(":") && !t.startsWith("-")) inAvoid = t.startsWith("피할 말");
+                else if (t.startsWith("모양") || t.startsWith("좋은 예")) inAvoid = false;
+                if (inAvoid || t.startsWith("나쁜 예") || t.startsWith("- 시키는 말(") || t.startsWith("- \"확인하며\"")) continue;
+                assertThat(banned.matcher(quoted.matcher(t).replaceAll("\"\"")).find()).as(t).isFalse();
+            }
+        }
+        assertThat(DirectVideoPrompts.practiceLoopTurn()).contains(ActorCoaching.COMMON_TURN_CHOICE)
+                .contains("- 시키는 말(\"~하세요\", \"~보세요\", \"~마세요\")을 쓰지 않는다.");
+        assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.EASY, null)).contains("이유").contains("맞아요?");
     }
 
     @Test
-    void commonBanExpressionsLeaveTheInstructionsButQuotesWarningsAndMaterialStay() {
-        ActorCoaching coaching = only("근거");
-        String answer = DirectVideoPrompts.practiceLoopTask("답하기", null);
-        assertThat(answer).contains("그러면 내 말에 아빠가 흔들리는지 알 수 없어요.");
-        assertThat(coaching.withoutCommonBans(answer))
-                .as("공통 금지 표현이 든 좋은 예는 빠진다").doesNotContain("아빠가 흔들리는지 알 수 없어요")
-                .as("피할 말의 경고 줄은 남는다").contains("- \"~해 보세요\", \"~하세요\"처럼 시키기.");
-        String pointOut = DirectVideoPrompts.practiceLoopTask("짚어주기", null);
-        assertThat(coaching.withoutCommonBans(pointOut))
-                .as("따옴표 안의 배우 말 예시는 남는다").contains("(\"피드백 해 주세요\", ")
-                .as("\"흔들리는지\"가 든 좋은 예는 빠진다").doesNotContain("다음엔 아빠가 흔들리는지 보면서 따져 봐도 좋아요.");
-        String withMaterial = "[이번 응답]\n도움이 되는 말:\n- 상대를 살피며 말해 봐도 좋아요.\n\n재료\n- 배우가 방금 한 말: 피드백 해 주세요 살피며 볼게요\n";
-        assertThat(coaching.withoutCommonBans(withMaterial))
-                .doesNotContain("- 상대를 살피며 말해 봐도 좋아요.").contains("- 배우가 방금 한 말: 피드백 해 주세요 살피며 볼게요");
-        assertThat(coaching.personaText()).contains("- 칭찬, 감상을 하지 않는다.")
-                .contains("- 시키는 말(\"~하세요\", \"~보세요\", \"~마세요\")을 쓰지 않는다. 방향은 \"~해 봐도 좋아요\"로 말한다.")
-                .contains("\"확인하며\", \"살피며\", \"흔들리는지\"를 쓰지 않는다.");
-        ActorCoaching legacy = ActorCoaching.parse("[이 배우에게 맞춘 코칭]\n지난 글");
-        assertThat(legacy.withoutCommonBans(answer)).isEqualTo(answer);
-    }
-
-    @Test
-    void aStuckActorWhoMovedOnOneProposalNeverGetsTheChoiceQuestionInstruction() {
-        ActorCoaching propose = stuck("propose_one");
-        String easy = propose.stepTask(PracticeLoopRouter.EASY, DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.EASY, null));
-        assertThat(easy).isEqualTo(ActorCoaching.EASY_PROPOSE).doesNotContain("모양: 둘 중 고르는 질문").contains("하나를");
-        String find = propose.stepTask(PracticeLoopRouter.FIND, DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.FIND, null));
-        assertThat(find).doesNotContain("둘 중 고르게 묻는다(").contains("둘 중 고르게 묻지 않는다");
-        String gap = propose.stepTask(PracticeLoopRouter.GAP, DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null));
-        assertThat(gap).doesNotContain("고르게 하고 싶으면 한 질문 안에 둘을 넣는다");
+    void onlyAnActorWhoAnsweredChoicesGetsTheChoiceInstructionsBack() {
+        ActorCoaching choice = stuck("choice");
+        String easy = choice.stepTask(PracticeLoopRouter.EASY, DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.EASY, null));
+        assertThat(easy).isEqualTo(ActorCoaching.EASY_CHOICE).contains("모양: 둘 중 고르는 질문 한 문장");
+        String find = DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.FIND, null);
+        assertThat(find).contains(ActorCoaching.COMMON_FIND);
+        assertThat(choice.stepTask(PracticeLoopRouter.FIND, find)).contains("둘 중 고르게 묻는다(").doesNotContain(ActorCoaching.COMMON_FIND);
+        String gap = DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.GAP, null);
+        assertThat(gap).contains(ActorCoaching.COMMON_GAP);
+        assertThat(choice.stepTask(PracticeLoopRouter.GAP, gap)).contains("고르게 하고 싶으면 한 질문 안에 둘을 넣는다");
+        String letGo = DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.LET_GO, null);
+        assertThat(letGo).contains(ActorCoaching.COMMON_LET_GO);
+        assertThat(choice.stepTask(PracticeLoopRouter.LET_GO, letGo)).contains("보기 둘을 주거나");
+        String turn = DirectVideoPrompts.practiceLoopTurn();
+        assertThat(choice.turnTask(turn)).contains(ActorCoaching.TURN_CHOICE_ALLOWED).doesNotContain(ActorCoaching.COMMON_TURN_CHOICE);
+        assertThat(stuck("propose_one").turnTask(turn)).isEqualTo(turn);
 
         String open = stuck("easier_open").stepTask(PracticeLoopRouter.EASY,
                 DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.EASY, null));
         assertThat(open).isEqualTo(ActorCoaching.EASY_OPEN).contains("열린 질문 한 문장").doesNotContain("보기 둘을 준다");
+        assertThat(stuck("easier_open").stepTask(PracticeLoopRouter.FIND, find)).doesNotContain(ActorCoaching.COMMON_FIND)
+                .contains("쉬운 열린 질문으로 묻는다");
     }
 
     @Test
@@ -133,7 +148,7 @@ class ActorCoachingTest {
         ActorCoaching back = ActorCoaching.parse(full.toJson());
         assertThat(back).isEqualTo(full);
         assertThat(back.personaText()).startsWith("[길이] 100\n" + ActorCoaching.HEADER + "\n")
-                .contains("둘 중 고르게 묻지 않는다. 코치가 하나를 이유와 함께 제안한다")
+                .doesNotContain("둘 중 고르게 묻지 않는다. 코치가 하나를 이유와 함께 제안한다")
                 .contains("정리 전에 묻는 질문은 3개까지다")
                 .endsWith("- 한 번에 하는 말은 공백 포함 100자 안쪽이다.");
         assertThat(DirectVideoPrompts.persona("actor-profile", null, full.toJson())).startsWith(ActorCoaching.HEADER).doesNotContain("[길이]");
