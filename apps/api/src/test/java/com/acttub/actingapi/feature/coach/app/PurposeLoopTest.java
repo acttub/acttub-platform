@@ -366,7 +366,7 @@ class PurposeLoopTest {
         assertThat(PurposeLoop.withoutUngroundedQuotes("지안은 숨기는 사람이에요. \"고마워요\"에서 눌러 말해 봐도 좋아요.", actor))
                 .isEqualTo("지안은 숨기는 사람이에요.");
         assertThat(PurposeLoop.withoutUngroundedQuotes("\"고마워요\"에서 눌러 말해 봐도 좋아요.", actor))
-                .as("다 떼면 원래 말").isEqualTo("\"고마워요\"에서 눌러 말해 봐도 좋아요.");
+                .as("근거 없는 대사만 있으면 그 말을 다시 노출하지 않는다").isEqualTo("이 부분은 말해 준 내용만으로는 판단하기 어려워요.");
         assertThat(PurposeLoop.withoutUngroundedQuotes("", actor)).isEmpty();
         assertThat(PurposeLoop.withoutUngroundedQuotes("따옴표 없는 말이에요.", null)).isEqualTo("따옴표 없는 말이에요.");
     }

@@ -646,7 +646,7 @@ final class PurposeLoop {
 
     /**
      * 배우가 이 대화에서 적지 않은 말을 큰따옴표로 따온 문장을 뗀다(SOMA-745, 영상 없이 말로). 영상도 받아 적은 대사도 없으니
-     * 그 따옴표는 모델이 작품 기억이나 짐작으로 지어낸 대사다. 띄어쓰기는 보지 않는다. 다 떼면 원래 말을 둔다.
+     * 그 따옴표는 모델이 작품 기억이나 짐작으로 지어낸 대사다. 띄어쓰기는 보지 않는다. 전부 근거 밖이면 판단할 수 없다고 알린다.
      */
     static String withoutUngroundedQuotes(String shown, String actorWords) {
         if (shown == null || shown.isBlank()) return shown;
@@ -664,7 +664,8 @@ final class PurposeLoop {
             if (grounded) kept.add(sentence.strip());
             else dropped = true;
         }
-        return !dropped || kept.isEmpty() ? shown : String.join("\n", kept);
+        if (!dropped) return shown;
+        return kept.isEmpty() ? "이 부분은 말해 준 내용만으로는 판단하기 어려워요." : String.join("\n", kept);
     }
 
     /** 말로 하는 회차의 모델 입력 맨 앞 한 줄(SOMA-745). 저장하지 않는다. */
