@@ -172,14 +172,20 @@ async function startPlay(over: Partial<SessionDetail> = {}, detail = scriptDetai
   return server;
 }
 
-/** 내 차례에 침묵 감지가 말 끝을 알린다. */
+/**
+ * 내 차례에 침묵 감지가 말 끝을 알린다. 받아쓰기면 대본 글자 수의 90% 이상 받아써야 넘어가므로(SOMA-804) 그 줄을 다
+ * 말한 것으로 받아쓴 뒤 알린다 — 넘긴 뒤 올리는 글은 각 테스트의 stt.finish 값이다.
+ */
 async function speechEnds(source: () => Listener | null = () => mic) {
   await waitFor(() => expect(source()).not.toBeNull());
   const listener = source()!;
   mic = null;
   recognizer = null;
+  if (listener.onInterim) await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
   await act(async () => listener.onEvent('speech_end'));
 }
+/** 어느 줄보다도 긴 받아쓴 글 — 「다 말했다」로 친다. */
+const SAID_WHOLE_LINE = '가'.repeat(400);
 
 test('현재 대본이나 회차가 없으면 내 대본으로 돌아가는 길을 보여 준다', async () => {
   resetReadingState();
@@ -278,6 +284,25 @@ test('음성 인식이 되면 내 차례에 알아들은 말을 보이고, 완�
 
   await fireEvent.press(screen.getByText('전체 보기'));
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/diff');
+});
+
+test('받아쓰기면 대본 글자 수의 90% 이상 말한 뒤의 침묵에만 넘긴다(SOMA-804)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay();
+  // 「오늘 와 줬구나.」는 6자 — 4자 말하고 멈추면 계속 듣는다
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const listener = recognizer!;
+  await act(async () => listener.onInterim!('오늘 와 줬'));
+  await act(async () => listener.onEvent('speech_end'));
+  expect(mockStt.finish).not.toHaveBeenCalled();
+  expect(screen.queryByText('괜찮아.')).toBeNull();
+  // 마저 말하고 멈추면 넘어간다
+  mockStt.finish.mockResolvedValueOnce('오늘 와 줬구나');
+  await act(async () => listener.onInterim!('오늘 와 줬구나'));
+  await act(async () => listener.onEvent('speech_end'));
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
 });
 
 test('녹음을 남기지 못하는 인식기면 녹음기로 받는다', async () => {
@@ -1500,6 +1525,17 @@ async function startMonologue() {
   return server;
 }
 
+test('SOMA-597: 독백 시작 전에는 자동 넘김 대신 끝까지 읽고 끝내기를 누르는 안내를 보인다', async () => {
+  await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l4', my_character_ids: ['c1'], my_character_names: ['민지'] }, MONO, { begin: false });
+
+  expect(await screen.findByText('독백은 끝까지 이어서 읽고 「끝내기」를 눌러요. 준비되면 「시작」을 누르세요.')).toBeOnTheScreen();
+  expect(screen.queryByText('말이 끝나면 저절로 넘어가요. 준비되면 「시작」을 누르세요.')).not.toBeOnTheScreen();
+  expect(mockStt.start).not.toHaveBeenCalled();
+  await begin();
+  expect(await screen.findByText('계속 녹음 중')).toBeOnTheScreen();
+});
+
 test('SOMA-597: 독백은 문장 목록을 한 카드에 보이고 계속 녹음한다 — 상대역 목소리·[이전] 없이 [끝내기], 위에 N / M문장', async () => {
   await startMonologue();
 
@@ -1655,4 +1691,22 @@ test('SOMA-806: 묶인 대사에서 고치기를 누르면 고칠 줄을 먼저 
   expect(screen.getByText('이어서')).toBeOnTheScreen();
   await fireEvent.press(screen.getAllByText('어디 앉을래?').at(-1)!);
   expect(screen.getByLabelText('글')).toHaveDisplayValue('어디 앉을래?');
+});
+
+test('SOMA-806: 묶인 내 차례는 묶음 줄 전체 글자의 90%를 받아쓴 뒤의 침묵에만 넘긴다', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay(SAME_ROLE_RANGE, scriptDetail(SAME_ROLE_LINES));
+  await screen.findByText(ME);
+  await waitFor(() => expect(recognizer).not.toBeNull());
+
+  // 첫 줄 「오늘 왔구나.」는 다 말했지만 묶음 글자(오늘왔구나어디앉을래 10자)의 절반이다 — 넘어가지 않는다.
+  await act(async () => recognizer!.onInterim!('오늘 왔구나'));
+  await act(async () => recognizer!.onEvent('speech_end'));
+  expect(screen.getByText(ME)).toBeOnTheScreen();
+  expect(mockStt.finish).not.toHaveBeenCalled();
+
+  await act(async () => recognizer!.onInterim!('오늘 왔구나 어디 앉을래'));
+  await act(async () => recognizer!.onEvent('speech_end'));
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
 });

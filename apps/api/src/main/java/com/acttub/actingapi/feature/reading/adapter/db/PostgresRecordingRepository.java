@@ -174,7 +174,7 @@ class PostgresRecordingRepository implements RecordingRepository {
                 .setParameter("userId", userId)).isEmpty();
     }
 
-    /** 그 회차의 구간 안 내 대사 줄의 원문. 상대역 줄·지문·구간 밖·남의 줄이면 {@code null}. */
+    /** 그 회차의 구간 안 내 대사 줄(내 배역이 든 함께 말하는 줄 포함)의 원문. 상대역 줄·지문·구간 밖·남의 줄이면 {@code null}. */
     private String myDialogueLine(UUID sessionId, UUID lineId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT COALESCE(regexp_replace(l.speech,'⟦[a-z][a-z]⟧',' ','g'),l.text) AS text
@@ -186,7 +186,9 @@ class PostgresRecordingRepository implements RecordingRepository {
                   AND l.id=:lineId
                   AND l.kind='dialogue'
                   AND l.ordinal BETWEEN s.ordinal AND e.ordinal
-                  AND l.character_id=ANY(rs.my_character_ids)
+                  AND (l.character_id=ANY(rs.my_character_ids)
+                       OR EXISTS (SELECT 1 FROM script_characters lc
+                                  WHERE lc.id=l.character_id AND lc.member_ids && rs.my_character_ids))
                 """, Tuple.class)
                 .setParameter("sessionId", sessionId)
                 .setParameter("lineId", lineId));

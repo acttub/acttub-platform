@@ -105,15 +105,23 @@ class PostgresSessionRepository implements SessionRepository {
                         ? new Start(row.get("id", UUID.class), StartOutcome.REPLAYED)
                         : new Start(null, StartOutcome.REQUEST_MISMATCH);
             }
-            Set<UUID> characters = new HashSet<>(NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT id FROM script_characters WHERE script_id=:scriptId", Tuple.class)
-                    .setParameter("scriptId", scriptId)).stream()
-                    .map(row -> row.get("id", UUID.class))
-                    .toList());
+            List<Tuple> characterRows = NativeTuples.list(entityManager.createNativeQuery(
+                    "SELECT id,array_to_string(member_ids,:sep) AS member_ids FROM script_characters WHERE script_id=:scriptId",
+                    Tuple.class)
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("sep", SEPARATOR));
+            Set<UUID> characters = new HashSet<>(characterRows.stream().map(row -> row.get("id", UUID.class)).toList());
             if (plan.myCharacterIds().isEmpty()
                     || new HashSet<>(plan.myCharacterIds()).size() != plan.myCharacterIds().size()
                     || !characters.containsAll(plan.myCharacterIds())) {
                 return new Start(null, StartOutcome.INVALID_CHARACTERS);
+            }
+            // 내 차례인 배역 — 고른 배역과, 고른 배역이 멤버로 든 함께 말하는 줄의 묶음 배역(SOMA-709·785).
+            Set<UUID> turns = new HashSet<>(plan.myCharacterIds());
+            for (Tuple row : characterRows) {
+                if (uuids(row.get("member_ids", String.class)).stream().anyMatch(plan.myCharacterIds()::contains)) {
+                    turns.add(row.get("id", UUID.class));
+                }
             }
             Map<UUID, Tuple> lines = new LinkedHashMap<>();
             for (Tuple line : NativeTuples.list(entityManager.createNativeQuery("""
@@ -132,7 +140,7 @@ class PostgresSessionRepository implements SessionRepository {
             boolean mine = from <= to && lines.values().stream().anyMatch(line -> {
                 int ordinal = line.get("ordinal", Integer.class);
                 return ordinal >= from && ordinal <= to && dialogue(line)
-                        && plan.myCharacterIds().contains(line.get("character_id", UUID.class));
+                        && turns.contains(line.get("character_id", UUID.class));
             });
             if (!mine) {
                 return new Start(null, StartOutcome.EMPTY_RANGE);
@@ -350,7 +358,9 @@ class PostgresSessionRepository implements SessionRepository {
                     WHERE l.script_id=rs.script_id AND l.kind='dialogue' AND l.ordinal<=el.ordinal) AS end_dialogue_no,
                    (SELECT count(*) FROM script_lines l
                     WHERE l.script_id=rs.script_id AND l.kind='dialogue' AND l.ordinal BETWEEN sl.ordinal AND el.ordinal
-                      AND l.character_id=ANY(rs.my_character_ids)) AS my_dialogue_count,
+                      AND (l.character_id=ANY(rs.my_character_ids)
+                           OR EXISTS (SELECT 1 FROM script_characters lc
+                                      WHERE lc.id=l.character_id AND lc.member_ids && rs.my_character_ids))) AS my_dialogue_count,
                    (SELECT count(DISTINCT r.line_id) FROM reading_recordings r
                     WHERE r.reading_session_id=rs.id) AS recorded_line_count
             """;

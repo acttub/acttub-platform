@@ -68,7 +68,7 @@ public interface ScriptImportRepository {
     Material material(UUID jobId, UUID importId);
 
     record Material(UUID userId, boolean guest, UUID requestId, String fingerprint, String title, String rawText, String source,
-            boolean skipScriptCheck) {
+            boolean skipScriptCheck, String fileName) {
     }
 
     /** 화면의 「N / M줄」. 자기 트랜잭션에서 바로 쓴다. */

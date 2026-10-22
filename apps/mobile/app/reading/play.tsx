@@ -33,6 +33,7 @@ import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } fro
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, dialogueNumbers, roleLabel, turnRoles } from '@/lib/reading/session-plan';
+import { saidEnough } from '@/lib/reading/line-coverage';
 import { diffWords } from '@/lib/reading/word-diff';
 import { finishMonologueRun, isMonologue, livePosition, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
@@ -215,6 +216,8 @@ export default function ReadingPlay() {
   const [listening, setListening] = useState(false);
   /** 내 차례에 인식기가 지금까지 알아들은 글(중간 결과). 대사 아래 「방금 말한 것」에 보인다. */
   const [said, setSaid] = useState('');
+  // 말 끝 판단은 다시 그리기 전에 온다 — 받아쓴 글을 바로 읽을 수 있게 따로 든다(SOMA-804).
+  const saidRef = useRef('');
   const [notice, setNotice] = useState<Notice>(null);
   const [attempt, setAttempt] = useState(0);
   const [sttMode, setSttMode] = useState<SttPolicy | null>(null);
@@ -816,8 +819,11 @@ export default function ReadingPlay() {
   useEffect(() => {
     if (monologue || phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;
     const from = run.index;
+    const span = turnSpan(run);
+    const turnText = run.lines.slice(span.start, span.end + 1).map((l) => l.text).join(' ');
     setAid('none');
     setSaid('');
+    saidRef.current = '';
     setTurnNote(null);
     setTurnDone(false);
     let cancelled = false;
@@ -830,6 +836,10 @@ export default function ReadingPlay() {
         deferredTimer.current = null;
       }
       if (event === 'speech_end' && session.advance === 'silence') {
+        // 받아쓰기가 켜져 있으면 대본 글자 수의 90% 이상 말한 뒤의 침묵만 넘긴다 — 대사 중간의 사이에 넘어가지 않게(SOMA-804).
+        // 못 미치면 계속 듣는다. 다시 말하고 멈추면 또 잰다. 받아쓰기 없이 음량만 재는 녹음기는 글자를 몰라 예전처럼 넘긴다.
+        // 묶인 차례(SOMA-806)는 묶음 줄 전체 글자로 잰다.
+        if (sttActive.current && !saidEnough(turnText, saidRef.current)) return;
         if (holdRef.current) deferredRef.current = { kind: 'end_turn', from };
         else void endMyTurn(from);
       }
@@ -846,7 +856,13 @@ export default function ReadingPlay() {
         // 받아쓰기는 내 줄의 말로 듣는다(SOMA-751).
         const mine = run.lines[from] as DialogueLine;
         const ok = stt.start(
-          { onEvent, onInterim: setSaid },
+          {
+            onEvent,
+            onInterim: (text) => {
+              saidRef.current = text;
+              setSaid(text);
+            },
+          },
           { persist: !!session.record || (voiceFeedbackOn.current && !!pronunciationServerUrl()), locale: speechLocaleFor(lineLanguage(mine)) },
         );
         sttActive.current = ok;
@@ -1790,7 +1806,7 @@ export default function ReadingPlay() {
       {hold === 'tip' ? (
         // pen 「새 · 리딩 시작 전」 — 자동 넘김 안내를 팝업 대신 아래에 두고 [시작]으로 첫 줄을 연다.
         <View style={[styles.startBar, { paddingBottom: insets.bottom + 12 }]}>
-          {startHint && <Text style={styles.startHint}>{t('reading.startHint')}</Text>}
+          {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
           <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
           {startHint && (
             <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
