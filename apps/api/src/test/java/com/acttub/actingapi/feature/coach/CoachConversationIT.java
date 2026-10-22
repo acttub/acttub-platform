@@ -524,6 +524,33 @@ class CoachConversationIT {
         return id;
     }
 
+    @Test
+    @DisplayName("practice.coach: 영상 없이 말로 시작한 회차(video_id 없음)에서도 대화가 열리고, 응답의 purpose 는 저장된 목적과 "
+            + "말로 하는 단계를 낸다 (SOMA-745)")
+    void practiceCoach_startOpensAConversationWithoutAVideo() throws Exception {
+        generator.enqueue(CONTINUE);
+        UUID talk = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,
+                                      blockage_kind,sub_branch,session_purpose)
+                VALUES (?,?,NULL,?,1,'conversing','legacy','그 외','그 외','concern')
+                """, talk, member, talk);
+        // 스텁 코치(옛 갈래)가 읽는 분석 행. 운영의 말로 하는 회차는 분석 없이 새 코치가 받는다 — 여기서 보는 것은 영상 없는 행을 읽는 저장소다.
+        jdbc.update("""
+                INSERT INTO analyses(id,practice_id,format,status,model,record,completed_at)
+                VALUES (?,?,'legacy','ready','test-model',CAST(? AS jsonb),now())
+                """, UUID.randomUUID(), talk, "{\"scene_summary\":\"\",\"observations\":[],\"uncertainties\":[]}");
+
+        JsonNode started = json(post("/v2/coach/start").content(startBody(talk, UUID.randomUUID())), 200);
+
+        JsonNode conversation = started.path("conversation");
+        assertThat(conversation.path("status").textValue()).isEqualTo("open");
+        assertThat(conversation.path("purpose").path("purpose").textValue()).isEqualTo("concern");
+        assertThat(conversation.path("purpose").path("step").textValue()).isEqualTo("concern");
+        JsonNode read = json(get("/v2/coach/conversations/{id}", conversation.path("id").textValue()), 200);
+        assertThat(read.path("purpose").path("purpose").textValue()).isEqualTo("concern");
+    }
+
     private UUID practice(UUID owner, String stage) {
         UUID videoId = UUID.randomUUID();
         jdbc.update("""

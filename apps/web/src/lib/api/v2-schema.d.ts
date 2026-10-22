@@ -3557,17 +3557,14 @@ export interface components {
              * Format: uuid
              */
             request_id: string;
-            /**
-             * Video Id
-             * Format: uuid
-             */
-            video_id: string;
+            /** Video Id */
+            video_id?: string | null;
             scene?: components["schemas"]["PracticeScene"] | null;
             blockage?: components["schemas"]["PracticeBlockage"] | null;
             /** Title */
             title?: string | null;
             /** Session Purpose */
-            session_purpose?: ("evaluate" | "stuck" | "character") | null;
+            session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
         };
         /** PracticeScene */
         PracticeScene: {
@@ -3637,7 +3634,7 @@ export interface components {
             /** Previous Conversations */
             previous_conversations: components["schemas"]["PreviousConversation"][];
             /** Session Purpose */
-            session_purpose?: ("evaluate" | "stuck" | "character") | null;
+            session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
         };
         /** PracticeJob */
         PracticeJob: {
@@ -4128,10 +4125,10 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "evaluate" | "stuck" | "character";
+            purpose: "evaluate" | "stuck" | "character" | "concern";
             /**
              * Step
-             * @description evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap
+             * @description evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap / 영상 없이 말로(SOMA-745) stuck: reason·line·method·wrap, character: view·cell·wrap, concern: concern·need·wrap
              */
             step: string;
             /** Choices */

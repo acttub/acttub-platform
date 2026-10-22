@@ -470,7 +470,7 @@ COLUMN practices.tags ord=18 type=jsonb len=- null=NO default='[]'::jsonb
 COLUMN practices.title ord=17 type=text len=- null=YES default=-
 COLUMN practices.updated_at ord=23 type=timestamptz len=- null=NO default=now()
 COLUMN practices.user_id ord=2 type=uuid len=- null=NO default=-
-COLUMN practices.video_id ord=3 type=uuid len=- null=NO default=-
+COLUMN practices.video_id ord=3 type=uuid len=- null=YES default=-
 COLUMN push_tokens.app_version ord=8 type=text len=- null=YES default=-
 COLUMN push_tokens.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -1408,7 +1408,7 @@ CONSTRAINT practices ck_practices_blockage_branch CHECK ((((blockage_kind = '분
 CONSTRAINT practices ck_practices_close_reason CHECK ((close_reason = ANY (ARRAY['analysis_failed'::text, 'cancelled'::text, 'conversation_closed'::text])))
 CONSTRAINT practices ck_practices_experience_version CHECK ((experience_version = ANY (ARRAY['legacy'::text, 'three_layers_v1'::text])))
 CONSTRAINT practices ck_practices_ordinal CHECK ((ordinal >= 1))
-CONSTRAINT practices ck_practices_session_purpose CHECK ((session_purpose = ANY (ARRAY['evaluate'::text, 'stuck'::text, 'character'::text])))
+CONSTRAINT practices ck_practices_session_purpose CHECK ((session_purpose = ANY (ARRAY['evaluate'::text, 'stuck'::text, 'character'::text, 'concern'::text])))
 CONSTRAINT practices ck_practices_stage CHECK ((stage = ANY (ARRAY['analyzing'::text, 'conversing'::text, 'closed'::text])))
 CONSTRAINT practices practices_blockage_kind_not_null NOT NULL blockage_kind
 CONSTRAINT practices practices_character_context_not_null NOT NULL character_context
@@ -1429,7 +1429,6 @@ CONSTRAINT practices practices_updated_at_not_null NOT NULL updated_at
 CONSTRAINT practices practices_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT practices practices_user_id_not_null NOT NULL user_id
 CONSTRAINT practices practices_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id)
-CONSTRAINT practices practices_video_id_not_null NOT NULL video_id
 CONSTRAINT practices uq_practices_root_ordinal UNIQUE (root_id, ordinal)
 CONSTRAINT practices uq_practices_user_request UNIQUE (user_id, request_id)
 CONSTRAINT push_tokens push_tokens_created_at_not_null NOT NULL created_at

@@ -149,3 +149,13 @@ test('practice.analyze: 완료 푸시에서 회차 id를 읽는다', () => {
   assert.equal(analysisPushTarget({ kind: 'challenge_like', practice_id: 'practice-7' }), null);
   assert.equal(analysisPushTarget(null), null);
 });
+
+test('practice.start 영상 없이 말로(SOMA-745): 분석 작업 없이 대화 단계인 회차는 기다리지 않고 바로 대화를 연다', async () => {
+  const { waits, delay } = recorder();
+  const outcome = await watchAnalysis('talk-1', new AbortController().signal, {
+    getStatus: async () => ({ stage: 'conversing', job: null, analysis_status: null, close_reason: null }),
+    delay,
+  });
+  assert.deepEqual(outcome, { kind: 'ready', analysis: null });
+  assert.deepEqual(waits, []);
+});

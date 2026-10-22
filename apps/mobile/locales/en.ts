@@ -176,6 +176,22 @@ const en: DeepStringShape<typeof ko> = {
     challenge: 'Challenge',
     profile: 'Profile',
   },
+  // Purpose screen for talk-only coaching without a video (SOMA-745).
+  talk: {
+    title: 'Talk it through',
+    bubble: 'What would you like help with?',
+    purpose: {
+      stuck: 'Get unstuck',
+      character: 'Understand a character',
+      concern: 'Talk through a worry',
+    },
+    purposeSub: {
+      stuck: 'When a line keeps tripping you up',
+      character: "When you can't get inside a character",
+      concern: 'Auditions, exams or practice on your mind',
+    },
+    failed: "Couldn't start coaching. Please tap again.",
+  },
   coachingTab: {
     title: 'Coaching',
     firstBubble: 'First time with the coach?',
@@ -189,6 +205,7 @@ const en: DeepStringShape<typeof ko> = {
     exampleCaption: 'Rather than giving answers, we find one thing to fix by asking',
     recordNow: 'Film now and get coaching',
     uploadTaken: 'Upload a video you filmed',
+    talk: 'Get coaching without a video',
     memoKind: 'Last coach note',
     memoNext: 'Try this next time',
     again: 'Practice again',

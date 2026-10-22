@@ -1411,7 +1411,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - 행동 계약은 [reading.cocreate](../../docs/specs/reading/cocreate.md)가 정본이고 `ScriptCocreateIT`·`ScriptCocreateServiceTest`가 지킨다.
   늘 켜진 경로(`/v2/sample-scripts`)라 OpenAPI 스냅샷과 웹 생성 타입에 든다.
-- 표 `script_cocreations`(V55)는 native SQL 만 쓴다(Schema Entity 없음). (user_id, request_id) 유일 — 만드는 중 줄(versions NULL)을 먼저
+- 표 `script_cocreations`(V56)는 native SQL 만 쓴다(Schema Entity 없음). (user_id, request_id) 유일 — 만드는 중 줄(versions NULL)을 먼저
   넣어 겹친 생성이 모델을 두 번 부르지 않게 한다. 수정은 `current_version`·`revisions_used`·`busy_since`를 조건으로 건 UPDATE 한 문장으로
   잡는다. 사람에 ON DELETE CASCADE, 확정한 대본(`script_id`)에 ON DELETE SET NULL. 탈퇴의 리딩 파기가 행을 지운다.
 - 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 @Primary 코칭 키 클라이언트와 `ACTTUB_SAMPLE_SCRIPT_MODEL`(기본 gemini-4-argon)이다.

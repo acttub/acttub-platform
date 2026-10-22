@@ -167,6 +167,22 @@ const ko = {
     challenge: '챌린지',
     profile: '프로필',
   },
+  // 영상 없이 말로 코칭 받기의 목적 화면(SOMA-745, pen 「목적 · 영상 없이」).
+  talk: {
+    title: '영상 없이 말로',
+    bubble: '말로 어떤 도움을 받을까요?',
+    purpose: {
+      stuck: '막힌 곳 풀기',
+      character: '인물 이해하기',
+      concern: '고민 상담',
+    },
+    purposeSub: {
+      stuck: '특정 대사에서 자꾸 막히면',
+      character: '인물 마음이 잘 안 잡히면',
+      concern: '오디션·입시·연습 고민이 있으면',
+    },
+    failed: '코칭을 시작하지 못했어요. 다시 눌러 주세요.',
+  },
   coachingTab: {
     title: '코칭',
     firstBubble: '코칭이 처음이죠?',
@@ -180,6 +196,7 @@ const ko = {
     exampleCaption: '정답을 주기보다, 질문하며 고칠 점 하나를 같이 찾아요',
     recordNow: '지금 찍어서 코칭 받기',
     uploadTaken: '찍어 둔 영상 올리기',
+    talk: '영상 없이 말로 코칭 받기',
     memoKind: '저번 코치 메모',
     memoNext: '다음엔 이렇게 해 봐요',
     again: '한 번 더 연습',

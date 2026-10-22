@@ -25,6 +25,15 @@ export function purposeFor(category: BlockageCategory | null): SessionPurpose {
   return SESSION_PURPOSES.find((p) => CATEGORY[p] === category) ?? DEFAULT_PURPOSE;
 }
 
+/**
+ * 영상 없이 말로 코칭 받기의 목적(pen 「목적 · 영상 없이」, SOMA-745). 서버의 session_purpose 값 그대로 보낸다 —
+ * 영상 없이 시작하면 서버가 이 목적으로 말로 하는 코치를 연다(practice.start). 막힌 곳 풀기가 기본 강조다.
+ */
+export type TalkPurpose = 'stuck' | 'character' | 'concern';
+
+export const TALK_PURPOSES: readonly TalkPurpose[] = ['stuck', 'character', 'concern'];
+export const DEFAULT_TALK_PURPOSE: TalkPurpose = 'stuck';
+
 /** 준비 화면의 두 단계 — 목적 → 영상(권리 체크·시작 포함). 장면 단계는 없앴다(SOMA-778). */
 export type UploadStep = 'purpose' | 'source';
 

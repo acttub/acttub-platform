@@ -15,7 +15,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 찍을 대사 같이 만들기의 Postgres 구현 — {@code script_cocreations} (V55). native SQL 만 쓴다(Schema Entity 없음).
+ * 찍을 대사 같이 만들기의 Postgres 구현 — {@code script_cocreations} (V56). native SQL 만 쓴다(Schema Entity 없음).
  *
  * <p>사람({@code users})에 ON DELETE CASCADE, 확정한 대본({@code scripts})에 ON DELETE SET NULL 로 매달린다. 겹친 생성은
  * (사람, 요청 id) 유일 제약이, 겹친 수정은 조건부 UPDATE 한 문장이 가른다.
