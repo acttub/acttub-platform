@@ -2,6 +2,9 @@ jest.mock('@react-native-async-storage/async-storage', () => require('@react-nat
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AppState, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
+import { TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
 
 import { flushPendingPushTokenDeletions, configureNotificationHandling, onPushTapped } from '@/lib/notifications';
 import { sweepDeviceFiles } from '@/lib/account-files';
@@ -60,6 +63,10 @@ jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('react-native-reanimated', () => ({}));
 jest.mock('@/lib/global-font', () => ({}));
 jest.mock('@/lib/analytics', () => ({ logScreenView: jest.fn() }));
+jest.mock('expo-tracking-transparency', () => ({
+  getTrackingPermissionsAsync: jest.fn(),
+  requestTrackingPermissionsAsync: jest.fn(),
+}));
 jest.mock('@/lib/meta-events', () => ({ initMetaSdk: jest.fn() }));
 jest.mock('@/lib/posthog', () => ({ postHog: { touch: jest.fn() }, syncPostHog: jest.fn() }));
 jest.mock('@/lib/signup-attribution-runtime', () => ({ startSignupAttributionListener: jest.fn() }));
@@ -448,5 +455,69 @@ describe('푸시를 누르면', () => {
 
     pushListener?.({ kind: 'challenge_notification', notification_id: 'x1' });
     expect(mockRouter.push).toHaveBeenCalledWith('/notifications');
+  });
+});
+
+// SDK 경계만 대체하고 실제 사전 안내·저장소·Modal 연결을 함께 검증한다.
+describe('추적 허용 전 안내', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    (getTrackingPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'undetermined' });
+    (requestTrackingPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
+    (initMetaSdk as jest.Mock).mockImplementation(async (beforeRequest: () => Promise<void>) => {
+      await beforeRequest();
+      await requestTrackingPermissionsAsync();
+    });
+  });
+
+  afterEach(() => {
+    (initMetaSdk as jest.Mock).mockReset();
+  });
+
+  test('iOS 미결정이면 안내를 띄우고 모달이 닫힌 뒤에만 기존 ATT 요청을 이어 간다', async () => {
+    const view = await renderLayout();
+    expect(screen.getByText('액터브를 어떻게 찾아오셨나요?')).toBeOnTheScreen();
+    expect(getTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(requestTrackingPermissionsAsync).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem(TRACKING_INTRO_KEY)).toBeNull();
+
+    const modal = view.container.queryAll((node) => node.type === 'Modal')[0];
+    expect(modal).toBeDefined();
+    await fireEvent.press(screen.getByRole('button', { name: '계속' }));
+    expect(screen.queryByText('액터브를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(requestTrackingPermissionsAsync).not.toHaveBeenCalled();
+    // RN 테스트 렌더러는 네이티브 Modal의 종료 콜백을 자동으로 보내지 않는다.
+    await act(async () => modal.props.onDismiss());
+    expect(await AsyncStorage.getItem(TRACKING_INTRO_KEY)).toBe('1');
+    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+    // 중복 종료 알림에도 진행 콜백은 한 번만 소비한다.
+    await act(async () => modal.props.onDismiss());
+    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('Android에서는 안내와 상태 조회 없이 기존 요청을 이어 간다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    await renderLayout();
+    expect(screen.queryByText('액터브를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(getTrackingPermissionsAsync).not.toHaveBeenCalled();
+    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  test('iOS에서 이미 안내를 본 기기면 다시 띄우지 않고 요청한다', async () => {
+    await AsyncStorage.setItem(TRACKING_INTRO_KEY, '1');
+    await renderLayout();
+    expect(getTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('액터브를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(['granted', 'denied'])('iOS 권한이 %s이면 안내를 건너뛴다', async (status) => {
+    (getTrackingPermissionsAsync as jest.Mock).mockResolvedValue({ status });
+    await renderLayout();
+    expect(screen.queryByText('액터브를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
   });
 });
