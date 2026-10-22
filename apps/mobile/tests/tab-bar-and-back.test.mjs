@@ -28,8 +28,9 @@ test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이
   // 안드로이드: 좌우·바닥 여백 없음, 둥근 모서리 없음, 시스템 내비게이션 칸만큼 아래를 채운다
   assert.match(tabs, /left: 0,\s*right: 0,\s*bottom: 0,/);
   assert.match(tabs, /height: 72 \+ insets\.bottom/);
-  // 안드로이드는 고른 탭만 아이콘 아래 이름을 보인다(pen 하단 탭 바)
-  assert.match(tabs, /!IOS && focused && <Text style=\{\[styles\.tabLabel/);
+  // 두 플랫폼 모두 다섯 탭 이름을 아이콘 아래에 늘 보인다 — 고른 탭만 보이면 다른 탭이 뭔지 몰랐다(10/20 피드백)
+  assert.match(tabs, /<Text style=\{\[styles\.tabLabel, focused && styles\.tabLabelOn, \{ color \}\]\}/);
+  assert.doesNotMatch(tabs, /!IOS && focused && <Text/);
 });
 
 test('안드로이드는 네이티브 뒤로 버튼에 꺾쇠 그림만 씌우고 헤더에 직접 만든 버튼을 넣지 않는다 — 넣으면 화면을 닫을 때 앱이 꺼졌다(SOMA-665)', () => {

@@ -65,10 +65,10 @@ beforeEach(() => {
   unreadCount.mockResolvedValue({ count: 0 });
 });
 
-test('홈·코칭·대본·챌린지·프로필 탭을 두고 기록·예전 촬영 자리는 탭바에서 뺀다', async () => {
+test('홈·코칭·리딩·챌린지·프로필 탭을 두고 기록·예전 촬영 자리는 탭바에서 뺀다', async () => {
   await render(<TabLayout />);
 
-  expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(['홈', '코칭', '대본', '챌린지', '프로필']);
+  expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(['홈', '코칭', '리딩', '챌린지', '프로필']);
 });
 
 test('아이콘만 있는 탭마다 읽어 줄 이름과 누름 기록 이름을 단다', async () => {
@@ -83,16 +83,16 @@ test('아이콘만 있는 탭마다 읽어 줄 이름과 누름 기록 이름을
   ]);
 });
 
-test('활성·비활성 모두 윤곽 아이콘이고 iOS 에서는 글자를 붙이지 않는다', async () => {
+test('활성·비활성 모두 윤곽 아이콘이고 iOS 도 다섯 탭 이름을 모두 쓴다(10/20 피드백)', async () => {
   await render(<TabLayout />);
 
   expect(screen.getByText('아이콘 home-outline')).toBeOnTheScreen();
   expect(screen.getByText('아이콘 book-outline')).toBeOnTheScreen();
-  expect(screen.queryByText('홈')).not.toBeOnTheScreen();
+  for (const name of ['홈', '코칭', '리딩', '챌린지', '프로필']) expect(screen.getByText(name)).toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByRole('tab', { name: '대본' }));
+  await fireEvent.press(screen.getByRole('tab', { name: '리딩' }));
 
-  expect(screen.getByRole('tab', { name: '대본', selected: true })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '리딩', selected: true })).toBeOnTheScreen();
   expect(screen.getByRole('tab', { name: '홈', selected: false })).toBeOnTheScreen();
   expect(screen.getByText('아이콘 book-outline')).toBeOnTheScreen();
 });
@@ -103,14 +103,14 @@ test('첫 사용자로 확인되면 모든 탭에서 탭바를 숨기고, 첫 �
 
   await act(async () => setFirstTimeState('first'));
   expect(screen.getByText('탭바 숨김')).toBeOnTheScreen();
-  for (const name of ['코칭', '대본', '챌린지', '프로필', '홈']) {
+  for (const name of ['코칭', '리딩', '챌린지', '프로필', '홈']) {
     await fireEvent.press(screen.getByRole('tab', { name }));
     expect(screen.getByText('탭바 숨김')).toBeOnTheScreen();
   }
 
   await act(async () => setFirstTimeState('practiced'));
   expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('tab', { name: '대본' }));
+  await fireEvent.press(screen.getByRole('tab', { name: '리딩' }));
   expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
 
   await act(async () => setFirstTimeState('unknown'));
@@ -142,7 +142,7 @@ test('읽지 않은 알림이 없거나 못 읽으면 배지를 달지 않는다
   expect(screen.getByRole('tab', { name: '챌린지' })).toBeOnTheScreen();
 });
 
-test('안드로이드에서는 활성 탭 아이콘 아래에 탭 이름을 쓴다', async () => {
+test('안드로이드도 고른 탭과 상관없이 다섯 탭 이름을 아이콘 아래에 쓴다(10/20 피드백)', async () => {
   // 플랫폼은 모듈을 읽을 때 정해지므로, 안드로이드로 바꾼 별도 모듈 묶음에서 레이아웃과 렌더러를 함께 읽는다.
   // 설정 파일의 안전 영역 목은 바깥 묶음의 React 로 컨텍스트를 읽어서, 이 시험 동안 고정 여백을 돌려주게 한다.
   const safeArea = jest.requireMock('react-native-safe-area-context') as { useSafeAreaInsets: jest.Mock };
@@ -158,12 +158,12 @@ test('안드로이드에서는 활성 탭 아이콘 아래에 탭 이름을 쓴�
 
       // 화면 매처는 바깥 묶음의 screen 을 보므로 이 묶음의 질의 결과를 직접 본다.
       expect(view.queryByText('홈')).not.toBeNull();
-      expect(view.queryByText('대본')).toBeNull();
+      expect(view.queryByText('리딩')).not.toBeNull();
 
-      await rtl.fireEvent.press(view.getByRole('tab', { name: '대본' }));
+      await rtl.fireEvent.press(view.getByRole('tab', { name: '리딩' }));
 
-      expect(view.queryByText('대본')).not.toBeNull();
-      expect(view.queryByText('홈')).toBeNull();
+      expect(view.queryByText('리딩')).not.toBeNull();
+      expect(view.queryByText('홈')).not.toBeNull();
       await view.unmount();
     });
   } finally {

@@ -7,7 +7,7 @@ import { tabBackTitle } from '../lib/tab-back-title.ts';
 test('탭에서 연 화면의 iOS 뒤로 글자는 라우트 이름 "(tabs)"가 아니라 지금 탭 이름이다', () => {
   assert.equal(tabBackTitle(undefined), '홈');
   assert.equal(tabBackTitle('index'), '홈');
-  assert.equal(tabBackTitle('reading'), '대본');
+  assert.equal(tabBackTitle('reading'), '리딩');
   assert.equal(tabBackTitle('challenges'), '챌린지');
   assert.equal(tabBackTitle('profile'), '프로필');
   assert.equal(tabBackTitle('history'), '홈');

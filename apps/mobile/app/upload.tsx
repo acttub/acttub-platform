@@ -461,7 +461,8 @@ export default function UploadScreen() {
 
       {step === 'purpose' && (
         <ScrollView contentContainerStyle={styles.stepBody}>
-          <CoachBubble title={t('upload.purposeBubble')} guide={firstTime ? t('upload.purposeGuide') : null} />
+          {/* 「처음이면 ~를 누르세요」는 코칭 탭 첫 화면에서 한 번만 한다 — 단계마다 반복하지 않는다(10/20 피드백). */}
+          <CoachBubble title={t('upload.purposeBubble')} guide={null} />
           <View style={styles.choices}>
             {/* 누르면 바로 영상 단계로 간다 — 「다음」 버튼도 꺾쇠도 없다(SOMA-778). */}
             {SESSION_PURPOSES.map((item) => (
@@ -488,7 +489,7 @@ export default function UploadScreen() {
             {!sample && (
               <CoachBubble
                 title={picked ? t('upload.readyBubble') : t('upload.sourceBubble')}
-                guide={firstTime ? (picked ? t('upload.readyGuide') : t('upload.sourceGuide')) : null}
+                guide={null}
               />
             )}
 

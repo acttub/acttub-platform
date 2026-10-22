@@ -119,7 +119,7 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   expect(screen.getByText('대본이 없어도 바로 해 볼 수 있어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '예시 대본으로 시작하기' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/reading/new', params: { sample: '1' } });
-  expect(screen.getByRole('header', { name: '대본' })).toBeOnTheScreen();
+  expect(screen.getByRole('header', { name: '리딩' })).toBeOnTheScreen();
 });
 
 test('새 대본 버튼은 대본 넣기 화면으로 간다', async () => {

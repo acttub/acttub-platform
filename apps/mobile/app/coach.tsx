@@ -328,7 +328,7 @@ function CoachTalk() {
   const pressHelp = (button: HelpButton) => {
     const draft = helpButtonDraft(button);
     if (draft) setInput(draft);
-    inputRef.current?.focus();
+    // 키보드를 띄우지 않는다 — 올라오면 보내기 버튼이 움직여 엔터(줄바꿈)를 잘못 누른다(10/20 피드백). 덧붙여 쓰려면 입력칸을 누른다.
   };
 
   const latestQuestion = [...messages].reverse().find((m) => m.role === 'coach')?.text ?? null;
@@ -506,7 +506,7 @@ function CoachTalk() {
         {!closed && (
           <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
             <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>
-            {/* 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채운다. 직접 쓰려면 아래 입력칸을 누른다. */}
+            {/* 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채우고 키보드는 띄우지 않는다. 덧붙이려면 아래 입력칸을 누른다. */}
             <View style={styles.quickRow} testID="coach-quick-grid">
               {(
                 [
