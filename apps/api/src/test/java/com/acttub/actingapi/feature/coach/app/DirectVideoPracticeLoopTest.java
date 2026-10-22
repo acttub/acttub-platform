@@ -274,4 +274,17 @@ class DirectVideoPracticeLoopTest {
         assertThat(DirectVideoPrompts.withoutHowAbout("하나씩 따져 봐도 좋을 것 같아요. 어때요?\")")).isEqualTo("하나씩 따져 봐도 좋을 것 같아요.\")");
         assertThat(DirectVideoPrompts.withoutHowAbout(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.PROPOSE, null))).doesNotContain("어때요?");
     }
+
+    @Test void unclosedThinkingTagLineIsDropped() {
+        // 2026-10-22 운영: 배우 화면 맨 앞에 "<thought"가 그대로 나갔다(닫는 꺾쇠 없음, 10/14부터 8번).
+        assertThat(DirectVideoPracticeLoop.parse("<thought\n화를 누르니까 더 집중됐군요.\n찍을 때도 그렇게 느꼈어요?").message())
+                .isEqualTo("화를 누르니까 더 집중됐군요.\n찍을 때도 그렇게 느꼈어요?");
+        assertThat(DirectVideoPracticeLoop.parse("  <think \n네. 그럼 장면 내내 뭘 해 볼래요?").message())
+                .isEqualTo("네. 그럼 장면 내내 뭘 해 볼래요?");
+        assertThat(DirectVideoPracticeLoop.parse("<생각\n아, 그럼 뭘 하려고 했어요?").message()).isEqualTo("아, 그럼 뭘 하려고 했어요?");
+        // 대사 속 꺾쇠나 다른 낱말은 건드리지 않는다.
+        assertThat(DirectVideoPracticeLoop.parse("\"<thoughtful>\"이 아니라 \"그만해\"에서요.").message())
+                .isEqualTo("\"<thoughtful>\"이 아니라 \"그만해\"에서요.");
+        assertThat(DirectVideoPracticeLoop.parse("thought 라는 말은 안 써요?").message()).isEqualTo("thought 라는 말은 안 써요?");
+    }
 }
