@@ -11,6 +11,7 @@ COLUMN account_cleanup_operations.user_id ord=2 type=uuid len=- null=NO default=
 COLUMN actor_memories.created_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN actor_memories.field ord=3 type=text len=- null=NO default=-
 COLUMN actor_memories.id ord=1 type=uuid len=- null=NO default=-
+COLUMN actor_memories.scene_root_id ord=9 type=uuid len=- null=YES default=-
 COLUMN actor_memories.source_practice_id ord=6 type=uuid len=- null=YES default=-
 COLUMN actor_memories.updated_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN actor_memories.user_id ord=2 type=uuid len=- null=NO default=-
@@ -773,17 +774,19 @@ CONSTRAINT actor_memories actor_memories_created_at_not_null NOT NULL created_at
 CONSTRAINT actor_memories actor_memories_field_not_null NOT NULL field
 CONSTRAINT actor_memories actor_memories_id_not_null NOT NULL id
 CONSTRAINT actor_memories actor_memories_pkey PRIMARY KEY (id)
+CONSTRAINT actor_memories actor_memories_scene_root_id_fkey FOREIGN KEY (scene_root_id) REFERENCES practices(id)
 CONSTRAINT actor_memories actor_memories_source_practice_id_fkey FOREIGN KEY (source_practice_id) REFERENCES practices(id)
 CONSTRAINT actor_memories actor_memories_updated_at_not_null NOT NULL updated_at
 CONSTRAINT actor_memories actor_memories_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT actor_memories actor_memories_user_id_not_null NOT NULL user_id
 CONSTRAINT actor_memories actor_memories_value_not_null NOT NULL value
 CONSTRAINT actor_memories actor_memories_written_by_not_null NOT NULL written_by
-CONSTRAINT actor_memories ck_actor_memories_field CHECK ((field = ANY (ARRAY['goal'::text, 'blockage'::text, 'speech_self'::text, 'speech_actual'::text, 'wants'::text, 'habits'::text, 'avoid'::text, 'tone'::text])))
-CONSTRAINT actor_memories ck_actor_memories_value_length CHECK ((char_length(value) <= 1000))
+CONSTRAINT actor_memories ck_actor_memories_field CHECK ((field = ANY (ARRAY['goal'::text, 'blockage'::text, 'speech_self'::text, 'speech_actual'::text, 'wants'::text, 'habits'::text, 'avoid'::text, 'tone'::text, 'coaching_profile'::text])))
+CONSTRAINT actor_memories ck_actor_memories_value_length CHECK (((char_length(value) <= 1000) OR (field = 'coaching_profile'::text)))
+CONSTRAINT actor_memories ck_actor_memories_value_length_max CHECK ((char_length(value) <= 2000))
 CONSTRAINT actor_memories ck_actor_memories_value_not_blank CHECK ((btrim(value) <> ''::text))
 CONSTRAINT actor_memories ck_actor_memories_written_by CHECK ((written_by = ANY (ARRAY['actor'::text, 'agent'::text])))
-CONSTRAINT actor_memories uq_actor_memories_user_field UNIQUE (user_id, field)
+CONSTRAINT actor_memories uq_actor_memories_user_field_scene UNIQUE NULLS NOT DISTINCT (user_id, field, scene_root_id)
 CONSTRAINT actor_memory_entries actor_memory_entries_created_at_not_null NOT NULL created_at
 CONSTRAINT actor_memory_entries actor_memory_entries_field_not_null NOT NULL field
 CONSTRAINT actor_memory_entries actor_memory_entries_id_not_null NOT NULL id
@@ -1912,7 +1915,7 @@ INDEX CREATE UNIQUE INDEX summaries_session_id_key ON public.summaries USING btr
 INDEX CREATE UNIQUE INDEX transcripts_pkey ON public.transcripts USING btree (id)
 INDEX CREATE UNIQUE INDEX upload_intents_object_key_key ON public.upload_intents USING btree (object_key)
 INDEX CREATE UNIQUE INDEX upload_intents_pkey ON public.upload_intents USING btree (id)
-INDEX CREATE UNIQUE INDEX uq_actor_memories_user_field ON public.actor_memories USING btree (user_id, field)
+INDEX CREATE UNIQUE INDEX uq_actor_memories_user_field_scene ON public.actor_memories USING btree (user_id, field, scene_root_id) NULLS NOT DISTINCT
 INDEX CREATE UNIQUE INDEX uq_actor_memory_user_field ON public.actor_memory_entries USING btree (user_id, field)
 INDEX CREATE UNIQUE INDEX uq_ai_jobs_user_request ON public.ai_jobs USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_analyses_practice ON public.analyses USING btree (practice_id)
