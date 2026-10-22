@@ -83,9 +83,11 @@ test('대본 넣기: 사진 탭과 「다른 거 하고 있을게요」(알림)�
   assert.match(screen, /isSplitFailure\(/);
 });
 
-test('리딩 완료: 발음 보고서 PRO 카드는 없고, 완료 뒤 마무리 화면을 거쳐 상세로 간다', () => {
+test('리딩 완료: 녹음 코치·발음 보고서는 별도 카드(서버 스위치를 켠 배포만)로만 붙고, 완료 뒤 마무리 화면을 거쳐 상세로 간다', () => {
   const play = src('app/reading/play.tsx');
+  // 발음 보고서 PRO 줄은 완료 화면에 직접 그리지 않는다 — 서버가 허용할 때만 ReadingAfterCard 가 그린다(10/22).
   assert.doesNotMatch(play, /PRO|proReport/);
+  assert.match(play, /<ReadingAfterCard sessionId=\{session\.id\} ready=\{pendingUploads === 0\} \/>/);
   assert.match(play, /wrapUpProgress\(/);
   assert.match(play, /t\('reading\.wrapBadge'\)/);
 });
@@ -102,7 +104,7 @@ test('첫 리딩 안내는 기기에 한 번 본 것으로 남고, 못 읽으면
 
 test('리딩 실행: 시작 전 안내는 팝업 대신 아래 [시작]이고, 첫 리딩 안내는 진행 상태로만 띄운다', () => {
   const play = src('app/reading/play.tsx');
-  assert.match(play, /t\('reading\.startHint'\)/);
+  assert.match(play, /t\(monologue \? 'reading\.monologueStartHint' : 'reading\.startHint'\)/);
   assert.match(play, /onPress=\{\(\) => void closeTip\(false\)\}/);
   assert.doesNotMatch(play, /visible=\{hold === 'tip'\}/);
   assert.match(play, /coachMarkFor\(\{ done: coachDone, status: run\.status/);
@@ -123,4 +125,13 @@ test('리딩 → 코칭: 대본 제목·장면을 상황 칸에, 내 배역을 �
   assert.equal(readingCoachScene({ ...base, startIndex: 4 }).situation, '봄날의 대화 · 장면 2');
   assert.equal(readingCoachScene({ ...base, scenes: [], startIndex: 1 }).situation, '봄날의 대화');
   assert.equal(readingCoachScene({ ...base, title: 'x'.repeat(400), startIndex: 1 }).situation.length, 300);
+});
+
+test('리딩 3번: 첫 연습 구간의 내 대사는 내 배역이 든 함께 말하는 줄까지 센다(turnRoles 를 넘긴다)', () => {
+  const lines = [...Array.from({ length: 9 }, () => d('태오')), d('윤서, 태오'), d('윤서'), d('윤서')];
+  assert.equal(firstPracticeRange(lines, ['윤서']), null, '이름 줄만 보면 내 대사가 없다');
+  assert.deepEqual(firstPracticeRange(lines, ['윤서', '윤서, 태오'])?.myCount, 1);
+  assert.match(src('app/reading/range.tsx'), /firstPracticeRange\(lines, myTurnRoles\)/);
+  assert.match(src('app/reading/range.tsx'), /fewLines\(lines, myTurnRoles,/);
+  assert.match(src('app/reading/range.tsx'), /roleLineCount\(c, lines, script\.characters\)/);
 });

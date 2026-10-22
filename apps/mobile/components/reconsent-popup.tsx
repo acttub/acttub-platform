@@ -166,7 +166,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         </ScrollView>
         <View style={styles.footer}>
           {error && <Text style={styles.error}>{error}</Text>}
-          {/* pen S4R.1 CTA — 공통 Button/Primary(56·모서리 16). 필수를 다 고르기 전엔 Button/Disabled 모양. */}
+          {/* pen S4R.1 CTA — 공통 Button/Primary(48·모서리 16). 필수를 다 고르기 전엔 Button/Disabled 모양. */}
           <PrimaryButton
             label={
               verificationOnly

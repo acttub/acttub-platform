@@ -141,10 +141,11 @@ class ActorMemoryUpdateWorkerTest {
 
         assertThat(updates.completed).singleElement().satisfies(written -> {
             assertThat(written).containsEntry("goal", "문 앞에서 멈추지 않기");
-            assertThat(written.get("coaching_profile"))
-                    .startsWith("[길이] 100\n[이 배우에게 맞춘 코칭]\n")
-                    .contains("- 이 배우에게는 다음 말을 한 번도 쓰지 않는다: \"좋은 질문이에요\".")
-                    .endsWith("- 한 번에 하는 말은 공백 포함 100자 안쪽이다.");
+            var coaching = com.acttub.actingapi.feature.coach.app.ActorCoaching.parse(written.get("coaching_profile"));
+            assertThat(coaching.neverSay()).containsExactly("좋은 질문이에요");
+            assertThat(coaching.summary()).startsWith("이 배우는 이유를 함께 들을 때");
+            assertThat(coaching.personaText()).startsWith("[이 배우에게 맞춘 코칭]\n")
+                    .contains("- 이 배우에게는 다음 말을 한 번도 쓰지 않는다: \"좋은 질문이에요\".");
         });
         assertThat(telemetry.calls()).extracting(call -> call.metadata().get("memory_part"))
                 .containsExactly("fields", "coaching_profile");

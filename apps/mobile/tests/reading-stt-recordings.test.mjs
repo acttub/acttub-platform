@@ -95,7 +95,7 @@ test('reading.session: 내 차례가 끝나면 녹음 마무리를 기다리지 
 
 test('reading.session: 내 차례에 인식된 글자를 「방금 말한 것」으로 보인다', () => {
   const play = read('app/reading/play.tsx');
-  assert.match(play, /onInterim: setSaid/);
+  assert.match(play, /onInterim: \(text\) => \{\s*saidRef\.current = text;\s*setSaid\(text\);/);
   assert.match(play, /t\('reading\.saidLabel'\)/);
   assert.match(read('locales/ko.ts'), /saidLabel: '방금 말한 것'/);
   assert.match(read('locales/en.ts'), /saidLabel: 'What you just said'/);

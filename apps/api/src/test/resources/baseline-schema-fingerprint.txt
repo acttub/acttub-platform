@@ -104,10 +104,14 @@ COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
 COLUMN challenge_entries.content_version ord=6 type=int4 len=- null=NO default=1
 COLUMN challenge_entries.created_at ord=16 type=timestamptz len=- null=NO default=now()
 COLUMN challenge_entries.deleted_at ord=18 type=timestamptz len=- null=YES default=-
+COLUMN challenge_entries.face_mosaic ord=19 type=bool len=- null=NO default=false
 COLUMN challenge_entries.final_eligible ord=12 type=bool len=- null=YES default=-
 COLUMN challenge_entries.final_like_count ord=11 type=int8 len=- null=YES default=-
 COLUMN challenge_entries.final_rank ord=13 type=int4 len=- null=YES default=-
 COLUMN challenge_entries.id ord=1 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.mosaic_attempts ord=22 type=int4 len=- null=NO default=0
+COLUMN challenge_entries.mosaic_key ord=21 type=text len=- null=YES default=-
+COLUMN challenge_entries.mosaic_status ord=20 type=text len=- null=YES default=-
 COLUMN challenge_entries.published_at ord=7 type=timestamptz len=- null=YES default=-
 COLUMN challenge_entries.request_fingerprint ord=15 type=bpchar len=64 null=NO default=-
 COLUMN challenge_entries.request_id ord=14 type=uuid len=- null=NO default=-
@@ -608,6 +612,7 @@ COLUMN script_uploads.byte_size ord=4 type=int8 len=- null=NO default=-
 COLUMN script_uploads.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN script_uploads.expires_at ord=7 type=timestamptz len=- null=NO default=-
 COLUMN script_uploads.failure ord=10 type=text len=- null=YES default=-
+COLUMN script_uploads.file_name ord=12 type=text len=- null=YES default=-
 COLUMN script_uploads.id ord=1 type=uuid len=- null=NO default=-
 COLUMN script_uploads.kept_until ord=11 type=timestamptz len=- null=YES default=-
 COLUMN script_uploads.object_key ord=3 type=text len=- null=NO default=-
@@ -894,7 +899,9 @@ CONSTRAINT challenge_entries challenge_entries_challenge_id_fkey FOREIGN KEY (ch
 CONSTRAINT challenge_entries challenge_entries_challenge_id_not_null NOT NULL challenge_id
 CONSTRAINT challenge_entries challenge_entries_content_version_not_null NOT NULL content_version
 CONSTRAINT challenge_entries challenge_entries_created_at_not_null NOT NULL created_at
+CONSTRAINT challenge_entries challenge_entries_face_mosaic_not_null NOT NULL face_mosaic
 CONSTRAINT challenge_entries challenge_entries_id_not_null NOT NULL id
+CONSTRAINT challenge_entries challenge_entries_mosaic_attempts_not_null NOT NULL mosaic_attempts
 CONSTRAINT challenge_entries challenge_entries_pkey PRIMARY KEY (id)
 CONSTRAINT challenge_entries challenge_entries_request_fingerprint_not_null NOT NULL request_fingerprint
 CONSTRAINT challenge_entries challenge_entries_request_id_not_null NOT NULL request_id
@@ -909,6 +916,10 @@ CONSTRAINT challenge_entries ck_challenge_entries_caption CHECK ((char_length(ca
 CONSTRAINT challenge_entries ck_challenge_entries_deleted CHECK (((status = 'deleted'::text) = (deleted_at IS NOT NULL)))
 CONSTRAINT challenge_entries ck_challenge_entries_final_likes CHECK ((final_like_count >= 0))
 CONSTRAINT challenge_entries ck_challenge_entries_final_rank CHECK ((final_rank > 0))
+CONSTRAINT challenge_entries ck_challenge_entries_mosaic_attempts CHECK ((mosaic_attempts >= 0))
+CONSTRAINT challenge_entries ck_challenge_entries_mosaic_ready CHECK (((mosaic_status <> 'ready'::text) OR (mosaic_key IS NOT NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_mosaic_requested CHECK ((face_mosaic = (mosaic_status IS NOT NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_mosaic_status CHECK ((mosaic_status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text])))
 CONSTRAINT challenge_entries ck_challenge_entries_published CHECK (((visibility <> 'public'::text) OR (published_at IS NOT NULL)))
 CONSTRAINT challenge_entries ck_challenge_entries_purged_caption CHECK (((status <> 'deleted'::text) OR (caption IS NULL)))
 CONSTRAINT challenge_entries ck_challenge_entries_status CHECK ((status = ANY (ARRAY['visible'::text, 'hidden_by_report'::text, 'deleted'::text])))
@@ -1822,6 +1833,7 @@ INDEX CREATE INDEX idx_user_consents_current ON public.user_consents USING btree
 INDEX CREATE INDEX idx_user_identities_uid_hash ON public.user_identities USING btree (uid_hash) WHERE (uid_hash IS NOT NULL)
 INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btree (user_id)
 INDEX CREATE INDEX idx_videos_user_created ON public.videos USING btree (user_id, created_at DESC)
+INDEX CREATE INDEX ix_challenge_entries_mosaic_pending ON public.challenge_entries USING btree (created_at, id) WHERE (mosaic_status = 'pending'::text)
 INDEX CREATE INDEX ix_challenge_entries_owner ON public.challenge_entries USING btree (user_id, created_at)
 INDEX CREATE INDEX ix_challenge_entries_public ON public.challenge_entries USING btree (challenge_id, published_at DESC, id DESC) WHERE ((visibility = 'public'::text) AND (status = 'visible'::text))
 INDEX CREATE INDEX ix_challenges_host_created ON public.challenges USING btree (host_user_id, starts_at)

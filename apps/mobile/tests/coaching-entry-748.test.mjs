@@ -64,7 +64,25 @@ test('코칭 입구: 노트가 있는 묶음이 하나도 없으면 처음 화�
   assert.deepEqual(coachingEntry([g]), { kind: 'first' });
 });
 
-test('하단 탭은 홈·코칭·대본·챌린지·프로필이고 가운데 촬영 버튼은 없다(SOMA-748)', () => {
+test('코칭 입구: 가장 최근 묶음이 노트 없이 대화 중이면 「하던 코칭 · 이어서 하기」다(10/20 피드백)', () => {
+  const noted = group('noted', '2026-10-01T00:00:00Z');
+  const open = group('open', '2026-10-12T00:00:00Z', {
+    in_progress_practice_id: 'open-1',
+    practices: [round('open-1', '2026-10-12T00:00:00Z', null)],
+  });
+  const entry = coachingEntry([noted, open]);
+  assert.equal(entry.kind, 'resume');
+  assert.equal(entry.group.root_id, 'open');
+  // 처음 사용자(노트 없음)도 하던 대화가 있으면 「코칭이 처음이죠?」 대신 이어서 하기다.
+  assert.equal(coachingEntry([open]).kind, 'resume');
+});
+
+test('코칭 입구: 노트가 있는 묶음의 다음 테이크 대화가 열려 있으면 「지난번 다음에 해볼 것」 그대로다', () => {
+  const g = group('g', '2026-10-12T00:00:00Z', { in_progress_practice_id: 'g-2' });
+  assert.equal(coachingEntry([g]).kind, 'next');
+});
+
+test('하단 탭은 홈·코칭·리딩·챌린지·프로필이고 가운데 촬영 버튼은 없다(SOMA-748)', () => {
   const layout = src('app/(tabs)/_layout.tsx');
   const order = [...layout.matchAll(/<Tabs\.Screen\s+name="([a-z]+)"/g)].map((m) => m[1]);
   const visible = order.filter((name) => !new RegExp(`name="${name}"\\s+options=\\{\\{\\s*href: null`).test(layout));

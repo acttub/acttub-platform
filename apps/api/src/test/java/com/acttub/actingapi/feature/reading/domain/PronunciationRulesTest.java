@@ -54,6 +54,23 @@ class PronunciationRulesTest {
     }
 
     @Test
+    void 줄마다_lpr_마이너스3_이하로_짚힌_어절을_낮은_순으로_두_개까지_칠한다() {
+        ScoredLine line = new ScoredLine("다리 머리 허리 소리", List.of(
+                word(0, "다리", ok("ㄷ", false, 0), bad("ㅏ", "ㅓ", -3.5, true, 0)),
+                word(1, "머리", ok("ㅁ", false, 0), bad("ㅓ", "ㅗ", -8, true, 0)),
+                word(2, "허리", ok("ㅎ", false, 0), bad("ㅓ", "ㅗ", -2.5, true, 0)),
+                word(3, "소리", ok("ㅅ", false, 0), bad("ㅗ", "ㅜ", -4, true, 0))));
+        Report report = PronunciationRules.build(List.of(
+                new LineInput(7, "다리 머리 허리 소리", "다리 머리 허리 소리", line),
+                new LineInput(8, "다리가 아파", null, line)));
+        assertThat(report.lines()).hasSize(1);
+        assertThat(report.lines().get(0).lineNo()).isEqualTo(7);
+        assertThat(report.lines().get(0).text()).isEqualTo("다리 머리 허리 소리");
+        // -2.5(허리)는 문턱 밖, -3.5(다리)는 셋째로 낮아 빠진다. 남은 둘은 줄 안 순서로.
+        assertThat(report.lines().get(0).marks()).extracting(PronunciationRules.Mark::word).containsExactly("머리", "소리");
+    }
+
+    @Test
     void 감탄사_숫자_어절_고요의_구요는_짚지_않는다() {
         Word number = new Word(1, "육십개", true, List.of(bad("ㄱ", "ㄴ", -7, false, 2)));
         ScoredLine line = new ScoredLine("아 육십개 있고요", List.of(

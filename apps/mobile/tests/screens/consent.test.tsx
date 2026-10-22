@@ -157,6 +157,21 @@ test('화살표를 누르면 문서 본문을 펼치고 다시 누르면 접는�
   expect(screen.queryByText('광고성 이메일 본문')).not.toBeOnTheScreen();
 });
 
+test('제목 아래 파란 안내 줄은 처음엔 전체 동의를, 필수를 다 고르면 계속하기를 알려 준다', async () => {
+  await render(<ConsentScreen />);
+
+  expect(screen.getByText('Acttub를 쓰려면 동의가 필요해요')).toBeOnTheScreen();
+  expect(screen.getByText('「전체 동의」 한 번이면 준비 끝이에요!')).toBeOnTheScreen();
+  expect(screen.queryByText('준비 끝! 이제 「동의하고 계속하기」만 누르면 돼요')).not.toBeOnTheScreen();
+
+  await agreeRequired();
+  expect(screen.getByText('준비 끝! 이제 「동의하고 계속하기」만 누르면 돼요')).toBeOnTheScreen();
+  expect(screen.queryByText('「전체 동의」 한 번이면 준비 끝이에요!')).not.toBeOnTheScreen();
+
+  await fireEvent.press(row(/이용약관/));
+  expect(screen.getByText('「전체 동의」 한 번이면 준비 끝이에요!')).toBeOnTheScreen();
+});
+
 async function agreeRequired() {
   await fireEvent.press(row(/만 14세 이상이에요/));
   await fireEvent.press(row(/이용약관/));
@@ -217,7 +232,6 @@ test('진행 중인 가입이 없으면 아무것도 그리지 않는다', async
 test('광고성 문서가 없으면 묶음 줄을 그리지 않는다', async () => {
   auth([terms, privacy]);
   await render(<ConsentScreen />);
-  expect(screen.getByText('acttub를 쓰려면 동의가 필요해요')).toBeOnTheScreen();
-  expect(screen.queryByText(/동의하고 계속하기」를 누르세요/)).not.toBeOnTheScreen();
+  expect(screen.getByText('Acttub를 쓰려면 동의가 필요해요')).toBeOnTheScreen();
   expect(screen.queryByText("[선택] 광고성 정보 (이메일 · 앱 푸시)")).not.toBeOnTheScreen();
 });

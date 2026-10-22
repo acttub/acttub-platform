@@ -2,18 +2,17 @@ import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import { Image } from 'expo-image';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
 import { CoachWaiting } from '@/components/coach-waiting';
 import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CoachNotice } from '@/components/ui/coach-notice';
-import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
@@ -316,6 +315,7 @@ function CoachTalk() {
       message: t('coach.endMsg'),
       cancelLabel: t('coach.endContinue'),
       confirmLabel: t('coach.endConfirm'),
+      compact: true,
     });
     if (ok) await sendText(COACH_END_WORD);
   };
@@ -328,10 +328,8 @@ function CoachTalk() {
   const pressHelp = (button: HelpButton) => {
     const draft = helpButtonDraft(button);
     if (draft) setInput(draft);
-    inputRef.current?.focus();
+    // 키보드를 띄우지 않는다 — 올라오면 보내기 버튼이 움직여 엔터(줄바꿈)를 잘못 누른다(10/20 피드백). 덧붙여 쓰려면 입력칸을 누른다.
   };
-  // 「직접 쓰기」 — 쓰던 글은 두고 입력칸에 커서만 둔다.
-  const focusComposer = () => inputRef.current?.focus();
 
   const latestQuestion = [...messages].reverse().find((m) => m.role === 'coach')?.text ?? null;
   // 스트리밍 중에는 쓰이는 글이 같은 말풍선에 자란다. 첫 글자 전에는 이전 모습(기다림 표시) 그대로다.
@@ -385,7 +383,8 @@ function CoachTalk() {
     <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
       <Stack.Screen
         options={{
-          title: practice.scene.situation.trim() || t('coach.fallbackTitle'),
+          // 제목은 늘 「질문 대화」(pen 09) — 장면 칸은 SOMA-778 에서 없앴다.
+          title: t('coach.fallbackTitle'),
           headerShadowVisible: false,
           // 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(pen 질문 대화 오른쪽 위, SOMA-656·748).
           headerRight: () =>
@@ -426,10 +425,15 @@ function CoachTalk() {
               {wrapping && <Text style={styles.progressText}>{t('coach.wrapNext')}</Text>}
               <View style={styles.flex} />
               {past.length > 0 && (
-                <Pressable onPress={() => setPastOpen((was) => !was)} accessibilityRole="button" hitSlop={8}>
-                  <Text style={styles.pastToggle}>
-                    {t('coach.pastToggle', { count: Math.floor(past.length / 2) })} {pastOpen ? '▴' : '▾'}
-                  </Text>
+                <Pressable
+                  onPress={() => setPastOpen((was) => !was)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: pastOpen }}
+                  hitSlop={8}>
+                  <View style={styles.pastRow}>
+                    <Text style={styles.pastToggle}>{t('coach.pastToggle', { count: Math.floor(past.length / 2) })}</Text>
+                    <Feather name={pastOpen ? 'chevron-up' : 'chevron-down'} size={12} color={palette.textFaint} />
+                  </View>
                 </Pressable>
               )}
             </View>
@@ -466,16 +470,10 @@ function CoachTalk() {
           ) : (
             <View style={styles.questionBlock} ref={questionTarget.ref} onLayout={questionTarget.onLayout}>
               {shownQuestion && (
-                <View style={styles.coachRow}>
-                  <Image source={MASCOT.coach} style={MASCOT_SIZE.xs} contentFit="contain" />
-                  <View style={styles.questionMain}>
-                    <Text style={styles.coachLabel}>{t('coach.coachLabel')}</Text>
-                    <View style={styles.bubble}>
-                      {/* 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). 「0:12」만 누를 수 있게 칠한다. */}
-                      <Text style={styles.question}>{withTimestamps(shownQuestion.trim())}</Text>
-                    </View>
-                  </View>
-                </View>
+                <CoachMessage>
+                  {/* 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). 「0:12」만 누를 수 있게 칠한다. */}
+                  <Text style={styles.question}>{withTimestamps(shownQuestion.trim())}</Text>
+                </CoachMessage>
               )}
             </View>
           )}
@@ -508,21 +506,20 @@ function CoachTalk() {
         {!closed && (
           <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
             <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>
-            {/* 빠른 답 2×2 — 셋은 입력칸만 채우고, 「직접 쓰기」는 커서만 둔다(SOMA-778). */}
+            {/* 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채우고 키보드는 띄우지 않는다. 덧붙이려면 아래 입력칸을 누른다. */}
             <View style={styles.quickRow} testID="coach-quick-grid">
               {(
                 [
                   ['yes', t('coach.quickYes')],
                   ['no', t('coach.quickNo')],
                   ['unsure', t('coach.quickUnsure')],
-                  ['write', t('coach.quickWrite')],
                 ] as const
               ).map(([button, label]) => (
                 <Pressable
                   key={button}
                   style={({ pressed }) => [styles.quick, pressed && styles.quickOn]}
                   disabled={waiting || connecting || !conversation}
-                  onPress={() => (button === 'write' ? focusComposer() : pressHelp(button))}
+                  onPress={() => pressHelp(button)}
                   accessibilityRole="button">
                   <Text style={styles.quickText} numberOfLines={1}>
                     {label}
@@ -553,7 +550,7 @@ function CoachTalk() {
                 {waiting ? (
                   <ActivityIndicator size="small" color={palette.onAccent} />
                 ) : (
-                  <Feather name="arrow-up" size={20} color={palette.onAccent} />
+                  <Feather name="arrow-up" size={21} color={palette.onAccent} />
                 )}
               </Pressable>
             </View>
@@ -570,7 +567,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
 
-  endText: { fontSize: 15, fontWeight: '700', color: palette.textMuted },
+  endText: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.textMuted },
 
   // 대화 위 한 줄 「AI가 본 장면 · …」 — 옅은 파랑 띠, 글 13/700 한 줄.
   sceneBar: { backgroundColor: palette.blueSoft, paddingVertical: 9, paddingHorizontal: 24 },
@@ -578,33 +575,23 @@ const styles = StyleSheet.create({
 
   progressHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   progressText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
-  pastToggle: { fontSize: 12, fontWeight: '800', color: palette.textFaint },
+  // pen 09 「지난 문답 N」 — 오른쪽 끝, 15/700 회색 + 꺾쇠 12.
+  pastRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pastToggle: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.textFaint },
 
-  body: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 20, gap: 14 },
+  // pen 09 본문 안쪽 [14,21,0,21].
+  body: { paddingTop: 14, paddingHorizontal: 21, paddingBottom: 20, gap: 14 },
 
   loading: { alignItems: 'center', gap: 12, paddingTop: 24 },
   loadingText: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint },
   loadingHint: { fontSize: 12.5, lineHeight: 18, color: palette.textFaint, textAlign: 'center', paddingHorizontal: 24 },
 
-  // pen 「코치 줄」 — 마스코트 36×40, 이름 12/800 주황, 말풍선(회색, 왼쪽 위만 뾰족) 16/600.
+  // 코치 질문 — 머리줄(CoachMessage) 말풍선 안 16/500(줄 22).
   questionBlock: { gap: 16 },
-  coachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  questionMain: { flex: 1, gap: 10 },
-  coachLabel: { fontSize: 12, fontWeight: '800', lineHeight: 18, color: palette.flameDeep },
-  bubble: {
-    alignSelf: 'flex-start',
-    backgroundColor: palette.bgSoft,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 18,
-    borderBottomRightRadius: 18,
-    borderBottomLeftRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  question: { fontSize: 16, fontWeight: '600', color: palette.text, lineHeight: 24 },
+  question: { fontSize: 16, fontWeight: '500', color: palette.text, lineHeight: 22 },
   timeLink: { color: palette.blueDeep, fontWeight: '800', textDecorationLine: 'underline' },
 
-  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 44 },
+  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 39 },
   thinkingText: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
 
   pastBubble: { maxWidth: '85%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18 },
@@ -617,32 +604,33 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 13, fontWeight: '700', color: palette.danger },
   doneText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 23 },
 
-  composer: { gap: 10, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 10 },
-  chipGuide: { fontSize: 13, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
-  // pen 「칩」 — 회색 알약(안쪽 10·16), 글 15/700. 누르면 입력칸만 채운다.
-  // 2×2 — 한 줄에 둘씩 같은 너비.
-  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  quick: { flexBasis: '48%', flexGrow: 1, alignItems: 'center', borderRadius: 9999, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },
+  // pen 09 「Composer」 — 안쪽 [0,21,11,21]: 파란 안내 15/700 · 12 · 빠른 답 · 9 · 입력 줄.
+  composer: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11 },
+  chipGuide: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
+  // 빠른 답 — 한 줄에 셋, 같은 너비. 회색 알약 높이 39 · 모서리 20, 글 15/700 #333D4B.
+  quickRow: { flexDirection: 'row', gap: 6 },
+  quick: { flex: 1, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bgSoft, paddingHorizontal: 6, marginTop: 12 },
   quickOn: { backgroundColor: palette.blueSoft },
-  quickText: { fontSize: 15, fontWeight: '700', color: palette.textDim },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  quickText: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.textStrong },
+  // 마이크 39 · 입력칸 44(모서리 22, 안쪽 좌우 14, 17/500) · 보내기 39, 사이 7. 글이 늘면 칸만 커지고 두 버튼은 아래에 붙는다.
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 7, marginTop: 9 },
   // 한 줄로 시작해 글이 늘면 커지고, 다섯 줄쯤부터는 칸 안에서 스크롤한다(SOMA-656). pen 「칸」 회색 알약.
   input: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 44,
     maxHeight: 144,
-    borderRadius: 24,
+    borderRadius: 22,
     backgroundColor: palette.bgSoft,
     // 줄 간격을 따로 주면 안드로이드가 남는 간격을 글자 위에 몰아 한 줄일 때 글자가 아래로 처진다 — 기본 줄 간격에
     // 위아래 여백을 같게 둔다. iOS 여러 줄 입력칸은 위에 자체 여백이 더 붙어 그만큼 위 여백을 줄인다.
-    paddingTop: Platform.OS === 'ios' ? 10 : 13,
-    paddingBottom: 13,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    fontWeight: '600',
+    paddingTop: Platform.OS === 'ios' ? 8 : 11,
+    paddingBottom: 11,
+    paddingHorizontal: 14,
+    fontSize: 17,
+    fontWeight: '500',
     color: palette.text,
     textAlignVertical: 'center',
   },
-  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  send: { width: 39, height: 39, borderRadius: 20, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginBottom: 2.5 },
   sendOff: { backgroundColor: palette.blueLine },
 });

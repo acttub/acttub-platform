@@ -261,7 +261,7 @@ public class ScriptSplitWorker {
         if (!named) {
             SplitResponse.monologue(rows);
         }
-        SplitDraft.Assembly first = SplitDraft.assembleWithSpeakers(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
+        SplitDraft.Assembly first = SplitDraft.assembleWithSpeakers(material.title(), material.rawText(), material.source(), lines, rows, roster, traits, material.fileName());
         ScriptDraft draft = first.draft();
         Map<Integer, String> speakers = first.speakers();
         Map<Integer, String> heads = first.heads();
@@ -280,7 +280,7 @@ public class ScriptSplitWorker {
             }
             if (!changed.isEmpty()) {
                 rows.putAll(changed);
-                SplitDraft.Assembly again = SplitDraft.assembleWithSpeakers(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
+                SplitDraft.Assembly again = SplitDraft.assembleWithSpeakers(material.title(), material.rawText(), material.source(), lines, rows, roster, traits, material.fileName());
                 draft = again.draft();
                 speakers = again.speakers();
                 heads = again.heads();
@@ -289,7 +289,7 @@ public class ScriptSplitWorker {
         Map<Integer, SplitResponse.Row> grouped = SplitDraft.groupHeads(lines, rows, heads);
         if (!grouped.isEmpty()) {
             rows.putAll(grouped);
-            SplitDraft.Assembly again = SplitDraft.assembleWithSpeakers(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
+            SplitDraft.Assembly again = SplitDraft.assembleWithSpeakers(material.title(), material.rawText(), material.source(), lines, rows, roster, traits, material.fileName());
             draft = again.draft();
             speakers = again.speakers();
             heads = again.heads();

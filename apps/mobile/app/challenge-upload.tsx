@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -11,7 +12,8 @@ import { Image } from 'expo-image';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { MASCOT as MASCOTS, MASCOT_SIZE } from '@/components/ui/mascot';
+import { BlueSwitch } from '@/components/ui/list-rows';
+import { MASCOT as MASCOTS } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -54,10 +56,9 @@ import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
  * 공개를 고르면 다른 참여자의 AI 리포트 비교에 쓰일 수 있다는 것을 한 줄 알린다. 같은 시도의
  * 재전송은 같은 요청 id 라 참여작은 하나다. 완료 문구는 공개와 비공개가 다르다.
  *
- * SOMA-748(h9wxCz·bu9BAX·oiXiqF): 큰 썸네일 줄, 「나만 보기」·「공개」 선택지(체크 동그라미), 완료는 마스코트 줄 + 파란 안내.
+ * SOMA-748(h9wxCz·bu9BAX·oiXiqF): 큰 썸네일 줄, 「나만 보기」·「공개」 선택지(체크 동그라미), 완료는 pen 10-11 「비공개로 저장했어요」 모양(가운데 액티+체크, 안내 알약).
  * 디자인은 「나만 보기」를 기본으로 골라 두지만 정본(challenge/entry)이 "미리 선택 없음"이라 고르기 전까지 비워 둔다.
  */
-const MASCOT = MASCOTS.home;
 export default function ChallengeUploadScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -75,10 +76,12 @@ export default function ChallengeUploadScreen() {
   const [caption, setCaption] = useState('');
   // pen 챌린지 올리기(SOMA-748) — 「나만 보기」가 먼저 골라져 있다. 공개는 배우가 직접 바꾼다.
   const [visibility, setVisibility] = useState<EntryVisibility | null>('private');
+  /** 얼굴 모자이크(SOMA-809) — 공개를 고르면 보이는 켜기 버튼. 기본 꺼짐이고 공개일 때만 요청에 실린다. */
+  const [faceMosaic, setFaceMosaic] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** 방금 만든 참여작 — 있으면 완료 화면이고, 「AI 리포트 보기」가 id 를 쓴다. */
-  const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility } | null>(null);
+  const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean } | null>(null);
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -203,13 +206,13 @@ export default function ChallengeUploadScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const body = buildEntryBody({ requestId: 'pending', videoId, caption, visibility });
+      const body = buildEntryBody({ requestId: 'pending', videoId, caption, visibility, faceMosaic });
       const attempt = entryAttemptFor(attemptRef.current, entryFingerprint(body), () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
       attemptRef.current = attempt;
       const entry = await api.createEntry(challengeId, { ...body, request_id: attempt.requestId });
       logEvent('challenge_entry_created', { visibility });
       void markFirstChallengeFinished();
-      setCreated({ id: entry.id, visibility });
+      setCreated({ id: entry.id, visibility, faceMosaic: body.face_mosaic === true });
     } catch (e) {
       const failure = entryFailure(e);
       void logEvent(CHALLENGE_FUNNEL_EVENTS.submitFailed, submitFailedParams(failure));
@@ -219,7 +222,7 @@ export default function ChallengeUploadScreen() {
       lockRef.current = false;
       setSubmitting(false);
     }
-  }, [caption, challengeId, pendingId, submitting, user?.id, videoId, visibility]);
+  }, [caption, challengeId, faceMosaic, pendingId, submitting, user?.id, videoId, visibility]);
 
   if (created) {
     const copy = doneCopy(created.visibility);
@@ -237,20 +240,29 @@ export default function ChallengeUploadScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
+        {/* pen 10-11 「비공개로 저장했어요」 — 가운데 손 흔드는 액티 + 파란 체크, 제목 · 안내 · AI 리포트 안내 알약, 아래 버튼 둘. */}
         <View style={styles.doneWrap}>
-          <View style={styles.doneIcon}>
-            <Feather name="check" size={30} color={palette.blue} />
+          <View style={styles.doneHero}>
+            <Image source={MASCOTS.cheer} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <View style={styles.doneBadgeRing}>
+              <View style={styles.doneBadge}>
+                <Feather name="check" size={16} color={palette.onAccent} />
+              </View>
+            </View>
           </View>
-          <View style={styles.doneTitleRow}>
-            <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
-            <Text style={styles.doneTitle}>{copy.title}</Text>
-          </View>
-          <Text style={styles.doneSub}>
-            {copy.body} {t('challengeUpload.doneGuide')}
+          <Text style={[styles.doneTitle, styles.doneGap18]}>{copy.title}</Text>
+          <Text style={[styles.doneSub, styles.doneGap8]}>
+            {created.faceMosaic ? t('challengeUpload.doneSubMosaic') : copy.body}
           </Text>
-          <PrimaryButton style={styles.doneBtn} label={t('challengeUpload.getReport')} onPress={getReport} />
+          <View style={styles.reportHint}>
+            <Ionicons name="sparkles" size={14} color={palette.blueDeep} />
+            <Text style={styles.reportHintText}>{t('challengeUpload.doneGuide')}</Text>
+          </View>
+        </View>
+        <View style={styles.doneFooter}>
+          <PrimaryButton label={t('challengeUpload.getReport')} onPress={getReport} />
           <SecondaryButton
-            style={[styles.doneBtn, styles.ghost]}
+            style={styles.ghost}
             label={t('challengeUpload.goHome')}
             onPress={() =>
               challengeId
@@ -317,6 +329,21 @@ export default function ChallengeUploadScreen() {
           <View style={styles.note}>
             <Feather name="zap" size={13} color={palette.blueDeep} />
             <Text style={styles.noteText}>{t('challengeUpload.note')}</Text>
+          </View>
+        )}
+
+        {/* 공개를 고르면 얼굴 모자이크를 켤 수 있다(SOMA-809). 켜면 다른 사람에게는 얼굴을 가린 사본만 간다. */}
+        {visibility === 'public' && (
+          <View style={styles.mosaicRow}>
+            <View style={styles.flex}>
+              <Text style={styles.mosaicTitle}>{t('challengeUpload.mosaicTitle')}</Text>
+              <Text style={styles.optionSub}>{t('challengeUpload.mosaicSub')}</Text>
+            </View>
+            <BlueSwitch
+              value={faceMosaic}
+              onValueChange={setFaceMosaic}
+              accessibilityLabel={t('challengeUpload.mosaicTitle')}
+            />
           </View>
         )}
 
@@ -420,18 +447,19 @@ const styles = StyleSheet.create({
   optionTitleOn: { color: palette.blueDeep },
   optionSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
   ghost: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
-  doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 12 },
-  doneIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: palette.blueSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  doneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch' },
-  mascot: MASCOT_SIZE.sm,
-  doneTitle: { flex: 1, fontSize: 22, fontWeight: '900', color: palette.text, lineHeight: 31 },
-  doneSub: { alignSelf: 'stretch', fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 22 },
-  doneBtn: { alignSelf: 'stretch', marginTop: 8 },
+  mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, paddingHorizontal: 4 },
+  mosaicTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 22 },
+  // 본문 가운데 — 안쪽 [0,25,40,25]. 액티 84×88(체크 28 · 흰 테두리 3, 왼쪽 54 · 위 57) · 18 · 제목 · 8 · 안내 · 14 · 알약.
+  doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25, paddingBottom: 40 },
+  doneHero: { width: 84, height: 88 },
+  doneMascot: { width: 84, height: 88 },
+  doneBadgeRing: { position: 'absolute', left: 51, top: 54, padding: 3, borderRadius: 17, backgroundColor: palette.bg },
+  doneBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  doneTitle: { fontSize: 22, fontWeight: '800', lineHeight: 28, color: palette.text, textAlign: 'center' },
+  doneSub: { fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette.textMuted, textAlign: 'center' },
+  doneGap18: { marginTop: 18 },
+  doneGap8: { marginTop: 8 },
+  reportHint: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 12, marginTop: 14, backgroundColor: palette.blueSoft, borderRadius: 10 },
+  reportHintText: { fontSize: 13, fontWeight: '600', color: palette.blueDeep },
+  doneFooter: { gap: 10, paddingHorizontal: 20, paddingBottom: 11 },
 });

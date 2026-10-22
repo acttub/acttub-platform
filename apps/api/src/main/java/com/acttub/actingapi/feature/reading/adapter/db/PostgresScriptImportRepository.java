@@ -206,16 +206,17 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     @Override
     public Material material(UUID jobId, UUID importId) {
         var rows = list(em.createNativeQuery("""
-                SELECT i.user_id,i.request_id,i.request_fingerprint,i.title,i.raw_text,i.source,i.skip_script_check,
+                SELECT i.user_id,i.request_id,i.request_fingerprint,i.title,i.raw_text,i.source,i.skip_script_check,su.file_name,
                        NOT EXISTS (SELECT 1 FROM user_identities WHERE user_id=i.user_id AND provider<>'guest') AS guest
                 FROM script_imports i JOIN users u ON u.id=i.user_id
+                LEFT JOIN script_uploads su ON su.id=i.upload_id AND su.user_id=i.user_id
                 WHERE i.id=:id AND i.job_id=:job AND i.script_id IS NULL AND i.failure IS NULL AND u.status='active'
                 """, Tuple.class).setParameter("id", importId).setParameter("job", jobId));
         if (rows.isEmpty()) return null;
         Tuple row = rows.getFirst();
         return new Material(row.get("user_id", UUID.class), row.get("guest", Boolean.class), row.get("request_id", UUID.class),
                 row.get("request_fingerprint", String.class).strip(), row.get("title", String.class),
-                row.get("raw_text", String.class), row.get("source", String.class), row.get("skip_script_check", Boolean.class));
+                row.get("raw_text", String.class), row.get("source", String.class), row.get("skip_script_check", Boolean.class), row.get("file_name", String.class));
     }
 
     @Override

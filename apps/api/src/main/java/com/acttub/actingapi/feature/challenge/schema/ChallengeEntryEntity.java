@@ -46,6 +46,14 @@ public class ChallengeEntryEntity extends AppGeneratedUuidEntity {
     private Instant updatedAt;
     @Column(name="deleted_at", nullable=true)
     private Instant deletedAt;
+    @Column(name="face_mosaic", nullable=false)
+    private boolean faceMosaic;
+    @Column(name="mosaic_status", nullable=true, columnDefinition="text")
+    private String mosaicStatus;
+    @Column(name="mosaic_key", nullable=true)
+    private String mosaicKey;
+    @Column(name="mosaic_attempts", nullable=false)
+    private int mosaicAttempts;
     protected ChallengeEntryEntity() { }
     public UUID getChallengeId() { return challengeId; }
     public UUID getUserId() { return userId; }
@@ -64,4 +72,8 @@ public class ChallengeEntryEntity extends AppGeneratedUuidEntity {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant getDeletedAt() { return deletedAt; }
+    public boolean isFaceMosaic() { return faceMosaic; }
+    public String getMosaicStatus() { return mosaicStatus; }
+    public String getMosaicKey() { return mosaicKey; }
+    public int getMosaicAttempts() { return mosaicAttempts; }
 }

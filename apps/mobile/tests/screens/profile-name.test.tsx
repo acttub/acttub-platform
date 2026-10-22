@@ -131,16 +131,22 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20040314');
 
-    // 성별·목표·경력 — 누르면 바로 다음
+    // 성별·목표·경력 — 말풍선 아래 회색 「○○ 선택」 제목, 누르면 바로 다음
     expect(screen.getByText('민지님, 성별을 알려 주실래요?')).toBeOnTheScreen();
+    expect(screen.getByText('성별 선택')).toBeOnTheScreen();
     await fireEvent.press(radio('여성'));
     expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
+    expect(screen.getByText('연기 목표 선택')).toBeOnTheScreen();
     await fireEvent.press(radio('전문 배우'));
     expect(screen.getByText('민지님, 연기한 지 얼마나 됐어요?')).toBeOnTheScreen();
+    expect(screen.getByText('연기 경력 선택')).toBeOnTheScreen();
     await fireEvent.press(radio('입시생'));
 
     // 추구하는 방향 — 여러 개라 「다음」으로 마친다
     expect(screen.getByText('민지님, 어떤 연기를 하고 싶어요?')).toBeOnTheScreen();
+    expect(screen.getByText('추구하는 방향 선택 · 여러 개 가능')).toBeOnTheScreen();
+    // 처음 답하는 중에는 고치기 안내가 없다
+    expect(screen.queryByText('지난 답변을 누르면 바로 고칠 수 있어요')).not.toBeOnTheScreen();
     expect(next()).toBeDisabled();
     await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
     expect(next()).toBeEnabled();
@@ -160,10 +166,31 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
 
     await fireEvent.press(button('성별 여성'));
     expect(screen.getByText('민지님, 성별을 알려 주실래요?')).toBeOnTheScreen();
+    // 고치는 중 — 요약 행 자리가 파란 테두리 칸이 되고 위에 안내가 붙는다(pen 7/7 · 지난 답변 수정)
+    expect(screen.getByText('지난 답변을 누르면 바로 고칠 수 있어요')).toBeOnTheScreen();
+    expect(screen.queryByText('성별 선택')).not.toBeOnTheScreen();
+    expect(radio('여성')).toBeSelected();
     await fireEvent.press(radio('남성'));
 
     expect(button('성별 남성')).toBeOnTheScreen();
     expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
+    expect(screen.queryByText('지난 답변을 누르면 바로 고칠 수 있어요')).not.toBeOnTheScreen();
+  });
+
+  test('추구하는 방향을 고치러 가면 「여러 개 고를 수 있어요」를 보이고 「다음」으로 하던 질문에 돌아온다', async () => {
+    await start();
+    await answerToDirections();
+    await fireEvent.press(next());
+    expect(await screen.findByText('알게 된 곳 선택')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: /^추구하는 방향 / }));
+    expect(screen.getByText('여러 개 고를 수 있어요')).toBeOnTheScreen();
+    expect(screen.getByText('지난 답변을 누르면 바로 고칠 수 있어요')).toBeOnTheScreen();
+    await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
+    await fireEvent.press(next());
+
+    expect(screen.getByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(button('추구하는 방향 매체 (TV·영화)')).toBeOnTheScreen();
   });
 
   test('뒤로는 앞 질문으로 가고 답한 값은 남긴다', async () => {

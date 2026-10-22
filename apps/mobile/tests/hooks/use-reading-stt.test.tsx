@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { setAudioModeAsync } from 'expo-audio';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+import { Platform } from 'react-native';
 
 import { detectSttPolicy, SPEECH_END_GRACE_MS, sttCanPersist, sttVolumeToRms, useReadingStt } from '@/hooks/use-reading-stt';
 import type { VadEvent } from '@/lib/reading/vad';
@@ -42,6 +43,7 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 async function listen(options?: { persist?: boolean }) {
@@ -326,6 +328,40 @@ describe('useReadingStt', () => {
     await emit('speechend');
     await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS));
     expect(events).toEqual(['speech_end']);
+  });
+
+  describe('SOMA-801: 아이폰 인식기는 말 끝(speechend)을 주지 않는다', () => {
+    test('아이폰은 받아쓴 글이 있는 결과가 1.3초 끊기면 말 끝으로 넘기고, 그사이 결과가 또 오면 다시 잰다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'ios');
+      const { events } = await listen();
+
+      await emit('result', result('여기'));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 200));
+      await emit('result', result('여기 있을 줄'));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS - 200));
+      expect(events).toEqual([]);
+
+      await act(async () => jest.advanceTimersByTime(200));
+      expect(events).toEqual(['speech_end']);
+    });
+
+    test('아이폰도 빈 결과로는 넘기지 않는다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'ios');
+      const { events } = await listen();
+
+      await emit('result', result(''));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS * 2));
+      expect(events).toEqual([]);
+    });
+
+    test('안드로이드는 결과만으로 넘기지 않고 인식기의 말 끝을 기다린다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      const { events } = await listen();
+
+      await emit('result', result('여기 있을 줄 알았어'));
+      await act(async () => jest.advanceTimersByTime(SPEECH_END_GRACE_MS * 2));
+      expect(events).toEqual([]);
+    });
   });
 
   test('받아쓴 글이 없는 말 끝은 잡음으로 보고 넘기지 않는다', async () => {
