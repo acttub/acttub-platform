@@ -1,0 +1,53 @@
+{
+  "schema_version": "acttub.actor_journal_draft.v4",
+  "practice": [
+    {
+      "text": "「가지 마」 대사를 소리 지르지 않고 상대 눈을 보며 낮게 말해 봤어요",
+      "basis": "actor_report",
+      "source_refs": [
+        "m1"
+      ]
+    }
+  ],
+  "character": [
+    {
+      "aspect": "wants",
+      "text": "상대가 떠나지 않고 이야기를 끝까지 들어주기",
+      "source_refs": [
+        "m0"
+      ]
+    },
+    {
+      "aspect": "partner",
+      "text": "연인",
+      "source_refs": [
+        "sc1"
+      ]
+    },
+    {
+      "aspect": "situation",
+      "text": "짐을 싸서 나가려는 연인이 문 앞에 서 있음",
+      "source_refs": [
+        "sc1"
+      ]
+    }
+  ],
+  "feedback": [
+    {
+      "text": "「가지 마」 직전에 상대를 2초 정도 바라보는 모습이에요",
+      "giver": "coach",
+      "moment_ref": "e1",
+      "source_refs": [
+        "c1"
+      ]
+    },
+    {
+      "text": "앞 대사부터 상대를 붙잡는 마음으로 말해 봐도 좋아요",
+      "giver": "coach",
+      "moment_ref": null,
+      "source_refs": [
+        "c2"
+      ]
+    }
+  ]
+}

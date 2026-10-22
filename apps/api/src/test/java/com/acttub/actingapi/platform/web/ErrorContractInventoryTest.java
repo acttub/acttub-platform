@@ -488,6 +488,11 @@ class ErrorContractInventoryTest {
             // 바깥 호출이 도는 사이에 탈퇴가 끝났다 — 저장 직전의 계정 상태 확인이 낸다(practice.coach).
             covered("feature.coach.app.ConversationService|403|account_deactivated", 1,
                     "feature.coach.CoachConversationIT"),
+            // 배우 일지(practice.journal, SOMA-720). 없는 회차·남의 회차는 한 404 이고, 일지가 없거나 남의 것이면 journal_not_found 다.
+            covered("feature.coach.app.JournalService|404|practice_not_found", 1,
+                    "feature.coach.app.JournalServiceTest"),
+            covered("feature.coach.app.JournalService|404|journal_not_found", 2,
+                    "feature.coach.app.JournalServiceTest"),
             // 노트 평가(practice.note). 게이트·소유권은 노트 조회와 같아 없는 것·남의 것·노트 없음이 한 404 다.
             covered("feature.coach.app.NoteRatingService|404|note_not_found", 1,
                     "feature.coach.NoteRatingIT"),
