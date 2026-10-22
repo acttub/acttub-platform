@@ -2,17 +2,18 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, BackHandler, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
-import { SelectRow } from '@/components/ui/option-card';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { ProgressHeader } from '@/components/ui/step-header';
+import { SummaryEditCard, SummaryRow } from '@/components/ui/summary-row';
 import { motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
@@ -71,6 +72,10 @@ const GENDER_ORDER: readonly Gender[] = ['male', 'female', 'unspecified'];
  * 답한 칸은 아래에 최근 것부터 쌓이고 누르면 그 질문으로 돌아가 고친다. 생년월일은 8자리가 차면, 하나 고르는 질문은
  * 누르면 넘어간다. 언제 다 적었는지 알 수 없는 닉네임과 여러 개 고르는 추구하는 방향만 버튼으로 마친다. 어디서 알게 됐나(SOMA-649)는 Airbridge 가
  * 출처를 모를 때만 맨 끝에 묻는다(SOMA-733). 만 14세 미만 생년월일은 「가입할 수 없어요」로 보낸다.
+ *
+ * 모양은 pen 01 가입(파이프라인 반영버전): 고르는 질문은 말풍선 아래 회색 「○○ 선택」 제목(13/600)과 답 칩(높이 42),
+ * 답한 칸은 요약 행. 지난 답변을 눌러 돌아간 질문은 그 요약 행 자리의 파란 테두리 칸(SummaryEditCard)에서 고르고, 위에
+ * 「지난 답변을 누르면 바로 고칠 수 있어요」를 둔다(추구하는 방향은 「여러 개 고를 수 있어요」를 덧붙인다).
  * pen 의 「요즘 연습 방식」「이루고 싶은 것」·출생연도만 받기·연기 목표/경력 값 바꾸기는 서버 변경이 필요해 넣지 않았다.
  */
 export default function ProfileNameScreen() {
@@ -220,15 +225,15 @@ export default function ProfileNameScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.introCenter}>
-          <Image source={MASCOT.home} style={MASCOT_SIZE.hero} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT.home} style={MASCOT_SIZE.intro} contentFit="contain" accessibilityIgnoresInvertColors />
           <Text style={styles.introTitle}>{t('profileName.introTitle')}</Text>
           <Text style={styles.introBody}>{t('profileName.introBody', { count: steps.length })}</Text>
           <View style={styles.introBadge}>
-            <Feather name="clock" size={16} color={palette.blue} />
+            <Feather name="clock" size={17} color={palette.blueDeep} />
             <Text style={styles.introBadgeText}>{t('profileName.introBadge')}</Text>
           </View>
         </View>
-        <CtaBar safeBottom={false}>
+        <CtaBar safeBottom={false} style={styles.footer}>
           <PrimaryButton label={t('profileName.introCta')} onPress={() => setScreen(steps[0])} />
         </CtaBar>
       </SafeAreaView>
@@ -273,6 +278,20 @@ export default function ProfileNameScreen() {
     />
   );
 
+  // 지난 답변을 눌러 돌아온 질문 — 답한 칸 자리의 파란 테두리 칸에서 고친다(pen 7/7 · 지난 답변 수정).
+  const editing = done.has(step);
+  const isChoice = step !== 'name' && step !== 'birth';
+  /** 고르는 질문의 몸 — 처음엔 회색 「○○ 선택」 제목 아래 칩, 고치는 중이면 칩만(제목은 수정 칸 머리가 맡는다). */
+  const choiceBlock = (chips: ReactNode) =>
+    editing ? (
+      chips
+    ) : (
+      <>
+        <Text style={styles.pickLabel}>{t(PICK_LABEL_KEYS[step])}</Text>
+        <View style={styles.pickOptions}>{chips}</View>
+      </>
+    );
+
   switch (step) {
     case 'name':
       body = (
@@ -280,7 +299,7 @@ export default function ProfileNameScreen() {
           <TextInput
             style={styles.input}
             placeholder={t('profileName.placeholder')}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.checkOff}
             value={form.name}
             onChangeText={(value) => update({ name: value })}
             autoFocus
@@ -299,7 +318,7 @@ export default function ProfileNameScreen() {
           <TextInput
             style={styles.input}
             placeholder={t('profileName.birthPlaceholder')}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.checkOff}
             value={form.birthDate}
             onChangeText={changeBirth}
             keyboardType="number-pad"
@@ -315,56 +334,69 @@ export default function ProfileNameScreen() {
       break;
     case 'gender':
       // 「선택 안 함」이 있어 건너뛰기는 두지 않는다 — 서버 값 그대로(unspecified).
-      body = (
-        <View style={styles.options}>
+      body = choiceBlock(
+        <View style={styles.chipRow}>
           {GENDER_ORDER.map((gender) => (
-            <SelectRow
+            <Chip
               key={gender}
+              variant="answer"
+              role="radio"
               label={t(GENDER_LABEL_KEYS[gender])}
               selected={form.gender === gender}
-              trailing="check"
               onPress={() => advance('gender', { gender })}
             />
           ))}
-        </View>
+        </View>,
       );
       break;
     case 'goal':
-      body = (
-        <View style={styles.options}>
+      body = choiceBlock(
+        <View style={styles.chipRow}>
           {GOAL_VALUES.map((goal, i) => (
-            <SelectRow
+            <Chip
               key={goal}
+              variant="answer"
+              role="radio"
               label={goals[i] ?? goal}
               selected={form.goal === goal}
               onPress={() => advance('goal', { goal })}
             />
           ))}
-        </View>
+        </View>,
       );
       break;
     case 'career':
-      body = (
-        <View style={styles.options}>
-          {EXPERIENCE_VALUES.map((experience, i) => (
-            <SelectRow
-              key={experience}
-              label={careers[i] ?? experience}
-              selected={form.experience === experience}
-              onPress={() => advance('career', { experience })}
-            />
+      // 세 개씩 두 줄, 칸은 줄 폭을 나눠 갖는다(pen 5/7).
+      body = choiceBlock(
+        <View style={styles.chipRows}>
+          {[EXPERIENCE_VALUES.slice(0, 3), EXPERIENCE_VALUES.slice(3)].map((line, row) => (
+            <View key={row} style={styles.chipRow}>
+              {line.map((experience) => (
+                <Chip
+                  key={experience}
+                  variant="answer"
+                  role="radio"
+                  style={styles.chipFill}
+                  label={careers[EXPERIENCE_VALUES.indexOf(experience)] ?? experience}
+                  selected={form.experience === experience}
+                  onPress={() => advance('career', { experience })}
+                />
+              ))}
+            </View>
           ))}
-        </View>
+        </View>,
       );
       break;
     case 'directions':
-      body = (
-        <View style={styles.options}>
+      body = choiceBlock(
+        <View style={styles.chipRow}>
           {DIRECTION_VALUES.map((direction) => (
-            <SelectRow
+            <Chip
               key={direction}
+              variant="answer"
+              role="checkbox"
+              style={styles.chipFill}
               label={t(DIRECTION_LABEL_KEYS[direction])}
-              multi
               selected={form.directions.includes(direction)}
               onPress={() =>
                 update({
@@ -375,44 +407,50 @@ export default function ProfileNameScreen() {
               }
             />
           ))}
-        </View>
+        </View>,
       );
       footer = finishButton(() => advance('directions'), ready);
       break;
     case 'discovery':
       // 하나 누르면 바로 저장한다. 「기타」만 직접 적고 「완료」를 누른다. 건너뛰면 고르지 않은 것으로 적는다.
-      body = (
-        <View style={styles.options}>
-          {discoverySources.map((source) => (
-            <SelectRow
-              key={source}
-              label={t(`profileName.discoverySources.${source}`)}
-              selected={discovery.source === source}
-              onPress={() => {
-                const answer = chooseDiscoverySource(discovery, source);
-                setDiscovery(answer);
-                if (source !== 'other' && answer.source === source) advance('discovery', undefined, answer);
-              }}
-            />
-          ))}
+      body = choiceBlock(
+        <>
+          <View style={[styles.chipRow, styles.chipWrap]}>
+            {discoverySources.map((source) => (
+              <Chip
+                key={source}
+                variant="answer"
+                compact
+                role="radio"
+                label={t(`profileName.discoverySources.${source}`)}
+                selected={discovery.source === source}
+                onPress={() => {
+                  const answer = chooseDiscoverySource(discovery, source);
+                  setDiscovery(answer);
+                  if (source !== 'other' && answer.source === source) advance('discovery', undefined, answer);
+                }}
+              />
+            ))}
+          </View>
           {discovery.source === 'other' && (
             <TextInput
-              style={styles.input}
+              style={[styles.input, styles.otherInput]}
               placeholder={t('profileName.discoveryOtherPlaceholder')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.checkOff}
               value={discovery.otherText}
               onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
               maxLength={DISCOVERY_OTHER_MAX_LENGTH * 2}
               autoFocus
             />
           )}
-        </View>
+        </>,
       );
       footer = (
         <>
           {discovery.source === 'other' &&
             finishButton(() => advance('discovery'), discovery.otherText.trim().length > 0)}
           <TextButton
+            size="large"
             label={t('profileName.skip')}
             onPress={() => {
               setDiscovery(EMPTY_DISCOVERY);
@@ -459,35 +497,48 @@ export default function ProfileNameScreen() {
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <MascotBubble title={t(ASK_KEYS[step], { name })} guide={t(ASK_HINT_KEYS[step])} />
-          <Animated.View
-            key={step}
-            entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}
-            style={styles.current}>
-            {body}
-          </Animated.View>
+          {editing && isChoice ? null : (
+            <Animated.View
+              key={step}
+              entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}
+              style={isChoice ? styles.currentChoice : styles.currentInput}>
+              {body}
+            </Animated.View>
+          )}
           {error && <Text style={styles.error}>{error}</Text>}
-          {answeredRows.length > 0 && (
-            <View style={styles.answered}>
-              {answeredRows.map((row) => (
-                <Pressable
-                  key={row.step}
-                  style={styles.answeredRow}
-                  onPress={() => {
-                    setError(null);
-                    setScreen(row.step);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${row.label} ${row.value}`}>
-                  <Text style={styles.answeredLabel}>{row.label}</Text>
-                  <Text style={styles.answeredValue} numberOfLines={1}>
-                    {row.value}
-                  </Text>
-                </Pressable>
-              ))}
+          {(answeredRows.length > 0 || (editing && isChoice)) && (
+            <View style={isChoice ? styles.answeredAfterChoice : styles.answeredAfterInput}>
+              {editing && <Text style={styles.editHint}>{t('profileName.editHint')}</Text>}
+              <View style={styles.answeredList}>
+                {editing && isChoice && (
+                  <Animated.View key={step} entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}>
+                    <SummaryEditCard
+                      label={t(SUMMARY_LABEL_KEYS[step])}
+                      hint={step === 'directions' ? t('profileName.editManyHint') : undefined}>
+                      {body}
+                    </SummaryEditCard>
+                  </Animated.View>
+                )}
+                {answeredRows.map((row) => (
+                  <SummaryRow
+                    key={row.step}
+                    label={row.label}
+                    value={row.value}
+                    onPress={() => {
+                      setError(null);
+                      setScreen(row.step);
+                    }}
+                  />
+                ))}
+              </View>
             </View>
           )}
         </ScrollView>
-        {footer && <CtaBar safeBottom={false}>{footer}</CtaBar>}
+        {footer && (
+          <CtaBar safeBottom={false} style={styles.footer}>
+            {footer}
+          </CtaBar>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -512,6 +563,16 @@ const ASK_HINT_KEYS: Record<OnboardingStep, string> = {
   directions: 'profileName.askDirectionsHint',
   discovery: 'profileName.askDiscoveryHint',
 };
+/** 고르는 질문의 회색 제목(pen 01 「○○ 라벨」). */
+const PICK_LABEL_KEYS: Record<OnboardingStep, string> = {
+  name: 'profileName.nicknameLabel',
+  birth: 'profileName.birthLabel',
+  gender: 'profileName.pickGender',
+  goal: 'profileName.pickGoal',
+  career: 'profileName.pickCareer',
+  directions: 'profileName.pickDirections',
+  discovery: 'profileName.pickDiscovery',
+};
 /** 답한 칸의 이름. */
 const SUMMARY_LABEL_KEYS: Record<OnboardingStep, string> = {
   name: 'profileName.nicknameLabel',
@@ -528,45 +589,56 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
 
-  introCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 24 },
-  introTitle: { fontSize: 28, fontWeight: '900', lineHeight: 38, color: palette.text, textAlign: 'center' },
-  introBody: { fontSize: 17, fontWeight: '500', lineHeight: 26, color: palette.textDim, textAlign: 'center' },
+  // pen 01 가입 시작 — 위에서 168(상태 막대 35 포함) 아래에 액티 127×142, 16 · 제목 26/800 · 8 · 설명 16/400 · 13 · 「1분이면 끝나요」.
+  introCenter: { flex: 1, alignItems: 'center', paddingTop: 133, paddingHorizontal: 24 },
+  introTitle: { marginTop: 16, fontSize: 26, fontWeight: '800', lineHeight: 36, color: palette.text, textAlign: 'center' },
+  introBody: {
+    marginTop: 8,
+    maxWidth: 290,
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 24,
+    color: palette.textDim,
+    textAlign: 'center',
+  },
   introBadge: {
+    marginTop: 13,
+    height: 34,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: palette.blueSoft,
-    borderRadius: 9999,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  introBadgeText: { fontSize: 14, fontWeight: '700', color: palette.blueDeep },
-
-  body: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 4 },
-  current: { marginTop: 22 },
-  options: { gap: 10 },
-  answered: { marginTop: 28, gap: 10 },
-  answeredRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.borderSoft,
-    paddingVertical: 14,
+    borderRadius: 17,
     paddingHorizontal: 16,
   },
-  answeredLabel: { fontSize: 13, fontWeight: '700', color: palette.textMuted },
-  answeredValue: { flexShrink: 1, fontSize: 15, fontWeight: '700', color: palette.text },
+  introBadgeText: { fontSize: 16, fontWeight: '700', color: palette.blueDeep },
+  // pen 01 「Footer」 — 안쪽 [0,20,11,20].
+  footer: { paddingTop: 8, paddingHorizontal: 20, paddingBottom: 11 },
+
+  // pen 01 질문 「Body」 — 안쪽 [10,20,0,20]. 말풍선 아래 칸까지 23(입력)·18(고르기), 답한 칸까지 28(입력)·24(고르기).
+  body: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 24 },
+  currentInput: { marginTop: 23 },
+  currentChoice: { marginTop: 18 },
+  pickLabel: { fontSize: 13, fontWeight: '600', color: palette.textMuted },
+  pickOptions: { paddingTop: 8 },
+  chipRows: { gap: 8 },
+  chipRow: { flexDirection: 'row', gap: 8 },
+  chipWrap: { flexWrap: 'wrap' },
+  chipFill: { flex: 1, paddingHorizontal: 8 },
+  answeredAfterInput: { marginTop: 28 },
+  answeredAfterChoice: { marginTop: 24 },
+  answeredList: { gap: 9 },
+  editHint: { paddingBottom: 8, fontSize: 13, fontWeight: '600', color: palette.textFaint },
   input: {
+    height: 51,
     backgroundColor: palette.bgSoft,
-    borderRadius: 14,
-    padding: 16,
-    fontSize: 17,
-    fontWeight: '600',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    fontWeight: '700',
     color: palette.text,
   },
+  otherInput: { marginTop: 8 },
   fieldError: { marginTop: 8, fontSize: 13, color: palette.danger },
   error: { marginTop: 12, color: palette.danger, fontSize: 13 },
   loadError: { color: palette.danger, fontSize: 13, textAlign: 'center' },
