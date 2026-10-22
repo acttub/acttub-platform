@@ -288,7 +288,7 @@ describe('기본 촬영 화면', () => {
     await recordAndStop();
 
     expect(await screen.findByText('영상 업로드에 실패했어요. 네트워크를 확인해주세요.')).toBeOnTheScreen();
-    expect(screen.getByText('보관함')).toBeOnTheScreen();
+    expect(screen.getByText('영상 저장')).toBeOnTheScreen();
     expect(mockRouter.replace).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByText('확인'));
 

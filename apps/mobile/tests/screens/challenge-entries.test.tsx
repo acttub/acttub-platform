@@ -238,7 +238,7 @@ describe('공개 범위 바꾸기', () => {
     await render(<ChallengeEntriesScreen />);
     await openMenuFor('“사느냐 죽느냐”');
     await fireEvent.press(screen.getByText('비공개로 바꾸기'));
-    expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 보관함에 남아 있어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 그대로 있어요.')).toBeOnTheScreen();
   });
 
   test.each([
@@ -247,7 +247,7 @@ describe('공개 범위 바꾸기', () => {
     [
       '끝난 챌린지의 참여작',
       { challenge: { id: 'c2', line: '내일은 내일의 해가', work: '바람과 함께', character: null, ends_at: ENDED_AT } },
-      '이 챌린지는 끝났어요. 영상은 보관함에 남아 있어요.',
+      '이 챌린지는 끝났어요. 영상은 그대로 있어요.',
     ],
   ])('%s은 공개로 바꾸지 않고 이유를 알린다', async (_name, overrides, message) => {
     listMine.mockResolvedValue(page([{ ...priv, ...overrides }]));
@@ -264,7 +264,7 @@ describe('지우기', () => {
   const pressDelete = async () => {
     await openMenuFor('“사느냐 죽느냐”');
     await fireEvent.press(screen.getByText('지우기'));
-    expect(await screen.findByText('참여작만 지워요. 영상은 보관함에 남아요.')).toBeOnTheScreen();
+    expect(await screen.findByText('참여작만 지워요. 영상은 그대로 있어요.')).toBeOnTheScreen();
   };
 
   test('확인하면 지우고 다시 읽는다', async () => {
