@@ -43,7 +43,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 /**
  * practice.memory 의 「검증 방법」 가운데 <b>서버</b> 항목을 HTTP 와 실제 Postgres 로 본다 —
- * {@code actor_memories} 네 칸, 갱신 예약(1·3·6·9…), 기억 세대다.
+ * {@code actor_memories} 네 칸, 갱신 예약(끝난 대화마다, SOMA-795), 기억 세대다.
  *
  * <p>모델은 스텁이라 여기서 보는 것은 "무엇이 저장되고 무엇이 반영되지 않는가"다. 뽑는 규칙 자체는
  * {@code MemoryExtractorTest} 가 지킨다.
@@ -113,8 +113,8 @@ class ActorMemoryIT {
 
     @Test
     @DisplayName("practice.memory: 기존 갈래 확인 연습 1회 완료 — ai_jobs memory_update 1행이 생기고 워커가 끝나면 "
-            + "actor_memories 에 written_by = agent 값이 남는다. 2회째는 갱신이 없고 3·6회째는 다시 갱신한다")
-    void practiceMemory_updatesOnTheFirstPracticeAndEveryThirdAfterIt() throws Exception {
+            + "actor_memories 에 written_by = agent 값이 남는다. 그 뒤로도 끝난 대화마다 갱신한다(SOMA-795)")
+    void practiceMemory_updatesAfterEveryFinishedConversation() throws Exception {
         closeConversation(analyzedPractice(member));
         assertThat(memoryJobs()).hasSize(1);
 
@@ -124,16 +124,11 @@ class ActorMemoryIT {
                 .allSatisfy(row -> assertThat(row.get("written_by")).isEqualTo("agent"));
 
         closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).hasSize(1);
-
-        closeConversation(analyzedPractice(member));
         assertThat(memoryJobs()).hasSize(2);
 
         closeConversation(analyzedPractice(member));
         closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).hasSize(2);
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).hasSize(3);
+        assertThat(memoryJobs()).hasSize(4);
     }
 
     @Test
@@ -225,7 +220,7 @@ class ActorMemoryIT {
 
     @Test
     @DisplayName("practice.memory: 전체 삭제는 기억 세대를 올린다 — 삭제 전에 예약돼 진행 중이던 갱신이 끝나도 행이 "
-            + "생기지 않는다. 그 뒤 누적이 다시 3의 배수가 되면 갱신한다")
+            + "생기지 않는다. 그 뒤 끝난 대화는 다시 갱신한다")
     void practiceMemory_deletingAllDropsUpdatesScheduledBeforeIt() throws Exception {
         closeConversation(analyzedPractice(member));
         perform(delete("/v2/me/memory"), 204);
@@ -237,8 +232,6 @@ class ActorMemoryIT {
                 String.class, member))
                 .isEqualTo("memory_epoch_stale");
 
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).as("삭제가 누적 횟수를 초기화하지 않는다 — 2회째라 예약이 늘지 않는다").hasSize(1);
         closeConversation(analyzedPractice(member));
         assertThat(memoryJobs()).hasSize(2);
         assertThat(runWorker()).isTrue();
