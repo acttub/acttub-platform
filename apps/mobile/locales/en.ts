@@ -1719,6 +1719,7 @@ const en: DeepStringShape<typeof ko> = {
     voiceFailBody: 'Tap “Try again”. If that doesn’t work, use the device voice.',
     voiceUseDevice: 'Use the device voice',
     startHint: 'Lines move on by themselves when you finish. Tap “Start” when you’re ready.',
+    monologueStartHint: 'Read the monologue through, then tap “Finish”. Tap “Start” when you’re ready.',
     start: 'Start',
     startSkipNext: 'Start and hide this tip next time',
     coachLabel: 'Acttub · {{n}}/{{total}}',
