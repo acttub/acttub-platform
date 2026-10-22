@@ -186,6 +186,11 @@ test('예시 대화를 다시 열면 같은 대화를 이어 간다 — 코치 �
   assert.equal(again.conversation.messages.length, first.conversation.messages.length);
 });
 
+test('예시 대화는 이어 갈 수 없다 — 서버에 없는 대화라 conversation_not_resumable', async () => {
+  const loop = createSampleLoop({ delayMs: 0 });
+  await assert.rejects(loop.continueConversation('sample-conversation', 1), (e) => e.code === 'conversation_not_resumable');
+});
+
 test('예시 노트는 대화가 닫히기 전엔 없다', async () => {
   const loop = createSampleLoop({ delayMs: 0 });
   await assert.rejects(loop.getPracticeNote(SAMPLE_PRACTICE_ID), (e) => e.code === 'note_not_found');

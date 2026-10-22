@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -11,6 +12,10 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.coach.app.ConversationRepository;
+import com.acttub.actingapi.feature.coach.app.ConversationRepository.NewNote;
+import com.acttub.actingapi.feature.coach.app.ConversationRepository.NoteView;
+import com.acttub.actingapi.feature.coach.app.ConversationRepository.Saved;
 import com.acttub.actingapi.feature.coach.app.ConversationService;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -85,6 +90,9 @@ class CoachConversationIT {
 
     @Autowired
     JwtService jwt;
+
+    @Autowired
+    ConversationRepository conversations;
 
     @Autowired
     StubGenerator generator;
@@ -492,6 +500,105 @@ class CoachConversationIT {
         JsonNode closed = json(get("/v2/practices/{id}", other), 200);
         assertThat(closed.path("conversation_id").textValue()).isEqualTo(closedId.toString());
         assertThat(closed.path("conversation_status").textValue()).isEqualTo("closed");
+    }
+
+    @Test
+    @DisplayName("practice.coach: 대화 이어하기 — 이미 열린 대화는 그대로 200, 닫힌 대화에 낡은 revision 은 409 conversation_conflict, "
+            + "옛 갈래 대화는 409 conversation_not_resumable, 없는 대화는 404, 형식이 틀린 본문은 422 (SOMA-782)")
+    void practiceCoach_continueEndpointGuards() throws Exception {
+        generator.enqueue(CONTINUE);
+        JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
+        UUID conversationId = UUID.fromString(started.path("conversation").path("id").textValue());
+        long revision = started.path("conversation").path("revision").longValue();
+
+        JsonNode already = json(post("/v2/coach/conversations/{id}/continue", conversationId).content("{}"), 200);
+        assertThat(already.path("conversation").path("status").textValue()).isEqualTo("open");
+        assertThat(already.path("conversation").path("revision").longValue()).isEqualTo(revision);
+        assertThat(count("coach_messages")).isEqualTo(1);
+
+        jdbc.update("UPDATE coach_conversations SET status='closed',close_reason='user_ended',closed_at=now() WHERE id=?",
+                conversationId);
+        assertThat(json(post("/v2/coach/conversations/{id}/continue", conversationId)
+                .content("{\"revision\":" + (revision + 7) + "}"), 409))
+                .isEqualTo(mapper.readTree("{\"detail\":\"conversation_conflict\"}"));
+        assertThat(json(post("/v2/coach/conversations/{id}/continue", conversationId)
+                .content("{\"revision\":" + revision + "}"), 409))
+                .isEqualTo(mapper.readTree("{\"detail\":\"conversation_not_resumable\"}"));
+        assertThat(jdbc.queryForObject("SELECT status FROM coach_conversations WHERE id=?", String.class, conversationId))
+                .isEqualTo("closed");
+        assertThat(json(post("/v2/coach/conversations/{id}/continue", UUID.randomUUID()).content("{}"), 404)
+                .path("detail").asText()).isEqualTo("conversation_not_found");
+        assertThat(json(post("/v2/coach/conversations/{id}/continue", conversationId)
+                .content("{\"revision\":\"x\"}"), 422).path("detail").isArray()).isTrue();
+    }
+
+    @Test
+    @DisplayName("practice.coach: 저장소 reopen — 닫힌 대화를 같은 행으로 다시 열고 revision 을 올리며 회차를 conversing 으로 되돌린다. "
+            + "낡은 revision·이미 열린 대화·없는 대화는 null 이다 (SOMA-782)")
+    void practiceCoach_reopenReopensTheSameConversation() throws Exception {
+        UUID conversationId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO coach_conversations(id,practice_id,start_request_id,status,close_reason,closed_at,state_revision)
+                VALUES (?,?,?,'closed','user_ended',now(),4)
+                """, conversationId, practice, UUID.randomUUID());
+        jdbc.update("INSERT INTO coach_messages(id,conversation_id,turn_index,role,text) VALUES (?,?,0,'ai','첫 질문')",
+                UUID.randomUUID(), conversationId);
+        jdbc.update("UPDATE practices SET stage='closed',close_reason='conversation_closed' WHERE id=?", practice);
+        Instant now = Instant.parse("2026-10-23T01:00:00Z");
+
+        assertThat(conversations.reopen(conversationId, 3, mapper.createObjectNode(), now)).as("낡은 revision").isNull();
+        assertThat(conversations.reopen(UUID.randomUUID(), 4, mapper.createObjectNode(), now)).as("없는 대화").isNull();
+
+        Saved saved = conversations.reopen(conversationId, 4, mapper.readTree("{\"revision\":5}"), now);
+
+        assertThat(saved).isNotNull();
+        assertThat(saved.revision()).isEqualTo(5);
+        assertThat(saved.status()).isEqualTo("open");
+        assertThat(saved.closeReason()).isNull();
+        assertThat(saved.coachReplyCount()).isEqualTo(1);
+        assertThat(jdbc.queryForMap("SELECT status,close_reason,closed_at,state_revision FROM coach_conversations WHERE id=?",
+                conversationId))
+                .containsEntry("status", "open").containsEntry("close_reason", null)
+                .containsEntry("closed_at", null).containsEntry("state_revision", 5);
+        assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice))
+                .isEqualTo("conversing");
+        assertThat(jdbc.queryForObject("SELECT close_reason FROM practices WHERE id=?", String.class, practice)).isNull();
+        assertThat(count("coach_conversations")).isEqualTo(1);
+
+        assertThat(conversations.reopen(conversationId, 5, null, now)).as("이미 열림").isNull();
+    }
+
+    @Test
+    @DisplayName("practice.note: 저장소 replaceNote — 노트가 없으면 만들고, 있으면 같은 행을 새 내용으로 고친다(대화당 한 개). "
+            + "legacyReport 가 null 이어도 저장된다 (SOMA-782)")
+    void practiceNote_replaceNoteUpdatesInPlace() throws Exception {
+        UUID conversationId = UUID.randomUUID();
+        jdbc.update("INSERT INTO coach_conversations(id,practice_id,start_request_id,status) VALUES (?,?,?,'open')",
+                conversationId, practice, UUID.randomUUID());
+        Instant now = Instant.parse("2026-10-23T01:00:00Z");
+
+        NoteView first = conversations.replaceNote(conversationId, newNote("처음 제목", "처음 다음 테이크", 3, null), now);
+
+        assertThat(first.title()).isEqualTo("처음 제목");
+        assertThat(count("coach_notes")).isEqualTo(1);
+
+        NoteView second = conversations.replaceNote(conversationId,
+                newNote("고친 제목", "고친 다음 테이크", 9, mapper.readTree("{\"title\":\"원문\"}")), now.plusSeconds(60));
+
+        assertThat(count("coach_notes")).as("대화당 노트 한 개").isEqualTo(1);
+        assertThat(second.id()).as("같은 행").isEqualTo(first.id());
+        assertThat(second.title()).isEqualTo("고친 제목");
+        assertThat(second.nextTake()).isEqualTo("고친 다음 테이크");
+        assertThat(second.sourceRevision()).isEqualTo(9);
+        assertThat(second.legacyReport().path("title").asText()).isEqualTo("원문");
+        assertThat(second.tags()).hasSize(1);
+        assertThat(conversations.replaceNote(UUID.randomUUID(), newNote("x", "y", 1, null), now)).as("없는 대화").isNull();
+    }
+
+    private NewNote newNote(String title, String nextTake, long sourceRevision, JsonNode legacyReport) {
+        return new NewNote("v2", "action", title, mapper.createArrayNode().add("인용"), nextTake,
+                mapper.createArrayNode(), mapper.createArrayNode(), mapper.createArrayNode().add("시선"), false,
+                sourceRevision, legacyReport);
     }
 
     private String startBody(UUID practiceId, UUID requestId) {
