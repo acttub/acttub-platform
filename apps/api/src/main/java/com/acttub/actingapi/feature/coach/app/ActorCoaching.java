@@ -40,7 +40,7 @@ public record ActorCoaching(
         String legacyText) {
 
     /** 막혔을 때: 둘 중 고르기 / 코치가 이유와 함께 하나 제안(공통 기본) / 더 쉬운 열린 질문 한 번. */
-    public static final Set<String> STUCK = Set.of("choice", "propose_one", "easier_open");
+    public static final Set<String> STUCK_OPTIONS = Set.of("choice", "propose_one", "easier_open");
     /** 원하는 피드백 쪽: 근본(인물이 상대에게 하는 일) / 표현 방법(구체적 실행법) / 둘 다. */
     public static final Set<String> FOCUS = Set.of("root", "method", "both");
     public static final int MIN_QUESTIONS = 2;
@@ -56,7 +56,7 @@ public record ActorCoaching(
     private static final ObjectMapper JSON = new ObjectMapper();
 
     public ActorCoaching {
-        stuck = stuck != null && STUCK.contains(stuck) ? stuck : null;
+        stuck = stuck != null && STUCK_OPTIONS.contains(stuck) ? stuck : null;
         feedbackFocus = feedbackFocus != null && FOCUS.contains(feedbackFocus) ? feedbackFocus : null;
         neverSay = neverSay == null ? List.of() : List.copyOf(neverSay);
         skip = skip == null ? List.of() : List.copyOf(skip);
@@ -269,7 +269,7 @@ public record ActorCoaching(
         if (firstQuestion != null) {
             List<String> kept = new ArrayList<>();
             for (String line : out.split("\n", -1)) {
-                if (line.matches("^- [1-5] .+→.+")) continue; // 근본 문제별 첫 질문 모양 목록
+                if (line.matches("^- [1-5] (?>.+→(?=.)).+")) continue; // 근본 문제별 첫 질문 모양 목록
                 if (line.startsWith("첫 질문은 <설계>의 근본 문제에 맞춰 고른다.")) {
                     kept.add("첫 질문은 이 배우에게 맞춘 모양 \"" + firstQuestion + "\"으로 묻는다. 근본 문제는 <설계>에 그대로 찾아 적는다."
                             + " 장면 전체에 대해 묻고, 특정 대사를 따오지 않는다. [인물]은 배우가 적은 인물 이름이 있으면 그 이름, 없으면 \"이 사람\"이라고 한다.");
