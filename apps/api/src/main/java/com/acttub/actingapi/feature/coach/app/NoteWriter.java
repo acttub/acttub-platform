@@ -41,6 +41,14 @@ public class NoteWriter {
 
     /** @return 만들지 않았으면 {@code null} */
     public NoteView write(Loaded loaded, CoachResult result, long sourceRevision, Instant now) {
+        return write(loaded, result, sourceRevision, now, false);
+    }
+
+    /**
+     * @param refresh 이어 가던 대화가 다시 정리됐다(SOMA-782) — 이미 있는 노트를 새 내용으로 고친다. 새로 만들지 못하면
+     *                {@code null} 이고 호출한 쪽이 기존 노트를 그대로 둔다.
+     */
+    public NoteView write(Loaded loaded, CoachResult result, long sourceRevision, Instant now, boolean refresh) {
         CoachSessionSnapshot session = result.session();
         boolean threeLayers = session.threeLayers();
         if (!threeLayers && validAnswers(session) < LEGACY_MIN_ACTOR_ANSWERS) {
@@ -54,17 +62,20 @@ public class NoteWriter {
         if (threeLayers) {
             // 연습 루프 세션은 코치가 정리해 둔 버릇·한 줄·다음 테이크로 노트를 채운다.
             NewNote loopNote = DirectVideoPracticeLoop.note(session, sourceRevision);
-            if (loopNote != null) return conversations.saveNote(loaded.conversationId(), loopNote, now);
+            if (loopNote != null) return save(loaded, loopNote, now, refresh);
         }
         PracticeNote.Generated generated = generate(loaded, result, threeLayers);
         if (generated == null || (!threeLayers && "blocked".equals(generated.note().path("report_type").asText()))) {
             // 거듭 실패했다. 기존 갈래는 노트가 없고, 신형은 확인된 것만 남긴다.
-            return threeLayers
-                    ? conversations.saveNote(loaded.conversationId(), fallbackNote(sourceRevision), now)
-                    : null;
+            // 이어 가던 대화는 정리를 못 만들었다고 이미 있는 좋은 노트를 폴백으로 덮지 않는다.
+            return threeLayers && !refresh ? save(loaded, fallbackNote(sourceRevision), now, false) : null;
         }
-        return conversations.saveNote(
-                loaded.conversationId(), note(generated.note(), session, threeLayers, sourceRevision, generated.fallback()), now);
+        return save(loaded, note(generated.note(), session, threeLayers, sourceRevision, generated.fallback()), now, refresh);
+    }
+
+    private NoteView save(Loaded loaded, NewNote note, Instant now, boolean refresh) {
+        return refresh ? conversations.replaceNote(loaded.conversationId(), note, now)
+                : conversations.saveNote(loaded.conversationId(), note, now);
     }
 
     /** 생성 실패는 한 번 재시도한다. 두 번 다 실패하면 {@code null}. */

@@ -1228,6 +1228,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/coach/conversations/{conversation_id}/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue Coach Conversation
+         * @description 정리까지 마친(닫힌) 대화를 같은 대화로 다시 연다(「더 얘기하기」). 새 회차·새 대화를 만들지 않아 새 코칭으로
+         *     세지 않는다. 이미 열려 있으면 그대로 돌려준다. revision 이 다르면 409 conversation_conflict, 코치 응답
+         *     상한에 가까우면 409 conversation_limit_reached, 이어 갈 수 없는 대화(옛 갈래·연기가 아니어서 끊김)면
+         *     409 conversation_not_resumable. 이어 간 대화가 다시 닫히면 노트는 새 내용으로 고쳐진다.
+         */
+        post: operations["continue_coach_conversation_v2_coach_conversations__conversation_id__continue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/challenges": {
         parameters: {
             query?: never;
@@ -4196,6 +4219,11 @@ export interface components {
             request_id: string;
             /** Text */
             text?: string;
+            /** Revision */
+            revision?: number | null;
+        };
+        /** CoachContinueRequest */
+        CoachContinueRequest: {
             /** Revision */
             revision?: number | null;
         };
@@ -7934,6 +7962,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CoachReplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachTurnResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    continue_coach_conversation_v2_coach_conversations__conversation_id__continue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachContinueRequest"];
             };
         };
         responses: {

@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.coach.adapter.web;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.adapter.web.ConversationDtos.ConversationResponse;
+import com.acttub.actingapi.feature.coach.adapter.web.ConversationDtos.ContinueRequest;
 import com.acttub.actingapi.feature.coach.adapter.web.ConversationDtos.ReplyRequest;
 import com.acttub.actingapi.feature.coach.adapter.web.ConversationDtos.StartRequest;
 import com.acttub.actingapi.feature.coach.adapter.web.ConversationDtos.TurnResultResponse;
@@ -84,6 +85,31 @@ class ConversationController {
     TurnResultResponse reply(@Valid @RequestBody ReplyRequest body, HttpServletRequest request) {
         return TurnResultResponse.of(conversations.reply(
                 auth.gatedUser(request).id(), body.conversationId(), body.requestId(), body.text(), body.revision()));
+    }
+
+    @Operation(
+            summary = "Continue Coach Conversation",
+            description = """
+                    정리까지 마친(닫힌) 대화를 같은 대화로 다시 연다(「더 얘기하기」). 새 회차·새 대화를 만들지 않아 새 코칭으로
+                    세지 않는다. 이미 열려 있으면 그대로 돌려준다. revision 이 다르면 409 conversation_conflict, 코치 응답
+                    상한에 가까우면 409 conversation_limit_reached, 이어 갈 수 없는 대화(옛 갈래·연기가 아니어서 끊김)면
+                    409 conversation_not_resumable. 이어 간 대화가 다시 닫히면 노트는 새 내용으로 고쳐진다.""",
+            operationId = "continue_coach_conversation_v2_coach_conversations__conversation_id__continue_post",
+            tags = "v2-coach",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = TurnResultResponse.class)))
+    @ApiResponse(
+            responseCode = "422",
+            description = "Validation Error",
+            content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    @PostMapping("/conversations/{conversation_id}/continue")
+    TurnResultResponse resume(
+            @PathVariable("conversation_id") UUID conversationId, @Valid @RequestBody ContinueRequest body,
+            HttpServletRequest request) {
+        return TurnResultResponse.of(conversations.resume(auth.gatedUser(request).id(), conversationId, body.revision()));
     }
 
     @Operation(
