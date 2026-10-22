@@ -353,7 +353,8 @@ class PracticeReminderRepositoryIT {
     @Test
     void serviceSendsPersonalizedPushesFromRealRowsAndRemembersThem() {
         UUID u = user("service", true, "0.1.2", "2026-09-01T10:00");
-        UUID scriptId = script(u, "비밀 작품명", "2026-10-19T10:00");
+        // 대본은 숙제 문구에서 지울 작품명·인물명의 출처일 뿐이다. 7일보다 오래돼 unread_script 대상은 아니다.
+        UUID scriptId = script(u, "비밀 작품명", "2026-10-01T10:00");
         jdbc.update("INSERT INTO script_characters(id,script_id,name,sort_order) VALUES (?,?,'비밀인물',0)", UUID.randomUUID(), scriptId);
         UUID p = practice(u, null, 1, "비밀 작품명 3장", "2026-10-20T20:00", false);
         UUID c = conversation(p, "closed", "2026-10-20T20:01");
