@@ -141,7 +141,7 @@ class ScriptSplitLiveTest {
                 int scriptLimit, int dailyLimit, Instant now) { throw new UnsupportedOperationException(); }
         @Override public ImportView find(UUID userId, UUID importId) { throw new UnsupportedOperationException(); }
         @Override public Material material(UUID jobId, UUID importId) {
-            return new Material(USER, false, UUID.randomUUID(), "f".repeat(64), null, rawText, "paste", false);
+            return new Material(USER, false, UUID.randomUUID(), "f".repeat(64), null, rawText, "paste", false, null);
         }
         @Override public void progress(UUID importId, int doneLines, int totalLines) { }
         @Override public Completion complete(UUID jobId, UUID leaseToken, UUID importId, ScriptDraft draft, Instant now) {

@@ -1739,6 +1739,7 @@ const ko = {
     voiceFailBody: '「다시 시도」를 누르세요. 안 되면 기기 목소리로 해요.',
     voiceUseDevice: '기기 목소리로 하기',
     startHint: '말이 끝나면 저절로 넘어가요. 준비되면 「시작」을 누르세요.',
+    monologueStartHint: '독백은 끝까지 이어서 읽고 「끝내기」를 눌러요. 준비되면 「시작」을 누르세요.',
     start: '시작',
     startSkipNext: '시작하고 이 안내는 다음부터 숨기기',
     coachLabel: '액터브 · {{n}}/{{total}}',

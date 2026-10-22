@@ -370,6 +370,20 @@ class ReadingRecordingIT {
     }
 
     @Test
+    @DisplayName("reading.recording: 내 배역이 든 함께 말하는 줄은 녹음되고, 멤버가 아닌 배역은 여전히 거절한다")
+    void readingRecording_groupLineBelongsToItsMembers() throws Exception {
+        UUID secondMember = UUID.randomUUID();
+        jdbc.update("INSERT INTO script_characters(id,script_id,name,sort_order) VALUES (?,?,'함께 배역',3)", secondMember, script.id);
+        jdbc.update("UPDATE script_characters SET member_ids=ARRAY[?,?]::uuid[] WHERE id=?", script.nina, secondMember, script.arkadina);
+        UUID together = jdbc.queryForObject("SELECT id FROM script_lines WHERE character_id=? ORDER BY ordinal LIMIT 1", UUID.class, script.arkadina);
+        assertThat(upload(bearer, session, UUID.randomUUID(), together, 1, "audio/mp4", M4A, 1000, "none", null, null, 201)
+                .path("line_id").textValue()).isEqualTo(together.toString());
+        UUID other = startSession(bearer, script, List.of(script.treplev), script.dialogue(1), script.dialogue(8));
+        assertThat(upload(bearer, other, UUID.randomUUID(), together, 1, "audio/mp4", M4A, 1000, "none", null, null, 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"invalid_line\"}"));
+    }
+
+    @Test
     @DisplayName("reading.recording: 구간 밖 줄 id 또는 상대역 줄 id — 422 invalid_line. completed 회차에 검사를 통과한 올리기 — 201. 지워진 회차 — 404")
     void readingRecording_lineChecksAndClosedOrDeletedSessions() throws Exception {
         UUID partial = startSession(bearer, script, List.of(script.nina), script.dialogue(3), script.dialogue(7));

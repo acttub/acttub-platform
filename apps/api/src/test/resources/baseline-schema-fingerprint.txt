@@ -608,6 +608,7 @@ COLUMN script_uploads.byte_size ord=4 type=int8 len=- null=NO default=-
 COLUMN script_uploads.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN script_uploads.expires_at ord=7 type=timestamptz len=- null=NO default=-
 COLUMN script_uploads.failure ord=10 type=text len=- null=YES default=-
+COLUMN script_uploads.file_name ord=12 type=text len=- null=YES default=-
 COLUMN script_uploads.id ord=1 type=uuid len=- null=NO default=-
 COLUMN script_uploads.kept_until ord=11 type=timestamptz len=- null=YES default=-
 COLUMN script_uploads.object_key ord=3 type=text len=- null=NO default=-

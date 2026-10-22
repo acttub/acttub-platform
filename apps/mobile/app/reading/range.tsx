@@ -29,6 +29,7 @@ import {
   sceneTitle,
   snapRangeToDialogues,
   startGate,
+  turnRoles,
   type LineRange,
 } from '@/lib/reading/session-plan';
 import { getCurrent, listSessions, startSession, updateCurrent, type MaskMode } from '@/lib/reading/store';
@@ -155,8 +156,10 @@ export default function ReadingRange() {
 
   const whole = snapRangeToDialogues(lines, 0, lines.length - 1) ?? { startIndex: 0, endIndex: Math.max(0, lines.length - 1) };
   const pickedCast = cast.filter((c) => selected.includes(c.id));
+  // 내 차례로 읽는 배역 — 고른 배역과 그 배역이 든 함께 말하는 줄의 묶음 배역(play 와 같은 turnRoles, SOMA-709·785).
+  const myTurnRoles = turnRoles(script.characters, pickedCast.map((c) => c.id));
   // 첫 연습이면 처음부터 대사 10줄을 짧은 구간으로 골라 둔다 — 기기에서만 정한다.
-  const short = hasHistory ? null : firstPracticeRange(lines, pickedCast.map((c) => c.name));
+  const short = hasHistory ? null : firstPracticeRange(lines, myTurnRoles);
   const range = picked ?? recents[0]?.range ?? short ?? whole;
   const showRecent = hasHistory && (sessions === null || recents.length > 0);
   const tabs: Tab[] = showRecent ? ['recent', 'scene', 'line'] : short ? ['suggest', 'scene', 'line'] : ['scene', 'line'];
@@ -164,7 +167,7 @@ export default function ReadingRange() {
   const isActive = (r: LineRange) => r.startIndex === range.startIndex && r.endIndex === range.endIndex;
   const dlgIn = dialogues.filter((x) => x.i >= range.startIndex && x.i <= range.endIndex).length;
   // 고른 배역의 대사가 구간 안에 거의 없으면 처음 안내 대신 알린다 — 시작은 막지 않는다(SOMA-709).
-  const few = fewLines(lines, pickedCast.map((c) => c.name), range.startIndex, range.endIndex);
+  const few = fewLines(lines, myTurnRoles, range.startIndex, range.endIndex);
   const loadingDefault = picked === null && sessions === null;
   const gate = startGate({ roleCount: selected.length, micGranted: mic === null ? null : true, loading: loadingDefault });
   const wholeDialogues = dialogues.length;
@@ -263,7 +266,7 @@ export default function ReadingRange() {
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}>
                 <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{c.name}</Text>
-                <Text style={styles.roleChipCount}>{roleLineCount(c, lines)}</Text>
+                <Text style={styles.roleChipCount}>{roleLineCount(c, lines, script.characters)}</Text>
               </Pressable>
             );
           })}

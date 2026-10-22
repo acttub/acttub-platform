@@ -1753,7 +1753,7 @@ export default function ReadingPlay() {
       {hold === 'tip' ? (
         // pen 「새 · 리딩 시작 전」 — 자동 넘김 안내를 팝업 대신 아래에 두고 [시작]으로 첫 줄을 연다.
         <View style={[styles.startBar, { paddingBottom: insets.bottom + 12 }]}>
-          {startHint && <Text style={styles.startHint}>{t('reading.startHint')}</Text>}
+          {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
           <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
           {startHint && (
             <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">

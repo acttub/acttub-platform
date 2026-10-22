@@ -199,6 +199,7 @@ class ReadingUploadIT {
         byte[] cp949 = SCENE.getBytes(Charset.forName("x-windows-949"));
         JsonNode ticket = json(post("/v2/reading/uploads").content(upload("갈매기.txt", cp949.length)), 201, bearer);
         String uploadId = ticket.path("upload_id").textValue();
+        assertThat(jdbc.queryForObject("SELECT file_name FROM script_uploads WHERE id=?", String.class, UUID.fromString(uploadId))).isEqualTo("갈매기.txt");
         String key = "reading-source/" + member + "/" + uploadId;
         assertThat(ticket.path("upload_url").textValue())
                 .isEqualTo("https://storage.test/put/" + key + "?type=application/octet-stream&size=" + cp949.length + "&ttl=900");
@@ -228,6 +229,7 @@ class ReadingUploadIT {
         String scriptId = done.path("script_id").textValue();
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200, bearer);
         assertThat(script.path("source").textValue()).isEqualTo("file");
+        assertThat(script.path("title").textValue()).as("대사가 아닌 확장자 없는 원본 파일명을 제목으로 쓴다").isEqualTo("갈매기");
         assertThat(script.path("lines")).extracting(line -> line.path("text").textValue())
                 .containsExactly("저는 갈매기예요.", "아니, 당신은 배우예요.");
         assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", String.class)).isEqualTo(scriptId);

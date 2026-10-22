@@ -45,7 +45,7 @@ class ScriptSplitWorkerOutcomeTest {
         when(ledger.claimNext(eq(ScriptSplitWorker.KIND), any(), eq(ScriptSplitWorker.LEASE), any(), eq(true)))
                 .thenReturn(new AiJobLedger.Claimed(job, user, importId, 1, null));
         when(imports.material(job, importId)).thenReturn(rawText == null ? null
-                : new ScriptImportRepository.Material(user, false, UUID.randomUUID(), "fp", "제목", rawText, "paste", false));
+                : new ScriptImportRepository.Material(user, false, UUID.randomUUID(), "fp", "제목", rawText, "paste", false, null));
     }
 
     @Test void nothingToClaimMeansNoWork() {

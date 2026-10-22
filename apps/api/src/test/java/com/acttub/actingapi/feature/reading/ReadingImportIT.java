@@ -181,6 +181,7 @@ class ReadingImportIT {
         }
 
         static String row(String text) {
+            if (text.equals("엄마의 시험") || text.equals("엄 마 의 시 험")) return "t\t\t";
             if (text.startsWith("등장인물")) return "c\t\t";
             Matcher matcher = COLON.matcher(text);
             if (matcher.matches()) return "d\t" + matcher.group(1) + "\t" + matcher.group(1) + ": ";
@@ -605,6 +606,8 @@ class ReadingImportIT {
         assertThat(characters.get(4).path("member_ids")).as("모두는 모든 배역").extracting(JsonNode::textValue)
                 .containsExactly(jihae, yeonsu, characters.get(2).path("id").textValue());
         assertThat(characters.get(3).path("dialogue_count").intValue()).isEqualTo(2);
+        assertThat(characters).extracting(character -> character.path("dialogue_count").intValue())
+                .as("보통 배역은 자기 줄에 그 배역이 든 묶음 줄을 더한다(지해 1+2+1, 연희 1+1), 묶음 배역은 자기 줄만").containsExactly(4, 4, 2, 2, 1);
         assertThat(script.path("lines").get(4).path("character_id").textValue()).isEqualTo(characters.get(3).path("id").textValue());
         assertThat(jdbc.queryForList("SELECT array_length(member_ids, 1) FROM script_characters ORDER BY sort_order", Integer.class))
                 .containsExactly(null, null, null, 2, 3);
@@ -808,7 +811,7 @@ class ReadingImportIT {
         assertThat(script.path("title").textValue()).isEqualTo("엄마의 시험");
         assertThat(script.path("characters")).extracting(character -> character.path("name").textValue()).containsExactly("엄마", "유세아");
         assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
-                .containsExactly("direction|엄마의 시험", "dialogue|이번엔 시험 잘 봐야지.", "dialogue|유세아, 공부 열심히 하고 있지?",
+                .containsExactly("dialogue|이번엔 시험 잘 봐야지.", "dialogue|유세아, 공부 열심히 하고 있지?",
                         "dialogue|응. 걱정하지 마.", "direction|(암전)");
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(SPACED);
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, SPACED, "paste")), 200)
@@ -828,7 +831,7 @@ class ReadingImportIT {
                 + "3\t[엄마] 유세아, 공부 열심히 하고 있지?\n4\t[ 유 세 아 ] 응 . 걱 정 하 지 마 .\n5\t( 암 전 )");
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
         assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
-                .containsExactly("direction|엄마의 시험", "dialogue|이번엔 시험 잘 봐야지.", "dialogue|유세아, 공부 열심히 하고 있지?",
+                .containsExactly("dialogue|이번엔 시험 잘 봐야지.", "dialogue|유세아, 공부 열심히 하고 있지?",
                         "direction|[ 유 세 아 ] 응 . 걱 정 하 지 마 .", "direction|( 암 전 )");
     }
 
@@ -849,7 +852,7 @@ class ReadingImportIT {
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
         assertThat(script.path("title").textValue()).isEqualTo("엄 마 의 시 험");
         assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
-                .containsExactly("direction|엄 마 의 시 험", "dialogue|이번엔 시험 잘 봐야지.",
+                .containsExactly("dialogue|이번엔 시험 잘 봐야지.",
                         "direction|[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?", "direction|[ 유 세 아 ] 응 . 걱 정 하 지 마 .",
                         "direction|( 암 전 )");
     }

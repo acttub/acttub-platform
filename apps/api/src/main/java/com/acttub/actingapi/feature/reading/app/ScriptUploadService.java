@@ -73,7 +73,7 @@ public class ScriptUploadService {
         UUID uploadId = UUID.randomUUID();
         String objectKey = ScriptFileRules.objectKey(userId, uploadId);
         Instant expiresAt = now.plus(ScriptFileRules.UPLOAD_TTL);
-        uploads.reserve(userId, uploadId, objectKey, byteSize, expiresAt, now);
+        uploads.reserve(userId, uploadId, objectKey, fileName, byteSize, expiresAt, now);
         String url = storage.presignUpload(objectKey, ScriptFileRules.CONTENT_TYPE, byteSize,
                 Math.toIntExact(ScriptFileRules.UPLOAD_TTL.toSeconds()));
         return new NewUpload(uploadId, url, ScriptFileRules.CONTENT_TYPE, expiresAt);

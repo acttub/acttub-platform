@@ -368,6 +368,27 @@ class ReadingSessionIT {
     }
 
     @Test
+    @DisplayName("리딩 3번: 내 배역이 든 함께 말하는 줄(묶음 배역)도 내 차례 — 배역 dialogue_count·회차 my_dialogue_count 에 들고, 그 줄만 있는 구간도 시작된다. 여럿 골라도 한 줄은 한 번")
+    void readingSession_groupLinesCountAsMyTurn() throws Exception {
+        // 아르카디나(대사 4·5)를 니나·트레플레프가 함께 말하는 묶음 배역으로 바꾼다.
+        jdbc.update("UPDATE script_characters SET member_ids=ARRAY[?,?]::uuid[] WHERE id=?", script.nina, script.treplev, script.arkadina);
+
+        JsonNode detail = json(get("/v2/reading/scripts/{id}", script.id), 200);
+        assertThat(detail.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
+                .as("니나 4+묶음 2, 트레플레프 2+묶음 2, 묶음 배역은 자기 줄 2").containsExactly(6, 4, 2);
+
+        JsonNode groupOnly = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
+                start(UUID.randomUUID(), List.of(script.nina), "read", script.dialogue(5), script.dialogue(6), "manual", false).toString()), 201);
+        assertThat(groupOnly.path("my_dialogue_count").intValue()).as("5·6 가운데 니나가 함께 말하는 5").isEqualTo(1);
+
+        JsonNode both = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
+                start(UUID.randomUUID(), List.of(script.nina, script.treplev), "read", script.dialogue(1), script.dialogue(8), "manual", false).toString()), 201);
+        assertThat(both.path("my_dialogue_count").intValue()).as("두 멤버를 골라도 묶음 줄 4·5 는 한 번씩").isEqualTo(8);
+        JsonNode card = json(get("/v2/reading/sessions/{id}", both.path("id").textValue()), 200);
+        assertThat(card.path("my_dialogue_count").intValue()).isEqualTo(8);
+    }
+
+    @Test
     @DisplayName("reading.session: quiz 에서 한 줄을 2회 미달 — line_results 에 {unmatched, misses 2}. 첫 미달 뒤 통과 — {passed, misses 1}. 넘어가기 — skipped. 같은 줄은 마지막 사건이 이기고 보내지 않은 줄은 남는다. 구간 밖·지문 줄 — 422 invalid_line")
     void readingSession_lineResultsKeepTheLastEventPerLine() throws Exception {
         String session = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(
