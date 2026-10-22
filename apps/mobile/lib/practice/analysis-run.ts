@@ -22,7 +22,7 @@ export function analysisRecoveryAction(status: PracticeStatus | null): 'reload' 
 
 export type WatchOutcome =
   /** 분석이 끝났다. partial이어도 대화는 시작된다. */
-  | { kind: 'ready'; analysis: AnalysisStatus }
+  | { kind: 'ready'; analysis: AnalysisStatus | null }
   /** 작업이 실패로 끝났다. 취소가 아니면 "다시 시도"로 새 작업을 만들 수 있다. */
   | { kind: 'failed'; reason: string | null; retriable: boolean }
   /** 화면을 떠났다. 작업은 그대로 돌고 있다. */
@@ -81,7 +81,7 @@ export async function watchAnalysis(
     }
     // 영상 없이 말로 시작한 회차(SOMA-745)는 분석 작업도 결과도 없이 바로 대화 단계다.
     if (status.stage === 'conversing' && !status.job) {
-      return { kind: 'ready', analysis: 'ready' };
+      return { kind: 'ready', analysis: null };
     }
     if (status.job?.status === 'failed' || status.stage === 'closed') {
       const reason = status.job?.failure_reason ?? status.close_reason ?? null;

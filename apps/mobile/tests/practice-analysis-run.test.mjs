@@ -156,6 +156,6 @@ test('practice.start 영상 없이 말로(SOMA-745): 분석 작업 없이 대화
     getStatus: async () => ({ stage: 'conversing', job: null, analysis_status: null, close_reason: null }),
     delay,
   });
-  assert.deepEqual(outcome, { kind: 'ready', analysis: 'ready' });
+  assert.deepEqual(outcome, { kind: 'ready', analysis: null });
   assert.deepEqual(waits, []);
 });

@@ -330,6 +330,17 @@ describe('분석이 끝나면', () => {
     expect(await pendingKeys()).toEqual([]);
   });
 
+  test('영상 없이 만든 회차를 다시 열어도 분석 완료로 집계하지 않는다', async () => {
+    getStatus.mockResolvedValue(status({ stage: 'conversing', analysis_status: null, job: null }));
+    getPracticeApi.mockResolvedValue({
+      ...(await getPracticeApi()), video_id: null, playback_url: null,
+    });
+    await render(<CoachScreen />);
+    await entersCoach();
+    expect(logged('analysis_complete')).toEqual([]);
+    expect(getPractice()?.videoUri).toBe('');
+  });
+
   test('못 본 구간이 있으면 알리고, 확인을 누른 뒤에 넘어간다', async () => {
     getStatus.mockResolvedValue(status({ stage: 'conversing', analysis_status: 'partial' }));
     await render(<CoachScreen />);
