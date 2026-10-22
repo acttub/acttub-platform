@@ -36,6 +36,8 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
     /** 올리기 끝 준비가 원본을 내려받는 곳. 없으면 올리기 끝 준비를 하지 않는다(분석 작업만). */
     private final ObjectStorage storage;
     private final Path workDir;
+    /** 코칭 1층 관찰(SOMA-815). 분석 작업이 원본을 넘길 때 배정된 연습이면 함께 시작한다. */
+    private CoachLayerOne layerOne = CoachLayerOne.NONE;
 
     public CoachVideoWarmup(DirectVideoModel model, CoachVideoCache cache) {
         this(model, cache, null, null, PROCESSING);
@@ -67,6 +69,12 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
      * 영상 올리기가 끝났다: 원본을 내려받아 소리 검사·올리기·처리 대기를 뒤에서 한다. 내려받기도 뒤에서 한다 —
      * 올리기 완료 응답을 늦추지 않는다. 같은 원본을 이미 준비하고 있으면 아무것도 하지 않는다.
      */
+    /** 코칭 1층 관찰을 함께 시작한다(SOMA-815). null 이면 끔. */
+    public CoachVideoWarmup withLayerOne(CoachLayerOne layerOne) {
+        this.layerOne = layerOne == null ? CoachLayerOne.NONE : layerOne;
+        return this;
+    }
+
     @Override
     public void uploaded(String objectKey, String etag, String contentType) {
         if (model == null || storage == null || !cache.enabled() || objectKey == null || objectKey.isBlank()) return;
@@ -98,6 +106,14 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
 
     @Override
     public void warm(AnalysisContext context, Path file) {
+        if (context != null && file != null) {
+            try {
+                layerOne.start(context.sessionId(), context.userId(), file, context.mimeType(),
+                        new CoachLayerOne.Scene(context.situation(), context.characterContext(), context.goal()));
+            } catch (RuntimeException ignored) {
+                // 1층은 덤이다. 실패해도 코칭은 지금처럼 간다.
+            }
+        }
         if (model == null || !cache.enabled() || context == null || file == null) return;
         if (context.sessionId() == null || context.objectKey() == null) return;
         var key = new CoachVideoCache.Key(context.sessionId(), context.objectKey(), context.etag());

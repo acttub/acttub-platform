@@ -1647,4 +1647,46 @@ class DirectVideoCoachTest {
         assertThat(initial.turns()).isEmpty();
         verify(model).delete(file);
     }
+
+    @Test void layerOneBlockIsAddedOnceReadyAndKeptInStateForLaterTurns() throws Exception {
+        Path clip = Files.createTempFile("layer1-test-", ".mp4");
+        var layer = new CoachLayerOne((v, m, sc, p, u) -> "## 1층 관찰\n  \"됐어\" — 본 것: 정면을 본다", 100, failures);
+        try {
+            var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                    model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachFlows.NONE,
+                    CoachVideoCache.NONE, true, true, layer)));
+            when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+            when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"됐어\"에서 정면을 봐요. 누구한테 하는 말이에요?");
+            var start = session();
+            layer.start(start.practiceSessionId(), null, clip, "video/mp4", null);
+            for (int i = 0; i < 100 && layer.ready(start.practiceSessionId()).isEmpty(); i++) Thread.sleep(10);
+            var first = loopEngine.start(start, UUID.randomUUID());
+            assertThat(first.session().coachingState().path("layer1").path("arm").asText()).isEqualTo("on");
+            assertThat(first.session().coachingState().path("layer1").path("block").asText()).startsWith("## 1층 관찰");
+            layer.close();
+            var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
+            var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+            verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
+            assertThat(prompts.getAllValues()).allSatisfy(prompt -> assertThat(prompt).contains("## 1층 관찰"));
+            assertThat(second.session().coachingState().path("layer1").path("from_turn").asInt()).isZero();
+            assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
+                    .allSatisfy(call -> assertThat(call.metadata()).containsEntry("layer1_arm", "on").containsEntry("layer1_used", "true"));
+        } finally {
+            layer.close();
+            Files.deleteIfExists(clip);
+        }
+    }
+
+    @Test void offArmGetsNoLayerOneBlock() {
+        var layer = new CoachLayerOne((v, m, sc, p, u) -> "## 1층 관찰", 0, failures);
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, null, 0, CoachFlows.NONE,
+                CoachVideoCache.NONE, true, true, layer)));
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        assertThat(first.session().coachingState().path("layer1").path("arm").asText()).isEqualTo("off");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model).reply(eq(file), anyList(), prompts.capture());
+        assertThat(prompts.getValue()).doesNotContain("## 1층 관찰");
+    }
 }
