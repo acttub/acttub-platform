@@ -21,6 +21,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptFileStorage;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptImportService;
+import com.acttub.actingapi.feature.reading.app.ScriptPlan;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
@@ -45,6 +46,7 @@ import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -89,8 +91,10 @@ class ReadingConfiguration {
 
     @Bean
     ScriptService scriptService(
-            ScriptRepository scripts, ReadingRecordingCleanup cleanup, CanonicalJson canonical, Clock clock) {
-        return new ScriptService(scripts, cleanup, canonical, clock);
+            ScriptRepository scripts, ReadingRecordingCleanup cleanup, CanonicalJson canonical, Clock clock,
+            ObjectProvider<ScriptPlan> plan) {
+        // 무료 대본 한도(SOMA-818)는 결제 도메인이 구현한다. 그 빈이 없는 조립에서는 한도가 없다.
+        return new ScriptService(scripts, cleanup, canonical, clock, plan.getIfAvailable(() -> ScriptPlan.UNLIMITED));
     }
 
     @Bean
@@ -102,8 +106,8 @@ class ReadingConfiguration {
 
     @Bean
     ScriptImportService scriptImportService(ScriptImportRepository imports, ScriptUploadService uploads,
-            CanonicalJson canonical, Clock clock) {
-        return new ScriptImportService(imports, uploads, canonical, clock);
+            CanonicalJson canonical, Clock clock, ObjectProvider<ScriptPlan> plan) {
+        return new ScriptImportService(imports, uploads, canonical, clock, plan.getIfAvailable(() -> ScriptPlan.UNLIMITED));
     }
 
     /** 줄 두 번째 의견(SOMA-663 J1). 키가 없으면 그 단계를 건너뛴다. */

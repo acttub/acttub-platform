@@ -131,11 +131,14 @@ class PostgresPracticeRepository implements PracticeRepository {
     }
 
     @Override
-    public Started startWithoutVideo(UUID userId, NewPractice practice, Instant now) {
+    public Started startWithoutVideo(UUID userId, NewPractice practice, Quota quota, Instant now) {
         return transaction.execute(tx -> {
             Started replayed = replay(userId, practice);
             if (replayed != null) {
                 return replayed;
+            }
+            if (overQuota(userId, quota)) {
+                return new Started(StartOutcome.QUOTA, null);
             }
             UUID id = UUID.randomUUID();
             insertPractice(id, id, 1, userId, practice, now, "conversing");
@@ -505,6 +508,15 @@ class PostgresPracticeRepository implements PracticeRepository {
         NativeTuples.list(entityManager.createNativeQuery(
                 "SELECT id FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
                 .setParameter("userId", userId));
+        if (quota.kind() == Quota.Kind.SESSIONS) {
+            // 무료 코칭 한도(SOMA-818): 오늘 만든 회차 수. 영상 있는·없는 코칭과 이어하기가 모두 든다.
+            Number sessions = (Number) entityManager.createNativeQuery(
+                    "SELECT count(*) FROM practices WHERE user_id=:userId AND created_at>=:since")
+                    .setParameter("userId", userId)
+                    .setParameter("since", quota.since().atOffset(ZoneOffset.UTC))
+                    .getSingleResult();
+            return sessions.intValue() >= quota.limit();
+        }
         Number requested = (Number) entityManager.createNativeQuery("""
                 SELECT (SELECT count(*) FROM ai_jobs
                         WHERE user_id=:userId AND kind='analyze' AND created_at>=:since)

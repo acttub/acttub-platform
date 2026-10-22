@@ -51,6 +51,8 @@ public class ClientVersionFilter extends OncePerRequestFilter {
                 // PG 심사 전용 테스트 결제(SOMA-620): 토스가 브라우저를 되돌려 보내는 콜백은 우리 헤더를 실을 수 없다.
                 // 실제 앱 계정과 무관한 별도 쿠키 세션 경로이며, 설정이 꺼져 있으면 경로 자체가 404 다.
                 || path.startsWith("/v2/pg-review/")
+                // 앱 Pro 카드 등록 창(SOMA-818): 앱이 브라우저로 여는 페이지와 토스 콜백이라 앱 헤더가 없다. 일회용 state 가 권한이다.
+                || path.startsWith("/v2/billing/web/")
                 || PATHS.match("/v2/auth/providers/*/disconnect", path);
     }
 

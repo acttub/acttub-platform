@@ -43,10 +43,11 @@ import {
   showsSampleLink,
   type ScriptTab,
 } from '@/lib/reading/script-input';
-import { loadIntoCurrent } from '@/lib/reading/store';
+import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
 import { isMonologue } from '@/lib/reading/monologue';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { MonologueNameDialog } from '@/components/monologue-name-dialog';
+import { ProSheetCard } from '@/components/pro-ui';
 import { newRequestId } from '@/lib/request-id';
 import { translate as t } from '@/lib/i18n';
 
@@ -100,7 +101,11 @@ type Popup =
   /** flags 는 [새로 넣기]·[그래도 나누기]가 다시 보낼 때 붙일 것이다. */
   | { kind: 'duplicate'; title: string; input: ImportInput; flags: ImportFlags } // R2.7
   | { kind: 'not_script'; input: ImportInput; flags: ImportFlags } // R2.8
-  | { kind: 'consent'; document: ConsentEntryDocument; resume: Resume; expanded: boolean; busy: boolean }; // R2.14
+  | { kind: 'consent'; document: ConsentEntryDocument; resume: Resume; expanded: boolean; busy: boolean } // R2.14
+  /** pen WLdNc 「무료는 대본 1개까지 보관해요」(SOMA-818) — 서버가 403 free_script_limit 을 줄 때만. */
+  | { kind: 'free_limit'; resume: Resume; busy: boolean }
+  /** pen K7q5Vk 「지금 대본과 바꾸기」 확인 — 지우면 그 대본의 연습 기록도 함께 지워진다. */
+  | { kind: 'free_replace'; resume: Resume; scriptId: string; title: string; busy: boolean };
 
 export default function ReadingNew() {
   const router = useRouter();
@@ -143,6 +148,7 @@ export default function ReadingNew() {
         return failWith(error);
       }
     }
+    if (stop.kind === 'free_limit') return setPopup({ kind: 'free_limit', resume, busy: false });
     if (resume.kind !== 'import') return setPopup(null);
     const flags = { ...resume.flags, ...retryFlags(stop) };
     if (stop.kind === 'not_script') return setPopup({ kind: 'not_script', input: resume.input, flags });
@@ -151,6 +157,30 @@ export default function ReadingNew() {
       if (!existing) return failWith();
       setPopup({ kind: 'duplicate', title: existing.title, input: resume.input, flags });
     }
+  };
+
+  // 「지금 대본과 바꾸기」 — 보관 중인 대본(무료는 하나)을 찾아 확인을 묻는다.
+  const askReplace = async (resume: Resume) => {
+    setPopup({ kind: 'free_limit', resume, busy: true });
+    try {
+      const current = (await listScripts()).scripts[0];
+      if (!current) return setPopup(null);
+      setPopup({ kind: 'free_replace', resume, scriptId: current.id, title: current.title, busy: false });
+    } catch (error) {
+      failWith(error);
+    }
+  };
+
+  // 지우고 새 대본 넣기 — 지운 뒤 같은 입력으로 다시 나눈다.
+  const replaceAndRetry = async (popup: { resume: Resume; scriptId: string; title: string }) => {
+    setPopup({ kind: 'free_replace', ...popup, busy: true });
+    try {
+      await deleteScript(popup.scriptId);
+    } catch (error) {
+      return failWith(error);
+    }
+    if (popup.resume.kind === 'import') return void split(popup.resume.input, popup.resume.flags);
+    setPopup(null);
   };
 
   const split = async (next: ImportInput, flags: ImportFlags) => {
@@ -358,7 +388,7 @@ export default function ReadingNew() {
         }}
       />
       <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
-        <View style={[styles.backdrop, popup?.kind === 'consent' && styles.backdropSheet]}>
+        <View style={[styles.backdrop, (popup?.kind === 'consent' || popup?.kind === 'free_limit' || popup?.kind === 'free_replace') && styles.backdropSheet]}>
           {popup?.kind === 'splitting' && <SplittingCard progress={popup.progress} />}
           {popup?.kind === 'alert' && (
             <View style={styles.card}>
@@ -389,6 +419,32 @@ export default function ReadingNew() {
                 <Text style={styles.optionText}>{t('reading.duplicateNew')}</Text>
               </Pressable>
             </View>
+          )}
+          {popup?.kind === 'free_limit' && (
+            <ProSheetCard
+              title={t('pro.scriptLimitTitle')}
+              body={t('pro.scriptLimitBody')}
+              primary={t('pro.explore')}
+              onPrimary={() => {
+                setPopup(null);
+                router.push('/pro');
+              }}
+              secondary={t('pro.scriptLimitReplace')}
+              onSecondary={() => void askReplace(popup.resume)}
+              busy={popup.busy}
+            />
+          )}
+          {popup?.kind === 'free_replace' && (
+            <ProSheetCard
+              title={t('pro.replaceTitle', { title: popup.title })}
+              body={t('pro.replaceBody')}
+              primary={t('pro.replaceConfirm')}
+              onPrimary={() => void replaceAndRetry(popup)}
+              secondary={t('pro.replaceCancel')}
+              onSecondary={() => setPopup(null)}
+              busy={popup.busy}
+              destructive
+            />
           )}
           {popup?.kind === 'not_script' && (
             <View style={styles.card}>
