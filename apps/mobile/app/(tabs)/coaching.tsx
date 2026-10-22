@@ -77,9 +77,9 @@ export default function CoachingTab() {
   const first = entry?.kind === 'first';
   // 새 연습은 세션 목적 → 영상 고르기 순서다(app/upload). 첫 코칭이면 단계마다 파란 안내를 켠다.
   const startNew = () => router.push({ pathname: '/upload', params: first ? { first: '1' } : {} });
-  // 지금 찍기 — 찍는 법 한 장 → 카메라 → 찍은 영상을 들고 새 연습 준비로 간다(next=upload).
+  // 지금 찍기 — 카메라 → 찍은 영상을 들고 새 연습 준비로 간다(next=upload).
   const recordNow = () =>
-    router.push({ pathname: '/record-guide', params: first ? { next: 'upload', first: '1' } : { next: 'upload' } });
+    router.push({ pathname: '/record-video', params: first ? { mode: 'ai', next: 'upload', first: '1' } : { mode: 'ai', next: 'upload' } });
 
   const again = () => {
     if (entry?.kind === 'resume') {

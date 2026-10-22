@@ -123,8 +123,7 @@ test('묶음 제목·회차 흐름·노트 보기를 보여 준다', async () =>
   await fireEvent.press(screen.getByRole('button', { name: /노트 보기/ }));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/report-detail', params: { practiceId: 'p1' } });
 
-  await fireEvent.press(screen.getByRole('button', { name: '연습 영상 보기' }));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/archive-detail', params: { id: 'v1' } });
+  expect(screen.queryByRole('button', { name: '연습 영상 보기' })).not.toBeOnTheScreen();
 });
 
 test('대화를 누르면 순서대로 펼치고, 못 읽으면 다시 누르라고 한다', async () => {

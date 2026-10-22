@@ -91,9 +91,9 @@ export default function ChallengeEntriesScreen() {
     let faceMosaic: boolean | undefined;
     if (next === 'public') {
       const ok = await confirm({
-        title: t('aiReport.publicTitle'),
-        message: t('aiReport.publicBody'),
-        confirmLabel: t('aiReport.publicConfirm'),
+        title: t('challengeEntries.publicTitle'),
+        message: t('challengeEntries.publicBody'),
+        confirmLabel: t('challengeEntries.publicConfirm'),
       });
       if (!ok) return;
       // 모자이크를 아직 켜지 않았으면 공개하면서 켤지 고른다(SOMA-809). 창을 닫거나 취소하면 공개하지 않는다.
@@ -166,10 +166,6 @@ export default function ChallengeEntriesScreen() {
     void sheet({
       title: t('challengeEntries.menuTitle'),
       actions: [
-        {
-          label: t('aiReport.title'),
-          onPress: () => router.push({ pathname: '/ai-report', params: { entryId: entry.id } }),
-        },
         {
           label: t('challengeUpload.editCaption'),
           onPress: () => {

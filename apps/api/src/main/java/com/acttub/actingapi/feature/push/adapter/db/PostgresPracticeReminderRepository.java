@@ -195,16 +195,18 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
         });
     }
 
-    /** 가장 최근의 (대체 문구가 아닌) 노트가 다음 촬영 지시가 있는 action 일 때만 돌려준다. 숨긴 묶음은 제외한다. */
+    /** 가장 최근의 (대체 문구가 아닌) 노트가 다음 촬영 지시가 있는 action 일 때만 돌려준다. 그 회차의 배우 일지에 「다음에 해 볼 것」이 있으면 그것을 쓴다. 숨긴 묶음은 제외한다. */
     @Override
     public ReminderContent.Homework latestHomework(UUID userId) {
         return transaction.execute(status -> {
             List<Tuple> rows = list(entityManager.createNativeQuery("""
-                    SELECT p.id AS practice_id, p.title AS practice_title, n.kind, n.next_take
+                    SELECT p.id AS practice_id, p.title AS practice_title, n.kind, n.next_take,
+                           NULLIF(btrim(CAST(j.answers AS jsonb)->'next'->>'text'), '') AS journal_next
                     FROM coach_notes n
                     JOIN coach_conversations c ON c.id=n.conversation_id
                     JOIN practices p ON p.id=c.practice_id
                     JOIN practices root ON root.id=p.root_id
+                    LEFT JOIN actor_journals j ON j.practice_id=p.id
                     WHERE p.user_id=:userId AND root.hidden_at IS NULL AND p.legacy_hidden_at IS NULL
                       AND n.fallback=false
                     ORDER BY n.created_at DESC
@@ -212,6 +214,12 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
                     """, Tuple.class).setParameter("userId", userId));
             if (rows.isEmpty()) return null;
             Tuple row = rows.getFirst();
+            // 배우 일지의 「다음에 해 볼 것」(배우가 직접 정한 것, SOMA-720)이 있으면 노트의 제안보다 먼저 쓴다.
+            String journalNext = row.get("journal_next", String.class);
+            if (journalNext != null) {
+                return new ReminderContent.Homework(row.get("practice_id", UUID.class), journalNext,
+                        sensitive(userId, row.get("practice_title", String.class)));
+            }
             String nextTake = row.get("next_take", String.class);
             if (!"action".equals(row.get("kind", String.class)) || nextTake == null || nextTake.isBlank()) return null;
             return new ReminderContent.Homework(row.get("practice_id", UUID.class), nextTake,

@@ -11,12 +11,12 @@ const read = (rel) => readFileSync(path.join(appRoot, rel), 'utf8');
  * 대신 배선 — 업로드가 촬영으로 보내고, 결과를 받아 검증에 태우는지 — 를 잠근다.
  */
 
-test('SOMA-477: 새 연습 준비 화면에서 촬영·보관함·갤러리로 갈 수 있다', () => {
+test('SOMA-477: 새 연습 준비 화면에서 촬영·갤러리로 갈 수 있다', () => {
   const upload = read('app/upload.tsx');
   assert.match(upload, /pathname: '\/record-video'/);
   assert.match(upload, /upload\.recordCta/); // 촬영하기 버튼
   assert.match(upload, /upload\.pickGallery/); // 갤러리에서 고르기 버튼
-  assert.match(upload, /start\.fromLibrary/); // 보관함에서 고르기 버튼
+  assert.doesNotMatch(upload, /start\.fromLibrary/); // 보관함 화면은 SOMA-820에서 없앴다
 });
 
 test('practice.start: 고른 영상은 보관함을 거쳐 오고 준비 화면은 올리지 않는다', () => {

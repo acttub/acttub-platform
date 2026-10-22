@@ -344,36 +344,6 @@ describe('대사 더 보기', () => {
   });
 });
 
-describe('보관함에서 올릴 챌린지를 고르러 왔을 때', () => {
-  beforeEach(() => {
-    mockParams = { pickVideoId: 'v9' };
-  });
-
-  test('제목이 바뀌고, 연기하기를 누르면 고른 영상을 그 챌린지 올리기 화면으로 보낸다', async () => {
-    await render(<ChallengesScreen />);
-    expect(await screen.findByText('어떤 대사에 올릴까요?')).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: endsWith('참여작 보기') })).not.toBeOnTheScreen();
-
-    await fireEvent.press(screen.getAllByText('나도 이 대사 연기하기')[1]);
-    expect(mockRouter.replace).toHaveBeenCalledWith({
-      pathname: '/challenge-upload',
-      params: { challengeId: 'c1', videoId: 'v9' },
-    });
-    expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(logged('challenge_pick_for_video')).toEqual([{ id: 'c1' }]);
-    expect(logged('challenge_perform_tap')).toEqual([]);
-  });
-
-  test('빈 영상 id 는 고르기로 보지 않는다', async () => {
-    mockParams = { pickVideoId: '' };
-    await render(<ChallengesScreen />);
-    expect(await screen.findByText('챌린지')).toBeOnTheScreen();
-    await fireEvent.press(await screen.findByText('“나는 아직 여기 있어”'));
-    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
-    expect(mockRouter.replace).not.toHaveBeenCalled();
-  });
-});
-
 describe('시작 안내', () => {
   test('기기에서 처음 들어오면 세 장을 넘겨 보고, 시작하면 다시 띄우지 않게 적어 둔다', async () => {
     await AsyncStorage.removeItem('acttub.challenge.introSeen');

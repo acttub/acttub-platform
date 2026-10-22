@@ -1417,6 +1417,17 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 @Primary 코칭 키 클라이언트와 `ACTTUB_SAMPLE_SCRIPT_MODEL`(기본 gemini-4-argon)이다.
 - 확정은 `ScriptService.create`를 그대로 부른다(출처 `typed`, 요청 id 는 생성 기록 id). 리딩 대본 계약은 바뀌지 않는다.
 
+### 6-30. 배우 일지 (SOMA-720)
+
+- 행동 계약은 [practice.journal](../../docs/specs/practice/journal.md)이 정본이고 `JournalServiceTest`·`ActorJournalTest`가 지킨다.
+  늘 켜진 경로(`/v2/practices/{practice_id}/journal`)라 OpenAPI 스냅샷과 웹 생성 타입에 든다.
+- 표 `actor_journals`(V59)는 native SQL 만 쓴다(Schema Entity 없음). 회차마다 한 행(`uq_actor_journals_practice`) — 만드는 중(pending)
+  행을 먼저 넣어 겹친 생성이 모델을 두 번 부르지 않게 한다. 생성 결과는 `draft_status='pending' AND edited_at IS NULL` 조건으로만 쓴다.
+  배우 답(`answers`)과 자동 칸(`draft`)은 따로 둔 JSON 글이다. 사람·회차에 ON DELETE CASCADE, 대화에 ON DELETE SET NULL. 탈퇴의 연습 파기가 행을 지운다.
+- 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 연습 노트와 같은 `OpenAiTextGenerators.report()`(노트용 키)이고 기록 단계는 `report`
+  (`report_type=actor_journal`)다. 프롬프트 `coaching/journal-create.txt` 는 10/19 채택 v4 원문 그대로다.
+- 코칭 숙제 알림(`PostgresPracticeReminderRepository.latestHomework`)은 그 회차 일지의 「다음에 해 볼 것」이 있으면 노트 제안보다 먼저 쓴다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로

@@ -88,11 +88,11 @@ import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
  *
  * 두 단계다(pen 「새 · 오늘 세션 목적」→「새 · 영상 고르기」). 장면 정보(상황·인물·원하는 것) 단계는 SOMA-778에서 없앴다 —
  * 장면 없이 시작하고 서버는 빈 값으로 둔다(practice.start). 목적은 누르면 바로 영상 단계로 넘어간다(「다음」 버튼 없음).
- * 세션 목적 세 갈래는 기존 막힘 큰 갈래로 보낸다(lib/practice/session-purpose). 「지금 찍기」는 찍는 법 한 장
- * (record-guide)을 거쳐 카메라로 간다. 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있고, 체크해야 시작한다.
+ * 세션 목적 세 갈래는 기존 막힘 큰 갈래로 보낸다(lib/practice/session-purpose). 「지금 찍기」는 바로
+ * 카메라로 간다. 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있고, 체크해야 시작한다.
  * 튜토리얼·예시는 한 장에서 비추므로 바로 영상 단계로 연다. 시작하면 코치 화면으로 가고, 분석 대기도 거기서 한다.
  *
- * 영상은 보관함에서 고르거나 새로 찍는다 — 여기서 올리지 않는다(올리기는 보관함 큐가 한다).
+ * 영상은 새로 찍거나 갤러리에서 고른다 — 여기서 올리지 않는다(올리기는 업로드 큐가 한다).
  * 도움 갈래와 상세 설명은 선택이고, 시작을 누르면 회차 하나와 분석 작업 하나가 생긴다. 상황·인물·목표 칸과
  * 「이전 연습 이어서 하기」, 세부 칩은 SOMA-656 에서 뺐다 — 다음 테이크(이어하기)로 들어오면 지난 장면은 화면 없이
  * 그대로 보내고, 세부는 비워 보내 서버 기본값(그 외)이 된다.
@@ -309,8 +309,6 @@ export default function UploadScreen() {
   const waitRetry = () => {
     if (user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
   };
-
-  const pickFromLibrary = () => router.push({ pathname: '/archive', params: { pick: '1' } });
   // 영상 상자를 누르면 뜨는 시트(SOMA-656). 시트가 닫힌 뒤에 다음 화면·사진 선택 창을 연다 — iOS 는 닫히는 모달 위에
   // 새 창을 띄우지 못한다.
   const [sourceSheet, setSourceSheet] = useState(false);
@@ -319,8 +317,6 @@ export default function UploadScreen() {
     setTimeout(action, Platform.OS === 'ios' ? 450 : 0);
   };
   const record = () => router.push({ pathname: '/record-video', params: { mode: 'ai' } });
-  // 영상 고르기 단계의 「지금 찍기」 — 찍는 법 한 장을 먼저 보이고 거기서 카메라로 간다(pen 「새 · 찍는 법 한 장」).
-  const recordWithGuide = () => router.push({ pathname: '/record-guide', params: firstTime ? { first: '1' } : {} });
 
   const pickFromGallery = async () => {
     if (!user?.id) return;
@@ -487,7 +483,6 @@ export default function UploadScreen() {
         : t('upload.missingRights');
 
   const sourceOptions = [
-    { key: 'library', icon: 'archive' as const, title: t('start.fromLibrary'), sub: t('upload.fromLibrarySub'), onPress: fromSheet(pickFromLibrary) },
     { key: 'record', icon: 'video' as const, title: t('upload.recordCta'), sub: t('upload.recordSub'), onPress: fromSheet(record) },
     { key: 'gallery', icon: 'image' as const, title: t('upload.pickGallery'), sub: t('upload.gallerySub'), onPress: fromSheet(() => void pickFromGallery()) },
   ];
@@ -580,13 +575,12 @@ export default function UploadScreen() {
               </View>
             ) : (
               <View style={styles.choices} ref={pickTarget.ref} onLayout={pickTarget.onLayout}>
-                <ChoiceRow icon="folder" title={t('start.fromLibrary')} sub={t('upload.sourceLibrarySub')} onPress={pickFromLibrary} />
                 <ChoiceRow
                   icon="video"
                   title={t('upload.sourceRecord')}
                   sub={t('upload.sourceRecordSub')}
                   highlight={firstTime}
-                  onPress={recordWithGuide}
+                  onPress={record}
                 />
                 <ChoiceRow icon="image" title={t('upload.pickGallery')} sub={t('upload.sourceGallerySub')} onPress={() => void pickFromGallery()} />
                 <ChoiceRow icon="message-circle" title={t('uploadReason.noVideo')} sub={t('uploadReason.optional')} onPress={showReason} />
@@ -650,7 +644,7 @@ export default function UploadScreen() {
       {reasonSheet && <UploadReasonSheet onClose={closeReason}
         onTalk={() => reasonRoute(() => router.replace('/talk'))}
         onScript={() => reasonRoute(() => router.replace('/script-cocreate'))}
-        onRecord={() => reasonRoute(recordWithGuide)} />}
+        onRecord={() => reasonRoute(record)} />}
       {dialog}
       {tutorialGuide.element}
     </SafeAreaView>

@@ -177,7 +177,7 @@ test('확정하면 내 대본에 저장하고, 지금 찍을래요는 장면 칸
     kind: 'reading',
     scene: { situation: '잠긴 서랍 · 거실, 밤 · 아버지가 원서를 버렸다', character: '도윤 (아버지와 아들, 존댓말)', goal: '원서를 돌려받는다' },
   });
-  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/record-guide', params: { next: 'upload' } });
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
   await fireEvent.press(screen.getByRole('button', { name: '나중에 찍을게요' }));
   expect(mockRouter.back).toHaveBeenCalled();
 });
