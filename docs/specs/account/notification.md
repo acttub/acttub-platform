@@ -70,10 +70,19 @@
     있으면 보내지 않는다.
   - 연습 권유와 연속 기록 알림은 칸이 달라 하루 최대 둘이다. 토글(`notify_evening_reminder`)·활성 회원·앱 판 조건은 저녁 리마인드와 같고,
     "최근 30일 활동" 조건은 7일 한도로 대신한다.
-  - **연습 권유의 내용**은 처음 맞는 것 하나다. (1) 연습한 적 없는 가입자: `first_practice`. (2) k=1이고 가장 최근 코칭 대화가 열려 있으며 마지막
+  - **연습 권유의 내용**은 처음 맞는 것 하나다. 순서는 `resume`(k=1) → `pending_video` → `unread_script` → `first_practice` → `homework` → `reading` → `general`이다.
+    (1) k=1이고 가장 최근 코칭 대화가 열려 있으며 마지막
     메시지가 코치의 질문이면 `resume`: 제목 "아까 하던 코칭 마저 할까요?", 본문은 배우가 답한 적이 없으면 "코치 질문이 남아 있어요: …", 있으면
-    "답한 건 저장돼 있어요. 코치가 물어본 것: …"이고 `conversation_id`·`practice_id`를 data에 싣는다. (3) 가장 최근 노트(대체 문구 노트 제외)가 다음 촬영
-    지시가 있는 action이면 `homework`: 본문이 지시다. (4) 마지막 연습 사건이 리딩이면 `reading`. (5) 그 밖에는 `general`. 숨긴 묶음은 첫 회차에만 숨김
+    "답한 건 저장돼 있어요. 코치가 물어본 것: …"이고 `conversation_id`·`practice_id`를 data에 싣는다. (2) `pending_video`: 이 회원이 직접 올린 영상(`videos.user_id`)이
+    파기되지 않았고(`purged_at IS NULL`) 최근 7일 안에 만들어졌으며, 같은 `video_id`의 코칭 회차(`practices`)도 챌린지 참여작(`challenge_entries.video_id`)도
+    없을 때. 여러 개면 가장 최근 영상이고 `video_id`를 data에 싣는다. 영상 업로드만 한 회원도 코칭 쪽 연습 사건이 있는 것으로 세므로 연습한 회원이며,
+    그래서 k·시각 규칙은 그대로 따른다. (3) `unread_script`: 직접 넣은 대본(`scripts.user_id`)이 최근 7일 안에 만들어졌고 같은 `script_id`의 리딩 회차
+    (`reading_sessions`)가 없으며 입력 경로(`scripts.source`)가 `sample`(앱 내장 예시)이 아닐 때. 여러 개면 가장 최근 대본이고 `script_id`를 data에 싣는다.
+    대본만 넣은 회원은 연습한 적 없는 가입자라 원래는 `first_practice`였지만 이 종류가 앞선다(가입 후 7일 안이어서 후보에 든 경우에 한한다).
+    `pending_video`·`unread_script`는 같은 종류를 한 회원에게 최근 7일(오늘 포함 7개 한국 날짜) 안에 최대 2번만 보내고(`practice_reminder_sends.kind` 기록으로 센다),
+    2번 보냈거나 14일 안에 쓰지 않은 문구가 없으면 건너뛰고 다음 순서로 넘어간다. (4) 연습한 적 없는 가입자: `first_practice`.
+    (5) 가장 최근 노트(대체 문구 노트 제외)가 다음 촬영
+    지시가 있는 action이면 `homework`: 본문이 지시다. (6) 마지막 연습 사건이 리딩이면 `reading`. (7) 그 밖에는 `general`. 숨긴 묶음은 첫 회차에만 숨김
     표시가 있어도 그 묶음의 모든 회차를 제외한다.
   - **잠금 화면 글 다듬기**(모델을 부르지 않는 규칙): 따옴표(" " “ ” ‘ ’ ' ' 「 」 『 』) 안의 말, 대본의 6자 이상 대사 줄, 작품·연습 제목, 인물 이름을 지우고
     공백을 접어 첫 문장(질문은 마지막 물음표 문장)만 쓴다. 한글이 절반 미만이거나 10자 미만이면 "노트에 남긴 한 가지만 해 봐도 충분해요."(질문은
@@ -82,8 +91,8 @@
   - **문구**는 `ReminderTemplates` 한 곳에 있다. 종류마다 5~10개이고 일반·숙제는 건너뛴 날 수(1 / 2~3 / 4~7)별로 따로 있으며 문구마다 고정 id가 있다. 최근 14일 안에
     이 회원에게 보낸 id는 피하고(모두 썼으면 가장 오래전에 쓴 것), 고르는 것은 회원·날짜·칸으로 정해진다. 한국어가 아닌 설정에는 최소한의 영어 문구를 쓴다.
     작품 제목·대사·이벤트·홍보는 넣지 않는다.
-  - **푸시 data**: `kind`는 `evening_reminder`로 둔다(지금 앱이 이 값일 때 누르면 홈으로 보내므로 앱 빌드 없이 동작 유지), 실제 종류는 `reminder_kind`(resume·homework·reading·general·first_practice·streak), `skipped_days`, `template_id`, resume이면 `conversation_id`와
-    `practice_id`, homework이면 `practice_id`. 앱 판 0.1.x의 탭 처리는 `evening_reminder`만 홈으로 보내므로 새 종류를 눌러도 앱이 열릴 뿐 특정 화면으로 가지 않는다(앱 변경은 별도).
+  - **푸시 data**: `kind`는 `evening_reminder`로 둔다(지금 앱이 이 값일 때 누르면 홈으로 보내므로 앱 빌드 없이 동작 유지), 실제 종류는 `reminder_kind`(resume·pending_video·unread_script·homework·reading·general·first_practice·streak), `skipped_days`, `template_id`, resume이면 `conversation_id`와
+    `practice_id`, homework이면 `practice_id`, pending_video이면 `video_id`, unread_script이면 `script_id`(앱은 아직 쓰지 않는다. 개편 앱의 바로가기용). 앱 판 0.1.x의 탭 처리는 `evening_reminder`만 홈으로 보내므로 새 종류를 눌러도 앱이 열릴 뿐 특정 화면으로 가지 않는다(앱 변경은 별도).
   - 보낼 자리는 보내기 전에 `practice_reminder_sends`에 먼저 넣어 선점하고(`ON CONFLICT DO NOTHING`), 선점한 쪽만 보낸다. 탈퇴와 게스트 파기는 이 기록을 지운다.
 - 리마인드 토글을 끄면 서버 발송 대상에서 제외한다. 업데이트한 앱은 옛 판이 예약한 로컬 알람을 모두
   취소하고 새 로컬 알람을 만들지 않는다.
@@ -123,6 +132,8 @@
 - 23:40에 연습한 회원: 밤 시간에는 가지 않고 밀린 날짜의 09:00 이후에 간다.
 - 3일 연속 연습한 회원이 오늘 22:00까지 연습하지 않으면: 연속 기록 알림이 한 번 가고 일수가 문구에 들어간다. 1일 연속이면 가지 않는다. 하루에 연습 권유와 연속 기록 알림 합쳐 둘을 넘지 않는다.
 - 가입만 하고 연습하지 않은 회원: 가입 시각 기준으로 같은 규칙에 따라 `first_practice`가 가고 7일 뒤에는 멈춘다.
+- 영상을 올리고 코칭을 시작하지 않은 회원(최근 7일): `pending_video`가 가고 data에 `video_id`가 있다. 같은 종류는 7일 안에 2번까지이고 그 뒤에는 다음 순서의 종류가 간다.
+- 대본을 넣고 리딩을 시작하지 않은 회원(앱 예시 대본 제외): `unread_script`가 가고 data에 `script_id`가 있다. 잠금 화면에는 작품명·대사가 없다.
 - 어제 연 코칭을 마무리하지 않은 회원: `resume` 알림에 코치 질문의 앞부분이 들어가고 대본 대사·제목·인물 이름은 없다. 숨긴 묶음의 노트와 대체 문구 노트는 숙제가 되지 않는다.
 - 마지막 활동이 30일보다 오래됐으면: 저녁 리마인드 푸시가 없다.
 - 리마인드 토글을 끄면: 서버 푸시가 없고 예약된 로컬 알람도 0개다.
