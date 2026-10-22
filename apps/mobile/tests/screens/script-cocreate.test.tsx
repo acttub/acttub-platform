@@ -7,9 +7,10 @@ import { ApiError } from '@/lib/api-request';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { SampleScript } from '@/lib/script-cocreate';
 
+const mockParams: { mode?: string } = {};
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 
-jest.mock('expo-router', () => ({ useRouter: () => mockRouter, Stack: { Screen: () => null } }));
+jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, Stack: { Screen: () => null } }));
 jest.mock('expo-image', () => ({ Image: () => null }));
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({
@@ -25,6 +26,7 @@ jest.mock('@/lib/api', () => ({
     saveSampleScript: jest.fn(),
   },
 }));
+jest.mock('@/lib/reading/store', () => ({ loadIntoCurrent: jest.fn() }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
 
 const createSampleScript = api.createSampleScript as jest.Mock;
@@ -62,6 +64,7 @@ function sample(overrides: Partial<SampleScript> = {}): SampleScript {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  delete mockParams.mode;
   (api.getSampleScript as jest.Mock).mockResolvedValue(sample());
 });
 
@@ -223,4 +226,19 @@ test('서버 수정 성공 후 응답 유실은 GET 최신 결과로 복구하�
   await fireEvent.changeText(screen.getByLabelText('어떻게 고칠까요?'), '짧게');
   await fireEvent.press(screen.getByRole('button', { name: '수정 적용' }));
   expect(reviseSampleScript.mock.calls[1][1].base_version).toBe(2);
+});
+
+ test('리딩은 2명으로 만들고 확정한 대본의 배역 선택으로 간다', async () => {
+  mockParams.mode = 'reading';
+  createSampleScript.mockResolvedValue(sample({ character_count: 2 }));
+  saveSampleScript.mockResolvedValue({ script_id: 'reading-1' });
+  const { loadIntoCurrent } = require('@/lib/reading/store');
+  loadIntoCurrent.mockResolvedValue({ characters: [{}, {}] });
+  await reachDirection();
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  expect(createSampleScript).toHaveBeenCalledWith(expect.objectContaining({ character_count: 2 }));
+  await fireEvent.press(await screen.findByRole('button', { name: '이 대본으로 확정' }));
+  expect(loadIntoCurrent).toHaveBeenCalledWith('reading-1');
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } });
+  expect(setContinueOrigin).not.toHaveBeenCalled();
 });

@@ -214,7 +214,10 @@ export default function ReadingList() {
                   onLayout={newTarget.onLayout}
                   style={styles.newBtn}
                   accessibilityRole="button"
-                  onPress={() => router.push('/reading/new')}>
+                  onPress={() => void sheet({ title: t('reading.titleNew'), actions: [
+                    { label: t('reading.entryUpload'), onPress: () => router.push('/reading/new') },
+                    { label: t('reading.entryCocreate'), onPress: () => router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } }) },
+                  ] })}>
                   <Feather name="plus" size={16} color={palette.onAccent} />
                   <Text style={styles.newText}>{t('reading.titleNew')}</Text>
                 </Pressable>
@@ -275,12 +278,14 @@ export default function ReadingList() {
           <ActivityIndicator color={palette.blue} />
         </View>
       ) : empty ? (
-        // pen 「새 · 리딩 입구 첫」 — AI 대본 생성 입구는 서버 기능이 없어 숨긴다(SOMA-748).
+        // 기존 리딩 입구 행을 사용한다.
         <View style={styles.entry}>
           <MascotBubble source={MASCOT} title={t('reading.entryBubble')} guide={t('reading.entryBubbleSub')} />
           <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
             <IconOptionRow flush icon="upload" title={t('reading.entryUpload')} sub={t('reading.entryUploadSub')} onPress={() => router.push('/reading/new')} />
           </View>
+          <IconOptionRow flush icon="edit-3" title={t('reading.entryCocreate')} sub={t('reading.entryCocreateSub')}
+            onPress={() => router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } })} />
           {/* 대본이 없어도 바로 — 대본 넣기 화면을 예시 대본으로 채워 연다(pen 「대본 탭」). */}
           <IconOptionRow
             flush

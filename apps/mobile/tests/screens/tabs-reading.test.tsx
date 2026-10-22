@@ -122,10 +122,11 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   expect(screen.getByRole('header', { name: '리딩' })).toBeOnTheScreen();
 });
 
-test('새 대본 버튼은 대본 넣기 화면으로 간다', async () => {
+test('새 대본 버튼에서 업로드와 같이 만들기를 고른다', async () => {
   await render(<ReadingList />);
   await screen.findByText('옥상 장면');
   await fireEvent.press(screen.getByText('새 대본'));
+  await fireEvent.press(await screen.findByText('내 대본 올리기'));
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/new');
 });
 
@@ -388,4 +389,11 @@ describe('첫 사용자라 탭바가 숨으면', () => {
     expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '설정' })).not.toBeOnTheScreen();
   });
+});
+
+test('빈 목록에서도 대본 같이 만들기는 리딩 모드로 열린다', async () => {
+  (listScripts as jest.Mock).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
+  await render(<ReadingList />);
+  await fireEvent.press(await screen.findByText('대본 같이 만들기'));
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/script-cocreate', params: { mode: 'reading' } });
 });

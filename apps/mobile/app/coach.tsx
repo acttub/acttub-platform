@@ -6,6 +6,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, T
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { CoachPurposeCards } from '@/components/coach-purpose-cards';
 import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
 import { CoachWaiting } from '@/components/coach-waiting';
@@ -170,7 +171,7 @@ function CoachTalk() {
     try {
       const result = await loadCoachSession(loop, practice.practiceId, startRequestIdRef.current, practice.conversationId, streamCallbacks);
       if (!mountedRef.current) return;
-      if (applyResult(result) && result.note) goToNote();
+      if (applyResult(result) && result.note && !result.conversation.purpose) goToNote();
     } catch (e) {
       if (mountedRef.current) {
         const failure = coachFailure(e);
@@ -220,7 +221,7 @@ function CoachTalk() {
         if (!mountedRef.current) return;
         attemptRef.current = null;
         setInput('');
-        if (applyResult(result) && result.note) goToNote();
+        if (applyResult(result) && result.note && !result.conversation.purpose) goToNote();
       } catch (e) {
         if (!mountedRef.current) return;
         const failure = coachFailure(e);
@@ -422,6 +423,8 @@ function CoachTalk() {
           ) : null}
           {sceneVideo ? <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} track="coach" startAt={seek} /> : null}
 
+          <CoachPurposeCards purpose={conversation?.purpose} hasVideo={!!sceneVideo} onSeek={(at) => seekTo(at, String(at))} />
+
           {(wrapping || past.length > 0) && (
             <View style={styles.progressHead}>
               {/* 남은 코치 답변 수는 보이지 않는다 — 마무리 직전에만 알린다. */}
@@ -508,6 +511,18 @@ function CoachTalk() {
 
         {!closed && (
           <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
+            {conversation?.purpose?.choices.length ? (
+              <View style={styles.purposeChoices}>
+                {conversation.purpose.choices.map((choice, index) => (
+                  <View key={index} style={styles.purposeChoice}>
+                    <SecondaryButton label={choice.label} disabled={waiting || connecting} onPress={() => {
+                      if (sceneVideo && choice.at != null) seekTo(choice.at, String(choice.at));
+                      void sendText(choice.label);
+                    }} />
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>
             {/* 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채우고 키보드는 띄우지 않는다. 덧붙이려면 아래 입력칸을 누른다. */}
             <View style={styles.quickRow} testID="coach-quick-grid">
@@ -567,6 +582,8 @@ function CoachTalk() {
 }
 
 const styles = StyleSheet.create({
+  purposeChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  purposeChoice: { width: '48%' },
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
 
