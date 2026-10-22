@@ -16,6 +16,8 @@ export const MASCOT: Record<'home' | 'coach' | 'reading' | 'cheer', ImageSourceP
 
 /** pen 에서 쓰는 크기 — 그림 비율(약 9:10)을 지킨다. */
 export const MASCOT_SIZE = {
+  /** 질문 대화 코치 머리줄(30×36) — pen 09 「Coach Message」. */
+  chat: { width: 30, height: 36 },
   /** 대화 머리(36×40). */
   xs: { width: 36, height: 40 },
   /** 홈 카드(48×54). */

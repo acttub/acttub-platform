@@ -40,12 +40,13 @@ test('코치 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 �
 test('코치 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 높이부터는 칸 안에서 스크롤한다', () => {
   const coach = read('app/coach.tsx');
   const input = coach.slice(coach.indexOf('  input: {'), coach.indexOf('},', coach.indexOf('  input: {')));
-  assert.match(input, /minHeight: 48/);
+  // pen 09 「Input」 높이 44.
+  assert.match(input, /minHeight: 44/);
   assert.match(input, /maxHeight: 144/);
   assert.doesNotMatch(input, /minHeight: 112/);
   // 한 줄일 때 글자가 가운데 오게 — 줄 간격을 따로 주지 않고 위아래 여백을 같게
   assert.doesNotMatch(input, /lineHeight/);
-  assert.match(input, /paddingTop: Platform\.OS === 'ios' \? 10 : 13,\s*paddingBottom: 13,/);
+  assert.match(input, /paddingTop: Platform\.OS === 'ios' \? 8 : 11,\s*paddingBottom: 11,/);
 });
 
 test('새 연습 준비: 고른 영상의 「영상 다시 선택」을 누르면 아래 시트에서 보관함·촬영·갤러리를 고른다(상자 안 버튼 없음)', () => {
@@ -65,7 +66,9 @@ test('새 연습 준비: 고른 영상의 「영상 다시 선택」을 누르�
 test('코치 질문은 회색 말풍선 16pt 다(pen 질문 대화 「코치 말」, SOMA-748 — 예전 21pt 맨글자 대신)', () => {
   const coach = read('app/coach.tsx');
   assert.match(coach, /question: \{ fontSize: 16,/);
-  assert.match(coach, /<View style=\{styles\.bubble\}>/);
+  // 회색 말풍선은 코치 머리줄 공통 부품(components/coach-message)이 그린다(pen 09).
+  assert.match(coach, /<CoachMessage>/);
+  assert.match(read('components/coach-message.tsx'), /<View style=\{styles\.bubble\}>/);
 });
 
 test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 받아 미리보기를 채운다(목록은 playback_url 이 null)', () => {

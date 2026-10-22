@@ -498,7 +498,7 @@ const ko = {
     justRecorded: '방금 찍은 영상',
     fromLibrary: '보관함 영상',
     fromGallery: '갤러리 영상',
-    doneGuide: '「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요.',
+    doneGuide: '「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요',
   },
   challenges: {
     reportA11y: '이 챌린지 신고하기',
@@ -975,10 +975,9 @@ const ko = {
     yesMessage: '맞아요',
     quickNo: '아니요',
     noMessage: '아니요',
-    // 빠른 답 2×2(SOMA-778) — 「직접 쓰기」는 입력칸에 커서만 둔다.
+    // 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채운다.
     quickUnsure: '잘 모르겠어요',
     unsureMessage: '잘 모르겠어요',
-    quickWrite: '직접 쓰기',
     // 분석 대기도 대화 화면 안에서 한다(SOMA-778).
     watching: '영상 보는 중이에요',
     // 대화 위 한 줄 — 분석 요약의 본 장면(observed_scene) 첫 문장.
@@ -990,7 +989,7 @@ const ko = {
     // 질문 대화 머리·답 칩·끊김(SOMA-748)
     videoLabel: '오늘 영상',
     sceneWritten: '장면 정보 있음',
-    chipGuide: '골라 누르면 입력칸에 채워져요. 직접 써도 돼요.',
+    chipGuide: '답이나 질문을 편하게 적어 주세요',
     endContinue: '계속하기',
     send: '보내기',
     interruptedTitle: '대화가 잠깐 끊겼어요',

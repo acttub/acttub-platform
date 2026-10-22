@@ -19,6 +19,8 @@ type ConfirmOptions = {
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
+  /** 작은 확인창 모양(pen 09 「여기서 마칠까요?」). */
+  compact?: boolean;
 };
 
 type AlertOptions = { title: string; message?: string; confirmLabel?: string };
@@ -108,8 +110,12 @@ export function useAppDialog() {
           </Pressable>
         ) : (
           <Pressable style={styles.full} onPress={(e) => e.stopPropagation()}>
-            <DialogCard title={state.options.title} message={state.options.message}>
+            <DialogCard
+              title={state.options.title}
+              message={state.options.message}
+              compact={state.kind === 'confirm' && state.options.compact}>
               <DialogButtons
+                compact={state.kind === 'confirm' && state.options.compact}
                 cancelLabel={state.kind === 'confirm' ? (state.options.cancelLabel ?? t('common.cancel')) : undefined}
                 onCancel={() => close(false)}
                 confirmLabel={state.options.confirmLabel ?? t('common.confirm')}

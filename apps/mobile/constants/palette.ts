@@ -36,6 +36,7 @@ export const palette = {
   amber: '#8A4B00',
   flame: '#FF6B2C', // 연속일 불꽃 (SOMA-479)
   flameDeep: '#E8590C',
+  coachName: '#D9622B', // 대화 「ACTTUB 코치」 이름(pen 09)
   flameSoft: '#FFF1E8',
   amberSoft: '#FFF8EC',
   hintIcon: '#F5A524', // 코치 힌트 전구 — 마스코트 주황

@@ -986,7 +986,6 @@ const en: DeepStringShape<typeof ko> = {
     // 2×2 quick answers (SOMA-778) — “Write my own” only focuses the box.
     quickUnsure: 'Not sure',
     unsureMessage: 'Not sure',
-    quickWrite: 'Write my own',
     // Waiting for analysis happens inside the conversation (SOMA-778).
     watching: 'Watching your video',
     // One line above the chat — first sentence of observed_scene.
@@ -998,7 +997,7 @@ const en: DeepStringShape<typeof ko> = {
     // Coach header, answer chips, interrupted (SOMA-748)
     videoLabel: 'Today’s video',
     sceneWritten: 'Scene notes added',
-    chipGuide: 'Tap one to fill the box. You can also write your own.',
+    chipGuide: 'Answer or ask in your own words',
     endContinue: 'Keep going',
     send: 'Send',
     interruptedTitle: 'The conversation dropped for a moment',
