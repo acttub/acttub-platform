@@ -117,7 +117,8 @@ describe('영상을 고르기 전', () => {
     expect(screen.getByText('영상')).toBeOnTheScreen();
     expect(screen.queryByText('장면 · 질문')).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: '평가 받기' })).toBeSelected();
+    // 기본 목적은 있지만 직접 고르기 전에는 고른 것처럼 칠하지 않는다(10/22 피드백).
+    expect(screen.getByRole('button', { name: '평가 받기' })).not.toBeSelected();
     await toSourceStep();
     // 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있다 — 영상이 없으면 막혀 있다.
     expect(screen.getByRole('checkbox')).not.toBeChecked();

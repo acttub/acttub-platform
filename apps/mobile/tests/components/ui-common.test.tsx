@@ -52,8 +52,8 @@ describe('버튼', () => {
       </>,
     );
     const color = (label: string) => StyleSheet.flatten(screen.getByText(label).props.style).color;
-    expect(color('다시 불러오기')).toBe('#3182F6');
-    expect(color('건너뛰기')).not.toBe('#3182F6');
+    expect(color('다시 불러오기')).toBe('#4880EE');
+    expect(color('건너뛰기')).not.toBe('#4880EE');
     await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
     expect(press).toHaveBeenCalledTimes(1);
   });

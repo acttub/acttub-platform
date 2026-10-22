@@ -407,6 +407,56 @@ class DirectVideoCoachTest {
         assertThat(second.reply().message()).isEqualTo(reply);
     }
 
+    private static final String SWITCHES = new ActorCoaching("propose_one", null, null, List.of("붙잡고 싶었어요"), null, true, null,
+            null, List.of(), 90, "이 배우는 코치가 하나를 제안했을 때 움직였다.", null).toJson();
+
+    @Test void aStuckActorWithTheProposeSwitchGetsTheSwappedStepInsteadOfTheChoiceQuestion() {
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> "")));
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가지 마\"에서 붙잡아 봐도 좋아요. 떠나려는 사람이라서요.");
+        CoachSessionSnapshot start = session().withPrior(new PriorContext(java.util.Map.of("coaching_profile", SWITCHES),
+                null, true, List.of(), List.of()));
+        var first = loopEngine.start(start, UUID.randomUUID());
+        var second = loopEngine.reply(first.session().withPrior(start.prior()), "몰라", UUID.randomUUID());
+        assertThat(second.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("actor-profile");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, atLeast(2)).reply(eq(file), anyList(), prompts.capture());
+        String turn = prompts.getAllValues().get(1);
+        assertThat(turn).contains("역할: 너는 말이 막힌 배우에게 길 하나를 먼저 보여 주는 코치다.")
+                .doesNotContain("모양: 둘 중 고르는 질문 한 문장")
+                .doesNotContain("좋은 예(다른 영상): \"가지 마\" 할 때 붙잡고 싶었어요, 밀어내고 싶었어요?")
+                .endsWith(DirectVideoPrompts.persona("actor-profile", null, SWITCHES));
+    }
+
+    @Test void theHowAboutExampleIsDroppedForCoachingProfileActorsButKeptForActorsWithoutOne() {
+        String plainPropose = proposePrompt(null);
+        assertThat(plainPropose).as("맞춤 코칭이 없는 배우는 지금 그대로").contains("떠봐도 좋을 것 같아요. 어때요?");
+        String profilePropose = proposePrompt(new ActorCoaching(null, null, null, List.of(), null, null, null, null, List.of(), null,
+                "이 배우는 이유를 들을 때 움직였다.", null).toJson());
+        assertThat(profilePropose).contains("떠봐도 좋을 것 같아요.\")").doesNotContain("어때요?")
+                .contains(ActorCoaching.COMMON_BANS);
+    }
+
+    /** 짧은 답 두 번이면 쉽게 묻기 다음 답 제안하기로 간다. 셋째 코치 호출의 프롬프트. */
+    private String proposePrompt(String profile) {
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> "")));
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가지 마\"에서 무엇을 바랐어요?",
+                "아빠한테 하나씩 따져 봐도 좋아요. 떠나려는 사람이라서요.");
+        CoachSessionSnapshot start = profile == null ? session() : session().withPrior(new PriorContext(
+                java.util.Map.of("coaching_profile", profile), null, true, List.of(), List.of()));
+        var first = loopEngine.start(start, UUID.randomUUID());
+        var second = loopEngine.reply(first.session().withPrior(start.prior()), "몰라", UUID.randomUUID());
+        loopEngine.reply(second.session().withPrior(start.prior()), "몰라", UUID.randomUUID());
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, atLeast(3)).reply(eq(file), anyList(), prompts.capture());
+        String third = prompts.getAllValues().get(prompts.getAllValues().size() - 1);
+        org.mockito.Mockito.clearInvocations(model);
+        return third;
+    }
+
     @Test void anAdvisorFileWinsOverTheCoachingProfile() {
         var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
                 model, videos, storage, failures, telemetry, true, s -> "park-seunga")));

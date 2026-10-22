@@ -35,50 +35,64 @@ class CoachingProfileWriterTest {
     }
 
     private static final String GOOD = """
-            {"length": 120,
-             "summary": "이 배우는 방법을 바로 들을 때 다음 테이크로 옮겼고, 질문만 이어지면 \\"그래서 어떻게 해요?\\"라고 되물었다.",
-             "first_question": "첫 응답의 <설계>에서 '첫 질문 모양' 칸에는 \\"[인물]은 [상대]한테서 뭘 얻고 싶어요?\\"를 쓰고 <코치>는 그 모양으로 묻는다.",
-             "closing": "마지막 정리는 맨 첫 줄의 숨은 <다음 테이크> 줄을 그대로 쓰고, 해 볼 것 하나와 이유 한 문장으로 말한다.",
+            {"stuck": "propose_one",
+             "first_question": "[인물]은 [상대]한테서 뭘 얻고 싶었어요?",
+             "closing": "처음엔 [행동1], \\"[대사]\\"부터는 [행동2]해 봐도 좋아요. [이유 한 문장]",
              "never_say": ["확인하며", "좋은 질문이에요"],
-             "reasons": "제안에는 항상 이유를 한 문장 붙인다.",
-             "when_asked": "배우가 \\"어떻게 해요?\\"라고 물으면 질문으로 돌리지 않고 방법부터 답한다.",
-             "other_rules": ["이 배우는 혼자 감정에 빠지는 버릇이 있으니 상대를 보게 한다.", "아버지에게서 인정받으려는 마음을 숨긴다는 것을 기억한다.", "배우가 반말을 쓰므로 코치도 반말을 사용한다."]}
+             "reasons_first": true, "answer_directly": true, "max_questions": 3, "feedback_focus": "method",
+             "skip": ["카메라 시선", "혼자 감정에 빠지는 버릇"], "reply_length": 120,
+             "summary": "이 배우는 방법을 바로 들을 때 다음 테이크로 옮겼고, 질문만 이어지면 \\"그래서 어떻게 해요?\\"라고 되물었다."}
             """;
 
-    @Test
-    void theProfileHasTheAdvisorFileShape() {
-        String profile = respond(GOOD, material(List.of(conversation(2, null, List.of()), conversation(3, null, List.of())),
-                List.of("아버지에게서 인정받으려는 마음을 숨긴다")));
-        List<String> lines = profile.lines().toList();
-        assertThat(lines.get(0)).isEqualTo("[길이] 120");
-        assertThat(lines.get(1)).isEqualTo("[이 배우에게 맞춘 코칭]");
-        assertThat(lines.get(2)).startsWith("아래는 이 배우가 지난 대화에서");
-        assertThat(lines.get(3)).startsWith("이 배우는 방법을 바로 들을 때");
-        assertThat(lines.subList(4, lines.size())).allSatisfy(line -> assertThat(line).startsWith("- "));
-        assertThat(profile)
-                .contains("- 첫 응답의 <설계>에서 '첫 질문 모양' 칸에는")
-                .contains("- 이 배우에게는 다음 말을 한 번도 쓰지 않는다: \"확인하며\".")
-                .endsWith("- 한 번에 하는 말은 공백 포함 120자 안쪽이다.");
-        assertThat(profile.length()).isLessThanOrEqualTo(CoachingProfileWriter.MAX_CHARS);
+    private static com.acttub.actingapi.feature.coach.app.ActorCoaching settings(String json) {
+        return com.acttub.actingapi.feature.coach.app.ActorCoaching.parse(json);
     }
 
     @Test
-    void diagnosesSceneContentAndPhrasesTheCoachNeverSaidAreDropped() {
-        String profile = respond(GOOD, material(List.of(conversation(2, null, List.of()), conversation(3, null, List.of())),
-                List.of("아버지에게서 인정받으려는 마음을 숨긴다")));
-        assertThat(profile)
-                .doesNotContain("버릇")
-                .doesNotContain("반말")
-                .doesNotContain("아버지에게서")
-                .doesNotContain("좋은 질문이에요");
+    void theAnswerBecomesStructuredSettingsThatRenderLikeAnAdvisorFile() {
+        String json = respond(GOOD, material(List.of(conversation(2, null, List.of()), conversation(3, null, List.of())), List.of()));
+        var coaching = settings(json);
+        assertThat(coaching.stuck()).isEqualTo("propose_one");
+        assertThat(coaching.firstQuestion()).isEqualTo("[인물]은 [상대]한테서 뭘 얻고 싶었어요?");
+        assertThat(coaching.closing()).startsWith("처음엔 [행동1]");
+        assertThat(coaching.neverSay()).containsExactly("확인하며");
+        assertThat(coaching.reasonsFirst()).isTrue();
+        assertThat(coaching.answerDirectly()).isTrue();
+        assertThat(coaching.maxQuestions()).isEqualTo(3);
+        assertThat(coaching.feedbackFocus()).isEqualTo("method");
+        assertThat(coaching.skip()).as("진단은 짚지 않을 것으로도 남기지 않는다").containsExactly("카메라 시선");
+        assertThat(coaching.replyLength()).isEqualTo(120);
+        assertThat(coaching.personaText()).startsWith("[길이] 120\n[이 배우에게 맞춘 코칭]\n")
+                .contains("이 배우는 방법을 바로 들을 때").endsWith("- 한 번에 하는 말은 공백 포함 120자 안쪽이다.");
+        assertThat(json.length()).isLessThanOrEqualTo(CoachingProfileWriter.MAX_CHARS);
     }
 
     @Test
-    void theLengthLineStaysInsideTheBounds() {
+    void templatesThatBreakTheBansOrLeakTheSceneAreLeftAtTheCommonDefault() {
+        String json = respond(GOOD
+                        .replace("[인물]은 [상대]한테서 뭘 얻고 싶었어요?", "따질래요, 달랠래요?")
+                        .replace("처음엔 [행동1], ", "아버지에게서 인정받으려는 마음으로 해 보세요. ")
+                        .replace("\"stuck\": \"propose_one\"", "\"stuck\": \"sometimes\""),
+                material(List.of(conversation(2, null, List.of()), conversation(3, null, List.of())),
+                        List.of("아버지에게서 인정받으려는 마음을 숨긴다")));
+        var coaching = settings(json);
+        assertThat(coaching.firstQuestion()).as("양자택일 틀").isNull();
+        assertThat(coaching.closing()).as("장면 내용·시키는 말").isNull();
+        assertThat(coaching.stuck()).as("모르는 값").isNull();
+        assertThat(coaching.maxQuestions()).isEqualTo(3);
+    }
+
+    @Test
+    void theBoundsHoldForLengthAndQuestionCount() {
         var material = material(List.of(conversation(2, "helpful", List.of())), List.of());
-        assertThat(respond(GOOD.replace("\"length\": 120", "\"length\": 400"), material)).startsWith("[길이] 160\n");
-        assertThat(respond(GOOD.replace("\"length\": 120", "\"length\": 10"), material)).startsWith("[길이] 60\n");
-        assertThat(respond(GOOD.replace("\"length\": 120,", ""), material)).startsWith("[길이] 90\n");
+        var wide = settings(respond(GOOD.replace("\"reply_length\": 120", "\"reply_length\": 400")
+                .replace("\"max_questions\": 3", "\"max_questions\": 9"), material));
+        assertThat(wide.replyLength()).isEqualTo(160);
+        assertThat(wide.maxQuestions()).isEqualTo(4);
+        var none = settings(respond(GOOD.replace("\"reply_length\": 120,", "").replace("\"max_questions\": 3,", ""), material));
+        assertThat(none.replyLength()).isNull();
+        assertThat(none.maxQuestions()).isNull();
+        assertThat(none.personaText()).doesNotStartWith("[길이]");
     }
 
     @Test
@@ -97,8 +111,8 @@ class CoachingProfileWriterTest {
         var material = material(List.of(conversation(2, "helpful", List.of())), List.of());
         assertThat(respond("{}", material)).isEmpty();
         assertThat(respond("not json", material)).isEmpty();
-        assertThat(respond("{\"summary\": \"이 배우는 방법을 바로 들을 때 다음 테이크로 옮겼다.\", \"reasons\": \"제안에는 이유를 붙인다.\"}",
-                material)).as("규칙이 둘보다 적으면 쓰지 않는다").isEmpty();
+        assertThat(respond("{\"summary\": \"이 배우는 방법을 바로 들을 때 다음 테이크로 옮겼다.\"}", material))
+                .as("정해진 칸이 하나도 없으면 쓰지 않는다").isEmpty();
     }
 
     @Test
@@ -150,9 +164,9 @@ class CoachingProfileWriterTest {
 
     @Test
     void aSummarySentenceThatBreaksABanIsDroppedAndTheRestStays() {
-        String json = GOOD.replace("라고 되물었다.\",", "라고 되물었다. 상대의 눈·표정을 확인하며 마음을 전하는 제안이 도움됐다고 평가했다.\",");
-        String profile = respond(json, material(List.of(conversation(2, "helpful", List.of())), List.of()));
-        assertThat(profile).contains("라고 되물었다.\n").doesNotContain("확인하며 마음을");
+        String json = GOOD.replace("라고 되물었다.\"}", "라고 되물었다. 상대의 눈·표정을 확인하며 마음을 전하는 제안이 도움됐다고 평가했다.\"}");
+        var coaching = settings(respond(json, material(List.of(conversation(2, "helpful", List.of())), List.of())));
+        assertThat(coaching.summary()).endsWith("라고 되물었다.").doesNotContain("확인하며 마음을");
     }
 }
 

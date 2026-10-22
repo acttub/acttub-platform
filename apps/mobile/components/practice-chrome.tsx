@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView, type VideoSource } from 'expo-video';
 
@@ -20,7 +20,8 @@ import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events'
 
 /**
  * 번호가 붙은 2단계 스텝퍼 — ①목적 ②영상(pen P/Stepper, SOMA-748). 장면 단계는 SOMA-778에서 뺐다.
- * 지나온 단계와 지금 단계는 파란 동그라미에 번호(체크 아님), 이름은 진한 글자 — 지금 단계만 900으로 더 굵게. 남은 단계는 회색.
+ * 지나온 단계와 지금 단계는 파란 동그라미에 번호(체크 아님), 이름은 진한 글자. 남은 단계는 회색 동그라미·회색 이름.
+ * pen 03 「Stepper」 수치: 동그라미 20 · 번호 13/700, 6 띄워 이름 14/700, 단계 사이 10 · 18 줄 · 10.
  */
 export function Stepper({ current }: { current: 1 | 2 }) {
   const labels = translateList('practiceChrome.steps');
@@ -31,17 +32,15 @@ export function Stepper({ current }: { current: 1 | 2 }) {
         const passed = step < current;
         const active = step === current;
         return (
-          <View key={label} style={styles.stepperItem}>
+          <Fragment key={label}>
             {index > 0 && <View style={styles.stepperLine} />}
-            <View style={[styles.circle, (passed || active) && styles.circleOn]}>
-              <Text style={[styles.circleText, (passed || active) && styles.circleTextOn]}>
-                {step}
-              </Text>
+            <View style={styles.stepperItem}>
+              <View style={[styles.circle, (passed || active) && styles.circleOn]}>
+                <Text style={[styles.circleText, (passed || active) && styles.circleTextOn]}>{step}</Text>
+              </View>
+              <Text style={[styles.stepperLabel, (passed || active) && styles.stepperLabelOn]}>{label}</Text>
             </View>
-            <Text style={[styles.stepperLabel, passed && styles.stepperLabelPassed, active && styles.stepperLabelOn]}>
-              {label}
-            </Text>
-          </View>
+          </Fragment>
         );
       })}
     </View>
@@ -234,23 +233,22 @@ export function PracticeFooter() {
 }
 
 const styles = StyleSheet.create({
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepperItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  stepperLine: { width: 20, height: 1, backgroundColor: palette.border, marginRight: 2 },
+  stepperLine: { width: 18, height: 1, backgroundColor: palette.border },
   circle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: palette.bgSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   circleOn: { backgroundColor: palette.blue },
-  circleText: { fontSize: 11, fontWeight: '900', color: palette.textFaint },
+  circleText: { fontSize: 13, fontWeight: '700', lineHeight: 16, color: palette.textFaint },
   circleTextOn: { color: palette.bg },
-  stepperLabel: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
-  stepperLabelPassed: { color: palette.text },
-  stepperLabelOn: { fontWeight: '900', color: palette.text },
+  stepperLabel: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
+  stepperLabelOn: { color: palette.text },
 
   progress: {
     flexDirection: 'row',

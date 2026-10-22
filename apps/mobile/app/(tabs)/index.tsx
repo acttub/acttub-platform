@@ -2,11 +2,14 @@ import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState, type Ref } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type Ref } from 'react';
 import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PrimaryButton } from '@/components/ui/buttons';
+import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
+import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
@@ -50,6 +53,13 @@ import {
 
 const PREVIEW_COUNT = 3;
 
+/** 첫 사용자 홈에서 고른 길 → 「계속하기」가 가는 탭(예전엔 카드를 누르면 바로 갔다). */
+type FirstPick = 'coaching' | 'reading';
+const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading'> = {
+  coaching: '/coaching',
+  reading: '/reading',
+};
+
 /**
  * 첫 연습을 끝낸 뒤 홈에서 한 번 비추는 자리(pen 「첫 연습 끝 홈 · 안내 1/4~4/4」, SOMA-748) — 오늘 할 것 카드,
  * 그리고 대본·챌린지·프로필 탭. 첫 사용자 홈(뭐부터 해 볼까요?)에서는 띄우지 않는다.
@@ -78,7 +88,7 @@ function recentDate(iso: string): string {
 
 /**
  * A1. 홈(pen 일반 홈 BTT6at·SSeGm·gVzpd, 첫 사용자 홈 bHxn1I, SOMA-748).
- * 첫 연습 전이면 「뭐부터 해 볼까요?」 질문 셋, 그 뒤로는 인사 + 오늘 할 것 카드 하나 + 하던 거 한 줄 +
+ * 첫 연습 전이면 인사·소개 말풍선과 「뭐부터 해 볼까요?」 선택 카드(고르면 펼쳐지고 「계속하기」로 들어간다), 그 뒤로는 인사 + 오늘 할 것 카드 하나 + 하던 거 한 줄 +
  * 최근 연습·마감 임박(practice.library·app.audition) + 오늘의 연기 팁이다.
  * 디자인의 「업데이트 소식」 띠와 일정 D-day 줄은 서버 기능이 없어 그리지 않는다.
  */
@@ -114,6 +124,8 @@ export default function HomeScreen() {
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
+  // 안내는 앱 맨 바깥에 그려져 다른 화면 위에도 덮인다 — 홈이 보일 때만 연다.
+  const guideFocused = useRef(false);
   // 홈 안내를 띄울지 확인을 마쳤는지, 그리고 이번 방문에 안내를 봤는지. 안내를 본 방문에는 공지 포스터(AI 목소리 홍보 등)·
   // 연속일 축하를 미룬다 — 안내 4단계가 끝나자마자 다른 팝업이 연달아 뜨지 않게(SOMA-771).
   const [guideChecked, setGuideChecked] = useState(false);
@@ -121,10 +133,14 @@ export default function HomeScreen() {
   const [introChecked, setIntroChecked] = useState(false);
   const [onboardingJustFinished, setOnboardingJustFinished] = useState(false);
   const startTarget = useSpotlightTarget(TARGET.homeStart);
+  // 첫 사용자 홈에서 고른 카드 — 고르기 전엔 아래 버튼이 「하나를 골라 주세요」로 막혀 있다.
+  const [firstPick, setFirstPick] = useState<FirstPick | null>(null);
+  const tabBarSpace = useTabBarSpace();
+  const firstName = profile.me?.profile?.name?.trim() ?? '';
 
   const openHomeGuideIfNew = useCallback(() => {
     void hasSeenSpotlight('home').then((seen) => {
-      if (!seen) setGuideOpen(true);
+      if (!seen && guideFocused.current) setGuideOpen(true);
       setGuideChecked(true);
     });
   }, []);
@@ -134,6 +150,7 @@ export default function HomeScreen() {
       // 올 때마다 본 적 있는지 묻는다(기기에서 읽는 값이라 싸다). 한 번만 묻고 말면,
       // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
       // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
+      guideFocused.current = true;
       if (currentTutorial()) finishTutorial('left');
       setGuideShownThisVisit(false);
       void hasSeenTutorial().then((seen) => {
@@ -194,6 +211,9 @@ export default function HomeScreen() {
       });
       return () => {
         cancelled = true;
+        // 떠나면 닫는다 — 설정에 다녀오면 다시 묻고 연다.
+        guideFocused.current = false;
+        setGuideOpen(false);
       };
     }, [router, openHomeGuideIfNew]),
   );
@@ -397,38 +417,55 @@ export default function HomeScreen() {
           <ActivityIndicator color={palette.blue} />
         </View>
       ) : firstUser ? (
-        // 첫 사용자 홈(bHxn1I) — 셋 중 하나를 고른다. 첫 줄이 첫 가이드가 비추는 자리다.
-        <ScrollView contentContainerStyle={styles.firstContainer}>
-          <View style={styles.firstHead}>
-            <Image source={MASCOT.coach} style={MASCOT_SIZE.sm} contentFit="contain" accessibilityIgnoresInvertColors />
-            <Text style={styles.firstQuestion}>{t('home.firstQuestion')}</Text>
+        // 첫 사용자 홈(pen 「가입 직후 · 소개 + 고르기 (합친 안)」) — 인사·소개 말풍선 아래에서 하나를 고르면 그 카드가 펼쳐지고
+        // 「계속하기」로 그 길에 들어간다. 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
+        <View style={styles.flex}>
+          <ScrollView contentContainerStyle={styles.firstContainer}>
+            <MascotBubble
+              source={MASCOT.coach}
+              title={firstName ? t('home.firstHello', { name: firstName }) : t('home.firstHelloNoName')}
+              guide={t('home.firstIntro')}
+            />
+            <View style={styles.firstHead}>
+              <Text style={styles.firstQuestion} accessibilityRole="header">{t('home.firstQuestion')}</Text>
+              <Text style={styles.firstSub}>{t('home.firstPickSub')}</Text>
+            </View>
+            <View style={styles.firstChoices}>
+              <FirstChoice
+                targetRef={startTarget.ref}
+                onLayout={startTarget.onLayout}
+                icon="video"
+                title={t('home.firstCoaching')}
+                sub={t('home.firstCoachingSub')}
+                steps={translateList('home.firstCoachingSteps')}
+                selected={firstPick === 'coaching'}
+                phLabel="home_first_coaching"
+                onPress={() => setFirstPick('coaching')}
+              />
+              <FirstChoice
+                icon="book-open"
+                title={t('home.firstReading')}
+                sub={t('home.firstReadingSub')}
+                steps={translateList('home.firstReadingSteps')}
+                selected={firstPick === 'reading'}
+                phLabel="home_first_reading"
+                onPress={() => setFirstPick('reading')}
+              />
+            </View>
+          </ScrollView>
+          <View style={[styles.firstFooter, { paddingBottom: 11 + tabBarSpace }]}>
+            <PrimaryButton
+              label={firstPick ? t('home.firstContinue') : t('home.firstPickNone')}
+              disabled={!firstPick}
+              phLabel="home_first_continue"
+              onPress={() => {
+                if (firstPick) router.push(FIRST_PICK_ROUTE[firstPick]);
+              }}
+            />
           </View>
-          <View style={styles.firstChoices}>
-            <FirstChoice
-              targetRef={startTarget.ref}
-              onLayout={startTarget.onLayout}
-              main
-              title={t('home.firstCoaching')}
-              sub={t('home.firstCoachingSub')}
-              phLabel="home_first_coaching"
-              onPress={() => router.push('/coaching')}
-            />
-            <FirstChoice
-              title={t('home.firstReading')}
-              sub={t('home.firstReadingSub')}
-              phLabel="home_first_reading"
-              onPress={() => router.push('/reading')}
-            />
-            <FirstChoice
-              title={t('home.firstChallenge')}
-              sub={t('home.firstChallengeSub')}
-              phLabel="home_first_challenge"
-              onPress={() => router.push('/challenges')}
-            />
-          </View>
-        </ScrollView>
+        </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarSpace + 20 }]}>
           {/* 머리 — 마스코트 + 인사 + 알림 종. 일정 D-day 줄은 일정 기능(서버)이 생기면 붙인다. */}
           <View style={styles.head}>
             <Image source={MASCOT.home} style={MASCOT_SIZE.card} contentFit="contain" accessibilityIgnoresInvertColors />
@@ -627,7 +664,8 @@ function TodayCardBody({
     sub = nextTake ? t('home.todayCoachingSub', { title: sceneTitle(item.group), n }) : t('home.todayCoachingSubTake', { n });
     cta = action.kind === 'resume' ? t('history.resumeConversation') : t('home.todayCoachingCta');
   } else if (item.kind === 'reading') {
-    eyebrow = t('home.todayReadingEyebrow');
+    // 한 번도 안 읽은 대본은 「하던 대본」이 아니다(10/22 피드백).
+    eyebrow = progress || item.script.last_practiced_at ? t('home.todayReadingEyebrow') : t('home.todayReadingEyebrowNew');
     eyebrowStyle = styles.eyebrowGreen;
     title = item.script.title;
     if (progress && progress.total > 0) {
@@ -672,19 +710,27 @@ function TodayCardBody({
   );
 }
 
-/** 첫 사용자 홈의 선택지 한 줄 — 제목 16/700(첫 줄은 파랑 16/800) + 무엇인지 한 줄 설명(13/500), 오른쪽 꺾쇠(SOMA-770 피드백 3). */
+/**
+ * 첫 사용자 홈의 선택 카드(pen 합친 안) — 회색 카드(#F2F4F6, 모서리 16, 안쪽 [20,16]) 안에 흰 아이콘 칸 40 · 제목 18/700 ·
+ * 설명 14/400 #6B7684 · 오른쪽 라디오 22. 고르면 옅은 파랑 바탕에 파란 테두리 1.5, 제목 파랑, 라디오에 체크.
+ * `steps`가 있으면 고른 동안 「이렇게 진행돼요」 1·2·3 단계가 펼쳐진다(pen 「홈 · 첫 사용자 · 코칭 고름」).
+ */
 function FirstChoice({
+  icon,
   title,
   sub,
-  main,
+  steps,
+  selected,
   phLabel,
   onPress,
   targetRef,
   onLayout,
 }: {
+  icon: ComponentProps<typeof Feather>['name'];
   title: string;
   sub: string;
-  main?: boolean;
+  steps?: string[];
+  selected: boolean;
   phLabel: string;
   onPress: () => void;
   targetRef?: Ref<View>;
@@ -695,16 +741,37 @@ function FirstChoice({
       ref={targetRef}
       onLayout={onLayout}
       onPress={onPress}
-      accessibilityRole="button"
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
       accessibilityLabel={title}
       accessibilityHint={sub}
       ph-label={phLabel}
-      style={({ pressed }) => [styles.choice, main && styles.choiceMain, pressed && styles.pressed]}>
-      <View style={styles.choiceBody}>
-        <Text style={[styles.choiceText, main && styles.choiceTextMain]}>{title}</Text>
-        <Text style={styles.choiceSub}>{sub}</Text>
+      style={({ pressed }) => [styles.choice, selected && styles.choiceOn, pressed && !selected && styles.pressed]}>
+      <View style={styles.choiceRow}>
+        <View style={styles.choiceIcon}>
+          <Feather name={icon} size={20} color={palette.blue} />
+        </View>
+        <View style={styles.choiceBody}>
+          <Text style={[styles.choiceText, selected && styles.choiceTextOn]}>{title}</Text>
+          <Text style={styles.choiceSub}>{sub}</Text>
+        </View>
+        <View style={[styles.radio, selected && styles.radioOn]}>
+          {selected ? <Feather name="check" size={14} color={palette.onAccent} /> : null}
+        </View>
       </View>
-      <Feather name="chevron-right" size={18} color={main ? palette.blueDeep : palette.textMuted} />
+      {selected && steps && steps.length > 0 ? (
+        <View style={styles.steps}>
+          <Text style={styles.stepsLabel}>{t('home.firstStepsLabel')}</Text>
+          {steps.map((step, i) => (
+            <View key={step} style={styles.stepRow}>
+              <View style={styles.stepNum}>
+                <Text style={styles.stepNumText}>{i + 1}</Text>
+              </View>
+              <Text style={styles.stepText}>{step}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -713,30 +780,58 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // 아래 탭 바가 화면 위에 떠 있어 그만큼 바닥을 비운다.
-  container: { paddingHorizontal: 20, paddingTop: 30, paddingBottom: 140 },
+  container: { paddingHorizontal: 20, paddingTop: 30 },
   flex: { flex: 1, minWidth: 0 },
   shrink: { flexShrink: 1 },
   pressed: { opacity: 0.85 },
 
-  // 첫 사용자 홈(bHxn1I)
-  firstContainer: { paddingTop: 100, paddingHorizontal: 24, paddingBottom: 40, gap: 16 },
-  firstHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  firstQuestion: { flex: 1, fontSize: 28, fontWeight: '800', lineHeight: 38, color: palette.text },
-  firstChoices: { gap: 12, paddingTop: 24 },
+  // 첫 사용자 홈(pen 합친 안)
+  firstContainer: { paddingTop: 32, paddingHorizontal: 20, paddingBottom: 24 },
+  firstHead: { marginTop: 36, gap: 4, paddingLeft: 2 },
+  firstQuestion: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.text },
+  firstSub: { fontSize: 13.5, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
+  firstChoices: { gap: 12, marginTop: 16 },
+  firstFooter: { paddingHorizontal: 20, paddingTop: 8 },
   choice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 22,
-    paddingHorizontal: 18,
-    borderRadius: 12,
+    gap: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: palette.bgSoft,
     backgroundColor: palette.bgSoft,
   },
-  choiceMain: { backgroundColor: palette.blueSoft },
-  choiceBody: { flex: 1, minWidth: 0, gap: 4 },
-  choiceText: { fontSize: 16, fontWeight: '700', lineHeight: 24, color: palette.text },
-  choiceTextMain: { fontWeight: '800', color: palette.blueDeep },
-  choiceSub: { fontSize: 13, fontWeight: '500', lineHeight: 19, color: palette.textMuted },
+  choiceOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
+  choiceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  choiceIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: palette.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  choiceBody: { flex: 1, minWidth: 0, gap: 3 },
+  choiceText: { fontSize: 18, fontWeight: '700', lineHeight: 23, color: palette.text },
+  choiceTextOn: { color: palette.blueDeep },
+  choiceSub: { fontSize: 14, fontWeight: '400', lineHeight: 20, color: palette.textMuted },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    backgroundColor: palette.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOn: { borderWidth: 0, backgroundColor: palette.blue },
+  steps: { gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: palette.blueLine },
+  stepsLabel: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center' },
+  stepNumText: { fontSize: 12, fontWeight: '700', color: palette.blue },
+  stepText: { flex: 1, fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textStrong },
 
   // 머리
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },

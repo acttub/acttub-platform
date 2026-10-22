@@ -57,8 +57,13 @@ export default function RecordVideoScreen() {
     work?: string;
     challengeId?: string;
     picker?: string;
+    next?: string;
+    first?: string;
   }>();
   const picker = params.picker === '1';
+  // next=upload: 코칭 탭 「지금 찍어서 코칭 받기」 → 찍는 법 → 여기. 준비 화면이 뒤에 없으니 찍은 뒤 새로 연다.
+  const toUpload = params.next === 'upload';
+  const firstCoaching = params.first === '1';
   const [mode, setMode] = useState<string | undefined>(params.mode);
   // 오늘의 대사로 넘기면 여기에 그 챌린지를 채운다 — 챌린지 화면에서 오면 처음부터 들어 있다.
   const [challengeParams, setChallengeParams] = useState({
@@ -224,6 +229,7 @@ export default function RecordVideoScreen() {
         // 하단 탭에서 곧장 왔으면 새 준비 화면을 연다. 준비 화면의 촬영 버튼에서 왔으면 그 화면으로 돌아간다 —
         // 새 준비 화면을 또 열면 다음 테이크(이어하기)가 새 연습으로 바뀐다(SOMA-672).
         if (picker) router.replace('/upload');
+        else if (toUpload) router.replace({ pathname: '/upload', params: firstCoaching ? { first: '1' } : {} });
         else router.back();
       });
       return;
@@ -239,7 +245,7 @@ export default function RecordVideoScreen() {
     }
     leavingRef.current = true;
     router.back();
-  }, [challengeId, isChallenge, line, mode, picker, router, saveToLibrary, work]);
+  }, [challengeId, firstCoaching, isChallenge, line, mode, picker, router, saveToLibrary, toUpload, work]);
 
   const finishWith = useCallback(
     (uri: string | null) => {

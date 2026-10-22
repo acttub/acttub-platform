@@ -19,9 +19,9 @@ type ButtonProps = {
 };
 
 /**
- * 앱의 기본 버튼 하나 — pen 「Button/Primary·Secondary·Disabled」(SOMA-770). 높이 56, 모서리 16, 글자 16/700.
- * primary: 파랑 #3182F6 · 흰 글자 / secondary: #F2F4F6 · #4E5968 / danger: 빨강 · 흰 글자.
- * 막혀 있으면 어느 모양이든 Disabled(#E5E8EB 바탕 · #8B95A1 글자)로 바뀐다. 모든 화면의 큰 버튼은 이것만 쓴다.
+ * 앱의 기본 버튼 하나 — pen 「버튼 / Primary」(파이프라인 반영버전). 높이 48, 모서리 16, 글자 17/700.
+ * primary: 파랑 #4880EE · 흰 글자 / secondary: #F2F4F6 · #4E5968 / danger: 빨강 · 흰 글자.
+ * 막혀 있으면 어느 모양이든 Disabled(#E5E8EB 바탕 · #B0B8C1 글자)로 바뀐다. 모든 화면의 큰 버튼은 이것만 쓴다.
  */
 export function Button({
   label,
@@ -80,6 +80,7 @@ export function DangerButton(props: ButtonProps) {
 /**
  * 글자만 있는 낮은 버튼(「건너뛰기」 같은 보조 링크) — 14/700 회색. 큰 버튼 아래 둘째·셋째 선택지에 쓴다.
  * tone="accent"는 파란 글자 링크 — pen S3.2·S5.2 「다시 불러오기」(안쪽 [8,16]).
+ * size="large"는 버튼 자리를 대신하는 글자 — pen 가입 7/7 「건너뛰기」(높이 56 · 17/700 #8B95A1).
  */
 export function TextButton({
   label,
@@ -88,7 +89,8 @@ export function TextButton({
   accessibilityLabel,
   phLabel,
   tone = 'muted',
-}: ButtonProps & { tone?: 'muted' | 'accent' }) {
+  size = 'small',
+}: ButtonProps & { tone?: 'muted' | 'accent'; size?: 'small' | 'large' }) {
   return (
     <Pressable
       onPress={onPress}
@@ -97,15 +99,22 @@ export function TextButton({
       accessibilityLabel={accessibilityLabel ?? label}
       ph-label={phLabel}
       hitSlop={8}
-      style={({ pressed }) => [styles.text, tone === 'accent' && styles.textAccent, pressed && styles.pressed]}>
-      <Text style={[styles.textLabel, tone === 'accent' && styles.textLabelAccent]}>{label}</Text>
+      style={({ pressed }) => [
+        styles.text,
+        tone === 'accent' && styles.textAccent,
+        size === 'large' && styles.textLarge,
+        pressed && styles.pressed,
+      ]}>
+      <Text style={[styles.textLabel, tone === 'accent' && styles.textLabelAccent, size === 'large' && styles.textLabelLarge]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    height: 56,
+    height: 48,
     borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -118,12 +127,14 @@ const styles = StyleSheet.create({
   danger: { backgroundColor: palette.danger },
   disabled: { backgroundColor: palette.border },
   pressed: { opacity: 0.85 },
-  label: { fontSize: 16, fontWeight: '700' },
+  label: { fontSize: 17, fontWeight: '700' },
   filledLabel: { color: palette.onAccent },
   secondaryLabel: { color: palette.textDim },
-  disabledLabel: { color: palette.textFaint },
+  disabledLabel: { color: palette.checkOff },
   text: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12 },
   textLabel: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
   textAccent: { paddingHorizontal: 16 },
   textLabelAccent: { color: palette.blue },
+  textLarge: { height: 56, justifyContent: 'center', paddingVertical: 0 },
+  textLabelLarge: { fontSize: 17 },
 });

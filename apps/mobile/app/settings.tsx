@@ -1,11 +1,11 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
+import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
 import { useAuth } from '@/lib/auth';
 import { resetSpotlights } from '@/lib/guide-state';
@@ -13,47 +13,10 @@ import { translate as t } from '@/lib/i18n';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
 
-type FeatherName = ComponentProps<typeof Feather>['name'];
-
-/** 개편 전 설정 카드 — 파란 원 아이콘 + 제목·설명 + 오른쪽(꺾쇠 또는 스위치). */
-function SettingsCard({
-  icon,
-  title,
-  sub,
-  onPress,
-  right,
-  iconColor = palette.blue,
-}: {
-  icon: FeatherName;
-  title: string;
-  sub: string;
-  onPress?: () => void;
-  right?: ReactNode;
-  iconColor?: string;
-}) {
-  const body = (
-    <View style={styles.cardRow}>
-      <View style={styles.iconCircle}>
-        <Feather name={icon} size={18} color={iconColor} />
-      </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.cardSub}>{sub}</Text>
-      </View>
-      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.checkOff} /> : null)}
-    </View>
-  );
-  if (!onPress) return <View style={styles.card}>{body}</View>;
-  return (
-    <Pressable style={styles.card} onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
-      {body}
-    </Pressable>
-  );
-}
-
 /**
  * S15 설정 — 프로필 오른쪽 위 ⚙ 로 들어온다. 10/21 피드백(SOMA-790)으로 SOMA-748 개편 전의 카드 모양
- * (묶음 제목 아래 아이콘·제목·설명 카드, 맨 아래 로그아웃 버튼과 회원 탈퇴 글자)으로 되돌렸다.
+ * (묶음 제목 아래 아이콘·제목·설명 카드, 맨 아래 로그아웃 버튼과 회원 탈퇴 글자)으로 되돌렸다. 카드는 공통 부품
+ * SettingsCard(pen 「설정 카드」 수치)다.
  *
  * 줄 목록은 개편 뒤 것을 쓴다: 알림 토글은 「알림」 화면(notification-settings), 동의 목록은 「동의 내역」 화면
  * (consent-history)으로 들어간다. 코치의 기억은 틀린 내용을 되돌릴 수 있는 유일한 자리, 문의·신고는 앱 안 신고
@@ -228,26 +191,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bgSubtle },
   list: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 10 },
   sectionTitle: { fontSize: 13.5, fontWeight: '800', color: palette.text, marginTop: 12 },
-  card: {
-    backgroundColor: palette.card,
-    borderWidth: 1,
-    borderColor: palette.borderSoft,
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-  },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: palette.blueSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardBody: { flex: 1, gap: 4 },
-  cardTitle: { fontSize: 15.5, fontWeight: '800', color: palette.text },
-  cardSub: { fontSize: 12.5, color: palette.textFaint, lineHeight: 17 },
   previewRow: {
     marginTop: 12,
     borderWidth: 1,
