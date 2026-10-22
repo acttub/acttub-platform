@@ -140,9 +140,16 @@ export default function AiReportScreen() {
       confirmLabel: t('aiReport.publicConfirm'),
     });
     if (!ok) return;
+    // 공개하면서 얼굴 모자이크를 켤지 묻는다(SOMA-809). 「그대로 공개」는 원본으로 공개한다.
+    const mosaic = await confirm({
+      title: t('challengeEntries.mosaicAskTitle'),
+      message: t('challengeEntries.mosaicAskBody'),
+      confirmLabel: t('challengeEntries.mosaicAskConfirm'),
+      cancelLabel: t('challengeEntries.mosaicAskSkip'),
+    });
     setBusy(true);
     try {
-      await api.updateEntry(entryId, { visibility: 'public' });
+      await api.updateEntry(entryId, mosaic ? { visibility: 'public', face_mosaic: true } : { visibility: 'public' });
       void logEvent('challenge_entry_visibility', { to: 'public' });
       setVisibility('public');
       finish();

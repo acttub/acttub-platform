@@ -199,7 +199,27 @@ describe('공개 범위 바꾸기', () => {
     expect(updateEntry).not.toHaveBeenCalled();
     const labels = screen.getAllByText('공개로 바꾸기');
     await fireEvent.press(labels[labels.length - 1]);
+    // 이어서 얼굴 모자이크를 켤지 묻는다(SOMA-809). 「그대로 공개」는 원본으로 공개한다.
+    expect(await screen.findByText('얼굴 모자이크를 켤까요?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('그대로 공개'));
     expect(updateEntry).toHaveBeenCalledWith('e2', { visibility: 'public' });
+  });
+
+  test('다시 공개하면서 얼굴 모자이크를 켤 수 있다', async () => {
+    await render(<ChallengeEntriesScreen />);
+    await openMenuFor('“내일은 내일의 해가”');
+    await fireEvent.press(screen.getByText('공개로 바꾸기'));
+    const labels = await screen.findAllByText('공개로 바꾸기');
+    await fireEvent.press(labels[labels.length - 1]);
+    await fireEvent.press(await screen.findByText('모자이크하고 공개'));
+    expect(updateEntry).toHaveBeenCalledWith('e2', { visibility: 'public', face_mosaic: true });
+  });
+
+  test('얼굴 모자이크를 메뉴에서 켜고, 만드는 중이면 목록에 알린다', async () => {
+    await render(<ChallengeEntriesScreen />);
+    await openMenuFor('“내일은 내일의 해가”');
+    await fireEvent.press(screen.getByText('얼굴 모자이크 켜기'));
+    expect(updateEntry).toHaveBeenCalledWith('e2', { face_mosaic: true });
   });
 
   test('바꾸기가 실패하면 이유를 알린다', async () => {

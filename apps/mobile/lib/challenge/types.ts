@@ -110,12 +110,18 @@ export type CreateEntryBody = {
   video_id: string;
   caption?: string;
   visibility: EntryVisibility;
+  /** 얼굴 모자이크 — 켜면 다른 사람은 서버가 만든 모자이크본만 본다. 끈 요청은 보내지 않는다(옛 요청과 지문이 같다). */
+  face_mosaic?: boolean;
 };
 
 export type EntryPatch = {
   caption?: string;
   visibility?: EntryVisibility;
+  face_mosaic?: boolean;
 };
+
+/** 모자이크본 상태 — 끈 참여작은 null. ready 전·failed 는 공개여도 다른 사람에게 보이지 않는다. */
+export type MosaicStatus = 'pending' | 'ready' | 'failed';
 
 /** P03 내 참여작 — 분류와 부모 챌린지가 함께 온다. */
 export type MyEntryCard = Omit<EntryCard, 'is_new'> & {
@@ -129,6 +135,9 @@ export type MyEntryCard = Omit<EntryCard, 'is_new'> & {
   challenge_hidden: boolean;
   challenge: { id: string; line: string; work: string; character: string | null; ends_at: string };
   created_at: string;
+  /** 얼굴 모자이크를 켰는가(SOMA-809). 옛 서버 응답에는 없다. */
+  face_mosaic?: boolean;
+  mosaic_status?: MosaicStatus | null;
 };
 
 export type MyEntriesResponse = {

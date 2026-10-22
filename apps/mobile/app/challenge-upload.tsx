@@ -12,6 +12,7 @@ import { Image } from 'expo-image';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { BlueSwitch } from '@/components/ui/list-rows';
 import { MASCOT as MASCOTS } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
@@ -75,10 +76,12 @@ export default function ChallengeUploadScreen() {
   const [caption, setCaption] = useState('');
   // pen 챌린지 올리기(SOMA-748) — 「나만 보기」가 먼저 골라져 있다. 공개는 배우가 직접 바꾼다.
   const [visibility, setVisibility] = useState<EntryVisibility | null>('private');
+  /** 얼굴 모자이크(SOMA-809) — 공개를 고르면 보이는 켜기 버튼. 기본 꺼짐이고 공개일 때만 요청에 실린다. */
+  const [faceMosaic, setFaceMosaic] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** 방금 만든 참여작 — 있으면 완료 화면이고, 「AI 리포트 보기」가 id 를 쓴다. */
-  const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility } | null>(null);
+  const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean } | null>(null);
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -203,13 +206,13 @@ export default function ChallengeUploadScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const body = buildEntryBody({ requestId: 'pending', videoId, caption, visibility });
+      const body = buildEntryBody({ requestId: 'pending', videoId, caption, visibility, faceMosaic });
       const attempt = entryAttemptFor(attemptRef.current, entryFingerprint(body), () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
       attemptRef.current = attempt;
       const entry = await api.createEntry(challengeId, { ...body, request_id: attempt.requestId });
       logEvent('challenge_entry_created', { visibility });
       void markFirstChallengeFinished();
-      setCreated({ id: entry.id, visibility });
+      setCreated({ id: entry.id, visibility, faceMosaic: body.face_mosaic === true });
     } catch (e) {
       const failure = entryFailure(e);
       void logEvent(CHALLENGE_FUNNEL_EVENTS.submitFailed, submitFailedParams(failure));
@@ -219,7 +222,7 @@ export default function ChallengeUploadScreen() {
       lockRef.current = false;
       setSubmitting(false);
     }
-  }, [caption, challengeId, pendingId, submitting, user?.id, videoId, visibility]);
+  }, [caption, challengeId, faceMosaic, pendingId, submitting, user?.id, videoId, visibility]);
 
   if (created) {
     const copy = doneCopy(created.visibility);
@@ -248,7 +251,9 @@ export default function ChallengeUploadScreen() {
             </View>
           </View>
           <Text style={[styles.doneTitle, styles.doneGap18]}>{copy.title}</Text>
-          <Text style={[styles.doneSub, styles.doneGap8]}>{copy.body}</Text>
+          <Text style={[styles.doneSub, styles.doneGap8]}>
+            {created.faceMosaic ? t('challengeUpload.doneSubMosaic') : copy.body}
+          </Text>
           <View style={styles.reportHint}>
             <Ionicons name="sparkles" size={14} color={palette.blueDeep} />
             <Text style={styles.reportHintText}>{t('challengeUpload.doneGuide')}</Text>
@@ -324,6 +329,21 @@ export default function ChallengeUploadScreen() {
           <View style={styles.note}>
             <Feather name="zap" size={13} color={palette.blueDeep} />
             <Text style={styles.noteText}>{t('challengeUpload.note')}</Text>
+          </View>
+        )}
+
+        {/* 공개를 고르면 얼굴 모자이크를 켤 수 있다(SOMA-809). 켜면 다른 사람에게는 얼굴을 가린 사본만 간다. */}
+        {visibility === 'public' && (
+          <View style={styles.mosaicRow}>
+            <View style={styles.flex}>
+              <Text style={styles.mosaicTitle}>{t('challengeUpload.mosaicTitle')}</Text>
+              <Text style={styles.optionSub}>{t('challengeUpload.mosaicSub')}</Text>
+            </View>
+            <BlueSwitch
+              value={faceMosaic}
+              onValueChange={setFaceMosaic}
+              accessibilityLabel={t('challengeUpload.mosaicTitle')}
+            />
           </View>
         )}
 
@@ -427,6 +447,8 @@ const styles = StyleSheet.create({
   optionTitleOn: { color: palette.blueDeep },
   optionSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
   ghost: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, paddingHorizontal: 4 },
+  mosaicTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 22 },
   // 본문 가운데 — 안쪽 [0,25,40,25]. 액티 84×88(체크 28 · 흰 테두리 3, 왼쪽 54 · 위 57) · 18 · 제목 · 8 · 안내 · 14 · 알약.
   doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25, paddingBottom: 40 },
   doneHero: { width: 84, height: 88 },
