@@ -34,6 +34,9 @@ export type { SpotlightStep };
 /** 설명 카드를 아직 못 쟀을 때 쓸 어림값. 첫 그림 한 번만 쓰이고 바로 실제 높이로 바뀐다. */
 const CAPTION_GUESS = 190;
 
+/** 안내가 떠 있는 동안 비출 자리를 다시 재는 간격. */
+const REMEASURE_MS = 300;
+
 /**
  * 화면이 "이 가이드를 띄워 달라"고 맡긴다. 그리는 일은 {@link SpotlightHost} 가 한다 —
  * 앱 맨 바깥에서 같은 창에 그려야 비출 자리와 기준이 맞는다({@code lib/spotlight-host}).
@@ -108,12 +111,13 @@ export function SpotlightHost() {
   const open = request !== null;
 
   // 띄우는 순간 자리를 다시 잰다 — 첫 배치 때 잰 값은 제자리가 아닐 수 있다.
-  // 한 박자 뒤 한 번 더 재서, 화면이 막 열리는 중이라 아직 안 잡힌 경우까지 받는다.
+  // 떠 있는 동안에도 조금씩 다시 잰다 — 목록이 늦게 차서 아래로 밀리면 처음 잰 자리가 어긋난다(대본 탭).
+  // 같은 자리면 알리지 않아서 다시 그리지 않는다.
   useEffect(() => {
     if (!open) return;
     remeasureTargets();
-    const again = setTimeout(remeasureTargets, 250);
-    return () => clearTimeout(again);
+    const keep = setInterval(remeasureTargets, REMEASURE_MS);
+    return () => clearInterval(keep);
   }, [open, index]);
 
   useEffect(() => {

@@ -16,3 +16,10 @@ for (const [name, file] of [
     assert.match(src, /guideFocused\.current = false;\s*\n\s*setGuideOpen\(false\);/);
   });
 }
+
+// 대본 탭은 목록·목소리 띠가 늦게 차서 처음 잰 자리가 위로 어긋났다(10/22 실기기) — 떠 있는 동안 계속 다시 잰다.
+test('안내가 떠 있는 동안 비출 자리를 계속 다시 잰다', () => {
+  const src = readFileSync(new URL('../components/spotlight-guide.tsx', import.meta.url), 'utf8');
+  assert.match(src, /const keep = setInterval\(remeasureTargets, REMEASURE_MS\);/);
+  assert.match(src, /clearInterval\(keep\);/);
+});
