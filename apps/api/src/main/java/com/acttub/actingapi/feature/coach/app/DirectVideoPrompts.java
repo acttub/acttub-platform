@@ -178,6 +178,14 @@ final class DirectVideoPrompts {
     }
 
     /**
+     * 개인 프롬프트를 쓰는 대화(자문위원)에서는 할 일 파일 예문 끝의 "어때요?"를 뺀다. 개인 프롬프트가 "어때요?"를 금지해도
+     * 할 일 파일 예문을 따라 제안 끝에 붙였다(2026-10-22 로컬 재생: 수정판 7건 중 3건). 일반 배우의 할 일 파일은 그대로다.
+     */
+    static String withoutHowAbout(String task) {
+        return task == null ? null : task.replace(" 어때요?", "").replace("한 뒤 \"어때요?\"로 묻는다", "한다");
+    }
+
+    /**
      * 프롬프트 id 로 덧붙일 글(SOMA-622). 기본("a")·빈 값·모르는 id 면 빈 문자열.
      * 자문위원 id 는 {@code personas/advisors/<id>.txt}(한국어 대화), {@code <id>.en.txt}(그 밖의 말, 있을 때만)를 쓴다.
      * 예전 대화에 저장된 "b1" 은 한국어 대화에서만 그대로 붙는다. 맨 앞의 길이 줄({@code [길이] 90})은 떼고 준다.

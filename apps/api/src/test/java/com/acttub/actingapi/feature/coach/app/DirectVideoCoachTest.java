@@ -433,7 +433,7 @@ class DirectVideoCoachTest {
 
     @Test void advisorPromptsLoadByLanguageAndUnknownIdsGetNothing() {
         assertThat(DirectVideoPrompts.personaReplyLimit("park-seunga", null)).isEqualTo(100);
-        assertThat(DirectVideoPrompts.personaReplyLimit("cho-taemin", null)).isEqualTo(70);
+        assertThat(DirectVideoPrompts.personaReplyLimit("cho-taemin", null)).isEqualTo(90);
         assertThat(DirectVideoPrompts.personaReplyLimit("a", null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
         assertThat(DirectVideoPrompts.personaReplyLimit("b1", null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
         assertThat(DirectVideoPrompts.persona("kwon-ohryong", Locale.ENGLISH)).startsWith("[Coaching tailored to this actor]").doesNotContain("[length]");

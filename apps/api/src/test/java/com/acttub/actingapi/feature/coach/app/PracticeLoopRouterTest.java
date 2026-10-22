@@ -150,8 +150,8 @@ class PracticeLoopRouterTest {
         var torn = PracticeLoopRouter.parse("{\"signals\":[\"answered\"]}");
         assertThat(torn.decided()).isFalse();
         assertThat(PracticeLoopRouter.route(torn, find, 0)).as("고민 중이면 바꿔 묻는다").isEqualTo(PracticeLoopRouter.REASK);
-        assertThat(PracticeLoopRouter.route(torn, find, 1)).as("또 못 정하면 보기 둘").isEqualTo(PracticeLoopRouter.EASY);
-        assertThat(PracticeLoopRouter.route(torn, find, 2)).as("세 번째는 코치가 제안").isEqualTo(PracticeLoopRouter.PROPOSE);
+        assertThat(PracticeLoopRouter.route(torn, find, 1)).as("또 못 정하면 같은 걸 다시 묻지 않고 정리에서 코치가 행동을 준다").isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouter.route(torn, find, 2)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(PracticeLoopRouter.route(torn, at(4, 8, PracticeLoopRouter.PROPOSE, Kind.ANSWER), 3))
                 .as("제안 뒤에는 정리로 간다(끝없이 머물지 않는다)").isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(PracticeLoopRouter.route(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"question\"]}"), find, 0))
@@ -321,10 +321,12 @@ class PracticeLoopRouterTest {
         var want = PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"want\"]}");
         assertThat(want.want()).isTrue();
         assertThat(want.decided()).isFalse();
-        assertThat(PracticeLoopRouter.route(want, find, 0)).as("처음엔 그 바람으로 행동을 다시 묻는다").isEqualTo(PracticeLoopRouter.REASK);
-        assertThat(PracticeLoopRouter.route(want, find, 1)).as("두 번째는 보기 둘 대신 그 바람을 얻을 행동을 제안").isEqualTo(PracticeLoopRouter.PROPOSE);
+        // 2026-10-22 00:16 운영(자문): 바람을 말했는데도 "장면 내내 뭘 해 볼래요?"를 말만 바꿔 다시 물었다.
+        assertThat(PracticeLoopRouter.route(want, find, 0)).as("바람을 말했으면 다시 묻지 않고 정리에서 그 바람을 얻을 행동을 준다").isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouter.route(want, find, 1)).isEqualTo(PracticeLoopRouter.WRAP_UP);
         var torn = PracticeLoopRouter.parse("{\"signals\":[\"answered\"]}");
-        assertThat(PracticeLoopRouter.route(torn, find, 1)).as("바람이 없으면 예전처럼 보기 둘").isEqualTo(PracticeLoopRouter.EASY);
+        assertThat(PracticeLoopRouter.route(torn, find, 0)).as("바람이 없으면 한 번은 바꿔 묻는다").isEqualTo(PracticeLoopRouter.REASK);
+        assertThat(PracticeLoopRouter.route(torn, find, 1)).as("두 번째는 보기 둘 없이 정리").isEqualTo(PracticeLoopRouter.WRAP_UP);
 
         String status = PracticeLoopRouter.status("", "", want, find, PracticeLoopRouter.REASK, null, List.of(), "", false, "설득도 있지만  위로받고 싶어해");
         assertThat(DirectVideoPracticeLoop.statusField(status, PracticeLoopRouter.WANT_FIELD)).isEqualTo("설득도 있지만 위로받고 싶어해");
