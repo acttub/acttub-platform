@@ -184,8 +184,9 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
 
     @Override
     public PriorContext priorForPractice(UUID userId, UUID practiceId, UUID operationId) {
-        Map<String, String> values = new LinkedHashMap<>();
-        actorMemories.list(userId).forEach(row -> values.put(row.field(), row.value()));
+        // 장면 단위 칸(목표·다시 말하지 않을 것)은 같은 장면의 것만 읽는다(SOMA-795). 맞춤 코칭도 여기 실려 가지만 기억
+        // 블록에는 나가지 않고 코치 성격 자리로 붙는다(DirectVideoCoach).
+        Map<String, String> values = new LinkedHashMap<>(actorMemories.forPractice(userId, practiceId));
         return practiceContext(userId, practiceId, values, operationId);
     }
 
