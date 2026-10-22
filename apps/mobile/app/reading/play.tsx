@@ -1241,7 +1241,7 @@ export default function ReadingPlay() {
         scene: readingCoachScene({ title: script.title, lineIds: cur.lineIds, scenes: script.scenes, startIndex: cur.startIndex, myRoles: config?.myNames ?? [], t }),
       });
     }
-    logEvent('reading_to_coach', { reading_session_id: session?.id });
+    void logEvent('reading_to_coach', { reading_session_id: session?.id ?? '' });
     router.replace({ pathname: '/record-guide', params: { next: 'upload' } });
   };
 
