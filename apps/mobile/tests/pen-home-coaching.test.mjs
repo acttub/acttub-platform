@@ -28,6 +28,6 @@ test('코칭 탭 입구는 새 연습(목적 → 영상)·말로 코칭·대사 
 test('대본 탭은 큰 제목 머리(공통 부품)와 예시 대본 줄을 둔다', () => {
   const reading = read('app/(tabs)/reading.tsx');
   assert.match(reading, /<LargeTitleHeader/);
-  assert.match(reading, /t\('reading\.entrySample'\)/);
+  assert.match(reading, /reading\.entrySample/);
   assert.match(reading, /pathname: '\/reading\/new', params: \{ sample: '1' \}/);
 });

@@ -17,6 +17,7 @@ import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { Markdown } from '@/components/markdown';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -178,8 +179,9 @@ export default function ReadingNew() {
     // 이름 없는 독백은 누구의 대사인지 이름부터 받는다(SOMA-597). 닫으면 대본 상세로.
     const solo = saved.characters.filter((c) => !isGroupCharacter(c));
     if (isMonologue(saved.characters) && solo[0].unnamed) return setNaming({ scriptId: saved.id, characterId: solo[0].id });
-    if (saved.characters.length >= 2) router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
-    else router.replace('/reading/detail');
+    // 목소리는 넣을 때 자동으로 정한다 — 바꾸기는 대본 상세 ⋯ 에서만(pen R2).
+    router.replace('/reading/detail');
+    if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
   };
 
   /** 올리고 읽힌 파일이면 [다음]이 보낼 입력을 돌려준다. 실패·읽기 자리 없음은 팝업을 띄우고 null. */

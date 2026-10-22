@@ -1,7 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
@@ -15,7 +16,7 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { LargeTitleHeader, NavIconButton } from '@/components/ui/nav-header';
-import { IconOptionRow } from '@/components/ui/option-card';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
@@ -32,6 +33,13 @@ import { isKorean, translate as t } from '@/lib/i18n';
  * 제목과 배역 이름만 찾는다. "분석 완료" 칩은 리딩에 분석이 없어 없다.
  */
 const SEARCH_DEBOUNCE_MS = 300;
+
+type EntryKey = 'upload' | 'sample' | 'make';
+const ENTRY_CHOICES: { key: EntryKey; title: string; sub: string }[] = [
+  { key: 'upload', title: 'reading.entryUpload', sub: 'reading.entryUploadSub' },
+  { key: 'sample', title: 'reading.entrySample', sub: 'reading.entrySampleSub' },
+  { key: 'make', title: 'reading.entryMake', sub: 'reading.entryMakeSub' },
+];
 
 const MASCOT = require('@/assets/images/mascot-reading.png');
 
@@ -163,6 +171,13 @@ export default function ReadingList() {
   const searching = q.trim().length > 0;
   const empty = !!list && scripts.length === 0 && !searching;
 
+  const [choice, setChoice] = useState<EntryKey | null>(null);
+  const goEntry = () => {
+    if (choice === 'upload') router.push('/reading/new');
+    else if (choice === 'sample') router.push({ pathname: '/reading/new', params: { sample: '1' } });
+    else if (choice === 'make') router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } });
+  };
+
   const continueReading = async () => {
     if (!resume || resuming) return;
     setResuming(true);
@@ -179,6 +194,30 @@ export default function ReadingList() {
       setResuming(false);
     }
   };
+
+  const voiceBar = (
+    cloudVoice.status?.available ? (
+      <View style={styles.voiceBar}>
+        <MaterialCommunityIcons name="waveform" size={18} color={palette.blue} />
+        <Text style={styles.voiceText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+          {t('cloudVoice.bannerLabel')}
+        </Text>
+        {!!voiceFreeUntil && (
+          <View style={styles.voiceBadge}>
+            <Text style={styles.voiceBadgeText}>{t('cloudVoice.bannerFree', { date: voiceFreeUntil })}</Text>
+          </View>
+        )}
+        <Switch
+          value={cloudVoice.enabled && cloudVoice.status.consent === 'granted'}
+          onValueChange={(value) => void (value ? cloudVoice.enable('settings') : cloudVoice.disable())}
+          disabled={cloudVoice.busy}
+          trackColor={{ true: palette.blue, false: palette.border }}
+          thumbColor={palette.onAccent}
+          ios_backgroundColor={palette.border}
+        />
+      </View>
+    ) : null
+  );
 
   return (
     <ScrollView
@@ -241,28 +280,7 @@ export default function ReadingList() {
         </View>
       )}
 
-      {/* 고품질 목소리 켜기(SOMA-664, 디자인 R1.2) — 설정 화면에서 옮겨 왔다. 서버가 쓸 수 없다고 하면 숨긴다. */}
-      {cloudVoice.status?.available && (
-        <View style={styles.voiceBar}>
-          <Feather name="volume-2" size={16} color={palette.blue} />
-          <Text style={styles.voiceText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-            {t('cloudVoice.bannerLabel')}
-          </Text>
-          {!!voiceFreeUntil && (
-            <View style={styles.voiceBadge}>
-              <Text style={styles.voiceBadgeText}>{t('cloudVoice.bannerFree', { date: voiceFreeUntil })}</Text>
-            </View>
-          )}
-          <Switch
-            value={cloudVoice.enabled && cloudVoice.status.consent === 'granted'}
-            onValueChange={(value) => void (value ? cloudVoice.enable('settings') : cloudVoice.disable())}
-            disabled={cloudVoice.busy}
-            trackColor={{ true: palette.blue, false: palette.border }}
-            thumbColor={palette.onAccent}
-            ios_backgroundColor={palette.border}
-          />
-        </View>
-      )}
+      {!empty && voiceBar}
 
       {error && (
         <View style={styles.errorBox}>
@@ -278,23 +296,33 @@ export default function ReadingList() {
           <ActivityIndicator color={palette.blue} />
         </View>
       ) : empty ? (
-        // 기존 리딩 입구 행을 사용한다.
+        // pen R1.13~14 — 하나를 고르면(회색 바탕·체크) 아래 「다음」으로 넘어간다. 바로 넘어가지 않는다.
         <View style={styles.entry}>
           <MascotBubble source={MASCOT} title={t('reading.entryBubble')} guide={t('reading.entryBubbleSub')} />
-          <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
-            <IconOptionRow flush icon="upload" title={t('reading.entryUpload')} sub={t('reading.entryUploadSub')} onPress={() => router.push('/reading/new')} />
+          {ENTRY_CHOICES.map((c) => {
+            const on = choice === c.key;
+            return (
+              <Pressable
+                key={c.key}
+                ref={c.key === 'upload' ? newTarget.ref : undefined}
+                onLayout={c.key === 'upload' ? newTarget.onLayout : undefined}
+                style={[styles.choice, on && styles.choiceOn]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                ph-label={`reading_entry_${c.key}`}
+                onPress={() => setChoice(c.key)}>
+                <View style={styles.choiceBody}>
+                  <Text style={styles.choiceTitle}>{t(c.title)}</Text>
+                  <Text style={styles.choiceSub}>{t(c.sub)}</Text>
+                </View>
+                {on && <Feather name="check" size={20} color={palette.blue} />}
+              </Pressable>
+            );
+          })}
+          <View style={styles.entryFoot}>
+            {voiceBar}
+            <PrimaryButton label={t('reading.next')} disabled={!choice} onPress={goEntry} />
           </View>
-          <IconOptionRow flush icon="edit-3" title={t('reading.entryCocreate')} sub={t('reading.entryCocreateSub')}
-            onPress={() => router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } })} />
-          {/* 대본이 없어도 바로 — 대본 넣기 화면을 예시 대본으로 채워 연다(pen 「대본 탭」). */}
-          <IconOptionRow
-            flush
-            icon="file-text"
-            title={t('reading.entrySample')}
-            sub={t('reading.entrySampleSub')}
-            phLabel="reading_entry_sample"
-            onPress={() => router.push({ pathname: '/reading/new', params: { sample: '1' } })}
-          />
         </View>
       ) : (
         <>
@@ -309,7 +337,6 @@ export default function ReadingList() {
                   total: resume.session.progress?.total ?? 0,
                 })}
               </Text>
-              <Text style={styles.resumeHint}>{t('reading.resumeHint')}</Text>
               <Pressable
                 style={({ pressed }) => [styles.resumeBtn, pressed && styles.pressed]}
                 onPress={() => void continueReading()}
@@ -318,6 +345,7 @@ export default function ReadingList() {
                 {resuming ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Text style={styles.resumeBtnText}>{t('reading.resumeGo')}</Text>}
                 <Feather name="arrow-right" size={18} color={palette.blueDeep} />
               </Pressable>
+              <Image source={MASCOT} style={styles.resumeActy} resizeMode="contain" accessibilityElementsHidden />
             </View>
           )}
 
@@ -410,10 +438,17 @@ const styles = StyleSheet.create({
   errorText: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
   retry: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   loading: { alignItems: 'center', paddingVertical: 60 },
-  entry: { gap: 6, marginTop: 1 },
-  resumeCard: { backgroundColor: palette.blue, borderRadius: 22, padding: 20, gap: 10 },
+  entry: { gap: 10, marginTop: 1 },
+  choice: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.card, borderRadius: 16, borderWidth: 1, borderColor: palette.border, paddingVertical: 16, paddingHorizontal: 18 },
+  choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
+  choiceBody: { flex: 1, gap: 4 },
+  choiceTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 22 },
+  choiceSub: { color: palette.textFaint, fontSize: 13, fontWeight: '600', lineHeight: 20 },
+  entryFoot: { gap: 12, marginTop: 24 },
+  resumeCard: { backgroundColor: palette.blue, borderRadius: 22, padding: 20, gap: 10, overflow: 'hidden' },
+  resumeActy: { position: 'absolute', right: 8, bottom: 0, width: 110, height: 110 },
   resumeEyebrow: { color: palette.blueLine, fontSize: 13, fontWeight: '800', lineHeight: 20 },
-  resumeTitle: { color: palette.onAccent, fontSize: 22, fontWeight: '900', lineHeight: 31 },
+  resumeTitle: { color: palette.onAccent, maxWidth: '72%', fontSize: 22, fontWeight: '900', lineHeight: 31 },
   resumeHint: { color: palette.blueSoft, fontSize: 14, fontWeight: '700', lineHeight: 21 },
   resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.card, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
   resumeBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
