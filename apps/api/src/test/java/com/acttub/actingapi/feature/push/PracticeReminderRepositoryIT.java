@@ -227,6 +227,17 @@ class PracticeReminderRepositoryIT {
     }
 
     @Test
+    void resumeConversationIsClaimedOnlyOnceAcrossDays() {
+        UUID u = user("resume-once", true, "0.1.2", "2026-09-01T10:00");
+        UUID p = practice(u, null, 1, "연습", "2026-10-20T20:00", false, "conversing");
+        UUID c = conversation(p, "open", "2026-10-20T20:01");
+        ReminderCopy copy = new ReminderCopy(ReminderKind.RESUME, 1, "resume.a", "t", "b", c, p);
+        assertThat(reminders.claim(u, TODAY, copy)).isTrue();
+        assertThat(reminders.claim(u, TODAY.plusDays(1), copy)).isFalse();
+        assertThat(reminders.claim(u, TODAY.plusDays(1), new ReminderCopy(ReminderKind.GENERAL, 1, "general.a", "t", "b", null, null))).isTrue();
+    }
+
+    @Test
     void recentTemplatesReturnsTheLastDayEachWasUsed() {
         UUID u = user("recent", true, "0.1.2", "2026-09-01T10:00");
         jdbc.update("INSERT INTO practice_reminder_sends(user_id,day,slot,kind,skipped_days,template_id) VALUES (?,?,'practice','general',1,'general.1.a')",

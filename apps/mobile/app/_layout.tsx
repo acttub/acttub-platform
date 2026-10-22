@@ -1,3 +1,4 @@
+import { reminderTarget } from '@/lib/reminder-target';
 import Feather from '@expo/vector-icons/Feather';
 import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
@@ -205,8 +206,9 @@ function RootNavigator() {
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
     return onPushTapped((data) => {
-      if (data && typeof data === 'object' && 'kind' in data && data.kind === 'evening_reminder') {
-        router.replace('/(tabs)');
+      const reminder = reminderTarget(data);
+      if (reminder) {
+        router.replace(reminder as Parameters<typeof router.replace>[0]);
         return;
       }
       if (challengePushTarget(data)) router.push('/notifications');

@@ -418,6 +418,7 @@ COLUMN practice_migration_entries.source_id ord=4 type=uuid len=- null=NO defaul
 COLUMN practice_migration_entries.source_table ord=3 type=text len=- null=NO default=-
 COLUMN practice_migration_entries.step ord=2 type=text len=- null=NO default=-
 COLUMN practice_migration_entries.target_id ord=5 type=uuid len=- null=YES default=-
+COLUMN practice_reminder_sends.conversation_id ord=8 type=uuid len=- null=YES default=-
 COLUMN practice_reminder_sends.day ord=2 type=date len=- null=NO default=-
 COLUMN practice_reminder_sends.kind ord=4 type=text len=- null=NO default=-
 COLUMN practice_reminder_sends.sent_at ord=7 type=timestamptz len=- null=NO default=now()
@@ -1991,6 +1992,7 @@ INDEX CREATE UNIQUE INDEX uq_notifications_event ON public.notifications USING b
 INDEX CREATE UNIQUE INDEX uq_portfolios_share_slug ON public.portfolios USING btree (share_slug)
 INDEX CREATE UNIQUE INDEX uq_practice_feedback_user_request ON public.practice_feedback USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_practice_migration_source ON public.practice_migration_entries USING btree (source_table, source_id)
+INDEX CREATE UNIQUE INDEX uq_practice_reminder_resume_conversation ON public.practice_reminder_sends USING btree (conversation_id) WHERE (conversation_id IS NOT NULL)
 INDEX CREATE UNIQUE INDEX uq_practice_reports_source_handoff ON public.practice_reports USING btree (source_handoff_id)
 INDEX CREATE UNIQUE INDEX uq_practices_open_root ON public.practices USING btree (root_id) WHERE (stage <> 'closed'::text)
 INDEX CREATE UNIQUE INDEX uq_practices_root_ordinal ON public.practices USING btree (root_id, ordinal)

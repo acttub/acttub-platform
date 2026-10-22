@@ -1241,7 +1241,8 @@ export default function ReadingPlay() {
         scene: readingCoachScene({ title: script.title, lineIds: cur.lineIds, scenes: script.scenes, startIndex: cur.startIndex, myRoles: config?.myNames ?? [], t }),
       });
     }
-    router.replace('/upload');
+    logEvent('reading_to_coach', { reading_session_id: session?.id });
+    router.replace({ pathname: '/record-guide', params: { next: 'upload' } });
   };
 
   /** @param startLineId 독백 결과의 「여기부터 다시」 — 그 문장부터 구간 끝까지 새 회차(SOMA-597). 없으면 같은 구간. */
@@ -1499,7 +1500,7 @@ export default function ReadingPlay() {
               {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
             </View>
             {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
-            {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} />}
+            {completed && !fromTutorialRef.current && <><ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} /><PrimaryButton label={t('reading.recordForCoach')} onPress={toCoach} disabled={doneLocked} /></>}
             {!compared ? (
               <View style={styles.noteBox}>
                 <Feather name="info" size={16} color={palette.textMuted} />
