@@ -2,12 +2,14 @@ import Feather from '@expo/vector-icons/Feather';
 import { File, Paths } from 'expo-file-system';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePreventRemove } from '@react-navigation/native';
 import { ActivityIndicator, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
+import { ReadingExitSheet } from '@/components/reading-exit-sheet';
 import { LineEditSheet } from '@/components/line-edit-sheet';
 import { logEvent } from '@/lib/analytics';
 import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/use-reading-mic';
@@ -1199,12 +1201,27 @@ export default function ReadingPlay() {
   const exitToDetail = () =>
     void discardIfUnstarted().then(() => router.dismissTo('/reading/detail'));
 
-  const onExit = async () => {
+  // 「나가기」·뒤로 가기는 먼저 아래에서 올라오는 확인 창을 연다(pen 「⑪ 리딩 · 나가기 확인」, SOMA-817).
+  const [exitAsk, setExitAsk] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const onExit = () => {
+    const cur = runRef.current;
+    if (cur && cur.status !== 'done') setExitAsk(true);
+    else void leaveReading();
+  };
+  const exitSheetBody = () => {
+    const cur = runRef.current;
+    if (!cur) return '';
+    if (shouldDiscard()) return exitMessage(cur, { discard: true });
+    const { done, total } = progressOf(cur);
+    return t('reading.exitSheetBody', { n: Math.min(done + 1, Math.max(total, 1)), total });
+  };
+  const leaveReading = async () => {
+    setExitAsk(false);
+    setExiting(true);
     const cur = runRef.current;
     if (cur && cur.status !== 'done') {
       const discard = shouldDiscard();
-      const ok = await confirm({ title: t('reading.exitConfirmTitle'), message: exitMessage(cur, { discard }), confirmLabel: t('reading.exitLeave') });
-      if (!ok) return;
       tts.stop();
       stopDeviceVoice();
       stt.abort();
@@ -1223,6 +1240,9 @@ export default function ReadingPlay() {
     }
     exitToDetail();
   };
+
+  // 안드로이드 뒤로 가기·스와이프도 같은 확인 창을 거친다. 확인을 마친 뒤(exiting)에는 풀어 준다.
+  usePreventRemove(phase.kind === 'running' && !exiting && run?.status !== 'done', () => setExitAsk(true));
 
   // 완료 화면이 뜨면 잠깐(DONE_LOCK_MS) 버튼을 막는다.
   useEffect(() => {
@@ -1691,7 +1711,7 @@ export default function ReadingPlay() {
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <Pressable style={styles.exitBtn} onPress={() => void onExit()} hitSlop={8}>
+        <Pressable style={styles.exitBtn} onPress={onExit} hitSlop={8}>
           <Feather name="x" size={20} color={palette.textDim} />
           <Text style={styles.exitText}>{t('reading.exitLeave')}</Text>
         </Pressable>
@@ -1942,6 +1962,7 @@ export default function ReadingPlay() {
           </Pressable>
         </Pressable>
       </Modal>
+      <ReadingExitSheet visible={exitAsk} body={exitAsk ? exitSheetBody() : ''} onLeave={() => void leaveReading()} onKeep={() => setExitAsk(false)} />
       {dialog}
     </View>
   );

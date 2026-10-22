@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -134,6 +134,17 @@ export default function RecordVideoScreen() {
 
   // 다시 물어도 팝업이 안 뜨는 상태(거절 후 "다시 묻지 않음")면 설정으로 보낸다.
   const blocked = (!!camPerm && !camPerm.granted && !camPerm.canAskAgain) || (!!micPerm && !micPerm.granted && !micPerm.canAskAgain);
+
+  // 설정에서 카메라·마이크를 켜고 돌아오면 바로 반영한다 — 훅은 스스로 다시 읽지 않는다(SOMA-817).
+  useEffect(() => {
+    if (!blocked) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void requestCam();
+      void requestMic();
+    });
+    return () => sub.remove();
+  }, [blocked, requestCam, requestMic]);
 
   /** 촬영·선택한 영상을 보관함(기기 저장 + 업로드 대기)에 넣는다. 너무 길면 안내하고 넣지 않는다. */
   const saveToLibrary = useCallback(async (): Promise<{ id: string; uri: string } | null> => {

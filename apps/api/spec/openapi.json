@@ -1819,6 +1819,68 @@
         } ]
       }
     },
+    "/v2/reading/scripts/{script_id}/lines/{line_id}/insert-after" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Insert Script Line After",
+        "description" : "고른 줄 바로 아래에 새 줄 하나를 넣는다(SOMA-816). 뒤 줄들의 순서가 하나씩 밀리고 기존 줄의 id 는 그대로라\n회차·녹음·외운 줄의 연결이 남는다. 구간이 그 줄로 끝나던 회차의 구간은 그대로다(새 줄은 구간 밖). 대사면 이\n대본의 배역이 있어야 하고 지문·장면이면 배역이 없다 — 어기면 422 invalid_line. 글은 앞뒤 공백을 정리하고\n비거나 5,000자를 넘으면 422 배열이다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found.\n고친 대본 전체를 돌려준다.",
+        "operationId" : "insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        }, {
+          "name" : "line_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingScriptLineInsert"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingScript"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/imports" : {
       "post" : {
         "tags" : [ "v2-reading" ],
@@ -7940,6 +8002,31 @@
         },
         "required" : [ "first_text", "second_text" ],
         "title" : "ReadingScriptLineSplit"
+      },
+      "ReadingScriptLineInsert" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "kind" : {
+            "$ref" : "#/components/schemas/ReadingScriptLineKindInput"
+          },
+          "character_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character Id"
+          },
+          "text" : {
+            "type" : "string",
+            "maxLength" : 5000,
+            "title" : "Text"
+          }
+        },
+        "required" : [ "kind", "text" ],
+        "title" : "ReadingScriptLineInsert"
       },
       "ReadingImportRequest" : {
         "type" : "object",

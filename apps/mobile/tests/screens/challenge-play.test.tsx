@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Dimensions, Share } from 'react-native';
+import { Dimensions } from 'react-native';
 
 import ChallengePlayScreen from '@/app/challenge-play';
 import { logEvent } from '@/lib/analytics';
@@ -40,6 +40,17 @@ jest.mock('expo-video', () => ({
   VideoView: () => null,
 }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
+const mockSystemShare = jest.fn();
+jest.mock('@/lib/challenge/share-native', () => ({
+  videoDeps: { download: jest.fn(), remove: jest.fn() },
+  isInstagramInstalled: jest.fn(async () => true),
+  instagramStoreUrl: jest.fn(() => null),
+  shareVideoToInstagramStory: jest.fn(),
+  saveVideoToLibrary: jest.fn(),
+  copyText: jest.fn(),
+  openSystemShare: (message: string) => mockSystemShare(message),
+  openUrl: jest.fn(),
+}));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock('@/lib/api', () => ({
   api: {
@@ -687,20 +698,33 @@ describe('댓글', () => {
 });
 
 describe('공유', () => {
-  test('참여작 딥링크와 작성자·대사를 담아 공유한다. 공유 창이 실패해도 그대로다', async () => {
-    const share = jest.spyOn(Share, 'share').mockResolvedValueOnce({ action: 'sharedAction' });
+  test('공유 아이콘은 공유 시트를 연다. 공개된 남의 참여작은 링크 대상만 있고, 카카오톡은 딥링크 문장을 보낸다', async () => {
+    mockSystemShare.mockResolvedValue(undefined);
     await renderFeed([entry({ id: 'e 1' })]);
     await fireEvent.press(screen.getByRole('button', { name: '공유' }));
 
-    expect(share).toHaveBeenCalledWith({
-      message: '민지의 “나는 아직 여기 있어” 연기 — acttub 챌린지\nhttps://acttub.com/e/e%201',
-    });
+    expect(await screen.findByText('내 연기 공유하기')).toBeOnTheScreen();
     expect(logged('challenge_share')).toEqual([{ id: 'e 1' }]);
+    expect(screen.queryByText('인스타')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상으로 저장')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '카카오톡' }));
+    expect(mockSystemShare).toHaveBeenCalledWith(
+      '민지의 “나는 아직 여기 있어” 연기 — acttub 챌린지\nhttps://acttub.com/e/e%201',
+    );
+  });
 
-    share.mockRejectedValueOnce(new Error('dismissed'));
+  test('내 참여작은 인스타 스토리와 영상 저장이 함께 보인다', async () => {
+    await renderFeed([entry({ is_mine: true, author: { name: '나', user_id: 'me' } })]);
     await fireEvent.press(screen.getByRole('button', { name: '공유' }));
-    expect(share).toHaveBeenCalledTimes(2);
-    expect(screen.getByText('첫 테이크')).toBeOnTheScreen();
+    expect(await screen.findByText('인스타')).toBeOnTheScreen();
+    expect(screen.getByText('영상으로 저장')).toBeOnTheScreen();
+  });
+
+  test('공유할 길이 없는 참여작은 시트 대신 안내한다', async () => {
+    await renderFeed([entry({ published_at: null })]);
+    await fireEvent.press(screen.getByRole('button', { name: '공유' }));
+    expect(await screen.findByText('지금은 공유할 수 없는 참여작이에요.')).toBeOnTheScreen();
+    expect(screen.queryByText('영상으로 저장')).not.toBeOnTheScreen();
   });
 });
 
@@ -710,7 +734,6 @@ describe('반응 메뉴', () => {
   }
 
   test('작성자 이름 아래 공유·신고·대사 신고·차단을 둔다. 공유는 같은 공유를 연다', async () => {
-    const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' });
     await renderFeed();
     await openMenu();
 
@@ -718,7 +741,7 @@ describe('반응 메뉴', () => {
     expect(screen.getByText('이 대사 신고')).toBeOnTheScreen();
     expect(screen.getByText('이 사용자 차단')).toBeOnTheScreen();
     await fireEvent.press(screen.getAllByText('공유')[0]);
-    expect(share).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('내 연기 공유하기')).toBeOnTheScreen();
   });
 
   test('내 참여작 메뉴에는 차단이 없다', async () => {

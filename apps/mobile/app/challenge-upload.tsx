@@ -3,13 +3,14 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
 
+import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { PrimaryButton } from '@/components/ui/buttons';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { BlueSwitch } from '@/components/ui/list-rows';
 import { MASCOT as MASCOTS } from '@/components/ui/mascot';
@@ -81,6 +82,7 @@ export default function ChallengeUploadScreen() {
   const [error, setError] = useState<string | null>(null);
   /** 방금 만든 참여작 — 있으면 완료 화면이다. */
   const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean } | null>(null);
+  const entryShare = useEntryShare(params.line ?? '', () => Alert.alert(t('entryShare.title'), t('entryShare.none')));
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -244,8 +246,16 @@ export default function ChallengeUploadScreen() {
           </Text>
         </View>
         <View style={styles.doneFooter}>
+          <SecondaryButton
+            label={t('entryShare.entry')}
+            onPress={() => {
+              void logEvent('challenge_upload_share', { visibility: created.visibility });
+              void entryShare.openById(created.id);
+            }}
+          />
           <PrimaryButton label={t('challengeUpload.goHome')} onPress={() => router.replace('/')} />
         </View>
+        {entryShare.sheet}
       </SafeAreaView>
     );
   }

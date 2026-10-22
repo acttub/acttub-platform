@@ -7,6 +7,7 @@ import {
   deleteScriptLine,
   editScriptLine,
   splitScriptLine,
+  insertScriptLineAfter,
   getCurrent,
   isMyRole,
   loadIntoCurrent,
@@ -130,6 +131,16 @@ function fakeServer() {
       state.scripts.set(id, next);
       return next;
     },
+    insertLineAfter: async (id, lineId, body) => {
+      state.calls.push(['insertLineAfter', id, lineId, body]);
+      const d = state.scripts.get(id);
+      const at = d.lines.findIndex((l) => l.id === lineId);
+      const added = { id: `${lineId}n`, kind: body.kind, character_id: body.character_id ?? null, text: body.text };
+      const lines = [...d.lines.slice(0, at + 1), added, ...d.lines.slice(at + 1)];
+      const next = { ...d, lines: lines.map((l, i) => ({ ...l, ordinal: i + 1 })) };
+      state.scripts.set(id, next);
+      return next;
+    },
     remove: async (id) => {
       state.calls.push(['delete', id]);
       state.scripts.delete(id);
@@ -236,6 +247,24 @@ test('reading.script(SOMA-785): 줄 지우기·나누기는 그 줄 id 로 보�
   assert.deepEqual(state.calls.at(-1), ['deleteLine', saved.id, target]);
   assert.equal(getCurrent()?.lineIds.includes(target), false);
   assert.equal(getCurrent()?.lines.length, saved.lines.length);
+});
+
+test('reading.script(SOMA-816): 아래에 추가는 고른 줄 id 로 보내고, 지문이면 배역 없이 보내며, 현재 대본을 서버가 돌려준 대본으로 바꾼다', async () => {
+  const { state, transport, seed } = fakeServer();
+  configureScriptTransport(transport);
+  const saved = await loadIntoCurrent(seed().id);
+  const target = saved.lineIds[1];
+  const who = saved.characters[0].id;
+
+  await insertScriptLineAfter(saved.id, target, { kind: 'dialogue', characterId: who, text: ' 새 대사 ' });
+  assert.deepEqual(state.calls.at(-1), ['insertLineAfter', saved.id, target, { kind: 'dialogue', text: '새 대사', character_id: who }]);
+  assert.equal(getCurrent()?.lines.length, saved.lines.length + 1);
+  assert.equal(getCurrent()?.lineIds[1], target, '고른 줄 id 는 그대로다');
+  assert.equal(getCurrent()?.lines[2].text, '새 대사');
+
+  await insertScriptLineAfter(saved.id, target, { kind: 'direction', characterId: who, text: '(사이)' });
+  assert.deepEqual(state.calls.at(-1), ['insertLineAfter', saved.id, target, { kind: 'direction', text: '(사이)' }]);
+  assert.equal(getCurrent()?.lines[2].type, 'direction');
 });
 
 test('reading.script(SOMA-669): 줄 고치기는 그 줄 id 로 바꾼 항목만 보내고, 현재 대본의 줄·배역·대사 수가 고친 대로 바뀐다', async () => {

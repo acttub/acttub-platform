@@ -2,9 +2,10 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useEntryShare } from '@/components/entry-share-sheet';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT as MASCOTS, MASCOT_SIZE } from '@/components/ui/mascot';
@@ -27,9 +28,10 @@ const MASCOT = MASCOTS.dance;
  */
 export default function ChallengeFinishScreen() {
   const router = useRouter();
-  const { challengeId } = useLocalSearchParams<{ challengeId?: string }>();
+  const { challengeId, entryId } = useLocalSearchParams<{ challengeId?: string; entryId?: string }>();
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
   const [showGuide, setShowGuide] = useState(false);
+  const entryShare = useEntryShare(challenge?.line ?? '', () => Alert.alert(t('entryShare.title'), t('entryShare.none')));
 
   useEffect(() => {
     void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
@@ -80,8 +82,18 @@ export default function ChallengeFinishScreen() {
             router.replace({ pathname: '/challenge-play', params: { id: challengeId as string } });
           }}
         />
+        {entryId ? (
+          <SecondaryButton
+            label={t('entryShare.entry')}
+            onPress={() => {
+              void logEvent('challenge_finish_share', {});
+              void entryShare.openById(entryId);
+            }}
+          />
+        ) : null}
         <SecondaryButton label={t('challengeFinish.home')} onPress={() => router.replace('/(tabs)')} />
       </CtaBar>
+      {entryShare.sheet}
     </SafeAreaView>
   );
 }

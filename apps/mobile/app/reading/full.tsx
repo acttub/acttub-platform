@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { LineEditSheet } from '@/components/line-edit-sheet';
+import { LineInsertCard } from '@/components/line-insert-card';
 import { LineSplitSheet } from '@/components/line-split-sheet';
 import { palette } from '@/constants/palette';
 import { classifyUnprocessable } from '@/lib/api-request';
@@ -21,13 +22,16 @@ const DELETE_REFUSED: Record<string, string> = {
 
 /**
  * 대본 전체(R3.4). 목소리 정하기의 [전체 보기]와 대본 상세의 「대본 보기」가 같이 연다. 줄을 누르면 메뉴가 뜬다(SOMA-785) —
- * 고치기(SOMA-669, 종류·배역·글만 고치고 줄 id 는 그대로), 둘로 나누기(앞 조각이 그 줄 id 에 남는다), 지우기(한 번 묻는다).
+ * 고치기(SOMA-669, 종류·배역·글만 고치고 줄 id 는 그대로), 나누기(앞 조각이 그 줄 id 에 남는다), 아래에 추가(SOMA-816, 그 줄
+ * 바로 아래 빈 칸에 새 대사), 지우기(한 번 묻는다).
  */
 export default function ReadingFull() {
   const router = useRouter();
   const [script, setScript] = useState<SavedScript | null>(getCurrent);
   const [editing, setEditing] = useState<{ index: number; draft: LineDraft } | null>(null);
   const [splitting, setSplitting] = useState<number | null>(null);
+  /** 아래에 대사를 추가하려고 고른 줄(SOMA-816). 그 줄 바로 아래에 빈 칸이 열린다. */
+  const [inserting, setInserting] = useState<number | null>(null);
   const { sheet, confirm, alert, dialog } = useAppDialog();
 
   if (!script) {
@@ -67,22 +71,42 @@ export default function ReadingFull() {
       actions: [
         { label: t('reading.lineMenuEdit'), onPress: () => openEditor(index) },
         { label: t('reading.lineMenuSplit'), onPress: () => setSplitting(index) },
+        { label: t('reading.lineMenuInsert'), onPress: () => setInserting(index) },
         { label: t('reading.lineMenuDelete'), destructive: true, onPress: () => void removeLine(index) },
       ],
     });
   };
 
+  /** 고른 줄이 대사면 그 배역의 id(처음 고르는 말하는 쪽을 정한다). */
+  const insertAnchorCharacterId = (index: number) => {
+    const line = script.lines[index];
+    return line.type === 'dialogue' ? script.characters.find((c) => c.name === line.role)?.id ?? null : null;
+  };
+
   const monologue = isMonologue(script.characters);
   /** 줄 하나 — 묶인 대사(SOMA-806) 안에서도 줄마다 눌러 메뉴를 연다. */
   const row = (i: number, body: React.ReactNode, joined?: 'head' | 'rest') => (
-    <Pressable
-      key={script.lineIds[i] ?? i}
-      onPress={() => openMenu(i)}
-      style={({ pressed }) => [styles.row, joined === 'head' && styles.rowHead, joined === 'rest' && styles.rowJoined, pressed && styles.rowPressed]}
-      accessibilityRole="button"
-      accessibilityHint={t('reading.lineEditTitle')}>
-      {body}
-    </Pressable>
+    <View key={script.lineIds[i] ?? i}>
+      <Pressable
+        onPress={() => openMenu(i)}
+        style={({ pressed }) => [styles.row, joined === 'head' && styles.rowHead, joined === 'rest' && styles.rowJoined, pressed && styles.rowPressed]}
+        accessibilityRole="button"
+        accessibilityHint={t('reading.lineEditTitle')}>
+        {body}
+      </Pressable>
+      {inserting === i && script.lineIds[i] && (
+        <LineInsertCard
+          scriptId={script.id}
+          lineId={script.lineIds[i]}
+          lineCharacterId={insertAnchorCharacterId(i)}
+          characters={script.characters}
+          onClose={(saved) => {
+            setInserting(null);
+            if (saved) setScript(getCurrent());
+          }}
+        />
+      )}
+    </View>
   );
 
   return (
