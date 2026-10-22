@@ -34,6 +34,8 @@ class MeaningfulMemoryValueTest {
     @Test
     void valuesAboutTheActorPass() {
         assertThat(MeaningfulMemoryValue.problem("goal", "아버지에게 인정받고 싶은 마음을 숨긴 채 버틴다")).isEmpty();
+        assertThat(MeaningfulMemoryValue.problem("goal", "복수하기")).as("네 글자 인물 목표").isEmpty();
+        assertThat(MeaningfulMemoryValue.problem("goal", "네")).contains("너무 짧음");
         assertThat(MeaningfulMemoryValue.problem("wants", "코치가 방법을 바로 알려 주길 바란다(\"어떻게 해요?\")")).isEmpty();
         assertThat(MeaningfulMemoryValue.problem("tone", "답이 짧고 존댓말이며 직설적인 평가를 바란다")).isEmpty();
         assertThat(MeaningfulMemoryValue.problem("habits", "일부러 한 선택: 끝 대사를 낮게 눌렀다(\"화를 참는 거예요\")")).isEmpty();
