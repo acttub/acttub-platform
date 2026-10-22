@@ -631,7 +631,7 @@ class PracticeLifecycleIT {
 
     @Test
     @DisplayName("practice.start: 영상 없이 말로 — video_id 없이 stuck·character·concern 으로 시작하면 분석 작업 없이 conversing 회차가 "
-            + "생기고(three_layers_v1), 같은 요청 id 재전송은 같은 회차다. 영상 없이 목적을 빼거나 evaluate 면 422 video_required (SOMA-745)")
+            + "생기고(three_layers_v1), 같은 요청 id 재전송은 같은 회차다. 영상 없이 목적을 빼거나 evaluate 면 422 배열 (SOMA-745)")
     void practiceStart_withoutVideoOpensTheConversationStage() throws Exception {
         UUID requestId = UUID.randomUUID();
         String body = "{\"request_id\":\"" + requestId + "\",\"session_purpose\":\"concern\"}";
@@ -653,11 +653,11 @@ class PracticeLifecycleIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
 
         int before = count("practices");
-        assertThat(json(post("/v2/practices").content("{\"request_id\":\"" + UUID.randomUUID() + "\"}"), 422))
-                .isEqualTo(mapper.readTree("{\"detail\":\"video_required\"}"));
-        assertThat(json(post("/v2/practices").content("{\"request_id\":\"" + UUID.randomUUID()
-                + "\",\"session_purpose\":\"evaluate\"}"), 422))
-                .isEqualTo(mapper.readTree("{\"detail\":\"video_required\"}"));
+        for (String noVideo : List.of("{\"request_id\":\"" + UUID.randomUUID() + "\"}",
+                "{\"request_id\":\"" + UUID.randomUUID() + "\",\"session_purpose\":\"evaluate\"}")) {
+            JsonNode rejected = json(post("/v2/practices").content(noVideo), 422);
+            assertThat(rejected.path("detail").isArray()).as(noVideo).isTrue();
+        }
         assertThat(count("practices")).isEqualTo(before);
 
         close(id);

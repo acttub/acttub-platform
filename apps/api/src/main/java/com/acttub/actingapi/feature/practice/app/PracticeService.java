@@ -63,7 +63,8 @@ public class PracticeService {
     public PracticeView start(UUID userId, boolean guest, String contractHeader, Draft draft) {
         boolean withVideo = draft.videoId() != null;
         if (!PracticeRules.videoMatchesPurpose(withVideo, PracticeRules.sessionPurpose(draft.sessionPurpose()))) {
-            throw new ApiException(422, "video_required");
+            // 요청 검증(PracticeCreateRequest)이 먼저 422 배열로 거절한다. 여기 닿으면 부르는 쪽의 잘못이다.
+            throw new IllegalArgumentException("a practice without a video needs a talk purpose");
         }
         if (!withVideo) {
             // 영상 없이 말로 하는 코칭(SOMA-745): 분석할 영상이 없어 분석 작업 없이 바로 대화 단계로 연다. 분석 한도도 쓰지 않는다.

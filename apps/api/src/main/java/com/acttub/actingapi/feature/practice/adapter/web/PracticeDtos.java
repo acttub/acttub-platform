@@ -45,13 +45,23 @@ final class PracticeDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record CreateRequest(
             @NotNull UUID requestId,
-            // 영상 없이 말로 하는 코칭(SOMA-745)은 영상을 보내지 않고 목적(stuck·character·concern)을 보낸다. 짝이 틀리면 422 video_required.
+            // 영상 없이 말로 하는 코칭(SOMA-745)은 영상을 보내지 않고 목적(stuck·character·concern)을 보낸다. 짝이 틀리면 값 모양 오류 422(배열)다.
             @Schema(nullable = true) UUID videoId,
             @Schema(nullable = true) @Valid SceneInput scene,
             @Schema(nullable = true) @Valid BlockageInput blockage,
             @Schema(nullable = true) @Size(max = PracticeRules.GROUP_TITLE_MAX_CHARS) String title,
             @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern"})
             @jakarta.validation.constraints.Pattern(regexp = "evaluate|stuck|character|concern") String sessionPurpose) {
+
+        /**
+         * 영상이 없으면 말로 하는 목적이어야 한다(SOMA-745). 영상을 빼고 목적도 없으면 예전처럼 값 모양 오류 422(배열)다.
+         */
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        @Schema(hidden = true)
+        @jakarta.validation.constraints.AssertTrue
+        boolean isVideoOrTalkPurpose() {
+            return PracticeRules.videoMatchesPurpose(videoId != null, PracticeRules.sessionPurpose(sessionPurpose));
+        }
     }
 
     /** 이어하기. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다. 세션 목적은 묶음 첫 회차의 것을 물려받는다. */
