@@ -248,7 +248,7 @@ final class PracticeLoopRouter {
     static final String WANT = "원하는 것 묻기";
     static final String GAP = "어긋남 보기";
     static final String FIND = "스스로 찾기";
-    /** 짧은 답이 왔을 때, 다음 단계의 질문을 둘 중 고르는 모양으로 쉽게 묻는다. */
+    /** 짧은 답이 왔을 때, 다음 단계의 답을 코치가 하나 짐작해 이유와 함께 내밀고 맞는지 묻는다(SOMA-795 공통 수정 전에는 둘 중 고르기). */
     static final String EASY = "쉽게 묻기";
 
     /**
@@ -285,7 +285,7 @@ final class PracticeLoopRouter {
 
     /**
      * @param stayed 이 단계에서 이미 머문 횟수. 같은 단계에서 같은 방식으로 다시 묻지 않게, 횟수에 따라 묻는 법을 바꾼다:
-     *               엇나감은 바꿔 묻기 → 보기 둘 → 코치가 답을 제안, 모름·짧은 답은 보기 둘 → 코치가 답을 제안.
+     *               엇나감은 바꿔 묻기 → 쉽게 묻기(코치 짐작 하나) → 코치가 답을 제안, 모름·짧은 답은 쉽게 묻기 → 코치가 답을 제안.
      */
     static String route(Kind kind, Before b, int stayed) {
         return route(new Classified(kind, false, "code"), b, stayed);
@@ -350,7 +350,7 @@ final class PracticeLoopRouter {
         // 2026-10-20 21:34 운영: 정정 뒤 "연기력이랑 목소리는 어때"에 다른 쪽 강점 질문("어디서 더 써 볼래요?")으로 답했다.
         String pointOut = "짚어주기";
         // 정리로 넘어가는 문턱: 스스로 찾기(4단계)에 답했어도 상대에게 할 행동 하나를 정하지 않았으면(고민 중, 헷갈림, 전제 반박,
-        // 판단 요청) 정리하지 않는다. 물은 것이 있으면 먼저 답하고, 없으면 바꿔 묻기 → 보기 둘 → 코치가 제안 순서로 머문다.
+        // 판단 요청) 정리하지 않는다. 물은 것이 있으면 먼저 답하고, 없으면 바꿔 묻기 → 쉽게 묻기 → 코치가 제안 순서로 머문다.
         if (kind == Kind.ANSWER && b.stage() >= 4 && !c.decided()) {
             return switch (c.respond()) {
                 case "evaluation" -> pointOut;
