@@ -142,8 +142,8 @@ describe('동의 내역', () => {
     await fireEvent(sw(), 'valueChange', true);
 
     expect(recordConsent).toHaveBeenCalledWith('d-email', 'granted');
-    expect(await screen.findByText('광고성 정보 수신 처리 결과')).toBeOnTheScreen();
-    expect(screen.getByText(/^Acttub · \d{4}\.\d{2}\.\d{2} 처리 이메일: 수신 동의$/)).toBeOnTheScreen();
+    expect(await screen.findByText('광고성 정보 수신에 동의했어요')).toBeOnTheScreen();
+    for (const text of ['보낸 곳', 'Acttub', '처리일', '이메일', '수신 동의']) expect(screen.getByText(text)).toBeOnTheScreen();
     expect(sw().props.value).toBe(true);
   });
 
@@ -161,7 +161,7 @@ describe('동의 내역', () => {
     expect(recordConsent).toHaveBeenCalledWith('d-ret', 'granted');
     expect(sw().props.value).toBe(true);
     expect(screen.getByText('동의함 · 2026.10.20')).toBeOnTheScreen();
-    expect(screen.queryByText('광고성 정보 수신 처리 결과')).not.toBeOnTheScreen();
+    expect(screen.queryByText('광고성 정보 수신에 동의했어요')).not.toBeOnTheScreen();
   });
 
   test('저장 뒤 다시 받기가 실패해도 고른 값을 그대로 둔다', async () => {
@@ -351,10 +351,17 @@ describe('알림이 꺼져 있어요', () => {
 });
 
 describe('설정', () => {
-  test('묶음 이름과 줄을 디자인 순서대로 둔다', async () => {
+  test('개편 전처럼 묶음 제목 아래 아이콘·설명이 있는 카드로 둔다', async () => {
     await settingsLoaded();
 
-    for (const label of ['내 계정', '연습과 기록', '앱 · 도움말', '계정']) expect(screen.getByText(label)).toBeOnTheScreen();
+    for (const label of ['프로필', '연습과 기록', '실험 기능', '의견', '계정']) expect(screen.getByText(label)).toBeOnTheScreen();
+    for (const sub of [
+      '이름·성별·생년월일·방향·경력·목표와 사진, 한 줄 소개를 고쳐요.',
+      '분석 완료·챌린지·저녁 연습 알림을 켜고 꺼요.',
+      '코치가 나에 대해 무엇을 기억하는지 보고 고칠 수 있어요.',
+      '처음 시작 안내를 다시 봐요',
+    ]) expect(screen.getByText(sub)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '회원 탈퇴' })).toBeOnTheScreen();
   });
 
   describe('발음 피드백(실험)', () => {
@@ -402,7 +409,7 @@ describe('설정', () => {
 
   test('앱 평가는 스토어 리뷰 화면을 연다', async () => {
     await settingsLoaded();
-    await fireEvent.press(screen.getByRole('button', { name: '앱 평가' }));
+    await fireEvent.press(screen.getByRole('button', { name: '앱 평가하기' }));
     expect(openStoreReviewPage).toHaveBeenCalledTimes(1);
   });
 
@@ -418,7 +425,7 @@ describe('설정', () => {
       const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
       await settingsLoaded();
 
-      await fireEvent.press(screen.getByRole('button', { name: '문의·신고' }));
+      await fireEvent.press(screen.getByRole('button', { name: '문의·신고 메일 보내기' }));
 
       await waitFor(() =>
         expect(openURL).toHaveBeenCalledWith(`mailto:acttub0527@gmail.com?subject=${encodeURIComponent('[Acttub] 문의·신고')}`),
@@ -429,7 +436,7 @@ describe('설정', () => {
       jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(false);
       await settingsLoaded();
 
-      await fireEvent.press(screen.getByRole('button', { name: '문의·신고' }));
+      await fireEvent.press(screen.getByRole('button', { name: '문의·신고 메일 보내기' }));
 
       expect(await screen.findByText('메일 앱을 열지 못했어요. acttub0527@gmail.com 으로 보내주세요.')).toBeOnTheScreen();
     });

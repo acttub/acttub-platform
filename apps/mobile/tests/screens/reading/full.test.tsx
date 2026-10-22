@@ -152,3 +152,48 @@ test('SOMA-597: 독백은 문장마다 한 줄로 보이고 위 안내가 「혼
   expect(screen.getAllByText('민지')).toHaveLength(2);
   expect(screen.getByText('네가 그걸 아니까.')).toBeOnTheScreen();
 });
+
+// SOMA-806 예시 대본 — 같은 배역 연속 대사, 사이에 지문, 끝에 다른 배역.
+const SAME_ROLE_LINES = [
+  ['dialogue', '민재', '야, 어디 가?'],
+  ['dialogue', '민재', '잠깐만 기다려 봐.'],
+  ['direction', '(서연, 대답 없이 걸어간다)'],
+  ['dialogue', '민재', '나도 같이 가자.'],
+  ['dialogue', '민재', '왜 대답을 안 해?'],
+  ['dialogue', '서연', '싫어.'],
+] as Parameters<typeof scriptDetail>[0];
+
+test('SOMA-806: 같은 배역 연속 대사는 배역 이름 하나 아래 줄마다 이어 보이고 지문에서 끊긴다', async () => {
+  await openFixtureScript(scriptDetail(SAME_ROLE_LINES));
+  await render(<ReadingFull />);
+
+  // 민재 묶음 둘(지문이 끊는다) + 서연 하나.
+  expect(screen.getAllByText('민재')).toHaveLength(2);
+  expect(screen.getAllByText('서연')).toHaveLength(1);
+  for (const text of ['야, 어디 가?', '잠깐만 기다려 봐.', '나도 같이 가자.', '왜 대답을 안 해?', '싫어.']) expect(screen.getByText(text)).toBeOnTheScreen();
+});
+
+test('SOMA-806: 묶인 대사 안에서도 줄마다 메뉴가 열리고 그 줄 하나만 나누거나 고친다', async () => {
+  const relabeled = scriptDetail(SAME_ROLE_LINES.map((l, i) => (i === 4 ? (['dialogue', '서연', '왜 대답을 안 해?'] as const) : l)) as Parameters<typeof scriptDetail>[0]);
+  const { server } = await openFixtureScript(scriptDetail(SAME_ROLE_LINES));
+  server.patchLine.mockResolvedValue(relabeled);
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('잠깐만 기다려 봐.'));
+  expect(screen.getByText('민재 · 잠깐만 기다려 봐.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('둘로 나누기'));
+  expect(screen.getByLabelText('앞 대사')).toHaveDisplayValue('잠깐만');
+  expect(screen.getByLabelText('뒤 대사')).toHaveDisplayValue('기다려 봐.');
+  await fireEvent.press(screen.getByText('취소'));
+
+  await fireEvent.press(screen.getByText('왜 대답을 안 해?'));
+  expect(screen.getByText('민재 · 왜 대답을 안 해?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('대사 고치기'));
+  await fireEvent.press(screen.getByRole('radio', { name: '서연' }));
+  await fireEvent.press(screen.getByText('저장'));
+
+  // 뒤 줄의 배역을 바꾸면 따로 보이고 다음 서연 줄과 묶인다: 민재 묶음 둘, 서연 묶음 하나.
+  await waitFor(() => expect(server.patchLine).toHaveBeenCalledWith('s1', 'l5', { character_id: 'c2' }));
+  await waitFor(() => expect(screen.getAllByText('민재')).toHaveLength(2));
+  expect(screen.getAllByText('서연')).toHaveLength(1);
+});

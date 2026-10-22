@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { Alert } from 'react-native';
 
 import { ReconsentPopup } from '@/components/reconsent-popup';
 import { api, type ConsentEntryDocument, type ConsentEntryResponse } from '@/lib/api';
 import type { ConsentEntryState } from '@/lib/auth';
+import { showMarketingNotice } from '@/lib/marketing-notice';
 
 jest.mock('@/lib/api', () => ({ api: { recordConsent: jest.fn() } }));
+jest.mock('@/lib/marketing-notice', () => ({ showMarketingNotice: jest.fn() }));
 
 type AuthMock = { consentEntry: ConsentEntryState; refreshConsentEntry: jest.Mock };
 let mockAuth: AuthMock;
@@ -57,7 +58,6 @@ const cta = () => screen.getByRole('button', { name: '동의하고 계속하기'
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   mockAuth = {
     consentEntry: decisionRequired([RETENTION, TERMS]),
     refreshConsentEntry: jest.fn(async () => ALLOWED),
@@ -94,7 +94,7 @@ test('계속하면 문서마다 결정을 보내고, 안 고른 선택 문서는
     ['d-retention', 'declined'],
   ]);
   expect(mockAuth.refreshConsentEntry).toHaveBeenCalledTimes(1);
-  expect(Alert.alert).not.toHaveBeenCalled();
+  expect(showMarketingNotice).not.toHaveBeenCalled();
   expect(row('서비스 이용약관')).toBeDisabled();
   expect(row('탈퇴 후 영상 보관')).toBeDisabled();
 });
@@ -112,10 +112,10 @@ test('광고성 정보 수신에 동의하면 저장 뒤 처리 결과를 알린
     ['d-terms', 'granted'],
     ['d-mail', 'granted'],
   ]);
-  expect(Alert.alert).toHaveBeenCalledTimes(1);
-  const [title, message] = (Alert.alert as jest.Mock).mock.calls[0];
-  expect(title).toBe('광고성 정보 수신 처리 결과');
-  expect(message).toMatch(/^Acttub · \d{4}\.\d{2}\.\d{2} 처리\n이메일: 수신 동의$/);
+  expect(showMarketingNotice).toHaveBeenCalledTimes(1);
+  const [notice] = (showMarketingNotice as jest.Mock).mock.calls[0];
+  expect(notice.title).toBe('광고성 정보 수신에 동의했어요');
+  expect(notice.rows).toEqual([{ channel: '이메일', result: '수신 동의', granted: true }]);
 });
 
 test('광고성 문서를 비워 두면 거절로 보내고 알림은 띄우지 않는다', async () => {
@@ -130,7 +130,7 @@ test('광고성 문서를 비워 두면 거절로 보내고 알림은 띄우지 
     ['d-terms', 'granted'],
     ['d-mail', 'declined'],
   ]);
-  expect(Alert.alert).not.toHaveBeenCalled();
+  expect(showMarketingNotice).not.toHaveBeenCalled();
 });
 
 test('일부만 저장되면 저장된 줄은 잠그고 실패한 줄의 체크만 풀어, 다시 누르면 실패한 문서만 보낸다', async () => {

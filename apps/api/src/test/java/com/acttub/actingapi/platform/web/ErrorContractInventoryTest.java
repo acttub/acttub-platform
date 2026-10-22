@@ -556,6 +556,8 @@ class ErrorContractInventoryTest {
             covered(ADVICE + "|405|Method Not Allowed", 1, "platform.web.AuthErrorContractIT"),
             // multipart 가 컨테이너 상한을 넘었다 — 핸들러 전이라 안전망 코드다(리딩 녹음, 실제 서버로 본다).
             covered(ADVICE + "|413|upload_too_large", 1, "feature.reading.ReadingRecordingUploadServerIT"),
+            // 앱이 multipart 를 보내다 끊었다 — 받을 사람이 없는 응답이고 보고하지 않는다.
+            covered(ADVICE + "|400|Bad Request", 1, "platform.web.ApiErrorAdviceTest"),
             covered(ADVICE + "|500|internal_server_error", 1,
                     "platform.web.ApiErrorAdviceTest"),
             covered(ADVICE + "|503|storage_not_configured", 1,

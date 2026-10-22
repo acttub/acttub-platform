@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
@@ -39,6 +40,7 @@ type Row = {
  * 섞지 않는다 — 리딩 기록은 대본 탭의 대본 상세에서 본다(SOMA-494).
  */
 export default function HistoryScreen() {
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const [groups, setGroups] = useState<PracticeGroup[]>([]);
   const [filter, setFilter] = useState<PracticeGroupFilter>('all');
@@ -161,7 +163,7 @@ export default function HistoryScreen() {
         <Text style={styles.title}>{t('history.title')}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView contentContainerStyle={[styles.list, { paddingBottom: tabBarSpace + 20 }]}>
         <View style={styles.summary}>
           <Stat value={t('history.countTimes', { count: roundTotal })} label={t('history.statTotal')} />
           <View style={styles.statDivider} />
@@ -271,7 +273,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   title: { fontSize: 20, fontWeight: '800', color: palette.text, letterSpacing: -0.3 },
-  list: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 130 },
+  list: { paddingHorizontal: 20, paddingTop: 8 },
   summary: {
     flexDirection: 'row',
     alignItems: 'center',

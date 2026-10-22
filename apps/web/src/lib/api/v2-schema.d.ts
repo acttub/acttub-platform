@@ -1530,7 +1530,7 @@ export interface paths {
          * Update Challenge Entry
          * @description 작성자만 캡션·공개 범위를 바꾼다(남의 것 404). 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지의
          *     정상 참여작만 된다 — 종료 422 challenge_closed, 신고 숨김 422 entry_hidden, 파일 파기 422 video_not_ready.
-         *     다시 공개해도 published_at 은 처음 값이다.
+         *     다시 공개해도 published_at 은 처음 값이다. face_mosaic 로 얼굴 모자이크를 켜고 끈다.
          */
         patch: operations["update_entry_v2_entries__id__patch"];
         trace?: never;
@@ -4039,6 +4039,8 @@ export interface components {
              * @enum {string}
              */
             visibility: "public" | "private";
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
         };
         /** MyChallengeEntry */
         MyChallengeEntry: {
@@ -4101,6 +4103,13 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Face Mosaic
+             * @description 얼굴 모자이크를 켰는가. 켜면 다른 사람은 모자이크본만 본다
+             */
+            face_mosaic: boolean;
+            /** Mosaic Status */
+            mosaic_status: ("pending" | "ready" | "failed") | null;
         };
         /** MyChallengeEntryParent */
         MyChallengeEntryParent: {
@@ -4444,6 +4453,8 @@ export interface components {
             caption?: string | null;
             /** Visibility */
             visibility?: ("public" | "private") | null;
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
         };
         /** VideoList */
         VideoList: {

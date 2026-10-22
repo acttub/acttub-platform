@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -30,6 +29,7 @@ import {
   marketingDecisionNotice,
   shouldNoticeEntryDecisions,
 } from '@/lib/marketing-consent';
+import { showMarketingNotice } from '@/lib/marketing-notice';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -109,12 +109,12 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
       });
     } else if (result.kind === 'verified') {
       // 광고성 정보 수신에 동의했으면 처리 결과를 알린다(정보통신망법 제50조 제7항). 저장이 확인되면 팝업이
-      // 닫히므로 앱 다이얼로그 대신 OS 알림창을 쓴다.
+      // 닫히므로 앱 전체 자리로 보내 S5.13 팝업으로 띄운다.
       const decisions = entryMarketingDecisions(documents, choiceMap);
       const notice = shouldNoticeEntryDecisions(decisions)
         ? marketingDecisionNotice(decisions, new Date())
         : null;
-      if (notice) Alert.alert(notice.title, notice.message);
+      if (notice) showMarketingNotice(notice);
     } else if (result.kind === 'verification_failed') {
       setVerificationOnly(true);
       setError(errorMessage(result.cause, t('consent.verifyFail')));
@@ -166,7 +166,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         </ScrollView>
         <View style={styles.footer}>
           {error && <Text style={styles.error}>{error}</Text>}
-          {/* pen S4R.1 CTA — 공통 Button/Primary(56·모서리 16). 필수를 다 고르기 전엔 Button/Disabled 모양. */}
+          {/* pen S4R.1 CTA — 공통 Button/Primary(48·모서리 16). 필수를 다 고르기 전엔 Button/Disabled 모양. */}
           <PrimaryButton
             label={
               verificationOnly

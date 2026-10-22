@@ -3620,7 +3620,7 @@
       "patch" : {
         "tags" : [ "v2-challenges" ],
         "summary" : "Update Challenge Entry",
-        "description" : "작성자만 캡션·공개 범위를 바꾼다(남의 것 404). 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지의\n정상 참여작만 된다 — 종료 422 challenge_closed, 신고 숨김 422 entry_hidden, 파일 파기 422 video_not_ready.\n다시 공개해도 published_at 은 처음 값이다.",
+        "description" : "작성자만 캡션·공개 범위를 바꾼다(남의 것 404). 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지의\n정상 참여작만 된다 — 종료 422 challenge_closed, 신고 숨김 422 entry_hidden, 파일 파기 422 video_not_ready.\n다시 공개해도 published_at 은 처음 값이다. face_mosaic 로 얼굴 모자이크를 켜고 끈다.",
         "operationId" : "update_entry_v2_entries__id__patch",
         "parameters" : [ {
           "name" : "id",
@@ -8541,6 +8541,15 @@
             "description" : "올리기 화면에서 명시적으로 고른다",
             "enum" : [ "public", "private" ],
             "title" : "Visibility"
+          },
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 모자이크. 기본 false. 켜면 서버가 얼굴을 픽셀 모자이크한 사본을 만들고 다른 사람에게는 그 사본만\n준다. 사본이 준비되기 전이나 만들지 못하면(얼굴을 못 찾음 포함) 다른 사람에게 보이지 않는다.\n본인 재생과 AI 리포트는 원본이다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
           }
         },
         "required" : [ "request_id", "video_id", "visibility" ],
@@ -8659,9 +8668,24 @@
             "type" : "string",
             "format" : "date-time",
             "title" : "Created At"
+          },
+          "face_mosaic" : {
+            "type" : "boolean",
+            "description" : "얼굴 모자이크를 켰는가. 켜면 다른 사람은 모자이크본만 본다",
+            "title" : "Face Mosaic"
+          },
+          "mosaic_status" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "모자이크본 상태. 끈 참여작은 null. ready 전에는 공개여도 다른 사람에게 보이지 않는다",
+              "enum" : [ "pending", "ready", "failed" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Mosaic Status"
           }
         },
-        "required" : [ "author", "caption", "category", "challenge", "challenge_hidden", "challenge_id", "comment_count", "content_version", "created_at", "final_like_count", "id", "is_mine", "like_count", "liked", "playback_url", "published_at", "rank", "saved", "status", "view_count", "visibility" ],
+        "required" : [ "author", "caption", "category", "challenge", "challenge_hidden", "challenge_id", "comment_count", "content_version", "created_at", "face_mosaic", "final_like_count", "id", "is_mine", "like_count", "liked", "mosaic_status", "playback_url", "published_at", "rank", "saved", "status", "view_count", "visibility" ],
         "title" : "MyChallengeEntry"
       },
       "MyChallengeEntryParent" : {
@@ -9470,6 +9494,15 @@
               "type" : "null"
             } ],
             "title" : "Visibility"
+          },
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 모자이크. 생략·null 이면 그대로. true 면 켜고(실패한 것은 다시 만든다) false 면 끄고 만든 사본을\n지운다 — 끄면 공개 참여작은 원본이 다른 사람에게 보인다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
           }
         },
         "title" : "ChallengeEntryPatchRequest"

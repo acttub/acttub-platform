@@ -68,7 +68,7 @@ test('reading.line-language: 한 줄에 다른 말이 이어지면 조각마다 
 
 test('reading.play: 상대 대사·받아쓰기·발음 피드백이 줄의 말을 따른다(SOMA-751)', () => {
   const play = read('../app/reading/play.tsx');
-  assert.match(play, /const parts = speechParts\(line\)\.map/);
+  assert.match(play, /\.flatMap\(\(l\) => speechParts\(l\)\)/);
   assert.match(play, /for \(const \{ text, lang \} of parts\)/);
   assert.match(play, /take\(\{ text, preset, lang \}\)/);
   assert.match(play, /speakWithDevice\(text, preset, \{ locale: speechLocaleFor\(lang\) \}\)/);

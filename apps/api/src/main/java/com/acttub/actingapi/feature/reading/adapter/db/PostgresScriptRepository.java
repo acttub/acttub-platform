@@ -629,7 +629,8 @@ class PostgresScriptRepository implements ScriptRepository {
     private List<CharacterView> characters(UUID scriptId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT c.id,c.name,c.sort_order,c.voice_preset,c.gender,c.age_band,array_to_string(c.member_ids,',') AS member_ids,c.unnamed,
-                       (SELECT count(*) FROM script_lines l WHERE l.character_id=c.id) AS dialogue_count
+                       (SELECT count(*) FROM script_lines l JOIN script_characters lc ON lc.id=l.character_id
+                        WHERE lc.id=c.id OR c.id=ANY(lc.member_ids)) AS dialogue_count
                 FROM script_characters c
                 WHERE c.script_id=:scriptId
                 ORDER BY c.sort_order

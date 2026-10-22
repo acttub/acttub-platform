@@ -107,6 +107,8 @@ import type {
   StartSessionBody,
 } from '@/lib/reading/types';
 import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voice';
+import type { PronunciationState } from '@/lib/reading/pronunciation-report';
+import { RECORDING_COACH_PROBE_ID, type RecordingCoach } from '@/lib/reading/recording-coach';
 import type { VoiceModelFiles } from '@/lib/reading/tts/assets';
 import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
@@ -1139,6 +1141,29 @@ export const api = {
    * 노트 평가. 노트 하나에 한 행이고 다시 보내면 덮어쓴다(comment 를 빼면 한 줄도 비운다). 같은 request_id·같은
    * 본문의 재전송은 같은 답이다. 없는·남의·노트 없는 회차는 404 note_not_found.
    */
+  /** 리딩 발음 보고서(SOMA-606, 실험). 허용 밖이면 404 pronunciation_not_available. 처음 물으면 서버가 채점을 줄 세운다. */
+  getPronunciationReport(sessionId: string): Promise<PronunciationState> {
+    return request<PronunciationState>(`/v2/reading/sessions/${encodeURIComponent(sessionId)}/pronunciation`, {}, { timeoutMs: 15_000 });
+  },
+
+  /** 리딩 녹음 코치(SOMA-791, 실험) 켜짐 확인 — 없는 대화를 물어 오류 코드만 본다(lib/reading/recording-coach). */
+  probeRecordingCoach(): Promise<RecordingCoach> {
+    return request<RecordingCoach>(`/v2/recording-coaches/${RECORDING_COACH_PROBE_ID}`, {}, { timeoutMs: 10_000 });
+  },
+
+  /** 회차 녹음으로 첫 차례를 만든다(모델을 요청 안에서 부른다). 그 회차에 이미 있으면 같은 대화. */
+  startRecordingCoach(readingSessionId: string): Promise<RecordingCoach> {
+    return request<RecordingCoach>('/v2/recording-coaches', jsonInit({ reading_session_id: readingSessionId }), { timeoutMs: 90_000 });
+  },
+
+  replyRecordingCoach(coachId: string, text: string): Promise<RecordingCoach> {
+    return request<RecordingCoach>(
+      `/v2/recording-coaches/${encodeURIComponent(coachId)}/reply`,
+      jsonInit({ text: text.trim() }),
+      { timeoutMs: 90_000 },
+    );
+  },
+
   /** 리딩 평가(reading.session, SOMA-661) — 리딩 회차 하나에 사람 하나, 다시 보내면 덮어쓴다. */
   putReadingSessionRating(sessionId: string, body: ReadingRatingBody): Promise<ReadingRating> {
     return request<ReadingRating>(

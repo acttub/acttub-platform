@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
+import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdates;
 import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -43,7 +44,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 /**
  * practice.memory 의 「검증 방법」 가운데 <b>서버</b> 항목을 HTTP 와 실제 Postgres 로 본다 —
- * {@code actor_memories} 네 칸, 갱신 예약(1·3·6·9…), 기억 세대다.
+ * {@code actor_memories} 네 칸, 갱신 예약(끝난 대화마다, SOMA-795), 기억 세대다.
  *
  * <p>모델은 스텁이라 여기서 보는 것은 "무엇이 저장되고 무엇이 반영되지 않는가"다. 뽑는 규칙 자체는
  * {@code MemoryExtractorTest} 가 지킨다.
@@ -99,6 +100,8 @@ class ActorMemoryIT {
     StubGenerator generator;
     @Autowired
     ActorMemoryUpdateWorker worker;
+    @Autowired
+    ActorMemoryUpdates updates;
 
     private UUID member;
     private String bearer;
@@ -113,8 +116,8 @@ class ActorMemoryIT {
 
     @Test
     @DisplayName("practice.memory: 기존 갈래 확인 연습 1회 완료 — ai_jobs memory_update 1행이 생기고 워커가 끝나면 "
-            + "actor_memories 에 written_by = agent 값이 남는다. 2회째는 갱신이 없고 3·6회째는 다시 갱신한다")
-    void practiceMemory_updatesOnTheFirstPracticeAndEveryThirdAfterIt() throws Exception {
+            + "actor_memories 에 written_by = agent 값이 남는다. 그 뒤로도 끝난 대화마다 갱신한다(SOMA-795)")
+    void practiceMemory_updatesAfterEveryFinishedConversation() throws Exception {
         closeConversation(analyzedPractice(member));
         assertThat(memoryJobs()).hasSize(1);
 
@@ -124,16 +127,11 @@ class ActorMemoryIT {
                 .allSatisfy(row -> assertThat(row.get("written_by")).isEqualTo("agent"));
 
         closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).hasSize(1);
-
-        closeConversation(analyzedPractice(member));
         assertThat(memoryJobs()).hasSize(2);
 
         closeConversation(analyzedPractice(member));
         closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).hasSize(2);
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).hasSize(3);
+        assertThat(memoryJobs()).hasSize(4);
     }
 
     @Test
@@ -184,24 +182,25 @@ class ActorMemoryIT {
     }
 
     @Test
-    @DisplayName("practice.memory: 확인 연습으로 세는 것은 노트가 남은 회차다 — action·observation 은 세고 "
-            + "record_only 는 세지 않는다")
+    @DisplayName("practice.memory: 끝난 대화로 세는 것은 노트가 남은 회차다 — action·observation 은 세고 record_only 는 "
+            + "세지 않는다(배우 답이 두 번 이상이면 노트가 없어도 센다). 셈은 그 회차만 본다 — 앞 회차의 셈과 상관없다(SOMA-795)")
     void practiceMemory_onlyActionAndObservationNotesCountAsConfirmedPractices() throws Exception {
-        // record_only 를 세었다면 이번 종료가 2회째라 예약이 없다.
-        seedNote(analyzedPractice(member), "v2", "record_only");
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).hasSize(1);
+        java.time.Instant now = java.time.Instant.now();
+        // 예전에는 앞 회차들의 누적 순번(1·3·6…)으로 정했다. 이제는 이 회차의 대화가 끝났는지만 본다.
+        UUID recordOnly = analyzedPractice(member);
+        seedNote(recordOnly, "v2", "record_only");
+        assertThat(updates.schedule(member, recordOnly, now)).isFalse();
 
-        // action 을 세지 않았다면 이번 종료가 1회째라 예약이 생긴다.
-        useNewMember();
-        seedNote(analyzedPractice(member), "v2", "action");
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).isEmpty();
+        UUID action = analyzedPractice(member);
+        seedNote(action, "v2", "action");
+        assertThat(updates.schedule(member, action, now)).isTrue();
+        assertThat(updates.schedule(member, action, now)).as("같은 회차는 작업 하나").isFalse();
 
-        useNewMember();
-        seedNote(analyzedPractice(member), "v2", "observation");
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).isEmpty();
+        UUID observation = analyzedPractice(member);
+        seedNote(observation, "v2", "observation");
+        assertThat(updates.schedule(member, observation, now)).isTrue();
+
+        assertThat(memoryJobs()).hasSize(2);
     }
 
     @Test
@@ -225,7 +224,7 @@ class ActorMemoryIT {
 
     @Test
     @DisplayName("practice.memory: 전체 삭제는 기억 세대를 올린다 — 삭제 전에 예약돼 진행 중이던 갱신이 끝나도 행이 "
-            + "생기지 않는다. 그 뒤 누적이 다시 3의 배수가 되면 갱신한다")
+            + "생기지 않는다. 그 뒤 끝난 대화는 다시 갱신한다")
     void practiceMemory_deletingAllDropsUpdatesScheduledBeforeIt() throws Exception {
         closeConversation(analyzedPractice(member));
         perform(delete("/v2/me/memory"), 204);
@@ -237,8 +236,6 @@ class ActorMemoryIT {
                 String.class, member))
                 .isEqualTo("memory_epoch_stale");
 
-        closeConversation(analyzedPractice(member));
-        assertThat(memoryJobs()).as("삭제가 누적 횟수를 초기화하지 않는다 — 2회째라 예약이 늘지 않는다").hasSize(1);
         closeConversation(analyzedPractice(member));
         assertThat(memoryJobs()).hasSize(2);
         assertThat(runWorker()).isTrue();

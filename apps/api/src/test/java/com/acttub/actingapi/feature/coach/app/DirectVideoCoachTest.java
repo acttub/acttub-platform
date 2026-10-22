@@ -379,9 +379,123 @@ class DirectVideoCoachTest {
                 .allSatisfy(call -> assertThat(call.metadata()).containsEntry("persona", "park-seunga").containsEntry("shorten_calls", "0"));
     }
 
+    private static final String PROFILE = "[길이] 100\n[이 배우에게 맞춘 코칭]\n이 배우는 이유를 함께 들을 때 납득했다.\n- 배우가 \"왜요?\"라고 물으면 이유부터 답한다.";
+
+    private CoachSessionSnapshot withProfile(CoachSessionSnapshot session) {
+        return session.withPrior(new PriorContext(java.util.Map.of("coaching_profile", PROFILE, "tone", "짧게 존댓말로 답한다"),
+                null, true, List.of(), List.of()));
+    }
+
+    @Test void anActorWithoutAnAdvisorFileGetsTheirCoachingProfileInThePersonaSlot() {
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> "")));
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        // 90자쯤의 말: 공용 상한(60자)은 넘지만 맞춤 코칭의 길이 줄(100자) 안쪽이라 줄이지 않는다.
+        String reply = "\"소소한 행복\"에서도, \"너 왜 자꾸\"에서도 상대 마음을 떠보는 말로 안 들려요.\n오래된 연인이라도 이 말은 마음을 묻는 말이라서요.\n그럼 상대가 대답해 줬을까요?";
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, reply);
+        var first = loopEngine.start(withProfile(session()), UUID.randomUUID());
+        var second = loopEngine.reply(withProfile(first.session()), "같이 즐기고 싶었어요", UUID.randomUUID());
+        assertThat(second.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("actor-profile");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
+        String own = DirectVideoPrompts.persona("actor-profile", null, PROFILE);
+        assertThat(own).startsWith("[이 배우에게 맞춘 코칭]").doesNotContain("[길이]");
+        assertThat(prompts.getAllValues().get(0)).endsWith("\n\n" + own);
+        assertThat(prompts.getAllValues().get(1)).endsWith(own);
+        assertThat(prompts.getAllValues()).allSatisfy(prompt -> assertThat(prompt.indexOf("[이 배우에게 맞춘 코칭]"))
+                .as("기억 블록에 다시 실리지 않는다").isEqualTo(prompt.lastIndexOf("[이 배우에게 맞춘 코칭]")));
+        assertThat(second.reply().message()).isEqualTo(reply);
+    }
+
+    private static final String SWITCHES = new ActorCoaching("propose_one", null, null, List.of("붙잡고 싶었어요"), null, true, null,
+            null, List.of(), 90, "이 배우는 코치가 하나를 제안했을 때 움직였다.", null).toJson();
+
+    /** 짧은 답("몰라") 한 번이면 쉽게 묻기다. 둘째 코치 호출의 프롬프트. */
+    private String easyPrompt(String profile) {
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> "")));
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가지 마\"에서 붙잡으려는 것처럼 보였어요. 맞아요?");
+        CoachSessionSnapshot start = profile == null ? session() : session().withPrior(new PriorContext(
+                java.util.Map.of("coaching_profile", profile), null, true, List.of(), List.of()));
+        var first = loopEngine.start(start, UUID.randomUUID());
+        loopEngine.reply(first.session().withPrior(start.prior()), "몰라", UUID.randomUUID());
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, atLeast(2)).reply(eq(file), anyList(), prompts.capture());
+        String turn = prompts.getAllValues().get(1);
+        org.mockito.Mockito.clearInvocations(model);
+        return turn;
+    }
+
+    @Test void aStuckActorGetsTheCommonProposalAndOnlyAChoiceActorGetsTheChoiceQuestionBack() {
+        String common = easyPrompt(null);
+        assertThat(common).contains("역할: 너는 말이 막힌 배우에게 길 하나를 먼저 보여 주는 선배다.")
+                .doesNotContain("모양: 둘 중 고르는 질문 한 문장").contains(ActorCoaching.COMMON_TURN_CHOICE);
+        String propose = easyPrompt(SWITCHES);
+        assertThat(propose).contains("역할: 너는 말이 막힌 배우에게 길 하나를 먼저 보여 주는 선배다.")
+                .doesNotContain("모양: 둘 중 고르는 질문 한 문장")
+                .endsWith(DirectVideoPrompts.persona("actor-profile", null, SWITCHES));
+        String choiceProfile = new ActorCoaching("choice", null, null, List.of(), null, null, null, null, List.of(), null,
+                "이 배우는 고를 거리를 받을 때 답했다.", null).toJson();
+        String choice = easyPrompt(choiceProfile);
+        assertThat(choice).contains("모양: 둘 중 고르는 질문 한 문장").contains(ActorCoaching.TURN_CHOICE_ALLOWED)
+                .doesNotContain(ActorCoaching.COMMON_TURN_CHOICE);
+    }
+
+    @Test void theHowAboutExampleIsDroppedForCoachingProfileActorsButKeptForActorsWithoutOne() {
+        String plainPropose = proposePrompt(null);
+        assertThat(plainPropose).as("맞춤 코칭이 없는 배우는 지금 그대로").contains("떠봐도 좋을 것 같아요. 어때요?");
+        String profilePropose = proposePrompt(new ActorCoaching(null, null, null, List.of(), null, null, null, null, List.of(), null,
+                "이 배우는 이유를 들을 때 움직였다.", null).toJson());
+        assertThat(profilePropose).contains("떠봐도 좋을 것 같아요.\")").doesNotContain("어때요?");
+    }
+
+    /** 짧은 답 두 번이면 쉽게 묻기 다음 답 제안하기로 간다. 셋째 코치 호출의 프롬프트. */
+    private String proposePrompt(String profile) {
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> "")));
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가지 마\"에서 무엇을 바랐어요?",
+                "아빠한테 하나씩 따져 봐도 좋아요. 떠나려는 사람이라서요.");
+        CoachSessionSnapshot start = profile == null ? session() : session().withPrior(new PriorContext(
+                java.util.Map.of("coaching_profile", profile), null, true, List.of(), List.of()));
+        var first = loopEngine.start(start, UUID.randomUUID());
+        var second = loopEngine.reply(first.session().withPrior(start.prior()), "몰라", UUID.randomUUID());
+        loopEngine.reply(second.session().withPrior(start.prior()), "몰라", UUID.randomUUID());
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, atLeast(3)).reply(eq(file), anyList(), prompts.capture());
+        String third = prompts.getAllValues().get(prompts.getAllValues().size() - 1);
+        org.mockito.Mockito.clearInvocations(model);
+        return third;
+    }
+
+    @Test void anAdvisorFileWinsOverTheCoachingProfile() {
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> "park-seunga")));
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+        var first = loopEngine.start(withProfile(session()), UUID.randomUUID());
+        assertThat(first.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("park-seunga");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model).reply(eq(file), anyList(), prompts.capture());
+        assertThat(prompts.getValue()).endsWith(DirectVideoPrompts.persona("park-seunga", null))
+                .doesNotContain("이유를 함께 들을 때 납득했다");
+    }
+
+    @Test void theCoachingProfileLengthIsBoundedAndOnlyKoreanConversationsGetIt() {
+        assertThat(DirectVideoPrompts.personaReplyLimit("actor-profile", null, PROFILE)).isEqualTo(100);
+        assertThat(DirectVideoPrompts.personaReplyLimit("actor-profile", null, PROFILE.replace("[길이] 100", "[길이] 300")))
+                .isEqualTo(160);
+        assertThat(DirectVideoPrompts.personaReplyLimit("actor-profile", null, PROFILE.replace("[길이] 100", "[길이] 20")))
+                .isEqualTo(60);
+        assertThat(DirectVideoPrompts.persona("actor-profile", Locale.ENGLISH, PROFILE)).isEmpty();
+        assertThat(DirectVideoPrompts.persona("actor-profile", null, null)).isEmpty();
+        assertThat(DirectVideoPrompts.personaReplyLimit("actor-profile", null, null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
+        assertThat(DirectVideoPrompts.personaShortenNote("actor-profile", null, PROFILE)).contains("공백 포함 90자");
+    }
+
     @Test void advisorPromptsLoadByLanguageAndUnknownIdsGetNothing() {
         assertThat(DirectVideoPrompts.personaReplyLimit("park-seunga", null)).isEqualTo(100);
-        assertThat(DirectVideoPrompts.personaReplyLimit("cho-taemin", null)).isEqualTo(70);
+        assertThat(DirectVideoPrompts.personaReplyLimit("cho-taemin", null)).isEqualTo(90);
         assertThat(DirectVideoPrompts.personaReplyLimit("a", null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
         assertThat(DirectVideoPrompts.personaReplyLimit("b1", null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
         assertThat(DirectVideoPrompts.persona("kwon-ohryong", Locale.ENGLISH)).startsWith("[Coaching tailored to this actor]").doesNotContain("[length]");

@@ -35,12 +35,12 @@ class PostgresScriptUploadRepository implements ScriptUploadRepository {
     }
 
     @Override
-    public void reserve(UUID userId, UUID uploadId, String objectKey, long byteSize, Instant expiresAt, Instant now) {
+    public void reserve(UUID userId, UUID uploadId, String objectKey, String fileName, long byteSize, Instant expiresAt, Instant now) {
         transaction.executeWithoutResult(status -> em.createNativeQuery("""
-                INSERT INTO script_uploads(id,user_id,object_key,byte_size,expires_at,created_at,updated_at)
-                VALUES (:id,:userId,:objectKey,:byteSize,:expiresAt,:now,:now)
+                INSERT INTO script_uploads(id,user_id,object_key,file_name,byte_size,expires_at,created_at,updated_at)
+                VALUES (:id,:userId,:objectKey,:fileName,:byteSize,:expiresAt,:now,:now)
                 """).setParameter("id", uploadId).setParameter("userId", userId).setParameter("objectKey", objectKey)
-                .setParameter("byteSize", byteSize).setParameter("expiresAt", expiresAt.atOffset(ZoneOffset.UTC))
+                .setParameter("fileName", fileName).setParameter("byteSize", byteSize).setParameter("expiresAt", expiresAt.atOffset(ZoneOffset.UTC))
                 .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate());
     }
 

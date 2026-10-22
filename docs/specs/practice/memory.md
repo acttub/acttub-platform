@@ -25,7 +25,7 @@ Actor Memory의 자리는 연습 도구의 성능이다(PRD). 현행 규칙(배�
 | `DELETE /v2/me/memory/{field}` | field | 204, 이미 없어도 204 | 없는 field 422(배열) |
 | `DELETE /v2/me/memory` | — | 204 | — |
 | `GET·DELETE /v2/legacy-me/memory`, `PUT·DELETE /v2/legacy-me/memory/{field}` | 옛 표(actor_memory_entries)의 옛 경로 (`UpdateMemoryRequest`) | `MemoryResponse`·`MemoryItem` 200, 204 | 422(배열) |
-| `ActorMemoryUpdateScheduling.onConversationClosed` | 닫힌 회차 | avoid 에 정정 덧붙임, 갱신 차례(1·3·6·9…번째)면 ai_jobs memory_update `pending`, 예약 시점의 memory_epoch | — |
+| `ActorMemoryUpdateScheduling.onConversationClosed` | 닫힌 회차 | avoid(그 장면의 행)에 정정 덧붙임, 끝난 대화마다 ai_jobs memory_update `pending`(SOMA-795), 예약 시점의 memory_epoch | — |
 | `ActorMemoryUpdateWorker.sweepIdle` (10분마다) | 배우가 두 번 이상 답하고 30분~24시간 말이 없는 열린 회차, 작업이 아직 없는 것 | 위와 같다 | — |
 | `MemoryWorkerScheduler.poll` (`ANALYSIS_WORKER_POLL_INTERVAL_SEC`, 기본 2초) | `pending` memory_update 작업 | actor_memories 갱신(written_by agent, 배우가 쓴 칸은 건너뜀) | 세대 불일치 `failed`/memory_epoch_stale, 탈퇴 `failed`/account_deactivated, 3회 소진은 분석 워커 정리가 닫는다 |
 
@@ -56,10 +56,20 @@ memory_update 작업의 전이 (정본: [공통 상태](../common.md#공통-상�
   공백을 정리한 뒤 1~1,000자이고, 다듬고 나서 빈 값은 422(배열, `value must not be blank`)다.
 - 자동 갱신의 근거는 배우 발화·실제 전사·관찰만이다. 코치 제안이나 인물 대사를 배우의 성격으로 바꾸지 않고 개인 심리를 판정하지
   않는다(현행 추출기).
-- 갱신 시점: 첫 회차와 그 뒤 3회마다(1·3·6·9·12…번째). 세는 회차는 action·observation 노트가 남은 회차와, 열린 채 남았어도 배우가
-  두 번 이상 답한 회차다(SOMA-603, record_only 는 세지 않는다). 번호는 셈에 드는 회차 가운데 그 회차의 차례다. 이 집계는 갱신 예약에만 쓰고 배우의 동의·실행 증거로 쓰지 않는다. "연습을 마칠 때마다
-  적는다"는 카피는 실제 기준에 맞게 고친다. (디자인에 반영할 것) 갱신 예약은 대화가 닫히고 노트까지 남은 뒤이고 같은 회차는 작업
-  하나다. 갱신은 회차 상태를 건드리지 않는다 — 기억이 없다고 연습이 망가질 것은 아니다.
+- 갱신 시점: 끝난 대화마다(SOMA-795, 예전에는 1·3·6·9…번째만이라 자주 연습하는 배우의 기억이 낡았다). 끝난 대화는 action·observation
+  노트가 남은 회차와, 열린 채 남았어도 배우가 두 번 이상 답한 회차다(SOMA-603, record_only 는 세지 않는다).
+- 범위(SOMA-795): 목표(goal)·다시 말하지 않을 것(avoid)은 장면 단위다 — `actor_memories.scene_root_id`(= practices.root_id)에 붙고
+  코치는 같은 root 회차에서만 읽는다. 배우가 장면 없이 쓴 값은 어디서나 읽는다. 나머지 칸과 맞춤 코칭(coaching_profile)은 배우 단위다.
+  화면 목록은 칸마다 한 줄(배우가 쓴 행, 없으면 최근 행)이다. 화면 선택·코치 진행을 적은 값("…지점을 골랐다", "…지적이 있었고")은
+  저장하지 않고 이미 있는 것도 읽지 않는다(MeaningfulMemoryValue).
+- 맞춤 코칭(coaching_profile, SOMA-795): 자문위원 7명 파일에서 뽑은 칸을 JSON 으로 저장한다(ActorCoaching) — 막혔을 때 방식(choice·
+  propose_one·easier_open), 첫 질문 틀, 정리 틀, 쓰지 않을 말, 이유 먼저, 물으면 바로 답하기, 정리 전 질문 수 상한(2~4), 원하는
+  피드백 쪽(root·method·both), 짚지 않을 것, 답 길이(60~160). 갱신 때마다 최근 대화 8개(60일)·노트 평가·정정으로 근거가 있는 칸만
+  다시 정하고, 근거 없는 칸은 비운다(공통 동작). 진단·장면 내용·장면 해석·공통 금지(양자택일 권장, 확인하며 등, 칭찬, 시키는 말)는
+  걸러 낸다. 자문위원 파일이 없는 배우의 연습 루프에서 코치는 (a) 단계 지시를 바꿔 끼우고(쉽게 묻기·스스로 찾기·어긋남 보기의 둘 중
+  고르기, 첫 질문 모양, 정리 모양, 쓰지 않을 말이 든 공통 줄 빼기, 답하기 강화) (b) 자문위원 파일 모양의 글을 성격 자리(actor-profile)에
+  붙이고 (c) 질문 수 상한에 닿으면 묻는 할 일 대신 정리로 넘기며 길이를 [길이]로 묶는다. 예전(#856) 글 형식 값은 글만 붙는다.
+  배우 화면에는 없다.
 - 이관 때 어느 기억을 남길지는 [account.guest](../account/guest.md#규칙제약)가 정한다. 고른 뒤 세대를 올린다.
 - 조회는 항목마다 값·작성자·출처 연습·수정 시각을 준다. 출처 연습이 숨겨졌으면 값은 그대로고 링크만 없다. 웹 게스트는 자기 기억만 보고,
   성별·나이 자리에는 프로필 편집 링크 대신 "앱으로 옮기면 프로필에서 적어요" 안내가 있다(게스트는 프로필이 없다).

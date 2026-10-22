@@ -117,6 +117,20 @@ test('보관함 영상으로 공개 참여하면 완료 화면의 주 버튼 「
   expect(mockRouter.replace).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
 });
 
+test('공개를 고르면 얼굴 모자이크를 켤 수 있고(기본 꺼짐), 켜면 요청에 싣고 만드는 중이라고 알린다', async () => {
+  await render(<ChallengeUploadScreen />);
+  await screen.findByText('“사느냐 죽느냐”');
+  // 나만 보기에서는 보이지 않는다.
+  expect(screen.queryByText('얼굴 모자이크')).toBeNull();
+  await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+  const toggle = screen.getByLabelText('얼굴 모자이크');
+  expect(toggle.props.value).toBe(false);
+  await fireEvent(toggle, 'valueChange', true);
+  await fireEvent.press(submitButton());
+  expect(createEntry).toHaveBeenCalledWith('c1', expect.objectContaining({ visibility: 'public', face_mosaic: true }));
+  expect(await screen.findByText('얼굴 모자이크를 만드는 중이에요. 다 되면 다른 배우들에게 보여요.')).toBeOnTheScreen();
+});
+
 test('비공개를 고르면 비공개로 저장하고 완료 문구가 다르다', async () => {
   const view = await render(<ChallengeUploadScreen />);
   await screen.findByText('“사느냐 죽느냐”');
@@ -134,7 +148,9 @@ test('비공개를 고르면 비공개로 저장하고 완료 문구가 다르�
   expect(createEntry).toHaveBeenCalledWith('c1', expect.objectContaining({ video_id: 'v1', visibility: 'private' }));
   expect(createEntry.mock.calls[0][1]).not.toHaveProperty('caption');
   expect(await screen.findByText('비공개로 저장했어요')).toBeOnTheScreen();
-  expect(screen.getByText(/^나만 볼 수 있게 보관했어요\. 언제든 공개로 바꿀 수 있어요\. 「AI 리포트 보기」를 누르면/)).toBeOnTheScreen();
+  expect(screen.getByText('나만 볼 수 있게 보관했어요. 언제든 공개로 바꿀 수 있어요.')).toBeOnTheScreen();
+  // pen 10-11 — AI 리포트 안내는 따로 옅은 파랑 알약 한 줄이다.
+  expect(screen.getByText('「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요')).toBeOnTheScreen();
 
   await view.unmount();
   expect(events().some(([name]) => name === 'challenge_upload_exit')).toBe(false);

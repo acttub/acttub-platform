@@ -680,7 +680,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `evening_reminder_sends(user_id, day)` 를 먼저 선점해 같은 날 두 번 보내지 않는다. 실패는 보고하고
   `DeviceNotRegistered` 토큰은 지운다.
 - **개인화 연습 알림**(`PracticeReminderScheduler` → `PracticeReminderService#sendDue`, V47, SOMA-720): `PRACTICE_REMINDER_ENABLED=true` 일 때만 서고
-  `EveningReminderScheduler` 는 그때 서지 않는다(`@ConditionalOnExpression`). 후보·연속 일수·이어 하기·숙제는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
+  `EveningReminderScheduler` 는 그때 서지 않는다(`@ConditionalOnExpression`). 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
   보낼 자리는 `practice_reminder_sends(user_id, day, slot)` 를 data-modifying CTE 로 먼저 선점해(§5-8 ④) 겹쳐 돌아도 한 번만 보낸다. 모델을 부르지 않는다.
   탈퇴·게스트 파기는 이 표를 직접 지운다(`PostgresProfileRepository`). 시각·연속 일수·문구 선택은 `PracticeReminderPolicy`·`ReminderContent`·`ReminderTemplates` 순수 코드다.
 
@@ -983,6 +983,13 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     - **스위치가 둘이고 둘 다 켜져야 돈다**: `ANALYSIS_WORKER_ENABLED`(분석·기억·챌린지 리포트 워커와 공유 — 격리 복원 때 함께 끄는 스위치는
       [DEPLOY-HOME §7](../../docs/deploy/DEPLOY-HOME.md#7-db와-호스트-복구))와 `VIDEO_POSTER_ENABLED`(포스터만). 테스트는 후자를 전역으로
       끄고 워커를 직접 부른다.
+  - **챌린지 얼굴 모자이크**(`challenge_entries.face_mosaic`·`mosaic_status`·`mosaic_key`·`mosaic_attempts`, V54, SOMA-809):
+    `challenge/app/EntryMosaicWorker` 가 포스터와 같은 모양(집기 · 받기 · 만들기 · 올리기 · 붙이기)으로 돈다. 만들기는
+    `integration/media/FaceMosaicRenderer`(ffmpeg 로 30fps 프레임을 풀어 YuNet(`YuNetFaceDetector`, openpnp OpenCV)으로 얼굴을 찾고
+    넓힌 상자를 픽셀 모자이크한 뒤 다시 압축)이다. 붙이기는 `users` → 참여작 → 영상(`FOR SHARE`) 순서로 잡고, 붙이지 못하면 사본을
+    장부에 올린다. 공개 조건(`ChallengeVisibility.PUBLIC_ENTRY`)과 종료 집계는 `NOT face_mosaic OR mosaic_status='ready'` 를 더하고,
+    다른 사람의 재생 주소는 `EntryCards` 가 모자이크본으로 바꾼다. 스위치는 `ANALYSIS_WORKER_ENABLED` 와
+    `CHALLENGE_MOSAIC_ENABLED`(테스트는 후자를 전역으로 끈다).
   - **이관**은 `video/app/VideoOwnership` 이 `videos` 와 **예약 장부**를 함께 옮긴다(§6-9의 순서에서 올린 영상 바로
     뒤다). 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다.
 - **회차**(`/v2/practices/**`, `feature/practice` 의 0.1.0 코드)

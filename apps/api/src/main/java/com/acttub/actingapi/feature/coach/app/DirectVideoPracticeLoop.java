@@ -33,6 +33,12 @@ final class DirectVideoPracticeLoop {
     private static final Pattern THINKING = Pattern.compile("(?is)<(" + THINKING_NAME + ")>.*?</\\1>");
     private static final Pattern THINKING_OPEN = Pattern.compile("(?i)<" + THINKING_NAME + ">");
     private static final Pattern THINKING_CLOSE = Pattern.compile("(?i)</" + THINKING_NAME + ">");
+    /**
+     * 꺾쇠를 닫지 않은 메모 태그만 있는 줄("<thought" 다음 줄바꿈). 그 아래가 배우에게 할 말이었다.
+     * 2026-10-14~10-22 운영에서 8번, 배우 화면 맨 앞에 "<thought"가 그대로 나갔다(닫는 꺾쇠가 없어 위 태그 패턴에 안 걸렸다).
+     */
+    static final Pattern UNCLOSED_THINKING_LINE = Pattern.compile(
+            "(?imu)^[ \\t]*</?" + THINKING_NAME + "(?![\\p{L}\\p{N}_>-])[^>\\n]*$\\R?");
     // 닫는 태그를 빠뜨렸을 때 메모의 칸 줄만 걷어낸다.
     private static final Pattern THINKING_LINE = Pattern.compile(
             "(?im)^\\s*(?:<" + THINKING_NAME + ">\\s*$|(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*$)\\R?");
@@ -81,6 +87,7 @@ final class DirectVideoPracticeLoop {
         while (close.find()) strayClose = close.end();
         if (strayClose >= 0) rest = rest.substring(strayClose);
         if (THINKING_OPEN.matcher(rest).find()) rest = THINKING_LINE.matcher(rest).replaceAll("");
+        rest = UNCLOSED_THINKING_LINE.matcher(rest).replaceAll("");
         Matcher coach = COACH.matcher(rest);
         String message = coach.find() ? coach.group(1) : rest;
         message = STRAY_TAG.matcher(message).replaceAll("");
@@ -368,7 +375,30 @@ final class DirectVideoPracticeLoop {
      * 운영에서 영어로 상황을 적은 배우에게 한국어로 첫 질문을 하자 답하지 않고 떠났다.
      */
     static java.util.Locale replyLanguage(CoachSessionSnapshot session, String actorText) {
-        return OutputLanguage.isKorean() ? actorLanguage(session, actorText) : OutputLanguage.current();
+        if (OutputLanguage.isKorean()) return actorLanguage(session, actorText);
+        // 화면이 한국어가 아니어도 배우가 대화에서 한국어로 답하면 한국어로 답한다.
+        // 2026-10-15 00:12 운영(자문, 영어 화면): 배우는 내내 한국어로 답했는데 코치는 영어로 답했다.
+        return actorWritesKorean(session, actorText) ? null : OutputLanguage.current();
+    }
+
+    /** 배우가 이 대화에서 쓴 말(이번 답 → 지난 답, 최근부터)이 한국어인지. 연습 메모는 보지 않는다. 판단되는 말이 없으면 아니다. */
+    static boolean actorWritesKorean(CoachSessionSnapshot session, String actorText) {
+        var candidates = new ArrayList<String>();
+        if (actorText != null) candidates.add(actorText);
+        if (session != null) {
+            List<CoachTurnSnapshot> turns = session.turns();
+            for (int i = turns.size() - 1; i >= 0; i--) if (!"ai".equals(turns.get(i).role())) candidates.add(turns.get(i).text());
+        }
+        for (String text : candidates) {
+            if (text == null || text.isBlank() || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
+            String lowered = text.toLowerCase(java.util.Locale.ROOT);
+            if (lowered.contains("in english") || lowered.contains("영어로")) return false;
+            if (lowered.contains("한국어로") || lowered.contains("in korean")) return true;
+            java.util.Locale found = languageOf(text);
+            if (found == null) return true;
+            if (found != UNDECIDED) return false;
+        }
+        return false;
     }
 
     /**

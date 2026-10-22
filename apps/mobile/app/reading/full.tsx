@@ -11,6 +11,7 @@ import type { LineDraft } from '@/lib/reading/line-edit';
 import { deleteScriptLine, getCurrent, isMyRole, type SavedScript } from '@/lib/reading/store';
 import { translate as t } from '@/lib/i18n';
 import { isMonologue } from '@/lib/reading/monologue';
+import { lineGroups } from '@/lib/reading/line-groups';
 
 /** 지우기 거절 사유 → 문구. 그 밖의 실패는 저장 실패 문구다. */
 const DELETE_REFUSED: Record<string, string> = {
@@ -71,31 +72,41 @@ export default function ReadingFull() {
     });
   };
 
+  const monologue = isMonologue(script.characters);
+  /** 줄 하나 — 묶인 대사(SOMA-806) 안에서도 줄마다 눌러 메뉴를 연다. */
+  const row = (i: number, body: React.ReactNode, joined?: 'head' | 'rest') => (
+    <Pressable
+      key={script.lineIds[i] ?? i}
+      onPress={() => openMenu(i)}
+      style={({ pressed }) => [styles.row, joined === 'head' && styles.rowHead, joined === 'rest' && styles.rowJoined, pressed && styles.rowPressed]}
+      accessibilityRole="button"
+      accessibilityHint={t('reading.lineEditTitle')}>
+      {body}
+    </Pressable>
+  );
+
   return (
     <>
       <ScrollView style={styles.root} contentContainerStyle={styles.content}>
         <Text style={styles.title}>{script.title}</Text>
         {/* 독백은 서버가 문장마다 나눠 둔다(SOMA-597) — 그 안내가 줄 고치기 안내 자리에 온다(pen UQWzz). */}
-        <Text style={styles.hint}>{t(isMonologue(script.characters) ? 'reading.monologueFullNote' : 'reading.lineEditHint')}</Text>
-        {script.lines.map((l, i) => (
-          <Pressable
-            key={script.lineIds[i] ?? i}
-            onPress={() => openMenu(i)}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            accessibilityRole="button"
-            accessibilityHint={t('reading.lineEditTitle')}>
-            {l.type === 'scene' ? (
-              <Text style={styles.scene}>{l.text}</Text>
-            ) : l.type === 'direction' ? (
-              <Text style={styles.direction}>{l.text}</Text>
-            ) : (
-              <View style={styles.line}>
-                <Text style={[styles.role, isMyRole(l.role) && styles.roleMine]}>{l.role}</Text>
-                <Text style={styles.text}>{l.text}</Text>
-              </View>
-            )}
-          </Pressable>
-        ))}
+        <Text style={styles.hint}>{t(monologue ? 'reading.monologueFullNote' : 'reading.lineEditHint')}</Text>
+        {/* 같은 배역 연속 대사는 배역 이름 하나 아래 줄마다 이어 보인다(SOMA-806). 저장된 줄은 그대로다. */}
+        {lineGroups(script.lines, { monologue }).map(({ start, end }) => {
+          const l = script.lines[start];
+          if (l.type !== 'dialogue') return row(start, <Text style={l.type === 'scene' ? styles.scene : styles.direction}>{l.text}</Text>);
+          const rows = script.lines.slice(start, end + 1).map((g, k) =>
+            k === 0
+              ? row(start, (
+                  <View style={styles.line}>
+                    <Text style={[styles.role, isMyRole(l.role) && styles.roleMine]}>{l.role}</Text>
+                    <Text style={styles.text}>{g.text}</Text>
+                  </View>
+                ), start < end ? 'head' : undefined)
+              : row(start + k, <Text style={styles.text}>{g.text}</Text>, 'rest'),
+          );
+          return start === end ? rows : <View key={script.lineIds[start] ?? start}>{rows}</View>;
+        })}
       </ScrollView>
       <LineEditSheet
         scriptId={script.id}
@@ -129,11 +140,14 @@ const styles = StyleSheet.create({
   title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 20 },
   hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: 2, marginBottom: 8 },
   row: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, marginHorizontal: -8 },
+  /** 묶인 대사의 줄 — 한 대사로 보이게 위아래를 좁힌다. */
+  rowHead: { paddingBottom: 1 },
+  rowJoined: { paddingVertical: 1 },
   rowPressed: { backgroundColor: palette.bgSoft },
   direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21 },
   scene: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 6 },
-  line: { gap: 2 },
   role: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 14 },
+  line: { gap: 2 },
   roleMine: { color: palette.blueDeep },
   text: { color: palette.text, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24 },
   pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },

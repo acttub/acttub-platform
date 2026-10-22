@@ -13,7 +13,7 @@ import java.util.UUID;
  */
 public interface ScriptUploadRepository {
 
-    void reserve(UUID userId, UUID uploadId, String objectKey, long byteSize, Instant expiresAt, Instant now);
+    void reserve(UUID userId, UUID uploadId, String objectKey, String fileName, long byteSize, Instant expiresAt, Instant now);
 
     /** 없으면 {@code null}. 남의 것도 없는 것이다. */
     Upload find(UUID userId, UUID uploadId);

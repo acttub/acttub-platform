@@ -5,8 +5,9 @@ import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 
 /**
- * pen 「캐릭터 말풍선」(SOMA-770 공통) — 왼쪽 액티(70×78), 오른쪽 회색 말풍선(#F2F4F6, 모서리 18 · 왼쪽 아래만 4, 안쪽 14/16).
- * 큰 글 20/800. 아래 줄은 `guide`(파란 안내 14/700, 누를 곳을 알려 주는 말) 또는 `body`(회색 보조 14/600).
+ * pen 「온보딩 / 질문 말풍선」(파이프라인 반영버전 공통) — 왼쪽 액티(52×61, 아래 4 띄움), 13 띄워 회색 말풍선
+ * (#F2F4F6, 모서리 16, 안쪽 [11,14,12,14], 줄 사이 5). 질문 19/700(줄 25).
+ * 아래 줄은 `guide`(파란 안내 15/600 #3268D8, 누를 곳을 알려 주는 말) 또는 `body`(회색 보조 15/600).
  * 온보딩·코칭 준비·코칭/리딩 입구가 모두 이것을 쓴다.
  */
 export function MascotBubble({
@@ -22,7 +23,9 @@ export function MascotBubble({
 }) {
   return (
     <View style={styles.row}>
-      <Image source={source} style={MASCOT_SIZE.md} contentFit="contain" accessibilityIgnoresInvertColors />
+      <View style={styles.mascot}>
+        <Image source={source} style={MASCOT_SIZE.bubble} contentFit="contain" accessibilityIgnoresInvertColors />
+      </View>
       <View style={styles.bubble}>
         <Text style={styles.title}>{title}</Text>
         {guide ? <Text style={styles.guide}>{guide}</Text> : null}
@@ -38,20 +41,19 @@ export function CoachBubble({ title, guide }: { title: string; guide?: string | 
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 13, paddingLeft: 6 },
+  mascot: { paddingBottom: 4 },
   bubble: {
     flex: 1,
     minWidth: 0,
-    gap: 6,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    gap: 5,
+    paddingTop: 11,
+    paddingBottom: 12,
+    paddingHorizontal: 14,
     backgroundColor: palette.bgSoft,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderBottomRightRadius: 18,
-    borderBottomLeftRadius: 4,
+    borderRadius: 16,
   },
-  title: { fontSize: 20, fontWeight: '800', lineHeight: 28, color: palette.text },
-  guide: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
-  body: { fontSize: 14, fontWeight: '600', lineHeight: 21, color: palette.textMuted },
+  title: { fontSize: 19, fontWeight: '700', lineHeight: 25, color: palette.text },
+  guide: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.blueDeep },
+  body: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMuted },
 });

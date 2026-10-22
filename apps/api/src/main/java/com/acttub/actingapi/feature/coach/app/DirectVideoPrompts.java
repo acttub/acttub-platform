@@ -178,32 +178,71 @@ final class DirectVideoPrompts {
     }
 
     /**
+     * 개인 프롬프트를 쓰는 대화(자문위원, 그리고 SOMA-795 부터 맞춤 코칭 배우)에서는 할 일 파일 예문 끝의 "어때요?"를 뺀다. 개인 프롬프트가 "어때요?"를 금지해도
+     * 할 일 파일 예문을 따라 제안 끝에 붙였다(2026-10-22 로컬 재생: 수정판 7건 중 3건). 성격이 없는 배우의 할 일 파일은 그대로다.
+     */
+    static String withoutHowAbout(String task) {
+        return task == null ? null : task.replace(" 어때요?", "").replace("한 뒤 \"어때요?\"로 묻는다", "한다");
+    }
+
+    /**
      * 프롬프트 id 로 덧붙일 글(SOMA-622). 기본("a")·빈 값·모르는 id 면 빈 문자열.
      * 자문위원 id 는 {@code personas/advisors/<id>.txt}(한국어 대화), {@code <id>.en.txt}(그 밖의 말, 있을 때만)를 쓴다.
      * 예전 대화에 저장된 "b1" 은 한국어 대화에서만 그대로 붙는다. 맨 앞의 길이 줄({@code [길이] 90})은 떼고 준다.
      */
     static String persona(String id, java.util.Locale language) {
-        return personaFile(id, language).map(DirectVideoPrompts::withoutLengthLine).orElse("");
+        return persona(id, language, null);
+    }
+
+    /**
+     * 자문위원 id 면 그 파일을, {@link #ACTOR_PROFILE} 이면 기억 갱신이 쓴 맞춤 코칭({@code profile})을 같은 자리에 붙인다
+     * (SOMA-795). 맞춤 코칭은 한국어로 쓰므로 한국어 대화에만 붙는다.
+     */
+    static String persona(String id, java.util.Locale language, String profile) {
+        return personaFile(id, language, profile).map(DirectVideoPrompts::withoutLengthLine).orElse("");
     }
 
     /** 이 프롬프트를 받은 대화에서 코치 말을 줄이기 시작하는 길이. 길이 줄이 없으면 공용 상한이다. */
     static int personaReplyLimit(String id, java.util.Locale language) {
-        return personaFile(id, language).flatMap(DirectVideoPrompts::lengthLine).orElse(DirectVideoPracticeLoop.LONG_REPLY);
+        return personaReplyLimit(id, language, null);
+    }
+
+    /** 맞춤 코칭의 길이 줄은 모델이 정한 값이라 {@link #PROFILE_MIN_REPLY}~{@link #PROFILE_MAX_REPLY} 안으로 묶는다. */
+    static int personaReplyLimit(String id, java.util.Locale language, String profile) {
+        java.util.Optional<Integer> length = personaFile(id, language, profile).flatMap(DirectVideoPrompts::lengthLine);
+        if (ACTOR_PROFILE.equals(id)) {
+            return length.map(n -> Math.max(PROFILE_MIN_REPLY, Math.min(PROFILE_MAX_REPLY, n)))
+                    .orElse(DirectVideoPracticeLoop.LONG_REPLY);
+        }
+        return length.orElse(DirectVideoPracticeLoop.LONG_REPLY);
     }
 
     /** 프롬프트를 받은 대화에서 줄이기가 말투와 길이를 공용 코치 쪽으로 되돌리지 않게 하는 줄. */
     static String personaShortenNote(String id, java.util.Locale language) {
-        if (persona(id, language).isEmpty()) return "";
+        return personaShortenNote(id, language, null);
+    }
+
+    static String personaShortenNote(String id, java.util.Locale language, String profile) {
+        if (persona(id, language, profile).isEmpty()) return "";
         if ("b1".equals(id)) {
             return "\n- 말투는 원래 말의 말투를 그대로 둔다. 원래 말이 \"~해요.\"로 방향을 줬으면 \"~해 봐도 좋아요\"로 바꾸지 않는다. 쿠션어나 칭찬을 더하지 않는다.";
         }
-        int target = personaReplyLimit(id, language) - 10;
+        int target = personaReplyLimit(id, language, profile) - 10;
         return "\n- 이 배우에게는 위의 50자 대신 공백 포함 " + target + "자 안쪽이 목표다. 이유를 말하는 한 문장은 지우지 않는다. 말투는 원래 말의 말투를 그대로 둔다.";
     }
 
-    private static java.util.Optional<String> personaFile(String id, java.util.Locale language) {
+    /** 자문위원 파일이 없는 배우에게 기억 갱신이 쓴 맞춤 코칭을 붙이는 프롬프트 id(SOMA-795). 대화 상태에 이 id 로 남는다. */
+    static final String ACTOR_PROFILE = "actor-profile";
+    static final int PROFILE_MIN_REPLY = 60;
+    static final int PROFILE_MAX_REPLY = 160;
+
+    private static java.util.Optional<String> personaFile(String id, java.util.Locale language, String profile) {
         if (id == null || id.isBlank() || CoachPersonas.DEFAULT.equals(id)) return java.util.Optional.empty();
         boolean korean = language == null || "ko".equals(language.getLanguage());
+        if (ACTOR_PROFILE.equals(id)) {
+            ActorCoaching coaching = korean ? ActorCoaching.parse(profile) : null;
+            return coaching == null ? java.util.Optional.empty() : java.util.Optional.of(coaching.personaText());
+        }
         if ("b1".equals(id)) return korean ? java.util.Optional.of(resource("personas/b1")) : java.util.Optional.empty();
         if (!id.matches("[a-z][a-z-]*")) return java.util.Optional.empty();
         return optionalResource("personas/advisors/" + id + (korean ? "" : ".en"));

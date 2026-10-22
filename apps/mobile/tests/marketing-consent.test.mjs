@@ -25,9 +25,24 @@ test('account.consent: 처리 결과에는 보내는 곳·날짜·매체별 결�
     ],
     AT,
   );
-  assert.equal(notice.title, '광고성 정보 수신 처리 결과');
+  assert.equal(notice.title, '광고성 정보 수신 설정을 바꿨어요');
+  assert.equal(notice.sender, 'Acttub');
+  assert.equal(notice.date, '2026.10.09');
   // 순서는 이메일 → 앱 푸시로 고정한다.
+  assert.deepEqual(notice.rows, [
+    { channel: '이메일', result: '수신 동의', granted: true },
+    { channel: '앱 푸시', result: '수신 거부', granted: false },
+  ]);
   assert.equal(notice.message, 'Acttub · 2026.10.09 처리\n이메일: 수신 동의\n앱 푸시: 수신 거부');
+});
+
+test('account.consent: 제목은 모두 동의면 「동의했어요」, 모두 거부면 「거부했어요」다(S5.13)', () => {
+  const both = (decision) => [
+    { type: 'marketing_email', decision },
+    { type: 'marketing_push', decision },
+  ];
+  assert.equal(marketingDecisionNotice(both('granted'), AT).title, '광고성 정보 수신에 동의했어요');
+  assert.equal(marketingDecisionNotice(both('declined'), AT).title, '광고성 정보 수신을 거부했어요');
 });
 
 test('account.consent: 광고성 문서가 아니면 처리 결과를 띄우지 않는다', () => {

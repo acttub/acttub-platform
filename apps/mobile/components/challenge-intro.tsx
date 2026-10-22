@@ -7,7 +7,7 @@ import { MASCOT as MASCOTS, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
-const MASCOT = MASCOTS.coach;
+const MASCOT = MASCOTS.bow;
 
 /**
  * A14~A14.2 챌린지 시작 안내 — 기기당 한 번, 세 장.

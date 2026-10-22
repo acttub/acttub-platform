@@ -39,6 +39,7 @@ import {
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
 import { sweepDeviceFiles } from '@/lib/account-files';
+import { MarketingNoticeHost } from '@/components/marketing-notice-dialog';
 import { ReconsentPopup } from '@/components/reconsent-popup';
 import { SpotlightHost } from '@/components/spotlight-guide';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -419,10 +420,14 @@ function RootNavigator() {
         <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
         <Stack.Screen name="reading/play" options={{ headerShown: false }} />
         <Stack.Screen name="reading/diff" options={{ title: t('reading.diffTitle') }} />
+        <Stack.Screen name="reading/coach" options={{ title: t('readingCoach.coachName') }} />
+        <Stack.Screen name="reading/pronunciation" options={{ title: t('reading.pronReportRow') }} />
         {/* 자체 헤더(← 설정 · 제목)를 그린다 — 기본 헤더를 겹치면 라우트 이름 "memory"가 제목으로 나온다. */}
         <Stack.Screen name="memory" options={{ headerShown: false }} />
       </Stack>
       <ReconsentPopup visible={reconsentOpen} />
+      {/* 가입 동의·재동의의 광고성 정보 처리 결과(S5.13)를 다음 화면 위에 띄운다. */}
+      <MarketingNoticeHost />
     </>
   );
 }

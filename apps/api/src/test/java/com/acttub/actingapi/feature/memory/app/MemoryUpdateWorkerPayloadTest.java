@@ -45,7 +45,7 @@ class MemoryUpdateWorkerPayloadTest {
     @DisplayName("성공 페이로드는 연습 식별자와 갱신된 칸을 파이썬과 같은 순서로 담는다")
     void payloadKeepsPythonShape() {
         RecordingQueue queue = new RecordingQueue();
-        worker(queue, "{\"goal\":\"새 목표\",\"blockage\":\"새 막힘\"}").runOnce();
+        worker(queue, "{\"goal\":\"문 앞에서 멈추지 않기\",\"blockage\":\"큰 대목에서 말이 멈춘다고 했다\"}").runOnce();
 
         assertThat(queue.payload.toString()).isEqualTo(
                 "{\"practice_session_id\":\"11111111-2222-3333-4444-555555555555\","
@@ -150,7 +150,7 @@ class MemoryUpdateWorkerPayloadTest {
     @DisplayName("옛 표에 없는 새 칸(바라는 것·버릇)은 옛 갈래 워커가 쓰지 않고 응답에도 싣지 않는다")
     void fieldsTheLegacyTableDoesNotHaveAreLeftOut() {
         RecordingQueue queue = new RecordingQueue();
-        worker(queue, "{\"wants\":\"표정을 봐 달라고 했다\",\"goal\":\"새 목표\",\"habits\":\"고개를 돌린다\"}")
+        worker(queue, "{\"wants\":\"표정을 봐 달라고 했다\",\"goal\":\"문 앞에서 멈추지 않기\",\"habits\":\"고개를 돌린다\"}")
                 .runOnce();
 
         assertThat(queue.payload.toString()).isEqualTo(
@@ -190,7 +190,7 @@ class MemoryUpdateWorkerPayloadTest {
         var reporter = new RecordingFailureReporter();
         var telemetry = new RecordingLlmTelemetry();
         var worker = new MemoryUpdateWorker(new EmptyMemory(), queue, new ObjectMapper(),
-                (system, user) -> new GeneratedText("{\"goal\":\"새 목표\"}", null, "model"),
+                (system, user) -> new GeneratedText("{\"goal\":\"문 앞에서 멈추지 않기\"}", null, "model"),
                 Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), new MemoryExtractor(reporter), reporter, telemetry);
 
         worker.runOnce();

@@ -91,9 +91,18 @@ export function roleLabel(characters: Pick<ScriptCharacter, 'id' | 'name' | 'mem
   return `${together} · ${names.join('·')}`;
 }
 
-/** 배역 칩의 대사 수 — 서버 값이 있으면 그것, 없으면 대본 줄에서 센다. */
-export function roleLineCount(character: { name: string; dialogue_count?: number }, lines: ScriptLine[]): number {
-  return character.dialogue_count ?? lines.filter((l) => l.type === 'dialogue' && l.role === character.name).length;
+/**
+ * 배역 칩의 대사 수 — 서버 값이 있으면 그것, 없으면 대본 줄에서 센다. 서버처럼 그 배역이 든 함께 말하는 줄(묶음 배역)도
+ * 센다({@link turnRoles}). characters 를 주지 않으면 그 배역 이름의 줄만 센다.
+ */
+export function roleLineCount(
+  character: { id?: string; name: string; dialogue_count?: number },
+  lines: ScriptLine[],
+  characters?: Pick<ScriptCharacter, 'id' | 'name' | 'member_ids'>[],
+): number {
+  if (character.dialogue_count !== undefined && character.dialogue_count !== null) return character.dialogue_count;
+  const roles = new Set(characters && character.id !== undefined ? [character.name, ...turnRoles(characters, [character.id])] : [character.name]);
+  return lines.filter((l) => l.type === 'dialogue' && roles.has(l.role)).length;
 }
 
 /** 고른 배역(여럿이면 합쳐서)의 구간 안 대사가 1~{@link FEW_LINES_MAX}줄이면 그 수. 0줄은 시작할 때 empty_range 로 막으므로 null. */

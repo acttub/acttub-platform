@@ -108,7 +108,7 @@ class PostgresActorMemoryStoreIT {
         UUID practice = practice(video(), null);
         conversation(practice, CORRECTION_STATE);
         List<String> old = IntStream.rangeClosed(1, 12).mapToObj(i -> "- 주제" + i + ": \"말" + i + "\"").toList();
-        avoid(String.join("\n", old.subList(0, 6)) + "\n\n" + String.join("\n", old.subList(6, 12)), "agent");
+        avoid(String.join("\n", old.subList(0, 6)) + "\n\n" + String.join("\n", old.subList(6, 12)), "agent", practice);
 
         boolean first = store.appendAvoid(member, practice, Instant.now());
         boolean again = store.appendAvoid(member, practice, Instant.now());
@@ -125,7 +125,7 @@ class PostgresActorMemoryStoreIT {
         UUID practice = practice(video(), null);
         conversation(practice, CORRECTION_STATE);
         String longLine = "- 긴 주제: \"" + "가".repeat(990) + "\"";
-        avoid(longLine, "agent");
+        avoid(longLine, "agent", practice);
 
         assertThat(store.appendAvoid(member, practice, Instant.now())).isTrue();
         assertThat(avoidValue()).isEqualTo(CORRECTION_LINE);
@@ -137,7 +137,7 @@ class PostgresActorMemoryStoreIT {
         UUID plain = practice(video(), null);
         conversation(practice, CORRECTION_STATE);
         conversation(plain, "{}");
-        avoid("- 배우가 적은 줄", "actor");
+        avoid("- 배우가 적은 줄", "actor", null);
 
         assertThat(store.appendAvoid(member, practice, Instant.now())).isFalse();
         assertThat(avoidValue()).isEqualTo("- 배우가 적은 줄");
@@ -227,9 +227,12 @@ class PostgresActorMemoryStoreIT {
         }
     }
 
-    private void avoid(String value, String writtenBy) {
-        jdbc.update("INSERT INTO actor_memories(id,user_id,field,value,written_by) VALUES (?,?,'avoid',?,?)",
-                UUID.randomUUID(), member, value, writtenBy);
+    /**
+     * @param sceneRoot 모델이 쓴 다시 말하지 않을 것은 장면 단위라 늘 장면이 있다(V52 이후 불변식). 배우가 장면 없이 쓴 칸이면 {@code null}
+     */
+    private void avoid(String value, String writtenBy, UUID sceneRoot) {
+        jdbc.update("INSERT INTO actor_memories(id,user_id,field,value,written_by,scene_root_id) VALUES (?,?,'avoid',?,?,?)",
+                UUID.randomUUID(), member, value, writtenBy, sceneRoot);
     }
 
     private String avoidValue() {

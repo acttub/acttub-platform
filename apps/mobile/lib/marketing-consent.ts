@@ -17,31 +17,54 @@ function dayLabel(at: Date): string {
   return `${at.getFullYear()}.${month}.${day}`;
 }
 
+/** 처리 결과 팝업(S5.13)에 그리는 매체별 한 줄. */
+export type MarketingNoticeRow = { channel: string; result: string; granted: boolean };
+
+export type MarketingNotice = {
+  title: string;
+  sender: string;
+  date: string;
+  rows: MarketingNoticeRow[];
+  /** 글자 한 덩어리로 쓸 때(분석 이벤트·접근성). */
+  message: string;
+};
+
 /**
  * 광고성 정보 수신 동의·거부의 처리 결과 안내(정보통신망법 제50조 제7항). 보내는 곳(Acttub), 매체별 처리 내용,
- * 처리 날짜를 담는다. 광고성 문서가 하나도 없으면 null.
+ * 처리 날짜를 담는다. 광고성 문서가 하나도 없으면 null. 화면은 components/marketing-notice-dialog 가 그린다.
  *
  * <p>설정에서 바꿀 때는 동의·거부 모두 알린다. 가입·재동의 팝업에서는 아무것도 고르지 않은 사람에게까지 알림을
  * 띄우지 않도록 부르는 쪽이 {@link shouldNoticeEntryDecisions}로 거른다.
  */
-export function marketingDecisionNotice(
-  decisions: readonly MarketingDecision[],
-  at: Date,
-): { title: string; message: string } | null {
-  const lines = MARKETING_CONSENT_TYPES.flatMap((type) => {
+export function marketingDecisionNotice(decisions: readonly MarketingDecision[], at: Date): MarketingNotice | null {
+  const rows = MARKETING_CONSENT_TYPES.flatMap((type): MarketingNoticeRow[] => {
     const found = decisions.find((d) => d.type === type);
     if (!found) return [];
+    const granted = found.decision === 'granted';
     return [
-      translate('consent.marketingNoticeLine', {
+      {
         channel: translate(type === 'marketing_email' ? 'consent.marketingEmail' : 'consent.marketingPush'),
-        result: translate(found.decision === 'granted' ? 'consent.marketingGranted' : 'consent.marketingDeclined'),
-      }),
+        result: translate(granted ? 'consent.marketingGranted' : 'consent.marketingDeclined'),
+        granted,
+      },
     ];
   });
-  if (lines.length === 0) return null;
+  if (rows.length === 0) return null;
+  const date = dayLabel(at);
+  const titleKey = rows.every((row) => row.granted)
+    ? 'consent.marketingNoticeGrantedTitle'
+    : rows.every((row) => !row.granted)
+      ? 'consent.marketingNoticeDeclinedTitle'
+      : 'consent.marketingNoticeTitle';
   return {
-    title: translate('consent.marketingNoticeTitle'),
-    message: [translate('consent.marketingNoticeBody', { date: dayLabel(at) }), ...lines].join('\n'),
+    title: translate(titleKey),
+    sender: 'Acttub',
+    date,
+    rows,
+    message: [
+      translate('consent.marketingNoticeBody', { date }),
+      ...rows.map((row) => translate('consent.marketingNoticeLine', { channel: row.channel, result: row.result })),
+    ].join('\n'),
   };
 }
 

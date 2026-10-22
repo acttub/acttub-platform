@@ -93,12 +93,14 @@ class DirectVideoCoachBranchTest {
                 new PracticeLoopRouter.Before(3, "다시 묻기", null, new PracticeLoopRouter.Tally(0, 0, 0), List.of(), false, false, false, false, 2)));
     }
 
-    @Test void aSecondWantAtTheLastStepMakesTheCoachProposeWithTheActorsWords() {
+    @Test void aWantAtTheLastStepGoesStraightToWrapUpWithTheActorsWords() {
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"want\"]}");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn("위로받고 싶으면, 상대 손을 잡아 봐도 좋아요. 어때요?");
         coach().turn(looped("버릇: 말끝", List.of("", "할 일: 다시 묻기\n단계: 4"), "a", "첫 질문", "글쎄", "다시 묻기"),
                 "위로받고 싶어", UUID.randomUUID());
-        assertThat(lastPrompt()).contains("배우가 가장 나중에 말한 바람: 위로받고 싶어", "이번 제안은 위 할 일의 모양·좋은 예보다 이 줄이 먼저다.");
+        // 2026-10-22 운영(자문): 바람을 말했는데 "뭘 해 볼래요?"를 다시 물었다. 이제 다시 묻지 않고 정리에서 그 바람을 얻을 행동을 준다.
+        assertThat(lastPrompt()).contains("배우가 가장 나중에 말한 바람: 위로받고 싶어", "지금 단계: 4/4 정리")
+                .doesNotContain("이번 제안은 위 할 일의 모양·좋은 예보다 이 줄이 먼저다.");
     }
 
     @Test void flowBTellsWhatTheCoachSawWithALongerLimit() {
