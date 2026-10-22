@@ -18,9 +18,9 @@ import { deleteDeviceFile } from '@/lib/account-files';
 import { hasSeenFirstReadingGuide, hideAutoAdvanceTip, isAutoAdvanceTipHidden, markFirstReadingGuideSeen } from '@/lib/reading/guide-flag';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { ReadingCoachMark } from '@/components/ui/reading-coach-mark';
+import { ReadingGuideOverlay } from '@/components/ui/reading-guide-overlay';
 import { ReadingStatus } from '@/components/ui/reading-status';
-import { COACH_MARKS, coachMarkFor, readingCoachScene, wrapUpProgress, type CoachMark } from '@/lib/reading/redesign-748';
+import { readingCoachScene, wrapUpProgress } from '@/lib/reading/redesign-748';
 import { keepReadingInBackground } from '@/lib/reading/ios-audio-restore';
 import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
 import { onReadingLiveEvent, readingKeepsRunning, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
@@ -159,13 +159,6 @@ const MONO_POSITION_MS = 700;
 /** 리딩 마무리 — 대본을 껴안은 하트 눈 액티(10/22 20종). */
 const MASCOT = require('@/assets/images/acty/11-love.png');
 
-const COACH_TEXT: Record<CoachMark, string> = {
-  partner: 'reading.coachPartner',
-  mine: 'reading.coachMine',
-  next: 'reading.coachNext',
-  alone: 'reading.coachAlone',
-};
-
 export default function ReadingPlay() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -274,8 +267,7 @@ export default function ReadingPlay() {
   const [wrapUp, setWrapUp] = useState(false);
   /** 첫 리딩 안내 — 본 적이 없을 때만. done 은 이미 지나간 안내. */
   const [coachOn, setCoachOn] = useState(false);
-  const [coachDone, setCoachDone] = useState<ReadonlySet<CoachMark>>(() => new Set());
-  const coachShown = useRef<CoachMark | null>(null);
+  const firstRunRef = useRef(false);
   /** 발음 피드백(실험). 켜져 있으면 내 차례마다 받아쓴 글을 대본과 맞춰 끝난 화면에 다르게 들린 어구를 모은다. */
   const voiceFeedbackOn = useRef(false);
   const [lineFeedback, setLineFeedback] = useState<LineFeedback[]>([]);
@@ -686,37 +678,27 @@ export default function ReadingPlay() {
   // ── 첫 리딩 안내(SOMA-748) — 진행 상태를 보고 띄울 뿐, 진행 규칙은 건드리지 않는다 ─────────────
   useEffect(() => {
     let alive = true;
-    void hasSeenFirstReadingGuide().then((seen) => alive && setCoachOn(!seen));
+    void hasSeenFirstReadingGuide().then((seen) => {
+      if (!alive) return;
+      setCoachOn(!seen);
+      if (!seen) firstRunRef.current = true;
+    });
     return () => {
       alive = false;
     };
   }, []);
-  const coachLine = run ? run.lines[run.index] : undefined;
-  const coachHiddenMine =
-    !!run && !!coachLine && coachLine.type === 'dialogue' && run.myRoles.includes(coachLine.role) &&
-    isHidden({ maskMode, line: coachLine, isMine: true });
-  const coachMark =
-    coachOn && phase.kind === 'running' && !phase.hold && run
-      ? coachMarkFor({ done: coachDone, status: run.status, said: said.trim().length > 0, hiddenMine: coachHiddenMine })
-      : null;
-  const finishCoachMark = useCallback((mark: CoachMark) => {
-    setCoachDone((prev) => {
-      if (prev.has(mark)) return prev;
-      const next = new Set(prev);
-      next.add(mark);
-      if (next.size === COACH_MARKS.length) {
-        setCoachOn(false);
-        void markFirstReadingGuideSeen();
-      }
-      return next;
-    });
+  // pen 7-1: 두 번째 내 차례에서 한 번만, 대본 위를 어둡게 덮고 버튼 넷을 설명한다. 작은 힌트 말풍선은 더는 띄우지 않는다.
+  const myTurnsBefore = run
+    ? run.lines.slice(run.startIndex, run.index).filter((l, k, arr) => {
+        const mine = (x: ScriptLine | undefined) => !!x && x.type === 'dialogue' && run.myRoles.includes(x.role);
+        return mine(l) && !(k > 0 && mine(arr[k - 1]));
+      }).length
+    : 0;
+  const guideOpen = coachOn && phase.kind === 'running' && !phase.hold && !!run && run.status === 'mine' && myTurnsBefore >= 1;
+  const closeGuide = useCallback(() => {
+    setCoachOn(false);
+    void markFirstReadingGuideSeen();
   }, []);
-  // 띄웠던 안내는 그 때(상대 차례·내 차례)가 지나가면 본 것으로 친다.
-  useEffect(() => {
-    const prev = coachShown.current;
-    coachShown.current = coachMark;
-    if (prev && prev !== coachMark) finishCoachMark(prev);
-  }, [coachMark, finishCoachMark]);
   // 리딩을 끝까지 했으면 다 못 봤어도 다음부터는 띄우지 않는다.
   useEffect(() => {
     if (phase.kind === 'done' && coachOn) {
@@ -1494,6 +1476,35 @@ export default function ReadingPlay() {
       priorRecognized: sessionHasRecognized(session),
       recognition: sttMode?.kind ?? null,
     });
+    if (completed && (firstRunRef.current || fromTutorialRef.current)) {
+      // pen R9.51 첫 리딩 끝 — 액티 칭찬 아래 가운데에 큰 「홈으로 가기」, 그 밑에 「한 번 더 읽기」. 하단 버튼 영역은 없다.
+      const total = wrapUpProgress(run.lines, run.endIndex).total;
+      return (
+        <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
+          <Text style={styles.firstDoneBar}>{t('reading.completeTitle')}</Text>
+          <View style={styles.firstDoneBody}>
+            <Image source={MASCOT} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Text style={styles.firstDoneTitle}>{t('reading.firstDoneTitle')}</Text>
+            <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
+            <View style={styles.firstDoneActions}>
+              <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+              <Pressable
+                style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
+                onPress={() => void readAgain()}
+                disabled={doneLocked || restarting}
+                accessibilityRole="button"
+                accessibilityLabel={t('reading.firstDoneAgain')}
+                accessibilityState={{ disabled: doneLocked || restarting }}>
+                {restarting ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
+                <Text style={styles.readAgainText}>{t('reading.firstDoneAgain')}</Text>
+              </Pressable>
+            </View>
+          </View>
+          {dialog}
+          {ratingSheet}
+        </View>
+      );
+    }
     if (monologue) {
       // 독백 결과(pen T79rDt) — 끝난 뒤 녹음 전체를 문장별로 맞춘 결과. 「원문과 다르게 말한 대사」 칸은 두지 않는다.
       const compared = sttMode?.kind === 'stt' && !!monoResult;
@@ -1502,9 +1513,7 @@ export default function ReadingPlay() {
       return (
         <View style={styles.root}>
           <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-            <View style={styles.doneIcon}>
-              <Feather name="check" size={28} color="#fff" />
-            </View>
+            <Image source={MASCOT} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
             <Text style={styles.doneTitle}>{t(completed ? 'reading.monologueDoneTitle' : 'reading.notCountedTitle')}</Text>
             {!completed ? (
               <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>
@@ -1515,12 +1524,11 @@ export default function ReadingPlay() {
             ) : null}
             <Text style={styles.dim}>{script.title}</Text>
             <View style={styles.doneStats}>
-              <Text style={styles.doneStat}>{t('reading.doneMyRole', { roles: config.myNames.join(', ') })}</Text>
-              <Text style={styles.doneStat}>{t('reading.doneTime', { time: mmss(run.elapsedMs) })}</Text>
-              {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
-            </View>
+            <Text style={styles.doneStat}>{config.myNames.join(', ')} · {mmss(run.elapsedMs)}</Text>
+            {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
+          </View>
             {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
-            {completed && !fromTutorialRef.current && <><ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} /><PrimaryButton label={t('reading.recordForCoach')} onPress={toCoach} disabled={doneLocked} /></>}
+            {completed && !fromTutorialRef.current && <><ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" /><PrimaryButton label={t('reading.recordForCoach')} onPress={toCoach} disabled={doneLocked} /></>}
             {!compared ? (
               <View style={styles.noteBox}>
                 <Feather name="info" size={16} color={palette.textMuted} />
@@ -1549,6 +1557,7 @@ export default function ReadingPlay() {
                 )}
               </View>
             )}
+            <View style={styles.doneLinks}>
             <Pressable
               style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
               onPress={() => void readAgain()}
@@ -1559,6 +1568,11 @@ export default function ReadingPlay() {
               {restarting ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
               <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
             </Pressable>
+            <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
+              <Feather name="file-text" size={16} color={palette.textDim} />
+              <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
+            </Pressable>
+            </View>
             {completed && !fromTutorialRef.current && (
               <View style={styles.ratingSlot}>
                 <ReadingRating sessionId={session.id} />
@@ -1566,7 +1580,8 @@ export default function ReadingPlay() {
             )}
           </ScrollView>
           <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
-            <PrimaryButton label={t('reading.finish')} onPress={() => setWrapUp(true)} disabled={doneLocked} />
+            {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
+            <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
           </View>
           {dialog}
           {ratingSheet}
@@ -1580,25 +1595,17 @@ export default function ReadingPlay() {
     return (
       <View style={styles.root}>
         <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-          <View style={styles.doneIcon}>
-            <Feather name="check" size={28} color="#fff" />
-          </View>
+          <Image source={MASCOT} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
           <Text style={styles.doneTitle}>{t(completed ? 'reading.completeTitle' : 'reading.notCountedTitle')}</Text>
           {!completed && <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>}
           <Text style={styles.dim}>{script.title}</Text>
           <View style={styles.doneStats}>
-            <Text style={styles.doneStat}>{t('reading.doneMyRole', { roles: config.myNames.join(', ') })}</Text>
-            {completed && (
-              <Text style={styles.doneStat}>
-                {t('reading.doneRead', { count: readCount })}
-                {!wholeScript ? ` · ${t('reading.donePartialNote')}` : ''}
-              </Text>
-            )}
-            <Text style={styles.doneStat}>{t('reading.doneTime', { time: mmss(run.elapsedMs) })}</Text>
+            <Text style={styles.doneStat}>{completed ? t('reading.doneLineStats', { roles: config.myNames.join(', '), count: readCount, time: mmss(run.elapsedMs) }) : `${config.myNames.join(', ')} · ${mmss(run.elapsedMs)}`}</Text>
             {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
           </View>
+          {completed && !wholeScript && <Text style={styles.doneStatFaint}>{t('reading.donePartialNote')}</Text>}
           {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
-          {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} />}
+          {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
           <VoiceFeedbackSummary items={lineFeedback} />
 
           {!completed ? null : !compared ? (
@@ -1636,6 +1643,7 @@ export default function ReadingPlay() {
           ) : null}
 
           {/* 다시 연습은 실행 중 [다음] 자리(아래 오른쪽)를 피해 본문에 둔다 — 연타로 새 연습이 바로 시작되지 않게(SOMA-772). */}
+          <View style={styles.doneLinks}>
           <Pressable
             style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
             onPress={() => void readAgain()}
@@ -1646,6 +1654,11 @@ export default function ReadingPlay() {
             {restarting ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
             <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
           </Pressable>
+          <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
+            <Feather name="file-text" size={16} color={palette.textDim} />
+            <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
+          </Pressable>
+          </View>
 
           {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
           {completed && !fromTutorialRef.current && (
@@ -1656,7 +1669,8 @@ export default function ReadingPlay() {
 
         </ScrollView>
         <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
-          <PrimaryButton label={t('reading.finish')} onPress={() => setWrapUp(true)} disabled={doneLocked} />
+          {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
+            <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
         </View>
         {dialog}
         {ratingSheet}
@@ -1681,13 +1695,6 @@ export default function ReadingPlay() {
 
   const hint = paused ? t(interrupted ? 'reading.interruptedBody' : 'reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
 
-  const coachElement = coachMark ? (
-    <ReadingCoachMark
-      label={t('reading.coachLabel', { n: COACH_MARKS.indexOf(coachMark) + 1, total: COACH_MARKS.length })}
-      text={t(COACH_TEXT[coachMark])}
-      onClose={() => finishCoachMark(coachMark)}
-    />
-  ) : null;
 
   // 지나간 줄은 같은 배역 묶음(SOMA-806)마다 하나로 쌓는다. 독백은 문장 목록이 지금 카드 안에 다 있어 위로 쌓지 않는다(pen c1MiZ).
   const past: { key: string; index: number; lines: { id: string; line: ScriptLine }[] }[] = [];
@@ -1755,8 +1762,6 @@ export default function ReadingPlay() {
             </Pressable>
           );
         })}
-
-        {coachMark !== 'next' && coachElement}
 
         {monologue && (
           // 독백 — 문장 목록을 보이고 읽는 문장만 진하게(pen c1MiZ). 상대역 목소리는 없고 녹음은 끝낼 때까지 이어진다.
@@ -1874,7 +1879,6 @@ export default function ReadingPlay() {
         </View>
       )}
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
-      {coachMark === 'next' && <View style={styles.coachAboveControls}>{coachElement}</View>}
 
       {hold === 'tip' ? (
         // pen 「새 · 리딩 시작 전」 — 자동 넘김 안내를 팝업 대신 아래에 두고 [시작]으로 첫 줄을 연다.
@@ -1963,6 +1967,7 @@ export default function ReadingPlay() {
         </Pressable>
       </Modal>
       <ReadingExitSheet visible={exitAsk} body={exitAsk ? exitSheetBody() : ''} onLeave={() => void leaveReading()} onKeep={() => setExitAsk(false)} />
+      {guideOpen && <ReadingGuideOverlay onClose={closeGuide} />}
       {dialog}
     </View>
   );
@@ -2043,10 +2048,19 @@ const styles = StyleSheet.create({
   monoRowText: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 15, lineHeight: 22 },
   monoTag: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
   monoTagMissed: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  doneMascot: { width: 120, height: 120 },
+  doneLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
+  otherScript: { marginTop: 0 },
+  otherScriptText: { color: palette.textDim, fontSize: 15, fontWeight: '700' },
+  firstDoneBar: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center', paddingVertical: 12 },
+  firstDoneBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
+  firstDoneTitle: { color: palette.text, fontSize: 24, fontWeight: '800', lineHeight: 32, textAlign: 'center', marginTop: 12 },
+  firstDoneMeta: { color: palette.textMuted, fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  firstDoneActions: { alignSelf: 'stretch', gap: 8, marginTop: 24 },
   doneIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
   doneTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 4, textAlign: 'center' },
-  doneContent: { alignItems: 'center', gap: 12, padding: 24 },
-  doneStats: { alignSelf: 'stretch', backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6 },
+  doneContent: { alignItems: 'center', gap: 12, paddingHorizontal: 24, paddingBottom: 24 },
+  doneStats: { alignSelf: 'stretch', backgroundColor: palette.bgSubtle, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, gap: 4, alignItems: 'center' },
   doneStat: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14, lineHeight: 21 },
   doneStatFaint: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12 },
   noteBox: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14 },
@@ -2061,7 +2075,7 @@ const styles = StyleSheet.create({
   diffAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
   ratingSlot: { alignSelf: 'stretch' },
-  doneBar: { paddingHorizontal: 16, paddingTop: 12, gap: 10, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
+  doneBar: { paddingHorizontal: 24, paddingTop: 12, gap: 10, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
   wrapContent: { paddingHorizontal: 24, paddingBottom: 24 },
   wrapBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.greenSoft, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
   wrapBadgeText: { color: palette.green, fontSize: 13, fontWeight: '800', lineHeight: 18 },
@@ -2076,7 +2090,6 @@ const styles = StyleSheet.create({
   readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
   wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 20 },
-  coachAboveControls: { paddingHorizontal: 16, paddingBottom: 8 },
   startBar: { paddingHorizontal: 24, paddingTop: 14, gap: 10, alignItems: 'stretch' },
   startHint: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21, textAlign: 'center' },
   startSkip: { color: palette.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },

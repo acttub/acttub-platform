@@ -107,7 +107,8 @@ test('리딩 실행: 시작 전 안내는 팝업 대신 아래 [시작]이고, �
   assert.match(play, /t\(monologue \? 'reading\.monologueStartHint' : 'reading\.startHint'\)/);
   assert.match(play, /onPress=\{\(\) => void closeTip\(false\)\}/);
   assert.doesNotMatch(play, /visible=\{hold === 'tip'\}/);
-  assert.match(play, /coachMarkFor\(\{ done: coachDone, status: run\.status/);
+  assert.match(play, /<ReadingGuideOverlay onClose=\{closeGuide\} \/>/);
+  assert.match(play, /myTurnsBefore >= 1/);
 });
 
 test('리딩 → 코칭: 대본 제목·장면을 상황 칸에, 내 배역을 인물 칸에 채우고 원하는 것은 비운다(SOMA-772)', async () => {

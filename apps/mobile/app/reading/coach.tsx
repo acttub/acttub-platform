@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,6 +75,17 @@ export default function ReadingCoachScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={88}>
+      {/* pen R13 — 가운데 「액티와 얘기하기」, 오른쪽 「그만하기」 */}
+      <Stack.Screen
+        options={{
+          title: t('readingCoach.title'),
+          headerRight: () => (
+            <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" ph-label="reading_coach_quit">
+              <Text style={styles.quit}>{t('readingCoach.quit')}</Text>
+            </Pressable>
+          ),
+        }}
+      />
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.body}
@@ -160,7 +171,8 @@ export default function ReadingCoachScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  body: { padding: 20, gap: 14 },
+  body: { paddingHorizontal: 24, paddingVertical: 20, gap: 14 },
+  quit: { color: palette.textMuted, fontSize: 15, fontWeight: '600' },
   waiting: { alignItems: 'center', gap: 12, paddingVertical: 48 },
   waitingText: { color: palette.textDim, fontSize: 15, lineHeight: 22, textAlign: 'center' },
   bubble: { maxWidth: '88%', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12, gap: 4 },
@@ -174,10 +186,10 @@ const styles = StyleSheet.create({
   failure: { gap: 8, paddingVertical: 4 },
   failureText: { color: palette.textDim, fontSize: 15, lineHeight: 22 },
   retry: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
-  videoCard: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 18, gap: 8, marginTop: 6 },
+  videoCard: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 20, gap: 8, marginTop: 6 },
   videoTitle: { color: palette.blueDeep, fontSize: 14, fontWeight: '700' },
   videoLine: { color: palette.text, fontSize: 17, fontWeight: '600', lineHeight: 25 },
-  footer: { paddingHorizontal: 20, paddingTop: 10, gap: 8, backgroundColor: palette.bg },
+  footer: { paddingHorizontal: 24, paddingTop: 10, gap: 8, backgroundColor: palette.bg },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 16, paddingTop: 8, backgroundColor: palette.bg },
   input: {
     flex: 1,

@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 const mockRouter = { push: jest.fn(), back: jest.fn() };
 let mockParams: Record<string, string> = {};
 
-jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams }));
+jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, Stack: { Screen: () => null } }));
 jest.mock('@/lib/api', () => ({
   api: {
     probeRecordingCoach: jest.fn(),
@@ -45,7 +45,7 @@ test('서버 스위치가 켜져 있으면 액티 카드(위)와 발음 보고�
 
   await fireEvent.press(await screen.findByRole('button', { name: '얘기해 보기' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/reading/coach', params: { sessionId: 's1' } });
-  await fireEvent.press(await screen.findByText('발음 보고서 보기'));
+  await fireEvent.press(await screen.findByText('발음 보고서 받기'));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/reading/pronunciation', params: { sessionId: 's1' } });
 });
 
@@ -55,7 +55,7 @@ test('스위치가 꺼져 있거나 허용 밖이면 아무것도 그리지 않�
   const view = await render(<ReadingAfterCard sessionId="s1" ready />);
   await waitFor(() => expect(report).toHaveBeenCalled());
   expect(screen.queryByText('얘기해 보기')).not.toBeOnTheScreen();
-  expect(screen.queryByText('발음 보고서 보기')).not.toBeOnTheScreen();
+  expect(screen.queryByText('발음 보고서 받기')).not.toBeOnTheScreen();
   await view.unmount();
 
   jest.clearAllMocks();
