@@ -248,7 +248,7 @@ test("reading.recording: 올리는 동안 남은 녹음 수가 보이고, 완료
   view.rerender({ ...args, state: ai(2) });
 
   await waitFor(() => assert.equal(screen.getAllByRole("status")[0].textContent, "녹음 안 함 · 남은 1 · 안내 없음"));
-  assert.equal(screen.getAllByRole("status")[1].textContent, "완료 저장 끝 · 녹음 올리는 중");
+  await waitFor(() => assert.equal(screen.getAllByRole("status")[1].textContent, "완료 저장 끝 · 녹음 올리는 중"));
 
   upload.resolve(new Response(JSON.stringify(recordingJson("l-1")), { status: 201, headers: { "Content-Type": "application/json" } }));
   await waitFor(() => assert.equal(screen.getAllByRole("status")[1].textContent, "완료 저장 끝 · 녹음 다 올림"));
