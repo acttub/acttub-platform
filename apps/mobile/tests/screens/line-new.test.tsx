@@ -21,7 +21,6 @@ jest.mock('@/lib/request-id', () => ({
 
 const createChallenge = api.createChallenge as jest.Mock;
 const httpError = (status: number, code?: string) => Object.assign(new Error(`http ${status}`), { status, code });
-const cta = (name: '다음' | '등록하기') => screen.getByRole('button', { name });
 
 beforeEach(() => {
   jest.clearAllMocks();

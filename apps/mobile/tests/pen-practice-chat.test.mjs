@@ -89,12 +89,13 @@ test('⑨ 영상 보는 중: 경과 15/500, 안내 15 · 14.5/700, 「끝나면 
   assert.match(waiting, /link: \{ color: palette\.textFaint, fontSize: 15, fontWeight: '700'/);
 });
 
-test('⑪ 챌린지 완료: 손 흔드는 액티 84×88 + 파란 체크 28, 제목 22/800, 안내 15/500', () => {
+test('C9.12·C19 챌린지 완료: 올리기·마무리가 같은 ChallengeDone 모양(액티 + 제목 22/800 + 한 줄 + 이어갈 줄 + 홈으로 가기)', () => {
   const upload = read('app/challenge-upload.tsx');
-  assert.match(upload, /source=\{MASCOTS\.cheer\} style=\{styles\.doneMascot\}/);
-  assert.match(upload, /doneMascot: \{ width: 84, height: 88 \}/);
-  assert.match(upload, /doneBadge: \{[^}]*width: 28,[^}]*height: 28,[^}]*borderRadius: 14,[^}]*backgroundColor: palette\.blue/);
-  assert.match(upload, /doneTitle: \{ fontSize: 22, fontWeight: '800', lineHeight: 28, color: palette\.text, textAlign: 'center' \}/);
-  assert.match(upload, /doneSub: \{ fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette\.textMuted, textAlign: 'center' \}/);
+  const done = read('components/challenge-done.tsx');
+  assert.match(upload, /<ChallengeDone/);
+  assert.match(read('app/challenge-finish.tsx'), /<ChallengeDone/);
+  assert.match(done, /source=\{MASCOTS\.dance\}/);
+  assert.match(done, /title: \{ fontSize: 22, fontWeight: '800'/);
+  assert.match(upload, /router\.push\('\/upload'\)/);
   assert.doesNotMatch(upload, /reportHint|\/ai-report/);
 });

@@ -4,8 +4,11 @@ import test from 'node:test';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
-test('챌린지 오늘의 대사 안내 줄은 아래 「나도 이 대사 연기하기」 버튼이 있으면 그 버튼을 가리킨다(10/22 피드백)', () => {
-  assert.match(read('app/(tabs)/challenges.tsx'), /canPerform\(challenge\) \? 'challenges\.heroGuidePerform' : 'challenges\.heroGuide'/);
+test('챌린지 탭: 첫 참여 전에는 고르기 두 줄 + 「다음」, 이번 주 대사 카드 아래에 파란 「나도 이 대사 연기하기」가 있다(pen C1.13·C1.16)', () => {
+  const src = read('app/(tabs)/challenges.tsx');
+  assert.match(src, /selectMode/);
+  assert.match(src, /challenges\.firstNext/);
+  assert.match(src, /canPerform\(featured\) && <PrimaryButton label=\{t\('challenges\.performCta'\)\}/);
   assert.match(read('locales/ko.ts'), /heroGuidePerform: '아래 버튼을 누르면 바로 찍을 수 있어요\.'/);
 });
 
