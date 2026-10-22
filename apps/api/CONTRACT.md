@@ -680,7 +680,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `evening_reminder_sends(user_id, day)` 를 먼저 선점해 같은 날 두 번 보내지 않는다. 실패는 보고하고
   `DeviceNotRegistered` 토큰은 지운다.
 - **개인화 연습 알림**(`PracticeReminderScheduler` → `PracticeReminderService#sendDue`, V47, SOMA-720): `PRACTICE_REMINDER_ENABLED=true` 일 때만 서고
-  `EveningReminderScheduler` 는 그때 서지 않는다(`@ConditionalOnExpression`). 후보·연속 일수·이어 하기·숙제는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
+  `EveningReminderScheduler` 는 그때 서지 않는다(`@ConditionalOnExpression`). 후보·연속 일수·이어 하기·숙제·올려 둔 영상(`pending_video`, data `video_id`)·넣어 둔 예시 아닌 대본(`unread_script`, data `script_id`)·종류별 7일 발송 횟수는 읽기 전용 네이티브 SQL이고(`PostgresPracticeReminderRepository`),
   보낼 자리는 `practice_reminder_sends(user_id, day, slot)` 를 data-modifying CTE 로 먼저 선점해(§5-8 ④) 겹쳐 돌아도 한 번만 보낸다. 모델을 부르지 않는다.
   탈퇴·게스트 파기는 이 표를 직접 지운다(`PostgresProfileRepository`). 시각·연속 일수·문구 선택은 `PracticeReminderPolicy`·`ReminderContent`·`ReminderTemplates` 순수 코드다.
 

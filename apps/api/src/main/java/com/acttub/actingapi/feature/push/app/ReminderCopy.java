@@ -6,7 +6,12 @@ import java.util.UUID;
 
 /** 고른 알림 한 건의 내용. {@link #data()} 가 푸시에 실리는 data 다. */
 public record ReminderCopy(ReminderKind kind, int skippedDays, String templateId, String title, String body,
-                           UUID conversationId, UUID practiceId) {
+                           UUID conversationId, UUID practiceId, UUID videoId, UUID scriptId) {
+
+    public ReminderCopy(ReminderKind kind, int skippedDays, String templateId, String title, String body,
+                        UUID conversationId, UUID practiceId) {
+        this(kind, skippedDays, templateId, title, body, conversationId, practiceId, null, null);
+    }
 
     public Map<String, String> data() {
         Map<String, String> data = new LinkedHashMap<>();
@@ -18,6 +23,8 @@ public record ReminderCopy(ReminderKind kind, int skippedDays, String templateId
         data.put("template_id", templateId);
         if (conversationId != null) data.put("conversation_id", conversationId.toString());
         if (practiceId != null) data.put("practice_id", practiceId.toString());
+        if (videoId != null) data.put("video_id", videoId.toString());
+        if (scriptId != null) data.put("script_id", scriptId.toString());
         return data;
     }
 
