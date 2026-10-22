@@ -18,13 +18,13 @@ import java.util.UUID;
 public interface ActorMemoryUpdates {
 
     /**
-     * 그 회차가 확인 연습으로 세어 갱신할 때가 됐으면 작업을 예약한다.
+     * 그 회차의 대화가 끝났으면 기억 갱신 작업을 예약한다 (SOMA-795).
      *
-     * <p>세는 것은 <b>노트가 남은 회차</b>다 — 기존 갈래의 analysis·expression 과 신형의 action·observation
-     * 이고 {@code record_only} 는 세지 않는다(practice.memory 규칙). 첫 회차와 그 뒤 3의 배수(1·3·6·9…)에만
-     * 예약한다.
+     * <p>끝난 대화는 노트가 남은 대화({@code record_only} 제외)와, 열린 채 남았어도 배우가 두 번 이상 답한 대화다. 예전에는
+     * 그 가운데 첫 회차와 3의 배수(1·3·6·9…)에만 예약해, 자주 연습하는 배우일수록 기억이 낡았다. 이제 <b>끝난 대화마다</b>
+     * 예약한다. 같은 회차로 두 번 들어와도 작업은 하나다(요청 id 를 회차에서 만든다 — 회차 하나에 대화 하나다).
      *
-     * @return 이번에 작업을 만들었으면 참. 때가 아니거나 이미 있으면 거짓
+     * @return 이번에 작업을 만들었으면 참. 세지 않는 회차이거나 이미 있으면 거짓
      */
     boolean schedule(UUID userId, UUID practiceId, Instant now);
 
@@ -55,8 +55,17 @@ public interface ActorMemoryUpdates {
     /** 모델에 넘길 연습 한 회차치 재료. 회차가 없거나 숨겨졌으면 {@code null}. */
     MemoryUpdateMaterial material(UUID practiceId);
 
-    /** 지금 채워져 있는 칸들 — 모델이 "새로 알게 된 것"만 적게 하는 입력이다. */
-    Map<String, String> current(UUID userId);
+    /**
+     * 지금 채워져 있는 칸들 — 모델이 "새로 알게 된 것"만 적게 하는 입력이다. 장면 단위 칸은 그 회차의 장면 것만 담는다
+     * (SOMA-795) — 다른 대본의 목표를 보고 이번 목표를 "그대로"로 두지 않게 한다.
+     */
+    Map<String, String> current(UUID userId, UUID practiceId);
+
+    /**
+     * 맞춤 코칭({@code coaching_profile})을 다시 쓰는 재료 — 이 배우의 최근 대화들(코치 말 포함)·노트 평가·정정·배우 단위
+     * 칸·지금 값(SOMA-795). 계정이 닫혔으면 {@code null}.
+     */
+    ProfileMaterial profileMaterial(UUID userId, Instant now);
 
     /**
      * 갱신을 저장하고 작업을 닫는다. <b>한 트랜잭션이다.</b>
