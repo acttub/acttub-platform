@@ -149,7 +149,8 @@ const JUMP_PREVIEW = 15;
 const DONE_LOCK_MS = 800;
 /** 독백에서 받아쓴 글로 읽는 위치를 다시 재는 간격 — 중간 결과마다 전체를 맞추지 않게. */
 const MONO_POSITION_MS = 700;
-const MASCOT = require('@/assets/images/mascot-reading.png');
+/** 리딩 마무리 — 대본을 껴안은 하트 눈 액티(10/22 20종). */
+const MASCOT = require('@/assets/images/acty/11-love.png');
 
 const COACH_TEXT: Record<CoachMark, string> = {
   partner: 'reading.coachPartner',

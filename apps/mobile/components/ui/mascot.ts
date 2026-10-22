@@ -1,18 +1,54 @@
 import type { ImageSourcePropType } from 'react-native';
 
+import { dailyIndex } from '@/lib/mascot-day';
+
 /**
  * 액티(마스코트) 자세 — pen images/app 의 그림 그대로(SOMA-770). 화면마다 디자인이 쓰는 자세를 고른다.
  * - home: 두 팔 들고 웃는 액티 — 홈·온보딩 시작·첫 가이드 1·4·완료/마무리 화면
  * - coach: 물음표 갸웃 — 질문하는 화면(온보딩 질문·코칭 준비·상태/실패 화면·대화)
  * - reading: 대본 든 액티 — 리딩 화면 전부, 첫 가이드 2
  * - cheer: 손 흔드는 액티 — 노트 응원(디자인 프레임에는 없음, 1차부터 쓰던 것)
+ * - 그 밖(10/22 20종): 코칭 끝 jump, 코칭 탭 첫 화면 slate, 알림 꺼짐 whisper, 챌린지 소개 bow·참여 끝 dance,
+ *   리딩 마무리 love, 홈 머리는 HOME_POSES 를 날마다 돌린다.
  */
-export const MASCOT: Record<'home' | 'coach' | 'reading' | 'cheer', ImageSourcePropType> = {
+export type MascotPose = 'home' | 'coach' | 'reading' | 'cheer' | 'jump' | 'run' | 'dizzy' | 'breathe' | 'shy' | 'hamlet' | 'sob' | 'angry' | 'surprised' | 'smug' | 'love' | 'wink' | 'flat' | 'dance' | 'whisper' | 'bow' | 'slate' | 'selfie' | 'nervous' | 'yawn';
+
+export const MASCOT: Record<MascotPose, ImageSourcePropType> = {
   home: require('@/assets/images/mascot-home.png'),
   coach: require('@/assets/images/mascot-coach.png'),
   reading: require('@/assets/images/mascot-reading.png'),
   cheer: require('@/assets/images/mascot-cheer.png'),
+  // 10/22 자세·표정 20종(액티_자세표정_20종_시안v1 누끼) — 「액티가 매번 같은 자리·같은 자세」(10/20 피드백). 원본 한 장에서
+  // 잘라 한 장이 약 220~320px 다 — 큰 자리(hero·intro)에 쓰면 흐릴 수 있어 그 자리는 큰 그림을 다시 만든 뒤 바꾼다.
+  jump: require('@/assets/images/acty/01-jump.png'), // 01 점프 환호
+  run: require('@/assets/images/acty/02-run.png'), // 02 달리기 결의
+  dizzy: require('@/assets/images/acty/03-dizzy.png'), // 03 뻗음 어지러움
+  breathe: require('@/assets/images/acty/04-breathe.png'), // 04 명상 호흡
+  shy: require('@/assets/images/acty/05-shy.png'), // 05 커튼뒤 수줍음
+  hamlet: require('@/assets/images/acty/06-hamlet.png'), // 06 햄릿 해골
+  sob: require('@/assets/images/acty/07-sob.png'), // 07 오열
+  angry: require('@/assets/images/acty/08-angry.png'), // 08 분노
+  surprised: require('@/assets/images/acty/09-surprised.png'), // 09 깜짝 놀람
+  smug: require('@/assets/images/acty/10-smug.png'), // 10 으쓱 팔짱
+  love: require('@/assets/images/acty/11-love.png'), // 11 하트눈 대본
+  wink: require('@/assets/images/acty/12-wink.png'), // 12 윙크
+  flat: require('@/assets/images/acty/13-flat.png'), // 13 납작 민망
+  dance: require('@/assets/images/acty/14-dance.png'), // 14 춤
+  whisper: require('@/assets/images/acty/15-whisper.png'), // 15 속삭임
+  bow: require('@/assets/images/acty/16-bow.png'), // 16 조명아래 인사
+  slate: require('@/assets/images/acty/17-slate.png'), // 17 슬레이트
+  selfie: require('@/assets/images/acty/18-selfie.png'), // 18 셀카촬영
+  nervous: require('@/assets/images/acty/19-nervous.png'), // 19 대본뒤 덜덜
+  yawn: require('@/assets/images/acty/20-yawn.png'), // 20 하품 기지개
 };
+
+/** 홈 머리에서 날마다 돌아가며 나오는 밝은 자세들. */
+export const HOME_POSES: readonly MascotPose[] = ['home', 'jump', 'wink', 'dance', 'bow', 'smug'];
+
+/** 기기 시간대 기준 오늘의 자세 — 하루 동안은 같다. */
+export function dailyPose(poses: readonly MascotPose[], now: Date = new Date()): MascotPose {
+  return poses[dailyIndex(poses.length, now)];
+}
 
 /** pen 에서 쓰는 크기 — 그림 비율(약 9:10)을 지킨다. */
 export const MASCOT_SIZE = {

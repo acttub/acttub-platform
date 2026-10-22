@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
-import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
+import { HOME_POSES, MASCOT, MASCOT_SIZE, dailyPose } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -468,7 +468,7 @@ export default function HomeScreen() {
         <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarSpace + 20 }]}>
           {/* 머리 — 마스코트 + 인사 + 알림 종. 일정 D-day 줄은 일정 기능(서버)이 생기면 붙인다. */}
           <View style={styles.head}>
-            <Image source={MASCOT.home} style={MASCOT_SIZE.card} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT[dailyPose(HOME_POSES)]} style={MASCOT_SIZE.card} contentFit="contain" accessibilityIgnoresInvertColors />
             <Text style={styles.greeting}>{t('home.greeting')}</Text>
             {bell}
           </View>

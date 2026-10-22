@@ -17,7 +17,7 @@ import type { ChallengeDetail } from '@/lib/challenge/types';
 import { resultDay } from '@/lib/challenge/week-result';
 import { translate as t, translateList } from '@/lib/i18n';
 
-const MASCOT = MASCOTS.home;
+const MASCOT = MASCOTS.dance;
 
 /**
  * 챌린지 마무리(SOMA-748 Ttlo3) — AI 리포트 다음, 「여기까지 할게요」·「공개하기」 뒤에 온다.
