@@ -146,6 +146,7 @@ const en: DeepStringShape<typeof ko> = {
     rdGoTitle: 'Start and the partner speaks first',
     rdGoBody: 'The app reads the partner lines and pauses on your turn. Say your line out loud and it’s recorded.',
     reading: {
+    recordForCoach: 'Record this script for coaching',
       introTitle: 'Try one script reading round?',
       introBody: 'Add a script and pick your role. The app reads the other parts, and you only say your lines.',
       ownTitle: 'Use my own script',
