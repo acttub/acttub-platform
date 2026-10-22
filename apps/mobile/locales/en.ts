@@ -1497,6 +1497,7 @@ const en: DeepStringShape<typeof ko> = {
     newTitlePlaceholder: "Leave empty and we'll pick one from the script",
     lineEditHint: 'Tap a line to fix how it was split',
     lineEditTitle: 'Edit line',
+    lineEditPick: 'Pick the line to edit',
     lineEditSub: 'Past readings and recordings stay as they are.',
     lineEditWho: 'Who says it',
     lineEditRename: "Rename '{{name}}'",

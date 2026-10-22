@@ -1488,6 +1488,7 @@ const ko = {
     newTitlePlaceholder: '비워 두면 대본에서 찾아 붙여요',
     lineEditHint: '나누기가 틀린 줄은 눌러서 고칠 수 있어요',
     lineEditTitle: '줄 고치기',
+    lineEditPick: '고칠 줄을 골라 주세요',
     lineEditSub: '고쳐도 지난 리딩과 녹음은 그대로 남아요.',
     lineEditWho: '누가 말하나요',
     lineEditRename: "'{{name}}' 이름 고치기",
