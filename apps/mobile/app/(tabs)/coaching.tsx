@@ -127,7 +127,7 @@ export default function CoachingTab() {
       ) : entry.kind === 'first' ? (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstBody}>
-            <MascotBubble source={MASCOT.coach} title={t('coachingTab.firstBubble')} body={t('coachingTab.firstBubbleSub')} />
+            <MascotBubble source={MASCOT.slate} title={t('coachingTab.firstBubble')} body={t('coachingTab.firstBubbleSub')} />
             <Text style={styles.exampleTitle}>{t('coachingTab.exampleTitle')}</Text>
             <CoachingExample />
             <View style={styles.caption}>
