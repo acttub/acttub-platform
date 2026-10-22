@@ -1018,6 +1018,188 @@
         } ]
       }
     },
+    "/v2/sample-scripts" : {
+      "post" : {
+        "tags" : [ "v2-sample-scripts" ],
+        "summary" : "Create Sample Script",
+        "description" : "감정·상황·원하는 방향과 배역 수(1~4, 1은 독백)·분량(1·3·10분, 추정)으로 생성 대본을 만든다. 새로 만들면 201,\n같은 request_id 로 다시 오면 먼저 만든 것을 200 으로 준다. 같은 request_id 가 아직 만드는 중이면 409\nsample_script_in_progress, 24시간 20개 초과 429 sample_script_daily_limit, 배역 수·분량이 범위 밖이면 422\nsample_script_invalid_options, 모델이 실패하거나 검사를 통과하지 못하면 502 sample_script_failed.",
+        "operationId" : "create_sample_script_v2_sample_scripts_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SampleScriptCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "만들었다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SampleScript"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "같은 request_id 의 재전송",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SampleScript"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/sample-scripts/{sample_script_id}/save" : {
+      "post" : {
+        "tags" : [ "v2-sample-scripts" ],
+        "summary" : "Save Sample Script",
+        "description" : "확정 — 지금 버전을 「내 대본」(reading.script)에 저장하고 script_id 를 준다. 처음이면 201, 이미 저장했으면 200 으로\n같은 script_id 다. 대본 수 한도는 리딩과 같다(422 script_limit).",
+        "operationId" : "save_sample_script_v2_sample_scripts__sample_script_id__save_post",
+        "parameters" : [ {
+          "name" : "sample_script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Sample Script Id"
+          }
+        } ],
+        "responses" : {
+          "201" : {
+            "description" : "저장했다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SampleScriptSaved"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "이미 저장했다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SampleScriptSaved"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/sample-scripts/{sample_script_id}/revisions" : {
+      "post" : {
+        "tags" : [ "v2-sample-scripts" ],
+        "summary" : "Revise Sample Script",
+        "description" : "지금 버전(base_version)을 자유 요청·배역 수·분량으로 한 번에 고친다. 성공한 수정만 세고 무료 3회다(버전을 되돌려도\n돌려주지 않는다). 다 쓰면 429 sample_script_revision_limit, 지금 버전이 아니면 409 sample_script_version_conflict,\n다른 수정 중이면 409 sample_script_busy, 확정한 대본이면 409 sample_script_saved, 바꿀 것이 없으면 422\nsample_script_no_change, 고치지 못하면 502 sample_script_revision_failed(원본·횟수 그대로).",
+        "operationId" : "revise_sample_script_v2_sample_scripts__sample_script_id__revisions_post",
+        "parameters" : [ {
+          "name" : "sample_script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Sample Script Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SampleScriptRevisionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SampleScript"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/sample-scripts/{sample_script_id}/restore" : {
+      "post" : {
+        "tags" : [ "v2-sample-scripts" ],
+        "summary" : "Restore Sample Script Version",
+        "description" : "지난 버전을 지금 버전으로 되돌린다. 사용한 수정 횟수는 그대로다. 없는 버전 422 sample_script_version_not_found.",
+        "operationId" : "restore_sample_script_v2_sample_scripts__sample_script_id__restore_post",
+        "parameters" : [ {
+          "name" : "sample_script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Sample Script Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SampleScriptRestoreRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SampleScript"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reports" : {
       "post" : {
         "tags" : [ "v2-challenges" ],
@@ -3700,6 +3882,39 @@
         } ]
       }
     },
+    "/v2/sample-scripts/{sample_script_id}" : {
+      "get" : {
+        "tags" : [ "v2-sample-scripts" ],
+        "summary" : "Get Sample Script",
+        "description" : "생성 대본의 지금 버전. 없는 것과 남의 것은 같은 404 sample_script_not_found 다.",
+        "operationId" : "get_sample_script_v2_sample_scripts__sample_script_id__get",
+        "parameters" : [ {
+          "name" : "sample_script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Sample Script Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SampleScript"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/voice/status" : {
       "get" : {
         "tags" : [ "v2-reading" ],
@@ -5763,6 +5978,354 @@
         },
         "required" : [ "expires_at", "intent_id", "upload_url" ],
         "title" : "VideoIntent"
+      },
+      "SampleScriptCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "experience" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/SampleScriptExperience"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "age" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "exclusiveMaximum" : 120.0,
+              "exclusiveMinimum" : 5.0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Age"
+          },
+          "gender" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/SampleScriptGender"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "goal" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/SampleScriptGoal"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "emotion" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 20,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Emotion"
+          },
+          "situation" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Situation"
+          },
+          "direction" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Direction"
+          },
+          "character_count" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "exclusiveMaximum" : 4.0,
+              "exclusiveMinimum" : 1.0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character Count"
+          },
+          "length_minutes" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "1·3·10분"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Length Minutes"
+          }
+        },
+        "required" : [ "request_id" ],
+        "title" : "SampleScriptCreateRequest"
+      },
+      "SampleScriptExperience" : {
+        "type" : "string",
+        "enum" : [ "beginner", "exam", "experienced" ],
+        "title" : "SampleScriptExperience"
+      },
+      "SampleScriptGender" : {
+        "type" : "string",
+        "enum" : [ "female", "male", "unspecified" ],
+        "title" : "SampleScriptGender"
+      },
+      "SampleScriptGoal" : {
+        "type" : "string",
+        "enum" : [ "hobby", "audition", "professional" ],
+        "title" : "SampleScriptGoal"
+      },
+      "SampleScript" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "version" : {
+            "type" : "integer",
+            "title" : "Version"
+          },
+          "version_count" : {
+            "type" : "integer",
+            "title" : "Version Count"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "scene" : {
+            "type" : "string",
+            "title" : "Scene"
+          },
+          "characters" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SampleScriptCharacter"
+            },
+            "title" : "Characters"
+          },
+          "lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SampleScriptLine"
+            },
+            "title" : "Lines"
+          },
+          "design" : {
+            "$ref" : "#/components/schemas/SampleScriptDesign"
+          },
+          "emotion" : {
+            "type" : "string",
+            "title" : "Emotion"
+          },
+          "situation" : {
+            "type" : "string",
+            "title" : "Situation"
+          },
+          "character_count" : {
+            "type" : "integer",
+            "title" : "Character Count"
+          },
+          "length_minutes" : {
+            "type" : "integer",
+            "title" : "Length Minutes"
+          },
+          "estimated_seconds" : {
+            "type" : "integer",
+            "title" : "Estimated Seconds"
+          },
+          "revisions_used" : {
+            "type" : "integer",
+            "title" : "Revisions Used"
+          },
+          "revisions_left" : {
+            "type" : "integer",
+            "title" : "Revisions Left"
+          },
+          "note" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note"
+          },
+          "script_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Script Id"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "title" : "SampleScript"
+      },
+      "SampleScriptCharacter" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "title" : "Name"
+          },
+          "gender" : {
+            "type" : "string",
+            "title" : "Gender"
+          },
+          "age_band" : {
+            "type" : "string",
+            "title" : "Age Band"
+          },
+          "mine" : {
+            "type" : "boolean",
+            "title" : "Mine"
+          }
+        },
+        "title" : "SampleScriptCharacter"
+      },
+      "SampleScriptDesign" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "relation" : {
+            "type" : "string",
+            "title" : "Relation"
+          },
+          "incident" : {
+            "type" : "string",
+            "title" : "Incident"
+          },
+          "prop" : {
+            "type" : "string",
+            "title" : "Prop"
+          },
+          "my_objective" : {
+            "type" : "string",
+            "title" : "My Objective"
+          },
+          "other_reason" : {
+            "type" : "string",
+            "title" : "Other Reason"
+          },
+          "turn_action" : {
+            "type" : "string",
+            "title" : "Turn Action"
+          }
+        },
+        "title" : "SampleScriptDesign"
+      },
+      "SampleScriptLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "title" : "Kind"
+          },
+          "character" : {
+            "type" : "string",
+            "title" : "Character"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          }
+        },
+        "title" : "SampleScriptLine"
+      },
+      "SampleScriptSaved" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "script_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        },
+        "title" : "SampleScriptSaved"
+      },
+      "SampleScriptRevisionRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "base_version" : {
+            "type" : "integer",
+            "exclusiveMinimum" : 1.0,
+            "title" : "Base Version"
+          },
+          "text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 500,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Text"
+          },
+          "character_count" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "exclusiveMaximum" : 4.0,
+              "exclusiveMinimum" : 1.0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character Count"
+          },
+          "length_minutes" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "1·3·10분"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Length Minutes"
+          }
+        },
+        "required" : [ "base_version" ],
+        "title" : "SampleScriptRevisionRequest"
+      },
+      "SampleScriptRestoreRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "version" : {
+            "type" : "integer",
+            "exclusiveMinimum" : 1.0,
+            "title" : "Version"
+          }
+        },
+        "required" : [ "version" ],
+        "title" : "SampleScriptRestoreRequest"
       },
       "ChallengeReportRequest" : {
         "type" : "object",

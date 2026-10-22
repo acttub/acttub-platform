@@ -140,7 +140,9 @@ class EntityMappingIT {
             // 리딩 회차 평가(V40)는 리딩 저장소의 native SQL(upsert·잠금·이관·삭제)만 읽고 쓴다.
             "reading_session_ratings",
             // 리딩 녹음 코치(V48, 실험)는 리딩 저장소의 native SQL(재료 읽기·넣기·답 남기기)만 쓴다.
-            "reading_recording_coaches");
+            "reading_recording_coaches",
+            // 찍을 대사 같이 만들기(V55)는 리딩 저장소의 native SQL(접수·버전·잇기)만 쓴다.
+            "script_cocreations");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 40개 활성 엔티티를 포함한다")

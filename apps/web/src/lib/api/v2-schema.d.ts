@@ -463,6 +463,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/sample-scripts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Sample Script
+         * @description 감정·상황·원하는 방향과 배역 수(1~4, 1은 독백)·분량(1·3·10분, 추정)으로 생성 대본을 만든다. 새로 만들면 201,
+         *     같은 request_id 로 다시 오면 먼저 만든 것을 200 으로 준다. 같은 request_id 가 아직 만드는 중이면 409
+         *     sample_script_in_progress, 24시간 20개 초과 429 sample_script_daily_limit, 배역 수·분량이 범위 밖이면 422
+         *     sample_script_invalid_options, 모델이 실패하거나 검사를 통과하지 못하면 502 sample_script_failed.
+         */
+        post: operations["create_sample_script_v2_sample_scripts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/sample-scripts/{sample_script_id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Sample Script
+         * @description 확정 — 지금 버전을 「내 대본」(reading.script)에 저장하고 script_id 를 준다. 처음이면 201, 이미 저장했으면 200 으로
+         *     같은 script_id 다. 대본 수 한도는 리딩과 같다(422 script_limit).
+         */
+        post: operations["save_sample_script_v2_sample_scripts__sample_script_id__save_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/sample-scripts/{sample_script_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revise Sample Script
+         * @description 지금 버전(base_version)을 자유 요청·배역 수·분량으로 한 번에 고친다. 성공한 수정만 세고 무료 3회다(버전을 되돌려도
+         *     돌려주지 않는다). 다 쓰면 429 sample_script_revision_limit, 지금 버전이 아니면 409 sample_script_version_conflict,
+         *     다른 수정 중이면 409 sample_script_busy, 확정한 대본이면 409 sample_script_saved, 바꿀 것이 없으면 422
+         *     sample_script_no_change, 고치지 못하면 502 sample_script_revision_failed(원본·횟수 그대로).
+         */
+        post: operations["revise_sample_script_v2_sample_scripts__sample_script_id__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/sample-scripts/{sample_script_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Sample Script Version
+         * @description 지난 버전을 지금 버전으로 되돌린다. 사용한 수정 횟수는 그대로다. 없는 버전 422 sample_script_version_not_found.
+         */
+        post: operations["restore_sample_script_v2_sample_scripts__sample_script_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reports": {
         parameters: {
             query?: never;
@@ -1549,6 +1636,26 @@ export interface paths {
          *     아직 만들지 않았거나 파기된 영상은 null 이다.
          */
         get: operations["list_videos_v2_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/sample-scripts/{sample_script_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sample Script
+         * @description 생성 대본의 지금 버전. 없는 것과 남의 것은 같은 404 sample_script_not_found 다.
+         */
+        get: operations["get_sample_script_v2_sample_scripts__sample_script_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2694,6 +2801,152 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** SampleScriptCreateRequest */
+        SampleScriptCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            experience?: components["schemas"]["SampleScriptExperience"] | null;
+            /** Age */
+            age?: number | null;
+            gender?: components["schemas"]["SampleScriptGender"] | null;
+            goal?: components["schemas"]["SampleScriptGoal"] | null;
+            /** Emotion */
+            emotion?: string | null;
+            /** Situation */
+            situation?: string | null;
+            /** Direction */
+            direction?: string | null;
+            /** Character Count */
+            character_count?: number | null;
+            /** Length Minutes */
+            length_minutes?: number | null;
+        };
+        /**
+         * SampleScriptExperience
+         * @enum {string}
+         */
+        SampleScriptExperience: "beginner" | "exam" | "experienced";
+        /**
+         * SampleScriptGender
+         * @enum {string}
+         */
+        SampleScriptGender: "female" | "male" | "unspecified";
+        /**
+         * SampleScriptGoal
+         * @enum {string}
+         */
+        SampleScriptGoal: "hobby" | "audition" | "professional";
+        /** SampleScript */
+        SampleScript: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id?: string;
+            /** Version */
+            version?: number;
+            /** Version Count */
+            version_count?: number;
+            /** Title */
+            title?: string;
+            /** Scene */
+            scene?: string;
+            /** Characters */
+            characters?: components["schemas"]["SampleScriptCharacter"][];
+            /** Lines */
+            lines?: components["schemas"]["SampleScriptLine"][];
+            design?: components["schemas"]["SampleScriptDesign"];
+            /** Emotion */
+            emotion?: string;
+            /** Situation */
+            situation?: string;
+            /** Character Count */
+            character_count?: number;
+            /** Length Minutes */
+            length_minutes?: number;
+            /** Estimated Seconds */
+            estimated_seconds?: number;
+            /** Revisions Used */
+            revisions_used?: number;
+            /** Revisions Left */
+            revisions_left?: number;
+            /** Note */
+            note?: string | null;
+            /** Script Id */
+            script_id?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+        };
+        /** SampleScriptCharacter */
+        SampleScriptCharacter: {
+            /** Name */
+            name?: string;
+            /** Gender */
+            gender?: string;
+            /** Age Band */
+            age_band?: string;
+            /** Mine */
+            mine?: boolean;
+        };
+        /** SampleScriptDesign */
+        SampleScriptDesign: {
+            /** Relation */
+            relation?: string;
+            /** Incident */
+            incident?: string;
+            /** Prop */
+            prop?: string;
+            /** My Objective */
+            my_objective?: string;
+            /** Other Reason */
+            other_reason?: string;
+            /** Turn Action */
+            turn_action?: string;
+        };
+        /** SampleScriptLine */
+        SampleScriptLine: {
+            /** Kind */
+            kind?: string;
+            /** Character */
+            character?: string;
+            /** Text */
+            text?: string;
+        };
+        /** SampleScriptSaved */
+        SampleScriptSaved: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id?: string;
+            /**
+             * Script Id
+             * Format: uuid
+             */
+            script_id?: string;
+        };
+        /** SampleScriptRevisionRequest */
+        SampleScriptRevisionRequest: {
+            /** Base Version */
+            base_version: number;
+            /** Text */
+            text?: string | null;
+            /** Character Count */
+            character_count?: number | null;
+            /** Length Minutes */
+            length_minutes?: number | null;
+        };
+        /** SampleScriptRestoreRequest */
+        SampleScriptRestoreRequest: {
+            /** Version */
+            version: number;
         };
         /** ChallengeReportRequest */
         ChallengeReportRequest: {
@@ -6449,6 +6702,131 @@ export interface operations {
             };
         };
     };
+    create_sample_script_v2_sample_scripts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleScriptCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 같은 request_id 의 재전송 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
+                };
+            };
+            /** @description 만들었다 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_sample_script_v2_sample_scripts__sample_script_id__save_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sample_script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 이미 저장했다 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScriptSaved"];
+                };
+            };
+            /** @description 저장했다 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScriptSaved"];
+                };
+            };
+        };
+    };
+    revise_sample_script_v2_sample_scripts__sample_script_id__revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sample_script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleScriptRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
+                };
+            };
+        };
+    };
+    restore_sample_script_v2_sample_scripts__sample_script_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sample_script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleScriptRestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
+                };
+            };
+        };
+    };
     create_challenge_report_v2_reports_post: {
         parameters: {
             query?: never;
@@ -8382,6 +8760,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VideoList"];
+                };
+            };
+        };
+    };
+    get_sample_script_v2_sample_scripts__sample_script_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sample_script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
                 };
             };
         };
