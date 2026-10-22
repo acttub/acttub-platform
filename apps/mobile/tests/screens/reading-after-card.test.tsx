@@ -95,3 +95,21 @@ test('녹음 코치: 소리가 든 녹음이 셋보다 적으면 이유를 알�
   await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
   expect(mockRouter.back).toHaveBeenCalled();
 });
+
+test('녹음 코치: 코치가 답하지 못하면 알리고 「다시 시도」로 다시 시작한다', async () => {
+  mockParams = { sessionId: 's1' };
+  startCoach.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'recording_coach_unavailable' })).mockResolvedValue(coach());
+  await render(<ReadingCoachScreen />);
+  expect(await screen.findByText('코치가 지금 답하지 못했어요.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByText('「가자」 끝이 올라갔어요. 그때 서연은 뭘 원했어요?')).toBeOnTheScreen();
+  expect(startCoach).toHaveBeenCalledTimes(2);
+});
+
+test('녹음 코치: 둘째 차례에 찍을 줄이 없으면 닫기만 둔다', async () => {
+  mockParams = { sessionId: 's1' };
+  startCoach.mockResolvedValue(coach({ status: 'answered', video_line: null }));
+  await render(<ReadingCoachScreen />);
+  await fireEvent.press(await screen.findByRole('button', { name: '닫기' }));
+  expect(mockRouter.back).toHaveBeenCalled();
+});
