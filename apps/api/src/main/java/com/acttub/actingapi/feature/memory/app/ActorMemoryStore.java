@@ -27,6 +27,17 @@ public interface ActorMemoryStore {
     ActorMemory writeAsActor(UUID userId, String field, String value);
 
     /**
+     * 이 회차의 코치가 읽는 칸 (SOMA-795). 배우 단위 칸과 맞춤 코칭은 늘, 장면 단위 칸(목표·다시 말하지 않을 것)은 같은
+     * 장면({@code practices.root_id})의 것만 담는다({@link MemoryScope}). 기본 구현은 장면을 모르는 저장소용이다 — 화면 목록을
+     * 장면 없는 행으로 보고 고른다.
+     */
+    default java.util.Map<String, String> forPractice(UUID userId, UUID practiceId) {
+        return MemoryScope.forScene(list(userId).stream()
+                .map(row -> new MemoryScope.Row(row.field(), row.value(), row.writtenByActor(), null))
+                .toList(), null);
+    }
+
+    /**
      * 기억을 지운다. <b>멱등이고 세대를 올린다</b> — 이미 없어도 지우려는 결과는 같다.
      *
      * @param field {@code null} 이면 그 배우의 기억을 통째로 지운다
