@@ -1,0 +1,97 @@
+{
+  "session": {
+    "input_mode": "video",
+    "purpose": "evaluate",
+    "end_reason": "actor_finished"
+  },
+  "conversation": [
+    {
+      "id": "c0",
+      "role": "ai",
+      "text": "이 장면에서 은서는 상대한테서 결국 뭘 얻어 내고 싶었어요?"
+    },
+    {
+      "id": "m0",
+      "role": "actor",
+      "text": "떠나지 말고 제 얘기를 끝까지 들어 줬으면 했어요."
+    },
+    {
+      "id": "c1",
+      "role": "ai",
+      "text": "「가지 마」 직전에 상대 쪽을 2초 정도 바라봐요. 그 앞 대사도 같은 마음으로 이어 가 봐도 좋아요."
+    },
+    {
+      "id": "m1",
+      "role": "actor",
+      "text": "이번엔 「가지 마」를 소리 지르지 않고 상대 눈을 보면서 낮게 말해 봤어요."
+    },
+    {
+      "id": "c2",
+      "role": "ai",
+      "text": "그럼 다음 테이크에서는 앞 대사부터 상대를 붙잡듯 말해 봐도 좋아요."
+    },
+    {
+      "id": "m2",
+      "role": "actor",
+      "text": "그만할게요."
+    }
+  ],
+  "source_catalog": [
+    {
+      "id": "c0",
+      "kind": "coach_message",
+      "text": "이 장면에서 은서는 상대한테서 결국 뭘 얻어 내고 싶었어요?"
+    },
+    {
+      "id": "m0",
+      "kind": "actor_message",
+      "text": "떠나지 말고 제 얘기를 끝까지 들어 줬으면 했어요."
+    },
+    {
+      "id": "c1",
+      "kind": "coach_message",
+      "text": "「가지 마」 직전에 상대 쪽을 2초 정도 바라봐요. 그 앞 대사도 같은 마음으로 이어 가 봐도 좋아요."
+    },
+    {
+      "id": "m1",
+      "kind": "actor_message",
+      "text": "이번엔 「가지 마」를 소리 지르지 않고 상대 눈을 보면서 낮게 말해 봤어요."
+    },
+    {
+      "id": "c2",
+      "kind": "coach_message",
+      "text": "그럼 다음 테이크에서는 앞 대사부터 상대를 붙잡듯 말해 봐도 좋아요."
+    },
+    {
+      "id": "m2",
+      "kind": "actor_message",
+      "text": "그만할게요."
+    },
+    {
+      "id": "sc1",
+      "kind": "scene_context",
+      "text": "상황: 연인이 짐을 싸서 나가려고 문 앞에 서 있다. 인물: 은서."
+    },
+    {
+      "id": "e1",
+      "kind": "video_observation",
+      "text": "「가지 마」 직전에 상대 쪽을 2초 정도 바라본다.",
+      "start_ms": 42000
+    }
+  ],
+  "answers": {
+    "feeling": {
+      "choice": "떨렸어요",
+      "text": "낮게 하니까 오히려 더 떨렸어요"
+    },
+    "unknown": {
+      "none": false,
+      "text": "앞 대사가 화난 건지 무서운 건지 모르겠어요"
+    },
+    "next": {
+      "undecided": false,
+      "text": "앞 대사를 화난 버전이랑 무서운 버전으로 찍어 보기"
+    },
+    "review": "소리 안 질러도 붙잡을 수 있다는 걸 처음 느꼈다"
+  }
+}

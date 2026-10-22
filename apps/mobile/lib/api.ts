@@ -4,6 +4,7 @@ import type {
 import { normalizeAdmissions } from './admissions';
 import { normalizeAuditions, type AuditionPostingList } from './auditions';
 import type { CreateSampleScriptBody, ReviseSampleScriptBody, SampleScript } from './script-cocreate';
+import type { JournalAnswers, JournalUpdateBody, PracticeJournal } from './practice/journal';
 
 import Constants from 'expo-constants';
 // RN 기본 fetch 는 본문을 흘려 읽지 못한다. 코치 답 스트리밍에만 쓴다(네이티브 모듈 추가 없음, SDK 52+).
@@ -45,7 +46,6 @@ import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
 import type {
-  AiReport,
   BlockedUser,
   ChallengeDetail,
   ChallengeListResponse,
@@ -1212,6 +1212,33 @@ export const api = {
     );
   },
 
+  // 배우 일지(practice.journal, SOMA-720) -------------------------------------------
+  /** 그 회차의 배우 일지. 없으면 404 journal_not_found. */
+  getPracticeJournal(practiceId: string): Promise<PracticeJournal> {
+    return request<PracticeJournal>(`/v2/practices/${encodeURIComponent(practiceId)}/journal`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 고정 질문 4개의 답으로 일지를 만든다. 서버가 코칭 대화로 자동 칸을 만들므로 오래 걸릴 수 있다(모델 두 번까지).
+   * 회차에 일지가 이미 있으면 다시 만들지 않고 그 일지를 준다(200) — 같은 답의 재전송이 안전하다.
+   */
+  createPracticeJournal(practiceId: string, answers: JournalAnswers): Promise<PracticeJournal> {
+    return request<PracticeJournal>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/journal`,
+      jsonInit({ answers }, 'POST'),
+      { timeoutMs: 90_000 },
+    );
+  },
+
+  /** 고친 일지 저장 — 배우 답 전체와 자동 칸 전체를 보낸다. */
+  updatePracticeJournal(practiceId: string, body: JournalUpdateBody): Promise<PracticeJournal> {
+    return request<PracticeJournal>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/journal`,
+      jsonInit(body, 'PUT'),
+      { timeoutMs: 20_000 },
+    );
+  },
+
   putNoteRating(practiceId: string, body: NoteRatingBody): Promise<NoteRating> {
     return request<NoteRating>(
       `/v2/practices/${encodeURIComponent(practiceId)}/note/rating`,
@@ -1399,28 +1426,6 @@ export const api = {
 
   listBlocks(): Promise<{ users: BlockedUser[] }> {
     return request<{ users: BlockedUser[] }>('/v2/me/blocks', {}, { timeoutMs: 20_000 });
-  },
-
-  // AI 리포트(challenge.ai-report) -----------------------------------------------
-  /**
-   * 리포트 만들기를 부탁한다. 이미 결과가 있으면 그것을 돌려주고, 같은 요청 id 의 재전송은
-   * 기존 작업이다. 하루 3회를 넘기면 429 daily_report_request_limit, 파일이 파기된 참여작은
-   * 422 video_not_ready 다.
-   */
-  requestAiReport(entryId: string, requestId: string): Promise<{ status: string }> {
-    return postIdempotent<{ status: string }>(
-      `/v2/entries/${encodeURIComponent(entryId)}/ai-report`,
-      { request_id: requestId },
-      { requestId, timeoutMs: 30_000 },
-    );
-  },
-
-  /** 본인만 본다(남의 리포트는 404). 비공개 참여작의 리포트도 본인은 본다. */
-  getAiReport(entryId: string, options: ApiCallOptions = {}): Promise<AiReport> {
-    return request<AiReport>(`/v2/entries/${encodeURIComponent(entryId)}/ai-report`, {}, {
-      timeoutMs: 20_000,
-      signal: options.signal,
-    });
   },
 
   // 알림함(challenge.notification) -------------------------------------------------

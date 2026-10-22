@@ -31,27 +31,6 @@ test('③ 새 연습: 머리 오른쪽 설정, 본문 좌우 20, 권리 체크 1
   assert.match(upload, /pickedMeta: \{ flex: 1, fontSize: 15, fontWeight: '500'/);
 });
 
-test('③ 찍는 법: 그림 칸 193 · 모서리 24 · 아이콘 56 · 18/800, 체크 줄 55.6 · 17/700', () => {
-  const guide = read('app/record-guide.tsx');
-  assert.match(guide, /headerRight: \(\) => \(\s*<NavIconButton icon="settings"/);
-  assert.match(guide, /name="smartphone" size=\{56\}/);
-  assert.match(guide, /height: 193,\s*borderRadius: 24,/);
-  assert.match(guide, /heroText: \{ fontSize: 18, fontWeight: '800'/);
-  assert.match(guide, /row: \{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 55\.6, paddingLeft: 3 \}/);
-  assert.match(guide, /rowText: \{ flex: 1, fontSize: 17, fontWeight: '700'/);
-});
-
-test('③ 보관함: 제목 24/800 · 보조 14, 필터 알약 32 · 15/700, 빈 상태 18/700 · 15', () => {
-  const archive = read('app/archive.tsx');
-  assert.match(archive, /title: \{ fontSize: 24, fontWeight: '800', lineHeight: 30, color: palette\.text \}/);
-  assert.match(archive, /subtitle: \{ fontSize: 14, color: palette\.textFaint \}/);
-  assert.match(archive, /chip: \{ height: 32, borderRadius: 16, paddingHorizontal: 13,/);
-  assert.match(archive, /chipText: \{ fontSize: 15, fontWeight: '700'/);
-  assert.match(archive, /name="film" size=\{38\}/);
-  assert.match(archive, /emptyTitle: \{ color: palette\.text, fontSize: 18, fontWeight: '700'/);
-  assert.match(archive, /emptySub: \{ color: palette\.textMuted, fontSize: 15,/);
-});
-
 test('⑨ 코치 머리줄은 한 부품 — 액티 30×36 · 「ACTTUB 코치」 15/800 · 회색 말풍선 모서리 18', () => {
   const message = read('components/coach-message.tsx');
   assert.match(message, /MASCOT_SIZE\.chat/);
@@ -110,14 +89,12 @@ test('⑨ 영상 보는 중: 경과 15/500, 안내 15 · 14.5/700, 「끝나면 
   assert.match(waiting, /link: \{ color: palette\.textFaint, fontSize: 15, fontWeight: '700'/);
 });
 
-test('⑪ 챌린지 완료: 손 흔드는 액티 84×88 + 파란 체크 28, 제목 22/800, 안내 15/500, AI 리포트 안내 알약', () => {
+test('⑪ 챌린지 완료: 손 흔드는 액티 84×88 + 파란 체크 28, 제목 22/800, 안내 15/500', () => {
   const upload = read('app/challenge-upload.tsx');
   assert.match(upload, /source=\{MASCOTS\.cheer\} style=\{styles\.doneMascot\}/);
   assert.match(upload, /doneMascot: \{ width: 84, height: 88 \}/);
   assert.match(upload, /doneBadge: \{[^}]*width: 28,[^}]*height: 28,[^}]*borderRadius: 14,[^}]*backgroundColor: palette\.blue/);
   assert.match(upload, /doneTitle: \{ fontSize: 22, fontWeight: '800', lineHeight: 28, color: palette\.text, textAlign: 'center' \}/);
   assert.match(upload, /doneSub: \{ fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette\.textMuted, textAlign: 'center' \}/);
-  assert.match(upload, /reportHint: \{[^}]*backgroundColor: palette\.blueSoft,[^}]*borderRadius: 10/);
-  assert.match(upload, /reportHintText: \{ fontSize: 13, fontWeight: '600', color: palette\.blueDeep \}/);
-  assert.match(read('locales/ko.ts'), /doneGuide: '「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요',/);
+  assert.doesNotMatch(upload, /reportHint|\/ai-report/);
 });

@@ -134,11 +134,10 @@ test('참여작을 누르면 그 참여작부터 재생하고, 뒤로는 이전 
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
 });
 
-test('메뉴에서 AI 리포트를 연다', async () => {
+test('메뉴에 AI 리포트 줄은 없다(SOMA-820)', async () => {
   await render(<ChallengeEntriesScreen />);
   await openMenuFor('“사느냐 죽느냐”');
-  await fireEvent.press(screen.getByText('AI 리포트'));
-  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/ai-report', params: { entryId: 'e1' } });
+  expect(screen.queryByText('AI 리포트')).not.toBeOnTheScreen();
 });
 
 describe('캡션 고치기', () => {

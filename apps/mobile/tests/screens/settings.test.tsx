@@ -7,7 +7,6 @@ import NotificationSettingsScreen from '@/app/notification-settings';
 import SettingsScreen from '@/app/settings';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { resetSpotlights } from '@/lib/guide-state';
 import { loadNotificationSettings, openNotificationPermissionSettings, setNotificationToggle } from '@/lib/notifications';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
@@ -18,7 +17,6 @@ jest.mock('@/lib/reading/voice-feedback-setting', () => ({ loadVoiceFeedbackEnab
 jest.mock('@/lib/api', () => ({ api: { consentEntry: jest.fn(), recordConsent: jest.fn() } }));
 jest.mock('@/lib/store-review', () => ({ openStoreReviewPage: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: jest.fn() }));
-jest.mock('@/lib/guide-state', () => ({ resetSpotlights: jest.fn() }));
 jest.mock('@/lib/notifications', () => ({
   DEFAULT_NOTIFICATION_SETTINGS: { analysis_done: true, challenge: true, evening_reminder: true },
   loadNotificationSettings: jest.fn(),
@@ -359,7 +357,6 @@ describe('설정', () => {
       '이름·성별·생년월일·방향·경력·목표와 사진, 한 줄 소개를 고쳐요.',
       '분석 완료·챌린지·저녁 연습 알림을 켜고 꺼요.',
       '코치가 나에 대해 무엇을 기억하는지 보고 고칠 수 있어요.',
-      '처음 시작 안내를 다시 봐요',
     ]) expect(screen.getByText(sub)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '회원 탈퇴' })).toBeOnTheScreen();
   });
@@ -388,7 +385,6 @@ describe('설정', () => {
     ['프로필 수정', '/profile-edit'],
     ['웹 연습 가져오기', '/guest-transfer'],
     ['알림', '/notification-settings'],
-    ['보관함', '/archive'],
     ['코치가 기억하는 것', '/memory'],
     ['챌린지 기록', '/challenge-entries'],
     ['차단한 사용자', '/blocked-users'],
@@ -400,11 +396,10 @@ describe('설정', () => {
     expect(mockRouter.push).toHaveBeenCalledWith(path);
   });
 
-  test('가이드 다시 보기는 비추기 안내도 되살리고 가이드를 연다', async () => {
+  test('보관함·가이드 다시 보기 줄은 없다(SOMA-820)', async () => {
     await settingsLoaded();
-    await fireEvent.press(screen.getByRole('button', { name: '가이드 다시 보기' }));
-    expect(resetSpotlights).toHaveBeenCalledTimes(1);
-    expect(mockRouter.push).toHaveBeenCalledWith('/guide');
+    expect(screen.queryByRole('button', { name: '보관함' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '가이드 다시 보기' })).not.toBeOnTheScreen();
   });
 
   test('앱 평가는 스토어 리뷰 화면을 연다', async () => {

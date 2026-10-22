@@ -78,6 +78,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/practices/{practice_id}/journal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Practice Journal
+         * @description 그 회차의 배우 일지. 없으면(남의 것 포함) 404 journal_not_found 이고 화면은 노트를 대신 보인다.
+         */
+        get: operations["get_practice_journal_v2_practices__practice_id__journal_get"];
+        /**
+         * Update Practice Journal
+         * @description 배우가 고친 일지를 저장한다. 배우의 답 전체와 자동 칸 전체를 보내고, 글이 빈 항목은 지운다. 고친 뒤에는 자동 칸을
+         *     다시 만들지 않는다. 없으면(남의 것 포함) 404 journal_not_found.
+         */
+        put: operations["update_practice_journal_v2_practices__practice_id__journal_put"];
+        /**
+         * Create Practice Journal
+         * @description 고정 질문 4개의 답으로 그 회차의 배우 일지를 만든다. 서버가 코칭 대화로 자동 칸(오늘 한 연습·장면과 인물·받은 피드백)을
+         *     만들고 배우의 답은 고치지 않고 그대로 둔다. 자동 칸을 만들지 못하면 배우의 답만으로 저장한다(draft_status=failed).
+         *     새로 만들면 201, 이미 있으면 다시 만들지 않고 그 일지를 200 으로 준다. 없는 회차·남의 회차는 404 practice_not_found.
+         */
+        post: operations["create_practice_journal_v2_practices__practice_id__journal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/portfolio/share": {
         parameters: {
             query?: never;
@@ -2502,6 +2533,149 @@ export interface components {
              */
             updated_at: string;
         };
+        /** JournalAnswers */
+        JournalAnswers: {
+            feeling?: components["schemas"]["JournalFeeling"] | null;
+            unknown?: components["schemas"]["JournalUnknown"] | null;
+            next?: components["schemas"]["JournalNext"] | null;
+            /** Review */
+            review?: string | null;
+        };
+        /**
+         * JournalCharacterAspect
+         * @enum {string}
+         */
+        JournalCharacterAspect: "wants" | "partner" | "situation";
+        /** JournalCharacterItem */
+        JournalCharacterItem: {
+            aspect: components["schemas"]["JournalCharacterAspect"];
+            /** Text */
+            text: string;
+        };
+        /**
+         * JournalFeedbackGiver
+         * @enum {string}
+         */
+        JournalFeedbackGiver: "coach" | "other";
+        /** JournalFeedbackItem */
+        JournalFeedbackItem: {
+            /** Text */
+            text: string;
+            giver?: components["schemas"]["JournalFeedbackGiver"] | null;
+            /** At */
+            at?: number | null;
+        };
+        /** JournalFeeling */
+        JournalFeeling: {
+            /** Choice */
+            choice?: string | null;
+            /** Text */
+            text?: string | null;
+        };
+        /** JournalNext */
+        JournalNext: {
+            /** Undecided */
+            undecided?: boolean | null;
+            /** Text */
+            text?: string | null;
+        };
+        /**
+         * JournalPracticeBasis
+         * @enum {string}
+         */
+        JournalPracticeBasis: "actor_report" | "observed" | "discussed";
+        /** JournalPracticeItem */
+        JournalPracticeItem: {
+            /** Text */
+            text: string;
+            basis?: components["schemas"]["JournalPracticeBasis"] | null;
+        };
+        /** JournalUnknown */
+        JournalUnknown: {
+            /** None */
+            none?: boolean | null;
+            /** Text */
+            text?: string | null;
+        };
+        /** JournalUpdateRequest */
+        JournalUpdateRequest: {
+            answers: components["schemas"]["JournalAnswers"];
+            /** Practice */
+            practice: components["schemas"]["JournalPracticeItem"][];
+            /** Character */
+            character: components["schemas"]["JournalCharacterItem"][];
+            /** Feedback */
+            feedback: components["schemas"]["JournalFeedbackItem"][];
+        };
+        /** JournalCharacterLine */
+        JournalCharacterLine: {
+            /** Aspect */
+            aspect?: string;
+            /** Text */
+            text?: string;
+        };
+        /**
+         * JournalDraftStatus
+         * @enum {string}
+         */
+        JournalDraftStatus: "pending" | "ready" | "failed" | "skipped";
+        /** JournalFeedbackLine */
+        JournalFeedbackLine: {
+            /** Text */
+            text?: string;
+            /** Giver */
+            giver?: string;
+            /** At */
+            at?: number | null;
+        };
+        /** JournalPracticeLine */
+        JournalPracticeLine: {
+            /** Text */
+            text?: string;
+            /** Basis */
+            basis?: string;
+        };
+        /** PracticeJournal */
+        PracticeJournal: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id?: string;
+            /**
+             * Practice Id
+             * Format: uuid
+             */
+            practice_id?: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            answers?: components["schemas"]["JournalAnswers"];
+            draft_status?: components["schemas"]["JournalDraftStatus"];
+            /** Practice */
+            practice?: components["schemas"]["JournalPracticeLine"][];
+            /** Character */
+            character?: components["schemas"]["JournalCharacterLine"][];
+            /** Feedback */
+            feedback?: components["schemas"]["JournalFeedbackLine"][];
+            /** Edited At */
+            edited_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at?: string;
+            /** Title */
+            title?: string | null;
+            /** Purpose */
+            purpose?: string | null;
+            /** Role Name */
+            role_name?: string | null;
+        };
         /** PortfolioShareRequest */
         PortfolioShareRequest: {
             /** Enabled */
@@ -3696,6 +3870,10 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** JournalCreateRequest */
+        JournalCreateRequest: {
+            answers: components["schemas"]["JournalAnswers"];
         };
         /** PracticeContinueRequest */
         PracticeContinueRequest: {
@@ -6081,6 +6259,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NoteRating"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_practice_journal_v2_practices__practice_id__journal_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeJournal"];
+                };
+            };
+        };
+    };
+    update_practice_journal_v2_practices__practice_id__journal_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JournalUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeJournal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_practice_journal_v2_practices__practice_id__journal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JournalCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 이미 있다 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeJournal"];
+                };
+            };
+            /** @description 만들었다 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeJournal"];
                 };
             };
             /** @description Validation Error */

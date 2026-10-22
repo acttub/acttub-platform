@@ -529,7 +529,7 @@ describe('빠른 답과 그만하기', () => {
 });
 
 describe('닫힌 대화', () => {
-  test('노트와 함께 닫히면 정리 화면으로 넘어간다', async () => {
+  test('노트와 함께 닫히면 배우 일지 화면으로 넘어간다(SOMA-720)', async () => {
     jest.useFakeTimers();
     mockLoop.replyToCoach.mockResolvedValue(turn(conv({ status: 'closed', close_reason: 'exhausted' }), NOTE));
     await renderOpen();
@@ -538,11 +538,11 @@ describe('닫힌 대화', () => {
     expect(screen.getByText('오늘 대화는 여기까지예요. 정리를 만들어 보여드릴게요.')).toBeOnTheScreen();
     expect(getPractice()?.note).toEqual(NOTE);
     await act(async () => jest.advanceTimersByTime(0));
-    expect(mockRouter.replace).toHaveBeenCalledWith('/report');
+    expect(mockRouter.replace).toHaveBeenCalledWith('/journal');
 
-    await fireEvent.press(screen.getByRole('button', { name: '정리 보러 가기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '일지 쓰고 마치기' }));
     await act(async () => jest.advanceTimersByTime(0));
-    expect(mockRouter.replace.mock.calls).toEqual([['/report'], ['/report']]);
+    expect(mockRouter.replace.mock.calls).toEqual([['/journal'], ['/journal']]);
   });
 
   test('닫힌 대화로 다시 들어오면 노트를 읽어 정리 화면으로 넘어간다', async () => {
@@ -551,7 +551,7 @@ describe('닫힌 대화', () => {
     begin({ conversationId: 'c1' });
     await render(<CoachScreen />);
 
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/report'));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/journal'));
     expect(mockLoop.getPracticeNote).toHaveBeenCalledWith('p1');
     expect(mockLoop.startConversation).not.toHaveBeenCalled();
   });

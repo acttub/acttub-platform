@@ -10,13 +10,14 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
+import { readOptionalJournal } from '@/lib/practice/journal';
 import { noteFallbackNotice, noteKindLabel, noteTitle, readOptionalPracticeNote } from '@/lib/practice/note';
 import { continueActionFor, continueActionLabel } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeDetail, PracticeGroupDetail, PracticeNote } from '@/lib/practice/types';
 
 /**
- * A12 지난 연습 노트 — 기록에서 회차를 누르면 열린다.
+ * A12 지난 연습 노트 — 기록에서 회차를 누르면 열린다. 배우 일지가 있는 회차는 일지 화면(app/journal)으로 넘긴다(SOMA-720).
  *
  * 회차 id 로 노트를 읽는다(practice.note). 영상이 파기된 뒤에도 노트는 열린다. 묶음에 열린 테이크가 있으면
  * 「대화 이어 가기」로 그 대화에 돌아가고, 없으면 「다음 테이크 찍기」로 같은 묶음의 다음 회차를 만든다 —
@@ -46,11 +47,17 @@ export default function ReportDetailScreen() {
     setError(null);
     setNote(null);
     try {
-      const [loadedNote, loadedPractice] = await Promise.all([
+      const [loadedNote, loadedPractice, journal] = await Promise.all([
         readOptionalPracticeNote(api.getPracticeNote, practiceId),
         api.getPractice(practiceId).catch(() => null),
+        // 배우 일지(SOMA-720)가 있는 회차는 같은 일지 화면에서 보고 고친다. 못 읽으면 지금처럼 노트를 보인다.
+        readOptionalJournal(api.getPracticeJournal, practiceId).catch(() => null),
       ]);
       if (revision !== loadRevision.current) return;
+      if (journal) {
+        router.replace({ pathname: '/journal', params: { practiceId, from: 'history' } });
+        return;
+      }
       setNote(loadedNote);
       setPractice(loadedPractice);
       if (!loadedNote) setError(t('note.none'));
@@ -59,7 +66,7 @@ export default function ReportDetailScreen() {
     } finally {
       if (revision === loadRevision.current) setLoading(false);
     }
-  }, [practiceId]);
+  }, [practiceId, router]);
 
   useEffect(() => {
     void load();

@@ -14,12 +14,10 @@ test('첫 사용자 홈은 공통 말풍선·Primary 버튼을 쓰고, 카드는
   assert.doesNotMatch(home, /onPress=\{\(\) => router\.push\('\/coaching'\)\}/);
 });
 
-test('코칭 탭 「지금 찍어서 코칭 받기」는 찍는 법 → 카메라 → 준비 화면으로 이어진다(next=upload)', () => {
-  const guide = read('app/record-guide.tsx');
-  assert.match(guide, /params\.next === 'upload'/);
-  assert.match(guide, /next: 'upload'/);
+test('코칭 탭 「지금 찍어서 코칭 받기」는 카메라 → 준비 화면으로 이어진다(next=upload)', () => {
   const coaching = read('app/(tabs)/coaching.tsx');
-  assert.match(coaching, /pathname: '\/record-guide'/);
+  assert.match(coaching, /pathname: '\/record-video'/);
+  assert.match(coaching, /next: 'upload'/);
   // 서버에 없는 값(몇 번 해 봤는지·줄 태그)은 문구조차 두지 않는다.
   const ko = read('locales/ko.ts');
   const block = ko.slice(ko.indexOf('  coachingTab: {'), ko.indexOf('  },', ko.indexOf('  coachingTab: {')));

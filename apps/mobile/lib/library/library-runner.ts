@@ -187,7 +187,7 @@ export async function removePendingUpload(id: string): Promise<void> {
   notify();
 }
 
-/** 옛 보관함 옮기기(legacy-archive)가 항목을 넣을 때 쓴다. */
+/** 업로드 대기 큐에 항목을 넣는다. */
 export function enqueueLibraryUpload(entry: Parameters<UploadQueue['enqueue']>[0]): Promise<QueuedVideo> {
   return instance().enqueue(entry);
 }
