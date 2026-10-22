@@ -130,6 +130,7 @@ public final class DirectVideoCoach {
      * 이어서 찍은 회차의 첫 답(두 답 중 하나를 고른다)과 소리 없는 영상(근거 검사가 말을 막을 수 있다)은 지금처럼 다 쓴 뒤 보낸다.
      */
     public CoachResult turn(CoachSessionSnapshot session, String actorText, UUID operationId, CoachStream stream) {
+        java.util.Objects.requireNonNull(session, "coach session");
         Path local = null;
         DirectVideoModel.Video uploaded = null;
         CoachVideoCache.Key videoKey = null;
@@ -144,10 +145,11 @@ public final class DirectVideoCoach {
         long warmWaitNanos = 0;
         ReplyTrace replyTrace = new ReplyTrace(false);
         // 영상 없이 말로 하는 회차(SOMA-745): 영상을 찾거나 올리지 않고 목적별 코칭을 영상 없는 모드로 탄다.
-        boolean talk = PurposeLoop.of(session) != null && PurposeLoop.of(session).talk();
+        PurposeLoop.Purpose selectedPurpose = PurposeLoop.of(session);
+        boolean talk = selectedPurpose != null && selectedPurpose.talk();
         boolean loop = (practiceLoop || talk) && DirectVideoPracticeLoop.applies(session);
         // 목적별 코칭(SOMA-719): 앱이 목적을 골라 시작한 회차. 지금 흐름의 실험(모델·흐름 A/B, 자문위원 성격)과 섞지 않는다.
-        PurposeLoop.Purpose purpose = loop ? PurposeLoop.of(session) : null;
+        PurposeLoop.Purpose purpose = loop ? selectedPurpose : null;
         String persona = loop && purpose == null ? persona(session, operationId) : "";
         // 맞춤 코칭(SOMA-795)은 자문위원 파일이 없는 배우에게만 붙는다. 글은 대화 상태가 아니라 지금의 기억에서 읽는다.
         String profile = DirectVideoPrompts.ACTOR_PROFILE.equals(persona) ? session.priorForModel().coachingProfile() : null;
