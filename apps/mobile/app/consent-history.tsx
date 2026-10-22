@@ -5,13 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
+import { MarketingNoticeDialog } from '@/components/marketing-notice-dialog';
 import { Markdown } from '@/components/markdown';
 import { BlueSwitch, TwoLineRow } from '@/components/ui/list-rows';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { consentChangeFailureAction, consentSettingsRows, type ConsentSettingsRow } from '@/lib/consent-entry';
 import { translate as t } from '@/lib/i18n';
-import { isMarketingConsent, marketingDecisionNotice } from '@/lib/marketing-consent';
+import { isMarketingConsent, marketingDecisionNotice, type MarketingNotice } from '@/lib/marketing-consent';
 
 /** 「동의함 · 2026.09.03」 / 「거절함」 / 「아직 결정하지 않음」. */
 function decisionLine(row: ConsentSettingsRow): string {
@@ -28,6 +29,7 @@ function decisionLine(row: ConsentSettingsRow): string {
 export default function ConsentHistoryScreen() {
   const router = useRouter();
   const { alert, dialog } = useAppDialog();
+  const [notice, setNotice] = useState<MarketingNotice | null>(null);
   const [rows, setRows] = useState<ConsentSettingsRow[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
@@ -67,8 +69,7 @@ export default function ConsentHistoryScreen() {
         await loadConsents().catch(() => undefined);
         // 광고성 정보 수신 동의·거부는 처리 결과를 알린다(정보통신망법 제50조 제7항).
         if (isMarketingConsent(row.type)) {
-          const notice = marketingDecisionNotice([{ type: row.type, decision }], new Date());
-          if (notice) void alert(notice);
+          setNotice(marketingDecisionNotice([{ type: row.type, decision }], new Date()));
         }
       } catch (err) {
         if (consentChangeFailureAction(err) === 'reload') {
@@ -150,6 +151,7 @@ export default function ConsentHistoryScreen() {
         </ScrollView>
       )}
       {dialog}
+      <MarketingNoticeDialog notice={notice} onClose={() => setNotice(null)} />
     </SafeAreaView>
   );
 }

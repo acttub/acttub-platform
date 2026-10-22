@@ -39,6 +39,7 @@ import {
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
 import { sweepDeviceFiles } from '@/lib/account-files';
+import { MarketingNoticeHost } from '@/components/marketing-notice-dialog';
 import { ReconsentPopup } from '@/components/reconsent-popup';
 import { SpotlightHost } from '@/components/spotlight-guide';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -423,6 +424,8 @@ function RootNavigator() {
         <Stack.Screen name="memory" options={{ headerShown: false }} />
       </Stack>
       <ReconsentPopup visible={reconsentOpen} />
+      {/* 가입 동의·재동의의 광고성 정보 처리 결과(S5.13)를 다음 화면 위에 띄운다. */}
+      <MarketingNoticeHost />
     </>
   );
 }

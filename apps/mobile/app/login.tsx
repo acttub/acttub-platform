@@ -5,7 +5,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { SecondaryButton } from '@/components/ui/buttons';
+import { TextButton } from '@/components/ui/buttons';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
@@ -194,7 +194,8 @@ export default function LoginScreen() {
         ) : list.status === 'error' ? (
           <View style={styles.reloadBox}>
             <Text style={styles.error}>{t('login.providersFail')}</Text>
-            <SecondaryButton label={t('login.reload')} onPress={() => void loadProviders()} style={styles.reload} />
+            {/* pen S3.2 — 빨간 한 줄 아래 파란 글자 링크(간격 4). */}
+            <TextButton tone="accent" label={t('login.reload')} onPress={() => void loadProviders()} />
           </View>
         ) : providers.length === 0 ? (
           <Text style={styles.error}>{t('login.providersEmpty')}</Text>
@@ -246,8 +247,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
-  reloadBox: { alignItems: 'center', gap: 14 },
-  reload: { alignSelf: 'stretch' },
+  reloadBox: { alignItems: 'center', gap: 4 },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
 });
 

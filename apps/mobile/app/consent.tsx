@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConsentRow } from '@/components/consent-row';
@@ -25,6 +25,7 @@ import {
   marketingDecisionNotice,
   shouldNoticeEntryDecisions,
 } from '@/lib/marketing-consent';
+import { showMarketingNotice } from '@/lib/marketing-notice';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -106,12 +107,12 @@ export default function ConsentScreen() {
     try {
       const created = await submitSignup(choiceMap);
       // 광고성 정보 수신에 동의했으면 처리 결과를 알린다(정보통신망법 제50조 제7항). 가입이 끝나면 이 화면이
-      // 내려가므로 앱 다이얼로그 대신 OS 알림창을 쓴다.
+      // 내려가므로 앱 전체 자리로 보내 다음 화면 위에 S5.13 팝업으로 띄운다.
       const decisions = entryMarketingDecisions(documents, choiceMap);
       const notice = created && shouldNoticeEntryDecisions(decisions)
         ? marketingDecisionNotice(decisions, new Date())
         : null;
-      if (notice) Alert.alert(notice.title, notice.message);
+      if (notice) showMarketingNotice(notice);
     } catch (cause) {
       if (signupFailureAction(cause) === 'reload_documents') {
         // 보는 사이 새 판이 나왔다. 문서를 다시 받아 화면을 새로 그린다.
@@ -169,7 +170,6 @@ export default function ConsentScreen() {
 
       <ScrollView contentContainerStyle={styles.list}>
         <Text style={styles.title}>{t('consent.heading')}</Text>
-        <Text style={styles.hint}>{t('consent.headingHint')}</Text>
         <Pressable
           style={styles.allRow}
           onPress={toggleEverything}
@@ -245,7 +245,6 @@ const styles = StyleSheet.create({
   // pen S4 「본문」 — 안쪽 [16,24,24,24], 줄 사이 14.
   list: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
   title: { fontSize: 22, fontWeight: '900', lineHeight: 31, color: palette.text },
-  hint: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
   docBody: { paddingHorizontal: 16, paddingBottom: 12 },
   subRow: { flexDirection: 'row', gap: 20, paddingLeft: 46, paddingBottom: 10, marginTop: -14 },
   subItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
