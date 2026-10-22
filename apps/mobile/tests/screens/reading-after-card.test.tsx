@@ -83,7 +83,7 @@ test('녹음 코치: 첫 차례를 보이고 답하면 둘째 차례와 「이 �
   expect(reply).toHaveBeenCalledWith('c1', '붙잡고 싶었어요');
   expect(await screen.findByText('「가자」')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '이 한 줄 찍기' }));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-guide', params: { next: 'upload' } });
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
 });
 
 test('녹음 코치: 소리가 든 녹음이 셋보다 적으면 이유를 알리고 닫기만 둔다', async () => {

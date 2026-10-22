@@ -160,11 +160,11 @@ export default function ScriptCocreateScreen() {
     }
   };
 
-  // 지금 찍기 — 장면 칸을 채워 두고 찍는 법 → 카메라 → 새 연습 준비(next=upload)로 간다.
+  // 지금 찍기 — 장면 칸을 채워 두고 카메라 → 새 연습 준비(next=upload)로 간다.
   const recordNow = () => {
     if (!script) return;
     setContinueOrigin({ kind: 'reading', scene: coachSceneFor(script) });
-    router.replace({ pathname: '/record-guide', params: { next: 'upload' } });
+    router.replace({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
   };
 
   const back = () => {

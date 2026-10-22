@@ -1,6 +1,5 @@
 import { ApiError, NetworkError, RequestAbortError } from '../../lib/api-request.ts';
 import { browseFailure, browseFailureMessage } from '../../lib/challenge/browse.ts';
-import { reportRequestFailure, reportRequestFailureMessage } from '../../lib/challenge/ai-report.ts';
 import { createFailure, createFailureMessage } from '../../lib/challenge/create.ts';
 import { entryFailure, entryFailureMessage } from '../../lib/challenge/entry.ts';
 import { blockFailureMessage, reportFailure, reportFailureMessage } from '../../lib/challenge/moderation.ts';
@@ -39,7 +38,6 @@ const pair = (classify, message) => input => {
 };
 export const CLASSIFIERS = {
   browseFailure: pair(browseFailure, browseFailureMessage),
-  reportRequestFailure: pair(reportRequestFailure, reportRequestFailureMessage),
   createFailure: pair(createFailure, createFailureMessage),
   entryFailure: pair(entryFailure, entryFailureMessage),
   reportFailure: pair(reportFailure, reportFailureMessage),

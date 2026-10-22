@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -48,9 +48,6 @@ export default function ChallengesScreen() {
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
-  // 보관함에서 "챌린지에 올리기"로 오면 올릴 챌린지를 고르는 화면이 된다(A2.3 → A18.1).
-  const { pickVideoId } = useLocalSearchParams<{ pickVideoId?: string }>();
-  const picking = typeof pickVideoId === 'string' && pickVideoId.length > 0;
   const [tab, setTab] = useState<ChallengeTab>('popular');
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
@@ -111,12 +108,11 @@ export default function ChallengesScreen() {
   useFocusEffect(
     useCallback(() => {
       void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
-      if (picking) return;
       void api
         .listChallenges({ tab: 'ended' })
         .then((result) => setLastWeek(lastWeekResult(result.challenges)))
         .catch(() => setLastWeek(null));
-    }, [picking]),
+    }, []),
   );
 
   const openDetail = (challenge: ChallengeCard) => {
@@ -125,23 +121,14 @@ export default function ChallengesScreen() {
   };
   const perform = (challenge: ChallengeCard) => {
     if (!canPerform(challenge)) return;
-    if (picking) {
-      // 고른 영상을 그 챌린지 올리기 화면으로 보낸다.
-      logEvent('challenge_pick_for_video', { id: challenge.id });
-      router.replace({
-        pathname: '/challenge-upload',
-        params: { challengeId: challenge.id, videoId: pickVideoId as string },
-      });
-      return;
-    }
     logEvent('challenge_perform_tap', { id: challenge.id });
     router.push({
       pathname: '/record-video',
       params: { mode: 'challenge', challengeId: challenge.id, line: challenge.line, work: challenge.work },
     });
   };
-  /** 고르는 중에는 카드를 누르면 바로 그 대사에 올린다. 아니면 대사 상세로 간다. */
-  const tapCard = (challenge: ChallengeCard) => (picking && canPerform(challenge) ? perform(challenge) : openDetail(challenge));
+  /** 카드를 누르면 대사 상세로 간다. */
+  const tapCard = (challenge: ChallengeCard) => openDetail(challenge);
 
   const emptyText =
     tab === 'ended' ? t('challenges.emptyEnded') : tab === 'mine' ? t('challenges.emptyMine') : t('challenges.emptyRunning');
@@ -153,7 +140,7 @@ export default function ChallengesScreen() {
         {firstTime && (
           <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenges_back_home" onPress={() => router.navigate('/')} />
         )}
-        <Text style={[styles.title, styles.titleGrow]}>{picking ? t('challengeUpload.pickChallenge') : t('challenges.title')}</Text>
+        <Text style={[styles.title, styles.titleGrow]}>{t('challenges.title')}</Text>
         <View style={styles.headerRight}>
           <Pressable
             style={styles.iconBtn}
@@ -188,7 +175,7 @@ export default function ChallengesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]}>
-        {lastWeek && !picking && (
+        {lastWeek && (
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
             onPress={() => {
@@ -211,7 +198,7 @@ export default function ChallengesScreen() {
         {featured && (
           <TodayHero
             challenge={featured}
-            guide={showGuide && !picking}
+            guide={showGuide}
             onOpen={() => tapCard(featured)}
             onPerform={() => perform(featured)}
           />
@@ -271,9 +258,9 @@ export default function ChallengesScreen() {
         onDone={(seeWeek) => {
           setIntro(false);
           void markChallengeIntroSeen();
-          if (seeWeek && featured && !picking) openDetail(featured);
+          if (seeWeek && featured) openDetail(featured);
         }}
-        canSeeWeek={Boolean(featured) && !picking}
+        canSeeWeek={Boolean(featured)}
       />
     </SafeAreaView>
   );

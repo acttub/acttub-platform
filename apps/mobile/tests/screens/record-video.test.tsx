@@ -296,15 +296,14 @@ describe('기본 촬영 화면', () => {
     expect(takePickedVideo()).toBeNull();
   });
 
-  test('기본 촬영은 보관함에 넣고 그 영상 화면으로 간다', async () => {
+  test('기본 촬영은 보관함에 넣고 이전 화면으로 돌아간다', async () => {
     mockParams = { mode: 'plain' };
     await render(<RecordVideoScreen />);
 
     await recordAndStop();
 
-    await waitFor(() =>
-      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/archive-detail', params: { pending: 'pend1' } }),
-    );
+    await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
+    expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(peekRecordedVideo()).toBeNull();
   });
 
@@ -615,9 +614,8 @@ describe('용도 고르기(하단 탭에서 곧장 연 촬영)', () => {
 
     await recordAndStop();
 
-    await waitFor(() =>
-      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/archive-detail', params: { pending: 'pend1' } }),
-    );
+    await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
+    expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(listChallenges).not.toHaveBeenCalled();
   });
 

@@ -259,7 +259,7 @@ test('설정·편집·코치 기억으로 보내고, 탭을 바꾸면 그 카드
     ['/profile-edit'],
     [{ pathname: '/memory', params: { from: 'profile' } }],
     ['/history'],
-    [{ pathname: '/ai-report', params: { entryId: 'e1' } }],
+    ['/challenge-entries'],
     ['/challenge-entries'],
     [{ pathname: '/challenge-play', params: { entryId: 's1' } }],
   ]);

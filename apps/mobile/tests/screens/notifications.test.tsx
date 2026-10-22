@@ -91,12 +91,6 @@ test.each([
     { pathname: '/challenge-detail', params: { id: 'c2' } },
     'challenge',
   ],
-  [
-    'AI 리포트 알림은 대상이 비공개여도 리포트를 연다',
-    group({ group_key: 'k', kind: 'entry_ai_report_ready', entry_id: 'e3', target_available: false }),
-    { pathname: '/ai-report', params: { entryId: 'e3' } },
-    'report',
-  ],
 ])('%s', async (_name, item, route, targetKind) => {
   listNotifications.mockResolvedValue({ groups: [item], next_cursor: null });
   await render(<NotificationsScreen />);

@@ -1,7 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 
-import { LegacyArchivePrompt } from '@/components/legacy-archive-prompt';
 import { TAB_BAR_HIDDEN, tabButton, tabIcon, useTabBarStyle } from '@/components/ui/tab-bar';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -37,7 +36,6 @@ export default function TabLayout() {
 
   return (
     <>
-      <LegacyArchivePrompt />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: palette.blue,
