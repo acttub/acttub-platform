@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState, type ComponentProps, type Ref } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type Ref } from 'react';
 import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -124,6 +124,8 @@ export default function HomeScreen() {
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
+  // 안내는 앱 맨 바깥에 그려져 다른 화면 위에도 덮인다 — 홈이 보일 때만 연다.
+  const guideFocused = useRef(false);
   // 홈 안내를 띄울지 확인을 마쳤는지, 그리고 이번 방문에 안내를 봤는지. 안내를 본 방문에는 공지 포스터(AI 목소리 홍보 등)·
   // 연속일 축하를 미룬다 — 안내 4단계가 끝나자마자 다른 팝업이 연달아 뜨지 않게(SOMA-771).
   const [guideChecked, setGuideChecked] = useState(false);
@@ -138,7 +140,7 @@ export default function HomeScreen() {
 
   const openHomeGuideIfNew = useCallback(() => {
     void hasSeenSpotlight('home').then((seen) => {
-      if (!seen) setGuideOpen(true);
+      if (!seen && guideFocused.current) setGuideOpen(true);
       setGuideChecked(true);
     });
   }, []);
@@ -148,6 +150,7 @@ export default function HomeScreen() {
       // 올 때마다 본 적 있는지 묻는다(기기에서 읽는 값이라 싸다). 한 번만 묻고 말면,
       // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
       // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
+      guideFocused.current = true;
       if (currentTutorial()) finishTutorial('left');
       setGuideShownThisVisit(false);
       void hasSeenTutorial().then((seen) => {
@@ -208,6 +211,9 @@ export default function HomeScreen() {
       });
       return () => {
         cancelled = true;
+        // 떠나면 닫는다 — 설정에 다녀오면 다시 묻고 연다.
+        guideFocused.current = false;
+        setGuideOpen(false);
       };
     }, [router, openHomeGuideIfNew]),
   );

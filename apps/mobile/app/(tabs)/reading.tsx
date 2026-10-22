@@ -61,11 +61,13 @@ export default function ReadingList() {
   const generation = useRef(0);
   // 대본 탭에서 처음 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
   const [guideOpen, setGuideOpen] = useState(false);
+  // 안내는 앱 맨 바깥에 그려져 다른 화면 위에도 덮인다 — 이 탭이 보일 때만 연다.
+  const guideFocused = useRef(false);
   const newTarget = useSpotlightTarget(TARGET.readingNew);
 
   const openReadingGuideIfNew = useCallback(() => {
     void hasSeenSpotlight('reading').then((seen) => {
-      if (!seen) setGuideOpen(true);
+      if (!seen && guideFocused.current) setGuideOpen(true);
     });
   }, []);
 
@@ -92,6 +94,7 @@ export default function ReadingList() {
 
   useFocusEffect(
     useCallback(() => {
+      guideFocused.current = true;
       void load(q);
       // 설정의 동의 목록에서 고품질 목소리 동의를 바꿨을 수 있다 — 스위치를 다시 맞춘다.
       void refreshVoice().catch(() => undefined);
@@ -105,6 +108,9 @@ export default function ReadingList() {
       });
       return () => {
         generation.current += 1;
+        // 떠나면 닫는다 — 설정에 다녀오면 다시 묻고 연다.
+        guideFocused.current = false;
+        setGuideOpen(false);
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [load]),
