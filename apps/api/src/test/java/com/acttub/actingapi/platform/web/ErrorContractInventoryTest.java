@@ -481,8 +481,13 @@ class ErrorContractInventoryTest {
                     "feature.coach.CoachConversationIT"),
             covered("feature.coach.app.ConversationService|409|conversation_closed", 2,
                     "feature.coach.CoachConversationIT"),
-            covered("feature.coach.app.ConversationService|409|conversation_conflict", 2,
+            covered("feature.coach.app.ConversationService|409|conversation_conflict", 4,
                     "feature.coach.CoachConversationIT"),
+            // 대화 이어하기(SOMA-782): 응답 상한 가까움·이어 갈 수 없는 대화.
+            covered("feature.coach.app.ConversationService|409|conversation_limit_reached", 1,
+                    "feature.coach.app.ConversationServiceTest"),
+            covered("feature.coach.app.ConversationService|409|conversation_not_resumable", 1,
+                    "feature.coach.app.ConversationServiceTest"),
             covered("feature.coach.app.ConversationService|422|request_fingerprint_mismatch", 1,
                     "feature.coach.CoachConversationIT"),
             // 바깥 호출이 도는 사이에 탈퇴가 끝났다 — 저장 직전의 계정 상태 확인이 낸다(practice.coach).
