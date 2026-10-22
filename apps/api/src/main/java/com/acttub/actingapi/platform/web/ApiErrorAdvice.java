@@ -35,6 +35,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.util.ContentCachingRequestWrapper;
@@ -170,6 +171,15 @@ public class ApiErrorAdvice {
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     ResponseEntity<Map<String, Object>> uploadTooLarge() {
         return body(413, "upload_too_large");
+    }
+
+    /**
+     * 응답을 쓰는 도중 클라이언트가 연결을 끊었다(Broken pipe) — 서버 실패가 아니라 보고하지 않는다. 응답은 이미 못 쓰므로
+     * null 을 돌려 Spring 이 더 쓰지 않고 요청을 끝내게 한다(Spring 의 ResponseEntityExceptionHandler 와 같은 처리).
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    ResponseEntity<Map<String, Object>> clientGone() {
+        return null;
     }
 
     @ExceptionHandler(Exception.class)

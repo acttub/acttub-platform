@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 
 class ApiErrorAdviceTest {
@@ -144,6 +146,14 @@ class ApiErrorAdviceTest {
     }
 
     @Test
+    void clientDisconnectWhileWritingTheResponseIsNotReported() throws Exception {
+        MvcResult result = mvc.perform(get("/test/client-gone")).andReturn();
+
+        assertThat(result.getResponse().getContentAsString()).isEmpty();
+        assertThat(reporter.reports()).isEmpty();
+    }
+
+    @Test
     void repeatedUnhandledFailuresOnTheAdvicePathUseTheSentrySuppressionWindow()
             throws Exception {
         IScopes scopes = mock(IScopes.class);
@@ -190,6 +200,13 @@ class ApiErrorAdviceTest {
         @GetMapping("/test/spring-timeout")
         void springTimeout() {
             throw new AsyncRequestTimeoutException();
+        }
+
+        @GetMapping("/test/client-gone")
+        void clientGone() throws AsyncRequestNotUsableException {
+            throw new AsyncRequestNotUsableException(
+                    "ServletOutputStream failed to write: java.io.IOException: Broken pipe",
+                    new IOException("Broken pipe"));
         }
     }
 }
