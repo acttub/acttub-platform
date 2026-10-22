@@ -36,6 +36,7 @@ import { buildStartBody, dialogueNumbers, roleLabel, turnRoles } from '@/lib/rea
 import { saidEnough } from '@/lib/reading/line-coverage';
 import { diffWords } from '@/lib/reading/word-diff';
 import { finishMonologueRun, isMonologue, livePosition, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
+import { lineGroups } from '@/lib/reading/line-groups';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
 import {
@@ -58,6 +59,7 @@ import {
   resumeRun as resumeAt,
   shownText,
   tickElapsed,
+  turnSpan,
   type LineAid,
   type RunState,
 } from '@/lib/reading/session-run';
@@ -160,7 +162,7 @@ export default function ReadingPlay() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { confirm, alert, dialog } = useAppDialog();
+  const { confirm, alert, sheet, dialog } = useAppDialog();
   const script = getCurrent();
   const session = getCurrentSession();
   const mic = useReadingMic();
@@ -173,7 +175,16 @@ export default function ReadingPlay() {
     if (startIndex < 0 || endIndex < 0) return null;
     // 진행은 함께 말하는 줄까지 내 차례로 센다(turnRoles). 화면에 「내 배역」으로 보이는 것은 고른 배역 이름만이다.
     const myNames = script.characters.filter((c) => session.my_character_ids.includes(c.id)).map((c) => c.name);
-    return { lines: script.lines, lineIds: script.lineIds, myRoles: turnRoles(script.characters, session.my_character_ids), myNames, startIndex, endIndex };
+    return {
+      lines: script.lines,
+      lineIds: script.lineIds,
+      myRoles: turnRoles(script.characters, session.my_character_ids),
+      myNames,
+      startIndex,
+      endIndex,
+      // 같은 배역 연속 대사는 한 차례로 묶는다(SOMA-806). 독백은 문장마다 따로 맞춘다.
+      monologue: isMonologue(script.characters),
+    };
   }, [script, session]);
 
   const [run, setRun] = useState<RunState | null>(() => {
@@ -419,6 +430,8 @@ export default function ReadingPlay() {
       const detached = sttUsed ? stt.detachRecording() : Promise.resolve(null);
       const closed = recordingClosed.current;
       const startedAt = turnStartedAt.current;
+      const span = runRef.current ? turnSpan(runRef.current) : null;
+      const single = !span || span.start === span.end;
       const fromMic = await mic.stop();
       const settled = (async () => {
         let uri: string | null = null;
@@ -433,7 +446,8 @@ export default function ReadingPlay() {
           durationMs = fromMic.durationMs || durationMs;
           kind = fromMic.uri ? 'recorder' : kind;
         }
-        if (voiceFeedbackOn.current) collectPronunciation(lineId, sttUsed ? text : '', uri ? { uri, contentType: contentTypeFor(uri, kind) } : null);
+        // 발음 피드백은 줄 하나의 녹음·받아쓴 글을 그 줄 원문과 견주므로 묶인 차례(SOMA-806)는 건너뛴다.
+        if (voiceFeedbackOn.current && single) collectPronunciation(lineId, sttUsed ? text : '', uri ? { uri, contentType: contentTypeFor(uri, kind) } : null);
         if (!uri) return;
         if (!session?.record || closed) {
           await deleteDeviceFile(uri).catch(() => undefined);
@@ -707,9 +721,12 @@ export default function ReadingPlay() {
     if (phase.kind !== 'running' || tipOpen || !current || current.status !== 'partner') return;
     const line = current.lines[current.index] as DialogueLine;
     const from = current.index;
+    const span = turnSpan(current);
     // 줄의 말과 소리 낼 글(SOMA-751). 로마자 아랍어 줄은 서버가 바꿔 둔 아랍 문자를 아랍어로 읽고, 한 줄에 다른 말이
-    // 이어지면(「고맙습니다. شكراً」) 조각마다 그 말로 차례로 읽는다.
-    const parts = speechParts(line).map((part) => ({ ...part, text: speakableText(part.text) }));
+    // 이어지면(「고맙습니다. شكراً」) 조각마다 그 말로 차례로 읽는다. 묶인 대사(SOMA-806)는 줄들을 끊지 않고 이어 읽는다.
+    const parts = (current.lines.slice(span.start, span.end + 1) as DialogueLine[])
+      .flatMap((l) => speechParts(l))
+      .map((part) => ({ ...part, text: speakableText(part.text) }));
     const preset = presetFor(line.role);
     let cancelled = false;
     const finish = () => {
@@ -802,6 +819,8 @@ export default function ReadingPlay() {
   useEffect(() => {
     if (monologue || phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;
     const from = run.index;
+    const span = turnSpan(run);
+    const turnText = run.lines.slice(span.start, span.end + 1).map((l) => l.text).join(' ');
     setAid('none');
     setSaid('');
     saidRef.current = '';
@@ -819,7 +838,8 @@ export default function ReadingPlay() {
       if (event === 'speech_end' && session.advance === 'silence') {
         // 받아쓰기가 켜져 있으면 대본 글자 수의 90% 이상 말한 뒤의 침묵만 넘긴다 — 대사 중간의 사이에 넘어가지 않게(SOMA-804).
         // 못 미치면 계속 듣는다. 다시 말하고 멈추면 또 잰다. 받아쓰기 없이 음량만 재는 녹음기는 글자를 몰라 예전처럼 넘긴다.
-        if (sttActive.current && !saidEnough((run.lines[from] as DialogueLine).text, saidRef.current)) return;
+        // 묶인 차례(SOMA-806)는 묶음 줄 전체 글자로 잰다.
+        if (sttActive.current && !saidEnough(turnText, saidRef.current)) return;
         if (holdRef.current) deferredRef.current = { kind: 'end_turn', from };
         else void endMyTurn(from);
       }
@@ -1063,15 +1083,30 @@ export default function ReadingPlay() {
     setAttempt((a) => a + 1);
   };
 
-  /** 지금 대사 줄을 고친다 — 리딩을 멈추고 대본 전체와 같은 고치기 시트를 연다. */
+  /**
+   * 지금 대사 줄을 고친다 — 리딩을 멈추고 대본 전체와 같은 고치기 시트를 연다. 묶인 대사(SOMA-806)면 먼저 고칠 줄을 고른다 —
+   * 저장은 줄 단위다. 고르다 닫으면 멈춘 채 둔다(재개로 이어 한다).
+   */
   const openLineEdit = () => {
     const cur = runRef.current;
     const line = cur?.lines[cur.index];
     if (!cur || !script || line?.type !== 'dialogue') return;
     editResumes.current = cur.status === 'mine' || cur.status === 'partner';
     doPause();
-    const characterId = script.characters.find((c) => c.name === line.role)?.id ?? null;
-    setEditing({ lineId: cur.lineIds[cur.index], draft: { kind: 'dialogue', characterId, text: line.text } });
+    const edit = (index: number) => {
+      const target = cur.lines[index] as DialogueLine;
+      const characterId = script.characters.find((c) => c.name === target.role)?.id ?? null;
+      setEditing({ lineId: cur.lineIds[index], draft: { kind: 'dialogue', characterId, text: target.text } });
+    };
+    const { start, end } = turnSpan(cur);
+    if (start === end) {
+      edit(start);
+      return;
+    }
+    sheet({
+      title: t('reading.lineEditPick'),
+      actions: cur.lines.slice(start, end + 1).map((l, k) => ({ label: l.text, onPress: () => edit(start + k) })),
+    });
   };
 
   /** 시트를 닫으면 고친 대본을 진행에 반영하고, 진행 중이었으면 그 줄부터 이어서 한다. */
@@ -1580,9 +1615,20 @@ export default function ReadingPlay() {
     />
   ) : null;
 
-  const past: { key: string; index: number; line: ScriptLine }[] = [];
-  // 독백은 문장 목록이 지금 카드 안에 다 있어 위로 쌓지 않는다(pen c1MiZ).
-  if (!monologue) for (let i = run.startIndex; i < run.index && i <= run.endIndex; i++) past.push({ key: run.lineIds[i], index: i, line: run.lines[i] });
+  // 지나간 줄은 같은 배역 묶음(SOMA-806)마다 하나로 쌓는다. 독백은 문장 목록이 지금 카드 안에 다 있어 위로 쌓지 않는다(pen c1MiZ).
+  const past: { key: string; index: number; lines: { id: string; line: ScriptLine }[] }[] = [];
+  if (!monologue) {
+    for (const g of lineGroups(run.lines, { monologue })) {
+      const start = Math.max(g.start, run.startIndex);
+      const end = Math.min(g.end, run.index - 1, run.endIndex);
+      if (start > end) continue;
+      const lines = run.lines.slice(start, end + 1).map((l, k) => ({ id: run.lineIds[start + k], line: l }));
+      past.push({ key: run.lineIds[start], index: start, lines });
+    }
+  }
+  // 지금 차례의 나머지 줄 — 묶인 대사는 한 카드에 줄마다 이어 보인다. 「첫 단어」는 첫 줄에만, 「원문 보기」는 묶음 전체에 적용된다.
+  const span = turnSpan(run);
+  const restLines = isDialogue && !monologue ? run.lines.slice(span.start + 1, span.end + 1) : [];
   const monoIndexes = monologue ? sentenceIndexes(run, run.startIndex) : [];
   const monoCounter = monologue
     ? t('reading.monologueProgress', { n: Math.max(0, monoIndexes.indexOf(run.index)) + 1, total: monoIndexes.length, time: mmss(run.elapsedMs) })
@@ -1613,8 +1659,10 @@ export default function ReadingPlay() {
         contentContainerStyle={styles.flowContent}
         onContentSizeChange={() => !monologue && scrollRef.current?.scrollToEnd({ animated: true })}>
         {/* 지나간 대사를 누르면 그 줄부터 다시 한다(SOMA-785). 탭 기록에 대본 글이 실리지 않게 ph-label 을 붙인다. */}
-        {past.map(({ key, index, line: l }) =>
-          l.type === 'dialogue' ? (
+        {past.map(({ key, index, lines }) => {
+          const l = lines[0].line;
+          if (l.type !== 'dialogue') return <Text key={key} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>;
+          return (
             <Pressable
               key={key}
               style={({ pressed }) => [styles.pastRow, pressed && styles.pastRowPressed]}
@@ -1622,18 +1670,18 @@ export default function ReadingPlay() {
               accessibilityRole="button"
               ph-label="reading_play_jump">
               <Text style={styles.pastRole}>{labelOf(l.role)}</Text>
-              {mineOf(l) && masking ? (
-                <SpokenText text={l.text} said={saidOf(key)} />
-              ) : hiddenOf(l) ? (
-                <HiddenBars text={l.text} tone="past" />
-              ) : (
-                <Text style={styles.pastText}>{l.text}</Text>
+              {lines.map(({ id, line: g }) =>
+                mineOf(g) && masking ? (
+                  <SpokenText key={id} text={g.text} said={saidOf(id)} />
+                ) : hiddenOf(g) ? (
+                  <HiddenBars key={id} text={g.text} tone="past" />
+                ) : (
+                  <Text key={id} style={styles.pastText}>{g.text}</Text>
+                ),
               )}
             </Pressable>
-          ) : (
-            <Text key={key} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>
-          ),
-        )}
+          );
+        })}
 
         {coachMark !== 'next' && coachElement}
 
@@ -1716,6 +1764,11 @@ export default function ReadingPlay() {
             ) : (
               <Text style={styles.lineText}>{currentText}</Text>
             )}
+            {restLines.map((l, k) => {
+              const shown = shownText(l.text, hiddenOf(l) && !revealed, aid === 'original' ? 'original' : 'none');
+              const key = run.lineIds[span.start + 1 + k];
+              return shown === null ? <HiddenBars key={key} text={l.text} tone="current" /> : <Text key={key} style={styles.lineText}>{shown}</Text>;
+            })}
             {myTurn && hiddenOf(line) && !revealed && aid !== 'original' && (
               <View style={styles.aidRow}>
                 {aid === 'none' && (

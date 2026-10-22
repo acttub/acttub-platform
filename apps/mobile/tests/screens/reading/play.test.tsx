@@ -1626,3 +1626,87 @@ test('SOMA-597: 끝까지 제대로 읽으면 빠뜨린 문장이 없다고 하�
   expect(screen.queryByText('빠뜨림 · 여기부터 다시')).not.toBeOnTheScreen();
   expect(screen.queryByText('원문과 다르게 말한 대사')).not.toBeOnTheScreen();
 });
+
+// SOMA-806 — 같은 배역 연속 대사는 한 카드·한 차례다.
+const SAME_ROLE_LINES = [
+  ['dialogue', '민재', '오늘 왔구나.'],
+  ['dialogue', '민재', '어디 앉을래?'],
+  ['direction', '서연이 자리에 앉는다.'],
+  ['dialogue', '서연', '응, 늦어서 미안해.'],
+  ['dialogue', '서연', '차가 막혔어.'],
+  ['dialogue', '민재', '괜찮아.'],
+] as Parameters<typeof scriptDetail>[0];
+const SAME_ROLE_RANGE = { start_line_id: 'l1', end_line_id: 'l6', current_line_id: 'l1' };
+
+test('SOMA-806: 내 묶음은 한 카드에 줄마다 보이고 한 번에 말하면 넘어가며, 말한 것·진행 저장은 줄별로 간다', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  const server = await startPlay(SAME_ROLE_RANGE, scriptDetail(SAME_ROLE_LINES));
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(screen.getByText('오늘 왔구나.')).toBeOnTheScreen();
+  expect(screen.getByText('어디 앉을래?')).toBeOnTheScreen();
+  expect(screen.getByText(/^0 \/ 5/)).toBeOnTheScreen();
+
+  mockStt.finish.mockResolvedValueOnce('오늘 왔구나 어디 앉을래');
+  await speechEnds(() => recognizer);
+  // 상대 묶음은 상대역이 두 줄을 이어 읽고 한 번에 넘어간다.
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+  expect(queue.take.mock.calls.map(([x]) => x.text)).toEqual(['응, 늦어서 미안해.', '차가 막혔어.']);
+  expect(screen.getByText(/^4 \/ 5/)).toBeOnTheScreen();
+
+  mockStt.finish.mockResolvedValueOnce('괜찮아');
+  await speechEnds(() => recognizer);
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(server.saveProgress.mock.calls.map(([, body]) => body.current_line_id)).toEqual(['l4', 'l6', null]);
+  expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({
+    complete: true,
+    line_results: [{ line_id: 'l1', said: '오늘 왔구나' }, { line_id: 'l2', said: '어디 앉을래' }, { line_id: 'l6', said: '괜찮아' }],
+  }));
+  // 녹음은 차례 하나에 파일 하나 — 묶음의 첫 줄에 올린다.
+  expect(jest.mocked(enqueueLineRecording).mock.calls.map(([input]) => [input.lineId, input.transcript])).toEqual([
+    ['l1', '오늘 왔구나 어디 앉을래'],
+    ['l6', '괜찮아'],
+  ]);
+});
+
+test('SOMA-806: 지나간 묶음을 누르면 묶음 처음부터 다시 한다', async () => {
+  await startPlay(SAME_ROLE_RANGE, scriptDetail(SAME_ROLE_LINES));
+  await screen.findByText(ME);
+  await speechEnds();
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+
+  await fireEvent.press(screen.getByText('어디 앉을래?'));
+  expect(await screen.findByText('「오늘 왔구나.」부터 다시 읽어요')).toBeOnTheScreen();
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(screen.getByText(/^0 \/ 5/)).toBeOnTheScreen();
+});
+
+test('SOMA-806: 묶인 대사에서 고치기를 누르면 고칠 줄을 먼저 고른다', async () => {
+  await startPlay(SAME_ROLE_RANGE, scriptDetail(SAME_ROLE_LINES));
+  await screen.findByText('듣는 중');
+
+  await fireEvent.press(screen.getByLabelText('줄 고치기'));
+  expect(screen.getByText('고칠 줄을 골라 주세요')).toBeOnTheScreen();
+  expect(screen.getByText('이어서')).toBeOnTheScreen();
+  await fireEvent.press(screen.getAllByText('어디 앉을래?').at(-1)!);
+  expect(screen.getByLabelText('글')).toHaveDisplayValue('어디 앉을래?');
+});
+
+test('SOMA-806: 묶인 내 차례는 묶음 줄 전체 글자의 90%를 받아쓴 뒤의 침묵에만 넘긴다', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay(SAME_ROLE_RANGE, scriptDetail(SAME_ROLE_LINES));
+  await screen.findByText(ME);
+  await waitFor(() => expect(recognizer).not.toBeNull());
+
+  // 첫 줄 「오늘 왔구나.」는 다 말했지만 묶음 글자(오늘왔구나어디앉을래 10자)의 절반이다 — 넘어가지 않는다.
+  await act(async () => recognizer!.onInterim!('오늘 왔구나'));
+  await act(async () => recognizer!.onEvent('speech_end'));
+  expect(screen.getByText(ME)).toBeOnTheScreen();
+  expect(mockStt.finish).not.toHaveBeenCalled();
+
+  await act(async () => recognizer!.onInterim!('오늘 왔구나 어디 앉을래'));
+  await act(async () => recognizer!.onEvent('speech_end'));
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
+});
