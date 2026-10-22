@@ -41,7 +41,7 @@ import { newRequestId } from '@/lib/request-id';
  */
 export default function AiReportScreen() {
   const router = useRouter();
-  const { alert, confirm, dialog } = useAppDialog();
+  const { alert, confirm, sheet, dialog } = useAppDialog();
   const params = useLocalSearchParams<{ entryId?: string; videoId?: string; challengeId?: string; visibility?: string; request?: string }>();
   const { entryId } = params;
   const challengeId = params.challengeId || null;
@@ -140,13 +140,16 @@ export default function AiReportScreen() {
       confirmLabel: t('aiReport.publicConfirm'),
     });
     if (!ok) return;
-    // 공개하면서 얼굴 모자이크를 켤지 묻는다(SOMA-809). 「그대로 공개」는 원본으로 공개한다.
-    const mosaic = await confirm({
+    // 공개하면서 얼굴 모자이크를 켤지 고른다(SOMA-809). 창을 닫거나 취소하면 공개하지 않는다.
+    let mosaic: boolean | null = null;
+    await sheet({
       title: t('challengeEntries.mosaicAskTitle'),
-      message: t('challengeEntries.mosaicAskBody'),
-      confirmLabel: t('challengeEntries.mosaicAskConfirm'),
-      cancelLabel: t('challengeEntries.mosaicAskSkip'),
+      actions: [
+        { label: t('challengeEntries.mosaicAskConfirm'), onPress: () => { mosaic = true; } },
+        { label: t('challengeEntries.mosaicAskSkip'), onPress: () => { mosaic = false; } },
+      ],
     });
+    if (mosaic === null) return;
     setBusy(true);
     try {
       await api.updateEntry(entryId, mosaic ? { visibility: 'public', face_mosaic: true } : { visibility: 'public' });

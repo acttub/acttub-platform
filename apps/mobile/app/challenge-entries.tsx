@@ -96,15 +96,18 @@ export default function ChallengeEntriesScreen() {
         confirmLabel: t('aiReport.publicConfirm'),
       });
       if (!ok) return;
-      // 모자이크를 아직 켜지 않았으면 공개하면서 켤지 묻는다(SOMA-809). 「그대로 공개」는 원본으로 공개한다.
+      // 모자이크를 아직 켜지 않았으면 공개하면서 켤지 고른다(SOMA-809). 창을 닫거나 취소하면 공개하지 않는다.
       if (!entry.face_mosaic) {
-        faceMosaic =
-          (await confirm({
-            title: t('challengeEntries.mosaicAskTitle'),
-            message: t('challengeEntries.mosaicAskBody'),
-            confirmLabel: t('challengeEntries.mosaicAskConfirm'),
-            cancelLabel: t('challengeEntries.mosaicAskSkip'),
-          })) || undefined;
+        let choice: boolean | null = null;
+        await sheet({
+          title: t('challengeEntries.mosaicAskTitle'),
+          actions: [
+            { label: t('challengeEntries.mosaicAskConfirm'), onPress: () => { choice = true; } },
+            { label: t('challengeEntries.mosaicAskSkip'), onPress: () => { choice = false; } },
+          ],
+        });
+        if (choice === null) return;
+        faceMosaic = choice || undefined;
       }
     }
     try {
