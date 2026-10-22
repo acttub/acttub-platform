@@ -37,6 +37,7 @@
 | `PATCH /v2/reading/scripts/{script_id}/lines/{line_id}` | `script_id`, `line_id`, `ReadingScriptLinePatch`(kind?·character_id?·text?(5,000자)) | `ReadingScript` 200 — 고친 대본 전체 | `invalid_line`(대사인데 배역 없음·이 대본에 없는 배역·지문·장면에 배역) 422, 빈 글·모르는 키 422 배열, `line_not_found`(이 대본에 없는 줄) 404, `script_not_found` 404, `account_deactivated` 403 |
 | `DELETE /v2/reading/scripts/{script_id}/lines/{line_id}` | `script_id`, `line_id` | `ReadingScript` 200 — 고친 대본 전체 | `empty_range`(그 줄 하나뿐인 회차 구간이 있음)·`invalid_line`(대본의 마지막 줄) 422, `line_not_found` 404, `script_not_found` 404, `account_deactivated` 403 |
 | `POST /v2/reading/scripts/{script_id}/lines/{line_id}/split` | `script_id`, `line_id`, `ReadingScriptLineSplit`(first_text·second_text, 각 5,000자) | `ReadingScript` 200 — 고친 대본 전체 | 빈 글·모르는 키 422 배열, `line_not_found` 404, `script_not_found` 404, `account_deactivated` 403 |
+| `POST /v2/reading/scripts/{script_id}/lines/{line_id}/insert-after` | `script_id`, `line_id`, `ReadingScriptLineInsert`(kind·character_id?·text, 5,000자) | `ReadingScript` 200 — 고친 대본 전체. 새 줄은 고른 줄 바로 뒤에 들어가고 뒤 줄들의 순서가 하나씩 밀린다. 기존 줄 id와 회차의 구간·진행 위치는 바뀌지 않는다 | `invalid_line`(대사인데 배역 없음·이 대본에 없는 배역·지문·장면에 배역) 422, 빈 글·모르는 키 422 배열, `line_not_found` 404, `script_not_found` 404, `account_deactivated` 403 |
 | `DELETE /v2/reading/scripts/{script_id}` | `script_id` | 204 | `script_not_found` 404 |
 | 앱 0.1.0 첫 실행의 옛 대본 올리기(기기) | AsyncStorage의 옛 대본·암기 표시 | `POST /v2/reading/scripts`와 암기 갱신 | `script_limit` 422면 그 대본은 기기에 남는다 |
 

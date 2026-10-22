@@ -520,6 +520,53 @@ class PostgresScriptRepository implements ScriptRepository {
         });
     }
 
+    @Override
+    public LineEditOutcome insertLineAfter(UUID userId, UUID scriptId, UUID lineId, String kind, UUID characterId, String text) {
+        return transaction.execute(status -> {
+            lockActive(userId);
+            if (!lockOwnedScript(userId, scriptId)) {
+                return null;
+            }
+            List<Tuple> target = lockLine(scriptId, lineId);
+            if (target.isEmpty()) {
+                return LineEditOutcome.LINE_NOT_FOUND;
+            }
+            boolean dialogue = ScriptLineKind.DIALOGUE.dbValue().equals(kind);
+            if (!dialogue && characterId != null) {
+                return LineEditOutcome.INVALID_LINE;
+            }
+            if (dialogue && (characterId == null || NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT id FROM script_characters WHERE id=:characterId AND script_id=:scriptId
+                    """, Tuple.class)
+                    .setParameter("characterId", characterId)
+                    .setParameter("scriptId", scriptId)).isEmpty())) {
+                return LineEditOutcome.INVALID_LINE;
+            }
+            int ordinal = target.get(0).get("ordinal", Integer.class);
+            // 순서 유일 제약은 줄마다 바로 검사돼 +1 을 한 번에 못 한다 — 음수로 비켜 두었다가 되돌린다.
+            entityManager.createNativeQuery("UPDATE script_lines SET ordinal=-(ordinal+1) WHERE script_id=:scriptId AND ordinal>:ordinal")
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("ordinal", ordinal)
+                    .executeUpdate();
+            entityManager.createNativeQuery("UPDATE script_lines SET ordinal=-ordinal WHERE script_id=:scriptId AND ordinal<0")
+                    .setParameter("scriptId", scriptId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("""
+                    INSERT INTO script_lines(id,script_id,ordinal,kind,character_id,text)
+                    VALUES (:id,:scriptId,:ordinal,:kind,:characterId,:text)
+                    """)
+                    .setParameter("id", UUID.randomUUID())
+                    .setParameter("scriptId", scriptId)
+                    .setParameter("ordinal", ordinal + 1)
+                    .setParameter("kind", kind)
+                    .setParameter("characterId", characterId)
+                    .setParameter("text", text)
+                    .executeUpdate();
+            touch(scriptId);
+            return LineEditOutcome.UPDATED;
+        });
+    }
+
     private boolean lockOwnedScript(UUID userId, UUID scriptId) {
         return !NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT id FROM scripts WHERE id=:scriptId AND user_id=:userId FOR UPDATE

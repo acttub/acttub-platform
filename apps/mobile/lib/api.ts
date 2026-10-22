@@ -97,6 +97,7 @@ import type {
   PatchScriptBody,
   PatchScriptLineBody,
   SplitScriptLineBody,
+  InsertScriptLineBody,
   ProgressBody,
   ProgressResponse,
   ScriptDetail,
@@ -685,6 +686,15 @@ export const api = {
   splitReadingScriptLine(scriptId: string, lineId: string, body: SplitScriptLineBody): Promise<ScriptDetail> {
     return request<ScriptDetail>(
       `/v2/reading/scripts/${encodeURIComponent(scriptId)}/lines/${encodeURIComponent(lineId)}/split`,
+      jsonInit(body, 'POST'),
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 고른 줄 바로 아래에 새 줄을 넣는다(SOMA-816). 기존 줄 id 는 그대로다. 고친 대본 전체가 온다. */
+  insertReadingScriptLineAfter(scriptId: string, lineId: string, body: InsertScriptLineBody): Promise<ScriptDetail> {
+    return request<ScriptDetail>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/lines/${encodeURIComponent(lineId)}/insert-after`,
       jsonInit(body, 'POST'),
       { timeoutMs: 20_000 },
     );
