@@ -421,7 +421,10 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                 return false;
             }
             List<Tuple> current = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT m.value,m.written_by
+                    SELECT m.value,m.written_by,
+                           EXISTS (SELECT 1 FROM actor_memories a
+                                   WHERE a.user_id=u.id AND a.field='avoid' AND a.scene_root_id IS NULL
+                                     AND a.written_by='actor') AS actor_owned
                     FROM users u
                     LEFT JOIN actor_memories m ON m.user_id=u.id AND m.field='avoid'
                          AND m.scene_root_id IS NOT DISTINCT FROM
@@ -432,7 +435,9 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                     .setParameter("userId", userId)
                     .setParameter("practiceId", practiceId));
             // 닫힌 계정이거나 배우가 직접 고친 칸이면 손대지 않는다. 다시 말하지 않을 것은 장면 단위다(SOMA-795) — 이 장면의 행만 본다.
-            if (current.isEmpty() || "actor".equals(current.getFirst().get("written_by", String.class))) {
+            // 배우가 장면 없이 쓴 다시 말하지 않을 것이 있으면 배우가 그 칸을 맡은 것이다 — 어느 장면에도 덧붙이지 않는다.
+            if (current.isEmpty() || "actor".equals(current.getFirst().get("written_by", String.class))
+                    || Boolean.TRUE.equals(current.getFirst().get("actor_owned", Boolean.class))) {
                 return false;
             }
             String before = current.getFirst().get("value", String.class);
@@ -643,6 +648,11 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                                   WHERE o.user_id=:userId AND o.field=:field AND o.written_by='actor'
                                     AND NOT EXISTS (SELECT 1 FROM actor_memories n
                                                     WHERE n.user_id=o.user_id AND n.field=o.field))
+                  -- 배우가 장면 없이 쓴 장면 칸은 배우가 그 칸 전체를 맡은 것이다(예전의 칸 단위 보호 그대로).
+                  AND NOT (CAST(:scoped AS boolean)
+                           AND EXISTS (SELECT 1 FROM actor_memories a
+                                       WHERE a.user_id=:userId AND a.field=:field AND a.scene_root_id IS NULL
+                                         AND a.written_by='actor'))
                 ON CONFLICT ON CONSTRAINT uq_actor_memories_user_field_scene DO UPDATE
                 SET value=EXCLUDED.value,written_by='agent',
                     source_practice_id=EXCLUDED.source_practice_id,updated_at=EXCLUDED.updated_at
