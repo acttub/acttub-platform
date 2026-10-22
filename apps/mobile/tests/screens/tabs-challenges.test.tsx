@@ -5,6 +5,7 @@ import ChallengesScreen from '@/app/(tabs)/challenges';
 import { logEvent } from '@/lib/analytics';
 import { setFirstTimeState } from '@/lib/practice/first-time';
 import { api } from '@/lib/api';
+import { markFirstChallengeFinished } from '@/lib/challenge/intro-state';
 import { ApiError } from '@/lib/api-request';
 import type { ChallengeCard } from '@/lib/challenge/types';
 
@@ -35,7 +36,11 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   default: require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
-jest.mock('@/lib/api', () => ({ api: { listChallenges: jest.fn(), unreadNotificationCount: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { listChallenges: jest.fn(), listChallengeEntries: jest.fn(), unreadNotificationCount: jest.fn() } }));
+jest.mock('expo-video', () => {
+  const { Text } = require('react-native');
+  return { useVideoPlayer: () => ({ play: () => undefined }), VideoView: () => <Text>예시 영상</Text> };
+});
 
 const listChallenges = api.listChallenges as jest.Mock;
 const DAY = 24 * 60 * 60 * 1000;
@@ -93,6 +98,8 @@ beforeEach(async () => {
   jest.clearAllMocks();
   mockParams = {};
   await AsyncStorage.setItem('acttub.challenge.introSeen', '1');
+  await markFirstChallengeFinished();
+  (api.listChallengeEntries as jest.Mock).mockResolvedValue({ entries: [], next_cursor: null });
   (api.unreadNotificationCount as jest.Mock).mockResolvedValue({ count: 0 });
   listChallenges.mockResolvedValue(page([card()], { featured: today() }));
 });
@@ -127,17 +134,18 @@ describe('인기 탭 첫 화면', () => {
     expect(listChallenges).toHaveBeenCalledWith({ tab: 'popular' });
     expect(tabButton('인기')).toBeSelected();
 
+    // 이번 주 대사 카드(C1.13): 대사 → 파란 「나도 이 대사 연기하기」 → 「같은 대사, 다른 연기」와 한 줄 안내.
     expect(screen.getByText('오늘의 챌린지 · D-3')).toBeOnTheScreen();
     expect(screen.getByText('“오늘은 내가 주인공이야”')).toBeOnTheScreen();
-    expect(screen.getByText('무대 뒤 · 민재')).toBeOnTheScreen();
-    expect(screen.getByText('참여작 4 · 좋아요 9')).toBeOnTheScreen();
+    expect(screen.getByText('같은 대사, 다른 연기')).toBeOnTheScreen();
+    expect(screen.getByText('이번 주 대사 · D-3 · 참여 4명')).toBeOnTheScreen();
 
     // 줄 카드(ZxMmEh)에는 작품·인물·메모를 두지 않는다 — 상세에서 본다.
     expect(screen.queryByText('빗속의 집 · 서연')).not.toBeOnTheScreen();
     expect(screen.getByText('사용자 챌린지 · 참여작 3 · D-3')).toBeOnTheScreen();
     expect(screen.getByText('윤서 · 태오 +2 · 좋아요 5')).toBeOnTheScreen();
-    expect(screen.getAllByText('윤')).toHaveLength(2);
-    expect(screen.getAllByText('태')).toHaveLength(2);
+    expect(screen.getAllByText('윤')).toHaveLength(1);
+    expect(screen.getAllByText('태')).toHaveLength(1);
 
     expect(screen.getByText('“끝난 대사”')).toBeOnTheScreen();
     expect(screen.getByText('Acttub 공식 대사 · 참여작 7 · 종료')).toBeOnTheScreen();
@@ -183,8 +191,7 @@ describe('오늘의 챌린지', () => {
   test('참여작이 아직 없어도 오늘의 챌린지를 두고 빈 안내는 띄우지 않는다', async () => {
     listChallenges.mockResolvedValue(page([], { featured: today({ entry_count: 0, character: null }) }));
     await render(<ChallengesScreen />);
-    expect(await screen.findByText('무대 뒤')).toBeOnTheScreen();
-    expect(screen.getByText('참여작 0 · 좋아요 9')).toBeOnTheScreen();
+    expect(await screen.findByText('이번 주 대사 · D-3 · 참여 0명')).toBeOnTheScreen();
     expect(screen.queryByText('진행 중인 챌린지가 아직 없어요.')).not.toBeOnTheScreen();
   });
 
@@ -349,7 +356,7 @@ describe('시작 안내', () => {
     await AsyncStorage.removeItem('acttub.challenge.introSeen');
     await render(<ChallengesScreen />);
 
-    expect(await screen.findByText('같은 대사, 다른 연기')).toBeOnTheScreen();
+    expect(await screen.findByText('배우들이 같은 대사를 어떻게 연기했는지 보고, 나도 올려요.')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(screen.getByText('위아래로 넘겨 보세요')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
@@ -365,7 +372,25 @@ describe('시작 안내', () => {
   test('이미 본 기기에서는 띄우지 않는다', async () => {
     await render(<ChallengesScreen />);
     await screen.findByText('“나는 아직 여기 있어”');
-    expect(screen.queryByText('같은 대사, 다른 연기')).not.toBeOnTheScreen();
+    expect(screen.queryByText('배우들이 같은 대사를 어떻게 연기했는지 보고, 나도 올려요.')).not.toBeOnTheScreen();
+  });
+});
+
+describe('첫 챌린지 전(C1.16·C1.18)', () => {
+  test('이번 주 대사 하나와 고르기 두 줄만 보이고, 고르기 전에는 「다음」이 막혀 있다', async () => {
+    await AsyncStorage.removeItem('acttub.challenge.firstEntryDone');
+    listChallenges.mockResolvedValue(page([card()], { featured: today() }));
+    await render(<ChallengesScreen />);
+    expect(await screen.findByText('같은 대사를 다른 배우는 어떻게 하는지 확인해 봐요.')).toBeOnTheScreen();
+    expect(screen.queryByText('“나는 아직 여기 있어”')).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    await fireEvent.press(screen.getByRole('radio', { name: '다른 작품 보기' }));
+    expect(screen.getByRole('radio', { name: '다른 작품 보기' })).toBeSelected();
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-play', params: { id: 'today' } });
+    await fireEvent.press(screen.getByRole('radio', { name: '나도 이 대사 연기하기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    expect(mockRouter.push).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: '/record-video' }));
   });
 });
 
