@@ -25,7 +25,20 @@ public final class PracticeRules {
     public static final int GUEST_DAILY_ANALYSES = 3;
 
     /** 코칭 세션 목적(SOMA-719). 앱이 코칭을 시작할 때 고른다. 없으면 목적 없는 회차(지금 코치)다. */
-    public static final java.util.List<String> SESSION_PURPOSES = java.util.List.of("evaluate", "stuck", "character");
+    public static final java.util.List<String> SESSION_PURPOSES = java.util.List.of("evaluate", "stuck", "character", "concern");
+
+    /**
+     * 영상 없이 말로 시작할 수 있는 목적(SOMA-745): 막힌 곳 풀기·인물 이해하기·고민 상담. 고민 상담은 영상 없는 회차에만 쓴다.
+     */
+    public static final java.util.List<String> TALK_PURPOSES = java.util.List.of("stuck", "character", "concern");
+
+    /**
+     * 영상과 목적의 짝이 맞는가. 영상이 없으면 말로 하는 목적이어야 한다. 영상이 있으면 목적은 무엇이든(없어도) 된다 —
+     * 영상과 함께 온 고민 상담은 목적 없는 회차처럼 지금 코치가 받는다. 목적은 {@link #sessionPurpose(String)} 로 고른 값이다.
+     */
+    public static boolean videoMatchesPurpose(boolean withVideo, String purpose) {
+        return withVideo || purpose != null && TALK_PURPOSES.contains(purpose);
+    }
 
     /** 목적 값. 앞뒤 공백을 떼고 비면 없는 것({@code null})이다. 값 검사는 요청 검증이 먼저 한다. */
     public static String sessionPurpose(String value) {

@@ -45,12 +45,13 @@ final class PracticeDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record CreateRequest(
             @NotNull UUID requestId,
-            @NotNull UUID videoId,
+            // 영상 없이 말로 하는 코칭(SOMA-745)은 영상을 보내지 않고 목적(stuck·character·concern)을 보낸다. 짝이 틀리면 422 video_required.
+            @Schema(nullable = true) UUID videoId,
             @Schema(nullable = true) @Valid SceneInput scene,
             @Schema(nullable = true) @Valid BlockageInput blockage,
             @Schema(nullable = true) @Size(max = PracticeRules.GROUP_TITLE_MAX_CHARS) String title,
-            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character"})
-            @jakarta.validation.constraints.Pattern(regexp = "evaluate|stuck|character") String sessionPurpose) {
+            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern"})
+            @jakarta.validation.constraints.Pattern(regexp = "evaluate|stuck|character|concern") String sessionPurpose) {
     }
 
     /** 이어하기. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다. 세션 목적은 묶음 첫 회차의 것을 물려받는다. */
@@ -140,7 +141,7 @@ final class PracticeDtos {
             @Schema(nullable = true) JobResponse job,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<PreviousConversationResponse> previousConversations,
-            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character"}) String sessionPurpose) {
+            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern"}) String sessionPurpose) {
 
         static PracticeResponse of(PracticeView view) {
             return new PracticeResponse(

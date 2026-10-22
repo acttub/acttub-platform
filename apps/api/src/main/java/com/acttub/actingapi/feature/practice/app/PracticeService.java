@@ -61,6 +61,15 @@ public class PracticeService {
      * 수정과 같은 자리다.
      */
     public PracticeView start(UUID userId, boolean guest, String contractHeader, Draft draft) {
+        boolean withVideo = draft.videoId() != null;
+        if (!PracticeRules.videoMatchesPurpose(withVideo, PracticeRules.sessionPurpose(draft.sessionPurpose()))) {
+            throw new ApiException(422, "video_required");
+        }
+        if (!withVideo) {
+            // 영상 없이 말로 하는 코칭(SOMA-745): 분석할 영상이 없어 분석 작업 없이 바로 대화 단계로 연다. 분석 한도도 쓰지 않는다.
+            // 말로 하는 코치는 새 코치(three_layers_v1)에만 있다 — 계약 헤더와 상관없이 새 코치로 연다.
+            return answer(practices.startWithoutVideo(userId, newPractice(draft, contractHeader, true), clock.instant()));
+        }
         return answer(practices.start(userId, newPractice(draft, contractHeader), quota(guest), clock.instant()));
     }
 
@@ -69,6 +78,7 @@ public class PracticeService {
      * 422 {@code video_not_ready} 이고 새 영상으로는 된다.
      */
     public PracticeView continueGroup(UUID userId, boolean guest, String contractHeader, UUID from, Draft draft) {
+        // 이어하기는 늘 영상으로 한다. 영상 없는 묶음을 이으려면 새 영상을 보낸다(없으면 422 video_not_ready).
         return answer(practices.continueGroup(
                 userId, from, draft.videoId(), newPractice(draft, contractHeader), quota(guest), clock.instant()));
     }
@@ -176,6 +186,10 @@ public class PracticeService {
     }
 
     private NewPractice newPractice(Draft draft, String contractHeader) {
+        return newPractice(draft, contractHeader, false);
+    }
+
+    private NewPractice newPractice(Draft draft, String contractHeader, boolean forceThreeLayers) {
         String situation = PracticeRules.scene(draft.situation());
         String characterContext = PracticeRules.scene(draft.characterContext());
         String goal = PracticeRules.scene(draft.goal());
@@ -184,7 +198,7 @@ public class PracticeService {
         String blockageNote = PracticeRules.note(draft.blockageNote());
         String title = PracticeRules.title(draft.title());
         String sessionPurpose = PracticeRules.sessionPurpose(draft.sessionPurpose());
-        String experienceVersion = PracticeRules.threeLayers(threeLayersEnabled, contractHeader)
+        String experienceVersion = forceThreeLayers || PracticeRules.threeLayers(threeLayersEnabled, contractHeader)
                 ? ExperienceVersion.THREE_LAYERS_V1.dbValue()
                 : ExperienceVersion.LEGACY.dbValue();
         // 제목은 있을 때만 지문에 넣는다 — 제목 없는 요청의 지문이 이 변경 전과 같아야 배포를 걸친 재전송이 산다.

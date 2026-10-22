@@ -21,7 +21,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/practices` | `X-Request-Id`(본문 request_id와 같아야 한다), `X-Acttub-Contract`, 필수 `request_id`·`video_id`, 선택 `scene`·`blockage`·`title`·`session_purpose` (`PracticeCreateRequest`) | `Practice` 201(`poster_url` 포함, [practice.library](library.md#규칙제약)), 같은 요청 id 재전송도 같은 회차 | `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `consent_required` 403, 값 모양 오류 422(배열) |
+| `POST /v2/practices` | `X-Request-Id`(본문 request_id와 같아야 한다), `X-Acttub-Contract`, 필수 `request_id`, 선택 `video_id`(영상 없이 말로 하면 뺀다)·`scene`·`blockage`·`title`·`session_purpose` (`PracticeCreateRequest`) | `Practice` 201(`poster_url` 포함, [practice.library](library.md#규칙제약)), 같은 요청 id 재전송도 같은 회차 | `video_not_ready` 422, `video_required` 422(영상 없이 말로 할 수 없는 목적), `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `consent_required` 403, 값 모양 오류 422(배열) |
 | `POST /v2/practices/{practice_id}/analyze` (닫힌 회차 재시도) | `X-Request-Id`, 필수 `request_id` (`PracticeAnalyzeRequest`) | `Practice` 201, 새 analyze 작업 | `analysis_not_failed` 409, `practice_in_progress` 409, `guest_daily_analysis_limit` 429, `practice_not_found` 404 |
 
 ## 상태
@@ -29,8 +29,8 @@ practices.stage — 회차 진행 상태의 정본이다.
 
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
-| analyzing | 시작·이어하기로 회차 생성, closed 회차의 재시도(묶음에 다른 진행 중 회차가 없을 때) | practice.start, practice.resume |
-| conversing | analyzing에서 분석 결과(ready·partial) 저장 | practice.analyze |
+| analyzing | 영상으로 시작·이어하기로 회차 생성, closed 회차의 재시도(묶음에 다른 진행 중 회차가 없을 때) | practice.start, practice.resume |
+| conversing | analyzing에서 분석 결과(ready·partial) 저장, 영상 없이 말로 시작(SOMA-745) | practice.analyze, practice.start |
 | closed (close_reason analysis_failed) | analyzing에서 분석 즉시 실패 또는 3회 소진 | practice.analyze |
 | closed (close_reason cancelled) | 대기·진행 중인 분석 작업을 "그만두기"로 취소 | practice.analyze |
 | closed (close_reason conversation_closed) | 코치 대화가 닫힘 | practice.coach |
@@ -75,6 +75,14 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 판정 순서: 시작은 같은 요청 id 재생 → 영상 확인(422 video_not_ready) → 게스트 하루 한도(429)다. 재시도는 같은 요청 id 재생 →
   없는·남의 회차(404) → 닫히지 않은 회차(409 analysis_not_failed) → 묶음에 진행 중 회차(409 practice_in_progress) → 게스트 하루
   한도(429)다. 재시도에서는 409가 429보다 먼저다.
+- 영상 없이 말로 코칭(SOMA-745): `video_id` 를 빼고 `session_purpose` 를 stuck(막힌 곳 풀기)·character(인물 이해하기)·concern(고민
+  상담) 중 하나로 보내면 분석 작업 없이 첫 회차가 바로 conversing 으로 생긴다(`video_id` null, `job` null). 코치가 말로 하는 목적별 코칭을
+  탄다([practice.coach](coach.md#영상-없이-말로-soma-745)). 새 코치에만 있는 길이라 계약 헤더와 상관없이 experience_version 은
+  three_layers_v1 이다. 분석이 없으니 게스트 하루 분석 한도를 쓰지 않는다. 영상 없이 목적을 안 보내거나 evaluate 를 보내면 422
+  `video_required` 이고 아무것도 남지 않는다. 영상과 함께 온 concern 은 목적 없는 회차처럼 지금 코치가 받는다. 같은 요청 id 재전송은 영상
+  있는 시작과 같다. 이어하기는 늘 영상으로 한다 — 영상 없는 묶음을 이으려면 새 영상을 보낸다(없으면 422 video_not_ready).
+- 앱 코칭 탭의 「영상 없이 말로 코칭 받기」는 목적 화면(「말로 어떤 도움을 받을까요?」, 막힌 곳 풀기·인물 이해하기·고민 상담, 단계 표시
+  없음)을 연다. 하나를 누르면 바로 영상 없이 시작해 코치 화면으로 간다(「다음」 버튼 없음).
 - 이미 사용 가능한 영상(보관함)으로 시작하면 업로드를 거치지 않는다. 새 영상이면 practice.record의 올리기를 먼저 마친다.
 
 ## 예외

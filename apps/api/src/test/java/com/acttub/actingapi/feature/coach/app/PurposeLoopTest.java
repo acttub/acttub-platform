@@ -275,12 +275,13 @@ class PurposeLoopTest {
     @Test void everyPromptFileThePathsNeedExists() {
         List<String> names = new ArrayList<>(List.of("first-common", "turn"));
         for (var purpose : PurposeLoop.Purpose.values()) {
-            names.add(purpose.id + "/first");
-            names.add(purpose.id + "/path");
+            names.add(purpose.dir + "/first");
+            names.add(purpose.dir + "/path");
         }
         names.addAll(List.of("common/answer", "common/accept", "common/easy", "common/propose", "common/method",
                 "evaluate/another", "evaluate/wrap", "stuck/line", "stuck/seen", "stuck/wrap",
-                "character/cell", "character/wrap"));
+                "character/cell", "character/wrap", "talk/mode", "talk/stuck/line", "talk/stuck/wrap",
+                "talk/character/cell", "talk/character/wrap", "talk/concern/need", "talk/concern/wrap"));
         for (String name : names) assertThat(DirectVideoPrompts.purposeResource(name)).as(name).isNotBlank();
         for (var purpose : PurposeLoop.Purpose.values()) {
             assertThat(PurposeLoop.firstPrompt(purpose)).startsWith("역할:").contains("<설계>", "</코치>");
@@ -292,5 +293,81 @@ class PurposeLoopTest {
         assertThat(VisibleCoachText.visible("정리예요.\n<인물 카드>\n누구: 망설이는 사람\n</인물 카드>", false)).isEqualTo("정리예요.\n");
         JsonNode none = null;
         assertThat(PurposeView.from("stuck", none).step()).isEqualTo("reason");
+    }
+
+    // ---- 영상 없이 말로 (SOMA-745) ----
+
+    @Test void theTalkMarkPicksTheTalkPurposesAndConcernNeedsIt() {
+        assertThat(PurposeLoop.Purpose.of("talk:stuck")).isEqualTo(PurposeLoop.Purpose.TALK_STUCK);
+        assertThat(PurposeLoop.Purpose.of("talk:character")).isEqualTo(PurposeLoop.Purpose.TALK_CHARACTER);
+        assertThat(PurposeLoop.Purpose.of(" talk:concern ")).isEqualTo(PurposeLoop.Purpose.CONCERN);
+        assertThat(PurposeLoop.Purpose.of("stuck")).isEqualTo(PurposeLoop.Purpose.STUCK);
+        assertThat(PurposeLoop.Purpose.of("concern")).as("영상과 함께 온 고민 상담은 목적 없는 회차").isNull();
+        assertThat(PurposeLoop.Purpose.of("talk:evaluate")).as("평가 받기는 영상 없이 할 수 없다").isNull();
+        assertThat(PurposeLoop.Purpose.TALK_STUCK.id).as("화면에는 저장된 목적 그대로").isEqualTo("stuck");
+        assertThat(PurposeLoop.Purpose.TALK_STUCK.steps).doesNotContain("seen");
+        assertThat(PurposeLoop.Purpose.TALK_CHARACTER.character()).isTrue();
+        assertThat(PurposeLoop.Purpose.CONCERN.talk()).isTrue();
+        assertThat(PurposeLoop.Purpose.CHARACTER.talk()).isFalse();
+        assertThat(PurposeView.from("talk:concern", null).step()).isEqualTo("concern");
+    }
+
+    @Test void theTalkModeIsAddedOnlyToTalkPromptsAndVideoPromptsStayTheSame() {
+        assertThat(PurposeLoop.turnPrompt(PurposeLoop.Purpose.STUCK)).isEqualTo(PurposeLoop.turnPrompt());
+        assertThat(PurposeLoop.turnPrompt(PurposeLoop.Purpose.TALK_STUCK)).startsWith(PurposeLoop.turnPrompt())
+                .contains("[영상 없이 말로 하는 코칭]");
+        assertThat(PurposeLoop.firstPrompt(PurposeLoop.Purpose.CHARACTER)).doesNotContain("[영상 없이 말로 하는 코칭]");
+        for (PurposeLoop.Purpose purpose : List.of(PurposeLoop.Purpose.TALK_STUCK, PurposeLoop.Purpose.TALK_CHARACTER,
+                PurposeLoop.Purpose.CONCERN)) {
+            assertThat(PurposeLoop.firstPrompt(purpose)).contains("[영상 없이 말로 하는 코칭]", "영상 없이]");
+            assertThat(PurposeLoop.talkOpening(purpose)).contains("영상 없이", PurposeLoop.label(purpose));
+        }
+    }
+
+    @Test void everyTalkStepHasItsPromptFile() {
+        for (PurposeLoop.Purpose purpose : List.of(PurposeLoop.Purpose.TALK_STUCK, PurposeLoop.Purpose.TALK_CHARACTER,
+                PurposeLoop.Purpose.CONCERN)) {
+            for (String step : purpose.steps.subList(1, purpose.steps.size())) {
+                var turn = new PurposeLoop.Turn(purpose, step, step, true, false, "답", false, null);
+                assertThat(PurposeLoop.instruction(turn, null, "말")).as(purpose + " " + step).contains("[이번 응답]", "영상 없이");
+            }
+        }
+    }
+
+    @Test void aTalkStuckAnswerThatQuotesTheLineSkipsWhichLine() {
+        ObjectNode state = StructuredJson.MAPPER.createObjectNode();
+        PurposeLoop.rememberOpening(state, PurposeLoop.Purpose.TALK_STUCK, PurposeLoop.extract(""), "");
+        var quoted = PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, state, "\"취소해\"에서 울먹거려요", null,
+                new PracticeLoopRouter.Classified(PracticeLoopRouter.Kind.ANSWER, true, "model"), 1);
+        assertThat(quoted.step()).isEqualTo("method");
+        var plain = PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, state, "감정이 안 따라와요", null,
+                new PracticeLoopRouter.Classified(PracticeLoopRouter.Kind.ANSWER, true, "model"), 1);
+        assertThat(plain.step()).isEqualTo("line");
+        var concern = StructuredJson.MAPPER.createObjectNode();
+        PurposeLoop.rememberOpening(concern, PurposeLoop.Purpose.CONCERN, PurposeLoop.extract(""), "");
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.CONCERN, concern, "오디션이 무서워요", null,
+                new PracticeLoopRouter.Classified(PracticeLoopRouter.Kind.ANSWER, true, "model"), 1).step()).isEqualTo("need");
+    }
+
+    @Test void theTalkCharacterWrapAndDirectionNeverAskForVideoCells() {
+        var wrap = PurposeLoop.Turn.directing(PurposeLoop.Purpose.TALK_CHARACTER, "답", false, null, false);
+        String instruction = PurposeLoop.instruction(wrap, null, "모르겠어요");
+        assertThat(instruction).contains("배우가 한 말과 배우가 적은 대사로 직접 정한다", "(영상) 칸은 쓰지 않는다")
+                .doesNotContain("코치가 영상에서 본 것으로 직접 정한다");
+        var take = StructuredJson.MAPPER.createObjectNode();
+        PurposeLoop.remember(take, wrap, PurposeLoop.extract(""), "지안 앞에서 기다려 봐도 좋아요");
+        assertThat(take.path(PurposeLoop.STATE_KEY).has("card")).as("인물 정리는 결과 카드를 만들지 않는다").isFalse();
+    }
+
+    @Test void quotesTheActorNeverWroteAreDropped() {
+        String actor = "\"어여쁘다는 말은 취소해\" 이 대사요";
+        assertThat(PurposeLoop.withoutUngroundedQuotes("\"취소해\"에서 따져 봐도 좋아요.", actor))
+                .isEqualTo("\"취소해\"에서 따져 봐도 좋아요.");
+        assertThat(PurposeLoop.withoutUngroundedQuotes("지안은 숨기는 사람이에요. \"고마워요\"에서 눌러 말해 봐도 좋아요.", actor))
+                .isEqualTo("지안은 숨기는 사람이에요.");
+        assertThat(PurposeLoop.withoutUngroundedQuotes("\"고마워요\"에서 눌러 말해 봐도 좋아요.", actor))
+                .as("다 떼면 원래 말").isEqualTo("\"고마워요\"에서 눌러 말해 봐도 좋아요.");
+        assertThat(PurposeLoop.withoutUngroundedQuotes("", actor)).isEmpty();
+        assertThat(PurposeLoop.withoutUngroundedQuotes("따옴표 없는 말이에요.", null)).isEqualTo("따옴표 없는 말이에요.");
     }
 }

@@ -629,6 +629,44 @@ class PracticeLifecycleIT {
         assertThat(second.path("session_purpose").textValue()).as("이어하기는 묶음 첫 회차의 목적을 물려받는다").isEqualTo("stuck");
     }
 
+    @Test
+    @DisplayName("practice.start: 영상 없이 말로 — video_id 없이 stuck·character·concern 으로 시작하면 분석 작업 없이 conversing 회차가 "
+            + "생기고(three_layers_v1), 같은 요청 id 재전송은 같은 회차다. 영상 없이 목적을 빼거나 evaluate 면 422 video_required (SOMA-745)")
+    void practiceStart_withoutVideoOpensTheConversationStage() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        String body = "{\"request_id\":\"" + requestId + "\",\"session_purpose\":\"concern\"}";
+        int jobs = count("ai_jobs");
+
+        JsonNode started = json(post("/v2/practices").content(body), 201);
+
+        UUID id = UUID.fromString(started.path("id").textValue());
+        assertThat(started.path("video_id").isNull()).isTrue();
+        assertThat(started.path("stage").textValue()).isEqualTo("conversing");
+        assertThat(started.path("session_purpose").textValue()).isEqualTo("concern");
+        assertThat(started.path("experience_version").textValue()).isEqualTo("three_layers_v1");
+        assertThat(started.path("job").isNull()).isTrue();
+        assertThat(count("ai_jobs")).as("분석 작업을 만들지 않는다").isEqualTo(jobs);
+        assertThat(jdbc.queryForObject("SELECT video_id FROM practices WHERE id=?", UUID.class, id)).isNull();
+        assertThat(json(post("/v2/practices").content(body), 201).path("id").textValue())
+                .as("같은 요청 id 재전송").isEqualTo(id.toString());
+        assertThat(json(post("/v2/practices").content(body.replace("concern", "stuck")), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
+
+        int before = count("practices");
+        assertThat(json(post("/v2/practices").content("{\"request_id\":\"" + UUID.randomUUID() + "\"}"), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"video_required\"}"));
+        assertThat(json(post("/v2/practices").content("{\"request_id\":\"" + UUID.randomUUID()
+                + "\",\"session_purpose\":\"evaluate\"}"), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"video_required\"}"));
+        assertThat(count("practices")).isEqualTo(before);
+
+        close(id);
+        assertThat(json(post("/v2/practices/{id}/continue", id)
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 422))
+                .as("영상 없는 묶음은 새 영상으로만 잇는다")
+                .isEqualTo(mapper.readTree("{\"detail\":\"video_not_ready\"}"));
+    }
+
     // ---- helpers ----
 
     private String startBody(UUID requestId, UUID videoId, String scene, String blockage, String title) {
