@@ -151,7 +151,7 @@ export function EntryShareSheet({
   };
 
   const onTarget = async (target: ShareTarget) => {
-    logEvent('challenge_share_target', { id: entry.id, target });
+    void logEvent('challenge_share_target', { id: entry.id, target });
     setNotice(null);
     try {
       if (target === 'instagram') await postStory();
@@ -168,7 +168,7 @@ export function EntryShareSheet({
 
   const onSave = async () => {
     if (busy) return;
-    logEvent('challenge_share_save', { id: entry.id });
+    void logEvent('challenge_share_save', { id: entry.id });
     setNotice(null);
     setBusy('save');
     let uri: string | null = null;

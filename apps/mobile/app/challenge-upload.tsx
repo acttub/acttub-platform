@@ -266,7 +266,7 @@ export default function ChallengeUploadScreen() {
           <SecondaryButton
             label={t('entryShare.entry')}
             onPress={() => {
-              logEvent('challenge_upload_share', { visibility: created.visibility });
+              void logEvent('challenge_upload_share', { visibility: created.visibility });
               void entryShare.openById(created.id);
             }}
           />
