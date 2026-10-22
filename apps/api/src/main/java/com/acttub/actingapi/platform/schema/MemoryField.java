@@ -26,7 +26,12 @@ public enum MemoryField implements PgEnum {
     /** 다시 말하지 않을 것 — 배우가 아니라고 한 주제와 원문. 회차가 끝나면 코드가 바로 덧붙인다. */
     AVOID("avoid"),
     /** 말투 — 답 길이·직설 선호·존댓말/반말. 배우 화면에는 보이지 않고 코치만 쓴다. */
-    TONE("tone");
+    TONE("tone"),
+    /**
+     * 이 배우에게 맞춘 코칭 — 자문위원 프롬프트와 같은 모양의 글(SOMA-795). 코치만 읽고 배우 화면에는 보이지 않는다.
+     * 배우가 남긴 말·평가·정정에서만 쓰고, 연기 문제 진단과 장면 내용은 담지 않는다.
+     */
+    COACHING_PROFILE("coaching_profile");
 
     private final String dbValue;
 

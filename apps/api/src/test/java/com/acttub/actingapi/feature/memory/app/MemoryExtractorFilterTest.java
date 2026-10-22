@@ -32,6 +32,17 @@ class MemoryExtractorFilterTest {
     }
 
     @Test
+    void valuesAboutTheScreenOrTheCoachInsteadOfTheActorAreDroppedAndThePreviousValueStays() {
+        Map<String, String> result = extract("""
+                {"blockage":"복합적인 감정을 소리 지르지 않고 표현하는 가운데, 표현과 표정에서 막히는 지점을 골랐다.",
+                 "habits":"시선 처리에 대한 지적이 있었고 배우가 받아들였다",
+                 "tone":"답이 짧고 존댓말이며 직설적인 평가를 바란다"}
+                """, Map.of("blockage", "큰 감정 대목에서 말이 멈춘다고 스스로 말했다"));
+
+        assertThat(result).containsExactly(Map.entry("tone", "답이 짧고 존댓말이며 직설적인 평가를 바란다"));
+    }
+
+    @Test
     void goalStillRejectsOtherForbiddenWordsAndTimecodesBesideThePassWord() {
         assertThat(extract("{\"goal\":\"합격 점수 올리기\"}", Map.of())).isEmpty();
         assertThat(extract("{\"goal\":\"0:12 장면으로 합격\"}", Map.of())).isEmpty();

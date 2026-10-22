@@ -552,7 +552,7 @@ class PostgresPracticeDataMigration implements PracticeDataMigration {
                 WHERE e.step='memory' AND e.target_id IS NOT NULL
                   AND NOT EXISTS (SELECT 1 FROM actor_memories m
                                   WHERE m.user_id=a.user_id AND m.field=a.field::text)
-                ON CONFLICT ON CONSTRAINT uq_actor_memories_user_field DO NOTHING
+                ON CONFLICT ON CONSTRAINT uq_actor_memories_user_field_scene DO NOTHING
                 """);
     }
 

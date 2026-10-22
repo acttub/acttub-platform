@@ -157,7 +157,9 @@ public final class CoachPrompt {
      * @param goalSetting 연습 루프가 지난 기록을 이번 목표 후보로 쓰는지(SOMA-602). 그때는 "목표로 확정하지 않는다" 대신
      *     "목표 후보를 고르고 배우에게 물어 정한다"를 싣는다 — 둘을 함께 실으면 모델이 목표를 늘 "없음"으로 적는다(실험).
      */
-    static String priorContextBlock(PriorContext prior, boolean videoFirst, boolean goalSetting) {
+    static String priorContextBlock(PriorContext given, boolean videoFirst, boolean goalSetting) {
+        // 맞춤 코칭은 기억 블록에 싣지 않는다 — 코치 성격 자리로 따로 붙는다(SOMA-795).
+        PriorContext prior = given == null ? null : given.withoutCoachingProfile();
         if (prior == null || prior.isEmpty()) {
             return "";
         }

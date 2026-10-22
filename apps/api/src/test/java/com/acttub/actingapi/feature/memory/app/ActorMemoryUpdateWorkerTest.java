@@ -30,11 +30,13 @@ class ActorMemoryUpdateWorkerTest {
     private final RecordingLlmTelemetry telemetry = new RecordingLlmTelemetry();
     private final List<String> prompts = new ArrayList<>();
     private String generated = "{\"goal\":\"문 앞에서 멈추지 않기\"}";
+    private String generatedProfile = "{}";
 
     private ActorMemoryUpdateWorker worker(MutableClock clock) {
         return new ActorMemoryUpdateWorker(updates, new MemoryExtractor(reporter), (system, user) -> {
             prompts.add(user);
-            return new GeneratedText(generated, null, "test-model");
+            return new GeneratedText(CoachingProfileWriter.SYSTEM_PROMPT.equals(system) ? generatedProfile : generated,
+                    null, "test-model");
         }, clock, reporter, telemetry);
     }
 
@@ -123,6 +125,69 @@ class ActorMemoryUpdateWorkerTest {
                 "ActorMemoryUpdateWorker.release operation_id=" + JOB);
     }
 
+    @Test
+    void everyUpdateAlsoRewritesTheCoachingProfileWhenThereIsEnoughEvidence() {
+        updates.claimable = true;
+        updates.material = material();
+        updates.profile = evidence();
+        generatedProfile = """
+                {"length": 100, "summary": "이 배우는 이유를 함께 들을 때 납득했고, 질문만 이어질 때 \\"그래서 어떻게요?\\"라고 되물었다.",
+                 "first_question": "첫 질문은 장면 전체에서 [인물]이 [상대]에게 바라는 것을 열어서 묻는다.",
+                 "when_asked": "배우가 \\"어떻게요?\\"라고 물으면 질문으로 돌리지 않고 방법부터 한 문장으로 답한다.",
+                 "never_say": ["좋은 질문이에요"]}
+                """;
+
+        worker().runOnce(NOW);
+
+        assertThat(updates.completed).singleElement().satisfies(written -> {
+            assertThat(written).containsEntry("goal", "문 앞에서 멈추지 않기");
+            assertThat(written.get("coaching_profile"))
+                    .startsWith("[길이] 100\n[이 배우에게 맞춘 코칭]\n")
+                    .contains("- 이 배우에게는 다음 말을 한 번도 쓰지 않는다: \"좋은 질문이에요\".")
+                    .endsWith("- 한 번에 하는 말은 공백 포함 100자 안쪽이다.");
+        });
+        assertThat(telemetry.calls()).extracting(call -> call.metadata().get("memory_part"))
+                .containsExactly("fields", "coaching_profile");
+    }
+
+    @Test
+    void aFailingCoachingProfileStillSavesTheFields() {
+        updates.claimable = true;
+        updates.material = material();
+        updates.profileFailure = new IllegalStateException("profile read failed");
+
+        worker().runOnce(NOW);
+
+        assertThat(updates.completed).containsExactly(Map.of("goal", "문 앞에서 멈추지 않기"));
+        assertThat(reporter.contexts()).containsExactly("ActorMemoryUpdateWorker.profile operation_id=" + JOB);
+    }
+
+    @Test
+    void withoutEnoughEvidenceTheProfileModelIsNotCalled() {
+        updates.claimable = true;
+        updates.material = material();
+        updates.profile = new ProfileMaterial(USER, List.of(conversation(1, null, List.of())), Map.of(), null, List.of());
+
+        worker().runOnce(NOW);
+
+        assertThat(updates.completed).containsExactly(Map.of("goal", "문 앞에서 멈추지 않기"));
+        assertThat(telemetry.calls()).hasSize(1);
+    }
+
+    private static ProfileMaterial evidence() {
+        return new ProfileMaterial(USER, List.of(conversation(2, null, List.of()), conversation(3, "helpful", List.of())),
+                Map.of("tone", "짧게 존댓말로 답한다"), null, List.of());
+    }
+
+    private static ProfileMaterial.Conversation conversation(int replies, String rating, List<String> corrections) {
+        List<ProfileMaterial.Turn> turns = new ArrayList<>();
+        turns.add(new ProfileMaterial.Turn("ai", "좋은 질문이에요. 이 장면에서 상대에게 무엇을 바라요?"));
+        for (int i = 0; i < replies; i++) {
+            turns.add(new ProfileMaterial.Turn("actor", "그래서 어떻게요?"));
+        }
+        return new ProfileMaterial.Conversation("2026-10-20", "user_ended", replies, turns, rating, null, corrections);
+    }
+
     private static MemoryUpdateMaterial material() {
         return new MemoryUpdateMaterial(USER, PRACTICE, "목표", "분석", "캐릭터 분석", null,
                 List.of(), List.of("문이 무거워요"), List.of());
@@ -138,6 +203,8 @@ class ActorMemoryUpdateWorkerTest {
         MemoryUpdateMaterial material;
         RuntimeException completeFailure;
         RuntimeException releaseFailure;
+        ProfileMaterial profile;
+        RuntimeException profileFailure;
 
         @Override
         public boolean schedule(UUID userId, UUID practiceId, Instant now) {
@@ -173,8 +240,16 @@ class ActorMemoryUpdateWorkerTest {
         }
 
         @Override
-        public Map<String, String> current(UUID userId) {
+        public Map<String, String> current(UUID userId, UUID practiceId) {
             return Map.of();
+        }
+
+        @Override
+        public ProfileMaterial profileMaterial(UUID userId, Instant now) {
+            if (profileFailure != null) {
+                throw profileFailure;
+            }
+            return profile;
         }
 
         @Override
