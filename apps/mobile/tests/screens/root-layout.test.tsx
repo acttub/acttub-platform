@@ -1,3 +1,4 @@
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AppState, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';

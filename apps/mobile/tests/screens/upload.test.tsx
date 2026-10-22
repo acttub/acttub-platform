@@ -156,13 +156,15 @@ describe('영상을 고르기 전', () => {
     expect(screen.queryByText('맨 아래 체크를 누른 뒤 「질문 받기」를 누르세요.')).not.toBeOnTheScreen();
   });
 
-  test('영상 단계에서 뒤로 가면 목적 단계로 돌아가고, 목적 단계에서는 막지 않는다', async () => {
+  test('영상 없이 뒤로 가면 이유를 묻고 건너뛰면 목적 단계로 돌아간다', async () => {
     const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
     await render(<UploadScreen />);
     expect(preventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
     await toSourceStep();
     expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.getByText('영상 올리기가 망설여지나요?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('지금은 넘어갈게요'));
     expect(screen.getByText('오늘은 어떤 도움이 필요해요?')).toBeOnTheScreen();
   });
 
@@ -310,9 +312,11 @@ describe('보관함에서 고른 영상으로 시작', () => {
     await toSourceStep('막힌 곳 풀기');
     // 뒤로 가서 다른 목적을 고른다 — 고른 것만 선택돼 있다.
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    await fireEvent.press(screen.getByText('지금은 넘어갈게요'));
     expect(screen.getByRole('button', { name: '막힌 곳 풀기' })).toBeSelected();
     await toSourceStep('인물 이해하기');
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    await fireEvent.press(screen.getByText('지금은 넘어갈게요'));
     expect(screen.getByRole('button', { name: '인물 이해하기' })).toBeSelected();
     expect(screen.getByRole('button', { name: '막힌 곳 풀기' })).not.toBeSelected();
     await toSourceStep('인물 이해하기');

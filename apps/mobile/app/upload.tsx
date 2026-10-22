@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
+import { UploadReasonSheet } from '@/components/upload-reason-sheet';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { IconOptionRow as ChoiceRow } from '@/components/ui/option-card';
@@ -137,9 +138,17 @@ export default function UploadScreen() {
   // 뒤로 가기(헤더·안드로이드)는 앞 단계로 돌아간다. 다음 화면(코치)으로 넘어갈 때는 풀어 둔다 —
   // usePreventRemove 는 렌더된 값을 보므로 풀린 값이 반영된 다음 틱에 이동한다.
   const [leaving, setLeaving] = useState(false);
+  const [reasonSheet, setReasonSheet] = useState(false);
+  const showReason = () => setReasonSheet(true);
+  const closeReason = () => { setReasonSheet(false); setStep('purpose'); };
+  const reasonRoute = (go: () => void) => {
+    setReasonSheet(false);
+    setTimeout(() => leaveThen(go), Platform.OS === 'ios' ? 450 : 0);
+  };
   usePreventRemove(!leaving && previousUploadStep(step) !== null, () => {
     const back = previousUploadStep(step);
-    if (back) setStep(back);
+    if (back && !sample && !picked) showReason();
+    else if (back) setStep(back);
   });
   const leaveThen = (go: () => void) => {
     setLeaving(true);
@@ -284,7 +293,7 @@ export default function UploadScreen() {
   const pickFromGallery = async () => {
     if (!user?.id) return;
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], allowsEditing: true, quality: 1 });
-    if (result.canceled || !result.assets[0]) return;
+    if (result.canceled || !result.assets[0]) { if (!picked) showReason(); return; }
     const asset = result.assets[0];
     const durationMs = normalizeVideoDurationMs(asset.duration ?? null);
     const outcome = await saveRecordingToLibrary({ uri: asset.uri, durationMs, owner: user.id });
@@ -536,6 +545,7 @@ export default function UploadScreen() {
                   onPress={recordWithGuide}
                 />
                 <ChoiceRow icon="image" title={t('upload.pickGallery')} sub={t('upload.sourceGallerySub')} onPress={() => void pickFromGallery()} />
+                <ChoiceRow icon="message-circle" title={t('uploadReason.noVideo')} sub={t('uploadReason.optional')} onPress={showReason} />
               </View>
             )}
 
@@ -593,6 +603,10 @@ export default function UploadScreen() {
         onClose={() => setSourceSheet(false)}
         options={sourceOptions}
       />
+      {reasonSheet && <UploadReasonSheet onClose={closeReason}
+        onTalk={() => reasonRoute(() => router.replace('/talk'))}
+        onScript={() => reasonRoute(() => router.replace('/script-cocreate'))}
+        onRecord={() => reasonRoute(recordWithGuide)} />}
       {dialog}
       {tutorialGuide.element}
     </SafeAreaView>

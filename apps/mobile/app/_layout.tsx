@@ -13,6 +13,7 @@ import {
 } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { getTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import 'react-native-reanimated';
@@ -20,6 +21,9 @@ import 'react-native-reanimated';
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TrackingIntro } from '@/components/tracking-intro';
+import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
@@ -450,6 +454,18 @@ function ScreenTracker() {
 }
 
 export default function RootLayout() {
+  const [trackingIntro, setTrackingIntro] = useState(false);
+  const trackingDone = useRef<(() => void) | null>(null);
+  const finishTrackingIntro = () => {
+    const done = trackingDone.current;
+    trackingDone.current = null;
+    done?.();
+  };
+  const closeTrackingIntro = () => {
+    setTrackingIntro(false);
+    // iOS는 모달이 닫힌 뒤 시스템 권한 창을 연다.
+    if (Platform.OS !== 'ios') finishTrackingIntro();
+  };
   const [fontsLoaded] = useFonts({
     ...Feather.font,
     // 굵기별 static 서브셋 — 가변폰트는 안드로이드에서 fontWeight가 안 먹는다([[global-font]]).
@@ -466,19 +482,27 @@ export default function RootLayout() {
   // Meta SDK 초기화(SOMA-481). iOS ATT 팝업은 앱이 활성 상태일 때만 뜨므로,
   // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.
   useEffect(() => {
+    if (!fontsLoaded) return;
+    const initialize = () => initMetaSdk(() => beforeTrackingRequest({
+      platform: Platform.OS,
+      getStatus: async () => (await getTrackingPermissionsAsync()).status,
+      getSeen: () => AsyncStorage.getItem(TRACKING_INTRO_KEY),
+      markSeen: () => AsyncStorage.setItem(TRACKING_INTRO_KEY, '1'),
+      show: () => new Promise<void>((resolve) => { trackingDone.current = resolve; setTrackingIntro(true); }),
+    }));
     // 설치 귀속 결과는 SDK 초기화 뒤 곧 온다. 받는 쪽은 먼저 세워 둔다(SOMA-588).
     startSignupAttributionListener();
     if (AppState.currentState === 'active') {
-      void initMetaSdk();
+      void initialize();
       return;
     }
     const subscription = AppState.addEventListener('change', (next) => {
       if (next !== 'active') return;
       subscription.remove();
-      void initMetaSdk();
+      void initialize();
     });
     return () => subscription.remove();
-  }, []);
+  }, [fontsLoaded]);
 
   if (!fontsLoaded) return null;
 
@@ -492,6 +516,7 @@ export default function RootLayout() {
           {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
               비출 자리의 좌표가 맞는다 (SOMA-550). */}
           <SpotlightHost />
+          <TrackingIntro visible={trackingIntro} onContinue={closeTrackingIntro} onDismiss={finishTrackingIntro} />
           <StatusBar style="dark" />
         </ThemeProvider>
       </AuthProvider>

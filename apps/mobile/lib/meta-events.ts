@@ -56,7 +56,7 @@ export function logMetaEvent(name: string): void {
  * 앱 기동 시 한 번 호출한다. ATT 팝업은 앱이 활성 상태여야 뜨므로 스플래시 이후에 부른다.
  * 실패는 전부 삼킨다 — 광고 계측이 앱 흐름을 막지 않는다.
  */
-export async function initMetaSdk(): Promise<void> {
+export async function initMetaSdk(beforeRequest?: () => Promise<void>): Promise<void> {
   if (started) return;
   started = true;
 
@@ -68,6 +68,7 @@ export async function initMetaSdk(): Promise<void> {
   let granted = false;
   try {
     const tracking = require('expo-tracking-transparency');
+    await beforeRequest?.();
     const response = await tracking.requestTrackingPermissionsAsync();
     granted = response?.status === 'granted';
   } catch {
