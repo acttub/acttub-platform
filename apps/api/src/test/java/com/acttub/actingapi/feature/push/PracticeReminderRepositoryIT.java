@@ -69,11 +69,24 @@ class PracticeReminderRepositoryIT {
     }
 
     private UUID script(UUID userId, String title, String at) {
+        return script(userId, title, at, "paste");
+    }
+
+    private UUID script(UUID userId, String title, String at, String source) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_fingerprint,created_at,updated_at) VALUES (?,?,?,'r',repeat('0',64),'paste',?,?,?)",
-                id, userId, title, "f".repeat(64), kst(at), kst(at));
+        jdbc.update("INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_fingerprint,created_at,updated_at) VALUES (?,?,?,'r',repeat('0',64),?,?,?,?)",
+                id, userId, title, source, "f".repeat(64), kst(at), kst(at));
         return id;
     }
+
+    private UUID videoId(UUID userId, String at) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms,created_at) VALUES (?,?,?,'video/mp4',1,1,?)",
+                id, userId, "video/" + id, kst(at));
+        return id;
+    }
+
+    private static final Instant PENDING_SINCE = kst("2026-10-14T20:00").toInstant();
 
     /** 영상 + 연습 한 회차. rootId 가 null 이면 첫 회차(자기 자신이 root). */
     private UUID practice(UUID userId, UUID rootId, int ordinal, String title, String at, boolean hiddenRoot) {
@@ -367,5 +380,80 @@ class PracticeReminderRepositoryIT {
         assertThat(message.title() + message.body()).doesNotContain("비밀 작품명").doesNotContain("비밀인물");
         assertThat(jdbc.queryForObject("SELECT template_id FROM practice_reminder_sends WHERE user_id=? AND slot='practice'",
                 String.class, u)).isEqualTo(message.data().get("template_id"));
+    }
+
+    @Test
+    void latestPendingVideoPicksTheNewestUnusedVideoOfTheOwnerWithinSevenDays() {
+        UUID u = user("pendingvideo", true, "0.1.2", "2026-09-01T10:00");
+        UUID other = user("pendingvideo_other", true, "0.1.2", "2026-09-01T10:00");
+        assertThat(reminders.latestPendingVideo(u, PENDING_SINCE)).as("영상 없음").isNull();
+
+        UUID old = videoId(u, "2026-10-10T10:00");                    // 7일보다 오래됨
+        UUID purged = videoId(u, "2026-10-20T10:00");
+        jdbc.update("UPDATE videos SET purged_at=now() WHERE id=?", purged);
+        videoId(other, "2026-10-20T11:00");                           // 남의 영상
+        assertThat(reminders.latestPendingVideo(u, PENDING_SINCE)).as("오래됨·파기·남의 것은 제외").isNull();
+
+        UUID first = videoId(u, "2026-10-18T10:00");
+        UUID newest = videoId(u, "2026-10-19T10:00");
+        assertThat(reminders.latestPendingVideo(u, PENDING_SINCE)).as("가장 최근 것").isEqualTo(newest);
+
+        UUID practiceId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,blockage_kind,sub_branch,title,created_at,close_reason)
+                VALUES (?,?,?,?,1,'closed','three_layers_v1','분석','캐릭터 분석','쓴 영상',?,'conversation_closed')
+                """, practiceId, u, newest, practiceId, kst("2026-10-20T09:00"));
+        assertThat(reminders.latestPendingVideo(u, PENDING_SINCE)).as("코칭에 쓴 영상은 제외, 다음으로 최근 것").isEqualTo(first);
+
+        UUID challenge = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges (id,line,work,character,duration_days,origin,request_id,request_fingerprint,featured_on,starts_at,ends_at)
+                VALUES (?, '대사', '작품', '인물', 7, 'team', ?, ?, ?, ?, ?)
+                """, challenge, UUID.randomUUID(), "a".repeat(64), java.sql.Date.valueOf(TODAY), kst("2026-10-18T00:00"), kst("2026-10-28T00:00"));
+        jdbc.update("""
+                INSERT INTO challenge_entries(id,challenge_id,user_id,video_id,visibility,status,request_id,request_fingerprint)
+                VALUES (?,?,?,?,'private','visible',?,?)
+                """, UUID.randomUUID(), challenge, u, first, UUID.randomUUID(), "b".repeat(64));
+        assertThat(reminders.latestPendingVideo(u, PENDING_SINCE)).as("참여작에 쓴 영상도 제외").isNull();
+        assertThat(old).isNotNull();
+    }
+
+    @Test
+    void latestUnreadScriptSkipsSamplesReadScriptsOldOnesAndOtherUsers() {
+        UUID u = user("unreadscript", true, "0.1.2", "2026-09-01T10:00");
+        UUID other = user("unreadscript_other", true, "0.1.2", "2026-09-01T10:00");
+        script(u, "오래된 대본", "2026-10-10T10:00");
+        script(u, "예시 대본", "2026-10-20T10:00", "sample");
+        script(other, "남의 대본", "2026-10-20T11:00");
+        assertThat(reminders.latestUnreadScript(u, PENDING_SINCE)).as("오래됨·예시·남의 것은 제외").isNull();
+
+        UUID older = script(u, "붙여넣은 대본", "2026-10-18T10:00", "paste");
+        UUID newest = script(u, "파일 대본", "2026-10-19T10:00", "file");
+        assertThat(reminders.latestUnreadScript(u, PENDING_SINCE)).isEqualTo(newest);
+
+        UUID characterId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        jdbc.update("INSERT INTO script_characters(id,script_id,name,sort_order) VALUES (?,?,'역할',0)", characterId, newest);
+        jdbc.update("INSERT INTO script_lines(id,script_id,ordinal,kind,text,character_id) VALUES (?,?,0,'dialogue','안녕하세요 반갑습니다',?)",
+                lineId, newest, characterId);
+        jdbc.update("""
+                INSERT INTO reading_sessions(id,user_id,script_id,mode,advance,my_character_ids,start_line_id,end_line_id,status,record,started_at,updated_at)
+                VALUES (?,?,?,'read','manual',ARRAY[?]::uuid[],?,?,'in_progress',false,?,?)
+                """, UUID.randomUUID(), u, newest, characterId, lineId, lineId, kst("2026-10-20T20:30"), kst("2026-10-20T20:40"));
+        assertThat(reminders.latestUnreadScript(u, PENDING_SINCE)).as("리딩을 시작한 대본은 제외").isEqualTo(older);
+    }
+
+    @Test
+    void sentCountsByKindCountsOnlyFromTheGivenDay() {
+        UUID u = user("counts", true, "0.1.2", "2026-09-01T10:00");
+        for (int ago : new int[] {8, 5, 2}) {
+            jdbc.update("INSERT INTO practice_reminder_sends(user_id,day,slot,kind,skipped_days,template_id) VALUES (?,?,'practice','pending_video',1,?)",
+                    u, java.sql.Date.valueOf(TODAY.minusDays(ago)), "video." + ago);
+        }
+        jdbc.update("INSERT INTO practice_reminder_sends(user_id,day,slot,kind,skipped_days,template_id) VALUES (?,?,'practice','unread_script',1,'script.a')",
+                u, java.sql.Date.valueOf(TODAY.minusDays(1)));
+        assertThat(reminders.sentCountsByKind(u, TODAY.minusDays(6)))
+                .containsEntry("pending_video", 2).containsEntry("unread_script", 1).hasSize(2);
+        assertThat(reminders.sentCountsByKind(UUID.randomUUID(), TODAY.minusDays(6))).isEmpty();
     }
 }
