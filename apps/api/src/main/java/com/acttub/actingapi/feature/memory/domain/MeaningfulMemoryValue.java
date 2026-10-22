@@ -13,8 +13,11 @@ import java.util.regex.Pattern;
  */
 public final class MeaningfulMemoryValue {
 
-    /** 이보다 짧으면 다음 연습에 가져갈 내용이 없다고 본다(공백 제외 글자 수). */
-    static final int MIN_LETTERS = 5;
+    /**
+     * 이보다 짧으면 다음 연습에 가져갈 내용이 없다고 본다(공백·부호 제외 글자 수). 1~2자("합격", "네")만 막는다 — 5자로 두면
+     * "복수하기"·"사과받기" 같은 네 글자 인물 목표까지 버린다.
+     */
+    static final int MIN_LETTERS = 3;
 
     /** 화면에서 무엇을 골랐는지 — 배우가 아니라 선택 UI 를 설명한다. */
     private static final Pattern SELECTION = Pattern.compile(
