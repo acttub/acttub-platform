@@ -27,7 +27,17 @@ jest.mock('expo-video', () => {
     VideoView: () => <Text>미리보기 영상</Text>,
   };
 });
-jest.mock('@/lib/api', () => ({ api: { getChallenge: jest.fn(), createEntry: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { getChallenge: jest.fn(), createEntry: jest.fn(), getEntry: jest.fn() } }));
+jest.mock('@/lib/challenge/share-native', () => ({
+  videoDeps: { download: jest.fn(), remove: jest.fn() },
+  isInstagramInstalled: jest.fn(async () => true),
+  instagramStoreUrl: jest.fn(() => null),
+  shareVideoToInstagramStory: jest.fn(),
+  saveVideoToLibrary: jest.fn(),
+  copyText: jest.fn(),
+  openSystemShare: jest.fn(),
+  openUrl: jest.fn(),
+}));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/recorded-video', () => ({ takeRecordedVideo: jest.fn() }));
@@ -103,8 +113,9 @@ test('보관함 영상으로 공개 참여하면 완료 화면의 주 버튼 「
   expect(screen.getByText(/다른 배우들이 볼 수 있어요\. 대사 랭킹에 바로 반영됐어요\./)).toBeOnTheScreen();
 
   // 주 버튼(첫 버튼)이 「AI 리포트 보기」다 — 한 번 누르면 리포트 화면이 열리며 요청한다(request=1).
-  const [primary, secondary] = screen.getAllByRole('button');
+  const [primary, shareButton, secondary] = screen.getAllByRole('button');
   expect(primary).toHaveAccessibleName('AI 리포트 보기');
+  expect(shareButton).toHaveAccessibleName('SNS에 공유하기');
   expect(secondary).toHaveAccessibleName('홈으로 가기');
   await fireEvent.press(primary);
   expect(logEvent).toHaveBeenCalledWith('challenge_upload_report', { visibility: 'public' });
@@ -112,6 +123,14 @@ test('보관함 영상으로 공개 참여하면 완료 화면의 주 버튼 「
     pathname: '/ai-report',
     params: { entryId: 'entry-1', videoId: 'v1', challengeId: 'c1', visibility: 'public', request: '1' },
   });
+
+  (api.getEntry as jest.Mock).mockResolvedValue({
+    id: 'entry-1', is_mine: true, published_at: '2026-10-20T00:00:00Z', playback_url: 'https://v/1.mp4', author: { name: '나' },
+  });
+  await fireEvent.press(shareButton);
+  expect(logEvent).toHaveBeenCalledWith('challenge_upload_share', { visibility: 'public' });
+  expect(await screen.findByText('영상으로 저장')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByLabelText('닫기'));
 
   await fireEvent.press(secondary);
   expect(mockRouter.replace).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });

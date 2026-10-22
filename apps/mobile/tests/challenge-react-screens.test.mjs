@@ -95,7 +95,8 @@ test('challenge.react: 저장한 영상에서 저장을 풀 수 있다', () => {
 });
 
 test('challenge.react: 공유는 참여작 딥링크이고 볼 수 없으면 안내만 한다', () => {
-  assert.match(read('app/challenge-play.tsx'), /entryShareUrl\(entry\.id\)/);
+  assert.match(read('app/challenge-play.tsx'), /entryShare\.open\(entry\)/);
+  assert.match(read('lib/challenge/share.ts'), /entryShareUrl\(entry\.id\)/);
   const link = read('app/entry/[id].tsx');
   assert.match(link, /\.getEntry\(id\)/);
   assert.match(link, /react\.linkGone/);

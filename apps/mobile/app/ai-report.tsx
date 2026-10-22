@@ -128,7 +128,7 @@ export default function AiReportScreen() {
   const finish = () => {
     if (!challengeId) return;
     void logEvent('challenge_report_finish', {});
-    router.replace({ pathname: '/challenge-finish', params: { challengeId } });
+    router.replace({ pathname: '/challenge-finish', params: { challengeId, entryId: entryId ?? '' } });
   };
 
   /** 나만 보기 참여작을 공개로 바꾼다(Avv5P0 확인창). 바꾸면 마무리로 간다. */

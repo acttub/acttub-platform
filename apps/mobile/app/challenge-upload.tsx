@@ -4,11 +4,12 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
 
+import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -82,6 +83,7 @@ export default function ChallengeUploadScreen() {
   const [error, setError] = useState<string | null>(null);
   /** 방금 만든 참여작 — 있으면 완료 화면이고, 「AI 리포트 보기」가 id 를 쓴다. */
   const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean } | null>(null);
+  const entryShare = useEntryShare(params.line ?? '', () => Alert.alert(t('entryShare.title'), t('entryShare.none')));
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -262,6 +264,13 @@ export default function ChallengeUploadScreen() {
         <View style={styles.doneFooter}>
           <PrimaryButton label={t('challengeUpload.getReport')} onPress={getReport} />
           <SecondaryButton
+            label={t('entryShare.entry')}
+            onPress={() => {
+              logEvent('challenge_upload_share', { visibility: created.visibility });
+              void entryShare.openById(created.id);
+            }}
+          />
+          <SecondaryButton
             style={styles.ghost}
             label={t('challengeUpload.goHome')}
             onPress={() =>
@@ -271,6 +280,7 @@ export default function ChallengeUploadScreen() {
             }
           />
         </View>
+        {entryShare.sheet}
       </SafeAreaView>
     );
   }

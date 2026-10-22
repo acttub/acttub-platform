@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  Share,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -20,11 +19,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
+import { useEntryShare } from '@/components/entry-share-sheet';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { avatarLetter, browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
-import { entryShareUrl } from '@/lib/challenge/deeplink';
 import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import { commentCountAfter } from '@/lib/challenge/entry';
 import { canReact, optimisticLike, optimisticSave, reactFailure, reactFailureMessage } from '@/lib/challenge/react';
@@ -251,12 +250,13 @@ export default function ChallengePlayScreen() {
       params: { mode: 'challenge', challengeId: challenge.id, line: challenge.line, work: challenge.work },
     });
   };
+  const entryShare = useEntryShare(challenge?.line ?? '', () =>
+    void alert({ title: t('entryShare.title'), message: t('entryShare.none') }),
+  );
   const share = (entry: EntryCard) => {
     logEvent('challenge_share', { id: entry.id });
-    // 공유는 참여작 딥링크다 — 회원 앱에서 열면 노출 조건을 확인한 뒤 그 참여작부터 연다.
-    void Share.share({
-      message: `${t('profileTab.shareText', { name: entry.author.name, line: challenge?.line ?? '' })}\n${entryShareUrl(entry.id)}`,
-    }).catch(() => {});
+    // 공유 시트(SOMA-819) — 내 참여작은 인스타 스토리·영상 저장, 공개 참여작은 딥링크(회원 앱에서 열면 노출 조건을 확인한 뒤 그 참여작부터 연다).
+    entryShare.open(entry);
   };
 
   const patchEntry = (entryId: string, patch: Partial<EntryCard>) =>
@@ -528,6 +528,7 @@ export default function ChallengePlayScreen() {
         onSubmit={(reason, note) => void sendReport(reason, note)}
       />
       {dialog}
+      {entryShare.sheet}
     </View>
   );
 }
