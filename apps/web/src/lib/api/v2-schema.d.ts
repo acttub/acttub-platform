@@ -718,6 +718,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/scripts/{script_id}/lines/{line_id}/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Split Script Line
+         * @description 줄 하나를 둘로 나눈다(나누기가 한 줄로 합친 대사). 앞 글은 그 줄(id 그대로)에 남고 뒤 글은 바로 뒤에 같은
+         *     종류·배역의 새 줄이 되며, 뒤 줄들의 순서가 하나씩 밀린다. 회차·녹음·외운 줄은 앞 줄을 계속 가리키고, 구간이 그
+         *     줄로 끝나던 회차는 끝을 뒤 줄로 옮긴다. 두 글은 앞뒤 공백을 정리하고 비거나 5,000자를 넘으면 422 배열이다. 없는
+         *     줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found. 고친 대본 전체를 돌려준다.
+         */
+        post: operations["split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/scripts/{script_id}/lines/{line_id}/insert-after": {
         parameters: {
             query?: never;
@@ -736,29 +759,6 @@ export interface paths {
          *     고친 대본 전체를 돌려준다.
          */
         post: operations["insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/reading/scripts/{script_id}/lines/{line_id}/split": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Split Script Line
-         * @description 줄 하나를 둘로 나눈다(나누기가 한 줄로 합친 대사). 앞 글은 그 줄(id 그대로)에 남고 뒤 글은 바로 뒤에 같은
-         *     종류·배역의 새 줄이 되며, 뒤 줄들의 순서가 하나씩 밀린다. 회차·녹음·외운 줄은 앞 줄을 계속 가리키고, 구간이 그
-         *     줄로 끝나던 회차는 끝을 뒤 줄로 옮긴다. 두 글은 앞뒤 공백을 정리하고 비거나 5,000자를 넘으면 422 배열이다. 없는
-         *     줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found. 고친 대본 전체를 돌려준다.
-         */
-        post: operations["split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3516,6 +3516,13 @@ export interface components {
              */
             end: number;
         };
+        /** ReadingScriptLineSplit */
+        ReadingScriptLineSplit: {
+            /** First Text */
+            first_text: string;
+            /** Second Text */
+            second_text: string;
+        };
         /** ReadingScriptLineInsert */
         ReadingScriptLineInsert: {
             kind: components["schemas"]["ReadingScriptLineKindInput"];
@@ -3523,13 +3530,6 @@ export interface components {
             character_id?: string | null;
             /** Text */
             text: string;
-        };
-        /** ReadingScriptLineSplit */
-        ReadingScriptLineSplit: {
-            /** First Text */
-            first_text: string;
-            /** Second Text */
-            second_text: string;
         };
         /** ReadingImportRequest */
         ReadingImportRequest: {
@@ -7150,7 +7150,7 @@ export interface operations {
             };
         };
     };
-    insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post: {
+    split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7162,7 +7162,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReadingScriptLineInsert"];
+                "application/json": components["schemas"]["ReadingScriptLineSplit"];
             };
         };
         responses: {
@@ -7186,7 +7186,7 @@ export interface operations {
             };
         };
     };
-    split_script_line_v2_reading_scripts__script_id__lines__line_id__split_post: {
+    insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7198,7 +7198,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReadingScriptLineSplit"];
+                "application/json": components["schemas"]["ReadingScriptLineInsert"];
             };
         };
         responses: {
