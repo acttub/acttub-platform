@@ -37,6 +37,10 @@ class PracticeReminderServiceTest {
         ReminderContent.Resume resume;
         ReminderContent.Homework homework;
         Map<String, LocalDate> recent = new HashMap<>();
+        UUID pendingVideo;
+        UUID unreadScript;
+        /** 보낸 기록(day, kind) — sentCountsByKind 가 센다. */
+        final List<Map.Entry<LocalDate, String>> sendLog = new ArrayList<>();
         int claimCalls;
         boolean failCandidates;
 
@@ -66,11 +70,18 @@ class PracticeReminderServiceTest {
         }
         @Override public ReminderContent.Resume latestOpenQuestion(UUID userId) { return resume; }
         @Override public ReminderContent.Homework latestHomework(UUID userId) { return homework; }
+        @Override public UUID latestPendingVideo(UUID userId, Instant since) { return pendingVideo; }
+        @Override public UUID latestUnreadScript(UUID userId, Instant since) { return unreadScript; }
+        @Override public Map<String, Integer> sentCountsByKind(UUID userId, LocalDate since) {
+            Map<String, Integer> counts = new HashMap<>();
+            for (Map.Entry<LocalDate, String> e : sendLog) if (!e.getKey().isBefore(since)) counts.merge(e.getValue(), 1, Integer::sum);
+            return counts;
+        }
         @Override public Map<String, LocalDate> recentTemplates(UUID userId, LocalDate since) { return recent; }
         @Override public boolean claim(UUID userId, LocalDate day, ReminderCopy copy) {
             claimCalls++;
             boolean added = claims.add(userId + "|" + day + "|" + copy.kind().slot());
-            if (added) claimedCopies.add(copy);
+            if (added) { claimedCopies.add(copy); sendLog.add(Map.entry(day, copy.kind().wire())); }
             return added;
         }
     }
@@ -313,5 +324,41 @@ class PracticeReminderServiceTest {
         new PracticeReminderService(flaky, noTokens(), messages -> { sent.addAll(messages); return List.of(); }, failures, clock, "0.1.2").sendDue();
         assertThat(sent).extracting(PushMessage::to).containsExactly("tok-" + OTHER);
         assertThat(failures.reports()).hasSize(1);
+    }
+
+    @Test
+    void pendingVideoCarriesVideoIdAndGoesBeforeHomeworkAndReading() {
+        UUID video = UUID.fromString("00000000-0000-0000-0000-0000000000d1");
+        repo.pendingVideo = video;
+        repo.add(USER, "2026-10-20T20:00", true, days());
+        run("2026-10-21T19:30");
+        assertThat(sent).singleElement().satisfies(m -> assertThat(m.data())
+                .containsEntry("kind", "evening_reminder").containsEntry("reminder_kind", "pending_video")
+                .containsEntry("video_id", video.toString()).doesNotContainKey("script_id"));
+    }
+
+    @Test
+    void unreadScriptCarriesScriptIdAndOutranksFirstPracticeForSignupWhoNeverPracticed() {
+        UUID script = UUID.fromString("00000000-0000-0000-0000-0000000000e1");
+        repo.unreadScript = script;
+        repo.states.add(new FakeRepo.State(USER, List.of(new PushTarget("tok-" + USER, "ko")), kst("2026-10-20T20:00"),
+                LocalDate.of(2026, 10, 20), true, false, false, days()));
+        run("2026-10-21T19:30");
+        assertThat(sent).singleElement().satisfies(m -> assertThat(m.data())
+                .containsEntry("reminder_kind", "unread_script").containsEntry("script_id", script.toString()));
+    }
+
+    @Test
+    void sameKindIsSentAtMostTwiceInSevenDaysThenTheNextKindIsUsed() {
+        repo.pendingVideo = UUID.fromString("00000000-0000-0000-0000-0000000000d1");
+        repo.unreadScript = UUID.fromString("00000000-0000-0000-0000-0000000000e1");
+        repo.add(USER, "2026-10-20T20:00", false, days());
+        run("2026-10-21T19:30");
+        run("2026-10-22T19:30");
+        run("2026-10-23T19:30");
+        run("2026-10-24T19:30");
+        run("2026-10-25T19:30");
+        assertThat(sent).extracting(m -> m.data().get("reminder_kind"))
+                .containsExactly("pending_video", "pending_video", "unread_script", "unread_script", "general");
     }
 }
