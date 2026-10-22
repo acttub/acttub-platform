@@ -83,7 +83,7 @@ test('challenge.browse: P03 은 네 분류로 세고 카드에서 고치거나 �
   assert.match(p03, /canGoPublic/);
   // 지워도 영상은 보관함에 남는다고 말한다.
   assert.match(p03, /deleteNotice\(\)/);
-  assert.match(read('locales/ko.ts'), /영상은 보관함에 남아요/);
+  assert.match(read('locales/ko.ts'), /영상은 그대로 있어요/);
   // 프로필에서 들어가는 길이 있다.
   assert.match(read('app/(tabs)/profile.tsx'), /'\/challenge-entries'/);
 });

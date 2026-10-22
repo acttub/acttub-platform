@@ -244,7 +244,7 @@ describe('갤러리에서 고르기', () => {
     (confirmedVideoFor as jest.Mock).mockImplementation((id: string) => (id === 'pend-1' ? 'v9' : null));
     await act(async () => emitLibraryChange());
 
-    expect(await screen.findByText('보관함 저장')).toBeOnTheScreen();
+    expect(await screen.findByText('저장했어요')).toBeOnTheScreen();
     expect(logged('practice_video_ready')).toEqual([{ source: 'gallery', wait_s: 0 }]);
     await checkRightsAndStart();
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coach', params: { practiceId: 'p1' } }));
@@ -278,7 +278,7 @@ describe('보관함에서 고른 영상으로 시작', () => {
   test('재생 주소를 받아 미리보기를 채우고, 권리를 체크하면 회차를 만들어 코치 화면(분석 대기)으로 간다', async () => {
     await renderWithSavedVideo();
 
-    expect(screen.getByText('보관함 저장')).toBeOnTheScreen();
+    expect(screen.getByText('저장했어요')).toBeOnTheScreen();
     expect(api.getVideo).toHaveBeenCalledWith('v1');
     expect(logged('practice_video_picked')).toEqual([{ source: 'library', needs_upload: 'no', length: '10_30s' }]);
 
@@ -349,7 +349,7 @@ describe('보관함에서 고른 영상으로 시작', () => {
     await render(<UploadScreen />);
     await waitFor(() => expect(api.getVideo).toHaveBeenCalledWith('v1'));
     expect(useVideoPlayer).toHaveBeenLastCalledWith(null, expect.any(Function));
-    expect(screen.getByText('보관함 저장')).toBeOnTheScreen();
+    expect(screen.getByText('저장했어요')).toBeOnTheScreen();
   });
 
   test('상세를 못 받아도 화면은 그대로다', async () => {
@@ -357,7 +357,7 @@ describe('보관함에서 고른 영상으로 시작', () => {
     setPickedVideo({ videoId: 'v1', pendingId: null, uri: null, playbackUrl: null, durationMs: null });
     await render(<UploadScreen />);
     await waitFor(() => expect(api.getVideo).toHaveBeenCalled());
-    expect(screen.getByText('보관함 저장')).toBeOnTheScreen();
+    expect(screen.getByText('저장했어요')).toBeOnTheScreen();
   });
 
   test('다른 영상의 상세가 늦게 오면 덮어쓰지 않는다', async () => {

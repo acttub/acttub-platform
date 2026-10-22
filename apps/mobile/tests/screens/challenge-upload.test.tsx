@@ -87,7 +87,7 @@ test('보관함 영상으로 공개 참여하면 완료 화면의 주 버튼 「
   await render(<ChallengeUploadScreen />);
 
   expect(await screen.findByText('“사느냐 죽느냐”')).toBeOnTheScreen();
-  expect(screen.getByText(/^보관함 영상 · D-\d+$/)).toBeOnTheScreen();
+  expect(screen.getByText(/^올려 둔 영상 · D-\d+$/)).toBeOnTheScreen();
   expect(await screen.findByText('미리보기 영상')).toBeOnTheScreen();
   expect(localCopyFor).toHaveBeenCalledWith('v1');
   expect(events()).toContainEqual(['challenge_upload_succeeded', { origin: 'library' }]);
@@ -196,8 +196,8 @@ test('끝난 챌린지에는 올릴 수 없다고 알리고 버튼을 막는다'
   getChallenge.mockResolvedValue({ ...running, ends_at: ENDED_AT });
   await render(<ChallengeUploadScreen />);
 
-  expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 보관함에 남아 있어요.')).toBeOnTheScreen();
-  expect(screen.getByText('보관함 영상 · 종료')).toBeOnTheScreen();
+  expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 그대로 있어요.')).toBeOnTheScreen();
+  expect(screen.getByText('올려 둔 영상 · 종료')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
   expect(submitButton()).toBeDisabled();
 });

@@ -24,7 +24,7 @@ test('③ 새 연습: 머리 오른쪽 설정, 본문 좌우 20, 권리 체크 1
   assert.match(upload, /submitText: \{ fontSize: 17, fontWeight: '700'/);
   assert.match(upload, /submitTextDisabled: \{ color: palette\.checkOff \}/);
   assert.match(upload, /submitHint: \{ fontSize: 14, fontWeight: '500', color: palette\.textFaint/);
-  // 고른 영상: 높이 178 · 모서리 22, 「영상 다시 선택」 알약 28 · 15/700, 「보관함 저장」 15/500.
+  // 고른 영상: 높이 178 · 모서리 22, 「영상 다시 선택」 알약 28 · 15/700, 「저장했어요」 15/500.
   assert.match(upload, /preview: \{ width: '100%', height: 178, borderRadius: 22,/);
   assert.match(upload, /repick: \{ height: 28, borderRadius: 14,/);
   assert.match(upload, /repickText: \{ fontSize: 15, fontWeight: '700'/);
