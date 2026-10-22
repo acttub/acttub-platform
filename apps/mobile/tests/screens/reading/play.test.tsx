@@ -1500,6 +1500,17 @@ async function startMonologue() {
   return server;
 }
 
+test('SOMA-597: 독백 시작 전에는 자동 넘김 대신 끝까지 읽고 끝내기를 누르는 안내를 보인다', async () => {
+  await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
+  await startPlay({ start_line_id: 'l1', end_line_id: 'l4', my_character_ids: ['c1'], my_character_names: ['민지'] }, MONO, { begin: false });
+
+  expect(await screen.findByText('독백은 끝까지 이어서 읽고 「끝내기」를 눌러요. 준비되면 「시작」을 누르세요.')).toBeOnTheScreen();
+  expect(screen.queryByText('말이 끝나면 저절로 넘어가요. 준비되면 「시작」을 누르세요.')).not.toBeOnTheScreen();
+  expect(mockStt.start).not.toHaveBeenCalled();
+  await begin();
+  expect(await screen.findByText('계속 녹음 중')).toBeOnTheScreen();
+});
+
 test('SOMA-597: 독백은 문장 목록을 한 카드에 보이고 계속 녹음한다 — 상대역 목소리·[이전] 없이 [끝내기], 위에 N / M문장', async () => {
   await startMonologue();
 
