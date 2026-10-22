@@ -136,6 +136,12 @@ public final class SplitDraft {
 
     public static Assembly assembleWithSpeakers(String title, String rawText, String source, List<NumberedLine> lines,
             Map<Integer, Row> rows, List<String> roster, Map<String, CharacterTraits> traits) {
+        return assembleWithSpeakers(title, rawText, source, lines, rows, roster, traits, null);
+    }
+
+    /** 파일명은 제목을 찾지 못했을 때만 쓴다. 요청 제목과 본문의 제목을 덮어쓰지 않는다. */
+    public static Assembly assembleWithSpeakers(String title, String rawText, String source, List<NumberedLine> lines,
+            Map<Integer, Row> rows, List<String> roster, Map<String, CharacterTraits> traits, String fileName) {
         List<Assembled> assembled = new ArrayList<>();
         List<String> castLines = new ArrayList<>();
         String modelTitle = null;
@@ -232,7 +238,7 @@ public final class SplitDraft {
                     }
                 }
                 case TITLE -> {
-                    if (modelTitle == null && !body.isEmpty()) {
+                    if (modelTitle == null && !body.isEmpty() && !titlePageNumber(body)) {
                         modelTitle = body;
                     }
                 }
@@ -280,7 +286,7 @@ public final class SplitDraft {
             }
             before = t;
         }
-        return new Assembly(new ScriptDraft(title(title, modelTitle, lines, rows, roster), rawText, source, characters, draftLines,
+        return new Assembly(new ScriptDraft(title(title, modelTitle, fileName), rawText, source, characters, draftLines,
                 traitsOf(characters, traits, merged)), speakers, sourceHeads);
     }
 
@@ -947,39 +953,25 @@ public final class SplitDraft {
         return names;
     }
 
-    /**
-     * 제목은 요청의 title, 없으면 모델이 제목이라 한 줄, 없으면 첫 줄이다. 첫 줄이 화자 이름뿐(블록 형식의 "민수" 줄)이면
-     * 그 줄은 제목 후보에서 빼고 다음 줄을 쓴다. 후보가 하나도 없으면 첫 줄이다.
-     */
-    private static String title(String requested, String modelTitle, List<NumberedLine> lines, Map<Integer, Row> rows,
-            List<String> roster) {
+    /** 요청 제목 → 모델이 찾은 제목 → 확장자를 뺀 파일명 → 제목 없는 대본. 대사는 제목 후보가 아니다. */
+    private static String title(String requested, String modelTitle, String fileName) {
         String title = requested != null && !requested.isBlank() ? requested.strip()
-                : modelTitle != null ? modelTitle
-                : firstLineTitle(lines, rows, roster);
+                : modelTitle != null && !modelTitle.isBlank() && !titlePageNumber(modelTitle) ? modelTitle.strip()
+                : fileTitle(fileName);
         return title.codePointCount(0, title.length()) <= TITLE_MAX
-                ? title
-                : title.substring(0, title.offsetByCodePoints(0, TITLE_MAX));
+                ? title : title.substring(0, title.offsetByCodePoints(0, TITLE_MAX));
     }
 
-    private static String firstLineTitle(List<NumberedLine> lines, Map<Integer, Row> rows, List<String> roster) {
-        if (lines.isEmpty()) {
-            return "";
-        }
-        java.util.Set<String> names = new java.util.HashSet<>(roster);
-        for (Row row : rows.values()) {
-            if (row.kind() == Kind.DIALOGUE && row.speaker() != null && !row.speaker().isBlank()) {
-                names.add(row.speaker().strip());
-            }
-        }
-        for (NumberedLine line : lines) {
-            String text = ScriptText.visible(line.text()).strip();
-            Row row = rows.get(line.no());
-            if (text.isEmpty() || names.contains(text) || (row != null && (row.kind() == Kind.IGNORE || row.kind() == Kind.CAST))) {
-                continue;
-            }
-            return text;
-        }
-        return ScriptText.visible(lines.getFirst().text()).strip();
+    private static boolean titlePageNumber(String text) {
+        return pageNumber(text) || text.strip().matches("(?i)(?:\\d+\\s*(?:쪽|페이지)|(?:쪽|페이지|page)\\s*\\d+)");
+    }
+
+    private static String fileTitle(String fileName) {
+        if (fileName == null || fileName.isBlank()) return "제목 없는 대본";
+        String name = fileName.substring(Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\')) + 1).strip();
+        int dot = name.lastIndexOf('.');
+        if (dot >= 0) name = name.substring(0, dot).strip();
+        return name.isEmpty() ? "제목 없는 대본" : name;
     }
 
     private static final class Assembled {
