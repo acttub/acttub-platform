@@ -108,6 +108,18 @@ public final class ReminderTemplates {
             new Template("reading.f", "한 번 더 읽어 볼까요?", "지난번보다 한 줄만 더 읽어 봐요."),
             new Template("reading.g", "대사 연습 이어서 해요", "읽던 곳에서 이어서 하면 돼요."));
 
+    // ── 올려 둔 영상(pending_video): 직접 올렸지만 그 영상으로 코칭을 시작하지 않았을 때. 영상 제목·내용은 넣지 않는다.
+    public static final List<Template> VIDEO_KO = List.of(
+            new Template("video.a", "올려 둔 영상이 그대로 있어요", "코치에게 보여 주면 첫 질문부터 시작해요."),
+            new Template("video.b", "찍어 둔 연기, 코치가 아직 못 봤어요", "이미 찍었으니 대화만 시작하면 돼요."),
+            new Template("video.c", "영상은 이미 올라와 있어요", "코치가 어떤 질문을 할지 들어 보세요."));
+
+    // ── 넣어 둔 대본(unread_script): 직접 넣었지만 그 대본으로 리딩을 시작하지 않았을 때. 작품명·대사는 넣지 않는다.
+    public static final List<Template> SCRIPT_KO = List.of(
+            new Template("script.a", "넣어 둔 대본, 상대역이 기다려요", "상대 대사는 AI가 읽어 줘요. 내 대사만 읽으면 돼요."),
+            new Template("script.b", "대본은 준비돼 있어요", "배역만 고르면 바로 맞춰 읽을 수 있어요."),
+            new Template("script.c", "넣어 둔 대본으로 바로 리딩할 수 있어요", "처음부터 다 안 읽어도 돼요. 한 장면만 맞춰 봐요."));
+
     // ── 첫 연습(first_practice): 아직 한 번도 연습하지 않은 가입자(가입 시각 기준).
     public static final List<Template> FIRST_PRACTICE_KO = List.of(
             new Template("first.a", "첫 연습, 5분이면 돼요", "장면 하나 찍거나 대본 한 번 읽어 보세요."),
@@ -139,6 +151,10 @@ public final class ReminderTemplates {
     public static final List<Template> FIRST_PRACTICE_EN = List.of(
             new Template("first.en.a", "Your first practice takes five minutes", "Shoot one scene or read a script once."),
             new Template("first.en.b", "Start small today", "Reading a single line aloud is a fine start."));
+    public static final List<Template> VIDEO_EN = List.of(
+            new Template("video.en.a", "Your video is still waiting", "Show it to the coach and start with the first question."));
+    public static final List<Template> SCRIPT_EN = List.of(
+            new Template("script.en.a", "Your script is ready", "The AI reads the other parts. You only read yours."));
     public static final List<Template> STREAK_EN = List.of(
             new Template("streak.en.a", COUNT + "-day streak going", "One quick practice keeps it alive today."),
             new Template("streak.en.b", "Keep your " + COUNT + "-day streak", "A single line counts."));
@@ -152,6 +168,8 @@ public final class ReminderTemplates {
                     : HOMEWORK_EN;
             case READING -> korean ? READING_KO : READING_EN;
             case FIRST_PRACTICE -> korean ? FIRST_PRACTICE_KO : FIRST_PRACTICE_EN;
+            case PENDING_VIDEO -> korean ? VIDEO_KO : VIDEO_EN;
+            case UNREAD_SCRIPT -> korean ? SCRIPT_KO : SCRIPT_EN;
             case STREAK -> korean ? STREAK_KO : STREAK_EN;
             case RESUME -> throw new IllegalArgumentException("resume 는 돌려쓰지 않는다");
         };
