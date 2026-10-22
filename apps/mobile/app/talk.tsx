@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CoachingLimitSheet } from '@/components/pro-ui';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { IconOptionRow as ChoiceRow } from '@/components/ui/option-card';
 import { palette } from '@/constants/palette';
@@ -30,6 +31,8 @@ export default function TalkScreen() {
   const router = useRouter();
   const [starting, setStarting] = useState<TalkPurpose | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 무료 코칭 하루 1회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.
+  const [freeLimit, setFreeLimit] = useState(false);
   const attemptRef = useRef<RequestAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -57,6 +60,10 @@ export default function TalkScreen() {
       router.replace('/coach');
     } catch (e) {
       const failure = startFailure(e);
+      if (failure.kind === 'free_limit') {
+        setFreeLimit(true);
+        return;
+      }
       if (failure.kind === 'in_progress') {
         const open = await api
           .listPracticeGroups('all')
@@ -97,6 +104,7 @@ export default function TalkScreen() {
         </View>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
+      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
     </SafeAreaView>
   );
 }

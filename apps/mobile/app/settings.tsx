@@ -1,5 +1,5 @@
-import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,7 +7,9 @@ import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
 import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { settingsSub, settingsTarget, type BillingMe } from '@/lib/billing';
 import { resetSpotlights } from '@/lib/guide-state';
 import { translate as t } from '@/lib/i18n';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
@@ -31,6 +33,20 @@ export default function SettingsScreen() {
   useEffect(() => {
     void loadVoiceFeedbackEnabled().then(setVoiceFeedback);
   }, []);
+  // ACTTUB Pro(SOMA-818) — 서버가 결제 기능을 닫아 두었으면(404) 줄을 숨긴다. 결제하고 돌아오면 다시 읽는다.
+  const [billing, setBilling] = useState<BillingMe | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      Promise.resolve()
+        .then(() => api.billingMe())
+        .then((me) => alive && setBilling(me))
+        .catch(() => alive && setBilling(null));
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
   const toggleVoiceFeedback = (value: boolean) => {
     setVoiceFeedback(value);
     void saveVoiceFeedbackEnabled(value).catch(() => setVoiceFeedback(!value));
@@ -62,6 +78,14 @@ export default function SettingsScreen() {
       <NavHeader title={t('settings.title')} left={<NavBackButton onPress={() => router.back()} />} />
 
       <ScrollView contentContainerStyle={styles.list}>
+        {billing && (
+          <SettingsCard
+            icon="award"
+            title={t('pro.settingsTitle')}
+            sub={settingsSub(billing)}
+            onPress={() => router.push(settingsTarget(billing))}
+          />
+        )}
         <Text style={styles.sectionTitle}>{t('settings.profile')}</Text>
         <SettingsCard
           icon="user"
