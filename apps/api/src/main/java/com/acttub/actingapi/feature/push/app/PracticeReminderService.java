@@ -21,6 +21,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class PracticeReminderService {
     private static final int STREAK_LOOKBACK_DAYS = 400;
+    /** 올려 둔 영상·넣어 둔 대본을 찾는 기간과, 같은 종류 횟수를 세는 기간(일). */
+    private static final java.time.Duration PENDING_WINDOW = java.time.Duration.ofDays(7);
+    private static final int WEEK_DAYS = 7;
     private static final String CONTEXT = "PracticeReminderService.sendDue";
 
     private final PracticeReminderRepository reminders;
@@ -68,8 +71,12 @@ public class PracticeReminderService {
                 int k = due.get();
                 ReminderContent.Resume resume = !c.neverPracticed() && k == 1 ? reminders.latestOpenQuestion(c.userId()) : null;
                 ReminderContent.Homework homework = c.neverPracticed() ? null : reminders.latestHomework(c.userId());
+                java.util.UUID pendingVideo = reminders.latestPendingVideo(c.userId(), now.minus(PENDING_WINDOW));
+                java.util.UUID unreadScript = reminders.latestUnreadScript(c.userId(), now.minus(PENDING_WINDOW));
+                Map<String, Integer> sentThisWeek = reminders.sentCountsByKind(c.userId(), today.minusDays(WEEK_DAYS - 1));
                 deliver(c, today, out, korean -> ReminderContent.practice(new ReminderContent.PracticeInput(
-                        c.userId(), today, k, c.neverPracticed(), c.lastWasReading(), resume, homework, korean), recent));
+                        c.userId(), today, k, c.neverPracticed(), c.lastWasReading(), resume, homework, korean,
+                        pendingVideo, unreadScript, sentThisWeek), recent));
             }
         }
 
