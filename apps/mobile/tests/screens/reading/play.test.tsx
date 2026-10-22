@@ -172,14 +172,20 @@ async function startPlay(over: Partial<SessionDetail> = {}, detail = scriptDetai
   return server;
 }
 
-/** 내 차례에 침묵 감지가 말 끝을 알린다. */
+/**
+ * 내 차례에 침묵 감지가 말 끝을 알린다. 받아쓰기면 대본 글자 수의 90% 이상 받아써야 넘어가므로(SOMA-804) 그 줄을 다
+ * 말한 것으로 받아쓴 뒤 알린다 — 넘긴 뒤 올리는 글은 각 테스트의 stt.finish 값이다.
+ */
 async function speechEnds(source: () => Listener | null = () => mic) {
   await waitFor(() => expect(source()).not.toBeNull());
   const listener = source()!;
   mic = null;
   recognizer = null;
+  if (listener.onInterim) await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
   await act(async () => listener.onEvent('speech_end'));
 }
+/** 어느 줄보다도 긴 받아쓴 글 — 「다 말했다」로 친다. */
+const SAID_WHOLE_LINE = '가'.repeat(400);
 
 test('현재 대본이나 회차가 없으면 내 대본으로 돌아가는 길을 보여 준다', async () => {
   resetReadingState();
@@ -278,6 +284,25 @@ test('음성 인식이 되면 내 차례에 알아들은 말을 보이고, 완�
 
   await fireEvent.press(screen.getByText('전체 보기'));
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/diff');
+});
+
+test('받아쓰기면 대본 글자 수의 90% 이상 말한 뒤의 침묵에만 넘긴다(SOMA-804)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay();
+  // 「오늘 와 줬구나.」는 6자 — 4자 말하고 멈추면 계속 듣는다
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const listener = recognizer!;
+  await act(async () => listener.onInterim!('오늘 와 줬'));
+  await act(async () => listener.onEvent('speech_end'));
+  expect(mockStt.finish).not.toHaveBeenCalled();
+  expect(screen.queryByText('괜찮아.')).toBeNull();
+  // 마저 말하고 멈추면 넘어간다
+  mockStt.finish.mockResolvedValueOnce('오늘 와 줬구나');
+  await act(async () => listener.onInterim!('오늘 와 줬구나'));
+  await act(async () => listener.onEvent('speech_end'));
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
 });
 
 test('녹음을 남기지 못하는 인식기면 녹음기로 받는다', async () => {
