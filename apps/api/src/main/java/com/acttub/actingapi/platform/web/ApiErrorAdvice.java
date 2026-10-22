@@ -182,6 +182,21 @@ public class ApiErrorAdvice {
         return null;
     }
 
+    /**
+     * 앱이 multipart 본문을 다 보내기 전에 연결을 끊었다(원인 사슬의 {@code EOFException}) — 서버 실패가 아니므로
+     * 보고하지 않는다. 그 밖의 multipart 실패(임시 파일 쓰기 등)는 지금처럼 미처리 예외로 보고한다.
+     */
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    ResponseEntity<Map<String, Object>> multipart(
+            org.springframework.web.multipart.MultipartException exception) {
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof java.io.EOFException) {
+                return body(400, "Bad Request");
+            }
+        }
+        return catchAll(exception);
+    }
+
     @ExceptionHandler(Exception.class)
     ResponseEntity<Map<String, Object>> catchAll(Exception exception) {
         if (exception instanceof ErrorResponse error) {

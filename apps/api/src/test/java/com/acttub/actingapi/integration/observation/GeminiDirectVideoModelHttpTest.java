@@ -33,7 +33,10 @@ class GeminiDirectVideoModelHttpTest {
     private HttpServer server;
     private Client client;
 
-    private record Response(String contentType, String body) {
+    private record Response(int status, String contentType, String body) {
+        Response(String contentType, String body) {
+            this(200, contentType, body);
+        }
     }
 
     @BeforeEach
@@ -46,7 +49,7 @@ class GeminiDirectVideoModelHttpTest {
             Response response = responses.isEmpty() ? new Response("application/json", "{}") : responses.removeFirst();
             byte[] body = response.body().getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", response.contentType());
-            exchange.sendResponseHeaders(200, body.length);
+            exchange.sendResponseHeaders(response.status(), body.length);
             exchange.getResponseBody().write(body);
             exchange.close();
         });
@@ -236,6 +239,22 @@ class GeminiDirectVideoModelHttpTest {
         new GeminiDirectVideoModel(client, "gemini-3-flash-preview").delete(VIDEO);
 
         assertThat(requests).containsExactly("DELETE /v1beta/files/take-1");
+    }
+
+    @Test
+    void deletingAFileThatIsAlreadyGoneSucceedsButOtherFailuresStillThrow() {
+        GeminiDirectVideoModel model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview");
+        responses.add(new Response(403, "application/json", "{\"error\":{\"code\":403,\"message\":\"You do not have "
+                + "permission to access the File take-1 or it may not exist.\",\"status\":\"PERMISSION_DENIED\"}}"));
+        responses.add(new Response(404, "application/json",
+                "{\"error\":{\"code\":404,\"message\":\"File not found.\",\"status\":\"NOT_FOUND\"}}"));
+        responses.add(new Response(400, "application/json",
+                "{\"error\":{\"code\":400,\"message\":\"Bad request.\",\"status\":\"INVALID_ARGUMENT\"}}"));
+
+        model.delete(VIDEO);
+        model.delete(VIDEO);
+        assertThatThrownBy(() -> model.delete(VIDEO)).isInstanceOf(com.google.genai.errors.ClientException.class);
+        assertThat(requests).hasSize(3);
     }
 
     @Test
