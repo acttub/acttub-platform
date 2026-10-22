@@ -18,6 +18,8 @@ import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
+import { UploadWaitPanel } from '@/components/upload-wait-panel';
+import { forgetWaitingUpload, rememberWaitingUpload } from '@/hooks/use-waiting-upload';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { IconOptionRow as ChoiceRow } from '@/components/ui/option-card';
@@ -34,6 +36,7 @@ import {
   flushLibraryUploads,
   onLibraryChange,
   pendingLibraryUploads,
+  removePendingUpload,
   saveRecordingToLibrary,
 } from '@/lib/library/library-runner';
 import { videoErrorMessage } from '@/lib/library/video-checks';
@@ -278,6 +281,34 @@ export default function UploadScreen() {
     };
   }, [picked?.pendingId, picked?.videoId, user?.id]);
 
+  // 「영상 올리는 중」 한 장(SOMA-817) — 올리는 중에 질문 받기를 누르면 다 올라갈 때까지 기다린다. 홈으로 나가도 계속 올라가고,
+  // 홈 맨 위 카드가 이어서 코칭을 시작하게 한다.
+  const [waitPanel, setWaitPanel] = useState(false);
+  const waitHome = () => {
+    if (!user?.id || !picked?.pendingId) return;
+    const owner = user.id;
+    const pendingId = picked.pendingId;
+    void rememberWaitingUpload({
+      owner,
+      pendingId,
+      videoId: null,
+      requestId: newRequestId(),
+      continueFrom: plan.continueFrom,
+      scene,
+      blockage,
+      savedAt: Date.now(),
+    }).then(() => leaveThen(() => router.replace('/(tabs)')));
+  };
+  const waitCancel = () => {
+    const pendingId = picked?.pendingId;
+    setWaitPanel(false);
+    setPicked(null);
+    if (pendingId) void removePendingUpload(pendingId).catch(() => undefined);
+    if (user?.id) void forgetWaitingUpload(user.id);
+  };
+  const waitRetry = () => {
+    if (user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
+  };
   // 영상 상자를 누르면 뜨는 시트(SOMA-656). 시트가 닫힌 뒤에 다음 화면·사진 선택 창을 연다 — iOS 는 닫히는 모달 위에
   // 새 창을 띄우지 못한다.
   const [sourceSheet, setSourceSheet] = useState(false);
@@ -384,6 +415,14 @@ export default function UploadScreen() {
     }
   };
 
+  useEffect(() => {
+    if (waitPanel && !uploading && videoId && !starting) {
+      setWaitPanel(false);
+      void start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitPanel, uploading, videoId]);
+
   // 질문 받기를 누른 뒤에는 보낸 내용이 바뀌지 않게 영상·권리 체크를 잠근다(SOMA-671).
   const locked = starting;
   const ready = sample ? agreedRights : agreedRights && canStart(videoId) && !uploading;
@@ -488,7 +527,11 @@ export default function UploadScreen() {
         </ScrollView>
       )}
 
-      {step === 'source' && (
+      {step === 'source' && waitPanel && (
+        <UploadWaitPanel failed={uploadFailed} onHome={waitHome} onRetry={waitRetry} onCancel={waitCancel} />
+      )}
+
+      {step === 'source' && !waitPanel && (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.stepBody}>
             {!sample && (
@@ -573,7 +616,7 @@ export default function UploadScreen() {
               ref={startTarget.ref}
               onLayout={startTarget.onLayout}
               style={[styles.submit, (!ready || starting) && styles.submitDisabled]}
-              onPress={() => (ready ? void start() : pressBlocked())}
+              onPress={() => (ready ? void start() : uploading && agreedRights && !sample ? setWaitPanel(true) : pressBlocked())}
               disabled={starting}
               accessibilityRole="button"
               accessibilityState={{ disabled: !ready || starting }}>

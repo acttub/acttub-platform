@@ -36,6 +36,7 @@ const mockNavigation = {
   }),
 };
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: () => mockNavigation }));
+jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn() }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn() } }));
 const mockAskRating = jest.fn(async () => undefined);
@@ -462,8 +463,9 @@ test('나가기를 확인하면 진행한 대사 수를 알리고 위치를 저�
   await screen.findByText('듣는 중');
 
   await fireEvent.press(screen.getByText('나가기'));
-  expect(screen.getByText('지금 나가면 0번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('취소'));
+  expect(screen.getByText('리딩을 멈출까요?')).toBeOnTheScreen();
+  expect(screen.getByText(/읽은 데까지 저장돼요\. 다음에 1\/\d+줄부터 이어서 읽을 수 있어요\./)).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('계속 읽기'));
   expect(mockRouter.replace).not.toHaveBeenCalled();
   expect(mockRouter.dismissTo).not.toHaveBeenCalled();
 
@@ -1447,7 +1449,7 @@ test('이어하기 회차는 [시작] 전에 나가도 지우지 않고 진행 �
   await screen.findByText('시작');
 
   await fireEvent.press(screen.getByText('나가기'));
-  expect(screen.getByText(/지금 나가면 \d+번 대사까지 진행한 걸로 저장돼요/)).toBeOnTheScreen();
+  expect(screen.getByText(/다음에 \d+\/\d+줄부터 이어서 읽을 수 있어요/)).toBeOnTheScreen();
   await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
   await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
   expect(server.deleteSession).not.toHaveBeenCalled();
@@ -1804,4 +1806,15 @@ test('SOMA-806: 묶인 내 차례는 묶음 줄 전체 글자의 90%를 받아�
   await act(async () => recognizer!.onInterim!('오늘 왔구나 어디 앉을래'));
   await act(async () => recognizer!.onEvent('speech_end'));
   await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
+});
+
+test('뒤로 가기(usePreventRemove)도 같은 나가기 확인 창을 연다', async () => {
+  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  await startPlay();
+  await screen.findByText('듣는 중');
+  expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+  await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+  expect(screen.getByText('리딩을 멈출까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('계속 읽기'));
+  expect(mockRouter.dismissTo).not.toHaveBeenCalled();
 });
