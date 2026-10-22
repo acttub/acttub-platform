@@ -365,7 +365,30 @@ final class DirectVideoPracticeLoop {
      * 운영에서 영어로 상황을 적은 배우에게 한국어로 첫 질문을 하자 답하지 않고 떠났다.
      */
     static java.util.Locale replyLanguage(CoachSessionSnapshot session, String actorText) {
-        return OutputLanguage.isKorean() ? actorLanguage(session, actorText) : OutputLanguage.current();
+        if (OutputLanguage.isKorean()) return actorLanguage(session, actorText);
+        // 화면이 한국어가 아니어도 배우가 대화에서 한국어로 답하면 한국어로 답한다.
+        // 2026-10-15 00:12 운영(자문, 영어 화면): 배우는 내내 한국어로 답했는데 코치는 영어로 답했다.
+        return actorWritesKorean(session, actorText) ? null : OutputLanguage.current();
+    }
+
+    /** 배우가 이 대화에서 쓴 말(이번 답 → 지난 답, 최근부터)이 한국어인지. 연습 메모는 보지 않는다. 판단되는 말이 없으면 아니다. */
+    static boolean actorWritesKorean(CoachSessionSnapshot session, String actorText) {
+        var candidates = new ArrayList<String>();
+        if (actorText != null) candidates.add(actorText);
+        if (session != null) {
+            List<CoachTurnSnapshot> turns = session.turns();
+            for (int i = turns.size() - 1; i >= 0; i--) if (!"ai".equals(turns.get(i).role())) candidates.add(turns.get(i).text());
+        }
+        for (String text : candidates) {
+            if (text == null || text.isBlank() || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
+            String lowered = text.toLowerCase(java.util.Locale.ROOT);
+            if (lowered.contains("in english") || lowered.contains("영어로")) return false;
+            if (lowered.contains("한국어로") || lowered.contains("in korean")) return true;
+            java.util.Locale found = languageOf(text);
+            if (found == null) return true;
+            if (found != UNDECIDED) return false;
+        }
+        return false;
     }
 
     /**
