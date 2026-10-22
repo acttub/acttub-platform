@@ -126,15 +126,28 @@ test('타일 둘(새 영상·지난 코칭 N개)과 최근 코칭 두 줄을 보
   expect(mockRouter.push).toHaveBeenLastCalledWith('/history');
 });
 
-test('대화 중인 묶음이면 「한 번 더 연습」이 그 회차의 코치 화면으로 바로 간다(분석 대기도 코치 화면 안이다)', async () => {
+test('대화 중인 묶음이면 버튼이 「이어서 하기」이고 그 회차의 코치 화면으로 바로 간다(분석 대기도 코치 화면 안이다)', async () => {
   listPracticeGroups.mockResolvedValue({
     groups: [group({ root_id: 'noted', in_progress_practice_id: 'open-1', practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
   });
   await render(<CoachingTab />);
 
-  await fireEvent.press(await screen.findByRole('button', { name: '한 번 더 연습' }));
+  await fireEvent.press(await screen.findByRole('button', { name: '이어서 하기' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'open-1' } });
   expect(setContinueOrigin).not.toHaveBeenCalled();
+});
+
+test('노트 없이 나간 대화만 있으면 「코칭이 처음이죠?」 대신 「하던 코칭 · 이어서 하기」를 띄운다(10/20 피드백)', async () => {
+  listPracticeGroups.mockResolvedValue({
+    groups: [group({ root_id: 'open', in_progress_practice_id: 'open-1', practices: [round('open-1', '2026-10-01T00:00:00Z', false)] })],
+  });
+  await render(<CoachingTab />);
+
+  expect(await screen.findByText('하던 코칭')).toBeOnTheScreen();
+  expect(screen.getByText('코치와 하던 대화가 남아 있어요.')).toBeOnTheScreen();
+  expect(screen.queryByText('코칭이 처음이죠?')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '이어서 하기' }));
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'open-1' } });
 });
 
 test('다음 테이크 문장을 못 받으면 그 칸 없이 날짜·장면 제목만 둔다', async () => {

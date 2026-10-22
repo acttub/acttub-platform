@@ -18,7 +18,8 @@ const IOS = Platform.OS === 'ios';
  * iOS: 화면 위에 뜬 흰 알약(좌우 20 — pen TabBar 폭 350, 높이 64, 모서리 32, 1px #EDF0F3 테두리, 그림자 #191F28 18% · 아래 12 · 흐림 24).
  * 안드로이드: 바닥에 붙은 전체 폭 막대(pen 일반 홈 BTT6at 하단).
  * 아이콘은 활성·비활성 모두 윤곽선(24). 활성은 파랑(palette.blue) + 옅은 파랑 알약(48×34, 모서리 17), 비활성은 회색 #8B95A1 · 바탕 없음.
- * 글자는 iOS 에는 없고, 안드로이드는 활성 탭 아래에만 이름(11/700)을 쓴다(BTT6at). 화면 읽기는 탭마다 이름을 읽는다.
+ * 다섯 탭 모두 아이콘 아래에 이름(11/600, 활성은 파랑 700)을 쓴다 — 선택한 탭에만 이름이 보여 다른 탭이 뭔지 몰랐다(10/20 피드백).
+ * 화면 읽기도 탭마다 이름을 읽는다.
  */
 export function useTabBarStyle(): ViewStyle {
   const insets = useSafeAreaInsets();
@@ -35,8 +36,8 @@ export function useTabBarStyle(): ViewStyle {
         borderTopWidth: 0,
         borderWidth: 1,
         borderColor: palette.borderSoft,
-        paddingTop: 11,
-        paddingBottom: 11,
+        paddingTop: 6,
+        paddingBottom: 6,
         shadowColor: palette.navy,
         shadowOpacity: 0.18,
         shadowRadius: 24,
@@ -78,9 +79,13 @@ export function tabIcon(
   target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void },
 ) {
   const TabIcon = ({ color, focused }: { color: string; focused: boolean }) => (
-    <View ref={target?.ref} onLayout={target?.onLayout} style={[styles.pill, focused && styles.pillOn]}>
-      <Ionicons size={24} name={name} color={color} />
-      {!IOS && focused && <Text style={[styles.tabLabel, { color }]}>{label}</Text>}
+    <View ref={target?.ref} onLayout={target?.onLayout} style={styles.item}>
+      <View style={[styles.pill, focused && styles.pillOn]}>
+        <Ionicons size={22} name={name} color={color} />
+      </View>
+      <Text style={[styles.tabLabel, focused && styles.tabLabelOn, { color }]} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
   TabIcon.displayName = `TabIcon(${name})`;
@@ -95,7 +100,9 @@ export function tabButton(phLabel: string) {
 }
 
 const styles = StyleSheet.create({
-  pill: { minWidth: 48, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17 },
+  item: { minWidth: 56, alignItems: 'center', justifyContent: 'center' },
+  pill: { minWidth: 44, minHeight: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   pillOn: IOS ? { backgroundColor: palette.blueSoft } : {},
-  tabLabel: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+  tabLabel: { fontSize: 11, lineHeight: 14, fontWeight: '600', marginTop: 2 },
+  tabLabelOn: { fontWeight: '700' },
 });

@@ -79,6 +79,11 @@ export default function CoachingTab() {
     router.push({ pathname: '/record-guide', params: first ? { next: 'upload', first: '1' } : { next: 'upload' } });
 
   const again = () => {
+    if (entry?.kind === 'resume') {
+      const open = entry.group.in_progress_practice_id;
+      if (open) router.push({ pathname: '/coach', params: { practiceId: open } });
+      return;
+    }
     if (entry?.kind !== 'next') return;
     const action = continueActionFor(entry.group);
     if (action.kind === 'resume') {
@@ -93,7 +98,13 @@ export default function CoachingTab() {
   const noteAt =
     entry?.kind === 'next'
       ? entry.group.practices.find((p) => p.id === entry.notePracticeId)?.created_at ?? entry.group.last_practiced_at
-      : null;
+      : entry?.kind === 'resume'
+        ? entry.group.last_practiced_at
+        : null;
+  const resuming = entry?.kind === 'resume';
+  // 대화가 열린 회차가 있으면 「한 번 더 연습」도 그 대화로 이어진다 — 버튼 이름을 「이어서 하기」로 맞춘다.
+  const againLabel =
+    resuming || (entry?.kind === 'next' && continueActionFor(entry.group).kind === 'resume') ? t('coachingTab.resume') : t('coachingTab.again');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -146,13 +157,17 @@ export default function CoachingTab() {
                 <Image source={MASCOT.coach} style={styles.memoMascot} contentFit="contain" accessibilityIgnoresInvertColors />
               </View>
               <View style={styles.flex}>
-                <Text style={styles.memoKind}>{t('coachingTab.memoKind')}</Text>
+                <Text style={styles.memoKind}>{resuming ? t('coachingTab.resumeKind') : t('coachingTab.memoKind')}</Text>
                 <Text style={styles.memoMeta} numberOfLines={1}>
                   {[shortDate(noteAt), sceneTitle(entry.group)].filter(Boolean).join(' · ')}
                 </Text>
               </View>
             </View>
-            {nextTake ? (
+            {resuming ? (
+              <View style={styles.quote}>
+                <Text style={styles.quoteText}>{t('coachingTab.resumeBody')}</Text>
+              </View>
+            ) : nextTake ? (
               <View style={styles.quote}>
                 <Text style={styles.quoteLabel}>{t('coachingTab.memoNext')}</Text>
                 <Text style={styles.quoteText}>{nextTake}</Text>
@@ -162,11 +177,11 @@ export default function CoachingTab() {
               <Pressable
                 onPress={again}
                 accessibilityRole="button"
-                accessibilityLabel={t('coachingTab.again')}
-                ph-label="coaching_again"
+                accessibilityLabel={againLabel}
+                ph-label={resuming ? 'coaching_resume' : 'coaching_again'}
                 style={({ pressed }) => [styles.againBtn, pressed && styles.pressed]}>
-                <Feather name="rotate-ccw" size={15} color={palette.onAccent} />
-                <Text style={styles.againText}>{t('coachingTab.again')}</Text>
+                <Feather name={againLabel === t('coachingTab.again') ? 'rotate-ccw' : 'play'} size={15} color={palette.onAccent} />
+                <Text style={styles.againText}>{againLabel}</Text>
               </Pressable>
             </View>
           </View>

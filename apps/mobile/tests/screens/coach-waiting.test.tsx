@@ -207,7 +207,7 @@ describe('기다리는 동안', () => {
     expect(screen.queryByText('3단계 · 질문 준비 중')).not.toBeOnTheScreen();
     staysWaiting();
     expect(screen.getByText('0초 경과')).toBeOnTheScreen();
-    expect(screen.getByText('보통 1~3분 걸려요.')).toBeOnTheScreen();
+    expect(screen.getByText('보통 30초쯤 걸려요.')).toBeOnTheScreen();
     expect(screen.getByText('기다리지 않아도 돼요. 「끝나면 알려 주세요」를 누르고 나가세요.')).toBeOnTheScreen();
     expect(getStatus).toHaveBeenCalledWith('p1', { signal: expect.any(AbortSignal) });
     await waitFor(() => expect(getPracticeApi).toHaveBeenCalledWith('p1'));
@@ -763,7 +763,7 @@ describe('튜토리얼 예시', () => {
     await render(<CoachScreen />);
 
     expect(screen.getByText(STAGES[0])).toBeOnTheScreen();
-    expect(screen.getByText('예시 영상이라 금방 끝나요. 실제 연습은 보통 1~3분 걸려요.')).toBeOnTheScreen();
+    expect(screen.getByText('예시 영상이라 금방 끝나요. 실제 연습은 보통 30초쯤 걸려요.')).toBeOnTheScreen();
     // 예시도 장면 요약은 대기 화면에 두지 않고, 「끝나면 알려 주세요」로 나가는 길도 없다.
     expect(screen.queryByText('카페에서 오래 만난 연인에게 헤어지자는 말을 꺼내는 장면')).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '끝나면 알려 주세요' })).not.toBeOnTheScreen();
