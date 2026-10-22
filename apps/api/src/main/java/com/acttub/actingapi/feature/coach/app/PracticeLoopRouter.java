@@ -300,6 +300,33 @@ final class PracticeLoopRouter {
         return CoachFlows.B.equals(flow) && FIND.equals(doing) ? WRAP_UP : doing;
     }
 
+    /** 묻는 할 일 — 맞춤 코칭의 질문 수 상한이 세는 것. 물음·정정에 답하는 말(답하기·내려놓기)은 세지도 막지도 않는다. */
+    static final java.util.Set<String> ASKING = java.util.Set.of(WANT, GAP, FIND, EASY, "다시 묻기", PROPOSE, POINT_OUT_OTHER);
+
+    /**
+     * 맞춤 코칭의 정리 전 질문 수 상한(SOMA-795). 상한만큼 물었으면 더 묻는 할 일 대신 정리로 넘긴다. 배우가 묻거나 고쳐 말한
+     * 것에는 그대로 답한다(답하기·내려놓기·짚어주기). 상한이 없으면 지금 그대로다.
+     *
+     * @param asked 지금까지 코치가 물은 수(첫 질문 포함, {@link #questionsAsked})
+     */
+    static String route(Classified c, Before b, int stayed, String flow, Integer maxQuestions, int asked) {
+        String doing = route(c, b, stayed, flow);
+        if (maxQuestions == null || asked < maxQuestions || !ASKING.contains(doing)) return doing;
+        return WRAP_UP;
+    }
+
+    /** 지금까지 코치가 물은 수. 첫 응답(첫 질문)과 그 뒤 묻는 할 일({@link #ASKING})을 센다. */
+    static int questionsAsked(JsonNode loop, int coachTurns) {
+        if (coachTurns <= 0) return 0;
+        JsonNode statuses = loop == null ? null : loop.path("statuses");
+        int asked = 1;
+        for (int i = 1; i < coachTurns; i++) {
+            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            if (ASKING.contains(DirectVideoPracticeLoop.action(status))) asked++;
+        }
+        return asked;
+    }
+
     static String route(Classified c, Before b, int stayed) {
         Kind kind = c.kind();
         if (kind == Kind.STOP || b.reply() >= LAST_REPLY) return END;

@@ -178,8 +178,8 @@ final class DirectVideoPrompts {
     }
 
     /**
-     * 개인 프롬프트를 쓰는 대화(자문위원)에서는 할 일 파일 예문 끝의 "어때요?"를 뺀다. 개인 프롬프트가 "어때요?"를 금지해도
-     * 할 일 파일 예문을 따라 제안 끝에 붙였다(2026-10-22 로컬 재생: 수정판 7건 중 3건). 일반 배우의 할 일 파일은 그대로다.
+     * 개인 프롬프트를 쓰는 대화(자문위원, 그리고 SOMA-795 부터 맞춤 코칭 배우)에서는 할 일 파일 예문 끝의 "어때요?"를 뺀다. 개인 프롬프트가 "어때요?"를 금지해도
+     * 할 일 파일 예문을 따라 제안 끝에 붙였다(2026-10-22 로컬 재생: 수정판 7건 중 3건). 성격이 없는 배우의 할 일 파일은 그대로다.
      */
     static String withoutHowAbout(String task) {
         return task == null ? null : task.replace(" 어때요?", "").replace("한 뒤 \"어때요?\"로 묻는다", "한다");
@@ -240,8 +240,8 @@ final class DirectVideoPrompts {
         if (id == null || id.isBlank() || CoachPersonas.DEFAULT.equals(id)) return java.util.Optional.empty();
         boolean korean = language == null || "ko".equals(language.getLanguage());
         if (ACTOR_PROFILE.equals(id)) {
-            return korean && profile != null && !profile.isBlank()
-                    ? java.util.Optional.of(profile.strip()) : java.util.Optional.empty();
+            ActorCoaching coaching = korean ? ActorCoaching.parse(profile) : null;
+            return coaching == null ? java.util.Optional.empty() : java.util.Optional.of(coaching.personaText());
         }
         if ("b1".equals(id)) return korean ? java.util.Optional.of(resource("personas/b1")) : java.util.Optional.empty();
         if (!id.matches("[a-z][a-z-]*")) return java.util.Optional.empty();
