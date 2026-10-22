@@ -234,11 +234,14 @@ final class DirectVideoPracticeLoop {
         return 2.0 * common / (bx.size() + by.size()) >= 0.6;
     }
 
-    /** 이번 코치 말의 마지막 질문이 앞선 코치 말(최근 것부터 최대 넷)의 질문과 같으면 그 앞 질문을, 아니면 빈 문자열. */
+    /**
+     * 이번 코치 말의 마지막 질문이 같은 대화의 앞선 코치 말(전부, 최근 것부터) 질문과 같으면 그 앞 질문을, 아니면 빈 문자열.
+     * 2026-10-21 운영: 정리 단계에서 다섯 말 앞의 질문을 글자 그대로 다시 물었다. 최근 넷만 보던 범위라 놓쳤다.
+     */
     static String repeatedQuestion(String text, List<String> earlierCoach) {
         String now = lastQuestion(text);
         if (now.isEmpty() || earlierCoach == null) return "";
-        for (int i = earlierCoach.size() - 1, seen = 0; i >= 0 && seen < 4; i--, seen++) {
+        for (int i = earlierCoach.size() - 1; i >= 0; i--) {
             for (String sentence : sentences(earlierCoach.get(i))) {
                 if (sentence.endsWith("?") && sameQuestion(now, sentence)) return sentence;
             }
