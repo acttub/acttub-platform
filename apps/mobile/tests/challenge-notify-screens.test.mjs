@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -7,48 +7,15 @@ const appRoot = path.resolve(import.meta.dirname, '..');
 const read = (rel) => readFileSync(path.join(appRoot, rel), 'utf8');
 
 /**
- * 화면 배선 잠그기(challenge.ai-report · challenge.notification). 값·규칙은 lib/challenge 의
+ * 화면 배선 잠그기(challenge.notification). 값·규칙은 lib/challenge 의
  * 테스트가 보고, 여기서는 요구사항이 화면에 건 조건만 원본에서 확인한다.
  */
 
-test('challenge.ai-report: 리포트 화면은 요청·상태·관찰·견주기·한계·제안을 보여 준다', () => {
-  const screen = read('app/ai-report.tsx');
-
-  assert.match(screen, /api\.requestAiReport/);
-  assert.match(screen, /api\.getAiReport/);
-  assert.match(screen, /reportSections/);
-  assert.match(screen, /statusMessage/);
-  assert.match(screen, /canRequest\(report\)/);
-  assert.match(screen, /requestNotice\(report\)/);
-});
-
-test('challenge.ai-report: 점수·순위를 매기지 않는다고 화면이 말한다', () => {
-  assert.match(read('app/ai-report.tsx'), /aiReport\.notRanking/);
-
-  // 리포트 문구 어디에도 점수·등급·백분위·재능 같은 말이 없다(ADR-005 개정).
-  const ko = read('locales/ko.ts');
-  const block = ko.slice(ko.indexOf('  aiReport: {'), ko.indexOf('  notifications: {'));
-  assert.match(block, /점수나 순위를 매기지 않아요/);
-  for (const banned of ['백분위', '등급', '재능', '잘했']) {
-    assert.equal(block.includes(banned), false, `${banned} 문구가 들어갔다`);
+test('SOMA-820: AI 리포트 화면과 진입이 앱에 없다', () => {
+  assert.equal(existsSync(path.join(appRoot, 'app/ai-report.tsx')), false);
+  for (const file of ['app/challenge-upload.tsx', 'app/challenge-entries.tsx', 'app/notifications.tsx', 'app/(tabs)/profile.tsx', 'app/challenge-result.tsx']) {
+    assert.doesNotMatch(read(file), /\/ai-report|pathname: '\/ai-report'/);
   }
-});
-
-test('challenge.ai-report: 관찰에는 근거 구간의 시각을 단다', () => {
-  assert.match(read('app/ai-report.tsx'), /evidenceLabel\(evidence\)/);
-});
-
-test('challenge.ai-report: 같은 요청 id 로 다시 부탁하면 기존 작업이다', () => {
-  const screen = read('app/ai-report.tsx');
-
-  assert.match(screen, /requestIdRef\.current = requestIdRef\.current \?\? newRequestId\(\)/);
-  // 만드는 중이면 준비될 때까지 다시 읽는다.
-  assert.match(screen, /report\?\.status !== 'pending'/);
-});
-
-test('challenge.ai-report: 완료 화면과 프로필 기록에서 리포트로 간다', () => {
-  assert.match(read('app/challenge-upload.tsx'), /pathname: '\/ai-report'/);
-  assert.match(read('app/challenge-entries.tsx'), /pathname: '\/ai-report'/);
 });
 
 test('challenge.notification: 알림함은 묶음 목록과 읽음 처리를 한다', () => {
@@ -67,7 +34,6 @@ test('challenge.notification: 묶음을 누르면 대상으로 가고 볼 수 �
 
   assert.match(screen, /targetOf\(group\)/);
   assert.match(screen, /unavailableMessage\(\)/);
-  assert.match(screen, /pathname: '\/ai-report'/);
   assert.match(screen, /pathname: '\/challenge-play'/);
   assert.match(screen, /pathname: '\/challenge-detail'/);
 });

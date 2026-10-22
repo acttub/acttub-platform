@@ -28,6 +28,21 @@ class ConversationConfiguration {
     }
 
     /**
+     * 배우 일지(practice.journal, SOMA-720). 자동 칸은 연습 노트와 같은 생성기(노트용 키의 {@code report()})로 만든다.
+     */
+    @Bean
+    com.acttub.actingapi.feature.coach.app.JournalService journalService(
+            com.acttub.actingapi.feature.coach.app.JournalRepository journals,
+            ConversationRepository conversations,
+            com.acttub.actingapi.integration.llm.OpenAiTextGenerators generators,
+            com.acttub.actingapi.platform.observability.LlmTelemetry telemetry,
+            com.fasterxml.jackson.databind.ObjectMapper json,
+            Clock clock) {
+        return new com.acttub.actingapi.feature.coach.app.JournalService(
+                journals, conversations, generators.report(), telemetry, json, clock, java.util.UUID::randomUUID);
+    }
+
+    /**
      * 종료 알림은 선택이다 — {@code memory} 가 구현을 내지만, 없어도 대화는 돌아야 한다
      * ({@code AnalysisCompletionListener} 와 같은 형태).
      */

@@ -30,9 +30,8 @@ const group = (over = {}) => ({
 test('challenge.notification: 묶음 한 줄은 인원·댓글 수를 말한다', () => {
   assert.match(groupLabel(group({ actor_count: 30 })), /30/);
   assert.match(groupLabel(group({ kind: 'entry_commented', actor_count: 4 })), /4/);
-  // 종료·리포트 완료는 수를 말하지 않는다.
+  // 종료는 수를 말하지 않는다.
   assert.doesNotMatch(groupLabel(group({ kind: 'challenge_ended', actor_count: 1 })), /1/);
-  assert.notEqual(groupLabel(group({ kind: 'entry_ai_report_ready' })), groupLabel(group({ kind: 'challenge_ended' })));
 });
 
 test('challenge.notification: 목록은 묶음의 최신 사건 순이고 20개씩이다', () => {
@@ -72,11 +71,14 @@ test('challenge.notification: 묶음을 누르면 대상으로 가고 볼 수 �
   // 비공개·삭제·숨김·차단으로 보이지 않으면 이동하지 않는다.
   assert.deepEqual(targetOf(group({ target_available: false })), { kind: 'unavailable' });
   assert.match(unavailableMessage(), /볼 수 없는/);
-  // 내가 요청한 AI 리포트는 비공개 참여작이어도 열린다.
+  // 없앤 AI 리포트 알림은 챌린지 화면으로, 챌린지를 모르면 홈으로 간다(SOMA-820).
   assert.deepEqual(targetOf(group({ kind: 'entry_ai_report_ready', target_available: false })), {
-    kind: 'report',
-    entryId: 'entry-1',
+    kind: 'challenge',
+    challengeId: 'challenge-1',
   });
+  assert.deepEqual(targetOf(group({ kind: 'entry_ai_report_ready', challenge_id: null })), { kind: 'home' });
+  // 목록에서는 보이지 않는다.
+  assert.deepEqual(sortGroups([group({ kind: 'entry_ai_report_ready' })]), []);
 });
 
 test('challenge.notification: 토글을 꺼도 알림함에는 쌓인다고 알린다', () => {

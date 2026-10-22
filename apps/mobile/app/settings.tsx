@@ -8,7 +8,6 @@ import { useAppDialog } from '@/components/app-dialog';
 import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
 import { useAuth } from '@/lib/auth';
-import { resetSpotlights } from '@/lib/guide-state';
 import { translate as t } from '@/lib/i18n';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
@@ -85,12 +84,6 @@ export default function SettingsScreen() {
           onPress={() => router.push('/notification-settings')}
         />
         <SettingsCard
-          icon="archive"
-          title={t('settings.archiveRow')}
-          sub={t('settings.archiveSub')}
-          onPress={() => router.push('/archive')}
-        />
-        <SettingsCard
           icon="book"
           title={t('settings.memoryLink')}
           sub={t('settings.memoryHint')}
@@ -128,16 +121,6 @@ export default function SettingsScreen() {
           title={t('settings.storeReviewTitle')}
           sub={t('settings.storeReviewSub')}
           onPress={() => void openStoreReviewPage()}
-        />
-        {/* 첫 시작 가이드 다시 보기 — 슬라이드를 열고, 화면에서 누를 자리를 비춰 주던 안내도 되살린다. */}
-        <SettingsCard
-          icon="compass"
-          title={t('settings.guideTitle')}
-          sub={t('settings.guideSub')}
-          onPress={() => {
-            void resetSpotlights();
-            router.push('/guide');
-          }}
         />
         {/* 차단은 챌린지에서만 쓰인다(challenge.block). */}
         <SettingsCard

@@ -165,6 +165,151 @@
         } ]
       }
     },
+    "/v2/practices/{practice_id}/journal" : {
+      "get" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Get Practice Journal",
+        "description" : "그 회차의 배우 일지. 없으면(남의 것 포함) 404 journal_not_found 이고 화면은 노트를 대신 보인다.",
+        "operationId" : "get_practice_journal_v2_practices__practice_id__journal_get",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeJournal"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "put" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Update Practice Journal",
+        "description" : "배우가 고친 일지를 저장한다. 배우의 답 전체와 자동 칸 전체를 보내고, 글이 빈 항목은 지운다. 고친 뒤에는 자동 칸을\n다시 만들지 않는다. 없으면(남의 것 포함) 404 journal_not_found.",
+        "operationId" : "update_practice_journal_v2_practices__practice_id__journal_put",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/JournalUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeJournal"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Create Practice Journal",
+        "description" : "고정 질문 4개의 답으로 그 회차의 배우 일지를 만든다. 서버가 코칭 대화로 자동 칸(오늘 한 연습·장면과 인물·받은 피드백)을\n만들고 배우의 답은 고치지 않고 그대로 둔다. 자동 칸을 만들지 못하면 배우의 답만으로 저장한다(draft_status=failed).\n새로 만들면 201, 이미 있으면 다시 만들지 않고 그 일지를 200 으로 준다. 없는 회차·남의 회차는 404 practice_not_found.",
+        "operationId" : "create_practice_journal_v2_practices__practice_id__journal_post",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/JournalCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "만들었다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeJournal"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "이미 있다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeJournal"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/portfolio/share" : {
       "put" : {
         "tags" : [ "v2-portfolio" ],
@@ -5218,6 +5363,397 @@
         "required" : [ "comment", "rating", "updated_at" ],
         "title" : "NoteRating"
       },
+      "JournalAnswers" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "feeling" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalFeeling"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "unknown" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalUnknown"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "next" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalNext"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "review" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Review"
+          }
+        },
+        "title" : "JournalAnswers"
+      },
+      "JournalCharacterAspect" : {
+        "type" : "string",
+        "enum" : [ "wants", "partner", "situation" ],
+        "title" : "JournalCharacterAspect"
+      },
+      "JournalCharacterItem" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "aspect" : {
+            "$ref" : "#/components/schemas/JournalCharacterAspect"
+          },
+          "text" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "title" : "Text"
+          }
+        },
+        "required" : [ "aspect", "text" ],
+        "title" : "JournalCharacterItem"
+      },
+      "JournalFeedbackGiver" : {
+        "type" : "string",
+        "enum" : [ "coach", "other" ],
+        "title" : "JournalFeedbackGiver"
+      },
+      "JournalFeedbackItem" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "title" : "Text"
+          },
+          "giver" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalFeedbackGiver"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "at" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "exclusiveMaximum" : 86400.0,
+              "exclusiveMinimum" : 0.0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "At"
+          }
+        },
+        "required" : [ "text" ],
+        "title" : "JournalFeedbackItem"
+      },
+      "JournalFeeling" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "choice" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 30,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Choice"
+          },
+          "text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Text"
+          }
+        },
+        "title" : "JournalFeeling"
+      },
+      "JournalNext" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "undecided" : {
+            "anyOf" : [ {
+              "type" : "boolean"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Undecided"
+          },
+          "text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Text"
+          }
+        },
+        "title" : "JournalNext"
+      },
+      "JournalPracticeBasis" : {
+        "type" : "string",
+        "enum" : [ "actor_report", "observed", "discussed" ],
+        "title" : "JournalPracticeBasis"
+      },
+      "JournalPracticeItem" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "title" : "Text"
+          },
+          "basis" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalPracticeBasis"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "text" ],
+        "title" : "JournalPracticeItem"
+      },
+      "JournalUnknown" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "none" : {
+            "anyOf" : [ {
+              "type" : "boolean"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "None"
+          },
+          "text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Text"
+          }
+        },
+        "title" : "JournalUnknown"
+      },
+      "JournalUpdateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "answers" : {
+            "$ref" : "#/components/schemas/JournalAnswers"
+          },
+          "practice" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalPracticeItem"
+            },
+            "maxItems" : 5,
+            "minItems" : 0,
+            "title" : "Practice"
+          },
+          "character" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalCharacterItem"
+            },
+            "maxItems" : 5,
+            "minItems" : 0,
+            "title" : "Character"
+          },
+          "feedback" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalFeedbackItem"
+            },
+            "maxItems" : 5,
+            "minItems" : 0,
+            "title" : "Feedback"
+          }
+        },
+        "required" : [ "answers", "character", "feedback", "practice" ],
+        "title" : "JournalUpdateRequest"
+      },
+      "JournalCharacterLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "aspect" : {
+            "type" : "string",
+            "title" : "Aspect"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          }
+        },
+        "title" : "JournalCharacterLine"
+      },
+      "JournalDraftStatus" : {
+        "type" : "string",
+        "enum" : [ "pending", "ready", "failed", "skipped" ],
+        "title" : "JournalDraftStatus"
+      },
+      "JournalFeedbackLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "giver" : {
+            "type" : "string",
+            "title" : "Giver"
+          },
+          "at" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "At"
+          }
+        },
+        "title" : "JournalFeedbackLine"
+      },
+      "JournalPracticeLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "basis" : {
+            "type" : "string",
+            "title" : "Basis"
+          }
+        },
+        "title" : "JournalPracticeLine"
+      },
+      "PracticeJournal" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "practice_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          },
+          "conversation_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Conversation Id"
+          },
+          "answers" : {
+            "$ref" : "#/components/schemas/JournalAnswers"
+          },
+          "draft_status" : {
+            "$ref" : "#/components/schemas/JournalDraftStatus"
+          },
+          "practice" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalPracticeLine"
+            },
+            "title" : "Practice"
+          },
+          "character" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalCharacterLine"
+            },
+            "title" : "Character"
+          },
+          "feedback" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalFeedbackLine"
+            },
+            "title" : "Feedback"
+          },
+          "edited_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Edited At"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "updated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Updated At"
+          },
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          },
+          "purpose" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Purpose"
+          },
+          "role_name" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Role Name"
+          }
+        },
+        "title" : "PracticeJournal"
+      },
       "PortfolioShareRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -7846,6 +8382,17 @@
         },
         "required" : [ "created_at", "id", "status" ],
         "title" : "PreviousConversation"
+      },
+      "JournalCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "answers" : {
+            "$ref" : "#/components/schemas/JournalAnswers"
+          }
+        },
+        "required" : [ "answers" ],
+        "title" : "JournalCreateRequest"
       },
       "PracticeContinueRequest" : {
         "type" : "object",

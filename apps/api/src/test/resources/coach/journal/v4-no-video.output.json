@@ -1,0 +1,15 @@
+{
+  "schema_version": "acttub.actor_journal_draft.v4",
+  "practice": [
+    {
+      "text": "돌아오지 말라면서 열쇠는 두고 가라는 대사의 의미를 살펴봤어요.",
+      "basis": "discussed",
+      "source_refs": [
+        "m1",
+        "s1"
+      ]
+    }
+  ],
+  "character": [],
+  "feedback": []
+}

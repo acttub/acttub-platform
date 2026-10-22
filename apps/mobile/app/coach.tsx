@@ -147,9 +147,10 @@ function CoachTalk() {
     }, 0);
   }, []);
 
+  // 코칭이 끝나면 배우 일지(SOMA-720)로 간다. 튜토리얼 예시 회차는 서버에 없어 지금처럼 미리 쓴 노트(/report)다.
   const goToNote = useCallback(() => {
-    leaveThen(() => router.replace('/report'));
-  }, [leaveThen, router]);
+    leaveThen(() => router.replace(sample ? '/report' : '/journal'));
+  }, [leaveThen, router, sample]);
 
   const applyResult = useCallback(
     (result: CoachTurnResult) => {

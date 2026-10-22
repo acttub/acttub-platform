@@ -6,7 +6,6 @@ const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'
 
 // 긴 세션에서 앱 메모리(256MB)가 차 꺼졌다(SOMA-699). 영상 플레이어 하나가 20MB 넘게 잡았고, 영상 화면이 겹쳐 쌓였다.
 const PLAYERS = [
-  'app/archive-detail.tsx',
   'app/challenge-upload.tsx',
   'app/upload.tsx',
   'app/challenge-play.tsx',
@@ -24,7 +23,7 @@ test('안드로이드 영상 플레이어는 모두 미리 받아 두는 양에 
 });
 
 test('위에 다른 화면이 쌓이면 아래 화면의 영상은 내려놓는다(SOMA-699)', () => {
-  for (const file of ['app/archive-detail.tsx', 'app/challenge-upload.tsx', 'app/upload.tsx']) {
+  for (const file of ['app/challenge-upload.tsx', 'app/upload.tsx']) {
     const src = read(file);
     assert.match(src, /const focused = useIsFocused\(\);/, file);
     assert.match(src, /useVideoPlayer\(sourceWhileFocused\(/, file);
