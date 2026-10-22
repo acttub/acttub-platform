@@ -4,7 +4,6 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAppDialog } from '@/components/app-dialog';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -39,9 +38,7 @@ import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id'
  */
 export default function LineNewScreen() {
   const router = useRouter();
-  const { alert, dialog } = useAppDialog();
   const params = useLocalSearchParams<{ line?: string }>();
-  const [step, setStep] = useState<0 | 1 | 2>(0);
   const [draft, setDraft] = useState<ChallengeDraft>({ ...emptyChallengeDraft, line: params.line ?? '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +47,8 @@ export default function LineNewScreen() {
 
   const set = (patch: Partial<ChallengeDraft>) => setDraft((d) => ({ ...d, ...patch }));
   const overflow = draftOverflow(draft);
-  const canNext = stepComplete(draft, step);
+  // pen C4.2(입력 줄임) — 대사와 기간만 받는다. 작품은 서버 필수라 「창작 대사」로 채우고, 인물·장면 메모는 묻지 않는다.
+  const canNext = stepComplete(draft, 0) && stepComplete(draft, 2);
 
   const submit = async () => {
     if (lockRef.current || submitting) return;
@@ -58,17 +56,13 @@ export default function LineNewScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const body = buildCreateBody('pending', draft);
+      const body = buildCreateBody('pending', { ...draft, work: draft.work.trim() || t('lineNew.defaultWork') });
       const attempt = attemptFor(attemptRef.current, fingerprintOf(body), newRequestId);
       attemptRef.current = attempt;
       const challenge = await api.createChallenge({ ...body, request_id: attempt.requestId });
       logEvent('challenge_created', { duration: draft.durationDays });
-      await alert({
-        title: t('lineNew.doneTitleNew'),
-        message: t('lineNew.doneMessageNew'),
-        confirmLabel: t('common.confirm'),
-      });
-      router.replace({ pathname: '/challenge-detail', params: { id: challenge.id } });
+      // 등록 완료는 대화상자 대신 상세 아래 어두운 안내줄(C4.7)로 알린다.
+      router.replace({ pathname: '/challenge-detail', params: { id: challenge.id, opened: '1' } });
     } catch (e) {
       const failure = createFailure(e);
       // 같은 id 에 다른 본문이면 id 를 버리고 다음 시도에서 새로 만든다.
@@ -81,142 +75,77 @@ export default function LineNewScreen() {
   };
 
   const next = () => {
-    if (!canNext) return;
-    if (step < 2) {
-      setStep((s) => (s + 1) as 0 | 1 | 2);
-      return;
-    }
-    void submit();
+    if (canNext) void submit();
   };
-  const back = () => (step > 0 ? setStep((s) => (s - 1) as 0 | 1 | 2) : router.back());
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Pressable onPress={back} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="line_new_back">
-          <Feather name={step === 0 ? 'x' : 'chevron-left'} size={26} color={palette.text} />
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="line_new_back">
+          <Feather name="x" size={26} color={palette.text} />
         </Pressable>
-        <View style={styles.dots}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[styles.dot, i === step && styles.dotOn]} />
-          ))}
-        </View>
-        <Text style={styles.stepText}>{t('lineNew.stepLabel', { step: step + 1 })}</Text>
       </View>
 
       <KeyboardAwareScroll contentContainerStyle={styles.content}>
-        {step === 0 && (
-          <>
-            <Text style={styles.title}>{t('lineNew.title1')}</Text>
-            <Text style={styles.sub}>{t('lineNew.sub1')}</Text>
-            <TextInput
-              style={styles.lineInput}
-              placeholder={t('lineNew.linePh')}
-              placeholderTextColor={palette.textFaint}
-              value={draft.line}
-              onChangeText={(line) => set({ line })}
-              multiline
-              autoFocus
-              textAlignVertical="top"
-            />
-            <Text style={styles.counter}>{t('lineNew.counter', { count: [...normalizeChallengeLine(draft.line)].length, max: LINE_MAX })}</Text>
-            <View style={styles.hintRow}>
-              <Feather name="zap" size={13} color={palette.blue} />
-              <Text style={styles.hint}>{t('lineNew.hint1')}</Text>
-            </View>
-          </>
-        )}
+        <Text style={styles.title}>{t('lineNew.title1')}</Text>
+        <Text style={styles.sub}>{t('lineNew.sub1')}</Text>
+        <TextInput
+          style={styles.lineInput}
+          placeholder={t('lineNew.linePh')}
+          placeholderTextColor={palette.textFaint}
+          value={draft.line}
+          onChangeText={(line) => set({ line })}
+          multiline
+          autoFocus
+          textAlignVertical="top"
+        />
+        <Text style={styles.counter}>{t('lineNew.counter', { count: [...normalizeChallengeLine(draft.line)].length, max: LINE_MAX })}</Text>
+        <View style={styles.hintRow}>
+          <Feather name="zap" size={13} color={palette.blue} />
+          <Text style={styles.hint}>{t('lineNew.hint1')}</Text>
+        </View>
 
-        {step === 1 && (
-          <>
-            <Text style={styles.title}>{t('lineNew.title2')}</Text>
-            <Text style={styles.sub}>{t('lineNew.sub2')}</Text>
-            <Text style={styles.label}>{t('lineNew.workLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('lineNew.workPh')}
-              placeholderTextColor={palette.textFaint}
-              value={draft.work}
-              onChangeText={(work) => set({ work })}
-            />
-            <Text style={styles.label}>{t('lineNew.roleLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('lineNew.rolePh')}
-              placeholderTextColor={palette.textFaint}
-              value={draft.character}
-              onChangeText={(character) => set({ character })}
-            />
-            <Text style={styles.label}>{t('lineNew.noteLabel')}</Text>
-            <TextInput
-              style={[styles.input, styles.noteInput]}
-              placeholder={t('lineNew.notePh')}
-              placeholderTextColor={palette.textFaint}
-              value={draft.sceneNote}
-              onChangeText={(sceneNote) => set({ sceneNote })}
-              multiline
-              textAlignVertical="top"
-            />
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <Text style={styles.title}>{t('lineNew.title3New')}</Text>
-            <Text style={styles.sub}>{t('lineNew.sub3New')}</Text>
-            <View style={styles.durationRow}>
-              {CHALLENGE_DURATIONS.map((days) => (
-                <Pressable
-                  key={days}
-                  style={[styles.duration, draft.durationDays === days && styles.durationOn]}
-                  onPress={() => set({ durationDays: days as ChallengeDuration })}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: draft.durationDays === days }}>
-                  <Text style={[styles.durationText, draft.durationDays === days && styles.durationTextOn]}>
-                    {t(days === 7 ? 'lineNew.duration7' : 'lineNew.duration14')}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.preview}>
-              <Text style={styles.previewLine}>“{draft.line.trim()}”</Text>
-              <Text style={styles.previewMeta}>
-                {[draft.work.trim(), draft.character.trim()].filter(Boolean).join(' · ')}
+        <Text style={styles.label}>{t('lineNew.title3New')}</Text>
+        <View style={styles.durationRow}>
+          {CHALLENGE_DURATIONS.map((days) => (
+            <Pressable
+              key={days}
+              style={[styles.duration, draft.durationDays === days && styles.durationOn]}
+              onPress={() => set({ durationDays: days as ChallengeDuration })}
+              accessibilityRole="button"
+              accessibilityState={{ selected: draft.durationDays === days }}>
+              <Text style={[styles.durationText, draft.durationDays === days && styles.durationTextOn]}>
+                {t(days === 7 ? 'lineNew.duration7' : 'lineNew.duration14')}
               </Text>
-              {!!draft.sceneNote.trim() && <Text style={styles.previewNote}>{draft.sceneNote.trim()}</Text>}
-            </View>
-          </>
-        )}
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.hint}>{t('lineNew.sub3New')}</Text>
 
         {!!overflow && <Text style={styles.error}>{t('lineNew.errInvalid')}</Text>}
         {!!error && <Text style={styles.error}>{error}</Text>}
       </KeyboardAwareScroll>
 
-      <CtaBar divider safeBottom={false}>
+      <CtaBar safeBottom={false}>
         <PrimaryButton
-          label={t(step === 2 ? 'lineNew.submit' : 'lineNew.next')}
+          label={t('lineNew.submit')}
           onPress={next}
           disabled={!canNext}
           loading={submitting}
         />
       </CtaBar>
-      {dialog}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, gap: 12 },
-  dots: { flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.border },
-  dotOn: { backgroundColor: palette.blue, width: 18 },
-  stepText: { fontSize: 12.5, fontWeight: '700', color: palette.textFaint },
-  content: { padding: 20, paddingBottom: 40, gap: 10 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingTop: 6 },
+  content: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 40, gap: 10 },
   title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
   sub: { fontSize: 14, color: palette.textDim, lineHeight: 22, marginBottom: 6 },
-  label: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted, marginTop: 10 },
+  label: { fontSize: 17, fontWeight: '800', color: palette.text, marginTop: 18 },
   lineInput: {
     minHeight: 120,
     borderRadius: 14,

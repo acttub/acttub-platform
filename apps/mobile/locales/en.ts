@@ -366,6 +366,8 @@ const en: DeepStringShape<typeof ko> = {
   },
   lineNew: {
     stepLabel: '{{step}} / 3',
+    defaultWork: 'Original line',
+    doneToast: 'Your challenge is open. Waiting for the first entry.',
     title3New: 'How long should it run?',
     sub3New: 'When it ends, new entries close and the ranking is set.',
     duration7: '7 days',
@@ -595,7 +597,7 @@ const en: DeepStringShape<typeof ko> = {
     resultBannerSub: '{{count}} picks · Tap to see',
     hostMemberShort: 'Member challenge',
     introSeeWeek: 'See this week’s line',
-    detailGuide: 'Watch other actors, and tap “I’ll try it” when you want a go.',
+    detailGuide: 'Watch other actors, and tap “Perform this line” when you want a go.',
     otherActors: 'Other actors',
     tryIt: 'I’ll try it',
   },

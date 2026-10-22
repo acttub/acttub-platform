@@ -357,6 +357,8 @@ const ko = {
   },
   lineNew: {
     stepLabel: '{{step}} / 3',
+    defaultWork: '창작 대사',
+    doneToast: '챌린지를 열었어요. 첫 참여를 기다려요.',
     title3New: '얼마 동안 열어둘까요?',
     sub3New: '기간이 끝나면 새 참여가 닫히고 순위가 굳어요.',
     duration7: '7일',
@@ -586,7 +588,7 @@ const ko = {
     resultBannerSub: '선정작 {{count}} · 눌러서 보기',
     hostMemberShort: '사용자 챌린지',
     introSeeWeek: '이번 주 대사 보기',
-    detailGuide: '다른 배우 영상을 보고, 해 보고 싶으면 「나도 해 볼래요」를 누르세요.',
+    detailGuide: '다른 배우 영상을 보고, 해 보고 싶으면 「나도 이 대사 연기하기」를 누르세요.',
     otherActors: '다른 배우들',
     tryIt: '나도 해 볼래요',
   },
