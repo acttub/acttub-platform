@@ -255,4 +255,23 @@ class DirectVideoPracticeLoopTest {
         org.assertj.core.api.Assertions.assertThat(DirectVideoPracticeLoop.repeatedQuestion("상대가 어떤 표정을 짓길 원했어요?",
                 java.util.List.of("상대가 어떻게 반응하길 바랐어요?"))).isEmpty();
     }
+
+    @Test void anEnglishScreenStillGetsKoreanRepliesWhenTheActorWritesKorean() {
+        // 2026-10-15 00:12 운영(자문, 영어 화면): 배우는 내내 한국어로 답했는데 코치는 영어로 답했다.
+        try {
+            org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.ENGLISH);
+            assertThat(DirectVideoPracticeLoop.replyLanguage(null, "폭발하는 씬이라서")).as("한국어 답이면 한국어").isNull();
+            assertThat(DirectVideoPracticeLoop.replyLanguage(null, "I wanted to shift the mood there")).isEqualTo(java.util.Locale.ENGLISH);
+            assertThat(DirectVideoPracticeLoop.replyLanguage(null, null)).as("배우 말이 아직 없으면 화면 언어").isEqualTo(java.util.Locale.ENGLISH);
+            assertThat(DirectVideoPracticeLoop.replyLanguage(null, "그만")).as("종료 말만으로는 바꾸지 않는다").isEqualTo(java.util.Locale.ENGLISH);
+            assertThat(DirectVideoPracticeLoop.replyLanguage(null, "영어로 해 줘")).isEqualTo(java.util.Locale.ENGLISH);
+        } finally {
+            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+    }
+
+    @Test void advisorTasksDropTheTrailingHowAbout() {
+        assertThat(DirectVideoPrompts.withoutHowAbout("하나씩 따져 봐도 좋을 것 같아요. 어때요?\")")).isEqualTo("하나씩 따져 봐도 좋을 것 같아요.\")");
+        assertThat(DirectVideoPrompts.withoutHowAbout(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.PROPOSE, null))).doesNotContain("어때요?");
+    }
 }

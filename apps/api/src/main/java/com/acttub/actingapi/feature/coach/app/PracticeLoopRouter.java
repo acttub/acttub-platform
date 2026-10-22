@@ -329,8 +329,11 @@ final class PracticeLoopRouter {
                 case "evaluation" -> pointOut;
                 case "question" -> "답하기";
                 case "method" -> WRAP_UP;
-                // 행동 대신 바람을 말했으면(위로받고 싶어) 그 바람이 답의 재료다. 보기 둘로 코치 낱말을 내밀지 않고 두 번째에는 그 바람을 얻을 행동을 제안한다.
-                default -> c.want() ? (stayed >= 1 ? PROPOSE : REASK) : stayed >= 2 ? PROPOSE : stayed >= 1 ? EASY : REASK;
+                // 행동 대신 바람을 말했으면(위로받고 싶어) 그 바람이 답의 재료다. 다시 묻지 않고 정리에서 그 바람을 얻을 행동 하나를 제안한다.
+                // 바람도 행동도 아닌 답이면 한 번만 바꿔 묻고, 그다음에는 보기 둘·"어때요?" 제안을 거치지 않고 정리에서 코치가 행동을 준다.
+                // 2026-10-22 00:16 운영(자문): "화를 낼거같아", "쫄았으면 좋겠어"라고 답했는데 "장면 내내 뭘 해 볼래요?"를 말만 바꿔 네 번 물었다
+                // (자문 평가: "질문을 반복적으로 하는데 … 차이를 못느끼겠습니다").
+                default -> c.want() || stayed >= 1 ? WRAP_UP : REASK;
             };
         }
         return switch (kind) {
