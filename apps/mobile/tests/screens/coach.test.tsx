@@ -78,7 +78,8 @@ jest.mock('@/components/mic-button', () => {
 
 const SEND = '보내기';
 const PLACEHOLDER = '직접 써도 돼요';
-const LOADING = '영상을 마저 정리하고 있어요…';
+const LOADING = '코치가 첫 질문을 쓰고 있어요…';
+const LOADING_HINT = '보통 20~30초쯤 걸려요. 화면을 나가도 질문은 계속 만들어지고, 홈에서 「대화 이어 가기」를 누르면 이어서 볼 수 있어요.';
 const NOTE = { id: 'n1', title: '멈춤' } as PracticeNote;
 
 function msg(turn: number, role: CoachMessage['role'], text: string): CoachMessage {
@@ -181,6 +182,7 @@ describe('대화 시작', () => {
     await render(<CoachScreen />);
 
     expect(screen.getByText(LOADING)).toBeOnTheScreen();
+    expect(screen.getByText(LOADING_HINT)).toBeOnTheScreen();
     expect(screen.getByText('카페에서 이별을 말하는 장면')).toBeOnTheScreen();
     expect(screen.getByText('오늘 영상')).toBeOnTheScreen();
     expect(screen.getByText('장면 정보 있음')).toBeOnTheScreen();
@@ -196,6 +198,7 @@ describe('대화 시작', () => {
     expect(screen.getByText('첫 질문이에요.\n둘째 줄')).toBeOnTheScreen();
     expect(screen.getByText('ACTTUB 코치')).toBeOnTheScreen();
     expect(screen.queryByText(LOADING)).not.toBeOnTheScreen();
+    expect(screen.queryByText(LOADING_HINT)).not.toBeOnTheScreen();
     expect(screen.getByLabelText('답이나 질문을 편하게 적어 주세요')).toBeOnTheScreen();
     expect(input().props.maxLength).toBe(300);
     expect(input()).not.toBeDisabled();
@@ -226,6 +229,19 @@ describe('대화 시작', () => {
 
     await act(async () => resolveStart(turn(conv())));
     expect(screen.getByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
+  });
+
+  test('대화가 먼저 열렸는데 코치 말이 없으면(미리 쓰기 중) 읽기만 하지 않고 시작 요청을 한 번 보낸다(SOMA-780)', async () => {
+    mockLoop.getConversation.mockResolvedValue(conv({ coach_reply_count: 0, messages: [] }));
+    mockLoop.startConversation.mockResolvedValue(turn(conv()));
+    begin({ conversationId: 'c1' });
+    await render(<CoachScreen />);
+
+    expect(await screen.findByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
+    expect(mockLoop.getConversation).toHaveBeenCalledTimes(1);
+    expect(mockLoop.startConversation).toHaveBeenCalledTimes(1);
+    expect(mockLoop.startConversation.mock.calls[0][0]).toBe('p1');
+    expect(screen.queryByText(LOADING)).not.toBeOnTheScreen();
   });
 
   test('이미 시작한 대화는 같은 id 로 이어 가고 지난 문답을 펼쳐 볼 수 있다', async () => {

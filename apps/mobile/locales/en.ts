@@ -953,7 +953,8 @@ const en: DeepStringShape<typeof ko> = {
     pastToggle: 'Past Q&A {{count}}',
     roleCoach: 'Coach',
     roleMe: 'Me',
-    wrapping: 'Finishing up with your video…',
+    wrapping: 'Your coach is writing the first question…',
+    wrappingHint: 'This usually takes 20–30 seconds. If you leave, the question keeps being written — tap “Continue the conversation” on Home to pick it up.',
     reconnect: 'Reconnect to coach',
     doneShort:
       'That’s all for today. It’s a bit short to keep as a note — let’s pick it up next time.',
