@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import {
@@ -57,14 +58,10 @@ export default function UniversityDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="뒤로" ph-label="admissions_back">
-          <Feather name="chevron-left" size={24} color={palette.text} />
-        </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {university?.name ?? '연기 입시 정보'}
-        </Text>
-      </View>
+      <NavHeader
+        title={university?.name ?? '연기 입시 정보'}
+        left={<NavIconButton icon="chevron-left" label={'뒤로'} phLabel="admissions_back" onPress={() => router.back()} />}
+      />
 
       {!payload && !error && (
         <View style={styles.center}>

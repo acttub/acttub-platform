@@ -61,7 +61,6 @@ export default function LineSearchScreen() {
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <Text style={styles.title}>{t('lineSearch.title')}</Text>
-        <View style={styles.flex} />
         <Pressable onPress={register} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('challenges.addLine')} ph-label="line_search_add">
           <Feather name="plus" size={26} color={palette.blue} />
         </Pressable>
@@ -129,20 +128,20 @@ export default function LineSearchScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
-  title: { fontSize: 18, fontWeight: '800', color: palette.text },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 8, paddingBottom: 10, minHeight: 48 },
+  title: { position: 'absolute', left: 0, right: 0, textAlign: 'center', fontSize: 18, fontWeight: '800', color: palette.text },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginHorizontal: 16,
+    marginHorizontal: 24,
     backgroundColor: palette.bgSoft,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 14,
-    height: 46,
+    height: 48,
   },
   input: { flex: 1, fontSize: 15, color: palette.text },
-  body: { padding: 16, paddingBottom: 60, gap: 4 },
+  body: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 60, gap: 4 },
   hint: { fontSize: 13, color: palette.textFaint, paddingVertical: 12 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', paddingVertical: 12 },
   row: {

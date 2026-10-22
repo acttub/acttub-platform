@@ -350,7 +350,7 @@ const ko = {
   },
   lineSearch: {
     minLength: '두 글자 이상 적어 주세요.',
-    title: '대사',
+    title: '대사 검색',
     placeholder: '대사·작품·배우 검색',
     empty: '검색 결과가 없어요.',
     registerCta: '찾는 대사가 없어요? 직접 등록하기',
