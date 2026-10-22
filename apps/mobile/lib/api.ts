@@ -4,6 +4,7 @@ import type {
 import { normalizeAdmissions } from './admissions';
 import { normalizeAuditions, type AuditionPostingList } from './auditions';
 import type { CreateSampleScriptBody, ReviseSampleScriptBody, SampleScript } from './script-cocreate';
+import type { JournalAnswers, JournalUpdateBody, PracticeJournal } from './practice/journal';
 
 import Constants from 'expo-constants';
 // RN 기본 fetch 는 본문을 흘려 읽지 못한다. 코치 답 스트리밍에만 쓴다(네이티브 모듈 추가 없음, SDK 52+).
@@ -1199,6 +1200,33 @@ export const api = {
       `/v2/reading/sessions/${encodeURIComponent(sessionId)}/rating`,
       jsonInit(body, 'PUT'),
       { timeoutMs: 15_000 },
+    );
+  },
+
+  // 배우 일지(practice.journal, SOMA-720) -------------------------------------------
+  /** 그 회차의 배우 일지. 없으면 404 journal_not_found. */
+  getPracticeJournal(practiceId: string): Promise<PracticeJournal> {
+    return request<PracticeJournal>(`/v2/practices/${encodeURIComponent(practiceId)}/journal`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 고정 질문 4개의 답으로 일지를 만든다. 서버가 코칭 대화로 자동 칸을 만들므로 오래 걸릴 수 있다(모델 두 번까지).
+   * 회차에 일지가 이미 있으면 다시 만들지 않고 그 일지를 준다(200) — 같은 답의 재전송이 안전하다.
+   */
+  createPracticeJournal(practiceId: string, answers: JournalAnswers): Promise<PracticeJournal> {
+    return request<PracticeJournal>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/journal`,
+      jsonInit({ answers }, 'POST'),
+      { timeoutMs: 90_000 },
+    );
+  },
+
+  /** 고친 일지 저장 — 배우 답 전체와 자동 칸 전체를 보낸다. */
+  updatePracticeJournal(practiceId: string, body: JournalUpdateBody): Promise<PracticeJournal> {
+    return request<PracticeJournal>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/journal`,
+      jsonInit(body, 'PUT'),
+      { timeoutMs: 20_000 },
     );
   },
 
