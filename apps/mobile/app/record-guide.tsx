@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { translate as t, translateList } from '@/lib/i18n';
 
@@ -23,23 +24,32 @@ export default function RecordGuideScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: t('record.guideTitle'), headerShadowVisible: false }} />
+      <Stack.Screen
+        options={{
+          title: t('record.guideTitle'),
+          headerShadowVisible: false,
+          // pen 03 「찍는 법」 머리 — 오른쪽 설정 아이콘(24).
+          headerRight: () => (
+            <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="record_guide_settings" onPress={() => router.push('/settings')} />
+          ),
+        }}
+      />
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.hero}>
-          <Feather name="smartphone" size={64} color={palette.blue} />
+          <Feather name="smartphone" size={56} color={palette.blue} />
           <Text style={styles.heroText}>{t('record.guideHero')}</Text>
         </View>
-        <View style={styles.list}>
+        <View>
           {tips.map((tip) => (
             <View key={tip} style={styles.row}>
-              <Feather name="check" size={18} color={palette.blue} />
+              <Feather name="check" size={20} color={palette.blue} />
               <Text style={styles.rowText}>{tip}</Text>
             </View>
           ))}
         </View>
         {firstTime && <Text style={styles.guide}>{t('record.guideHint')}</Text>}
       </ScrollView>
-      <CtaBar safeBottom={false}>
+      <CtaBar safeBottom={false} style={styles.cta}>
         <PrimaryButton
           label={t('record.start')}
           onPress={() =>
@@ -54,20 +64,22 @@ export default function RecordGuideScreen() {
   );
 }
 
+// pen 03 「찍는 법」 — 본문 안쪽 [14,20,0,20], 그림 칸 193(#F8FAFF · 모서리 24 · 아이콘 56 · 12 띄워 18/800 진한 파랑),
+// 15 띄워 체크 줄 넷(높이 55.6 · 체크 20 · 6 띄워 17/700 #333D4B), 아래 버튼 칸 [_,20,11,20].
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 22 },
+  body: { paddingTop: 14, paddingHorizontal: 20, paddingBottom: 24, gap: 15 },
   hero: {
-    height: 220,
-    borderRadius: 20,
+    height: 193,
+    borderRadius: 24,
     backgroundColor: palette.blueMist,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
   },
-  heroText: { fontSize: 17, fontWeight: '800', lineHeight: 25, color: palette.blueDeep, textAlign: 'center' },
-  list: { gap: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingHorizontal: 4 },
-  rowText: { flex: 1, fontSize: 15, fontWeight: '600', lineHeight: 22, color: palette.textStrong },
+  heroText: { fontSize: 18, fontWeight: '800', lineHeight: 24, color: palette.blueDeep, textAlign: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 55.6, paddingLeft: 3 },
+  rowText: { flex: 1, fontSize: 17, fontWeight: '700', color: palette.textStrong },
   guide: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
+  cta: { paddingHorizontal: 20, paddingBottom: 11 },
 });
