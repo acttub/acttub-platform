@@ -15,12 +15,12 @@ test('③ 단계 표시: 동그라미 20 · 번호 13/700 · 이름 14/700 · �
   assert.doesNotMatch(chrome, /stepperLabelOn: \{ fontWeight: '900'/);
 });
 
-test('③ 새 연습: 머리 오른쪽 설정, 본문 좌우 20, 권리 체크 15/700 · 버튼 48 · 안내 14/500', () => {
+test('③ 새 연습: 머리 오른쪽 설정, 본문 좌우 24, 권리 체크 15/700 · 버튼 52 · 안내 14/500', () => {
   const upload = read('app/upload.tsx');
   assert.match(upload, /headerRight: \(\) => \(\s*<NavIconButton icon="settings"/);
-  assert.match(upload, /stepBody: \{ paddingTop: 21, paddingHorizontal: 20,/);
+  assert.match(upload, /stepBody: \{ paddingTop: 16, paddingHorizontal: 24,/);
   assert.match(upload, /rightsText: \{ flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette\.textStrong \}/);
-  assert.match(upload, /submit: \{ height: 48, borderRadius: 16,/);
+  assert.match(upload, /submit: \{ height: 52, borderRadius: 16,/);
   assert.match(upload, /submitText: \{ fontSize: 17, fontWeight: '700'/);
   assert.match(upload, /submitTextDisabled: \{ color: palette\.checkOff \}/);
   assert.match(upload, /submitHint: \{ fontSize: 14, fontWeight: '500', color: palette\.textFaint/);

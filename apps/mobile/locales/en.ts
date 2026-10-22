@@ -171,6 +171,8 @@ const en: DeepStringShape<typeof ko> = {
   },
   // Purpose screen for talk-only coaching without a video (SOMA-745).
   talk: {
+    guide: 'Pick one, then tap “Next”.',
+    next: 'Next',
     title: 'Talk it through',
     bubble: 'What would you like help with?',
     purpose: {
@@ -186,6 +188,24 @@ const en: DeepStringShape<typeof ko> = {
     failed: "Couldn't start coaching. Please tap again.",
   },
   coachingTab: {
+    chooseBubble: 'How would you like coaching?',
+    chooseGuide: 'Pick one, then tap “Next”.',
+    next: 'Next',
+    choice: { video: 'Show a video for coaching', talk: 'Talk it through, no video', script: 'Write the lines to film together' },
+    choiceSub: { video: 'A video you have or one you film now', talk: 'Stuck spots, a character, or worries', script: 'No lines yet? Acty helps' },
+    nextBubble: 'What shall we try today?',
+    resumeBubble: 'You have a coaching in progress. Continue?',
+    resumeRow: 'Continue your coaching',
+    menuNewVideo: 'Coaching with a new video',
+    menuNewVideoSub: 'A video you have or one you film now',
+    menuResume: 'Continue a past coaching',
+    menuResumeSub: 'Pick a past coaching to continue',
+    menuTalk: 'Talk it through, no video',
+    menuTalkSub: 'Stuck spots, a character, or worries',
+    menuScript: 'Write the lines to film together',
+    menuScriptSub: 'No lines yet? Acty helps',
+    menuHistory: 'See practice history',
+    menuHistorySub: 'Past videos, chats and journals',
     title: 'Coaching',
     firstBubble: 'First time with the coach?',
     firstBubbleSub: 'Show a take and the coach asks questions\nto find one thing to fix together.',
@@ -850,6 +870,9 @@ const en: DeepStringShape<typeof ko> = {
     noteTooLong: 'The note about what blocked you can hold up to 500 characters.',
   },
   upload: {
+    next: 'Next',
+    chooseGuide: 'Pick one, then tap “Next”.',
+    sourceChooseGuide: 'Pick one, then tap “Get questions”.',
     titleNew: 'New practice',
     repick: 'Choose another video',
     dropHint: 'MP4 · MOV · under 5 minutes',

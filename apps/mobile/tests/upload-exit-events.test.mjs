@@ -88,7 +88,7 @@ test('업로드 화면과 챌린지 올리기 화면에 이벤트가 걸려 있�
   }
   // 회색 버튼도 눌림을 받아야 막힌 이유를 셀 수 있다 — disabled 는 시작 중일 때만 건다.
   assert.match(upload, /disabled=\{starting\}/);
-  assert.match(upload, /accessibilityState=\{\{ disabled: !ready \|\| starting \}\}/);
+  assert.match(upload, /accessibilityState=\{\{ disabled: !canSubmit \|\| starting \}\}/);
   assert.ok(read('app/challenge-upload.tsx').includes('CHALLENGE_FUNNEL_EVENTS.uploadExit'));
   assert.ok(read('app/record-video.tsx').includes("source: 'record'"));
 });

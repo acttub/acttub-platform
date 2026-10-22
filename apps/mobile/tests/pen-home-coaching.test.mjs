@@ -14,10 +14,11 @@ test('첫 사용자 홈은 공통 말풍선·Primary 버튼을 쓰고, 카드는
   assert.doesNotMatch(home, /onPress=\{\(\) => router\.push\('\/coaching'\)\}/);
 });
 
-test('코칭 탭 「지금 찍어서 코칭 받기」는 카메라 → 준비 화면으로 이어진다(next=upload)', () => {
+test('코칭 탭 입구는 새 연습(목적 → 영상)·말로 코칭·대사 만들기로 이어진다', () => {
   const coaching = read('app/(tabs)/coaching.tsx');
-  assert.match(coaching, /pathname: '\/record-video'/);
-  assert.match(coaching, /next: 'upload'/);
+  assert.match(coaching, /pathname: '\/upload'/);
+  assert.match(coaching, /router\.push\('\/talk'\)/);
+  assert.match(coaching, /router\.push\('\/script-cocreate'\)/);
   // 서버에 없는 값(몇 번 해 봤는지·줄 태그)은 문구조차 두지 않는다.
   const ko = read('locales/ko.ts');
   const block = ko.slice(ko.indexOf('  coachingTab: {'), ko.indexOf('  },', ko.indexOf('  coachingTab: {')));
