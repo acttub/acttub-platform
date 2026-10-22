@@ -10,9 +10,11 @@ type FeatherName = React.ComponentProps<typeof Feather>['name'];
  * 고르는 줄 공통 부품(SOMA-770). 디자인의 선택지 모양 셋을 한 파일에 둔다.
  *
  * - OptionCard — pen 「P/OptionCard」: 테두리 #E5E8EB · 모서리 16 · 안쪽 14 · 아이콘 칸 40(파란 18) · 제목 15/800 · 보조 12 · 꺾쇠 18.
- * - IconOptionRow — pen 세션 목적·영상 고르기·코칭/리딩 입구 줄: 테두리 없이 파란 아이콘 22 · 제목 17/700 · 보조 14/500 · 꺾쇠 20.
- *   고르면 옅은 파랑 바탕(#E8F3FF)에 진한 파랑 제목.
- * - SelectRow — pen 온보딩 선택지: 글 17/700, 고르면 옅은 파랑 바탕 + 파란 체크 원(여럿 고르기는 네모).
+ * - IconOptionRow — pen 「선택 카드」(세션 목적·영상 고르기·코칭/리딩 입구 줄): 테두리 없이 안쪽 [13,14,13,19] · 모서리 16,
+ *   파란 아이콘 24 · 21 띄워 제목 18/700(줄 23) · 4 띄워 보조 16/500(줄 21) #8B95A1 · 꺾쇠 22.
+ *   고르면 옅은 파랑 바탕(#EAF3FE)에 진한 파랑 제목.
+ * - SelectRow — pen 「온보딩 / 선택 행」·「체크 행」: 높이 49, 글 17/700, 오른쪽 라디오 18(테두리 1.5 #B0B8C1)
+ *   또는 여럿 고르기는 체크 칸 16(모서리 2). 고르면 파랑으로 찬다.
  */
 
 export function OptionCard({
@@ -94,7 +96,7 @@ export function IconOptionRow({
       ph-label={phLabel}
       style={({ pressed }) => [styles.row, flush && styles.rowFlush, on && styles.rowOn, pressed && !on && styles.rowPressed]}>
       <View style={styles.iconBox}>
-        <Feather name={icon} size={22} color={palette.blue} />
+        <Feather name={icon} size={24} color={palette.blue} />
       </View>
       <View style={styles.body}>
         {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
@@ -102,9 +104,9 @@ export function IconOptionRow({
         {sub ? <Text style={styles.sub}>{sub}</Text> : null}
       </View>
       {mark === 'none' ? null : mark === 'check' && selected ? (
-        <Feather name="check" size={20} color={palette.blue} />
+        <Feather name="check" size={22} color={palette.blue} />
       ) : (
-        <Feather name="chevron-right" size={20} color={palette.textFaint} />
+        <Feather name="chevron-right" size={22} color={palette.textFaint} />
       )}
     </Pressable>
   );
@@ -124,15 +126,22 @@ export function SelectRow({
   selected: boolean;
   onPress: () => void;
   multi?: boolean;
-  /** circle: 빈 원/체크 원(pen 선택지), check: 고른 것에만 체크(pen 성별). */
+  /** circle: 라디오·체크 칸(pen 선택 행·체크 행), check: 고른 것에만 체크 표시. */
   trailing?: 'circle' | 'check';
 }) {
-  const icon: FeatherName | null =
-    trailing === 'check' ? (selected ? 'check' : null) : multi ? (selected ? 'check-square' : 'square') : selected ? 'check-circle' : 'circle';
+  let mark: ReactNode = null;
+  if (trailing === 'check') mark = selected ? <Feather name="check" size={20} color={palette.blue} /> : null;
+  else if (multi)
+    mark = (
+      <View style={[styles.checkbox, selected && styles.checkboxOn]}>
+        {selected ? <Feather name="check" size={12} color={palette.onAccent} /> : null}
+      </View>
+    );
+  else mark = <View style={[styles.radio, selected && styles.radioOn]} />;
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.option, selected && styles.optionOn]}
+      style={({ pressed }) => [styles.option, multi && styles.optionCheck, pressed && styles.optionPressed]}
       accessibilityRole={multi ? 'checkbox' : 'radio'}
       accessibilityState={multi ? { checked: selected } : { selected }}
       accessibilityLabel={label}>
@@ -140,7 +149,7 @@ export function SelectRow({
         <Text style={[styles.optionText, selected && styles.optionTextOn]}>{label}</Text>
         {sub ? <Text style={styles.optionSub}>{sub}</Text> : null}
       </View>
-      {icon ? <Feather name={icon} size={22} color={selected ? palette.blue : palette.checkOff} /> : null}
+      {mark}
     </Pressable>
   );
 }
@@ -166,32 +175,47 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingVertical: 15,
-    paddingHorizontal: 14,
+    gap: 21,
+    paddingVertical: 13,
+    paddingLeft: 19,
+    paddingRight: 14,
     borderRadius: 16,
   },
-  rowFlush: { paddingHorizontal: 4 },
+  rowFlush: { paddingLeft: 4, paddingRight: 4 },
   rowOn: { backgroundColor: palette.blueSoft },
   rowPressed: { backgroundColor: palette.bgSubtle },
-  iconBox: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  body: { flex: 1, minWidth: 0, gap: 6 },
+  iconBox: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  body: { flex: 1, minWidth: 0, gap: 4 },
   eyebrow: { fontSize: 13, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
-  title: { fontSize: 17, fontWeight: '700', lineHeight: 25, color: palette.text },
+  title: { fontSize: 18, fontWeight: '700', lineHeight: 23, color: palette.text },
   titleOn: { color: palette.blueDeep },
-  sub: { fontSize: 14, fontWeight: '500', lineHeight: 21, color: palette.textMuted },
+  sub: { fontSize: 16, fontWeight: '500', lineHeight: 21, color: palette.textFaint },
 
   option: {
+    minHeight: 49,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 10,
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+    paddingLeft: 5,
+    paddingRight: 4,
   },
-  optionOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 14 },
+  optionCheck: { paddingRight: 5 },
+  optionPressed: { opacity: 0.6 },
   optionBody: { flex: 1, minWidth: 0, gap: 4 },
-  optionText: { fontSize: 17, fontWeight: '700', lineHeight: 25, color: palette.text },
+  optionText: { fontSize: 17, fontWeight: '700', color: palette.text },
   optionTextOn: { color: palette.blueDeep },
   optionSub: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textFaint },
+  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: palette.checkOff },
+  radioOn: { borderWidth: 5, borderColor: palette.blue },
+  checkbox: {
+    width: 16,
+    height: 16,
+    borderRadius: 2,
+    borderWidth: 1.5,
+    borderColor: palette.checkOff,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: { backgroundColor: palette.blue, borderColor: palette.blue },
 });

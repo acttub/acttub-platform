@@ -134,7 +134,9 @@ test('비공개를 고르면 비공개로 저장하고 완료 문구가 다르�
   expect(createEntry).toHaveBeenCalledWith('c1', expect.objectContaining({ video_id: 'v1', visibility: 'private' }));
   expect(createEntry.mock.calls[0][1]).not.toHaveProperty('caption');
   expect(await screen.findByText('비공개로 저장했어요')).toBeOnTheScreen();
-  expect(screen.getByText(/^나만 볼 수 있게 보관했어요\. 언제든 공개로 바꿀 수 있어요\. 「AI 리포트 보기」를 누르면/)).toBeOnTheScreen();
+  expect(screen.getByText('나만 볼 수 있게 보관했어요. 언제든 공개로 바꿀 수 있어요.')).toBeOnTheScreen();
+  // pen 10-11 — AI 리포트 안내는 따로 옅은 파랑 알약 한 줄이다.
+  expect(screen.getByText('「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요')).toBeOnTheScreen();
 
   await view.unmount();
   expect(events().some(([name]) => name === 'challenge_upload_exit')).toBe(false);

@@ -140,7 +140,7 @@ export default function ArchiveScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="archive_back">
-          <Feather name="chevron-left" size={26} color={palette.text} />
+          <Feather name="chevron-left" size={28} color={palette.text} />
         </Pressable>
         <View style={styles.flex}>
           <Text style={styles.title}>{picking ? t('start.fromLibrary') : t('archive.title')}</Text>
@@ -182,7 +182,7 @@ export default function ArchiveScreen() {
           <ActivityIndicator color={palette.blue} style={{ marginTop: 48 }} />
         ) : items.length === 0 ? (
           <View style={styles.empty}>
-            <Feather name="film" size={34} color={palette.checkOff} />
+            <Feather name="film" size={38} color={palette.checkOff} />
             <Text style={styles.emptyTitle}>{t('archive.emptyTitle')}</Text>
             <Text style={styles.emptySub}>{t('archive.emptySub')}</Text>
           </View>
@@ -238,23 +238,26 @@ export default function ArchiveScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8 },
-  title: { fontSize: 20, fontWeight: '800', color: palette.text },
-  subtitle: { fontSize: 12, color: palette.textFaint, marginTop: 2 },
-  filters: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 6 },
-  chip: { borderRadius: 999, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 7 },
+  // pen 03 「보관함」 머리 — 높이 62, 안쪽 [0,16,0,11], 꺾쇠 28 · 5 띄워 제목 24/800(줄 30) · 보조 14/400 회색.
+  header: { height: 62, flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 11, paddingRight: 16 },
+  title: { fontSize: 24, fontWeight: '800', lineHeight: 30, color: palette.text },
+  subtitle: { fontSize: 14, color: palette.textFaint },
+  // 필터 알약 — 높이 32 · 모서리 16 · 안쪽 좌우 13 · 15/700. 고른 것은 검정 바탕 흰 글자, 나머지는 1.5 #E5E8EB 테두리.
+  filters: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 4 },
+  chip: { height: 32, borderRadius: 16, paddingHorizontal: 13, justifyContent: 'center', borderWidth: 1.5, borderColor: palette.border },
   chipOn: { backgroundColor: palette.text, borderColor: palette.text },
-  chipText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
+  chipText: { fontSize: 15, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: '#FFFFFF' },
-  body: { padding: 16, paddingBottom: 40, gap: 12 },
+  body: { paddingTop: 16, paddingHorizontal: 14, paddingBottom: 40, gap: 12 },
   notice: { backgroundColor: palette.amberSoft, borderRadius: 12, padding: 12 },
   noticeText: { color: palette.amber, fontFamily: 'Pretendard', fontSize: 13 },
   errorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.dangerSoft, borderRadius: 12, padding: 12 },
   errorText: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
   retry: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  empty: { alignItems: 'center', gap: 8, paddingVertical: 60 },
-  emptyTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 17, marginTop: 6 },
-  emptySub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
+  // 빈 상태 — 필터 아래 69, 필름 38 · 4 · 제목 18/700 · 2 · 보조 15/400 #6B7684.
+  empty: { alignItems: 'center', paddingTop: 53 },
+  emptyTitle: { color: palette.text, fontSize: 18, fontWeight: '700', marginTop: 4 },
+  emptySub: { color: palette.textMuted, fontSize: 15, fontWeight: '400', textAlign: 'center', lineHeight: 21, marginTop: 2, paddingHorizontal: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   cell: { width: '48%', gap: 4 },
   thumb: { aspectRatio: 0.72, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.navy, alignItems: 'center', justifyContent: 'center' },

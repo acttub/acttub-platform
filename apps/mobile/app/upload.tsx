@@ -18,6 +18,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { IconOptionRow as ChoiceRow } from '@/components/ui/option-card';
 import { palette } from '@/constants/palette';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -122,12 +123,15 @@ export default function UploadScreen() {
     firstUploadStep({ sample, tutorial: currentTutorial()?.track === stageTrack('upload') }),
   );
   const [purpose, setPurpose] = useState<SessionPurpose>(DEFAULT_PURPOSE);
+  // 기본 목적은 보내기용일 뿐이다 — 직접 고르기 전에는 고른 것처럼 칠하지 않는다(10/22 피드백).
+  const [purposePicked, setPurposePicked] = useState(false);
   const [blockage, setBlockage] = useState<BlockageDraft>(() => ({
     ...emptyBlockageDraft,
     category: blockageCategoryFor(DEFAULT_PURPOSE),
   }));
   const choosePurpose = (next: SessionPurpose) => {
     setPurpose(next);
+    setPurposePicked(true);
     setBlockage((was) => ({ ...was, category: blockageCategoryFor(next), detail: null }));
   };
   // 뒤로 가기(헤더·안드로이드)는 앞 단계로 돌아간다. 다음 화면(코치)으로 넘어갈 때는 풀어 둔다 —
@@ -442,7 +446,14 @@ export default function UploadScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen
-        options={{ title: plan.continueFrom ? t('start.titleContinue') : t('upload.titleNew'), headerShadowVisible: false }}
+        options={{
+          title: plan.continueFrom ? t('start.titleContinue') : t('upload.titleNew'),
+          headerShadowVisible: false,
+          // pen 03 「새 연습」 머리 — 오른쪽 설정 아이콘(24).
+          headerRight: () => (
+            <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="upload_settings" onPress={() => router.push('/settings')} />
+          ),
+        }}
       />
       <View style={styles.stepRow}>
         <Stepper current={stepperIndex(step)} />
@@ -459,7 +470,7 @@ export default function UploadScreen() {
                 icon={PURPOSE_ICON[item]}
                 title={t(`upload.purpose.${item}`)}
                 sub={t(`upload.purposeSub.${item}`)}
-                selected={purpose === item}
+                selected={purposePicked && purpose === item}
                 mark="none"
                 onPress={() => {
                   choosePurpose(item);
@@ -590,21 +601,23 @@ export default function UploadScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  // pen 「단계 줄」 — 위 2 · 아래 8, 가운데 정렬.
-  stepRow: { alignItems: 'center', paddingTop: 2, paddingBottom: 8 },
-  stepBody: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
+  // pen 03 「Stepper」 — 머리 아래 1 띄워 가운데, 21 띄워 말풍선. 본문 좌우 20, 말풍선과 선택지 사이 14.
+  stepRow: { alignItems: 'center', paddingTop: 1 },
+  stepBody: { paddingTop: 21, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
   choices: { gap: 4 },
-  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, gap: 10, backgroundColor: palette.bg },
+  // pen 03 「Footer」 — 안쪽 [0,20,10,20]: 권리 체크 · 14 · 버튼 48 · 9 · 안내 14/500.
+  bottom: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10, backgroundColor: palette.bg },
 
   sampleBadge: { backgroundColor: palette.blueSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   sampleBadgeText: { fontSize: 12.5, fontWeight: '800', color: palette.blue },
+  // pen 09 「새 연습 · 영상 고름」 — 영상 높이 178 · 모서리 22, 8 띄워 「영상 다시 선택」 알약(28) · 7 · 「보관함 저장」.
   pickedBlock: { gap: 8 },
-  preview: { width: '100%', aspectRatio: 16 / 9, borderRadius: 16, backgroundColor: palette.text },
+  preview: { width: '100%', height: 178, borderRadius: 22, overflow: 'hidden', backgroundColor: palette.text },
   previewEmpty: { alignItems: 'center', justifyContent: 'center' },
-  pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  repick: { backgroundColor: palette.blueSoft, borderRadius: 9999, paddingVertical: 6, paddingHorizontal: 12 },
-  repickText: { fontSize: 12, fontWeight: '800', color: palette.blueDeep },
-  pickedMeta: { flex: 1, fontSize: 12, fontWeight: '600', color: palette.textFaint },
+  pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  repick: { height: 28, borderRadius: 14, paddingHorizontal: 11, justifyContent: 'center', backgroundColor: palette.blueSoft },
+  repickText: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
+  pickedMeta: { flex: 1, fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
   errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
 
   sendingBar: {
@@ -617,17 +630,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
-  // pen 옛 장면 단계의 권리 체크 — 네모 22(파란 테두리·체크), 글 15/600.
-  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 4 },
+  // pen 03 「Rights」 — 네모 22(모서리 6), 10 띄워 글 15/700 #333D4B(줄 21).
+  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   checkMark: { color: palette.bg, fontSize: 13, fontWeight: '900' },
-  rightsText: { flex: 1, fontSize: 15, fontWeight: '600', color: palette.textStrong, lineHeight: 22 },
+  rightsText: { flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.textStrong },
 
-  // pen Button/Primary — 높이 56 · 모서리 16 · 글자 16/700. 막혀 있으면 Disabled 모양.
-  submit: { height: 56, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  // pen 버튼/Primary — 높이 48 · 모서리 16 · 글자 17/700. 막혀 있으면 Disabled(#E5E8EB · #B0B8C1). 준비 전에도 눌러서
+  // 무엇에 막혔는지 세야 해서(SOMA-698) 공통 Button(막히면 안 눌림) 대신 같은 모양을 직접 그린다.
+  submit: { height: 48, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   submitDisabled: { backgroundColor: palette.border },
-  submitText: { fontSize: 16, fontWeight: '700', color: palette.onAccent },
-  submitTextDisabled: { color: palette.textFaint },
-  submitHint: { fontSize: 13, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
+  submitText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
+  submitTextDisabled: { color: palette.checkOff },
+  submitHint: { fontSize: 14, fontWeight: '500', color: palette.textFaint, lineHeight: 18, textAlign: 'center', marginTop: 9 },
 });

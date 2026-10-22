@@ -51,7 +51,7 @@ export function MicButton({ onText, disabled }: MicButtonProps) {
       disabled={disabled}>
       <Feather
         name={listening ? 'square' : 'mic'}
-        size={22}
+        size={21}
         color={listening ? '#FFFFFF' : palette.blue}
       />
     </Pressable>
@@ -60,9 +60,11 @@ export function MicButton({ onText, disabled }: MicButtonProps) {
 
 const styles = StyleSheet.create({
   button: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    // pen 09 「Mic」 — 39 동그라미(#EAF3FE) · 아이콘 21. 입력칸(44)이 늘어나도 아래에 붙게 2 띄운다.
+    width: 39,
+    height: 39,
+    borderRadius: 20,
+    marginBottom: 2.5,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
