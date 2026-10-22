@@ -182,3 +182,21 @@ test('reading.session(SOMA-785): 함께 말하는 줄은 멤버에 내 배역이
   assert.equal(roleLabel(characters, '윤서', '함께'), '윤서', '보통 배역은 이름 그대로');
   assert.equal(roleLabel(characters, '없는 이름', '함께'), '없는 이름');
 });
+
+test('리딩 3번: 서버 대사 수가 없으면 그 배역이 든 함께 말하는 줄까지 센다 — 범위 안내도 turnRoles 기준', () => {
+  const characters = [
+    { id: 'a', name: '윤서', member_ids: [] },
+    { id: 'b', name: '태오', member_ids: [] },
+    { id: 'g', name: '윤서, 태오', member_ids: ['a', 'b'] },
+  ];
+  const lines = [D('윤서', '1'), D('태오', '2'), D('윤서', '3'), D('윤서', '4'), D('윤서', '5'), D('윤서, 태오', '6')];
+  assert.equal(roleLineCount({ id: 'a', name: '윤서' }, lines, characters), 5, '보통 4줄 + 묶음 1줄');
+  assert.equal(roleLineCount({ id: 'b', name: '태오' }, lines, characters), 2);
+  assert.equal(roleLineCount({ id: 'a', name: '윤서', dialogue_count: 5 }, lines, characters), 5, '서버 값이 이긴다');
+  assert.equal(roleLineCount({ id: 'a', name: '윤서' }, lines), 4, 'characters 가 없으면 이름 줄만');
+  // 태오 혼자면 구간 전체에 1줄 + 묶음 1줄 = 2줄 → 안내, 묶음을 빼면 1줄로 잘못 셌다.
+  assert.equal(fewLines(lines, turnRoles(characters, ['b']), 0, lines.length - 1), 2);
+  assert.equal(fewLines(lines, turnRoles(characters, ['b']), 2, 5), 1, '묶음 줄만 있는 구간도 0줄이 아니다');
+  assert.equal(fewLines(lines, turnRoles(characters, ['a', 'b']), 0, 2), null, '여럿 골라도 한 줄을 두 번 세지 않는다(3줄)');
+  assert.equal(fewLines(lines, turnRoles(characters, ['a', 'b']), 4, 5), 2, '묶음 줄은 한 번');
+});
