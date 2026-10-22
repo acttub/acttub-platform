@@ -17,7 +17,8 @@ type Arrow = {
  * 거절 버튼을 두면 안 고르고 지나갈 수가 없어 '선택'이라는 말과 어긋났다.
  * children은 줄 아래에 펼쳐 보일 것(가입 화면의 문서 본문)이다.
  * 모양은 pen 「약관 / 동의 행」(파이프라인 반영버전) — 높이 55, 안쪽 [0,14], 체크 18 · 10 띄워 글 16/700 #333D4B · 꺾쇠 18, 줄 사이 선 없음.
- * `compact`는 아래에 하위 항목을 다는 줄(광고성 정보) — 높이를 글 높이(20)로 줄인다.
+ * `compact`는 아래에 하위 항목을 다는 줄(광고성 정보) — 높이를 글 높이(20)로 줄인다. 높이는 최소값이라 긴 제목은
+ * 두 줄까지 내려가며 줄이 늘어난다(10/22 피드백 — 「[선택] 광고성 정보 (이메일 · 앱 푸시)」가 한 줄 고정이라 잘렸다).
  */
 export function ConsentRow({
   label,
@@ -48,7 +49,7 @@ export function ConsentRow({
         accessibilityRole="checkbox"
         accessibilityState={{ checked, disabled: locked }}>
         <Feather name="check" size={18} color={checked ? palette.blue : palette.checkOff} />
-        <Text style={[styles.label, divided && styles.dividedLabel]} numberOfLines={1}>
+        <Text style={[styles.label, divided && styles.dividedLabel]} numberOfLines={2}>
           {label}
         </Text>
         {arrow && (
@@ -69,16 +70,16 @@ export function ConsentRow({
 
 const styles = StyleSheet.create({
   dividedWrap: { borderBottomWidth: 1, borderBottomColor: palette.borderSoft },
-  dividedRow: { height: undefined, paddingVertical: 16, paddingHorizontal: 0, gap: 12 },
+  dividedRow: { minHeight: undefined, paddingVertical: 16, paddingHorizontal: 0, gap: 12 },
   dividedLabel: { fontSize: 15, fontWeight: '600' },
   row: {
-    height: 55,
+    minHeight: 55,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 14,
   },
-  compact: { height: 20 },
+  compact: { minHeight: 20 },
   locked: { opacity: 0.6 },
   label: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.textStrong },
 });
