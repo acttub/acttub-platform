@@ -148,13 +148,12 @@ test('다음 테이크 문장을 못 받으면 그 칸 없이 날짜·장면 제
   expect(screen.queryByText(/코치가 본 것/)).not.toBeOnTheScreen();
 });
 
-test('꺾쇠로 홈에 돌아가 다른 길을 고를 수 있다', async () => {
+test('탭바가 보이면 하단 탭으로 홈에 가므로 뒤로 꺾쇠를 두지 않는다(10/22 피드백)', async () => {
   listPracticeGroups.mockRejectedValue(new Error('down'));
   await render(<CoachingTab />);
   await screen.findByText('코칭이 처음이죠?');
 
-  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-  expect(mockRouter.navigate).toHaveBeenCalledWith('/');
+  expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
 });
 
 describe('첫 사용자라 탭바가 숨으면', () => {
@@ -170,6 +169,10 @@ describe('첫 사용자라 탭바가 숨으면', () => {
     expect(gear.props['ph-label']).toBe('coaching_first_settings');
     await fireEvent.press(gear);
     expect(mockRouter.push).toHaveBeenCalledWith('/settings');
+
+    // 탭바가 없으니 꺾쇠로 홈(뭐부터 해 볼까요?)에 돌아가 다른 길을 고를 수 있다.
+    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/');
   });
 
   test('탭바가 보이면(시작했거나 아직 모르면) 설정 버튼을 두지 않는다', async () => {

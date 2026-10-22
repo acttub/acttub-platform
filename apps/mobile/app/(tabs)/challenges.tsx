@@ -320,7 +320,8 @@ function TodayHero({
           {t('challenges.likeSum', { count: challenge.like_sum })}
         </Text>
       </View>
-      {guide && <Text style={styles.guide}>{t('challenges.heroGuide')}</Text>}
+      {/* 바로 아래 「나도 이 대사 연기하기」가 있으면 그 버튼을 가리킨다 — 카드를 누르라는 말과 따로 놀지 않게(10/22 피드백). */}
+      {guide && <Text style={styles.guide}>{t(canPerform(challenge) ? 'challenges.heroGuidePerform' : 'challenges.heroGuide')}</Text>}
       {canPerform(challenge) && (
         <Pressable style={styles.heroPerform} onPress={onPerform} accessibilityRole="button">
           <Feather name="video" size={15} color={palette.onAccent} />

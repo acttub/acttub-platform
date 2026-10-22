@@ -658,7 +658,8 @@ function TodayCardBody({
     sub = nextTake ? t('home.todayCoachingSub', { title: sceneTitle(item.group), n }) : t('home.todayCoachingSubTake', { n });
     cta = action.kind === 'resume' ? t('history.resumeConversation') : t('home.todayCoachingCta');
   } else if (item.kind === 'reading') {
-    eyebrow = t('home.todayReadingEyebrow');
+    // 한 번도 안 읽은 대본은 「하던 대본」이 아니다(10/22 피드백).
+    eyebrow = progress || item.script.last_practiced_at ? t('home.todayReadingEyebrow') : t('home.todayReadingEyebrowNew');
     eyebrowStyle = styles.eyebrowGreen;
     title = item.script.title;
     if (progress && progress.total > 0) {

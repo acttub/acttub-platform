@@ -123,12 +123,15 @@ export default function UploadScreen() {
     firstUploadStep({ sample, tutorial: currentTutorial()?.track === stageTrack('upload') }),
   );
   const [purpose, setPurpose] = useState<SessionPurpose>(DEFAULT_PURPOSE);
+  // 기본 목적은 보내기용일 뿐이다 — 직접 고르기 전에는 고른 것처럼 칠하지 않는다(10/22 피드백).
+  const [purposePicked, setPurposePicked] = useState(false);
   const [blockage, setBlockage] = useState<BlockageDraft>(() => ({
     ...emptyBlockageDraft,
     category: blockageCategoryFor(DEFAULT_PURPOSE),
   }));
   const choosePurpose = (next: SessionPurpose) => {
     setPurpose(next);
+    setPurposePicked(true);
     setBlockage((was) => ({ ...was, category: blockageCategoryFor(next), detail: null }));
   };
   // 뒤로 가기(헤더·안드로이드)는 앞 단계로 돌아간다. 다음 화면(코치)으로 넘어갈 때는 풀어 둔다 —
@@ -467,7 +470,7 @@ export default function UploadScreen() {
                 icon={PURPOSE_ICON[item]}
                 title={t(`upload.purpose.${item}`)}
                 sub={t(`upload.purposeSub.${item}`)}
-                selected={purpose === item}
+                selected={purposePicked && purpose === item}
                 mark="none"
                 onPress={() => {
                   choosePurpose(item);

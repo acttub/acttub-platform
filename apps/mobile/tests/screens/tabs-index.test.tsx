@@ -264,7 +264,9 @@ describe('첫 사용자', () => {
 
     expect(await screen.findByText('갈매기 2막')).toBeOnTheScreen();
     expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
-    expect(screen.getByText('리딩 · 하던 대본')).toBeOnTheScreen();
+    // 한 번도 안 읽은 대본은 「하던 대본」이 아니다(10/22 피드백).
+    expect(screen.getByText('리딩 · 새 대본')).toBeOnTheScreen();
+    expect(screen.queryByText('리딩 · 하던 대본')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '리딩 시작하기' }));
     await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading'));
   });
