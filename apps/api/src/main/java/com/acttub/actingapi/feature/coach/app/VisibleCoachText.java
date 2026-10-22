@@ -23,6 +23,8 @@ final class VisibleCoachText {
     private static final Pattern HIDDEN_OPEN = Pattern.compile("(?i)<" + HIDDEN_NAME + ">");
     private static final Pattern THINKING_CLOSE = Pattern.compile("(?i)</(?:생각|thought|think|thinking)>");
     private static final Pattern STRAY_TAG = Pattern.compile("(?iu)</?(?:설계|상태|코치|다음 테이크|보기|카드|인물 카드|장면|생각|thought|think|thinking)>");
+    private static final Pattern COMPLETE_UNCLOSED_THINKING_LINE = Pattern.compile(
+            "(?im)^[ \\t]*</?(?:생각|thought|think|thinking)(?![\\p{L}\\p{N}_>-])[^>\\n]*\\R");
     private static final List<String> MEMO_LABELS = List.of("배우가 한 말", "배우가 지금 원하는 것", "이번 목표", "내 대답", "끝 질문", "글자 수");
     private static final Pattern MEMO_LINE = Pattern.compile(
             "(?m)^\\s*(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*(?:\\R|$)");
@@ -106,6 +108,8 @@ final class VisibleCoachText {
         if (strayClose >= 0) text = text.substring(strayClose);
         Matcher open = HIDDEN_OPEN.matcher(text);
         if (open.find()) text = text.substring(0, open.start());
+        // 꺾쇠를 닫지 않은 메모 태그 줄("<thought" + 줄바꿈)은 떼고 그 아래를 보인다. 줄이 아직 안 끝났으면 아래에서 잡아 둔다.
+        text = COMPLETE_UNCLOSED_THINKING_LINE.matcher(text).replaceAll("");
         int lt = text.lastIndexOf('<');
         if (lt >= 0 && text.indexOf('>', lt) < 0) text = text.substring(0, lt);
         text = MEMO_LINE.matcher(text).replaceAll("");

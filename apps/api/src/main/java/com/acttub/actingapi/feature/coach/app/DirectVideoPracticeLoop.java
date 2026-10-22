@@ -33,6 +33,12 @@ final class DirectVideoPracticeLoop {
     private static final Pattern THINKING = Pattern.compile("(?is)<(" + THINKING_NAME + ")>.*?</\\1>");
     private static final Pattern THINKING_OPEN = Pattern.compile("(?i)<" + THINKING_NAME + ">");
     private static final Pattern THINKING_CLOSE = Pattern.compile("(?i)</" + THINKING_NAME + ">");
+    /**
+     * 꺾쇠를 닫지 않은 메모 태그만 있는 줄("<thought" 다음 줄바꿈). 그 아래가 배우에게 할 말이었다.
+     * 2026-10-14~10-22 운영에서 8번, 배우 화면 맨 앞에 "<thought"가 그대로 나갔다(닫는 꺾쇠가 없어 위 태그 패턴에 안 걸렸다).
+     */
+    static final Pattern UNCLOSED_THINKING_LINE = Pattern.compile(
+            "(?im)^[ \\t]*</?" + THINKING_NAME + "(?![\\p{L}\\p{N}_>-])[^>\\n]*$\\R?");
     // 닫는 태그를 빠뜨렸을 때 메모의 칸 줄만 걷어낸다.
     private static final Pattern THINKING_LINE = Pattern.compile(
             "(?im)^\\s*(?:<" + THINKING_NAME + ">\\s*$|(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*$)\\R?");
@@ -81,6 +87,7 @@ final class DirectVideoPracticeLoop {
         while (close.find()) strayClose = close.end();
         if (strayClose >= 0) rest = rest.substring(strayClose);
         if (THINKING_OPEN.matcher(rest).find()) rest = THINKING_LINE.matcher(rest).replaceAll("");
+        rest = UNCLOSED_THINKING_LINE.matcher(rest).replaceAll("");
         Matcher coach = COACH.matcher(rest);
         String message = coach.find() ? coach.group(1) : rest;
         message = STRAY_TAG.matcher(message).replaceAll("");
