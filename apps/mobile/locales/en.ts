@@ -842,6 +842,7 @@ const en: DeepStringShape<typeof ko> = {
   },
   poster: {
     dismissForever: 'Don’t show again',
+    hideToday: 'Hide for today',
     samplePlay: 'Listen',
     sampleStop: 'Stop',
   },

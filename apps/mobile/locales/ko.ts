@@ -834,6 +834,7 @@ const ko = {
   },
   poster: {
     dismissForever: '다시 보지 않기',
+    hideToday: '오늘 하루 안 보기',
     samplePlay: '들어보기',
     sampleStop: '멈추기',
   },

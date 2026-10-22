@@ -47,7 +47,7 @@ class PosterRulesMissingFieldTest {
         assertThat(check(draft("autumn", List.of("ios"), null, START, "daily", "all", null, "none")))
                 .contains(new PosterRules.Violation("ends_at", "Value error, ends_at must be after starts_at", START.toString()));
         assertThat(check(draft("autumn", List.of("ios"), null, null, null, "all", null, "none")))
-                .contains(new PosterRules.Violation("frequency", "Value error, frequency must be daily or once", null));
+                .contains(new PosterRules.Violation("frequency", "Value error, frequency must be daily, once or every", null));
         assertThat(check(draft("autumn", List.of("ios"), null, null, "daily", null, null, "none")))
                 .contains(new PosterRules.Violation("audience", "Value error, audience must be all or cloud_voice_off", null));
         assertThat(check(draft("autumn", List.of("ios"), null, null, "daily", "all", "https://cdn/x.mp3", "none")))

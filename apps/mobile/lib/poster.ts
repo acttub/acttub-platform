@@ -5,7 +5,7 @@ import type { CloudVoiceConsent } from './reading/cloud-voice.ts';
  * 빈도·다시 보지 않기·대상(audience)은 기기 상태로 여기서 판정한다.
  */
 
-export type PosterFrequency = 'daily' | 'once';
+export type PosterFrequency = 'daily' | 'once' | 'every';
 export type PosterAudience = 'all' | 'cloud_voice_off';
 export type PosterCtaAction = 'none' | 'cloud_voice_enable' | 'route' | 'url';
 
@@ -30,11 +30,11 @@ export type Poster = {
 export type PostersResponse = { posters: Poster[] };
 
 /** slug 하나의 기기 기록. revision 이 포스터와 다르면 없던 것으로 본다. */
-export type PosterRecord = { revision: number; lastShownDay: string | null; shownOnce: boolean; dismissedForever: boolean };
+export type PosterRecord = { revision: number; lastShownDay: string | null; shownOnce: boolean; dismissedForever: boolean; hiddenDay?: string | null };
 export type PosterState = Record<string, PosterRecord>;
 
 export type PosterContext = {
-  /** 한국 날짜(YYYY-MM-DD). */
+  /** 기기 현지 날짜(YYYY-MM-DD). */
   today: string;
   /** 고품질 목소리 상태. 모르면 null — 그때 cloud_voice_off 포스터는 띄우지 않는다. */
   cloudVoice: { available: boolean; enabled: boolean; consent: CloudVoiceConsent } | null;
@@ -59,6 +59,11 @@ export type PosterCta =
 
 export function koreaDay(now: number): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
+}
+
+export function localDay(now: number): string {
+  const date = new Date(now);
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
 }
 
 function emptyRecord(revision: number): PosterRecord {
@@ -100,7 +105,9 @@ function wantsCloudVoice(ctx: PosterContext): boolean {
 
 export function isEligible(poster: Poster, state: PosterState, ctx: PosterContext): boolean {
   const record = recordFor(state, poster);
-  if (record.dismissedForever) return false;
+  if (state[poster.slug]?.hiddenDay === ctx.today) return false;
+  // every로 전환한 공지는 구버전의 영구 숨김 기록을 이어받지 않는다.
+  if (poster.frequency !== 'every' && record.dismissedForever) return false;
   if (poster.frequency === 'once' && record.shownOnce) return false;
   if (poster.frequency === 'daily' && record.lastShownDay === ctx.today) return false;
   if (poster.audience === 'cloud_voice_off' && !wantsCloudVoice(ctx)) return false;
@@ -118,6 +125,10 @@ export function markShown(state: PosterState, poster: Pick<Poster, 'slug' | 'rev
 
 export function markDismissed(state: PosterState, poster: Pick<Poster, 'slug' | 'revision'>): PosterState {
   return { ...state, [poster.slug]: { ...recordFor(state, poster), dismissedForever: true } };
+}
+
+export function markHiddenToday(state: PosterState, poster: Pick<Poster, 'slug' | 'revision'>, today: string): PosterState {
+  return { ...state, [poster.slug]: { ...recordFor(state, poster), hiddenDay: today } };
 }
 
 /** 옛 홍보 기록을 cloud-voice-launch(revision 1)로 옮긴다. 이미 새 기록이 있으면 그것을 둔다. */
