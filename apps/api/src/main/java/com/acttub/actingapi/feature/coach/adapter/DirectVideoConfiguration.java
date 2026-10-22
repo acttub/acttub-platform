@@ -67,9 +67,20 @@ public class DirectVideoConfiguration {
             // 영상 올리기가 끝난 순간에도 준비를 시작한다(10/21). 코칭하지 않는 영상도 잠깐 올라갔다 10분 안에 지워진다.
             // false 면 예전처럼 분석 작업에서만 시작한다(롤백).
             @Value("${ACTTUB_COACH_VIDEO_UPLOAD_WARMUP:true}") boolean uploadWarmup,
-            @Value("${ACTTUB_COACH_WARM_DIR:${java.io.tmpdir}}") String warmDir) {
+            @Value("${ACTTUB_COACH_WARM_DIR:${java.io.tmpdir}}") String warmDir,
+            com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne) {
         return new com.acttub.actingapi.feature.coach.app.CoachVideoWarmup(model, videoCache,
-                uploadWarmup ? storage : null, uploadWarmup ? java.nio.file.Path.of(warmDir) : null);
+                uploadWarmup ? storage : null, uploadWarmup ? java.nio.file.Path.of(warmDir) : null).withLayerOne(layerOne);
+    }
+
+    // 코칭 1층 관찰 A/B(SOMA-815). 새 연습의 SHARE% 는 분석 작업 때 받아쓰기+관찰 모델을 뒤에서 돌리고 코치 지시문에 칸을 붙인다.
+    // 0 이면 모두 끔(롤백). 관찰 모델은 ACTTUB_COACH_LAYER1_MODEL(기본 gemini-4-argon).
+    @Bean(destroyMethod = "close")
+    com.acttub.actingapi.feature.coach.app.CoachLayerOne coachLayerOne(
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.observation.LayerOneObserver> observer,
+            FailureReporter failures,
+            @Value("${ACTTUB_COACH_LAYER1_SHARE:50}") int share) {
+        return new com.acttub.actingapi.feature.coach.app.CoachLayerOne(observer.getIfAvailable(), share, failures);
     }
 
     @Bean
@@ -99,7 +110,8 @@ public class DirectVideoConfiguration {
             @Value("${ACTTUB_COACH_LET_GO_WITHOUT_VIDEO:true}") boolean letGoWithoutVideo,
             // 답장(첫 질문이 아닌 턴)은 생각 단계를 MINIMAL 로 보낸다(SOMA-780). LOW 에서 가끔 생각 루프에 빠져 20~28초 걸렸다.
             // false 면 모두 LOW(롤백).
-            @Value("${ACTTUB_COACH_FOLLOWUP_MINIMAL_THINKING:true}") boolean followUpMinimalThinking) {
+            @Value("${ACTTUB_COACH_FOLLOWUP_MINIMAL_THINKING:true}") boolean followUpMinimalThinking,
+            com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne) {
         var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null
                 : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge);
         return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
@@ -108,7 +120,7 @@ public class DirectVideoConfiguration {
                 alternate, modelBShare,
                 flowAb ? flows.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachFlows.NONE)
                         : com.acttub.actingapi.feature.coach.app.CoachFlows.NONE,
-                videoCache, letGoWithoutVideo, followUpMinimalThinking);
+                videoCache, letGoWithoutVideo, followUpMinimalThinking, layerOne);
     }
 
     @Bean(destroyMethod = "close")

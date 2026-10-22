@@ -250,4 +250,16 @@ class CoachVideoWarmupTest {
         assertThat(cache.sourceWarmingSize()).isZero();
         cache.close();
     }
+
+    @Test
+    void warmStartsLayerOneForAssignedPracticeEvenWithoutVideoCache() throws Exception {
+        var started = new java.util.concurrent.atomic.AtomicReference<UUID>();
+        try (var layer = new CoachLayerOne((v, m, sc, p, u) -> { started.set(p); return "## 1층 관찰"; }, 100, null)) {
+            UUID practice = UUID.randomUUID();
+            new CoachVideoWarmup(null, CoachVideoCache.NONE).withLayerOne(layer).warm(context(practice), original());
+            for (int i = 0; i < 100 && layer.ready(practice).isEmpty(); i++) Thread.sleep(10);
+            org.assertj.core.api.Assertions.assertThat(started.get()).isEqualTo(practice);
+            org.assertj.core.api.Assertions.assertThat(layer.ready(practice)).isEqualTo("## 1층 관찰");
+        }
+    }
 }
