@@ -136,6 +136,8 @@ class ValueCheckCatalogIT {
             "ck_practices_session_purpose",
             // 좋아요순 커서의 기준(live·pending·final)은 저장소 SQL 만 읽고 쓰는 장부 칸이다.
             "ck_entry_ranking_snapshots_basis",
+            // 참여작 얼굴 모자이크 상태(pending·ready·failed, SOMA-809)는 저장소 SQL 만 읽고 쓴다(값 enum 이 따로 없다).
+            "ck_challenge_entries_mosaic_status",
             // 연습 알림 보낸 기록의 칸(practice·streak)은 저장소 SQL 과 ReminderKind#slot 만 쓴다(값 enum 이 따로 없다).
             "ck_practice_reminder_sends_slot",
             // 행동자가 있는 알림은 좋아요·댓글뿐이라는 조합 검사다(값 목록 하나가 아니다).
