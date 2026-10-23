@@ -8,6 +8,7 @@ import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { takePickedVideo } from '@/lib/practice/picked-video';
+import { setRecordScript, takeRecordScript } from '@/lib/practice/record-script';
 import { peekRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
 
 type Perm = { granted: boolean; canAskAgain: boolean } | null;
@@ -143,6 +144,26 @@ test('올리기 망설임의 10초 촬영(maxSec=10)이면 안내도 10초로 �
   await render(<RecordVideoScreen />);
   expect(await screen.findByText('최대 10초 · 10초가 되면 자동으로 멈춰요')).toBeOnTheScreen();
   expect(screen.queryByText('최대 5분 · 5분이 되면 자동으로 멈춰요')).not.toBeOnTheScreen();
+});
+
+test('코칭 촬영에 넘긴 대본이 있으면 카드로 띄우고, 숨김·보기를 오가며, 한 번 쓰면 비운다', async () => {
+  mockParams = { mode: 'ai', next: 'upload' };
+  setRecordScript({
+    title: '네가 좋아하는 케이크',
+    lines: [
+      { kind: 'scene', speaker: null, text: '카페 앞 골목, 저녁', mine: false },
+      { kind: 'dialogue', speaker: '지훈', text: '이 딸기케이크 주려고 잠깐 들른 거야.', mine: true },
+    ],
+  });
+  await render(<RecordVideoScreen />);
+  expect(await screen.findByText('대본 · 네가 좋아하는 케이크')).toBeOnTheScreen();
+  expect(takeRecordScript()).toBeNull();
+  expect(screen.getByText('카페 앞 골목, 저녁')).toBeOnTheScreen();
+  expect(screen.getByText(/이 딸기케이크 주려고 잠깐 들른 거야\./)).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('대사 숨김'));
+  expect(screen.queryByText('대본 · 네가 좋아하는 케이크')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('대사 보기'));
+  expect(screen.getByText('대본 · 네가 좋아하는 케이크')).toBeOnTheScreen();
 });
 
 describe('카메라·마이크 권한', () => {

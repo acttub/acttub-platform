@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import CoachScriptsScreen from '@/app/coach-scripts';
+import { takeRecordScript } from '@/lib/practice/record-script';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
@@ -8,7 +9,8 @@ jest.mock('expo-router', () => ({ useRouter: () => mockRouter, Stack: { Screen: 
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
 const mockListScripts = jest.fn();
-jest.mock('@/lib/reading/store', () => ({ listScripts: () => mockListScripts() }));
+const mockGetScriptDetail = jest.fn();
+jest.mock('@/lib/reading/store', () => ({ listScripts: () => mockListScripts(), getScriptDetail: (id: string) => mockGetScriptDetail(id) }));
 
 const card = (id: string, title: string, roles: string[]) => ({
   id,
@@ -25,8 +27,19 @@ const card = (id: string, title: string, roles: string[]) => ({
 
 beforeEach(() => jest.clearAllMocks());
 
-test('저장한 대본을 고르고 「다음」을 누르면 제목·내 배역을 장면 칸에 채워 카메라로 간다', async () => {
+test('저장한 대본을 고르고 「다음」을 누르면 장면 칸을 채우고, 촬영 화면에 띄울 대본을 넘기고 카메라로 간다', async () => {
   mockListScripts.mockResolvedValue({ scripts: [card('s1', '네가 좋아하는 케이크', ['지훈']), card('s2', '작은 상자 안의 열쇠', [])], total_count: 2, in_progress_count: 0 });
+  mockGetScriptDetail.mockResolvedValue({
+    id: 's1',
+    title: '네가 좋아하는 케이크',
+    characters: [{ id: 'c1', name: '지훈' }, { id: 'c2', name: '수아' }],
+    lines: [
+      { id: 'l1', kind: 'scene', character_id: null, text: '카페 앞 골목, 저녁' },
+      { id: 'l2', kind: 'dialogue', character_id: 'c1', text: '이 딸기케이크 주려고 잠깐 들른 거야.' },
+      { id: 'l3', kind: 'dialogue', character_id: 'c2', text: '여기까진 왜 왔어.' },
+    ],
+    scenes: [],
+  });
   await render(<CoachScriptsScreen />);
 
   expect(await screen.findByText('어떤 대본으로 찍을까요?')).toBeOnTheScreen();
@@ -36,11 +49,20 @@ test('저장한 대본을 고르고 「다음」을 누르면 제목·내 배역
 
   await fireEvent.press(screen.getByText('네가 좋아하는 케이크'));
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } }));
+  expect(mockGetScriptDetail).toHaveBeenCalledWith('s1');
   expect(setContinueOrigin).toHaveBeenCalledWith({
     kind: 'reading',
     scene: { situation: '네가 좋아하는 케이크', character: '지훈', goal: '' },
   });
-  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
+  expect(takeRecordScript()).toEqual({
+    title: '네가 좋아하는 케이크',
+    lines: [
+      { kind: 'scene', speaker: null, text: '카페 앞 골목, 저녁', mine: false },
+      { kind: 'dialogue', speaker: '지훈', text: '이 딸기케이크 주려고 잠깐 들른 거야.', mine: true },
+      { kind: 'dialogue', speaker: '수아', text: '여기까진 왜 왔어.', mine: false },
+    ],
+  });
 });
 
 test('저장한 대본이 없으면 대본 같이 만들기로 보낸다', async () => {

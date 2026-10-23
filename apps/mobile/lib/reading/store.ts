@@ -233,6 +233,11 @@ export async function openScript(detail: ScriptDetail): Promise<SavedScript> {
 }
 
 /** 저장된 대본을 현재 대본으로 불러온다. 없거나 남의 것이면(404) null. */
+/** 대본 상세를 서버에서 받는다. 리딩 「현재 대본」은 바꾸지 않는다(코칭 촬영 카드용). */
+export function getScriptDetail(id: string): Promise<ScriptDetail> {
+  return server().get(id);
+}
+
 export async function loadIntoCurrent(id: string): Promise<SavedScript | null> {
   try {
     const detail = await server().get(id);

@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Linking, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -18,6 +18,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CHALLENGE_FUNNEL_EVENTS, permissionResultParams, videoSourceParams } from '@/lib/challenge/funnel';
 import { translate as t } from '@/lib/i18n';
+import { takeRecordScript } from '@/lib/practice/record-script';
 import { RECORD_MODES, recordModeAfterSwipe, type RecordMode } from '@/lib/record-modes';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { VIDEO_MAX_MS, videoErrorMessage } from '@/lib/library/video-checks';
@@ -87,6 +88,9 @@ export default function RecordVideoScreen() {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [lineHidden, setLineHidden] = useState(false);
+  // 코칭 촬영에 대본을 띄운다(「내 대본으로 찍기」·대본 만들기 「지금 찍을래요」). 처음 그릴 때 꺼내며 비운다.
+  const [recordScript] = useState(() => (isChallenge ? null : takeRecordScript()));
+  const [scriptHidden, setScriptHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
   // 이 화면을 곧바로 떠나는 중이다. 안드로이드에서 사라지는 화면의 뷰를 다시 그리면 앱이 꺼지므로
@@ -460,7 +464,8 @@ export default function RecordVideoScreen() {
       <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
-        <View style={styles.topRow}>
+        <View style={styles.topGroup} pointerEvents="box-none">
+        <View style={[styles.topRow, recordScript && styles.topRowSpread]}>
           {recording ? (
             <View style={styles.timerPill}>
               <View style={styles.recDot} />
@@ -478,6 +483,34 @@ export default function RecordVideoScreen() {
               <Text style={styles.closeText}>✕</Text>
             </Pressable>
           )}
+          {recordScript ? (
+            <Pressable
+              style={styles.scriptToggle}
+              onPress={() => setScriptHidden((v) => !v)}
+              accessibilityRole="button"
+              ph-label="record_toggle_script">
+              <Feather name={scriptHidden ? 'eye-off' : 'eye'} size={16} color="#FFFFFF" />
+              <Text style={styles.scriptToggleText}>{t(scriptHidden ? 'record.showLine' : 'record.hideLine')}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {recordScript && !scriptHidden ? (
+          <View style={styles.scriptCard}>
+            <Text style={styles.lineLabel} numberOfLines={1}>{t('record.scriptLabel', { title: recordScript.title })}</Text>
+            <ScrollView style={styles.scriptScroll} contentContainerStyle={styles.scriptBody}>
+              {recordScript.lines.map((line, i) =>
+                line.kind === 'dialogue' ? (
+                  <Text key={i} style={[styles.scriptLine, line.mine && styles.scriptLineMine]}>
+                    {line.speaker ? <Text style={[styles.scriptSpeaker, line.mine && styles.scriptSpeakerMine]}>{`${line.speaker}  `}</Text> : null}
+                    {line.text}
+                  </Text>
+                ) : (
+                  <Text key={i} style={styles.scriptDirection}>{line.kind === 'scene' || line.text.trim().startsWith('(') ? line.text : `(${line.text})`}</Text>
+                ),
+              )}
+            </ScrollView>
+          </View>
+        ) : null}
         </View>
 
         <View style={styles.bottomGroup}>
@@ -556,6 +589,34 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   lineLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  topGroup: { flexShrink: 1 },
+  topRowSpread: { justifyContent: 'space-between', alignItems: 'center' },
+  scriptToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  scriptToggleText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  scriptCard: {
+    marginHorizontal: 16,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(10,14,24,0.78)',
+    gap: 8,
+  },
+  scriptScroll: { maxHeight: 300 },
+  scriptBody: { gap: 6, paddingBottom: 6 },
+  scriptLine: { color: 'rgba(255,255,255,0.72)', fontSize: 15, fontWeight: '500', lineHeight: 22 },
+  scriptLineMine: { color: '#FFFFFF', fontWeight: '700' },
+  scriptSpeaker: { color: 'rgba(255,255,255,0.6)', fontWeight: '700' },
+  scriptSpeakerMine: { color: '#8FA5FF' },
+  scriptDirection: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '500', lineHeight: 19 },
   lineLabel: { color: '#8FA5FF', fontSize: 12, fontWeight: '800' },
   lineText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', lineHeight: 25 },
   bottomGroup: { gap: 12 },
