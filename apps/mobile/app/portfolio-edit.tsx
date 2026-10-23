@@ -247,9 +247,7 @@ export default function PortfolioEditScreen() {
           />
           <View style={styles.rowBetween}>
             <Text style={introTooLong ? styles.fieldError : styles.hint}>
-              {introTooLong
-                ? t('portfolio.introTooLong')
-                : t('portfolio.count', { count: [...intro.trim()].length, max: INTRO_MAX })}
+              {introTooLong ? t('portfolio.introTooLong') : ''}
             </Text>
             <SmallButton
               label={t('portfolio.save')}
@@ -266,9 +264,10 @@ export default function PortfolioEditScreen() {
           {portfolio.credits.map((credit, index) => (
             <View key={credit.id} style={styles.item}>
               <View style={styles.itemBody}>
-                <Text style={styles.creditKind}>{kindLabel(credit.kind)}</Text>
                 <Text style={styles.itemTitle}>{credit.title}</Text>
-                <Text style={styles.itemSub}>{[credit.role, String(credit.year)].join(' · ')}</Text>
+                <Text style={styles.itemSub}>
+                  {[credit.role, String(credit.year), kindLabel(credit.kind)].join(' · ')}
+                </Text>
               </View>
               <IconButton
                 icon="arrow-up"
@@ -297,9 +296,7 @@ export default function PortfolioEditScreen() {
             </View>
           ))}
           <View style={styles.rowBetween}>
-            <Text style={styles.hint}>
-              {t('portfolio.count', { count: portfolio.credits.length, max: CREDIT_MAX })}
-            </Text>
+            <View />
             <SmallButton
               label={t('portfolio.creditAdd')}
               onPress={() => setEditing({ id: null, draft: emptyCreditDraft(), errors: {} })}
@@ -314,7 +311,11 @@ export default function PortfolioEditScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
             {portfolio.photos.map((photo, index) => (
               <View key={photo.id} style={styles.photoTile}>
-                {photo.url ? <Image source={{ uri: photo.url }} style={styles.photoImg} /> : <View style={styles.photoImg} />}
+                {photo.url ? (
+                  <Image source={{ uri: photo.url }} style={styles.photoImg} accessibilityLabel={t('portfolio.photoOrder', { order: index + 1 })} />
+                ) : (
+                  <View style={styles.photoImg} accessibilityLabel={t('portfolio.photoOrder', { order: index + 1 })} />
+                )}
                 <Pressable
                   style={styles.photoX}
                   onPress={() => void removePhoto(photo.id)}

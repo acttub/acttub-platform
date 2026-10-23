@@ -350,7 +350,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음�
   test.each([
     [new ApiError(422, 'bad', 'validation_failed', [{ field: 'name' }]), '입력값을 저장하지 못했어요. 앱을 최신 버전으로 업데이트한 뒤 다시 시도해주세요.'],
     [new Error('서버 점검 중'), '서버 점검 중'],
-    ['boom', '프로필을 저장하지 못했어요. 잠시 후 다시 시도해주세요.'],
+    ['boom', '프로필을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.'],
   ])('저장 실패 %#: 이유를 보여 준다', async (cause, message) => {
     saveProfile.mockRejectedValue(cause);
     await startWithoutDiscovery();
