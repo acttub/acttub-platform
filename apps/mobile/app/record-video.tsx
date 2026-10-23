@@ -505,7 +505,7 @@ export default function RecordVideoScreen() {
                     {line.text}
                   </Text>
                 ) : (
-                  <Text key={i} style={styles.scriptDirection}>{line.kind === 'scene' ? line.text : `(${line.text})`}</Text>
+                  <Text key={i} style={styles.scriptDirection}>{line.kind === 'scene' || line.text.trim().startsWith('(') ? line.text : `(${line.text})`}</Text>
                 ),
               )}
             </ScrollView>
