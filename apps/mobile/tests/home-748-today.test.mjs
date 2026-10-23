@@ -132,3 +132,28 @@ test('홈 화면: 첫 사용자 질문 3개·오늘 할 것 카드·알림 종�
   // 오늘 할 것 카드가 첫 가이드가 비추는 자리다.
   assert.match(home, /ref=\{startTarget\.ref\}/);
 });
+
+test('primaryFeature: 최근 2주에 센 연습이 가장 많은 기능, 같으면 더 최근, 없으면 null', async () => {
+  const { primaryFeature } = await import('../lib/home-today.ts');
+  const day = 24 * 60 * 60 * 1000;
+  const at = (n) => new Date(NOW.getTime() - n * day).toISOString();
+  assert.equal(primaryFeature([], NOW), null);
+  assert.equal(
+    primaryFeature([{ kind: 'coaching', at: at(1) }, { kind: 'reading', at: at(2) }, { kind: 'reading', at: at(3) }], NOW),
+    'reading',
+  );
+  assert.equal(primaryFeature([{ kind: 'coaching', at: at(1) }, { kind: 'challenge', at: at(2) }], NOW), 'coaching');
+  // 2주보다 오래된 연습은 세지 않는다.
+  assert.equal(primaryFeature([{ kind: 'challenge', at: at(20) }, { kind: 'coaching', at: at(3) }], NOW), 'coaching');
+});
+
+test('pickToday: 주 기능이 챌린지면 열린 챌린지가 메인, 리딩이면 코칭보다 먼저 고른다', () => {
+  const at = '2026-08-20T00:00:00Z';
+  const challenge = { id: 'c1', line: '대사', work: '작품', ends_at: new Date(NOW.getTime() + 2 * 86400000).toISOString() };
+  const withChallenge = pickToday({ groups: [group('g', at)], scripts: [], challenge, now: NOW, primary: 'challenge' });
+  assert.equal(withChallenge.main.kind, 'challenge');
+  assert.equal(withChallenge.also.kind, 'coaching');
+  const reading = pickToday({ groups: [group('g', '2026-08-25T00:00:00Z')], scripts: [script('s', at)], challenge: null, now: NOW, primary: 'reading' });
+  assert.equal(reading.main.kind, 'reading');
+  assert.equal(reading.also.kind, 'coaching');
+});

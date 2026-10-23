@@ -141,7 +141,8 @@ describe('동의 내역', () => {
 
     expect(recordConsent).toHaveBeenCalledWith('d-email', 'granted');
     expect(await screen.findByText('광고성 정보 수신에 동의했어요')).toBeOnTheScreen();
-    for (const text of ['보낸 곳', 'Acttub', '처리일', '이메일', '수신 동의']) expect(screen.getByText(text)).toBeOnTheScreen();
+    // S5.13 토스트 — 「매체 · 보낸 곳 · 처리일」 한 줄과 바꾸는 곳 안내.
+    expect(screen.getByText(/^이메일 · Acttub · \d{4}\.\d{2}\.\d{2}$/)).toBeOnTheScreen();
     expect(sw().props.value).toBe(true);
   });
 
@@ -349,14 +350,15 @@ describe('알림이 꺼져 있어요', () => {
 });
 
 describe('설정', () => {
-  test('개편 전처럼 묶음 제목 아래 아이콘·설명이 있는 카드로 둔다', async () => {
+  test('프로필 · 연습과 기록 · 의견 · 계정 묶음으로 두고 보관함·Pro 줄은 없다', async () => {
     await settingsLoaded();
 
-    for (const label of ['프로필', '연습과 기록', '실험 기능', '의견', '계정']) expect(screen.getByText(label)).toBeOnTheScreen();
+    for (const label of ['프로필', '연습과 기록', '의견', '계정']) expect(screen.getByText(label)).toBeOnTheScreen();
+    for (const gone of ['보관함', /Pro/]) expect(screen.queryByText(gone)).not.toBeOnTheScreen();
     for (const sub of [
       '이름·성별·생년월일·방향·경력·목표와 사진, 한 줄 소개를 고쳐요.',
       '분석 완료·챌린지·저녁 연습 알림을 켜고 꺼요.',
-      '코치가 나에 대해 무엇을 기억하는지 보고 고칠 수 있어요.',
+      '액티가 나에 대해 무엇을 기억하는지 보고 고칠 수 있어요.',
     ]) expect(screen.getByText(sub)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '회원 탈퇴' })).toBeOnTheScreen();
   });
@@ -385,7 +387,7 @@ describe('설정', () => {
     ['프로필 수정', '/profile-edit'],
     ['웹 연습 가져오기', '/guest-transfer'],
     ['알림', '/notification-settings'],
-    ['코치가 기억하는 것', '/memory'],
+    ['액티가 기억하는 것', '/memory'],
     ['챌린지 기록', '/challenge-entries'],
     ['차단한 사용자', '/blocked-users'],
     ['동의 내역', '/consent-history'],

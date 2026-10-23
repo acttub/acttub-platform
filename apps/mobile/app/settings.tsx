@@ -1,11 +1,12 @@
+import Feather from '@expo/vector-icons/Feather';
+import Constants from 'expo-constants';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
-import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
@@ -13,13 +14,10 @@ import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/readin
 import { openStoreReviewPage } from '@/lib/store-review';
 
 /**
- * S15 설정 — 프로필 오른쪽 위 ⚙ 로 들어온다. 10/21 피드백(SOMA-790)으로 SOMA-748 개편 전의 카드 모양
- * (묶음 제목 아래 아이콘·제목·설명 카드, 맨 아래 로그아웃 버튼과 회원 탈퇴 글자)으로 되돌렸다. 카드는 공통 부품
- * SettingsCard(pen 「설정 카드」 수치)다.
- *
- * 줄 목록은 개편 뒤 것을 쓴다: 알림 토글은 「알림」 화면(notification-settings), 동의 목록은 「동의 내역」 화면
- * (consent-history)으로 들어간다. 코치의 기억은 틀린 내용을 되돌릴 수 있는 유일한 자리, 문의·신고는 앱 안 신고
- * 창구(SOMA-499)라 남긴다. 회원 탈퇴는 깊이 숨기지 않는다 — 앱스토어 심사가 계정 삭제를 앱 안에서 찾을 수 있는지 본다.
+ * S15 설정(pen S15.3 · S15.17) — 프로필 오른쪽 위 ⚙ 로 들어온다. 한 줄로 이어지는 목록이고, 묶음은
+ * 프로필 · 연습과 기록 · 의견 · 계정 순서다. 줄은 테두리 없이 아이콘 · 제목 · 설명 · 꺾쇠만 둔다.
+ * 영상 모아 보기 줄은 없다(영상은 연습 기록에 남는다). 결제 줄은 결제 화면을 미뤄서 두지 않는다.
+ * 회원 탈퇴는 깊이 숨기지 않는다 — 앱스토어 심사가 계정 삭제를 앱 안에서 찾을 수 있는지 본다.
  */
 export default function SettingsScreen() {
   const router = useRouter();
@@ -62,42 +60,16 @@ export default function SettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.list}>
         <Text style={styles.sectionTitle}>{t('settings.profile')}</Text>
-        <SettingsCard
-          icon="user"
-          title={t('settings.profileEditTitle')}
-          sub={t('settings.profileEditBody')}
-          onPress={() => router.push('/profile-edit')}
-        />
+        <Row icon="user" title={t('settings.profileEditTitle')} sub={t('settings.profileEditBody')} onPress={() => router.push('/profile-edit')} />
         {/* 웹에서 로그인 없이 해 본 연습·대본을 여섯 자리 코드로 이 계정에 가져온다. */}
-        <SettingsCard
-          icon="download"
-          title={t('settings.transferTitle')}
-          sub={t('settings.transferBody')}
-          onPress={() => router.push('/guest-transfer')}
-        />
+        <Row icon="download" title={t('settings.transferTitle')} sub={t('settings.transferBody')} onPress={() => router.push('/guest-transfer')} />
 
         <Text style={styles.sectionTitle}>{t('settings.sectionPractice')}</Text>
-        <SettingsCard
-          icon="bell"
-          title={t('settings.notifications')}
-          sub={t('settings.notificationsSub')}
-          onPress={() => router.push('/notification-settings')}
-        />
-        <SettingsCard
-          icon="book"
-          title={t('settings.memoryLink')}
-          sub={t('settings.memoryHint')}
-          onPress={() => router.push('/memory')}
-        />
-        <SettingsCard
-          icon="award"
-          title={t('settings.challengeRecordRow')}
-          sub={t('settings.challengeRecordSub')}
-          onPress={() => router.push('/challenge-entries')}
-        />
-
-        <Text style={styles.sectionTitle}>{t('voiceFeedback.settingsSection')}</Text>
-        <SettingsCard
+        <Row icon="bell" title={t('settings.notifications')} sub={t('settings.notificationsSub')} onPress={() => router.push('/notification-settings')} />
+        <Row icon="book" title={t('settings.memoryLink')} sub={t('settings.memoryHint')} onPress={() => router.push('/memory')} />
+        <Row icon="award" title={t('settings.challengeRecordRow')} sub={t('settings.challengeRecordSub')} onPress={() => router.push('/challenge-entries')} />
+        {/* 실험 기능 — 발음 피드백. 기본 꺼짐, 기기에만 저장. */}
+        <Row
           icon="mic"
           iconColor={palette.flame}
           title={t('voiceFeedback.settingsTitle')}
@@ -115,35 +87,17 @@ export default function SettingsScreen() {
         />
 
         <Text style={styles.sectionTitle}>{t('settings.feedbackSection')}</Text>
-        {/* 앱 평가하기 — 스토어의 리뷰 쓰기 화면을 바로 연다(한줄평은 SOMA-494에서 걷었다). */}
-        <SettingsCard
-          icon="star"
-          title={t('settings.storeReviewTitle')}
-          sub={t('settings.storeReviewSub')}
-          onPress={() => void openStoreReviewPage()}
-        />
-        {/* 차단은 챌린지에서만 쓰인다(challenge.block). */}
-        <SettingsCard
-          icon="slash"
-          title={t('block.settingsLink')}
-          sub={t('block.settingsHint')}
-          onPress={() => router.push('/blocked-users')}
-        />
         {/* 문의·신고 (SOMA-499, App Store 1.2 — 앱 안에서 부적절 활동을 신고할 창구) */}
-        <SettingsCard
-          icon="mail"
-          title={t('settings.contactAction')}
-          sub={t('settings.contactHint')}
-          onPress={() => void openContactMail()}
-        />
+        <Row icon="mail" title={t('settings.contactAction')} sub={t('settings.contactSub')} onPress={() => void openContactMail()} />
+        {/* 앱 평가하기 — 스토어의 리뷰 쓰기 화면을 바로 연다. */}
+        <Row icon="star" title={t('settings.storeReviewTitle')} sub={t('settings.storeReviewSub')} onPress={() => void openStoreReviewPage()} />
 
         <Text style={styles.sectionTitle}>{t('settings.sectionManage')}</Text>
-        <SettingsCard
-          icon="file-text"
-          title={t('settings.consentHistory')}
-          sub={t('settings.consentHistorySub')}
-          onPress={() => router.push('/consent-history')}
-        />
+        <Row icon="file-text" title={t('settings.consentHistory')} sub={t('settings.consentHistorySub')} onPress={() => router.push('/consent-history')} />
+        {/* 차단은 챌린지에서만 쓰인다(challenge.block). */}
+        <Row icon="slash" title={t('block.settingsLink')} sub={t('settings.blockedSub')} onPress={() => router.push('/blocked-users')} />
+        <Row icon="log-out" title={t('settings.logout')} onPress={() => void confirmLogout()} />
+        <Row icon="trash-2" danger title={t('settings.withdraw')} sub={t('settings.withdrawSub')} onPress={() => router.push('/delete-account')} />
 
         {/* 개발 빌드에서만 보인다. 영상 업로드·분석을 지나지 않고 화면만 확인하는 통로. */}
         {__DEV__ && (
@@ -152,28 +106,66 @@ export default function SettingsScreen() {
           </Pressable>
         )}
 
-        <View style={styles.spacer} />
-
-        <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
-          <Text style={styles.logoutText}>{t('settings.logout')}</Text>
-        </Pressable>
-        <Pressable
-          style={styles.deleteRow}
-          onPress={() => router.push('/delete-account')}
-          accessibilityRole="button"
-          accessibilityLabel={t('settings.withdraw')}>
-          <Text style={styles.deleteText}>{t('settings.withdraw')}</Text>
-        </Pressable>
+        <Text style={styles.version}>{t('settings.version', { version: Constants.expoConfig?.version ?? '' })}</Text>
       </ScrollView>
       {dialog}
     </SafeAreaView>
   );
 }
 
+type FeatherName = React.ComponentProps<typeof Feather>['name'];
+
+/** 설정 한 줄 — 테두리 없이 아이콘 · 제목(17/800) · 설명(13.5) · 꺾쇠. `right`를 주면 꺾쇠 대신 그것(스위치)을 둔다. */
+function Row({
+  icon,
+  title,
+  sub,
+  onPress,
+  right,
+  danger,
+  iconColor,
+}: {
+  icon: FeatherName;
+  title: string;
+  sub?: string;
+  onPress?: () => void;
+  right?: ReactNode;
+  danger?: boolean;
+  iconColor?: string;
+}) {
+  const color = danger ? palette.danger : (iconColor ?? palette.textMuted);
+  const content = (
+    <>
+      <Feather name={icon} size={22} color={color} />
+      <View style={styles.rowBody}>
+        <Text style={[styles.rowTitle, danger && styles.rowTitleDanger]}>{title}</Text>
+        {!!sub && <Text style={styles.rowSub}>{sub}</Text>}
+      </View>
+      {right ?? (onPress ? <Feather name="chevron-right" size={20} color={palette.checkOff} /> : null)}
+    </>
+  );
+  if (!onPress) return <View style={styles.row}>{content}</View>;
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}>
+      {content}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bgSubtle },
-  list: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 10 },
-  sectionTitle: { fontSize: 13.5, fontWeight: '800', color: palette.text, marginTop: 12 },
+  list: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 8, paddingBottom: 32 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: palette.text, marginTop: 20, marginBottom: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, minHeight: 56 },
+  rowPressed: { opacity: 0.6 },
+  rowBody: { flex: 1, minWidth: 0, gap: 3 },
+  rowTitle: { fontSize: 17, fontWeight: '800', lineHeight: 23, color: palette.text },
+  rowTitleDanger: { color: palette.danger },
+  rowSub: { fontSize: 13.5, fontWeight: '400', lineHeight: 20, color: palette.textFaint },
   previewRow: {
     marginTop: 12,
     borderWidth: 1,
@@ -183,16 +175,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   previewText: { fontSize: 13.5, fontWeight: '800', color: palette.textFaint },
-  spacer: { flex: 1, minHeight: 24 },
-  logout: {
-    paddingVertical: 17,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.card,
-    alignItems: 'center',
-  },
-  logoutText: { color: palette.danger, fontSize: 16, fontWeight: '800' },
-  deleteRow: { marginTop: 6, paddingVertical: 14, alignItems: 'center' },
-  deleteText: { color: palette.textFaint, fontSize: 14, fontWeight: '600' },
+  version: { marginTop: 24, textAlign: 'center', fontSize: 13, fontWeight: '500', color: palette.textFaint },
 });

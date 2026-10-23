@@ -22,7 +22,8 @@ import { UploadWaitPanel } from '@/components/upload-wait-panel';
 import { forgetWaitingUpload, rememberWaitingUpload } from '@/hooks/use-waiting-upload';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { NavIconButton } from '@/components/ui/nav-header';
-import { IconOptionRow as ChoiceRow } from '@/components/ui/option-card';
+import { ChoiceCard } from '@/components/choice-card';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -141,6 +142,8 @@ export default function UploadScreen() {
   // 뒤로 가기(헤더·안드로이드)는 앞 단계로 돌아간다. 다음 화면(코치)으로 넘어갈 때는 풀어 둔다 —
   // usePreventRemove 는 렌더된 값을 보므로 풀린 값이 반영된 다음 틱에 이동한다.
   const [leaving, setLeaving] = useState(false);
+  // 영상 단계의 고른 길(기본 없음) — 권리 체크 뒤 「질문 받기」를 누르면 그 길로 간다.
+  const [sourceChoice, setSourceChoice] = useState<'record' | 'gallery' | null>(null);
   const [reasonSheet, setReasonSheet] = useState(false);
   const showReason = () => setReasonSheet(true);
   const closeReason = () => { setReasonSheet(false); setStep('purpose'); };
@@ -465,6 +468,14 @@ export default function UploadScreen() {
     if (uploading && user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
     noteBlocked();
   };
+  // 영상을 고르기 전에는 길(지금 찍기·갤러리)을 고르고 권리를 체크해야 「질문 받기」가 열리고, 누르면 그 길로 간다.
+  const canSubmit = picked || sample ? ready : Boolean(sourceChoice) && agreedRights;
+  const submitPress = () => {
+    if (picked || sample) return ready ? void start() : uploading && agreedRights && !sample ? setWaitPanel(true) : pressBlocked();
+    if (!canSubmit) return pressBlocked();
+    if (sourceChoice === 'record') record();
+    else void pickFromGallery();
+  };
   const toggleRights = () => {
     const next = !agreedRights;
     setAgreedRights(next);
@@ -504,27 +515,27 @@ export default function UploadScreen() {
       </View>
 
       {step === 'purpose' && (
-        <ScrollView contentContainerStyle={styles.stepBody}>
-          {/* 「처음이면 ~를 누르세요」는 코칭 탭 첫 화면에서 한 번만 한다 — 단계마다 반복하지 않는다(10/20 피드백). */}
-          <CoachBubble title={t('upload.purposeBubble')} guide={null} />
-          <View style={styles.choices}>
-            {/* 누르면 바로 영상 단계로 간다 — 「다음」 버튼도 꺾쇠도 없다(SOMA-778). */}
-            {SESSION_PURPOSES.map((item) => (
-              <ChoiceRow
-                key={item}
-                icon={PURPOSE_ICON[item]}
-                title={t(`upload.purpose.${item}`)}
-                sub={t(`upload.purposeSub.${item}`)}
-                selected={purposePicked && purpose === item}
-                mark="none"
-                onPress={() => {
-                  choosePurpose(item);
-                  setStep('source');
-                }}
-              />
-            ))}
+        <View style={styles.flex}>
+          <ScrollView contentContainerStyle={styles.stepBody}>
+            {/* 선택 규칙 — 기본 선택 없이 고르고 「다음」을 눌러야 영상 단계로 간다. */}
+            <CoachBubble title={t('upload.purposeBubble')} guide={t('upload.chooseGuide')} />
+            <View style={styles.choices}>
+              {SESSION_PURPOSES.map((item) => (
+                <ChoiceCard
+                  key={item}
+                  title={t(`upload.purpose.${item}`)}
+                  sub={t(`upload.purposeSub.${item}`)}
+                  selected={purposePicked && purpose === item}
+                  phLabel={`upload_purpose_${item}`}
+                  onPress={() => choosePurpose(item)}
+                />
+              ))}
+            </View>
+          </ScrollView>
+          <View style={styles.bottom}>
+            <PrimaryButton label={t('upload.next')} phLabel="upload_purpose_next" disabled={!purposePicked} onPress={() => setStep('source')} />
           </View>
-        </ScrollView>
+        </View>
       )}
 
       {step === 'source' && waitPanel && (
@@ -537,7 +548,7 @@ export default function UploadScreen() {
             {!sample && (
               <CoachBubble
                 title={picked ? t('upload.readyBubble') : t('upload.sourceBubble')}
-                guide={null}
+                guide={picked ? null : t('upload.sourceChooseGuide')}
               />
             )}
 
@@ -575,15 +586,20 @@ export default function UploadScreen() {
               </View>
             ) : (
               <View style={styles.choices} ref={pickTarget.ref} onLayout={pickTarget.onLayout}>
-                <ChoiceRow
-                  icon="video"
+                <ChoiceCard
                   title={t('upload.sourceRecord')}
                   sub={t('upload.sourceRecordSub')}
-                  highlight={firstTime}
-                  onPress={record}
+                  selected={sourceChoice === 'record'}
+                  phLabel="upload_source_record"
+                  onPress={() => setSourceChoice('record')}
                 />
-                <ChoiceRow icon="image" title={t('upload.pickGallery')} sub={t('upload.sourceGallerySub')} onPress={() => void pickFromGallery()} />
-                <ChoiceRow icon="message-circle" title={t('uploadReason.noVideo')} sub={t('uploadReason.optional')} onPress={showReason} />
+                <ChoiceCard
+                  title={t('upload.pickGallery')}
+                  sub={t('upload.sourceGallerySub')}
+                  selected={sourceChoice === 'gallery'}
+                  phLabel="upload_source_gallery"
+                  onPress={() => setSourceChoice('gallery')}
+                />
               </View>
             )}
 
@@ -615,21 +631,21 @@ export default function UploadScreen() {
             <Pressable
               ref={startTarget.ref}
               onLayout={startTarget.onLayout}
-              style={[styles.submit, (!ready || starting) && styles.submitDisabled]}
-              onPress={() => (ready ? void start() : uploading && agreedRights && !sample ? setWaitPanel(true) : pressBlocked())}
+              style={[styles.submit, (!canSubmit || starting) && styles.submitDisabled]}
+              onPress={submitPress}
               disabled={starting}
               accessibilityRole="button"
-              accessibilityState={{ disabled: !ready || starting }}>
+              accessibilityState={{ disabled: !canSubmit || starting }}>
               {starting ? (
                 <ActivityIndicator color={palette.bg} />
               ) : (
-                <Text style={[styles.submitText, (!ready || starting) && styles.submitTextDisabled]}>
+                <Text style={[styles.submitText, (!canSubmit || starting) && styles.submitTextDisabled]}>
                   {/* 영상이 아직 올라가는 중이면 무엇을 기다리는지 버튼이 말한다(SOMA-671). */}
                   {uploading ? t('upload.submitUploading') : plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}
                 </Text>
               )}
             </Pressable>
-            {hint && <Text style={styles.submitHint}>{hint}</Text>}
+            {hint && picked && <Text style={styles.submitHint}>{hint}</Text>}
           </View>
         </View>
       )}
@@ -656,10 +672,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   // pen 03 「Stepper」 — 머리 아래 1 띄워 가운데, 21 띄워 말풍선. 본문 좌우 20, 말풍선과 선택지 사이 14.
   stepRow: { alignItems: 'center', paddingTop: 1 },
-  stepBody: { paddingTop: 21, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
-  choices: { gap: 4 },
+  stepBody: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
+  choices: { gap: 8, marginTop: 14 },
   // pen 03 「Footer」 — 안쪽 [0,20,10,20]: 권리 체크 · 14 · 버튼 48 · 9 · 안내 14/500.
-  bottom: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10, backgroundColor: palette.bg },
+  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, backgroundColor: palette.bg },
 
   sampleBadge: { backgroundColor: palette.blueSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   sampleBadgeText: { fontSize: 12.5, fontWeight: '800', color: palette.blue },
@@ -692,7 +708,7 @@ const styles = StyleSheet.create({
 
   // pen 버튼/Primary — 높이 48 · 모서리 16 · 글자 17/700. 막혀 있으면 Disabled(#E5E8EB · #B0B8C1). 준비 전에도 눌러서
   // 무엇에 막혔는지 세야 해서(SOMA-698) 공통 Button(막히면 안 눌림) 대신 같은 모양을 직접 그린다.
-  submit: { height: 48, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  submit: { height: 52, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   submitDisabled: { backgroundColor: palette.border },
   submitText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
   submitTextDisabled: { color: palette.checkOff },

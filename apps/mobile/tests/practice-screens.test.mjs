@@ -69,7 +69,7 @@ test('practice.analyze: 화면을 떠나면 조회만 멈추고 돌아오면 다
   assert.match(waiting(), /AppState\.addEventListener/);
 });
 
-test('practice.analyze: 옛 분석 화면 주소(/analyzing)는 코치 화면으로 넘기기만 한다', () => {
+test('practice.analyze: 옛 분석 화면 주소(/analyzing)는 액티 화면으로 넘기기만 한다', () => {
   const analyzing = read('app/analyzing.tsx');
   assert.match(analyzing, /<Redirect href=\{\{ pathname: '\/coach'/);
   assert.equal(/watchAnalysis|api\./.test(analyzing), false);

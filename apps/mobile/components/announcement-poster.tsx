@@ -143,22 +143,30 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
   };
 
   return <>
-    <Modal visible={visible} animationType="fade" onRequestClose={close} statusBarTranslucent>
-      <View style={[styles.screen, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }]}>
-        <Pressable style={styles.close} onPress={close} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="poster_close"><Feather name="x" size={22} color={palette.text} /></Pressable>
-        <View style={styles.center}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={close} statusBarTranslucent>
+      {/* pen P1.9·P1.21 — 어두운 바탕 위 흰 카드: 그림 칸 · 배지 · 제목 · 본문 · (듣기) · 주 버튼 · 「오늘 하루 안 보기」/「닫기」. */}
+      <View style={styles.backdrop}>
+        <View style={[styles.card, { marginTop: insets.top, marginBottom: insets.bottom }]}>
+          {image ? (
+            <View style={styles.art}>
+              <Image source={image} style={styles.mascot} contentFit="contain" />
+            </View>
+          ) : null}
           {poster.badge ? <Text style={styles.badge}>{poster.badge}</Text> : null}
           <Text style={styles.title}>{poster.title}</Text>
           {poster.body ? <Text style={styles.body}>{poster.body}</Text> : null}
-          {image || audio ? (
-            <View style={styles.artRow}>
-              {image ? <Image source={image} style={styles.mascot} contentFit="contain" /> : null}
-              {audio ? <Pressable style={styles.sample} onPress={toggleSample}><Feather name={playing ? 'pause' : 'play'} size={16} color={palette.flameDeep} /><Text style={styles.sampleText}>{t(playing ? 'poster.sampleStop' : 'poster.samplePlay')}</Text></Pressable> : null}
-            </View>
+          {audio ? (
+            <Pressable style={styles.sample} onPress={toggleSample} accessibilityRole="button">
+              <Feather name={playing ? 'pause' : 'play'} size={16} color={palette.blue} />
+              <Text style={styles.sampleText}>{t(playing ? 'poster.sampleStop' : 'poster.samplePlay')}</Text>
+            </Pressable>
           ) : null}
+          {cta ? <Pressable style={styles.enable} onPress={() => void press()} accessibilityRole="button"><Text style={styles.enableText}>{cta.label}</Text></Pressable> : null}
+          <View style={styles.footer}>
+            {poster.dismissible ? <Pressable style={styles.footerBtn} onPress={() => void dismissToday()} accessibilityRole="button"><Text style={styles.dismissText}>{t('poster.hideToday')}</Text></Pressable> : <View />}
+            <Pressable style={styles.footerBtn} onPress={close} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="poster_close"><Text style={styles.dismissText}>{t('poster.close')}</Text></Pressable>
+          </View>
         </View>
-        {cta ? <Pressable style={styles.enable} onPress={() => void press()}><Text style={styles.enableText}>{cta.label}</Text></Pressable> : null}
-        {poster.dismissible ? <Pressable style={styles.dismiss} onPress={() => void dismissToday()}><Text style={styles.dismissText}>{t('poster.hideToday')}</Text></Pressable> : null}
       </View>
     </Modal>
     {cloud.consentSheet}
@@ -166,18 +174,18 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, paddingHorizontal: 24, backgroundColor: palette.flameSoft },
-  close: { alignSelf: 'flex-end', width: 44, height: 44, borderRadius: 22, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  badge: { backgroundColor: palette.bg, color: palette.flameDeep, borderRadius: 9999, paddingHorizontal: 16, paddingVertical: 8, fontSize: 13, fontWeight: '800', marginBottom: 20 },
-  title: { color: palette.text, fontSize: 30, lineHeight: 39, fontWeight: '900', textAlign: 'center' },
-  body: { color: palette.textDim, fontSize: 15, lineHeight: 23, fontWeight: '600', textAlign: 'center', marginTop: 14 },
-  artRow: { flexDirection: 'row', alignItems: 'center', marginTop: 20 },
-  mascot: { width: 180, height: 180 },
-  sample: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 9999, backgroundColor: palette.bg, paddingHorizontal: 14, height: 42 },
-  sampleText: { color: palette.flameDeep, fontSize: 14, fontWeight: '800' },
-  enable: { height: 56, borderRadius: 9999, backgroundColor: palette.flame, alignItems: 'center', justifyContent: 'center' },
-  enableText: { color: palette.onAccent, fontSize: 17, fontWeight: '900' },
-  dismiss: { height: 46, alignItems: 'center', justifyContent: 'center' },
-  dismissText: { color: palette.textMuted, fontSize: 14, fontWeight: '700' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(25,31,40,0.55)', justifyContent: 'center', paddingHorizontal: 24 },
+  card: { borderRadius: 24, backgroundColor: palette.card, padding: 16, paddingBottom: 8 },
+  art: { height: 150, borderRadius: 16, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  mascot: { width: 130, height: 130 },
+  badge: { alignSelf: 'flex-start', overflow: 'hidden', marginTop: 18, backgroundColor: palette.flameSoft, color: palette.flameDeep, borderRadius: 9999, paddingHorizontal: 12, paddingVertical: 6, fontSize: 13, fontWeight: '800' },
+  title: { marginTop: 12, color: palette.text, fontSize: 21, lineHeight: 28, fontWeight: '800' },
+  body: { color: palette.textMuted, fontSize: 15, lineHeight: 22, fontWeight: '400', marginTop: 8 },
+  sample: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderRadius: 12, backgroundColor: palette.blueSoft, paddingHorizontal: 14, height: 44 },
+  sampleText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
+  enable: { marginTop: 20, height: 52, borderRadius: 12, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  enableText: { color: palette.onAccent, fontSize: 17, fontWeight: '700' },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
+  footerBtn: { height: 44, paddingHorizontal: 8, justifyContent: 'center' },
+  dismissText: { color: palette.textMuted, fontSize: 14, fontWeight: '600' },
 });

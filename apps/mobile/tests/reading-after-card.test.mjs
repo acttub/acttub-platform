@@ -33,7 +33,7 @@ test('발음 보고서: 칠한 줄 수와 기다림 끝 상태', () => {
   assert.equal(pronunciationSettled('skipped'), true);
 });
 
-test('녹음 코치: 없는 대화 물음의 오류 코드로 켜짐을 본다(SOMA-791)', () => {
+test('녹음 액티: 없는 대화 물음의 오류 코드로 켜짐을 본다(SOMA-791)', () => {
   assert.equal(recordingCoachOnFromProbe({ code: 'recording_coach_not_found' }), true);
   assert.equal(recordingCoachOnFromProbe({ code: 'Not Found' }), false);
   assert.equal(recordingCoachOnFromProbe(new Error('network')), false);

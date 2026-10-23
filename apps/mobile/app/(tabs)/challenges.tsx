@@ -1,10 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChallengeIntro } from '@/components/challenge-intro';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
@@ -62,6 +65,10 @@ export default function ChallengesScreen() {
   /** 파란 「누를 것 안내」는 첫 챌린지 참여를 끝낼 때까지만. */
   const [showGuide, setShowGuide] = useState(false);
   const unread = useUnreadNotifications();
+  /** 첫 사용자용 고르기(C1.16·C1.18) — 고른 줄. 기본 선택은 없고 「다음」을 눌러야 넘어간다. */
+  const [firstPick, setFirstPick] = useState<'perform' | 'others' | null>(null);
+  /** 이번 주 대사 카드에 틀어 줄 참여작 예시 영상(좋아요 많은 순 첫 공개 참여작). 없으면 카드만 둔다. */
+  const [exampleUrl, setExampleUrl] = useState<string | null>(null);
 
   const load = useCallback(async (next: ChallengeTab) => {
     shownTab.current = next;
@@ -115,6 +122,20 @@ export default function ChallengesScreen() {
     }, []),
   );
 
+  const featuredId = featured?.id ?? null;
+  useEffect(() => {
+    setExampleUrl(null);
+    if (!featuredId) return;
+    let alive = true;
+    void api
+      .listChallengeEntries(featuredId, { sort: 'likes' })
+      .then((list) => alive && setExampleUrl(list.entries.find((e) => e.playback_url)?.playback_url ?? null))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [featuredId]);
+
   const openDetail = (challenge: ChallengeCard) => {
     logEvent('challenge_open_detail', { id: challenge.id });
     router.push({ pathname: '/challenge-detail', params: { id: challenge.id } });
@@ -130,6 +151,9 @@ export default function ChallengesScreen() {
   /** 카드를 누르면 대사 상세로 간다. */
   const tapCard = (challenge: ChallengeCard) => openDetail(challenge);
 
+  /** 첫 챌린지 참여를 끝내기 전에는 이번 주 대사 하나만 보여 주고 둘 중 하나를 고르게 한다. */
+  const selectMode = showGuide && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
+
   const emptyText =
     tab === 'ended' ? t('challenges.emptyEnded') : tab === 'mine' ? t('challenges.emptyMine') : t('challenges.emptyRunning');
 
@@ -141,6 +165,7 @@ export default function ChallengesScreen() {
           <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenges_back_home" onPress={() => router.navigate('/')} />
         )}
         <Text style={[styles.title, styles.titleGrow]}>{t('challenges.title')}</Text>
+        {!selectMode && (
         <View style={styles.headerRight}>
           <Pressable
             style={styles.iconBtn}
@@ -172,8 +197,33 @@ export default function ChallengesScreen() {
             <Feather name="plus" size={22} color={palette.text} />
           </Pressable>
         </View>
+        )}
       </View>
 
+      {selectMode && featured ? (
+        <>
+          <ScrollView contentContainerStyle={styles.body}>
+            <ExampleHero challenge={featured} videoUrl={exampleUrl} onOpen={() => openDetail(featured)} />
+            <View style={styles.sameHead}>
+              <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
+              <Text style={styles.sameMeta}>{t('challenges.firstSub')}</Text>
+            </View>
+            <PickRow label={t('challenges.performCta')} selected={firstPick === 'perform'} onPress={() => setFirstPick('perform')} />
+            <PickRow label={t('challenges.firstSeeOthers')} selected={firstPick === 'others'} onPress={() => setFirstPick('others')} />
+          </ScrollView>
+          <CtaBar safeBottom={false} style={{ paddingBottom: tabBarSpace > 0 ? tabBarSpace : 10 }}>
+            <PrimaryButton
+              label={t('challenges.firstNext')}
+              disabled={!firstPick}
+              onPress={() => {
+                void logEvent('challenge_first_pick', { pick: firstPick ?? '' });
+                if (firstPick === 'perform') perform(featured);
+                else router.push({ pathname: '/challenge-play', params: { id: featured.id } });
+              }}
+            />
+          </CtaBar>
+        </>
+      ) : (
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]}>
         {lastWeek && (
           <Pressable
@@ -196,12 +246,16 @@ export default function ChallengesScreen() {
         )}
 
         {featured && (
-          <TodayHero
-            challenge={featured}
-            guide={showGuide}
-            onOpen={() => tapCard(featured)}
-            onPerform={() => perform(featured)}
-          />
+          <>
+            <ExampleHero challenge={featured} videoUrl={exampleUrl} onOpen={() => tapCard(featured)} />
+            {canPerform(featured) && <PrimaryButton label={t('challenges.performCta')} onPress={() => perform(featured)} />}
+            <View style={styles.sameHead}>
+              <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
+              <Text style={styles.sameMeta}>
+                {t('challenges.sameLineMeta', { dday: dDayLabel(featured), count: featured.entry_count })}
+              </Text>
+            </View>
+          </>
         )}
 
         <View style={styles.tabRow}>
@@ -252,6 +306,7 @@ export default function ChallengesScreen() {
           </Pressable>
         )}
       </ScrollView>
+      )}
 
       <ChallengeIntro
         visible={intro}
@@ -267,54 +322,42 @@ export default function ChallengesScreen() {
 }
 
 /**
- * 이번 주 대사 카드(SOMA-494·SOMA-748) — 탭을 열면 제일 먼저 크게 보인다. 카드를 누르면 대사 상세(이번 주 대사)로 간다.
- * 인기·최신 탭에서만 띄운다(종료·내 챌린지 탭에는 고정하지 않는다, 요구사항 04).
+ * 이번 주 대사 카드(pen C1.13) — 참여작 예시 영상을 위에 깔고 「참여작 예시」 알약과 대사를 얹는다. 영상이 없으면 어두운 카드에 대사만 둔다.
+ * 카드를 누르면 대사 상세로 간다. 인기·최신 탭에서만 띄운다(종료·내 챌린지 탭에는 고정하지 않는다).
  */
-function TodayHero({
-  challenge,
-  guide,
-  onOpen,
-  onPerform,
-}: {
-  challenge: ChallengeCard;
-  guide: boolean;
-  onOpen: () => void;
-  onPerform: () => void;
-}) {
-  const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
+function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard; videoUrl: string | null; onOpen: () => void }) {
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
   return (
     <Pressable style={({ pressed }) => [styles.hero, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
+      {!!videoUrl && <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />}
+      <View style={styles.heroScrim} pointerEvents="none" />
       <View style={styles.heroChip}>
-        <Feather name="zap" size={15} color={palette.onAccent} />
         <Text style={styles.heroChipText}>
-          {challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · {dDayLabel(challenge)}
+          {videoUrl ? t('challenges.exampleChip') : `${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
         </Text>
       </View>
       <Text style={styles.heroLine} numberOfLines={4}>
         “{challenge.line}”
       </Text>
-      {!!meta && <Text style={styles.heroMeta}>{meta}</Text>}
-      <View style={styles.statRow}>
-        <View style={styles.avatars}>
-          {challenge.participants.slice(0, 3).map((p, i) => (
-            <View key={`${p.name}-${i}`} style={[styles.avatar, styles.heroAvatar]}>
-              <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
-            </View>
-          ))}
-        </View>
-        <Text style={styles.heroStat} numberOfLines={1}>
-          {t('challenges.entryCount', { count: challenge.entry_count })} ·{' '}
-          {t('challenges.likeSum', { count: challenge.like_sum })}
-        </Text>
-      </View>
-      {/* 바로 아래 「나도 이 대사 연기하기」가 있으면 그 버튼을 가리킨다 — 카드를 누르라는 말과 따로 놀지 않게(10/22 피드백). */}
-      {guide && <Text style={styles.guide}>{t(canPerform(challenge) ? 'challenges.heroGuidePerform' : 'challenges.heroGuide')}</Text>}
-      {canPerform(challenge) && (
-        <Pressable style={styles.heroPerform} onPress={onPerform} accessibilityRole="button">
-          <Feather name="video" size={15} color={palette.onAccent} />
-          <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
-        </Pressable>
-      )}
+    </Pressable>
+  );
+}
+
+/** 첫 사용자 고르기 줄(C1.16) — 고르면 연파랑 바탕·파란 테두리·오른쪽 체크. */
+function PickRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={[styles.pick, selected && styles.pickOn]}
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}>
+      <Text style={[styles.pickText, selected && styles.pickTextOn]}>{label}</Text>
+      {selected && <Feather name="check" size={20} color={palette.blue} />}
     </Pressable>
   );
 }
@@ -407,34 +450,27 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
   bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMuted, lineHeight: 18, marginTop: 6 },
-  hero: { backgroundColor: palette.navy, borderRadius: 20, padding: 18, gap: 10 },
+  hero: { backgroundColor: palette.navy, borderRadius: 20, padding: 16, height: 300, justifyContent: 'space-between', overflow: 'hidden' },
+  heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.18)' },
+  sameHead: { gap: 4, marginTop: 6 },
+  sameTitle: { fontSize: 18, fontWeight: '800', color: palette.text, lineHeight: 24 },
+  sameMeta: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
+  pick: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, borderWidth: 1, borderColor: palette.border, paddingVertical: 17, paddingHorizontal: 18 },
+  pickOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
+  pickText: { fontSize: 16, fontWeight: '700', color: palette.text },
+  pickTextOn: { color: palette.blueDeep },
   heroChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   heroChipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent, lineHeight: 20 },
-  heroLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
-  heroMeta: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)', lineHeight: 20 },
-  heroStat: { flex: 1, fontSize: 12.5, fontWeight: '700', color: 'rgba(255, 255, 255, 0.67)' },
-  heroAvatar: { borderColor: palette.navy },
-  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21 },
-  heroPerform: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: 14,
-    paddingVertical: 13,
-    marginTop: 2,
-    backgroundColor: palette.blue,
-  },
-  heroPerformText: { fontSize: 14.5, fontWeight: '800', color: palette.onAccent },
+  heroLine: { fontSize: 20, fontWeight: '800', color: palette.onAccent, lineHeight: 28 },
   tabRow: { flexDirection: 'row', gap: 16, paddingTop: 4 },
   tab: { paddingVertical: 4 },
   tabText: { fontSize: 15, fontWeight: '700', color: palette.textFaint, lineHeight: 23 },

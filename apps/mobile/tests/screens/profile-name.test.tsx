@@ -64,7 +64,17 @@ const radio = (name: string) => screen.getByRole('radio', { name });
 const checkbox = (name: string) => screen.getByRole('checkbox', { name });
 const next = () => button('다음');
 const done = () => button('완료');
-const BIRTH = '예: 2004-03-14 (숫자만 입력)';
+
+const THIS_YEAR = new Date().getFullYear();
+const WHEEL_ITEM = 44;
+/** 생년월일 돌림판을 돌려 세운다 — 연·월·일 줄마다 멈춘 자리(contentOffset)를 알린다. 연도 줄은 올해-100년부터다. */
+async function setBirth(year: number, month: number, day: number) {
+  const settle = async (id: string, index: number) =>
+    fireEvent(screen.getByTestId(id), 'momentumScrollEnd', { nativeEvent: { contentOffset: { x: 0, y: index * WHEEL_ITEM } } });
+  await settle('birth-year', year - (THIS_YEAR - 100));
+  await settle('birth-month', month - 1);
+  await settle('birth-day', day - 1);
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -82,13 +92,17 @@ async function start() {
   expect(await screen.findByDisplayValue('민지')).toBeOnTheScreen();
 }
 
-/** 닉네임부터 추구하는 방향까지 답한다 — 방향은 두 개 고르고 마지막 버튼은 누르지 않는다. */
+/** 닉네임부터 추구하는 방향까지 답한다 — 줄을 고르고 「다음」을 누른다. 방향은 두 개 고르고 마지막 「다음」은 누르지 않는다. */
 async function answerToDirections() {
+  await fireEvent.press(next()); // 닉네임
+  await setBirth(2004, 3, 14);
+  await fireEvent.press(next()); // 생년월일
+  await fireEvent.press(radio('여성'));
   await fireEvent.press(next());
-  await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20040314'); // 8자리면 바로 다음
-  await fireEvent.press(radio('여성')); // 누르면 바로 다음
   await fireEvent.press(radio('전문 배우'));
+  await fireEvent.press(next());
   await fireEvent.press(radio('입시생'));
+  await fireEvent.press(next());
   await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
   await fireEvent.press(checkbox('매체 (TV·영화)'));
 }
@@ -109,8 +123,8 @@ const PAYLOAD = {
   goal: 'professional',
 };
 
-describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 위에 나온다', () => {
-  test('「계속하기」 없이 답하면 넘어가고, 캐릭터 말이 질문마다 바뀐다', async () => {
+describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음」을 눌러야 넘어간다', () => {
+  test('질문마다 액티 말풍선이 바뀌고, 고르는 줄은 기본 선택 없이 누르면 선택되며 「다음」 전에는 넘어가지 않는다', async () => {
     await render(<ProfileNameScreen />);
     expect(await screen.findByText('반가워요, 배우님!')).toBeOnTheScreen();
     await fireEvent.press(button('시작하기'));
@@ -119,88 +133,63 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     expect(await screen.findByDisplayValue('민지')).toBeOnTheScreen();
     expect(screen.getByText('뭐라고 불러 드릴까요?')).toBeOnTheScreen();
     expect(screen.getByText('1/7')).toBeOnTheScreen();
-    expect(screen.queryByText('프로필 사진')).not.toBeOnTheScreen();
     await fireEvent.changeText(screen.getByDisplayValue('민지'), '  ');
     expect(next()).toBeDisabled();
     await fireEvent.changeText(screen.getByLabelText('닉네임'), '민지');
     await fireEvent.press(next());
 
-    // 생년월일 — 8자리를 채우면 바로 다음
+    // 생년월일 — 연·월·일 돌림판. 돌려도 「다음」을 눌러야 넘어간다.
     expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
-    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '2004031');
+    expect(screen.getByText('2/7')).toBeOnTheScreen();
+    await setBirth(2004, 3, 14);
     expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
-    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20040314');
+    await fireEvent.press(next());
 
-    // 성별·목표·경력 — 말풍선 아래 회색 「○○ 선택」 제목, 누르면 바로 다음
+    // 성별 — 처음엔 아무것도 고르지 않고 「다음」이 꺼져 있다. 누르면 선택, 「다음」으로 넘어간다.
     expect(screen.getByText('민지님, 성별을 알려 주실래요?')).toBeOnTheScreen();
-    expect(screen.getByText('성별 선택')).toBeOnTheScreen();
+    expect(screen.queryByText('하나 누르면 바로 넘어가요.')).not.toBeOnTheScreen();
+    expect(radio('남성')).not.toBeSelected();
+    expect(radio('여성')).not.toBeSelected();
+    expect(next()).toBeDisabled();
     await fireEvent.press(radio('여성'));
-    expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
-    expect(screen.getByText('연기 목표 선택')).toBeOnTheScreen();
-    await fireEvent.press(radio('전문 배우'));
-    expect(screen.getByText('민지님, 연기한 지 얼마나 됐어요?')).toBeOnTheScreen();
-    expect(screen.getByText('연기 경력 선택')).toBeOnTheScreen();
-    await fireEvent.press(radio('입시생'));
+    expect(radio('여성')).toBeSelected();
+    expect(screen.getByText('민지님, 성별을 알려 주실래요?')).toBeOnTheScreen();
+    await fireEvent.press(radio('남성'));
+    expect(radio('남성')).toBeSelected();
+    expect(radio('여성')).not.toBeSelected();
+    await fireEvent.press(next());
 
-    // 추구하는 방향 — 여러 개라 「다음」으로 마친다
+    expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
+    expect(screen.getByText('4/7')).toBeOnTheScreen();
+    expect(next()).toBeDisabled();
+    await fireEvent.press(radio('전문 배우'));
+    await fireEvent.press(next());
+
+    expect(screen.getByText('민지님, 연기한 지 얼마나 됐어요?')).toBeOnTheScreen();
+    for (const label of ['입문 전', '입시생', '1년 미만', '1–3년', '3–5년', '5년 이상']) expect(radio(label)).toBeOnTheScreen();
+    await fireEvent.press(radio('입시생'));
+    await fireEvent.press(next());
+
+    // 추구하는 방향 — 여러 개 고를 수 있다
     expect(screen.getByText('민지님, 어떤 연기를 하고 싶어요?')).toBeOnTheScreen();
-    expect(screen.getByText('추구하는 방향 선택 · 여러 개 가능')).toBeOnTheScreen();
-    // 처음 답하는 중에는 고치기 안내가 없다
-    expect(screen.queryByText('지난 답변을 누르면 바로 고칠 수 있어요')).not.toBeOnTheScreen();
     expect(next()).toBeDisabled();
     await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
     expect(next()).toBeEnabled();
-    expect(screen.queryByText('계속하기')).not.toBeOnTheScreen();
     expect(saveProfile).not.toHaveBeenCalled();
   });
 
-  test('답한 칸은 아래에 쌓이고, 누르면 그 질문으로 돌아가 고친 뒤 하던 질문으로 온다', async () => {
+  test('뒤로는 앞 질문으로 가고 고른 값은 남는다', async () => {
     await start();
     await fireEvent.press(next());
-    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20040314');
+    await setBirth(2004, 3, 14);
+    await fireEvent.press(next());
     await fireEvent.press(radio('여성'));
-
-    expect(button('닉네임 민지')).toBeOnTheScreen();
-    expect(button('생년월일 2004-03-14')).toBeOnTheScreen();
-    expect(button('성별 여성')).toBeOnTheScreen();
-
-    await fireEvent.press(button('성별 여성'));
-    expect(screen.getByText('민지님, 성별을 알려 주실래요?')).toBeOnTheScreen();
-    // 고치는 중 — 요약 행 자리가 파란 테두리 칸이 되고 위에 안내가 붙는다(pen 7/7 · 지난 답변 수정)
-    expect(screen.getByText('지난 답변을 누르면 바로 고칠 수 있어요')).toBeOnTheScreen();
-    expect(screen.queryByText('성별 선택')).not.toBeOnTheScreen();
-    expect(radio('여성')).toBeSelected();
-    await fireEvent.press(radio('남성'));
-
-    expect(button('성별 남성')).toBeOnTheScreen();
-    expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
-    expect(screen.queryByText('지난 답변을 누르면 바로 고칠 수 있어요')).not.toBeOnTheScreen();
-  });
-
-  test('추구하는 방향을 고치러 가면 「여러 개 고를 수 있어요」를 보이고 「다음」으로 하던 질문에 돌아온다', async () => {
-    await start();
-    await answerToDirections();
-    await fireEvent.press(next());
-    expect(await screen.findByText('알게 된 곳 선택')).toBeOnTheScreen();
-
-    await fireEvent.press(screen.getByRole('button', { name: /^추구하는 방향 / }));
-    expect(screen.getByText('여러 개 고를 수 있어요')).toBeOnTheScreen();
-    expect(screen.getByText('지난 답변을 누르면 바로 고칠 수 있어요')).toBeOnTheScreen();
-    await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
-    await fireEvent.press(next());
-
-    expect(screen.getByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
-    expect(button('추구하는 방향 매체 (TV·영화)')).toBeOnTheScreen();
-  });
-
-  test('뒤로는 앞 질문으로 가고 답한 값은 남긴다', async () => {
-    await start();
-    await fireEvent.press(next());
-    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20040314');
 
     await fireEvent.press(button('뒤로'));
     expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
-    expect(screen.getByDisplayValue('2004-03-14')).toBeOnTheScreen();
+    await fireEvent.press(next());
+    expect(radio('여성')).toBeSelected();
+    await fireEvent.press(button('뒤로'));
     await fireEvent.press(button('뒤로'));
     expect(screen.getByDisplayValue('민지')).toBeOnTheScreen();
     await fireEvent.press(button('뒤로'));
@@ -212,7 +201,8 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     await answerToDirections();
     await fireEvent.press(next());
 
-    expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(await screen.findByText('민지님, Acttub는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(screen.getByText('7/7')).toBeOnTheScreen();
     await fireEvent.press(radio('기타'));
     expect(saveProfile).not.toHaveBeenCalled();
     expect(done()).toBeDisabled();
@@ -227,12 +217,15 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     expect(mockRouter.back).not.toHaveBeenCalled();
   });
 
-  test('유입 경로는 하나 누르면 바로 저장한다', async () => {
+  test('유입 경로는 하나 고르고 「완료」를 눌러야 저장한다(하나 누르면 바로 저장하지 않는다)', async () => {
     await start();
     await answerToDirections();
     await fireEvent.press(next());
 
     await fireEvent.press(radio('인스타그램'));
+    expect(radio('인스타그램')).toBeSelected();
+    expect(saveProfile).not.toHaveBeenCalled();
+    await fireEvent.press(done());
 
     expect(saveProfile).toHaveBeenCalledWith(PAYLOAD);
     expect(recordDiscovery).toHaveBeenCalledWith({ source: 'instagram', detail: null, other_text: null });
@@ -255,7 +248,7 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     await answerToDirections();
     await fireEvent.press(done());
 
-    expect(screen.queryByText('민지님, 액터브는 어디서 알게 됐어요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('민지님, Acttub는 어디서 알게 됐어요?')).not.toBeOnTheScreen();
     expect(saveProfile).toHaveBeenCalledTimes(1);
     expect(recordDiscovery).not.toHaveBeenCalled();
   });
@@ -265,7 +258,7 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     await start();
     await answerToDirections();
     await fireEvent.press(next());
-    expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(await screen.findByText('민지님, Acttub는 어디서 알게 됐어요?')).toBeOnTheScreen();
   });
 
   test('계정 id가 없으면 가입 기록을 남기지 않는다', async () => {
@@ -278,24 +271,40 @@ describe('가입 게이트 — 토스처럼 하나 답하면 다음 질문이 �
     expect(recordSignupCompleted).not.toHaveBeenCalled();
   });
 
-  test('있을 수 없는 생년월일은 이유를 보이고 넘어가지 않는다', async () => {
+  test('생년월일 돌림판은 처음 값이 이미 정해져 있고, 달이 바뀌면 일 수가 맞춰진다', async () => {
     await start();
     await fireEvent.press(next());
-    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20300101');
 
-    expect(screen.getByText('생년월일을 다시 확인해주세요.')).toBeOnTheScreen();
-    expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
+    expect(screen.getByLabelText('연도')).toHaveProp('accessibilityValue', { text: `${THIS_YEAR - 20}년` });
+    expect(next()).toBeEnabled();
+    await setBirth(2004, 1, 31);
+    await setBirth(2004, 2, 31); // 2월에는 31일이 없다 → 29일(2004는 윤년)로 맞춰진다
+    expect(screen.getByLabelText('일')).toHaveProp('accessibilityValue', { text: '29일' });
+  });
+
+  test('아직 안 온 날짜는 이유를 보이고 「다음」을 막는다', async () => {
+    await start();
+    await fireEvent.press(next());
+    await setBirth(THIS_YEAR, 12, 31);
+    // 12월 31일이 이미 지났다면 이 시험은 해당 없음 — 그때는 아직 안 온 날짜가 없다.
+    if (new Date() < new Date(THIS_YEAR, 11, 31)) {
+      expect(screen.getByText('생년월일을 다시 확인해주세요.')).toBeOnTheScreen();
+      expect(next()).toBeDisabled();
+      expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
+    }
   });
 
   test('만 14세 미만 생년월일은 「가입할 수 없어요」로 보내고, 확인하면 로그아웃한다', async () => {
     await start();
     await fireEvent.press(next());
-    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20200101');
+    await setBirth(THIS_YEAR - 5, 1, 1);
+    await fireEvent.press(next());
 
     expect(screen.getByText('지금은 가입할 수 없어요')).toBeOnTheScreen();
     await fireEvent.press(button('뒤로'));
-    expect(screen.getByDisplayValue('2020-01-01')).toBeOnTheScreen();
-    await fireEvent.changeText(screen.getByPlaceholderText(BIRTH), '20200101');
+    expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
+    await setBirth(THIS_YEAR - 5, 1, 1);
+    await fireEvent.press(next());
     await fireEvent.press(button('확인'));
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(saveProfile).not.toHaveBeenCalled();
@@ -393,7 +402,7 @@ describe('설정의 프로필 편집', () => {
 
     expect(takeProviderNameHint).not.toHaveBeenCalled();
     expect(readAttributedChannel).not.toHaveBeenCalled();
-    expect(screen.queryByText('액터브를 처음 어디서 알게 됐어요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Acttub를 처음 어디서 알게 됐어요?')).not.toBeOnTheScreen();
     expect(screen.getByText('김민지')).toBeOnTheScreen();
     expect(screen.getByText('무대를 사랑하는 배우')).toBeOnTheScreen();
     expect(screen.getByText('무대 (연극·뮤지컬)')).toBeOnTheScreen();

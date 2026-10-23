@@ -28,7 +28,7 @@ function api(conversation, over = {}) {
 
 const open = (messages) => ({ id: 'c1', status: 'open', messages });
 
-test('열린 대화에 코치 말이 없으면 시작 요청을 한 번 보내 첫 질문을 받는다(SOMA-780)', async () => {
+test('열린 대화에 액티 말이 없으면 시작 요청을 한 번 보내 첫 질문을 받는다(SOMA-780)', async () => {
   const { api: fake, calls } = api(open([]));
   const stream = { onDelta() {} };
   const result = await loadCoachSession(fake, 'p1', 'r1', 'c1', stream);
@@ -38,13 +38,13 @@ test('열린 대화에 코치 말이 없으면 시작 요청을 한 번 보내 �
   assert.equal(result.conversation.messages[0].text, '첫 질문');
 });
 
-test('회차에서 대화 id 를 읽어 온 경우도 코치 말이 없으면 시작 요청을 보낸다', async () => {
+test('회차에서 대화 id 를 읽어 온 경우도 액티 말이 없으면 시작 요청을 보낸다', async () => {
   const { api: fake, calls } = api(open([]));
   await loadCoachSession(fake, 'p1', 'r1', null);
   assert.equal(calls.start.length, 1);
 });
 
-test('코치 말이 이미 있으면 읽기만 하고 시작 요청을 보내지 않는다', async () => {
+test('액티 말이 이미 있으면 읽기만 하고 시작 요청을 보내지 않는다', async () => {
   const { api: fake, calls } = api(open([{ turn_index: 0, role: 'coach', text: '질문' }]));
   const result = await loadCoachSession(fake, 'p1', 'r1', 'c1');
   assert.equal(calls.start.length, 0);

@@ -16,9 +16,9 @@ test('탭바는 화면 위에 떠 있어서 탭 화면은 탭바 높이(useTabBa
   }
 });
 
-test('첫 사용자 홈은 코칭·대본 리딩 두 길만 고르고, 둘 다 「이렇게 진행돼요」 단계를 펼친다(10/22 피드백)', () => {
+test('첫 사용자 홈은 코칭·대본 리딩·챌린지 세 길 중 하나를 고르고 「다음」으로 간다(pen P1.12)', () => {
   const home = read('app/(tabs)/index.tsx');
-  assert.match(home, /type FirstPick = 'coaching' \| 'reading';/);
-  assert.match(home, /steps=\{translateList\('home\.firstReadingSteps'\)\}/);
-  assert.doesNotMatch(home, /home_first_challenge/);
+  assert.match(home, /type FirstPick = 'coaching' \| 'reading' \| 'challenge';/);
+  assert.match(home, /home_first_challenge/);
+  assert.doesNotMatch(home, /firstReadingSteps/);
 });

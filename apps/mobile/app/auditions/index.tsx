@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StatusScreen } from '@/components/ui/status-screen';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { readAuditionMarks, writeAuditionMarks } from '@/lib/audition-marks';
@@ -114,18 +115,16 @@ export default function AuditionsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="auditions_back">
-          <Feather name="chevron-left" size={26} color={palette.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>{t('auditions.title')}</Text>
-        {payload && (
-          <Text style={styles.headerMeta} numberOfLines={1}>
-            {collected ? `${t('auditions.collectedAt', { ago: collected })} · ` : ''}
-            {t('auditions.count', { n: visible.length })}
-          </Text>
-        )}
-      </View>
+      <NavHeader
+        title={t('auditions.title')}
+        left={<NavIconButton icon="chevron-left" label={t('common.back')} phLabel="auditions_back" onPress={() => router.back()} />}
+      />
+      {payload && (
+        <Text style={styles.headerMeta} numberOfLines={1}>
+          {collected ? `${t('auditions.collectedAt', { ago: collected })} · ` : ''}
+          {t('auditions.count', { n: visible.length })}
+        </Text>
+      )}
 
       {!payload && !error && (
         <View style={styles.center}>
@@ -365,7 +364,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   headerTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  headerMeta: { flex: 1, textAlign: 'right', fontSize: 11.5, fontWeight: '600', color: palette.textFaint },
+  headerMeta: { paddingHorizontal: 24, paddingBottom: 6, fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   link: { fontSize: 13, fontWeight: '800', color: palette.blue },
 

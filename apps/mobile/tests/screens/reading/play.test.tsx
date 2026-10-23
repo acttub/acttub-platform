@@ -133,6 +133,7 @@ beforeEach(async () => {
   mockFileOps.length = 0;
   await AsyncStorage.clear();
   await AsyncStorage.setItem('acttub.reading.autoAdvanceTipHidden', '1');
+  await AsyncStorage.setItem('acttub.reading.firstGuideSeen', '1');
   mic = null;
   recognizer = null;
   appStateListeners = [];
@@ -240,8 +241,7 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   // 음성 인식을 못 쓰는 기기(typing)는 인식된 대사 없이도 끝까지 가면 완료다(SOMA-773 예외).
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
-  expect(screen.getByText('내 배역 · 민재')).toBeOnTheScreen();
-  expect(screen.getByText('읽은 대사 3줄')).toBeOnTheScreen();
+  expect(screen.getByText(/^민재 · 대사 3줄 · \d\d:\d\d$/)).toBeOnTheScreen();
   expect(screen.getByText('이 기기에서는 말한 것을 글자로 바꾸지 못해 비교하지 않았어요.')).toBeOnTheScreen();
   await waitFor(() =>
     expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: null, complete: true, line_results: [] })),
@@ -253,10 +253,8 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   ]);
   expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 
-  await pressWhenReady('완료');
-  expect(await screen.findByText('오늘 리딩 끝!')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('확인'));
-  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  await pressWhenReady('홈으로 가기');
+  expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
   expect(server.deleteSession).not.toHaveBeenCalled();
 });
 
@@ -1042,19 +1040,6 @@ test('다시 연습을 시작하지 못하면 이유를 알린다', async () => 
   expect(mockRouter.replace).not.toHaveBeenCalledWith('/reading/play');
 });
 
-test('리딩 마무리에서 코치에게 보여 주기로 가면 대본 제목·장면·내 배역을 장면 칸에 채워 업로드 화면을 연다(SOMA-772)', async () => {
-  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' }, scriptDetail(TWO_ROLE_LINES, {
-    scenes: [{ no: 1, title: '1장 카페', start_line_id: 'l1', end_line_id: 'l5', dialogue_count: 3 }],
-  }));
-  await screen.findByText('듣는 중');
-  await speechEnds();
-
-  await pressWhenReady('완료');
-  await fireEvent.press(await screen.findByText('이 장면, 찍어서 코치에게 보여 주기'));
-  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
-  expect(takeContinueOrigin()).toEqual({ kind: 'reading', scene: { situation: '봄날의 대화 · 1장 카페', character: '민재', goal: '' } });
-});
-
 test('완료 화면이 뜬 직후에는 다시 연습·완료를 받지 않고, 다시 연습은 실행 중 [다음] 자리(아래 줄)에 두지 않는다(SOMA-772)', async () => {
   const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
   await screen.findByText('듣는 중');
@@ -1063,9 +1048,9 @@ test('완료 화면이 뜬 직후에는 다시 연습·완료를 받지 않고, 
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '다시 연습' })).toBeDisabled();
   await fireEvent.press(screen.getByText('다시 연습'));
-  await fireEvent.press(screen.getByText('완료'));
+  await fireEvent.press(screen.getByText('홈으로 가기'));
   expect(server.startSession).not.toHaveBeenCalled();
-  expect(screen.queryByText('오늘 리딩 끝!')).not.toBeOnTheScreen();
+  expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
   await waitFor(() => expect(screen.getByRole('button', { name: '다시 연습' })).toBeEnabled(), { timeout: 2000 });
 });
 
@@ -1817,4 +1802,29 @@ test('뒤로 가기(usePreventRemove)도 같은 나가기 확인 창을 연다',
   expect(screen.getByText('리딩을 멈출까요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('계속 읽기'));
   expect(mockRouter.dismissTo).not.toHaveBeenCalled();
+});
+
+test('완료 화면은 액티 · 대사 줄 수 줄 아래에 홈으로 가기와 다른 대본으로를 둔다(pen R9.42)', async () => {
+  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('듣는 중');
+  await speechEnds();
+
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  await waitFor(() => expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeEnabled(), { timeout: 2000 });
+  await fireEvent.press(screen.getByText('다른 대본으로'));
+  expect(mockRouter.replace).toHaveBeenCalledWith('/reading');
+  await fireEvent.press(screen.getByText('홈으로 가기'));
+  expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+});
+
+test('첫 리딩이면 끝에서 칭찬과 큰 홈으로 가기, 그 밑에 한 번 더 읽기만 보인다(pen R9.51)', async () => {
+  await AsyncStorage.removeItem('acttub.reading.firstGuideSeen');
+  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('듣는 중');
+  await speechEnds();
+
+  expect(await screen.findByText(/처음인데 끝까지 읽었어요/)).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '한 번 더 읽기' })).toBeOnTheScreen();
+  expect(screen.queryByText('다른 대본으로')).not.toBeOnTheScreen();
 });

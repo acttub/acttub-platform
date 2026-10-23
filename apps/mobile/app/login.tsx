@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -125,49 +126,32 @@ export default function LoginScreen() {
   const providers = list.status === 'ready' ? list.providers : [];
   const highlighted = highlightedProvider(providers, lastProvider);
 
+  // pen S3.4 — 제공자는 지름 60 동그라미 한 줄(Apple · Google · 카카오 · 네이버). 글자는 접근성 이름에만 둔다.
   const renderButton = (provider: LoginProvider) => {
     const label = t(`login.${provider}`);
     const isLast = highlighted === provider;
     const look = BUTTON_LOOK[provider];
     return (
-      <View key={provider}>
-        <Pressable
-          style={({ pressed }) => [styles.button, look.button, pressed && styles.pressed]}
-          onPress={() => void run(provider)}
-          disabled={busy !== null}
-          accessibilityRole="button"
-          accessibilityLabel={isLast ? t('login.lastUsedA11y', { label }) : label}>
-          {busy === provider ? (
-            <ActivityIndicator color={look.spinner} />
-          ) : (
-            <>
-              {provider === 'google' && (
-                // 구글이 배포하는 공식 로고 에셋(GoogleSignIn SDK). 직접 그리면 심사에서 막힌다.
-                <Image
-                  source={require('@/assets/images/google-logo.png')}
-                  style={styles.googleLogo}
-                  contentFit="contain"
-                />
-              )}
-              {provider === 'apple' &&
-                // 공식 AppleAuthenticationButton은 글자 크기를 버튼 높이에 비례해 정해서(약 0.35배)
-                // 다른 버튼과 크기를 맞출 수 없다. HIG가 허용하는 커스텀 버튼으로 직접 그린다 —
-                // 공식 로고(SF Symbols apple.logo)·승인 문구·검정 배경 규격은 그대로 지킨다.
-                (SymbolView ? (
-                  <SymbolView name="apple.logo" tintColor="#FFFFFF" size={23} />
-                ) : (
-                  <Text style={styles.appleGlyph}></Text>
-                ))}
-              <Text style={[styles.buttonText, look.text]}>{label}</Text>
-            </>
-          )}
-        </Pressable>
-        {isLast && (
-          <View style={styles.lastBadge} pointerEvents="none">
-            <Text style={styles.lastBadgeText}>{t('login.lastUsed')}</Text>
-          </View>
+      <Pressable
+        key={provider}
+        style={({ pressed }) => [styles.circle, look.button, pressed && styles.pressed, busy !== null && styles.dim]}
+        onPress={() => void run(provider)}
+        disabled={busy !== null}
+        accessibilityRole="button"
+        accessibilityLabel={isLast ? t('login.lastUsedA11y', { label }) : label}>
+        {provider === 'google' && (
+          // 구글이 배포하는 공식 로고 에셋(GoogleSignIn SDK). 직접 그리면 심사에서 막힌다.
+          <Image source={require('@/assets/images/google-logo.png')} style={styles.googleLogo} contentFit="contain" />
         )}
-      </View>
+        {provider === 'apple' &&
+          (SymbolView ? (
+            <SymbolView name="apple.logo" tintColor="#FFFFFF" size={26} />
+          ) : (
+            <Text style={styles.appleGlyph}></Text>
+          ))}
+        {provider === 'kakao' && <Feather name="message-circle" size={26} color={KAKAO_TEXT} />}
+        {provider === 'naver' && <Text style={styles.naverN}>N</Text>}
+      </Pressable>
     );
   };
 
@@ -181,13 +165,24 @@ export default function LoginScreen() {
           contentFit="contain"
         />
         <Text style={styles.tagline}>{t('login.tagline')}</Text>
+        {busy !== null && (
+          <View style={styles.progress} accessibilityRole="progressbar">
+            <ActivityIndicator size="small" color={palette.textMuted} />
+            <Text style={styles.progressText}>{t('login.signingIn')}</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.bottom}>
         {loginNotice?.kind === 'notice' && (
           <Text style={styles.notice}>{loginNotice.message}</Text>
         )}
-        {failed && <Text style={styles.error}>{t('login.failed')}</Text>}
+        {failed && (
+          <View style={styles.failBox} accessibilityRole="alert">
+            <Feather name="help-circle" size={20} color={palette.danger} />
+            <Text style={styles.failText}>{t('login.failed')}</Text>
+          </View>
+        )}
 
         {list.status === 'loading' ? (
           <ActivityIndicator color={palette.blue} />
@@ -200,7 +195,7 @@ export default function LoginScreen() {
         ) : providers.length === 0 ? (
           <Text style={styles.error}>{t('login.providersEmpty')}</Text>
         ) : (
-          providers.map(renderButton)
+          <View style={styles.circleRow}>{providers.map(renderButton)}</View>
         )}
       </View>
       {dialog}
@@ -209,34 +204,21 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 28 },
+  safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 24 },
   hero: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  logo: { width: 220, height: 88 },
-  tagline: { fontSize: 15, color: palette.textDim, textAlign: 'center', lineHeight: 22 },
-  bottom: { paddingBottom: 28, gap: 14 },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    height: 56,
-    borderRadius: 16,
-  },
-  buttonText: { fontSize: 16, fontWeight: '600' },
-  googleLogo: { width: 20, height: 20 },
+  logo: { width: 190, height: 76 },
+  tagline: { fontSize: 15, fontWeight: '500', color: palette.textDim, textAlign: 'center', lineHeight: 22 },
+  // 로그인하는 중 — 돌림 표시와 한 줄 문구.
+  progress: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 56 },
+  progressText: { fontSize: 14, fontWeight: '500', color: palette.textMuted },
+  bottom: { paddingBottom: 28, gap: 20 },
+  circleRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  circle: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
+  googleLogo: { width: 26, height: 26 },
+  naverN: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
   pressed: { opacity: 0.7 },
-  appleGlyph: { fontFamily: 'System', fontSize: 21, color: '#FFFFFF' },
-  // 지난번에 쓴 제공자 — 버튼 오른쪽 위에 걸치는 작은 표시.
-  lastBadge: {
-    position: 'absolute',
-    top: -9,
-    right: 14,
-    backgroundColor: palette.blue,
-    borderRadius: 9999,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  lastBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  dim: { opacity: 0.5 },
+  appleGlyph: { fontFamily: 'System', fontSize: 26, color: '#FFFFFF' },
   notice: {
     color: palette.text,
     backgroundColor: palette.bgSubtle,
@@ -247,6 +229,17 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
+  // 로그인 실패 — 옅은 빨강 칸에 물음표 아이콘과 두 줄 문구(pen S3.8b).
+  failBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: palette.dangerSoft,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  failText: { flex: 1, fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.danger },
   reloadBox: { alignItems: 'center', gap: 4 },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
 });
@@ -262,7 +255,7 @@ const BUTTON_LOOK: Record<
     spinner: GOOGLE_TEXT,
   },
   apple: {
-    button: { backgroundColor: '#000000', gap: 8 },
+    button: { backgroundColor: '#000000' },
     text: { color: '#FFFFFF' },
     spinner: '#FFFFFF',
   },

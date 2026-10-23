@@ -52,7 +52,14 @@ type Ranked = RankedEntry;
 export default function ChallengeDetailScreen() {
   const router = useRouter();
   const { alert, confirm, dialog } = useAppDialog();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, opened } = useLocalSearchParams<{ id?: string; opened?: string }>();
+  /** 방금 등록해서 들어왔으면 아래에 어두운 안내줄을 잠깐 띄운다(C4.7). */
+  const [toast, setToast] = useState(opened === '1');
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(false), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
   const [sort, setSort] = useState<EntrySort>('likes');
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
   const [entries, setEntries] = useState<Ranked[] | null>(null);
@@ -328,8 +335,13 @@ export default function ChallengeDetailScreen() {
       </ScrollView>
       {challenge && canPerform(challenge) && (
         <CtaBar safeBottom={false}>
-          <PrimaryButton label={t('challenges.tryIt')} onPress={perform} />
+          <PrimaryButton label={t('challenges.performCta')} onPress={perform} />
         </CtaBar>
+      )}
+      {toast && (
+        <View style={styles.toast} pointerEvents="none">
+          <Text style={styles.toastText}>{t('lineNew.doneToast')}</Text>
+        </View>
       )}
       <ChallengeReportSheet
         visible={reportOpen}
@@ -343,6 +355,8 @@ export default function ChallengeDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  toast: { position: 'absolute', left: 24, right: 24, bottom: 96, backgroundColor: palette.navy, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 18 },
+  toastText: { fontSize: 14.5, fontWeight: '700', color: palette.onAccent },
   pressed: { opacity: 0.85 },
   moreBtn: { alignItems: 'center', paddingVertical: 14 },
   moreText: { color: palette.blue, fontSize: 14, fontWeight: '600' },

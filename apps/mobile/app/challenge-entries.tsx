@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -209,12 +210,10 @@ export default function ChallengeEntriesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="challenge_entries_back">
-          <Feather name="chevron-left" size={26} color={palette.text} />
-        </Pressable>
-        <Text style={styles.title}>{t('challengeEntries.title')}</Text>
-      </View>
+      <NavHeader
+        title={t('challengeEntries.title')}
+        left={<NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenge_entries_back" onPress={() => router.back()} />}
+      />
 
       <View style={styles.tabs}>
         {(

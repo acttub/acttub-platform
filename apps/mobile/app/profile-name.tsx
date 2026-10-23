@@ -2,18 +2,17 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, BackHandler, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BirthWheel, formatBirthParts, parseBirthDate, type BirthParts } from '@/components/birth-wheel';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
-import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { ProgressHeader } from '@/components/ui/step-header';
-import { SummaryEditCard, SummaryRow } from '@/components/ui/summary-row';
 import { motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
@@ -34,8 +33,8 @@ import { translate as t, translateList } from '@/lib/i18n';
 import { logMetaEvent } from '@/lib/meta-events';
 import {
   birthStepOutcome,
-  nextOpenStep,
   onboardingSteps,
+  stepAfter,
   stepBefore,
   stepReady,
   type OnboardingStep,
@@ -49,7 +48,6 @@ import {
   NAME_MAX_LENGTH,
   buildProfilePayload,
   checkBirthDate,
-  formatBirthDateInput,
   initialProfileForm,
   profileSaveFailure,
   type Gender,
@@ -68,27 +66,27 @@ const GENDER_ORDER: readonly Gender[] = ['male', 'female', 'unspecified'];
  * 서버가 받는 여섯 항목(이름·생년월일·성별·최종 목표·연기 경력·추구하는 방향)을 하나씩 묻고 끝에서 한 번
  * 저장한다(PUT /v2/me/profile, 부분 저장 없음 — 도중에 앱을 닫으면 처음부터).
  *
- * 토스 가입처럼(SOMA-790) 「계속하기」 없이 답하면 다음 질문이 맨 위에 나오고, 캐릭터 말풍선이 그 질문으로 바뀐다.
- * 답한 칸은 아래에 최근 것부터 쌓이고 누르면 그 질문으로 돌아가 고친다. 생년월일은 8자리가 차면, 하나 고르는 질문은
- * 누르면 넘어간다. 언제 다 적었는지 알 수 없는 닉네임과 여러 개 고르는 추구하는 방향만 버튼으로 마친다. 어디서 알게 됐나(SOMA-649)는 Airbridge 가
- * 출처를 모를 때만 맨 끝에 묻는다(SOMA-733). 만 14세 미만 생년월일은 「가입할 수 없어요」로 보낸다.
- *
- * 모양은 pen 01 가입(파이프라인 반영버전): 고르는 질문은 말풍선 아래 회색 「○○ 선택」 제목(13/600)과 답 칩(높이 42),
- * 답한 칸은 요약 행. 지난 답변을 눌러 돌아간 질문은 그 요약 행 자리의 파란 테두리 칸(SummaryEditCard)에서 고르고, 위에
- * 「지난 답변을 누르면 바로 고칠 수 있어요」를 둔다(추구하는 방향은 「여러 개 고를 수 있어요」를 덧붙인다).
+ * 한 화면에 질문 하나(pen S5.15~S5.24). 위에 진행 막대, 액티 말풍선의 질문, 아래 「다음」 순서다. 고르는 질문은 기본 선택 없이 줄을 누르면
+ * 파랗게 선택되고, 「다음」을 눌러야 넘어간다(마지막은 「완료」). 생년월일은 연·월·일 돌림판이다. 추구하는 방향만 여러 개 고른다.
+ * 어디서 알게 됐나(SOMA-649)는 Airbridge 가 출처를 모를 때만 맨 끝에 묻고(SOMA-733) 「건너뛰기」가 있다. 만 14세 미만 생년월일은
+ * 「가입할 수 없어요」로 보낸다. 저장은 마지막에 한 번이다(부분 저장 없음).
  * pen 의 「요즘 연습 방식」「이루고 싶은 것」·출생연도만 받기·연기 목표/경력 값 바꾸기는 서버 변경이 필요해 넣지 않았다.
  */
 export default function ProfileNameScreen() {
   const { profile, reloadProfile, saveProfile, closeAccountUnder14, signOut } = useAuth();
   const [form, setForm] = useState<ProfileFormState>(() => initialProfileForm(null, null));
   const [screen, setScreen] = useState<Screen>('intro');
-  // 답을 마친 질문. 아래에 쌓아 보이고, 다음 질문을 고를 때 건너뛴다.
-  const [done, setDone] = useState<ReadonlySet<OnboardingStep>>(() => new Set());
   const reduceMotion = useReducedMotion();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [birthInvalid, setBirthInvalid] = useState(false);
   const keyboardHeight = useKeyboardHeight();
+  // 생년월일 돌림판 — 연도는 오래된 해부터 올해까지, 처음 값은 스무 살 무렵의 1월 1일이다.
+  const birthYears = useMemo(() => {
+    const thisYear = new Date().getFullYear();
+    return Array.from({ length: 101 }, (_, i) => thisYear - 100 + i);
+  }, []);
+  const defaultBirth = useMemo<BirthParts>(() => ({ year: new Date().getFullYear() - 20, month: 1, day: 1 }), []);
   const [discovery, setDiscovery] = useState<DiscoveryState>(EMPTY_DISCOVERY);
   const discoverySources = useMemo(() => discoveryOrder(), []);
   // Airbridge 가 이미 광고·추적 링크로 출처를 확인한 설치면 묻지 않는다(SOMA-733). 귀속을 읽기 전에는 묻는 쪽으로 둔다.
@@ -168,7 +166,7 @@ export default function ProfileNameScreen() {
     }
   };
 
-  /** 이 질문을 마치고 아직 안 답한 다음 질문으로. 다 답했으면 저장한다. */
+  /** 이 질문을 마치고 다음 질문으로. 마지막이면 저장한다. */
   const advance = (from: OnboardingStep, patch?: Partial<ProfileFormState>, answer?: DiscoveryState) => {
     const nextForm = patch ? { ...form, ...patch } : form;
     if (patch) update(patch);
@@ -184,20 +182,17 @@ export default function ProfileNameScreen() {
         return;
       }
     }
-    const answered = new Set(done).add(from);
-    setDone(answered);
-    const next = nextOpenStep(steps, answered, from);
+    const next = stepAfter(steps, from);
     if (next) setScreen(next);
     else void submit(answer);
   };
 
-  /** 생년월일은 8자리가 차면 바로 넘어간다. 있을 수 없는 날짜는 칸 아래에 이유를 보이고 멈춘다. */
-  const changeBirth = (text: string) => {
-    const birthDate = formatBirthDateInput(text);
-    setBirthInvalid(false);
-    update({ birthDate });
-    if (birthDate.replace(/\D/g, '').length === 8) advance('birth', { birthDate });
-  };
+  // 생년월일 칸에 들어오면 돌림판의 처음 값을 폼에도 넣어, 돌리지 않고 「다음」을 눌러도 보이는 값이 저장된다.
+  useEffect(() => {
+    if (screen === 'birth' && !parseBirthDate(form.birthDate)) {
+      setForm((prev) => ({ ...prev, birthDate: formatBirthParts(defaultBirth) }));
+    }
+  }, [screen, form.birthDate, defaultBirth]);
 
   if (!me) {
     // 내 계정을 아직 못 읽었다. 읽기 전에 빈 폼을 보여 주면 옛 닉네임을 덮어쓰게 된다.
@@ -264,33 +259,20 @@ export default function ProfileNameScreen() {
   const careers = translateList('profileName.careerOptions');
   const goals = translateList('profileName.goalOptions');
   const nameTooLong = [...name].length > NAME_MAX_LENGTH;
-  const birthCheck = checkBirthDate(form.birthDate, new Date());
+  const birthParts = parseBirthDate(form.birthDate) ?? defaultBirth;
+  const isLast = stepAfter(steps, step) === null;
 
   let body: ReactNode = null;
   let footer: ReactNode = null;
-  /** 칸을 다 적었는지 알 수 없는 질문(닉네임·추구하는 방향·기타 직접 적기)만 버튼으로 마친다. 마지막이면 「완료」. */
-  const finishButton = (onPress: () => void, enabled: boolean) => (
+  /** 한 화면에 질문 하나 — 고르거나 적고 아래 「다음」(마지막이면 「완료」)을 눌러야 넘어간다. */
+  const nextButton = (onPress: () => void, enabled: boolean) => (
     <PrimaryButton
-      label={nextOpenStep(steps, done, step) ? t('profileName.next') : t('profileName.done')}
+      label={isLast ? t('profileName.done') : t('profileName.next')}
       onPress={onPress}
       disabled={!enabled}
       loading={busy}
     />
   );
-
-  // 지난 답변을 눌러 돌아온 질문 — 답한 칸 자리의 파란 테두리 칸에서 고친다(pen 7/7 · 지난 답변 수정).
-  const editing = done.has(step);
-  const isChoice = step !== 'name' && step !== 'birth';
-  /** 고르는 질문의 몸 — 처음엔 회색 「○○ 선택」 제목 아래 칩, 고치는 중이면 칩만(제목은 수정 칸 머리가 맡는다). */
-  const choiceBlock = (chips: ReactNode) =>
-    editing ? (
-      chips
-    ) : (
-      <>
-        <Text style={styles.pickLabel}>{t(PICK_LABEL_KEYS[step])}</Text>
-        <View style={styles.pickOptions}>{chips}</View>
-      </>
-    );
 
   switch (step) {
     case 'name':
@@ -310,92 +292,77 @@ export default function ProfileNameScreen() {
           {nameTooLong && <Text style={styles.fieldError}>{t('profileName.nameTooLong')}</Text>}
         </>
       );
-      footer = finishButton(() => advance('name'), ready);
+      footer = nextButton(() => advance('name'), ready);
       break;
     case 'birth':
       body = (
         <>
-          <TextInput
-            style={styles.input}
-            placeholder={t('profileName.birthPlaceholder')}
-            placeholderTextColor={palette.checkOff}
-            value={form.birthDate}
-            onChangeText={changeBirth}
-            keyboardType="number-pad"
-            maxLength={10}
-            autoFocus
-            accessibilityLabel={t('profileName.birthLabel')}
+          <BirthWheel
+            value={birthParts}
+            years={birthYears}
+            onChange={(parts) => {
+              setBirthInvalid(false);
+              update({ birthDate: formatBirthParts(parts) });
+            }}
           />
-          {(birthInvalid || birthCheck.kind === 'invalid') && (
-            <Text style={styles.fieldError}>{t('profileName.birthInvalid')}</Text>
-          )}
+          {(birthInvalid || checkBirthDate(form.birthDate, new Date()).kind === 'invalid') && <Text style={styles.fieldError}>{t('profileName.birthInvalid')}</Text>}
         </>
       );
+      footer = nextButton(() => advance('birth'), ready);
       break;
     case 'gender':
       // 「선택 안 함」이 있어 건너뛰기는 두지 않는다 — 서버 값 그대로(unspecified).
-      body = choiceBlock(
-        <View style={styles.chipRow}>
+      body = (
+        <View style={styles.options}>
           {GENDER_ORDER.map((gender) => (
-            <Chip
+            <ChoiceRow
               key={gender}
-              variant="answer"
-              role="radio"
               label={t(GENDER_LABEL_KEYS[gender])}
               selected={form.gender === gender}
-              onPress={() => advance('gender', { gender })}
+              onPress={() => update({ gender })}
             />
           ))}
-        </View>,
+        </View>
       );
+      footer = nextButton(() => advance('gender'), ready);
       break;
     case 'goal':
-      body = choiceBlock(
-        <View style={styles.chipRow}>
+      body = (
+        <View style={styles.options}>
           {GOAL_VALUES.map((goal, i) => (
-            <Chip
+            <ChoiceRow
               key={goal}
-              variant="answer"
-              role="radio"
               label={goals[i] ?? goal}
               selected={form.goal === goal}
-              onPress={() => advance('goal', { goal })}
+              onPress={() => update({ goal })}
             />
           ))}
-        </View>,
+        </View>
       );
+      footer = nextButton(() => advance('goal'), ready);
       break;
     case 'career':
-      // 세 개씩 두 줄, 칸은 줄 폭을 나눠 갖는다(pen 5/7).
-      body = choiceBlock(
-        <View style={styles.chipRows}>
-          {[EXPERIENCE_VALUES.slice(0, 3), EXPERIENCE_VALUES.slice(3)].map((line, row) => (
-            <View key={row} style={styles.chipRow}>
-              {line.map((experience) => (
-                <Chip
-                  key={experience}
-                  variant="answer"
-                  role="radio"
-                  style={styles.chipFill}
-                  label={careers[EXPERIENCE_VALUES.indexOf(experience)] ?? experience}
-                  selected={form.experience === experience}
-                  onPress={() => advance('career', { experience })}
-                />
-              ))}
-            </View>
+      body = (
+        <View style={styles.options}>
+          {EXPERIENCE_VALUES.map((experience, i) => (
+            <ChoiceRow
+              key={experience}
+              label={careers[i] ?? experience}
+              selected={form.experience === experience}
+              onPress={() => update({ experience })}
+            />
           ))}
-        </View>,
+        </View>
       );
+      footer = nextButton(() => advance('career'), ready);
       break;
     case 'directions':
-      body = choiceBlock(
-        <View style={styles.chipRow}>
+      body = (
+        <View style={styles.options}>
           {DIRECTION_VALUES.map((direction) => (
-            <Chip
+            <ChoiceRow
               key={direction}
-              variant="answer"
-              role="checkbox"
-              style={styles.chipFill}
+              multi
               label={t(DIRECTION_LABEL_KEYS[direction])}
               selected={form.directions.includes(direction)}
               onPress={() =>
@@ -407,28 +374,21 @@ export default function ProfileNameScreen() {
               }
             />
           ))}
-        </View>,
+        </View>
       );
-      footer = finishButton(() => advance('directions'), ready);
+      footer = nextButton(() => advance('directions'), ready);
       break;
     case 'discovery':
-      // 하나 누르면 바로 저장한다. 「기타」만 직접 적고 「완료」를 누른다. 건너뛰면 고르지 않은 것으로 적는다.
-      body = choiceBlock(
+      // 고르고 「완료」를 눌러야 저장한다. 「기타」는 직접 적는다. 건너뛰면 고르지 않은 것으로 적는다.
+      body = (
         <>
-          <View style={[styles.chipRow, styles.chipWrap]}>
+          <View style={styles.options}>
             {discoverySources.map((source) => (
-              <Chip
+              <ChoiceRow
                 key={source}
-                variant="answer"
-                compact
-                role="radio"
                 label={t(`profileName.discoverySources.${source}`)}
                 selected={discovery.source === source}
-                onPress={() => {
-                  const answer = chooseDiscoverySource(discovery, source);
-                  setDiscovery(answer);
-                  if (source !== 'other' && answer.source === source) advance('discovery', undefined, answer);
-                }}
+                onPress={() => setDiscovery(chooseDiscoverySource(discovery, source))}
               />
             ))}
           </View>
@@ -443,12 +403,14 @@ export default function ProfileNameScreen() {
               autoFocus
             />
           )}
-        </>,
+        </>
       );
       footer = (
         <>
-          {discovery.source === 'other' &&
-            finishButton(() => advance('discovery'), discovery.otherText.trim().length > 0)}
+          {nextButton(
+            () => advance('discovery'),
+            discovery.source !== null && (discovery.source !== 'other' || discovery.otherText.trim().length > 0),
+          )}
           <TextButton
             size="large"
             label={t('profileName.skip')}
@@ -463,76 +425,20 @@ export default function ProfileNameScreen() {
       break;
   }
 
-  // 답한 칸 — 최근 것부터 아래로 쌓는다. 누르면 그 질문으로 돌아가 고친다.
-  const answeredRows = steps
-    .filter((s) => s !== step && s !== 'discovery' && done.has(s))
-    .reverse()
-    .map((s) => ({ step: s, label: t(SUMMARY_LABEL_KEYS[s]), value: summaryValue(s) }));
-
-  function summaryValue(s: OnboardingStep): string {
-    switch (s) {
-      case 'name':
-        return name;
-      case 'birth':
-        return form.birthDate;
-      case 'gender':
-        return form.gender ? t(GENDER_LABEL_KEYS[form.gender]) : '';
-      case 'goal':
-        return form.goal ? (goals[GOAL_VALUES.indexOf(form.goal)] ?? form.goal) : '';
-      case 'career':
-        return form.experience ? (careers[EXPERIENCE_VALUES.indexOf(form.experience)] ?? form.experience) : '';
-      case 'directions':
-        return DIRECTION_VALUES.filter((d) => form.directions.includes(d))
-          .map((d) => t(DIRECTION_LABEL_KEYS[d]))
-          .join(', ');
-      default:
-        return '';
-    }
-  }
-
   return (
     <SafeAreaView style={styles.safe} edges={keyboardHeight > 0 ? ['top'] : ['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <ProgressHeader step={index} total={steps.length} onBack={goBack} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <MascotBubble title={t(ASK_KEYS[step], { name })} guide={t(ASK_HINT_KEYS[step])} />
-          {editing && isChoice ? null : (
-            <Animated.View
-              key={step}
-              entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}
-              style={isChoice ? styles.currentChoice : styles.currentInput}>
-              {body}
-            </Animated.View>
-          )}
+          <MascotBubble title={t(ASK_KEYS[step], { name })} />
+          <Animated.View
+            key={step}
+            entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}
+            style={styles.current}>
+            {body}
+          </Animated.View>
           {error && <Text style={styles.error}>{error}</Text>}
-          {(answeredRows.length > 0 || (editing && isChoice)) && (
-            <View style={isChoice ? styles.answeredAfterChoice : styles.answeredAfterInput}>
-              {editing && <Text style={styles.editHint}>{t('profileName.editHint')}</Text>}
-              <View style={styles.answeredList}>
-                {editing && isChoice && (
-                  <Animated.View key={step} entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}>
-                    <SummaryEditCard
-                      label={t(SUMMARY_LABEL_KEYS[step])}
-                      hint={step === 'directions' ? t('profileName.editManyHint') : undefined}>
-                      {body}
-                    </SummaryEditCard>
-                  </Animated.View>
-                )}
-                {answeredRows.map((row) => (
-                  <SummaryRow
-                    key={row.step}
-                    label={row.label}
-                    value={row.value}
-                    onPress={() => {
-                      setError(null);
-                      setScreen(row.step);
-                    }}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
         </ScrollView>
         {footer && (
           <CtaBar safeBottom={false} style={styles.footer}>
@@ -544,7 +450,35 @@ export default function ProfileNameScreen() {
   );
 }
 
-/** 질문마다 캐릭터 말풍선 제목·안내. */
+/**
+ * 고르는 줄(pen S5.20~S5.24) — 높이 56, 흰 바탕 · 1px 테두리, 모서리 16. 고르면 옅은 파랑 바탕 · 파란 테두리 · 파란 글자와 오른쪽 체크.
+ * 하나만 고르는 질문은 radio, 여럿 고르는 질문(추구하는 방향)은 checkbox 로 읽힌다.
+ */
+function ChoiceRow({
+  label,
+  selected,
+  onPress,
+  multi = false,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  multi?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.choice, selected && styles.choiceOn, pressed && styles.choicePressed]}
+      accessibilityRole={multi ? 'checkbox' : 'radio'}
+      accessibilityState={multi ? { checked: selected } : { selected }}
+      accessibilityLabel={label}>
+      <Text style={[styles.choiceText, selected && styles.choiceTextOn]}>{label}</Text>
+      {selected && <Feather name="check" size={20} color={palette.blue} />}
+    </Pressable>
+  );
+}
+
+/** 질문마다 캐릭터 말풍선 제목. */
 const ASK_KEYS: Record<OnboardingStep, string> = {
   name: 'profileName.askName',
   birth: 'profileName.askBirth',
@@ -554,35 +488,6 @@ const ASK_KEYS: Record<OnboardingStep, string> = {
   directions: 'profileName.askDirections',
   discovery: 'profileName.askDiscovery',
 };
-const ASK_HINT_KEYS: Record<OnboardingStep, string> = {
-  name: 'profileName.askNameHint',
-  birth: 'profileName.askBirthHint',
-  gender: 'profileName.askGenderHint',
-  goal: 'profileName.askGoalHint',
-  career: 'profileName.askCareerHint',
-  directions: 'profileName.askDirectionsHint',
-  discovery: 'profileName.askDiscoveryHint',
-};
-/** 고르는 질문의 회색 제목(pen 01 「○○ 라벨」). */
-const PICK_LABEL_KEYS: Record<OnboardingStep, string> = {
-  name: 'profileName.nicknameLabel',
-  birth: 'profileName.birthLabel',
-  gender: 'profileName.pickGender',
-  goal: 'profileName.pickGoal',
-  career: 'profileName.pickCareer',
-  directions: 'profileName.pickDirections',
-  discovery: 'profileName.pickDiscovery',
-};
-/** 답한 칸의 이름. */
-const SUMMARY_LABEL_KEYS: Record<OnboardingStep, string> = {
-  name: 'profileName.nicknameLabel',
-  birth: 'profileName.birthLabel',
-  gender: 'profileName.genderLabel',
-  goal: 'profileName.rowGoal',
-  career: 'profileName.careerLabel',
-  directions: 'profileName.rowDirections',
-  discovery: 'profileName.discoveryLabel',
-};
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
@@ -591,7 +496,7 @@ const styles = StyleSheet.create({
 
   // pen 01 가입 시작 — 위에서 168(상태 막대 35 포함) 아래에 액티 127×142, 16 · 제목 26/800 · 8 · 설명 16/400 · 13 · 「1분이면 끝나요」.
   introCenter: { flex: 1, alignItems: 'center', paddingTop: 133, paddingHorizontal: 24 },
-  introTitle: { marginTop: 16, fontSize: 26, fontWeight: '800', lineHeight: 36, color: palette.text, textAlign: 'center' },
+  introTitle: { marginTop: 16, fontSize: 26, fontWeight: '800', lineHeight: 35, color: palette.text, textAlign: 'center' },
   introBody: {
     marginTop: 8,
     maxWidth: 290,
@@ -612,28 +517,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   introBadgeText: { fontSize: 16, fontWeight: '700', color: palette.blueDeep },
-  // pen 01 「Footer」 — 안쪽 [0,20,11,20].
-  footer: { paddingTop: 8, paddingHorizontal: 20, paddingBottom: 11 },
+  // 아래 버튼 칸 — 좌우 24, 주 버튼 52, 버튼 사이 8.
+  footer: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 12, gap: 8 },
 
-  // pen 01 질문 「Body」 — 안쪽 [10,20,0,20]. 말풍선 아래 칸까지 23(입력)·18(고르기), 답한 칸까지 28(입력)·24(고르기).
-  body: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 24 },
-  currentInput: { marginTop: 23 },
-  currentChoice: { marginTop: 18 },
-  pickLabel: { fontSize: 13, fontWeight: '600', color: palette.textMuted },
-  pickOptions: { paddingTop: 8 },
-  chipRows: { gap: 8 },
-  chipRow: { flexDirection: 'row', gap: 8 },
-  chipWrap: { flexWrap: 'wrap' },
-  chipFill: { flex: 1, paddingHorizontal: 8 },
-  answeredAfterInput: { marginTop: 28 },
-  answeredAfterChoice: { marginTop: 24 },
-  answeredList: { gap: 9 },
-  editHint: { paddingBottom: 8, fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  // 질문 화면 — 좌우 24. 말풍선 아래 답 칸까지 24, 고르는 줄 사이 8.
+  body: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 24 },
+  current: { marginTop: 24 },
+  options: { gap: 8 },
+  choice: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.card,
+  },
+  choiceOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft },
+  choicePressed: { opacity: 0.7 },
+  choiceText: { flex: 1, fontSize: 16, fontWeight: '600', color: palette.textStrong },
+  choiceTextOn: { fontWeight: '700', color: palette.blueDeep },
   input: {
-    height: 51,
+    height: 52,
     backgroundColor: palette.bgSoft,
     borderRadius: 16,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     fontSize: 16,
     fontWeight: '700',
     color: palette.text,

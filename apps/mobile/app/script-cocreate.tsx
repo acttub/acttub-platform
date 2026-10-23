@@ -1,4 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -148,8 +149,8 @@ export default function ScriptCocreateScreen() {
       if (readingMode) {
         const loaded = await loadIntoCurrent(saved.script_id);
         if (!loaded) throw new Error('saved_script_not_found');
-        if (loaded.characters.length >= 2) router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
-        else router.replace('/reading/detail');
+        router.replace('/reading/detail');
+        if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
       } else {
         setStep('saved');
       }
@@ -275,7 +276,7 @@ export default function ScriptCocreateScreen() {
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
             {step === 'emotion' ? (
               <>
-                <MascotBubble title={t('scriptCocreate.emotionAsk')} />
+                <MascotBubble title={t('scriptCocreate.emotionAsk')} guide={t('scriptCocreate.pickNext')} />
                 <View style={styles.chips}>
                   {[...EMOTIONS, ANY_EMOTION].map((label) => (
                     <Chip
@@ -294,7 +295,7 @@ export default function ScriptCocreateScreen() {
               </>
             ) : step === 'situation' ? (
               <>
-                <MascotBubble title={t('scriptCocreate.situationAsk')} body={t('scriptCocreate.situationSub')} />
+                <MascotBubble title={t('scriptCocreate.situationAsk')} guide={t('scriptCocreate.pickNext')} />
                 <View style={styles.chips}>
                   {[...SITUATIONS, ANY_SITUATION].map((label) => (
                     <Chip
@@ -319,7 +320,7 @@ export default function ScriptCocreateScreen() {
               </>
             ) : (
               <>
-                <MascotBubble title={t('scriptCocreate.directionAsk')} body={t('scriptCocreate.directionSub')} />
+                <MascotBubble title={t('scriptCocreate.directionAsk')} guide={t('scriptCocreate.directionSub')} />
                 <TextInput
                   value={direction}
                   onChangeText={setDirection}

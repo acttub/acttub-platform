@@ -70,12 +70,12 @@ beforeEach(() => {
 
 async function reachDirection() {
   await render(<ScriptCocreateScreen />);
-  expect(screen.getByText('어떤 감정을 연습하고 싶어요?')).toBeOnTheScreen();
+  expect(screen.getByText('어떤 감정을 연기해 볼래요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('분노'));
-  expect(screen.getByText('어떤 상황이면 좋아요?')).toBeOnTheScreen();
-  await fireEvent.changeText(screen.getByLabelText('어떤 상황이면 좋아요?'), '아버지가 내 원서를 버렸어요');
+  expect(screen.getByText('어떤 상황이 좋겠어요?')).toBeOnTheScreen();
+  await fireEvent.changeText(screen.getByLabelText('어떤 상황이 좋겠어요?'), '아버지가 내 원서를 버렸어요');
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-  expect(screen.getByText('원하는 방향이 있으면 적어 주세요')).toBeOnTheScreen();
+  expect(screen.getByText('몇 명이 나오고,\n어떤 대본이면 좋겠어요?')).toBeOnTheScreen();
 }
 
 test('감정 → 상황 → 방향을 묻고 프로필 경력과 함께 독백 1분을 만든 뒤, 넓은 대본과 수정·확정 두 버튼을 보인다', async () => {
@@ -106,16 +106,16 @@ test('감정 → 상황 → 방향을 묻고 프로필 경력과 함께 독백 1
 test('만들기에 실패하면 방향 화면으로 돌아와 이유를 보인다 — 뒤로는 앞 단계로 간다', async () => {
   createSampleScript.mockRejectedValue(new ApiError(429, 'limit', 'sample_script_daily_limit'));
   await reachDirection();
-  await fireEvent.press(screen.getByRole('radio', { name: '2명 (대화)' }));
+  await fireEvent.press(screen.getByRole('radio', { name: '2명' }));
   await fireEvent.press(screen.getByRole('radio', { name: '약 3분' }));
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
 
   expect(createSampleScript).toHaveBeenCalledWith(expect.objectContaining({ character_count: 2, length_minutes: 3 }));
   expect(await screen.findByText('오늘은 대본을 충분히 만들었어요. 내일 다시 만들어 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-  expect(screen.getByText('어떤 상황이면 좋아요?')).toBeOnTheScreen();
+  expect(screen.getByText('어떤 상황이 좋겠어요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-  expect(screen.getByText('어떤 감정을 연습하고 싶어요?')).toBeOnTheScreen();
+  expect(screen.getByText('어떤 감정을 연기해 볼래요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(mockRouter.back).toHaveBeenCalled();
 });
@@ -148,7 +148,7 @@ test('수정이 실패하면 수정 화면에 남아 이유를 보이고, 무료
   await reachDirection();
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
   await fireEvent.press(await screen.findByRole('button', { name: '수정하기' }));
-  await fireEvent.press(screen.getByRole('radio', { name: '2명 (대화)' }));
+  await fireEvent.press(screen.getByRole('radio', { name: '2명' }));
   await fireEvent.press(screen.getByRole('button', { name: '수정 적용' }));
 
   expect(reviseSampleScript).toHaveBeenCalledWith('s1', { base_version: 1, character_count: 2 });
@@ -202,7 +202,7 @@ test('생성 응답 유실 뒤 같은 입력 재시도는 request_id 유지, 입
   createSampleScript.mockRejectedValue(new Error('network'));
   await reachDirection();
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
-  await screen.findByText('원하는 방향이 있으면 적어 주세요');
+  await screen.findByText('몇 명이 나오고,\n어떤 대본이면 좋겠어요?');
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
   expect(createSampleScript.mock.calls[1][0].request_id).toBe(createSampleScript.mock.calls[0][0].request_id);
   await fireEvent.press(screen.getByRole('radio', { name: '약 3분' }));
@@ -228,7 +228,7 @@ test('서버 수정 성공 후 응답 유실은 GET 최신 결과로 복구하�
   expect(reviseSampleScript.mock.calls[1][1].base_version).toBe(2);
 });
 
- test('리딩은 2명으로 만들고 확정한 대본의 배역 선택으로 간다', async () => {
+ test('리딩은 2명으로 만들고 확정한 대본의 상세로 간다', async () => {
   mockParams.mode = 'reading';
   createSampleScript.mockResolvedValue(sample({ character_count: 2 }));
   saveSampleScript.mockResolvedValue({ script_id: 'reading-1' });
@@ -239,6 +239,6 @@ test('서버 수정 성공 후 응답 유실은 GET 최신 결과로 복구하�
   expect(createSampleScript).toHaveBeenCalledWith(expect.objectContaining({ character_count: 2 }));
   await fireEvent.press(await screen.findByRole('button', { name: '이 대본으로 확정' }));
   expect(loadIntoCurrent).toHaveBeenCalledWith('reading-1');
-  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } });
+  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
   expect(setContinueOrigin).not.toHaveBeenCalled();
 });

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryButton } from '@/components/ui/buttons';
+import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
@@ -76,7 +76,7 @@ export default function ChallengeResultScreen() {
 
         {challenge && (
           <>
-            <View style={styles.lineCard}>
+            <View style={styles.lineHead}>
               <Text style={styles.period}>
                 {t('challengeResult.period', { period: periodLabel(challenge.starts_at, challenge.ends_at) })}
               </Text>
@@ -87,32 +87,28 @@ export default function ChallengeResultScreen() {
             {!!notice && ranksHidden(challenge) && <Text style={styles.notice}>{notice}</Text>}
             {picked === null && <ActivityIndicator color={palette.blue} />}
             {picked?.length === 0 && !ranksHidden(challenge) && <Text style={styles.muted}>{t('challengeResult.noPicked')}</Text>}
-            {picked?.map((entry, index) => (
+            {picked?.map((entry) => (
               <Pressable
                 key={entry.id}
                 style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                 onPress={() => router.push({ pathname: '/challenge-play', params: { id: challenge.id, entryId: entry.id } })}
                 accessibilityRole="button"
                 accessibilityLabel={entry.author.name}>
-                <View style={[styles.rank, index === 0 ? styles.rankFirst : styles.rankOther]}>
-                  <Text style={styles.rankText}>{entry.rank}</Text>
-                </View>
+                <Text style={styles.rank}>{entry.rank}</Text>
                 <View style={styles.rowBody}>
                   <Text style={styles.name} numberOfLines={1}>
                     {entry.author.name}
                   </Text>
                   <Text style={styles.sub} numberOfLines={1}>
-                    {[entry.caption, t('challengeResult.pickedSub', { count: entry.final_like_count ?? entry.like_count })]
-                      .filter(Boolean)
-                      .join(' · ')}
+                    {t('challengeResult.pickedSub', { count: entry.final_like_count ?? entry.like_count })}
                   </Text>
                 </View>
-                <Feather name="play-circle" size={24} color={palette.blue} />
+                <Feather name="chevron-right" size={20} color={palette.checkOff} />
               </Pressable>
             ))}
 
+            <Text style={styles.section}>{t('challengeResult.mine')}</Text>
             <View style={styles.mine}>
-              <Text style={styles.mineLabel}>{t('challengeResult.mine')}</Text>
               {mine === undefined ? (
                 <ActivityIndicator color={palette.blue} style={{ alignSelf: 'flex-start' }} />
               ) : mine ? (
@@ -127,6 +123,7 @@ export default function ChallengeResultScreen() {
         )}
       </ScrollView>
       <CtaBar safeBottom={false}>
+        {nextId ? <TextButton label={t('challengeResult.seeChallenges')} tone="accent" onPress={() => router.replace('/challenges')} /> : null}
         <PrimaryButton label={t(nextId ? 'challengeResult.seeWeek' : 'challengeResult.seeChallenges')} onPress={seeWeek} />
       </CtaBar>
     </SafeAreaView>
@@ -138,22 +135,18 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
   content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
-  lineCard: { backgroundColor: palette.navy, borderRadius: 20, padding: 20, gap: 8 },
-  period: { fontSize: 13, fontWeight: '700', color: 'rgba(255, 255, 255, 0.67)', lineHeight: 20 },
-  line: { fontSize: 19, fontWeight: '800', color: palette.onAccent, lineHeight: 28 },
-  section: { fontSize: 15, fontWeight: '800', color: palette.textDim },
+  lineHead: { gap: 8 },
+  period: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
+  line: { fontSize: 20, fontWeight: '800', color: palette.text, lineHeight: 28 },
+  section: { fontSize: 15, fontWeight: '800', color: palette.text, marginTop: 8 },
   notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
   muted: { fontSize: 14, color: palette.textMuted, lineHeight: 21 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 },
-  rank: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  rankFirst: { backgroundColor: palette.blue },
-  rankOther: { backgroundColor: palette.checkOff },
-  rankText: { fontSize: 14, fontWeight: '800', color: palette.onAccent },
+  rank: { width: 24, fontSize: 16, fontWeight: '800', color: palette.blue, textAlign: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 6 },
   name: { fontSize: 16, fontWeight: '800', color: palette.text },
   sub: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
-  mine: { paddingVertical: 6, gap: 6, marginTop: 6 },
-  mineLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim },
+  mine: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 18, paddingHorizontal: 18, gap: 6 },
   mineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   mineText: { fontSize: 15, fontWeight: '700', color: palette.text },
 });

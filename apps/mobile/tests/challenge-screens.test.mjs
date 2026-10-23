@@ -64,18 +64,16 @@ test('challenge.browse: 검색은 두 글자 이상이고 결과가 없으면 �
   assert.match(search, /pathname: '\/line-new', params: \{ line: query\.trim\(\) \}/);
 });
 
-test('challenge.create: 등록은 세 단계이고 기간은 7·14일, 요청 id 로 멱등하다', () => {
+test('challenge.create: 등록은 대사·기간 한 화면이고 기간은 7·14일, 요청 id 로 멱등하다', () => {
   const create = read('app/line-new.tsx');
 
   assert.match(create, /CHALLENGE_DURATIONS/);
   assert.match(create, /attemptFor/);
   assert.match(create, /api\.createChallenge/);
   assert.match(create, /newRequestId/);
-  // 세 단계: 대사 → 작품·인물·메모 → 기간
-  assert.match(create, /step === 0/);
-  assert.match(create, /step === 1/);
-  assert.match(create, /step === 2/);
-  assert.match(create, /lineNew\.noteLabel/);
+  // pen C4.2 입력 줄임: 대사와 기간만 받고 작품은 「창작 대사」로 채운다.
+  assert.match(create, /lineNew\.defaultWork/);
+  assert.doesNotMatch(create, /lineNew\.noteLabel/);
 });
 
 test('challenge.create: 중복·기간·하루 한도 오류를 각각 문구로 알린다', () => {

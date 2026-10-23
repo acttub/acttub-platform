@@ -94,14 +94,14 @@ test('처음에는 파일 탭과 예시 링크를 보이고, 넣은 것이 없�
   expect(screen.getByText('다음')).toBeDisabled();
 });
 
-test('붙여넣은 글과 제목을 보내 나누고, 배역이 둘 이상이면 목소리 정하기로 간다', async () => {
+test('붙여넣은 글과 제목을 보내 나누고, 대본 상세로 간다(목소리는 자동)', async () => {
   await render(<ReadingNew />);
   await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '  봄날의 대화  ');
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
 
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
   expect(api.importScript).toHaveBeenCalledWith({
     request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     allow_duplicate: false,
@@ -203,7 +203,7 @@ test('같은 글의 대본이 있으면 그 대본을 열거나 새로 넣을 �
   expect(screen.getByText('「그 대본 열기」를 누르면 하던 데서 이어져요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('그래도 넣기'));
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
   expect(jest.mocked(api.importScript).mock.calls[1][0]).toEqual(expect.objectContaining({ allow_duplicate: true, raw_text: PASTED }));
 });
 
@@ -313,7 +313,7 @@ test('나누기 동의가 없으면 동의를 받고, 동의하면 같은 글을
   await fireEvent.press(screen.getByText('다음'));
   await fireEvent.press(await screen.findByText('동의하고 나누기'));
 
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
   expect(api.recordConsent).toHaveBeenCalledWith('d1', 'granted');
   expect(api.importScript).toHaveBeenCalledTimes(3);
 });
@@ -461,7 +461,7 @@ test('파일을 올리다 동의가 필요하면 동의 뒤 올리기부터 나�
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
   await fireEvent.press(await screen.findByText('동의하고 나누기'));
 
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
   expect(api.createScriptUpload).toHaveBeenCalledTimes(2);
   expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'file', upload_id: 'u1', title: '파일 대본' }));
 });

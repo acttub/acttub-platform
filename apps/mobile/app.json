@@ -125,7 +125,7 @@
       [
         "expo-tracking-transparency",
         {
-          "userTrackingPermission": "맞춤 광고를 보여주고 앱을 개선하는 데 광고 식별자를 사용해요. 허용하지 않아도 모든 기능을 그대로 쓸 수 있어요."
+          "userTrackingPermission": "어떤 광고를 보고 Acttub를 찾아오셨는지 알기 위해 써요. 연기하는 분들께 닿는 광고만 남기는 데 써요."
         }
       ],
       [

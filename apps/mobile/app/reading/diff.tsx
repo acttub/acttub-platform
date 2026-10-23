@@ -97,6 +97,18 @@ export default function ReadingDiff() {
     );
   }
 
+  if (!rows.some((row) => row.different)) {
+    // pen R9.47 — 다르게 말한 대사가 없을 때
+    return (
+      <View style={[styles.root, styles.center]}>
+        <Text style={styles.emptyText}>{t('reading.diffEmpty')}</Text>
+        <Pressable style={styles.pill} onPress={() => router.back()} accessibilityRole="button">
+          <Text style={styles.pillText}>{t('reading.diffBack')}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.root} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       {rows.map((row) => {
@@ -135,8 +147,9 @@ export default function ReadingDiff() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
+  emptyText: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24, textAlign: 'center' },
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
-  content: { padding: 20, gap: 18 },
+  content: { paddingHorizontal: 24, paddingVertical: 20, gap: 18 },
   direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
   row: { gap: 4 },
   rowDifferent: { borderLeftWidth: 3, borderLeftColor: palette.amber, paddingLeft: 12, paddingRight: 10, paddingVertical: 10 },
@@ -146,6 +159,6 @@ const styles = StyleSheet.create({
   text: { color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 23 },
   playBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   playText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
+  pill: { backgroundColor: palette.blue, borderRadius: 999, minHeight: 44, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
   pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 });

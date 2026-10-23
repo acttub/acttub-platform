@@ -108,7 +108,7 @@ test('참여작을 누르면 그 참여작부터 재생하고, 연기하기는 �
   await fireEvent.press(await screen.findByText('윤서'));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/challenge-play', params: { id: 'c1', entryId: 'e1' } });
 
-  await fireEvent.press(screen.getByRole('button', { name: '나도 해 볼래요' }));
+  await fireEvent.press(screen.getByRole('button', { name: '나도 이 대사 연기하기' }));
   expect(logEvent).toHaveBeenCalledWith('challenge_perform_tap', { id: 'c1' });
   expect(mockRouter.push).toHaveBeenLastCalledWith({
     pathname: '/record-video',
@@ -144,7 +144,7 @@ test('종료 뒤 집계 중이면 순위와 배지를 감추고 촬영 버튼을
   expect(screen.getByText('윤')).toBeOnTheScreen();
   expect(screen.queryByText('1')).not.toBeOnTheScreen();
   expect(screen.queryByText(/1위/)).not.toBeOnTheScreen();
-  expect(screen.queryByRole('button', { name: '나도 해 볼래요' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '나도 이 대사 연기하기' })).not.toBeOnTheScreen();
 });
 
 test('종료 뒤 확정되면 마감 때 좋아요 수로 1위를 표시한다', async () => {

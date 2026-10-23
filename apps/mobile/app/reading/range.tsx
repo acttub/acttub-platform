@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -243,166 +243,99 @@ export default function ReadingRange() {
       ? t('reading.startNeedsRole')
       : t('reading.startSession', { count: dlgIn });
 
+  const mono = cast.length === 1;
+  const firstRun = !hasHistory;
+  // 구간 칩 — 추천(첫 연습) 또는 지난 구간 · 처음부터 끝까지 · 장면. 독백은 처음부터 끝까지 하나뿐이다(pen R8.13).
+  const chips: { key: string; label: string; range: LineRange }[] = [];
+  if (!mono) {
+    if (short) chips.push({ key: 'short', label: t('reading.rangeChipSuggest', { count: short.dialogueCount }), range: short });
+    if (recents[0]) chips.push({ key: 'recent', label: rangeTitle(recents[0].card.range_name, t), range: recents[0].range });
+  }
+  chips.push({ key: 'whole', label: t('reading.rangeAll'), range: whole });
+  if (!mono) for (const sc of scenes) chips.push({ key: `scene${sc.no}`, label: t('reading.rangeScene', { n: sc.no }), range: sc });
+  const micAsk = mic !== 'granted';
+  const mainLabel = busy ? t('common.saving') : gate === 'pickRole' ? t('reading.startNeedsRole') : t(micAsk ? 'reading.startWithMic' : 'reading.startPlain');
+
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
+        {/* pen R8 — 액티 말풍선(회색): 누구를 연기할까요? + 대본 이름 · 대사 수(첫 연습이면 안내). */}
         <View style={styles.mascotRow}>
           <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
-          <Text style={styles.title}>{t('reading.rangeHeading')}</Text>
+          <View style={styles.bubble}>
+            <Text style={styles.title}>{t('reading.rangeHeading')}</Text>
+            <Text style={styles.sub}>{firstRun && micAsk ? t('reading.rangeFirstGuide') : `${script.title} · ${t('reading.dialogueCount', { count: script.dialogueCount })}`}</Text>
+          </View>
         </View>
-        <Text style={styles.sub}>
-          {script.title} · {t('reading.dialogueCount', { count: script.dialogueCount })}
-        </Text>
 
-        <Text style={styles.section}>{t('reading.myRolesLabel')}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bleed} contentContainerStyle={styles.roleChips}>
+        <View style={styles.roleList} ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout}>
           {cast.map((c) => {
             const on = selected.includes(c.id);
             return (
               <Pressable
                 key={c.id}
-                style={[styles.roleChip, on && styles.roleChipOn]}
+                style={[styles.roleCard, on && styles.roleCardOn]}
                 onPress={() => toggleRole(c.id)}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}>
-                <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{c.name}</Text>
-                <Text style={styles.roleChipCount}>{roleLineCount(c, lines, script.characters)}</Text>
+                <View style={styles.rowBody}>
+                  <Text style={[styles.roleName, on && styles.roleNameOn]}>{c.name}</Text>
+                  <Text style={styles.roleMeta}>
+                    {mono ? t('reading.monologueCard', { count: script.dialogueCount }) : t('reading.dialogueCount', { count: roleLineCount(c, lines, script.characters) })}
+                  </Text>
+                </View>
+                {on && <Feather name="check" size={20} color={palette.blue} />}
               </Pressable>
             );
           })}
-        </ScrollView>
-        <Text style={styles.hint}>
-          {pickedCast.length === 0 ? t('reading.startNeedsRole') : t(cast.length === 1 ? 'reading.monologueRoleNote' : 'reading.myRolesHint')}
-        </Text>
+        </View>
 
-        {few !== null ? (
-          <View style={styles.fewBox}>
-            <Feather name="alert-triangle" size={20} color={palette.amber} />
-            <Text style={styles.fewText}>{t('reading.rangeFewLines', { roles: pickedCast.map((c) => c.name).join(', '), count: few })}</Text>
-          </View>
-        ) : short && activeTab === 'suggest' && isActive(short) && (
-          <View style={styles.tip}>
-            <Feather name="star" size={18} color={palette.blue} />
-            <Text style={styles.tipText}>{t('reading.rangeFirstTip', { label: t('reading.startSession', { count: short.dialogueCount }) })}</Text>
+        <Text style={[styles.section, styles.sectionGap]}>{t('reading.rangeQuestion')}</Text>
+        <View style={styles.chipWrap}>
+          {chips.map((c) => {
+            const on = isActive(c.range);
+            return (
+              <Pressable key={c.key} style={[styles.rangeChip, on && styles.rangeChipOn]} onPress={() => pickRange(c.range)} accessibilityRole="radio" accessibilityState={{ checked: on }}>
+                <Text style={[styles.rangeChipText, on && styles.rangeChipTextOn]}>{c.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {few !== null && (
+          <View style={styles.fewRow}>
+            <Feather name="info" size={14} color={palette.amber} />
+            <Text style={styles.fewText}>{t('reading.rangeFewShort', { roles: pickedCast.map((c) => c.name).join(', '), count: few })}</Text>
           </View>
         )}
 
-        <Text style={[styles.section, styles.sectionGap]}>{t('reading.rangeLabel')}</Text>
-        <View style={styles.rangeBlock} ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout}>
-          {tabs.length > 1 && (
-            <View style={styles.tabs}>
-              {tabs.map((k) => (
-                <Pressable key={k} style={[styles.tab, activeTab === k && styles.tabOn]} onPress={() => setTab(k)}>
-                  <Text style={[styles.tabText, activeTab === k && styles.tabTextOn]}>{TAB_LABEL[k]}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
-
-          {activeTab === 'suggest' && short && (
-            <View style={styles.list}>
-              <RangeOption
-                title={t('reading.rangeShortTitle', { text: short.lastText })}
-                meta={t('reading.rangeShortMeta', { count: short.dialogueCount, mine: short.myCount })}
-                on={isActive(short)}
-                onPress={() => pickRange(short)}
-              />
-              <RangeOption
-                title={t('reading.rangeAll')}
-                meta={t('reading.rangeWholeMeta', { count: wholeDialogues })}
-                on={isActive(whole)}
-                onPress={() => pickRange(whole)}
-              />
-            </View>
-          )}
-
-          {activeTab === 'recent' && (
-            <View style={styles.list}>
-              {recents.map(({ card, range: r }) => {
-                const active = isActive(r);
-                const count = card.range.end_dialogue_no - card.range.start_dialogue_no + 1;
-                return (
-                  <Pressable key={card.id} style={[styles.recentRow, active && styles.rowIn]} onPress={() => pickRange(r)}>
-                    <Text style={[styles.rowTitle, styles.recentTitle, active && styles.rowTitleOn]} numberOfLines={1}>
-                      {rangeTitle(card.range_name, t)}
-                    </Text>
-                    <Text style={styles.recentMeta}>{t('reading.recentMeta', { count, session: `${t('reading.sessionOrdinal', { n: card.ordinal })} · ${relativeDay(card.started_at, Date.now())}` })}</Text>
-                    {active && <Feather name="check" size={18} color={palette.blue} />}
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-
-          {activeTab === 'scene' && (
-            <View style={styles.list}>
-              {scenes.map((s) => {
-                const active = isActive(s);
-                const first = lines[s.startIndex];
-                return (
-                  <Pressable key={s.no} style={[styles.sceneRow, active && styles.rowIn]} onPress={() => pickRange(s)}>
-                    <View style={styles.rowBody}>
-                      <Text style={styles.rowTitle}>{sceneTitle(s, t)}</Text>
-                      <Text style={styles.rowLine} numberOfLines={1}>
-                        {t('reading.dialogueCount', { count: s.dialogue_count })} · {first?.type === 'dialogue' ? `${first.role} ${first.text}` : first?.text}
-                      </Text>
-                    </View>
-                    {active && <Feather name="check" size={18} color={palette.blue} />}
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-
-          {activeTab === 'line' && (
-            <>
-              <View style={styles.pickBar}>
-                <Text style={styles.pickText}>{picking === 'start' ? t('reading.pickStart') : t('reading.pickEnd')}</Text>
-                <Pressable onPress={() => pickRange(whole)} hitSlop={8}>
-                  <Text style={styles.pickReset}>{t('reading.pickAll')}</Text>
-                </Pressable>
-              </View>
-              <View style={styles.list}>
-                {dialogues.map(({ l, i }) => {
-                  const inRange = i >= range.startIndex && i <= range.endIndex;
-                  const isStart = i === range.startIndex;
-                  const isEnd = i === range.endIndex;
-                  return (
-                    <Pressable key={i} style={[styles.row, inRange && styles.rowIn]} onPress={() => pickLine(i)}>
-                      <Text style={styles.rowNo}>{numbers[i]}</Text>
-                      <View style={styles.rowBody}>
-                        <Text style={styles.rowTitle}>{l.type === 'dialogue' ? l.role : ''}</Text>
-                        <Text style={styles.rowLine} numberOfLines={1}>{l.text}</Text>
-                      </View>
-                      {isStart && (
-                        <View style={styles.tag}>
-                          <Text style={styles.tagText}>{t('reading.pickTagStart')}</Text>
-                        </View>
-                      )}
-                      {isEnd && !isStart && (
-                        <View style={[styles.tag, styles.tagEnd]}>
-                          <Text style={styles.tagText}>{t('reading.pickTagEnd')}</Text>
-                        </View>
-                      )}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </>
-          )}
+        <View style={styles.maskRow}>
+          <View style={styles.rowBody}>
+            <Text style={styles.maskTitle}>{t('reading.maskSwitch')}</Text>
+            <Text style={styles.maskSub}>{t('reading.maskSwitchSub')}</Text>
+          </View>
+          <Switch
+            value={mask !== 'none'}
+            onValueChange={(on) => setMask(on ? 'mine' : 'none')}
+            trackColor={{ true: palette.blue, false: palette.border }}
+            thumbColor={palette.onAccent}
+            ios_backgroundColor={palette.border}
+          />
         </View>
+
+        {firstRun && micAsk && (
+          <View style={styles.howBox}>
+            <Text style={styles.howTitle}>{t('reading.howTitle')}</Text>
+            {(['reading.how1', 'reading.how2', 'reading.how3'] as const).map((k) => (
+              <View key={k} style={styles.howRow}>
+                <View style={styles.howDot} />
+                <Text style={styles.howText}>{t(k)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <View style={styles.maskRow}>
-          {MASKS.map((m) => (
-            <Pressable key={m.key} style={[styles.maskChip, mask === m.key && styles.maskChipOn]} onPress={() => setMask(m.key)}>
-              <Text style={[styles.maskText, mask === m.key && styles.maskTextOn]} numberOfLines={1}>
-                {m.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
         {mic === 'blocked' && (
           <View style={styles.micBox}>
             <Feather name="mic-off" size={18} color={palette.amber} />
@@ -416,7 +349,7 @@ export default function ReadingRange() {
           </View>
         )}
         <View ref={rangeStartTarget.ref} onLayout={rangeStartTarget.onLayout}>
-          <PrimaryButton label={startLabel} onPress={() => void onStart()} disabled={gate !== 'ready' || busy} />
+          <PrimaryButton label={mainLabel} onPress={() => void onStart()} disabled={gate !== 'ready' || busy} />
         </View>
       </View>
       {dialog}
@@ -425,35 +358,35 @@ export default function ReadingRange() {
   );
 }
 
-/** pen 「줄 카드」 — 목록 아이콘 · 제목 16/800 · 보조 13/600, 고르면 파란 바탕과 체크. */
-function RangeOption({ title, meta, on, onPress }: { title: string; meta: string; on: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      style={[styles.option, on && styles.optionOn]}
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ checked: on }}>
-      <View style={styles.optionIcon}>
-        <Feather name="list" size={20} color={palette.blue} />
-      </View>
-      <View style={styles.rowBody}>
-        <Text style={styles.optionTitle} numberOfLines={1}>{title}</Text>
-        <Text style={styles.optionMeta} numberOfLines={1}>{meta}</Text>
-      </View>
-      {on && <Feather name="check-circle" size={22} color={palette.blue} />}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
   content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
-  mascotRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mascotRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bubble: { flex: 1, backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16, gap: 4 },
+  roleList: { gap: 10 },
+  roleCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.card, borderRadius: 14, borderWidth: 1, borderColor: palette.border, paddingVertical: 14, paddingHorizontal: 16 },
+  roleCardOn: { backgroundColor: palette.blueMist, borderColor: palette.blue },
+  roleName: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 22 },
+  roleNameOn: { color: palette.blueDeep },
+  roleMeta: { color: palette.textFaint, fontSize: 13, fontWeight: '600', lineHeight: 20 },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  rangeChip: { borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.card, paddingHorizontal: 14, paddingVertical: 9 },
+  rangeChipOn: { borderColor: palette.blue, backgroundColor: palette.blueMist },
+  rangeChipText: { color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 21 },
+  rangeChipTextOn: { color: palette.blueDeep },
+  fewRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  maskTitle: { color: palette.text, fontSize: 15, fontWeight: '800', lineHeight: 22 },
+  maskSub: { color: palette.textFaint, fontSize: 12, fontWeight: '600', lineHeight: 18 },
+  howBox: { gap: 10, marginTop: 8 },
+  howTitle: { color: palette.textDim, fontSize: 13, fontWeight: '800' },
+  howRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  howDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.blueSoft },
+  howText: { color: palette.text, fontSize: 14, fontWeight: '600', lineHeight: 21 },
   mascot: { width: 52, height: 58 },
-  title: { flex: 1, color: palette.text, fontSize: 21, fontWeight: '900', lineHeight: 30 },
-  sub: { color: palette.textFaint, fontSize: 13, fontWeight: '600', lineHeight: 20, marginTop: -4 },
+  title: { color: palette.text, fontSize: 18, fontWeight: '900', lineHeight: 24 },
+  sub: { color: palette.blue, fontSize: 13, fontWeight: '700', lineHeight: 20 },
   section: { color: palette.textDim, fontSize: 14, fontWeight: '800', lineHeight: 21 },
   sectionGap: { marginTop: 4 },
   hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12, marginTop: -6 },
@@ -466,7 +399,7 @@ const styles = StyleSheet.create({
   // pen 「배역 칩」의 대사 수 — 이름보다 2pt 작은 grey500
   roleChipCount: { color: palette.textFaint, fontSize: 13, fontWeight: '500', lineHeight: 23 },
   fewBox: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: palette.amberSoft, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 14 },
-  fewText: { flex: 1, color: palette.amber, fontSize: 14, fontWeight: '700', lineHeight: 21 },
+  fewText: { flex: 1, color: palette.amber, fontSize: 13, fontWeight: '700', lineHeight: 19 },
   tip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.blueMist, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16 },
   tipText: { flex: 1, color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 4 },
@@ -499,7 +432,7 @@ const styles = StyleSheet.create({
   tagEnd: { backgroundColor: palette.textDim },
   tagText: { color: palette.onAccent, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg, gap: 10 },
-  maskRow: { flexDirection: 'row', gap: 6 },
+  maskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
   maskChip: { flex: 1, alignItems: 'center', backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingVertical: 8 },
   maskChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   maskText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },

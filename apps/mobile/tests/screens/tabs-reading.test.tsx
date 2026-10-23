@@ -103,7 +103,7 @@ test('대본 카드마다 배역·대사 수·상태를 보여 준다', async ()
   expect(screen.getByText('민지 · 대사 12개 · 연습 중')).toBeOnTheScreen();
   expect(screen.getByText('배역 미선택 · 대사 12개')).toBeOnTheScreen();
   expect(screen.getByText('민지 · 대사 12개 · 연습 완료')).toBeOnTheScreen();
-  expect(screen.queryByText('고품질 AI 목소리로 읽어줘요')).not.toBeOnTheScreen();
+  expect(screen.queryByText('고품질 AI 목소리로 리딩해요')).not.toBeOnTheScreen();
 });
 
 test('대본이 없으면 새 대본으로 시작하라고 안내한다', async () => {
@@ -113,11 +113,15 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   expect(await screen.findByText('대사를 같이 맞춰 읽어 볼까요?')).toBeOnTheScreen();
   expect(screen.queryByText('업로드한 대본')).not.toBeOnTheScreen();
   expect(screen.queryByText('새 대본')).not.toBeOnTheScreen();
+  // 고르기만 하면 넘어가지 않는다 — 「다음」을 눌러야 간다.
   await fireEvent.press(screen.getByText('내 대본 올리기'));
+  expect(mockRouter.push).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/new');
   // 대본이 없어도 — 예시 대본으로 채운 대본 넣기 화면(pen 「대본 탭」).
-  expect(screen.getByText('대본이 없어도 바로 해 볼 수 있어요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '예시 대본으로 시작하기' }));
+  expect(screen.getByText('짧은 예시 대본으로 바로 읽어 봐요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('예시 대본으로 하기'));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/reading/new', params: { sample: '1' } });
   expect(screen.getByRole('header', { name: '리딩' })).toBeOnTheScreen();
 });
@@ -283,7 +287,7 @@ describe('고품질 목소리 띠', () => {
     voice.status = { available: true, consent: 'none', free_until: '2026-12-31T03:00:00Z' };
     await render(<ReadingList />);
 
-    expect(await screen.findByText('고품질 AI 목소리로 읽어줘요')).toBeOnTheScreen();
+    expect(await screen.findByText('고품질 AI 목소리로 리딩해요')).toBeOnTheScreen();
     expect(screen.getByText('12월 31일까지 무료')).toBeOnTheScreen();
     const toggle = screen.getByRole('switch');
     expect(toggle).toHaveProp('value', false);
@@ -394,6 +398,7 @@ describe('첫 사용자라 탭바가 숨으면', () => {
 test('빈 목록에서도 대본 같이 만들기는 리딩 모드로 열린다', async () => {
   (listScripts as jest.Mock).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
   await render(<ReadingList />);
-  await fireEvent.press(await screen.findByText('대본 같이 만들기'));
+  await fireEvent.press(await screen.findByText('대본 만들기'));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/script-cocreate', params: { mode: 'reading' } });
 });

@@ -31,9 +31,8 @@ test('입시생인데 생년월일을 모르면 둘 다 보인다(숨기는 쪽�
   assert.deepEqual(homeDeadlineSections(examPrep(null), TODAY), { admissions: true, auditions: true });
 });
 
-test('홈은 이 규칙으로 두 칸을 가린다', () => {
+test('홈 「입시·오디션 공고」 줄은 이 규칙으로 갈 곳을 고른다', () => {
   const home = readFileSync(new URL('../app/(tabs)/index.tsx', import.meta.url), 'utf8');
   assert.match(home, /homeDeadlineSections\(/);
-  assert.match(home, /sections\.admissions && deadlines\.length > 0/);
-  assert.match(home, /sections\.auditions && auditionDeadlines\.length > 0/);
+  assert.match(home, /sections\.auditions \? '\/auditions' : '\/admissions'/);
 });

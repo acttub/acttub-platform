@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type Ref } from 'react';
-import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -13,23 +13,18 @@ import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
-import { practiceStreak, groupPoster, groupRowTarget, lastNotePracticeId, recentGroups, sceneTitle } from '@/lib/practice/groups';
+import { practiceStreak, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { rememberPracticeDays } from '@/lib/practice-days';
-import { countedPracticeDates } from '@/lib/practice/counted';
+import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
 import { currentTutorial } from '@/lib/tutorial';
-import {
-  localDate,
-  upcomingNotices,
-  type AdmissionsResponse,
-} from '@/lib/admissions';
 import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
-import { dateLocale, isKorean, translate as t, translateList } from '@/lib/i18n';
+import { isKorean, translate as t, translateList } from '@/lib/i18n';
 import { firstTimeStateFrom, setFirstTimeState } from '@/lib/practice/first-time';
-import { pickToday, tipIndex, type TodayItem } from '@/lib/home-today';
+import { challengeDaysLeft, pickToday, primaryFeature, wasYesterday, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
 import { loadIntoCurrent } from '@/lib/reading/store';
@@ -41,7 +36,6 @@ import { HomeUploadCard } from '@/components/home-upload-card';
 import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
-import { useAppDialog } from '@/components/app-dialog';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
@@ -53,14 +47,16 @@ import {
   writeLastSeenStreak,
 } from '@/lib/streak-celebration';
 
-const PREVIEW_COUNT = 3;
-
 /** 첫 사용자 홈에서 고른 길 → 「계속하기」가 가는 탭(예전엔 카드를 누르면 바로 갔다). */
-type FirstPick = 'coaching' | 'reading';
-const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading'> = {
+type FirstPick = 'coaching' | 'reading' | 'challenge';
+const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading' | '/challenges'> = {
   coaching: '/coaching',
   reading: '/reading',
+  challenge: '/challenges',
 };
+
+/** 안드로이드 뒤로가기를 이 시간 안에 한 번 더 누르면 앱을 닫는다. */
+const EXIT_BACK_WINDOW_MS = 2000;
 
 /**
  * 첫 연습을 끝낸 뒤 홈에서 한 번 비추는 자리(pen 「첫 연습 끝 홈 · 안내 1/4~4/4」, SOMA-748) — 오늘 할 것 카드,
@@ -80,12 +76,6 @@ function recentlyPracticedScripts(scripts: readonly ScriptCard[], now = Date.now
     const at = Date.parse(s.last_practiced_at ?? '');
     return Number.isFinite(at) && now - at <= READING_LOOKBACK_MS;
   });
-}
-
-function recentDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric' });
 }
 
 /**
@@ -121,7 +111,8 @@ export default function HomeScreen() {
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   // null 이면 기록을 아직 한 번도 못 받은 것이다 — 그때의 연속일(0)로 축하를 판단하면 안 된다.
   const [activityDays, setActivityDays] = useState<{ created_at: string }[] | null>(null);
-  const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
+  // 주 기능 판단용 — 센 연습(코칭·리딩·챌린지) 목록.
+  const [practices, setPractices] = useState<CountedPractice[]>([]);
   const [auditions, setAuditions] = useState<AuditionPostingList | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
@@ -207,7 +198,9 @@ export default function HomeScreen() {
         // 화면을 떠난 뒤 온 응답은 버린다 — 기기에 쌓지도 않는다.
         if (cancelled) return;
         // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
-        return rememberPracticeDays(countedPracticeDates({ groups: groupList, readingSessions, entries })).then((days) => {
+        const counted = countedPractices({ groups: groupList, readingSessions, entries });
+        setPractices(counted);
+        return rememberPracticeDays(counted.map((p) => ({ created_at: p.at }))).then((days) => {
           if (!cancelled) setActivityDays(days);
         });
       });
@@ -221,19 +214,10 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    // 입시는 로그인과 무관하고 배포 때만 바뀐다 — 포커스마다 다시 읽지 않는다.
     // 한국어를 안 쓰는 사람에겐 보여줄 자리가 없으니 받아오지도 않는다 (SOMA-544).
     if (!isKorean()) return;
     let cancelled = false;
-    api
-      .admissions()
-      .then((data) => {
-        if (!cancelled) setAdmissions(data);
-      })
-      .catch(() => {
-        if (!cancelled) setAdmissions(null);
-      });
-    // 오디션 공고도 한국 공고뿐이고(app.audition) 하루 두 번 바뀐다 — 입시와 같이 홈을 열 때 한 번만 읽는다.
+    // 오디션 공고는 한국 공고뿐이고(app.audition) 하루 두 번 바뀐다 — 입시와 같이 홈을 열 때 한 번만 읽는다.
     api
       .auditions()
       .then((data) => {
@@ -247,16 +231,11 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // 연기 입시는 한국 대학 일정이라 한국어로 쓰는 사람에게만 쓸모가 있다 (SOMA-544).
-  const deadlines = useMemo(
-    () => (admissions && isKorean() ? upcomingNotices(admissions, localDate(), 2) : []),
-    [admissions],
-  );
   // 입시생(만 19세 이하)은 입시만, 만 20세 이상 입시생은 둘 다, 나머지는 오디션만 본다(SOMA-654).
   const sections = homeDeadlineSections(profile.me?.profile, kstDate());
-  // 마감일이 있는 공고 중 가까운 둘. 비면(기능 꺼짐·공고 없음) 칸째 숨긴다.
-  const auditionDeadlines = useMemo(
-    () => (auditions && isKorean() ? urgentAuditions(auditions.items, kstDate(), 2) : []),
+  // 「입시·오디션 공고」 줄의 「이번 주 마감 N개」 — 오늘부터 7일 안에 마감하는 공고 수.
+  const auditionsClosingSoon = useMemo(
+    () => (auditions && isKorean() ? urgentAuditions(auditions.items, kstDate(), 1000).filter((r) => r.days <= 7).length : 0),
     [auditions],
   );
 
@@ -282,9 +261,6 @@ export default function HomeScreen() {
     };
   }, [activityLoaded, streak]);
 
-  // 홈의 최근 연습은 숨기지 않은 묶음 3개다.
-  const recent = useMemo(() => recentGroups(groups, PREVIEW_COUNT), [groups]);
-
   const loaded = groupsLoaded && scripts !== null && activityLoaded;
   // 첫 사용자 화면(뭐부터 해 볼까요?)과 탭바 숨김은 같은 판단 하나다(lib/practice/first-time) — 묶음·대본·연습한 날이 모두 없는 사람.
   // 묶음을 못 받았으면 첫 사용자로 보지 않는다 — 시작한 사람에게 첫 화면을 보이는 쪽이 더 이상하다.
@@ -305,34 +281,38 @@ export default function HomeScreen() {
 
   const waitingUpload = useWaitingUpload();
   const today = useMemo(
-    () => pickToday({ groups, scripts: scripts ?? [], challenge: featured, now: new Date() }),
-    [groups, scripts, featured],
+    () => pickToday({ groups, scripts: scripts ?? [], challenge: featured, now: new Date(), primary: primaryFeature(practices, new Date()) }),
+    [groups, scripts, featured, practices],
   );
 
   // 「다음에 해 볼 것」(노트의 다음 테이크 문장) — 코칭 숙제와 최근 연습 줄에 쓴다. 목록에 없어 노트를 따로 읽는다.
   const nextTakes = useNextTakes([
     today.main.kind === 'coaching' ? today.main.notePracticeId : null,
     today.also?.kind === 'coaching' ? today.also.notePracticeId : null,
-    ...recent.map(lastNotePracticeId),
   ]);
 
-  // 안드로이드 뒤로가기 — 홈에서는 바로 나가지 않고 앱을 종료할지 묻는다(SOMA-771).
-  const { confirm, dialog } = useAppDialog();
+  // 안드로이드 뒤로가기 — 홈에서는 바로 나가지 않는다. 안내 토스트를 띄우고, 2초 안에 한 번 더 누르면 앱을 닫는다(SOMA-771).
+  const lastBackAt = useRef(0);
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== 'android') return;
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        void confirm({ title: t('home.exitTitle'), confirmLabel: t('home.exitConfirm') }).then((ok) => {
-          if (ok) BackHandler.exitApp();
-        });
+        const now = Date.now();
+        if (lastBackAt.current > 0 && now - lastBackAt.current < EXIT_BACK_WINDOW_MS) {
+          lastBackAt.current = 0;
+          BackHandler.exitApp();
+          return true;
+        }
+        lastBackAt.current = now;
+        ToastAndroid.show(t('home.exitToast'), ToastAndroid.SHORT);
         return true;
       });
       return () => sub.remove();
-    }, [confirm]),
+    }, []),
   );
 
-  // 코칭·리딩 할 일이 없을 때만 오늘의 챌린지를 받아 온다.
-  const needsChallenge = loaded && !firstUser && today.main.kind === 'start' && featured === null;
+  // 이번 주 챌린지 — 메인 카드(주 기능이 챌린지일 때)와 「이것도 해 볼래요?」 줄에 쓴다.
+  const needsChallenge = loaded && !firstUser && featured === null;
   useEffect(() => {
     if (!needsChallenge) return;
     let cancelled = false;
@@ -348,7 +328,9 @@ export default function HomeScreen() {
   }, [needsChallenge]);
 
   // 리딩 카드면 그 대본의 진행 중 회차에서 몇 줄까지 읽었는지 받아 온다.
-  const readingScriptId = today.main.kind === 'reading' ? today.main.script.id : null;
+  const readingItem = [today.main, today.also].find((i) => i?.kind === 'reading') as Extract<TodayItem, { kind: 'reading' }> | undefined;
+  const coachingItem = [today.main, today.also].find((i) => i?.kind === 'coaching') as Extract<TodayItem, { kind: 'coaching' }> | undefined;
+  const readingScriptId = readingItem?.script.id ?? null;
   useEffect(() => {
     if (!readingScriptId) return;
     let cancelled = false;
@@ -365,9 +347,6 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, [readingScriptId]);
-
-  const tips = translateList('home.tips');
-  const tip = tips.length > 0 ? tips[tipIndex(new Date(), tips.length)] : null;
 
   const openCoaching = (group: PracticeGroup) => {
     const action = continueActionFor(group);
@@ -392,6 +371,97 @@ export default function HomeScreen() {
     else if (item.kind === 'challenge') router.push({ pathname: '/challenge-detail', params: { id: item.challenge.id } });
     else router.push('/coaching');
   };
+
+  // 메인 카드 아래 「이것도 해 볼래요?」 세 줄(pen P1.1·P1.15·P1.16) — 메인이 아닌 기능 둘과 입시·오디션 공고.
+  // 영상을 올리는 중이면 메인은 코칭이다. 챌린지가 메인이면 첫 줄은 다른 배우 영상 보기다.
+  const mainKind: TodayItem['kind'] = waitingUpload.card ? 'coaching' : today.main.kind;
+  const ddayOf = (c: ChallengeCard) => challengeDaysLeft(c.ends_at, new Date());
+  const rowCoaching: HomeRowData = coachingItem
+    ? {
+        key: 'coaching',
+        icon: 'video',
+        title: t('home.rowCoachingHomework'),
+        sub: nextTakes[coachingItem.notePracticeId] || sceneTitle(coachingItem.group),
+        phLabel: 'home_row_coaching',
+        onPress: () => openCoaching(coachingItem.group),
+      }
+    : {
+        key: 'coaching',
+        icon: 'video',
+        title: mainKind === 'reading' ? t('home.rowCoachingFromReading') : t('home.rowCoaching'),
+        sub: mainKind === 'reading' ? t('home.rowCoachingFromReadingSub') : t('home.rowCoachingSub'),
+        phLabel: 'home_row_coaching',
+        onPress: () => router.push('/coaching'),
+      };
+  const rowReading: HomeRowData = readingItem
+    ? {
+        key: 'reading',
+        icon: 'book-open',
+        title: t('home.alsoReading', { title: readingItem.script.title }),
+        sub:
+          readingProgress?.scriptId === readingItem.script.id && readingProgress.progress.total > 0
+            ? t('home.rowReadingProgress', { done: readingProgress.progress.done, total: readingProgress.progress.total })
+            : t('home.rowReadingNoProgress'),
+        phLabel: 'home_row_reading',
+        onPress: () => void openReading(readingItem.script),
+      }
+    : {
+        key: 'reading',
+        icon: 'book-open',
+        title: t('home.rowReading'),
+        sub: t('home.rowReadingSub'),
+        phLabel: 'home_row_reading',
+        onPress: () => router.push('/reading'),
+      };
+  const featuredDays = featured ? ddayOf(featured) : null;
+  const rowChallenge: HomeRowData = {
+    key: 'challenge',
+    icon: 'award',
+    title: t('home.rowChallenge'),
+    sub: featured
+      ? [`“${featured.line}”`, featuredDays !== null && featuredDays >= 0 ? `D-${featuredDays}` : null].filter(Boolean).join(' · ')
+      : t('home.rowChallengeSub'),
+    phLabel: 'home_row_challenge',
+    onPress: () => (featured ? router.push({ pathname: '/challenge-detail', params: { id: featured.id } }) : router.push('/challenges')),
+  };
+  const rowWatch: HomeRowData = {
+    key: 'watch',
+    icon: 'play',
+    title: t('home.rowWatch'),
+    sub: t('home.rowWatchSub'),
+    phLabel: 'home_row_watch',
+    onPress: () => router.push('/challenges'),
+  };
+  const rowAuditions: HomeRowData | null = isKorean()
+    ? {
+        key: 'auditions',
+        icon: 'volume-2',
+        title: t('home.rowAuditions'),
+        sub: auditionsClosingSoon > 0 ? t('home.rowAuditionsSub', { n: auditionsClosingSoon }) : t('home.rowAuditionsSubNone'),
+        phLabel: 'home_row_auditions',
+        // 만 19세 이하 입시생은 입시 일정만 본다(SOMA-654) — 오디션 모아보기 대신 입시로 간다.
+        onPress: () => router.push(sections.auditions ? '/auditions' : '/admissions'),
+      }
+    : null;
+  const homeRows: HomeRowData[] = [
+    ...(mainKind === 'coaching' ? [rowReading, rowChallenge] : []),
+    ...(mainKind === 'reading' ? [rowCoaching, rowChallenge] : []),
+    ...(mainKind === 'challenge' ? [rowWatch, rowReading] : []),
+    ...(mainKind === 'start' ? [rowReading, rowChallenge] : []),
+    ...(rowAuditions ? [rowAuditions] : []),
+  ];
+  // 올리는 중에는 코칭 줄을 빼는데(위 coaching 메인 줄 목록에 코칭이 없다) 업로드 카드 아래에서도 같은 세 줄이다.
+
+  // 맨 위 한 줄 인사 — 메인 카드에 맞춘다.
+  const greeting = waitingUpload.card
+    ? t('home.greetingUploading')
+    : today.main.kind === 'reading'
+      ? wasYesterday(today.main.script.last_practiced_at, new Date())
+        ? t('home.greetingReadingYesterday')
+        : t('home.greetingReading')
+      : today.main.kind === 'challenge'
+        ? t('home.greetingChallenge')
+        : t('home.greeting');
 
   const bell = (
     <Pressable
@@ -420,19 +490,11 @@ export default function HomeScreen() {
           <ActivityIndicator color={palette.blue} />
         </View>
       ) : firstUser ? (
-        // 첫 사용자 홈(pen 「가입 직후 · 소개 + 고르기 (합친 안)」) — 인사·소개 말풍선 아래에서 하나를 고르면 그 카드가 펼쳐지고
-        // 「계속하기」로 그 길에 들어간다. 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
+        // 첫 사용자 홈(pen P1.12 「뭐부터 해 볼까요?」) — 액티 말풍선 아래에서 하나를 고르면(회색 → 옅은 파랑) 아래 「다음」으로 그 탭에 들어간다.
+        // 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstContainer}>
-            <MascotBubble
-              source={MASCOT.coach}
-              title={firstName ? t('home.firstHello', { name: firstName }) : t('home.firstHelloNoName')}
-              guide={t('home.firstIntro')}
-            />
-            <View style={styles.firstHead}>
-              <Text style={styles.firstQuestion} accessibilityRole="header">{t('home.firstQuestion')}</Text>
-              <Text style={styles.firstSub}>{t('home.firstPickSub')}</Text>
-            </View>
+            <MascotBubble source={MASCOT.coach} title={t('home.firstQuestion')} guide={t('home.firstPickSub')} />
             <View style={styles.firstChoices}>
               <FirstChoice
                 targetRef={startTarget.ref}
@@ -440,25 +502,35 @@ export default function HomeScreen() {
                 icon="video"
                 title={t('home.firstCoaching')}
                 sub={t('home.firstCoachingSub')}
-                steps={translateList('home.firstCoachingSteps')}
                 selected={firstPick === 'coaching'}
                 phLabel="home_first_coaching"
                 onPress={() => setFirstPick('coaching')}
               />
-              <FirstChoice
-                icon="book-open"
-                title={t('home.firstReading')}
-                sub={t('home.firstReadingSub')}
-                steps={translateList('home.firstReadingSteps')}
-                selected={firstPick === 'reading'}
-                phLabel="home_first_reading"
-                onPress={() => setFirstPick('reading')}
-              />
+              <View style={styles.firstPair}>
+                <FirstChoice
+                  half
+                  icon="book-open"
+                  title={t('home.firstReading')}
+                  sub={t('home.firstReadingSub')}
+                  selected={firstPick === 'reading'}
+                  phLabel="home_first_reading"
+                  onPress={() => setFirstPick('reading')}
+                />
+                <FirstChoice
+                  half
+                  icon="award"
+                  title={t('home.firstChallenge')}
+                  sub={t('home.firstChallengeSub')}
+                  selected={firstPick === 'challenge'}
+                  phLabel="home_first_challenge"
+                  onPress={() => setFirstPick('challenge')}
+                />
+              </View>
             </View>
           </ScrollView>
           <View style={[styles.firstFooter, { paddingBottom: 11 + tabBarSpace }]}>
             <PrimaryButton
-              label={firstPick ? t('home.firstContinue') : t('home.firstPickNone')}
+              label={t('home.firstContinue')}
               disabled={!firstPick}
               phLabel="home_first_continue"
               onPress={() => {
@@ -469,151 +541,74 @@ export default function HomeScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarSpace + 20 }]}>
-          {/* 머리 — 마스코트 + 인사 + 알림 종. 일정 D-day 줄은 일정 기능(서버)이 생기면 붙인다. */}
+          {/* 머리 — 액티 + 한 줄 인사(회색 말풍선) + 연속 일수 + 알림 종. */}
           <View style={styles.head}>
             <Image source={MASCOT[dailyPose(HOME_POSES)]} style={MASCOT_SIZE.card} contentFit="contain" accessibilityIgnoresInvertColors />
-            <Text style={styles.greeting}>{t('home.greeting')}</Text>
+            <View style={styles.greetingBubble}>
+              <Text style={styles.greeting} numberOfLines={2}>{greeting}</Text>
+            </View>
+            {streak > 0 && (
+              <View style={styles.streakPill} accessibilityLabel={t('home.streakA11y', { n: streak })}>
+                <Ionicons name="flame" size={16} color={palette.flame} />
+                <Text style={styles.streakText}>{t('home.streakDays', { n: streak })}</Text>
+              </View>
+            )}
             {bell}
           </View>
 
-          {/* 오늘 할 것 — 카드 하나. 첫 가이드가 비추는 자리다. */}
+          {/* 이번 주 요일별 연습 점 — 한 날은 주황 체크, 오늘은 테두리. */}
+          <View style={styles.week} testID="home-week">
+            {days.map((d) => (
+              <View key={d.key} style={styles.weekCol}>
+                <View
+                  testID={d.count > 0 ? 'home-week-done' : d.isToday ? 'home-week-today' : 'home-week-empty'}
+                  style={[styles.weekDot, d.count > 0 && styles.weekDotDone, d.count === 0 && d.isToday && styles.weekDotToday]}>
+                  {d.count > 0 && <Feather name="check" size={18} color={palette.onAccent} />}
+                </View>
+                <Text style={[styles.weekLabel, d.isToday && styles.weekLabelToday]}>{d.isToday ? t('home.today') : d.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* 주 기능 카드 하나 — 첫 가이드가 비추는 자리다. 올리는 중이면 올리는 카드가 대신한다. */}
           {waitingUpload.card && <HomeUploadCard upload={waitingUpload} />}
-          {!waitingUpload.card && <View ref={startTarget.ref} onLayout={startTarget.onLayout} collapsable={false} style={styles.todayCard}>
-            <TodayCardBody
-              item={today.main}
-              nextTake={today.main.kind === 'coaching' ? nextTakes[today.main.notePracticeId] ?? null : null}
-              progress={
-                today.main.kind === 'reading' && readingProgress?.scriptId === today.main.script.id
-                  ? readingProgress.progress
-                  : null
-              }
-              onPress={() => openItem(today.main)}
-            />
-          </View>}
-
-          {/* 하던 거 한 줄 — 오늘 할 것으로 고르지 않은 나머지 하나. */}
-          {today.also && (
-            <Pressable
-              onPress={() => openItem(today.also as TodayItem)}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.alsoRow, pressed && styles.pressed]}>
-              <View style={[styles.alsoDot, today.also.kind === 'reading' ? styles.dotGreen : styles.dotBlue]} />
-              <Text style={styles.alsoText} numberOfLines={1}>
-                {alsoLabel(today.also, nextTakes)}
-              </Text>
-              <Feather name="chevron-right" size={18} color={palette.checkOff} />
-            </Pressable>
-          )}
-
-          {/* 최근 연습 — 숨기지 않은 묶음 3개(practice.library). 대본 리딩 기록은 섞지 않는다. */}
-          {recent.length > 0 && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{t('home.recentTitle')}</Text>
-                <Pressable onPress={() => router.push('/history')} hitSlop={8}>
-                  <Text style={styles.sectionLink}>{t('common.viewAll')}</Text>
-                </Pressable>
-              </View>
-              {recent.map((r) => {
-                const poster = groupPoster(r);
-                const noteId = lastNotePracticeId(r);
-                // 줄 제목은 다음에 해 볼 것, 없으면 장면 제목이다. 노트 제목(코치 관찰)은 쓰지 않는다.
-                const rowTitle = (noteId && nextTakes[noteId]) || sceneTitle(r);
-                return (
-                  <Pressable
-                    key={r.root_id}
-                    style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}
-                    // 대화 중인 묶음은 그 대화로 바로 돌아간다(SOMA-672).
-                    onPress={() => router.push(groupRowTarget(r))}>
-                    <View style={styles.thumb}>
-                      {/* 첫 장면 사진 — 서버가 만들기 전이면 원래 아이콘 그대로다(SOMA-671). */}
-                      {poster ? (
-                        <Image source={{ uri: poster.uri, cacheKey: poster.cacheKey }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
-                      ) : (
-                        <Feather name="film" size={16} color={palette.blue} />
-                      )}
-                    </View>
-                    <View style={styles.flex}>
-                      <View style={styles.listTitleRow}>
-                        <Text style={[styles.listTitle, styles.shrink]} numberOfLines={1}>{rowTitle}</Text>
-                        {r.in_progress_practice_id && (
-                          <View style={styles.talkingBadge}>
-                            <Text style={styles.talkingBadgeText}>{t('history.inConversation')}</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.listMeta}>{recentDate(r.last_practiced_at ?? '')}</Text>
-                    </View>
-                    <Feather name="chevron-right" size={18} color={palette.checkOff} />
-                  </Pressable>
-                );
-              })}
-            </>
-          )}
-
-          {/* 입시 마감 — 실기 일정은 놓치면 1년을 기다린다. 임박한 둘만 띄운다. */}
-          {sections.admissions && deadlines.length > 0 && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{t('home.admissionsTitle')}</Text>
-                <Pressable onPress={() => router.push('/admissions')} hitSlop={8}>
-                  <Text style={styles.sectionLink}>{t('common.viewAll')}</Text>
-                </Pressable>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('home.admissionsA11y')}
-                onPress={() => router.push('/admissions')}>
-                {deadlines.map(({ university, notice, remaining }) => (
-                  <View key={notice.id} style={styles.listRow}>
-                    <Text style={styles.dday}>D-{remaining.days === 0 ? 'DAY' : remaining.days}</Text>
-                    <View style={styles.flex}>
-                      <Text style={styles.listTitle} numberOfLines={1}>{university.name}</Text>
-                      <Text style={styles.listMeta} numberOfLines={1}>
-                        {[notice.department, remaining.label].filter(Boolean).join(' · ')}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </Pressable>
-            </>
-          )}
-
-          {/* 오디션 마감 임박 — 입시와 같은 모양. 누르면 모아보기로 간다(app.audition). */}
-          {sections.auditions && auditionDeadlines.length > 0 && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{t('home.auditionsTitle')}</Text>
-                <Pressable onPress={() => router.push('/auditions')} hitSlop={8}>
-                  <Text style={styles.sectionLink}>{t('common.viewAll')}</Text>
-                </Pressable>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('home.auditionsA11y')}
-                onPress={() => router.push('/auditions')}>
-                {auditionDeadlines.map(({ posting, days }) => (
-                  <View key={posting.id} style={styles.listRow}>
-                    <Text style={styles.dday}>D-{days === 0 ? 'DAY' : days}</Text>
-                    <View style={styles.flex}>
-                      <Text style={styles.listTitle} numberOfLines={1}>{posting.title}</Text>
-                      <Text style={styles.listMeta} numberOfLines={1}>{posting.source_name}</Text>
-                    </View>
-                  </View>
-                ))}
-              </Pressable>
-            </>
-          )}
-
-          {/* 오늘의 연기 팁 — 하루 동안 같은 한 줄. */}
-          {tip && (
-            <View style={styles.tip} accessibilityLabel={`${t('home.tipsTitle')}: ${tip}`}>
-              <Ionicons name="bulb-outline" size={18} color={palette.hintIcon} />
-              <Text style={styles.tipText}>{tip}</Text>
+          {!waitingUpload.card && (
+            <View ref={startTarget.ref} onLayout={startTarget.onLayout} collapsable={false} style={styles.todayCard}>
+              <TodayCardBody
+                item={today.main}
+                progress={
+                  today.main.kind === 'reading' && readingProgress?.scriptId === today.main.script.id
+                    ? readingProgress.progress
+                    : null
+                }
+                nextTake={today.main.kind === 'coaching' ? nextTakes[today.main.notePracticeId] ?? null : null}
+                onPress={() => openItem(today.main)}
+              />
             </View>
           )}
+
+          {/* 이것도 해 볼래요? — 세 줄. */}
+          <Text style={styles.sectionTitle} accessibilityRole="header">{t('home.moreTitle')}</Text>
+          {homeRows.map((row) => (
+            <Pressable
+              key={row.key}
+              onPress={row.onPress}
+              accessibilityRole="button"
+              ph-label={row.phLabel}
+              style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
+              <View style={styles.rowIcon}>
+                <Feather name={row.icon} size={20} color={palette.textDim} />
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.listTitle} numberOfLines={1}>{row.title}</Text>
+                <Text style={styles.listMeta} numberOfLines={1}>{row.sub}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            </Pressable>
+          ))}
         </ScrollView>
       )}
+
       <SpotlightGuide
         visible={guideOpen && overlaysReady && loaded && !firstUser && practiced}
         topic="home"
@@ -629,18 +624,20 @@ export default function HomeScreen() {
         blocked={!overlaysReady || !introChecked || !guideChecked || guideOpen || guideShownThisVisit || celebrateStreak !== null}
         onboardingJustFinished={onboardingJustFinished}
       />
-      {dialog}
     </SafeAreaView>
   );
 }
 
-function alsoLabel(item: TodayItem, nextTakes: Record<string, string | null>): string {
-  if (item.kind === 'coaching') return t('home.alsoCoaching', { title: nextTakes[item.notePracticeId] || sceneTitle(item.group) });
-  if (item.kind === 'reading') return t('home.alsoReading', { title: item.script.title });
-  return '';
-}
+type HomeRowData = {
+  key: string;
+  icon: ComponentProps<typeof Feather>['name'];
+  title: string;
+  sub: string;
+  phLabel: string;
+  onPress: () => void;
+};
 
-/** 오늘 할 것 카드 속 — 종류마다 머리 한 줄(색)·제목·보조·버튼. */
+/** 주 기능 카드 속 — 종류마다 머리 한 줄(주황 아이콘·글자)·제목·보조·진행 막대·주 버튼. */
 function TodayCardBody({
   item,
   nextTake = null,
@@ -653,7 +650,7 @@ function TodayCardBody({
   onPress: () => void;
 }) {
   let eyebrow: string;
-  let eyebrowStyle = styles.eyebrowBlue;
+  let icon: ComponentProps<typeof Feather>['name'] | 'trophy' = 'video';
   let title: string;
   let sub: string | null = null;
   let cta: string;
@@ -668,9 +665,9 @@ function TodayCardBody({
     sub = nextTake ? t('home.todayCoachingSub', { title: sceneTitle(item.group), n }) : t('home.todayCoachingSubTake', { n });
     cta = action.kind === 'resume' ? t('history.resumeConversation') : t('home.todayCoachingCta');
   } else if (item.kind === 'reading') {
-    // 한 번도 안 읽은 대본은 「하던 대본」이 아니다(10/22 피드백).
+    icon = 'book-open';
+    // 한 번도 안 읽은 대본은 「이어 읽기」가 아니다(10/22 피드백).
     eyebrow = progress || item.script.last_practiced_at ? t('home.todayReadingEyebrow') : t('home.todayReadingEyebrowNew');
-    eyebrowStyle = styles.eyebrowGreen;
     title = item.script.title;
     if (progress && progress.total > 0) {
       bar = Math.min(1, Math.max(0, progress.done / progress.total));
@@ -681,10 +678,10 @@ function TodayCardBody({
       cta = item.script.last_practiced_at ? t('home.todayReadingCtaPlain') : t('home.todayReadingCtaStart');
     }
   } else if (item.kind === 'challenge') {
+    icon = 'trophy';
     eyebrow = item.daysLeft === 0 ? t('home.todayChallengeEyebrowToday') : t('home.todayChallengeEyebrow', { days: item.daysLeft });
-    eyebrowStyle = styles.eyebrowOrange;
     title = `“${item.challenge.line}”`;
-    sub = item.challenge.work;
+    sub = item.challenge.entry_count && item.challenge.entry_count > 0 ? t('home.todayChallengeSub', { work: item.challenge.work, n: item.challenge.entry_count }) : item.challenge.work;
     cta = t('home.todayChallengeCta');
   } else {
     eyebrow = t('home.todayStartEyebrow');
@@ -695,14 +692,21 @@ function TodayCardBody({
 
   return (
     <>
-      <Text style={[styles.eyebrow, eyebrowStyle]}>{eyebrow}</Text>
+      <View style={styles.eyebrowRow}>
+        {icon === 'trophy' ? (
+          <Ionicons name="trophy-outline" size={16} color={palette.flameDeep} />
+        ) : (
+          <Feather name={icon} size={16} color={palette.flameDeep} />
+        )}
+        <Text style={styles.eyebrow}>{eyebrow}</Text>
+      </View>
       <Text style={styles.todayTitle} numberOfLines={3}>{title}</Text>
+      {sub ? <Text style={styles.todaySub} numberOfLines={2}>{sub}</Text> : null}
       {bar !== null && (
         <View style={styles.barTrack}>
           <View style={[styles.barFill, { width: `${Math.round(bar * 100)}%` }]} />
         </View>
       )}
-      {sub ? <Text style={styles.todaySub} numberOfLines={2}>{sub}</Text> : null}
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
@@ -715,16 +719,16 @@ function TodayCardBody({
 }
 
 /**
- * 첫 사용자 홈의 선택 카드(pen 합친 안) — 회색 카드(#F2F4F6, 모서리 16, 안쪽 [20,16]) 안에 흰 아이콘 칸 40 · 제목 18/700 ·
- * 설명 14/400 #6B7684 · 오른쪽 라디오 22. 고르면 옅은 파랑 바탕에 파란 테두리 1.5, 제목 파랑, 라디오에 체크.
- * `steps`가 있으면 고른 동안 「이렇게 진행돼요」 1·2·3 단계가 펼쳐진다(pen 「홈 · 첫 사용자 · 코칭 고름」).
+ * 첫 사용자 홈의 선택 카드(pen P1.12) — 안 골랐을 땐 회색 카드(#F2F4F6, 모서리 16)에 아이콘·제목 18/700·설명 14,
+ * 고르면 옅은 파랑 바탕에 파란 테두리·파란 제목(코칭 카드는 오른쪽에 체크). 기본 선택은 없고 아래 「다음」을 눌러야 넘어간다.
+ * `half`면 둘이 나란히 놓이는 반쪽 카드다.
  */
 function FirstChoice({
   icon,
   title,
   sub,
-  steps,
   selected,
+  half = false,
   phLabel,
   onPress,
   targetRef,
@@ -733,8 +737,8 @@ function FirstChoice({
   icon: ComponentProps<typeof Feather>['name'];
   title: string;
   sub: string;
-  steps?: string[];
   selected: boolean;
+  half?: boolean;
   phLabel: string;
   onPress: () => void;
   targetRef?: Ref<View>;
@@ -750,32 +754,13 @@ function FirstChoice({
       accessibilityLabel={title}
       accessibilityHint={sub}
       ph-label={phLabel}
-      style={({ pressed }) => [styles.choice, selected && styles.choiceOn, pressed && !selected && styles.pressed]}>
-      <View style={styles.choiceRow}>
-        <View style={styles.choiceIcon}>
-          <Feather name={icon} size={20} color={palette.blue} />
-        </View>
-        <View style={styles.choiceBody}>
-          <Text style={[styles.choiceText, selected && styles.choiceTextOn]}>{title}</Text>
-          <Text style={styles.choiceSub}>{sub}</Text>
-        </View>
-        <View style={[styles.radio, selected && styles.radioOn]}>
-          {selected ? <Feather name="check" size={14} color={palette.onAccent} /> : null}
-        </View>
+      style={({ pressed }) => [styles.choice, half && styles.choiceHalf, selected && styles.choiceOn, pressed && !selected && styles.pressed]}>
+      <View style={styles.choiceTop}>
+        <Feather name={icon} size={22} color={selected ? palette.blue : palette.textDim} />
+        {selected && !half ? <Feather name="check" size={20} color={palette.blue} /> : null}
       </View>
-      {selected && steps && steps.length > 0 ? (
-        <View style={styles.steps}>
-          <Text style={styles.stepsLabel}>{t('home.firstStepsLabel')}</Text>
-          {steps.map((step, i) => (
-            <View key={step} style={styles.stepRow}>
-              <View style={styles.stepNum}>
-                <Text style={styles.stepNumText}>{i + 1}</Text>
-              </View>
-              <Text style={styles.stepText}>{step}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
+      <Text style={[styles.choiceText, selected && styles.choiceTextOn]}>{title}</Text>
+      <Text style={styles.choiceSub}>{sub}</Text>
     </Pressable>
   );
 }
@@ -784,62 +769,37 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // 아래 탭 바가 화면 위에 떠 있어 그만큼 바닥을 비운다.
-  container: { paddingHorizontal: 20, paddingTop: 30 },
+  container: { paddingHorizontal: 24, paddingTop: 24 },
   flex: { flex: 1, minWidth: 0 },
-  shrink: { flexShrink: 1 },
   pressed: { opacity: 0.85 },
 
-  // 첫 사용자 홈(pen 합친 안)
-  firstContainer: { paddingTop: 32, paddingHorizontal: 20, paddingBottom: 24 },
-  firstHead: { marginTop: 36, gap: 4, paddingLeft: 2 },
-  firstQuestion: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.text },
-  firstSub: { fontSize: 13.5, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
-  firstChoices: { gap: 12, marginTop: 16 },
-  firstFooter: { paddingHorizontal: 20, paddingTop: 8 },
+  // 첫 사용자 홈
+  firstContainer: { paddingTop: 80, paddingHorizontal: 24, paddingBottom: 24 },
+  firstChoices: { gap: 12, marginTop: 48 },
+  firstPair: { flexDirection: 'row', gap: 12 },
+  firstFooter: { paddingHorizontal: 24, paddingTop: 8 },
   choice: {
-    gap: 14,
+    gap: 6,
     paddingVertical: 20,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: palette.bgSoft,
-    backgroundColor: palette.bgSoft,
-  },
-  choiceOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  choiceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  choiceIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: palette.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  choiceBody: { flex: 1, minWidth: 0, gap: 3 },
-  choiceText: { fontSize: 18, fontWeight: '700', lineHeight: 23, color: palette.text },
-  choiceTextOn: { color: palette.blueDeep },
-  choiceSub: { fontSize: 14, fontWeight: '400', lineHeight: 20, color: palette.textMuted },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
     borderWidth: 1.5,
     borderColor: palette.border,
     backgroundColor: palette.card,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  radioOn: { borderWidth: 0, backgroundColor: palette.blue },
-  steps: { gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: palette.blueLine },
-  stepsLabel: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
-  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center' },
-  stepNumText: { fontSize: 12, fontWeight: '700', color: palette.blue },
-  stepText: { flex: 1, fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textStrong },
+  choiceHalf: { flex: 1, minWidth: 0, paddingHorizontal: 16 },
+  choiceOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
+  choiceTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  choiceText: { fontSize: 18, fontWeight: '700', lineHeight: 24, color: palette.text },
+  choiceTextOn: { color: palette.blueDeep },
+  choiceSub: { fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMuted },
 
   // 머리
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  greeting: { flex: 1, fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.text },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  greetingBubble: { flex: 1, minWidth: 0, borderRadius: 16, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 14 },
+  greeting: { fontSize: 15, fontWeight: '700', lineHeight: 22, color: palette.text },
+  streakPill: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 9999, backgroundColor: palette.flameSoft, paddingVertical: 7, paddingHorizontal: 10 },
+  streakText: { fontSize: 14, fontWeight: '800', color: palette.flameDeep },
   bell: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   bellDot: {
     position: 'absolute',
@@ -853,62 +813,38 @@ const styles = StyleSheet.create({
     borderColor: palette.bg,
   },
 
-  // 오늘 할 것
-  todayCard: { marginTop: 24, backgroundColor: palette.bgSoft, borderRadius: 22, padding: 20, gap: 10 },
-  eyebrow: { fontSize: 12, fontWeight: '800', lineHeight: 18 },
-  eyebrowBlue: { color: palette.blue },
-  eyebrowGreen: { color: palette.green },
-  eyebrowOrange: { color: palette.flame },
-  todayTitle: { fontSize: 18, fontWeight: '800', lineHeight: 24, color: palette.text },
-  barTrack: { height: 8, borderRadius: 4, backgroundColor: palette.bg, overflow: 'hidden' },
-  barFill: { height: 8, borderRadius: 4, backgroundColor: palette.green },
-  todaySub: { fontSize: 13, fontWeight: '600', lineHeight: 20, color: palette.textDim },
+  // 이번 주 요일별 점
+  week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 24 },
+  weekCol: { alignItems: 'center', gap: 6 },
+  weekDot: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
+  weekDotDone: { backgroundColor: palette.flame },
+  weekDotToday: { backgroundColor: palette.card, borderWidth: 2, borderColor: palette.flame },
+  weekLabel: { fontSize: 12, fontWeight: '500', lineHeight: 16, color: palette.textFaint },
+  weekLabelToday: { fontWeight: '800', color: palette.flameDeep },
+
+  // 주 기능 카드
+  todayCard: { marginTop: 24, backgroundColor: palette.blueSoft, borderRadius: 16, borderWidth: 1.5, borderColor: palette.blue, padding: 20, gap: 8 },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  eyebrow: { fontSize: 13, fontWeight: '800', lineHeight: 18, color: palette.flameDeep },
+  todayTitle: { fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text },
+  barTrack: { height: 6, borderRadius: 3, backgroundColor: palette.card, overflow: 'hidden' },
+  barFill: { height: 6, borderRadius: 3, backgroundColor: palette.blue },
+  todaySub: { fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMuted },
   todayCta: {
-    marginTop: 4,
-    height: 50,
-    borderRadius: 25,
+    marginTop: 8,
+    height: 52,
+    borderRadius: 12,
     backgroundColor: palette.blue,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  todayCtaText: { fontSize: 16, fontWeight: '800', color: palette.onAccent },
+  todayCtaText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
 
-  // 하던 거 한 줄
-  alsoRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingHorizontal: 4 },
-  alsoDot: { width: 8, height: 8, borderRadius: 4 },
-  dotBlue: { backgroundColor: palette.blue },
-  dotGreen: { backgroundColor: palette.green },
-  alsoText: { flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 22, color: palette.textDim },
-
-  // 최근 연습·마감 임박 — 카드 없이 줄만
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 28,
-    marginBottom: 4,
-    paddingHorizontal: 4,
-  },
-  sectionTitle: { fontSize: 14, fontWeight: '800', color: palette.textFaint },
-  sectionLink: { fontSize: 13, fontWeight: '700', color: palette.blue },
-  listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 4 },
-  thumb: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: palette.blueSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  listTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  listTitle: { fontSize: 15, fontWeight: '700', lineHeight: 22, color: palette.text },
-  listMeta: { marginTop: 2, fontSize: 12, fontWeight: '500', lineHeight: 17, color: palette.textFaint },
-  talkingBadge: { borderRadius: 9999, backgroundColor: palette.blueSoft, paddingVertical: 2, paddingHorizontal: 8 },
-  talkingBadgeText: { fontSize: 11, fontWeight: '800', color: palette.blueDeep },
-  dday: { minWidth: 52, fontSize: 13, fontWeight: '800', color: palette.flameDeep },
-
-  // 오늘의 연기 팁
-  tip: { marginTop: 32, flexDirection: 'row', gap: 10, paddingHorizontal: 4 },
-  tipText: { flex: 1, fontSize: 14, fontWeight: '600', lineHeight: 21, color: palette.textMuted },
+  // 이것도 해 볼래요?
+  sectionTitle: { marginTop: 32, marginBottom: 4, fontSize: 15, fontWeight: '700', lineHeight: 22, color: palette.textDim },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
+  rowIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
+  listTitle: { fontSize: 16, fontWeight: '700', lineHeight: 22, color: palette.text },
+  listMeta: { marginTop: 2, fontSize: 13, fontWeight: '400', lineHeight: 19, color: palette.textFaint },
 });
+

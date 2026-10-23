@@ -131,7 +131,7 @@ async function answer(loop, result, text) {
   );
 }
 
-test('예시 코치는 질문 둘을 하고 대화를 닫으며 노트를 준다 — 네트워크는 0회', async () => {
+test('예시 액티는 질문 둘을 하고 대화를 닫으며 노트를 준다 — 네트워크는 0회', async () => {
   const realFetch = globalThis.fetch;
   let fetched = 0;
   globalThis.fetch = () => {
@@ -178,7 +178,7 @@ test('예시 코치는 "그만"으로 먼저 끝내도 대화를 닫고 노트�
   assert.ok(end.note);
 });
 
-test('예시 대화를 다시 열면 같은 대화를 이어 간다 — 코치 화면 재진입', async () => {
+test('예시 대화를 다시 열면 같은 대화를 이어 간다 — 액티 화면 재진입', async () => {
   const loop = createSampleLoop({ delayMs: 0 });
   const first = await loadCoachSession(loop, SAMPLE_PRACTICE_ID, 'start-1', null);
   const again = await loadCoachSession(loop, SAMPLE_PRACTICE_ID, 'start-2', first.conversation.id);
@@ -196,7 +196,7 @@ test('예시 노트는 대화가 닫히기 전엔 없다', async () => {
   await assert.rejects(loop.getPracticeNote(SAMPLE_PRACTICE_ID), (e) => e.code === 'note_not_found');
 });
 
-test('예시 회차는 분석 요약이 없다 — 코치 화면 위 「AI가 본 장면」 줄이 숨는다', async () => {
+test('예시 회차는 분석 요약이 없다 — 액티 화면 위 「AI가 본 장면」 줄이 숨는다', async () => {
   const loop = createSampleLoop({ delayMs: 0 });
   await assert.rejects(loop.getPracticeAnalysis(SAMPLE_PRACTICE_ID), (e) => e.code === 'analysis_not_found');
 });
@@ -278,7 +278,7 @@ test('목소리 정하기 — 갈래와 상관없이 배역 목소리 목록과 
 });
 
 // 예시 튜토리얼은 답도 샘플로 채워 둔다 — 영상을 모르는 사람이 무엇을 적을지 막히지 않게(SOMA-494).
-test('예시 코치의 질문마다 채워 둘 샘플 답이 있고, 질문이 끝나면 없다', () => {
+test('예시 액티의 질문마다 채워 둘 샘플 답이 있고, 질문이 끝나면 없다', () => {
   const first = sampleAnswerFor(0);
   const second = sampleAnswerFor(1);
   assert.ok(first && first.trim());

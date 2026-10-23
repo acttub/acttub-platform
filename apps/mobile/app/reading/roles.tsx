@@ -175,7 +175,6 @@ export default function ReadingRoles() {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.step}>{t('reading.voicesStep')}</Text>
         <Text style={styles.title}>{t('reading.voicesHeading')}</Text>
 
         <View style={styles.scriptCard}>

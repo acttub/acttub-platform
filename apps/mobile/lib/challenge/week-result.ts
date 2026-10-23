@@ -48,3 +48,8 @@ export function periodLabel(startsAt: string, endsAt: string): string {
   const to = kstDate(Date.parse(endsAt) - 1);
   return `${from.month}/${from.day}~${to.month}/${to.day}`;
 }
+
+/** 결과가 나오는 날 — 마감 시각의 한국 날짜. */
+export function resultDay(endsAt: string): KstDate {
+  return kstDate(endsAt);
+}
