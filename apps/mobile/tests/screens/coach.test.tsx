@@ -79,7 +79,7 @@ jest.mock('@/components/mic-button', () => {
 
 const SEND = '보내기';
 const PLACEHOLDER = '직접 써도 돼요';
-const LOADING = '액티가 첫 질문을 쓰고 있어요…';
+const LOADING = '코치가 첫 질문을 쓰고 있어요…';
 const LOADING_HINT = '보통 20~30초쯤 걸려요. 화면을 나가도 질문은 계속 만들어지고, 홈에서 「대화 이어 가기」를 누르면 이어서 볼 수 있어요.';
 const NOTE = { id: 'n1', title: '멈춤' } as PracticeNote;
 
@@ -165,7 +165,7 @@ afterEach(() => {
 test('진행 중인 연습이 없으면 홈에서 새로 시작하라고 안내한다', async () => {
   await render(<CoachScreen />);
 
-  expect(screen.getByText('진행 중인 연습이 없어요. 홈에서 새로 시작해주세요.')).toBeOnTheScreen();
+  expect(screen.getByText('진행 중인 연습이 없어요. 홈에서 새로 시작해 주세요.')).toBeOnTheScreen();
   expect(mockLoop.startConversation).not.toHaveBeenCalled();
   expect(screen.queryByPlaceholderText(PLACEHOLDER)).not.toBeOnTheScreen();
 });
@@ -199,7 +199,7 @@ describe('대화 시작', () => {
     await act(async () => resolveStart(turn(conv({ messages: [msg(0, 'coach', '  첫 질문이에요.\n둘째 줄  ')] }))));
 
     expect(screen.getByText('첫 질문이에요.\n둘째 줄')).toBeOnTheScreen();
-    expect(screen.getByText('액티')).toBeOnTheScreen();
+    expect(screen.getByText('코치')).toBeOnTheScreen();
     expect(screen.queryByText(LOADING)).not.toBeOnTheScreen();
     expect(screen.queryByText(LOADING_HINT)).not.toBeOnTheScreen();
     expect(screen.getByLabelText('답이나 질문을 편하게 적어 주세요')).toBeOnTheScreen();
@@ -274,7 +274,7 @@ describe('대화 시작', () => {
     await render(<CoachScreen />);
 
     expect(await screen.findByText('분석이 아직 끝나지 않았어요.')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('액티 다시 연결하기'));
+    await fireEvent.press(screen.getByText('코치 다시 연결하기'));
 
     expect(await screen.findByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
     expect(screen.queryByText('분석이 아직 끝나지 않았어요.')).not.toBeOnTheScreen();
@@ -395,7 +395,7 @@ describe('답 보내기', () => {
     await typeAndSend('첫 답');
     expect(await screen.findByText(message)).toBeOnTheScreen();
     expect(input()).toHaveDisplayValue('첫 답');
-    expect(screen.queryByText('액티 다시 연결하기')).not.toBeOnTheScreen();
+    expect(screen.queryByText('코치 다시 연결하기')).not.toBeOnTheScreen();
   });
 
   test('다른 곳에서 먼저 답이 들어갔으면 쓰던 글을 두고 최신 대화를 다시 읽는다', async () => {

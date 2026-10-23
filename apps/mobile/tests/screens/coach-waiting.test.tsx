@@ -203,7 +203,7 @@ describe('기다리는 동안', () => {
     // 따로 된 분석 화면이 아니라 대화 화면 안의 코치 말풍선이다.
     expect(screen.getByText('질문 대화')).toBeOnTheScreen();
     expect(screen.getByText(WATCHING)).toBeOnTheScreen();
-    expect(screen.getByText('액티')).toBeOnTheScreen();
+    expect(screen.getByText('코치')).toBeOnTheScreen();
     expect(screen.queryByText('3단계 · 질문 준비 중')).not.toBeOnTheScreen();
     staysWaiting();
     expect(screen.getByText('0초 경과')).toBeOnTheScreen();
