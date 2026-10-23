@@ -199,6 +199,22 @@ export default function ScriptCocreateScreen() {
     router.replace({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
   };
 
+  // 저장한 대본을 리딩 대본 화면으로 연다(리딩 탭 「업로드한 대본」에도 있는 그 대본).
+  const openInReading = async () => {
+    if (!script?.script_id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const loaded = await loadIntoCurrent(script.script_id);
+      if (!loaded) throw new Error('saved_script_not_found');
+      router.replace('/reading/detail');
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const back = () => {
     if (step === 'emotion' && readingMode) return setStep('start');
     if (step === 'failed') return setStep('direction');
@@ -225,23 +241,7 @@ export default function ScriptCocreateScreen() {
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.resultBody}>
             <MascotBubble title={t('scriptCocreate.resultAsk')} guide={t('scriptCocreate.resultGuide')} />
-            <Text style={styles.scriptTitle}>{script.title}</Text>
-            <Text style={styles.summary}>{summaryLine(script)}</Text>
-            {script.note ? <Text style={styles.note}>{script.note}</Text> : null}
-            <View style={styles.paper}>
-              {script.lines.map((line, i) =>
-                line.kind === 'dialogue' ? (
-                  <View key={i} style={styles.lineRow}>
-                    <Text style={styles.speaker}>{line.character}</Text>
-                    <Text style={styles.dialogue}>{line.text}</Text>
-                  </View>
-                ) : (
-                  <Text key={i} style={line.kind === 'scene' ? styles.sceneLine : styles.direction}>
-                    {line.kind === 'scene' ? line.text : `(${line.text})`}
-                  </Text>
-                ),
-              )}
-            </View>
+            <ScriptPaper script={script} />
             <View style={styles.chips}>
               {REVISION_CHIPS.map((chip) => (
                 <Chip
@@ -349,10 +349,13 @@ export default function ScriptCocreateScreen() {
         </View>
       ) : step === 'saved' && script ? (
         <View style={styles.flex}>
-          <View style={styles.body}>
+          {/* 저장한 대본을 그대로 보여 준다 — 찍기 전에 대사를 다시 볼 수 있어야 하고, 어디에 저장됐는지도 알려 준다. */}
+          <ScrollView contentContainerStyle={styles.resultBody}>
             <MascotBubble title={t('scriptCocreate.savedTitle')} body={t('scriptCocreate.savedSub')} />
-          </View>
-          <View style={styles.flex} />
+            <ScriptPaper script={script} />
+            <TextButton label={t('scriptCocreate.openInReading')} phLabel="script_cocreate_open_reading" onPress={() => void openInReading()} disabled={busy} />
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+          </ScrollView>
           <CtaBar>
             <PrimaryButton label={t('scriptCocreate.recordNow')} phLabel="script_cocreate_record_now" onPress={recordNow} />
             <SecondaryButton label={t('scriptCocreate.later')} phLabel="script_cocreate_later" onPress={() => router.back()} />
@@ -484,6 +487,31 @@ function CastAndLength({
         ))}
       </View>
       <Text style={styles.hint}>{t('scriptCocreate.lengthHint')}</Text>
+    </>
+  );
+}
+
+/** 만든 대본 한 장 — 제목·요약·메모와 줄(장면·지문·대사). 결과 화면과 저장 화면이 같이 쓴다. */
+function ScriptPaper({ script }: { script: SampleScript }) {
+  return (
+    <>
+      <Text style={styles.scriptTitle}>{script.title}</Text>
+      <Text style={styles.summary}>{summaryLine(script)}</Text>
+      {script.note ? <Text style={styles.note}>{script.note}</Text> : null}
+      <View style={styles.paper}>
+        {script.lines.map((line, i) =>
+          line.kind === 'dialogue' ? (
+            <View key={i} style={styles.lineRow}>
+              <Text style={styles.speaker}>{line.character}</Text>
+              <Text style={styles.dialogue}>{line.text}</Text>
+            </View>
+          ) : (
+            <Text key={i} style={line.kind === 'scene' ? styles.sceneLine : styles.direction}>
+              {line.kind === 'scene' ? line.text : `(${line.text})`}
+            </Text>
+          ),
+        )}
+      </View>
     </>
   );
 }

@@ -2114,6 +2114,7 @@ const ko = {
     applyEdit: '수정 적용',
     savedTitle: '내 대본에 저장했어요',
     savedSub: '리딩에서도 이 대본을 읽을 수 있어요. 지금 찍어서 코칭 받을까요?',
+    openInReading: '리딩에서 읽어 보기',
     recordNow: '지금 찍을래요',
     later: '나중에 찍을게요',
     errorGenerate: '대본을 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.',
