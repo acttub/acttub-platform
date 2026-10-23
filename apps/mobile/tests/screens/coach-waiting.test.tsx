@@ -496,7 +496,7 @@ describe('다시 읽는 때', () => {
 
 describe('분석이 실패하면', () => {
   test.each([
-    ['timeout', '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해주세요.'],
+    ['timeout', '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해 주세요.'],
     ['unsupported', '지원하지 않는 영상 형식이에요. mp4로 다시 올려주세요.'],
     ['max_attempts', '분석에 실패했어요. 다시 시도해주세요.'],
   ])('%s 이면 사유와 다시 시도 버튼을 보인다', async (reason, message) => {
@@ -514,7 +514,7 @@ describe('분석이 실패하면', () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', close_reason: 'cancelled', job: null }));
     await render(<CoachScreen />);
 
-    expect(await screen.findByText('분석을 그만뒀어요. 영상은 그대로 있어요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석을 그만뒀어요. 영상은 보관함에 그대로 있어요.', { exact: false })).toBeOnTheScreen();
     expect(screen.queryByText('영상은 그대로 있으니 「다시 시도」를 누르세요.', { exact: false })).not.toBeOnTheScreen();
     expect(screen.queryByText('다시 시도')).not.toBeOnTheScreen();
 

@@ -18,7 +18,7 @@ test('코칭 탭 입구는 새 연습(목적 → 영상)·말로 코칭·대사 
   const coaching = read('app/(tabs)/coaching.tsx');
   assert.match(coaching, /pathname: '\/upload'/);
   assert.match(coaching, /router\.push\('\/talk'\)/);
-  assert.match(coaching, /router\.push\('\/script-cocreate'\)/);
+  assert.match(coaching, /<ScriptCocreateEntry/);
   // 서버에 없는 값(몇 번 해 봤는지·줄 태그)은 문구조차 두지 않는다.
   const ko = read('locales/ko.ts');
   const block = ko.slice(ko.indexOf('  coachingTab: {'), ko.indexOf('  },', ko.indexOf('  coachingTab: {')));
