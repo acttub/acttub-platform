@@ -1909,6 +1909,7 @@ const ko = {
     diffEmpty: '이번엔 다르게 말한 대사가 없어요.',
     diffBack: '대본으로 돌아가기',
     diffCount: '원문과 다르게 말한 대사 {{count}}개',
+    diffSaidLabel: '내가 말한 것',
     toDetail: '상세로',
     // 회차 목록·상세(R00.5) · 완료(R05) · 녹음 · reading.recording
     sessionOrdinal: '{{n}}회차',

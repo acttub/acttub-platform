@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -50,6 +50,7 @@ const STOP_WATCH_MS = 4000;
  * 시뮬레이터엔 카메라가 없어 실기기에서만 실제로 돈다.
  */
 export default function RecordVideoScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   const router = useRouter();
   // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로. 업로드 화면의 촬영 버튼에서
   //   왔으면(picker 없음) 보관함에 저장하고 그 업로드 화면으로 되돌아간다.
@@ -578,7 +579,7 @@ export default function RecordVideoScreen() {
         {recordScript && !scriptHidden ? (
           <View style={styles.scriptCard}>
             <Text style={styles.lineLabel} numberOfLines={1}>{t('record.scriptLabel', { title: recordScript.title })}</Text>
-            <ScrollView style={styles.scriptScroll} contentContainerStyle={styles.scriptBody}>
+            <ScrollView style={[styles.scriptScroll, { maxHeight: Math.round(windowHeight * 0.24) }]} contentContainerStyle={styles.scriptBody}>
               {recordScript.lines.map((line, i) =>
                 line.kind === 'dialogue' ? (
                   <Text key={i} style={[styles.scriptLine, line.mine && styles.scriptLineMine]}>
@@ -709,6 +710,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,14,24,0.78)',
     gap: 8,
   },
+  // 대본 카드는 화면 4분의 1 안쪽 — 대사가 많으면 안에서 넘긴다. 예전 300 고정은 작은 폰에서 화면 절반을 덮어 얼굴 위치를 못 봤다(10/24 폰).
   scriptScroll: { maxHeight: 300 },
   scriptBody: { gap: 6, paddingBottom: 6 },
   scriptLine: { color: 'rgba(255,255,255,0.72)', fontSize: 15, fontWeight: '500', lineHeight: 22 },

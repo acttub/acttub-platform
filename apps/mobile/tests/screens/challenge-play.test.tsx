@@ -752,6 +752,20 @@ describe('반응 메뉴', () => {
     expect(screen.queryByText('이 사용자 차단')).not.toBeOnTheScreen();
   });
 
+  test('내 참여작 메뉴에는 「신고」가 없다 — 스스로 신고하지 않는다', async () => {
+    await renderFeed([entry({ is_mine: true })]);
+    await openMenu();
+    expect(screen.queryByText('신고')).not.toBeOnTheScreen();
+    expect(screen.getByText('공유')).toBeOnTheScreen();
+  });
+
+  test('내가 연 챌린지에서는 「이 대사 신고」를 두지 않는다', async () => {
+    mocked.getChallenge.mockResolvedValue(challenge({ is_host: true }));
+    await renderFeed([entry()]);
+    await openMenu();
+    expect(screen.queryByText('이 대사 신고')).not.toBeOnTheScreen();
+  });
+
   test('작성자 id 가 없는 참여작(탈퇴 등)은 차단할 수 없다', async () => {
     await renderFeed([entry({ author: { name: '탈퇴', user_id: null as unknown as string } })]);
     await openMenu();
