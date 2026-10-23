@@ -928,7 +928,7 @@ function FirstChoice({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   safeHero: { backgroundColor: '#E4EEFC' },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80, backgroundColor: '#F7FAFE' },
   // 아래 탭 바가 화면 위에 떠 있어 그만큼 바닥을 비운다.
   scrollBg: { backgroundColor: '#F7FAFE' },
   container: {},
