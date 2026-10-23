@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
-import { HOME_POSES, MASCOT, MASCOT_SIZE, dailyPose } from '@/components/ui/mascot';
+import { MASCOT } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
