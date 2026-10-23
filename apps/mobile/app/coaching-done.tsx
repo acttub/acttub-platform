@@ -53,7 +53,7 @@ export default function CoachingDoneScreen() {
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
       {/* 평가 한 줄을 쓸 때 입력칸과 「홈으로」가 키보드 위에 남게 한다. */}
-      <KeyboardLift>
+      <KeyboardLift aboveSafeBottom>
       <KeyboardAwareScroll contentContainerStyle={styles.body}>
         <Image source={MASCOT.jump} style={MASCOT_SIZE.lg} contentFit="contain" accessibilityIgnoresInvertColors />
         <Text style={styles.title} accessibilityRole="header">

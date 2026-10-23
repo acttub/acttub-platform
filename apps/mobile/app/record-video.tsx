@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -139,7 +140,20 @@ export default function RecordVideoScreen() {
   // 안 뜨면 화면 안의 버튼으로 다시 묻거나 설정으로 보낸다 — iOS 전체화면 모달 위에서는 우리 안내
   // 팝업이 안 떠서 검은 화면에 갇힌 적이 있다.
   // OS 팝업이 떠 있는 동안은 안내 띠를 숨기고 돌아가는 표시만 둔다(pen P2.1·P2.2).
+  // 「팝업이 떠 있다」는 앱이 잠깐 비활성(iOS inactive · 안드로이드 background)이 되는 것으로 안다. 요청 약속(promise)만
+  // 믿으면 안 된다 — 안드로이드에서 「다시 묻지 않음」 뒤 요청이 끝나지 않아 돌아가는 표시에 갇혔다(10/24 폰 확인).
   const [asking, setAsking] = useState(false);
+  const [appActive, setAppActive] = useState(AppState.currentState !== 'background' && AppState.currentState !== 'inactive');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => setAppActive(state !== 'background' && state !== 'inactive'));
+    return () => sub.remove();
+  }, []);
+  // 요청을 보낸 뒤 1초 안에 팝업이 안 뜨면(이미 거절 고정 등) 기다리지 않고 띠를 보인다.
+  useEffect(() => {
+    if (!asking) return;
+    const timer = setTimeout(() => setAsking(false), 1000);
+    return () => clearTimeout(timer);
+  }, [asking]);
   const askPermissions = useCallback(async () => {
     setAsking(true);
     try {
@@ -386,8 +400,10 @@ export default function RecordVideoScreen() {
   // 다시 묻거나(허용하기) 설정을 연다(다시 물을 수 없을 때). 예전 흰 안내 한 장은 OS 팝업 뒤에 떠서 따로 노는 화면이었다.
   if (!ready) {
     const known = !!camPerm && !!micPerm;
+    const showNotice = known && appActive && !asking;
     return (
       <View style={styles.permDark}>
+        <StatusBar style="light" />
         <SafeAreaView style={styles.permSafe}>
           <View style={styles.topRow}>
             <Pressable
@@ -399,8 +415,8 @@ export default function RecordVideoScreen() {
               <Text style={styles.closeText}>✕</Text>
             </Pressable>
           </View>
-          <View style={styles.permCenter}>{(!known || asking) && <ActivityIndicator color="rgba(255,255,255,0.8)" />}</View>
-          {known && !asking && (
+          <View style={styles.permCenter}>{!showNotice && <ActivityIndicator color="rgba(255,255,255,0.8)" />}</View>
+          {showNotice && (
             <View style={styles.permNotice}>
               <Feather name="camera-off" size={16} color={palette.amber} />
               <View style={styles.permNoticeBody}>
@@ -428,6 +444,8 @@ export default function RecordVideoScreen() {
   if (isChallenge) {
     return (
       <View style={styles.safe}>
+        {/* 검은 카메라 화면 — 상태 표시줄 글자를 흰색으로(앱 기본은 검은 글자라 시간·배터리가 안 보였다). */}
+        <StatusBar style="light" />
         <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setCameraReady(true)} />
         {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
         <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
@@ -519,6 +537,7 @@ export default function RecordVideoScreen() {
 
   return (
     <View style={styles.safe}>
+      <StatusBar style="light" />
       <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setCameraReady(true)} />
       {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
       <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />

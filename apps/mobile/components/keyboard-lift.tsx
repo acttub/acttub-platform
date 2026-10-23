@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
-import { Dimensions, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { createContext, useContext, type ReactNode } from 'react';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 
@@ -15,34 +16,28 @@ export function useKeyboardLift(): number | null {
  * iOS·안드로이드 같은 방식이다 — iOS의 automaticallyAdjustKeyboardInsets는 스크롤 안쪽만 밀어서 스크롤 밖 CtaBar가
  * 키보드 뒤에 남았고(10/24 iOS 제보), 안드로이드 edge-to-edge는 창이 줄지 않았다([[use-keyboard-height]]).
  *
- * 이 칸 아래에 SafeArea 여백 같은 다른 칸이 있으면 그만큼은 덜 비운다 — 화면 바닥에서 이 칸까지의 거리를 재서 뺀다.
- * `extra`는 키보드 위에 더 띄울 간격(가운데 팝업이 키보드에 붙지 않게).
+ * `aboveSafeBottom` — 이 칸 아래에 SafeAreaView 아래 여백(홈 인디케이터·안드로이드 내비 바)이 이미 있으면 켠다. 그만큼은
+ * 덜 비운다. 예전엔 화면 좌표를 재서 뺐는데, 안드로이드에서 창 좌표가 상태 표시줄만큼 어긋나 버튼이 반쯤 가렸다(10/24 폰).
+ * `extra`는 키보드 위에 더 띄울 간격.
  */
 export function KeyboardLift({
   children,
   style,
+  aboveSafeBottom = false,
   extra = 0,
 }: {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
+  aboveSafeBottom?: boolean;
   extra?: number;
 }) {
   const keyboard = useKeyboardHeight();
-  const ref = useRef<View>(null);
-  const [below, setBelow] = useState(0);
-  const measure = useCallback(() => {
-    ref.current?.measureInWindow((_x, y, _w, h) => {
-      const screen = Dimensions.get('screen').height;
-      if (!Number.isFinite(y) || !Number.isFinite(h) || screen <= 0) return;
-      setBelow(Math.max(0, Math.round(screen - (y + h))));
-    });
-  }, []);
+  const insets = useSafeAreaInsets();
+  const below = aboveSafeBottom ? insets.bottom : 0;
   const lift = keyboard > 0 ? Math.max(0, keyboard - below) + extra : 0;
   return (
     <KeyboardLiftContext.Provider value={lift}>
-      <View ref={ref} onLayout={measure} style={[styles.fill, style, lift > 0 && { paddingBottom: lift }]}>
-        {children}
-      </View>
+      <View style={[styles.fill, style, lift > 0 && { paddingBottom: lift }]}>{children}</View>
     </KeyboardLiftContext.Provider>
   );
 }

@@ -213,7 +213,7 @@ export default function JournalScreen() {
 
       {/* 키보드가 뜨면 질문·입력칸과 「다음」이 키보드 위로 올라온다(iOS에서 아래 버튼이 키보드에 가렸다). */}
       {phase === 'questions' && (
-        <KeyboardLift>
+        <KeyboardLift aboveSafeBottom>
           <KeyboardAwareScroll contentContainerStyle={styles.body}>
             <Text style={styles.step}>{t('journal.step', { step: step + 1, total: questions.length })}</Text>
             <Text style={styles.question} accessibilityRole="header">
@@ -259,7 +259,7 @@ export default function JournalScreen() {
       )}
 
       {phase === 'view' && journal && (
-        <KeyboardLift>
+        <KeyboardLift aboveSafeBottom>
           <JournalBody journal={journal} edit={edit} onEdit={setEdit} open={open} onToggle={(key) => setOpen((was) => ({ ...was, [key]: !was[key] }))} />
           {error && <Text style={[styles.errorText, styles.footerError]}>{error}</Text>}
           {(fromCoach || edit) && (

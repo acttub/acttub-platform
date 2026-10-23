@@ -218,6 +218,22 @@ describe('카메라·마이크 권한', () => {
     expect(screen.queryByLabelText('촬영 시작')).not.toBeOnTheScreen();
   });
 
+  test('거절 고정 뒤 요청이 끝나지 않아도 1초 뒤 설정 열기 띠를 보인다 (10/24 안드로이드 폰)', async () => {
+    jest.useFakeTimers();
+    mockCamPerm = BLOCKED;
+    mockMicPerm = BLOCKED;
+    mockRequestCam.mockReturnValue(new Promise(() => undefined));
+
+    await render(<RecordVideoScreen />);
+    expect(screen.queryByRole('button', { name: '설정 열기' })).not.toBeOnTheScreen();
+    await act(async () => {
+      jest.advanceTimersByTime(1_000);
+    });
+
+    expect(screen.getByRole('button', { name: '설정 열기' })).toBeOnTheScreen();
+    jest.useRealTimers();
+  });
+
   test('카메라만 허용돼 있으면 마이크만 묻는다', async () => {
     mockCamPerm = GRANTED;
     mockMicPerm = DENIED;
