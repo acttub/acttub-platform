@@ -46,8 +46,11 @@ const ko = {
     emailConflictUnavailable: '이 이메일은 {{provider}}로 가입돼 있어요.',
     emailConflictUnknown: '이 이메일은 다른 방식으로 가입돼 있어요.',
   },
+  splash: {
+    tagline: '오늘도 한 걸음, 같이 연습해요',
+  },
   updateRequired: {
-    title: '새 버전으로 업데이트해주세요',
+    title: '새 버전으로 업데이트해 주세요',
     body: '지금 버전으로는 더 이상 이용할 수 없어요. 업데이트하면 연습과 노트를 그대로 이어서 볼 수 있어요.',
     cta: '업데이트',
     manual: '스토어에서 Acttub을 찾아 업데이트해주세요.',
