@@ -14,6 +14,7 @@ jest.mock('@/lib/challenge/share-native', () => ({
   saveVideoToLibrary: jest.fn(),
   copyText: jest.fn(),
   openSystemShare: jest.fn(),
+  openSystemShareWithVideo: jest.fn(),
   openUrl: jest.fn(),
 }));
 
@@ -24,6 +25,7 @@ const m = native as unknown as {
   saveVideoToLibrary: jest.Mock;
   copyText: jest.Mock;
   openSystemShare: jest.Mock;
+  openSystemShareWithVideo: jest.Mock;
   openUrl: jest.Mock;
 };
 
@@ -42,6 +44,7 @@ beforeEach(() => {
   m.shareVideoToInstagramStory.mockResolvedValue(undefined);
   m.saveVideoToLibrary.mockResolvedValue(undefined);
   m.openSystemShare.mockResolvedValue(undefined);
+  m.openSystemShareWithVideo.mockResolvedValue(undefined);
   m.openUrl.mockResolvedValue(undefined);
 });
 
@@ -111,14 +114,26 @@ describe('EntryShareSheet', () => {
     expect(screen.queryByText(/받지 못했어요/)).toBeNull();
   });
 
-  it('카카오톡·더 보기는 기기 공유 창에 링크 문장을, 스레드는 intent 주소를 연다', async () => {
+  it('내 참여작의 카카오톡·더 보기는 영상 파일과 링크 문장을 같이 넘기고, 스레드는 intent 주소를 연다', async () => {
+    await open();
+    fireEvent.press(screen.getByLabelText('카카오톡'));
+    await waitFor(() =>
+      expect(m.openSystemShareWithVideo).toHaveBeenCalledWith('file:///c/a.mp4', expect.stringContaining('https://acttub.com/e/e1')),
+    );
+    expect(m.videoDeps.download).toHaveBeenCalledWith('https://v/1.mp4');
+    fireEvent.press(screen.getByLabelText('더 보기'));
+    await waitFor(() => expect(m.openSystemShareWithVideo).toHaveBeenCalledTimes(2));
+    expect(m.openSystemShare).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByLabelText('스레드'));
+    await waitFor(() => expect(m.openUrl).toHaveBeenCalledWith(expect.stringContaining('https://www.threads.net/intent/post?text=')));
+  });
+
+  it('영상을 못 받으면 카카오톡에 링크 문장만 보낸다', async () => {
+    m.videoDeps.download.mockRejectedValue(new Error('network'));
     await open();
     fireEvent.press(screen.getByLabelText('카카오톡'));
     await waitFor(() => expect(m.openSystemShare).toHaveBeenCalledWith(expect.stringContaining('https://acttub.com/e/e1')));
-    fireEvent.press(screen.getByLabelText('더 보기'));
-    await waitFor(() => expect(m.openSystemShare).toHaveBeenCalledTimes(2));
-    fireEvent.press(screen.getByLabelText('스레드'));
-    await waitFor(() => expect(m.openUrl).toHaveBeenCalledWith(expect.stringContaining('https://www.threads.net/intent/post?text=')));
+    expect(m.openSystemShareWithVideo).not.toHaveBeenCalled();
   });
 
   it('링크 복사는 복사하고 토스트를 보인다', async () => {

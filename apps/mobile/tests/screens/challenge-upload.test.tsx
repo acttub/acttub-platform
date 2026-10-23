@@ -37,6 +37,7 @@ jest.mock('@/lib/challenge/share-native', () => ({
   saveVideoToLibrary: jest.fn(),
   copyText: jest.fn(),
   openSystemShare: jest.fn(),
+  openSystemShareWithVideo: jest.fn(),
   openUrl: jest.fn(),
 }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
