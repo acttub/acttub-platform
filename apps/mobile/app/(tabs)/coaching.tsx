@@ -5,13 +5,11 @@ import { useCallback, useMemo, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ChoiceCard } from '@/components/choice-card';
 import { ScriptCocreateEntry } from '@/components/script-cocreate-entry';
 import { TalkEntryButton } from '@/components/talk-entry-button';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { MASCOT } from '@/components/ui/mascot';
-import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
@@ -34,10 +32,6 @@ function shortDate(iso: string | null | undefined): string {
   return d.toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric' });
 }
 
-/** 처음 화면의 입구 셋(pen 「코칭 탭 · 처음」). */
-const ENTRY_CHOICES = ['video', 'talk', 'script'] as const;
-type EntryChoice = (typeof ENTRY_CHOICES)[number];
-
 /**
  * 코칭 탭(pen 「코칭 탭 · 처음」·「다음 연습」·「하던 코칭 이어서」). 가운데 촬영 버튼을 대신해 코칭을 시작하는 곳이다.
  *
@@ -54,7 +48,6 @@ export default function CoachingTab() {
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const [entry, setEntry] = useState<CoachingEntry | null>(null);
-  const [choice, setChoice] = useState<EntryChoice | null>(null);
   // 저장한 대본이 하나라도 있으면 「내 대본으로 찍기」를 보인다(리딩·대본 만들기에서 저장한 대본은 같은 목록이다).
   const [hasScripts, setHasScripts] = useState(false);
   const [groups, setGroups] = useState<PracticeGroup[]>([]);
@@ -69,7 +62,6 @@ export default function CoachingTab() {
         .listPracticeGroups('all')
         .then(({ groups: list }) => {
           if (cancelled) return;
-          setChoice(null);
           setGroups(list);
           setEntry(coachingEntry(list));
         })
@@ -115,13 +107,6 @@ export default function CoachingTab() {
       ? (entry.group.practices.find((p) => p.id === entry.notePracticeId)?.created_at ?? entry.group.last_practiced_at)
       : null;
 
-  // 처음 화면의 「다음」 — 고른 입구로 간다. 「영상 보여 주고」는 새 연습(목적 → 영상) 흐름이다.
-  const goChoice = () => {
-    if (choice === 'video') startNew();
-    else if (choice === 'talk') router.push('/talk');
-    else if (choice === 'script') router.push('/script-cocreate');
-  };
-
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* 첫 사용자 홈에서 이 길을 고른 뒤에도 홈(뭐부터 해 볼까요?)으로 돌아가 다른 길을 고를 수 있다(SOMA-771). */}
@@ -143,22 +128,48 @@ export default function CoachingTab() {
       ) : entry.kind === 'first' ? (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstBody}>
-            <MascotBubble source={MASCOT.slate} title={t('coachingTab.chooseBubble')} guide={t('coachingTab.chooseGuide')} />
-            <View style={styles.choices}>
-              {ENTRY_CHOICES.map((key) => (
-                <ChoiceCard
-                  key={key}
-                  title={t(`coachingTab.choice.${key}`)}
-                  sub={t(`coachingTab.choiceSub.${key}`)}
-                  selected={choice === key}
-                  phLabel={`coaching_first_${key}`}
-                  onPress={() => setChoice(key)}
-                />
-              ))}
+            <View style={styles.introRow}>
+              <Image source={MASCOT.slate} style={styles.introMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+              <View style={styles.introBubble}>
+                <Text style={styles.introTitle}>{t('coachingTab.firstTitle')}</Text>
+                <Text style={styles.introBody}>{t('coachingTab.firstBody')}</Text>
+              </View>
             </View>
+            <Text style={styles.exampleLabel}>{t('coachingTab.exampleLabel')}</Text>
+            <View style={styles.example}>
+              <View style={styles.exampleVideo}>
+                <View style={styles.exampleThumb}>
+                  <Feather name="play" size={14} color={palette.onAccent} />
+                </View>
+                <View style={styles.exampleVideoText}>
+                  <Text style={styles.exampleVideoTitle}>{t('coachingTab.demoVideo')}</Text>
+                  <Text style={styles.exampleVideoSub}>{t('coachingTab.demoVideoSub')}</Text>
+                </View>
+              </View>
+              <ExampleCoachLine text={t('coachingTab.exampleQ1')} />
+              <View style={styles.exampleMeRow}>
+                <View style={styles.exampleMe}>
+                  <Text style={styles.exampleMeText}>{t('coachingTab.exampleA')}</Text>
+                </View>
+              </View>
+              <ExampleCoachLine text={t('coachingTab.exampleQ2')} />
+            </View>
+            <View style={styles.exampleNote}>
+              <Feather name="message-circle" size={15} color={palette.blue} />
+              <Text style={styles.exampleNoteText}>{t('coachingTab.exampleNote')}</Text>
+            </View>
+            <ScriptCocreateEntry style={styles.entryGap} />
           </ScrollView>
           <View style={[styles.firstFooter, { paddingBottom: 21 + tabBarSpace }]}>
-            <PrimaryButton label={t('coachingTab.next')} phLabel="coaching_first_next" disabled={!choice} onPress={goChoice} />
+            <PrimaryButton label={t('coachingTab.startNow')} phLabel="coaching_first_next" onPress={startNew} />
+            <Pressable onPress={startNew} accessibilityRole="button" accessibilityLabel={t('coachingTab.uploadVideo')} ph-label="coaching_first_upload" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+              <Feather name="upload" size={15} color={palette.textDim} />
+              <Text style={styles.linkText}>{t('coachingTab.uploadVideo')}</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/talk')} accessibilityRole="button" accessibilityLabel={t('coachingTab.choice.talk')} ph-label="coaching_first_talk" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+              <Feather name="message-circle" size={15} color={palette.textDim} />
+              <Text style={styles.linkText}>{t('coachingTab.choice.talk')}</Text>
+            </Pressable>
           </View>
         </View>
       ) : (
@@ -267,6 +278,20 @@ export default function CoachingTab() {
   );
 }
 
+/** 처음 화면 예시 대화의 코치 줄(pen P13.1 코치 줄: 아바타 28 + 말풍선). */
+function ExampleCoachLine({ text }: { text: string }) {
+  return (
+    <View style={styles.coachRow}>
+      <View style={styles.coachAvatar}>
+        <Image source={MASCOT.coach} style={styles.coachMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+      </View>
+      <View style={styles.coachBubble}>
+        <Text style={styles.coachText}>{text}</Text>
+      </View>
+    </View>
+  );
+}
+
 /** 「다음 연습」의 작은 타일 둘 — 아이콘 22 + 오른쪽 위 화살표, 제목 16/700 두 줄, 보조 12.5. */
 function Tile({
   icon,
@@ -308,10 +333,31 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.85 },
 
-  // 처음(pen 「코칭 탭 · 처음」) — 말풍선 + 고르는 카드 셋 + 아래 「다음」.
-  firstBody: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 16, gap: 28 },
-  choices: { gap: 8 },
-  firstFooter: { paddingHorizontal: 24 },
+  // 처음(pen P13.1·P13.2) — 액티 말풍선 · 예시 대화 · 대사 만들기 줄 · 아래 버튼 셋.
+  firstBody: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 16 },
+  introRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 13, paddingLeft: 6 },
+  introMascot: { width: 52, height: 61, marginBottom: 4 },
+  introBubble: { flex: 1, minWidth: 0, gap: 5, paddingTop: 11, paddingHorizontal: 14, paddingBottom: 12, borderRadius: 16, backgroundColor: palette.bgSoft },
+  introTitle: { fontSize: 19, fontWeight: '700', lineHeight: 25, color: palette.text },
+  introBody: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMuted },
+  exampleLabel: { paddingTop: 28, paddingBottom: 10, fontSize: 13, fontWeight: '700', color: palette.textMuted },
+  example: { gap: 10, padding: 16, borderRadius: 20, backgroundColor: palette.bgSoft },
+  exampleVideo: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 10, paddingVertical: 8, paddingLeft: 8, paddingRight: 12, borderRadius: 14, backgroundColor: palette.card },
+  exampleThumb: { width: 40, height: 40, borderRadius: 10, backgroundColor: palette.textStrong, alignItems: 'center', justifyContent: 'center' },
+  exampleVideoText: { gap: 1 },
+  exampleVideoTitle: { fontSize: 13.5, fontWeight: '700', color: palette.text },
+  exampleVideoSub: { fontSize: 12, fontWeight: '500', color: palette.textFaint },
+  coachRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  coachAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  coachMascot: { width: 19, height: 20 },
+  coachBubble: { flexShrink: 1, paddingVertical: 9, paddingHorizontal: 12, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderBottomRightRadius: 14, borderBottomLeftRadius: 4, backgroundColor: palette.card },
+  coachText: { fontSize: 14, fontWeight: '600', lineHeight: 20, color: palette.text },
+  exampleMeRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+  exampleMe: { paddingVertical: 9, paddingHorizontal: 12, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderBottomLeftRadius: 14, borderBottomRightRadius: 4, backgroundColor: palette.blue },
+  exampleMeText: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.onAccent },
+  exampleNote: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, paddingHorizontal: 2 },
+  exampleNoteText: { flex: 1, fontSize: 13, fontWeight: '600', color: palette.textMuted },
+  firstFooter: { gap: 4, paddingTop: 8, paddingHorizontal: 20 },
 
   // 다음 연습·하던 코칭(pen P13.3~P13.5) — 본문 padding 11/21, 메모 카드 → 타일 → 보조 줄 → 최근 코칭.
   nextBody: { paddingTop: 11, paddingHorizontal: 21 },
