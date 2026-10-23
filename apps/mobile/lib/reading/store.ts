@@ -232,12 +232,29 @@ export async function openScript(detail: ScriptDetail): Promise<SavedScript> {
   return current;
 }
 
-/** 저장된 대본을 현재 대본으로 불러온다. 없거나 남의 것이면(404) null. */
 /** 대본 상세를 서버에서 받는다. 리딩 「현재 대본」은 바꾸지 않는다(코칭 촬영 카드용). */
 export function getScriptDetail(id: string): Promise<ScriptDetail> {
   return server().get(id);
 }
 
+/**
+ * 대본 만들기에서 정한 내 배역을 이 기기에 기억한다. 서버의 내 배역은 리딩 회차에만 있어, 아직 읽지 않은 대본은
+ * 「배역 안 고름」으로 보이고 코칭 촬영 카드에서 내 대사를 짚지 못했다. 리딩을 열면 이 배역이 미리 골라진다.
+ */
+export async function rememberMyRoles(id: string, roles: string[]): Promise<void> {
+  const names = roles.filter((r) => r.trim().length > 0);
+  if (names.length === 0) return;
+  const prev = (await readPrefs())[id] ?? {};
+  await writePrefs(id, { ...DEFAULT_PREFS, ...prev, myRoles: names });
+}
+
+/** 이 기기에 기억한 내 배역. 없으면 빈 배열. */
+export async function rememberedMyRoles(id: string): Promise<string[]> {
+  const roles = (await readPrefs())[id]?.myRoles;
+  return Array.isArray(roles) ? roles.filter((r): r is string => typeof r === 'string') : [];
+}
+
+/** 저장된 대본을 현재 대본으로 불러온다. 없거나 남의 것이면(404) null. */
 export async function loadIntoCurrent(id: string): Promise<SavedScript | null> {
   try {
     const detail = await server().get(id);
