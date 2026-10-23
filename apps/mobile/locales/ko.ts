@@ -646,6 +646,10 @@ const ko = {
     home: '홈으로 가기',
   },
   home: {
+    heroTitle: '오늘도\n연기하는 하루,\n멋져요!',
+    heroSub: '꾸준히 연습하는 모습이\n벌써 달라지고 있어요.',
+    weekTitle: '이번 주 연습',
+    streakDaysRow: '{{n}}일째!',
     greeting: '오늘은 이거 하나만 해 봐요',
     greetingReadingYesterday: '어제 읽던 데서 이어 볼까요?',
     greetingReading: '읽던 데서 이어 볼까요?',

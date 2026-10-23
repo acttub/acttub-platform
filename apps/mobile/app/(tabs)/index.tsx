@@ -56,6 +56,9 @@ const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading' | '/challenge
   challenge: '/challenges',
 };
 
+/** 히어로 바탕 — 연한 파랑에서 화면 바탕색으로 서서히 옅어지는 띠(그라데이션 모듈이 없어 단색 띠를 겹친다). */
+const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
+
 /** 안드로이드 뒤로가기를 이 시간 안에 한 번 더 누르면 앱을 닫는다. */
 const EXIT_BACK_WINDOW_MS = 2000;
 
@@ -484,7 +487,7 @@ export default function HomeScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, loaded && !firstUser && styles.safeHero]} edges={['top']}>
       {celebrateStreak !== null && overlaysReady && !guideOpen && !guideShownThisVisit && (
         <StreakCelebrationScreen
           streak={celebrateStreak}
@@ -547,34 +550,47 @@ export default function HomeScreen() {
           </View>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarSpace + 20 }]}>
-          {/* 머리 — 액티 + 한 줄 인사(회색 말풍선) + 연속 일수 + 알림 종. */}
-          <View style={styles.head}>
-            <Image source={MASCOT[dailyPose(HOME_POSES)]} style={MASCOT_SIZE.card} contentFit="contain" accessibilityIgnoresInvertColors />
-            <View style={styles.greetingBubble}>
-              <Text style={styles.greeting} numberOfLines={2}>{greeting}</Text>
+        <ScrollView style={styles.scrollBg} contentContainerStyle={[styles.container, { paddingBottom: tabBarSpace + 20 }]} showsVerticalScrollIndicator={false}>
+          {/* 히어로(pen P1.1) — 연한 파랑 바탕·창빛 장식 위에 인사와 책 위에서 읽는 액티, 오른쪽 위 알림 버튼. */}
+          <View style={styles.hero}>
+            <View style={styles.heroBg} pointerEvents="none">
+              {HERO_FADE.map((c, i) => (
+                <View key={i} style={{ height: i === 0 ? 190 : 10, backgroundColor: c }} />
+              ))}
             </View>
-            {streak > 0 && (
-              <View style={styles.streakPill} accessibilityLabel={t('home.streakA11y', { n: streak })}>
-                <Ionicons name="flame" size={16} color={palette.flame} />
-                <Text style={styles.streakText}>{t('home.streakDays', { n: streak })}</Text>
-              </View>
-            )}
+            <Image source={require('@/assets/images/home/window-light.png')} style={styles.heroWindow} contentFit="cover" accessibilityIgnoresInvertColors />
+            <View style={styles.heroText}>
+              <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
+              <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
+            </View>
+            <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" accessibilityIgnoresInvertColors />
             {bell}
           </View>
 
-          {/* 이번 주 요일별 연습 점 — 한 날은 주황 체크, 오늘은 테두리. */}
-          <View style={styles.week} testID="home-week">
-            {days.map((d) => (
-              <View key={d.key} style={styles.weekCol}>
-                <View
-                  testID={d.count > 0 ? 'home-week-done' : d.isToday ? 'home-week-today' : 'home-week-empty'}
-                  style={[styles.weekDot, d.count > 0 && styles.weekDotDone, d.count === 0 && d.isToday && styles.weekDotToday]}>
-                  {d.count > 0 && <Feather name="check" size={18} color={palette.onAccent} />}
+          <View style={styles.body}>
+          {/* 이번 주 연습 카드(pen P1.1) — 연속 일수와 요일별 점. 한 날은 파란 체크, 오늘은 파란 테두리. */}
+          <View style={styles.weekCard} testID="home-week">
+            <View style={styles.weekHead}>
+              <Text style={styles.weekTitle}>{t('home.weekTitle')}</Text>
+              {streak > 0 && (
+                <View style={styles.streakPill} accessibilityLabel={t('home.streakA11y', { n: streak })}>
+                  <Ionicons name="flame-outline" size={15} color={palette.flame} />
+                  <Text style={styles.streakText}>{t('home.streakDaysRow', { n: streak })}</Text>
                 </View>
-                <Text style={[styles.weekLabel, d.isToday && styles.weekLabelToday]}>{d.isToday ? t('home.today') : d.label}</Text>
-              </View>
-            ))}
+              )}
+            </View>
+            <View style={styles.week}>
+              {days.map((d) => (
+                <View key={d.key} style={styles.weekCol}>
+                  <View
+                    testID={d.count > 0 ? 'home-week-done' : d.isToday ? 'home-week-today' : 'home-week-empty'}
+                    style={[styles.weekDot, d.count > 0 && styles.weekDotDone, d.count === 0 && d.isToday && styles.weekDotToday]}>
+                    {d.count > 0 && <Feather name="check" size={18} color={palette.onAccent} />}
+                  </View>
+                  <Text style={[styles.weekLabel, d.isToday && styles.weekLabelToday]}>{d.isToday ? t('home.today') : d.label}</Text>
+                </View>
+              ))}
+            </View>
           </View>
 
           {/* 주 기능 카드 하나 — 첫 가이드가 비추는 자리다. 올리는 중이면 올리는 카드가 대신한다. */}
@@ -614,6 +630,7 @@ export default function HomeScreen() {
               <Feather name="chevron-right" size={18} color={palette.checkOff} />
             </Pressable>
           ))}
+          </View>
         </ScrollView>
       )}
 
@@ -781,9 +798,11 @@ function FirstChoice({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  safeHero: { backgroundColor: '#E4EEFC' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // 아래 탭 바가 화면 위에 떠 있어 그만큼 바닥을 비운다.
-  container: { paddingHorizontal: 24, paddingTop: 24 },
+  scrollBg: { backgroundColor: '#F7FAFE' },
+  container: {},
   flex: { flex: 1, minWidth: 0 },
   pressed: { opacity: 0.85 },
 
@@ -808,36 +827,44 @@ const styles = StyleSheet.create({
   choiceTextOn: { color: palette.blueDeep },
   choiceSub: { fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMuted },
 
-  // 머리
-  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  greetingBubble: { flex: 1, minWidth: 0, borderRadius: 16, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 14 },
-  greeting: { fontSize: 15, fontWeight: '700', lineHeight: 22, color: palette.text },
-  streakPill: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 9999, backgroundColor: palette.flameSoft, paddingVertical: 7, paddingHorizontal: 10 },
-  streakText: { fontSize: 14, fontWeight: '800', color: palette.flameDeep },
-  bell: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  // 히어로
+  hero: { height: 200 + 44 },
+  heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 250 },
+  heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
+  heroText: { position: 'absolute', top: 52, left: 24, width: 190, gap: 10 },
+  heroTitle: { fontSize: 26, fontWeight: '800', lineHeight: 34, color: palette.text },
+  heroSub: { fontSize: 13, fontWeight: '400', lineHeight: 20, color: palette.textMuted },
+  heroActy: { position: 'absolute', top: 56, right: 14, width: 170, height: 188 },
+  body: { paddingHorizontal: 20, paddingTop: 4, gap: 16 },
+  streakPill: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  streakText: { fontSize: 13, fontWeight: '700', color: palette.textStrong },
+  bell: { position: 'absolute', top: 14, right: 20, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center' },
   bellDot: {
     position: 'absolute',
-    top: 4,
-    right: 5,
+    top: 10,
+    right: 11,
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: palette.flame,
     borderWidth: 1.5,
-    borderColor: palette.bg,
+    borderColor: '#FFFFFF',
   },
 
-  // 이번 주 요일별 점
-  week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 24 },
-  weekCol: { alignItems: 'center', gap: 6 },
-  weekDot: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  weekDotDone: { backgroundColor: palette.flame },
-  weekDotToday: { backgroundColor: palette.card, borderWidth: 2, borderColor: palette.flame },
-  weekLabel: { fontSize: 12, fontWeight: '500', lineHeight: 16, color: palette.textFaint },
-  weekLabelToday: { fontWeight: '800', color: palette.flameDeep },
+  // 이번 주 연습 카드
+  weekCard: { backgroundColor: palette.card, borderRadius: 20, borderWidth: 1, borderColor: '#E8EDF5', paddingTop: 16, paddingHorizontal: 16, paddingBottom: 14, gap: 14 },
+  weekHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  weekTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
+  week: { flexDirection: 'row', justifyContent: 'space-between' },
+  weekCol: { alignItems: 'center', gap: 6, width: 40 },
+  weekDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#EEF1F6', alignItems: 'center', justifyContent: 'center' },
+  weekDotDone: { backgroundColor: palette.blue },
+  weekDotToday: { backgroundColor: palette.card, borderWidth: 2, borderColor: palette.blue },
+  weekLabel: { fontSize: 12, fontWeight: '500', lineHeight: 16, color: '#7A8496' },
+  weekLabelToday: { fontWeight: '800', color: palette.text },
 
   // 주 기능 카드
-  todayCard: { marginTop: 24, backgroundColor: palette.blueSoft, borderRadius: 16, borderWidth: 1.5, borderColor: palette.blue, padding: 20, gap: 8 },
+  todayCard: { marginTop: 0, backgroundColor: palette.blueSoft, borderRadius: 16, borderWidth: 1.5, borderColor: palette.blue, padding: 20, gap: 8 },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   eyebrow: { fontSize: 13, fontWeight: '800', lineHeight: 18, color: palette.flameDeep },
   todayTitle: { fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text },

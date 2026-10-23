@@ -655,6 +655,10 @@ const en: DeepStringShape<typeof ko> = {
     home: 'Go home',
   },
   home: {
+    heroTitle: 'Another day\nof acting.\nNice one!',
+    heroSub: 'Steady practice is\nalready showing.',
+    weekTitle: 'This week',
+    streakDaysRow: 'Day {{n}}!',
     greeting: 'Just do this one thing today',
     greetingReadingYesterday: 'Pick up where you left off yesterday?',
     greetingReading: 'Pick up where you left off?',
