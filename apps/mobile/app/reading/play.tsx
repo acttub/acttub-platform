@@ -51,7 +51,6 @@ import {
   canGoBack,
   createRun,
   discardOnExit,
-  exitMessage,
   formatProgress,
   isHidden,
   jumpTo,
