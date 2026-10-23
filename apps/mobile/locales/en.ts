@@ -1617,6 +1617,7 @@ const en: DeepStringShape<typeof ko> = {
     titleDetail: 'Script',
     titleFull: 'Full script',
     titleRoles: 'Choose voices',
+    voicesStep: 'STEP 2 · Choose voices',
     voicesHeading: 'Choose a voice for each role',
     voicesScriptMeta: '{{characters}} roles · {{dialogues}} lines',
     viewAll: 'View all',

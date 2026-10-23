@@ -607,10 +607,10 @@ test('내려받기를 고르면 받는 양과 불러오는 단계를 보이고, 
   await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
   await fireEvent.press(await screen.findByText('내려받기'));
-  expect(await screen.findByText('음성 준비 중...')).toBeOnTheScreen();
+  expect(await screen.findByText('음성을 준비하고 있어요…')).toBeOnTheScreen();
 
   await act(async () => report({ phase: 'download', receivedBytes: 100 * 1024 * 1024, totalBytes: 400 * 1024 * 1024, percent: 25, etaSeconds: 30 }));
-  expect(screen.getByText('상대역 목소리를 준비하고 있어요')).toBeOnTheScreen();
+  expect(screen.getByText('상대역 목소리를 준비하고 있어요…')).toBeOnTheScreen();
   expect(screen.getByText('100 / 400MB · 곧 끝나요')).toBeOnTheScreen();
 
   await act(async () => report({ phase: 'load', done: 2, total: 4 }));
