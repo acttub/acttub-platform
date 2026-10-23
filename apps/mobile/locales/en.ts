@@ -1724,6 +1724,7 @@ const en: DeepStringShape<typeof ko> = {
     lineEditHint: 'Tap a line to fix how it was split',
     lineEditTitle: 'Edit line',
     lineEditPick: 'Pick the line to edit',
+    lineEditPickSub: 'These lines are from the same role in a row. Pick one to open the editor.',
     lineEditSub: 'Past readings and recordings stay as they are.',
     lineEditWho: 'Who says it',
     lineEditRename: "Rename '{{name}}'",
@@ -1911,6 +1912,7 @@ const en: DeepStringShape<typeof ko> = {
     guideAck: 'Got it',
     diffEmpty: 'No lines were said differently this time.',
     diffBack: 'Back to the script',
+    diffCount: '{{count}} lines said differently',
     toDetail: 'To the script',
     // Session list/detail (R00.5) · Done (R05) · Recording · reading.recording
     sessionOrdinal: 'Session {{n}}',

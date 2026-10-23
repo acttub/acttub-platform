@@ -1719,6 +1719,7 @@ const ko = {
     lineEditHint: '나누기가 틀린 줄은 눌러서 고칠 수 있어요',
     lineEditTitle: '줄 고치기',
     lineEditPick: '고칠 줄을 골라 주세요',
+    lineEditPickSub: '같은 배역이 이어 말한 대사예요. 고칠 줄 하나를 고르면 고치기 창이 열려요.',
     lineEditSub: '고쳐도 지난 리딩과 녹음은 그대로 남아요.',
     lineEditWho: '누가 말하나요',
     lineEditRename: "'{{name}}' 이름 고치기",
@@ -1907,6 +1908,7 @@ const ko = {
     guideAck: '알겠어요',
     diffEmpty: '이번엔 다르게 말한 대사가 없어요.',
     diffBack: '대본으로 돌아가기',
+    diffCount: '원문과 다르게 말한 대사 {{count}}개',
     toDetail: '상세로',
     // 회차 목록·상세(R00.5) · 완료(R05) · 녹음 · reading.recording
     sessionOrdinal: '{{n}}회차',

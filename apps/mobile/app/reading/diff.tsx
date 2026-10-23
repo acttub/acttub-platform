@@ -111,6 +111,8 @@ export default function ReadingDiff() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+      {/* pen R9.26(10/24 지성 스타일) — 위에 몇 줄을 다르게 말했는지, 다르게 말한 줄만 파란 테두리 카드. */}
+      <Text style={styles.count}>{t('reading.diffCount', { count: rows.filter((row) => row.different).length })}</Text>
       {rows.map((row) => {
         if (row.line.type !== 'dialogue') {
           return <Text key={row.lineId} style={styles.direction}>{row.line.type === 'direction' ? directionLabel(row.line.text) : row.line.text}</Text>;
@@ -128,15 +130,15 @@ export default function ReadingDiff() {
         return (
           <View key={row.lineId} style={[styles.row, styles.rowDifferent]}>
             <View style={styles.rowHead}>
-              <Text style={[styles.role, styles.roleMine]}>{row.line.role}</Text>
+              <Text style={styles.roleCard}>{row.line.role}</Text>
               {!!rec?.playback_url && (
-                <Pressable style={styles.playBtn} onPress={() => void play(row.lineId)} hitSlop={8}>
+                <Pressable style={styles.playBtn} onPress={() => void play(row.lineId)} hitSlop={8} accessibilityRole="button">
                   <Feather name={playing ? 'square' : 'play'} size={13} color={palette.blueDeep} />
                   <Text style={styles.playText}>{t('reading.myRecording')}</Text>
                 </Pressable>
               )}
             </View>
-            <DiffText text={row.line.text} different={row.different} textStyle={styles.text} />
+            <DiffText text={row.line.text} different={row.different} textStyle={styles.textCard} />
           </View>
         );
       })}
@@ -149,16 +151,23 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   emptyText: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24, textAlign: 'center' },
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
-  content: { paddingHorizontal: 24, paddingVertical: 20, gap: 18 },
-  direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
-  row: { gap: 4 },
-  rowDifferent: { borderLeftWidth: 3, borderLeftColor: palette.amber, paddingLeft: 12, paddingRight: 10, paddingVertical: 10 },
+  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 14 },
+  count: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 13 },
+  // 지문 — 리딩 화면(R9.8)처럼 가운데 회색.
+  direction: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  // 그냥 지나간 줄 — 작은 회색 배역 + 회색 대사(pen 「지난 줄」).
+  row: { gap: 3, paddingHorizontal: 4 },
+  // 다르게 말한 줄 — 회색 카드 · 파란 테두리 1.5 · 모서리 16 · 안쪽 [16,18].
+  rowDifferent: { gap: 8, backgroundColor: palette.bgSoft, borderRadius: 16, borderWidth: 1.5, borderColor: palette.blue, paddingVertical: 16, paddingHorizontal: 18 },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  role: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  roleMine: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold' },
-  text: { color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 23 },
-  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  playText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  role: { color: palette.textFaint, fontFamily: 'Pretendard-Bold', fontSize: 12.5 },
+  roleMine: { color: palette.blueDeep },
+  roleCard: { color: palette.textStrong, fontFamily: 'Pretendard-Bold', fontSize: 13 },
+  text: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 15, lineHeight: 22 },
+  textCard: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 19, lineHeight: 27 },
+  // 「▷ 내 녹음」 알약.
+  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blueSoft, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 10 },
+  playText: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 12.5 },
   pill: { backgroundColor: palette.blue, borderRadius: 999, minHeight: 44, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
   pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 });

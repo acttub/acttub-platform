@@ -12,6 +12,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
 import { ReadingExitSheet } from '@/components/reading-exit-sheet';
 import { LineEditSheet } from '@/components/line-edit-sheet';
+import { LinePickSheet } from '@/components/line-pick-sheet';
 import { logEvent } from '@/lib/analytics';
 import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/use-reading-mic';
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
@@ -164,7 +165,9 @@ export default function ReadingPlay() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { confirm, alert, sheet, dialog } = useAppDialog();
+  const { confirm, alert, dialog } = useAppDialog();
+  /** 묶인 대사에서 고칠 줄 고르기(R9.31b) — 열려 있으면 고를 줄 글과 고른 뒤 할 일. */
+  const [linePick, setLinePick] = useState<{ texts: string[]; pick: (index: number) => void } | null>(null);
   const script = getCurrent();
   const session = getCurrentSession();
   const mic = useReadingMic();
@@ -1130,10 +1133,8 @@ export default function ReadingPlay() {
       edit(start);
       return;
     }
-    sheet({
-      title: t('reading.lineEditPick'),
-      actions: cur.lines.slice(start, end + 1).map((l, k) => ({ label: l.text, onPress: () => edit(start + k) })),
-    });
+    // 묶인 대사면 고칠 줄부터 고른다 — pen R9.31b 아래 시트(줄 고치기 시트와 같은 틀).
+    setLinePick({ texts: cur.lines.slice(start, end + 1).map((l) => l.text), pick: (k) => edit(start + k) });
   };
 
   /** 시트를 닫으면 고친 대본을 진행에 반영하고, 진행 중이었으면 그 줄부터 이어서 한다. */
@@ -1956,6 +1957,17 @@ export default function ReadingPlay() {
       )}
 
       {script && (
+        <>
+        <LinePickSheet
+          lines={linePick?.texts ?? null}
+          onPick={(k) => {
+            const pick = linePick?.pick;
+            setLinePick(null);
+            pick?.(k);
+          }}
+          // 고르다 닫으면 예전 시트처럼 멈춘 채 둔다(재개로 이어 한다).
+          onClose={() => setLinePick(null)}
+        />
         <LineEditSheet
           scriptId={script.id}
           lineId={editing?.lineId ?? null}
@@ -1963,6 +1975,7 @@ export default function ReadingPlay() {
           characters={script.characters}
           onClose={closeLineEdit}
         />
+        </>
       )}
       <Modal transparent statusBarTranslucent visible={hold === 'mask_sheet'} animationType="slide" onRequestClose={releaseHold}>
         <Pressable style={[styles.backdrop, styles.backdropSheet]} onPress={releaseHold}>

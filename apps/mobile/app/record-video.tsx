@@ -3,13 +3,11 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { RecordModeSlider } from '@/components/record-mode-slider';
-import { CoachNotice } from '@/components/ui/coach-notice';
-import { BackOnlyHeader } from '@/components/ui/step-header';
 import { palette } from '@/constants/palette';
 import { keepDeviceFile } from '@/lib/account-files';
 import { formatClipDuration } from '@/lib/archive-format';
@@ -140,14 +138,21 @@ export default function RecordVideoScreen() {
   // 들어오자마자 OS 권한 팝업(카메라 → 마이크)을 한 번 띄운다. 거절했거나 전에 거절해 팝업이 다시
   // 안 뜨면 화면 안의 버튼으로 다시 묻거나 설정으로 보낸다 — iOS 전체화면 모달 위에서는 우리 안내
   // 팝업이 안 떠서 검은 화면에 갇힌 적이 있다.
+  // OS 팝업이 떠 있는 동안은 안내 띠를 숨기고 돌아가는 표시만 둔다(pen P2.1·P2.2).
+  const [asking, setAsking] = useState(false);
   const askPermissions = useCallback(async () => {
-    const cam = camPerm?.granted ? camPerm : await requestCam();
-    const mic = micPerm?.granted ? micPerm : await requestMic();
-    if (isChallenge) {
-      permLoggedRef.current = true;
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(cam, mic, true));
+    setAsking(true);
+    try {
+      const cam = camPerm?.granted ? camPerm : await requestCam();
+      const mic = micPerm?.granted ? micPerm : await requestMic();
+      if (isChallenge) {
+        permLoggedRef.current = true;
+        void logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(cam, mic, true));
+      }
+      return cam.granted && mic.granted;
+    } finally {
+      setAsking(false);
     }
-    return cam.granted && mic.granted;
   }, [camPerm, isChallenge, micPerm, requestCam, requestMic]);
 
   // 권한이 이미 있어 팝업 없이 들어온 챌린지 촬영도 같은 단계로 센다.
@@ -376,25 +381,44 @@ export default function RecordVideoScreen() {
     goNext();
   }, [goNext, isChallenge]);
 
-  // 권한이 아직 없으면 화면 안에서 직접 묻는다 — 닫기·권한 버튼이 늘 보인다.
-  // 모양은 pen 「카메라와 마이크가 필요해요」(SOMA-748) — 흰 바탕 한 장, 거절됐으면 설정 열기·닫기.
+  // 권한이 아직 없으면 촬영 화면 그대로(검은 바탕) 두고 화면 안에서 묻는다 — 닫기는 늘 보인다.
+  // 모양은 pen P2.1~P2.3(10/24, 지성 개편 스타일): 확인·OS 팝업 중엔 가운데 돌아가는 표시, 거절됐으면 아래 노란 띠에서
+  // 다시 묻거나(허용하기) 설정을 연다(다시 물을 수 없을 때). 예전 흰 안내 한 장은 OS 팝업 뒤에 떠서 따로 노는 화면이었다.
   if (!ready) {
+    const known = !!camPerm && !!micPerm;
     return (
-      <SafeAreaView style={styles.permSafe}>
-        <BackOnlyHeader onBack={() => router.back()} />
-        {camPerm && micPerm && (
-          <CoachNotice
-            title={t('record.permissionTitle')}
-            body={blocked ? t('record.deniedBody') : t('record.permissionBody')}
-            primary={{
-              label: t(blocked ? 'record.deniedOpen' : 'record.permissionAllow'),
-              onPress: () => (blocked ? void Linking.openSettings() : void askPermissions()),
-            }}
-            secondary={{ label: t('common.close'), onPress: () => router.back() }}
-          />
-        )}
+      <View style={styles.permDark}>
+        <SafeAreaView style={styles.permSafe}>
+          <View style={styles.topRow}>
+            <Pressable
+              style={styles.closeBtn}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back')}
+              ph-label="record_perm_close">
+              <Text style={styles.closeText}>✕</Text>
+            </Pressable>
+          </View>
+          <View style={styles.permCenter}>{(!known || asking) && <ActivityIndicator color="rgba(255,255,255,0.8)" />}</View>
+          {known && !asking && (
+            <View style={styles.permNotice}>
+              <Feather name="camera-off" size={16} color={palette.amber} />
+              <View style={styles.permNoticeBody}>
+                <Text style={styles.permNoticeTitle}>{t('record.permissionTitle')}</Text>
+                <Text style={styles.permNoticeText}>{blocked ? t('record.deniedBody') : t('record.permissionBody')}</Text>
+              </View>
+              <Pressable
+                onPress={() => (blocked ? void Linking.openSettings() : void askPermissions())}
+                accessibilityRole="button"
+                hitSlop={10}
+                ph-label="record_perm_action">
+                <Text style={styles.permNoticeAction}>{t(blocked ? 'record.deniedOpen' : 'record.permissionAllow')}</Text>
+              </Pressable>
+            </View>
+          )}
+        </SafeAreaView>
         {dialog}
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -589,7 +613,25 @@ export default function RecordVideoScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#000' },
-  permSafe: { flex: 1, backgroundColor: palette.bg },
+  permDark: { flex: 1, backgroundColor: '#0B0D12' },
+  permSafe: { flex: 1 },
+  permCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // pen R8.7 「MicNotice」와 같은 노란 띠 — 안쪽 [12,14] · 모서리 12 · 사이 10.
+  permNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: palette.amberSoft,
+  },
+  permNoticeBody: { flex: 1, gap: 2 },
+  permNoticeTitle: { fontSize: 13.5, fontWeight: '700', color: palette.text },
+  permNoticeText: { fontSize: 12, lineHeight: 17, color: palette.textDim },
+  permNoticeAction: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
   camera: { ...StyleSheet.absoluteFillObject },
   overlay: { flex: 1, justifyContent: 'space-between' },
   topRow: { flexDirection: 'row', justifyContent: 'flex-start', padding: 16 },
