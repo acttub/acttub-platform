@@ -45,3 +45,15 @@ export async function purgeVideoFileIfDue(practiceId: string): Promise<boolean> 
   await AsyncStorage.setItem(KEY, JSON.stringify(all)).catch(() => undefined);
   return true;
 }
+
+/**
+ * 얼굴 가리기를 고른 뒤 올리는 영상 — 업로드 마무리 요청에 알려 서버가 원본으로 미리 올리기를 하지 않게 한다.
+ * 앱이 떠 있는 동안만 기억한다(고른 뒤 바로 올리기 때문). 새 연습을 시작하면 지운다.
+ */
+let faceMosaicForUploads = false;
+export function setFaceMosaicForUploads(on: boolean): void {
+  faceMosaicForUploads = on;
+}
+export function faceMosaicForNextUpload(): boolean {
+  return faceMosaicForUploads;
+}

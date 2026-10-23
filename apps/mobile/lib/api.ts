@@ -926,10 +926,12 @@ export const api = {
    * 마무리 — videos 행(보관함 저장)을 만든다. 같은 request_id 의 재전송은 같은 영상이고, 자리가 만료됐으면(30분)
    * 422 upload_expired 라 처음부터 다시 올린다. 실제 바이트가 메타와 다르면 실패한다.
    */
-  completeVideoIntent(intentId: string, requestId: string): Promise<Video> {
+  completeVideoIntent(intentId: string, requestId: string, opts: { faceMosaic?: boolean } = {}): Promise<Video> {
+    // 얼굴 가리기를 켰으면 서버가 첫 질문용 미리 올리기(원본을 AI에 먼저 올림)를 하지 않는다.
+    const body = opts.faceMosaic ? JSON.stringify({ face_mosaic: true }) : '{}';
     return request<Video>(
       `/v2/videos/intents/${encodeURIComponent(intentId)}/complete`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, body: '{}' },
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, body },
       { timeoutMs: 30_000 },
     );
   },

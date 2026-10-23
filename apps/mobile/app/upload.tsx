@@ -21,7 +21,7 @@ import { UploadReasonSheet } from '@/components/upload-reason-sheet';
 import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';
 import { UploadPrepareFailed } from '@/components/upload-prepare-failed';
 import { scheduleUploadLaterReminder } from '@/lib/notifications';
-import { rememberPurgeAfterAnalysis } from '@/lib/practice/upload-options';
+import { setFaceMosaicForUploads, rememberPurgeAfterAnalysis } from '@/lib/practice/upload-options';
 import { UploadWaitPanel } from '@/components/upload-wait-panel';
 import { forgetWaitingUpload, rememberWaitingUpload } from '@/hooks/use-waiting-upload';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
@@ -425,6 +425,7 @@ export default function UploadScreen() {
         : await api.createPractice({ ...body, request_id: attempt.requestId } as Parameters<typeof api.createPractice>[0]);
       startedRef.current = true;
       if (uploadOptions?.purgeAfterAnalysis) await rememberPurgeAfterAnalysis(practice.id, resolvedVideoId);
+      setFaceMosaicForUploads(false);
       logEvent('practice_start', { ordinal: practice.ordinal, continued: Boolean(continueFrom) });
       leaveThen(() => router.replace({ pathname: '/coach', params: { practiceId: practice.id } }));
     } catch (e) {
@@ -712,7 +713,7 @@ export default function UploadScreen() {
       {optionsOpen && (
         <UploadOptionsPage
           initial={uploadOptions}
-          onDone={(options) => { setUploadOptions(options); setOptionsOpen(false); setStep('source'); }}
+          onDone={(options) => { setUploadOptions(options); setFaceMosaicForUploads(options.faceMosaic); setOptionsOpen(false); setStep('source'); }}
         />
       )}
       {dialog}
