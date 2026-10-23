@@ -1512,6 +1512,7 @@ const en: DeepStringShape<typeof ko> = {
     start: 'Start recording',
     stop: 'Stop',
     hint: 'Up to 5 min · stops automatically at 5:00',
+    hintShort: 'Up to {{sec}} s · stops automatically at {{sec}} s',
     remaining: '{{sec}}s left',
     challengeHint: 'Up to 60s · after recording, choose to share or just save',
     lineLabel: 'Today’s line',

@@ -3,11 +3,12 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { setPickedVideo } from '@/lib/practice/picked-video';
 import { ChallengeDone } from '@/components/challenge-done';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -65,6 +66,9 @@ export default function ChallengeUploadScreen() {
   const challengeId = params.challengeId ?? null;
 
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
+  const keyboardHeight = useKeyboardHeight();
+  const androidKeyboard = Platform.OS === 'android' ? keyboardHeight : 0;
+  const scrollRef = useRef<ScrollView>(null);
   const [videoId, setVideoId] = useState<string | null>(params.videoId ?? null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
@@ -232,6 +236,11 @@ export default function ChallengeUploadScreen() {
       void logEvent('challenge_upload_share', { visibility: created.visibility });
       void entryShare.openById(created.id);
     };
+    // 코칭은 기존 올리기(/upload) 흐름으로 이어진다 — 방금 올린 챌린지 영상을 새 연습의 영상으로 미리 골라 둔다.
+    const coachWithThis = () => {
+      if (videoId) setPickedVideo({ videoId, pendingId: null, uri: localUri, playbackUrl: null, durationMs: null });
+      router.push('/upload');
+    };
     return (
       <>
         <ChallengeDone
@@ -240,12 +249,7 @@ export default function ChallengeUploadScreen() {
           sub={parts.join(' · ')}
           rows={[
             ...(isPublic ? [{ key: 'share', icon: 'share-2' as const, title: t('challengeDone.share'), sub: t('challengeDone.shareSub'), onPress: share }] : []),
-            // 코칭은 기존 올리기(/upload) 흐름으로 이어진다 — 거기서 방금 영상을 고른다.
-            { key: 'coach', icon: 'video' as const, title: t('challengeDone.coach'), sub: t('challengeDone.coachSub'), onPress: () => {
-              // 방금 올린 챌린지 영상을 새 연습의 영상으로 미리 골라 둔다 — 준비 화면이 서버 영상 주소로 미리보기를 채운다.
-              if (videoId) setPickedVideo({ videoId, pendingId: null, uri: localUri, playbackUrl: null, durationMs: null });
-              router.push('/upload');
-            } },
+            { key: 'coach', icon: 'video' as const, title: t('challengeDone.coach'), sub: t('challengeDone.coachSub'), onPress: coachWithThis },
             ...(challengeId
               ? [
                   {
@@ -259,6 +263,7 @@ export default function ChallengeUploadScreen() {
               : []),
           ]}
           onShare={isPublic ? share : null}
+          onCoach={coachWithThis}
           onHome={() => router.replace('/')}
         />
         {entryShare.sheet}
@@ -271,9 +276,12 @@ export default function ChallengeUploadScreen() {
   const ended = challenge ? isEnded(challenge) : false;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe} edges={androidKeyboard > 0 ? [] : ['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: t('challengeUpload.title') }} />
-      <KeyboardAwareScroll contentContainerStyle={styles.content}>
+      {/* 안드로이드 edge-to-edge(SDK 54)는 키보드가 떠도 창이 줄지 않아 캡션 칸이 키보드·「올리기」 뒤로 숨는다.
+          키보드 높이만큼 아래를 비우고, 캡션을 누르면 맨 아래까지 내려 칸이 보이게 한다. iOS는 KeyboardAwareScroll이 맡는다. */}
+      <View style={[styles.body, { paddingBottom: androidKeyboard }]}>
+      <KeyboardAwareScroll ref={scrollRef} contentContainerStyle={styles.content}>
         <MascotBubble title={t('challengeUpload.bubble')} guide={t('challengeUpload.bubbleGuide')} />
         <View style={styles.thumbWrap}>
           {localUri ? (
@@ -315,6 +323,7 @@ export default function ChallengeUploadScreen() {
           placeholderTextColor={palette.textFaint}
           value={caption}
           onChangeText={setCaption}
+          onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
           maxLength={CAPTION_MAX}
           multiline
         />
@@ -329,6 +338,7 @@ export default function ChallengeUploadScreen() {
       <CtaBar safeBottom={false}>
         <PrimaryButton label={t('challengeUpload.submit')} onPress={() => void submit()} disabled={!ready || ended} loading={submitting} />
       </CtaBar>
+      </View>
     </SafeAreaView>
   );
 }
@@ -363,6 +373,7 @@ function Option({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  body: { flex: 1 },
   flex: { flex: 1, gap: 6 },
   content: { paddingHorizontal: 24, paddingTop: 16, gap: 14, paddingBottom: 24 },
   thumbWrap: { width: '100%', height: 200, borderRadius: 20, overflow: 'hidden', backgroundColor: palette.textDim },
