@@ -195,6 +195,23 @@ class VideoLibraryIT {
     }
 
     @Test
+    @DisplayName("practice.record: 얼굴 가리기를 켜고 올린 영상의 마무리 — 본문 face_mosaic true 를 받아 201 로 영상을 만든다. "
+            + "본문의 모르는 키는 422 이고 영상이 생기지 않는다")
+    void practiceRecord_completeAcceptsFaceMosaic() throws Exception {
+        JsonNode rejected = json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/mp4", 1_000, 9_000)), 201);
+        deviceUploads(rejected, 1_000);
+        assertThat(perform(post("/v2/videos/intents/{id}/complete", intentId(rejected)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"face_mosaic\":true,\"blur\":true}"), bearer).getStatus()).isEqualTo(422);
+        assertThat(count("videos")).isZero();
+
+        JsonNode intent = json(post("/v2/videos/intents").content(intentBody(UUID.randomUUID(), "video/mp4", 1_000, 9_000)), 201);
+        deviceUploads(intent, 1_000);
+        JsonNode created = json(post("/v2/videos/intents/{id}/complete", intentId(intent)).content("{\"face_mosaic\":true}"), 201);
+        assertThat(created.path("byte_size").longValue()).isEqualTo(1_000L);
+        assertThat(count("videos")).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("practice.record: 100MiB + 1바이트 메타 — 422 video_too_large. 5분 1초 — 422 video_too_long. 정확히 100MiB·5분 — 예약된다. "
             + "실제 올라온 바이트가 메타와 다름 — 422 video_not_ready 이고 영상이 생기지 않는다")
     void practiceRecord_sizeAndDurationLimitsAndByteMismatch() throws Exception {
