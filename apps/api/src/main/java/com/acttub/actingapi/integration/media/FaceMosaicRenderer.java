@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  * <p><b>얼굴을 한 번도 찾지 못하면 {@link NoFaceFound} 다</b> — 부르는 쪽은 모자이크본 없이 실패로 닫는다(가리지 못한
  * 사본을 공개용으로 내지 않는다). 각 단계는 {@link FfmpegLock} 을 따로 잡는다 — 다른 영상 일이 그 사이에 끼어든다.
  */
-public final class FaceMosaicRenderer {
+public final class FaceMosaicRenderer implements FaceMosaic {
     static final int FPS = 30;
     static final int STRIDE = 3;
     static final int LEAD_FRAMES = STRIDE + 3;
@@ -78,6 +78,7 @@ public final class FaceMosaicRenderer {
     }
 
     /** ffmpeg 가 PATH 에 있는가. 없으면 워커가 아무것도 집지 않는다. */
+    @Override
     public boolean available() {
         return ffmpeg != null;
     }
@@ -87,6 +88,7 @@ public final class FaceMosaicRenderer {
      *
      * @throws NoFaceFound 얼굴을 한 번도 찾지 못했다
      */
+    @Override
     public Path render(Path source) throws Exception {
         if (ffmpeg == null) {
             throw new IllegalStateException("ffmpeg is unavailable");

@@ -8212,6 +8212,15 @@
               "type" : "null"
             } ],
             "title" : "Session Purpose"
+          },
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 가리기. 기본 false. 켜면 분석·코치는 원본 대신 서버가 얼굴을 가린 사본을 본다. 사본을 만들지 못하면(얼굴을 못 찾음 포함) 원본을 쓰지 않고 분석이 실패로 닫힌다. 원본은 지우지 않는다. 영상 없는 회차에서는 무시한다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
           }
         },
         "required" : [ "request_id" ],
@@ -8512,6 +8521,15 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 가리기. 생략·null 이면 이어받을 회차의 값을 그대로 쓴다. 뜻은 회차 시작과 같다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
           }
         },
         "required" : [ "request_id" ],

@@ -116,6 +116,27 @@ class DirectVideoCoachTalkTest {
         verifyNoInteractions(videos, storage);
     }
 
+    @Test void stoppingATalkSessionClosesWithTheTalkLineInsteadOfANewTake() {
+        when(model.reply(isNull(), anyList(), anyString())).thenReturn(CONCERN_OPENING);
+        var opened = coach().turn(fresh("concern"), null, UUID.randomUUID());
+        org.mockito.Mockito.clearInvocations(model);
+        var done = coach().turn(opened.session(), "그만", UUID.randomUUID());
+
+        assertThat(done.reply().message()).isEqualTo("오늘은 여기까지 해요. 다음에 또 이야기해요.");
+        assertThat(done.session().closeReason()).isEqualTo("actor_finished");
+        verify(model, never()).reply(any(), anyList(), anyString());
+        verifyNoInteractions(videos, storage);
+    }
+
+    @Test void theFixedClosingDependsOnWhetherTheSessionHasAVideo() {
+        assertThat(DirectVideoCoach.fixedClosing(java.util.Locale.KOREAN, true)).isEqualTo("오늘은 여기까지 해요. 다음에 또 이야기해요.");
+        assertThat(DirectVideoCoach.fixedClosing(java.util.Locale.ENGLISH, true)).isEqualTo("That's it for today. Let's talk again next time.");
+        assertThat(DirectVideoCoach.fixedClosing(null, true)).isEqualTo("오늘은 여기까지 해요. 다음에 또 이야기해요.");
+        assertThat(DirectVideoCoach.fixedClosing(java.util.Locale.KOREAN, false)).isEqualTo("오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
+        assertThat(DirectVideoCoach.fixedClosing(java.util.Locale.ENGLISH, false))
+                .isEqualTo("That's it for today. Upload a new take and we'll pick up from here.");
+    }
+
     @Test void aLineTheActorNeverWroteIsDroppedFromTheReply() {
         when(model.reply(isNull(), anyList(), anyString())).thenReturn("""
                 <설계>

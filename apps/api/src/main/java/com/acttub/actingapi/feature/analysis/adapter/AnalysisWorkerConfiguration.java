@@ -12,6 +12,7 @@ import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import com.acttub.actingapi.integration.media.FaceMosaic;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -70,13 +71,16 @@ class AnalysisWorkerConfiguration {
             @Value("${ANALYSIS_LEASE_SEC:1800}") long leaseSeconds,
             @Value("${GEMINI_MODEL:gemini-2.5-flash}") String model,
             ObjectProvider<AnalysisCompletionListener> completionListener,
-            FailureReporter failureReporter) {
+            FailureReporter failureReporter,
+            // 얼굴 가리기 회차는 원본 대신 얼굴을 가린 사본으로 분석한다(practice.start). 없으면 그 회차는 실패로 닫힌다.
+            ObjectProvider<FaceMosaic> faceMosaic) {
         ObjectStorage objectStorage = storage.getIfAvailable();
         if (objectStorage == null) {
             return null;
         }
         return new AnalysisWorker(
                 store, objectStorage, analyzer, clock, Duration.ofSeconds(leaseSeconds), model,
-                AnalysisCompletionListener.all(completionListener.orderedStream().toList()), failureReporter);
+                AnalysisCompletionListener.all(completionListener.orderedStream().toList()), failureReporter)
+                .withFaceMosaic(faceMosaic.getIfAvailable(() -> FaceMosaic.NONE));
     }
 }

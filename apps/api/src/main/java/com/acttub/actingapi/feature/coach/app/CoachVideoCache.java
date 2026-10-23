@@ -68,6 +68,14 @@ public final class CoachVideoCache implements AutoCloseable {
         }
     }
 
+    /**
+     * 얼굴 가리기 회차가 쓰는 원본 자리. 그 회차는 원본이 아니라 얼굴을 가린 사본을 올리므로, 올리기 끝에서 원본으로 시작한
+     * 준비({@link #warmSource})나 원본으로 붙인 이름표와 섞이지 않게 다른 키를 쓴다.
+     */
+    public static String faceMosaicSource(String objectKey) {
+        return objectKey == null ? null : objectKey + "#face-mosaic";
+    }
+
     /** 미리 준비한 결과. 소리 검사에서 막혔으면 {@code video} 가 없다. */
     public record Prepared(DirectVideoModel.InputInspection inspection, DirectVideoModel.Video video) { }
 
@@ -202,6 +210,16 @@ public final class CoachVideoCache implements AutoCloseable {
         if (sourceWarming.putIfAbsent(sourceId(key), new Warm(key, result, clock.instant())) != null) return false;
         start(result, work, "CoachVideoCache.warmSource");
         return true;
+    }
+
+    /**
+     * 올리기 끝에서 시작한 원본 준비를 버린다. 올린 영상은 지금 또는 끝나는 대로 지운다. 얼굴 가리기 회차는 원본을 코치에 쓰지
+     * 않는다 — 올리기가 끝날 때는 아직 회차가 없어 얼굴 가리기를 켰는지 모른다.
+     */
+    public void discardSource(String objectKey, String etag) {
+        if (!enabled() || objectKey == null || objectKey.isBlank()) return;
+        Warm warm = sourceWarming.remove(sourceId(new Key(null, objectKey, etag)));
+        if (warm != null) discard(warm);
     }
 
     /**
