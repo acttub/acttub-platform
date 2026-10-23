@@ -278,7 +278,7 @@ export default function ChallengeUploadScreen() {
       <Stack.Screen options={{ headerShown: true, title: t('challengeUpload.title') }} />
       {/* 키보드가 뜨면 키보드 높이만큼 아래를 비워 캡션 칸과 「올리기」가 키보드 위에 남게 한다(iOS·안드로이드 같은 방식).
           예전엔 iOS를 스크롤 자동 인셋에 맡겨 「올리기」가 키보드 뒤에 숨었다. 캡션을 누르면 맨 아래까지 내려 칸이 보이게 한다. */}
-      <KeyboardLift style={styles.body}>
+      <KeyboardLift style={styles.body} aboveSafeBottom>
       <KeyboardAwareScroll ref={scrollRef} contentContainerStyle={styles.content}>
         <MascotBubble title={t('challengeUpload.bubble')} guide={t('challengeUpload.bubbleGuide')} />
         <View style={styles.thumbWrap}>

@@ -89,7 +89,7 @@ export default function LineNewScreen() {
       </View>
 
       {/* 키보드가 뜨면 「다음」 버튼까지 키보드 위로 올린다 — iOS에서 아래 버튼이 키보드에 가렸다. */}
-      <KeyboardLift>
+      <KeyboardLift aboveSafeBottom>
       <KeyboardAwareScroll contentContainerStyle={styles.content}>
         <Text style={styles.title}>{t('lineNew.title1')}</Text>
         <Text style={styles.sub}>{t('lineNew.sub1')}</Text>
