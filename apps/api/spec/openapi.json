@@ -1124,7 +1124,7 @@
       "post" : {
         "tags" : [ "v2-videos" ],
         "summary" : "Complete Video Intent",
-        "description" : "올라온 것을 확인하고 보관함에 영상을 만든다. 만들면 201, 마무리 재전송이면 200 으로 같은 영상이다.\n시한(30분)이 지났으면 422 upload_expired 이고 미확정 객체는 삭제 장부로 간다. 아직 안 올라왔으면\n422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다.",
+        "description" : "올라온 것을 확인하고 보관함에 영상을 만든다. 만들면 201, 마무리 재전송이면 200 으로 같은 영상이다.\n시한(30분)이 지났으면 422 upload_expired 이고 미확정 객체는 삭제 장부로 간다. 아직 안 올라왔으면\n422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다. 본문은 선택이고, face_mosaic 이 true 면\n첫 질문용 미리 올리기를 시작하지 않는다(원본이 코치 AI 쪽으로 가지 않는다).",
         "operationId" : "complete_video_intent_v2_videos_intents__intent_id__complete_post",
         "parameters" : [ {
           "name" : "intent_id",
@@ -1136,6 +1136,15 @@
             "title" : "Intent Id"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VideoIntentCompleteRequest"
+              }
+            }
+          }
+        },
         "responses" : {
           "201" : {
             "description" : "Successful Response",
@@ -6630,6 +6639,22 @@
         "required" : [ "expires_at", "intent_id", "upload_url" ],
         "title" : "VideoIntent"
       },
+      "VideoIntentCompleteRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 가리기. 기본 false. true 면 올리기가 끝나도 이 영상의 원본으로 첫 질문용 미리 올리기(코치 AI 쪽 업로드)를 시작하지 않는다. 이 영상으로 얼굴 가리기를 켜고 만든 회차는 가린 사본만 쓴다. 마무리 재전송(200)에는 영향이 없다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
+          }
+        },
+        "title" : "VideoIntentCompleteRequest"
+      },
       "SampleScriptCreateRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -8212,6 +8237,15 @@
               "type" : "null"
             } ],
             "title" : "Session Purpose"
+          },
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 가리기. 기본 false. 켜면 분석·코치는 원본 대신 서버가 얼굴을 가린 사본을 본다. 사본을 만들지 못하면(얼굴을 못 찾음 포함) 원본을 쓰지 않고 분석이 실패로 닫힌다. 원본은 지우지 않는다. 영상 없는 회차에서는 무시한다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
           }
         },
         "required" : [ "request_id" ],
@@ -8512,6 +8546,15 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 가리기. 생략·null 이면 이어받을 회차의 값을 그대로 쓴다. 뜻은 회차 시작과 같다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
           }
         },
         "required" : [ "request_id" ],

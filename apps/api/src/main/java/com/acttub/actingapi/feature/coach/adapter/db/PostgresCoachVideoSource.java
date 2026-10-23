@@ -20,7 +20,7 @@ public class PostgresCoachVideoSource implements CoachVideoSource {
     public Video find(UUID userId, UUID practiceSessionId) {
         var practices = com.acttub.actingapi.platform.persistence.NativeTuples.list(
                 entityManager.createNativeQuery("""
-                    SELECT p.user_id,v.object_key,v.content_type,v.purged_at,
+                    SELECT p.user_id,p.face_mosaic,v.object_key,v.content_type,v.purged_at,
                            (SELECT u.etag FROM upload_intents u WHERE u.video_id=v.id
                             ORDER BY u.finalized_at DESC LIMIT 1) AS etag
                     FROM practices p LEFT JOIN videos v ON v.id=p.video_id AND v.user_id=p.user_id
@@ -31,6 +31,6 @@ public class PostgresCoachVideoSource implements CoachVideoSource {
         if (!userId.equals(row.get("user_id", UUID.class)) || row.get("object_key") == null
                 || row.get("purged_at") != null) return null;
         return new Video(row.get("object_key", String.class), row.get("content_type", String.class),
-                row.get("etag", String.class));
+                row.get("etag", String.class), Boolean.TRUE.equals(row.get("face_mosaic", Boolean.class)));
     }
 }

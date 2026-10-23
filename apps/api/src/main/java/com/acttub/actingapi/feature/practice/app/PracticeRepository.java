@@ -61,14 +61,24 @@ public interface PracticeRepository {
             String subBranch,
             String blockageNote,
             String title,
-            String sessionPurpose) {
+            String sessionPurpose,
+            // 얼굴 가리기. null 이면 끔이고, 이어하기에서는 이어받을 회차의 값이다.
+            Boolean faceMosaic) {
 
         /** 세션 목적이 없던 때의 모양. */
         public NewPractice(UUID requestId, String fingerprint, UUID videoId, String experienceVersion, String situation,
                 String characterContext, String goal, String blockageKind, String subBranch, String blockageNote,
                 String title) {
             this(requestId, fingerprint, videoId, experienceVersion, situation, characterContext, goal, blockageKind,
-                    subBranch, blockageNote, title, null);
+                    subBranch, blockageNote, title, null, null);
+        }
+
+        /** 얼굴 가리기가 없던 때의 모양. */
+        public NewPractice(UUID requestId, String fingerprint, UUID videoId, String experienceVersion, String situation,
+                String characterContext, String goal, String blockageKind, String subBranch, String blockageNote,
+                String title, String sessionPurpose) {
+            this(requestId, fingerprint, videoId, experienceVersion, situation, characterContext, goal, blockageKind,
+                    subBranch, blockageNote, title, sessionPurpose, null);
         }
     }
 

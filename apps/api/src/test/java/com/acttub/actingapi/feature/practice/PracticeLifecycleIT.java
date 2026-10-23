@@ -630,6 +630,36 @@ class PracticeLifecycleIT {
     }
 
     @Test
+    @DisplayName("practice.start: 얼굴 가리기 — face_mosaic true 로 시작하면 회차에 남고 같은 요청 id 재전송은 같은 회차, 빼면 다른 본문이다. "
+            + "false·생략은 끔이고, 이어하기에서 빼면 이어받을 회차의 값, 보내면 그 값이다")
+    void practiceStart_faceMosaicIsStoredAndInherited() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        String body = startBody(requestId, video, null, null).replace("}", ",\"face_mosaic\":true}");
+        UUID rootId = UUID.fromString(json(post("/v2/practices").content(body), 201).path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, rootId)).isTrue();
+        assertThat(json(post("/v2/practices").content(body), 201).path("id").textValue())
+                .as("같은 요청 id·같은 본문 재전송").isEqualTo(rootId.toString());
+        assertThat(json(post("/v2/practices").content(startBody(requestId, video, null, null)), 422))
+                .as("얼굴 가리기를 빼면 다른 본문이다")
+                .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
+
+        UUID off = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video(member), null, null)
+                .replace("}", ",\"face_mosaic\":false}")), 201).path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, off)).isFalse();
+
+        close(rootId);
+        UUID second = UUID.fromString(json(post("/v2/practices/{id}/continue", rootId)
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, second))
+                .as("이어하기에서 빼면 이어받을 회차의 값").isTrue();
+        close(second);
+        UUID third = UUID.fromString(json(post("/v2/practices/{id}/continue", second)
+                .content(continueBody(UUID.randomUUID(), null, null, null).replace("}", ",\"face_mosaic\":false}")), 201)
+                .path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, third)).isFalse();
+    }
+
+    @Test
     @DisplayName("practice.start: 영상 없이 말로 — video_id 없이 stuck·character·concern 으로 시작하면 분석 작업 없이 conversing 회차가 "
             + "생기고(three_layers_v1), 같은 요청 id 재전송은 같은 회차다. 영상 없이 목적을 빼거나 evaluate 면 422 배열 (SOMA-745)")
     void practiceStart_withoutVideoOpensTheConversationStage() throws Exception {

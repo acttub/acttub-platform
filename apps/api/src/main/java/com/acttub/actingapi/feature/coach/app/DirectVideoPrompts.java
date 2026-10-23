@@ -14,6 +14,17 @@ final class DirectVideoPrompts {
     private DirectVideoPrompts() {}
     static String common() { return resource("common"); }
     static String classifier() { return resource("classifier"); }
+    /**
+     * 얼굴 가리기 회차(practice.start)에 코치 지시문 앞에 붙이는 한 줄 사실. 프롬프트 파일은 바꾸지 않는다 — 소리 없는 영상의
+     * 서버 사실({@link #withAudioFacts})과 같은 자리다.
+     */
+    static final String FACE_MOSAIC_FACT =
+            "[서버 확인 영상 정보] 배우가 얼굴 가리기를 켜서 이 영상의 얼굴은 모자이크로 가려져 있다. 표정·눈빛·얼굴 근육은 판단하지 말고 말하지 않는다.";
+
+    static String withFaceMosaicFact(String instruction, boolean faceMosaic) {
+        return faceMosaic ? FACE_MOSAIC_FACT + "\n\n" + instruction : instruction;
+    }
+
     static String withAudioFacts(String instruction, DirectVideoModel.Video video) {
         return video != null && Boolean.FALSE.equals(video.hasAudioTrack())
                 ? resource("no-audio") + "\n\n" + instruction : instruction;

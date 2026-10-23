@@ -13,7 +13,7 @@ class PracticeCreateRequestValidationTest {
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     private int violations(UUID videoId, String purpose) {
-        return validator.validate(new PracticeDtos.CreateRequest(UUID.randomUUID(), videoId, null, null, null, purpose)).size();
+        return validator.validate(new PracticeDtos.CreateRequest(UUID.randomUUID(), videoId, null, null, null, purpose, null)).size();
     }
 
     @Test void withoutAVideoOnlyTheTalkPurposesPass() {

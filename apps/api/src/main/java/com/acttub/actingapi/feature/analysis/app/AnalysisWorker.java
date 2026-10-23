@@ -20,6 +20,8 @@ import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.ledger.ExternalOperationFailureClassification;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.integration.media.FaceMosaic;
+import com.acttub.actingapi.integration.media.FaceMosaicRenderer;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.integration.observation.FileActiveTimeout;
@@ -37,6 +39,13 @@ public class AnalysisWorker {
     private final String model;
     private final AnalysisCompletionListener completionListener;
     private final FailureReporter failureReporter;
+    /** 얼굴 가리기 회차의 사본을 만든다. NONE 이면 그런 회차는 원본을 쓰지 않고 실패로 닫는다. */
+    private FaceMosaic faceMosaic = FaceMosaic.NONE;
+
+    /** 얼굴 가리기 회차(practice.start)에서 얼굴을 하나도 찾지 못해 분석을 닫은 사유. 다시 해도 같다. */
+    public static final String FACE_NOT_FOUND = "face_not_found";
+    /** 가린 사본을 만들 수 없는 기동(ffmpeg 없음). */
+    public static final String FACE_MOSAIC_UNAVAILABLE = "face_mosaic_unavailable";
 
     public AnalysisWorker(
             AnalysisStore store,
@@ -55,6 +64,12 @@ public class AnalysisWorker {
         this.model = model;
         this.completionListener = completionListener;
         this.failureReporter = failureReporter;
+    }
+
+    /** 얼굴 가리기 회차의 사본을 만들 곳을 끼운다. null 이면 만들 수 없는 것으로 본다. */
+    public AnalysisWorker withFaceMosaic(FaceMosaic faceMosaic) {
+        this.faceMosaic = faceMosaic == null ? FaceMosaic.NONE : faceMosaic;
+        return this;
     }
 
     public boolean runOnce() {
@@ -80,6 +95,7 @@ public class AnalysisWorker {
             }
 
             Path temporary = null;
+            Path masked = null;
             try {
                 temporary = Files.createTempFile("acttub-analysis-", suffix(context.objectKey()));
                 ExternalOperationExecution.externalCall("storage");
@@ -90,7 +106,26 @@ public class AnalysisWorker {
                 if (context.etag() != null && !Objects.equals(downloaded.etag(), context.etag())) {
                     throw new ObjectETagMismatchError("uploaded object changed after finalization");
                 }
-                AnalysisResult result = analyzer.analyze(temporary, context);
+                Path input = temporary;
+                if (context.faceMosaic()) {
+                    // 얼굴 가리기: 원본 대신 얼굴을 가린 사본으로 분석하고 코치에게 넘긴다. 사본을 만들 수 없으면 원본으로
+                    // 돌아가지 않고 실패로 닫는다(fail-closed). 얼굴을 못 찾은 것은 다시 해도 같다.
+                    if (!faceMosaic.available()) {
+                        failureReporter.report(new IllegalStateException("face mosaic is unavailable"),
+                                new FailureContext("AnalysisWorker.faceMosaic", operationId));
+                        fail(operationId, leaseToken, FACE_MOSAIC_UNAVAILABLE,
+                                ExternalOperationFailureClassification.EXPECTED, now);
+                        return true;
+                    }
+                    try {
+                        masked = faceMosaic.render(temporary);
+                    } catch (FaceMosaicRenderer.NoFaceFound none) {
+                        fail(operationId, leaseToken, FACE_NOT_FOUND, ExternalOperationFailureClassification.EXPECTED, now);
+                        return true;
+                    }
+                    input = masked;
+                }
+                AnalysisResult result = analyzer.analyze(input, context);
                 store.complete(operationId, leaseToken, result, model, now);
                 notifyCompletion(context);
             } catch (LeaseOwnershipException exception) {
@@ -114,9 +149,10 @@ public class AnalysisWorker {
                                     : ExternalOperationFailureClassification.from(exception), now);
                 }
             } finally {
-                if (temporary != null) {
+                for (Path leftover : new Path[] {masked, temporary}) {
+                    if (leftover == null) continue;
                     try {
-                        Files.deleteIfExists(temporary);
+                        Files.deleteIfExists(leftover);
                     } catch (IOException ignored) {
                         // 임시 파일 정리 실패는 operation 전이를 바꾸지 않는다.
                     }
