@@ -1,8 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
@@ -35,13 +34,13 @@ async function save(state: ReturnType<typeof parseRatingState>) {
 }
 
 /**
- * 앱 평가 요청 시트 (SOMA-494) — AI 코칭 2번·대본 완주 2번마다(7일 간격·최대 3번) 묻는다.
+ * 앱 평가 요청 카드 (SOMA-494, SOMA-821에서 아래 시트를 화면 안 카드로 바꿨다) — AI 코칭 2번·대본 완주 2번마다(7일 간격·최대 3번) 묻는다.
  *
  * `after(event, proceed)`: 사건을 세고, 물을 때가 아니면 곧바로 `proceed` 를 부른다. 물을 때면
- * 시트를 띄우고, 남기기·나중에 어느 쪽이든 닫힌 뒤 `proceed` 를 부른다.
+ * 카드를 보이고, 남기기·나중에 어느 쪽이든 카드가 접힌 뒤 `proceed` 를 부른다.
+ * `element` 는 팝업이 아니라 부르는 화면이 스크롤 안 알맞은 자리(완료·정리 내용 아래)에 끼워 넣는 인라인 카드다. 안 물을 땐 null.
  */
 export function useAppRating() {
-  const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const proceedRef = useRef<(() => void) | null>(null);
 
@@ -79,56 +78,52 @@ export function useAppRating() {
     close();
   }, [close]);
 
-  const element = (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={later}>
-      <Pressable style={styles.backdrop} onPress={later} accessibilityRole="button">
-        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => undefined}>
-          <View style={styles.handle} />
-          <View style={styles.stars}>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <Ionicons key={i} name="star" size={30} color="#F5B324" />
-            ))}
-          </View>
-          <Text style={styles.title}>{t('appRating.title')}</Text>
-          <Text style={styles.body}>{t('appRating.body')}</Text>
-          <Pressable style={styles.primary} onPress={() => void rate()} accessibilityRole="button">
-            <Text style={styles.primaryText}>{t('appRating.rate')}</Text>
-          </Pressable>
-          <Pressable style={styles.ghost} onPress={later} accessibilityRole="button">
-            <Text style={styles.ghostText}>{t('appRating.later')}</Text>
-          </Pressable>
-        </Pressable>
+  const element = visible ? (
+    <View style={styles.card} testID="app-rating-card">
+      <View style={styles.stars}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <Ionicons key={i} name="star" size={26} color="#F5B324" />
+        ))}
+      </View>
+      <Text style={styles.title}>{t('appRating.title')}</Text>
+      <Text style={styles.body}>{t('appRating.body')}</Text>
+      <Pressable style={styles.primary} onPress={() => void rate()} accessibilityRole="button">
+        <Text style={styles.primaryText}>{t('appRating.rate')}</Text>
       </Pressable>
-    </Modal>
-  );
+      <Pressable style={styles.ghost} onPress={later} accessibilityRole="button">
+        <Text style={styles.ghostText}>{t('appRating.later')}</Text>
+      </Pressable>
+    </View>
+  ) : null;
 
   return { after, element };
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: '#0F141E73', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: palette.bg,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 8,
-    paddingHorizontal: 20,
+  card: {
+    alignSelf: 'stretch',
     alignItems: 'center',
+    backgroundColor: palette.card,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    marginTop: 16,
   },
-  handle: { width: 36, height: 4, borderRadius: 9999, backgroundColor: palette.border, marginVertical: 10 },
-  stars: { flexDirection: 'row', gap: 6, marginTop: 10 },
-  title: { fontSize: 21, fontWeight: '900', color: palette.text, letterSpacing: -0.5, marginTop: 14, textAlign: 'center' },
-  body: { fontSize: 14, fontWeight: '600', color: palette.textMuted, lineHeight: 21, marginTop: 8, textAlign: 'center' },
+  stars: { flexDirection: 'row', gap: 6 },
+  title: { fontSize: 18, fontWeight: '900', color: palette.text, letterSpacing: -0.4, marginTop: 12, textAlign: 'center' },
+  body: { fontSize: 14, fontWeight: '600', color: palette.textMuted, lineHeight: 21, marginTop: 6, textAlign: 'center' },
   primary: {
     alignSelf: 'stretch',
-    height: 54,
+    height: 50,
     borderRadius: 14,
     backgroundColor: palette.blue,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 22,
+    marginTop: 18,
   },
   primaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  ghost: { alignSelf: 'stretch', height: 48, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  ghost: { alignSelf: 'stretch', height: 44, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   ghostText: { color: palette.textMuted, fontSize: 14.5, fontWeight: '700' },
 });

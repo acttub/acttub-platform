@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -260,7 +260,7 @@ export default function JournalScreen() {
 
       {phase === 'view' && journal && (
         <KeyboardLift aboveSafeBottom>
-          <JournalBody journal={journal} edit={edit} onEdit={setEdit} open={open} onToggle={(key) => setOpen((was) => ({ ...was, [key]: !was[key] }))} />
+          <JournalBody journal={journal} edit={edit} onEdit={setEdit} open={open} onToggle={(key) => setOpen((was) => ({ ...was, [key]: !was[key] }))} footer={rating.element} />
           {error && <Text style={[styles.errorText, styles.footerError]}>{error}</Text>}
           {(fromCoach || edit) && (
             <CtaBar safeBottom={false}>
@@ -269,7 +269,6 @@ export default function JournalScreen() {
           )}
         </KeyboardLift>
       )}
-      {rating.element}
     </SafeAreaView>
   );
 }
@@ -281,12 +280,15 @@ function JournalBody({
   onEdit,
   open,
   onToggle,
+  footer,
 }: {
   journal: PracticeJournal;
   edit: JournalEdit | null;
   onEdit: (edit: JournalEdit) => void;
   open: Record<string, boolean>;
   onToggle: (key: string) => void;
+  /** 스크롤 맨 아래에 놓는 칸 — 앱 평가 카드(SOMA-821: 시트 대신 화면 안 카드). */
+  footer?: ReactNode;
 }) {
   const summary = journalSummary(journal);
   const notice =
@@ -390,6 +392,7 @@ function JournalBody({
           ),
         )}
       </View>
+      {footer}
     </KeyboardAwareScroll>
   );
 }
