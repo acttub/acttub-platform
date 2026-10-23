@@ -34,7 +34,7 @@ export function DiffText({
       {!!different.said.trim() && (
         <View style={styles.saidBox}>
           {!!saidLabel && <Text style={styles.saidLabel}>{saidLabel}</Text>}
-          <Text style={styles.said}>{different.said}</Text>
+          <Text style={[styles.said, !!saidLabel && styles.saidFull]}>{different.said}</Text>
         </View>
       )}
     </View>
@@ -46,6 +46,8 @@ const styles = StyleSheet.create({
   text: { color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 23 },
   differs: { backgroundColor: palette.amberSoft, fontFamily: 'Pretendard-Bold' },
   said: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12, lineHeight: 18 },
+  // pen R9.26 「내가 말한 것」 — 전체 보기에서는 14 반굵게 회색.
+  saidFull: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 14, lineHeight: 20 },
   saidBox: { gap: 2 },
   saidLabel: { color: palette.textFaint, fontFamily: 'Pretendard-Bold', fontSize: 12 },
 });
