@@ -22,6 +22,7 @@ import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
 import { currentTutorial } from '@/lib/tutorial';
 import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
+import { upcomingNotices, type AdmissionsResponse } from '@/lib/admissions';
 import { isKorean, translate as t, translateList } from '@/lib/i18n';
 import { firstTimeStateFrom, setFirstTimeState } from '@/lib/practice/first-time';
 import { challengeDaysLeft, pickToday, primaryFeature, wasYesterday, type TodayItem } from '@/lib/home-today';
@@ -121,6 +122,7 @@ export default function HomeScreen() {
   // 주 기능 판단용 — 센 연습(코칭·리딩·챌린지) 목록.
   const [practices, setPractices] = useState<CountedPractice[]>([]);
   const [auditions, setAuditions] = useState<AuditionPostingList | null>(null);
+  const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
@@ -237,6 +239,24 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, []);
+
+  // 연기 입시 일정 — 입시생에게만 보이는 구역이라 입시생일 때만 읽는다(SOMA-654). 실패하면 구역만 빠진다.
+  const wantsAdmissions = isKorean() && homeDeadlineSections(profile.me?.profile, kstDate()).admissions;
+  useEffect(() => {
+    if (!wantsAdmissions) return;
+    let cancelled = false;
+    api
+      .admissions()
+      .then((data) => {
+        if (!cancelled) setAdmissions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setAdmissions(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wantsAdmissions]);
 
   // 입시생(만 19세 이하)은 입시만, 만 20세 이상 입시생은 둘 다, 나머지는 오디션만 본다(SOMA-654).
   const sections = homeDeadlineSections(profile.me?.profile, kstDate());
@@ -430,6 +450,7 @@ export default function HomeScreen() {
   const rowChallenge: HomeRowData = {
     key: 'challenge',
     icon: 'award',
+    tone: 'orange',
     title: t('home.rowChallenge'),
     sub: featured
       ? [`“${featured.line}”`, featuredDays !== null && featuredDays >= 0 ? `D-${featuredDays}` : null].filter(Boolean).join(' · ')
@@ -440,30 +461,43 @@ export default function HomeScreen() {
   const rowWatch: HomeRowData = {
     key: 'watch',
     icon: 'play',
+    tone: 'orange',
     title: t('home.rowWatch'),
     sub: t('home.rowWatchSub'),
     phLabel: 'home_row_watch',
     onPress: () => router.push('/challenges'),
   };
-  const rowAuditions: HomeRowData | null = isKorean()
-    ? {
-        key: 'auditions',
-        icon: 'volume-2',
-        title: t('home.rowAuditions'),
-        sub: auditionsClosingSoon > 0 ? t('home.rowAuditionsSub', { n: auditionsClosingSoon }) : t('home.rowAuditionsSubNone'),
-        phLabel: 'home_row_auditions',
-        // 만 19세 이하 입시생은 입시 일정만 본다(SOMA-654) — 오디션 모아보기 대신 입시로 간다.
-        onPress: () => router.push(sections.auditions ? '/auditions' : '/admissions'),
-      }
-    : null;
   const homeRows: HomeRowData[] = [
     ...(mainKind === 'coaching' ? [rowReading, rowChallenge] : []),
     ...(mainKind === 'reading' ? [rowCoaching, rowChallenge] : []),
     ...(mainKind === 'challenge' ? [rowWatch, rowReading] : []),
     ...(mainKind === 'start' ? [rowReading, rowChallenge] : []),
-    ...(rowAuditions ? [rowAuditions] : []),
   ];
   // 올리는 중에는 코칭 줄을 빼는데(위 coaching 메인 줄 목록에 코칭이 없다) 업로드 카드 아래에서도 같은 세 줄이다.
+
+  // 마감 임박 두 구역(pen P1.1·P1.3) — 입시 일정(입시생만)과 오디션 공고. 가까운 순 둘, 없으면 구역을 그리지 않는다.
+  const todayKst = kstDate();
+  const deadlineBlocks: DeadlineBlock[] = [];
+  if (sections.admissions && admissions) {
+    const rows = upcomingNotices(admissions, todayKst, 2).map(({ university, notice, remaining }) => ({
+      id: notice.id,
+      days: remaining.days,
+      title: university.name,
+      sub: [notice.department, notice.practical_date ? t('home.admissionPractical', { date: monthDay(notice.practical_date) }) : remaining.label]
+        .filter(Boolean)
+        .join(' · '),
+    }));
+    if (rows.length > 0) deadlineBlocks.push({ key: 'admissions', title: t('home.admissionsTitle'), a11y: t('home.admissionsA11y'), route: '/admissions', rows });
+  }
+  if (sections.auditions && auditions) {
+    const rows = urgentAuditions(auditions.items, todayKst, 2).map(({ posting, days }) => ({
+      id: posting.id,
+      days,
+      title: posting.title,
+      sub: posting.source_name,
+    }));
+    if (rows.length > 0) deadlineBlocks.push({ key: 'auditions', title: t('home.auditionsTitle'), a11y: t('home.auditionsA11y'), route: '/auditions', rows });
+  }
 
   // 맨 위 한 줄 인사 — 메인 카드에 맞춘다.
   const greeting = waitingUpload.card
@@ -614,24 +648,63 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* 이것도 해 볼래요? — 세 줄. */}
-          <Text style={styles.sectionTitle} accessibilityRole="header">{t('home.moreTitle')}</Text>
-          {homeRows.map((row) => (
-            <Pressable
-              key={row.key}
-              onPress={row.onPress}
-              accessibilityRole="button"
-              ph-label={row.phLabel}
-              style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
-              <View style={styles.rowIcon}>
-                <Feather name={row.icon} size={20} color={palette.textDim} />
+          {/* 이것도 해 볼까요? — 카드 줄(pen P1.1). */}
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle} accessibilityRole="header">{t('home.moreTitle')}</Text>
+          </View>
+          <View style={styles.rowList}>
+            {homeRows.map((row) => (
+              <Pressable
+                key={row.key}
+                onPress={row.onPress}
+                accessibilityRole="button"
+                ph-label={row.phLabel}
+                style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
+                <View style={[styles.rowIcon, row.tone === 'orange' && styles.rowIconOrange]}>
+                  {row.tone === 'orange' ? (
+                    <Ionicons name={row.icon === 'award' ? 'trophy-outline' : 'play-outline'} size={20} color={ORANGE} />
+                  ) : (
+                    <Feather name={row.icon} size={20} color={palette.blue} />
+                  )}
+                </View>
+                <View style={styles.flex}>
+                  <Text style={styles.listTitle} numberOfLines={1}>{row.title}</Text>
+                  <Text style={styles.listMeta} numberOfLines={1}>{row.sub}</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color="#9AA3B2" />
+              </Pressable>
+            ))}
+          </View>
+
+          {/* 연기 입시(입시생만)·오디션 마감 임박 — 가까운 마감 두 줄씩(pen P1.1). 없으면 구역째 그리지 않는다(P1.3). */}
+          {deadlineBlocks.map((block) => (
+            <View key={block.key} style={styles.deadlineBlock}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle} accessibilityRole="header">{block.title}</Text>
+                <Pressable onPress={() => router.push(block.route)} hitSlop={8} accessibilityRole="link" accessibilityLabel={block.a11y} ph-label={`home_${block.key}_all`}>
+                  <Text style={styles.sectionAll}>{t('home.seeAll')}</Text>
+                </Pressable>
               </View>
-              <View style={styles.flex}>
-                <Text style={styles.listTitle} numberOfLines={1}>{row.title}</Text>
-                <Text style={styles.listMeta} numberOfLines={1}>{row.sub}</Text>
+              <View style={styles.rowList}>
+                {block.rows.map((row) => (
+                  <Pressable
+                    key={row.id}
+                    onPress={() => router.push(block.route)}
+                    accessibilityRole="button"
+                    ph-label={`home_${block.key}_row`}
+                    style={({ pressed }) => [styles.deadlineRow, pressed && styles.pressed]}>
+                    <View style={[styles.dday, ddayTone(row.days).box]}>
+                      <Text style={[styles.ddayText, ddayTone(row.days).text]}>D-{row.days === 0 ? 'DAY' : row.days}</Text>
+                    </View>
+                    <View style={styles.flex}>
+                      <Text style={styles.listTitle} numberOfLines={1}>{row.title}</Text>
+                      <Text style={styles.listMeta} numberOfLines={1}>{row.sub}</Text>
+                    </View>
+                    <Feather name="chevron-right" size={18} color="#9AA3B2" />
+                  </Pressable>
+                ))}
               </View>
-              <Feather name="chevron-right" size={18} color={palette.checkOff} />
-            </Pressable>
+            </View>
           ))}
           </View>
         </ScrollView>
@@ -656,12 +729,37 @@ export default function HomeScreen() {
   );
 }
 
+type DeadlineBlock = {
+  key: 'admissions' | 'auditions';
+  title: string;
+  a11y: string;
+  route: '/admissions' | '/auditions';
+  rows: { id: string; days: number; title: string; sub: string }[];
+};
+
+const ORANGE = '#F07A1A';
+
+/** pen D-day 알약 — 3일 안은 빨강, 10일 안은 주황, 그 밖은 파랑. */
+function ddayTone(days: number): { box: { backgroundColor: string }; text: { color: string } } {
+  if (days <= 3) return { box: { backgroundColor: '#FDECEC' }, text: { color: '#E5484D' } };
+  if (days <= 10) return { box: { backgroundColor: '#FFF1E4' }, text: { color: ORANGE } };
+  return { box: { backgroundColor: '#E8F1FF' }, text: { color: '#2F6EF2' } };
+}
+
+/** 2026-10-26 → 10월 26일. */
+function monthDay(date: string): string {
+  const m = date.match(/^\d{4}-(\d{2})-(\d{2})/);
+  return m ? t('home.monthDay', { m: Number(m[1]), d: Number(m[2]) }) : date;
+}
+
 type HomeRowData = {
   key: string;
   icon: ComponentProps<typeof Feather>['name'];
   title: string;
   sub: string;
   phLabel: string;
+  /** orange 면 아이콘 칸이 주황(챌린지·영상 보기) — 나머지는 파랑. */
+  tone?: 'orange';
   onPress: () => void;
 };
 
@@ -903,11 +1001,41 @@ const styles = StyleSheet.create({
   },
   todayCtaText: { fontSize: 15, fontWeight: '800', color: palette.blue },
 
-  // 이것도 해 볼래요?
-  sectionTitle: { marginTop: 32, marginBottom: 4, fontSize: 15, fontWeight: '700', lineHeight: 22, color: palette.textDim },
-  listRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
-  rowIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  listTitle: { fontSize: 16, fontWeight: '700', lineHeight: 22, color: palette.text },
-  listMeta: { marginTop: 2, fontSize: 13, fontWeight: '400', lineHeight: 19, color: palette.textFaint },
+  // 이것도 해 볼까요? · 마감 구역
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, paddingHorizontal: 2 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', lineHeight: 22, color: palette.text },
+  sectionAll: { fontSize: 13, fontWeight: '700', color: '#2F6EF2' },
+  rowList: { gap: 10 },
+  deadlineBlock: { gap: 16 },
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    paddingLeft: 10,
+    paddingRight: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E8EDF5',
+    backgroundColor: palette.card,
+  },
+  rowIcon: { width: 40, height: 40, borderRadius: 15, backgroundColor: '#E8F1FF', alignItems: 'center', justifyContent: 'center', marginRight: 4 },
+  rowIconOrange: { backgroundColor: '#FFF1E4' },
+  listTitle: { fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.text },
+  listMeta: { marginTop: 3, fontSize: 12, fontWeight: '400', lineHeight: 17, color: '#7A8496' },
+  deadlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingLeft: 16,
+    paddingRight: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E8EDF5',
+    backgroundColor: palette.card,
+  },
+  dday: { width: 58, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  ddayText: { fontSize: 13, fontWeight: '800' },
 });
 
