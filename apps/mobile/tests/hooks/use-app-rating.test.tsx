@@ -46,7 +46,7 @@ test('물을 때가 아니면 센 것만 저장하고 곧바로 다음으로 간
   expect(screen.queryByText('Acttub 어떠셨어요?')).not.toBeOnTheScreen();
 });
 
-test('AI 코칭 두 번째면 시트를 띄우고 물은 기록을 남긴다', async () => {
+test('AI 코칭 두 번째면 카드를 보이고 물은 기록을 남긴다', async () => {
   const proceed = jest.fn();
   await ask(proceed);
 
@@ -89,16 +89,6 @@ test('나중에를 누르면 닫고 다음으로 가며, 7일 안에는 다시 �
   await act(() => rating.after({ kind: 'coach', practiceId: 'p4' }, again));
   expect(again).toHaveBeenCalledTimes(2);
   expect(screen.queryByText('Acttub 어떠셨어요?')).not.toBeOnTheScreen();
-});
-
-test('뒤로 가기로 닫아도 나중에와 같다', async () => {
-  const proceed = jest.fn();
-  await ask(proceed);
-
-  await fireEvent(screen.getByText('나중에'), 'requestClose');
-
-  expect(logEvent).toHaveBeenCalledWith('app_rating_later', {});
-  expect(proceed).toHaveBeenCalledTimes(1);
 });
 
 test('다음 할 일 없이 물어도 닫힐 때 문제없다', async () => {

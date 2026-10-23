@@ -10,7 +10,7 @@ import * as engine from '@/lib/reading/tts/engine';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
 import { endTutorial, startTutorial } from '@/lib/tutorial';
 
-import { closeModalOf, openFixtureScript, scriptDetail, TWO_ROLE_LINES } from './fixtures';
+import { openFixtureScript, scriptDetail, TWO_ROLE_LINES } from './fixtures';
 
 jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
@@ -86,11 +86,12 @@ test('목소리를 고르면 그 목소리로 미리 들려주고, 저장하면 
   const server = await show();
 
   await fireEvent.press(screen.getByText('남성 · 밝은 청년'));
-  expect(screen.getByText('민재 목소리')).toBeOnTheScreen();
+  // 시트 대신 그 배역 줄 아래에 펼쳐진다(SOMA-821).
+  expect(screen.getByText(/^추천 목소리/)).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('묵직한 노년'));
   await waitFor(() => expect(engine.preview).toHaveBeenCalledWith('M5'));
-  await fireEvent.press(screen.getByText('완료'));
-  expect(screen.queryByText('민재 목소리')).not.toBeOnTheScreen();
+  // 고르면 접힌다.
+  expect(screen.queryByText(/^추천 목소리/)).not.toBeOnTheScreen();
   expect(screen.getByText('남성 · 묵직한 노년')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('저장'));
@@ -105,7 +106,6 @@ test('고정한 목소리를 추천 목소리로 되돌리면 자동으로 저�
 
   await fireEvent.press(screen.getByText('남성 · 묵직한 노년'));
   await fireEvent.press(screen.getByText('추천 목소리 (여성 · 또렷한 성인)'));
-  await closeModalOf('민재 목소리');
 
   await fireEvent.press(screen.getByText('저장'));
   await waitFor(() => expect(server.patch).toHaveBeenCalledWith('s1', { characters: [{ id: 'c1', voice_preset: null }] }));
@@ -143,7 +143,6 @@ test('저장에 실패하면 알리고 고른 목소리를 그대로 두어 다�
   server.patch.mockRejectedValueOnce(new Error('offline'));
   await fireEvent.press(screen.getByText('여성 · 또렷한 성인'));
   await fireEvent.press(screen.getByText('따뜻한 노년'));
-  await fireEvent.press(screen.getByText('완료'));
 
   await fireEvent.press(screen.getByText('저장'));
   expect(await screen.findByText('목소리를 저장하지 못했어요. 고른 목소리는 그대로 두었으니 다시 저장해 주세요.')).toBeOnTheScreen();
@@ -161,7 +160,6 @@ test('저장하는 동안은 버튼이 저장 중으로 바뀐다', async () => 
   server.patch.mockImplementation(() => new Promise((resolve) => (answer = () => resolve(scriptDetail(TWO_ROLE_LINES)))));
   await fireEvent.press(screen.getByText('남성 · 밝은 청년'));
   await fireEvent.press(screen.getByText('낮은 중년'));
-  await fireEvent.press(screen.getByText('완료'));
 
   const saving = fireEvent.press(screen.getByText('저장'));
   expect(await screen.findByText('저장 중…')).toBeOnTheScreen();
@@ -261,10 +259,12 @@ test('자동 목소리를 받을 수 없는 배역은 미리 듣기를 하지 �
   expect(engine.preview).not.toHaveBeenCalled();
 });
 
-test('목소리 시트 안을 눌러도 시트는 닫히지 않는다', async () => {
+test('목소리 칩을 다시 누르면 고르지 않고 펼친 칸이 접힌다', async () => {
   await show();
   await fireEvent.press(screen.getByText('남성 · 밝은 청년'));
+  expect(screen.getByText(/^추천 목소리/)).toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByText('누르면 이 목소리로 미리 들려줘요.'));
-  expect(screen.getByText('민재 목소리')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('남성 · 밝은 청년'));
+  expect(screen.queryByText(/^추천 목소리/)).not.toBeOnTheScreen();
+  expect(screen.getByText('남성 · 밝은 청년')).toBeOnTheScreen();
 });

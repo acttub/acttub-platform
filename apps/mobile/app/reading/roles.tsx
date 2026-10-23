@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -142,6 +142,12 @@ export default function ReadingRoles() {
     if (heard) void preview(characterId, heard);
   };
 
+  // 목소리를 고르면 바꾸고 펼친 칸을 접는다.
+  const pickVoice = (characterId: string, value: VoicePreset | null) => {
+    choose(characterId, value);
+    setSheetFor(null);
+  };
+
   const onSave = async () => {
     if (savingRef.current) return;
     savingRef.current = true;
@@ -169,8 +175,6 @@ export default function ReadingRoles() {
     if (next === 'detail_then_range') router.push('/reading/range');
   };
 
-  const sheetCharacter = effective.find((c) => c.id === sheetFor) ?? null;
-  const sheetValue = sheetCharacter && isKnownPreset(sheetCharacter.voice_preset) ? sheetCharacter.voice_preset : null;
 
   return (
     <View style={styles.root}>
@@ -199,19 +203,22 @@ export default function ReadingRoles() {
         <View style={styles.list} ref={roleListTarget.ref} onLayout={roleListTarget.onLayout}>
           {effective.map((c) => {
             const playing = previewing === c.id;
+            const open = sheetFor === c.id;
+            const value = isKnownPreset(c.voice_preset) ? c.voice_preset : null;
             return (
-              <View key={c.id} style={styles.row}>
+              <View key={c.id} style={styles.rowBox}>
+              <View style={styles.row}>
                 <View style={styles.rowInfo}>
                   <Text style={styles.rowName} numberOfLines={1}>{c.name}</Text>
                   <Text style={[styles.rowMeta, playing && styles.rowMetaPlaying]}>
                     {playing ? t('reading.voicePreviewing') : t('reading.voicesLines', { count: c.dialogue_count })}
                   </Text>
                 </View>
-                <Pressable style={styles.voiceChip} onPress={() => setSheetFor(c.id)}>
+                <Pressable style={styles.voiceChip} onPress={() => setSheetFor(open ? null : c.id)} accessibilityRole="button" accessibilityState={{ expanded: open }}>
                   <Text style={styles.voiceChipText}>
                     {voiceLabel(isKnownPreset(c.voice_preset) ? c.voice_preset : assigned[c.id])}
                   </Text>
-                  <Feather name="chevron-down" size={13} color={palette.blueDeep} />
+                  <Feather name={open ? 'chevron-up' : 'chevron-down'} size={13} color={palette.blueDeep} />
                 </Pressable>
                 <Pressable
                   style={[styles.playBtn, playing && styles.playBtnOn]}
@@ -220,6 +227,33 @@ export default function ReadingRoles() {
                   onPress={() => togglePreview(c.id)}>
                   <Feather name={playing ? 'square' : 'volume-2'} size={14} color={playing ? '#fff' : palette.blueDeep} />
                 </Pressable>
+              </View>
+              {open && (
+                // 목소리 고르기 — 시트 대신 그 배역 줄 아래에 펼친다(SOMA-821). 고르면 접히고, 미리 듣기 버튼은 그대로 쓴다.
+                <View style={styles.picker}>
+                  <Pressable style={[styles.autoBtn, value === null && styles.chipOn]} onPress={() => pickVoice(c.id, null)}>
+                    {value === null && <Feather name="check" size={15} color={palette.blueDeep} />}
+                    <Text style={[styles.chipText, value === null && styles.chipTextOn]}>
+                      {t('reading.voiceRecommended', { voice: voiceLabel(autoVoiceOf(characters, chosen, c.id)) })}
+                    </Text>
+                  </Pressable>
+                  {[
+                    { label: t('reading.voicesMale'), presets: MALE },
+                    { label: t('reading.voicesFemale'), presets: FEMALE },
+                  ].map((group) => (
+                    <View key={group.label} style={styles.group}>
+                      <Text style={styles.groupLabel}>{group.label}</Text>
+                      <View style={styles.chips}>
+                        {group.presets.map((p) => (
+                          <Pressable key={p} style={[styles.chip, value === p && styles.chipOn]} onPress={() => pickVoice(c.id, p)}>
+                            <Text style={[styles.chipText, value === p && styles.chipTextOn]}>{voiceName(p)}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
               </View>
             );
           })}
@@ -232,39 +266,6 @@ export default function ReadingRoles() {
         </View>
       </View>
 
-      <Modal transparent statusBarTranslucent visible={!!sheetCharacter} animationType="slide" onRequestClose={() => setSheetFor(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setSheetFor(null)}>
-          {sheetCharacter && (
-            <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={(e) => e.stopPropagation()}>
-              <View style={styles.handle} />
-              <Text style={styles.sheetTitle}>{t('reading.voiceSheetTitle', { name: sheetCharacter.name })}</Text>
-              <Text style={styles.sheetNote}>{t('reading.voiceSheetNote')}</Text>
-              <Pressable style={[styles.autoBtn, sheetValue === null && styles.chipOn]} onPress={() => choose(sheetCharacter.id, null)}>
-                {sheetValue === null && <Feather name="check" size={15} color={palette.blueDeep} />}
-                <Text style={[styles.chipText, sheetValue === null && styles.chipTextOn]}>
-                  {t('reading.voiceRecommended', { voice: voiceLabel(autoVoiceOf(characters, chosen, sheetCharacter.id)) })}
-                </Text>
-              </Pressable>
-              {[
-                { label: t('reading.voicesMale'), presets: MALE },
-                { label: t('reading.voicesFemale'), presets: FEMALE },
-              ].map((group) => (
-                <View key={group.label} style={styles.group}>
-                  <Text style={styles.groupLabel}>{group.label}</Text>
-                  <View style={styles.chips}>
-                    {group.presets.map((p) => (
-                      <Pressable key={p} style={[styles.chip, sheetValue === p && styles.chipOn]} onPress={() => choose(sheetCharacter.id, p)}>
-                        <Text style={[styles.chipText, sheetValue === p && styles.chipTextOn]}>{voiceName(p)}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-              ))}
-              <PrimaryButton label={t('reading.voiceDone')} onPress={() => setSheetFor(null)} style={styles.sheetDone} />
-            </Pressable>
-          )}
-        </Pressable>
-      </Modal>
       {dialog}
       {tutorialGuide.element}
     </View>
@@ -287,6 +288,8 @@ const styles = StyleSheet.create({
   viewAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   section: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 10 },
   note: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12, marginTop: -6 },
+  rowBox: { gap: 0 },
+  picker: { gap: 8, marginTop: -2, padding: 14, borderColor: palette.border, borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, backgroundColor: palette.bg },
   list: { gap: 8, marginTop: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
   rowInfo: { flex: 1, gap: 2 },
@@ -303,11 +306,6 @@ const styles = StyleSheet.create({
   primaryText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
   pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
   pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'flex-end' },
-  sheet: { backgroundColor: palette.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 10, gap: 10 },
-  handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 6 },
-  sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
-  sheetNote: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: -4 },
   autoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 13, marginTop: 6 },
   group: { gap: 8, marginTop: 4 },
   groupLabel: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 12 },
@@ -316,5 +314,4 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   chipText: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
   chipTextOn: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold' },
-  sheetDone: { marginTop: 10 },
 });
