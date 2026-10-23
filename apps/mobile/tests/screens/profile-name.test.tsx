@@ -403,8 +403,8 @@ describe('설정의 프로필 편집', () => {
     expect(takeProviderNameHint).not.toHaveBeenCalled();
     expect(readAttributedChannel).not.toHaveBeenCalled();
     expect(screen.queryByText('Acttub를 처음 어디서 알게 됐어요?')).not.toBeOnTheScreen();
-    expect(screen.getByText('김민지')).toBeOnTheScreen();
-    expect(screen.getByText('무대를 사랑하는 배우')).toBeOnTheScreen();
+    expect(screen.getAllByText('김민지')).toBeOnTheScreen();
+    expect(screen.getAllByText('무대를 사랑하는 배우')).toBeOnTheScreen();
     expect(screen.getByText('무대 (연극·뮤지컬)')).toBeOnTheScreen();
 
     await fireEvent.press(button('소개 무대를 사랑하는 배우'));

@@ -102,6 +102,7 @@ export default function ProfileEditScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('profileName.editTitle') }} />
       <ScrollView contentContainerStyle={styles.body}>
+        <View style={styles.summary}>
         <View style={styles.photoBox}>
           <Pressable onPress={() => void changePhoto()} disabled={photoBusy} accessibilityRole="button" accessibilityLabel={t('profileName.editPhoto')}>
             <View style={styles.photo}>
@@ -126,8 +127,26 @@ export default function ProfileEditScreen() {
           </View>
           {photoError && <Text style={styles.error}>{photoError}</Text>}
         </View>
+        <View style={styles.summaryText}>
+          <Text style={styles.summaryName} numberOfLines={1}>{p?.name ?? ''}</Text>
+          <Text style={styles.summaryBio} numberOfLines={2}>{p?.bio?.trim() || t('profileName.editBioEmpty')}</Text>
+          <View style={styles.chipRow}>
+            {!!p?.birth_date && (
+              <View style={styles.chip}>
+                <Feather name="gift" size={14} color={palette.textMuted} />
+                <Text style={styles.chipText}>{p.birth_date.replace(/-/g, '.')}</Text>
+              </View>
+            )}
+            {!!p?.gender && (
+              <View style={styles.chip}>
+                <Feather name="user" size={14} color={palette.textMuted} />
+                <Text style={styles.chipText}>{t(GENDER_LABEL_KEYS[p.gender])}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        </View>
 
-        <View style={styles.divider} />
         {rows.map((row) => (
           <View key={row.field}>
             <Pressable
@@ -136,12 +155,11 @@ export default function ProfileEditScreen() {
               accessibilityRole="button"
               accessibilityLabel={`${row.label} ${row.value}`}>
               <Text style={styles.rowLabel}>{row.label}</Text>
-              <Text style={styles.rowValue} numberOfLines={1}>
-                {row.value}
+              <Text style={[styles.rowValue, row.field === 'bio' && !row.value && styles.rowEmpty]} numberOfLines={1}>
+                {row.value || (row.field === 'bio' ? t('profileName.editBioRowEmpty') : '')}
               </Text>
               <Feather name="chevron-right" size={18} color={palette.checkOff} />
             </Pressable>
-            <View style={styles.divider} />
           </View>
         ))}
         {/* 포트폴리오(account.portfolio) — 가입 때 받는 여섯 항목과 다른 기능. pen 엔 없지만 들어갈 길이 여기뿐이다. */}
@@ -150,10 +168,9 @@ export default function ProfileEditScreen() {
           onPress={() => router.push('/portfolio-edit')}
           accessibilityRole="button">
           <Text style={styles.rowLabel}>{t('profileName.rowPortfolio')}</Text>
-          <Text style={styles.rowValue} />
+          <Text style={[styles.rowValue, styles.rowEmpty]}>{t('profileName.editPortfolioRowEmpty')}</Text>
           <Feather name="chevron-right" size={18} color={palette.checkOff} />
         </Pressable>
-        <View style={styles.divider} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -165,12 +182,19 @@ const styles = StyleSheet.create({
   reload: { paddingHorizontal: 16, paddingVertical: 8 },
   reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
-  body: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
-  photoBox: { alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 12 },
+  body: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32, gap: 10 },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: 18, padding: 18, borderRadius: 24, backgroundColor: palette.bgSubtle, borderWidth: 1, borderColor: palette.borderSoft },
+  summaryText: { flex: 1, gap: 6 },
+  summaryName: { fontSize: 24, fontWeight: '800', color: palette.text },
+  summaryBio: { fontSize: 15, color: palette.textMuted, lineHeight: 21 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: 10, paddingVertical: 5 },
+  chipText: { fontSize: 13, fontWeight: '600', color: palette.text },
+  photoBox: { alignItems: 'center', gap: 8 },
   photo: {
     width: 84,
     height: 84,
-    borderRadius: 42,
+    borderRadius: 28,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -182,8 +206,9 @@ const styles = StyleSheet.create({
   photoLink: { fontSize: 14, fontWeight: '700', color: palette.blue },
   photoRemove: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
   divider: { height: 1, backgroundColor: palette.borderSoft },
-  row: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  row: { height: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, borderWidth: 1, borderColor: palette.border, borderRadius: 22 },
   pressed: { opacity: 0.6 },
-  rowLabel: { width: 104, fontSize: 15, fontWeight: '600', color: palette.textDim },
-  rowValue: { flex: 1, fontSize: 15, fontWeight: '600', color: palette.text },
+  rowLabel: { width: 96, fontSize: 15, fontWeight: '600', color: palette.textMuted },
+  rowEmpty: { fontWeight: '500', color: palette.textFaint },
+  rowValue: { flex: 1, fontSize: 17, fontWeight: '800', color: palette.text, textAlign: 'right' },
 });
