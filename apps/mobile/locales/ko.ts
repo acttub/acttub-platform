@@ -23,7 +23,7 @@ const ko = {
     detail: '자세히',
     secElapsed: '{{sec}}초 경과',
     minSecElapsed: '{{min}}분 {{sec}}초 경과',
-    tryLater: '잠시 후 다시 시도해주세요.',
+    tryLater: '잠시 후 다시 시도해 주세요.',
   },
   login: {
     tagline: '그 장면에서 뭘 하려 했는지부터',
@@ -1337,7 +1337,7 @@ const ko = {
     askDiscovery: '{{name}}님, 액터브는 어디서 알게 됐어요?',
     askDiscoveryHint: '하나 누르면 바로 시작해요. 건너뛰어도 돼요.',
     blockedTitle: '지금은 가입할 수 없어요',
-    blockedBody: 'Acttub는 만 14세 이상부터 쓸 수 있어요.\n그때 다시 만나요.',
+    blockedBody: '액터브는 만 14세 이상부터 쓸 수 있어요.\n그때 다시 만나요.',
     editPhoto: '사진 수정',
     rowBio: '소개',
     rowGoal: '연기 목표',
