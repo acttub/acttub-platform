@@ -248,6 +248,8 @@ const ko = {
     changePhoto: '사진 변경',
     shareText: '{{name}}의 “{{line}}” 연기 — acttub 챌린지',
     // SOMA-748 프로필 탭 개편
+    introEmpty: '한 줄 소개를 적어보세요',
+    monthLabel: '이번 달 연습',
     edit: '편집',
     monthTitle: '이번 달 연습 {{count}}번',
     kindCoaching: '코칭',

@@ -350,10 +350,10 @@ describe('알림이 꺼져 있어요', () => {
 });
 
 describe('설정', () => {
-  test('프로필 · 연습과 기록 · 의견 · 계정 묶음으로 두고 보관함·Pro 줄은 없다', async () => {
+  test('프로필 · 의견 · 기타 묶음으로 두고 보관함·Pro 줄은 없다', async () => {
     await settingsLoaded();
 
-    for (const label of ['프로필', '연습과 기록', '의견', '계정']) expect(screen.getByText(label)).toBeOnTheScreen();
+    for (const label of ['프로필', '의견', '기타']) expect(screen.getByText(label)).toBeOnTheScreen();
     for (const gone of ['보관함', /Pro/]) expect(screen.queryByText(gone)).not.toBeOnTheScreen();
     for (const sub of [
       '이름·성별·생년월일·방향·경력·목표와 사진, 한 줄 소개를 고쳐요.',

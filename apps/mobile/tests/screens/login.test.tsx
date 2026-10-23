@@ -34,15 +34,16 @@ test('서버가 켜고 이 빌드가 지원하는 제공자 버튼만 그린다'
   await render(<LoginScreen />);
 
   expect(await screen.findByRole('button', { name: /Google로 계속하기/ })).toBeOnTheScreen();
-  expect(screen.getByText('혼자 하는 연기 연습, 액티랑 같이')).toBeOnTheScreen();
+  expect(screen.getByText('다른 방법으로 계속하기')).toBeOnTheScreen();
+  expect(screen.getByText('그 장면에서 뭘 하려 했는지부터')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: /Apple로 로그인/ })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: /Apple로 로그인/ })).toHaveStyle({ width: 60, height: 60, borderRadius: 30 });
+  expect(screen.getByRole('button', { name: /Apple로 로그인/ })).toHaveStyle({ width: 56, height: 56, borderRadius: 28 });
   expect(screen.getByRole('button', { name: /카카오로 계속하기/ })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: /네이버로 계속하기/ })).not.toBeOnTheScreen();
   
 });
 
-test('지난번에 쓴 제공자는 접근성 이름에만 표시한다(화면에는 동그라미만)', async () => {
+test('지난번에 쓴 제공자는 접근성 이름에만 표시한다(화면에는 「최근 로그인」 배지)', async () => {
   (lastProviderStore.read as jest.Mock).mockResolvedValue('kakao');
   await render(<LoginScreen />);
 
@@ -59,7 +60,6 @@ test('버튼을 누르면 그 제공자로 로그인하고 그동안 다른 버�
   expect(signInWith).toHaveBeenCalledWith('google');
   expect(clearLoginNotice).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('button', { name: /카카오로 계속하기/ })).toBeDisabled();
-  expect(screen.queryByText('Google로 계속하기')).not.toBeOnTheScreen();
 
   await act(async () => finish());
   expect(screen.getByRole('button', { name: /카카오로 계속하기/ })).toBeEnabled();

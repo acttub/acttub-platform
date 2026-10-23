@@ -257,6 +257,8 @@ const en: DeepStringShape<typeof ko> = {
     changePhoto: 'Change photo',
     shareText: '{{name}} performing “{{line}}” — acttub challenge',
     // SOMA-748 profile tab redesign
+    introEmpty: 'Add a one-line intro',
+    monthLabel: 'Practice this month',
     edit: 'Edit',
     monthTitle: '{{count}} practices this month',
     kindCoaching: 'Coaching',
