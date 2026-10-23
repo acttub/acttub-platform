@@ -59,6 +59,9 @@ const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading' | '/challenge
 /** 히어로 바탕 — 연한 파랑에서 화면 바탕색으로 서서히 옅어지는 띠(그라데이션 모듈이 없어 단색 띠를 겹친다). */
 const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
 
+/** 추천 연습 카드 바탕(pen #202121). */
+const DARK_CARD = '#202121';
+
 /** 안드로이드 뒤로가기를 이 시간 안에 한 번 더 누르면 앱을 닫는다. */
 const EXIT_BACK_WINDOW_MS = 2000;
 
@@ -704,14 +707,15 @@ function TodayCardBody({
       if (minutes !== null) remaining = t('home.todayReadingRemaining', { minutes });
       cta = progress.done < progress.total ? t('home.todayReadingCta', { line: progress.done + 1 }) : t('home.todayReadingCtaPlain');
     } else {
-      // 만들어 두고 아직 안 읽은 대본은 「리딩 시작하기」.
+      // 만들어 두고 아직 안 읽은 대본은 「리딩 시작하기」(pen P1.15 「새로 넣은 대본이에요 · 대사 N줄」).
+      if (!item.script.last_practiced_at && item.script.dialogue_count > 0) sub = t('home.todayReadingNewSub', { n: item.script.dialogue_count });
       cta = item.script.last_practiced_at ? t('home.todayReadingCtaPlain') : t('home.todayReadingCtaStart');
     }
   } else if (item.kind === 'challenge') {
     icon = 'trophy';
     eyebrow = item.daysLeft === 0 ? t('home.todayChallengeEyebrowToday') : t('home.todayChallengeEyebrow', { days: item.daysLeft });
     title = `“${item.challenge.line}”`;
-    sub = item.challenge.entry_count && item.challenge.entry_count > 0 ? t('home.todayChallengeSub', { work: item.challenge.work, n: item.challenge.entry_count }) : item.challenge.work;
+    sub = item.challenge.entry_count && item.challenge.entry_count > 0 ? t('home.todayChallengeSub', { n: item.challenge.entry_count }) : t('home.rowChallengeSub');
     cta = t('home.todayChallengeCta');
   } else {
     eyebrow = t('home.todayStartEyebrow');
@@ -724,9 +728,9 @@ function TodayCardBody({
     <>
       <View style={styles.eyebrowRow}>
         {icon === 'trophy' ? (
-          <Ionicons name="trophy-outline" size={16} color={palette.flameDeep} />
+          <Ionicons name="trophy-outline" size={16} color={palette.onAccent} />
         ) : (
-          <Feather name={icon} size={16} color={palette.flameDeep} />
+          <Feather name={icon} size={16} color={palette.onAccent} />
         )}
         <Text style={styles.eyebrow}>{eyebrow}</Text>
       </View>
@@ -738,12 +742,14 @@ function TodayCardBody({
           <View style={[styles.barFill, { width: `${Math.round(bar * 100)}%` }]} />
         </View>
       )}
+      <View style={styles.todaySpacer} />
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={cta}
         style={({ pressed }) => [styles.todayCta, pressed && styles.pressed]}>
         <Text style={styles.todayCtaText}>{cta}</Text>
+        <Feather name="arrow-right" size={16} color={palette.blue} />
       </Pressable>
     </>
   );
@@ -863,23 +869,39 @@ const styles = StyleSheet.create({
   weekLabel: { fontSize: 12, fontWeight: '500', lineHeight: 16, color: '#7A8496' },
   weekLabelToday: { fontWeight: '800', color: palette.text },
 
-  // 주 기능 카드
-  todayCard: { marginTop: 0, backgroundColor: palette.blueSoft, borderRadius: 16, borderWidth: 1.5, borderColor: palette.blue, padding: 20, gap: 8 },
-  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  eyebrow: { fontSize: 13, fontWeight: '800', lineHeight: 18, color: palette.flameDeep },
-  todayTitle: { fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text },
-  barTrack: { height: 6, borderRadius: 3, backgroundColor: palette.card, overflow: 'hidden' },
-  barFill: { height: 6, borderRadius: 3, backgroundColor: palette.blue },
-  todaySub: { fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMuted },
-  todayCta: {
-    marginTop: 8,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: palette.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
+  // 추천 연습 카드(pen P1.1) — 어두운 바탕에 흰 글자, 흰 알약 버튼. 올리는 중 카드도 같은 모양이다.
+  todayCard: {
+    minHeight: 196,
+    backgroundColor: DARK_CARD,
+    borderRadius: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    gap: 8,
+    overflow: 'hidden',
+    shadowColor: '#2F6EF2',
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
-  todayCtaText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  eyebrow: { fontSize: 13, fontWeight: '600', lineHeight: 18, color: 'rgba(255,255,255,0.9)' },
+  todayTitle: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.onAccent, maxWidth: 260 },
+  barTrack: { height: 8, width: 200, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
+  barFill: { height: 8, borderRadius: 4, backgroundColor: palette.onAccent },
+  todaySub: { fontSize: 12, fontWeight: '400', lineHeight: 18, color: 'rgba(255,255,255,0.8)' },
+  todaySpacer: { flex: 1, minHeight: 2 },
+  todayCta: {
+    alignSelf: 'flex-start',
+    height: 42,
+    borderRadius: 21,
+    paddingHorizontal: 22,
+    backgroundColor: palette.onAccent,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  todayCtaText: { fontSize: 15, fontWeight: '800', color: palette.blue },
 
   // 이것도 해 볼래요?
   sectionTitle: { marginTop: 32, marginBottom: 4, fontSize: 15, fontWeight: '700', lineHeight: 22, color: palette.textDim },
