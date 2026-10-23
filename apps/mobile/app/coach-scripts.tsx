@@ -11,9 +11,10 @@ import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
+import { recordScriptFromDetail, setRecordScript } from '@/lib/practice/record-script';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { readingCoachScene } from '@/lib/reading/redesign-748';
-import { listScripts } from '@/lib/reading/store';
+import { getScriptDetail, listScripts } from '@/lib/reading/store';
 import type { ScriptCard } from '@/lib/reading/types';
 
 /**
@@ -25,6 +26,7 @@ export default function CoachScriptsScreen() {
   const [scripts, setScripts] = useState<ScriptCard[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,12 +42,25 @@ export default function CoachScriptsScreen() {
     };
   }, []);
 
-  const record = () => {
+  // 고른 대본의 줄을 받아 촬영 화면 대본 카드와 장면 칸(제목·첫 장면·내 배역)을 채운다. 줄을 못 받으면 제목·배역만 채우고 간다.
+  const record = async () => {
     const script = scripts?.find((s) => s.id === picked);
-    if (!script) return;
+    if (!script || opening) return;
+    setOpening(true);
+    const detail = await getScriptDetail(script.id).catch(() => null);
+    setOpening(false);
+    const myRoles = script.my_character_names;
+    setRecordScript(detail ? recordScriptFromDetail(detail, myRoles) : null);
     setContinueOrigin({
       kind: 'reading',
-      scene: readingCoachScene({ title: script.title, lineIds: [], scenes: [], startIndex: 0, myRoles: script.my_character_names, t }),
+      scene: readingCoachScene({
+        title: script.title,
+        lineIds: detail ? detail.lines.map((l) => l.id) : [],
+        scenes: detail?.scenes ?? [],
+        startIndex: 0,
+        myRoles,
+        t,
+      }),
     });
     void logEvent('coach_my_script_record', { script_id: script.id });
     router.push({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
@@ -90,7 +105,7 @@ export default function CoachScriptsScreen() {
               <PrimaryButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
             ) : (
               <>
-                <PrimaryButton label={t('coachScripts.next')} phLabel="coach_scripts_next" disabled={!picked} onPress={record} />
+                <PrimaryButton label={t('coachScripts.next')} phLabel="coach_scripts_next" disabled={!picked} loading={opening} onPress={() => void record()} />
                 <SecondaryButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
               </>
             )}

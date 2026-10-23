@@ -14,6 +14,7 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
+import { recordScriptFromCocreated, setRecordScript } from '@/lib/practice/record-script';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { loadIntoCurrent } from '@/lib/reading/store';
 import { newRequestId } from '@/lib/request-id';
@@ -22,6 +23,7 @@ import {
   ANY_SITUATION,
   CAST_OPTIONS,
   coachSceneFor,
+  myRole,
   EMOTIONS,
   errorKey,
   freeLeft,
@@ -196,6 +198,8 @@ export default function ScriptCocreateScreen() {
   const recordNow = () => {
     if (!script) return;
     setContinueOrigin({ kind: 'reading', scene: coachSceneFor(script) });
+    // 찍는 동안 대사를 볼 수 있게 촬영 화면에 대본 카드를 띄운다.
+    setRecordScript(recordScriptFromCocreated(script, myRole(script)));
     router.replace({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
   };
 

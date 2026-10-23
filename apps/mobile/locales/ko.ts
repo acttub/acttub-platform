@@ -1514,6 +1514,7 @@ const ko = {
     challengeHint: '최대 60초 · 촬영 후 공유할지, 저장만 할지 고를 수 있어요',
     lineLabel: '오늘의 대사',
     hideLine: '대사 숨김',
+    scriptLabel: '대본 · {{title}}',
     showLine: '대사 보기',
     upload: '업로드',
     // 찍는 법 한 장·권한 거절(SOMA-748)

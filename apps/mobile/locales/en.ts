@@ -1519,6 +1519,7 @@ const en: DeepStringShape<typeof ko> = {
     challengeHint: 'Up to 60s · after recording, choose to share or just save',
     lineLabel: 'Today’s line',
     hideLine: 'Hide line',
+    scriptLabel: 'Script · {{title}}',
     showLine: 'Show line',
     upload: 'Upload',
     // Filming tips and permission denied (SOMA-748)
