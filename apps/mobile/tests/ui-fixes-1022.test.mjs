@@ -8,7 +8,7 @@ test('챌린지 탭: 첫 참여 전에는 고르기 두 줄 + 「다음」, 이�
   const src = read('app/(tabs)/challenges.tsx');
   assert.match(src, /selectMode/);
   assert.match(src, /challenges\.firstNext/);
-  assert.match(src, /canPerform\(featured\) && <PrimaryButton label=\{t\('challenges\.performCta'\)\}/);
+  assert.match(src, /onPerform=\{canPerform\(featured\) \?/);
   assert.match(read('locales/ko.ts'), /heroGuidePerform: '아래 버튼을 누르면 바로 찍을 수 있어요\.'/);
 });
 
