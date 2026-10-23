@@ -16,8 +16,14 @@ jest.mock('expo-router', () => {
 });
 jest.mock('expo-image', () => ({ Image: () => null }));
 jest.mock('@/lib/api', () => ({ api: { listPracticeGroups: jest.fn(), getPracticeNote: jest.fn() } }));
+const mockListScripts = jest.fn();
+jest.mock('@/lib/reading/store', () => ({ listScripts: () => mockListScripts() }));
 
 const listPracticeGroups = api.listPracticeGroups as jest.Mock;
+
+beforeEach(() => {
+  mockListScripts.mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
+});
 const getPracticeNote = api.getPracticeNote as jest.Mock;
 
 const round = (id: string, at: string, noted: boolean): PracticeRound =>
@@ -107,6 +113,26 @@ test('노트가 있는 묶음이 있으면 입구 목록 다섯 줄을 보이고
   expect(mockRouter.push).toHaveBeenLastCalledWith('/script-cocreate');
   await go('연습 기록 보기');
   expect(mockRouter.push).toHaveBeenLastCalledWith('/history');
+});
+
+test('저장한 대본이 있으면 「내 대본으로 찍기」 줄이 생기고 대본 고르기 화면으로 간다', async () => {
+  mockListScripts.mockResolvedValue({ scripts: [{ id: 's1' }], total_count: 1, in_progress_count: 0 });
+  listPracticeGroups.mockResolvedValue({
+    groups: [group({ title: '이별 장면', practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
+  });
+  await render(<CoachingTab />);
+
+  await fireEvent.press(await screen.findByRole('button', { name: '내 대본으로 찍기' }));
+  expect(mockRouter.push).toHaveBeenLastCalledWith('/coach-scripts');
+});
+
+test('저장한 대본이 없으면 「내 대본으로 찍기」 줄은 없다', async () => {
+  listPracticeGroups.mockResolvedValue({
+    groups: [group({ title: '이별 장면', practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
+  });
+  await render(<CoachingTab />);
+  expect(await screen.findByText('오늘은 어떤 걸 해 볼까요?')).toBeOnTheScreen();
+  expect(screen.queryByText('내 대본으로 찍기')).not.toBeOnTheScreen();
 });
 
 test('대화 중인 묶음이 있으면 맨 위 「하던 코칭 이어 하기」가 그 회차의 액티 화면으로 바로 간다', async () => {
