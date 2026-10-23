@@ -32,7 +32,9 @@ test('액티 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 �
   const coach = read('app/coach.tsx');
   assert.match(coach, /\['yes', t\('coach\.quickYes'\)\],\s*\['no', t\('coach\.quickNo'\)\],/);
   // 그만하기는 오른쪽 위 머리 버튼이다(pen 질문 대화, SOMA-748) — 확인을 받고 대화를 마친다.
-  assert.match(coach, /headerRight:[\s\S]{0,300}onPress=\{\(\) => void endConversation\(\)\}[^>]*>\s*<Text style=\{styles\.endText\}>\{t\('coach\.quickEnd'\)\}/);
+  // 대화를 열지 못했으면(이미 닫힌 대화 등) 마칠 대화가 없으니 화면을 나간다.
+  assert.match(coach, /headerRight:[\s\S]{0,400}onPress=\{\(\) => \(conversation \? void endConversation\(\) : router\.back\(\)\)\}[^>]*>\s*<Text style=\{styles\.endText\}>\{t\('coach\.quickEnd'\)\}/);
+  assert.match(coach, /disabled=\{waiting \|\| connecting \|\| \(!conversation && !openFailed\)\}/);
   assert.doesNotMatch(coach, /coach\.endHint|styles\.endBtn|quickExplain|quickLater/);
   assert.match(read('locales/ko.ts'), /composerLabel: '답이나 질문을 편하게 적어 주세요'/);
 });

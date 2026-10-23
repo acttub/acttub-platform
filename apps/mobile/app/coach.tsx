@@ -59,6 +59,9 @@ try {
  * SOMA-778) — 따로 된 분석 화면은 없다. 분석이 끝나면 회차를 들고 대화를 연다. 회차 id 없이 열리면(튜토리얼·미리보기·
  * 테스트) 이미 들고 있는 회차로 바로 대화한다.
  */
+/** 다시 연결해도 같은 결과인 실패 — 이미 닫혔거나 더 이어 갈 수 없는 대화다. 「액티 다시 연결하기」를 보이지 않는다. */
+const REOPEN_USELESS = new Set(['closed', 'not_resumable', 'limit_reached']);
+
 export default function CoachScreen() {
   const params = useLocalSearchParams<{ practiceId?: string | string[]; preview?: string }>();
   const preview = __DEV__ && params.preview === '1';
@@ -334,6 +337,9 @@ function CoachTalk() {
     );
   }
 
+  // 대화를 열지 못했다(연결 실패·닫힌 대화 등). 그만하기는 이때 화면 나가기로 쓴다.
+  const openFailed = !conversation && !!error && !connecting && !waiting;
+
   const endConversation = async () => {
     const ok = await confirm({
       title: t('coach.endTitle'),
@@ -412,11 +418,13 @@ function CoachTalk() {
           title: t('coach.fallbackTitle'),
           headerShadowVisible: false,
           // 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(pen 질문 대화 오른쪽 위, SOMA-656·748).
+          // 이미 닫힌 대화를 이어 하려다 못 연 경우(conversation_closed 등)는 마칠 대화가 없으니 화면을 나간다.
           headerRight: () =>
             !closed ? (
               <Pressable
-                disabled={waiting || connecting || !conversation}
-                onPress={() => void endConversation()} accessibilityRole="button" hitSlop={10}>
+                disabled={waiting || connecting || (!conversation && !openFailed)}
+                onPress={() => (conversation ? void endConversation() : router.back())}
+                accessibilityRole="button" hitSlop={10}>
                 <Text style={styles.endText}>{t('coach.quickEnd')}</Text>
               </Pressable>
             ) : null,
@@ -516,7 +524,7 @@ function CoachTalk() {
           )}
 
           {error && <Text style={styles.errorText}>{error}</Text>}
-          {error && !conversation && !waiting && !connecting && (
+          {openFailed && !REOPEN_USELESS.has(startFailureKind ?? '') && (
             <SecondaryButton label={t('coach.reconnect')} onPress={() => void startConversation()} />
           )}
 
