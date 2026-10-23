@@ -262,6 +262,11 @@ export default function ReadingNew() {
     );
   }
 
+  // pen F4 「배역과 대사 찾는 중」 — 팝업이 아니라 전체 화면이다. 나누는 동안은 떠나지 못하므로 닫기(X)는 두지 않는다.
+  if (popup?.kind === 'splitting') {
+    return <SplittingScreen progress={popup.progress} topInset={insets.top} />;
+  }
+
   return (
     <View style={[styles.root, { paddingBottom: keyboard }]}>
       <Stack.Screen options={{ gestureEnabled: !working }} />
@@ -362,7 +367,6 @@ export default function ReadingNew() {
       <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
         {/* 하단 시트를 쓰지 않는다(10/24 규칙) — 대본 나누기 동의도 가운데 팝업이다. */}
         <View style={styles.backdrop}>
-          {popup?.kind === 'splitting' && <SplittingCard progress={popup.progress} />}
           {popup?.kind === 'alert' && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{popup.title}</Text>
@@ -435,21 +439,17 @@ export default function ReadingNew() {
   );
 }
 
-/** R2.11. 진행은 서버가 알려 주는 만큼만 — 줄 수를 세기 전에는 막대만 비어 있다. */
-function SplittingCard({ progress }: { progress: ImportProgress | null }) {
+/** pen F4. 진행은 서버가 알려 주는 만큼만 — 줄 수를 세기 전에는 퍼센트 없이 제목만 보인다. */
+function SplittingScreen({ progress, topInset }: { progress: ImportProgress | null; topInset: number }) {
   const total = progress?.total ?? 0;
-  const ratio = total > 0 ? Math.min(1, (progress?.done ?? 0) / total) : 0;
+  const done = progress?.done ?? 0;
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   return (
-    <View style={[styles.card, styles.splitCard]}>
-      <View style={styles.splitIcon}>
-        <ActivityIndicator color={palette.blue} />
-      </View>
-      <Text style={styles.cardTitle}>{t('reading.splitTitle')}</Text>
-      <Text style={styles.cardBody}>{t('reading.splitBody')}</Text>
-      <View style={styles.bar}>
-        <View style={[styles.barFill, { width: `${ratio * 100}%` }]} />
-      </View>
-      {total > 0 && <Text style={styles.splitCount}>{t('reading.splitLines', { done: progress?.done ?? 0, total })}</Text>}
+    <View style={[styles.root, styles.splitScreen, { paddingTop: topInset + 120 }]}>
+      <Stack.Screen options={{ gestureEnabled: false }} />
+      <Image source={MASCOT} style={styles.splitMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+      <Text style={styles.splitHeading}>{t('reading.splitTitle')}</Text>
+      {total > 0 && <Text style={styles.splitProgress}>{t('reading.splitProgress', { pct, done, total })}</Text>}
     </View>
   );
 }
@@ -501,10 +501,10 @@ const styles = StyleSheet.create({
   cardTitle: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   cardBody: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
   cardButton: { alignSelf: 'stretch', marginTop: 12 },
-  splitCard: { paddingBottom: 24, gap: 8 },
-  splitIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: palette.blueMist, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  bar: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: palette.bgSoft, marginTop: 10, overflow: 'hidden' },
-  barFill: { height: 6, borderRadius: 3, backgroundColor: palette.blue },
+  splitScreen: { paddingHorizontal: 24, gap: 14 },
+  splitMascot: { width: 72, height: 80, marginBottom: 20 },
+  splitHeading: { color: palette.text, fontSize: 28, fontWeight: '800', lineHeight: 38 },
+  splitProgress: { color: palette.blue, fontSize: 17, fontWeight: '800' },
   optionCard: { alignItems: 'stretch', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24, gap: 6 },
   optionTitle: { color: palette.text, fontSize: 20, fontWeight: '900', lineHeight: 28 },
   optionGuide: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
@@ -512,7 +512,6 @@ const styles = StyleSheet.create({
   optionRow: { paddingVertical: 14, paddingHorizontal: 2, borderRadius: 10 },
   optionPressed: { backgroundColor: palette.bgSubtle },
   optionText: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 24 },
-  splitCount: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 18 },
   sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },

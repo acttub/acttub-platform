@@ -185,8 +185,8 @@ test('나누는 동안 서버가 알려 주는 줄 수를 보인다', async () =
   await paste();
 
   const pressing = fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('대본을 나누고 있어요')).toBeOnTheScreen();
-  expect(await screen.findByText('3 / 10줄')).toBeOnTheScreen();
+  expect(await screen.findByText('배역과 대사를 찾고 있어요…')).toBeOnTheScreen();
+  expect(await screen.findByText('30% · 3 / 10줄')).toBeOnTheScreen();
   expect(usePreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   await act(async () => pressing);
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
@@ -508,7 +508,7 @@ test('나누는 중에 화면을 떠나면 끝나도 다른 화면으로 옮기�
   await paste();
 
   const pressing = fireEvent.press(screen.getByText('다음'));
-  await screen.findByText('대본을 나누고 있어요');
+  await screen.findByText('배역과 대사를 찾고 있어요…');
   await screen.unmount();
   finish(job());
   await act(async () => pressing);

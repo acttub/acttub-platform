@@ -65,7 +65,6 @@ export default function ReadingList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ScriptCard | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   /** 「이전에 하던 데부터」 카드 — 연습 중 대본의 진행 중 회차(pen 「새 · 내 대본」). */
   const [resume, setResume] = useState<{ script: ScriptCard; session: SessionCard } | null>(null);
   const [resuming, setResuming] = useState(false);
@@ -246,16 +245,6 @@ export default function ReadingList() {
               )}
               {!empty && (
                 <Pressable
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('reading.search')}
-                  ph-label="reading_search"
-                  onPress={() => setSearchOpen((v) => !v || searching)}>
-                  <Feather name="search" size={22} color={palette.text} />
-                </Pressable>
-              )}
-              {!empty && (
-                <Pressable
                   ref={newTarget.ref}
                   onLayout={newTarget.onLayout}
                   style={styles.newBtn}
@@ -273,18 +262,17 @@ export default function ReadingList() {
         />
       </View>
 
-      {!empty && (searchOpen || searching) && (
-        <View style={styles.search}>
-          <Feather name="search" size={16} color={palette.textFaint} />
-          <TextInput
-            style={styles.searchInput}
-            value={q}
-            onChangeText={setQ}
-            autoFocus={!searching}
-            placeholder={t('reading.searchPlaceholder')}
-            placeholderTextColor={palette.textFaint}
-          />
-        </View>
+      {!empty && (
+      <View style={styles.search}>
+        <Feather name="search" size={16} color={palette.textFaint} />
+        <TextInput
+          style={styles.searchInput}
+          value={q}
+          onChangeText={setQ}
+          placeholder={t('reading.searchPlaceholder')}
+          placeholderTextColor={palette.textFaint}
+        />
+      </View>
       )}
 
       {!empty && voiceBar}
