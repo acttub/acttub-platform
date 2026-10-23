@@ -16,7 +16,7 @@ function Player({ uri }: { uri: string }) {
 /** P10.2 「연습 영상 보기」 — 전체 화면 모달로 한 번 재생한다. */
 export function PracticeVideoModal({ uri, onClose }: { uri: string | null; onClose: () => void }) {
   return (
-    <Modal visible={Boolean(uri)} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={Boolean(uri)} animationType="fade" onRequestClose={onClose}>
       <SafeAreaView style={styles.root}>
         <View style={styles.head}>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={12}>

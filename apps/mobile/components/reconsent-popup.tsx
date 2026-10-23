@@ -212,7 +212,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         <View style={styles.sheetLayer}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpenDocument(null)} />
           <View
-            style={[styles.sheet, { maxHeight: height * 0.8, paddingBottom: 16 + insets.bottom }]}>
+            style={[styles.sheet, { maxHeight: height * 0.8 }]}>
             <Text style={styles.sheetTitle}>{openDocument.title}</Text>
             <ScrollView style={styles.sheetBody}>
               <Markdown source={openDocument.body} />
@@ -242,12 +242,14 @@ const styles = StyleSheet.create({
   sheetLayer: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: palette.scrim,
-    justifyContent: 'flex-end',
+    // 하단 시트를 쓰지 않는다(10/24 규칙) — 문서 본문도 가운데 칸으로 띄운다.
+    justifyContent: 'center',
+    padding: 16,
   },
   sheet: {
     backgroundColor: palette.card,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderRadius: 22,
+    paddingBottom: 16,
     paddingTop: 20,
     paddingHorizontal: 20,
     gap: 12,
