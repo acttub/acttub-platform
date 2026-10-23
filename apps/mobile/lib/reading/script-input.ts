@@ -3,7 +3,7 @@
  * 탭의 것을 보낸다. 파일은 고르는 순간 서버에 올려 두고(글자는 서버가 뽑는다) [다음]은 그 upload_id 를 보낸다.
  */
 import { nextTextSource } from './file-input.ts';
-import { SAMPLE_SCRIPT } from './sample.ts';
+import { SAMPLE_SCRIPT, sampleById } from './sample.ts';
 import type { ImportInput, PickedScriptFile } from './script-import.ts';
 import type { ScriptSource } from './types.ts';
 
@@ -29,14 +29,15 @@ export type ScriptInputAction =
   | { type: 'fileUploaded'; uploadId: string }
   | { type: 'fileFailed' }
   | { type: 'paste'; text: string }
-  | { type: 'sample' };
+  | { type: 'sample'; id?: string };
 
 const EMPTY_PASTE: ScriptInput['paste'] = { text: '', source: null };
 
 /** 기본은 파일 탭. 예시로 들어오면 글 탭에 예시를 채운 채 연다. */
-export function initialScriptInput(sample: boolean): ScriptInput {
+export function initialScriptInput(sample: boolean | string): ScriptInput {
   const base: ScriptInput = { tab: 'file', file: { kind: 'empty' }, paste: EMPTY_PASTE, triedFile: false };
-  return sample ? scriptInputReducer(base, { type: 'sample' }) : base;
+  if (!sample) return base;
+  return scriptInputReducer(base, { type: 'sample', id: typeof sample === 'string' && sample !== '1' ? sample : undefined });
 }
 
 export function scriptInputReducer(state: ScriptInput, action: ScriptInputAction): ScriptInput {
@@ -52,7 +53,7 @@ export function scriptInputReducer(state: ScriptInput, action: ScriptInputAction
     case 'paste':
       return { ...state, paste: { text: action.text, source: nextTextSource(state.paste.source, state.paste.text, action.text) } };
     case 'sample':
-      return { ...state, tab: 'paste', paste: { text: SAMPLE_SCRIPT, source: 'sample' } };
+      return { ...state, tab: 'paste', paste: { text: action.id ? sampleById(action.id).text : SAMPLE_SCRIPT, source: 'sample' } };
   }
 }
 

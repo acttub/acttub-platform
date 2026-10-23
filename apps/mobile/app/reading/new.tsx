@@ -108,7 +108,7 @@ export default function ReadingNew() {
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
   // 대본 리딩 튜토리얼의 예시(SOMA-494) — 예시 대본을 채운 채 연다.
-  const sample = useLocalSearchParams<{ sample?: string }>().sample === '1';
+  const sample = useLocalSearchParams<{ sample?: string }>().sample ?? '';
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [popup, setPopup] = useState<Popup | null>(null);
   const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);

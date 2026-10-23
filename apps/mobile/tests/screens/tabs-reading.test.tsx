@@ -122,7 +122,7 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   expect(screen.getByText('짧은 예시 대본으로 바로 읽어 봐요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('예시 대본으로 하기'));
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/reading/new', params: { sample: '1' } });
+  expect(mockRouter.push).toHaveBeenLastCalledWith('/reading/sample');
   expect(screen.getByRole('header', { name: '리딩' })).toBeOnTheScreen();
 });
 
