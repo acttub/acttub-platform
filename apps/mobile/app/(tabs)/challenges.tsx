@@ -216,7 +216,7 @@ export default function ChallengesScreen() {
               label={t('challenges.firstNext')}
               disabled={!firstPick}
               onPress={() => {
-                logEvent('challenge_first_pick', { pick: firstPick ?? '' });
+                void logEvent('challenge_first_pick', { pick: firstPick ?? '' });
                 if (firstPick === 'perform') perform(featured);
                 else router.push({ pathname: '/challenge-play', params: { id: featured.id } });
               }}
