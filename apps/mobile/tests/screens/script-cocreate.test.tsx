@@ -268,7 +268,7 @@ test('서버 수정 성공 후 응답 유실은 GET 최신 결과로 복구하�
 });
 
 test('실패 화면 — 다시 만들기는 같은 요청 id로 다시 부르고, 내 대본 넣기는 reading/new 로 간다', async () => {
-  createSampleScript.mockRejectedValueOnce(new ApiError(500, 'x', 'unknown')).mockResolvedValueOnce(sample());
+  createSampleScript.mockRejectedValueOnce(new ApiError(422, 'x', 'unknown')).mockResolvedValueOnce(sample());
   await reachDirection();
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
   expect(await screen.findByText('대본을 만들지 못했어요')).toBeOnTheScreen();
@@ -281,7 +281,7 @@ test('실패 화면 — 다시 만들기는 같은 요청 id로 다시 부르고
 });
 
 test('실패 화면에서 내 대본 넣기를 누르면 reading/new 로 간다', async () => {
-  createSampleScript.mockRejectedValue(new ApiError(500, 'x', 'unknown'));
+  createSampleScript.mockRejectedValue(new ApiError(422, 'x', 'unknown'));
   await reachDirection();
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
   await fireEvent.press(await screen.findByRole('button', { name: '내 대본 넣기' }));
