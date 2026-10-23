@@ -1520,6 +1520,8 @@ const en: DeepStringShape<typeof ko> = {
     lineLabel: 'Today’s line',
     hideLine: 'Hide line',
     scriptLabel: 'Script · {{title}}',
+    stuckTitle: "Recording didn't start properly",
+    stuckBody: 'The camera is ready again. Please record once more.',
     showLine: 'Show line',
     upload: 'Upload',
     // Filming tips and permission denied (SOMA-748)

@@ -19,6 +19,7 @@ const BLOCKED = { granted: false, canAskAgain: false };
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 let mockParams: Record<string, string> = {};
+let mockCameraReadySignal = true;
 let mockUser: { id: string } | null = { id: 'u1' };
 let mockCamPerm: Perm = GRANTED;
 let mockMicPerm: Perm = GRANTED;
@@ -27,7 +28,7 @@ const mockRequestMic = jest.fn();
 const mockCamera = { recordAsync: jest.fn(), stopRecording: jest.fn() };
 
 jest.mock('expo-camera', () => {
-  const { forwardRef, useImperativeHandle, useState } = require('react');
+  const { forwardRef, useEffect, useImperativeHandle, useState } = require('react');
   const { Text } = require('react-native');
   // 실제 훅처럼 요청 결과로 권한 상태가 바뀐다.
   const permissionHook = (initial: () => unknown, request: () => Promise<unknown>) => () => {
@@ -39,8 +40,12 @@ jest.mock('expo-camera', () => {
     };
     return [perm, ask];
   };
-  const CameraView = forwardRef(({ facing }: { facing: string }, ref: unknown) => {
+  const CameraView = forwardRef(({ facing, onCameraReady }: { facing: string; onCameraReady?: () => void }, ref: unknown) => {
     useImperativeHandle(ref, () => mockCamera);
+    // 실제 카메라처럼 세션이 준비되면 알린다. mockCameraReadySignal 이 false 면 알리지 않는다(iOS 준비 전 셔터 시험).
+    useEffect(() => {
+      if (mockCameraReadySignal) onCameraReady?.();
+    }, [onCameraReady]);
     return <Text>{`camera:${facing}`}</Text>;
   });
   CameraView.displayName = 'CameraView';
@@ -69,6 +74,7 @@ let failRecording: (error: Error) => void = () => undefined;
 beforeEach(() => {
   jest.clearAllMocks();
   mockParams = {};
+  mockCameraReadySignal = true;
   mockUser = { id: 'u1' };
   mockCamPerm = GRANTED;
   mockMicPerm = GRANTED;
@@ -260,6 +266,38 @@ describe('기본 촬영 화면', () => {
       jest.advanceTimersByTime(63_000);
     });
     expect(screen.getByText('3:57')).toBeOnTheScreen();
+  });
+
+  test('카메라가 준비되기 전에는 셔터를 받지 않고, 준비 신호가 안 와도 1.5초 뒤에는 찍을 수 있다 (iOS 제보)', async () => {
+    jest.useFakeTimers();
+    mockCameraReadySignal = false;
+    mockParams = { mode: 'ai' };
+    await render(<RecordVideoScreen />);
+
+    await fireEvent.press(screen.getByLabelText('촬영 시작'));
+    expect(mockCamera.recordAsync).not.toHaveBeenCalled();
+    await act(async () => {
+      jest.advanceTimersByTime(1_600);
+    });
+    await fireEvent.press(screen.getByLabelText('촬영 시작'));
+    expect(mockCamera.recordAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('멈춤을 눌러도 녹화가 끝나지 않으면 4초 뒤 화면을 풀어 닫기와 다시 찍기가 되게 한다 (iOS 제보)', async () => {
+    jest.useFakeTimers();
+    mockCamera.stopRecording.mockImplementation(() => undefined);
+    mockParams = { mode: 'ai' };
+    await render(<RecordVideoScreen />);
+
+    await startRecording();
+    expect(screen.queryByText('✕')).not.toBeOnTheScreen();
+    await stopRecording();
+    await act(async () => {
+      jest.advanceTimersByTime(4_100);
+    });
+    expect(await screen.findByText('촬영이 제대로 시작되지 않았어요')).toBeOnTheScreen();
+    expect(screen.getByText('✕')).toBeOnTheScreen();
+    expect(mockRouter.back).not.toHaveBeenCalled();
   });
 
   test('닫기를 누르면 찍지 않고 돌아간다', async () => {
