@@ -214,15 +214,16 @@ describe('공개 범위 바꾸기', () => {
     expect(updateEntry).toHaveBeenCalledWith('e2', { visibility: 'public', face_mosaic: true });
   });
 
-  test('모자이크 선택 창을 취소하면 공개하지 않는다', async () => {
+  test('모자이크 선택은 가운데 팝업이고, 바깥을 눌러도 닫히지 않아 고르기 전에는 공개하지 않는다', async () => {
     await render(<ChallengeEntriesScreen />);
     await openMenuFor('“내일은 내일의 해가”');
     await fireEvent.press(screen.getByText('공개로 바꾸기'));
     const labels = await screen.findAllByText('공개로 바꾸기');
     await fireEvent.press(labels[labels.length - 1]);
     expect(await screen.findByText('얼굴 모자이크를 켤까요?')).toBeOnTheScreen();
-    const cancels = screen.getAllByText('취소');
-    await fireEvent.press(cancels[cancels.length - 1]);
+    const modals = screen.container.queryAll((node) => typeof node.props.onRequestClose === 'function');
+    await fireEvent.press(modals[modals.length - 1].children[0] as Parameters<typeof fireEvent.press>[0]);
+    expect(screen.getByText('얼굴 모자이크를 켤까요?')).toBeOnTheScreen();
     expect(updateEntry).not.toHaveBeenCalled();
   });
 
