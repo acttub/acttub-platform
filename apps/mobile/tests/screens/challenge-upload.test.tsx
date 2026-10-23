@@ -205,7 +205,7 @@ test('끝난 챌린지에는 올릴 수 없다고 알리고 버튼을 막는다'
   getChallenge.mockResolvedValue({ ...running, ends_at: ENDED_AT });
   await render(<ChallengeUploadScreen />);
 
-  expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 보관함에 남아 있어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 그대로 있어요.')).toBeOnTheScreen();
   expect(submitButton()).toBeDisabled();
 });
 

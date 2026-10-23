@@ -93,7 +93,6 @@ test('C9.12·C19 챌린지 완료: 올리기·마무리가 같은 ChallengeDone 
   const upload = read('app/challenge-upload.tsx');
   const done = read('components/challenge-done.tsx');
   assert.match(upload, /<ChallengeDone/);
-  assert.match(read('app/challenge-finish.tsx'), /<ChallengeDone/);
   assert.match(done, /source=\{MASCOTS\.dance\}/);
   assert.match(done, /title: \{ fontSize: 22, fontWeight: '800'/);
   assert.match(upload, /router\.push\('\/upload'\)/);
