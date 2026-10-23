@@ -90,7 +90,8 @@ const posterProps = () => (AnnouncementPoster as unknown as jest.Mock).mock.call
 const DAY = 24 * 60 * 60 * 1000;
 const isoDaysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
 const kstDaysFromNow = (n: number) => kstDate(new Date(Date.now() + n * DAY));
-const localDaysFromNow = (n: number) => localDate(new Date(Date.now() + n * DAY));
+// 홈은 한국 날짜(kstDate)로 마감을 잰다. CI(UTC)에서도 같은 날이 되게 KST 기준 날짜를 만든다.
+const localDaysFromNow = kstDaysFromNow;
 
 const round = (id: string, at: string, noted: boolean): PracticeRound =>
   ({
