@@ -541,7 +541,15 @@ export default function HomeScreen() {
         // 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstContainer}>
-            <MascotBubble source={MASCOT.coach} title={t('home.firstQuestion')} guide={t('home.firstPickSub')} />
+            <MascotBubble
+              source={MASCOT.coach}
+              title={firstName ? t('home.firstHello', { name: firstName }) : t('home.firstHelloNoName')}
+              guide={t('home.firstIntro')}
+            />
+            <View style={styles.firstQuestion}>
+              <Text style={styles.firstQuestionTitle} accessibilityRole="header">{t('home.firstQuestion')}</Text>
+              <Text style={styles.firstQuestionSub}>{t('home.firstPickSub')}</Text>
+            </View>
             <View style={styles.firstChoices}>
               <FirstChoice
                 targetRef={startTarget.ref}
@@ -549,30 +557,28 @@ export default function HomeScreen() {
                 icon="video"
                 title={t('home.firstCoaching')}
                 sub={t('home.firstCoachingSub')}
+                steps={translateList('home.firstCoachingSteps')}
                 selected={firstPick === 'coaching'}
                 phLabel="home_first_coaching"
                 onPress={() => setFirstPick('coaching')}
               />
-              <View style={styles.firstPair}>
-                <FirstChoice
-                  half
-                  icon="book-open"
-                  title={t('home.firstReading')}
-                  sub={t('home.firstReadingSub')}
-                  selected={firstPick === 'reading'}
-                  phLabel="home_first_reading"
-                  onPress={() => setFirstPick('reading')}
-                />
-                <FirstChoice
-                  half
-                  icon="award"
-                  title={t('home.firstChallenge')}
-                  sub={t('home.firstChallengeSub')}
-                  selected={firstPick === 'challenge'}
-                  phLabel="home_first_challenge"
-                  onPress={() => setFirstPick('challenge')}
-                />
-              </View>
+              <FirstChoice
+                icon="book-open"
+                title={t('home.firstReading')}
+                sub={t('home.firstReadingSub')}
+                steps={translateList('home.firstReadingSteps')}
+                selected={firstPick === 'reading'}
+                phLabel="home_first_reading"
+                onPress={() => setFirstPick('reading')}
+              />
+              <FirstChoice
+                icon="award"
+                title={t('home.firstChallenge')}
+                sub={t('home.firstChallengeSub')}
+                selected={firstPick === 'challenge'}
+                phLabel="home_first_challenge"
+                onPress={() => setFirstPick('challenge')}
+              />
             </View>
           </ScrollView>
           <View style={[styles.firstFooter, { paddingBottom: 11 + tabBarSpace }]}>
@@ -854,16 +860,16 @@ function TodayCardBody({
 }
 
 /**
- * 첫 사용자 홈의 선택 카드(pen P1.12) — 안 골랐을 땐 회색 카드(#F2F4F6, 모서리 16)에 아이콘·제목 18/700·설명 14,
- * 고르면 옅은 파랑 바탕에 파란 테두리·파란 제목(코칭 카드는 오른쪽에 체크). 기본 선택은 없고 아래 「다음」을 눌러야 넘어간다.
- * `half`면 둘이 나란히 놓이는 반쪽 카드다.
+ * 첫 사용자 홈의 선택 카드(pen P1.12~P1.14) — 안 골랐을 땐 회색 카드(모서리 16)에 흰 아이콘 칸·제목 18/700·설명 14·오른쪽 빈 라디오.
+ * 고르면 옅은 파랑 바탕·파란 테두리·파란 제목에 라디오가 파랗게 차고, 카드 안에 「이렇게 진행돼요」 세 단계가 펼쳐진다(`steps`가 있을 때).
+ * 기본 선택은 없고 아래 「다음」을 눌러야 넘어간다.
  */
 function FirstChoice({
   icon,
   title,
   sub,
+  steps,
   selected,
-  half = false,
   phLabel,
   onPress,
   targetRef,
@@ -872,8 +878,8 @@ function FirstChoice({
   icon: ComponentProps<typeof Feather>['name'];
   title: string;
   sub: string;
+  steps?: string[];
   selected: boolean;
-  half?: boolean;
   phLabel: string;
   onPress: () => void;
   targetRef?: Ref<View>;
@@ -889,13 +895,32 @@ function FirstChoice({
       accessibilityLabel={title}
       accessibilityHint={sub}
       ph-label={phLabel}
-      style={({ pressed }) => [styles.choice, half && styles.choiceHalf, selected && styles.choiceOn, pressed && !selected && styles.pressed]}>
+      style={({ pressed }) => [styles.choice, selected && styles.choiceOn, pressed && !selected && styles.pressed]}>
       <View style={styles.choiceTop}>
-        <Feather name={icon} size={22} color={selected ? palette.blue : palette.textDim} />
-        {selected && !half ? <Feather name="check" size={20} color={palette.blue} /> : null}
+        <View style={styles.choiceIcon}>
+          <Feather name={icon} size={20} color={palette.blue} />
+        </View>
+        <View style={styles.flex}>
+          <Text style={[styles.choiceText, selected && styles.choiceTextOn]}>{title}</Text>
+          <Text style={styles.choiceSub}>{sub}</Text>
+        </View>
+        <View style={[styles.radio, selected && styles.radioOn]}>
+          {selected ? <Feather name="check" size={14} color={palette.onAccent} /> : null}
+        </View>
       </View>
-      <Text style={[styles.choiceText, selected && styles.choiceTextOn]}>{title}</Text>
-      <Text style={styles.choiceSub}>{sub}</Text>
+      {selected && steps && steps.length > 0 ? (
+        <View style={styles.steps}>
+          <Text style={styles.stepsTitle}>{t('home.firstStepsLabel')}</Text>
+          {steps.map((text, i) => (
+            <View key={i} style={styles.stepRow}>
+              <View style={styles.stepNum}>
+                <Text style={styles.stepNumText}>{i + 1}</Text>
+              </View>
+              <Text style={styles.stepText}>{text}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -911,25 +936,35 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
 
   // 첫 사용자 홈
-  firstContainer: { paddingTop: 80, paddingHorizontal: 24, paddingBottom: 24 },
-  firstChoices: { gap: 12, marginTop: 48 },
-  firstPair: { flexDirection: 'row', gap: 12 },
-  firstFooter: { paddingHorizontal: 24, paddingTop: 8 },
+  firstContainer: { paddingTop: 32, paddingHorizontal: 20, paddingBottom: 24 },
+  firstQuestion: { gap: 4, paddingTop: 36, paddingLeft: 2 },
+  firstQuestionTitle: { fontSize: 20, fontWeight: '800', color: palette.text },
+  firstQuestionSub: { fontSize: 13.5, fontWeight: '500', color: palette.textFaint },
+  firstChoices: { gap: 12, paddingTop: 16 },
+  firstFooter: { paddingHorizontal: 20, paddingTop: 8 },
   choice: {
-    gap: 6,
+    gap: 14,
     paddingVertical: 20,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: palette.border,
-    backgroundColor: palette.card,
+    borderColor: palette.bgSoft,
+    backgroundColor: palette.bgSoft,
   },
-  choiceHalf: { flex: 1, minWidth: 0, paddingHorizontal: 16 },
   choiceOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  choiceTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  choiceTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  choiceIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center' },
   choiceText: { fontSize: 18, fontWeight: '700', lineHeight: 24, color: palette.text },
   choiceTextOn: { color: palette.blueDeep },
-  choiceSub: { fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMuted },
+  choiceSub: { marginTop: 3, fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMuted },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center' },
+  radioOn: { backgroundColor: palette.blue, borderColor: palette.blue },
+  steps: { gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: palette.blueLine },
+  stepsTitle: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center' },
+  stepNumText: { fontSize: 12, fontWeight: '700', color: palette.blue },
+  stepText: { flex: 1, fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textStrong },
 
   // 히어로
   hero: { height: 200 + 44 },
