@@ -517,6 +517,16 @@ const en: DeepStringShape<typeof ko> = {
     mosaicSub: 'Others only see a version with your face pixelated',
     doneSubMosaic: 'We are making the face mosaic. Others will see it once it is ready.',
   },
+  linePick: {
+    title: 'Pick a line',
+    ask: 'Which line is this for?',
+    empty: 'No lines to post to yet.',
+  },
+  challengeOthers: {
+    meta: '{{count}} entries · {{dday}}',
+    empty: 'No entries yet. Be the first.',
+    more: 'Show more',
+  },
   challenges: {
     reportA11y: 'Report this challenge',
     deleteA11y: 'Delete this challenge',

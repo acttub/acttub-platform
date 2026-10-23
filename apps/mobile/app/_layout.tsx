@@ -414,6 +414,8 @@ function RootNavigator() {
         <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
         <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
+        <Stack.Screen name="line-pick" options={{ title: t('linePick.title') }} />
+        <Stack.Screen name="challenge-others" options={{ title: t('challenges.sameLineTitle') }} />
         <Stack.Screen name="line-search" options={{ headerShown: false }} />
         <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />

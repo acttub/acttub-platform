@@ -378,7 +378,7 @@ describe('첫 챌린지 전(C1.16·C1.18)', () => {
     await fireEvent.press(screen.getByRole('radio', { name: '다른 작품 보기' }));
     expect(screen.getByRole('radio', { name: '다른 작품 보기' })).toBeSelected();
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-play', params: { id: 'today' } });
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-others', params: { id: 'today' } });
     await fireEvent.press(screen.getByRole('radio', { name: '나도 이 대사 연기하기' }));
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: '/record-video' }));

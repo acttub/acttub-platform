@@ -226,7 +226,7 @@ export default function ChallengesScreen() {
               onPress={() => {
                 void logEvent('challenge_first_pick', { pick: firstPick ?? '' });
                 if (firstPick === 'perform') perform(featured);
-                else router.push({ pathname: '/challenge-play', params: { id: featured.id } });
+                else router.push({ pathname: '/challenge-others', params: { id: featured.id } });
               }}
             />
           </CtaBar>

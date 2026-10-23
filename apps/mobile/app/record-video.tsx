@@ -217,6 +217,11 @@ export default function RecordVideoScreen() {
   const goNext = useCallback(() => {
     if (isChallenge) {
       leavingRef.current = true;
+      // 대사가 정해지지 않았으면 올릴 대사를 먼저 고른다(C9.16).
+      if (!challengeId) {
+        router.replace('/line-pick');
+        return;
+      }
       router.replace({
         pathname: '/challenge-upload',
         params: { challengeId: challengeId ?? '', line: line ?? '', work: work ?? '' },

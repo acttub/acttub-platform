@@ -508,6 +508,16 @@ const ko = {
     mosaicSub: '다른 사람에게는 얼굴을 가린 영상만 보여요',
     doneSubMosaic: '얼굴 모자이크를 만드는 중이에요. 다 되면 다른 배우들에게 보여요.',
   },
+  linePick: {
+    title: '대사 고르기',
+    ask: '어떤 대사에 올릴까요?',
+    empty: '올릴 수 있는 대사가 없어요.',
+  },
+  challengeOthers: {
+    meta: '참여 {{count}}명 · {{dday}}',
+    empty: '아직 올라온 참여작이 없어요. 첫 번째로 올려 봐요.',
+    more: '더 보기',
+  },
   challenges: {
     reportA11y: '이 챌린지 신고하기',
     deleteA11y: '이 챌린지 지우기',
