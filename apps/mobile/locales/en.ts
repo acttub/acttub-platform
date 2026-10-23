@@ -1703,7 +1703,7 @@ const en: DeepStringShape<typeof ko> = {
     rangeSection: 'Section',
     rangeChipSuggest: 'First {{count}} lines · Suggested',
     rangeFewShort: 'Only {{count}} lines for {{roles}} in this range',
-    rangeFirstGuide: 'Pick one, then tap\n“Turn on mic and start”.',
+    rangeFirstGuide: 'Pick a role and a range, then tap “Turn on mic and start”.',
     monologueCard: '{{count}} sentences · Solo script',
     startPlain: 'Start practice',
     startWithMic: 'Turn on mic and start',

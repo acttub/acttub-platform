@@ -1698,7 +1698,7 @@ const ko = {
     rangeSection: '구간',
     rangeChipSuggest: '처음 {{count}}줄 · 추천',
     rangeFewShort: '이 구간엔 {{roles}} 대사가 {{count}}줄뿐이에요',
-    rangeFirstGuide: '고르고\n「마이크 켜고 시작하기」를 누르세요.',
+    rangeFirstGuide: '배역과 구간을 고른 뒤 「마이크 켜고 시작하기」를 누르세요.',
     monologueCard: '{{count}}문장 · 혼자 하는 대본',
     startPlain: '연습 시작하기',
     startWithMic: '마이크 켜고 시작하기',
