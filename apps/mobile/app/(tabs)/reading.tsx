@@ -177,7 +177,7 @@ export default function ReadingList() {
   const [choice, setChoice] = useState<EntryKey | null>(null);
   const goEntry = () => {
     if (choice === 'upload') router.push('/reading/new');
-    else if (choice === 'sample') router.push({ pathname: '/reading/new', params: { sample: '1' } });
+    else if (choice === 'sample') router.push('/reading/sample');
     else if (choice === 'make') router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } });
   };
 

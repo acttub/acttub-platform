@@ -156,3 +156,19 @@ export function errorKey(code: string | undefined): string {
       return 'scriptCocreate.errorGenerate';
   }
 }
+
+/** 무료로 고치거나 다시 만들 수 있는 횟수(대본 하나 기준). */
+export const FREE_REVISIONS = 3;
+
+/** 결과 화면의 수정 칩 — 누르면 이 지시로 고친다. */
+export const REVISION_CHIPS = ['shorter', 'stronger', 'moreMine'] as const;
+export type RevisionChip = (typeof REVISION_CHIPS)[number];
+
+/**
+ * 「다시 만들기 · 무료 3번 중 N번 남음」의 N. 서버가 revisions_left 를 주면 그 값, 안 주면 앱이 센 횟수로 3번에서 뺀다.
+ * 다시 만들면 서버 대본이 새로 생기므로, 앱이 센 다시 만들기 횟수가 더 많으면 그쪽을 따른다.
+ */
+export function freeLeft(serverLeft: number | null | undefined, usedHere: number): number {
+  const local = Math.max(0, FREE_REVISIONS - usedHere);
+  return typeof serverLeft === 'number' ? Math.max(0, Math.min(serverLeft, local)) : local;
+}

@@ -29,5 +29,5 @@ test('대본 탭은 큰 제목 머리(공통 부품)와 예시 대본 줄을 둔
   const reading = read('app/(tabs)/reading.tsx');
   assert.match(reading, /<LargeTitleHeader/);
   assert.match(reading, /reading\.entrySample/);
-  assert.match(reading, /pathname: '\/reading\/new', params: \{ sample: '1' \}/);
+  assert.match(reading, /router\.push\('\/reading\/sample'\)/);
 });

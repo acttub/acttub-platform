@@ -68,8 +68,8 @@ beforeEach(() => {
   (api.getSampleScript as jest.Mock).mockResolvedValue(sample());
 });
 
-async function reachDirection() {
-  await render(<ScriptCocreateScreen />);
+async function reachDirection(rendered = false) {
+  if (!rendered) await render(<ScriptCocreateScreen />);
   expect(screen.getByText('어떤 감정을 연기해 볼래요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('분노'));
   expect(screen.getByText('어떤 상황이 좋겠어요?')).toBeOnTheScreen();
@@ -98,7 +98,8 @@ test('감정 → 상황 → 방향을 묻고 프로필 경력과 함께 독백 1
   expect(screen.getByText('도윤 · 독백 · 약 1분')).toBeOnTheScreen();
   expect(screen.getByText('휴지통에 있는 거, 내 원서 맞죠.')).toBeOnTheScreen();
   expect(screen.getByText('(아버지가 등을 돌린다)')).toBeOnTheScreen();
-  expect(screen.getByText('무료 수정 3번 남았어요')).toBeOnTheScreen();
+  expect(screen.getByText('다시 만들기 · 무료 3번 중 3번 남음')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '감정 더 세게' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '수정하기' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '이 대본으로 확정' })).toBeOnTheScreen();
 });
@@ -112,6 +113,8 @@ test('만들기에 실패하면 방향 화면으로 돌아와 이유를 보인�
 
   expect(createSampleScript).toHaveBeenCalledWith(expect.objectContaining({ character_count: 2, length_minutes: 3 }));
   expect(await screen.findByText('오늘은 대본을 충분히 만들었어요. 내일 다시 만들어 주세요.')).toBeOnTheScreen();
+  expect(screen.getByText('대본을 만들지 못했어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(screen.getByText('어떤 상황이 좋겠어요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
@@ -135,7 +138,7 @@ test('수정하기 — 바꾼 것이 없으면 적용을 누를 수 없고, 고�
   expect(reviseSampleScript).toHaveBeenCalledWith('s1', { base_version: 1, text: '마지막 대사만 담담하게' });
   expect(await screen.findByText('고친 서랍')).toBeOnTheScreen();
   expect(screen.getByText('마지막 대사를 담담하게 바꿨어요.')).toBeOnTheScreen();
-  expect(screen.getByText('무료 수정 2번 남았어요')).toBeOnTheScreen();
+  expect(screen.getByText('다시 만들기 · 무료 3번 중 2번 남음')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '이전 버전으로 되돌리기' }));
   expect(restoreSampleScript).toHaveBeenCalledWith('s1', 1);
@@ -202,9 +205,11 @@ test('생성 응답 유실 뒤 같은 입력 재시도는 request_id 유지, 입
   createSampleScript.mockRejectedValue(new Error('network'));
   await reachDirection();
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
-  await screen.findByText('몇 명이 나오고,\n어떤 대본이면 좋겠어요?');
-  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  await screen.findByText('대본을 만들지 못했어요');
+  await fireEvent.press(screen.getByRole('button', { name: '다시 만들기' }));
+  await screen.findByText('대본을 만들지 못했어요');
   expect(createSampleScript.mock.calls[1][0].request_id).toBe(createSampleScript.mock.calls[0][0].request_id);
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   await fireEvent.press(screen.getByRole('radio', { name: '약 3분' }));
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
   expect(createSampleScript.mock.calls[2][0].request_id).not.toBe(createSampleScript.mock.calls[0][0].request_id);
@@ -234,11 +239,77 @@ test('서버 수정 성공 후 응답 유실은 GET 최신 결과로 복구하�
   saveSampleScript.mockResolvedValue({ script_id: 'reading-1' });
   const { loadIntoCurrent } = require('@/lib/reading/store');
   loadIntoCurrent.mockResolvedValue({ characters: [{}, {}] });
-  await reachDirection();
+  await render(<ScriptCocreateScreen />);
+  await fireEvent.press(screen.getByText('새로 만들기'));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  await reachDirection(true);
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
   expect(createSampleScript).toHaveBeenCalledWith(expect.objectContaining({ character_count: 2 }));
   await fireEvent.press(await screen.findByRole('button', { name: '이 대본으로 확정' }));
   expect(loadIntoCurrent).toHaveBeenCalledWith('reading-1');
   expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
   expect(setContinueOrigin).not.toHaveBeenCalled();
+});
+
+test('실패 화면 — 다시 만들기는 같은 요청 id로 다시 부르고, 내 대본 넣기는 reading/new 로 간다', async () => {
+  createSampleScript.mockRejectedValueOnce(new ApiError(500, 'x', 'unknown')).mockResolvedValueOnce(sample());
+  await reachDirection();
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  expect(await screen.findByText('대본을 만들지 못했어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 만들기' }));
+  expect(await screen.findByText('잠긴 서랍')).toBeOnTheScreen();
+  const [first, second] = createSampleScript.mock.calls;
+  expect(second[0].request_id).toBe(first[0].request_id);
+  // 실패한 시도는 횟수에서 빼 준다.
+  expect(screen.getByText('다시 만들기 · 무료 3번 중 3번 남음')).toBeOnTheScreen();
+});
+
+test('실패 화면에서 내 대본 넣기를 누르면 reading/new 로 간다', async () => {
+  createSampleScript.mockRejectedValue(new ApiError(500, 'x', 'unknown'));
+  await reachDirection();
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  await fireEvent.press(await screen.findByRole('button', { name: '내 대본 넣기' }));
+  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/new');
+});
+
+test('수정 칩을 누르면 칩 문구를 지시로 reviseSampleScript 를 부르고 고친 대본을 보인다', async () => {
+  createSampleScript.mockResolvedValue(sample());
+  await reachDirection();
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  await screen.findByText('잠긴 서랍');
+  reviseSampleScript.mockResolvedValueOnce(sample({ version: 2, title: '짧아진 서랍', revisions_left: 2 }));
+  await fireEvent.press(screen.getByRole('button', { name: '더 짧게' }));
+  expect(await screen.findByText('짧아진 서랍')).toBeOnTheScreen();
+  expect(reviseSampleScript).toHaveBeenCalledWith('s1', { base_version: 1, text: '대본을 더 짧게 줄여 주세요' });
+  expect(screen.getByText('다시 만들기 · 무료 3번 중 2번 남음')).toBeOnTheScreen();
+});
+
+test('다시 만들기를 앱이 센 횟수로 3번까지 쓰면 막는다', async () => {
+  createSampleScript.mockResolvedValue(sample({ revisions_left: 3 }));
+  await reachDirection();
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  await screen.findByText('잠긴 서랍');
+  for (let i = 2; i >= 0; i--) {
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp('다시 만들기') }));
+    await screen.findByText(`다시 만들기 · 무료 3번 중 ${i}번 남음`);
+  }
+  expect(screen.getByRole('button', { name: /다시 만들기/ })).toBeDisabled();
+});
+
+test('리딩 탭에서 열면 예시 고르기/새로 만들기를 먼저 묻는다', async () => {
+  mockParams.mode = 'reading';
+  await render(<ScriptCocreateScreen />);
+  expect(screen.getByText('어떤 대본으로 할까요?')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+  await fireEvent.press(screen.getByText('예시 대본 고르기'));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/sample');
+});
+
+test('리딩 탭에서 새로 만들기를 고르면 감정 단계로 간다', async () => {
+  mockParams.mode = 'reading';
+  await render(<ScriptCocreateScreen />);
+  await fireEvent.press(screen.getByText('새로 만들기'));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(screen.getByText('어떤 감정을 연기해 볼래요?')).toBeOnTheScreen();
 });
