@@ -201,6 +201,9 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         <View style={styles.card}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('consent.reconsentTitle')}</Text>
+            {documents.some((d) => d.required) && (
+              <Text style={styles.reason}>{t('consent.reconsentHint')}</Text>
+            )}
             <Text style={styles.subtitle}>
               {documents.some((d) => d.required) ? t('consent.reconsentRequiredHint') : t('consent.reconsentSubtitle')}
             </Text>
@@ -241,6 +244,7 @@ const styles = StyleSheet.create({
   },
   head: { gap: 6 },
   title: { fontSize: 19, fontWeight: '800', lineHeight: 26, color: palette.text },
+  reason: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMuted },
   subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
   list: { flexShrink: 1 },
   checking: { paddingVertical: 24, alignItems: 'center' },

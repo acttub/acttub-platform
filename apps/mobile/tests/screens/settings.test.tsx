@@ -267,7 +267,7 @@ describe('알림 설정', () => {
     expect(notifSwitch(0).props.value).toBe(true);
     expect(notifSwitch(1).props.value).toBe(false);
     expect(notifSwitch(2).props.value).toBe(true);
-    expect(screen.getByText('좋아요·댓글·마감')).toBeOnTheScreen();
+    expect(screen.getByText('좋아요·댓글·마감 소식을 알려 드려요')).toBeOnTheScreen();
   });
 
   test('바꾸면 서버에 저장한 값으로 그린다', async () => {

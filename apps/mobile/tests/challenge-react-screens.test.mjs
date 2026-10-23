@@ -83,7 +83,7 @@ test('challenge.block: 설정에서 차단 목록을 보고 풀 수 있다', () 
 
   assert.match(screen, /api\.listBlocks/);
   assert.match(screen, /api\.blockUser\(user\.user_id, false\)/);
-  assert.match(screen, /avatarLetter/);
+  assert.match(screen, /name="user"/); // 사람 모양 동그라미(pen S18.4)
   assert.match(read('app/settings.tsx'), /'\/blocked-users'/);
 });
 
