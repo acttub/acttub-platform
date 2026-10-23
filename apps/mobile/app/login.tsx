@@ -212,7 +212,8 @@ const styles = StyleSheet.create({
   progress: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 56 },
   progressText: { fontSize: 14, fontWeight: '500', color: palette.textMuted },
   bottom: { paddingBottom: 28, gap: 20 },
-  circleRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  // 켜진 제공자 수(2~4개)와 상관없이 가운데에 모은다 — 둘일 때 양 끝으로 벌어지지 않게.
+  circleRow: { flexDirection: 'row', justifyContent: 'center', gap: 20 },
   circle: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
   googleLogo: { width: 26, height: 26 },
   naverN: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
