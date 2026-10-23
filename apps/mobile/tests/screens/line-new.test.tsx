@@ -31,15 +31,32 @@ beforeEach(() => {
 const PH = '“여기에 대사를 적어주세요”';
 const fill = (text = '  나는   아직\n끝나지 않았어 ') => fireEvent.changeText(screen.getByPlaceholderText(PH), text);
 const cta = () => screen.getByRole('button', { name: '등록하기' });
+const next = () => screen.getByRole('button', { name: '다음' });
+/** 1단계 대사 → 2단계 작품 → 3단계 기간까지 넘긴다. */
+const toLastStep = async (work = '옥상, 밤') => {
+  await fireEvent.press(next());
+  await fireEvent.changeText(screen.getByPlaceholderText('예: 옥상, 밤'), work);
+  await fireEvent.press(next());
+};
 
-test('대사와 기간만 받아 한 화면에서 등록하고, 작품은 「창작 대사」로 채워 그 챌린지로 간다', async () => {
+test('세 단계(대사 → 작품·인물·메모 → 기간)로 등록하고 그 챌린지로 간다', async () => {
   createChallenge.mockResolvedValue({ id: 'c9' });
   await render(<LineNewScreen />);
 
-  expect(cta()).toBeDisabled();
+  expect(next()).toBeDisabled();
+  expect(screen.getByText('1 / 3')).toBeOnTheScreen();
   expect(screen.getByText('어떤 대사를\n등록할까요?')).toBeOnTheScreen();
-  expect(screen.queryByText('작품 · 상황')).not.toBeOnTheScreen();
   await fill();
+  await fireEvent.press(next());
+
+  expect(screen.getByText('2 / 3')).toBeOnTheScreen();
+  expect(next()).toBeDisabled();
+  await fireEvent.changeText(screen.getByPlaceholderText('예: 옥상, 밤'), ' 옥상, 밤 ');
+  await fireEvent.changeText(screen.getByPlaceholderText('예: 윤서'), '윤서');
+  await fireEvent.changeText(screen.getByPlaceholderText('예: 옥상에서 돌아서는 상대를 붙잡는 장면'), '붙잡는 장면');
+  await fireEvent.press(next());
+
+  expect(screen.getByText('3 / 3')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '14일' }));
   expect(screen.getByRole('button', { name: '14일' })).toBeSelected();
   await fireEvent.press(cta());
@@ -47,7 +64,9 @@ test('대사와 기간만 받아 한 화면에서 등록하고, 작품은 「창
   expect(createChallenge).toHaveBeenCalledWith({
     request_id: 'req-1',
     line: '나는 아직 끝나지 않았어',
-    work: '창작 대사',
+    work: '옥상, 밤',
+    character: '윤서',
+    scene_note: '붙잡는 장면',
     duration_days: 14,
   });
   expect(logEvent).toHaveBeenCalledWith('challenge_created', { duration: 14 });
@@ -59,18 +78,23 @@ test('검색에서 넘겨받은 대사로 시작하고 글자 수를 센다', as
   await render(<LineNewScreen />);
   expect(screen.getByDisplayValue('잘 지내')).toBeOnTheScreen();
   expect(screen.getByText('4 / 200')).toBeOnTheScreen();
-  expect(cta()).toBeEnabled();
+  expect(next()).toBeEnabled();
 });
 
 test('대사가 200자를 넘으면 다시 확인하라고 하고 막는다', async () => {
   await render(<LineNewScreen />);
   await fill('가'.repeat(201));
   expect(screen.getByText('적은 내용을 다시 확인해 주세요.')).toBeOnTheScreen();
-  expect(cta()).toBeDisabled();
+  expect(next()).toBeDisabled();
 });
 
-test('위 닫기로 화면을 닫는다', async () => {
+test('1단계 닫기는 화면을 닫고, 2단계 뒤로는 이전 단계로 돌아간다', async () => {
   await render(<LineNewScreen />);
+  await fill('잘 지내');
+  await fireEvent.press(next());
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+  expect(mockRouter.back).not.toHaveBeenCalled();
+  expect(screen.getByText('1 / 3')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(mockRouter.back).toHaveBeenCalled();
 });
@@ -82,6 +106,7 @@ test('같은 내용으로 다시 보내면 같은 요청 id를, 지문이 어긋
     .mockRejectedValueOnce(httpError(429));
   await render(<LineNewScreen />);
   await fill('잘 지내');
+  await toLastStep();
 
   await fireEvent.press(cta());
   expect(await screen.findByText('같은 대사로 진행 중인 챌린지가 이미 있어요.')).toBeOnTheScreen();
@@ -99,6 +124,7 @@ test('게스트는 회원만 이용할 수 있다고 안내받는다', async () 
   createChallenge.mockRejectedValue(httpError(403));
   await render(<LineNewScreen />);
   await fill('잘 지내');
+  await toLastStep();
   await fireEvent.press(cta());
   expect(await screen.findByText('챌린지는 회원만 이용할 수 있어요.')).toBeOnTheScreen();
 });
