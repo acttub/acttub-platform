@@ -16,6 +16,7 @@ import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { coachingEntry, type CoachingEntry } from '@/lib/practice/coaching-entry';
 import { sceneTitle } from '@/lib/practice/groups';
+import { listScripts } from '@/lib/reading/store';
 
 /** 처음 화면의 입구 셋(pen 「코칭 탭 · 처음」). */
 const ENTRY_CHOICES = ['video', 'talk', 'script'] as const;
@@ -38,6 +39,8 @@ export default function CoachingTab() {
   const firstTime = useFirstTimeUser();
   const [entry, setEntry] = useState<CoachingEntry | null>(null);
   const [choice, setChoice] = useState<EntryChoice | null>(null);
+  // 저장한 대본이 하나라도 있으면 「내 대본으로 찍기」를 보인다(리딩·대본 만들기에서 저장한 대본은 같은 목록이다).
+  const [hasScripts, setHasScripts] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -52,6 +55,11 @@ export default function CoachingTab() {
         .catch(() => {
           if (!cancelled) setEntry({ kind: 'first' });
         });
+      listScripts()
+        .then((list) => {
+          if (!cancelled) setHasScripts(list.scripts.length > 0);
+        })
+        .catch(() => undefined);
       return () => {
         cancelled = true;
       };
@@ -141,6 +149,9 @@ export default function CoachingTab() {
               <MenuRow icon="clock" title={t('coachingTab.menuResume')} sub={t('coachingTab.menuResumeSub')} phLabel="coaching_pick_previous" onPress={again} />
             )}
             <MenuRow icon="message-circle" title={t('coachingTab.menuTalk')} sub={t('coachingTab.menuTalkSub')} phLabel="coaching_talk" onPress={() => router.push('/talk')} />
+            {hasScripts && (
+              <MenuRow icon="file-text" title={t('coachingTab.menuMyScripts')} sub={t('coachingTab.menuMyScriptsSub')} phLabel="coaching_my_scripts" onPress={() => router.push('/coach-scripts')} />
+            )}
             <MenuRow icon="edit-3" title={t('coachingTab.menuScript')} sub={t('coachingTab.menuScriptSub')} phLabel="coaching_script_cocreate" onPress={() => router.push('/script-cocreate')} />
             <MenuRow icon="list" title={t('coachingTab.menuHistory')} sub={t('coachingTab.menuHistorySub')} phLabel="coaching_history" onPress={() => router.push('/history')} />
           </View>
