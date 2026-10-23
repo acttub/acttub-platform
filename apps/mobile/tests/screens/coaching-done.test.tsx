@@ -29,8 +29,9 @@ test('오늘 코칭 끝 — 일지 저장 알림, 코칭 평가(노트에 남김
   getPracticeNote.mockResolvedValue(practiceNote());
   await render(<CoachingDoneScreen />);
 
-  expect(screen.getByText('오늘 코칭 끝!\n수고했어요.')).toBeOnTheScreen();
-  expect(screen.getByText('일지에 저장했어요')).toBeOnTheScreen();
+  expect(screen.getByText('오늘 코칭 끝!')).toBeOnTheScreen();
+  expect(await screen.findByText('첫 줄 전에 한 박자 쉬기')).toBeOnTheScreen();
+  expect(screen.getByText('다음에 해 볼 것')).toBeOnTheScreen();
   expect(await screen.findByText('이 코칭 어땠어요?')).toBeOnTheScreen();
   expect(screen.getByText('도움 됐어요')).toBeOnTheScreen();
   expect(screen.getByText('아쉬웠어요')).toBeOnTheScreen();

@@ -49,7 +49,7 @@ test('practice.memory: 내가 적은 값은 그렇게 표시하고 액티가 덮
   assert.match(source, /memory\.writtenByMe/);
   assert.match(source, /memory\.tagCoach/);
   assert.match(readSource('locales/ko.ts'), /내가 적은 값/);
-  assert.match(readSource('locales/ko.ts'), /액티가 적음/);
+  assert.match(readSource('locales/ko.ts'), /코치가 적음/);
 });
 
 test('practice.memory: 액티가 적은 칸은 근거가 된 회차로 갈 수 있다(숨겨졌으면 링크 없음)', () => {
@@ -63,7 +63,7 @@ test('고치는 내용이 액티에게 우선한다고 화면에 적혀 있다',
   const source = readSource('app/memory.tsx');
 
   assert.match(source, /memory\.introBold/);
-  assert.match(readSource('locales/ko.ts'), /고친 내용은 액티가 다시/);
+  assert.match(readSource('locales/ko.ts'), /고친 내용은 코치가 다시/);
 });
 
 test('칸 하나씩도, 전부도 지울 수 있다', () => {

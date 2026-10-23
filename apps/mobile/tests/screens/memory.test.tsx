@@ -48,7 +48,7 @@ test('칸마다 누가 적었는지와 근거 연습 링크를 보여 준다', a
 
   expect(await screen.findByDisplayValue('입시 합격')).toBeOnTheScreen();
   expect(screen.getByText('← 설정')).toBeOnTheScreen();
-  expect(screen.getByText('액티가 적음')).toBeOnTheScreen();
+  expect(screen.getByText('코치가 적음')).toBeOnTheScreen();
   expect(screen.getByText('내가 적은 값')).toBeOnTheScreen();
   expect(screen.getAllByText('비어 있음')).toHaveLength(2);
   expect(screen.getAllByRole('button', { name: '이 말이 나온 연습 보기' })).toHaveLength(1);
