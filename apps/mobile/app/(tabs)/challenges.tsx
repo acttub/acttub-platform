@@ -76,10 +76,15 @@ export default function ChallengesScreen() {
     setError(null);
     try {
       const result = await api.listChallenges({ tab: next });
-      setChallenges(result.challenges);
+      // 진행 중인 공식(팀) 챌린지가 늘 맨 위다 — 같은 무리 안의 순서는 서버 순서를 지킨다.
+      const openTeam = (c: ChallengeCard) => c.origin === 'team' && Date.parse(c.ends_at) > Date.now();
+      const teamFirst = [...result.challenges].sort((a, b) => Number(openTeam(b)) - Number(openTeam(a)));
+      setChallenges(teamFirst);
       setCursor(result.next_cursor);
-      // 오늘의 챌린지는 인기·최신 탭에만 고정한다.
-      setFeatured(pinsFeatured(next) ? result.featured : null);
+      // 오늘의 챌린지는 인기·최신 탭에만 고정한다(pinsFeatured(next) ? result.featured : null 이 기본).
+      // 서버가 고른 게 회원 챌린지인데 진행 중인 공식 챌린지가 있으면 공식을 올린다.
+      const officialPick = result.featured && !openTeam(result.featured) ? (teamFirst.find(openTeam) ?? result.featured) : result.featured;
+      setFeatured(pinsFeatured(next) ? officialPick : null);
     } catch (e) {
       setChallenges([]);
       setFeatured(null);
@@ -108,7 +113,10 @@ export default function ChallengesScreen() {
   useFocusEffect(
     useCallback(() => {
       void load(tab);
-      void hasSeenChallengeIntro().then((seen) => setIntro(!seen));
+      // 예전 「챌린지 시작 안내」 3장은 새 디자인의 첫 사용자 화면(이번 주 대사 + 고르기, pen ⑰)이 대신한다 — 더 띄우지 않고 본 것으로 적는다.
+      void hasSeenChallengeIntro().then((seen) => {
+        if (!seen) void markChallengeIntroSeen();
+      });
     }, [load, tab]),
   );
 

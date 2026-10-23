@@ -345,6 +345,21 @@ describe('처음 온 사람', () => {
     expect(screen.queryByText('대본을 넣어 보세요')).not.toBeOnTheScreen();
   });
 
+  test('첫 사용자에게는 고르기 화면이 안내를 대신해 예전 「대본을 넣어 보세요」를 띄우지 않는다', async () => {
+    setFirstTimeState('first');
+    (hasSeenSpotlight as jest.Mock).mockResolvedValue(false);
+    try {
+      await render(withHost);
+      await waitFor(() => expect(hasSeenSpotlight).toHaveBeenCalledWith('reading'));
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      expect(screen.queryByText('대본을 넣어 보세요')).not.toBeOnTheScreen();
+    } finally {
+      setFirstTimeState('unknown');
+    }
+  });
+
   test('리딩 튜토리얼 중에 목록으로 돌아오면 튜토리얼을 끝낸다', async () => {
     startTutorial('own', 'reading');
     await render(<ReadingList />);

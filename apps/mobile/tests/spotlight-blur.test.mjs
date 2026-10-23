@@ -11,7 +11,7 @@ for (const [name, file] of [
   test(`${name} 안내는 화면을 떠나면 닫힌다`, () => {
     const src = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
     assert.match(src, /const guideFocused = useRef\(false\);/);
-    assert.match(src, /if \(!seen && guideFocused\.current\) setGuideOpen\(true\);/);
+    assert.match(src, /if \(!seen && guideFocused\.current(?: && !firstTimeRef\.current)?\) setGuideOpen\(true\);/);
     assert.match(src, /guideFocused\.current = true;/);
     assert.match(src, /guideFocused\.current = false;\s*\n\s*setGuideOpen\(false\);/);
   });

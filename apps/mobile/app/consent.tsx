@@ -47,6 +47,7 @@ const LINE_LABEL_KEYS: Record<string, string> = {
   terms: 'consent.rowTerms',
   privacy: 'consent.rowPrivacy',
   post_withdrawal_retention: 'consent.rowRetention',
+  retention: 'consent.rowRetention',
 };
 
 /**
@@ -77,12 +78,17 @@ export default function ConsentScreen() {
     if (!termsDocument) {
       result.push({ key: 'age', required: true, label: t('consent.ageConfirm'), documents: [], age: true });
     }
+    // 「개인정보 처리 · AI 분석」은 한 줄이다(pen S4.1). 서버의 AI 분석 문서는 개인정보 줄에 같이 묶어 한 번에 동의받는다.
+    const privacyDocument = layout.required.find((d) => d.type === 'privacy');
+    const mergedIntoPrivacy = (d: ConsentDocument) => privacyDocument != null && d.type === 'ai_analysis';
     for (const document of layout.required) {
+      if (mergedIntoPrivacy(document)) continue;
+      const extra = document === privacyDocument ? layout.required.filter(mergedIntoPrivacy) : [];
       result.push({
         key: document.id,
         required: true,
         label: labelOf(document),
-        documents: [document],
+        documents: [document, ...extra],
         age: document === termsDocument,
       });
     }

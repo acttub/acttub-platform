@@ -73,9 +73,12 @@ export default function ReadingList() {
   const guideFocused = useRef(false);
   const newTarget = useSpotlightTarget(TARGET.readingNew);
 
+  // 첫 사용자는 고르기 화면(「대사를 같이 맞춰 읽어 볼까요?」)이 안내를 대신한다 — 예전 「대본을 넣어 보세요」를 겹쳐 띄우지 않는다.
+  const firstTimeRef = useRef(firstTime);
+  firstTimeRef.current = firstTime;
   const openReadingGuideIfNew = useCallback(() => {
     void hasSeenSpotlight('reading').then((seen) => {
-      if (!seen && guideFocused.current) setGuideOpen(true);
+      if (!seen && guideFocused.current && !firstTimeRef.current) setGuideOpen(true);
     });
   }, []);
 

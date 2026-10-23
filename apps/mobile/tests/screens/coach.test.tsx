@@ -482,6 +482,32 @@ describe('답 보내기', () => {
 });
 
 describe('빠른 답과 그만하기', () => {
+  test('목적별 예시 답이 있으면 그것만 보이고 맞아요·아니요·잘 모르겠어요 한 줄은 숨긴다(같은 답이 두 번 나오지 않게)', async () => {
+    mockLoop.startConversation.mockResolvedValue(
+      turn(
+        conv({
+          purpose: {
+            purpose: 'concern',
+            step: 'c1',
+            choices: [
+              { label: '오디션 준비가 막막해요', at: null },
+              { label: '잘 모르겠어요', at: null },
+            ],
+            scene: null,
+            lines: [],
+            card: null,
+            character_card: null,
+          },
+        }),
+      ),
+    );
+    await renderOpen();
+
+    expect(screen.getByRole('button', { name: '오디션 준비가 막막해요' })).toBeOnTheScreen();
+    expect(screen.getAllByRole('button', { name: '잘 모르겠어요' })).toHaveLength(1);
+    expect(screen.queryByTestId('coach-quick-grid')).not.toBeOnTheScreen();
+  });
+
   test('빠른 답은 한 줄 셋 — 맞아요·아니요·잘 모르겠어요는 입력칸만 채우고 보내지 않는다(pen 09)', async () => {
     await renderOpen();
 
