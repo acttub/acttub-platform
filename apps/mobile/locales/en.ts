@@ -2118,6 +2118,7 @@ const en: DeepStringShape<typeof ko> = {
     applyEdit: 'Apply edit',
     savedTitle: 'Saved to My scripts',
     savedSub: 'You can also read this script in Reading. Film it now for coaching?',
+    openInReading: 'Read it in Reading',
     recordNow: 'Film it now',
     later: 'Later',
     errorGenerate: "We couldn't create a script. Please try again shortly.",

@@ -185,6 +185,22 @@ test('확정하면 내 대본에 저장하고, 지금 찍을래요는 장면 칸
   expect(mockRouter.back).toHaveBeenCalled();
 });
 
+test('저장한 화면에 대본이 그대로 보이고, 리딩에서 읽어 보기는 그 대본을 리딩 화면으로 연다', async () => {
+  createSampleScript.mockResolvedValue(sample());
+  saveSampleScript.mockResolvedValue({ id: 's1', script_id: 'script-1' });
+  const { loadIntoCurrent } = require('@/lib/reading/store');
+  loadIntoCurrent.mockResolvedValue({ id: 'script-1' });
+  await reachDirection();
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  await fireEvent.press(await screen.findByRole('button', { name: '이 대본으로 확정' }));
+
+  expect(await screen.findByText('내 대본에 저장했어요')).toBeOnTheScreen();
+  expect(screen.getByText('잠긴 서랍')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '리딩에서 읽어 보기' }));
+  expect(loadIntoCurrent).toHaveBeenCalledWith('script-1');
+  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
+});
+
 test('확정이 실패하면 결과 화면에 이유를 보인다', async () => {
   createSampleScript.mockResolvedValue(sample());
   saveSampleScript.mockRejectedValue(new ApiError(422, 'limit', 'script_limit'));
