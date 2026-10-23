@@ -102,7 +102,7 @@ public class DirectVideoConfiguration {
             @Value("${ACTTUB_COACH_MODEL_B_SHARE:0}") int modelBShare,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachFlows> flows,
             // 코치 흐름 비교(SOMA-636). false 면 모두 지금 흐름(A)이다(롤백).
-            @Value("${ACTTUB_COACH_FLOW_AB:true}") boolean flowAb,
+            @Value("${ACTTUB_COACH_FLOW_AB:false}") boolean flowAb,
             com.acttub.actingapi.feature.coach.app.CoachVideoCache videoCache,
             GeminiDirectVideoModel.Hedge coachHedge,
             // 정정에 답하는 '내려놓기'는 영상을 붙이지 않고 글만 보내 쓴다(SOMA-780). 영상이 붙으면 생각 루프에 빠져 15~20초 걸렸다.
