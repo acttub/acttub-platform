@@ -138,6 +138,13 @@ async function swipe(dx: number, dy = 0) {
   return claimed;
 }
 
+test('올리기 망설임의 10초 촬영(maxSec=10)이면 안내도 10초로 나온다', async () => {
+  mockParams = { maxSec: '10' };
+  await render(<RecordVideoScreen />);
+  expect(await screen.findByText('최대 10초 · 10초가 되면 자동으로 멈춰요')).toBeOnTheScreen();
+  expect(screen.queryByText('최대 5분 · 5분이 되면 자동으로 멈춰요')).not.toBeOnTheScreen();
+});
+
 describe('카메라·마이크 권한', () => {
   test('들어오자마자 권한을 묻고, 둘 다 허용하면 촬영 화면이 된다', async () => {
     mockCamPerm = DENIED;

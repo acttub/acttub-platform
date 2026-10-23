@@ -118,6 +118,9 @@ test('보관함 영상으로 올리면 「공개」가 위에 먼저 골라져 �
   expect(screen.getByText(/“사느냐 죽느냐”.*공개/)).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
   expect(screen.queryByText('AI 리포트 보기')).not.toBeOnTheScreen();
+  // 첫 참여에서도 코칭으로 바로 이어진다(폰 테스트 10/23).
+  await fireEvent.press(screen.getByRole('button', { name: '이 영상으로 코칭 받기' }));
+  expect(mockRouter.push).toHaveBeenCalledWith('/upload');
   (api.getEntry as jest.Mock).mockResolvedValue({
     id: 'entry-1', is_mine: true, published_at: '2026-10-20T00:00:00Z', playback_url: 'https://v/1.mp4', author: { name: '나' },
   });

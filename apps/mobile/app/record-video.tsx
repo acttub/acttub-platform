@@ -480,7 +480,11 @@ export default function RecordVideoScreen() {
         </View>
 
         <View style={styles.bottomGroup}>
-          <Text style={[styles.hint, recording && styles.hiddenKeepSpace]}>{picker ? t('recordMode.swipeHint') : t('record.hint')}</Text>
+          <Text style={[styles.hint, recording && styles.hiddenKeepSpace]}>{picker
+              ? t('recordMode.swipeHint')
+              : maxSec < baseMaxSec
+                ? t('record.hintShort', { sec: maxSec })
+                : t('record.hint')}</Text>
           <View style={styles.bottomRow}>
             {/* 왼쪽 슬롯: 녹화 중엔 빈 칸으로 둬서 셔터가 늘 가운데에 오게 한다. */}
             {recording ? (
