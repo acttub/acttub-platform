@@ -85,8 +85,8 @@ export default function RecordVideoScreen() {
   const baseMaxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
   const maxSec = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, baseMaxSec) : baseMaxSec;
   const cameraRef = useRef<CameraView>(null);
-  const [camPerm, requestCam] = useCameraPermissions();
-  const [micPerm, requestMic] = useMicrophonePermissions();
+  const [camPerm, requestCam, readCam] = useCameraPermissions();
+  const [micPerm, requestMic, readMic] = useMicrophonePermissions();
   const [facing, setFacing] = useState<'front' | 'back'>('back');
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -186,15 +186,17 @@ export default function RecordVideoScreen() {
   const blocked = (!!camPerm && !camPerm.granted && !camPerm.canAskAgain) || (!!micPerm && !micPerm.granted && !micPerm.canAskAgain);
 
   // 설정에서 카메라·마이크를 켜고 돌아오면 바로 반영한다 — 훅은 스스로 다시 읽지 않는다(SOMA-817).
+  // 다시 「묻지」 않고 「읽기」만 한다. 예전엔 돌아올 때마다 요청을 보내, 안드로이드에서 거절 팝업이 닫히자마자(앱이 다시
+  // active) 같은 팝업이 또 떴다 — 거절 → 또 물음 → 거절이 이어졌다(10/24 폰 확인, 이전 빌드도 같음).
   useEffect(() => {
     if (!blocked) return;
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
-      void requestCam();
-      void requestMic();
+      void readCam();
+      void readMic();
     });
     return () => sub.remove();
-  }, [blocked, requestCam, requestMic]);
+  }, [blocked, readCam, readMic]);
 
   /** 촬영·선택한 영상을 보관함(기기 저장 + 업로드 대기)에 넣는다. 너무 길면 안내하고 넣지 않는다. */
   const saveToLibrary = useCallback(async (): Promise<{ id: string; uri: string } | null> => {

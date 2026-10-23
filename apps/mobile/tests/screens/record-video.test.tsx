@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
 
 import RecordVideoScreen from '@/app/record-video';
 import { keepDeviceFile } from '@/lib/account-files';
@@ -38,7 +38,12 @@ jest.mock('expo-camera', () => {
       setPerm(next);
       return next;
     };
-    return [perm, ask];
+    const read = async () => {
+      const next = initial();
+      setPerm(next);
+      return next;
+    };
+    return [perm, ask, read];
   };
   const CameraView = forwardRef(({ facing, onCameraReady }: { facing: string; onCameraReady?: () => void }, ref: unknown) => {
     useImperativeHandle(ref, () => mockCamera);
@@ -232,6 +237,33 @@ describe('카메라·마이크 권한', () => {
 
     expect(screen.getByRole('button', { name: '설정 열기' })).toBeOnTheScreen();
     jest.useRealTimers();
+  });
+
+  test('거절 고정 뒤 앱으로 돌아오면 다시 묻지 않고 권한만 다시 읽는다 — 설정에서 켰으면 촬영 화면이 된다', async () => {
+    const handlers: ((state: string) => void)[] = [];
+    const original = AppState.addEventListener;
+    AppState.addEventListener = ((_: string, fn: (state: string) => void) => {
+      handlers.push(fn);
+      return { remove: () => undefined };
+    }) as never;
+    mockCamPerm = BLOCKED;
+    mockMicPerm = BLOCKED;
+    mockRequestCam.mockResolvedValue(BLOCKED);
+    mockRequestMic.mockResolvedValue(BLOCKED);
+
+    await render(<RecordVideoScreen />);
+    await screen.findByRole('button', { name: '설정 열기' });
+    const asked = mockRequestCam.mock.calls.length;
+
+    mockCamPerm = GRANTED;
+    mockMicPerm = GRANTED;
+    await act(async () => {
+      handlers.forEach((fn) => fn('active'));
+    });
+
+    expect(mockRequestCam.mock.calls.length).toBe(asked);
+    expect(await screen.findByLabelText('촬영 시작')).toBeOnTheScreen();
+    AppState.addEventListener = original;
   });
 
   test('카메라만 허용돼 있으면 마이크만 묻는다', async () => {
