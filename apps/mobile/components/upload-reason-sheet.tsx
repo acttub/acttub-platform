@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChoiceCard } from '@/components/choice-card';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -18,6 +19,8 @@ const KEYS = { face: 'hFace', short: 'hShort', later: 'hLater' } as const;
 export function UploadReasonSheet({ onFace, onShort, onLater }: {
   onFace: () => void; onShort: () => void; onLater: () => void;
 }) {
+  // 화면 전체를 덮는 겹침 화면이라 부모의 아래 여백을 못 받는다 — 폰 아래 바만큼 직접 띄운다.
+  const insets = useSafeAreaInsets();
   const [choice, setChoice] = useState<UploadHesitation | null>(null);
   const next = () => {
     if (!choice) return;
@@ -45,7 +48,7 @@ export function UploadReasonSheet({ onFace, onShort, onLater }: {
           ))}
         </View>
       </ScrollView>
-      <View style={styles.bottom}>
+      <View style={[styles.bottom, { paddingBottom: 10 + insets.bottom }]}>
         <PrimaryButton label={t('uploadFlow.next')} phLabel="upload_hesitate_next" disabled={!choice} onPress={next} />
       </View>
     </View>

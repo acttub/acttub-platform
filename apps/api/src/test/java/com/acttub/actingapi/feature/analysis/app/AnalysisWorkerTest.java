@@ -310,7 +310,7 @@ class AnalysisWorkerTest {
     }
 
     @Test
-    void aFaceMosaicPracticeWithNoFaceFailsClosedWithoutTheOriginalReachingTheAnalyzer() {
+    void aFaceMosaicPracticeWithNoFaceIsAnalyzedFromTheOriginal() {
         FakeStore store = new FakeStore(faceMosaicContext());
         RecordingFailureReporter reporter = new RecordingFailureReporter();
         var mosaic = new com.acttub.actingapi.integration.media.FaceMosaic() {
@@ -319,13 +319,17 @@ class AnalysisWorkerTest {
                 throw new com.acttub.actingapi.integration.media.FaceMosaicRenderer.NoFaceFound();
             }
         };
+        List<Path> paths = new ArrayList<>();
         AnalysisWorker worker = worker(store, (path, context) -> {
-            throw new AssertionError("the analyzer must not see the original");
+            paths.add(path);
+            return new AnalysisResult(new ObservationPack("", List.of(), List.of()), false, 1000);
         }, reporter).withFaceMosaic(mosaic);
 
         assertThat(worker.runOnce(NOW)).isTrue();
 
-        assertThat(store.transitions).containsExactly("claim", "fail:" + AnalysisWorker.FACE_NOT_FOUND);
+        // 얼굴이 아예 없으면 가릴 것이 없으니 원본으로 분석을 마친다(10/23 결정).
+        assertThat(store.transitions).containsExactly("claim", "complete");
+        assertThat(paths).hasSize(1);
         assertThat(reporter.reports()).isEmpty();
     }
 
