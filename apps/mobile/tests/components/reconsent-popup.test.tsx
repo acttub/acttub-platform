@@ -67,9 +67,9 @@ beforeEach(() => {
 test('제목과 바뀐 문서 줄을 필수부터 보여 주고, 필수에 모두 체크해야 계속할 수 있다', async () => {
   await render(<ReconsentPopup visible />);
 
-  expect(screen.getByText('바뀐 약관에\n동의가 필요해요')).toBeOnTheScreen();
+  expect(screen.getByText('동의 문서가 바뀌었어요')).toBeOnTheScreen();
   // pen S4.8 — 흰 전체 화면, 제목 아래 회색 설명.
-  expect(screen.getByText('고품질 목소리와 대본 나누기가 개인정보 수집·이용에 들어갔어요.')).toBeOnTheScreen();
+  expect(screen.getByText('바뀐 내용을 보고 「동의하고 계속하기」를 누르세요.')).toBeOnTheScreen();
   expect(rowLabels()).toEqual(['[필수] 서비스 이용약관 (바뀜)', '[선택] 탈퇴 후 영상 보관']);
   expect(cta()).toBeDisabled();
 
@@ -238,7 +238,7 @@ test('목록을 확인하는 중에는 줄 없이 기다린다', async () => {
   mockAuth.consentEntry = { status: 'checking', entry: null, error: null };
   await render(<ReconsentPopup visible />);
 
-  expect(screen.getByText('바뀐 약관에\n동의가 필요해요')).toBeOnTheScreen();
+  expect(screen.getByText('동의 문서가 바뀌었어요')).toBeOnTheScreen();
   expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
   expect(screen.queryByRole('button')).not.toBeOnTheScreen();
 });
@@ -274,11 +274,11 @@ test('문서 보기는 시트로 본문을 열고, 닫기나 뒤로 가기는 �
 
   await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
   expect(screen.queryByText('제1조 목적')).not.toBeOnTheScreen();
-  expect(screen.getByText('바뀐 약관에\n동의가 필요해요')).toBeOnTheScreen();
+  expect(screen.getByText('동의 문서가 바뀌었어요')).toBeOnTheScreen();
 
   await fireEvent.press(within(row('탈퇴 후 영상 보관')).getByRole('button', { name: '보기' }));
   expect(screen.getByText('제1조 목적')).toBeOnTheScreen();
-  await fireEvent(modalOf(screen.getByText('바뀐 약관에\n동의가 필요해요')), 'requestClose');
+  await fireEvent(modalOf(screen.getByText('동의 문서가 바뀌었어요')), 'requestClose');
   expect(screen.queryByText('제1조 목적')).not.toBeOnTheScreen();
   expect(rowLabels()).toEqual(['[필수] 서비스 이용약관 (바뀜)', '[선택] 탈퇴 후 영상 보관']);
 });
@@ -292,5 +292,5 @@ test('문서 시트 바깥의 어두운 곳을 눌러도 시트만 닫힌다', a
   await fireEvent.press(sheetLayer.children[0] as typeof sheetLayer);
 
   expect(screen.queryByText('제1조 목적')).not.toBeOnTheScreen();
-  expect(screen.getByText('바뀐 약관에\n동의가 필요해요')).toBeOnTheScreen();
+  expect(screen.getByText('동의 문서가 바뀌었어요')).toBeOnTheScreen();
 });

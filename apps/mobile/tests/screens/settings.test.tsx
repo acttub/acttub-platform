@@ -183,7 +183,7 @@ describe('동의 내역', () => {
 
     await fireEvent(sw(), 'valueChange', true);
 
-    expect(await screen.findByText('동의 문서가 새로 바뀌었어요. 다시 확인해주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('동의 문서가 새로 바뀌었어요. 다시 확인해 주세요.')).toBeOnTheScreen();
     expect(consentEntry).toHaveBeenCalledTimes(2);
   });
 

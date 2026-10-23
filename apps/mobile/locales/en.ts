@@ -1251,6 +1251,7 @@ const en: DeepStringShape<typeof ko> = {
     marketingGranted: 'Opted in',
     marketingDeclined: 'Opted out',
     // SOMA-748 consent screen redesign
+    reconsentRequiredHint: 'Review what changed, then tap \'Agree and continue\'.',
     reconsentHint: 'High-quality voice and script splitting are now part of personal data collection and use.',
     headerTitle: 'Terms',
     heading: 'Acttub needs your consent',
