@@ -44,7 +44,7 @@ export function ChallengeDone({
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: first ? t('challengeDone.firstNav') : '' }} />
       <ScrollView contentContainerStyle={[styles.content, first && styles.contentFirst]}>
-        <Image source={MASCOTS.dance} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+        <Image source={MASCOTS.cheer} style={[styles.mascot, first && styles.mascotFirst]} contentFit="contain" accessibilityIgnoresInvertColors />
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.sub}>{sub}</Text>
         {!first && rows.length > 0 && (
@@ -80,16 +80,17 @@ export function ChallengeDone({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24, alignItems: 'center' },
-  contentFirst: { flexGrow: 1, justifyContent: 'center', paddingBottom: 80 },
-  mascot: { width: 120, height: 126 },
-  title: { fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text, textAlign: 'center', marginTop: 28 },
-  sub: { fontSize: 14, fontWeight: '500', lineHeight: 21, color: palette.textFaint, textAlign: 'center', marginTop: 8 },
-  rows: { alignSelf: 'stretch', gap: 8, marginTop: 28 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingBottom: 24, alignItems: 'center' },
+  contentFirst: { paddingBottom: 80 },
+  mascot: { width: 130, height: 148 },
+  mascotFirst: { width: 150, height: 170 },
+  title: { fontSize: 24, fontWeight: '800', lineHeight: 33, letterSpacing: -0.5, color: palette.text, textAlign: 'center', marginTop: 12 },
+  sub: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textFaint, textAlign: 'center', marginTop: 12 },
+  rows: { alignSelf: 'stretch', gap: 0, paddingTop: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 4 },
   rowIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
-  rowTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 22 },
-  rowSub: { fontSize: 12.5, fontWeight: '500', color: palette.textFaint, lineHeight: 18 },
+  rowTitle: { fontSize: 16, fontWeight: '700', color: palette.text, lineHeight: 22 },
+  rowSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 18 },
   pressed: { opacity: 0.85 },
 });
