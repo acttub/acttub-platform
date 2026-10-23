@@ -189,7 +189,8 @@ export default function ChallengeDetailScreen() {
           title: t(detailTitleKey(challenge)),
           headerRight: () => (
             <View style={styles.headerRight}>
-              {challenge && !canDelete(challenge) && (
+              {/* 내가 연 챌린지는 신고하지 않는다 — 지울 수 있으면 휴지통, 참여작이 있어 못 지우면 아무것도 없다(10/24 폰 QA). */}
+              {challenge && !challenge.is_host && (
                 <NavIconButton
                   icon="flag"
                   size={19}

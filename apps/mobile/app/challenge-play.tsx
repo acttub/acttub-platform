@@ -354,7 +354,7 @@ export default function ChallengePlayScreen() {
         ...(canReact(entry)
           ? [{ label: t('react.menuReport'), destructive: true, onPress: () => setReportTarget({ type: 'entry', id: entry.id }) }]
           : []),
-        ...(challenge
+        ...(challenge && !challenge.is_host
           ? [
               {
                 label: t('react.menuReportChallenge'),
