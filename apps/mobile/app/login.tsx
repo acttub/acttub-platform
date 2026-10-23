@@ -127,10 +127,53 @@ export default function LoginScreen() {
   const providers = list.status === 'ready' ? list.providers : [];
   const highlighted = highlightedProvider(providers, lastProvider);
 
-  // pen S3.4 — 제공자는 지름 60 동그라미 한 줄(Apple · Google · 카카오 · 네이버). 글자는 접근성 이름에만 둔다.
-  const renderButton = (provider: LoginProvider) => {
+  // pen S3.4 · S3.10 — 제공자가 둘 이하면 넓은 버튼을 쌓고, 셋 이상이면 큰 버튼 하나(최근에 쓴 것, 없으면 Google)
+  // 아래에 「다른 방법으로 계속하기」 줄과 지름 56 동그라미를 둔다.
+  const renderLogo = (provider: LoginProvider, size: 'wide' | 'circle') => (
+    <>
+      {provider === 'google' && (
+        // 구글이 배포하는 공식 로고 에셋(GoogleSignIn SDK). 직접 그리면 심사에서 막힌다.
+        <Image
+          source={require('@/assets/images/google-logo.png')}
+          style={size === 'wide' ? styles.googleLogoWide : styles.googleLogo}
+          contentFit="contain"
+        />
+      )}
+      {provider === 'apple' &&
+        (SymbolView ? (
+          <SymbolView name="apple.logo" tintColor="#FFFFFF" size={size === 'wide' ? 22 : 24} />
+        ) : (
+          <Text style={styles.appleGlyph}></Text>
+        ))}
+      {provider === 'kakao' && <KakaoSymbol />}
+      {provider === 'naver' && <Text style={styles.naverN}>N</Text>}
+    </>
+  );
+  const renderWide = (provider: LoginProvider) => {
     const label = t(`login.${provider}`);
     const isLast = highlighted === provider;
+    const look = BUTTON_LOOK[provider];
+    return (
+      <View key={provider}>
+        <Pressable
+          style={({ pressed }) => [styles.wide, look.button, pressed && styles.pressed, busy !== null && styles.dim]}
+          onPress={() => void run(provider)}
+          disabled={busy !== null}
+          accessibilityRole="button"
+          accessibilityLabel={isLast ? t('login.lastUsedA11y', { label }) : label}>
+          {renderLogo(provider, 'wide')}
+          <Text style={[styles.wideLabel, look.text]}>{label}</Text>
+        </Pressable>
+        {isLast && (
+          <View style={styles.recentBadge} pointerEvents="none">
+            <Text style={styles.recentBadgeText}>{t('login.lastUsed')}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+  const renderCircle = (provider: LoginProvider) => {
+    const label = t(`login.${provider}`);
     const look = BUTTON_LOOK[provider];
     return (
       <Pressable
@@ -139,22 +182,13 @@ export default function LoginScreen() {
         onPress={() => void run(provider)}
         disabled={busy !== null}
         accessibilityRole="button"
-        accessibilityLabel={isLast ? t('login.lastUsedA11y', { label }) : label}>
-        {provider === 'google' && (
-          // 구글이 배포하는 공식 로고 에셋(GoogleSignIn SDK). 직접 그리면 심사에서 막힌다.
-          <Image source={require('@/assets/images/google-logo.png')} style={styles.googleLogo} contentFit="contain" />
-        )}
-        {provider === 'apple' &&
-          (SymbolView ? (
-            <SymbolView name="apple.logo" tintColor="#FFFFFF" size={26} />
-          ) : (
-            <Text style={styles.appleGlyph}></Text>
-          ))}
-        {provider === 'kakao' && <KakaoSymbol />}
-        {provider === 'naver' && <Text style={styles.naverN}>N</Text>}
+        accessibilityLabel={label}>
+        {renderLogo(provider, 'circle')}
       </Pressable>
     );
   };
+  const primary: LoginProvider | null =
+    providers.length > 2 ? (highlighted ?? (providers.includes('google') ? 'google' : providers[0])) : null;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -196,7 +230,21 @@ export default function LoginScreen() {
         ) : providers.length === 0 ? (
           <Text style={styles.error}>{t('login.providersEmpty')}</Text>
         ) : (
-          <View style={styles.circleRow}>{providers.map(renderButton)}</View>
+          <View style={styles.providerBox}>
+            {primary === null ? (
+              <View style={styles.wideStack}>{providers.map(renderWide)}</View>
+            ) : (
+              <>
+                {renderWide(primary)}
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>{t('login.otherMethods')}</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+                <View style={styles.circleRow}>{providers.filter((p) => p !== primary).map(renderCircle)}</View>
+              </>
+            )}
+          </View>
         )}
       </View>
       {dialog}
@@ -215,18 +263,28 @@ function KakaoSymbol() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 24 },
+  safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 28 },
   hero: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  logo: { width: 190, height: 76 },
+  logo: { width: 220, height: 88 },
   tagline: { fontSize: 15, fontWeight: '500', color: palette.textDim, textAlign: 'center', lineHeight: 22 },
   // 로그인하는 중 — 돌림 표시와 한 줄 문구.
   progress: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 56 },
   progressText: { fontSize: 14, fontWeight: '500', color: palette.textMuted },
-  bottom: { paddingBottom: 28, gap: 20 },
+  bottom: { paddingBottom: 28, gap: 18 },
   // 켜진 제공자 수(2~4개)와 상관없이 가운데에 모은다 — 둘일 때 양 끝으로 벌어지지 않게.
   circleRow: { flexDirection: 'row', justifyContent: 'center', gap: 20 },
-  circle: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
-  googleLogo: { width: 26, height: 26 },
+  providerBox: { gap: 18 },
+  wideStack: { gap: 14 },
+  wide: { height: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  wideLabel: { fontSize: 16, fontWeight: '600' },
+  googleLogoWide: { width: 20, height: 20 },
+  recentBadge: { position: 'absolute', top: -9, right: 14, backgroundColor: palette.blue, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 3 },
+  recentBadgeText: { fontSize: 11, fontWeight: '700', color: palette.onAccent },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 4, paddingHorizontal: 8 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E6E7EB' },
+  dividerText: { fontSize: 13, color: '#8A8D95' },
+  circle: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  googleLogo: { width: 24, height: 24 },
   naverN: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
   kakaoSymbol: { width: 26, height: 25 },
   kakaoBubble: { width: 26, height: 21, borderRadius: 13, backgroundColor: KAKAO_SYMBOL },

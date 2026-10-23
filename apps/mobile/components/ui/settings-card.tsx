@@ -6,9 +6,13 @@ import { palette } from '@/constants/palette';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
+/** 묶음 안에서의 자리 — 첫 줄은 위가, 끝 줄은 아래가 크게 둥글다(pen 설정 묶음: 18 / 6). */
+export type SettingsCardPosition = 'single' | 'first' | 'middle' | 'last';
+
 /**
- * pen 「설정 카드」(파이프라인 반영버전) — 흰 바탕 · 1px #E5E8EB 테두리 · 모서리 22 · 안쪽 [12,14,12,15] · 칸 사이 13.
- * 왼쪽 아이콘 원(38, #EAF3FE, 아이콘 20) · 제목 17/800(줄 21) · 5 띄워 설명 13.5/400(줄 16) #8B95A1 · 꺾쇠 20.
+ * pen 「설정 카드」(S2/SetCard) — 흰 바탕 · 1px #CBD1D8 테두리 · 안쪽 16 · 칸 사이 14.
+ * 왼쪽 파란 아이콘(18, 44 칸) · 제목 15.5/800 · 4 띄워 설명 12.5/400 #8B95A1 · 꺾쇠 18.
+ * 묶음 안 카드는 사이 6, 모서리는 첫 줄 위 18 · 끝 줄 아래 18 · 나머지 6.
  * `right`를 주면 꺾쇠 대신 그것(스위치 등)을 둔다.
  */
 export function SettingsCard({
@@ -18,30 +22,33 @@ export function SettingsCard({
   onPress,
   right,
   iconColor = palette.blue,
+  position = 'single',
 }: {
   icon: FeatherName;
   title: string;
-  sub: string;
+  sub?: string;
   onPress?: () => void;
   right?: ReactNode;
   iconColor?: string;
+  position?: SettingsCardPosition;
 }) {
   const body = (
     <>
-      <View style={styles.iconCircle}>
-        <Feather name={icon} size={20} color={iconColor} />
+      <View style={styles.iconCell}>
+        <Feather name={icon} size={18} color={iconColor} />
       </View>
       <View style={styles.body}>
         <Text style={styles.title}>{title}</Text>
-        <Text style={styles.sub}>{sub}</Text>
+        {!!sub && <Text style={styles.sub}>{sub}</Text>}
       </View>
-      {right ?? (onPress ? <Feather name="chevron-right" size={20} color={palette.checkOff} /> : null)}
+      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.checkOff} /> : null)}
     </>
   );
-  if (!onPress) return <View style={styles.card}>{body}</View>;
+  const shape = radiusFor(position);
+  if (!onPress) return <View style={[styles.card, shape]}>{body}</View>;
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.card, shape, pressed && styles.pressed]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={title}>
@@ -50,29 +57,28 @@ export function SettingsCard({
   );
 }
 
+function radiusFor(position: SettingsCardPosition) {
+  const big = 18;
+  const small = 6;
+  if (position === 'single') return { borderRadius: big };
+  if (position === 'first') return { borderTopLeftRadius: big, borderTopRightRadius: big, borderBottomLeftRadius: small, borderBottomRightRadius: small };
+  if (position === 'last') return { borderTopLeftRadius: small, borderTopRightRadius: small, borderBottomLeftRadius: big, borderBottomRightRadius: big };
+  return { borderRadius: small };
+}
+
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 13,
-    paddingVertical: 12,
-    paddingLeft: 15,
-    paddingRight: 14,
-    borderRadius: 22,
+    gap: 14,
+    padding: 16,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: palette.borderStrong,
     backgroundColor: palette.card,
   },
   pressed: { backgroundColor: palette.bgSubtle },
-  iconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: palette.blueSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  body: { flex: 1, minWidth: 0, gap: 5 },
-  title: { fontSize: 17, fontWeight: '800', lineHeight: 21, color: palette.text },
-  sub: { fontSize: 13.5, fontWeight: '400', lineHeight: 16, color: palette.textFaint },
+  iconCell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  body: { flex: 1, minWidth: 0, gap: 4 },
+  title: { fontSize: 15.5, fontWeight: '800', lineHeight: 21, color: palette.text },
+  sub: { fontSize: 12.5, fontWeight: '400', lineHeight: 18, color: palette.textFaint },
 });

@@ -14,6 +14,7 @@ export const palette = {
   card: '#FFFFFF',
   border: '#E5E8EB', // web-line
   borderSoft: '#EDF0F3', // web-line-soft
+  borderStrong: '#CBD1D8', // pen borderStrong — 묶음 설정 카드 테두리
 
   // 글자 — 진한 순서
   text: '#191F28', // web-ink

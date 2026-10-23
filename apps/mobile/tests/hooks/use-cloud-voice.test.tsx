@@ -196,7 +196,7 @@ test('동의 기록이 실패하면 시트에 남아 실패를 알리고, 다시
   await fireEvent.press(screen.getByText('동의하고 켜기'));
   await flush();
 
-  seen('동의 기록에 실패했어요. 다시 시도해주세요.');
+  seen('동의 기록에 실패했어요. 다시 시도해 주세요.');
   seen('동의하고 켜기');
   seen('enabled:false');
   expect(await AsyncStorage.getItem('acttub.cloudVoice')).toBeNull();
@@ -206,7 +206,7 @@ test('동의 기록이 실패하면 시트에 남아 실패를 알리고, 다시
 
   expect(apiMock.recordConsent).toHaveBeenCalledTimes(2);
   seen('enabled:true');
-  expect(screen.queryByText('동의 기록에 실패했어요. 다시 시도해주세요.')).not.toBeOnTheScreen();
+  expect(screen.queryByText('동의 기록에 실패했어요. 다시 시도해 주세요.')).not.toBeOnTheScreen();
 });
 
 test('거절 기록이 실패해도 시트에 남아 실패를 알린다', async () => {
@@ -217,7 +217,7 @@ test('거절 기록이 실패해도 시트에 남아 실패를 알린다', async
   await fireEvent.press(screen.getByText('동의하지 않기'));
   await flush();
 
-  seen('동의 기록에 실패했어요. 다시 시도해주세요.');
+  seen('동의 기록에 실패했어요. 다시 시도해 주세요.');
   seen('동의하지 않기');
   seen('consent:undecided');
 });

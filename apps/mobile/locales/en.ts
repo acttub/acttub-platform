@@ -40,6 +40,7 @@ const en: DeepStringShape<typeof ko> = {
     apple: 'Sign in with Apple',
     kakao: 'Continue with Kakao',
     naver: 'Continue with Naver',
+    otherMethods: 'Or continue another way',
     lastUsed: 'Last used',
     lastUsedA11y: '{{label}}, the method you used last time',
     failed: 'Couldn’t sign in.\nPlease try again in a moment.',
@@ -53,6 +54,9 @@ const en: DeepStringShape<typeof ko> = {
     emailConflictContinue: 'Continue with {{provider}}',
     emailConflictUnavailable: 'This email is registered with {{provider}}.',
     emailConflictUnknown: 'This email is registered with another sign-in method.',
+  },
+  splash: {
+    tagline: 'One step today, practice together',
   },
   updateRequired: {
     title: 'Please update to the new version',
@@ -256,6 +260,8 @@ const en: DeepStringShape<typeof ko> = {
     changePhoto: 'Change photo',
     shareText: '{{name}} performing “{{line}}” — acttub challenge',
     // SOMA-748 profile tab redesign
+    introEmpty: 'Add a one-line intro',
+    monthLabel: 'Practice this month',
     edit: 'Edit',
     monthTitle: '{{count}} practices this month',
     kindCoaching: 'Coaching',
@@ -863,6 +869,7 @@ const en: DeepStringShape<typeof ko> = {
     sectionPractice: 'Practice & records',
     sectionApp: 'App & help',
     sectionManage: 'Account',
+    sectionEtc: 'Other',
     challengeRecordRow: 'Challenge entries',
     storeReviewRow: 'Rate the app',
     consentHistory: 'Consents',
@@ -1244,6 +1251,7 @@ const en: DeepStringShape<typeof ko> = {
     marketingGranted: 'Opted in',
     marketingDeclined: 'Opted out',
     // SOMA-748 consent screen redesign
+    reconsentRequiredHint: 'Review what changed, then tap \'Agree and continue\'.',
     reconsentHint: 'High-quality voice and script splitting are now part of personal data collection and use.',
     headerTitle: 'Terms',
     heading: 'Acttub needs your consent',
