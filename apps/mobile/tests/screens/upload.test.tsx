@@ -46,6 +46,8 @@ jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 jest.mock('@/lib/tutorial-loop', () => ({ sampleVideoUri: () => 'file:///sample.mp4' }));
+jest.mock('@/lib/notifications', () => ({ scheduleUploadLaterReminder: jest.fn().mockResolvedValue('scheduled') }));
+import { scheduleUploadLaterReminder } from '@/lib/notifications';
 jest.mock('@/lib/api', () => ({
   api: { getVideo: jest.fn(), createPractice: jest.fn(), continuePractice: jest.fn(), listPracticeGroups: jest.fn() },
 }));
@@ -174,8 +176,8 @@ describe('영상을 고르기 전', () => {
     await toSourceStep();
     expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    expect(screen.getByText('영상 올리기가 망설여지나요?')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('지금은 넘어갈게요'));
+    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
     expect(screen.getByText('오늘은 어떤 도움이 필요해요?')).toBeOnTheScreen();
   });
 
@@ -328,11 +330,11 @@ describe('보관함에서 고른 영상으로 시작', () => {
     await toSourceStep('막힌 곳 풀기');
     // 뒤로 가서 다른 목적을 고른다 — 고른 것만 선택돼 있다.
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    await fireEvent.press(screen.getByText('지금은 넘어갈게요'));
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
     expect(screen.getByRole('radio', { name: '막힌 곳 풀기' })).toBeSelected();
     await toSourceStep('인물 이해하기');
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    await fireEvent.press(screen.getByText('지금은 넘어갈게요'));
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
     expect(screen.getByRole('radio', { name: '인물 이해하기' })).toBeSelected();
     expect(screen.getByRole('radio', { name: '막힌 곳 풀기' })).not.toBeSelected();
     await toSourceStep('인물 이해하기');
@@ -614,41 +616,33 @@ describe('영상 업로드를 망설일 때', () => {
     await render(<UploadScreen />);
     await toSourceStep();
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    expect(screen.getByText('영상 올리기가 망설여지나요?')).toBeOnTheScreen();
+    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
   }
 
-  test.each([
-    ['아직 찍어 둔 영상이 없어요', 'no_video', '영상 없이 말로 코칭 받기', 'talk', '/talk'],
-    ['얼굴을 보이기가 부담스러워요', 'privacy', '찍을 대사부터 같이 만들기', 'script', '/script-cocreate'],
-    ['다른 이유가 있어요', 'other', '지금 찍기', 'record', '/record-video'],
-  ])('%s에서 %s 이유와 다음 경로를 기록하고 이동한다', async (label, reason, button, destination, path) => {
-    mockParams = { first: '1' };
+  test('얼굴·영상 걱정 → 다음 → 올리기 옵션 → 이대로 올리기로 영상 단계에 돌아온다', async () => {
     await openReasons();
-    await fireEvent.press(screen.getByRole('button', { name: label }));
-    expect(logged('practice_upload_decline_reason')).toEqual([{ reason }]);
-    expect(screen.getByText('이렇게 시작해 볼까요?')).toBeOnTheScreen();
-    await fireEvent.press(within(screen.getByText('이렇게 시작해 볼까요?').parent!).getByRole('button', { name: button }));
-    expect(screen.queryByText('이렇게 시작해 볼까요?')).not.toBeOnTheScreen();
-    expect(logged('practice_upload_decline_route')).toEqual([{ reason, destination }]);
-    await waitFor(() => {
-      if (destination === 'record') {
-        expect(mockRouter.push).toHaveBeenCalledWith({ pathname: path, params: { mode: 'ai' } });
-      } else {
-        expect(mockRouter.replace).toHaveBeenCalledWith(path);
-      }
-    });
-    expect(jest.requireMock('@react-navigation/native').usePreventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
+    await fireEvent.press(screen.getByRole('radio', { name: '얼굴·영상이 남는 게 걱정돼요' }));
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    expect(logged('practice_upload_decline_route')).toEqual([{ reason: 'face', destination: 'face' }]);
+    expect(screen.getByText('이렇게 올려 볼까요?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '이대로 올리기' }));
+    expect(screen.queryByText('이렇게 올려 볼까요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상 올리기가\n망설여지나요?')).not.toBeOnTheScreen();
   });
 
-  test.each([false, true])('건너뛰면 목적 단계로 돌아가고 이동하지 않는다 (이유 선택: %s)', async (chooseReason) => {
+  test('길게 찍기 부담돼요 → 10초 촬영으로 간다', async () => {
     await openReasons();
-    if (chooseReason) await fireEvent.press(screen.getByRole('button', { name: '다른 이유가 있어요' }));
-    await fireEvent.press(screen.getByRole('button', { name: '지금은 넘어갈게요' }));
-    expect(screen.getByText('오늘은 어떤 도움이 필요해요?')).toBeOnTheScreen();
-    expect(screen.queryByText('영상 올리기가 망설여지나요?')).not.toBeOnTheScreen();
-    expect(logged('practice_upload_decline_route')).toEqual([{ reason: chooseReason ? 'other' : 'skipped', destination: 'skip' }]);
-    expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(mockRouter.replace).not.toHaveBeenCalled();
-    expect(logged('practice_upload_decline_reason')).toEqual(chooseReason ? [{ reason: 'other' }] : []);
+    await fireEvent.press(screen.getByRole('radio', { name: '길게 찍기 부담돼요' }));
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/record-video', params: { mode: 'ai', maxSec: '10' } }));
   });
+
+  test('지금은 못 찍어요 → 알림을 예약하고 홈으로 간다', async () => {
+    await openReasons();
+    await fireEvent.press(screen.getByRole('radio', { name: '지금은 못 찍어요' }));
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    expect(scheduleUploadLaterReminder).toHaveBeenCalled();
+  });
+
 });

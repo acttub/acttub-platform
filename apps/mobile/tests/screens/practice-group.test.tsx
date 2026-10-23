@@ -27,7 +27,11 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 jest.mock('@/lib/api', () => ({
-  api: { getPracticeGroup: jest.fn(), getConversation: jest.fn(), patchPracticeGroup: jest.fn() },
+  api: { getPracticeGroup: jest.fn(), getConversation: jest.fn(), patchPracticeGroup: jest.fn(), getVideo: jest.fn(), purgeVideoFile: jest.fn() },
+}));
+jest.mock('expo-video', () => ({
+  useVideoPlayer: () => ({ play: jest.fn(), pause: jest.fn() }),
+  VideoView: 'VideoView',
 }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
 jest.mock('@/lib/guide-state', () => ({ hasSeenSpotlight: jest.fn(), markSpotlightSeen: jest.fn() }));
@@ -173,6 +177,21 @@ test('열린 테이크가 없으면 다음 테이크를 마지막 회차에 이�
 
   expect(setContinueOrigin).toHaveBeenCalledWith({ kind: 'group', rootId: 'root1', practiceId: 'p2' });
   expect(mockRouter.push).toHaveBeenCalledWith('/upload');
+});
+
+test('영상이 있으면 「연습 영상 보기」 줄이 보이고, 지워졌으면 안내만 보인다', async () => {
+  const { api } = require('@/lib/api');
+  api.getVideo.mockResolvedValueOnce({ id: 'v1', playback_url: 'https://cdn/v1.mp4', purged_at: null });
+  await render(<PracticeGroupScreen />);
+  expect(await screen.findByRole('button', { name: /연습 영상 보기/ })).toBeOnTheScreen();
+});
+
+test('영상이 지워졌으면 「영상이 지워졌어요」', async () => {
+  const { api } = require('@/lib/api');
+  api.getVideo.mockResolvedValueOnce({ id: 'v1', playback_url: null, purged_at: '2026-10-20T00:00:00Z' });
+  await render(<PracticeGroupScreen />);
+  expect(await screen.findByText('영상이 지워졌어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '연습 영상 보기' })).not.toBeOnTheScreen();
 });
 
 test('회차가 없으면 묶음 id로 다음 테이크를 만든다', async () => {

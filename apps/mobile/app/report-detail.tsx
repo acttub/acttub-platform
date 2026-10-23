@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { purgeVideoFileIfDue } from '@/lib/practice/upload-options';
 import { NoteSections } from '@/components/note-sections';
 import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
@@ -59,6 +60,8 @@ export default function ReportDetailScreen() {
         return;
       }
       setNote(loadedNote);
+      // 노트가 열렸으면 분석이 끝난 것이다 — 「분석 끝나면 영상 바로 지우기」를 골랐다면 지금 지운다.
+      if (loadedNote) void purgeVideoFileIfDue(practiceId).catch(() => undefined);
       setPractice(loadedPractice);
       if (!loadedNote) setError(t('note.none'));
     } catch {

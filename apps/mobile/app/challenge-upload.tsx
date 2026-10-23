@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { setPickedVideo } from '@/lib/practice/picked-video';
 import { ChallengeDone } from '@/components/challenge-done';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -240,7 +241,11 @@ export default function ChallengeUploadScreen() {
           rows={[
             ...(isPublic ? [{ key: 'share', icon: 'share-2' as const, title: t('challengeDone.share'), sub: t('challengeDone.shareSub'), onPress: share }] : []),
             // 코칭은 기존 올리기(/upload) 흐름으로 이어진다 — 거기서 방금 영상을 고른다.
-            { key: 'coach', icon: 'video' as const, title: t('challengeDone.coach'), sub: t('challengeDone.coachSub'), onPress: () => router.push('/upload') },
+            { key: 'coach', icon: 'video' as const, title: t('challengeDone.coach'), sub: t('challengeDone.coachSub'), onPress: () => {
+              // 방금 올린 챌린지 영상을 새 연습의 영상으로 미리 골라 둔다 — 준비 화면이 서버 영상 주소로 미리보기를 채운다.
+              if (videoId) setPickedVideo({ videoId, pendingId: null, uri: localUri, playbackUrl: null, durationMs: null });
+              router.push('/upload');
+            } },
             ...(challengeId
               ? [
                   {
