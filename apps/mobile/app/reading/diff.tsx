@@ -138,7 +138,7 @@ export default function ReadingDiff() {
                 </Pressable>
               )}
             </View>
-            <DiffText text={row.line.text} different={row.different} textStyle={styles.textCard} />
+            <DiffText text={row.line.text} different={row.different} textStyle={styles.textCard} saidLabel={t('reading.diffSaidLabel')} />
           </View>
         );
       })}

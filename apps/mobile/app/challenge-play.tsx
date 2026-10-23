@@ -350,7 +350,10 @@ export default function ChallengePlayScreen() {
             ]
           : []),
         { label: t('react.menuShare'), onPress: () => share(entry) },
-        { label: t('react.menuReport'), destructive: true, onPress: () => setReportTarget({ type: 'entry', id: entry.id }) },
+        // 내 참여작은 스스로 신고할 수 없다 — 남의 참여작에만 「신고」를 둔다(pen C6.7 리뷰, 10/24).
+        ...(canReact(entry)
+          ? [{ label: t('react.menuReport'), destructive: true, onPress: () => setReportTarget({ type: 'entry', id: entry.id }) }]
+          : []),
         ...(challenge
           ? [
               {

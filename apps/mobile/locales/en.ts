@@ -1913,6 +1913,7 @@ const en: DeepStringShape<typeof ko> = {
     diffEmpty: 'No lines were said differently this time.',
     diffBack: 'Back to the script',
     diffCount: '{{count}} lines said differently',
+    diffSaidLabel: 'What I said',
     toDetail: 'To the script',
     // Session list/detail (R00.5) · Done (R05) · Recording · reading.recording
     sessionOrdinal: 'Session {{n}}',
