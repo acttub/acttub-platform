@@ -204,9 +204,9 @@ describe('첫 사용자', () => {
     await render(<HomeScreen />);
 
     expect(await screen.findByText('뭐부터 해 볼까요?')).toBeOnTheScreen();
-    expect(screen.getByText('하나 고르고 「다음」을 누르세요.')).toBeOnTheScreen();
-    expect(screen.getByText('찍어 둔 연기 영상을 액티가 같이 봐요.')).toBeOnTheScreen();
-    expect(screen.getByText('상대 대사는 앱이 읽어 줘요')).toBeOnTheScreen();
+    expect(screen.getByText('하나를 누르면 자세히 알려 드려요')).toBeOnTheScreen();
+    expect(screen.getByText('영상을 보여 주면 코치가 질문하며 고칠 점 하나를 같이 찾아요.')).toBeOnTheScreen();
+    expect(screen.getByText('상대역 대사를 읽어 줘서 혼자서도 내 대사를 맞춰 봐요.')).toBeOnTheScreen();
     expect(screen.getByText('이번 주 대사를 연기해요')).toBeOnTheScreen();
     await waitFor(() => expect(writeLastSeenStreak).toHaveBeenCalledWith(0));
 
@@ -218,9 +218,9 @@ describe('첫 사용자', () => {
     expect(mockRouter.push).not.toHaveBeenCalled();
 
     // 누르면 바로 가지 않고 골라 둔다.
-    await fireEvent.press(screen.getByRole('radio', { name: '대본 리딩하기' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '대본 리딩을 받아볼래요?' }));
     expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(screen.getByRole('radio', { name: '대본 리딩하기', selected: true })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: '대본 리딩을 받아볼래요?', selected: true })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/reading');
   });
@@ -229,14 +229,14 @@ describe('첫 사용자', () => {
     await render(<HomeScreen />);
     await screen.findByText('뭐부터 해 볼까요?');
 
-    await fireEvent.press(screen.getByRole('radio', { name: '연기 코칭 받기' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '연기 코칭을 받아볼래요?' }));
     expect(screen.getAllByRole('radio', { selected: true })).toHaveLength(1);
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/coaching');
 
-    await fireEvent.press(screen.getByRole('radio', { name: '챌린지 해 보기' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '챌린지에 참여해 볼래요?' }));
     expect(screen.getAllByRole('radio', { selected: true })).toHaveLength(1);
-    expect(screen.getByRole('radio', { name: '챌린지 해 보기', selected: true })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: '챌린지에 참여해 볼래요?', selected: true })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/challenges');
   });
@@ -248,7 +248,7 @@ describe('첫 사용자', () => {
     expect(await screen.findByText('갈매기 2막')).toBeOnTheScreen();
     expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
     // 한 번도 안 읽은 대본은 「하던 대본」이 아니다(10/22 피드백).
-    expect(screen.getByText('새 대본')).toBeOnTheScreen();
+    expect(screen.getByText('리딩 · 새 대본')).toBeOnTheScreen();
     expect(screen.queryByText('이어 읽기')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '리딩 시작하기' }));
     await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith('/reading'));
@@ -257,7 +257,7 @@ describe('첫 사용자', () => {
   test('묶음을 못 받으면 첫 사용자로 보지 않는다', async () => {
     listPracticeGroups.mockRejectedValue(new Error('down'));
     await render(<HomeScreen />);
-    expect(await screen.findByText('오늘은 이거 하나만 해 봐요')).toBeOnTheScreen();
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
     expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
     expect(rememberPracticeDays).toHaveBeenCalledWith([]);
   });
@@ -335,7 +335,7 @@ describe('오늘 할 것 · 코칭 숙제', () => {
 
     // 메인은 이어 읽기 카드(18/42줄), 코칭 숙제는 「이것도 해 볼래요?」 줄이다.
     expect(await screen.findByText('18/42줄')).toBeOnTheScreen();
-    expect(screen.getByText('이것도 해 볼래요?')).toBeOnTheScreen();
+    expect(screen.getByText('이것도 해 볼까요?')).toBeOnTheScreen();
     expect(await screen.findByText('시선 거두기')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('코칭 숙제'));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/upload');
@@ -376,7 +376,7 @@ describe('연속 연습', () => {
     });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('오늘은 이거 하나만 해 봐요')).toBeOnTheScreen();
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
     await waitFor(() => expect(readLastSeenStreak).toHaveBeenCalled());
     expect(screen.queryByText('일 연속 연습!')).not.toBeOnTheScreen();
   });
@@ -442,30 +442,38 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     entry_count: 12,
   };
 
-  test('입시·오디션 공고 줄은 이번 주 마감 개수를 보이고, 오디션 모아보기로 간다', async () => {
+  test('오디션 마감 임박 구역은 가까운 마감 두 줄을 D-day와 함께 보이고, 지난 공고는 빼며, 누르면 오디션 모아보기로 간다', async () => {
     practiced();
     await render(<HomeScreen />);
-    expect(await screen.findByText('입시·오디션 공고')).toBeOnTheScreen();
-    // 마감이 지난 공고는 세지 않는다(오늘·3일 뒤 둘).
-    await waitFor(() => expect(screen.getByText('이번 주 마감 2개 · 연기 입시 정보')).toBeOnTheScreen());
-    await fireEvent.press(screen.getByRole('button', { name: /입시·오디션 공고/ }));
+    expect(await screen.findByText('오디션 마감 임박')).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByText('광고 모델')).toBeOnTheScreen());
+    expect(screen.getByText('D-DAY')).toBeOnTheScreen();
+    expect(screen.getByText('단편영화 주연')).toBeOnTheScreen();
+    expect(screen.getByText('D-3')).toBeOnTheScreen();
+    expect(screen.queryByText('지난 공고')).not.toBeOnTheScreen();
+    // 입시생이 아니면 연기 입시 구역은 없다.
+    expect(screen.queryByText('연기 입시')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('광고 모델'));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/auditions');
   });
 
-  test('만 19세 이하 입시생은 공고 줄이 입시 일정으로 간다', async () => {
+  test('만 19세 이하 입시생은 연기 입시 구역만 보고, 누르면 입시 일정으로 간다', async () => {
     practiced();
     mockAuth.profile = { me: { profile: { experience: 'exam_prep', birth_date: `${new Date().getFullYear() - 18}-01-01` } } };
     await render(<HomeScreen />);
-    await fireEvent.press(await screen.findByRole('button', { name: /입시·오디션 공고/ }));
+    expect(await screen.findByText('연기 입시')).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByText('한국예술종합학교')).toBeOnTheScreen());
+    expect(screen.queryByText('오디션 마감 임박')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('한국예술종합학교'));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/admissions');
   });
 
-  test('공고를 못 받아도 줄은 있고 개수만 빠진다', async () => {
+  test('공고를 못 받으면 마감 구역은 그리지 않고 나머지 홈은 그대로다(pen P1.3)', async () => {
     practiced();
     (api.auditions as jest.Mock).mockRejectedValue(new Error('down'));
     await render(<HomeScreen />);
-    expect(await screen.findByText('연기 입시 정보')).toBeOnTheScreen();
-    expect(screen.queryByText(/이번 주 마감/)).not.toBeOnTheScreen();
+    expect(await screen.findByText('이것도 해 볼까요?')).toBeOnTheScreen();
+    expect(screen.queryByText('오디션 마감 임박')).not.toBeOnTheScreen();
   });
 
   test('코칭이 메인이면 아래 줄은 리딩(멈춘 줄)·이번 주 챌린지·공고, 홈은 연속 일수와 요일 점을 보인다', async () => {
@@ -476,8 +484,8 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     getPracticeNote.mockResolvedValue({ next_take: '시선 거두기', report: null });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('코칭 숙제')).toBeOnTheScreen();
-    expect(screen.getByText('오늘은 이거 하나만 해 봐요')).toBeOnTheScreen();
+    expect(await screen.findByText('추천 연습')).toBeOnTheScreen();
+    expect(screen.getByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
     expect(await screen.findByText('옥상, 밤 · 이어 읽기')).toBeOnTheScreen();
     expect(await screen.findByText('3/10줄에서 멈췄어요')).toBeOnTheScreen();
     expect(await screen.findByText('“잘 지내, 진짜로.” · D-3')).toBeOnTheScreen();
@@ -493,7 +501,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     await render(<HomeScreen />);
 
     // 하루 전에 읽었으니 「어제」.
-    expect(await screen.findByText('어제 읽던 데서 이어 볼까요?')).toBeOnTheScreen();
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
     expect(await screen.findByText('3/10줄')).toBeOnTheScreen();
     expect(screen.getByText('읽은 장면 찍어서 코칭')).toBeOnTheScreen();
     expect(screen.getByText('이번 주 챌린지')).toBeOnTheScreen();
@@ -512,10 +520,10 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('이번 주 대사가 열렸어요')).toBeOnTheScreen();
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
     expect(screen.getByText('이번 주 챌린지 · D-3')).toBeOnTheScreen();
     expect(screen.getByText('“잘 지내, 진짜로.”')).toBeOnTheScreen();
-    expect(screen.getByText('헤어질 결심 · 참여 12명')).toBeOnTheScreen();
+    expect(screen.getByText('같은 대사, 다른 연기 · 참여 12명')).toBeOnTheScreen();
     expect(screen.getByText('다른 배우 영상 보기')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '찍으러 가기' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
@@ -534,7 +542,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
       ],
     });
     await render(<HomeScreen />);
-    expect(await screen.findByText('어제 읽던 데서 이어 볼까요?', {}, { timeout: 2000 })).toBeOnTheScreen();
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!', {}, { timeout: 2000 })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '이어 읽기' })).toBeOnTheScreen();
   });
 
@@ -543,7 +551,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e1', created_at: isoDaysAgo(0) }], next_cursor: null });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('1일')).toBeOnTheScreen();
+    expect(await screen.findByText('1일째!')).toBeOnTheScreen();
     expect(screen.getByText('오늘')).toBeOnTheScreen();
     expect(screen.getAllByTestId(/^home-week-/)).toHaveLength(7);
     expect(screen.getAllByTestId('home-week-done').length).toBeGreaterThanOrEqual(1);
@@ -603,7 +611,7 @@ describe('첫 안내', () => {
     (hasSeenSpotlight as jest.Mock).mockResolvedValue(false);
     mockAuth.consentEntry = { status: 'required' };
     const view = await render(withHost);
-    await screen.findByText('이것도 해 볼래요?');
+    await screen.findByText('이것도 해 볼까요?');
     await act(async () => new Promise((r) => setTimeout(r, 900)));
 
     expect(screen.queryByText('건너뛰기')).not.toBeOnTheScreen();
