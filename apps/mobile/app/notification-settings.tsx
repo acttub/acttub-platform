@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
-import { BlueSwitch, TwoLineRow } from '@/components/ui/list-rows';
+import Feather from '@expo/vector-icons/Feather';
+import { BlueSwitch } from '@/components/ui/list-rows';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 import {
@@ -16,6 +17,12 @@ import {
 } from '@/lib/notifications';
 
 /** 알림 토글 셋. 순서대로 그린다. */
+const TOGGLE_ICON: Record<string, 'star' | 'award' | 'moon' | 'bell'> = {
+  analysis_done: 'star',
+  challenge: 'award',
+  evening_reminder: 'moon',
+};
+
 const NOTIFICATION_TOGGLES: { key: keyof NotificationSettings; titleKey: string; subKey: string }[] = [
   { key: 'analysis_done', titleKey: 'settings.notifAnalysisTitle', subKey: 'settings.notifAnalysisSub' },
   { key: 'challenge', titleKey: 'settings.notifChallengeShort', subKey: 'settings.notifChallengeSub' },
@@ -91,20 +98,23 @@ export default function NotificationSettingsScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
+          <Text style={styles.section}>{t('settings.pushSection')}</Text>
           {NOTIFICATION_TOGGLES.map((toggle) => (
-            <TwoLineRow
-              key={toggle.key}
-              title={t(toggle.titleKey)}
-              sub={t(toggle.subKey)}
-              right={
-                <BlueSwitch
-                  value={notif[toggle.key]}
-                  onValueChange={(v) => void toggleNotification(toggle.key, v)}
-                  disabled={updatingToggle !== null}
-                  accessibilityLabel={t(toggle.titleKey)}
-                />
-              }
-            />
+            <View key={toggle.key} style={styles.card}>
+              <View style={styles.iconWrap}>
+                <Feather name={TOGGLE_ICON[toggle.key] ?? 'bell'} size={20} color={palette.blue} />
+              </View>
+              <View style={styles.cardText}>
+                <Text style={styles.cardTitle}>{t(toggle.titleKey)}</Text>
+                <Text style={styles.cardSub}>{t(toggle.subKey)}</Text>
+              </View>
+              <BlueSwitch
+                value={notif[toggle.key]}
+                onValueChange={(v) => void toggleNotification(toggle.key, v)}
+                disabled={updatingToggle !== null}
+                accessibilityLabel={t(toggle.titleKey)}
+              />
+            </View>
           ))}
         </ScrollView>
       )}
@@ -115,7 +125,21 @@ export default function NotificationSettingsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
+  list: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, gap: 10 },
+  section: { fontSize: 15, fontWeight: '800', color: palette.text, marginBottom: 4 },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 22,
+  },
+  iconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  cardText: { flex: 1, gap: 2 },
+  cardTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
+  cardSub: { fontSize: 13, color: palette.textMuted, lineHeight: 18 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadError: { color: palette.danger, fontSize: 14, textAlign: 'center', paddingHorizontal: 24 },
   reloadBtn: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 10 },

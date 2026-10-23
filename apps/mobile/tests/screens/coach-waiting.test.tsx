@@ -203,7 +203,7 @@ describe('기다리는 동안', () => {
     // 따로 된 분석 화면이 아니라 대화 화면 안의 코치 말풍선이다.
     expect(screen.getByText('질문 대화')).toBeOnTheScreen();
     expect(screen.getByText(WATCHING)).toBeOnTheScreen();
-    expect(screen.getByText('액티')).toBeOnTheScreen();
+    expect(screen.getByText('코치')).toBeOnTheScreen();
     expect(screen.queryByText('3단계 · 질문 준비 중')).not.toBeOnTheScreen();
     staysWaiting();
     expect(screen.getByText('0초 경과')).toBeOnTheScreen();
@@ -456,7 +456,7 @@ describe('다시 읽는 때', () => {
     await act(async () => {
       mockFocusEffect();
     });
-    expect(await screen.findByText('분석 결과를 정리하지 못했어요. 다시 시도해주세요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석 결과를 정리하지 못했어요. 다시 시도해 주세요.', { exact: false })).toBeOnTheScreen();
     expect(getStatus).toHaveBeenCalledTimes(2);
   });
 
@@ -496,9 +496,9 @@ describe('다시 읽는 때', () => {
 
 describe('분석이 실패하면', () => {
   test.each([
-    ['timeout', '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해주세요.'],
-    ['unsupported', '지원하지 않는 영상 형식이에요. mp4로 다시 올려주세요.'],
-    ['max_attempts', '분석에 실패했어요. 다시 시도해주세요.'],
+    ['timeout', '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해 주세요.'],
+    ['unsupported', '지원하지 않는 영상 형식이에요. mp4로 다시 올려 주세요.'],
+    ['max_attempts', '분석에 실패했어요. 다시 시도해 주세요.'],
   ])('%s 이면 사유와 다시 시도 버튼을 보인다', async (reason, message) => {
     getStatus.mockResolvedValue(FAILED(reason));
     await render(<CoachScreen />);
@@ -514,7 +514,7 @@ describe('분석이 실패하면', () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', close_reason: 'cancelled', job: null }));
     await render(<CoachScreen />);
 
-    expect(await screen.findByText('분석을 그만뒀어요. 영상은 그대로 있어요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석을 그만뒀어요. 영상은 보관함에 그대로 있어요.', { exact: false })).toBeOnTheScreen();
     expect(screen.queryByText('영상은 그대로 있으니 「다시 시도」를 누르세요.', { exact: false })).not.toBeOnTheScreen();
     expect(screen.queryByText('다시 시도')).not.toBeOnTheScreen();
 
@@ -525,7 +525,7 @@ describe('분석이 실패하면', () => {
   test('사유 없이 닫히면 unknown 으로 세고, 다시 시도는 새 분석 없이 상태만 다시 읽는다', async () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', job: null }));
     await render(<CoachScreen />);
-    expect(await screen.findByText('분석에 실패했어요. 다시 시도해주세요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석에 실패했어요. 다시 시도해 주세요.', { exact: false })).toBeOnTheScreen();
     expect(logged('analysis_failed')).toEqual([{ reason: 'unknown' }]);
 
     getStatus.mockResolvedValue(READY);

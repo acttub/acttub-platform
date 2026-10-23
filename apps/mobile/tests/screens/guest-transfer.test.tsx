@@ -49,10 +49,10 @@ test('옮기면 완료 화면에서 기록을 보거나 다른 코드를 넣을 
 
 test.each([
   [new ApiError(404, 'nf', 'transfer_code_not_found'), '코드가 맞지 않거나 만료됐어요'],
-  [new ApiError(429, 'slow down'), '시도가 너무 많았어요. 잠시 뒤 다시 시도해주세요.'],
-  [new ApiError(422, 'bad', 'validation_failed', { field: 'code' }), '코드를 보내지 못했어요. 앱을 최신 버전으로 업데이트한 뒤 다시 시도해주세요.'],
+  [new ApiError(429, 'slow down'), '시도가 너무 많았어요. 잠시 뒤 다시 시도해 주세요.'],
+  [new ApiError(422, 'bad', 'validation_failed', { field: 'code' }), '코드를 보내지 못했어요. 앱을 최신 버전으로 업데이트한 뒤 다시 시도해 주세요.'],
   [new Error('서버가 잠시 쉬고 있어요'), '서버가 잠시 쉬고 있어요'],
-  ['boom', '가져오지 못했어요. 같은 코드로 다시 시도해주세요.'],
+  ['boom', '가져오지 못했어요. 같은 코드로 다시 시도해 주세요.'],
 ])('실패 %#: 이유를 보여 주고, 코드를 고치면 지운다', async (error, message) => {
   send.mockRejectedValue(error);
   await render(<GuestTransferScreen />);
@@ -69,7 +69,7 @@ describe('양쪽에 액티 기억이 있으면', () => {
     await render(<GuestTransferScreen />);
     await fireEvent.changeText(codeInput(), '654321');
     await fireEvent.press(screen.getByRole('button', { name: '가져오기' }));
-    expect(await screen.findByText('액티의 기억을 어느 쪽으로 둘까요?')).toBeOnTheScreen();
+    expect(await screen.findByText('코치의 기억을 어느 쪽으로 둘까요?')).toBeOnTheScreen();
   }
 
   test('기본은 이 계정의 기억이고, 웹의 기억을 골라 가져올 수 있다', async () => {
@@ -83,7 +83,7 @@ describe('양쪽에 액티 기억이 있으면', () => {
 
     expect(send).toHaveBeenLastCalledWith({ code: '654321', memory_choice: 'guest' });
     expect(await screen.findByText('옮겼어요')).toBeOnTheScreen();
-    expect(screen.queryByText('액티의 기억을 어느 쪽으로 둘까요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('코치의 기억을 어느 쪽으로 둘까요?')).not.toBeOnTheScreen();
   });
 
   test('닫으면 아무것도 보내지 않고 입력 화면으로 돌아간다', async () => {
@@ -92,7 +92,7 @@ describe('양쪽에 액티 기억이 있으면', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
 
-    expect(screen.queryByText('액티의 기억을 어느 쪽으로 둘까요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('코치의 기억을 어느 쪽으로 둘까요?')).not.toBeOnTheScreen();
     expect(send).toHaveBeenCalledTimes(1);
     expect(codeInput()).toHaveDisplayValue('654321');
   });
@@ -104,8 +104,8 @@ describe('양쪽에 액티 기억이 있으면', () => {
     await fireEvent.press(screen.getByRole('button', { name: '이대로 가져오기' }));
 
     expect(send).toHaveBeenLastCalledWith({ code: '654321', memory_choice: 'member' });
-    expect(await screen.findByText('시도가 너무 많았어요. 잠시 뒤 다시 시도해주세요.')).toBeOnTheScreen();
-    expect(screen.queryByText('액티의 기억을 어느 쪽으로 둘까요?')).not.toBeOnTheScreen();
+    expect(await screen.findByText('시도가 너무 많았어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
+    expect(screen.queryByText('코치의 기억을 어느 쪽으로 둘까요?')).not.toBeOnTheScreen();
   });
 
   test('보내는 동안에는 선택지와 닫기를 막는다', async () => {
@@ -120,7 +120,7 @@ describe('양쪽에 액티 기억이 있으면', () => {
 
     const [, backdrop] = screen.getAllByRole('button');
     await fireEvent.press(backdrop);
-    expect(screen.getByText('액티의 기억을 어느 쪽으로 둘까요?')).toBeOnTheScreen();
+    expect(screen.getByText('코치의 기억을 어느 쪽으로 둘까요?')).toBeOnTheScreen();
 
     await act(async () => finish());
     expect(await screen.findByText('옮겼어요')).toBeOnTheScreen();

@@ -24,7 +24,7 @@ test('challenge: 목록 카드·오늘의 챌린지 카드는 종료면 참여 �
   const src = readFileSync(new URL('../app/(tabs)/challenges.tsx', import.meta.url), 'utf8');
   const performCtas = src.match(/canPerform\(challenge\) && \(\s*<Pressable[^>]*onPress=\{onPerform\}/g) ?? [];
   assert.equal(performCtas.length, 1, '줄 카드는 canPerform 으로 감싼다');
-  assert.match(src, /canPerform\(featured\) && <PrimaryButton/, '이번 주 대사의 파란 버튼도 canPerform 으로 감싼다');
+  assert.match(src, /onPerform=\{canPerform\(featured\) \?/, '이번 주 대사의 파란 버튼도 canPerform 으로 감싼다');
   const perform = src.slice(src.indexOf('const perform = (challenge: ChallengeCard)'), src.indexOf("pathname: '/record-video'"));
   assert.match(perform, /if \(!canPerform\(challenge\)\) return;/);
   for (const file of ['app/challenge-detail.tsx', 'app/challenge-play.tsx']) {

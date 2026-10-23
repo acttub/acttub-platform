@@ -82,9 +82,9 @@ export function useCloudVoice() {
 
   const consentSheet = (
     <>
-    <Modal visible={!!document} transparent animationType="slide" onRequestClose={() => !busy && setDocument(null)}>
+    <Modal visible={!!document} transparent animationType="fade" onRequestClose={() => !busy && setDocument(null)}>
       <View style={styles.backdrop}>
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={styles.sheet}>
           <Text style={styles.title}>{document?.title}</Text>
           <ScrollView style={styles.body}><Markdown source={consentBodyWithoutTitle(document?.body ?? '')} /></ScrollView>
           {decideFailed && <Text style={styles.error}>{t('consent.agreeFail')}</Text>}
@@ -105,10 +105,10 @@ export function useCloudVoice() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'center', paddingHorizontal: 16 },
   toast: { position: 'absolute', left: 24, right: 24, borderRadius: 14, backgroundColor: palette.text, paddingVertical: 13, paddingHorizontal: 16, alignItems: 'center' },
   toastText: { color: palette.onAccent, fontSize: 14, fontWeight: '700' },
-  sheet: { maxHeight: '82%', backgroundColor: palette.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  sheet: { maxHeight: '82%', backgroundColor: palette.card, borderRadius: 22, padding: 20 },
   title: { color: palette.text, fontSize: 21, fontWeight: '900', marginBottom: 12 },
   body: { maxHeight: 360 },
   error: { color: palette.danger, textAlign: 'center', marginTop: 12 },

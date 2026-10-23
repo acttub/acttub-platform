@@ -114,9 +114,9 @@ export default function ProfileScreen() {
   // 「배우 활동 · 연기 1년 미만」 — 가입 때 받은 최종 목표와 연기 경력.
   const goalIndex = serverProfile?.goal ? GOAL_VALUES.indexOf(serverProfile.goal) : -1;
   const careerIndex = serverProfile?.experience ? EXPERIENCE_VALUES.indexOf(serverProfile.experience) : -1;
-  const summary = [translateList('profileName.goalOptions')[goalIndex], translateList('profileName.careerOptions')[careerIndex]]
-    .filter(Boolean)
-    .join(' · ');
+  const chips = [translateList('profileName.goalOptions')[goalIndex], translateList('profileName.careerOptions')[careerIndex]].filter(
+    (label): label is string => !!label,
+  );
 
   const practiceCards = groups ? profileTabCards(groups).slice(0, CARD_LIMIT) : null;
   // 연습 카드 제목은 「다음에 해 볼 것」(노트의 다음 테이크 문장), 없으면 장면 제목이다. 코치 관찰(노트 제목)은 쓰지 않는다.
@@ -137,6 +137,7 @@ export default function ProfileScreen() {
           <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="profile_settings" onPress={() => router.push('/settings')} />
         </View>
 
+        {/* pen S14 ProfileCard — 옅은 바탕 카드 안에 사진 · 이름 · 소개 · 칩, 오른쪽에 편집. */}
         <View style={styles.me}>
           <View style={styles.photo}>
             {photoUri ? (
@@ -149,29 +150,22 @@ export default function ProfileScreen() {
             <Text style={styles.name} numberOfLines={1}>
               {display}
             </Text>
-            {!!summary && (
-              <Text style={styles.summary} numberOfLines={1}>
-                {summary}
-              </Text>
-            )}
-            {!!bio && (
-              <Text style={styles.bio} numberOfLines={2}>
-                {bio}
-              </Text>
+            <Text style={[styles.bio, !bio && styles.bioEmpty]} numberOfLines={2}>
+              {bio || t('profileTab.introEmpty')}
+            </Text>
+            {chips.length > 0 && (
+              <View style={styles.chips}>
+                {chips.map((label) => (
+                  <View key={label} style={styles.chip}>
+                    <Text style={styles.chipText}>{label}</Text>
+                  </View>
+                ))}
+              </View>
             )}
           </View>
           <Pressable style={styles.editBtn} onPress={() => router.push('/profile-edit')} accessibilityRole="button" ph-label="profile_edit">
             <Text style={styles.editText}>{t('profileTab.edit')}</Text>
           </Pressable>
-        </View>
-
-        <View style={styles.month}>
-          <Text style={styles.monthTitle}>{t('profileTab.monthTitle', { count: counts.total })}</Text>
-          <View style={styles.monthRow}>
-            <MonthCell dot={palette.blue} label={t('profileTab.kindCoaching')} count={counts.coaching} />
-            <MonthCell dot={palette.green} label={t('profileTab.kindReading')} count={counts.reading} />
-            <MonthCell dot={palette.flame} label={t('profileTab.kindChallenge')} count={counts.challenge} />
-          </View>
         </View>
 
         <Pressable
@@ -185,6 +179,13 @@ export default function ProfileScreen() {
           </Text>
           <Feather name="chevron-right" size={18} color={palette.checkOff} />
         </Pressable>
+
+        <View style={styles.month}>
+          <MonthCell label={t('profileTab.monthLabel')} count={counts.total} />
+          <MonthCell dot={palette.blue} label={t('profileTab.kindCoaching')} count={counts.coaching} />
+          <MonthCell dot={palette.green} label={t('profileTab.kindReading')} count={counts.reading} />
+          <MonthCell dot={palette.flame} label={t('profileTab.kindChallenge')} count={counts.challenge} />
+        </View>
 
         <View style={styles.tabs}>
           {(
@@ -257,14 +258,14 @@ export default function ProfileScreen() {
   );
 }
 
-function MonthCell({ dot, label, count }: { dot: string; label: string; count: number }) {
+function MonthCell({ dot, label, count }: { dot?: string; label: string; count: number }) {
   return (
     <View style={styles.monthCell}>
+      <Text style={styles.monthCount}>{count}</Text>
       <View style={styles.monthHead}>
-        <View style={[styles.monthDot, { backgroundColor: dot }]} />
+        {!!dot && <View style={[styles.monthDot, { backgroundColor: dot }]} />}
         <Text style={styles.monthLabel}>{label}</Text>
       </View>
-      <Text style={styles.monthCount}>{t('profileTab.times', { count })}</Text>
     </View>
   );
 }
@@ -285,18 +286,20 @@ function CardGrid({ loading, empty, cards, more }: { loading: boolean; empty: st
       <View style={styles.grid}>
         {cards.map((card) => (
           <Pressable key={card.key} style={styles.card} onPress={card.onPress} accessibilityRole="button" accessibilityLabel={card.title}>
-            <View style={styles.thumb}>
-              {card.poster ? (
-                <Image
-                  source={{ uri: card.poster.uri, cacheKey: card.poster.cacheKey }}
-                  style={styles.thumbImg}
-                  contentFit="cover"
-                />
-              ) : (
+            {card.poster ? (
+              <Image
+                source={{ uri: card.poster.uri, cacheKey: card.poster.cacheKey }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={styles.thumbEmpty}>
                 <Feather name="play" size={22} color={palette.checkOff} />
-              )}
-            </View>
-            <Text style={styles.cardTitle} numberOfLines={1}>
+              </View>
+            )}
+            {/* pen은 아래로 짙어지는 그라데이션 — 그라데이션 모듈이 없어 아래쪽에 옅은 막을 깐다. */}
+            <View style={styles.scrim} pointerEvents="none" />
+            <Text style={styles.cardTitle} numberOfLines={2}>
               {card.title}
             </Text>
             <Text style={styles.cardMeta} numberOfLines={1}>
@@ -322,48 +325,50 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '800', color: palette.text },
   titleGrow: { flex: 1 },
 
-  me: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  photo: {
-    width: 64,
-    height: 64,
+  me: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+    padding: 18,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
+    backgroundColor: palette.bgSubtle,
+  },
+  photo: {
+    width: 84,
+    height: 84,
+    borderRadius: 32,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   photoImg: { width: '100%', height: '100%' },
-  photoText: { fontSize: 26, fontWeight: '800', color: palette.blue },
-  meText: { flex: 1, minWidth: 0, gap: 2 },
-  name: { fontSize: 18, fontWeight: '800', color: palette.text },
-  summary: { fontSize: 13, fontWeight: '600', color: palette.textMuted },
-  bio: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textDim },
-  editBtn: { backgroundColor: palette.bgSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
+  photoText: { fontSize: 32, fontWeight: '800', color: palette.blue },
+  meText: { flex: 1, minWidth: 0, gap: 6 },
+  name: { fontSize: 20, fontWeight: '800', color: palette.text },
+  bio: { fontSize: 14, fontWeight: '400', lineHeight: 20, color: palette.textDim },
+  bioEmpty: { color: palette.textFaint },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 4 },
+  chip: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.card },
+  chipText: { fontSize: 12, fontWeight: '500', color: palette.textDim },
+  editBtn: { alignSelf: 'flex-start', backgroundColor: palette.bgSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   editText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
 
-  month: {
-    marginTop: 18,
-    backgroundColor: palette.blueMist,
-    borderWidth: 1,
-    borderColor: palette.blueLine,
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  monthTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
-  monthRow: { flexDirection: 'row', gap: 8 },
-  monthCell: { flex: 1, backgroundColor: palette.card, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, gap: 2 },
-  monthHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  monthDot: { width: 7, height: 7, borderRadius: 4 },
-  monthLabel: { fontSize: 12, fontWeight: '700', color: palette.textMuted },
-  monthCount: { fontSize: 17, fontWeight: '800', color: palette.text },
-
-  line: { marginTop: 14, height: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  line: { marginTop: 18, height: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
   lineTitle: { fontSize: 15, fontWeight: '700', color: palette.text },
   lineValue: { flex: 1, textAlign: 'right', fontSize: 13, fontWeight: '600', color: palette.textMuted },
 
-  tabs: { marginTop: 10, flexDirection: 'row', gap: 4, padding: 4, borderRadius: 12, backgroundColor: palette.bgSoft },
+  month: { flexDirection: 'row', paddingVertical: 6 },
+  monthCell: { flex: 1, alignItems: 'center', gap: 2 },
+  monthHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  monthDot: { width: 6, height: 6, borderRadius: 3 },
+  monthLabel: { fontSize: 13, fontWeight: '500', color: palette.textDim },
+  monthCount: { fontSize: 18, fontWeight: '800', color: palette.text },
+
+  tabs: { marginTop: 24, flexDirection: 'row', gap: 4, padding: 4, borderRadius: 12, backgroundColor: palette.bgSoft },
   tab: { flex: 1, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   tabOn: { backgroundColor: palette.card },
   tabText: { fontSize: 14, fontWeight: '600', color: palette.textMuted },
@@ -372,19 +377,23 @@ const styles = StyleSheet.create({
   loading: { marginTop: 32 },
   empty: { marginTop: 28, textAlign: 'center', fontSize: 14, fontWeight: '600', color: palette.textFaint },
   gridWrap: { marginTop: 12, gap: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 16 },
-  card: { width: '48%', flexGrow: 1, maxWidth: '50%', gap: 6 },
-  thumb: {
-    height: 120,
-    borderRadius: 14,
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  card: {
+    width: '32.6%',
+    flexGrow: 1,
+    height: 154,
+    borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: palette.bgSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    gap: 3,
   },
-  thumbImg: { width: '100%', height: '100%' },
-  cardTitle: { fontSize: 13, fontWeight: '700', color: palette.text },
-  cardMeta: { fontSize: 12, fontWeight: '600', color: palette.textMuted },
+  thumbEmpty: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: '#00000066' },
+  cardTitle: { fontSize: 11, fontWeight: '700', color: palette.onAccent },
+  cardMeta: { fontSize: 10.5, fontWeight: '600', color: '#FFFFFFD9' },
   more: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 },
   moreText: { fontSize: 14, fontWeight: '700', color: palette.blue },
 });

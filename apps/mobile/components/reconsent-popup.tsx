@@ -197,12 +197,15 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
       animationType="fade"
       // 문서 시트만 닫는다. 팝업 자체는 결정해야만 사라진다.
       onRequestClose={() => setOpenDocument(null)}>
-      <View style={[styles.backdrop, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.backdrop, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.card}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('consent.reconsentTitle')}</Text>
+            {documents.some((d) => d.required) && (
+              <Text style={styles.reason}>{t('consent.reconsentHint')}</Text>
+            )}
             <Text style={styles.subtitle}>
-              {documents.some((d) => d.required) ? t('consent.reconsentHint') : t('consent.reconsentSubtitle')}
+              {documents.some((d) => d.required) ? t('consent.reconsentRequiredHint') : t('consent.reconsentSubtitle')}
             </Text>
           </View>
           {renderBody()}
@@ -226,13 +229,24 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  // pen S4.8 — 상태 막대 아래 흰 전체 화면. 좌우 여백 24, 제목 26/800(줄높이 1.34) · 설명 15/400 회색, 맨 아래 주 버튼.
-  backdrop: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 24 },
-  card: { flex: 1, gap: 20 },
-  head: { gap: 8 },
-  title: { fontSize: 26, fontWeight: '800', lineHeight: 35, color: palette.text },
-  subtitle: { fontSize: 15, fontWeight: '400', lineHeight: 22, color: palette.textMuted },
-  list: { flex: 1 },
+  // pen S4R — 어두운 막 위 가운데 카드(폭 최대 358 · 모서리 22 · 안쪽 [24,20,16,20] · 칸 사이 16). 제목 19/800 · 설명 14/700 파랑.
+  backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  card: {
+    width: '100%',
+    maxWidth: 358,
+    maxHeight: '100%',
+    gap: 16,
+    paddingTop: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderRadius: 22,
+    backgroundColor: palette.card,
+  },
+  head: { gap: 6 },
+  title: { fontSize: 19, fontWeight: '800', lineHeight: 26, color: palette.text },
+  reason: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMuted },
+  subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
+  list: { flexShrink: 1 },
   checking: { paddingVertical: 24, alignItems: 'center' },
   loadFailed: { alignItems: 'center', gap: 10 },
   error: { fontSize: 14, color: palette.danger, textAlign: 'center' },

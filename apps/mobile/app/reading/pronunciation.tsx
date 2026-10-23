@@ -177,7 +177,7 @@ export default function PronunciationReportScreen() {
                 {line.marks.map((mark) => {
                   const key = `${lineKey}-${mark.index}`;
                   return (
-                    <Pressable key={key} onPress={() => void play(key, lineId!, mark)} hitSlop={6} accessibilityRole="button" style={styles.chip}>
+                    <Pressable key={key} onPress={() => void play(key, lineId!, mark)} hitSlop={8} accessibilityRole="button" style={styles.chip}>
                       <Feather name={playing === key ? 'square' : 'play'} size={12} color={palette.flameDeep} />
                       <Text style={styles.chipMarked}>{t('pronReport.playWord', { word: mark.word })}</Text>
                     </Pressable>
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32 },
   dim: { color: palette.textDim, fontSize: 15, lineHeight: 22, textAlign: 'center' },
-  content: { paddingHorizontal: 24, paddingVertical: 20, gap: 22 },
+  content: { paddingHorizontal: 20, paddingTop: 20, gap: 22 },
   title: { color: palette.text, fontSize: 22, fontWeight: '800', lineHeight: 30 },
   sub: { color: palette.textDim, fontSize: 14, lineHeight: 21, marginTop: -14 },
   habit: { gap: 4 },
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   lineText: { color: palette.text, fontSize: 18, lineHeight: 28 },
   marked: { color: palette.flameDeep, fontWeight: '700', backgroundColor: palette.flameSoft },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.bgSoft, borderRadius: 14, minHeight: 44, paddingHorizontal: 14 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.bgSoft, borderRadius: 14, paddingVertical: 7, paddingHorizontal: 12 },
   chipText: { color: palette.blueDeep, fontSize: 13, fontWeight: '600' },
   chipMarked: { color: palette.flameDeep, fontSize: 13, fontWeight: '600' },
   misheard: { gap: 8 },

@@ -20,5 +20,7 @@ test('첫 사용자 홈은 코칭·대본 리딩·챌린지 세 길 중 하나�
   const home = read('app/(tabs)/index.tsx');
   assert.match(home, /type FirstPick = 'coaching' \| 'reading' \| 'challenge';/);
   assert.match(home, /home_first_challenge/);
-  assert.doesNotMatch(home, /firstReadingSteps/);
+  // pen P1.13·P1.14(SOMA-821) — 고르면 카드 안에 「이렇게 진행돼요」 세 단계가 펼쳐진다.
+  assert.match(home, /firstReadingSteps/);
+  assert.match(home, /firstCoachingSteps/);
 });

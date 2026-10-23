@@ -83,7 +83,7 @@ export default function ChallengeResultScreen() {
               <Text style={styles.line}>“{challenge.line}”</Text>
             </View>
 
-            <Text style={styles.section}>{t('challengeResult.picked', { count: picked?.length ?? 0 })}</Text>
+            <Text style={[styles.section, styles.sectionDim]}>{t('challengeResult.picked', { count: picked?.length ?? 0 })}</Text>
             {!!notice && ranksHidden(challenge) && <Text style={styles.notice}>{notice}</Text>}
             {picked === null && <ActivityIndicator color={palette.blue} />}
             {picked?.length === 0 && !ranksHidden(challenge) && <Text style={styles.muted}>{t('challengeResult.noPicked')}</Text>}
@@ -107,14 +107,18 @@ export default function ChallengeResultScreen() {
               </Pressable>
             ))}
 
-            <Text style={styles.section}>{t('challengeResult.mine')}</Text>
             <View style={styles.mine}>
+              <Text style={styles.mineLabel}>{t('challengeResult.mine')}</Text>
               {mine === undefined ? (
                 <ActivityIndicator color={palette.blue} style={{ alignSelf: 'flex-start' }} />
               ) : mine ? (
-                <View style={styles.mineRow}>
+                <Pressable
+                  style={styles.mineRow}
+                  onPress={() => router.push('/challenge-entries')}
+                  accessibilityRole="button">
                   <Text style={styles.mineText}>{mineLabel}</Text>
-                </View>
+                  <Feather name="chevron-right" size={18} color={palette.textFaint} />
+                </Pressable>
               ) : (
                 <Text style={styles.mineText}>{t('challengeResult.mineNone')}</Text>
               )}
@@ -135,10 +139,11 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
   content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
-  lineHead: { gap: 8 },
-  period: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
-  line: { fontSize: 20, fontWeight: '800', color: palette.text, lineHeight: 28 },
+  lineHead: { gap: 8, padding: 20, borderRadius: 20, backgroundColor: '#191F28' },
+  period: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.67)', lineHeight: 20 },
+  line: { fontSize: 19, fontWeight: '800', color: '#FFFFFF', lineHeight: 27 },
   section: { fontSize: 15, fontWeight: '800', color: palette.text, marginTop: 8 },
+  sectionDim: { color: palette.textDim },
   notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
   muted: { fontSize: 14, color: palette.textMuted, lineHeight: 21 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 },
@@ -146,7 +151,8 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, minWidth: 0, gap: 6 },
   name: { fontSize: 16, fontWeight: '800', color: palette.text },
   sub: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
-  mine: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 18, paddingHorizontal: 18, gap: 6 },
+  mine: { paddingTop: 12, paddingBottom: 6, gap: 6 },
+  mineLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim },
   mineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   mineText: { fontSize: 15, fontWeight: '700', color: palette.text },
 });

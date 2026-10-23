@@ -201,7 +201,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음�
     await answerToDirections();
     await fireEvent.press(next());
 
-    expect(await screen.findByText('민지님, Acttub는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
     expect(screen.getByText('7/7')).toBeOnTheScreen();
     await fireEvent.press(radio('기타'));
     expect(saveProfile).not.toHaveBeenCalled();
@@ -248,7 +248,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음�
     await answerToDirections();
     await fireEvent.press(done());
 
-    expect(screen.queryByText('민지님, Acttub는 어디서 알게 됐어요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('민지님, 액터브는 어디서 알게 됐어요?')).not.toBeOnTheScreen();
     expect(saveProfile).toHaveBeenCalledTimes(1);
     expect(recordDiscovery).not.toHaveBeenCalled();
   });
@@ -258,7 +258,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음�
     await start();
     await answerToDirections();
     await fireEvent.press(next());
-    expect(await screen.findByText('민지님, Acttub는 어디서 알게 됐어요?')).toBeOnTheScreen();
+    expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
   });
 
   test('계정 id가 없으면 가입 기록을 남기지 않는다', async () => {
@@ -350,7 +350,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음�
   test.each([
     [new ApiError(422, 'bad', 'validation_failed', [{ field: 'name' }]), '입력값을 저장하지 못했어요. 앱을 최신 버전으로 업데이트한 뒤 다시 시도해주세요.'],
     [new Error('서버 점검 중'), '서버 점검 중'],
-    ['boom', '프로필을 저장하지 못했어요. 잠시 후 다시 시도해주세요.'],
+    ['boom', '프로필을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.'],
   ])('저장 실패 %#: 이유를 보여 준다', async (cause, message) => {
     saveProfile.mockRejectedValue(cause);
     await startWithoutDiscovery();
@@ -403,8 +403,8 @@ describe('설정의 프로필 편집', () => {
     expect(takeProviderNameHint).not.toHaveBeenCalled();
     expect(readAttributedChannel).not.toHaveBeenCalled();
     expect(screen.queryByText('Acttub를 처음 어디서 알게 됐어요?')).not.toBeOnTheScreen();
-    expect(screen.getByText('김민지')).toBeOnTheScreen();
-    expect(screen.getByText('무대를 사랑하는 배우')).toBeOnTheScreen();
+    expect(screen.getAllByText('김민지').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('무대를 사랑하는 배우').length).toBeGreaterThan(0);
     expect(screen.getByText('무대 (연극·뮤지컬)')).toBeOnTheScreen();
 
     await fireEvent.press(button('소개 무대를 사랑하는 배우'));
@@ -472,7 +472,7 @@ describe('설정의 프로필 편집', () => {
     await fireEvent.press(screen.getAllByRole('button', { name })[0]);
     expect(await screen.findByText('사진 파일을 읽지 못했어요.')).toBeOnTheScreen();
     await fireEvent.press(screen.getAllByRole('button', { name })[0]);
-    expect(await screen.findByText('사진을 올리지 못했어요. 잠시 후 다시 시도해주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('사진을 올리지 못했어요. 잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
     expect(setMe).not.toHaveBeenCalled();
   });
 

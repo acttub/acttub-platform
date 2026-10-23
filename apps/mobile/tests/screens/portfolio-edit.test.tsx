@@ -61,7 +61,7 @@ test('소개글·경력·사진·공유 상태를 보여 준다', async () => {
   expect(screen.getByText('햄릿 역 · 2023 · 연극')).toBeOnTheScreen();
   expect(screen.getByText('친구 역 · 2024 · 드라마')).toBeOnTheScreen();
   expect(screen.getByText('2 / 50')).toBeOnTheScreen();
-  expect(screen.getByText('1번째 사진')).toBeOnTheScreen();
+  expect(screen.getByLabelText('1번째 사진')).toBeOnTheScreen();
   expect(screen.getByText('2 / 10')).toBeOnTheScreen();
   expect(screen.getByText('지금은 꺼져 있어 아무도 볼 수 없어요. 다시 켜면 같은 주소가 열려요.')).toBeOnTheScreen();
   expect(buttons('위로 옮기기')[0]).toBeDisabled();
@@ -293,7 +293,7 @@ describe('사진', () => {
     await loaded();
 
     await fireEvent.press(screen.getByRole('button', { name: '사진 추가' }));
-    expect(await screen.findByText('3번째 사진')).toBeOnTheScreen();
+    expect(await screen.findByLabelText('3번째 사진')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '사진 추가' }));
     expect(screen.getByText('3 / 10')).toBeOnTheScreen();
   });
@@ -326,7 +326,7 @@ describe('사진', () => {
     await fireEvent.press(buttons('삭제')[2]);
     await fireEvent.press(await screen.findByText('취소'));
     expect(a.deletePortfolioPhoto).not.toHaveBeenCalled();
-    expect(screen.getByText('2번째 사진')).toBeOnTheScreen();
+    expect(screen.getByLabelText('2번째 사진')).toBeOnTheScreen();
   });
 
   test('10장이면 더 넣을 수 없다고 알린다', async () => {

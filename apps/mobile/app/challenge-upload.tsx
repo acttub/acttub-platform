@@ -13,12 +13,11 @@ import { ChallengeDone } from '@/components/challenge-done';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { BlueSwitch } from '@/components/ui/list-rows';
-import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { isEnded } from '@/lib/challenge/browse';
+import { dDayLabel, isEnded } from '@/lib/challenge/browse';
 import {
   buildEntryBody,
   canSubmitEntry,
@@ -280,16 +279,26 @@ export default function ChallengeUploadScreen() {
           예전엔 iOS를 스크롤 자동 인셋에 맡겨 「올리기」가 키보드 뒤에 숨었다. 캡션을 누르면 맨 아래까지 내려 칸이 보이게 한다. */}
       <KeyboardLift style={styles.body} aboveSafeBottom>
       <KeyboardAwareScroll ref={scrollRef} contentContainerStyle={styles.content}>
-        <MascotBubble title={t('challengeUpload.bubble')} guide={t('challengeUpload.bubbleGuide')} />
-        <View style={styles.thumbWrap}>
-          {localUri ? (
-            <VideoView style={styles.thumb} player={player} contentFit="cover" nativeControls={false} />
-          ) : (
-            <View style={[styles.thumb, styles.thumbEmpty]}>
-              <Feather name="video" size={20} color={palette.textFaint} />
-            </View>
-          )}
+        <View style={styles.videoRow}>
+          <View style={styles.thumbWrap}>
+            {localUri ? (
+              <VideoView style={styles.thumb} player={player} contentFit="cover" nativeControls={false} />
+            ) : (
+              <View style={[styles.thumb, styles.thumbEmpty]}>
+                <Feather name="video" size={20} color={palette.textFaint} />
+              </View>
+            )}
+          </View>
+          <View style={styles.videoText}>
+            {!!challenge?.line && (
+              <Text style={styles.videoLine} numberOfLines={4}>
+                “{challenge.line}”
+              </Text>
+            )}
+            {!!challenge && <Text style={styles.videoSub}>{dDayLabel(challenge)}</Text>}
+          </View>
         </View>
+        <Text style={styles.rangeLabel}>{t('challengeUpload.pickVisibility')}</Text>
 
         <Option
           title={t('challengeUpload.optPublic')}
@@ -373,8 +382,13 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { flex: 1 },
   flex: { flex: 1, gap: 6 },
-  content: { paddingHorizontal: 24, paddingTop: 16, gap: 14, paddingBottom: 24 },
-  thumbWrap: { width: '100%', height: 200, borderRadius: 20, overflow: 'hidden', backgroundColor: palette.textDim },
+  content: { paddingHorizontal: 24, paddingTop: 8, gap: 10, paddingBottom: 16 },
+  videoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  videoText: { flex: 1, minWidth: 0, gap: 6 },
+  videoLine: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
+  videoSub: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  rangeLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim },
+  thumbWrap: { width: 100, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.textDim },
   thumb: { width: '100%', height: '100%' },
   thumbEmpty: { backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   caption: {

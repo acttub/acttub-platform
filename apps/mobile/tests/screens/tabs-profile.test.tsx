@@ -134,10 +134,11 @@ test('서버 프로필의 이름·사진·목표와 경력·소개를 보이고,
   await render(<ProfileScreen />);
 
   // 챌린지: 이번 달 참여작 3개 — 같은 챌린지(c2)에 두 번 올린 것도 2회로 센다.
-  expect(await screen.findByText('이번 달 연습 8번')).toBeOnTheScreen();
-  expect(screen.getByText('4번')).toBeOnTheScreen();
-  expect(screen.getByText('1번')).toBeOnTheScreen();
-  expect(screen.getByText('3번')).toBeOnTheScreen();
+  expect(await screen.findByText('이번 달 연습')).toBeOnTheScreen();
+  expect(screen.getByText('8')).toBeOnTheScreen();
+  expect(screen.getByText('4')).toBeOnTheScreen();
+  expect(screen.getByText('1')).toBeOnTheScreen();
+  expect(screen.getByText('3')).toBeOnTheScreen();
   expect(listGroups).toHaveBeenCalledWith('all');
   expect(listEntries.mock.calls).toEqual([
     [undefined, undefined],
@@ -152,7 +153,7 @@ test('서버 프로필의 이름·사진·목표와 경력·소개를 보이고,
   expect(await screen.findByText('3개')).toBeOnTheScreen();
 });
 
-test('서버 이름을 아직 못 읽었으면 기기에 적어 둔 이름과 첫 글자를 쓰고, 소개가 비면 그리지 않는다', async () => {
+test('서버 이름을 아직 못 읽었으면 기기에 적어 둔 이름과 첫 글자를 쓰고, 소개가 비면 안내 문구를 보인다', async () => {
   mockMe = { profile: { name: null, photo_url: null, bio: '   ' } };
   getItem.mockResolvedValue('  민지  ');
 
@@ -160,8 +161,9 @@ test('서버 이름을 아직 못 읽었으면 기기에 적어 둔 이름과 �
 
   expect(await screen.findByText('민지')).toBeOnTheScreen();
   expect(screen.getByText('민')).toBeOnTheScreen();
-  expect(screen.getByText('이번 달 연습 0번')).toBeOnTheScreen();
-  expect(screen.getAllByText('0번')).toHaveLength(3);
+  expect(screen.getByText('이번 달 연습')).toBeOnTheScreen();
+  expect(screen.getAllByText('0')).toHaveLength(4);
+  expect(screen.getByText('한 줄 소개를 적어보세요')).toBeOnTheScreen();
 });
 
 test('이름이 어디에도 없으면 이메일 앞부분으로 부른다', async () => {
@@ -196,7 +198,7 @@ test('목록을 못 읽으면 0으로 두고 빈 안내를 보인다', async () 
 
   expect(await screen.findByText('아직 연습 기록이 없어요.')).toBeOnTheScreen();
   expect(listEntries).toHaveBeenCalledTimes(1);
-  expect(screen.getByText('이번 달 연습 0번')).toBeOnTheScreen();
+  expect(screen.getAllByText('0')).toHaveLength(4);
   expect(screen.queryByText(/개$/)).not.toBeOnTheScreen();
 });
 
@@ -214,7 +216,7 @@ test('다른 화면에서 돌아오면 다시 세고, 떠나기 전 늦게 온 �
   listEntries.mockResolvedValue({ entries: [entry('e1', 'c1')], next_cursor: null });
   getItem.mockResolvedValue('새 이름');
   await refocus();
-  expect(await screen.findByText('이번 달 연습 5번')).toBeOnTheScreen();
+  expect(await screen.findByText('5')).toBeOnTheScreen();
   expect(screen.getByText('새 이름')).toBeOnTheScreen();
 
   await act(async () => {
@@ -223,7 +225,7 @@ test('다른 화면에서 돌아오면 다시 세고, 떠나기 전 늦게 온 �
     resolveOldName('옛 이름');
   });
 
-  expect(screen.getByText('이번 달 연습 5번')).toBeOnTheScreen();
+  expect(screen.getAllByText('5').length).toBeGreaterThan(0);
   expect(screen.getByText('새 이름')).toBeOnTheScreen();
   expect(screen.queryByText('옛 이름')).not.toBeOnTheScreen();
   // 떠난 뒤에는 다음 쪽을 더 읽지 않는다.
@@ -241,7 +243,7 @@ test('설정·편집·액티 기억으로 보내고, 탭을 바꾸면 그 카드
 
   await fireEvent.press(screen.getByRole('button', { name: '설정' }));
   await fireEvent.press(screen.getByText('편집'));
-  await fireEvent.press(screen.getByText('액티가 기억하는 것'));
+  await fireEvent.press(screen.getByText('코치가 기억하는 것'));
   await fireEvent.press(await screen.findByText('전체 보기'));
 
   await fireEvent.press(screen.getByRole('tab', { name: '참여작' }));

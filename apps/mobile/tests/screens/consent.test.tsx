@@ -172,13 +172,13 @@ test('보는 사이 문서가 바뀌었으면 알리고 문서를 다시 받는�
 
   await fireEvent.press(cta());
 
-  expect(await screen.findByText('동의 문서가 새로 바뀌었어요. 다시 확인해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('동의 문서가 새로 바뀌었어요. 다시 확인해 주세요.')).toBeOnTheScreen();
   expect(reloadSignupDocuments).toHaveBeenCalledTimes(1);
 });
 
 test.each([
   [new Error('이미 가입한 계정이에요'), '이미 가입한 계정이에요'],
-  ['boom', '동의 기록에 실패했어요. 다시 시도해주세요.'],
+  ['boom', '동의 기록에 실패했어요. 다시 시도해 주세요.'],
 ])('가입이 실패하면 이유를 보여 준다 (%#)', async (cause, message) => {
   submitSignup.mockRejectedValue(cause);
   await render(<ConsentScreen />);

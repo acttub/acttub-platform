@@ -183,7 +183,7 @@ describe('동의 내역', () => {
 
     await fireEvent(sw(), 'valueChange', true);
 
-    expect(await screen.findByText('동의 문서가 새로 바뀌었어요. 다시 확인해주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('동의 문서가 새로 바뀌었어요. 다시 확인해 주세요.')).toBeOnTheScreen();
     expect(consentEntry).toHaveBeenCalledTimes(2);
   });
 
@@ -267,7 +267,7 @@ describe('알림 설정', () => {
     expect(notifSwitch(0).props.value).toBe(true);
     expect(notifSwitch(1).props.value).toBe(false);
     expect(notifSwitch(2).props.value).toBe(true);
-    expect(screen.getByText('좋아요·댓글·마감')).toBeOnTheScreen();
+    expect(screen.getByText('좋아요·댓글·마감 소식을 알려 드려요')).toBeOnTheScreen();
   });
 
   test('바꾸면 서버에 저장한 값으로 그린다', async () => {
@@ -350,10 +350,10 @@ describe('알림이 꺼져 있어요', () => {
 });
 
 describe('설정', () => {
-  test('프로필 · 연습과 기록 · 의견 · 계정 묶음으로 두고 보관함·Pro 줄은 없다', async () => {
+  test('프로필 · 의견 · 기타 묶음으로 두고 보관함·Pro 줄은 없다', async () => {
     await settingsLoaded();
 
-    for (const label of ['프로필', '연습과 기록', '의견', '계정']) expect(screen.getByText(label)).toBeOnTheScreen();
+    for (const label of ['프로필', '의견', '기타']) expect(screen.getByText(label)).toBeOnTheScreen();
     for (const gone of ['보관함', /Pro/]) expect(screen.queryByText(gone)).not.toBeOnTheScreen();
     for (const sub of [
       '이름·성별·생년월일·방향·경력·목표와 사진, 한 줄 소개를 고쳐요.',
@@ -387,7 +387,7 @@ describe('설정', () => {
     ['프로필 수정', '/profile-edit'],
     ['웹 연습 가져오기', '/guest-transfer'],
     ['알림', '/notification-settings'],
-    ['액티가 기억하는 것', '/memory'],
+    ['코치가 기억하는 것', '/memory'],
     ['챌린지 기록', '/challenge-entries'],
     ['차단한 사용자', '/blocked-users'],
     ['동의 내역', '/consent-history'],

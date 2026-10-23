@@ -43,7 +43,7 @@ test('iOS 스토어 주소가 있으면 업데이트 버튼이 그 주소를 연
   const openURL = jest.spyOn(RN.Linking, 'openURL').mockResolvedValue(true);
   await lib.render(<Screen />);
 
-  expect(lib.screen.getAllByText('새 버전으로 업데이트해주세요')).toHaveLength(1);
+  expect(lib.screen.getAllByText('새 버전으로 업데이트해 주세요')).toHaveLength(1);
   await lib.fireEvent.press(lib.screen.getByRole('button', { name: '업데이트' }));
 
   expect(openURL).toHaveBeenCalledWith('https://apps.apple.com/app/id123');

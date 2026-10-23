@@ -98,7 +98,7 @@ test('보관함 영상으로 올리면 「공개」가 위에 먼저 골라져 �
   expect(localCopyFor).toHaveBeenCalledWith('v1');
   expect(events()).toContainEqual(['challenge_upload_succeeded', { origin: 'library' }]);
   // 액티 말풍선과 안내, 그리고 「공개」가 먼저 골라져 있다(pen C9.16·C9.17).
-  expect(screen.getByText('고르고 「올리기」를 누르세요.')).toBeOnTheScreen();
+  expect(screen.getByText('공개 범위')).toBeOnTheScreen();
   expect(screen.getByRole('radio', { name: PUBLIC })).toBeSelected();
   expect(screen.getByRole('radio', { name: PRIVATE })).not.toBeSelected();
   expect(screen.queryByText(/AI 리포트/)).not.toBeOnTheScreen();
@@ -149,7 +149,7 @@ test('처음이 아니면 완료 화면에 SNS 공유·이 영상으로 코칭 �
 
 test('공개를 고르면 얼굴 모자이크를 켤 수 있고(기본 꺼짐), 켜면 요청에 싣고 만드는 중이라고 알린다', async () => {
   await render(<ChallengeUploadScreen />);
-  await screen.findByText('고르고 「올리기」를 누르세요.');
+  await screen.findByText('공개 범위');
   // 나만 보기에서는 보이지 않는다.
   await fireEvent.press(screen.getByRole('radio', { name: PRIVATE }));
   expect(screen.queryByText('얼굴 모자이크')).toBeNull();
@@ -164,7 +164,7 @@ test('공개를 고르면 얼굴 모자이크를 켤 수 있고(기본 꺼짐), 
 
 test('비공개를 고르면 비공개로 저장하고 완료 문구가 다르다', async () => {
   const view = await render(<ChallengeUploadScreen />);
-  await screen.findByText('고르고 「올리기」를 누르세요.');
+  await screen.findByText('공개 범위');
 
   await fireEvent.press(screen.getByRole('radio', { name: PRIVATE }));
   await fireEvent.press(screen.getByRole('radio', { name: PRIVATE }));
@@ -190,7 +190,7 @@ test('같은 내용을 다시 보내면 같은 요청 id를 쓰고, 지문이 �
     .mockRejectedValueOnce(httpError(409, 'request_fingerprint_mismatch'))
     .mockResolvedValueOnce({ id: 'entry-1' });
   await render(<ChallengeUploadScreen />);
-  await screen.findByText('고르고 「올리기」를 누르세요.');
+  await screen.findByText('공개 범위');
 
   await fireEvent.press(submitButton());
   expect(await screen.findByText('이 영상으로 이미 참여했어요. 다른 영상으로 올려 주세요.')).toBeOnTheScreen();
@@ -223,7 +223,7 @@ test('챌린지를 못 읽으면 없다고 알리고 넘겨받은 대사를 보�
 
 test('길이 한도를 넘는 캡션이 들어오면 다시 확인하라고 하고 버튼을 막는다', async () => {
   await render(<ChallengeUploadScreen />);
-  await screen.findByText('고르고 「올리기」를 누르세요.');
+  await screen.findByText('공개 범위');
   await fireEvent.changeText(screen.getByPlaceholderText('캡션을 입력하세요 (선택)'), '가'.repeat(301));
 
   expect(screen.getByText('적은 내용을 다시 확인해 주세요.')).toBeOnTheScreen();
@@ -233,7 +233,7 @@ test('길이 한도를 넘는 캡션이 들어오면 다시 확인하라고 하�
 test('제출 없이 떠나면 어디까지 왔는지 남긴다', async () => {
   mockParams = { challengeId: 'c1' };
   const view = await render(<ChallengeUploadScreen />);
-  await screen.findByText('고르고 「올리기」를 누르세요.');
+  await screen.findByText('공개 범위');
   await view.unmount();
 
   expect(events()).toContainEqual(['challenge_upload_exit', { stage: 'no_video', visibility: 'public', stay_s: '0' }]);

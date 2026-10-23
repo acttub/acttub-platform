@@ -547,7 +547,39 @@ export default function RecordVideoScreen() {
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <View style={styles.topGroup} pointerEvents="box-none">
-        <View style={[styles.topRow, recordScript && styles.topRowSpread]}>
+        {recordScript ? (
+          // 대본으로 찍을 때(pen P2.14) — 닫기 · 시간 알약 `0:12 / 5:00` · 카메라 돌리기를 한 줄로 두고, 대본 카드는 그 아래.
+          <View style={styles.chTopRow}>
+            <Pressable
+              style={styles.closeBtn}
+              onPress={() => router.back()}
+              disabled={recording}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close')}
+              ph-label="record_close">
+              <Feather name="x" size={22} color="#FFFFFF" />
+            </Pressable>
+            <View style={[styles.timerPill, recording && styles.timerPillRec]}>
+              <View style={[styles.recDot, !recording && styles.recDotIdle]} />
+              <Text style={styles.timerText}>
+                {formatClipDuration(elapsed)} / {formatClipDuration(maxSec)}
+              </Text>
+            </View>
+            {recording ? (
+              <View style={styles.closeBtn} />
+            ) : (
+              <Pressable
+                style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('record.flip')}
+                ph-label="record_flip"
+                onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
+                <Feather name="refresh-cw" size={20} color="#FFFFFF" />
+              </Pressable>
+            )}
+          </View>
+        ) : (
+        <View style={styles.topRow}>
           {recording ? (
             <View style={styles.timerPill}>
               <View style={styles.recDot} />
@@ -565,17 +597,8 @@ export default function RecordVideoScreen() {
               <Text style={styles.closeText}>✕</Text>
             </Pressable>
           )}
-          {recordScript ? (
-            <Pressable
-              style={styles.scriptToggle}
-              onPress={() => setScriptHidden((v) => !v)}
-              accessibilityRole="button"
-              ph-label="record_toggle_script">
-              <Feather name={scriptHidden ? 'eye-off' : 'eye'} size={16} color="#FFFFFF" />
-              <Text style={styles.scriptToggleText}>{t(scriptHidden ? 'record.showLine' : 'record.hideLine')}</Text>
-            </Pressable>
-          ) : null}
         </View>
+        )}
         {recordScript && !scriptHidden ? (
           <View style={styles.scriptCard}>
             <Text style={styles.lineLabel} numberOfLines={1}>{t('record.scriptLabel', { title: recordScript.title })}</Text>
@@ -596,11 +619,32 @@ export default function RecordVideoScreen() {
         </View>
 
         <View style={styles.bottomGroup}>
-          <Text style={[styles.hint, recording && styles.hiddenKeepSpace]}>{picker
+          <Text style={[styles.hint, recording && !recordScript && styles.hiddenKeepSpace]}>{recording && recordScript ? t('record.remaining', { sec: remaining }) : picker
               ? t('recordMode.swipeHint')
               : maxSec < baseMaxSec
                 ? t('record.hintShort', { sec: maxSec })
                 : t('record.hint')}</Text>
+          {recordScript ? (
+            // pen P2.14 — 왼쪽 「업로드」· 가운데 셔터 · 오른쪽 「대사 숨김/보기」. 힌트는 녹화 중엔 남은 시간.
+            <View style={styles.chBottomRow}>
+              <Pressable style={styles.sideBtn} onPress={() => void pickFromGallery()} disabled={recording} accessibilityRole="button" ph-label="record_gallery">
+                <Feather name="image" size={24} color="#FFFFFF" />
+                <Text style={styles.sideLabel}>{t('record.upload')}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={recording ? t('record.stop') : t('record.start')}
+                ph-label="record_shutter"
+                onPress={() => (recording ? stopRecording() : void startRecording())}
+                style={[styles.shutter, recording && styles.shutterRecording]}>
+                <View style={recording ? styles.shutterInnerStop : styles.shutterInner} />
+              </Pressable>
+              <Pressable style={styles.sideBtn} onPress={() => setScriptHidden((v) => !v)} accessibilityRole="button" ph-label="record_toggle_script">
+                <Feather name={scriptHidden ? 'eye-off' : 'eye'} size={24} color="#FFFFFF" />
+                <Text style={styles.sideLabel}>{t(scriptHidden ? 'record.showLine' : 'record.hideLine')}</Text>
+              </Pressable>
+            </View>
+          ) : (
           <View style={styles.bottomRow}>
             {/* 왼쪽 슬롯: 녹화 중엔 빈 칸으로 둬서 셔터가 늘 가운데에 오게 한다. */}
             {recording ? (
@@ -625,6 +669,7 @@ export default function RecordVideoScreen() {
             </Pressable>
             <View style={styles.flipBtn} />
           </View>
+          )}
           {slider}
         </View>
       </SafeAreaView>

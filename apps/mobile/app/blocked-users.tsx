@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
-import { avatarLetter } from '@/lib/challenge/browse';
 import { blockFailureMessage, blockedLabel } from '@/lib/challenge/moderation';
 import type { BlockedUser } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
@@ -67,7 +66,7 @@ export default function BlockedUsersScreen() {
         {users?.map((user) => (
           <View key={user.user_id} style={styles.row}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{avatarLetter(blockedLabel(user))}</Text>
+              <Feather name="user" size={22} color="#FFFFFF" />
             </View>
             <Text style={styles.name}>{blockedLabel(user)}</Text>
             <Pressable style={styles.unblock} onPress={() => void unblock(user)} accessibilityRole="button">
@@ -85,20 +84,18 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
   title: { fontSize: 18, fontWeight: '800', color: palette.text },
-  body: { padding: 16, paddingBottom: 48 },
+  body: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 48 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
   empty: { color: palette.textDim, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
+    gap: 14,
+    paddingVertical: 12,
   },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#B2D5C8', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 14, fontWeight: '900', color: palette.blueDeep },
-  name: { flex: 1, fontSize: 15, fontWeight: '700', color: palette.text },
-  unblock: { borderRadius: 999, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 8 },
-  unblockText: { fontSize: 13, fontWeight: '800', color: palette.textDim },
+  name: { flex: 1, fontSize: 17, fontWeight: '800', color: palette.text },
+  unblock: { borderRadius: 999, borderWidth: 1.5, borderColor: palette.border, paddingHorizontal: 16, paddingVertical: 9 },
+  unblockText: { fontSize: 14, fontWeight: '800', color: palette.textDim },
 });

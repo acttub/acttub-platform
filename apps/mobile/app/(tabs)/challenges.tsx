@@ -255,8 +255,12 @@ export default function ChallengesScreen() {
 
         {featured && (
           <>
-            <ExampleHero challenge={featured} videoUrl={exampleUrl} onOpen={() => tapCard(featured)} />
-            {canPerform(featured) && <PrimaryButton label={t('challenges.performCta')} onPress={() => perform(featured)} />}
+            <ExampleHero
+              challenge={featured}
+              videoUrl={exampleUrl}
+              onOpen={() => tapCard(featured)}
+              onPerform={canPerform(featured) ? () => perform(featured) : undefined}
+            />
             <View style={styles.sameHead}>
               <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
               <Text style={styles.sameMeta}>
@@ -270,7 +274,7 @@ export default function ChallengesScreen() {
           {TABS.map(({ key, label }) => (
             <Pressable
               key={key}
-              style={styles.tab}
+              style={[styles.tab, tab === key && styles.tabOn]}
               onPress={() => {
                 setTab(key);
                 setChallenges(null);
@@ -333,16 +337,27 @@ export default function ChallengesScreen() {
  * 이번 주 대사 카드(pen C1.13) — 참여작 예시 영상을 위에 깔고 「참여작 예시」 알약과 대사를 얹는다. 영상이 없으면 어두운 카드에 대사만 둔다.
  * 카드를 누르면 대사 상세로 간다. 인기·최신 탭에서만 띄운다(종료·내 챌린지 탭에는 고정하지 않는다).
  */
-function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard; videoUrl: string | null; onOpen: () => void }) {
+function ExampleHero({
+  challenge,
+  videoUrl,
+  onOpen,
+  onPerform,
+}: {
+  challenge: ChallengeCard;
+  videoUrl: string | null;
+  onOpen: () => void;
+  onPerform?: () => void;
+}) {
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = true;
     p.muted = true;
     p.play();
   });
   return (
-    <Pressable style={({ pressed }) => [styles.hero, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
+    <View style={styles.hero}>
       {!!videoUrl && <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />}
       <View style={styles.heroScrim} pointerEvents="none" />
+      <Pressable style={styles.heroTop} onPress={onOpen} accessibilityRole="button">
       <View style={styles.heroChip}>
         <Text style={styles.heroChipText}>
           {videoUrl ? t('challenges.exampleChip') : `${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
@@ -351,7 +366,31 @@ function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard
       <Text style={styles.heroLine} numberOfLines={4}>
         “{challenge.line}”
       </Text>
-    </Pressable>
+      <Text style={styles.heroMeta} numberOfLines={1}>
+        {[challenge.work, challenge.character].filter(Boolean).join(' · ')}
+      </Text>
+      <Text style={styles.heroStat} numberOfLines={1}>
+        {t('challenges.entryCount', { count: challenge.entry_count })} · {t('challenges.likeSum', { count: challenge.like_sum })}
+      </Text>
+      </Pressable>
+      {onPerform && <Text style={styles.heroGuide}>{t('challenges.heroGuidePerform')}</Text>}
+      {onPerform && (
+        <Pressable
+          style={styles.heroPerform}
+          onPress={onPerform}
+          accessibilityRole="button"
+          accessibilityLabel={t('challenges.performCta')}>
+          <View style={styles.heroPerformSpacer} />
+          <View style={styles.heroPerformLabel}>
+            <Feather name="video" size={18} color="#13205A" />
+            <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
+          </View>
+          <View style={styles.heroGo}>
+            <Feather name="chevron-right" size={18} color={palette.blue} />
+          </View>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -384,16 +423,16 @@ function Card({
   return (
     <View style={styles.row}>
       <Pressable style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
-        <View style={styles.rowIcon}>
-          <Feather name="message-square" size={20} color={palette.blue} />
-        </View>
         <View style={styles.rowBody}>
           <Text style={styles.line} numberOfLines={3}>
             “{challenge.line}”
           </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {host} · {t('challenges.entryCount', { count: challenge.entry_count })} · {dDayLabel(challenge)}
-          </Text>
+          <View style={styles.metaRow}>
+            <Feather name="message-square" size={13} color={palette.blue} />
+            <Text style={styles.meta} numberOfLines={1}>
+              {host} · {t('challenges.entryCount', { count: challenge.entry_count })} · {dDayLabel(challenge)}
+            </Text>
+          </View>
           <View style={styles.statRow}>
             <View style={styles.avatars}>
               {challenge.participants.slice(0, 3).map((p, i) => (
@@ -408,12 +447,17 @@ function Card({
             </Text>
           </View>
         </View>
-        <Feather name="chevron-right" size={20} color={palette.textFaint} />
       </Pressable>
       {canPerform(challenge) && (
-        <Pressable style={styles.performBtn} onPress={onPerform} accessibilityRole="button">
-          <Feather name="video" size={14} color={palette.blue} />
-          <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+        <Pressable style={styles.performBtn} onPress={onPerform} accessibilityRole="button" accessibilityLabel={t('challenges.performCta')}>
+          <View style={styles.heroPerformSpacer} />
+          <View style={styles.heroPerformLabel}>
+            <Feather name="video" size={18} color={palette.blue} />
+            <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+          </View>
+          <View style={styles.performGo}>
+            <Feather name="chevron-right" size={18} color={palette.blue} />
+          </View>
         </Pressable>
       )}
     </View>
@@ -458,7 +502,16 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
   bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMuted, lineHeight: 18, marginTop: 6 },
-  hero: { backgroundColor: palette.navy, borderRadius: 20, padding: 16, height: 300, justifyContent: 'space-between', overflow: 'hidden' },
+  hero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, minHeight: 300, gap: 10, justifyContent: 'flex-end', overflow: 'hidden' },
+  heroTop: { flex: 1, gap: 10, justifyContent: 'flex-end' },
+  heroGuide: { fontSize: 14, fontWeight: '700', color: 'rgba(255, 255, 255, 0.65)' },
+  heroMeta: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)' },
+  heroStat: { fontSize: 12.5, fontWeight: '700', color: 'rgba(255, 255, 255, 0.67)' },
+  heroPerform: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 6, backgroundColor: palette.onAccent },
+  heroPerformSpacer: { width: 36, height: 36 },
+  heroPerformLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  heroPerformText: { fontSize: 15, fontWeight: '700', color: '#13205A' },
+  heroGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.18)' },
   sameHead: { gap: 4, marginTop: 6 },
   sameTitle: { fontSize: 18, fontWeight: '800', color: palette.text, lineHeight: 24 },
@@ -478,18 +531,19 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   heroChipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent, lineHeight: 20 },
-  heroLine: { fontSize: 20, fontWeight: '800', color: palette.onAccent, lineHeight: 28 },
-  tabRow: { flexDirection: 'row', gap: 16, paddingTop: 4 },
-  tab: { paddingVertical: 4 },
-  tabText: { fontSize: 15, fontWeight: '700', color: palette.textFaint, lineHeight: 23 },
-  tabTextOn: { fontWeight: '800', color: palette.text },
+  heroLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 26, marginTop: 'auto' },
+  tabRow: { flexDirection: 'row', gap: 4, paddingTop: 4 },
+  tab: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 18 },
+  tabOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 16 },
+  tabText: { fontSize: 15, fontWeight: '600', color: palette.textFaint, lineHeight: 23 },
+  tabTextOn: { fontWeight: '800', color: palette.blue },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
-  row: { borderRadius: 16, gap: 4 },
-  rowMain: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, paddingHorizontal: 4, borderRadius: 16 },
-  rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rowBody: { flex: 1, minWidth: 0, gap: 6 },
-  line: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 24 },
-  meta: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
+  row: { borderRadius: 18, gap: 12, padding: 16, backgroundColor: palette.onAccent, borderWidth: 1, borderColor: '#E8EDF5' },
+  rowMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowBody: { flex: 1, minWidth: 0, gap: 9 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  line: { fontSize: 17, fontWeight: '800', color: palette.text, lineHeight: 25 },
+  meta: { flex: 1, fontSize: 12, fontWeight: '500', color: palette.textFaint, lineHeight: 18 },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   avatars: { flexDirection: 'row' },
   avatar: {
@@ -505,19 +559,9 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontSize: 10.5, fontWeight: '900', color: palette.blueDeep },
   stat: { flex: 1, fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
-  performBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    marginLeft: 56,
-    marginBottom: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: palette.blueSoft,
-  },
-  performText: { fontSize: 13, fontWeight: '800', color: palette.blue },
+  performBtn: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 6, backgroundColor: palette.blueSoft },
+  performGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.onAccent, alignItems: 'center', justifyContent: 'center' },
+  performText: { fontSize: 15, fontWeight: '700', color: palette.blue },
   empty: { paddingVertical: 48, alignItems: 'center' },
   emptyText: { fontSize: 14.5, color: palette.textDim, textAlign: 'center', lineHeight: 23 },
   registerBtn: {

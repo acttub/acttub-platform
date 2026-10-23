@@ -153,8 +153,8 @@ const styles = StyleSheet.create({
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
   content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 14 },
   count: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 13 },
-  // 지문 — 리딩 화면(R9.8)처럼 가운데 회색.
-  direction: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  // 지문 — 리딩 화면(R9.10)처럼 왼쪽 회색.
+  direction: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
   // 그냥 지나간 줄 — 작은 회색 배역 + 회색 대사(pen 「지난 줄」).
   row: { gap: 3, paddingHorizontal: 4 },
   // 다르게 말한 줄 — 회색 카드 · 파란 테두리 1.5 · 모서리 16 · 안쪽 [16,18].
