@@ -237,29 +237,42 @@ export default function ReadingRange() {
     }
   };
 
-  const startLabel = busy
+  const mono = cast.length === 1;
+  const firstRun = !hasHistory;
+  const micAsk = mic !== 'granted';
+  const mainLabel = busy
     ? t('common.saving')
     : gate === 'pickRole'
       ? t('reading.startNeedsRole')
-      : t('reading.startSession', { count: dlgIn });
-
-  const mono = cast.length === 1;
-  const firstRun = !hasHistory;
-  // 구간 칩 — 추천(첫 연습) 또는 지난 구간 · 처음부터 끝까지 · 장면. 독백은 처음부터 끝까지 하나뿐이다(pen R8.13).
-  const chips: { key: string; label: string; range: LineRange }[] = [];
-  if (!mono) {
-    if (short) chips.push({ key: 'short', label: t('reading.rangeChipSuggest', { count: short.dialogueCount }), range: short });
-    if (recents[0]) chips.push({ key: 'recent', label: rangeTitle(recents[0].card.range_name, t), range: recents[0].range });
-  }
-  chips.push({ key: 'whole', label: t('reading.rangeAll'), range: whole });
-  if (!mono) for (const sc of scenes) chips.push({ key: `scene${sc.no}`, label: t('reading.rangeScene', { n: sc.no }), range: sc });
-  const micAsk = mic !== 'granted';
-  const mainLabel = busy ? t('common.saving') : gate === 'pickRole' ? t('reading.startNeedsRole') : t(micAsk ? 'reading.startWithMic' : 'reading.startPlain');
+      : micAsk
+        ? t('reading.startWithMic')
+        : t('reading.startSession', { count: dlgIn });
+  const dialogueCountIn = (r: LineRange) => dialogues.filter((x) => x.i >= r.startIndex && x.i <= r.endIndex).length;
+  const firstDialogueIn = (r: LineRange) => dialogues.find((x) => x.i >= r.startIndex && x.i <= r.endIndex)?.l as Extract<ScriptLine, { type: 'dialogue' }> | undefined;
+  /** pen 구간 카드: 제목 한 줄 + 보조 한 줄, 고른 카드는 파란 안개 배경과 체크. */
+  const renderRangeCard = (key: string, title: string, sub: string, r: LineRange) => {
+    const on = isActive(r);
+    return (
+      <Pressable key={key} style={[styles.card, on && styles.cardOn]} onPress={() => pickRange(r)} accessibilityRole="radio" accessibilityState={{ checked: on }}>
+        <View style={styles.rowBody}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          <Text style={styles.cardSub} numberOfLines={1}>{sub}</Text>
+        </View>
+        {on && <Feather name="check" size={18} color={palette.blue} />}
+      </Pressable>
+    );
+  };
+  const wholeCard = renderRangeCard('whole', t('reading.rangeAll'), t('reading.dialogueCount', { count: dialogueCountIn(whole) }), whole);
+  const sceneCards = scenes.map((sc) => {
+    const first = firstDialogueIn(sc);
+    const sub = `${t('reading.dialogueCount', { count: dialogueCountIn(sc) })}${first ? ` · ${first.role} ${first.text}` : ''}`;
+    return renderRangeCard(`scene${sc.no}`, sceneTitle(sc, t), sub, sc);
+  });
 
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* pen R8.3 — 액티 + 큰 제목(말풍선 없음), 「내 배역」 알약, 대사 보기 칩, 「구간」. */}
+        {/* pen R8.3~R8.6 — 마스코트 + 큰 제목, 「내 배역」 알약, 대사 보기 칩, 「구간」 탭(최근 연습·추천 / 장면으로 찾기 / 대사로 찾기). */}
         <View style={styles.mascotRow}>
           <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
           <View style={styles.bubble}>
@@ -299,16 +312,76 @@ export default function ReadingRange() {
         </View>
 
         <Text style={[styles.section, styles.sectionGap]}>{t('reading.rangeSection')}</Text>
-        <View style={styles.chipWrap}>
-          {chips.map((c) => {
-            const on = isActive(c.range);
-            return (
-              <Pressable key={c.key} style={[styles.rangeChip, on && styles.rangeChipOn]} onPress={() => pickRange(c.range)} accessibilityRole="radio" accessibilityState={{ checked: on }}>
-                <Text style={[styles.rangeChipText, on && styles.rangeChipTextOn]}>{c.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {mono ? (
+          <View style={styles.list}>{wholeCard}</View>
+        ) : (
+          <>
+            <View style={styles.tabs}>
+              {tabs.map((k) => {
+                const on = activeTab === k;
+                return (
+                  <Pressable key={k} style={[styles.tab, on && styles.tabOn]} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: on }}>
+                    <Text style={[styles.tabText, on && styles.tabTextOn]} numberOfLines={1} adjustsFontSizeToFit>{TAB_LABEL[k]}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {activeTab === 'suggest' && short && (
+              <View style={styles.list}>
+                {renderRangeCard('short', t('reading.rangeChipSuggest', { count: short.dialogueCount }), t('reading.dialogueCount', { count: short.dialogueCount }), short)}
+                {wholeCard}
+              </View>
+            )}
+            {activeTab === 'recent' && (
+              <View style={styles.list}>
+                {recents.map(({ card, range: r }) =>
+                  renderRangeCard(
+                    `recent${card.id}`,
+                    rangeTitle(card.range_name, t),
+                    t('reading.recentMeta', {
+                      count: dialogueCountIn(r),
+                      session: `${t('reading.sessionOrdinal', { n: card.ordinal })} · ${relativeDay(card.started_at, Date.now())}`,
+                    }),
+                    r,
+                  ),
+                )}
+                {!recents.some((x) => x.range.startIndex === whole.startIndex && x.range.endIndex === whole.endIndex) && wholeCard}
+              </View>
+            )}
+            {activeTab === 'scene' && <View style={styles.list}>{scenes.length > 0 ? sceneCards : wholeCard}</View>}
+            {activeTab === 'line' && (
+              <View style={styles.list}>
+                <View style={styles.pickBar}>
+                  <Text style={styles.pickText}>{picking === 'start' ? t('reading.pickStart') : t('reading.pickEnd')}</Text>
+                  <Pressable onPress={() => pickRange(whole)} hitSlop={8}>
+                    <Text style={styles.pickReset}>{t('reading.pickAll')}</Text>
+                  </Pressable>
+                </View>
+                {dialogues.map(({ l, i }) => {
+                  const inside = i >= range.startIndex && i <= range.endIndex;
+                  const dl = l as Extract<ScriptLine, { type: 'dialogue' }>;
+                  return (
+                    <Pressable key={i} style={[styles.lineRow, inside && styles.lineRowIn]} onPress={() => pickLine(i)} accessibilityRole="button">
+                      <Text style={styles.lineRole} numberOfLines={1}>{dl.role}</Text>
+                      <Text style={styles.lineText} numberOfLines={1}>{dl.text}</Text>
+                      {i === range.startIndex && (
+                        <View style={styles.tag}>
+                          <Text style={styles.tagText}>{t('reading.pickTagStart')}</Text>
+                        </View>
+                      )}
+                      {i === range.endIndex && range.endIndex !== range.startIndex && (
+                        <View style={[styles.tag, styles.tagEnd]}>
+                          <Text style={styles.tagText}>{t('reading.pickTagEnd')}</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
         {few !== null && (
           <View style={styles.fewRow}>
             <Feather name="info" size={14} color={palette.amber} />
@@ -401,16 +474,24 @@ const styles = StyleSheet.create({
   optionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   optionTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 24 },
   optionMeta: { color: palette.textFaint, fontSize: 13, fontWeight: '600', lineHeight: 20 },
+  card: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14 },
+  cardOn: { backgroundColor: palette.blueMist, borderColor: palette.blueLine },
+  cardTitle: { color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 21 },
+  cardSub: { color: palette.textMuted, fontSize: 13, fontWeight: '400', lineHeight: 20 },
+  lineRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14 },
+  lineRowIn: { backgroundColor: palette.blueMist, borderColor: palette.blueLine },
+  lineRole: { color: palette.text, fontSize: 14, fontWeight: '700', width: 44 },
+  lineText: { flex: 1, color: palette.textMuted, fontSize: 13, fontWeight: '400' },
   rangeBlock: { gap: 10 },
-  tabs: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 10, padding: 3 },
+  tabs: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 10, padding: 3, marginTop: 4 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 8 },
   tabOn: { backgroundColor: palette.card },
-  tabText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  tabText: { color: palette.textMuted, fontSize: 14, fontWeight: '600' },
   tabTextOn: { color: palette.text },
   pickBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.blueSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
-  pickText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  pickReset: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  list: { gap: 8 },
+  pickText: { color: palette.blueDeep, fontSize: 13, fontWeight: '600' },
+  pickReset: { color: palette.textMuted, fontSize: 12, fontWeight: '600' },
+  list: { gap: 8, marginTop: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14 },
   rowIn: { backgroundColor: palette.blueMist, borderColor: palette.blueLine },
   rowNo: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 13, width: 22, textAlign: 'center' },
