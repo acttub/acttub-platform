@@ -1362,7 +1362,9 @@ const en: DeepStringShape<typeof ko> = {
   },
   portfolio: {
     title: 'Edit portfolio',
-    lead: 'Keep your intro, credits, and photos for auditions here and show them with one link. Everything is optional.',
+    lead: 'Fill in your acting and experience.\nShare it all with one link when you are done.',
+    heroEmpty: 'Build your own\nportfolio',
+    heroFilled: 'Make your portfolio\neven richer',
     loadFail: 'Couldn’t load your portfolio.',
     reload: 'Reload',
     save: 'Save',
