@@ -352,21 +352,12 @@ describe('대사 더 보기', () => {
 });
 
 describe('시작 안내', () => {
-  test('기기에서 처음 들어오면 세 장을 넘겨 보고, 시작하면 다시 띄우지 않게 적어 둔다', async () => {
+  test('기기에서 처음 들어와도 예전 세 장 안내는 띄우지 않고(첫 사용자 화면이 대신함) 본 것으로 적는다', async () => {
     await AsyncStorage.removeItem('acttub.challenge.introSeen');
     await render(<ChallengesScreen />);
-
-    expect(await screen.findByText('배우들이 같은 대사를 어떻게 연기했는지 보고, 나도 올려요.')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    expect(screen.getByText('위아래로 넘겨 보세요')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    expect(screen.getByText('좋아요로 순위가 정해져요')).toBeOnTheScreen();
-    // 오늘의 챌린지가 있으면 마지막 장의 버튼이 「이번 주 대사 보기」이고 그 대사 상세로 간다.
-    await fireEvent.press(screen.getByRole('button', { name: '이번 주 대사 보기' }));
-
-    await waitFor(() => expect(screen.queryByText('좋아요로 순위가 정해져요')).not.toBeOnTheScreen());
-    expect(await AsyncStorage.getItem('acttub.challenge.introSeen')).toBe('1');
-    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'today' } });
+    await screen.findByText('“나는 아직 여기 있어”');
+    expect(screen.queryByText('배우들이 같은 대사를 어떻게 연기했는지 보고, 나도 올려요.')).not.toBeOnTheScreen();
+    await waitFor(async () => expect(await AsyncStorage.getItem('acttub.challenge.introSeen')).toBe('1'));
   });
 
   test('이미 본 기기에서는 띄우지 않는다', async () => {

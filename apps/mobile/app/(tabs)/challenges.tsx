@@ -108,7 +108,10 @@ export default function ChallengesScreen() {
   useFocusEffect(
     useCallback(() => {
       void load(tab);
-      void hasSeenChallengeIntro().then((seen) => setIntro(!seen));
+      // 예전 「챌린지 시작 안내」 3장은 새 디자인의 첫 사용자 화면(이번 주 대사 + 고르기, pen ⑰)이 대신한다 — 더 띄우지 않고 본 것으로 적는다.
+      void hasSeenChallengeIntro().then((seen) => {
+        if (!seen) void markChallengeIntroSeen();
+      });
     }, [load, tab]),
   );
 
