@@ -259,7 +259,7 @@ export default function ReadingRange() {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* pen R8 — 액티 말풍선(회색): 누구를 연기할까요? + 대본 이름 · 대사 수(첫 연습이면 안내). */}
+        {/* pen R8.3 — 액티 + 큰 제목(말풍선 없음), 「내 배역」 알약, 대사 보기 칩, 「구간」. */}
         <View style={styles.mascotRow}>
           <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
           <View style={styles.bubble}>
@@ -268,29 +268,37 @@ export default function ReadingRange() {
           </View>
         </View>
 
-        <View style={styles.roleList} ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout}>
+        <Text style={styles.section}>{t('reading.myRolesLabel')}</Text>
+        <View style={styles.chipWrap} ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout}>
           {cast.map((c) => {
             const on = selected.includes(c.id);
             return (
               <Pressable
                 key={c.id}
-                style={[styles.roleCard, on && styles.roleCardOn]}
+                style={[styles.roleChip, on && styles.roleChipOn]}
                 onPress={() => toggleRole(c.id)}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}>
-                <View style={styles.rowBody}>
-                  <Text style={[styles.roleName, on && styles.roleNameOn]}>{c.name}</Text>
-                  <Text style={styles.roleMeta}>
-                    {mono ? t('reading.monologueCard', { count: script.dialogueCount }) : t('reading.dialogueCount', { count: roleLineCount(c, lines, script.characters) })}
-                  </Text>
-                </View>
-                {on && <Feather name="check" size={20} color={palette.blue} />}
+                <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{c.name}</Text>
+                {!mono && <Text style={styles.roleChipCount}>{roleLineCount(c, lines, script.characters)}</Text>}
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.hint}>{mono ? t('reading.monologueCard', { count: script.dialogueCount }) : t('reading.rangeMultiNote')}</Text>
+
+        <View style={styles.maskRow}>
+          {MASKS.map((m) => {
+            const on = mask === m.key;
+            return (
+              <Pressable key={m.key} style={[styles.maskChip, on && styles.maskChipOn]} onPress={() => setMask(m.key)} accessibilityRole="radio" accessibilityState={{ checked: on }}>
+                <Text style={[styles.maskText, on && styles.maskTextOn]} numberOfLines={1} adjustsFontSizeToFit>{m.label}</Text>
               </Pressable>
             );
           })}
         </View>
 
-        <Text style={[styles.section, styles.sectionGap]}>{t('reading.rangeQuestion')}</Text>
+        <Text style={[styles.section, styles.sectionGap]}>{t('reading.rangeSection')}</Text>
         <View style={styles.chipWrap}>
           {chips.map((c) => {
             const on = isActive(c.range);
@@ -307,20 +315,6 @@ export default function ReadingRange() {
             <Text style={styles.fewText}>{t('reading.rangeFewShort', { roles: pickedCast.map((c) => c.name).join(', '), count: few })}</Text>
           </View>
         )}
-
-        <View style={styles.maskRow}>
-          <View style={styles.rowBody}>
-            <Text style={styles.maskTitle}>{t('reading.maskSwitch')}</Text>
-            <Text style={styles.maskSub}>{t('reading.maskSwitchSub')}</Text>
-          </View>
-          <Switch
-            value={mask !== 'none'}
-            onValueChange={(on) => setMask(on ? 'mine' : 'none')}
-            trackColor={{ true: palette.blue, false: palette.border }}
-            thumbColor={palette.onAccent}
-            ios_backgroundColor={palette.border}
-          />
-        </View>
 
         {firstRun && micAsk && (
           <View style={styles.howBox}>
@@ -363,8 +357,8 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
   content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
-  mascotRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  bubble: { flex: 1, backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16, gap: 4 },
+  mascotRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  bubble: { flex: 1, gap: 2 },
   roleList: { gap: 10 },
   roleCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.card, borderRadius: 14, borderWidth: 1, borderColor: palette.border, paddingVertical: 14, paddingHorizontal: 16 },
   roleCardOn: { backgroundColor: palette.blueMist, borderColor: palette.blue },
@@ -385,11 +379,11 @@ const styles = StyleSheet.create({
   howDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.blueSoft },
   howText: { color: palette.text, fontSize: 14, fontWeight: '600', lineHeight: 21 },
   mascot: { width: 52, height: 58 },
-  title: { color: palette.text, fontSize: 18, fontWeight: '900', lineHeight: 24 },
-  sub: { color: palette.blue, fontSize: 13, fontWeight: '700', lineHeight: 20 },
+  title: { color: palette.text, fontSize: 22, fontWeight: '900', lineHeight: 30 },
+  sub: { color: palette.textFaint, fontSize: 15, fontWeight: '700', lineHeight: 22 },
   section: { color: palette.textDim, fontSize: 14, fontWeight: '800', lineHeight: 21 },
   sectionGap: { marginTop: 4 },
-  hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12, marginTop: -6 },
+  hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: -4 },
   bleed: { marginHorizontal: -24 },
   roleChips: { gap: 8, paddingHorizontal: 24 },
   roleChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: palette.bgSoft },
@@ -432,10 +426,10 @@ const styles = StyleSheet.create({
   tagEnd: { backgroundColor: palette.textDim },
   tagText: { color: palette.onAccent, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg, gap: 10 },
-  maskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
-  maskChip: { flex: 1, alignItems: 'center', backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingVertical: 8 },
+  maskRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  maskChip: { flex: 1, alignItems: 'center', backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 6 },
   maskChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  maskText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
+  maskText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   maskTextOn: { color: palette.blueDeep },
   micBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.amberSoft, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   micTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 13 },

@@ -71,9 +71,9 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
 test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역을 골라야 시작할 수 있다', async () => {
   await show();
 
-  expect(screen.getByText('누구를 연기할까요?')).toBeOnTheScreen();
+  expect(screen.getByText('누구로, 어디를 연습할까요?')).toBeOnTheScreen();
   expect(screen.getByText('봄날의 대화 · 대사 5개')).toBeOnTheScreen();
-  expect(screen.getByText('어디까지 읽을까요?')).toBeOnTheScreen();
+  expect(screen.getByText('구간')).toBeOnTheScreen();
   expect(screen.getByText('내 배역을 골라 주세요')).toBeOnTheScreen();
   expect(engine.prefetchIfWifi).toHaveBeenCalledTimes(1);
 
@@ -86,7 +86,7 @@ test('배역과 대사 보기를 골라 시작하면 회차를 만들고 대사 
   const server = await show();
   await fireEvent.press(screen.getByText('민재'));
   await fireEvent.press(screen.getByText('서연'));
-  await fireEvent(screen.getByRole('switch'), 'valueChange', true);
+  await fireEvent.press(screen.getByText('내 대사만 가리기'));
 
   await fireEvent.press(startButton(5));
 
@@ -279,8 +279,8 @@ test('SOMA-709: 배역 칩은 이름 옆에 대사 수를 보이고, 함께 말�
   await show(detail);
 
   expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeOnTheScreen();
-  expect(screen.getByText('대사 2개')).toBeOnTheScreen();
-  expect(screen.getByText('대사 1개')).toBeOnTheScreen();
+  expect(screen.getByText('2')).toBeOnTheScreen();
+  expect(screen.getByText('1')).toBeOnTheScreen();
   expect(screen.queryByRole('checkbox', { name: /^민재, 서연/ })).not.toBeOnTheScreen();
 });
 
