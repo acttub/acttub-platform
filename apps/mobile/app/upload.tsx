@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
+import { pt, type MenuAnchor } from '@/components/ui/anchored-menu';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
 import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';
@@ -352,6 +353,7 @@ export default function UploadScreen() {
   // 영상 상자를 누르면 뜨는 시트(SOMA-656). 시트가 닫힌 뒤에 다음 화면·사진 선택 창을 연다 — iOS 는 닫히는 모달 위에
   // 새 창을 띄우지 못한다.
   const [sourceSheet, setSourceSheet] = useState(false);
+  const [sourceAnchor, setSourceAnchor] = useState<MenuAnchor | undefined>();
   const fromSheet = (action: () => void) => () => {
     setSourceSheet(false);
     setTimeout(action, Platform.OS === 'ios' ? 450 : 0);
@@ -618,7 +620,7 @@ export default function UploadScreen() {
                     </View>
                   )}
                   {!sample && (
-                    <Pressable style={styles.repick} onPress={() => setSourceSheet(true)} disabled={locked}>
+                    <Pressable style={styles.repick} onPress={(e) => { setSourceAnchor(pt(e)); setSourceSheet(true); }} disabled={locked}>
                       <Text style={styles.repickText}>{t('upload.repick')}</Text>
                     </Pressable>
                   )}
@@ -699,6 +701,7 @@ export default function UploadScreen() {
       {/* 고른 영상을 바꿀 때 쓰는 시트(SOMA-656). 처음 고르기는 위의 세 줄이 한다. */}
       <VideoSourceSheet
         visible={sourceSheet}
+        anchor={sourceAnchor}
         title={t('start.pickTitle')}
         sub={t('upload.dropHint')}
         onClose={() => setSourceSheet(false)}

@@ -13,6 +13,9 @@ import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
 import { filterGroups, groupPoster, groupRowTarget, groupTitle } from '@/lib/practice/groups';
 import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 type Row = {
   id: string;
@@ -97,8 +100,9 @@ export default function HistoryScreen() {
     }
   };
 
-  const onGroupMenu = (group: PracticeGroup) => {
+  const onGroupMenu = (group: PracticeGroup, e?: GestureResponderEvent) => {
     void sheet({
+      anchor: pt(e),
       title: groupTitle(group),
       actions: [
         { label: t('history.fullView'), onPress: () => openGroup(group.root_id) },
@@ -125,7 +129,7 @@ export default function HistoryScreen() {
         chips: group.tags ?? [],
         talking: Boolean(group.in_progress_practice_id),
         onPress: () => router.push(groupRowTarget(group)),
-        onLongPress: () => onGroupMenu(group),
+        onLongPress: (e?: GestureResponderEvent) => onGroupMenu(group, e),
       }))
       .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
     // eslint-disable-next-line react-hooks/exhaustive-deps

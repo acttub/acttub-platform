@@ -15,6 +15,9 @@ import { CAPTION_MAX, type MyEntriesResponse, type MyEntryCard } from '@/lib/cha
 import { entryStatusLabel, type EntryBucket } from '@/lib/challenge/views';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 /**
  * P03 프로필 챌린지 기록(challenge.browse · challenge.entry).
@@ -99,15 +102,13 @@ export default function ChallengeEntriesScreen() {
       if (!ok) return;
       // 모자이크를 아직 켜지 않았으면 공개하면서 켤지 고른다(SOMA-809). 창을 닫거나 취소하면 공개하지 않는다.
       if (!entry.face_mosaic) {
-        let choice: boolean | null = null;
-        await sheet({
+        // 공개 범위·얼굴 노출을 정하는 중요한 결정이라 가운데 팝업으로 묻고, 두 버튼으로만 답한다(locked).
+        const choice = await confirm({
           title: t('challengeEntries.mosaicAskTitle'),
-          actions: [
-            { label: t('challengeEntries.mosaicAskConfirm'), onPress: () => { choice = true; } },
-            { label: t('challengeEntries.mosaicAskSkip'), onPress: () => { choice = false; } },
-          ],
+          confirmLabel: t('challengeEntries.mosaicAskConfirm'),
+          cancelLabel: t('challengeEntries.mosaicAskSkip'),
+          locked: true,
         });
-        if (choice === null) return;
         faceMosaic = choice || undefined;
       }
     }
@@ -157,7 +158,7 @@ export default function ChallengeEntriesScreen() {
     }
   };
 
-  const openMenu = (entry: MyEntryCard) => {
+  const openMenu = (entry: MyEntryCard, e?: GestureResponderEvent) => {
     // 다시 공개는 진행 중·정상·파일이 남아 있을 때만 된다. 아니면 서버가 422 로 막는다.
     const canPublish = canGoPublic({
       status: entry.status,
@@ -165,6 +166,7 @@ export default function ChallengeEntriesScreen() {
       videoPurged: entry.playback_url === null,
     });
     void sheet({
+      anchor: pt(e),
       title: t('challengeEntries.menuTitle'),
       actions: [
         {
@@ -245,7 +247,7 @@ export default function ChallengeEntriesScreen() {
             key={entry.id}
             style={styles.row}
             onPress={() => router.push({ pathname: '/challenge-play', params: { id: entry.challenge.id, entryId: entry.id } })}
-            onLongPress={() => openMenu(entry)}
+            onLongPress={(e) => openMenu(entry, e)}
             accessibilityRole="button">
             <View style={styles.rowBody}>
               <Text style={styles.rowLine} numberOfLines={1}>
@@ -262,7 +264,7 @@ export default function ChallengeEntriesScreen() {
                 </Text>
               )}
             </View>
-            <Pressable onPress={() => openMenu(entry)} hitSlop={10} accessibilityRole="button" ph-label="challenge_entries_more">
+            <Pressable onPress={(e) => openMenu(entry, e)} hitSlop={10} accessibilityRole="button" ph-label="challenge_entries_more">
               <Feather name="more-horizontal" size={20} color={palette.textFaint} />
             </Pressable>
           </Pressable>

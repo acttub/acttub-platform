@@ -360,7 +360,8 @@ export default function ReadingNew() {
         }}
       />
       <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
-        <View style={[styles.backdrop, popup?.kind === 'consent' && styles.backdropSheet]}>
+        {/* 하단 시트를 쓰지 않는다(10/24 규칙) — 대본 나누기 동의도 가운데 팝업이다. */}
+        <View style={styles.backdrop}>
           {popup?.kind === 'splitting' && <SplittingCard progress={popup.progress} />}
           {popup?.kind === 'alert' && (
             <View style={styles.card}>
@@ -406,7 +407,6 @@ export default function ReadingNew() {
           )}
           {popup?.kind === 'consent' && (
             <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-              <View style={styles.handle} />
               <Text style={styles.sheetTitle}>{t('reading.consentTitle')}</Text>
               <Text style={styles.sheetSub}>{t('reading.consentSub')}</Text>
               <View style={styles.sheetPoints}>
@@ -497,7 +497,6 @@ const styles = StyleSheet.create({
   sampleText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textDecorationLine: 'underline' },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  backdropSheet: { justifyContent: 'flex-end', padding: 0 },
   card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },
   cardTitle: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   cardBody: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
@@ -514,7 +513,7 @@ const styles = StyleSheet.create({
   optionPressed: { backgroundColor: palette.bgSubtle },
   optionText: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 24 },
   splitCount: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 20, paddingTop: 10 },
+  sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 18 },
   sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
   sheetSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: 4 },

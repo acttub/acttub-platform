@@ -14,6 +14,9 @@ import { deleteScriptLine, getCurrent, isMyRole, type SavedScript } from '@/lib/
 import { translate as t } from '@/lib/i18n';
 import { isMonologue } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 /** 지우기 거절 사유 → 문구. 그 밖의 실패는 저장 실패 문구다. */
 const DELETE_REFUSED: Record<string, string> = {
@@ -65,9 +68,10 @@ export default function ReadingFull() {
     }
   };
 
-  const openMenu = (index: number) => {
+  const openMenu = (index: number, e?: GestureResponderEvent) => {
     const line = script.lines[index];
     sheet({
+      anchor: pt(e),
       title: line.type === 'dialogue' ? `${line.role} · ${line.text}` : line.text,
       actions: [
         { label: t('reading.lineMenuEdit'), onPress: () => openEditor(index) },
@@ -89,7 +93,7 @@ export default function ReadingFull() {
   const row = (i: number, body: React.ReactNode, joined?: 'head' | 'rest') => (
     <View key={script.lineIds[i] ?? i}>
       <Pressable
-        onPress={() => openMenu(i)}
+        onPress={(e) => openMenu(i, e)}
         style={({ pressed }) => [styles.row, joined === 'head' && styles.rowHead, joined === 'rest' && styles.rowJoined, pressed && styles.rowPressed]}
         accessibilityRole="button"
         accessibilityHint={t('reading.lineEditTitle')}>

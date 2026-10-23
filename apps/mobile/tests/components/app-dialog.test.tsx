@@ -116,24 +116,26 @@ test('동작이 없는 항목도 true 로 닫힌다', async () => {
   expect(screen.getByText('답: true')).toBeOnTheScreen();
 });
 
-test('제목 없는 시트의 기본 취소는 false 로 닫는다', async () => {
+test('메뉴에는 취소 줄이 없고, 바깥을 누르면 false 로 닫힌다', async () => {
   const report = jest.fn();
   await openWith((d) => d.sheet({ actions: [{ label: '신고하기', onPress: report }] }));
 
-  await fireEvent.press(screen.getByText('취소'));
+  expect(screen.queryByText('취소')).toBeNull();
+  await fireEvent.press(backdrop());
 
   expect(screen.getByText('답: false')).toBeOnTheScreen();
+  expect(screen.queryByText('신고하기')).toBeNull();
   expect(report.mock.calls).toEqual([]);
 });
 
-test('시트의 고쳐 쓴 취소와 배경 누르기도 false 다', async () => {
-  await openWith((d) => d.sheet({ actions: [{ label: '삭제' }], cancelLabel: '그만두기' }));
-
-  expect(screen.queryByText('취소')).toBeNull();
-  await fireEvent.press(screen.getByText('그만두기'));
-  expect(screen.getByText('답: false')).toBeOnTheScreen();
-
-  await fireEvent.press(screen.getByRole('button', { name: '열기' }));
+test('anchor 를 주면 누른 점 근처에, 없으면 오른쪽 위에 메뉴가 뜬다', async () => {
+  await openWith((d) => d.sheet({ actions: [{ label: '삭제' }], anchor: { x: 200, y: 300 } }));
+  const flat = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
+  const near = flat(screen.getByTestId('anchored-menu').props.style);
+  expect(near.top).toBe(308);
+  expect(near.left).toBeGreaterThan(0);
+  expect(near.left + near.width).toBeGreaterThan(200);
+  expect(near.left).toBeLessThan(200);
   await fireEvent.press(backdrop());
   expect(screen.queryByText('삭제')).toBeNull();
 });

@@ -10,9 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
-import { ReadingExitSheet } from '@/components/reading-exit-sheet';
 import { LineEditSheet } from '@/components/line-edit-sheet';
-import { LinePickSheet } from '@/components/line-pick-sheet';
 import { logEvent } from '@/lib/analytics';
 import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/use-reading-mic';
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
@@ -53,7 +51,6 @@ import {
   canGoBack,
   createRun,
   discardOnExit,
-  exitMessage,
   formatProgress,
   isHidden,
   jumpTo,
@@ -167,7 +164,6 @@ export default function ReadingPlay() {
   const insets = useSafeAreaInsets();
   const { confirm, alert, dialog } = useAppDialog();
   /** 묶인 대사에서 고칠 줄 고르기(R9.31b) — 열려 있으면 고를 줄 글과 고른 뒤 할 일. */
-  const [linePick, setLinePick] = useState<{ texts: string[]; pick: (index: number) => void } | null>(null);
   const script = getCurrent();
   const session = getCurrentSession();
   const mic = useReadingMic();
@@ -234,7 +230,7 @@ export default function ReadingPlay() {
   const [pendingUploads, setPendingUploads] = useState(0);
   const [different, setDifferent] = useState<DifferentView>({ kind: 'waiting' });
   /** 리딩 중 줄 고치기(SOMA-728) — 고치는 줄과, 열기 전에 진행 중이었는지(닫으면 이어서 한다). */
-  const [editing, setEditing] = useState<{ lineId: string; draft: LineDraft } | null>(null);
+  const [editing, setEditing] = useState<{ lineId: string; draft: LineDraft; choices?: { lineId: string; text: string }[]; drafts?: Record<string, LineDraft> } | null>(null);
   const editResumes = useRef(false);
   const engineRef = useRef<PartnerVoiceEngine>('supertonic');
   const deviceVoiceRef = useRef(false);
@@ -250,7 +246,7 @@ export default function ReadingPlay() {
   const mounted = useRef(true);
   const scrollRef = useRef<ScrollView | null>(null);
   // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494). 튜토리얼 대본은 세지 않는다.
-  const { after: askRating, element: ratingSheet } = useAppRating();
+  const { after: askRating, element: ratingCard } = useAppRating();
   const fromTutorialRef = useRef(false);
   const sttActive = useRef(false);
   /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
@@ -1123,18 +1119,24 @@ export default function ReadingPlay() {
     if (!cur || !script || line?.type !== 'dialogue') return;
     editResumes.current = cur.status === 'mine' || cur.status === 'partner';
     doPause();
-    const edit = (index: number) => {
+    const draftOf = (index: number): LineDraft => {
       const target = cur.lines[index] as DialogueLine;
       const characterId = script.characters.find((c) => c.name === target.role)?.id ?? null;
-      setEditing({ lineId: cur.lineIds[index], draft: { kind: 'dialogue', characterId, text: target.text } });
+      return { kind: 'dialogue', characterId, text: target.text };
     };
     const { start, end } = turnSpan(cur);
     if (start === end) {
-      edit(start);
+      setEditing({ lineId: cur.lineIds[start], draft: draftOf(start) });
       return;
     }
-    // 묶인 대사면 고칠 줄부터 고른다 — pen R9.31b 아래 시트(줄 고치기 시트와 같은 틀).
-    setLinePick({ texts: cur.lines.slice(start, end + 1).map((l) => l.text), pick: (k) => edit(start + k) });
+    // 묶인 대사면 줄 고치기 페이지를 바로 열고, 고칠 줄은 그 안 「고칠 줄」 칩으로 고른다(SOMA-821: 고르기 시트를 없앴다).
+    const drafts: Record<string, LineDraft> = {};
+    const choices: { lineId: string; text: string }[] = [];
+    for (let i = start; i <= end; i++) {
+      drafts[cur.lineIds[i]] = draftOf(i);
+      choices.push({ lineId: cur.lineIds[i], text: cur.lines[i].text });
+    }
+    setEditing({ lineId: cur.lineIds[start], draft: drafts[cur.lineIds[start]], choices, drafts });
   };
 
   /** 시트를 닫으면 고친 대본을 진행에 반영하고, 진행 중이었으면 그 줄부터 이어서 한다. */
@@ -1156,13 +1158,21 @@ export default function ReadingPlay() {
     if (editResumes.current) doResume();
   };
 
+  // 고르면 바뀐 값을 저장하고 줄을 접는다 — 접히면서 멈췄던 자동 넘김이 다시 돈다.
   const changeMask = (mode: MaskMode) => {
     setMaskMode(mode);
     void updateCurrent({ maskMode: mode });
+    releaseHold();
   };
 
   const openMaskSheet = () => {
-    if (phase.kind !== 'running' || phase.hold) return;
+    if (phase.kind !== 'running') return;
+    // 눈 버튼을 다시 누르면 접는다. 다른 멈춤(시작 안내·첫 버튼 안내) 중에는 열지 않는다.
+    if (phase.hold === 'mask_sheet') {
+      releaseHold();
+      return;
+    }
+    if (phase.hold) return;
     holdRef.current = 'mask_sheet';
     setPhase({ kind: 'running', hold: 'mask_sheet' });
   };
@@ -1203,23 +1213,11 @@ export default function ReadingPlay() {
   const exitToDetail = () =>
     void discardIfUnstarted().then(() => router.dismissTo('/reading/detail'));
 
-  // 「나가기」·뒤로 가기는 먼저 아래에서 올라오는 확인 창을 연다(pen 「⑪ 리딩 · 나가기 확인」, SOMA-817).
-  const [exitAsk, setExitAsk] = useState(false);
+  // 「나가기」·뒤로 가기는 확인 없이 바로 저장하고 나간다(SOMA-821: 「리딩을 멈출까요?」 시트를 없앴다 — 읽은 데까지는 늘 저장되고,
+  // [시작] 전이면 leaveReading 이 회차를 지운다. 저장 안 함 갈래는 그대로다).
   const [exiting, setExiting] = useState(false);
-  const onExit = () => {
-    const cur = runRef.current;
-    if (cur && cur.status !== 'done') setExitAsk(true);
-    else void leaveReading();
-  };
-  const exitSheetBody = () => {
-    const cur = runRef.current;
-    if (!cur) return '';
-    if (shouldDiscard()) return exitMessage(cur, { discard: true });
-    const { done, total } = progressOf(cur);
-    return t('reading.exitSheetBody', { n: Math.min(done + 1, Math.max(total, 1)), total });
-  };
+  const onExit = () => void leaveReading();
   const leaveReading = async () => {
-    setExitAsk(false);
     setExiting(true);
     const cur = runRef.current;
     if (cur && cur.status !== 'done') {
@@ -1243,8 +1241,8 @@ export default function ReadingPlay() {
     exitToDetail();
   };
 
-  // 안드로이드 뒤로 가기·스와이프도 같은 확인 창을 거친다. 확인을 마친 뒤(exiting)에는 풀어 준다.
-  usePreventRemove(phase.kind === 'running' && !exiting && run?.status !== 'done', () => setExitAsk(true));
+  // 안드로이드 뒤로 가기·스와이프도 확인 없이 같은 「저장하고 나가기」로 간다. 나가는 중(exiting)에는 풀어 준다.
+  usePreventRemove(phase.kind === 'running' && !exiting && run?.status !== 'done', () => void leaveReading());
 
   // 완료 화면이 뜨면 잠깐(DONE_LOCK_MS) 버튼을 막는다.
   useEffect(() => {
@@ -1479,12 +1477,12 @@ export default function ReadingPlay() {
             <Text style={styles.wrapRowText}>{t('reading.wrapCoach')}</Text>
             <Feather name="chevron-right" size={18} color={palette.checkOff} />
           </Pressable>
+        {ratingCard}
         </ScrollView>
         <CtaBar>
           <PrimaryButton label={t('common.confirm')} onPress={exitToDetail} />
         </CtaBar>
         {dialog}
-        {ratingSheet}
       </View>
     );
   }
@@ -1519,9 +1517,9 @@ export default function ReadingPlay() {
                 <Text style={styles.readAgainText}>{t('reading.firstDoneAgain')}</Text>
               </Pressable>
             </View>
+            {ratingCard}
           </View>
           {dialog}
-          {ratingSheet}
         </View>
       );
     }
@@ -1598,13 +1596,13 @@ export default function ReadingPlay() {
                 <ReadingRating sessionId={session.id} />
               </View>
             )}
+          {ratingCard}
           </ScrollView>
           <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
             {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
             <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
           </View>
           {dialog}
-          {ratingSheet}
         </View>
       );
     }
@@ -1687,13 +1685,13 @@ export default function ReadingPlay() {
             </View>
           )}
 
+        {ratingCard}
         </ScrollView>
         <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
           {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
             <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
         </View>
         {dialog}
-        {ratingSheet}
       </View>
     );
   }
@@ -1912,6 +1910,20 @@ export default function ReadingPlay() {
           )}
         </View>
       ) : (
+      <>
+      {hold === 'mask_sheet' && (
+        // 대사 보기 고르기 — 시트 대신 컨트롤 바로 위에 세 칸으로 펼친다. 고르면 접히고, 펼친 동안은 자동 넘김이 멈춰 있다.
+        <View style={styles.maskRow} accessibilityRole="radiogroup">
+          {MASKS.map((m) => {
+            const on = maskMode === m.key;
+            return (
+              <Pressable key={m.key} style={[styles.maskOpt, on && styles.maskOptOn]} onPress={() => changeMask(m.key)} accessibilityRole="radio" accessibilityState={{ checked: on }} ph-label="reading_play_mask_pick">
+                <Text style={[styles.maskOptText, on && styles.maskOptTextOn]} numberOfLines={2}>{m.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
       <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable style={[styles.eyeBtn, masking && styles.eyeBtnOn]} onPress={openMaskSheet} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('reading.maskSheetTitle')} ph-label="reading_play_mask">
           <Feather name={masking ? 'eye-off' : 'eye'} size={20} color={masking ? palette.blueDeep : palette.textDim} />
@@ -1954,51 +1966,22 @@ export default function ReadingPlay() {
           </>
         )}
       </View>
+      </>
       )}
 
       {script && (
         <>
-        <LinePickSheet
-          lines={linePick?.texts ?? null}
-          onPick={(k) => {
-            const pick = linePick?.pick;
-            setLinePick(null);
-            pick?.(k);
-          }}
-          // 고르다 닫으면 예전 시트처럼 멈춘 채 둔다(재개로 이어 한다).
-          onClose={() => setLinePick(null)}
-        />
         <LineEditSheet
           scriptId={script.id}
           lineId={editing?.lineId ?? null}
           original={editing?.draft ?? null}
           characters={script.characters}
+          choices={editing?.choices}
+          loadLine={(id) => editing?.drafts?.[id] ?? null}
           onClose={closeLineEdit}
         />
         </>
       )}
-      <Modal transparent statusBarTranslucent visible={hold === 'mask_sheet'} animationType="slide" onRequestClose={releaseHold}>
-        <Pressable style={[styles.backdrop, styles.backdropSheet]} onPress={releaseHold}>
-          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>{t('reading.maskSheetTitle')}</Text>
-            <Text style={styles.sheetNote}>{t('reading.maskSheetNote')}</Text>
-            {MASKS.map((m) => {
-              const on = maskMode === m.key;
-              return (
-                <Pressable key={m.key} style={styles.sheetRow} onPress={() => changeMask(m.key)} accessibilityRole="radio" accessibilityState={{ checked: on }}>
-                  <View style={styles.sheetRowBody}>
-                    <Text style={[styles.sheetRowTitle, on && styles.sheetRowTitleOn]}>{m.label}</Text>
-                    <Text style={styles.sheetRowDesc}>{m.desc}</Text>
-                  </View>
-                  <View style={[styles.radio, on && styles.radioOn]}>{on && <View style={styles.radioDot} />}</View>
-                </Pressable>
-              );
-            })}
-          </Pressable>
-        </Pressable>
-      </Modal>
-      <ReadingExitSheet visible={exitAsk} body={exitAsk ? exitSheetBody() : ''} onLeave={() => void leaveReading()} onKeep={() => setExitAsk(false)} />
       {guideOpen && <ReadingGuideOverlay onClose={closeGuide} />}
       {dialog}
     </View>
@@ -2106,6 +2089,11 @@ const styles = StyleSheet.create({
   diffAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2 },
   diffAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
+  maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, backgroundColor: palette.card },
+  maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.card },
+  maskOptOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
+  maskOptText: { fontSize: 13, fontWeight: '600', textAlign: 'center', color: palette.textDim },
+  maskOptTextOn: { color: palette.blueDeep, fontWeight: '800' },
   ratingSlot: { alignSelf: 'stretch' },
   doneBar: { paddingHorizontal: 24, paddingTop: 12, gap: 10, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
   wrapContent: { paddingHorizontal: 24, paddingBottom: 24 },
@@ -2189,9 +2177,7 @@ const styles = StyleSheet.create({
   pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 
   backdrop: { flex: 1, backgroundColor: 'rgba(15, 21, 37, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
-  backdropSheet: { justifyContent: 'flex-end', padding: 0 },
   sheet: { width: '100%', backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 22, paddingTop: 10, gap: 4 },
-  sheetHandle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 14 },
   sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
   sheetNote: { color: palette.blueDeep, fontFamily: 'Pretendard', fontSize: 13, marginBottom: 6 },
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderTopColor: palette.borderSoft, borderTopWidth: 1 },

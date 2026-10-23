@@ -17,6 +17,9 @@ import { rangeTitle } from '@/lib/reading/session-plan';
 import { deleteScript, deleteSession, getCurrent, listSessions, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
 import type { SessionCard } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 /**
  * 대본 상세(R4.1~R4.8, reading.session). 제목·대사 수·「대본 보기」·연습 기록(최근순, 줄마다 회차·구간·배역·상태)·[연습하기].
@@ -80,8 +83,9 @@ export default function ReadingDetail() {
     }
   };
 
-  const more = () =>
+  const more = (e?: GestureResponderEvent) =>
     void sheet({
+      anchor: pt(e),
       title: script.title,
       actions: [
         { label: t('reading.editAction'), onPress: () => setEditingTitle(true) },

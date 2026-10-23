@@ -26,6 +26,9 @@ import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { deleteScript, fetchSession, listScripts, listSessions, loadIntoCurrent, setCurrentSession } from '@/lib/reading/store';
 import type { ScriptCard, ScriptListResponse, SessionCard } from '@/lib/reading/types';
 import { isKorean, translate as t } from '@/lib/i18n';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 /**
  * 내 대본 목록(R00, reading.script). 서버 목록이 정본이다 — 최근 고친 순, 머리 "전체 N개 · 연습 중 M개",
@@ -161,8 +164,9 @@ export default function ReadingList() {
     }
     void load(q);
   };
-  const more = (s: ScriptCard) =>
+  const more = (s: ScriptCard, e?: GestureResponderEvent) =>
     void sheet({
+      anchor: pt(e),
       title: s.title,
       actions: [
         { label: t('reading.editAction'), onPress: () => setEditing(s) },
@@ -256,7 +260,7 @@ export default function ReadingList() {
                   onLayout={newTarget.onLayout}
                   style={styles.newBtn}
                   accessibilityRole="button"
-                  onPress={() => void sheet({ title: t('reading.titleNew'), actions: [
+                  onPress={(e) => void sheet({ anchor: pt(e), title: t('reading.titleNew'), actions: [
                     { label: t('reading.entryUpload'), onPress: () => router.push('/reading/new') },
                     { label: t('reading.entryCocreate'), onPress: () => router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } }) },
                   ] })}>
@@ -367,7 +371,7 @@ export default function ReadingList() {
                   key={s.id}
                   style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                   onPress={() => void open(s)}
-                  onLongPress={() => more(s)}>
+                  onLongPress={(e) => more(s, e)}>
                   <View style={styles.rowIcon}>
                     <Feather name="file-text" size={20} color={palette.blue} />
                   </View>
@@ -378,7 +382,7 @@ export default function ReadingList() {
                       {chip && tone ? <Text style={{ color: tone.color }}>{` · ${chip.label}`}</Text> : null}
                     </Text>
                   </View>
-                  <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_script_more" onPress={() => more(s)}>
+                  <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_script_more" onPress={(e) => more(s, e)}>
                     <Feather name="more-horizontal" size={18} color={palette.textFaint} />
                   </Pressable>
                 </Pressable>

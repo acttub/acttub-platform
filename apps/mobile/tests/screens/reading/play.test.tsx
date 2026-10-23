@@ -456,19 +456,13 @@ test('[시작]을 누르면 잠금 화면 진행을 띄우고, 줄이 바뀌면 
   expect(mockLive.stop).toHaveBeenCalledTimes(1);
 });
 
-test('나가기를 확인하면 진행한 대사 수를 알리고 위치를 저장한 뒤 상세로 간다', async () => {
+test('나가기를 누르면 확인 없이 위치를 저장하고 바로 상세로 간다', async () => {
   const server = await startPlay();
   await screen.findByText('듣는 중');
 
+  // 확인 창 없이 바로 저장하고 나간다(SOMA-821).
   await fireEvent.press(screen.getByText('나가기'));
-  expect(screen.getByText('리딩을 멈출까요?')).toBeOnTheScreen();
-  expect(screen.getByText(/읽은 데까지 저장돼요\. 다음에 1\/\d+줄부터 이어서 읽을 수 있어요\./)).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('계속 읽기'));
-  expect(mockRouter.replace).not.toHaveBeenCalled();
-  expect(mockRouter.dismissTo).not.toHaveBeenCalled();
-
-  await fireEvent.press(screen.getByText('나가기'));
-  await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
+  expect(screen.queryByText('리딩을 멈출까요?')).not.toBeOnTheScreen();
   await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
   expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l2', complete: false }));
   expect(server.deleteSession).not.toHaveBeenCalled();
@@ -493,10 +487,13 @@ test('내 대사만 가리면 내 줄이 막대로 바뀌고, 첫 단어·원문
   await screen.findByText('듣는 중');
 
   await fireEvent.press(screen.getByLabelText('대사 보기'));
-  expect(screen.getByText('고르는 동안은 다음 줄로 넘어가지 않아요')).toBeOnTheScreen();
+  // 시트 대신 컨트롤 바 위에 세 칸이 펼쳐진다(SOMA-821). 펼친 동안은 자동 넘김이 멈춘다.
+  expect(screen.getByRole('radio', { name: '내 대사만 가리기' })).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: '모든 대사 보기' })).toBeChecked();
   expect(screen.getByText('넘김 멈춤')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대사만 가리기'));
-  expect(screen.getByRole('radio', { name: /내 대사만 가리기/ })).toBeChecked();
+  // 고르면 접힌다.
+  expect(screen.queryByRole('radio', { name: '내 대사만 가리기' })).not.toBeOnTheScreen();
   expect(screen.queryByText('오늘 왔구나.')).not.toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('첫 단어'));
@@ -744,7 +741,7 @@ test('버튼으로 넘기는 옛 회차에는 자동 넘김 안내가 없고 말
   expect(await screen.findByText('서연')).toBeOnTheScreen();
 });
 
-test('대사 보기 시트가 떠 있는 동안 말이 끝나면 넘김을 미뤘다가, 시트를 닫고 침묵이 이어지면 넘긴다', async () => {
+test('대사 보기 줄이 펼쳐진 동안 말이 끝나면 넘김을 미뤘다가, 줄을 접고 침묵이 이어지면 넘긴다', async () => {
   await startPlay();
   await screen.findByText('듣는 중');
   const listener = mic!;
@@ -756,7 +753,6 @@ test('대사 보기 시트가 떠 있는 동안 말이 끝나면 넘김을 미�
   jest.useFakeTimers();
   try {
     await fireEvent.press(screen.getByText('모든 대사 보기'));
-    await closeModalOf('대사 보기');
     await act(async () => jest.advanceTimersByTime(2000));
   } finally {
     jest.useRealTimers();
@@ -764,7 +760,7 @@ test('대사 보기 시트가 떠 있는 동안 말이 끝나면 넘김을 미�
   expect(await screen.findByText('서연')).toBeOnTheScreen();
 });
 
-test('시트를 닫은 뒤 다시 말하기 시작하면 미뤄 둔 넘김을 버린다', async () => {
+test('펼친 줄을 접은 뒤 다시 말하기 시작하면 미뤄 둔 넘김을 버린다', async () => {
   await startPlay();
   await screen.findByText('듣는 중');
   const listener = mic!;
@@ -773,7 +769,7 @@ test('시트를 닫은 뒤 다시 말하기 시작하면 미뤄 둔 넘김을 �
   await act(async () => listener.onEvent('speech_end'));
   jest.useFakeTimers();
   try {
-    await closeModalOf('대사 보기');
+    await fireEvent.press(screen.getByLabelText('대사 보기'));
     await act(async () => listener.onEvent('speech_start'));
     await act(async () => jest.advanceTimersByTime(5000));
   } finally {
@@ -782,7 +778,7 @@ test('시트를 닫은 뒤 다시 말하기 시작하면 미뤄 둔 넘김을 �
   expect(screen.getByText(ME)).toBeOnTheScreen();
 });
 
-test('상대 대사를 읽는 동안 시트가 떠 있으면 다 읽어도 시트를 닫을 때까지 넘기지 않는다', async () => {
+test('상대 대사를 읽는 동안 대사 보기 줄이 펼쳐져 있으면 다 읽어도 접을 때까지 넘기지 않는다', async () => {
   let spoken: () => void = () => undefined;
   jest.mocked(tts.play).mockImplementationOnce(() => new Promise<void>((resolve) => (spoken = resolve)));
   await startPlay(PARTNER_FIRST);
@@ -793,7 +789,7 @@ test('상대 대사를 읽는 동안 시트가 떠 있으면 다 읽어도 시�
   await act(async () => spoken());
   expect(screen.queryByText(ME)).not.toBeOnTheScreen();
 
-  await closeModalOf('대사 보기');
+  await fireEvent.press(screen.getByLabelText('대사 보기'));
   expect(await screen.findByText(ME)).toBeOnTheScreen();
 });
 
@@ -1273,7 +1269,6 @@ test('모든 대사를 가리면 지금 줄만 가리고, 지나간 대사(내 �
 
   await fireEvent.press(screen.getByLabelText('대사 보기'));
   await fireEvent.press(screen.getByText('모든 대사 가리기'));
-  await closeModalOf('대사 보기');
   await speechEnds();
   await waitFor(() => expect(tts.play).toHaveBeenCalled());
 
@@ -1295,7 +1290,6 @@ test('멈춘 채 나가면 다시 멈추지 않고 그 위치를 저장한다', 
   await fireEvent.press(screen.getByText('일시정지'));
 
   await fireEvent.press(screen.getByText('나가기'));
-  await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
   await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
   expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l2' }));
 });
@@ -1401,13 +1395,11 @@ test('다르게 말한 대사가 여럿이면 두 줄까지만 보이고 수를 
   expect(screen.queryByText('9번 대사')).not.toBeOnTheScreen();
 });
 
-test('[시작] 전에 나가기: 저장되지 않는다고 알리고, 회차를 지운 뒤 이미 있는 상세로 돌아간다', async () => {
+test('[시작] 전에 나가기: 확인 없이 회차를 지운 뒤 이미 있는 상세로 돌아간다', async () => {
   const server = await startPlay({}, undefined, { begin: false });
   await screen.findByText('시작');
 
   await fireEvent.press(screen.getByText('나가기'));
-  expect(screen.getByText('아직 시작하지 않아서 이번 연습은 저장되지 않아요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
   await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
   expect(server.deleteSession).toHaveBeenCalledWith('r1');
   expect(server.deleteSession).toHaveBeenCalledTimes(1);
@@ -1425,17 +1417,14 @@ test('[시작] 전 회차 지우기가 실패해도 상세로 나간다', async 
   await screen.findByText('시작');
 
   await fireEvent.press(screen.getByText('나가기'));
-  await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
   await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
 });
 
-test('이어하기 회차는 [시작] 전에 나가도 지우지 않고 진행 위치 문구를 보인다', async () => {
+test('이어하기 회차는 [시작] 전에 나가도 지우지 않는다', async () => {
   const server = await startPlay({ progress_seq: 2, current_line_id: 'l4' }, undefined, { begin: false });
   await screen.findByText('시작');
 
   await fireEvent.press(screen.getByText('나가기'));
-  expect(screen.getByText(/다음에 \d+\/\d+줄부터 이어서 읽을 수 있어요/)).toBeOnTheScreen();
-  await fireEvent.press(screen.getAllByText('나가기').at(-1)!);
   await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
   expect(server.deleteSession).not.toHaveBeenCalled();
 });
@@ -1455,7 +1444,6 @@ test('[시작] 전에 버튼이 아닌 길(뒤로 가기)로 내려가도 회차
 async function maskMine() {
   await fireEvent.press(screen.getByLabelText('대사 보기'));
   await fireEvent.press(screen.getByText('내 대사만 가리기'));
-  await closeModalOf('대사 보기');
 }
 
 test('가린 내 대사는 말한 뒤 원문으로 펼치고, 다르게 말한 어절에 밑줄을 긋고 말한 것을 아래에 보인다(SOMA-785)', async () => {
@@ -1764,15 +1752,18 @@ test('SOMA-806: 지나간 묶음을 누르면 묶음 처음부터 다시 한다'
   expect(screen.getByText(/^0 \/ 5/)).toBeOnTheScreen();
 });
 
-test('SOMA-806: 묶인 대사에서 고치기를 누르면 고칠 줄을 먼저 고른다', async () => {
+test('SOMA-806: 묶인 대사에서 고치기를 누르면 줄 고치기 페이지 안에서 고칠 줄을 칩으로 고른다', async () => {
   await startPlay(SAME_ROLE_RANGE, scriptDetail(SAME_ROLE_LINES));
   await screen.findByText('듣는 중');
 
   await fireEvent.press(screen.getByLabelText('줄 고치기'));
-  expect(screen.getByText('고칠 줄을 골라 주세요')).toBeOnTheScreen();
-  expect(screen.getByText('이어서')).toBeOnTheScreen();
-  await fireEvent.press(screen.getAllByText('어디 앉을래?').at(-1)!);
+  // 고르기 시트 없이 바로 고치기 페이지가 열리고, 맨 위 「고칠 줄」 칩으로 묶인 줄을 고른다(SOMA-821).
+  expect(screen.getAllByText('줄 고치기').length).toBeGreaterThan(0);
+  expect(screen.getByText('고칠 줄')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText(/^2\. /));
   expect(screen.getByLabelText('글')).toHaveDisplayValue('어디 앉을래?');
+  await fireEvent.press(screen.getByText(/^1\. /));
+  expect(screen.getByLabelText('글')).toHaveDisplayValue('오늘 왔구나.');
 });
 
 test('SOMA-806: 묶인 내 차례는 묶음 줄 전체 글자의 90%를 받아쓴 뒤의 침묵에만 넘긴다', async () => {
@@ -1793,15 +1784,14 @@ test('SOMA-806: 묶인 내 차례는 묶음 줄 전체 글자의 90%를 받아�
   await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
 });
 
-test('뒤로 가기(usePreventRemove)도 같은 나가기 확인 창을 연다', async () => {
+test('뒤로 가기(usePreventRemove)도 확인 없이 저장하고 나간다', async () => {
   const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
   await startPlay();
   await screen.findByText('듣는 중');
   expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-  expect(screen.getByText('리딩을 멈출까요?')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('계속 읽기'));
-  expect(mockRouter.dismissTo).not.toHaveBeenCalled();
+  expect(screen.queryByText('리딩을 멈출까요?')).not.toBeOnTheScreen();
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
 });
 
 test('완료 화면은 액티 · 대사 줄 수 줄 아래에 홈으로 가기와 다른 대본으로를 둔다(pen R9.42)', async () => {

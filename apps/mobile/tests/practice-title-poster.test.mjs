@@ -78,7 +78,7 @@ test('practice.upload: 장면·연습 제목 칸 없음·업로드 중 버튼·�
   // 시작을 누른 뒤에는 영상 다시 선택·권리 체크가 잠긴다(적을 칸은 SOMA-778 에서 없앴다).
   assert.match(src, /const locked = starting;/);
   assert.doesNotMatch(src, /<TextInput/);
-  assert.match(src, /setSourceSheet\(true\)\} disabled=\{locked\}/);
+  assert.match(src, /setSourceSheet\(true\); \}\} disabled=\{locked\}/);
   assert.match(src, /accessibilityState=\{\{ checked: agreedRights, disabled: locked \}\}/);
   const ko = read('locales/ko.ts');
   assert.match(ko, /submitUploading: '업로드 중…'/);
