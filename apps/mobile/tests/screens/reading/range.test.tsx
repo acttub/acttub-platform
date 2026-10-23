@@ -270,7 +270,7 @@ test('배역이 하나뿐인 대본은 그 배역을 골라 둔다', async () =>
   await show(scriptDetail([['dialogue', '민재', '혼자야.']]));
 
   expect(startButton(1)).toBeOnTheScreen();
-  expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /^민재/ })).toBeChecked();
 });
 
 test('SOMA-709: 배역 칩은 이름 옆에 대사 수를 보이고, 함께 말하는 줄의 묶음 배역은 칩에 두지 않는다', async () => {
