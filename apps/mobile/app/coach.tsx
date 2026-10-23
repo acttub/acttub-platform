@@ -536,7 +536,8 @@ function CoachTalk() {
               )}
               <PrimaryButton label={practice.note ? t('coach.seeSummary') : t('coach.finishBtn')} onPress={practice.note ? goToNote : finishWithoutNote} />
               {/* 예시 회차는 서버에 없어 이어 갈 수 없다. */}
-              {!sample && (
+              {/* 영상 없이 말로 한 대화(말로 코칭)는 찍은 테이크가 없어 「다음 테이크 찍기」를 두지 않는다. */}
+              {!sample && sceneVideo && (
                 <SecondaryButton label={t('history.nextTake')} onPress={startNextTake} />
               )}
             </>
@@ -558,7 +559,9 @@ function CoachTalk() {
               </View>
             ) : null}
             <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>
-            {/* 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채우고 키보드는 띄우지 않는다. 덧붙이려면 아래 입력칸을 누른다. */}
+            {/* 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채우고 키보드는 띄우지 않는다. 덧붙이려면 아래 입력칸을 누른다.
+                목적별 예시 답이 있으면 그것이 빠른 답을 대신한다 — 두 벌을 같이 보이면 「잘 모르겠어요」가 두 번 나온다. */}
+            {!conversation?.purpose?.choices.length && (
             <View style={styles.quickRow} testID="coach-quick-grid">
               {(
                 [
@@ -579,6 +582,7 @@ function CoachTalk() {
                 </Pressable>
               ))}
             </View>
+            )}
             <View style={styles.inputRow}>
               {MicButton && !sample && <MicButton onText={setInput} disabled={connecting || waiting || !conversation} />}
               <TextInput
@@ -618,8 +622,8 @@ function CoachTalk() {
 const styles = StyleSheet.create({
   continueTalk: { alignItems: 'center', paddingVertical: 12 },
   continueTalkText: { fontSize: 15, fontWeight: '700', color: palette.blueDeep },
-  purposeChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  purposeChoice: { width: '48%' },
+  purposeChoices: { flexDirection: 'column', alignItems: 'flex-start', gap: 6 },
+  purposeChoice: { alignSelf: 'flex-start', maxWidth: '100%' },
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
 
