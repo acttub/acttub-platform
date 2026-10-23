@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
@@ -21,33 +22,57 @@ export function HomeUploadCard({ upload }: { upload: ReturnType<typeof useWaitin
   const press = state === 'ready' ? begin : state === 'failed' ? retry : undefined;
   return (
     <View style={styles.card} testID="home-upload-card">
-      <Text style={styles.eyebrow}>{eyebrow}</Text>
+      <View style={styles.eyebrowRow}>
+        <Feather name="video" size={16} color={palette.onAccent} />
+        <Text style={styles.eyebrow}>{eyebrow}</Text>
+      </View>
       <Text style={styles.title} numberOfLines={3}>{title}</Text>
       <Text style={styles.sub}>{error ?? sub}</Text>
-      <View style={styles.track}>
-        <View style={[styles.fill, { width: bar }]} />
-      </View>
-      <Pressable
-        onPress={() => void press?.()}
-        disabled={!press || busy}
-        accessibilityRole="button"
-        accessibilityLabel={cta}
-        style={({ pressed }) => [styles.cta, (!press || busy) && styles.ctaOff, pressed && styles.pressed]}>
-        <Text style={styles.ctaText}>{cta}</Text>
-      </Pressable>
+      <View style={styles.spacer} />
+      {press ? (
+        <Pressable
+          onPress={() => void press()}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={cta}
+          style={({ pressed }) => [styles.cta, busy && styles.ctaOff, pressed && styles.pressed]}>
+          <Text style={styles.ctaText}>{cta}</Text>
+          <Feather name="arrow-right" size={16} color={palette.blue} />
+        </Pressable>
+      ) : (
+        <View style={styles.track} accessibilityLabel={cta}>
+          <View style={[styles.fill, { width: bar }]} />
+        </View>
+      )}
     </View>
   );
 }
 
+/** 올리는 중 카드(pen 「P1 신규 · 일반 홈 · 영상 올리는 중」) — 추천 연습 카드와 같은 어두운 바탕에 진행 막대. */
 const styles = StyleSheet.create({
-  card: { marginTop: 24, backgroundColor: palette.blueSoft, borderRadius: 22, padding: 20, gap: 10 },
-  eyebrow: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
-  title: { fontSize: 21, fontWeight: '800', lineHeight: 28, color: palette.text },
-  sub: { fontSize: 13, fontWeight: '600', lineHeight: 20, color: palette.textDim },
-  track: { height: 6, borderRadius: 3, backgroundColor: palette.bgSoft, overflow: 'hidden' },
-  fill: { height: 6, borderRadius: 3, backgroundColor: palette.blue },
-  cta: { height: 52, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  card: {
+    minHeight: 196,
+    backgroundColor: '#202121',
+    borderRadius: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    gap: 8,
+    overflow: 'hidden',
+    shadowColor: '#2F6EF2',
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
+  },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  eyebrow: { fontSize: 13, fontWeight: '600', lineHeight: 18, color: 'rgba(255,255,255,0.9)' },
+  title: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.onAccent, maxWidth: 260 },
+  sub: { fontSize: 12, fontWeight: '400', lineHeight: 18, color: 'rgba(255,255,255,0.8)' },
+  spacer: { flex: 1, minHeight: 2 },
+  track: { height: 8, width: 200, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4, backgroundColor: palette.onAccent },
+  cta: { alignSelf: 'flex-start', height: 42, borderRadius: 21, paddingHorizontal: 22, backgroundColor: palette.onAccent, flexDirection: 'row', alignItems: 'center', gap: 6 },
   ctaOff: { opacity: 0.5 },
-  ctaText: { fontSize: 16, fontWeight: '800', color: palette.onAccent },
+  ctaText: { fontSize: 15, fontWeight: '800', color: palette.blue },
   pressed: { opacity: 0.85 },
 });

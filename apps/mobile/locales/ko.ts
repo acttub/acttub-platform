@@ -719,7 +719,7 @@ const ko = {
     todayStartCta: '코칭 시작하기',
     uploadEyebrow: '올리는 중',
     uploadTitle: '코칭 영상',
-    uploadSub: '다 올라가면 액티가 바로 영상을 봐요',
+    uploadSub: '다 올라가면 바로 봐 드려요',
     uploadCta: '올리는 중…',
     uploadReadyEyebrow: '다 올렸어요',
     uploadReadyCta: '영상 다 봤어요 · 질문 받기',
