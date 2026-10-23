@@ -172,3 +172,33 @@ export function freeLeft(serverLeft: number | null | undefined, usedHere: number
   const local = Math.max(0, FREE_REVISIONS - usedHere);
   return typeof serverLeft === 'number' ? Math.max(0, Math.min(serverLeft, local)) : local;
 }
+
+/**
+ * 대본 생성은 1분을 넘기도 한다. 앱이 받는 길(웹 프록시 60초)이 먼저 끊겨 500이 와도 서버는 끝까지 만들어 저장하고,
+ * 같은 요청 id로 다시 물으면 만드는 중엔 409 sample_script_in_progress, 끝났으면 저장된 대본을 준다(10/23 실기기 확인).
+ * 그래서 이런 실패는 실패 화면을 띄우지 않고 기다렸다 다시 묻는다. 입력이 틀렸거나(4xx) 시간이 다 되면 그대로 던진다.
+ */
+export function shouldWaitForGeneration(error: unknown): boolean {
+  const e = error as { status?: unknown; code?: unknown } | null;
+  if (!e || typeof e !== 'object') return false;
+  if (e.code === 'sample_script_in_progress') return true;
+  if (e.code === 'network_error') return true;
+  return typeof e.status === 'number' && e.status >= 500;
+}
+
+export async function generateWithWait<T>(
+  call: () => Promise<T>,
+  options: { deadlineMs: number; intervalMs: number; now?: () => number; sleep?: (ms: number) => Promise<void> },
+): Promise<T> {
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const startedAt = now();
+  for (;;) {
+    try {
+      return await call();
+    } catch (error) {
+      if (!shouldWaitForGeneration(error) || now() - startedAt + options.intervalMs > options.deadlineMs) throw error;
+      await sleep(options.intervalMs);
+    }
+  }
+}

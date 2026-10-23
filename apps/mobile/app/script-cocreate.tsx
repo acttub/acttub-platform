@@ -23,6 +23,7 @@ import {
   ANY_SITUATION,
   CAST_OPTIONS,
   coachSceneFor,
+  generateWithWait,
   myRole,
   EMOTIONS,
   errorKey,
@@ -50,6 +51,10 @@ type Step = 'start' | 'failed' | 'emotion' | 'situation' | 'direction' | 'genera
  *
  * 수정은 성공한 것만 무료 3번이다(서버가 센다). 다 쓰면 안내만 하고 결제·Pro 화면은 없다. 분량은 추정치라 「약 1분」으로 보인다.
  */
+/** 대본 생성 결과를 기다리는 최대 시간과 다시 묻는 간격. */
+const GENERATION_WAIT_MS = 180_000;
+const GENERATION_POLL_MS = 5_000;
+
 export default function ScriptCocreateScreen() {
   const router = useRouter();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
@@ -93,7 +98,12 @@ export default function ScriptCocreateScreen() {
       if (generation.current?.payload !== payload) {
         generation.current = { payload, requestId: newRequestId() };
       }
-      const made = await api.createSampleScript({ ...body, request_id: generation.current.requestId });
+      const requestId = generation.current.requestId;
+      // 받는 길이 먼저 끊겨도(웹 프록시 60초) 서버는 끝까지 만든다 — 같은 요청 id로 3분까지 다시 물어 받는다.
+      const made = await generateWithWait(() => api.createSampleScript({ ...body, request_id: requestId }), {
+        deadlineMs: GENERATION_WAIT_MS,
+        intervalMs: GENERATION_POLL_MS,
+      });
       generation.current = null; // 다음 의도적인 생성은 새 요청이다. 실패한 재시도만 같은 id를 쓴다.
       if (regenPending.current) {
         regenPending.current = false;
