@@ -74,6 +74,14 @@ export function openSystemShare(message: string): Promise<unknown> {
   return SystemShare.share({ message });
 }
 
+/**
+ * 기기 공유 창에 영상 파일과 글을 같이 넘긴다. 카카오톡처럼 파일을 받으면 글을 버리는 앱도 있어
+ * 영상이 먼저다. 사용자가 공유 창을 닫아도 던지지 않는다.
+ */
+export async function openSystemShareWithVideo(fileUri: string, message: string): Promise<void> {
+  await Share.open({ url: fileUri, type: 'video/mp4', message, failOnCancel: false });
+}
+
 export function openUrl(url: string): Promise<unknown> {
   return Linking.openURL(url);
 }

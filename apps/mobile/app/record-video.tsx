@@ -24,6 +24,7 @@ import { VIDEO_MAX_MS, videoErrorMessage } from '@/lib/library/video-checks';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
 import { peekRecordedVideo, setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
 import { setPickedVideo } from '@/lib/practice/picked-video';
+import { VIDEO_PICKER_OPTIONS } from '@/lib/video-picker-options';
 
 const MAX_SEC = Math.floor(VIDEO_MAX_MS / 1000);
 /** 챌린지(오늘의 대사) 촬영은 60초 — pen A18 촬영 대기 화면과 같은 상한. */
@@ -317,7 +318,7 @@ export default function RecordVideoScreen() {
 
   // 챌린지 모드 "업로드" — 찍는 대신 갤러리에서 골라 그대로 올리기로 간다.
   const pickFromGallery = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], quality: 1 });
+    const result = await ImagePicker.launchImageLibraryAsync(VIDEO_PICKER_OPTIONS);
     const picked = !result.canceled && !!result.assets[0];
     if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('gallery', picked ? 'selected' : 'cancelled'));
     if (result.canceled || !result.assets[0]) return;

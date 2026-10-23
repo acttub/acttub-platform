@@ -23,6 +23,7 @@ import {
   instagramStoreUrl,
   isInstagramInstalled,
   openSystemShare,
+  openSystemShareWithVideo,
   openUrl,
   saveVideoToLibrary,
   shareVideoToInstagramStory,
@@ -150,12 +151,33 @@ export function EntryShareSheet({
     }
   };
 
+  // 카톡·더보기: 내 참여작은 영상 파일을 받아 글과 같이 넘긴다. 남의 참여작은 영상 저장처럼 파일을 넘기지 않고 링크만 보낸다.
+  // 영상을 못 받으면(영상 없음·너무 큼·받기 실패) 글과 링크만 보낸다.
+  const shareWithVideo = async () => {
+    const message = shareMessage(entry, entry.authorName, line);
+    if (!entry.is_mine) {
+      await openSystemShare(message);
+      return;
+    }
+    setBusy('prepare');
+    let uri: string | null = null;
+    try {
+      uri = await prepareVideoFile(entry, videoDeps);
+    } catch {
+      uri = null;
+    } finally {
+      setBusy(null);
+    }
+    if (uri) await openSystemShareWithVideo(uri, message);
+    else await openSystemShare(message);
+  };
+
   const onTarget = async (target: ShareTarget) => {
     void logEvent('challenge_share_target', { id: entry.id, target });
     setNotice(null);
     try {
       if (target === 'instagram') await postStory();
-      else if (target === 'kakao' || target === 'more') await openSystemShare(shareMessage(entry, entry.authorName, line));
+      else if (target === 'kakao' || target === 'more') await shareWithVideo();
       else if (target === 'threads') await openUrl(threadsIntentUrl(entry, entry.authorName, line));
       else {
         await copyText(shareMessage(entry, entry.authorName, line));

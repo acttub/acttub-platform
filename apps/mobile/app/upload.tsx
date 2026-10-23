@@ -87,6 +87,7 @@ import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { SAMPLE_PRACTICE_ID } from '@/lib/tutorial-sample';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
+import { VIDEO_PICKER_OPTIONS } from '@/lib/video-picker-options';
 
 /**
  * A8·A8.1·A9.x 새 연습 준비(practice.start · practice.resume).
@@ -361,7 +362,7 @@ export default function UploadScreen() {
 
   const pickFromGallery = async () => {
     if (!user?.id) return;
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], allowsEditing: true, quality: 1 });
+    const result = await ImagePicker.launchImageLibraryAsync(VIDEO_PICKER_OPTIONS);
     if (result.canceled || !result.assets[0]) { if (!picked) showReason(); return; }
     const asset = result.assets[0];
     const durationMs = normalizeVideoDurationMs(asset.duration ?? null);

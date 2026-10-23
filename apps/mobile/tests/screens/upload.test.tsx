@@ -214,7 +214,7 @@ describe('갤러리에서 고르기', () => {
 
     expect(await screen.findByText('올리는 중…')).toBeOnTheScreen();
     expect(saveRecordingToLibrary).toHaveBeenCalledWith({ uri: 'file:///g.mov', durationMs: 42_000, owner: 'u1' });
-    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith({ mediaTypes: ['videos'], allowsEditing: true, quality: 1 });
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith({ mediaTypes: ['videos'], allowsEditing: false, preferredAssetRepresentationMode: 'current' });
     expect(useVideoPlayer).toHaveBeenLastCalledWith('file:///doc/g.mov', expect.any(Function));
     expect(mockPlayer.pause).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: '업로드 중…' })).toBeOnTheScreen();
