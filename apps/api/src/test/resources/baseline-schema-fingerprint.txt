@@ -465,6 +465,7 @@ COLUMN practices.character_context ord=12 type=text len=- null=NO default=''::te
 COLUMN practices.close_reason ord=7 type=text len=- null=YES default=-
 COLUMN practices.created_at ord=22 type=timestamptz len=- null=NO default=now()
 COLUMN practices.experience_version ord=8 type=text len=- null=NO default=-
+COLUMN practices.face_mosaic ord=25 type=bool len=- null=NO default=false
 COLUMN practices.favorite ord=19 type=bool len=- null=NO default=false
 COLUMN practices.goal ord=13 type=text len=- null=NO default=''::text
 COLUMN practices.hidden_at ord=20 type=timestamptz len=- null=YES default=-
@@ -1439,6 +1440,7 @@ CONSTRAINT practices practices_blockage_kind_not_null NOT NULL blockage_kind
 CONSTRAINT practices practices_character_context_not_null NOT NULL character_context
 CONSTRAINT practices practices_created_at_not_null NOT NULL created_at
 CONSTRAINT practices practices_experience_version_not_null NOT NULL experience_version
+CONSTRAINT practices practices_face_mosaic_not_null NOT NULL face_mosaic
 CONSTRAINT practices practices_favorite_not_null NOT NULL favorite
 CONSTRAINT practices practices_goal_not_null NOT NULL goal
 CONSTRAINT practices practices_id_not_null NOT NULL id

@@ -51,7 +51,9 @@ final class PracticeDtos {
             @Schema(nullable = true) @Valid BlockageInput blockage,
             @Schema(nullable = true) @Size(max = PracticeRules.GROUP_TITLE_MAX_CHARS) String title,
             @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern"})
-            @jakarta.validation.constraints.Pattern(regexp = "evaluate|stuck|character|concern") String sessionPurpose) {
+            @jakarta.validation.constraints.Pattern(regexp = "evaluate|stuck|character|concern") String sessionPurpose,
+            @Schema(nullable = true, description = "얼굴 가리기. 기본 false. 켜면 분석·코치는 원본 대신 서버가 얼굴을 가린 사본을 본다. 사본을 만들지 못하면(얼굴을 못 찾음 포함) 원본을 쓰지 않고 분석이 실패로 닫힌다. 원본은 지우지 않는다. 영상 없는 회차에서는 무시한다.")
+            Boolean faceMosaic) {
 
         /**
          * 영상이 없으면 말로 하는 목적이어야 한다(SOMA-745). 영상을 빼고 목적도 없으면 예전처럼 값 모양 오류 422(배열)다.
@@ -71,7 +73,9 @@ final class PracticeDtos {
             @NotNull UUID requestId,
             @Schema(nullable = true) UUID videoId,
             @Schema(nullable = true) @Valid SceneInput scene,
-            @Schema(nullable = true) @Valid BlockageInput blockage) {
+            @Schema(nullable = true) @Valid BlockageInput blockage,
+            @Schema(nullable = true, description = "얼굴 가리기. 생략·null 이면 이어받을 회차의 값을 그대로 쓴다. 뜻은 회차 시작과 같다.")
+            Boolean faceMosaic) {
     }
 
     /** 분석 재시도. */

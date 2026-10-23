@@ -18,6 +18,10 @@ import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
+import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';
+import { UploadPrepareFailed } from '@/components/upload-prepare-failed';
+import { scheduleUploadLaterReminder } from '@/lib/notifications';
+import { setFaceMosaicForUploads, rememberPurgeAfterAnalysis } from '@/lib/practice/upload-options';
 import { UploadWaitPanel } from '@/components/upload-wait-panel';
 import { forgetWaitingUpload, rememberWaitingUpload } from '@/hooks/use-waiting-upload';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
@@ -145,13 +149,31 @@ export default function UploadScreen() {
   // 영상 단계의 고른 길(기본 없음) — 권리 체크 뒤 「질문 받기」를 누르면 그 길로 간다.
   const [sourceChoice, setSourceChoice] = useState<'record' | 'gallery' | null>(null);
   const [reasonSheet, setReasonSheet] = useState(false);
+  // P3.26 올리기 옵션 — 고르면 시작 요청에 싣는다. 고르지 않으면 null(옵션 없이 올린다).
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [uploadOptions, setUploadOptions] = useState<UploadOptions | null>(null);
   const showReason = () => setReasonSheet(true);
   const closeReason = () => { setReasonSheet(false); setStep('purpose'); };
   const reasonRoute = (go: () => void) => {
     setReasonSheet(false);
     setTimeout(() => leaveThen(go), Platform.OS === 'ios' ? 450 : 0);
   };
-  usePreventRemove(!leaving && previousUploadStep(step) !== null, () => {
+  // 「지금은 못 찍어요」 — 내일 저녁 알림을 하나 예약하고 홈으로 간다.
+  const remindLater = async () => {
+    const result = await scheduleUploadLaterReminder(t('uploadFlow.laterTitle'), t('uploadFlow.laterBody'));
+    if (result === 'denied') void alert({ title: t('uploadFlow.hLater'), message: t('uploadFlow.laterDenied') });
+    reasonRoute(() => router.replace('/(tabs)'));
+  };
+  usePreventRemove(!leaving && (optionsOpen || reasonSheet || previousUploadStep(step) !== null), () => {
+    if (optionsOpen) {
+      setOptionsOpen(false);
+      setReasonSheet(true);
+      return;
+    }
+    if (reasonSheet) {
+      closeReason();
+      return;
+    }
     const back = previousUploadStep(step);
     if (back && !sample && !picked) showReason();
     else if (back) setStep(back);
@@ -261,10 +283,12 @@ export default function UploadScreen() {
 
   // 압축·올리기가 실패로 남았는지. 실패해도 「올리는 중」으로만 보이면 끝나지 않는 것처럼 보인다(SOMA-737).
   const [uploadFailed, setUploadFailed] = useState(false);
+  const [compressFailed, setCompressFailed] = useState(false);
   useEffect(() => {
     const pendingId = picked?.pendingId;
     if (!pendingId || picked?.videoId || !user?.id) {
       setUploadFailed(false);
+      setCompressFailed(false);
       return;
     }
     let alive = true;
@@ -272,7 +296,10 @@ export default function UploadScreen() {
     const check = () => {
       void pendingLibraryUploads(owner)
         .then((list) => {
-          if (alive) setUploadFailed(list.find((e) => e.id === pendingId)?.status === 'failed');
+          const entry = list.find((e) => e.id === pendingId);
+          if (!alive) return;
+          setUploadFailed(entry?.status === 'failed');
+          setCompressFailed(entry?.status === 'failed' && entry.lastError === 'compress_failed');
         })
         .catch(() => undefined);
     };
@@ -309,6 +336,15 @@ export default function UploadScreen() {
     if (pendingId) void removePendingUpload(pendingId).catch(() => undefined);
     if (user?.id) void forgetWaitingUpload(user.id);
   };
+  // 압축 실패(P3.27) — 영상을 버리고 고르기로 돌아간다.
+  const pickOther = () => {
+    const pendingId = picked?.pendingId;
+    setPicked(null);
+    setSourceChoice(null);
+    setUploadFailed(false);
+    if (pendingId) void removePendingUpload(pendingId).catch(() => undefined);
+    if (user?.id) void forgetWaitingUpload(user.id);
+  };
   const waitRetry = () => {
     if (user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
   };
@@ -320,6 +356,8 @@ export default function UploadScreen() {
     setTimeout(action, Platform.OS === 'ios' ? 450 : 0);
   };
   const record = () => router.push({ pathname: '/record-video', params: { mode: 'ai' } });
+  // 「길게 찍기 부담돼요」 — 한 줄만 10초.
+  const recordShort = () => router.push({ pathname: '/record-video', params: { mode: 'ai', maxSec: '10' } });
 
   const pickFromGallery = async () => {
     if (!user?.id) return;
@@ -375,15 +413,19 @@ export default function UploadScreen() {
         return;
       }
       const continueFrom = plan.continueFrom;
-      const body = continueFrom
+      const baseBody = continueFrom
         ? buildContinueBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage })
         : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage });
+      // 얼굴 가리기는 켠 때만 싣는다 — 서버가 아직 모르면 무시하는 선택 필드다.
+      const body = uploadOptions?.faceMosaic ? { ...baseBody, face_mosaic: true } : baseBody;
       const attempt = attemptFor(attemptRef.current, fingerprintOf(body), newRequestId);
       attemptRef.current = attempt;
       const practice = continueFrom
         ? await api.continuePractice(continueFrom.practiceId, { ...body, request_id: attempt.requestId })
         : await api.createPractice({ ...body, request_id: attempt.requestId } as Parameters<typeof api.createPractice>[0]);
       startedRef.current = true;
+      if (uploadOptions?.purgeAfterAnalysis) await rememberPurgeAfterAnalysis(practice.id, resolvedVideoId);
+      setFaceMosaicForUploads(false);
       logEvent('practice_start', { ordinal: practice.ordinal, continued: Boolean(continueFrom) });
       leaveThen(() => router.replace({ pathname: '/coach', params: { practiceId: practice.id } }));
     } catch (e) {
@@ -542,7 +584,11 @@ export default function UploadScreen() {
         <UploadWaitPanel failed={uploadFailed} onHome={waitHome} onRetry={waitRetry} onCancel={waitCancel} />
       )}
 
-      {step === 'source' && !waitPanel && (
+      {step === 'source' && !waitPanel && compressFailed && (
+        <UploadPrepareFailed onRetry={waitRetry} onOther={pickOther} />
+      )}
+
+      {step === 'source' && !waitPanel && !compressFailed && (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.stepBody}>
             {!sample && (
@@ -657,10 +703,19 @@ export default function UploadScreen() {
         onClose={() => setSourceSheet(false)}
         options={sourceOptions}
       />
-      {reasonSheet && <UploadReasonSheet onClose={closeReason}
-        onTalk={() => reasonRoute(() => router.replace('/talk'))}
-        onScript={() => reasonRoute(() => router.replace('/script-cocreate'))}
-        onRecord={() => reasonRoute(record)} />}
+      {reasonSheet && (
+        <UploadReasonSheet
+          onFace={() => { setReasonSheet(false); setOptionsOpen(true); }}
+          onShort={() => reasonRoute(recordShort)}
+          onLater={() => void remindLater()}
+        />
+      )}
+      {optionsOpen && (
+        <UploadOptionsPage
+          initial={uploadOptions}
+          onDone={(options) => { setUploadOptions(options); setFaceMosaicForUploads(options.faceMosaic); setOptionsOpen(false); setStep('source'); }}
+        />
+      )}
       {dialog}
       {tutorialGuide.element}
     </SafeAreaView>

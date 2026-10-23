@@ -479,16 +479,13 @@ describe('챌린지 촬영', () => {
     expect(screen.getByText('58초 남음')).toBeOnTheScreen();
   });
 
-  test('챌린지 정보 없이 챌린지 촬영으로 열려도 빈 값으로 올리기에 넘긴다', async () => {
+  test('챌린지 대사 없이 챌린지 촬영을 마치면 대사 고르기로 간다', async () => {
     mockParams = { mode: 'challenge' };
     await render(<RecordVideoScreen />);
 
     await recordAndStop();
 
-    expect(mockRouter.replace).toHaveBeenCalledWith({
-      pathname: '/challenge-upload',
-      params: { challengeId: '', line: '', work: '' },
-    });
+    expect(mockRouter.replace).toHaveBeenCalledWith('/line-pick');
   });
 
   test('녹화가 결과 없이 끝나거나 실패하면 실패로 세고 돌아간다', async () => {

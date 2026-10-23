@@ -1,7 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
@@ -24,6 +24,9 @@ import {
   coachSceneFor,
   EMOTIONS,
   errorKey,
+  freeLeft,
+  REVISION_CHIPS,
+  type RevisionChip,
   experienceFor,
   FREE_TEXT_MAX,
   LENGTH_OPTIONS,
@@ -31,10 +34,11 @@ import {
   revisionChanged,
   SITUATIONS,
   summaryLine,
+  type ReviseSampleScriptBody,
   type SampleScript,
 } from '@/lib/script-cocreate';
 
-type Step = 'emotion' | 'situation' | 'direction' | 'generating' | 'result' | 'edit' | 'saved';
+type Step = 'start' | 'failed' | 'emotion' | 'situation' | 'direction' | 'generating' | 'result' | 'edit' | 'saved';
 
 /**
  * 찍을 대사부터 같이 만들기(SOMA-721, 코칭 탭 입구). 감정 → 상황 → 원하는 방향(선택)을 한 화면씩 묻고, 서버가 생성 대본을 만든다.
@@ -50,7 +54,10 @@ export default function ScriptCocreateScreen() {
   const readingMode = mode === 'reading';
   const { profile } = useAuth();
   const me = profile.me?.profile ?? null;
-  const [step, setStep] = useState<Step>('emotion');
+  const [step, setStep] = useState<Step>(readingMode ? 'start' : 'emotion');
+  const [startChoice, setStartChoice] = useState<'sample' | 'make' | null>(null);
+  const [regenUsed, setRegenUsed] = useState(0);
+  const regenPending = useRef(false);
   const [emotion, setEmotion] = useState<string | null>(null);
   const [situation, setSituation] = useState('');
   const [direction, setDirection] = useState('');
@@ -86,12 +93,24 @@ export default function ScriptCocreateScreen() {
       }
       const made = await api.createSampleScript({ ...body, request_id: generation.current.requestId });
       generation.current = null; // 다음 의도적인 생성은 새 요청이다. 실패한 재시도만 같은 id를 쓴다.
+      if (regenPending.current) {
+        regenPending.current = false;
+        setRegenUsed((n) => n + 1); // 성공한 다시 만들기만 센다. 실패한 시도는 빼 준다.
+      }
       setScript(made);
       setStep('result');
     } catch (e) {
       fail(e);
-      setStep('direction');
+      setStep('failed');
     }
+  };
+
+  // 다시 만들기 — 같은 입력으로 새로 요청한다. 무료 횟수를 다 썼으면 막는다.
+  const regenerate = () => {
+    if (!script || freeLeft(script.revisions_left, regenUsed) <= 0) return;
+    generation.current = null;
+    regenPending.current = true;
+    void generate();
   };
 
   const openEdit = () => {
@@ -101,12 +120,24 @@ export default function ScriptCocreateScreen() {
     setStep('edit');
   };
 
-  const applyEdit = async () => {
+  const applyEdit = () => {
     if (!script || !revisionChanged(script, edit)) return;
+    return runRevision(revisionBody(script, edit));
+  };
+
+  // 수정 칩 — 칩 문구를 그 지시로 보내 고친 대본을 받는다.
+  const reviseWithChip = (chip: RevisionChip) => {
+    if (!script || busy || freeLeft(script.revisions_left, regenUsed) <= 0) return;
+    const instruction = t(`scriptCocreate.chip${chip === 'shorter' ? 'Shorter' : chip === 'stronger' ? 'Stronger' : 'MoreMine'}Text`);
+    return runRevision({ base_version: script.version, text: instruction });
+  };
+
+  const runRevision = async (revision: ReviseSampleScriptBody) => {
+    if (!script) return;
     setBusy(true);
     setError(null);
     try {
-      setScript(await api.reviseSampleScript(script.id, revisionBody(script, edit)));
+      setScript(await api.reviseSampleScript(script.id, revision));
       setStep('result');
     } catch (e) {
       try {
@@ -169,6 +200,8 @@ export default function ScriptCocreateScreen() {
   };
 
   const back = () => {
+    if (step === 'emotion' && readingMode) return setStep('start');
+    if (step === 'failed') return setStep('direction');
     if (step === 'situation') return setStep('emotion');
     if (step === 'direction') return setStep('situation');
     if (step === 'edit') return setStep('result');
@@ -191,6 +224,7 @@ export default function ScriptCocreateScreen() {
       ) : step === 'result' && script ? (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.resultBody}>
+            <MascotBubble title={t('scriptCocreate.resultAsk')} guide={t('scriptCocreate.resultGuide')} />
             <Text style={styles.scriptTitle}>{script.title}</Text>
             <Text style={styles.summary}>{summaryLine(script)}</Text>
             {script.note ? <Text style={styles.note}>{script.note}</Text> : null}
@@ -208,22 +242,37 @@ export default function ScriptCocreateScreen() {
                 ),
               )}
             </View>
+            <View style={styles.chips}>
+              {REVISION_CHIPS.map((chip) => (
+                <Chip
+                  key={chip}
+                  label={t(`scriptCocreate.chip${chip === 'shorter' ? 'Shorter' : chip === 'stronger' ? 'Stronger' : 'MoreMine'}`)}
+                  phLabel="script_cocreate_chip"
+                  disabled={busy || freeLeft(script.revisions_left, regenUsed) <= 0}
+                  onPress={() => void reviseWithChip(chip)}
+                />
+              ))}
+            </View>
+            <TextButton
+              label={`${t('scriptCocreate.regenerate')} · ${t('scriptCocreate.freeLeftOf', { count: freeLeft(script.revisions_left, regenUsed) })}`}
+              phLabel="script_cocreate_regenerate"
+              onPress={regenerate}
+              disabled={busy || freeLeft(script.revisions_left, regenUsed) <= 0}
+            />
             {script.version > 1 ? (
               <TextButton label={t('scriptCocreate.restore')} phLabel="script_cocreate_restore" onPress={restorePrevious} disabled={busy} />
             ) : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </ScrollView>
           <CtaBar divider>
-            <Text style={styles.left}>
-              {script.revisions_left > 0
-                ? t('scriptCocreate.revisionsLeft', { count: script.revisions_left })
-                : t('scriptCocreate.errorRevisionLimit')}
-            </Text>
+            {freeLeft(script.revisions_left, regenUsed) <= 0 ? (
+              <Text style={styles.left}>{t('scriptCocreate.errorRevisionLimit')}</Text>
+            ) : null}
             <SecondaryButton
               label={t('scriptCocreate.edit')}
               phLabel="script_cocreate_edit"
               onPress={openEdit}
-              disabled={busy || script.revisions_left <= 0}
+              disabled={busy || freeLeft(script.revisions_left, regenUsed) <= 0}
             />
             <PrimaryButton label={t('scriptCocreate.confirm')} phLabel="script_cocreate_confirm" onPress={confirm} loading={busy} />
           </CtaBar>
@@ -257,6 +306,44 @@ export default function ScriptCocreateScreen() {
               onPress={applyEdit}
               loading={busy}
               disabled={!revisionChanged(script, edit)}
+            />
+          </CtaBar>
+        </View>
+      ) : step === 'failed' ? (
+        <View style={styles.flex}>
+          <View style={styles.center}>
+            <Text style={styles.waitTitle}>{t('scriptCocreate.failTitle')}</Text>
+            <Text style={styles.waitSub}>{t('scriptCocreate.failSub')}</Text>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+          </View>
+          <CtaBar>
+            <PrimaryButton label={t('scriptCocreate.failRetry')} phLabel="script_cocreate_fail_retry" onPress={() => void generate()} />
+            <SecondaryButton label={t('scriptCocreate.failOwn')} phLabel="script_cocreate_fail_own" onPress={() => router.replace('/reading/new')} />
+          </CtaBar>
+        </View>
+      ) : step === 'start' ? (
+        <View style={styles.flex}>
+          <ScrollView contentContainerStyle={styles.body}>
+            <MascotBubble title={t('scriptCocreate.startAsk')} guide={t('scriptCocreate.pickNext')} />
+            {(['sample', 'make'] as const).map((key) => (
+              <Pressable
+                key={key}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: startChoice === key }}
+                ph-label={`script_cocreate_start_${key}`}
+                onPress={() => setStartChoice(key)}
+                style={[styles.choice, startChoice === key && styles.choiceOn]}>
+                <Text style={styles.choiceTitle}>{t(key === 'sample' ? 'scriptCocreate.startSample' : 'scriptCocreate.startMake')}</Text>
+                <Text style={styles.choiceSub}>{t(key === 'sample' ? 'scriptCocreate.startSampleSub' : 'scriptCocreate.startMakeSub')}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <CtaBar divider>
+            <PrimaryButton
+              label={t('scriptCocreate.next')}
+              phLabel="script_cocreate_start_next"
+              disabled={!startChoice}
+              onPress={() => (startChoice === 'sample' ? router.replace('/reading/sample') : setStep('emotion'))}
             />
           </CtaBar>
         </View>
@@ -433,5 +520,9 @@ const styles = StyleSheet.create({
   dialogue: { fontSize: 15, lineHeight: 23, color: palette.text },
   sceneLine: { fontSize: 13, fontWeight: '700', color: palette.textMuted },
   direction: { fontSize: 14, lineHeight: 20, color: palette.textFaint },
+  choice: { gap: 4, padding: 18, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
+  choiceTitle: { fontSize: 16, fontWeight: '700', color: palette.text },
+  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMuted },
   left: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
 });

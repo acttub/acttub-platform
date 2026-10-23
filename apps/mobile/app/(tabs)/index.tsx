@@ -28,6 +28,7 @@ import { challengeDaysLeft, pickToday, primaryFeature, wasYesterday, type TodayI
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
 import { loadIntoCurrent } from '@/lib/reading/store';
+import { DEFAULT_SEC_PER_LINE, displayProgress, hasReachedEnd, remainingMinutes, secPerLine } from '@/lib/reading/progress-display';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
@@ -106,7 +107,7 @@ export default function HomeScreen() {
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [groupsFailed, setGroupsFailed] = useState(false);
   const [scripts, setScripts] = useState<ScriptCard[] | null>(null);
-  const [readingProgress, setReadingProgress] = useState<{ scriptId: string; progress: SessionProgress } | null>(null);
+  const [readingProgress, setReadingProgress] = useState<{ scriptId: string; progress: SessionProgress; perLine: number } | null>(null);
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   // null 이면 기록을 아직 한 번도 못 받은 것이다 — 그때의 연속일(0)로 축하를 판단하면 안 된다.
@@ -336,9 +337,15 @@ export default function HomeScreen() {
     let cancelled = false;
     api
       .listReadingSessions(readingScriptId)
-      .then(({ sessions }) => {
+      .then(async ({ sessions }) => {
         const open = sessions.find((s) => s.status === 'in_progress' && s.progress);
-        if (!cancelled) setReadingProgress(open?.progress ? { scriptId: readingScriptId, progress: open.progress } : null);
+        const reached = open?.id ? await hasReachedEnd(open.id) : false;
+        if (cancelled) return;
+        setReadingProgress(
+          open?.progress
+            ? { scriptId: readingScriptId, progress: displayProgress(open.progress, reached), perLine: secPerLine(sessions) }
+            : null,
+        );
       })
       .catch(() => {
         if (!cancelled) setReadingProgress(null);
@@ -581,6 +588,7 @@ export default function HomeScreen() {
                     ? readingProgress.progress
                     : null
                 }
+                perLine={today.main.kind === 'reading' && readingProgress ? readingProgress.perLine : undefined}
                 nextTake={today.main.kind === 'coaching' ? nextTakes[today.main.notePracticeId] ?? null : null}
                 onPress={() => openItem(today.main)}
               />
@@ -642,17 +650,20 @@ function TodayCardBody({
   item,
   nextTake = null,
   progress,
+  perLine,
   onPress,
 }: {
   item: TodayItem;
   nextTake?: string | null;
   progress: SessionProgress | null;
+  perLine?: number;
   onPress: () => void;
 }) {
   let eyebrow: string;
   let icon: ComponentProps<typeof Feather>['name'] | 'trophy' = 'video';
   let title: string;
   let sub: string | null = null;
+  let remaining: string | null = null;
   let cta: string;
   let bar: number | null = null;
 
@@ -672,6 +683,8 @@ function TodayCardBody({
     if (progress && progress.total > 0) {
       bar = Math.min(1, Math.max(0, progress.done / progress.total));
       sub = t('home.todayReadingProgress', { total: progress.total, done: progress.done });
+      const minutes = remainingMinutes(progress, perLine ?? DEFAULT_SEC_PER_LINE);
+      if (minutes !== null) remaining = t('home.todayReadingRemaining', { minutes });
       cta = progress.done < progress.total ? t('home.todayReadingCta', { line: progress.done + 1 }) : t('home.todayReadingCtaPlain');
     } else {
       // 만들어 두고 아직 안 읽은 대본은 「리딩 시작하기」.
@@ -702,6 +715,7 @@ function TodayCardBody({
       </View>
       <Text style={styles.todayTitle} numberOfLines={3}>{title}</Text>
       {sub ? <Text style={styles.todaySub} numberOfLines={2}>{sub}</Text> : null}
+      {remaining ? <Text style={styles.todaySub}>{remaining}</Text> : null}
       {bar !== null && (
         <View style={styles.barTrack}>
           <View style={[styles.barFill, { width: `${Math.round(bar * 100)}%` }]} />

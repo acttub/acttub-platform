@@ -1,3 +1,4 @@
+import { clearReachedEnd, markReachedEnd } from '@/lib/reading/progress-display';
 import Feather from '@expo/vector-icons/Feather';
 import { File, Paths } from 'expo-file-system';
 import { useNavigation, useRouter } from 'expo-router';
@@ -462,6 +463,12 @@ export default function ReadingPlay() {
     [collectPronunciation, enqueueTurn, mic, session, stt],
   );
 
+  // 다시 들어와 이어 읽으면 이전의 「끝까지 갔다」 표시는 지운다.
+  const sessionIdForEnd = session?.id;
+  useEffect(() => {
+    if (sessionIdForEnd) void clearReachedEnd(sessionIdForEnd);
+  }, [sessionIdForEnd]);
+
   const commit = useCallback((next: RunState) => {
     const prev = runRef.current;
     runRef.current = next;
@@ -477,6 +484,9 @@ export default function ReadingPlay() {
         recognition: sttModeRef.current?.kind ?? null,
       });
       if (completed) queueRef.current?.push(progressPayload(next));
+      // 서버는 열어 둔 회차를 마지막 직전(9/10)에 두므로, 끝까지 갔다는 표시를 이 기기에 남겨 홈이 10/10 으로 보이게 한다.
+      if (completed) void clearReachedEnd(session.id);
+      else void markReachedEnd(session.id);
       setPhase({ kind: 'done' });
       if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
       return;

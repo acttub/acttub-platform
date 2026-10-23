@@ -21,6 +21,8 @@ class CoachDisplayTextTest {
     @Test void onlyCoachMessagesEndingWithAQuestionMarkChange() {
         String closing = "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.";
         assertThat(CoachDisplayText.keepWhole("coach", closing)).isEqualTo(closing);
+        String talkClosing = "오늘은 여기까지 해요. 다음에 또 이야기해요.";
+        assertThat(CoachDisplayText.keepWhole("coach", talkClosing)).as("말로 코칭의 마무리도 그대로").isEqualTo(talkClosing);
         assertThat(CoachDisplayText.keepWhole("actor", "몰라요. 어떻게 해요?")).isEqualTo("몰라요. 어떻게 해요?");
         assertThat(CoachDisplayText.keepWhole("ai", "그랬군요. 왜요?")).isEqualTo("그랬군요.\u200B 왜요?");
         assertThat(CoachDisplayText.keepWhole("coach", null)).isNull();

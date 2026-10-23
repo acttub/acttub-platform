@@ -59,6 +59,7 @@ export default function RecordVideoScreen() {
     picker?: string;
     next?: string;
     first?: string;
+    maxSec?: string;
   }>();
   const picker = params.picker === '1';
   // next=upload: 코칭 탭 「지금 찍어서 코칭 받기」 → 찍는 법 → 여기. 준비 화면이 뒤에 없으니 찍은 뒤 새로 연다.
@@ -74,7 +75,10 @@ export default function RecordVideoScreen() {
   const { challengeId, line, work } = challengeParams;
   const [loadingToday, setLoadingToday] = useState(false);
   const isChallenge = mode === 'challenge';
-  const maxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
+  // maxSec 파라미터(올리기 망설임 「길게 찍기 부담돼요」의 10초)는 기본 길이보다 짧을 때만 따른다.
+  const limitParam = Number(params.maxSec);
+  const baseMaxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
+  const maxSec = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, baseMaxSec) : baseMaxSec;
   const cameraRef = useRef<CameraView>(null);
   const [camPerm, requestCam] = useCameraPermissions();
   const [micPerm, requestMic] = useMicrophonePermissions();
@@ -217,6 +221,11 @@ export default function RecordVideoScreen() {
   const goNext = useCallback(() => {
     if (isChallenge) {
       leavingRef.current = true;
+      // 대사가 정해지지 않았으면 올릴 대사를 먼저 고른다(C9.16).
+      if (!challengeId) {
+        router.replace('/line-pick');
+        return;
+      }
       router.replace({
         pathname: '/challenge-upload',
         params: { challengeId: challengeId ?? '', line: line ?? '', work: work ?? '' },

@@ -14,6 +14,8 @@ import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
+import { PracticeVideoModal } from '@/components/practice-video-modal';
+import { purgeVideoFileIfDue } from '@/lib/practice/upload-options';
 import { forgetLocalCopy } from '@/lib/library/library-runner';
 import { videoErrorMessage } from '@/lib/library/video-checks';
 import { translate as t } from '@/lib/i18n';
@@ -53,6 +55,9 @@ export default function PracticeGroupScreen() {
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [conversationLoading, setConversationLoading] = useState(false);
   const conversationRequest = useRef(0);
+  // P10.2 「연습 영상 보기」 — 묶음 영상의 재생 주소. 파기됐으면 purged.
+  const [video, setVideo] = useState<{ url: string | null; purged: boolean } | null>(null);
+  const [playing, setPlaying] = useState(false);
   // 지금 펼쳐 둔 대화의 id. 같은 줄을 다시 누르면 접는다(카드를 누르면 아래로 펼친다).
   const [openId, setOpenId] = useState<string | null>(null);
   // 처음 한 번만 "이어서 연습할 수 있어요!"를 비춘다. 버튼이 목록 맨 아래라 먼저 내려 준다.
@@ -117,6 +122,29 @@ export default function PracticeGroupScreen() {
     void load();
     return () => { conversationRequest.current += 1; };
   }, [load]);
+
+  // 노트가 있는 회차는 분석이 끝난 것이다 — 「분석 끝나면 영상 바로 지우기」를 골랐다면 지우고 다시 읽는다.
+  useEffect(() => {
+    if (!group) return;
+    let alive = true;
+    void Promise.all(group.practices.filter((round) => round.note).map((round) => purgeVideoFileIfDue(round.id)))
+      .then((done) => { if (alive && done.some(Boolean)) void load(); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [group, load]);
+
+  // 묶음 영상의 재생 주소는 영상 상세에서만 준다.
+  const groupVideoId = group?.video_id ?? null;
+  useEffect(() => {
+    setVideo(null);
+    if (!groupVideoId) return;
+    let alive = true;
+    void Promise.resolve()
+      .then(() => api.getVideo(groupVideoId))
+      .then((v) => { if (alive) setVideo({ url: v.purged_at ? null : v.playback_url ?? null, purged: Boolean(v.purged_at) }); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [groupVideoId]);
 
   const action = continueActionFor(group);
 
@@ -291,6 +319,17 @@ export default function PracticeGroupScreen() {
           )}
           {group.last_conversation_id && renderOpen(group.last_conversation_id)}
 
+          {video && (
+            video.url ? (
+              <Pressable style={styles.round} onPress={() => setPlaying(true)} accessibilityRole="button">
+                <Text style={styles.openNote}>{t('history.viewVideo')}</Text>
+                <Feather name="play" size={18} color={palette.checkOff} />
+              </Pressable>
+            ) : video.purged ? (
+              <Text style={styles.roundMeta}>{t('history.videoPurged')}</Text>
+            ) : null
+          )}
+
           <Text style={styles.sectionTitle}>{t('history.roundsTitle')}</Text>
           {group.practices.map((round) => (
             <View
@@ -348,6 +387,7 @@ export default function PracticeGroupScreen() {
         onSave={rename}
         onClose={() => setRenameOpen(false)}
       />
+      <PracticeVideoModal uri={playing ? video?.url ?? null : null} onClose={() => setPlaying(false)} />
       {dialog}
       <SpotlightGuide
         visible={guideOpen}

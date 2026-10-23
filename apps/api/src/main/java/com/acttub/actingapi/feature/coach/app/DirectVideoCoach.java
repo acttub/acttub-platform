@@ -9,6 +9,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
 import com.acttub.actingapi.integration.observation.ReplyTrace;
+import com.acttub.actingapi.integration.media.FaceMosaic;
+import com.acttub.actingapi.integration.media.FaceMosaicRenderer;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.FailureContext;
@@ -62,6 +64,8 @@ public final class DirectVideoCoach {
     /** 코칭 1층 관찰 A/B(SOMA-815). NONE 이면 칸이 없다(롤백). */
     static final String LAYER1 = "layer1";
     private final CoachLayerOne layerOne;
+    /** 얼굴 가리기 회차(practice.start)의 원본을 가린 사본으로 바꾼다. NONE 이면 그런 회차는 원본을 올리지 않고 실패한다. */
+    private FaceMosaic faceMosaic = FaceMosaic.NONE;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -132,6 +136,12 @@ public final class DirectVideoCoach {
         return practiceLoop;
     }
 
+    /** 얼굴 가리기 회차의 사본을 만들 곳을 끼운다. null 이면 만들 수 없는 것으로 본다. */
+    public DirectVideoCoach withFaceMosaic(FaceMosaic faceMosaic) {
+        this.faceMosaic = faceMosaic == null ? FaceMosaic.NONE : faceMosaic;
+        return this;
+    }
+
     public CoachResult turn(CoachSessionSnapshot session, String actorText, UUID operationId) {
         return turn(session, actorText, operationId, null);
     }
@@ -200,7 +210,7 @@ public final class DirectVideoCoach {
         final boolean videoOmitted = letGoWithoutVideo && branch != null && PracticeLoopRouter.LET_GO.equals(branch.doing());
         if (purposeTurn != null && purposeTurn.end()) {
             // 그만: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
-            String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
+            String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText), talk);
             videoCache.forget(session.practiceSessionId());
             ObjectNode state = nextState(session);
             DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("", PurposeLoop.status(purposeTurn, ""), closing));
@@ -209,7 +219,7 @@ public final class DirectVideoCoach {
         }
         if (branch != null && PracticeLoopRouter.END.equals(branch.doing())) {
             // 그만·자기 한 줄·응답 상한: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
-            String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
+            String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText), talk);
             videoCache.forget(session.practiceSessionId());
             ObjectNode state = nextState(session);
             DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("", branch.status(), closing));
@@ -230,7 +240,11 @@ public final class DirectVideoCoach {
         try {
             var source = talk ? null : videos.find(session.userId(), session.practiceSessionId());
             if (!talk && source == null) throw new IllegalStateException("owned video is unavailable");
-            if (!talk) videoKey = new CoachVideoCache.Key(session.practiceSessionId(), source.objectKey(), source.etag());
+            // 얼굴 가리기 회차는 원본이 아니라 가린 사본을 올린다 — 원본 준비·이름표와 섞이지 않게 키를 따로 쓴다.
+            if (!talk) videoKey = new CoachVideoCache.Key(session.practiceSessionId(),
+                    source.faceMosaic() ? CoachVideoCache.faceMosaicSource(source.objectKey()) : source.objectKey(),
+                    source.etag());
+            String mimeType = !talk && source.faceMosaic() ? "video/mp4" : talk ? null : source.mimeType();
             DirectVideoModel.InputInspection inspection = null;
             boolean firstLoop = loop && session.turns().isEmpty();
             // 둘째 답부터는 이 대화에서 올려 둔 영상을 다시 쓴다. 배포로 서버가 바뀌었으면 이름표로 찾는다(SOMA-780).
@@ -267,6 +281,8 @@ public final class DirectVideoCoach {
                         && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
                     throw new IllegalStateException("original video changed after upload");
                 }
+                // 얼굴 가리기: 원본 대신 얼굴을 가린 사본을 검사·올린다. 만들 수 없으면 원본을 올리지 않고 이 답을 실패로 닫는다.
+                if (source.faceMosaic()) local = masked(local);
             }
             if (!videoReused && !videoOmitted && !talk) {
                 if (firstLoop) {
@@ -294,9 +310,9 @@ public final class DirectVideoCoach {
                 }
                 ExternalOperationExecution.externalCall("video_upload");
                 String label = videoCache.label(videoKey);
-                uploaded = label != null ? model.upload(local, source.mimeType(), inspection, label)
+                uploaded = label != null ? model.upload(local, mimeType, inspection, label)
                         : inspection == null || inspection.hasAudioTrack() == null
-                        ? model.upload(local, source.mimeType()) : model.upload(local, source.mimeType(), inspection);
+                        ? model.upload(local, mimeType) : model.upload(local, mimeType, inspection);
                 long deadline = System.nanoTime() + Duration.ofSeconds(180).toNanos();
                 while (!model.ready(uploaded)) {
                     if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
@@ -398,9 +414,11 @@ public final class DirectVideoCoach {
                 template = new LlmPrompt("coach.direct." + route, task);
             }
             // 연습 루프는 배우가 이번 연습에 적은 것(상황·인물·목표·막힘)도 받는다. 없으면 칸이 없다.
-            String prompt = DirectVideoPrompts.withAudioFacts(CoachPrompt.actorProfileBlock(session.actorProfile())
+            String prompt = DirectVideoPrompts.withAudioFacts(DirectVideoPrompts.withFaceMosaicFact(
+                    CoachPrompt.actorProfileBlock(session.actorProfile())
                     + CoachPrompt.priorContextBlock(session.priorForModel().withoutCoachGuesses(), true, false)
-                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) + layerBlock : "") + task, uploaded);
+                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) + layerBlock : "") + task,
+                    !talk && source.faceMosaic()), uploaded);
             // 말로 하는 회차는 영상이 없어 첫 응답의 대화 기록이 비고, 모델은 빈 대화를 받지 않는다. 시작을 알리는 배우 쪽 한 줄을
             // 대화 맨 앞에 둔다(저장하지 않는 모델 입력이다). 둘째 응답부터도 같은 줄이 맨 앞에 있어 대화가 배우 말로 시작한다.
             if (talk) history.addFirst(new DirectVideoModel.Message("user", PurposeLoop.talkOpening(purpose)));
@@ -1219,10 +1237,38 @@ public final class DirectVideoCoach {
         }
     }
 
-    /** 코치 AI 없이 닫을 때의 정해진 두 문장. 한국어가 아니면 영어. */
-    static String fixedClosing(java.util.Locale language) {
-        if (language == null || "ko".equals(language.getLanguage())) return "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.";
-        return "That's it for today. Upload a new take and we'll pick up from here.";
+    /**
+     * 코치 AI 없이 닫을 때의 정해진 두 문장. 영상 없이 말로 한 코칭({@code talk}, SOMA-745)은 올릴 테이크가 없어
+     * "새 테이크를 올리면" 대신 다음 대화를 말한다. 한국어가 아니면 영어.
+     */
+    static String fixedClosing(java.util.Locale language, boolean talk) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        if (talk) return korean ? "오늘은 여기까지 해요. 다음에 또 이야기해요." : "That's it for today. Let's talk again next time.";
+        return korean ? "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요."
+                : "That's it for today. Upload a new take and we'll pick up from here.";
+    }
+
+    /** 얼굴 가리기: 내려받은 원본을 가린 사본으로 바꾼다. 원본 임시 파일은 늘 지운다. 만들 수 없으면 던진다(원본으로 돌아가지 않는다). */
+    private Path masked(Path original) {
+        try {
+            if (!faceMosaic.available()) throw new IllegalStateException("face mosaic is unavailable");
+            return faceMosaic.render(original);
+        } catch (FaceMosaicRenderer.NoFaceFound none) {
+            throw new IllegalStateException("no face found for the face mosaic", none);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("face mosaic interrupted", interrupted);
+        } catch (RuntimeException failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new IllegalStateException("face mosaic failed", failure);
+        } finally {
+            try {
+                Files.deleteIfExists(original);
+            } catch (java.io.IOException ignored) {
+                // 남은 임시 파일은 기동마다 임시 폴더 정리에 맡긴다.
+            }
+        }
     }
 
     /** 저장된 상태를 복사해 다음 판으로 올린다. 저장 판이 어긋나면 실패한다. */

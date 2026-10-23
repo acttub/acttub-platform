@@ -149,6 +149,8 @@ export type CreatePracticeBody = {
   title?: string;
   scene: PracticeScene;
   blockage: PracticeBlockage;
+  /** 얼굴 가리기(P3.26). 선택 — 켠 때만 싣고, 서버가 모르면 무시한다. */
+  face_mosaic?: boolean;
 };
 
 /**
@@ -165,6 +167,7 @@ export type ContinuePracticeBody = {
   video_id?: string;
   scene: PracticeScene;
   blockage: PracticeBlockage;
+  face_mosaic?: boolean;
 };
 
 // ─── 대화(practice.coach) ────────────────────────────────────────────────────
