@@ -3,18 +3,18 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { setPickedVideo } from '@/lib/practice/picked-video';
 import { ChallengeDone } from '@/components/challenge-done';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { BlueSwitch } from '@/components/ui/list-rows';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -66,8 +66,6 @@ export default function ChallengeUploadScreen() {
   const challengeId = params.challengeId ?? null;
 
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
-  const keyboardHeight = useKeyboardHeight();
-  const androidKeyboard = Platform.OS === 'android' ? keyboardHeight : 0;
   const scrollRef = useRef<ScrollView>(null);
   const [videoId, setVideoId] = useState<string | null>(params.videoId ?? null);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -276,11 +274,11 @@ export default function ChallengeUploadScreen() {
   const ended = challenge ? isEnded(challenge) : false;
 
   return (
-    <SafeAreaView style={styles.safe} edges={androidKeyboard > 0 ? [] : ['bottom']}>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: t('challengeUpload.title') }} />
-      {/* 안드로이드 edge-to-edge(SDK 54)는 키보드가 떠도 창이 줄지 않아 캡션 칸이 키보드·「올리기」 뒤로 숨는다.
-          키보드 높이만큼 아래를 비우고, 캡션을 누르면 맨 아래까지 내려 칸이 보이게 한다. iOS는 KeyboardAwareScroll이 맡는다. */}
-      <View style={[styles.body, { paddingBottom: androidKeyboard }]}>
+      {/* 키보드가 뜨면 키보드 높이만큼 아래를 비워 캡션 칸과 「올리기」가 키보드 위에 남게 한다(iOS·안드로이드 같은 방식).
+          예전엔 iOS를 스크롤 자동 인셋에 맡겨 「올리기」가 키보드 뒤에 숨었다. 캡션을 누르면 맨 아래까지 내려 칸이 보이게 한다. */}
+      <KeyboardLift style={styles.body}>
       <KeyboardAwareScroll ref={scrollRef} contentContainerStyle={styles.content}>
         <MascotBubble title={t('challengeUpload.bubble')} guide={t('challengeUpload.bubbleGuide')} />
         <View style={styles.thumbWrap}>
@@ -338,7 +336,7 @@ export default function ChallengeUploadScreen() {
       <CtaBar safeBottom={false}>
         <PrimaryButton label={t('challengeUpload.submit')} onPress={() => void submit()} disabled={!ready || ended} loading={submitting} />
       </CtaBar>
-      </View>
+      </KeyboardLift>
     </SafeAreaView>
   );
 }

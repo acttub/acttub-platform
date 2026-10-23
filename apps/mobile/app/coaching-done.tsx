@@ -2,9 +2,11 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { ReportRating } from '@/components/report-rating';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -50,7 +52,9 @@ export default function CoachingDoneScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
-      <ScrollView contentContainerStyle={styles.body}>
+      {/* 평가 한 줄을 쓸 때 입력칸과 「홈으로」가 키보드 위에 남게 한다. */}
+      <KeyboardLift>
+      <KeyboardAwareScroll contentContainerStyle={styles.body}>
         <Image source={MASCOT.jump} style={MASCOT_SIZE.lg} contentFit="contain" accessibilityIgnoresInvertColors />
         <Text style={styles.title} accessibilityRole="header">
           {t('journal.endTitle')}
@@ -61,7 +65,7 @@ export default function CoachingDoneScreen() {
             <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} />
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScroll>
       <CtaBar safeBottom={false}>
         <PrimaryButton label={t('journal.endHome')} onPress={() => router.replace('/(tabs)')} />
         <Pressable style={styles.share} onPress={share} accessibilityRole="button" ph-label="coaching_done_share">
@@ -69,6 +73,7 @@ export default function CoachingDoneScreen() {
           <Text style={styles.shareText}>{t('journal.endShare')}</Text>
         </Pressable>
       </CtaBar>
+      </KeyboardLift>
     </SafeAreaView>
   );
 }

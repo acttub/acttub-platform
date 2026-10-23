@@ -1,8 +1,9 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { useAppDialog } from '@/components/app-dialog';
 import { purgeVideoFileIfDue } from '@/lib/practice/upload-options';
 import { NoteSections } from '@/components/note-sections';
@@ -128,7 +129,7 @@ export default function ReportDetailScreen() {
         </Pressable>
       )}
       {note && (
-        <ScrollView contentContainerStyle={styles.body}>
+        <KeyboardAwareScroll contentContainerStyle={styles.body}>
           <View style={styles.heading}>
             <Text style={styles.kind}>{noteKindLabel(note.kind)}</Text>
             <Text style={styles.title}>{title}</Text>
@@ -144,7 +145,7 @@ export default function ReportDetailScreen() {
           <Pressable style={styles.primary} onPress={continuePractice} accessibilityRole="button">
             <Text style={styles.primaryText}>{t(continueActionLabel(action))}</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScroll>
       )}
       {dialog}
     </SafeAreaView>

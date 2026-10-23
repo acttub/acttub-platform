@@ -9,6 +9,8 @@ import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
@@ -294,8 +296,8 @@ export default function ScriptCocreateScreen() {
           </CtaBar>
         </View>
       ) : step === 'edit' && script ? (
-        <View style={styles.flex}>
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <KeyboardLift>
+          <KeyboardAwareScroll contentContainerStyle={styles.body}>
             <MascotBubble title={t('scriptCocreate.editAsk')} body={t('scriptCocreate.editSub')} />
             <TextInput
               value={edit.text}
@@ -314,7 +316,7 @@ export default function ScriptCocreateScreen() {
               onMinutes={(n) => setEdit((was) => ({ ...was, minutes: n }))}
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
-          </ScrollView>
+          </KeyboardAwareScroll>
           <CtaBar divider>
             <PrimaryButton
               label={t('scriptCocreate.applyEdit')}
@@ -324,7 +326,7 @@ export default function ScriptCocreateScreen() {
               disabled={!revisionChanged(script, edit)}
             />
           </CtaBar>
-        </View>
+        </KeyboardLift>
       ) : step === 'failed' ? (
         <View style={styles.flex}>
           <View style={styles.center}>
@@ -378,8 +380,9 @@ export default function ScriptCocreateScreen() {
           </CtaBar>
         </View>
       ) : (
-        <View style={styles.flex}>
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <KeyboardLift>
+          {/* 입력 단계는 키보드가 뜨면 아래 버튼까지 키보드 위로 올린다(iOS에서 버튼이 키보드에 가렸다). */}
+          <KeyboardAwareScroll contentContainerStyle={styles.body}>
             {step === 'emotion' ? (
               <>
                 <MascotBubble title={t('scriptCocreate.emotionAsk')} guide={t('scriptCocreate.pickNext')} />
@@ -441,7 +444,7 @@ export default function ScriptCocreateScreen() {
                 {error ? <Text style={styles.error}>{error}</Text> : null}
               </>
             )}
-          </ScrollView>
+          </KeyboardAwareScroll>
           {step === 'situation' ? (
             <CtaBar divider>
               <PrimaryButton
@@ -456,7 +459,7 @@ export default function ScriptCocreateScreen() {
               <PrimaryButton label={t('scriptCocreate.generate')} phLabel="script_cocreate_generate" onPress={generate} />
             </CtaBar>
           ) : null}
-        </View>
+        </KeyboardLift>
       )}
     </SafeAreaView>
   );
