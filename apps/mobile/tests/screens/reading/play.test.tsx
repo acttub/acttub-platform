@@ -1828,3 +1828,29 @@ test('첫 리딩이면 끝에서 칭찬과 큰 홈으로 가기, 그 밑에 한 
   expect(screen.getByRole('button', { name: '한 번 더 읽기' })).toBeOnTheScreen();
   expect(screen.queryByText('다른 대본으로')).not.toBeOnTheScreen();
 });
+
+test('첫 리딩 버튼 안내가 떠 있는 동안은 말이 끝나도 넘기지 않고, 「알겠어요」를 누르면 이어 간다', async () => {
+  await AsyncStorage.removeItem('acttub.reading.firstGuideSeen');
+  await startPlay();
+  await screen.findByText('듣는 중');
+  await speechEnds();
+
+  expect(await screen.findByText('알겠어요')).toBeOnTheScreen();
+  // 안내가 떠 있는 동안 말이 끝나도 넘기지 않는다.
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 300));
+  });
+  if (mic) await speechEnds();
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 300));
+  });
+  expect(screen.queryByText('리딩 완료')).not.toBeOnTheScreen();
+  expect(screen.queryByText(/처음인데 끝까지 읽었어요/)).not.toBeOnTheScreen();
+  expect(screen.getByText('알겠어요')).toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByText('알겠어요'));
+  expect(screen.queryByText('알겠어요')).not.toBeOnTheScreen();
+  // 안내 중에 끝난 말은 닫은 뒤에 넘긴다(미뤄 둔 넘김). 아직 듣는 중이면 말이 끝나야 넘어간다.
+  if (mic) await speechEnds();
+  expect(await screen.findByText(/처음인데 끝까지 읽었어요/, {}, { timeout: 4000 })).toBeOnTheScreen();
+});

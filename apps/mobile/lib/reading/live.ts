@@ -14,7 +14,7 @@ import type { ScriptScene } from './types.ts';
 export type TurnChip = { icon: 'volume-2' | 'pause' | 'book-open' | 'check' | 'mic-off' | 'bars' | 'mic'; label: string };
 
 export function turnChip(input: {
-  hold: 'tip' | 'mask_sheet' | null;
+  hold: 'tip' | 'mask_sheet' | 'guide' | null;
   paused: boolean;
   /** 다른 앱에 있는 동안 전화 등으로 끊겨 멈췄다(R9.18 변형). */
   interrupted: boolean;
@@ -30,7 +30,7 @@ export function turnChip(input: {
     return input.textOnly ? { icon: 'book-open', label: t('reading.chipTextOnly') } : { icon: 'volume-2', label: t('reading.chipReading') };
   }
   if (input.turnDone && input.turnNote !== 'limit') return { icon: 'check', label: t('reading.spokenDone') };
-  if (input.hold === 'mask_sheet') return { icon: 'pause', label: t('reading.chipHold') };
+  if (input.hold === 'mask_sheet' || input.hold === 'guide') return { icon: 'pause', label: t('reading.chipHold') };
   if (input.turnNote === 'limit') return { icon: 'mic-off', label: t('reading.chipLimit') };
   if (input.listening) return { icon: 'bars', label: t('reading.listening') };
   return { icon: 'mic', label: t('reading.chipMicOpening') };

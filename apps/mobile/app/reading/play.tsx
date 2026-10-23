@@ -131,8 +131,8 @@ type Phase =
   | { kind: 'voice_failed'; failure: { kind: VoiceErrorKind; neededBytes?: number } }
   /** 앱 목소리를 못 쓰는 기기의 처음 한 번 안내(R9.7). */
   | { kind: 'voice_unsupported' }
-  /** hold 가 있으면 자동 넘김이 멈춘다 — tip 은 시작 팝업(첫 줄을 읽지 않음), mask_sheet 는 대사 보기 시트. */
-  | { kind: 'running'; hold: 'tip' | 'mask_sheet' | null }
+  /** hold 가 있으면 자동 넘김이 멈춘다 — tip 은 시작 팝업(첫 줄을 읽지 않음), mask_sheet 는 대사 보기 시트, guide 는 첫 리딩 버튼 안내 덮개. */
+  | { kind: 'running'; hold: 'tip' | 'mask_sheet' | 'guide' | null }
   | { kind: 'done' }
   | { kind: 'closed'; message: string };
 
@@ -236,7 +236,7 @@ export default function ReadingPlay() {
   const deviceVoiceRef = useRef(false);
   const tipHiddenRef = useRef(true);
   const cloudFallbackNoticed = useRef(false);
-  const holdRef = useRef<'tip' | 'mask_sheet' | null>(null);
+  const holdRef = useRef<'tip' | 'mask_sheet' | 'guide' | null>(null);
   /** 자동 넘김이 멈춘 동안 일어난 넘김 — 시트를 닫으면 한다. */
   const deferredRef = useRef<Deferred>(null);
   const deferredTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -694,11 +694,15 @@ export default function ReadingPlay() {
         return mine(l) && !(k > 0 && mine(arr[k - 1]));
       }).length
     : 0;
-  const guideOpen = coachOn && phase.kind === 'running' && !phase.hold && !!run && run.status === 'mine' && myTurnsBefore >= 1;
-  const closeGuide = useCallback(() => {
-    setCoachOn(false);
-    void markFirstReadingGuideSeen();
-  }, []);
+  // 안내가 떠 있는 동안은 자동 넘김을 멈춘다(hold 'guide') — 읽는 사이 줄이 넘어가지 않게. 「알겠어요」를 누르면 이어 간다.
+  const guideWanted = coachOn && phase.kind === 'running' && !!run && run.status === 'mine' && myTurnsBefore >= 1;
+  const guideOpen = guideWanted && phase.kind === 'running' && phase.hold === 'guide';
+  useEffect(() => {
+    if (guideWanted && phase.kind === 'running' && phase.hold === null) {
+      holdRef.current = 'guide';
+      setPhase({ kind: 'running', hold: 'guide' });
+    }
+  }, [guideWanted, phase]);
   // 리딩을 끝까지 했으면 다 못 봤어도 다음부터는 띄우지 않는다.
   useEffect(() => {
     if (phase.kind === 'done' && coachOn) {
@@ -807,6 +811,11 @@ export default function ReadingPlay() {
     if (deferred.kind === 'advance') goNext(deferred.from);
     else deferredTimer.current = setTimeout(() => void endMyTurnRef.current(deferred.from), DEFAULT_VAD.silenceMs);
   }, [goNext]);
+  const closeGuide = useCallback(() => {
+    setCoachOn(false);
+    void markFirstReadingGuideSeen();
+    releaseHold();
+  }, [releaseHold]);
 
   useEffect(() => {
     if (monologue || phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;

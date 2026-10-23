@@ -222,3 +222,26 @@ test('선택 문서가 없으면 그 줄을 그리지 않는다', async () => {
   expect(screen.queryByText('혜택·이벤트 소식 받기')).not.toBeOnTheScreen();
   expect(screen.queryByText('탈퇴 후 영상·녹음 보관')).not.toBeOnTheScreen();
 });
+
+test('서버가 AI 분석 문서를 따로 주어도 「개인정보 처리 · AI 분석」 한 줄로 묶고, 그 줄을 켜면 둘 다 동의한다', async () => {
+  submitSignup.mockResolvedValue(true);
+  const ai = doc('d-ai', 'ai_analysis', 'AI 분석 동의', true);
+  const serverRetention = doc('d-ret2', 'retention', '탈퇴 후 영상·녹음 보관·활용', false);
+  auth([terms, privacy, ai, serverRetention, email, push]);
+  await render(<ConsentScreen />);
+
+  expect(screen.getAllByRole('checkbox').map((n) => n.props.accessibilityLabel ?? null)).toEqual([
+    '필수 만 14세 이상 · 이용약관',
+    '필수 개인정보 처리 · AI 분석',
+    '선택 탈퇴 후 영상·녹음 보관',
+    '선택 혜택·이벤트 소식 받기',
+    null,
+  ]);
+  expect(screen.queryByText('AI 분석 동의')).not.toBeOnTheScreen();
+
+  await fireEvent.press(row(/이용약관/));
+  await fireEvent.press(row(/개인정보 처리/));
+  expect(cta()).toBeEnabled();
+  await fireEvent.press(cta());
+  expect(decisionsSent()).toEqual({ 'd-terms': 'granted', 'd-privacy': 'granted', 'd-ai': 'granted' });
+});
