@@ -97,16 +97,17 @@ class DirectVideoCoachFaceMosaicTest {
         verify(model, never()).reply(any(), anyList(), anyString());
     }
 
-    @Test void aVideoWithNoFaceIsNeverUploadedAsTheOriginal() {
+    @Test void aVideoWithNoFaceIsUploadedAsTheOriginalInItsOwnFormat() {
         source(true);
         FaceMosaic none = new FaceMosaic() {
             @Override public boolean available() { return true; }
             @Override public Path render(Path source) throws Exception { throw new FaceMosaicRenderer.NoFaceFound(); }
         };
-        assertThatThrownBy(() -> coach().withFaceMosaic(none).turn(fresh(), null, UUID.randomUUID()))
-                .isInstanceOf(RuntimeException.class);
-        verify(model, never()).upload(any(), anyString());
-        verify(model, never()).reply(any(), anyList(), anyString());
+        coach().withFaceMosaic(none).turn(fresh(), null, UUID.randomUUID());
+
+        // 얼굴이 아예 없으면 가릴 것이 없으니 원본을 원본 형식 그대로 올린다(10/23 결정).
+        assertThat(uploadedBytes).containsExactly("original video bytes as video/quicktime");
+        verify(model).reply(eq(file), anyList(), anyString());
     }
 
     @Test void aPracticeWithoutFaceMosaicKeepsTheOriginalAndGetsNoFaceLine() {

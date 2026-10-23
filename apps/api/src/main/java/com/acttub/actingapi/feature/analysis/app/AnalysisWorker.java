@@ -43,7 +43,6 @@ public class AnalysisWorker {
     private FaceMosaic faceMosaic = FaceMosaic.NONE;
 
     /** 얼굴 가리기 회차(practice.start)에서 얼굴을 하나도 찾지 못해 분석을 닫은 사유. 다시 해도 같다. */
-    public static final String FACE_NOT_FOUND = "face_not_found";
     /** 가린 사본을 만들 수 없는 기동(ffmpeg 없음). */
     public static final String FACE_MOSAIC_UNAVAILABLE = "face_mosaic_unavailable";
 
@@ -108,8 +107,8 @@ public class AnalysisWorker {
                 }
                 Path input = temporary;
                 if (context.faceMosaic()) {
-                    // 얼굴 가리기: 원본 대신 얼굴을 가린 사본으로 분석하고 코치에게 넘긴다. 사본을 만들 수 없으면 원본으로
-                    // 돌아가지 않고 실패로 닫는다(fail-closed). 얼굴을 못 찾은 것은 다시 해도 같다.
+                    // 얼굴 가리기: 원본 대신 얼굴을 가린 사본으로 분석하고 코치에게 넘긴다. 가리는 도구가 없거나 사본을
+                    // 만들다 깨지면 원본으로 돌아가지 않고 실패로 닫는다(fail-closed). 얼굴이 아예 없으면 원본 그대로 간다.
                     if (!faceMosaic.available()) {
                         failureReporter.report(new IllegalStateException("face mosaic is unavailable"),
                                 new FailureContext("AnalysisWorker.faceMosaic", operationId));
@@ -119,11 +118,11 @@ public class AnalysisWorker {
                     }
                     try {
                         masked = faceMosaic.render(temporary);
+                        input = masked;
                     } catch (FaceMosaicRenderer.NoFaceFound none) {
-                        fail(operationId, leaseToken, FACE_NOT_FOUND, ExternalOperationFailureClassification.EXPECTED, now);
-                        return true;
+                        // 얼굴이 한 번도 안 잡히면 가릴 얼굴이 없는 영상으로 보고 원본으로 이어 간다(10/23 결정).
+                        LOGGER.info("face mosaic found no face; analyzing the original: " + operationId);
                     }
-                    input = masked;
                 }
                 AnalysisResult result = analyzer.analyze(input, context);
                 store.complete(operationId, leaseToken, result, model, now);

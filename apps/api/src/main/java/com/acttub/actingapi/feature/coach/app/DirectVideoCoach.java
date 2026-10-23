@@ -282,7 +282,12 @@ public final class DirectVideoCoach {
                     throw new IllegalStateException("original video changed after upload");
                 }
                 // 얼굴 가리기: 원본 대신 얼굴을 가린 사본을 검사·올린다. 만들 수 없으면 원본을 올리지 않고 이 답을 실패로 닫는다.
-                if (source.faceMosaic()) local = masked(local);
+                // 얼굴이 아예 없으면 원본을 그대로 받으므로 원본 형식으로 올린다.
+                if (source.faceMosaic()) {
+                    Path original = local;
+                    local = masked(local);
+                    if (local.equals(original)) mimeType = source.mimeType();
+                }
             }
             if (!videoReused && !videoOmitted && !talk) {
                 if (firstLoop) {
@@ -1248,13 +1253,16 @@ public final class DirectVideoCoach {
                 : "That's it for today. Upload a new take and we'll pick up from here.";
     }
 
-    /** 얼굴 가리기: 내려받은 원본을 가린 사본으로 바꾼다. 원본 임시 파일은 늘 지운다. 만들 수 없으면 던진다(원본으로 돌아가지 않는다). */
+    /** 얼굴 가리기: 내려받은 원본을 가린 사본으로 바꾼다. 얼굴이 없으면 원본을 그대로 돌려준다. 그 밖에 만들 수 없으면 던진다(원본으로 돌아가지 않는다). */
     private Path masked(Path original) {
+        boolean keepOriginal = false;
         try {
             if (!faceMosaic.available()) throw new IllegalStateException("face mosaic is unavailable");
             return faceMosaic.render(original);
         } catch (FaceMosaicRenderer.NoFaceFound none) {
-            throw new IllegalStateException("no face found for the face mosaic", none);
+            // 얼굴이 한 번도 안 잡히면 가릴 얼굴이 없는 영상으로 보고 원본을 그대로 쓴다(10/23 결정).
+            keepOriginal = true;
+            return original;
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("face mosaic interrupted", interrupted);
@@ -1264,7 +1272,7 @@ public final class DirectVideoCoach {
             throw new IllegalStateException("face mosaic failed", failure);
         } finally {
             try {
-                Files.deleteIfExists(original);
+                if (!keepOriginal) Files.deleteIfExists(original);
             } catch (java.io.IOException ignored) {
                 // 남은 임시 파일은 기동마다 임시 폴더 정리에 맡긴다.
             }
