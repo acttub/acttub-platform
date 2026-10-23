@@ -58,42 +58,7 @@ async function open(props: Props = {}) {
 const input = () => screen.getByPlaceholderText('응원 댓글을 남겨보세요');
 const sendButton = () => screen.getByRole('button', { name: '보내기' });
 const list = () => screen.container.queryAll((node) => typeof node.props.onScroll === 'function')[0];
-const sheetHandle = () => screen.getByText(/^댓글 \d+$/);
 const modal = () => screen.container.queryAll((node) => typeof node.props.onRequestClose === 'function')[0];
-
-// 손잡이를 (dy, dx) 만큼 ms 동안 끈 손가락 하나의 터치 기록.
-function touch(dy: number, ms: number, dx = 0) {
-  return {
-    nativeEvent: { touches: [{}], changedTouches: [] },
-    touchHistory: {
-      numberActiveTouches: 1,
-      indexOfSingleActiveTouch: 0,
-      mostRecentTimeStamp: ms,
-      touchBank: [
-        {
-          touchActive: true,
-          startPageX: 0,
-          startPageY: 0,
-          startTimeStamp: 0,
-          currentPageX: dx,
-          currentPageY: dy,
-          currentTimeStamp: ms,
-          previousPageX: 0,
-          previousPageY: 0,
-          previousTimeStamp: 0,
-        },
-      ],
-    },
-  };
-}
-
-async function dragHandle(dy: number, ms: number) {
-  const handle = sheetHandle();
-  await fireEvent(handle, 'startShouldSetResponderCapture', touch(0, 0));
-  await fireEvent(handle, 'responderGrant', touch(0, 0));
-  await fireEvent(handle, 'responderMove', touch(dy, ms));
-  await fireEvent(handle, 'responderRelease', touch(dy, ms));
-}
 
 describe('목록', () => {
   test('닫혀 있으면 불러오지 않고 아무것도 보이지 않는다', async () => {
@@ -383,47 +348,11 @@ describe('지우기·신고', () => {
 });
 
 describe('닫기', () => {
-  test('바깥을 누르거나 뒤로 가기를 하면 닫힌다', async () => {
+  test('닫기 버튼을 누르거나 뒤로 가기를 하면 닫힌다', async () => {
     const { onClose } = await open();
-    await fireEvent.press(screen.getAllByRole('button')[0]);
+    await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
     await fireEvent(modal(), 'requestClose');
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  test('손잡이는 닿는 순간 끌기를 잡고, 다른 곳에 넘기지 않는다', async () => {
-    await open();
-    expect(await fireEvent(sheetHandle(), 'startShouldSetResponder', touch(0, 0))).toBe(true);
-    expect(await fireEvent(sheetHandle(), 'responderTerminationRequest', touch(0, 0))).toBe(false);
-  });
-
-  test('세로로 끌 때만 끌기로 잡고, 가로로 밀거나 살짝 움직이면 잡지 않는다', async () => {
-    await open();
-    const claims = async (dy: number, dx: number) => {
-      await fireEvent(sheetHandle(), 'startShouldSetResponderCapture', touch(0, 0));
-      await fireEvent(sheetHandle(), 'moveShouldSetResponderCapture', touch(dy, 50, dx));
-      return fireEvent(sheetHandle(), 'moveShouldSetResponder', touch(dy, 50, dx));
-    };
-    expect(await claims(30, 5)).toBe(true);
-    expect(await claims(30, 60)).toBe(false);
-    expect(await claims(4, 0)).toBe(false);
-  });
-
-  test('손잡이를 120 넘게 끌어 내리면 닫힌다', async () => {
-    const { onClose } = await open();
-    await dragHandle(150, 1000);
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  test('빠르게 튕겨 내리면 짧게 끌어도 닫힌다', async () => {
-    const { onClose } = await open();
-    await dragHandle(40, 20);
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  test('조금만 천천히 끌다 놓으면 닫히지 않고 제자리로 돌아간다', async () => {
-    const { onClose } = await open();
-    await dragHandle(60, 1000);
-    expect(onClose).not.toHaveBeenCalled();
-    expect(sheetHandle()).toBeOnTheScreen();
-  });
 });
