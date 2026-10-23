@@ -1723,7 +1723,7 @@ const ko = {
     pickedRoles: '고른 배역',
     pickedNone: '아직 없어요',
     rangeLabel: '구간',
-    byRecent: '최근 구간',
+    byRecent: '최근 연습',
     recentMeta: '{{count}}개 · {{session}}',
     pickAll: '전체 선택',
     pickTagStart: '시작',
