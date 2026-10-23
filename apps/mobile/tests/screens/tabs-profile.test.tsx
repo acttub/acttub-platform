@@ -243,7 +243,7 @@ test('설정·편집·액티 기억으로 보내고, 탭을 바꾸면 그 카드
 
   await fireEvent.press(screen.getByRole('button', { name: '설정' }));
   await fireEvent.press(screen.getByText('편집'));
-  await fireEvent.press(screen.getByText('액티가 기억하는 것'));
+  await fireEvent.press(screen.getByText('코치가 기억하는 것'));
   await fireEvent.press(await screen.findByText('전체 보기'));
 
   await fireEvent.press(screen.getByRole('tab', { name: '참여작' }));

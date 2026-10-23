@@ -387,7 +387,7 @@ describe('설정', () => {
     ['프로필 수정', '/profile-edit'],
     ['웹 연습 가져오기', '/guest-transfer'],
     ['알림', '/notification-settings'],
-    ['액티가 기억하는 것', '/memory'],
+    ['코치가 기억하는 것', '/memory'],
     ['챌린지 기록', '/challenge-entries'],
     ['차단한 사용자', '/blocked-users'],
     ['동의 내역', '/consent-history'],
