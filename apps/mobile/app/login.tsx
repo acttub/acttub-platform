@@ -37,6 +37,7 @@ const GOOGLE_TEXT = '#1F1F1F';
 // 카카오·네이버 로그인 버튼 규격 색(각 브랜드 가이드).
 const KAKAO_YELLOW = '#FEE500';
 const KAKAO_TEXT = '#191919';
+const KAKAO_SYMBOL = '#000000';
 const NAVER_GREEN = '#03C75A';
 
 type ProviderList =
@@ -149,7 +150,7 @@ export default function LoginScreen() {
           ) : (
             <Text style={styles.appleGlyph}></Text>
           ))}
-        {provider === 'kakao' && <Feather name="message-circle" size={26} color={KAKAO_TEXT} />}
+        {provider === 'kakao' && <KakaoSymbol />}
         {provider === 'naver' && <Text style={styles.naverN}>N</Text>}
       </Pressable>
     );
@@ -203,6 +204,16 @@ export default function LoginScreen() {
   );
 }
 
+/** 카카오 로그인 버튼 가이드의 심볼(검은 말풍선). 아이콘 글꼴에 같은 모양이 없어 도형으로 그린다. */
+function KakaoSymbol() {
+  return (
+    <View style={styles.kakaoSymbol}>
+      <View style={styles.kakaoBubble} />
+      <View style={styles.kakaoTail} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 24 },
   hero: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
@@ -217,6 +228,22 @@ const styles = StyleSheet.create({
   circle: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
   googleLogo: { width: 26, height: 26 },
   naverN: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
+  kakaoSymbol: { width: 26, height: 25 },
+  kakaoBubble: { width: 26, height: 21, borderRadius: 13, backgroundColor: KAKAO_SYMBOL },
+  kakaoTail: {
+    position: 'absolute',
+    left: 6,
+    top: 17,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 3,
+    borderRightWidth: 3,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: KAKAO_SYMBOL,
+    transform: [{ rotate: '25deg' }],
+  },
   pressed: { opacity: 0.7 },
   dim: { opacity: 0.5 },
   appleGlyph: { fontFamily: 'System', fontSize: 26, color: '#FFFFFF' },
