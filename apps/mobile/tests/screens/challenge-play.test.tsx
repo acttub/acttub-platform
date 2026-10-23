@@ -830,11 +830,11 @@ describe('반응 메뉴', () => {
     expect(screen.getByText('첫 테이크')).toBeOnTheScreen();
   });
 
-  test('신고 창을 취소하면 아무것도 보내지 않는다', async () => {
+  test('신고 창을 닫으면 아무것도 보내지 않는다', async () => {
     await renderFeed();
     await openMenu();
     await fireEvent.press(screen.getByText('신고'));
-    await fireEvent.press(screen.getByRole('button', { name: '취소' }));
+    await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
     expect(screen.queryByText('이 영상을 신고할까요?')).not.toBeOnTheScreen();
     expect(mocked.createReport).not.toHaveBeenCalled();
   });

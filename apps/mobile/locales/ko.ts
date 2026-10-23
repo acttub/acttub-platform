@@ -310,6 +310,7 @@ const ko = {
     settingsHint: '차단하면 그 사람의 참여작과 댓글이 보이지 않아요',
   },
   comments: {
+    close: '닫기',
     withdrawn: '탈퇴한 사용자',
     underReview: '확인 중인 댓글이에요.',
     delete: '삭제',
@@ -322,6 +323,8 @@ const ko = {
     placeholder: '응원 댓글을 남겨보세요',
   },
   videoReport: {
+    pageTitle: '신고',
+    close: '닫기',
     duplicate: '중복 업로드',
     noteLabel: '무엇이 문제인지 알려 주세요 (선택)',
     noteCounter: '{{count}} / {{max}}',

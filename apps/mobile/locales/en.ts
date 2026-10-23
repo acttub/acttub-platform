@@ -319,6 +319,7 @@ const en: DeepStringShape<typeof ko> = {
     settingsHint: 'Blocked people’s entries and comments stay hidden from you',
   },
   comments: {
+    close: 'Close',
     withdrawn: 'Deleted user',
     underReview: 'This comment is under review.',
     delete: 'Delete',
@@ -331,6 +332,8 @@ const en: DeepStringShape<typeof ko> = {
     placeholder: 'Leave a cheer',
   },
   videoReport: {
+    pageTitle: 'Report',
+    close: 'Close',
     duplicate: 'Duplicate upload',
     noteLabel: 'Tell us what is wrong (optional)',
     noteCounter: '{{count}} / {{max}}',

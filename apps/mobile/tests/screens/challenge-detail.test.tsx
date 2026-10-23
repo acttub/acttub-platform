@@ -322,11 +322,11 @@ describe('남의 챌린지 신고', () => {
     expect(await screen.findByText('신고는 하루 20건까지 할 수 있어요.')).toBeOnTheScreen();
   });
 
-  test('취소하면 시트를 닫는다', async () => {
+  test('닫으면 페이지를 닫는다', async () => {
     await render(<ChallengeDetailScreen />);
     await screen.findByText('“사느냐 죽느냐”');
     await fireEvent.press(header().getAllByRole('button')[0]);
-    await fireEvent.press(await screen.findByText('취소'));
+    await fireEvent.press(await screen.findByRole('button', { name: '닫기' }));
     expect(screen.queryByText('이 대사를 신고할까요?')).not.toBeOnTheScreen();
     expect(createReport).not.toHaveBeenCalled();
     expect(screen.getByText('“사느냐 죽느냐”')).toBeOnTheScreen();
