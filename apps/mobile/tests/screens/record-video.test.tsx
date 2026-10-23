@@ -529,7 +529,7 @@ describe('챌린지 촬영', () => {
 
     await fireEvent.press(screen.getByText('업로드'));
 
-    expect(launchPicker).toHaveBeenCalledWith({ mediaTypes: ['videos'], quality: 1 });
+    expect(launchPicker).toHaveBeenCalledWith({ mediaTypes: ['videos'], allowsEditing: false, preferredAssetRepresentationMode: 'current' });
     expect(logged('challenge_video_source')).toEqual([{ source: 'gallery', result: 'cancelled' }]);
     expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(peekRecordedVideo()).toBeNull();
