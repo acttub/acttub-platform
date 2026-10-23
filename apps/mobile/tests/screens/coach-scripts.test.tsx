@@ -10,7 +10,12 @@ jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
 const mockListScripts = jest.fn();
 const mockGetScriptDetail = jest.fn();
-jest.mock('@/lib/reading/store', () => ({ listScripts: () => mockListScripts(), getScriptDetail: (id: string) => mockGetScriptDetail(id) }));
+const mockRemembered: Record<string, string[]> = {};
+jest.mock('@/lib/reading/store', () => ({
+  listScripts: () => mockListScripts(),
+  getScriptDetail: (id: string) => mockGetScriptDetail(id),
+  rememberedMyRoles: async (id: string) => mockRemembered[id] ?? [],
+}));
 
 const card = (id: string, title: string, roles: string[]) => ({
   id,
@@ -63,6 +68,14 @@ test('저장한 대본을 고르고 「다음」을 누르면 장면 칸을 채�
       { kind: 'dialogue', speaker: '수아', text: '여기까진 왜 왔어.', mine: false },
     ],
   });
+});
+
+test('리딩 회차가 없어 서버 배역이 비면 대본 만들기 때 기억한 내 배역을 보인다', async () => {
+  mockRemembered.s2 = ['민수'];
+  mockListScripts.mockResolvedValue({ scripts: [card('s2', '작은 상자 안의 열쇠', [])], total_count: 1, in_progress_count: 0 });
+  await render(<CoachScriptsScreen />);
+  expect(await screen.findByText('대사 16개 · 민수')).toBeOnTheScreen();
+  delete mockRemembered.s2;
 });
 
 test('저장한 대본이 없으면 대본 같이 만들기로 보낸다', async () => {

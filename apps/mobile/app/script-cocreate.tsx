@@ -16,7 +16,7 @@ import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { recordScriptFromCocreated, setRecordScript } from '@/lib/practice/record-script';
 import { setContinueOrigin } from '@/lib/practice/session-state';
-import { loadIntoCurrent } from '@/lib/reading/store';
+import { loadIntoCurrent, rememberMyRoles } from '@/lib/reading/store';
 import { newRequestId } from '@/lib/request-id';
 import {
   ANY_EMOTION,
@@ -188,6 +188,8 @@ export default function ScriptCocreateScreen() {
     setError(null);
     try {
       const saved = await api.saveSampleScript(script.id);
+      // 만들 때 정한 내 배역을 기억한다 — 목록의 「배역 안 고름」과 촬영 카드의 내 대사 강조, 리딩의 배역 미리 고르기에 쓴다.
+      await rememberMyRoles(saved.script_id, [myRole(script)]);
       setScript({ ...script, script_id: saved.script_id });
       if (readingMode) {
         const loaded = await loadIntoCurrent(saved.script_id);

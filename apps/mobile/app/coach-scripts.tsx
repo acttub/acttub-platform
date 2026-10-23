@@ -14,7 +14,7 @@ import { translate as t } from '@/lib/i18n';
 import { recordScriptFromDetail, setRecordScript } from '@/lib/practice/record-script';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { readingCoachScene } from '@/lib/reading/redesign-748';
-import { getScriptDetail, listScripts } from '@/lib/reading/store';
+import { getScriptDetail, listScripts, rememberedMyRoles } from '@/lib/reading/store';
 import type { ScriptCard } from '@/lib/reading/types';
 
 /**
@@ -31,8 +31,16 @@ export default function CoachScriptsScreen() {
   useEffect(() => {
     let cancelled = false;
     listScripts()
-      .then((list) => {
-        if (!cancelled) setScripts(list.scripts);
+      // 서버의 내 배역은 리딩 회차에서만 온다. 아직 읽지 않은 대본은 대본 만들기 때 이 기기에 기억한 배역을 쓴다.
+      .then((list) =>
+        Promise.all(
+          list.scripts.map(async (card) =>
+            card.my_character_names.length > 0 ? card : { ...card, my_character_names: await rememberedMyRoles(card.id) },
+          ),
+        ),
+      )
+      .then((cards) => {
+        if (!cancelled) setScripts(cards);
       })
       .catch(() => {
         if (!cancelled) setFailed(true);

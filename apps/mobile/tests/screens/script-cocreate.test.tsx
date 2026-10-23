@@ -26,7 +26,7 @@ jest.mock('@/lib/api', () => ({
     saveSampleScript: jest.fn(),
   },
 }));
-jest.mock('@/lib/reading/store', () => ({ loadIntoCurrent: jest.fn() }));
+jest.mock('@/lib/reading/store', () => ({ loadIntoCurrent: jest.fn(), rememberMyRoles: jest.fn(async () => undefined) }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
 
 const createSampleScript = api.createSampleScript as jest.Mock;
@@ -175,6 +175,7 @@ test('확정하면 내 대본에 저장하고, 지금 찍을래요는 장면 칸
 
   expect(saveSampleScript).toHaveBeenCalledWith('s1');
   expect(await screen.findByText('내 대본에 저장했어요')).toBeOnTheScreen();
+  expect(require('@/lib/reading/store').rememberMyRoles).toHaveBeenCalledWith('script-1', ['도윤']);
   await fireEvent.press(screen.getByRole('button', { name: '지금 찍을래요' }));
   expect(setContinueOrigin).toHaveBeenCalledWith({
     kind: 'reading',
