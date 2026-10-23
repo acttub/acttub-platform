@@ -33,6 +33,9 @@ import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { newRequestId } from '@/lib/request-id';
 import { limitVideoBuffer } from '@/lib/video-memory';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 /**
  * A15 챌린지 피드 — 고른 챌린지 **안에서만** 참여작을 위아래로 넘겨 본다.
@@ -339,8 +342,9 @@ export default function ChallengePlayScreen() {
   };
 
   /** 반응 메뉴 — 신고·차단·공유를 한자리에 둔다. */
-  const openMenu = (entry: EntryCard) => {
+  const openMenu = (entry: EntryCard, e?: GestureResponderEvent) => {
     void sheet({
+      anchor: pt(e),
       title: entry.author.name,
       actions: [
         ...(canReact(entry)
@@ -432,7 +436,7 @@ export default function ChallengePlayScreen() {
                 ph-label="challenge_play_mute">
                 <Feather name={muted ? 'volume-x' : 'volume-2'} size={22} color="#FFFFFF" />
               </Pressable>
-              <Pressable onPress={() => openMenu(item)} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_more">
+              <Pressable onPress={(e) => openMenu(item, e)} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_more">
                 <Feather name="more-horizontal" size={24} color="#FFFFFF" />
               </Pressable>
             </View>

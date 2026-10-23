@@ -26,6 +26,9 @@ import { directionLabel } from '@/lib/reading/session-results';
 import { deleteSession, fetchSession, getCurrent, setCurrentSession } from '@/lib/reading/store';
 import type { SessionDetail, SessionRecording } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 type Tab = 'all' | 'mine';
 
@@ -173,8 +176,9 @@ export default function ReadingSession() {
     await playAt(0);
   };
 
-  const more = () =>
+  const more = (e?: GestureResponderEvent) =>
     void sheet({
+      anchor: pt(e),
       title: t('reading.sessionOrdinal', { n: detail.ordinal }),
       actions: [{ label: t('reading.deleteSession'), destructive: true, onPress: () => void removeSession() }],
     });
