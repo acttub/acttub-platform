@@ -1,13 +1,15 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { KeyboardLift } from '@/components/keyboard-lift';
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { palette } from '@/constants/palette';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { api } from '@/lib/api';
@@ -209,9 +211,10 @@ export default function JournalScreen() {
         </View>
       )}
 
+      {/* 키보드가 뜨면 질문·입력칸과 「다음」이 키보드 위로 올라온다(iOS에서 아래 버튼이 키보드에 가렸다). */}
       {phase === 'questions' && (
-        <>
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <KeyboardLift>
+          <KeyboardAwareScroll contentContainerStyle={styles.body}>
             <Text style={styles.step}>{t('journal.step', { step: step + 1, total: questions.length })}</Text>
             <Text style={styles.question} accessibilityRole="header">
               {question.title}
@@ -243,7 +246,7 @@ export default function JournalScreen() {
             />
             <Text style={styles.hint}>{t('journal.hint', { action: last ? t('journal.make') : t('journal.next') })}</Text>
             {error && <Text style={styles.errorText}>{error}</Text>}
-          </ScrollView>
+          </KeyboardAwareScroll>
           <CtaBar safeBottom={false}>
             <PrimaryButton
               label={last ? t('journal.make') : t('journal.next')}
@@ -252,11 +255,11 @@ export default function JournalScreen() {
             />
             <TextButton label={t('journal.skip')} onPress={skip} phLabel="journal_skip" />
           </CtaBar>
-        </>
+        </KeyboardLift>
       )}
 
       {phase === 'view' && journal && (
-        <>
+        <KeyboardLift>
           <JournalBody journal={journal} edit={edit} onEdit={setEdit} open={open} onToggle={(key) => setOpen((was) => ({ ...was, [key]: !was[key] }))} />
           {error && <Text style={[styles.errorText, styles.footerError]}>{error}</Text>}
           {(fromCoach || edit) && (
@@ -264,7 +267,7 @@ export default function JournalScreen() {
               <PrimaryButton label={t('journal.save')} loading={saving} disabled={saving} onPress={() => void saveAndFinish()} />
             </CtaBar>
           )}
-        </>
+        </KeyboardLift>
       )}
       {rating.element}
     </SafeAreaView>
@@ -291,7 +294,7 @@ function JournalBody({
   const showTop = !!edit || !!summary.review || !!summary.feelingTag || summary.unknownCount > 0;
 
   return (
-    <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScroll contentContainerStyle={styles.body}>
       <Text style={styles.meta}>{journalMeta(journal)}</Text>
       <Text style={styles.title} accessibilityRole="header">
         {journalTitle(journal)}
@@ -387,7 +390,7 @@ function JournalBody({
           ),
         )}
       </View>
-    </ScrollView>
+    </KeyboardAwareScroll>
   );
 }
 

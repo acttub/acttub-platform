@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import {
   REPORT_REASONS,
@@ -49,6 +50,8 @@ export function ChallengeReportSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+      {/* 키보드가 뜨면 키보드 위 남은 칸에서 다시 가운데·아래에 놓여 입력칸과 버튼이 가리지 않는다. */}
+      <KeyboardLift>
       <Pressable style={styles.backdrop} onPress={close} accessibilityRole="button" />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.grabber} />
@@ -104,6 +107,7 @@ export function ChallengeReportSheet({
           <Text style={styles.cancelText}>{t('common.cancel')}</Text>
         </Pressable>
       </View>
+      </KeyboardLift>
     </Modal>
   );
 }

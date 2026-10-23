@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -87,6 +88,8 @@ export default function LineNewScreen() {
         </Pressable>
       </View>
 
+      {/* 키보드가 뜨면 「다음」 버튼까지 키보드 위로 올린다 — iOS에서 아래 버튼이 키보드에 가렸다. */}
+      <KeyboardLift>
       <KeyboardAwareScroll contentContainerStyle={styles.content}>
         <Text style={styles.title}>{t('lineNew.title1')}</Text>
         <Text style={styles.sub}>{t('lineNew.sub1')}</Text>
@@ -135,6 +138,7 @@ export default function LineNewScreen() {
           loading={submitting}
         />
       </CtaBar>
+      </KeyboardLift>
     </SafeAreaView>
   );
 }

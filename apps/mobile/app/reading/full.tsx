@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { useAppDialog } from '@/components/app-dialog';
 import { LineEditSheet } from '@/components/line-edit-sheet';
 import { LineInsertCard } from '@/components/line-insert-card';
@@ -111,7 +112,8 @@ export default function ReadingFull() {
 
   return (
     <>
-      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+      {/* 줄 아래에 대사를 더할 때(LineInsertCard) 입력칸이 키보드에 가리지 않게 따라 올라간다. */}
+      <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.content}>
         <Text style={styles.title}>{script.title}</Text>
         {/* 독백은 서버가 문장마다 나눠 둔다(SOMA-597) — 그 안내가 줄 고치기 안내 자리에 온다(pen UQWzz). */}
         <Text style={styles.hint}>{t(monologue ? 'reading.monologueFullNote' : 'reading.lineEditHint')}</Text>
@@ -131,7 +133,7 @@ export default function ReadingFull() {
           );
           return start === end ? rows : <View key={script.lineIds[start] ?? start}>{rows}</View>;
         })}
-      </ScrollView>
+      </KeyboardAwareScroll>
       <LineEditSheet
         scriptId={script.id}
         lineId={editing ? script.lineIds[editing.index] ?? null : null}

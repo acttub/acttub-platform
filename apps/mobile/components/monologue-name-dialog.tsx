@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { updateScriptMeta } from '@/lib/reading/store';
 import { translate as t } from '@/lib/i18n';
@@ -38,7 +39,8 @@ export function MonologueNameDialog({
 
   return (
     <Modal transparent statusBarTranslucent visible animationType="fade" onRequestClose={() => !busy && onClose()}>
-      <View style={styles.backdrop}>
+      {/* 키보드가 뜨면 키보드 위 남은 칸 가운데에 놓여 「저장」이 가리지 않는다. */}
+      <KeyboardLift style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.title}>{t('reading.monologueNameTitle')}</Text>
           <Text style={styles.body}>{t('reading.monologueNameBody')}</Text>
@@ -61,7 +63,7 @@ export function MonologueNameDialog({
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{t('reading.monologueNameSave')}</Text>}
           </Pressable>
         </View>
-      </View>
+      </KeyboardLift>
     </Modal>
   );
 }

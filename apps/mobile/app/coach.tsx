@@ -99,6 +99,8 @@ function CoachTalk() {
   const questionTarget = useSpotlightTarget(TARGET.coachQuestion);
   const composerTarget = useSpotlightTarget(TARGET.coachComposer);
   const scrollRef = useRef<ScrollView>(null);
+  /** 지금 질문 칸의 위쪽 y(스크롤 안 기준) — 키보드가 뜨면 이 자리부터 보이게 올린다. */
+  const questionY = useRef<number | null>(null);
   const mountedRef = useRef(true);
   const startInFlightRef = useRef(false);
   /** 이번 답의 요청 id — 같은 답을 다시 보내면 그대로 쓴다(메시지가 늘지 않는다). */
@@ -319,9 +321,15 @@ function CoachTalk() {
     return () => clearTimeout(timer);
   }, [messages, waiting, streamText]);
 
+  // 키보드가 뜨면 답을 쓰는 동안 지금 질문이 보여야 한다 — 맨 끝으로 내리면 긴 질문은 윗부분이 잘렸다(지성 pen 메모).
+  // 질문 위쪽이 화면 맨 위에 오도록 올리고, 질문이 짧아 그 자리까지 못 가면 스크롤이 알아서 끝에서 멈춘다.
   useEffect(() => {
     if (!keyboardVisible) return;
-    const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+    const timer = setTimeout(() => {
+      const y = questionY.current;
+      if (y == null) scrollRef.current?.scrollToEnd({ animated: true });
+      else scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
+    }, 80);
     return () => clearTimeout(timer);
   }, [keyboardVisible]);
 
@@ -516,7 +524,13 @@ function CoachTalk() {
               <Text style={styles.loadingHint}>{t('coach.wrappingHint')}</Text>
             </View>
           ) : (
-            <View style={styles.questionBlock} ref={questionTarget.ref} onLayout={questionTarget.onLayout}>
+            <View
+              style={styles.questionBlock}
+              ref={questionTarget.ref}
+              onLayout={(event) => {
+                questionY.current = event.nativeEvent.layout.y;
+                questionTarget.onLayout();
+              }}>
               {shownQuestion && (
                 <CoachMessage>
                   {/* 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). 「0:12」만 누를 수 있게 칠한다. */}
@@ -564,7 +578,8 @@ function CoachTalk() {
 
         {!closed && (
           <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
-            {conversation?.purpose?.choices.length ? (
+            {/* 키보드가 떠 있으면 답을 쓰는 중이다 — 고르기 버튼·빠른 답·안내 줄을 접어 질문이 보일 자리를 넓힌다. */}
+            {!keyboardVisible && conversation?.purpose?.choices.length ? (
               <View style={styles.purposeChoices}>
                 {conversation.purpose.choices.map((choice, index) => (
                   <View key={index} style={styles.purposeChoice}>
@@ -576,10 +591,10 @@ function CoachTalk() {
                 ))}
               </View>
             ) : null}
-            <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>
+            {!keyboardVisible && <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>}
             {/* 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채우고 키보드는 띄우지 않는다. 덧붙이려면 아래 입력칸을 누른다.
                 목적별 예시 답이 있으면 그것이 빠른 답을 대신한다 — 두 벌을 같이 보이면 「잘 모르겠어요」가 두 번 나온다. */}
-            {!conversation?.purpose?.choices.length && (
+            {!keyboardVisible && !conversation?.purpose?.choices.length && (
             <View style={styles.quickRow} testID="coach-quick-grid">
               {(
                 [
