@@ -13,6 +13,7 @@ const GOOGLE_SIGNIN = '@react-native-google-signin/google-signin';
 const AIRBRIDGE = 'airbridge-expo-sdk';
 const AIRBRIDGE_APP_NAME = 'acttub';
 const AIRBRIDGE_DISABLED_TOKEN = 'airbridge-disabled-without-token';
+const KAKAO_LOGIN = '@react-native-seoul/kakao-login';
 
 // "462...-xxx.apps.googleusercontent.com" → "com.googleusercontent.apps.462...-xxx"
 function reversedClientId(iosClientId) {
@@ -67,6 +68,14 @@ module.exports = ({ config }) => {
       appToken: airbridgeToken || AIRBRIDGE_DISABLED_TOKEN,
     },
   ]);
+
+  // 카카오 로그인(account.login). 네이티브 앱 키는 공개값이라 EXPO_PUBLIC_ 으로 받고, 앱 코드
+  // (lib/provider-sdk.ts)와 네이티브 설정이 같은 값을 쓴다. 플러그인이 iOS Info.plist(KAKAO_APP_KEY,
+  // URL scheme kakao<키>, LSApplicationQueriesSchemes)·AppDelegate 와 안드로이드 매니페스트
+  // (AuthCodeHandlerActivity)·strings 를 채운다. 키가 없는 빌드는 플러그인을 빼고 앱도 버튼을 숨긴다.
+  const kakaoAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY?.trim();
+  plugins = plugins.filter((pl) => pluginName(pl) !== KAKAO_LOGIN);
+  if (kakaoAppKey) plugins.push([KAKAO_LOGIN, { kakaoAppKey }]);
 
   const ios = { ...config.ios };
 

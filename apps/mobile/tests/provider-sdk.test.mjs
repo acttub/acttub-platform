@@ -27,7 +27,7 @@ globalThis.require = name => {
   if (name === 'expo-apple-authentication') return apple;
   throw new Error(`unexpected require ${name}`);
 };
-stubModules({ 'react-native': 'export const Platform = { OS: "ios" };' });
+stubModules({ 'react-native': 'export const Platform = { OS: "ios" }; export const NativeModules = {};' });
 
 const sdk = await import('../lib/provider-sdk.ts');
 
@@ -90,11 +90,12 @@ test('애플 로그인 취소는 null, 다른 실패와 토큰 없음은 던진�
   await assert.rejects(sdk.providerAdapter('apple').signIn(), /no identity token/);
 });
 
-test('연결하지 않은 카카오·네이버는 로그인할 수 없다', async () => {
+test('카카오 앱 키·네이버 client id 가 없는 빌드는 두 제공자를 숨기고 모듈도 부르지 않는다', async () => {
   for (const provider of ['kakao', 'naver']) {
     assert.equal(await sdk.providerAdapter(provider).isAvailable(), false);
-    await assert.rejects(sdk.providerAdapter(provider).signIn(), /not linked/);
   }
+  await assert.rejects(sdk.providerAdapter('kakao').signIn(), /native module is missing/);
+  await assert.rejects(sdk.providerAdapter('naver').signIn(), /needs expo-web-browser/);
 });
 
 test('로그아웃은 하나가 실패해도 모든 제공자 세션을 정리한다', async () => {

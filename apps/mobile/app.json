@@ -65,6 +65,9 @@
           "android": {
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
+            "extraMavenRepos": [
+              "https://devrepo.kakao.com/nexus/content/groups/public/"
+            ],
             "extraProguardRules": "-keep class ai.onnxruntime.** { *; }\n-dontwarn ai.onnxruntime.**"
           }
         }
