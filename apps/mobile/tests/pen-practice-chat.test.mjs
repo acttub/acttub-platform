@@ -53,7 +53,8 @@ test('⑨ 오늘 영상 줄: 썸네일 56 · 재생 원 32 · 17/700 · 15/500',
 
 test('⑨ 질문 대화: 제목 「질문 대화」 고정, 그만하기 17/700, 지난 문답 접기 줄, 빠른 답 한 줄 셋, 입력 줄', () => {
   const coach = read('app/coach.tsx');
-  assert.match(coach, /title: t\('coach\.fallbackTitle'\),\s*headerShadowVisible: false,\s*\/\/ 그만하기/);
+  // 머리는 화면 안 NavHeader 로 그린다(iOS 기본 머리 headerRight 누름 씹힘, 10/23). 제목 고정, 오른쪽에 그만하기.
+  assert.match(coach, /<NavHeader\s+title=\{t\('coach\.fallbackTitle'\)\}[\s\S]{0,900}right=\{/);
   assert.match(coach, /endText: \{ fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette\.textMuted \}/);
   assert.match(coach, /<Feather name=\{pastOpen \? 'chevron-up' : 'chevron-down'\} size=\{12\}/);
   assert.match(coach, /pastToggle: \{ fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette\.textFaint \}/);

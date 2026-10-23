@@ -14,6 +14,7 @@ import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CoachNotice } from '@/components/ui/coach-notice';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
@@ -411,24 +412,33 @@ function CoachTalk() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
-      <Stack.Screen
-        options={{
-          // 제목은 늘 「질문 대화」(pen 09) — 장면 칸은 SOMA-778 에서 없앴다.
-          title: t('coach.fallbackTitle'),
-          headerShadowVisible: false,
-          // 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(pen 질문 대화 오른쪽 위, SOMA-656·748).
-          // 이미 닫힌 대화를 이어 하려다 못 연 경우(conversation_closed 등)는 마칠 대화가 없으니 화면을 나간다.
-          headerRight: () =>
-            !closed ? (
-              <Pressable
-                disabled={waiting || connecting || (!conversation && !openFailed)}
-                onPress={() => (conversation ? void endConversation() : router.back())}
-                accessibilityRole="button" hitSlop={10}>
-                <Text style={styles.endText}>{t('coach.quickEnd')}</Text>
-              </Pressable>
-            ) : null,
-        }}
+    <SafeAreaView style={styles.safe} edges={keyboardVisible ? ['top'] : ['top', 'bottom']}>
+      {/* iOS 새 구조에서 기본 머리(native header)의 headerRight 누름이 자주 씹혀 「그만하기」가 안 눌렸다(10/23 iOS 제보).
+          머리를 화면 안에 직접 그려 누름을 앱이 받는다. 제목은 늘 「질문 대화」(pen 09). */}
+      <Stack.Screen options={{ headerShown: false }} />
+      <NavHeader
+        title={t('coach.fallbackTitle')}
+        left={
+          <NavIconButton
+            icon="chevron-left"
+            size={24}
+            label={t('common.back')}
+            phLabel="coach_back"
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+          />
+        }
+        // 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(pen 질문 대화 오른쪽 위, SOMA-656·748).
+        // 이미 닫힌 대화를 이어 하려다 못 연 경우(conversation_closed 등)는 마칠 대화가 없으니 화면을 나간다.
+        right={
+          !closed ? (
+            <Pressable
+              disabled={waiting || connecting || (!conversation && !openFailed)}
+              onPress={() => (conversation ? void endConversation() : router.back())}
+              accessibilityRole="button" hitSlop={10}>
+              <Text style={styles.endText}>{t('coach.quickEnd')}</Text>
+            </Pressable>
+          ) : null
+        }
       />
 
       {observedLine && (

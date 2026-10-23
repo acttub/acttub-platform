@@ -1515,6 +1515,8 @@ const ko = {
     lineLabel: '오늘의 대사',
     hideLine: '대사 숨김',
     scriptLabel: '대본 · {{title}}',
+    stuckTitle: '촬영이 제대로 시작되지 않았어요',
+    stuckBody: '카메라를 다시 잡았어요. 한 번 더 찍어 주세요.',
     showLine: '대사 보기',
     upload: '업로드',
     // 찍는 법 한 장·권한 거절(SOMA-748)

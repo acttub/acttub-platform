@@ -33,7 +33,9 @@ test('액티 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 �
   assert.match(coach, /\['yes', t\('coach\.quickYes'\)\],\s*\['no', t\('coach\.quickNo'\)\],/);
   // 그만하기는 오른쪽 위 머리 버튼이다(pen 질문 대화, SOMA-748) — 확인을 받고 대화를 마친다.
   // 대화를 열지 못했으면(이미 닫힌 대화 등) 마칠 대화가 없으니 화면을 나간다.
-  assert.match(coach, /headerRight:[\s\S]{0,400}onPress=\{\(\) => \(conversation \? void endConversation\(\) : router\.back\(\)\)\}[^>]*>\s*<Text style=\{styles\.endText\}>\{t\('coach\.quickEnd'\)\}/);
+  assert.match(coach, /right=\{[\s\S]{0,300}onPress=\{\(\) => \(conversation \? void endConversation\(\) : router\.back\(\)\)\}[^>]*>\s*<Text style=\{styles\.endText\}>\{t\('coach\.quickEnd'\)\}/);
+  // iOS 기본 머리의 headerRight 누름이 씹혀 화면 안 머리(NavHeader)로 그린다(10/23 iOS 제보).
+  assert.match(coach, /<Stack\.Screen options=\{\{ headerShown: false \}\} \/>\s*<NavHeader/);
   assert.match(coach, /disabled=\{waiting \|\| connecting \|\| \(!conversation && !openFailed\)\}/);
   assert.doesNotMatch(coach, /coach\.endHint|styles\.endBtn|quickExplain|quickLater/);
   assert.match(read('locales/ko.ts'), /composerLabel: '답이나 질문을 편하게 적어 주세요'/);

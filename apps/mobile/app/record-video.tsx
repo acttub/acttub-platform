@@ -30,6 +30,10 @@ import { VIDEO_PICKER_OPTIONS } from '@/lib/video-picker-options';
 const MAX_SEC = Math.floor(VIDEO_MAX_MS / 1000);
 /** 챌린지(오늘의 대사) 촬영은 60초 — pen A18 촬영 대기 화면과 같은 상한. */
 const CHALLENGE_MAX_SEC = 60;
+/** onCameraReady 가 안 오는 기기에서 셔터를 열어 주는 시간. */
+const CAMERA_READY_FALLBACK_MS = 1500;
+/** 멈춤을 누른 뒤 녹화가 끝나기를 기다리는 시간. 넘으면 화면을 풀어 준다. */
+const STOP_WATCH_MS = 4000;
 
 /**
  * 앱 내 영상 촬영 (SOMA-477).
@@ -87,6 +91,11 @@ export default function RecordVideoScreen() {
   const [facing, setFacing] = useState<'front' | 'back'>('back');
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  // iOS 는 카메라 세션이 준비되기 전(onCameraReady 전)에 녹화를 부르면 녹화가 시작되지도 끝나지도 않아 화면이 멈춘 듯 보이고,
+  // 녹화 중엔 닫기 대신 시간이 떠서 나갈 수도 없었다(10/23 iOS 제보). 준비 신호를 받은 뒤에만 셔터를 받는다.
+  // 일부 기기에서 신호가 안 오면 영영 못 찍으니 1.5초 뒤에는 준비된 것으로 본다.
+  const [cameraReady, setCameraReady] = useState(false);
+  const stopWatchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lineHidden, setLineHidden] = useState(false);
   // 코칭 촬영에 대본을 띄운다(「내 대본으로 찍기」·대본 만들기 「지금 찍을래요」). 처음 그릴 때 꺼내며 비운다.
   const [recordScript] = useState(() => (isChallenge ? null : takeRecordScript()));
@@ -112,6 +121,19 @@ export default function RecordVideoScreen() {
     }, 1000);
     return () => clearInterval(id);
   }, [recording]);
+
+  useEffect(() => {
+    if (cameraReady) return;
+    const timer = setTimeout(() => setCameraReady(true), CAMERA_READY_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [cameraReady]);
+
+  useEffect(
+    () => () => {
+      if (stopWatchRef.current) clearTimeout(stopWatchRef.current);
+    },
+    [],
+  );
 
   const ready = !!(camPerm?.granted && micPerm?.granted);
 
@@ -294,7 +316,7 @@ export default function RecordVideoScreen() {
   );
 
   const startRecording = useCallback(async () => {
-    if (!cameraRef.current || recording) return;
+    if (!cameraRef.current || recording || !cameraReady) return;
     setRecording(true);
     setElapsed(0);
     startedAtRef.current = Date.now();
@@ -313,12 +335,26 @@ export default function RecordVideoScreen() {
       // 곧바로 다른 화면으로 넘어갔으면 녹화 표시를 되돌리지 않는다 — 같은 순간에 바꾸면 안드로이드에서 꺼진다.
       if (!leavingRef.current) setRecording(false);
     }
-  }, [recording, finishWith, isChallenge, maxSec]);
+  }, [recording, cameraReady, finishWith, isChallenge, maxSec]);
 
   const stopRecording = useCallback(() => {
     if (!cameraRef.current || !recording) return;
     cameraRef.current.stopRecording(); // recordAsync 의 promise 를 resolve 시킨다
-  }, [recording]);
+    // 멈춤을 눌렀는데 녹화가 끝나지 않으면(iOS 에서 녹화가 실제로 시작되지 않았던 경우) 화면을 풀어 다시 찍거나 닫게 한다.
+    if (stopWatchRef.current) clearTimeout(stopWatchRef.current);
+    stopWatchRef.current = setTimeout(() => {
+      stopWatchRef.current = null;
+      if (finishedRef.current || leavingRef.current) return;
+      setRecording(false);
+      setElapsed(0);
+      void alert({ title: t('record.stuckTitle'), message: t('record.stuckBody') });
+    }, STOP_WATCH_MS);
+  }, [recording, alert]);
+
+  // 상한이 지나도 네이티브가 멈추지 않으면(녹화가 실제로 시작되지 않은 경우) 멈춤을 대신 누른다.
+  useEffect(() => {
+    if (recording && elapsed > maxSec + 2 && !stopWatchRef.current) stopRecording();
+  }, [recording, elapsed, maxSec, stopRecording]);
 
   // 챌린지 모드 "업로드" — 찍는 대신 갤러리에서 골라 그대로 올리기로 간다.
   const pickFromGallery = useCallback(async () => {
@@ -368,7 +404,7 @@ export default function RecordVideoScreen() {
   if (isChallenge) {
     return (
       <View style={styles.safe}>
-        <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+        <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setCameraReady(true)} />
         {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
         <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
@@ -459,7 +495,7 @@ export default function RecordVideoScreen() {
 
   return (
     <View style={styles.safe}>
-      <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+      <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setCameraReady(true)} />
       {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
       <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
