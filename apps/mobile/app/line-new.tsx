@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { BackHandler, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
@@ -84,6 +84,16 @@ export default function LineNewScreen() {
     if (step > 0) setStep((step - 1) as 0 | 1);
     else router.back();
   };
+
+  // 안드로이드 뒤로 키도 앞 단계로 간다. 첫 단계에서는 OS 기본 동작(화면 닫기)에 맡긴다.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (step === 0) return false;
+      setStep((step - 1) as 0 | 1);
+      return true;
+    });
+    return () => sub.remove();
+  }, [step]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
