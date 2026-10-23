@@ -118,9 +118,11 @@ export default function ReadingFull() {
     <>
       {/* 줄 아래에 대사를 더할 때(LineInsertCard) 입력칸이 키보드에 가리지 않게 따라 올라간다. */}
       <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.content}>
-        <Text style={styles.title}>{script.title}</Text>
-        {/* 독백은 서버가 문장마다 나눠 둔다(SOMA-597) — 그 안내가 줄 고치기 안내 자리에 온다(pen UQWzz). */}
-        <Text style={styles.hint}>{t(monologue ? 'reading.monologueFullNote' : 'reading.lineEditHint')}</Text>
+        <View style={styles.headCard}>
+          <Text style={styles.title}>{script.title}</Text>
+          {/* 독백은 서버가 문장마다 나눠 둔다(SOMA-597) — 그 안내가 줄 고치기 안내 자리에 온다(pen UQWzz). */}
+          <Text style={styles.hint}>{t(monologue ? 'reading.monologueFullNote' : 'reading.lineEditHint')}</Text>
+        </View>
         {/* 같은 배역 연속 대사는 배역 이름 하나 아래 줄마다 이어 보인다(SOMA-806). 저장된 줄은 그대로다. */}
         {lineGroups(script.lines, { monologue }).map(({ start, end }) => {
           const l = script.lines[start];
@@ -129,11 +131,11 @@ export default function ReadingFull() {
             k === 0
               ? row(start, (
                   <View style={styles.line}>
-                    <Text style={[styles.role, isMyRole(l.role) && styles.roleMine]}>{l.role}</Text>
+                    <Text style={[styles.role, isMyRole(l.role) && styles.roleMine]} numberOfLines={1}>{l.role}</Text>
                     <Text style={styles.text}>{g.text}</Text>
                   </View>
                 ), start < end ? 'head' : undefined)
-              : row(start + k, <Text style={styles.text}>{g.text}</Text>, 'rest'),
+              : row(start + k, <Text style={[styles.text, styles.textJoined]}>{g.text}</Text>, 'rest'),
           );
           return start === end ? rows : <View key={script.lineIds[start] ?? start}>{rows}</View>;
         })}
@@ -166,20 +168,22 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
-  content: { padding: 20, gap: 4, paddingBottom: 60 },
-  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 20 },
-  hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: 2, marginBottom: 8 },
-  row: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, marginHorizontal: -8 },
+  content: { paddingHorizontal: 20, paddingTop: 8, gap: 4, paddingBottom: 60 },
+  headCard: { backgroundColor: palette.blueSoft, borderRadius: 16, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 18, gap: 4, marginBottom: 10 },
+  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 24 },
+  hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
+  row: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8, marginHorizontal: -8 },
   /** 묶인 대사의 줄 — 한 대사로 보이게 위아래를 좁힌다. */
   rowHead: { paddingBottom: 1 },
   rowJoined: { paddingVertical: 1 },
   rowPressed: { backgroundColor: palette.bgSoft },
   direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21 },
   scene: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 6 },
-  role: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 14 },
-  line: { gap: 2 },
+  role: { width: 48, color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16 },
+  line: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
   roleMine: { color: palette.blueDeep },
-  text: { color: palette.text, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24 },
+  text: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24 },
+  textJoined: { marginLeft: 62 },
   pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
   pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 });
