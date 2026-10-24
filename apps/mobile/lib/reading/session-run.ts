@@ -72,8 +72,13 @@ export function createRun(cfg: RunConfig): RunState {
 }
 
 /** 현재 줄의 서버 id. completed 면 null. */
+/** 진행 기준 줄 — 이어하기 앞 상대 대사(leadIn)를 읽는 동안은 멈췄던 줄이다. 그래야 열고 나갈 때 한 줄씩 뒤로 가지 않는다. */
+function progressIndexOf(run: RunState): number {
+  return run.leadInUntil != null ? Math.max(run.index, run.leadInUntil) : run.index;
+}
+
 export function currentLineIdOf(run: RunState): string | null {
-  return run.status === 'done' ? null : (run.lineIds[run.index] ?? null);
+  return run.status === 'done' ? null : (run.lineIds[progressIndexOf(run)] ?? null);
 }
 
 /**
@@ -168,10 +173,11 @@ export function tickElapsed(run: RunState, ms: number): RunState {
 export function progressOf(run: RunState): { done: number; total: number } {
   let done = 0;
   let total = 0;
+  const at = progressIndexOf(run);
   for (let i = run.startIndex; i <= run.endIndex; i++) {
     if (run.lines[i]?.type !== 'dialogue') continue;
     total += 1;
-    if (run.status === 'done' || i < run.index) done += 1;
+    if (run.status === 'done' || i < at) done += 1;
   }
   return { done, total };
 }
