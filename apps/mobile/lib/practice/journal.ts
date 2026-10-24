@@ -57,13 +57,22 @@ export type QuestionChoice = { key: string; label: string; skip?: boolean };
 
 export type JournalQuestion = { id: QuestionId; title: string; choices: QuestionChoice[]; placeholder: string };
 
+const FEELING_KEYS = ['easy', 'nervous', 'awkward', 'unsure'] as const;
+
+/** 느낌 칩 키(easy)를 고른 말(편했어요)로. 서버에는 말로 보낸다 — 키로 저장된 옛 일지도 말로 보이게 여기서 함께 바꾼다. */
+function feelingLabel(choice: string | null | undefined): string | null {
+  const value = choice?.trim();
+  if (!value) return null;
+  return (FEELING_KEYS as readonly string[]).includes(value) ? translate(`journal.feeling.${value}`) : value;
+}
+
 /** 질문 문구와 순서는 항상 같다(10/19 questions.json). 대화 내용으로 바꾸지 않는다. */
 export function journalQuestions(): JournalQuestion[] {
   return [
     {
       id: 'feeling',
       title: translate('journal.q1'),
-      choices: (['easy', 'nervous', 'awkward', 'unsure'] as const).map((key) => ({ key, label: translate(`journal.feeling.${key}`) })),
+      choices: FEELING_KEYS.map((key) => ({ key, label: translate(`journal.feeling.${key}`) })),
       placeholder: translate('journal.q1Ph'),
     },
     { id: 'unknown', title: translate('journal.q2'), choices: [{ key: 'none', label: translate('journal.none'), skip: true }], placeholder: translate('journal.q2Ph') },
@@ -88,7 +97,7 @@ export function buildAnswers(drafts: Record<QuestionId, QuestionDraft>): Journal
   const unknown = drafts.unknown;
   const next = drafts.next;
   return {
-    feeling: canAnswer(feeling) ? { choice: feeling.choice, text: text(feeling.text) } : null,
+    feeling: canAnswer(feeling) ? { choice: feelingLabel(feeling.choice), text: text(feeling.text) } : null,
     unknown: canAnswer(unknown) ? { none: unknown.choice === 'none', text: text(unknown.text) } : null,
     next: canAnswer(next) ? { undecided: next.choice === 'undecided', text: text(next.text) } : null,
     review: text(drafts.review.text),
@@ -127,7 +136,7 @@ export function timeLabel(seconds: number): string {
 
 export function feelingText(feeling: JournalFeeling | null): string | null {
   if (!feeling) return null;
-  const parts = [feeling.choice?.trim(), feeling.text?.trim()].filter((part): part is string => !!part);
+  const parts = [feelingLabel(feeling.choice), feeling.text?.trim()].filter((part): part is string => !!part);
   return parts.length ? parts.join(' · ') : null;
 }
 
@@ -170,7 +179,7 @@ export function journalSummary(journal: PracticeJournal): JournalSummary {
   if (unknown) rows.push({ key: 'unknown', label: translate('journal.row.unknown'), preview: preview(unknown), lines: [{ id: 'unknown', text: unknown }] });
   return {
     review: answers.review?.trim() || null,
-    feelingTag: answers.feeling?.choice?.trim() || null,
+    feelingTag: feelingLabel(answers.feeling?.choice),
     unknownCount: unknown ? 1 : 0,
     next: journalNext(journal),
     rows,
