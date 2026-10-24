@@ -430,11 +430,12 @@ export default function HomeScreen() {
     ? {
         key: 'reading',
         icon: 'book-open',
-        title: t('home.alsoReading', { title: readingItem.script.title }),
+        // pen P1.1 — 제목은 「대사 이어 읽기」, 아래 줄은 멈춘 줄(없으면 대본 제목).
+        title: t('home.rowReadingContinue'),
         sub:
           readingProgress?.scriptId === readingItem.script.id && readingProgress.progress.total > 0
             ? t('home.rowReadingProgress', { done: readingProgress.progress.done, total: readingProgress.progress.total })
-            : t('home.rowReadingNoProgress'),
+            : readingItem.script.title,
         phLabel: 'home_row_reading',
         onPress: () => void openReading(readingItem.script),
       }
@@ -453,7 +454,7 @@ export default function HomeScreen() {
     tone: 'orange',
     title: t('home.rowChallenge'),
     sub: featured
-      ? [`“${featured.line}”`, featuredDays !== null && featuredDays >= 0 ? `D-${featuredDays}` : null].filter(Boolean).join(' · ')
+      ? [`‘${featured.line}’`, featuredDays !== null && featuredDays >= 0 ? `D-${featuredDays}` : null].filter(Boolean).join(' · ')
       : t('home.rowChallengeSub'),
     phLabel: 'home_row_challenge',
     onPress: () => (featured ? router.push({ pathname: '/challenge-detail', params: { id: featured.id } }) : router.push('/challenges')),
@@ -463,7 +464,8 @@ export default function HomeScreen() {
     icon: 'play',
     tone: 'orange',
     title: t('home.rowWatch'),
-    sub: t('home.rowWatchSub'),
+    // pen P1.16 「이번 주 참여작 12개」 — 참여작이 없으면 정렬 안내.
+    sub: featured && featured.entry_count > 0 ? t('home.rowWatchSubCount', { n: featured.entry_count }) : t('home.rowWatchSub'),
     phLabel: 'home_row_watch',
     onPress: () => router.push('/challenges'),
   };
@@ -691,7 +693,7 @@ export default function HomeScreen() {
                   <Text style={styles.sectionAll}>{t('home.seeAll')}</Text>
                 </Pressable>
               </View>
-              <View style={styles.rowList}>
+              <View style={styles.deadlineList}>
                 {block.rows.map((row) => (
                   <Pressable
                     key={row.id}
@@ -703,7 +705,7 @@ export default function HomeScreen() {
                       <Text style={[styles.ddayText, ddayTone(row.days).text]}>D-{row.days === 0 ? 'DAY' : row.days}</Text>
                     </View>
                     <View style={styles.flex}>
-                      <Text style={styles.listTitle} numberOfLines={1}>{row.title}</Text>
+                      <Text style={styles.listTitle} numberOfLines={2}>{row.title}</Text>
                       <Text style={styles.listMeta} numberOfLines={1}>{row.sub}</Text>
                     </View>
                     <Feather name="chevron-right" size={18} color="#9AA3B2" />
@@ -787,28 +789,32 @@ function TodayCardBody({
   let icon: ComponentProps<typeof Feather>['name'] | 'trophy' = 'video';
   let title: string;
   let sub: string | null = null;
-  let remaining: string | null = null;
   let cta: string;
-  let bar: number | null = null;
 
   if (item.kind === 'coaching') {
     const action = continueActionFor(item.group);
     eyebrow = t('home.todayCoachingEyebrow');
     // 제목은 지난 노트의 「다음에 해 볼 것」이다. 그 문장이 없으면(아직 못 받았거나 노트에 없음) 장면 제목만 둔다.
     const n = item.group.ordinal_count + 1;
-    title = nextTake ? `「${nextTake}」` : sceneTitle(item.group);
+    title = nextTake ? `‘${nextTake}’` : sceneTitle(item.group);
     sub = nextTake ? t('home.todayCoachingSub', { title: sceneTitle(item.group), n }) : t('home.todayCoachingSubTake', { n });
     cta = action.kind === 'resume' ? t('history.resumeConversation') : t('home.todayCoachingCta');
   } else if (item.kind === 'reading') {
     icon = 'book-open';
     // 한 번도 안 읽은 대본은 「이어 읽기」가 아니다(10/22 피드백).
     eyebrow = progress || item.script.last_practiced_at ? t('home.todayReadingEyebrow') : t('home.todayReadingEyebrowNew');
-    title = item.script.title;
+    // pen P1.15 「옥상, 밤 · 태오」 — 대본 제목 · 내 배역.
+    const role = item.script.my_character_names[0]?.trim();
+    title = role ? `${item.script.title} · ${role}` : item.script.title;
     if (progress && progress.total > 0) {
-      bar = Math.min(1, Math.max(0, progress.done / progress.total));
-      sub = t('home.todayReadingProgress', { total: progress.total, done: progress.done });
+      // pen P1.15 — 「3/10줄 · 남은 시간 약 1분」 한 줄, 진행 막대는 없다.
       const minutes = remainingMinutes(progress, perLine ?? DEFAULT_SEC_PER_LINE);
-      if (minutes !== null) remaining = t('home.todayReadingRemaining', { minutes });
+      sub = [
+        t('home.todayReadingProgress', { total: progress.total, done: progress.done }),
+        minutes !== null ? t('home.todayReadingRemaining', { minutes }) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
       cta = progress.done < progress.total ? t('home.todayReadingCta', { line: progress.done + 1 }) : t('home.todayReadingCtaPlain');
     } else {
       // 만들어 두고 아직 안 읽은 대본은 「리딩 시작하기」(pen P1.15 「새로 넣은 대본이에요 · 대사 N줄」).
@@ -840,12 +846,6 @@ function TodayCardBody({
       </View>
       <Text style={styles.todayTitle} numberOfLines={3}>{title}</Text>
       {sub ? <Text style={styles.todaySub} numberOfLines={2}>{sub}</Text> : null}
-      {remaining ? <Text style={styles.todaySub}>{remaining}</Text> : null}
-      {bar !== null && (
-        <View style={styles.barTrack}>
-          <View style={[styles.barFill, { width: `${Math.round(bar * 100)}%` }]} />
-        </View>
-      )}
       <View style={styles.todaySpacer} />
       <Pressable
         onPress={onPress}
@@ -967,17 +967,33 @@ const styles = StyleSheet.create({
   stepText: { flex: 1, fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textStrong },
 
   // 히어로
-  hero: { height: 200 + 44 },
+  // pen P1.1 히어로 — 상태 막대 아래 높이 200. 글은 위 14, 액티는 위 12, 알림 버튼은 위 4.
+  hero: { height: 200 },
   heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 250 },
   heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
-  heroText: { position: 'absolute', top: 52, left: 24, width: 190, gap: 10 },
+  heroText: { position: 'absolute', top: 14, left: 24, width: 190, gap: 10 },
   heroTitle: { fontSize: 26, fontWeight: '800', lineHeight: 34, color: palette.text },
   heroSub: { fontSize: 13, fontWeight: '400', lineHeight: 20, color: palette.textMuted },
-  heroActy: { position: 'absolute', top: 56, right: 14, width: 170, height: 188 },
+  heroActy: { position: 'absolute', top: 12, right: 14, width: 170, height: 188 },
   body: { paddingHorizontal: 20, paddingTop: 4, gap: 16 },
   streakPill: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   streakText: { fontSize: 13, fontWeight: '700', color: palette.textStrong },
-  bell: { position: 'absolute', top: 14, right: 20, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center' },
+  bell: {
+    position: 'absolute',
+    top: 4,
+    right: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2E5A96',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
   bellDot: {
     position: 'absolute',
     top: 10,
@@ -991,7 +1007,21 @@ const styles = StyleSheet.create({
   },
 
   // 이번 주 연습 카드
-  weekCard: { backgroundColor: palette.card, borderRadius: 20, borderWidth: 1, borderColor: '#E8EDF5', paddingTop: 16, paddingHorizontal: 16, paddingBottom: 14, gap: 14 },
+  weekCard: {
+    backgroundColor: palette.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E8EDF5',
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    gap: 14,
+    shadowColor: '#2E5A96',
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
   weekHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   weekTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
   week: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -1020,10 +1050,9 @@ const styles = StyleSheet.create({
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   eyebrow: { fontSize: 13, fontWeight: '600', lineHeight: 18, color: 'rgba(255,255,255,0.9)' },
   todayTitle: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.onAccent, maxWidth: 260 },
-  barTrack: { height: 8, width: 200, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
-  barFill: { height: 8, borderRadius: 4, backgroundColor: palette.onAccent },
   todaySub: { fontSize: 12, fontWeight: '400', lineHeight: 18, color: 'rgba(255,255,255,0.8)' },
-  todaySpacer: { flex: 1, minHeight: 2 },
+  // pen 「틈」 1×2 — 버튼은 부연 바로 아래에 붙고, 남는 높이는 카드 아래에 빈다.
+  todaySpacer: { height: 2 },
   todayCta: {
     alignSelf: 'flex-start',
     height: 42,
@@ -1041,6 +1070,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '800', lineHeight: 22, color: palette.text },
   sectionAll: { fontSize: 13, fontWeight: '700', color: '#2F6EF2' },
   rowList: { gap: 10 },
+  // pen 마감 줄 사이 8.
+  deadlineList: { gap: 8 },
   deadlineBlock: { gap: 16 },
   listRow: {
     flexDirection: 'row',
@@ -1053,6 +1084,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E8EDF5',
     backgroundColor: palette.card,
+    shadowColor: '#2E5A96',
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
   rowIcon: { width: 40, height: 40, borderRadius: 15, backgroundColor: '#E8F1FF', alignItems: 'center', justifyContent: 'center', marginRight: 4 },
   rowIconOrange: { backgroundColor: '#FFF1E4' },
@@ -1069,6 +1105,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E8EDF5',
     backgroundColor: palette.card,
+    shadowColor: '#2E5A96',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   dday: { width: 58, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   ddayText: { fontSize: 13, fontWeight: '800' },

@@ -697,6 +697,8 @@ const en: DeepStringShape<typeof ko> = {
     rowChallengeSub: 'Same line, different acting',
     rowWatch: 'Watch other actors',
     rowWatchSub: 'Most liked first',
+    rowWatchSubCount: '{{n}} entries this week',
+    rowReadingContinue: 'Keep reading',
     rowAuditions: 'Admissions & auditions',
     rowAuditionsSub: '{{n}} closing this week · acting admissions',
     rowAuditionsSubNone: 'Acting admissions',

@@ -153,14 +153,15 @@ test('서버 프로필의 이름·사진·목표와 경력·소개를 보이고,
   expect(await screen.findByText('3개')).toBeOnTheScreen();
 });
 
-test('서버 이름을 아직 못 읽었으면 기기에 적어 둔 이름과 첫 글자를 쓰고, 소개가 비면 안내 문구를 보인다', async () => {
+test('서버 이름을 아직 못 읽었으면 기기에 적어 둔 이름을 쓰고 사진 자리는 기본 얼굴(pen P/DefaultAvatar)이며, 소개가 비면 안내 문구를 보인다', async () => {
   mockMe = { profile: { name: null, photo_url: null, bio: '   ' } };
   getItem.mockResolvedValue('  민지  ');
 
   await render(<ProfileScreen />);
 
   expect(await screen.findByText('민지')).toBeOnTheScreen();
-  expect(screen.getByText('민')).toBeOnTheScreen();
+  expect(screen.getByTestId('default-avatar')).toBeOnTheScreen();
+  expect(screen.queryByText('민')).not.toBeOnTheScreen();
   expect(screen.getByText('이번 달 연습')).toBeOnTheScreen();
   expect(screen.getAllByText('0')).toHaveLength(4);
   expect(screen.getByText('한 줄 소개를 적어보세요')).toBeOnTheScreen();
@@ -173,7 +174,7 @@ test('이름이 어디에도 없으면 이메일 앞부분으로 부른다', asy
   await render(<ProfileScreen />);
 
   expect(await screen.findByText('kim actor')).toBeOnTheScreen();
-  expect(screen.getByText('k')).toBeOnTheScreen();
+  expect(screen.getByTestId('default-avatar')).toBeOnTheScreen();
 });
 
 test('이름도 이메일도 없으면 화면 제목으로 부른다', async () => {
@@ -183,7 +184,7 @@ test('이름도 이메일도 없으면 화면 제목으로 부른다', async () 
   await render(<ProfileScreen />);
 
   await waitFor(() => expect(screen.getAllByText('프로필')).toHaveLength(2));
-  expect(screen.getByText('프')).toBeOnTheScreen();
+  expect(screen.getByTestId('default-avatar')).toBeOnTheScreen();
   expect(screen.queryByText(/@/)).not.toBeOnTheScreen();
 });
 
@@ -247,12 +248,16 @@ test('설정·편집·액티 기억으로 보내고, 탭을 바꾸면 그 카드
   await fireEvent.press(await screen.findByText('전체 보기'));
 
   await fireEvent.press(screen.getByRole('tab', { name: '참여작' }));
-  expect(screen.getByText('좋아요 2 · 나만 보기')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '“대사 c1” 참여작' }));
+  // pen S14.4 — 썸네일 아래 「“대사”」, 하트 수 · 나만 보기.
+  expect(screen.getByText('· 나만 보기')).toBeOnTheScreen();
+  expect(screen.getAllByText('2').length).toBeGreaterThan(0);
+  await fireEvent.press(screen.getByRole('button', { name: '“대사 c1”' }));
   await fireEvent.press(screen.getByText('전체 보기'));
 
   await fireEvent.press(screen.getByRole('tab', { name: '저장됨' }));
-  expect(screen.getByText('이배우 · 좋아요 5')).toBeOnTheScreen();
+  // pen S14.5 — 하트 수 · 작성자.
+  expect(screen.getByText('· 이배우')).toBeOnTheScreen();
+  expect(screen.getByText('5')).toBeOnTheScreen();
   expect(screen.queryByText('전체 보기')).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '이배우' }));
 

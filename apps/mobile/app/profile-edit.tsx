@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { palette } from '@/constants/palette';
 import { useAuth } from '@/lib/auth';
 import { translate as t, translateList } from '@/lib/i18n';
@@ -23,7 +24,7 @@ import { pickAndUploadProfilePhoto, removeProfilePhoto } from '@/lib/profile-pho
  */
 export default function ProfileEditScreen() {
   const router = useRouter();
-  const { profile, reloadProfile, setMe } = useAuth();
+  const { user, profile, reloadProfile, setMe } = useAuth();
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const me = profile.me;
@@ -96,7 +97,6 @@ export default function ProfileEditScreen() {
     },
   ];
   const photoUri = p?.photo_url ?? null;
-  const initial = (p?.name ?? '').trim().charAt(0) || '?';
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -111,7 +111,7 @@ export default function ProfileEditScreen() {
               ) : photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.photoImg} contentFit="cover" />
               ) : (
-                <Text style={styles.photoText}>{initial}</Text>
+                <DefaultAvatar size={84} seed={user?.id} />
               )}
             </View>
           </Pressable>
@@ -129,17 +129,17 @@ export default function ProfileEditScreen() {
         </View>
         <View style={styles.summaryText}>
           <Text style={styles.summaryName} numberOfLines={1}>{p?.name ?? ''}</Text>
-          <Text style={styles.summaryBio} numberOfLines={2}>{p?.bio?.trim() || t('profileName.editBioEmpty')}</Text>
+          <Text style={[styles.summaryBio, !p?.bio?.trim() && styles.summaryBioEmpty]} numberOfLines={2}>{p?.bio?.trim() || t('profileName.editBioEmpty')}</Text>
           <View style={styles.chipRow}>
             {!!p?.birth_date && (
               <View style={styles.chip}>
-                <Feather name="gift" size={14} color={palette.textMuted} />
+                <Feather name="gift" size={13} color={palette.textMuted} />
                 <Text style={styles.chipText}>{p.birth_date.replace(/-/g, '.')}</Text>
               </View>
             )}
             {!!p?.gender && (
               <View style={styles.chip}>
-                <Feather name="user" size={14} color={palette.textMuted} />
+                <Feather name="user" size={13} color={palette.textMuted} />
                 <Text style={styles.chipText}>{t(GENDER_LABEL_KEYS[p.gender])}</Text>
               </View>
             )}
@@ -158,7 +158,7 @@ export default function ProfileEditScreen() {
               <Text style={[styles.rowValue, row.field === 'bio' && !row.value && styles.rowEmpty]} numberOfLines={1}>
                 {row.value || (row.field === 'bio' ? t('profileName.editBioRowEmpty') : '')}
               </Text>
-              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+              <Feather name="chevron-right" size={16} color={palette.checkOff} />
             </Pressable>
           </View>
         ))}
@@ -169,7 +169,7 @@ export default function ProfileEditScreen() {
           accessibilityRole="button">
           <Text style={styles.rowLabel}>{t('profileName.rowPortfolio')}</Text>
           <Text style={[styles.rowValue, styles.rowEmpty]}>{t('profileName.editPortfolioRowEmpty')}</Text>
-          <Feather name="chevron-right" size={18} color={palette.checkOff} />
+          <Feather name="chevron-right" size={16} color={palette.checkOff} />
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -182,33 +182,36 @@ const styles = StyleSheet.create({
   reload: { paddingHorizontal: 16, paddingVertical: 8 },
   reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
-  body: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32, gap: 10 },
-  summary: { flexDirection: 'row', alignItems: 'center', gap: 18, padding: 18, borderRadius: 24, backgroundColor: palette.bgSubtle, borderWidth: 1, borderColor: palette.borderSoft },
+  // pen S6.3 — 좌우 16, 카드 위 16, 줄 사이 9.
+  body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 9 },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: 18, padding: 18, marginBottom: 6, borderRadius: 20, backgroundColor: palette.bgSubtle, borderWidth: 1, borderColor: palette.borderSoft },
   summaryText: { flex: 1, gap: 6 },
-  summaryName: { fontSize: 24, fontWeight: '800', color: palette.text },
-  summaryBio: { fontSize: 15, color: palette.textMuted, lineHeight: 21 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: 10, paddingVertical: 5 },
-  chipText: { fontSize: 13, fontWeight: '600', color: palette.text },
+  summaryName: { fontSize: 20, fontWeight: '800', color: palette.text },
+  // pen S6.4 소개가 있으면 #4E5968, 없으면 안내 #8B95A1.
+  summaryBio: { fontSize: 14, color: palette.textDim, lineHeight: 20 },
+  summaryBioEmpty: { color: palette.textFaint },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: 9, paddingVertical: 4 },
+  chipText: { fontSize: 12, fontWeight: '500', color: palette.textDim },
   photoBox: { alignItems: 'center', gap: 8 },
   photo: {
     width: 84,
     height: 84,
-    borderRadius: 28,
-    backgroundColor: palette.blueSoft,
+    borderRadius: 32,
+    backgroundColor: palette.bgSoft,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   photoImg: { width: '100%', height: '100%' },
-  photoText: { fontSize: 32, fontWeight: '800', color: palette.blue },
   photoLinks: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  photoLink: { fontSize: 14, fontWeight: '700', color: palette.blue },
-  photoRemove: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
+  photoLink: { fontSize: 12, fontWeight: '700', color: palette.blue },
+  photoRemove: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
   divider: { height: 1, backgroundColor: palette.borderSoft },
-  row: { height: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, borderWidth: 1, borderColor: palette.border, borderRadius: 22 },
+  // pen S6.3 줄 — 높이 53(위아래 15), 왼 16 · 오른 12, 모서리 16, 칸 사이 10.
+  row: { minHeight: 53, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingLeft: 16, paddingRight: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.card },
   pressed: { opacity: 0.6 },
-  rowLabel: { width: 96, fontSize: 15, fontWeight: '600', color: palette.textMuted },
-  rowEmpty: { fontWeight: '500', color: palette.textFaint },
-  rowValue: { flex: 1, fontSize: 17, fontWeight: '800', color: palette.text, textAlign: 'right' },
+  rowLabel: { fontSize: 14, fontWeight: '600', color: palette.textMuted },
+  rowEmpty: { fontSize: 15, fontWeight: '500', color: palette.textFaint },
+  rowValue: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.text, textAlign: 'right' },
 });

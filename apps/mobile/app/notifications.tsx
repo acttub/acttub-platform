@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -125,9 +126,8 @@ export default function NotificationsScreen() {
 
         {groups?.map((group) => (
           <Pressable key={group.group_key} style={styles.row} onPress={() => void open(group)} accessibilityRole="button">
-            <View style={[styles.avatar, !group.read && styles.avatarUnread]}>
-              <Feather name="user" size={22} color="#FFFFFF" />
-            </View>
+            {/* pen S/NotifRow — 읽음과 상관없이 기본 얼굴(Mint) 44. */}
+            <DefaultAvatar size={44} radius={22} />
             <View style={styles.rowBody}>
               <Text style={[styles.rowText, !group.read && styles.rowTextUnread]} numberOfLines={2}>
                 {groupLabel(group)}
@@ -150,8 +150,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
   title: { fontSize: 18, fontWeight: '800', color: palette.text },
-  readAll: { fontSize: 15, fontWeight: '800', color: palette.blueDeep },
-  body: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 48 },
+  readAll: { fontSize: 13, fontWeight: '800', color: palette.blueDeep },
+  // pen S19.4 본문 — 좌우 22, 위 16.
+  body: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 48 },
   pushOff: {
     fontSize: 12.5,
     color: palette.amber,
@@ -163,19 +164,19 @@ const styles = StyleSheet.create({
   },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
   empty: { color: palette.textDim, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
+  // pen S/NotifRow — 위아래 18, 아래 선 #EDF0F3, 칸 사이 14.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingVertical: 12,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSoft,
   },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#CBD0D8', alignItems: 'center', justifyContent: 'center' },
-  avatarUnread: { backgroundColor: '#B2D5C8' },
-  avatarText: { fontSize: 14, fontWeight: '900', color: palette.blueDeep },
-  rowBody: { flex: 1, gap: 3 },
-  rowText: { fontSize: 17, color: palette.textDim, lineHeight: 21 },
+  rowBody: { flex: 1, gap: 4 },
+  rowText: { fontSize: 15.5, fontWeight: '400', color: palette.textDim, lineHeight: 22 },
   rowTextUnread: { fontWeight: '800', color: palette.text },
-  rowMeta: { fontSize: 14, color: palette.textFaint },
+  rowMeta: { fontSize: 13, color: palette.textFaint },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.blue },
-  keep: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', paddingTop: 16 },
+  keep: { fontSize: 12, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', paddingTop: 16 },
 });
