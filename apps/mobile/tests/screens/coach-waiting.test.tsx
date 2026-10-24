@@ -514,7 +514,7 @@ describe('분석이 실패하면', () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', close_reason: 'cancelled', job: null }));
     await render(<CoachScreen />);
 
-    expect(await screen.findByText('분석을 그만뒀어요. 영상은 보관함에 그대로 있어요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석을 그만뒀어요. 영상은 그대로 있어요.', { exact: false })).toBeOnTheScreen();
     expect(screen.queryByText('영상은 그대로 있으니 「다시 시도」를 누르세요.', { exact: false })).not.toBeOnTheScreen();
     expect(screen.queryByText('다시 시도')).not.toBeOnTheScreen();
 

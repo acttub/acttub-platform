@@ -148,7 +148,7 @@ test('reading.session: 이어하기 앞 상대 대사를 읽는 동안 나가도
   assert.equal(currentLineIdOf(r), 'l4', '저장 위치는 앞 상대 대사(l2)가 아니라 멈췄던 줄');
   assert.equal(progressPayload(r).current_line_id, 'l4');
   assert.deepEqual(progressOf(r), { done: 2, total: 5 });
-  assert.equal(formatProgress(r), '3 / 5 · 00:00');
+  assert.equal(formatProgress(r), '2 / 5 · 00:00', '머리 숫자도 회차 버튼(끝낸 줄 수)과 같다');
 });
 
 test('reading.session: 나가기 확인 문구는 "지금 나가면 N번 대사까지 진행한 걸로 저장돼요"다', () => {
