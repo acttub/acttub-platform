@@ -39,7 +39,14 @@ jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({ api: { listChallenges: jest.fn(), listChallengeEntries: jest.fn(), unreadNotificationCount: jest.fn() } }));
 jest.mock('expo-video', () => {
   const { Text } = require('react-native');
-  return { useVideoPlayer: () => ({ play: () => undefined }), VideoView: () => <Text>예시 영상</Text> };
+  return {
+    useVideoPlayer: () => ({ play: () => undefined }),
+    VideoView: (props: { style?: unknown; onFirstFrameRender?: () => void }) => (
+      <Text testID="example-video" style={props.style as never} onPress={props.onFirstFrameRender}>
+        예시 영상
+      </Text>
+    ),
+  };
 });
 
 const listChallenges = api.listChallenges as jest.Mock;
@@ -382,6 +389,21 @@ describe('첫 챌린지 전(C1.16·C1.18)', () => {
     await fireEvent.press(screen.getByRole('radio', { name: '나도 이 대사 연기하기' }));
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: '/record-video' }));
+  });
+});
+
+describe('이번 주 대사 카드의 예시 영상', () => {
+  test('첫 장면이 그려지기 전에는 영상을 숨겨 검은 상자가 보이지 않고, 그려지면 보인다', async () => {
+    await AsyncStorage.removeItem('acttub.challenge.firstEntryDone');
+    (api.listChallengeEntries as jest.Mock).mockResolvedValue({
+      entries: [{ id: 'e1', playback_url: 'https://cdn.example/e1.mp4' }],
+      next_cursor: null,
+    });
+    await render(<ChallengesScreen />);
+    const video = await screen.findByTestId('example-video');
+    expect(video).toHaveStyle({ opacity: 0 });
+    await act(async () => video.props.onPress());
+    expect(screen.getByTestId('example-video')).toHaveStyle({ opacity: 1 });
   });
 });
 

@@ -353,9 +353,20 @@ function ExampleHero({
     p.muted = true;
     p.play();
   });
+  /** 첫 장면이 그려지기 전의 VideoView 는 검은 상자다 — 그려질 때까지 숨겨 카드 바탕(파랑)만 보이게 한다. */
+  const [frameReady, setFrameReady] = useState(false);
+  useEffect(() => setFrameReady(false), [videoUrl]);
   return (
     <View style={styles.hero}>
-      {!!videoUrl && <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />}
+      {!!videoUrl && (
+        <VideoView
+          style={[StyleSheet.absoluteFill, { opacity: frameReady ? 1 : 0 }]}
+          player={player}
+          contentFit="cover"
+          nativeControls={false}
+          onFirstFrameRender={() => setFrameReady(true)}
+        />
+      )}
       <View style={styles.heroScrim} pointerEvents="none" />
       <Pressable style={styles.heroTop} onPress={onOpen} accessibilityRole="button">
       <View style={styles.heroChip}>
