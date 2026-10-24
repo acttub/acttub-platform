@@ -141,22 +141,29 @@ describe('인기 탭 첫 화면', () => {
     expect(listChallenges).toHaveBeenCalledWith({ tab: 'popular' });
     expect(tabButton('인기')).toBeSelected();
 
-    // 이번 주 대사 카드(C1.13): 대사 → 파란 「나도 이 대사 연기하기」 → 「같은 대사, 다른 연기」와 한 줄 안내.
+    // 이번 주 대사 카드(pen C1.2 grFk4): 파란 그라데이션 위에 알약 → 대사 → 작품·인물 → 참여자·참여작·좋아요 → 「나도 이 대사 연기하기」.
+    // 예시 영상과 「같은 대사, 다른 연기」 머리는 첫 사용자 고르기 화면에만 있다.
     expect(screen.getByText('오늘의 챌린지 · D-3')).toBeOnTheScreen();
     expect(screen.getByText('“오늘은 내가 주인공이야”')).toBeOnTheScreen();
-    expect(screen.getByText('같은 대사, 다른 연기')).toBeOnTheScreen();
-    expect(screen.getByText('이번 주 대사 · D-3 · 참여 4명')).toBeOnTheScreen();
+    expect(screen.getByText('무대 뒤 · 민재')).toBeOnTheScreen();
+    expect(screen.getByText('참여작 4 · 좋아요 9')).toBeOnTheScreen();
+    expect(screen.queryByText('같은 대사, 다른 연기')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('example-video')).not.toBeOnTheScreen();
+    expect(screen.queryByText('아래 버튼을 누르면 바로 찍을 수 있어요.')).not.toBeOnTheScreen();
 
     // 줄 카드(ZxMmEh)에는 작품·인물·메모를 두지 않는다 — 상세에서 본다.
     expect(screen.queryByText('빗속의 집 · 서연')).not.toBeOnTheScreen();
     expect(screen.getByText('사용자 챌린지 · 참여작 3 · D-3')).toBeOnTheScreen();
-    expect(screen.getByText('윤서 · 태오 +2 · 좋아요 5')).toBeOnTheScreen();
-    expect(screen.getAllByText('윤')).toHaveLength(1);
-    expect(screen.getAllByText('태')).toHaveLength(1);
+    expect(screen.getByText('윤서 · 태오 +2')).toBeOnTheScreen();
+    expect(screen.getByText('좋아요 5')).toBeOnTheScreen();
+    // 첫 글자 아바타는 이번 주 대사 카드와 줄 카드에 하나씩(둘 다 같은 참여자).
+    expect(screen.getAllByText('윤')).toHaveLength(2);
+    expect(screen.getAllByText('태')).toHaveLength(2);
 
     expect(screen.getByText('“끝난 대사”')).toBeOnTheScreen();
     expect(screen.getByText('Acttub 공식 대사 · 참여작 7 · 종료')).toBeOnTheScreen();
-    expect(screen.getByText('아직 참여한 배우가 없어요 · 좋아요 12')).toBeOnTheScreen();
+    expect(screen.getByText('아직 참여한 배우가 없어요')).toBeOnTheScreen();
+    expect(screen.getByText('좋아요 12')).toBeOnTheScreen();
 
     // 오늘의 챌린지 카드는 통째로 누를 수 있어 이름에 안쪽 버튼 글자가 섞인다 — 버튼 글자로 센다.
     expect(screen.getAllByText('나도 이 대사 연기하기')).toHaveLength(2);
@@ -198,7 +205,7 @@ describe('오늘의 챌린지', () => {
   test('참여작이 아직 없어도 오늘의 챌린지를 두고 빈 안내는 띄우지 않는다', async () => {
     listChallenges.mockResolvedValue(page([], { featured: today({ entry_count: 0, character: null }) }));
     await render(<ChallengesScreen />);
-    expect(await screen.findByText('이번 주 대사 · D-3 · 참여 0명')).toBeOnTheScreen();
+    expect(await screen.findByText('참여작 0 · 좋아요 9')).toBeOnTheScreen();
     expect(screen.queryByText('진행 중인 챌린지가 아직 없어요.')).not.toBeOnTheScreen();
   });
 
@@ -417,6 +424,8 @@ describe('첫 사용자라 탭바가 숨으면', () => {
 
     const back = screen.getByRole('button', { name: '뒤로' });
     expect(back.props['ph-label']).toBe('challenges_back_home');
+    // 첫 사용자(C1.16 gRFTy)에게만 이번 주 대사 카드 버튼 위에 한 줄 안내를 둔다.
+    expect(screen.getByText('아래 버튼을 누르면 바로 찍을 수 있어요.')).toBeOnTheScreen();
     await fireEvent.press(back);
     expect(mockRouter.navigate).toHaveBeenCalledWith('/');
   });

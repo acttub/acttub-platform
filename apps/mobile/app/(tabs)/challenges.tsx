@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChallengeIntro } from '@/components/challenge-intro';
+import { BandGradient } from '@/components/ui/band-gradient';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -254,20 +255,12 @@ export default function ChallengesScreen() {
         )}
 
         {featured && (
-          <>
-            <ExampleHero
-              challenge={featured}
-              videoUrl={exampleUrl}
-              onOpen={() => tapCard(featured)}
-              onPerform={canPerform(featured) ? () => perform(featured) : undefined}
-            />
-            <View style={styles.sameHead}>
-              <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
-              <Text style={styles.sameMeta}>
-                {t('challenges.sameLineMeta', { dday: dDayLabel(featured), count: featured.entry_count })}
-              </Text>
-            </View>
-          </>
+          <WeekHero
+            challenge={featured}
+            showGuide={firstTime}
+            onOpen={() => tapCard(featured)}
+            onPerform={canPerform(featured) ? () => perform(featured) : undefined}
+          />
         )}
 
         <View style={styles.tabRow}>
@@ -333,21 +326,98 @@ export default function ChallengesScreen() {
   );
 }
 
+/** 이번 주 대사 카드 바탕(pen grFk4 Hero) — 위는 밝은 파랑, 아래로 갈수록 짙은 남색. */
+const HERO_STOPS = [
+  [0, '#2366DE'],
+  [0.35, '#1553C4'],
+  [0.7, '#033596'],
+  [1, '#00267A'],
+] as const;
+
+/** pen 기본 아바타 바탕색(P/DefaultAvatar) — 참여자 순서대로 돌려 쓴다. 글자는 이름 첫 글자다. */
+const AVATAR_TINTS = ['#F3C4AE', '#B9CADB', '#C6BCE6'] as const;
+
+function Avatars({ participants, border }: { participants: ChallengeCard['participants']; border: string }) {
+  if (participants.length === 0) return null;
+  return (
+    <View style={styles.avatars}>
+      {participants.slice(0, 3).map((p, i) => (
+        <View key={`${p.name}-${i}`} style={[styles.avatar, { backgroundColor: AVATAR_TINTS[i % AVATAR_TINTS.length], borderColor: border }]}>
+          <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /**
- * 이번 주 대사 카드(pen C1.13) — 참여작 예시 영상을 위에 깔고 「참여작 예시」 알약과 대사를 얹는다. 영상이 없으면 어두운 카드에 대사만 둔다.
- * 카드를 누르면 대사 상세로 간다. 인기·최신 탭에서만 띄운다(종료·내 챌린지 탭에는 고정하지 않는다).
+ * 이번 주 대사 카드(pen C1.2 grFk4·C1.13·C1.14) — 파란 그라데이션 위에 「⚡ 공식 · 이번 주 대사 · D-N」 알약, 대사, 작품·인물,
+ * 참여자 아바타와 참여작·좋아요, 흰 「나도 이 대사 연기하기」. 카드를 누르면 대사 상세로 간다. 인기·최신 탭에서만 띄운다.
+ * 버튼 위 한 줄 안내는 첫 사용자(C1.16 gRFTy)에게만 보인다.
  */
-function ExampleHero({
+function WeekHero({
   challenge,
-  videoUrl,
+  showGuide,
   onOpen,
   onPerform,
 }: {
   challenge: ChallengeCard;
-  videoUrl: string | null;
+  showGuide: boolean;
   onOpen: () => void;
   onPerform?: () => void;
 }) {
+  const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
+  return (
+    <View style={styles.weekHero}>
+      <BandGradient stops={HERO_STOPS} />
+      <Pressable style={styles.weekHeroTop} onPress={onOpen} accessibilityRole="button">
+        <View style={styles.weekChip}>
+          <Feather name="zap" size={15} color={palette.onAccent} />
+          <Text style={styles.heroChipText}>
+            {`${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
+          </Text>
+        </View>
+        <Text style={styles.weekLine} numberOfLines={4}>
+          “{challenge.line}”
+        </Text>
+        {!!meta && (
+          <Text style={styles.heroMeta} numberOfLines={1}>
+            {meta}
+          </Text>
+        )}
+        <View style={styles.statRow}>
+          <Avatars participants={challenge.participants} border={palette.text} />
+          <Text style={styles.heroStat} numberOfLines={1}>
+            {t('challenges.entryCount', { count: challenge.entry_count })} · {t('challenges.likeSum', { count: challenge.like_sum })}
+          </Text>
+        </View>
+      </Pressable>
+      {onPerform && showGuide && <Text style={styles.heroGuide}>{t('challenges.heroGuidePerform')}</Text>}
+      {onPerform && (
+        <Pressable
+          style={styles.heroPerform}
+          onPress={onPerform}
+          accessibilityRole="button"
+          accessibilityLabel={t('challenges.performCta')}>
+          <View style={styles.heroPerformSpacer} />
+          <View style={styles.heroPerformLabel}>
+            <Feather name="video" size={18} color="#13205A" />
+            <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
+          </View>
+          <View style={styles.heroGo}>
+            <Feather name="chevron-right" size={18} color={palette.blue} />
+          </View>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+/**
+ * 첫 사용자 고르기 화면의 이번 주 대사 카드(pen C1.16 옆 g06vYS) — 참여작 예시 영상을 깔고 「참여작 예시」 알약과 대사를 얹는다.
+ * 영상이 없으면 짙은 파랑 카드에 대사만 둔다. 카드를 누르면 대사 상세로 간다.
+ */
+function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard; videoUrl: string | null; onOpen: () => void }) {
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = true;
     p.muted = true;
@@ -369,38 +439,15 @@ function ExampleHero({
       )}
       <View style={styles.heroScrim} pointerEvents="none" />
       <Pressable style={styles.heroTop} onPress={onOpen} accessibilityRole="button">
-      <View style={styles.heroChip}>
-        <Text style={styles.heroChipText}>
-          {videoUrl ? t('challenges.exampleChip') : `${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
+        <View style={styles.heroChip}>
+          <Text style={styles.heroChipText}>
+            {videoUrl ? t('challenges.exampleChip') : `${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
+          </Text>
+        </View>
+        <Text style={styles.heroLine} numberOfLines={4}>
+          “{challenge.line}”
         </Text>
-      </View>
-      <Text style={styles.heroLine} numberOfLines={4}>
-        “{challenge.line}”
-      </Text>
-      <Text style={styles.heroMeta} numberOfLines={1}>
-        {[challenge.work, challenge.character].filter(Boolean).join(' · ')}
-      </Text>
-      <Text style={styles.heroStat} numberOfLines={1}>
-        {t('challenges.entryCount', { count: challenge.entry_count })} · {t('challenges.likeSum', { count: challenge.like_sum })}
-      </Text>
       </Pressable>
-      {onPerform && <Text style={styles.heroGuide}>{t('challenges.heroGuidePerform')}</Text>}
-      {onPerform && (
-        <Pressable
-          style={styles.heroPerform}
-          onPress={onPerform}
-          accessibilityRole="button"
-          accessibilityLabel={t('challenges.performCta')}>
-          <View style={styles.heroPerformSpacer} />
-          <View style={styles.heroPerformLabel}>
-            <Feather name="video" size={18} color="#13205A" />
-            <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
-          </View>
-          <View style={styles.heroGo}>
-            <Feather name="chevron-right" size={18} color={palette.blue} />
-          </View>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -439,23 +486,21 @@ function Card({
             “{challenge.line}”
           </Text>
           <View style={styles.metaRow}>
-            <Feather name="message-square" size={13} color={palette.blue} />
+            <Feather name={challenge.origin === 'team' ? 'check-circle' : 'square'} size={13} color={palette.blue} />
             <Text style={styles.meta} numberOfLines={1}>
               {host} · {t('challenges.entryCount', { count: challenge.entry_count })} · {dDayLabel(challenge)}
             </Text>
           </View>
           <View style={styles.statRow}>
-            <View style={styles.avatars}>
-              {challenge.participants.slice(0, 3).map((p, i) => (
-                <View key={`${p.name}-${i}`} style={styles.avatar}>
-                  <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
-                </View>
-              ))}
-            </View>
-            <Text style={styles.stat} numberOfLines={1}>
-              {participantsLabel(challenge.participants, challenge.more_count)} ·{' '}
-              {t('challenges.likeSum', { count: challenge.like_sum })}
+            <Feather name="message-circle" size={18} color={palette.blue} />
+            <Avatars participants={challenge.participants} border={palette.onAccent} />
+            <Text style={styles.names} numberOfLines={1}>
+              {participantsLabel(challenge.participants, challenge.more_count)}
             </Text>
+            <View style={styles.likes}>
+              <Feather name="heart" size={12} color="#F0506E" />
+              <Text style={styles.names}>{t('challenges.likeSum', { count: challenge.like_sum })}</Text>
+            </View>
           </View>
         </View>
       </Pressable>
@@ -513,6 +558,21 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
   bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMuted, lineHeight: 18, marginTop: 6 },
+  weekHero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, gap: 10, overflow: 'hidden' },
+  weekHeroTop: { gap: 10 },
+  weekChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  weekLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
+  names: { fontSize: 11, fontWeight: '500', color: palette.textMuted, lineHeight: 16, flexShrink: 1 },
+  likes: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   hero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, minHeight: 300, gap: 10, justifyContent: 'flex-end', overflow: 'hidden' },
   heroTop: { flex: 1, gap: 10, justifyContent: 'flex-end' },
   heroGuide: { fontSize: 14, fontWeight: '700', color: 'rgba(255, 255, 255, 0.65)' },
@@ -561,15 +621,12 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: -6,
     borderWidth: 1,
-    borderColor: palette.bg,
   },
-  avatarText: { fontSize: 10.5, fontWeight: '900', color: palette.blueDeep },
-  stat: { flex: 1, fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
+  avatarText: { fontSize: 10.5, fontWeight: '900', color: palette.text },
   performBtn: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 6, backgroundColor: palette.blueSoft },
   performGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.onAccent, alignItems: 'center', justifyContent: 'center' },
   performText: { fontSize: 15, fontWeight: '700', color: palette.blue },
