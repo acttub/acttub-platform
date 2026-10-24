@@ -59,7 +59,7 @@ export type JournalQuestion = { id: QuestionId; title: string; choices: Question
 
 const FEELING_KEYS = ['easy', 'nervous', 'awkward', 'unsure'] as const;
 
-/** 느낌 칩 키(easy)를 고른 말(편했어요)로. 서버에는 말로 보낸다 — 키로 저장된 옛 일지도 말로 보이게 여기서 함께 바꾼다. */
+/** 느낌 칩 키(easy)를 보이는 말(편했어요)로. 서버에는 키 그대로 저장하고 보일 때만 바꾼다. 키가 아니면 적힌 대로 둔다. */
 function feelingLabel(choice: string | null | undefined): string | null {
   const value = choice?.trim();
   if (!value) return null;
@@ -97,7 +97,7 @@ export function buildAnswers(drafts: Record<QuestionId, QuestionDraft>): Journal
   const unknown = drafts.unknown;
   const next = drafts.next;
   return {
-    feeling: canAnswer(feeling) ? { choice: feelingLabel(feeling.choice), text: text(feeling.text) } : null,
+    feeling: canAnswer(feeling) ? { choice: feeling.choice, text: text(feeling.text) } : null,
     unknown: canAnswer(unknown) ? { none: unknown.choice === 'none', text: text(unknown.text) } : null,
     next: canAnswer(next) ? { undecided: next.choice === 'undecided', text: text(next.text) } : null,
     review: text(drafts.review.text),

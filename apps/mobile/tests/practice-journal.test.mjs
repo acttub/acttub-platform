@@ -161,7 +161,7 @@ test('코칭이 끝나면 배우 일지로 간다 — coach.tsx 는 연결 한 �
   assert.doesNotMatch(read('app/journal.tsx'), /배우일지로 남길까요/);
 });
 
-test('느낌 칩은 화면이 들고 있는 키(easy) 대신 고른 말(편했어요)로 보내고, 이미 키로 저장된 일지도 말로 보인다(SOMA-822)', () => {
+test('느낌 칩은 키(easy)로 저장하고, 일지에는 고른 말(편했어요)로 보인다(SOMA-822)', () => {
   // 폰 확인(10/24): 「편했어요」를 고르면 일지 위 상자와 「해 보니」 줄에 easy 가 그대로 떴다.
   const answers = buildAnswers({
     feeling: { choice: 'easy', text: '' },
@@ -169,7 +169,7 @@ test('느낌 칩은 화면이 들고 있는 키(easy) 대신 고른 말(편했�
     next: EMPTY_DRAFT,
     review: EMPTY_DRAFT,
   });
-  assert.deepEqual(answers.feeling, { choice: '편했어요', text: null });
+  assert.deepEqual(answers.feeling, { choice: 'easy', text: null });
   const saved = journalSummary(journal({ answers: { ...fixture.answers, feeling: { choice: 'easy', text: null } } }));
   assert.equal(saved.feelingTag, '편했어요');
   assert.equal(saved.rows.find((r) => r.key === 'feeling').lines[0].text, '편했어요');
