@@ -252,15 +252,15 @@ test.each([
   expect(startButton(5)).toBeOnTheScreen();
 });
 
-test('시작 요청 중에는 저장 중으로 바꾸고 다시 누를 수 없다', async () => {
+test('시작 요청 중에는 「시작하는 중」으로 바꾸고 다시 누를 수 없다', async () => {
   const server = await show();
   let answer: () => void = () => undefined;
   server.startSession.mockImplementation(() => new Promise((resolve) => (answer = () => resolve({} as never))));
   await fireEvent.press(screen.getByText('민재'));
 
   const pressing = fireEvent.press(startButton(5));
-  expect(await screen.findByText('저장 중')).toBeDisabled();
-  await fireEvent.press(screen.getByText('저장 중'));
+  expect(await screen.findByText('시작하는 중')).toBeDisabled();
+  await fireEvent.press(screen.getByText('시작하는 중'));
   await act(async () => answer());
   await pressing;
   expect(server.startSession).toHaveBeenCalledTimes(1);

@@ -88,8 +88,14 @@ async function paste(text = PASTED) {
 test('처음에는 파일 탭과 예시 링크를 보이고, 넣은 것이 없으면 다음을 누를 수 없다', async () => {
   await render(<ReadingNew />);
 
-  expect(screen.getByRole('tab', { name: /파일/ })).toBeSelected();
+  expect(screen.getByRole('tab', { name: /파일 업로드/ })).toBeSelected();
+  expect(screen.getByText('연습할 대본을\n넣어 주세요')).toBeOnTheScreen();
+  expect(screen.getByText('파일을 올리거나 내용을 붙여넣어\n바로 연습할 수 있어요.')).toBeOnTheScreen();
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
+  expect(screen.getByText('TXT · DOCX · PDF · HWP · 50MB까지')).toBeOnTheScreen();
+  expect(screen.getByText('파일 선택하기')).toBeOnTheScreen();
+  expect(screen.getByPlaceholderText('예) 옥상, 밤 · 갈매기 · 입시 1차 등')).toBeOnTheScreen();
+  expect(screen.getByText('대본이 없어도 바로 연습할 수 있어요.')).toBeOnTheScreen();
   expect(screen.getByText('예시 대본으로 시작해보기')).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeDisabled();
 });

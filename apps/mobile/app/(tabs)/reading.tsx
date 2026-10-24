@@ -274,19 +274,6 @@ export default function ReadingList() {
         />
       </View>
 
-      {!empty && (
-      <View style={styles.search}>
-        <Feather name="search" size={16} color={palette.textFaint} />
-        <TextInput
-          style={styles.searchInput}
-          value={q}
-          onChangeText={setQ}
-          placeholder={t('reading.searchPlaceholder')}
-          placeholderTextColor={palette.textFaint}
-        />
-      </View>
-      )}
-
       {!empty && voiceBar}
 
       {error && (
@@ -298,11 +285,7 @@ export default function ReadingList() {
         </View>
       )}
 
-      {loading && !list ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
-      ) : empty ? (
+      {empty ? (
         // pen R1.13 — 큰 「리딩」 제목과 책 위 액티, 고품질 목소리 알약, 그라데이션 입구 카드 셋(누르면 바로 들어감).
         <View style={styles.entry}>
           <View style={styles.hero}>
@@ -377,6 +360,22 @@ export default function ReadingList() {
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>{t('reading.uploadedTitle')}</Text>
               <Text style={styles.sectionCount}>{t('reading.uploadedCount', { count: list.total_count })}</Text>
+            </View>
+          )}
+          {/* pen R1.3·R1.4 — 검색칸은 「업로드한 대본」 머리 아래, 목록 바로 위에 둔다. */}
+          <View style={styles.search}>
+            <Feather name="search" size={16} color={palette.textFaint} />
+            <TextInput
+              style={styles.searchInput}
+              value={q}
+              onChangeText={setQ}
+              placeholder={t('reading.searchPlaceholder')}
+              placeholderTextColor={palette.textFaint}
+            />
+          </View>
+          {loading && !list && (
+            <View style={styles.loading}>
+              <ActivityIndicator color={palette.blue} />
             </View>
           )}
           <View style={styles.list}>

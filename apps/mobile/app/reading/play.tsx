@@ -1358,43 +1358,34 @@ export default function ReadingPlay() {
 
   if (phase.kind === 'preparing') {
     const progress = phase.progress;
-    if (progress?.phase === 'download') {
-      return (
-        <View style={[styles.root, styles.center]}>
-          <View style={styles.downloadCard}>
-            <Feather name="download-cloud" size={24} color={palette.blue} />
-            <Text style={styles.loadTitle}>{t('reading.voiceDownloadTitle')}</Text>
-            <View style={styles.downloadTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress.percent }}>
-              <View style={[styles.downloadFill, { width: `${progress.percent}%` }]} />
-            </View>
-            <Text style={styles.progressLine}>{formatDownloadProgress(progress, t)}</Text>
-            <Text style={styles.loadNote}>{t('reading.voiceDownloadNote')}</Text>
-          </View>
-          {dialog}
-        </View>
-      );
-    }
-    // 모델을 올리는 중·첫 대사를 만드는 중이면 끝난 단계를 퍼센트로 보인다(SOMA-631). 그 앞은 셀 것이 없어 스피너만.
-    const percent = loadPercent(progress);
-    if (percent !== null) {
-      return (
-        <View style={[styles.root, styles.center]}>
-          <View style={styles.downloadCard}>
-            <ActivityIndicator color={palette.blue} />
-            <Text style={styles.loadTitle}>{t('reading.voiceLoadTitle')}</Text>
-            <View style={styles.downloadTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: percent }}>
-              <View style={[styles.downloadFill, { width: `${percent}%` }]} />
-            </View>
-            <Text style={styles.progressLine}>{`${percent}%`}</Text>
-          </View>
-          {dialog}
-        </View>
-      );
-    }
+    // pen R9.5·R9.6 — 가운데 액티와 큰 제목, 그 아래 진행 막대와 파란 진행 글. 내려받는 중이면 아래에 「처음 한 번만 받아요」 상자.
+    const download = progress?.phase === 'download' ? progress : null;
+    // 모델을 올리는 중·첫 대사를 만드는 중이면 끝난 단계를 퍼센트로 보인다(SOMA-631). 그 앞은 셀 것이 없어 제목만.
+    const percent = download ? download.percent : loadPercent(progress);
+    const title = download ? t('reading.voiceDownloadTitle') : percent !== null ? t('reading.voiceLoadTitle') : t('reading.voicePreparing');
     return (
-      <View style={[styles.root, styles.center]}>
-        <ActivityIndicator color={palette.blue} />
-        <Text style={styles.loadTitle}>{t('reading.voicePreparing')}</Text>
+      <View style={[styles.root, styles.prepRoot, { paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
+        <View style={styles.prepBody}>
+          <Image source={MASCOT} style={styles.prepMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Text style={styles.prepTitle}>{title}</Text>
+          {percent !== null && (
+            <>
+              <View style={styles.downloadTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: percent }}>
+                <View style={[styles.downloadFill, { width: `${percent}%` }]} />
+              </View>
+              <Text style={styles.prepProgress}>{download ? `${percent}% · ${formatDownloadProgress(download, t)}` : `${percent}%`}</Text>
+            </>
+          )}
+        </View>
+        {download && (
+          <View style={styles.prepNote}>
+            <Feather name="info" size={18} color={palette.blueDeep} />
+            <View style={styles.prepNoteBody}>
+              <Text style={styles.prepNoteTitle}>{t('reading.voiceDownloadNoteTitle')}</Text>
+              <Text style={styles.prepNoteText}>{t('reading.voiceDownloadNoteBody')}</Text>
+            </View>
+          </View>
+        )}
         {dialog}
       </View>
     );
@@ -2047,12 +2038,17 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 12, padding: 28 },
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15, textAlign: 'center', lineHeight: 22 },
-  loadTitle: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 16, marginTop: 4, textAlign: 'center' },
-  loadNote: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center' },
-  downloadCard: { alignSelf: 'stretch', alignItems: 'center', gap: 12, backgroundColor: palette.bgSubtle, borderRadius: 16, paddingVertical: 24, paddingHorizontal: 20 },
-  downloadTrack: { alignSelf: 'stretch', height: 8, borderRadius: 4, backgroundColor: palette.border, overflow: 'hidden' },
-  downloadFill: { height: 8, borderRadius: 4, backgroundColor: palette.blue },
-  progressLine: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14, textAlign: 'center' },
+  downloadTrack: { alignSelf: 'stretch', height: 8, borderRadius: 999, backgroundColor: palette.bgSoft, overflow: 'hidden', marginTop: 8 },
+  downloadFill: { height: 8, borderRadius: 999, backgroundColor: palette.blue },
+  prepRoot: { paddingHorizontal: 24 },
+  prepBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  prepMascot: { width: 84, height: 94, marginBottom: 8 },
+  prepTitle: { color: palette.text, fontSize: 24, fontWeight: '800', lineHeight: 34, textAlign: 'center' },
+  prepProgress: { color: palette.blue, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  prepNote: { flexDirection: 'row', gap: 10, backgroundColor: palette.blueSoft, borderRadius: 14, padding: 16 },
+  prepNoteBody: { flex: 1, gap: 4 },
+  prepNoteTitle: { color: palette.blueDeep, fontSize: 14, fontWeight: '700' },
+  prepNoteText: { color: palette.blueDeep, fontSize: 13, lineHeight: 19 },
   primaryWide: { alignSelf: 'stretch', backgroundColor: palette.blue, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 12 },
   primaryWideText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
   textButton: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 15, paddingVertical: 10 },

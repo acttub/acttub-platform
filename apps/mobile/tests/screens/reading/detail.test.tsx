@@ -102,7 +102,7 @@ test('회차를 밀어 삭제하면 확인을 받고 지운 뒤 목록을 다시
 
   await fireEvent.press(screen.getByText('삭제'));
   expect(mockSwipeClose).toHaveBeenCalled();
-  expect(screen.getByText('회차를 지울까요?')).toBeOnTheScreen();
+  expect(screen.getByText('회차를 삭제할까요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getAllByText('삭제').at(-1)!);
 
   expect(await screen.findByText('아직 연습 기록이 없어요')).toBeOnTheScreen();

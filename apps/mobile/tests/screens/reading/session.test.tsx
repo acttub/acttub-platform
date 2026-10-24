@@ -258,7 +258,7 @@ test('더보기에서 회차를 지우면 확인을 받은 뒤 지우고 돌아�
   expect(screen.getByText('1회차')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('회차 삭제'));
-  expect(await screen.findByText('회차를 지울까요?')).toBeOnTheScreen();
+  expect(await screen.findByText('회차를 삭제할까요?')).toBeOnTheScreen();
   expect(screen.getByText('이 회차의 녹음도 함께 지워져요. 외운 대사 표시는 남아요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('삭제'));
 

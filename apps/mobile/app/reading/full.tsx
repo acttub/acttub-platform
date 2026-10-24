@@ -177,7 +177,8 @@ const styles = StyleSheet.create({
   rowHead: { paddingBottom: 1 },
   rowJoined: { paddingVertical: 1 },
   rowPressed: { backgroundColor: palette.bgSoft },
-  direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21 },
+  // pen R3.4 지문 — 왼쪽 옅은 세로줄과 흐린 기울임 글자.
+  direction: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21, borderLeftColor: palette.border, borderLeftWidth: 2, paddingLeft: 12 },
   scene: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 6 },
   role: { width: 48, color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16 },
   line: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
