@@ -390,7 +390,7 @@ const ko = {
     notePh: '예: 옥상에서 돌아서는 상대를 붙잡는 장면',
     counter: '{{count}} / {{max}}',
     errDuplicate: '같은 대사로 진행 중인 챌린지가 이미 있어요.',
-    errDuration: '기간은 7일 또는 14일만 고를 수 있어요.',
+    errDuration: '기간을 다시 골라 주세요. 7일이나 14일만 열 수 있어요.',
     errDailyLimit: '하루에 세 개까지 열 수 있어요. 내일 다시 열어 주세요.',
     errInvalid: '적은 내용을 다시 확인해 주세요.',
     errOffline: '연결이 끊겼어요. 잠시 뒤 다시 시도해 주세요.',
