@@ -101,7 +101,8 @@ export default function CoachingDoneScreen() {
         )}
       </KeyboardAwareScroll>
       <CtaBar safeBottom={false}>
-        <PrimaryButton label={t('journal.endHome')} onPress={() => router.replace('/(tabs)')} />
+        {/* pen P16.1·P16.2 — 아래 버튼은 「확인」, 누르면 홈. */}
+        <PrimaryButton label={t('note.doneConfirm')} onPress={() => router.replace('/(tabs)')} />
         <Pressable style={styles.share} onPress={share} accessibilityRole="button" ph-label="coaching_done_share">
           <Feather name="share-2" size={16} color={palette.blueDeep} />
           <Text style={styles.shareText}>{t('journal.endShare')}</Text>
