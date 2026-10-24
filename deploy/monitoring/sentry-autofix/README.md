@@ -1,6 +1,6 @@
 # Sentry 오류 자동 수정
 
-Mac mini(`insung-macmini`)의 launchd가 15분마다 `poll.mjs`를 돌린다. Slack `#sentry`에 간 운영·dev 알림을
+Mac mini(`insung-macmini`)의 Hermes 예약 작업(`acttub-sentry-autofix`)이 15분마다 `poll.mjs`를 돌린다. Slack `#sentry`에 간 운영·dev 알림을
 [Slack 중계 Worker](../sentry-slack/README.md)의 KV에서 가져와, 이슈마다 깨끗한 worktree에서 `claude -p`에 `prompt.md`를 맡긴다.
 그래서 자동 수정이 보는 오류는 Slack 알림과 같다. 운영 알림을 먼저 처리한다. 하루 한 번 오는 "운영 계속 남"만 처음 보는 이슈로 줄인다.
 Claude는 코드로 고칠 문제면 Jira 버그 이슈를 진행 중 스프린트에 만들어 진행 중으로 옮기고, draft PR을 연 뒤 CI를 기다려 실패하면 두 번까지 고친다(90분 한도). 아니면 아무것도 만들지 않는다.
@@ -20,7 +20,7 @@ PR의 기준은 환경별로 다르다(`TARGET`).
 - **다시 온 알림:** 앞서 연 PR이 아직 열려 있으면 Claude를 돌리지 않고 Slack에 그 PR만 알린다. 닫혔거나 머지됐으면 앞 Jira 이슈·PR을 새 이슈 배경에 적게 한다. 같은 원인의 열린 PR이 있으면 Claude가 건너뛴다.
 - **넘기는 데이터:** 이슈 요약·예외·우리 코드 프레임·일부 태그만(`summarize`). 요청·사용자·breadcrumb은 넘기지 않는다.
 - **Claude 권한:** 읽기·편집, `git`, `./gradlew`, `pnpm`, `gh pr create|view|list|checks`, `gh run view`, Jira 이슈 생성·조회·검색·전이·댓글만(`TOOLS`). 머지·배포(`gh workflow run`) 권한은 없고 `main`·`dev`는 ruleset이 직접 push를 막는다.
-- **상태:** `~/.local/state/acttub-sentry-autofix/`의 `state.json`(이슈별 마지막 처리 시각과 결과), `ctx/`(넘긴 요약과 Claude 출력), `run.log`.
+- **상태:** `~/.local/state/acttub-sentry-autofix/`의 `state.json`(이슈별 마지막 처리 시각과 결과), `ctx/`(넘긴 요약과 Claude 출력), `run.log`, `lock/`(실행 중인 pid. 강제 종료로 남으면 다음 실행이 그 pid가 죽은 것을 보고 푼다).
 
 ## 설치 (Mac mini)
 
@@ -40,5 +40,5 @@ cp com.user.acttub-sentry-autofix.plist ~/Library/LaunchAgents/
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.user.acttub-sentry-autofix.plist
 ```
 
-스크립트를 고치면 `bin/`에 다시 복사한다. 멈출 때는 `launchctl bootout gui/$(id -u)/com.user.acttub-sentry-autofix`.
+스크립트를 고치면 `bin/`에 다시 복사한다. 지금 Mac mini는 launchd 대신 Hermes 예약 작업으로 돌린다(같은 명령과 환경을 `~/.hermes/scripts/launchd/acttub-sentry-autofix.sh`가 재현한다). 멈출 때는 `hermes cron pause <작업 ID>`(ID는 `hermes cron list`), launchd로 돌릴 때는 `launchctl bootout gui/$(id -u)/com.user.acttub-sentry-autofix`.
 테스트는 `node --test deploy/monitoring/sentry-autofix/poll.test.mjs`.
