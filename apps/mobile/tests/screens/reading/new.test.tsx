@@ -225,7 +225,7 @@ test('같은 글의 대본을 불러오지 못하면 연결 문구를 띄운다'
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해 주세요.')).toBeOnTheScreen();
 });
 
 test('대본이 아닌 것 같다면 그래도 나누거나 다시 고를 수 있다', async () => {
@@ -280,7 +280,7 @@ test('나눈 대본을 불러오지 못하면 연결 문구를 띄운다', async
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해 주세요.')).toBeOnTheScreen();
   expect(mockRouter.replace).not.toHaveBeenCalled();
 });
 
@@ -437,7 +437,7 @@ test('서버의 읽기 자리가 없으면 올린 파일은 두고 잠시 뒤 �
   await render(<ReadingNew />);
 
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
-  expect(await screen.findByText('요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('확인'));
   expect(screen.getByText('대본.txt')).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeEnabled();
@@ -448,7 +448,7 @@ test('올리는 중에 끊기면 연결 문구를 띄우고 파일을 비운다'
   await render(<ReadingNew />);
 
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
-  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByLabelText('뒤로'));
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
