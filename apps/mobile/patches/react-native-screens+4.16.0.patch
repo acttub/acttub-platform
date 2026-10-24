@@ -1,0 +1,13 @@
+diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt
+index 89a9580..261666e 100644
+--- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt
++++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt
+@@ -336,6 +336,8 @@ class ScreenStackHeaderConfig(
+                 else -> {}
+             }
+             view.layoutParams = params
++            // 화면 전환 중 다시 붙을 때 옛 툴바에 남아 있으면 addView 가 앱을 끈다 — 먼저 떼어 낸다.
++            (view.parent as? android.view.ViewGroup)?.removeView(view)
+             toolbar.addView(view)
+             i++
+         }
