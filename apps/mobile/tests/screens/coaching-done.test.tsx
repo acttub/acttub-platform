@@ -25,7 +25,7 @@ beforeEach(() => {
   mockParams = { practiceId: 'p1', saved: '1' };
 });
 
-test('오늘 코칭 끝 — 일지 저장 알림, 코칭 평가(노트에 남김), 홈으로 가기', async () => {
+test('오늘 코칭 끝 — 일지 저장 알림, 코칭 평가(노트에 남김), 「확인」은 홈(pen P16.1)', async () => {
   getPracticeNote.mockResolvedValue(practiceNote());
   await render(<CoachingDoneScreen />);
 
@@ -37,7 +37,7 @@ test('오늘 코칭 끝 — 일지 저장 알림, 코칭 평가(노트에 남김
   expect(screen.getByText('아쉬웠어요')).toBeOnTheScreen();
   expect(getPracticeNote).toHaveBeenCalledWith('p1');
 
-  await fireEvent.press(screen.getByRole('button', { name: '홈으로 가기' }));
+  await fireEvent.press(screen.getByRole('button', { name: '확인' }));
   expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
 });
 

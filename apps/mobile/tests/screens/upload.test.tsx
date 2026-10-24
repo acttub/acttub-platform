@@ -627,7 +627,20 @@ describe('영상 업로드를 망설일 때', () => {
     expect(screen.getByText('이렇게 올려 볼까요?')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '이대로 올리기' }));
     expect(screen.queryByText('이렇게 올려 볼까요?')).not.toBeOnTheScreen();
-    expect(screen.queryByText('영상 올리기가\n망설여지나요?')).not.toBeOnTheScreen();
+    // 망설임 페이지가 닫혔다 — 영상 단계 위 링크(같은 문구, 한 줄)만 남는다.
+    expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
+    expect(screen.getByText('하나 고르고 「질문 받기」를 누르세요.')).toBeOnTheScreen();
+  });
+
+  test('영상 단계 위 「영상 올리기가 망설여지나요?」 링크로 열고, 닫으면 영상 단계에 머문다(pen P3.1)', async () => {
+    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    await render(<UploadScreen />);
+    await toSourceStep();
+    await fireEvent.press(screen.getByRole('link', { name: '영상 올리기가 망설여지나요?' }));
+    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
+    expect(screen.getByText('영상이 어디 있어요?')).toBeOnTheScreen();
   });
 
   test('길게 찍기 부담돼요 → 10초 촬영으로 간다', async () => {

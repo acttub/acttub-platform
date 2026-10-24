@@ -27,7 +27,7 @@ import { UploadWaitPanel } from '@/components/upload-wait-panel';
 import { forgetWaitingUpload, rememberWaitingUpload } from '@/hooks/use-waiting-upload';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { NavIconButton } from '@/components/ui/nav-header';
-import { ChoiceCard } from '@/components/choice-card';
+import { ChoiceCard, type ChoiceTint } from '@/components/choice-card';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -107,10 +107,11 @@ import { VIDEO_PICKER_OPTIONS } from '@/lib/video-picker-options';
  * 같은 시도의 재전송은 같은 요청 id 라 회차는 하나다. 묶음에 진행 중 회차가 있으면(409) 그
  * 회차로 돌려보낸다. 이론 선택은 0.1.0에서 뺐다.
  */
-const PURPOSE_ICON: Record<SessionPurpose, 'star' | 'unlock' | 'book-open'> = {
-  review: 'star',
-  unblock: 'unlock',
-  character: 'book-open',
+// pen P3.0 목적 카드의 아이콘 칸 — 평가(파랑)·막힌 곳(노랑)·인물(보라).
+const PURPOSE_ICON: Record<SessionPurpose, { icon: 'star' | 'unlock' | 'users'; tint: ChoiceTint }> = {
+  review: { icon: 'star', tint: 'blue' },
+  unblock: { icon: 'unlock', tint: 'amber' },
+  character: { icon: 'users', tint: 'violet' },
 };
 export default function UploadScreen() {
   const router = useRouter();
@@ -154,8 +155,11 @@ export default function UploadScreen() {
   // P3.26 올리기 옵션 — 고르면 시작 요청에 싣는다. 고르지 않으면 null(옵션 없이 올린다).
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [uploadOptions, setUploadOptions] = useState<UploadOptions | null>(null);
-  const showReason = () => setReasonSheet(true);
-  const closeReason = () => { setReasonSheet(false); setStep('purpose'); };
+  // 망설임 페이지를 닫으면 연 곳으로 돌아간다 — 뒤로 가기로 열었으면 목적 단계, 영상 단계 링크로 열었으면 영상 단계.
+  const reasonBackRef = useRef<UploadStep>('purpose');
+  const showReason = () => { reasonBackRef.current = 'purpose'; setReasonSheet(true); };
+  const showReasonFromLink = () => { reasonBackRef.current = 'source'; setReasonSheet(true); };
+  const closeReason = () => { setReasonSheet(false); setStep(reasonBackRef.current); };
   const reasonRoute = (go: () => void) => {
     setReasonSheet(false);
     setTimeout(() => leaveThen(go), Platform.OS === 'ios' ? 450 : 0);
@@ -555,6 +559,12 @@ export default function UploadScreen() {
           ),
         }}
       />
+      {/* pen P3.1 — 영상을 고르기 전 영상 단계에는 스텝퍼 위에 「영상 올리기가 망설여지나요?」 링크(망설임 페이지). */}
+      {step === 'source' && !picked && !sample && !waitPanel && (
+        <Pressable style={styles.hesitate} onPress={showReasonFromLink} accessibilityRole="link" ph-label="upload_hesitate_link">
+          <Text style={styles.hesitateText}>{t('uploadReason.title')}</Text>
+        </Pressable>
+      )}
       <View style={styles.stepRow}>
         <Stepper current={stepperIndex(step)} />
       </View>
@@ -570,6 +580,8 @@ export default function UploadScreen() {
                   key={item}
                   title={t(`upload.purpose.${item}`)}
                   sub={t(`upload.purposeSub.${item}`)}
+                  icon={PURPOSE_ICON[item].icon}
+                  tint={PURPOSE_ICON[item].tint}
                   selected={purposePicked && purpose === item}
                   phLabel={`upload_purpose_${item}`}
                   onPress={() => choosePurpose(item)}
@@ -638,6 +650,8 @@ export default function UploadScreen() {
                 <ChoiceCard
                   title={t('upload.sourceRecord')}
                   sub={t('upload.sourceRecordSub')}
+                  icon="video"
+                  tint="blue"
                   selected={sourceChoice === 'record'}
                   phLabel="upload_source_record"
                   onPress={() => setSourceChoice('record')}
@@ -645,6 +659,9 @@ export default function UploadScreen() {
                 <ChoiceCard
                   title={t('upload.pickGallery')}
                   sub={t('upload.sourceGallerySub')}
+                  icon="image"
+                  tint="violet"
+                  mark="chevron"
                   selected={sourceChoice === 'gallery'}
                   phLabel="upload_source_gallery"
                   onPress={() => setSourceChoice('gallery')}
@@ -731,8 +748,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   // pen 03 「Stepper」 — 머리 아래 1 띄워 가운데, 21 띄워 말풍선. 본문 좌우 20, 말풍선과 선택지 사이 14.
   stepRow: { alignItems: 'center', paddingTop: 1 },
+  hesitate: { alignSelf: 'center', paddingTop: 2, paddingBottom: 4 },
+  hesitateText: { fontSize: 14, fontWeight: '600', lineHeight: 20, color: palette.blueDeep },
   stepBody: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
-  choices: { gap: 8, marginTop: 14 },
+  // pen P3.0 「Choices」 — 카드 사이 12.
+  choices: { gap: 12, marginTop: 14 },
   // pen 03 「Footer」 — 안쪽 [0,20,10,20]: 권리 체크 · 14 · 버튼 48 · 9 · 안내 14/500.
   bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, backgroundColor: palette.bg },
 

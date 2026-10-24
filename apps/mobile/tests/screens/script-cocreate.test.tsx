@@ -71,12 +71,31 @@ beforeEach(() => {
 async function reachDirection(rendered = false) {
   if (!rendered) await render(<ScriptCocreateScreen />);
   expect(screen.getByText('어떤 감정을 연기해 볼래요?')).toBeOnTheScreen();
+  // pen P14.1 — 감정은 고르기만 하고 「다음」을 눌러야 상황으로 간다. 고르기 전에는 「다음」이 막혀 있다.
+  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
   await fireEvent.press(screen.getByText('분노'));
-  expect(screen.getByText('어떤 상황이 좋겠어요?')).toBeOnTheScreen();
-  await fireEvent.changeText(screen.getByLabelText('어떤 상황이 좋겠어요?'), '아버지가 내 원서를 버렸어요');
+  expect(screen.getByText('어떤 감정을 연기해 볼래요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(screen.getByText('어떤 상황이면 좋겠어요?')).toBeOnTheScreen();
+  await fireEvent.changeText(screen.getByLabelText('어떤 상황이면 좋겠어요?'), '아버지가 내 원서를 버렸어요');
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   expect(screen.getByText('몇 명이 나오고,\n어떤 대본이면 좋겠어요?')).toBeOnTheScreen();
 }
+
+test('pen P14.1·P14.2 — 감정은 서운함부터, 상황은 오랜만의 재회·이별·오디션 직전·가족 다툼·고백·사과, 방향 단계는 인원 먼저와 고른 것 알약', async () => {
+  await render(<ScriptCocreateScreen />);
+  const emotions = screen.getAllByRole('radio').map((node) => node.props.accessibilityLabel);
+  expect(emotions).toEqual(['서운함', '설렘', '분노', '슬픔', '긴장', '담담함', '잘 모르겠어요']);
+  await fireEvent.press(screen.getByText('서운함'));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  const situations = screen.getAllByRole('radio').map((node) => node.props.accessibilityLabel);
+  expect(situations).toEqual(['오랜만의 재회', '이별', '오디션 직전', '가족 다툼', '고백', '사과', '아무거나 좋아요']);
+  await fireEvent.press(screen.getByText('오랜만의 재회'));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(screen.getByText('몇 명이 나와요?')).toBeOnTheScreen();
+  expect(screen.getByPlaceholderText('예: 상대가 끝까지 차갑게 굴었으면 좋겠어요')).toBeOnTheScreen();
+  expect(screen.getByTestId('cocreate-picked')).toHaveTextContent(/서운함.*오랜만의 재회/);
+});
 
 test('감정 → 상황 → 방향을 묻고 프로필 경력과 함께 독백 1분을 만든 뒤, 넓은 대본과 수정·확정 두 버튼을 보인다', async () => {
   createSampleScript.mockResolvedValue(sample());
@@ -116,7 +135,7 @@ test('만들기에 실패하면 방향 화면으로 돌아와 이유를 보인�
   expect(screen.getByText('대본을 만들지 못했어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-  expect(screen.getByText('어떤 상황이 좋겠어요?')).toBeOnTheScreen();
+  expect(screen.getByText('어떤 상황이면 좋겠어요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(screen.getByText('어떤 감정을 연기해 볼래요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
