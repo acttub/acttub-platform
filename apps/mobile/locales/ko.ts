@@ -369,6 +369,7 @@ const ko = {
     hintSaved: '다른 사람 연기에서 참고할 부분을 모아뒀어요.',
     hintMine: '챌린지에 올린 내 연기 영상이에요.',
     empty: '아직 저장한 영상이 없어요.',
+    loadFail: '저장한 영상을 불러오지 못했어요.',
   },
   lineSearch: {
     minLength: '두 글자 이상 적어 주세요.',
@@ -389,7 +390,7 @@ const ko = {
     notePh: '예: 옥상에서 돌아서는 상대를 붙잡는 장면',
     counter: '{{count}} / {{max}}',
     errDuplicate: '같은 대사로 진행 중인 챌린지가 이미 있어요.',
-    errDuration: '기간은 7일 또는 14일만 고를 수 있어요.',
+    errDuration: '기간을 다시 골라 주세요. 7일이나 14일만 열 수 있어요.',
     errDailyLimit: '하루에 세 개까지 열 수 있어요. 내일 다시 열어 주세요.',
     errInvalid: '적은 내용을 다시 확인해 주세요.',
     errOffline: '연결이 끊겼어요. 잠시 뒤 다시 시도해 주세요.',

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import LinePickScreen from '@/app/line-pick';
 import { api } from '@/lib/api';
@@ -12,10 +12,17 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
-jest.mock('expo-video', () => ({
-  useVideoPlayer: () => ({ play: jest.fn(), pause: jest.fn(), release: jest.fn() }),
-  VideoView: () => null,
-}));
+jest.mock('expo-video', () => {
+  const { Text } = require('react-native');
+  return {
+    useVideoPlayer: () => ({ play: jest.fn(), pause: jest.fn(), release: jest.fn() }),
+    VideoView: (props: { style?: unknown; onFirstFrameRender?: () => void }) => (
+      <Text testID="example-video" style={props.style as never} onPress={props.onFirstFrameRender}>
+        예시 영상
+      </Text>
+    ),
+  };
+});
 jest.mock('@/lib/api', () => ({ api: { listChallenges: jest.fn(), listChallengeEntries: jest.fn() } }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 
@@ -66,5 +73,19 @@ describe('LinePickScreen (C9.16)', () => {
     await render(<LinePickScreen />);
     await fireEvent.press(await screen.findByText(/지난 대사/));
     expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+
+  test('예시 영상은 첫 장면이 그려지기 전에는 숨겨 검은 상자가 보이지 않는다', async () => {
+    list.mockResolvedValue({
+      featured: challengeCard({ id: 'f1', line: '잘 지내, 진짜로.', ends_at: RUNNING_ENDS_AT }),
+      challenges: [],
+      next_cursor: null,
+    });
+    entries.mockResolvedValue({ entries: [{ id: 'e1', playback_url: 'https://cdn.example/e1.mp4' }], next_cursor: null, ranking_state: null });
+    await render(<LinePickScreen />);
+    const video = await screen.findByTestId('example-video');
+    expect(video).toHaveStyle({ opacity: 0 });
+    await act(async () => video.props.onPress());
+    expect(screen.getByTestId('example-video')).toHaveStyle({ opacity: 1 });
   });
 });

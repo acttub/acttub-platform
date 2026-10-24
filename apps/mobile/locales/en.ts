@@ -378,6 +378,7 @@ const en: DeepStringShape<typeof ko> = {
     hintSaved: 'Moments from other performances worth revisiting.',
     hintMine: 'Your performances posted to challenges.',
     empty: 'No saved videos yet.',
+    loadFail: "Couldn't load your saved videos.",
   },
   lineSearch: {
     minLength: 'Type at least two characters.',
