@@ -12,6 +12,7 @@ import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { DialogButtons } from '@/components/ui/dialog';
+import { BandGradient } from '@/components/ui/band-gradient';
 import { ReadingStatus } from '@/components/ui/reading-status';
 import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { Markdown } from '@/components/markdown';
@@ -56,6 +57,9 @@ import { translate as t } from '@/lib/i18n';
  * 저장하고, 그동안 R2.11 팝업에 진행 줄 수를 보인다. 파일은 고르는 순간 서버에 올려 글자를 뽑게 한다(R2.2).
  */
 const MASCOT = require('@/assets/images/mascot-reading.png');
+/** pen R2 「대본 읽는 액티」·「예시 대본 카드」 그림. */
+const HERO_ACTY = require('@/assets/images/reading/acty-reading-hero.png');
+const SAMPLE_ACTY = require('@/assets/images/reading/acty-reading-card.png');
 
 const PICKER_TYPES = [
   'text/plain',
@@ -270,10 +274,14 @@ export default function ReadingNew() {
   return (
     <View style={[styles.root, { paddingBottom: keyboard }]}>
       <Stack.Screen options={{ gestureEnabled: !working }} />
-      <View style={styles.content}>
-        <View style={styles.mascotRow}>
-          <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
-          <Text style={styles.title}>{t('reading.newHeading')}</Text>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* pen R2.1 「히어로」 — 대본 읽는 액티(128×100) 옆에 큰 제목과 한 줄 설명. */}
+        <View style={styles.hero}>
+          <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" accessibilityIgnoresInvertColors />
+          <View style={styles.heroText}>
+            <Text style={styles.title}>{t('reading.newHeading')}</Text>
+            <Text style={styles.heroSub}>{t('reading.newSub')}</Text>
+          </View>
         </View>
 
         {/* 「사진」 탭(사진으로 대본 넣기)은 서버에 사진 출처가 없어 숨긴다(SOMA-748). */}
@@ -284,25 +292,21 @@ export default function ReadingNew() {
           </View>
         </View>
 
-        <TextInput
-          style={styles.titleInput}
-          value={title}
-          onChangeText={setTitle}
-          placeholder={`${t('reading.newTitleLabel')} · ${t('reading.newTitlePlaceholder')}`}
-          placeholderTextColor={palette.textFaint}
-          maxLength={TITLE_MAX}
-          editable={!working}
-          returnKeyType="done"
-          accessibilityLabel={t('reading.newTitleLabel')}
-        />
-
-        {input.tab === 'file' ? (
-          <Pressable style={styles.dropzone} onPress={onPickFile} disabled={input.file.kind === 'reading'}>
+        {input.tab === 'file' && (
+          <Pressable
+            style={[styles.dropzone, input.file.kind === 'empty' && styles.dropzoneEmpty]}
+            onPress={onPickFile}
+            disabled={input.file.kind === 'reading'}>
             {input.file.kind === 'empty' && (
               <>
-                <Feather name="upload" size={30} color={palette.blue} />
-                <Text style={styles.dropTitle}>{t('reading.attach')}</Text>
+                <View style={styles.uploadCircle}>
+                  <Feather name="upload" size={26} color={palette.blue} />
+                </View>
+                <Text style={[styles.dropTitle, styles.dropTitleEmpty]}>{t('reading.attach')}</Text>
                 <Text style={styles.dropSub}>{t('reading.attachHint')}</Text>
+                <View style={styles.pickBtn}>
+                  <Text style={styles.pickBtnText}>{t('reading.attachPick')}</Text>
+                </View>
               </>
             )}
             {input.file.kind === 'reading' && (
@@ -326,7 +330,28 @@ export default function ReadingNew() {
               </>
             )}
           </Pressable>
-        ) : (
+        )}
+
+        {/* pen 「제목 입력」 — 라벨 위, 문서 아이콘이 든 흰 칸. 비우면 서버가 대본에서 찾아 붙인다(SOMA-669). */}
+        <View style={styles.titleField}>
+          <Text style={styles.titleLabel}>{t('reading.newTitleLabel')}</Text>
+          <View style={styles.titleBox}>
+            <Feather name="file-text" size={18} color={palette.textFaint} />
+            <TextInput
+              style={styles.titleInput}
+              value={title}
+              onChangeText={setTitle}
+              placeholder={t('reading.newTitlePlaceholder')}
+              placeholderTextColor={palette.textFaint}
+              maxLength={TITLE_MAX}
+              editable={!working}
+              returnKeyType="done"
+              accessibilityLabel={t('reading.newTitleLabel')}
+            />
+          </View>
+        </View>
+
+        {input.tab === 'paste' && (
           <TextInput
             style={styles.textArea}
             value={input.paste.text}
@@ -338,14 +363,29 @@ export default function ReadingNew() {
           />
         )}
 
-        <Text style={styles.guide}>{input.tab === 'file' ? t('reading.newGuideFile') : t('reading.newGuidePaste')}</Text>
-        {input.tab === 'file' && <View style={styles.spacer} />}
-        {showsSampleLink(input) && (
-          <Pressable style={styles.sampleLink} hitSlop={8} onPress={() => dispatch({ type: 'sample' })}>
-            <Text style={styles.sampleText}>{t('reading.sampleLink')}</Text>
-          </Pressable>
+        {(input.tab === 'paste' || input.file.kind !== 'empty') && (
+          <Text style={styles.guide}>{input.tab === 'file' ? t('reading.newGuideFile') : t('reading.newGuidePaste')}</Text>
         )}
-      </View>
+        {showsSampleLink(input) &&
+          (input.tab === 'file' ? (
+            // pen 「예시 대본 카드」 — 파일 탭에서는 카드로, 글 탭에서는 작은 글자 링크로 둔다.
+            <Pressable style={styles.sampleCard} accessibilityRole="button" onPress={() => dispatch({ type: 'sample' })}>
+              <BandGradient stops={[[0, '#F4F9FF'], [1, '#E8F2FF']]} />
+              <Image source={SAMPLE_ACTY} style={styles.sampleActy} contentFit="contain" accessibilityIgnoresInvertColors />
+              <View style={styles.sampleBody}>
+                <Text style={styles.sampleTitle}>{t('reading.sampleLink')}</Text>
+                <Text style={styles.sampleSub}>{t('reading.sampleCardSub')}</Text>
+              </View>
+              <View style={styles.sampleGo}>
+                <Feather name="chevron-right" size={18} color={palette.blue} />
+              </View>
+            </Pressable>
+          ) : (
+            <Pressable style={styles.sampleLink} hitSlop={8} onPress={() => dispatch({ type: 'sample' })}>
+              <Text style={styles.sampleText}>{t('reading.sampleLink')}</Text>
+            </Pressable>
+          ))}
+      </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: (keyboard > 0 ? 0 : insets.bottom) + 10 }]}>
         <View ref={nextTarget.ref} onLayout={nextTarget.onLayout}>
@@ -466,7 +506,7 @@ function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) 
 function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-      <Feather name={icon} size={16} color={on ? palette.text : palette.textFaint} />
+      <Feather name={icon} size={16} color={on ? palette.blue : palette.textMuted} />
       <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{label}</Text>
     </Pressable>
   );
@@ -474,27 +514,44 @@ function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  content: { flex: 1, paddingHorizontal: 24, paddingTop: 16, gap: 14 },
-  mascotRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  mascot: { width: 52, height: 58 },
-  title: { flex: 1, color: palette.text, fontSize: 21, fontWeight: '900', lineHeight: 30 },
-  titleInput: { backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: palette.text, fontFamily: 'Pretendard', fontSize: 15 },
-  segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 12, padding: 4 },
+  scroll: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 14 },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 114 },
+  heroActy: { width: 128, height: 100 },
+  heroText: { flex: 1, gap: 10 },
+  title: { color: palette.text, fontSize: 24, fontWeight: '900', lineHeight: 32 },
+  heroSub: { color: palette.textMuted, fontSize: 14, fontWeight: '500', lineHeight: 21 },
+  titleField: { gap: 10 },
+  titleLabel: { color: palette.textDim, fontSize: 14, fontWeight: '700' },
+  titleBox: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, backgroundColor: palette.card, borderColor: '#E3E8EF', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16 },
+  titleInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, padding: 0 },
+  segment: { flexDirection: 'row', backgroundColor: '#EEF2F8', borderRadius: 14, padding: 4 },
   segmentSlot: { flex: 1 },
-  segmentTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, paddingVertical: 10 },
+  segmentTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, height: 40 },
   segmentTabOn: { backgroundColor: palette.card },
-  segmentText: { color: palette.textFaint, fontSize: 14, fontWeight: '700' },
-  segmentTextOn: { color: palette.text, fontWeight: '800' },
-  dropzone: { height: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
+  segmentText: { color: palette.textMuted, fontSize: 15, fontWeight: '700' },
+  segmentTextOn: { color: palette.blue, fontWeight: '800' },
+  dropzone: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
+  // pen 「파일칸」 — 옅은 파랑 바탕, 점선 테두리(#BCD3F3), 모서리 22.
+  dropzoneEmpty: { minHeight: 228, gap: 6, padding: 20, borderRadius: 22, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#BCD3F3', backgroundColor: '#F5F9FE' },
+  uploadCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E6EFFD', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   dropTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
-  dropSub: { color: palette.textFaint, fontSize: 13, fontWeight: '600' },
+  dropTitleEmpty: { fontSize: 17 },
+  dropSub: { color: palette.textFaint, fontSize: 13, fontWeight: '500' },
+  pickBtn: { marginTop: 8, backgroundColor: '#E3EDFD', borderRadius: 22, height: 44, paddingHorizontal: 32, justifyContent: 'center' },
+  pickBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
   replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.card, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
   replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  textArea: { flex: 1, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  textArea: { flex: 1, minHeight: 256, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },
-  spacer: { flex: 1 },
+  sampleCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 20, overflow: 'hidden', paddingVertical: 14, paddingLeft: 15, paddingRight: 14 },
+  sampleActy: { width: 75, height: 63 },
+  sampleBody: { flex: 1, gap: 6 },
+  sampleTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
+  sampleSub: { color: palette.textMuted, fontSize: 12, fontWeight: '500' },
+  sampleGo: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center', shadowColor: '#2E5A96', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   sampleLink: { alignSelf: 'center', paddingVertical: 4 },
-  sampleText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textDecorationLine: 'underline' },
+  sampleText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
   card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },

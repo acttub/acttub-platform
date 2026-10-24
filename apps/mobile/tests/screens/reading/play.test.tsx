@@ -611,10 +611,12 @@ test('내려받기를 고르면 받는 양과 불러오는 단계를 보이고, 
 
   await act(async () => report({ phase: 'download', receivedBytes: 100 * 1024 * 1024, totalBytes: 400 * 1024 * 1024, percent: 25, etaSeconds: 30 }));
   expect(screen.getByText('상대역 목소리를 준비하고 있어요…')).toBeOnTheScreen();
-  expect(screen.getByText('100 / 400MB · 곧 끝나요')).toBeOnTheScreen();
+  expect(screen.getByText('25% · 100 / 400MB · 곧 끝나요')).toBeOnTheScreen();
+  expect(screen.getByText('처음 한 번만 받아요')).toBeOnTheScreen();
+  expect(screen.getByText('와이파이에서 받는 걸 권해요.')).toBeOnTheScreen();
 
   await act(async () => report({ phase: 'load', done: 2, total: 4 }));
-  expect(screen.getByText('목소리 불러오는 중')).toBeOnTheScreen();
+  expect(screen.getByText('목소리를 불러오고 있어요…')).toBeOnTheScreen();
   expect(screen.getByText('40%')).toBeOnTheScreen();
   await waitFor(async () => expect(await AsyncStorage.getItem('acttub.reading.modelLoadStarted')).toBe('1'));
 

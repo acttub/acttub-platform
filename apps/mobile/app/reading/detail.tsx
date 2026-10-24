@@ -139,7 +139,7 @@ export default function ReadingDetail() {
           <ActivityIndicator color={palette.textFaint} style={styles.loading} />
         ) : sessions.length === 0 ? (
           <View style={styles.empty}>
-            <Feather name="mic" size={26} color={palette.textFaint} />
+            <Feather name="mic" size={24} color={palette.textFaint} />
             <Text style={styles.emptyTitle}>{t('reading.noSessions')}</Text>
             <Text style={styles.emptyHint}>{t('reading.noSessionsHint')}</Text>
           </View>
@@ -209,7 +209,7 @@ function SessionRow({ card, onOpen, onDelete }: { card: SessionCard; onOpen: () 
         <View style={[styles.chip, { backgroundColor: tone.bg }]}>
           <Text style={[styles.chipText, { color: tone.color }]}>{chip.label}</Text>
         </View>
-        <Feather name="chevron-right" size={18} color={palette.textFaint} />
+        <Feather name="chevron-right" size={16} color={palette.textFaint} />
       </Pressable>
     </ReanimatedSwipeable>
   );
@@ -225,11 +225,12 @@ const styles = StyleSheet.create({
   meta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
   viewScript: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', paddingTop: 6 },
   viewScriptText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13.5 },
-  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, paddingTop: 18, paddingBottom: 4 },
+  // pen 「SecHead」 — 위 칸과 옅은 선으로 나눈다.
+  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, paddingTop: 18, paddingBottom: 4, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
   loading: { paddingVertical: 40 },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 44 },
-  emptyTitle: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  emptyHint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center' },
+  emptyTitle: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14.5 },
+  emptyHint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12.5, textAlign: 'center' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
