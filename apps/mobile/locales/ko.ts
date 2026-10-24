@@ -369,6 +369,7 @@ const ko = {
     hintSaved: '다른 사람 연기에서 참고할 부분을 모아뒀어요.',
     hintMine: '챌린지에 올린 내 연기 영상이에요.',
     empty: '아직 저장한 영상이 없어요.',
+    loadFail: '저장한 영상을 불러오지 못했어요.',
   },
   lineSearch: {
     minLength: '두 글자 이상 적어 주세요.',

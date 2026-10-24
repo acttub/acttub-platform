@@ -39,7 +39,8 @@ export default function SavedVideosScreen() {
     } catch (e) {
       setSaved([]);
       setMine([]);
-      setError(browseFailureMessage(browseFailure(e)));
+      const failure = browseFailure(e);
+      setError(failure.kind === 'other' ? t('savedVideos.loadFail') : browseFailureMessage(failure));
     }
   }, []);
 
