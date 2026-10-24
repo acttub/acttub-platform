@@ -174,8 +174,8 @@ export default function ReadingList() {
       anchor: pt(e),
       title: s.title,
       actions: [
-        { label: t('reading.editAction'), onPress: () => setEditing(s) },
-        { label: t('reading.deleteAction'), destructive: true, onPress: () => void remove(s) },
+        { label: t('reading.editAction'), icon: 'edit-2', onPress: () => setEditing(s) },
+        { label: t('reading.deleteAction'), icon: 'trash-2', destructive: true, onPress: () => void remove(s) },
       ],
     });
 

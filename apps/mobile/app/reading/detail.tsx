@@ -88,9 +88,9 @@ export default function ReadingDetail() {
       anchor: pt(e),
       title: script.title,
       actions: [
-        { label: t('reading.editAction'), onPress: () => setEditingTitle(true) },
+        { label: t('reading.editAction'), icon: 'edit-2', onPress: () => setEditingTitle(true) },
         { label: t('reading.changeVoices'), onPress: () => router.push('/reading/roles') },
-        { label: t('reading.deleteAction'), destructive: true, onPress: () => void removeScript() },
+        { label: t('reading.deleteAction'), icon: 'trash-2', destructive: true, onPress: () => void removeScript() },
       ],
     });
 
