@@ -16,9 +16,8 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { LargeTitleHeader, NavIconButton } from '@/components/ui/nav-header';
-import { PrimaryButton } from '@/components/ui/buttons';
+import { BandGradient } from '@/components/ui/band-gradient';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
-import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
@@ -38,11 +37,18 @@ import { pt } from '@/components/ui/anchored-menu';
 const SEARCH_DEBOUNCE_MS = 300;
 
 type EntryKey = 'upload' | 'sample' | 'make';
-const ENTRY_CHOICES: { key: EntryKey; title: string; sub: string }[] = [
-  { key: 'upload', title: 'reading.entryUpload', sub: 'reading.entryUploadSub' },
-  { key: 'sample', title: 'reading.entrySample', sub: 'reading.entrySampleSub' },
-  { key: 'make', title: 'reading.entryMake', sub: 'reading.entryMakeSub' },
+// pen R1.13 입구 카드 — 위에서 아래로 옅어지는 그라데이션 카드 셋. 누르면 바로 들어간다.
+const ENTRY_CHOICES: { key: EntryKey; title: string; sub: string; stops: readonly (readonly [number, string])[]; dark?: boolean }[] = [
+  { key: 'upload', title: 'reading.entryUpload', sub: 'reading.entryUploadSub', stops: [[0, '#4A93FF'], [1, '#176BFF']], dark: true },
+  { key: 'sample', title: 'reading.entrySample', sub: 'reading.entrySampleSub', stops: [[0, '#F3F8FF'], [1, '#E3EEFF']] },
+  { key: 'make', title: 'reading.entryMake', sub: 'reading.entryMakeSub', stops: [[0, '#F3F8FF'], [1, '#E3EEFF']] },
 ];
+const ENTRY_ART: Partial<Record<EntryKey, number>> = {
+  upload: require('@/assets/images/reading/upload-folder-3d.png'),
+  sample: require('@/assets/images/reading/sample-script-3d.png'),
+};
+const HERO_ACTY = require('@/assets/images/reading/hero-acty-stack.png');
+const HERO_WINDOW = require('@/assets/images/home/window-light.png');
 
 const MASCOT = require('@/assets/images/mascot-reading.png');
 
@@ -177,8 +183,7 @@ export default function ReadingList() {
   const searching = q.trim().length > 0;
   const empty = !!list && scripts.length === 0 && !searching;
 
-  const [choice, setChoice] = useState<EntryKey | null>(null);
-  const goEntry = () => {
+  const goEntry = (choice: EntryKey) => {
     if (choice === 'upload') router.push('/reading/new');
     else if (choice === 'sample') router.push('/reading/sample');
     else if (choice === 'make') router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } });
@@ -204,7 +209,7 @@ export default function ReadingList() {
   const voiceBar = (
     cloudVoice.status?.available ? (
       <View style={styles.voiceBar}>
-        <MaterialCommunityIcons name="waveform" size={18} color={palette.blue} />
+        <MaterialCommunityIcons name="waveform" size={19} color={palette.blue} />
         <Text style={styles.voiceText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
           {t('cloudVoice.bannerLabel')}
         </Text>
@@ -230,11 +235,18 @@ export default function ReadingList() {
       style={styles.root}
       contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: tabBarSpace + 20 }]}
       keyboardShouldPersistTaps="handled">
+      {empty && (
+        // pen R1.13 「연한 블루 배경」(#E4EEFC → #FBFDFF)과 창빛 장식.
+        <View style={[styles.emptyBg, { height: 250 + insets.top }]} pointerEvents="none">
+          <BandGradient stops={[[0, '#E4EEFC'], [0.72, '#E4EEFC'], [1, '#FBFDFF']]} />
+          <Image source={HERO_WINDOW} style={styles.emptyWindow} resizeMode="cover" accessibilityElementsHidden />
+        </View>
+      )}
       {/* pen 「헤더 / 큰 제목」 — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
           돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
       <View style={styles.headWrap}>
         <LargeTitleHeader
-          title={empty ? t('reading.tabTitle') : t('reading.listTitle')}
+          title={empty ? '' : t('reading.listTitle')}
           onBack={firstTime ? () => router.navigate('/') : undefined}
           backPhLabel="reading_back_home"
           right={
@@ -291,32 +303,49 @@ export default function ReadingList() {
           <ActivityIndicator color={palette.blue} />
         </View>
       ) : empty ? (
-        // pen R1.13~14 — 하나를 고르면(회색 바탕·체크) 아래 「다음」으로 넘어간다. 바로 넘어가지 않는다.
+        // pen R1.13 — 큰 「리딩」 제목과 책 위 액티, 고품질 목소리 알약, 그라데이션 입구 카드 셋(누르면 바로 들어감).
         <View style={styles.entry}>
-          <MascotBubble source={MASCOT} title={t('reading.entryBubble')} guide={t('reading.entryBubbleSub')} />
-          {ENTRY_CHOICES.map((c) => {
-            const on = choice === c.key;
-            return (
+          <View style={styles.hero}>
+            <View style={styles.heroText}>
+              <Text style={styles.heroTitle} accessibilityRole="header">{t('reading.tabTitle')}</Text>
+              <Text style={styles.heroSub}>{t('reading.entryHeroSub')}</Text>
+            </View>
+            <Image source={HERO_ACTY} style={styles.heroActy} resizeMode="stretch" accessibilityElementsHidden />
+          </View>
+          {voiceBar}
+          <View style={styles.entryCards}>
+            {ENTRY_CHOICES.map((c) => (
+              // pen 카드 그림자 — 아래로 5 밀린 진한 그림자(밑턱)와 흐린 그림자.
+              <View key={c.key} style={[styles.entryLip, { backgroundColor: c.dark ? '#0E52CC' : '#BCD3FA' }]}>
               <Pressable
-                key={c.key}
                 ref={c.key === 'upload' ? newTarget.ref : undefined}
                 onLayout={c.key === 'upload' ? newTarget.onLayout : undefined}
-                style={[styles.choice, on && styles.choiceOn]}
+                style={({ pressed }) => [styles.entryCard, c.dark ? styles.entryCardDark : styles.entryCardLight, pressed && { opacity: 0.85 }]}
                 accessibilityRole="button"
-                accessibilityState={{ selected: on }}
+                accessibilityLabel={t(c.title)}
                 ph-label={`reading_entry_${c.key}`}
-                onPress={() => setChoice(c.key)}>
-                <View style={styles.choiceBody}>
-                  <Text style={styles.choiceTitle}>{t(c.title)}</Text>
-                  <Text style={styles.choiceSub}>{t(c.sub)}</Text>
+                onPress={() => goEntry(c.key)}>
+                <BandGradient stops={c.stops} />
+                <View style={styles.entryArt}>
+                  {ENTRY_ART[c.key] != null ? (
+                    <Image source={ENTRY_ART[c.key]} style={styles.entryArtImg} resizeMode="contain" accessibilityElementsHidden />
+                  ) : (
+                    <View style={styles.entryTile}>
+                      <BandGradient stops={[[0, '#7FB0FF'], [1, '#3B86FF']]} />
+                      <MaterialCommunityIcons name="auto-fix" size={26} color="#FFFFFF" />
+                    </View>
+                  )}
                 </View>
-                {on && <Feather name="check" size={20} color={palette.blue} />}
+                <View style={styles.entryBody}>
+                  <Text style={[styles.entryTitle, c.dark && { color: '#FFFFFF' }]}>{t(c.title)}</Text>
+                  <Text style={[styles.entrySub, c.dark && { color: '#DCE8FF' }]}>{t(c.sub)}</Text>
+                </View>
+                <View style={[styles.entryGo, c.dark ? styles.entryGoDark : styles.entryGoLight]}>
+                  <Feather name="chevron-right" size={20} color={palette.blue} />
+                </View>
               </Pressable>
-            );
-          })}
-          <View style={styles.entryFoot}>
-            {voiceBar}
-            <PrimaryButton label={t('reading.next')} disabled={!choice} onPress={goEntry} />
+              </View>
+            ))}
           </View>
         </View>
       ) : (
@@ -413,33 +442,54 @@ const styles = StyleSheet.create({
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
   newText: { color: palette.onAccent, fontSize: 14, fontWeight: '800' },
   // pen 「AI 목소리 배너」 — 높이 39, 모서리 20, 옅은 파랑 바탕, 글 12.5/700, 무료 배지 모서리 8.
+  // pen 「고품질 AI 목소리 공지」 — 흰 알약(48, 모서리 24, 테두리 #C7DAF5), 무료 기간은 파란 글자.
   voiceBar: {
-    minHeight: 39,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: palette.blueMist,
-    borderRadius: 20,
-    paddingLeft: 12,
-    paddingRight: 10,
-    paddingVertical: 4,
+    gap: 8,
+    backgroundColor: '#FFFFFFE8',
+    borderWidth: 1,
+    borderColor: '#C7DAF5',
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    shadowColor: '#8CB5ED',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
-  voiceText: { flex: 1, fontSize: 12.5, fontWeight: '700', color: palette.text },
-  voiceBadge: { backgroundColor: palette.blueSoft, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
-  voiceBadgeText: { fontSize: 12.5, fontWeight: '700', color: palette.blueDeep },
+  voiceText: { flex: 1, fontSize: 12, fontWeight: '600', color: '#25334D' },
+  voiceBadge: {},
+  voiceBadgeText: { fontSize: 10, fontWeight: '700', color: palette.blue },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.bgSoft, borderRadius: 12, paddingHorizontal: 12, height: 46 },
   searchInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 14, padding: 0 },
   errorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.dangerSoft, borderRadius: 12, padding: 12 },
   errorText: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
   retry: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   loading: { alignItems: 'center', paddingVertical: 60 },
-  entry: { gap: 10, marginTop: 1 },
-  choice: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.card, borderRadius: 16, borderWidth: 1, borderColor: palette.border, paddingVertical: 16, paddingHorizontal: 18 },
-  choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
-  choiceBody: { flex: 1, gap: 4 },
-  choiceTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 22 },
-  choiceSub: { color: palette.textFaint, fontSize: 13, fontWeight: '600', lineHeight: 20 },
-  entryFoot: { gap: 12, marginTop: 24 },
+  entry: { gap: 16 },
+  emptyBg: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
+  emptyWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
+  hero: { height: 188, flexDirection: 'row', alignItems: 'center' },
+  heroText: { flex: 1, gap: 14 },
+  heroTitle: { color: '#0B1328', fontSize: 44, fontWeight: '800', letterSpacing: -1 },
+  heroSub: { color: '#59677F', fontSize: 14, lineHeight: 23 },
+  heroActy: { width: 170, height: 188, marginRight: -6 },
+  entryCards: { gap: 18, paddingTop: 10 },
+  entryCard: { height: 108, borderRadius: 26, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderWidth: 1 },
+  entryLip: { borderRadius: 26, paddingBottom: 5, shadowColor: '#176BFF', shadowOpacity: 0.15, shadowRadius: 18, shadowOffset: { width: 0, height: 12 } },
+  entryCardDark: { borderColor: '#4A93FF', borderWidth: 0 },
+  entryCardLight: { borderColor: '#C7DBFF' },
+  entryArt: { width: 68, height: 76, alignItems: 'center', justifyContent: 'center' },
+  entryArtImg: { width: 68, height: 76 },
+  entryTile: { width: 52, height: 52, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  entryBody: { flex: 1, gap: 7 },
+  entryTitle: { color: '#101B32', fontSize: 16, fontWeight: '700', lineHeight: 22 },
+  entrySub: { color: '#7D8BA3', fontSize: 12, lineHeight: 18 },
+  entryGo: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', elevation: 2 },
+  entryGoDark: { shadowColor: '#0E52CC', shadowOpacity: 0.4, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+  entryGoLight: { shadowColor: '#BCD3FA', shadowOpacity: 1, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   resumeCard: { backgroundColor: palette.blue, borderRadius: 22, padding: 20, gap: 10, overflow: 'hidden' },
   resumeActy: { position: 'absolute', right: 8, bottom: 0, width: 110, height: 110 },
   resumeEyebrow: { color: palette.blueLine, fontSize: 13, fontWeight: '800', lineHeight: 20 },
