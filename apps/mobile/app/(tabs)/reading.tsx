@@ -47,7 +47,7 @@ const ENTRY_ART: Partial<Record<EntryKey, number>> = {
   upload: require('@/assets/images/reading/upload-folder-3d.png'),
   sample: require('@/assets/images/reading/sample-script-3d.png'),
 };
-const HERO_ACTY = require('@/assets/images/home/hero-acty-book.png');
+const HERO_ACTY = require('@/assets/images/reading/hero-acty-stack.png');
 const HERO_WINDOW = require('@/assets/images/home/window-light.png');
 
 const MASCOT = require('@/assets/images/mascot-reading.png');
@@ -310,13 +310,14 @@ export default function ReadingList() {
               <Text style={styles.heroTitle} accessibilityRole="header">{t('reading.tabTitle')}</Text>
               <Text style={styles.heroSub}>{t('reading.entryHeroSub')}</Text>
             </View>
-            <Image source={HERO_ACTY} style={styles.heroActy} resizeMode="contain" accessibilityElementsHidden />
+            <Image source={HERO_ACTY} style={styles.heroActy} resizeMode="stretch" accessibilityElementsHidden />
           </View>
           {voiceBar}
           <View style={styles.entryCards}>
             {ENTRY_CHOICES.map((c) => (
+              // pen 카드 그림자 — 아래로 5 밀린 진한 그림자(밑턱)와 흐린 그림자.
+              <View key={c.key} style={[styles.entryLip, { backgroundColor: c.dark ? '#0E52CC' : '#BCD3FA' }]}>
               <Pressable
-                key={c.key}
                 ref={c.key === 'upload' ? newTarget.ref : undefined}
                 onLayout={c.key === 'upload' ? newTarget.onLayout : undefined}
                 style={({ pressed }) => [styles.entryCard, c.dark ? styles.entryCardDark : styles.entryCardLight, pressed && { opacity: 0.85 }]}
@@ -343,6 +344,7 @@ export default function ReadingList() {
                   <Feather name="chevron-right" size={20} color={palette.blue} />
                 </View>
               </Pressable>
+              </View>
             ))}
           </View>
         </View>
@@ -476,8 +478,9 @@ const styles = StyleSheet.create({
   heroActy: { width: 170, height: 188, marginRight: -6 },
   entryCards: { gap: 18, paddingTop: 10 },
   entryCard: { height: 108, borderRadius: 26, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderWidth: 1 },
-  entryCardDark: { borderColor: '#176BFF' },
-  entryCardLight: { borderColor: '#D6E4FA' },
+  entryLip: { borderRadius: 26, paddingBottom: 5, shadowColor: '#176BFF', shadowOpacity: 0.15, shadowRadius: 18, shadowOffset: { width: 0, height: 12 } },
+  entryCardDark: { borderColor: '#4A93FF', borderWidth: 0 },
+  entryCardLight: { borderColor: '#C7DBFF' },
   entryArt: { width: 68, height: 76, alignItems: 'center', justifyContent: 'center' },
   entryArtImg: { width: 68, height: 76 },
   entryTile: { width: 52, height: 52, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },

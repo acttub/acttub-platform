@@ -28,8 +28,12 @@ export function colorAt(stops: readonly Stop[], p: number): string {
 export function BandGradient({ stops, bands = 28, style }: { stops: readonly Stop[]; bands?: number; style?: StyleProp<ViewStyle> }) {
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
+      {/* 띠를 조금씩 겹쳐 둬서 소수점 높이에서 생기는 가는 이음매 선이 보이지 않게 한다. */}
       {Array.from({ length: bands }, (_, i) => (
-        <View key={i} style={{ flex: 1, backgroundColor: colorAt(stops, (i + 0.5) / bands) }} />
+        <View
+          key={i}
+          style={{ position: 'absolute', left: 0, right: 0, top: `${(i / bands) * 100}%`, height: `${100 / bands + 1.5}%`, backgroundColor: colorAt(stops, (i + 0.5) / bands) }}
+        />
       ))}
     </View>
   );
