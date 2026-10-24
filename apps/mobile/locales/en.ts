@@ -1987,14 +1987,15 @@ const en: DeepStringShape<typeof ko> = {
     // Memorization (R04·R04.1) · reading.memorization
     // Redesign (SOMA-748)
     tabTitle: 'Reading',
+    entryHeroSub: 'Read lines together\nand sharpen your acting.',
     listTitle: 'My scripts',
     search: 'Search',
     entryBubble: 'Shall we read the lines together?',
     entryBubbleSub: 'Pick one and tap “Next”.',
     entryUpload: 'Upload my script',
     entryUploadSub: 'File · Paste text',
-    entrySample: 'Use a sample script',
-    entrySampleSub: 'Read a short sample right away',
+    entrySample: 'Start with a sample script',
+    entrySampleSub: 'Try it right away, no script needed',
     entryMake: 'Make a script',
     entryMakeSub: 'Pick an emotion and situation and AI writes it',
     resumeEyebrow: 'Last script you practiced',

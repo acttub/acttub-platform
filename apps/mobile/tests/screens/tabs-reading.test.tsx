@@ -110,18 +110,16 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   (listScripts as jest.Mock).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
   await render(<ReadingList />);
 
-  expect(await screen.findByText('대사를 같이 맞춰 읽어 볼까요?')).toBeOnTheScreen();
+  // pen R1.13 — 큰 「리딩」 제목과 설명, 그라데이션 입구 카드 셋. 카드를 누르면 바로 들어간다(「다음」 없음).
+  expect(await screen.findByText('대사를 같이 맞춰 읽으며\n연기 감각을 키워보세요.')).toBeOnTheScreen();
   expect(screen.queryByText('업로드한 대본')).not.toBeOnTheScreen();
   expect(screen.queryByText('새 대본')).not.toBeOnTheScreen();
-  // 고르기만 하면 넘어가지 않는다 — 「다음」을 눌러야 간다.
+  expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본 올리기'));
-  expect(mockRouter.push).not.toHaveBeenCalled();
-  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/new');
-  // 대본이 없어도 — 예시 대본으로 채운 대본 넣기 화면(pen 「대본 탭」).
-  expect(screen.getByText('짧은 예시 대본으로 바로 읽어 봐요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('예시 대본으로 하기'));
-  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(screen.getByText('파일 · 글 붙여넣기')).toBeOnTheScreen();
+  expect(screen.getByText('대본이 없어도 바로 해 볼 수 있어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('예시 대본으로 시작하기'));
   expect(mockRouter.push).toHaveBeenLastCalledWith('/reading/sample');
   expect(screen.getByRole('header', { name: '리딩' })).toBeOnTheScreen();
 });
@@ -145,7 +143,7 @@ test('검색어는 잠깐 기다렸다가 서버에 묻고, 맞는 대본이 없
   expect(await screen.findByText('검색 결과가 없어요.')).toBeOnTheScreen();
   expect(listScripts).toHaveBeenLastCalledWith('햄릿');
   expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
-  expect(screen.queryByText('대사를 같이 맞춰 읽어 볼까요?')).not.toBeOnTheScreen();
+  expect(screen.queryByText('대사를 같이 맞춰 읽으며\n연기 감각을 키워보세요.')).not.toBeOnTheScreen();
 });
 
 test('늦게 온 이전 검색 결과는 버린다', async () => {
@@ -411,6 +409,5 @@ test('빈 목록에서도 대본 같이 만들기는 리딩 모드로 열린다'
   (listScripts as jest.Mock).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
   await render(<ReadingList />);
   await fireEvent.press(await screen.findByText('대본 만들기'));
-  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/script-cocreate', params: { mode: 'reading' } });
 });
