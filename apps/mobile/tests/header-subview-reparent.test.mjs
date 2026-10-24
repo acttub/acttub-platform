@@ -17,3 +17,15 @@ test('안드로이드 헤더 오른쪽 버튼을 다시 붙일 때 옛 부모에
   assert.match(patch, /ScreenStackHeaderConfig\.kt/);
   assert.match(patch, /\+\s*\(view\.parent as\? android\.view\.ViewGroup\)\?\.removeView\(view\)\n\s+toolbar\.addView\(view\)/);
 });
+
+test('iOS 음성 인식은 마이크 하드웨어 형식이 비어 있으면 꺼지지 않고 「입력 사용 중」 오류로 끝난다(SOMA-822)', () => {
+  // Crashlytics iOS 0.1.5: AVAudioEngine connect 에서 「Input HW format is invalid」로 꺼졌다(리딩 실행 중, 10/24).
+  // 출력 형식만 보는 기존 검사를 통과해도 하드웨어 입력이 비면 connect 가 Objective-C 예외를 던져 Swift 에서 못 잡는다.
+  const pkg = JSON.parse(read('package.json'));
+  const version = pkg.dependencies['expo-speech-recognition'].replace(/^[~^]/, '');
+  const patch = read(`patches/expo-speech-recognition+${version}.patch`);
+  assert.match(patch, /ExpoSpeechRecognizer\.swift/);
+  const guards = patch.match(/^\+.*audioInputIsBusy\(inputNode\.inputFormat\(forBus: 0\)\)/gm) ?? [];
+  // 처음 켤 때와 블루투스 등 경로가 바뀌어 다시 켤 때 두 곳 모두
+  assert.equal(guards.length, 2);
+});
