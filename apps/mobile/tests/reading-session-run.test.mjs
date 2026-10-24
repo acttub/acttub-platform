@@ -142,6 +142,15 @@ test('reading.session: 이어하기는 current_line 부터 시작하고 그 줄 
   assert.deepEqual(progressOf(next), { done: 2, total: 5 });
 });
 
+test('reading.session: 이어하기 앞 상대 대사를 읽는 동안 나가도 진행은 멈췄던 줄 그대로다 — 열고 나갈 때마다 한 줄씩 뒤로 가지 않는다(SOMA-822)', () => {
+  // 폰 확인(10/24): 「진행 중 · 10/11」 회차를 열고 [시작] 전에 나가니 「9/11」로 줄었다. 머리도 「9 / 11」로 버튼과 어긋났다.
+  const r = resumeRun(run(), 'l4');
+  assert.equal(currentLineIdOf(r), 'l4', '저장 위치는 앞 상대 대사(l2)가 아니라 멈췄던 줄');
+  assert.equal(progressPayload(r).current_line_id, 'l4');
+  assert.deepEqual(progressOf(r), { done: 2, total: 5 });
+  assert.equal(formatProgress(r), '2 / 5 · 00:00', '머리 숫자도 회차 버튼(끝낸 줄 수)과 같다');
+});
+
 test('reading.session: 나가기 확인 문구는 "지금 나가면 N번 대사까지 진행한 걸로 저장돼요"다', () => {
   let r = run();
   r = advance(advance(r));

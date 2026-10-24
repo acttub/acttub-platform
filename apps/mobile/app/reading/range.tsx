@@ -241,7 +241,7 @@ export default function ReadingRange() {
   const firstRun = !hasHistory;
   const micAsk = mic !== 'granted';
   const mainLabel = busy
-    ? t('common.saving')
+    ? t('reading.startingSession')
     : gate === 'pickRole'
       ? t('reading.startNeedsRole')
       : micAsk
@@ -258,6 +258,17 @@ export default function ReadingRange() {
           <Text style={styles.cardTitle}>{title}</Text>
           <Text style={styles.cardSub} numberOfLines={1}>{sub}</Text>
         </View>
+        {on && <Feather name="check" size={18} color={palette.blue} />}
+      </Pressable>
+    );
+  };
+  /** pen R8.6 최근 구간 카드: 제목과 「N개 · M회차 · 날짜」를 한 줄에, 고른 카드는 파란 테두리·파란 제목. */
+  const renderRecentCard = (key: string, title: string, meta: string, r: LineRange) => {
+    const on = isActive(r);
+    return (
+      <Pressable key={key} style={[styles.recentRow, on && styles.recentRowOn]} onPress={() => pickRange(r)} accessibilityRole="radio" accessibilityState={{ checked: on }}>
+        <Text style={[styles.recentTitle, on && styles.recentTitleOn]} numberOfLines={1}>{title}</Text>
+        <Text style={styles.recentMeta} numberOfLines={1}>{meta}</Text>
         {on && <Feather name="check" size={18} color={palette.blue} />}
       </Pressable>
     );
@@ -282,7 +293,9 @@ export default function ReadingRange() {
         </View>
 
         <Text style={styles.section}>{t('reading.myRolesLabel')}</Text>
-        <View style={styles.chipWrap} ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout}>
+        {/* pen R8.6 「칩 줄」 — 배역이 많으면 옆으로 민다. */}
+        <View ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout} style={styles.bleed}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleChips}>
           {cast.map((c) => {
             const on = selected.includes(c.id);
             return (
@@ -297,6 +310,7 @@ export default function ReadingRange() {
               </Pressable>
             );
           })}
+        </ScrollView>
         </View>
         <Text style={styles.hint}>{mono ? t('reading.monologueCard', { count: script.dialogueCount }) : t('reading.rangeMultiNote')}</Text>
 
@@ -311,7 +325,7 @@ export default function ReadingRange() {
           })}
         </View>
 
-        <Text style={[styles.section, styles.sectionGap]}>{t('reading.rangeSection')}</Text>
+        <Text style={[styles.section, styles.sectionRange]}>{t('reading.rangeSection')}</Text>
         {mono ? (
           <View style={styles.list}>{wholeCard}</View>
         ) : (
@@ -336,7 +350,7 @@ export default function ReadingRange() {
             {activeTab === 'recent' && (
               <View style={styles.list}>
                 {recents.map(({ card, range: r }) =>
-                  renderRangeCard(
+                  renderRecentCard(
                     `recent${card.id}`,
                     rangeTitle(card.range_name, t),
                     t('reading.recentMeta', {
@@ -452,11 +466,12 @@ const styles = StyleSheet.create({
   howDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.blueSoft },
   howText: { color: palette.text, fontSize: 14, fontWeight: '600', lineHeight: 21 },
   mascot: { width: 52, height: 58 },
-  title: { color: palette.text, fontSize: 22, fontWeight: '900', lineHeight: 30 },
-  sub: { color: palette.textFaint, fontSize: 15, fontWeight: '700', lineHeight: 22 },
+  title: { color: palette.text, fontSize: 21, fontWeight: '900', lineHeight: 30 },
+  sub: { color: palette.textFaint, fontSize: 13, fontWeight: '600', lineHeight: 20 },
   section: { color: palette.textDim, fontSize: 14, fontWeight: '800', lineHeight: 21 },
-  sectionGap: { marginTop: 4 },
-  hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: -4 },
+  // pen 「SecLabel 구간」 — 진한 글자 700, 위 여백 8.
+  sectionRange: { color: palette.text, fontWeight: '700', marginTop: 8 },
+  hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12, marginTop: -2 },
   bleed: { marginHorizontal: -24 },
   roleChips: { gap: 8, paddingHorizontal: 24 },
   roleChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: palette.bgSoft },
@@ -500,17 +515,19 @@ const styles = StyleSheet.create({
   rowTitleOn: { color: palette.blueDeep },
   rowLine: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
   sceneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, gap: 8 },
-  recentRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14 },
-  recentTitle: { flex: 1 },
+  recentRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 14 },
+  recentRowOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
+  recentTitle: { flex: 1, color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 20 },
+  recentTitleOn: { color: palette.blueDeep },
   recentMeta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
   tag: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   tagEnd: { backgroundColor: palette.textDim },
   tagText: { color: palette.onAccent, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg, gap: 10 },
-  maskRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  maskChip: { flex: 1, alignItems: 'center', backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 6 },
+  maskRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  maskChip: { flex: 1, alignItems: 'center', backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 6 },
   maskChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  maskText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  maskText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   maskTextOn: { color: palette.blueDeep },
   micBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.amberSoft, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   micTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 13 },

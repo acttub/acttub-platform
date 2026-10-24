@@ -488,11 +488,11 @@ describe('설정의 프로필 편집', () => {
     for (const photo of screen.getAllByRole('button', { name: '사진 수정' })) expect(photo).toBeEnabled();
   });
 
-  test('사진이 없으면 이름 첫 글자를 보이고 지우기는 두지 않는다', async () => {
+  test('사진이 없으면 기본 얼굴(pen S6.3 P/DefaultAvatar)을 보이고 지우기는 두지 않는다', async () => {
     auth({ id: 'u1', profile: { ...fullProfile, photo_url: null, bio: null } });
     await render(<ProfileEditScreen />);
 
-    expect(screen.getByText('김')).toBeOnTheScreen();
+    expect(screen.getByTestId('default-avatar')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '사진 지우기' })).not.toBeOnTheScreen();
   });
 

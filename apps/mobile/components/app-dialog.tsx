@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState, type ReactElement } from 'react';
-import { Modal, Pressable, StyleSheet, Text } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { useCallback, useRef, useState, type ComponentProps, type ReactElement } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AnchoredMenu, type MenuAnchor } from '@/components/ui/anchored-menu';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
@@ -11,6 +12,8 @@ export type DialogAction = {
   onPress?: () => void;
   /** 빨간 글씨 — 되돌릴 수 없는 동작. */
   destructive?: boolean;
+  /** 글자 앞 아이콘(pen R1.6 「제목 수정」 연필·「대본 삭제」 휴지통, 18). 빨간 줄이면 아이콘도 빨갛다. */
+  icon?: ComponentProps<typeof Feather>['name'];
 };
 
 type ConfirmOptions = {
@@ -30,7 +33,9 @@ type AlertOptions = { title: string; message?: string; confirmLabel?: string };
 /** 누른 자리 근처에 뜨는 작은 메뉴. anchor 는 누른 점(화면 좌표)이고, 없으면 오른쪽 위에 뜬다. */
 type SheetOptions = { title?: string; actions: DialogAction[]; anchor?: MenuAnchor };
 
-const MENU_ROW = 48;
+/** pen R1.6 메뉴 줄 높이 46(안쪽 12) + 카드 안쪽 위아래 6. */
+const MENU_ROW = 46;
+const MENU_PAD = 6;
 
 type DialogState =
   | { kind: 'confirm'; options: ConfirmOptions }
@@ -87,27 +92,33 @@ export function useAppDialog() {
     state?.kind === 'sheet' ? (
       <AnchoredMenu
         anchor={state.options.anchor}
-        estimatedHeight={state.options.actions.length * MENU_ROW + (state.options.title ? 36 : 0)}
+        estimatedHeight={state.options.actions.length * MENU_ROW + MENU_PAD * 2 + (state.options.title ? 36 : 0)}
         onClose={() => close(false)}>
         {state.options.title ? (
           <Text style={styles.menuTitle} numberOfLines={1}>
             {state.options.title}
           </Text>
         ) : null}
-        {state.options.actions.map((action) => (
-          <Pressable
-            key={action.label}
-            style={({ pressed }) => [styles.menuRow, pressed && styles.menuPressed]}
-            accessibilityRole="button"
-            onPress={() => {
-              close(true);
-              action.onPress?.();
-            }}>
-            <Text style={[styles.menuLabel, action.destructive && styles.menuDanger]} numberOfLines={1}>
-              {action.label}
-            </Text>
-          </Pressable>
-        ))}
+        <View style={styles.menuList}>
+          {state.options.actions.map((action) => (
+            <Pressable
+              key={action.label}
+              style={({ pressed }) => [styles.menuRow, pressed && styles.menuPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={action.label}
+              onPress={() => {
+                close(true);
+                action.onPress?.();
+              }}>
+              {action.icon ? (
+                <Feather name={action.icon} size={18} color={action.destructive ? palette.danger : palette.text} />
+              ) : null}
+              <Text style={[styles.menuLabel, action.destructive && styles.menuDanger]} numberOfLines={1}>
+                {action.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </AnchoredMenu>
     ) : (
       state && (
@@ -146,8 +157,10 @@ const styles = StyleSheet.create({
   },
   full: { width: '100%', alignItems: 'center' },
   menuTitle: { fontSize: 13, fontWeight: '700', color: palette.textMuted, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  menuRow: { minHeight: MENU_ROW, justifyContent: 'center', paddingHorizontal: 16 },
+  // pen R1.6 더보기 메뉴 — 카드 안쪽 6, 줄 모서리 10 · 안쪽 12 · 아이콘과 글자 사이 12, 글자 15/600.
+  menuList: { padding: MENU_PAD },
+  menuRow: { minHeight: MENU_ROW, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, borderRadius: 10 },
   menuPressed: { backgroundColor: palette.bgSoft },
-  menuLabel: { fontSize: 16, fontWeight: '600', color: palette.text },
+  menuLabel: { flexShrink: 1, fontSize: 15, fontWeight: '600', color: palette.text },
   menuDanger: { color: palette.danger },
 });

@@ -49,6 +49,13 @@ const STOP_WATCH_MS = 4000;
  *
  * 시뮬레이터엔 카메라가 없어 실기기에서만 실제로 돈다.
  */
+/** 남은 시간 한 줄 — 1분 이상이면 「4분 48초 남음」(pen P2.14), 그 아래는 「48초 남음」. */
+function remainingLabel(sec: number): string {
+  return sec >= 60
+    ? t('record.remainingMin', { min: Math.floor(sec / 60), sec: sec % 60 })
+    : t('record.remaining', { sec });
+}
+
 export default function RecordVideoScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const router = useRouter();
@@ -619,7 +626,7 @@ export default function RecordVideoScreen() {
         </View>
 
         <View style={styles.bottomGroup}>
-          <Text style={[styles.hint, recording && !recordScript && styles.hiddenKeepSpace]}>{recording && recordScript ? t('record.remaining', { sec: remaining }) : picker
+          <Text style={[styles.hint, recording && !recordScript && styles.hiddenKeepSpace]}>{recording && recordScript ? remainingLabel(remaining) : picker
               ? t('recordMode.swipeHint')
               : maxSec < baseMaxSec
                 ? t('record.hintShort', { sec: maxSec })

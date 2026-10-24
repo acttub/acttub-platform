@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { type DialogAction, useAppDialog } from '@/components/app-dialog';
@@ -138,4 +139,28 @@ test('anchor 를 주면 누른 점 근처에, 없으면 오른쪽 위에 메뉴�
   expect(near.left).toBeLessThan(200);
   await fireEvent.press(backdrop());
   expect(screen.queryByText('삭제')).toBeNull();
+});
+
+test('메뉴 항목은 아이콘을 앞에 둘 수 있고, 지우기 줄은 아이콘도 빨갛다(pen R1.6)', async () => {
+  // 아이콘 글꼴은 글자 하나로 그려진다 — 같은 이름의 글자를 먼저 얻는다.
+  const glyphOf = async (name: 'edit-2' | 'trash-2') => {
+    const icon = await render(<Feather name={name} size={18} />);
+    const glyph = (JSON.parse(JSON.stringify(icon.toJSON())) as { children: string[] }).children[0];
+    await icon.unmount();
+    return glyph;
+  };
+  const pencil = await glyphOf('edit-2');
+  const trash = await glyphOf('trash-2');
+  await openWith((d) =>
+    d.sheet({
+      actions: [
+        { label: '제목 수정', icon: 'edit-2' },
+        { label: '대본 삭제', icon: 'trash-2', destructive: true },
+      ],
+    }),
+  );
+
+  expect(screen.getByText(pencil)).toBeOnTheScreen();
+  expect(StyleSheet.flatten(screen.getByText(trash).props.style).color).toBe('#E42939');
+  expect(screen.getByRole('button', { name: '제목 수정' })).toBeOnTheScreen();
 });

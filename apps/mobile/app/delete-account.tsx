@@ -132,23 +132,27 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 40, gap: 4 },
-  title: { fontSize: 26, fontWeight: '800', color: palette.text, lineHeight: 35 },
-  account: { fontSize: 17, fontWeight: '600', color: palette.textFaint, marginTop: 8 },
+  // pen S17.1 — 좌우 20, 위 20. 제목 21/900, 이메일 13.5/600, 묶음마다 위 24 + 윗선 · 안쪽 16.
+  body: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 4 },
+  title: { fontSize: 21, fontWeight: '900', color: palette.text, lineHeight: 31 },
+  account: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint, marginTop: 6 },
 
   section: {
-    marginTop: 32,
-    gap: 10,
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: palette.borderSoft,
+    gap: 8,
   },
-  sectionLabel: { fontSize: 14, fontWeight: '800', color: palette.textFaint },
+  sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textFaint },
   bullet: { flexDirection: 'row', gap: 8 },
-  dot: { fontSize: 17, fontWeight: '900', color: palette.checkOff, lineHeight: 23 },
+  dot: { fontSize: 14, fontWeight: '900', color: palette.checkOff, lineHeight: 23 },
   bulletText: {
     flex: 1,
-    fontSize: 17,
-    fontWeight: '700',
-    color: palette.text,
-    lineHeight: 26,
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.textDim,
+    lineHeight: 23,
   },
 
   ack: {
@@ -157,12 +161,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     backgroundColor: palette.bgSubtle,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
   },
   ackOn: { backgroundColor: palette.dangerSoft },
-  ackText: { flex: 1, fontSize: 17, fontWeight: '800', color: palette.textDim },
+  ackText: { flex: 1, fontSize: 14.5, fontWeight: '800', color: palette.textDim },
   ackTextOn: { color: palette.text },
 
   danger: { marginTop: 12 },

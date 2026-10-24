@@ -114,7 +114,7 @@ test('응답 본문을 읽다 연결이 끊기면(TypeError) 끊김 문구의 Ne
   });
   const error = await client.request('/v2/me').catch(e => e);
   assert.ok(error instanceof NetworkError);
-  assert.equal(error.message, '응답을 읽는 중 연결이 끊어졌어요. 다시 시도해주세요.');
+  assert.equal(error.message, '응답을 읽는 중 연결이 끊어졌어요. 다시 시도해 주세요.');
   assert.equal(error.code, 'network_error');
 });
 
@@ -257,7 +257,7 @@ test('스트림 401: 갱신 중 다른 계정으로 바뀌면 session_changed �
   const error = await runStream(client).catch(e => e);
   assert.equal(error.status, 401);
   assert.equal(error.code, 'session_changed');
-  assert.equal(error.message, '로그인 계정이 변경되어 요청을 중단했어요. 다시 시도해주세요.');
+  assert.equal(error.message, '로그인 계정이 변경되어 요청을 중단했어요. 다시 시도해 주세요.');
 });
 
 test('스트림 401: 갱신 뒤에도 401 이면 두 번째는 그대로 던진다', async () => {

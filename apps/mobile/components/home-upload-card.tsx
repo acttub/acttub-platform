@@ -23,11 +23,13 @@ export function HomeUploadCard({ upload }: { upload: ReturnType<typeof useWaitin
   return (
     <View style={styles.card} testID="home-upload-card">
       <View style={styles.eyebrowRow}>
-        <Feather name="video" size={16} color={palette.onAccent} />
+        {/* pen P1 「영상 올리는 중」 — 올리는 동안은 올리기 아이콘, 다 올렸거나 실패하면 영상 아이콘. */}
+        <Feather name={state === 'uploading' ? 'upload' : 'video'} size={16} color={palette.onAccent} />
         <Text style={styles.eyebrow}>{eyebrow}</Text>
       </View>
       <Text style={styles.title} numberOfLines={3}>{title}</Text>
       <Text style={styles.sub}>{error ?? sub}</Text>
+      {/* pen 「틈」 1×2 — 막대·버튼은 부연 바로 아래에 붙는다. */}
       <View style={styles.spacer} />
       {press ? (
         <Pressable
@@ -68,7 +70,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 13, fontWeight: '600', lineHeight: 18, color: 'rgba(255,255,255,0.9)' },
   title: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.onAccent, maxWidth: 260 },
   sub: { fontSize: 12, fontWeight: '400', lineHeight: 18, color: 'rgba(255,255,255,0.8)' },
-  spacer: { flex: 1, minHeight: 2 },
+  spacer: { height: 2 },
   track: { height: 8, width: 200, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4, backgroundColor: palette.onAccent },
   cta: { alignSelf: 'flex-start', height: 42, borderRadius: 21, paddingHorizontal: 22, backgroundColor: palette.onAccent, flexDirection: 'row', alignItems: 'center', gap: 6 },

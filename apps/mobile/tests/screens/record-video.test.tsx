@@ -177,6 +177,19 @@ test('코칭 촬영에 넘긴 대본이 있으면 카드로 띄우고, 숨김·�
   expect(screen.getByText('대본 · 네가 좋아하는 케이크')).toBeOnTheScreen();
 });
 
+test('대본으로 코칭 녹화 중 남은 시간은 「4분 48초 남음」처럼 분과 초로 센다(pen P2.14)', async () => {
+  jest.useFakeTimers();
+  mockParams = { mode: 'ai', next: 'upload' };
+  setRecordScript({ title: '옥상, 밤', lines: [{ kind: 'dialogue', speaker: '윤서', text: '나 이제 진짜 갈게.', mine: true }] });
+  await render(<RecordVideoScreen />);
+  await startRecording();
+  await act(async () => {
+    jest.advanceTimersByTime(12_000);
+  });
+  expect(screen.getByText('4분 48초 남음')).toBeOnTheScreen();
+  jest.useRealTimers();
+});
+
 describe('카메라·마이크 권한', () => {
   test('들어오자마자 권한을 묻고, 둘 다 허용하면 촬영 화면이 된다', async () => {
     mockCamPerm = DENIED;

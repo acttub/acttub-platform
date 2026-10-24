@@ -529,7 +529,7 @@ test('W5: plain text 500과 Pydantic 422를 한국어 문구로 숨긴다', asyn
     (error) =>
       error instanceof ApiError &&
       error.status === 500 &&
-      error.message === '서버 오류가 발생했어요. 잠시 후 다시 시도해주세요.',
+      error.message === '서버 오류가 발생했어요. 잠시 후 다시 시도해 주세요.',
   );
   await assert.rejects(
     client.request('/v2/upload'),

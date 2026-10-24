@@ -230,6 +230,7 @@ describe('더보기 메뉴', () => {
     (deleteScript as jest.Mock).mockResolvedValue(undefined);
     await openMore(0);
     await fireEvent.press(screen.getByText('대본 삭제'));
+    expect(screen.getByText('대본을 삭제할까요?')).toBeOnTheScreen();
     expect(screen.getByText('녹음과 연습 기록이 함께 지워지고 되돌릴 수 없어요.')).toBeOnTheScreen();
     (listScripts as jest.Mock).mockResolvedValue({ scripts: [cafe], total_count: 1, in_progress_count: 0 });
     await fireEvent.press(screen.getByText('삭제'));

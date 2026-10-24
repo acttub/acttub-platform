@@ -57,13 +57,22 @@ export type QuestionChoice = { key: string; label: string; skip?: boolean };
 
 export type JournalQuestion = { id: QuestionId; title: string; choices: QuestionChoice[]; placeholder: string };
 
+const FEELING_KEYS = ['easy', 'nervous', 'awkward', 'unsure'] as const;
+
+/** 느낌 칩 키(easy)를 보이는 말(편했어요)로. 서버에는 키 그대로 저장하고 보일 때만 바꾼다. 키가 아니면 적힌 대로 둔다. */
+function feelingLabel(choice: string | null | undefined): string | null {
+  const value = choice?.trim();
+  if (!value) return null;
+  return (FEELING_KEYS as readonly string[]).includes(value) ? translate(`journal.feeling.${value}`) : value;
+}
+
 /** 질문 문구와 순서는 항상 같다(10/19 questions.json). 대화 내용으로 바꾸지 않는다. */
 export function journalQuestions(): JournalQuestion[] {
   return [
     {
       id: 'feeling',
       title: translate('journal.q1'),
-      choices: (['easy', 'nervous', 'awkward', 'unsure'] as const).map((key) => ({ key, label: translate(`journal.feeling.${key}`) })),
+      choices: FEELING_KEYS.map((key) => ({ key, label: translate(`journal.feeling.${key}`) })),
       placeholder: translate('journal.q1Ph'),
     },
     { id: 'unknown', title: translate('journal.q2'), choices: [{ key: 'none', label: translate('journal.none'), skip: true }], placeholder: translate('journal.q2Ph') },
@@ -127,7 +136,7 @@ export function timeLabel(seconds: number): string {
 
 export function feelingText(feeling: JournalFeeling | null): string | null {
   if (!feeling) return null;
-  const parts = [feeling.choice?.trim(), feeling.text?.trim()].filter((part): part is string => !!part);
+  const parts = [feelingLabel(feeling.choice), feeling.text?.trim()].filter((part): part is string => !!part);
   return parts.length ? parts.join(' · ') : null;
 }
 
@@ -170,7 +179,7 @@ export function journalSummary(journal: PracticeJournal): JournalSummary {
   if (unknown) rows.push({ key: 'unknown', label: translate('journal.row.unknown'), preview: preview(unknown), lines: [{ id: 'unknown', text: unknown }] });
   return {
     review: answers.review?.trim() || null,
-    feelingTag: answers.feeling?.choice?.trim() || null,
+    feelingTag: feelingLabel(answers.feeling?.choice),
     unknownCount: unknown ? 1 : 0,
     next: journalNext(journal),
     rows,

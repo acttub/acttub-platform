@@ -241,22 +241,21 @@ const styles = StyleSheet.create({
   header: { height: 44, justifyContent: 'center', paddingHorizontal: 24 },
   // 좌우 여백 24 · 제목 26/800 줄높이 1.34 · 설명 15/400 줄높이 1.5(제목과 6~8 사이).
   list: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
-  title: { marginTop: 8, fontSize: 26, fontWeight: '800', lineHeight: 35, color: palette.text },
+  title: { marginTop: 8, fontSize: 24, fontWeight: '800', lineHeight: 32, color: palette.text },
   hint: { marginTop: 8, fontSize: 15, fontWeight: '400', lineHeight: 22, color: palette.textMuted },
   lines: { marginTop: 20 },
   docBody: { paddingHorizontal: 14, paddingBottom: 12 },
   footer: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 12, gap: 8 },
-  // 모두 동의하기 — 높이 52, 모서리 16. 꺼짐 #F2F4F6 → 켜짐 #EAF3FE.
+  // 모두 동의하기(pen S4.1) — 안쪽 18, 모서리 16, 칸 사이 12. 꺼짐 #F9FAFB → 켜짐 #EAF3FE.
   allRow: {
-    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: palette.bgSoft,
+    gap: 12,
+    backgroundColor: palette.bgSubtle,
     borderRadius: 16,
-    paddingHorizontal: 18,
+    padding: 18,
   },
   allRowOn: { backgroundColor: palette.blueSoft },
-  allLabel: { flex: 1, fontSize: 17, fontWeight: '700', color: palette.text },
+  allLabel: { flex: 1, fontSize: 18, fontWeight: '700', lineHeight: 27, color: palette.text },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
 });

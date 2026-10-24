@@ -279,7 +279,7 @@ export function CoachWaiting({
     return () => clearInterval(timer);
   }, [error]);
 
-  /** "그만두기" — 작업을 취소로 끝낸다. 영상은 보관함에 그대로 있고 연습을 숨기지 않는다. */
+  /** "그만두기" — 작업을 취소로 끝낸다. 영상은 그대로 두고 연습을 숨기지 않는다. */
   const stop = useCallback(async () => {
     if (!practiceId || stopping) return;
     if (sample) {

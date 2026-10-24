@@ -280,7 +280,8 @@ describe('오늘 할 것 · 코칭 숙제', () => {
     getPracticeNote.mockResolvedValue({ next_take: '「우리 그만하자」 뒤에 한 박자 바라보기', report: null });
     await render(<HomeScreen />);
 
-    expect(await screen.findByText('「「우리 그만하자」 뒤에 한 박자 바라보기」')).toBeOnTheScreen();
+    // pen P1.1 — 제목은 작은따옴표(‘ ’)로 감싼다.
+    expect(await screen.findByText('‘「우리 그만하자」 뒤에 한 박자 바라보기’')).toBeOnTheScreen();
     expect(getPracticeNote).toHaveBeenCalledWith('p1');
     expect(screen.getByText('이별 통보 장면 · 3번째 테이크')).toBeOnTheScreen();
     expect(screen.queryByText(/코치가 본 것/)).not.toBeOnTheScreen();
@@ -334,8 +335,8 @@ describe('오늘 할 것 · 코칭 숙제', () => {
     getPracticeNote.mockResolvedValue({ next_take: '시선 거두기', report: null });
     await render(<HomeScreen />);
 
-    // 메인은 이어 읽기 카드(18/42줄), 코칭 숙제는 「이것도 해 볼래요?」 줄이다.
-    expect(await screen.findByText('18/42줄')).toBeOnTheScreen();
+    // 메인은 이어 읽기 카드(18/42줄 · 남은 시간 한 줄, pen P1.15), 코칭 숙제는 「이것도 해 볼래요?」 줄이다.
+    expect(await screen.findByText(/^18\/42줄 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
     expect(screen.getByText('이것도 해 볼까요?')).toBeOnTheScreen();
     expect(await screen.findByText('시선 거두기')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('코칭 숙제'));
@@ -487,9 +488,10 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
 
     expect(await screen.findByText('추천 연습')).toBeOnTheScreen();
     expect(screen.getByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
-    expect(await screen.findByText('옥상, 밤 · 이어 읽기')).toBeOnTheScreen();
+    // pen P1.1 — 리딩 줄 제목은 「대사 이어 읽기」, 아래는 멈춘 줄. 챌린지 줄은 ‘대사’ · D-day.
+    expect(await screen.findByText('대사 이어 읽기')).toBeOnTheScreen();
     expect(await screen.findByText('3/10줄에서 멈췄어요')).toBeOnTheScreen();
-    expect(await screen.findByText('“잘 지내, 진짜로.” · D-3')).toBeOnTheScreen();
+    expect(await screen.findByText('‘잘 지내, 진짜로.’ · D-3')).toBeOnTheScreen();
     expect(screen.getByText('이번 주 챌린지')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('이번 주 챌린지'));
     expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
@@ -503,7 +505,8 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
 
     // 하루 전에 읽었으니 「어제」.
     expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
-    expect(await screen.findByText('3/10줄')).toBeOnTheScreen();
+    expect(await screen.findByText(/^3\/10줄 · 남은 시간 약 \d+분$/)).toBeOnTheScreen();
+    // 진행 막대는 없다(pen P1.15).
     expect(screen.getByText('읽은 장면 찍어서 코칭')).toBeOnTheScreen();
     expect(screen.getByText('이번 주 챌린지')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '이어 읽기' }));
@@ -526,10 +529,20 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     expect(screen.getByText('“잘 지내, 진짜로.”')).toBeOnTheScreen();
     expect(screen.getByText('같은 대사, 다른 연기 · 참여 12명')).toBeOnTheScreen();
     expect(screen.getByText('다른 배우 영상 보기')).toBeOnTheScreen();
+    // pen P1.16 — 참여작 수가 있으면 「이번 주 참여작 N개」.
+    expect(screen.getByText('이번 주 참여작 12개')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '찍으러 가기' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
     await fireEvent.press(screen.getByText('다른 배우 영상 보기'));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/challenges');
+  });
+
+  test('리딩 메인 카드 제목은 대본 제목 · 내 배역이다(pen P1.15 「옥상, 밤 · 태오」)', async () => {
+    listReadingScripts.mockResolvedValue({ scripts: [{ ...scriptRead('옥상, 밤'), my_character_names: ['태오'] }] });
+    (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [{ status: 'in_progress', progress: { total: 10, done: 3 } }] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('옥상, 밤 · 태오')).toBeOnTheScreen();
   });
 
   test('최근 2주에 리딩을 더 많이 했으면 더 최근에 한 코칭이 있어도 리딩이 메인이다', async () => {

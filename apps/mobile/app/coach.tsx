@@ -582,12 +582,19 @@ function CoachTalk() {
             {!keyboardVisible && conversation?.purpose?.choices.length ? (
               <View style={styles.purposeChoices}>
                 {conversation.purpose.choices.map((choice, index) => (
-                  <View key={index} style={styles.purposeChoice}>
-                    <SecondaryButton label={choice.label} disabled={waiting || connecting} onPress={() => {
+                  // pen ⓐ3·ⓑ4 「방법 고르기」 — 흰 바탕 · 파란 테두리 알약(모서리 16, 안쪽 7·13), 글 13.5/600 진파랑, 왼쪽 정렬로 쌓는다.
+                  <Pressable
+                    key={index}
+                    style={({ pressed }) => [styles.purposeChoice, pressed && styles.purposeChoiceOn, (waiting || connecting) && styles.purposeChoiceOff]}
+                    disabled={waiting || connecting}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: waiting || connecting }}
+                    onPress={() => {
                       if (sceneVideo && choice.at != null) seekTo(choice.at, String(choice.at));
                       void sendText(choice.label);
-                    }} />
-                  </View>
+                    }}>
+                    <Text style={styles.purposeChoiceText}>{choice.label}</Text>
+                  </Pressable>
                 ))}
               </View>
             ) : null}
@@ -655,8 +662,11 @@ function CoachTalk() {
 const styles = StyleSheet.create({
   continueTalk: { alignItems: 'center', paddingVertical: 12 },
   continueTalkText: { fontSize: 15, fontWeight: '700', color: palette.blueDeep },
-  purposeChoices: { flexDirection: 'column', alignItems: 'flex-start', gap: 6 },
-  purposeChoice: { alignSelf: 'flex-start', maxWidth: '100%' },
+  purposeChoices: { flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginBottom: 10 },
+  purposeChoice: { alignSelf: 'flex-start', maxWidth: '100%', borderRadius: 16, borderWidth: 1, borderColor: palette.blue, backgroundColor: palette.bg, paddingVertical: 7, paddingHorizontal: 13 },
+  purposeChoiceOn: { backgroundColor: palette.blueSoft },
+  purposeChoiceOff: { opacity: 0.5 },
+  purposeChoiceText: { fontSize: 13.5, fontWeight: '600', lineHeight: 19, color: palette.blueDeep },
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
 

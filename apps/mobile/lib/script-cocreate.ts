@@ -57,11 +57,11 @@ export type ReviseSampleScriptBody = {
   length_minutes?: number | null;
 };
 
-/** 감정 칩(서버의 고정 목록과 같다) + 「잘 모르겠어요」. */
-export const EMOTIONS = ['설렘', '분노', '슬픔', '긴장', '서운함', '담담함'] as const;
+/** 감정 칩(서버의 고정 목록과 같다) + 「잘 모르겠어요」. 보이는 순서는 pen P14.1(서운함부터). */
+export const EMOTIONS = ['서운함', '설렘', '분노', '슬픔', '긴장', '담담함'] as const;
 export const ANY_EMOTION = '잘 모르겠어요';
-/** 상황 칩 — 고르거나 직접 쓴다. 「아무거나 좋아요」면 서버가 고른다. */
-export const SITUATIONS = ['오래된 친구와 다툼', '연인과 이별', '가족에게 서운함', '오디션 직전', '오랜만의 재회'] as const;
+/** 상황 칩(pen P14.2) — 고르거나 직접 쓴다. 「아무거나 좋아요」면 서버가 고른다. 서버는 자유 글로 받는다. */
+export const SITUATIONS = ['오랜만의 재회', '이별', '오디션 직전', '가족 다툼', '고백', '사과'] as const;
 export const ANY_SITUATION = '아무거나 좋아요';
 /** 코칭은 혼자 찍으므로 독백이 기본이다. 2인은 상대역 대사가 있는 장면. */
 export const CAST_OPTIONS = [1, 2] as const;
