@@ -3,6 +3,7 @@ import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-spe
 import { useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 
+import { logEvent } from '@/lib/analytics';
 import { speechLocale } from '@/lib/i18n';
 import { READING_STT_IOS_CATEGORY } from '@/lib/reading/ios-audio';
 import { restorePlaybackAudio } from '@/lib/reading/ios-audio-restore';
@@ -68,6 +69,11 @@ export type SttHandle = {
   detachRecording: () => Promise<string | null>;
   /** 이 기기에서 인식기가 들은 소리를 파일로 남길 수 있는가(Android 13+·iOS). */
   canPersist: () => boolean;
+  /**
+   * 이번 듣기에서 인식기가 오류를 냈거나, 받아쓴 글 없이 끝났는가(start 마다 초기화). 참이면 글자 수 대조를 믿을 수 없으니
+   * 침묵만으로 넘긴다(SOMA-804).
+   */
+  failed: () => boolean;
 };
 
 /** 인식기 녹음 지원 여부. 안 되는 기기에서 persist 를 켜면 소리 없는 파일이 남는다. */
@@ -106,6 +112,10 @@ export function useReadingStt(): SttHandle {
     }, SPEECH_END_GRACE_MS);
   }, []);
   const recordings = useRef(createRecordingTracker()).current;
+  /** 이번 듣기에서 인식기가 오류를 냈는가 / 글 없이 끝났는가 / 계측을 이미 보냈는가. */
+  const errored = useRef(false);
+  const endedEmpty = useRef(false);
+  const emptyReported = useRef(false);
 
   const finishNow = useCallback((value: string) => {
     active.current = false;
@@ -155,15 +165,39 @@ export function useReadingStt(): SttHandle {
   });
   const ended = useCallback(() => {
     const unasked = active.current && !settle.current;
+    if ((active.current || settle.current) && !text.current.trim()) {
+      endedEmpty.current = true;
+      // 녹음은 했는데 받아쓴 글이 하나도 없는 차례 — 한 번만(오류로 이미 보냈으면 건너뛴다).
+      if (!emptyReported.current && !errored.current) {
+        emptyReported.current = true;
+        void logEvent('reading_stt_empty_turn', { platform: Platform.OS });
+      }
+    }
     if (active.current || settle.current) finishNow(text.current);
     if (unasked) callbacks.current?.onEnd?.();
   }, [finishNow]);
   useSpeechRecognitionEvent('end', ended);
-  useSpeechRecognitionEvent('error', ended);
+  useSpeechRecognitionEvent('error', (event) => {
+    // 오류 코드와 짧은 메시지만 보낸다 — 받아쓴 글은 보내지 않는다.
+    if (active.current || settle.current) {
+      errored.current = true;
+      emptyReported.current = true;
+      void logEvent('reading_stt_error', {
+        code: String(event?.error ?? 'unknown').slice(0, 40),
+        message: String(event?.message ?? '').slice(0, 120),
+        platform: Platform.OS,
+        had_text: !!text.current.trim(),
+      });
+    }
+    ended();
+  });
 
   const start = useCallback<SttHandle['start']>((next, options) => {
     text.current = '';
     pieces.current = EMPTY_TRANSCRIPT;
+    errored.current = false;
+    endedEmpty.current = false;
+    emptyReported.current = false;
     const persist = !!options?.persist && sttCanPersist();
     recordings.begin(persist);
     callbacks.current = next;
@@ -230,5 +264,7 @@ export function useReadingStt(): SttHandle {
 
   const canPersist = useCallback(() => sttCanPersist(), []);
 
-  return { start, finish, abort, takeRecordingUri, detachRecording, canPersist };
+  const failed = useCallback(() => errored.current || endedEmpty.current, []);
+
+  return { start, finish, abort, takeRecordingUri, detachRecording, canPersist, failed };
 }

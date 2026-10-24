@@ -837,6 +837,9 @@ export default function ReadingPlay() {
     setTurnNote(null);
     setTurnDone(false);
     let cancelled = false;
+    // 인식기가 스스로 멈춘 뒤에는 받아쓴 글이 더 늘지 않는다 — 90% 대조를 기다리면 줄이 멈추므로 침묵만으로 넘긴다.
+    let sttStopped = false;
+    const sttGaveUp = () => sttStopped || stt.failed() || !saidRef.current.trim();
     const onEvent = (event: VadEvent) => {
       if (cancelled) return;
       if (event === 'timeout') setTurnNote('silence');
@@ -849,7 +852,8 @@ export default function ReadingPlay() {
         // 받아쓰기가 켜져 있으면 대본 글자 수의 90% 이상 말한 뒤의 침묵만 넘긴다 — 대사 중간의 사이에 넘어가지 않게(SOMA-804).
         // 못 미치면 계속 듣는다. 다시 말하고 멈추면 또 잰다. 받아쓰기 없이 음량만 재는 녹음기는 글자를 몰라 예전처럼 넘긴다.
         // 묶인 차례(SOMA-806)는 묶음 줄 전체 글자로 잰다.
-        if (sttActive.current && !saidEnough(turnText, saidRef.current)) return;
+        // 인식기가 오류를 냈거나 글을 하나도 못 줬으면 90% 대조는 믿을 수 없다 — 예전처럼 침묵만으로 넘긴다.
+        if (sttActive.current && !sttGaveUp() && !saidEnough(turnText, saidRef.current)) return;
         if (holdRef.current) deferredRef.current = { kind: 'end_turn', from };
         else void endMyTurn(from);
       }
@@ -871,6 +875,12 @@ export default function ReadingPlay() {
             onInterim: (text) => {
               saidRef.current = text;
               setSaid(text);
+            },
+            // 인식기가 스스로 끝났거나 오류로 멈추면 음량·말 끝 이벤트도 끊긴다 — 침묵 감지를 마이크로 이어받는다.
+            onEnd: () => {
+              if (cancelled || turnClosing.current || recordingClosed.current) return;
+              sttStopped = true;
+              void mic.start(onEvent);
             },
           },
           { persist: !!session.record || (voiceFeedbackOn.current && !!pronunciationServerUrl()), locale: speechLocaleFor(lineLanguage(mine)) },
@@ -954,7 +964,7 @@ export default function ReadingPlay() {
     if (monoPosTimer.current) clearTimeout(monoPosTimer.current);
     const text = sttActive.current ? await stt.finish() : '';
     if (text) monoPiece.current = text;
-    await endTurnRecording(cur.lineIds[monoPieceAt.current], '');
+    await endTurnRecording(cur.lineIds[monoPieceAt.current], monoPiece.current);
     sttActive.current = false;
     setListening(false);
     const heard = monoHeard();
@@ -989,7 +999,7 @@ export default function ReadingPlay() {
       turnClosing.current = true;
       const text = sttActive.current ? await stt.finish() : '';
       if (text) monoPiece.current = text;
-      await endTurnRecording(runRef.current?.lineIds[monoPieceAt.current] ?? '', '');
+      await endTurnRecording(runRef.current?.lineIds[monoPieceAt.current] ?? '', monoPiece.current);
       monoDone.current = monoHeard();
       monoPiece.current = '';
       sttActive.current = false;

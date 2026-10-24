@@ -51,6 +51,7 @@ const mockStt = {
   detachRecording: jest.fn(),
   canPersist: jest.fn(),
   takeRecordingUri: jest.fn(),
+  failed: jest.fn(),
 };
 jest.mock('@/hooks/use-reading-mic', () => ({
   hasMicPermission: jest.fn(),
@@ -169,6 +170,7 @@ beforeEach(async () => {
   mockStt.finish.mockResolvedValue('');
   mockStt.detachRecording.mockResolvedValue('file:///turn.wav');
   mockStt.canPersist.mockReturnValue(true);
+  mockStt.failed.mockReturnValue(false);
   mockStt.takeRecordingUri.mockReturnValue(null);
   jest.mocked(enqueueLineRecording).mockResolvedValue({ kind: 'queued' });
   jest.mocked(pendingRecordingUploads).mockResolvedValue(0);
@@ -1651,10 +1653,59 @@ test('SOMA-597: 인식기가 스스로 끝나면 그 조각만 올리고 곧바�
   await waitFor(() => expect(mockStt.start).toHaveBeenCalledTimes(2));
   await waitFor(() => expect(enqueueLineRecording).toHaveBeenCalledTimes(1));
   expect(jest.mocked(enqueueLineRecording).mock.calls[0][0]).toEqual(
-    expect.objectContaining({ lineId: 'l1', uri: 'file:///turn.wav', transcript: null, transcriptSource: 'stt' }),
+    expect.objectContaining({ lineId: 'l1', uri: 'file:///turn.wav', transcript: '그래서 더 말하기 싫었어', transcriptSource: 'stt' }),
   );
   await act(async () => (recognizer as MonoListener).onInterim!('네가 그걸'));
   expect(screen.getByText('그래서 더 말하기 싫었어 네가 그걸')).toBeOnTheScreen();
+});
+
+test('받아쓰기가 오류나 빈 결과면 90% 대조 없이 침묵만으로 넘긴다(SOMA-804)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay();
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const listener = recognizer!;
+  // 글이 하나도 안 왔다 — 침묵이면 넘어간다
+  await act(async () => listener.onEvent('speech_end'));
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
+});
+
+test('인식기가 오류를 냈으면 글이 모자라도 침묵으로 넘기고, 인식기가 끝나면 마이크로 침묵을 이어 잰다(SOMA-804)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay();
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const listener = recognizer!;
+  await act(async () => listener.onInterim!('오늘'));
+  mockStt.failed.mockReturnValue(true);
+  await act(async () => listener.onEnd!());
+  await waitFor(() => expect(mockMic.start).toHaveBeenCalled());
+  await act(async () => mic!.onEvent('speech_end'));
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
+});
+
+test('인식기가 일부만 받아쓰고 스스로 멈추면 90% 대조 없이 마이크 침묵으로 넘긴다(SOMA-804)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay();
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const listener = recognizer!;
+  await act(async () => listener.onInterim!('오늘'));
+  // 오류는 없고 글도 조금 있다 — 인식기만 스스로 끝났다
+  await act(async () => listener.onEnd!());
+  await waitFor(() => expect(mockMic.start).toHaveBeenCalled());
+  await act(async () => mic!.onEvent('speech_end'));
+  await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
+});
+
+test('독백 끝내기는 받아쓴 글을 녹음 전사로 올린다(#853)', async () => {
+  await startMonologue();
+  mockStt.finish.mockResolvedValueOnce('그래서 더 말하기 싫었어 네가 그걸 아니까');
+  await fireEvent.press(screen.getByText('끝내기'));
+  await waitFor(() => expect(enqueueLineRecording).toHaveBeenCalledTimes(1));
+  expect(jest.mocked(enqueueLineRecording).mock.calls[0][0]).toEqual(
+    expect.objectContaining({ transcript: '그래서 더 말하기 싫었어 네가 그걸 아니까' }),
+  );
 });
 
 test('SOMA-597: 끝내기 — 끝난 뒤 문장별로 맞춰 빠뜨린 문장만 표시하고, 여기부터 다시는 그 문장부터 새 회차를 연다', async () => {
