@@ -7,7 +7,11 @@ import { api } from '@/lib/api';
 const mockRouter = { push: jest.fn(), back: jest.fn() };
 let mockParams: Record<string, string> = {};
 
-jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, Stack: { Screen: () => null } }));
+jest.mock('expo-router', () => ({
+  useRouter: () => mockRouter,
+  useLocalSearchParams: () => mockParams,
+  Stack: { Screen: ({ options }: { options: { headerRight?: () => unknown } }) => options.headerRight?.() ?? null },
+}));
 jest.mock('@/lib/api', () => ({
   api: {
     probeRecordingCoach: jest.fn(),
@@ -111,5 +115,15 @@ test('녹음 액티: 둘째 차례에 찍을 줄이 없으면 닫기만 둔다',
   startCoach.mockResolvedValue(coach({ status: 'answered', video_line: null }));
   await render(<ReadingCoachScreen />);
   await fireEvent.press(await screen.findByRole('button', { name: '닫기' }));
+  expect(mockRouter.back).toHaveBeenCalled();
+});
+
+test('녹음 액티: 오른쪽 위 「그만하기」는 아이콘 칸처럼 44 높이·좌우 10 을 두고 눌러 나간다(SOMA-837)', async () => {
+  mockParams = { sessionId: 's1' };
+  startCoach.mockResolvedValue(coach());
+  await render(<ReadingCoachScreen />);
+  const quit = await screen.findByRole('button', { name: '그만하기' });
+  expect(quit).toHaveStyle({ height: 44, paddingHorizontal: 10 });
+  await fireEvent.press(quit);
   expect(mockRouter.back).toHaveBeenCalled();
 });

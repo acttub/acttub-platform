@@ -80,7 +80,7 @@ export default function ReadingCoachScreen() {
         options={{
           title: t('readingCoach.title'),
           headerRight: () => (
-            <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" ph-label="reading_coach_quit">
+            <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" ph-label="reading_coach_quit" style={styles.quitButton}>
               <Text style={styles.quit}>{t('readingCoach.quit')}</Text>
             </Pressable>
           ),
@@ -170,6 +170,8 @@ export default function ReadingCoachScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   body: { paddingHorizontal: 24, paddingVertical: 20, gap: 14 },
+  // 글자 버튼도 아이콘 칸(NavIconButton)처럼 높이 44·좌우 10 을 둬 화면 끝에서 떨어뜨린다(SOMA-837).
+  quitButton: { height: 44, paddingHorizontal: 10, justifyContent: 'center' },
   quit: { color: palette.textMuted, fontSize: 15, fontWeight: '600' },
   waiting: { alignItems: 'center', gap: 12, paddingVertical: 48 },
   waitingText: { color: palette.textDim, fontSize: 15, lineHeight: 22, textAlign: 'center' },
