@@ -4,7 +4,7 @@ import { File, Paths } from 'expo-file-system';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
-import { AppState, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -107,6 +107,7 @@ import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
@@ -281,6 +282,7 @@ export default function ReadingPlay() {
   const scrollRef = useRef<ScrollView | null>(null);
   // 끝난 화면 — 「이번 리딩 어땠나요?」 한 줄 칸을 누르면 키보드 위로 올린다(10/26 폰: 키보드에 가렸다).
   const doneScrollRef = useRef<ScrollView | null>(null);
+  const keyboardHeight = useKeyboardHeight();
   const liftRatingInput = useCallback(() => {
     setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
   }, []);
@@ -1687,7 +1689,7 @@ export default function ReadingPlay() {
       const total = monoResult?.rows.length ?? 0;
       const statusLabel = { read: t('reading.monologueStatusRead'), missed: t('reading.monologueStatusMissed'), different: t('reading.monologueStatusDifferent') };
       return (
-        <KeyboardAvoidingView style={styles.root} behavior="padding">
+        <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
           <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
             <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.doneTitle}>{t(completed ? 'reading.monologueDoneTitle' : 'reading.notCountedTitle')}</Text>
@@ -1764,7 +1766,7 @@ export default function ReadingPlay() {
             {goHomeButton}
           </View>
           {dialog}
-        </KeyboardAvoidingView>
+        </View>
       );
     }
     const readCount = readDialogueCount(run.lines, run.startIndex, run.endIndex);
@@ -1772,7 +1774,7 @@ export default function ReadingPlay() {
     const compared = sttMode?.kind === 'stt';
     const textOf = (lineId: string) => run.lines[run.lineIds.indexOf(lineId)]?.text ?? '';
     return (
-      <KeyboardAvoidingView style={styles.root} behavior="padding">
+      <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
         <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
           <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.doneTitle}>{t(completed ? 'reading.completeTitle' : 'reading.notCountedTitle')}</Text>
@@ -1855,7 +1857,7 @@ export default function ReadingPlay() {
             {goHomeButton}
         </View>
         {dialog}
-      </KeyboardAvoidingView>
+      </View>
     );
   }
 
