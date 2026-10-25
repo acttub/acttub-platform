@@ -111,68 +111,72 @@ export default function LandingClient() {
   const faq = HOME_FAQ.map((q) => findFaq(q)).filter((item) => item !== undefined);
 
   return (
-    <div className="min-h-dvh break-keep bg-white text-[#191f28]">
+    // data-landing-snap: 데스크톱에서 휠을 내리면 구간마다 화면에 맞춰 멈춘다(globals.css 「랜딩 구간 맞춤」).
+    <div data-landing-snap className="min-h-dvh break-keep bg-white text-[#191f28]">
       <SiteHeader current="home" />
       <main>
-        <section id="hero" className="bg-gradient-to-b from-white to-[#f5f9ff]">
-          <div className="mx-auto flex max-w-[1200px] flex-col items-center gap-12 px-5 pb-0 pt-10 sm:px-8 lg:flex-row lg:gap-16 lg:pb-16 lg:pt-[72px]">
-            <div className="w-full flex-1">
-              <p className="inline-flex rounded-full bg-[#eaf3fe] px-3.5 py-2 text-sm font-bold text-[#3268d8] sm:text-[15px]">
-                혼자 연습하는 배우를 위한 AI 코치
-              </p>
-              <h1 className="mt-5 text-[34px] font-extrabold leading-[1.25] tracking-[-0.04em] sm:text-5xl lg:text-[60px] lg:leading-[1.22]">
-                내 연기를 같이 봐 줄<br className="hidden sm:block" /> 사람이 없을 때,{" "}
-                <span className="text-[#4880ee]">액터브</span>
-              </h1>
-              <p className="mt-5 text-base leading-[1.6] text-[#4e5968] sm:text-xl">
-                연기 영상을 올리면 코치가 장면을 보고 질문해요.
-                <br className="hidden sm:block" /> 대본을 넣으면 상대역 대사를 소리 내 읽어 줘요.
-              </p>
+        {/* 첫 화면과 아래 요약 줄을 한 구간으로 묶어 데스크톱에서 한 화면을 채운다. */}
+        <div data-snap className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
+          <section id="hero" className="bg-gradient-to-b from-white to-[#f5f9ff] lg:flex lg:flex-1 lg:items-center">
+            <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-5 pb-0 pt-10 sm:px-8 lg:flex-row lg:gap-16 lg:pb-16 lg:pt-[72px]">
+              <div className="w-full flex-1">
+                <p className="inline-flex rounded-full bg-[#eaf3fe] px-3.5 py-2 text-sm font-bold text-[#3268d8] sm:text-[15px]">
+                  혼자 연습하는 배우를 위한 AI 코치
+                </p>
+                <h1 className="mt-5 text-[34px] font-extrabold leading-[1.25] tracking-[-0.04em] sm:text-5xl lg:text-[60px] lg:leading-[1.22]">
+                  내 연기를 같이 봐 줄<br className="hidden sm:block" /> 사람이 없을 때,{" "}
+                  <span className="text-[#4880ee]">액터브</span>
+                </h1>
+                <p className="mt-5 text-base leading-[1.6] text-[#4e5968] sm:text-xl">
+                  연기 영상을 올리면 코치가 장면을 보고 질문해요.
+                  <br className="hidden sm:block" /> 대본을 넣으면 상대역 대사를 소리 내 읽어 줘요.
+                </p>
 
-              <a
-                href={appHref}
-                data-app-download="landing_hero"
-                className={`mt-7 flex h-14 w-full items-center justify-center rounded-[14px] bg-[#4880ee] text-[17px] font-bold text-white lg:hidden ${FOCUS}`}
-              >
-                앱 열기 · 무료로 설치
-              </a>
-
-              <div className="mt-9 hidden w-fit items-center gap-5 rounded-[22px] border border-[#edf0f3] bg-white p-[18px] pr-6 shadow-[0_6px_24px_rgba(72,128,238,0.08)] lg:flex">
-                <Qr size={112} />
-                <div>
-                  <p className="text-[17px] font-extrabold">휴대폰 카메라로 찍으면 설치 화면으로 가요</p>
-                  <p className="mt-1 text-sm text-[#6b7684]">iPhone · Android 무료</p>
-                  <StoreBadges surface="landing_hero" className="mt-3" />
-                </div>
-              </div>
-
-              <p className="mt-4 text-center text-[15px] font-semibold text-[#4e5968] lg:mt-5 lg:text-left lg:text-base">
-                {returningGuest ? "이 브라우저에서 하던 연습이 있어요 " : "설치 전에 "}
-                <Link
-                  href={returningGuest ? homeHref : practiceHref}
-                  className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}
+                <a
+                  href={appHref}
+                  data-app-download="landing_hero"
+                  className={`mt-7 flex h-14 w-full items-center justify-center rounded-[14px] bg-[#4880ee] text-[17px] font-bold text-white lg:hidden ${FOCUS}`}
                 >
-                  {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
-                </Link>
-              </p>
-            </div>
-            <div className="relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible">
-              <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" className="absolute left-0 top-0 z-10 w-[260px] lg:w-[300px]" />
-              <Phone
-                src="/site/shot-reading.jpg"
-                alt="앱의 대본 리딩 화면"
-                className="absolute left-[200px] top-[70px] hidden w-[240px] rotate-[4deg] lg:block"
-              />
-            </div>
-          </div>
-        </section>
+                  앱 열기 · 무료로 설치
+                </a>
 
-        <div className="border-b border-[#edf0f3]">
-          <ul className="mx-auto flex max-w-[1200px] flex-col items-center gap-2 px-5 py-6 text-[15px] font-semibold text-[#4e5968] sm:flex-row sm:justify-center sm:gap-14">
-            <li>코치가 <b className="text-[#191f28]">질문하며</b> 장면을 같이 봐요</li>
-            <li>상대역이 없어도 <b className="text-[#191f28]">대사가 오가요</b></li>
-            <li>매주 <b className="text-[#191f28]">공식 대사 챌린지</b></li>
-          </ul>
+                <div className="mt-9 hidden w-fit items-center gap-5 rounded-[22px] border border-[#edf0f3] bg-white p-[18px] pr-6 shadow-[0_6px_24px_rgba(72,128,238,0.08)] lg:flex">
+                  <Qr size={112} />
+                  <div>
+                    <p className="text-[17px] font-extrabold">휴대폰 카메라로 찍으면 설치 화면으로 가요</p>
+                    <p className="mt-1 text-sm text-[#6b7684]">iPhone · Android 무료</p>
+                    <StoreBadges surface="landing_hero" className="mt-3" />
+                  </div>
+                </div>
+
+                <p className="mt-4 text-center text-[15px] font-semibold text-[#4e5968] lg:mt-5 lg:text-left lg:text-base">
+                  {returningGuest ? "이 브라우저에서 하던 연습이 있어요 " : "설치 전에 "}
+                  <Link
+                    href={returningGuest ? homeHref : practiceHref}
+                    className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}
+                  >
+                    {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
+                  </Link>
+                </p>
+              </div>
+              <div className="relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible">
+                <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" className="absolute left-0 top-0 z-10 w-[260px] lg:w-[300px]" />
+                <Phone
+                  src="/site/shot-reading.jpg"
+                  alt="앱의 대본 리딩 화면"
+                  className="absolute left-[200px] top-[70px] hidden w-[240px] rotate-[4deg] lg:block"
+                />
+              </div>
+            </div>
+          </section>
+
+          <div className="border-b border-[#edf0f3]">
+            <ul className="mx-auto flex max-w-[1200px] flex-col items-center gap-2 px-5 py-6 text-[15px] font-semibold text-[#4e5968] sm:flex-row sm:justify-center sm:gap-14">
+              <li>코치가 <b className="text-[#191f28]">질문하며</b> 장면을 같이 봐요</li>
+              <li>상대역이 없어도 <b className="text-[#191f28]">대사가 오가요</b></li>
+              <li>매주 <b className="text-[#191f28]">공식 대사 챌린지</b></li>
+            </ul>
+          </div>
         </div>
 
         {features.map((f, i) => (
@@ -180,10 +184,11 @@ export default function LandingClient() {
             key={f.id}
             id={f.id}
             aria-labelledby={`${f.id}-title`}
-            className={`scroll-mt-20 ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
+            data-snap
+            className={`scroll-mt-20 lg:flex lg:min-h-[calc(100dvh-72px)] lg:items-center ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
           >
             <div
-              className={`mx-auto flex max-w-[1200px] flex-col items-center gap-10 px-5 py-16 sm:px-8 lg:gap-[90px] lg:py-24 ${i % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"}`}
+              className={`mx-auto flex w-full max-w-[1200px] flex-col items-center gap-10 px-5 py-16 sm:px-8 lg:gap-[90px] lg:py-24 ${i % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"}`}
             >
               <div className="w-full flex-1">
                 <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
@@ -224,7 +229,7 @@ export default function LandingClient() {
           </section>
         ))}
 
-        <section aria-labelledby="price-title" className="bg-[#f9fafb]">
+        <section data-snap aria-labelledby="price-title" className="bg-[#f9fafb]">
           <div className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
             <h2 id="price-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">
               무료로 시작하고, 더 하고 싶을 때 Pro
@@ -261,7 +266,7 @@ export default function LandingClient() {
           </div>
         </section>
 
-        <section aria-labelledby="faq-title" className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
+        <section data-snap aria-labelledby="faq-title" className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
           <div className="flex flex-col gap-8 lg:flex-row lg:gap-20">
             <div className="lg:w-[340px]">
               <h2 id="faq-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">자주 묻는 질문</h2>
@@ -290,7 +295,7 @@ export default function LandingClient() {
           </div>
         </section>
 
-        <section aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
+        <section data-snap aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
           <div className="mx-auto flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
             <div className="flex-1">
               <h2 id="band-title" className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.03em] sm:text-4xl">
@@ -309,7 +314,10 @@ export default function LandingClient() {
           </div>
         </section>
       </main>
-      <SiteFooter showBadges={false} />
+      {/* 맨 아래 바닥 정보까지 내려갈 수 있게 바닥은 끝에 맞춘다. */}
+      <div data-snap="end">
+        <SiteFooter showBadges={false} />
+      </div>
       <StickyDownloadBar heroId="hero" />
     </div>
   );

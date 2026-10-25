@@ -125,3 +125,22 @@ body {
     font-size: max(16px, 1em);
   }
 }
+
+/* 랜딩 구간 맞춤 — 공개 홈(/)의 데스크톱에서 휠을 내리면 다음 구간(코칭·리딩·챌린지·요금…)이
+   머리 바로 아래에 딱 맞게 멈춘다. 화면보다 긴 구간은 그 안에서 평소처럼 내려간다.
+   폰·낮은 창에서는 구간이 화면보다 길어 맞춤이 오히려 거슬리므로 켜지 않는다.
+   72px는 sm 이상 머리(SiteHeader) 높이다. */
+@media (min-width: 1024px) and (min-height: 640px) {
+  html:has([data-landing-snap]) {
+    scroll-snap-type: y mandatory;
+    scroll-padding-top: 72px;
+  }
+
+  [data-landing-snap] [data-snap] {
+    scroll-snap-align: start;
+  }
+
+  [data-landing-snap] [data-snap="end"] {
+    scroll-snap-align: end;
+  }
+}
