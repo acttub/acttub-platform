@@ -108,6 +108,8 @@ import { ReadingRating } from '@/components/reading-rating';
 import { api } from '@/lib/api';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
+import { exampleVoicesMatch, type ExampleAudio } from '@/lib/reading/example-audio';
+import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/reading/example-audio-runtime';
 import { newRequestId } from '@/lib/request-id';
 
 /**
@@ -143,6 +145,11 @@ type TurnNote = null | 'silence' | 'limit';
 type Notice = null | { kind: 'dropped'; count: number } | { kind: 'cloud_fallback' } | { kind: 'jump'; text: string };
 
 type Deferred = null | { kind: 'advance' | 'end_turn'; from: number };
+
+/** 예시 음성이 그 줄의 것인지 가르는 값 — 배역과 글이 고른 때와 같아야 한다. */
+function exampleLineSignature(line: ScriptLine | undefined): string {
+  return line?.type === 'dialogue' ? `${line.role}\n${line.text}` : '';
+}
 
 const MASKS: { key: MaskMode; label: string; desc: string }[] = [
   { key: 'none', label: t('reading.maskNone'), desc: t('reading.maskNoneDesc') },
@@ -235,6 +242,11 @@ export default function ReadingPlay() {
   const editResumes = useRef(false);
   const engineRef = useRef<PartnerVoiceEngine>('supertonic');
   const deviceVoiceRef = useRef(false);
+  /**
+   * 예시 대본의 미리 만든 음성(engine 'example'). text 는 고른 때의 줄(배역·글) — 리딩 중 줄을 고치면 음성과 글이 달라져
+   * 그 줄은 기기 목소리로 읽는다.
+   */
+  const exampleRef = useRef<{ audio: ExampleAudio; text: Map<string, string> } | null>(null);
   const tipHiddenRef = useRef(true);
   const cloudFallbackNoticed = useRef(false);
   const holdRef = useRef<'tip' | 'mask_sheet' | 'guide' | null>(null);
@@ -562,8 +574,10 @@ export default function ReadingPlay() {
       startRunning();
       return;
     }
-    const [cloudEnabled, cloudStatus, support, deviceVoice] = await Promise.all([
+    // 예시 대본인지는 서버가 안다(입력 경로 sample 은 짐작일 뿐) — 임시 주소라 시작할 때마다 새로 받는다.
+    const [cloudEnabled, cloudStatus, support, deviceVoice, example] = await Promise.all([
       loadCloudVoiceEnabled(), api.getCloudVoiceStatus().catch(() => null), readAppVoiceSupport(), hasDeviceVoice(),
+      script ? loadExampleAudio(script.id, { fresh: true }) : Promise.resolve(null),
     ]);
     if (!mounted.current) return;
     deviceVoiceRef.current = deviceVoice;
@@ -572,6 +586,29 @@ export default function ReadingPlay() {
       startRunning();
       await primeSpeech(runRef.current?.index ?? 0)?.first();
       return;
+    }
+    // 예시 대본이고 상대역 목소리를 바꾸지 않았으면 미리 만든 서버 음성으로 읽는다 — 모델을 받지도 묻지도 않는다.
+    // 음성이 없는 줄은 기기 목소리로 읽는다(모델로 가지 않는다). 목소리를 바꿨으면 아래 보통 길이다.
+    if (example && config) {
+      const partners: Record<string, string> = {};
+      const from = runRef.current?.index ?? config.startIndex;
+      const ahead: string[] = [];
+      for (let i = config.startIndex; i <= config.endIndex; i++) {
+        const l = config.lines[i];
+        if (l?.type !== 'dialogue' || config.myRoles.includes(l.role)) continue;
+        partners[l.role] = presetFor(l.role);
+        if (i >= from) ahead.push(config.lineIds[i]);
+      }
+      if (exampleVoicesMatch(example, partners)) {
+        exampleRef.current = {
+          audio: example,
+          text: new Map(config.lineIds.map((id, i) => [id, exampleLineSignature(config.lines[i])])),
+        };
+        chooseEngine('example');
+        void prefetchExampleLines(example, ahead, () => !mounted.current);
+        startRunning();
+        return;
+      }
     }
     if (support.unsupported) {
       chooseEngine(choosePartnerVoice({ cloud: false, appVoice: false, deviceVoice }));
@@ -631,7 +668,7 @@ export default function ReadingPlay() {
       const neededBytes = (e as { neededBytes?: unknown } | null)?.neededBytes;
       setPhase({ kind: 'voice_failed', failure: { kind, neededBytes: typeof neededBytes === 'number' ? neededBytes : undefined } });
     }
-  }, [confirm, hasPartnerLines, primeSpeech, startRunning, chooseEngine]);
+  }, [confirm, hasPartnerLines, primeSpeech, startRunning, chooseEngine, script, config, presetFor]);
 
   useEffect(() => {
     mounted.current = true;
@@ -744,6 +781,33 @@ export default function ReadingPlay() {
       try {
         if (engine === 'text_only') {
           setLineEngine('text_only'); // 글로 보기 — 버튼으로 넘긴다
+          return;
+        }
+        if (engine === 'example') {
+          // 예시 음성은 줄마다 하나다 — 묶인 대사는 줄마다 차례로 튼다. 음성이 없거나 받지 못했거나 리딩 중 고친 줄은 기기 목소리.
+          const example = exampleRef.current;
+          for (let i = span.start; i <= span.end; i++) {
+            const l = current.lines[i] as DialogueLine;
+            const id = current.lineIds[i];
+            const usable = !!example && example.audio.lines.has(id) && example.text.get(id) === exampleLineSignature(l);
+            const uri = usable ? await exampleLineUri(example!.audio, id).catch(() => null) : null;
+            if (cancelled || !mounted.current) return;
+            if (uri) {
+              setLineEngine('example');
+              await tts.play(uri);
+              continue;
+            }
+            if (!deviceVoiceRef.current) {
+              setLineEngine('text_only');
+              return;
+            }
+            setLineEngine('device_voice');
+            for (const part of speechParts(l)) {
+              if (cancelled || !mounted.current) return;
+              await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
+            }
+          }
+          finish();
           return;
         }
         for (const { text, lang } of parts) {

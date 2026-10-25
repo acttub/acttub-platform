@@ -8,6 +8,7 @@ import { resetReadingState } from '@/lib/reading/store';
 import { assetsPresent } from '@/lib/reading/tts/assets';
 import * as engine from '@/lib/reading/tts/engine';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
+import { exampleLineUri, loadExampleAudio } from '@/lib/reading/example-audio-runtime';
 import { endTutorial, startTutorial } from '@/lib/tutorial';
 
 import { openFixtureScript, scriptDetail, TWO_ROLE_LINES } from './fixtures';
@@ -31,6 +32,7 @@ jest.mock('@/lib/reading/tts/engine', () => ({
 }));
 jest.mock('@/lib/reading/tts/assets', () => ({ activeVariant: () => 'fp32', assetsPresent: jest.fn() }));
 jest.mock('@/lib/reading/voice-samples', () => ({ cloudVoiceSampleUri: jest.fn() }));
+jest.mock('@/lib/reading/example-audio-runtime', () => ({ loadExampleAudio: jest.fn(), exampleLineUri: jest.fn() }));
 
 let appStateListeners: ((state: string) => void)[] = [];
 
@@ -50,6 +52,8 @@ beforeEach(async () => {
   jest.mocked(engine.preview).mockResolvedValue(undefined);
   jest.mocked(engine.play).mockResolvedValue(undefined);
   jest.mocked(assetsPresent).mockReturnValue(true);
+  jest.mocked(loadExampleAudio).mockResolvedValue(null);
+  jest.mocked(exampleLineUri).mockImplementation(async (_audio, lineId) => `file:///example-${lineId}.mp3`);
 });
 
 async function show(detail = scriptDetail(TWO_ROLE_LINES)) {
@@ -267,4 +271,46 @@ test('목소리 칩을 다시 누르면 고르지 않고 펼친 칸이 접힌다
   await fireEvent.press(screen.getByText('남성 · 밝은 청년'));
   expect(screen.queryByText(/^추천 목소리/)).not.toBeOnTheScreen();
   expect(screen.getByText('남성 · 밝은 청년')).toBeOnTheScreen();
+});
+
+// ── 예시 대본(example-audio) ──────────────────────────────────────────────
+const SAMPLE = () => scriptDetail(TWO_ROLE_LINES, { source: 'sample' });
+const EXAMPLE = {
+  exampleId: 'rooftop',
+  voices: { 민재: 'M1', 서연: 'F1' },
+  lines: new Map([['l4', { url: 'https://cdn.test/l4.mp3', durationMs: 1000 }], ['l5', { url: 'https://cdn.test/l5.mp3', durationMs: 1000 }]]),
+};
+
+test('예시에서 온 대본(sample)은 목소리 모델을 미리 받지 않는다', async () => {
+  await show(SAMPLE());
+
+  expect(screen.getByText('남성 · 밝은 청년')).toBeOnTheScreen();
+  expect(engine.prefetchIfWifi).not.toHaveBeenCalled();
+});
+
+test('예시 대본이고 모델이 없으면 예시 목소리 그대로인 배역은 그 배역의 첫 대사 음성으로 미리 듣는다', async () => {
+  jest.mocked(engine.isReady).mockReturnValue(false);
+  jest.mocked(assetsPresent).mockReturnValue(false);
+  jest.mocked(loadExampleAudio).mockResolvedValue(EXAMPLE);
+  await show(SAMPLE());
+
+  await fireEvent.press(previewButtons()[0]);
+  // 민재의 대사는 l2·l5 — 음성이 있는 첫 줄은 l5.
+  await waitFor(() => expect(engine.play).toHaveBeenCalledWith('file:///example-l5.mp3'));
+  expect(exampleLineUri).toHaveBeenCalledWith(EXAMPLE, 'l5');
+  expect(engine.ensureReady).not.toHaveBeenCalled();
+  expect(screen.queryByText('음성 엔진이 준비되지 않았어요')).not.toBeOnTheScreen();
+});
+
+test('예시 대본이어도 예시 목소리와 다른 목소리를 고르면 미리 듣기 대신 알리고 모델을 받지 않는다', async () => {
+  jest.mocked(engine.isReady).mockReturnValue(false);
+  jest.mocked(assetsPresent).mockReturnValue(false);
+  jest.mocked(loadExampleAudio).mockResolvedValue(EXAMPLE);
+  await show(SAMPLE());
+
+  await fireEvent.press(screen.getByText('남성 · 밝은 청년'));
+  await fireEvent.press(screen.getByText('부드러운 청년'));
+  expect(await screen.findByText('음성 엔진이 준비되지 않았어요')).toBeOnTheScreen();
+  expect(engine.play).not.toHaveBeenCalled();
+  expect(engine.ensureReady).not.toHaveBeenCalled();
 });

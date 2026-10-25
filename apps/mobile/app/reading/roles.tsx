@@ -17,6 +17,7 @@ import { getCurrent, updateScriptMeta } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
 import { activeVariant, assetsPresent } from '@/lib/reading/tts/assets';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
+import { exampleLineUri, loadExampleAudio } from '@/lib/reading/example-audio-runtime';
 import { autoVoiceOf, isKnownPreset, shownVoices, voiceChanges, voiceLabel, voiceName, type VoicePreset } from '@/lib/reading/voices';
 import type { ScriptCharacter } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
@@ -60,14 +61,16 @@ export default function ReadingRoles() {
   const tutorialGuide = useTutorialSpotlight('readingRoles', { ready: !!script });
 
   // Wi-Fi 면 상대역 목소리를 미리 받아 둔다 — 실행 화면에서 기다리지 않게. 화면을 막지 않고 실패도 알리지 않는다.
+  // 예시에서 온 대본(sample)은 미리 만든 음성으로 읽을 수 있어 받지 않는다(example-audio). 서버 답을 기다리면 받기와 엇갈려 입력 경로로 정한다.
+  const fromSample = script?.source === 'sample';
   useEffect(() => {
-    void engine.prefetchIfWifi();
+    if (!fromSample) void engine.prefetchIfWifi();
     const run = previewRun;
     return () => {
       run.current += 1;
       engine.stop();
     };
-  }, []);
+  }, [fromSample]);
 
   // 앱을 내리면 미리 듣기를 멈춘다 — 리딩처럼 화면 밖에서는 소리를 내지 않는다(SOMA-670).
   useEffect(() => {
@@ -113,8 +116,14 @@ export default function ReadingRoles() {
         const uri = await cloudVoiceSampleUri(preset);
         if (current()) await engine.play(uri);
       } else if (!engine.isReady() && !assetsPresent(activeVariant(), 'M1')) {
-        // 모델이 없으면 미리 듣기 대신 안내한다 — 내려받기 확인은 연습 시작 때 받는다.
-        void alert({ title: t('reading.voicePreview'), message: t('reading.voiceNotReady') });
+        // 모델이 없으면 미리 듣기 대신 안내한다 — 내려받기 확인은 연습 시작 때 받는다. 예시 대본이고 예시 목소리 그대로면
+        // 그 배역의 첫 대사 음성을 들려준다.
+        const uri = fromSample ? await exampleSampleUri(characterId, preset) : null;
+        if (uri) {
+          if (current()) await engine.play(uri);
+        } else if (current()) {
+          void alert({ title: t('reading.voicePreview'), message: t('reading.voiceNotReady') });
+        }
       } else {
         await engine.ensureReady(() => {});
         if (current()) await engine.preview(preset);
@@ -124,6 +133,16 @@ export default function ReadingRoles() {
     } finally {
       if (current()) setPreviewing(null);
     }
+  };
+
+  /** 예시 음성으로 미리 듣기 — 그 배역의 예시 목소리와 같은 프리셋일 때 첫 대사 음성 파일. 아니면 null. */
+  const exampleSampleUri = async (characterId: string, preset: VoicePreset): Promise<string | null> => {
+    const name = characters.find((c) => c.id === characterId)?.name;
+    const audio = await loadExampleAudio(script.id);
+    if (!audio || !name || audio.voices[name] !== preset) return null;
+    const index = script.lines.findIndex((l, i) => l.type === 'dialogue' && l.role === name && audio.lines.has(script.lineIds[i]));
+    if (index < 0) return null;
+    return exampleLineUri(audio, script.lineIds[index]).catch(() => null);
   };
 
   const togglePreview = (characterId: string) => {

@@ -359,3 +359,10 @@ test('pen R8.5: 끝 대사를 시작보다 앞에서 누르면 두 대사를 뒤
   await fireEvent.press(screen.getByText('전체 선택'));
   expect(startButton(5)).toBeOnTheScreen();
 });
+
+test('예시에서 온 대본(sample)은 목소리 모델을 미리 받지 않는다 — 미리 만든 음성으로 읽는다', async () => {
+  await show({ ...TWO_SCENES, source: 'sample' });
+
+  expect(screen.getByText('누구로, 어디를 연습할까요?')).toBeOnTheScreen();
+  expect(engine.prefetchIfWifi).not.toHaveBeenCalled();
+});
