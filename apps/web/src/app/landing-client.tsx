@@ -9,6 +9,7 @@ import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
+import { useSectionPaging } from "@/features/site/section-paging";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
@@ -72,6 +73,7 @@ export default function LandingClient() {
   // 다시 온 사람이 새 소개 화면을 못 봤다. 대신 첫 화면 링크를 「이어서 연습하기」로 바꿔 준다.
   // 서버 렌더에서는 게스트가 없다고 보고, 브라우저에서 저장소를 읽어 바꾼다.
   const returningGuest = useSyncExternalStore(subscribeAuthChange, hasGuestSession, () => false);
+  useSectionPaging();
 
   const features: Feature[] = [
     {
@@ -111,7 +113,7 @@ export default function LandingClient() {
   const faq = HOME_FAQ.map((q) => findFaq(q)).filter((item) => item !== undefined);
 
   return (
-    // data-landing-snap: 데스크톱에서 휠을 내리면 구간마다 화면에 맞춰 멈춘다(globals.css 「랜딩 구간 맞춤」).
+    // data-landing-snap·data-snap: 데스크톱에서 한 번 내리면 다음 구간까지 부드럽게 넘어간다(useSectionPaging).
     <div data-landing-snap className="min-h-dvh break-keep bg-white text-[#191f28]">
       <SiteHeader current="home" />
       <main>
