@@ -25,8 +25,11 @@ export function firstTimeStateFrom(input: {
   groups: Parameters<typeof isFirstUser>[0]['groups'];
   scripts: Parameters<typeof isFirstUser>[0]['scripts'];
   practicedDays: number;
+  /** 이 기기에서 리딩·코칭을 끝까지 해 본 계정(first-use-graduation). */
+  graduated?: boolean;
 }): FirstTimeState {
   if (!input.loaded) return 'unknown';
+  if (input.graduated) return 'practiced';
   if (!isFirstUser(input)) return 'practiced';
   return input.groupsFailed ? 'unknown' : 'first';
 }
