@@ -22,7 +22,8 @@ const mockFocusEffect = () => mockFocusEffects.forEach((effect) => effect());
 const mockAuth = {
   user: { id: 'u1' } as { id: string } | null,
   consentEntry: { status: 'allowed' },
-  profile: { me: null as null | { profile: { experience: string; birth_date: string | null } } },
+  // 홈은 프로필 게이트를 지난 뒤(내 계정을 읽은 뒤)에만 그려진다 — 계정 id 는 늘 있다.
+  profile: { me: { id: 'u1' } as { id: string; profile?: { experience: string; birth_date: string | null } } },
 };
 
 jest.mock('expo-router', () => {
@@ -186,7 +187,8 @@ beforeEach(() => {
   endTutorial();
   mockAuth.user = { id: 'u1' };
   mockAuth.consentEntry = { status: 'allowed' };
-  mockAuth.profile = { me: null };
+  mockAuth.profile = { me: { id: 'u1' } };
+  (jest.requireMock('@/lib/practice/first-use-graduation').hasGraduatedFirstUse as jest.Mock).mockImplementation(async () => false);
   listPracticeGroups.mockResolvedValue({ groups: [] });
   listReadingScripts.mockResolvedValue({ scripts: [] });
   (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [] });
@@ -241,7 +243,7 @@ describe('첫 사용자', () => {
 
   test('이 기기에서 리딩·코칭을 끝까지 해 본 계정은 서버 기록이 비어도 기본 홈이다(SOMA-827)', async () => {
     const { hasGraduatedFirstUse } = jest.requireMock('@/lib/practice/first-use-graduation');
-    hasGraduatedFirstUse.mockResolvedValueOnce(true);
+    hasGraduatedFirstUse.mockImplementation(async (id: string) => id === 'u1');
     listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
     await render(<HomeScreen />);
 
@@ -488,7 +490,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
 
   test('만 19세 이하 입시생은 연기 입시 구역만 보고, 누르면 입시 일정으로 간다', async () => {
     practiced();
-    mockAuth.profile = { me: { profile: { experience: 'exam_prep', birth_date: `${new Date().getFullYear() - 18}-01-01` } } };
+    mockAuth.profile = { me: { id: 'u1', profile: { experience: 'exam_prep', birth_date: `${new Date().getFullYear() - 18}-01-01` } } };
     await render(<HomeScreen />);
     expect(await screen.findByText('연기 입시')).toBeOnTheScreen();
     await waitFor(() => expect(screen.getByText('한국예술종합학교')).toBeOnTheScreen());
