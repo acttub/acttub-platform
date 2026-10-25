@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type Ref } from 'react';
-import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -38,6 +38,7 @@ import { HomeUploadCard } from '@/components/home-upload-card';
 import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
+import { markHomeReady } from '@/lib/launch-splash';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
@@ -289,6 +290,10 @@ export default function HomeScreen() {
   }, [activityLoaded, streak]);
 
   const loaded = groupsLoaded && scripts !== null && activityLoaded;
+  // 첫 데이터를 다 받으면 앱을 켤 때 붙잡아 둔 로고를 닫게 한다.
+  useEffect(() => {
+    if (loaded) markHomeReady();
+  }, [loaded]);
   // 첫 사용자 화면(뭐부터 해 볼까요?)과 탭바 숨김은 같은 판단 하나다(lib/practice/first-time) — 묶음·대본·연습한 날이 모두 없는 사람.
   // 묶음을 못 받았으면 첫 사용자로 보지 않는다 — 시작한 사람에게 첫 화면을 보이는 쪽이 더 이상하다.
   const firstTime = firstTimeStateFrom({
@@ -535,9 +540,8 @@ export default function HomeScreen() {
         />
       )}
       {!loaded ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        // 앱을 켤 때는 로고가 이 자리를 덮고 있다(lib/launch-splash.ts). 로딩 표시는 두지 않는다.
+        <View style={styles.loading} />
       ) : firstUser ? (
         // 첫 사용자 홈(pen P1.12 「뭐부터 해 볼까요?」) — 액티 말풍선 아래에서 하나를 고르면(회색 → 옅은 파랑) 아래 「다음」으로 그 탭에 들어간다.
         // 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
