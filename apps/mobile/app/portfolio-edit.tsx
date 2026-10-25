@@ -45,6 +45,7 @@ import {
   type PortfolioCredit,
 } from '@/lib/portfolio';
 import { pickAndUploadPortfolioPhoto } from '@/lib/profile-photo-upload';
+import { SkeletonDetail } from '@/components/ui/skeleton';
 
 /** 편집 중인 경력. id 가 null 이면 새 경력이다. */
 type Editing = { id: string | null; draft: CreditDraft; errors: CreditDraftErrors };
@@ -113,16 +114,18 @@ export default function PortfolioEditScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <Stack.Screen options={{ title: t('portfolio.title') }} />
+        {loadError ? (
         <View style={styles.center}>
-          {loadError ? (
             <>
               <Text style={styles.error}>{loadError}</Text>
               <Pressable style={styles.linkBtn} onPress={() => void load()} accessibilityRole="button">
                 <Text style={styles.linkText}>{t('portfolio.reload')}</Text>
               </Pressable>
             </>
-          ) : null}
         </View>
+        ) : (
+          <SkeletonDetail lines={5} />
+        )}
       </SafeAreaView>
     );
   }

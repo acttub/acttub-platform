@@ -32,6 +32,7 @@ import {
   type QuestionId,
 } from '@/lib/practice/journal';
 import { clearPractice, getPractice } from '@/lib/practice/session-state';
+import { SkeletonDetail } from '@/components/ui/skeleton';
 
 type Phase = 'loading' | 'questions' | 'making' | 'view' | 'error';
 
@@ -197,7 +198,8 @@ export default function JournalScreen() {
       <Stack.Screen options={{ headerShown: false, gestureEnabled: phase !== 'making' }} />
       <NavHeader title={t('journal.title')} left={<NavBackButton onPress={back} phLabel="journal_back" />} right={headerRight} />
 
-      {(phase === 'loading' || phase === 'making') && (
+      {phase === 'loading' && <SkeletonDetail lines={5} />}
+      {phase === 'making' && (
         <View style={styles.center}>
           {phase === 'making' && <Text style={styles.loadingText}>{t('journal.making')}</Text>}
         </View>

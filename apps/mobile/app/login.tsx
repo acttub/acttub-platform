@@ -21,6 +21,7 @@ import {
   type LoginProvider,
 } from '@/lib/login-flow';
 import { supportedProviders } from '@/lib/provider-sdk';
+import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 
 // 애플 로고는 SF Symbols의 공식 심볼(apple.logo)을 쓴다. 네이티브 모듈이 없는 옛 dev client에서도
 // 화면이 뜨도록 가드해서 로드하고, 없으면 시스템 폰트의 애플 글리프로 대체한다.
@@ -218,7 +219,12 @@ export default function LoginScreen() {
           </View>
         )}
 
-        {list.status === 'loading' ? null : list.status === 'error' ? (
+        {list.status === 'loading' ? (
+          <SkeletonGroup style={styles.wideStack}>
+            <SkeletonBlock height={56} radius={16} />
+            <SkeletonBlock height={56} radius={16} />
+          </SkeletonGroup>
+        ) : list.status === 'error' ? (
           <View style={styles.reloadBox}>
             <Text style={styles.error}>{t('login.providersFail')}</Text>
             {/* pen S3.2 — 빨간 한 줄 아래 파란 글자 링크(간격 4). */}

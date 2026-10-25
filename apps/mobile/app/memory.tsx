@@ -13,6 +13,7 @@ import {
 } from '@/lib/practice/memory';
 import { palette } from '@/constants/palette';
 import { translate } from '@/lib/i18n';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * 코치가 나에 대해 기억하는 것 — 배우가 보고 고치는 화면.
@@ -158,7 +159,7 @@ export default function MemoryScreen() {
       </Text>
 
       {loading ? (
-        <View style={styles.center} />
+        <SkeletonRows count={3} avatar={false} />
       ) : (
         <KeyboardAwareScroll contentContainerStyle={styles.list}>
           {!hasAny && (

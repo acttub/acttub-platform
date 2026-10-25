@@ -20,6 +20,7 @@ import { translate as t } from '@/lib/i18n';
 import type { GestureResponderEvent } from 'react-native';
 
 import { pt } from '@/components/ui/anchored-menu';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * 대본 상세(R4.1~R4.8, reading.session). 제목·대사 수·「대본 보기」·연습 기록(최근순, 줄마다 회차·구간·배역·상태)·[연습하기].
@@ -135,7 +136,9 @@ export default function ReadingDetail() {
 
         <Text style={styles.sectionTitle}>{t('reading.sessionsTitle')}</Text>
 
-        {sessions === null ? null : sessions.length === 0 ? (
+        {sessions === null ? (
+          <SkeletonRows count={3} />
+        ) : sessions.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="mic" size={24} color={palette.textFaint} />
             <Text style={styles.emptyTitle}>{t('reading.noSessions')}</Text>

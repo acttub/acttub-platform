@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -224,6 +225,7 @@ export default function ChallengeDetailScreen() {
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>
+        {!challenge && !error && <SkeletonDetail media lines={3} style={{ paddingHorizontal: 0 }} />}
         {error && <Text style={styles.error}>{error}</Text>}
 
         {challenge && (
@@ -275,6 +277,7 @@ export default function ChallengeDetailScreen() {
               </View>
             </View>
 
+            {entries === null && <SkeletonRows count={3} avatar card={false} style={{ paddingHorizontal: 0 }} />}
             {entries?.map((entry) => (
               <Pressable
                 key={entry.id}

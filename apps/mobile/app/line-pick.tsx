@@ -13,6 +13,7 @@ import { browseFailure, browseFailureMessage, canPerform, dDayLabel } from '@/li
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * C9.16 대사 고르기 — 올릴 대사가 정해지지 않은 영상(대사 없이 찍었거나 갤러리에서 고른 영상)을 어느 챌린지에 올릴지 정한다.
@@ -118,6 +119,7 @@ export default function LinePickScreen() {
             </Pressable>
           ))}
         </View>
+        {list === null && !error && <SkeletonRows count={4} avatar={false} card={false} style={{ paddingHorizontal: 0 }} />}
         {error && <Text style={styles.meta}>{error}</Text>}
         {list?.length === 0 && !error && <Text style={styles.meta}>{t('linePick.empty')}</Text>}
         {list?.map((challenge) => {

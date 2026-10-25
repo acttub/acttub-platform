@@ -13,6 +13,7 @@ import { translate as t, translateList } from '@/lib/i18n';
 import { DIRECTION_VALUES, EXPERIENCE_VALUES, GOAL_VALUES } from '@/lib/profile-form';
 import { DIRECTION_LABEL_KEYS, GENDER_LABEL_KEYS, type ProfileEditField } from '@/lib/profile-labels';
 import { pickAndUploadProfilePhoto, removeProfilePhoto } from '@/lib/profile-photo-upload';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * S6 프로필 편집(pen mGCmI, SOMA-748) — 인스타그램식. 사진 수정 + 항목 줄(이름 · 값), 줄을 누르면 그 항목만 고치는 화면
@@ -60,16 +61,18 @@ export default function ProfileEditScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <Stack.Screen options={{ title: t('profileName.editTitle') }} />
+        {profile.status === 'error' ? (
         <View style={styles.center}>
-          {profile.status === 'error' ? (
             <>
               <Text style={styles.error}>{t('profileName.loadFail')}</Text>
               <Pressable style={styles.reload} onPress={() => void reloadProfile()} accessibilityRole="button">
                 <Text style={styles.reloadText}>{t('profileName.reload')}</Text>
               </Pressable>
             </>
-          ) : null}
         </View>
+        ) : (
+          <SkeletonRows count={5} avatar={false} card={false} />
+        )}
       </SafeAreaView>
     );
   }

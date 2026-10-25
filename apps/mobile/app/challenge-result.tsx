@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
@@ -71,6 +72,7 @@ export default function ChallengeResultScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: t('challengeResult.title') }} />
       <ScrollView contentContainerStyle={styles.content}>
+        {!challenge && !error && <SkeletonDetail lines={3} style={{ paddingHorizontal: 0 }} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         {challenge && (
@@ -84,6 +86,7 @@ export default function ChallengeResultScreen() {
 
             <Text style={[styles.section, styles.sectionDim]}>{t('challengeResult.picked', { count: picked?.length ?? 0 })}</Text>
             {!!notice && ranksHidden(challenge) && <Text style={styles.notice}>{notice}</Text>}
+            {picked === null && <SkeletonRows count={2} avatar card={false} style={{ paddingHorizontal: 0 }} />}
             {picked?.length === 0 && !ranksHidden(challenge) && <Text style={styles.muted}>{t('challengeResult.noPicked')}</Text>}
             {picked?.map((entry) => (
               <Pressable

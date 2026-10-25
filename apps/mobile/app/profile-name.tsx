@@ -54,6 +54,7 @@ import {
   type ProfileFormState,
 } from '@/lib/profile-form';
 import { readAttributedChannel, recordSignupCompleted } from '@/lib/signup-attribution-runtime';
+import { SkeletonDetail } from '@/components/ui/skeleton';
 
 
 type Screen = 'intro' | OnboardingStep | 'blocked';
@@ -199,15 +200,17 @@ export default function ProfileNameScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
+        {profile.status === 'error' ? (
         <View style={styles.center}>
-          {profile.status === 'error' ? (
             <>
               <Text style={styles.loadError}>{t('profileName.loadFail')}</Text>
               {/* pen S5.2 — 빨간 한 줄 아래 파란 글자 링크. */}
               <TextButton tone="accent" label={t('profileName.reload')} onPress={() => void reloadProfile()} />
             </>
-          ) : null}
         </View>
+        ) : (
+          <SkeletonDetail lines={2} />
+        )}
       </SafeAreaView>
     );
   }

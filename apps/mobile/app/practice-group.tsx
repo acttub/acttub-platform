@@ -29,6 +29,7 @@ import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
 import { TARGET } from '@/lib/spotlight-targets';
 import type { CoachConversation, PracticeGroupDetail } from '@/lib/practice/types';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /** 처음 한 번 비추는 자리 — 「다음 테이크 찍기」 버튼. */
 const CONTINUE_STEPS: SpotlightStep[] = [{ target: TARGET.groupContinue, text: 'guide.spotContinue' }];
@@ -293,7 +294,7 @@ export default function PracticeGroupScreen() {
             ) : null,
         }}
       />
-      {loading && <View style={styles.center} />}
+      {loading && <SkeletonRows count={4} avatar={false} />}
       {error && <Text style={styles.error}>{error}</Text>}
       {group && (
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>

@@ -6,6 +6,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -393,8 +394,7 @@ export default function ReadingList() {
             />
           </View>
           {loading && !list && (
-            <View style={styles.loading}>
-            </View>
+            <SkeletonRows count={6} avatar card={false} />
           )}
           <View style={styles.list}>
             {scripts.map((s) => {

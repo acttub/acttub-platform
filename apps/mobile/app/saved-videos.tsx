@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
+import { SkeletonCards } from '@/components/ui/skeleton';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { avatarLetter, browseFailure, browseFailureMessage } from '@/lib/challenge/browse';
@@ -95,6 +96,7 @@ export default function SavedVideosScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.hint}>{t(tab === 'mine' ? 'savedVideos.hintMine' : 'savedVideos.hintSaved')}</Text>
         {!!error && <Text style={styles.empty}>{error}</Text>}
+        {items === null && !error && <SkeletonCards count={4} columns={2} aspectRatio={0.78} style={{ paddingHorizontal: 0 }} />}
         {items !== null && items.length === 0 && !error ? (
           <Text style={styles.empty}>{t('savedVideos.empty')}</Text>
         ) : (

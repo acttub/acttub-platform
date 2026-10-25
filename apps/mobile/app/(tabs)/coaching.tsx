@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScriptCocreateEntry } from '@/components/script-cocreate-entry';
+import { SkeletonDetail } from '@/components/ui/skeleton';
 import { TalkEntryButton } from '@/components/talk-entry-button';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
@@ -122,8 +123,7 @@ export default function CoachingTab() {
         }
       />
       {!entry ? (
-        <View style={styles.center}>
-        </View>
+        <SkeletonDetail media lines={5} />
       ) : entry.kind === 'first' ? (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstBody}>

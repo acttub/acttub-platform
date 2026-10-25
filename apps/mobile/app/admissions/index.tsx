@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import {
@@ -73,8 +74,7 @@ export default function AdmissionsScreen() {
       />
 
       {!payload && !error && (
-        <View style={styles.center}>
-        </View>
+        <SkeletonRows count={6} />
       )}
       {error && <Text style={styles.error}>{error}</Text>}
 

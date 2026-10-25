@@ -15,6 +15,7 @@ import {
   setNotificationToggle,
   type NotificationSettings,
 } from '@/lib/notifications';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /** 알림 토글 셋. 순서대로 그린다. */
 const TOGGLE_ICON: Record<string, 'star' | 'award' | 'moon' | 'bell'> = {
@@ -86,7 +87,7 @@ export default function NotificationSettingsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('settings.notifications')} left={<NavBackButton onPress={() => router.back()} />} />
       {loading ? (
-        <View style={styles.center} />
+        <SkeletonRows count={5} avatar={false} />
       ) : loadError ? (
         <View style={styles.center}>
           <Text style={styles.loadError}>{loadError}</Text>

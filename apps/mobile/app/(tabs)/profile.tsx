@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DefaultAvatar } from '@/components/ui/default-avatar';
+import { SkeletonCards } from '@/components/ui/skeleton';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
@@ -305,7 +306,7 @@ function CardGrid({
   /** 참여작·저장됨(pen S14.4·S14.5) — 썸네일 152 아래에 제목·하트 줄. 아니면 연습 기록처럼 썸네일 위에 글을 얹는다. */
   below?: boolean;
 }) {
-  if (loading) return <View style={styles.loading} />; // SOMA-828: 로딩 표시 없음
+  if (loading) return <SkeletonCards count={3} columns={3} aspectRatio={0.8} style={{ paddingHorizontal: 0 }} />;
   if (cards.length === 0) return <Text style={styles.empty}>{empty}</Text>;
   const rows: (Card | null)[][] = [];
   for (let i = 0; i < cards.length; i += PER_ROW) {

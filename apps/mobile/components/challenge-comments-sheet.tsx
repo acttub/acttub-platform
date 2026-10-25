@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
 import { avatarLetter } from '@/lib/challenge/browse';
@@ -135,6 +136,7 @@ export function ChallengeCommentsSheet({
           <Text style={styles.title}>{t('comments.title', { count: comments?.length ?? 0 })}</Text>
         </View>
         <View style={styles.divider} />
+          {comments === null && !error && <SkeletonRows count={4} card={false} />}
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <FlatList

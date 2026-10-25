@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChallengeIntro } from '@/components/challenge-intro';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { BandGradient } from '@/components/ui/band-gradient';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -282,6 +283,7 @@ export default function ChallengesScreen() {
         </View>
 
         {error && <Text style={styles.error}>{error}</Text>}
+        {challenges === null && !error && <SkeletonRows count={4} avatar={false} style={{ paddingHorizontal: 0 }} />}
 
         {challenges?.map((challenge) => (
           <Card

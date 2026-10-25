@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { SkeletonDetail } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import {
@@ -63,8 +64,7 @@ export default function UniversityDetailScreen() {
       />
 
       {!payload && !error && (
-        <View style={styles.center}>
-        </View>
+        <SkeletonDetail lines={6} />
       )}
       {error && <Text style={styles.error}>{error}</Text>}
       {payload && !university && <Text style={styles.error}>해당 대학을 찾을 수 없어요.</Text>}

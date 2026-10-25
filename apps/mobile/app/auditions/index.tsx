@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StatusScreen } from '@/components/ui/status-screen';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -126,8 +127,7 @@ export default function AuditionsScreen() {
       )}
 
       {!payload && !error && (
-        <View style={styles.center}>
-        </View>
+        <SkeletonRows count={5} />
       )}
       {!payload && error && (
         <StatusScreen
