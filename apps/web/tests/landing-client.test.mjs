@@ -122,19 +122,14 @@ test("게스트라도 ?intro=1 로 일부러 들어오면 랜딩을 그대로 �
   assert.deepEqual(navigation.pushed, []);
 });
 
-test("화면에 들어온 구역은 한 번 보이면 보인 채로 남는다", () => {
+test("게스트라도 머리 메뉴의 소개 링크(#coaching)로 들어오면 그 자리를 보여 준다", () => {
+  setTokens({ access_token: "guest-access", refresh_token: "guest-refresh" });
+  window.history.replaceState(null, "", "/#coaching");
+
   render(react.createElement(LandingClient));
-  const sections = [...window.document.querySelectorAll("[data-reveal]")];
-  const first = sections[0];
 
-  intersect(first, false);
-  assert.equal(first.dataset.visible, undefined);
-
-  intersect(first, true);
-  assert.equal(first.dataset.visible, "true");
-
-  intersect(first, false);
-  assert.equal(first.dataset.visible, "true");
+  assert.deepEqual(navigation.pushed, []);
+  window.history.replaceState(null, "", "/");
 });
 
 test("첫 화면이 헤더 밑으로 들어가면 아래 고정 다운로드 바가 나타난다", () => {

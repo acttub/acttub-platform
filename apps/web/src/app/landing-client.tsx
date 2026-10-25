@@ -9,7 +9,7 @@ import { useAppDownloadHref } from "@/features/app-download/app-download-button"
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
-import { findFaq } from "@/features/help/help-content";
+import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession } from "@/lib/auth/token-store";
@@ -74,26 +74,11 @@ export default function LandingClient() {
   useEffect(() => {
     // 이미 이 브라우저에서 연습하던 게스트는 홈을 건너뛰고 연습으로 보낸다.
     // 연습 화면 로고처럼 ?intro=1 로 일부러 들어온 경우만 홈을 그대로 보여 준다.
-    if (hasGuestSession() && !wantsLandingIntro(window.location.search)) {
+    // 머리 메뉴의 소개 링크(/#coaching 등)로 들어온 경우도 그 자리를 보여 준다.
+    if (hasGuestSession() && !wantsLandingIntro(window.location.search) && !window.location.hash) {
       router.replace(preserveWebAttributionFromSearch("/home", window.location.search));
     }
   }, [router]);
-
-  useEffect(() => {
-    const screens = document.querySelectorAll<HTMLElement>("[data-reveal]");
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          (entry.target as HTMLElement).dataset.visible = "true";
-          observer.unobserve(entry.target);
-        });
-      },
-      { threshold: 0.22 },
-    );
-    screens.forEach((screen) => observer.observe(screen));
-    return () => observer.disconnect();
-  }, []);
 
   const features: Feature[] = [
     {
@@ -198,7 +183,6 @@ export default function LandingClient() {
           <section
             key={f.id}
             id={f.id}
-            data-reveal
             aria-labelledby={`${f.id}-title`}
             className={`scroll-mt-20 ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
           >
@@ -250,10 +234,12 @@ export default function LandingClient() {
               무료로 시작하고, 더 하고 싶을 때 Pro
             </h2>
             <p className="mt-3 text-base text-[#4e5968] sm:text-[17px]">무료와 Pro는 같은 코치를 써요. 차이는 횟수와 보관 개수예요.</p>
+            <p className="mt-2 text-sm text-[#8a4b00]">{PAYMENT_START_NOTICE}</p>
             <div className="mt-8 grid gap-4 md:grid-cols-2 md:gap-5">
               <div className="rounded-3xl border border-[#e5e8eb] bg-white p-6 sm:p-[30px]">
                 <h3 className="text-lg font-extrabold">무료</h3>
                 <p className="mt-2 text-[34px] font-extrabold tracking-[-0.03em]">0원</p>
+                <p className="text-[13.5px] text-[#6b7684]">출시 후 무료 이용 범위 · 지금은 한도를 적용하지 않아요</p>
                 <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
                   <li className="py-2.5">코칭 하루 1회</li>
                   <li className="py-2.5">리딩 대본 1개 보관</li>

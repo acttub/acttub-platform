@@ -79,6 +79,9 @@ export function HelpCenter() {
                 </button>
               ))}
             </div>
+            <p aria-live="polite" className="sr-only">
+              {items.length === 0 ? "찾는 질문이 없어요" : `질문 ${items.length}개`}
+            </p>
             {items.length === 0 ? (
               <p className="mt-8 rounded-2xl bg-[#f9fafb] p-5 text-[15px] leading-6 text-[#4e5968]">
                 찾는 질문이 없어요.{" "}

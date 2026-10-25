@@ -29,16 +29,17 @@ test("robots는 공개 페이지를 허용하고 API 경로를 제외한다", ()
   });
 });
 
-test("sitemap은 공개 페이지, 입시 목록·대학 상세, 가이드를 순서대로 반환한다", () => {
+test("sitemap은 공개 페이지(고객센터 포함), 입시 목록·대학 상세, 가이드를 순서대로 반환한다", () => {
   const latestGuideDate = GUIDES.reduce(
     (latest, guide) => guide.updatedAt > latest ? guide.updatedAt : latest,
     GUIDES[0].updatedAt,
   );
   const entries = sitemap();
 
-  assert.deepEqual(entries.slice(0, 4), [
+  assert.deepEqual(entries.slice(0, 5), [
     { url: "https://acttub.com/" },
     { url: "https://acttub.com/app" },
+    { url: "https://acttub.com/help" },
     // 본문을 손보면 updatedAt이 바뀌므로 날짜를 박지 않고 본문에서 읽는다.
     {
       url: "https://acttub.com/ai-acting-coaching",

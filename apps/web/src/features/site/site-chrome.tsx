@@ -15,9 +15,9 @@ import { BusinessInfo } from "@/features/business-info/business-info";
  * 웹은 앱 탭을 옮기지 않는다 — 소개(코칭·리딩·챌린지), 요금, 고객센터, 계정, 앱 받기만 둔다.
  */
 export const SITE_NAV = [
-  { href: "/#coaching", label: "연기 코칭" },
-  { href: "/#reading", label: "대본 리딩" },
-  { href: "/#challenge", label: "챌린지" },
+  { href: "/?intro=1#coaching", label: "연기 코칭" },
+  { href: "/?intro=1#reading", label: "대본 리딩" },
+  { href: "/?intro=1#challenge", label: "챌린지" },
   { href: "/pricing", label: "요금" },
 ] as const;
 
@@ -33,7 +33,7 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
   return (
     <header className="sticky top-0 z-30 border-b border-[#edf0f3] bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-10 px-5 sm:h-[72px] sm:px-8">
-        <Link href="/" aria-label="ACTTUB 홈" className={`shrink-0 rounded ${FOCUS}`}>
+        <Link href="/?intro=1" aria-label="ACTTUB 홈" className={`shrink-0 rounded ${FOCUS}`}>
           <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto sm:h-7" />
         </Link>
         <nav aria-label="주요 메뉴" className="hidden items-center gap-7 text-[15px] font-semibold text-[#4e5968] lg:flex">
@@ -108,9 +108,9 @@ const FOOTER_GROUPS = [
   {
     title: "서비스",
     links: [
-      { href: "/#coaching", label: "연기 코칭" },
-      { href: "/#reading", label: "대본 리딩" },
-      { href: "/#challenge", label: "챌린지" },
+      { href: "/?intro=1#coaching", label: "연기 코칭" },
+      { href: "/?intro=1#reading", label: "대본 리딩" },
+      { href: "/?intro=1#challenge", label: "챌린지" },
       { href: "/admissions", label: "입시·오디션 정보" },
     ],
   },

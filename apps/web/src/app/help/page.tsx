@@ -1,7 +1,7 @@
 import { HelpCenter } from "@/features/help/help-center";
-import { buildNoindexMetadata } from "@/lib/seo/site-metadata";
+import { buildHelpMetadata } from "@/lib/seo/site-metadata";
 
-export const metadata = buildNoindexMetadata("고객센터");
+export const metadata = buildHelpMetadata();
 
 export default function HelpPage() {
   return <HelpCenter />;

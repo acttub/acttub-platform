@@ -148,6 +148,15 @@ export function buildAppDownloadMetadata(siteUrl?: string): Metadata {
   );
 }
 
+// 고객센터는 "액터브 환불", "액터브 탈퇴"처럼 이름과 함께 찾는 사람이 닿아야 한다.
+const HELP_TITLE = "고객센터 — 공지·자주 묻는 질문·문의하기";
+const HELP_DESCRIPTION =
+  "액터브(ACTTUB) 공지와 자주 묻는 질문이에요. 로그인, 결제·해지·환불, 코칭·리딩·챌린지 이용, 계정 삭제 방법을 확인하고, 로그인하지 않아도 문의를 남길 수 있어요.";
+
+export function buildHelpMetadata(siteUrl?: string): Metadata {
+  return buildPageMetadata({ path: "/help", title: HELP_TITLE, description: HELP_DESCRIPTION }, siteUrl);
+}
+
 export function buildNoindexMetadata(title?: string): Metadata {
   return {
     ...(title ? { title } : {}),
