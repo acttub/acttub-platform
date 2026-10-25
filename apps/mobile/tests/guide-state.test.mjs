@@ -62,14 +62,12 @@ test('로그인한 계정마다 따로 기억한다 — 같은 폰의 다른 계
   assert.equal(await guide.hasSeenSpotlight('home'), false);
 });
 
-test('예전 기기 공용 기록은 업데이트 뒤 처음 묻는 계정이 한 번 이어받고 지운다', async () => {
+test('예전 기기 공용 기록은 이어받지 않는다 — 계정마다 처음엔 한 번 본다', async () => {
   storage.values.set('acttub.spotlight.home.seen', '1');
   setFirstUseOwner('u1');
-  assert.equal(await guide.hasSeenSpotlight('home'), true);
-  assert.equal(storage.values.get('acttub.spotlight.home.seen.u1'), '1');
-  assert.equal(storage.values.has('acttub.spotlight.home.seen'), false);
-  setFirstUseOwner('u2');
   assert.equal(await guide.hasSeenSpotlight('home'), false);
+  setFirstUseOwner(null);
+  assert.equal(await guide.hasSeenSpotlight('home'), true);
 });
 
 test('가이드 다시 보기는 지금 계정의 기록도 지운다', async () => {

@@ -49,28 +49,16 @@ async function mark(key: string): Promise<void> {
 
 /**
  * 화면 가이드는 계정별로 기억한다(10/25). 예전엔 기기 하나에 한 값이라 같은 폰에서 계정을 바꾸면 새 계정도 「봤음」이었다.
- * 계정을 모르면 예전처럼 기기 값을 쓴다. 예전 기기 값은 업데이트 뒤 처음 묻는 계정이 한 번 이어받고 지운다 —
- * 한 계정만 쓰던 사람에게 이미 본 가이드가 다시 뜨지 않게.
+ * 계정을 모르면 예전처럼 기기 값을 쓴다. 예전 기기 값은 누구 것인지 몰라 이어받지 않는다 — 처음엔 이어받게 했더니
+ * 업데이트 뒤 처음 들어온 새 계정이 앞 계정의 「봤음」을 가져가 첫 연습 안내를 못 봤다(폰 확인). 1.0.0 안내는 새 내용이라
+ * 기존 사용자도 계정마다 한 번 보는 게 맞다.
  */
 function ownedSpotlightKey(topic: SpotlightTopic, owner: string | null): string {
   return owner ? `${spotlightKey(topic)}.${owner}` : spotlightKey(topic);
 }
 
-export async function hasSeenSpotlight(topic: SpotlightTopic): Promise<boolean> {
-  const owner = currentFirstUseOwner();
-  if (!owner) return seen(spotlightKey(topic));
-  try {
-    const store = storage();
-    if ((await store.getItem(ownedSpotlightKey(topic, owner))) === '1') return true;
-    if ((await store.getItem(spotlightKey(topic))) === '1') {
-      await store.setItem(ownedSpotlightKey(topic, owner), '1');
-      await store.removeItem(spotlightKey(topic));
-      return true;
-    }
-    return false;
-  } catch {
-    return true; // 못 읽으면 본 것으로 — 매번 뜨는 쪽이 더 나쁘다
-  }
+export function hasSeenSpotlight(topic: SpotlightTopic): Promise<boolean> {
+  return seen(ownedSpotlightKey(topic, currentFirstUseOwner()));
 }
 
 export function markSpotlightSeen(topic: SpotlightTopic): Promise<void> {
