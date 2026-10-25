@@ -389,13 +389,37 @@ describe('첫 챌린지 전(C1.16·C1.18)', () => {
     expect(await screen.findByText('같은 대사를 다른 배우는 어떻게 하는지 확인해 봐요.')).toBeOnTheScreen();
     expect(screen.queryByText('“나는 아직 여기 있어”')).not.toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
-    await fireEvent.press(screen.getByRole('radio', { name: '다른 작품 보기' }));
-    expect(screen.getByRole('radio', { name: '다른 작품 보기' })).toBeSelected();
-    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-others', params: { id: 'today' } });
     await fireEvent.press(screen.getByRole('radio', { name: '나도 이 대사 연기하기' }));
+    expect(screen.getByRole('radio', { name: '나도 이 대사 연기하기' })).toBeSelected();
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: '/record-video' }));
+  });
+
+  test('「챌린지 둘러보기」를 고르고 「다음」을 누르면 기본 챌린지 홈으로 바뀌고 다시 와도 그대로다(SOMA-827)', async () => {
+    await AsyncStorage.removeItem('acttub.challenge.firstEntryDone');
+    await AsyncStorage.removeItem('acttub.challenge.browsed');
+    listChallenges.mockResolvedValue(page([card()], { featured: today() }));
+    await render(<ChallengesScreen />);
+    await screen.findByText('같은 대사를 다른 배우는 어떻게 하는지 확인해 봐요.');
+    expect(screen.queryByRole('radio', { name: '다른 작품 보기' })).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('radio', { name: '챌린지 둘러보기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+
+    expect(await screen.findByText('“나는 아직 여기 있어”')).toBeOnTheScreen();
+    expect(screen.queryByRole('radio', { name: '챌린지 둘러보기' })).not.toBeOnTheScreen();
+    expect(mockRouter.push).not.toHaveBeenCalledWith(expect.objectContaining({ pathname: '/challenge-others' }));
+    expect(await AsyncStorage.getItem('acttub.challenge.browsed')).toBe('1');
+
+    await AsyncStorage.removeItem('acttub.challenge.browsed');
+  });
+
+  test('한 번 둘러본 기기는 다음에 와도 첫 챌린지 고르기 대신 기본 챌린지 홈이다', async () => {
+    await AsyncStorage.removeItem('acttub.challenge.firstEntryDone');
+    await AsyncStorage.setItem('acttub.challenge.browsed', '1');
+    await render(<ChallengesScreen />);
+    expect(await screen.findByText('“나는 아직 여기 있어”')).toBeOnTheScreen();
+    expect(screen.queryByRole('radio', { name: '챌린지 둘러보기' })).not.toBeOnTheScreen();
+    await AsyncStorage.removeItem('acttub.challenge.browsed');
   });
 });
 

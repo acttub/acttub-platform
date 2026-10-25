@@ -209,13 +209,16 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     expect(mockRouter.back).not.toHaveBeenCalled();
   });
 
-  test('유입 경로는 하나 누르면 바로 저장한다(「기타」만 적고 「완료」, SOMA-827)', async () => {
+  test('유입 경로는 마지막 질문이라 하나 고르고 「완료」를 눌러야 저장한다(SOMA-827 후속)', async () => {
     await start();
     await answerToDirections();
     await fireEvent.press(next());
 
-    expect(screen.queryByRole('button', { name: '완료' })).not.toBeOnTheScreen();
+    expect(done()).toBeDisabled();
     await fireEvent.press(radio('인스타그램'));
+    expect(radio('인스타그램')).toBeSelected();
+    expect(saveProfile).not.toHaveBeenCalled();
+    await fireEvent.press(done());
 
     expect(saveProfile).toHaveBeenCalledWith(PAYLOAD);
     expect(recordDiscovery).toHaveBeenCalledWith({ source: 'instagram', detail: null, other_text: null });

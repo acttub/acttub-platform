@@ -615,7 +615,7 @@ const en: DeepStringShape<typeof ko> = {
     sameLineTitle: 'Same line, different acting',
     sameLineMeta: 'This week’s line · {{dday}} · {{count}} joined',
     firstSub: 'See how other actors play the same line.',
-    firstSeeOthers: 'See other works',
+    firstBrowse: 'Browse challenges',
     firstNext: 'Next',
     performCta: 'Perform this line',
     performCta2: 'Perform this line',
