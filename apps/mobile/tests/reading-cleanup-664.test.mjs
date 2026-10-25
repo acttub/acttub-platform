@@ -60,10 +60,9 @@ test('기기 목소리는 만든 직후, 내 녹음은 올리기 전에 음량�
   assert.match(read('lib/reading/recording-runner.ts'), /normalizeRecordingFile\(/);
 });
 
-test('대본 탭 위에 고품질 목소리 켜기 줄이 있고 설정에서는 빠졌다', () => {
+test('대본 탭 위에 고품질 목소리 안내 줄이 있고 설정에서는 빠졌다', () => {
   const tab = read('app/(tabs)/reading.tsx');
   assert.match(tab, /useCloudVoice\(\)/);
-  assert.match(tab, /cloudVoice\.consentSheet/);
   assert.match(tab, /cloudVoice\.bannerLabel/);
   assert.doesNotMatch(read('app/settings.tsx'), /useCloudVoice|cloudVoice\.settingsTitle/);
 });

@@ -214,7 +214,6 @@ test('미리 듣기를 못 하면 준비되지 않았다고 알린다', async ()
 });
 
 test('고품질 목소리를 쓰는 중이면 앱에 넣은 샘플로 미리 듣는다', async () => {
-  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
   jest.mocked(cloudVoiceSampleUri).mockResolvedValue('file:///voice-preview-f1.m4a');
   await show();

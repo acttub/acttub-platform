@@ -24,7 +24,6 @@ jest.mock('expo-image', () => ({
 type CloudState = {
   status: { available: boolean; consent: 'granted' | 'denied' | 'unknown' } | null;
   statusFailed: boolean;
-  enabled: boolean;
   enable: jest.Mock;
   consentSheet: React.ReactNode;
 };
@@ -74,7 +73,6 @@ beforeEach(async () => {
   mockCloud = {
     status: { available: true, consent: 'unknown' },
     statusFailed: false,
-    enabled: false,
     enable: jest.fn(async () => true),
     consentSheet: null,
   };
@@ -277,9 +275,8 @@ describe('cloud_voice_off 포스터', () => {
     expect(screen.queryByText('고품질 목소리 출시')).not.toBeOnTheScreen();
   });
 
-  test('이미 켠(켬 + 동의) 사람에게는 띄우지 않는다', async () => {
+  test('이미 동의한 사람에게는 띄우지 않는다', async () => {
     mockCloud.status = { available: true, consent: 'granted' };
-    mockCloud.enabled = true;
     getPosters.mockResolvedValue({ posters: [promo, poster()] });
 
     await render(<AnnouncementPoster loggedIn />);
@@ -300,17 +297,13 @@ describe('cloud_voice_off 포스터', () => {
       ['poster_cta', { slug: 'cloud-voice-launch', revision: 1 }],
     ]);
     expect(mockCloud.enable).not.toHaveBeenCalled();
-    await waitFor(() => expect(mockCloud.enable.mock.calls).toEqual([['promo']]));
+    await waitFor(() => expect(mockCloud.enable.mock.calls).toEqual([[]]));
   });
 
   test('떠 있는 사이 고품질 목소리를 켜면 포스터를 닫는다', async () => {
     getPosters.mockResolvedValue({ posters: [promo] });
     const view = await render(<AnnouncementPoster loggedIn />);
     expect(await screen.findByText('고품질 목소리 출시')).toBeOnTheScreen();
-
-    mockCloud = { ...mockCloud, enabled: true };
-    await view.rerender(<AnnouncementPoster loggedIn />);
-    expect(screen.getByText('고품질 목소리 출시')).toBeOnTheScreen();
 
     mockCloud = { ...mockCloud, status: { available: true, consent: 'granted' } };
     await view.rerender(<AnnouncementPoster loggedIn />);

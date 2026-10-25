@@ -934,8 +934,6 @@ const ko = {
   },
   voiceFeedback: {
     settingsSection: '실험 기능',
-    settingsTitle: '발음 피드백 (실험)',
-    settingsBody: '리딩이 끝나면 대본과 다르게 들린 어구를 짚어 줘요. 받아쓴 글로만 비교해요.',
     doneTitle: '발음 피드백',
     doneNote: '실험 기능 · 받아쓴 내 대사 {{n}}줄 중 {{k}}줄에 다르게 들린 곳',
     lineNo: '{{n}}번 대사',
@@ -946,9 +944,6 @@ const ko = {
     pending: '소리 분석 중…',
   },
   cloudVoice: {
-    settingsTitle: '고품질 목소리',
-    settingsBody: '상대 대사를 더 자연스러운 AI 목소리로 읽어요 · {{date}}까지 무료',
-    readingSection: '대본 리딩',
     bannerLabel: '고품질 AI 목소리로 리딩해요',
     bannerFree: '{{date}}까지 무료',
     freePill: 'Free',
