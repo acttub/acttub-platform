@@ -10,6 +10,7 @@ import { palette } from '@/constants/palette';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
+import { leavingSavesSettled } from '@/lib/reading/progress-queue';
 import { CHIP_TONE, relativeDay } from '@/lib/reading/script-cards';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { sessionCardMeta, sessionChip } from '@/lib/reading/session-cards';
@@ -42,9 +43,16 @@ export default function ReadingDetail() {
     if (!mounted.current) return;
     setScript(s ? { ...s } : null);
     if (!s) return;
+    const settling = leavingSavesSettled();
     const list = await listSessions(s.id).catch(() => []);
     if (!mounted.current) return;
     setSessions(list);
+    // 리딩에서 바로 나왔으면 마지막 위치 저장(또는 [시작] 전 회차 지우기)이 아직 가는 중일 수 있다 — 다 가면 한 번 더 불러온다.
+    if (!settling) return;
+    await settling;
+    if (!mounted.current) return;
+    const fresh = await listSessions(s.id).catch(() => null);
+    if (fresh && mounted.current) setSessions(fresh);
   }, []);
 
   useFocusEffect(

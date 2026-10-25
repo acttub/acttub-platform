@@ -1912,6 +1912,7 @@ const ko = {
     liveMasked: '대사 가림',
     liveChannel: '리딩 진행',
     resume: '이어서',
+    stopHere: '그만하기',
     completeTitle: '리딩 완료',
     notCountedTitle: '연습으로 세지 않았어요',
     notCountedBody: '알아들은 대사가 없어서 이번 리딩은 완료로 남기지 않았어요. 대사를 소리 내어 읽으면 완료로 세요.',

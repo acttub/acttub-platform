@@ -159,6 +159,19 @@ export function pause(run: RunState): RunState {
   return { ...run, status: 'paused', resumeTo: run.status };
 }
 
+/**
+ * 멈춘 채 「그만하기」 — 여기까지를 이번 회차로 끝낸다. 구간 끝(endIndex)을 마지막으로 지나간 줄로 당긴다. 지금 차례에
+ * 말한 것이 남아 있으면 그 차례까지 읽은 것으로 친다. 아무 줄도 못 지났으면 endIndex 는 startIndex - 1 이 된다(읽은 대사 0).
+ */
+export function stopRun(run: RunState): RunState {
+  if (run.status === 'done') return run;
+  const span = turnSpan(run);
+  const spoke = run.lineIds.slice(span.start, span.end + 1).some((id) => run.said[id] !== undefined);
+  const lastRead = spoke ? span.end : run.index - 1;
+  const end = Math.max(run.startIndex - 1, Math.min(run.endIndex, lastRead));
+  return { ...run, endIndex: end, index: end + 1, status: 'done', resumeTo: null, leadInUntil: null };
+}
+
 /** 재개 — 그 줄을 처음부터 다시 한다(호출자가 상대 읽기·마이크를 다시 연다). */
 export function resume(run: RunState): RunState {
   if (run.status !== 'paused') return run;

@@ -33,7 +33,7 @@ import { speakableText } from '@/lib/reading/tts/speakable';
 import { isKoreanLine, lineLanguage, speechLocaleFor, speechParts } from '@/lib/reading/line-language';
 import type { LineDraft } from '@/lib/reading/line-edit';
 import type { DialogueLine, ScriptLine } from '@/lib/reading/types';
-import { closeProgressQueue, openProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
+import { closeProgressQueue, openProgressQueue, trackLeavingSave, type ProgressQueue } from '@/lib/reading/progress-queue';
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
@@ -62,6 +62,7 @@ import {
   resume as resumeRun,
   resumeRun as resumeAt,
   shownText,
+  stopRun,
   tickElapsed,
   turnSpan,
   type LineAid,
@@ -207,6 +208,12 @@ export default function ReadingPlay() {
   /** 이 화면이 연 회차(다시 연습으로 현재 회차가 바뀌어도 이 화면 것만 지운다)와, 이미 지웠는지. */
   const ownSession = useRef(session).current;
   const discardedRef = useRef(false);
+  /** 「나가기」를 눌렀다 — 화면을 떠나도 진행 저장 큐를 버리지 않고 마저 보낸다. */
+  const leavingRef = useRef(false);
+  /** 멈춘 채 「그만하기」로 끝냈다 — 끝까지 간 게 아니므로 「끝까지 갔다」 표시를 남기지 않는다. */
+  const stoppedEarlyRef = useRef(false);
+  /** 「그만하기」를 지나간 대사 없이 눌렀다 — 받아쓰기를 못 쓰는 기기여도 완료로 세지 않는다. */
+  const stopUncountedRef = useRef(false);
   const [engine, setEngine] = useState<PartnerVoiceEngine>('supertonic');
   /** 지금 상대 줄을 실제로 내는 방식(서버 음성을 못 받은 줄은 engine 과 다르다). */
   const [lineEngine, setLineEngine] = useState<PartnerVoiceEngine | null>(null);
@@ -336,7 +343,8 @@ export default function ReadingPlay() {
     queueRef.current = queue;
     return () => {
       // 완료 저장이 아직 닿지 않았으면(끊김) 화면을 떠나도 몇 분 더 보내 결과가 회차 상세에 남는다. 앱을 끄면 잃는다.
-      closeProgressQueue(session.id, queue, { keepSending: runRef.current?.status === 'done' });
+      // 「나가기」로 떠날 때도 마지막 위치를 화면 밖에서 마저 보낸다 — 나가기는 저장을 기다리지 않고 바로 넘어간다.
+      closeProgressQueue(session.id, queue, { keepSending: runRef.current?.status === 'done' || leavingRef.current });
       live = false;
       queueRef.current = null;
     };
@@ -477,7 +485,7 @@ export default function ReadingPlay() {
     if (next.status === 'done') {
       // 인식된 대사 없이 끝까지 넘기기만 했으면 완료로 보내지 않는다 — 회차는 열린 채 남고 별점도 묻지 않는다(SOMA-773).
       // 음성 인식을 못 쓰는 기기(typing)는 끝까지 가면 완료다.
-      const completed = readingRunCompleted({
+      const completed = !stopUncountedRef.current && readingRunCompleted({
         reachedEnd: true,
         said: next.said,
         priorRecognized: sessionHasRecognized(session),
@@ -486,7 +494,7 @@ export default function ReadingPlay() {
       if (completed) queueRef.current?.push(progressPayload(next));
       // 서버는 열어 둔 회차를 마지막 직전(9/10)에 두므로, 끝까지 갔다는 표시를 이 기기에 남겨 홈이 10/10 으로 보이게 한다.
       if (completed) void clearReachedEnd(session.id);
-      else void markReachedEnd(session.id);
+      else if (!stoppedEarlyRef.current) void markReachedEnd(session.id);
       setPhase({ kind: 'done' });
       if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
       return;
@@ -1214,46 +1222,92 @@ export default function ReadingPlay() {
   const discardIfUnstarted = useCallback(async () => {
     if (!ownSession || !shouldDiscard()) return;
     discardedRef.current = true;
-    await Promise.race([deleteSession(ownSession.id).catch(() => undefined), new Promise((r) => setTimeout(r, 3000))]);
+    // 지우기는 기다리지 않는다 — 회차 상세가 다 끝난 뒤 목록을 다시 불러온다(trackLeavingSave).
+    trackLeavingSave(deleteSession(ownSession.id));
   }, [ownSession, shouldDiscard]);
 
   // 버튼이 아닌 길(안드로이드 뒤로 가기·스와이프)로 [시작] 전에 내려가도 회차를 남기지 않는다.
   useEffect(() => navigation.addListener('beforeRemove', () => void discardIfUnstarted()), [navigation, discardIfUnstarted]);
 
   // 새 연습(R8)은 실행 화면으로 바뀌어 있어 replace 하면 상세가 하나 더 쌓인다 — 이미 있는 상세까지 내려간다.
-  const exitToDetail = () =>
-    void discardIfUnstarted().then(() => router.dismissTo('/reading/detail'));
+  const exitToDetail = () => {
+    void discardIfUnstarted();
+    router.dismissTo('/reading/detail');
+  };
 
   // 「나가기」·뒤로 가기는 확인 없이 바로 저장하고 나간다(SOMA-821: 「리딩을 멈출까요?」 시트를 없앴다 — 읽은 데까지는 늘 저장되고,
   // [시작] 전이면 leaveReading 이 회차를 지운다. 저장 안 함 갈래는 그대로다).
   const [exiting, setExiting] = useState(false);
-  const onExit = () => void leaveReading();
-  const leaveReading = async () => {
-    setExiting(true);
+  const onExit = () => leaveReading();
+  // 저장은 기다리지 않는다 — 큐에 넣고 바로 넘어가면 화면을 떠난 뒤에도 마저 보낸다(leavingRef). 예전에는 저장이 닿을 때까지
+  // 최대 3초를 아무 표시 없이 기다려 버퍼링처럼 보였다.
+  const leaveReading = () => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
     const cur = runRef.current;
     if (cur && cur.status !== 'done') {
-      const discard = shouldDiscard();
       tts.stop();
       stopDeviceVoice();
       stt.abort();
       void mic.stop();
-      if (discard) {
-        exitToDetail();
-        return;
-      }
-      if (cur.status !== 'paused') {
-        const paused = pauseRun(cur);
+      if (!shouldDiscard()) {
+        const paused = cur.status === 'paused' ? cur : pauseRun(cur);
         runRef.current = paused;
         setRun(paused);
+        const queue = queueRef.current;
+        if (queue) {
+          queue.push(progressPayload(paused));
+          trackLeavingSave(queue.flushed());
+        }
       }
-      queueRef.current?.push(progressPayload(runRef.current!));
-      await Promise.race([queueRef.current?.flushed() ?? Promise.resolve(), new Promise((r) => setTimeout(r, 3000))]);
     }
-    exitToDetail();
+    // 막아 둔 뒤로 가기(usePreventRemove)가 풀린 다음 그림에서 넘어간다.
+    setExiting(true);
+  };
+  useEffect(() => {
+    if (exiting) exitToDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exiting]);
+
+  /**
+   * 멈춘 채 「그만하기」 — 여기까지로 이번 회차를 끝내고 「리딩 완료」로 간다. 알아들은 대사가 없으면 완료로 남기지 않고
+   * (끝까지 간 때와 같다) 멈춘 위치만 저장해 다음에 이어 읽게 한다.
+   */
+  const stopHere = () => {
+    const cur = runRef.current;
+    if (!cur || cur.status !== 'paused' || !session) return;
+    let next: RunState;
+    if (monologue) {
+      // 독백은 지금 문장까지만 맞춰 본다 — 아직 안 간 문장을 「빠뜨림」으로 세지 않는다.
+      const heard = monoHeard();
+      monoDone.current = heard;
+      monoPiece.current = '';
+      const idx = sentenceIndexes(cur, monoFrom.current ?? cur.index).filter((i) => i <= cur.index);
+      const result = monologueResults(idx.map((i) => cur.lineIds[i]), idx.map((i) => cur.lines[i].text), heard);
+      setMonoResult(result);
+      const trimmed: RunState = { ...cur, endIndex: Math.max(cur.startIndex - 1, Math.min(cur.endIndex, cur.index)) };
+      next = finishMonologueRun(trimmed, sttModeRef.current?.kind === 'stt' ? result.said : {});
+    } else {
+      next = stopRun(cur);
+    }
+    tts.stop();
+    stopDeviceVoice();
+    stt.abort();
+    void mic.stop();
+    stoppedEarlyRef.current = true;
+    stopUncountedRef.current = readDialogueCount(next.lines, next.startIndex, next.endIndex) === 0;
+    const completed = !stopUncountedRef.current && readingRunCompleted({
+      reachedEnd: true,
+      said: next.said,
+      priorRecognized: sessionHasRecognized(session),
+      recognition: sttModeRef.current?.kind ?? null,
+    });
+    if (!completed) queueRef.current?.push(progressPayload(cur));
+    commit(next);
   };
 
   // 안드로이드 뒤로 가기·스와이프도 확인 없이 같은 「저장하고 나가기」로 간다. 나가는 중(exiting)에는 풀어 준다.
-  usePreventRemove(phase.kind === 'running' && !exiting && run?.status !== 'done', () => void leaveReading());
+  usePreventRemove(phase.kind === 'running' && !exiting && run?.status !== 'done', () => leaveReading());
 
   // 완료 화면이 뜨면 잠깐(DONE_LOCK_MS) 버튼을 막는다.
   useEffect(() => {
@@ -1490,7 +1544,7 @@ export default function ReadingPlay() {
   }
 
   if (phase.kind === 'done') {
-    const completed = readingRunCompleted({
+    const completed = !stopUncountedRef.current && readingRunCompleted({
       reachedEnd: true,
       said: run.said,
       priorRecognized: sessionHasRecognized(session),
@@ -1949,10 +2003,16 @@ export default function ReadingPlay() {
           {masking && <View style={styles.eyeDot} />}
         </Pressable>
         {paused ? (
-          <Pressable style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume}>
-            <Feather name="play" size={16} color="#fff" />
-            <Text style={styles.ctrlPrimaryText}>{t('reading.resume')}</Text>
-          </Pressable>
+          <>
+            <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={stopHere} accessibilityRole="button" ph-label="reading_play_stop">
+              <Feather name="square" size={16} color={palette.textDim} />
+              <Text style={styles.ctrlGhostText}>{t('reading.stopHere')}</Text>
+            </Pressable>
+            <Pressable style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume}>
+              <Feather name="play" size={16} color="#fff" />
+              <Text style={styles.ctrlPrimaryText}>{t('reading.resume')}</Text>
+            </Pressable>
+          </>
         ) : (
           <>
             {/* 독백에는 [이전]이 없다 — 한 호흡으로 끝까지 읽고 끝난 뒤 문장부터 다시 한다. */}

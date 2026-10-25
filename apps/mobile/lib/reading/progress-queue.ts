@@ -161,3 +161,20 @@ export function closeProgressQueue(sessionId: string, queue: ProgressQueue, opti
     if (open.get(sessionId) === queue) open.delete(sessionId);
   });
 }
+
+/**
+ * 화면을 떠난 뒤에도 보내는 저장(나가기·그만하기 뒤 진행 저장, [시작] 전 회차 지우기). 나가기는 이걸 기다리지 않고 바로
+ * 넘어가고, 회차 상세가 다 나간 뒤 목록을 한 번 더 불러온다.
+ */
+const leaving = new Set<Promise<unknown>>();
+
+export function trackLeavingSave(work: Promise<unknown>): void {
+  const p = work.catch(() => undefined).finally(() => leaving.delete(p));
+  leaving.add(p);
+}
+
+/** 아직 나가는 중인 저장이 있으면 그것들이 끝날 때(최대 capMs), 없으면 null. */
+export function leavingSavesSettled(capMs = 8_000): Promise<void> | null {
+  if (leaving.size === 0) return null;
+  return Promise.race([Promise.all([...leaving]).then(() => undefined), new Promise<void>((r) => setTimeout(r, capMs))]);
+}
