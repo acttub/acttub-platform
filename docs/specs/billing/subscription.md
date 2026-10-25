@@ -71,3 +71,19 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 `BILLING_APP_ENABLED`, `BILLING_FREE_LIMITS_ENABLED`, `BILLING_PUBLIC_ORIGIN`(토스가 되돌려 보낼 이 API 의 https 주소),
 `BILLING_APP_RETURN_URL`(기본 `actingapp://billing-result`), `BILLING_TOSS_CLIENT_KEY`·`BILLING_TOSS_SECRET_KEY`(지금은 `test_ck_`·`test_sk_`
 만 받는다 — 운영 Toss 계약 심사 중), `BILLING_RENEWAL_POLL_MS`. dev `.env` 에서만 켠다.
+
+## 개정: 결제 출처별 구독 (SOMA-818, 1단계)
+
+앱 안에서 브라우저로 토스 결제창을 여는 방식은 Apple 규정에 어긋나 버렸다. 구독은 결제 출처(`provider`)별로 받는다.
+
+- `toss`: 웹(acttub.com) 토스 정기결제. 카드 등록·첫 결제·자동결제 스케줄러·재시도는 이 출처만 처리한다.
+- `apple`·`google`: 앱 스토어 구독(2단계). 스토어 알림이 갱신하고, 스케줄러·서버 해지·서버 재결제는 건드리지 않는다.
+  스키마는 `store_product_id`·`store_original_transaction_id`(apple)·`store_purchase_token`(google)로 준비돼 있다.
+- Pro 판정 = (활성 구독이고 기간 안, 출처 무관) OR (`billing_pro_grants`에 지금 유효한 기간). grant는 카드 없이 서버가 주는 기간
+  (예: 11월 무료 한 달)이고 SQL·관리 경로로만 넣는다. 자동 부여 로직은 없다.
+- 스위치: `BILLING_WEB_ENABLED`(기본 false)가 꺼져 있으면 카드 등록 창·콜백·재시도·자동결제가 모두 막혀 토스 호출이 나가지 않는다.
+  키는 test_·live_ 둘 다 받되 두 키의 종류가 같아야 하고, 값은 환경변수로만 준다. 복귀 주소는 `BILLING_WEB_RETURN_URL`(웹 https).
+  `BILLING_APP_ENABLED`(기본 false)는 앱 Pro 화면을 여는 스위치(2단계 자리)이고 토스를 열지 않는다.
+- 앱은 웹 결제로 보내는 버튼·링크·문구를 두지 않는다. 웹에서 결제한 구독은 「웹에서 결제한 구독이에요」 한 줄만 보인다.
+- 웹: `NEXT_PUBLIC_BILLING_WEB_ENABLED=true` 빌드에서만 `/pricing`의 「Pro 구독하기」가 서버 카드 등록 창으로 간다(꺼져 있으면
+  심사용 `/pg-review` 그대로). 결과 화면은 `/pricing/result`. 웹에는 아직 회원 로그인이 없어 게스트는 403 `billing_member_required`다.

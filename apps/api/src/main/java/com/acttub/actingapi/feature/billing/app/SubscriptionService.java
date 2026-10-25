@@ -71,7 +71,7 @@ public class SubscriptionService {
         Optional<Instant> grantEnd = repository.grantEnd(userId, now);
         Optional<Subscription> found = repository.find(userId);
         if (found.isEmpty()) {
-            return View.none(settings.limitsEnforced(), grantEnd.orElse(null));
+            return View.none(settings.limitsEnforced(), grantEnd.orElse(null), settings.appEnabled());
         }
         Subscription sub = found.get();
         boolean pro = BillingRules.pro(sub.status(), sub.periodEnd(), now) || grantEnd.isPresent();
@@ -83,7 +83,7 @@ public class SubscriptionService {
             case CANCELED, EXPIRED -> null;
         };
         return new View(status, pro, sub.amount(), sub.periodEnd(), nextBilling, sub.cardCompany(),
-                last4(sub.cardNumber()), sub.retryCount(), settings.limitsEnforced(), sub.provider(), grantEnd.orElse(null));
+                last4(sub.cardNumber()), sub.retryCount(), settings.limitsEnforced(), sub.provider(), grantEnd.orElse(null), settings.appEnabled());
     }
 
     /** Pro 인가 — 결제 기능이 꺼져 있으면 아무도 Pro 가 아니다(그때는 무료 한도도 걸리지 않는다). */
@@ -461,11 +461,12 @@ public class SubscriptionService {
             int retryCount,
             boolean limitsEnforced,
             String provider,
-            Instant grantEndsAt) {
+            Instant grantEndsAt,
+            boolean appEnabled) {
 
-        static View none(boolean limitsEnforced, Instant grantEndsAt) {
+        static View none(boolean limitsEnforced, Instant grantEndsAt, boolean appEnabled) {
             return new View("none", grantEndsAt != null, BillingRules.AMOUNT, null, null,
-                    null, null, 0, limitsEnforced, null, grantEndsAt);
+                    null, null, 0, limitsEnforced, null, grantEndsAt, appEnabled);
         }
     }
 }
