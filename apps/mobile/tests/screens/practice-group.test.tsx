@@ -148,6 +148,22 @@ test('대화를 누르면 순서대로 펼치고, 못 읽으면 다시 누르라
   expect(screen.queryByText('긴장했어요')).not.toBeOnTheScreen();
 });
 
+test('마지막 대화가 회차 대화와 같아도 누른 줄 아래에 한 번만 펼친다', async () => {
+  const groupWithSame = group();
+  groupWithSame.practices[0] = { ...groupWithSame.practices[0], conversation_id: 'conv-last' };
+  getGroup.mockResolvedValue(groupWithSame);
+  getConversation.mockResolvedValue(conversation([[1, 'coach', '한 번만']]));
+  await render(<PracticeGroupScreen />);
+
+  await fireEvent.press(await screen.findByRole('button', { name: '마지막 대화' }));
+  expect(await screen.findAllByText('한 번만')).toHaveLength(1);
+
+  // 회차의 「대화」를 누르면 그 아래로 옮겨 붙고, 다시 받지 않는다.
+  await fireEvent.press(screen.getByRole('button', { name: '대화' }));
+  expect(screen.getAllByText('한 번만')).toHaveLength(1);
+  expect(getConversation).toHaveBeenCalledTimes(1);
+});
+
 test('먼저 누른 대화가 늦게 오면 버린다', async () => {
   let resolveFirst!: (v: CoachConversation) => void;
   let rejectSecond!: (e: unknown) => void;
