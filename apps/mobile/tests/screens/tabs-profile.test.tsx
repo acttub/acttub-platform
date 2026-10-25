@@ -43,7 +43,6 @@ jest.mock('@/lib/api', () => ({
     listReadingScripts: jest.fn(),
     listReadingSessions: jest.fn(),
     listSavedEntries: jest.fn(),
-    actorMemory: jest.fn(),
     getPracticeNote: jest.fn(),
   },
 }));
@@ -54,7 +53,6 @@ const listEntries = api.listMyChallengeEntries as jest.Mock;
 const listScripts = api.listReadingScripts as jest.Mock;
 const listSessions = api.listReadingSessions as jest.Mock;
 const listSaved = api.listSavedEntries as jest.Mock;
-const actorMemory = api.actorMemory as jest.Mock;
 const getNote = api.getPracticeNote as jest.Mock;
 
 // 이번 달·지난달 시각 — 「이번 달 연습」은 기기 시각 기준 달력 달로 센다.
@@ -104,7 +102,6 @@ beforeEach(() => {
   listScripts.mockResolvedValue({ scripts: [] });
   listSessions.mockResolvedValue({ sessions: [] });
   listSaved.mockResolvedValue({ entries: [] });
-  actorMemory.mockResolvedValue({ items: [] });
   getNote.mockRejectedValue(new Error('no note'));
 });
 
@@ -129,7 +126,6 @@ test('서버 프로필의 이름·사진·목표와 경력·소개를 보이고,
       { status: 'completed', started_at: lastMonth },
     ],
   });
-  actorMemory.mockResolvedValue({ items: [{}, {}, {}] });
 
   await render(<ProfileScreen />);
 
@@ -150,7 +146,7 @@ test('서버 프로필의 이름·사진·목표와 경력·소개를 보이고,
   expect(screen.queryByText('기기 이름')).not.toBeOnTheScreen();
   expect(screen.queryByText('김')).not.toBeOnTheScreen();
   expect(screen.getByText('무대가 좋은 배우')).toBeOnTheScreen();
-  expect(await screen.findByText('3개')).toBeOnTheScreen();
+  expect(screen.queryByText('코치가 기억하는 것')).not.toBeOnTheScreen();
 });
 
 test('서버 이름을 아직 못 읽었으면 기기에 적어 둔 이름을 쓰고 사진 자리는 기본 얼굴(pen P/DefaultAvatar)이며, 소개가 비면 안내 문구를 보인다', async () => {
@@ -193,7 +189,6 @@ test('목록을 못 읽으면 0으로 두고 빈 안내를 보인다', async () 
   listEntries.mockRejectedValue(new Error('down'));
   listScripts.mockRejectedValue(new Error('down'));
   listSaved.mockRejectedValue(new Error('down'));
-  actorMemory.mockRejectedValue(new Error('down'));
 
   await render(<ProfileScreen />);
 
@@ -233,7 +228,7 @@ test('다른 화면에서 돌아오면 다시 세고, 떠나기 전 늦게 온 �
   expect(listEntries).toHaveBeenCalledTimes(2);
 });
 
-test('설정·편집·액티 기억으로 보내고, 탭을 바꾸면 그 카드와 전체 보기로 간다', async () => {
+test('설정·편집으로 보내고, 탭을 바꾸면 그 카드와 전체 보기로 간다', async () => {
   listGroups.mockResolvedValue({ groups: Array.from({ length: 7 }, (_, i) => group(`g${i}`, [thisMonth])) });
   listEntries.mockResolvedValue({ entries: [entry('e1', 'c1', thisMonth, { visibility: 'private' })], next_cursor: null });
   listSaved.mockResolvedValue({
@@ -244,7 +239,8 @@ test('설정·편집·액티 기억으로 보내고, 탭을 바꾸면 그 카드
 
   await fireEvent.press(screen.getByRole('button', { name: '설정' }));
   await fireEvent.press(screen.getByText('편집'));
-  await fireEvent.press(screen.getByText('코치가 기억하는 것'));
+  // 「코치가 기억하는 것」 바로가기는 뺐다(10/25) — 기억은 배우에게 보여 주지 않는다.
+  expect(screen.queryByText('코치가 기억하는 것')).not.toBeOnTheScreen();
   await fireEvent.press(await screen.findByText('전체 보기'));
 
   await fireEvent.press(screen.getByRole('tab', { name: '참여작' }));
@@ -264,7 +260,6 @@ test('설정·편집·액티 기억으로 보내고, 탭을 바꾸면 그 카드
   expect(mockRouter.push.mock.calls).toEqual([
     ['/settings'],
     ['/profile-edit'],
-    [{ pathname: '/memory', params: { from: 'profile' } }],
     ['/history'],
     ['/challenge-entries'],
     ['/challenge-entries'],

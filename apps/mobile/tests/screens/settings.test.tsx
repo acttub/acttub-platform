@@ -354,11 +354,11 @@ describe('설정', () => {
     await settingsLoaded();
 
     for (const label of ['프로필', '의견', '기타']) expect(screen.getByText(label)).toBeOnTheScreen();
-    for (const gone of ['보관함', /Pro/]) expect(screen.queryByText(gone)).not.toBeOnTheScreen();
+    // 「코치가 기억하는 것」 줄은 뺐다(10/25) — 기억은 배우에게 보여 주지 않는다.
+    for (const gone of ['보관함', /Pro/, '코치가 기억하는 것']) expect(screen.queryByText(gone)).not.toBeOnTheScreen();
     for (const sub of [
       '이름·성별·생년월일·방향·경력·목표와 사진, 한 줄 소개를 고쳐요.',
       '분석 완료·챌린지·저녁 연습 알림을 켜고 꺼요.',
-      '액티가 나에 대해 무엇을 기억하는지 보고 고칠 수 있어요.',
     ]) expect(screen.getByText(sub)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '회원 탈퇴' })).toBeOnTheScreen();
   });
@@ -387,7 +387,6 @@ describe('설정', () => {
     ['프로필 수정', '/profile-edit'],
     ['웹 연습 가져오기', '/guest-transfer'],
     ['알림', '/notification-settings'],
-    ['코치가 기억하는 것', '/memory'],
     ['챌린지 기록', '/challenge-entries'],
     ['차단한 사용자', '/blocked-users'],
     ['동의 내역', '/consent-history'],
