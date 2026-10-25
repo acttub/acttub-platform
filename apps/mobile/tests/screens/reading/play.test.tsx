@@ -225,7 +225,7 @@ test('현재 대본이나 회차가 없으면 내 대본으로 돌아가는 길�
   await render(<ReadingPlay />);
 
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
 });
 
 test('회차 구간의 줄이 대본에 없으면 실행하지 않는다', async () => {
@@ -268,7 +268,7 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 
   await pressWhenReady('홈으로 가기');
-  expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
   expect(server.deleteSession).not.toHaveBeenCalled();
 });
 
@@ -1114,7 +1114,7 @@ test('완료 화면이 뜬 직후에는 다시 연습·완료를 받지 않고, 
   await fireEvent.press(screen.getByText('다시 연습'));
   await fireEvent.press(screen.getByText('홈으로 가기'));
   expect(server.startSession).not.toHaveBeenCalled();
-  expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/(tabs)');
   await waitFor(() => expect(screen.getByRole('button', { name: '다시 연습' })).toBeEnabled(), { timeout: 2000 });
 });
 
@@ -1762,6 +1762,20 @@ test('인식기가 일부만 받아쓰고 스스로 멈추면 90% 대조 없이 
   await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
 });
 
+test('독백 결과의 다른 대본으로·홈으로 가기는 이미 있는 탭까지 내려간다(SOMA-853)', async () => {
+  await startMonologue();
+  mockStt.finish.mockResolvedValueOnce('그래서 더 말하기 싫었어 네가 그걸 아니까 그래서 더 아팠어');
+  await fireEvent.press(screen.getByText('끝내기'));
+  expect(await screen.findByText('끝까지 읽었어요')).toBeOnTheScreen();
+
+  await waitFor(() => expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeEnabled(), { timeout: 2000 });
+  await fireEvent.press(screen.getByText('다른 대본으로'));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  await fireEvent.press(screen.getByText('홈으로 가기'));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
+});
+
 test('독백 끝내기는 받아쓴 글을 녹음 전사로 올린다(#853)', async () => {
   await startMonologue();
   mockStt.finish.mockResolvedValueOnce('그래서 더 말하기 싫었어 네가 그걸 아니까');
@@ -1919,9 +1933,9 @@ test('완료 화면은 액티 · 대사 줄 수 줄 아래에 홈으로 가기�
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   await waitFor(() => expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeEnabled(), { timeout: 2000 });
   await fireEvent.press(screen.getByText('다른 대본으로'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
   await fireEvent.press(screen.getByText('홈으로 가기'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
 });
 
 test('첫 리딩이면 끝에서 칭찬과 큰 홈으로 가기, 그 밑에 한 번 더 읽기만 보인다(pen R9.51)', async () => {
@@ -1934,6 +1948,10 @@ test('첫 리딩이면 끝에서 칭찬과 큰 홈으로 가기, 그 밑에 한 
   expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '한 번 더 읽기' })).toBeOnTheScreen();
   expect(screen.queryByText('다른 대본으로')).not.toBeOnTheScreen();
+  // 탭 묶음을 하나 더 쌓지 않고 이미 있는 홈 탭까지 내려간다(SOMA-853).
+  await pressWhenReady('홈으로 가기');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
 });
 
 test('첫 리딩 버튼 안내가 떠 있는 동안은 말이 끝나도 넘기지 않고, 「알겠어요」를 누르면 이어 간다', async () => {

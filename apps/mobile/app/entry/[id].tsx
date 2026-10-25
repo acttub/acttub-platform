@@ -49,7 +49,7 @@ export default function EntryLinkScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={[styles.safe, light && styles.safeLight]} edges={['top', 'bottom']}>
         {/* pen C13.2 — 검은 바탕에 영상 없음 아이콘 · 제목 · 안내 · 「이번 주 챌린지 보러 가기」. 위 닫기로 나간다. */}
-        <Pressable style={styles.close} onPress={() => (router.canGoBack() ? router.back() : router.replace('/challenges'))} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+        <Pressable style={styles.close} onPress={() => (router.canGoBack() ? router.back() : router.dismissTo('/challenges'))} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.close')}>
           <Feather name="x" size={26} color={light ? palette.text : '#FFFFFF'} />
         </Pressable>
         <View style={styles.center}>
@@ -58,14 +58,14 @@ export default function EntryLinkScreen() {
               <Feather name="video-off" size={30} color="#FFFFFF" />
               <Text style={styles.title}>{t('challenges.goneTitle')}</Text>
               <Text style={styles.message}>{t('challenges.goneSub')}</Text>
-              <Pressable style={styles.cta} onPress={() => router.replace('/challenges')} accessibilityRole="button">
+              <Pressable style={styles.cta} onPress={() => router.dismissTo('/challenges')} accessibilityRole="button">
                 <Text style={styles.ctaText}>{t('challenges.goneCta')}</Text>
               </Pressable>
             </>
           ) : (
             <>
               <Text style={styles.messageLight}>{error}</Text>
-              <Pressable style={styles.ctaBlue} onPress={() => router.replace('/challenges')} accessibilityRole="button">
+              <Pressable style={styles.ctaBlue} onPress={() => router.dismissTo('/challenges')} accessibilityRole="button">
                 <Text style={styles.ctaBlueText}>{t('challenges.goneCta')}</Text>
               </Pressable>
             </>

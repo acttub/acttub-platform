@@ -1,7 +1,7 @@
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 
+import { ReadingNoScript } from '@/components/reading/no-script';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { useAppDialog } from '@/components/app-dialog';
 import { LineEditSheet } from '@/components/line-edit-sheet';
@@ -30,7 +30,6 @@ const DELETE_REFUSED: Record<string, string> = {
  * 바로 아래 빈 칸에 새 대사), 지우기(한 번 묻는다).
  */
 export default function ReadingFull() {
-  const router = useRouter();
   const [script, setScript] = useState<SavedScript | null>(getCurrent);
   const [editing, setEditing] = useState<{ index: number; draft: LineDraft } | null>(null);
   const [splitting, setSplitting] = useState<number | null>(null);
@@ -38,16 +37,7 @@ export default function ReadingFull() {
   const [inserting, setInserting] = useState<number | null>(null);
   const { sheet, confirm, alert, dialog } = useAppDialog();
 
-  if (!script) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
-          <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  if (!script) return <ReadingNoScript />;
 
   const openEditor = (index: number) => {
     const line = script.lines[index];
@@ -166,8 +156,6 @@ export default function ReadingFull() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
   content: { paddingHorizontal: 20, paddingTop: 8, gap: 4, paddingBottom: 60 },
   headCard: { backgroundColor: palette.blueSoft, borderRadius: 16, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 18, gap: 4, marginBottom: 10 },
   title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 24 },
@@ -185,6 +173,4 @@ const styles = StyleSheet.create({
   roleMine: { color: palette.blueDeep },
   text: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24 },
   textJoined: { marginLeft: 62 },
-  pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
-  pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 });

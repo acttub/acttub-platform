@@ -11,7 +11,8 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   return { __esModule: true, default: storage };
 });
 const mockReplace = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace }) }));
+const mockDismissTo = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, dismissTo: mockDismissTo }) }));
 
 beforeEach(() => mockReplace.mockClear());
 
@@ -21,7 +22,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
 
   expect(screen.getByText('대본이 없어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockReplace).toHaveBeenCalledWith('/reading');
+  expect(mockDismissTo).toHaveBeenCalledWith('/reading');
 });
 
 test('대본의 장면·지문·대사를 순서대로 보여 준다', async () => {

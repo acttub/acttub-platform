@@ -17,7 +17,7 @@ import { setPickedVideo, takePickedVideo } from '@/lib/practice/picked-video';
 import { setFirstTimeState } from '@/lib/practice/first-time';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 let mockParams: Record<string, string> = {};
 let mockFocusEffect: () => void = () => undefined;
 const mockPlayer = { pause: jest.fn(), addListener: jest.fn(() => ({ remove: jest.fn() })), loop: true };
@@ -261,6 +261,10 @@ describe('갤러리에서 고르기', () => {
     await fireEvent.press(screen.getByText(RIGHTS));
     await fireEvent.press(screen.getByRole('button', { name: '업로드 중…' }));
     expect(await screen.findByText('영상을 올리고 있어요')).toBeOnTheScreen();
+    // 홈으로 나가면 이미 있는 홈 탭까지 내려간다 — 탭 묶음을 하나 더 쌓지 않는다(SOMA-853).
+    await fireEvent.press(screen.getByRole('button', { name: '홈에서 기다리기' }));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
   });
 
   test('올리기가 실패로 남으면 다시 올려 볼 수 있다고 알린다', async () => {
@@ -684,7 +688,7 @@ describe('영상 업로드를 망설일 때', () => {
     await openReasons();
     await fireEvent.press(screen.getByRole('radio', { name: '지금은 못 찍어요' }));
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(scheduleUploadLaterReminder).toHaveBeenCalled();
   });
 

@@ -4,7 +4,7 @@ import GuestTransferScreen from '@/app/guest-transfer';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 
-const mockRouter = { replace: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn() };
 jest.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => mockRouter }));
 jest.mock('@/lib/api', () => ({ api: { transferGuestData: jest.fn() } }));
 
@@ -40,7 +40,7 @@ test('옮기면 완료 화면에서 기록을 보거나 다른 코드를 넣을 
   expect(await screen.findByText('옮겼어요')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '기록 보기' }));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)/history');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)/history');
 
   await fireEvent.press(screen.getByRole('button', { name: '다른 코드 입력하기' }));
   expect(codeInput()).toHaveDisplayValue('');

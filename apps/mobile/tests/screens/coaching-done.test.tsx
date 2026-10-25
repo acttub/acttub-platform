@@ -5,7 +5,7 @@ import CoachingDoneScreen from '@/app/coaching-done';
 import { api } from '@/lib/api';
 import { practiceNote } from '../helpers/practice-note';
 
-const mockRouter = { replace: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn() };
 let mockParams: { practiceId?: string; saved?: string } = {};
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
@@ -42,7 +42,7 @@ test('오늘 코칭 끝 — 일지 저장 알림, 코칭 평가(노트에 남김
   expect(getPracticeNote).toHaveBeenCalledWith('p1');
 
   await fireEvent.press(screen.getByRole('button', { name: '확인' }));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
 });
 
 test('노트가 없으면 평가 칸을 두지 않고, 공유는 시스템 공유 창을 연다', async () => {

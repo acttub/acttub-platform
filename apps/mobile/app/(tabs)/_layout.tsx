@@ -36,7 +36,9 @@ export default function TabLayout() {
 
   return (
     <>
+      {/* 뒤로가기는 들어온 순서대로 돌아간다. 기본값(firstRoute)은 숨긴 탭(지난 연습)에서도 홈으로 보낸다. */}
       <Tabs
+        backBehavior="history"
         screenOptions={{
           tabBarActiveTintColor: palette.blue,
           tabBarInactiveTintColor: palette.textFaint,

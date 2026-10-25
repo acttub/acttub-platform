@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
+import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { firstPracticeRange } from '@/lib/reading/redesign-748';
 import { useAppDialog } from '@/components/app-dialog';
@@ -145,16 +146,7 @@ export default function ReadingRange() {
     [sessions, lines],
   );
 
-  if (!script) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
-          <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  if (!script) return <ReadingNoScript />;
 
   const whole = snapRangeToDialogues(lines, 0, lines.length - 1) ?? { startIndex: 0, endIndex: Math.max(0, lines.length - 1) };
   const pickedCast = cast.filter((c) => selected.includes(c.id));
@@ -443,8 +435,6 @@ export default function ReadingRange() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
   content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
   mascotRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   bubble: { flex: 1, gap: 2 },
@@ -538,6 +528,4 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: palette.blue, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
   primaryOff: { backgroundColor: palette.checkOff },
   primaryText: { color: palette.onAccent, fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
-  pillText: { color: palette.onAccent, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 });

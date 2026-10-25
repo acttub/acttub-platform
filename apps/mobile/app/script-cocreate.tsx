@@ -61,6 +61,12 @@ const GENERATION_POLL_MS = 5_000;
 
 export default function ScriptCocreateScreen() {
   const router = useRouter();
+  // 만든 대본 상세는 대본 탭 바로 위에 하나만 둔다. 「내 대본 올리기」에서 열었을 때 replace 하면 그 화면이 상세 밑에 남아
+  // 뒤로가기가 대본 올리기로 갔다.
+  const toReadingDetail = () => {
+    router.dismissTo('/reading');
+    router.push('/reading/detail');
+  };
   const { mode, start } = useLocalSearchParams<{ mode?: string; start?: string }>();
   // 내 대본 올리기에서 「새 대본 만들기」를 이미 고르고 왔으면 처음 고르기(예시/새로)를 건너뛴다(10/25).
   const skipStart = start === 'make';
@@ -200,7 +206,7 @@ export default function ScriptCocreateScreen() {
       if (readingMode) {
         const loaded = await loadIntoCurrent(saved.script_id);
         if (!loaded) throw new Error('saved_script_not_found');
-        router.replace('/reading/detail');
+        toReadingDetail();
         if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
       } else {
         setStep('saved');
@@ -229,7 +235,7 @@ export default function ScriptCocreateScreen() {
     try {
       const loaded = await loadIntoCurrent(script.script_id);
       if (!loaded) throw new Error('saved_script_not_found');
-      router.replace('/reading/detail');
+      toReadingDetail();
     } catch (e) {
       fail(e);
     } finally {
@@ -341,7 +347,7 @@ export default function ScriptCocreateScreen() {
           </View>
           <CtaBar>
             <PrimaryButton label={t('scriptCocreate.failRetry')} phLabel="script_cocreate_fail_retry" onPress={() => void generate()} />
-            <SecondaryButton label={t('scriptCocreate.failOwn')} phLabel="script_cocreate_fail_own" onPress={() => router.replace('/reading/new')} />
+            <SecondaryButton label={t('scriptCocreate.failOwn')} phLabel="script_cocreate_fail_own" onPress={() => router.dismissTo('/reading/new')} />
           </CtaBar>
         </View>
       ) : step === 'start' ? (

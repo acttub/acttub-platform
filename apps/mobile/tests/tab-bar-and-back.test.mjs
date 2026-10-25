@@ -41,3 +41,27 @@ test('안드로이드는 네이티브 뒤로 버튼에 꺾쇠 그림만 씌우�
   assert.match(android, /headerBackIcon: \{ type: 'image', source: require\('@\/assets\/images\/header-back\.png'\) \}/);
   assert.doesNotMatch(android.slice(0, android.indexOf('}>')), /headerLeft/);
 });
+
+test('탭끼리의 뒤로가기는 들어온 순서대로 돌아간다 — 기본값은 숨긴 탭(지난 연습)에서도 홈으로 보낸다', () => {
+  assert.match(read('app/(tabs)/_layout.tsx'), /<Tabs\s+backBehavior="history"/);
+});
+
+test('탭 밖 화면은 탭으로 갈 때 replace 하지 않고 이미 있는 탭까지 내려간다 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 간다', async () => {
+  const { readdirSync, statSync } = await import('node:fs');
+  const { join, relative } = await import('node:path');
+  const base = new URL('..', import.meta.url).pathname;
+  const files = [];
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.tsx?$/.test(name)) files.push(relative(base, full));
+    }
+  };
+  for (const dir of ['app', 'components', 'hooks']) walk(join(base, dir));
+  // 탭 안(app/(tabs))끼리는 탭 이동이라 쌓이지 않는다.
+  const offenders = files
+    .filter((f) => !f.startsWith('app/(tabs)/'))
+    .filter((f) => /router\.replace\(\s*['"`](\/|\/\(tabs\)(\/[a-z-]+)?|\/reading|\/challenges|\/coaching|\/profile)['"`]\s*\)/.test(read(f)));
+  assert.deepEqual(offenders, []);
+});

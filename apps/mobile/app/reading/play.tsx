@@ -1483,7 +1483,7 @@ export default function ReadingPlay() {
     return (
       <View style={[styles.root, styles.center]}>
         <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
+        <Pressable style={styles.pill} onPress={() => router.dismissTo('/reading')}>
           <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
         </Pressable>
       </View>
@@ -1632,6 +1632,15 @@ export default function ReadingPlay() {
       priorRecognized: sessionHasRecognized(session),
       recognition: sttMode?.kind ?? null,
     });
+    // 완료 화면들이 함께 쓰는 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서,
+    // 이미 있는 탭까지 내려간다(SOMA-853).
+    const goHomeButton = <PrimaryButton label={t('reading.goHome')} onPress={() => router.dismissTo('/(tabs)')} disabled={doneLocked} />;
+    const otherScriptRow = (
+      <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
+        <Feather name="file-text" size={16} color={palette.textDim} />
+        <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
+      </Pressable>
+    );
     if (completed && (firstRunRef.current || fromTutorialRef.current)) {
       // pen R9.51 첫 리딩 끝 — 액티 칭찬 아래 가운데에 큰 「홈으로 가기」, 그 밑에 「한 번 더 읽기」. 하단 버튼 영역은 없다.
       const total = wrapUpProgress(run.lines, run.endIndex).total;
@@ -1643,7 +1652,7 @@ export default function ReadingPlay() {
             <Text style={styles.firstDoneTitle}>{t('reading.firstDoneTitle')}</Text>
             <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
             <View style={styles.firstDoneActions}>
-              <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+              {goHomeButton}
               <Pressable
                 style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
                 onPress={() => void readAgain()}
@@ -1736,10 +1745,7 @@ export default function ReadingPlay() {
                 </>
               )}
             </Pressable>
-            <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
-              <Feather name="file-text" size={16} color={palette.textDim} />
-              <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
-            </Pressable>
+            {otherScriptRow}
             </View>
             {completed && !fromTutorialRef.current && (
               <View style={styles.ratingSlot}>
@@ -1750,7 +1756,7 @@ export default function ReadingPlay() {
           </ScrollView>
           <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
             {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+            {goHomeButton}
           </View>
           {dialog}
         </View>
@@ -1827,10 +1833,7 @@ export default function ReadingPlay() {
               </>
             )}
           </Pressable>
-          <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
-            <Feather name="file-text" size={16} color={palette.textDim} />
-            <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
-          </Pressable>
+          {otherScriptRow}
           </View>
 
           {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
@@ -1844,7 +1847,7 @@ export default function ReadingPlay() {
         </ScrollView>
         <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
           {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+            {goHomeButton}
         </View>
         {dialog}
       </View>

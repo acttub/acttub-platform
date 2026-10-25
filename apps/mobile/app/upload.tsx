@@ -170,7 +170,7 @@ export default function UploadScreen() {
   const remindLater = async () => {
     const result = await scheduleUploadLaterReminder(t('uploadFlow.laterTitle'), t('uploadFlow.laterBody'));
     if (result === 'denied') void alert({ title: t('uploadFlow.hLater'), message: t('uploadFlow.laterDenied') });
-    reasonRoute(() => router.replace('/(tabs)'));
+    reasonRoute(() => router.dismissTo('/(tabs)'));
   };
   usePreventRemove(!leaving && (optionsOpen || reasonSheet || previousUploadStep(step) !== null), () => {
     if (optionsOpen) {
@@ -335,7 +335,7 @@ export default function UploadScreen() {
       scene,
       blockage,
       savedAt: Date.now(),
-    }).then(() => leaveThen(() => router.replace('/(tabs)')));
+    }).then(() => leaveThen(() => router.dismissTo('/(tabs)')));
   };
   const waitCancel = () => {
     const pendingId = picked?.pendingId;
