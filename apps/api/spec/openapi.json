@@ -10246,9 +10246,18 @@
               "type" : "null"
             } ],
             "title" : "Mosaic Status"
+          },
+          "poster_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "영상 첫 장면 JPEG 의 서명 주소(원본에서 뜬다). 아직 없거나 파기된 영상은 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Poster Url"
           }
         },
-        "required" : [ "author", "caption", "category", "challenge", "challenge_hidden", "challenge_id", "comment_count", "content_version", "created_at", "face_mosaic", "final_like_count", "id", "is_mine", "like_count", "liked", "mosaic_status", "original_playback_url", "playback_url", "published_at", "rank", "saved", "status", "view_count", "visibility" ],
+        "required" : [ "author", "caption", "category", "challenge", "challenge_hidden", "challenge_id", "comment_count", "content_version", "created_at", "face_mosaic", "final_like_count", "id", "is_mine", "like_count", "liked", "mosaic_status", "original_playback_url", "playback_url", "poster_url", "published_at", "rank", "saved", "status", "view_count", "visibility" ],
         "title" : "MyChallengeEntry"
       },
       "MyChallengeEntryParent" : {

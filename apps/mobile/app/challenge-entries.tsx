@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -250,6 +251,20 @@ export default function ChallengeEntriesScreen() {
             onPress={() => router.push({ pathname: '/challenge-play', params: { id: entry.challenge.id, entryId: entry.id } })}
             onLongPress={(e) => openMenu(entry, e)}
             accessibilityRole="button">
+            {/* 첫 장면 사진(SOMA-845). 아직 없거나 파기된 영상은 아이콘. */}
+            <View style={styles.thumb}>
+              {entry.poster_url ? (
+                <Image
+                  testID={`entry-poster-${entry.id}`}
+                  source={{ uri: entry.poster_url, cacheKey: entry.poster_url.split('?')[0] }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={150}
+                />
+              ) : (
+                <Feather testID={`entry-poster-empty-${entry.id}`} name="video" size={20} color={palette.blue} />
+              )}
+            </View>
             <View style={styles.rowBody}>
               <Text style={styles.rowLine} numberOfLines={1}>
                 “{entry.challenge.line}”
@@ -318,6 +333,15 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: palette.borderSoft,
+  },
+  thumb: {
+    width: 64,
+    aspectRatio: 9 / 16,
+    borderRadius: 10,
+    backgroundColor: palette.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   rowBody: { flex: 1, gap: 4 },
   rowLine: { fontSize: 15, fontWeight: '700', color: palette.text },

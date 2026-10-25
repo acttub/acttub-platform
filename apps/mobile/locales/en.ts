@@ -912,7 +912,7 @@ const en: DeepStringShape<typeof ko> = {
     sectionApp: 'App & help',
     sectionManage: 'Account',
     sectionEtc: 'Other',
-    challengeRecordRow: 'Challenge entries',
+    challengeRecordRow: 'Challenges',
     storeReviewRow: 'Rate the app',
     consentHistory: 'Consents',
     notificationsSub: 'Turn analysis, challenge and evening practice alerts on or off.',

@@ -86,6 +86,16 @@ test('서버가 센 분류 수와 지우지 않은 참여작을 상태와 함께
   expect(screen.queryByText('“지운 대사”')).not.toBeOnTheScreen();
 });
 
+test('첫 장면 사진이 있으면 미리보기로 보여 주고, 없으면 대체 아이콘을 둔다', async () => {
+  listMine.mockResolvedValue(page([myEntry({ id: 'e1', poster_url: 'https://p/e1.poster.jpg?sig=1' }), priv]));
+  await render(<ChallengeEntriesScreen />);
+
+  const poster = await screen.findByTestId('entry-poster-e1');
+  expect(poster.props.source).toEqual([{ uri: 'https://p/e1.poster.jpg?sig=1', cacheKey: 'https://p/e1.poster.jpg' }]);
+  expect(screen.getByTestId('entry-poster-empty-e2')).toBeOnTheScreen();
+  expect(screen.queryByTestId('entry-poster-e2')).toBeNull();
+});
+
 test('분류를 고르면 그 분류만 보이고, 없으면 빈 안내를 띄운다', async () => {
   listMine.mockResolvedValue(page([pub, priv]));
   await render(<ChallengeEntriesScreen />);

@@ -905,7 +905,7 @@ const ko = {
     sectionApp: '앱 · 도움말',
     sectionManage: '계정',
     sectionEtc: '기타',
-    challengeRecordRow: '챌린지 기록',
+    challengeRecordRow: '챌린지',
     storeReviewRow: '앱 평가',
     consentHistory: '동의 내역',
     notificationsSub: '분석 완료·챌린지·저녁 연습 알림을 켜고 꺼요.',

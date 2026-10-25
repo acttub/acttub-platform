@@ -141,6 +141,8 @@ export type MyEntryCard = Omit<EntryCard, 'is_new'> & {
   /** 얼굴 모자이크를 켰는가(SOMA-809). 옛 서버 응답에는 없다. */
   face_mosaic?: boolean;
   mosaic_status?: MosaicStatus | null;
+  /** 영상 첫 장면 JPEG 의 서명 주소(SOMA-845). 아직 없거나 파기됐으면 null, 옛 서버 응답에는 없다. */
+  poster_url?: string | null;
 };
 
 export type MyEntriesResponse = {

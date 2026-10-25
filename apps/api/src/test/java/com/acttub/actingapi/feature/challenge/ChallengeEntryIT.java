@@ -231,6 +231,18 @@ class ChallengeEntryIT {
         assertThat(ids(mine)).containsExactly(entry.path("id").asText());
     }
 
+    @Test void myEntries_carryTheVideoPosterOnceItExists() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        UUID video = video(user, 30_000);
+        enter(challenge, video, "public", 201);
+        assertThat(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url").isNull()).isTrue();
+        jdbc.update("UPDATE videos SET poster_key=? WHERE id=?", "videos/" + video + ".poster.jpg", video);
+        assertThat(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url").asText())
+                .isEqualTo("https://play.test/videos/" + video + ".poster.jpg");
+        jdbc.update("UPDATE videos SET purged_at=now() WHERE id=?", video);
+        assertThat(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url").isNull()).isTrue();
+    }
+
     @Test void challengeEntry_replaysBeforeQuotaAndRejectsChangedBodiesAndTheSameVideoTwice() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         UUID video = video(user, 30_000);
