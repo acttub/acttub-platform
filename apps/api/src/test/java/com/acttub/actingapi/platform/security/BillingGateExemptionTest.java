@@ -19,6 +19,19 @@ class BillingGateExemptionTest {
         assertThat(ConsentGateInterceptor.gateFor("GET", "/v2/billing/me")).isEqualTo(ConsentGateInterceptor.Gate.FULL);
         assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/checkout")).isEqualTo(ConsentGateInterceptor.Gate.FULL);
 
+        // 스토어 서버 알림(SOMA-818 2단계)은 Apple·Google 서버가 부르므로 앱 게이트 밖이고, 검증 API 는 게이트 안이다.
+        assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/store-notify/apple")).isEqualTo(ConsentGateInterceptor.Gate.NONE);
+        assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/store-notify/google")).isEqualTo(ConsentGateInterceptor.Gate.NONE);
+        assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/store/verify")).isEqualTo(ConsentGateInterceptor.Gate.FULL);
+        assertThat(new ClientVersionFilter().shouldNotFilter(new MockHttpServletRequest("POST", "/v2/billing/store-notify/apple"))).isTrue();
+        assertThat(new ClientVersionFilter().shouldNotFilter(new MockHttpServletRequest("POST", "/v2/billing/store/verify"))).isFalse();
+        MockHttpServletRequest notify = new MockHttpServletRequest("POST", "/v2/billing/store-notify/google");
+        notify.addHeader("Authorization", "Bearer oidc-token");
+        assertThat(new AccessTokenFilter(mock(CurrentUserService.class)).shouldNotFilter(notify)).isTrue();
+        MockHttpServletRequest verify = new MockHttpServletRequest("POST", "/v2/billing/store/verify");
+        verify.addHeader("Authorization", "Bearer app-token");
+        assertThat(new AccessTokenFilter(mock(CurrentUserService.class)).shouldNotFilter(verify)).isFalse();
+
         ClientVersionFilter version = new ClientVersionFilter();
         assertThat(version.shouldNotFilter(new MockHttpServletRequest("GET", "/v2/billing/web/checkout/abc"))).isTrue();
         assertThat(version.shouldNotFilter(new MockHttpServletRequest("GET", "/v2/billing/me"))).isFalse();

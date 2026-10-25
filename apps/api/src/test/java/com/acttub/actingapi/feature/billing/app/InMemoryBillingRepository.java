@@ -217,6 +217,51 @@ class InMemoryBillingRepository implements BillingRepository {
         return unknown.isEmpty() ? Optional.empty() : Optional.of(unknown.get(0));
     }
 
+    // ── 스토어 구독 ────────────────────────────────────────────────
+    final Map<UUID, String> storeKeys = new LinkedHashMap<>();
+    final Map<UUID, Instant> storeUpdatedAt = new LinkedHashMap<>();
+    /** 다른 계정이 이미 쓰는 키처럼 유니크 위반을 흉내 내려면 true. */
+    boolean uniqueViolation;
+
+    @Override
+    public Optional<StoreRow> findStore(String provider, String key) {
+        return subscriptions.values().stream()
+                .filter(s -> provider.equals(s.provider()) && key.equals(storeKeys.get(s.id())))
+                .findFirst()
+                .map(s -> new StoreRow(s.id(), s.userId(), s.provider(), s.status(), s.periodEnd(), storeUpdatedAt.get(s.id())));
+    }
+
+    @Override
+    public StoreSave saveStore(UUID userId, StoreState state, Instant now) {
+        if (uniqueViolation) {
+            return StoreSave.TAKEN;
+        }
+        Optional<Subscription> existing = find(userId);
+        UUID id = existing.map(Subscription::id).orElseGet(UUID::randomUUID);
+        if (existing.isPresent() && existing.get().toss() && existing.get().status() != Status.EXPIRED) {
+            return StoreSave.BLOCKED;
+        }
+        put(new Subscription(id, userId, state.status(), null, null, null, null, BillingRules.AMOUNT, state.periodStart(),
+                state.periodEnd(), state.canceledAt(), 0, null, state.provider()));
+        storeKeys.put(id, state.key());
+        storeUpdatedAt.put(id, now);
+        return StoreSave.SAVED;
+    }
+
+    @Override
+    public boolean updateStore(String provider, String key, StoreState state, Instant now) {
+        Optional<StoreRow> row = findStore(provider, key);
+        if (row.isEmpty()) {
+            return false;
+        }
+        Subscription s = subscriptions.get(row.get().subscriptionId());
+        put(new Subscription(s.id(), s.userId(), state.status(), null, null, null, null, s.amount(),
+                state.periodStart() == null ? s.periodStart() : state.periodStart(), state.periodEnd(),
+                state.status() == Status.CANCELED ? now : null, 0, null, s.provider()));
+        storeUpdatedAt.put(s.id(), now);
+        return true;
+    }
+
     private void put(Subscription s) {
         subscriptions.put(s.id(), s);
     }

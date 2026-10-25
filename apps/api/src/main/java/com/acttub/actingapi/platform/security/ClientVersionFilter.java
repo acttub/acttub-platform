@@ -53,6 +53,8 @@ public class ClientVersionFilter extends OncePerRequestFilter {
                 || path.startsWith("/v2/pg-review/")
                 // 앱 Pro 카드 등록 창(SOMA-818): 앱이 브라우저로 여는 페이지와 토스 콜백이라 앱 헤더가 없다. 일회용 state 가 권한이다.
                 || path.startsWith("/v2/billing/web/")
+                // 스토어 서버 알림(SOMA-818 2단계): Apple·Google 서버가 부른다. 앱 헤더가 없고 서명·푸시 인증이 권한이다.
+                || path.startsWith("/v2/billing/store-notify/")
                 || PATHS.match("/v2/auth/providers/*/disconnect", path);
     }
 

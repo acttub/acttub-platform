@@ -1440,7 +1440,13 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 무료 한도는 `practice.app.CoachingPlan`·`reading.app.ScriptPlan` Port 를 결제 adapter(`BillingPlanLimits`)가 구현한다. 오류
   `429 free_daily_coaching_limit`·`403 free_script_limit` 은 한도 플래그가 꺼져 있으면 나가지 않는다.
 - 브라우저 경로 `/v2/billing/web/**` 는 ClientVersionFilter·AccessTokenFilter·ConsentGateInterceptor(GET) 밖이다.
-- 이 Mac 에서 Testcontainers 를 못 돌려 저장소 SQL 의 통합 테스트는 아직 없다 — 사각지대로 남긴다.
+- 스토어 구독(2단계): `POST /v2/billing/store/verify`(앱 토큰·게이트 안)와 서버 알림 `POST /v2/billing/store-notify/{apple,google}`
+  (서명·푸시 인증이 권한이라 ClientVersionFilter·AccessTokenFilter·ConsentGateInterceptor 밖 — `BillingGateExemptionTest` 가 지킨다).
+  Apple 은 공식 app-store-server-library(`SignedDataVerifier`, Root CA G3 는 `resources/apple/`), Google 은 서비스 계정 JWT 로
+  androidpublisher v3 를 직접 부른다(`adapter/store`). 규칙은 `StoreBillingService`(app)이고 스토어 호출은 `StoreGateways` Port 뒤라
+  `StoreBillingServiceTest` 가 가짜 스토어로 사용자 불일치·충돌·멱등·늦은 알림·Pro 판정을 본다. 스토어 구독의 Pro 는 active 여도 기간이
+  지나면 끝난다(`BillingRules.pro(.., provider)`). 새 오류 코드는 `ErrorContractInventoryTest` 표에 있다.
+- 이 Mac 에서 Testcontainers 를 못 돌려 저장소 SQL 의 통합 테스트는 CI 에서만 돈다(`BillingEndpointIT`, `StoreBillingEndpointIT`).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

@@ -74,7 +74,7 @@ public class SubscriptionService {
             return View.none(settings.limitsEnforced(), grantEnd.orElse(null), settings.appEnabled());
         }
         Subscription sub = found.get();
-        boolean pro = BillingRules.pro(sub.status(), sub.periodEnd(), now) || grantEnd.isPresent();
+        boolean pro = BillingRules.pro(sub.status(), sub.periodEnd(), now, sub.provider()) || grantEnd.isPresent();
         // expired 인데 기간이 한 번도 없으면 카드만 등록하고 첫 결제가 안 된 것이다 — 앱에는 아직 구독이 없는 것으로 보인다.
         String status = sub.status() == Status.EXPIRED && sub.periodEnd() == null ? "none" : sub.status().db();
         Instant nextBilling = switch (sub.status()) {
@@ -93,7 +93,7 @@ public class SubscriptionService {
         }
         Instant now = clock.instant();
         boolean subscribed = repository.find(userId)
-                .map(sub -> BillingRules.pro(sub.status(), sub.periodEnd(), now))
+                .map(sub -> BillingRules.pro(sub.status(), sub.periodEnd(), now, sub.provider()))
                 .orElse(false);
         return subscribed || repository.grantEnd(userId, now).isPresent();
     }

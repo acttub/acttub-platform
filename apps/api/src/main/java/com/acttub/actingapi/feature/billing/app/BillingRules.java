@@ -14,6 +14,13 @@ public final class BillingRules {
     public static final String PROVIDER_TOSS = "toss";
     public static final String PROVIDER_APPLE = "apple";
     public static final String PROVIDER_GOOGLE = "google";
+    /** 양 스토어 공통 상품 ID. 구글은 구독 ID 이고 기본 요금제(base plan)는 {@link #GOOGLE_BASE_PLAN_ID}. */
+    public static final String STORE_PRODUCT_ID = "acttub_pro_monthly";
+    public static final String GOOGLE_BASE_PLAN_ID = "monthly";
+    /** 스토어 갱신 알림이 늦어도 갱신 직후 Pro 가 끊기지 않게 active 에 주는 여유. */
+    public static final Duration STORE_RENEWAL_SKEW = Duration.ofHours(6);
+    /** 구글 결제 유예(IN_GRACE_PERIOD) 때 만료 시각 뒤로 Pro 를 이어 주는 기간. 알림이 상태를 바로잡는다. */
+    public static final Duration GOOGLE_GRACE = Duration.ofDays(7);
     public static final String ORDER_NAME = "ACTTUB Pro 월 구독";
     public static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     /** 무료 코칭은 한국 시간 하루에 회차 1개. */
@@ -89,6 +96,24 @@ public final class BillingRules {
         return switch (status) {
             case ACTIVE -> true;
             case CANCELED -> periodEnd != null && now.isBefore(periodEnd);
+            case PAST_DUE, EXPIRED -> false;
+        };
+    }
+
+    /**
+     * 출처를 아는 Pro 권한. 스토어 구독(apple·google)은 active 여도 기간이 끝나면(여유 {@link #STORE_RENEWAL_SKEW}) Pro 가 아니다 —
+     * 만료 알림을 못 받아도 영구 Pro 로 남지 않는다. 토스는 {@link #pro(Status, Instant, Instant)} 와 같다.
+     */
+    public static boolean pro(Status status, Instant periodEnd, Instant now, String provider) {
+        if (PROVIDER_TOSS.equals(provider) || provider == null) {
+            return pro(status, periodEnd, now);
+        }
+        if (periodEnd == null) {
+            return false;
+        }
+        return switch (status) {
+            case ACTIVE -> now.isBefore(periodEnd.plus(STORE_RENEWAL_SKEW));
+            case CANCELED -> now.isBefore(periodEnd);
             case PAST_DUE, EXPIRED -> false;
         };
     }

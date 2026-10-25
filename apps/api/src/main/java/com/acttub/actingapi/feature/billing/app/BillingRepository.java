@@ -91,6 +91,36 @@ public interface BillingRepository {
     /** 결과를 모르는 결제 하나를 같은 키로 다시 물을 차례로 집는다(updated_at 을 now 로 미뤄 겹치지 않게). */
     Optional<Payment> claimUnknownPayment(Instant now, Duration quietFor, int maxChecks);
 
+    // ── 스토어 구독(apple·google, 2단계) ─────────────────────────────
+
+    /** 스토어 원거래 ID(apple)·구매 토큰(google)으로 구독 줄을 찾는다. */
+    Optional<StoreRow> findStore(String provider, String key);
+
+    /**
+     * 이 사람의 구독 줄을 스토어 구독으로 쓴다(사람당 한 줄). 토스로 이용 중인 줄(expired 가 아닌)은 덮지 않고 {@code BLOCKED},
+     * 같은 원거래·토큰이 다른 사람 줄에 있으면 {@code TAKEN}.
+     */
+    StoreSave saveStore(UUID userId, StoreState state, Instant now);
+
+    /** 알림이 알려 준 상태를 같은 원거래·토큰의 줄에 반영한다. 줄이 없으면 false. 같은 값을 다시 써도 결과가 같다(멱등). */
+    boolean updateStore(String provider, String key, StoreState state, Instant now);
+
+    enum StoreSave { SAVED, TAKEN, BLOCKED }
+
+    record StoreState(
+            String provider,
+            String productId,
+            String key,
+            BillingRules.Status status,
+            Instant periodStart,
+            Instant periodEnd,
+            Instant canceledAt) {
+    }
+
+    record StoreRow(UUID subscriptionId, UUID userId, String provider, BillingRules.Status status, Instant periodEnd,
+            Instant updatedAt) {
+    }
+
     record Subscription(
             UUID id,
             UUID userId,
