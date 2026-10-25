@@ -159,12 +159,9 @@ export default function CoachingTab() {
             </View>
             <ScriptCocreateEntry style={styles.entryGap} />
           </ScrollView>
-          <View style={[styles.firstFooter, { paddingBottom: 21 + tabBarSpace }]}>
-            <PrimaryButton label={t('coachingTab.startNow')} phLabel="coaching_first_next" onPress={startNew} />
-            <Pressable onPress={startNew} accessibilityRole="button" accessibilityLabel={t('coachingTab.uploadVideo')} ph-label="coaching_first_upload" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
-              <Feather name="upload" size={15} color={palette.textDim} />
-              <Text style={styles.linkText}>{t('coachingTab.uploadVideo')}</Text>
-            </Pressable>
+          {/* 찍기·올리기는 같은 화면(app/upload)에서 고르므로 버튼 하나로 두고, 엄지 닿는 아래쪽에 붙인다(SOMA-842). */}
+          <View style={[styles.firstFooter, { paddingBottom: 8 + tabBarSpace }]}>
+            <PrimaryButton label={t('coachingTab.choice.video')} phLabel="coaching_first_next" onPress={startNew} />
             <Pressable onPress={() => router.push('/talk')} accessibilityRole="button" accessibilityLabel={t('coachingTab.choice.talk')} ph-label="coaching_first_talk" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
               <Feather name="message-circle" size={15} color={palette.textDim} />
               <Text style={styles.linkText}>{t('coachingTab.choice.talk')}</Text>

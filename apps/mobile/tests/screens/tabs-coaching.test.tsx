@@ -58,7 +58,7 @@ beforeEach(() => {
   getPracticeNote.mockResolvedValue({ next_take: null, report: null });
 });
 
-test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 — 소개 말풍선·예시 대화·시작 버튼 셋(pen P13.1)', async () => {
+test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 — 소개 말풍선·예시 대화·시작 버튼 하나(SOMA-842)', async () => {
   listPracticeGroups.mockResolvedValue({
     groups: [group({ practices: [round('p1', '2026-10-01T00:00:00Z', false)] })],
   });
@@ -69,10 +69,12 @@ test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 
   expect(screen.getByText('인정받고 싶었던 것 같아요')).toBeOnTheScreen();
   expect(getPracticeNote).not.toHaveBeenCalled();
 
-  // 지금 찍어서 코칭 받기 — 새 연습 준비(목적 → 영상). 첫 코칭이라 파란 안내를 켠다.
-  await fireEvent.press(screen.getByRole('button', { name: '지금 찍어서 코칭 받기' }));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/upload', params: { first: '1' } });
-  await fireEvent.press(screen.getByRole('button', { name: '찍어 둔 영상 올리기' }));
+  // 찍기·올리기가 같은 곳으로 가서 시작 버튼은 하나다 — 새 연습 준비(목적 → 영상). 첫 코칭이라 파란 안내를 켠다.
+  expect(screen.queryByRole('button', { name: '지금 찍어서 코칭 받기' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '찍어 둔 영상 올리기' })).not.toBeOnTheScreen();
+  const start = screen.getByRole('button', { name: '영상 보여 주고 코칭 받기' });
+  expect(start.props['ph-label']).toBe('coaching_first_next');
+  await fireEvent.press(start);
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/upload', params: { first: '1' } });
   // 영상 없이 말로 — 목적 화면으로(SOMA-745).
   await fireEvent.press(screen.getByRole('button', { name: '영상 없이 말로 코칭 받기' }));

@@ -207,8 +207,6 @@ const ko = {
     exampleA: '인정받고 싶었던 것 같아요',
     exampleQ2: '그럼 그 마음이 시선에도\n보이게 해 볼까요?',
     exampleNote: '정답을 주기보다, 질문하며 고칠 점 하나를 같이 찾아요',
-    startNow: '지금 찍어서 코칭 받기',
-    uploadVideo: '찍어 둔 영상 올리기',
     chooseBubble: '어떻게 코칭 받을래요?',
     chooseGuide: '하나 고르고 「다음」을 누르세요.',
     next: '다음',
