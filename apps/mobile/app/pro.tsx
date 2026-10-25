@@ -6,24 +6,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavHeader, NavIconButton } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
-import { ExternalPurchaseNotice, ProBadge, ProCompareTable } from '@/components/pro-ui';
+import { ProBadge, ProCompareTable } from '@/components/pro-ui';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
-import { useProCheckout } from '@/hooks/use-pro-checkout';
+import { useStorePurchase } from '@/hooks/use-store-purchase';
 import { api } from '@/lib/api';
 import { REFUND_URL, settingsTarget, TERMS_URL } from '@/lib/billing';
 import { translate as t } from '@/lib/i18n';
 
 /**
- * ⑥ Pro · 안내(pen P0xJ9, SOMA-818). 설정 「ACTTUB Pro」 줄과 무료 한도 시트의 [Pro 알아보기]가 연다. [Pro 시작하기]는 iOS 면
- * 외부 결제 안내(hD5to)를 거쳐 토스 카드 등록 창(t2V04c, 토스 화면)을 브라우저로 연다. 결제는 토스페이먼츠 자동결제다.
+ * ⑥ Pro · 안내(pen P0xJ9, SOMA-818). 설정 「ACTTUB Pro」 줄과 무료 한도 팝업의 [Pro 알아보기]가 연다. [Pro 시작하기]는 스토어 구독
+ * (2단계)이 붙을 자리이고 지금은 그리지 않는다. 앱 안에서 웹 결제로 보내는 버튼·링크는 없다.
  */
 export default function ProScreen() {
   const router = useRouter();
   const { alert, dialog } = useAppDialog();
-  const checkout = useProCheckout();
+  const purchase = useStorePurchase();
 
   const openHistory = async () => {
     const me = await api.billingMe().catch(() => null);
@@ -44,9 +44,12 @@ export default function ProScreen() {
       </ScrollView>
       <CtaBar>
         <Text style={styles.price}>{t('pro.price')}</Text>
-        {checkout.error && <Text style={styles.error}>{checkout.error}</Text>}
-        <PrimaryButton label={t('pro.start')} onPress={() => checkout.begin('subscribe')} loading={checkout.busy}
-          disabled={checkout.busy} phLabel="pro_start" />
+        {purchase.error && <Text style={styles.error}>{purchase.error}</Text>}
+        {/* 구매 버튼은 스토어 결제(2단계)가 붙을 때만 그린다. */}
+        {purchase.available && (
+          <PrimaryButton label={t('pro.start')} onPress={purchase.begin} loading={purchase.busy}
+            disabled={purchase.busy} phLabel="pro_start" />
+        )}
         <View style={styles.links}>
           <Pressable onPress={() => void openHistory()} accessibilityRole="link" hitSlop={6}>
             <Text style={styles.link}>{t('pro.history')}</Text>
@@ -59,12 +62,6 @@ export default function ProScreen() {
           </Pressable>
         </View>
       </CtaBar>
-      <ExternalPurchaseNotice
-        visible={checkout.noticeVisible}
-        onCancel={checkout.cancelNotice}
-        onContinue={checkout.continueNotice}
-        onLearnMore={checkout.learnMore}
-      />
       {dialog}
     </SafeAreaView>
   );

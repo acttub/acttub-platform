@@ -1,11 +1,6 @@
-<<<<<<< HEAD
+import Constants from 'expo-constants';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-=======
-import Constants from 'expo-constants';
-import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
->>>>>>> origin/dev
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,11 +10,7 @@ import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-<<<<<<< HEAD
-import { settingsSub, settingsTarget, type BillingMe } from '@/lib/billing';
-import { resetSpotlights } from '@/lib/guide-state';
-=======
->>>>>>> origin/dev
+import { proVisible, settingsSub, settingsTarget, type BillingMe } from '@/lib/billing';
 import { translate as t } from '@/lib/i18n';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
@@ -39,7 +30,7 @@ export default function SettingsScreen() {
   useEffect(() => {
     void loadVoiceFeedbackEnabled().then(setVoiceFeedback);
   }, []);
-  // ACTTUB Pro(SOMA-818) — 서버가 결제 기능을 닫아 두었으면(404) 줄을 숨긴다. 결제하고 돌아오면 다시 읽는다.
+  // Pro 구독 줄(SOMA-818) — 서버가 결제 기능을 닫아 두었으면(404)·앱 스위치가 꺼져 있고 Pro 도 아니면 숨긴다.
   const [billing, setBilling] = useState<BillingMe | null>(null);
   useFocusEffect(
     useCallback(() => {
@@ -84,37 +75,27 @@ export default function SettingsScreen() {
       <NavHeader title={t('settings.title')} left={<NavBackButton onPress={() => router.back()} />} />
 
       <ScrollView contentContainerStyle={styles.list}>
-<<<<<<< HEAD
-        {billing && (
-          <SettingsCard
-            icon="award"
-            title={t('pro.settingsTitle')}
-            sub={settingsSub(billing)}
-            onPress={() => router.push(settingsTarget(billing))}
-          />
+        {billing && proVisible(billing) && (
+          <>
+            <SectionTitle>{t('pro.settingsSection')}</SectionTitle>
+            <View style={styles.group}>
+              <SettingsCard
+                position="single"
+                icon="award"
+                title={t('pro.settingsTitle')}
+                sub={settingsSub(billing)}
+                onPress={() => router.push(settingsTarget(billing))}
+              />
+            </View>
+          </>
         )}
-        <Text style={styles.sectionTitle}>{t('settings.profile')}</Text>
-        <SettingsCard
-          icon="user"
-          title={t('settings.profileEditTitle')}
-          sub={t('settings.profileEditBody')}
-          onPress={() => router.push('/profile-edit')}
-        />
-        {/* 웹에서 로그인 없이 해 본 연습·대본을 여섯 자리 코드로 이 계정에 가져온다. */}
-        <SettingsCard
-          icon="download"
-          title={t('settings.transferTitle')}
-          sub={t('settings.transferBody')}
-          onPress={() => router.push('/guest-transfer')}
-        />
-=======
+
         <SectionTitle>{t('settings.profile')}</SectionTitle>
         <View style={styles.group}>
           <SettingsCard position="first" icon="user" title={t('settings.profileEditTitle')} sub={t('settings.profileEditBody')} onPress={() => router.push('/profile-edit')} />
           {/* 웹에서 로그인 없이 해 본 연습·대본을 여섯 자리 코드로 이 계정에 가져온다. */}
           <SettingsCard position="last" icon="download" title={t('settings.transferTitle')} sub={t('settings.transferBody')} onPress={() => router.push('/guest-transfer')} />
         </View>
->>>>>>> origin/dev
 
         <SectionTitle>{t('settings.feedbackSection')}</SectionTitle>
         <View style={styles.group}>

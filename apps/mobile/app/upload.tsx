@@ -15,11 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
-<<<<<<< HEAD
 import { CoachingLimitSheet } from '@/components/pro-ui';
-=======
 import { pt, type MenuAnchor } from '@/components/ui/anchored-menu';
->>>>>>> origin/dev
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
 import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';

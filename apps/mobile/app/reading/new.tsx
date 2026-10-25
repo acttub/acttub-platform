@@ -434,13 +434,8 @@ export default function ReadingNew() {
         }}
       />
       <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
-<<<<<<< HEAD
-        <View style={[styles.backdrop, (popup?.kind === 'consent' || popup?.kind === 'free_limit' || popup?.kind === 'free_replace') && styles.backdropSheet]}>
-          {popup?.kind === 'splitting' && <SplittingCard progress={popup.progress} />}
-=======
         {/* 하단 시트를 쓰지 않는다(10/24 규칙) — 대본 나누기 동의도 가운데 팝업이다. */}
         <View style={styles.backdrop}>
->>>>>>> origin/dev
           {popup?.kind === 'alert' && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{popup.title}</Text>

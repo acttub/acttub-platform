@@ -459,9 +459,7 @@ function RootNavigator() {
         {/* 앱 Pro 정기결제(SOMA-818). 서버 플래그가 꺼져 있으면 진입점(설정 줄·한도 시트)이 없어 열리지 않는다. */}
         <Stack.Screen name="pro" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="pro-done" options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="pro-failed" options={{ headerShown: false }} />
         <Stack.Screen name="pro-manage" options={{ headerShown: false }} />
-        <Stack.Screen name="billing-result" options={{ headerShown: false, animation: 'none' }} />
       </Stack>
       <ReconsentPopup visible={reconsentOpen} />
       {/* 가입 동의·재동의의 광고성 정보 처리 결과(S5.13)를 다음 화면 위에 띄운다. */}

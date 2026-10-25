@@ -118,7 +118,7 @@ import type { VoiceModelFiles } from '@/lib/reading/tts/assets';
 import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
-import type { BillingCheckout, BillingMe, BillingPurpose } from '@/lib/billing';
+import type { BillingMe } from '@/lib/billing';
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 import type { DiscoveryPayload } from '@/lib/discovery';
 import type { AirbridgeDevicePayload } from '@/lib/airbridge-device';
@@ -424,20 +424,6 @@ export const api = {
     return request('/v2/billing/me', {}, { auth: true, timeoutMs: 10_000 });
   },
 
-  /** 일회용 토스 카드 등록 창 주소(30분, 한 번만). subscribe 는 첫 3,900원 결제까지, change_card 는 카드만 바꾼다. */
-  billingCheckout(purpose: BillingPurpose): Promise<BillingCheckout> {
-    return request('/v2/billing/checkout', jsonInit({ purpose }), { auth: true, timeoutMs: 15_000 });
-  },
-
-  /** 자동결제 해지 — 이번 결제기간 끝까지 Pro. */
-  billingCancel(): Promise<BillingMe> {
-    return request('/v2/billing/subscription/cancel', jsonInit({}), { auth: true, timeoutMs: 15_000 });
-  },
-
-  /** 자동결제가 실패한 뒤 지금 다시 결제한다. 같은 시도는 서버가 두 번 결제하지 않는다. */
-  billingRetry(): Promise<BillingMe> {
-    return request('/v2/billing/subscription/retry', jsonInit({}), { auth: true, timeoutMs: 70_000 });
-  },
 
   /** 리딩 기기 목소리 모델(fp16 묶음)의 내려받을 임시 주소(SOMA-747). 서버에 없으면 404·503 — 앱은 원본 fp32 로 받는다. */
   getVoiceModel(): Promise<VoiceModelFiles> {

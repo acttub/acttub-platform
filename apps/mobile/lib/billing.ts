@@ -1,9 +1,9 @@
 /**
- * 앱 ACTTUB Pro 정기결제(SOMA-818, specs/billing/subscription) — 서버 /v2/billing 의 모양과 화면이 쓰는 순수 규칙.
+ * ACTTUB Pro 구독(SOMA-818, specs/billing/subscription) — 서버 /v2/billing 의 모양과 화면이 쓰는 순수 규칙.
  *
- * 결제는 앱 스토어 결제가 아니라 토스페이먼츠 자동결제다. 앱은 서버가 준 일회용 카드 등록 창 주소를 브라우저 인증
- * 세션으로 열고, 앱 스킴(actingapp://billing-result)으로 돌아오면 서버 상태를 다시 읽어 결과를 가른다. 주소에 실린
- * status 는 참고만 한다 — 결제가 됐는지는 언제나 서버의 /v2/billing/me 가 정한다.
+ * 앱 안의 구매는 App Store·Play 스토어 구독(2단계)이 맡는다. 웹(acttub.com)에서 토스페이먼츠로 결제한 구독은 앱이 상태만
+ * 읽어 보여 주고, 앱 안에서 웹 결제로 보내는 버튼·링크·문구는 두지 않는다(Apple 규정). 결제가 됐는지는 언제나 서버의
+ * /v2/billing/me 가 정한다.
  */
 import { errorCode, errorStatus } from './api-request.ts';
 import { translate as t } from './i18n.ts';
@@ -20,51 +20,20 @@ export type BillingMe = {
   card_last4: string | null;
   retry_count: number;
   limits_enforced: boolean;
+  /** 결제 출처 — toss(웹)·apple·google(스토어). 구독이 없으면 null. */
+  provider?: 'toss' | 'apple' | 'google' | null;
+  /** 서버가 카드 없이 준 Pro 기간의 끝. */
+  grant_ends_at?: string | null;
+  /** 앱의 Pro 화면·구매 진입을 여는 서버 스위치(BILLING_APP_ENABLED). */
+  app_enabled?: boolean;
 };
 
-export type BillingPurpose = 'subscribe' | 'change_card';
-
-export type BillingCheckout = { checkout_url: string; return_url: string; expires_at: string };
-
-export const BILLING_RETURN_URL = 'actingapp://billing-result';
-export const PRICING_URL = 'https://acttub.com/pricing';
 export const TERMS_URL = 'https://acttub.com/terms';
 export const REFUND_URL = 'https://acttub.com/refund';
 
 /** 서버가 결제 기능을 닫아 두었는가(404 billing_unavailable). 닫혀 있으면 앱은 Pro 진입점을 숨긴다. */
 export function billingClosed(error: unknown): boolean {
   return errorStatus(error) === 404 || errorCode(error) === 'billing_unavailable';
-}
-
-export type ReturnStatus = 'done' | 'failed' | 'unknown' | 'canceled' | 'invalid';
-
-/** 브라우저가 돌아온 주소의 status. 앱 스킴이 아니거나 값이 모르는 것이면 null. */
-export function returnStatusOf(url: string | null | undefined, returnUrl: string = BILLING_RETURN_URL): ReturnStatus | null {
-  if (!url || !url.startsWith(returnUrl)) return null;
-  const query = url.slice(returnUrl.length).replace(/^[/]?\?/, '');
-  for (const part of query.split('&')) {
-    const [key, value] = part.split('=');
-    if (key === 'status' && (['done', 'failed', 'unknown', 'canceled', 'invalid'] as const).includes(value as ReturnStatus)) {
-      return value as ReturnStatus;
-    }
-  }
-  return null;
-}
-
-/** 결제 창을 닫고 돌아온 뒤 어느 화면으로 갈지. done=결제 완료, failed=결제하지 못했어요, checking=결과 확인 중, stay=그대로. */
-export type CheckoutOutcome = 'done' | 'failed' | 'checking' | 'stay';
-
-/**
- * 서버 상태(after)로 가른다. 브라우저를 그냥 닫았거나 사용자가 토스 창에서 취소했으면 stay 다.
- * 첫 결제: Pro 가 됐으면 done. 결과를 모르면(unknown) checking — 서버가 같은 주문으로 다시 확인한다.
- * 카드 바꾸기: 돌아온 status 가 done 이고 자동결제 실패 상태가 아니면 done.
- */
-export function checkoutOutcome(purpose: BillingPurpose, returned: ReturnStatus | null, after: BillingMe | null): CheckoutOutcome {
-  if (purpose === 'subscribe' && after?.pro && after.status === 'active') return 'done';
-  if (returned === null || returned === 'canceled' || returned === 'invalid') return 'stay';
-  if (returned === 'unknown') return 'checking';
-  if (purpose === 'change_card') return returned === 'done' && after?.status !== 'past_due' ? 'done' : 'failed';
-  return 'failed';
 }
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -97,6 +66,8 @@ export function planLine(me: BillingMe): string {
       return [t('pro.nextBilling', { date: monthDay(me.next_billing_at) ?? '' }), won(me.amount), card].filter(Boolean).join(' · ');
     case 'canceled':
       return t('pro.canceledLine', { date: monthDay(me.period_end) ?? '' });
+    case 'none':
+      return me.pro && me.grant_ends_at ? t('pro.grantLine', { date: monthDay(me.grant_ends_at) ?? '' }) : t('pro.freeLine');
     case 'past_due':
       return t('pro.pastDueLine', { date: monthDay(me.next_billing_at) ?? '' });
     default:
@@ -116,9 +87,29 @@ export function settingsSub(me: BillingMe): string {
   return me.pro ? t('pro.settingsPro') : t('pro.settingsFree');
 }
 
-/** 설정 줄을 누르면 갈 곳 — 구독이 있으면 구독 관리, 없으면 Pro 안내. */
+/**
+ * 설정에 「ACTTUB Pro」 줄을 보이는가. 서버가 앱 Pro 화면을 열어 두었거나(app_enabled), 이미 Pro 인 사람(웹 결제·기간 부여)이면 본다.
+ * 둘 다 아니면 구매 진입이 없다.
+ */
+export function proVisible(me: BillingMe): boolean {
+  return me.app_enabled === true || me.pro;
+}
+
+/** 앱 안에서 구매를 시작할 수 있는 자리가 열려 있는가(스토어 결제 2단계가 붙는 자리). */
+export function purchaseOpen(me: BillingMe | null): boolean {
+  return me?.app_enabled === true && !me.pro;
+}
+
+/** 설정 줄을 누르면 갈 곳 — Pro 이거나 구독이 있으면 구독 관리, 없으면 Pro 안내. */
 export function settingsTarget(me: BillingMe): '/pro-manage' | '/pro' {
-  return me.status === 'none' || me.status === 'expired' ? '/pro' : '/pro-manage';
+  return me.pro || (me.status !== 'none' && me.status !== 'expired') ? '/pro-manage' : '/pro';
+}
+
+/** 구독 관리 아래 안내 — 어디서 결제한 구독인지만 말한다(링크 없음). */
+export function managedNote(me: BillingMe): string | null {
+  if (me.provider === 'toss') return t('pro.webManaged');
+  if (me.provider === 'apple' || me.provider === 'google') return t('pro.storeManaged');
+  return null;
 }
 
 /** 서버의 무료 한도 오류 → 띄울 시트. 플래그가 꺼져 있으면 서버가 이 코드를 보내지 않아 시트도 뜨지 않는다. */
@@ -129,9 +120,4 @@ export function freeLimitOf(error: unknown): FreeLimit | null {
   if (code === 'free_daily_coaching_limit') return 'coaching';
   if (code === 'free_script_limit') return 'script';
   return null;
-}
-
-/** iOS 는 결제 창 전에 외부 결제 안내를 앱 화면으로 띄운다(hD5to). */
-export function needsExternalNotice(os: string): boolean {
-  return os === 'ios';
 }

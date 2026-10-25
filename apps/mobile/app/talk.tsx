@@ -97,13 +97,10 @@ export default function TalkScreen() {
         </View>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
-<<<<<<< HEAD
       <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
-=======
       <View style={styles.footer}>
         <PrimaryButton label={t('talk.next')} phLabel="talk_next" disabled={!picked || starting !== null} onPress={() => picked && void start(picked)} />
       </View>
->>>>>>> origin/dev
     </SafeAreaView>
   );
 }

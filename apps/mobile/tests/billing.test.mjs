@@ -3,14 +3,14 @@ import test from 'node:test';
 
 import {
   billingClosed,
+  managedNote,
+  proVisible,
+  purchaseOpen,
   cardLabel,
-  checkoutOutcome,
   freeLimitOf,
   monthDay,
-  needsExternalNotice,
   planLine,
   planTitle,
-  returnStatusOf,
   settingsSub,
   settingsTarget,
   won,
@@ -33,26 +33,6 @@ const me = (over = {}) => ({
 test('billing: 404 billing_unavailable 이면 결제 기능이 닫힌 것으로 본다', () => {
   assert.equal(billingClosed({ status: 404, code: 'billing_unavailable' }), true);
   assert.equal(billingClosed({ status: 500, code: 'internal' }), false);
-});
-
-test('billing: 돌아온 앱 주소의 status 만 읽는다', () => {
-  assert.equal(returnStatusOf('actingapp://billing-result?status=done'), 'done');
-  assert.equal(returnStatusOf('actingapp://billing-result?status=canceled'), 'canceled');
-  assert.equal(returnStatusOf('actingapp://billing-result?status=evil'), null);
-  assert.equal(returnStatusOf('https://evil.example/?status=done'), null);
-  assert.equal(returnStatusOf(null), null);
-});
-
-test('billing: 결과는 서버 상태로 가른다 — 주소의 status 만 믿지 않는다', () => {
-  assert.equal(checkoutOutcome('subscribe', 'done', me()), 'done');
-  assert.equal(checkoutOutcome('subscribe', 'done', me({ status: 'none', pro: false })), 'failed');
-  assert.equal(checkoutOutcome('subscribe', 'failed', me({ status: 'none', pro: false })), 'failed');
-  assert.equal(checkoutOutcome('subscribe', 'unknown', null), 'checking');
-  assert.equal(checkoutOutcome('subscribe', null, me({ status: 'none', pro: false })), 'stay');
-  assert.equal(checkoutOutcome('subscribe', 'canceled', null), 'stay');
-  assert.equal(checkoutOutcome('change_card', 'done', me()), 'done');
-  assert.equal(checkoutOutcome('change_card', 'done', me({ status: 'past_due', pro: false })), 'failed');
-  assert.equal(checkoutOutcome('change_card', 'failed', me()), 'failed');
 });
 
 test('billing: 날짜·카드·금액 표시', () => {
@@ -82,14 +62,31 @@ test('billing: 설정 줄 — 구독이 있으면 구독 관리, 없으면 Pro �
   assert.equal(settingsTarget(me({ status: 'none', pro: false })), '/pro');
   assert.equal(settingsTarget(me({ status: 'expired', pro: false })), '/pro');
   assert.equal(settingsTarget(me({ status: 'canceled' })), '/pro-manage');
+  assert.equal(settingsTarget(me({ status: 'none', pro: true, grant_ends_at: '2026-12-01T00:00:00Z' })), '/pro-manage');
+});
+
+test('billing: 구매 진입은 서버가 앱 스위치를 켰을 때만 — 웹에서 결제한 사람은 상태만 본다', () => {
+  assert.equal(proVisible(me({ status: 'none', pro: false })), false);
+  assert.equal(proVisible(me({ status: 'none', pro: false, app_enabled: true })), true);
+  assert.equal(proVisible(me({ provider: 'toss' })), true);
+  assert.equal(purchaseOpen(me({ status: 'none', pro: false })), false);
+  assert.equal(purchaseOpen(me({ status: 'none', pro: false, app_enabled: true })), true);
+  assert.equal(purchaseOpen(me({ app_enabled: true })), false);
+  assert.equal(purchaseOpen(null), false);
+});
+
+test('billing: 결제한 곳만 한 줄로 알리고 링크·웹 결제 안내는 없다', () => {
+  assert.equal(managedNote(me({ provider: 'toss' })), '웹에서 결제한 구독이에요');
+  assert.equal(managedNote(me({ provider: 'apple' })), '스토어에서 결제한 구독이에요');
+  assert.equal(managedNote(me({ provider: null })), null);
+  assert.doesNotMatch(String(managedNote(me({ provider: 'toss' }))), /acttub\.com|pricing|http/);
+  assert.equal(planLine(me({ status: 'none', pro: true, grant_ends_at: '2026-11-30T14:59:00Z' })), '11월 30일까지 Pro 이용 기간이에요');
 });
 
 test('billing: 무료 한도 오류 → 시트', () => {
   assert.equal(freeLimitOf({ code: 'free_daily_coaching_limit' }), 'coaching');
   assert.equal(freeLimitOf({ code: 'free_script_limit' }), 'script');
   assert.equal(freeLimitOf({ code: 'guest_daily_analysis_limit' }), null);
-  assert.equal(needsExternalNotice('ios'), true);
-  assert.equal(needsExternalNotice('android'), false);
 });
 
 test('billing: 코칭 시작이 무료 한도에 걸리면 free_limit — 게스트 하루 한도와 가른다', () => {

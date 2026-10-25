@@ -2,7 +2,6 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/buttons';
 import { MASCOT, MASCOT_SIZE, type MascotPose } from '@/components/ui/mascot';
@@ -50,8 +49,8 @@ export function ProCompareTable() {
 }
 
 /**
- * pen 아래 시트(a5y1Qr·WLdNc·K7q5Vk) — 손잡이 · 액티 · 제목 19/800 · 설명 14 · [주 버튼] · 글자 버튼. 모달 없이 내용만이라
- * 이미 모달을 쓰는 화면(리딩 새 대본)이 자기 모달 안에 그린다.
+ * 가운데 팝업 카드(10/24 규칙: 아래 시트를 쓰지 않는다) — 액티 · 제목 19/800 · 설명 14 · [주 버튼] · 글자 버튼. 모달 없이
+ * 내용만이라 이미 모달을 쓰는 화면(리딩 새 대본)이 자기 모달 안에 그린다.
  */
 export function ProSheetCard({
   title,
@@ -74,10 +73,8 @@ export function ProSheetCard({
   busy?: boolean;
   destructive?: boolean;
 }) {
-  const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]} accessibilityViewIsModal>
-      <View style={styles.handle} />
+    <View style={styles.sheet} accessibilityViewIsModal>
       <Image source={MASCOT[pose]} style={styles.sheetMascot} contentFit="contain" />
       <Text style={styles.sheetTitle}>{title}</Text>
       <Text style={styles.sheetBody}>{body}</Text>
@@ -90,14 +87,14 @@ export function ProSheetCard({
   );
 }
 
-/** 모달로 감싼 아래 시트. 바깥을 누르면 글자 버튼과 같다. */
+/** 모달로 감싼 가운데 팝업. 바깥을 누르면 글자 버튼과 같다. */
 export function ProSheet(props: React.ComponentProps<typeof ProSheetCard> & { visible: boolean }) {
   const { visible, ...card } = props;
   return (
-    <Modal transparent visible={visible} animationType="slide" statusBarTranslucent onRequestClose={card.onSecondary}>
+    <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={card.onSecondary}>
       <Pressable style={styles.backdrop} onPress={card.onSecondary} accessibilityRole="button"
         accessibilityLabel={card.secondary} />
-      <View style={styles.sheetDock}>
+      <View style={styles.sheetDock} pointerEvents="box-none">
         <ProSheetCard {...card} />
       </View>
     </Modal>
@@ -123,47 +120,6 @@ export function CoachingLimitSheet({ visible, onClose }: { visible: boolean; onC
       secondary={t('pro.coachingLimitLater')}
       onSecondary={onClose}
     />
-  );
-}
-
-/**
- * pen hD5to 「외부 결제 안내」. 실제 Apple StoreKit External Purchase 시스템 창이 아니라 같은 문구의 앱 화면이다 — 출시 전에
- * Apple 승인과 네이티브 창(entitlement)으로 바꿔야 한다.
- */
-export function ExternalPurchaseNotice({
-  visible,
-  onCancel,
-  onContinue,
-  onLearnMore,
-}: {
-  visible: boolean;
-  onCancel: () => void;
-  onContinue: () => void;
-  onLearnMore: () => void;
-}) {
-  return (
-    <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onCancel}>
-      <View style={styles.alertBackdrop}>
-        <View style={styles.alert} accessibilityViewIsModal>
-          <View style={styles.alertBody}>
-            <Text style={styles.alertTitle}>{t('pro.externalTitle')}</Text>
-            <Text style={styles.alertText}>{t('pro.externalBody')}</Text>
-            <Pressable onPress={onLearnMore} accessibilityRole="link" hitSlop={6}>
-              <Text style={styles.alertLink}>{t('pro.externalMore')}</Text>
-            </Pressable>
-          </View>
-          <View style={styles.alertButtons}>
-            <Pressable style={styles.alertButton} onPress={onCancel} accessibilityRole="button">
-              <Text style={styles.alertButtonText}>{t('pro.externalCancel')}</Text>
-            </Pressable>
-            <View style={styles.alertDivider} />
-            <Pressable style={styles.alertButton} onPress={onContinue} accessibilityRole="button">
-              <Text style={[styles.alertButtonText, styles.alertButtonStrong]}>{t('pro.externalContinue')}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
   );
 }
 
@@ -193,34 +149,22 @@ const styles = StyleSheet.create({
   free: { color: palette.textFaint },
   pro: { fontWeight: '700', color: palette.blueDeep },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
-  sheetDock: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  sheetDock: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', paddingHorizontal: 24 },
   sheet: {
     alignSelf: 'stretch',
     backgroundColor: palette.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 24,
     paddingHorizontal: 24,
-    paddingTop: 10,
+    paddingTop: 28,
+    paddingBottom: 12,
     alignItems: 'center',
   },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: palette.borderSoft, marginBottom: 18 },
   sheetMascot: MASCOT_SIZE.md,
   sheetTitle: { marginTop: 12, fontSize: 19, fontWeight: '800', color: palette.text, textAlign: 'center', lineHeight: 26 },
   sheetBody: { marginTop: 8, fontSize: 14, color: palette.textDim, textAlign: 'center', lineHeight: 21 },
   sheetButton: { alignSelf: 'stretch', marginTop: 22 },
   sheetSecondary: { paddingVertical: 14 },
   sheetSecondaryText: { fontSize: 15, fontWeight: '600', color: palette.textDim },
-  alertBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', alignItems: 'center', justifyContent: 'center' },
-  alert: { width: 290, borderRadius: 14, backgroundColor: '#F2F2F7', overflow: 'hidden' },
-  alertBody: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16, gap: 8, alignItems: 'center' },
-  alertTitle: { fontSize: 15, fontWeight: '700', color: palette.text, textAlign: 'center' },
-  alertText: { fontSize: 12, color: '#3C3C43', textAlign: 'center', lineHeight: 17 },
-  alertLink: { fontSize: 13, color: '#007AFF' },
-  alertButtons: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#C6C6C8' },
-  alertButton: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-  alertDivider: { width: StyleSheet.hairlineWidth, backgroundColor: '#C6C6C8' },
-  alertButtonText: { fontSize: 16, color: '#007AFF' },
-  alertButtonStrong: { fontWeight: '600' },
   benefit: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
   benefitTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: palette.text },
   benefitSub: { fontSize: 13, color: palette.textFaint },
