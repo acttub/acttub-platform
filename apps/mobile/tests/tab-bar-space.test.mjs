@@ -16,10 +16,10 @@ test('탭바는 화면 위에 떠 있어서 탭 화면은 탭바 높이(useTabBa
   }
 });
 
-test('첫 사용자 홈은 코칭·대본 리딩·챌린지 세 길 중 하나를 고르고 「다음」으로 간다(pen P1.12)', () => {
+test('첫 사용자 홈은 코칭·대본 리딩 두 길 중 하나를 고르고 「다음」으로 간다 — 챌린지는 첫 연습 뒤(SOMA-827)', () => {
   const home = read('app/(tabs)/index.tsx');
-  assert.match(home, /type FirstPick = 'coaching' \| 'reading' \| 'challenge';/);
-  assert.match(home, /home_first_challenge/);
+  assert.match(home, /type FirstPick = 'coaching' \| 'reading';/);
+  assert.doesNotMatch(home, /home_first_challenge/);
   // pen P1.13·P1.14(SOMA-821) — 고르면 카드 안에 「이렇게 진행돼요」 세 단계가 펼쳐진다.
   assert.match(home, /firstReadingSteps/);
   assert.match(home, /firstCoachingSteps/);

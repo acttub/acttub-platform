@@ -50,12 +50,11 @@ import {
   writeLastSeenStreak,
 } from '@/lib/streak-celebration';
 
-/** 첫 사용자 홈에서 고른 길 → 「계속하기」가 가는 탭(예전엔 카드를 누르면 바로 갔다). */
-type FirstPick = 'coaching' | 'reading' | 'challenge';
-const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading' | '/challenges'> = {
+/** 첫 사용자 홈에서 고른 길 → 「계속하기」가 가는 탭. 챌린지는 첫 연습을 끝낸 뒤에 보인다(SOMA-827) — 코칭·리딩 둘만. */
+type FirstPick = 'coaching' | 'reading';
+const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading'> = {
   coaching: '/coaching',
   reading: '/reading',
-  challenge: '/challenges',
 };
 
 /** 히어로 바탕 — 연한 파랑에서 화면 바탕색으로 서서히 옅어지는 띠(그라데이션 모듈이 없어 단색 띠를 겹친다). */
@@ -579,14 +578,6 @@ export default function HomeScreen() {
                 selected={firstPick === 'reading'}
                 phLabel="home_first_reading"
                 onPress={() => setFirstPick('reading')}
-              />
-              <FirstChoice
-                icon="award"
-                title={t('home.firstChallenge')}
-                sub={t('home.firstChallengeSub')}
-                selected={firstPick === 'challenge'}
-                phLabel="home_first_challenge"
-                onPress={() => setFirstPick('challenge')}
               />
             </View>
           </ScrollView>

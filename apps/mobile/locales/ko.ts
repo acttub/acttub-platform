@@ -627,7 +627,7 @@ const ko = {
     sameLineTitle: '같은 대사, 다른 연기',
     sameLineMeta: '이번 주 대사 · {{dday}} · 참여 {{count}}명',
     firstSub: '같은 대사를 다른 배우는 어떻게 하는지 확인해 봐요.',
-    firstSeeOthers: '다른 작품 보기',
+    firstBrowse: '챌린지 둘러보기',
     firstNext: '다음',
     search: '대사 검색',
     addLine: '대사 등록',

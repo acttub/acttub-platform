@@ -201,14 +201,14 @@ beforeEach(() => {
 });
 
 describe('첫 사용자', () => {
-  test('기록·대본·연습한 날이 없으면 액티 말풍선과 「뭐부터 해 볼까요?」 선택 카드 셋을 보이고, 하나 골라 「다음」을 눌러야 그 탭에 간다', async () => {
+  test('기록·대본·연습한 날이 없으면 액티 말풍선과 「뭐부터 해 볼까요?」 선택 카드 둘(코칭·리딩)을 보이고, 하나 골라 「다음」을 눌러야 그 탭에 간다', async () => {
     await render(<HomeScreen />);
 
     expect(await screen.findByText('뭐부터 해 볼까요?')).toBeOnTheScreen();
     expect(screen.getByText('하나를 누르면 자세히 알려 드려요')).toBeOnTheScreen();
     expect(screen.getByText('영상을 보여 주면 코치가 질문하며 고칠 점 하나를 같이 찾아요.')).toBeOnTheScreen();
     expect(screen.getByText('상대역 대사를 읽어 줘서 혼자서도 내 대사를 맞춰 봐요.')).toBeOnTheScreen();
-    expect(screen.getByText('이번 주 대사를 연기해요')).toBeOnTheScreen();
+    expect(screen.queryByText('이번 주 대사를 연기해요')).not.toBeOnTheScreen();
     await waitFor(() => expect(writeLastSeenStreak).toHaveBeenCalledWith(0));
 
     // 기본 선택이 없고, 고르기 전엔 「다음」이 막혀 있다.
@@ -226,20 +226,16 @@ describe('첫 사용자', () => {
     expect(mockRouter.push).toHaveBeenLastCalledWith('/reading');
   });
 
-  test('코칭·챌린지를 골라도 「다음」으로 각 탭에 가고, 고른 하나만 선택 표시가 된다', async () => {
+  test('선택지는 코칭·리딩 둘뿐이고(챌린지는 첫 연습 뒤), 코칭을 골라 「다음」을 누르면 코칭 탭으로 간다(SOMA-827)', async () => {
     await render(<HomeScreen />);
     await screen.findByText('뭐부터 해 볼까요?');
 
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(screen.queryByRole('radio', { name: '챌린지에 참여해 볼래요?' })).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('radio', { name: '연기 코칭을 받아볼래요?' }));
     expect(screen.getAllByRole('radio', { selected: true })).toHaveLength(1);
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/coaching');
-
-    await fireEvent.press(screen.getByRole('radio', { name: '챌린지에 참여해 볼래요?' }));
-    expect(screen.getAllByRole('radio', { selected: true })).toHaveLength(1);
-    expect(screen.getByRole('radio', { name: '챌린지에 참여해 볼래요?', selected: true })).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith('/challenges');
   });
 
   test('대본만 넣고 끝까지 안 읽은 사람은 아직 첫 사용자다 — 선택지를 본다(SOMA-827)', async () => {

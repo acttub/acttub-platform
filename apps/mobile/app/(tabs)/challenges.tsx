@@ -25,7 +25,7 @@ import {
   participantsLabel,
   pinsFeatured,
 } from '@/lib/challenge/browse';
-import { hasFinishedFirstChallenge, hasSeenChallengeIntro, markChallengeIntroSeen } from '@/lib/challenge/intro-state';
+import { hasBrowsedChallenges, hasFinishedFirstChallenge, hasSeenChallengeIntro, markChallengeIntroSeen, markChallengesBrowsed } from '@/lib/challenge/intro-state';
 import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
@@ -67,9 +67,11 @@ export default function ChallengesScreen() {
   const [lastWeek, setLastWeek] = useState<ChallengeCard | null>(null);
   /** 파란 「누를 것 안내」는 첫 챌린지 참여를 끝낼 때까지만. */
   const [showGuide, setShowGuide] = useState(false);
+  /** 첫 챌린지 화면에서 「챌린지 둘러보기」를 고른 적이 있으면 기본 챌린지 홈을 보인다(SOMA-827). */
+  const [browsed, setBrowsed] = useState(false);
   const unread = useUnreadNotifications();
   /** 첫 사용자용 고르기(C1.16·C1.18) — 고른 줄. 기본 선택은 없고 「다음」을 눌러야 넘어간다. */
-  const [firstPick, setFirstPick] = useState<'perform' | 'others' | null>(null);
+  const [firstPick, setFirstPick] = useState<'perform' | 'browse' | null>(null);
   /** 이번 주 대사 카드에 틀어 줄 참여작 예시 영상(좋아요 많은 순 첫 공개 참여작). 없으면 카드만 둔다. */
   const [exampleUrl, setExampleUrl] = useState<string | null>(null);
 
@@ -126,6 +128,7 @@ export default function ChallengesScreen() {
   useFocusEffect(
     useCallback(() => {
       void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
+      void hasBrowsedChallenges().then(setBrowsed);
       void api
         .listChallenges({ tab: 'ended' })
         .then((result) => setLastWeek(lastWeekResult(result.challenges)))
@@ -163,7 +166,7 @@ export default function ChallengesScreen() {
   const tapCard = (challenge: ChallengeCard) => openDetail(challenge);
 
   /** 첫 챌린지 참여를 끝내기 전에는 이번 주 대사 하나만 보여 주고 둘 중 하나를 고르게 한다. */
-  const selectMode = showGuide && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
+  const selectMode = showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
 
   const emptyText =
     tab === 'ended' ? t('challenges.emptyEnded') : tab === 'mine' ? t('challenges.emptyMine') : t('challenges.emptyRunning');
@@ -220,7 +223,7 @@ export default function ChallengesScreen() {
               <Text style={styles.sameMeta}>{t('challenges.firstSub')}</Text>
             </View>
             <PickRow label={t('challenges.performCta')} selected={firstPick === 'perform'} onPress={() => setFirstPick('perform')} />
-            <PickRow label={t('challenges.firstSeeOthers')} selected={firstPick === 'others'} onPress={() => setFirstPick('others')} />
+            <PickRow label={t('challenges.firstBrowse')} selected={firstPick === 'browse'} onPress={() => setFirstPick('browse')} />
           </ScrollView>
           <CtaBar safeBottom={false} style={{ paddingBottom: tabBarSpace > 0 ? tabBarSpace : 10 }}>
             <PrimaryButton
@@ -229,7 +232,11 @@ export default function ChallengesScreen() {
               onPress={() => {
                 void logEvent('challenge_first_pick', { pick: firstPick ?? '' });
                 if (firstPick === 'perform') perform(featured);
-                else router.push({ pathname: '/challenge-others', params: { id: featured.id } });
+                else {
+                  // 둘러보기 — 이 자리에서 기본 챌린지 홈으로 바꾸고, 다음에 와도 그대로 둔다.
+                  setBrowsed(true);
+                  void markChallengesBrowsed();
+                }
               }}
             />
           </CtaBar>

@@ -377,7 +377,7 @@ export default function ProfileNameScreen() {
       footer = nextButton(() => advance('directions'), ready);
       break;
     case 'discovery':
-      // 하나 누르면 바로 저장한다(SOMA-827). 「기타」만 직접 적고 「완료」를 누른다. 건너뛰면 고르지 않은 것으로 적는다.
+      // 마지막 질문이라 고르고 「완료」를 눌러야 저장한다(SOMA-827 후속 — 바로 저장하지 않는다). 「기타」는 직접 적는다. 건너뛰면 고르지 않은 것으로 적는다.
       body = (
         <>
           <View style={styles.options}>
@@ -386,12 +386,7 @@ export default function ProfileNameScreen() {
                 key={source}
                 label={t(`profileName.discoverySources.${source}`)}
                 selected={discovery.source === source}
-                onPress={() => {
-                  if (busy) return;
-                  const answer = chooseDiscoverySource(discovery, source);
-                  setDiscovery(answer);
-                  if (source !== 'other') advance('discovery', undefined, answer);
-                }}
+                onPress={() => setDiscovery(chooseDiscoverySource(discovery, source))}
               />
             ))}
           </View>
@@ -410,7 +405,10 @@ export default function ProfileNameScreen() {
       );
       footer = (
         <>
-          {discovery.source === 'other' && nextButton(() => advance('discovery'), discovery.otherText.trim().length > 0)}
+          {nextButton(
+            () => advance('discovery'),
+            discovery.source !== null && (discovery.source !== 'other' || discovery.otherText.trim().length > 0),
+          )}
           <TextButton
             size="large"
             label={t('profileName.skip')}
@@ -485,7 +483,6 @@ const TAP_TO_NEXT: Partial<Record<OnboardingStep, string>> = {
   gender: 'profileName.askGenderHint',
   goal: 'profileName.askGenderHint',
   career: 'profileName.askGenderHint',
-  discovery: 'profileName.askDiscoveryHint',
 };
 
 const ASK_KEYS: Record<OnboardingStep, string> = {
