@@ -422,6 +422,9 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingRecordingIT"),
             covered("feature.reading.app.RecordingService|503|audio_conversion_failed", 1,
                     "feature.reading.ReadingRecordingIT"),
+            // 예시 대본 고르기(reading.script 「예시 대본」, V61). 없는 id 와 꺼진 id 가 같은 404 다.
+            covered("feature.reading.app.ReadingExampleService|404|reading_example_not_found", 1,
+                    "feature.reading.ReadingExampleIT"),
             // 찍을 대사 같이 만들기(reading.cocreate, SOMA-721). 모델 실패와 검사 불통과는 같은 502 다.
             covered("feature.reading.app.ScriptCocreateService|404|sample_script_not_found", 2,
                     "feature.reading.app.ScriptCocreateServiceTest"),
