@@ -1,141 +1,81 @@
 "use client";
 
 import Image from "next/image";
-import { BusinessInfo } from "@/features/business-info/business-info";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import wordmark from "../assets/acttub-wordmark.png";
-import {
-  AppDownloadButton,
-  useAppDownloadHref,
-} from "../features/app-download/app-download-button";
-import { APP_HIGHLIGHTS } from "../features/app-download/app-highlights";
-import { StickyDownloadBar } from "../features/app-download/sticky-download-bar";
-import { StoreBadges } from "../features/app-download/store-badges";
-import { useCampaignSearch } from "../features/app-download/use-campaign-search";
-import { LANDING_GUIDE_LINKS } from "../features/keyword-pages/guide-links";
-import { preserveWebAttributionFromSearch } from "../lib/analytics/web-attribution";
-import { hasGuestSession } from "../lib/auth/token-store";
-import { wantsLandingIntro } from "../lib/landing-intro";
+import { useAppDownloadHref } from "@/features/app-download/app-download-button";
+import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
+import { StoreBadges } from "@/features/app-download/store-badges";
+import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
+import { findFaq } from "@/features/help/help-content";
+import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
+import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
+import { hasGuestSession } from "@/lib/auth/token-store";
+import { wantsLandingIntro } from "@/lib/landing-intro";
 
-const COPY = {
-  wordmarkAlt: "Acttub",
-  homeLabel: "Acttub 홈",
-  nav: {
-    flow: "서비스 흐름",
-    result: "결과물",
-    terms: "안전 약속",
-    pricing: "Pro 구독 안내",
-    refund: "해지·환불정책",
-    app: "앱 다운로드",
-    aiCoaching: "AI 연기 코칭",
-    coaching: "연기 코칭 안내",
-    guide: "연기 연습 가이드",
-  },
-  hero: {
-    launch: "앱 출시",
-    free: "AI 연기 코칭 · 현재 무료 이용",
-    titleFirst: "혼자 하는 연기 연습,",
-    titleSecond: "질문 받으면서 해요",
-    subFirst: "연기 영상을 올리면 AI 코치가 장면에 대해 물어봐요.",
-    subSecond: "답하다 보면 다음 테이크에서 해 볼 한 문장이 남아요.",
-    helper: "기기에 맞는 스토어로 바로 이동해요",
-    web: "앱 없이 바로 해 보기",
-    desktop: "앱 없이 바로 해 보기",
-    coaching: "연기 코칭, 어디서 어떻게 받을까요?",
-  },
-  phone: {
-    scene: "이별 통보 직후, 카페에서",
-    time: "연습 영상",
-    counter: "질문 04 / 07",
-    observation: "말을 끝낸 뒤 시선이 아래로 내려가는 순간이 보여요.",
-    question: "그때 인물은 무엇을 기다리고 있었나요?",
-    answer: "확신이 아니라… 상대가 한 번만 더 확인해 주길 바랐어요.",
-    typing: "다음 질문 준비 중",
-    sentenceLabel: "오늘의 문장",
-    sentence: "“확신보다 확인을 원했다.”",
-    sentenceFooter: "다음 연습 · 대답 전 2초 더 듣기",
-    promise: "관찰 먼저, 단정은 안 해요",
-  },
-  app: {
-    eyebrow: "앱에서만",
-    titleFirst: "연습실을 나오기 전에",
-    titleSecond: "폰에서 바로",
-    description:
-      "영상은 어차피 폰으로 찍으니까요. 올리는 것부터 질문에 답하는 것까지 앱에서 한 번에 끝나요.",
-  },
-  flow: {
-    eyebrow: "서비스 흐름",
-    titleFirst: "처음 와도 바로 이해되는",
-    titleSecond: "3단계 연기 복기",
-  },
-  result: {
-    eyebrow: "결과물",
-    titleFirst: "질문을 넘기면",
-    titleSecond: "연습 노트가 남아요",
-    description:
-      "Acttub은 장면을 단정하지 않아요. 확인한 관찰만 질문의 근거로 삼고, 마지막 문장은 배우가 직접 선택하게 합니다.",
-    terms: "안전한 질문 원칙 보기 →",
-  },
-  bottom: {
-    label: "Ready to practice",
-    titleFirst: "오늘 찍은 장면으로",
-    titleSecond: "바로 질문을 받아보세요",
-    web: "앱 없이 웹으로 계속하기 →",
-  },
-  footer: {
-    description:
-      "Acttub(액터브)은 질문으로 다시 보는 연기 연습 도구예요. 웹에서 해 본 연습은 코드 하나로 앱에 옮겨 이어서 해요.",
-    guides: "많이 찾는 연습 가이드",
-    instagram: "인스타그램",
-    email: "acttub0527@gmail.com",
-  },
-  productFlow: [
-    {
-      label: "1 · 입력",
-      title: "연기 영상 업로드",
-      description: "MP4/MOV 영상과 장면의 상황, 인물, 목표를 적어요.",
-    },
-    {
-      label: "2 · 질문",
-      title: "확인된 단서로 질문",
-      description:
-        "보이는 관찰을 먼저 확인하고, 단정하지 않는 질문으로 이어가요.",
-    },
-    {
-      label: "3 · 결과",
-      title: "내 연습 노트 완성",
-      description: "답변을 모아 다음 테이크에서 붙잡을 한 문장으로 정리해요.",
-    },
-  ],
-  outcomes: [
-    ["놓친 순간", "영상 속 작은 멈춤과 반응을 다시 보게 해요."],
-    ["장면 의도", "인물의 목표와 상대에게 기대한 것을 말로 붙잡아요."],
-    ["다음 액션", "다음 테이크에서 바로 시도할 연습 문장을 남겨요."],
-  ],
-} as const;
+/**
+ * 공개 홈(/). 앱을 쓰게 하는 소개와, 웹이 공식 창구라는 것을 함께 보인다(SOMA-834 웹 개편 v2).
+ * 앱 화면은 휴대폰 안 시연으로만 쓰고 앱 탭 구조를 옮기지 않는다. 문구는 이미 공개한 사실만 쓴다.
+ */
+const FOCUS =
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4880ee]";
 
-const waveformHeights = [8, 15, 25, 18, 10, 23, 28, 13, 20, 9, 16, 24, 11];
-const typingDotColors = ["#8b95a1", "#b0b8c1", "#d1d6db"];
-// 대화가 위에서부터 차례로 올라오는 간격. 첫 버블은 화면이 뜬 직후 바로 나온다.
-const bubbleDelay = (order: number) => 300 + order * 800;
+const HOME_FAQ = [
+  "웹에서도 앱 계정으로 쓸 수 있나요?",
+  "무료로 쓰다가 자동으로 유료가 되나요?",
+  "어떤 영상을 올릴 수 있나요?",
+  "해지하면 바로 Pro를 못 쓰나요?",
+  "리딩에는 어떤 대본을 넣을 수 있나요?",
+] as const;
+
+function Phone({ src, alt, className = "" }: { src: string; alt: string; className?: string }) {
+  return (
+    <div className={`rounded-[44px] bg-[#111] p-2.5 shadow-[0_30px_60px_rgba(25,31,40,0.22)] ${className}`}>
+      <Image src={src} alt={alt} width={406} height={860} className="block h-auto w-full rounded-[34px] bg-white" />
+    </div>
+  );
+}
+
+function Qr({ size }: { size: number }) {
+  return (
+    <Image
+      src="/site/app-qr.svg"
+      alt="앱 설치 QR 코드"
+      width={size}
+      height={size}
+      unoptimized
+      className="rounded-xl border border-[#e5e8eb] bg-white p-2"
+    />
+  );
+}
+
+type Feature = {
+  id: string;
+  kicker: string;
+  title: [string, string];
+  body: string;
+  bullets: string[];
+  appLabel: string;
+  web?: { href: string; label: string };
+  shot: string;
+  shotAlt: string;
+};
+
 export default function LandingClient() {
   const router = useRouter();
   const campaignSearch = useCampaignSearch();
-  const practiceHref = preserveWebAttributionFromSearch(
-    "/practice/new",
-    campaignSearch,
-  );
-  const appDownloadHref = useAppDownloadHref("landing_header");
+  const practiceHref = preserveWebAttributionFromSearch("/practice/new", campaignSearch);
+  const readingHref = preserveWebAttributionFromSearch("/reading", campaignSearch);
+  const appHref = useAppDownloadHref("landing_hero");
+  const appSectionHref = useAppDownloadHref("landing_app_section");
+
   useEffect(() => {
-    // 이미 이 브라우저에서 연습하던 게스트는 랜딩을 건너뛰고 연습으로 보낸다.
-    // 연습 화면 로고처럼 ?intro=1 로 일부러 들어온 경우만 랜딩을 그대로 보여 준다.
+    // 이미 이 브라우저에서 연습하던 게스트는 홈을 건너뛰고 연습으로 보낸다.
+    // 연습 화면 로고처럼 ?intro=1 로 일부러 들어온 경우만 홈을 그대로 보여 준다.
     if (hasGuestSession() && !wantsLandingIntro(window.location.search)) {
-      router.replace(
-        preserveWebAttributionFromSearch("/home", window.location.search),
-      );
+      router.replace(preserveWebAttributionFromSearch("/home", window.location.search));
     }
   }, [router]);
 
@@ -151,603 +91,244 @@ export default function LandingClient() {
       },
       { threshold: 0.22 },
     );
-
     screens.forEach((screen) => observer.observe(screen));
     return () => observer.disconnect();
   }, []);
 
+  const features: Feature[] = [
+    {
+      id: "coaching",
+      kicker: "연기 코칭",
+      title: ["단정하지 않고,", "장면을 같이 봐요"],
+      body: "찍어 둔 연기 영상을 올리면 코치가 장면을 보고 질문해요. 답하다 보면 막힌 곳이 보이고, 대화가 끝나면 연습 노트가 남아요.",
+      bullets: ["영상 없이 말로 고민을 털어놔도 돼요", "다음 테이크에서 해 볼 것 하나를 정해 줘요"],
+      appLabel: "앱에서 코칭 받기",
+      web: { href: practiceHref, label: "웹에서 해 보기" },
+      shot: "/site/shot-coach.jpg",
+      shotAlt: "앱의 코칭 질문 대화 화면",
+    },
+    {
+      id: "reading",
+      kicker: "대본 리딩",
+      title: ["혼자여도,", "대사는 오가요"],
+      body: "대본을 넣고 내 배역을 고르면 상대역 대사를 AI가 소리 내 읽어 줘요. 내 대사는 가리고 호흡을 맞춰 봐요.",
+      bullets: ["TXT·DOCX·PDF·HWP 파일이나 붙여넣기로 넣어요", "예시 대본으로 바로 시작할 수도 있어요"],
+      appLabel: "앱에서 리딩하기",
+      web: { href: readingHref, label: "웹에서 해 보기" },
+      shot: "/site/shot-reading.jpg",
+      shotAlt: "앱의 대본 리딩 화면",
+    },
+    {
+      id: "challenge",
+      kicker: "챌린지",
+      title: ["이번 주 대사,", "다른 배우는 어떻게 했을까"],
+      body: "매주 공식 대사가 열려요. 같은 대사를 다른 배우들이 어떻게 연기했는지 보고, 나도 찍어서 올려요.",
+      bullets: ["참여·좋아요·댓글은 앱에서 해요"],
+      appLabel: "앱에서 참여하기",
+      shot: "/site/shot-challenge.jpg",
+      shotAlt: "앱의 챌린지 화면",
+    },
+  ];
+
+  const faq = HOME_FAQ.map((q) => findFaq(q)).filter((item) => item !== undefined);
+
   return (
-    <>
-      <main className="h-dvh snap-y snap-proximity scroll-smooth overflow-y-auto overscroll-y-contain bg-white text-[#191f28] [@media(max-height:700px)]:snap-proximity">
-        <header className="sticky top-0 z-20 -mb-16 border-b border-[#edf0f3]/80 bg-white/90 px-5 backdrop-blur-xl">
-          <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between">
-            <Link href="/" aria-label={COPY.homeLabel} className="shrink-0">
-              <Image
-                src={wordmark}
-                alt={COPY.wordmarkAlt}
-                priority
-                className="h-6 w-auto"
-              />
-            </Link>
-            <div className="flex items-center gap-8">
-              <div className="hidden items-center gap-8 text-sm font-semibold text-[#4e5968] sm:flex">
-                <a href="#flow" className="transition hover:text-[#191f28]">
-                  {COPY.nav.flow}
-                </a>
-                <a href="#result" className="transition hover:text-[#191f28]">
-                  {COPY.nav.result}
-                </a>
-                <Link href="/pricing" className="transition hover:text-[#191f28]">
-                  {COPY.nav.pricing}
-                </Link>
-                <Link href="/terms" className="transition hover:text-[#191f28]">
-                  {COPY.nav.terms}
-                </Link>
-              </div>
-              {/* 앱은 폰에서 받는다 — 이 버튼만은 좁은 화면에서도 접지 않는다. */}
-              <a
-                href={appDownloadHref}
-                data-app-download="landing_header"
-                className="inline-flex h-10 shrink-0 items-center justify-center rounded-full bg-[#3182f6] px-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#1b64da]"
-              >
-                {COPY.nav.app}
-              </a>
-            </div>
-          </nav>
-        </header>
-
-        {/* 첫 화면에는 snap-start 를 두지 않는다. 헤더(h-16 + border) 아래로 -mb-16 만큼 겹치면서
-            히어로의 스냅 지점이 y=1px 에 놓이고, 스냅 컨테이너가 로드 직후 1px 을 스스로
-            스크롤한다. Chrome 은 그 스크롤에서 LCP 측정을 멈춰 운영 모바일 LCP 가 9초대로
-            찍혔다(2026-09-18, JS 를 꺼도 재현). 스크롤 위치 0 이 곧 첫 화면이라 스냅이 필요 없다. */}
-        <section
-          id="hero"
-          className="relative flex min-h-dvh flex-col justify-center overflow-hidden break-keep bg-[linear-gradient(180deg,#eaf6ff_0%,#f8fbff_58%,#ffffff_100%)] px-5 pt-16"
-        >
-          <div className="absolute left-1/2 top-12 h-80 w-80 -translate-x-1/2 rounded-full bg-[#3182f6]/[0.16] blur-3xl" />
-          <div className="absolute -left-24 top-1/2 h-64 w-64 rounded-full bg-white/70 blur-3xl" />
-          {/* 첫 화면은 서버 HTML부터 보이게 둔다 — 아래 섹션처럼 data-reveal 로 숨겨 두면
-              JS 번들이 내려와 하이드레이션될 때까지 h1 이 opacity-0 이라, 모바일 실측에서
-              LCP 가 9초까지 밀렸다(2026-09-18, TTFB·FCP 는 정상). 스크롤 reveal 은
-              뷰포트 밖에서 시작하는 섹션에만 뜻이 있다. */}
-          <div
-            data-visible="true"
-            className="relative mx-auto grid w-full max-w-6xl translate-y-6 items-center gap-4 py-4 opacity-0 transition-[opacity,transform] duration-400 ease-[cubic-bezier(0,0,0.2,1)] data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none sm:gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.7fr)] lg:gap-12"
-          >
-            <div className="text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-2 shadow-[0_6px_24px_rgba(49,130,246,0.1)]">
-                <span className="rounded-full bg-[#3182f6] px-2 py-0.5 text-[11px] font-black text-white">
-                  {COPY.hero.launch}
-                </span>
-                <span className="text-sm font-black text-[#3182f6]">
-                  {COPY.hero.free}
-                </span>
-              </div>
-              <h1 className="mt-4 text-3xl font-black leading-[1.1] tracking-tight sm:mt-6 sm:text-6xl lg:text-7xl">
-                {COPY.hero.titleFirst}
-                <br />
-                {COPY.hero.titleSecond}
+    <div className="min-h-dvh break-keep bg-white text-[#191f28]">
+      <SiteHeader current="home" />
+      <main>
+        <section id="hero" className="bg-gradient-to-b from-white to-[#f5f9ff]">
+          <div className="mx-auto flex max-w-[1200px] flex-col items-center gap-12 px-5 pb-0 pt-10 sm:px-8 lg:flex-row lg:gap-16 lg:pb-16 lg:pt-[72px]">
+            <div className="w-full flex-1">
+              <p className="inline-flex rounded-full bg-[#eaf3fe] px-3.5 py-2 text-sm font-bold text-[#3268d8] sm:text-[15px]">
+                혼자 연습하는 배우를 위한 AI 코치
+              </p>
+              <h1 className="mt-5 text-[34px] font-extrabold leading-[1.25] tracking-[-0.04em] sm:text-5xl lg:text-[60px] lg:leading-[1.22]">
+                내 연기를 같이 봐 줄<br className="hidden sm:block" /> 사람이 없을 때,{" "}
+                <span className="text-[#4880ee]">액터브</span>
               </h1>
-              <p className="mt-3 text-base font-semibold leading-[1.6] text-[#4e5968] sm:mt-6 sm:text-xl">
-                {COPY.hero.subFirst}
-                <br className="sm:hidden" /> {COPY.hero.subSecond}
+              <p className="mt-5 text-base leading-[1.6] text-[#4e5968] sm:text-xl">
+                연기 영상을 올리면 코치가 장면을 보고 질문해요.
+                <br className="hidden sm:block" /> 대본을 넣으면 상대역 대사를 소리 내 읽어 줘요.
               </p>
-              <div className="mx-auto mt-4 max-w-md sm:hidden">
-                <AppDownloadButton
-                  surface="landing_hero"
-                  size="lg"
-                  className="w-full"
-                />
-                <p className="mt-2 text-[12px] font-medium text-[#8b95a1]">
-                  {COPY.hero.helper}
-                </p>
-                <Link
-                  href={practiceHref}
-                  prefetch={false}
-                  className="mt-2 flex h-12 w-full items-center justify-center rounded-2xl border border-[#d1d6db] bg-white text-base font-black text-[#191f28] transition active:bg-[#f2f4f6]"
-                >
-                  {COPY.hero.web}
-                </Link>
+
+              <a
+                href={appHref}
+                data-app-download="landing_hero"
+                className={`mt-7 flex h-14 w-full items-center justify-center rounded-[14px] bg-[#4880ee] text-[17px] font-bold text-white lg:hidden ${FOCUS}`}
+              >
+                앱 열기 · 무료로 설치
+              </a>
+
+              <div className="mt-9 hidden w-fit items-center gap-5 rounded-[22px] border border-[#edf0f3] bg-white p-[18px] pr-6 shadow-[0_6px_24px_rgba(72,128,238,0.08)] lg:flex">
+                <Qr size={112} />
+                <div>
+                  <p className="text-[17px] font-extrabold">휴대폰 카메라로 찍으면 설치 화면으로 가요</p>
+                  <p className="mt-1 text-sm text-[#6b7684]">iPhone · Android 무료</p>
+                  <StoreBadges surface="landing_hero" className="mt-3" />
+                </div>
               </div>
-              <div className="mt-9 hidden items-center justify-center gap-3 sm:flex lg:justify-start">
-                <Link
-                  href={practiceHref}
-                  prefetch={false}
-                  className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#191f28] px-7 text-base font-black text-white shadow-[0_14px_34px_rgba(25,31,40,0.18)] transition hover:-translate-y-0.5 hover:bg-[#333d4b]"
-                >
-                  {COPY.hero.desktop}
-                </Link>
-                <AppDownloadButton surface="landing_hero" />
-              </div>
-              {/* 검색 유입용 안내 페이지로 가는 내부 링크. "연기 코칭" 검색어를 맡는 페이지는
-                  /acting-coaching 이라 첫 화면에서 한 번은 가리켜야 검색엔진이 그 페이지에
-                  무게를 준다(SOMA-536). 전환 버튼보다 눈에 덜 띄게 둔다. */}
-              <p className="mt-4 text-center text-[13px] font-semibold text-[#8b95a1] lg:text-left">
-                <Link
-                  href="/acting-coaching"
-                  className="underline underline-offset-4 transition hover:text-[#4e5968]"
-                >
-                  {COPY.hero.coaching} →
+
+              <p className="mt-4 text-center text-[15px] font-semibold text-[#4e5968] lg:mt-5 lg:text-left lg:text-base">
+                설치 전에{" "}
+                <Link href={practiceHref} className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}>
+                  웹에서 먼저 해 보기 →
                 </Link>
               </p>
             </div>
-            <PhoneMockup />
-          </div>
-        </section>
-
-        <section
-          id="app"
-          className="flex min-h-dvh snap-start scroll-mt-0 flex-col justify-center bg-[#f9fafb] px-5 pt-16"
-        >
-          <div
-            data-reveal
-            className="mx-auto grid w-full max-w-5xl translate-y-6 gap-6 py-4 opacity-0 transition-[opacity,transform] duration-400 ease-[cubic-bezier(0,0,0.2,1)] data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none sm:gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center"
-          >
-            <div>
-              <p className="text-lg font-black text-[#3182f6]">
-                {COPY.app.eyebrow}
-              </p>
-              <h2 className="mt-2 text-3xl font-black leading-tight tracking-[-0.05em] sm:mt-4 sm:text-5xl">
-                {COPY.app.titleFirst}
-                <br />
-                {COPY.app.titleSecond}
-              </h2>
-              <p className="mt-3 text-base font-semibold leading-7 text-[#4e5968] sm:mt-7 sm:text-lg sm:leading-8">
-                {COPY.app.description}
-              </p>
-              <StoreBadges
-                surface="landing_app_section"
-                size="lg"
-                className="mt-4 sm:mt-8"
+            <div className="relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible">
+              <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" className="absolute left-0 top-0 z-10 w-[260px] lg:w-[300px]" />
+              <Phone
+                src="/site/shot-reading.jpg"
+                alt="앱의 대본 리딩 화면"
+                className="absolute left-[200px] top-[70px] hidden w-[240px] rotate-[4deg] lg:block"
               />
             </div>
-            <div className="grid gap-3 sm:gap-4">
-              {APP_HIGHLIGHTS.map((item, index) => (
-                <article
-                  key={item.title}
-                  className="flex items-start gap-3 rounded-[20px] bg-white p-4 sm:gap-4 sm:rounded-[24px] sm:p-6"
-                >
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-[#e8f3ff] text-[#3182f6]">
-                    <HighlightIcon index={index} />
-                  </span>
-                  <div>
-                    <h3 className="text-xl font-black tracking-[-0.03em]">
-                      {item.title}
-                    </h3>
-                    <p className="mt-1 text-sm font-semibold leading-5 text-[#6b7684] sm:mt-2 sm:text-[15px] sm:leading-6">
-                      {item.body}
-                    </p>
-                  </div>
-                </article>
-              ))}
-            </div>
           </div>
         </section>
 
-        <section
-          id="flow"
-          className="flex min-h-dvh snap-start scroll-mt-0 flex-col justify-center bg-white px-5 pt-16"
-        >
-          <div
-            data-reveal
-            className="mx-auto w-full max-w-5xl translate-y-6 py-4 opacity-0 transition-[opacity,transform] duration-400 ease-[cubic-bezier(0,0,0.2,1)] data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none"
-          >
-            <p className="text-lg font-black text-[#3182f6]">
-              {COPY.flow.eyebrow}
-            </p>
-            <h2 className="mt-2 max-w-3xl text-3xl font-black leading-tight tracking-[-0.05em] sm:mt-4 sm:text-5xl">
-              {COPY.flow.titleFirst}
-              <br />
-              {COPY.flow.titleSecond}
-            </h2>
-            <div className="mt-6 grid gap-3 sm:mt-10 md:grid-cols-3 md:gap-5">
-              {COPY.productFlow.map((item) => (
-                <article
-                  key={item.label}
-                  className="rounded-[24px] bg-[#f2f4f6] p-5 sm:rounded-[32px] sm:p-7"
-                >
-                  <p className="text-sm font-black text-[#3182f6]">
-                    {item.label}
-                  </p>
-                  <h3 className="mt-3 text-xl font-black tracking-[-0.04em] sm:mt-8 sm:text-2xl">
-                    {item.title}
-                  </h3>
-                  <p className="mt-2 text-sm font-semibold leading-5 text-[#6b7684] sm:mt-4 sm:text-base sm:leading-7">
-                    {item.description}
-                  </p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
+        <div className="border-b border-[#edf0f3]">
+          <ul className="mx-auto flex max-w-[1200px] flex-col items-center gap-2 px-5 py-6 text-[15px] font-semibold text-[#4e5968] sm:flex-row sm:justify-center sm:gap-14">
+            <li>코치가 <b className="text-[#191f28]">질문하며</b> 장면을 같이 봐요</li>
+            <li>상대역이 없어도 <b className="text-[#191f28]">대사가 오가요</b></li>
+            <li>매주 <b className="text-[#191f28]">공식 대사 챌린지</b></li>
+          </ul>
+        </div>
 
-        <section
-          id="result"
-          className="flex min-h-dvh snap-start scroll-mt-0 flex-col justify-center bg-[#f9fafb] px-5 pt-16"
-        >
-          <div
+        {features.map((f, i) => (
+          <section
+            key={f.id}
+            id={f.id}
             data-reveal
-            className="mx-auto grid w-full max-w-5xl translate-y-6 gap-6 py-4 opacity-0 transition-[opacity,transform] duration-400 ease-[cubic-bezier(0,0,0.2,1)] data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none sm:gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center"
+            aria-labelledby={`${f.id}-title`}
+            className={`scroll-mt-20 ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
           >
-            <div>
-              <p className="text-lg font-black text-[#3182f6]">
-                {COPY.result.eyebrow}
-              </p>
-              <h2 className="mt-2 text-3xl font-black leading-tight tracking-[-0.05em] sm:mt-4 sm:text-5xl">
-                {COPY.result.titleFirst}
-                <br />
-                {COPY.result.titleSecond}
-              </h2>
-              <p className="mt-3 text-base font-semibold leading-6 text-[#4e5968] sm:mt-7 sm:text-lg sm:leading-8">
-                {COPY.result.description}
-              </p>
-              <Link
-                href="/terms"
-                className="mt-3 inline-block text-sm font-extrabold text-[#333d4b] underline underline-offset-4 sm:mt-8"
-              >
-                {COPY.result.terms}
-              </Link>
-            </div>
-            <div className="grid gap-3 sm:gap-4">
-              {COPY.outcomes.map(([title, description]) => (
-                <article
-                  key={title}
-                  className="rounded-[24px] bg-white p-5 sm:rounded-[32px] sm:p-7"
-                >
-                  <h3 className="text-2xl font-black tracking-[-0.05em] text-[#191f28] sm:text-3xl">
-                    {title}
-                  </h3>
-                  <p className="mt-2 text-sm font-bold leading-5 text-[#4e5968] sm:mt-3 sm:text-lg sm:leading-8">
-                    {description}
-                  </p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="flex min-h-dvh snap-start scroll-mt-0 flex-col justify-center bg-[#191f28] px-5 pb-24 pt-16 text-white sm:pb-0">
-          <div
-            data-reveal
-            className="mx-auto flex w-full max-w-5xl translate-y-6 flex-col opacity-0 transition-[opacity,transform] duration-400 ease-[cubic-bezier(0,0,0.2,1)] data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none"
-          >
-            <div className="flex flex-col items-start justify-between gap-6 py-6 md:flex-row md:items-center">
-              <div>
-                <p className="text-base font-bold text-[#8b95a1]">
-                  {COPY.bottom.label}
-                </p>
-                <h2 className="mt-2 text-3xl font-black leading-tight tracking-[-0.05em] sm:mt-4 sm:text-5xl">
-                  {COPY.bottom.titleFirst}
+            <div
+              className={`mx-auto flex max-w-[1200px] flex-col items-center gap-10 px-5 py-16 sm:px-8 lg:gap-[90px] lg:py-24 ${i % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"}`}
+            >
+              <div className="w-full flex-1">
+                <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
+                <h2 id={`${f.id}-title`} className="mt-3 text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
+                  {f.title[0]}
                   <br />
-                  {COPY.bottom.titleSecond}
+                  {f.title[1]}
                 </h2>
+                <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{f.body}</p>
+                <ul className="mt-5 space-y-2">
+                  {f.bullets.map((b) => (
+                    <li key={b} className="flex gap-2.5 text-[15px] text-[#333d4b] sm:text-base">
+                      <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#4880ee]" />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-7 flex flex-wrap gap-2.5">
+                  <a
+                    href={appSectionHref}
+                    data-app-download="landing_app_section"
+                    className={`inline-flex h-12 items-center rounded-[14px] bg-[#4880ee] px-[18px] text-[15px] font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
+                  >
+                    {f.appLabel}
+                  </a>
+                  {f.web ? (
+                    <Link
+                      href={f.web.href}
+                      className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
+                    >
+                      {f.web.label}
+                    </Link>
+                  ) : null}
+                </div>
               </div>
-              <div className="flex w-full flex-col items-start md:w-auto md:items-end">
-                <AppDownloadButton
-                  surface="landing_cta"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                />
-                <StoreBadges surface="landing_cta" className="mt-3 sm:mt-5" />
+              <Phone src={f.shot} alt={f.shotAlt} className="w-[240px] shrink-0 lg:w-[280px]" />
+            </div>
+          </section>
+        ))}
+
+        <section aria-labelledby="price-title" className="bg-[#f9fafb]">
+          <div className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
+            <h2 id="price-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">
+              무료로 시작하고, 더 하고 싶을 때 Pro
+            </h2>
+            <p className="mt-3 text-base text-[#4e5968] sm:text-[17px]">무료와 Pro는 같은 코치를 써요. 차이는 횟수와 보관 개수예요.</p>
+            <div className="mt-8 grid gap-4 md:grid-cols-2 md:gap-5">
+              <div className="rounded-3xl border border-[#e5e8eb] bg-white p-6 sm:p-[30px]">
+                <h3 className="text-lg font-extrabold">무료</h3>
+                <p className="mt-2 text-[34px] font-extrabold tracking-[-0.03em]">0원</p>
+                <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
+                  <li className="py-2.5">코칭 하루 1회</li>
+                  <li className="py-2.5">리딩 대본 1개 보관</li>
+                  <li className="py-2.5">챌린지 참여·시청·댓글</li>
+                </ul>
+              </div>
+              <div className="rounded-3xl border-2 border-[#4880ee] bg-[#f5f9ff] p-6 sm:p-[30px]">
+                <h3 className="text-lg font-extrabold">Pro</h3>
+                <p className="mt-2 text-[34px] font-extrabold tracking-[-0.03em]">
+                  월 3,900원 <span className="text-base font-semibold text-[#6b7684]">부가세 포함</span>
+                </p>
+                <p className="text-[13.5px] text-[#6b7684]">결제일부터 1개월 · 매월 정기결제</p>
+                <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
+                  <li className="py-2.5">코칭 횟수 제한 없음</li>
+                  <li className="py-2.5">리딩 대본 개수 제한 없음</li>
+                  <li className="py-2.5">발음·딕션 피드백 (준비 중)</li>
+                </ul>
+              </div>
+            </div>
+            <Link href="/pricing" className={`mt-5 inline-block rounded text-[15px] font-bold text-[#3268d8] hover:underline ${FOCUS}`}>
+              요금·해지·환불 자세히 보기 →
+            </Link>
+          </div>
+        </section>
+
+        <section aria-labelledby="faq-title" className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
+          <div className="flex flex-col gap-8 lg:flex-row lg:gap-20">
+            <div className="lg:w-[340px]">
+              <h2 id="faq-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">자주 묻는 질문</h2>
+              <div className="mt-6 rounded-[18px] bg-[#f9fafb] p-[22px]">
+                <p className="text-base font-extrabold">답을 못 찾았나요?</p>
+                <p className="mt-1.5 text-sm leading-6 text-[#6b7684]">로그인하지 않아도 문의를 남길 수 있어요.</p>
                 <Link
-                  href={practiceHref}
-                  prefetch={false}
-                  className="mt-3 text-sm font-bold text-[#b0b8c1] underline underline-offset-4 sm:mt-5"
+                  href="/help"
+                  className={`mt-3.5 inline-flex h-11 items-center rounded-xl bg-[#4880ee] px-4 text-[15px] font-bold text-white ${FOCUS}`}
                 >
-                  {COPY.bottom.web}
+                  고객센터 가기
                 </Link>
               </div>
             </div>
-            <footer className="mt-auto border-t border-white/10 py-6">
-              <div className="mx-auto flex max-w-5xl flex-col gap-5 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <Image
-                    src={wordmark}
-                    alt={COPY.wordmarkAlt}
-                    className="h-6 w-auto brightness-0 invert"
-                  />
-                  <p className="mt-3 max-w-sm text-sm font-semibold leading-6 text-[#b0b8c1] sm:text-base sm:leading-7">
-                    {COPY.footer.description}
-                  </p>
-                  <p className="mt-5 text-xs font-bold text-[#8b95a1]">
-                    {COPY.footer.guides}
-                  </p>
-                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-sm font-semibold text-[#b0b8c1]">
-                    {LANDING_GUIDE_LINKS.map((link) => (
-                      <li key={link.href}>
-                        <Link
-                          href={link.href}
-                          prefetch={false}
-                          className="transition hover:text-white"
-                        >
-                          {link.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <nav className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm font-bold text-[#b0b8c1] md:grid-cols-1">
-                  <Link href="/app" className="transition hover:text-white">
-                    {COPY.nav.app}
-                  </Link>
-                  <Link
-                    href="/ai-acting-coaching"
-                    className="transition hover:text-white"
-                  >
-                    {COPY.nav.aiCoaching}
-                  </Link>
-                  <Link
-                    href="/acting-coaching"
-                    className="transition hover:text-white"
-                  >
-                    {COPY.nav.coaching}
-                  </Link>
-                  <Link href="/guide" className="transition hover:text-white">
-                    {COPY.nav.guide}
-                  </Link>
-                  <a href="#flow" className="transition hover:text-white">
-                    {COPY.nav.flow}
-                  </a>
-                  <Link href="/pricing" className="transition hover:text-white">
-                    {COPY.nav.pricing}
-                  </Link>
-                  <Link href="/refund" className="transition hover:text-white">
-                    {COPY.nav.refund}
-                  </Link>
-                  <Link href="/terms" className="transition hover:text-white">
-                    {COPY.nav.terms}
-                  </Link>
-                  <a
-                    href="https://www.instagram.com/acttub_com/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="transition hover:text-white"
-                  >
-                    {COPY.footer.instagram}
-                  </a>
-                  <a
-                    href={`mailto:${COPY.footer.email}`}
-                    className="transition hover:text-white"
-                  >
-                    {COPY.footer.email}
-                  </a>
-                </nav>
-              </div>
-              <div className="mx-auto mt-6 max-w-5xl border-t border-white/10 pt-4">
-                <BusinessInfo tone="dark" />
-              </div>
-            </footer>
+            <div className="flex-1">
+              {faq.map((item) => (
+                <details key={item.q} className="group border-b border-[#e5e8eb]">
+                  <summary className={`flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-base font-bold sm:text-lg ${FOCUS}`}>
+                    {item.q}
+                    <span aria-hidden="true" className="text-[22px] font-normal text-[#8b95a1] transition group-open:rotate-45">+</span>
+                  </summary>
+                  <p className="pb-5 text-[15.5px] leading-[1.65] text-[#4e5968]">{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
+          <div className="mx-auto flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
+            <div className="flex-1">
+              <h2 id="band-title" className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.03em] sm:text-4xl">
+                오늘 찍은 연기,
+                <br />
+                코치와 같이 봐요
+              </h2>
+              <p className="mt-2.5 text-base text-[#b9c1cc] sm:text-[17px]">
+                앱은 무료예요.<span className="hidden lg:inline"> 휴대폰 카메라로 QR을 찍어 주세요.</span>
+              </p>
+            </div>
+            <div className="hidden lg:block">
+              <Qr size={128} />
+            </div>
+            <StoreBadges surface="landing_cta" className="lg:flex-col" />
           </div>
         </section>
       </main>
-
+      <SiteFooter showBadges={false} />
       <StickyDownloadBar heroId="hero" />
-    </>
-  );
-}
-
-function PhoneMockup() {
-  // 데스크톱은 글이 주인공이라 폰을 줄인다 — 1.09 로 키웠을 때 화면 절반을 폰이 먹어
-  // 제목이 밀렸다. 문장 카드가 폰 아래로 빠지는 만큼 아래 여백을 더 둔다.
-  return (
-    <div className="relative mx-auto mb-8 w-[330px] [zoom:.55] sm:mb-14 sm:[zoom:.85] lg:mb-24 lg:[zoom:.8]">
-      {/* 높이는 대화가 찬 뒤 한 칸 여백이 남는 정도(600→660). 더 길어지면 빈 곳을
-          문장 카드가 덮으면서 "준비 중" 알약까지 가리니 늘릴 때 겹침을 확인한다. */}
-      <div className="relative mx-auto flex aspect-[330/660] flex-col gap-4 overflow-hidden rounded-[52px] border-[10px] border-[#191f28] bg-white p-5 pt-7 shadow-[0_30px_70px_rgba(25,31,40,0.22)]">
-        <span className="mx-auto h-1.5 w-[72px] shrink-0 rounded-full bg-[#333d4b]" />
-        <div className="flex items-center gap-3">
-          <div className="relative h-[62px] w-[92px] shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-[#4e5968] to-[#dbeafe]">
-            <PlayIcon />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[15px] font-black leading-5">
-              {COPY.phone.scene}
-            </p>
-            <p className="mt-1 text-xs font-bold text-[#3182f6]">
-              {COPY.phone.time}
-            </p>
-          </div>
-        </div>
-        <div className="relative h-[5px] rounded-full bg-[#f2f4f6]">
-          <span className="absolute inset-y-0 left-0 w-[37%] rounded-full bg-[#3182f6]" />
-          <span className="absolute left-[37%] top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#3182f6] shadow-sm" />
-        </div>
-        <span className="self-start rounded-full bg-[#e8f3ff] px-3 py-1 text-[13px] font-black text-[#3182f6]">
-          {COPY.phone.counter}
-        </span>
-        <div
-          className="landing-motion animate-[landing-bubble-in_0.5s_cubic-bezier(0,0,0.2,1)_both] rounded-[18px] rounded-bl-[6px] border border-[#edf0f3] bg-[#f9fafb] p-4"
-          style={{ animationDelay: `${bubbleDelay(0)}ms` }}
-        >
-          <p className="text-sm font-bold leading-5 text-[#6b7684]">
-            {COPY.phone.observation}
-          </p>
-          <p className="mt-2 text-[19px] font-black leading-7 text-[#191f28]">
-            {COPY.phone.question}
-          </p>
-        </div>
-        <div
-          className="landing-motion ml-auto flex animate-[landing-bubble-in_0.5s_cubic-bezier(0,0,0.2,1)_both] items-center gap-2.5 rounded-[18px] rounded-br-[6px] bg-[#191f28] px-4 py-3"
-          style={{ animationDelay: `${bubbleDelay(1)}ms` }}
-        >
-          <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#3182f6] text-white">
-            <MicIcon />
-          </span>
-          <span className="flex h-7 items-center gap-1">
-            {waveformHeights.map((height, index) => (
-              <span
-                key={`${height}-${index}`}
-                className="landing-motion w-1 origin-center animate-[landing-wave_1.1s_ease-in-out_infinite] rounded-full bg-[#8fbfff]"
-                style={{
-                  height,
-                  animationDelay: `${bubbleDelay(1) + index * 90}ms`,
-                }}
-              />
-            ))}
-          </span>
-        </div>
-        <div
-          className="landing-motion ml-auto max-w-[256px] animate-[landing-bubble-in_0.5s_cubic-bezier(0,0,0.2,1)_both] rounded-[18px] rounded-tr-[6px] bg-[#3182f6] px-4 py-3 text-[15px] font-bold leading-relaxed text-white"
-          style={{ animationDelay: `${bubbleDelay(2)}ms` }}
-        >
-          {COPY.phone.answer}
-        </div>
-        <div
-          className="landing-motion flex animate-[landing-bubble-in_0.5s_cubic-bezier(0,0,0.2,1)_both] items-center gap-2 self-start rounded-full bg-[#f2f4f6] px-3 py-2"
-          style={{ animationDelay: `${bubbleDelay(3)}ms` }}
-        >
-          {typingDotColors.map((color, index) => (
-            <span
-              key={color}
-              className="landing-motion h-1.5 w-1.5 animate-[landing-dot-bounce_1.2s_ease-in-out_infinite] rounded-full"
-              style={{
-                backgroundColor: color,
-                animationDelay: `${bubbleDelay(3) + index * 160}ms`,
-              }}
-            />
-          ))}
-          <span className="text-[13px] font-bold text-[#6b7684]">
-            {COPY.phone.typing}
-          </span>
-        </div>
-      </div>
-      {/* 위치는 %가 아니라 px — 폰 위쪽(노치·장면·타임라인)은 폭이 바뀌어도 높이가 고정이라
-          px 로 두면 어느 폭에서도 "질문 04 / 07" 옆에 붙는다. %는 폭마다 다른 줄에 떨어진다. */}
-      <div
-        className="landing-motion absolute right-[-12px] top-[158px] flex animate-[landing-float_4s_ease-in-out_infinite] items-center gap-1.5 rounded-full bg-white px-3 py-2 shadow-[0_12px_30px_rgba(25,31,40,0.12)] [--float-rotate:3deg]"
-      >
-        <EyeIcon />
-        <span className="text-xs font-black text-[#191f28]">
-          {COPY.phone.promise}
-        </span>
-      </div>
-      <div
-        className="landing-motion absolute -bottom-10 right-0 w-[232px] animate-[landing-float_4s_ease-in-out_infinite] rounded-[20px] bg-white p-4 shadow-[0_20px_50px_rgba(49,130,246,0.25)] [--float-rotate:-3deg] lg:-bottom-24 lg:right-[-24px]"
-        style={{ animationDelay: "-2s" }}
-      >
-        <div className="flex items-center gap-1.5 text-[#3182f6]">
-          <SparklesIcon />
-          <span className="text-[11px] font-black">
-            {COPY.phone.sentenceLabel}
-          </span>
-        </div>
-        <p className="mt-2 text-xl font-black leading-tight text-[#191f28]">
-          {COPY.phone.sentence}
-        </p>
-        <p className="mt-3 text-xs font-bold text-[#6b7684]">
-          {COPY.phone.sentenceFooter}
-        </p>
-      </div>
     </div>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 text-white"
-      fill="currentColor"
-    >
-      <path d="M8 5.6v12.8L18.5 12 8 5.6Z" />
-    </svg>
-  );
-}
-function MicIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-[18px] w-[18px]"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <rect x="9" y="3" width="6" height="12" rx="3" />
-      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6" />
-    </svg>
-  );
-}
-function EyeIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-4 w-4 text-[#3182f6]"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
-      <circle cx="12" cy="12" r="2.5" />
-    </svg>
-  );
-}
-function SparklesIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3ZM19 14l.7 2.3L22 17l-2.3.7L19 20l-.7-2.3L16 17l2.3-.7L19 14ZM5 13l.8 2.2L8 16l-2.2.8L5 19l-.8-2.2L2 16l2.2-.8L5 13Z" />
-    </svg>
-  );
-}
-function HighlightIcon({ index }: { index: number }) {
-  if (index === 0)
-    return (
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className="h-6 w-6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect x="3" y="5" width="14" height="14" rx="3" />
-        <path d="m17 10 4-2v8l-4-2" />
-      </svg>
-    );
-  if (index === 1)
-    return (
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className="h-6 w-6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      >
-        <rect x="9" y="3" width="6" height="12" rx="3" />
-        <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
-      </svg>
-    );
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-6 w-6"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21a8 8 0 0 1 16 0" />
-    </svg>
   );
 }
