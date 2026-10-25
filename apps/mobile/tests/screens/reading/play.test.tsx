@@ -566,7 +566,6 @@ test('내 대사만 가리면 내 줄이 막대로 바뀌고, 첫 단어·원문
 const PARTNER_FIRST = { start_line_id: 'l4', end_line_id: 'l5' };
 
 test('고품질 목소리를 켰고 쓸 수 있으면 서버 음성으로 읽고, 못 받은 줄은 기기 목소리로 읽으며 한 번 알린다', async () => {
-  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
   queue.take.mockResolvedValue(null);
   await startPlay(PARTNER_FIRST);
@@ -579,7 +578,6 @@ test('고품질 목소리를 켰고 쓸 수 있으면 서버 음성으로 읽고
 });
 
 test('서버 음성을 못 받았는데 기기 목소리도 없으면 글로 보이고 다음을 눌러 넘긴다', async () => {
-  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
   jest.mocked(hasDeviceVoice).mockResolvedValue(false);
   queue.take.mockResolvedValue(null);
@@ -1286,7 +1284,6 @@ test('앱 목소리도 기기 목소리도 없는 기기는 상대 대사를 글
 });
 
 test('서버 음성을 못 받은 안내는 회차에서 한 번만 띄운다', async () => {
-  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
   queue.take.mockResolvedValue(null);
   const detail = scriptDetail([['dialogue', '서연', '먼저 왔어?'], ['dialogue', '서연', '앉아.'], ['dialogue', '민재', '응.']]);
@@ -2023,7 +2020,6 @@ test('예시 대본이어도 상대역 목소리를 바꿨으면 지금처럼 �
 });
 
 test('고품질 목소리를 쓰는 사람은 예시 대본이어도 고품질 목소리가 먼저다', async () => {
-  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
   jest.mocked(loadExampleAudio).mockResolvedValue(exampleAudio({ 서연: 'F1' }, ['l4']));
   await startPlay(PARTNER_FIRST, scriptDetail(TWO_ROLE_LINES, { source: 'sample' }));

@@ -109,7 +109,7 @@ import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
 import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
-import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
+import { shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
 import { exampleVoicesMatch, type ExampleAudio } from '@/lib/reading/example-audio';
 import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/reading/example-audio-runtime';
@@ -599,13 +599,13 @@ export default function ReadingPlay() {
       return;
     }
     // 예시 대본인지는 서버가 안다(입력 경로 sample 은 짐작일 뿐) — 임시 주소라 시작할 때마다 새로 받는다.
-    const [cloudEnabled, cloudStatus, support, deviceVoice, example] = await Promise.all([
-      loadCloudVoiceEnabled(), api.getCloudVoiceStatus().catch(() => null), readAppVoiceSupport(), hasDeviceVoice(),
+    const [cloudStatus, support, deviceVoice, example] = await Promise.all([
+      api.getCloudVoiceStatus().catch(() => null), readAppVoiceSupport(), hasDeviceVoice(),
       script ? loadExampleAudio(script.id, { fresh: true }) : Promise.resolve(null),
     ]);
     if (!mounted.current) return;
     deviceVoiceRef.current = deviceVoice;
-    if (shouldUseCloudVoice({ enabled: cloudEnabled, status: cloudStatus })) {
+    if (shouldUseCloudVoice(cloudStatus)) {
       chooseEngine('cloud');
       startRunning();
       await primeSpeech(runRef.current?.index ?? 0)?.first();

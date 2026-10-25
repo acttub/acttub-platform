@@ -89,7 +89,7 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
       const status = cloud.status;
       const picked = pickPoster(posters.filter((item) => !seen.current.has(item.slug)), state, {
         today,
-        cloudVoice: status ? { available: status.available, enabled: cloud.enabled, consent: status.consent } : null,
+        cloudVoice: status ? { available: status.available, consent: status.consent } : null,
       });
       if (!picked) return;
       seen.current.add(picked.slug);
@@ -99,12 +99,12 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
       logEvent('poster_shown', { slug: picked.slug, revision: picked.revision });
     }).catch(() => undefined);
     return () => { cancelled = true; };
-  }, [blocked, cloud.enabled, cloud.status, cloud.statusFailed, loggedIn, onboardingJustFinished, posters, focused, entry, next]);
+  }, [blocked, cloud.status, cloud.statusFailed, loggedIn, onboardingJustFinished, posters, focused, entry, next]);
 
   useEffect(() => () => disposeAudioPlayer(player.current), []);
   useEffect(() => {
-    if (poster?.audience === 'cloud_voice_off' && cloud.enabled && cloud.status?.consent === 'granted') setVisible(false);
-  }, [cloud.enabled, cloud.status?.consent, poster?.audience]);
+    if (poster?.audience === 'cloud_voice_off' && cloud.status?.consent === 'granted') setVisible(false);
+  }, [cloud.status?.consent, poster?.audience]);
 
   if (!poster) return cloud.consentSheet;
 
@@ -138,7 +138,7 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
     setVisible(false);
     if (cta.kind === 'url') { void Linking.openURL(cta.target).catch(() => undefined); return; }
     await new Promise((resolve) => setTimeout(resolve, 350));
-    if (cta.kind === 'cloud_voice_enable') await cloud.enable('promo');
+    if (cta.kind === 'cloud_voice_enable') await cloud.enable();
     else router.push(cta.target as Href);
   };
 

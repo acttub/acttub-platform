@@ -943,8 +943,6 @@ const en: DeepStringShape<typeof ko> = {
   },
   voiceFeedback: {
     settingsSection: 'Experimental',
-    settingsTitle: 'Pronunciation feedback (beta)',
-    settingsBody: 'After a reading, see which words sounded different from the script. Only the transcript is compared.',
     doneTitle: 'Pronunciation feedback',
     doneNote: 'Experimental · {{k}} of your {{n}} transcribed lines had words that sounded different',
     lineNo: 'Line {{n}}',
@@ -955,9 +953,6 @@ const en: DeepStringShape<typeof ko> = {
     pending: 'Analyzing sounds…',
   },
   cloudVoice: {
-    settingsTitle: 'Premium voice',
-    settingsBody: 'Hear scene partners in a more natural AI voice · Free until {{date}}',
-    readingSection: 'Script reading',
     bannerLabel: 'Reading with a high-quality AI voice',
     bannerFree: 'Free until {{date}}',
     freePill: 'Free',

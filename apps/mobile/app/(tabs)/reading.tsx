@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
@@ -207,7 +207,6 @@ export default function ReadingList() {
     }
   };
 
-  const voiceOn = cloudVoice.enabled && cloudVoice.status?.consent === 'granted';
   const voiceBar = (
     cloudVoice.status?.available ? (
       <View style={styles.voiceBar}>
@@ -220,14 +219,6 @@ export default function ReadingList() {
             <Text style={styles.voiceBadgeText}>{t('cloudVoice.bannerFree', { date: voiceFreeUntil })}</Text>
           </View>
         )}
-        <Switch
-          value={cloudVoice.enabled && cloudVoice.status.consent === 'granted'}
-          onValueChange={(value) => void (value ? cloudVoice.enable('settings') : cloudVoice.disable())}
-          disabled={cloudVoice.busy}
-          trackColor={{ true: palette.blue, false: palette.border }}
-          thumbColor={palette.onAccent}
-          ios_backgroundColor={palette.border}
-        />
       </View>
     ) : null
   );
@@ -257,19 +248,22 @@ export default function ReadingList() {
               {firstTime && (
                 <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
               )}
-              {/* pen R1.3 — 대본이 있으면 고품질 목소리 띠 대신 제목 옆 「Free」 알약. 누르면 켜고(동의 흐름·「켰어요」 토스트), 켠 뒤 누르면 끈다. */}
+              {/* pen R1.3 — 대본이 있으면 고품질 목소리 띠 대신 제목 옆 「Free」 알약. 고품질 목소리는 항상 켜져 있어 표시만 하고,
+                  제목과 겹치지 않게 무료 기한은 알약 아래 한 줄로 둔다(SOMA-841). */}
               {!empty && cloudVoice.status?.available && (
-                <Pressable
-                  style={({ pressed }) => [styles.freePill, voiceOn && styles.freePillOn, pressed && styles.pressed]}
-                  accessibilityRole="switch"
-                  accessibilityLabel={t('cloudVoice.bannerLabel')}
-                  accessibilityState={{ checked: voiceOn, disabled: cloudVoice.busy }}
-                  ph-label="reading_free_voice"
-                  disabled={cloudVoice.busy}
-                  onPress={() => void (voiceOn ? cloudVoice.disable() : cloudVoice.enable('settings'))}>
-                  {voiceOn && <Feather name="check" size={13} color={palette.onAccent} />}
-                  <Text style={[styles.freePillText, voiceOn && styles.freePillTextOn]}>{t('cloudVoice.freePill')}</Text>
-                </Pressable>
+                <View
+                  style={styles.freeWrap}
+                  accessible
+                  accessibilityLabel={[t('cloudVoice.bannerLabel'), t('cloudVoice.freePill'), voiceFreeUntil && t('cloudVoice.bannerFree', { date: voiceFreeUntil })].filter(Boolean).join(' · ')}>
+                  <View style={styles.freePill}>
+                    <Text style={styles.freePillText}>{t('cloudVoice.freePill')}</Text>
+                  </View>
+                  {!!voiceFreeUntil && (
+                    <Text style={styles.freeUntil} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                      {t('cloudVoice.bannerFree', { date: voiceFreeUntil })}
+                    </Text>
+                  )}
+                </View>
               )}
               {!empty && (
                 <Pressable
@@ -425,7 +419,6 @@ export default function ReadingList() {
         </>
       )}
       {dialog}
-      {cloudVoice.consentSheet}
       <TitleEditDialog
         script={editing}
         onClose={(saved) => {
@@ -513,10 +506,10 @@ const styles = StyleSheet.create({
   resumeEyebrow: { color: 'rgba(255,255,255,0.88)', fontSize: 13, fontWeight: '700', lineHeight: 20 },
   resumeTitle: { color: palette.onAccent, maxWidth: '78%', fontSize: 22, fontWeight: '900', lineHeight: 31 },
   resumeHint: { color: 'rgba(255,255,255,0.85)', maxWidth: '64%', fontSize: 12.5, fontWeight: '600', lineHeight: 19 },
-  freePill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: '#EAF3FE' },
-  freePillOn: { backgroundColor: palette.blue },
+  freeWrap: { alignItems: 'center', gap: 2 },
+  freeUntil: { fontSize: 10, fontWeight: '700', color: palette.blue },
+  freePill: { justifyContent: 'center', height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: '#EAF3FE' },
   freePillText: { color: palette.blue, fontSize: 14, fontWeight: '800' },
-  freePillTextOn: { color: palette.onAccent },
   resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.card, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
   resumeBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
   pressed: { opacity: 0.85 },

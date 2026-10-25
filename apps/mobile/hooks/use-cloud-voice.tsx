@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -6,7 +6,7 @@ import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api, type ConsentEntryDocument } from '@/lib/api';
-import { consentBodyWithoutTitle, loadCloudVoiceEnabled, saveCloudVoiceEnabled, type CloudVoiceStatus } from '@/lib/reading/cloud-voice';
+import { consentBodyWithoutTitle, type CloudVoiceStatus } from '@/lib/reading/cloud-voice';
 import { translate as t } from '@/lib/i18n';
 
 export function useCloudVoice() {
@@ -15,15 +15,12 @@ export function useCloudVoice() {
   const [status, setStatus] = useState<CloudVoiceStatus | null>(null);
   /** 상태를 못 받아 왔다 — 기다리지 말고 모르는 채로 진행하라는 신호(공지 포스터가 쓴다). */
   const [statusFailed, setStatusFailed] = useState(false);
-  const [enabled, setEnabled] = useState(false);
   const [document, setDocument] = useState<ConsentEntryDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [decideFailed, setDecideFailed] = useState(false);
-  const sourceRef = useRef<'promo' | 'settings'>('settings');
 
   const refresh = useCallback(async () => {
-    const [stored, next] = await Promise.all([loadCloudVoiceEnabled(), api.getCloudVoiceStatus()]);
-    setEnabled(stored);
+    const next = await api.getCloudVoiceStatus();
     setStatus(next);
     setStatusFailed(false);
     return next;
@@ -31,25 +28,23 @@ export function useCloudVoice() {
 
   useEffect(() => { void refresh().catch(() => setStatusFailed(true)); }, [refresh]);
 
-  const finishEnable = useCallback(async (source: 'promo' | 'settings') => {
-    await saveCloudVoiceEnabled(true);
-    setEnabled(true);
+  const finishEnable = useCallback(() => {
     setStatus((current) => current ? { ...current, consent: 'granted' } : current);
-    logEvent('cloud_voice_enabled', { source });
+    // 켜는 길은 공지 포스터만 남았다(SOMA-841).
+    logEvent('cloud_voice_enabled', { source: 'promo' });
     setToast(true);
     setTimeout(() => setToast(false), 2200);
     return true;
   }, []);
 
-  const enable = useCallback(async (source: 'promo' | 'settings'): Promise<boolean> => {
+  const enable = useCallback(async (): Promise<boolean> => {
     if (busy) return false;
     setBusy(true);
-    sourceRef.current = source;
     try {
       const current = await api.getCloudVoiceStatus();
       setStatus(current);
       if (!current.available) return false;
-      if (current.consent === 'granted') return await finishEnable(source);
+      if (current.consent === 'granted') return finishEnable();
       const entry = await api.consentEntry();
       const cloudDocument = entry.documents.find((item) => item.type === 'cloud_voice') ?? null;
       if (!cloudDocument) return false;
@@ -66,19 +61,10 @@ export function useCloudVoice() {
     try {
       await api.recordConsent(document.id, granted ? 'granted' : 'declined');
       setDocument(null);
-      if (granted) await finishEnable(sourceRef.current);
-      else {
-        await saveCloudVoiceEnabled(false);
-        setEnabled(false);
-        setStatus((current) => current ? { ...current, consent: 'denied' } : current);
-      }
+      if (granted) finishEnable();
+      else setStatus((current) => current ? { ...current, consent: 'denied' } : current);
     } catch { setDecideFailed(true); } finally { setBusy(false); }
   }, [busy, document, finishEnable]);
-
-  const disable = useCallback(async () => {
-    await saveCloudVoiceEnabled(false);
-    setEnabled(false);
-  }, []);
 
   const consentSheet = (
     <>
@@ -101,7 +87,7 @@ export function useCloudVoice() {
     </>
   );
 
-  return { status, statusFailed, enabled, busy, refresh, enable, disable, consentSheet };
+  return { status, statusFailed, busy, refresh, enable, consentSheet };
 }
 
 const styles = StyleSheet.create({
