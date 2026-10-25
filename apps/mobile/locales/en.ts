@@ -215,8 +215,6 @@ const en: DeepStringShape<typeof ko> = {
     exampleA: 'I think she wants to be recognized',
     exampleQ2: 'Then shall we let that show\nin your eyes too?',
     exampleNote: 'Rather than giving answers, we find one thing to fix by asking questions',
-    startNow: 'Film now and get coaching',
-    uploadVideo: 'Upload a video I already have',
     chooseBubble: 'How would you like coaching?',
     chooseGuide: 'Pick one, then tap “Next”.',
     next: 'Next',
