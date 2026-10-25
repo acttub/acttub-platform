@@ -7,10 +7,11 @@
 // 워크스페이스는 이 컴포넌트를 쓰지 않고 자기 헤더 오른쪽 끝에 입시를 단다
 // (바가 두 줄이 되지 않게). 입시 화면과 리딩 준비 화면(page-shell)이 이 바를 쓴다.
 //
-// 세션 API 를 부르지 않고 계정 자리도 두지 않는다 — 웹에는 로그인이 없고, 입시 정보만
-// 보는 방문자에게는 게스트 계정도 생기지 않는다(account.guest).
+// 세션 API 를 부르지 않는다 — 입시 정보만 보는 방문자에게는 게스트 계정도 생기지 않는다(account.guest).
+// 오른쪽 끝 계정 자리는 브라우저 저장소만 보고 로그인·내 계정을 고른다(SOMA-834).
 
 import Link from "next/link";
+import { AccountLink } from "@/features/auth/account-link";
 import { usePathname } from "next/navigation";
 
 type Item = {
@@ -47,6 +48,7 @@ export function AppRail() {
           active={item.match.some((prefix) => pathname.startsWith(prefix))}
         />
       ))}
+      <AccountLink />
     </nav>
   );
 }
