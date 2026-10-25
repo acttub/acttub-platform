@@ -485,7 +485,8 @@ export interface paths {
          * Complete Video Intent
          * @description 올라온 것을 확인하고 보관함에 영상을 만든다. 만들면 201, 마무리 재전송이면 200 으로 같은 영상이다.
          *     시한(30분)이 지났으면 422 upload_expired 이고 미확정 객체는 삭제 장부로 간다. 아직 안 올라왔으면
-         *     422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다.
+         *     422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다. 본문은 선택이고, face_mosaic 이 true 면
+         *     첫 질문용 미리 올리기를 시작하지 않는다(원본이 코치 AI 쪽으로 가지 않는다).
          */
         post: operations["complete_video_intent_v2_videos_intents__intent_id__complete_post"];
         delete?: never;
@@ -821,6 +822,30 @@ export interface paths {
          *     판정을 묻지 않는다. 둘 다 요청 지문에 든다.
          */
         post: operations["import_script_v2_reading_imports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/examples/{example_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Reading Example
+         * @description 예시를 미리 나눈 그대로 내 대본(source sample, 제목은 예시 제목)으로 복사한다. 모델을 부르지 않아 script_split
+         *     동의·하루 나누기 한도를 보지 않는다(게스트도 된다). 새로 복사하면 201, 같은 글의 대본이 이미 있거나 같은
+         *     request_id 의 재전송이면 200 으로 그 대본을 준다(created false). 지운 뒤에는 다시 복사한다. 없거나 꺼진 예시
+         *     404 reading_example_not_found, 대본 수 한도 422 script_limit, 같은 request_id 에 다른 본문 422
+         *     request_fingerprint_mismatch.
+         */
+        post: operations["start_reading_example_v2_reading_examples__example_id__start_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1833,6 +1858,26 @@ export interface paths {
          * @description 나누기 요청의 상태. 1초 간격으로 묻는다. 없는 것과 남의 것은 같은 404 import_not_found 다.
          */
         get: operations["get_import_v2_reading_imports__import_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/examples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reading Examples
+         * @description 켜진 예시 대본을 정한 순서로. preview 는 앞 5줄까지이고 지문·장면은 speaker 가 null 이다.
+         */
+        get: operations["list_reading_examples_v2_reading_examples_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3023,6 +3068,11 @@ export interface components {
              */
             expires_at: string;
         };
+        /** VideoIntentCompleteRequest */
+        VideoIntentCompleteRequest: {
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
+        };
         /** SampleScriptCreateRequest */
         SampleScriptCreateRequest: {
             /**
@@ -3760,6 +3810,24 @@ export interface components {
             /** Duplicate Script Id */
             duplicate_script_id: string | null;
         };
+        /** ReadingExampleStartRequest */
+        ReadingExampleStartRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+        };
+        /** ReadingExampleStarted */
+        ReadingExampleStarted: {
+            /**
+             * Script Id
+             * Format: uuid
+             */
+            script_id: string;
+            /** Created */
+            created: boolean;
+        };
         /** RegisterPushTokenRequest */
         RegisterPushTokenRequest: {
             /** Token */
@@ -3794,6 +3862,8 @@ export interface components {
             title?: string | null;
             /** Session Purpose */
             session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
         };
         /** PracticeScene */
         PracticeScene: {
@@ -3909,6 +3979,8 @@ export interface components {
             video_id?: string | null;
             scene?: components["schemas"]["PracticeScene"] | null;
             blockage?: components["schemas"]["PracticeBlockage"] | null;
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
         };
         /** PracticeStatus */
         PracticeStatus: {
@@ -5099,6 +5171,33 @@ export interface components {
          * @enum {string}
          */
         ScriptImportFailure: "not_script" | "no_characters" | "script_too_long" | "script_limit" | "failed";
+        /** ReadingExample */
+        ReadingExample: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Dialogue Count */
+            dialogue_count: number;
+            /** Characters */
+            characters: string[];
+            /** Preview */
+            preview: components["schemas"]["ReadingExamplePreviewLine"][];
+        };
+        /** ReadingExampleList */
+        ReadingExampleList: {
+            /** Examples */
+            examples: components["schemas"]["ReadingExample"][];
+        };
+        /** ReadingExamplePreviewLine */
+        ReadingExamplePreviewLine: {
+            /** Speaker */
+            speaker: string | null;
+            /** Text */
+            text: string;
+        };
         /** PublicPortfolio */
         PublicPortfolio: {
             /** Name */
@@ -7016,7 +7115,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["VideoIntentCompleteRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {
@@ -7558,6 +7661,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadingImportTicket"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_reading_example_v2_reading_examples__example_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                example_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingExampleStartRequest"];
+            };
+        };
+        responses: {
+            /** @description 같은 글의 대본이 이미 있음 또는 재전송 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingExampleStarted"];
+                };
+            };
+            /** @description 복사했다 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingExampleStarted"];
                 };
             };
             /** @description Validation Error */
@@ -9315,6 +9462,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadingImport"];
+                };
+            };
+        };
+    };
+    list_reading_examples_v2_reading_examples_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingExampleList"];
                 };
             };
         };

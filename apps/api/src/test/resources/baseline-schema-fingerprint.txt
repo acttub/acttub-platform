@@ -492,6 +492,15 @@ COLUMN push_tokens.platform ord=4 type=text len=- null=NO default=-
 COLUMN push_tokens.token ord=3 type=text len=- null=NO default=-
 COLUMN push_tokens.updated_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_examples.active ord=5 type=bool len=- null=NO default=true
+COLUMN reading_examples.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN reading_examples.draft ord=7 type=jsonb len=- null=NO default=-
+COLUMN reading_examples.id ord=1 type=text len=- null=NO default=-
+COLUMN reading_examples.raw_text ord=6 type=text len=- null=NO default=-
+COLUMN reading_examples.sort_order ord=4 type=int4 len=- null=NO default=-
+COLUMN reading_examples.summary ord=3 type=text len=- null=NO default=-
+COLUMN reading_examples.title ord=2 type=text len=- null=NO default=-
+COLUMN reading_examples.updated_at ord=9 type=timestamptz len=- null=NO default=now()
 COLUMN reading_pronunciation_reports.attempt_count ord=5 type=int4 len=- null=NO default=0
 COLUMN reading_pronunciation_reports.created_at ord=11 type=timestamptz len=- null=NO default=now()
 COLUMN reading_pronunciation_reports.failure ord=10 type=text len=- null=YES default=-
@@ -1468,6 +1477,16 @@ CONSTRAINT push_tokens push_tokens_token_not_null NOT NULL token
 CONSTRAINT push_tokens push_tokens_updated_at_not_null NOT NULL updated_at
 CONSTRAINT push_tokens push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT push_tokens push_tokens_user_id_not_null NOT NULL user_id
+CONSTRAINT reading_examples reading_examples_active_not_null NOT NULL active
+CONSTRAINT reading_examples reading_examples_created_at_not_null NOT NULL created_at
+CONSTRAINT reading_examples reading_examples_draft_not_null NOT NULL draft
+CONSTRAINT reading_examples reading_examples_id_not_null NOT NULL id
+CONSTRAINT reading_examples reading_examples_pkey PRIMARY KEY (id)
+CONSTRAINT reading_examples reading_examples_raw_text_not_null NOT NULL raw_text
+CONSTRAINT reading_examples reading_examples_sort_order_not_null NOT NULL sort_order
+CONSTRAINT reading_examples reading_examples_summary_not_null NOT NULL summary
+CONSTRAINT reading_examples reading_examples_title_not_null NOT NULL title
+CONSTRAINT reading_examples reading_examples_updated_at_not_null NOT NULL updated_at
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_attempt_count_not_null NOT NULL attempt_count
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_created_at_not_null NOT NULL created_at
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_id_not_null NOT NULL id
@@ -1958,6 +1977,7 @@ INDEX CREATE UNIQUE INDEX practice_sessions_pkey ON public.practice_sessions USI
 INDEX CREATE UNIQUE INDEX practices_pkey ON public.practices USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
+INDEX CREATE UNIQUE INDEX reading_examples_pkey ON public.reading_examples USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_pronunciation_reports_pkey ON public.reading_pronunciation_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_recording_coaches_pkey ON public.reading_recording_coaches USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_recordings_pkey ON public.reading_recordings USING btree (id)
@@ -2111,6 +2131,7 @@ TABLE practice_reports
 TABLE practice_sessions
 TABLE practices
 TABLE push_tokens
+TABLE reading_examples
 TABLE reading_pronunciation_reports
 TABLE reading_recording_coaches
 TABLE reading_recordings
