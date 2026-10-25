@@ -17,6 +17,7 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '@/lib/push-policy';
 import { translate as t } from '@/lib/i18n';
 import { readOptionalPracticeNote } from '@/lib/practice/note';
 import type { PracticeNote } from '@/lib/practice/types';
+import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 
 /**
  * 오늘 코칭 끝(pen ⑧ 「오늘 코칭 끝」 TFZ59, SOMA-720) — 배우 일지에서 「저장하기」를 누른 뒤 한 번 보인다.
@@ -28,6 +29,10 @@ import type { PracticeNote } from '@/lib/practice/types';
  */
 export default function CoachingDoneScreen() {
   const router = useRouter();
+  // 코칭을 노트·일지·마무리까지 가 봤으면 첫 사용자 화면은 졸업이다(SOMA-827).
+  useEffect(() => {
+    void markFirstUseGraduated();
+  }, []);
   const params = useLocalSearchParams<{ practiceId?: string; saved?: string; next?: string }>();
   const practiceId = params.practiceId?.trim() || null;
   const [note, setNote] = useState<PracticeNote | null>(null);

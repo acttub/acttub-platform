@@ -22,7 +22,8 @@ const mockFocusEffect = () => mockFocusEffects.forEach((effect) => effect());
 const mockAuth = {
   user: { id: 'u1' } as { id: string } | null,
   consentEntry: { status: 'allowed' },
-  profile: { me: null as null | { profile: { experience: string; birth_date: string | null } } },
+  // 홈은 프로필 게이트를 지난 뒤(내 계정을 읽은 뒤)에만 그려진다 — 계정 id 는 늘 있다.
+  profile: { me: { id: 'u1' } as { id: string; profile?: { experience: string; birth_date: string | null } } },
 };
 
 jest.mock('expo-router', () => {
@@ -67,6 +68,7 @@ jest.mock('@/lib/guide-state', () => ({
   markReadingTutorialSeen: jest.fn(async () => undefined),
 }));
 jest.mock('@/lib/practice-days', () => ({ rememberPracticeDays: jest.fn() }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({ hasGraduatedFirstUse: jest.fn(async () => false) }));
 jest.mock('@/lib/streak-celebration', () => ({
   ...jest.requireActual('@/lib/streak-celebration'),
   readLastSeenStreak: jest.fn(),
@@ -185,7 +187,8 @@ beforeEach(() => {
   endTutorial();
   mockAuth.user = { id: 'u1' };
   mockAuth.consentEntry = { status: 'allowed' };
-  mockAuth.profile = { me: null };
+  mockAuth.profile = { me: { id: 'u1' } };
+  (jest.requireMock('@/lib/practice/first-use-graduation').hasGraduatedFirstUse as jest.Mock).mockImplementation(async () => false);
   listPracticeGroups.mockResolvedValue({ groups: [] });
   listReadingScripts.mockResolvedValue({ scripts: [] });
   (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [] });
@@ -236,6 +239,16 @@ describe('첫 사용자', () => {
     expect(screen.getAllByRole('radio', { selected: true })).toHaveLength(1);
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/coaching');
+  });
+
+  test('이 기기에서 리딩·코칭을 끝까지 해 본 계정은 서버 기록이 비어도 기본 홈이다(SOMA-827)', async () => {
+    const { hasGraduatedFirstUse } = jest.requireMock('@/lib/practice/first-use-graduation');
+    hasGraduatedFirstUse.mockImplementation(async (id: string) => id === 'u1');
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
+    expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
   });
 
   test('대본만 넣고 끝까지 안 읽은 사람은 아직 첫 사용자다 — 선택지를 본다(SOMA-827)', async () => {
@@ -477,7 +490,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
 
   test('만 19세 이하 입시생은 연기 입시 구역만 보고, 누르면 입시 일정으로 간다', async () => {
     practiced();
-    mockAuth.profile = { me: { profile: { experience: 'exam_prep', birth_date: `${new Date().getFullYear() - 18}-01-01` } } };
+    mockAuth.profile = { me: { id: 'u1', profile: { experience: 'exam_prep', birth_date: `${new Date().getFullYear() - 18}-01-01` } } };
     await render(<HomeScreen />);
     expect(await screen.findByText('연기 입시')).toBeOnTheScreen();
     await waitFor(() => expect(screen.getByText('한국예술종합학교')).toBeOnTheScreen());

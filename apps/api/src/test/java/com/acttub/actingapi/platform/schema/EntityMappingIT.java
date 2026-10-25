@@ -115,6 +115,8 @@ class EntityMappingIT {
     private static final Set<String> AWAITING_MAPPING = Set.of(
             "video_transcripts", "practices", "analyses", "coach_conversations", "coach_messages",
             "coach_notes", "actor_memories", "practice_feedback", "ai_jobs",
+            // 웹 문의(V63, SOMA-834)는 문의 저장소의 native SQL(접수·운영 조회)만 쓴다.
+            "support_inquiries",
             // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
             "practice_migration_entries",
             // 조회수 사건·좋아요순 커서(V18)는 참여작 저장소의 native SQL 만 쓰는 장부다.
@@ -147,7 +149,7 @@ class EntityMappingIT {
             "actor_journals",
             // 예시 대본(V61)은 리딩 저장소의 native SQL(목록·하나 읽기)만 읽는다 — 행은 마이그레이션·운영 SQL 이 넣는다.
             "reading_examples",
-            // ACTTUB Pro 정기결제(V63, SOMA-818)는 결제 저장소의 native SQL(조건부 갱신·점유·멱등 기록)만 쓴다.
+            // ACTTUB Pro 정기결제(V64, SOMA-818)는 결제 저장소의 native SQL(조건부 갱신·점유·멱등 기록)만 쓴다.
             "billing_subscriptions", "billing_checkouts", "billing_payments", "billing_pro_grants");
 
     @Test

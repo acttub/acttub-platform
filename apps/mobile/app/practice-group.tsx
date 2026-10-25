@@ -61,6 +61,8 @@ export default function PracticeGroupScreen() {
   const [playing, setPlaying] = useState(false);
   // 지금 펼쳐 둔 대화의 id. 같은 줄을 다시 누르면 접는다(카드를 누르면 아래로 펼친다).
   const [openId, setOpenId] = useState<string | null>(null);
+  // 같은 대화가 「마지막 대화」와 회차 카드의 「대화」 두 줄에 걸려 있어 둘 다 펼쳐지던 것을 막는다 — 누른 줄 아래에만 붙인다.
+  const [openSlot, setOpenSlot] = useState<'last' | 'round' | null>(null);
   // 처음 한 번만 "이어서 연습할 수 있어요!"를 비춘다. 버튼이 목록 맨 아래라 먼저 내려 준다.
   // 대화 중인 묶음은 「다음 테이크 찍기」가 없으니 비추지 않는다(다음에 들어왔을 때 비춘다).
   const scrollRef = useRef<ScrollView>(null);
@@ -84,16 +86,23 @@ export default function PracticeGroupScreen() {
     };
   }, [group]);
 
-  const openConversation = async (id: string) => {
+  const openConversation = async (id: string, slot: 'last' | 'round' = 'round') => {
+    if (openId === id && openSlot !== slot) {
+      // 이미 받은 대화를 다른 줄 아래로 옮기기만 한다.
+      setOpenSlot(slot);
+      return;
+    }
     const request = ++conversationRequest.current;
     if (openId === id) {
       setOpenId(null);
+      setOpenSlot(null);
       setConversation(null);
       setConversationError(null);
       setConversationLoading(false);
       return;
     }
     setOpenId(id);
+    setOpenSlot(slot);
     setConversation(null);
     setConversationError(null);
     setConversationLoading(true);
@@ -242,8 +251,8 @@ export default function PracticeGroupScreen() {
   };
 
   /** 펼친 대화 — 액티는 왼쪽 회색 말풍선(마스코트 머리), 나는 오른쪽 파란 말풍선. 대화 줄 바로 아래에 붙는다. */
-  const renderOpen = (id: string) => {
-    if (openId !== id) return null;
+  const renderOpen = (id: string, slot: 'last' | 'round' = 'round') => {
+    if (openId !== id || openSlot !== slot) return null;
     return (
       <View key={`open-${id}`} style={styles.chat}>
         {conversationError && <Text style={styles.error}>{conversationError}</Text>}
@@ -309,11 +318,11 @@ export default function PracticeGroupScreen() {
           )}
 
           {group.last_conversation_id && (
-            <Pressable style={styles.round} onPress={() => void openConversation(group.last_conversation_id!)} accessibilityRole="button">
+            <Pressable style={styles.round} onPress={() => void openConversation(group.last_conversation_id!, 'last')} accessibilityRole="button">
               <Text style={styles.openNote}>{t('history.lastConversation')}</Text>
             </Pressable>
           )}
-          {group.last_conversation_id && renderOpen(group.last_conversation_id)}
+          {group.last_conversation_id && renderOpen(group.last_conversation_id, 'last')}
 
           {video && (
             video.url ? (

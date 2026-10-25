@@ -730,6 +730,14 @@ COLUMN summaries.session_id ord=2 type=uuid len=- null=NO default=-
 COLUMN summaries.summary ord=4 type=text len=- null=YES default=-
 COLUMN summaries.uncertainties_json ord=13 type=jsonb len=- null=NO default='[]'::jsonb
 COLUMN summaries.was_compressed ord=9 type=bool len=- null=NO default=false
+COLUMN support_inquiries.body ord=4 type=text len=- null=NO default=-
+COLUMN support_inquiries.category ord=2 type=text len=- null=NO default=-
+COLUMN support_inquiries.client ord=6 type=text len=- null=YES default=-
+COLUMN support_inquiries.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN support_inquiries.email ord=3 type=text len=- null=NO default=-
+COLUMN support_inquiries.id ord=1 type=uuid len=- null=NO default=-
+COLUMN support_inquiries.status ord=7 type=text len=- null=NO default='open'::text
+COLUMN support_inquiries.user_id ord=5 type=uuid len=- null=YES default=-
 COLUMN transcripts.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN transcripts.ord ord=3 type=int4 len=- null=NO default=-
 COLUMN transcripts.session_id ord=2 type=uuid len=- null=NO default=-
@@ -1803,6 +1811,15 @@ CONSTRAINT summaries summaries_session_id_key UNIQUE (session_id)
 CONSTRAINT summaries summaries_session_id_not_null NOT NULL session_id
 CONSTRAINT summaries summaries_uncertainties_json_not_null NOT NULL uncertainties_json
 CONSTRAINT summaries summaries_was_compressed_not_null NOT NULL was_compressed
+CONSTRAINT support_inquiries ck_support_inquiries_category CHECK ((category = ANY (ARRAY['account'::text, 'billing'::text, 'refund'::text, 'usage'::text, 'bug'::text, 'report'::text, 'other'::text])))
+CONSTRAINT support_inquiries ck_support_inquiries_status CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
+CONSTRAINT support_inquiries support_inquiries_body_not_null NOT NULL body
+CONSTRAINT support_inquiries support_inquiries_category_not_null NOT NULL category
+CONSTRAINT support_inquiries support_inquiries_created_at_not_null NOT NULL created_at
+CONSTRAINT support_inquiries support_inquiries_email_not_null NOT NULL email
+CONSTRAINT support_inquiries support_inquiries_id_not_null NOT NULL id
+CONSTRAINT support_inquiries support_inquiries_pkey PRIMARY KEY (id)
+CONSTRAINT support_inquiries support_inquiries_status_not_null NOT NULL status
 CONSTRAINT transcripts transcripts_id_not_null NOT NULL id
 CONSTRAINT transcripts transcripts_ord_not_null NOT NULL ord
 CONSTRAINT transcripts transcripts_pkey PRIMARY KEY (id)
@@ -1998,6 +2015,7 @@ INDEX CREATE INDEX idx_script_uploads_user ON public.script_uploads USING btree 
 INDEX CREATE INDEX idx_scripts_user_raw_hash ON public.scripts USING btree (user_id, raw_hash)
 INDEX CREATE INDEX idx_scripts_user_updated ON public.scripts USING btree (user_id, updated_at DESC)
 INDEX CREATE INDEX idx_sessions_summary ON public.coach_sessions USING btree (summary_id)
+INDEX CREATE INDEX idx_support_inquiries_status_created ON public.support_inquiries USING btree (status, created_at DESC)
 INDEX CREATE INDEX idx_turns_session ON public.coach_turns USING btree (session_id, turn_index)
 INDEX CREATE INDEX idx_upload_intents_expiry ON public.upload_intents USING btree (status, expires_at)
 INDEX CREATE INDEX idx_upload_intents_user_created ON public.upload_intents USING btree (user_id, created_at DESC)
@@ -2111,6 +2129,7 @@ INDEX CREATE UNIQUE INDEX script_uploads_pkey ON public.script_uploads USING btr
 INDEX CREATE UNIQUE INDEX scripts_pkey ON public.scripts USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_pkey ON public.summaries USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_session_id_key ON public.summaries USING btree (session_id)
+INDEX CREATE UNIQUE INDEX support_inquiries_pkey ON public.support_inquiries USING btree (id)
 INDEX CREATE UNIQUE INDEX transcripts_pkey ON public.transcripts USING btree (id)
 INDEX CREATE UNIQUE INDEX upload_intents_object_key_key ON public.upload_intents USING btree (object_key)
 INDEX CREATE UNIQUE INDEX upload_intents_pkey ON public.upload_intents USING btree (id)
@@ -2272,6 +2291,7 @@ TABLE script_lines
 TABLE script_uploads
 TABLE scripts
 TABLE summaries
+TABLE support_inquiries
 TABLE transcripts
 TABLE upload_intents
 TABLE user_active_days

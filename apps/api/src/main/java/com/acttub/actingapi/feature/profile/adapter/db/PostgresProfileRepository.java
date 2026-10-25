@@ -761,7 +761,7 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
             entityManager.createNativeQuery("DELETE FROM user_airbridge_device_lookups WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
-            // 앱 Pro 구독(SOMA-818, V63)은 더 결제하지 않게 끝내고 빌링키를 지운다. 결제 기록(billing_payments)은 거래
+            // 앱 Pro 구독(SOMA-818, V64)은 더 결제하지 않게 끝내고 빌링키를 지운다. 결제 기록(billing_payments)은 거래
             // 기록이라 남긴다 — 카드 번호는 토스가 가린 값뿐이다.
             entityManager.createNativeQuery("""
                     UPDATE billing_subscriptions SET status='expired', billing_key=NULL, next_retry_at=NULL, updated_at=now()

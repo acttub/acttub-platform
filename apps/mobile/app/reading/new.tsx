@@ -12,7 +12,6 @@ import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { DialogButtons } from '@/components/ui/dialog';
-import { BandGradient } from '@/components/ui/band-gradient';
 import { ReadingStatus } from '@/components/ui/reading-status';
 import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { Markdown } from '@/components/markdown';
@@ -42,7 +41,6 @@ import {
   initialScriptInput,
   pendingScript,
   scriptInputReducer,
-  showsSampleLink,
   type ScriptTab,
 } from '@/lib/reading/script-input';
 import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
@@ -50,6 +48,7 @@ import { isMonologue } from '@/lib/reading/monologue';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { MonologueNameDialog } from '@/components/monologue-name-dialog';
 import { ProSheetCard } from '@/components/pro-ui';
+import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
 import { newRequestId } from '@/lib/request-id';
 import { translate as t } from '@/lib/i18n';
 
@@ -60,7 +59,6 @@ import { translate as t } from '@/lib/i18n';
 const MASCOT = require('@/assets/images/mascot-reading.png');
 /** pen R2 「대본 읽는 액티」·「예시 대본 카드」 그림. */
 const HERO_ACTY = require('@/assets/images/reading/acty-reading-hero.png');
-const SAMPLE_ACTY = require('@/assets/images/reading/acty-reading-card.png');
 
 const PICKER_TYPES = [
   'text/plain',
@@ -270,7 +268,22 @@ export default function ReadingNew() {
     if (next) await split(next, { title });
   };
 
-  const setTab = (tab: ScriptTab) => dispatch({ type: 'tab', tab });
+  // 세 번째 선택지 「대본 같이 만들기」(10/25) — 화면을 넘기지 않고 아래에 「예시 대본 고르기 · 새 대본 만들기」를 펼친다.
+  // 예시 대본은 그 아래에서 바로 고르고, 새 대본 만들기는 「다음」으로 대본 만들기(감정 고르기)로 간다.
+  const [makeOpen, setMakeOpen] = useState(false);
+  const [makeChoice, setMakeChoice] = useState<'sample' | 'make' | null>(null);
+  const picker = useSamplePicker({
+    onNeedName: setNaming,
+    // 서버 예시를 못 받았을 때의 내장 예시 — 그 글을 글 붙여넣기 칸에 채워 기존 저장 흐름을 탄다.
+    onLocal: (id) => {
+      setMakeOpen(false);
+      dispatch({ type: 'sample', id });
+    },
+  });
+  const setTab = (tab: ScriptTab) => {
+    setMakeOpen(false);
+    dispatch({ type: 'tab', tab });
+  };
   const closable = popup !== null && popup.kind !== 'splitting' && !(popup.kind === 'consent' && popup.busy);
   // 파일을 올리는 중·나누는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일과 나누기가 버려진다(SOMA-664).
   // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
@@ -316,13 +329,33 @@ export default function ReadingNew() {
 
         {/* 「사진」 탭(사진으로 대본 넣기)은 서버에 사진 출처가 없어 숨긴다(SOMA-748). */}
         <View style={styles.segment}>
-          <SegmentTab icon="paperclip" label={t('reading.tabFile')} on={input.tab === 'file'} onPress={() => setTab('file')} />
+          <SegmentTab icon="paperclip" label={t('reading.tabFile')} on={!makeOpen && input.tab === 'file'} onPress={() => setTab('file')} />
           <View ref={pasteTabTarget.ref} onLayout={pasteTabTarget.onLayout} style={styles.segmentSlot}>
-            <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={input.tab === 'paste'} onPress={() => setTab('paste')} />
+            <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={!makeOpen && input.tab === 'paste'} onPress={() => setTab('paste')} />
           </View>
+          {/* 세 번째 선택지 — 대본이 없으면 같이 만들기. 예시 대본도 여기서 고른다(10/25). */}
+          <SegmentTab icon="message-circle" label={t('reading.entryCocreate')} on={makeOpen} onPress={() => setMakeOpen(true)} />
         </View>
 
-        {input.tab === 'file' && (
+        {makeOpen && (
+          <View style={styles.makeArea}>
+            {(['sample', 'make'] as const).map((key) => (
+              <Pressable
+                key={key}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: makeChoice === key }}
+                ph-label={`reading_new_make_${key}`}
+                onPress={() => setMakeChoice(key)}
+                style={[styles.choice, makeChoice === key && styles.choiceOn]}>
+                <Text style={styles.choiceTitle}>{t(key === 'sample' ? 'scriptCocreate.startSample' : 'scriptCocreate.startMake')}</Text>
+                <Text style={styles.choiceSub}>{t(key === 'sample' ? 'scriptCocreate.startSampleSub' : 'scriptCocreate.startMakeSub')}</Text>
+              </Pressable>
+            ))}
+            {makeChoice === 'sample' && <SamplePickerBody list={picker.list} entry={picker.entry} pick={picker.pick} />}
+          </View>
+        )}
+
+        {!makeOpen && input.tab === 'file' && (
           <Pressable
             style={[styles.dropzone, input.file.kind === 'empty' && styles.dropzoneEmpty]}
             onPress={onPickFile}
@@ -362,6 +395,7 @@ export default function ReadingNew() {
         )}
 
         {/* pen 「제목 입력」 — 라벨 위, 문서 아이콘이 든 흰 칸. 비우면 서버가 대본에서 찾아 붙인다(SOMA-669). */}
+        {!makeOpen && (
         <View style={styles.titleField}>
           <Text style={styles.titleLabel}>{t('reading.newTitleLabel')}</Text>
           <View style={styles.titleBox}>
@@ -379,8 +413,9 @@ export default function ReadingNew() {
             />
           </View>
         </View>
+        )}
 
-        {input.tab === 'paste' && (
+        {!makeOpen && input.tab === 'paste' && (
           <TextInput
             style={styles.textArea}
             value={input.paste.text}
@@ -392,40 +427,36 @@ export default function ReadingNew() {
           />
         )}
 
-        {(input.tab === 'paste' || input.file.kind !== 'empty') && (
+        {!makeOpen && (input.tab === 'paste' || input.file.kind !== 'empty') && (
           <Text style={styles.guide}>{input.tab === 'file' ? t('reading.newGuideFile') : t('reading.newGuidePaste')}</Text>
         )}
-        {showsSampleLink(input) &&
-          (input.tab === 'file' ? (
-            // pen 「예시 대본 카드」 — 파일 탭에서는 카드로, 글 탭에서는 작은 글자 링크로 둔다.
-            <Pressable style={styles.sampleCard} accessibilityRole="button" onPress={() => dispatch({ type: 'sample' })}>
-              <BandGradient stops={[[0, '#F4F9FF'], [1, '#E8F2FF']]} />
-              <Image source={SAMPLE_ACTY} style={styles.sampleActy} contentFit="contain" accessibilityIgnoresInvertColors />
-              <View style={styles.sampleBody}>
-                <Text style={styles.sampleTitle}>{t('reading.sampleLink')}</Text>
-                <Text style={styles.sampleSub}>{t('reading.sampleCardSub')}</Text>
-              </View>
-              <View style={styles.sampleGo}>
-                <Feather name="chevron-right" size={18} color={palette.blue} />
-              </View>
-            </Pressable>
-          ) : (
-            <Pressable style={styles.sampleLink} hitSlop={8} onPress={() => dispatch({ type: 'sample' })}>
-              <Text style={styles.sampleText}>{t('reading.sampleLink')}</Text>
-            </Pressable>
-          ))}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: (keyboard > 0 ? 0 : insets.bottom) + 10 }]}>
         <View ref={nextTarget.ref} onLayout={nextTarget.onLayout}>
-          <PrimaryButton
-            label={t('reading.next')}
-            onPress={() => pending && void split(pending, { title })}
-            disabled={!pending || !!popup}
-          />
+          {makeOpen ? (
+            <PrimaryButton
+              label={makeChoice === 'sample' ? t('reading.samplePickConfirm') : t('reading.next')}
+              phLabel="reading_new_make_next"
+              loading={makeChoice === 'sample' && picker.busy}
+              disabled={!makeChoice}
+              onPress={() =>
+                makeChoice === 'sample'
+                  ? picker.confirm()
+                  : router.push({ pathname: '/script-cocreate', params: { mode: 'reading', start: 'make' } })
+              }
+            />
+          ) : (
+            <PrimaryButton
+              label={t('reading.next')}
+              onPress={() => pending && void split(pending, { title })}
+              disabled={!pending || !!popup}
+            />
+          )}
         </View>
       </View>
 
+      {picker.dialog}
       <MonologueNameDialog
         target={naming}
         onClose={() => {
@@ -558,11 +589,11 @@ function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) 
   );
 }
 
-function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'; label: string; on: boolean; onPress: () => void }) {
+function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3' | 'message-circle'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
       <Feather name={icon} size={16} color={on ? palette.blue : palette.textMuted} />
-      <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{label}</Text>
+      <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
     </Pressable>
   );
 }
@@ -582,9 +613,14 @@ const styles = StyleSheet.create({
   titleInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, padding: 0 },
   segment: { flexDirection: 'row', backgroundColor: '#EEF2F8', borderRadius: 14, padding: 4 },
   segmentSlot: { flex: 1 },
-  segmentTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, height: 40 },
+  makeArea: { gap: 12 },
+  choice: { gap: 4, padding: 18, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
+  choiceTitle: { fontSize: 16, fontWeight: '700', color: palette.text },
+  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMuted },
+  segmentTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, height: 58, paddingHorizontal: 4 },
   segmentTabOn: { backgroundColor: palette.card },
-  segmentText: { color: palette.textMuted, fontSize: 15, fontWeight: '700' },
+  segmentText: { color: palette.textMuted, fontSize: 13, fontWeight: '700' },
   segmentTextOn: { color: palette.blue, fontWeight: '800' },
   dropzone: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
   // pen 「파일칸」 — 옅은 파랑 바탕, 점선 테두리(#BCD3F3), 모서리 22.
@@ -599,14 +635,6 @@ const styles = StyleSheet.create({
   replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   textArea: { flex: 1, minHeight: 256, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },
-  sampleCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 20, overflow: 'hidden', paddingVertical: 14, paddingLeft: 15, paddingRight: 14 },
-  sampleActy: { width: 75, height: 63 },
-  sampleBody: { flex: 1, gap: 6 },
-  sampleTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
-  sampleSub: { color: palette.textMuted, fontSize: 12, fontWeight: '500' },
-  sampleGo: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center', shadowColor: '#2E5A96', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  sampleLink: { alignSelf: 'center', paddingVertical: 4 },
-  sampleText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
   card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },

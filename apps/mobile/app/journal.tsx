@@ -32,6 +32,7 @@ import {
   type QuestionId,
 } from '@/lib/practice/journal';
 import { clearPractice, getPractice } from '@/lib/practice/session-state';
+import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 
 type Phase = 'loading' | 'questions' | 'making' | 'view' | 'error';
@@ -46,6 +47,10 @@ type Phase = 'loading' | 'questions' | 'making' | 'view' | 'error';
  */
 export default function JournalScreen() {
   const router = useRouter();
+  // 코칭을 노트·일지·마무리까지 가 봤으면 첫 사용자 화면은 졸업이다(SOMA-827).
+  useEffect(() => {
+    void markFirstUseGraduated();
+  }, []);
   const params = useLocalSearchParams<{ practiceId?: string; from?: string }>();
   // 마운트 때 한 번만 읽는다 — 마치기에서 clearPractice() 한 뒤에도 같은 회차를 가리킨다.
   const [practiceId] = useState(() => params.practiceId || getPractice()?.practiceId || null);

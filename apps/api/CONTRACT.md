@@ -1215,8 +1215,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - `GET /v2/admin/challenge-videos?limit=50&exclude_actors=…&visibility=all|public|private`는
   `limit` 1~100, 기본 50이다. 응답은 `entries`와 그 응답 묶음의 크기인 `count`다. 각 행은
   `id`(참여작 UUID)·`actor`(`md5(user_id)` 앞 8자리)·`created_at`·`visibility`·`status`·
-  `challenge_kind`(`challenges.origin`)·`challenge_ref`(`md5(challenge_id)` 앞 8자리)·`has_video`만
-  포함한다. raw 참여작 id는 이 live 운영 응답에서만 허용하며, user UUID·이메일·대사·작품·캡션 같은
+  `challenge_kind`(`challenges.origin`)·`challenge_ref`(`md5(challenge_id)` 앞 8자리)·`has_video`·`likes`(받은 좋아요 전체, 팀 계정 포함)·
+  `outside_likes`(그중 팀 이메일과 `exclude_actors` 배우가 누른 것을 뺀 값)만 포함한다. raw 참여작 id는 이 live 운영 응답에서만 허용하며, user UUID·이메일·대사·작품·캡션 같은
   자유 텍스트·원본 object key·재생 URL은 목록에 넣지 않는다.
 - `GET /v2/admin/challenge-videos/{id}/playback?exclude_actors=…`는
   `{"playback_url":…,"expires_in":600}`을 반환한다. 스토리지 서명 TTL은 반드시 600초다.
@@ -1433,7 +1433,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - 행동 계약은 [billing.subscription](../../docs/specs/billing/subscription.md)이 정본이고 `SubscriptionServiceTest`(상태 전이·멱등·해지
   후 기간 유지·재시도)가 지킨다. 플래그(`BILLING_APP_ENABLED`, 기본 false) 뒤의 기능이라 OpenAPI 에 싣지 않는다(`@Hidden`).
-- 표 넷(V63)은 native SQL 만 쓴다(Schema Entity 없음, CHECK 없음 — 값은 `BillingRules` 와 저장소 SQL 이 지킨다). 상태 쓰기는 모두
+- 표 넷(V64)은 native SQL 만 쓴다(Schema Entity 없음, CHECK 없음 — 값은 `BillingRules` 와 저장소 SQL 이 지킨다). 상태 쓰기는 모두
   조건부 UPDATE 한 문장이라 사용자의 해지와 스케줄러의 결제가 겹쳐도 서로 덮지 않는다. `billing_payments.order_id` UNIQUE 가
   멱등의 바닥이다(INSERT … ON CONFLICT DO NOTHING 뒤 승인).
 - 토스 호출은 트랜잭션 밖이다(§5-4). 빌링키는 `AccountSecrets` 암호문이고 로그·예외·응답에 싣지 않는다.

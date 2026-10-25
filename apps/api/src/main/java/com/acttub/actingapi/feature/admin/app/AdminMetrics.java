@@ -157,7 +157,11 @@ public final class AdminMetrics {
             String challengeKind,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$")
             String challengeRef,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean hasVideo) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean hasVideo,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0",
+                    description = "이 참여작이 받은 좋아요 수(팀 계정이 누른 것 포함)") int likes,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0",
+                    description = "그중 팀 밖 배우가 누른 좋아요 수") int outsideLikes) {
     }
 
     /**

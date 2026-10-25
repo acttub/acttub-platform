@@ -61,11 +61,13 @@ const GENERATION_POLL_MS = 5_000;
 
 export default function ScriptCocreateScreen() {
   const router = useRouter();
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, start } = useLocalSearchParams<{ mode?: string; start?: string }>();
+  // 내 대본 올리기에서 「새 대본 만들기」를 이미 고르고 왔으면 처음 고르기(예시/새로)를 건너뛴다(10/25).
+  const skipStart = start === 'make';
   const readingMode = mode === 'reading';
   const { profile } = useAuth();
   const me = profile.me?.profile ?? null;
-  const [step, setStep] = useState<Step>(readingMode ? 'start' : 'emotion');
+  const [step, setStep] = useState<Step>(readingMode && !skipStart ? 'start' : 'emotion');
   const [startChoice, setStartChoice] = useState<'sample' | 'make' | null>(null);
   const [regenUsed, setRegenUsed] = useState(0);
   const regenPending = useRef(false);
@@ -236,7 +238,7 @@ export default function ScriptCocreateScreen() {
   };
 
   const back = () => {
-    if (step === 'emotion' && readingMode) return setStep('start');
+    if (step === 'emotion' && readingMode && !skipStart) return setStep('start');
     if (step === 'failed') return setStep('direction');
     if (step === 'situation') return setStep('emotion');
     if (step === 'direction') return setStep('situation');

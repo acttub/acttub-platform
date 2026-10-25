@@ -35,6 +35,8 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
             route(HttpMethod.GET, "/v2/auditions"),
             // 포트폴리오 공개 조회 — 받은 링크를 로그인 없이 여는 사람이 본다.
             route(HttpMethod.GET, "/v2/public/**"),
+            // 웹 문의하기(SOMA-834)는 로그인 없이 받는다. 토큰이 있으면 컨트롤러가 직접 읽는다.
+            route(HttpMethod.POST, "/v2/support/inquiries"),
             route(null, "/v2/admin/**"),
             // PG 심사 전용 테스트 결제(SOMA-620) — 앱 계정이 아니라 전용 쿠키 세션으로 판정한다.
             route(null, "/v2/pg-review/**"),

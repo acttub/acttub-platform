@@ -521,6 +521,8 @@ class AdminEndpointIT {
                 "private", "deleted", NOW.plusMinutes(2), NOW.plusMinutes(2));
         UUID deletedChallengeEntry = insertChallengeEntry(deletedChallenge, REAL_USER, "deleted-challenge.mp4",
                 "삭제 챌린지 캡션", "private", "visible", NOW.plusMinutes(1), null);
+        jdbc.update("INSERT INTO entry_likes (id,entry_id,user_id) VALUES (?,?,?)", UUID.randomUUID(), publicEntry, REAL_USER);
+        jdbc.update("INSERT INTO entry_likes (id,entry_id,user_id) VALUES (?,?,?)", UUID.randomUUID(), publicEntry, TEAM_USER);
 
         var result = mvc.perform(get("/v2/admin/challenge-videos")
                 .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
@@ -533,13 +535,15 @@ class AdminEndpointIT {
         JsonNode first = all.path("entries").get(0);
         assertThat(first.fieldNames()).toIterable().containsExactly(
                 "id", "actor", "created_at", "visibility", "status",
-                "challenge_kind", "challenge_ref", "has_video");
+                "challenge_kind", "challenge_ref", "has_video", "likes", "outside_likes");
         assertThat(first.path("id").textValue()).isEqualTo(publicEntry.toString());
         assertThat(first.path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
         assertThat(first.path("challenge_kind").textValue()).isEqualTo("member");
         assertThat(first.path("challenge_ref").textValue())
                 .isEqualTo(md5(memberChallenge.toString()).substring(0, 8));
         assertThat(first.path("has_video").booleanValue()).isTrue();
+        assertThat(first.path("likes").intValue()).isEqualTo(2);
+        assertThat(first.path("outside_likes").intValue()).isEqualTo(1);
 
         JsonNode second = all.path("entries").get(1);
         assertThat(second.path("id").textValue()).isEqualTo(privateEntry.toString());
@@ -548,6 +552,7 @@ class AdminEndpointIT {
         assertThat(second.path("challenge_kind").textValue()).isEqualTo("team");
         assertThat(all.path("entries").get(2).path("id").textValue()).isEqualTo(purgedEntry.toString());
         assertThat(all.path("entries").get(2).path("has_video").booleanValue()).isFalse();
+        assertThat(second.path("likes").intValue()).isEqualTo(0);
 
         assertThat(all.toString()).doesNotContain(
                 teamEntry.toString(), deletedEntry.toString(), deletedChallengeEntry.toString(),
@@ -2136,7 +2141,9 @@ class AdminEndpointIT {
                 "/v2/admin/reading-sessions", "/v2/admin/reading-sessions/{id}",
                 "/v2/admin/reading-recordings/{id}/playback",
                 // 앱 공지 포스터(app.poster)의 운영 경로도 같은 토큰 조건을 진다.
-                "/v2/admin/posters", "/v2/admin/posters/{id}", "/v2/admin/poster-images");
+                "/v2/admin/posters", "/v2/admin/posters/{id}", "/v2/admin/poster-images",
+                // 웹 문의하기(app.support-inquiry)의 운영 조회도 같은 토큰 조건을 진다.
+                "/v2/admin/support/inquiries");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
                 .textValue()).isEqualTo("integer");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default")

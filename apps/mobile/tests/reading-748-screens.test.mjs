@@ -71,10 +71,20 @@ test('첫 리딩 안내: 상대 차례 → 내 차례 → 말한 뒤 다음 → 
 
 test('대본 탭: 대본이 없으면 리딩 입구(올리기 줄), 있으면 이어 읽기 카드 — 같이 만들기(서버 없음)는 숨긴다', () => {
   const tab = src('app/(tabs)/reading.tsx');
-  assert.match(tab, /t\('reading\.entryUpload'\)/);
+  // 「새 대본」은 고르기 창 없이 바로 내 대본 올리기로 간다(10/25).
+  assert.match(tab, /onPress=\{\(\) => router\.push\('\/reading\/new'\)\}/);
   assert.match(tab, /resumeCandidate\(/);
   assert.doesNotMatch(tab, /entryCreate|대본 같이 만들기/);
   assert.match(tab, /ref=\{newTarget\.ref\}/, '스포트라이트 자리는 그대로');
+});
+
+test('대본 넣기: 파일·글 붙여넣기·대본 같이 만들기 셋 중 고르고, 예시 대본 링크는 없다(10/25)', () => {
+  const screen = src('app/reading/new.tsx');
+  assert.match(screen, /t\('reading\.entryCocreate'\)/);
+  // 화면을 넘기지 않고 아래에 「예시 대본 고르기 · 새 대본 만들기」를 펼친다. 새 대본 만들기만 대본 만들기로 간다.
+  assert.match(screen, /<SamplePickerBody /);
+  assert.match(screen, /pathname: '\/script-cocreate', params: \{ mode: 'reading', start: 'make' \}/);
+  assert.doesNotMatch(screen, /sampleLink|showsSampleLink/);
 });
 
 test('대본 넣기: 사진 탭과 「다른 거 하고 있을게요」(알림)는 없다', () => {

@@ -79,7 +79,7 @@ public class DirectVideoConfiguration {
     com.acttub.actingapi.feature.coach.app.CoachLayerOne coachLayerOne(
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.observation.LayerOneObserver> observer,
             FailureReporter failures,
-            @Value("${ACTTUB_COACH_LAYER1_SHARE:50}") int share) {
+            @Value("${ACTTUB_COACH_LAYER1_SHARE:0}") int share) {
         return new com.acttub.actingapi.feature.coach.app.CoachLayerOne(observer.getIfAvailable(), share, failures);
     }
 
