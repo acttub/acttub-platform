@@ -20,11 +20,12 @@ beforeEach(() => {
 });
 
 test('화면마다 비춘 안내를 따로 기억한다', async () => {
+  setFirstUseOwner('u1');
   assert.equal(await guide.hasSeenSpotlight('home', 0), false);
   await guide.markSpotlightSeen('home');
   assert.equal(await guide.hasSeenSpotlight('home', 0), true);
   assert.equal(await guide.hasSeenSpotlight('reading', 0), false);
-  assert.equal(storage.values.get('acttub.spotlight.home.seen'), '1');
+  assert.equal(storage.values.get('acttub.spotlight.home.seen.u1'), '1');
 });
 
 test('연습 튜토리얼과 리딩 튜토리얼을 따로 센다', async () => {
@@ -86,8 +87,8 @@ test('앱을 막 켜 계정을 아직 모를 때 물으면, 계정이 정해질 
   assert.equal(await asked, true);
 });
 
-test('기다려도 계정이 안 정해지면 기기 공용 기록을 읽는다', async () => {
-  assert.equal(await guide.hasSeenSpotlight('home', 10), false);
-  await guide.markSpotlightSeen('home');
+test('기다려도 계정이 안 정해지면 본 것으로 친다 — 계정 없는 키를 읽으면 본 사람에게도 다시 떴다(1.0.1 운영)', async () => {
   assert.equal(await guide.hasSeenSpotlight('home', 10), true);
+  setFirstUseOwner('u1');
+  assert.equal(await guide.hasSeenSpotlight('home', 10), false);
 });
