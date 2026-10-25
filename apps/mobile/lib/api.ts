@@ -64,6 +64,7 @@ import type {
   MyEntriesResponse,
   MyEntryCard,
 } from '@/lib/challenge/types';
+import type { ReadingExampleListResponse, ReadingExampleStart } from '@/lib/reading/examples';
 import type { ReadingRating, ReadingRatingBody } from '@/lib/reading/session-rating';
 import type {
   CoachConversation,
@@ -600,6 +601,22 @@ export const api = {
    */
   importScript(body: ImportScriptBody): Promise<ImportTicket> {
     return request<ImportTicket>('/v2/reading/imports', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  /** 예시 대본 목록(서버가 미리 나눠 둔 것). 로그인·게스트 모두. 화면은 실패하면 내장 예시로 대신한다. */
+  listReadingExamples(): Promise<ReadingExampleListResponse> {
+    return request<ReadingExampleListResponse>('/v2/reading/examples', {}, { timeoutMs: 10_000 });
+  },
+
+  /**
+   * 예시를 내 대본으로 복사한다(나누기·동의·하루 한도 없음). 처음이면 201, 같은 예시를 이미 들고 있으면 그 대본(200).
+   * 대본 수 한도는 422 script_limit, 없는·꺼진 예시는 404 reading_example_not_found. 같은 request_id 재전송은 같은 대본.
+   */
+  startReadingExample(exampleId: string, body: { request_id: string }): Promise<ReadingExampleStart> {
+    return postIdempotent<ReadingExampleStart>(`/v2/reading/examples/${encodeURIComponent(exampleId)}/start`, body, {
+      requestId: body.request_id,
+      timeoutMs: 20_000,
+    });
   },
 
   // 찍을 대사 같이 만들기(SOMA-721) ----------------------------------------------------
