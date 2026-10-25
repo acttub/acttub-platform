@@ -566,20 +566,20 @@ describe('빠른 답과 그만하기', () => {
 });
 
 describe('닫힌 대화', () => {
-  test('노트와 함께 닫히면 배우 일지 화면으로 넘어간다(SOMA-720)', async () => {
+  test('노트와 함께 닫혀도 마지막 코치 말을 보여 주고, 「일지 쓰고 마치기」를 눌러야 배우 일지로 간다(SOMA-720)', async () => {
     jest.useFakeTimers();
     mockLoop.replyToCoach.mockResolvedValue(turn(conv({ status: 'closed', close_reason: 'exhausted' }), NOTE));
     await renderOpen();
 
     await typeAndSend('마지막 답');
-    expect(screen.getByText('오늘 대화는 여기까지예요. 정리를 만들어 보여드릴게요.')).toBeOnTheScreen();
+    expect(screen.getByText('오늘 대화는 여기까지예요. 코치 말을 읽고 아래에서 일지를 써요.')).toBeOnTheScreen();
     expect(getPractice()?.note).toEqual(NOTE);
     await act(async () => jest.advanceTimersByTime(0));
-    expect(mockRouter.replace).toHaveBeenCalledWith('/journal');
+    expect(mockRouter.replace).not.toHaveBeenCalled();
 
     await fireEvent.press(screen.getByRole('button', { name: '일지 쓰고 마치기' }));
     await act(async () => jest.advanceTimersByTime(0));
-    expect(mockRouter.replace.mock.calls).toEqual([['/journal'], ['/journal']]);
+    expect(mockRouter.replace.mock.calls).toEqual([['/journal']]);
   });
 
   test('닫힌 대화로 다시 들어오면 노트를 읽어 정리 화면으로 넘어간다', async () => {
@@ -791,6 +791,9 @@ describe('튜토리얼 예시', () => {
 
     await typeAndSend('제가 고쳐 쓴 답');
     expect(await screen.findByText('좋아요. 나눈 이야기를 연습 노트로 정리할게요.')).toBeOnTheScreen();
+    // 마지막 코치 말을 읽을 수 있게 바로 넘기지 않는다. 버튼을 눌러야 정리로 간다.
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/report');
+    await fireEvent.press(screen.getByRole('button', { name: /일지 쓰고 마치기|연습 마치기/ }));
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/report'));
     expect(screen.queryByRole('button', { name: '다음 테이크 찍기' })).not.toBeOnTheScreen();
     expect(getPractice()?.note?.actor_words).toEqual(['컵을 내려놓으면서 더는 미루지 않겠다고 마음먹었어요.']);

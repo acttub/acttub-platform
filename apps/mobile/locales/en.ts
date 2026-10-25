@@ -1130,7 +1130,7 @@ const en: DeepStringShape<typeof ko> = {
     doneShort:
       'That’s all for today. It’s a bit short to keep as a note — let’s pick it up next time.',
     doneFailure: 'The connection was interrupted while closing. You can review the saved conversation or start another round.',
-    doneNormal: 'That’s it for today’s conversation. I’ll build your summary now.',
+    doneNormal: 'That’s it for today’s conversation. Read the coach’s last words, then write your journal below.',
     finishBtn: 'Finish practice',
     seeSummary: 'Write journal and finish',
     // Continue the same conversation after the summary (SOMA-782, pen ⓐ4).
