@@ -51,17 +51,17 @@ test('⑨ 오늘 영상 줄: 썸네일 56 · 재생 원 32 · 17/700 · 15/500',
   assert.match(row, /sub: \{ fontSize: 15, fontWeight: '500', lineHeight: 19/);
 });
 
-test('⑨ 질문 대화: 제목 「질문 대화」 고정, 그만하기 17/700, 지난 문답 접기 줄, 빠른 답 한 줄 셋, 입력 줄', () => {
+test('⑨ 질문 대화: 제목 「질문 대화」 고정, 그만하기 17/700, 카톡식으로 쌓이는 대화, 세로 예시 답 칩, 입력 줄', () => {
   const coach = read('app/coach.tsx');
   // 머리는 화면 안 NavHeader 로 그린다(iOS 기본 머리 headerRight 누름 씹힘, 10/23). 제목 고정, 오른쪽에 그만하기.
   assert.match(coach, /<NavHeader\s+title=\{t\('coach\.fallbackTitle'\)\}[\s\S]{0,900}right=\{/);
   assert.match(coach, /endText: \{ fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette\.textMuted \}/);
-  assert.match(coach, /<Feather name=\{pastOpen \? 'chevron-up' : 'chevron-down'\} size=\{12\}/);
-  assert.match(coach, /pastToggle: \{ fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette\.textFaint \}/);
+  // 10/23 pen: 지난 문답을 접지 않고 카톡처럼 쌓는다. 예시 답 칩은 세로로 한 줄씩, 글자 길이만큼.
+  assert.doesNotMatch(coach, /pastOpen|pastToggle|quickRow/);
   assert.doesNotMatch(coach, /quickWrite|'write'/);
-  assert.match(coach, /quickRow: \{ flexDirection: 'row', gap: 6 \}/);
-  assert.match(coach, /quick: \{ flex: 1, height: 39, borderRadius: 20,/);
-  assert.match(coach, /quickText: \{ fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette\.textStrong \}/);
+  assert.match(coach, /\{messages\.map\(\(message, index\) =>/);
+  assert.match(coach, /exampleChoices: \{ flexDirection: 'column', alignItems: 'flex-start', gap: 6,/);
+  assert.match(coach, /purposeChoiceText: \{ fontSize: 13\.5, fontWeight: '600'/);
   assert.match(coach, /chipGuide: \{ fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette\.blueDeep \}/);
   assert.match(coach, /send: \{ width: 39, height: 39, borderRadius: 20,/);
   assert.match(coach, /fontSize: 17,\s*fontWeight: '500',/);

@@ -26,11 +26,14 @@ test('새 연습 준비(P3.1): 장면 정보 단계(상황·인물·원하는 �
   assert.match(ko, /helpLabel: \{\s*분석: '대사 분석',\s*표현: '연기 표현',\s*'그 외': '그 외',/);
 });
 
-test('액티 대화(P5.3): 빠른 버튼은 맞아요·아니요(입력칸만 채움)와 그만하기, 아래 「그만하고 정리 만들기」 링크는 없다', () => {
+test('액티 대화(P5.3): 답 버튼은 지금 질문의 예시 답(입력칸만 채움)과 그만하기, 아래 「그만하고 정리 만들기」 링크는 없다', () => {
   assert.equal(helpButtonDraft('yes'), '맞아요');
   assert.equal(helpButtonDraft('no'), '아니요');
   const coach = read('app/coach.tsx');
-  assert.match(coach, /\['yes', t\('coach\.quickYes'\)\],\s*\['no', t\('coach\.quickNo'\)\],/);
+  // 고정 「맞아요·아니요」 줄은 없다 — 코치가 "A예요, B예요?"로 물어도 같았다(10/25).
+  assert.doesNotMatch(coach, /\['yes', t\('coach\.quickYes'\)\]/);
+  assert.match(coach, /choices\.map\(\(label\) => \([\s\S]{0,300}onPress=\{\(\) => pressChoice\(label\)\}/);
+  assert.match(coach, /const pressChoice = \(label: string\) => setInput\(label\);/);
   // 그만하기는 오른쪽 위 머리 버튼이다(pen 질문 대화, SOMA-748) — 확인을 받고 대화를 마친다.
   // 대화를 열지 못했으면(이미 닫힌 대화 등) 마칠 대화가 없으니 화면을 나간다.
   assert.match(coach, /right=\{[\s\S]{0,300}onPress=\{\(\) => \(conversation \? void endConversation\(\) : router\.back\(\)\)\}[^>]*>\s*<Text style=\{styles\.endText\}>\{t\('coach\.quickEnd'\)\}/);

@@ -105,6 +105,20 @@ export function helpButtonDraft(button: HelpButton): string {
   return translate(button === 'yes' ? 'coach.yesMessage' : button === 'no' ? 'coach.noMessage' : 'coach.unsureMessage');
 }
 
+/**
+ * 질문 대화의 답 버튼(pen 「질문 대화」 예시 답 칩). 서버가 지금 질문에 맞춰 준 예시 답 1~2개 뒤에 「잘 모르겠어요」를 둔다.
+ * 고정 「맞아요·아니요」는 코치가 "A예요, B예요?"로 물어도 같아서 뺐다. 목적별 코칭은 purpose.choices 를 그대로 쓰므로 여기서는 비운다.
+ * 질문을 기다리는 동안·닫힌 대화·마지막 말이 코치 질문이 아닐 때는 버튼이 없다.
+ */
+export function answerChoices(conversation: CoachConversation | null, opts: { busy: boolean }): string[] {
+  if (!conversation || opts.busy || isClosed(conversation) || conversation.purpose) return [];
+  const last = orderedMessages(conversation).at(-1);
+  if (last?.role !== 'coach') return [];
+  const examples = (conversation.answer_examples ?? []).map((label) => label.trim()).filter(Boolean).slice(0, 2);
+  const unsure = translate('coach.quickUnsure');
+  return [...examples.filter((label) => label !== unsure), unsure];
+}
+
 export type CoachFailure =
   /** 다른 요청이 먼저 반영됐다. 입력을 보존하고 최신 대화를 다시 읽는다. */
   | { kind: 'conflict' }

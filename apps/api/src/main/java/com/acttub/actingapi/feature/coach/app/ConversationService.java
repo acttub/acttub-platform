@@ -232,7 +232,8 @@ public class ConversationService {
                     replyLimit(loaded.session()),
                     originalTurns,
                     "closed".equals(replayed.status()) ? conversations.note(userId, loaded.practiceId()) : null,
-                    PurposeView.from(loaded.session().sessionPurpose(), loaded.session().coachingState()));
+                    PurposeView.from(loaded.session().sessionPurpose(), loaded.session().coachingState()),
+                    AnswerExamples.from(loaded.session().sessionPurpose(), loaded.session().coachingState()));
         }
         if ("closed".equals(loaded.session().status())) {
             throw new ApiException(409, "conversation_closed");
@@ -280,7 +281,8 @@ public class ConversationService {
                 displayLimit(result.session(), saved.coachReplyCount()),
                 turns(after.session()).stream().limit(result.session().turns().size()).toList(),
                 note,
-                PurposeView.from(result.session().sessionPurpose(), result.session().coachingState()));
+                PurposeView.from(result.session().sessionPurpose(), result.session().coachingState()),
+                AnswerExamples.from(result.session().sessionPurpose(), result.session().coachingState()));
     }
 
     /**
@@ -365,11 +367,22 @@ public class ConversationService {
             List<ConversationRepository.Turn> turns,
             NoteView note,
             // 목적별 코칭(SOMA-719)의 버튼·장면·카드. 목적 없이 시작한 대화는 null.
-            PurposeView purpose) {
+            PurposeView purpose,
+            // 목적 없는 질문 대화의 지금 질문 예시 답 1~2개. 없으면 빈 목록이다.
+            List<String> answerExamples) {
+
+        public Turn {
+            answerExamples = answerExamples == null ? List.of() : List.copyOf(answerExamples);
+        }
+
+        public Turn(UUID conversationId, String status, String closeReason, long revision, String coachMessage,
+                int coachReplyCount, int replyLimit, List<ConversationRepository.Turn> turns, NoteView note, PurposeView purpose) {
+            this(conversationId, status, closeReason, revision, coachMessage, coachReplyCount, replyLimit, turns, note, purpose, List.of());
+        }
 
         public Turn(UUID conversationId, String status, String closeReason, long revision, String coachMessage,
                 int coachReplyCount, int replyLimit, List<ConversationRepository.Turn> turns, NoteView note) {
-            this(conversationId, status, closeReason, revision, coachMessage, coachReplyCount, replyLimit, turns, note, null);
+            this(conversationId, status, closeReason, revision, coachMessage, coachReplyCount, replyLimit, turns, note, null, List.of());
         }
     }
 
@@ -385,7 +398,8 @@ public class ConversationService {
                 displayLimit(session, coachReplies(session)),
                 turns,
                 note,
-                PurposeView.from(session.sessionPurpose(), session.coachingState()));
+                PurposeView.from(session.sessionPurpose(), session.coachingState()),
+                AnswerExamples.from(session.sessionPurpose(), session.coachingState()));
     }
 
     private static List<ConversationRepository.Turn> turns(CoachSessionSnapshot session) {

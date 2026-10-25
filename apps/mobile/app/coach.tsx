@@ -26,13 +26,12 @@ import {
   canSendAnswer,
   coachFailure,
   coachFailureMessage,
-  helpButtonDraft,
+  answerChoices,
   canContinueConversation,
   isClosed,
   loadCoachSession,
   nextReplyWraps,
   orderedMessages,
-  type HelpButton,
 } from '@/lib/practice/coach';
 import { splitTimestamps } from '@/lib/practice/coach-timestamps';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
@@ -127,7 +126,8 @@ function CoachTalk() {
     [],
   );
   const [error, setError] = useState<string | null>(null);
-  const [pastOpen, setPastOpen] = useState(false);
+  /** 보낸 답 — 코치 답이 오기 전까지 오른쪽 말풍선으로 먼저 보인다. 실패하면 입력칸으로 돌려준다. */
+  const [pendingText, setPendingText] = useState<string | null>(null);
   const [sceneOpen, setSceneOpen] = useState(false);
   // 코치 말 속 시간을 눌러 연 영상의 시작점(pen 「추가 · 시간 눌러 장면 보기」).
   const [seek, setSeek] = useState<{ seconds: number; label: string; key: number } | null>(null);
@@ -221,6 +221,12 @@ function CoachTalk() {
       attemptRef.current = attempt;
       setWaiting(true);
       setError(null);
+      // 카톡처럼 보낸 답을 바로 대화에 올리고 입력칸을 비운다. 그만하기 신호는 말풍선으로 올리지 않는다.
+      const shownAsBubble = trimmed !== COACH_END_WORD;
+      if (shownAsBubble) {
+        setPendingText(trimmed);
+        setInput('');
+      }
       try {
         const result = await loop.replyToCoach(
           buildReplyBody({ conversation, requestId: attempt.requestId, text: trimmed }),
@@ -232,6 +238,7 @@ function CoachTalk() {
         if (applyResult(result) && result.note && !result.conversation.purpose) goToNote();
       } catch (e) {
         if (!mountedRef.current) return;
+        if (shownAsBubble) setInput((was) => (was.trim() ? was : trimmed));
         const failure = coachFailure(e);
         setError(coachFailureMessage(failure));
         // 충돌했거나 이미 닫혔으면 입력을 보존한 채 최신 대화를 다시 읽는다.
@@ -240,6 +247,7 @@ function CoachTalk() {
       } finally {
         if (mountedRef.current) {
           setStreamText('');
+          setPendingText(null);
           setWaiting(false);
         }
       }
@@ -365,16 +373,12 @@ function CoachTalk() {
     leaveThen(() => router.dismissAll());
   };
 
-  const pressHelp = (button: HelpButton) => {
-    const draft = helpButtonDraft(button);
-    if (draft) setInput(draft);
-    // 키보드를 띄우지 않는다 — 올라오면 보내기 버튼이 움직여 엔터(줄바꿈)를 잘못 누른다(10/20 피드백). 덧붙여 쓰려면 입력칸을 누른다.
-  };
+  // 예시 답은 입력칸만 채운다 — 고쳐 쓰고 보낸다. 키보드를 띄우지 않는다: 올라오면 보내기 버튼이 움직여 엔터(줄바꿈)를 잘못 누른다(10/20 피드백).
+  const pressChoice = (label: string) => setInput(label);
 
-  const latestQuestion = [...messages].reverse().find((m) => m.role === 'coach')?.text ?? null;
-  // 스트리밍 중에는 쓰이는 글이 같은 말풍선에 자란다. 첫 글자 전에는 이전 모습(기다림 표시) 그대로다.
-  const shownQuestion = streamText || latestQuestion;
-  const past = messages.slice(0, Math.max(0, messages.length - (latestQuestion ? 1 : 0)));
+  const latestCoachIndex = messages.map((m) => m.role).lastIndexOf('coach');
+  const latestQuestion = latestCoachIndex >= 0 ? messages[latestCoachIndex].text : null;
+  const choices = answerChoices(conversation, { busy: waiting || connecting || !!streamText || !!pendingText });
   const canSend = canSendAnswer({ text: input, waiting, closed, conversationId: conversation?.id ?? null });
   const wrapping = conversation ? nextReplyWraps(conversation) : false;
   const sceneVideo = practice.videoUri || practice.playbackUrl;
@@ -475,47 +479,8 @@ function CoachTalk() {
 
           <CoachPurposeCards purpose={conversation?.purpose} hasVideo={!!sceneVideo} onSeek={(at) => seekTo(at, String(at))} />
 
-          {(wrapping || past.length > 0) && (
-            <View style={styles.progressHead}>
-              {/* 남은 코치 답변 수는 보이지 않는다 — 마무리 직전에만 알린다. */}
-              {wrapping && <Text style={styles.progressText}>{t('coach.wrapNext')}</Text>}
-              <View style={styles.flex} />
-              {past.length > 0 && (
-                <Pressable
-                  onPress={() => setPastOpen((was) => !was)}
-                  accessibilityRole="button"
-                  accessibilityState={{ expanded: pastOpen }}
-                  hitSlop={8}>
-                  <View style={styles.pastRow}>
-                    <Text style={styles.pastToggle}>{t('coach.pastToggle', { count: Math.floor(past.length / 2) })}</Text>
-                    <Feather name={pastOpen ? 'chevron-up' : 'chevron-down'} size={12} color={palette.textFaint} />
-                  </View>
-                </Pressable>
-              )}
-            </View>
-          )}
-
-          {/* 지난 문답 — 코치 말은 회색 말풍선(왼쪽), 내 답은 파란 말풍선·흰 글자(오른쪽, SOMA-778). */}
-          {pastOpen &&
-            past.map((message) =>
-              message.role === 'coach' ? (
-                <View
-                  key={message.turn_index}
-                  testID="coach-bubble-coach"
-                  style={[styles.pastBubble, styles.pastAi]}
-                  accessibilityLabel={`${t('coach.roleCoach')}: ${message.text}`}>
-                  <Text style={styles.pastAiText}>{message.text}</Text>
-                </View>
-              ) : (
-                <View
-                  key={message.turn_index}
-                  testID="coach-bubble-mine"
-                  style={[styles.pastBubble, styles.pastMine]}
-                  accessibilityLabel={`${t('coach.roleMe')}: ${message.text}`}>
-                  <Text style={styles.pastMineText}>{message.text}</Text>
-                </View>
-              ),
-            )}
+          {/* 마무리 직전에만 알린다 — 남은 코치 답변 수는 보이지 않는다. */}
+          {wrapping && <Text style={styles.progressText}>{t('coach.wrapNext')}</Text>}
 
           {connecting && !latestQuestion && !streamText ? (
             <View style={styles.loading}>
@@ -524,19 +489,49 @@ function CoachTalk() {
               <Text style={styles.loadingHint}>{t('coach.wrappingHint')}</Text>
             </View>
           ) : (
-            <View
-              style={styles.questionBlock}
-              ref={questionTarget.ref}
-              onLayout={(event) => {
-                questionY.current = event.nativeEvent.layout.y;
-                questionTarget.onLayout();
-              }}>
-              {shownQuestion && (
-                <CoachMessage>
-                  {/* 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). 「0:12」만 누를 수 있게 칠한다. */}
-                  <Text style={styles.question}>{withTimestamps(shownQuestion.trim())}</Text>
-                </CoachMessage>
+            // 카톡처럼 쌓이는 대화(10/23 pen) — 코치 말은 왼쪽 마스코트 말풍선, 내 답은 오른쪽 파란 말풍선. 지난 문답을 접지 않는다.
+            // 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). 「0:12」만 누를 수 있게 칠한다.
+            <View style={styles.thread}>
+              {messages.map((message, index) =>
+                message.role === 'coach' ? (
+                  <View
+                    key={message.turn_index}
+                    testID="coach-bubble-coach"
+                    // 지금 질문 — 튜토리얼이 비추고, 키보드가 뜨면 이 말풍선 위쪽으로 올린다.
+                    ref={index === latestCoachIndex ? questionTarget.ref : undefined}
+                    onLayout={
+                      index === latestCoachIndex
+                        ? (event) => {
+                            questionY.current = event.nativeEvent.layout.y;
+                            questionTarget.onLayout();
+                          }
+                        : undefined
+                    }>
+                    <CoachMessage>
+                      <Text style={styles.question}>{withTimestamps(message.text.trim())}</Text>
+                    </CoachMessage>
+                  </View>
+                ) : (
+                  <View
+                    key={message.turn_index}
+                    testID="coach-bubble-mine"
+                    style={[styles.bubble, styles.mine]}
+                    accessibilityLabel={`${t('coach.roleMe')}: ${message.text}`}>
+                    <Text style={styles.mineText}>{message.text}</Text>
+                  </View>
+                ),
               )}
+              {pendingText ? (
+                <View testID="coach-bubble-pending" style={[styles.bubble, styles.mine]}>
+                  <Text style={styles.mineText}>{pendingText}</Text>
+                </View>
+              ) : null}
+              {/* 스트리밍 중에는 쓰이는 글이 새 코치 말풍선에 자란다. */}
+              {streamText ? (
+                <CoachMessage>
+                  <Text style={styles.question}>{withTimestamps(streamText.trim())}</Text>
+                </CoachMessage>
+              ) : null}
             </View>
           )}
 
@@ -599,29 +594,20 @@ function CoachTalk() {
               </View>
             ) : null}
             {!keyboardVisible && <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>}
-            {/* 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채우고 키보드는 띄우지 않는다. 덧붙이려면 아래 입력칸을 누른다.
-                목적별 예시 답이 있으면 그것이 빠른 답을 대신한다 — 두 벌을 같이 보이면 「잘 모르겠어요」가 두 번 나온다. */}
-            {!keyboardVisible && !conversation?.purpose?.choices.length && (
-            <View style={styles.quickRow} testID="coach-quick-grid">
-              {(
-                [
-                  ['yes', t('coach.quickYes')],
-                  ['no', t('coach.quickNo')],
-                  ['unsure', t('coach.quickUnsure')],
-                ] as const
-              ).map(([button, label]) => (
-                <Pressable
-                  key={button}
-                  style={({ pressed }) => [styles.quick, pressed && styles.quickOn]}
-                  disabled={waiting || connecting || !conversation}
-                  onPress={() => pressHelp(button)}
-                  accessibilityRole="button">
-                  <Text style={styles.quickText} numberOfLines={1}>
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            {/* 예시 답 칩(10/23 pen) — 코치가 지금 질문에 맞춰 준 예시 답 1~2개 + 「잘 모르겠어요」. 세로로 한 줄씩, 글자 길이만큼 폭.
+                목적별 코칭은 위의 purpose.choices 를 쓰므로 여기서는 비어 있다. 질문을 기다리는 동안에는 없다. */}
+            {!keyboardVisible && choices.length > 0 && (
+              <View style={styles.exampleChoices} testID="coach-answer-examples">
+                {choices.map((label) => (
+                  <Pressable
+                    key={label}
+                    style={({ pressed }) => [styles.purposeChoice, pressed && styles.purposeChoiceOn]}
+                    onPress={() => pressChoice(label)}
+                    accessibilityRole="button">
+                    <Text style={styles.purposeChoiceText}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
             )}
             <View style={styles.inputRow}>
               {MicButton && !sample && <MicButton onText={setInput} disabled={connecting || waiting || !conversation} />}
@@ -676,11 +662,7 @@ const styles = StyleSheet.create({
   sceneBar: { backgroundColor: palette.blueSoft, paddingVertical: 9, paddingHorizontal: 24 },
   sceneBarText: { fontSize: 13, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
 
-  progressHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   progressText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
-  // pen 09 「지난 문답 N」 — 오른쪽 끝, 15/700 회색 + 꺾쇠 12.
-  pastRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  pastToggle: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.textFaint },
 
   // pen 09 본문 안쪽 [14,21,0,21].
   body: { paddingTop: 14, paddingHorizontal: 21, paddingBottom: 20, gap: 14 },
@@ -690,19 +672,18 @@ const styles = StyleSheet.create({
   loadingHint: { fontSize: 12.5, lineHeight: 18, color: palette.textFaint, textAlign: 'center', paddingHorizontal: 24 },
 
   // 코치 질문 — 머리줄(CoachMessage) 말풍선 안 16/500(줄 22).
-  questionBlock: { gap: 16 },
   question: { fontSize: 16, fontWeight: '500', color: palette.text, lineHeight: 22 },
   timeLink: { color: palette.blueDeep, fontWeight: '800', textDecorationLine: 'underline' },
 
   thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 39 },
   thinkingText: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
 
-  pastBubble: { maxWidth: '85%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18 },
-  pastAi: { alignSelf: 'flex-start', backgroundColor: palette.bgSoft, borderTopLeftRadius: 4 },
-  pastAiText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 22 },
+  // 카톡식 대화 — 말풍선 사이 14. 코치 말은 CoachMessage(마스코트·이름·회색 말풍선)다.
+  thread: { gap: 14 },
+  bubble: { maxWidth: '85%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18 },
   // 내 답 — 파란 말풍선(palette.blue)에 흰 글자, 오른쪽 위만 뾰족.
-  pastMine: { alignSelf: 'flex-end', backgroundColor: palette.blue, borderTopRightRadius: 4 },
-  pastMineText: { fontSize: 14, fontWeight: '600', color: palette.onAccent, lineHeight: 22 },
+  mine: { alignSelf: 'flex-end', backgroundColor: palette.blue, borderTopRightRadius: 4 },
+  mineText: { fontSize: 15, fontWeight: '500', color: palette.onAccent, lineHeight: 22 },
 
   errorText: { fontSize: 13, fontWeight: '700', color: palette.danger },
   doneText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 23 },
@@ -710,11 +691,8 @@ const styles = StyleSheet.create({
   // pen 09 「Composer」 — 안쪽 [0,21,11,21]: 파란 안내 15/700 · 12 · 빠른 답 · 9 · 입력 줄.
   composer: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11 },
   chipGuide: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
-  // 빠른 답 — 한 줄에 셋, 같은 너비. 회색 알약 높이 39 · 모서리 20, 글 15/700 #333D4B.
-  quickRow: { flexDirection: 'row', gap: 6 },
-  quick: { flex: 1, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bgSoft, paddingHorizontal: 6, marginTop: 12 },
-  quickOn: { backgroundColor: palette.blueSoft },
-  quickText: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.textStrong },
+  // 예시 답 칩 — 목적별 답 버튼과 같은 알약을 세로로 한 줄씩, 글자 길이만큼(10/23 pen: 13.5/600, 사이 6).
+  exampleChoices: { flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 },
   // 마이크 39 · 입력칸 44(모서리 22, 안쪽 좌우 14, 17/500) · 보내기 39, 사이 7. 글이 늘면 칸만 커지고 두 버튼은 아래에 붙는다.
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 7, marginTop: 9 },
   // 한 줄로 시작해 글이 늘면 커지고, 다섯 줄쯤부터는 칸 안에서 스크롤한다(SOMA-656). pen 「칸」 회색 알약.

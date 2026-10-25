@@ -4,6 +4,7 @@ import test from 'node:test';
 import { fingerprintOf } from '../lib/practice/start.ts';
 import { attemptFor } from '../lib/request-id.ts';
 import {
+  answerChoices,
   COACH_END_WORD,
   answerTooLong,
   buildReplyBody,
@@ -127,7 +128,8 @@ test('coach 화면: 액티의 마지막 말을 질문·힌트로 나누지 않�
   assert.doesNotMatch(coachLib, /splitCoachQuestion/);
   assert.doesNotMatch(screen, /splitCoachQuestion|latest\.hint|styles\.hint/);
   // 원문 한 칸 그대로 — 「0:12」 같은 시간만 누를 수 있게 칠한다(SOMA-748). 글을 나누거나 빼지 않는다.
-  assert.match(screen, /<Text style=\{styles\.question\}>\{withTimestamps\(shownQuestion\.trim\(\)\)\}<\/Text>/);
+  assert.match(screen, /<Text style=\{styles\.question\}>\{withTimestamps\(message\.text\.trim\(\)\)\}<\/Text>/);
+  assert.match(screen, /<Text style=\{styles\.question\}>\{withTimestamps\(streamText\.trim\(\)\)\}<\/Text>/);
 });
 
 test('대화 이어하기(SOMA-782): 닫힌 대화이고 예시 회차가 아닐 때만 보인다', () => {
@@ -142,4 +144,20 @@ test('대화 이어하기가 거절되는 까닭을 가른다', () => {
   assert.deepEqual(coachFailure(apiError(409, 'conversation_not_resumable')), { kind: 'not_resumable' });
   assert.match(coachFailureMessage({ kind: 'limit_reached' }), /많이 이어졌어요/);
   assert.match(coachFailureMessage({ kind: 'not_resumable' }), /이어 갈 수 없어요/);
+});
+
+test('질문 대화의 답 버튼: 서버 예시 답 1~2개 + 잘 모르겠어요, 기다리는 동안·목적별·닫힌 대화·질문 아님에는 없다', () => {
+  const asked = { messages: [{ turn_index: 0, role: 'coach', text: '상대는 어디 있었어요?', created_at: null }] };
+  const withExamples = conversation({ ...asked, answer_examples: ['멀리 있었어요', ' 바로 앞에 있었어요 ', '셋째'] });
+  assert.deepEqual(answerChoices(withExamples, { busy: false }), ['멀리 있었어요', '바로 앞에 있었어요', '잘 모르겠어요']);
+  // 옛 서버(예시 답 없음)도 「잘 모르겠어요」는 남는다. 고정 「맞아요·아니요」는 없다.
+  assert.deepEqual(answerChoices(conversation(asked), { busy: false }), ['잘 모르겠어요']);
+  // 서버가 「잘 모르겠어요」를 예시로 줘도 두 번 나오지 않는다.
+  assert.deepEqual(answerChoices(conversation({ ...asked, answer_examples: ['잘 모르겠어요'] }), { busy: false }), ['잘 모르겠어요']);
+  assert.deepEqual(answerChoices(withExamples, { busy: true }), []);
+  assert.deepEqual(answerChoices(null, { busy: false }), []);
+  assert.deepEqual(answerChoices(conversation({ ...asked, status: 'closed' }), { busy: false }), []);
+  assert.deepEqual(answerChoices(conversation({ ...asked, purpose: { purpose: 'stuck', step: 'reason', choices: [] } }), { busy: false }), []);
+  const answered = conversation({ messages: [...asked.messages, { turn_index: 1, role: 'actor', text: '멀리요', created_at: null }] });
+  assert.deepEqual(answerChoices(answered, { busy: false }), []);
 });

@@ -36,12 +36,11 @@ test('practice.coach: 닫힌 대화는 답할 수 없고 「다음 테이크 찍
   assert.match(coach, /isClosed/);
 });
 
-test('practice.coach: 도움 버튼은 입력만 준비한다 — 누르는 것으로 전송되지 않는다', () => {
+test('practice.coach: 예시 답 버튼은 입력만 준비한다 — 누르는 것으로 전송되지 않는다', () => {
   const coach = read('app/coach.tsx');
-  const block = coach.slice(coach.indexOf('const pressHelp'), coach.indexOf('const latestQuestion'));
+  const block = coach.slice(coach.indexOf('const pressChoice'), coach.indexOf('const latestCoachIndex'));
 
-  assert.match(block, /helpButtonDraft/);
-  assert.match(block, /setInput\(draft\)/);
+  assert.match(block, /setInput\(label\)/);
   assert.doesNotMatch(block, /replyToCoach|sendText/);
 });
 

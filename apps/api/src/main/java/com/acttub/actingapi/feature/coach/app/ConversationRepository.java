@@ -166,11 +166,22 @@ public interface ConversationRepository {
             Instant createdAt,
             List<Turn> turns,
             // 목적별 코칭(SOMA-719). 목적 없이 시작한 대화와 옛 대화는 null.
-            PurposeView purpose) {
+            PurposeView purpose,
+            // 목적 없는 질문 대화의 지금 질문 예시 답 1~2개. 없으면 빈 목록이다.
+            List<String> answerExamples) {
+
+        public ConversationView {
+            answerExamples = answerExamples == null ? List.of() : List.copyOf(answerExamples);
+        }
+
+        public ConversationView(UUID id, UUID practiceId, String status, String closeReason, String experienceVersion,
+                long revision, Instant createdAt, List<Turn> turns, PurposeView purpose) {
+            this(id, practiceId, status, closeReason, experienceVersion, revision, createdAt, turns, purpose, List.of());
+        }
 
         public ConversationView(UUID id, UUID practiceId, String status, String closeReason, String experienceVersion,
                 long revision, Instant createdAt, List<Turn> turns) {
-            this(id, practiceId, status, closeReason, experienceVersion, revision, createdAt, turns, null);
+            this(id, practiceId, status, closeReason, experienceVersion, revision, createdAt, turns, null, List.of());
         }
     }
 
