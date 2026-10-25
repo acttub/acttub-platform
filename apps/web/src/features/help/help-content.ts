@@ -121,3 +121,20 @@ export const FAQ: FaqCategory[] = [
 ];
 
 export const INQUIRY_TYPES = ["계정·로그인", "결제·구독", "해지·환불", "기능 이용", "오류 신고", "부적절한 콘텐츠 신고", "기타"] as const;
+
+export type InquiryType = (typeof INQUIRY_TYPES)[number];
+
+/** 화면의 문의 유형 → 서버 category (POST /v2/support/inquiries). */
+export const INQUIRY_CATEGORY: Record<InquiryType, "account" | "billing" | "refund" | "usage" | "bug" | "report" | "other"> = {
+  "계정·로그인": "account",
+  "결제·구독": "billing",
+  "해지·환불": "refund",
+  "기능 이용": "usage",
+  "오류 신고": "bug",
+  "부적절한 콘텐츠 신고": "report",
+  기타: "other",
+};
+
+/** 서버가 받는 내용 길이(자). */
+export const INQUIRY_BODY_MIN = 10;
+export const INQUIRY_BODY_MAX = 3000;
