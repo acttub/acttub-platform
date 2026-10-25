@@ -277,10 +277,8 @@ export default function ReadingList() {
                   onLayout={newTarget.onLayout}
                   style={styles.newBtn}
                   accessibilityRole="button"
-                  onPress={(e) => void sheet({ anchor: pt(e), title: t('reading.titleNew'), actions: [
-                    { label: t('reading.entryUpload'), onPress: () => router.push('/reading/new') },
-                    { label: t('reading.entryCocreate'), onPress: () => router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } }) },
-                  ] })}>
+                  // 「새 대본」은 바로 내 대본 올리기로 간다 — 같이 만들기는 그 화면의 세 번째 선택지다(10/25).
+                  onPress={() => router.push('/reading/new')}>
                   <Feather name="plus" size={16} color={palette.onAccent} />
                   <Text style={styles.newText}>{t('reading.titleNew')}</Text>
                 </Pressable>

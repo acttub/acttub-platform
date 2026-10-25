@@ -15,7 +15,7 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
   return { __esModule: true, default: storage };
 });
-const mockRouter = { replace: jest.fn() };
+const mockRouter = { replace: jest.fn(), push: jest.fn() };
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
@@ -85,7 +85,7 @@ async function paste(text = PASTED) {
   await fireEvent.changeText(screen.getByPlaceholderText('복사한 대본을 여기에 붙여넣어 주세요.\n형식은 그대로 둬도 괜찮아요.'), text);
 }
 
-test('처음에는 파일 탭과 예시 링크를 보이고, 넣은 것이 없으면 다음을 누를 수 없다', async () => {
+test('처음에는 파일 탭을 보이고, 넣은 것이 없으면 다음을 누를 수 없다', async () => {
   await render(<ReadingNew />);
 
   expect(screen.getByRole('tab', { name: /파일 업로드/ })).toBeSelected();
@@ -95,8 +95,8 @@ test('처음에는 파일 탭과 예시 링크를 보이고, 넣은 것이 없�
   expect(screen.getByText('TXT · DOCX · PDF · HWP · 50MB까지')).toBeOnTheScreen();
   expect(screen.getByText('파일 선택하기')).toBeOnTheScreen();
   expect(screen.getByPlaceholderText('예) 옥상, 밤 · 갈매기 · 입시 1차 등')).toBeOnTheScreen();
-  expect(screen.getByText('대본이 없어도 바로 연습할 수 있어요.')).toBeOnTheScreen();
-  expect(screen.getByText('예시 대본으로 시작해보기')).toBeOnTheScreen();
+  // 예시 대본은 「대본 같이 만들기」에서 고른다 — 이 화면에는 링크가 없다(10/25).
+  expect(screen.queryByText('예시 대본으로 시작해보기')).not.toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeDisabled();
 });
 
@@ -164,16 +164,11 @@ test('SOMA-597: 이름이 있는 독백은 이름을 묻지 않고 대본 상세
   expect(screen.queryByText('혼자 하는 대본이에요')).not.toBeOnTheScreen();
 });
 
-test('예시 대본 링크를 누르면 글 탭에 예시를 채우고 링크를 숨긴다', async () => {
+test('세 번째 선택지 「대본 같이 만들기」를 누르면 같이 만들기로 간다', async () => {
   await render(<ReadingNew />);
 
-  await fireEvent.press(screen.getByText('예시 대본으로 시작해보기'));
-  expect(screen.getByRole('tab', { name: /글 붙여넣기/ })).toBeSelected();
-  expect(screen.getByDisplayValue(SAMPLE_SCRIPT)).toBeOnTheScreen();
-  expect(screen.queryByText('예시 대본으로 시작해보기')).not.toBeOnTheScreen();
-
-  await fireEvent.press(screen.getByText('다음'));
-  await waitFor(() => expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'sample' })));
+  await fireEvent.press(screen.getByRole('tab', { name: /대본 같이 만들기/ }));
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/script-cocreate', params: { mode: 'reading' } });
 });
 
 test('튜토리얼 예시로 들어오면 예시 대본을 채운 채 연다', async () => {

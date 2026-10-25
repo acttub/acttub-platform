@@ -12,7 +12,6 @@ import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { DialogButtons } from '@/components/ui/dialog';
-import { BandGradient } from '@/components/ui/band-gradient';
 import { ReadingStatus } from '@/components/ui/reading-status';
 import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { Markdown } from '@/components/markdown';
@@ -42,7 +41,6 @@ import {
   initialScriptInput,
   pendingScript,
   scriptInputReducer,
-  showsSampleLink,
   type ScriptTab,
 } from '@/lib/reading/script-input';
 import { loadIntoCurrent } from '@/lib/reading/store';
@@ -59,7 +57,6 @@ import { translate as t } from '@/lib/i18n';
 const MASCOT = require('@/assets/images/mascot-reading.png');
 /** pen R2 「대본 읽는 액티」·「예시 대본 카드」 그림. */
 const HERO_ACTY = require('@/assets/images/reading/acty-reading-hero.png');
-const SAMPLE_ACTY = require('@/assets/images/reading/acty-reading-card.png');
 
 const PICKER_TYPES = [
   'text/plain',
@@ -290,6 +287,13 @@ export default function ReadingNew() {
           <View ref={pasteTabTarget.ref} onLayout={pasteTabTarget.onLayout} style={styles.segmentSlot}>
             <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={input.tab === 'paste'} onPress={() => setTab('paste')} />
           </View>
+          {/* 세 번째 선택지 — 대본이 없으면 같이 만들기로 간다. 예시 대본도 거기서 고른다(10/25). */}
+          <SegmentTab
+            icon="message-circle"
+            label={t('reading.entryCocreate')}
+            on={false}
+            onPress={() => router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } })}
+          />
         </View>
 
         {input.tab === 'file' && (
@@ -365,25 +369,6 @@ export default function ReadingNew() {
         {(input.tab === 'paste' || input.file.kind !== 'empty') && (
           <Text style={styles.guide}>{input.tab === 'file' ? t('reading.newGuideFile') : t('reading.newGuidePaste')}</Text>
         )}
-        {showsSampleLink(input) &&
-          (input.tab === 'file' ? (
-            // pen 「예시 대본 카드」 — 파일 탭에서는 카드로, 글 탭에서는 작은 글자 링크로 둔다.
-            <Pressable style={styles.sampleCard} accessibilityRole="button" onPress={() => dispatch({ type: 'sample' })}>
-              <BandGradient stops={[[0, '#F4F9FF'], [1, '#E8F2FF']]} />
-              <Image source={SAMPLE_ACTY} style={styles.sampleActy} contentFit="contain" accessibilityIgnoresInvertColors />
-              <View style={styles.sampleBody}>
-                <Text style={styles.sampleTitle}>{t('reading.sampleLink')}</Text>
-                <Text style={styles.sampleSub}>{t('reading.sampleCardSub')}</Text>
-              </View>
-              <View style={styles.sampleGo}>
-                <Feather name="chevron-right" size={18} color={palette.blue} />
-              </View>
-            </Pressable>
-          ) : (
-            <Pressable style={styles.sampleLink} hitSlop={8} onPress={() => dispatch({ type: 'sample' })}>
-              <Text style={styles.sampleText}>{t('reading.sampleLink')}</Text>
-            </Pressable>
-          ))}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: (keyboard > 0 ? 0 : insets.bottom) + 10 }]}>
@@ -502,11 +487,11 @@ function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) 
   );
 }
 
-function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'; label: string; on: boolean; onPress: () => void }) {
+function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3' | 'message-circle'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
       <Feather name={icon} size={16} color={on ? palette.blue : palette.textMuted} />
-      <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{label}</Text>
+      <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
     </Pressable>
   );
 }
@@ -526,9 +511,9 @@ const styles = StyleSheet.create({
   titleInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, padding: 0 },
   segment: { flexDirection: 'row', backgroundColor: '#EEF2F8', borderRadius: 14, padding: 4 },
   segmentSlot: { flex: 1 },
-  segmentTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, height: 40 },
+  segmentTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, height: 58, paddingHorizontal: 4 },
   segmentTabOn: { backgroundColor: palette.card },
-  segmentText: { color: palette.textMuted, fontSize: 15, fontWeight: '700' },
+  segmentText: { color: palette.textMuted, fontSize: 13, fontWeight: '700' },
   segmentTextOn: { color: palette.blue, fontWeight: '800' },
   dropzone: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
   // pen 「파일칸」 — 옅은 파랑 바탕, 점선 테두리(#BCD3F3), 모서리 22.
@@ -543,14 +528,6 @@ const styles = StyleSheet.create({
   replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   textArea: { flex: 1, minHeight: 256, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },
-  sampleCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 20, overflow: 'hidden', paddingVertical: 14, paddingLeft: 15, paddingRight: 14 },
-  sampleActy: { width: 75, height: 63 },
-  sampleBody: { flex: 1, gap: 6 },
-  sampleTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
-  sampleSub: { color: palette.textMuted, fontSize: 12, fontWeight: '500' },
-  sampleGo: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center', shadowColor: '#2E5A96', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  sampleLink: { alignSelf: 'center', paddingVertical: 4 },
-  sampleText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
   card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },

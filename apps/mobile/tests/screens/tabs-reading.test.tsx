@@ -137,12 +137,12 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   expect(screen.getByRole('header', { name: '리딩' })).toBeOnTheScreen();
 });
 
-test('새 대본 버튼에서 업로드와 같이 만들기를 고른다', async () => {
+test('새 대본 버튼은 고르기 창 없이 바로 내 대본 올리기로 간다', async () => {
   await render(<ReadingList />);
   await screen.findByText('옥상 장면');
   await fireEvent.press(screen.getByText('새 대본'));
-  await fireEvent.press(await screen.findByText('내 대본 올리기'));
   expect(mockRouter.push).toHaveBeenCalledWith('/reading/new');
+  expect(screen.queryByText('내 대본 올리기')).not.toBeOnTheScreen();
 });
 
 test('검색어는 잠깐 기다렸다가 서버에 묻고, 맞는 대본이 없으면 그렇게 말한다', async () => {
