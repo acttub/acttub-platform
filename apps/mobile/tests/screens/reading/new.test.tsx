@@ -164,11 +164,28 @@ test('SOMA-597: 이름이 있는 독백은 이름을 묻지 않고 대본 상세
   expect(screen.queryByText('혼자 하는 대본이에요')).not.toBeOnTheScreen();
 });
 
-test('세 번째 선택지 「대본 같이 만들기」를 누르면 같이 만들기로 간다', async () => {
+test('「대본 같이 만들기」는 화면을 넘기지 않고 아래에 예시 대본 고르기·새 대본 만들기를 펼친다', async () => {
   await render(<ReadingNew />);
 
   await fireEvent.press(screen.getByRole('tab', { name: /대본 같이 만들기/ }));
-  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/script-cocreate', params: { mode: 'reading' } });
+  expect(mockRouter.push).not.toHaveBeenCalled();
+  expect(screen.queryByText('대본 파일 첨부')).not.toBeOnTheScreen();
+  expect(screen.getByText('다음')).toBeDisabled();
+
+  // 예시 대본 고르기 — 그 아래에 예시 카드와 고르기 칩이 바로 보인다.
+  await fireEvent.press(screen.getByText('예시 대본 고르기'));
+  expect(screen.getByText('대본 목록')).toBeOnTheScreen();
+  expect(screen.getByText('이 대본으로 하기')).toBeOnTheScreen();
+  expect(mockRouter.push).not.toHaveBeenCalled();
+
+  // 새 대본 만들기 — 「다음」으로 대본 만들기의 감정 고르기부터 연다.
+  await fireEvent.press(screen.getByText('새로 만들기'));
+  await fireEvent.press(screen.getByText('다음'));
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/script-cocreate', params: { mode: 'reading', start: 'make' } });
+
+  // 다른 탭을 누르면 다시 파일 올리기로 돌아온다.
+  await fireEvent.press(screen.getByRole('tab', { name: /파일 업로드/ }));
+  expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
 
 test('튜토리얼 예시로 들어오면 예시 대본을 채운 채 연다', async () => {
