@@ -311,6 +311,36 @@ describe('참여작이 없을 때', () => {
   });
 });
 
+describe('내 참여작 얼굴 모자이크 (SOMA-809)', () => {
+  const mine = (over: Partial<EntryCard> = {}) =>
+    entry({
+      is_mine: true,
+      author: { name: '나', user_id: 'me' },
+      playback_url: 'https://play/e1.mosaic',
+      original_playback_url: 'https://play/e1',
+      ...over,
+    });
+
+  test('모자이크본을 먼저 틀고, 원본 보기를 누르면 보던 자리에서 원본으로, 다시 누르면 모자이크본으로 바꾼다', async () => {
+    await renderFeed([mine()]);
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenLastCalledWith('https://play/e1.mosaic'));
+
+    mockPlayer.currentTime = 4;
+    await fireEvent.press(screen.getByRole('button', { name: '원본 보기' }));
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenLastCalledWith('https://play/e1'));
+    await waitFor(() => expect(mockPlayer.currentTime).toBe(4));
+
+    await fireEvent.press(screen.getByRole('button', { name: '모자이크로 보기' }));
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenLastCalledWith('https://play/e1.mosaic'));
+  });
+
+  test('원본 주소가 없으면(남의 참여작·모자이크 준비 전) 원본 보기를 두지 않는다', async () => {
+    await renderFeed([entry({ playback_url: 'https://play/e1.mosaic' }), second({ is_mine: true, original_playback_url: null })]);
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenCalledWith('https://play/e1.mosaic'));
+    expect(screen.queryByRole('button', { name: '원본 보기' })).not.toBeOnTheScreen();
+  });
+});
+
 describe('재생', () => {
   test('재생 주소가 없는 참여작은 바로 재생할 수 없다고 알린다', async () => {
     await renderFeed([entry({ playback_url: null })]);

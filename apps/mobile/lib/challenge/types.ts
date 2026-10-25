@@ -73,7 +73,10 @@ export type EntryCard = {
   final_like_count: number | null;
   /** 최초 공개 시각. 재공개해도 그대로다 — 최신순·동점 정렬의 기준. 비공개로 만든 내 참여작은 null 이다. */
   published_at: string | null;
+  /** 얼굴 모자이크본이 준비된 참여작이면 모자이크본이다(본인도 같다). */
   playback_url: string | null;
+  /** 본인 참여작이고 playback_url 이 모자이크본일 때만 원본 주소(SOMA-809). 옛 서버 응답에는 없다. */
+  original_playback_url?: string | null;
   liked: boolean;
   saved: boolean;
   /** 보는 사람 자신의 참여작인지. 본인 재생은 조회수로 세지 않는다. */

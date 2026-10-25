@@ -575,6 +575,8 @@ const ko = {
     playFailSub: '너무 짧거나 깨진 영상일 수 있어요.',
     playFailClose: '닫기',
     playFailRetry: '다시 시도',
+    showOriginal: '원본 보기',
+    showMosaic: '모자이크로 보기',
     goneTitle: '볼 수 없는 영상이에요',
     goneSub: '올린 사람이 지웠거나 나만 보기로 바꿨어요.',
     goneCta: '이번 주 챌린지 보러 가기',

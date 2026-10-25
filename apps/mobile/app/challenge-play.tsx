@@ -70,6 +70,9 @@ export default function ChallengePlayScreen() {
   const [playFailed, setPlayFailed] = useState(false);
   /** 「다시 시도」를 누를 때마다 올라가 같은 참여작의 영상을 다시 받는다. */
   const [retryTick, setRetryTick] = useState(0);
+  // 모자이크를 잠시 빼고 원본으로 보는 내 참여작(SOMA-809). 다른 참여작으로 넘기면 그 참여작은 모자이크본이다.
+  const [originalFor, setOriginalFor] = useState<string | null>(null);
+  const resumeAt = useRef(0);
   const [reportTarget, setReportTarget] = useState<{ type: ReportTarget; id: string } | null>(null);
   const listRef = useRef<FlatList<EntryCard>>(null);
 
@@ -137,17 +140,22 @@ export default function ChallengePlayScreen() {
   // 보던 맨 끝 참여작을 신고로 빼면 보던 자리가 비므로 효과가 돌기 전에 남은 마지막 참여작으로 당긴다.
   if (entries?.length && active >= entries.length) setActive(entries.length - 1);
 
-  // 페이지가 바뀌면 그 참여작의 영상으로 갈아끼운다.
+  // 페이지가 바뀌면 그 참여작의 영상으로 갈아끼운다. 원본·모자이크본을 바꿀 때도 보던 자리에서 이어 튼다.
   useEffect(() => {
     const entry = entries?.[active];
-    setPlayFailed(!entry?.playback_url && entries !== null && entries.length > 0);
-    if (!entry?.playback_url) return;
+    const source = entry ? sourceOf(entry, originalFor) : null;
+    setPlayFailed(!source && entries !== null && entries.length > 0);
+    if (!source) return;
     // replaceAsync — replace 는 iOS 에서 영상을 주 스레드로 불러와 넘길 때 화면이 멈출 수 있다(SOMA-713).
     let alive = true;
     void player
-      .replaceAsync(entry.playback_url)
+      .replaceAsync(source)
       .then(() => {
         if (!alive) return;
+        if (resumeAt.current > 0) {
+          player.currentTime = resumeAt.current;
+          resumeAt.current = 0;
+        }
         player.play();
         setPlaying(true);
       })
@@ -161,7 +169,13 @@ export default function ChallengePlayScreen() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [active, entries, player, retryTick]);
+  }, [active, entries, player, retryTick, originalFor]);
+
+  /** 내 참여작의 원본·모자이크본을 바꾼다. 보던 자리는 그대로 둔다. */
+  const toggleOriginal = (entry: EntryCard) => {
+    resumeAt.current = player.currentTime;
+    setOriginalFor((was) => (was === entry.id ? null : entry.id));
+  };
 
   // 위에 촬영 같은 다른 화면이 올라오면 영상을 내려놓아 메모리를 돌려주고, 돌아오면 보던 참여작을 다시 튼다(SOMA-699).
   useEffect(() => {
@@ -170,11 +184,12 @@ export default function ChallengePlayScreen() {
     void player.replaceAsync(null).catch(() => {});
     return () => {
       const entry = entries?.[active];
-      if (!entry?.playback_url) return;
+      const source = entry ? sourceOf(entry, originalFor) : null;
+      if (!source) return;
       // 가려진 채로 화면이 닫히면 플레이어가 먼저 풀려 있을 수 있다 — 그때는 다시 틀 필요가 없다.
       try {
         void player
-          .replaceAsync(entry.playback_url)
+          .replaceAsync(source)
           .then(() => {
             player.play();
             setPlaying(true);
@@ -182,7 +197,7 @@ export default function ChallengePlayScreen() {
           .catch(() => {});
       } catch {}
     };
-    // 가려진 동안 entries·active 는 바뀌지 않는다 — 돌아올 때 그때의 참여작을 다시 튼다.
+    // 가려진 동안 entries·active·originalFor 는 바뀌지 않는다 — 돌아올 때 그때의 참여작을 다시 튼다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, player]);
 
@@ -379,7 +394,7 @@ export default function ChallengePlayScreen() {
     const canTouch = canReact(item);
     return (
       <View style={{ width, height }}>
-        {isActive && item.playback_url && (
+        {isActive && sourceOf(item, originalFor) && (
           <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
         )}
         <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button" ph-label="challenge_play_toggle">
@@ -451,6 +466,18 @@ export default function ChallengePlayScreen() {
             <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
             <Text style={styles.work}>{challenge?.work ?? ''}</Text>
             {!!item.caption && <Text style={styles.work}>{item.caption}</Text>}
+            {item.is_mine && !!item.original_playback_url && (
+              <Pressable
+                style={styles.originalToggle}
+                onPress={() => toggleOriginal(item)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t(originalFor === item.id ? 'challenges.showMosaic' : 'challenges.showOriginal')}
+                ph-label="challenge_play_original_toggle">
+                <Feather name={originalFor === item.id ? 'eye-off' : 'eye'} size={14} color="#FFFFFF" />
+                <Text style={styles.originalToggleText}>{t(originalFor === item.id ? 'challenges.showMosaic' : 'challenges.showOriginal')}</Text>
+              </Pressable>
+            )}
 
             <View style={styles.actions}>
               <Pressable
@@ -567,6 +594,11 @@ export default function ChallengePlayScreen() {
   );
 }
 
+/** 재생할 주소. 원본 보기를 켠 내 참여작이고 원본 주소가 있을 때만 원본이다. */
+function sourceOf(entry: EntryCard, originalFor: string | null): string | null {
+  return originalFor === entry.id && entry.original_playback_url ? entry.original_playback_url : entry.playback_url;
+}
+
 const styles = StyleSheet.create({
   loading: { flex: 1 },
   endNotice: { position: 'absolute', left: 0, right: 0, bottom: 120, alignItems: 'center' },
@@ -606,6 +638,18 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
   bottom: { paddingHorizontal: 20, paddingBottom: 16, gap: 10 },
   storyLabel: { fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.8)' },
+  originalToggle: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  originalToggleText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
   line: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', lineHeight: 30 },
   work: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
   actions: { flexDirection: 'row', gap: 22, marginTop: 6 },
