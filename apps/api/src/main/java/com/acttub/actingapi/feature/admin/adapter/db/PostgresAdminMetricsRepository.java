@@ -526,7 +526,16 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                     entry.status,
                     challenge.origin AS challenge_kind,
                     left(md5(CAST(entry.challenge_id AS text)), 8) AS challenge_ref,
-                    (video.id IS NOT NULL) AS has_video
+                    (video.id IS NOT NULL) AS has_video,
+                    (SELECT count(*) FROM entry_likes AS liked WHERE liked.entry_id=entry.id) AS likes,
+                    (SELECT count(*)
+                       FROM entry_likes AS liked
+                       JOIN users AS liker ON liker.id=liked.user_id
+                      WHERE liked.entry_id=entry.id
+                        AND NOT (
+                          lower(COALESCE(liker.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                          OR left(md5(CAST(liked.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                        )) AS outside_likes
                 FROM challenge_entries AS entry
                 JOIN challenges AS challenge ON challenge.id=entry.challenge_id
                 JOIN users AS app_user ON app_user.id=entry.user_id
@@ -557,7 +566,9 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.get("status", String.class),
                         row.get("challenge_kind", String.class),
                         row.get("challenge_ref", String.class),
-                        row.get("has_video", Boolean.class)))
+                        row.get("has_video", Boolean.class),
+                        ((Number) row.get("likes")).intValue(),
+                        ((Number) row.get("outside_likes")).intValue()))
                 .toList();
     }
 
