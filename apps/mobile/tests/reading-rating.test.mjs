@@ -54,7 +54,7 @@ test('못 보낸 리딩 평가는 노트 평가와 다른 자리에 회차마다
 
 test('리딩이 끝난 화면에 「이번 리딩 어땠나요?」가 있고 서버(회차 단위)로 보낸다 — 튜토리얼 예시는 빼고', () => {
   const play = read('app/reading/play.tsx');
-  assert.match(play, /!fromTutorialRef\.current && \(\s*<View style=\{styles\.ratingSlot\}>\s*<ReadingRating sessionId=\{session\.id\} \/>/);
+  assert.match(play, /!fromTutorialRef\.current && \(\s*<View style=\{styles\.ratingSlot\}>\s*<ReadingRating sessionId=\{session\.id\} onInputFocus=\{liftRatingInput\} \/>/);
   assert.match(play, /ratingSlot: \{ alignSelf: 'stretch' \}/);
   const box = read('components/reading-rating.tsx');
   assert.match(box, /readingRatings\.send/);

@@ -21,7 +21,7 @@ test('안드로이드 릴리스 빌드는 R8·리소스 축소를 켜고 onnxrun
   assert.match(props.android.extraProguardRules, /-keep class ai\.onnxruntime\.\*\* \{ \*; \}/);
 });
 
-test('expo-audio 의 포그라운드 서비스는 빼고, 리딩 서비스(재생·마이크)만 남긴다 — 알림이 둘 뜨지 않게', () => {
+test('expo-audio 의 포그라운드 서비스는 빼고, 안드로이드는 리딩 포그라운드 서비스도 붙이지 않는다', () => {
   const appJson = JSON.parse(readFileSync(path.join(appRoot, 'app.json'), 'utf8'));
   const plugins = appJson.expo.plugins.map((p) => (Array.isArray(p) ? p[0] : p));
   assert.ok(plugins.includes('./plugins/with-remove-audio-foreground-service.js'));
@@ -29,10 +29,18 @@ test('expo-audio 의 포그라운드 서비스는 빼고, 리딩 서비스(재�
   assert.match(plugin, /expo\.modules\.audio\.service\.AudioControlsService/);
   assert.match(plugin, /expo\.modules\.audio\.service\.AudioRecordingService/);
   assert.match(plugin, /'tools:node': 'remove'/);
-  // 리딩 서비스가 쓰는 권한은 지우지 않는다.
-  assert.doesNotMatch(plugin, /uses-permission/);
-  const manifest = readFileSync(path.join(appRoot, 'modules/reading-live/android/src/main/AndroidManifest.xml'), 'utf8');
-  assert.match(manifest, /android:foregroundServiceType="mediaPlayback\|microphone"/);
-  assert.match(manifest, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/);
-  assert.match(manifest, /FOREGROUND_SERVICE_MICROPHONE/);
+  // 1.0.0: Play 포그라운드 서비스 선언(동영상 필수) 없이 내려고 안드로이드에서는 리딩 모듈을 연결하지 않는다.
+  // 모듈이 없으면 readingKeepsRunning() 이 false 라 화면이 배경으로 가면 리딩이 멈춘다(0.1.5 동작).
+  const moduleConfig = JSON.parse(readFileSync(path.join(appRoot, 'modules/reading-live/expo-module.config.json'), 'utf8'));
+  assert.deepEqual(moduleConfig.platforms, ['apple']);
+  const blocked = appJson.expo.android.blockedPermissions;
+  assert.ok(blocked.includes('android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK'));
+  assert.ok(blocked.includes('android.permission.FOREGROUND_SERVICE_MICROPHONE'));
+});
+
+// 사진첩 저장은 쓰기 전용이라 안드로이드 13+ 는 읽기 권한이 필요 없다. 남으면 Play 사진·동영상 권한 선언 대상이 된다.
+test('안드로이드는 사진·동영상 읽기 권한을 막는다', () => {
+  const blocked = JSON.parse(readFileSync(path.join(appRoot, 'app.json'), 'utf8')).expo.android.blockedPermissions;
+  assert.ok(blocked.includes('android.permission.READ_MEDIA_VIDEO'));
+  assert.ok(blocked.includes('android.permission.READ_MEDIA_VISUAL_USER_SELECTED'));
 });
