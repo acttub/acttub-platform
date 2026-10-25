@@ -57,11 +57,17 @@ function ownedSpotlightKey(topic: SpotlightTopic, owner: string | null): string 
   return owner ? `${spotlightKey(topic)}.${owner}` : spotlightKey(topic);
 }
 
-/** 계정이 정해질 때까지 기다리는 한도. 로그인된 앱은 켜고 1초 안에 me 를 받는다. 로그인 전 화면에서는 안내를 띄우지 않는다. */
+/** 계정이 정해질 때까지 기다리는 한도. 로그인 전 화면에서는 안내를 띄우지 않는다. */
 const OWNER_WAIT_MS = 4000;
 
+/**
+ * 계정을 끝내 모르면 본 것으로 친다 — 계정 없는 키를 읽으면 이미 본 사람도 「안 봤음」이 되어 켤 때마다 다시 떴다
+ * (1.0.1 운영: 서버가 느려 me 가 4초 넘게 걸린 기기). 화면은 다음에 들어올 때 다시 묻는다.
+ */
 export async function hasSeenSpotlight(topic: SpotlightTopic, waitMs = OWNER_WAIT_MS): Promise<boolean> {
-  return seen(ownedSpotlightKey(topic, await firstUseOwnerReady(waitMs)));
+  const owner = await firstUseOwnerReady(waitMs);
+  if (!owner) return true;
+  return seen(ownedSpotlightKey(topic, owner));
 }
 
 export function markSpotlightSeen(topic: SpotlightTopic): Promise<void> {
