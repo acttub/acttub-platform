@@ -17,7 +17,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 jest.mock('@/lib/api', () => ({ api: { getPracticeNote: jest.fn(), putNoteRating: jest.fn() } }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
-jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined) }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined), currentFirstUseOwner: () => null }));
 
 const getPracticeNote = api.getPracticeNote as jest.Mock;
 

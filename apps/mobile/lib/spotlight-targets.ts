@@ -15,14 +15,16 @@ const listeners = new Set<() => void>();
 const measurers = new Map<string, () => void>();
 
 /** 다 그려진 뒤 자기 자리를 적는다. 같은 자리면 알리지 않는다 — 다시 그릴 일이 없다. */
-export function setTargetRect(id: string, rect: TargetRect): void {
+export function setTargetRect(id: string, raw: TargetRect): void {
+  // 정수로 맞춰 비교한다 — 다시 잴 때 소수점만 흔들려도 알리면 가이드가 계속 다시 그려져 버벅였다(10/25 제보).
+  const rect = { x: Math.round(raw.x), y: Math.round(raw.y), width: Math.round(raw.width), height: Math.round(raw.height) };
   const old = rects.get(id);
   if (
     old &&
-    old.x === rect.x &&
-    old.y === rect.y &&
-    old.width === rect.width &&
-    old.height === rect.height
+    Math.abs(old.x - rect.x) <= 1 &&
+    Math.abs(old.y - rect.y) <= 1 &&
+    Math.abs(old.width - rect.width) <= 1 &&
+    Math.abs(old.height - rect.height) <= 1
   ) {
     return;
   }
