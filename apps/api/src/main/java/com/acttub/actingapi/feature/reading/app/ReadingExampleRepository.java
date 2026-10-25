@@ -18,6 +18,9 @@ public interface ReadingExampleRepository {
     /** 그 사람의 대본 가운데 원문 해시가 같은 가장 오래된 것. 없으면 {@code null}. */
     UUID sameText(UUID userId, String rawHash);
 
+    /** 그 사람의 대본의 원문 해시({@code scripts.raw_hash}). 없거나 남의 것이면 {@code null}. */
+    String rawHash(UUID userId, UUID scriptId);
+
     /**
      * 그 사람의 {@code users} 행을 잡은 채 {@code work} 를 한 트랜잭션으로 한다 — 같은 글 확인과 복사 사이에 다른 요청이 끼어
      * 대본이 둘 생기지 않는다. 대본 저장({@link ScriptRepository#create})이 이 트랜잭션에 참여한다.
