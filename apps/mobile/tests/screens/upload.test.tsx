@@ -17,7 +17,7 @@ import { setPickedVideo, takePickedVideo } from '@/lib/practice/picked-video';
 import { setFirstTimeState } from '@/lib/practice/first-time';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 let mockParams: Record<string, string> = {};
 let mockFocusEffect: () => void = () => undefined;
 const mockPlayer = { pause: jest.fn(), addListener: jest.fn(() => ({ remove: jest.fn() })), loop: true };
@@ -684,7 +684,7 @@ describe('영상 업로드를 망설일 때', () => {
     await openReasons();
     await fireEvent.press(screen.getByRole('radio', { name: '지금은 못 찍어요' }));
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(scheduleUploadLaterReminder).toHaveBeenCalled();
   });
 

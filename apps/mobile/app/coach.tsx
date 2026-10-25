@@ -437,7 +437,7 @@ function CoachTalk() {
             size={24}
             label={t('common.back')}
             phLabel="coach_back"
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+            onPress={() => (router.canGoBack() ? router.back() : router.dismissTo('/(tabs)'))}
           />
         }
         // 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(pen 질문 대화 오른쪽 위, SOMA-656·748).

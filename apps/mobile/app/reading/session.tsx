@@ -94,7 +94,7 @@ export default function ReadingSession() {
     return (
       <View style={[styles.root, styles.center]}>
         <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
+        <Pressable style={styles.pill} onPress={() => router.dismissTo('/reading')}>
           <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
         </Pressable>
       </View>

@@ -99,7 +99,7 @@ test('리딩 완료: 녹음 액티·발음 보고서는 별도 카드(서버 스
   assert.doesNotMatch(play, /PRO|proReport/);
   assert.match(play, /<ReadingAfterCard sessionId=\{session\.id\} ready=\{pendingUploads === 0\} part="coach" \/>/);
   assert.match(play, /part="report"/);
-  assert.match(play, /router\.replace\('\/\(tabs\)'\)/);
+  assert.match(play, /router\.dismissTo\('\/\(tabs\)'\)/);
 });
 
 test('첫 리딩 안내는 기기에 한 번 본 것으로 남고, 못 읽으면 본 것으로 친다', async () => {

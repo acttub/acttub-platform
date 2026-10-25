@@ -69,7 +69,7 @@ export default function ReadingDetail() {
     return (
       <View style={[styles.root, styles.center]}>
         <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
+        <Pressable style={styles.pill} onPress={() => router.dismissTo('/reading')}>
           <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
         </Pressable>
       </View>
@@ -86,7 +86,7 @@ export default function ReadingDetail() {
     if (!ok) return;
     try {
       await deleteScript(script.id);
-      router.replace('/reading');
+      router.dismissTo('/reading');
     } catch (e) {
       void alert({ title: t('reading.deleteAction'), message: scriptErrorMessage(e) });
     }

@@ -9,7 +9,7 @@ import { confirmedVideoFor, flushLibraryUploads, localCopyFor, onLibraryChange, 
 import { takeRecordedVideo } from '@/lib/recorded-video';
 import { challengeCard, ENDED_AT, RUNNING_ENDS_AT } from '../helpers/challenge-card';
 
-const mockRouter = { replace: jest.fn(), push: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn(), push: jest.fn() };
 let mockParams: Record<string, string | undefined> = {};
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
@@ -130,7 +130,7 @@ test('보관함 영상으로 올리면 「공개」가 위에 먼저 골라져 �
   expect(await screen.findByText('영상으로 저장')).toBeOnTheScreen();
   await fireEvent.press(screen.getByLabelText('닫기'));
   await fireEvent.press(screen.getByRole('button', { name: '홈으로 가기' }));
-  expect(mockRouter.replace).toHaveBeenLastCalledWith('/');
+  expect(mockRouter.dismissTo).toHaveBeenLastCalledWith('/');
 });
 
 test('처음이 아니면 완료 화면에 SNS 공유·이 영상으로 코칭 받기·다른 참여작 보기 줄이 나온다', async () => {

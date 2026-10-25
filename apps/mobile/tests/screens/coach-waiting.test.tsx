@@ -18,7 +18,7 @@ import { createSampleLoop, SAMPLE_PRACTICE_ID, type LoopApi } from '@/lib/tutori
  * 분석 대기(옛 A10 analyzing 화면)는 코치 화면 안의 「영상 보는 중」이다(SOMA-778). 옛 analyzing 화면 테스트를 그대로 옮겼다 —
  * 조회 주기·푸시·복귀·그만두기·다시 시도·복구 기록·튜토리얼 예시. 「코치로 넘어간다」는 이제 같은 화면에서 대화가 열리는 것이다.
  */
-const mockRouter = { replace: jest.fn(), dismissAll: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn(), dismissAll: jest.fn() };
 let mockParams: Record<string, unknown> = {};
 let mockUser: { id: string } | null = { id: 'u1' };
 let mockFocusEffect: () => (() => void) | void = () => undefined;
@@ -220,7 +220,7 @@ describe('기다리는 동안', () => {
 
     // 기다리지 않고 나가면 홈으로 간다 — 분석은 서버에서 계속 돌고 끝나면 알림이 온다.
     await fireEvent.press(screen.getByRole('button', { name: '끝나면 알려 주세요' }));
-    expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
   });
 
   test('작업이 돌기 시작하면 단계 문구로 바뀌고, 영상·장면 보기를 펼치면 기기에 있는 영상을 튼다', async () => {
@@ -519,7 +519,7 @@ describe('분석이 실패하면', () => {
     expect(screen.queryByText('다시 시도')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByText('나중에 기록에서 보기'));
-    expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
   });
 
   test('사유 없이 닫히면 unknown 으로 세고, 다시 시도는 새 분석 없이 상태만 다시 읽는다', async () => {
@@ -695,7 +695,7 @@ describe('그만두기', () => {
     expect(api.cancelPractice).toHaveBeenCalledTimes(1);
 
     await act(async () => resolveCancel());
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(logged('analysis_cancelled')).toEqual([{}]);
     expect(await pendingKeys()).toEqual([]);
   });
@@ -707,7 +707,7 @@ describe('그만두기', () => {
 
     await fireEvent.press(screen.getByText('그만두기'));
     await fireEvent.press(screen.getAllByText('그만두기')[1]);
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
   });
 
   test('복구 기록이 없어도 그만두면 홈으로 간다', async () => {
@@ -718,7 +718,7 @@ describe('그만두기', () => {
 
     await fireEvent.press(screen.getByText('그만두기'));
     await fireEvent.press(screen.getAllByText('그만두기')[1]);
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(api.cancelPractice).toHaveBeenCalledWith('p1');
   });
 
@@ -756,7 +756,7 @@ describe('그만두기', () => {
     );
     await act(async () => appStateListener?.('active'));
     await act(async () => resolveCancel());
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
 
     await act(async () => resolveStatus(READY));
     staysWaiting();
@@ -838,7 +838,7 @@ describe('튜토리얼 예시', () => {
 
     await fireEvent.press(screen.getByText('그만두기'));
 
-    expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
     expect(screen.queryByText('분석을 그만둘까요?')).not.toBeOnTheScreen();
     expect(currentTutorial()).toBeNull();
     expect(logged('tutorial_finish')).toEqual([{ mode: 'sample', track: 'practice', how: 'left' }]);

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import EntryLinkScreen from '@/app/entry/[id]';
 import { api } from '@/lib/api';
 
-const mockRouter = { replace: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn() };
 let mockParams: { id?: string } = {};
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
@@ -38,7 +38,7 @@ test('없거나 막힌 참여작(404)이면 볼 수 없다고 안내하고 챌�
 
   expect(await screen.findByText('볼 수 없는 영상이에요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '이번 주 챌린지 보러 가기' }));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/challenges');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/challenges');
 });
 
 test('다른 오류면 챌린지를 불러오지 못했다고 안내한다', async () => {

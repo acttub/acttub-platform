@@ -8,7 +8,7 @@ import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { SampleScript } from '@/lib/script-cocreate';
 
 const mockParams: { mode?: string; start?: string } = {};
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, Stack: { Screen: () => null } }));
 jest.mock('expo-image', () => ({ Image: () => null }));
@@ -219,7 +219,8 @@ test('저장한 화면에 대본이 그대로 보이고, 리딩에서 읽어 보
   expect(screen.getByText('잠긴 서랍')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '리딩에서 읽어 보기' }));
   expect(loadIntoCurrent).toHaveBeenCalledWith('script-1');
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+    expect(mockRouter.push).toHaveBeenCalledWith('/reading/detail');
 });
 
 test('확정이 실패하면 결과 화면에 이유를 보인다', async () => {
@@ -284,7 +285,8 @@ test('서버 수정 성공 후 응답 유실은 GET 최신 결과로 복구하�
   expect(createSampleScript).toHaveBeenCalledWith(expect.objectContaining({ character_count: 2 }));
   await fireEvent.press(await screen.findByRole('button', { name: '이 대본으로 확정' }));
   expect(loadIntoCurrent).toHaveBeenCalledWith('reading-1');
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+    expect(mockRouter.push).toHaveBeenCalledWith('/reading/detail');
   expect(setContinueOrigin).not.toHaveBeenCalled();
 });
 
@@ -306,7 +308,7 @@ test('실패 화면에서 내 대본 넣기를 누르면 reading/new 로 간다'
   await reachDirection();
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
   await fireEvent.press(await screen.findByRole('button', { name: '내 대본 넣기' }));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/new');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/new');
 });
 
 test('수정 칩을 누르면 칩 문구를 지시로 reviseSampleScript 를 부르고 고친 대본을 보인다', async () => {

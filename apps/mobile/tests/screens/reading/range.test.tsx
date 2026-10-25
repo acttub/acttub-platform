@@ -13,7 +13,7 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
   return { __esModule: true, default: storage };
 });
-const mockRouter = { replace: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn() };
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams }));
 jest.mock('@/hooks/use-reading-mic', () => ({ micPermissionState: jest.fn(), requestMicPermission: jest.fn() }));
@@ -65,7 +65,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
   await render(<ReadingRange />);
 
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
 });
 
 test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역을 골라야 시작할 수 있다', async () => {

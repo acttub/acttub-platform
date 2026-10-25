@@ -261,7 +261,7 @@ export default function ChallengeUploadScreen() {
           ]}
           onShare={isPublic ? share : null}
           onCoach={coachWithThis}
-          onHome={() => router.replace('/')}
+          onHome={() => router.dismissTo('/')}
         />
         {entryShare.sheet}
       </>

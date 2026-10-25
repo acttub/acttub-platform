@@ -1483,7 +1483,7 @@ export default function ReadingPlay() {
     return (
       <View style={[styles.root, styles.center]}>
         <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
+        <Pressable style={styles.pill} onPress={() => router.dismissTo('/reading')}>
           <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
         </Pressable>
       </View>
@@ -1643,7 +1643,7 @@ export default function ReadingPlay() {
             <Text style={styles.firstDoneTitle}>{t('reading.firstDoneTitle')}</Text>
             <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
             <View style={styles.firstDoneActions}>
-              <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+              <PrimaryButton label={t('reading.goHome')} onPress={() => router.dismissTo('/(tabs)')} disabled={doneLocked} />
               <Pressable
                 style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
                 onPress={() => void readAgain()}
@@ -1736,7 +1736,7 @@ export default function ReadingPlay() {
                 </>
               )}
             </Pressable>
-            <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
+            <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
               <Feather name="file-text" size={16} color={palette.textDim} />
               <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
             </Pressable>
@@ -1750,7 +1750,7 @@ export default function ReadingPlay() {
           </ScrollView>
           <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
             {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+            <PrimaryButton label={t('reading.goHome')} onPress={() => router.dismissTo('/(tabs)')} disabled={doneLocked} />
           </View>
           {dialog}
         </View>
@@ -1827,7 +1827,7 @@ export default function ReadingPlay() {
               </>
             )}
           </Pressable>
-          <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
+          <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
             <Feather name="file-text" size={16} color={palette.textDim} />
             <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
           </Pressable>
@@ -1844,7 +1844,7 @@ export default function ReadingPlay() {
         </ScrollView>
         <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
           {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+            <PrimaryButton label={t('reading.goHome')} onPress={() => router.dismissTo('/(tabs)')} disabled={doneLocked} />
         </View>
         {dialog}
       </View>
