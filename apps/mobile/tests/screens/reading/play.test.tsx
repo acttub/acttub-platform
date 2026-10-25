@@ -764,6 +764,15 @@ test('자동 넘김 안내를 숨기지 않았으면 [시작] 위에 안내를 �
   expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBe('1');
 });
 
+test('시작 팝업이 떠 있어도 [나가기]로 나가고, 시작 전이라 회차를 남기지 않는다(SOMA-839)', async () => {
+  const server = await startPlay(PARTNER_FIRST, undefined, { begin: false });
+  await screen.findByText('시작');
+
+  await fireEvent.press(screen.getByText('나가기'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.deleteSession).toHaveBeenCalledWith('r1');
+});
+
 test('자동 넘김 안내를 [시작]으로 닫으면 다음에 또 띄운다', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
   await startPlay(PARTNER_FIRST);
