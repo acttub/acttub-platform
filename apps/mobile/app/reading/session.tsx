@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
+import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { useAppDialog } from '@/components/app-dialog';
@@ -90,16 +91,7 @@ export default function ReadingSession() {
     }, [load, stopPlayback]),
   );
 
-  if (!script) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.dismissTo('/reading')}>
-          <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  if (!script) return <ReadingNoScript />;
 
   if (!detail) {
     if (!failed) {
