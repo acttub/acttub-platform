@@ -552,6 +552,8 @@ describe('빠른 답과 그만하기', () => {
     mockLoop.replyToCoach.mockResolvedValue(turn(conv({ status: 'closed', close_reason: 'user_ended' })));
     await renderOpen();
 
+    // 화면 오른쪽 끝에 붙지 않게 아이콘 칸과 같은 44 높이·좌우 10 을 둔다(SOMA-837).
+    expect(screen.getByRole('button', { name: '그만하기' })).toHaveStyle({ height: 44, paddingHorizontal: 10 });
     await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
     expect(screen.getByText('여기서 마칠까요?')).toBeOnTheScreen();
     expect(screen.getByText('다 얘기했으면 「마치기」를 누르세요. 지금까지 대화로 오늘 정리를 만들어요.')).toBeOnTheScreen();
