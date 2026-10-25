@@ -4,6 +4,8 @@ import { EntryShareSheet, type ShareSheetEntry } from '@/components/entry-share-
 import * as native from '@/lib/challenge/share-native';
 import { ShareError } from '@/lib/challenge/share';
 
+import { logEvent } from '@/lib/analytics';
+
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({ api: { getEntry: jest.fn() } }));
 jest.mock('@/lib/challenge/share-native', () => ({
@@ -16,6 +18,7 @@ jest.mock('@/lib/challenge/share-native', () => ({
   openSystemShare: jest.fn(),
   openSystemShareWithVideo: jest.fn(),
   openUrl: jest.fn(),
+  shareKakaoFeed: jest.fn(),
 }));
 
 const m = native as unknown as {
@@ -27,6 +30,7 @@ const m = native as unknown as {
   openSystemShare: jest.Mock;
   openSystemShareWithVideo: jest.Mock;
   openUrl: jest.Mock;
+  shareKakaoFeed: jest.Mock;
 };
 
 const mine: ShareSheetEntry = { id: 'e1', is_mine: true, published_at: '2026-10-20T00:00:00Z', playback_url: 'https://v/1.mp4', authorName: '지성' };
@@ -46,6 +50,7 @@ beforeEach(() => {
   m.openSystemShare.mockResolvedValue(undefined);
   m.openSystemShareWithVideo.mockResolvedValue(undefined);
   m.openUrl.mockResolvedValue(undefined);
+  m.shareKakaoFeed.mockResolvedValue(true);
 });
 
 describe('EntryShareSheet', () => {
@@ -64,12 +69,12 @@ describe('EntryShareSheet', () => {
     expect(screen.getByText('카카오톡')).toBeTruthy();
   });
 
-  it('인스타: 영상을 받아 스토리로 보내고 임시 파일을 지운다', async () => {
+  it('인스타: 영상을 받아 스토리로 보내고, 인스타가 읽기 전에 파일을 지우지 않는다', async () => {
     await open();
     fireEvent.press(screen.getByLabelText('인스타'));
     await waitFor(() => expect(m.shareVideoToInstagramStory).toHaveBeenCalledWith('file:///c/a.mp4'));
     expect(m.videoDeps.download).toHaveBeenCalledWith('https://v/1.mp4');
-    await waitFor(() => expect(m.videoDeps.remove).toHaveBeenCalledWith('file:///c/a.mp4'));
+    expect(m.videoDeps.remove).not.toHaveBeenCalled();
   });
 
   it('인스타: 받는 동안 준비 중 문구를 보인다', async () => {
@@ -110,28 +115,56 @@ describe('EntryShareSheet', () => {
     m.shareVideoToInstagramStory.mockRejectedValue(new Error('User did not share'));
     await open();
     fireEvent.press(screen.getByLabelText('인스타'));
-    await waitFor(() => expect(m.videoDeps.remove).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(logEvent).toHaveBeenCalledWith('challenge_share_story_error', { id: 'e1', reason: 'User did not share' }),
+    );
     expect(screen.queryByText(/받지 못했어요/)).toBeNull();
   });
 
-  it('내 참여작의 카카오톡·더 보기는 영상 파일과 링크 문장을 같이 넘기고, 스레드는 intent 주소를 연다', async () => {
+  it('카카오톡은 영상 파일 없이 카카오톡 공유 카드(대사·「영상 보기」 버튼·참여작 링크)로 보낸다', async () => {
     await open();
     fireEvent.press(screen.getByLabelText('카카오톡'));
+    await waitFor(() =>
+      expect(m.shareKakaoFeed).toHaveBeenCalledWith({
+        title: '지성의 연기',
+        description: '“잘 지내, 진짜로.” — acttub 챌린지',
+        imageUrl: 'https://acttub.com/opengraph-image',
+        linkUrl: 'https://acttub.com/e/e1',
+        buttonTitle: '영상 보기',
+      }),
+    );
+    expect(m.videoDeps.download).not.toHaveBeenCalled();
+    expect(m.openSystemShareWithVideo).not.toHaveBeenCalled();
+    expect(m.openSystemShare).not.toHaveBeenCalled();
+  });
+
+  it('카카오톡 공유를 쓸 수 없거나 실패하면 기기 공유 창으로 링크 문장을 보낸다', async () => {
+    m.shareKakaoFeed.mockResolvedValueOnce(false);
+    await open({ ...mine, is_mine: false });
+    fireEvent.press(screen.getByLabelText('카카오톡'));
+    await waitFor(() => expect(m.openSystemShare).toHaveBeenCalledWith(expect.stringContaining('https://acttub.com/e/e1')));
+    m.shareKakaoFeed.mockRejectedValueOnce(new Error('KOE006'));
+    fireEvent.press(screen.getByLabelText('카카오톡'));
+    await waitFor(() => expect(m.openSystemShare).toHaveBeenCalledTimes(2));
+    expect(logEvent).toHaveBeenCalledWith('challenge_share_kakao_error', { id: 'e1', reason: 'KOE006' });
+  });
+
+  it('내 참여작의 더 보기는 영상 파일과 링크 문장을 같이 넘기고, 스레드는 intent 주소를 연다', async () => {
+    await open();
+    fireEvent.press(screen.getByLabelText('더 보기'));
     await waitFor(() =>
       expect(m.openSystemShareWithVideo).toHaveBeenCalledWith('file:///c/a.mp4', expect.stringContaining('https://acttub.com/e/e1')),
     );
     expect(m.videoDeps.download).toHaveBeenCalledWith('https://v/1.mp4');
-    fireEvent.press(screen.getByLabelText('더 보기'));
-    await waitFor(() => expect(m.openSystemShareWithVideo).toHaveBeenCalledTimes(2));
     expect(m.openSystemShare).not.toHaveBeenCalled();
     fireEvent.press(screen.getByLabelText('스레드'));
     await waitFor(() => expect(m.openUrl).toHaveBeenCalledWith(expect.stringContaining('https://www.threads.net/intent/post?text=')));
   });
 
-  it('영상을 못 받으면 카카오톡에 링크 문장만 보낸다', async () => {
+  it('영상을 못 받으면 더 보기에 링크 문장만 보낸다', async () => {
     m.videoDeps.download.mockRejectedValue(new Error('network'));
     await open();
-    fireEvent.press(screen.getByLabelText('카카오톡'));
+    fireEvent.press(screen.getByLabelText('더 보기'));
     await waitFor(() => expect(m.openSystemShare).toHaveBeenCalledWith(expect.stringContaining('https://acttub.com/e/e1')));
     expect(m.openSystemShareWithVideo).not.toHaveBeenCalled();
   });

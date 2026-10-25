@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import {
   canSaveVideo,
   hasShareOptions,
+  kakaoFeed,
   prepareVideoFile,
   shareFailureKind,
   shareFailureMessage,
@@ -27,6 +28,7 @@ import {
   openSystemShareWithVideo,
   openUrl,
   saveVideoToLibrary,
+  shareKakaoFeed,
   shareVideoToInstagramStory,
   videoDeps,
 } from '@/lib/challenge/share-native';
@@ -144,13 +146,27 @@ export function EntryShareSheet({
       return;
     }
     setBusy(null);
+    // 받은 파일은 여기서 지우지 않는다. 안드로이드는 인스타를 열자마자 돌아오고 인스타가 그 뒤에 파일을 읽어서,
+    // 바로 지우면 스토리에 영상이 올라가지 않는다. 다음 공유 때 videoDeps.download 가 정리한다.
     try {
       await shareVideoToInstagramStory(uri);
-    } catch {
-      // 스토리 편집 화면을 닫은 경우라 안내하지 않는다.
-    } finally {
-      videoDeps.remove?.(uri);
+    } catch (e) {
+      // 스토리 편집 화면을 닫은 경우라 안내하지 않는다. 다른 실패를 가려 내도록 이유만 남긴다.
+      void logEvent('challenge_share_story_error', { id: entry.id, reason: String((e as Error)?.message ?? e).slice(0, 80) });
     }
+  };
+
+  // 카카오톡: 카카오톡 공유 카드(그림·제목·대사 + 「영상 보기」)로 보낸다. 카카오톡이 없거나 이 기능이 없는 빌드, 또는
+  // 카카오 쪽 오류면 기기 공유 창으로 링크 문장을 보낸다. 영상 파일은 넘기지 않는다 — 카카오톡은 파일을 받으면 글을 버린다.
+  const shareKakao = async () => {
+    const message = shareMessage(entry, entry.authorName, line);
+    let sent = false;
+    try {
+      sent = await shareKakaoFeed(kakaoFeed(entry, entry.authorName, line));
+    } catch (e) {
+      void logEvent('challenge_share_kakao_error', { id: entry.id, reason: String((e as Error)?.message ?? e).slice(0, 80) });
+    }
+    if (!sent) await openSystemShare(message);
   };
 
   // 카톡·더보기: 내 참여작은 영상 파일을 받아 글과 같이 넘긴다. 남의 참여작은 영상 저장처럼 파일을 넘기지 않고 링크만 보낸다.
@@ -179,7 +195,8 @@ export function EntryShareSheet({
     setNotice(null);
     try {
       if (target === 'instagram') await postStory();
-      else if (target === 'kakao' || target === 'more') await shareWithVideo();
+      else if (target === 'kakao') await shareKakao();
+      else if (target === 'more') await shareWithVideo();
       else if (target === 'threads') await openUrl(threadsIntentUrl(entry, entry.authorName, line));
       else {
         await copyText(shareMessage(entry, entry.authorName, line));

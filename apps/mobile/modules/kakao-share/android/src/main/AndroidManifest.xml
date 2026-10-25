@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- 안드로이드 11+ 에서 카카오톡 설치 여부를 보려면 패키지를 선언해야 한다. -->
+  <queries>
+    <package android:name="com.kakao.talk" />
+  </queries>
+</manifest>

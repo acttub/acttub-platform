@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   canSaveVideo,
   hasShareOptions,
+  kakaoFeed,
   prepareVideoFile,
   shareFailureKind,
   shareFailureMessage,
@@ -121,4 +122,21 @@ test('설정: 스토리 App ID 는 fbsdk appID 와 같고 쿼리 스킴·사진�
   const media = app.plugins.find((p) => Array.isArray(p) && p[0] === 'expo-media-library')[1];
   assert.ok(media.savePhotosPermission && media.photosPermission);
   assert.ok(app.ios.infoPlist.NSPhotoLibraryAddUsageDescription);
+});
+
+test('카카오톡 공유 카드: 제목·대사·「영상 보기」 버튼이 모두 참여작 공유 페이지로 간다', () => {
+  assert.deepEqual(kakaoFeed({ id: 'e 1' }, '지성', '잘 지내.'), {
+    title: '지성의 연기',
+    description: '“잘 지내.” — acttub 챌린지',
+    imageUrl: 'https://acttub.com/opengraph-image',
+    linkUrl: 'https://acttub.com/e/e%201',
+    buttonTitle: '영상 보기',
+  });
+});
+
+test('카카오 공유 모듈은 카카오 로그인과 같은 카카오 SDK 판을 쓴다', () => {
+  const podspec = readFileSync(new URL('../modules/kakao-share/ios/KakaoShare.podspec', import.meta.url), 'utf8');
+  const login = readFileSync(new URL('../node_modules/@react-native-seoul/kakao-login/kakao-login.podspec', import.meta.url), 'utf8');
+  const loginVersion = login.match(/kakao_sdk_version = "([\d.]+)"/)[1];
+  assert.match(podspec, new RegExp(`'KakaoSDKShare', '${loginVersion.replaceAll('.', '\\.')}'`));
 });
