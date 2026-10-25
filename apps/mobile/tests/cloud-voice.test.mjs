@@ -9,12 +9,12 @@ import { speechKey } from '../lib/reading/tts/speech-key.ts';
 
 const status = { available: true, consent: 'granted', daily_limit: 300, daily_used: 12, free_until: '2026-11-30T23:59:59+09:00' };
 
-test('고품질 목소리는 가용성·동의·일일 잔여량이 모두 있을 때만 쓴다', () => {
-  assert.equal(shouldUseCloudVoice(status), true);
-  assert.equal(shouldUseCloudVoice(null), false);
-  assert.equal(shouldUseCloudVoice({ ...status, available: false }), false);
-  assert.equal(shouldUseCloudVoice({ ...status, consent: 'undecided' }), false);
-  assert.equal(shouldUseCloudVoice({ ...status, daily_used: 300 }), false);
+test('고품질 목소리는 설정·가용성·동의·일일 잔여량이 모두 있을 때만 쓴다', () => {
+  assert.equal(shouldUseCloudVoice({ enabled: true, status }), true);
+  assert.equal(shouldUseCloudVoice({ enabled: false, status }), false);
+  assert.equal(shouldUseCloudVoice({ enabled: true, status: { ...status, available: false } }), false);
+  assert.equal(shouldUseCloudVoice({ enabled: true, status: { ...status, consent: 'undecided' } }), false);
+  assert.equal(shouldUseCloudVoice({ enabled: true, status: { ...status, daily_used: 300 } }), false);
 });
 
 test('429와 503은 남은 회차 클라우드 요청을 막고 다른 실패는 해당 줄만 폴백한다', () => {

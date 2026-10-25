@@ -9,7 +9,7 @@ test('설정과 공지 포스터 소스는 번역 키와 분석 소스를 사용
   const en = read('../locales/en.ts');
   const settings = read('../app/settings.tsx');
   const poster = read('../components/announcement-poster.tsx');
-  for (const key of ['dismissForever', 'samplePlay', 'sampleStop']) {
+  for (const key of ['settingsTitle', 'settingsBody', 'dismissForever', 'samplePlay', 'sampleStop']) {
     assert.match(ko, new RegExp(`${key}:`));
     assert.match(en, new RegExp(`${key}:`));
   }
@@ -18,9 +18,8 @@ test('설정과 공지 포스터 소스는 번역 키와 분석 소스를 사용
     assert.doesNotMatch(ko, new RegExp(`${key}:`));
     assert.doesNotMatch(en, new RegExp(`${key}:`));
   }
-  // 고품질 목소리는 항상 켜져 있어 대본 탭에도 설정에도 켜기·끄기가 없다(SOMA-841).
-  assert.doesNotMatch(readFileSync(new URL('../app/(tabs)/reading.tsx', import.meta.url), 'utf8'), /\.enable\(|Switch/);
-  for (const key of ['settingsTitle', 'settingsBody', 'readingSection']) assert.doesNotMatch(ko, new RegExp(`${key}:`));
+  // 켜기 스위치는 설정 화면에서 대본 탭 위로 옮겼다(SOMA-664). 출처 이름은 'settings' 그대로 쓴다.
+  assert.match(readFileSync(new URL('../app/(tabs)/reading.tsx', import.meta.url), 'utf8'), /enable\('settings'\)/);
   assert.doesNotMatch(settings, /useCloudVoice/);
-  assert.match(poster, /cloud\.enable\(\)/);
+  assert.match(poster, /enable\('promo'\)/);
 });

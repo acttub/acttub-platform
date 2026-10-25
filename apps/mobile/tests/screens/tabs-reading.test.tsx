@@ -44,8 +44,10 @@ jest.mock('@/hooks/use-cloud-voice', () => ({ useCloudVoice: jest.fn() }));
 
 const voice = {
   status: null as null | { available: boolean; consent: string; free_until: string | null },
+  enabled: false,
   busy: false,
   enable: jest.fn(async () => true),
+  disable: jest.fn(async () => undefined),
   refresh: jest.fn(async () => null),
   consentSheet: null,
 };
@@ -83,7 +85,7 @@ const done = card({ id: 's3', title: '끝난 장면', status: 'completed', last_
 beforeEach(() => {
   jest.clearAllMocks();
   endTutorial();
-  Object.assign(voice, { status: null, busy: false });
+  Object.assign(voice, { status: null, enabled: false, busy: false });
   (useCloudVoice as jest.Mock).mockImplementation(() => voice);
   (listScripts as jest.Mock).mockResolvedValue({ scripts: [rooftop, cafe, done], total_count: 3, in_progress_count: 1 });
   (hasSeenReadingTutorial as jest.Mock).mockResolvedValue(true);
@@ -290,42 +292,42 @@ describe('더보기 메뉴', () => {
 });
 
 describe('고품질 목소리 띠', () => {
-  test('대본이 있으면 띠 대신 제목 옆 「Free」 알약과 무료 기한 — 표시만 하고 눌러도 켜고 끄지 않는다(SOMA-841)', async () => {
-    voice.status = { available: true, consent: 'undecided', free_until: '2026-12-31T03:00:00Z' };
+  test('대본이 있어도 무료 기한이 붙은 띠와 스위치가 있다 — 켜면 동의 흐름으로 간다', async () => {
+    voice.status = { available: true, consent: 'none', free_until: '2026-12-31T03:00:00Z' };
     await render(<ReadingList />);
 
-    expect(await screen.findByLabelText('고품질 AI 목소리로 리딩해요 · Free · 12월 31일까지 무료')).toBeOnTheScreen();
+    expect(await screen.findByText('옥상 장면')).toBeOnTheScreen();
+    expect(screen.getByText('고품질 AI 목소리로 리딩해요')).toBeOnTheScreen();
     expect(screen.getByText('12월 31일까지 무료')).toBeOnTheScreen();
-    expect(screen.queryByRole('switch')).not.toBeOnTheScreen();
-
-    await fireEvent.press(screen.getByText('Free'));
-    expect(voice.enable).not.toHaveBeenCalled();
+    expect(screen.queryByText('Free')).not.toBeOnTheScreen();
+    const toggle = screen.getByRole('switch');
+    // 동의 전에는 켜 둔 값이어도 쓸 수 없으니 꺼진 모습이다.
+    expect(toggle).toHaveProp('value', false);
+    await fireEvent(toggle, 'valueChange', true);
+    expect(voice.enable).toHaveBeenCalledWith('settings');
   });
 
-  test('무료 기한이 없으면 알약만 보인다', async () => {
+  test('동의했고 켜 둔 상태(기본)면 스위치가 켜져 있고, 끄면 끈다', async () => {
     voice.status = { available: true, consent: 'granted', free_until: null };
+    voice.enabled = true;
     await render(<ReadingList />);
 
-    expect(await screen.findByLabelText('고품질 AI 목소리로 리딩해요 · Free')).toBeOnTheScreen();
-    expect(screen.queryByText(/까지 무료/)).not.toBeOnTheScreen();
+    const toggle = await screen.findByRole('switch');
+    expect(toggle).toHaveProp('value', true);
+    await fireEvent(toggle, 'valueChange', false);
+    expect(voice.disable).toHaveBeenCalled();
   });
 
-  test('대본이 없을 때는 무료 기한이 붙은 띠만 있고 스위치는 없다', async () => {
+  test('대본이 없을 때는 무료 기한이 붙은 띠와 스위치가 그대로 있다', async () => {
     (listScripts as jest.Mock).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
-    voice.status = { available: true, consent: 'undecided', free_until: '2026-12-31T03:00:00Z' };
+    voice.status = { available: true, consent: 'none', free_until: '2026-12-31T03:00:00Z' };
     await render(<ReadingList />);
 
     expect(await screen.findByText('고품질 AI 목소리로 리딩해요')).toBeOnTheScreen();
     expect(screen.getByText('12월 31일까지 무료')).toBeOnTheScreen();
-    expect(screen.queryByRole('switch')).not.toBeOnTheScreen();
-  });
-
-  test('서버가 고품질 목소리를 막으면 알약도 띠도 없다', async () => {
-    voice.status = { available: false, consent: 'granted', free_until: null };
-    await render(<ReadingList />);
-
-    expect(await screen.findByText('옥상 장면')).toBeOnTheScreen();
-    expect(screen.queryByText('Free')).not.toBeOnTheScreen();
+    const toggle = screen.getByRole('switch');
+    await fireEvent(toggle, 'valueChange', true);
+    expect(voice.enable).toHaveBeenCalledWith('settings');
   });
 
   test('목소리 상태를 다시 못 읽어도 목록은 뜬다', async () => {

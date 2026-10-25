@@ -42,7 +42,7 @@
 | `locale` | null 은 모든 언어, 아니면 앱 표시 언어 하나(`ko`·`en`). | null |
 | `min_app_version` | 이 판 이상의 앱에만(`0.1.10 > 0.1.9`). 판을 밝히지 않은 앱에는 가지 않는다. | null |
 | `frequency` | `daily` 는 한국 날짜 하루 한 번, `once` 는 한 번만, `every` 는 앱에 들어올 때마다(홈 재진입·앱 복귀 포함, SOMA-799). | daily |
-| `audience` | `all` 또는 `cloud_voice_off`(고품질 목소리를 쓸 수 있고 아직 동의하지 않은 사람에게만 — 판정은 앱). | all |
+| `audience` | `all` 또는 `cloud_voice_off`(고품질 목소리를 쓸 수 있고 아직 켜지 않은 사람에게만 — 판정은 앱). | all |
 | `dismissible` | 「다시 보지 않기」 버튼을 보인다. | true |
 | `badge`·`title`·`body` | 배지·제목·본문. `title` 만 필수이고 비면 그 칸을 숨긴다. 제목의 줄바꿈은 그대로 보인다. | null |
 | `image` | `asset:mascot-reading`(앱 번들) 또는 이미지 올리기로 받은 `posters/<uuid>.<png·jpg·webp>`. 앱이 모르는 자산 이름이면 숨긴다. | null |
@@ -72,7 +72,7 @@ revision 이 포스터와 다르면 그 slug 의 기록은 없던 것으로 본�
 - 띄우는 조건은 0.1.2 팝업과 같다: 로그인 상태, 첫 실행 온보딩 직후가 아님, 다른 시트(소개·가이드·연속 기록 축하)가 떠 있지 않음.
 - 버튼: `cloud_voice_enable` 은 포스터를 닫고 0.35초 뒤 동의 시트를 연다(iOS 는 모달 위에 모달을 올리지 못한다). `route` 는
   닫고 그 앱 경로로 간다. `url` 은 닫고 외부 브라우저로 연다.
-- 고품질 목소리에 동의하면(granted) 떠 있던 `cloud_voice_off` 포스터를 닫는다.
+- 고품질 목소리를 켜면(켬 + granted) 떠 있던 `cloud_voice_off` 포스터를 닫는다.
 - 분석 이벤트는 `poster_shown`·`poster_cta`·`poster_close`·`poster_dismiss`(`{slug, revision}`)다.
 - 첫 포스터(seed, V29): `cloud-voice-launch` ko·en, 켜짐, 우선순위 10, 2026-12-01 00:00(KST)에 끝, 매일, `cloud_voice_off`,
   마스코트 그림·샘플 소리, 버튼 「무료로 켜기」(`cloud_voice_enable`), 다시 보지 않기 보임. 문구는 0.1.2 앱의 홍보 문구다.
