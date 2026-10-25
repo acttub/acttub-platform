@@ -65,6 +65,13 @@ public final class ReminderContent {
         return fromPool(ReminderKind.GENERAL, in, recentUse, null);
     }
 
+    /** 가입 30분 알림(first_nudge, SOMA-870). 연습한 적 없는 가입 당일 회원에게 한 번. */
+    public static ReminderCopy firstNudge(UUID userId, LocalDate today, boolean korean, Map<String, LocalDate> recentUse) {
+        List<Template> pool = ReminderTemplates.pool(ReminderKind.FIRST_NUDGE, 0, korean);
+        Template template = pick(pool, userId, today, ReminderKind.FIRST_NUDGE.slot(), recentUse);
+        return new ReminderCopy(ReminderKind.FIRST_NUDGE, 0, template.id(), template.title(), template.body(), null, null);
+    }
+
     public static ReminderCopy streak(UUID userId, LocalDate today, int streak, boolean korean,
                                       Map<String, LocalDate> recentUse) {
         List<Template> pool = ReminderTemplates.pool(ReminderKind.STREAK, 0, korean);

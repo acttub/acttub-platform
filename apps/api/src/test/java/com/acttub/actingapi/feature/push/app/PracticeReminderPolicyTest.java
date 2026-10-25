@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -170,5 +171,33 @@ class PracticeReminderPolicyTest {
         assertThat(PracticeReminderPolicy.kstDate(Instant.parse("2026-10-20T14:59:59Z"))).isEqualTo(LocalDate.of(2026, 10, 20));
         assertThat(PracticeReminderPolicy.kstDate(Instant.parse("2026-10-20T15:00:00Z"))).isEqualTo(LocalDate.of(2026, 10, 21));
         assertThat(ZonedDateTime.now(PracticeReminderPolicy.SEOUL).getZone().getId()).isEqualTo("Asia/Seoul");
+    }
+
+    @Test
+    void signupNudgeWindowIsThirtyMinutesToTwoHoursOnTheSignupDayOutsideNight() {
+        Instant signup = kst("2026-10-21T10:00");
+        assertThat(PracticeReminderPolicy.firstNudgeDue(kst("2026-10-21T10:29"), signup)).isFalse();
+        assertThat(PracticeReminderPolicy.firstNudgeDue(kst("2026-10-21T10:30"), signup)).isTrue();
+        assertThat(PracticeReminderPolicy.firstNudgeDue(kst("2026-10-21T11:59"), signup)).isTrue();
+        assertThat(PracticeReminderPolicy.firstNudgeDue(kst("2026-10-21T12:00"), signup)).isFalse();
+        Instant late = kst("2026-10-21T22:40");
+        assertThat(PracticeReminderPolicy.firstNudgeDue(kst("2026-10-21T23:10"), late)).isFalse();
+        Instant midnight = kst("2026-10-21T23:50");
+        assertThat(PracticeReminderPolicy.firstNudgeDue(kst("2026-10-22T00:20"), midnight)).as("가입한 날이 아니다").isFalse();
+    }
+
+    @Test
+    void holdoutIsStableAndAboutTheGivenShare() {
+        int in = 0;
+        for (int i = 0; i < 20000; i++) {
+            UUID id = new UUID(0x1234_5678L * (i + 1), 0x9abc_def0L ^ (i * 7919L));
+            boolean held = PracticeReminderPolicy.inHoldout(id, 10);
+            assertThat(PracticeReminderPolicy.inHoldout(id, 10)).isEqualTo(held);
+            if (held) in++;
+        }
+        assertThat(in).isBetween(1600, 2400);
+        UUID any = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
+        assertThat(PracticeReminderPolicy.inHoldout(any, 0)).isFalse();
+        assertThat(PracticeReminderPolicy.inHoldout(any, 100)).isTrue();
     }
 }

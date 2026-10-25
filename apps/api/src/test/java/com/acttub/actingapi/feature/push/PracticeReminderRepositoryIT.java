@@ -144,6 +144,7 @@ class PracticeReminderRepositoryIT {
         video(tooOld, "2026-10-13T12:00");
         UUID never = user("never", true, "0.1.2", "2026-10-19T10:00");
         UUID neverOld = user("never-old", true, "0.1.2", "2026-10-10T10:00");
+        UUID neverToday = user("never-today", true, "0.1.2", "2026-10-21T10:00");
         UUID scriptOnly = user("script-only", true, "0.1.2", "2026-10-19T11:00");
         script(scriptOnly, "대본만 올림", "2026-10-20T10:00");
         UUID toggleOff = user("toggle-off", false, "0.1.2", "2026-09-01T10:00");
@@ -173,6 +174,9 @@ class PracticeReminderRepositoryIT {
         assertThat(n.neverPracticed()).isTrue();
         assertThat(n.lastPracticeDay()).isEqualTo(LocalDate.of(2026, 10, 19));
         assertThat(n.firstPracticeAt()).isEqualTo(kst("2026-10-19T10:00").toInstant());
+        Candidate nt = find(all, neverToday);
+        assertThat(nt.neverPracticed()).isTrue();
+        assertThat(nt.practicedToday()).as("오늘 가입하고 연습 전인 회원은 오늘 연습한 것이 아니다(가입 30분 알림 후보)").isFalse();
         assertThat(find(all, neverOld)).as("가입한 지 7일이 넘은 연습 전 회원은 후보가 아니다").isNull();
         Candidate s = find(all, scriptOnly);
         assertThat(s).as("대본만 올린 것은 연습이 아니라 연습 전 회원이다").isNotNull();
@@ -379,7 +383,7 @@ class PracticeReminderRepositoryIT {
         };
         Clock at1930 = Clock.fixed(LocalDateTime.parse("2026-10-21T19:30").atZone(PracticeReminderPolicy.SEOUL).toInstant(), ZoneOffset.UTC);
         PracticeReminderService service = new PracticeReminderService(reminders, tokens,
-                messages -> { sent.addAll(messages); return List.of(); }, new RecordingFailureReporter(), at1930, "0.1.2");
+                messages -> { sent.addAll(messages); return List.of(); }, new RecordingFailureReporter(), at1930, "0.1.2", 0);
 
         service.sendDue();
         service.sendDue();

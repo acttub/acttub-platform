@@ -121,13 +121,21 @@ public final class ReminderTemplates {
             new Template("script.c", "넣어 둔 대본으로 바로 리딩할 수 있어요", "처음부터 다 안 읽어도 돼요. 한 장면만 맞춰 봐요."));
 
     // ── 첫 연습(first_practice): 아직 한 번도 연습하지 않은 가입자(가입 시각 기준).
+    // SOMA-870: 막연한 권유(first.a~f, 24시간 안 복귀 1%)를 할 거리가 보이는 문구로 바꿨다. 새 id 라 전후를 기록으로 가를 수 있다.
     public static final List<Template> FIRST_PRACTICE_KO = List.of(
-            new Template("first.a", "첫 연습, 5분이면 돼요", "장면 하나 찍거나 대본 한 번 읽어 보세요."),
-            new Template("first.b", "오늘 첫 장면 찍어 볼까요?", "잘하지 않아도 돼요. 일단 한 번 해 봐요."),
-            new Template("first.c", "처음엔 가볍게 시작해요", "대사 한 줄 읽는 것부터 괜찮아요."),
-            new Template("first.d", "코치와 첫 대화 해 볼까요?", "영상 하나만 올리면 코치가 물어볼게요."),
-            new Template("first.e", "연습 시작은 이렇게 쉬워요", "대본을 열고 한 번 읽어 보세요."),
-            new Template("first.f", "아직 첫 연습 전이에요", "5분만 내서 한 장면 시작해 봐요."));
+            new Template("first.g", "예시 대본, 30초면 읽어요", "상대 대사는 AI가 읽어 줘요. 내 줄만 소리 내 보세요."),
+            new Template("first.h", "대사 한 줄부터 시작해요", "앱에 있는 예시 대본을 열고 내 줄만 읽어 보세요."),
+            new Template("first.i", "상대역은 AI가 맡을게요", "예시 대본으로 내 대사만 읽으면 첫 연습 끝이에요."),
+            new Template("first.j", "첫 리딩, 30초면 끝나요", "예시 대본을 고르고 내 줄을 소리 내 읽어 보세요."),
+            new Template("first.k", "혼자 읽어도 상대가 있어요", "AI가 상대 대사를 읽어 줘요. 예시 대본으로 해 봐요."));
+
+    // ── 가입 30분(first_nudge, SOMA-870): 가입한 날 30분~2시간 안에 아직 첫 연습 전인 회원
+    public static final List<Template> FIRST_NUDGE_KO = List.of(
+            new Template("nudge.a", "첫 대사, 지금 30초면 돼요", "예시 대본을 열고 내 줄만 읽어 보세요. 상대는 AI예요."),
+            new Template("nudge.b", "가입 고마워요! 한 줄만 읽어 볼까요?", "예시 대본으로 첫 리딩을 해 보세요. 30초면 끝나요."),
+            new Template("nudge.c", "상대역은 AI가 준비해 뒀어요", "예시 대본에서 내 대사만 소리 내 읽으면 돼요."),
+            new Template("nudge.d", "첫 연습은 대사 한 줄이면 돼요", "예시 대본을 고르면 AI가 상대 대사를 읽어 줘요."),
+            new Template("nudge.e", "30초짜리 첫 리딩 해 볼까요?", "잘 읽지 않아도 돼요. 내 줄만 소리 내 보세요."));
 
     // ── 연속 기록(streak): {n} 은 연속 일수
     public static final List<Template> STREAK_KO = List.of(
@@ -151,6 +159,8 @@ public final class ReminderTemplates {
     public static final List<Template> FIRST_PRACTICE_EN = List.of(
             new Template("first.en.a", "Your first practice takes five minutes", "Shoot one scene or read a script once."),
             new Template("first.en.b", "Start small today", "Reading a single line aloud is a fine start."));
+    public static final List<Template> FIRST_NUDGE_EN = List.of(
+            new Template("nudge.en.a", "Your first line takes 30 seconds", "Open a sample script and read only your lines. The AI reads the rest."));
     public static final List<Template> VIDEO_EN = List.of(
             new Template("video.en.a", "Your video is still waiting", "Show it to the coach and start with the first question."));
     public static final List<Template> SCRIPT_EN = List.of(
@@ -168,6 +178,7 @@ public final class ReminderTemplates {
                     : HOMEWORK_EN;
             case READING -> korean ? READING_KO : READING_EN;
             case FIRST_PRACTICE -> korean ? FIRST_PRACTICE_KO : FIRST_PRACTICE_EN;
+            case FIRST_NUDGE -> korean ? FIRST_NUDGE_KO : FIRST_NUDGE_EN;
             case PENDING_VIDEO -> korean ? VIDEO_KO : VIDEO_EN;
             case UNREAD_SCRIPT -> korean ? SCRIPT_KO : SCRIPT_EN;
             case STREAK -> korean ? STREAK_KO : STREAK_EN;
