@@ -104,7 +104,9 @@ public class DirectVideoConfiguration {
             // 코치 흐름 비교(SOMA-636). false 면 모두 지금 흐름(A)이다(롤백).
             @Value("${ACTTUB_COACH_FLOW_AB:true}") boolean flowAb,
             // "이미 그렇게 했다" 처리 비교(SOMA-855). 새 대화의 SHARE% 는 한 일 묻기 → 다르게 정리로 간다. 0 이면 모두 지금처럼(롤백).
-            @Value("${ACTTUB_COACH_ALREADY_SHARE:50}") int alreadyShare,
+            // 값을 주지 않으면 dev 에서만 50 이고 운영은 0 이다 — 운영 반영은 사용자 승인 뒤 운영 env 로 켠다.
+            @Value("${ACTTUB_COACH_ALREADY_SHARE:-1}") int alreadyShare,
+            @Value("${SITE_URL:}") String siteUrl,
             com.acttub.actingapi.feature.coach.app.CoachVideoCache videoCache,
             GeminiDirectVideoModel.Hedge coachHedge,
             // 정정에 답하는 '내려놓기'는 영상을 붙이지 않고 글만 보내 쓴다(SOMA-780). 영상이 붙으면 생각 루프에 빠져 15~20초 걸렸다.
@@ -126,7 +128,13 @@ public class DirectVideoConfiguration {
                         : com.acttub.actingapi.feature.coach.app.CoachFlows.NONE,
                 videoCache, letGoWithoutVideo, followUpMinimalThinking, layerOne)
                 .withFaceMosaic(faceMosaic.getIfAvailable(() -> com.acttub.actingapi.integration.media.FaceMosaic.NONE))
-                .withAlreadyShare(alreadyShare);
+                .withAlreadyShare(alreadyShare(alreadyShare, siteUrl));
+    }
+
+    /** "이미 그렇게 했다" 비교의 실험 쪽 비율. 설정값이 있으면 그것, 없으면(음수) dev 만 50 이다. */
+    static int alreadyShare(int configured, String siteUrl) {
+        if (configured >= 0) return configured;
+        return "https://dev.acttub.com".equals(siteUrl) ? 50 : 0;
     }
 
     @Bean(destroyMethod = "close")
