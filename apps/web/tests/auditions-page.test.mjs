@@ -111,6 +111,7 @@ test("app.audition: 공용 상단 바 아래에서 공고를 로그인 없이 �
       ["입시", "/admissions", null],
       ["오디션", "/auditions", "page"],
       ["앱", "/app", null],
+      ["로그인", "/login", null],
     ],
   );
 

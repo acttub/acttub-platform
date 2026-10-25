@@ -8,7 +8,7 @@
 - 테이블: users, user_identities, refresh_tokens, user_consents, consent_documents, guest_transfer_codes(ERD에 추가), practices, videos, scripts, reading_sessions, line_memorization, ai_jobs, actor_memories, reading_recordings, practice_feedback
 
 ## 기능
-웹에는 로그인이 없다. 처음 보호 기능을 쓰려 하면 서버가 게스트 계정을 만들고 브라우저에 토큰을
+웹은 로그인하지 않아도 쓸 수 있다(로그인은 선택, account.login 웹 로그인). 로그인하지 않은 채 처음 보호 기능을 쓰려 하면 서버가 게스트 계정을 만들고 브라우저에 토큰을
 준다. 동의는 시작할 때 받지 않고, 기능을 처음 쓰는 순간 그 기능에 필요한 문서만 시트로 받는다.
 게스트는 웹의 연습·리딩 기능을 바로 쓰고 자료는 그 게스트 계정에 쌓인다. 웹이 보여 주는
 이관 코드를 앱에서 로그인한 계정에 넣으면 게스트의 자료가 그 계정으로 옮겨지고 게스트 계정은

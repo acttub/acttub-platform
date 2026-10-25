@@ -17,7 +17,7 @@ import "./app-download.css";
 // "상대 대사는 AI가 읽고 내 대사는 가린다"는 것을 글보다 먼저 보여 준다(SOMA-635).
 // 움직임은 제품이 어떻게 돌아가는지 보여 주는 데만 쓰고, 움직임 줄이기 설정이면 멈춘다.
 //
-// 웹에는 로그인이 없다. 연습 화면은 누구에게나 바로 열린다(account.guest).
+// 연습 화면은 로그인 없이 누구에게나 바로 열린다(account.guest). 로그인은 선택이다(SOMA-834).
 const practiceHref = "/practice/new";
 
 const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
