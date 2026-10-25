@@ -1340,8 +1340,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   순으로, 같은 상태 안에서는 `featured_on` 최신·시작 최신 순으로 싣는다.
 - 각 행은 `id`·`line`·`work`·`character`·`origin`·`host_actor`(`md5(host_user_id)` 앞 8자리, 팀 개설은 null)·
   `host_is_team`·`duration_days`·`featured_on`·`starts_at`·`ends_at`·`state`·`moderation`·`entries`·
-  `public_entries`·`outside_entries`다. 참여작 수는 삭제를 뺀 값이고, `outside_entries`는 팀 이메일과
-  `exclude_actors` 배우의 참여작을 뺀 값이다.
+  `public_entries`·`outside_entries`·`likes`·`outside_likes`다. 참여작 수는 삭제를 뺀 값이고, `outside_entries`는
+  팀 이메일과 `exclude_actors` 배우의 참여작을 뺀 값이다. `likes`는 삭제되지 않은 참여작이 받은 좋아요 전체(팀
+  계정이 누른 것 포함)이고, `outside_likes`는 그중 팀 이메일과 `exclude_actors` 배우가 누른 좋아요를 뺀 값이다.
 - 챌린지는 앱에 공개되는 글이라 대사·작품·인물을 싣는다(§6-21의 참여작 목록과 다르다). 주최자의 user UUID·이메일과
   참여작 캡션은 싣지 않는다. 이 응답은 live 운영 조회 전용이며, 저장되는 `ops-core`에는 대사를 넣지 않는다.
 - 팀 계정이 연 챌린지도 빼지 않고 `host_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은

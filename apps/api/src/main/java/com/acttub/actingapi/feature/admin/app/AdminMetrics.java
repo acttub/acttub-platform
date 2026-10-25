@@ -185,7 +185,11 @@ public final class AdminMetrics {
             String moderation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int entries,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int publicEntries,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int outsideEntries) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int outsideEntries,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0",
+                    description = "삭제되지 않은 참여작이 받은 좋아요 수(팀 계정이 누른 것 포함)") int likes,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0",
+                    description = "그중 팀 밖 배우가 누른 좋아요 수") int outsideLikes) {
     }
 
     @Schema(name = "AdminChallengePage", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
