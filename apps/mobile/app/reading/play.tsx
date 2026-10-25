@@ -44,6 +44,7 @@ import { finishMonologueRun, isMonologue, livePosition, monologueResults, senten
 import { lineGroups } from '@/lib/reading/line-groups';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
+import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 import {
   advance,
   applyLineEdit,
@@ -520,6 +521,8 @@ export default function ReadingPlay() {
       // 서버는 열어 둔 회차를 마지막 직전(9/10)에 두므로, 끝까지 갔다는 표시를 이 기기에 남겨 홈이 10/10 으로 보이게 한다.
       if (completed) void clearReachedEnd(session.id);
       else if (!stoppedEarlyRef.current) void markReachedEnd(session.id);
+      // 마지막 줄까지 가 봤으면(인식된 대사가 없어도) 첫 사용자 화면은 졸업이다(SOMA-827). 중간에 멈춘 건 아니다.
+      if (!stoppedEarlyRef.current) void markFirstUseGraduated();
       setPhase({ kind: 'done' });
       if (completed && !fromTutorialRef.current) void askRating({ kind: 'reading' });
       return;

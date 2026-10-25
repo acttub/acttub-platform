@@ -23,6 +23,7 @@ import type { VadEvent } from '@/lib/reading/vad';
 import { currentTutorial, startTutorial } from '@/lib/tutorial';
 
 import { closeModalOf, openFixtureScript, scriptDetail, sessionDetail, TWO_ROLE_LINES } from './fixtures';
+import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 
 jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
@@ -38,6 +39,7 @@ const mockNavigation = {
 };
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: () => mockNavigation }));
 jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn() }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined) }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn() } }));
 const mockAskRating = jest.fn(async () => undefined);
@@ -251,6 +253,8 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   // 음성 인식을 못 쓰는 기기(typing)는 인식된 대사 없이도 끝까지 가면 완료다(SOMA-773 예외).
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
+  // 마지막 줄까지 갔으니 첫 사용자 화면은 졸업이다(SOMA-827).
+  expect(markFirstUseGraduated).toHaveBeenCalled();
   expect(screen.getByText(/^민재 · 대사 3줄 · \d\d:\d\d$/)).toBeOnTheScreen();
   expect(screen.getByText('이 기기에서는 말한 것을 글자로 바꾸지 못해 비교하지 않았어요.')).toBeOnTheScreen();
   await waitFor(() =>
@@ -519,6 +523,8 @@ test('알아들은 대사 없이 그만하기를 누르면 완료로 남기지 �
   await fireEvent.press(screen.getByText('그만하기'));
   expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
   expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l2', complete: false }));
+  // 중간에 그만둔 건 끝까지 가 본 게 아니다 — 첫 사용자 졸업 표시를 남기지 않는다(SOMA-827).
+  expect(markFirstUseGraduated).not.toHaveBeenCalled();
   expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
 });
 

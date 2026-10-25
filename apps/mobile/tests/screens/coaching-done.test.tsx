@@ -17,6 +17,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 jest.mock('@/lib/api', () => ({ api: { getPracticeNote: jest.fn(), putNoteRating: jest.fn() } }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined) }));
 
 const getPracticeNote = api.getPracticeNote as jest.Mock;
 
@@ -26,10 +27,13 @@ beforeEach(() => {
 });
 
 test('오늘 코칭 끝 — 일지 저장 알림, 코칭 평가(노트에 남김), 「확인」은 홈(pen P16.1)', async () => {
+  const { markFirstUseGraduated } = jest.requireMock('@/lib/practice/first-use-graduation');
   getPracticeNote.mockResolvedValue(practiceNote());
   await render(<CoachingDoneScreen />);
 
   expect(screen.getByText('오늘 코칭 끝!')).toBeOnTheScreen();
+  // 코칭을 마무리까지 왔으니 첫 사용자 화면은 졸업이다(SOMA-827).
+  expect(markFirstUseGraduated).toHaveBeenCalled();
   expect(await screen.findByText('첫 줄 전에 한 박자 쉬기')).toBeOnTheScreen();
   expect(screen.getByText('다음에 해 볼 것')).toBeOnTheScreen();
   expect(await screen.findByText('이 코칭 어땠어요?')).toBeOnTheScreen();

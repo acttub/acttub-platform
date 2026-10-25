@@ -67,6 +67,7 @@ jest.mock('@/lib/guide-state', () => ({
   markReadingTutorialSeen: jest.fn(async () => undefined),
 }));
 jest.mock('@/lib/practice-days', () => ({ rememberPracticeDays: jest.fn() }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({ hasGraduatedFirstUse: jest.fn(async () => false) }));
 jest.mock('@/lib/streak-celebration', () => ({
   ...jest.requireActual('@/lib/streak-celebration'),
   readLastSeenStreak: jest.fn(),
@@ -236,6 +237,16 @@ describe('첫 사용자', () => {
     expect(screen.getAllByRole('radio', { selected: true })).toHaveLength(1);
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
     expect(mockRouter.push).toHaveBeenLastCalledWith('/coaching');
+  });
+
+  test('이 기기에서 리딩·코칭을 끝까지 해 본 계정은 서버 기록이 비어도 기본 홈이다(SOMA-827)', async () => {
+    const { hasGraduatedFirstUse } = jest.requireMock('@/lib/practice/first-use-graduation');
+    hasGraduatedFirstUse.mockResolvedValueOnce(true);
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
+    expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
   });
 
   test('대본만 넣고 끝까지 안 읽은 사람은 아직 첫 사용자다 — 선택지를 본다(SOMA-827)', async () => {

@@ -25,6 +25,7 @@ import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditi
 import { upcomingNotices, type AdmissionsResponse } from '@/lib/admissions';
 import { isKorean, translate as t, translateList } from '@/lib/i18n';
 import { firstTimeStateFrom, setFirstTimeState } from '@/lib/practice/first-time';
+import { hasGraduatedFirstUse } from '@/lib/practice/first-use-graduation';
 import { challengeDaysLeft, pickToday, primaryFeature, wasYesterday, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
@@ -120,6 +121,8 @@ export default function HomeScreen() {
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   // null 이면 기록을 아직 한 번도 못 받은 것이다 — 그때의 연속일(0)로 축하를 판단하면 안 된다.
   const [activityDays, setActivityDays] = useState<{ created_at: string }[] | null>(null);
+  /** 이 기기에서 리딩·코칭을 끝까지 해 본 계정인가(SOMA-827). 읽기 전엔 null — 첫 사용자 화면을 함부로 띄우지 않는다. */
+  const [graduated, setGraduated] = useState<boolean | null>(null);
   // 주 기능 판단용 — 센 연습(코칭·리딩·챌린지) 목록.
   const [practices, setPractices] = useState<CountedPractice[]>([]);
   // 내가 참여작을 올린 챌린지 — 홈 챌린지 카드가 이미 찍은 챌린지에 「찍으러 가기」를 띄우지 않게 한다(SOMA-829).
@@ -156,6 +159,7 @@ export default function HomeScreen() {
       // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
       // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
       guideFocused.current = true;
+      void hasGraduatedFirstUse().then(setGraduated);
       if (currentTutorial()) finishTutorial('left');
       setGuideShownThisVisit(false);
       void hasSeenTutorial().then((seen) => {
@@ -292,7 +296,7 @@ export default function HomeScreen() {
     };
   }, [activityLoaded, streak]);
 
-  const loaded = groupsLoaded && scripts !== null && activityLoaded;
+  const loaded = groupsLoaded && scripts !== null && activityLoaded && graduated !== null;
   // 첫 데이터를 다 받으면 앱을 켤 때 붙잡아 둔 로고를 닫게 한다.
   useEffect(() => {
     if (loaded) markHomeReady();
@@ -305,6 +309,7 @@ export default function HomeScreen() {
     groups,
     scripts: scripts ?? [],
     practicedDays: activityDays?.length ?? 0,
+    graduated: !!graduated,
   });
   const firstUser = firstTime === 'first';
 
