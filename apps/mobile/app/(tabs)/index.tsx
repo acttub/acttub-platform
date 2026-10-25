@@ -39,6 +39,7 @@ import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
 import { markHomeReady } from '@/lib/launch-splash';
+import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
@@ -542,8 +543,8 @@ export default function HomeScreen() {
         />
       )}
       {!loaded ? (
-        // 앱을 켤 때는 로고가 이 자리를 덮고 있다(lib/launch-splash.ts). 로딩 표시는 두지 않는다.
-        <View style={styles.loading} />
+        // 앱을 켤 때는 로고가 이 자리를 덮고 있다(lib/launch-splash.ts). 서버가 느려 로고가 먼저 닫히면 뼈대 화면이 보인다(SOMA-828).
+        <HomeSkeleton />
       ) : firstUser ? (
         // 첫 사용자 홈(pen P1.12 「뭐부터 해 볼까요?」) — 액티 말풍선 아래에서 하나를 고르면(회색 → 옅은 파랑) 아래 「다음」으로 그 탭에 들어간다.
         // 첫 줄(코칭)이 첫 가이드가 비추는 자리다.
@@ -933,10 +934,38 @@ function FirstChoice({
   );
 }
 
+/** 홈 뼈대(SOMA-828) — 인사말, 이번 주 연습 칸, 추천 카드, 아래 목록 순서로 실제 홈 배치를 따른다. */
+function HomeSkeleton() {
+  return (
+    <SkeletonGroup style={styles.skeleton}>
+      <View style={styles.skeletonHero}>
+        <SkeletonBlock width="58%" height={26} radius={8} />
+        <SkeletonBlock width="44%" height={26} radius={8} />
+        <SkeletonBlock width="50%" height={13} style={styles.skeletonGap} />
+      </View>
+      <View style={styles.skeletonCard}>
+        <SkeletonBlock width="36%" height={16} />
+        <View style={styles.week}>
+          {Array.from({ length: 7 }, (_, i) => (
+            <SkeletonBlock key={i} width={34} height={34} radius={17} />
+          ))}
+        </View>
+      </View>
+      <SkeletonBlock height={150} radius={20} />
+      <SkeletonBlock width="40%" height={16} style={styles.skeletonGap} />
+      <SkeletonBlock height={64} radius={16} />
+      <SkeletonBlock height={64} radius={16} />
+    </SkeletonGroup>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   safeHero: { backgroundColor: '#E4EEFC' },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80, backgroundColor: '#F7FAFE' },
+  skeleton: { flex: 1, gap: 14, paddingHorizontal: 20, paddingTop: 14, backgroundColor: '#F7FAFE' },
+  skeletonHero: { gap: 10, paddingHorizontal: 4, paddingBottom: 18 },
+  skeletonGap: { marginTop: 6 },
+  skeletonCard: { gap: 16, padding: 18, borderRadius: 20, backgroundColor: palette.bg },
   // 아래 탭 바가 화면 위에 떠 있어 그만큼 바닥을 비운다.
   scrollBg: { backgroundColor: '#F7FAFE' },
   container: {},
