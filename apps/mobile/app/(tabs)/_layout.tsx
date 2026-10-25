@@ -50,14 +50,14 @@ export default function TabLayout() {
           name="index"
           options={{
             ...tab('home'),
-            tabBarIcon: tabIcon('home-outline'),
+            tabBarIcon: tabIcon('home-outline', t('tabs.home')),
           }}
         />
         <Tabs.Screen
           name="coaching"
-          options={{ ...tab('coaching'), tabBarIcon: tabIcon('chatbubble-outline', coachingTarget) }}
+          options={{ ...tab('coaching'), tabBarIcon: tabIcon('chatbubble-outline', t('tabs.coaching'), coachingTarget) }}
         />
-        <Tabs.Screen name="reading" options={{ ...tab('reading'), tabBarIcon: tabIcon('book-outline', readingTarget) }} />
+        <Tabs.Screen name="reading" options={{ ...tab('reading'), tabBarIcon: tabIcon('book-outline', t('tabs.reading'), readingTarget) }} />
         {/* 기록·예전 촬영 자리는 탭바에서 빠졌지만 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
         <Tabs.Screen name="history" options={{ href: null }} />
         <Tabs.Screen name="record" options={{ href: null }} />
@@ -66,11 +66,11 @@ export default function TabLayout() {
           name="challenges"
           options={{
             ...tab('challenge'),
-            tabBarIcon: tabIcon('trophy-outline', challengeTarget),
+            tabBarIcon: tabIcon('trophy-outline', t('tabs.challenge'), challengeTarget),
             tabBarBadge: unread.badge ?? undefined,
           }}
         />
-        <Tabs.Screen name="profile" options={{ ...tab('profile'), tabBarIcon: tabIcon('person-outline', profileTarget) }} />
+        <Tabs.Screen name="profile" options={{ ...tab('profile'), tabBarIcon: tabIcon('person-outline', t('tabs.profile'), profileTarget) }} />
       </Tabs>
     </>
   );

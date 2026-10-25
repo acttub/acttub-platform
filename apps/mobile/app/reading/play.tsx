@@ -2058,6 +2058,9 @@ export default function ReadingPlay() {
 
       {hold === 'tip' ? (
         // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
+        // 아래 바가 없어진 만큼 아래 안전 영역을 비워 첫 대사가 안드로이드 내비게이션 바 밑으로 들어가지 않게 한다.
+        <>
+        <View style={{ height: insets.bottom + 12 }} />
         <View style={[styles.backdrop, { top: tipTop }]}>
           <View style={styles.startCard}>
             {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
@@ -2069,6 +2072,7 @@ export default function ReadingPlay() {
             )}
           </View>
         </View>
+        </>
       ) : (
       <>
       {hold === 'mask_sheet' && (

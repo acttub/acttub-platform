@@ -506,8 +506,9 @@ const styles = StyleSheet.create({
   resumeEyebrow: { color: 'rgba(255,255,255,0.88)', fontSize: 13, fontWeight: '700', lineHeight: 20 },
   resumeTitle: { color: palette.onAccent, maxWidth: '78%', fontSize: 22, fontWeight: '900', lineHeight: 31 },
   resumeHint: { color: 'rgba(255,255,255,0.85)', maxWidth: '64%', fontSize: 12.5, fontWeight: '600', lineHeight: 19 },
-  freeWrap: { alignItems: 'center', gap: 2 },
-  freeUntil: { fontSize: 10, fontWeight: '700', color: palette.blue },
+  // 무료 기한 줄은 알약 아래에 띄워 둔다 — 줄 높이에 들어가면 머리 줄이 높아져 제목·「새 대본」과 알약이 어긋난다.
+  freeWrap: { alignItems: 'center' },
+  freeUntil: { position: 'absolute', top: 38, left: -40, right: -40, textAlign: 'center', fontSize: 10, fontWeight: '700', color: palette.blue },
   freePill: { justifyContent: 'center', height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: '#EAF3FE' },
   freePillText: { color: palette.blue, fontSize: 14, fontWeight: '800' },
   resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.card, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },

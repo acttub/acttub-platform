@@ -148,7 +148,6 @@ const ko = {
     rdGoTitle: '시작하면 상대 대사부터 들려요',
     rdGoBody: '앱이 상대 대사를 읽고, 내 차례가 오면 멈춰요. 소리 내어 말하면 녹음돼요.',
     reading: {
-    recordForCoach: '이 대본으로 찍어서 코칭받기',
       introTitle: '대본 리딩 한 바퀴 해볼까요?',
       introBody: '대본을 넣고 내 배역을 고르면, 상대 대사는 앱이 읽어 주고 나는 내 대사만 말하면 돼요.',
       ownTitle: '내 대본으로 해 보기',
@@ -934,6 +933,8 @@ const ko = {
   },
   voiceFeedback: {
     settingsSection: '실험 기능',
+    settingsTitle: '발음 피드백 (실험)',
+    settingsBody: '리딩이 끝나면 대본과 다르게 들린 어구를 짚어 줘요. 받아쓴 글로만 비교해요.',
     doneTitle: '발음 피드백',
     doneNote: '실험 기능 · 받아쓴 내 대사 {{n}}줄 중 {{k}}줄에 다르게 들린 곳',
     lineNo: '{{n}}번 대사',
@@ -1665,6 +1666,7 @@ const ko = {
     note: '자동으로 들은 결과라 틀릴 수 있어요.',
   },
   reading: {
+    recordForCoach: '이 대본으로 찍어서 코칭받기',
     entryCocreate: '대본 같이 만들기',
     entryCocreateSub: '감정과 상황을 골라 읽을 대본을 만들어요',
 

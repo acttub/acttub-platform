@@ -143,7 +143,7 @@ test('읽지 않은 알림이 없거나 못 읽으면 배지를 달지 않는다
   expect(screen.getByRole('tab', { name: '챌린지' })).toBeOnTheScreen();
 });
 
-test('안드로이드도 탭 이름 글자를 쓰지 않고 접근성 이름은 남긴다(SOMA-838)', async () => {
+test('안드로이드는 고른 탭에만 이름을 아이콘 아래에 쓴다 — 탭 이름 없애기는 iOS만(SOMA-838, 10/25 사용자)', async () => {
   // 플랫폼은 모듈을 읽을 때 정해지므로, 안드로이드로 바꾼 별도 모듈 묶음에서 레이아웃과 렌더러를 함께 읽는다.
   // 설정 파일의 안전 영역 목은 바깥 묶음의 React 로 컨텍스트를 읽어서, 이 시험 동안 고정 여백을 돌려주게 한다.
   const safeArea = jest.requireMock('react-native-safe-area-context') as { useSafeAreaInsets: jest.Mock };
@@ -158,11 +158,13 @@ test('안드로이드도 탭 이름 글자를 쓰지 않고 접근성 이름은 
       const view = await rtl.render(<AndroidLayout />);
 
       // 화면 매처는 바깥 묶음의 screen 을 보므로 이 묶음의 질의 결과를 직접 본다.
-      for (const name of TAB_NAMES) expect(view.queryByText(name)).toBeNull();
+      expect(view.queryByText('홈')).not.toBeNull();
+      expect(view.queryByText('리딩')).toBeNull();
 
       await rtl.fireEvent.press(view.getByRole('tab', { name: '리딩' }));
 
-      for (const name of TAB_NAMES) expect(view.queryByText(name)).toBeNull();
+      expect(view.queryByText('리딩')).not.toBeNull();
+      expect(view.queryByText('홈')).toBeNull();
       expect(view.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(TAB_NAMES);
       await view.unmount();
     });

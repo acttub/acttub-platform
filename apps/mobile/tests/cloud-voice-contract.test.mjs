@@ -20,7 +20,11 @@ test('설정과 공지 포스터 소스는 번역 키와 분석 소스를 사용
   }
   // 고품질 목소리는 항상 켜져 있어 대본 탭에도 설정에도 켜기·끄기가 없다(SOMA-841).
   assert.doesNotMatch(readFileSync(new URL('../app/(tabs)/reading.tsx', import.meta.url), 'utf8'), /\.enable\(|Switch/);
-  for (const key of ['settingsTitle', 'settingsBody', 'readingSection']) assert.doesNotMatch(ko, new RegExp(`${key}:`));
+  // cloudVoice 묶음만 본다 — 발음 피드백(voiceFeedback)의 settingsTitle·settingsBody 는 설정 화면이 아직 쓴다.
+  const koCloudVoice = ko.match(/\n  cloudVoice: \{[\s\S]*?\n  \}/)?.[0] ?? '';
+  assert.ok(koCloudVoice, 'ko.ts 에 cloudVoice 묶음이 있어야 한다');
+  for (const key of ['settingsTitle', 'settingsBody', 'readingSection']) assert.doesNotMatch(koCloudVoice, new RegExp(`${key}:`));
+  assert.match(ko.match(/\n  voiceFeedback: \{[\s\S]*?\n  \}/)?.[0] ?? '', /settingsTitle:/);
   assert.doesNotMatch(settings, /useCloudVoice/);
   assert.match(poster, /cloud\.enable\(\)/);
 });
