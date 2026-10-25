@@ -15,8 +15,12 @@ export const PAGING_MEDIA = "(min-width: 1024px) and (min-height: 640px)";
 /** sm 이상 머리(SiteHeader) 높이 */
 export const PAGING_HEADER = 72;
 const DURATION_MS = 700;
-/** 손짓 하나로 보는 휠 이벤트 간격. 이보다 오래 쉬면 다음 손짓이다. */
-const GESTURE_GAP_MS = 220;
+/**
+ * 손짓 하나로 보는 휠 이벤트 간격. 이보다 오래 쉬어야 다음 손짓이다.
+ * 트랙패드는 손을 뗀 뒤에도 관성 이벤트가 1초 넘게 이어지고, 맥의 마우스 휠도 한 칸에
+ * 여러 이벤트가 온다. 그래서 넘기는 중이든 넘긴 뒤든 이벤트가 이어지는 동안은 다시 넘기지 않는다.
+ */
+const GESTURE_GAP_MS = 240;
 const EDGE = 2;
 
 /** 멈출 자리(문서 기준 scrollY)들을 작은 순서로. 겹치는 자리는 하나로 친다. */
@@ -64,7 +68,6 @@ export function useSectionPaging(): void {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
     let animating = false;
     let lastWheel = 0;
-    let lastAbs = 0;
     let gestureUsed = false;
     let frame = 0;
 
@@ -102,12 +105,10 @@ export function useSectionPaging(): void {
       if (!media.matches || reduce.matches || e.ctrlKey) return;
       if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
       const now = performance.now();
-      const abs = Math.abs(e.deltaY);
-      // 오래 쉬었거나, 관성으로 줄어들던 값이 다시 커지면(새로 민 것) 새 손짓이다.
-      const fresh = now - lastWheel > GESTURE_GAP_MS || (abs > lastAbs * 1.6 && abs > 24);
+      // 이벤트가 끊김 없이 이어지면 같은 손짓(관성 포함)이다. 값이 다시 커져도 새 손짓으로 보지 않는다
+      // — 맥 휠 한 칸·트랙패드 시작은 값이 커지며 와서, 그렇게 보면 한 번에 두 칸 넘어간다.
+      if (now - lastWheel > GESTURE_GAP_MS) gestureUsed = false;
       lastWheel = now;
-      lastAbs = abs;
-      if (fresh) gestureUsed = false;
       const dir: 1 | -1 = e.deltaY > 0 ? 1 : -1;
       if (animating || gestureUsed) {
         e.preventDefault();
@@ -124,7 +125,8 @@ export function useSectionPaging(): void {
       const down = e.key === "PageDown" || e.key === "ArrowDown" || (e.key === " " && !e.shiftKey);
       const up = e.key === "PageUp" || e.key === "ArrowUp" || (e.key === " " && e.shiftKey);
       if (!down && !up) return;
-      if (animating) {
+      // 키를 누르고 있으면 반복 입력이 온다. 한 번 누름에 한 칸만 넘긴다.
+      if (animating || e.repeat) {
         e.preventDefault();
         return;
       }
