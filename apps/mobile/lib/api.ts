@@ -119,6 +119,7 @@ import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
 import type { BillingMe } from '@/lib/billing';
+import type { VerifyBody } from '@/lib/store-billing';
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 import type { DiscoveryPayload } from '@/lib/discovery';
 import type { AirbridgeDevicePayload } from '@/lib/airbridge-device';
@@ -422,6 +423,13 @@ export const api = {
   /** 구독 상태와 Pro 권한. 서버가 결제 기능을 닫아 두었으면 404 billing_unavailable — 앱은 Pro 진입점을 숨긴다. */
   billingMe(): Promise<BillingMe> {
     return request('/v2/billing/me', {}, { auth: true, timeoutMs: 10_000 });
+  },
+  /**
+   * 스토어 구독 검증(2단계). 구매 뒤 거래 JWS(iOS)·구매 토큰(Android)을 보내면 서버가 스토어 쪽으로 확인하고 Pro 를 켠 상태를 돌려준다.
+   * 같은 영수증을 다시 보내도 결과가 같다(멱등).
+   */
+  verifyStorePurchase(body: VerifyBody): Promise<BillingMe> {
+    return request('/v2/billing/store/verify', jsonInit(body), { auth: true, timeoutMs: 20_000 });
   },
 
 

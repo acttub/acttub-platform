@@ -101,6 +101,7 @@
         }
       ],
       "expo-video",
+      "expo-iap",
       "@react-native-firebase/app",
       "@react-native-firebase/analytics",
       "@react-native-firebase/crashlytics",

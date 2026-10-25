@@ -1,11 +1,12 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { ProBadge, ProBenefitRow } from '@/components/pro-ui';
 import { palette } from '@/constants/palette';
+import { openStoreSubscriptions } from '@/hooks/use-store-purchase';
 import { api } from '@/lib/api';
 import { billingClosed, managedNote, planLine, planTitle, type BillingMe } from '@/lib/billing';
 import { translate as t } from '@/lib/i18n';
@@ -34,7 +35,7 @@ export default function ProManageScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('pro.manageTitle')} left={<NavBackButton onPress={() => router.back()} />} />
       {!me ? (
-        <ActivityIndicator style={styles.loading} color={palette.blue} />
+        <Text style={styles.loading}>{t('pro.loadingPlan')}</Text>
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.body}>
@@ -51,6 +52,11 @@ export default function ProManageScreen() {
               <ProBenefitRow title={t('pro.rowPron')} sub={t('pro.managePron')} />
             </View>
             {managedNote(me) && <Text style={styles.note}>{managedNote(me)}</Text>}
+            {(me.provider === 'apple' || me.provider === 'google') && (
+              <Pressable onPress={() => void openStoreSubscriptions().catch(() => undefined)} accessibilityRole="link" hitSlop={8}>
+                <Text style={styles.manageLink}>{t('pro.manageStore')}</Text>
+              </Pressable>
+            )}
           </ScrollView>
         </>
       )}
@@ -60,7 +66,8 @@ export default function ProManageScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  loading: { marginTop: 80 },
+  loading: { marginTop: 80, textAlign: 'center', fontSize: 14, color: palette.textFaint },
+  manageLink: { fontSize: 14, fontWeight: '700', color: palette.blue, paddingHorizontal: 4, paddingVertical: 6 },
   body: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, gap: 18 },
   plan: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 18, gap: 8 },
   planWarn: { backgroundColor: palette.dangerSoft },
