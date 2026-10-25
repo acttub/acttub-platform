@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 
 import { palette } from '@/constants/palette';
 
@@ -27,7 +27,7 @@ export function SettingsCard({
   icon: FeatherName;
   title: string;
   sub?: string;
-  onPress?: () => void;
+  onPress?: (e?: GestureResponderEvent) => void;
   right?: ReactNode;
   iconColor?: string;
   position?: SettingsCardPosition;

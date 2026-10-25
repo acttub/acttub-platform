@@ -1,5 +1,5 @@
-// 랜딩(/). 이 브라우저에서 연습하던 게스트는 랜딩을 건너뛰고 /home 으로 가고, 연습 화면 로고처럼
-// ?intro=1 로 들어온 경우만 랜딩을 그대로 본다. 광고로 들어온 UTM 은 연습으로 가는 링크에 실린다.
+// 랜딩(/). 이 브라우저에서 연습하던 게스트도 랜딩을 그대로 보고, 첫 화면 링크만 「이어서 연습하기」로 바뀐다.
+// 광고로 들어온 UTM 은 연습으로 가는 링크에 실린다.
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 
@@ -104,31 +104,28 @@ test("광고로 들어온 UTM 은 웹 체험으로 가는 링크에 그대로 �
   );
 });
 
-test("이 브라우저에 게스트가 있으면 UTM 을 실은 채 /home 으로 옮긴다", () => {
+test("이 브라우저에 게스트가 있어도 홈에 머물고, 첫 화면 링크가 UTM 을 실은 「이어서 연습하기」가 된다", () => {
   setTokens({ access_token: "guest-access", refresh_token: "guest-refresh" });
   visit("?utm_source=naver&utm_medium=cpc");
 
   render(react.createElement(LandingClient));
 
-  assert.deepEqual(navigation.pushed, ["/home?utm_source=naver&utm_medium=cpc"]);
+  assert.deepEqual(navigation.pushed, []);
+  assert.equal(
+    screen.getByRole("link", { name: "이어서 연습하기 →" }).getAttribute("href"),
+    "/home?utm_source=naver&utm_medium=cpc",
+  );
+  assert.equal(screen.queryByRole("link", { name: "웹에서 먼저 해 보기 →" }), null);
 });
 
-test("게스트라도 ?intro=1 로 일부러 들어오면 랜딩을 그대로 보여 준다", () => {
+test("게스트가 ?intro=1 이나 소개 링크(#coaching)로 들어와도 홈을 그대로 보여 준다", () => {
   setTokens({ access_token: "guest-access", refresh_token: "guest-refresh" });
-  visit("?intro=1");
-
-  render(react.createElement(LandingClient));
-
-  assert.deepEqual(navigation.pushed, []);
-});
-
-test("게스트라도 머리 메뉴의 소개 링크(#coaching)로 들어오면 그 자리를 보여 준다", () => {
-  setTokens({ access_token: "guest-access", refresh_token: "guest-refresh" });
-  window.history.replaceState(null, "", "/#coaching");
-
-  render(react.createElement(LandingClient));
-
-  assert.deepEqual(navigation.pushed, []);
+  for (const url of ["/?intro=1", "/#coaching"]) {
+    window.history.replaceState(null, "", url);
+    render(react.createElement(LandingClient));
+    assert.deepEqual(navigation.pushed, []);
+    cleanup();
+  }
   window.history.replaceState(null, "", "/");
 });
 

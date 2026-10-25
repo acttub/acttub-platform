@@ -13,7 +13,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
@@ -51,6 +51,8 @@ import { pt } from '@/components/ui/anchored-menu';
 export default function ChallengePlayScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
+  // SafeAreaView 대신 루트 값을 쓴다 — 전체 화면 모달 안의 SafeAreaView 는 올라오는 중 받은 0을 고치지 않아 iOS 에서 닫기가 상태 표시줄 밑에 깔렸다.
+  const insets = useSafeAreaInsets();
   const { alert, confirm, sheet, dialog } = useAppDialog();
   const { user } = useAuth();
   const { id, entryId } = useLocalSearchParams<{ id?: string; entryId?: string }>();
@@ -430,7 +432,7 @@ export default function ChallengePlayScreen() {
         <View style={styles.scrimTop} pointerEvents="none" />
         <View style={styles.scrimBottom} pointerEvents="none" />
 
-        <SafeAreaView style={styles.overlay} edges={['top', 'bottom']} pointerEvents="box-none">
+        <View style={[styles.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]} pointerEvents="box-none">
           <View style={styles.top}>
             <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_close">
               <Feather name="x" size={26} color="#FFFFFF" />
@@ -517,7 +519,7 @@ export default function ChallengePlayScreen() {
               </Pressable>
             )}
           </View>
-        </SafeAreaView>
+        </View>
       </View>
     );
   };
@@ -528,14 +530,14 @@ export default function ChallengePlayScreen() {
       {!!error && <Text style={styles.error}>{error}</Text>}
       {/* 불러오는 중이거나 실패했을 때도 항상 닫을 수 있게 한다(SOMA-738). */}
       {(entries === null || !!error) && (
-        <SafeAreaView style={styles.loadingClose} edges={['top']} pointerEvents="box-none">
+        <View style={[styles.loadingClose, { paddingTop: 8 + insets.top }]} pointerEvents="box-none">
           <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="challenge_play_close">
             <Feather name="x" size={26} color="#FFFFFF" />
           </Pressable>
-        </SafeAreaView>
+        </View>
       )}
       {entries !== null && entries.length === 0 && !error && (
-        <SafeAreaView style={styles.emptyWrap} edges={['top', 'bottom']}>
+        <View style={[styles.emptyWrap, { paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom }]}>
           <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_close" style={styles.emptyClose}>
             <Feather name="x" size={26} color="#FFFFFF" />
           </Pressable>
@@ -547,7 +549,7 @@ export default function ChallengePlayScreen() {
               <Text style={styles.performText}>{t('challenges.performCta')}</Text>
             </Pressable>
           )}
-        </SafeAreaView>
+        </View>
       )}
       {entries !== null && entries.length > 0 && (
         <FlatList
@@ -609,7 +611,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  loadingClose: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8 },
+  loadingClose: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16 },
   playFail: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   playFailCard: { alignItems: 'center', gap: 8, borderRadius: 20, backgroundColor: 'rgba(30,30,30,0.85)', paddingVertical: 22, paddingHorizontal: 24, alignSelf: 'stretch' },
   playFailTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textAlign: 'center', marginTop: 4 },

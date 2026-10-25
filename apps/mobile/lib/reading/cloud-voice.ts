@@ -9,10 +9,11 @@ export type CloudVoiceStatus = {
 };
 
 export type CloudVoicePreset = 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'F1' | 'F2' | 'F3' | 'F4' | 'F5';
+export const CLOUD_VOICE_KEY = 'acttub.cloudVoice';
 
-/** 고품질 목소리는 기기에서 끄지 않는다(SOMA-841) — 서버가 쓰게 하고 동의했고 한도가 남았으면 쓴다. */
-export function shouldUseCloudVoice(status: CloudVoiceStatus | null): boolean {
-  return !!(status?.available && status.consent === 'granted' && status.daily_used < status.daily_limit);
+export function shouldUseCloudVoice(input: { enabled: boolean; status: CloudVoiceStatus | null }): boolean {
+  const { enabled, status } = input;
+  return !!(enabled && status?.available && status.consent === 'granted' && status.daily_used < status.daily_limit);
 }
 
 export function shouldStopCloudVoiceForSession(error: { status?: number } | null | undefined): boolean {
@@ -22,6 +23,21 @@ export function shouldStopCloudVoiceForSession(error: { status?: number } | null
 /** 요청 자체가 잘못됐다는 거절 — 같은 줄을 다시 보내도 같은 답이다. */
 export function isRejectedCloudVoiceRequest(error: { status?: number } | null | undefined): boolean {
   return error?.status === 400;
+}
+
+type Storage = { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<void> };
+function storage(): Storage {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('@react-native-async-storage/async-storage').default as Storage;
+}
+
+export async function loadCloudVoiceEnabled(): Promise<boolean> {
+  // 기본은 켜짐(10/25 사용자 결정) — 끈 적이 있을 때만 끈다. 켜져 있어도 동의·서버 한도가 따로 막는다(shouldUseCloudVoice).
+  try { return (await storage().getItem(CLOUD_VOICE_KEY)) !== 'off'; } catch { return true; }
+}
+
+export async function saveCloudVoiceEnabled(enabled: boolean): Promise<void> {
+  await storage().setItem(CLOUD_VOICE_KEY, enabled ? 'on' : 'off');
 }
 
 /** 동의 시트가 제목을 따로 보여 주므로 문서 첫 줄의 `# 제목` 은 떼고 본문만 그린다. */

@@ -22,7 +22,41 @@ function deviceLanguage(): 'ko' | 'en' {
   }
 }
 
-const language = deviceLanguage();
+/**
+ * 설정에서 고른 표시 언어(SOMA-827 후속). 'system' 이면 기기 언어를 따른다.
+ * 표시 언어는 앱이 켜질 때 한 번 정한다 — 화면 곳곳이 모듈을 불러올 때 문구를 만들어 두므로, 바꾼 언어는 앱을 다시 켜야 적용된다.
+ * 동기로 읽어야 해서 SecureStore 의 getItem(동기)을 쓴다. 기기 설정이라 로그아웃·탈퇴로 지우지 않는다.
+ */
+export type LanguagePreference = 'system' | 'ko' | 'en';
+const LANGUAGE_KEY = 'acttub.language';
+
+function storedPreference(): LanguagePreference {
+  try {
+    const store = require('expo-secure-store') as { getItem(key: string): string | null };
+    const value = store.getItem(LANGUAGE_KEY);
+    return value === 'ko' || value === 'en' ? value : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+const preference = storedPreference();
+const language = preference === 'system' ? deviceLanguage() : preference;
+
+/** 이번 실행이 쓰는 설정 값(켤 때 읽은 것). */
+export function languagePreference(): LanguagePreference {
+  return preference;
+}
+
+/** 다음에 켤 때 쓸 언어를 저장한다. 지금 켜진 앱의 말은 바뀌지 않는다. */
+export async function saveLanguagePreference(next: LanguagePreference): Promise<void> {
+  const store = require('expo-secure-store') as {
+    setItemAsync(key: string, value: string): Promise<void>;
+    deleteItemAsync(key: string): Promise<void>;
+  };
+  if (next === 'system') await store.deleteItemAsync(LANGUAGE_KEY);
+  else await store.setItemAsync(LANGUAGE_KEY, next);
+}
 const tables: Record<'ko' | 'en', object> = { ko, en };
 
 /** 'a.b.c' 키로 중첩 객체를 내려간다. 키 조각에 점은 못 쓴다('그 외'는 괜찮다). */

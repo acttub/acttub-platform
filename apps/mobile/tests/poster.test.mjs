@@ -22,8 +22,8 @@ import {
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const now = Date.parse('2026-10-05T12:00:00+09:00');
 const today = koreaDay(now);
-const off = { available: true, consent: 'undecided' };
-const on = { available: true, consent: 'granted' };
+const off = { available: true, enabled: false, consent: 'undecided' };
+const on = { available: true, enabled: true, consent: 'granted' };
 
 function poster(overrides = {}) {
   return {
@@ -78,6 +78,8 @@ test('cloud_voice_off 는 고품질 목소리를 쓸 수 있고 아직 켜지 �
   const promo = poster({ slug: 'cv', audience: 'cloud_voice_off' });
   assert.equal(pickPoster([promo], {}, { today, cloudVoice: off })?.slug, 'cv');
   assert.equal(pickPoster([promo], {}, { today, cloudVoice: { ...off, consent: 'denied' } })?.slug, 'cv');
+  assert.equal(pickPoster([promo], {}, { today, cloudVoice: { ...off, enabled: true } })?.slug, 'cv',
+    '켰지만 동의가 없으면 아직 안 켠 것이다');
   assert.equal(pickPoster([promo], {}, { today, cloudVoice: on }), null);
   assert.equal(pickPoster([promo], {}, { today, cloudVoice: { ...off, available: false } }), null);
   assert.equal(pickPoster([promo], {}, { today, cloudVoice: null }), null, '상태를 모르면 띄우지 않는다');
@@ -151,7 +153,7 @@ test('소스 계약: 홈은 AnnouncementPoster 를 쓰고 옛 홍보 컴포넌�
   const component = read('../components/announcement-poster.tsx');
   for (const event of ['poster_shown', 'poster_cta', 'poster_close', 'poster_dismiss']) assert.match(component, new RegExp(`'${event}'`));
   assert.doesNotMatch(component, /cloud_voice_promo_/);
-  assert.match(component, /cloud\.enable\(\)/);
+  assert.match(component, /enable\('promo'\)/);
   assert.match(component, /api\.getPosters\(/);
   const api = read('../lib/api.ts');
   assert.match(api, /getPosters\(/);

@@ -37,7 +37,7 @@ export type PosterContext = {
   /** 기기 현지 날짜(YYYY-MM-DD). */
   today: string;
   /** 고품질 목소리 상태. 모르면 null — 그때 cloud_voice_off 포스터는 띄우지 않는다. */
-  cloudVoice: { available: boolean; consent: CloudVoiceConsent } | null;
+  cloudVoice: { available: boolean; enabled: boolean; consent: CloudVoiceConsent } | null;
 };
 
 export const POSTERS_KEY = 'acttub.posters';
@@ -100,7 +100,7 @@ export function recordFor(state: PosterState, poster: Pick<Poster, 'slug' | 'rev
 
 function wantsCloudVoice(ctx: PosterContext): boolean {
   const cloud = ctx.cloudVoice;
-  return !!cloud && cloud.available && cloud.consent !== 'granted';
+  return !!cloud && cloud.available && !(cloud.enabled && cloud.consent === 'granted');
 }
 
 export function isEligible(poster: Poster, state: PosterState, ctx: PosterContext): boolean {
