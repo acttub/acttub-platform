@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { SubscribeButton } from "@/features/billing/subscribe-button";
+import { WEB_BILLING_ENABLED } from "@/features/billing/billing-flow";
 import { BusinessInfo } from "@/features/business-info/business-info";
 import {
   BadgePanel,
@@ -43,7 +45,7 @@ export default function PricingPage() {
             </div>
             <p className="mt-3 text-sm font-bold text-[#6b7684]">부가세 포함 · 결제일부터 1개월 · 매월 정기결제</p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <Link href="/pg-review" className="inline-flex h-12 items-center rounded-2xl bg-[#3182f6] px-6 text-base font-black text-white shadow-[0_14px_34px_rgba(49,130,246,0.28)] transition hover:bg-[#1b64da]">Pro 구독하기</Link>
+              {WEB_BILLING_ENABLED ? <SubscribeButton className="inline-flex h-12 items-center rounded-2xl bg-[#3182f6] px-6 text-base font-black text-white shadow-[0_14px_34px_rgba(49,130,246,0.28)] transition hover:bg-[#1b64da]">Pro 구독하기</SubscribeButton> : <Link href="/pg-review" className="inline-flex h-12 items-center rounded-2xl bg-[#3182f6] px-6 text-base font-black text-white shadow-[0_14px_34px_rgba(49,130,246,0.28)] transition hover:bg-[#1b64da]">Pro 구독하기</Link>}
               <a href="#compare" className="inline-flex h-12 items-center rounded-2xl bg-[#191f28] px-6 text-base font-black text-white shadow-[0_14px_34px_rgba(25,31,40,0.18)] transition hover:bg-[#333d4b]">무료와 Pro 비교</a>
               <Link href="/refund" className="inline-flex h-12 items-center rounded-2xl border border-[#d1d6db] bg-white px-6 text-base font-black text-[#191f28] transition hover:bg-[#f9fafb]">해지·환불정책</Link>
             </div>
@@ -82,7 +84,7 @@ export default function PricingPage() {
                 <li className="flex gap-3"><CheckIcon className="mt-1 text-[#8fbfff]" />리딩에서 발음·딕션 피드백을 확인해요. 이 기능은 Pro 전용으로 준비 중이에요.</li>
                 <li className="flex gap-3"><CheckIcon className="mt-1 text-[#8fbfff]" />챌린지 참여작·댓글·프로필에 Pro 배지를 표시해요. 구독 표시이며 배우의 실력이나 자격을 인증하는 표시는 아니에요.</li>
               </ul>
-              <Link href="/pg-review" className="mt-7 flex h-14 w-full items-center justify-center rounded-2xl bg-white text-lg font-black text-[#191f28] transition hover:bg-[#f2f4f6]">Pro 구독하기</Link>
+              {WEB_BILLING_ENABLED ? <SubscribeButton className="mt-7 flex h-14 w-full items-center justify-center rounded-2xl bg-white text-lg font-black text-[#191f28] transition hover:bg-[#f2f4f6]">Pro 구독하기</SubscribeButton> : <Link href="/pg-review" className="mt-7 flex h-14 w-full items-center justify-center rounded-2xl bg-white text-lg font-black text-[#191f28] transition hover:bg-[#f2f4f6]">Pro 구독하기</Link>}
               <p className="mt-3 text-sm font-bold leading-6 text-[#b0b8c1]">결제 시작 전에는 실제로 결제되지 않아요. 무료 이용자가 동의 없이 유료로 전환되지는 않아요.</p>
             </div>
           </section>
