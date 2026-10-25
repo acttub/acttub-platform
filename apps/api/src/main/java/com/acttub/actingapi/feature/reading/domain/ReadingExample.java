@@ -11,8 +11,10 @@ import java.util.List;
  *
  * @param characters 배역 이름. 줄의 {@code character} 가 이 자리(0부터)를 가리킨다
  * @param lines 줄 순서대로. ordinal 은 자리 + 1 이다
+ * @param audio 미리 만든 상대역 음성(V62). 없으면 {@code null}
  */
-public record ReadingExample(String id, String title, String summary, String rawText, List<String> characters, List<Line> lines) {
+public record ReadingExample(String id, String title, String summary, String rawText, List<String> characters, List<Line> lines,
+        ReadingExampleAudio audio) {
 
     /** 목록 미리보기 줄 수. */
     public static final int PREVIEW_LINES = 5;
@@ -20,6 +22,11 @@ public record ReadingExample(String id, String title, String summary, String raw
     public ReadingExample {
         characters = List.copyOf(characters);
         lines = List.copyOf(lines);
+    }
+
+    /** 미리 만든 음성이 없는 예시. */
+    public ReadingExample(String id, String title, String summary, String rawText, List<String> characters, List<Line> lines) {
+        this(id, title, summary, rawText, characters, lines, null);
     }
 
     /** 대본 저장에 넘길 모양. 입력 경로는 {@code sample}, 제목은 예시 제목. */
