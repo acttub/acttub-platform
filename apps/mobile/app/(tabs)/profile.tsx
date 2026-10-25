@@ -49,7 +49,6 @@ export default function ProfileScreen() {
   const [groups, setGroups] = useState<PracticeGroupDetail[] | null>(null);
   const [entries, setEntries] = useState<MyEntryCard[] | null>(null);
   const [saved, setSaved] = useState<EntryCard[] | null>(null);
-  const [memoryCount, setMemoryCount] = useState<number | null>(null);
   const [counts, setCounts] = useState<MonthPracticeCounts>(EMPTY_COUNTS);
   const serverProfile = profile.me?.profile ?? null;
   const photoUri = serverProfile?.photo_url ?? null;
@@ -100,10 +99,6 @@ export default function ProfileScreen() {
         .listSavedEntries()
         .then((r) => alive && setSaved(r.entries))
         .catch(() => alive && setSaved([]));
-      void api
-        .actorMemory()
-        .then((r) => alive && setMemoryCount(r.items.length))
-        .catch(() => {});
       return () => {
         alive = false;
       };
@@ -170,18 +165,7 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        <Pressable
-          style={({ pressed }) => [styles.line, pressed && styles.pressed]}
-          onPress={() => router.push({ pathname: '/memory', params: { from: 'profile' } })}
-          accessibilityRole="button">
-          <Ionicons name="sparkles-outline" size={20} color={palette.textDim} />
-          <Text style={styles.lineTitle}>{t('profileTab.memoryTitle')}</Text>
-          <Text style={styles.lineValue}>
-            {memoryCount === null ? '' : t('profileTab.memoryCount', { count: memoryCount })}
-          </Text>
-          <Feather name="chevron-right" size={18} color={palette.checkOff} />
-        </Pressable>
-
+        {/* 「코치가 기억하는 것」 바로가기는 뺐다(10/25 결정) — 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다. */}
         <View style={styles.month}>
           <MonthCell label={t('profileTab.monthLabel')} count={counts.total} />
           <MonthCell dot={palette.blue} label={t('profileTab.kindCoaching')} count={counts.coaching} />
@@ -389,7 +373,6 @@ const HEART = '#FF3B5C';
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  pressed: { opacity: 0.7 },
   content: { paddingHorizontal: 20, paddingTop: 4 },
   top: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginRight: -10 },
   title: { fontSize: 22, fontWeight: '800', color: palette.text },
@@ -426,9 +409,6 @@ const styles = StyleSheet.create({
   editBtn: { alignSelf: 'flex-start', backgroundColor: palette.bgSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   editText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
 
-  line: { marginTop: 18, height: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  lineTitle: { fontSize: 15, fontWeight: '700', color: palette.text },
-  lineValue: { flex: 1, textAlign: 'right', fontSize: 13, fontWeight: '600', color: palette.textMuted },
 
   month: { flexDirection: 'row', paddingVertical: 6 },
   monthCell: { flex: 1, alignItems: 'center', gap: 2 },
