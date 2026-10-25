@@ -17,6 +17,11 @@ jest.mock('@/lib/reading/voice-feedback-setting', () => ({ loadVoiceFeedbackEnab
 jest.mock('@/lib/api', () => ({ api: { consentEntry: jest.fn(), recordConsent: jest.fn() } }));
 jest.mock('@/lib/store-review', () => ({ openStoreReviewPage: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: jest.fn() }));
+jest.mock('@/lib/i18n', () => ({
+  ...jest.requireActual('@/lib/i18n'),
+  languagePreference: () => 'system',
+  saveLanguagePreference: jest.fn(async () => undefined),
+}));
 jest.mock('@/lib/notifications', () => ({
   DEFAULT_NOTIFICATION_SETTINGS: { analysis_done: true, challenge: true, evening_reminder: true },
   loadNotificationSettings: jest.fn(),
@@ -463,5 +468,29 @@ describe('설정', () => {
     await settingsLoaded();
     await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('언어(SOMA-827 후속)', () => {
+  test('프로필 묶음에 언어 줄이 있고, 고르면 저장하고 다시 켜면 바뀐다고 알린다', async () => {
+    const { saveLanguagePreference } = jest.requireMock('@/lib/i18n');
+    await settingsLoaded();
+
+    expect(screen.getByText('언어')).toBeOnTheScreen();
+    expect(screen.getByText('기기 설정 따름')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('언어'));
+    expect(screen.getByText('한국어')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('English'));
+
+    expect(saveLanguagePreference).toHaveBeenCalledWith('en');
+    expect(await screen.findByText('앱을 완전히 껐다 켜면 English로 바뀌어요.')).toBeOnTheScreen();
+  });
+
+  test('지금과 같은 것을 고르면 저장하지 않는다', async () => {
+    const { saveLanguagePreference } = jest.requireMock('@/lib/i18n');
+    await settingsLoaded();
+    await fireEvent.press(screen.getByText('언어'));
+    await fireEvent.press(screen.getAllByText('기기 설정 따름').at(-1)!);
+    expect(saveLanguagePreference).not.toHaveBeenCalled();
   });
 });
