@@ -28,6 +28,7 @@ import type {
   ScriptListResponse,
   ScriptLine,
   ScriptScene,
+  ScriptSource,
   SessionCard,
   SessionDetail,
   StartSessionBody,
@@ -45,6 +46,8 @@ export type DevicePrefs = {
 export interface SavedScript extends DevicePrefs {
   id: string;
   title: string;
+  /** 입력 경로. sample 이면 예시에서 왔을 수 있다(예시 음성을 쓰는지는 서버가 정한다, example-audio). */
+  source?: ScriptSource;
   /** 배역 이름(대본의 배역 순서). 줄의 role 과 같은 값이다. */
   roles: string[];
   characters: ScriptCharacter[];
@@ -188,6 +191,7 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
     ...merged,
     id: detail.id,
     title: detail.title,
+    source: detail.source,
     roles: characters.map((c) => c.name),
     characters,
     lines: screenLines,

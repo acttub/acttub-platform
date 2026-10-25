@@ -96,8 +96,8 @@ class ReadingConfiguration {
     }
 
     @Bean
-    ReadingExampleService readingExampleService(ReadingExampleRepository examples, ScriptService scripts) {
-        return new ReadingExampleService(examples, scripts);
+    ReadingExampleService readingExampleService(ReadingExampleRepository examples, ScriptService scripts, VoiceModelStorage storage) {
+        return new ReadingExampleService(examples, scripts, storage);
     }
 
     @Bean

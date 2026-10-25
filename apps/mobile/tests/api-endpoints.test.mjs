@@ -72,6 +72,8 @@ const CASES = [
     { method: 'post', path: `/v2/portfolio/photos/${id(6)}/complete` }, { body: sample('Portfolio') }],
   ['deletePortfolioPhoto', () => api.deletePortfolioPhoto(id(6)),
     { method: 'delete', path: `/v2/portfolio/photos/${id(6)}` }, { status: 204 }],
+  ['getExampleAudio', () => api.getExampleAudio(id(11)),
+    { method: 'get', path: `/v2/reading/scripts/${id(11)}/example-audio` }, { body: sample('ReadingExampleAudio') }],
   ['listReadingExamples', () => api.listReadingExamples(),
     { method: 'get', path: '/v2/reading/examples' }, { body: sample('ReadingExampleList') }],
   ['startReadingExample', () => api.startReadingExample('cafe', { request_id: id(9) }),

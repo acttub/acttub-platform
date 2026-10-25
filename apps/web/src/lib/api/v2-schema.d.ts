@@ -1846,6 +1846,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/scripts/{script_id}/example-audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reading Example Audio
+         * @description 예시를 복사한 내 대본의 미리 만든 상대역 음성. 대본의 원문이 켜진 예시와 같고 그 예시에 음성이 있으면 200 —
+         *     voices 는 배역 이름 → 음성을 만든 프리셋, lines 는 예시와 같은 자리·같은 배역·같은 글인 대사 줄마다 line_id 와 1시간
+         *     임시 주소(url)·길이(duration_ms)다. 고친 줄은 빠진다. 상대역이 없는 예시(독백)는 lines 가 비어 있다. 없는 것·남의
+         *     대본 404 script_not_found, 예시가 아니거나 음성이 없는 예시 404 reading_example_audio_not_found.
+         */
+        get: operations["get_reading_example_audio_v2_reading_scripts__script_id__example_audio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/imports/{import_id}": {
         parameters: {
             query?: never;
@@ -5148,6 +5171,29 @@ export interface components {
         ReadingSessionList: {
             /** Sessions */
             sessions: components["schemas"]["ReadingSessionCard"][];
+        };
+        /** ReadingExampleAudio */
+        ReadingExampleAudio: {
+            /** Example Id */
+            example_id: string;
+            /** Voices */
+            voices: {
+                [key: string]: string;
+            };
+            /** Lines */
+            lines: components["schemas"]["ReadingExampleAudioLine"][];
+        };
+        /** ReadingExampleAudioLine */
+        ReadingExampleAudioLine: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /** Url */
+            url: string;
+            /** Duration Ms */
+            duration_ms: number;
         };
         /** ReadingImport */
         ReadingImport: {
@@ -9449,6 +9495,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadingLineMemorization"][];
+                };
+            };
+        };
+    };
+    get_reading_example_audio_v2_reading_scripts__script_id__example_audio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingExampleAudio"];
                 };
             };
         };

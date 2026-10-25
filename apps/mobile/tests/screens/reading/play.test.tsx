@@ -17,6 +17,7 @@ import { missingModelBytes, removeDownloadedAssets } from '@/lib/reading/tts/ass
 import { hasDeviceVoice, speakWithDevice } from '@/lib/reading/tts/device-voice';
 import * as tts from '@/lib/reading/tts/engine';
 import { VoicePrepareError } from '@/lib/reading/tts/voice-errors';
+import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/reading/example-audio-runtime';
 import type { SessionDetail } from '@/lib/reading/types';
 import type { VadEvent } from '@/lib/reading/vad';
 import { currentTutorial, startTutorial } from '@/lib/tutorial';
@@ -80,6 +81,11 @@ jest.mock('@/lib/reading/tts/device-voice', () => ({
 }));
 jest.mock('@/lib/reading/network', () => ({ currentNetworkType: jest.fn() }));
 jest.mock('@/lib/reading/cloud-voice-runtime', () => ({ synthesizeCloudSpeech: jest.fn() }));
+jest.mock('@/lib/reading/example-audio-runtime', () => ({
+  loadExampleAudio: jest.fn(),
+  exampleLineUri: jest.fn(),
+  prefetchExampleLines: jest.fn(async () => undefined),
+}));
 jest.mock('@/lib/reading/recording-runner', () => ({
   enqueueLineRecording: jest.fn(),
   onRecordingQueueChange: jest.fn(() => () => undefined),
@@ -152,6 +158,8 @@ beforeEach(async () => {
   jest.mocked(missingModelBytes).mockReturnValue(0);
   jest.mocked(currentNetworkType).mockResolvedValue('wifi');
   jest.mocked(tts.ensureReady).mockResolvedValue(undefined);
+  jest.mocked(loadExampleAudio).mockResolvedValue(null);
+  jest.mocked(exampleLineUri).mockImplementation(async (_audio, lineId) => `file:///example-${lineId}.mp3`);
   jest.mocked(tts.isReady).mockReturnValue(true);
   jest.mocked(tts.play).mockResolvedValue(undefined);
   jest.mocked(tts.speak).mockResolvedValue(undefined);
@@ -1941,4 +1949,89 @@ test('첫 리딩 버튼 안내가 떠 있는 동안은 말이 끝나도 넘기�
   // 안내 중에 끝난 말은 닫은 뒤에 넘긴다(미뤄 둔 넘김). 아직 듣는 중이면 말이 끝나야 넘어간다.
   if (mic) await speechEnds();
   expect(await screen.findByText(/처음인데 끝까지 읽었어요/, {}, { timeout: 4000 })).toBeOnTheScreen();
+});
+
+// ── 예시 대본의 미리 만든 음성(example-audio) ─────────────────────────────────────────
+function exampleAudio(voices: Record<string, string>, lineIds: string[]) {
+  return {
+    exampleId: 'rooftop',
+    voices,
+    lines: new Map(lineIds.map((id) => [id, { url: `https://cdn.test/${id}.mp3?sig=1`, durationMs: 1000 }])),
+  };
+}
+
+test('예시 대본이고 목소리를 안 바꿨으면 모델을 받지도 묻지도 않고 미리 만든 음성으로 상대 대사를 읽는다', async () => {
+  jest.mocked(missingModelBytes).mockReturnValue(400 * 1024 * 1024);
+  jest.mocked(currentNetworkType).mockResolvedValue('cellular');
+  jest.mocked(loadExampleAudio).mockResolvedValue(exampleAudio({ 민재: 'M1', 서연: 'F1' }, ['l2', 'l4', 'l5']));
+  await startPlay(PARTNER_FIRST, scriptDetail(TWO_ROLE_LINES, { source: 'sample' }));
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(loadExampleAudio).toHaveBeenCalledWith('s1', { fresh: true });
+  expect(exampleLineUri).toHaveBeenCalledWith(expect.objectContaining({ exampleId: 'rooftop' }), 'l4');
+  expect(tts.play).toHaveBeenCalledWith('file:///example-l4.mp3');
+  expect(prefetchExampleLines).toHaveBeenCalledWith(expect.objectContaining({ exampleId: 'rooftop' }), ['l4'], expect.any(Function));
+  expect(screen.queryByText('상대역 목소리를 내려받을까요?')).not.toBeOnTheScreen();
+  expect(tts.ensureReady).not.toHaveBeenCalled();
+  expect(tts.createQueueFor).not.toHaveBeenCalled();
+  expect(speakWithDevice).not.toHaveBeenCalled();
+});
+
+test('예시 음성이 없는 줄·받지 못한 줄은 모델이 아니라 기기 목소리로 읽는다', async () => {
+  jest.mocked(loadExampleAudio).mockResolvedValue(exampleAudio({ 서연: 'F1' }, []));
+  await startPlay(PARTNER_FIRST, scriptDetail(TWO_ROLE_LINES, { source: 'sample' }));
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
+  expect(tts.play).not.toHaveBeenCalled();
+  expect(tts.ensureReady).not.toHaveBeenCalled();
+});
+
+test('예시 음성을 받다 실패하면 그 줄은 기기 목소리로 읽는다', async () => {
+  jest.mocked(loadExampleAudio).mockResolvedValue(exampleAudio({ 서연: 'F1' }, ['l4']));
+  jest.mocked(exampleLineUri).mockRejectedValue(new Error('timeout'));
+  await startPlay(PARTNER_FIRST, scriptDetail(TWO_ROLE_LINES, { source: 'sample' }));
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
+  expect(tts.ensureReady).not.toHaveBeenCalled();
+});
+
+test('예시 음성이 없고 기기 목소리도 없으면 글로 보인다', async () => {
+  jest.mocked(hasDeviceVoice).mockResolvedValue(false);
+  jest.mocked(loadExampleAudio).mockResolvedValue(exampleAudio({ 서연: 'F1' }, []));
+  await startPlay(PARTNER_FIRST, scriptDetail(TWO_ROLE_LINES, { source: 'sample' }));
+
+  expect(await screen.findByText('글로 보기')).toBeOnTheScreen();
+  expect(tts.ensureReady).not.toHaveBeenCalled();
+});
+
+test('예시 대본이어도 상대역 목소리를 바꿨으면 지금처럼 모델 내려받기를 묻는다', async () => {
+  jest.mocked(missingModelBytes).mockReturnValue(400 * 1024 * 1024);
+  jest.mocked(currentNetworkType).mockResolvedValue('cellular');
+  jest.mocked(loadExampleAudio).mockResolvedValue(exampleAudio({ 민재: 'M1', 서연: 'F3' }, ['l4']));
+  await startPlay(PARTNER_FIRST, scriptDetail(TWO_ROLE_LINES, { source: 'sample' }), { begin: false });
+
+  expect(await screen.findByText('상대역 목소리를 내려받을까요?')).toBeOnTheScreen();
+  expect(exampleLineUri).not.toHaveBeenCalled();
+});
+
+test('고품질 목소리를 쓰는 사람은 예시 대본이어도 고품질 목소리가 먼저다', async () => {
+  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
+  jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
+  jest.mocked(loadExampleAudio).mockResolvedValue(exampleAudio({ 서연: 'F1' }, ['l4']));
+  await startPlay(PARTNER_FIRST, scriptDetail(TWO_ROLE_LINES, { source: 'sample' }));
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(jest.mocked(tts.createQueueFor).mock.calls[0]).toEqual(['s1', expect.objectContaining({ cloud: true })]);
+  expect(exampleLineUri).not.toHaveBeenCalled();
+});
+
+test('예시가 아닌 대본(서버 404 → null)은 지금처럼 모델로 읽는다', async () => {
+  await startPlay(PARTNER_FIRST);
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(loadExampleAudio).toHaveBeenCalledWith('s1', { fresh: true });
+  expect(tts.ensureReady).toHaveBeenCalled();
+  expect(exampleLineUri).not.toHaveBeenCalled();
 });

@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.reading;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.time.OffsetDateTime;
@@ -19,6 +20,8 @@ import com.acttub.actingapi.feature.reading.domain.SampleScript;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.GenerationOptions;
 import com.acttub.actingapi.integration.llm.TextGenerator;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -54,7 +57,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
     "CHALLENGE_SETTLEMENT_ENABLED=false"
 })
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, ReadingExampleIT.Model.class})
+@Import({MutableClock.Fixture.class, ReadingExampleIT.Model.class, ReadingExampleIT.Storage.class})
 class ReadingExampleIT {
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
@@ -72,6 +75,37 @@ class ReadingExampleIT {
                 @Override public GeneratedText generate(String instructions, String input, GenerationOptions options) {
                     CALLS.add(input);
                     throw new IllegalStateException("예시 대본 복사는 모델을 부르지 않는다");
+                }
+            };
+        }
+    }
+
+    /** 서명하지 않고 키를 그대로 보이는 스토리지 — 주소에 든 키로 어느 파일인지 본다. */
+    @TestConfiguration
+    static class Storage {
+        @Bean @Primary ObjectStorage signingOnlyStorage() {
+            return new ObjectStorage() {
+                @Override public String presignUpload(String key, String mimeType, long sizeBytes, int expiresInSeconds) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override public String presignPlayback(String key, int expiresInSeconds) {
+                    return "https://storage.test/get/" + key + "?ttl=" + expiresInSeconds;
+                }
+
+                @Override public StoredObjectMetadata head(String key) {
+                    return null;
+                }
+
+                @Override public StoredObjectMetadata downloadToPath(String key, java.nio.file.Path destination) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override public void upload(String key, String mimeType, java.nio.file.Path source) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override public void delete(String key) {
                 }
             };
         }
@@ -238,6 +272,95 @@ class ReadingExampleIT {
         assertThat(json(post("/v2/reading/examples/{id}/start", "minji").content(start(UUID.randomUUID())), 403, bearer)
                 .path("detail").textValue()).isEqualTo("account_deactivated");
         assertThat(count("scripts")).isZero();
+    }
+
+    @Test
+    @DisplayName("예시 음성: 복사한 rooftop 은 대사 15줄 모두 그 줄 id·1시간 주소(reading-examples/v1/rooftop/<자리>.m4a)·길이, voices 는 서버 자동 목소리와 같다")
+    void exampleAudioForEveryDialogueLine() throws Exception {
+        String scriptId = json(post("/v2/reading/examples/{id}/start", "rooftop").content(start(UUID.randomUUID())), 201, bearer)
+                .path("script_id").textValue();
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200, bearer);
+        JsonNode audio = json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 200, bearer);
+
+        assertThat(audio.fieldNames()).toIterable().containsExactlyInAnyOrder("example_id", "voices", "lines");
+        assertThat(audio.path("example_id").textValue()).isEqualTo("rooftop");
+        assertThat(audio.path("voices")).isEqualTo(mapper.readTree("{\"윤서\":\"F1\",\"태오\":\"M1\"}"));
+        for (JsonNode character : script.path("characters")) {
+            assertThat(character.path("voice").textValue()).as("갓 복사한 대본의 자동 목소리와 음성의 목소리가 같다")
+                    .isEqualTo(audio.path("voices").path(character.path("name").textValue()).textValue());
+        }
+        List<JsonNode> dialogue = new java.util.ArrayList<>();
+        script.path("lines").forEach(line -> {
+            if ("dialogue".equals(line.path("kind").textValue())) dialogue.add(line);
+        });
+        JsonNode lines = audio.path("lines");
+        assertThat(lines).hasSize(15).hasSize(dialogue.size());
+        for (int i = 0; i < lines.size(); i++) {
+            JsonNode line = lines.get(i);
+            assertThat(line.fieldNames()).toIterable().containsExactlyInAnyOrder("line_id", "url", "duration_ms");
+            assertThat(line.path("line_id").textValue()).isEqualTo(dialogue.get(i).path("id").textValue());
+            assertThat(line.path("url").textValue()).isEqualTo("https://storage.test/get/reading-examples/v1/rooftop/"
+                    + dialogue.get(i).path("ordinal").intValue() + ".m4a?ttl=3600");
+            assertThat(line.path("duration_ms").intValue()).isPositive();
+        }
+        assertThat(lines.get(0).path("url").textValue()).contains("/rooftop/2.m4a");
+    }
+
+    @Test
+    @DisplayName("예시 음성: 고친 줄은 빠지고 나머지는 그대로 — cafe 의 둘째 줄 글을 고치면 14줄")
+    void editedLineIsOmitted() throws Exception {
+        String scriptId = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 201, bearer)
+                .path("script_id").textValue();
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200, bearer);
+        String edited = script.path("lines").get(1).path("id").textValue();
+        json(patch("/v2/reading/scripts/{id}/lines/{line}", scriptId, edited).content("{\"text\":\"일찍 왔구나.\"}"), 200, bearer);
+
+        JsonNode lines = json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 200, bearer).path("lines");
+        assertThat(lines).hasSize(14);
+        assertThat(lines).extracting(line -> line.path("line_id").textValue()).doesNotContain(edited)
+                .contains(script.path("lines").get(2).path("id").textValue());
+        assertThat(lines.get(0).path("url").textValue()).contains("/cafe/3.m4a");
+    }
+
+    @Test
+    @DisplayName("예시 음성: 독백 minji 는 200 빈 voices·lines(음성도 모델도 필요 없음)")
+    void monologueNeedsNoAudio() throws Exception {
+        String scriptId = json(post("/v2/reading/examples/{id}/start", "minji").content(start(UUID.randomUUID())), 201, bearer)
+                .path("script_id").textValue();
+        assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 200, bearer))
+                .isEqualTo(mapper.readTree("{\"example_id\":\"minji\",\"voices\":{},\"lines\":[]}"));
+    }
+
+    @Test
+    @DisplayName("예시 음성: 남의 대본·없는 대본 404 script_not_found, 예시가 아닌 대본·음성 없는 예시·꺼진 예시 404 reading_example_audio_not_found")
+    void exampleAudioRejects() throws Exception {
+        String scriptId = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 201, bearer)
+                .path("script_id").textValue();
+        String other = "Bearer " + jwt.issueAccessToken(member()).value();
+        JsonNode notFound = mapper.readTree("{\"detail\":\"script_not_found\"}");
+        assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 404, other)).isEqualTo(notFound);
+        assertThat(json(get("/v2/reading/scripts/{id}/example-audio", UUID.randomUUID()), 404, bearer)).isEqualTo(notFound);
+
+        JsonNode noAudio = mapper.readTree("{\"detail\":\"reading_example_audio_not_found\"}");
+        seedScripts(member, 1);
+        UUID plain = jdbc.queryForObject("SELECT id FROM scripts WHERE source='paste'", UUID.class);
+        assertThat(json(get("/v2/reading/scripts/{id}/example-audio", plain), 404, bearer)).isEqualTo(noAudio);
+
+        jdbc.update("UPDATE reading_examples SET active=false WHERE id='cafe'");
+        assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 404, bearer)).isEqualTo(noAudio);
+        jdbc.update("UPDATE reading_examples SET active=true WHERE id='cafe'");
+
+        String saved = jdbc.queryForObject("SELECT CAST(audio AS text) FROM reading_examples WHERE id='cafe'", String.class);
+        try {
+            jdbc.update("UPDATE reading_examples SET audio=NULL WHERE id='cafe'");
+            assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 404, bearer)).isEqualTo(noAudio);
+            jdbc.update("UPDATE reading_examples SET audio='{\"voices\":[]}'::jsonb WHERE id='cafe'");
+            assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 404, bearer)).as("깨진 칸은 음성 없음").isEqualTo(noAudio);
+            assertThat(json(get("/v2/reading/examples"), 200, bearer).path("examples")).as("깨진 칸이 목록을 막지 않는다").hasSize(3);
+        } finally {
+            jdbc.update("UPDATE reading_examples SET audio=CAST(? AS jsonb) WHERE id='cafe'", saved);
+        }
+        assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 200, bearer).path("lines")).hasSize(15);
     }
 
     private String start(UUID requestId) {

@@ -75,7 +75,8 @@ export async function markAppVoiceNoticed(storage: Storage = defaultStorage()): 
 }
 
 /** 상대 대사를 내는 방식. cloud 는 서버 고품질 목소리, supertonic 은 기기에 받은 앱 목소리, device_voice 는 OS 음성. */
-export type PartnerVoiceEngine = 'supertonic' | 'cloud' | 'device_voice' | 'text_only';
+/** example 은 예시 대본의 미리 만든 서버 음성(example-audio) — 고르는 곳은 실행 화면이다(choosePartnerVoice 는 모른다). */
+export type PartnerVoiceEngine = 'supertonic' | 'cloud' | 'example' | 'device_voice' | 'text_only';
 
 /** 쓸 수 있는 것 가운데 가장 좋은 것. appVoice 는 모델을 쓸 수 있고(기기가 되고) 받기로 한 경우만 true. */
 export function choosePartnerVoice(input: { cloud: boolean; appVoice: boolean; deviceVoice: boolean }): PartnerVoiceEngine {

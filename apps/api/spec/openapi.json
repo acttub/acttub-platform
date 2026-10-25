@@ -4383,6 +4383,39 @@
         } ]
       }
     },
+    "/v2/reading/scripts/{script_id}/example-audio" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Get Reading Example Audio",
+        "description" : "예시를 복사한 내 대본의 미리 만든 상대역 음성. 대본의 원문이 켜진 예시와 같고 그 예시에 음성이 있으면 200 —\nvoices 는 배역 이름 → 음성을 만든 프리셋, lines 는 예시와 같은 자리·같은 배역·같은 글인 대사 줄마다 line_id 와 1시간\n임시 주소(url)·길이(duration_ms)다. 고친 줄은 빠진다. 상대역이 없는 예시(독백)는 lines 가 비어 있다. 없는 것·남의\n대본 404 script_not_found, 예시가 아니거나 음성이 없는 예시 404 reading_example_audio_not_found.",
+        "operationId" : "get_reading_example_audio_v2_reading_scripts__script_id__example_audio_get",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingExampleAudio"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/imports/{import_id}" : {
       "get" : {
         "tags" : [ "v2-reading" ],
@@ -11217,6 +11250,53 @@
         },
         "required" : [ "sessions" ],
         "title" : "ReadingSessionList"
+      },
+      "ReadingExampleAudio" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "example_id" : {
+            "type" : "string",
+            "title" : "Example Id"
+          },
+          "voices" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "title" : "Voices"
+          },
+          "lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingExampleAudioLine"
+            },
+            "title" : "Lines"
+          }
+        },
+        "required" : [ "example_id", "lines", "voices" ],
+        "title" : "ReadingExampleAudio"
+      },
+      "ReadingExampleAudioLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          },
+          "url" : {
+            "type" : "string",
+            "title" : "Url"
+          },
+          "duration_ms" : {
+            "type" : "integer",
+            "title" : "Duration Ms"
+          }
+        },
+        "required" : [ "duration_ms", "line_id", "url" ],
+        "title" : "ReadingExampleAudioLine"
       },
       "ReadingImport" : {
         "type" : "object",

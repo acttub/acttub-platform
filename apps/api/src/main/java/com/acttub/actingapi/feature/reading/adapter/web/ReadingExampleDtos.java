@@ -1,8 +1,10 @@
 package com.acttub.actingapi.feature.reading.adapter.web;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.reading.app.ReadingExampleService;
 import com.acttub.actingapi.feature.reading.domain.ReadingExample;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
@@ -53,5 +55,26 @@ final class ReadingExampleDtos {
     record StartedResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID scriptId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean created) {
+    }
+
+    /** 예시를 복사한 대본의 미리 만든 상대역 음성. {@code voices} 는 배역 이름 → 음성을 만든 프리셋, {@code lines} 는 이은 대사 줄만. */
+    @Schema(name = "ReadingExampleAudio", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record AudioResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String exampleId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, String> voices,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AudioLineResponse> lines) {
+        static AudioResponse of(ReadingExampleService.ExampleAudio audio) {
+            return new AudioResponse(audio.exampleId(), audio.voices(),
+                    audio.lines().stream().map(l -> new AudioLineResponse(l.lineId(), l.url(), l.durationMs())).toList());
+        }
+    }
+
+    @Schema(name = "ReadingExampleAudioLine", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record AudioLineResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID lineId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String url,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int durationMs) {
     }
 }

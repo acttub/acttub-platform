@@ -65,6 +65,7 @@ import type {
   MyEntryCard,
 } from '@/lib/challenge/types';
 import type { ReadingExampleListResponse, ReadingExampleStart } from '@/lib/reading/examples';
+import type { ExampleAudioResponse } from '@/lib/reading/example-audio';
 import type { ReadingRating, ReadingRatingBody } from '@/lib/reading/session-rating';
 import type {
   CoachConversation,
@@ -419,6 +420,14 @@ export const api = {
   /** 리딩 기기 목소리 모델(fp16 묶음)의 내려받을 임시 주소(SOMA-747). 서버에 없으면 404·503 — 앱은 원본 fp32 로 받는다. */
   getVoiceModel(): Promise<VoiceModelFiles> {
     return request('/v2/reading/voice-model', {}, { auth: true, timeoutMs: 10_000 });
+  },
+
+  /**
+   * 예시 대본의 미리 만든 상대역 음성(임시 주소). 예시가 아니면 404 reading_example_audio_not_found — 부르는 쪽(example-audio)이
+   * 오류를 모두 「예시 아님」으로 본다.
+   */
+  getExampleAudio(scriptId: string): Promise<ExampleAudioResponse> {
+    return request(`/v2/reading/scripts/${encodeURIComponent(scriptId)}/example-audio`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
   getCloudVoiceStatus(): Promise<CloudVoiceStatus> {
