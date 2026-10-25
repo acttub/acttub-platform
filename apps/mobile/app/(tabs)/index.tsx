@@ -121,6 +121,8 @@ export default function HomeScreen() {
   const [activityDays, setActivityDays] = useState<{ created_at: string }[] | null>(null);
   // 주 기능 판단용 — 센 연습(코칭·리딩·챌린지) 목록.
   const [practices, setPractices] = useState<CountedPractice[]>([]);
+  // 내가 참여작을 올린 챌린지 — 홈 챌린지 카드가 이미 찍은 챌린지에 「찍으러 가기」를 띄우지 않게 한다(SOMA-829).
+  const [enteredChallengeIds, setEnteredChallengeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [auditions, setAuditions] = useState<AuditionPostingList | null>(null);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
@@ -208,6 +210,7 @@ export default function HomeScreen() {
         if (cancelled) return;
         // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
         const counted = countedPractices({ groups: groupList, readingSessions, entries });
+        setEnteredChallengeIds(new Set(entries.flatMap((entry) => (entry.challenge?.id ? [entry.challenge.id] : []))));
         setPractices(counted);
         return rememberPracticeDays(counted.map((p) => ({ created_at: p.at }))).then((days) => {
           if (!cancelled) setActivityDays(days);
@@ -644,6 +647,7 @@ export default function HomeScreen() {
             <View ref={startTarget.ref} onLayout={startTarget.onLayout} collapsable={false} style={styles.todayCard}>
               <TodayCardBody
                 item={today.main}
+                challengeEntered={today.main.kind === 'challenge' && enteredChallengeIds.has(today.main.challenge.id)}
                 progress={
                   today.main.kind === 'reading' && readingProgress?.scriptId === today.main.script.id
                     ? readingProgress.progress
@@ -774,12 +778,15 @@ type HomeRowData = {
 /** 주 기능 카드 속 — 종류마다 머리 한 줄(주황 아이콘·글자)·제목·보조·진행 막대·주 버튼. */
 function TodayCardBody({
   item,
+  challengeEntered = false,
   nextTake = null,
   progress,
   perLine,
   onPress,
 }: {
   item: TodayItem;
+  /** 이 챌린지에 이미 참여작을 올렸는가 — 그러면 다시 찍으라고 하지 않고 다른 연기를 보러 가게 한다. */
+  challengeEntered?: boolean;
   nextTake?: string | null;
   progress: SessionProgress | null;
   perLine?: number;
@@ -825,8 +832,14 @@ function TodayCardBody({
     icon = 'trophy';
     eyebrow = item.daysLeft === 0 ? t('home.todayChallengeEyebrowToday') : t('home.todayChallengeEyebrow', { days: item.daysLeft });
     title = `“${item.challenge.line}”`;
-    sub = item.challenge.entry_count && item.challenge.entry_count > 0 ? t('home.todayChallengeSub', { n: item.challenge.entry_count }) : t('home.rowChallengeSub');
-    cta = t('home.todayChallengeCta');
+    const n = item.challenge.entry_count ?? 0;
+    if (challengeEntered) {
+      sub = n > 0 ? t('home.todayChallengeSubEntered', { n }) : t('home.todayChallengeSubEnteredPlain');
+      cta = t('home.todayChallengeCtaEntered');
+    } else {
+      sub = n > 0 ? t('home.todayChallengeSub', { n }) : t('home.rowChallengeSub');
+      cta = t('home.todayChallengeCta');
+    }
   } else {
     eyebrow = t('home.todayStartEyebrow');
     title = t('home.todayStartTitle');

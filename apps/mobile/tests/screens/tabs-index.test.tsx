@@ -557,6 +557,25 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     expect(mockRouter.push).toHaveBeenLastCalledWith('/challenges');
   });
 
+  test('이미 참여작을 올린 챌린지면 「찍으러 가기」 대신 다른 연기 보러 가기를 띄운다 (SOMA-829)', async () => {
+    listReadingScripts.mockResolvedValue({ scripts: [scriptRead('옥상, 밤')] });
+    (api.listChallenges as jest.Mock).mockResolvedValue({ featured: openChallenge });
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({
+      entries: [
+        { id: 'e1', created_at: isoDaysAgo(1), challenge: { id: 'c1' } },
+        { id: 'e2', created_at: isoDaysAgo(2), challenge: { id: 'c-old' } },
+      ],
+      next_cursor: null,
+    });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('이번 주 챌린지 · D-3')).toBeOnTheScreen();
+    expect(screen.getByText('참여 완료 · 참여 12명')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '찍으러 가기' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: '다른 연기 보러 가기' }));
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
+  });
+
   test('리딩 메인 카드 제목은 대본 제목 · 내 배역이다(pen P1.15 「옥상, 밤 · 태오」)', async () => {
     listReadingScripts.mockResolvedValue({ scripts: [{ ...scriptRead('옥상, 밤'), my_character_names: ['태오'] }] });
     (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [{ status: 'in_progress', progress: { total: 10, done: 3 } }, { status: 'completed', started_at: isoDaysAgo(2), elapsed_seconds: 0 }] });

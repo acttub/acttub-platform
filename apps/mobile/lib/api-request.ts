@@ -147,6 +147,12 @@ function errorDetail(body: unknown): unknown {
   return 'detail' in body ? body.detail : undefined;
 }
 
+/** JSON 응답의 사본 — 합친 GET 응답을 나눠 줄 때 쓴다. 글·숫자·빈 응답은 그대로 둔다. */
+function copyPayload(payload: unknown): unknown {
+  if (payload === null || typeof payload !== 'object') return payload;
+  return JSON.parse(JSON.stringify(payload));
+}
+
 export function friendlyError(status: number, body: unknown): string {
   if (errorDetail(body) === 'client_contract_required') return translate('errors.clientContractRequired');
   switch (status) {
@@ -493,7 +499,44 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     return pending;
   }
 
-  async function request<T>(
+  // 같은 GET이 동시에 여러 번 나가면 하나만 보내고 응답을 나눈다(SOMA-829). 탭 레이아웃·홈·탭 화면이 앱을 열 때
+  // 같은 목록을 한꺼번에 읽어 계정 1분 요청 한도(SOMA-825)를 빨리 채웠다. 끝난 응답은 남기지 않는다 — 캐시가 아니다.
+  // 취소 신호가 있거나(한쪽 취소가 다른 쪽을 끊지 않게) 401 재시도 중인 요청은 합치지 않는다. 나눠 받는 쪽은 사본을
+  // 받아, 한 화면이 응답을 고쳐도 다른 화면에 번지지 않는다.
+  const inflightGets = new Map<string, Promise<unknown>>();
+
+  function request<T>(
+    path: string,
+    init: RequestInit = {},
+    options: ApiRequestOptions = {},
+    retried = false,
+    originalAuthSessionEpoch?: number,
+  ): Promise<T> {
+    const method = (init.method ?? 'GET').toUpperCase();
+    const shareable =
+      method === 'GET' &&
+      init.body == null &&
+      !options.signal &&
+      !retried &&
+      originalAuthSessionEpoch === undefined;
+    if (!shareable) return requestOnce<T>(path, init, options, retried, originalAuthSessionEpoch);
+    const key = [
+      options.auth === false ? 'anon' : dependencies.getAuthSessionEpoch(),
+      path,
+      JSON.stringify(init.headers ?? null),
+    ].join('|');
+    const existing = inflightGets.get(key);
+    if (existing) return existing.then((payload) => copyPayload(payload) as T);
+    const pending = requestOnce<T>(path, init, options, retried, originalAuthSessionEpoch);
+    inflightGets.set(key, pending);
+    const clear = () => {
+      if (inflightGets.get(key) === pending) inflightGets.delete(key);
+    };
+    pending.then(clear, clear);
+    return pending;
+  }
+
+  async function requestOnce<T>(
     path: string,
     init: RequestInit = {},
     options: ApiRequestOptions = {},

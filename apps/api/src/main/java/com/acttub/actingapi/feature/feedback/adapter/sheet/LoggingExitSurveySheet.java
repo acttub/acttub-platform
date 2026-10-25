@@ -25,6 +25,11 @@ class LoggingExitSurveySheet implements ExitSurveySheet {
     private static final Logger LOG = LoggerFactory.getLogger(LoggingExitSurveySheet.class);
 
     @Override
+    public boolean configured() {
+        return false;
+    }
+
+    @Override
     public void upsert(SheetRow row) {
         LOG.info("이탈 설문 시트 전송 대기: id={} seq={}", row.id(), row.seq());
         throw new SheetNotConfigured();

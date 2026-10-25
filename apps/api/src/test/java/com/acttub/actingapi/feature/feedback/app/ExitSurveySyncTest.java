@@ -96,4 +96,26 @@ class ExitSurveySyncTest {
         assertThat(waiting).hasSize(100);
         assertThat(reporter.contexts()).first().isEqualTo("ExitSurveySync.purgeContacts");
     }
+
+    @Test
+    void sheetNotConfiguredSendsNothingAndReportsNothingButKeepsRows() {
+        IntStream.range(0, 3).forEach(index -> waiting.add(row(index)));
+        ExitSurveySheet notConfigured = new ExitSurveySheet() {
+            @Override
+            public void upsert(ExitSurveyStore.SheetRow row) {
+                throw new AssertionError("시트가 없으면 보내지 않는다");
+            }
+
+            @Override
+            public boolean configured() {
+                return false;
+            }
+        };
+
+        int sent = sync(notConfigured).runDaily();
+
+        assertThat(sent).isZero();
+        assertThat(waiting).hasSize(3);
+        assertThat(reporter.contexts()).doesNotContain("ExitSurveySync.upsert");
+    }
 }

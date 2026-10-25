@@ -64,6 +64,10 @@ public class ExitSurveySync {
     }
 
     private int sync(Instant now) {
+        // 시트가 아직 없으면 보내지 않는다 — 실패로 알리지 않고 행은 남겨 둔다(SOMA-829).
+        if (!sheet.configured()) {
+            return 0;
+        }
         int sent = 0;
         while (true) {
             List<SheetRow> pending = store.pendingSheetRows(BATCH);

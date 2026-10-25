@@ -68,3 +68,25 @@ test('서버가 음수를 주면 0으로 본다', async () => {
   await flush();
   expect(screen.getByText('0/-')).toBeOnTheScreen();
 });
+
+test('여러 화면이 같이 써도 한 번만 읽고, 같은 수를 보인다 (SOMA-829)', async () => {
+  unread.mockClear();
+  const addSpy = AppState.addEventListener as jest.Mock;
+  addSpy.mockClear();
+  let resolve: (value: { count: number }) => void = () => undefined;
+  unread.mockReturnValue(new Promise((r) => { resolve = r; }));
+  const view = await render(<><Host /><Host /><Host /></>);
+  expect(unread).toHaveBeenCalledTimes(1);
+  expect(addSpy).toHaveBeenCalledTimes(1);
+  await act(async () => resolve({ count: 4 }));
+  await flush();
+  expect(screen.getAllByText('4/4')).toHaveLength(3);
+
+  unread.mockResolvedValue({ count: 6 });
+  await act(async () => onChange('active'));
+  await flush();
+  expect(unread).toHaveBeenCalledTimes(2);
+  expect(screen.getAllByText('6/6')).toHaveLength(3);
+  await view.unmount();
+  expect(removed).toBe(true);
+});
