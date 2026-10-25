@@ -597,10 +597,17 @@ class AdminEndpointIT {
                 """, ended, REAL_USER, UUID.randomUUID(), "c".repeat(64), NOW.minusDays(10), NOW.minusDays(3));
         UUID deleted = insertChallenge("member", NOW.minusMinutes(1));
 
-        insertChallengeEntry(byTeamAccount, REAL_USER, "a.mp4", null, "public", "visible", NOW.minusMinutes(30), null);
-        insertChallengeEntry(byTeamAccount, TEAM_USER, "b.mp4", null, "public", "visible", NOW.minusMinutes(20), null);
+        UUID realEntry = insertChallengeEntry(
+                byTeamAccount, REAL_USER, "a.mp4", null, "public", "visible", NOW.minusMinutes(30), null);
+        UUID teamEntry = insertChallengeEntry(
+                byTeamAccount, TEAM_USER, "b.mp4", null, "public", "visible", NOW.minusMinutes(20), null);
         insertChallengeEntry(byTeamAccount, REAL_USER, "c.mp4", null, "private", "visible", NOW.minusMinutes(10), null);
-        insertChallengeEntry(byTeamAccount, REAL_USER, null, null, "private", "deleted", NOW.minusMinutes(5), NOW.minusMinutes(5));
+        UUID deletedEntry = insertChallengeEntry(
+                byTeamAccount, REAL_USER, null, null, "private", "deleted", NOW.minusMinutes(5), NOW.minusMinutes(5));
+        jdbc.update("INSERT INTO entry_likes (id,entry_id,user_id) VALUES (?,?,?)", UUID.randomUUID(), realEntry, REAL_USER);
+        jdbc.update("INSERT INTO entry_likes (id,entry_id,user_id) VALUES (?,?,?)", UUID.randomUUID(), realEntry, TEAM_USER);
+        jdbc.update("INSERT INTO entry_likes (id,entry_id,user_id) VALUES (?,?,?)", UUID.randomUUID(), teamEntry, REAL_USER);
+        jdbc.update("INSERT INTO entry_likes (id,entry_id,user_id) VALUES (?,?,?)", UUID.randomUUID(), deletedEntry, REAL_USER);
 
         var result = mvc.perform(get("/v2/admin/challenges")
                 .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
@@ -615,7 +622,7 @@ class AdminEndpointIT {
         assertThat(first.fieldNames()).toIterable().containsExactly(
                 "id", "line", "work", "character", "origin", "host_actor", "host_is_team", "duration_days",
                 "featured_on", "starts_at", "ends_at", "state", "moderation", "entries", "public_entries",
-                "outside_entries");
+                "outside_entries", "likes", "outside_likes");
         assertThat(first.path("id").textValue()).isEqualTo(team.toString());
         assertThat(first.path("line").textValue()).isEqualTo("팀 대사");
         assertThat(first.path("origin").textValue()).isEqualTo("team");
@@ -624,6 +631,7 @@ class AdminEndpointIT {
         assertThat(first.path("featured_on").textValue()).isEqualTo(NOW.toLocalDate().toString());
         assertThat(first.path("state").textValue()).isEqualTo("active");
         assertThat(first.path("entries").intValue()).isEqualTo(0);
+        assertThat(first.path("likes").intValue()).isEqualTo(0);
 
         JsonNode second = rows.get(1);
         assertThat(second.path("id").textValue()).isEqualTo(byTeamAccount.toString());
@@ -633,6 +641,8 @@ class AdminEndpointIT {
         assertThat(second.path("entries").intValue()).isEqualTo(3);
         assertThat(second.path("public_entries").intValue()).isEqualTo(2);
         assertThat(second.path("outside_entries").intValue()).isEqualTo(2);
+        assertThat(second.path("likes").intValue()).isEqualTo(3);
+        assertThat(second.path("outside_likes").intValue()).isEqualTo(2);
 
         JsonNode third = rows.get(2);
         assertThat(third.path("id").textValue()).isEqualTo(ended.toString());
@@ -646,6 +656,8 @@ class AdminEndpointIT {
         String realActor = md5(REAL_USER.toString()).substring(0, 8);
         JsonNode excluded = authorized("/v2/admin/challenges?exclude_actors=" + realActor, 200);
         assertThat(excluded.at("/challenges/1/outside_entries").intValue()).isEqualTo(0);
+        assertThat(excluded.at("/challenges/1/likes").intValue()).isEqualTo(3);
+        assertThat(excluded.at("/challenges/1/outside_likes").intValue()).isEqualTo(0);
         assertThat(excluded.at("/challenges/2/host_is_team").booleanValue()).isTrue();
         assertThat(authorized("/v2/admin/challenges?limit=1", 200).path("challenges")).hasSize(1);
         assertThat(authorized("/v2/admin/challenges?limit=0", 422).at("/detail/0/type").textValue())
