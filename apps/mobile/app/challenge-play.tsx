@@ -4,7 +4,6 @@ import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
@@ -499,7 +498,6 @@ export default function ChallengePlayScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      {entries === null && !error && <ActivityIndicator color="#FFFFFF" style={styles.loading} />}
       {!!error && <Text style={styles.error}>{error}</Text>}
       {/* 불러오는 중이거나 실패했을 때도 항상 닫을 수 있게 한다(SOMA-738). */}
       {(entries === null || !!error) && (

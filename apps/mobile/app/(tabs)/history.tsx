@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -195,7 +195,6 @@ export default function HistoryScreen() {
 
         {loading && (
           <View style={styles.center}>
-            <ActivityIndicator color={palette.blue} />
           </View>
         )}
         {error && <Text style={styles.error}>{error}</Text>}

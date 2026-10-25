@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
@@ -25,6 +25,7 @@ import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { deleteScript, fetchSession, listScripts, listSessions, loadIntoCurrent, setCurrentSession } from '@/lib/reading/store';
 import type { ScriptCard, ScriptListResponse, SessionCard } from '@/lib/reading/types';
 import { isKorean, translate as t } from '@/lib/i18n';
+import { LoadingText } from '@/components/ui/loading-text';
 import type { GestureResponderEvent } from 'react-native';
 
 import { pt } from '@/components/ui/anchored-menu';
@@ -368,7 +369,7 @@ export default function ReadingList() {
                 onPress={() => void continueReading()}
                 disabled={resuming}
                 accessibilityRole="button">
-                {resuming ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Text style={styles.resumeBtnText}>{t('reading.resumeGo')}</Text>}
+                {resuming ? <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} /> : <Text style={styles.resumeBtnText}>{t('reading.resumeGo')}</Text>}
                 <Feather name="arrow-right" size={18} color={palette.blueDeep} />
               </Pressable>
             </View>
@@ -393,7 +394,6 @@ export default function ReadingList() {
           </View>
           {loading && !list && (
             <View style={styles.loading}>
-              <ActivityIndicator color={palette.blue} />
             </View>
           )}
           <View style={styles.list}>

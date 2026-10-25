@@ -2,7 +2,6 @@ import Feather from '@expo/vector-icons/Feather';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Linking,
   Pressable,
   ScrollView,
@@ -65,7 +64,6 @@ export default function UniversityDetailScreen() {
 
       {!payload && !error && (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
         </View>
       )}
       {error && <Text style={styles.error}>{error}</Text>}

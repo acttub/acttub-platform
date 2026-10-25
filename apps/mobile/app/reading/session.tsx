@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
@@ -110,9 +110,7 @@ export default function ReadingSession() {
               <Text style={styles.pillText}>{t('common.retry')}</Text>
             </Pressable>
           </>
-        ) : (
-          <ActivityIndicator color={palette.textFaint} />
-        )}
+        ) : null}
       </View>
     );
   }

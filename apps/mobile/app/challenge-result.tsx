@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
@@ -71,7 +71,6 @@ export default function ChallengeResultScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: t('challengeResult.title') }} />
       <ScrollView contentContainerStyle={styles.content}>
-        {!challenge && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 40 }} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         {challenge && (
@@ -85,7 +84,6 @@ export default function ChallengeResultScreen() {
 
             <Text style={[styles.section, styles.sectionDim]}>{t('challengeResult.picked', { count: picked?.length ?? 0 })}</Text>
             {!!notice && ranksHidden(challenge) && <Text style={styles.notice}>{notice}</Text>}
-            {picked === null && <ActivityIndicator color={palette.blue} />}
             {picked?.length === 0 && !ranksHidden(challenge) && <Text style={styles.muted}>{t('challengeResult.noPicked')}</Text>}
             {picked?.map((entry) => (
               <Pressable
@@ -110,7 +108,7 @@ export default function ChallengeResultScreen() {
             <View style={styles.mine}>
               <Text style={styles.mineLabel}>{t('challengeResult.mine')}</Text>
               {mine === undefined ? (
-                <ActivityIndicator color={palette.blue} style={{ alignSelf: 'flex-start' }} />
+                <View />
               ) : mine ? (
                 <Pressable
                   style={styles.mineRow}

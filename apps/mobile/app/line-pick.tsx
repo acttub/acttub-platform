@@ -2,7 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -118,7 +118,6 @@ export default function LinePickScreen() {
             </Pressable>
           ))}
         </View>
-        {list === null && <ActivityIndicator color={palette.blue} style={{ marginTop: 20 }} />}
         {error && <Text style={styles.meta}>{error}</Text>}
         {list?.length === 0 && !error && <Text style={styles.meta}>{t('linePick.empty')}</Text>}
         {list?.map((challenge) => {

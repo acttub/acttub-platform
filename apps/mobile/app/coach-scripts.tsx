@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChoiceCard } from '@/components/choice-card';
@@ -85,7 +85,6 @@ export default function CoachScriptsScreen() {
       />
       {scripts === null && !failed ? (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
         </View>
       ) : (
         <View style={styles.flex}>

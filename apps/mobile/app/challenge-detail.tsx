@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -35,6 +35,7 @@ import type { ChallengeDetail, EntrySort, ReportReason } from '@/lib/challenge/t
 import { newRequestId } from '@/lib/request-id';
 import { postedAtLabel } from '@/lib/time-label';
 import { translate as t } from '@/lib/i18n';
+import { LoadingText } from '@/components/ui/loading-text';
 
 type Ranked = RankedEntry;
 
@@ -223,7 +224,6 @@ export default function ChallengeDetailScreen() {
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>
-        {!challenge && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 40 }} />}
         {error && <Text style={styles.error}>{error}</Text>}
 
         {challenge && (
@@ -275,7 +275,6 @@ export default function ChallengeDetailScreen() {
               </View>
             </View>
 
-            {entries === null && <ActivityIndicator color={palette.blue} style={{ marginTop: 24 }} />}
             {entries?.map((entry) => (
               <Pressable
                 key={entry.id}
@@ -321,7 +320,7 @@ export default function ChallengeDetailScreen() {
             {cursor && (
               <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
                 {loadingMore ? (
-                  <ActivityIndicator color={palette.blue} />
+                  <LoadingText label={t('loadingText.loading')} color={palette.blue} />
                 ) : (
                   <Text style={styles.moreText}>{t('challenges.moreEntries')}</Text>
                 )}

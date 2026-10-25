@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -87,7 +87,6 @@ export default function LineSearchScreen() {
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {!searchable(query) && <Text style={styles.hint}>{t('lineSearch.minLength', { count: SEARCH_MIN_LENGTH })}</Text>}
-        {loading && <ActivityIndicator color={palette.blue} style={{ marginTop: 24 }} />}
         {error && <Text style={styles.error}>{error}</Text>}
 
         {results?.map((challenge) => (

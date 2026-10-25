@@ -3,7 +3,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Linking,
   Pressable,
   RefreshControl,
@@ -128,7 +127,6 @@ export default function AuditionsScreen() {
 
       {!payload && !error && (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
         </View>
       )}
       {!payload && error && (

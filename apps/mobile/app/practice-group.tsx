@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -53,7 +53,7 @@ export default function PracticeGroupScreen() {
   const [loading, setLoading] = useState(true);
   const [conversation, setConversation] = useState<CoachConversation | null>(null);
   const [conversationError, setConversationError] = useState<string | null>(null);
-  const [conversationLoading, setConversationLoading] = useState(false);
+  const [, setConversationLoading] = useState(false);
   const conversationRequest = useRef(0);
   // P10.2 「연습 영상 보기」 — 묶음 영상의 재생 주소. 파기됐으면 purged.
   const [video, setVideo] = useState<{ url: string | null; purged: boolean } | null>(null);
@@ -245,7 +245,6 @@ export default function PracticeGroupScreen() {
     if (openId !== id) return null;
     return (
       <View key={`open-${id}`} style={styles.chat}>
-        {conversationLoading && <ActivityIndicator color={palette.blue} />}
         {conversationError && <Text style={styles.error}>{conversationError}</Text>}
         {conversation &&
           orderedMessages(conversation).map((message) =>
@@ -294,11 +293,7 @@ export default function PracticeGroupScreen() {
             ) : null,
         }}
       />
-      {loading && (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
-      )}
+      {loading && <View style={styles.center} />}
       {error && <Text style={styles.error}>{error}</Text>}
       {group && (
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>

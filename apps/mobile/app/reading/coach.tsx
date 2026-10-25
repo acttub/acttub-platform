@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
@@ -92,7 +92,6 @@ export default function ReadingCoachScreen() {
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
         {!coach && busy && (
           <View style={styles.waiting}>
-            <ActivityIndicator color={palette.blue} />
             <Text style={styles.waitingText}>{t('readingCoach.listening')}</Text>
           </View>
         )}
@@ -104,7 +103,6 @@ export default function ReadingCoachScreen() {
         ))}
         {coach && busy && (
           <View style={styles.thinking}>
-            <ActivityIndicator size="small" color={palette.textMuted} />
             <Text style={styles.thinkingText}>{t('readingCoach.thinking')}</Text>
           </View>
         )}

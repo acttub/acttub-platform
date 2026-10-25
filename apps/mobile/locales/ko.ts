@@ -5,6 +5,21 @@
  */
 const ko = {
   uploadReason: {"title":"영상 올리기가 망설여지나요?","optional":"답하지 않고 넘어가도 괜찮아요.","noVideo":"영상 없어요","no_video":"아직 찍어 둔 영상이 없어요","privacy":"얼굴을 보이기가 부담스러워요","other":"다른 이유가 있어요","next":"이렇게 시작해 볼까요?","privacyHelp":"코칭 영상은 다른 사용자에게 공개되지 않아요. 얼굴이 나오지 않게 목소리 위주로 찍어도 괜찮아요. 표정은 살펴보기 어려울 수 있어요.","talkSub":"영상 없이 지금 고민부터 이야기해요.","script":"찍을 대사부터 같이 만들기","scriptSub":"찍고 싶은 장면을 함께 준비해요.","recordSub":"준비가 되면 짧게 찍어도 괜찮아요.","skip":"지금은 넘어갈게요"},
+  // 버튼을 누른 뒤 기다릴 때 로딩 표시 대신 보여 주는 문구(SOMA-828). 화면을 열 때 데이터를 기다리는 동안에는 아무것도 띄우지 않는다.
+  loadingText: {
+    wait: '잠시만요…',
+    loading: '불러오는 중…',
+    saving: '저장하는 중…',
+    uploading: '올리는 중…',
+    sending: '보내는 중…',
+    deleting: '지우는 중…',
+    signingIn: '로그인하는 중…',
+    preparing: '준비하는 중…',
+    making: '만드는 중…',
+    analyzing: '살펴보는 중…',
+    coachWriting: '코치가 답을 쓰는 중…',
+    checking: '확인하는 중…',
+  },
   common: {
     confirm: '확인',
     cancel: '취소',

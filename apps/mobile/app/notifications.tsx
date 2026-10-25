@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -120,7 +120,6 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.body}
         onMomentumScrollEnd={() => void loadMore()}>
         {!pushEnabled && <Text style={styles.pushOff}>{toggleOffNotice(pushEnabled)}</Text>}
-        {groups === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 32 }} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
         {groups !== null && groups.length === 0 && !error && <Text style={styles.empty}>{t('notifications.empty')}</Text>}
 

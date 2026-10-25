@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -206,9 +206,7 @@ export default function ProfileNameScreen() {
               {/* pen S5.2 — 빨간 한 줄 아래 파란 글자 링크. */}
               <TextButton tone="accent" label={t('profileName.reload')} onPress={() => void reloadProfile()} />
             </>
-          ) : (
-            <ActivityIndicator color={palette.blue} />
-          )}
+          ) : null}
         </View>
       </SafeAreaView>
     );

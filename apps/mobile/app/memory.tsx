@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -158,9 +158,7 @@ export default function MemoryScreen() {
       </Text>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <View style={styles.center} />
       ) : (
         <KeyboardAwareScroll contentContainerStyle={styles.list}>
           {!hasAny && (

@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
@@ -86,9 +86,7 @@ export default function NotificationSettingsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('settings.notifications')} left={<NavBackButton onPress={() => router.back()} />} />
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <View style={styles.center} />
       ) : loadError ? (
         <View style={styles.center}>
           <Text style={styles.loadError}>{loadError}</Text>

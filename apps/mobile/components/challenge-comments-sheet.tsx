@@ -1,7 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Modal,
   Pressable,
@@ -136,8 +135,6 @@ export function ChallengeCommentsSheet({
           <Text style={styles.title}>{t('comments.title', { count: comments?.length ?? 0 })}</Text>
         </View>
         <View style={styles.divider} />
-
-          {comments === null && !error && <ActivityIndicator color={palette.blue} style={{ marginVertical: 24 }} />}
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <FlatList
@@ -200,11 +197,8 @@ export function ChallengeCommentsSheet({
                 hitSlop={6}
                 accessibilityRole="button"
                 accessibilityLabel={t('comments.send')}>
-                {sending ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
+                {/* SOMA-828: 작은 원형 버튼이라 문구 대신 아이콘을 그대로 둔다(보내는 동안 비활성) */}
                   <Feather name="arrow-up" size={18} color="#FFFFFF" />
-                )}
               </Pressable>
             </View>
             {/* 글자 수는 한도 가까이 갔을 때만 보인다 — 평소엔 입력줄만. */}

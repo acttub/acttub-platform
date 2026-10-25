@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useCallback, useMemo, useState, type ComponentProps } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScriptCocreateEntry } from '@/components/script-cocreate-entry';
@@ -123,7 +123,6 @@ export default function CoachingTab() {
       />
       {!entry ? (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
         </View>
       ) : entry.kind === 'first' ? (
         <View style={styles.flex}>

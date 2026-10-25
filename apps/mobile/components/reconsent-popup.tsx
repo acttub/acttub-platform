@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -132,9 +131,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
   const renderBody = () => {
     if (consentEntry.status === 'checking') {
       return (
-        <View style={styles.checking}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <View style={styles.checking} />
       );
     }
     if (consentEntry.status === 'error' && !verificationOnly) {

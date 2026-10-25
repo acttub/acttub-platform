@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
@@ -199,7 +199,6 @@ export default function JournalScreen() {
 
       {(phase === 'loading' || phase === 'making') && (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} size="large" />
           {phase === 'making' && <Text style={styles.loadingText}>{t('journal.making')}</Text>}
         </View>
       )}

@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DefaultAvatar } from '@/components/ui/default-avatar';
@@ -305,7 +305,7 @@ function CardGrid({
   /** 참여작·저장됨(pen S14.4·S14.5) — 썸네일 152 아래에 제목·하트 줄. 아니면 연습 기록처럼 썸네일 위에 글을 얹는다. */
   below?: boolean;
 }) {
-  if (loading) return <ActivityIndicator color={palette.blue} style={styles.loading} />;
+  if (loading) return <View style={styles.loading} />; // SOMA-828: 로딩 표시 없음
   if (cards.length === 0) return <Text style={styles.empty}>{empty}</Text>;
   const rows: (Card | null)[][] = [];
   for (let i = 0; i < cards.length; i += PER_ROW) {

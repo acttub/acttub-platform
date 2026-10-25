@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { updateScriptMeta } from '@/lib/reading/store';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -60,7 +61,7 @@ export function MonologueNameDialog({
             disabled={!next || busy}
             onPress={() => void save()}
             accessibilityRole="button">
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{t('reading.monologueNameSave')}</Text>}
+            {busy ? <LoadingText label={t('loadingText.saving')} color="#fff" /> : <Text style={styles.saveText}>{t('reading.monologueNameSave')}</Text>}
           </Pressable>
         </View>
       </KeyboardLift>

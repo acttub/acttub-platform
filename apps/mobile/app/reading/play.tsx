@@ -4,7 +4,7 @@ import { File, Paths } from 'expo-file-system';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
-import { ActivityIndicator, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -101,6 +101,7 @@ import { pronunciationServerUrl, scorePronunciation } from '@/lib/reading/pronun
 import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
 import { ReadingAfterCard } from '@/components/reading-after-card';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
@@ -1514,8 +1515,14 @@ export default function ReadingPlay() {
                 accessibilityRole="button"
                 accessibilityLabel={t('reading.firstDoneAgain')}
                 accessibilityState={{ disabled: doneLocked || restarting }}>
-                {restarting ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
-                <Text style={styles.readAgainText}>{t('reading.firstDoneAgain')}</Text>
+                {restarting ? (
+                  <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
+                ) : (
+                  <>
+                    <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
+                    <Text style={styles.readAgainText}>{t('reading.firstDoneAgain')}</Text>
+                  </>
+                )}
               </Pressable>
             </View>
             {ratingCard}
@@ -1584,8 +1591,14 @@ export default function ReadingPlay() {
               accessibilityRole="button"
               accessibilityLabel={t('reading.readAgain')}
               accessibilityState={{ disabled: doneLocked || restarting }}>
-              {restarting ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
-              <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
+              {restarting ? (
+                <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
+              ) : (
+                <>
+                  <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
+                  <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
+                </>
+              )}
             </Pressable>
             <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
               <Feather name="file-text" size={16} color={palette.textDim} />
@@ -1634,7 +1647,6 @@ export default function ReadingPlay() {
             </View>
           ) : different.kind === 'waiting' ? (
             <View style={styles.noteBox}>
-              <ActivityIndicator size="small" color={palette.textMuted} />
               <Text style={styles.noteText}>{t('reading.differentWaiting')}</Text>
             </View>
           ) : different.kind === 'later' ? (
@@ -1670,8 +1682,14 @@ export default function ReadingPlay() {
             accessibilityRole="button"
             accessibilityLabel={t('reading.readAgain')}
             accessibilityState={{ disabled: doneLocked || restarting }}>
-            {restarting ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />}
-            <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
+            {restarting ? (
+              <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
+            ) : (
+              <>
+                <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
+                <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
+              </>
+            )}
           </Pressable>
           <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
             <Feather name="file-text" size={16} color={palette.textDim} />

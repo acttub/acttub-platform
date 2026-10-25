@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -60,7 +60,6 @@ export default function BlockedUsersScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        {users === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 32 }} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
         {users !== null && users.length === 0 && !error && <Text style={styles.empty}>{t('block.empty')}</Text>}
 

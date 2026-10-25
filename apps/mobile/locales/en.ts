@@ -14,6 +14,20 @@ type DeepStringShape<T> = {
 
 const en: DeepStringShape<typeof ko> = {
   uploadReason: {"title":"Not ready to upload a video?","optional":"You can skip this question.","noVideo":"I don’t have a video","no_video":"I haven’t recorded one yet","privacy":"I’m uncomfortable showing my face","other":"Another reason","next":"Try starting here","privacyHelp":"Coaching videos are not shared with other users. You can record your voice without showing your face, though facial expressions may be hard to review.","talkSub":"Talk about your acting without a video.","script":"Create lines to record together","scriptSub":"Prepare a scene you want to record.","recordSub":"A short recording is fine when you feel ready.","skip":"Skip for now"},
+  loadingText: {
+    wait: 'One moment…',
+    loading: 'Loading…',
+    saving: 'Saving…',
+    uploading: 'Uploading…',
+    sending: 'Sending…',
+    deleting: 'Deleting…',
+    signingIn: 'Signing in…',
+    preparing: 'Getting ready…',
+    making: 'Creating…',
+    analyzing: 'Reviewing…',
+    coachWriting: 'Your coach is writing…',
+    checking: 'Checking…',
+  },
   common: {
     confirm: 'OK',
     cancel: 'Cancel',

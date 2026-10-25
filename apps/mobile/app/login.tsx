@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -202,7 +202,6 @@ export default function LoginScreen() {
         <Text style={styles.tagline}>{t('login.tagline')}</Text>
         {busy !== null && (
           <View style={styles.progress} accessibilityRole="progressbar">
-            <ActivityIndicator size="small" color={palette.textMuted} />
             <Text style={styles.progressText}>{t('login.signingIn')}</Text>
           </View>
         )}
@@ -219,9 +218,7 @@ export default function LoginScreen() {
           </View>
         )}
 
-        {list.status === 'loading' ? (
-          <ActivityIndicator color={palette.blue} />
-        ) : list.status === 'error' ? (
+        {list.status === 'loading' ? null : list.status === 'error' ? (
           <View style={styles.reloadBox}>
             <Text style={styles.error}>{t('login.providersFail')}</Text>
             {/* pen S3.2 — 빨간 한 줄 아래 파란 글자 링크(간격 4). */}

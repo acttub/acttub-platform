@@ -1,6 +1,6 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
@@ -118,9 +118,7 @@ export default function ReportDetailScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('note.title'), headerShadowVisible: false }} />
       {loading && (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <View style={styles.center} />
       )}
       {!loading && !note && <Text style={styles.error}>{error ?? t('note.none')}</Text>}
       {!loading && error === t('note.loadFail') && (

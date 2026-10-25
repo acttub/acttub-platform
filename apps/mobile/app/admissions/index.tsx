@@ -2,7 +2,6 @@ import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -75,7 +74,6 @@ export default function AdmissionsScreen() {
 
       {!payload && !error && (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
         </View>
       )}
       {error && <Text style={styles.error}>{error}</Text>}

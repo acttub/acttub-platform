@@ -2,12 +2,13 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { palette } from '@/constants/palette';
 import { useAuth } from '@/lib/auth';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t, translateList } from '@/lib/i18n';
 import { DIRECTION_VALUES, EXPERIENCE_VALUES, GOAL_VALUES } from '@/lib/profile-form';
 import { DIRECTION_LABEL_KEYS, GENDER_LABEL_KEYS, type ProfileEditField } from '@/lib/profile-labels';
@@ -67,9 +68,7 @@ export default function ProfileEditScreen() {
                 <Text style={styles.reloadText}>{t('profileName.reload')}</Text>
               </Pressable>
             </>
-          ) : (
-            <ActivityIndicator color={palette.blue} />
-          )}
+          ) : null}
         </View>
       </SafeAreaView>
     );
@@ -107,7 +106,7 @@ export default function ProfileEditScreen() {
           <Pressable onPress={() => void changePhoto()} disabled={photoBusy} accessibilityRole="button" accessibilityLabel={t('profileName.editPhoto')}>
             <View style={styles.photo}>
               {photoBusy ? (
-                <ActivityIndicator color={palette.blue} />
+                <LoadingText label={t('loadingText.uploading')} style={{ fontSize: 12 }} />
               ) : photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.photoImg} contentFit="cover" />
               ) : (

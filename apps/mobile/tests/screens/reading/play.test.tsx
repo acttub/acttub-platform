@@ -1306,7 +1306,8 @@ test('다시 연습을 여러 번 눌러도 새 회차는 하나만 시작한다
   await speechEnds();
 
   await pressWhenReady('다시 연습');
-  await fireEvent.press(screen.getByText('다시 연습'));
+  // SOMA-828: 누른 뒤에는 버튼 글자가 「준비하는 중…」으로 바뀐다. 그 버튼을 한 번 더 눌러도 새 회차는 하나다.
+  await fireEvent.press(screen.getByText('준비하는 중…'));
   await act(async () => started());
   expect(server.startSession).toHaveBeenCalledTimes(1);
   expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play');

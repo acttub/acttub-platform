@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -135,9 +135,7 @@ export default function ReadingDetail() {
 
         <Text style={styles.sectionTitle}>{t('reading.sessionsTitle')}</Text>
 
-        {sessions === null ? (
-          <ActivityIndicator color={palette.textFaint} style={styles.loading} />
-        ) : sessions.length === 0 ? (
+        {sessions === null ? null : sessions.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="mic" size={24} color={palette.textFaint} />
             <Text style={styles.emptyTitle}>{t('reading.noSessions')}</Text>
