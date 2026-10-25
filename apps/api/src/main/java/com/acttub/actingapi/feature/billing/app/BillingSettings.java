@@ -3,18 +3,25 @@ package com.acttub.actingapi.feature.billing.app;
 import java.net.URI;
 
 /**
- * 앱 Pro 정기결제의 설정(SOMA-818). {@code BILLING_APP_ENABLED}(기본 false)가 켜고, 값이 하나라도 틀리면
- * {@link #invalidReason()} 이 이유를 돌려주고 기능은 닫힌다. 운영 토스 계약이 심사 중이라 지금은
- * <b>테스트 키({@code test_ck_}·{@code test_sk_})만</b> 받는다 — 운영에 켜도 라이브 키로는 열리지 않는다.
+ * ACTTUB Pro 결제의 설정(SOMA-818). 스위치가 둘이다.
  *
- * <p>무료 한도 강제({@code BILLING_FREE_LIMITS_ENABLED}, 기본 false)는 결제 기능이 열려 있을 때만 의미가 있다.
+ * <ul>
+ *   <li>{@code BILLING_WEB_ENABLED}(기본 false) — 웹 토스 정기결제(카드 등록·첫 결제·자동결제 스케줄러). 값이 하나라도 틀리면
+ *       {@link #invalidReason()} 이 이유를 돌려주고 닫힌다. 토스 키는 테스트·라이브 둘 다 받되 두 키의 종류가 같아야 한다.
+ *       이 플래그가 꺼져 있으면 결제는 단 한 건도 나가지 않는다.</li>
+ *   <li>{@code BILLING_APP_ENABLED}(기본 false) — 앱이 Pro 화면·구독 상태를 보게 하는 스위치. 스토어 결제(2단계)가 이 뒤에 붙는다.
+ *       토스를 열지는 않는다.</li>
+ * </ul>
+ *
+ * <p>무료 한도 강제({@code BILLING_FREE_LIMITS_ENABLED}, 기본 false)는 둘 중 하나가 열려 있을 때만 의미가 있다.
  * {@link #toString()} 은 비밀 값을 싣지 않는다.
  *
  * @param origin 토스가 브라우저를 되돌려 보낼 이 API 의 공개 주소(https 도메인, 개발용 루프백 http)
- * @param returnUrl 결제 창이 끝나면 앱으로 돌아갈 주소(앱 스킴)
+ * @param returnUrl 카드 등록이 끝나면 웹으로 돌아갈 주소(https, 개발용 루프백 http)
  */
 public record BillingSettings(
         boolean enabled,
+        boolean appEnabled,
         boolean freeLimitsEnabled,
         String origin,
         String returnUrl,
@@ -29,35 +36,48 @@ public record BillingSettings(
     }
 
     public static BillingSettings disabled() {
-        return new BillingSettings(false, false, "", "", "", "");
+        return new BillingSettings(false, false, false, "", "", "", "");
     }
 
     private static String strip(String value) {
         return value == null ? "" : value.strip();
     }
 
-    /** 닫혀야 하는 이유(비밀 값 없는 짧은 코드). 열 수 있으면 {@code null}. */
+    /** 웹 토스 결제가 닫혀야 하는 이유(비밀 값 없는 짧은 코드). 열 수 있으면 {@code null}. */
     public String invalidReason() {
         if (!enabled) {
             return "disabled";
         }
-        if (!validOrigin(origin)) {
+        if (!validWebUrl(origin, false)) {
             return "origin_invalid";
         }
-        if (!validReturnUrl(returnUrl)) {
+        if (!validWebUrl(returnUrl, true)) {
             return "return_url_invalid";
         }
-        if (!PgReviewSettings.isTestClientKey(clientKey)) {
-            return "client_key_not_test";
+        boolean testClient = PgReviewSettings.isTestClientKey(clientKey);
+        boolean liveClient = clientKey.matches("live_ck_[A-Za-z0-9_-]{8,}");
+        boolean testSecret = PgReviewSettings.isTestSecretKey(secretKey);
+        boolean liveSecret = secretKey.matches("live_sk_[A-Za-z0-9_-]{8,}");
+        if (!testClient && !liveClient) {
+            return "client_key_invalid";
         }
-        if (!PgReviewSettings.isTestSecretKey(secretKey)) {
-            return "secret_key_not_test";
+        if (!testSecret && !liveSecret) {
+            return "secret_key_invalid";
+        }
+        if (testClient != testSecret) {
+            return "key_mode_mismatch";
         }
         return null;
     }
 
-    public boolean usable() {
+    /** 웹 토스 결제를 열 수 있는가 — 카드 등록·첫 결제·자동결제는 이것이 true 일 때만 한다. */
+    public boolean webUsable() {
         return invalidReason() == null;
+    }
+
+    /** 구독 상태를 보여 주고 Pro 를 판정하는가 — 웹 결제가 열렸거나 앱 스위치가 켜졌을 때. */
+    public boolean usable() {
+        return webUsable() || appEnabled;
     }
 
     /** 무료 한도를 실제로 거는가 — 결제 기능이 열려 있고 한도 플래그도 켜져 있어야 한다. */
@@ -65,11 +85,14 @@ public record BillingSettings(
         return freeLimitsEnabled && usable();
     }
 
-    private static boolean validOrigin(String value) {
+    private static boolean validWebUrl(String value, boolean pathAllowed) {
         try {
             URI uri = new URI(value);
             if (uri.getHost() == null || uri.getUserInfo() != null || uri.getQuery() != null
-                    || uri.getFragment() != null || (uri.getPath() != null && !uri.getPath().isEmpty())) {
+                    || uri.getFragment() != null) {
+                return false;
+            }
+            if (!pathAllowed && uri.getPath() != null && !uri.getPath().isEmpty()) {
                 return false;
             }
             boolean loopback = "localhost".equals(uri.getHost()) || "127.0.0.1".equals(uri.getHost());
@@ -79,22 +102,9 @@ public record BillingSettings(
         }
     }
 
-    /** 앱 스킴 주소({@code actingapp://billing-result}). 쿼리·조각은 서버가 붙인다. */
-    private static boolean validReturnUrl(String value) {
-        try {
-            URI uri = new URI(value);
-            String scheme = uri.getScheme();
-            return scheme != null && scheme.matches("[a-z][a-z0-9+.-]{1,30}") && !"http".equals(scheme)
-                    && !"https".equals(scheme) && !"javascript".equals(scheme) && uri.getQuery() == null
-                    && uri.getFragment() == null;
-        } catch (Exception notUri) {
-            return false;
-        }
-    }
-
     @Override
     public String toString() {
-        return "BillingSettings[enabled=" + enabled + ", freeLimitsEnabled=" + freeLimitsEnabled + ", origin=" + origin
-                + ", returnUrl=" + returnUrl + ", secrets=redacted]";
+        return "BillingSettings[web=" + enabled + ", app=" + appEnabled + ", freeLimitsEnabled=" + freeLimitsEnabled
+                + ", origin=" + origin + ", returnUrl=" + returnUrl + ", secrets=redacted]";
     }
 }

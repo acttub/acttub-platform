@@ -99,7 +99,8 @@ class PracticeController {
         AuthenticatedUser user = auth.gatedUser(request);
         return PracticeResponse.of(practices.start(
                 user.id(), user.guest(), contract,
-                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), body.title(), body.sessionPurpose())));
+                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), body.title(), body.sessionPurpose(),
+                        body.faceMosaic())));
     }
 
     @Operation(
@@ -132,7 +133,7 @@ class PracticeController {
         AuthenticatedUser user = auth.gatedUser(request);
         return PracticeResponse.of(practices.continueGroup(
                 user.id(), user.guest(), contract, practiceId,
-                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), null, null)));
+                draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), null, null, body.faceMosaic())));
     }
 
     @Operation(
@@ -262,7 +263,8 @@ class PracticeController {
     }
 
     private static PracticeService.Draft draft(
-            UUID requestId, UUID videoId, SceneInput scene, BlockageInput blockage, String title, String sessionPurpose) {
+            UUID requestId, UUID videoId, SceneInput scene, BlockageInput blockage, String title, String sessionPurpose,
+            Boolean faceMosaic) {
         return new PracticeService.Draft(
                 requestId,
                 videoId,
@@ -273,7 +275,8 @@ class PracticeController {
                 blockage == null ? null : blockage.detail(),
                 blockage == null ? null : blockage.note(),
                 title,
-                sessionPurpose);
+                sessionPurpose,
+                faceMosaic);
     }
 
     /** 막힘의 큰 갈래와 세부는 조합이 맞아야 한다 — DB 가 거부할 값을 먼저 422 배열로 답한다. */

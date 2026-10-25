@@ -12,6 +12,8 @@ import com.acttub.actingapi.feature.reading.adapter.decision.OpenRouterLineDecid
 import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.app.MemorizationRepository;
 import com.acttub.actingapi.feature.reading.app.MemorizationService;
+import com.acttub.actingapi.feature.reading.app.ReadingExampleRepository;
+import com.acttub.actingapi.feature.reading.app.ReadingExampleService;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.RecordingPlayback;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository;
@@ -95,6 +97,11 @@ class ReadingConfiguration {
             ObjectProvider<ScriptPlan> plan) {
         // 무료 대본 한도(SOMA-818)는 결제 도메인이 구현한다. 그 빈이 없는 조립에서는 한도가 없다.
         return new ScriptService(scripts, cleanup, canonical, clock, plan.getIfAvailable(() -> ScriptPlan.UNLIMITED));
+    }
+
+    @Bean
+    ReadingExampleService readingExampleService(ReadingExampleRepository examples, ScriptService scripts, VoiceModelStorage storage) {
+        return new ReadingExampleService(examples, scripts, storage);
     }
 
     @Bean

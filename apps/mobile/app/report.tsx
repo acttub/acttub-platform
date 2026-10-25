@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
@@ -135,7 +135,6 @@ export default function ReportScreen() {
 
       {loading && (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} size="large" />
           <Text style={styles.loadingText}>{t('report.making')}</Text>
         </View>
       )}
@@ -174,6 +173,8 @@ export default function ReportScreen() {
                 튜토리얼 예시 노트는 서버에 없어 평가를 받지 않는다(SOMA-494). */}
             {!sample && <ReportRating practiceId={practice.practiceId} initial={note.my_rating} key={note.id} />}
 
+            {rating.element}
+
             {sample ? (
               <View style={styles.sampleDone}>
                 <Text style={styles.sampleDoneTitle}>{t('tutorial.sampleDone')}</Text>
@@ -194,7 +195,6 @@ export default function ReportScreen() {
           )}
         </>
       )}
-      {rating.element}
       {tutorialGuide.element}
     </SafeAreaView>
   );

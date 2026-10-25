@@ -31,11 +31,14 @@ final class BillingDtos {
             @JsonProperty("card_company") String cardCompany,
             @JsonProperty("card_last4") String cardLast4,
             @JsonProperty("retry_count") int retryCount,
-            @JsonProperty("limits_enforced") boolean limitsEnforced) {
+            @JsonProperty("limits_enforced") boolean limitsEnforced,
+            String provider,
+            @JsonProperty("grant_ends_at") Instant grantEndsAt) {
 
         static MeResponse of(View view) {
             return new MeResponse(view.status(), view.pro(), view.amount(), view.periodEnd(), view.nextBillingAt(),
-                    view.cardCompany(), view.cardLast4(), view.retryCount(), view.limitsEnforced());
+                    view.cardCompany(), view.cardLast4(), view.retryCount(), view.limitsEnforced(), view.provider(),
+                    view.grantEndsAt());
         }
     }
 }

@@ -46,6 +46,8 @@ jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 jest.mock('@/lib/tutorial-loop', () => ({ sampleVideoUri: () => 'file:///sample.mp4' }));
+jest.mock('@/lib/notifications', () => ({ scheduleUploadLaterReminder: jest.fn().mockResolvedValue('scheduled') }));
+import { scheduleUploadLaterReminder } from '@/lib/notifications';
 jest.mock('@/lib/api', () => ({
   api: { getVideo: jest.fn(), createPractice: jest.fn(), continuePractice: jest.fn(), listPracticeGroups: jest.fn() },
 }));
@@ -95,19 +97,31 @@ async function renderWithSavedVideo() {
   await waitFor(() => expect(useVideoPlayer).toHaveBeenLastCalledWith('https://play/v1', expect.any(Function)));
 }
 
-// 세션 목적은 누르는 즉시 영상 단계로 넘어간다 — 「다음」 버튼이 없다(SOMA-778).
+// 선택 규칙 — 목적을 고른 뒤 「다음」을 눌러야 영상 단계로 넘어간다.
 async function toSourceStep(purpose = '평가 받기') {
-  await fireEvent.press(screen.getByRole('button', { name: purpose }));
+  await fireEvent.press(screen.getByRole('radio', { name: purpose }));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   expect(screen.getByText('영상이 어디 있어요?')).toBeOnTheScreen();
 }
 
+// 영상 단계에서 길(지금 찍기·갤러리)을 고르고 권리를 체크한 뒤 「질문 받기」를 누른다.
+async function pickSource(name: string) {
+  await fireEvent.press(screen.getByRole('radio', { name }));
+  await ensureRights();
+  await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
+}
+
+async function ensureRights() {
+  if (!screen.getByRole('checkbox').props.accessibilityState?.checked) await fireEvent.press(screen.getByText(RIGHTS));
+}
+
 async function checkRightsAndStart() {
-  await fireEvent.press(screen.getByText(RIGHTS));
+  await ensureRights();
   await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
 }
 
 describe('영상을 고르기 전', () => {
-  test('세션 목적부터 묻고, 목적을 누르면 바로 영상 고르기로 간다 — 나가면 영상 없이 나갔다고 센다', async () => {
+  test('세션 목적부터 묻고, 목적을 고르고 다음을 누르면 영상 고르기로 간다 — 나가면 영상 없이 나갔다고 센다', async () => {
     const view = await render(<UploadScreen />);
 
     expect(screen.getByText('새 연습')).toBeOnTheScreen();
@@ -116,13 +130,13 @@ describe('영상을 고르기 전', () => {
     expect(screen.getByText('목적')).toBeOnTheScreen();
     expect(screen.getByText('영상')).toBeOnTheScreen();
     expect(screen.queryByText('장면 · 질문')).not.toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
-    // 기본 목적은 있지만 직접 고르기 전에는 고른 것처럼 칠하지 않는다(10/22 피드백).
-    expect(screen.getByRole('button', { name: '평가 받기' })).not.toBeSelected();
+    // 기본 선택이 없어 고르기 전에는 「다음」이 막혀 있다.
+    expect(screen.getByRole('radio', { name: '평가 받기' })).not.toBeSelected();
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    expect(screen.queryByText('영상이 어디 있어요?')).not.toBeOnTheScreen();
     await toSourceStep();
     // 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있다 — 영상이 없으면 막혀 있다.
     expect(screen.getByRole('checkbox')).not.toBeChecked();
-    expect(screen.getByText('영상을 채워주세요')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
     expect(logged('practice_start_blocked')).toEqual([{ reason: 'no_video' }]);
     expect(api.createPractice).not.toHaveBeenCalled();
@@ -133,24 +147,23 @@ describe('영상을 고르기 전', () => {
     ]);
   });
 
-  test('영상 고르기에서 보관함은 보관함으로, 지금 찍기는 찍는 법 한 장으로 간다', async () => {
+  test('영상 고르기에는 보관함 줄이 없고, 지금 찍기는 바로 카메라로 간다', async () => {
     await render(<UploadScreen />);
     await toSourceStep();
 
-    await fireEvent.press(screen.getByRole('button', { name: '보관함에서 고르기' }));
-    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/archive', params: { pick: '1' } });
-    await fireEvent.press(screen.getByRole('button', { name: '지금 찍기' }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-guide', params: {} });
+    expect(screen.queryByRole('button', { name: '보관함에서 고르기' })).not.toBeOnTheScreen();
+    await pickSource('지금 찍기');
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-video', params: { mode: 'ai' } });
   });
 
-  test('첫 코칭이어도 단계마다 「처음이면 ~를 누르세요」를 반복하지 않고, 찍는 법에는 첫 코칭이라고 넘긴다(10/20 피드백)', async () => {
+  test('첫 코칭이어도 단계마다 「처음이면 ~를 누르세요」를 반복하지 않고, (10/20 피드백)', async () => {
     mockParams = { first: '1' };
     await render(<UploadScreen />);
     expect(screen.queryByText('처음이면 「평가 받기」를 누르세요.')).not.toBeOnTheScreen();
     await toSourceStep();
     expect(screen.queryByText('처음이면 「지금 찍기」를 누르세요.')).not.toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '지금 찍기' }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-guide', params: { first: '1' } });
+    await pickSource('지금 찍기');
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-video', params: { mode: 'ai' } });
     // 영상을 고르고 와도 같은 안내를 반복하지 않는다.
     await returnWithPicked({ videoId: 'v1', pendingId: null, uri: 'file:///v1.mp4', playbackUrl: null, durationMs: 2_000, source: 'record' });
     expect(screen.queryByText('맨 아래 체크를 누른 뒤 「질문 받기」를 누르세요.')).not.toBeOnTheScreen();
@@ -163,8 +176,8 @@ describe('영상을 고르기 전', () => {
     await toSourceStep();
     expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    expect(screen.getByText('영상 올리기가 망설여지나요?')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('지금은 넘어갈게요'));
+    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
     expect(screen.getByText('오늘은 어떤 도움이 필요해요?')).toBeOnTheScreen();
   });
 
@@ -183,7 +196,7 @@ describe('영상을 고르기 전', () => {
 describe('갤러리에서 고르기', () => {
   async function pickFromGallery() {
     await toSourceStep();
-    await fireEvent.press(screen.getByRole('button', { name: '갤러리에서 고르기' }));
+    await pickSource('갤러리에서 고르기');
     await waitFor(() => expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalled());
   }
 
@@ -201,17 +214,23 @@ describe('갤러리에서 고르기', () => {
 
     expect(await screen.findByText('올리는 중…')).toBeOnTheScreen();
     expect(saveRecordingToLibrary).toHaveBeenCalledWith({ uri: 'file:///g.mov', durationMs: 42_000, owner: 'u1' });
-    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith({ mediaTypes: ['videos'], allowsEditing: true, quality: 1 });
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith({ mediaTypes: ['videos'], allowsEditing: false, preferredAssetRepresentationMode: 'current' });
     expect(useVideoPlayer).toHaveBeenLastCalledWith('file:///doc/g.mov', expect.any(Function));
     expect(mockPlayer.pause).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: '업로드 중…' })).toBeOnTheScreen();
     expect(screen.getByText('영상을 아직 올리는 중이에요. 잠시 뒤에 다시 눌러 주세요.')).toBeOnTheScreen();
     expect(logged('practice_video_picked')).toEqual([{ source: 'gallery', needs_upload: 'yes', length: '30_60s' }]);
 
+    // 권리 체크를 풀고 누르면 막힌 이유를 세고 업로드를 다시 민다.
+    await fireEvent.press(screen.getByText(RIGHTS));
     await fireEvent.press(screen.getByRole('button', { name: '업로드 중…' }));
     expect(flushLibraryUploads).toHaveBeenCalledWith('u1');
     expect(logged('practice_start_blocked')).toEqual([{ reason: 'uploading' }]);
     expect(api.createPractice).not.toHaveBeenCalled();
+    // 체크한 채 누르면 「영상을 올리고 있어요」 한 장으로 기다린다.
+    await fireEvent.press(screen.getByText(RIGHTS));
+    await fireEvent.press(screen.getByRole('button', { name: '업로드 중…' }));
+    expect(await screen.findByText('영상을 올리고 있어요')).toBeOnTheScreen();
   });
 
   test('올리기가 실패로 남으면 다시 올려 볼 수 있다고 알린다', async () => {
@@ -245,7 +264,7 @@ describe('갤러리에서 고르기', () => {
     (confirmedVideoFor as jest.Mock).mockImplementation((id: string) => (id === 'pend-1' ? 'v9' : null));
     await act(async () => emitLibraryChange());
 
-    expect(await screen.findByText('보관함 저장')).toBeOnTheScreen();
+    expect(await screen.findByText('저장했어요')).toBeOnTheScreen();
     expect(logged('practice_video_ready')).toEqual([{ source: 'gallery', wait_s: 0 }]);
     await checkRightsAndStart();
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coach', params: { practiceId: 'p1' } }));
@@ -276,16 +295,15 @@ describe('갤러리에서 고르기', () => {
 });
 
 describe('보관함에서 고른 영상으로 시작', () => {
-  test('재생 주소를 받아 미리보기를 채우고, 권리를 체크하면 회차를 만들어 코치 화면(분석 대기)으로 간다', async () => {
+  test('재생 주소를 받아 미리보기를 채우고, 권리를 체크하면 회차를 만들어 액티 화면(분석 대기)으로 간다', async () => {
     await renderWithSavedVideo();
 
-    expect(screen.getByText('보관함 저장')).toBeOnTheScreen();
+    expect(screen.getByText('저장했어요')).toBeOnTheScreen();
     expect(api.getVideo).toHaveBeenCalledWith('v1');
     expect(logged('practice_video_picked')).toEqual([{ source: 'library', needs_upload: 'no', length: '10_30s' }]);
 
     await fireEvent.press(screen.getByText('영상 다시 선택'));
-    await fireEvent.press(screen.getByRole('button', { name: '보관함에서 고르기' }));
-    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/archive', params: { pick: '1' } }));
+    expect(screen.queryByRole('button', { name: '보관함에서 고르기' })).not.toBeOnTheScreen();
     expect(screen.getByText('권리 확인에 체크해주세요')).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
@@ -312,13 +330,13 @@ describe('보관함에서 고른 영상으로 시작', () => {
     await toSourceStep('막힌 곳 풀기');
     // 뒤로 가서 다른 목적을 고른다 — 고른 것만 선택돼 있다.
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    await fireEvent.press(screen.getByText('지금은 넘어갈게요'));
-    expect(screen.getByRole('button', { name: '막힌 곳 풀기' })).toBeSelected();
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.getByRole('radio', { name: '막힌 곳 풀기' })).toBeSelected();
     await toSourceStep('인물 이해하기');
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    await fireEvent.press(screen.getByText('지금은 넘어갈게요'));
-    expect(screen.getByRole('button', { name: '인물 이해하기' })).toBeSelected();
-    expect(screen.getByRole('button', { name: '막힌 곳 풀기' })).not.toBeSelected();
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.getByRole('radio', { name: '인물 이해하기' })).toBeSelected();
+    expect(screen.getByRole('radio', { name: '막힌 곳 풀기' })).not.toBeSelected();
     await toSourceStep('인물 이해하기');
     await returnWithPicked({ videoId: 'v1', pendingId: null, uri: 'file:///v1.mp4', playbackUrl: null, durationMs: 2_000 });
 
@@ -351,7 +369,7 @@ describe('보관함에서 고른 영상으로 시작', () => {
     await render(<UploadScreen />);
     await waitFor(() => expect(api.getVideo).toHaveBeenCalledWith('v1'));
     expect(useVideoPlayer).toHaveBeenLastCalledWith(null, expect.any(Function));
-    expect(screen.getByText('보관함 저장')).toBeOnTheScreen();
+    expect(screen.getByText('저장했어요')).toBeOnTheScreen();
   });
 
   test('상세를 못 받아도 화면은 그대로다', async () => {
@@ -359,7 +377,7 @@ describe('보관함에서 고른 영상으로 시작', () => {
     setPickedVideo({ videoId: 'v1', pendingId: null, uri: null, playbackUrl: null, durationMs: null });
     await render(<UploadScreen />);
     await waitFor(() => expect(api.getVideo).toHaveBeenCalled());
-    expect(screen.getByText('보관함 저장')).toBeOnTheScreen();
+    expect(screen.getByText('저장했어요')).toBeOnTheScreen();
   });
 
   test('다른 영상의 상세가 늦게 오면 덮어쓰지 않는다', async () => {
@@ -416,7 +434,7 @@ describe('시작이 실패하면', () => {
     expect(ids[2]).toBe(ids[1]);
   });
 
-  test('진행 중인 회차가 있으면 알리고 그 회차의 코치 화면으로 돌려보낸다', async () => {
+  test('진행 중인 회차가 있으면 알리고 그 회차의 액티 화면으로 돌려보낸다', async () => {
     (api.createPractice as jest.Mock).mockRejectedValue(serverError(409, 'practice_in_progress'));
     (api.listPracticeGroups as jest.Mock).mockResolvedValue({
       groups: [{ root_id: 'r1', in_progress_practice_id: 'open-1' }],
@@ -594,44 +612,50 @@ test('보관함 변경 구독은 화면을 떠나면 푼다', async () => {
 
 describe('영상 업로드를 망설일 때', () => {
   async function openReasons() {
+    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
     await render(<UploadScreen />);
     await toSourceStep();
-    await fireEvent.press(screen.getByRole('button', { name: '영상 없어요' }));
-    expect(screen.getByText('영상 올리기가 망설여지나요?')).toBeOnTheScreen();
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
   }
 
-  test.each([
-    ['아직 찍어 둔 영상이 없어요', 'no_video', '영상 없이 말로 코칭 받기', 'talk', '/talk'],
-    ['얼굴을 보이기가 부담스러워요', 'privacy', '찍을 대사부터 같이 만들기', 'script', '/script-cocreate'],
-    ['다른 이유가 있어요', 'other', '지금 찍기', 'record', '/record-guide'],
-  ])('%s에서 %s 이유와 다음 경로를 기록하고 이동한다', async (label, reason, button, destination, path) => {
-    mockParams = { first: '1' };
+  test('얼굴·영상 걱정 → 다음 → 올리기 옵션 → 이대로 올리기로 영상 단계에 돌아온다', async () => {
     await openReasons();
-    await fireEvent.press(screen.getByRole('button', { name: label }));
-    expect(logged('practice_upload_decline_reason')).toEqual([{ reason }]);
-    expect(screen.getByText('이렇게 시작해 볼까요?')).toBeOnTheScreen();
-    await fireEvent.press(within(screen.getByText('이렇게 시작해 볼까요?').parent!).getByRole('button', { name: button }));
-    expect(screen.queryByText('이렇게 시작해 볼까요?')).not.toBeOnTheScreen();
-    expect(logged('practice_upload_decline_route')).toEqual([{ reason, destination }]);
-    await waitFor(() => {
-      if (destination === 'record') {
-        expect(mockRouter.push).toHaveBeenCalledWith({ pathname: path, params: { first: '1' } });
-      } else {
-        expect(mockRouter.replace).toHaveBeenCalledWith(path);
-      }
-    });
-    expect(jest.requireMock('@react-navigation/native').usePreventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
+    await fireEvent.press(screen.getByRole('radio', { name: '얼굴·영상이 남는 게 걱정돼요' }));
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    expect(logged('practice_upload_decline_route')).toEqual([{ reason: 'face', destination: 'face' }]);
+    expect(screen.getByText('이렇게 올려 볼까요?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '이대로 올리기' }));
+    expect(screen.queryByText('이렇게 올려 볼까요?')).not.toBeOnTheScreen();
+    // 망설임 페이지가 닫혔다 — 영상 단계 위 링크(같은 문구, 한 줄)만 남는다.
+    expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
+    expect(screen.getByText('하나 고르고 「질문 받기」를 누르세요.')).toBeOnTheScreen();
   });
 
-  test.each([false, true])('건너뛰면 목적 단계로 돌아가고 이동하지 않는다 (이유 선택: %s)', async (chooseReason) => {
-    await openReasons();
-    if (chooseReason) await fireEvent.press(screen.getByRole('button', { name: '다른 이유가 있어요' }));
-    await fireEvent.press(screen.getByRole('button', { name: '지금은 넘어갈게요' }));
-    expect(screen.getByText('오늘은 어떤 도움이 필요해요?')).toBeOnTheScreen();
-    expect(screen.queryByText('영상 올리기가 망설여지나요?')).not.toBeOnTheScreen();
-    expect(logged('practice_upload_decline_route')).toEqual([{ reason: chooseReason ? 'other' : 'skipped', destination: 'skip' }]);
-    expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(mockRouter.replace).not.toHaveBeenCalled();
-    expect(logged('practice_upload_decline_reason')).toEqual(chooseReason ? [{ reason: 'other' }] : []);
+  test('영상 단계 위 「영상 올리기가 망설여지나요?」 링크로 열고, 닫으면 영상 단계에 머문다(pen P3.1)', async () => {
+    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    await render(<UploadScreen />);
+    await toSourceStep();
+    await fireEvent.press(screen.getByRole('link', { name: '영상 올리기가 망설여지나요?' }));
+    expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
+    expect(screen.getByText('영상이 어디 있어요?')).toBeOnTheScreen();
   });
+
+  test('길게 찍기 부담돼요 → 10초 촬영으로 간다', async () => {
+    await openReasons();
+    await fireEvent.press(screen.getByRole('radio', { name: '길게 찍기 부담돼요' }));
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/record-video', params: { mode: 'ai', maxSec: '10' } }));
+  });
+
+  test('지금은 못 찍어요 → 알림을 예약하고 홈으로 간다', async () => {
+    await openReasons();
+    await fireEvent.press(screen.getByRole('radio', { name: '지금은 못 찍어요' }));
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    expect(scheduleUploadLaterReminder).toHaveBeenCalled();
+  });
+
 });

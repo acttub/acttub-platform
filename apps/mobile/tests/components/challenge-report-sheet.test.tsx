@@ -82,12 +82,12 @@ test('메모가 200자를 넘으면 신고하기가 꺼진다', async () => {
   expect(onSubmit).not.toHaveBeenCalled();
 });
 
-test('취소하면 고른 사유와 메모를 비우고 닫는다', async () => {
+test('닫으면 고른 사유와 메모를 비우고 닫는다', async () => {
   const { onClose, onSubmit } = await setup();
   await fireEvent.press(radio('기타'));
   await fireEvent.changeText(screen.getByDisplayValue(''), '메모');
 
-  await fireEvent.press(screen.getByRole('button', { name: '취소' }));
+  await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
 
   expect(onClose).toHaveBeenCalledTimes(1);
   expect(onSubmit).not.toHaveBeenCalled();

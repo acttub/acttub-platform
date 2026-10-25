@@ -4,10 +4,8 @@ import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
-  Share,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -20,11 +18,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
+import { useEntryShare } from '@/components/entry-share-sheet';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { avatarLetter, browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
-import { entryShareUrl } from '@/lib/challenge/deeplink';
 import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import { commentCountAfter } from '@/lib/challenge/entry';
 import { canReact, optimisticLike, optimisticSave, reactFailure, reactFailureMessage } from '@/lib/challenge/react';
@@ -34,6 +32,9 @@ import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { newRequestId } from '@/lib/request-id';
 import { limitVideoBuffer } from '@/lib/video-memory';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 /**
  * A15 챌린지 피드 — 고른 챌린지 **안에서만** 참여작을 위아래로 넘겨 본다.
@@ -66,6 +67,11 @@ export default function ChallengePlayScreen() {
   const [busy, setBusy] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [playFailed, setPlayFailed] = useState(false);
+  /** 「다시 시도」를 누를 때마다 올라가 같은 참여작의 영상을 다시 받는다. */
+  const [retryTick, setRetryTick] = useState(0);
+  // 모자이크를 잠시 빼고 원본으로 보는 내 참여작(SOMA-809). 다른 참여작으로 넘기면 그 참여작은 모자이크본이다.
+  const [originalFor, setOriginalFor] = useState<string | null>(null);
+  const resumeAt = useRef(0);
   const [reportTarget, setReportTarget] = useState<{ type: ReportTarget; id: string } | null>(null);
   const listRef = useRef<FlatList<EntryCard>>(null);
 
@@ -133,17 +139,22 @@ export default function ChallengePlayScreen() {
   // 보던 맨 끝 참여작을 신고로 빼면 보던 자리가 비므로 효과가 돌기 전에 남은 마지막 참여작으로 당긴다.
   if (entries?.length && active >= entries.length) setActive(entries.length - 1);
 
-  // 페이지가 바뀌면 그 참여작의 영상으로 갈아끼운다.
+  // 페이지가 바뀌면 그 참여작의 영상으로 갈아끼운다. 원본·모자이크본을 바꿀 때도 보던 자리에서 이어 튼다.
   useEffect(() => {
     const entry = entries?.[active];
-    setPlayFailed(!entry?.playback_url && entries !== null && entries.length > 0);
-    if (!entry?.playback_url) return;
+    const source = entry ? sourceOf(entry, originalFor) : null;
+    setPlayFailed(!source && entries !== null && entries.length > 0);
+    if (!source) return;
     // replaceAsync — replace 는 iOS 에서 영상을 주 스레드로 불러와 넘길 때 화면이 멈출 수 있다(SOMA-713).
     let alive = true;
     void player
-      .replaceAsync(entry.playback_url)
+      .replaceAsync(source)
       .then(() => {
         if (!alive) return;
+        if (resumeAt.current > 0) {
+          player.currentTime = resumeAt.current;
+          resumeAt.current = 0;
+        }
         player.play();
         setPlaying(true);
       })
@@ -157,7 +168,13 @@ export default function ChallengePlayScreen() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [active, entries, player]);
+  }, [active, entries, player, retryTick, originalFor]);
+
+  /** 내 참여작의 원본·모자이크본을 바꾼다. 보던 자리는 그대로 둔다. */
+  const toggleOriginal = (entry: EntryCard) => {
+    resumeAt.current = player.currentTime;
+    setOriginalFor((was) => (was === entry.id ? null : entry.id));
+  };
 
   // 위에 촬영 같은 다른 화면이 올라오면 영상을 내려놓아 메모리를 돌려주고, 돌아오면 보던 참여작을 다시 튼다(SOMA-699).
   useEffect(() => {
@@ -166,11 +183,12 @@ export default function ChallengePlayScreen() {
     void player.replaceAsync(null).catch(() => {});
     return () => {
       const entry = entries?.[active];
-      if (!entry?.playback_url) return;
+      const source = entry ? sourceOf(entry, originalFor) : null;
+      if (!source) return;
       // 가려진 채로 화면이 닫히면 플레이어가 먼저 풀려 있을 수 있다 — 그때는 다시 틀 필요가 없다.
       try {
         void player
-          .replaceAsync(entry.playback_url)
+          .replaceAsync(source)
           .then(() => {
             player.play();
             setPlaying(true);
@@ -178,7 +196,7 @@ export default function ChallengePlayScreen() {
           .catch(() => {});
       } catch {}
     };
-    // 가려진 동안 entries·active 는 바뀌지 않는다 — 돌아올 때 그때의 참여작을 다시 튼다.
+    // 가려진 동안 entries·active·originalFor 는 바뀌지 않는다 — 돌아올 때 그때의 참여작을 다시 튼다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, player]);
 
@@ -251,12 +269,13 @@ export default function ChallengePlayScreen() {
       params: { mode: 'challenge', challengeId: challenge.id, line: challenge.line, work: challenge.work },
     });
   };
+  const entryShare = useEntryShare(challenge?.line ?? '', () =>
+    void alert({ title: t('entryShare.title'), message: t('entryShare.none') }),
+  );
   const share = (entry: EntryCard) => {
     logEvent('challenge_share', { id: entry.id });
-    // 공유는 참여작 딥링크다 — 회원 앱에서 열면 노출 조건을 확인한 뒤 그 참여작부터 연다.
-    void Share.share({
-      message: `${t('profileTab.shareText', { name: entry.author.name, line: challenge?.line ?? '' })}\n${entryShareUrl(entry.id)}`,
-    }).catch(() => {});
+    // 공유 시트(SOMA-819) — 내 참여작은 인스타 스토리·영상 저장, 공개 참여작은 딥링크(회원 앱에서 열면 노출 조건을 확인한 뒤 그 참여작부터 연다).
+    entryShare.open(entry);
   };
 
   const patchEntry = (entryId: string, patch: Partial<EntryCard>) =>
@@ -337,13 +356,23 @@ export default function ChallengePlayScreen() {
   };
 
   /** 반응 메뉴 — 신고·차단·공유를 한자리에 둔다. */
-  const openMenu = (entry: EntryCard) => {
+  const openMenu = (entry: EntryCard, e?: GestureResponderEvent) => {
     void sheet({
+      anchor: pt(e),
       title: entry.author.name,
       actions: [
+        ...(canReact(entry)
+          ? [
+              { label: t('react.menuLike'), onPress: () => void toggleLike(entry) },
+              { label: t('react.menuSave'), onPress: () => void toggleSave(entry) },
+            ]
+          : []),
         { label: t('react.menuShare'), onPress: () => share(entry) },
-        { label: t('react.menuReport'), destructive: true, onPress: () => setReportTarget({ type: 'entry', id: entry.id }) },
-        ...(challenge
+        // 내 참여작은 스스로 신고할 수 없다 — 남의 참여작에만 「신고」를 둔다(pen C6.7 리뷰, 10/24).
+        ...(canReact(entry)
+          ? [{ label: t('react.menuReport'), destructive: true, onPress: () => setReportTarget({ type: 'entry', id: entry.id }) }]
+          : []),
+        ...(challenge && !challenge.is_host
           ? [
               {
                 label: t('react.menuReportChallenge'),
@@ -364,13 +393,8 @@ export default function ChallengePlayScreen() {
     const canTouch = canReact(item);
     return (
       <View style={{ width, height }}>
-        {isActive && item.playback_url && (
+        {isActive && sourceOf(item, originalFor) && (
           <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
-        )}
-        {isActive && playFailed && (
-          <View style={styles.playFail} pointerEvents="none">
-            <Text style={styles.playFailText}>{t('challenges.playFail')}</Text>
-          </View>
         )}
         <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button" ph-label="challenge_play_toggle">
           {isActive && !playing && (
@@ -379,6 +403,30 @@ export default function ChallengePlayScreen() {
             </View>
           )}
         </Pressable>
+        {isActive && playFailed && (
+          <View style={styles.playFail} pointerEvents="box-none">
+            <View style={styles.playFailCard}>
+              <Feather name="video-off" size={26} color="#FFFFFF" />
+              <Text style={styles.playFailTitle}>{t('challenges.playFailTitle')}</Text>
+              <Text style={styles.playFailText}>{t('challenges.playFailSub')}</Text>
+              <View style={styles.playFailRow}>
+                <Pressable style={styles.playFailClose} onPress={() => router.back()} accessibilityRole="button" ph-label="challenge_play_fail_close">
+                  <Text style={styles.playFailCloseText}>{t('challenges.playFailClose')}</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.playFailRetry}
+                  onPress={() => {
+                    setPlayFailed(false);
+                    setRetryTick((n) => n + 1);
+                  }}
+                  accessibilityRole="button"
+                  ph-label="challenge_play_fail_retry">
+                  <Text style={styles.playFailRetryText}>{t('challenges.playFailRetry')}</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
         <View style={styles.scrimTop} pointerEvents="none" />
         <View style={styles.scrimBottom} pointerEvents="none" />
 
@@ -402,7 +450,7 @@ export default function ChallengePlayScreen() {
                 ph-label="challenge_play_mute">
                 <Feather name={muted ? 'volume-x' : 'volume-2'} size={22} color="#FFFFFF" />
               </Pressable>
-              <Pressable onPress={() => openMenu(item)} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_more">
+              <Pressable onPress={(e) => openMenu(item, e)} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_more">
                 <Feather name="more-horizontal" size={24} color="#FFFFFF" />
               </Pressable>
             </View>
@@ -417,6 +465,18 @@ export default function ChallengePlayScreen() {
             <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
             <Text style={styles.work}>{challenge?.work ?? ''}</Text>
             {!!item.caption && <Text style={styles.work}>{item.caption}</Text>}
+            {item.is_mine && !!item.original_playback_url && (
+              <Pressable
+                style={styles.originalToggle}
+                onPress={() => toggleOriginal(item)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t(originalFor === item.id ? 'challenges.showMosaic' : 'challenges.showOriginal')}
+                ph-label="challenge_play_original_toggle">
+                <Feather name={originalFor === item.id ? 'eye-off' : 'eye'} size={14} color="#FFFFFF" />
+                <Text style={styles.originalToggleText}>{t(originalFor === item.id ? 'challenges.showMosaic' : 'challenges.showOriginal')}</Text>
+              </Pressable>
+            )}
 
             <View style={styles.actions}>
               <Pressable
@@ -465,7 +525,6 @@ export default function ChallengePlayScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      {entries === null && !error && <ActivityIndicator color="#FFFFFF" style={styles.loading} />}
       {!!error && <Text style={styles.error}>{error}</Text>}
       {/* 불러오는 중이거나 실패했을 때도 항상 닫을 수 있게 한다(SOMA-738). */}
       {(entries === null || !!error) && (
@@ -528,8 +587,14 @@ export default function ChallengePlayScreen() {
         onSubmit={(reason, note) => void sendReport(reason, note)}
       />
       {dialog}
+      {entryShare.sheet}
     </View>
   );
+}
+
+/** 재생할 주소. 원본 보기를 켠 내 참여작이고 원본 주소가 있을 때만 원본이다. */
+function sourceOf(entry: EntryCard, originalFor: string | null): string | null {
+  return originalFor === entry.id && entry.original_playback_url ? entry.original_playback_url : entry.playback_url;
 }
 
 const styles = StyleSheet.create({
@@ -546,7 +611,14 @@ const styles = StyleSheet.create({
   },
   loadingClose: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8 },
   playFail: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  playFailText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  playFailCard: { alignItems: 'center', gap: 8, borderRadius: 20, backgroundColor: 'rgba(30,30,30,0.85)', paddingVertical: 22, paddingHorizontal: 24, alignSelf: 'stretch' },
+  playFailTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textAlign: 'center', marginTop: 4 },
+  playFailText: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '500', textAlign: 'center' },
+  playFailRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  playFailClose: { height: 44, minWidth: 80, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  playFailCloseText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  playFailRetry: { height: 44, minWidth: 100, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  playFailRetryText: { color: '#191F28', fontSize: 14, fontWeight: '800' },
   error: { color: '#FFFFFF', textAlign: 'center', marginTop: 80, paddingHorizontal: 24 },
   emptyWrap: { flex: 1, padding: 24, gap: 14, justifyContent: 'center' },
   emptyClose: { position: 'absolute', top: 16, left: 16 },
@@ -554,8 +626,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000000' },
   flex: { flex: 1 },
   pauseCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scrimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 120, backgroundColor: 'rgba(0,0,0,0.35)' },
-  scrimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 340, backgroundColor: 'rgba(0,0,0,0.45)' },
+  scrimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 160, backgroundColor: 'rgba(0,0,0,0.3)' },
+  scrimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 420, backgroundColor: 'rgba(0,0,0,0.5)' },
   overlay: { flex: 1, justifyContent: 'space-between' },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   author: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -564,6 +636,18 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
   bottom: { paddingHorizontal: 20, paddingBottom: 16, gap: 10 },
   storyLabel: { fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.8)' },
+  originalToggle: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  originalToggleText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
   line: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', lineHeight: 30 },
   work: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
   actions: { flexDirection: 'row', gap: 22, marginTop: 6 },
@@ -578,7 +662,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: palette.blue,
     borderRadius: 14,
-    paddingVertical: 15,
+    height: 48,
     marginTop: 6,
   },
   pressed: { opacity: 0.85 },

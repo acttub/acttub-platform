@@ -203,7 +203,7 @@ describe('기다리는 동안', () => {
     // 따로 된 분석 화면이 아니라 대화 화면 안의 코치 말풍선이다.
     expect(screen.getByText('질문 대화')).toBeOnTheScreen();
     expect(screen.getByText(WATCHING)).toBeOnTheScreen();
-    expect(screen.getByText('ACTTUB 코치')).toBeOnTheScreen();
+    expect(screen.getByText('코치')).toBeOnTheScreen();
     expect(screen.queryByText('3단계 · 질문 준비 중')).not.toBeOnTheScreen();
     staysWaiting();
     expect(screen.getByText('0초 경과')).toBeOnTheScreen();
@@ -310,7 +310,7 @@ describe('기다리는 동안', () => {
 });
 
 describe('분석이 끝나면', () => {
-  test('회차를 들고 코치 화면으로 넘어가고 복구 기록을 지운다', async () => {
+  test('회차를 들고 액티 화면으로 넘어가고 복구 기록을 지운다', async () => {
     getStatus.mockResolvedValue(READY);
     await render(<CoachScreen />);
 
@@ -378,7 +378,7 @@ describe('분석이 끝나면', () => {
     expect(localCopyFor).not.toHaveBeenCalled();
   });
 
-  test('복구 기록을 남기지 못했어도 코치로 넘어간다', async () => {
+  test('복구 기록을 남기지 못했어도 액티로 넘어간다', async () => {
     (AsyncStorage.setItem as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
     getStatus.mockResolvedValue(READY);
     await render(<CoachScreen />);
@@ -399,7 +399,7 @@ describe('분석이 끝나면', () => {
     staysWaiting();
   });
 
-  test('코치로 넘어간 뒤 앱이 다시 활성화돼도 다시 읽지 않는다', async () => {
+  test('액티로 넘어간 뒤 앱이 다시 활성화돼도 다시 읽지 않는다', async () => {
     getStatus.mockResolvedValue(READY);
     await render(<CoachScreen />);
     await entersCoach();
@@ -456,7 +456,7 @@ describe('다시 읽는 때', () => {
     await act(async () => {
       mockFocusEffect();
     });
-    expect(await screen.findByText('분석 결과를 정리하지 못했어요. 다시 시도해주세요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석 결과를 정리하지 못했어요. 다시 시도해 주세요.', { exact: false })).toBeOnTheScreen();
     expect(getStatus).toHaveBeenCalledTimes(2);
   });
 
@@ -496,9 +496,9 @@ describe('다시 읽는 때', () => {
 
 describe('분석이 실패하면', () => {
   test.each([
-    ['timeout', '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해주세요.'],
-    ['unsupported', '지원하지 않는 영상 형식이에요. mp4로 다시 올려주세요.'],
-    ['max_attempts', '분석에 실패했어요. 다시 시도해주세요.'],
+    ['timeout', '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해 주세요.'],
+    ['unsupported', '지원하지 않는 영상 형식이에요. mp4로 다시 올려 주세요.'],
+    ['max_attempts', '분석에 실패했어요. 다시 시도해 주세요.'],
   ])('%s 이면 사유와 다시 시도 버튼을 보인다', async (reason, message) => {
     getStatus.mockResolvedValue(FAILED(reason));
     await render(<CoachScreen />);
@@ -514,7 +514,7 @@ describe('분석이 실패하면', () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', close_reason: 'cancelled', job: null }));
     await render(<CoachScreen />);
 
-    expect(await screen.findByText('분석을 그만뒀어요. 영상은 보관함에 그대로 있어요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석을 그만뒀어요. 영상은 그대로 있어요.', { exact: false })).toBeOnTheScreen();
     expect(screen.queryByText('영상은 그대로 있으니 「다시 시도」를 누르세요.', { exact: false })).not.toBeOnTheScreen();
     expect(screen.queryByText('다시 시도')).not.toBeOnTheScreen();
 
@@ -525,7 +525,7 @@ describe('분석이 실패하면', () => {
   test('사유 없이 닫히면 unknown 으로 세고, 다시 시도는 새 분석 없이 상태만 다시 읽는다', async () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', job: null }));
     await render(<CoachScreen />);
-    expect(await screen.findByText('분석에 실패했어요. 다시 시도해주세요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석에 실패했어요. 다시 시도해 주세요.', { exact: false })).toBeOnTheScreen();
     expect(logged('analysis_failed')).toEqual([{ reason: 'unknown' }]);
 
     getStatus.mockResolvedValue(READY);
@@ -665,7 +665,7 @@ describe('그만두기', () => {
     await fireEvent.press(screen.getByText('그만두기'));
     expect(screen.getByText('분석을 그만둘까요?')).toBeOnTheScreen();
     expect(
-      screen.getByText('이번 회차는 여기서 닫혀요. 영상은 보관함에 그대로 있어서 다시 시작할 수 있어요.'),
+      screen.getByText('이번 회차는 여기서 닫혀요. 영상은 그대로 있어서 다시 시작할 수 있어요.'),
     ).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('계속 기다리기'));
 
@@ -734,7 +734,7 @@ describe('그만두기', () => {
     expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 
-  test('취소하는 사이 시작된 조회가 끝남을 받아도 코치로 가지 않는다', async () => {
+  test('취소하는 사이 시작된 조회가 끝남을 받아도 액티로 가지 않는다', async () => {
     let resolveCancel: () => void = () => undefined;
     (api.cancelPractice as jest.Mock).mockImplementation(
       () =>
@@ -769,7 +769,7 @@ describe('튜토리얼 예시', () => {
     mockParams = { practiceId: SAMPLE_PRACTICE_ID };
   });
 
-  test('서버 없이 단계 문구를 넘긴 뒤 예시 회차를 들고 코치로 간다', async () => {
+  test('서버 없이 단계 문구를 넘긴 뒤 예시 회차를 들고 액티로 간다', async () => {
     jest.useFakeTimers();
     await render(<CoachScreen />);
 
@@ -821,7 +821,7 @@ describe('튜토리얼 예시', () => {
     expect(screen.queryByText(WATCHING)).not.toBeOnTheScreen();
   });
 
-  test('도중에 화면을 떠나면 코치로 넘기지 않는다', async () => {
+  test('도중에 화면을 떠나면 액티로 넘기지 않는다', async () => {
     jest.useFakeTimers();
     const view = await render(<CoachScreen />);
     await act(async () => jest.advanceTimersByTime(1_200));

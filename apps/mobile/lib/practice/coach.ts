@@ -78,6 +78,14 @@ export function nextReplyWraps(conversation: Pick<CoachConversation, 'coach_repl
   return remainingCoachReplies(conversation) <= 1;
 }
 
+/**
+ * 정리 화면의 「대화 이어하기」(SOMA-782, pen ⓐ4)를 보일 수 있는가. 닫힌 대화이고 예시 회차가 아닐 때만이다.
+ * 코치 응답 상한에 가까우면 서버가 409 conversation_limit_reached 로 막고 화면은 안내만 한다.
+ */
+export function canContinueConversation(conversation: Pick<CoachConversation, 'status' | 'id'> | null, sample: boolean): boolean {
+  return Boolean(conversation && isClosed(conversation) && !sample);
+}
+
 export function isClosed(conversation: Pick<CoachConversation, 'status'> | null): boolean {
   return conversation?.status === 'closed';
 }
@@ -97,6 +105,20 @@ export function helpButtonDraft(button: HelpButton): string {
   return translate(button === 'yes' ? 'coach.yesMessage' : button === 'no' ? 'coach.noMessage' : 'coach.unsureMessage');
 }
 
+/**
+ * 질문 대화의 답 버튼(pen 「질문 대화」 예시 답 칩). 서버가 지금 질문에 맞춰 준 예시 답 1~2개 뒤에 「잘 모르겠어요」를 둔다.
+ * 고정 「맞아요·아니요」는 코치가 "A예요, B예요?"로 물어도 같아서 뺐다. 목적별 코칭은 purpose.choices 를 그대로 쓰므로 여기서는 비운다.
+ * 질문을 기다리는 동안·닫힌 대화·마지막 말이 코치 질문이 아닐 때는 버튼이 없다.
+ */
+export function answerChoices(conversation: CoachConversation | null, opts: { busy: boolean }): string[] {
+  if (!conversation || opts.busy || isClosed(conversation) || conversation.purpose) return [];
+  const last = orderedMessages(conversation).at(-1);
+  if (last?.role !== 'coach') return [];
+  const examples = (conversation.answer_examples ?? []).map((label) => label.trim()).filter(Boolean).slice(0, 2);
+  const unsure = translate('coach.quickUnsure');
+  return [...examples.filter((label) => label !== unsure), unsure];
+}
+
 export type CoachFailure =
   /** 다른 요청이 먼저 반영됐다. 입력을 보존하고 최신 대화를 다시 읽는다. */
   | { kind: 'conflict' }
@@ -104,6 +126,10 @@ export type CoachFailure =
   | { kind: 'closed' }
   /** 분석이 아직 쓸 수 없다. */
   | { kind: 'not_ready' }
+  /** 응답 상한에 가까워 더 이어 갈 수 없다(대화 이어하기). */
+  | { kind: 'limit_reached' }
+  /** 옛 갈래·연기가 아니어서 끊긴 대화는 이어 갈 수 없다(대화 이어하기). */
+  | { kind: 'not_resumable' }
   | { kind: 'fingerprint_mismatch' }
   | { kind: 'too_long' }
   | { kind: 'offline' }
@@ -115,6 +141,8 @@ export function coachFailure(error: unknown): CoachFailure {
   if (code === 'conversation_conflict') return { kind: 'conflict' };
   if (code === 'conversation_closed') return { kind: 'closed' };
   if (code === 'analysis_not_ready') return { kind: 'not_ready' };
+  if (code === 'conversation_limit_reached') return { kind: 'limit_reached' };
+  if (code === 'conversation_not_resumable') return { kind: 'not_resumable' };
   if (code === 'request_fingerprint_mismatch') return { kind: 'fingerprint_mismatch' };
   if (status === 422) return { kind: 'too_long' };
   if (isOfflineError(error)) return { kind: 'offline' };
@@ -129,6 +157,10 @@ export function coachFailureMessage(failure: CoachFailure): string {
       return translate('coach.closed');
     case 'not_ready':
       return translate('coach.notReady');
+    case 'limit_reached':
+      return translate('coach.continueLimit');
+    case 'not_resumable':
+      return translate('coach.continueNotResumable');
     case 'too_long':
       return translate('coach.answerTooLong');
     case 'fingerprint_mismatch':

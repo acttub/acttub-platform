@@ -8,11 +8,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 매월 자동결제(SOMA-818). {@code BILLING_APP_ENABLED=true} 일 때만 뜬다. 돌 때마다 할 일(기간이 끝난 구독·다시 시도할
+ * 매월 자동결제(SOMA-818). {@code BILLING_WEB_ENABLED=true} 일 때만 뜨고 provider 가 toss 인 구독만 처리한다. 돌 때마다 할 일(기간이 끝난 구독·다시 시도할
  * 구독·결과를 모르는 결제)이 없을 때까지 하나씩 처리한다 — 점유는 {@code FOR UPDATE SKIP LOCKED} 라 서버가 둘이어도 겹치지 않는다.
  */
 @Component
-@ConditionalOnProperty(name = "BILLING_APP_ENABLED", havingValue = "true")
+@ConditionalOnProperty(name = "BILLING_WEB_ENABLED", havingValue = "true")
 class BillingRenewalScheduler {
     /** 한 번에 처리하는 최대 개수 — 토스가 느려도 한 주기가 끝없이 늘어나지 않게 한다. */
     static final int MAX_PER_RUN = 200;

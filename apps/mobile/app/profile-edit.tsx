@@ -2,15 +2,18 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { palette } from '@/constants/palette';
 import { useAuth } from '@/lib/auth';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t, translateList } from '@/lib/i18n';
 import { DIRECTION_VALUES, EXPERIENCE_VALUES, GOAL_VALUES } from '@/lib/profile-form';
 import { DIRECTION_LABEL_KEYS, GENDER_LABEL_KEYS, type ProfileEditField } from '@/lib/profile-labels';
 import { pickAndUploadProfilePhoto, removeProfilePhoto } from '@/lib/profile-photo-upload';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * S6 프로필 편집(pen mGCmI, SOMA-748) — 인스타그램식. 사진 수정 + 항목 줄(이름 · 값), 줄을 누르면 그 항목만 고치는 화면
@@ -23,7 +26,7 @@ import { pickAndUploadProfilePhoto, removeProfilePhoto } from '@/lib/profile-pho
  */
 export default function ProfileEditScreen() {
   const router = useRouter();
-  const { profile, reloadProfile, setMe } = useAuth();
+  const { user, profile, reloadProfile, setMe } = useAuth();
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const me = profile.me;
@@ -58,18 +61,18 @@ export default function ProfileEditScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <Stack.Screen options={{ title: t('profileName.editTitle') }} />
+        {profile.status === 'error' ? (
         <View style={styles.center}>
-          {profile.status === 'error' ? (
             <>
               <Text style={styles.error}>{t('profileName.loadFail')}</Text>
               <Pressable style={styles.reload} onPress={() => void reloadProfile()} accessibilityRole="button">
                 <Text style={styles.reloadText}>{t('profileName.reload')}</Text>
               </Pressable>
             </>
-          ) : (
-            <ActivityIndicator color={palette.blue} />
-          )}
         </View>
+        ) : (
+          <SkeletonRows count={5} avatar={false} card={false} />
+        )}
       </SafeAreaView>
     );
   }
@@ -96,21 +99,21 @@ export default function ProfileEditScreen() {
     },
   ];
   const photoUri = p?.photo_url ?? null;
-  const initial = (p?.name ?? '').trim().charAt(0) || '?';
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('profileName.editTitle') }} />
       <ScrollView contentContainerStyle={styles.body}>
+        <View style={styles.summary}>
         <View style={styles.photoBox}>
           <Pressable onPress={() => void changePhoto()} disabled={photoBusy} accessibilityRole="button" accessibilityLabel={t('profileName.editPhoto')}>
             <View style={styles.photo}>
               {photoBusy ? (
-                <ActivityIndicator color={palette.blue} />
+                <LoadingText label={t('loadingText.uploading')} style={{ fontSize: 12 }} />
               ) : photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.photoImg} contentFit="cover" />
               ) : (
-                <Text style={styles.photoText}>{initial}</Text>
+                <DefaultAvatar size={84} seed={user?.id} />
               )}
             </View>
           </Pressable>
@@ -126,8 +129,26 @@ export default function ProfileEditScreen() {
           </View>
           {photoError && <Text style={styles.error}>{photoError}</Text>}
         </View>
+        <View style={styles.summaryText}>
+          <Text style={styles.summaryName} numberOfLines={1}>{p?.name ?? ''}</Text>
+          <Text style={[styles.summaryBio, !p?.bio?.trim() && styles.summaryBioEmpty]} numberOfLines={2}>{p?.bio?.trim() || t('profileName.editBioEmpty')}</Text>
+          <View style={styles.chipRow}>
+            {!!p?.birth_date && (
+              <View style={styles.chip}>
+                <Feather name="gift" size={13} color={palette.textMuted} />
+                <Text style={styles.chipText}>{p.birth_date.replace(/-/g, '.')}</Text>
+              </View>
+            )}
+            {!!p?.gender && (
+              <View style={styles.chip}>
+                <Feather name="user" size={13} color={palette.textMuted} />
+                <Text style={styles.chipText}>{t(GENDER_LABEL_KEYS[p.gender])}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        </View>
 
-        <View style={styles.divider} />
         {rows.map((row) => (
           <View key={row.field}>
             <Pressable
@@ -136,12 +157,11 @@ export default function ProfileEditScreen() {
               accessibilityRole="button"
               accessibilityLabel={`${row.label} ${row.value}`}>
               <Text style={styles.rowLabel}>{row.label}</Text>
-              <Text style={styles.rowValue} numberOfLines={1}>
-                {row.value}
+              <Text style={[styles.rowValue, row.field === 'bio' && !row.value && styles.rowEmpty]} numberOfLines={1}>
+                {row.value || (row.field === 'bio' ? t('profileName.editBioRowEmpty') : '')}
               </Text>
-              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+              <Feather name="chevron-right" size={16} color={palette.checkOff} />
             </Pressable>
-            <View style={styles.divider} />
           </View>
         ))}
         {/* 포트폴리오(account.portfolio) — 가입 때 받는 여섯 항목과 다른 기능. pen 엔 없지만 들어갈 길이 여기뿐이다. */}
@@ -150,10 +170,9 @@ export default function ProfileEditScreen() {
           onPress={() => router.push('/portfolio-edit')}
           accessibilityRole="button">
           <Text style={styles.rowLabel}>{t('profileName.rowPortfolio')}</Text>
-          <Text style={styles.rowValue} />
-          <Feather name="chevron-right" size={18} color={palette.checkOff} />
+          <Text style={[styles.rowValue, styles.rowEmpty]}>{t('profileName.editPortfolioRowEmpty')}</Text>
+          <Feather name="chevron-right" size={16} color={palette.checkOff} />
         </Pressable>
-        <View style={styles.divider} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -165,25 +184,36 @@ const styles = StyleSheet.create({
   reload: { paddingHorizontal: 16, paddingVertical: 8 },
   reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
-  body: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
-  photoBox: { alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 12 },
+  // pen S6.3 — 좌우 16, 카드 위 16, 줄 사이 9.
+  body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 9 },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: 18, padding: 18, marginBottom: 6, borderRadius: 20, backgroundColor: palette.bgSubtle, borderWidth: 1, borderColor: palette.borderSoft },
+  summaryText: { flex: 1, gap: 6 },
+  summaryName: { fontSize: 20, fontWeight: '800', color: palette.text },
+  // pen S6.4 소개가 있으면 #4E5968, 없으면 안내 #8B95A1.
+  summaryBio: { fontSize: 14, color: palette.textDim, lineHeight: 20 },
+  summaryBioEmpty: { color: palette.textFaint },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: 9, paddingVertical: 4 },
+  chipText: { fontSize: 12, fontWeight: '500', color: palette.textDim },
+  photoBox: { alignItems: 'center', gap: 8 },
   photo: {
     width: 84,
     height: 84,
-    borderRadius: 42,
-    backgroundColor: palette.blueSoft,
+    borderRadius: 32,
+    backgroundColor: palette.bgSoft,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   photoImg: { width: '100%', height: '100%' },
-  photoText: { fontSize: 32, fontWeight: '800', color: palette.blue },
   photoLinks: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  photoLink: { fontSize: 14, fontWeight: '700', color: palette.blue },
-  photoRemove: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
+  photoLink: { fontSize: 12, fontWeight: '700', color: palette.blue },
+  photoRemove: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
   divider: { height: 1, backgroundColor: palette.borderSoft },
-  row: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  // pen S6.3 줄 — 높이 53(위아래 15), 왼 16 · 오른 12, 모서리 16, 칸 사이 10.
+  row: { minHeight: 53, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingLeft: 16, paddingRight: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.card },
   pressed: { opacity: 0.6 },
-  rowLabel: { width: 104, fontSize: 15, fontWeight: '600', color: palette.textDim },
-  rowValue: { flex: 1, fontSize: 15, fontWeight: '600', color: palette.text },
+  rowLabel: { fontSize: 14, fontWeight: '600', color: palette.textMuted },
+  rowEmpty: { fontSize: 15, fontWeight: '500', color: palette.textFaint },
+  rowValue: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.text, textAlign: 'right' },
 });

@@ -1,7 +1,7 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -279,7 +279,7 @@ export function CoachWaiting({
     return () => clearInterval(timer);
   }, [error]);
 
-  /** "그만두기" — 작업을 취소로 끝낸다. 영상은 보관함에 그대로 있고 연습을 숨기지 않는다. */
+  /** "그만두기" — 작업을 취소로 끝낸다. 영상은 그대로 두고 연습을 숨기지 않는다. */
   const stop = useCallback(async () => {
     if (!practiceId || stopping) return;
     if (sample) {
@@ -388,7 +388,6 @@ export function CoachWaiting({
             ) : (
               <View style={styles.watchingBox} accessibilityLiveRegion="polite">
                 <View style={styles.typingRow}>
-                  <ActivityIndicator size="small" color={palette.blue} />
                   <Text style={styles.watching}>{t('coach.watching')}</Text>
                 </View>
                 <Text style={styles.stageText}>{stageText}</Text>

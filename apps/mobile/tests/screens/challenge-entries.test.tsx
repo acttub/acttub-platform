@@ -134,11 +134,10 @@ test('참여작을 누르면 그 참여작부터 재생하고, 뒤로는 이전 
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
 });
 
-test('메뉴에서 AI 리포트를 연다', async () => {
+test('메뉴에 AI 리포트 줄은 없다(SOMA-820)', async () => {
   await render(<ChallengeEntriesScreen />);
   await openMenuFor('“사느냐 죽느냐”');
-  await fireEvent.press(screen.getByText('AI 리포트'));
-  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/ai-report', params: { entryId: 'e1' } });
+  expect(screen.queryByText('AI 리포트')).not.toBeOnTheScreen();
 });
 
 describe('캡션 고치기', () => {
@@ -215,15 +214,16 @@ describe('공개 범위 바꾸기', () => {
     expect(updateEntry).toHaveBeenCalledWith('e2', { visibility: 'public', face_mosaic: true });
   });
 
-  test('모자이크 선택 창을 취소하면 공개하지 않는다', async () => {
+  test('모자이크 선택은 가운데 팝업이고, 바깥을 눌러도 닫히지 않아 고르기 전에는 공개하지 않는다', async () => {
     await render(<ChallengeEntriesScreen />);
     await openMenuFor('“내일은 내일의 해가”');
     await fireEvent.press(screen.getByText('공개로 바꾸기'));
     const labels = await screen.findAllByText('공개로 바꾸기');
     await fireEvent.press(labels[labels.length - 1]);
     expect(await screen.findByText('얼굴 모자이크를 켤까요?')).toBeOnTheScreen();
-    const cancels = screen.getAllByText('취소');
-    await fireEvent.press(cancels[cancels.length - 1]);
+    const modals = screen.container.queryAll((node) => typeof node.props.onRequestClose === 'function');
+    await fireEvent.press(modals[modals.length - 1].children[0] as Parameters<typeof fireEvent.press>[0]);
+    expect(screen.getByText('얼굴 모자이크를 켤까요?')).toBeOnTheScreen();
     expect(updateEntry).not.toHaveBeenCalled();
   });
 
@@ -239,7 +239,7 @@ describe('공개 범위 바꾸기', () => {
     await render(<ChallengeEntriesScreen />);
     await openMenuFor('“사느냐 죽느냐”');
     await fireEvent.press(screen.getByText('비공개로 바꾸기'));
-    expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 보관함에 남아 있어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 그대로 있어요.')).toBeOnTheScreen();
   });
 
   test.each([
@@ -248,7 +248,7 @@ describe('공개 범위 바꾸기', () => {
     [
       '끝난 챌린지의 참여작',
       { challenge: { id: 'c2', line: '내일은 내일의 해가', work: '바람과 함께', character: null, ends_at: ENDED_AT } },
-      '이 챌린지는 끝났어요. 영상은 보관함에 남아 있어요.',
+      '이 챌린지는 끝났어요. 영상은 그대로 있어요.',
     ],
   ])('%s은 공개로 바꾸지 않고 이유를 알린다', async (_name, overrides, message) => {
     listMine.mockResolvedValue(page([{ ...priv, ...overrides }]));
@@ -265,7 +265,7 @@ describe('지우기', () => {
   const pressDelete = async () => {
     await openMenuFor('“사느냐 죽느냐”');
     await fireEvent.press(screen.getByText('지우기'));
-    expect(await screen.findByText('참여작만 지워요. 영상은 보관함에 남아요.')).toBeOnTheScreen();
+    expect(await screen.findByText('참여작만 지워요. 영상은 그대로 있어요.')).toBeOnTheScreen();
   };
 
   test('확인하면 지우고 다시 읽는다', async () => {

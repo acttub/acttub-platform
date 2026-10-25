@@ -68,12 +68,13 @@ public class SubscriptionService {
     public View view(UUID userId) {
         requireAvailable();
         Instant now = clock.instant();
+        Optional<Instant> grantEnd = repository.grantEnd(userId, now);
         Optional<Subscription> found = repository.find(userId);
         if (found.isEmpty()) {
-            return View.none(settings.limitsEnforced());
+            return View.none(settings.limitsEnforced(), grantEnd.orElse(null));
         }
         Subscription sub = found.get();
-        boolean pro = BillingRules.pro(sub.status(), sub.periodEnd(), now);
+        boolean pro = BillingRules.pro(sub.status(), sub.periodEnd(), now) || grantEnd.isPresent();
         // expired 인데 기간이 한 번도 없으면 카드만 등록하고 첫 결제가 안 된 것이다 — 앱에는 아직 구독이 없는 것으로 보인다.
         String status = sub.status() == Status.EXPIRED && sub.periodEnd() == null ? "none" : sub.status().db();
         Instant nextBilling = switch (sub.status()) {
@@ -82,7 +83,7 @@ public class SubscriptionService {
             case CANCELED, EXPIRED -> null;
         };
         return new View(status, pro, sub.amount(), sub.periodEnd(), nextBilling, sub.cardCompany(),
-                last4(sub.cardNumber()), sub.retryCount(), settings.limitsEnforced());
+                last4(sub.cardNumber()), sub.retryCount(), settings.limitsEnforced(), sub.provider(), grantEnd.orElse(null));
     }
 
     /** Pro 인가 — 결제 기능이 꺼져 있으면 아무도 Pro 가 아니다(그때는 무료 한도도 걸리지 않는다). */
@@ -90,9 +91,11 @@ public class SubscriptionService {
         if (!available()) {
             return false;
         }
-        return repository.find(userId)
-                .map(sub -> BillingRules.pro(sub.status(), sub.periodEnd(), clock.instant()))
+        Instant now = clock.instant();
+        boolean subscribed = repository.find(userId)
+                .map(sub -> BillingRules.pro(sub.status(), sub.periodEnd(), now))
                 .orElse(false);
+        return subscribed || repository.grantEnd(userId, now).isPresent();
     }
 
     // ── 카드 등록 창 ────────────────────────────────────────────────
@@ -105,7 +108,7 @@ public class SubscriptionService {
      *     {@code payment_pending}(앞선 결제의 결과를 아직 모름), 422 {@code invalid_purpose}
      */
     public StartedCheckout startCheckout(UUID userId, boolean guest, String purposeValue) {
-        requireAvailable();
+        requireWeb();
         if (guest) {
             throw new ApiException(403, "billing_member_required");
         }
@@ -116,6 +119,10 @@ public class SubscriptionService {
         Optional<Subscription> existing = repository.find(userId);
         Status status = existing.map(Subscription::status).orElse(Status.EXPIRED);
         if (purpose == Purpose.SUBSCRIBE && status != Status.EXPIRED) {
+            throw new ApiException(409, "already_subscribed");
+        }
+        if (existing.isPresent() && !existing.get().toss() && status != Status.EXPIRED) {
+            // 스토어로 결제한 구독이다 — 웹에서 새로 결제하지 않고 카드도 바꾸지 않는다.
             throw new ApiException(409, "already_subscribed");
         }
         if (purpose == Purpose.CHANGE_CARD && status == Status.EXPIRED) {
@@ -138,7 +145,7 @@ public class SubscriptionService {
 
     /** 결제 창 페이지가 쓸 값. 열린 창이 아니면 비어 있다. */
     public Optional<CheckoutPage> page(String state) {
-        if (!available() || state == null || !STATE.matcher(state).matches()) {
+        if (!webOpen() || state == null || !STATE.matcher(state).matches()) {
             return Optional.empty();
         }
         return repository.findOpenCheckout(hash(state), clock.instant())
@@ -156,7 +163,7 @@ public class SubscriptionService {
      * 같은 콜백이 두 번 와도 두 번째는 {@link Result#INVALID} 이고 결제는 한 번이다.
      */
     public Result complete(String state, String customerKey, String authKey) {
-        if (!available() || state == null || !STATE.matcher(state).matches()) {
+        if (!webOpen() || state == null || !STATE.matcher(state).matches()) {
             return Result.INVALID;
         }
         Instant now = clock.instant();
@@ -181,7 +188,7 @@ public class SubscriptionService {
 
     /** 토스 실패 콜백(사용자 취소 포함). 창을 닫는다. */
     public Result fail(String state, String gatewayCode) {
-        if (!available() || state == null || !STATE.matcher(state).matches()) {
+        if (!webOpen() || state == null || !STATE.matcher(state).matches()) {
             return Result.INVALID;
         }
         Optional<Checkout> claimed = repository.claimCheckout(hash(state), clock.instant());
@@ -238,6 +245,10 @@ public class SubscriptionService {
     public View cancel(UUID userId) {
         requireAvailable();
         Subscription sub = repository.find(userId).orElseThrow(() -> new ApiException(409, "no_subscription"));
+        if (!sub.toss()) {
+            // 스토어 구독은 스토어에서 해지한다 — 서버가 상태를 바꾸지 않는다.
+            throw new ApiException(409, "managed_by_store");
+        }
         switch (sub.status()) {
             case ACTIVE -> repository.cancel(sub.id(), clock.instant());
             // 자동결제가 실패해 있는 구독은 더 시도하지 않고 바로 끝낸다(Pro 기간이 이미 지났다).
@@ -250,8 +261,11 @@ public class SubscriptionService {
 
     /** 「결제하지 못했어요 → 다시 시도」. past_due 일 때만 지금 한 번 더 결제한다. 같은 시도는 두 번 결제되지 않는다. */
     public View retry(UUID userId) {
-        requireAvailable();
+        requireWeb();
         Subscription sub = repository.find(userId).orElseThrow(() -> new ApiException(409, "no_subscription"));
+        if (!sub.toss()) {
+            throw new ApiException(409, "managed_by_store");
+        }
         if (sub.status() != Status.PAST_DUE) {
             throw new ApiException(409, "not_past_due");
         }
@@ -267,7 +281,7 @@ public class SubscriptionService {
      */
     Charge renew(Subscription sub, Instant now) {
         Instant start = sub.periodEnd();
-        if (start == null) {
+        if (start == null || !sub.toss()) {
             return Charge.FAILED;
         }
         Instant end = BillingRules.nextPeriodEnd(start);
@@ -348,6 +362,17 @@ public class SubscriptionService {
         }
         repository.finishPayment(orderId, "done", approval.approvedAt(), null, now);
         return Charge.DONE;
+    }
+
+    /** 웹 토스 결제가 열려 있는가(BILLING_WEB_ENABLED 와 설정이 모두 맞을 때). */
+    public boolean webOpen() {
+        return settings.webUsable();
+    }
+
+    private void requireWeb() {
+        if (!webOpen()) {
+            throw new ApiException(404, "billing_unavailable");
+        }
     }
 
     private void requireAvailable() {
@@ -434,10 +459,13 @@ public class SubscriptionService {
             String cardCompany,
             String cardLast4,
             int retryCount,
-            boolean limitsEnforced) {
+            boolean limitsEnforced,
+            String provider,
+            Instant grantEndsAt) {
 
-        static View none(boolean limitsEnforced) {
-            return new View("none", false, BillingRules.AMOUNT, null, null, null, null, 0, limitsEnforced);
+        static View none(boolean limitsEnforced, Instant grantEndsAt) {
+            return new View("none", grantEndsAt != null, BillingRules.AMOUNT, null, null,
+                    null, null, 0, limitsEnforced, null, grantEndsAt);
         }
     }
 }

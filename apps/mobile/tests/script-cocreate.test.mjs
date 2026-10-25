@@ -6,9 +6,11 @@ import {
   durationLabel,
   errorKey,
   experienceFor,
+  generateWithWait,
   myRole,
   revisionBody,
   revisionChanged,
+  shouldWaitForGeneration,
   summaryLine,
 } from '../lib/script-cocreate.ts';
 
@@ -82,4 +84,48 @@ test('프로필 경력을 서버의 세 갈래로, 오류 코드를 문구 키�
   assert.equal(errorKey('sample_script_revision_failed'), 'scriptCocreate.errorRevision');
   assert.equal(errorKey('script_limit'), 'scriptCocreate.errorScriptLimit');
   assert.equal(errorKey(undefined), 'scriptCocreate.errorGenerate');
+});
+
+test('대본 생성: 받는 길이 끊긴 실패(5xx·연결 끊김·만드는 중 409)만 기다렸다 다시 묻는다', () => {
+  assert.equal(shouldWaitForGeneration({ status: 500, code: 'unknown' }), true);
+  assert.equal(shouldWaitForGeneration({ status: 0, code: 'network_error' }), true);
+  assert.equal(shouldWaitForGeneration({ status: 409, code: 'sample_script_in_progress' }), true);
+  assert.equal(shouldWaitForGeneration({ status: 429, code: 'sample_script_daily_limit' }), false);
+  assert.equal(shouldWaitForGeneration({ status: 422, code: 'invalid' }), false);
+  assert.equal(shouldWaitForGeneration(new Error('x')), false);
+  assert.equal(shouldWaitForGeneration(null), false);
+});
+
+test('대본 생성: 프록시 500 뒤 만드는 중이면 기다렸다 같은 호출로 결과를 받고, 시간이 다 되면 마지막 오류를 던진다', async () => {
+  let clock = 0;
+  const sleeps = [];
+  const options = { deadlineMs: 20_000, intervalMs: 5_000, now: () => clock, sleep: async (ms) => { sleeps.push(ms); clock += ms; } };
+  const replies = [{ status: 500, code: 'unknown' }, { status: 409, code: 'sample_script_in_progress' }, 'done'];
+  let calls = 0;
+  const made = await generateWithWait(async () => {
+    const reply = replies[calls++];
+    if (typeof reply === 'string') return reply;
+    throw reply;
+  }, options);
+  assert.equal(made, 'done');
+  assert.equal(calls, 3);
+  assert.deepEqual(sleeps, [5_000, 5_000]);
+
+  clock = 0;
+  let tries = 0;
+  await assert.rejects(
+    generateWithWait(async () => {
+      tries += 1;
+      throw { status: 409, code: 'sample_script_in_progress' };
+    }, options),
+    (e) => e.code === 'sample_script_in_progress',
+  );
+  assert.equal(tries, 5); // 0·5·10·15·20초에 묻고 다음은 마감을 넘는다
+
+  await assert.rejects(
+    generateWithWait(async () => {
+      throw { status: 429, code: 'sample_script_daily_limit' };
+    }, options),
+    (e) => e.status === 429,
+  );
 });

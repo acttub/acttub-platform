@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ApiError, NetworkError } from '../lib/api-request.ts';
-import { RETIRED_SEND_ATTEMPTS, closeProgressQueue, createProgressQueue, openProgressQueue } from '../lib/reading/progress-queue.ts';
+import { RETIRED_SEND_ATTEMPTS, closeProgressQueue, createProgressQueue, leavingSavesSettled, openProgressQueue, trackLeavingSave } from '../lib/reading/progress-queue.ts';
 
 function server({ failFirst = 0, closed = false } = {}) {
   const state = { received: [], seq: 0, current: null, failures: failFirst };
@@ -126,4 +126,21 @@ test('reading.session: 화면을 떠난 뒤에도 보내는 완료 저장은 끊
   await new Promise((r) => setTimeout(r, 20));
   assert.equal(net.calls, calls, '그만둔 뒤에는 보내지 않는다');
   assert.equal(calls, RETIRED_SEND_ATTEMPTS);
+});
+
+test('reading.progress: 나가기 뒤 저장 — 기다릴 게 없으면 null, 있으면 끝난 뒤(실패해도) 풀린다', async () => {
+  assert.equal(leavingSavesSettled(), null);
+  let finish;
+  trackLeavingSave(new Promise((r) => { finish = r; }));
+  trackLeavingSave(Promise.reject(new Error('offline')));
+  const settled = leavingSavesSettled(5_000);
+  assert.ok(settled);
+  let done = false;
+  void settled.then(() => { done = true; });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(done, false);
+  finish();
+  await settled;
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(leavingSavesSettled(), null);
 });

@@ -36,8 +36,8 @@ test('없거나 막힌 참여작(404)이면 볼 수 없다고 안내하고 챌�
   getEntry.mockRejectedValue(Object.assign(new Error('nf'), { status: 404 }));
   await render(<EntryLinkScreen />);
 
-  expect(await screen.findByText('볼 수 없는 영상이에요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '챌린지' }));
+  expect(await screen.findByText('볼 수 없는 영상이에요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '이번 주 챌린지 보러 가기' }));
   expect(mockRouter.replace).toHaveBeenCalledWith('/challenges');
 });
 
@@ -50,7 +50,7 @@ test('다른 오류면 챌린지를 불러오지 못했다고 안내한다', asy
 test('링크에 id가 없으면 서버에 묻지 않고 볼 수 없다고 안내한다', async () => {
   mockParams = {};
   await render(<EntryLinkScreen />);
-  expect(screen.getByText('볼 수 없는 영상이에요.')).toBeOnTheScreen();
+  expect(screen.getByText('볼 수 없는 영상이에요')).toBeOnTheScreen();
   expect(getEntry).not.toHaveBeenCalled();
 });
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { canSaveLineDraft, linePatch, splitGuess } from '../lib/reading/line-edit.ts';
+import { canInsertLine, canSaveLineDraft, defaultInsertSpeaker, insertLineOf, linePatch, splitGuess } from '../lib/reading/line-edit.ts';
 
 const DIALOGUE = { kind: 'dialogue', characterId: 'c1', text: '여기 있을 줄 알았어.' };
 const DIRECTION = { kind: 'direction', characterId: null, text: '사이' };
@@ -28,4 +28,19 @@ test('reading.script(SOMA-785): 둘로 나누기는 가운데에 가까운 문�
   assert.deepEqual(splitGuess('응, 늦어서 미안해.'), ['응, 늦어서', '미안해.']);
   assert.deepEqual(splitGuess('가나다라'), ['가나', '다라']);
   assert.deepEqual(splitGuess('가'), ['', '가']);
+});
+
+test('reading.script(SOMA-816): 아래에 추가는 처음에 상대 배역을 고르고, 배역이 없으면 지문이다', () => {
+  assert.equal(defaultInsertSpeaker(['c1', 'c2'], 'c1'), 'c2');
+  assert.equal(defaultInsertSpeaker(['c1', 'c2'], 'c2'), 'c1', '마지막 배역 다음은 처음으로 돈다');
+  assert.equal(defaultInsertSpeaker(['c1', 'c2'], null), 'c1', '지문·장면 아래면 첫 배역');
+  assert.equal(defaultInsertSpeaker(['c1'], 'c1'), 'c1', '배역이 하나면 그 배역');
+  assert.equal(defaultInsertSpeaker([], null), 'direction');
+});
+
+test('reading.script(SOMA-816): 아래에 추가는 글이 있어야 하고, 지문이면 배역 없이 보낸다', () => {
+  assert.equal(canInsertLine({ speaker: 'c1', text: '  ' }), false);
+  assert.equal(canInsertLine({ speaker: 'direction', text: '(사이)' }), true);
+  assert.deepEqual(insertLineOf({ speaker: 'c1', text: ' 안녕 ' }), { kind: 'dialogue', characterId: 'c1', text: '안녕' });
+  assert.deepEqual(insertLineOf({ speaker: 'direction', text: ' (사이) ' }), { kind: 'direction', characterId: null, text: '(사이)' });
 });

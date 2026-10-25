@@ -453,7 +453,9 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                     listed.moderation,
                     COALESCE(stats.entries, 0) AS entries,
                     COALESCE(stats.public_entries, 0) AS public_entries,
-                    COALESCE(stats.outside_entries, 0) AS outside_entries
+                    COALESCE(stats.outside_entries, 0) AS outside_entries,
+                    COALESCE(like_stats.likes, 0) AS likes,
+                    COALESCE(like_stats.outside_likes, 0) AS outside_likes
                 FROM listed
                 LEFT JOIN (
                     SELECT
@@ -465,6 +467,16 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                     WHERE entry.deleted_at IS NULL AND entry.status<>'deleted'
                     GROUP BY entry.challenge_id
                 ) AS stats ON stats.challenge_id=listed.id
+                LEFT JOIN (
+                    SELECT
+                        entry.challenge_id,
+                        count(*) AS likes,
+                        count(*) FILTER (WHERE liked.user_id NOT IN (SELECT id FROM team)) AS outside_likes
+                    FROM entry_likes AS liked
+                    JOIN challenge_entries AS entry ON entry.id=liked.entry_id
+                    WHERE entry.deleted_at IS NULL AND entry.status<>'deleted'
+                    GROUP BY entry.challenge_id
+                ) AS like_stats ON like_stats.challenge_id=listed.id
                 ORDER BY
                     CASE listed.state WHEN 'active' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,
                     listed.featured_on DESC NULLS LAST,
@@ -492,7 +504,9 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.get("moderation", String.class),
                         ((Number) row.get("entries")).intValue(),
                         ((Number) row.get("public_entries")).intValue(),
-                        ((Number) row.get("outside_entries")).intValue()))
+                        ((Number) row.get("outside_entries")).intValue(),
+                        ((Number) row.get("likes")).intValue(),
+                        ((Number) row.get("outside_likes")).intValue()))
                 .toList();
     }
 

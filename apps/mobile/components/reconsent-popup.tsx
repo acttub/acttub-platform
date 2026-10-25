@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -15,10 +14,12 @@ import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
+import { SkeletonBlock } from '@/components/ui/skeleton';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
   canSubmitConsentDecisions,
+  MARKETING_TYPES,
   documentsForConsentEntry,
   submitConsentDecisions,
   type ConsentChoice,
@@ -33,6 +34,12 @@ import { showMarketingNotice } from '@/lib/marketing-notice';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
+}
+
+/** 줄 끝 표시(pen S4.8) — 필수는 「(바뀜)」, 광고성 정보는 「(광고)」. */
+function consentSuffix(document: ConsentEntryDocument): string {
+  if (MARKETING_TYPES.includes(document.type)) return ` ${t('consent.adSuffix')}`;
+  return document.required ? ` ${t('consent.changedSuffix')}` : '';
 }
 
 function requiredFirst(documents: ConsentEntryDocument[]): ConsentEntryDocument[] {
@@ -126,7 +133,9 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
     if (consentEntry.status === 'checking') {
       return (
         <View style={styles.checking}>
-          <ActivityIndicator color={palette.blue} />
+          <SkeletonBlock width="90%" height={14} />
+          <SkeletonBlock width="75%" height={14} />
+          <SkeletonBlock width="60%" height={14} />
         </View>
       );
     }
@@ -151,11 +160,10 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
           {documents.map((document) => (
             <ConsentRow
               key={document.id}
-              label={`${t(document.required ? 'consent.requiredTag' : 'consent.optionalTag')} ${document.title}`}
+              label={`${t(document.required ? 'consent.requiredTag' : 'consent.optionalTag')} ${document.title}${consentSuffix(document)}`}
               checked={choices[document.id] === 'granted'}
               locked={locked(document.id)}
               onToggle={() => toggleDocument(document)}
-              divided
               arrow={{
                 icon: 'chevron-right',
                 onPress: () => setOpenDocument(document),
@@ -186,18 +194,20 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
 
   return (
     <Modal
-      transparent
       statusBarTranslucent
       visible={visible}
       animationType="fade"
       // 문서 시트만 닫는다. 팝업 자체는 결정해야만 사라진다.
       onRequestClose={() => setOpenDocument(null)}>
-      <View style={styles.backdrop}>
-        <View style={[styles.card, { maxHeight: height * 0.85 }]}>
+      <View style={[styles.backdrop, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
+        <View style={styles.card}>
           <View style={styles.head}>
             <Text style={styles.title}>{t('consent.reconsentTitle')}</Text>
+            {documents.some((d) => d.required) && (
+              <Text style={styles.reason}>{t('consent.reconsentHint')}</Text>
+            )}
             <Text style={styles.subtitle}>
-              {documents.some((d) => d.required) ? t('consent.reconsentHint') : t('consent.reconsentSubtitle')}
+              {documents.some((d) => d.required) ? t('consent.reconsentRequiredHint') : t('consent.reconsentSubtitle')}
             </Text>
           </View>
           {renderBody()}
@@ -207,7 +217,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         <View style={styles.sheetLayer}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpenDocument(null)} />
           <View
-            style={[styles.sheet, { maxHeight: height * 0.8, paddingBottom: 16 + insets.bottom }]}>
+            style={[styles.sheet, { maxHeight: height * 0.8 }]}>
             <Text style={styles.sheetTitle}>{openDocument.title}</Text>
             <ScrollView style={styles.sheetBody}>
               <Markdown source={openDocument.body} />
@@ -221,26 +231,25 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: palette.scrim,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
+  // pen S4R — 어두운 막 위 가운데 카드(폭 최대 358 · 모서리 22 · 안쪽 [24,20,16,20] · 칸 사이 16). 제목 19/800 · 설명 14/700 파랑.
+  backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
   card: {
-    backgroundColor: palette.card,
-    borderRadius: 22,
+    width: '100%',
+    maxWidth: 358,
+    maxHeight: '100%',
+    gap: 16,
     paddingTop: 24,
     paddingHorizontal: 20,
     paddingBottom: 16,
-    gap: 16,
+    borderRadius: 22,
+    backgroundColor: palette.card,
   },
   head: { gap: 6 },
-  title: { fontSize: 19, fontWeight: '800', color: palette.text },
-  // pen S4R.1 — 파란 안내(14/700).
-  subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.blueDeep },
-  list: { flexGrow: 0, flexShrink: 1 },
-  checking: { paddingVertical: 24, alignItems: 'center' },
+  title: { fontSize: 19, fontWeight: '800', lineHeight: 26, color: palette.text },
+  reason: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMuted },
+  subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
+  list: { flexShrink: 1 },
+  checking: { paddingVertical: 24, alignItems: 'center', gap: 12 },
   loadFailed: { alignItems: 'center', gap: 10 },
   error: { fontSize: 14, color: palette.danger, textAlign: 'center' },
   stretch: { alignSelf: 'stretch' },
@@ -249,12 +258,14 @@ const styles = StyleSheet.create({
   sheetLayer: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: palette.scrim,
-    justifyContent: 'flex-end',
+    // 하단 시트를 쓰지 않는다(10/24 규칙) — 문서 본문도 가운데 칸으로 띄운다.
+    justifyContent: 'center',
+    padding: 16,
   },
   sheet: {
     backgroundColor: palette.card,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderRadius: 22,
+    paddingBottom: 16,
     paddingTop: 20,
     paddingHorizontal: 20,
     gap: 12,

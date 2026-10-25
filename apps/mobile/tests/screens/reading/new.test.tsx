@@ -88,20 +88,26 @@ async function paste(text = PASTED) {
 test('처음에는 파일 탭과 예시 링크를 보이고, 넣은 것이 없으면 다음을 누를 수 없다', async () => {
   await render(<ReadingNew />);
 
-  expect(screen.getByRole('tab', { name: /파일/ })).toBeSelected();
+  expect(screen.getByRole('tab', { name: /파일 업로드/ })).toBeSelected();
+  expect(screen.getByText('연습할 대본을\n넣어 주세요')).toBeOnTheScreen();
+  expect(screen.getByText('파일을 올리거나 내용을 붙여넣어\n바로 연습할 수 있어요.')).toBeOnTheScreen();
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
+  expect(screen.getByText('TXT · DOCX · PDF · HWP · 50MB까지')).toBeOnTheScreen();
+  expect(screen.getByText('파일 선택하기')).toBeOnTheScreen();
+  expect(screen.getByPlaceholderText('예) 옥상, 밤 · 갈매기 · 입시 1차 등')).toBeOnTheScreen();
+  expect(screen.getByText('대본이 없어도 바로 연습할 수 있어요.')).toBeOnTheScreen();
   expect(screen.getByText('예시 대본으로 시작해보기')).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeDisabled();
 });
 
-test('붙여넣은 글과 제목을 보내 나누고, 배역이 둘 이상이면 목소리 정하기로 간다', async () => {
+test('붙여넣은 글과 제목을 보내 나누고, 대본 상세로 간다(목소리는 자동)', async () => {
   await render(<ReadingNew />);
   await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '  봄날의 대화  ');
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
 
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
   expect(api.importScript).toHaveBeenCalledWith({
     request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     allow_duplicate: false,
@@ -185,8 +191,8 @@ test('나누는 동안 서버가 알려 주는 줄 수를 보인다', async () =
   await paste();
 
   const pressing = fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('대본을 나누고 있어요')).toBeOnTheScreen();
-  expect(await screen.findByText('3 / 10줄')).toBeOnTheScreen();
+  expect(await screen.findByText('배역과 대사를 찾고 있어요…')).toBeOnTheScreen();
+  expect(await screen.findByText('30% · 3 / 10줄')).toBeOnTheScreen();
   expect(usePreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   await act(async () => pressing);
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
@@ -203,7 +209,7 @@ test('같은 글의 대본이 있으면 그 대본을 열거나 새로 넣을 �
   expect(screen.getByText('「그 대본 열기」를 누르면 하던 데서 이어져요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('그래도 넣기'));
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
   expect(jest.mocked(api.importScript).mock.calls[1][0]).toEqual(expect.objectContaining({ allow_duplicate: true, raw_text: PASTED }));
 });
 
@@ -225,7 +231,7 @@ test('같은 글의 대본을 불러오지 못하면 연결 문구를 띄운다'
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해 주세요.')).toBeOnTheScreen();
 });
 
 test('대본이 아닌 것 같다면 그래도 나누거나 다시 고를 수 있다', async () => {
@@ -280,7 +286,7 @@ test('나눈 대본을 불러오지 못하면 연결 문구를 띄운다', async
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해 주세요.')).toBeOnTheScreen();
   expect(mockRouter.replace).not.toHaveBeenCalled();
 });
 
@@ -313,7 +319,7 @@ test('나누기 동의가 없으면 동의를 받고, 동의하면 같은 글을
   await fireEvent.press(screen.getByText('다음'));
   await fireEvent.press(await screen.findByText('동의하고 나누기'));
 
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
   expect(api.recordConsent).toHaveBeenCalledWith('d1', 'granted');
   expect(api.importScript).toHaveBeenCalledTimes(3);
 });
@@ -437,7 +443,7 @@ test('서버의 읽기 자리가 없으면 올린 파일은 두고 잠시 뒤 �
   await render(<ReadingNew />);
 
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
-  expect(await screen.findByText('요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('확인'));
   expect(screen.getByText('대본.txt')).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeEnabled();
@@ -448,7 +454,7 @@ test('올리는 중에 끊기면 연결 문구를 띄우고 파일을 비운다'
   await render(<ReadingNew />);
 
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
-  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByLabelText('뒤로'));
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
@@ -461,7 +467,7 @@ test('파일을 올리다 동의가 필요하면 동의 뒤 올리기부터 나�
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
   await fireEvent.press(await screen.findByText('동의하고 나누기'));
 
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
   expect(api.createScriptUpload).toHaveBeenCalledTimes(2);
   expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'file', upload_id: 'u1', title: '파일 대본' }));
 });
@@ -508,7 +514,7 @@ test('나누는 중에 화면을 떠나면 끝나도 다른 화면으로 옮기�
   await paste();
 
   const pressing = fireEvent.press(screen.getByText('다음'));
-  await screen.findByText('대본을 나누고 있어요');
+  await screen.findByText('배역과 대사를 찾고 있어요…');
   await screen.unmount();
   finish(job());
   await act(async () => pressing);

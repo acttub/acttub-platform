@@ -39,6 +39,7 @@ test('리딩 실행: [시작] 전 나가기는 회차를 지운다 — 버튼으
   assert.match(play, /discardOnExit\(/);
   assert.match(play, /deleteSession\(/);
   assert.match(play, /startedRef\.current = true/);
-  assert.match(play, /exitMessage\(cur, \{ discard/);
+  // 나가기 확인 팝업은 없앴다(10/24 하단 시트 금지) — 읽은 데까지 저장하고 바로 나간다.
+  assert.doesNotMatch(play, /ReadingExitSheet/);
   assert.match(play, /addListener\('beforeRemove'/);
 });

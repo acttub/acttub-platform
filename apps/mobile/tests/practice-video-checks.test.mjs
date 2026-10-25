@@ -15,10 +15,10 @@ test('practice.record: 압축 결과 100MiB + 1바이트는 올리지 않고 "�
   assert.match(videoErrorMessage('video_too_long'), /5분/);
 });
 
-test('practice.record: 총량 초과(422 video_quota)는 보관함 정리(삭제 또는 파일만 파기)로 안내한다', () => {
+test('practice.record: 총량 초과(422 video_quota)는 저장 공간 정리(삭제 또는 파일만 지우기)로 안내한다', () => {
   const error = new ApiError(422, 'x', 'video_quota', 'video_quota', { detail: 'video_quota' });
   assert.equal(videoErrorCodeOf(error), 'video_quota');
-  assert.match(videoErrorMessage(error), /파일만 파기/);
+  assert.match(videoErrorMessage(error), /영상 파일만 지우면/);
   assert.equal(videoErrorCodeOf(new ApiError(422, 'x', 'upload_expired', 'upload_expired')), 'upload_expired');
   assert.equal(videoErrorCodeOf(new Error('boom')), null);
 });

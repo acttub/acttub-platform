@@ -49,7 +49,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
         "JWT_SECRET=test-secret",
         "ACCOUNT_CLEANUP_ENABLED=false",
         "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-        "BILLING_APP_ENABLED=true",
+        "BILLING_WEB_ENABLED=true",
+        "BILLING_WEB_RETURN_URL=https://acttub.com/pricing/result",
         "BILLING_FREE_LIMITS_ENABLED=true",
         "BILLING_PUBLIC_ORIGIN=https://billing.acttub.test",
         "BILLING_TOSS_CLIENT_KEY=test_ck_fakefakefake1234",
@@ -126,8 +127,8 @@ class BillingEndpointIT {
         assertThat(page.getContentAsString()).contains("requestBillingAuth").contains("test_ck_fakefakefake1234");
         String customerKey = jdbc.queryForObject("SELECT customer_key FROM billing_checkouts", String.class);
 
-        assertThat(callback(state, customerKey)).isEqualTo("actingapp://billing-result?status=done");
-        assertThat(callback(state, customerKey)).isEqualTo("actingapp://billing-result?status=invalid");
+        assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=done");
+        assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=invalid");
 
         JsonNode active = me();
         assertThat(active.path("status").textValue()).isEqualTo("active");
@@ -199,7 +200,7 @@ class BillingEndpointIT {
 
         String failed = openCheckout("subscribe");
         assertThat(redirect(get("/v2/billing/web/checkout/{state}/fail", failed).param("code", "PAY_PROCESS_CANCELED")))
-                .isEqualTo("actingapp://billing-result?status=canceled");
+                .isEqualTo("https://acttub.com/pricing/result?status=canceled");
         assertThat(mvc.perform(get("/v2/billing/web/checkout/{state}", failed)).andReturn().getResponse().getStatus())
                 .isEqualTo(404);
 
@@ -209,7 +210,7 @@ class BillingEndpointIT {
                 "SELECT customer_key FROM billing_checkouts WHERE purpose='change_card'", String.class);
         when(gateway.issue(anyString(), anyString()))
                 .thenReturn(new PgReviewGateway.IssuedKey("bk_new_secret", "현대", "51001234****9876"));
-        assertThat(callback(change, customerKey)).isEqualTo("actingapp://billing-result?status=done");
+        assertThat(callback(change, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=done");
         assertThat(me().path("card_last4").textValue()).isEqualTo("9876");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM billing_payments", Integer.class)).isEqualTo(1);
     }
@@ -227,14 +228,14 @@ class BillingEndpointIT {
         String state = openCheckout("subscribe");
         String customerKey = jdbc.queryForObject(
                 "SELECT customer_key FROM billing_checkouts WHERE status='open' AND purpose='subscribe'", String.class);
-        assertThat(callback(state, customerKey)).isEqualTo("actingapp://billing-result?status=done");
+        assertThat(callback(state, customerKey)).isEqualTo("https://acttub.com/pricing/result?status=done");
     }
 
     private String openCheckout(String purpose) throws Exception {
         JsonNode started = json(post("/v2/billing/checkout").content("{\"purpose\":\"" + purpose + "\"}"), 200);
         String url = started.path("checkout_url").textValue();
         assertThat(url).startsWith("https://billing.acttub.test/v2/billing/web/checkout/");
-        assertThat(started.path("return_url").textValue()).isEqualTo("actingapp://billing-result");
+        assertThat(started.path("return_url").textValue()).isEqualTo("https://acttub.com/pricing/result");
         return url.substring(url.lastIndexOf('/') + 1);
     }
 

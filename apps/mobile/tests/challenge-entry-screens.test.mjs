@@ -11,32 +11,34 @@ const read = (rel) => readFileSync(path.join(appRoot, rel), 'utf8');
  * 테스트가 보고, 여기서는 요구사항이 화면에 건 조건만 원본에서 확인한다.
  */
 
-test('challenge.entry: 올리기는 서버로 참여작을 만들고 공개 범위는 「나만 보기」가 먼저 골라져 있다(SOMA-748)', () => {
+test('challenge.entry: 올리기는 서버로 참여작을 만들고 공개 범위는 「공개」가 위에 먼저 골라져 있다(pen C9.17)', () => {
   const upload = read('app/challenge-upload.tsx');
 
   assert.match(upload, /api\.createEntry/);
   assert.match(upload, /entryAttemptFor/);
-  // 공개 범위는 고르기 전까지 비어 있다 — 버튼도 꺼져 있다.
-  assert.match(upload, /useState<EntryVisibility \| null>\('private'\)/);
+  assert.match(upload, /useState<EntryVisibility \| null>\('public'\)/);
   assert.match(upload, /canSubmitEntry/);
-  assert.match(upload, /challengeUpload\.pickVisibility/);
+  // 「공개」 줄이 「나만 보기」 줄보다 위에 있다.
+  assert.ok(upload.indexOf("chooseVisibility('public')") < upload.indexOf("chooseVisibility('private')"));
 });
 
-test('challenge.entry: 공개를 고르면 표본 활용을 한 줄 알린다', () => {
+test('challenge.entry: AI 리포트 비교 안내는 없고 공개를 고르면 얼굴 모자이크를 켤 수 있다', () => {
   const upload = read('app/challenge-upload.tsx');
 
   assert.match(upload, /visibility === 'public' && \(/);
-  assert.match(upload, /challengeUpload\.note/);
-  assert.match(read('locales/ko.ts'), /AI 리포트 비교에 쓰일 수 있어요/);
+  assert.match(upload, /challengeUpload\.mosaicTitle/);
+  assert.doesNotMatch(upload, /challengeUpload\.note/);
+  assert.doesNotMatch(read('locales/ko.ts'), /AI 리포트 비교에 쓰일 수 있어요/);
 });
 
 test('challenge.entry: 캡션은 300자까지이고 완료 문구는 공개·비공개가 다르다', () => {
   const upload = read('app/challenge-upload.tsx');
 
   assert.match(upload, /maxLength=\{CAPTION_MAX\}/);
-  assert.match(upload, /doneCopy\(created\.visibility\)/);
-  assert.match(read('locales/ko.ts'), /공개로 올렸어요/);
-  assert.match(read('locales/ko.ts'), /비공개로 저장했어요/);
+  assert.match(upload, /challengeDone\.titlePublic/);
+  assert.match(upload, /challengeDone\.titlePrivate/);
+  assert.match(read('locales/ko.ts'), /챌린지에 올렸어요!/);
+  assert.match(read('locales/ko.ts'), /나만 보기로 저장했어요/);
 });
 
 test('challenge.entry: 찍은 영상은 보관함을 거쳐 확정된 뒤 올라간다', () => {
@@ -49,12 +51,6 @@ test('challenge.entry: 찍은 영상은 보관함을 거쳐 확정된 뒤 올라
   const record = read('app/record-video.tsx');
   assert.match(record, /CHALLENGE_MAX_SEC = 60/);
   assert.match(record, /challengeId: challengeId \?\? ''/);
-});
-
-test('challenge.entry: 보관함의 "챌린지에 올리기"는 올릴 대사를 먼저 고른다', () => {
-  assert.match(read('app/archive-detail.tsx'), /pickVideoId: state\.video\.id/);
-  assert.match(read('app/(tabs)/challenges.tsx'), /pickVideoId/);
-  assert.match(read('app/(tabs)/challenges.tsx'), /pathname: '\/challenge-upload'/);
 });
 
 test('challenge.browse: 피드는 3초 재생 사건을 보내고 실패해도 재생을 막지 않는다', () => {
@@ -89,7 +85,7 @@ test('challenge.browse: P03 은 네 분류로 세고 카드에서 고치거나 �
   assert.match(p03, /canGoPublic/);
   // 지워도 영상은 보관함에 남는다고 말한다.
   assert.match(p03, /deleteNotice\(\)/);
-  assert.match(read('locales/ko.ts'), /영상은 보관함에 남아요/);
+  assert.match(read('locales/ko.ts'), /영상은 그대로 있어요/);
   // 프로필에서 들어가는 길이 있다.
   assert.match(read('app/(tabs)/profile.tsx'), /'\/challenge-entries'/);
 });

@@ -165,6 +165,151 @@
         } ]
       }
     },
+    "/v2/practices/{practice_id}/journal" : {
+      "get" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Get Practice Journal",
+        "description" : "그 회차의 배우 일지. 없으면(남의 것 포함) 404 journal_not_found 이고 화면은 노트를 대신 보인다.",
+        "operationId" : "get_practice_journal_v2_practices__practice_id__journal_get",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeJournal"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "put" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Update Practice Journal",
+        "description" : "배우가 고친 일지를 저장한다. 배우의 답 전체와 자동 칸 전체를 보내고, 글이 빈 항목은 지운다. 고친 뒤에는 자동 칸을\n다시 만들지 않는다. 없으면(남의 것 포함) 404 journal_not_found.",
+        "operationId" : "update_practice_journal_v2_practices__practice_id__journal_put",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/JournalUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeJournal"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Create Practice Journal",
+        "description" : "고정 질문 4개의 답으로 그 회차의 배우 일지를 만든다. 서버가 코칭 대화로 자동 칸(오늘 한 연습·장면과 인물·받은 피드백)을\n만들고 배우의 답은 고치지 않고 그대로 둔다. 자동 칸을 만들지 못하면 배우의 답만으로 저장한다(draft_status=failed).\n새로 만들면 201, 이미 있으면 다시 만들지 않고 그 일지를 200 으로 준다. 없는 회차·남의 회차는 404 practice_not_found.",
+        "operationId" : "create_practice_journal_v2_practices__practice_id__journal_post",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/JournalCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "만들었다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeJournal"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "이미 있다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeJournal"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/portfolio/share" : {
       "put" : {
         "tags" : [ "v2-portfolio" ],
@@ -979,7 +1124,7 @@
       "post" : {
         "tags" : [ "v2-videos" ],
         "summary" : "Complete Video Intent",
-        "description" : "올라온 것을 확인하고 보관함에 영상을 만든다. 만들면 201, 마무리 재전송이면 200 으로 같은 영상이다.\n시한(30분)이 지났으면 422 upload_expired 이고 미확정 객체는 삭제 장부로 간다. 아직 안 올라왔으면\n422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다.",
+        "description" : "올라온 것을 확인하고 보관함에 영상을 만든다. 만들면 201, 마무리 재전송이면 200 으로 같은 영상이다.\n시한(30분)이 지났으면 422 upload_expired 이고 미확정 객체는 삭제 장부로 간다. 아직 안 올라왔으면\n422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다. 본문은 선택이고, face_mosaic 이 true 면\n첫 질문용 미리 올리기를 시작하지 않는다(원본이 코치 AI 쪽으로 가지 않는다).",
         "operationId" : "complete_video_intent_v2_videos_intents__intent_id__complete_post",
         "parameters" : [ {
           "name" : "intent_id",
@@ -991,6 +1136,15 @@
             "title" : "Intent Id"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VideoIntentCompleteRequest"
+              }
+            }
+          }
+        },
         "responses" : {
           "201" : {
             "description" : "Successful Response",
@@ -1674,6 +1828,68 @@
         } ]
       }
     },
+    "/v2/reading/scripts/{script_id}/lines/{line_id}/insert-after" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Insert Script Line After",
+        "description" : "고른 줄 바로 아래에 새 줄 하나를 넣는다(SOMA-816). 뒤 줄들의 순서가 하나씩 밀리고 기존 줄의 id 는 그대로라\n회차·녹음·외운 줄의 연결이 남는다. 구간이 그 줄로 끝나던 회차의 구간은 그대로다(새 줄은 구간 밖). 대사면 이\n대본의 배역이 있어야 하고 지문·장면이면 배역이 없다 — 어기면 422 invalid_line. 글은 앞뒤 공백을 정리하고\n비거나 5,000자를 넘으면 422 배열이다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found.\n고친 대본 전체를 돌려준다.",
+        "operationId" : "insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        }, {
+          "name" : "line_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingScriptLineInsert"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingScript"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/imports" : {
       "post" : {
         "tags" : [ "v2-reading" ],
@@ -1707,6 +1923,68 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ReadingImportTicket"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/examples/{example_id}/start" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Start Reading Example",
+        "description" : "예시를 미리 나눈 그대로 내 대본(source sample, 제목은 예시 제목)으로 복사한다. 모델을 부르지 않아 script_split\n동의·하루 나누기 한도를 보지 않는다(게스트도 된다). 새로 복사하면 201, 같은 글의 대본이 이미 있거나 같은\nrequest_id 의 재전송이면 200 으로 그 대본을 준다(created false). 지운 뒤에는 다시 복사한다. 없거나 꺼진 예시\n404 reading_example_not_found, 대본 수 한도 422 script_limit, 같은 request_id 에 다른 본문 422\nrequest_fingerprint_mismatch.",
+        "operationId" : "start_reading_example_v2_reading_examples__example_id__start_post",
+        "parameters" : [ {
+          "name" : "example_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "title" : "Example Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingExampleStartRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "복사했다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingExampleStarted"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "같은 글의 대본이 이미 있음 또는 재전송",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingExampleStarted"
                 }
               }
             }
@@ -2729,6 +3007,59 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/CoachReplyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoachTurnResult"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/coach/conversations/{conversation_id}/continue" : {
+      "post" : {
+        "tags" : [ "v2-coach" ],
+        "summary" : "Continue Coach Conversation",
+        "description" : "정리까지 마친(닫힌) 대화를 같은 대화로 다시 연다(「더 얘기하기」). 새 회차·새 대화를 만들지 않아 새 코칭으로\n세지 않는다. 이미 열려 있으면 그대로 돌려준다. revision 이 다르면 409 conversation_conflict, 코치 응답\n상한에 가까우면 409 conversation_limit_reached, 이어 갈 수 없는 대화(옛 갈래·연기가 아니어서 끊김)면\n409 conversation_not_resumable. 이어 간 대화가 다시 닫히면 노트는 새 내용으로 고쳐진다.",
+        "operationId" : "continue_coach_conversation_v2_coach_conversations__conversation_id__continue_post",
+        "parameters" : [ {
+          "name" : "conversation_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CoachContinueRequest"
               }
             }
           },
@@ -4052,6 +4383,39 @@
         } ]
       }
     },
+    "/v2/reading/scripts/{script_id}/example-audio" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Get Reading Example Audio",
+        "description" : "예시를 복사한 내 대본의 미리 만든 상대역 음성. 대본의 원문이 켜진 예시와 같고 그 예시에 음성이 있으면 200 —\nvoices 는 배역 이름 → 음성을 만든 프리셋, lines 는 예시와 같은 자리·같은 배역·같은 글인 대사 줄마다 line_id 와 1시간\n임시 주소(url)·길이(duration_ms)다. 고친 줄은 빠진다. 상대역이 없는 예시(독백)는 lines 가 비어 있다. 없는 것·남의\n대본 404 script_not_found, 예시가 아니거나 음성이 없는 예시 404 reading_example_audio_not_found.",
+        "operationId" : "get_reading_example_audio_v2_reading_scripts__script_id__example_audio_get",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingExampleAudio"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/imports/{import_id}" : {
       "get" : {
         "tags" : [ "v2-reading" ],
@@ -4075,6 +4439,29 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ReadingImport"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/examples" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "List Reading Examples",
+        "description" : "켜진 예시 대본을 정한 순서로. preview 는 앞 5줄까지이고 지문·장면은 speaker 가 null 이다.",
+        "operationId" : "list_reading_examples_v2_reading_examples_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingExampleList"
                 }
               }
             }
@@ -5165,6 +5552,397 @@
         "required" : [ "comment", "rating", "updated_at" ],
         "title" : "NoteRating"
       },
+      "JournalAnswers" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "feeling" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalFeeling"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "unknown" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalUnknown"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "next" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalNext"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "review" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Review"
+          }
+        },
+        "title" : "JournalAnswers"
+      },
+      "JournalCharacterAspect" : {
+        "type" : "string",
+        "enum" : [ "wants", "partner", "situation" ],
+        "title" : "JournalCharacterAspect"
+      },
+      "JournalCharacterItem" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "aspect" : {
+            "$ref" : "#/components/schemas/JournalCharacterAspect"
+          },
+          "text" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "title" : "Text"
+          }
+        },
+        "required" : [ "aspect", "text" ],
+        "title" : "JournalCharacterItem"
+      },
+      "JournalFeedbackGiver" : {
+        "type" : "string",
+        "enum" : [ "coach", "other" ],
+        "title" : "JournalFeedbackGiver"
+      },
+      "JournalFeedbackItem" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "title" : "Text"
+          },
+          "giver" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalFeedbackGiver"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "at" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "exclusiveMaximum" : 86400.0,
+              "exclusiveMinimum" : 0.0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "At"
+          }
+        },
+        "required" : [ "text" ],
+        "title" : "JournalFeedbackItem"
+      },
+      "JournalFeeling" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "choice" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 30,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Choice"
+          },
+          "text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Text"
+          }
+        },
+        "title" : "JournalFeeling"
+      },
+      "JournalNext" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "undecided" : {
+            "anyOf" : [ {
+              "type" : "boolean"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Undecided"
+          },
+          "text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Text"
+          }
+        },
+        "title" : "JournalNext"
+      },
+      "JournalPracticeBasis" : {
+        "type" : "string",
+        "enum" : [ "actor_report", "observed", "discussed" ],
+        "title" : "JournalPracticeBasis"
+      },
+      "JournalPracticeItem" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "title" : "Text"
+          },
+          "basis" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JournalPracticeBasis"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "text" ],
+        "title" : "JournalPracticeItem"
+      },
+      "JournalUnknown" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "none" : {
+            "anyOf" : [ {
+              "type" : "boolean"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "None"
+          },
+          "text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Text"
+          }
+        },
+        "title" : "JournalUnknown"
+      },
+      "JournalUpdateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "answers" : {
+            "$ref" : "#/components/schemas/JournalAnswers"
+          },
+          "practice" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalPracticeItem"
+            },
+            "maxItems" : 5,
+            "minItems" : 0,
+            "title" : "Practice"
+          },
+          "character" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalCharacterItem"
+            },
+            "maxItems" : 5,
+            "minItems" : 0,
+            "title" : "Character"
+          },
+          "feedback" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalFeedbackItem"
+            },
+            "maxItems" : 5,
+            "minItems" : 0,
+            "title" : "Feedback"
+          }
+        },
+        "required" : [ "answers", "character", "feedback", "practice" ],
+        "title" : "JournalUpdateRequest"
+      },
+      "JournalCharacterLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "aspect" : {
+            "type" : "string",
+            "title" : "Aspect"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          }
+        },
+        "title" : "JournalCharacterLine"
+      },
+      "JournalDraftStatus" : {
+        "type" : "string",
+        "enum" : [ "pending", "ready", "failed", "skipped" ],
+        "title" : "JournalDraftStatus"
+      },
+      "JournalFeedbackLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "giver" : {
+            "type" : "string",
+            "title" : "Giver"
+          },
+          "at" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "At"
+          }
+        },
+        "title" : "JournalFeedbackLine"
+      },
+      "JournalPracticeLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "basis" : {
+            "type" : "string",
+            "title" : "Basis"
+          }
+        },
+        "title" : "JournalPracticeLine"
+      },
+      "PracticeJournal" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "practice_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          },
+          "conversation_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Conversation Id"
+          },
+          "answers" : {
+            "$ref" : "#/components/schemas/JournalAnswers"
+          },
+          "draft_status" : {
+            "$ref" : "#/components/schemas/JournalDraftStatus"
+          },
+          "practice" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalPracticeLine"
+            },
+            "title" : "Practice"
+          },
+          "character" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalCharacterLine"
+            },
+            "title" : "Character"
+          },
+          "feedback" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JournalFeedbackLine"
+            },
+            "title" : "Feedback"
+          },
+          "edited_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Edited At"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "updated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Updated At"
+          },
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          },
+          "purpose" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Purpose"
+          },
+          "role_name" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Role Name"
+          }
+        },
+        "title" : "PracticeJournal"
+      },
       "PortfolioShareRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -5978,6 +6756,22 @@
         },
         "required" : [ "expires_at", "intent_id", "upload_url" ],
         "title" : "VideoIntent"
+      },
+      "VideoIntentCompleteRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 가리기. 기본 false. true 면 올리기가 끝나도 이 영상의 원본으로 첫 질문용 미리 올리기(코치 AI 쪽 업로드)를 시작하지 않는다. 이 영상으로 얼굴 가리기를 켜고 만든 회차는 가린 사본만 쓴다. 마무리 재전송(200)에는 영향이 없다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
+          }
+        },
+        "title" : "VideoIntentCompleteRequest"
       },
       "SampleScriptCreateRequest" : {
         "type" : "object",
@@ -7352,6 +8146,31 @@
         "required" : [ "first_text", "second_text" ],
         "title" : "ReadingScriptLineSplit"
       },
+      "ReadingScriptLineInsert" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "kind" : {
+            "$ref" : "#/components/schemas/ReadingScriptLineKindInput"
+          },
+          "character_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character Id"
+          },
+          "text" : {
+            "type" : "string",
+            "maxLength" : 5000,
+            "title" : "Text"
+          }
+        },
+        "required" : [ "kind", "text" ],
+        "title" : "ReadingScriptLineInsert"
+      },
       "ReadingImportRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -7432,6 +8251,36 @@
         },
         "required" : [ "duplicate_script_id", "import_id" ],
         "title" : "ReadingImportTicket"
+      },
+      "ReadingExampleStartRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          }
+        },
+        "required" : [ "request_id" ],
+        "title" : "ReadingExampleStartRequest"
+      },
+      "ReadingExampleStarted" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "script_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          },
+          "created" : {
+            "type" : "boolean",
+            "title" : "Created"
+          }
+        },
+        "required" : [ "created", "script_id" ],
+        "title" : "ReadingExampleStarted"
       },
       "RegisterPushTokenRequest" : {
         "type" : "object",
@@ -7536,6 +8385,15 @@
               "type" : "null"
             } ],
             "title" : "Session Purpose"
+          },
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 가리기. 기본 false. 켜면 분석·코치는 원본 대신 서버가 얼굴을 가린 사본을 본다. 사본을 만들지 못하면(얼굴을 못 찾음 포함) 원본을 쓰지 않고 분석이 실패로 닫힌다. 원본은 지우지 않는다. 영상 없는 회차에서는 무시한다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
           }
         },
         "required" : [ "request_id" ],
@@ -7794,6 +8652,17 @@
         "required" : [ "created_at", "id", "status" ],
         "title" : "PreviousConversation"
       },
+      "JournalCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "answers" : {
+            "$ref" : "#/components/schemas/JournalAnswers"
+          }
+        },
+        "required" : [ "answers" ],
+        "title" : "JournalCreateRequest"
+      },
       "PracticeContinueRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -7825,6 +8694,15 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "face_mosaic" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "얼굴 가리기. 생략·null 이면 이어받을 회차의 값을 그대로 쓴다. 뜻은 회차 시작과 같다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Face Mosaic"
           }
         },
         "required" : [ "request_id" ],
@@ -8576,9 +9454,17 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "answer_examples" : {
+            "type" : "array",
+            "description" : "목적 없는 질문 대화에서 지금 코치 질문 아래에 보일 예시 답(0~2개, 배우 말투). 목적별 코칭은 purpose.choices 를 쓰고 이 값은 빈 목록이다",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Answer Examples"
           }
         },
-        "required" : [ "coach_reply_count", "id", "messages", "reply_limit", "revision", "status" ],
+        "required" : [ "answer_examples", "coach_reply_count", "id", "messages", "reply_limit", "revision", "status" ],
         "title" : "CoachConversation"
       },
       "CoachLine" : {
@@ -8933,6 +9819,21 @@
         "required" : [ "conversation_id", "request_id" ],
         "title" : "CoachReplyRequest"
       },
+      "CoachContinueRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "revision" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Revision"
+          }
+        },
+        "title" : "CoachContinueRequest"
+      },
       "ChallengeCreateRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -9196,6 +10097,15 @@
             } ],
             "title" : "Playback Url"
           },
+          "original_playback_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "본인 참여작이고 얼굴 모자이크본이 준비됐을 때만 원본 주소. 그때 playback_url 은 모자이크본이다. 그 밖에는 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Original Playback Url"
+          },
           "liked" : {
             "type" : "boolean",
             "title" : "Liked"
@@ -9252,7 +10162,7 @@
             "title" : "Mosaic Status"
           }
         },
-        "required" : [ "author", "caption", "category", "challenge", "challenge_hidden", "challenge_id", "comment_count", "content_version", "created_at", "face_mosaic", "final_like_count", "id", "is_mine", "like_count", "liked", "mosaic_status", "playback_url", "published_at", "rank", "saved", "status", "view_count", "visibility" ],
+        "required" : [ "author", "caption", "category", "challenge", "challenge_hidden", "challenge_id", "comment_count", "content_version", "created_at", "face_mosaic", "final_like_count", "id", "is_mine", "like_count", "liked", "mosaic_status", "original_playback_url", "playback_url", "published_at", "rank", "saved", "status", "view_count", "visibility" ],
         "title" : "MyChallengeEntry"
       },
       "MyChallengeEntryParent" : {
@@ -10341,6 +11251,53 @@
         "required" : [ "sessions" ],
         "title" : "ReadingSessionList"
       },
+      "ReadingExampleAudio" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "example_id" : {
+            "type" : "string",
+            "title" : "Example Id"
+          },
+          "voices" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "title" : "Voices"
+          },
+          "lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingExampleAudioLine"
+            },
+            "title" : "Lines"
+          }
+        },
+        "required" : [ "example_id", "lines", "voices" ],
+        "title" : "ReadingExampleAudio"
+      },
+      "ReadingExampleAudioLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          },
+          "url" : {
+            "type" : "string",
+            "title" : "Url"
+          },
+          "duration_ms" : {
+            "type" : "integer",
+            "title" : "Duration Ms"
+          }
+        },
+        "required" : [ "duration_ms", "line_id", "url" ],
+        "title" : "ReadingExampleAudioLine"
+      },
       "ReadingImport" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -10398,6 +11355,79 @@
         "type" : "string",
         "enum" : [ "not_script", "no_characters", "script_too_long", "script_limit", "failed" ],
         "title" : "ScriptImportFailure"
+      },
+      "ReadingExample" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "title" : "Id"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "summary" : {
+            "type" : "string",
+            "title" : "Summary"
+          },
+          "dialogue_count" : {
+            "type" : "integer",
+            "title" : "Dialogue Count"
+          },
+          "characters" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Characters"
+          },
+          "preview" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingExamplePreviewLine"
+            },
+            "title" : "Preview"
+          }
+        },
+        "required" : [ "characters", "dialogue_count", "id", "preview", "summary", "title" ],
+        "title" : "ReadingExample"
+      },
+      "ReadingExampleList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "examples" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingExample"
+            },
+            "title" : "Examples"
+          }
+        },
+        "required" : [ "examples" ],
+        "title" : "ReadingExampleList"
+      },
+      "ReadingExamplePreviewLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "speaker" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Speaker"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          }
+        },
+        "required" : [ "speaker", "text" ],
+        "title" : "ReadingExamplePreviewLine"
       },
       "PublicPortfolio" : {
         "type" : "object",
@@ -10797,6 +11827,15 @@
             } ],
             "title" : "Playback Url"
           },
+          "original_playback_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "본인 참여작이고 얼굴 모자이크본이 준비됐을 때만 원본 주소. 그때 playback_url 은 모자이크본이다. 그 밖에는 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Original Playback Url"
+          },
           "liked" : {
             "type" : "boolean",
             "title" : "Liked"
@@ -10815,7 +11854,7 @@
             "title" : "Is New"
           }
         },
-        "required" : [ "author", "caption", "challenge_id", "comment_count", "final_like_count", "id", "is_mine", "is_new", "like_count", "liked", "playback_url", "published_at", "rank", "saved", "view_count" ],
+        "required" : [ "author", "caption", "challenge_id", "comment_count", "final_like_count", "id", "is_mine", "is_new", "like_count", "liked", "original_playback_url", "playback_url", "published_at", "rank", "saved", "view_count" ],
         "title" : "ChallengeEntry"
       },
       "SavedChallengeEntries" : {

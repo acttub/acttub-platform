@@ -15,7 +15,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { getTrackingPermissionsAsync } from 'expo-tracking-transparency';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import 'react-native-reanimated';
 
@@ -23,7 +23,6 @@ import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TrackingIntro } from '@/components/tracking-intro';
 import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
@@ -32,6 +31,7 @@ import { api } from '@/lib/api';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
 import { tabBackTitle } from '@/lib/tab-back-title';
+import { HOME_SPLASH_HOLD_MS, isHomeReady, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
 import { AppHeader } from '@/components/app-header';
 import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
@@ -328,6 +328,30 @@ function RootNavigator() {
     router,
   ]);
 
+  // 홈으로 들어가는 길이면 홈이 첫 데이터를 받을 때까지 로고를 붙잡는다(lib/launch-splash.ts).
+  // 예전에는 로고가 닫힌 뒤 홈이 데이터를 받는 동안 작은 로딩 표시가 잠깐 보였다.
+  const homeReady = useSyncExternalStore(subscribeHomeReady, isHomeReady);
+  const signedInHome =
+    !updateRequired &&
+    status === 'signedIn' &&
+    Boolean(user) &&
+    consentEntry.status === 'allowed' &&
+    profileStatus === 'complete' &&
+    recovery.status === 'ready' &&
+    recovery.owner === user?.id;
+  const [homeHoldExpired, setHomeHoldExpired] = useState(false);
+  useEffect(() => {
+    if (!signedInHome) return;
+    const timer = setTimeout(() => setHomeHoldExpired(true), HOME_SPLASH_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [signedInHome]);
+  const holdSplashForHome = shouldHoldSplashForHome({
+    signedInHome,
+    pathname,
+    homeReady,
+    holdExpired: homeHoldExpired,
+  });
+
   useEffect(() => {
     const consentScreenReady =
       consentEntry.status === 'error' ||
@@ -344,10 +368,11 @@ function RootNavigator() {
               (profileStatus === 'complete' &&
                 recovery.status === 'ready' &&
                 recovery.owner === user?.id)))));
-    if (readyToShow) {
+    if (readyToShow && !holdSplashForHome) {
       void SplashScreen.hideAsync();
     }
   }, [
+    holdSplashForHome,
     updateRequired,
     status,
     user,
@@ -413,13 +438,12 @@ function RootNavigator() {
         <Stack.Screen name="auditions/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
         <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-        <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
         <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
+        <Stack.Screen name="line-pick" options={{ title: t('linePick.title') }} />
+        <Stack.Screen name="challenge-others" options={{ title: t('challenges.sameLineTitle') }} />
         <Stack.Screen name="line-search" options={{ headerShown: false }} />
         <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
-        <Stack.Screen name="archive" options={{ headerShown: false }} />
-        <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
         <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
         <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
         <Stack.Screen name="reading/session" options={{ title: '' }} />
@@ -463,18 +487,6 @@ function ScreenTracker() {
 }
 
 export default function RootLayout() {
-  const [trackingIntro, setTrackingIntro] = useState(false);
-  const trackingDone = useRef<(() => void) | null>(null);
-  const finishTrackingIntro = () => {
-    const done = trackingDone.current;
-    trackingDone.current = null;
-    done?.();
-  };
-  const closeTrackingIntro = () => {
-    setTrackingIntro(false);
-    // iOS는 모달이 닫힌 뒤 시스템 권한 창을 연다.
-    if (Platform.OS !== 'ios') finishTrackingIntro();
-  };
   const [fontsLoaded] = useFonts({
     ...Feather.font,
     // 굵기별 static 서브셋 — 가변폰트는 안드로이드에서 fontWeight가 안 먹는다([[global-font]]).
@@ -497,7 +509,8 @@ export default function RootLayout() {
       getStatus: async () => (await getTrackingPermissionsAsync()).status,
       getSeen: () => AsyncStorage.getItem(TRACKING_INTRO_KEY),
       markSeen: () => AsyncStorage.setItem(TRACKING_INTRO_KEY, '1'),
-      show: () => new Promise<void>((resolve) => { trackingDone.current = resolve; setTrackingIntro(true); }),
+      // pen S1.2 — 설명 화면 없이 로그인 화면 위에 바로 iOS 시스템 팝업만 띄운다.
+      show: async () => undefined,
     }));
     // 설치 귀속 결과는 SDK 초기화 뒤 곧 온다. 받는 쪽은 먼저 세워 둔다(SOMA-588).
     startSignupAttributionListener();
@@ -525,7 +538,6 @@ export default function RootLayout() {
           {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
               비출 자리의 좌표가 맞는다 (SOMA-550). */}
           <SpotlightHost />
-          <TrackingIntro visible={trackingIntro} onContinue={closeTrackingIntro} onDismiss={finishTrackingIntro} />
           <StatusBar style="dark" />
         </ThemeProvider>
       </AuthProvider>

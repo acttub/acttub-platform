@@ -17,6 +17,7 @@ import { postHog, syncPostHog } from '@/lib/posthog';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { useAuth } from '@/lib/auth';
 import RootLayout from '@/app/_layout';
+import { markHomeReady, resetHomeReadyForTest } from '@/lib/launch-splash';
 
 type AuthState = {
   status: 'loading' | 'signedIn' | 'signedOut';
@@ -114,6 +115,9 @@ const startupCalls = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // 게이트 테스트는 홈이 이미 준비된 상태로 본다. 홈을 기다리는 로고는 아래 「홈을 기다리는 로고」에서 따로 본다.
+  resetHomeReadyForTest();
+  markHomeReady();
   mockFontsLoaded = true;
   mockNav.segments = ['(tabs)'];
   mockNav.pathname = '/';
@@ -433,6 +437,46 @@ describe('게이트', () => {
   });
 });
 
+describe('홈을 기다리는 로고', () => {
+  beforeEach(() => {
+    resetHomeReadyForTest();
+  });
+
+  test('홈으로 들어가면 홈이 첫 데이터를 받을 때까지 로고를 유지한다', async () => {
+    await renderLayout();
+    expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+
+    await act(async () => markHomeReady());
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
+  });
+
+  test('홈이 3초 안에 준비되지 않으면 로고를 닫는다', async () => {
+    jest.useFakeTimers();
+    try {
+      await renderLayout();
+      expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+      });
+      expect(SplashScreen.hideAsync).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('홈이 아닌 화면으로 가면 기다리지 않는다', async () => {
+    mockNav.pathname = '/analyzing';
+    await renderLayout();
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
+  });
+
+  test('로그아웃 상태면 기다리지 않는다', async () => {
+    auth = signedIn({ status: 'signedOut', user: null });
+    await renderLayout();
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
+  });
+});
+
 describe('푸시를 누르면', () => {
   test('저녁 리마인드는 홈을 연다', async () => {
     await renderLayout();
@@ -475,31 +519,17 @@ describe('추적 허용 전 안내', () => {
     (initMetaSdk as jest.Mock).mockReset();
   });
 
-  test('iOS 미결정이면 안내를 띄우고 모달이 닫힌 뒤에만 기존 ATT 요청을 이어 간다', async () => {
-    const view = await renderLayout();
-    expect(screen.getByText('액터브를 어떻게 찾아오셨나요?')).toBeOnTheScreen();
+  test('iOS 미결정이면 설명 화면 없이 바로 시스템 추적 팝업만 요청한다(pen S1.2)', async () => {
+    await renderLayout();
+    expect(screen.queryByText('Acttub를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
     expect(getTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
-    expect(requestTrackingPermissionsAsync).not.toHaveBeenCalled();
-    expect(await AsyncStorage.getItem(TRACKING_INTRO_KEY)).toBeNull();
-
-    const modal = view.container.queryAll((node) => node.type === 'Modal')[0];
-    expect(modal).toBeDefined();
-    await fireEvent.press(screen.getByRole('button', { name: '계속' }));
-    expect(screen.queryByText('액터브를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
-    expect(requestTrackingPermissionsAsync).not.toHaveBeenCalled();
-    // RN 테스트 렌더러는 네이티브 Modal의 종료 콜백을 자동으로 보내지 않는다.
-    await act(async () => modal.props.onDismiss());
-    expect(await AsyncStorage.getItem(TRACKING_INTRO_KEY)).toBe('1');
-    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
-    // 중복 종료 알림에도 진행 콜백은 한 번만 소비한다.
-    await act(async () => modal.props.onDismiss());
     expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
   });
 
   test('Android에서는 안내와 상태 조회 없이 기존 요청을 이어 간다', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     await renderLayout();
-    expect(screen.queryByText('액터브를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Acttub를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
     expect(getTrackingPermissionsAsync).not.toHaveBeenCalled();
     expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
     expect(AsyncStorage.setItem).not.toHaveBeenCalled();
@@ -509,14 +539,14 @@ describe('추적 허용 전 안내', () => {
     await AsyncStorage.setItem(TRACKING_INTRO_KEY, '1');
     await renderLayout();
     expect(getTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText('액터브를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Acttub를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
     expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
   });
 
   test.each(['granted', 'denied'])('iOS 권한이 %s이면 안내를 건너뛴다', async (status) => {
     (getTrackingPermissionsAsync as jest.Mock).mockResolvedValue({ status });
     await renderLayout();
-    expect(screen.queryByText('액터브를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Acttub를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
     expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
     expect(AsyncStorage.setItem).not.toHaveBeenCalled();
   });

@@ -11,7 +11,9 @@
         "EXPO_PUBLIC_API_URL": "https://dev.acttub.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf.apps.googleusercontent.com",
-        "AIRBRIDGE_ENVIRONMENT": "development"
+        "AIRBRIDGE_ENVIRONMENT": "development",
+        "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
+        "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1"
       },
       "android": {
         "buildType": "apk"
@@ -23,7 +25,9 @@
         "EXPO_PUBLIC_API_URL": "https://dev.acttub.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf.apps.googleusercontent.com",
-        "AIRBRIDGE_ENVIRONMENT": "development"
+        "AIRBRIDGE_ENVIRONMENT": "development",
+        "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
+        "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1"
       },
       "android": {
         "buildType": "apk"
@@ -36,7 +40,9 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf.apps.googleusercontent.com",
         "AIRBRIDGE_ENVIRONMENT": "production",
-        "EXPO_PUBLIC_POSTHOG_KEY": "phc_yKsf6CHZwoyLTzfUv9PfwFEwWVNR7kqreTVCCWfCq7gH"
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_yKsf6CHZwoyLTzfUv9PfwFEwWVNR7kqreTVCCWfCq7gH",
+        "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
+        "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1"
       },
       "environment": "production"
     },
@@ -47,7 +53,9 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf.apps.googleusercontent.com",
         "AIRBRIDGE_ENVIRONMENT": "production",
-        "EXPO_PUBLIC_POSTHOG_KEY": "phc_yKsf6CHZwoyLTzfUv9PfwFEwWVNR7kqreTVCCWfCq7gH"
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_yKsf6CHZwoyLTzfUv9PfwFEwWVNR7kqreTVCCWfCq7gH",
+        "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
+        "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1"
       },
       "android": {
         "buildType": "apk"
@@ -60,7 +68,9 @@
         "EXPO_PUBLIC_API_URL": "https://dev.acttub.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf.apps.googleusercontent.com",
-        "AIRBRIDGE_ENVIRONMENT": "development"
+        "AIRBRIDGE_ENVIRONMENT": "development",
+        "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
+        "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1"
       }
     }
   },

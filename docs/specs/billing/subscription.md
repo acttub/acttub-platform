@@ -5,7 +5,7 @@
 - 도입: 1.0.x (SOMA-818). 서버 플래그 `BILLING_APP_ENABLED`(기본 false) 뒤에 있다.
 - 화면: pen ⑥ Pro · 안내(P0xJ9), 오늘 무료 코칭 다 씀(a5y1Qr), 무료 대본 1개(WLdNc), 결제 창(t2V04c, 토스 화면), 외부 결제 안내
   (hD5to, iOS), 결제 완료(kqeG6), 설정 · 구독 관리(GmTw6), 결제하지 못했어요(ETD1H), 지금 대본과 바꾸기 확인(K7q5Vk)
-- 테이블: `billing_subscriptions`·`billing_checkouts`·`billing_payments`(V60)
+- 테이블: `billing_subscriptions`·`billing_checkouts`·`billing_payments`(V63)
 
 ## 기능
 Pro 는 월 3,900원(부가세 포함) 자동결제다. 결제는 앱 스토어 결제가 아니라 토스페이먼츠 자동결제(카드 등록 → 빌링키 → 첫

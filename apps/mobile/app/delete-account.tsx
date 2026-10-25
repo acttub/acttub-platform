@@ -132,15 +132,16 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { padding: 20, paddingBottom: 40, gap: 4 },
+  // pen S17.1 — 좌우 20, 위 20. 제목 21/900, 이메일 13.5/600, 묶음마다 위 24 + 윗선 · 안쪽 16.
+  body: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 4 },
   title: { fontSize: 21, fontWeight: '900', color: palette.text, lineHeight: 31 },
   account: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint, marginTop: 6 },
 
   section: {
     marginTop: 24,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: palette.borderSoft,
-    paddingTop: 16,
     gap: 8,
   },
   sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textFaint },

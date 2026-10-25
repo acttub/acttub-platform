@@ -170,4 +170,15 @@ class PracticeLoopRouterTableTest {
                 "목표", List.of(), null, false, " ");
         assertThat(undecided).doesNotContain("찾은 대안", "최신 바람").contains("다음 테이크: 없음");
     }
+
+    @Test void afterAResumeTheFirstActorLineIsTreatedLikeTheLineAfterAWrapNotAnImmediateEnd() {
+        var loop = StructuredJson.MAPPER.createObjectNode();
+        loop.putArray("statuses").add("비추기").add("끝");
+        assertThat(PracticeLoopRouter.before(loop, 2).lastDoing()).isEqualTo("끝");
+        loop.put(PracticeLoopRouter.RESUMED_AT, 2);
+        assertThat(PracticeLoopRouter.before(loop, 2).lastDoing()).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        // 이어 간 응답이 하나 더 쌓이면 표시는 더 이상 먹지 않는다.
+        loop.withArray("statuses").add("끝");
+        assertThat(PracticeLoopRouter.before(loop, 3).lastDoing()).isEqualTo("끝");
+    }
 }

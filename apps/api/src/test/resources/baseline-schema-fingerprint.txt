@@ -8,6 +8,17 @@ COLUMN account_cleanup_operations.next_attempt_at ord=6 type=timestamptz len=- n
 COLUMN account_cleanup_operations.payload_encrypted ord=4 type=text len=- null=NO default=-
 COLUMN account_cleanup_operations.updated_at ord=10 type=timestamptz len=- null=NO default=now()
 COLUMN account_cleanup_operations.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN actor_journals.answers ord=5 type=text len=- null=NO default=-
+COLUMN actor_journals.conversation_id ord=4 type=uuid len=- null=YES default=-
+COLUMN actor_journals.created_at ord=10 type=timestamptz len=- null=NO default=now()
+COLUMN actor_journals.draft ord=6 type=text len=- null=YES default=-
+COLUMN actor_journals.draft_status ord=7 type=text len=- null=NO default=-
+COLUMN actor_journals.edited_at ord=9 type=timestamptz len=- null=YES default=-
+COLUMN actor_journals.id ord=1 type=uuid len=- null=NO default=-
+COLUMN actor_journals.model ord=8 type=text len=- null=YES default=-
+COLUMN actor_journals.practice_id ord=3 type=uuid len=- null=NO default=-
+COLUMN actor_journals.updated_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN actor_journals.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN actor_memories.created_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN actor_memories.field ord=3 type=text len=- null=NO default=-
 COLUMN actor_memories.id ord=1 type=uuid len=- null=NO default=-
@@ -125,21 +136,31 @@ COLUMN billing_payments.status ord=7 type=text len=- null=NO default=-
 COLUMN billing_payments.subscription_id ord=2 type=uuid len=- null=NO default=-
 COLUMN billing_payments.updated_at ord=15 type=timestamptz len=- null=NO default=now()
 COLUMN billing_payments.user_id ord=3 type=uuid len=- null=NO default=-
-COLUMN billing_subscriptions.amount ord=8 type=int4 len=- null=NO default=-
-COLUMN billing_subscriptions.billing_key ord=5 type=text len=- null=YES default=-
-COLUMN billing_subscriptions.canceled_at ord=11 type=timestamptz len=- null=YES default=-
-COLUMN billing_subscriptions.card_company ord=6 type=text len=- null=YES default=-
-COLUMN billing_subscriptions.card_number ord=7 type=text len=- null=YES default=-
-COLUMN billing_subscriptions.created_at ord=15 type=timestamptz len=- null=NO default=now()
-COLUMN billing_subscriptions.current_period_end ord=10 type=timestamptz len=- null=YES default=-
-COLUMN billing_subscriptions.current_period_start ord=9 type=timestamptz len=- null=YES default=-
-COLUMN billing_subscriptions.customer_key ord=4 type=text len=- null=NO default=-
+COLUMN billing_pro_grants.created_at ord=6 type=timestamptz len=- null=NO default=now()
+COLUMN billing_pro_grants.ends_at ord=4 type=timestamptz len=- null=NO default=-
+COLUMN billing_pro_grants.id ord=1 type=uuid len=- null=NO default=-
+COLUMN billing_pro_grants.reason ord=5 type=text len=- null=NO default=-
+COLUMN billing_pro_grants.starts_at ord=3 type=timestamptz len=- null=NO default=-
+COLUMN billing_pro_grants.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN billing_subscriptions.amount ord=12 type=int4 len=- null=NO default=-
+COLUMN billing_subscriptions.billing_key ord=9 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.canceled_at ord=15 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.card_company ord=10 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.card_number ord=11 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.created_at ord=19 type=timestamptz len=- null=NO default=now()
+COLUMN billing_subscriptions.current_period_end ord=14 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.current_period_start ord=13 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.customer_key ord=5 type=text len=- null=YES default=-
 COLUMN billing_subscriptions.id ord=1 type=uuid len=- null=NO default=-
-COLUMN billing_subscriptions.lease_until ord=14 type=timestamptz len=- null=YES default=-
-COLUMN billing_subscriptions.next_retry_at ord=13 type=timestamptz len=- null=YES default=-
-COLUMN billing_subscriptions.retry_count ord=12 type=int4 len=- null=NO default=0
+COLUMN billing_subscriptions.lease_until ord=18 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.next_retry_at ord=17 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.provider ord=4 type=text len=- null=NO default='toss'::text
+COLUMN billing_subscriptions.retry_count ord=16 type=int4 len=- null=NO default=0
 COLUMN billing_subscriptions.status ord=3 type=text len=- null=NO default=-
-COLUMN billing_subscriptions.updated_at ord=16 type=timestamptz len=- null=NO default=now()
+COLUMN billing_subscriptions.store_original_transaction_id ord=7 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.store_product_id ord=6 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.store_purchase_token ord=8 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.updated_at ord=20 type=timestamptz len=- null=NO default=now()
 COLUMN billing_subscriptions.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN challenge_entries.caption ord=5 type=text len=- null=YES default=-
 COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
@@ -496,6 +517,7 @@ COLUMN practices.character_context ord=12 type=text len=- null=NO default=''::te
 COLUMN practices.close_reason ord=7 type=text len=- null=YES default=-
 COLUMN practices.created_at ord=22 type=timestamptz len=- null=NO default=now()
 COLUMN practices.experience_version ord=8 type=text len=- null=NO default=-
+COLUMN practices.face_mosaic ord=25 type=bool len=- null=NO default=false
 COLUMN practices.favorite ord=19 type=bool len=- null=NO default=false
 COLUMN practices.goal ord=13 type=text len=- null=NO default=''::text
 COLUMN practices.hidden_at ord=20 type=timestamptz len=- null=YES default=-
@@ -522,6 +544,16 @@ COLUMN push_tokens.platform ord=4 type=text len=- null=NO default=-
 COLUMN push_tokens.token ord=3 type=text len=- null=NO default=-
 COLUMN push_tokens.updated_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_examples.active ord=5 type=bool len=- null=NO default=true
+COLUMN reading_examples.audio ord=10 type=jsonb len=- null=YES default=-
+COLUMN reading_examples.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN reading_examples.draft ord=7 type=jsonb len=- null=NO default=-
+COLUMN reading_examples.id ord=1 type=text len=- null=NO default=-
+COLUMN reading_examples.raw_text ord=6 type=text len=- null=NO default=-
+COLUMN reading_examples.sort_order ord=4 type=int4 len=- null=NO default=-
+COLUMN reading_examples.summary ord=3 type=text len=- null=NO default=-
+COLUMN reading_examples.title ord=2 type=text len=- null=NO default=-
+COLUMN reading_examples.updated_at ord=9 type=timestamptz len=- null=NO default=now()
 COLUMN reading_pronunciation_reports.attempt_count ord=5 type=int4 len=- null=NO default=0
 COLUMN reading_pronunciation_reports.created_at ord=11 type=timestamptz len=- null=NO default=now()
 COLUMN reading_pronunciation_reports.failure ord=10 type=text len=- null=YES default=-
@@ -830,6 +862,19 @@ CONSTRAINT account_cleanup_operations account_cleanup_operations_updated_at_not_
 CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_not_null NOT NULL user_id
 CONSTRAINT account_cleanup_operations ck_account_cleanup_operations_kind CHECK ((kind = ANY (ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text, 'reading_recording_delete'::text])))
+CONSTRAINT actor_journals actor_journals_answers_not_null NOT NULL answers
+CONSTRAINT actor_journals actor_journals_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES coach_conversations(id) ON DELETE SET NULL
+CONSTRAINT actor_journals actor_journals_created_at_not_null NOT NULL created_at
+CONSTRAINT actor_journals actor_journals_draft_status_not_null NOT NULL draft_status
+CONSTRAINT actor_journals actor_journals_id_not_null NOT NULL id
+CONSTRAINT actor_journals actor_journals_pkey PRIMARY KEY (id)
+CONSTRAINT actor_journals actor_journals_practice_id_fkey FOREIGN KEY (practice_id) REFERENCES practices(id) ON DELETE CASCADE
+CONSTRAINT actor_journals actor_journals_practice_id_not_null NOT NULL practice_id
+CONSTRAINT actor_journals actor_journals_updated_at_not_null NOT NULL updated_at
+CONSTRAINT actor_journals actor_journals_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT actor_journals actor_journals_user_id_not_null NOT NULL user_id
+CONSTRAINT actor_journals ck_actor_journals_draft_status CHECK ((draft_status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'skipped'::text])))
+CONSTRAINT actor_journals uq_actor_journals_practice UNIQUE (practice_id)
 CONSTRAINT actor_memories actor_memories_created_at_not_null NOT NULL created_at
 CONSTRAINT actor_memories actor_memories_field_not_null NOT NULL field
 CONSTRAINT actor_memories actor_memories_id_not_null NOT NULL id
@@ -980,17 +1025,27 @@ CONSTRAINT billing_payments billing_payments_updated_at_not_null NOT NULL update
 CONSTRAINT billing_payments billing_payments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT billing_payments billing_payments_user_id_not_null NOT NULL user_id
 CONSTRAINT billing_payments uq_billing_payments_order UNIQUE (order_id)
+CONSTRAINT billing_pro_grants billing_pro_grants_created_at_not_null NOT NULL created_at
+CONSTRAINT billing_pro_grants billing_pro_grants_ends_at_not_null NOT NULL ends_at
+CONSTRAINT billing_pro_grants billing_pro_grants_id_not_null NOT NULL id
+CONSTRAINT billing_pro_grants billing_pro_grants_pkey PRIMARY KEY (id)
+CONSTRAINT billing_pro_grants billing_pro_grants_reason_not_null NOT NULL reason
+CONSTRAINT billing_pro_grants billing_pro_grants_starts_at_not_null NOT NULL starts_at
+CONSTRAINT billing_pro_grants billing_pro_grants_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT billing_pro_grants billing_pro_grants_user_id_not_null NOT NULL user_id
 CONSTRAINT billing_subscriptions billing_subscriptions_amount_not_null NOT NULL amount
 CONSTRAINT billing_subscriptions billing_subscriptions_created_at_not_null NOT NULL created_at
-CONSTRAINT billing_subscriptions billing_subscriptions_customer_key_not_null NOT NULL customer_key
 CONSTRAINT billing_subscriptions billing_subscriptions_id_not_null NOT NULL id
 CONSTRAINT billing_subscriptions billing_subscriptions_pkey PRIMARY KEY (id)
+CONSTRAINT billing_subscriptions billing_subscriptions_provider_not_null NOT NULL provider
 CONSTRAINT billing_subscriptions billing_subscriptions_retry_count_not_null NOT NULL retry_count
 CONSTRAINT billing_subscriptions billing_subscriptions_status_not_null NOT NULL status
 CONSTRAINT billing_subscriptions billing_subscriptions_updated_at_not_null NOT NULL updated_at
 CONSTRAINT billing_subscriptions billing_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT billing_subscriptions billing_subscriptions_user_id_not_null NOT NULL user_id
+CONSTRAINT billing_subscriptions uq_billing_subscriptions_apple_txn UNIQUE (store_original_transaction_id)
 CONSTRAINT billing_subscriptions uq_billing_subscriptions_customer_key UNIQUE (customer_key)
+CONSTRAINT billing_subscriptions uq_billing_subscriptions_google_token UNIQUE (store_purchase_token)
 CONSTRAINT billing_subscriptions uq_billing_subscriptions_user UNIQUE (user_id)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_not_null NOT NULL challenge_id
@@ -1499,6 +1554,7 @@ CONSTRAINT practices practices_blockage_kind_not_null NOT NULL blockage_kind
 CONSTRAINT practices practices_character_context_not_null NOT NULL character_context
 CONSTRAINT practices practices_created_at_not_null NOT NULL created_at
 CONSTRAINT practices practices_experience_version_not_null NOT NULL experience_version
+CONSTRAINT practices practices_face_mosaic_not_null NOT NULL face_mosaic
 CONSTRAINT practices practices_favorite_not_null NOT NULL favorite
 CONSTRAINT practices practices_goal_not_null NOT NULL goal
 CONSTRAINT practices practices_id_not_null NOT NULL id
@@ -1526,6 +1582,16 @@ CONSTRAINT push_tokens push_tokens_token_not_null NOT NULL token
 CONSTRAINT push_tokens push_tokens_updated_at_not_null NOT NULL updated_at
 CONSTRAINT push_tokens push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT push_tokens push_tokens_user_id_not_null NOT NULL user_id
+CONSTRAINT reading_examples reading_examples_active_not_null NOT NULL active
+CONSTRAINT reading_examples reading_examples_created_at_not_null NOT NULL created_at
+CONSTRAINT reading_examples reading_examples_draft_not_null NOT NULL draft
+CONSTRAINT reading_examples reading_examples_id_not_null NOT NULL id
+CONSTRAINT reading_examples reading_examples_pkey PRIMARY KEY (id)
+CONSTRAINT reading_examples reading_examples_raw_text_not_null NOT NULL raw_text
+CONSTRAINT reading_examples reading_examples_sort_order_not_null NOT NULL sort_order
+CONSTRAINT reading_examples reading_examples_summary_not_null NOT NULL summary
+CONSTRAINT reading_examples reading_examples_title_not_null NOT NULL title
+CONSTRAINT reading_examples reading_examples_updated_at_not_null NOT NULL updated_at
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_attempt_count_not_null NOT NULL attempt_count
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_created_at_not_null NOT NULL created_at
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_id_not_null NOT NULL id
@@ -1940,9 +2006,11 @@ INDEX CREATE INDEX idx_user_consents_current ON public.user_consents USING btree
 INDEX CREATE INDEX idx_user_identities_uid_hash ON public.user_identities USING btree (uid_hash) WHERE (uid_hash IS NOT NULL)
 INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btree (user_id)
 INDEX CREATE INDEX idx_videos_user_created ON public.videos USING btree (user_id, created_at DESC)
+INDEX CREATE INDEX ix_actor_journals_user ON public.actor_journals USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_billing_checkouts_user ON public.billing_checkouts USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_billing_payments_subscription ON public.billing_payments USING btree (subscription_id, period_start, attempt)
 INDEX CREATE INDEX ix_billing_payments_unknown ON public.billing_payments USING btree (status, updated_at) WHERE (status = 'unknown'::text)
+INDEX CREATE INDEX ix_billing_pro_grants_user ON public.billing_pro_grants USING btree (user_id, ends_at DESC)
 INDEX CREATE INDEX ix_billing_subscriptions_due ON public.billing_subscriptions USING btree (status, current_period_end)
 INDEX CREATE INDEX ix_challenge_entries_mosaic_pending ON public.challenge_entries USING btree (created_at, id) WHERE (mosaic_status = 'pending'::text)
 INDEX CREATE INDEX ix_challenge_entries_owner ON public.challenge_entries USING btree (user_id, created_at)
@@ -1967,6 +2035,7 @@ INDEX CREATE INDEX ix_reading_recording_coaches_user ON public.reading_recording
 INDEX CREATE INDEX ix_script_cocreations_user ON public.script_cocreations USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_user_blocks_received ON public.user_blocks USING btree (blocked_id, blocker_id)
 INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_cleanup_operations USING btree (id)
+INDEX CREATE UNIQUE INDEX actor_journals_pkey ON public.actor_journals USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memories_pkey ON public.actor_memories USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
@@ -1976,6 +2045,7 @@ INDEX CREATE UNIQUE INDEX app_posters_pkey ON public.app_posters USING btree (id
 INDEX CREATE UNIQUE INDEX audition_postings_pkey ON public.audition_postings USING btree (id)
 INDEX CREATE UNIQUE INDEX billing_checkouts_pkey ON public.billing_checkouts USING btree (id)
 INDEX CREATE UNIQUE INDEX billing_payments_pkey ON public.billing_payments USING btree (id)
+INDEX CREATE UNIQUE INDEX billing_pro_grants_pkey ON public.billing_pro_grants USING btree (id)
 INDEX CREATE UNIQUE INDEX billing_subscriptions_pkey ON public.billing_subscriptions USING btree (id)
 INDEX CREATE UNIQUE INDEX challenge_entries_pkey ON public.challenge_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX challenges_pkey ON public.challenges USING btree (id)
@@ -2021,6 +2091,7 @@ INDEX CREATE UNIQUE INDEX practice_sessions_pkey ON public.practice_sessions USI
 INDEX CREATE UNIQUE INDEX practices_pkey ON public.practices USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
+INDEX CREATE UNIQUE INDEX reading_examples_pkey ON public.reading_examples USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_pronunciation_reports_pkey ON public.reading_pronunciation_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_recording_coaches_pkey ON public.reading_recording_coaches USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_recordings_pkey ON public.reading_recordings USING btree (id)
@@ -2043,6 +2114,7 @@ INDEX CREATE UNIQUE INDEX summaries_session_id_key ON public.summaries USING btr
 INDEX CREATE UNIQUE INDEX transcripts_pkey ON public.transcripts USING btree (id)
 INDEX CREATE UNIQUE INDEX upload_intents_object_key_key ON public.upload_intents USING btree (object_key)
 INDEX CREATE UNIQUE INDEX upload_intents_pkey ON public.upload_intents USING btree (id)
+INDEX CREATE UNIQUE INDEX uq_actor_journals_practice ON public.actor_journals USING btree (practice_id)
 INDEX CREATE UNIQUE INDEX uq_actor_memories_user_field_scene ON public.actor_memories USING btree (user_id, field, scene_root_id) NULLS NOT DISTINCT
 INDEX CREATE UNIQUE INDEX uq_actor_memory_user_field ON public.actor_memory_entries USING btree (user_id, field)
 INDEX CREATE UNIQUE INDEX uq_ai_jobs_user_request ON public.ai_jobs USING btree (user_id, request_id)
@@ -2051,7 +2123,9 @@ INDEX CREATE UNIQUE INDEX uq_app_posters_slug_locale ON public.app_posters USING
 INDEX CREATE UNIQUE INDEX uq_audition_postings_source_ref ON public.audition_postings USING btree (source, source_ref)
 INDEX CREATE UNIQUE INDEX uq_billing_checkouts_state ON public.billing_checkouts USING btree (state_hash)
 INDEX CREATE UNIQUE INDEX uq_billing_payments_order ON public.billing_payments USING btree (order_id)
+INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_apple_txn ON public.billing_subscriptions USING btree (store_original_transaction_id)
 INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_customer_key ON public.billing_subscriptions USING btree (customer_key)
+INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_google_token ON public.billing_subscriptions USING btree (store_purchase_token)
 INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_user ON public.billing_subscriptions USING btree (user_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_parent ON public.challenge_entries USING btree (id, challenge_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_request ON public.challenge_entries USING btree (user_id, request_id)
@@ -2128,6 +2202,7 @@ INDEX CREATE UNIQUE INDEX videos_pkey ON public.videos USING btree (id)
 SEQUENCE anomalies_id_seq type=bigint
 SEQUENCE coach_turns_id_seq type=bigint
 TABLE account_cleanup_operations
+TABLE actor_journals
 TABLE actor_memories
 TABLE actor_memory_entries
 TABLE ai_jobs
@@ -2137,6 +2212,7 @@ TABLE app_posters
 TABLE audition_postings
 TABLE billing_checkouts
 TABLE billing_payments
+TABLE billing_pro_grants
 TABLE billing_subscriptions
 TABLE challenge_entries
 TABLE challenges
@@ -2179,6 +2255,7 @@ TABLE practice_reports
 TABLE practice_sessions
 TABLE practices
 TABLE push_tokens
+TABLE reading_examples
 TABLE reading_pronunciation_reports
 TABLE reading_recording_coaches
 TABLE reading_recordings

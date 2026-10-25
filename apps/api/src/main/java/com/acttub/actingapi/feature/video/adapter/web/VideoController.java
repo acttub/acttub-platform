@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.video.adapter.web.VideoDtos.CompleteRequest;
 import com.acttub.actingapi.feature.video.adapter.web.VideoDtos.IntentRequest;
 import com.acttub.actingapi.feature.video.adapter.web.VideoDtos.IntentResponse;
 import com.acttub.actingapi.feature.video.adapter.web.VideoDtos.PatchRequest;
@@ -98,7 +99,8 @@ class VideoController {
             description = """
                     올라온 것을 확인하고 보관함에 영상을 만든다. 만들면 201, 마무리 재전송이면 200 으로 같은 영상이다.
                     시한(30분)이 지났으면 422 upload_expired 이고 미확정 객체는 삭제 장부로 간다. 아직 안 올라왔으면
-                    422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다.""",
+                    422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다. 본문은 선택이고, face_mosaic 이 true 면
+                    첫 질문용 미리 올리기를 시작하지 않는다(원본이 코치 AI 쪽으로 가지 않는다).""",
             operationId = "complete_video_intent_v2_videos_intents__intent_id__complete_post",
             tags = "v2-videos",
             security = @SecurityRequirement(name = "HTTPBearer"))
@@ -113,9 +115,11 @@ class VideoController {
     @PostMapping("/intents/{intent_id}/complete")
     ResponseEntity<VideoResponse> completeIntent(
             @PathVariable("intent_id") UUID intentId,
+            @Valid @RequestBody(required = false) CompleteRequest body,
             HttpServletRequest request) {
         AuthenticatedUser user = auth.gatedUser(request);
-        VideoService.Completion completion = videos.completeIntent(user.id(), user.guest(), intentId);
+        VideoService.Completion completion = videos.completeIntent(user.id(), user.guest(), intentId,
+                body != null && Boolean.TRUE.equals(body.faceMosaic()));
         return ResponseEntity
                 .status(completion.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(VideoResponse.of(completion.video()));

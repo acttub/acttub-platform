@@ -3,13 +3,12 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { RecordModeSlider } from '@/components/record-mode-slider';
-import { CoachNotice } from '@/components/ui/coach-notice';
-import { BackOnlyHeader } from '@/components/ui/step-header';
 import { palette } from '@/constants/palette';
 import { keepDeviceFile } from '@/lib/account-files';
 import { formatClipDuration } from '@/lib/archive-format';
@@ -18,16 +17,22 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CHALLENGE_FUNNEL_EVENTS, permissionResultParams, videoSourceParams } from '@/lib/challenge/funnel';
 import { translate as t } from '@/lib/i18n';
+import { takeRecordScript } from '@/lib/practice/record-script';
 import { RECORD_MODES, recordModeAfterSwipe, type RecordMode } from '@/lib/record-modes';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { VIDEO_MAX_MS, videoErrorMessage } from '@/lib/library/video-checks';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
 import { peekRecordedVideo, setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
 import { setPickedVideo } from '@/lib/practice/picked-video';
+import { VIDEO_PICKER_OPTIONS } from '@/lib/video-picker-options';
 
 const MAX_SEC = Math.floor(VIDEO_MAX_MS / 1000);
 /** 챌린지(오늘의 대사) 촬영은 60초 — pen A18 촬영 대기 화면과 같은 상한. */
 const CHALLENGE_MAX_SEC = 60;
+/** onCameraReady 가 안 오는 기기에서 셔터를 열어 주는 시간. */
+const CAMERA_READY_FALLBACK_MS = 1500;
+/** 멈춤을 누른 뒤 녹화가 끝나기를 기다리는 시간. 넘으면 화면을 풀어 준다. */
+const STOP_WATCH_MS = 4000;
 
 /**
  * 앱 내 영상 촬영 (SOMA-477).
@@ -44,7 +49,15 @@ const CHALLENGE_MAX_SEC = 60;
  *
  * 시뮬레이터엔 카메라가 없어 실기기에서만 실제로 돈다.
  */
+/** 남은 시간 한 줄 — 1분 이상이면 「4분 48초 남음」(pen P2.14), 그 아래는 「48초 남음」. */
+function remainingLabel(sec: number): string {
+  return sec >= 60
+    ? t('record.remainingMin', { min: Math.floor(sec / 60), sec: sec % 60 })
+    : t('record.remaining', { sec });
+}
+
 export default function RecordVideoScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   const router = useRouter();
   // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로. 업로드 화면의 촬영 버튼에서
   //   왔으면(picker 없음) 보관함에 저장하고 그 업로드 화면으로 되돌아간다.
@@ -59,6 +72,7 @@ export default function RecordVideoScreen() {
     picker?: string;
     next?: string;
     first?: string;
+    maxSec?: string;
   }>();
   const picker = params.picker === '1';
   // next=upload: 코칭 탭 「지금 찍어서 코칭 받기」 → 찍는 법 → 여기. 준비 화면이 뒤에 없으니 찍은 뒤 새로 연다.
@@ -74,14 +88,25 @@ export default function RecordVideoScreen() {
   const { challengeId, line, work } = challengeParams;
   const [loadingToday, setLoadingToday] = useState(false);
   const isChallenge = mode === 'challenge';
-  const maxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
+  // maxSec 파라미터(올리기 망설임 「길게 찍기 부담돼요」의 10초)는 기본 길이보다 짧을 때만 따른다.
+  const limitParam = Number(params.maxSec);
+  const baseMaxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
+  const maxSec = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, baseMaxSec) : baseMaxSec;
   const cameraRef = useRef<CameraView>(null);
-  const [camPerm, requestCam] = useCameraPermissions();
-  const [micPerm, requestMic] = useMicrophonePermissions();
+  const [camPerm, requestCam, readCam] = useCameraPermissions();
+  const [micPerm, requestMic, readMic] = useMicrophonePermissions();
   const [facing, setFacing] = useState<'front' | 'back'>('back');
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  // iOS 는 카메라 세션이 준비되기 전(onCameraReady 전)에 녹화를 부르면 녹화가 시작되지도 끝나지도 않아 화면이 멈춘 듯 보이고,
+  // 녹화 중엔 닫기 대신 시간이 떠서 나갈 수도 없었다(10/23 iOS 제보). 준비 신호를 받은 뒤에만 셔터를 받는다.
+  // 일부 기기에서 신호가 안 오면 영영 못 찍으니 1.5초 뒤에는 준비된 것으로 본다.
+  const [cameraReady, setCameraReady] = useState(false);
+  const stopWatchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lineHidden, setLineHidden] = useState(false);
+  // 코칭 촬영에 대본을 띄운다(「내 대본으로 찍기」·대본 만들기 「지금 찍을래요」). 처음 그릴 때 꺼내며 비운다.
+  const [recordScript] = useState(() => (isChallenge ? null : takeRecordScript()));
+  const [scriptHidden, setScriptHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
   // 이 화면을 곧바로 떠나는 중이다. 안드로이드에서 사라지는 화면의 뷰를 다시 그리면 앱이 꺼지므로
@@ -104,19 +129,52 @@ export default function RecordVideoScreen() {
     return () => clearInterval(id);
   }, [recording]);
 
+  useEffect(() => {
+    if (cameraReady) return;
+    const timer = setTimeout(() => setCameraReady(true), CAMERA_READY_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [cameraReady]);
+
+  useEffect(
+    () => () => {
+      if (stopWatchRef.current) clearTimeout(stopWatchRef.current);
+    },
+    [],
+  );
+
   const ready = !!(camPerm?.granted && micPerm?.granted);
 
   // 들어오자마자 OS 권한 팝업(카메라 → 마이크)을 한 번 띄운다. 거절했거나 전에 거절해 팝업이 다시
   // 안 뜨면 화면 안의 버튼으로 다시 묻거나 설정으로 보낸다 — iOS 전체화면 모달 위에서는 우리 안내
   // 팝업이 안 떠서 검은 화면에 갇힌 적이 있다.
+  // OS 팝업이 떠 있는 동안은 안내 띠를 숨기고 돌아가는 표시만 둔다(pen P2.1·P2.2).
+  // 「팝업이 떠 있다」는 앱이 잠깐 비활성(iOS inactive · 안드로이드 background)이 되는 것으로 안다. 요청 약속(promise)만
+  // 믿으면 안 된다 — 안드로이드에서 「다시 묻지 않음」 뒤 요청이 끝나지 않아 돌아가는 표시에 갇혔다(10/24 폰 확인).
+  const [asking, setAsking] = useState(false);
+  const [appActive, setAppActive] = useState(AppState.currentState !== 'background' && AppState.currentState !== 'inactive');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => setAppActive(state !== 'background' && state !== 'inactive'));
+    return () => sub.remove();
+  }, []);
+  // 요청을 보낸 뒤 1초 안에 팝업이 안 뜨면(이미 거절 고정 등) 기다리지 않고 띠를 보인다.
+  useEffect(() => {
+    if (!asking) return;
+    const timer = setTimeout(() => setAsking(false), 1000);
+    return () => clearTimeout(timer);
+  }, [asking]);
   const askPermissions = useCallback(async () => {
-    const cam = camPerm?.granted ? camPerm : await requestCam();
-    const mic = micPerm?.granted ? micPerm : await requestMic();
-    if (isChallenge) {
-      permLoggedRef.current = true;
-      void logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(cam, mic, true));
+    setAsking(true);
+    try {
+      const cam = camPerm?.granted ? camPerm : await requestCam();
+      const mic = micPerm?.granted ? micPerm : await requestMic();
+      if (isChallenge) {
+        permLoggedRef.current = true;
+        void logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(cam, mic, true));
+      }
+      return cam.granted && mic.granted;
+    } finally {
+      setAsking(false);
     }
-    return cam.granted && mic.granted;
   }, [camPerm, isChallenge, micPerm, requestCam, requestMic]);
 
   // 권한이 이미 있어 팝업 없이 들어온 챌린지 촬영도 같은 단계로 센다.
@@ -134,6 +192,19 @@ export default function RecordVideoScreen() {
 
   // 다시 물어도 팝업이 안 뜨는 상태(거절 후 "다시 묻지 않음")면 설정으로 보낸다.
   const blocked = (!!camPerm && !camPerm.granted && !camPerm.canAskAgain) || (!!micPerm && !micPerm.granted && !micPerm.canAskAgain);
+
+  // 설정에서 카메라·마이크를 켜고 돌아오면 바로 반영한다 — 훅은 스스로 다시 읽지 않는다(SOMA-817).
+  // 다시 「묻지」 않고 「읽기」만 한다. 예전엔 돌아올 때마다 요청을 보내, 안드로이드에서 거절 팝업이 닫히자마자(앱이 다시
+  // active) 같은 팝업이 또 떴다 — 거절 → 또 물음 → 거절이 이어졌다(10/24 폰 확인, 이전 빌드도 같음).
+  useEffect(() => {
+    if (!blocked) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void readCam();
+      void readMic();
+    });
+    return () => sub.remove();
+  }, [blocked, readCam, readMic]);
 
   /** 촬영·선택한 영상을 보관함(기기 저장 + 업로드 대기)에 넣는다. 너무 길면 안내하고 넣지 않는다. */
   const saveToLibrary = useCallback(async (): Promise<{ id: string; uri: string } | null> => {
@@ -206,6 +277,11 @@ export default function RecordVideoScreen() {
   const goNext = useCallback(() => {
     if (isChallenge) {
       leavingRef.current = true;
+      // 대사가 정해지지 않았으면 올릴 대사를 먼저 고른다(C9.16).
+      if (!challengeId) {
+        router.replace('/line-pick');
+        return;
+      }
       router.replace({
         pathname: '/challenge-upload',
         params: { challengeId: challengeId ?? '', line: line ?? '', work: work ?? '' },
@@ -235,11 +311,10 @@ export default function RecordVideoScreen() {
       return;
     }
     if (mode === 'plain') {
-      // 기본 촬영 — 기기에 저장하고 업로드 대기 큐에 넣은 뒤 그 영상 화면으로.
-      void saveToLibrary().then((pending) => {
+      // 기본 촬영 — 기기에 저장하고 업로드 대기 큐에 넣은 뒤 이전 화면으로(영상 상세 화면은 SOMA-820에서 없앴다).
+      void saveToLibrary().then(() => {
         takeRecordedVideo();
-        if (pending) router.replace({ pathname: '/archive-detail', params: { pending: pending.id } });
-        else router.back();
+        router.back();
       });
       return;
     }
@@ -270,7 +345,7 @@ export default function RecordVideoScreen() {
   );
 
   const startRecording = useCallback(async () => {
-    if (!cameraRef.current || recording) return;
+    if (!cameraRef.current || recording || !cameraReady) return;
     setRecording(true);
     setElapsed(0);
     startedAtRef.current = Date.now();
@@ -289,16 +364,30 @@ export default function RecordVideoScreen() {
       // 곧바로 다른 화면으로 넘어갔으면 녹화 표시를 되돌리지 않는다 — 같은 순간에 바꾸면 안드로이드에서 꺼진다.
       if (!leavingRef.current) setRecording(false);
     }
-  }, [recording, finishWith, isChallenge, maxSec]);
+  }, [recording, cameraReady, finishWith, isChallenge, maxSec]);
 
   const stopRecording = useCallback(() => {
     if (!cameraRef.current || !recording) return;
     cameraRef.current.stopRecording(); // recordAsync 의 promise 를 resolve 시킨다
-  }, [recording]);
+    // 멈춤을 눌렀는데 녹화가 끝나지 않으면(iOS 에서 녹화가 실제로 시작되지 않았던 경우) 화면을 풀어 다시 찍거나 닫게 한다.
+    if (stopWatchRef.current) clearTimeout(stopWatchRef.current);
+    stopWatchRef.current = setTimeout(() => {
+      stopWatchRef.current = null;
+      if (finishedRef.current || leavingRef.current) return;
+      setRecording(false);
+      setElapsed(0);
+      void alert({ title: t('record.stuckTitle'), message: t('record.stuckBody') });
+    }, STOP_WATCH_MS);
+  }, [recording, alert]);
+
+  // 상한이 지나도 네이티브가 멈추지 않으면(녹화가 실제로 시작되지 않은 경우) 멈춤을 대신 누른다.
+  useEffect(() => {
+    if (recording && elapsed > maxSec + 2 && !stopWatchRef.current) stopRecording();
+  }, [recording, elapsed, maxSec, stopRecording]);
 
   // 챌린지 모드 "업로드" — 찍는 대신 갤러리에서 골라 그대로 올리기로 간다.
   const pickFromGallery = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], quality: 1 });
+    const result = await ImagePicker.launchImageLibraryAsync(VIDEO_PICKER_OPTIONS);
     const picked = !result.canceled && !!result.assets[0];
     if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('gallery', picked ? 'selected' : 'cancelled'));
     if (result.canceled || !result.assets[0]) return;
@@ -316,25 +405,46 @@ export default function RecordVideoScreen() {
     goNext();
   }, [goNext, isChallenge]);
 
-  // 권한이 아직 없으면 화면 안에서 직접 묻는다 — 닫기·권한 버튼이 늘 보인다.
-  // 모양은 pen 「카메라와 마이크가 필요해요」(SOMA-748) — 흰 바탕 한 장, 거절됐으면 설정 열기·닫기.
+  // 권한이 아직 없으면 촬영 화면 그대로(검은 바탕) 두고 화면 안에서 묻는다 — 닫기는 늘 보인다.
+  // 모양은 pen P2.1~P2.3(10/24, 지성 개편 스타일): 확인·OS 팝업 중엔 가운데 돌아가는 표시, 거절됐으면 아래 노란 띠에서
+  // 다시 묻거나(허용하기) 설정을 연다(다시 물을 수 없을 때). 예전 흰 안내 한 장은 OS 팝업 뒤에 떠서 따로 노는 화면이었다.
   if (!ready) {
+    const known = !!camPerm && !!micPerm;
+    const showNotice = known && appActive && !asking;
     return (
-      <SafeAreaView style={styles.permSafe}>
-        <BackOnlyHeader onBack={() => router.back()} />
-        {camPerm && micPerm && (
-          <CoachNotice
-            title={t('record.permissionTitle')}
-            body={blocked ? t('record.deniedBody') : t('record.permissionBody')}
-            primary={{
-              label: t(blocked ? 'record.deniedOpen' : 'record.permissionAllow'),
-              onPress: () => (blocked ? void Linking.openSettings() : void askPermissions()),
-            }}
-            secondary={{ label: t('common.close'), onPress: () => router.back() }}
-          />
-        )}
+      <View style={styles.permDark}>
+        <StatusBar style="light" />
+        <SafeAreaView style={styles.permSafe}>
+          <View style={styles.topRow}>
+            <Pressable
+              style={styles.closeBtn}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back')}
+              ph-label="record_perm_close">
+              <Text style={styles.closeText}>✕</Text>
+            </Pressable>
+          </View>
+          <View style={styles.permCenter}></View>
+          {showNotice && (
+            <View style={styles.permNotice}>
+              <Feather name="camera-off" size={16} color={palette.amber} />
+              <View style={styles.permNoticeBody}>
+                <Text style={styles.permNoticeTitle}>{t('record.permissionTitle')}</Text>
+                <Text style={styles.permNoticeText}>{blocked ? t('record.deniedBody') : t('record.permissionBody')}</Text>
+              </View>
+              <Pressable
+                onPress={() => (blocked ? void Linking.openSettings() : void askPermissions())}
+                accessibilityRole="button"
+                hitSlop={10}
+                ph-label="record_perm_action">
+                <Text style={styles.permNoticeAction}>{t(blocked ? 'record.deniedOpen' : 'record.permissionAllow')}</Text>
+              </Pressable>
+            </View>
+          )}
+        </SafeAreaView>
         {dialog}
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -344,7 +454,9 @@ export default function RecordVideoScreen() {
   if (isChallenge) {
     return (
       <View style={styles.safe}>
-        <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+        {/* 검은 카메라 화면 — 상태 표시줄 글자를 흰색으로(앱 기본은 검은 글자라 시간·배터리가 안 보였다). */}
+        <StatusBar style="light" />
+        <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setCameraReady(true)} />
         {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
         <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
@@ -435,11 +547,45 @@ export default function RecordVideoScreen() {
 
   return (
     <View style={styles.safe}>
-      <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+      <StatusBar style="light" />
+      <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setCameraReady(true)} />
       {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
       <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+        <View style={styles.topGroup} pointerEvents="box-none">
+        {recordScript ? (
+          // 대본으로 찍을 때(pen P2.14) — 닫기 · 시간 알약 `0:12 / 5:00` · 카메라 돌리기를 한 줄로 두고, 대본 카드는 그 아래.
+          <View style={styles.chTopRow}>
+            <Pressable
+              style={styles.closeBtn}
+              onPress={() => router.back()}
+              disabled={recording}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close')}
+              ph-label="record_close">
+              <Feather name="x" size={22} color="#FFFFFF" />
+            </Pressable>
+            <View style={[styles.timerPill, recording && styles.timerPillRec]}>
+              <View style={[styles.recDot, !recording && styles.recDotIdle]} />
+              <Text style={styles.timerText}>
+                {formatClipDuration(elapsed)} / {formatClipDuration(maxSec)}
+              </Text>
+            </View>
+            {recording ? (
+              <View style={styles.closeBtn} />
+            ) : (
+              <Pressable
+                style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('record.flip')}
+                ph-label="record_flip"
+                onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
+                <Feather name="refresh-cw" size={20} color="#FFFFFF" />
+              </Pressable>
+            )}
+          </View>
+        ) : (
         <View style={styles.topRow}>
           {recording ? (
             <View style={styles.timerPill}>
@@ -459,9 +605,53 @@ export default function RecordVideoScreen() {
             </Pressable>
           )}
         </View>
+        )}
+        {recordScript && !scriptHidden ? (
+          <View style={styles.scriptCard}>
+            <Text style={styles.lineLabel} numberOfLines={1}>{t('record.scriptLabel', { title: recordScript.title })}</Text>
+            <ScrollView style={[styles.scriptScroll, { maxHeight: Math.round(windowHeight * 0.24) }]} contentContainerStyle={styles.scriptBody}>
+              {recordScript.lines.map((line, i) =>
+                line.kind === 'dialogue' ? (
+                  <Text key={i} style={[styles.scriptLine, line.mine && styles.scriptLineMine]}>
+                    {line.speaker ? <Text style={[styles.scriptSpeaker, line.mine && styles.scriptSpeakerMine]}>{`${line.speaker}  `}</Text> : null}
+                    {line.text}
+                  </Text>
+                ) : (
+                  <Text key={i} style={styles.scriptDirection}>{line.kind === 'scene' || line.text.trim().startsWith('(') ? line.text : `(${line.text})`}</Text>
+                ),
+              )}
+            </ScrollView>
+          </View>
+        ) : null}
+        </View>
 
         <View style={styles.bottomGroup}>
-          <Text style={[styles.hint, recording && styles.hiddenKeepSpace]}>{picker ? t('recordMode.swipeHint') : t('record.hint')}</Text>
+          <Text style={[styles.hint, recording && !recordScript && styles.hiddenKeepSpace]}>{recording && recordScript ? remainingLabel(remaining) : picker
+              ? t('recordMode.swipeHint')
+              : maxSec < baseMaxSec
+                ? t('record.hintShort', { sec: maxSec })
+                : t('record.hint')}</Text>
+          {recordScript ? (
+            // pen P2.14 — 왼쪽 「업로드」· 가운데 셔터 · 오른쪽 「대사 숨김/보기」. 힌트는 녹화 중엔 남은 시간.
+            <View style={styles.chBottomRow}>
+              <Pressable style={styles.sideBtn} onPress={() => void pickFromGallery()} disabled={recording} accessibilityRole="button" ph-label="record_gallery">
+                <Feather name="image" size={24} color="#FFFFFF" />
+                <Text style={styles.sideLabel}>{t('record.upload')}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={recording ? t('record.stop') : t('record.start')}
+                ph-label="record_shutter"
+                onPress={() => (recording ? stopRecording() : void startRecording())}
+                style={[styles.shutter, recording && styles.shutterRecording]}>
+                <View style={recording ? styles.shutterInnerStop : styles.shutterInner} />
+              </Pressable>
+              <Pressable style={styles.sideBtn} onPress={() => setScriptHidden((v) => !v)} accessibilityRole="button" ph-label="record_toggle_script">
+                <Feather name={scriptHidden ? 'eye-off' : 'eye'} size={24} color="#FFFFFF" />
+                <Text style={styles.sideLabel}>{t(scriptHidden ? 'record.showLine' : 'record.hideLine')}</Text>
+              </Pressable>
+            </View>
+          ) : (
           <View style={styles.bottomRow}>
             {/* 왼쪽 슬롯: 녹화 중엔 빈 칸으로 둬서 셔터가 늘 가운데에 오게 한다. */}
             {recording ? (
@@ -486,6 +676,7 @@ export default function RecordVideoScreen() {
             </Pressable>
             <View style={styles.flipBtn} />
           </View>
+          )}
           {slider}
         </View>
       </SafeAreaView>
@@ -496,7 +687,25 @@ export default function RecordVideoScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#000' },
-  permSafe: { flex: 1, backgroundColor: palette.bg },
+  permDark: { flex: 1, backgroundColor: '#0B0D12' },
+  permSafe: { flex: 1 },
+  permCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // pen R8.7 「MicNotice」와 같은 노란 띠 — 안쪽 [12,14] · 모서리 12 · 사이 10.
+  permNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: palette.amberSoft,
+  },
+  permNoticeBody: { flex: 1, gap: 2 },
+  permNoticeTitle: { fontSize: 13.5, fontWeight: '700', color: palette.text },
+  permNoticeText: { fontSize: 12, lineHeight: 17, color: palette.textDim },
+  permNoticeAction: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
   camera: { ...StyleSheet.absoluteFillObject },
   overlay: { flex: 1, justifyContent: 'space-between' },
   topRow: { flexDirection: 'row', justifyContent: 'flex-start', padding: 16 },
@@ -532,6 +741,35 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   lineLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  topGroup: { flexShrink: 1 },
+  topRowSpread: { justifyContent: 'space-between', alignItems: 'center' },
+  scriptToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  scriptToggleText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  scriptCard: {
+    marginHorizontal: 16,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(10,14,24,0.78)',
+    gap: 8,
+  },
+  // 대본 카드는 화면 4분의 1 안쪽 — 대사가 많으면 안에서 넘긴다. 예전 300 고정은 작은 폰에서 화면 절반을 덮어 얼굴 위치를 못 봤다(10/24 폰).
+  scriptScroll: { maxHeight: 300 },
+  scriptBody: { gap: 6, paddingBottom: 6 },
+  scriptLine: { color: 'rgba(255,255,255,0.72)', fontSize: 15, fontWeight: '500', lineHeight: 22 },
+  scriptLineMine: { color: '#FFFFFF', fontWeight: '700' },
+  scriptSpeaker: { color: 'rgba(255,255,255,0.6)', fontWeight: '700' },
+  scriptSpeakerMine: { color: '#8FA5FF' },
+  scriptDirection: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '500', lineHeight: 19 },
   lineLabel: { color: '#8FA5FF', fontSize: 12, fontWeight: '800' },
   lineText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', lineHeight: 25 },
   bottomGroup: { gap: 12 },

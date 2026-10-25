@@ -83,9 +83,12 @@ export function tabIcon(
       <View style={[styles.pill, focused && styles.pillOn]}>
         <Ionicons size={22} name={name} color={color} />
       </View>
-      <Text style={[styles.tabLabel, focused && styles.tabLabelOn, { color }]} numberOfLines={1}>
-        {label}
-      </Text>
+      {/* 이름은 고른 탭에만 보인다(pen 하단바 규칙). 안 고른 탭은 아이콘만, 읽기 이름은 탭 버튼에 있다. */}
+      {focused ? (
+        <Text style={[styles.tabLabel, styles.tabLabelOn, { color }]} numberOfLines={1}>
+          {label}
+        </Text>
+      ) : null}
     </View>
   );
   TabIcon.displayName = `TabIcon(${name})`;

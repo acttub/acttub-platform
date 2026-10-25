@@ -87,6 +87,6 @@ test('프로필 이번 달 연습도 같은 기준이다(노트 없는 회차·�
 test('홈·프로필·리딩이 이 기준 하나를 쓴다', () => {
   assert.match(read('lib/profile-month-stats.ts'), /countedPractices\(/);
   const home = read('app/(tabs)/index.tsx');
-  assert.match(home, /countedPracticeDates\(/);
+  assert.match(home, /countedPractices\(/);
   assert.match(read('app/reading/play.tsx'), /readingRunCompleted\(/);
 });

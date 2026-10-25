@@ -1,9 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { updateScriptMeta } from '@/lib/reading/store';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -45,7 +47,9 @@ export function TitleEditDialog({
 
   return (
     <Modal transparent statusBarTranslucent visible animationType="fade" onRequestClose={() => onClose(false)}>
-      <Pressable style={styles.backdrop} onPress={() => !busy && onClose(false)}>
+      {/* 키보드가 뜨면 키보드 위 남은 칸에서 다시 가운데·아래에 놓여 입력칸과 버튼이 가리지 않는다. */}
+      <KeyboardLift>
+      <Pressable style={styles.backdrop} onPress={() => !busy && onClose(false)} testID="title-edit-backdrop">
         <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
           <Text style={styles.title}>{t('reading.titleEdit')}</Text>
           <View style={[styles.field, failed && styles.fieldBad]}>
@@ -72,11 +76,12 @@ export function TitleEditDialog({
               style={[styles.button, styles.save, (!changed || busy) && styles.saveOff]}
               disabled={!changed || busy}
               onPress={() => void save()}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{t('common.save')}</Text>}
+              {busy ? <LoadingText label={t('loadingText.saving')} color="#fff" /> : <Text style={styles.saveText}>{t('common.save')}</Text>}
             </Pressable>
           </View>
         </Pressable>
       </Pressable>
+      </KeyboardLift>
     </Modal>
   );
 }

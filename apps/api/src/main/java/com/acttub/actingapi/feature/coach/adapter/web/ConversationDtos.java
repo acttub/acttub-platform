@@ -43,6 +43,12 @@ final class ConversationDtos {
             @Schema(nullable = true) Long revision) {
     }
 
+    /** 닫힌 대화를 이어 간다(SOMA-782). revision 을 주면 화면이 본 상태와 다를 때 409 conversation_conflict 다. */
+    @Schema(name = "CoachContinueRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ContinueRequest(@Schema(nullable = true) Long revision) {
+    }
+
     /** 대화의 한 턴. 저장은 옛 값과 같은 {@code ai} 이고 화면에는 {@code coach} 로 보인다. */
     @Schema(name = "CoachTurn", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -70,7 +76,10 @@ final class ConversationDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<TurnResponse> messages,
             @Schema(nullable = true) Instant createdAt,
             @Schema(nullable = true, description = "목적별 코칭(SOMA-719)의 버튼·장면·카드. 목적 없이 시작한 대화는 null")
-            PurposeResponse purpose) {
+            PurposeResponse purpose,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "목적 없는 질문 대화에서 지금 코치 질문 아래에 보일 예시 답(0~2개, 배우 말투). 목적별 코칭은 purpose.choices 를 쓰고 이 값은 빈 목록이다")
+            List<String> answerExamples) {
 
         static ConversationResponse of(ConversationService.Turn turn) {
             return new ConversationResponse(
@@ -80,7 +89,8 @@ final class ConversationDtos {
                             .map(item -> new TurnResponse(item.turnIndex(), item.role(), CoachDisplayText.keepWhole(item.role(), item.text()), item.createdAt()))
                             .toList(),
                     null,
-                    PurposeResponse.of(turn.purpose()));
+                    PurposeResponse.of(turn.purpose()),
+                    turn.answerExamples());
         }
 
         static ConversationResponse of(ConversationView view, int replyLimit) {
@@ -92,7 +102,8 @@ final class ConversationDtos {
                             .map(item -> new TurnResponse(item.turnIndex(), item.role(), CoachDisplayText.keepWhole(item.role(), item.text()), item.createdAt()))
                             .toList(),
                     view.createdAt(),
-                    PurposeResponse.of(view.purpose()));
+                    PurposeResponse.of(view.purpose()),
+                    view.answerExamples());
         }
     }
 

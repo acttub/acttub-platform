@@ -68,7 +68,7 @@ test('대화와 함께 온 노트를 바로 보여 주고 서버에서 다시 �
   expect(mockGetNote).not.toHaveBeenCalled();
 });
 
-test('「이번에 해 본 것」에는 배우가 한 말만 두고 코치 관찰은 넣지 않는다', async () => {
+test('「이번에 해 본 것」에는 배우가 한 말만 두고 액티 관찰은 넣지 않는다', async () => {
   const note = practiceNote({
     summary_quotes: [
       { quote: '먼저 미안하다고 해 주길 기다렸어요', kind: 'actor', source_ref: 'actor:1' },

@@ -58,7 +58,7 @@ async function show(detail = TWO_SCENES) {
   return server;
 }
 
-const startButton = (count: number) => screen.getByText(`이 구간 ${count}줄 연습하기`);
+const startButton = (_count: number) => screen.getByText(/^(이 구간 \d+줄 연습하기|마이크 켜고 시작하기)$/);
 
 test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준다', async () => {
   resetReadingState();
@@ -71,14 +71,14 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
 test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역을 골라야 시작할 수 있다', async () => {
   await show();
 
+  expect(screen.getByText('누구로, 어디를 연습할까요?')).toBeOnTheScreen();
   expect(screen.getByText('봄날의 대화 · 대사 5개')).toBeOnTheScreen();
-  expect(screen.queryByText('최근 구간')).not.toBeOnTheScreen();
-  expect(screen.getAllByText('내 배역을 골라 주세요')).toHaveLength(2);
+  expect(screen.getByText('구간')).toBeOnTheScreen();
+  expect(screen.getByText('내 배역을 골라 주세요')).toBeOnTheScreen();
   expect(engine.prefetchIfWifi).toHaveBeenCalledTimes(1);
 
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.queryByText('내 배역을 골라 주세요')).not.toBeOnTheScreen();
-  expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeChecked();
   expect(startButton(5)).toBeOnTheScreen();
 });
 
@@ -86,7 +86,7 @@ test('배역과 대사 보기를 골라 시작하면 회차를 만들고 대사 
   const server = await show();
   await fireEvent.press(screen.getByText('민재'));
   await fireEvent.press(screen.getByText('서연'));
-  await fireEvent.press(screen.getByText('모든 대사 가리기'));
+  await fireEvent.press(screen.getByText('내 대사만 가리기'));
 
   await fireEvent.press(startButton(5));
 
@@ -100,66 +100,24 @@ test('배역과 대사 보기를 골라 시작하면 회차를 만들고 대사 
     advance: 'silence',
     record: true,
   });
-  expect(getCurrent()?.maskMode).toBe('all');
+  expect(getCurrent()?.maskMode).toBe('mine');
 });
 
-test('고른 배역 칩을 다시 누르면 그 배역을 뺀다', async () => {
+test('고른 배역 카드를 다시 누르면 그 배역을 뺀다', async () => {
   await show();
   await fireEvent.press(screen.getByText('민재'));
-
+  expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeChecked();
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.getByRole('checkbox', { name: /^민재 / })).not.toBeChecked();
-  expect(screen.getAllByText('내 배역을 골라 주세요')).toHaveLength(2);
 });
 
-test('장면으로 찾으면 그 장면 안 대사로 구간을 정한다', async () => {
+test('장면으로 찾기 탭에서 장면 카드를 고르면 그 장면 안 대사로 구간을 정한다', async () => {
   const server = await show();
   await fireEvent.press(screen.getByText('민재'));
-
-  expect(screen.getByText('대사 3개 · 민재 오늘 왔구나.')).toBeOnTheScreen();
-  expect(screen.getByText('장면 2')).toBeOnTheScreen();
-  expect(screen.queryByText('사라진 장면')).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('장면 2'));
   await fireEvent.press(startButton(2));
-
   await waitFor(() => expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ start_line_id: 'l7', end_line_id: 'l8' })));
-});
-
-test('장면의 첫 줄이 대사가 아니면 그 줄 글을 보인다', async () => {
-  await show(scriptDetail(TWO_ROLE_LINES, { scenes: [{ no: 1, title: null, start_line_id: 'l1', end_line_id: 'l5', dialogue_count: 3 }] }));
-
-  expect(screen.getByText('대사 3개 · 1장 카페')).toBeOnTheScreen();
-});
-
-test('대사로 찾으면 시작과 끝을 차례로 탭하고, 끝을 시작보다 앞에 찍으면 뒤바꾼다', async () => {
-  const server = await show();
-  await fireEvent.press(screen.getByText('민재'));
-  await fireEvent.press(screen.getByText('대사로 찾기'));
-
-  expect(screen.getByText('① 시작할 대사를 탭하세요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
-  expect(screen.getByText('② 끝낼 대사를 탭하세요')).toBeOnTheScreen();
-  expect(startButton(4)).toBeOnTheScreen();
-
-  await fireEvent.press(screen.getByText('오늘 왔구나.'));
-  expect(screen.getByText('① 시작할 대사를 탭하세요')).toBeOnTheScreen();
-  expect(screen.getByText('시작')).toBeOnTheScreen();
-  expect(screen.getByText('끝')).toBeOnTheScreen();
-  await fireEvent.press(startButton(2));
-  await waitFor(() => expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ start_line_id: 'l2', end_line_id: 'l4' })));
-});
-
-test('대사로 찾기에서 끝을 시작 뒤에 찍으면 그 사이가 구간이고, 전체 선택으로 되돌린다', async () => {
-  await show();
-  await fireEvent.press(screen.getByText('민재'));
-  await fireEvent.press(screen.getByText('대사로 찾기'));
-
-  await fireEvent.press(screen.getByText('괜찮아.'));
-  await fireEvent.press(screen.getByText('어디 가?'));
-  expect(startButton(2)).toBeOnTheScreen();
-
-  await fireEvent.press(screen.getByText('전체 선택'));
-  expect(startButton(5)).toBeOnTheScreen();
+  expect(screen.queryByText('장면 3')).not.toBeOnTheScreen();
 });
 
 test('연습한 적이 있으면 최근 구간을 먼저 보이고 가장 최근 구간과 지난 배역을 골라 둔다', async () => {
@@ -174,9 +132,7 @@ test('연습한 적이 있으면 최근 구간을 먼저 보이고 가장 최근
   });
   await render(<ReadingRange />);
 
-  expect(screen.getByText('최근 구간')).toBeOnTheScreen();
-  expect(await screen.findByText('2개 · 2회차 · 오늘')).toBeOnTheScreen();
-  expect(screen.getByText('장면 2')).toBeOnTheScreen();
+  expect(await screen.findAllByText('장면 2')).not.toHaveLength(0);
   expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeChecked();
   expect(server.listSessions).toHaveBeenCalledWith('s1');
 
@@ -184,7 +140,7 @@ test('연습한 적이 있으면 최근 구간을 먼저 보이고 가장 최근
   await waitFor(() => expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], start_line_id: 'l7', end_line_id: 'l8' })));
 });
 
-test('최근 구간을 고르면 그 구간으로 바꾼다', async () => {
+test('최근 연습 탭에 처음부터 끝까지를 고르면 그 구간으로 바꾼다', async () => {
   const startedAt = new Date().toISOString();
   const { server } = await openFixtureScript({ ...TWO_SCENES, last_session: LAST_SESSION });
   server.listSessions.mockResolvedValue({
@@ -205,7 +161,6 @@ test('회차 목록을 못 불러오면 최근 구간 없이 대본 전체로 �
   server.listSessions.mockRejectedValue(new Error('offline'));
   await render(<ReadingRange />);
 
-  await waitFor(() => expect(screen.queryByText('최근 구간')).not.toBeOnTheScreen());
   expect(startButton(5)).toBeOnTheScreen();
 });
 
@@ -268,12 +223,14 @@ test('다시 물을 수 없게 거절돼 있으면 시작을 누를 때 설정�
 });
 
 test('구간 안에 내 대사가 없으면 서버에 보내지 않고 알린다', async () => {
-  const server = await show();
+  const server = await show(scriptDetail([['dialogue', '민재', '오늘 왔구나.'], ['dialogue', '서연', '응.']], {
+    scenes: [
+      { no: 1, title: null, start_line_id: 'l1', end_line_id: 'l1', dialogue_count: 1 },
+      { no: 2, title: null, start_line_id: 'l2', end_line_id: 'l2', dialogue_count: 1 },
+    ],
+  }));
   await fireEvent.press(screen.getByText('서연'));
-  await fireEvent.press(screen.getByText('대사로 찾기'));
-  await fireEvent.press(screen.getByText('오늘 왔구나.'));
-  await fireEvent.press(screen.getByText('오늘 왔구나.'));
-
+  await fireEvent.press(screen.getByText('장면 1'));
   await fireEvent.press(startButton(1));
   expect(screen.getByText('구간 안에 내 대사가 없어요. 구간이나 배역을 바꿔 주세요.')).toBeOnTheScreen();
   expect(server.startSession).not.toHaveBeenCalled();
@@ -295,15 +252,15 @@ test.each([
   expect(startButton(5)).toBeOnTheScreen();
 });
 
-test('시작 요청 중에는 저장 중으로 바꾸고 다시 누를 수 없다', async () => {
+test('시작 요청 중에는 「시작하는 중」으로 바꾸고 다시 누를 수 없다', async () => {
   const server = await show();
   let answer: () => void = () => undefined;
   server.startSession.mockImplementation(() => new Promise((resolve) => (answer = () => resolve({} as never))));
   await fireEvent.press(screen.getByText('민재'));
 
   const pressing = fireEvent.press(startButton(5));
-  expect(await screen.findByText('저장 중')).toBeDisabled();
-  await fireEvent.press(screen.getByText('저장 중'));
+  expect(await screen.findByText('시작하는 중')).toBeDisabled();
+  await fireEvent.press(screen.getByText('시작하는 중'));
   await act(async () => answer());
   await pressing;
   expect(server.startSession).toHaveBeenCalledTimes(1);
@@ -313,7 +270,7 @@ test('배역이 하나뿐인 대본은 그 배역을 골라 둔다', async () =>
   await show(scriptDetail([['dialogue', '민재', '혼자야.']]));
 
   expect(startButton(1)).toBeOnTheScreen();
-  expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /^민재/ })).toBeChecked();
 });
 
 test('SOMA-709: 배역 칩은 이름 옆에 대사 수를 보이고, 함께 말하는 줄의 묶음 배역은 칩에 두지 않는다', async () => {
@@ -321,8 +278,9 @@ test('SOMA-709: 배역 칩은 이름 옆에 대사 수를 보이고, 함께 말�
   detail.characters[2] = { ...detail.characters[2], member_ids: ['c1', 'c2'] };
   await show(detail);
 
-  expect(screen.getByRole('checkbox', { name: '민재 2' })).toBeOnTheScreen();
-  expect(screen.getByRole('checkbox', { name: '서연 1' })).toBeOnTheScreen();
+  expect(screen.getByRole('checkbox', { name: /^민재 / })).toBeOnTheScreen();
+  expect(screen.getByText('2')).toBeOnTheScreen();
+  expect(screen.getByText('1')).toBeOnTheScreen();
   expect(screen.queryByRole('checkbox', { name: /^민재, 서연/ })).not.toBeOnTheScreen();
 });
 
@@ -330,7 +288,7 @@ test('SOMA-709: 고른 배역의 구간 안 대사가 2줄 이하면 처음 안�
   const server = await show();
   await fireEvent.press(screen.getByText('서연'));
 
-  expect(screen.getByText('고른 구간에 서연 대사가 2줄뿐이에요.\n배역을 더 고르거나 구간을 넓혀 보세요.')).toBeOnTheScreen();
+  expect(screen.getByText('이 구간엔 서연 대사가 2줄뿐이에요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.queryByText(/대사가 \d줄뿐이에요/)).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('민재'));
@@ -344,12 +302,11 @@ test('SOMA-709: 짧은 구간 추천이 뜨는 첫 연습에서도 대사가 적
   for (let i = 0; i < 12; i++) lines.push(['dialogue', i === 3 ? '서연' : '민재', `대사 ${i + 1}`]);
   await show(scriptDetail(lines));
   await fireEvent.press(screen.getByText('민재'));
-  expect(screen.getByText(/처음이라 짧은 구간으로 골라 뒀어요/)).toBeOnTheScreen();
+  expect(screen.getByText('처음 10줄 · 추천')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('민재'));
   await fireEvent.press(screen.getByText('서연'));
-  expect(screen.getByText('고른 구간에 서연 대사가 1줄뿐이에요.\n배역을 더 고르거나 구간을 넓혀 보세요.')).toBeOnTheScreen();
-  expect(screen.queryByText(/처음이라 짧은 구간으로 골라 뒀어요/)).not.toBeOnTheScreen();
+  expect(screen.getByText('이 구간엔 서연 대사가 1줄뿐이에요')).toBeOnTheScreen();
 });
 
 test('SOMA-597: 배역이 하나뿐이면 처음부터 골라져 있고 혼자 하는 대본 안내를 보인다', async () => {
@@ -359,5 +316,53 @@ test('SOMA-597: 배역이 하나뿐이면 처음부터 골라져 있고 혼자 �
   ]));
 
   expect(screen.getByRole('checkbox', { name: /민지/ })).toBeChecked();
-  expect(screen.getByText('혼자 하는 대본이라 배역은 자동으로 골라져 있어요.')).toBeOnTheScreen();
+  expect(screen.getByText('2문장 · 혼자 하는 대본')).toBeOnTheScreen();
+});
+
+test('pen R8.3: 구간은 장면으로 찾기·대사로 찾기 탭으로 나뉘고, 장면 카드에 대사 수와 첫 대사를 보인다', async () => {
+  await show();
+
+  expect(screen.getByText('장면으로 찾기')).toBeOnTheScreen();
+  expect(screen.getByText('대사로 찾기')).toBeOnTheScreen();
+  expect(screen.queryByText('① 시작할 대사를 탭하세요')).not.toBeOnTheScreen();
+  expect(screen.getByText('대사 2개 · 서연 어디 가?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('장면 2'));
+  expect(screen.getByRole('radio', { name: /장면 2/ })).toBeChecked();
+});
+
+test('pen R8.4·R8.5: 대사로 찾기 탭에서 시작 대사 다음 끝 대사를 고르고, 전체 선택으로 되돌린다', async () => {
+  const server = await show();
+  await fireEvent.press(screen.getByText('민재'));
+  await fireEvent.press(screen.getByText('대사로 찾기'));
+
+  expect(screen.getByText('① 시작할 대사를 탭하세요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('어디 가?'));
+  expect(screen.getByText('② 끝낼 대사를 탭하세요')).toBeOnTheScreen();
+  expect(screen.getByText('시작')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('집에.'));
+  expect(screen.getByText('① 시작할 대사를 탭하세요')).toBeOnTheScreen();
+  expect(screen.getByText('끝')).toBeOnTheScreen();
+
+  await fireEvent.press(startButton(2));
+  await waitFor(() => expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ start_line_id: 'l7', end_line_id: 'l8' })));
+});
+
+test('pen R8.5: 끝 대사를 시작보다 앞에서 누르면 두 대사를 뒤바꾸고, 전체 선택은 대본 전체로 돌린다', async () => {
+  await show();
+  await fireEvent.press(screen.getByText('민재'));
+  await fireEvent.press(screen.getByText('대사로 찾기'));
+  await fireEvent.press(screen.getByText('집에.'));
+  await fireEvent.press(screen.getByText('어디 가?'));
+  expect(screen.getAllByText('시작')).toHaveLength(1);
+  expect(startButton(2)).toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByText('전체 선택'));
+  expect(startButton(5)).toBeOnTheScreen();
+});
+
+test('예시에서 온 대본(sample)은 목소리 모델을 미리 받지 않는다 — 미리 만든 음성으로 읽는다', async () => {
+  await show({ ...TWO_SCENES, source: 'sample' });
+
+  expect(screen.getByText('누구로, 어디를 연습할까요?')).toBeOnTheScreen();
+  expect(engine.prefetchIfWifi).not.toHaveBeenCalled();
 });

@@ -19,9 +19,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 앱 Pro 정기결제(SOMA-818) 조립. 빈은 늘 서지만 기능은 {@code BILLING_APP_ENABLED=true} 이고 설정(테스트 키·공개 주소·
- * 앱 복귀 주소)이 맞을 때만 열린다 — 닫혀 있으면 앱 API 가 404 {@code billing_unavailable} 이고 앱은 Pro 진입점을
- * 숨긴다. 무료 한도({@code BILLING_FREE_LIMITS_ENABLED})도 기본 꺼짐이다. 닫힌 이유는 비밀 값 없이 한 줄 남긴다.
+ * ACTTUB Pro 결제(SOMA-818) 조립. 빈은 늘 서지만 웹 토스 결제는 {@code BILLING_WEB_ENABLED=true} 이고 설정(토스 키·공개 주소·
+ * 웹 복귀 주소)이 맞을 때만 열린다 — 닫혀 있으면 결제 시작이 404 {@code billing_unavailable} 이라 실결제가 나가지 않는다.
+ * 앱의 Pro 화면은 {@code BILLING_APP_ENABLED}(스토어 결제 2단계가 붙을 자리) 뒤에 있다. 무료 한도({@code BILLING_FREE_LIMITS_ENABLED})도 기본 꺼짐이다. 닫힌 이유는 비밀 값 없이 한 줄 남긴다.
  *
  * <p>PG 심사 전용 결제({@code PgReviewConfiguration})와 같은 토스 게이트웨이 구현을 쓰지만 빈은 따로 만든다 — 둘의 키와
  * 켜는 스위치가 다르다.
@@ -32,19 +32,20 @@ class BillingConfiguration {
 
     @Bean
     BillingSettings billingSettings(
-            @Value("${BILLING_APP_ENABLED:false}") boolean enabled,
+            @Value("${BILLING_WEB_ENABLED:false}") boolean enabled,
+            @Value("${BILLING_APP_ENABLED:false}") boolean appEnabled,
             @Value("${BILLING_FREE_LIMITS_ENABLED:false}") boolean freeLimits,
             @Value("${BILLING_PUBLIC_ORIGIN:}") String origin,
-            @Value("${BILLING_APP_RETURN_URL:actingapp://billing-result}") String returnUrl,
+            @Value("${BILLING_WEB_RETURN_URL:}") String returnUrl,
             @Value("${BILLING_TOSS_CLIENT_KEY:}") String clientKey,
             @Value("${BILLING_TOSS_SECRET_KEY:}") String secretKey) {
-        BillingSettings settings = new BillingSettings(enabled, freeLimits, origin, returnUrl, clientKey, secretKey);
+        BillingSettings settings = new BillingSettings(enabled, appEnabled, freeLimits, origin, returnUrl, clientKey, secretKey);
         if (enabled) {
             String reason = settings.invalidReason();
             if (reason == null) {
-                LOG.info("app billing enabled origin={} freeLimits={}", settings.origin(), settings.limitsEnforced());
+                LOG.info("web billing enabled origin={} freeLimits={}", settings.origin(), settings.limitsEnforced());
             } else {
-                LOG.error("app billing enabled but closed reason={}", reason);
+                LOG.error("web billing enabled but closed reason={}", reason);
             }
         }
         return settings;

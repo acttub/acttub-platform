@@ -14,7 +14,7 @@ const card = (over = {}) => ({
 const entry = (over = {}) => ({
   id: id(2), challenge_id: id(1), author: { user_id: id(7), name: '니나' }, caption: null, like_count: 5,
   comment_count: 1, view_count: 3, rank: 1, final_like_count: null, published_at: '2026-09-23T03:00:00Z',
-  playback_url: 'https://storage.test/v.mp4', liked: false, saved: false, is_mine: false, is_new: false, ...over,
+  playback_url: 'https://storage.test/v.mp4', original_playback_url: null, liked: false, saved: false, is_mine: false, is_new: false, ...over,
 });
 const mine = (over = {}) => {
   const { is_new: _unused, ...base } = entry({ is_mine: true, author: { user_id: id(8), name: '나' } });
@@ -26,11 +26,6 @@ const mine = (over = {}) => {
 const comment = (over = {}) => ({
   id: id(4), author: { user_id: id(7), name: '니나' }, body: '좋아요', created_at: '2026-09-23T03:00:00Z',
   is_mine: false, author_withdrawn: false, status: 'visible', ...over,
-});
-const report = (over = {}) => ({
-  entry_id: id(2), status: 'ready', observations: [{ start_ms: 0, end_ms: 1200, text: '멈춘다' }], comparisons: ['차이'],
-  limits: [], suggestion: null, sample_count: 3, attempt_count: 1, requested_at: '2026-09-23T03:00:00Z',
-  completed_at: '2026-09-23T03:01:00Z', ...over,
 });
 const group = (over = {}) => ({
   group_key: `${id(8)}|entry_liked|${id(2)}|1790132400`, kind: 'entry_liked', actor_count: 3, event_count: 3,
@@ -104,22 +99,16 @@ test('좋아요·저장·댓글·신고·차단은 서버 경로와 응답 모�
     [`put /v2/entries/${id(2)}/like`, `delete /v2/entries/${id(2)}/like`, `put /v2/entries/${id(2)}/save`]);
 });
 
-test('AI 리포트와 알림함은 서버 응답을 그대로 읽는다', async t => {
+test('알림함은 서버 응답을 그대로 읽는다', async t => {
   const calls = httpResponses(t, [
-    { status: 202, body: report({ status: 'pending', observations: [], comparisons: [], completed_at: null, sample_count: 0 }) },
-    { body: report() },
     { body: { groups: [group(), group({ group_key: 'g2', kind: 'challenge_ended', entry_id: null, actor_count: 0, actor_name: null })], next_cursor: null } },
     { status: 204 },
     { status: 204 },
     { body: { count: 2 } },
   ]);
-  assert.equal((await api.requestAiReport(id(2), id(25))).status, 'pending');
-  const ready = await api.getAiReport(id(2));
-  assert.equal(ready.observations[0].start_ms, 0);
   const inbox = await api.listNotifications();
   assert.equal(inbox.groups[0].actor_count, 3);
   await api.readNotifications({ group_keys: [inbox.groups[0].group_key] });
   await api.readNotifications({ all_before: { created_at: inbox.groups[0].latest_at, id: inbox.groups[0].group_key } });
   assert.equal((await api.unreadNotificationCount()).count, 2);
-  assert.deepEqual(calls[0].body, { request_id: id(25) });
 });

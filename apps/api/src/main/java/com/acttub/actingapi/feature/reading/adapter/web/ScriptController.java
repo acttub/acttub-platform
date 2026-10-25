@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.CharacterResp
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.CreateRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LastSessionResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineInput;
+import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineInsertRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineKindInput;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LinePatchRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineResponse;
@@ -255,6 +256,36 @@ class ScriptController {
         String first = lineText("first_text", body.firstText());
         String second = lineText("second_text", body.secondText());
         return script(scripts.splitLine(user.id(), scriptId, lineId, first, second));
+    }
+
+    @Operation(
+            summary = "Insert Script Line After",
+            description = """
+                    고른 줄 바로 아래에 새 줄 하나를 넣는다(SOMA-816). 뒤 줄들의 순서가 하나씩 밀리고 기존 줄의 id 는 그대로라
+                    회차·녹음·외운 줄의 연결이 남는다. 구간이 그 줄로 끝나던 회차의 구간은 그대로다(새 줄은 구간 밖). 대사면 이
+                    대본의 배역이 있어야 하고 지문·장면이면 배역이 없다 — 어기면 422 invalid_line. 글은 앞뒤 공백을 정리하고
+                    비거나 5,000자를 넘으면 422 배열이다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found.
+                    고친 대본 전체를 돌려준다.""",
+            operationId = "insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post",
+            tags = "v2-reading",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = ScriptResponse.class)))
+    @ApiResponse(
+            responseCode = "422",
+            description = "Validation Error",
+            content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    @PostMapping("/{script_id}/lines/{line_id}/insert-after")
+    ScriptResponse insertLineAfter(
+            @PathVariable("script_id") UUID scriptId,
+            @PathVariable("line_id") UUID lineId,
+            @Valid @RequestBody LineInsertRequest body,
+            HttpServletRequest request) {
+        AuthenticatedUser user = auth.gatedUser(request);
+        String text = lineText("text", body.text());
+        return script(scripts.insertLineAfter(user.id(), scriptId, lineId, body.kind().name(), body.characterId(), text));
     }
 
     /** 줄 글의 앞뒤 공백을 정리한다. 비거나 5,000자를 넘으면 422 배열이다. */

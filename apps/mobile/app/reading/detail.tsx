@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { palette } from '@/constants/palette';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
+import { leavingSavesSettled } from '@/lib/reading/progress-queue';
 import { CHIP_TONE, relativeDay } from '@/lib/reading/script-cards';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { sessionCardMeta, sessionChip } from '@/lib/reading/session-cards';
@@ -17,6 +18,10 @@ import { rangeTitle } from '@/lib/reading/session-plan';
 import { deleteScript, deleteSession, getCurrent, listSessions, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
 import type { SessionCard } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * 대본 상세(R4.1~R4.8, reading.session). 제목·대사 수·「대본 보기」·연습 기록(최근순, 줄마다 회차·구간·배역·상태)·[연습하기].
@@ -38,9 +43,16 @@ export default function ReadingDetail() {
     if (!mounted.current) return;
     setScript(s ? { ...s } : null);
     if (!s) return;
+    const settling = leavingSavesSettled();
     const list = await listSessions(s.id).catch(() => []);
     if (!mounted.current) return;
     setSessions(list);
+    // 리딩에서 바로 나왔으면 마지막 위치 저장(또는 [시작] 전 회차 지우기)이 아직 가는 중일 수 있다 — 다 가면 한 번 더 불러온다.
+    if (!settling) return;
+    await settling;
+    if (!mounted.current) return;
+    const fresh = await listSessions(s.id).catch(() => null);
+    if (fresh && mounted.current) setSessions(fresh);
   }, []);
 
   useFocusEffect(
@@ -80,13 +92,14 @@ export default function ReadingDetail() {
     }
   };
 
-  const more = () =>
+  const more = (e?: GestureResponderEvent) =>
     void sheet({
+      anchor: pt(e),
       title: script.title,
       actions: [
-        { label: t('reading.editAction'), onPress: () => setEditingTitle(true) },
+        { label: t('reading.editAction'), icon: 'edit-2', onPress: () => setEditingTitle(true) },
         { label: t('reading.changeVoices'), onPress: () => router.push('/reading/roles') },
-        { label: t('reading.deleteAction'), destructive: true, onPress: () => void removeScript() },
+        { label: t('reading.deleteAction'), icon: 'trash-2', destructive: true, onPress: () => void removeScript() },
       ],
     });
 
@@ -125,17 +138,17 @@ export default function ReadingDetail() {
           <Text style={styles.meta}>{t('reading.dialogueTotal', { count: script.dialogueCount })}</Text>
           <Pressable style={styles.viewScript} hitSlop={6} onPress={() => router.push('/reading/full')}>
             <Text style={styles.viewScriptText}>{t('reading.viewScript')}</Text>
-            <Feather name="chevron-right" size={16} color={palette.blue} />
+            <Feather name="chevron-right" size={14} color={palette.blueDeep} />
           </Pressable>
         </View>
 
         <Text style={styles.sectionTitle}>{t('reading.sessionsTitle')}</Text>
 
         {sessions === null ? (
-          <ActivityIndicator color={palette.textFaint} style={styles.loading} />
+          <SkeletonRows count={3} />
         ) : sessions.length === 0 ? (
           <View style={styles.empty}>
-            <Feather name="mic" size={26} color={palette.textFaint} />
+            <Feather name="mic" size={24} color={palette.textFaint} />
             <Text style={styles.emptyTitle}>{t('reading.noSessions')}</Text>
             <Text style={styles.emptyHint}>{t('reading.noSessionsHint')}</Text>
           </View>
@@ -205,7 +218,7 @@ function SessionRow({ card, onOpen, onDelete }: { card: SessionCard; onOpen: () 
         <View style={[styles.chip, { backgroundColor: tone.bg }]}>
           <Text style={[styles.chipText, { color: tone.color }]}>{chip.label}</Text>
         </View>
-        <Feather name="chevron-right" size={18} color={palette.textFaint} />
+        <Feather name="chevron-right" size={16} color={palette.textFaint} />
       </Pressable>
     </ReanimatedSwipeable>
   );
@@ -215,17 +228,18 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
-  content: { paddingHorizontal: 20, paddingTop: 8 },
-  head: { gap: 6, paddingBottom: 20, borderBottomColor: palette.border, borderBottomWidth: 1 },
+  content: { paddingHorizontal: 20, paddingTop: 4 },
+  head: { gap: 5, paddingBottom: 20 },
   title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 24 },
   meta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
-  viewScript: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', marginTop: 6 },
-  viewScriptText: { color: palette.blue, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, marginTop: 20, marginBottom: 6 },
+  viewScript: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', paddingTop: 6 },
+  viewScriptText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13.5 },
+  // pen 「SecHead」 — 위 칸과 옅은 선으로 나눈다.
+  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, paddingTop: 18, paddingBottom: 4, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
   loading: { paddingVertical: 40 },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 44 },
-  emptyTitle: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  emptyHint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center' },
+  emptyTitle: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14.5 },
+  emptyHint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12.5, textAlign: 'center' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -235,13 +249,13 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.border,
     borderBottomWidth: 1,
   },
-  rowLeft: { width: 62, gap: 3 },
+  rowLeft: { width: 62, gap: 2 },
   rowOrdinal: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  rowBody: { flex: 1, gap: 3 },
-  rowRange: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
+  rowBody: { flex: 1, gap: 2 },
+  rowRange: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
   rowSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
-  chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  chipText: { fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  chip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  chipText: { fontFamily: 'Pretendard-SemiBold', fontSize: 11.5 },
   swipeDelete: { width: 84, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: palette.danger },
   swipeDeleteText: { color: palette.onAccent, fontFamily: 'Pretendard-Bold', fontSize: 13 },
   footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1, backgroundColor: palette.bg },

@@ -171,6 +171,8 @@ final class PurposeLoop {
                     case ANSWER, SELF_LINE, CHOICE, INSIGHT -> true;
                     default -> false;
                 };
+        // 대화 이어하기(SOMA-782): 다시 연 뒤에는 그때부터 센다 — 상한이 이어 가는 말마다 곧바로 정리를 만들지 않게 한다.
+        if (resumedAt(loop) >= 0) replies = Math.max(0, replies - resumedAt(loop));
         // 상한을 채우는 응답은 무엇을 말했든 정리다.
         if (replies >= REPLY_CAP - 1) {
             return new Turn(purpose, "wrap", "wrap", true, false, label, chip, answerLike ? current : null);
@@ -215,6 +217,11 @@ final class PurposeLoop {
         // 분류가 놓쳐도 배우 말에 물음("왜요?", "무슨 뜻이에요?")이 있으면 먼저 답하게 한다.
         boolean asks = classified != null && classified.alsoAsked() || asksSomething(actorText);
         return asks && !answering ? turn.asking() : turn;
+    }
+
+    /** 대화를 다시 연 시점의 코치 응답 수. 다시 연 적이 없으면 -1. */
+    static int resumedAt(JsonNode loop) {
+        return loop == null ? -1 : loop.path(PracticeLoopRouter.RESUMED_AT).asInt(-1);
     }
 
     /** 배우 말에 코치에게 묻는 말이 있는가. */

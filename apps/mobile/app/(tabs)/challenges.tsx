@@ -1,10 +1,15 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChallengeIntro } from '@/components/challenge-intro';
+import { SkeletonRows } from '@/components/ui/skeleton';
+import { BandGradient } from '@/components/ui/band-gradient';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
@@ -20,11 +25,12 @@ import {
   participantsLabel,
   pinsFeatured,
 } from '@/lib/challenge/browse';
-import { hasFinishedFirstChallenge, hasSeenChallengeIntro, markChallengeIntroSeen } from '@/lib/challenge/intro-state';
+import { hasBrowsedChallenges, hasFinishedFirstChallenge, hasSeenChallengeIntro, markChallengeIntroSeen, markChallengesBrowsed } from '@/lib/challenge/intro-state';
 import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
+import { LoadingText } from '@/components/ui/loading-text';
 
 /**
  * A16 대사 목록(challenge.browse) — 챌린지는 대사 한 줄과 기간이다.
@@ -48,9 +54,6 @@ export default function ChallengesScreen() {
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
-  // 보관함에서 "챌린지에 올리기"로 오면 올릴 챌린지를 고르는 화면이 된다(A2.3 → A18.1).
-  const { pickVideoId } = useLocalSearchParams<{ pickVideoId?: string }>();
-  const picking = typeof pickVideoId === 'string' && pickVideoId.length > 0;
   const [tab, setTab] = useState<ChallengeTab>('popular');
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
@@ -64,7 +67,13 @@ export default function ChallengesScreen() {
   const [lastWeek, setLastWeek] = useState<ChallengeCard | null>(null);
   /** 파란 「누를 것 안내」는 첫 챌린지 참여를 끝낼 때까지만. */
   const [showGuide, setShowGuide] = useState(false);
+  /** 첫 챌린지 화면에서 「챌린지 둘러보기」를 고른 적이 있으면 기본 챌린지 홈을 보인다(SOMA-827). */
+  const [browsed, setBrowsed] = useState(false);
   const unread = useUnreadNotifications();
+  /** 첫 사용자용 고르기(C1.16·C1.18) — 고른 줄. 기본 선택은 없고 「다음」을 눌러야 넘어간다. */
+  const [firstPick, setFirstPick] = useState<'perform' | 'browse' | null>(null);
+  /** 이번 주 대사 카드에 틀어 줄 참여작 예시 영상(좋아요 많은 순 첫 공개 참여작). 없으면 카드만 둔다. */
+  const [exampleUrl, setExampleUrl] = useState<string | null>(null);
 
   const load = useCallback(async (next: ChallengeTab) => {
     shownTab.current = next;
@@ -72,10 +81,15 @@ export default function ChallengesScreen() {
     setError(null);
     try {
       const result = await api.listChallenges({ tab: next });
-      setChallenges(result.challenges);
+      // 진행 중인 공식(팀) 챌린지가 늘 맨 위다 — 같은 무리 안의 순서는 서버 순서를 지킨다.
+      const openTeam = (c: ChallengeCard) => c.origin === 'team' && Date.parse(c.ends_at) > Date.now();
+      const teamFirst = [...result.challenges].sort((a, b) => Number(openTeam(b)) - Number(openTeam(a)));
+      setChallenges(teamFirst);
       setCursor(result.next_cursor);
-      // 오늘의 챌린지는 인기·최신 탭에만 고정한다.
-      setFeatured(pinsFeatured(next) ? result.featured : null);
+      // 오늘의 챌린지는 인기·최신 탭에만 고정한다(pinsFeatured(next) ? result.featured : null 이 기본).
+      // 서버가 고른 게 회원 챌린지인데 진행 중인 공식 챌린지가 있으면 공식을 올린다.
+      const officialPick = result.featured && !openTeam(result.featured) ? (teamFirst.find(openTeam) ?? result.featured) : result.featured;
+      setFeatured(pinsFeatured(next) ? officialPick : null);
     } catch (e) {
       setChallenges([]);
       setFeatured(null);
@@ -104,20 +118,37 @@ export default function ChallengesScreen() {
   useFocusEffect(
     useCallback(() => {
       void load(tab);
-      void hasSeenChallengeIntro().then((seen) => setIntro(!seen));
+      // 예전 「챌린지 시작 안내」 3장은 새 디자인의 첫 사용자 화면(이번 주 대사 + 고르기, pen ⑰)이 대신한다 — 더 띄우지 않고 본 것으로 적는다.
+      void hasSeenChallengeIntro().then((seen) => {
+        if (!seen) void markChallengeIntroSeen();
+      });
     }, [load, tab]),
   );
 
   useFocusEffect(
     useCallback(() => {
       void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
-      if (picking) return;
+      void hasBrowsedChallenges().then(setBrowsed);
       void api
         .listChallenges({ tab: 'ended' })
         .then((result) => setLastWeek(lastWeekResult(result.challenges)))
         .catch(() => setLastWeek(null));
-    }, [picking]),
+    }, []),
   );
+
+  const featuredId = featured?.id ?? null;
+  useEffect(() => {
+    setExampleUrl(null);
+    if (!featuredId) return;
+    let alive = true;
+    void api
+      .listChallengeEntries(featuredId, { sort: 'likes' })
+      .then((list) => alive && setExampleUrl(list.entries.find((e) => e.playback_url)?.playback_url ?? null))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [featuredId]);
 
   const openDetail = (challenge: ChallengeCard) => {
     logEvent('challenge_open_detail', { id: challenge.id });
@@ -125,23 +156,17 @@ export default function ChallengesScreen() {
   };
   const perform = (challenge: ChallengeCard) => {
     if (!canPerform(challenge)) return;
-    if (picking) {
-      // 고른 영상을 그 챌린지 올리기 화면으로 보낸다.
-      logEvent('challenge_pick_for_video', { id: challenge.id });
-      router.replace({
-        pathname: '/challenge-upload',
-        params: { challengeId: challenge.id, videoId: pickVideoId as string },
-      });
-      return;
-    }
     logEvent('challenge_perform_tap', { id: challenge.id });
     router.push({
       pathname: '/record-video',
       params: { mode: 'challenge', challengeId: challenge.id, line: challenge.line, work: challenge.work },
     });
   };
-  /** 고르는 중에는 카드를 누르면 바로 그 대사에 올린다. 아니면 대사 상세로 간다. */
-  const tapCard = (challenge: ChallengeCard) => (picking && canPerform(challenge) ? perform(challenge) : openDetail(challenge));
+  /** 카드를 누르면 대사 상세로 간다. */
+  const tapCard = (challenge: ChallengeCard) => openDetail(challenge);
+
+  /** 첫 챌린지 참여를 끝내기 전에는 이번 주 대사 하나만 보여 주고 둘 중 하나를 고르게 한다. */
+  const selectMode = showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
 
   const emptyText =
     tab === 'ended' ? t('challenges.emptyEnded') : tab === 'mine' ? t('challenges.emptyMine') : t('challenges.emptyRunning');
@@ -153,7 +178,8 @@ export default function ChallengesScreen() {
         {firstTime && (
           <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenges_back_home" onPress={() => router.navigate('/')} />
         )}
-        <Text style={[styles.title, styles.titleGrow]}>{picking ? t('challengeUpload.pickChallenge') : t('challenges.title')}</Text>
+        <Text style={[styles.title, styles.titleGrow]}>{t('challenges.title')}</Text>
+        {!selectMode && (
         <View style={styles.headerRight}>
           <Pressable
             style={styles.iconBtn}
@@ -185,10 +211,39 @@ export default function ChallengesScreen() {
             <Feather name="plus" size={22} color={palette.text} />
           </Pressable>
         </View>
+        )}
       </View>
 
+      {selectMode && featured ? (
+        <>
+          <ScrollView contentContainerStyle={styles.body}>
+            <ExampleHero challenge={featured} videoUrl={exampleUrl} onOpen={() => openDetail(featured)} />
+            <View style={styles.sameHead}>
+              <Text style={styles.sameTitle}>{t('challenges.sameLineTitle')}</Text>
+              <Text style={styles.sameMeta}>{t('challenges.firstSub')}</Text>
+            </View>
+            <PickRow label={t('challenges.performCta')} selected={firstPick === 'perform'} onPress={() => setFirstPick('perform')} />
+            <PickRow label={t('challenges.firstBrowse')} selected={firstPick === 'browse'} onPress={() => setFirstPick('browse')} />
+          </ScrollView>
+          <CtaBar safeBottom={false} style={{ paddingBottom: tabBarSpace > 0 ? tabBarSpace : 10 }}>
+            <PrimaryButton
+              label={t('challenges.firstNext')}
+              disabled={!firstPick}
+              onPress={() => {
+                void logEvent('challenge_first_pick', { pick: firstPick ?? '' });
+                if (firstPick === 'perform') perform(featured);
+                else {
+                  // 둘러보기 — 이 자리에서 기본 챌린지 홈으로 바꾸고, 다음에 와도 그대로 둔다.
+                  setBrowsed(true);
+                  void markChallengesBrowsed();
+                }
+              }}
+            />
+          </CtaBar>
+        </>
+      ) : (
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + 20 }]}>
-        {lastWeek && !picking && (
+        {lastWeek && (
           <Pressable
             style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
             onPress={() => {
@@ -209,11 +264,11 @@ export default function ChallengesScreen() {
         )}
 
         {featured && (
-          <TodayHero
+          <WeekHero
             challenge={featured}
-            guide={showGuide && !picking}
+            showGuide={firstTime}
             onOpen={() => tapCard(featured)}
-            onPerform={() => perform(featured)}
+            onPerform={canPerform(featured) ? () => perform(featured) : undefined}
           />
         )}
 
@@ -221,7 +276,7 @@ export default function ChallengesScreen() {
           {TABS.map(({ key, label }) => (
             <Pressable
               key={key}
-              style={styles.tab}
+              style={[styles.tab, tab === key && styles.tabOn]}
               onPress={() => {
                 setTab(key);
                 setChallenges(null);
@@ -235,7 +290,7 @@ export default function ChallengesScreen() {
         </View>
 
         {error && <Text style={styles.error}>{error}</Text>}
-        {challenges === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 40 }} />}
+        {challenges === null && !error && <SkeletonRows count={4} avatar={false} style={{ paddingHorizontal: 0 }} />}
 
         {challenges?.map((challenge) => (
           <Card
@@ -248,7 +303,7 @@ export default function ChallengesScreen() {
 
         {cursor && (
           <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
-            {loadingMore ? <ActivityIndicator color={palette.blue} /> : <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>}
+            {loadingMore ? <LoadingText label={t('loadingText.loading')} color={palette.blue} /> : <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>}
           </Pressable>
         )}
 
@@ -265,69 +320,158 @@ export default function ChallengesScreen() {
           </Pressable>
         )}
       </ScrollView>
+      )}
 
       <ChallengeIntro
         visible={intro}
         onDone={(seeWeek) => {
           setIntro(false);
           void markChallengeIntroSeen();
-          if (seeWeek && featured && !picking) openDetail(featured);
+          if (seeWeek && featured) openDetail(featured);
         }}
-        canSeeWeek={Boolean(featured) && !picking}
+        canSeeWeek={Boolean(featured)}
       />
     </SafeAreaView>
   );
 }
 
+/** 이번 주 대사 카드 바탕(pen grFk4 Hero) — 위는 밝은 파랑, 아래로 갈수록 짙은 남색. */
+const HERO_STOPS = [
+  [0, '#2366DE'],
+  [0.35, '#1553C4'],
+  [0.7, '#033596'],
+  [1, '#00267A'],
+] as const;
+
+/** pen 기본 아바타 바탕색(P/DefaultAvatar) — 참여자 순서대로 돌려 쓴다. 글자는 이름 첫 글자다. */
+const AVATAR_TINTS = ['#F3C4AE', '#B9CADB', '#C6BCE6'] as const;
+
+function Avatars({ participants, border }: { participants: ChallengeCard['participants']; border: string }) {
+  if (participants.length === 0) return null;
+  return (
+    <View style={styles.avatars}>
+      {participants.slice(0, 3).map((p, i) => (
+        <View key={`${p.name}-${i}`} style={[styles.avatar, { backgroundColor: AVATAR_TINTS[i % AVATAR_TINTS.length], borderColor: border }]}>
+          <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /**
- * 이번 주 대사 카드(SOMA-494·SOMA-748) — 탭을 열면 제일 먼저 크게 보인다. 카드를 누르면 대사 상세(이번 주 대사)로 간다.
- * 인기·최신 탭에서만 띄운다(종료·내 챌린지 탭에는 고정하지 않는다, 요구사항 04).
+ * 이번 주 대사 카드(pen C1.2 grFk4·C1.13·C1.14) — 파란 그라데이션 위에 「⚡ 공식 · 이번 주 대사 · D-N」 알약, 대사, 작품·인물,
+ * 참여자 아바타와 참여작·좋아요, 흰 「나도 이 대사 연기하기」. 카드를 누르면 대사 상세로 간다. 인기·최신 탭에서만 띄운다.
+ * 버튼 위 한 줄 안내는 첫 사용자(C1.16 gRFTy)에게만 보인다.
  */
-function TodayHero({
+function WeekHero({
   challenge,
-  guide,
+  showGuide,
   onOpen,
   onPerform,
 }: {
   challenge: ChallengeCard;
-  guide: boolean;
+  showGuide: boolean;
   onOpen: () => void;
-  onPerform: () => void;
+  onPerform?: () => void;
 }) {
   const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
   return (
-    <Pressable style={({ pressed }) => [styles.hero, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
-      <View style={styles.heroChip}>
-        <Feather name="zap" size={15} color={palette.onAccent} />
-        <Text style={styles.heroChipText}>
-          {challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · {dDayLabel(challenge)}
-        </Text>
-      </View>
-      <Text style={styles.heroLine} numberOfLines={4}>
-        “{challenge.line}”
-      </Text>
-      {!!meta && <Text style={styles.heroMeta}>{meta}</Text>}
-      <View style={styles.statRow}>
-        <View style={styles.avatars}>
-          {challenge.participants.slice(0, 3).map((p, i) => (
-            <View key={`${p.name}-${i}`} style={[styles.avatar, styles.heroAvatar]}>
-              <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
-            </View>
-          ))}
+    <View style={styles.weekHero}>
+      <BandGradient stops={HERO_STOPS} />
+      <Pressable style={styles.weekHeroTop} onPress={onOpen} accessibilityRole="button">
+        <View style={styles.weekChip}>
+          <Feather name="zap" size={15} color={palette.onAccent} />
+          <Text style={styles.heroChipText}>
+            {`${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
+          </Text>
         </View>
-        <Text style={styles.heroStat} numberOfLines={1}>
-          {t('challenges.entryCount', { count: challenge.entry_count })} ·{' '}
-          {t('challenges.likeSum', { count: challenge.like_sum })}
+        <Text style={styles.weekLine} numberOfLines={4}>
+          “{challenge.line}”
         </Text>
-      </View>
-      {/* 바로 아래 「나도 이 대사 연기하기」가 있으면 그 버튼을 가리킨다 — 카드를 누르라는 말과 따로 놀지 않게(10/22 피드백). */}
-      {guide && <Text style={styles.guide}>{t(canPerform(challenge) ? 'challenges.heroGuidePerform' : 'challenges.heroGuide')}</Text>}
-      {canPerform(challenge) && (
-        <Pressable style={styles.heroPerform} onPress={onPerform} accessibilityRole="button">
-          <Feather name="video" size={15} color={palette.onAccent} />
-          <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
+        {!!meta && (
+          <Text style={styles.heroMeta} numberOfLines={1}>
+            {meta}
+          </Text>
+        )}
+        <View style={styles.statRow}>
+          <Avatars participants={challenge.participants} border={palette.text} />
+          <Text style={styles.heroStat} numberOfLines={1}>
+            {t('challenges.entryCount', { count: challenge.entry_count })} · {t('challenges.likeSum', { count: challenge.like_sum })}
+          </Text>
+        </View>
+      </Pressable>
+      {onPerform && showGuide && <Text style={styles.heroGuide}>{t('challenges.heroGuidePerform')}</Text>}
+      {onPerform && (
+        <Pressable
+          style={styles.heroPerform}
+          onPress={onPerform}
+          accessibilityRole="button"
+          accessibilityLabel={t('challenges.performCta')}>
+          <View style={styles.heroPerformSpacer} />
+          <View style={styles.heroPerformLabel}>
+            <Feather name="video" size={18} color="#13205A" />
+            <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
+          </View>
+          <View style={styles.heroGo}>
+            <Feather name="chevron-right" size={18} color={palette.blue} />
+          </View>
         </Pressable>
       )}
+    </View>
+  );
+}
+
+/**
+ * 첫 사용자 고르기 화면의 이번 주 대사 카드(pen C1.16 옆 g06vYS) — 참여작 예시 영상을 깔고 「참여작 예시」 알약과 대사를 얹는다.
+ * 영상이 없으면 짙은 파랑 카드에 대사만 둔다. 카드를 누르면 대사 상세로 간다.
+ */
+function ExampleHero({ challenge, videoUrl, onOpen }: { challenge: ChallengeCard; videoUrl: string | null; onOpen: () => void }) {
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+  /** 첫 장면이 그려지기 전의 VideoView 는 검은 상자다 — 그려질 때까지 숨겨 카드 바탕(파랑)만 보이게 한다. */
+  const [frameReady, setFrameReady] = useState(false);
+  useEffect(() => setFrameReady(false), [videoUrl]);
+  return (
+    <View style={styles.hero}>
+      {!!videoUrl && (
+        <VideoView
+          style={[StyleSheet.absoluteFill, { opacity: frameReady ? 1 : 0 }]}
+          player={player}
+          contentFit="cover"
+          nativeControls={false}
+          onFirstFrameRender={() => setFrameReady(true)}
+        />
+      )}
+      <View style={styles.heroScrim} pointerEvents="none" />
+      <Pressable style={styles.heroTop} onPress={onOpen} accessibilityRole="button">
+        <View style={styles.heroChip}>
+          <Text style={styles.heroChipText}>
+            {videoUrl ? t('challenges.exampleChip') : `${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
+          </Text>
+        </View>
+        <Text style={styles.heroLine} numberOfLines={4}>
+          “{challenge.line}”
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** 첫 사용자 고르기 줄(C1.16) — 고르면 연파랑 바탕·파란 테두리·오른쪽 체크. */
+function PickRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={[styles.pick, selected && styles.pickOn]}
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}>
+      <Text style={[styles.pickText, selected && styles.pickTextOn]}>{label}</Text>
+      {selected && <Feather name="check" size={20} color={palette.blue} />}
     </Pressable>
   );
 }
@@ -346,36 +490,39 @@ function Card({
   return (
     <View style={styles.row}>
       <Pressable style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
-        <View style={styles.rowIcon}>
-          <Feather name="message-square" size={20} color={palette.blue} />
-        </View>
         <View style={styles.rowBody}>
           <Text style={styles.line} numberOfLines={3}>
             “{challenge.line}”
           </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {host} · {t('challenges.entryCount', { count: challenge.entry_count })} · {dDayLabel(challenge)}
-          </Text>
-          <View style={styles.statRow}>
-            <View style={styles.avatars}>
-              {challenge.participants.slice(0, 3).map((p, i) => (
-                <View key={`${p.name}-${i}`} style={styles.avatar}>
-                  <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
-                </View>
-              ))}
-            </View>
-            <Text style={styles.stat} numberOfLines={1}>
-              {participantsLabel(challenge.participants, challenge.more_count)} ·{' '}
-              {t('challenges.likeSum', { count: challenge.like_sum })}
+          <View style={styles.metaRow}>
+            <Feather name={challenge.origin === 'team' ? 'check-circle' : 'square'} size={13} color={palette.blue} />
+            <Text style={styles.meta} numberOfLines={1}>
+              {host} · {t('challenges.entryCount', { count: challenge.entry_count })} · {dDayLabel(challenge)}
             </Text>
           </View>
+          <View style={styles.statRow}>
+            <Feather name="message-circle" size={18} color={palette.blue} />
+            <Avatars participants={challenge.participants} border={palette.onAccent} />
+            <Text style={styles.names} numberOfLines={1}>
+              {participantsLabel(challenge.participants, challenge.more_count)}
+            </Text>
+            <View style={styles.likes}>
+              <Feather name="heart" size={12} color="#F0506E" />
+              <Text style={styles.names}>{t('challenges.likeSum', { count: challenge.like_sum })}</Text>
+            </View>
+          </View>
         </View>
-        <Feather name="chevron-right" size={20} color={palette.textFaint} />
       </Pressable>
       {canPerform(challenge) && (
-        <Pressable style={styles.performBtn} onPress={onPerform} accessibilityRole="button">
-          <Feather name="video" size={14} color={palette.blue} />
-          <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+        <Pressable style={styles.performBtn} onPress={onPerform} accessibilityRole="button" accessibilityLabel={t('challenges.performCta')}>
+          <View style={styles.heroPerformSpacer} />
+          <View style={styles.heroPerformLabel}>
+            <Feather name="video" size={18} color={palette.blue} />
+            <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+          </View>
+          <View style={styles.performGo}>
+            <Feather name="chevron-right" size={18} color={palette.blue} />
+          </View>
         </Pressable>
       )}
     </View>
@@ -420,8 +567,9 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
   bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMuted, lineHeight: 18, marginTop: 6 },
-  hero: { backgroundColor: palette.navy, borderRadius: 20, padding: 18, gap: 10 },
-  heroChip: {
+  weekHero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, gap: 10, overflow: 'hidden' },
+  weekHeroTop: { gap: 10 },
+  weekChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -431,62 +579,66 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  heroChipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent, lineHeight: 20 },
-  heroLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
-  heroMeta: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)', lineHeight: 20 },
-  heroStat: { flex: 1, fontSize: 12.5, fontWeight: '700', color: 'rgba(255, 255, 255, 0.67)' },
-  heroAvatar: { borderColor: palette.navy },
-  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21 },
-  heroPerform: {
+  weekLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
+  names: { fontSize: 11, fontWeight: '500', color: palette.textMuted, lineHeight: 16, flexShrink: 1 },
+  likes: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  hero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, minHeight: 300, gap: 10, justifyContent: 'flex-end', overflow: 'hidden' },
+  heroTop: { flex: 1, gap: 10, justifyContent: 'flex-end' },
+  heroGuide: { fontSize: 14, fontWeight: '700', color: 'rgba(255, 255, 255, 0.65)' },
+  heroMeta: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)' },
+  heroStat: { fontSize: 12.5, fontWeight: '700', color: 'rgba(255, 255, 255, 0.67)' },
+  heroPerform: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 6, backgroundColor: palette.onAccent },
+  heroPerformSpacer: { width: 36, height: 36 },
+  heroPerformLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  heroPerformText: { fontSize: 15, fontWeight: '700', color: '#13205A' },
+  heroGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.18)' },
+  sameHead: { gap: 4, marginTop: 6 },
+  sameTitle: { fontSize: 18, fontWeight: '800', color: palette.text, lineHeight: 24 },
+  sameMeta: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
+  pick: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, borderWidth: 1, borderColor: palette.border, paddingVertical: 17, paddingHorizontal: 18 },
+  pickOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
+  pickText: { fontSize: 16, fontWeight: '700', color: palette.text },
+  pickTextOn: { color: palette.blueDeep },
+  heroChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 6,
-    borderRadius: 14,
-    paddingVertical: 13,
-    marginTop: 2,
-    backgroundColor: palette.blue,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  heroPerformText: { fontSize: 14.5, fontWeight: '800', color: palette.onAccent },
-  tabRow: { flexDirection: 'row', gap: 16, paddingTop: 4 },
-  tab: { paddingVertical: 4 },
-  tabText: { fontSize: 15, fontWeight: '700', color: palette.textFaint, lineHeight: 23 },
-  tabTextOn: { fontWeight: '800', color: palette.text },
+  heroChipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent, lineHeight: 20 },
+  heroLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 26, marginTop: 'auto' },
+  tabRow: { flexDirection: 'row', gap: 4, paddingTop: 4 },
+  tab: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 18 },
+  tabOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 16 },
+  tabText: { fontSize: 15, fontWeight: '600', color: palette.textFaint, lineHeight: 23 },
+  tabTextOn: { fontWeight: '800', color: palette.blue },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
-  row: { borderRadius: 16, gap: 4 },
-  rowMain: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, paddingHorizontal: 4, borderRadius: 16 },
-  rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rowBody: { flex: 1, minWidth: 0, gap: 6 },
-  line: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 24 },
-  meta: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
+  row: { borderRadius: 18, gap: 12, padding: 16, backgroundColor: palette.onAccent, borderWidth: 1, borderColor: '#E8EDF5' },
+  rowMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowBody: { flex: 1, minWidth: 0, gap: 9 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  line: { fontSize: 17, fontWeight: '800', color: palette.text, lineHeight: 25 },
+  meta: { flex: 1, fontSize: 12, fontWeight: '500', color: palette.textFaint, lineHeight: 18 },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   avatars: { flexDirection: 'row' },
   avatar: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: -6,
     borderWidth: 1,
-    borderColor: palette.bg,
   },
-  avatarText: { fontSize: 10.5, fontWeight: '900', color: palette.blueDeep },
-  stat: { flex: 1, fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
-  performBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    marginLeft: 56,
-    marginBottom: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: palette.blueSoft,
-  },
-  performText: { fontSize: 13, fontWeight: '800', color: palette.blue },
+  avatarText: { fontSize: 10.5, fontWeight: '900', color: palette.text },
+  performBtn: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 6, backgroundColor: palette.blueSoft },
+  performGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.onAccent, alignItems: 'center', justifyContent: 'center' },
+  performText: { fontSize: 15, fontWeight: '700', color: palette.blue },
   empty: { paddingVertical: 48, alignItems: 'center' },
   emptyText: { fontSize: 14.5, color: palette.textDim, textAlign: 'center', lineHeight: 23 },
   registerBtn: {

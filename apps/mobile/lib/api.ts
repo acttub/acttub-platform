@@ -4,6 +4,7 @@ import type {
 import { normalizeAdmissions } from './admissions';
 import { normalizeAuditions, type AuditionPostingList } from './auditions';
 import type { CreateSampleScriptBody, ReviseSampleScriptBody, SampleScript } from './script-cocreate';
+import type { JournalAnswers, JournalUpdateBody, PracticeJournal } from './practice/journal';
 
 import Constants from 'expo-constants';
 // RN 기본 fetch 는 본문을 흘려 읽지 못한다. 코치 답 스트리밍에만 쓴다(네이티브 모듈 추가 없음, SDK 52+).
@@ -45,7 +46,6 @@ import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
 import type {
-  AiReport,
   BlockedUser,
   ChallengeDetail,
   ChallengeListResponse,
@@ -64,6 +64,8 @@ import type {
   MyEntriesResponse,
   MyEntryCard,
 } from '@/lib/challenge/types';
+import type { ReadingExampleListResponse, ReadingExampleStart } from '@/lib/reading/examples';
+import type { ExampleAudioResponse } from '@/lib/reading/example-audio';
 import type { ReadingRating, ReadingRatingBody } from '@/lib/reading/session-rating';
 import type {
   CoachConversation,
@@ -97,6 +99,7 @@ import type {
   PatchScriptBody,
   PatchScriptLineBody,
   SplitScriptLineBody,
+  InsertScriptLineBody,
   ProgressBody,
   ProgressResponse,
   ScriptDetail,
@@ -441,6 +444,14 @@ export const api = {
     return request('/v2/reading/voice-model', {}, { auth: true, timeoutMs: 10_000 });
   },
 
+  /**
+   * 예시 대본의 미리 만든 상대역 음성(임시 주소). 예시가 아니면 404 reading_example_audio_not_found — 부르는 쪽(example-audio)이
+   * 오류를 모두 「예시 아님」으로 본다.
+   */
+  getExampleAudio(scriptId: string): Promise<ExampleAudioResponse> {
+    return request(`/v2/reading/scripts/${encodeURIComponent(scriptId)}/example-audio`, {}, { auth: true, timeoutMs: 10_000 });
+  },
+
   getCloudVoiceStatus(): Promise<CloudVoiceStatus> {
     return request('/v2/reading/voice/status', {}, { auth: true, timeoutMs: 10_000 });
   },
@@ -623,6 +634,22 @@ export const api = {
     return request<ImportTicket>('/v2/reading/imports', jsonInit(body), { timeoutMs: 20_000 });
   },
 
+  /** 예시 대본 목록(서버가 미리 나눠 둔 것). 로그인·게스트 모두. 화면은 실패하면 내장 예시로 대신한다. */
+  listReadingExamples(): Promise<ReadingExampleListResponse> {
+    return request<ReadingExampleListResponse>('/v2/reading/examples', {}, { timeoutMs: 10_000 });
+  },
+
+  /**
+   * 예시를 내 대본으로 복사한다(나누기·동의·하루 한도 없음). 처음이면 201, 같은 예시를 이미 들고 있으면 그 대본(200).
+   * 대본 수 한도는 422 script_limit, 없는·꺼진 예시는 404 reading_example_not_found. 같은 request_id 재전송은 같은 대본.
+   */
+  startReadingExample(exampleId: string, body: { request_id: string }): Promise<ReadingExampleStart> {
+    return postIdempotent<ReadingExampleStart>(`/v2/reading/examples/${encodeURIComponent(exampleId)}/start`, body, {
+      requestId: body.request_id,
+      timeoutMs: 20_000,
+    });
+  },
+
   // 찍을 대사 같이 만들기(SOMA-721) ----------------------------------------------------
   /**
    * 감정·상황·방향으로 생성 대본을 만든다. 모델이 1분 대본에 수십 초를 쓰므로 오래 기다린다. 자동 재전송은 하지 않는다 —
@@ -707,6 +734,15 @@ export const api = {
   splitReadingScriptLine(scriptId: string, lineId: string, body: SplitScriptLineBody): Promise<ScriptDetail> {
     return request<ScriptDetail>(
       `/v2/reading/scripts/${encodeURIComponent(scriptId)}/lines/${encodeURIComponent(lineId)}/split`,
+      jsonInit(body, 'POST'),
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 고른 줄 바로 아래에 새 줄을 넣는다(SOMA-816). 기존 줄 id 는 그대로다. 고친 대본 전체가 온다. */
+  insertReadingScriptLineAfter(scriptId: string, lineId: string, body: InsertScriptLineBody): Promise<ScriptDetail> {
+    return request<ScriptDetail>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/lines/${encodeURIComponent(lineId)}/insert-after`,
       jsonInit(body, 'POST'),
       { timeoutMs: 20_000 },
     );
@@ -938,10 +974,12 @@ export const api = {
    * 마무리 — videos 행(보관함 저장)을 만든다. 같은 request_id 의 재전송은 같은 영상이고, 자리가 만료됐으면(30분)
    * 422 upload_expired 라 처음부터 다시 올린다. 실제 바이트가 메타와 다르면 실패한다.
    */
-  completeVideoIntent(intentId: string, requestId: string): Promise<Video> {
+  completeVideoIntent(intentId: string, requestId: string, opts: { faceMosaic?: boolean } = {}): Promise<Video> {
+    // 얼굴 가리기를 켰으면 서버가 첫 질문용 미리 올리기(원본을 AI에 먼저 올림)를 하지 않는다.
+    const body = opts.faceMosaic ? JSON.stringify({ face_mosaic: true }) : '{}';
     return request<Video>(
       `/v2/videos/intents/${encodeURIComponent(intentId)}/complete`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, body: '{}' },
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, body },
       { timeoutMs: 30_000 },
     );
   },
@@ -1169,6 +1207,19 @@ export const api = {
     });
   },
 
+  /**
+   * 정리까지 마친 대화를 같은 대화로 다시 연다(SOMA-782 「대화 이어하기」). 새 회차·새 대화가 아니라 새 코칭으로 세지 않는다.
+   * 이미 열려 있으면 그대로 돌려준다. 409: conversation_conflict(다시 읽기) · conversation_limit_reached(응답 상한 가까움) ·
+   * conversation_not_resumable(옛 갈래 등 이어 갈 수 없음).
+   */
+  continueConversation(conversationId: string, revision: number | null): Promise<CoachTurnResult> {
+    return request<CoachTurnResult>(
+      `/v2/coach/conversations/${encodeURIComponent(conversationId)}/continue`,
+      jsonInit({ revision }),
+      { timeoutMs: 20_000 },
+    );
+  },
+
   /** 충돌 뒤 다시 읽기·앱 재시작 때 쓰는 대화 조회. */
   getConversation(conversationId: string, options: ApiCallOptions = {}): Promise<CoachConversation> {
     return request<CoachConversation>(
@@ -1221,6 +1272,33 @@ export const api = {
       `/v2/reading/sessions/${encodeURIComponent(sessionId)}/rating`,
       jsonInit(body, 'PUT'),
       { timeoutMs: 15_000 },
+    );
+  },
+
+  // 배우 일지(practice.journal, SOMA-720) -------------------------------------------
+  /** 그 회차의 배우 일지. 없으면 404 journal_not_found. */
+  getPracticeJournal(practiceId: string): Promise<PracticeJournal> {
+    return request<PracticeJournal>(`/v2/practices/${encodeURIComponent(practiceId)}/journal`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 고정 질문 4개의 답으로 일지를 만든다. 서버가 코칭 대화로 자동 칸을 만들므로 오래 걸릴 수 있다(모델 두 번까지).
+   * 회차에 일지가 이미 있으면 다시 만들지 않고 그 일지를 준다(200) — 같은 답의 재전송이 안전하다.
+   */
+  createPracticeJournal(practiceId: string, answers: JournalAnswers): Promise<PracticeJournal> {
+    return request<PracticeJournal>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/journal`,
+      jsonInit({ answers }, 'POST'),
+      { timeoutMs: 90_000 },
+    );
+  },
+
+  /** 고친 일지 저장 — 배우 답 전체와 자동 칸 전체를 보낸다. */
+  updatePracticeJournal(practiceId: string, body: JournalUpdateBody): Promise<PracticeJournal> {
+    return request<PracticeJournal>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/journal`,
+      jsonInit(body, 'PUT'),
+      { timeoutMs: 20_000 },
     );
   },
 
@@ -1411,28 +1489,6 @@ export const api = {
 
   listBlocks(): Promise<{ users: BlockedUser[] }> {
     return request<{ users: BlockedUser[] }>('/v2/me/blocks', {}, { timeoutMs: 20_000 });
-  },
-
-  // AI 리포트(challenge.ai-report) -----------------------------------------------
-  /**
-   * 리포트 만들기를 부탁한다. 이미 결과가 있으면 그것을 돌려주고, 같은 요청 id 의 재전송은
-   * 기존 작업이다. 하루 3회를 넘기면 429 daily_report_request_limit, 파일이 파기된 참여작은
-   * 422 video_not_ready 다.
-   */
-  requestAiReport(entryId: string, requestId: string): Promise<{ status: string }> {
-    return postIdempotent<{ status: string }>(
-      `/v2/entries/${encodeURIComponent(entryId)}/ai-report`,
-      { request_id: requestId },
-      { requestId, timeoutMs: 30_000 },
-    );
-  },
-
-  /** 본인만 본다(남의 리포트는 404). 비공개 참여작의 리포트도 본인은 본다. */
-  getAiReport(entryId: string, options: ApiCallOptions = {}): Promise<AiReport> {
-    return request<AiReport>(`/v2/entries/${encodeURIComponent(entryId)}/ai-report`, {}, {
-      timeoutMs: 20_000,
-      signal: options.signal,
-    });
   },
 
   // 알림함(challenge.notification) -------------------------------------------------

@@ -29,6 +29,7 @@ export function ConsentRow({
   children,
   divided,
   compact,
+  tag,
 }: {
   label: string;
   checked: boolean;
@@ -39,6 +40,8 @@ export function ConsentRow({
   /** 줄 아래 선을 긋는 옛 모양(pen S/ConsentRow) — 재동의 팝업. */
   divided?: boolean;
   compact?: boolean;
+  /** 가입 동의 화면 모양(pen S4.1) — 동그라미 체크 · 필수/선택 표 · 글 16/600. 접근성 이름은 「[필수] 제목」이다. */
+  tag?: { text: string; required: boolean };
 }) {
   return (
     <View style={divided && styles.dividedWrap}>
@@ -47,9 +50,19 @@ export function ConsentRow({
         onPress={onToggle}
         disabled={locked}
         accessibilityRole="checkbox"
+        accessibilityLabel={tag ? `${tag.text} ${label}` : undefined}
         accessibilityState={{ checked, disabled: locked }}>
-        <Feather name="check" size={18} color={checked ? palette.blue : palette.checkOff} />
-        <Text style={[styles.label, divided && styles.dividedLabel]} numberOfLines={2}>
+        {tag ? (
+          <Feather name="check-circle" size={24} color={checked ? palette.blue : palette.checkOff} />
+        ) : (
+          <Feather name="check" size={18} color={checked ? palette.blue : palette.checkOff} />
+        )}
+        {tag && (
+          <View style={[styles.tag, tag.required ? styles.tagRequired : styles.tagOptional]}>
+            <Text style={[styles.tagText, tag.required ? styles.tagTextRequired : styles.tagTextOptional]}>{tag.text}</Text>
+          </View>
+        )}
+        <Text style={[styles.label, divided && styles.dividedLabel, tag && styles.tagLabel]} numberOfLines={2}>
           {label}
         </Text>
         {arrow && (
@@ -81,5 +94,12 @@ const styles = StyleSheet.create({
   },
   compact: { minHeight: 20 },
   locked: { opacity: 0.6 },
+  tag: { borderRadius: 6, paddingHorizontal: 7, height: 22, alignItems: 'center', justifyContent: 'center' },
+  tagRequired: { backgroundColor: palette.blueSoft },
+  tagOptional: { backgroundColor: palette.bgSoft },
+  tagText: { fontSize: 12, fontWeight: '700' },
+  tagTextRequired: { color: palette.blueDeep },
+  tagTextOptional: { color: palette.textMuted },
+  tagLabel: { fontSize: 16, fontWeight: '600' },
   label: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.textStrong },
 });

@@ -62,6 +62,7 @@ class EntryCards {
                     number(row, "like_count"), number(row, "comment_count"), number(row, "view_count"), rank,
                     finalLikes(row), row.get("published_at", Instant.class),
                     playback(row, viewer.equals(row.get("user_id", UUID.class))),
+                    original(row, viewer.equals(row.get("user_id", UUID.class))),
                     row.get("liked", Boolean.class), row.get("saved", Boolean.class),
                     viewer.equals(row.get("user_id", UUID.class)), id.equals(newest));
         }).toList();
@@ -74,6 +75,7 @@ class EntryCards {
         return new MyEntry(id, row.get("challenge_id", UUID.class), author(row), row.get("caption", String.class),
                 ((Number) row.get("content_version")).intValue(), number(row, "like_count"), number(row, "comment_count"),
                 number(row, "view_count"), finalRank(row), finalLikes(row), row.get("published_at", Instant.class), playback(row, true),
+                original(row, true),
                 row.get("liked", Boolean.class), row.get("saved", Boolean.class), true,
                 row.get("visibility", String.class), row.get("status", String.class), row.get("category", String.class),
                 !"visible".equals(row.get("moderation", String.class)),
@@ -98,15 +100,30 @@ class EntryCards {
     }
 
     /**
-     * 본인은 원본을 본다. 얼굴 모자이크를 켠 참여작은 다른 사람에게 준비된 모자이크본만 주고, 준비 전·실패면 주소가 없다
-     * (그런 참여작은 공개 조건에서도 빠지지만 여기서 한 번 더 막는다 — 원본 주소가 남에게 새지 않는다).
+     * 얼굴 모자이크본이 준비된 참여작은 본인을 포함해 누구에게나 모자이크본을 준다(본인은 {@link #original} 로 원본도 볼 수 있다).
+     * 모자이크를 끈 참여작은 원본이다. 준비 전·실패면 본인은 원본을 보고 다른 사람에게는 주소가 없다(그런 참여작은 공개
+     * 조건에서도 빠지지만 여기서 한 번 더 막는다 — 원본 주소가 남에게 새지 않는다).
      */
     private String playback(Tuple row, boolean mine) {
         String key = row.get("object_key", String.class);
         if (key == null || row.get("purged_at", Instant.class) != null) return null;
-        if (mine || !Boolean.TRUE.equals(row.get("face_mosaic", Boolean.class))) return media.playbackUrl(key);
+        if (!Boolean.TRUE.equals(row.get("face_mosaic", Boolean.class))) return media.playbackUrl(key);
+        String mosaic = readyMosaic(row);
+        if (mosaic != null) return media.playbackUrl(mosaic);
+        return mine ? media.playbackUrl(key) : null;
+    }
+
+    /** 본인 참여작이고 재생 주소가 모자이크본일 때만 원본 주소. 다른 사람에게는 늘 null 이다. */
+    private String original(Tuple row, boolean mine) {
+        String key = row.get("object_key", String.class);
+        if (!mine || key == null || row.get("purged_at", Instant.class) != null) return null;
+        if (!Boolean.TRUE.equals(row.get("face_mosaic", Boolean.class)) || readyMosaic(row) == null) return null;
+        return media.playbackUrl(key);
+    }
+
+    private static String readyMosaic(Tuple row) {
         String mosaic = row.get("mosaic_key", String.class);
-        return "ready".equals(row.get("mosaic_status", String.class)) && mosaic != null ? media.playbackUrl(mosaic) : null;
+        return "ready".equals(row.get("mosaic_status", String.class)) && mosaic != null ? mosaic : null;
     }
 
     static long number(Tuple row, String column) { return ((Number) row.get(column)).longValue(); }

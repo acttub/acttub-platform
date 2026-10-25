@@ -37,8 +37,8 @@ class SubscriptionServiceTest {
     final UUID user = UUID.randomUUID();
 
     SubscriptionService service(boolean enabled, boolean limits) {
-        return new SubscriptionService(new BillingSettings(enabled, limits, "https://dev.acttub.com",
-                "actingapp://billing-result", CLIENT, SECRET), repository, gateway, cipher, clock);
+        return new SubscriptionService(new BillingSettings(enabled, false, limits, "https://dev.acttub.com",
+                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock);
     }
 
     final SubscriptionService service = service(true, false);
@@ -66,12 +66,92 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    @DisplayName("라이브 키로는 열리지 않는다")
-    void liveKeysStayClosed() {
-        BillingSettings live = new BillingSettings(true, false, "https://acttub.com", "actingapp://billing-result",
-                "live_ck_abcdefgh12345678", "live_sk_abcdefgh12345678");
-        assertThat(live.usable()).isFalse();
-        assertThat(live.toString()).doesNotContain("live_sk");
+    @DisplayName("라이브 키도 받는다 — 단 두 키의 종류가 같아야 하고 비밀 값은 문자열에 싣지 않는다")
+    void liveKeysOpenOnlyWhenPaired() {
+        BillingSettings live = new BillingSettings(true, false, false, "https://acttub.com",
+                "https://acttub.com/pricing/result", "live_ck_abcdefgh12345678", "live_sk_abcdefgh12345678");
+        assertThat(live.webUsable()).isTrue();
+        assertThat(live.toString()).doesNotContain("live_sk", "live_ck");
+        BillingSettings mixed = new BillingSettings(true, false, false, "https://acttub.com",
+                "https://acttub.com/pricing/result", "test_ck_abcdefgh12345678", "live_sk_abcdefgh12345678");
+        assertThat(mixed.invalidReason()).isEqualTo("key_mode_mismatch");
+        BillingSettings nonWebReturn = new BillingSettings(true, false, false, "https://acttub.com",
+                "actingapp://billing-result", "live_ck_abcdefgh12345678", "live_sk_abcdefgh12345678");
+        assertThat(nonWebReturn.invalidReason()).isEqualTo("return_url_invalid");
+    }
+
+    @Test
+    @DisplayName("웹 결제 플래그가 꺼져 있으면 카드 등록 창·콜백·재시도·자동결제가 모두 막혀 토스 호출이 한 번도 나가지 않는다")
+    void webFlagOffBlocksEveryCharge() {
+        SubscriptionService off = new SubscriptionService(new BillingSettings(false, true, true, "https://dev.acttub.com",
+                "https://acttub.com/pricing/result", CLIENT, SECRET), repository, gateway, cipher, clock);
+        assertThat(off.available()).isTrue();
+        assertThatThrownBy(() -> off.startCheckout(user, false, "subscribe")).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.getMessage()).contains("billing_unavailable"));
+        assertThat(off.page("x".repeat(43))).isEmpty();
+        assertThat(off.complete("x".repeat(43), "c", "a")).isEqualTo(Result.INVALID);
+        assertThat(new RenewalWorker(off, repository, clock).runOnce()).isFalse();
+        assertThat(gateway.approvedOrders).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Pro 판정은 구독 출처와 상관없다 — 스토어 구독이 기간 안이면 Pro, 지나면 아니다")
+    void proAcrossProviders() {
+        UUID apple = UUID.randomUUID();
+        UUID google = UUID.randomUUID();
+        UUID lapsed = UUID.randomUUID();
+        repository.storeSubscription(apple, "apple", Status.ACTIVE, clock.instant().plusSeconds(86400));
+        repository.storeSubscription(google, "google", Status.CANCELED, clock.instant().plusSeconds(86400));
+        repository.storeSubscription(lapsed, "google", Status.CANCELED, clock.instant().minusSeconds(60));
+        assertThat(service.pro(apple)).isTrue();
+        assertThat(service.pro(google)).isTrue();
+        assertThat(service.pro(lapsed)).isFalse();
+        assertThat(service.view(apple).provider()).isEqualTo("apple");
+    }
+
+    @Test
+    @DisplayName("Pro 기간 부여(grant) — 기간 안이면 카드 없이 Pro, 기간 밖이면 아니다")
+    void proGrant() {
+        UUID granted = UUID.randomUUID();
+        UUID future = UUID.randomUUID();
+        UUID expired = UUID.randomUUID();
+        repository.grant(granted, clock.instant().minusSeconds(60), clock.instant().plusSeconds(86400));
+        repository.grant(future, clock.instant().plusSeconds(60), clock.instant().plusSeconds(86400));
+        repository.grant(expired, clock.instant().minusSeconds(86400), clock.instant().minusSeconds(60));
+        assertThat(service.pro(granted)).isTrue();
+        assertThat(service.pro(future)).isFalse();
+        assertThat(service.pro(expired)).isFalse();
+        SubscriptionService.View view = service.view(granted);
+        assertThat(view.status()).isEqualTo("none");
+        assertThat(view.pro()).isTrue();
+        assertThat(view.grantEndsAt()).isEqualTo(clock.instant().plusSeconds(86400));
+    }
+
+    @Test
+    @DisplayName("스케줄러는 toss 구독만 결제한다 — 기간이 지난 apple·google 행은 건드리지 않는다")
+    void schedulerProcessesOnlyToss() {
+        UUID apple = UUID.randomUUID();
+        UUID google = UUID.randomUUID();
+        UUID appleSub = repository.storeSubscription(apple, "apple", Status.ACTIVE, clock.instant().minusSeconds(3600));
+        UUID googleSub = repository.storeSubscription(google, "google", Status.CANCELED, clock.instant().minusSeconds(3600));
+
+        assertThat(worker.runOnce()).isFalse();
+        worker.process(appleSub, clock.instant());
+        worker.process(googleSub, clock.instant());
+
+        assertThat(gateway.approvedOrders).isEmpty();
+        assertThat(repository.findById(appleSub).orElseThrow().status()).isEqualTo(Status.ACTIVE);
+        assertThat(repository.findById(googleSub).orElseThrow().status()).isEqualTo(Status.CANCELED);
+    }
+
+    @Test
+    @DisplayName("스토어 구독은 서버에서 해지·재결제·웹 새 구독을 하지 않는다")
+    void storeSubscriptionsAreManagedByTheStore() {
+        repository.storeSubscription(user, "apple", Status.ACTIVE, clock.instant().plusSeconds(86400));
+        assertThatThrownBy(() -> service.cancel(user)).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.getMessage()).contains("managed_by_store"));
+        assertThatThrownBy(() -> service.startCheckout(user, false, "subscribe")).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.getMessage()).contains("already_subscribed"));
     }
 
     @Test

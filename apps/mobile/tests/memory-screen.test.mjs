@@ -17,10 +17,11 @@ const readSource = (relativePath) => readFileSync(path.join(appRoot, relativePat
  * 소스 수준에서 못박는다.
  */
 
-test('설정에서 기억 화면으로 들어가는 길이 있다', () => {
-  const source = readSource('app/settings.tsx');
-
-  assert.match(source, /router\.push\('\/memory'\)/);
+// 2026-10-25 결정: 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다.
+// 화면 파일은 남겨 두고 설정·프로필에서 들어가는 길만 뺐다. 다시 열 때는 아래 검사를 되돌린다.
+test('설정·프로필에서 기억 화면으로 들어가는 길이 없다(10/25 숨김)', () => {
+  assert.doesNotMatch(readSource('app/settings.tsx'), /\/memory'/);
+  assert.doesNotMatch(readSource('app/(tabs)/profile.tsx'), /\/memory'/);
 });
 
 test('practice.memory: 연습에서 나온 네 칸만 보여주고 성별·나이는 없다', () => {
@@ -42,7 +43,7 @@ test('practice.memory: 성별·나이 자리에는 프로필 안내와 링크가
   assert.match(readSource('locales/ko.ts'), /성별·나이는 프로필에서 적어요/);
 });
 
-test('practice.memory: 내가 적은 값은 그렇게 표시하고 코치가 덮지 않는다', () => {
+test('practice.memory: 내가 적은 값은 그렇게 표시하고 액티가 덮지 않는다', () => {
   const source = readSource('app/memory.tsx');
 
   assert.match(source, /item\.written_by_actor \? styles\.tagMine/);
@@ -52,14 +53,14 @@ test('practice.memory: 내가 적은 값은 그렇게 표시하고 코치가 덮
   assert.match(readSource('locales/ko.ts'), /코치가 적음/);
 });
 
-test('practice.memory: 코치가 적은 칸은 근거가 된 회차로 갈 수 있다(숨겨졌으면 링크 없음)', () => {
+test('practice.memory: 액티가 적은 칸은 근거가 된 회차로 갈 수 있다(숨겨졌으면 링크 없음)', () => {
   const source = readSource('app/memory.tsx');
 
   assert.match(source, /source_practice_id/);
   assert.match(source, /practiceId/); // 노트 화면이 받는 이름
 });
 
-test('고치는 내용이 코치에게 우선한다고 화면에 적혀 있다', () => {
+test('고치는 내용이 액티에게 우선한다고 화면에 적혀 있다', () => {
   const source = readSource('app/memory.tsx');
 
   assert.match(source, /memory\.introBold/);

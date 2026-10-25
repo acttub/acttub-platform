@@ -22,6 +22,12 @@ public interface BillingRepository {
 
     int scriptCount(UUID userId);
 
+    /**
+     * 카드 없이 서버가 준 Pro 기간(billing_pro_grants) 중 지금 유효한 것의 가장 늦은 끝. 없으면 비어 있다. 부여는 SQL·관리
+     * 경로로만 하고 이 저장소는 읽기만 한다.
+     */
+    Optional<Instant> grantEnd(UUID userId, Instant now);
+
     // ── 카드 등록 창 ────────────────────────────────────────────────
 
     void openCheckout(Checkout checkout);
@@ -98,7 +104,11 @@ public interface BillingRepository {
             Instant periodEnd,
             Instant canceledAt,
             int retryCount,
-            Instant nextRetryAt) {
+            Instant nextRetryAt,
+            String provider) {
+        public boolean toss() {
+            return BillingRules.PROVIDER_TOSS.equals(provider);
+        }
     }
 
     record Checkout(

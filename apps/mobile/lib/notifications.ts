@@ -268,7 +268,51 @@ export function forgetPushToken(): Promise<void> {
 async function clearLegacyReminders(): Promise<void> {
   if (!notifications) return;
   await AsyncStorage.removeItem(LEGACY_NUDGE_IDS_KEY).catch(() => undefined);
+  // 「나중에 알려 주기」(upload_later) 예약은 옛 리마인드가 아니므로 지운 뒤 다시 걸어 둔다.
+  const kept = ((await notifications.getAllScheduledNotificationsAsync?.().catch(() => [])) ?? []).filter(
+    (item) => (item.content?.data as { kind?: string } | undefined)?.kind === UPLOAD_LATER_KIND,
+  );
   await notifications.cancelAllScheduledNotificationsAsync().catch(() => undefined);
+  for (const item of kept) {
+    await notifications
+      .scheduleNotificationAsync({ content: item.content as never, trigger: item.trigger as never })
+      .catch(() => undefined);
+  }
+}
+
+const UPLOAD_LATER_KIND = 'upload_later';
+
+/**
+ * 「지금은 못 찍어요」(P3.25) — 내일 저녁 8시에 로컬 알림 하나를 예약한다. 이미 예약한 것은 지우고 다시 건다.
+ * 권한이 없으면 한 번 묻고, 거절하면 'denied'. 모듈이 없는 빌드는 'unavailable'.
+ */
+export async function scheduleUploadLaterReminder(
+  title: string,
+  body: string,
+  now: Date = new Date(),
+): Promise<'scheduled' | 'denied' | 'unavailable'> {
+  if (!notifications) return 'unavailable';
+  try {
+    let status = (await notifications.getPermissionsAsync()).status;
+    if (status !== 'granted') status = (await notifications.requestPermissionsAsync()).status;
+    if (status !== 'granted') return 'denied';
+    const existing = (await notifications.getAllScheduledNotificationsAsync?.()) ?? [];
+    for (const item of existing) {
+      if ((item.content?.data as { kind?: string } | undefined)?.kind === UPLOAD_LATER_KIND) {
+        await notifications.cancelScheduledNotificationAsync(item.identifier).catch(() => undefined);
+      }
+    }
+    const date = new Date(now);
+    date.setDate(date.getDate() + 1);
+    date.setHours(20, 0, 0, 0);
+    await notifications.scheduleNotificationAsync({
+      content: { title, body, data: { kind: UPLOAD_LATER_KIND } },
+      trigger: { type: notifications.SchedulableTriggerInputTypes.DATE, date },
+    });
+    return 'scheduled';
+  } catch {
+    return 'unavailable';
+  }
 }
 
 /**

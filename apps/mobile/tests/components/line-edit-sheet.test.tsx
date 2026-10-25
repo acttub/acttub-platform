@@ -264,3 +264,37 @@ function backdrop() {
 function modalTarget() {
   return screen.container.queryAll((node) => typeof node.props.onRequestClose === 'function')[0];
 }
+
+test('묶인 대사(choices 둘 이상)면 맨 위 「고칠 줄」 칩으로 줄을 골라 그 줄을 고친다(SOMA-821)', async () => {
+  const onClose = jest.fn();
+  const choices = [
+    { lineId: 'line-7', text: '어디 가?' },
+    { lineId: 'line-8', text: '집에 가.' },
+  ];
+  await render(
+    <LineEditSheet scriptId="s1" lineId="line-7" original={DIALOGUE} characters={CHARACTERS} choices={choices} onClose={onClose} />,
+  );
+  expect(screen.getByText('고칠 줄')).toBeOnTheScreen();
+  expect(textInput()).toHaveDisplayValue('어디 가?');
+
+  await fireEvent.press(screen.getByText('2. 집에 가.'));
+  expect(textInput()).toHaveDisplayValue('집에 가.');
+  await fireEvent.changeText(textInput(), '집에 갈래.');
+  await fireEvent.press(screen.getByText('저장'));
+
+  await act(async () => undefined);
+  expect(editLine).toHaveBeenCalledWith('s1', 'line-8', { text: '집에 갈래.' });
+  expect(onClose).toHaveBeenCalledWith(true);
+});
+
+test('줄이 하나뿐이면 「고칠 줄」 칩을 보이지 않는다', async () => {
+  await open();
+  expect(screen.queryByText('고칠 줄')).not.toBeOnTheScreen();
+});
+
+test('위 머리줄 닫기 X로 저장 없이 닫는다', async () => {
+  const { onClose } = await open();
+  await fireEvent.press(screen.getByLabelText('닫기'));
+  expect(onClose).toHaveBeenCalledWith(false);
+  expect(editLine).not.toHaveBeenCalled();
+});

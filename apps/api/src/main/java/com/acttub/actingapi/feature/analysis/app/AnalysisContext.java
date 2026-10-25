@@ -16,5 +16,15 @@ public record AnalysisContext(
         String blockageKind,
         String blockageDetail,
         String experienceVersion,
-        UUID userId) {
+        UUID userId,
+        // 얼굴 가리기를 켠 회차(practice.start). 분석·코치는 원본 대신 얼굴을 가린 사본을 본다.
+        boolean faceMosaic) {
+
+    /** 얼굴 가리기가 없던 때의 모양. 옛 원장과 옛 시험이 쓴다. */
+    public AnalysisContext(UUID operationId, UUID sessionId, String objectKey, String mimeType, String etag,
+            Integer durationMs, String situation, String characterContext, String goal, String blockageKind,
+            String blockageDetail, String experienceVersion, UUID userId) {
+        this(operationId, sessionId, objectKey, mimeType, etag, durationMs, situation, characterContext, goal,
+                blockageKind, blockageDetail, experienceVersion, userId, false);
+    }
 }

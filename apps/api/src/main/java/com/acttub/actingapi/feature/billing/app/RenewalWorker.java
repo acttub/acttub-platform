@@ -43,7 +43,8 @@ public class RenewalWorker {
 
     /** 일 하나를 했으면 true. 결제 기능이 닫혀 있으면 아무것도 하지 않는다. */
     public boolean runOnce() {
-        if (!service.available()) {
+        if (!service.webOpen()) {
+            // 토스 자동결제는 웹 결제가 열려 있을 때만 돈다. 닫혀 있으면 결제 요청이 나가지 않는다.
             return false;
         }
         Instant now = clock.instant();
@@ -70,6 +71,10 @@ public class RenewalWorker {
             return;
         }
         Subscription sub = found.get();
+        if (!sub.toss()) {
+            // 스토어 구독은 스토어 알림이 갱신한다 — 스케줄러가 건드리지 않는다.
+            return;
+        }
         switch (sub.status()) {
             case CANCELED -> {
                 if (sub.periodEnd() == null || !now.isBefore(sub.periodEnd())) {

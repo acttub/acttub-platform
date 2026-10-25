@@ -83,13 +83,13 @@ test('대본 넣기: 사진 탭과 「다른 거 하고 있을게요」(알림)�
   assert.match(screen, /isSplitFailure\(/);
 });
 
-test('리딩 완료: 녹음 코치·발음 보고서는 별도 카드(서버 스위치를 켠 배포만)로만 붙고, 완료 뒤 마무리 화면을 거쳐 상세로 간다', () => {
+test('리딩 완료: 녹음 액티·발음 보고서는 별도 카드(서버 스위치를 켠 배포만)로만 붙고, 완료 화면의 「홈으로 가기」는 홈 탭으로 간다(pen R9.42)', () => {
   const play = src('app/reading/play.tsx');
   // 발음 보고서 PRO 줄은 완료 화면에 직접 그리지 않는다 — 서버가 허용할 때만 ReadingAfterCard 가 그린다(10/22).
   assert.doesNotMatch(play, /PRO|proReport/);
-  assert.match(play, /<ReadingAfterCard sessionId=\{session\.id\} ready=\{pendingUploads === 0\} \/>/);
-  assert.match(play, /wrapUpProgress\(/);
-  assert.match(play, /t\('reading\.wrapBadge'\)/);
+  assert.match(play, /<ReadingAfterCard sessionId=\{session\.id\} ready=\{pendingUploads === 0\} part="coach" \/>/);
+  assert.match(play, /part="report"/);
+  assert.match(play, /router\.replace\('\/\(tabs\)'\)/);
 });
 
 test('첫 리딩 안내는 기기에 한 번 본 것으로 남고, 못 읽으면 본 것으로 친다', async () => {
@@ -107,7 +107,8 @@ test('리딩 실행: 시작 전 안내는 팝업 대신 아래 [시작]이고, �
   assert.match(play, /t\(monologue \? 'reading\.monologueStartHint' : 'reading\.startHint'\)/);
   assert.match(play, /onPress=\{\(\) => void closeTip\(false\)\}/);
   assert.doesNotMatch(play, /visible=\{hold === 'tip'\}/);
-  assert.match(play, /coachMarkFor\(\{ done: coachDone, status: run\.status/);
+  assert.match(play, /<ReadingGuideOverlay onClose=\{closeGuide\} \/>/);
+  assert.match(play, /myTurnsBefore >= 1/);
 });
 
 test('리딩 → 코칭: 대본 제목·장면을 상황 칸에, 내 배역을 인물 칸에 채우고 원하는 것은 비운다(SOMA-772)', async () => {

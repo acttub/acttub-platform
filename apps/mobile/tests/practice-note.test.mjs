@@ -74,7 +74,7 @@ test('practice.note: 「이번에 해 본 것」은 관찰 인용만 있으면 �
   assert.equal(noteSections(note({ summary_quotes: onlyObservation, report: own }))[0].text, '「우리 그만하자」 뒤에 2초 멈춰 봤어요.');
 });
 
-test('practice.note: 다음 테이크 문장 — 노트 제목(코치 관찰)이 아니라 「다음에 해 볼 것」, 없으면 null', () => {
+test('practice.note: 다음 테이크 문장 — 노트 제목(액티 관찰)이 아니라 「다음에 해 볼 것」, 없으면 null', () => {
   assert.equal(noteNextTake(note()), '대답하기 전에 2초를 더 듣고, 그 뒤에 시선을 든다');
   assert.equal(noteNextTake(note({ next_take: '  ' })), null);
   assert.equal(noteNextTake(note({ report: { report_type: 'practice_note', summary: null, practice: { instruction: ' 한 박자 쉬기 ' } } })), '한 박자 쉬기');

@@ -116,10 +116,23 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
         }
         if (model == null || !cache.enabled() || context == null || file == null) return;
         if (context.sessionId() == null || context.objectKey() == null) return;
+        if (context.faceMosaic()) {
+            // 얼굴 가리기: 분석 작업이 넘긴 파일은 얼굴을 가린 사본이다. 올리기 끝에서 원본으로 시작한 준비는 버리고(올린 원본은
+            // 지운다) 사본으로 다시 준비한다. 키를 따로 써서 첫 질문이 원본 준비를 가져가지 않는다.
+            cache.discardSource(context.objectKey(), context.etag());
+            var masked = new CoachVideoCache.Key(context.sessionId(),
+                    CoachVideoCache.faceMosaicSource(context.objectKey()), context.etag());
+            warmCopy(masked, file, "video/mp4");
+            return;
+        }
         var key = new CoachVideoCache.Key(context.sessionId(), context.objectKey(), context.etag());
         // 올리기가 끝났을 때 이미 같은 원본을 준비하고 있다 — 첫 질문이 그것을 가져간다.
         if (cache.warmingSource(key)) return;
         String mimeType = context.mimeType() == null || context.mimeType().isBlank() ? "video/mp4" : context.mimeType();
+        warmCopy(key, file, mimeType);
+    }
+
+    private void warmCopy(CoachVideoCache.Key key, Path file, String mimeType) {
         String label = cache.label(key);
         // 분석 작업은 이 호출이 끝나면 원본 임시 파일을 지운다 — 뒤에서 쓸 사본을 지금 만든다.
         Path made = null;

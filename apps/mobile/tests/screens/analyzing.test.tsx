@@ -15,7 +15,7 @@ jest.mock('expo-router', () => {
   };
 });
 
-test('받은 회차 id·복구 키를 그대로 들고 코치 화면으로 넘긴다', async () => {
+test('받은 회차 id·복구 키를 그대로 들고 액티 화면으로 넘긴다', async () => {
   mockParams = { practiceId: 'p1', recoveryKey: 'k1' };
   await render(<AnalyzingScreen />);
   expect(screen.getByText(JSON.stringify({ pathname: '/coach', params: { practiceId: 'p1', recoveryKey: 'k1' } }))).toBeOnTheScreen();

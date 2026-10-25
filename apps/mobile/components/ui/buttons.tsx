@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
@@ -10,6 +11,8 @@ type ButtonProps = {
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
+  /** loading 동안 글자 자리에 보여 줄 문구. 없으면 「잠시만요…」. */
+  loadingLabel?: string;
   /** 글자 앞 아이콘. */
   icon?: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -28,6 +31,7 @@ export function Button({
   onPress,
   disabled,
   loading,
+  loadingLabel,
   icon,
   style,
   accessibilityLabel,
@@ -52,7 +56,10 @@ export function Button({
         style,
       ]}>
       {loading ? (
-        <ActivityIndicator color={filled ? palette.onAccent : palette.textDim} />
+        // 로딩 표시 대신 문구를 보여 준다(SOMA-828).
+        <Text style={[styles.label, filled ? styles.filledLabel : styles.secondaryLabel]}>
+          {loadingLabel ?? t('loadingText.wait')}
+        </Text>
       ) : (
         <>
           {icon}

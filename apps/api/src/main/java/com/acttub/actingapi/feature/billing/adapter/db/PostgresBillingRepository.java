@@ -17,12 +17,12 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 앱 Pro 정기결제의 장부(V60, SOMA-818). 표 셋을 native SQL 로만 읽고 쓴다(엔티티 없음). */
+/** 앱 Pro 정기결제의 장부(V63, SOMA-818). 표 넷을 native SQL 로만 읽고 쓴다(엔티티 없음). */
 @Repository
 class PostgresBillingRepository implements BillingRepository {
     private static final String SUBSCRIPTION_COLUMNS = """
             id, user_id, status, customer_key, billing_key, card_company, card_number, amount,
-            current_period_start, current_period_end, canceled_at, retry_count, next_retry_at
+            current_period_start, current_period_end, canceled_at, retry_count, next_retry_at, provider
             """;
     private static final String PAYMENT_COLUMNS = """
             id, subscription_id, user_id, order_id, kind, amount, status, period_start, period_end, attempt
@@ -57,6 +57,28 @@ class PostgresBillingRepository implements BillingRepository {
                 .setParameter("userId", userId)
                 .setParameter("since", at(since))
                 .getSingleResult()).intValue());
+    }
+
+    @Override
+    public Optional<Instant> grantEnd(UUID userId, Instant now) {
+        return transaction.execute(tx -> {
+            Object end = entityManager.createNativeQuery(
+                    "SELECT max(ends_at) FROM billing_pro_grants WHERE user_id=:userId "
+                            + "AND starts_at<=CAST(:now AS timestamptz) AND ends_at>CAST(:now AS timestamptz)")
+                    .setParameter("userId", userId)
+                    .setParameter("now", at(now))
+                    .getSingleResult();
+            if (end == null) {
+                return Optional.<Instant>empty();
+            }
+            if (end instanceof OffsetDateTime offset) {
+                return Optional.of(offset.toInstant());
+            }
+            if (end instanceof Instant direct) {
+                return Optional.of(direct);
+            }
+            return Optional.of(((java.sql.Timestamp) end).toInstant());
+        });
     }
 
     @Override
@@ -121,11 +143,12 @@ class PostgresBillingRepository implements BillingRepository {
     public UUID saveCard(UUID userId, String customerKey, String sealedBillingKey, String cardCompany,
             String cardNumber, Instant now) {
         return transaction.execute(tx -> NativeTuples.list(entityManager.createNativeQuery("""
-                INSERT INTO billing_subscriptions(id,user_id,status,customer_key,billing_key,card_company,card_number,amount,
+                INSERT INTO billing_subscriptions(id,user_id,status,provider,customer_key,billing_key,card_company,card_number,amount,
                                                   created_at,updated_at)
-                VALUES (:id,:userId,'expired',:customerKey,:billingKey,:company,:number,:amount,
+                VALUES (:id,:userId,'expired','toss',:customerKey,:billingKey,:company,:number,:amount,
                         CAST(:now AS timestamptz),CAST(:now AS timestamptz))
-                ON CONFLICT (user_id) DO UPDATE SET billing_key=EXCLUDED.billing_key, card_company=EXCLUDED.card_company,
+                ON CONFLICT (user_id) DO UPDATE SET provider='toss', store_product_id=NULL, store_original_transaction_id=NULL,
+                    store_purchase_token=NULL, billing_key=EXCLUDED.billing_key, card_company=EXCLUDED.card_company,
                     card_number=EXCLUDED.card_number, customer_key=EXCLUDED.customer_key, updated_at=EXCLUDED.updated_at
                 RETURNING id
                 """, Tuple.class)
@@ -211,8 +234,9 @@ class PostgresBillingRepository implements BillingRepository {
                 UPDATE billing_subscriptions SET lease_until=CAST(:until AS timestamptz)
                 WHERE id = (
                     SELECT s.id FROM billing_subscriptions s
-                    WHERE ((s.status IN ('active','canceled') AND s.current_period_end <= CAST(:now AS timestamptz))
-                           OR (s.status='past_due' AND s.next_retry_at <= CAST(:now AS timestamptz)))
+                    WHERE s.provider='toss'
+                      AND ((s.status IN ('active','canceled') AND s.current_period_end <= CAST(:now AS timestamptz))
+                           OR (s.status='past_due' AND s.next_retry_at <= CAST(:now AS timestamptz))))
                       AND (s.lease_until IS NULL OR s.lease_until < CAST(:now AS timestamptz))
                       -- 결과를 모르는 결제가 있으면 그 결제를 먼저 확인한다(같은 키로 다시 묻는 쪽이 맡는다).
                       AND NOT EXISTS (SELECT 1 FROM billing_payments p
@@ -363,7 +387,8 @@ class PostgresBillingRepository implements BillingRepository {
                 instant(row, "current_period_end"),
                 instant(row, "canceled_at"),
                 ((Number) row.get("retry_count")).intValue(),
-                instant(row, "next_retry_at"));
+                instant(row, "next_retry_at"),
+                row.get("provider", String.class));
     }
 
     private static Checkout checkout(Tuple row) {

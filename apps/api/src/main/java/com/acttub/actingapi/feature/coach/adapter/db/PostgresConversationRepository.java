@@ -353,6 +353,89 @@ class PostgresConversationRepository implements ConversationRepository {
         });
     }
 
+    @Override
+    public NoteView replaceNote(UUID conversationId, NewNote note, Instant now) {
+        return transaction.execute(tx -> {
+            if (!lockActiveOwner(conversationId)) return null;
+            entityManager.createNativeQuery("""
+                    INSERT INTO coach_notes(id,conversation_id,format,kind,title,summary_quotes,next_take,
+                                            actor_words,corrections,tags,fallback,source_revision,legacy_report,created_at)
+                    VALUES (CAST(:id AS uuid),CAST(:conversationId AS uuid),CAST(:format AS text),
+                            CAST(:kind AS text),CAST(:title AS text),CAST(:quotes AS jsonb),
+                            CAST(:nextTake AS text),CAST(:actorWords AS jsonb),CAST(:corrections AS jsonb),
+                            CAST(:tags AS jsonb),CAST(:fallback AS boolean),CAST(:sourceRevision AS integer),
+                            CAST(:legacyReport AS jsonb),:now)
+                    ON CONFLICT (conversation_id) DO UPDATE SET
+                        format=EXCLUDED.format,kind=EXCLUDED.kind,title=EXCLUDED.title,
+                        summary_quotes=EXCLUDED.summary_quotes,next_take=EXCLUDED.next_take,
+                        actor_words=EXCLUDED.actor_words,corrections=EXCLUDED.corrections,tags=EXCLUDED.tags,
+                        fallback=EXCLUDED.fallback,source_revision=EXCLUDED.source_revision,
+                        legacy_report=EXCLUDED.legacy_report
+                    """)
+                    .setParameter("id", UUID.randomUUID())
+                    .setParameter("conversationId", conversationId)
+                    .setParameter("format", note.format())
+                    .setParameter("kind", note.kind())
+                    .setParameter("title", note.title())
+                    .setParameter("quotes", text(note.summaryQuotes()))
+                    .setParameter("nextTake", note.nextTake())
+                    .setParameter("actorWords", text(note.actorWords()))
+                    .setParameter("corrections", text(note.corrections()))
+                    .setParameter("tags", text(note.tags()))
+                    .setParameter("fallback", note.fallback())
+                    .setParameter("sourceRevision", note.sourceRevision())
+                    // jsonb 파라미터에 SQL NULL 을 바인딩하면 드라이버가 타입을 추론하지 못한다 — JSON null 로 넘긴다.
+                    .setParameter("legacyReport", note.legacyReport() == null ? "null" : text(note.legacyReport()))
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .executeUpdate();
+            return noteOf("n.conversation_id=:id", conversationId);
+        });
+    }
+
+    @Override
+    public Saved reopen(UUID conversationId, long expectedRevision, JsonNode state, Instant now) {
+        return transaction.execute(tx -> {
+            if (!lockActiveOwner(conversationId)) return null;
+            List<Tuple> locked = NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT c.state_revision,c.status
+                    FROM coach_conversations c
+                    WHERE c.id=:conversationId
+                    FOR UPDATE OF c
+                    """, Tuple.class)
+                    .setParameter("conversationId", conversationId));
+            if (locked.isEmpty()) return null;
+            Tuple row = locked.getFirst();
+            if (((Number) row.get("state_revision")).longValue() != expectedRevision
+                    || !"closed".equals(row.get("status", String.class))) {
+                return null;
+            }
+            entityManager.createNativeQuery("""
+                    UPDATE coach_conversations
+                    SET state=CAST(:state AS jsonb),state_revision=state_revision+1,
+                        status='open',close_reason=NULL,closed_at=NULL,updated_at=:now
+                    WHERE id=:conversationId
+                    """)
+                    .setParameter("state", state == null ? "{}" : text(state))
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("conversationId", conversationId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("""
+                    UPDATE practices SET stage='conversing',close_reason=NULL,updated_at=:now
+                    WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
+                    """)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("conversationId", conversationId)
+                    .executeUpdate();
+            int coachReplies = ((Number) entityManager.createNativeQuery("""
+                    SELECT count(*) FROM coach_messages
+                    WHERE conversation_id=:conversationId AND role='ai'
+                    """)
+                    .setParameter("conversationId", conversationId)
+                    .getSingleResult()).intValue();
+            return new Saved(expectedRevision + 1, "open", null, coachReplies);
+        });
+    }
+
     /**
      * 탈퇴·이관과 같은 사용자 행을 먼저 잠근다. 모델 호출 뒤의 새 주인을 확인하고, 계정 잠금 뒤에도
      * 주인이 같은지 다시 보므로 이관 직전 읽은 게스트의 상태로 회원의 쓰기를 판단하지 않는다.
@@ -519,6 +602,8 @@ class PostgresConversationRepository implements ConversationRepository {
                 row.get("created_at", Instant.class),
                 turns,
                 com.acttub.actingapi.feature.coach.app.PurposeView.from(row.get("session_purpose", String.class),
+                        json(row.get("state", String.class))),
+                com.acttub.actingapi.feature.coach.app.AnswerExamples.from(row.get("session_purpose", String.class),
                         json(row.get("state", String.class))));
     }
 

@@ -32,6 +32,8 @@ describe('버튼', () => {
     expect(screen.getByRole('button', { name: '건너뛰기' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '지우기' })).toBeDisabled();
     expect(screen.queryByText('지우기')).not.toBeOnTheScreen();
+    // SOMA-828: 불러오는 중에는 로딩 표시 대신 문구를 보여 준다.
+    expect(screen.getByText('잠시만요…')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '기본 버튼' })).toBeEnabled();
     expect(screen.getByText('아이콘')).toBeOnTheScreen();
   });

@@ -60,8 +60,8 @@ test('practice.poster: 묶음 썸네일은 가장 최근 회차 중 사진이 �
   assert.equal(groupPoster(practiceGroupFromResponse(groupOf([practice(1, undefined)]))), null);
 });
 
-test('practice.list: 홈 최근 연습과 연습 기록 목록은 썸네일이 있으면 사진을, 없으면 원래 아이콘을 보인다', () => {
-  for (const file of ['app/(tabs)/index.tsx', 'app/(tabs)/history.tsx']) {
+test('practice.list: 연습 기록 목록은 썸네일이 있으면 사진을, 없으면 원래 아이콘을 보인다(홈 최근 연습 줄은 pen P1.1에서 뺐다)', () => {
+  for (const file of ['app/(tabs)/history.tsx']) {
     const src = read(file);
     assert.match(src, /groupPoster\(/, file);
     assert.match(src, /<Image\s+source=\{\{ uri: [a-zA-Z.]+\.uri, cacheKey: [a-zA-Z.]+\.cacheKey \}\}/, file);
@@ -78,7 +78,7 @@ test('practice.upload: 장면·연습 제목 칸 없음·업로드 중 버튼·�
   // 시작을 누른 뒤에는 영상 다시 선택·권리 체크가 잠긴다(적을 칸은 SOMA-778 에서 없앴다).
   assert.match(src, /const locked = starting;/);
   assert.doesNotMatch(src, /<TextInput/);
-  assert.match(src, /setSourceSheet\(true\)\} disabled=\{locked\}/);
+  assert.match(src, /setSourceSheet\(true\); \}\} disabled=\{locked\}/);
   assert.match(src, /accessibilityState=\{\{ checked: agreedRights, disabled: locked \}\}/);
   const ko = read('locales/ko.ts');
   assert.match(ko, /submitUploading: '업로드 중…'/);

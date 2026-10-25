@@ -10,6 +10,10 @@ import java.time.ZoneId;
  */
 public final class BillingRules {
     public static final long AMOUNT = 3900L;
+    /** 결제 출처. toss 는 웹 정기결제, apple·google 은 스토어 구독(2단계)이고 스토어 알림이 갱신한다. */
+    public static final String PROVIDER_TOSS = "toss";
+    public static final String PROVIDER_APPLE = "apple";
+    public static final String PROVIDER_GOOGLE = "google";
     public static final String ORDER_NAME = "ACTTUB Pro 월 구독";
     public static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     /** 무료 코칭은 한국 시간 하루에 회차 1개. */

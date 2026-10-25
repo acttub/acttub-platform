@@ -5,30 +5,26 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CoachingLimitSheet } from '@/components/pro-ui';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
-import { IconOptionRow as ChoiceRow } from '@/components/ui/option-card';
+import { ChoiceCard } from '@/components/choice-card';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
-import { DEFAULT_TALK_PURPOSE, TALK_PURPOSES, type TalkPurpose } from '@/lib/practice/session-purpose';
+import { TALK_PURPOSES, type TalkPurpose } from '@/lib/practice/session-purpose';
 import { startPractice } from '@/lib/practice/session-state';
 import { inProgressPracticeId, startFailure } from '@/lib/practice/start';
 import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 
-const PURPOSE_ICON: Record<TalkPurpose, 'unlock' | 'book-open' | 'message-circle'> = {
-  stuck: 'unlock',
-  character: 'book-open',
-  concern: 'message-circle',
-};
-
 /**
  * 세션 목적 · 영상 없이(pen 「목적 · 영상 없이」, SOMA-745).
  *
- * 코칭 탭의 「영상 없이 말로 코칭 받기」가 연다. 단계 표시가 없고, 목적 한 줄을 누르면 「다음」 없이 바로 영상 없이 시작해
- * 코치 대화로 간다(준비 화면 P3.1 의 목적 줄과 같은 모양). 막힌 곳 풀기가 기본 강조다. 서버는 분석 없이 대화 단계 회차를 만든다.
+ * 코칭 탭의 「영상 없이 말로 코칭 받기」가 연다. 단계 표시가 없고, 목적 한 줄을 고르고(기본 선택 없음) 아래 「다음」을 누르면 영상 없이 시작해
+ * 코치 대화로 간다(선택 규칙). 서버는 분석 없이 대화 단계 회차를 만든다.
  */
 export default function TalkScreen() {
   const router = useRouter();
+  const [picked, setPicked] = useState<TalkPurpose | null>(null);
   const [starting, setStarting] = useState<TalkPurpose | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 무료 코칭 하루 1회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.
@@ -85,33 +81,37 @@ export default function TalkScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('talk.title'), headerShadowVisible: false }} />
       <ScrollView contentContainerStyle={styles.body}>
-        <CoachBubble title={t('talk.bubble')} guide={null} />
+        <CoachBubble title={t('talk.bubble')} guide={t('talk.guide')} />
         <View style={styles.choices}>
           {TALK_PURPOSES.map((item) => (
-            <ChoiceRow
+            <ChoiceCard
               key={item}
-              icon={PURPOSE_ICON[item]}
               title={t(`talk.purpose.${item}`)}
               sub={t(`talk.purposeSub.${item}`)}
-              highlight={item === DEFAULT_TALK_PURPOSE}
-              selected={starting === item}
+              selected={picked === item}
               disabled={starting !== null}
-              mark="none"
               phLabel={`talk_purpose_${item}`}
-              onPress={() => void start(item)}
+              onPress={() => setPicked(item)}
             />
           ))}
         </View>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
+<<<<<<< HEAD
       <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
+=======
+      <View style={styles.footer}>
+        <PrimaryButton label={t('talk.next')} phLabel="talk_next" disabled={!picked || starting !== null} onPress={() => picked && void start(picked)} />
+      </View>
+>>>>>>> origin/dev
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingTop: 21, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
-  choices: { gap: 4 },
+  body: { flexGrow: 1, paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
+  choices: { gap: 8, marginTop: 14 },
+  footer: { paddingHorizontal: 24, paddingBottom: 12 },
   errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
 });

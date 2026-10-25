@@ -28,7 +28,8 @@ const SCRIPT = { id: 's1', title: '옥상, 밤' };
 const field = () => screen.getByPlaceholderText('제목 없는 대본');
 const saveButton = () => screen.getByText('저장');
 const modal = () => screen.container.queryAll((node) => typeof node.props.onRequestClose === 'function')[0];
-const backdrop = () => modal().children[0] as Parameters<typeof fireEvent.press>[0];
+// 배경은 KeyboardLift 안에 있어 Modal 첫 자식이 아니다.
+const backdrop = () => screen.getByTestId('title-edit-backdrop');
 const inside = { stopPropagation: jest.fn() };
 
 async function open(script: { id: string; title: string } | null = SCRIPT) {

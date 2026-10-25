@@ -57,11 +57,11 @@ export type ReviseSampleScriptBody = {
   length_minutes?: number | null;
 };
 
-/** 감정 칩(서버의 고정 목록과 같다) + 「잘 모르겠어요」. */
-export const EMOTIONS = ['설렘', '분노', '슬픔', '긴장', '서운함', '담담함'] as const;
+/** 감정 칩(서버의 고정 목록과 같다) + 「잘 모르겠어요」. 보이는 순서는 pen P14.1(서운함부터). */
+export const EMOTIONS = ['서운함', '설렘', '분노', '슬픔', '긴장', '담담함'] as const;
 export const ANY_EMOTION = '잘 모르겠어요';
-/** 상황 칩 — 고르거나 직접 쓴다. 「아무거나 좋아요」면 서버가 고른다. */
-export const SITUATIONS = ['오래된 친구와 다툼', '연인과 이별', '가족에게 서운함', '오디션 직전', '오랜만의 재회'] as const;
+/** 상황 칩(pen P14.2) — 고르거나 직접 쓴다. 「아무거나 좋아요」면 서버가 고른다. 서버는 자유 글로 받는다. */
+export const SITUATIONS = ['오랜만의 재회', '이별', '오디션 직전', '가족 다툼', '고백', '사과'] as const;
 export const ANY_SITUATION = '아무거나 좋아요';
 /** 코칭은 혼자 찍으므로 독백이 기본이다. 2인은 상대역 대사가 있는 장면. */
 export const CAST_OPTIONS = [1, 2] as const;
@@ -157,5 +157,51 @@ export function errorKey(code: string | undefined): string {
       return 'pro.scriptLimitTitle';
     default:
       return 'scriptCocreate.errorGenerate';
+  }
+}
+
+/** 무료로 고치거나 다시 만들 수 있는 횟수(대본 하나 기준). */
+export const FREE_REVISIONS = 3;
+
+/** 결과 화면의 수정 칩 — 누르면 이 지시로 고친다. */
+export const REVISION_CHIPS = ['shorter', 'stronger', 'moreMine'] as const;
+export type RevisionChip = (typeof REVISION_CHIPS)[number];
+
+/**
+ * 「다시 만들기 · 무료 3번 중 N번 남음」의 N. 서버가 revisions_left 를 주면 그 값, 안 주면 앱이 센 횟수로 3번에서 뺀다.
+ * 다시 만들면 서버 대본이 새로 생기므로, 앱이 센 다시 만들기 횟수가 더 많으면 그쪽을 따른다.
+ */
+export function freeLeft(serverLeft: number | null | undefined, usedHere: number): number {
+  const local = Math.max(0, FREE_REVISIONS - usedHere);
+  return typeof serverLeft === 'number' ? Math.max(0, Math.min(serverLeft, local)) : local;
+}
+
+/**
+ * 대본 생성은 1분을 넘기도 한다. 앱이 받는 길(웹 프록시 60초)이 먼저 끊겨 500이 와도 서버는 끝까지 만들어 저장하고,
+ * 같은 요청 id로 다시 물으면 만드는 중엔 409 sample_script_in_progress, 끝났으면 저장된 대본을 준다(10/23 실기기 확인).
+ * 그래서 이런 실패는 실패 화면을 띄우지 않고 기다렸다 다시 묻는다. 입력이 틀렸거나(4xx) 시간이 다 되면 그대로 던진다.
+ */
+export function shouldWaitForGeneration(error: unknown): boolean {
+  const e = error as { status?: unknown; code?: unknown } | null;
+  if (!e || typeof e !== 'object') return false;
+  if (e.code === 'sample_script_in_progress') return true;
+  if (e.code === 'network_error') return true;
+  return typeof e.status === 'number' && e.status >= 500;
+}
+
+export async function generateWithWait<T>(
+  call: () => Promise<T>,
+  options: { deadlineMs: number; intervalMs: number; now?: () => number; sleep?: (ms: number) => Promise<void> },
+): Promise<T> {
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const startedAt = now();
+  for (;;) {
+    try {
+      return await call();
+    } catch (error) {
+      if (!shouldWaitForGeneration(error) || now() - startedAt + options.intervalMs > options.deadlineMs) throw error;
+      await sleep(options.intervalMs);
+    }
   }
 }

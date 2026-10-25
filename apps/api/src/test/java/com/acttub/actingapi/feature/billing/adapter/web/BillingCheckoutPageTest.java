@@ -12,17 +12,17 @@ class BillingCheckoutPageTest {
     void pageOpensTossBillingAuthWithValuesAsJsonOnly() {
         String html = BillingCheckoutPageController.checkoutHtml(new CheckoutPage("test_ck_x", "acttub_</script><b>",
                 BillingRules.Purpose.SUBSCRIBE, "https://dev.acttub.com/v2/billing/web/checkout/s/success",
-                "https://dev.acttub.com/v2/billing/web/checkout/s/fail", "actingapp://billing-result"));
+                "https://dev.acttub.com/v2/billing/web/checkout/s/fail", "https://acttub.com/pricing/result"));
         assertThat(html).contains(BillingCheckoutPageController.TOSS_SDK_URL)
                 .contains("requestBillingAuth")
                 .contains("월 3,900원")
-                .contains("actingapp://billing-result?status=canceled")
+                .contains("https://acttub.com/pricing/result?status=canceled")
                 .doesNotContain("</script><b>");
     }
 
     @Test
     void returnUrlCarriesOnlyTheResult() {
-        assertThat(BillingCheckoutPageController.returnUrl("actingapp://billing-result", Result.DONE))
-                .isEqualTo("actingapp://billing-result?status=done");
+        assertThat(BillingCheckoutPageController.returnUrl("https://acttub.com/pricing/result", Result.DONE))
+                .isEqualTo("https://acttub.com/pricing/result?status=done");
     }
 }

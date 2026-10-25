@@ -19,6 +19,7 @@ class InMemoryBillingRepository implements BillingRepository {
     final Map<String, String> checkoutStatus = new LinkedHashMap<>();
     final Map<String, Payment> payments = new LinkedHashMap<>();
     final Map<UUID, Instant> leases = new LinkedHashMap<>();
+    final Map<UUID, java.util.List<Instant[]>> grants = new LinkedHashMap<>();
     int sessionsToday;
     int scripts;
 
@@ -35,6 +36,25 @@ class InMemoryBillingRepository implements BillingRepository {
     @Override
     public int coachingSessionsSince(UUID userId, Instant since) {
         return sessionsToday;
+    }
+
+    /** 테스트용 스토어(apple·google) 구독 한 줄. */
+    UUID storeSubscription(UUID userId, String provider, Status status, Instant periodEnd) {
+        UUID id = UUID.randomUUID();
+        subscriptions.put(id, new Subscription(id, userId, status, null, null, null, null, BillingRules.AMOUNT,
+                periodEnd == null ? null : periodEnd.minusSeconds(86400L * 30), periodEnd, null, 0, null, provider));
+        return id;
+    }
+
+    /** 테스트용 Pro 기간 부여. */
+    void grant(UUID userId, Instant from, Instant to) {
+        grants.computeIfAbsent(userId, k -> new java.util.ArrayList<>()).add(new Instant[] {from, to});
+    }
+
+    @Override
+    public Optional<Instant> grantEnd(UUID userId, Instant now) {
+        return grants.getOrDefault(userId, java.util.List.of()).stream()
+                .filter(g -> !g[0].isAfter(now) && g[1].isAfter(now)).map(g -> g[1]).max(Instant::compareTo);
     }
 
     @Override
@@ -77,12 +97,12 @@ class InMemoryBillingRepository implements BillingRepository {
         if (existing.isEmpty()) {
             UUID id = UUID.randomUUID();
             subscriptions.put(id, new Subscription(id, userId, Status.EXPIRED, customerKey, sealedBillingKey, cardCompany,
-                    cardNumber, BillingRules.AMOUNT, null, null, null, 0, null));
+                    cardNumber, BillingRules.AMOUNT, null, null, null, 0, null, "toss"));
             return id;
         }
         Subscription s = existing.get();
         put(new Subscription(s.id(), userId, s.status(), customerKey, sealedBillingKey, cardCompany, cardNumber,
-                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), s.nextRetryAt()));
+                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), s.nextRetryAt(), s.provider()));
         return s.id();
     }
 
@@ -90,7 +110,7 @@ class InMemoryBillingRepository implements BillingRepository {
     public void activate(UUID id, Instant periodStart, Instant periodEnd, Instant now) {
         Subscription s = subscriptions.get(id);
         put(new Subscription(id, s.userId(), Status.ACTIVE, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
-                s.cardNumber(), s.amount(), periodStart, periodEnd, null, 0, null));
+                s.cardNumber(), s.amount(), periodStart, periodEnd, null, 0, null, s.provider()));
     }
 
     @Override
@@ -101,7 +121,7 @@ class InMemoryBillingRepository implements BillingRepository {
         }
         Status next = s.status() == Status.CANCELED ? Status.CANCELED : Status.ACTIVE;
         put(new Subscription(id, s.userId(), next, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
-                s.cardNumber(), s.amount(), periodStart, periodEnd, s.canceledAt(), 0, null));
+                s.cardNumber(), s.amount(), periodStart, periodEnd, s.canceledAt(), 0, null, s.provider()));
     }
 
     @Override
@@ -111,14 +131,14 @@ class InMemoryBillingRepository implements BillingRepository {
             return;
         }
         put(new Subscription(id, s.userId(), Status.PAST_DUE, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
-                s.cardNumber(), s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), retryCount, nextRetryAt));
+                s.cardNumber(), s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), retryCount, nextRetryAt, s.provider()));
     }
 
     @Override
     public void expire(UUID id, Instant now) {
         Subscription s = subscriptions.get(id);
         put(new Subscription(id, s.userId(), Status.EXPIRED, s.customerKey(), null, s.cardCompany(), s.cardNumber(),
-                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), null));
+                s.amount(), s.periodStart(), s.periodEnd(), s.canceledAt(), s.retryCount(), null, s.provider()));
     }
 
     @Override
@@ -128,16 +148,16 @@ class InMemoryBillingRepository implements BillingRepository {
             return false;
         }
         put(new Subscription(id, s.userId(), Status.CANCELED, s.customerKey(), s.sealedBillingKey(), s.cardCompany(),
-                s.cardNumber(), s.amount(), s.periodStart(), s.periodEnd(), now, s.retryCount(), s.nextRetryAt()));
+                s.cardNumber(), s.amount(), s.periodStart(), s.periodEnd(), now, s.retryCount(), s.nextRetryAt(), s.provider()));
         return true;
     }
 
     @Override
     public Optional<UUID> claimDue(Instant now, Duration lease) {
         return subscriptions.values().stream()
-                .filter(s -> ((s.status() == Status.ACTIVE || s.status() == Status.CANCELED)
+                .filter(s -> s.toss() && (((s.status() == Status.ACTIVE || s.status() == Status.CANCELED)
                         && s.periodEnd() != null && !s.periodEnd().isAfter(now))
-                        || (s.status() == Status.PAST_DUE && s.nextRetryAt() != null && !s.nextRetryAt().isAfter(now)))
+                        || (s.status() == Status.PAST_DUE && s.nextRetryAt() != null && !s.nextRetryAt().isAfter(now))))
                 .filter(s -> leases.get(s.id()) == null || leases.get(s.id()).isBefore(now))
                 .filter(s -> payments.values().stream().noneMatch(p -> p.subscriptionId().equals(s.id())
                         && ("pending".equals(p.status()) || "unknown".equals(p.status()))))

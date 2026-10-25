@@ -36,7 +36,7 @@ test('practice.library: 묶음 제목은 마지막 노트 제목 → 상황 문�
   assert.equal(groupTitle(group({ situation: '.' })), fallback);
 });
 
-test('장면 제목은 노트 제목(코치 관찰)을 쓰지 않는다 — 제목 → 상황 문장 → 제목 없는 연습', () => {
+test('장면 제목은 노트 제목(액티 관찰)을 쓰지 않는다 — 제목 → 상황 문장 → 제목 없는 연습', () => {
   assert.equal(sceneTitle(group({ title: '카페 장면', note_title: '시선이 먼저 내려간다' })), '카페 장면');
   assert.equal(sceneTitle(group({ note_title: '시선이 먼저 내려간다', situation: '이별 직후 카페' })), '이별 직후 카페');
   assert.equal(sceneTitle(group({ note_title: '시선이 먼저 내려간다', situation: '.' })), groupTitle(group({})));
@@ -60,8 +60,8 @@ test('practice.library: 숨긴 묶음은 목록에서 빠지고 필터는 전체
   assert.deepEqual(filterGroups(groups, 'all', now).map((g) => g.root_id), ['a', 'b']);
   assert.deepEqual(filterGroups(groups, 'favorite', now).map((g) => g.root_id), ['a']);
   assert.deepEqual(filterGroups(groups, 'recent30', now).map((g) => g.root_id), ['a']);
-  // 숨김 문구는 실제 범위를 말한다 — 영상은 보관함에 남는다.
-  assert.match(translate('history.hideNotice'), /보관함/);
+  // 숨김 문구는 실제 범위를 말한다 — 기록만 지우고 영상은 남는다(보관함 화면은 #898에서 없어졌다).
+  assert.match(translate('history.hideNotice'), /영상은 그대로 남아요/);
 });
 
 test('practice.library: 홈의 최근 연습은 숨기지 않은 묶음 3개다', () => {

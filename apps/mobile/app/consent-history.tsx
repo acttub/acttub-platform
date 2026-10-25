@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { consentChangeFailureAction, consentSettingsRows, type ConsentSettingsRow } from '@/lib/consent-entry';
 import { translate as t } from '@/lib/i18n';
 import { isMarketingConsent, marketingDecisionNotice, type MarketingNotice } from '@/lib/marketing-consent';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /** 「동의함 · 2026.09.03」 / 「거절함」 / 「아직 결정하지 않음」. */
 function decisionLine(row: ConsentSettingsRow): string {
@@ -98,9 +99,7 @@ export default function ConsentHistoryScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('settings.consentHistory')} left={<NavBackButton onPress={() => router.back()} />} />
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <SkeletonRows count={6} avatar={false} card={false} />
       ) : loadError ? (
         <View style={styles.center}>
           <Text style={styles.loadError}>{loadError}</Text>

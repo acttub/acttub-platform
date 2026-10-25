@@ -37,6 +37,7 @@
 | `PATCH /v2/reading/scripts/{script_id}/lines/{line_id}` | `script_id`, `line_id`, `ReadingScriptLinePatch`(kind?·character_id?·text?(5,000자)) | `ReadingScript` 200 — 고친 대본 전체 | `invalid_line`(대사인데 배역 없음·이 대본에 없는 배역·지문·장면에 배역) 422, 빈 글·모르는 키 422 배열, `line_not_found`(이 대본에 없는 줄) 404, `script_not_found` 404, `account_deactivated` 403 |
 | `DELETE /v2/reading/scripts/{script_id}/lines/{line_id}` | `script_id`, `line_id` | `ReadingScript` 200 — 고친 대본 전체 | `empty_range`(그 줄 하나뿐인 회차 구간이 있음)·`invalid_line`(대본의 마지막 줄) 422, `line_not_found` 404, `script_not_found` 404, `account_deactivated` 403 |
 | `POST /v2/reading/scripts/{script_id}/lines/{line_id}/split` | `script_id`, `line_id`, `ReadingScriptLineSplit`(first_text·second_text, 각 5,000자) | `ReadingScript` 200 — 고친 대본 전체 | 빈 글·모르는 키 422 배열, `line_not_found` 404, `script_not_found` 404, `account_deactivated` 403 |
+| `POST /v2/reading/scripts/{script_id}/lines/{line_id}/insert-after` | `script_id`, `line_id`, `ReadingScriptLineInsert`(kind·character_id?·text, 5,000자) | `ReadingScript` 200 — 고친 대본 전체. 새 줄은 고른 줄 바로 뒤에 들어가고 뒤 줄들의 순서가 하나씩 밀린다. 기존 줄 id와 회차의 구간·진행 위치는 바뀌지 않는다 | `invalid_line`(대사인데 배역 없음·이 대본에 없는 배역·지문·장면에 배역) 422, 빈 글·모르는 키 422 배열, `line_not_found` 404, `script_not_found` 404, `account_deactivated` 403 |
 | `DELETE /v2/reading/scripts/{script_id}` | `script_id` | 204 | `script_not_found` 404 |
 | 앱 0.1.0 첫 실행의 옛 대본 올리기(기기) | AsyncStorage의 옛 대본·암기 표시 | `POST /v2/reading/scripts`와 암기 갱신 | `script_limit` 422면 그 대본은 기기에 남는다 |
 
@@ -435,10 +436,35 @@
   같은 id로 오면 새 대본이다. 같은 대본을 일부러 두 번 넣는 것은 막지
   않는다. 이관으로 게스트와 회원의 request_id가 겹치면(UUID라 실질적으로 없음) 서버가 게스트 쪽 값을
   비우고 이관을 진행한다.
-- 예시 대본은 앱·웹에 내장된 글이다. "예시 대본 불러오기"는 그 글을 붙여넣기와 같은 길로 넣고, 저장하면
-  보통 대본이 된다. 서버는 저장된 예시를 구분하지 않고 scripts에 user_id가 없는 행을 두지 않는다(나누기 작업만 글로 알아본다).
+- 예시 대본은 서버 표 `reading_examples`(V61)에 원문과 미리 나눈 결과(배역·줄)로 둔다 — 지금 「옥상, 밤」(rooftop)·「카페,
+  헤어지자는 말」(cafe)·「민지의 독백」(minji, 배역 민지 하나·문장마다 한 줄) 셋이고, 원문은 앱 내장 목록(`apps/mobile/lib/reading/sample.ts`)과
+  글자 그대로 같다. 고치기·더하기·끄기(`active=false`)는 새 마이그레이션이나 운영 SQL로 하고 앱 배포가 필요 없다(SOMA-824).
+  - 목록 `GET /v2/reading/examples`(회원·게스트): 켜진 예시를 정한 순서(sort_order)로 `{examples: [{id, title, summary,
+    dialogue_count, characters, preview}]}`. preview는 앞 5줄까지이고 지문·장면은 `speaker`가 null이다.
+  - 고르기 `POST /v2/reading/examples/{id}/start`(`request_id`): 미리 나눈 결과를 그 사람의 대본으로 복사한다 — 제목은 예시 제목, 입력
+    경로 sample. 모델을 부르지 않으므로 script_split 동의·하루 나누기 한도를 보지 않고 나누기 작업 행(script_imports·ai_jobs)도 없다.
+    새로 복사하면 201 `{script_id, created: true}`. 그 사람에게 같은 글(scripts.raw_hash)의 대본이 이미 있으면(옛 길로 넣은 같은 글
+    포함) 새로 만들지 않고 200 `{script_id: 그 대본, created: false}`, 같은 `request_id`의 재전송도 200이다. 지운 뒤 다시 고르면 새로
+    복사한다. 대본 수 한도는 그대로 422 script_limit(이미 복사한 예시는 한도여도 200), 없거나 꺼진 예시는 404
+    `reading_example_not_found`, 탈퇴와 겹친 쓰기는 403 account_deactivated다. 같은 글 확인과 복사는 users 행을 잡은 한 트랜잭션이다.
+  - 앱은 목록을 서버에서 받고, 받지 못하면 내장 목록으로 대신 보여 주며 그때는 아래 옛 길로 넣는다.
+  - 미리 만든 상대역 음성(V62 `reading_examples.audio`): 상대역이 있는 예시(rooftop·cafe)는 대사 줄마다 음성 파일을 미리 만들어
+    영상 버킷의 `reading-examples/v1/<예시 id>/<줄 자리>.m4a`에 두었다(줄 자리는 draft 줄 순서, 지문 포함 1부터). 앱과 같은 Supertonic 3
+    fp16·단계 8·속도 1.0·괄호 지문을 뗀 글·세기 맞추기로, 갓 복사한 대본의 자동 목소리(윤서·서연 F1, 태오·준호 M1)로 만들었다. 독백(minji)은
+    상대역이 없어 빈 값(`{"voices": {}, "lines": []}`)이고, NULL이면 미리 만든 음성이 없다.
+    `GET /v2/reading/scripts/{script_id}/example-audio`(회원·게스트, 내 대본만 — 없는 것·남의 것은 404 `script_not_found`): 대본의 원문 해시가
+    켜진 예시의 원문과 같고 그 예시에 음성이 있으면 200 `{example_id, voices: {배역 이름: 프리셋}, lines: [{line_id, url, duration_ms}]}`.
+    줄은 예시의 그 자리와 같은 자리이고 여전히 같은 배역 이름·같은 글의 대사이며 따로 읽을 글(`speech`)이 없는 줄만 주고, 고치거나
+    넣고 빼서 어긋난 줄은 뺀다. url은 기기 목소리 모델과 같은 1시간 임시 주소다. 독백은 200 `lines: []`. 예시가 아니거나(같은 글이 아님)
+    음성이 없거나 꺼진 예시는 404 `reading_example_audio_not_found`. 옛 길로 넣은 같은 글(「옥상, 밤」)도 해시가 같아 음성을 받는다.
+  - 앱은 예시를 복사한 대본이면 이 음성을 받아, 배역의 지금 목소리가 `voices`와 같은 상대역 줄을 이 음성으로 튼다. 그래서 예시 대본은
+    190MB 기기 목소리 모델을 받지 않고 바로 읽고, 독백은 모델이 필요 없다. 받지 못한 줄·목소리를 바꾼 배역·404면 예전처럼 모델(또는 대체
+    목소리)로 읽는다.
+- 옛 길: 내장 글을 붙여넣기와 같은 길(나누기 요청)로 넣는다 — 옛 앱 판과 웹(「옥상, 밤」만)이 쓰고 그대로 둔다. 「옥상, 밤」과 같은
+  글은 위 「나누기 작업」의 예시 판별로 모델 없이 저장되고, 다른 예시 글은 보통 글처럼 나눈다. 어느 길이든 저장하면 보통 대본이다.
+  서버는 저장된 예시를 구분하지 않고(입력 경로만 sample) scripts에 user_id가 없는 행을 두지 않는다 — 예시의 원본은 별도 표다.
 - 앱 대본 탭에 대본이 하나도 없으면 「내 대본 올리기」 줄 아래에 「예시 대본으로 시작하기」 줄을 둔다(pen 파이프라인 반영버전
-  「대본 탭」). 누르면 대본 넣기 화면을 예시 대본이 채워진 상태로 연다(`/reading/new?sample=1`). 그 뒤는 위 예시 대본 길과 같다.
+  「대본 탭」). 누르면 대본 넣기 화면을 예시 대본이 채워진 상태로 연다(`/reading/new?sample=1`). 그 뒤는 위 옛 길과 같다.
 - 한도. 대본 하나는 원문 100,000자(유니코드 코드 포인트, 줄바꿈 포함)까지이고, 서버는 원문뿐 아니라 줄 본문의 총량도 같은
   100,000자로 검사한다. 줄 수·배역 수는 따로 세지 않는다(SOMA-709, 2026-10-21 — 배역 50명 한도에 실제로 배역이 많은 뮤지컬이 나누기를
   다 끝낸 뒤 실패했고, 원문 한도로 크기는 충분히 막힌다). 넘으면 422
@@ -507,6 +533,13 @@
   윤서·태오·17줄·대사 8·7.
 - script_split에 동의하지 않은 회원, 게스트, 문서가 발행되지 않은 서버: 모두 403 script_split_consent_required이고 행이 없다.
   같은 셋이 예시 대본 글을 보냄: 202, 곧 succeeded, 모델 호출 0. 한 글자 고친 예시: 403.
+- 예시 목록: 켜진 3편이 rooftop·cafe·minji 순, 대사 수 15·15·7, 미리보기 5줄(첫 줄 지문은 speaker null). cafe를 끄면 둘.
+- 예시 고르기: script_split에 동의하지 않은 회원·게스트도 201, 대본은 예시 제목·source sample·미리 나눈 줄(cafe 17줄), 모델 호출 0·
+  ai_jobs·script_imports 행 0. 다시 고르면 200 같은 script_id(행 그대로), 지운 뒤 고르면 201 새 id. 대본 100개면 422 script_limit,
+  없는·꺼진 id 404 reading_example_not_found.
+- 예시 음성: 복사한 rooftop은 200 대사 15줄 모두 그 줄 id·`reading-examples/v1/rooftop/<자리>.m4a` 1시간 주소·길이, voices는 대본의 자동
+  목소리와 같다. cafe의 한 줄 글을 고치면 그 줄만 빠진 14줄. minji는 200 빈 voices·lines. 남의 대본·없는 id 404 script_not_found, 예시가 아닌
+  대본·audio NULL·깨진 audio·꺼진 예시 404 reading_example_audio_not_found(깨진 칸이 목록을 막지 않는다).
 - 하루 20개를 접수한 뒤 21번째: 429 script_split_daily_limit. 그 뒤 예시·중복은 된다. 한국 자정이 지나면 다시 202.
   같은 회원의 요청 25개가 동시에 와도 접수는 정확히 20개다.
 - 줄 두 번째 의견: 키가 없는 서버는 Jev 를 부르지 않고 결과가 키 없을 때와 같다. 키가 있으면 대사·지문 줄마다 한 번 묻고, 쪽 번호 줄·이름만

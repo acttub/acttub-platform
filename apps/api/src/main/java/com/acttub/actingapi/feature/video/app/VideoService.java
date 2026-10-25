@@ -98,6 +98,14 @@ public class VideoService {
      * 전에 같은 영상을 돌려주고(응답만 유실된 마무리의 재시도), 시한이 지난 예약은 저장소에 묻기 전에 치운다.
      */
     public Completion completeIntent(UUID userId, boolean guest, UUID intentId) {
+        return completeIntent(userId, guest, intentId, false);
+    }
+
+    /**
+     * @param faceMosaic 얼굴 가리기를 켜고 올린 영상(practice.start). 첫 질문용 미리 올리기를 시작하지 않는다 — 원본이 코치 AI 쪽으로
+     *                   잠깐이라도 가지 않는다. 그 영상으로 만든 얼굴 가리기 회차는 분석 작업이 만든 가린 사본만 쓴다
+     */
+    public Completion completeIntent(UUID userId, boolean guest, UUID intentId, boolean faceMosaic) {
         storage.requireConfigured();
         Instant now = clock.instant();
         IntentView intent = videos.findIntent(userId, intentId);
@@ -122,7 +130,7 @@ public class VideoService {
         cleanup.attemptObjectDelete(completed.cleanupOperationIds());
         return switch (completed.outcome()) {
             case CREATED -> {
-                warm(intent.objectKey(), stored.etag(), completed.video());
+                if (!faceMosaic) warm(intent.objectKey(), stored.etag(), completed.video());
                 yield new Completion(true, playback(completed.video()));
             }
             case REPLAYED -> new Completion(false, playback(completed.video()));

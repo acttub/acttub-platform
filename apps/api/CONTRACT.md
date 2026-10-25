@@ -1340,8 +1340,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   순으로, 같은 상태 안에서는 `featured_on` 최신·시작 최신 순으로 싣는다.
 - 각 행은 `id`·`line`·`work`·`character`·`origin`·`host_actor`(`md5(host_user_id)` 앞 8자리, 팀 개설은 null)·
   `host_is_team`·`duration_days`·`featured_on`·`starts_at`·`ends_at`·`state`·`moderation`·`entries`·
-  `public_entries`·`outside_entries`다. 참여작 수는 삭제를 뺀 값이고, `outside_entries`는 팀 이메일과
-  `exclude_actors` 배우의 참여작을 뺀 값이다.
+  `public_entries`·`outside_entries`·`likes`·`outside_likes`다. 참여작 수는 삭제를 뺀 값이고, `outside_entries`는
+  팀 이메일과 `exclude_actors` 배우의 참여작을 뺀 값이다. `likes`는 삭제되지 않은 참여작이 받은 좋아요 전체(팀
+  계정이 누른 것 포함)이고, `outside_likes`는 그중 팀 이메일과 `exclude_actors` 배우가 누른 좋아요를 뺀 값이다.
 - 챌린지는 앱에 공개되는 글이라 대사·작품·인물을 싣는다(§6-21의 참여작 목록과 다르다). 주최자의 user UUID·이메일과
   참여작 캡션은 싣지 않는다. 이 응답은 live 운영 조회 전용이며, 저장되는 `ops-core`에는 대사를 넣지 않는다.
 - 팀 계정이 연 챌린지도 빼지 않고 `host_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은
@@ -1417,11 +1418,22 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 @Primary 코칭 키 클라이언트와 `ACTTUB_SAMPLE_SCRIPT_MODEL`(기본 gemini-4-argon)이다.
 - 확정은 `ScriptService.create`를 그대로 부른다(출처 `typed`, 요청 id 는 생성 기록 id). 리딩 대본 계약은 바뀌지 않는다.
 
-### 6-30. 앱 ACTTUB Pro 정기결제 (SOMA-818)
+### 6-30. 배우 일지 (SOMA-720)
+
+- 행동 계약은 [practice.journal](../../docs/specs/practice/journal.md)이 정본이고 `JournalServiceTest`·`ActorJournalTest`가 지킨다.
+  늘 켜진 경로(`/v2/practices/{practice_id}/journal`)라 OpenAPI 스냅샷과 웹 생성 타입에 든다.
+- 표 `actor_journals`(V59)는 native SQL 만 쓴다(Schema Entity 없음). 회차마다 한 행(`uq_actor_journals_practice`) — 만드는 중(pending)
+  행을 먼저 넣어 겹친 생성이 모델을 두 번 부르지 않게 한다. 생성 결과는 `draft_status='pending' AND edited_at IS NULL` 조건으로만 쓴다.
+  배우 답(`answers`)과 자동 칸(`draft`)은 따로 둔 JSON 글이다. 사람·회차에 ON DELETE CASCADE, 대화에 ON DELETE SET NULL. 탈퇴의 연습 파기가 행을 지운다.
+- 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 연습 노트와 같은 `OpenAiTextGenerators.report()`(노트용 키)이고 기록 단계는 `report`
+  (`report_type=actor_journal`)다. 프롬프트 `coaching/journal-create.txt` 는 10/19 채택 v4 원문 그대로다.
+- 코칭 숙제 알림(`PostgresPracticeReminderRepository.latestHomework`)은 그 회차 일지의 「다음에 해 볼 것」이 있으면 노트 제안보다 먼저 쓴다.
+
+### 6-31. ACTTUB Pro 정기결제 (SOMA-818)
 
 - 행동 계약은 [billing.subscription](../../docs/specs/billing/subscription.md)이 정본이고 `SubscriptionServiceTest`(상태 전이·멱등·해지
   후 기간 유지·재시도)가 지킨다. 플래그(`BILLING_APP_ENABLED`, 기본 false) 뒤의 기능이라 OpenAPI 에 싣지 않는다(`@Hidden`).
-- 표 셋(V60)은 native SQL 만 쓴다(Schema Entity 없음, CHECK 없음 — 값은 `BillingRules` 와 저장소 SQL 이 지킨다). 상태 쓰기는 모두
+- 표 넷(V63)은 native SQL 만 쓴다(Schema Entity 없음, CHECK 없음 — 값은 `BillingRules` 와 저장소 SQL 이 지킨다). 상태 쓰기는 모두
   조건부 UPDATE 한 문장이라 사용자의 해지와 스케줄러의 결제가 겹쳐도 서로 덮지 않는다. `billing_payments.order_id` UNIQUE 가
   멱등의 바닥이다(INSERT … ON CONFLICT DO NOTHING 뒤 승인).
 - 토스 호출은 트랜잭션 밖이다(§5-4). 빌링키는 `AccountSecrets` 암호문이고 로그·예외·응답에 싣지 않는다.

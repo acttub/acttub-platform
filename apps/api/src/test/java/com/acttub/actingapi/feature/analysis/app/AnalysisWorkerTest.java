@@ -277,6 +277,95 @@ class AnalysisWorkerTest {
         assertThat(reporter.reports()).isEmpty();
     }
 
+    /** 얼굴 가리기 회차(practice.start): 분석기는 원본이 아니라 가린 사본을 받고, 사본과 원본 임시 파일은 모두 지운다. */
+    @Test
+    void aFaceMosaicPracticeIsAnalysedFromTheMaskedCopyOnly() {
+        FakeStore store = new FakeStore(faceMosaicContext());
+        var seen = new ArrayList<String>();
+        var paths = new ArrayList<Path>();
+        var mosaic = new com.acttub.actingapi.integration.media.FaceMosaic() {
+            @Override public boolean available() { return true; }
+            @Override public Path render(Path source) throws Exception {
+                paths.add(source);
+                Path out = Files.createTempFile(source.toAbsolutePath().getParent(), "masked-", ".mp4");
+                Files.writeString(out, "masked " + Files.readString(source));
+                return out;
+            }
+        };
+        AnalysisWorker worker = worker(store, (path, context) -> {
+            try {
+                seen.add(Files.readString(path));
+            } catch (java.io.IOException failure) {
+                throw new IllegalStateException(failure);
+            }
+            paths.add(path);
+            return new AnalysisResult(new ObservationPack("", List.of(), List.of()), false, 1000);
+        }).withFaceMosaic(mosaic);
+
+        assertThat(worker.runOnce(NOW)).isTrue();
+
+        assertThat(store.transitions).containsExactly("claim", "complete");
+        assertThat(seen).containsExactly("masked video");
+        assertThat(paths).hasSize(2).allSatisfy(path -> assertThat(path).doesNotExist());
+    }
+
+    @Test
+    void aFaceMosaicPracticeWithNoFaceIsAnalyzedFromTheOriginal() {
+        FakeStore store = new FakeStore(faceMosaicContext());
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        var mosaic = new com.acttub.actingapi.integration.media.FaceMosaic() {
+            @Override public boolean available() { return true; }
+            @Override public Path render(Path source) throws Exception {
+                throw new com.acttub.actingapi.integration.media.FaceMosaicRenderer.NoFaceFound();
+            }
+        };
+        List<Path> paths = new ArrayList<>();
+        AnalysisWorker worker = worker(store, (path, context) -> {
+            paths.add(path);
+            return new AnalysisResult(new ObservationPack("", List.of(), List.of()), false, 1000);
+        }, reporter).withFaceMosaic(mosaic);
+
+        assertThat(worker.runOnce(NOW)).isTrue();
+
+        // 얼굴이 아예 없으면 가릴 것이 없으니 원본으로 분석을 마친다(10/23 결정).
+        assertThat(store.transitions).containsExactly("claim", "complete");
+        assertThat(paths).hasSize(1);
+        assertThat(reporter.reports()).isEmpty();
+    }
+
+    @Test
+    void aFaceMosaicPracticeWithoutARendererFailsClosedAndIsReported() {
+        FakeStore store = new FakeStore(faceMosaicContext());
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        AnalysisWorker worker = worker(store, (path, context) -> {
+            throw new AssertionError("the analyzer must not see the original");
+        }, reporter);
+
+        assertThat(worker.runOnce(NOW)).isTrue();
+
+        assertThat(store.transitions).containsExactly("claim", "fail:" + AnalysisWorker.FACE_MOSAIC_UNAVAILABLE);
+        assertThat(reporter.reports()).singleElement().satisfies(report ->
+                assertThat(report.context()).startsWith("AnalysisWorker.faceMosaic"));
+    }
+
+    @Test
+    void aPracticeWithoutFaceMosaicNeverCallsTheRenderer() {
+        FakeStore store = new FakeStore(context());
+        var mosaic = new com.acttub.actingapi.integration.media.FaceMosaic() {
+            @Override public boolean available() { return true; }
+            @Override public Path render(Path source) { throw new AssertionError("not asked for a mosaic"); }
+        };
+        assertThat(worker(store, (path, context) -> new AnalysisResult(
+                new ObservationPack("", List.of(), List.of()), false, 1000)).withFaceMosaic(mosaic).runOnce(NOW)).isTrue();
+        assertThat(store.transitions).containsExactly("claim", "complete");
+    }
+
+    private static AnalysisContext faceMosaicContext() {
+        return new AnalysisContext(
+                UUID.randomUUID(), UUID.randomUUID(), "users/u/uploads/take.mp4", "video/mp4",
+                "etag", 1, "s", "c", "g", "분석", null, "three_layers_v1", UUID.randomUUID(), true);
+    }
+
     private static AnalysisWorker worker(FakeStore store, AnalysisProcessor analyzer) {
         return worker(store, analyzer, new RecordingFailureReporter());
     }

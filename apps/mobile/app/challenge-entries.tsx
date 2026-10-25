@@ -1,10 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { SkeletonRows } from '@/components/ui/skeleton';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -14,6 +16,9 @@ import { CAPTION_MAX, type MyEntriesResponse, type MyEntryCard } from '@/lib/cha
 import { entryStatusLabel, type EntryBucket } from '@/lib/challenge/views';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 /**
  * P03 프로필 챌린지 기록(challenge.browse · challenge.entry).
@@ -91,22 +96,20 @@ export default function ChallengeEntriesScreen() {
     let faceMosaic: boolean | undefined;
     if (next === 'public') {
       const ok = await confirm({
-        title: t('aiReport.publicTitle'),
-        message: t('aiReport.publicBody'),
-        confirmLabel: t('aiReport.publicConfirm'),
+        title: t('challengeEntries.publicTitle'),
+        message: t('challengeEntries.publicBody'),
+        confirmLabel: t('challengeEntries.publicConfirm'),
       });
       if (!ok) return;
       // 모자이크를 아직 켜지 않았으면 공개하면서 켤지 고른다(SOMA-809). 창을 닫거나 취소하면 공개하지 않는다.
       if (!entry.face_mosaic) {
-        let choice: boolean | null = null;
-        await sheet({
+        // 공개 범위·얼굴 노출을 정하는 중요한 결정이라 가운데 팝업으로 묻고, 두 버튼으로만 답한다(locked).
+        const choice = await confirm({
           title: t('challengeEntries.mosaicAskTitle'),
-          actions: [
-            { label: t('challengeEntries.mosaicAskConfirm'), onPress: () => { choice = true; } },
-            { label: t('challengeEntries.mosaicAskSkip'), onPress: () => { choice = false; } },
-          ],
+          confirmLabel: t('challengeEntries.mosaicAskConfirm'),
+          cancelLabel: t('challengeEntries.mosaicAskSkip'),
+          locked: true,
         });
-        if (choice === null) return;
         faceMosaic = choice || undefined;
       }
     }
@@ -156,7 +159,7 @@ export default function ChallengeEntriesScreen() {
     }
   };
 
-  const openMenu = (entry: MyEntryCard) => {
+  const openMenu = (entry: MyEntryCard, e?: GestureResponderEvent) => {
     // 다시 공개는 진행 중·정상·파일이 남아 있을 때만 된다. 아니면 서버가 422 로 막는다.
     const canPublish = canGoPublic({
       status: entry.status,
@@ -164,12 +167,9 @@ export default function ChallengeEntriesScreen() {
       videoPurged: entry.playback_url === null,
     });
     void sheet({
+      anchor: pt(e),
       title: t('challengeEntries.menuTitle'),
       actions: [
-        {
-          label: t('aiReport.title'),
-          onPress: () => router.push({ pathname: '/ai-report', params: { entryId: entry.id } }),
-        },
         {
           label: t('challengeUpload.editCaption'),
           onPress: () => {
@@ -213,12 +213,10 @@ export default function ChallengeEntriesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="challenge_entries_back">
-          <Feather name="chevron-left" size={26} color={palette.text} />
-        </Pressable>
-        <Text style={styles.title}>{t('challengeEntries.title')}</Text>
-      </View>
+      <NavHeader
+        title={t('challengeEntries.title')}
+        left={<NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenge_entries_back" onPress={() => router.back()} />}
+      />
 
       <View style={styles.tabs}>
         {(
@@ -241,7 +239,7 @@ export default function ChallengeEntriesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        {entries === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 32 }} />}
+        {entries === null && !error && <SkeletonRows count={4} avatar style={{ paddingHorizontal: 0 }} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
         {entries !== null && shown.length === 0 && !error && <Text style={styles.empty}>{t('challengeEntries.empty')}</Text>}
 
@@ -250,7 +248,7 @@ export default function ChallengeEntriesScreen() {
             key={entry.id}
             style={styles.row}
             onPress={() => router.push({ pathname: '/challenge-play', params: { id: entry.challenge.id, entryId: entry.id } })}
-            onLongPress={() => openMenu(entry)}
+            onLongPress={(e) => openMenu(entry, e)}
             accessibilityRole="button">
             <View style={styles.rowBody}>
               <Text style={styles.rowLine} numberOfLines={1}>
@@ -267,7 +265,7 @@ export default function ChallengeEntriesScreen() {
                 </Text>
               )}
             </View>
-            <Pressable onPress={() => openMenu(entry)} hitSlop={10} accessibilityRole="button" ph-label="challenge_entries_more">
+            <Pressable onPress={(e) => openMenu(entry, e)} hitSlop={10} accessibilityRole="button" ph-label="challenge_entries_more">
               <Feather name="more-horizontal" size={20} color={palette.textFaint} />
             </Pressable>
           </Pressable>

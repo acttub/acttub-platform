@@ -27,11 +27,11 @@ test('practice.library: 보관함은 내 영상을 최신 저장순으로 보여
   assert.deepEqual(mergeLibrary({ videos: [], pending: [], filter: 'all', now: NOW }), []);
 });
 
-test('practice.record: 마무리 전 영상은 "기기에 저장 · 업로드 대기"로 맨 위에, 확정된 영상은 "보관함 저장"으로 보인다', () => {
+test('practice.record: 마무리 전 영상은 "기기에 저장 · 업로드 대기"로 맨 위에, 확정된 영상은 "저장했어요"으로 보인다', () => {
   const items = mergeLibrary({ videos: [video('v1')], pending: [pending('p1')], filter: 'all', now: NOW });
   assert.deepEqual(items.map((i) => i.kind), ['pending', 'video']);
   assert.equal(statusLabel(items[0]), '기기에 저장 · 업로드 대기');
-  assert.equal(statusLabel(items[1]), '보관함 저장');
+  assert.equal(statusLabel(items[1]), '저장했어요');
   assert.equal(statusLabel(mergeLibrary({ videos: [], pending: [pending('p2', { status: 'failed', lastError: 'video_quota' })], filter: 'all', now: NOW })[0]), '업로드 실패 · 다시 시도');
   assert.equal(statusLabel(mergeLibrary({ videos: [video('v9', { purged_at: '2026-09-20T00:00:00Z' })], pending: [], filter: 'all', now: NOW })[0]), '재생할 수 없어요');
 });
