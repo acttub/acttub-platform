@@ -1,10 +1,13 @@
 import * as Clipboard from 'expo-clipboard';
-import { File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import { Linking, Platform, Share as SystemShare } from 'react-native';
 import Share, { Social } from 'react-native-share';
 
+import { shareKakaoFeed } from '../../modules/kakao-share/index.ts';
 import { INSTAGRAM_STORE_URL, ShareError, type VideoDeps } from './share.ts';
+
+export { shareKakaoFeed };
 
 /**
  * 공유 시트의 네이티브 연결(SOMA-819). 판단은 `share.ts` 가 하고 여기는 모듈 호출만 한다.
@@ -14,10 +17,27 @@ import { INSTAGRAM_STORE_URL, ShareError, type VideoDeps } from './share.ts';
 /** 인스타 스토리는 Facebook App ID 가 필수다(Meta, 2023-01~). app.json 의 react-native-fbsdk-next appID 와 같은 값. */
 export const FACEBOOK_APP_ID = '1535408487870893';
 
+const SHARE_FILE_PREFIX = 'acttub-share-';
+
+/**
+ * 지난번 공유 때 받아 둔 영상을 지운다. 인스타 스토리는 앱을 열자마자(안드로이드) 끝났다고 알려 오고 그 뒤에 파일을
+ * 읽으므로, 보낸 직후에는 지우지 않고 다음 공유를 시작할 때 정리한다.
+ */
+function removeOldShareFiles(): void {
+  try {
+    for (const item of new Directory(Paths.cache).list()) {
+      if (item instanceof File && item.name.startsWith(SHARE_FILE_PREFIX)) item.delete();
+    }
+  } catch {
+    // 못 지워도 OS 가 캐시를 비운다.
+  }
+}
+
 /** 재생 주소의 영상을 임시 폴더로 받는다. */
 export const videoDeps: VideoDeps = {
   download: async (url) => {
-    const target = new File(Paths.cache, `acttub-share-${Date.now()}.mp4`);
+    removeOldShareFiles();
+    const target = new File(Paths.cache, `${SHARE_FILE_PREFIX}${Date.now()}.mp4`);
     const file = await File.downloadFileAsync(url, target);
     return { uri: file.uri, size: typeof file.size === 'number' ? file.size : null };
   },
@@ -45,7 +65,10 @@ export function instagramStoreUrl(): string | null {
   return null;
 }
 
-/** 인스타 스토리 편집 화면을 영상과 함께 연다. 사용자가 닫으면 던지는 오류는 호출하는 쪽이 무시한다. */
+/**
+ * 인스타 스토리 편집 화면을 영상과 함께 연다. 사용자가 닫으면 던지는 오류는 호출하는 쪽이 무시한다.
+ * 안드로이드는 인스타를 연 직후 돌아오고 인스타가 그 뒤에 파일을 읽으므로, 부른 쪽은 파일을 바로 지우면 안 된다.
+ */
 export async function shareVideoToInstagramStory(fileUri: string): Promise<void> {
   await Share.shareSingle({
     social: Social.InstagramStories,

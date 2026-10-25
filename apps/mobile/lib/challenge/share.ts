@@ -9,7 +9,8 @@ import type { EntryCard } from './types.ts';
  * - 영상이 나가는 길(인스타 스토리·영상 저장)은 **내 참여작에만** 연다. 남의 영상은 링크만 나간다.
  * - 링크가 나가는 길(카카오톡·스레드·링크 복사·더 보기)은 **공개된 참여작에만** 연다. 비공개 참여작의 주소는
  *   남이 열면 「볼 수 없는 영상」이므로 보내지 않는다.
- * - 카카오톡은 SDK 없이 기기 공유 창(링크 문장)으로, 스레드는 웹 intent 주소로 보낸다.
+ * - 카카오톡은 카카오톡 공유(피드 카드: 그림·제목·대사 + 「영상 보기」 버튼)로 보낸다. 카카오톡이 없거나 이 기능이 없는
+ *   빌드면 기기 공유 창(링크 문장)으로 대신 보낸다. 스레드는 웹 intent 주소로 보낸다.
  * 이 파일은 네이티브 모듈을 직접 부르지 않는다 — 실제 연결은 `share-native.ts` 가 `ShareDeps` 로 넣는다.
  */
 export type ShareTarget = 'instagram' | 'kakao' | 'threads' | 'copy' | 'more';
@@ -53,6 +54,21 @@ export function shareText(authorName: string, line: string): string {
 /** 링크 문장 — 카카오톡·더 보기·링크 복사가 같은 문장을 쓴다. */
 export function shareMessage(entry: Pick<EntryCard, 'id'>, authorName: string, line: string): string {
   return `${shareText(authorName, line)}\n${entryShareUrl(entry.id)}`;
+}
+
+/** 카카오톡 공유 카드의 그림. 참여작 공유 페이지(apps/web e/[id])가 장면 이미지가 없을 때 쓰는 사이트 공통 OG 이미지다. */
+export const KAKAO_FEED_IMAGE_URL = 'https://acttub.com/opengraph-image';
+
+/** 카카오톡 공유 카드에 들어갈 값. 카드와 버튼 모두 참여작 공유 페이지로 간다. */
+export function kakaoFeed(entry: Pick<EntryCard, 'id'>, authorName: string, line: string) {
+  const url = entryShareUrl(entry.id);
+  return {
+    title: translate('entryShare.kakaoTitle', { name: authorName }),
+    description: translate('entryShare.kakaoDescription', { line }),
+    imageUrl: KAKAO_FEED_IMAGE_URL,
+    linkUrl: url,
+    buttonTitle: translate('entryShare.kakaoButton'),
+  };
 }
 
 /** 스레드 웹 intent. 앱이 있으면 스레드가, 없으면 브라우저가 연다. */
