@@ -33,6 +33,7 @@ function Wheel({
   label,
   onSelect,
   testID,
+  onTouchActive,
 }: {
   values: readonly number[];
   selected: number;
@@ -40,6 +41,7 @@ function Wheel({
   label: string;
   onSelect: (value: number) => void;
   testID: string;
+  onTouchActive?: (active: boolean) => void;
 }) {
   const ref = useRef<ScrollView>(null);
   const index = Math.max(0, values.indexOf(selected));
@@ -62,6 +64,13 @@ function Wheel({
       decelerationRate="fast"
       contentOffset={{ x: 0, y: index * WHEEL_ITEM_HEIGHT }}
       contentContainerStyle={{ paddingVertical: PAD }}
+      // 바깥 화면도 세로 스크롤이라 손가락이 둘 다에 걸렸다(10/25 제보). 안드로이드는 안쪽이 먼저 받게 하고,
+      // 휠을 만지는 동안은 바깥 스크롤을 멈춘다(onTouchActive). 천천히 놓아 관성이 없을 때도 값을 맞춘다.
+      nestedScrollEnabled
+      onTouchStart={() => onTouchActive?.(true)}
+      onTouchEnd={() => onTouchActive?.(false)}
+      onTouchCancel={() => onTouchActive?.(false)}
+      onScrollEndDrag={settle}
       onMomentumScrollEnd={settle}
       accessibilityRole="adjustable"
       accessibilityLabel={label}
@@ -101,10 +110,13 @@ export function BirthWheel({
   value,
   years,
   onChange,
+  onTouchActive,
 }: {
   value: BirthParts;
   years: readonly number[];
   onChange: (parts: BirthParts) => void;
+  /** 휠을 만지는 동안 true — 바깥 ScrollView 의 scrollEnabled 를 끄는 데 쓴다. */
+  onTouchActive?: (active: boolean) => void;
 }) {
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
   const days = Array.from({ length: daysInMonth(value.year, value.month) }, (_, i) => i + 1);
@@ -123,6 +135,7 @@ export function BirthWheel({
         unit={t('profileName.yearUnit')}
         label={t('profileName.yearLabel')}
         onSelect={(year) => change({ year })}
+        onTouchActive={onTouchActive}
       />
       <Wheel
         testID="birth-month"
@@ -131,6 +144,7 @@ export function BirthWheel({
         unit={t('profileName.monthUnit')}
         label={t('profileName.monthLabel')}
         onSelect={(month) => change({ month })}
+        onTouchActive={onTouchActive}
       />
       <Wheel
         testID="birth-day"
@@ -139,6 +153,7 @@ export function BirthWheel({
         unit={t('profileName.dayUnit')}
         label={t('profileName.dayLabel')}
         onSelect={(day) => change({ day })}
+        onTouchActive={onTouchActive}
       />
     </View>
   );

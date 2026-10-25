@@ -81,6 +81,7 @@ export default function ProfileNameScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [birthInvalid, setBirthInvalid] = useState(false);
+  const [wheelTouch, setWheelTouch] = useState(false);
   const keyboardHeight = useKeyboardHeight();
   // 생년월일 돌림판 — 연도는 오래된 해부터 올해까지, 처음 값은 스무 살 무렵의 1월 1일이다.
   const birthYears = useMemo(() => {
@@ -301,6 +302,7 @@ export default function ProfileNameScreen() {
           <BirthWheel
             value={birthParts}
             years={birthYears}
+            onTouchActive={setWheelTouch}
             onChange={(parts) => {
               setBirthInvalid(false);
               update({ birthDate: formatBirthParts(parts) });
@@ -428,7 +430,8 @@ export default function ProfileNameScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ProgressHeader step={index} total={steps.length} onBack={goBack} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        {/* 생년월일 휠을 만지는 동안은 화면이 같이 움직이지 않게 멈춘다(10/25). */}
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={!wheelTouch}>
           {/* 하나 고르는 질문은 누르면 바로 넘어간다(SOMA-827) — 그 사실을 말풍선 아래 줄로 알린다. */}
           <MascotBubble title={t(ASK_KEYS[step], { name })} guide={TAP_TO_NEXT[step] ? t(TAP_TO_NEXT[step]) : null} />
           <Animated.View
