@@ -103,7 +103,7 @@ class ChallengeEntryIT {
 
     // ── 얼굴 모자이크 ───────────────────────────────────────────────────────
 
-    @Test void faceMosaic_othersSeeOnlyTheReadyMosaicAndTheOwnerKeepsTheOriginal() throws Exception {
+    @Test void faceMosaic_everyoneSeesTheReadyMosaicAndOnlyTheOwnerGetsTheOriginal() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         UUID video = video(user, 30_000);
         JsonNode entry = response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
@@ -112,6 +112,7 @@ class ChallengeEntryIT {
         assertThat(entry.path("face_mosaic").asBoolean()).isTrue();
         assertThat(entry.path("mosaic_status").asText()).isEqualTo("pending");
         assertThat(entry.path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(entry.path("original_playback_url").isNull()).isTrue();
         String other = token(member("다른 배우"));
         // 준비 전에는 다른 사람에게 어디서도 보이지 않는다.
         assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200, other).path("entries")).isEmpty();
@@ -128,19 +129,30 @@ class ChallengeEntryIT {
         JsonNode page = response(get("/v2/challenges/{id}/entries", challenge), 200, other);
         assertThat(ids(page)).containsExactly(id);
         assertThat(page.path("entries").get(0).path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
-        assertThat(response(get("/v2/entries/{id}", id), 200, other).path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(page.path("entries").get(0).path("original_playback_url").isNull()).isTrue();
+        JsonNode seen = response(get("/v2/entries/{id}", id), 200, other);
+        assertThat(seen.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(seen.path("original_playback_url").isNull()).isTrue();
         response(get("/v2/public/entries/{id}", id), 200, other);
-        // 본인은 원본이다.
-        assertThat(response(get("/v2/entries/{id}", id), 200).path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        // 본인도 모자이크본으로 보고, 원본 주소는 따로 받는다.
+        JsonNode own = response(get("/v2/entries/{id}", id), 200);
+        assertThat(own.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(own.path("original_playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        JsonNode ownCard = response(get("/v2/challenges/{id}/entries", challenge), 200).path("entries").get(0);
+        assertThat(ownCard.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(ownCard.path("original_playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
         JsonNode mine = response(get("/v2/me/challenge-entries"), 200).path("entries").get(0);
         assertThat(mine.path("mosaic_status").asText()).isEqualTo("ready");
-        assertThat(mine.path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(mine.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(mine.path("original_playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
 
         // 끄면 원본이 공개되고 사본은 정리 장부로 간다.
         JsonNode off = response(patch("/v2/entries/{id}", id).content("{\"face_mosaic\":false}"), 200);
         assertThat(off.path("face_mosaic").asBoolean()).isFalse();
         assertThat(off.path("mosaic_status").isNull()).isTrue();
         assertThat(response(get("/v2/entries/{id}", id), 200, other).path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(off.path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(off.path("original_playback_url").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM account_cleanup_operations WHERE kind='object_delete'", Integer.class))
                 .isPositive();
     }

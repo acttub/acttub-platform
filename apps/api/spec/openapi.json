@@ -10056,6 +10056,15 @@
             } ],
             "title" : "Playback Url"
           },
+          "original_playback_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "본인 참여작이고 얼굴 모자이크본이 준비됐을 때만 원본 주소. 그때 playback_url 은 모자이크본이다. 그 밖에는 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Original Playback Url"
+          },
           "liked" : {
             "type" : "boolean",
             "title" : "Liked"
@@ -10112,7 +10121,7 @@
             "title" : "Mosaic Status"
           }
         },
-        "required" : [ "author", "caption", "category", "challenge", "challenge_hidden", "challenge_id", "comment_count", "content_version", "created_at", "face_mosaic", "final_like_count", "id", "is_mine", "like_count", "liked", "mosaic_status", "playback_url", "published_at", "rank", "saved", "status", "view_count", "visibility" ],
+        "required" : [ "author", "caption", "category", "challenge", "challenge_hidden", "challenge_id", "comment_count", "content_version", "created_at", "face_mosaic", "final_like_count", "id", "is_mine", "like_count", "liked", "mosaic_status", "original_playback_url", "playback_url", "published_at", "rank", "saved", "status", "view_count", "visibility" ],
         "title" : "MyChallengeEntry"
       },
       "MyChallengeEntryParent" : {
@@ -11730,6 +11739,15 @@
             } ],
             "title" : "Playback Url"
           },
+          "original_playback_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "본인 참여작이고 얼굴 모자이크본이 준비됐을 때만 원본 주소. 그때 playback_url 은 모자이크본이다. 그 밖에는 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Original Playback Url"
+          },
           "liked" : {
             "type" : "boolean",
             "title" : "Liked"
@@ -11748,7 +11766,7 @@
             "title" : "Is New"
           }
         },
-        "required" : [ "author", "caption", "challenge_id", "comment_count", "final_like_count", "id", "is_mine", "is_new", "like_count", "liked", "playback_url", "published_at", "rank", "saved", "view_count" ],
+        "required" : [ "author", "caption", "challenge_id", "comment_count", "final_like_count", "id", "is_mine", "is_new", "like_count", "liked", "original_playback_url", "playback_url", "published_at", "rank", "saved", "view_count" ],
         "title" : "ChallengeEntry"
       },
       "SavedChallengeEntries" : {

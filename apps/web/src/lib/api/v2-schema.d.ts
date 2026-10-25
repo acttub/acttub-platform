@@ -4633,6 +4633,8 @@ export interface components {
             published_at: string | null;
             /** Playback Url */
             playback_url: string | null;
+            /** Original Playback Url */
+            original_playback_url: string | null;
             /** Liked */
             liked: boolean;
             /** Saved */
@@ -5366,6 +5368,8 @@ export interface components {
             published_at: string | null;
             /** Playback Url */
             playback_url: string | null;
+            /** Original Playback Url */
+            original_playback_url: string | null;
             /** Liked */
             liked: boolean;
             /** Saved */
