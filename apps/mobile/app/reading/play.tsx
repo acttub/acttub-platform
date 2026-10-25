@@ -295,6 +295,8 @@ export default function ReadingPlay() {
   const [restarting, setRestarting] = useState(false);
   /** 시작 전 [시작] 위에 자동 넘김 안내를 보일지 — 숨기지 않았고 자동 넘김 회차일 때만. */
   const [startHint, setStartHint] = useState(false);
+  /** 시작 팝업의 어두운 덮개가 시작하는 높이 — 진행 막대 아래부터 덮는다. */
+  const [tipTop, setTipTop] = useState(0);
   /** 완료 화면이 뜬 직후 잠깐은 버튼을 받지 않는다 — 실행 중 [다음]을 연타하다 새 연습이 바로 시작되지 않게(SOMA-772). */
   const [doneLocked, setDoneLocked] = useState(true);
   /** 완료 화면 [완료] 뒤의 리딩 마무리(pen 「새 · 리딩 마무리」). */
@@ -1896,7 +1898,7 @@ export default function ReadingPlay() {
         {notice?.kind === 'dropped' ? <Text style={styles.droppedText}>{t('reading.recordingDropped', { count: notice.count })}</Text> : <View />}
         <Text style={styles.counter}>{monoCounter ?? formatProgress(run)}</Text>
       </View>
-      <View style={styles.progressTrack}>
+      <View style={styles.progressTrack} onLayout={(e) => setTipTop(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
         <View style={[styles.progressFill, { width: `${Math.round((progressOf(run).done / Math.max(1, progressOf(run).total)) * 100)}%` }]} />
       </View>
       {notice?.kind === 'cloud_fallback' && (
@@ -2052,15 +2054,17 @@ export default function ReadingPlay() {
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
 
       {hold === 'tip' ? (
-        // pen 「새 · 리딩 시작 전」 — 자동 넘김 안내를 팝업 대신 아래에 두고 [시작]으로 첫 줄을 연다.
-        <View style={[styles.startBar, { paddingBottom: insets.bottom + 12 }]}>
-          {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
-          <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
-          {startHint && (
-            <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
-              <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
-            </Pressable>
-          )}
+        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
+        <View style={[styles.backdrop, { top: tipTop }]}>
+          <View style={styles.startCard}>
+            {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
+            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
+            {startHint && (
+              <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
+                <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       ) : (
       <>
@@ -2274,7 +2278,7 @@ const styles = StyleSheet.create({
   readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
   wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 20 },
-  startBar: { paddingHorizontal: 24, paddingTop: 14, gap: 10, alignItems: 'stretch' },
+  startCard: { width: '100%', maxWidth: 334, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, gap: 10 },
   startHint: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21, textAlign: 'center' },
   startSkip: { color: palette.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },
 
@@ -2340,16 +2344,5 @@ const styles = StyleSheet.create({
   pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
   pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 
-  backdrop: { flex: 1, backgroundColor: 'rgba(15, 21, 37, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
-  sheet: { width: '100%', backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 22, paddingTop: 10, gap: 4 },
-  sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
-  sheetNote: { color: palette.blueDeep, fontFamily: 'Pretendard', fontSize: 13, marginBottom: 6 },
-  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
-  sheetRowBody: { flex: 1, gap: 3 },
-  sheetRowTitle: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 15 },
-  sheetRowTitleOn: { color: palette.blueDeep },
-  sheetRowDesc: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center' },
-  radioOn: { borderColor: palette.blue, backgroundColor: palette.blue },
-  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
+  backdrop: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 21, 37, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
 });
