@@ -106,6 +106,7 @@ import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
+import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
@@ -164,11 +165,23 @@ const JUMP_PREVIEW = 15;
 const DONE_LOCK_MS = 800;
 /** 독백에서 받아쓴 글로 읽는 위치를 다시 재는 간격 — 중간 결과마다 전체를 맞추지 않게. */
 const MONO_POSITION_MS = 700;
-/** 리딩 마무리 — 대본을 껴안은 하트 눈 액티(10/22 20종). */
-const MASCOT = require('@/assets/images/acty/11-love.png');
+/**
+ * 리딩 화면의 액티(10/22 20종). 예전엔 준비·마무리·결과가 모두 하트 눈 한 장이라 매번 같았다(10/25 피드백).
+ * 준비 중은 기다리는 자세, 끝난 화면은 들어올 때마다 밝은 자세 하나, 세지 않은 회차는 민망한 자세.
+ */
+const PREP_POSES: readonly MascotPose[] = ['breathe', 'reading', 'hamlet'];
+const DONE_POSES: readonly MascotPose[] = ['love', 'jump', 'dance', 'wink', 'smug', 'bow'];
+const NOT_COUNTED_POSE: MascotPose = 'flat';
+const FIRST_DONE_POSE: MascotPose = 'jump';
+function pickPose(poses: readonly MascotPose[]): MascotPose {
+  return poses[Math.floor(Math.random() * poses.length)] ?? poses[0];
+}
 
 export default function ReadingPlay() {
   const router = useRouter();
+  // 한 번 들어온 동안은 같은 자세 — 다시 그릴 때마다 바뀌면 깜빡여 보인다.
+  const [prepPose] = useState(() => pickPose(PREP_POSES));
+  const [donePose] = useState(() => pickPose(DONE_POSES));
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { confirm, alert, dialog } = useAppDialog();
@@ -1495,7 +1508,7 @@ export default function ReadingPlay() {
     return (
       <View style={[styles.root, styles.prepRoot, { paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.prepBody}>
-          <Image source={MASCOT} style={styles.prepMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT_IMG[prepPose]} style={styles.prepMascot} contentFit="contain" accessibilityIgnoresInvertColors />
           <Text style={styles.prepTitle}>{title}</Text>
           {percent !== null && (
             <>
@@ -1583,7 +1596,7 @@ export default function ReadingPlay() {
             <Text style={styles.wrapBadgeText}>{t('reading.wrapBadge')}</Text>
           </View>
           <View style={styles.wrapHead}>
-            <Image source={MASCOT} style={styles.wrapMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT_IMG[donePose]} style={styles.wrapMascot} contentFit="contain" accessibilityIgnoresInvertColors />
             <Text style={styles.wrapHeading}>{t('reading.wrapHeading')}</Text>
           </View>
           <View style={styles.wrapCard}>
@@ -1621,7 +1634,7 @@ export default function ReadingPlay() {
         <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
           <Text style={styles.firstDoneBar}>{t('reading.completeTitle')}</Text>
           <View style={styles.firstDoneBody}>
-            <Image source={MASCOT} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT_IMG[FIRST_DONE_POSE]} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
             <Text style={styles.firstDoneTitle}>{t('reading.firstDoneTitle')}</Text>
             <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
             <View style={styles.firstDoneActions}>
@@ -1657,7 +1670,7 @@ export default function ReadingPlay() {
       return (
         <View style={styles.root}>
           <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-            <Image source={MASCOT} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
             <Text style={styles.doneTitle}>{t(completed ? 'reading.monologueDoneTitle' : 'reading.notCountedTitle')}</Text>
             {!completed ? (
               <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>
@@ -1745,7 +1758,7 @@ export default function ReadingPlay() {
     return (
       <View style={styles.root}>
         <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-          <Image source={MASCOT} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
           <Text style={styles.doneTitle}>{t(completed ? 'reading.completeTitle' : 'reading.notCountedTitle')}</Text>
           {!completed && <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>}
           <Text style={styles.dim}>{script.title}</Text>
