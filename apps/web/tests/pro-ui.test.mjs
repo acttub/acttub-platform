@@ -21,17 +21,13 @@ function topBarLinks() {
   return within(header).getAllByRole("link").map((link) => [link.getAttribute("aria-label") ?? link.textContent, link.getAttribute("href")]);
 }
 
-/** 그 문구를 머리말로 단 구역 전체. */
-const sectionOf = (kicker) => screen.getByText(kicker).closest("section");
 
-test("Pro 안내 상단 바는 로고와 「ACTTUB 홈」 둘 다 홈으로 돌아간다", () => {
+test("요금 안내는 공용 머리를 쓰고, 로고는 게스트도 소개 홈으로 간다", () => {
   render(h(PricingPage));
 
-  assert.deepEqual(topBarLinks(), [
-    ["ACTTUB 홈", "/"],
-    ["ACTTUB 홈", "/"],
-  ]);
-  assert.equal(within(document.querySelector("header")).getByRole("img", { name: "Acttub" }).tagName, "IMG");
+  const header = document.querySelector("header");
+  assert.equal(within(header).getByRole("link", { name: "ACTTUB 홈" }).getAttribute("href"), "/?intro=1");
+  assert.equal(within(header).getByRole("link", { name: "요금" }).getAttribute("aria-current"), "page");
 });
 
 test("환불정책 상단 바는 Pro 안내로 돌아가는 길을 준다", () => {
@@ -43,26 +39,18 @@ test("환불정책 상단 바는 Pro 안내로 돌아가는 길을 준다", () =
   ]);
 });
 
-test("Pro 안내의 그림 조각은 옆 문구가 약속하는 것과 같은 말을 한다", () => {
+test("요금 안내는 무료와 Pro의 차이를 같은 말로 보인다", () => {
   render(h(PricingPage));
 
-  // 코칭 장면은 히어로와 코칭 구역 두 곳에 같은 대화를 보인다.
-  assert.equal(screen.getAllByText("그때 인물은 무엇을 기다리고 있었나요?").length, 2);
-  assert.equal(screen.getAllByText("질문 04 / 07").length, 2);
-
-  // 리딩: 대본 개수 제한 없음, 발음·딕션 피드백은 Pro 전용으로 준비 중.
-  const reading = sectionOf("Pro · 리딩");
-  assert.equal(within(reading).getByText(/이 기능은 Pro 전용으로 준비 중이에요\./).tagName, "P");
-  assert.equal(within(reading).getByText("개수 제한 없음").tagName, "SPAN");
-  assert.equal(within(reading).getByText("발음·딕션 피드백").tagName, "P");
-  assert.equal(within(reading).getByText("Pro 전용 · 준비 중").tagName, "SPAN");
-  assert.equal(within(reading).getAllByText("반복 연습").length, 3);
-
-  // 챌린지: 참여작과 댓글 두 자리에 Pro 배지.
-  const badge = sectionOf("Pro · 챌린지");
-  assert.equal(within(badge).getByText("챌린지 참여작").tagName, "P");
-  assert.equal(within(badge).getByText("댓글").tagName, "P");
-  assert.equal(within(badge).getAllByText("PRO").length, 2);
+  const pro = screen.getByRole("heading", { name: "Pro" }).closest("section");
+  assert.match(pro.textContent, /월 3,900원/);
+  assert.match(pro.textContent, /발음·딕션 피드백 \(Pro 전용 · 준비 중\)/);
+  assert.match(pro.textContent, /구독 표시이며 배우의 실력이나 자격을 인증하는 표시는 아니에요\./);
+  const table = screen.getByRole("table");
+  assert.deepEqual(
+    within(table).getByRole("rowheader", { name: "AI 연기 코칭" }).closest("tr").textContent,
+    "AI 연기 코칭하루 1회제한 없음",
+  );
 });
 
 test("환불정책은 이용한 날짜만큼 빼는 기준과 30일 예시 금액을 보인다", () => {
@@ -84,10 +72,11 @@ test("환불정책은 이용한 날짜만큼 빼는 기준과 30일 예시 금�
   assert.equal(screen.queryByText(/이용 시작 후 7일 이내는 100%/), null);
 });
 
-test("Pro 안내의 결제 구역은 바뀐 환불 기준을 짧게 알리고 환불정책으로 보낸다", () => {
+test("Pro 구독하기 바로 아래에 해지·환불 기준을 짧게 알리고 환불정책으로 보낸다", () => {
   render(h(PricingPage));
 
-  const billing = screen.getByRole("heading", { name: /언제든 다음 자동결제를/ }).closest("section");
-  assert.match(billing.textContent, /이용한 뒤에는 이용한 날짜만큼 빼고 환불해요\./);
-  assert.equal(within(billing).getByRole("link", { name: "환불 기준과 요청 방법 보기" }).getAttribute("href"), "/refund");
+  const pro = screen.getByRole("heading", { name: "Pro" }).closest("section");
+  assert.equal(within(pro).getByRole("link", { name: "Pro 구독하기" }).getAttribute("href"), "/pg-review");
+  assert.match(pro.textContent, /이용한 뒤에는 이용한 날짜만큼 빼고 환불해요\./);
+  assert.equal(screen.getByRole("link", { name: "해지·환불 정책 전문 →" }).getAttribute("href"), "/refund");
 });

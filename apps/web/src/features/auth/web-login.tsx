@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchMe, fetchProviders, login, signup, type LoginInput, type LoginResult, type SignupRequired } from "@/lib/api/v2/auth";
+import { StoreBadges } from "@/features/app-download/store-badges";
+import { fetchMe, fetchProviders, login, type LoginInput, type LoginResult } from "@/lib/api/v2/auth";
 import { errorMessage } from "@/lib/api/v2/errors";
-import type { ConsentDocument } from "@/lib/api/v2/types";
 import { setMemberTokens, type TokenPair } from "@/lib/auth/token-store";
-import { prepareGuestCarry, redeemGuestCarry } from "./carry-guest";
+import { clearLoginExpired } from "@/lib/auth/login-expired";
+import { backupGuestBeforeLogin, redeemGuestCarry } from "./carry-guest";
 import {
   GOOGLE_WEB_CLIENT_ID,
   naverAuthorizeUrl,
   rememberNext,
   takeNaverPending,
+  peekNext,
   takeNext,
   webProviders,
   type WebProvider,
@@ -25,7 +27,7 @@ type Step =
   | { kind: "loading" }
   | { kind: "choose"; providers: WebProvider[] }
   | { kind: "busy"; text: string }
-  | { kind: "signup"; signup: SignupRequired; provider: WebProvider }
+  | { kind: "no-account" }
   | { kind: "error"; message: string };
 
 function loadGoogle(): Promise<GoogleId> {
@@ -44,10 +46,14 @@ function loadGoogle(): Promise<GoogleId> {
 /** 웹 로그인(SOMA-834). naverCallback 이면 네이버에서 돌아온 code 를 서버에 넘겨 이어 간다. */
 export function WebLogin({ naverCallback = false }: { naverCallback?: boolean }) {
   const [step, setStep] = useState<Step>({ kind: "loading" });
+  const [attempt, setAttempt] = useState(0);
   const googleBox = useRef<HTMLDivElement>(null);
 
   const finish = useCallback(async (pair: TokenPair, provider: WebProvider) => {
     setStep({ kind: "busy", text: "로그인하는 중이에요" });
+    // 회원 토큰이 게스트 자리를 덮기 전에 게스트 토큰을 따로 둔다. 옮기기가 끝나야 지운다.
+    backupGuestBeforeLogin();
+    clearLoginExpired();
     // 회원 토큰으로 바꾸기 전에 user 를 알 수 없으므로 먼저 넣고 /v2/me 로 채운다.
     setMemberTokens(pair, { id: "", email: null, status: "active" }, provider);
     const me = await fetchMe().catch(() => null);
@@ -62,7 +68,8 @@ export function WebLogin({ naverCallback = false }: { naverCallback?: boolean })
       try {
         const result: LoginResult = await login(input);
         if (result.result === "signup_required") {
-          setStep({ kind: "signup", signup: result, provider: input.provider });
+          // 웹에는 프로필 입력 화면이 없어 새 계정을 만들면 코칭·리딩이 막힌다. 가입은 앱에서 한다.
+          setStep({ kind: "no-account" });
           return;
         }
         await finish(result, input.provider);
@@ -100,7 +107,17 @@ export function WebLogin({ naverCallback = false }: { naverCallback?: boolean })
     return () => {
       cancelled = true;
     };
-  }, [naverCallback, handle]);
+  }, [naverCallback, handle, attempt]);
+
+  /** 처음 화면으로 되돌린다. 네이버에서 돌아온 화면이면 next 를 지키며 /login 으로 간다. */
+  function retry() {
+    if (naverCallback) {
+      window.location.assign(`/login?next=${encodeURIComponent(peekNext())}`);
+      return;
+    }
+    setStep({ kind: "loading" });
+    setAttempt((n) => n + 1);
+  }
 
   const providers = useMemo(() => (step.kind === "choose" ? step.providers : []), [step]);
   useEffect(() => {
@@ -112,7 +129,6 @@ export function WebLogin({ naverCallback = false }: { naverCallback?: boolean })
           client_id: GOOGLE_WEB_CLIENT_ID,
           callback: async (response: { credential?: string }) => {
             if (!response.credential) return;
-            await prepareGuestCarry();
             void handle({ provider: "google", id_token: response.credential });
           },
         });
@@ -123,7 +139,6 @@ export function WebLogin({ naverCallback = false }: { naverCallback?: boolean })
 
   async function startNaver() {
     setStep({ kind: "busy", text: "네이버로 이동하는 중이에요" });
-    await prepareGuestCarry();
     window.location.assign(await naverAuthorizeUrl(window.location.origin));
   }
 
@@ -161,7 +176,7 @@ export function WebLogin({ naverCallback = false }: { naverCallback?: boolean })
           <p className="pt-2 text-center text-xs leading-5 text-[#8b95a1]">
             카카오·애플 로그인은 지금은 앱에서만 돼요.
             <br />
-            로그인하면 이 브라우저에서 한 연습을 내 계정으로 옮겨요.
+            앱에서 만든 계정으로 로그인하면 이 브라우저에서 한 연습을 내 계정으로 옮겨요.
           </p>
         </div>
       ) : null}
@@ -172,92 +187,26 @@ export function WebLogin({ naverCallback = false }: { naverCallback?: boolean })
         </p>
       ) : null}
 
-      {step.kind === "signup" ? (
-        <SignupConsent
-          documents={step.signup.documents}
-          onSubmit={async (decisions) => {
-            const pair = await signup(step.signup.signup_token, decisions);
-            await finish(pair, step.provider);
-          }}
-        />
+      {step.kind === "no-account" ? (
+        <div role="status" className="space-y-3 rounded-2xl bg-white p-5 ring-1 ring-[#e5e8eb]">
+          <p className="text-base font-bold text-[#191f28]">아직 앱에서 만든 계정이 없어요</p>
+          <p className="text-sm leading-6 text-[#4e5968]">
+            웹 로그인은 앱에서 만든 계정으로 할 수 있어요. 앱에서 가입하고 프로필을 채운 뒤 다시 와 주세요. 그동안은 로그인 없이 웹에서 연습할 수 있어요.
+          </p>
+          <StoreBadges surface="app_page" />
+          <div className="flex gap-4 pt-1 text-sm font-semibold">
+            <Link href="/practice/new" className="text-[#3182f6]">로그인 없이 연습하기</Link>
+            <button type="button" onClick={retry} className="text-[#4e5968]">다른 계정으로 로그인</button>
+          </div>
+        </div>
       ) : null}
 
       {step.kind === "error" ? (
         <div role="alert" className="space-y-3 rounded-2xl bg-white p-5 ring-1 ring-[#e5e8eb]">
           <p className="text-base leading-7 text-[#191f28]">{step.message}</p>
-          <Link href="/login" className="inline-block font-semibold text-[#3182f6]">다시 로그인하기</Link>
+          <button type="button" onClick={retry} className="inline-block font-semibold text-[#3182f6]">다시 로그인하기</button>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function SignupConsent({
-  documents,
-  onSubmit,
-}: {
-  documents: ConsentDocument[];
-  onSubmit: (decisions: { document_id: string; action: "granted" | "declined" }[]) => Promise<void>;
-}) {
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [age, setAge] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-  const ready = age && documents.every((doc) => !doc.required || checked[doc.id]);
-
-  async function submit() {
-    if (!ready || sending) return;
-    setSending(true);
-    setFailed(null);
-    try {
-      await onSubmit(documents.map((doc) => ({ document_id: doc.id, action: checked[doc.id] ? "granted" : "declined" })));
-    } catch (error) {
-      setFailed(errorMessage(error, "가입하지 못했어요. 잠시 뒤 다시 시도해 주세요."));
-      setSending(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4 rounded-[28px] bg-white p-6 ring-1 ring-[#e5e8eb]">
-      <h2 className="text-xl font-black">처음 오셨네요</h2>
-      <p className="text-sm leading-6 text-[#4e5968]">가입하려면 아래 내용에 동의해 주세요.</p>
-      <ul className="space-y-3">
-        {documents.map((doc) => (
-          <li key={doc.id}>
-            <label className="flex items-start gap-3 text-sm leading-6">
-              <input
-                type="checkbox"
-                className="mt-1 size-4"
-                checked={Boolean(checked[doc.id])}
-                onChange={(e) => setChecked((prev) => ({ ...prev, [doc.id]: e.target.checked }))}
-              />
-              <span>
-                <span className={doc.required ? "font-bold text-[#3182f6]" : "font-bold text-[#8b95a1]"}>{doc.required ? "필수" : "선택"}</span>{" "}
-                {doc.title}
-                <details className="mt-1 text-xs text-[#8b95a1]">
-                  <summary className="cursor-pointer">내용 보기</summary>
-                  <p className="mt-2 whitespace-pre-line">{doc.body}</p>
-                </details>
-              </span>
-            </label>
-          </li>
-        ))}
-        <li>
-          <label className="flex items-start gap-3 text-sm leading-6">
-            <input type="checkbox" className="mt-1 size-4" checked={age} onChange={(e) => setAge(e.target.checked)} />
-            <span><span className="font-bold text-[#3182f6]">필수</span> 만 14세 이상이에요</span>
-          </label>
-        </li>
-      </ul>
-      <button
-        type="button"
-        disabled={!ready || sending}
-        onClick={() => void submit()}
-        className="w-full rounded-2xl bg-[#3182f6] py-3.5 font-bold text-white disabled:bg-[#d1d6db]"
-      >
-        {sending ? "가입하는 중이에요" : "동의하고 가입하기"}
-      </button>
-      {failed ? <p role="alert" className="text-sm text-[#f04452]">{failed}</p> : null}
     </div>
   );
 }

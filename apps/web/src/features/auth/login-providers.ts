@@ -59,12 +59,29 @@ export function takeNaverPending(): { verifier: string; state: string; redirectU
 }
 
 /** 로그인 뒤 돌아갈 곳. 같은 사이트 경로만 받는다. */
-export function safeNext(value: string | null | undefined): string {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/account";
+export function safeNext(value: string | null | undefined, origin?: string): string {
+  const fallback = "/account";
+  if (!value || !value.startsWith("/")) return fallback;
+  // 역슬래시·제어문자는 브라우저가 "//" 로 읽어 밖의 사이트로 보낼 수 있다(/\evil.com, /%09/evil.com).
+  if (/[\\\u0000-\u001f\u007f]/.test(value) || /%(0[0-9a-f]|1[0-9a-f]|7f|5c)/i.test(value)) return fallback;
+  const base = origin ?? (typeof window === "undefined" ? "https://acttub.com" : window.location.origin);
+  try {
+    const url = new URL(value, base);
+    if (url.origin !== new URL(base).origin) return fallback;
+    if (url.pathname.startsWith("//")) return fallback;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return fallback;
+  }
 }
 
 export function rememberNext(next: string): void {
   sessionStorage.setItem(NEXT_KEY, safeNext(next));
+}
+
+/** 지우지 않고 읽는다(다시 로그인할 때 next 를 지키려고). */
+export function peekNext(): string {
+  return safeNext(sessionStorage.getItem(NEXT_KEY));
 }
 
 export function takeNext(): string {
