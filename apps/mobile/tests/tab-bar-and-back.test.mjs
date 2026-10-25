@@ -28,9 +28,9 @@ test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이
   // 안드로이드: 좌우·바닥 여백 없음, 둥근 모서리 없음, 시스템 내비게이션 칸만큼 아래를 채운다
   assert.match(tabs, /left: 0,\s*right: 0,\s*bottom: 0,/);
   assert.match(tabs, /height: 72 \+ insets\.bottom/);
-  // 두 플랫폼 모두 이름은 고른 탭에만 보인다(10/23 pen 하단바 규칙 — 10/20 「다섯 탭 이름 모두」를 바꿈)
-  assert.match(tabs, /\{focused \? \(\s*<Text style=\{\[styles\.tabLabel, styles\.tabLabelOn, \{ color \}\]\}/);
-  assert.doesNotMatch(tabs, /!IOS && focused && <Text/);
+  // 두 플랫폼 모두 탭 이름 글자는 없고 아이콘을 탭바 세로 가운데에 둔다(SOMA-838)
+  assert.doesNotMatch(tabs, /<Text/);
+  assert.match(read('components/haptic-tab.tsx'), /style=\{\[props\.style, \{ justifyContent: 'center' \}\]\}/);
 });
 
 test('안드로이드는 네이티브 뒤로 버튼에 꺾쇠 그림만 씌우고 헤더에 직접 만든 버튼을 넣지 않는다 — 넣으면 화면을 닫을 때 앱이 꺼졌다(SOMA-665)', () => {
