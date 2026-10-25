@@ -14,7 +14,7 @@ const card = (over = {}) => ({
 const entry = (over = {}) => ({
   id: id(2), challenge_id: id(1), author: { user_id: id(7), name: '니나' }, caption: null, like_count: 5,
   comment_count: 1, view_count: 3, rank: 1, final_like_count: null, published_at: '2026-09-23T03:00:00Z',
-  playback_url: 'https://storage.test/v.mp4', liked: false, saved: false, is_mine: false, is_new: false, ...over,
+  playback_url: 'https://storage.test/v.mp4', original_playback_url: null, liked: false, saved: false, is_mine: false, is_new: false, ...over,
 });
 const mine = (over = {}) => {
   const { is_new: _unused, ...base } = entry({ is_mine: true, author: { user_id: id(8), name: '나' } });
