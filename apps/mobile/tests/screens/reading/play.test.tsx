@@ -550,6 +550,8 @@ test('내 대사만 가리면 내 줄이 막대로 바뀌고, 첫 단어·원문
   // 시트 대신 컨트롤 바 위에 세 칸이 펼쳐진다(SOMA-821). 펼친 동안은 자동 넘김이 멈춘다.
   expect(screen.getByRole('radio', { name: '내 대사만 가리기' })).toBeOnTheScreen();
   expect(screen.getByRole('radio', { name: '모든 대사 보기' })).toBeChecked();
+  // 세 칸이 아래 컨트롤 바 경계선에 붙지 않게 아래 여백을 둔다(SOMA-840).
+  expect(screen.getByRole('radio', { name: '내 대사만 가리기' }).parent).toHaveStyle({ paddingBottom: 12 });
   expect(screen.getByText('넘김 멈춤')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대사만 가리기'));
   // 고르면 접힌다.
