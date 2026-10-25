@@ -31,7 +31,7 @@ export function useCloudVoice() {
   const finishEnable = useCallback(() => {
     setStatus((current) => current ? { ...current, consent: 'granted' } : current);
     // 켜는 길은 공지 포스터만 남았다(SOMA-841).
-    logEvent('cloud_voice_enabled', { source: 'promo' });
+    void logEvent('cloud_voice_enabled', { source: 'promo' });
     setToast(true);
     setTimeout(() => setToast(false), 2200);
     return true;
