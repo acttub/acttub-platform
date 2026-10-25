@@ -319,12 +319,11 @@ export default function ProfileNameScreen() {
               key={gender}
               label={t(GENDER_LABEL_KEYS[gender])}
               selected={form.gender === gender}
-              onPress={() => update({ gender })}
+              onPress={() => advance('gender', { gender })}
             />
           ))}
         </View>
       );
-      footer = nextButton(() => advance('gender'), ready);
       break;
     case 'goal':
       body = (
@@ -334,12 +333,11 @@ export default function ProfileNameScreen() {
               key={goal}
               label={goals[i] ?? goal}
               selected={form.goal === goal}
-              onPress={() => update({ goal })}
+              onPress={() => advance('goal', { goal })}
             />
           ))}
         </View>
       );
-      footer = nextButton(() => advance('goal'), ready);
       break;
     case 'career':
       body = (
@@ -349,12 +347,11 @@ export default function ProfileNameScreen() {
               key={experience}
               label={careers[i] ?? experience}
               selected={form.experience === experience}
-              onPress={() => update({ experience })}
+              onPress={() => advance('career', { experience })}
             />
           ))}
         </View>
       );
-      footer = nextButton(() => advance('career'), ready);
       break;
     case 'directions':
       body = (
@@ -379,7 +376,7 @@ export default function ProfileNameScreen() {
       footer = nextButton(() => advance('directions'), ready);
       break;
     case 'discovery':
-      // 고르고 「완료」를 눌러야 저장한다. 「기타」는 직접 적는다. 건너뛰면 고르지 않은 것으로 적는다.
+      // 하나 누르면 바로 저장한다(SOMA-827). 「기타」만 직접 적고 「완료」를 누른다. 건너뛰면 고르지 않은 것으로 적는다.
       body = (
         <>
           <View style={styles.options}>
@@ -388,7 +385,12 @@ export default function ProfileNameScreen() {
                 key={source}
                 label={t(`profileName.discoverySources.${source}`)}
                 selected={discovery.source === source}
-                onPress={() => setDiscovery(chooseDiscoverySource(discovery, source))}
+                onPress={() => {
+                  if (busy) return;
+                  const answer = chooseDiscoverySource(discovery, source);
+                  setDiscovery(answer);
+                  if (source !== 'other') advance('discovery', undefined, answer);
+                }}
               />
             ))}
           </View>
@@ -407,10 +409,7 @@ export default function ProfileNameScreen() {
       );
       footer = (
         <>
-          {nextButton(
-            () => advance('discovery'),
-            discovery.source !== null && (discovery.source !== 'other' || discovery.otherText.trim().length > 0),
-          )}
+          {discovery.source === 'other' && nextButton(() => advance('discovery'), discovery.otherText.trim().length > 0)}
           <TextButton
             size="large"
             label={t('profileName.skip')}
@@ -431,7 +430,8 @@ export default function ProfileNameScreen() {
       <ProgressHeader step={index} total={steps.length} onBack={goBack} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <MascotBubble title={t(ASK_KEYS[step], { name })} />
+          {/* 하나 고르는 질문은 누르면 바로 넘어간다(SOMA-827) — 그 사실을 말풍선 아래 줄로 알린다. */}
+          <MascotBubble title={t(ASK_KEYS[step], { name })} guide={TAP_TO_NEXT[step] ? t(TAP_TO_NEXT[step]) : null} />
           <Animated.View
             key={step}
             entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}
@@ -479,6 +479,14 @@ function ChoiceRow({
 }
 
 /** 질문마다 캐릭터 말풍선 제목. */
+/** 누르면 바로 넘어가는 질문의 안내 줄. 닉네임·생년월일·추구 방향(여러 개)은 「다음」으로 간다. */
+const TAP_TO_NEXT: Partial<Record<OnboardingStep, string>> = {
+  gender: 'profileName.askGenderHint',
+  goal: 'profileName.askGenderHint',
+  career: 'profileName.askGenderHint',
+  discovery: 'profileName.askDiscoveryHint',
+};
+
 const ASK_KEYS: Record<OnboardingStep, string> = {
   name: 'profileName.askName',
   birth: 'profileName.askBirth',

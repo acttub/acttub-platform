@@ -242,7 +242,25 @@ describe('첫 사용자', () => {
     expect(mockRouter.push).toHaveBeenLastCalledWith('/challenges');
   });
 
-  test('대본을 만든 사람은 선택지 대신 그 대본으로 시작하는 오늘 할 것 카드를 본다', async () => {
+  test('대본만 넣고 끝까지 안 읽은 사람은 아직 첫 사용자다 — 선택지를 본다(SOMA-827)', async () => {
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('뭐부터 해 볼까요?')).toBeOnTheScreen();
+    expect(screen.queryByText('갈매기 2막')).not.toBeOnTheScreen();
+  });
+
+  test('노트 전에 나간 코칭 묶음만 있는 사람도 아직 첫 사용자다(SOMA-827)', async () => {
+    listPracticeGroups.mockResolvedValue({
+      groups: [group({ title: '나간 장면', practices: [round('p1', '2026-08-15T03:00:00Z', false)] })],
+    });
+    await render(<HomeScreen />);
+
+    expect(await screen.findByText('뭐부터 해 볼까요?')).toBeOnTheScreen();
+  });
+
+  test('한 번도 안 읽은 대본은 「하던 대본」이 아니라 새 대본 카드다(연습 1회를 한 사람)', async () => {
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e-old', created_at: isoDaysAgo(20) }], next_cursor: null });
     listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
     await render(<HomeScreen />);
 
@@ -313,6 +331,8 @@ describe('오늘 할 것 · 코칭 숙제', () => {
   });
 
   test('노트 없이 나간 묶음(1턴만 하고 나감)은 숙제가 아니다 — 연습 시작 카드를 보인다', async () => {
+    // 첫 사용자가 아니게 예전에 올린 참여작 하나(연습 1회)를 둔다 — 2주 밖이라 주 기능은 바뀌지 않는다.
+    (api.listMyChallengeEntries as jest.Mock).mockResolvedValue({ entries: [{ id: 'e-old', created_at: isoDaysAgo(20) }], next_cursor: null });
     listPracticeGroups.mockResolvedValue({
       groups: [group({ title: '나간 장면', practices: [round('p1', '2026-08-15T03:00:00Z', false)] })],
     });
@@ -374,7 +394,7 @@ describe('연속 연습', () => {
   test('이미 본 연속일이면 다시 축하하지 않는다', async () => {
     (readLastSeenStreak as jest.Mock).mockResolvedValue(1);
     listPracticeGroups.mockResolvedValue({
-      groups: [group({ practices: [{ created_at: isoDaysAgo(0) }] as PracticeGroup['practices'] })],
+      groups: [group({ practices: [{ created_at: isoDaysAgo(0), note: { id: 'n' } }] as unknown as PracticeGroup['practices'] })],
     });
     await render(<HomeScreen />);
 
@@ -499,7 +519,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
 
   test('리딩이 메인이면 맨 위 인사는 이어 읽기를 권하고, 아래 줄은 코칭·챌린지·공고다', async () => {
     listReadingScripts.mockResolvedValue({ scripts: [scriptRead('옥상, 밤')] });
-    (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [{ status: 'in_progress', progress: { total: 10, done: 3 } }] });
+    (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [{ status: 'in_progress', progress: { total: 10, done: 3 } }, { status: 'completed', started_at: isoDaysAgo(2), elapsed_seconds: 0 }] });
     (api.listChallenges as jest.Mock).mockResolvedValue({ featured: openChallenge });
     await render(<HomeScreen />);
 
@@ -539,7 +559,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
 
   test('리딩 메인 카드 제목은 대본 제목 · 내 배역이다(pen P1.15 「옥상, 밤 · 태오」)', async () => {
     listReadingScripts.mockResolvedValue({ scripts: [{ ...scriptRead('옥상, 밤'), my_character_names: ['태오'] }] });
-    (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [{ status: 'in_progress', progress: { total: 10, done: 3 } }] });
+    (api.listReadingSessions as jest.Mock).mockResolvedValue({ sessions: [{ status: 'in_progress', progress: { total: 10, done: 3 } }, { status: 'completed', started_at: isoDaysAgo(2), elapsed_seconds: 0 }] });
     await render(<HomeScreen />);
 
     expect(await screen.findByText('옥상, 밤 · 태오')).toBeOnTheScreen();
@@ -551,7 +571,7 @@ describe('홈 카드와 「이것도 해 볼래요?」 줄', () => {
     (api.listReadingSessions as jest.Mock).mockResolvedValue({
       sessions: [
         { status: 'completed', started_at: isoDaysAgo(1) },
-        { status: 'completed', started_at: isoDaysAgo(2) },
+        { status: 'completed', started_at: isoDaysAgo(2), elapsed_seconds: 0 },
         { status: 'completed', started_at: isoDaysAgo(3) },
       ],
     });
@@ -709,7 +729,9 @@ describe('안드로이드 뒤로가기', () => {
 test('다시 포커스되면 기록을 다시 읽는다', async () => {
   await render(<HomeScreen />);
   await screen.findByText('뭐부터 해 볼까요?');
-  listReadingScripts.mockResolvedValue({ scripts: [script({ title: '다시 읽은 대본' })] });
+  // 다른 화면에서 대본을 끝까지 읽고 돌아왔다 — 다시 읽으면 기본 홈으로 바뀐다.
+  listReadingScripts.mockResolvedValue({ scripts: [script({ title: '다시 읽은 대본', status: 'completed' })] });
   await act(async () => void mockFocusEffect());
-  expect(await screen.findByText('다시 읽은 대본')).toBeOnTheScreen();
+  await waitFor(() => expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen());
+  expect(listReadingScripts.mock.calls.length).toBeGreaterThanOrEqual(2);
 });
