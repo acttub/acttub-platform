@@ -14,7 +14,7 @@ import { translate as t } from '@/lib/i18n';
 export function CoachMessage({ children, below }: { children: ReactNode; below?: ReactNode }) {
   return (
     <View style={styles.row}>
-      <Image source={MASCOT.coach} style={MASCOT_SIZE.chat} contentFit="contain" accessibilityIgnoresInvertColors />
+      <Image source={MASCOT.coach} style={MASCOT_SIZE.chat} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <View style={styles.content}>
         <Text style={styles.name}>{t('coach.coachLabel')}</Text>
         <View style={styles.bubble}>{children}</View>

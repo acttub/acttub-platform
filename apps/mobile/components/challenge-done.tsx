@@ -44,7 +44,7 @@ export function ChallengeDone({
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: first ? t('challengeDone.firstNav') : '' }} />
       <ScrollView contentContainerStyle={[styles.content, first && styles.contentFirst]}>
-        <Image source={MASCOTS.cheer} style={[styles.mascot, first && styles.mascotFirst]} contentFit="contain" accessibilityIgnoresInvertColors />
+        <Image source={MASCOTS.cheer} style={[styles.mascot, first && styles.mascotFirst]} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.sub}>{sub}</Text>
         {!first && rows.length > 0 && (

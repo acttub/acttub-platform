@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
-import { StyleSheet } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { SpotlightGuide, SpotlightHost, type SpotlightStep } from '@/components/spotlight-guide';
 import { logEvent } from '@/lib/analytics';
@@ -204,4 +204,23 @@ describe('덮개와 설명 카드 자리', () => {
 
     expect(await fireEvent(overlay(), 'startShouldSetResponder')).toBe(true);
   });
+});
+
+test('비친 자리 테두리의 맥박은 투명도·크기만 바꾼다 — 자리·크기는 바깥 칸이 들어 매 프레임 레이아웃을 다시 재지 않는다(SOMA-847)', async () => {
+  setTargetRect(TARGET.homeStart, HOME_START);
+  await render(<App onDone={jest.fn()} />);
+
+  type Node = { props: { style?: StyleProp<ViewStyle> }; children: (Node | string)[] | null };
+  const walk = (node: Node | string): Node[] =>
+    typeof node === 'string' ? [] : [node, ...(node.children ?? []).flatMap(walk)];
+  const tree = screen.toJSON() as Node | Node[];
+  const rings = (Array.isArray(tree) ? tree : [tree])
+    .flatMap(walk)
+    .filter((node) => StyleSheet.flatten(node.props.style)?.borderWidth === 3);
+  expect(rings).toHaveLength(1);
+  const pulse = StyleSheet.flatten(rings[0].props.style);
+  expect(pulse).toEqual(expect.objectContaining({ opacity: expect.any(Number), transform: expect.any(Array) }));
+  // 바깥 칸을 채우기만 한다(absoluteFill) — 비친 자리 좌표(x 20, 너비 200)는 바깥 칸에만 있다.
+  expect(pulse).toEqual(expect.objectContaining({ left: 0, top: 0, right: 0, bottom: 0 }));
+  expect(pulse).not.toHaveProperty('width');
 });

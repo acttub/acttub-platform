@@ -43,7 +43,7 @@ export function ChallengeIntro({
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <View style={styles.titleRow}>
-            <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.title}>{t(PAGES[page].title)}</Text>
           </View>
           <Text style={styles.body}>{t(PAGES[page].body)}</Text>

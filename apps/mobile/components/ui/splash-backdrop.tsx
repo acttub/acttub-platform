@@ -38,7 +38,7 @@ export function SplashBackdrop({ children }: { children?: React.ReactNode }) {
       <View style={styles.body}>
         <View style={styles.stage}>
           <View style={styles.shadow} />
-          <Image source={require('@/assets/images/splash-mascot.png')} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={require('@/assets/images/splash-mascot-840.png')} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
         </View>
         <View style={styles.brand}>
           <Image source={require('@/assets/images/splash-wordmark.png')} style={styles.wordmark} contentFit="contain" accessibilityIgnoresInvertColors />

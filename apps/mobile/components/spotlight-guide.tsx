@@ -199,6 +199,10 @@ export function SpotlightHost() {
     width: hw.value,
     height: hh.value,
     borderRadius: hr.value,
+  }));
+  // 맥박은 투명도·크기만 바꾼다 — 자리·크기를 같은 스타일에 두면 끝없이 도는 동안 매 프레임 레이아웃을 다시 잰다(SOMA-847).
+  const pulseStyle = useAnimatedStyle(() => ({
+    borderRadius: hr.value,
     opacity: 0.95 - pulse.value * 0.6,
     transform: [{ scale: 1 + pulse.value * 0.06 }],
   }));
@@ -244,7 +248,9 @@ export function SpotlightHost() {
               accessibilityLabel={t(`${step.text}Title`)}
             />
           </Animated.View>
-          <Animated.View pointerEvents="none" style={[styles.ring, ringStyle]} />
+          <Animated.View pointerEvents="none" style={[styles.hole, ringStyle]}>
+            <Animated.View style={[styles.ring, pulseStyle]} />
+          </Animated.View>
         </>
       ) : (
         // 아직 못 잰 자리 — 전체를 덮고 설명만 보여 준다.
@@ -255,7 +261,7 @@ export function SpotlightHost() {
       <View
         style={[styles.caption, placement]}
         onLayout={(e) => setCaptionHeight(e.nativeEvent.layout.height)}>
-        <Image source={MASCOT[step.mascot ?? 'home']} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+        <Image source={MASCOT[step.mascot ?? 'home']} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
         <View style={styles.bubble}>
           <View style={styles.tail} />
           <Animated.View
@@ -291,7 +297,7 @@ const styles = StyleSheet.create({
   shroudRing: { position: 'absolute', borderColor: 'rgba(0, 0, 0, 0.55)' },
   hole: { position: 'absolute' },
   // 밝은 배경 위에서도 보이게 파랑으로 두른다 — 흰 테두리는 흰 화면에 묻힌다.
-  ring: { position: 'absolute', borderWidth: 3, borderColor: palette.blue },
+  ring: { ...StyleSheet.absoluteFillObject, borderWidth: 3, borderColor: palette.blue },
   caption: {
     position: 'absolute',
     left: 14,

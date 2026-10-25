@@ -22,3 +22,22 @@ test('홈 머리 액티는 하루 동안 같은 자세이고 날마다 돌아간
   // 홈은 pen 히어로(책 위에서 읽는 액티)로 바뀌었다(SOMA-821) — 날마다 바뀌는 포즈는 쓰지 않는다.
   assert.match(read('app/(tabs)/index.tsx'), /hero-acty-book\.png/);
 });
+
+test('액티 그림은 메모리 캐시를 쓴다 — 기본(disk)이면 뜰 때마다 PNG 를 다시 읽고 풀어 늦게 뜬다(SOMA-847)', async () => {
+  const { readdirSync } = await import('node:fs');
+  const walk = (dir) =>
+    readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(`${dir}/${e.name}`) : e.name.endsWith('.tsx') ? [`${dir}/${e.name}`] : [],
+    );
+  const misses = [];
+  for (const file of [...walk('app'), ...walk('components')]) {
+    const src = read(file);
+    if (!src.includes("from 'expo-image'")) continue;
+    for (const tag of src.match(/<Image\b[^>]*>/g) ?? []) {
+      if (/source=\{(MASCOT|MASCOTS|MASCOT_IMG|mascot|source)\b|splash-mascot|hero-acty-book/.test(tag) && !tag.includes('cachePolicy="memory-disk"')) {
+        misses.push(`${file}: ${tag.slice(0, 80)}`);
+      }
+    }
+  }
+  assert.deepEqual(misses, []);
+});

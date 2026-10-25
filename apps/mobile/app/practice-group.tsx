@@ -260,7 +260,7 @@ export default function PracticeGroupScreen() {
           orderedMessages(conversation).map((message) =>
             message.role === 'coach' ? (
               <View key={message.turn_index} style={styles.coachRow}>
-                <Image source={MASCOT.coach} style={MASCOT_SIZE.chat} contentFit="contain" accessibilityLabel={t('coach.roleCoach')} />
+                <Image source={MASCOT.coach} style={MASCOT_SIZE.chat} contentFit="contain" cachePolicy="memory-disk" accessibilityLabel={t('coach.roleCoach')} />
                 <View style={styles.coachBubble}>
                   <Text style={styles.cardText}>{message.text}</Text>
                 </View>

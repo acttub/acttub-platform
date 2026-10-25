@@ -334,7 +334,7 @@ export default function ScriptCocreateScreen() {
         <View style={styles.flex}>
           {/* pen P14.9 — 갸웃하는 액티 84×94 · 제목 21/800 · 설명 15/400. */}
           <View style={styles.center}>
-            <Image source={MASCOT.coach} style={styles.failMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT.coach} style={styles.failMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.failTitle}>{t('scriptCocreate.failTitle')}</Text>
             <Text style={styles.failSub}>{t('scriptCocreate.failSub')}</Text>
             {error ? <Text style={styles.error}>{error}</Text> : null}

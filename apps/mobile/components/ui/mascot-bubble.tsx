@@ -24,7 +24,7 @@ export function MascotBubble({
   return (
     <View style={styles.row}>
       <View style={styles.mascot}>
-        <Image source={source} style={MASCOT_SIZE.bubble} contentFit="contain" accessibilityIgnoresInvertColors />
+        <Image source={source} style={MASCOT_SIZE.bubble} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       </View>
       <View style={styles.bubble}>
         <Text style={styles.title}>{title}</Text>

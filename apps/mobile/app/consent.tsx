@@ -212,7 +212,7 @@ export default function ConsentScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.list}>
-        <Image source={MASCOT.coach} style={MASCOT_SIZE.bubble} contentFit="contain" accessibilityIgnoresInvertColors />
+        <Image source={MASCOT.coach} style={MASCOT_SIZE.bubble} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
         <Text style={styles.title} accessibilityRole="header">{t('consent.startHeading')}</Text>
         <Text style={styles.hint}>{t('consent.startHint')}</Text>
         <View style={styles.lines}>{lines.map(renderLine)}</View>

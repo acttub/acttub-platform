@@ -222,7 +222,7 @@ export default function ProfileNameScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.introCenter}>
-          <Image source={MASCOT.home} style={MASCOT_SIZE.intro} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT.home} style={MASCOT_SIZE.intro} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.introTitle}>{t('profileName.introTitle')}</Text>
           <Text style={styles.introBody}>{t('profileName.introBody', { count: steps.length })}</Text>
           <View style={styles.introBadge}>
