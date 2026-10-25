@@ -130,9 +130,11 @@ export default function ReadingRange() {
   }, []);
 
   // Wi-Fi 면 상대역 목소리를 미리 받아 둔다 — 실행 화면에서 기다리지 않게. 화면을 막지 않고 실패도 알리지 않는다.
+  // 예시에서 온 대본(sample)은 미리 만든 음성으로 읽을 수 있어 받지 않는다 — 서버 답을 기다리면 받기와 엇갈려 입력 경로로 정한다.
+  const fromSample = script?.source === 'sample';
   useEffect(() => {
-    void engine.prefetchIfWifi();
-  }, []);
+    if (!fromSample) void engine.prefetchIfWifi();
+  }, [fromSample]);
 
   const recents = useMemo(
     () =>
