@@ -18,7 +18,7 @@ export default function AccountPage() {
 
         <AccountPanel />
 
-        <h2 className="pt-4 text-2xl font-black tracking-[-0.03em]">ACTTUB 계정 삭제 안내</h2>
+        <h2 id="delete" className="scroll-mt-6 pt-4 text-2xl font-black tracking-[-0.03em]">ACTTUB 계정 삭제 안내</h2>
 
         <section className="rounded-[28px] bg-white p-6 ring-1 ring-[#e5e8eb] sm:p-8">
           <h3 className="text-xl font-black">앱이나 웹에서 삭제하기</h3>

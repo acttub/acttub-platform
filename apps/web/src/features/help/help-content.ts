@@ -24,13 +24,13 @@ export const FAQ: FaqCategory[] = [
     items: [
       {
         q: "웹에서도 앱 계정으로 쓸 수 있나요?",
-        a: "지금 웹은 로그인 없이 게스트로 써요. 웹에서 한 연습은 이관 코드로 앱 계정에 옮길 수 있어요. 앱 계정으로 웹에 로그인하는 기능은 준비하고 있어요.",
-        href: "/transfer",
-        hrefLabel: "앱으로 옮기기",
+        a: "앱에서 쓰는 구글 계정으로 웹에도 로그인할 수 있어요. 로그인하면 이 브라우저에서 게스트로 한 연습이 내 계정으로 옮겨져요. 카카오·애플 로그인은 지금은 앱에서만 돼요.",
+        href: "/login",
+        hrefLabel: "로그인",
       },
       {
         q: "웹에서 한 연습은 어디에 남나요?",
-        a: "앱으로 옮기기 전에는 그 브라우저에만 남아요. 브라우저 기록을 지우면 다시 볼 수 없으니, 계속 쓰려면 앱으로 옮겨 주세요.",
+        a: "로그인하거나 앱으로 옮기기 전에는 그 브라우저에만 남아요. 브라우저 기록을 지우면 다시 볼 수 없으니, 계속 쓰려면 로그인하거나 앱으로 옮겨 주세요.",
       },
       {
         q: "앱에서는 어떤 방법으로 로그인하나요?",
@@ -138,3 +138,12 @@ export const INQUIRY_CATEGORY: Record<InquiryType, "account" | "billing" | "refu
 /** 서버가 받는 내용 길이(자). */
 export const INQUIRY_BODY_MIN = 10;
 export const INQUIRY_BODY_MAX = 3000;
+
+/** 질문 문장으로 자주 묻는 질문 한 개를 찾는다. 홈처럼 일부만 보여 주는 곳에서 같은 답을 쓰기 위해. */
+export function findFaq(q: string): FaqItem | undefined {
+  for (const c of FAQ) {
+    const item = c.items.find((i) => i.q === q);
+    if (item) return item;
+  }
+  return undefined;
+}

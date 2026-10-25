@@ -42,7 +42,7 @@ export function ContactForm() {
       <div role="status" className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-[#e5e8eb]">
         <p className="text-lg font-bold">문의를 받았어요</p>
         <p className="mt-2 text-base leading-7 text-[#4e5968]">
-          {email.trim()} 주소로 답장을 보내 드릴게요. 보통 영업일 기준 1~2일 걸려요.
+          {email.trim()} 주소로 답장을 보내 드릴게요.
         </p>
       </div>
     );
