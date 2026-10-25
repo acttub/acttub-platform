@@ -47,6 +47,7 @@ import { loadIntoCurrent } from '@/lib/reading/store';
 import { isMonologue } from '@/lib/reading/monologue';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { MonologueNameDialog } from '@/components/monologue-name-dialog';
+import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
 import { newRequestId } from '@/lib/request-id';
 import { translate as t } from '@/lib/i18n';
 
@@ -237,7 +238,22 @@ export default function ReadingNew() {
     if (next) await split(next, { title });
   };
 
-  const setTab = (tab: ScriptTab) => dispatch({ type: 'tab', tab });
+  // 세 번째 선택지 「대본 같이 만들기」(10/25) — 화면을 넘기지 않고 아래에 「예시 대본 고르기 · 새 대본 만들기」를 펼친다.
+  // 예시 대본은 그 아래에서 바로 고르고, 새 대본 만들기는 「다음」으로 대본 만들기(감정 고르기)로 간다.
+  const [makeOpen, setMakeOpen] = useState(false);
+  const [makeChoice, setMakeChoice] = useState<'sample' | 'make' | null>(null);
+  const picker = useSamplePicker({
+    onNeedName: setNaming,
+    // 서버 예시를 못 받았을 때의 내장 예시 — 그 글을 글 붙여넣기 칸에 채워 기존 저장 흐름을 탄다.
+    onLocal: (id) => {
+      setMakeOpen(false);
+      dispatch({ type: 'sample', id });
+    },
+  });
+  const setTab = (tab: ScriptTab) => {
+    setMakeOpen(false);
+    dispatch({ type: 'tab', tab });
+  };
   const closable = popup !== null && popup.kind !== 'splitting' && !(popup.kind === 'consent' && popup.busy);
   // 파일을 올리는 중·나누는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일과 나누기가 버려진다(SOMA-664).
   // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
@@ -283,20 +299,33 @@ export default function ReadingNew() {
 
         {/* 「사진」 탭(사진으로 대본 넣기)은 서버에 사진 출처가 없어 숨긴다(SOMA-748). */}
         <View style={styles.segment}>
-          <SegmentTab icon="paperclip" label={t('reading.tabFile')} on={input.tab === 'file'} onPress={() => setTab('file')} />
+          <SegmentTab icon="paperclip" label={t('reading.tabFile')} on={!makeOpen && input.tab === 'file'} onPress={() => setTab('file')} />
           <View ref={pasteTabTarget.ref} onLayout={pasteTabTarget.onLayout} style={styles.segmentSlot}>
-            <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={input.tab === 'paste'} onPress={() => setTab('paste')} />
+            <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={!makeOpen && input.tab === 'paste'} onPress={() => setTab('paste')} />
           </View>
-          {/* 세 번째 선택지 — 대본이 없으면 같이 만들기로 간다. 예시 대본도 거기서 고른다(10/25). */}
-          <SegmentTab
-            icon="message-circle"
-            label={t('reading.entryCocreate')}
-            on={false}
-            onPress={() => router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } })}
-          />
+          {/* 세 번째 선택지 — 대본이 없으면 같이 만들기. 예시 대본도 여기서 고른다(10/25). */}
+          <SegmentTab icon="message-circle" label={t('reading.entryCocreate')} on={makeOpen} onPress={() => setMakeOpen(true)} />
         </View>
 
-        {input.tab === 'file' && (
+        {makeOpen && (
+          <View style={styles.makeArea}>
+            {(['sample', 'make'] as const).map((key) => (
+              <Pressable
+                key={key}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: makeChoice === key }}
+                ph-label={`reading_new_make_${key}`}
+                onPress={() => setMakeChoice(key)}
+                style={[styles.choice, makeChoice === key && styles.choiceOn]}>
+                <Text style={styles.choiceTitle}>{t(key === 'sample' ? 'scriptCocreate.startSample' : 'scriptCocreate.startMake')}</Text>
+                <Text style={styles.choiceSub}>{t(key === 'sample' ? 'scriptCocreate.startSampleSub' : 'scriptCocreate.startMakeSub')}</Text>
+              </Pressable>
+            ))}
+            {makeChoice === 'sample' && <SamplePickerBody list={picker.list} entry={picker.entry} pick={picker.pick} />}
+          </View>
+        )}
+
+        {!makeOpen && input.tab === 'file' && (
           <Pressable
             style={[styles.dropzone, input.file.kind === 'empty' && styles.dropzoneEmpty]}
             onPress={onPickFile}
@@ -336,6 +365,7 @@ export default function ReadingNew() {
         )}
 
         {/* pen 「제목 입력」 — 라벨 위, 문서 아이콘이 든 흰 칸. 비우면 서버가 대본에서 찾아 붙인다(SOMA-669). */}
+        {!makeOpen && (
         <View style={styles.titleField}>
           <Text style={styles.titleLabel}>{t('reading.newTitleLabel')}</Text>
           <View style={styles.titleBox}>
@@ -353,8 +383,9 @@ export default function ReadingNew() {
             />
           </View>
         </View>
+        )}
 
-        {input.tab === 'paste' && (
+        {!makeOpen && input.tab === 'paste' && (
           <TextInput
             style={styles.textArea}
             value={input.paste.text}
@@ -366,21 +397,36 @@ export default function ReadingNew() {
           />
         )}
 
-        {(input.tab === 'paste' || input.file.kind !== 'empty') && (
+        {!makeOpen && (input.tab === 'paste' || input.file.kind !== 'empty') && (
           <Text style={styles.guide}>{input.tab === 'file' ? t('reading.newGuideFile') : t('reading.newGuidePaste')}</Text>
         )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: (keyboard > 0 ? 0 : insets.bottom) + 10 }]}>
         <View ref={nextTarget.ref} onLayout={nextTarget.onLayout}>
-          <PrimaryButton
-            label={t('reading.next')}
-            onPress={() => pending && void split(pending, { title })}
-            disabled={!pending || !!popup}
-          />
+          {makeOpen ? (
+            <PrimaryButton
+              label={makeChoice === 'sample' ? t('reading.samplePickConfirm') : t('reading.next')}
+              phLabel="reading_new_make_next"
+              loading={makeChoice === 'sample' && picker.busy}
+              disabled={!makeChoice}
+              onPress={() =>
+                makeChoice === 'sample'
+                  ? picker.confirm()
+                  : router.push({ pathname: '/script-cocreate', params: { mode: 'reading', start: 'make' } })
+              }
+            />
+          ) : (
+            <PrimaryButton
+              label={t('reading.next')}
+              onPress={() => pending && void split(pending, { title })}
+              disabled={!pending || !!popup}
+            />
+          )}
         </View>
       </View>
 
+      {picker.dialog}
       <MonologueNameDialog
         target={naming}
         onClose={() => {
@@ -511,6 +557,11 @@ const styles = StyleSheet.create({
   titleInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, padding: 0 },
   segment: { flexDirection: 'row', backgroundColor: '#EEF2F8', borderRadius: 14, padding: 4 },
   segmentSlot: { flex: 1 },
+  makeArea: { gap: 12 },
+  choice: { gap: 4, padding: 18, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
+  choiceTitle: { fontSize: 16, fontWeight: '700', color: palette.text },
+  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMuted },
   segmentTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, height: 58, paddingHorizontal: 4 },
   segmentTabOn: { backgroundColor: palette.card },
   segmentText: { color: palette.textMuted, fontSize: 13, fontWeight: '700' },

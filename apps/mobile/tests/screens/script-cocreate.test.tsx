@@ -7,7 +7,7 @@ import { ApiError } from '@/lib/api-request';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { SampleScript } from '@/lib/script-cocreate';
 
-const mockParams: { mode?: string } = {};
+const mockParams: { mode?: string; start?: string } = {};
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, Stack: { Screen: () => null } }));
@@ -65,6 +65,7 @@ function sample(overrides: Partial<SampleScript> = {}): SampleScript {
 beforeEach(() => {
   jest.clearAllMocks();
   delete mockParams.mode;
+  delete mockParams.start;
   (api.getSampleScript as jest.Mock).mockResolvedValue(sample());
 });
 
@@ -348,4 +349,15 @@ test('리딩 탭에서 새로 만들기를 고르면 감정 단계로 간다', a
   await fireEvent.press(screen.getByText('새로 만들기'));
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   expect(screen.getByText('어떤 감정을 연기해 볼래요?')).toBeOnTheScreen();
+});
+
+test('내 대본 올리기에서 「새로 만들기」를 고르고 오면 처음 고르기 없이 감정부터 묻고, 뒤로 가면 올리기 화면으로 돌아간다', async () => {
+  mockParams.mode = 'reading';
+  mockParams.start = 'make';
+  await render(<ScriptCocreateScreen />);
+  expect(screen.queryByText('어떤 대본으로 할까요?')).not.toBeOnTheScreen();
+  expect(screen.getByText('어떤 감정을 연기해 볼래요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+  expect(mockRouter.back).toHaveBeenCalled();
+  expect(screen.queryByText('어떤 대본으로 할까요?')).not.toBeOnTheScreen();
 });
