@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { RecordModeSlider } from '@/components/record-mode-slider';
@@ -58,6 +58,9 @@ function remainingLabel(sec: number): string {
 
 export default function RecordVideoScreen() {
   const { height: windowHeight } = useWindowDimensions();
+  // SafeAreaView 대신 루트 값을 쓴다 — 전체 화면 모달 안의 SafeAreaView 는 올라오는 중 받은 0을 고치지 않아 iOS 에서 버튼이 상태 표시줄 밑에 깔렸다.
+  const insets = useSafeAreaInsets();
+  const safePad = { paddingTop: insets.top, paddingBottom: insets.bottom };
   const router = useRouter();
   // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로. 업로드 화면의 촬영 버튼에서
   //   왔으면(picker 없음) 보관함에 저장하고 그 업로드 화면으로 되돌아간다.
@@ -424,7 +427,7 @@ export default function RecordVideoScreen() {
     return (
       <View style={styles.permDark}>
         <StatusBar style="light" />
-        <SafeAreaView style={styles.permSafe}>
+        <View style={[styles.permSafe, safePad]}>
           <View style={styles.topRow}>
             <Pressable
               style={styles.closeBtn}
@@ -452,7 +455,7 @@ export default function RecordVideoScreen() {
               </Pressable>
             </View>
           )}
-        </SafeAreaView>
+        </View>
         {dialog}
       </View>
     );
@@ -470,7 +473,7 @@ export default function RecordVideoScreen() {
         {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
         <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
-        <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+        <View style={[styles.overlay, safePad]} pointerEvents="box-none">
           <View>
             <View style={styles.chTopRow}>
               <Pressable
@@ -544,7 +547,7 @@ export default function RecordVideoScreen() {
             </Text>
             {slider}
           </View>
-        </SafeAreaView>
+        </View>
         {dialog}
       </View>
     );
@@ -561,7 +564,7 @@ export default function RecordVideoScreen() {
       {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
       <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
-      <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+      <View style={[styles.overlay, safePad]} pointerEvents="box-none">
         <View style={styles.topGroup} pointerEvents="box-none">
         {recordScript ? (
           // 대본으로 찍을 때(pen P2.14) — 닫기 · 시간 알약 `0:12 / 5:00` · 카메라 돌리기를 한 줄로 두고, 대본 카드는 그 아래.
@@ -690,7 +693,7 @@ export default function RecordVideoScreen() {
           )}
           {slider}
         </View>
-      </SafeAreaView>
+      </View>
       {dialog}
     </View>
   );
