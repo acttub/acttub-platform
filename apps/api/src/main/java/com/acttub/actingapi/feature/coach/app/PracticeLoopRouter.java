@@ -65,6 +65,12 @@ final class PracticeLoopRouter {
     static final String ACK_SIGNAL = "ack";
     static final String WANT_SIGNAL = "want";
     static final String LINE_FIX_SIGNAL = "line_fix";
+    /**
+     * already: 코치가 짚거나 제안한 것을 배우가 이미 그렇게 했다, 앞에서 이미 답했다고 한 말(SOMA-855).
+     * 2026-10-25 02:26 운영(자문): "그렇게 한거였러", "자존감 올리기라고했자나", "그렇게 한거라니까"에 코치가 의도를 다시 묻고
+     * 같은 처방(다그치다가 달래기)을 말만 바꿔 냈다. 정정으로만 분류돼 내려놓기(의도 다시 묻기)로 갔다.
+     */
+    static final String ALREADY_SIGNAL = "already";
     static final List<String> SIGNALS;
     static {
         var ids = new ArrayList<String>(STEP);
@@ -74,6 +80,7 @@ final class PracticeLoopRouter {
         ids.add(ACK_SIGNAL);
         ids.add(WANT_SIGNAL);
         ids.add(LINE_FIX_SIGNAL);
+        ids.add(ALREADY_SIGNAL);
         SIGNALS = List.copyOf(ids);
     }
 
@@ -81,7 +88,12 @@ final class PracticeLoopRouter {
      * 분류 결과. {@code kind}는 코드가 분기에 쓰는 종류, {@code respond}는 단계 질문에 답하면서 함께 물은 것
      * (question / evaluation / method, 없으면 빈 문자열). {@code by}는 model / fallback.
      */
-    record Classified(Kind kind, boolean keep, String by, String respond, boolean decided, boolean ack, boolean want, boolean lineFix) {
+    record Classified(Kind kind, boolean keep, String by, String respond, boolean decided, boolean ack, boolean want, boolean lineFix,
+            boolean already) {
+        Classified(Kind kind, boolean keep, String by, String respond, boolean decided, boolean ack, boolean want, boolean lineFix) {
+            this(kind, keep, by, respond, decided, ack, want, lineFix, false);
+        }
+
         Classified(Kind kind, boolean keep, String by, String respond, boolean decided, boolean ack) {
             this(kind, keep, by, respond, decided, ack, false, false);
         }
@@ -101,7 +113,12 @@ final class PracticeLoopRouter {
 
         /** 바람·대사 정정 표시를 붙인다. 종류와 상관없이 붙는다(정정하면서 바람을 고쳐 말하는 일이 흔하다). */
         Classified with(boolean want, boolean lineFix) {
-            return new Classified(kind, keep, by, respond, decided, ack, want, lineFix);
+            return new Classified(kind, keep, by, respond, decided, ack, want, lineFix, already);
+        }
+
+        /** "이미 그렇게 했다" 표시를 붙인다(SOMA-855). 종류와 상관없이 붙는다 — 정정·반박·답 어느 쪽으로도 온다. */
+        Classified withAlready(boolean already) {
+            return new Classified(kind, keep, by, respond, decided, ack, want, lineFix, already);
         }
     }
 
@@ -119,6 +136,7 @@ final class PracticeLoopRouter {
         boolean ack = false;
         boolean want = false;
         boolean lineFix = false;
+        boolean already = false;
         for (JsonNode value : root.path("signals")) {
             String id = value.isTextual() ? value.asText() : "";
             if (!SIGNALS.contains(id)) throw new IllegalArgumentException("unknown practice loop classification");
@@ -127,12 +145,13 @@ final class PracticeLoopRouter {
             else if (ACK_SIGNAL.equals(id)) ack = true;
             else if (WANT_SIGNAL.equals(id)) want = true;
             else if (LINE_FIX_SIGNAL.equals(id)) lineFix = true;
+            else if (ALREADY_SIGNAL.equals(id)) already = true;
             else if (STEP.contains(id)) { if (step == null) step = id; }
             else if (respond == null || RESPOND.indexOf(id) < RESPOND.indexOf(respond)) respond = id;
         }
         if (stop) return new Classified(Kind.STOP, false, "model");
         if (step == null && respond == null) throw new IllegalArgumentException("empty practice loop classification");
-        return kindOf(step, respond, decided, ack).with(want, lineFix);
+        return kindOf(step, respond, decided, ack).with(want, lineFix).withAlready(already);
     }
 
     private static Classified kindOf(String step, String respond, boolean decided, boolean ack) {
@@ -156,7 +175,7 @@ final class PracticeLoopRouter {
             case "method" -> Kind.METHOD;
             default -> Kind.QUESTION;
         };
-        return new Classified(asked, c.keep(), c.by()).with(c.want(), c.lineFix());
+        return new Classified(asked, c.keep(), c.by()).with(c.want(), c.lineFix()).withAlready(c.already());
     }
 
     /** 지금까지 코치가 한 일의 횟수. */
@@ -274,12 +293,19 @@ final class PracticeLoopRouter {
     static final String PROPOSE = "답 제안하기";
     static final String LET_GO = "내려놓기";
     static final String POINT_OUT_OTHER = "짚어주기(다른 쪽)";
+    /** SOMA-855 실험 쪽: 배우가 이미 그렇게 했다고 하면, 의도를 다시 묻지 않고 그 대사에서 실제로 한 것을 한 번 묻는다. */
+    static final String ASK_DONE = "한 일 묻기";
+    /**
+     * SOMA-855 실험 쪽: 한 일을 들은 다음의 정리. 이미 했다고 한 제안은 빼고 다른 행동 하나를 준다.
+     * 이름이 "정리하기"로 시작해 정리와 같은 규칙(숨은 다음 테이크 줄, 질문 없음, 다음 말에서 닫기)을 따른다.
+     */
+    static final String WRAP_DONE = WRAP_UP + "(다르게)";
 
     /** 단계 질문에 답한 말(정리 뒤 다시 정리할 재료가 되는 말). */
     private static boolean answeredStep(Kind kind) {
         return kind == Kind.ANSWER || kind == Kind.CHOICE || kind == Kind.INSIGHT || kind == Kind.SELF_LINE;
     }
-    static final java.util.Set<String> STAYS = java.util.Set.of("다시 묻기", EASY, PROPOSE, "답하기", "짚어주기", "짚어주기(다른 쪽)", "내려놓기");
+    static final java.util.Set<String> STAYS = java.util.Set.of("다시 묻기", EASY, PROPOSE, "답하기", "짚어주기", "짚어주기(다른 쪽)", "내려놓기", ASK_DONE);
 
     /** 지금 단계에서 연달아 머문 코치 응답 수. 단계를 넘긴 응답(첫 응답, 보여 주기, 스스로 찾기, 정리)에서 0으로 돌아간다. */
     static int stayed(JsonNode loop, int coachTurns) {
@@ -322,6 +348,90 @@ final class PracticeLoopRouter {
         String doing = route(c, b, stayed, flow);
         if (maxQuestions == null || asked < maxQuestions || !ASKING.contains(doing)) return doing;
         return WRAP_UP;
+    }
+
+    /**
+     * "이미 그렇게 했다" 비교(SOMA-855)의 실험 쪽 할 일. 대조 쪽은 {@code doing}을 그대로 쓴다.
+     * 실험 쪽은 배우가 이미 했다고 하면 처음 한 번은 한 일을 묻고(한 일 묻기), 그 답을 들은 다음 말에서 다른 행동으로 정리한다.
+     * 한 일을 이미 물었는데 또 이미 했다고 하면 의도를 다시 묻지 않는다(내려놓기 대신 답하기 — 피할 것에 든 제안은 다시 하지 않는다).
+     *
+     * @param doing 대조 쪽 표가 정한 할 일
+     * @param doneAsked 이 대화에서 한 일 묻기를 이미 했는지({@link #askedDone})
+     */
+    static String routeAlready(Classified c, Before b, String doing, boolean doneAsked) {
+        return routeAlready(c, b, doing, doneAsked, false);
+    }
+
+    /**
+     * @param lastWasDone 바로 앞 코치 말이 이미 했다는 말에 답한 것인지(앞 상태 칸에 {@link #DONE_FIELD}가 있음). 정리 뒤 그 말에도
+     *                    또 이미 했다고 하면 더 답하지 않고 닫는다 — 같은 제안을 피하려다 말만 바꾼 답이 이어진다(10/25 재생).
+     */
+    static String routeAlready(Classified c, Before b, String doing, boolean doneAsked, boolean lastWasDone) {
+        if (c.kind() == Kind.STOP || b.reply() >= LAST_REPLY) return END;
+        if (b.lastDoing().startsWith(ASK_DONE)) return WRAP_DONE;
+        if (!c.already()) return doing;
+        if (!doneAsked) return b.reply() >= LAST_REPLY - 1 ? WRAP_DONE : ASK_DONE;
+        if (lastWasDone && b.closeNext()) return END;
+        return LET_GO.equals(doing) || ASK_DONE.equals(doing) ? "답하기" : doing;
+    }
+
+    /** 바로 앞 상태 칸에 이미 한 것이 남았는지. */
+    static boolean lastWasDone(JsonNode loop, int coachTurns) {
+        JsonNode statuses = loop == null ? null : loop.path("statuses");
+        if (statuses == null || !statuses.isArray() || coachTurns <= 0) return false;
+        return !DirectVideoPracticeLoop.statusField(statuses.path(coachTurns - 1).asText(""), DONE_FIELD).isBlank();
+    }
+
+    /** 배우가 이미 했다고 한 제안을 남기는 상태 칸(SOMA-855). 이 대화가 끝날 때까지 다시 제안하지 않는다. */
+    static final String DONE_FIELD = "이미 한 것";
+
+    /**
+     * 배우가 "이미 그렇게 했다"고 한 바로 앞 제안. 직전 상태의 다음 테이크가 있으면 그것, 없으면 직전 코치 말이다(80자까지).
+     */
+    static String lastProposal(JsonNode loop, int coachTurns, String lastCoachText) {
+        JsonNode statuses = loop == null ? null : loop.path("statuses");
+        if (statuses != null && statuses.isArray() && coachTurns > 0) {
+            String take = DirectVideoPracticeLoop.statusField(statuses.path(coachTurns - 1).asText(""), "다음 테이크");
+            if (!take.isBlank() && !take.startsWith("없음")) return clip(take);
+        }
+        return clip(lastCoachText == null ? "" : lastCoachText);
+    }
+
+    private static String clip(String text) {
+        String one = text.strip().replaceAll("\\s+", " ");
+        return one.length() > 80 ? one.substring(0, 80) : one;
+    }
+
+    /** 이 대화에서 배우가 이미 했다고 한 제안들(앞 상태 칸의 {@link #DONE_FIELD}). */
+    static List<String> doneProposals(JsonNode loop, int coachTurns) {
+        JsonNode statuses = loop == null ? null : loop.path("statuses");
+        var done = new LinkedHashSet<String>();
+        for (int i = 0; i < coachTurns; i++) {
+            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            String value = DirectVideoPracticeLoop.statusField(status, DONE_FIELD);
+            if (!value.isBlank()) done.add(value.strip());
+        }
+        return List.copyOf(done);
+    }
+
+    /** 재료에 "배우가 이미 했다고 한 것" 줄을 더한다. 없으면 그대로. */
+    static List<String> withDone(List<String> materials, List<String> earlier, String now) {
+        var done = new LinkedHashSet<>(earlier);
+        if (now != null && !now.isBlank()) done.add(now.strip());
+        if (done.isEmpty()) return materials;
+        var lines = new ArrayList<>(materials);
+        lines.add("배우가 이미 그렇게 했다고 한 제안(다시 제안하지 않는다): " + String.join(" / ", done));
+        return List.copyOf(lines);
+    }
+
+    /** 이 대화에서 한 일 묻기를 한 적이 있는지(SOMA-855). */
+    static boolean askedDone(JsonNode loop, int coachTurns) {
+        JsonNode statuses = loop == null ? null : loop.path("statuses");
+        for (int i = 0; i < coachTurns; i++) {
+            String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
+            if (ASK_DONE.equals(DirectVideoPracticeLoop.action(status))) return true;
+        }
+        return false;
     }
 
     /** 지금까지 코치가 물은 수. 첫 응답(첫 질문)과 그 뒤 묻는 할 일({@link #ASKING})을 센다. */
@@ -437,7 +547,7 @@ final class PracticeLoopRouter {
             case WANT -> 2;
             case GAP -> 3;
             case FIND -> 4;
-            case WRAP_UP -> 5;
+            case WRAP_UP, WRAP_DONE -> 5;
             case EASY -> Math.max(2, b.stage());
             default -> Math.max(2, b.stage()); // 물음·정정·반박에 답한 뒤 돌아올 단계
         };
