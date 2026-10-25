@@ -65,12 +65,12 @@ function Wheel({
       contentOffset={{ x: 0, y: index * WHEEL_ITEM_HEIGHT }}
       contentContainerStyle={{ paddingVertical: PAD }}
       // 바깥 화면도 세로 스크롤이라 손가락이 둘 다에 걸렸다(10/25 제보). 안드로이드는 안쪽이 먼저 받게 하고,
-      // 휠을 만지는 동안은 바깥 스크롤을 멈춘다(onTouchActive). 천천히 놓아 관성이 없을 때도 값을 맞춘다.
+      // 휠을 만지는 동안은 바깥 스크롤을 멈춘다(onTouchActive). 값은 칸에 붙은 뒤(onMomentumScrollEnd)에만 고른다 —
+      // 손을 뗄 때 고르면 다시 그리며 옮기는 scrollTo 가 안드로이드의 칸 맞춤을 끊어 반 칸 어긋난 채 멈췄다.
       nestedScrollEnabled
       onTouchStart={() => onTouchActive?.(true)}
       onTouchEnd={() => onTouchActive?.(false)}
       onTouchCancel={() => onTouchActive?.(false)}
-      onScrollEndDrag={settle}
       onMomentumScrollEnd={settle}
       accessibilityRole="adjustable"
       accessibilityLabel={label}
