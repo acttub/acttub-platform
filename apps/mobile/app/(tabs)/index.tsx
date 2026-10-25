@@ -145,6 +145,20 @@ export default function HomeScreen() {
   const [firstPick, setFirstPick] = useState<FirstPick | null>(null);
   const tabBarSpace = useTabBarSpace();
   const firstName = profile.me?.profile?.name?.trim() ?? '';
+  // 졸업 표시(SOMA-827)는 계정별이라 내 계정을 알고 나서 읽는다. 앱을 막 켰을 때 계정보다 먼저 읽으면 「아니」로 굳었다.
+  const meId = profile.me?.id ?? null;
+  const [graduationCheck, setGraduationCheck] = useState(0);
+  useFocusEffect(useCallback(() => setGraduationCheck((n) => n + 1), []));
+  useEffect(() => {
+    if (!meId) return;
+    let live = true;
+    void hasGraduatedFirstUse(meId).then((done) => {
+      if (live) setGraduated(done);
+    });
+    return () => {
+      live = false;
+    };
+  }, [meId, graduationCheck]);
 
   const openHomeGuideIfNew = useCallback(() => {
     void hasSeenSpotlight('home').then((seen) => {
@@ -159,7 +173,6 @@ export default function HomeScreen() {
       // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
       // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
       guideFocused.current = true;
-      void hasGraduatedFirstUse().then(setGraduated);
       if (currentTutorial()) finishTutorial('left');
       setGuideShownThisVisit(false);
       void hasSeenTutorial().then((seen) => {
