@@ -1215,8 +1215,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - `GET /v2/admin/challenge-videos?limit=50&exclude_actors=…&visibility=all|public|private`는
   `limit` 1~100, 기본 50이다. 응답은 `entries`와 그 응답 묶음의 크기인 `count`다. 각 행은
   `id`(참여작 UUID)·`actor`(`md5(user_id)` 앞 8자리)·`created_at`·`visibility`·`status`·
-  `challenge_kind`(`challenges.origin`)·`challenge_ref`(`md5(challenge_id)` 앞 8자리)·`has_video`만
-  포함한다. raw 참여작 id는 이 live 운영 응답에서만 허용하며, user UUID·이메일·대사·작품·캡션 같은
+  `challenge_kind`(`challenges.origin`)·`challenge_ref`(`md5(challenge_id)` 앞 8자리)·`has_video`·`likes`(받은 좋아요 전체, 팀 계정 포함)·
+  `outside_likes`(그중 팀 이메일과 `exclude_actors` 배우가 누른 것을 뺀 값)만 포함한다. raw 참여작 id는 이 live 운영 응답에서만 허용하며, user UUID·이메일·대사·작품·캡션 같은
   자유 텍스트·원본 object key·재생 URL은 목록에 넣지 않는다.
 - `GET /v2/admin/challenge-videos/{id}/playback?exclude_actors=…`는
   `{"playback_url":…,"expires_in":600}`을 반환한다. 스토리지 서명 TTL은 반드시 600초다.
