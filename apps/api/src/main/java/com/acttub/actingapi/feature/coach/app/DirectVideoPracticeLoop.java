@@ -587,6 +587,16 @@ final class DirectVideoPracticeLoop {
         if (loop.path("flow").asText("").isEmpty()) loop.put("flow", flow);
     }
 
+    /** 이 대화의 "이미 그렇게 했다" 처리 쪽(SOMA-855). "on"은 실험, "off"는 대조. 없으면 빈 문자열(배포 전 대화). */
+    static String storedAlready(JsonNode state) {
+        return state == null ? "" : state.path(STATE_KEY).path("already_ab").asText("");
+    }
+
+    static void rememberAlready(ObjectNode state, String arm) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        if (loop.path("already_ab").asText("").isEmpty()) loop.put("already_ab", arm);
+    }
+
     /** 이 대화의 코치 모델 쪽(SOMA-657). "a"는 기본 모델, "b"는 비교 모델. 없으면 빈 문자열. */
     static String storedCoachModel(JsonNode state) {
         return state == null ? "" : state.path(STATE_KEY).path("coach_model").asText("");
