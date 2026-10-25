@@ -210,7 +210,7 @@ function RootNavigator() {
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
     return onPushTapped((data) => {
-      // evening_reminder: resume이면 같은 회차, 나머지는 기존 홈이다.
+      // analysis_complete·evening_reminder resume은 같은 회차, 나머지 리마인드는 기존 홈이다.
       const reminder = reminderTarget(data);
       if (reminder) {
         router.replace(reminder as Parameters<typeof router.replace>[0]);
