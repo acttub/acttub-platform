@@ -40,6 +40,11 @@ export function BusinessInfo({ tone = "light" }: { tone?: "light" | "dark" }) {
           {b.email}
         </a>
       </p>
+      <p>
+        <a href="/help" className={`underline underline-offset-2 ${link}`}>고객센터</a>{" "}
+        <span aria-hidden="true">|</span>{" "}
+        <a href="/help/contact" className={`underline underline-offset-2 ${link}`}>문의하기</a>
+      </p>
     </div>
   );
 }
