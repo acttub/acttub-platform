@@ -177,6 +177,23 @@ test('코칭 촬영에 넘긴 대본이 있으면 카드로 띄우고, 숨김·�
   expect(screen.getByText('대본 · 네가 좋아하는 케이크')).toBeOnTheScreen();
 });
 
+test('대본으로 찍을 때 녹화 전·녹화 중 모두 닫기가 눌린다 (10/25 iOS QA)', async () => {
+  mockParams = { mode: 'ai', next: 'upload' };
+  setRecordScript({ title: '옥상, 밤', lines: [{ kind: 'dialogue', speaker: '윤서', text: '나 이제 진짜 갈게.', mine: true }] });
+  const first = await render(<RecordVideoScreen />);
+  await fireEvent.press(screen.getByLabelText('닫기'));
+  expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  await first.unmount();
+
+  setRecordScript({ title: '옥상, 밤', lines: [{ kind: 'dialogue', speaker: '윤서', text: '나 이제 진짜 갈게.', mine: true }] });
+  await render(<RecordVideoScreen />);
+  await startRecording();
+  await fireEvent.press(screen.getByLabelText('닫기'));
+  expect(mockCamera.stopRecording).toHaveBeenCalledTimes(1);
+  expect(mockRouter.back).toHaveBeenCalledTimes(2);
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+});
+
 test('대본으로 코칭 녹화 중 남은 시간은 「4분 48초 남음」처럼 분과 초로 센다(pen P2.14)', async () => {
   jest.useFakeTimers();
   mockParams = { mode: 'ai', next: 'upload' };
@@ -306,7 +323,7 @@ describe('카메라·마이크 권한', () => {
 });
 
 describe('기본 촬영 화면', () => {
-  test('카메라 전환은 앞뒤를 오가고, 녹화 중에는 전환·닫기 대신 남은 시간을 센다', async () => {
+  test('카메라 전환은 앞뒤를 오가고, 녹화 중에는 전환 대신 남은 시간을 센다', async () => {
     jest.useFakeTimers();
     mockParams = { mode: 'ai' };
     await render(<RecordVideoScreen />);
@@ -321,7 +338,7 @@ describe('기본 촬영 화면', () => {
     expect(mockCamera.recordAsync).toHaveBeenCalledWith({ maxDuration: 300 });
     expect(screen.getByText('5:00')).toBeOnTheScreen();
     expect(screen.queryByLabelText('카메라 전환')).not.toBeOnTheScreen();
-    expect(screen.queryByText('✕')).not.toBeOnTheScreen();
+    expect(screen.getByText('✕')).toBeOnTheScreen();
 
     await act(async () => {
       jest.advanceTimersByTime(63_000);
@@ -351,7 +368,6 @@ describe('기본 촬영 화면', () => {
     await render(<RecordVideoScreen />);
 
     await startRecording();
-    expect(screen.queryByText('✕')).not.toBeOnTheScreen();
     await stopRecording();
     await act(async () => {
       jest.advanceTimersByTime(4_100);
@@ -366,6 +382,31 @@ describe('기본 촬영 화면', () => {
     await fireEvent.press(screen.getByText('✕'));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
     expect(peekRecordedVideo()).toBeNull();
+  });
+
+  test('녹화 중에 닫으면 녹화를 멈추고 찍던 것은 버린 채 돌아간다 (10/25 iOS QA)', async () => {
+    mockParams = { mode: 'ai' };
+    await render(<RecordVideoScreen />);
+    await startRecording();
+    await fireEvent.press(screen.getByLabelText('닫기'));
+    expect(mockCamera.stopRecording).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockRouter.back).toHaveBeenCalledTimes(1));
+    expect(peekRecordedVideo()).toBeNull();
+    expect(saveToLibrary).not.toHaveBeenCalled();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+
+  test('멈춘 뒤 녹화가 늦게 끝나는 동안에도 닫기가 눌린다 (10/25 iOS QA)', async () => {
+    mockCamera.stopRecording.mockImplementation(() => undefined);
+    mockParams = { mode: 'ai' };
+    await render(<RecordVideoScreen />);
+    await recordAndStop();
+    await fireEvent.press(screen.getByLabelText('닫기'));
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+    // 그 뒤에 녹화가 끝나도 저장하거나 다른 화면으로 가지 않는다.
+    await act(async () => finishRecording({ uri: 'file:///late.mov' }));
+    expect(peekRecordedVideo()).toBeNull();
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 
   test('준비 화면의 촬영 버튼에서 왔으면 보관함에 넣고 그 준비 화면으로 돌아간다', async () => {
@@ -640,6 +681,17 @@ describe('챌린지 촬영', () => {
     const buttons = screen.getAllByRole('button');
     await fireEvent.press(buttons[0]);
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+
+  test('녹화 중에 닫으면 멈추고 돌아가며, 버린 녹화는 촬영 결과로 세지 않는다 (10/25 iOS QA)', async () => {
+    mockParams = CHALLENGE;
+    await render(<RecordVideoScreen />);
+    await startRecording();
+    await fireEvent.press(screen.getByLabelText('닫기'));
+    await waitFor(() => expect(mockRouter.back).toHaveBeenCalledTimes(1));
+    expect(mockCamera.stopRecording).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(logged('challenge_video_source')).toEqual([]);
   });
 
   test('업로드에서 고르지 않고 닫으면 취소로 세고 화면에 머문다', async () => {
