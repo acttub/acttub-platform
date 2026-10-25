@@ -82,7 +82,7 @@ export default function CoachingDoneScreen() {
           <Text style={styles.badgeText}>{t('note.doneBadge')}</Text>
         </View>
         <View style={styles.head}>
-          <Image source={MASCOT.jump} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT.jump} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.title} accessibilityRole="header">
             {t(nextTake ? 'note.doneTitle' : 'note.doneTitleNoNext')}
           </Text>

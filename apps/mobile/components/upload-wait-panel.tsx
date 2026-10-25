@@ -24,7 +24,7 @@ export function UploadWaitPanel({
   return (
     <View style={styles.root}>
       <View style={styles.body}>
-        <Image source={MASCOT.coach} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+        <Image source={MASCOT.coach} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
         <Text style={styles.title}>{failed ? t('upload.waitFailedTitle') : t('upload.waitTitle')}</Text>
         <Text style={styles.sub}>{failed ? t('upload.waitFailedSub') : t('upload.waitBody')}</Text>
         {!failed && (

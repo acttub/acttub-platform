@@ -1511,7 +1511,7 @@ export default function ReadingPlay() {
     return (
       <View style={[styles.root, styles.prepRoot, { paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.prepBody}>
-          <Image source={MASCOT_IMG[prepPose]} style={styles.prepMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT_IMG[prepPose]} style={styles.prepMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.prepTitle}>{title}</Text>
           {percent !== null && (
             <>
@@ -1599,7 +1599,7 @@ export default function ReadingPlay() {
             <Text style={styles.wrapBadgeText}>{t('reading.wrapBadge')}</Text>
           </View>
           <View style={styles.wrapHead}>
-            <Image source={MASCOT_IMG[donePose]} style={styles.wrapMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT_IMG[donePose]} style={styles.wrapMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.wrapHeading}>{t('reading.wrapHeading')}</Text>
           </View>
           <View style={styles.wrapCard}>
@@ -1637,7 +1637,7 @@ export default function ReadingPlay() {
         <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
           <Text style={styles.firstDoneBar}>{t('reading.completeTitle')}</Text>
           <View style={styles.firstDoneBody}>
-            <Image source={MASCOT_IMG[FIRST_DONE_POSE]} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT_IMG[FIRST_DONE_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.firstDoneTitle}>{t('reading.firstDoneTitle')}</Text>
             <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
             <View style={styles.firstDoneActions}>
@@ -1673,7 +1673,7 @@ export default function ReadingPlay() {
       return (
         <View style={styles.root}>
           <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-            <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.doneTitle}>{t(completed ? 'reading.monologueDoneTitle' : 'reading.notCountedTitle')}</Text>
             {!completed ? (
               <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>
@@ -1761,7 +1761,7 @@ export default function ReadingPlay() {
     return (
       <View style={styles.root}>
         <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-          <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.doneTitle}>{t(completed ? 'reading.completeTitle' : 'reading.notCountedTitle')}</Text>
           {!completed && <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>}
           <Text style={styles.dim}>{script.title}</Text>

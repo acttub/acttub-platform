@@ -612,7 +612,7 @@ export default function HomeScreen() {
               <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
               <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
             </View>
-            <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             {bell}
           </View>
 

@@ -13,6 +13,7 @@ import { dailyIndex } from '@/lib/mascot-day';
  */
 export type MascotPose = 'home' | 'coach' | 'reading' | 'cheer' | 'jump' | 'run' | 'dizzy' | 'breathe' | 'shy' | 'hamlet' | 'sob' | 'angry' | 'surprised' | 'smug' | 'love' | 'wink' | 'flat' | 'dance' | 'whisper' | 'bow' | 'slate' | 'selfie' | 'nervous' | 'yawn';
 
+// 그리는 곳은 expo-image 에 cachePolicy="memory-disk" 를 준다 — 기본(disk)은 뜰 때마다 PNG 를 다시 읽고 풀어 늦게 뜬다(SOMA-847).
 export const MASCOT: Record<MascotPose, ImageSourcePropType> = {
   home: require('@/assets/images/mascot-home.png'),
   coach: require('@/assets/images/mascot-coach.png'),

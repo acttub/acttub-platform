@@ -14,7 +14,7 @@ export function ReadingGuideOverlay({ onClose }: { onClose: () => void }) {
   const steps = ['reading.guideEye', 'reading.guidePrev', 'reading.guidePause', 'reading.guideNext'];
   return (
     <View style={styles.scrim} pointerEvents="auto" accessibilityViewIsModal>
-      <Image source={MASCOT.reading} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
+      <Image source={MASCOT.reading} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <Text style={styles.head}>{t('reading.guideHead')}</Text>
       <View style={styles.list}>
         {steps.map((key) => (
