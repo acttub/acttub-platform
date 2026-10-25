@@ -14,13 +14,14 @@ import { useEffect } from "react";
 export const PAGING_MEDIA = "(min-width: 1024px) and (min-height: 640px)";
 /** sm 이상 머리(SiteHeader) 높이 */
 export const PAGING_HEADER = 72;
-const DURATION_MS = 700;
+/** 손짓 바로 움직이기 시작해 빨리 닿고 끝에서 부드럽게 멈춘다(ease-out). */
+const DURATION_MS = 480;
 /**
  * 손짓 하나로 보는 휠 이벤트 간격. 이보다 오래 쉬어야 다음 손짓이다.
  * 트랙패드는 손을 뗀 뒤에도 관성 이벤트가 1초 넘게 이어지고, 맥의 마우스 휠도 한 칸에
  * 여러 이벤트가 온다. 그래서 넘기는 중이든 넘긴 뒤든 이벤트가 이어지는 동안은 다시 넘기지 않는다.
  */
-const GESTURE_GAP_MS = 240;
+const GESTURE_GAP_MS = 350;
 const EDGE = 2;
 
 /** 멈출 자리(문서 기준 scrollY)들을 작은 순서로. 겹치는 자리는 하나로 친다. */
@@ -52,8 +53,16 @@ export function pagingTarget(points: number[], y: number, dir: 1 | -1, viewport:
   return i > 0 ? points[i - 1] : null;
 }
 
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3;
+}
+
+/**
+ * 넘긴 뒤 관성 이벤트가 이어지는 중에 새로 민 것인지. 관성은 값이 계속 줄어들기만 하므로,
+ * 넘기기가 끝난 뒤 본 가장 작은 값(floor)보다 확 커지면 손가락으로 다시 민 것이다.
+ */
+export function isNewSwipe(abs: number, floor: number): boolean {
+  return abs >= Math.max(floor * 2.5, 30);
 }
 
 function isTyping(target: EventTarget | null): boolean {
@@ -69,6 +78,8 @@ export function useSectionPaging(): void {
     let animating = false;
     let lastWheel = 0;
     let gestureUsed = false;
+    /** 넘기기가 끝난 뒤 본 가장 작은 휠 값. 넘기는 중에는 보지 않는다. */
+    let floor = Infinity;
     let frame = 0;
 
     const points = () => {
@@ -86,9 +97,12 @@ export function useSectionPaging(): void {
       const t0 = performance.now();
       const step = (now: number) => {
         const t = Math.min((now - t0) / DURATION_MS, 1);
-        window.scrollTo(0, from + (to - from) * easeInOutCubic(t));
+        window.scrollTo(0, from + (to - from) * easeOutCubic(t));
         if (t < 1) frame = requestAnimationFrame(step);
-        else animating = false;
+        else {
+          animating = false;
+          floor = Infinity;
+        }
       };
       frame = requestAnimationFrame(step);
     };
@@ -105,12 +119,19 @@ export function useSectionPaging(): void {
       if (!media.matches || reduce.matches || e.ctrlKey) return;
       if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
       const now = performance.now();
-      // 이벤트가 끊김 없이 이어지면 같은 손짓(관성 포함)이다. 값이 다시 커져도 새 손짓으로 보지 않는다
-      // — 맥 휠 한 칸·트랙패드 시작은 값이 커지며 와서, 그렇게 보면 한 번에 두 칸 넘어간다.
+      const abs = Math.abs(e.deltaY);
+      // 이벤트가 끊기면 다음 손짓이다. 끊기지 않았어도 넘기기가 끝난 뒤 관성보다 확 커지면 새로 민 것이다.
+      // 넘기는 중(맥 휠 한 칸·트랙패드 시작은 값이 커지며 온다)에는 새 손짓으로 보지 않아 두 칸 넘어가지 않는다.
       if (now - lastWheel > GESTURE_GAP_MS) gestureUsed = false;
       lastWheel = now;
+      if (animating) {
+        e.preventDefault();
+        return;
+      }
+      if (gestureUsed && isNewSwipe(abs, floor)) gestureUsed = false;
+      floor = Math.min(floor, abs);
       const dir: 1 | -1 = e.deltaY > 0 ? 1 : -1;
-      if (animating || gestureUsed) {
+      if (gestureUsed) {
         e.preventDefault();
         return;
       }
