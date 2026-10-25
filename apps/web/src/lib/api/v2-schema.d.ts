@@ -4363,6 +4363,11 @@ export interface components {
             /** Created At */
             created_at?: string | null;
             purpose?: components["schemas"]["CoachPurpose"] | null;
+            /**
+             * Answer Examples
+             * @description 목적 없는 질문 대화에서 지금 코치 질문 아래에 보일 예시 답(0~2개, 배우 말투). 목적별 코칭은 purpose.choices 를 쓰고 이 값은 빈 목록이다
+             */
+            answer_examples: string[];
         };
         /** CoachLine */
         CoachLine: {

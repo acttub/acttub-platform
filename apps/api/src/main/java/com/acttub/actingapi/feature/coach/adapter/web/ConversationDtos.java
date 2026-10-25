@@ -76,7 +76,10 @@ final class ConversationDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<TurnResponse> messages,
             @Schema(nullable = true) Instant createdAt,
             @Schema(nullable = true, description = "목적별 코칭(SOMA-719)의 버튼·장면·카드. 목적 없이 시작한 대화는 null")
-            PurposeResponse purpose) {
+            PurposeResponse purpose,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "목적 없는 질문 대화에서 지금 코치 질문 아래에 보일 예시 답(0~2개, 배우 말투). 목적별 코칭은 purpose.choices 를 쓰고 이 값은 빈 목록이다")
+            List<String> answerExamples) {
 
         static ConversationResponse of(ConversationService.Turn turn) {
             return new ConversationResponse(
@@ -86,7 +89,8 @@ final class ConversationDtos {
                             .map(item -> new TurnResponse(item.turnIndex(), item.role(), CoachDisplayText.keepWhole(item.role(), item.text()), item.createdAt()))
                             .toList(),
                     null,
-                    PurposeResponse.of(turn.purpose()));
+                    PurposeResponse.of(turn.purpose()),
+                    turn.answerExamples());
         }
 
         static ConversationResponse of(ConversationView view, int replyLimit) {
@@ -98,7 +102,8 @@ final class ConversationDtos {
                             .map(item -> new TurnResponse(item.turnIndex(), item.role(), CoachDisplayText.keepWhole(item.role(), item.text()), item.createdAt()))
                             .toList(),
                     view.createdAt(),
-                    PurposeResponse.of(view.purpose()));
+                    PurposeResponse.of(view.purpose()),
+                    view.answerExamples());
         }
     }
 

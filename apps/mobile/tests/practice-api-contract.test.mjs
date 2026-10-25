@@ -41,7 +41,8 @@ test('영상만 시작·다음 테이크는 서버 본문과 경험 헤더를 �
 
 test('액티 시작·답장·재조회는 messages와 revision·close_reason을 보존한다', async t => {
   const initial = { id: id(5), practice_id: null, status: 'open', close_reason: null, revision: 1, coach_reply_count: 1, reply_limit: 10,
-    messages: [{ turn_index: 0, role: 'coach', text: '무엇을 기다리고 있었나요?', created_at: null }], created_at: null };
+    messages: [{ turn_index: 0, role: 'coach', text: '무엇을 기다리고 있었나요?', created_at: null }], created_at: null,
+    answer_examples: ['기다리던 사람이 있었어요', '그냥 서 있었어요'] };
   const closed = { ...initial, status: 'closed', close_reason: 'user_ended', revision: 2, coach_reply_count: 2,
     messages: [...initial.messages, { turn_index: 1, role: 'actor', text: '그만', created_at: null }, { turn_index: 2, role: 'coach', text: '여기까지 나눠요', created_at: null }] };
   const calls = httpResponses(t, [
@@ -110,7 +111,7 @@ test('앱 재진입 때 닫힌 대화는 다시 시작하지 않고 마지막 �
   httpResponses(t, [
     { body: practice({ stage: 'closed', conversation_id: id(5), conversation_status: 'closed' }) },
     { body: video({ purged_at: '2026-09-22T02:00:00Z', playback_url: null }) },
-    { body: { id: id(5), practice_id: id(1), status: 'closed', close_reason: 'system_failure', revision: 4, coach_reply_count: 2, reply_limit: 10,
+    { body: { id: id(5), practice_id: id(1), status: 'closed', close_reason: 'system_failure', revision: 4, coach_reply_count: 2, reply_limit: 10, answer_examples: [],
       messages: [{ turn_index: 1, role: 'coach', text: '오늘은 여기까지예요', created_at: null }], created_at: null } },
     { status: 404, body: { detail: 'note_not_found' } },
   ]);

@@ -602,6 +602,8 @@ class PostgresConversationRepository implements ConversationRepository {
                 row.get("created_at", Instant.class),
                 turns,
                 com.acttub.actingapi.feature.coach.app.PurposeView.from(row.get("session_purpose", String.class),
+                        json(row.get("state", String.class))),
+                com.acttub.actingapi.feature.coach.app.AnswerExamples.from(row.get("session_purpose", String.class),
                         json(row.get("state", String.class))));
     }
 

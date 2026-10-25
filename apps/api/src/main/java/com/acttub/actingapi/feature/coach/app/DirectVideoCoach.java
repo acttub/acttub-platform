@@ -366,7 +366,8 @@ public final class DirectVideoCoach {
                 String common = DirectVideoPrompts.practiceLoopTurn(language) + "\n\n" + branch.instruction(language, stepTask)
                         + DirectVideoPrompts.flowBlock(flow, language);
                 if (coaching != null && koreanTurn) common = coaching.turnTask(coaching.withoutNeverSay(common));
-                task = common + personaBlock(persona, profile, language);
+                // 질문 아래 예시 답 1~2개(숨은 <보기>). 성격 글은 늘 맨 끝에 둔다.
+                task = common + AnswerExamples.INSTRUCTION + personaBlock(persona, profile, language);
                 // 자문위원과 맞춤 코칭 배우 모두 "어때요?" 예문을 뺀다(SOMA-795 재생 v2: 맞춤 코칭 배우에게 "~해 보는 건 어때요?"가 남았다).
                 // 성격이 없는 배우(맞춤 코칭 없음)의 할 일 파일은 그대로다.
                 if (!persona.isEmpty()) task = DirectVideoPrompts.withoutHowAbout(task);
@@ -405,7 +406,7 @@ public final class DirectVideoCoach {
                 if (coaching != null && (language == null || "ko".equals(language.getLanguage()))) {
                     first = coaching.withoutNeverSay(coaching.firstTask(first));
                 }
-                task = first + personaBlock(persona, profile, language);
+                task = first + AnswerExamples.INSTRUCTION + personaBlock(persona, profile, language);
                 // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop", DirectVideoPrompts.practiceLoop())
@@ -676,6 +677,7 @@ public final class DirectVideoCoach {
                 else PurposeLoop.remember(state, purposeTurn, purposeOut, purposeTake);
             }
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
+            if (loop && purpose == null) AnswerExamples.remember(state, cut ? java.util.List.of() : AnswerExamples.forReply(message, shown));
             // Plain coaching prose is not structured evidence or a confirmed actor intention.
             String endReason = actorFinished ? "actor_finished" : turnBudget ? "turn_budget"
                     : cut || loop && DirectVideoPracticeLoop.finished(parsed) || purposeTurn != null && purposeTurn.wrap() ? "interrupted" : null;
