@@ -45,6 +45,8 @@ app-example
 /ios
 /android
 .env
+# 공개값만 담은 기본 env(카카오·네이버 키)는 로컬 빌드에도 들어가도록 추적한다. 비밀값은 .env.local 에.
+!/.env
 
 # Firebase (앱별 설정 파일 — API 키 포함, 커밋 금지)
 google-services.json
