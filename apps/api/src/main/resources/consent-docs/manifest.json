@@ -16,9 +16,9 @@
     "required": true
   },
   {
-    "file": "ai_analysis_v1.md",
+    "file": "ai_analysis_v2.md",
     "type": "ai_analysis",
-    "version": "v1",
+    "version": "v2",
     "locale": "ko",
     "title": "AI 분석 동의",
     "required": true
@@ -72,9 +72,9 @@
     "required": true
   },
   {
-    "file": "ai_analysis_v1_en.md",
+    "file": "ai_analysis_v2_en.md",
     "type": "ai_analysis",
-    "version": "v1",
+    "version": "v2",
     "locale": "en",
     "title": "AI Analysis Consent",
     "required": true
