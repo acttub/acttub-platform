@@ -235,7 +235,8 @@ function CoachTalk() {
         if (!mountedRef.current) return;
         attemptRef.current = null;
         setInput('');
-        if (applyResult(result) && result.note && !result.conversation.purpose) goToNote();
+        // 대화가 방금 닫혀도 바로 넘기지 않는다 — 마지막 코치 말을 읽고 「일지 쓰고 마치기」로 직접 넘어간다.
+        applyResult(result);
       } catch (e) {
         if (!mountedRef.current) return;
         if (shownAsBubble) setInput((was) => (was.trim() ? was : trimmed));
