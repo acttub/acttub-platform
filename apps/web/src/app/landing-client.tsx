@@ -2,14 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
-import { useSectionPaging } from "@/features/site/section-paging";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
@@ -73,7 +72,22 @@ export default function LandingClient() {
   // 다시 온 사람이 새 소개 화면을 못 봤다. 대신 첫 화면 링크를 「이어서 연습하기」로 바꿔 준다.
   // 서버 렌더에서는 게스트가 없다고 보고, 브라우저에서 저장소를 읽어 바꾼다.
   const returningGuest = useSyncExternalStore(subscribeAuthChange, hasGuestSession, () => false);
-  useSectionPaging();
+  // 데스크톱: 기능 글이 화면 가운데를 지날 때 오른쪽에 붙어 있는 휴대폰 화면을 그 기능으로 바꾼다(토스·스픽식 고정 화면).
+  const [activeFeature, setActiveFeature] = useState(0);
+  const featureRefs = useRef<(HTMLElement | null)[]>([]);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActiveFeature(Number((entry.target as HTMLElement).dataset.featureIndex));
+        }
+      },
+      { rootMargin: "-45% 0px -45% 0px" },
+    );
+    for (const el of featureRefs.current) if (el) observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const features: Feature[] = [
     {
@@ -113,12 +127,11 @@ export default function LandingClient() {
   const faq = HOME_FAQ.map((q) => findFaq(q)).filter((item) => item !== undefined);
 
   return (
-    // data-landing-snap·data-snap: 데스크톱에서 한 번 내리면 다음 구간까지 부드럽게 넘어간다(useSectionPaging).
-    <div data-landing-snap className="min-h-dvh break-keep bg-white text-[#191f28]">
+    <div className="min-h-dvh break-keep bg-white text-[#191f28]">
       <SiteHeader current="home" />
       <main>
         {/* 첫 화면과 아래 요약 줄을 한 구간으로 묶어 데스크톱에서 한 화면을 채운다. */}
-        <div data-snap className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
+        <div className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
           <section id="hero" className="bg-gradient-to-b from-white to-[#f5f9ff] lg:flex lg:flex-1 lg:items-center">
             <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-5 pb-0 pt-10 sm:px-8 lg:flex-row lg:gap-16 lg:pb-16 lg:pt-[72px]">
               <div className="w-full flex-1">
@@ -181,57 +194,100 @@ export default function LandingClient() {
           </div>
         </div>
 
-        {features.map((f, i) => (
-          <section
-            key={f.id}
-            id={f.id}
-            aria-labelledby={`${f.id}-title`}
-            data-snap
-            className={`scroll-mt-20 lg:flex lg:min-h-[calc(100dvh-72px)] lg:items-center ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
-          >
-            <div
-              className={`mx-auto flex w-full max-w-[1200px] flex-col items-center gap-10 px-5 py-16 sm:px-8 lg:gap-[90px] lg:py-24 ${i % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"}`}
-            >
-              <div className="w-full flex-1">
-                <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
-                <h2 id={`${f.id}-title`} className="mt-3 text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
-                  {f.title[0]}
-                  <br />
-                  {f.title[1]}
-                </h2>
-                <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{f.body}</p>
-                <ul className="mt-5 space-y-2">
-                  {f.bullets.map((b) => (
-                    <li key={b} className="flex gap-2.5 text-[15px] text-[#333d4b] sm:text-base">
-                      <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#4880ee]" />
-                      {b}
+        {/* 기능 셋. 데스크톱은 왼쪽 글이 내려가는 동안 오른쪽 휴대폰이 화면에 붙어 있고 화면만 바뀐다.
+            폰·태블릿은 기능마다 글 아래에 휴대폰을 둔다. */}
+        <section aria-label="액터브로 하는 연습">
+          <div className="mx-auto flex max-w-[1200px] gap-[90px] px-5 sm:px-8">
+            <div className="w-full flex-1">
+              {features.map((f, i) => (
+                <article
+                  key={f.id}
+                  id={f.id}
+                  ref={(el) => {
+                    featureRefs.current[i] = el;
+                  }}
+                  data-feature-index={i}
+                  aria-labelledby={`${f.id}-title`}
+                  className="flex scroll-mt-20 flex-col items-center gap-10 border-t border-[#edf0f3] py-16 first:border-t-0 lg:min-h-[calc(100dvh-72px)] lg:flex-row lg:border-t-0 lg:py-0"
+                >
+                  <div className="w-full flex-1">
+                    <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
+                    <h2 id={`${f.id}-title`} className="mt-3 text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
+                      {f.title[0]}
+                      <br />
+                      {f.title[1]}
+                    </h2>
+                    <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{f.body}</p>
+                    <ul className="mt-5 space-y-2">
+                      {f.bullets.map((b) => (
+                        <li key={b} className="flex gap-2.5 text-[15px] text-[#333d4b] sm:text-base">
+                          <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#4880ee]" />
+                          {b}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-7 flex flex-wrap gap-2.5">
+                      <a
+                        href={appSectionHref}
+                        data-app-download="landing_app_section"
+                        className={`inline-flex h-12 items-center rounded-[14px] bg-[#4880ee] px-[18px] text-[15px] font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
+                      >
+                        {f.appLabel}
+                      </a>
+                      {f.web ? (
+                        <Link
+                          href={f.web.href}
+                          className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
+                        >
+                          {f.web.label}
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                  <Phone src={f.shot} alt={f.shotAlt} className="w-[240px] shrink-0 lg:hidden" />
+                </article>
+              ))}
+            </div>
+            <div aria-hidden="true" className="hidden w-[300px] shrink-0 lg:block">
+              <div className="sticky top-[72px] flex h-[calc(100dvh-72px)] flex-col items-center justify-center gap-6">
+                <div className="w-[280px] rounded-[44px] bg-[#111] p-2.5 shadow-[0_30px_60px_rgba(25,31,40,0.22)]">
+                  <div className="relative aspect-[390/844] overflow-hidden rounded-[34px] bg-white">
+                    {features.map((f, i) => (
+                      <Image
+                        key={f.id}
+                        src={f.shot}
+                        alt=""
+                        width={390}
+                        height={844}
+                        className={`absolute inset-0 h-full w-full object-cover transition duration-500 ease-out motion-reduce:transition-none ${
+                          i === activeFeature
+                            ? "translate-y-0 opacity-100"
+                            : i < activeFeature
+                              ? "-translate-y-3 opacity-0"
+                              : "translate-y-3 opacity-0"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <ol className="flex gap-2 text-[13px] font-bold">
+                  {features.map((f, i) => (
+                    <li
+                      key={f.id}
+                      className={`rounded-full px-3 py-1.5 transition-colors duration-300 ${
+                        i === activeFeature ? "bg-[#eaf3fe] text-[#3268d8]" : "text-[#8b95a1]"
+                      }`}
+                    >
+                      {f.kicker}
                     </li>
                   ))}
-                </ul>
-                <div className="mt-7 flex flex-wrap gap-2.5">
-                  <a
-                    href={appSectionHref}
-                    data-app-download="landing_app_section"
-                    className={`inline-flex h-12 items-center rounded-[14px] bg-[#4880ee] px-[18px] text-[15px] font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
-                  >
-                    {f.appLabel}
-                  </a>
-                  {f.web ? (
-                    <Link
-                      href={f.web.href}
-                      className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
-                    >
-                      {f.web.label}
-                    </Link>
-                  ) : null}
-                </div>
+                </ol>
               </div>
-              <Phone src={f.shot} alt={f.shotAlt} className="w-[240px] shrink-0 lg:w-[280px]" />
             </div>
-          </section>
-        ))}
+          </div>
+        </section>
 
-        <section data-snap aria-labelledby="price-title" className="bg-[#f9fafb]">
+        <section aria-labelledby="price-title" className="bg-[#f9fafb]">
           <div className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
             <h2 id="price-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">
               무료로 시작하고, 더 하고 싶을 때 Pro
@@ -268,7 +324,7 @@ export default function LandingClient() {
           </div>
         </section>
 
-        <section data-snap aria-labelledby="faq-title" className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
+        <section aria-labelledby="faq-title" className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
           <div className="flex flex-col gap-8 lg:flex-row lg:gap-20">
             <div className="lg:w-[340px]">
               <h2 id="faq-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">자주 묻는 질문</h2>
@@ -297,7 +353,7 @@ export default function LandingClient() {
           </div>
         </section>
 
-        <section data-snap aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
+        <section aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
           <div className="mx-auto flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
             <div className="flex-1">
               <h2 id="band-title" className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.03em] sm:text-4xl">
@@ -316,10 +372,7 @@ export default function LandingClient() {
           </div>
         </section>
       </main>
-      {/* 맨 아래 바닥 정보까지 내려갈 수 있게 바닥은 끝에 맞춘다. */}
-      <div data-snap="end">
-        <SiteFooter showBadges={false} />
-      </div>
+      <SiteFooter showBadges={false} />
       <StickyDownloadBar heroId="hero" />
     </div>
   );
