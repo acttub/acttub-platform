@@ -17,10 +17,11 @@ const readSource = (relativePath) => readFileSync(path.join(appRoot, relativePat
  * 소스 수준에서 못박는다.
  */
 
-test('설정에서 기억 화면으로 들어가는 길이 있다', () => {
-  const source = readSource('app/settings.tsx');
-
-  assert.match(source, /router\.push\('\/memory'\)/);
+// 2026-10-25 결정: 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다.
+// 화면 파일은 남겨 두고 설정·프로필에서 들어가는 길만 뺐다. 다시 열 때는 아래 검사를 되돌린다.
+test('설정·프로필에서 기억 화면으로 들어가는 길이 없다(10/25 숨김)', () => {
+  assert.doesNotMatch(readSource('app/settings.tsx'), /\/memory'/);
+  assert.doesNotMatch(readSource('app/(tabs)/profile.tsx'), /\/memory'/);
 });
 
 test('practice.memory: 연습에서 나온 네 칸만 보여주고 성별·나이는 없다', () => {
