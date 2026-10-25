@@ -129,6 +129,19 @@ test("게스트가 ?intro=1 이나 소개 링크(#coaching)로 들어와도 홈�
   window.history.replaceState(null, "", "/");
 });
 
+test("데스크톱 고정 휴대폰은 화면 가운데를 지나는 기능 글에 맞춰 화면과 표시를 바꾼다", () => {
+  render(react.createElement(LandingClient));
+  const pills = () => [...window.document.querySelectorAll('[aria-hidden="true"] ol li')];
+  const active = () => pills().filter((li) => li.className.includes("text-[#3268d8]")).map((li) => li.textContent);
+
+  assert.deepEqual(pills().map((li) => li.textContent), ["연기 코칭", "대본 리딩", "챌린지"]);
+  assert.deepEqual(active(), ["연기 코칭"]);
+  intersect(window.document.getElementById("challenge"), true);
+  assert.deepEqual(active(), ["챌린지"]);
+  intersect(window.document.getElementById("reading"), true);
+  assert.deepEqual(active(), ["대본 리딩"]);
+});
+
 test("첫 화면이 헤더 밑으로 들어가면 아래 고정 다운로드 바가 나타난다", () => {
   render(react.createElement(LandingClient));
   const hero = window.document.getElementById("hero");
