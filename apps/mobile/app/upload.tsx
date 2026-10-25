@@ -23,6 +23,7 @@ import { UploadPrepareFailed } from '@/components/upload-prepare-failed';
 import { scheduleUploadLaterReminder } from '@/lib/notifications';
 import { setFaceMosaicForUploads, rememberPurgeAfterAnalysis } from '@/lib/practice/upload-options';
 import { UploadWaitPanel } from '@/components/upload-wait-panel';
+import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { forgetWaitingUpload, rememberWaitingUpload } from '@/hooks/use-waiting-upload';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -123,6 +124,7 @@ export default function UploadScreen() {
   const sample = params.sample === '1';
   // 첫 코칭을 마치기 전에만 파란 안내(어디를 누르면 되는지)를 보인다 — 코칭 탭이 처음 화면에서 넘겨 준다.
   const firstTime = params.first === '1';
+  const firstTimeUser = useFirstTimeUser();
   const [plan] = useState<StartPlan>(() => planFor(sample ? null : takeContinueOrigin()));
   const [picked, setPicked] = useState<PickedVideo | null>(() =>
     sample
@@ -553,10 +555,12 @@ export default function UploadScreen() {
         options={{
           title: plan.continueFrom ? t('start.titleContinue') : t('upload.titleNew'),
           headerShadowVisible: false,
-          // pen 03 「새 연습」 머리 — 오른쪽 설정 아이콘(24).
-          headerRight: () => (
-            <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="upload_settings" onPress={() => router.push('/settings')} />
-          ),
+          // pen 03 「새 연습」 머리 — 오른쪽 설정 아이콘(24). 탭바를 숨긴 첫 사용자에게만 둔다 — 그 밖에는 프로필 탭에 설정이 있다(SOMA-781·849).
+          headerRight: firstTimeUser
+            ? () => (
+                <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="upload_settings" onPress={() => router.push('/settings')} />
+              )
+            : undefined,
         }}
       />
       {/* pen P3.1 — 영상을 고르기 전 영상 단계에는 스텝퍼 위에 「영상 올리기가 망설여지나요?」 링크(망설임 페이지). */}
