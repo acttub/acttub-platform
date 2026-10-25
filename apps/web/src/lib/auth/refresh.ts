@@ -2,7 +2,8 @@ import { isGuestTransferred, responseError } from "../api/v2/errors";
 import type { RefreshTokenResponse } from "../api/v2/types";
 import { postAuth } from "./auth-request";
 import { endGuestSession } from "./guest-session";
-import { getAccessToken, getRefreshToken, setTokens } from "./token-store";
+import { markLoginExpired } from "./login-expired";
+import { clearTokens, getAccessToken, getRefreshToken, isMemberSession, setTokens } from "./token-store";
 
 let refreshInFlight: Promise<string | null> | null = null;
 
@@ -30,6 +31,13 @@ async function refreshInsideLock(failedAccess?: string): Promise<string | null> 
     const rejection = responseError(response, payload);
     if (isGuestTransferred(rejection)) {
       endGuestSession("transferred");
+      throw rejection;
+    }
+    // 웹 회원의 로그인이 풀렸다. 새 게스트로 몰래 이어 가지 않고 다시 로그인하라고 알린다 —
+    // null 을 돌려주면 공용 클라이언트가 하려던 일을 새 게스트로 잇는다.
+    if (isMemberSession()) {
+      clearTokens();
+      markLoginExpired();
       throw rejection;
     }
     return endGuestSession();

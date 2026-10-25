@@ -2,16 +2,12 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
-import { isMemberSession } from "@/lib/auth/token-store";
+import { isMemberSession, subscribeAuthChange } from "@/lib/auth/token-store";
 
 /** 상단 메뉴 오른쪽 끝의 계정 자리. 회원이면 내 계정, 아니면 로그인. 첫 그림은 서버와 같게 로그인으로 둔다. */
-function subscribeStorage(onChange: () => void): () => void {
-  window.addEventListener("storage", onChange);
-  return () => window.removeEventListener("storage", onChange);
-}
 
 export function AccountLink({ className }: { className?: string }) {
-  const member = useSyncExternalStore(subscribeStorage, isMemberSession, () => false);
+  const member = useSyncExternalStore(subscribeAuthChange, isMemberSession, () => false);
   return (
     <Link
       href={member ? "/account" : "/login"}

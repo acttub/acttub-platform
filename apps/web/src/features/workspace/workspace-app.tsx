@@ -9,6 +9,7 @@ import { CoachComposer } from "./coach-composer";
 import Image from "next/image";
 import Link from "next/link";
 import { AccountLink } from "@/features/auth/account-link";
+import { isMemberSession, subscribeAuthChange } from "@/lib/auth/token-store";
 import {
   memo,
   Suspense,
@@ -18,6 +19,7 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
@@ -1683,6 +1685,8 @@ const SessionRail = memo(function SessionRail({
   canTransfer: boolean;
 }) {
   const width = drawer ? "w-[300px]" : open ? "w-[280px]" : "w-16";
+  // 웹 회원(SOMA-834)의 자료는 계정에 있다. 이 브라우저에만 남는다는 안내와 앱으로 옮기기는 게스트에게만 보인다.
+  const member = useSyncExternalStore(subscribeAuthChange, isMemberSession, () => false);
   // 목록은 서버가 준 묶음(root_id)과 회차(ordinal)다(practice.library). 묶음은 가장 최근 회차 기준으로
   // 정렬돼 온다 — 어제 이어한 묶음이 목록 바닥에 있으면 못 찾는다.
   // 묶음은 기본으로 접는다 — 회차가 쌓일수록 목록이 길어져 다른 연습이 밀려난다.
@@ -1890,7 +1894,7 @@ const SessionRail = memo(function SessionRail({
       {/* 계정 자리는 상단 메뉴 끝에 있다(SOMA-834). 로그인하지 않은 게스트의 자료는 이 브라우저에만
           매여 있다는 것을 목록 아래에서 알린다(게스트 시작 안내). 접힌 레일에는 글을 둘
           폭이 없어 펼쳤을 때만 보인다. */}
-      {open ? (
+      {open && !member ? (
         <div
           className={`border-t border-[#edf0f3] px-4 py-3.5 ${drawer ? "" : "mt-auto"}`}
         >
