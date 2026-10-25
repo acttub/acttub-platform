@@ -562,6 +562,8 @@ class ErrorContractInventoryTest {
                     "feature.video.VideoLibraryIT"),
             covered("feature.push.adapter.web.PushController|429|rate limit exceeded", 1,
                     "feature.push.AccountNotificationIT"),
+            covered("feature.support.adapter.web.SupportInquiryController|429|rate limit exceeded", 1,
+                    "feature.support.SupportInquiryIT"),
             covered("feature.transfer.adapter.web.GuestTransferController|404|transfer_code_not_found", 1,
                     "feature.transfer.GuestTransferIT"),
             covered("feature.transfer.adapter.web.GuestTransferController|429|rate limit exceeded", 1,

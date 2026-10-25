@@ -89,7 +89,7 @@ class AccessGateTest {
                 {"GET", "/v2/consents/entry"}, {"POST", "/v2/consents"}, {"GET", "/v2/me"},
                 {"DELETE", "/v2/me"}, {"DELETE", "/v2/push-tokens"}, {"GET", "/v2/admissions"},
                 {"GET", "/v2/admissions/snu"}, {"GET", "/v2/auditions"}, {"GET", "/v2/admin/sessions"},
-                {"GET", "/health"}}) {
+                {"POST", "/v2/support/inquiries"}, {"GET", "/health"}}) {
             assertThat(ConsentGateInterceptor.gateFor(open[0], open[1]))
                     .as("%s %s", open[0], open[1]).isEqualTo(Gate.NONE);
         }
