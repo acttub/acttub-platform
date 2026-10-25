@@ -15,9 +15,9 @@ test("intro=1 이 있을 때만 게스트에게 랜딩을 보여 준다", () => 
   assert.equal(new URL(LANDING_INTRO_HREF, "https://acttub.com").search, "?intro=1");
 });
 
-test("랜딩은 intro 표시가 없을 때만 게스트를 /home 으로 보낸다", () => {
+test("랜딩은 게스트를 /home 으로 넘기지 않는다", () => {
   const src = readFileSync(new URL("../src/app/landing-client.tsx", import.meta.url), "utf8");
-  assert.match(src, /hasGuestSession\(\) && !wantsLandingIntro\(window\.location\.search\)/);
+  assert.doesNotMatch(src, /router\.replace|useRouter/);
 });
 
 test("연습 화면 목록 로고는 랜딩 소개로 이어진다", () => {

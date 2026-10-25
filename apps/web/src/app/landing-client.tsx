@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useSyncExternalStore } from "react";
 
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
@@ -12,8 +11,7 @@ import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
-import { hasGuestSession } from "@/lib/auth/token-store";
-import { wantsLandingIntro } from "@/lib/landing-intro";
+import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
 
 /**
  * 공개 홈(/). 앱을 쓰게 하는 소개와, 웹이 공식 창구라는 것을 함께 보인다(SOMA-834 웹 개편 v2).
@@ -33,7 +31,7 @@ const HOME_FAQ = [
 function Phone({ src, alt, className = "" }: { src: string; alt: string; className?: string }) {
   return (
     <div className={`rounded-[44px] bg-[#111] p-2.5 shadow-[0_30px_60px_rgba(25,31,40,0.22)] ${className}`}>
-      <Image src={src} alt={alt} width={406} height={860} className="block h-auto w-full rounded-[34px] bg-white" />
+      <Image src={src} alt={alt} width={390} height={844} className="block h-auto w-full rounded-[34px] bg-white" />
     </div>
   );
 }
@@ -64,21 +62,16 @@ type Feature = {
 };
 
 export default function LandingClient() {
-  const router = useRouter();
   const campaignSearch = useCampaignSearch();
   const practiceHref = preserveWebAttributionFromSearch("/practice/new", campaignSearch);
   const readingHref = preserveWebAttributionFromSearch("/reading", campaignSearch);
+  const homeHref = preserveWebAttributionFromSearch("/home", campaignSearch);
   const appHref = useAppDownloadHref("landing_hero");
   const appSectionHref = useAppDownloadHref("landing_app_section");
-
-  useEffect(() => {
-    // 이미 이 브라우저에서 연습하던 게스트는 홈을 건너뛰고 연습으로 보낸다.
-    // 연습 화면 로고처럼 ?intro=1 로 일부러 들어온 경우만 홈을 그대로 보여 준다.
-    // 머리 메뉴의 소개 링크(/#coaching 등)로 들어온 경우도 그 자리를 보여 준다.
-    if (hasGuestSession() && !wantsLandingIntro(window.location.search) && !window.location.hash) {
-      router.replace(preserveWebAttributionFromSearch("/home", window.location.search));
-    }
-  }, [router]);
+  // 이 브라우저에서 연습하던 게스트도 홈(/)을 그대로 본다. 예전에는 /home 으로 바로 넘겨서
+  // 다시 온 사람이 새 소개 화면을 못 봤다. 대신 첫 화면 링크를 「이어서 연습하기」로 바꿔 준다.
+  // 서버 렌더에서는 게스트가 없다고 보고, 브라우저에서 저장소를 읽어 바꾼다.
+  const returningGuest = useSyncExternalStore(subscribeAuthChange, hasGuestSession, () => false);
 
   const features: Feature[] = [
     {
@@ -89,8 +82,8 @@ export default function LandingClient() {
       bullets: ["영상 없이 말로 고민을 털어놔도 돼요", "다음 테이크에서 해 볼 것 하나를 정해 줘요"],
       appLabel: "앱에서 코칭 받기",
       web: { href: practiceHref, label: "웹에서 해 보기" },
-      shot: "/site/shot-coach.jpg",
-      shotAlt: "앱의 코칭 질문 대화 화면",
+      shot: "/site/shot-note.jpg",
+      shotAlt: "앱의 연습 노트 화면",
     },
     {
       id: "reading",
@@ -154,9 +147,12 @@ export default function LandingClient() {
               </div>
 
               <p className="mt-4 text-center text-[15px] font-semibold text-[#4e5968] lg:mt-5 lg:text-left lg:text-base">
-                설치 전에{" "}
-                <Link href={practiceHref} className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}>
-                  웹에서 먼저 해 보기 →
+                {returningGuest ? "이 브라우저에서 하던 연습이 있어요 " : "설치 전에 "}
+                <Link
+                  href={returningGuest ? homeHref : practiceHref}
+                  className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}
+                >
+                  {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
                 </Link>
               </p>
             </div>
