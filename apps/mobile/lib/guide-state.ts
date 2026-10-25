@@ -9,7 +9,7 @@
  */
 
 import { spotlightKey, type SpotlightTopic } from './guide-spotlight';
-import { currentFirstUseOwner } from './practice/first-use-graduation';
+import { currentFirstUseOwner, firstUseOwnerReady } from './practice/first-use-graduation';
 import { AUTO_ADVANCE_TIP_KEY } from './reading/guide-flag';
 
 /** 연습 루프를 한 바퀴 돌아보는 튜토리얼(SOMA-494). 끝내거나 "나중에"를 누르면 기록한다. */
@@ -57,8 +57,11 @@ function ownedSpotlightKey(topic: SpotlightTopic, owner: string | null): string 
   return owner ? `${spotlightKey(topic)}.${owner}` : spotlightKey(topic);
 }
 
-export function hasSeenSpotlight(topic: SpotlightTopic): Promise<boolean> {
-  return seen(ownedSpotlightKey(topic, currentFirstUseOwner()));
+/** 계정이 정해질 때까지 기다리는 한도. 로그인된 앱은 켜고 1초 안에 me 를 받는다. 로그인 전 화면에서는 안내를 띄우지 않는다. */
+const OWNER_WAIT_MS = 4000;
+
+export async function hasSeenSpotlight(topic: SpotlightTopic, waitMs = OWNER_WAIT_MS): Promise<boolean> {
+  return seen(ownedSpotlightKey(topic, await firstUseOwnerReady(waitMs)));
 }
 
 export function markSpotlightSeen(topic: SpotlightTopic): Promise<void> {

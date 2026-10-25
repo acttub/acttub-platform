@@ -7,9 +7,8 @@ import type { LiveState } from '@/lib/reading/live';
  *
  * - iOS: Live Activity(잠금 화면·다이내믹 아일랜드)를 띄우고, 오디오 세션 끊김(전화 등)을 알린다. 배경 소리·녹음은
  *   Info.plist 의 UIBackgroundModes audio 가 맡는다.
- * - Android: 재생·마이크 포그라운드 서비스를 띄우고 그 알림을 Live Update(BigTextStyle + 승격 요청)로 쓴다.
- *   안드로이드 14+ 는 마이크 포그라운드 서비스를 앱이 화면에 있을 때만 시작할 수 있어 리딩을 시작할 때 띄운다.
- *   통화 모드로 바뀌면 끊김을 알린다(Android 12+).
+ * - Android: 지금은 연결하지 않는다(expo-module.config.json platforms 에서 뺌). 재생·마이크 포그라운드 서비스는
+ *   Play 선언(사용 장면 동영상)이 필요해 1.0.0 에서 내렸다. android/ 코드는 다시 켤 때를 위해 남긴다.
  *
  * 모듈이 없는 실행(Expo Go·테스트)에서는 아무것도 하지 않고 keepsRunning 은 false 다 — 화면은 예전처럼 배경에서 멈춘다.
  */
