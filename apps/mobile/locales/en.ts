@@ -1898,6 +1898,7 @@ const en: DeepStringShape<typeof ko> = {
     liveMasked: 'Line hidden',
     liveChannel: 'Reading progress',
     resume: 'Continue',
+    stopHere: 'Stop',
     completeTitle: 'Reading complete',
     notCountedTitle: 'Not counted as practice',
     notCountedBody: 'We didn’t catch any of your lines, so this reading wasn’t saved as complete. Read your lines out loud to finish it.',

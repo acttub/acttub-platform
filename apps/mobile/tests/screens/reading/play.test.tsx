@@ -470,6 +470,50 @@ test('나가기를 누르면 확인 없이 위치를 저장하고 바로 상세�
   expect(server.deleteSession).not.toHaveBeenCalled();
 });
 
+test('나가기는 저장이 닿기를 기다리지 않고 바로 상세로 간다 — 저장은 화면 밖에서 마저 보낸다', async () => {
+  const server = await startPlay();
+  await screen.findByText('듣는 중');
+  let land: () => void = () => undefined;
+  server.saveProgress.mockImplementation((_id, body) => new Promise((resolve) => {
+    land = () => resolve({ current_line_id: body.current_line_id ?? null, elapsed_seconds: 0, progress_seq: body.progress_seq, status: 'in_progress', different_lines: [] });
+  }));
+
+  await fireEvent.press(screen.getByText('나가기'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l2', complete: false }));
+  // 저장은 상세로 간 뒤에 닿는다.
+  await act(async () => land());
+});
+
+test('멈춘 채 그만하기를 누르면 읽은 데까지로 끝내고 리딩 완료로 간다', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  const server = await startPlay();
+  expect(await screen.findByText('아직 인식된 말이 없어요')).toBeOnTheScreen();
+  mockStt.finish.mockResolvedValueOnce('오늘 왔구나');
+  await speechEnds(() => recognizer);
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+
+  await fireEvent.press(screen.getByText('일시정지'));
+  await fireEvent.press(screen.getByText('그만하기'));
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({
+    complete: true,
+    line_results: [{ line_id: 'l2', said: '오늘 왔구나' }],
+  })));
+});
+
+test('알아들은 대사 없이 그만하기를 누르면 완료로 남기지 않고 멈춘 위치만 저장한다', async () => {
+  const server = await startPlay();
+  await screen.findByText('듣는 중');
+
+  await fireEvent.press(screen.getByText('일시정지'));
+  await fireEvent.press(screen.getByText('그만하기'));
+  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
+  expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ current_line_id: 'l2', complete: false }));
+  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
+});
+
 test('이전 대사를 누르면 앞 대사로 돌아가 다시 한다', async () => {
   await startPlay();
   await screen.findByText('듣는 중');
