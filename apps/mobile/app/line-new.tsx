@@ -98,7 +98,7 @@ export default function LineNewScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.header}>
+      <View style={styles.header} testID="line-new-header">
         <Pressable onPress={back} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="line_new_back">
           <Feather name={step === 0 ? 'x' : 'chevron-left'} size={26} color={palette.text} />
         </Pressable>
@@ -216,7 +216,8 @@ export default function LineNewScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 6 },
+  // iOS 모달(pageSheet)은 위 안전 영역이 0이라 SafeAreaView만으로는 닫기 버튼이 시트 위 끝에 붙는다.
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 16 },
   dots: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center' },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.border },
   dotOn: { width: 18, backgroundColor: palette.blue },
