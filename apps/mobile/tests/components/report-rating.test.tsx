@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
-import { ReportRating } from '@/components/report-rating';
+import { RatingBox, ReportRating } from '@/components/report-rating';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
@@ -157,4 +157,23 @@ test('겹쳐 누른 칩의 늦은 실패는 나중 선택을 되돌리지 않는
   expect(bad()).toBeSelected();
   expect(good()).not.toBeSelected();
   expect(input()).toBeOnTheScreen();
+});
+
+test('한 줄 칸을 누르면 부른 화면에 알려 칸을 키보드 위로 올리게 한다(10/26 폰: 리딩 끝 화면에서 키보드에 가렸다)', async () => {
+  const onInputFocus = jest.fn();
+  await render(
+    <RatingBox<'good' | 'bad'>
+      initial={{ rating: 'good', comment: null }}
+      title="이번 리딩 어땠나요?"
+      options={[['good', 'thumbs-up', '좋았어요'], ['bad', 'thumbs-down', '아쉬웠어요']]}
+      placeholder="한 줄"
+      sendLabel="보내기"
+      thanks="고마워요"
+      commentMax={100}
+      save={async () => 'sent'}
+      onInputFocus={onInputFocus}
+    />,
+  );
+  await fireEvent(screen.getByPlaceholderText('한 줄'), 'focus');
+  expect(onInputFocus).toHaveBeenCalledTimes(1);
 });

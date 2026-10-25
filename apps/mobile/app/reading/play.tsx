@@ -107,6 +107,7 @@ import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
@@ -279,6 +280,12 @@ export default function ReadingPlay() {
   const speechQueue = useRef<tts.SpeechQueueHandle | null>(null);
   const mounted = useRef(true);
   const scrollRef = useRef<ScrollView | null>(null);
+  // 끝난 화면 — 「이번 리딩 어땠나요?」 한 줄 칸을 누르면 키보드 위로 올린다(10/26 폰: 키보드에 가렸다).
+  const doneScrollRef = useRef<ScrollView | null>(null);
+  const keyboardHeight = useKeyboardHeight();
+  const liftRatingInput = useCallback(() => {
+    setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
+  }, []);
   // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494). 튜토리얼 대본은 세지 않는다.
   const { after: askRating, element: ratingCard } = useAppRating();
   const fromTutorialRef = useRef(false);
@@ -1682,8 +1689,8 @@ export default function ReadingPlay() {
       const total = monoResult?.rows.length ?? 0;
       const statusLabel = { read: t('reading.monologueStatusRead'), missed: t('reading.monologueStatusMissed'), different: t('reading.monologueStatusDifferent') };
       return (
-        <View style={styles.root}>
-          <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
+        <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
+          <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
             <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.doneTitle}>{t(completed ? 'reading.monologueDoneTitle' : 'reading.notCountedTitle')}</Text>
             {!completed ? (
@@ -1749,7 +1756,7 @@ export default function ReadingPlay() {
             </View>
             {completed && !fromTutorialRef.current && (
               <View style={styles.ratingSlot}>
-                <ReadingRating sessionId={session.id} />
+                <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />
               </View>
             )}
           {ratingCard}
@@ -1767,8 +1774,8 @@ export default function ReadingPlay() {
     const compared = sttMode?.kind === 'stt';
     const textOf = (lineId: string) => run.lines[run.lineIds.indexOf(lineId)]?.text ?? '';
     return (
-      <View style={styles.root}>
-        <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
+      <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
+        <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
           <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.doneTitle}>{t(completed ? 'reading.completeTitle' : 'reading.notCountedTitle')}</Text>
           {!completed && <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>}
@@ -1839,7 +1846,7 @@ export default function ReadingPlay() {
           {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
           {completed && !fromTutorialRef.current && (
             <View style={styles.ratingSlot}>
-              <ReadingRating sessionId={session.id} />
+              <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />
             </View>
           )}
 
