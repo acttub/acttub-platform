@@ -17,6 +17,7 @@ import { postHog, syncPostHog } from '@/lib/posthog';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { useAuth } from '@/lib/auth';
 import RootLayout from '@/app/_layout';
+import { markHomeReady, resetHomeReadyForTest } from '@/lib/launch-splash';
 
 type AuthState = {
   status: 'loading' | 'signedIn' | 'signedOut';
@@ -114,6 +115,9 @@ const startupCalls = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // 게이트 테스트는 홈이 이미 준비된 상태로 본다. 홈을 기다리는 로고는 아래 「홈을 기다리는 로고」에서 따로 본다.
+  resetHomeReadyForTest();
+  markHomeReady();
   mockFontsLoaded = true;
   mockNav.segments = ['(tabs)'];
   mockNav.pathname = '/';
@@ -430,6 +434,46 @@ describe('게이트', () => {
 
     expect(mockRouter.replace).toHaveBeenCalledWith('/login');
     expect(mockRouter.replace).not.toHaveBeenCalledWith(expect.objectContaining({ pathname: '/coach' }));
+  });
+});
+
+describe('홈을 기다리는 로고', () => {
+  beforeEach(() => {
+    resetHomeReadyForTest();
+  });
+
+  test('홈으로 들어가면 홈이 첫 데이터를 받을 때까지 로고를 유지한다', async () => {
+    await renderLayout();
+    expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+
+    await act(async () => markHomeReady());
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
+  });
+
+  test('홈이 3초 안에 준비되지 않으면 로고를 닫는다', async () => {
+    jest.useFakeTimers();
+    try {
+      await renderLayout();
+      expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+      });
+      expect(SplashScreen.hideAsync).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('홈이 아닌 화면으로 가면 기다리지 않는다', async () => {
+    mockNav.pathname = '/analyzing';
+    await renderLayout();
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
+  });
+
+  test('로그아웃 상태면 기다리지 않는다', async () => {
+    auth = signedIn({ status: 'signedOut', user: null });
+    await renderLayout();
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
   });
 });
 

@@ -15,7 +15,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { getTrackingPermissionsAsync } from 'expo-tracking-transparency';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import 'react-native-reanimated';
 
@@ -31,6 +31,7 @@ import { api } from '@/lib/api';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
 import { tabBackTitle } from '@/lib/tab-back-title';
+import { HOME_SPLASH_HOLD_MS, isHomeReady, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
 import { AppHeader } from '@/components/app-header';
 import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
@@ -327,6 +328,30 @@ function RootNavigator() {
     router,
   ]);
 
+  // 홈으로 들어가는 길이면 홈이 첫 데이터를 받을 때까지 로고를 붙잡는다(lib/launch-splash.ts).
+  // 예전에는 로고가 닫힌 뒤 홈이 데이터를 받는 동안 작은 로딩 표시가 잠깐 보였다.
+  const homeReady = useSyncExternalStore(subscribeHomeReady, isHomeReady);
+  const signedInHome =
+    !updateRequired &&
+    status === 'signedIn' &&
+    Boolean(user) &&
+    consentEntry.status === 'allowed' &&
+    profileStatus === 'complete' &&
+    recovery.status === 'ready' &&
+    recovery.owner === user?.id;
+  const [homeHoldExpired, setHomeHoldExpired] = useState(false);
+  useEffect(() => {
+    if (!signedInHome) return;
+    const timer = setTimeout(() => setHomeHoldExpired(true), HOME_SPLASH_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [signedInHome]);
+  const holdSplashForHome = shouldHoldSplashForHome({
+    signedInHome,
+    pathname,
+    homeReady,
+    holdExpired: homeHoldExpired,
+  });
+
   useEffect(() => {
     const consentScreenReady =
       consentEntry.status === 'error' ||
@@ -343,10 +368,11 @@ function RootNavigator() {
               (profileStatus === 'complete' &&
                 recovery.status === 'ready' &&
                 recovery.owner === user?.id)))));
-    if (readyToShow) {
+    if (readyToShow && !holdSplashForHome) {
       void SplashScreen.hideAsync();
     }
   }, [
+    holdSplashForHome,
     updateRequired,
     status,
     user,
