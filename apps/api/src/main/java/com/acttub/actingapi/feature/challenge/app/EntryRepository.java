@@ -57,6 +57,9 @@ public interface EntryRepository {
     record OwnVideo(UUID id, String objectKey, int declaredDurationMs, boolean purged) { }
     record NewEntry(UUID videoId, String caption, String visibility, boolean faceMosaic) { }
     /** 모자이크 한 번. {@code attempts} 는 이번을 센 시도 수다. */
+    /** 본인 참여작의 원본 주소 설명(SOMA-809). playback_url 이 모자이크본일 때만 채운다. */
+    String ORIGINAL_DESC = "본인 참여작이고 얼굴 모자이크본이 준비됐을 때만 원본 주소. 그때 playback_url 은 모자이크본이다. 그 밖에는 null";
+
     record MosaicJob(UUID entryId, UUID userId, String objectKey, int attempts) { }
     record Replay(String fingerprint, MyEntry entry) { }
     record Creation(MyEntry entry, boolean created) { }
@@ -77,6 +80,7 @@ public interface EntryRepository {
                      @Schema(requiredMode = REQUIRED, nullable = true, description = "종료 뒤 저장된 좋아요 수") Long finalLikeCount,
                      @Schema(requiredMode = REQUIRED, nullable = true) Instant publishedAt,
                      @Schema(requiredMode = REQUIRED, nullable = true) String playbackUrl,
+                     @Schema(requiredMode = REQUIRED, nullable = true, description = ORIGINAL_DESC) String originalPlaybackUrl,
                      @Schema(requiredMode = REQUIRED) boolean liked,
                      @Schema(requiredMode = REQUIRED) boolean saved,
                      @Schema(requiredMode = REQUIRED) boolean isMine,
@@ -108,6 +112,7 @@ public interface EntryRepository {
                    @Schema(requiredMode = REQUIRED, nullable = true) Long finalLikeCount,
                    @Schema(requiredMode = REQUIRED, nullable = true) Instant publishedAt,
                    @Schema(requiredMode = REQUIRED, nullable = true) String playbackUrl,
+                   @Schema(requiredMode = REQUIRED, nullable = true, description = ORIGINAL_DESC) String originalPlaybackUrl,
                    @Schema(requiredMode = REQUIRED) boolean liked,
                    @Schema(requiredMode = REQUIRED) boolean saved,
                    @Schema(requiredMode = REQUIRED) boolean isMine,

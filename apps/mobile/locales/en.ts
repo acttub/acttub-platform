@@ -581,6 +581,8 @@ const en: DeepStringShape<typeof ko> = {
     playFailSub: 'It may be too short or broken.',
     playFailClose: 'Close',
     playFailRetry: 'Try again',
+    showOriginal: 'Show original',
+    showMosaic: 'Show mosaic',
     goneTitle: 'This video isn’t available',
     goneSub: 'The actor deleted it or made it private.',
     goneCta: 'See this week’s challenge',

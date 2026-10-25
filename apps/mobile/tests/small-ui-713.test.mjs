@@ -16,6 +16,6 @@ test('memory: 프로필에서 들어오면 뒤로 글자가 「← 프로필」,
 test('challenge-play: 영상 갈아끼우기는 replaceAsync — replace 는 iOS 에서 주 스레드로 불러와 화면이 멈출 수 있다(SOMA-713)', () => {
   const play = src('app/challenge-play.tsx');
   assert.doesNotMatch(play, /player\.replace\(/);
-  assert.match(play, /\.replaceAsync\(entry\.playback_url\)/);
+  assert.match(play, /\.replaceAsync\(source\)/);
   assert.match(play, /player\.replaceAsync\(null\)/);
 });
