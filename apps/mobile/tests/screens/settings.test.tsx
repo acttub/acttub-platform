@@ -416,8 +416,8 @@ describe('설정', () => {
   });
 
   describe('문의·신고 메일', () => {
-    test('메일 앱을 열 수 있으면 제목을 채워 연다', async () => {
-      jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(true);
+    test('canOpenURL 이 false 여도(안드로이드 11+ 패키지 가시성) 묻지 않고 제목을 채워 연다', async () => {
+      const canOpen = jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(false);
       const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
       await settingsLoaded();
 
@@ -426,10 +426,12 @@ describe('설정', () => {
       await waitFor(() =>
         expect(openURL).toHaveBeenCalledWith(`mailto:acttub0527@gmail.com?subject=${encodeURIComponent('[Acttub] 문의·신고')}`),
       );
+      expect(canOpen).not.toHaveBeenCalled();
+      expect(screen.queryByText('메일 앱을 열지 못했어요. acttub0527@gmail.com 으로 보내주세요.')).not.toBeOnTheScreen();
     });
 
-    test('열 수 없으면 주소를 알려 준다', async () => {
-      jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(false);
+    test('받을 메일 앱이 정말 없어 열기가 실패하면 주소를 알려 준다', async () => {
+      jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('No Activity found to handle Intent'));
       await settingsLoaded();
 
       await fireEvent.press(screen.getByRole('button', { name: '문의·신고 메일 보내기' }));

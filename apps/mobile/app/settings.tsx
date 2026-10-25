@@ -44,10 +44,10 @@ export default function SettingsScreen() {
 
   const openContactMail = async () => {
     const url = 'mailto:acttub0527@gmail.com?subject=' + encodeURIComponent(t('settings.contactSubject'));
+    // canOpenURL 은 안드로이드 11+ 에서 매니페스트 <queries> 에 mailto 가 없으면 메일 앱이 있어도 false 다(10/25 제보).
+    // 바로 열고, 받을 앱이 정말 없어 openURL 이 실패할 때만 주소를 알려 준다.
     try {
-      const okToOpen = await Linking.canOpenURL(url);
-      if (okToOpen) await Linking.openURL(url);
-      else throw new Error('cannot open');
+      await Linking.openURL(url);
     } catch {
       void alert({ title: t('settings.contactMailFail'), message: 'acttub0527@gmail.com' });
     }
