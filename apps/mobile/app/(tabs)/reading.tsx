@@ -50,7 +50,6 @@ const ENTRY_ART: Partial<Record<EntryKey, number>> = {
 const HERO_ACTY = require('@/assets/images/reading/hero-acty-stack.png');
 const HERO_WINDOW = require('@/assets/images/home/window-light.png');
 
-const MASCOT = require('@/assets/images/mascot-reading.png');
 
 /** 대본 탭에서 처음 한 번 비추는 자리 — 대본을 들이는 버튼 하나뿐이다 (SOMA-550). */
 const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guide.spotReadingNew' }];
@@ -206,6 +205,7 @@ export default function ReadingList() {
     }
   };
 
+  const voiceOn = cloudVoice.enabled && cloudVoice.status?.consent === 'granted';
   const voiceBar = (
     cloudVoice.status?.available ? (
       <View style={styles.voiceBar}>
@@ -255,6 +255,20 @@ export default function ReadingList() {
               {firstTime && (
                 <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
               )}
+              {/* pen R1.3 — 대본이 있으면 고품질 목소리 띠 대신 제목 옆 「Free」 알약. 누르면 켜고(동의 흐름·「켰어요」 토스트), 켠 뒤 누르면 끈다. */}
+              {!empty && cloudVoice.status?.available && (
+                <Pressable
+                  style={({ pressed }) => [styles.freePill, voiceOn && styles.freePillOn, pressed && styles.pressed]}
+                  accessibilityRole="switch"
+                  accessibilityLabel={t('cloudVoice.bannerLabel')}
+                  accessibilityState={{ checked: voiceOn, disabled: cloudVoice.busy }}
+                  ph-label="reading_free_voice"
+                  disabled={cloudVoice.busy}
+                  onPress={() => void (voiceOn ? cloudVoice.disable() : cloudVoice.enable('settings'))}>
+                  {voiceOn && <Feather name="check" size={13} color={palette.onAccent} />}
+                  <Text style={[styles.freePillText, voiceOn && styles.freePillTextOn]}>{t('cloudVoice.freePill')}</Text>
+                </Pressable>
+              )}
               {!empty && (
                 <Pressable
                   ref={newTarget.ref}
@@ -273,8 +287,6 @@ export default function ReadingList() {
           }
         />
       </View>
-
-      {!empty && voiceBar}
 
       {error && (
         <View style={styles.errorBox}>
@@ -335,6 +347,12 @@ export default function ReadingList() {
         <>
           {resume && !searching && (
             <View style={styles.resumeCard}>
+              {/* pen R1.3 — 하늘색 그라데이션 위 창·달·구름, 책 더미 위에서 읽는 액티 */}
+              <BandGradient stops={[[0, '#86B7FF'], [1, '#4A8BF5']]} />
+              <Image source={HERO_WINDOW} style={styles.resumeWindow} resizeMode="cover" accessibilityElementsHidden />
+              <View style={styles.resumeCloud} pointerEvents="none" />
+              <Feather name="moon" size={26} color="rgba(255,255,255,0.85)" style={styles.resumeMoon} />
+              <Image source={HERO_ACTY} style={styles.resumeActy} resizeMode="contain" accessibilityElementsHidden />
               <Text style={styles.resumeEyebrow}>{t('reading.resumeEyebrow')}</Text>
               <Text style={styles.resumeTitle}>
                 {t('reading.resumeHeadline', {
@@ -344,6 +362,7 @@ export default function ReadingList() {
                   total: resume.session.progress?.total ?? 0,
                 })}
               </Text>
+              <Text style={styles.resumeHint}>{t('reading.resumeHint')}</Text>
               <Pressable
                 style={({ pressed }) => [styles.resumeBtn, pressed && styles.pressed]}
                 onPress={() => void continueReading()}
@@ -352,7 +371,6 @@ export default function ReadingList() {
                 {resuming ? <ActivityIndicator size="small" color={palette.blueDeep} /> : <Text style={styles.resumeBtnText}>{t('reading.resumeGo')}</Text>}
                 <Feather name="arrow-right" size={18} color={palette.blueDeep} />
               </Pressable>
-              <Image source={MASCOT} style={styles.resumeActy} resizeMode="contain" accessibilityElementsHidden />
             </View>
           )}
 
@@ -489,11 +507,18 @@ const styles = StyleSheet.create({
   entryGo: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', elevation: 2 },
   entryGoDark: { shadowColor: '#0E52CC', shadowOpacity: 0.4, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   entryGoLight: { shadowColor: '#BCD3FA', shadowOpacity: 1, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  resumeCard: { backgroundColor: palette.blue, borderRadius: 22, padding: 20, gap: 10, overflow: 'hidden' },
-  resumeActy: { position: 'absolute', right: 8, bottom: 0, width: 110, height: 110 },
-  resumeEyebrow: { color: palette.blueLine, fontSize: 13, fontWeight: '800', lineHeight: 20 },
-  resumeTitle: { color: palette.onAccent, maxWidth: '72%', fontSize: 22, fontWeight: '900', lineHeight: 31 },
-  resumeHint: { color: palette.blueSoft, fontSize: 14, fontWeight: '700', lineHeight: 21 },
+  resumeCard: { backgroundColor: palette.blue, borderRadius: 24, padding: 20, paddingBottom: 22, gap: 8, overflow: 'hidden' },
+  resumeWindow: { position: 'absolute', right: -10, top: 0, width: 210, height: 180, opacity: 0.18 },
+  resumeCloud: { position: 'absolute', left: -40, right: -40, bottom: -70, height: 120, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.22)' },
+  resumeMoon: { position: 'absolute', right: 26, top: 22 },
+  resumeActy: { position: 'absolute', right: -4, bottom: -6, width: 128, height: 142 },
+  resumeEyebrow: { color: 'rgba(255,255,255,0.88)', fontSize: 13, fontWeight: '700', lineHeight: 20 },
+  resumeTitle: { color: palette.onAccent, maxWidth: '78%', fontSize: 22, fontWeight: '900', lineHeight: 31 },
+  resumeHint: { color: 'rgba(255,255,255,0.85)', maxWidth: '64%', fontSize: 12.5, fontWeight: '600', lineHeight: 19 },
+  freePill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: '#EAF3FE' },
+  freePillOn: { backgroundColor: palette.blue },
+  freePillText: { color: palette.blue, fontSize: 14, fontWeight: '800' },
+  freePillTextOn: { color: palette.onAccent },
   resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.card, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
   resumeBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
   pressed: { opacity: 0.85 },
