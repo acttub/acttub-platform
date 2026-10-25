@@ -11,7 +11,7 @@ import { currentSpotlight } from '@/lib/spotlight-host';
 import { currentTutorial, endTutorial, startTutorial } from '@/lib/tutorial';
 import { createSampleLoop, SAMPLE_PRACTICE_ID, type LoopApi } from '@/lib/tutorial-sample';
 
-const mockRouter = { replace: jest.fn(), dismissAll: jest.fn() };
+const mockRouter = { replace: jest.fn(), dismissAll: jest.fn(), dismissTo: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) };
 const mockNavigation = { dispatch: jest.fn() };
 let mockKeyboardHeight = 0;
 let mockPreventRemove: { enabled: boolean; callback: (e: { data: { action: unknown } }) => void } | null = null;
@@ -820,6 +820,17 @@ describe('튜토리얼 예시', () => {
   test('실제 회차에서는 뒤로 가기를 막지 않는다', async () => {
     await renderOpen();
     expect(mockPreventRemove?.enabled).toBe(false);
+  });
+
+  test('꺾쇠는 돌아갈 화면이 있으면 뒤로, 알림으로 바로 열어 없으면 이미 있는 홈 탭까지 내려간다(SOMA-853)', async () => {
+    await renderOpen();
+    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+
+    mockRouter.canGoBack.mockReturnValueOnce(false);
+    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
   });
 });
 

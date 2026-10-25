@@ -261,6 +261,10 @@ describe('갤러리에서 고르기', () => {
     await fireEvent.press(screen.getByText(RIGHTS));
     await fireEvent.press(screen.getByRole('button', { name: '업로드 중…' }));
     expect(await screen.findByText('영상을 올리고 있어요')).toBeOnTheScreen();
+    // 홈으로 나가면 이미 있는 홈 탭까지 내려간다 — 탭 묶음을 하나 더 쌓지 않는다(SOMA-853).
+    await fireEvent.press(screen.getByRole('button', { name: '홈에서 기다리기' }));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
   });
 
   test('올리기가 실패로 남으면 다시 올려 볼 수 있다고 알린다', async () => {
