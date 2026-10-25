@@ -8,6 +8,7 @@ import { CoachComposer } from "./coach-composer";
 
 import Image from "next/image";
 import Link from "next/link";
+import { AccountLink } from "@/features/auth/account-link";
 import {
   memo,
   Suspense,
@@ -206,7 +207,7 @@ function isActorClosing(text: string): boolean {
 function WorkspaceInner() {
   const searchParams = useSearchParams();
   const sessionParam = searchParams.get("session");
-  // 웹에는 로그인이 없다. 이 화면은 누구에게나 열리고, 게스트 계정은 배우가 영상을
+  // 로그인은 선택이다(SOMA-834). 이 화면은 누구에게나 열리고, 게스트 계정은 배우가 영상을
   // 올리려 할 때 공용 클라이언트가 만든다(account.guest). 게스트가 없는 동안에는 볼
   // 자료도 없으므로 아래 조회들은 서버에 묻지 않는다.
   const { hasSession } = useGuestSession();
@@ -1476,6 +1477,7 @@ function WorkspaceInner() {
               >
                 앱
               </Link>
+              <AccountLink className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]" />
             </nav>
           </div>
           {/* 숨김 확인. 오류 배너와 화면 분기 사이에는 아무것도 끼우지 않는다(workspace-note-handoff 테스트). */}
@@ -1885,7 +1887,7 @@ const SessionRail = memo(function SessionRail({
         </Link>
       ) : null}
 
-      {/* 계정 자리는 없다 — 웹에는 로그인이 없다. 대신 게스트의 자료가 이 브라우저에만
+      {/* 계정 자리는 상단 메뉴 끝에 있다(SOMA-834). 로그인하지 않은 게스트의 자료는 이 브라우저에만
           매여 있다는 것을 목록 아래에서 알린다(게스트 시작 안내). 접힌 레일에는 글을 둘
           폭이 없어 펼쳤을 때만 보인다. */}
       {open ? (
