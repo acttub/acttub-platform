@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
@@ -15,6 +15,7 @@ import {
   setNotificationToggle,
   type NotificationSettings,
 } from '@/lib/notifications';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /** 알림 토글 셋. 순서대로 그린다. */
 const TOGGLE_ICON: Record<string, 'star' | 'award' | 'moon' | 'bell'> = {
@@ -86,9 +87,7 @@ export default function NotificationSettingsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('settings.notifications')} left={<NavBackButton onPress={() => router.back()} />} />
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <SkeletonRows count={5} avatar={false} />
       ) : loadError ? (
         <View style={styles.center}>
           <Text style={styles.loadError}>{loadError}</Text>

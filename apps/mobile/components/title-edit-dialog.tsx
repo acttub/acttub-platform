@@ -1,10 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { updateScriptMeta } from '@/lib/reading/store';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -75,7 +76,7 @@ export function TitleEditDialog({
               style={[styles.button, styles.save, (!changed || busy) && styles.saveOff]}
               disabled={!changed || busy}
               onPress={() => void save()}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{t('common.save')}</Text>}
+              {busy ? <LoadingText label={t('loadingText.saving')} color="#fff" /> : <Text style={styles.saveText}>{t('common.save')}</Text>}
             </Pressable>
           </View>
         </Pressable>

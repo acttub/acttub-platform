@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -425,7 +425,7 @@ export default function RecordVideoScreen() {
               <Text style={styles.closeText}>✕</Text>
             </Pressable>
           </View>
-          <View style={styles.permCenter}>{!showNotice && <ActivityIndicator color="rgba(255,255,255,0.8)" />}</View>
+          <View style={styles.permCenter}></View>
           {showNotice && (
             <View style={styles.permNotice}>
               <Feather name="camera-off" size={16} color={palette.amber} />

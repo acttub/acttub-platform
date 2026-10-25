@@ -1,9 +1,10 @@
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChoiceCard } from '@/components/choice-card';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
@@ -84,9 +85,7 @@ export default function CoachScriptsScreen() {
         left={<NavIconButton icon="chevron-left" size={24} label={t('common.back')} phLabel="coach_scripts_back" onPress={() => router.back()} />}
       />
       {scripts === null && !failed ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <SkeletonRows count={4} />
       ) : (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.body}>

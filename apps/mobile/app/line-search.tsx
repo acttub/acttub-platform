@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -11,6 +11,7 @@ import { browseFailure, browseFailureMessage, dDayLabel, participantsLabel, sear
 import type { ChallengeCard } from '@/lib/challenge/types';
 import { SEARCH_MIN_LENGTH } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * A16.1 대사 검색(challenge.browse).
@@ -87,7 +88,7 @@ export default function LineSearchScreen() {
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {!searchable(query) && <Text style={styles.hint}>{t('lineSearch.minLength', { count: SEARCH_MIN_LENGTH })}</Text>}
-        {loading && <ActivityIndicator color={palette.blue} style={{ marginTop: 24 }} />}
+        {loading && !results?.length && <SkeletonRows count={4} avatar={false} card={false} style={{ paddingHorizontal: 0 }} />}
         {error && <Text style={styles.error}>{error}</Text>}
 
         {results?.map((challenge) => (

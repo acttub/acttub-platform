@@ -1,10 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { DEFAULT_AVATAR_GONE, DefaultAvatar } from '@/components/ui/default-avatar';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -60,7 +61,7 @@ export default function BlockedUsersScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        {users === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 32 }} />}
+        {users === null && !error && <SkeletonRows count={5} avatar card={false} style={{ paddingHorizontal: 0 }} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
         {users !== null && users.length === 0 && !error && <Text style={styles.empty}>{t('block.empty')}</Text>}
 

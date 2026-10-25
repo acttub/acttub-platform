@@ -2,10 +2,11 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -194,9 +195,7 @@ export default function HistoryScreen() {
         </View>
 
         {loading && (
-          <View style={styles.center}>
-            <ActivityIndicator color={palette.blue} />
-          </View>
+          <SkeletonRows count={5} avatar card={false} />
         )}
         {error && <Text style={styles.error}>{error}</Text>}
 

@@ -2,12 +2,13 @@ import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
 import { CHIP_TONE } from '@/lib/reading/script-cards';
@@ -101,18 +102,19 @@ export default function ReadingSession() {
   }
 
   if (!detail) {
+    if (!failed) {
+      return (
+        <View style={styles.root}>
+          <SkeletonRows count={5} avatar={false} />
+        </View>
+      );
+    }
     return (
       <View style={[styles.root, styles.center]}>
-        {failed ? (
-          <>
-            <Text style={styles.dim}>{t('reading.sessionLoadFailed')}</Text>
-            <Pressable style={styles.pill} onPress={() => void load()}>
-              <Text style={styles.pillText}>{t('common.retry')}</Text>
-            </Pressable>
-          </>
-        ) : (
-          <ActivityIndicator color={palette.textFaint} />
-        )}
+        <Text style={styles.dim}>{t('reading.sessionLoadFailed')}</Text>
+        <Pressable style={styles.pill} onPress={() => void load()}>
+          <Text style={styles.pillText}>{t('common.retry')}</Text>
+        </Pressable>
       </View>
     );
   }

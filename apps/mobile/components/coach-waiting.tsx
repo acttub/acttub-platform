@@ -1,7 +1,7 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -388,7 +388,6 @@ export function CoachWaiting({
             ) : (
               <View style={styles.watchingBox} accessibilityLiveRegion="polite">
                 <View style={styles.typingRow}>
-                  <ActivityIndicator size="small" color={palette.blue} />
                   <Text style={styles.watching}>{t('coach.watching')}</Text>
                 </View>
                 <Text style={styles.stageText}>{stageText}</Text>

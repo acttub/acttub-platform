@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -15,6 +14,7 @@ import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
+import { SkeletonBlock } from '@/components/ui/skeleton';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
@@ -133,7 +133,9 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
     if (consentEntry.status === 'checking') {
       return (
         <View style={styles.checking}>
-          <ActivityIndicator color={palette.blue} />
+          <SkeletonBlock width="90%" height={14} />
+          <SkeletonBlock width="75%" height={14} />
+          <SkeletonBlock width="60%" height={14} />
         </View>
       );
     }
@@ -247,7 +249,7 @@ const styles = StyleSheet.create({
   reason: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMuted },
   subtitle: { fontSize: 14, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
   list: { flexShrink: 1 },
-  checking: { paddingVertical: 24, alignItems: 'center' },
+  checking: { paddingVertical: 24, alignItems: 'center', gap: 12 },
   loadFailed: { alignItems: 'center', gap: 10 },
   error: { fontSize: 14, color: palette.danger, textAlign: 'center' },
   stretch: { alignSelf: 'stretch' },

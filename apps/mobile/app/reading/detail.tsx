@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +20,7 @@ import { translate as t } from '@/lib/i18n';
 import type { GestureResponderEvent } from 'react-native';
 
 import { pt } from '@/components/ui/anchored-menu';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * 대본 상세(R4.1~R4.8, reading.session). 제목·대사 수·「대본 보기」·연습 기록(최근순, 줄마다 회차·구간·배역·상태)·[연습하기].
@@ -136,7 +137,7 @@ export default function ReadingDetail() {
         <Text style={styles.sectionTitle}>{t('reading.sessionsTitle')}</Text>
 
         {sessions === null ? (
-          <ActivityIndicator color={palette.textFaint} style={styles.loading} />
+          <SkeletonRows count={3} />
         ) : sessions.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="mic" size={24} color={palette.textFaint} />

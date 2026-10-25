@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -22,6 +22,7 @@ import type { NotificationGroup } from '@/lib/challenge/types';
 import { relativeDayLabel } from '@/lib/archive-format';
 import { translate as t } from '@/lib/i18n';
 import { loadNotificationSettings } from '@/lib/notifications';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * 알림함(challenge.notification) — 묶음 20개씩, 묶음의 최신 사건 순.
@@ -120,7 +121,7 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.body}
         onMomentumScrollEnd={() => void loadMore()}>
         {!pushEnabled && <Text style={styles.pushOff}>{toggleOffNotice(pushEnabled)}</Text>}
-        {groups === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 32 }} />}
+        {groups === null && !error && <SkeletonRows count={6} card={false} style={styles.skeletonFlush} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
         {groups !== null && groups.length === 0 && !error && <Text style={styles.empty}>{t('notifications.empty')}</Text>}
 
@@ -146,6 +147,7 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  skeletonFlush: { paddingHorizontal: 0 },
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },

@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -484,7 +484,6 @@ function CoachTalk() {
 
           {connecting && !latestQuestion && !streamText ? (
             <View style={styles.loading}>
-              <ActivityIndicator color={palette.blue} />
               <Text style={styles.loadingText}>{t('coach.wrapping')}</Text>
               <Text style={styles.loadingHint}>{t('coach.wrappingHint')}</Text>
             </View>
@@ -537,7 +536,6 @@ function CoachTalk() {
 
           {waiting && (
             <View style={styles.thinkingRow}>
-              <ActivityIndicator size="small" color={palette.blue} />
               <Text style={styles.thinkingText}>{t('coach.thinking')}</Text>
             </View>
           )}
@@ -629,11 +627,8 @@ function CoachTalk() {
                 onPress={() => void sendText(input)}
                 accessibilityRole="button"
                 accessibilityLabel={t('coach.send')}>
-                {waiting ? (
-                  <ActivityIndicator size="small" color={palette.onAccent} />
-                ) : (
-                  <Feather name="arrow-up" size={21} color={palette.onAccent} />
-                )}
+                {/* SOMA-828: 전송 중 스피너 제거, 아래 "코치 생각 중" 문구가 대신한다 */}
+                <Feather name="arrow-up" size={21} color={palette.onAccent} />
               </Pressable>
             </View>
           </View>

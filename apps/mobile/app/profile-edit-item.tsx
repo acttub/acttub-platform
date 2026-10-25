@@ -1,12 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t, translateList } from '@/lib/i18n';
 import {
   BIO_MAX_LENGTH,
@@ -95,7 +96,7 @@ export default function ProfileEditItemScreen() {
 
   const headerRight = () =>
     busy ? (
-      <ActivityIndicator color={palette.blue} />
+      <LoadingText label={t('loadingText.saving')} />
     ) : (
       <Pressable onPress={() => void save()} disabled={!valid} hitSlop={10} accessibilityRole="button">
         <Text style={[styles.done, !valid && styles.doneOff]}>{t('profileName.done')}</Text>

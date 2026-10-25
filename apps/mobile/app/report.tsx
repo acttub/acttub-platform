@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
@@ -135,7 +135,6 @@ export default function ReportScreen() {
 
       {loading && (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} size="large" />
           <Text style={styles.loadingText}>{t('report.making')}</Text>
         </View>
       )}

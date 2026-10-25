@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
@@ -253,7 +253,6 @@ export default function ScriptCocreateScreen() {
       />
       {step === 'generating' ? (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
           <Text style={styles.waitTitle}>{t('scriptCocreate.generating')}</Text>
           <Text style={styles.waitSub}>{t('scriptCocreate.generatingSub')}</Text>
         </View>

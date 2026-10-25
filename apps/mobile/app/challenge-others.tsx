@@ -2,10 +2,11 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/buttons';
+import { SkeletonCards } from '@/components/ui/skeleton';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
@@ -94,7 +95,7 @@ export default function ChallengeOthersScreen() {
             </Pressable>
           ))}
         </View>
-        {entries === null && <ActivityIndicator color={palette.blue} style={{ marginTop: 24 }} />}
+        {entries === null && <SkeletonCards count={4} columns={2} aspectRatio={1 / 1.4} style={{ paddingHorizontal: 0 }} />}
         {entries?.length === 0 && <Text style={styles.empty}>{error ?? t('challengeOthers.empty')}</Text>}
         <View style={styles.grid}>
           {visible.map((entry) => (

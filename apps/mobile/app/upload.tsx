@@ -4,7 +4,6 @@ import { useIsFocused, usePreventRemove } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -36,6 +35,7 @@ import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import {
   confirmedVideoFor,
@@ -621,9 +621,7 @@ export default function UploadScreen() {
                 {previewUri ? (
                   <VideoView style={styles.preview} player={player} nativeControls contentFit="contain" />
                 ) : (
-                  <View style={[styles.preview, styles.previewEmpty]}>
-                    <ActivityIndicator color="#fff" />
-                  </View>
+                  <View style={[styles.preview, styles.previewEmpty]} />
                 )}
                 <View style={styles.pickedRow}>
                   {sample && (
@@ -672,7 +670,6 @@ export default function UploadScreen() {
             {/* 질문 받기를 누른 뒤 — 보내는 중이라는 걸 바로 보인다(SOMA-671). */}
             {locked && (
               <View style={styles.sendingBar} accessibilityLiveRegion="polite">
-                <ActivityIndicator size="small" color={palette.blue} />
                 <Text style={styles.sendingText}>{t('upload.sending')}</Text>
               </View>
             )}
@@ -703,7 +700,7 @@ export default function UploadScreen() {
               accessibilityRole="button"
               accessibilityState={{ disabled: !canSubmit || starting }}>
               {starting ? (
-                <ActivityIndicator color={palette.bg} />
+                <LoadingText label={t('loadingText.sending')} color={palette.bg} />
               ) : (
                 <Text style={[styles.submitText, (!canSubmit || starting) && styles.submitTextDisabled]}>
                   {/* 영상이 아직 올라가는 중이면 무엇을 기다리는지 버튼이 말한다(SOMA-671). */}

@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -264,7 +264,6 @@ export function EntryShareSheet({
         ) : null}
         {busy ? (
           <View style={styles.status} accessibilityLiveRegion="polite">
-            <ActivityIndicator size="small" color={palette.blueDeep} />
             <Text style={styles.statusText}>{busy === 'save' ? t('entryShare.saving') : t('entryShare.preparing')}</Text>
           </View>
         ) : null}

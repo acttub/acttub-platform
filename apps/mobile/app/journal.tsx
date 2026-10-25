@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
@@ -32,6 +32,7 @@ import {
   type QuestionId,
 } from '@/lib/practice/journal';
 import { clearPractice, getPractice } from '@/lib/practice/session-state';
+import { SkeletonDetail } from '@/components/ui/skeleton';
 
 type Phase = 'loading' | 'questions' | 'making' | 'view' | 'error';
 
@@ -197,9 +198,9 @@ export default function JournalScreen() {
       <Stack.Screen options={{ headerShown: false, gestureEnabled: phase !== 'making' }} />
       <NavHeader title={t('journal.title')} left={<NavBackButton onPress={back} phLabel="journal_back" />} right={headerRight} />
 
-      {(phase === 'loading' || phase === 'making') && (
+      {phase === 'loading' && <SkeletonDetail lines={5} />}
+      {phase === 'making' && (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} size="large" />
           {phase === 'making' && <Text style={styles.loadingText}>{t('journal.making')}</Text>}
         </View>
       )}

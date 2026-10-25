@@ -3,7 +3,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Linking,
   Pressable,
   RefreshControl,
@@ -17,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StatusScreen } from '@/components/ui/status-screen';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -127,9 +127,7 @@ export default function AuditionsScreen() {
       )}
 
       {!payload && !error && (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <SkeletonRows count={5} />
       )}
       {!payload && error && (
         <StatusScreen

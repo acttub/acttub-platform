@@ -1,10 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
@@ -238,7 +239,7 @@ export default function ChallengeEntriesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        {entries === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 32 }} />}
+        {entries === null && !error && <SkeletonRows count={4} avatar style={{ paddingHorizontal: 0 }} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
         {entries !== null && shown.length === 0 && !error && <Text style={styles.empty}>{t('challengeEntries.empty')}</Text>}
 

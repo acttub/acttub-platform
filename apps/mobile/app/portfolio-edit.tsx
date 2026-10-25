@@ -2,7 +2,6 @@ import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Modal,
   Pressable,
@@ -21,6 +20,7 @@ import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { MASCOT } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t, translateList } from '@/lib/i18n';
 import {
   CREDIT_KINDS,
@@ -45,6 +45,7 @@ import {
   type PortfolioCredit,
 } from '@/lib/portfolio';
 import { pickAndUploadPortfolioPhoto } from '@/lib/profile-photo-upload';
+import { SkeletonDetail } from '@/components/ui/skeleton';
 
 /** 편집 중인 경력. id 가 null 이면 새 경력이다. */
 type Editing = { id: string | null; draft: CreditDraft; errors: CreditDraftErrors };
@@ -113,18 +114,18 @@ export default function PortfolioEditScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <Stack.Screen options={{ title: t('portfolio.title') }} />
+        {loadError ? (
         <View style={styles.center}>
-          {loadError ? (
             <>
               <Text style={styles.error}>{loadError}</Text>
               <Pressable style={styles.linkBtn} onPress={() => void load()} accessibilityRole="button">
                 <Text style={styles.linkText}>{t('portfolio.reload')}</Text>
               </Pressable>
             </>
-          ) : (
-            <ActivityIndicator color={palette.blue} />
-          )}
         </View>
+        ) : (
+          <SkeletonDetail lines={5} />
+        )}
       </SafeAreaView>
     );
   }
@@ -357,7 +358,7 @@ export default function PortfolioEditScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('portfolio.photoAdd')}>
               {busy === 'photo' ? (
-                <ActivityIndicator color={palette.blue} />
+                <LoadingText label={t('loadingText.uploading')} />
               ) : (
                 <>
                   <Feather name="plus" size={22} color={palette.blue} />
@@ -467,7 +468,7 @@ export default function PortfolioEditScreen() {
                 disabled={busy !== null}
                 accessibilityRole="button">
                 {busy === 'credit' ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <LoadingText label={t('loadingText.saving')} color="#FFFFFF" />
                 ) : (
                   <Text style={[styles.modalBtnText, styles.modalBtnTextPrimary]}>{t('portfolio.save')}</Text>
                 )}
@@ -511,7 +512,7 @@ function SmallButton({
       disabled={disabled}
       accessibilityRole="button">
       {busy ? (
-        <ActivityIndicator size="small" color={palette.blueDeep} />
+        <LoadingText label={t('loadingText.wait')} color={palette.blueDeep} />
       ) : (
         <Text style={styles.smallBtnText}>{label}</Text>
       )}

@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -53,9 +53,7 @@ export default function EntryLinkScreen() {
           <Feather name="x" size={26} color={light ? palette.text : '#FFFFFF'} />
         </Pressable>
         <View style={styles.center}>
-          {!error ? (
-            <ActivityIndicator color={palette.blue} />
-          ) : error === t('react.linkGone') ? (
+          {!error ? null : error === t('react.linkGone') ? (
             <>
               <Feather name="video-off" size={30} color="#FFFFFF" />
               <Text style={styles.title}>{t('challenges.goneTitle')}</Text>

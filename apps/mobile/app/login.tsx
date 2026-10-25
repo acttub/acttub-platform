@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -21,6 +21,7 @@ import {
   type LoginProvider,
 } from '@/lib/login-flow';
 import { supportedProviders } from '@/lib/provider-sdk';
+import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 
 // 애플 로고는 SF Symbols의 공식 심볼(apple.logo)을 쓴다. 네이티브 모듈이 없는 옛 dev client에서도
 // 화면이 뜨도록 가드해서 로드하고, 없으면 시스템 폰트의 애플 글리프로 대체한다.
@@ -202,7 +203,6 @@ export default function LoginScreen() {
         <Text style={styles.tagline}>{t('login.tagline')}</Text>
         {busy !== null && (
           <View style={styles.progress} accessibilityRole="progressbar">
-            <ActivityIndicator size="small" color={palette.textMuted} />
             <Text style={styles.progressText}>{t('login.signingIn')}</Text>
           </View>
         )}
@@ -220,7 +220,10 @@ export default function LoginScreen() {
         )}
 
         {list.status === 'loading' ? (
-          <ActivityIndicator color={palette.blue} />
+          <SkeletonGroup style={styles.wideStack}>
+            <SkeletonBlock height={56} radius={16} />
+            <SkeletonBlock height={56} radius={16} />
+          </SkeletonGroup>
         ) : list.status === 'error' ? (
           <View style={styles.reloadBox}>
             <Text style={styles.error}>{t('login.providersFail')}</Text>

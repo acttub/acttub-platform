@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -132,7 +132,6 @@ export default function PronunciationReportScreen() {
   if (!state || !pronunciationSettled(state.status)) {
     return (
       <View style={[styles.root, styles.center]}>
-        <ActivityIndicator color={palette.blue} />
         <Text style={styles.dim}>{t('pronReport.waiting')}</Text>
       </View>
     );

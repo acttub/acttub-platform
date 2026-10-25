@@ -3,7 +3,7 @@ import { usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -311,7 +311,6 @@ export default function ReadingNew() {
             )}
             {input.file.kind === 'reading' && (
               <>
-                <ActivityIndicator color={palette.blue} />
                 <Text style={styles.dropTitle}>{t('reading.attachReading')}</Text>
                 <Text style={styles.dropSub} numberOfLines={1}>
                   {`${input.file.file.name} · ${formatFileSize(input.file.file.size)}`}

@@ -2,10 +2,11 @@ import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChallengeIntro } from '@/components/challenge-intro';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { BandGradient } from '@/components/ui/band-gradient';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -29,6 +30,7 @@ import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
+import { LoadingText } from '@/components/ui/loading-text';
 
 /**
  * A16 대사 목록(challenge.browse) — 챌린지는 대사 한 줄과 기간이다.
@@ -281,7 +283,7 @@ export default function ChallengesScreen() {
         </View>
 
         {error && <Text style={styles.error}>{error}</Text>}
-        {challenges === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 40 }} />}
+        {challenges === null && !error && <SkeletonRows count={4} avatar={false} style={{ paddingHorizontal: 0 }} />}
 
         {challenges?.map((challenge) => (
           <Card
@@ -294,7 +296,7 @@ export default function ChallengesScreen() {
 
         {cursor && (
           <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
-            {loadingMore ? <ActivityIndicator color={palette.blue} /> : <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>}
+            {loadingMore ? <LoadingText label={t('loadingText.loading')} color={palette.blue} /> : <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>}
           </Pressable>
         )}
 
