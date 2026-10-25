@@ -3,6 +3,9 @@ package com.acttub.actingapi.feature.admin.adapter.web;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Card;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService.Draft;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService;
+import com.acttub.actingapi.feature.support.app.SupportInquiryRules;
+import com.acttub.actingapi.feature.support.app.SupportInquiryService;
+import com.acttub.actingapi.feature.support.app.SupportInquiryStore.Inquiry;
 import com.acttub.actingapi.feature.challenge.app.ReactionService;
 import com.acttub.actingapi.feature.challenge.app.ReportRepository.AdminReport;
 import com.acttub.actingapi.feature.challenge.app.ReportRepository.AdminReportPage;
@@ -76,6 +79,7 @@ class AdminController {
     private final PracticeDataMigration migration;
     private final ChallengeService challenges;
     private final ReactionService reactions;
+    private final SupportInquiryService supportInquiries;
     private final byte[] expectedAuthorization;
 
     AdminController(
@@ -83,11 +87,13 @@ class AdminController {
             PracticeDataMigration migration,
             ChallengeService challenges,
             ReactionService reactions,
+            SupportInquiryService supportInquiries,
             @Value("${ADMIN_OPS_TOKEN}") String adminToken) {
         this.admin = admin;
         this.migration = migration;
         this.challenges = challenges;
         this.reactions = reactions;
+        this.supportInquiries = supportInquiries;
         this.expectedAuthorization = ("Bearer " + adminToken).getBytes(StandardCharsets.UTF_8);
     }
 
@@ -185,6 +191,41 @@ class AdminController {
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
         return reactions.adminReports(status, cursor);
+    }
+
+    @Schema(name = "AdminSupportInquiry", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record SupportInquiryRow(@NotNull UUID id, @NotNull String category, @NotNull String email, @NotNull String body,
+            @Schema(nullable = true) UUID userId, @Schema(nullable = true) String client,
+            @NotNull @Schema(allowableValues = {"open", "closed"}) String status,
+            @NotNull java.time.Instant createdAt) {
+        static SupportInquiryRow of(Inquiry row) {
+            return new SupportInquiryRow(row.id(), row.category(), row.email(), row.body(), row.userId(),
+                    row.client(), row.status(), row.createdAt());
+        }
+    }
+
+    @Schema(name = "AdminSupportInquiryPage", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record SupportInquiryPage(@NotNull List<SupportInquiryRow> inquiries) { }
+
+    @GetMapping("/support/inquiries")
+    @Operation(summary = "List Support Inquiries", operationId = "list_support_inquiries_v2_admin_support_inquiries_get",
+            tags = "admin",
+            description = "웹 문의를 새것부터 낸다. status(open·closed)로 거르고 limit 은 1~200(기본 50)이다.")
+    ResponseEntity<SupportInquiryPage> supportInquiries(
+            @RequestParam(required = false) String status,
+            @Parameter(schema = @Schema(type = "integer", minimum = "1", maximum = "200", defaultValue = "50"))
+            @RequestParam(name = "limit", defaultValue = "50") String rawLimit,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        int limit = bounded(rawLimit, "limit", SupportInquiryRules.ADMIN_MAX_LIMIT);
+        String filter = status == null || status.isBlank() ? null : status.strip();
+        if (filter != null && !SupportInquiryRules.STATUSES.contains(filter)) {
+            throw queryError("literal_error", "status", "Input should be 'open' or 'closed'", status,
+                    Map.of("expected", "'open' or 'closed'"));
+        }
+        return privateNoStore(new SupportInquiryPage(
+                supportInquiries.list(filter, limit).stream().map(SupportInquiryRow::of).toList()));
     }
 
     @PatchMapping("/reports/{id}")
