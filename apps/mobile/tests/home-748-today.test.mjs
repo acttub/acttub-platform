@@ -42,14 +42,17 @@ const script = (id, lastPracticed, status = 'reading') => ({
 const challenge = (endsAt) => ({ id: 'c1', line: '나는 갈매기', work: '갈매기', ends_at: endsAt });
 const NOW = new Date('2026-10-19T03:00:00Z'); // 한국 10/19 정오
 
-test('첫 사용자: 코칭 묶음·리딩 회차·연습한 날이 하나도 없을 때만(SOMA-748)', () => {
+test('첫 사용자: 연습 1회(코칭 노트·리딩 완료·챌린지 참여)를 끝내기 전까지(SOMA-827)', () => {
   assert.equal(isFirstUser({ groups: [], scripts: [], practicedDays: 0 }), true);
-  // 대본을 만든(리딩을 시작한) 사람은 첫 사용자가 아니다 — 선택지 대신 진행 상황 카드를 본다.
-  assert.equal(isFirstUser({ groups: [], scripts: [script('s', null, 'no_cast')], practicedDays: 0 }), false);
+  // 시작만 하고 나간 사람은 아직 첫 사용자다 — 대본만 넣었거나(예시 포함) 코칭을 노트 전에 나간 경우.
+  assert.equal(isFirstUser({ groups: [], scripts: [script('s', null, 'no_cast')], practicedDays: 0 }), true);
+  assert.equal(isFirstUser({ groups: [], scripts: [script('s', '2026-10-10T00:00:00Z')], practicedDays: 0 }), true);
+  const noNote = group('a', '2026-10-10T00:00:00Z', { practices: [round('a-1', '2026-10-10T00:00:00Z')] });
+  assert.equal(isFirstUser({ groups: [noNote], scripts: [], practicedDays: 0 }), true);
+  // 끝낸 연습이 하나라도 있으면 아니다 — 노트가 생긴 코칭(숨긴 묶음 포함), 끝까지 읽은 대본, 연습한 날.
   assert.equal(isFirstUser({ groups: [group('a', '2026-10-10T00:00:00Z')], scripts: [], practicedDays: 0 }), false);
-  // 숨긴 묶음만 있어도 연습은 해 본 사람이다.
   assert.equal(isFirstUser({ groups: [group('a', '2026-10-10T00:00:00Z', { hidden_at: '2026-10-11T00:00:00Z' })], scripts: [], practicedDays: 0 }), false);
-  assert.equal(isFirstUser({ groups: [], scripts: [script('s', '2026-10-10T00:00:00Z')], practicedDays: 0 }), false);
+  assert.equal(isFirstUser({ groups: [], scripts: [script('s', '2026-09-01T00:00:00Z', 'completed')], practicedDays: 0 }), false);
   assert.equal(isFirstUser({ groups: [], scripts: [], practicedDays: 2 }), false);
 });
 

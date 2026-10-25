@@ -35,17 +35,18 @@ function timeOf(iso: string | null | undefined): number {
 }
 
 /**
- * 첫 연습을 끝내기 전인가 — 코칭 묶음(숨긴 것 포함)·만든 대본·기기에 남은 연습한 날이 하나도 없다.
- * 대본을 만든(리딩을 시작한) 사람은 선택지 셋 대신 진행 상황에 맞춘 「오늘 할 것」을 본다.
+ * 첫 연습을 끝내기 전인가 — 「연습 1회」(lib/practice/counted: 코칭 노트·리딩 완료·챌린지 참여)를 한 번도 끝내지 않았다(SOMA-827).
+ * 기기에 남은 연습한 날, 노트가 생긴 코칭 회차(숨긴 묶음 포함), 끝까지 읽은 대본 중 하나라도 있으면 아니다.
+ * 코칭을 노트 전에 나갔거나 대본만 넣은(예시 포함) 사람은 아직 첫 사용자다 — 한 번은 끝까지 해야 기본 홈으로 간다.
  */
 export function isFirstUser(input: {
-  groups: readonly PracticeGroup[];
-  scripts: readonly unknown[];
+  groups: readonly { practices: readonly { note: unknown }[] }[];
+  scripts: readonly { status?: string }[];
   practicedDays: number;
 }): boolean {
-  if (input.groups.length > 0) return false;
   if (input.practicedDays > 0) return false;
-  return input.scripts.length === 0;
+  if (input.groups.some((g) => g.practices.some((p) => !!p.note))) return false;
+  return !input.scripts.some((s) => s.status === 'completed');
 }
 
 /** 챌린지 마감까지 남은 한국 날짜 수. 오늘 마감이면 0, 이미 지났으면 음수, 모르면 null. */

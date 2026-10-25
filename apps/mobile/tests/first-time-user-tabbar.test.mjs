@@ -13,17 +13,20 @@ const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'
 
 const base = { loaded: true, groupsFailed: false, groups: [], scripts: [], practicedDays: 0 };
 
-test('홈 「뭐부터 해 볼까요?」와 같은 기준 — 묶음·대본·연습한 날이 모두 없어야 첫 사용자다', () => {
+test('홈 「뭐부터 해 볼까요?」와 같은 기준 — 끝낸 연습이 하나도 없어야 첫 사용자다', () => {
   assert.equal(firstTimeStateFrom(base), 'first');
 });
 
-test('무엇이든 하나라도 시작했으면 첫 사용자가 아니다 — 탭바를 보인다', () => {
+test('연습 1회를 끝내야 첫 사용자가 아니다 — 시작만 하고 나간 사람은 계속 첫 사용자(SOMA-827)', () => {
   assert.equal(firstTimeStateFrom({ ...base, practicedDays: 1 }), 'practiced');
-  // 연습한 날(연습 1회)은 없어도 코칭 묶음이 있거나 대본을 만들었으면 시작한 사람이다.
-  assert.equal(firstTimeStateFrom({ ...base, groups: [{ root_id: 'r1' }] }), 'practiced');
-  assert.equal(firstTimeStateFrom({ ...base, scripts: [{ id: 's1' }] }), 'practiced');
-  // 묶음을 못 받아도 대본·연습한 날로 시작한 게 보이면 시작한 사람이다.
-  assert.equal(firstTimeStateFrom({ ...base, groupsFailed: true, scripts: [{ id: 's1' }] }), 'practiced');
+  // 노트 전에 나간 코칭 묶음, 넣기만 한 대본은 아직 첫 사용자다.
+  assert.equal(firstTimeStateFrom({ ...base, groups: [{ root_id: 'r1', practices: [{ note: null }] }] }), 'first');
+  assert.equal(firstTimeStateFrom({ ...base, scripts: [{ id: 's1', status: 'reading' }] }), 'first');
+  // 노트가 생긴 코칭·끝까지 읽은 대본은 끝낸 연습이다.
+  assert.equal(firstTimeStateFrom({ ...base, groups: [{ root_id: 'r1', practices: [{ note: { id: 'n' } }] }] }), 'practiced');
+  assert.equal(firstTimeStateFrom({ ...base, scripts: [{ id: 's1', status: 'completed' }] }), 'practiced');
+  // 묶음을 못 받아도 끝낸 대본·연습한 날이 보이면 첫 사용자가 아니다.
+  assert.equal(firstTimeStateFrom({ ...base, groupsFailed: true, scripts: [{ id: 's1', status: 'completed' }] }), 'practiced');
 });
 
 test('기록을 아직 다 못 받았거나 묶음을 못 받았으면 모른다 — 함부로 첫 사용자로 보지 않는다', () => {

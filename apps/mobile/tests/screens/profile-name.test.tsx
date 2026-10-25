@@ -92,17 +92,17 @@ async function start() {
   expect(await screen.findByDisplayValue('민지')).toBeOnTheScreen();
 }
 
-/** 닉네임부터 추구하는 방향까지 답한다 — 줄을 고르고 「다음」을 누른다. 방향은 두 개 고르고 마지막 「다음」은 누르지 않는다. */
+/**
+ * 닉네임부터 추구하는 방향까지 답한다 — 닉네임·생년월일은 「다음」, 하나 고르는 줄은 누르면 바로 넘어간다(SOMA-827).
+ * 방향은 두 개 고르고 마지막 「다음」은 누르지 않는다.
+ */
 async function answerToDirections() {
   await fireEvent.press(next()); // 닉네임
   await setBirth(2004, 3, 14);
   await fireEvent.press(next()); // 생년월일
   await fireEvent.press(radio('여성'));
-  await fireEvent.press(next());
   await fireEvent.press(radio('전문 배우'));
-  await fireEvent.press(next());
   await fireEvent.press(radio('입시생'));
-  await fireEvent.press(next());
   await fireEvent.press(checkbox('무대 (연극·뮤지컬)'));
   await fireEvent.press(checkbox('매체 (TV·영화)'));
 }
@@ -123,8 +123,8 @@ const PAYLOAD = {
   goal: 'professional',
 };
 
-describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음」을 눌러야 넘어간다', () => {
-  test('질문마다 액티 말풍선이 바뀌고, 고르는 줄은 기본 선택 없이 누르면 선택되며 「다음」 전에는 넘어가지 않는다', async () => {
+describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질문은 누르면 바로 넘어간다', () => {
+  test('질문마다 액티 말풍선이 바뀌고, 하나 고르는 줄은 기본 선택 없이 누르는 순간 다음 질문으로 간다(SOMA-827)', async () => {
     await render(<ProfileNameScreen />);
     expect(await screen.findByText('반가워요, 배우님!')).toBeOnTheScreen();
     await fireEvent.press(button('시작하기'));
@@ -145,30 +145,22 @@ describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음�
     expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
     await fireEvent.press(next());
 
-    // 성별 — 처음엔 아무것도 고르지 않고 「다음」이 꺼져 있다. 누르면 선택, 「다음」으로 넘어간다.
+    // 성별 — 처음엔 아무것도 고르지 않았고 「다음」 버튼이 없다. 누르면 바로 다음 질문.
     expect(screen.getByText('민지님, 성별을 알려 주실래요?')).toBeOnTheScreen();
-    expect(screen.queryByText('하나 누르면 바로 넘어가요.')).not.toBeOnTheScreen();
+    expect(screen.getByText('하나 누르면 바로 넘어가요.')).toBeOnTheScreen();
     expect(radio('남성')).not.toBeSelected();
     expect(radio('여성')).not.toBeSelected();
-    expect(next()).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
     await fireEvent.press(radio('여성'));
-    expect(radio('여성')).toBeSelected();
-    expect(screen.getByText('민지님, 성별을 알려 주실래요?')).toBeOnTheScreen();
-    await fireEvent.press(radio('남성'));
-    expect(radio('남성')).toBeSelected();
-    expect(radio('여성')).not.toBeSelected();
-    await fireEvent.press(next());
 
     expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
     expect(screen.getByText('4/7')).toBeOnTheScreen();
-    expect(next()).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
     await fireEvent.press(radio('전문 배우'));
-    await fireEvent.press(next());
 
     expect(screen.getByText('민지님, 연기한 지 얼마나 됐어요?')).toBeOnTheScreen();
     for (const label of ['입문 전', '입시생', '1년 미만', '1–3년', '3–5년', '5년 이상']) expect(radio(label)).toBeOnTheScreen();
     await fireEvent.press(radio('입시생'));
-    await fireEvent.press(next());
 
     // 추구하는 방향 — 여러 개 고를 수 있다
     expect(screen.getByText('민지님, 어떤 연기를 하고 싶어요?')).toBeOnTheScreen();
@@ -184,12 +176,12 @@ describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음�
     await setBirth(2004, 3, 14);
     await fireEvent.press(next());
     await fireEvent.press(radio('여성'));
-
+    // 바로 목표 질문으로 넘어왔다. 뒤로 가면 성별에 고른 값이 남아 있다.
+    expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
     await fireEvent.press(button('뒤로'));
-    expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
-    await fireEvent.press(next());
     expect(radio('여성')).toBeSelected();
     await fireEvent.press(button('뒤로'));
+    expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
     await fireEvent.press(button('뒤로'));
     expect(screen.getByDisplayValue('민지')).toBeOnTheScreen();
     await fireEvent.press(button('뒤로'));
@@ -217,15 +209,13 @@ describe('가입 게이트 — 한 화면에 질문 하나, 고르고 「다음�
     expect(mockRouter.back).not.toHaveBeenCalled();
   });
 
-  test('유입 경로는 하나 고르고 「완료」를 눌러야 저장한다(하나 누르면 바로 저장하지 않는다)', async () => {
+  test('유입 경로는 하나 누르면 바로 저장한다(「기타」만 적고 「완료」, SOMA-827)', async () => {
     await start();
     await answerToDirections();
     await fireEvent.press(next());
 
+    expect(screen.queryByRole('button', { name: '완료' })).not.toBeOnTheScreen();
     await fireEvent.press(radio('인스타그램'));
-    expect(radio('인스타그램')).toBeSelected();
-    expect(saveProfile).not.toHaveBeenCalled();
-    await fireEvent.press(done());
 
     expect(saveProfile).toHaveBeenCalledWith(PAYLOAD);
     expect(recordDiscovery).toHaveBeenCalledWith({ source: 'instagram', detail: null, other_text: null });
