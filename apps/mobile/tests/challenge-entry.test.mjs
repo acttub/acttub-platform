@@ -10,6 +10,7 @@ import {
   entryAttemptFor,
   entryFailure,
   entryFingerprint,
+  mosaicNotice,
   videoTooLong,
 } from '../lib/challenge/entry.ts';
 import { CAPTION_MAX, ENTRY_VIDEO_MAX_SEC } from '../lib/challenge/types.ts';
@@ -25,6 +26,25 @@ test('challenge.entry: 보관함 영상으로 공개 참여하면 영상·캡션
     caption: '마지막 시선',
     visibility: 'public',
   });
+});
+
+test('challenge.entry: 얼굴 모자이크는 공개로 올릴 때만 실린다(SOMA-809)', () => {
+  const on = buildEntryBody({ requestId: 'r', videoId: 'v', caption: '', visibility: 'public', faceMosaic: true });
+  assert.equal(on.face_mosaic, true);
+  // 켜 둔 뒤 나만 보기로 바꾸면 토글이 숨으므로 싣지 않는다.
+  const hidden = buildEntryBody({ requestId: 'r', videoId: 'v', caption: '', visibility: 'private', faceMosaic: true });
+  assert.equal('face_mosaic' in hidden, false);
+  assert.equal('face_mosaic' in buildEntryBody({ requestId: 'r', videoId: 'v', caption: '', visibility: 'public' }), false);
+  // 켜고 끄면 다른 요청이다.
+  assert.notEqual(entryFingerprint(on), entryFingerprint(buildEntryBody({ requestId: 'r', videoId: 'v', caption: '', visibility: 'public' })));
+});
+
+test('challenge.entry: 얼굴 모자이크가 만드는 중이거나 실패했을 때만 본인에게 알린다', () => {
+  assert.equal(mosaicNotice({ face_mosaic: true, mosaic_status: 'pending' }), 'pending');
+  assert.equal(mosaicNotice({ face_mosaic: true, mosaic_status: 'failed' }), 'failed');
+  assert.equal(mosaicNotice({ face_mosaic: true, mosaic_status: 'ready' }), null);
+  assert.equal(mosaicNotice({ face_mosaic: false, mosaic_status: null }), null);
+  assert.equal(mosaicNotice({}), null);
 });
 
 test('challenge.entry: 공개 범위를 고르지 않으면 올리기 버튼이 켜지지 않는다', () => {

@@ -8,6 +8,17 @@ import org.junit.jupiter.api.Test;
 
 /** practice.start: 빈 입력을 무엇으로 저장하는지와, 막힘 갈래·하위 갈래 조합 판정. */
 class PracticeRulesTest {
+    @Test void withoutAVideoOnlyTheTalkPurposesCanStart() {
+        assertThat(PracticeRules.videoMatchesPurpose(false, "stuck")).isTrue();
+        assertThat(PracticeRules.videoMatchesPurpose(false, "character")).isTrue();
+        assertThat(PracticeRules.videoMatchesPurpose(false, "concern")).isTrue();
+        assertThat(PracticeRules.videoMatchesPurpose(false, "evaluate")).isFalse();
+        assertThat(PracticeRules.videoMatchesPurpose(false, null)).isFalse();
+        assertThat(PracticeRules.videoMatchesPurpose(true, null)).isTrue();
+        assertThat(PracticeRules.videoMatchesPurpose(true, "concern")).isTrue();
+        assertThat(PracticeRules.sessionPurpose(" concern ")).isEqualTo("concern");
+    }
+
     @Test void blankInputsBecomeTheirStoredDefaults() {
         assertThat(PracticeRules.scene(null)).isEmpty();
         assertThat(PracticeRules.scene("  ")).isEmpty();

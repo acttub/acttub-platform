@@ -51,7 +51,7 @@ test("현재 OpenAPI 경로로 영상·회차·코치·노트·기억·설문 HT
     experience_version: "three_layers_v1", situation: "면접", character: "", goal: "", blockage_category: "그 외",
     blockage_detail: "그 외", conversation_count: 1, previous_conversations: [], created_at: created,
     analysis_status: "partial", job: { id: requestId, status: "succeeded", attempt_count: 1 } };
-  const conversation = { id: requestId, status: "open", revision: 1, coach_reply_count: 1, reply_limit: 10,
+  const conversation = { id: requestId, status: "open", revision: 1, coach_reply_count: 1, reply_limit: 10, answer_examples: [],
     messages: [{ turn_index: 1, role: "coach", text: "무엇을 보셨나요?" }] };
   const note = { id: requestId, conversation_id: requestId, format: "v2", kind: "action", title: "말끝",
     summary_quotes: [{ quote: "붙잡고 싶어요", kind: "actor", source_ref: "actor-1" }],

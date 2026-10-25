@@ -15,44 +15,23 @@ test('③ 단계 표시: 동그라미 20 · 번호 13/700 · 이름 14/700 · �
   assert.doesNotMatch(chrome, /stepperLabelOn: \{ fontWeight: '900'/);
 });
 
-test('③ 새 연습: 머리 오른쪽 설정, 본문 좌우 20, 권리 체크 15/700 · 버튼 48 · 안내 14/500', () => {
+test('③ 새 연습: 머리 오른쪽 설정, 본문 좌우 24, 권리 체크 15/700 · 버튼 52 · 안내 14/500', () => {
   const upload = read('app/upload.tsx');
-  assert.match(upload, /headerRight: \(\) => \(\s*<NavIconButton icon="settings"/);
-  assert.match(upload, /stepBody: \{ paddingTop: 21, paddingHorizontal: 20,/);
+  assert.match(upload, /headerRight: firstTimeUser\s*\? \(\) => \(\s*<NavIconButton icon="settings"/);
+  assert.match(upload, /stepBody: \{ paddingTop: 16, paddingHorizontal: 24,/);
   assert.match(upload, /rightsText: \{ flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette\.textStrong \}/);
-  assert.match(upload, /submit: \{ height: 48, borderRadius: 16,/);
+  assert.match(upload, /submit: \{ height: 52, borderRadius: 16,/);
   assert.match(upload, /submitText: \{ fontSize: 17, fontWeight: '700'/);
   assert.match(upload, /submitTextDisabled: \{ color: palette\.checkOff \}/);
   assert.match(upload, /submitHint: \{ fontSize: 14, fontWeight: '500', color: palette\.textFaint/);
-  // 고른 영상: 높이 178 · 모서리 22, 「영상 다시 선택」 알약 28 · 15/700, 「보관함 저장」 15/500.
+  // 고른 영상: 높이 178 · 모서리 22, 「영상 다시 선택」 알약 28 · 15/700, 「저장했어요」 15/500.
   assert.match(upload, /preview: \{ width: '100%', height: 178, borderRadius: 22,/);
   assert.match(upload, /repick: \{ height: 28, borderRadius: 14,/);
   assert.match(upload, /repickText: \{ fontSize: 15, fontWeight: '700'/);
   assert.match(upload, /pickedMeta: \{ flex: 1, fontSize: 15, fontWeight: '500'/);
 });
 
-test('③ 찍는 법: 그림 칸 193 · 모서리 24 · 아이콘 56 · 18/800, 체크 줄 55.6 · 17/700', () => {
-  const guide = read('app/record-guide.tsx');
-  assert.match(guide, /headerRight: \(\) => \(\s*<NavIconButton icon="settings"/);
-  assert.match(guide, /name="smartphone" size=\{56\}/);
-  assert.match(guide, /height: 193,\s*borderRadius: 24,/);
-  assert.match(guide, /heroText: \{ fontSize: 18, fontWeight: '800'/);
-  assert.match(guide, /row: \{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 55\.6, paddingLeft: 3 \}/);
-  assert.match(guide, /rowText: \{ flex: 1, fontSize: 17, fontWeight: '700'/);
-});
-
-test('③ 보관함: 제목 24/800 · 보조 14, 필터 알약 32 · 15/700, 빈 상태 18/700 · 15', () => {
-  const archive = read('app/archive.tsx');
-  assert.match(archive, /title: \{ fontSize: 24, fontWeight: '800', lineHeight: 30, color: palette\.text \}/);
-  assert.match(archive, /subtitle: \{ fontSize: 14, color: palette\.textFaint \}/);
-  assert.match(archive, /chip: \{ height: 32, borderRadius: 16, paddingHorizontal: 13,/);
-  assert.match(archive, /chipText: \{ fontSize: 15, fontWeight: '700'/);
-  assert.match(archive, /name="film" size=\{38\}/);
-  assert.match(archive, /emptyTitle: \{ color: palette\.text, fontSize: 18, fontWeight: '700'/);
-  assert.match(archive, /emptySub: \{ color: palette\.textMuted, fontSize: 15,/);
-});
-
-test('⑨ 코치 머리줄은 한 부품 — 액티 30×36 · 「ACTTUB 코치」 15/800 · 회색 말풍선 모서리 18', () => {
+test('⑨ 액티 머리줄은 한 부품 — 액티 30×36 · 「액티」 15/800 · 회색 말풍선 모서리 18', () => {
   const message = read('components/coach-message.tsx');
   assert.match(message, /MASCOT_SIZE\.chat/);
   assert.match(read('components/ui/mascot.ts'), /chat: \{ width: 30, height: 36 \}/);
@@ -72,16 +51,17 @@ test('⑨ 오늘 영상 줄: 썸네일 56 · 재생 원 32 · 17/700 · 15/500',
   assert.match(row, /sub: \{ fontSize: 15, fontWeight: '500', lineHeight: 19/);
 });
 
-test('⑨ 질문 대화: 제목 「질문 대화」 고정, 그만하기 17/700, 지난 문답 접기 줄, 빠른 답 한 줄 셋, 입력 줄', () => {
+test('⑨ 질문 대화: 제목 「질문 대화」 고정, 그만하기 17/700, 카톡식으로 쌓이는 대화, 세로 예시 답 칩, 입력 줄', () => {
   const coach = read('app/coach.tsx');
-  assert.match(coach, /title: t\('coach\.fallbackTitle'\),\s*headerShadowVisible: false,\s*\/\/ 그만하기/);
+  // 머리는 화면 안 NavHeader 로 그린다(iOS 기본 머리 headerRight 누름 씹힘, 10/23). 제목 고정, 오른쪽에 그만하기.
+  assert.match(coach, /<NavHeader\s+title=\{t\('coach\.fallbackTitle'\)\}[\s\S]{0,900}right=\{/);
   assert.match(coach, /endText: \{ fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette\.textMuted \}/);
-  assert.match(coach, /<Feather name=\{pastOpen \? 'chevron-up' : 'chevron-down'\} size=\{12\}/);
-  assert.match(coach, /pastToggle: \{ fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette\.textFaint \}/);
+  // 10/23 pen: 지난 문답을 접지 않고 카톡처럼 쌓는다. 예시 답 칩은 세로로 한 줄씩, 글자 길이만큼.
+  assert.doesNotMatch(coach, /pastOpen|pastToggle|quickRow/);
   assert.doesNotMatch(coach, /quickWrite|'write'/);
-  assert.match(coach, /quickRow: \{ flexDirection: 'row', gap: 6 \}/);
-  assert.match(coach, /quick: \{ flex: 1, height: 39, borderRadius: 20,/);
-  assert.match(coach, /quickText: \{ fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette\.textStrong \}/);
+  assert.match(coach, /\{messages\.map\(\(message, index\) =>/);
+  assert.match(coach, /exampleChoices: \{ flexDirection: 'column', alignItems: 'flex-start', gap: 6,/);
+  assert.match(coach, /purposeChoiceText: \{ fontSize: 13\.5, fontWeight: '600'/);
   assert.match(coach, /chipGuide: \{ fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette\.blueDeep \}/);
   assert.match(coach, /send: \{ width: 39, height: 39, borderRadius: 20,/);
   assert.match(coach, /fontSize: 17,\s*fontWeight: '500',/);
@@ -110,14 +90,12 @@ test('⑨ 영상 보는 중: 경과 15/500, 안내 15 · 14.5/700, 「끝나면 
   assert.match(waiting, /link: \{ color: palette\.textFaint, fontSize: 15, fontWeight: '700'/);
 });
 
-test('⑪ 챌린지 완료: 손 흔드는 액티 84×88 + 파란 체크 28, 제목 22/800, 안내 15/500, AI 리포트 안내 알약', () => {
+test('C9.12·C19 챌린지 완료: 올리기·마무리가 같은 ChallengeDone 모양(액티 + 제목 22/800 + 한 줄 + 이어갈 줄 + 홈으로 가기)', () => {
   const upload = read('app/challenge-upload.tsx');
-  assert.match(upload, /source=\{MASCOTS\.cheer\} style=\{styles\.doneMascot\}/);
-  assert.match(upload, /doneMascot: \{ width: 84, height: 88 \}/);
-  assert.match(upload, /doneBadge: \{[^}]*width: 28,[^}]*height: 28,[^}]*borderRadius: 14,[^}]*backgroundColor: palette\.blue/);
-  assert.match(upload, /doneTitle: \{ fontSize: 22, fontWeight: '800', lineHeight: 28, color: palette\.text, textAlign: 'center' \}/);
-  assert.match(upload, /doneSub: \{ fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette\.textMuted, textAlign: 'center' \}/);
-  assert.match(upload, /reportHint: \{[^}]*backgroundColor: palette\.blueSoft,[^}]*borderRadius: 10/);
-  assert.match(upload, /reportHintText: \{ fontSize: 13, fontWeight: '600', color: palette\.blueDeep \}/);
-  assert.match(read('locales/ko.ts'), /doneGuide: '「AI 리포트 보기」를 누르면 AI가 연기를 봐 줘요',/);
+  const done = read('components/challenge-done.tsx');
+  assert.match(upload, /<ChallengeDone/);
+  assert.match(done, /source=\{MASCOTS\.cheer\}/);
+  assert.match(done, /title: \{ fontSize: 24, fontWeight: '800'/);
+  assert.match(upload, /router\.push\('\/upload'\)/);
+  assert.doesNotMatch(upload, /reportHint|\/ai-report/);
 });

@@ -2,12 +2,14 @@ import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
+import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
 import { CHIP_TONE } from '@/lib/reading/script-cards';
@@ -26,6 +28,9 @@ import { directionLabel } from '@/lib/reading/session-results';
 import { deleteSession, fetchSession, getCurrent, setCurrentSession } from '@/lib/reading/store';
 import type { SessionDetail, SessionRecording } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
+import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 type Tab = 'all' | 'mine';
 
@@ -86,30 +91,22 @@ export default function ReadingSession() {
     }, [load, stopPlayback]),
   );
 
-  if (!script) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
-          <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  if (!script) return <ReadingNoScript />;
 
   if (!detail) {
+    if (!failed) {
+      return (
+        <View style={styles.root}>
+          <SkeletonRows count={5} avatar={false} />
+        </View>
+      );
+    }
     return (
       <View style={[styles.root, styles.center]}>
-        {failed ? (
-          <>
-            <Text style={styles.dim}>{t('reading.sessionLoadFailed')}</Text>
-            <Pressable style={styles.pill} onPress={() => void load()}>
-              <Text style={styles.pillText}>{t('common.retry')}</Text>
-            </Pressable>
-          </>
-        ) : (
-          <ActivityIndicator color={palette.textFaint} />
-        )}
+        <Text style={styles.dim}>{t('reading.sessionLoadFailed')}</Text>
+        <Pressable style={styles.pill} onPress={() => void load()}>
+          <Text style={styles.pillText}>{t('common.retry')}</Text>
+        </Pressable>
       </View>
     );
   }
@@ -173,8 +170,9 @@ export default function ReadingSession() {
     await playAt(0);
   };
 
-  const more = () =>
+  const more = (e?: GestureResponderEvent) =>
     void sheet({
+      anchor: pt(e),
       title: t('reading.sessionOrdinal', { n: detail.ordinal }),
       actions: [{ label: t('reading.deleteSession'), destructive: true, onPress: () => void removeSession() }],
     });
@@ -338,33 +336,33 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
-  content: { paddingHorizontal: 20, paddingTop: 8 },
-  head: { gap: 10, paddingBottom: 20, borderBottomColor: palette.border, borderBottomWidth: 1 },
-  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 24 },
+  content: { paddingHorizontal: 20, paddingTop: 4 },
+  head: { gap: 6, paddingTop: 4, paddingBottom: 18 },
+  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   meta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
-  chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  chipText: { fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  listenAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, borderRadius: 12, paddingVertical: 15, backgroundColor: palette.blueSoft },
-  listenAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, marginTop: 20, marginBottom: 10 },
+  chip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  chipText: { fontFamily: 'Pretendard-SemiBold', fontSize: 11.5 },
+  listenAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4, borderRadius: 12, paddingVertical: 13, backgroundColor: palette.blueSoft },
+  listenAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 14.5 },
+  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, paddingTop: 16, paddingBottom: 10 },
   tabs: { flexDirection: 'row', padding: 3, borderRadius: 10, backgroundColor: palette.bgSoft, marginBottom: 6 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 8 },
-  tabOn: { backgroundColor: palette.bg },
-  tabText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8 },
+  tabOn: { backgroundColor: palette.card },
+  tabText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13.5 },
   tabTextOn: { color: palette.text, fontFamily: 'Pretendard-Bold' },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomColor: palette.borderSoft, borderBottomWidth: 1 },
-  lineBody: { flex: 1, gap: 4 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomColor: palette.borderSoft, borderBottomWidth: 1 },
+  lineBody: { flex: 1, gap: 2 },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  role: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 13 },
-  roleMine: { color: palette.blue },
+  role: { color: palette.textMuted, fontFamily: 'Pretendard-Bold', fontSize: 12 },
+  roleMine: { color: palette.blueDeep },
   resumeTag: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: palette.blueSoft },
   resumeTagText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21, paddingVertical: 14 },
   scene: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15, paddingVertical: 14 },
   recLabel: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   recLabelOn: { color: palette.blue },
-  playBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  playBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   playBtnOn: { backgroundColor: palette.blue },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 44 },
   emptyTitle: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15 },

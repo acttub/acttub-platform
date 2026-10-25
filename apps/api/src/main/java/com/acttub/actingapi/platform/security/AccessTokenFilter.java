@@ -49,6 +49,11 @@ public class AccessTokenFilter extends OncePerRequestFilter {
                 || path.equals("/v2/auditions")) {
             return true;
         }
+        // 웹 문의하기(SOMA-834)는 로그인 없이 받는다. 만료·잘못된 토큰이 붙어 와도 401 로 막지 않고, 컨트롤러가
+        // 유효한 토큰일 때만 계정을 남긴다. 클라이언트 판 헤더(ClientVersionFilter)는 그대로 적용된다.
+        if (path.equals("/v2/support/inquiries") && "POST".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
         // /v2/admin/* 은 사용자 토큰이 아니라 ADMIN_OPS_TOKEN 을 Authorization 으로 받는다
         // (admin.py:build_router.require_token). 여기서 걸러내지 않으면 관리자 토큰을 액세스
         // 토큰으로 검증하려다 401 invalid or missing access token 이 나가, 원본이 내는

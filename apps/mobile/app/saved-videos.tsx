@@ -1,10 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
+import { SkeletonCards } from '@/components/ui/skeleton';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { avatarLetter, browseFailure, browseFailureMessage } from '@/lib/challenge/browse';
@@ -38,7 +40,8 @@ export default function SavedVideosScreen() {
     } catch (e) {
       setSaved([]);
       setMine([]);
-      setError(browseFailureMessage(browseFailure(e)));
+      const failure = browseFailure(e);
+      setError(failure.kind === 'other' ? t('savedVideos.loadFail') : browseFailureMessage(failure));
     }
   }, []);
 
@@ -67,12 +70,10 @@ export default function SavedVideosScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="saved_videos_back">
-          <Feather name="chevron-left" size={26} color={palette.text} />
-        </Pressable>
-        <Text style={styles.title}>{t('savedVideos.title')}</Text>
-      </View>
+      <NavHeader
+        title={t('savedVideos.title')}
+        left={<NavIconButton icon="chevron-left" label={t('common.back')} phLabel="saved_videos_back" onPress={() => router.back()} />}
+      />
 
       <View style={styles.tabs}>
         {(
@@ -95,7 +96,7 @@ export default function SavedVideosScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.hint}>{t(tab === 'mine' ? 'savedVideos.hintMine' : 'savedVideos.hintSaved')}</Text>
         {!!error && <Text style={styles.empty}>{error}</Text>}
-        {items === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 32 }} />}
+        {items === null && !error && <SkeletonCards count={4} columns={2} aspectRatio={0.78} style={{ paddingHorizontal: 0 }} />}
         {items !== null && items.length === 0 && !error ? (
           <Text style={styles.empty}>{t('savedVideos.empty')}</Text>
         ) : (

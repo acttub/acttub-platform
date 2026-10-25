@@ -88,6 +88,11 @@
   서버는 이를 애플 토큰으로 바꿔 user_identities에 암호화해 저장하고, 탈퇴 때 폐기 API에 쓴다.
   네이버도 교환으로 받은 토큰을 같은 방식으로 저장해 탈퇴 때 연결 해제에 쓴다.
 - provider 허용값은 google, apple, kakao, naver, 웹 게스트용 guest, 개발용 development다.
+- 네이버 인가 요청은 OIDC 경로(`https://nid.naver.com/oauth2/authorize`, scope openid, PKCE S256)다. 네이버는 Callback URL로
+  http(s)만 받으므로 redirect_uri는 앱 API와 같은 호스트의 웹 `/auth/naver/callback`이고, 이 페이지는 받은 code·state·error를
+  손대지 않고 앱 스킴(`actingapp://auth/naver`)으로 넘긴다. state 대조는 앱이, 코드 교환은 서버가 한다. 웹은 값을 남기지 않는다.
+- 카카오·네이버 버튼은 앱 빌드에 공개 설정값(`EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY`, `EXPO_PUBLIC_NAVER_CLIENT_ID`)이 있어야 그려진다.
+  서버가 켜 두어도 값이 없는 빌드는 그 제공자를 보이지 않는다.
 - 제공자 제공 범위: iOS는 넷 다. 안드로이드는 애플을 뺀 셋. 웹은 구글·네이버 둘(SOMA-834).
 - 웹 로그인(SOMA-834): 버튼은 `/v2/auth/providers` 순서를 따르되 웹 설정이 있는 제공자만 그린다.
   구글은 Google Identity Services의 ID 토큰을 웹 클라이언트(`NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID`, 기본값은

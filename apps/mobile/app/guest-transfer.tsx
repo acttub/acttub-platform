@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { DialogButtons } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -103,15 +103,20 @@ export default function GuestTransferScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('guestTransfer.title') }} />
       {done ? (
-        <View style={styles.content}>
-          <View style={styles.doneIcon}>
-            <Feather name="check" size={26} color={palette.blue} />
+        // pen S7.7 — 가운데 완료 표시(96 동그라미)와 글, 아래에 「기록 보기」와 글자 버튼.
+        <View style={styles.doneContent}>
+          <View style={styles.doneHero}>
+            <View style={styles.doneIcon}>
+              <Feather name="check" size={44} color={palette.blue} />
+            </View>
+            <Text style={[styles.doneHeading, styles.center]}>{t('guestTransfer.doneTitle')}</Text>
+            <Text style={[styles.body, styles.center]}>{t('guestTransfer.doneBody')}</Text>
           </View>
-          <Text style={styles.heading}>{t('guestTransfer.doneTitle')}</Text>
-          <Text style={styles.body}>{t('guestTransfer.doneBody')}</Text>
-          {/* 목록은 화면이 열릴 때마다 서버에서 다시 받는다. 기록으로 보내면 옮긴 연습이 보인다. */}
-          <PrimaryButton label={t('guestTransfer.seeHistory')} onPress={() => router.replace('/(tabs)/history')} style={styles.cta} />
-          <SecondaryButton label={t('guestTransfer.another')} onPress={enterAnother} />
+          <View style={styles.doneActions}>
+            {/* 목록은 화면이 열릴 때마다 서버에서 다시 받는다. 기록으로 보내면 옮긴 연습이 보인다. */}
+            <PrimaryButton label={t('guestTransfer.seeHistory')} onPress={() => router.dismissTo('/(tabs)/history')} />
+            <TextButton size="large" label={t('guestTransfer.another')} onPress={enterAnother} />
+          </View>
         </View>
       ) : (
         <KeyboardAwareScroll contentContainerStyle={styles.content}>
@@ -196,10 +201,12 @@ export default function GuestTransferScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  // pen S7.1 — 안쪽 24, 줄 사이 14. 제목 22/800, 설명 14/1.5, 안내 12.5/1.44.
   content: { flexGrow: 1, padding: 24, gap: 14 },
   heading: { fontSize: 22, fontWeight: '800', color: palette.text, lineHeight: 30 },
   body: { fontSize: 14, lineHeight: 21, color: palette.textDim },
   hint: { fontSize: 12.5, lineHeight: 18, color: palette.textFaint },
+  center: { textAlign: 'center' },
   codeInput: {
     marginTop: 8,
     backgroundColor: palette.bgSoft,
@@ -214,17 +221,22 @@ const styles = StyleSheet.create({
   },
   error: { color: palette.danger, fontSize: 13.5, textAlign: 'center' },
   cta: { marginTop: 4 },
+  doneContent: { flex: 1, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 12 },
+  doneHero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 40 },
   doneIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 24,
+    marginBottom: 12,
   },
+  doneHeading: { fontSize: 24, fontWeight: '800', color: palette.text, lineHeight: 33 },
+  doneActions: { gap: 4 },
 
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  // pen S7.5 팝업 — 모서리 18, 안쪽 20, 줄 사이 12. 제목 17/800, 고르는 칸 모서리 14 · 안쪽 14.
   modalCard: {
     position: 'absolute',
     left: 20,

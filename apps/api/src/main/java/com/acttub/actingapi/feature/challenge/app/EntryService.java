@@ -34,10 +34,13 @@ public class EntryService {
     }
 
     public EntryRepository.Creation create(UUID owner, UUID challengeId, UUID requestId, UUID videoId,
-                                           String rawCaption, String visibility) {
+                                           String rawCaption, String visibility, boolean faceMosaic) {
         String caption = caption(rawCaption);
         visibility(visibility, true);
-        String fingerprint = fingerprint(Arrays.asList(challengeId.toString(), videoId.toString(), caption, visibility));
+        // 얼굴 모자이크를 켠 요청만 지문에 더한다 — 이 필드 전에 보낸 요청의 재전송이 같은 지문으로 맞는다.
+        var body = new java.util.ArrayList<>(Arrays.asList(challengeId.toString(), videoId.toString(), caption, visibility));
+        if (faceMosaic) body.add("face_mosaic");
+        String fingerprint = fingerprint(body);
         var replay = entries.replay(owner, requestId);
         if (replay != null) {
             if (!fingerprint.equals(replay.fingerprint())) throw new ApiException(422, "request_fingerprint_mismatch");
@@ -54,14 +57,14 @@ public class EntryService {
             throw new ApiException(422, "video_too_long");
         }
         return entries.create(owner, challengeId, requestId, fingerprint,
-                new NewEntry(videoId, caption, visibility), clock.instant());
+                new NewEntry(videoId, caption, visibility, faceMosaic), clock.instant());
     }
 
-    public MyEntry update(UUID owner, UUID entryId, String rawCaption, String visibility) {
+    public MyEntry update(UUID owner, UUID entryId, String rawCaption, String visibility, Boolean faceMosaic) {
         String caption = rawCaption == null ? null : caption(rawCaption);
         if (visibility != null) visibility(visibility, false);
         return entries.update(owner, entryId, rawCaption == null ? null : caption == null ? "" : caption, visibility,
-                clock.instant());
+                faceMosaic, clock.instant());
     }
 
     public void delete(UUID owner, UUID entryId) { entries.delete(owner, entryId, clock.instant()); }

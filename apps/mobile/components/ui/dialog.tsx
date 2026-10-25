@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { LoadingText } from '@/components/ui/loading-text';
 
 /**
  * 확인창·선택 시트 공통 부품(SOMA-770).
@@ -69,7 +70,7 @@ export function DialogButtons({
         disabled={busy}
         accessibilityRole="button"
         accessibilityLabel={confirmLabel}>
-        {busy ? <ActivityIndicator color={palette.onAccent} /> : <Text style={[styles.confirmText, compact && styles.compactButtonText]}>{confirmLabel}</Text>}
+        {busy ? <LoadingText color={palette.onAccent} /> : <Text style={[styles.confirmText, compact && styles.compactButtonText]}>{confirmLabel}</Text>}
       </Pressable>
     </View>
   );

@@ -18,7 +18,7 @@ import { createSampleLoop, SAMPLE_PRACTICE_ID, type LoopApi } from '@/lib/tutori
  * 분석 대기(옛 A10 analyzing 화면)는 코치 화면 안의 「영상 보는 중」이다(SOMA-778). 옛 analyzing 화면 테스트를 그대로 옮겼다 —
  * 조회 주기·푸시·복귀·그만두기·다시 시도·복구 기록·튜토리얼 예시. 「코치로 넘어간다」는 이제 같은 화면에서 대화가 열리는 것이다.
  */
-const mockRouter = { replace: jest.fn(), dismissAll: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn(), dismissAll: jest.fn() };
 let mockParams: Record<string, unknown> = {};
 let mockUser: { id: string } | null = { id: 'u1' };
 let mockFocusEffect: () => (() => void) | void = () => undefined;
@@ -203,7 +203,7 @@ describe('기다리는 동안', () => {
     // 따로 된 분석 화면이 아니라 대화 화면 안의 코치 말풍선이다.
     expect(screen.getByText('질문 대화')).toBeOnTheScreen();
     expect(screen.getByText(WATCHING)).toBeOnTheScreen();
-    expect(screen.getByText('ACTTUB 코치')).toBeOnTheScreen();
+    expect(screen.getByText('코치')).toBeOnTheScreen();
     expect(screen.queryByText('3단계 · 질문 준비 중')).not.toBeOnTheScreen();
     staysWaiting();
     expect(screen.getByText('0초 경과')).toBeOnTheScreen();
@@ -220,7 +220,7 @@ describe('기다리는 동안', () => {
 
     // 기다리지 않고 나가면 홈으로 간다 — 분석은 서버에서 계속 돌고 끝나면 알림이 온다.
     await fireEvent.press(screen.getByRole('button', { name: '끝나면 알려 주세요' }));
-    expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
   });
 
   test('작업이 돌기 시작하면 단계 문구로 바뀌고, 영상·장면 보기를 펼치면 기기에 있는 영상을 튼다', async () => {
@@ -310,7 +310,7 @@ describe('기다리는 동안', () => {
 });
 
 describe('분석이 끝나면', () => {
-  test('회차를 들고 코치 화면으로 넘어가고 복구 기록을 지운다', async () => {
+  test('회차를 들고 액티 화면으로 넘어가고 복구 기록을 지운다', async () => {
     getStatus.mockResolvedValue(READY);
     await render(<CoachScreen />);
 
@@ -328,6 +328,17 @@ describe('분석이 끝나면', () => {
     expect(getPracticeApi).toHaveBeenCalledWith('p1', { signal: expect.any(AbortSignal) });
     expect(logged('analysis_complete')).toEqual([{ analysis: 'ready' }]);
     expect(await pendingKeys()).toEqual([]);
+  });
+
+  test('영상 없이 만든 회차를 다시 열어도 분석 완료로 집계하지 않는다', async () => {
+    getStatus.mockResolvedValue(status({ stage: 'conversing', analysis_status: null, job: null }));
+    getPracticeApi.mockResolvedValue({
+      ...(await getPracticeApi()), video_id: null, playback_url: null,
+    });
+    await render(<CoachScreen />);
+    await entersCoach();
+    expect(logged('analysis_complete')).toEqual([]);
+    expect(getPractice()?.videoUri).toBe('');
   });
 
   test('못 본 구간이 있으면 알리고, 확인을 누른 뒤에 넘어간다', async () => {
@@ -367,7 +378,7 @@ describe('분석이 끝나면', () => {
     expect(localCopyFor).not.toHaveBeenCalled();
   });
 
-  test('복구 기록을 남기지 못했어도 코치로 넘어간다', async () => {
+  test('복구 기록을 남기지 못했어도 액티로 넘어간다', async () => {
     (AsyncStorage.setItem as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
     getStatus.mockResolvedValue(READY);
     await render(<CoachScreen />);
@@ -388,7 +399,7 @@ describe('분석이 끝나면', () => {
     staysWaiting();
   });
 
-  test('코치로 넘어간 뒤 앱이 다시 활성화돼도 다시 읽지 않는다', async () => {
+  test('액티로 넘어간 뒤 앱이 다시 활성화돼도 다시 읽지 않는다', async () => {
     getStatus.mockResolvedValue(READY);
     await render(<CoachScreen />);
     await entersCoach();
@@ -445,7 +456,7 @@ describe('다시 읽는 때', () => {
     await act(async () => {
       mockFocusEffect();
     });
-    expect(await screen.findByText('분석 결과를 정리하지 못했어요. 다시 시도해주세요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석 결과를 정리하지 못했어요. 다시 시도해 주세요.', { exact: false })).toBeOnTheScreen();
     expect(getStatus).toHaveBeenCalledTimes(2);
   });
 
@@ -485,9 +496,9 @@ describe('다시 읽는 때', () => {
 
 describe('분석이 실패하면', () => {
   test.each([
-    ['timeout', '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해주세요.'],
-    ['unsupported', '지원하지 않는 영상 형식이에요. mp4로 다시 올려주세요.'],
-    ['max_attempts', '분석에 실패했어요. 다시 시도해주세요.'],
+    ['timeout', '분석 시간이 초과됐어요. 영상을 더 짧게 잘라서 다시 시도해 주세요.'],
+    ['unsupported', '지원하지 않는 영상 형식이에요. mp4로 다시 올려 주세요.'],
+    ['max_attempts', '분석에 실패했어요. 다시 시도해 주세요.'],
   ])('%s 이면 사유와 다시 시도 버튼을 보인다', async (reason, message) => {
     getStatus.mockResolvedValue(FAILED(reason));
     await render(<CoachScreen />);
@@ -503,18 +514,18 @@ describe('분석이 실패하면', () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', close_reason: 'cancelled', job: null }));
     await render(<CoachScreen />);
 
-    expect(await screen.findByText('분석을 그만뒀어요. 영상은 보관함에 그대로 있어요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석을 그만뒀어요. 영상은 그대로 있어요.', { exact: false })).toBeOnTheScreen();
     expect(screen.queryByText('영상은 그대로 있으니 「다시 시도」를 누르세요.', { exact: false })).not.toBeOnTheScreen();
     expect(screen.queryByText('다시 시도')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByText('나중에 기록에서 보기'));
-    expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
   });
 
   test('사유 없이 닫히면 unknown 으로 세고, 다시 시도는 새 분석 없이 상태만 다시 읽는다', async () => {
     getStatus.mockResolvedValue(status({ stage: 'closed', job: null }));
     await render(<CoachScreen />);
-    expect(await screen.findByText('분석에 실패했어요. 다시 시도해주세요.', { exact: false })).toBeOnTheScreen();
+    expect(await screen.findByText('분석에 실패했어요. 다시 시도해 주세요.', { exact: false })).toBeOnTheScreen();
     expect(logged('analysis_failed')).toEqual([{ reason: 'unknown' }]);
 
     getStatus.mockResolvedValue(READY);
@@ -654,7 +665,7 @@ describe('그만두기', () => {
     await fireEvent.press(screen.getByText('그만두기'));
     expect(screen.getByText('분석을 그만둘까요?')).toBeOnTheScreen();
     expect(
-      screen.getByText('이번 회차는 여기서 닫혀요. 영상은 보관함에 그대로 있어서 다시 시작할 수 있어요.'),
+      screen.getByText('이번 회차는 여기서 닫혀요. 영상은 그대로 있어서 다시 시작할 수 있어요.'),
     ).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('계속 기다리기'));
 
@@ -684,7 +695,7 @@ describe('그만두기', () => {
     expect(api.cancelPractice).toHaveBeenCalledTimes(1);
 
     await act(async () => resolveCancel());
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(logged('analysis_cancelled')).toEqual([{}]);
     expect(await pendingKeys()).toEqual([]);
   });
@@ -696,7 +707,7 @@ describe('그만두기', () => {
 
     await fireEvent.press(screen.getByText('그만두기'));
     await fireEvent.press(screen.getAllByText('그만두기')[1]);
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
   });
 
   test('복구 기록이 없어도 그만두면 홈으로 간다', async () => {
@@ -707,7 +718,7 @@ describe('그만두기', () => {
 
     await fireEvent.press(screen.getByText('그만두기'));
     await fireEvent.press(screen.getAllByText('그만두기')[1]);
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(api.cancelPractice).toHaveBeenCalledWith('p1');
   });
 
@@ -723,7 +734,7 @@ describe('그만두기', () => {
     expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 
-  test('취소하는 사이 시작된 조회가 끝남을 받아도 코치로 가지 않는다', async () => {
+  test('취소하는 사이 시작된 조회가 끝남을 받아도 액티로 가지 않는다', async () => {
     let resolveCancel: () => void = () => undefined;
     (api.cancelPractice as jest.Mock).mockImplementation(
       () =>
@@ -745,7 +756,7 @@ describe('그만두기', () => {
     );
     await act(async () => appStateListener?.('active'));
     await act(async () => resolveCancel());
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
 
     await act(async () => resolveStatus(READY));
     staysWaiting();
@@ -758,7 +769,7 @@ describe('튜토리얼 예시', () => {
     mockParams = { practiceId: SAMPLE_PRACTICE_ID };
   });
 
-  test('서버 없이 단계 문구를 넘긴 뒤 예시 회차를 들고 코치로 간다', async () => {
+  test('서버 없이 단계 문구를 넘긴 뒤 예시 회차를 들고 액티로 간다', async () => {
     jest.useFakeTimers();
     await render(<CoachScreen />);
 
@@ -810,7 +821,7 @@ describe('튜토리얼 예시', () => {
     expect(screen.queryByText(WATCHING)).not.toBeOnTheScreen();
   });
 
-  test('도중에 화면을 떠나면 코치로 넘기지 않는다', async () => {
+  test('도중에 화면을 떠나면 액티로 넘기지 않는다', async () => {
     jest.useFakeTimers();
     const view = await render(<CoachScreen />);
     await act(async () => jest.advanceTimersByTime(1_200));
@@ -827,7 +838,7 @@ describe('튜토리얼 예시', () => {
 
     await fireEvent.press(screen.getByText('그만두기'));
 
-    expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
     expect(screen.queryByText('분석을 그만둘까요?')).not.toBeOnTheScreen();
     expect(currentTutorial()).toBeNull();
     expect(logged('tutorial_finish')).toEqual([{ mode: 'sample', track: 'practice', how: 'left' }]);

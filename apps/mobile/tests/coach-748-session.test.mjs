@@ -35,7 +35,7 @@ test('새 연습 단계: 목적 → 영상(장면 단계 없음, SOMA-778), 예�
   assert.equal(stepperIndex('source'), 2);
 });
 
-test('코치 말 속 「0:12」는 누를 수 있는 시간 조각으로 나뉜다(pen 시간 눌러 장면 보기)', () => {
+test('액티 말 속 「0:12」는 누를 수 있는 시간 조각으로 나뉜다(pen 시간 눌러 장면 보기)', () => {
   assert.deepEqual(splitTimestamps('0:12 「우리 그만하자」 뒤에 2초 멈췄어요.'), [
     { kind: 'time', text: '0:12', seconds: 12 },
     { kind: 'text', text: ' 「우리 그만하자」 뒤에 2초 멈췄어요.' },

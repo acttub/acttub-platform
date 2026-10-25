@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.video.app;
 
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -116,6 +117,18 @@ class VideoServiceOutcomeTest {
         completesWith(CompleteOutcome.REPLAYED, video(null, null));
         assertThat(warming.completeIntent(user, false, intent).created()).isFalse();
         verify(warmup, times(1)).uploaded(any(), any(), any());
+    }
+
+    /** 얼굴 가리기를 켜고 올린 영상은 원본으로 미리 올리기를 하지 않는다 — 원본이 코치 AI 쪽으로 가지 않는다(practice.start). */
+    @Test void aFaceMosaicUploadNeverStartsTheCoachPreparation() {
+        VideoUploadWarmup warmup = mock(VideoUploadWarmup.class);
+        VideoService warming = new VideoService(videos, storage, cleanup, clock, warmup);
+        completesWith(CompleteOutcome.CREATED, video(null, null));
+        assertThat(warming.completeIntent(user, false, intent, true).created()).isTrue();
+        verify(warmup, never()).uploaded(any(), any(), any());
+
+        assertThat(warming.completeIntent(user, false, intent, false).created()).isTrue();
+        verify(warmup).uploaded("videos/u/r.mp4", "etag", "video/mp4");
     }
 
     @Test void aFailingPreparationDoesNotBreakTheUpload() {

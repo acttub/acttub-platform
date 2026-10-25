@@ -86,6 +86,16 @@ test('서버가 센 분류 수와 지우지 않은 참여작을 상태와 함께
   expect(screen.queryByText('“지운 대사”')).not.toBeOnTheScreen();
 });
 
+test('첫 장면 사진이 있으면 미리보기로 보여 주고, 없으면 대체 아이콘을 둔다', async () => {
+  listMine.mockResolvedValue(page([myEntry({ id: 'e1', poster_url: 'https://p/e1.poster.jpg?sig=1' }), priv]));
+  await render(<ChallengeEntriesScreen />);
+
+  const poster = await screen.findByTestId('entry-poster-e1');
+  expect(poster.props.source).toEqual([{ uri: 'https://p/e1.poster.jpg?sig=1', cacheKey: 'https://p/e1.poster.jpg' }]);
+  expect(screen.getByTestId('entry-poster-empty-e2')).toBeOnTheScreen();
+  expect(screen.queryByTestId('entry-poster-e2')).toBeNull();
+});
+
 test('분류를 고르면 그 분류만 보이고, 없으면 빈 안내를 띄운다', async () => {
   listMine.mockResolvedValue(page([pub, priv]));
   await render(<ChallengeEntriesScreen />);
@@ -134,11 +144,10 @@ test('참여작을 누르면 그 참여작부터 재생하고, 뒤로는 이전 
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
 });
 
-test('메뉴에서 AI 리포트를 연다', async () => {
+test('메뉴에 AI 리포트 줄은 없다(SOMA-820)', async () => {
   await render(<ChallengeEntriesScreen />);
   await openMenuFor('“사느냐 죽느냐”');
-  await fireEvent.press(screen.getByText('AI 리포트'));
-  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/ai-report', params: { entryId: 'e1' } });
+  expect(screen.queryByText('AI 리포트')).not.toBeOnTheScreen();
 });
 
 describe('캡션 고치기', () => {
@@ -199,7 +208,40 @@ describe('공개 범위 바꾸기', () => {
     expect(updateEntry).not.toHaveBeenCalled();
     const labels = screen.getAllByText('공개로 바꾸기');
     await fireEvent.press(labels[labels.length - 1]);
+    // 이어서 얼굴 모자이크를 켤지 고른다(SOMA-809). 「그대로 공개」는 원본으로 공개한다.
+    expect(await screen.findByText('얼굴 모자이크를 켤까요?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('그대로 공개'));
     expect(updateEntry).toHaveBeenCalledWith('e2', { visibility: 'public' });
+  });
+
+  test('다시 공개하면서 얼굴 모자이크를 켤 수 있다', async () => {
+    await render(<ChallengeEntriesScreen />);
+    await openMenuFor('“내일은 내일의 해가”');
+    await fireEvent.press(screen.getByText('공개로 바꾸기'));
+    const labels = await screen.findAllByText('공개로 바꾸기');
+    await fireEvent.press(labels[labels.length - 1]);
+    await fireEvent.press(await screen.findByText('모자이크하고 공개'));
+    expect(updateEntry).toHaveBeenCalledWith('e2', { visibility: 'public', face_mosaic: true });
+  });
+
+  test('모자이크 선택은 가운데 팝업이고, 바깥을 눌러도 닫히지 않아 고르기 전에는 공개하지 않는다', async () => {
+    await render(<ChallengeEntriesScreen />);
+    await openMenuFor('“내일은 내일의 해가”');
+    await fireEvent.press(screen.getByText('공개로 바꾸기'));
+    const labels = await screen.findAllByText('공개로 바꾸기');
+    await fireEvent.press(labels[labels.length - 1]);
+    expect(await screen.findByText('얼굴 모자이크를 켤까요?')).toBeOnTheScreen();
+    const modals = screen.container.queryAll((node) => typeof node.props.onRequestClose === 'function');
+    await fireEvent.press(modals[modals.length - 1].children[0] as Parameters<typeof fireEvent.press>[0]);
+    expect(screen.getByText('얼굴 모자이크를 켤까요?')).toBeOnTheScreen();
+    expect(updateEntry).not.toHaveBeenCalled();
+  });
+
+  test('얼굴 모자이크를 메뉴에서 켜고, 만드는 중이면 목록에 알린다', async () => {
+    await render(<ChallengeEntriesScreen />);
+    await openMenuFor('“내일은 내일의 해가”');
+    await fireEvent.press(screen.getByText('얼굴 모자이크 켜기'));
+    expect(updateEntry).toHaveBeenCalledWith('e2', { face_mosaic: true });
   });
 
   test('바꾸기가 실패하면 이유를 알린다', async () => {
@@ -207,7 +249,7 @@ describe('공개 범위 바꾸기', () => {
     await render(<ChallengeEntriesScreen />);
     await openMenuFor('“사느냐 죽느냐”');
     await fireEvent.press(screen.getByText('비공개로 바꾸기'));
-    expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 보관함에 남아 있어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 그대로 있어요.')).toBeOnTheScreen();
   });
 
   test.each([
@@ -216,7 +258,7 @@ describe('공개 범위 바꾸기', () => {
     [
       '끝난 챌린지의 참여작',
       { challenge: { id: 'c2', line: '내일은 내일의 해가', work: '바람과 함께', character: null, ends_at: ENDED_AT } },
-      '이 챌린지는 끝났어요. 영상은 보관함에 남아 있어요.',
+      '이 챌린지는 끝났어요. 영상은 그대로 있어요.',
     ],
   ])('%s은 공개로 바꾸지 않고 이유를 알린다', async (_name, overrides, message) => {
     listMine.mockResolvedValue(page([{ ...priv, ...overrides }]));
@@ -233,7 +275,7 @@ describe('지우기', () => {
   const pressDelete = async () => {
     await openMenuFor('“사느냐 죽느냐”');
     await fireEvent.press(screen.getByText('지우기'));
-    expect(await screen.findByText('참여작만 지워요. 영상은 보관함에 남아요.')).toBeOnTheScreen();
+    expect(await screen.findByText('참여작만 지워요. 영상은 그대로 있어요.')).toBeOnTheScreen();
   };
 
   test('확인하면 지우고 다시 읽는다', async () => {

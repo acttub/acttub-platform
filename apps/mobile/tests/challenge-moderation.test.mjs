@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { entryShareUrl } from '../lib/challenge/deeplink.ts';
+import { entryShareUrl, shareWebHost } from '../lib/challenge/deeplink.ts';
 import {
   REPORT_REASONS,
   blockedLabel,
@@ -83,4 +83,12 @@ test('challenge.block: 차단 목록은 이름으로 보이고 이름이 없으�
 
 test('challenge.react: 공유 링크는 참여작 주소다', () => {
   assert.equal(entryShareUrl('entry-1'), 'https://acttub.com/e/entry-1');
+});
+
+test('challenge.react: dev 앱의 공유 링크는 dev 공유 페이지로 간다', () => {
+  assert.equal(shareWebHost('https://dev.acttub.com'), 'dev.acttub.com');
+  assert.equal(shareWebHost('https://acttub.com/'), 'acttub.com');
+  assert.equal(shareWebHost(undefined), 'acttub.com');
+  assert.equal(shareWebHost('  '), 'acttub.com');
+  assert.equal(shareWebHost('not a url'), 'acttub.com');
 });

@@ -4,7 +4,6 @@ import { useIsFocused, usePreventRemove } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -16,10 +15,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
+import { pt, type MenuAnchor } from '@/components/ui/anchored-menu';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
+import { UploadReasonSheet } from '@/components/upload-reason-sheet';
+import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';
+import { UploadPrepareFailed } from '@/components/upload-prepare-failed';
+import { scheduleUploadLaterReminder } from '@/lib/notifications';
+import { setFaceMosaicForUploads, rememberPurgeAfterAnalysis } from '@/lib/practice/upload-options';
+import { UploadWaitPanel } from '@/components/upload-wait-panel';
+import { useFirstTimeUser } from '@/hooks/use-first-time-user';
+import { forgetWaitingUpload, rememberWaitingUpload } from '@/hooks/use-waiting-upload';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { NavIconButton } from '@/components/ui/nav-header';
-import { IconOptionRow as ChoiceRow } from '@/components/ui/option-card';
+import { ChoiceCard, type ChoiceTint } from '@/components/choice-card';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -27,12 +36,14 @@ import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import {
   confirmedVideoFor,
   flushLibraryUploads,
   onLibraryChange,
   pendingLibraryUploads,
+  removePendingUpload,
   saveRecordingToLibrary,
 } from '@/lib/library/library-runner';
 import { videoErrorMessage } from '@/lib/library/video-checks';
@@ -78,17 +89,18 @@ import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { SAMPLE_PRACTICE_ID } from '@/lib/tutorial-sample';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
+import { VIDEO_PICKER_OPTIONS } from '@/lib/video-picker-options';
 
 /**
  * A8·A8.1·A9.x 새 연습 준비(practice.start · practice.resume).
  *
  * 두 단계다(pen 「새 · 오늘 세션 목적」→「새 · 영상 고르기」). 장면 정보(상황·인물·원하는 것) 단계는 SOMA-778에서 없앴다 —
  * 장면 없이 시작하고 서버는 빈 값으로 둔다(practice.start). 목적은 누르면 바로 영상 단계로 넘어간다(「다음」 버튼 없음).
- * 세션 목적 세 갈래는 기존 막힘 큰 갈래로 보낸다(lib/practice/session-purpose). 「지금 찍기」는 찍는 법 한 장
- * (record-guide)을 거쳐 카메라로 간다. 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있고, 체크해야 시작한다.
+ * 세션 목적 세 갈래는 기존 막힘 큰 갈래로 보낸다(lib/practice/session-purpose). 「지금 찍기」는 바로
+ * 카메라로 간다. 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있고, 체크해야 시작한다.
  * 튜토리얼·예시는 한 장에서 비추므로 바로 영상 단계로 연다. 시작하면 코치 화면으로 가고, 분석 대기도 거기서 한다.
  *
- * 영상은 보관함에서 고르거나 새로 찍는다 — 여기서 올리지 않는다(올리기는 보관함 큐가 한다).
+ * 영상은 새로 찍거나 갤러리에서 고른다 — 여기서 올리지 않는다(올리기는 업로드 큐가 한다).
  * 도움 갈래와 상세 설명은 선택이고, 시작을 누르면 회차 하나와 분석 작업 하나가 생긴다. 상황·인물·목표 칸과
  * 「이전 연습 이어서 하기」, 세부 칩은 SOMA-656 에서 뺐다 — 다음 테이크(이어하기)로 들어오면 지난 장면은 화면 없이
  * 그대로 보내고, 세부는 비워 보내 서버 기본값(그 외)이 된다.
@@ -96,10 +108,11 @@ import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
  * 같은 시도의 재전송은 같은 요청 id 라 회차는 하나다. 묶음에 진행 중 회차가 있으면(409) 그
  * 회차로 돌려보낸다. 이론 선택은 0.1.0에서 뺐다.
  */
-const PURPOSE_ICON: Record<SessionPurpose, 'star' | 'unlock' | 'book-open'> = {
-  review: 'star',
-  unblock: 'unlock',
-  character: 'book-open',
+// pen P3.0 목적 카드의 아이콘 칸 — 평가(파랑)·막힌 곳(노랑)·인물(보라).
+const PURPOSE_ICON: Record<SessionPurpose, { icon: 'star' | 'unlock' | 'users'; tint: ChoiceTint }> = {
+  review: { icon: 'star', tint: 'blue' },
+  unblock: { icon: 'unlock', tint: 'amber' },
+  character: { icon: 'users', tint: 'violet' },
 };
 export default function UploadScreen() {
   const router = useRouter();
@@ -111,6 +124,7 @@ export default function UploadScreen() {
   const sample = params.sample === '1';
   // 첫 코칭을 마치기 전에만 파란 안내(어디를 누르면 되는지)를 보인다 — 코칭 탭이 처음 화면에서 넘겨 준다.
   const firstTime = params.first === '1';
+  const firstTimeUser = useFirstTimeUser();
   const [plan] = useState<StartPlan>(() => planFor(sample ? null : takeContinueOrigin()));
   const [picked, setPicked] = useState<PickedVideo | null>(() =>
     sample
@@ -137,9 +151,40 @@ export default function UploadScreen() {
   // 뒤로 가기(헤더·안드로이드)는 앞 단계로 돌아간다. 다음 화면(코치)으로 넘어갈 때는 풀어 둔다 —
   // usePreventRemove 는 렌더된 값을 보므로 풀린 값이 반영된 다음 틱에 이동한다.
   const [leaving, setLeaving] = useState(false);
-  usePreventRemove(!leaving && previousUploadStep(step) !== null, () => {
+  // 영상 단계의 고른 길(기본 없음) — 권리 체크 뒤 「질문 받기」를 누르면 그 길로 간다.
+  const [sourceChoice, setSourceChoice] = useState<'record' | 'gallery' | null>(null);
+  const [reasonSheet, setReasonSheet] = useState(false);
+  // P3.26 올리기 옵션 — 고르면 시작 요청에 싣는다. 고르지 않으면 null(옵션 없이 올린다).
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [uploadOptions, setUploadOptions] = useState<UploadOptions | null>(null);
+  // 망설임 페이지를 닫으면 연 곳으로 돌아간다 — 뒤로 가기로 열었으면 목적 단계, 영상 단계 링크로 열었으면 영상 단계.
+  const reasonBackRef = useRef<UploadStep>('purpose');
+  const showReason = () => { reasonBackRef.current = 'purpose'; setReasonSheet(true); };
+  const showReasonFromLink = () => { reasonBackRef.current = 'source'; setReasonSheet(true); };
+  const closeReason = () => { setReasonSheet(false); setStep(reasonBackRef.current); };
+  const reasonRoute = (go: () => void) => {
+    setReasonSheet(false);
+    setTimeout(() => leaveThen(go), Platform.OS === 'ios' ? 450 : 0);
+  };
+  // 「지금은 못 찍어요」 — 내일 저녁 알림을 하나 예약하고 홈으로 간다.
+  const remindLater = async () => {
+    const result = await scheduleUploadLaterReminder(t('uploadFlow.laterTitle'), t('uploadFlow.laterBody'));
+    if (result === 'denied') void alert({ title: t('uploadFlow.hLater'), message: t('uploadFlow.laterDenied') });
+    reasonRoute(() => router.dismissTo('/(tabs)'));
+  };
+  usePreventRemove(!leaving && (optionsOpen || reasonSheet || previousUploadStep(step) !== null), () => {
+    if (optionsOpen) {
+      setOptionsOpen(false);
+      setReasonSheet(true);
+      return;
+    }
+    if (reasonSheet) {
+      closeReason();
+      return;
+    }
     const back = previousUploadStep(step);
-    if (back) setStep(back);
+    if (back && !sample && !picked) showReason();
+    else if (back) setStep(back);
   });
   const leaveThen = (go: () => void) => {
     setLeaving(true);
@@ -246,10 +291,12 @@ export default function UploadScreen() {
 
   // 압축·올리기가 실패로 남았는지. 실패해도 「올리는 중」으로만 보이면 끝나지 않는 것처럼 보인다(SOMA-737).
   const [uploadFailed, setUploadFailed] = useState(false);
+  const [compressFailed, setCompressFailed] = useState(false);
   useEffect(() => {
     const pendingId = picked?.pendingId;
     if (!pendingId || picked?.videoId || !user?.id) {
       setUploadFailed(false);
+      setCompressFailed(false);
       return;
     }
     let alive = true;
@@ -257,7 +304,10 @@ export default function UploadScreen() {
     const check = () => {
       void pendingLibraryUploads(owner)
         .then((list) => {
-          if (alive) setUploadFailed(list.find((e) => e.id === pendingId)?.status === 'failed');
+          const entry = list.find((e) => e.id === pendingId);
+          if (!alive) return;
+          setUploadFailed(entry?.status === 'failed');
+          setCompressFailed(entry?.status === 'failed' && entry.lastError === 'compress_failed');
         })
         .catch(() => undefined);
     };
@@ -269,22 +319,59 @@ export default function UploadScreen() {
     };
   }, [picked?.pendingId, picked?.videoId, user?.id]);
 
-  const pickFromLibrary = () => router.push({ pathname: '/archive', params: { pick: '1' } });
+  // 「영상 올리는 중」 한 장(SOMA-817) — 올리는 중에 질문 받기를 누르면 다 올라갈 때까지 기다린다. 홈으로 나가도 계속 올라가고,
+  // 홈 맨 위 카드가 이어서 코칭을 시작하게 한다.
+  const [waitPanel, setWaitPanel] = useState(false);
+  const waitHome = () => {
+    if (!user?.id || !picked?.pendingId) return;
+    const owner = user.id;
+    const pendingId = picked.pendingId;
+    void rememberWaitingUpload({
+      owner,
+      pendingId,
+      videoId: null,
+      requestId: newRequestId(),
+      continueFrom: plan.continueFrom,
+      scene,
+      blockage,
+      savedAt: Date.now(),
+    }).then(() => leaveThen(() => router.dismissTo('/(tabs)')));
+  };
+  const waitCancel = () => {
+    const pendingId = picked?.pendingId;
+    setWaitPanel(false);
+    setPicked(null);
+    if (pendingId) void removePendingUpload(pendingId).catch(() => undefined);
+    if (user?.id) void forgetWaitingUpload(user.id);
+  };
+  // 압축 실패(P3.27) — 영상을 버리고 고르기로 돌아간다.
+  const pickOther = () => {
+    const pendingId = picked?.pendingId;
+    setPicked(null);
+    setSourceChoice(null);
+    setUploadFailed(false);
+    if (pendingId) void removePendingUpload(pendingId).catch(() => undefined);
+    if (user?.id) void forgetWaitingUpload(user.id);
+  };
+  const waitRetry = () => {
+    if (user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
+  };
   // 영상 상자를 누르면 뜨는 시트(SOMA-656). 시트가 닫힌 뒤에 다음 화면·사진 선택 창을 연다 — iOS 는 닫히는 모달 위에
   // 새 창을 띄우지 못한다.
   const [sourceSheet, setSourceSheet] = useState(false);
+  const [sourceAnchor, setSourceAnchor] = useState<MenuAnchor | undefined>();
   const fromSheet = (action: () => void) => () => {
     setSourceSheet(false);
     setTimeout(action, Platform.OS === 'ios' ? 450 : 0);
   };
   const record = () => router.push({ pathname: '/record-video', params: { mode: 'ai' } });
-  // 영상 고르기 단계의 「지금 찍기」 — 찍는 법 한 장을 먼저 보이고 거기서 카메라로 간다(pen 「새 · 찍는 법 한 장」).
-  const recordWithGuide = () => router.push({ pathname: '/record-guide', params: firstTime ? { first: '1' } : {} });
+  // 「길게 찍기 부담돼요」 — 한 줄만 10초.
+  const recordShort = () => router.push({ pathname: '/record-video', params: { mode: 'ai', maxSec: '10' } });
 
   const pickFromGallery = async () => {
     if (!user?.id) return;
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], allowsEditing: true, quality: 1 });
-    if (result.canceled || !result.assets[0]) return;
+    const result = await ImagePicker.launchImageLibraryAsync(VIDEO_PICKER_OPTIONS);
+    if (result.canceled || !result.assets[0]) { if (!picked) showReason(); return; }
     const asset = result.assets[0];
     const durationMs = normalizeVideoDurationMs(asset.duration ?? null);
     const outcome = await saveRecordingToLibrary({ uri: asset.uri, durationMs, owner: user.id });
@@ -335,15 +422,19 @@ export default function UploadScreen() {
         return;
       }
       const continueFrom = plan.continueFrom;
-      const body = continueFrom
+      const baseBody = continueFrom
         ? buildContinueBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage })
         : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage });
+      // 얼굴 가리기는 켠 때만 싣는다 — 서버가 아직 모르면 무시하는 선택 필드다.
+      const body = uploadOptions?.faceMosaic ? { ...baseBody, face_mosaic: true } : baseBody;
       const attempt = attemptFor(attemptRef.current, fingerprintOf(body), newRequestId);
       attemptRef.current = attempt;
       const practice = continueFrom
         ? await api.continuePractice(continueFrom.practiceId, { ...body, request_id: attempt.requestId })
         : await api.createPractice({ ...body, request_id: attempt.requestId } as Parameters<typeof api.createPractice>[0]);
       startedRef.current = true;
+      if (uploadOptions?.purgeAfterAnalysis) await rememberPurgeAfterAnalysis(practice.id, resolvedVideoId);
+      setFaceMosaicForUploads(false);
       logEvent('practice_start', { ordinal: practice.ordinal, continued: Boolean(continueFrom) });
       leaveThen(() => router.replace({ pathname: '/coach', params: { practiceId: practice.id } }));
     } catch (e) {
@@ -377,6 +468,14 @@ export default function UploadScreen() {
       setStarting(false);
     }
   };
+
+  useEffect(() => {
+    if (waitPanel && !uploading && videoId && !starting) {
+      setWaitPanel(false);
+      void start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitPanel, uploading, videoId]);
 
   // 질문 받기를 누른 뒤에는 보낸 내용이 바뀌지 않게 영상·권리 체크를 잠근다(SOMA-671).
   const locked = starting;
@@ -420,6 +519,14 @@ export default function UploadScreen() {
     if (uploading && user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
     noteBlocked();
   };
+  // 영상을 고르기 전에는 길(지금 찍기·갤러리)을 고르고 권리를 체크해야 「질문 받기」가 열리고, 누르면 그 길로 간다.
+  const canSubmit = picked || sample ? ready : Boolean(sourceChoice) && agreedRights;
+  const submitPress = () => {
+    if (picked || sample) return ready ? void start() : uploading && agreedRights && !sample ? setWaitPanel(true) : pressBlocked();
+    if (!canSubmit) return pressBlocked();
+    if (sourceChoice === 'record') record();
+    else void pickFromGallery();
+  };
   const toggleRights = () => {
     const next = !agreedRights;
     setAgreedRights(next);
@@ -438,7 +545,6 @@ export default function UploadScreen() {
         : t('upload.missingRights');
 
   const sourceOptions = [
-    { key: 'library', icon: 'archive' as const, title: t('start.fromLibrary'), sub: t('upload.fromLibrarySub'), onPress: fromSheet(pickFromLibrary) },
     { key: 'record', icon: 'video' as const, title: t('upload.recordCta'), sub: t('upload.recordSub'), onPress: fromSheet(record) },
     { key: 'gallery', icon: 'image' as const, title: t('upload.pickGallery'), sub: t('upload.gallerySub'), onPress: fromSheet(() => void pickFromGallery()) },
   ];
@@ -449,47 +555,65 @@ export default function UploadScreen() {
         options={{
           title: plan.continueFrom ? t('start.titleContinue') : t('upload.titleNew'),
           headerShadowVisible: false,
-          // pen 03 「새 연습」 머리 — 오른쪽 설정 아이콘(24).
-          headerRight: () => (
-            <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="upload_settings" onPress={() => router.push('/settings')} />
-          ),
+          // pen 03 「새 연습」 머리 — 오른쪽 설정 아이콘(24). 탭바를 숨긴 첫 사용자에게만 둔다 — 그 밖에는 프로필 탭에 설정이 있다(SOMA-781·849).
+          headerRight: firstTimeUser
+            ? () => (
+                <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="upload_settings" onPress={() => router.push('/settings')} />
+              )
+            : undefined,
         }}
       />
+      {/* pen P3.1 — 영상을 고르기 전 영상 단계에는 스텝퍼 위에 「영상 올리기가 망설여지나요?」 링크(망설임 페이지). */}
+      {step === 'source' && !picked && !sample && !waitPanel && (
+        <Pressable style={styles.hesitate} onPress={showReasonFromLink} accessibilityRole="link" ph-label="upload_hesitate_link">
+          <Text style={styles.hesitateText}>{t('uploadReason.title')}</Text>
+        </Pressable>
+      )}
       <View style={styles.stepRow}>
         <Stepper current={stepperIndex(step)} />
       </View>
 
       {step === 'purpose' && (
-        <ScrollView contentContainerStyle={styles.stepBody}>
-          {/* 「처음이면 ~를 누르세요」는 코칭 탭 첫 화면에서 한 번만 한다 — 단계마다 반복하지 않는다(10/20 피드백). */}
-          <CoachBubble title={t('upload.purposeBubble')} guide={null} />
-          <View style={styles.choices}>
-            {/* 누르면 바로 영상 단계로 간다 — 「다음」 버튼도 꺾쇠도 없다(SOMA-778). */}
-            {SESSION_PURPOSES.map((item) => (
-              <ChoiceRow
-                key={item}
-                icon={PURPOSE_ICON[item]}
-                title={t(`upload.purpose.${item}`)}
-                sub={t(`upload.purposeSub.${item}`)}
-                selected={purposePicked && purpose === item}
-                mark="none"
-                onPress={() => {
-                  choosePurpose(item);
-                  setStep('source');
-                }}
-              />
-            ))}
+        <View style={styles.flex}>
+          <ScrollView contentContainerStyle={styles.stepBody}>
+            {/* 선택 규칙 — 기본 선택 없이 고르고 「다음」을 눌러야 영상 단계로 간다. */}
+            <CoachBubble title={t('upload.purposeBubble')} guide={t('upload.chooseGuide')} />
+            <View style={styles.choices}>
+              {SESSION_PURPOSES.map((item) => (
+                <ChoiceCard
+                  key={item}
+                  title={t(`upload.purpose.${item}`)}
+                  sub={t(`upload.purposeSub.${item}`)}
+                  icon={PURPOSE_ICON[item].icon}
+                  tint={PURPOSE_ICON[item].tint}
+                  selected={purposePicked && purpose === item}
+                  phLabel={`upload_purpose_${item}`}
+                  onPress={() => choosePurpose(item)}
+                />
+              ))}
+            </View>
+          </ScrollView>
+          <View style={styles.bottom}>
+            <PrimaryButton label={t('upload.next')} phLabel="upload_purpose_next" disabled={!purposePicked} onPress={() => setStep('source')} />
           </View>
-        </ScrollView>
+        </View>
       )}
 
-      {step === 'source' && (
+      {step === 'source' && waitPanel && (
+        <UploadWaitPanel failed={uploadFailed} onHome={waitHome} onRetry={waitRetry} onCancel={waitCancel} />
+      )}
+
+      {step === 'source' && !waitPanel && compressFailed && (
+        <UploadPrepareFailed onRetry={waitRetry} onOther={pickOther} />
+      )}
+
+      {step === 'source' && !waitPanel && !compressFailed && (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.stepBody}>
             {!sample && (
               <CoachBubble
                 title={picked ? t('upload.readyBubble') : t('upload.sourceBubble')}
-                guide={null}
+                guide={picked ? null : t('upload.sourceChooseGuide')}
               />
             )}
 
@@ -501,9 +625,7 @@ export default function UploadScreen() {
                 {previewUri ? (
                   <VideoView style={styles.preview} player={player} nativeControls contentFit="contain" />
                 ) : (
-                  <View style={[styles.preview, styles.previewEmpty]}>
-                    <ActivityIndicator color="#fff" />
-                  </View>
+                  <View style={[styles.preview, styles.previewEmpty]} />
                 )}
                 <View style={styles.pickedRow}>
                   {sample && (
@@ -512,7 +634,7 @@ export default function UploadScreen() {
                     </View>
                   )}
                   {!sample && (
-                    <Pressable style={styles.repick} onPress={() => setSourceSheet(true)} disabled={locked}>
+                    <Pressable style={styles.repick} onPress={(e) => { setSourceAnchor(pt(e)); setSourceSheet(true); }} disabled={locked}>
                       <Text style={styles.repickText}>{t('upload.repick')}</Text>
                     </Pressable>
                   )}
@@ -527,22 +649,31 @@ export default function UploadScreen() {
               </View>
             ) : (
               <View style={styles.choices} ref={pickTarget.ref} onLayout={pickTarget.onLayout}>
-                <ChoiceRow icon="folder" title={t('start.fromLibrary')} sub={t('upload.sourceLibrarySub')} onPress={pickFromLibrary} />
-                <ChoiceRow
-                  icon="video"
+                <ChoiceCard
                   title={t('upload.sourceRecord')}
                   sub={t('upload.sourceRecordSub')}
-                  highlight={firstTime}
-                  onPress={recordWithGuide}
+                  icon="video"
+                  tint="blue"
+                  selected={sourceChoice === 'record'}
+                  phLabel="upload_source_record"
+                  onPress={() => setSourceChoice('record')}
                 />
-                <ChoiceRow icon="image" title={t('upload.pickGallery')} sub={t('upload.sourceGallerySub')} onPress={() => void pickFromGallery()} />
+                <ChoiceCard
+                  title={t('upload.pickGallery')}
+                  sub={t('upload.sourceGallerySub')}
+                  icon="image"
+                  tint="violet"
+                  mark="chevron"
+                  selected={sourceChoice === 'gallery'}
+                  phLabel="upload_source_gallery"
+                  onPress={() => setSourceChoice('gallery')}
+                />
               </View>
             )}
 
             {/* 질문 받기를 누른 뒤 — 보내는 중이라는 걸 바로 보인다(SOMA-671). */}
             {locked && (
               <View style={styles.sendingBar} accessibilityLiveRegion="polite">
-                <ActivityIndicator size="small" color={palette.blue} />
                 <Text style={styles.sendingText}>{t('upload.sending')}</Text>
               </View>
             )}
@@ -567,32 +698,46 @@ export default function UploadScreen() {
             <Pressable
               ref={startTarget.ref}
               onLayout={startTarget.onLayout}
-              style={[styles.submit, (!ready || starting) && styles.submitDisabled]}
-              onPress={() => (ready ? void start() : pressBlocked())}
+              style={[styles.submit, (!canSubmit || starting) && styles.submitDisabled]}
+              onPress={submitPress}
               disabled={starting}
               accessibilityRole="button"
-              accessibilityState={{ disabled: !ready || starting }}>
+              accessibilityState={{ disabled: !canSubmit || starting }}>
               {starting ? (
-                <ActivityIndicator color={palette.bg} />
+                <LoadingText label={t('loadingText.sending')} color={palette.bg} />
               ) : (
-                <Text style={[styles.submitText, (!ready || starting) && styles.submitTextDisabled]}>
+                <Text style={[styles.submitText, (!canSubmit || starting) && styles.submitTextDisabled]}>
                   {/* 영상이 아직 올라가는 중이면 무엇을 기다리는지 버튼이 말한다(SOMA-671). */}
                   {uploading ? t('upload.submitUploading') : plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}
                 </Text>
               )}
             </Pressable>
-            {hint && <Text style={styles.submitHint}>{hint}</Text>}
+            {hint && picked && <Text style={styles.submitHint}>{hint}</Text>}
           </View>
         </View>
       )}
       {/* 고른 영상을 바꿀 때 쓰는 시트(SOMA-656). 처음 고르기는 위의 세 줄이 한다. */}
       <VideoSourceSheet
         visible={sourceSheet}
+        anchor={sourceAnchor}
         title={t('start.pickTitle')}
         sub={t('upload.dropHint')}
         onClose={() => setSourceSheet(false)}
         options={sourceOptions}
       />
+      {reasonSheet && (
+        <UploadReasonSheet
+          onFace={() => { setReasonSheet(false); setOptionsOpen(true); }}
+          onShort={() => reasonRoute(recordShort)}
+          onLater={() => void remindLater()}
+        />
+      )}
+      {optionsOpen && (
+        <UploadOptionsPage
+          initial={uploadOptions}
+          onDone={(options) => { setUploadOptions(options); setFaceMosaicForUploads(options.faceMosaic); setOptionsOpen(false); setStep('source'); }}
+        />
+      )}
       {dialog}
       {tutorialGuide.element}
     </SafeAreaView>
@@ -604,10 +749,13 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   // pen 03 「Stepper」 — 머리 아래 1 띄워 가운데, 21 띄워 말풍선. 본문 좌우 20, 말풍선과 선택지 사이 14.
   stepRow: { alignItems: 'center', paddingTop: 1 },
-  stepBody: { paddingTop: 21, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
-  choices: { gap: 4 },
+  hesitate: { alignSelf: 'center', paddingTop: 2, paddingBottom: 4 },
+  hesitateText: { fontSize: 14, fontWeight: '600', lineHeight: 20, color: palette.blueDeep },
+  stepBody: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
+  // pen P3.0 「Choices」 — 카드 사이 12.
+  choices: { gap: 12, marginTop: 14 },
   // pen 03 「Footer」 — 안쪽 [0,20,10,20]: 권리 체크 · 14 · 버튼 48 · 9 · 안내 14/500.
-  bottom: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10, backgroundColor: palette.bg },
+  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, backgroundColor: palette.bg },
 
   sampleBadge: { backgroundColor: palette.blueSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   sampleBadgeText: { fontSize: 12.5, fontWeight: '800', color: palette.blue },
@@ -640,7 +788,7 @@ const styles = StyleSheet.create({
 
   // pen 버튼/Primary — 높이 48 · 모서리 16 · 글자 17/700. 막혀 있으면 Disabled(#E5E8EB · #B0B8C1). 준비 전에도 눌러서
   // 무엇에 막혔는지 세야 해서(SOMA-698) 공통 Button(막히면 안 눌림) 대신 같은 모양을 직접 그린다.
-  submit: { height: 48, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  submit: { height: 52, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   submitDisabled: { backgroundColor: palette.border },
   submitText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
   submitTextDisabled: { color: palette.checkOff },

@@ -58,12 +58,15 @@ export function buildEntryBody(input: {
   videoId: string;
   caption: string;
   visibility: EntryVisibility;
+  /** 공개일 때만 실린다 — 비공개로 바꾸면 토글이 숨으므로 켜 둔 값이 따라가지 않는다. */
+  faceMosaic?: boolean;
 }): CreateEntryBody {
   const body: CreateEntryBody = {
     request_id: input.requestId,
     video_id: input.videoId,
     visibility: input.visibility,
   };
+  if (input.faceMosaic && input.visibility === 'public') body.face_mosaic = true;
   const caption = input.caption.trim();
   if (caption) body.caption = caption;
   return body;
@@ -72,7 +75,10 @@ export function buildEntryBody(input: {
 export type EntryAttempt = { requestId: string; fingerprint: string };
 
 export function entryFingerprint(body: CreateEntryBody): string {
-  return JSON.stringify([body.video_id, body.caption ?? '', body.visibility]);
+  // 모자이크를 켠 요청만 지문에 더한다 — 이 필드 전에 만든 지문과 글자가 같다.
+  const parts: string[] = [body.video_id, body.caption ?? '', body.visibility];
+  if (body.face_mosaic) parts.push('face_mosaic');
+  return JSON.stringify(parts);
 }
 
 export function entryAttemptFor(
@@ -146,6 +152,20 @@ export function doneCopy(visibility: EntryVisibility): { title: string; body: st
   return visibility === 'public'
     ? { title: translate('challengeUpload.doneTitle'), body: translate('challengeUpload.doneSub') }
     : { title: translate('challengeUpload.doneTitlePrivate'), body: translate('challengeUpload.doneSubPrivate') };
+}
+
+/**
+ * 얼굴 모자이크 상태를 본인에게 알리는 한 줄(SOMA-809). 모자이크를 끈 참여작이나 준비된 것은 알릴 것이 없다.
+ * 만드는 중·실패는 다른 사람에게 아직 보이지 않는다는 뜻이다.
+ */
+export function mosaicNotice(entry: {
+  face_mosaic?: boolean;
+  mosaic_status?: string | null;
+}): 'pending' | 'failed' | null {
+  if (!entry.face_mosaic) return null;
+  if (entry.mosaic_status === 'pending') return 'pending';
+  if (entry.mosaic_status === 'failed') return 'failed';
+  return null;
 }
 
 /**

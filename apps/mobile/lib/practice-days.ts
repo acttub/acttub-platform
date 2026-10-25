@@ -11,11 +11,17 @@
 
 import { dayKey } from './practice-activity.ts';
 
-const KEY = 'acttub.practiceDays.v1';
+/**
+ * 계정별 키(10/25). 예전 v1 은 계정을 가리지 않고 로그아웃해도 남아, 같은 폰에서 새 계정으로 들어가면 앞 계정의
+ * 연습한 날을 이어받아 첫 사용자 화면이 안 떴다. v1 은 누구 것인지 알 수 없어 읽지 않고 지운다 — 서버 기록이 원본이다.
+ */
+const LEGACY_KEY = 'acttub.practiceDays.v1';
+const keyFor = (userId: string) => `acttub.practiceDays.v2.${userId}`;
 
 type Storage = {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
 };
 
 function storage(): Storage {
@@ -26,9 +32,10 @@ function storage(): Storage {
 /** 저장된 {dayKey → 대표 ISO 시각}. 값은 buildWeekActivity 에 그대로 먹일 created_at. */
 type Stored = Record<string, string>;
 
-async function read(): Promise<Stored> {
+async function read(userId: string): Promise<Stored> {
   try {
-    const raw = await storage().getItem(KEY);
+    void storage().removeItem(LEGACY_KEY).catch(() => undefined);
+    const raw = await storage().getItem(keyFor(userId));
     const parsed = raw ? (JSON.parse(raw) as unknown) : null;
     return parsed && typeof parsed === 'object' ? (parsed as Stored) : {};
   } catch {
@@ -54,11 +61,14 @@ export function mergePracticeDays(stored: Stored, records: readonly { created_at
  */
 export async function rememberPracticeDays(
   records: readonly { created_at: string }[],
+  userId: string | null | undefined,
 ): Promise<{ created_at: string }[]> {
-  const stored = await read();
+  // 계정을 아직 모르면 기기 기록을 섞지 않고 서버 기록만 쓴다.
+  if (!userId) return Object.values(mergePracticeDays({}, records)).map((created_at) => ({ created_at }));
+  const stored = await read(userId);
   const merged = mergePracticeDays(stored, records);
   if (Object.keys(merged).length !== Object.keys(stored).length) {
-    await storage().setItem(KEY, JSON.stringify(merged)).catch(() => undefined);
+    await storage().setItem(keyFor(userId), JSON.stringify(merged)).catch(() => undefined);
   }
   return Object.values(merged).map((created_at) => ({ created_at }));
 }

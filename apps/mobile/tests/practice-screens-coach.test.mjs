@@ -36,12 +36,11 @@ test('practice.coach: 닫힌 대화는 답할 수 없고 「다음 테이크 찍
   assert.match(coach, /isClosed/);
 });
 
-test('practice.coach: 도움 버튼은 입력만 준비한다 — 누르는 것으로 전송되지 않는다', () => {
+test('practice.coach: 예시 답 버튼은 입력만 준비한다 — 누르는 것으로 전송되지 않는다', () => {
   const coach = read('app/coach.tsx');
-  const block = coach.slice(coach.indexOf('const pressHelp'), coach.indexOf('const latestQuestion'));
+  const block = coach.slice(coach.indexOf('const pressChoice'), coach.indexOf('const latestCoachIndex'));
 
-  assert.match(block, /helpButtonDraft/);
-  assert.match(block, /setInput\(draft\)/);
+  assert.match(block, /setInput\(label\)/);
   assert.doesNotMatch(block, /replyToCoach|sendText/);
 });
 
@@ -81,13 +80,12 @@ test('practice.library: 기록은 묶음을 읽고 숨김은 묶음 전체이며
   assert.doesNotMatch(history, /readingHistoryRows|listSessions/);
 });
 
-test('practice.library: 홈은 숨기지 않은 묶음 3개와 한국 시간 연속일을 보여 준다', () => {
+test('practice.library: 홈은 한국 시간 연속일과 이번 주 요일 점을 보여 준다(최근 연습 줄은 pen P1.1에서 뺐다)', () => {
   const home = read('app/(tabs)/index.tsx');
 
-  assert.match(home, /recentGroups\(groups, PREVIEW_COUNT\)/);
   assert.match(home, /practiceStreak/);
-  // 줄을 누르면 묶음 상세로, 대화 중인 묶음은 그 대화로 바로 간다(SOMA-672).
-  assert.match(home, /groupRowTarget\(r\)/);
+  assert.match(home, /buildWeekActivity/);
+  assert.doesNotMatch(home, /recentGroups\(/);
 });
 
 test('practice.library: 묶음 상세는 회차 흐름과 「대화 이어 가기」·「다음 테이크 찍기」 중 하나를 보여 준다', () => {
@@ -112,7 +110,7 @@ test('practice.library: 묶음 상세 헤더에서 바로 숨기고 목록으로
 });
 
 // 한줄평·이탈 설문은 SOMA-494에서 걷고 앱 평가 요청으로 바꿨다 — 코치·노트 화면은 나갈 때 붙잡지 않는다.
-test('코치·노트는 나갈 때 설문을 띄우지 않고, 노트를 마치면 앱 평가를 묻는다', () => {
+test('액티·노트는 나갈 때 설문을 띄우지 않고, 노트를 마치면 앱 평가를 묻는다', () => {
   const coach = read('app/coach.tsx');
   const report = read('app/report.tsx');
   assert.doesNotMatch(coach, /useExitReview|exitReview/);

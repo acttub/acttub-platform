@@ -49,7 +49,7 @@ test('account.withdraw: 앱이 죽어 장부에 남은 임시 파일은 다음 �
   assert.equal(items.has(DEVICE_FILES_KEY), false);
 });
 
-test('account.withdraw: 다음 실행의 정리는 코치 화면이 다시 트는 영상 원본 복사본을 지우지 않고, OS가 이미 치운 것만 장부에서 뺀다', async () => {
+test('account.withdraw: 다음 실행의 정리는 액티 화면이 다시 트는 영상 원본 복사본을 지우지 않고, OS가 이미 치운 것만 장부에서 뺀다', async () => {
   const gone = 'file:///cache/ImagePicker/purged-by-os.mov';
   const { ledger, disk } = harness({ files: [ORIGINAL] });
   await ledger.keep(ORIGINAL);

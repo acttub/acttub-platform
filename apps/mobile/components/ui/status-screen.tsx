@@ -71,6 +71,7 @@ export function StatusScreen({
               source={mascot}
               style={large ? MASCOT_SIZE.xl : MASCOT_SIZE.lg}
               contentFit="contain"
+              cachePolicy="memory-disk"
               accessibilityIgnoresInvertColors
             />
           )}

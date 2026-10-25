@@ -7,7 +7,6 @@ import NotificationSettingsScreen from '@/app/notification-settings';
 import SettingsScreen from '@/app/settings';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { resetSpotlights } from '@/lib/guide-state';
 import { loadNotificationSettings, openNotificationPermissionSettings, setNotificationToggle } from '@/lib/notifications';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
@@ -18,7 +17,6 @@ jest.mock('@/lib/reading/voice-feedback-setting', () => ({ loadVoiceFeedbackEnab
 jest.mock('@/lib/api', () => ({ api: { consentEntry: jest.fn(), recordConsent: jest.fn() } }));
 jest.mock('@/lib/store-review', () => ({ openStoreReviewPage: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: jest.fn() }));
-jest.mock('@/lib/guide-state', () => ({ resetSpotlights: jest.fn() }));
 jest.mock('@/lib/notifications', () => ({
   DEFAULT_NOTIFICATION_SETTINGS: { analysis_done: true, challenge: true, evening_reminder: true },
   loadNotificationSettings: jest.fn(),
@@ -143,7 +141,8 @@ describe('동의 내역', () => {
 
     expect(recordConsent).toHaveBeenCalledWith('d-email', 'granted');
     expect(await screen.findByText('광고성 정보 수신에 동의했어요')).toBeOnTheScreen();
-    for (const text of ['보낸 곳', 'Acttub', '처리일', '이메일', '수신 동의']) expect(screen.getByText(text)).toBeOnTheScreen();
+    // S5.13 토스트 — 「매체 · 보낸 곳 · 처리일」 한 줄과 바꾸는 곳 안내.
+    expect(screen.getByText(/^이메일 · Acttub · \d{4}\.\d{2}\.\d{2}$/)).toBeOnTheScreen();
     expect(sw().props.value).toBe(true);
   });
 
@@ -184,7 +183,7 @@ describe('동의 내역', () => {
 
     await fireEvent(sw(), 'valueChange', true);
 
-    expect(await screen.findByText('동의 문서가 새로 바뀌었어요. 다시 확인해주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('동의 문서가 새로 바뀌었어요. 다시 확인해 주세요.')).toBeOnTheScreen();
     expect(consentEntry).toHaveBeenCalledTimes(2);
   });
 
@@ -268,7 +267,7 @@ describe('알림 설정', () => {
     expect(notifSwitch(0).props.value).toBe(true);
     expect(notifSwitch(1).props.value).toBe(false);
     expect(notifSwitch(2).props.value).toBe(true);
-    expect(screen.getByText('좋아요·댓글·마감')).toBeOnTheScreen();
+    expect(screen.getByText('좋아요·댓글·마감 소식을 알려 드려요')).toBeOnTheScreen();
   });
 
   test('바꾸면 서버에 저장한 값으로 그린다', async () => {
@@ -351,15 +350,15 @@ describe('알림이 꺼져 있어요', () => {
 });
 
 describe('설정', () => {
-  test('개편 전처럼 묶음 제목 아래 아이콘·설명이 있는 카드로 둔다', async () => {
+  test('프로필 · 의견 · 기타 묶음으로 두고 보관함·Pro 줄은 없다', async () => {
     await settingsLoaded();
 
-    for (const label of ['프로필', '연습과 기록', '실험 기능', '의견', '계정']) expect(screen.getByText(label)).toBeOnTheScreen();
+    for (const label of ['프로필', '의견', '기타']) expect(screen.getByText(label)).toBeOnTheScreen();
+    // 「코치가 기억하는 것」 줄은 뺐다(10/25) — 기억은 배우에게 보여 주지 않는다.
+    for (const gone of ['보관함', /Pro/, '코치가 기억하는 것']) expect(screen.queryByText(gone)).not.toBeOnTheScreen();
     for (const sub of [
       '이름·성별·생년월일·방향·경력·목표와 사진, 한 줄 소개를 고쳐요.',
       '분석 완료·챌린지·저녁 연습 알림을 켜고 꺼요.',
-      '코치가 나에 대해 무엇을 기억하는지 보고 고칠 수 있어요.',
-      '처음 시작 안내를 다시 봐요',
     ]) expect(screen.getByText(sub)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '회원 탈퇴' })).toBeOnTheScreen();
   });
@@ -388,9 +387,7 @@ describe('설정', () => {
     ['프로필 수정', '/profile-edit'],
     ['웹 연습 가져오기', '/guest-transfer'],
     ['알림', '/notification-settings'],
-    ['보관함', '/archive'],
-    ['코치가 기억하는 것', '/memory'],
-    ['챌린지 기록', '/challenge-entries'],
+    ['챌린지', '/challenge-entries'],
     ['차단한 사용자', '/blocked-users'],
     ['동의 내역', '/consent-history'],
     ['회원 탈퇴', '/delete-account'],
@@ -400,11 +397,10 @@ describe('설정', () => {
     expect(mockRouter.push).toHaveBeenCalledWith(path);
   });
 
-  test('가이드 다시 보기는 비추기 안내도 되살리고 가이드를 연다', async () => {
+  test('보관함·가이드 다시 보기 줄은 없다(SOMA-820)', async () => {
     await settingsLoaded();
-    await fireEvent.press(screen.getByRole('button', { name: '가이드 다시 보기' }));
-    expect(resetSpotlights).toHaveBeenCalledTimes(1);
-    expect(mockRouter.push).toHaveBeenCalledWith('/guide');
+    expect(screen.queryByRole('button', { name: '보관함' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '가이드 다시 보기' })).not.toBeOnTheScreen();
   });
 
   test('앱 평가는 스토어 리뷰 화면을 연다', async () => {
@@ -420,8 +416,8 @@ describe('설정', () => {
   });
 
   describe('문의·신고 메일', () => {
-    test('메일 앱을 열 수 있으면 제목을 채워 연다', async () => {
-      jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(true);
+    test('canOpenURL 이 false 여도(안드로이드 11+ 패키지 가시성) 묻지 않고 제목을 채워 연다', async () => {
+      const canOpen = jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(false);
       const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
       await settingsLoaded();
 
@@ -430,10 +426,12 @@ describe('설정', () => {
       await waitFor(() =>
         expect(openURL).toHaveBeenCalledWith(`mailto:acttub0527@gmail.com?subject=${encodeURIComponent('[Acttub] 문의·신고')}`),
       );
+      expect(canOpen).not.toHaveBeenCalled();
+      expect(screen.queryByText('메일 앱을 열지 못했어요. acttub0527@gmail.com 으로 보내주세요.')).not.toBeOnTheScreen();
     });
 
-    test('열 수 없으면 주소를 알려 준다', async () => {
-      jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(false);
+    test('받을 메일 앱이 정말 없어 열기가 실패하면 주소를 알려 준다', async () => {
+      jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('No Activity found to handle Intent'));
       await settingsLoaded();
 
       await fireEvent.press(screen.getByRole('button', { name: '문의·신고 메일 보내기' }));

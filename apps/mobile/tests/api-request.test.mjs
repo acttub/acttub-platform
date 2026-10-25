@@ -529,7 +529,7 @@ test('W5: plain text 500과 Pydantic 422를 한국어 문구로 숨긴다', asyn
     (error) =>
       error instanceof ApiError &&
       error.status === 500 &&
-      error.message === '서버 오류가 발생했어요. 잠시 후 다시 시도해주세요.',
+      error.message === '서버 오류가 발생했어요. 잠시 후 다시 시도해 주세요.',
   );
   await assert.rejects(
     client.request('/v2/upload'),
@@ -538,4 +538,45 @@ test('W5: plain text 500과 Pydantic 422를 한국어 문구로 숨긴다', asyn
       error.status === 422 &&
       error.message === '입력값을 확인해주세요. 문제가 계속되면 영상을 다시 선택해주세요.',
   );
+});
+
+test('SOMA-829: 동시에 나간 같은 GET은 한 번만 보내고 응답 사본을 나눈다', async () => {
+  const calls = [];
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const { client } = createClient(async (url, init) => {
+    calls.push(`${init?.method ?? 'GET'} ${new URL(String(url)).pathname}`);
+    await gate;
+    return jsonResponse({ items: [1, 2] });
+  }, createTokenState());
+
+  const first = client.request('/v2/practices');
+  const second = client.request('/v2/practices');
+  const other = client.request('/v2/reading/scripts');
+  release();
+  const [a, b] = await Promise.all([first, second, other]);
+  assert.deepEqual(calls.sort(), ['GET /v2/practices', 'GET /v2/reading/scripts']);
+  assert.deepEqual(a, { items: [1, 2] });
+  assert.deepEqual(b, { items: [1, 2] });
+  b.items.push(3);
+  assert.deepEqual(a.items, [1, 2]);
+
+  await client.request('/v2/practices');
+  assert.equal(calls.filter((c) => c === 'GET /v2/practices').length, 2);
+});
+
+test('SOMA-829: POST와 취소 신호가 있는 GET은 합치지 않는다', async () => {
+  let count = 0;
+  const { client } = createClient(async () => {
+    count += 1;
+    return jsonResponse({ ok: true });
+  }, createTokenState());
+  const controller = new AbortController();
+  await Promise.all([
+    client.request('/v2/x', { method: 'POST', body: '{}' }),
+    client.request('/v2/x', { method: 'POST', body: '{}' }),
+    client.request('/v2/y', {}, { signal: controller.signal }),
+    client.request('/v2/y', {}, { signal: controller.signal }),
+  ]);
+  assert.equal(count, 4);
 });

@@ -65,6 +65,11 @@ class PosterRulesTest {
     }
 
     @Test
+    void everyEntryIsAnAcceptedFrequency() {
+        assertThat(PosterRules.check(draft().withFrequency("every"))).isEmpty();
+    }
+
+    @Test
     void eachRuleNamesTheFieldItBreaks() {
         assertThat(field(draft().withSlug("Bad Slug"))).isEqualTo("slug");
         assertThat(field(draft().withSlug(""))).isEqualTo("slug");

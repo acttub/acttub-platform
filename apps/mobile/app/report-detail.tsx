@@ -1,22 +1,26 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { useAppDialog } from '@/components/app-dialog';
+import { purgeVideoFileIfDue } from '@/lib/practice/upload-options';
 import { NoteSections } from '@/components/note-sections';
+import { SkeletonDetail } from '@/components/ui/skeleton';
 import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
+import { readOptionalJournal } from '@/lib/practice/journal';
 import { noteFallbackNotice, noteKindLabel, noteTitle, readOptionalPracticeNote } from '@/lib/practice/note';
 import { continueActionFor, continueActionLabel } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeDetail, PracticeGroupDetail, PracticeNote } from '@/lib/practice/types';
 
 /**
- * A12 지난 연습 노트 — 기록에서 회차를 누르면 열린다.
+ * A12 지난 연습 노트 — 기록에서 회차를 누르면 열린다. 배우 일지가 있는 회차는 일지 화면(app/journal)으로 넘긴다(SOMA-720).
  *
  * 회차 id 로 노트를 읽는다(practice.note). 영상이 파기된 뒤에도 노트는 열린다. 묶음에 열린 테이크가 있으면
  * 「대화 이어 가기」로 그 대화에 돌아가고, 없으면 「다음 테이크 찍기」로 같은 묶음의 다음 회차를 만든다 —
@@ -46,12 +50,20 @@ export default function ReportDetailScreen() {
     setError(null);
     setNote(null);
     try {
-      const [loadedNote, loadedPractice] = await Promise.all([
+      const [loadedNote, loadedPractice, journal] = await Promise.all([
         readOptionalPracticeNote(api.getPracticeNote, practiceId),
         api.getPractice(practiceId).catch(() => null),
+        // 배우 일지(SOMA-720)가 있는 회차는 같은 일지 화면에서 보고 고친다. 못 읽으면 지금처럼 노트를 보인다.
+        readOptionalJournal(api.getPracticeJournal, practiceId).catch(() => null),
       ]);
       if (revision !== loadRevision.current) return;
+      if (journal) {
+        router.replace({ pathname: '/journal', params: { practiceId, from: 'history' } });
+        return;
+      }
       setNote(loadedNote);
+      // 노트가 열렸으면 분석이 끝난 것이다 — 「분석 끝나면 영상 바로 지우기」를 골랐다면 지금 지운다.
+      if (loadedNote) void purgeVideoFileIfDue(practiceId).catch(() => undefined);
       setPractice(loadedPractice);
       if (!loadedNote) setError(t('note.none'));
     } catch {
@@ -59,7 +71,7 @@ export default function ReportDetailScreen() {
     } finally {
       if (revision === loadRevision.current) setLoading(false);
     }
-  }, [practiceId]);
+  }, [practiceId, router]);
 
   useEffect(() => {
     void load();
@@ -107,9 +119,7 @@ export default function ReportDetailScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('note.title'), headerShadowVisible: false }} />
       {loading && (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <SkeletonDetail lines={6} />
       )}
       {!loading && !note && <Text style={styles.error}>{error ?? t('note.none')}</Text>}
       {!loading && error === t('note.loadFail') && (
@@ -118,7 +128,7 @@ export default function ReportDetailScreen() {
         </Pressable>
       )}
       {note && (
-        <ScrollView contentContainerStyle={styles.body}>
+        <KeyboardAwareScroll contentContainerStyle={styles.body}>
           <View style={styles.heading}>
             <Text style={styles.kind}>{noteKindLabel(note.kind)}</Text>
             <Text style={styles.title}>{title}</Text>
@@ -134,7 +144,7 @@ export default function ReportDetailScreen() {
           <Pressable style={styles.primary} onPress={continuePractice} accessibilityRole="button">
             <Text style={styles.primaryText}>{t(continueActionLabel(action))}</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScroll>
       )}
       {dialog}
     </SafeAreaView>

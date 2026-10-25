@@ -26,6 +26,17 @@ final class VideoDtos {
             @NotNull @Positive Integer durationMs) {
     }
 
+    /**
+     * 올리기 마무리. 본문은 선택이다(예전처럼 본문 없이 보내도 된다). {@code face_mosaic} 이 true 면 이 영상의 첫 질문용 미리 올리기를
+     * 시작하지 않는다 — 원본이 코치 AI 쪽으로 가지 않는다(practice.start 얼굴 가리기).
+     */
+    @Schema(name = "VideoIntentCompleteRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record CompleteRequest(
+            @Schema(nullable = true, description = "얼굴 가리기. 기본 false. true 면 올리기가 끝나도 이 영상의 원본으로 첫 질문용 미리 올리기(코치 AI 쪽 업로드)를 시작하지 않는다. 이 영상으로 얼굴 가리기를 켜고 만든 회차는 가린 사본만 쓴다. 마무리 재전송(200)에는 영향이 없다.")
+            Boolean faceMosaic) {
+    }
+
     @Schema(name = "VideoIntent", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record IntentResponse(

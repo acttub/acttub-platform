@@ -12,6 +12,8 @@ import com.acttub.actingapi.feature.reading.adapter.decision.OpenRouterLineDecid
 import com.acttub.actingapi.feature.reading.app.LineDecider;
 import com.acttub.actingapi.feature.reading.app.MemorizationRepository;
 import com.acttub.actingapi.feature.reading.app.MemorizationService;
+import com.acttub.actingapi.feature.reading.app.ReadingExampleRepository;
+import com.acttub.actingapi.feature.reading.app.ReadingExampleService;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.RecordingPlayback;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository;
@@ -91,6 +93,11 @@ class ReadingConfiguration {
     ScriptService scriptService(
             ScriptRepository scripts, ReadingRecordingCleanup cleanup, CanonicalJson canonical, Clock clock) {
         return new ScriptService(scripts, cleanup, canonical, clock);
+    }
+
+    @Bean
+    ReadingExampleService readingExampleService(ReadingExampleRepository examples, ScriptService scripts, VoiceModelStorage storage) {
+        return new ReadingExampleService(examples, scripts, storage);
     }
 
     @Bean

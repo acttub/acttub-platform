@@ -11,7 +11,8 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   return { __esModule: true, default: storage };
 });
 const mockReplace = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace }) }));
+const mockDismissTo = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, dismissTo: mockDismissTo }) }));
 
 beforeEach(() => mockReplace.mockClear());
 
@@ -21,7 +22,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
 
   expect(screen.getByText('대본이 없어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockReplace).toHaveBeenCalledWith('/reading');
+  expect(mockDismissTo).toHaveBeenCalledWith('/reading');
 });
 
 test('대본의 장면·지문·대사를 순서대로 보여 준다', async () => {
@@ -43,7 +44,7 @@ test('대사 줄을 눌러 글을 고치면 서버에 고친 글만 보내고 �
   await render(<ReadingFull />);
 
   await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
-  await fireEvent.press(screen.getByText('대사 고치기'));
+  await fireEvent.press(screen.getByText('고치기'));
   await fireEvent.changeText(screen.getByLabelText('글'), '응, 늦어서 정말 미안해.');
   await fireEvent.press(screen.getByText('저장'));
 
@@ -57,7 +58,7 @@ test('지문 줄을 눌렀다가 취소하면 서버에 아무것도 보내지 �
   await render(<ReadingFull />);
 
   await fireEvent.press(screen.getByText('서연이 자리에 앉는다.'));
-  await fireEvent.press(screen.getByText('대사 고치기'));
+  await fireEvent.press(screen.getByText('고치기'));
   await fireEvent.press(screen.getByText('취소'));
 
   expect(screen.queryByText('저장')).not.toBeOnTheScreen();
@@ -70,9 +71,9 @@ test('줄을 누르면 고치기·나누기·지우기 메뉴가 뜨고, 고치�
 
   await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
   expect(screen.getByText('서연 · 응, 늦어서 미안해.')).toBeOnTheScreen();
-  expect(screen.getByText('둘로 나누기')).toBeOnTheScreen();
-  expect(screen.getByText('이 대사 지우기')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('대사 고치기'));
+  expect(screen.getByText('나누기')).toBeOnTheScreen();
+  expect(screen.getByText('지우기')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('고치기'));
   expect(screen.getByLabelText('글')).toBeOnTheScreen();
 });
 
@@ -83,7 +84,7 @@ test('이 대사 지우기는 한 번 묻고 지운 뒤 서버가 돌려준 대�
   await render(<ReadingFull />);
 
   await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
-  await fireEvent.press(screen.getByText('이 대사 지우기'));
+  await fireEvent.press(screen.getByText('지우기'));
   expect(screen.getByText('이 대사를 지울까요?')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('지우기'));
 
@@ -97,12 +98,12 @@ test('지우기를 취소하면 서버에 보내지 않고, 서버가 거절하�
   await render(<ReadingFull />);
 
   await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
-  await fireEvent.press(screen.getByText('이 대사 지우기'));
+  await fireEvent.press(screen.getByText('지우기'));
   await fireEvent.press(screen.getByText('취소'));
   expect(server.deleteLine).not.toHaveBeenCalled();
 
   await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
-  await fireEvent.press(screen.getByText('이 대사 지우기'));
+  await fireEvent.press(screen.getByText('지우기'));
   await fireEvent.press(screen.getByText('지우기'));
   expect(await screen.findByText('이 대사 하나만 연습한 기록이 있어 지울 수 없어요.')).toBeOnTheScreen();
   expect(screen.getByText('응, 늦어서 미안해.')).toBeOnTheScreen();
@@ -116,10 +117,10 @@ test('둘로 나누기는 문장 사이를 자를 곳으로 앞뒤 칸을 채워
   await render(<ReadingFull />);
 
   await fireEvent.press(screen.getByText('안녕하세요. 저는 이영입니다. 만나서 반갑습니다.'));
-  await fireEvent.press(screen.getByText('둘로 나누기'));
+  await fireEvent.press(screen.getByText('나누기'));
   expect(screen.getByLabelText('앞 대사')).toHaveDisplayValue('안녕하세요. 저는 이영입니다.');
   expect(screen.getByLabelText('뒤 대사')).toHaveDisplayValue('만나서 반갑습니다.');
-  await fireEvent.press(screen.getByText('나누기'));
+  await fireEvent.press(screen.getByRole('button', { name: '나누기' }));
 
   expect(await screen.findByText('만나서 반갑습니다.')).toBeOnTheScreen();
   expect(server.splitLine).toHaveBeenCalledWith('s1', 'l1', { first_text: '안녕하세요. 저는 이영입니다.', second_text: '만나서 반갑습니다.' });
@@ -131,11 +132,11 @@ test('나누기는 앞뒤 칸이 모두 있어야 누를 수 있고, 실패하�
   await render(<ReadingFull />);
 
   await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
-  await fireEvent.press(screen.getByText('둘로 나누기'));
+  await fireEvent.press(screen.getByText('나누기'));
   await fireEvent.changeText(screen.getByLabelText('뒤 대사'), '  ');
   expect(screen.getByRole('button', { name: '나누기' })).toBeDisabled();
   await fireEvent.changeText(screen.getByLabelText('뒤 대사'), '미안해.');
-  await fireEvent.press(screen.getByText('나누기'));
+  await fireEvent.press(screen.getByRole('button', { name: '나누기' }));
   expect(await screen.findByText('저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('취소'));
   expect(screen.queryByLabelText('앞 대사')).not.toBeOnTheScreen();
@@ -181,14 +182,14 @@ test('SOMA-806: 묶인 대사 안에서도 줄마다 메뉴가 열리고 그 줄
 
   await fireEvent.press(screen.getByText('잠깐만 기다려 봐.'));
   expect(screen.getByText('민재 · 잠깐만 기다려 봐.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('둘로 나누기'));
+  await fireEvent.press(screen.getByText('나누기'));
   expect(screen.getByLabelText('앞 대사')).toHaveDisplayValue('잠깐만');
   expect(screen.getByLabelText('뒤 대사')).toHaveDisplayValue('기다려 봐.');
   await fireEvent.press(screen.getByText('취소'));
 
   await fireEvent.press(screen.getByText('왜 대답을 안 해?'));
   expect(screen.getByText('민재 · 왜 대답을 안 해?')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('대사 고치기'));
+  await fireEvent.press(screen.getByText('고치기'));
   await fireEvent.press(screen.getByRole('radio', { name: '서연' }));
   await fireEvent.press(screen.getByText('저장'));
 
@@ -196,4 +197,44 @@ test('SOMA-806: 묶인 대사 안에서도 줄마다 메뉴가 열리고 그 줄
   await waitFor(() => expect(server.patchLine).toHaveBeenCalledWith('s1', 'l5', { character_id: 'c2' }));
   await waitFor(() => expect(screen.getAllByText('민재')).toHaveLength(2));
   expect(screen.getAllByText('서연')).toHaveLength(1);
+});
+
+test('아래에 추가는 고른 줄 아래에 빈 칸을 열고, 상대 배역이 먼저 골라져 있으며, 적은 글을 그 줄 id 로 보낸다(SOMA-816)', async () => {
+  const added = scriptDetail([...TWO_ROLE_LINES.slice(0, 4), ['dialogue', '민재', '정말 괜찮아.'], TWO_ROLE_LINES[4]]);
+  const { server } = await openFixtureScript();
+  server.insertLineAfter.mockResolvedValue(added);
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  await fireEvent.press(screen.getByText('아래에 추가'));
+  expect(screen.getByRole('radio', { name: '지문' })).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: '민재' })).toBeSelected();
+  expect(screen.getByRole('button', { name: '추가' })).toBeDisabled();
+  await fireEvent.changeText(screen.getByLabelText('새 대사를 적어 주세요'), ' 정말 괜찮아. ');
+  await fireEvent.press(screen.getByText('추가'));
+
+  expect(await screen.findByText('정말 괜찮아.')).toBeOnTheScreen();
+  expect(server.insertLineAfter).toHaveBeenCalledWith('s1', 'l4', { kind: 'dialogue', character_id: expect.any(String), text: '정말 괜찮아.' });
+  expect(screen.queryByLabelText('새 대사를 적어 주세요')).not.toBeOnTheScreen();
+});
+
+test('아래에 추가에서 지문을 고르면 배역 없이 보내고, 취소하면 아무것도 보내지 않으며, 실패하면 칸 안에 알린다(SOMA-816)', async () => {
+  const { server } = await openFixtureScript();
+  server.insertLineAfter.mockRejectedValue(new Error('offline'));
+  await render(<ReadingFull />);
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  await fireEvent.press(screen.getByText('아래에 추가'));
+  await fireEvent.press(screen.getByText('취소'));
+  expect(screen.queryByLabelText('새 대사를 적어 주세요')).not.toBeOnTheScreen();
+  expect(server.insertLineAfter).not.toHaveBeenCalled();
+
+  await fireEvent.press(screen.getByText('응, 늦어서 미안해.'));
+  await fireEvent.press(screen.getByText('아래에 추가'));
+  await fireEvent.press(screen.getByRole('radio', { name: '지문' }));
+  await fireEvent.changeText(screen.getByLabelText('새 대사를 적어 주세요'), '(사이)');
+  await fireEvent.press(screen.getByText('추가'));
+  expect(await screen.findByText('저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
+  expect(server.insertLineAfter).toHaveBeenCalledWith('s1', 'l4', { kind: 'direction', text: '(사이)' });
+  expect(screen.getByLabelText('새 대사를 적어 주세요')).toBeOnTheScreen();
 });

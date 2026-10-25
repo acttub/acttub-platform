@@ -983,6 +983,13 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     - **스위치가 둘이고 둘 다 켜져야 돈다**: `ANALYSIS_WORKER_ENABLED`(분석·기억·챌린지 리포트 워커와 공유 — 격리 복원 때 함께 끄는 스위치는
       [DEPLOY-HOME §7](../../docs/deploy/DEPLOY-HOME.md#7-db와-호스트-복구))와 `VIDEO_POSTER_ENABLED`(포스터만). 테스트는 후자를 전역으로
       끄고 워커를 직접 부른다.
+  - **챌린지 얼굴 모자이크**(`challenge_entries.face_mosaic`·`mosaic_status`·`mosaic_key`·`mosaic_attempts`, V54, SOMA-809):
+    `challenge/app/EntryMosaicWorker` 가 포스터와 같은 모양(집기 · 받기 · 만들기 · 올리기 · 붙이기)으로 돈다. 만들기는
+    `integration/media/FaceMosaicRenderer`(ffmpeg 로 30fps 프레임을 풀어 YuNet(`YuNetFaceDetector`, openpnp OpenCV)으로 얼굴을 찾고
+    넓힌 상자를 픽셀 모자이크한 뒤 다시 압축)이다. 붙이기는 `users` → 참여작 → 영상(`FOR SHARE`) 순서로 잡고, 붙이지 못하면 사본을
+    장부에 올린다. 공개 조건(`ChallengeVisibility.PUBLIC_ENTRY`)과 종료 집계는 `NOT face_mosaic OR mosaic_status='ready'` 를 더하고,
+    다른 사람의 재생 주소는 `EntryCards` 가 모자이크본으로 바꾼다. 스위치는 `ANALYSIS_WORKER_ENABLED` 와
+    `CHALLENGE_MOSAIC_ENABLED`(테스트는 후자를 전역으로 끈다).
   - **이관**은 `video/app/VideoOwnership` 이 `videos` 와 **예약 장부**를 함께 옮긴다(§6-9의 순서에서 올린 영상 바로
     뒤다). 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다.
 - **회차**(`/v2/practices/**`, `feature/practice` 의 0.1.0 코드)
@@ -1400,6 +1407,27 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   소유권과 겹친 요청을 한 문장에서 가른다.
 - 모델 호출(저장소에서 녹음 받기 포함)은 트랜잭션 밖이다(§5-4). 모델은 @Primary 코칭 키 클라이언트와
   `ACTTUB_RECORDING_COACH_MODEL`(비면 `GEMINI_MODEL`)을 쓴다.
+
+### 6-29. 찍을 대사 같이 만들기 (SOMA-721)
+
+- 행동 계약은 [reading.cocreate](../../docs/specs/reading/cocreate.md)가 정본이고 `ScriptCocreateIT`·`ScriptCocreateServiceTest`가 지킨다.
+  늘 켜진 경로(`/v2/sample-scripts`)라 OpenAPI 스냅샷과 웹 생성 타입에 든다.
+- 표 `script_cocreations`(V56)는 native SQL 만 쓴다(Schema Entity 없음). (user_id, request_id) 유일 — 만드는 중 줄(versions NULL)을 먼저
+  넣어 겹친 생성이 모델을 두 번 부르지 않게 한다. 수정은 `current_version`·`revisions_used`·`busy_since`를 조건으로 건 UPDATE 한 문장으로
+  잡는다. 사람에 ON DELETE CASCADE, 확정한 대본(`script_id`)에 ON DELETE SET NULL. 탈퇴의 리딩 파기가 행을 지운다.
+- 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 @Primary 코칭 키 클라이언트와 `ACTTUB_SAMPLE_SCRIPT_MODEL`(기본 gemini-4-argon)이다.
+- 확정은 `ScriptService.create`를 그대로 부른다(출처 `typed`, 요청 id 는 생성 기록 id). 리딩 대본 계약은 바뀌지 않는다.
+
+### 6-30. 배우 일지 (SOMA-720)
+
+- 행동 계약은 [practice.journal](../../docs/specs/practice/journal.md)이 정본이고 `JournalServiceTest`·`ActorJournalTest`가 지킨다.
+  늘 켜진 경로(`/v2/practices/{practice_id}/journal`)라 OpenAPI 스냅샷과 웹 생성 타입에 든다.
+- 표 `actor_journals`(V59)는 native SQL 만 쓴다(Schema Entity 없음). 회차마다 한 행(`uq_actor_journals_practice`) — 만드는 중(pending)
+  행을 먼저 넣어 겹친 생성이 모델을 두 번 부르지 않게 한다. 생성 결과는 `draft_status='pending' AND edited_at IS NULL` 조건으로만 쓴다.
+  배우 답(`answers`)과 자동 칸(`draft`)은 따로 둔 JSON 글이다. 사람·회차에 ON DELETE CASCADE, 대화에 ON DELETE SET NULL. 탈퇴의 연습 파기가 행을 지운다.
+- 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 연습 노트와 같은 `OpenAiTextGenerators.report()`(노트용 키)이고 기록 단계는 `report`
+  (`report_type=actor_journal`)다. 프롬프트 `coaching/journal-create.txt` 는 10/19 채택 v4 원문 그대로다.
+- 코칭 숙제 알림(`PostgresPracticeReminderRepository.latestHomework`)은 그 회차 일지의 「다음에 해 볼 것」이 있으면 노트 제안보다 먼저 쓴다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

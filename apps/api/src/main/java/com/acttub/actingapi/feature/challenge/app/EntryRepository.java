@@ -23,8 +23,11 @@ public interface EntryRepository {
     /** 같은 요청 id 로 이미 만든 참여작(삭제된 것 포함). 없으면 {@code null}. */
     Replay replay(UUID owner, UUID requestId);
     Creation create(UUID owner, UUID challengeId, UUID requestId, String fingerprint, NewEntry entry, Instant now);
-    /** @param caption {@code null} 이면 그대로, 빈 문자열이면 지운다 @param visibility {@code null} 이면 그대로 */
-    MyEntry update(UUID owner, UUID entryId, String caption, String visibility, Instant now);
+    /**
+     * @param caption {@code null} 이면 그대로, 빈 문자열이면 지운다 @param visibility {@code null} 이면 그대로
+     * @param faceMosaic {@code null} 이면 그대로. 켜면 모자이크본을 새로 만들고(실패했던 것은 다시 시도), 끄면 만든 사본을 지운다
+     */
+    MyEntry update(UUID owner, UUID entryId, String caption, String visibility, Boolean faceMosaic, Instant now);
     void delete(UUID owner, UUID entryId, Instant now);
     /** @return 사건을 새로 반영했으면 {@code true}(본인 재생·같은 사건 재전송은 {@code false}) */
     boolean view(UUID viewer, UUID entryId, UUID eventId, Instant now);
@@ -36,11 +39,28 @@ public interface EntryRepository {
      */
     PublicEntry publicEntry(UUID entryId);
     MyEntries mine(UUID owner, String category, String cursor);
+    /**
+     * 모자이크본을 만들 참여작 하나를 집는다 — 시도 횟수를 올려 커밋한다. 상한에 닿은 채 남은 것은 실패로 닫는다.
+     * 없으면 {@code null}.
+     */
+    MosaicJob claimMosaic(int maxAttempts, Instant now);
+    /**
+     * 만든 모자이크본을 붙인다. 그 사이 참여작이 지워졌거나 모자이크를 껐거나 영상·계정이 사라졌으면 붙이지 않고 올린
+     * 객체를 정리 장부에 올린다. @return 장부 id(커밋 뒤에 한 번 시도할 것)
+     */
+    List<UUID> attachMosaic(MosaicJob job, String mosaicKey, Instant now);
+    /** 모자이크본을 만들 수 없다 — 실패로 닫는다(다른 사람에게 보이지 않는다). 이미 바뀐 참여작은 두지 않는다. */
+    void failMosaic(MosaicJob job, Instant now);
     /** 매시 도는 일: 마감이 지난 챌린지의 집계·확정과 기한 지난 조회수 사건·커서 정리. */
     int settle(Instant now);
 
     record OwnVideo(UUID id, String objectKey, int declaredDurationMs, boolean purged) { }
-    record NewEntry(UUID videoId, String caption, String visibility) { }
+    record NewEntry(UUID videoId, String caption, String visibility, boolean faceMosaic) { }
+    /** 모자이크 한 번. {@code attempts} 는 이번을 센 시도 수다. */
+    /** 본인 참여작의 원본 주소 설명(SOMA-809). playback_url 이 모자이크본일 때만 채운다. */
+    String ORIGINAL_DESC = "본인 참여작이고 얼굴 모자이크본이 준비됐을 때만 원본 주소. 그때 playback_url 은 모자이크본이다. 그 밖에는 null";
+
+    record MosaicJob(UUID entryId, UUID userId, String objectKey, int attempts) { }
     record Replay(String fingerprint, MyEntry entry) { }
     record Creation(MyEntry entry, boolean created) { }
     /** 공유 미리보기에 싣는 장면. 작성자는 담지 않는다. */
@@ -60,6 +80,7 @@ public interface EntryRepository {
                      @Schema(requiredMode = REQUIRED, nullable = true, description = "종료 뒤 저장된 좋아요 수") Long finalLikeCount,
                      @Schema(requiredMode = REQUIRED, nullable = true) Instant publishedAt,
                      @Schema(requiredMode = REQUIRED, nullable = true) String playbackUrl,
+                     @Schema(requiredMode = REQUIRED, nullable = true, description = ORIGINAL_DESC) String originalPlaybackUrl,
                      @Schema(requiredMode = REQUIRED) boolean liked,
                      @Schema(requiredMode = REQUIRED) boolean saved,
                      @Schema(requiredMode = REQUIRED) boolean isMine,
@@ -91,6 +112,7 @@ public interface EntryRepository {
                    @Schema(requiredMode = REQUIRED, nullable = true) Long finalLikeCount,
                    @Schema(requiredMode = REQUIRED, nullable = true) Instant publishedAt,
                    @Schema(requiredMode = REQUIRED, nullable = true) String playbackUrl,
+                   @Schema(requiredMode = REQUIRED, nullable = true, description = ORIGINAL_DESC) String originalPlaybackUrl,
                    @Schema(requiredMode = REQUIRED) boolean liked,
                    @Schema(requiredMode = REQUIRED) boolean saved,
                    @Schema(requiredMode = REQUIRED) boolean isMine,
@@ -100,7 +122,15 @@ public interface EntryRepository {
                            description = "P03 분류. 확인 중 → 비공개 → 공개 순으로 한 곳에만 든다") String category,
                    @Schema(requiredMode = REQUIRED) boolean challengeHidden,
                    @Schema(requiredMode = REQUIRED) Parent challenge,
-                   @Schema(requiredMode = REQUIRED) Instant createdAt) { }
+                   @Schema(requiredMode = REQUIRED) Instant createdAt,
+                   @Schema(requiredMode = REQUIRED, description = "얼굴 모자이크를 켰는가. 켜면 다른 사람은 모자이크본만 본다")
+                   boolean faceMosaic,
+                   @Schema(requiredMode = REQUIRED, nullable = true, allowableValues = {"pending", "ready", "failed"},
+                           description = "모자이크본 상태. 끈 참여작은 null. ready 전에는 공개여도 다른 사람에게 보이지 않는다")
+                   String mosaicStatus,
+                   @Schema(requiredMode = REQUIRED, nullable = true,
+                           description = "영상 첫 장면 JPEG 의 서명 주소(원본에서 뜬다). 아직 없거나 파기된 영상은 null")
+                   String posterUrl) { }
 
     @Schema(name = "MyChallengeEntryCounts", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

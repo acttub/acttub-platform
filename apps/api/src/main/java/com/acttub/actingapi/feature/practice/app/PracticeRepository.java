@@ -30,6 +30,12 @@ public interface PracticeRepository {
      * @param from 이어받을 회차. 그 회차의 묶음에 닫히지 않은 회차가 있으면 {@link StartOutcome#IN_PROGRESS}
      * @param videoId {@code null} 이면 이어받을 회차의 영상을 그대로 쓴다
      */
+    /**
+     * 영상 없이 말로 하는 회차(SOMA-745). 영상 확인·분석 작업·분석 한도 없이 첫 회차를 바로 {@code conversing} 으로 만든다.
+     * 같은 요청 id 재전송 규칙은 {@link #start} 와 같다.
+     */
+    Started startWithoutVideo(UUID userId, NewPractice practice, Instant now);
+
     Started continueGroup(UUID userId, UUID from, UUID videoId, NewPractice practice, Quota quota, Instant now);
 
     /**
@@ -55,14 +61,24 @@ public interface PracticeRepository {
             String subBranch,
             String blockageNote,
             String title,
-            String sessionPurpose) {
+            String sessionPurpose,
+            // 얼굴 가리기. null 이면 끔이고, 이어하기에서는 이어받을 회차의 값이다.
+            Boolean faceMosaic) {
 
         /** 세션 목적이 없던 때의 모양. */
         public NewPractice(UUID requestId, String fingerprint, UUID videoId, String experienceVersion, String situation,
                 String characterContext, String goal, String blockageKind, String subBranch, String blockageNote,
                 String title) {
             this(requestId, fingerprint, videoId, experienceVersion, situation, characterContext, goal, blockageKind,
-                    subBranch, blockageNote, title, null);
+                    subBranch, blockageNote, title, null, null);
+        }
+
+        /** 얼굴 가리기가 없던 때의 모양. */
+        public NewPractice(UUID requestId, String fingerprint, UUID videoId, String experienceVersion, String situation,
+                String characterContext, String goal, String blockageKind, String subBranch, String blockageNote,
+                String title, String sessionPurpose) {
+            this(requestId, fingerprint, videoId, experienceVersion, situation, characterContext, goal, blockageKind,
+                    subBranch, blockageNote, title, sessionPurpose, null);
         }
     }
 

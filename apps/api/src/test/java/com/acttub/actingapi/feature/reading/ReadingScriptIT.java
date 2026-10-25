@@ -579,6 +579,54 @@ class ReadingScriptIT {
     }
 
     @Test
+    @DisplayName("reading.script: 줄 아래에 추가 — 새 줄은 고른 줄 바로 뒤에 들어가고 뒤 줄들이 밀린다. 기존 줄 id·녹음·외운 줄·회차 구간은 그대로이고, 배역·지문 규칙을 어기면 422 invalid_line, 없는 줄·남의 대본은 404(SOMA-816)")
+    void readingScript_insertingALineBelowShiftsTheRest() throws Exception {
+        JsonNode saved = json(post("/v2/reading/scripts").content(sample(UUID.randomUUID(), "갈매기")), 201);
+        UUID scriptId = UUID.fromString(saved.path("id").textValue());
+        UUID nina = UUID.fromString(saved.path("characters").get(0).path("id").textValue());
+        UUID hello = UUID.fromString(saved.path("lines").get(2).path("id").textValue());
+        UUID ends = session(scriptId, member, List.of(nina), "in_progress", clock.instant());
+        jdbc.update("UPDATE reading_sessions SET end_line_id=? WHERE id=?", hello, ends);
+        recording(member, ends, hello, "reading/" + member + "/" + ends + "/" + hello + "/a.m4a");
+        jdbc.update("INSERT INTO line_memorization(id,user_id,line_id,status) VALUES (?,?,?,'memorized')", UUID.randomUUID(), member, hello);
+
+        ObjectNode body = mapper.createObjectNode().put("kind", "dialogue").put("character_id", nina.toString()).put("text", " 새 대사 ");
+        JsonNode inserted = json(post("/v2/reading/scripts/{id}/lines/{line}/insert-after", scriptId, hello).content(body.toString()), 200);
+
+        JsonNode lines = inserted.path("lines");
+        assertThat(lines).hasSize(7);
+        assertThat(lines.get(2).path("id").textValue()).isEqualTo(hello.toString());
+        assertThat(lines.get(3).path("text").textValue()).isEqualTo("새 대사");
+        assertThat(lines.get(3).path("character_id").textValue()).isEqualTo(nina.toString());
+        assertThat(lines).extracting(line -> line.path("ordinal").intValue()).containsExactly(1, 2, 3, 4, 5, 6, 7);
+        assertThat(lines).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
+                .containsExactly(null, null, 1, 2, 3, null, 4);
+        assertThat(jdbc.queryForObject("SELECT line_id FROM reading_recordings", UUID.class)).isEqualTo(hello);
+        assertThat(jdbc.queryForObject("SELECT line_id FROM line_memorization", UUID.class)).isEqualTo(hello);
+        assertThat(jdbc.queryForObject("SELECT end_line_id FROM reading_sessions WHERE id=?", UUID.class, ends)).isEqualTo(hello);
+
+        ObjectNode direction = mapper.createObjectNode().put("kind", "direction").put("text", "(사이)");
+        JsonNode withDirection = json(post("/v2/reading/scripts/{id}/lines/{line}/insert-after", scriptId, hello).content(direction.toString()), 200);
+        assertThat(withDirection.path("lines").get(3).path("kind").textValue()).isEqualTo("direction");
+        assertThat(withDirection.path("lines").get(3).path("character_id").isNull()).isTrue();
+
+        for (ObjectNode bad : List.of(
+                mapper.createObjectNode().put("kind", "dialogue").put("text", "배역 없음"),
+                mapper.createObjectNode().put("kind", "dialogue").put("character_id", UUID.randomUUID().toString()).put("text", "남의 배역"),
+                mapper.createObjectNode().put("kind", "direction").put("character_id", nina.toString()).put("text", "지문에 배역"))) {
+            assertThat(json(post("/v2/reading/scripts/{id}/lines/{line}/insert-after", scriptId, hello).content(bad.toString()), 422))
+                    .isEqualTo(mapper.readTree("{\"detail\":\"invalid_line\"}"));
+        }
+        assertThat(json(post("/v2/reading/scripts/{id}/lines/{line}/insert-after", scriptId, hello)
+                .content(mapper.createObjectNode().put("kind", "direction").put("text", "  ").toString()), 422).path("detail").isArray()).isTrue();
+        assertThat(json(post("/v2/reading/scripts/{id}/lines/{line}/insert-after", scriptId, UUID.randomUUID()).content(direction.toString()), 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"line_not_found\"}"));
+        assertThat(json(post("/v2/reading/scripts/{id}/lines/{line}/insert-after", UUID.randomUUID(), hello).content(direction.toString()), 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"script_not_found\"}"));
+        assertThat(count("script_lines")).isEqualTo(8);
+    }
+
+    @Test
     @DisplayName("reading.script: 이름을 빈 값으로 — 422 invalid_characters. 같은 대본의 다른 배역과 같은 이름으로 — 422 invalid_characters. 저장 때도 같고, 두 이름을 맞바꾸는 것은 된다")
     void readingScript_blankOrDuplicateNamesAreRejected() throws Exception {
         for (List<String> names : List.of(List.of("니나", "   "), List.of("니나", " 니나 "))) {

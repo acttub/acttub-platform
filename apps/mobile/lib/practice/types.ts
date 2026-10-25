@@ -149,6 +149,16 @@ export type CreatePracticeBody = {
   title?: string;
   scene: PracticeScene;
   blockage: PracticeBlockage;
+  /** 얼굴 가리기(P3.26). 선택 — 켠 때만 싣고, 서버가 모르면 무시한다. */
+  face_mosaic?: boolean;
+};
+
+/**
+ * 영상 없이 말로 시작(SOMA-745). video_id 를 싣지 않고 목적만 보낸다 — 서버가 분석 없이 바로 대화 단계 회차를 만든다.
+ */
+export type CreateTalkPracticeBody = {
+  request_id: string;
+  session_purpose: 'stuck' | 'character' | 'concern';
 };
 
 /** 이어하기. video_id가 없으면 서버가 이전 회차의 영상을 그대로 쓴다. */
@@ -157,6 +167,7 @@ export type ContinuePracticeBody = {
   video_id?: string;
   scene: PracticeScene;
   blockage: PracticeBlockage;
+  face_mosaic?: boolean;
 };
 
 // ─── 대화(practice.coach) ────────────────────────────────────────────────────
@@ -174,7 +185,21 @@ export type CoachMessage = {
  * 회차와 1:1 인 대화. 열린 대화는 같은 id 로 재개하고, 닫힌 뒤 다시 코칭하려면 새 회차다.
  * 동시 요청은 revision 으로 가른다(다르면 409 conversation_conflict).
  */
+export type CoachPurpose = {
+  purpose: 'evaluate' | 'stuck' | 'character' | 'concern';
+  step: string;
+  choices: { label: string; at: number | null }[];
+  scene: { situation: string; character: string; partner: string } | null;
+  lines: { at: number | null; text: string }[];
+  card: { good: CoachCardItem | null; issue: CoachCardItem | null; next: CoachCardItem | null } | null;
+  character_card: { cells: { key: string; label: string; value: string; source: string }[] } | null;
+};
+export type CoachCardItem = { at: number | null; text: string };
+
 export type CoachConversation = {
+  purpose?: CoachPurpose | null;
+  /** 목적 없는 질문 대화에서 지금 코치 질문 아래에 보일 예시 답(0~2개). 옛 서버는 보내지 않는다. */
+  answer_examples?: string[];
   id: string;
   practice_id: string | null;
   status: ConversationStatus;

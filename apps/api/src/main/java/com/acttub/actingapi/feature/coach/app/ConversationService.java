@@ -21,6 +21,7 @@ import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * 0.1.0 회차의 코치 대화 (practice.coach, practice.note).
@@ -231,7 +232,8 @@ public class ConversationService {
                     replyLimit(loaded.session()),
                     originalTurns,
                     "closed".equals(replayed.status()) ? conversations.note(userId, loaded.practiceId()) : null,
-                    PurposeView.from(loaded.session().sessionPurpose(), loaded.session().coachingState()));
+                    PurposeView.from(loaded.session().sessionPurpose(), loaded.session().coachingState()),
+                    AnswerExamples.from(loaded.session().sessionPurpose(), loaded.session().coachingState()));
         }
         if ("closed".equals(loaded.session().status())) {
             throw new ApiException(409, "conversation_closed");
@@ -257,10 +259,14 @@ public class ConversationService {
         if (saved == null) {
             throw new ApiException(409, "conversation_conflict");
         }
+        // 이어 가던 대화가 다시 정리되면 있던 노트를 고친다. 새로 만들지 못하면 있던 노트를 그대로 보여 준다.
+        boolean resumed = isResumed(loaded.session().coachingState());
         NoteView note = closing
-                ? activeOnly(() -> notes.write(loaded, result, saved.revision(), clock.instant()))
+                ? activeOnly(() -> resumed ? notes.write(loaded, result, saved.revision(), clock.instant(), true)
+                        : notes.write(loaded, result, saved.revision(), clock.instant()))
                 : null;
-        if (closing && closedListener != null) {
+        if (closing && resumed && note == null) note = conversations.note(userId, loaded.practiceId());
+        if (closing && !resumed && closedListener != null) {
             // 노트가 남은 뒤에 알린다 — 확인 연습을 세는 쪽이 이번 회차의 노트를 보아야 한다.
             closedListener.onConversationClosed(userId, loaded.practiceId());
         }
@@ -275,7 +281,56 @@ public class ConversationService {
                 displayLimit(result.session(), saved.coachReplyCount()),
                 turns(after.session()).stream().limit(result.session().turns().size()).toList(),
                 note,
-                PurposeView.from(result.session().sessionPurpose(), result.session().coachingState()));
+                PurposeView.from(result.session().sessionPurpose(), result.session().coachingState()),
+                AnswerExamples.from(result.session().sessionPurpose(), result.session().coachingState()));
+    }
+
+    /**
+     * 닫힌 대화를 같은 대화로 다시 연다(SOMA-782 「더 얘기하기」). 새 회차·새 대화를 만들지 않으므로 무료 횟수와 통계에
+     * 새 코칭으로 잡히지 않는다. 이미 열려 있으면 그대로 돌려준다(재전송). 코치 응답 상한에 가까우면 409
+     * {@code conversation_limit_reached}, 신형이 아니거나 연기 영상이 아니어서 끊긴 대화면 409
+     * {@code conversation_not_resumable} 이다. 코치 프롬프트는 건드리지 않는다 — 다음 배우 말부터 평소 규칙으로 이어진다.
+     */
+    public Turn resume(UUID userId, UUID conversationId, Long revision) {
+        Loaded loaded = require(conversations.loadByConversation(userId, conversationId));
+        CoachSessionSnapshot session = loaded.session();
+        if (!"closed".equals(session.status())) {
+            return turn(session, conversationId, conversations.note(userId, loaded.practiceId()));
+        }
+        if (revision != null && revision != session.stateRevision()) {
+            throw new ApiException(409, "conversation_conflict");
+        }
+        if (!session.threeLayers() || DirectVideoPracticeLoop.wasCut(session.coachingState())) {
+            throw new ApiException(409, "conversation_not_resumable");
+        }
+        int replies = coachReplies(session);
+        if (replies >= THREE_LAYERS_REPLY_LIMIT - 2) {
+            throw new ApiException(409, "conversation_limit_reached");
+        }
+        ObjectNode state = session.coachingState() instanceof ObjectNode object
+                ? object.deepCopy() : CoachingStateReducer.empty();
+        state.put("revision", session.stateRevision() + 1);
+        // 두 갈래(연습 루프·목적별 코칭)가 각자 상태 칸을 읽으므로 있는 칸마다 표시한다.
+        boolean marked = false;
+        for (String key : List.of(DirectVideoPracticeLoop.STATE_KEY, PurposeLoop.STATE_KEY)) {
+            if (state.get(key) instanceof ObjectNode loop) {
+                loop.put(PracticeLoopRouter.RESUMED_AT, replies);
+                marked = true;
+            }
+        }
+        if (!marked) state.putObject(DirectVideoPracticeLoop.STATE_KEY).put(PracticeLoopRouter.RESUMED_AT, replies);
+        Saved reopened = activeOnly(() -> conversations.reopen(conversationId, session.stateRevision(), state, clock.instant()));
+        if (reopened == null) {
+            throw new ApiException(409, "conversation_conflict");
+        }
+        Loaded after = require(conversations.loadByConversation(userId, conversationId));
+        return turn(after.session(), conversationId, conversations.note(userId, loaded.practiceId()));
+    }
+
+    /** 한 번이라도 다시 열었던 대화인가. */
+    private static boolean isResumed(JsonNode state) {
+        return PurposeLoop.resumedAt(PurposeLoop.loop(state)) >= 0
+                || PurposeLoop.resumedAt(state == null ? null : state.path(DirectVideoPracticeLoop.STATE_KEY)) >= 0;
     }
 
     /** 대화 하나를 턴과 함께. 409 뒤 화면이 최신 상태를 다시 읽는 자리다. */
@@ -312,11 +367,22 @@ public class ConversationService {
             List<ConversationRepository.Turn> turns,
             NoteView note,
             // 목적별 코칭(SOMA-719)의 버튼·장면·카드. 목적 없이 시작한 대화는 null.
-            PurposeView purpose) {
+            PurposeView purpose,
+            // 목적 없는 질문 대화의 지금 질문 예시 답 1~2개. 없으면 빈 목록이다.
+            List<String> answerExamples) {
+
+        public Turn {
+            answerExamples = answerExamples == null ? List.of() : List.copyOf(answerExamples);
+        }
+
+        public Turn(UUID conversationId, String status, String closeReason, long revision, String coachMessage,
+                int coachReplyCount, int replyLimit, List<ConversationRepository.Turn> turns, NoteView note, PurposeView purpose) {
+            this(conversationId, status, closeReason, revision, coachMessage, coachReplyCount, replyLimit, turns, note, purpose, List.of());
+        }
 
         public Turn(UUID conversationId, String status, String closeReason, long revision, String coachMessage,
                 int coachReplyCount, int replyLimit, List<ConversationRepository.Turn> turns, NoteView note) {
-            this(conversationId, status, closeReason, revision, coachMessage, coachReplyCount, replyLimit, turns, note, null);
+            this(conversationId, status, closeReason, revision, coachMessage, coachReplyCount, replyLimit, turns, note, null, List.of());
         }
     }
 
@@ -332,7 +398,8 @@ public class ConversationService {
                 displayLimit(session, coachReplies(session)),
                 turns,
                 note,
-                PurposeView.from(session.sessionPurpose(), session.coachingState()));
+                PurposeView.from(session.sessionPurpose(), session.coachingState()),
+                AnswerExamples.from(session.sessionPurpose(), session.coachingState()));
     }
 
     private static List<ConversationRepository.Turn> turns(CoachSessionSnapshot session) {
@@ -357,7 +424,10 @@ public class ConversationService {
     static int displayLimit(CoachSessionSnapshot session, int coachReplies) {
         int limit = replyLimit(session);
         // 목적별 코칭은 상한을 채우는 응답이 정리이고 그 응답에서 닫힌다.
-        if (PurposeLoop.of(session) != null) return Math.min(limit, PurposeLoop.REPLY_CAP);
+        if (PurposeLoop.of(session) != null) {
+            int resumed = session == null ? -1 : PurposeLoop.resumedAt(PurposeLoop.loop(session.coachingState()));
+            return Math.min(limit, PurposeLoop.REPLY_CAP + Math.max(0, resumed));
+        }
         if (session == null || !"open".equals(session.status()) || session.coachingState() == null) return limit;
         var statuses = session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
         if (!statuses.isArray() || statuses.isEmpty()) return limit;

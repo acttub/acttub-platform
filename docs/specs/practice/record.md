@@ -22,7 +22,7 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `POST /v2/videos/intents` | `X-Request-Id`(있으면 본문 request_id와 같아야 한다), 필수 `request_id`·`content_type`(video/mp4·video/quicktime)·`byte_size`·`duration_ms` (`VideoIntentRequest`) | `VideoIntent` 201(올릴 주소·만료 시각), 같은 요청 id는 같은 자리 | `video_too_large` 422, `video_too_long` 422, `video_quota` 422, `request_fingerprint_mismatch` 422, 그 밖의 형식 422(배열), `consent_required` 403 |
-| `POST /v2/videos/intents/{intent_id}/complete` | intent_id | `Video` 201(새로 만듦)·200(재전송) | `upload_expired` 422, `video_not_ready` 422(아직 안 올라옴·크기 불일치), `video_quota` 422, `upload_intent_not_found` 404, `consent_required` 403 |
+| `POST /v2/videos/intents/{intent_id}/complete` | intent_id, 선택 본문 `{"face_mosaic": true}`(`VideoIntentCompleteRequest`, 없으면 예전과 같다. true 면 첫 질문용 미리 올리기를 시작하지 않는다 — [practice.start](start.md#규칙제약) 얼굴 가리기) | `Video` 201(새로 만듦)·200(재전송) | `upload_expired` 422, `video_not_ready` 422(아직 안 올라옴·크기 불일치), `video_quota` 422, `upload_intent_not_found` 404, `consent_required` 403 |
 | `AnalysisWorkerScheduler.sweep` (`ANALYSIS_SWEEP_INTERVAL_SEC`, 기본 60초) | 시한이 지난 `pending` 예약 | 예약 `expired`, 미확정 객체 삭제 | 객체 삭제 실패는 보고만 한다(열린 질문) |
 
 ## 상태

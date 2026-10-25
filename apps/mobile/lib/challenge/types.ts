@@ -73,7 +73,10 @@ export type EntryCard = {
   final_like_count: number | null;
   /** 최초 공개 시각. 재공개해도 그대로다 — 최신순·동점 정렬의 기준. 비공개로 만든 내 참여작은 null 이다. */
   published_at: string | null;
+  /** 얼굴 모자이크본이 준비된 참여작이면 모자이크본이다(본인도 같다). */
   playback_url: string | null;
+  /** 본인 참여작이고 playback_url 이 모자이크본일 때만 원본 주소(SOMA-809). 옛 서버 응답에는 없다. */
+  original_playback_url?: string | null;
   liked: boolean;
   saved: boolean;
   /** 보는 사람 자신의 참여작인지. 본인 재생은 조회수로 세지 않는다. */
@@ -110,12 +113,18 @@ export type CreateEntryBody = {
   video_id: string;
   caption?: string;
   visibility: EntryVisibility;
+  /** 얼굴 모자이크 — 켜면 다른 사람은 서버가 만든 모자이크본만 본다. 끈 요청은 보내지 않는다(옛 요청과 지문이 같다). */
+  face_mosaic?: boolean;
 };
 
 export type EntryPatch = {
   caption?: string;
   visibility?: EntryVisibility;
+  face_mosaic?: boolean;
 };
+
+/** 모자이크본 상태 — 끈 참여작은 null. ready 전·failed 는 공개여도 다른 사람에게 보이지 않는다. */
+export type MosaicStatus = 'pending' | 'ready' | 'failed';
 
 /** P03 내 참여작 — 분류와 부모 챌린지가 함께 온다. */
 export type MyEntryCard = Omit<EntryCard, 'is_new'> & {
@@ -129,6 +138,11 @@ export type MyEntryCard = Omit<EntryCard, 'is_new'> & {
   challenge_hidden: boolean;
   challenge: { id: string; line: string; work: string; character: string | null; ends_at: string };
   created_at: string;
+  /** 얼굴 모자이크를 켰는가(SOMA-809). 옛 서버 응답에는 없다. */
+  face_mosaic?: boolean;
+  mosaic_status?: MosaicStatus | null;
+  /** 영상 첫 장면 JPEG 의 서명 주소(SOMA-845). 아직 없거나 파기됐으면 null, 옛 서버 응답에는 없다. */
+  poster_url?: string | null;
 };
 
 export type MyEntriesResponse = {
@@ -205,39 +219,6 @@ export type CreateCommentBody = {
   request_id: string;
   body: string;
 };
-
-// ─── AI 리포트(challenge.ai-report) ──────────────────────────────────────────
-
-export type AiReportStatus = 'pending' | 'ready' | 'failed';
-
-/** 관찰·견주기에 붙는 근거 구간. 그 자리를 다시 볼 수 있게 시각을 준다. */
-export type ReportEvidence = { start_ms: number; end_ms: number; text: string };
-
-/**
- * 리포트는 관찰·견주기·한계·제안이다. 점수·백분위·등급·순위·재능 판정은 없다(ADR-005 개정).
- * 표본은 이름·id 없이 "다른 참여작들"로만 나온다.
- */
-export type AiReport = {
-  entry_id: string;
-  status: AiReportStatus;
-  /** 내 영상에서 확인된 것. */
-  observations: ReportEvidence[];
-  /** 표본에서 자주 보인 선택과 내 선택의 차이(우열 없이). 표본이 부족하면 빈 목록이다. */
-  comparisons: string[];
-  /** 못 본 구간·표본 부족 같은 한계. 채우지 않는다. */
-  limits: string[];
-  /** 다음에 해볼 것 하나. 없을 수 있다. */
-  suggestion: string | null;
-  /** 견주기에 쓴 표본 수. 3개 미만이면 화면이 "비교할 영상이 아직 부족해요"를 보인다. */
-  sample_count: number;
-  /** 이번 생성의 실행 수(최대 3). */
-  attempt_count: number;
-  requested_at: string | null;
-  completed_at: string | null;
-};
-
-/** 견주기를 만들려면 표본이 이만큼은 있어야 한다. */
-export const AI_REPORT_MIN_SAMPLES = 3;
 
 // ─── 알림함(challenge.notification) ──────────────────────────────────────────
 

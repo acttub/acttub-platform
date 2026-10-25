@@ -192,6 +192,9 @@ final class PracticeLoopRouter {
         }
     }
 
+    /** 대화를 다시 열 때 연습 루프 상태에 적는 표시: 그때까지의 코치 응답 수. */
+    static final String RESUMED_AT = "resumed_at";
+
     static Before before(JsonNode loop, int coachTurns) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         Tally tally = new Tally(0, 0, 0);
@@ -209,6 +212,12 @@ final class PracticeLoopRouter {
             String doing = DirectVideoPracticeLoop.action(status);
             tally = tally.after(doing);
             lastDoing = doing;
+            // 대화 이어하기(SOMA-782): 닫힌 대화를 다시 연 직후 첫 배우 말은 "정리한 다음 말"처럼 다룬다 — 이어 묻는 말에는 답하고,
+            // 짧은 맞장구면 다시 닫는다. 그러지 않으면 마지막 할 일이 끝·마무리라 첫 말에 곧바로 닫힌다.
+            if (i == coachTurns - 1 && loop != null && loop.path(RESUMED_AT).asInt(-1) == coachTurns
+                    && (doing.startsWith("끝") || doing.startsWith("마무리"))) {
+                lastDoing = WRAP_UP;
+            }
             Kind kind = Kind.ofLabel(DirectVideoPracticeLoop.statusField(status, "배우의 말"));
             lastKind = kind;
             if (kind == Kind.CORRECTION || kind == Kind.PUSHBACK) dropped = true;

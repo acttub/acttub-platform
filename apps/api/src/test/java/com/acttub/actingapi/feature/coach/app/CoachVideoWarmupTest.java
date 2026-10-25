@@ -215,6 +215,37 @@ class CoachVideoWarmupTest {
         cache.close();
     }
 
+    /** 얼굴 가리기 회차: 올리기 끝에서 원본으로 시작한 준비는 버리고(올린 원본은 지운다), 분석 작업이 넘긴 사본으로 준비한다. */
+    @Test void aFaceMosaicPracticeDropsTheOriginalUploadAndPreparesTheMaskedCopy() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures, "prod", Duration.ofMinutes(60));
+        Path work = workDir();
+        var originalUpload = new DirectVideoModel.Video("files/original", "gemini://original", "video/mp4", true);
+        var inspection = new DirectVideoModel.InputInspection(true, null, true);
+        when(model.inspect(any())).thenReturn(inspection);
+        when(model.upload(any(), eq("video/mp4"), eq(inspection), anyString())).thenAnswer(call ->
+                "masked video bytes".equals(Files.readString(call.getArgument(0))) ? file : originalUpload);
+        when(model.ready(any())).thenReturn(true);
+
+        new CoachVideoWarmup(model, cache, storageWith("\"etag\""), work).uploaded("owned/video.mp4", "etag", null);
+        UUID practice = UUID.randomUUID();
+        Path masked = Files.createTempFile("analysis-masked-", ".mp4");
+        Files.writeString(masked, "masked video bytes");
+        var context = context(practice);
+        new CoachVideoWarmup(model, cache).warm(new AnalysisContext(context.operationId(), practice, context.objectKey(),
+                "video/quicktime", context.etag(), 8000, "", "", "", "그 외", "", "three_layers_v1", context.userId(), true),
+                masked);
+        Files.delete(masked);
+
+        assertThat(cache.warmingSource(key(practice))).as("원본 준비는 남지 않는다").isFalse();
+        var prepared = cache.claimWarm(new CoachVideoCache.Key(practice,
+                CoachVideoCache.faceMosaicSource("owned/video.mp4"), "etag"), Duration.ofSeconds(5));
+        assertThat(prepared).isNotNull();
+        assertThat(prepared.video()).isEqualTo(file);
+        verify(model, org.mockito.Mockito.timeout(5000)).delete(originalUpload);
+        verify(model, never()).delete(file);
+        cache.close();
+    }
+
     @Test void anOriginalThatChangedAfterUploadIsNotPrepared() throws Exception {
         var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures, "prod", Duration.ofMinutes(60));
         Path work = workDir();

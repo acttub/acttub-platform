@@ -71,11 +71,10 @@ test('challenge.create: 등록은 세 단계이고 기간은 7·14일, 요청 id
   assert.match(create, /attemptFor/);
   assert.match(create, /api\.createChallenge/);
   assert.match(create, /newRequestId/);
-  // 세 단계: 대사 → 작품·인물·메모 → 기간
-  assert.match(create, /step === 0/);
-  assert.match(create, /step === 1/);
-  assert.match(create, /step === 2/);
+  // pen C4.x: 세 단계(대사 → 작품·인물·메모 → 기간), 서버 필드 work·character·scene_note.
+  assert.match(create, /lineNew\.workLabel/);
   assert.match(create, /lineNew\.noteLabel/);
+  assert.match(create, /KeyboardLift/);
 });
 
 test('challenge.create: 중복·기간·하루 한도 오류를 각각 문구로 알린다', () => {

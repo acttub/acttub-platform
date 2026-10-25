@@ -61,7 +61,21 @@ public class PracticeService {
      * 수정과 같은 자리다.
      */
     public PracticeView start(UUID userId, boolean guest, String contractHeader, Draft draft) {
-        return answer(practices.start(userId, newPractice(draft, contractHeader), quota(guest), clock.instant()));
+        boolean withVideo = draft.videoId() != null;
+        if (!PracticeRules.videoMatchesPurpose(withVideo, PracticeRules.sessionPurpose(draft.sessionPurpose()))) {
+            // 요청 검증(PracticeCreateRequest)이 먼저 422 배열로 거절한다. 여기 닿으면 부르는 쪽의 잘못이다.
+            throw new IllegalArgumentException("a practice without a video needs a talk purpose");
+        }
+        if (!withVideo) {
+            // 영상 없이 말로 하는 코칭(SOMA-745): 분석할 영상이 없어 분석 작업 없이 바로 대화 단계로 연다. 분석 한도도 쓰지 않는다.
+            // 말로 하는 코치는 새 코치(three_layers_v1)에만 있다 — 계약 헤더와 상관없이 새 코치로 연다.
+            // 가릴 영상이 없어 얼굴 가리기는 무시한다.
+            return answer(practices.startWithoutVideo(userId, newPractice(withFaceMosaic(draft, null), contractHeader, true),
+                    clock.instant()));
+        }
+        // 얼굴 가리기는 켰을 때만 남긴다 — 끈 것과 뺀 것은 같고, 지문도 이 변경 전과 같다.
+        return answer(practices.start(userId, newPractice(withFaceMosaic(draft, Boolean.TRUE.equals(draft.faceMosaic()) ? true : null),
+                contractHeader), quota(guest), clock.instant()));
     }
 
     /**
@@ -69,6 +83,7 @@ public class PracticeService {
      * 422 {@code video_not_ready} 이고 새 영상으로는 된다.
      */
     public PracticeView continueGroup(UUID userId, boolean guest, String contractHeader, UUID from, Draft draft) {
+        // 이어하기는 늘 영상으로 한다. 영상 없는 묶음을 이으려면 새 영상을 보낸다(없으면 422 video_not_ready).
         return answer(practices.continueGroup(
                 userId, from, draft.videoId(), newPractice(draft, contractHeader), quota(guest), clock.instant()));
     }
@@ -166,16 +181,35 @@ public class PracticeService {
             String subBranch,
             String blockageNote,
             String title,
-            String sessionPurpose) {
+            String sessionPurpose,
+            // 얼굴 가리기(practice.start). 시작은 null·false 가 끔이고, 이어하기는 null 이면 이어받을 회차의 값이다.
+            Boolean faceMosaic) {
 
         /** 세션 목적이 없던 때의 모양. 이어하기와 옛 호출부가 쓴다. */
         public Draft(UUID requestId, UUID videoId, String situation, String characterContext, String goal,
                 String blockageKind, String subBranch, String blockageNote, String title) {
             this(requestId, videoId, situation, characterContext, goal, blockageKind, subBranch, blockageNote, title, null);
         }
+
+        /** 얼굴 가리기가 없던 때의 모양. */
+        public Draft(UUID requestId, UUID videoId, String situation, String characterContext, String goal,
+                String blockageKind, String subBranch, String blockageNote, String title, String sessionPurpose) {
+            this(requestId, videoId, situation, characterContext, goal, blockageKind, subBranch, blockageNote, title,
+                    sessionPurpose, null);
+        }
     }
 
     private NewPractice newPractice(Draft draft, String contractHeader) {
+        return newPractice(draft, contractHeader, false);
+    }
+
+    private static Draft withFaceMosaic(Draft draft, Boolean faceMosaic) {
+        return new Draft(draft.requestId(), draft.videoId(), draft.situation(), draft.characterContext(), draft.goal(),
+                draft.blockageKind(), draft.subBranch(), draft.blockageNote(), draft.title(), draft.sessionPurpose(),
+                faceMosaic);
+    }
+
+    private NewPractice newPractice(Draft draft, String contractHeader, boolean forceThreeLayers) {
         String situation = PracticeRules.scene(draft.situation());
         String characterContext = PracticeRules.scene(draft.characterContext());
         String goal = PracticeRules.scene(draft.goal());
@@ -184,7 +218,7 @@ public class PracticeService {
         String blockageNote = PracticeRules.note(draft.blockageNote());
         String title = PracticeRules.title(draft.title());
         String sessionPurpose = PracticeRules.sessionPurpose(draft.sessionPurpose());
-        String experienceVersion = PracticeRules.threeLayers(threeLayersEnabled, contractHeader)
+        String experienceVersion = forceThreeLayers || PracticeRules.threeLayers(threeLayersEnabled, contractHeader)
                 ? ExperienceVersion.THREE_LAYERS_V1.dbValue()
                 : ExperienceVersion.LEGACY.dbValue();
         // 제목은 있을 때만 지문에 넣는다 — 제목 없는 요청의 지문이 이 변경 전과 같아야 배포를 걸친 재전송이 산다.
@@ -193,9 +227,11 @@ public class PracticeService {
                 blockageKind, subBranch, String.valueOf(blockageNote));
         // 세션 목적도 있을 때만 넣는다(SOMA-719) — 목적 없는 요청의 지문은 이 변경 전과 같다.
         String withTitle = title == null ? payload : payload + "|title|" + title;
+        String withPurpose = sessionPurpose == null ? withTitle : withTitle + "|purpose|" + sessionPurpose;
+        // 얼굴 가리기도 값이 있을 때만 넣는다 — 값 없는 요청의 지문은 이 변경 전과 같다.
         return new NewPractice(
                 draft.requestId(),
-                fingerprint(sessionPurpose == null ? withTitle : withTitle + "|purpose|" + sessionPurpose),
+                fingerprint(draft.faceMosaic() == null ? withPurpose : withPurpose + "|face_mosaic|" + draft.faceMosaic()),
                 draft.videoId(),
                 experienceVersion,
                 situation,
@@ -205,7 +241,8 @@ public class PracticeService {
                 subBranch,
                 blockageNote,
                 title,
-                sessionPurpose);
+                sessionPurpose,
+                draft.faceMosaic());
     }
 
     /** 게스트만 하루 한도가 있다. 하루는 한국 시간 자정에 끊는다. */

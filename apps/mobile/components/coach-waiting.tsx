@@ -1,7 +1,7 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -121,7 +121,7 @@ export function CoachWaiting({
 
   /** 분석이 끝났다. 장면·재생 주소를 받아 대화를 연다. */
   const enterCoach = useCallback(
-    async (analysis: 'ready' | 'partial', signal: AbortSignal) => {
+    async (analysis: 'ready' | 'partial' | null, signal: AbortSignal) => {
       if (!practiceId || finishedRef.current) return;
       const loaded = await api.getPractice(practiceId, { signal }).catch(() => null);
       if (!loaded || signal.aborted) {
@@ -133,7 +133,7 @@ export function CoachWaiting({
         await pendingAnalysisStore.remove(pendingHandleRef.current).catch(() => undefined);
         pendingHandleRef.current = null;
       }
-      const notice = analysisPartialNotice(analysis);
+      const notice = analysis ? analysisPartialNotice(analysis) : null;
       if (notice) await alert({ title: t('analyzing.screenTitle'), message: notice });
       if (signal.aborted) {
         return;
@@ -152,8 +152,11 @@ export function CoachWaiting({
         videoUri: localUri ?? '',
         playbackUrl: loaded.playback_url ?? null,
       });
-      void logEvent('analysis_complete', { analysis });
-      logMetaEvent('practice_analysis_complete');
+      // 말로 하는 회차는 분석을 하지 않았으므로 분석·광고 전환으로 집계하지 않는다.
+      if (analysis && loaded.video_id) {
+        void logEvent('analysis_complete', { analysis });
+        logMetaEvent('practice_analysis_complete');
+      }
       onReadyRef.current();
     },
     [alert, practiceId],
@@ -276,12 +279,12 @@ export function CoachWaiting({
     return () => clearInterval(timer);
   }, [error]);
 
-  /** "그만두기" — 작업을 취소로 끝낸다. 영상은 보관함에 그대로 있고 연습을 숨기지 않는다. */
+  /** "그만두기" — 작업을 취소로 끝낸다. 영상은 그대로 두고 연습을 숨기지 않는다. */
   const stop = useCallback(async () => {
     if (!practiceId || stopping) return;
     if (sample) {
       finishTutorial('left');
-      router.replace('/(tabs)');
+      router.dismissTo('/(tabs)');
       return;
     }
     const ok = await confirm({
@@ -302,7 +305,7 @@ export function CoachWaiting({
       }
       finishedRef.current = true;
       void logEvent('analysis_cancelled', {});
-      router.replace('/(tabs)');
+      router.dismissTo('/(tabs)');
     } catch {
       setError(t('analyzing.stopFailed'));
     } finally {
@@ -385,7 +388,6 @@ export function CoachWaiting({
             ) : (
               <View style={styles.watchingBox} accessibilityLiveRegion="polite">
                 <View style={styles.typingRow}>
-                  <ActivityIndicator size="small" color={palette.blue} />
                   <Text style={styles.watching}>{t('coach.watching')}</Text>
                 </View>
                 <Text style={styles.stageText}>{stageText}</Text>
@@ -399,7 +401,7 @@ export function CoachWaiting({
             {recovery !== 'none' && (
               <PrimaryButton label={t('common.retry')} onPress={() => void retry()} loading={retrying} style={styles.wide} />
             )}
-            <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={8} accessibilityRole="button">
+            <Pressable onPress={() => router.dismissTo('/(tabs)')} hitSlop={8} accessibilityRole="button">
               <Text style={styles.link}>{t('analyzing.leaveLater')}</Text>
             </Pressable>
           </View>
@@ -417,7 +419,7 @@ export function CoachWaiting({
               {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 여기서는 홈으로 나간다. */}
               <Pressable
                 style={({ pressed }) => [styles.notify, pressed && styles.pressed]}
-                onPress={() => router.replace('/(tabs)')}
+                onPress={() => router.dismissTo('/(tabs)')}
                 accessibilityRole="button"
                 accessibilityLabel={t('analyzing.notifyMe')}>
                 <Text style={styles.notifyText}>{t('analyzing.notifyMe')}</Text>

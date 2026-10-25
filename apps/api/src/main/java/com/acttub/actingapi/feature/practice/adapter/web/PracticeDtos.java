@@ -45,12 +45,25 @@ final class PracticeDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record CreateRequest(
             @NotNull UUID requestId,
-            @NotNull UUID videoId,
+            // 영상 없이 말로 하는 코칭(SOMA-745)은 영상을 보내지 않고 목적(stuck·character·concern)을 보낸다. 짝이 틀리면 값 모양 오류 422(배열)다.
+            @Schema(nullable = true) UUID videoId,
             @Schema(nullable = true) @Valid SceneInput scene,
             @Schema(nullable = true) @Valid BlockageInput blockage,
             @Schema(nullable = true) @Size(max = PracticeRules.GROUP_TITLE_MAX_CHARS) String title,
-            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character"})
-            @jakarta.validation.constraints.Pattern(regexp = "evaluate|stuck|character") String sessionPurpose) {
+            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern"})
+            @jakarta.validation.constraints.Pattern(regexp = "evaluate|stuck|character|concern") String sessionPurpose,
+            @Schema(nullable = true, description = "얼굴 가리기. 기본 false. 켜면 분석·코치는 원본 대신 서버가 얼굴을 가린 사본을 본다. 사본을 만들지 못하면(얼굴을 못 찾음 포함) 원본을 쓰지 않고 분석이 실패로 닫힌다. 원본은 지우지 않는다. 영상 없는 회차에서는 무시한다.")
+            Boolean faceMosaic) {
+
+        /**
+         * 영상이 없으면 말로 하는 목적이어야 한다(SOMA-745). 영상을 빼고 목적도 없으면 예전처럼 값 모양 오류 422(배열)다.
+         */
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        @Schema(hidden = true)
+        @jakarta.validation.constraints.AssertTrue
+        boolean isVideoOrTalkPurpose() {
+            return PracticeRules.videoMatchesPurpose(videoId != null, PracticeRules.sessionPurpose(sessionPurpose));
+        }
     }
 
     /** 이어하기. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다. 세션 목적은 묶음 첫 회차의 것을 물려받는다. */
@@ -60,7 +73,9 @@ final class PracticeDtos {
             @NotNull UUID requestId,
             @Schema(nullable = true) UUID videoId,
             @Schema(nullable = true) @Valid SceneInput scene,
-            @Schema(nullable = true) @Valid BlockageInput blockage) {
+            @Schema(nullable = true) @Valid BlockageInput blockage,
+            @Schema(nullable = true, description = "얼굴 가리기. 생략·null 이면 이어받을 회차의 값을 그대로 쓴다. 뜻은 회차 시작과 같다.")
+            Boolean faceMosaic) {
     }
 
     /** 분석 재시도. */
@@ -140,7 +155,7 @@ final class PracticeDtos {
             @Schema(nullable = true) JobResponse job,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<PreviousConversationResponse> previousConversations,
-            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character"}) String sessionPurpose) {
+            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern"}) String sessionPurpose) {
 
         static PracticeResponse of(PracticeView view) {
             return new PracticeResponse(

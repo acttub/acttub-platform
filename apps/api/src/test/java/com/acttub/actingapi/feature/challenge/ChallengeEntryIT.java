@@ -13,6 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.challenge.app.EntryMedia;
+import com.acttub.actingapi.feature.challenge.app.EntryMosaicWorker;
+import com.acttub.actingapi.feature.challenge.app.EntryMosaics;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
@@ -58,6 +60,19 @@ class ChallengeEntryIT {
                 @Override public String playbackUrl(String objectKey) { return "https://play.test/" + objectKey; }
             };
         }
+        /** 얼굴을 찾는가 — 거짓이면 모자이크본을 만들지 못한다. */
+        static volatile boolean FACE = true;
+        static final List<String> RENDERED = new java.util.concurrent.CopyOnWriteArrayList<>();
+        @Bean @Primary EntryMosaics stubEntryMosaics() {
+            return new EntryMosaics() {
+                @Override public boolean available() { return true; }
+                @Override public boolean render(String objectKey, String mosaicKey) {
+                    if (!FACE) return false;
+                    RENDERED.add(mosaicKey);
+                    return true;
+                }
+            };
+        }
     }
 
     @DynamicPropertySource static void database(DynamicPropertyRegistry registry) {
@@ -72,15 +87,113 @@ class ChallengeEntryIT {
     @Autowired JwtService jwt;
     @Autowired MutableClock clock;
     @Autowired EntryRepository entryRepository;
+    @Autowired EntryMosaicWorker mosaicWorker;
     UUID user;
     String bearer;
 
     @BeforeEach void prepare() {
         clock.set(NOW);
         Media.ACTUAL.clear();
+        Media.FACE = true;
+        Media.RENDERED.clear();
         jdbc.execute("TRUNCATE users,challenges,upload_intents RESTART IDENTITY CASCADE");
         user = member("나");
         bearer = token(user);
+    }
+
+    // ── 얼굴 모자이크 ───────────────────────────────────────────────────────
+
+    @Test void faceMosaic_everyoneSeesTheReadyMosaicAndOnlyTheOwnerGetsTheOriginal() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        UUID video = video(user, 30_000);
+        JsonNode entry = response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
+                "request_id", UUID.randomUUID(), "video_id", video, "visibility", "public", "face_mosaic", true))), 201);
+        String id = entry.path("id").asText();
+        assertThat(entry.path("face_mosaic").asBoolean()).isTrue();
+        assertThat(entry.path("mosaic_status").asText()).isEqualTo("pending");
+        assertThat(entry.path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(entry.path("original_playback_url").isNull()).isTrue();
+        String other = token(member("다른 배우"));
+        // 준비 전에는 다른 사람에게 어디서도 보이지 않는다.
+        assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200, other).path("entries")).isEmpty();
+        assertThat(response(get("/v2/challenges/{id}/entries", challenge).param("sort", "latest"), 200, other).path("entries")).isEmpty();
+        response(get("/v2/entries/{id}", id), 404, other);
+        response(get("/v2/public/entries/{id}", id), 404, other);
+        assertThat(response(get("/v2/challenges/{id}", challenge), 200).path("entry_count").asInt()).isZero();
+        assertThat(response(get("/v2/entries/{id}", id), 200).path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+
+        assertThat(mosaicWorker.runOnce()).isTrue();
+        assertThat(mosaicWorker.runOnce()).isFalse();
+        String mosaic = "videos/" + video + ".mosaic-" + id + ".mp4";
+        assertThat(Media.RENDERED).containsExactly(mosaic);
+        JsonNode page = response(get("/v2/challenges/{id}/entries", challenge), 200, other);
+        assertThat(ids(page)).containsExactly(id);
+        assertThat(page.path("entries").get(0).path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(page.path("entries").get(0).path("original_playback_url").isNull()).isTrue();
+        JsonNode seen = response(get("/v2/entries/{id}", id), 200, other);
+        assertThat(seen.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(seen.path("original_playback_url").isNull()).isTrue();
+        response(get("/v2/public/entries/{id}", id), 200, other);
+        // 본인도 모자이크본으로 보고, 원본 주소는 따로 받는다.
+        JsonNode own = response(get("/v2/entries/{id}", id), 200);
+        assertThat(own.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(own.path("original_playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        JsonNode ownCard = response(get("/v2/challenges/{id}/entries", challenge), 200).path("entries").get(0);
+        assertThat(ownCard.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(ownCard.path("original_playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        JsonNode mine = response(get("/v2/me/challenge-entries"), 200).path("entries").get(0);
+        assertThat(mine.path("mosaic_status").asText()).isEqualTo("ready");
+        assertThat(mine.path("playback_url").asText()).isEqualTo("https://play.test/" + mosaic);
+        assertThat(mine.path("original_playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+
+        // 끄면 원본이 공개되고 사본은 정리 장부로 간다.
+        JsonNode off = response(patch("/v2/entries/{id}", id).content("{\"face_mosaic\":false}"), 200);
+        assertThat(off.path("face_mosaic").asBoolean()).isFalse();
+        assertThat(off.path("mosaic_status").isNull()).isTrue();
+        assertThat(response(get("/v2/entries/{id}", id), 200, other).path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(off.path("playback_url").asText()).isEqualTo("https://play.test/videos/" + video);
+        assertThat(off.path("original_playback_url").isNull()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM account_cleanup_operations WHERE kind='object_delete'", Integer.class))
+                .isPositive();
+    }
+
+    @Test void faceMosaic_aVideoWithoutAFaceFailsClosedUntilTheOwnerRetriesOrTurnsItOff() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        JsonNode entry = enter(challenge, video(user, 30_000), "private", 201);
+        String id = entry.path("id").asText();
+        assertThat(entry.path("face_mosaic").asBoolean()).isFalse();
+        assertThat(entry.path("mosaic_status").isNull()).isTrue();
+        // 나중에 공개로 바꾸며 모자이크를 켠다.
+        Media.FACE = false;
+        JsonNode published = response(patch("/v2/entries/{id}", id).content("{\"visibility\":\"public\",\"face_mosaic\":true}"), 200);
+        assertThat(published.path("visibility").asText()).isEqualTo("public");
+        assertThat(published.path("mosaic_status").asText()).isEqualTo("pending");
+        assertThat(mosaicWorker.runOnce()).isTrue();
+        String other = token(member("다른 배우"));
+        assertThat(response(get("/v2/challenges/{id}/entries", challenge), 200, other).path("entries")).isEmpty();
+        response(get("/v2/entries/{id}", id), 404, other);
+        assertThat(response(get("/v2/entries/{id}", id), 200).path("playback_url").asText()).startsWith("https://play.test/videos/");
+        JsonNode failed = edit(id, Map.of("caption", "그대로"), 200);
+        assertThat(failed.path("mosaic_status").asText()).isEqualTo("failed");
+        // 다시 켜면 처음부터 다시 만든다.
+        Media.FACE = true;
+        assertThat(response(patch("/v2/entries/{id}", id).content("{\"face_mosaic\":true}"), 200).path("mosaic_status").asText())
+                .isEqualTo("pending");
+        assertThat(mosaicWorker.runOnce()).isTrue();
+        assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge), 200, other))).containsExactly(id);
+    }
+
+    @Test void faceMosaic_aDeletedEntryDropsItsMosaicAndALateRenderIsNotAttached() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        UUID video = video(user, 30_000);
+        String id = response(post("/v2/challenges/{id}/entries", challenge).content(json.writeValueAsString(Map.of(
+                "request_id", UUID.randomUUID(), "video_id", video, "visibility", "public", "face_mosaic", true))), 201)
+                .path("id").asText();
+        var job = entryRepository.claimMosaic(3, NOW);
+        assertThat(job).isNotNull();
+        response(delete("/v2/entries/{id}", id), 204);
+        assertThat(entryRepository.attachMosaic(job, "videos/" + video + ".mosaic-" + id + ".mp4", NOW)).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT mosaic_key FROM challenge_entries WHERE id=?::uuid", String.class, id)).isNull();
     }
 
     // ── challenge.entry ────────────────────────────────────────────────────
@@ -116,6 +229,18 @@ class ChallengeEntryIT {
         assertThat(mine.path("counts").path("private").asInt()).isEqualTo(1);
         assertThat(mine.path("counts").path("all").asInt()).isEqualTo(1);
         assertThat(ids(mine)).containsExactly(entry.path("id").asText());
+    }
+
+    @Test void myEntries_carryTheVideoPosterOnceItExists() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        UUID video = video(user, 30_000);
+        enter(challenge, video, "public", 201);
+        assertThat(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url").isNull()).isTrue();
+        jdbc.update("UPDATE videos SET poster_key=? WHERE id=?", "videos/" + video + ".poster.jpg", video);
+        assertThat(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url").asText())
+                .isEqualTo("https://play.test/videos/" + video + ".poster.jpg");
+        jdbc.update("UPDATE videos SET purged_at=now() WHERE id=?", video);
+        assertThat(response(get("/v2/me/challenge-entries"), 200).path("entries").get(0).path("poster_url").isNull()).isTrue();
     }
 
     @Test void challengeEntry_replaysBeforeQuotaAndRejectsChangedBodiesAndTheSameVideoTwice() throws Exception {

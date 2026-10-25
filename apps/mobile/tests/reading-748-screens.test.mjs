@@ -71,10 +71,20 @@ test('첫 리딩 안내: 상대 차례 → 내 차례 → 말한 뒤 다음 → 
 
 test('대본 탭: 대본이 없으면 리딩 입구(올리기 줄), 있으면 이어 읽기 카드 — 같이 만들기(서버 없음)는 숨긴다', () => {
   const tab = src('app/(tabs)/reading.tsx');
-  assert.match(tab, /t\('reading\.entryUpload'\)/);
+  // 「새 대본」은 고르기 창 없이 바로 내 대본 올리기로 간다(10/25).
+  assert.match(tab, /onPress=\{\(\) => router\.push\('\/reading\/new'\)\}/);
   assert.match(tab, /resumeCandidate\(/);
   assert.doesNotMatch(tab, /entryCreate|대본 같이 만들기/);
   assert.match(tab, /ref=\{newTarget\.ref\}/, '스포트라이트 자리는 그대로');
+});
+
+test('대본 넣기: 파일·글 붙여넣기·대본 같이 만들기 셋 중 고르고, 예시 대본 링크는 없다(10/25)', () => {
+  const screen = src('app/reading/new.tsx');
+  assert.match(screen, /t\('reading\.entryCocreate'\)/);
+  // 화면을 넘기지 않고 아래에 「예시 대본 고르기 · 새 대본 만들기」를 펼친다. 새 대본 만들기만 대본 만들기로 간다.
+  assert.match(screen, /<SamplePickerBody /);
+  assert.match(screen, /pathname: '\/script-cocreate', params: \{ mode: 'reading', start: 'make' \}/);
+  assert.doesNotMatch(screen, /sampleLink|showsSampleLink/);
 });
 
 test('대본 넣기: 사진 탭과 「다른 거 하고 있을게요」(알림)는 없다', () => {
@@ -83,11 +93,13 @@ test('대본 넣기: 사진 탭과 「다른 거 하고 있을게요」(알림)�
   assert.match(screen, /isSplitFailure\(/);
 });
 
-test('리딩 완료: 발음 보고서 PRO 카드는 없고, 완료 뒤 마무리 화면을 거쳐 상세로 간다', () => {
+test('리딩 완료: 녹음 액티·발음 보고서는 별도 카드(서버 스위치를 켠 배포만)로만 붙고, 완료 화면의 「홈으로 가기」는 홈 탭으로 간다(pen R9.42)', () => {
   const play = src('app/reading/play.tsx');
+  // 발음 보고서 PRO 줄은 완료 화면에 직접 그리지 않는다 — 서버가 허용할 때만 ReadingAfterCard 가 그린다(10/22).
   assert.doesNotMatch(play, /PRO|proReport/);
-  assert.match(play, /wrapUpProgress\(/);
-  assert.match(play, /t\('reading\.wrapBadge'\)/);
+  assert.match(play, /<ReadingAfterCard sessionId=\{session\.id\} ready=\{pendingUploads === 0\} part="coach" \/>/);
+  assert.match(play, /part="report"/);
+  assert.match(play, /router\.dismissTo\('\/\(tabs\)'\)/);
 });
 
 test('첫 리딩 안내는 기기에 한 번 본 것으로 남고, 못 읽으면 본 것으로 친다', async () => {
@@ -105,7 +117,8 @@ test('리딩 실행: 시작 전 안내는 팝업 대신 아래 [시작]이고, �
   assert.match(play, /t\(monologue \? 'reading\.monologueStartHint' : 'reading\.startHint'\)/);
   assert.match(play, /onPress=\{\(\) => void closeTip\(false\)\}/);
   assert.doesNotMatch(play, /visible=\{hold === 'tip'\}/);
-  assert.match(play, /coachMarkFor\(\{ done: coachDone, status: run\.status/);
+  assert.match(play, /<ReadingGuideOverlay onClose=\{closeGuide\} \/>/);
+  assert.match(play, /myTurnsBefore >= 1/);
 });
 
 test('리딩 → 코칭: 대본 제목·장면을 상황 칸에, 내 배역을 인물 칸에 채우고 원하는 것은 비운다(SOMA-772)', async () => {

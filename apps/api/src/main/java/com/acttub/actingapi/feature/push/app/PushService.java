@@ -72,7 +72,8 @@ public class PushService implements AnalysisCompletionListener {
                         target.korean()
                                 ? "질문이 준비됐어요. 이어서 확인해 볼까요?"
                                 : "The coach has questions waiting. Shall we pick it up?",
-                        Map.of("sessionId", sessionId.toString())))
+                        // 앱이 이 두 키로 완료 푸시를 알아보고 그 회차를 연다(analysisPushTarget).
+                        Map.of("kind", "analysis_complete", "practice_id", sessionId.toString())))
                 .toList();
         sender.send(messages).forEach(tokens::unregister);
     }

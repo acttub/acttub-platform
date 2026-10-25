@@ -4,7 +4,7 @@ import GuestTransferScreen from '@/app/guest-transfer';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 
-const mockRouter = { replace: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn() };
 jest.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => mockRouter }));
 jest.mock('@/lib/api', () => ({ api: { transferGuestData: jest.fn() } }));
 
@@ -40,7 +40,7 @@ test('옮기면 완료 화면에서 기록을 보거나 다른 코드를 넣을 
   expect(await screen.findByText('옮겼어요')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '기록 보기' }));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)/history');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)/history');
 
   await fireEvent.press(screen.getByRole('button', { name: '다른 코드 입력하기' }));
   expect(codeInput()).toHaveDisplayValue('');
@@ -49,10 +49,10 @@ test('옮기면 완료 화면에서 기록을 보거나 다른 코드를 넣을 
 
 test.each([
   [new ApiError(404, 'nf', 'transfer_code_not_found'), '코드가 맞지 않거나 만료됐어요'],
-  [new ApiError(429, 'slow down'), '시도가 너무 많았어요. 잠시 뒤 다시 시도해주세요.'],
-  [new ApiError(422, 'bad', 'validation_failed', { field: 'code' }), '코드를 보내지 못했어요. 앱을 최신 버전으로 업데이트한 뒤 다시 시도해주세요.'],
+  [new ApiError(429, 'slow down'), '시도가 너무 많았어요. 잠시 뒤 다시 시도해 주세요.'],
+  [new ApiError(422, 'bad', 'validation_failed', { field: 'code' }), '코드를 보내지 못했어요. 앱을 최신 버전으로 업데이트한 뒤 다시 시도해 주세요.'],
   [new Error('서버가 잠시 쉬고 있어요'), '서버가 잠시 쉬고 있어요'],
-  ['boom', '가져오지 못했어요. 같은 코드로 다시 시도해주세요.'],
+  ['boom', '가져오지 못했어요. 같은 코드로 다시 시도해 주세요.'],
 ])('실패 %#: 이유를 보여 주고, 코드를 고치면 지운다', async (error, message) => {
   send.mockRejectedValue(error);
   await render(<GuestTransferScreen />);
@@ -64,7 +64,7 @@ test.each([
   expect(screen.queryByText(message)).not.toBeOnTheScreen();
 });
 
-describe('양쪽에 코치 기억이 있으면', () => {
+describe('양쪽에 액티 기억이 있으면', () => {
   async function openChoice() {
     await render(<GuestTransferScreen />);
     await fireEvent.changeText(codeInput(), '654321');
@@ -104,7 +104,7 @@ describe('양쪽에 코치 기억이 있으면', () => {
     await fireEvent.press(screen.getByRole('button', { name: '이대로 가져오기' }));
 
     expect(send).toHaveBeenLastCalledWith({ code: '654321', memory_choice: 'member' });
-    expect(await screen.findByText('시도가 너무 많았어요. 잠시 뒤 다시 시도해주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('시도가 너무 많았어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
     expect(screen.queryByText('코치의 기억을 어느 쪽으로 둘까요?')).not.toBeOnTheScreen();
   });
 

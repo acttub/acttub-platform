@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import type { Ref } from 'react';
-import { Platform, StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -18,8 +18,7 @@ const IOS = Platform.OS === 'ios';
  * iOS: 화면 위에 뜬 흰 알약(좌우 20 — pen TabBar 폭 350, 높이 64, 모서리 32, 1px #EDF0F3 테두리, 그림자 #191F28 18% · 아래 12 · 흐림 24).
  * 안드로이드: 바닥에 붙은 전체 폭 막대(pen 일반 홈 BTT6at 하단).
  * 아이콘은 활성·비활성 모두 윤곽선(24). 활성은 파랑(palette.blue) + 옅은 파랑 알약(48×34, 모서리 17), 비활성은 회색 #8B95A1 · 바탕 없음.
- * 다섯 탭 모두 아이콘 아래에 이름(11/600, 활성은 파랑 700)을 쓴다 — 선택한 탭에만 이름이 보여 다른 탭이 뭔지 몰랐다(10/20 피드백).
- * 화면 읽기도 탭마다 이름을 읽는다.
+ * 탭 이름 글자는 쓰지 않고 아이콘만 탭바 세로 가운데에 둔다(SOMA-838). 화면 읽기 이름은 탭 버튼(tabBarAccessibilityLabel)에 있다.
  */
 export function useTabBarStyle(): ViewStyle {
   const insets = useSafeAreaInsets();
@@ -75,7 +74,6 @@ export const TAB_BAR_HIDDEN: ViewStyle = { display: 'none' };
 /** 탭 아이콘 — 위 설명대로. `target`은 첫 가이드가 이 탭을 비출 때 자리를 재는 ref. */
 export function tabIcon(
   name: IoniconName,
-  label: string,
   target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void },
 ) {
   const TabIcon = ({ color, focused }: { color: string; focused: boolean }) => (
@@ -83,9 +81,6 @@ export function tabIcon(
       <View style={[styles.pill, focused && styles.pillOn]}>
         <Ionicons size={22} name={name} color={color} />
       </View>
-      <Text style={[styles.tabLabel, focused && styles.tabLabelOn, { color }]} numberOfLines={1}>
-        {label}
-      </Text>
     </View>
   );
   TabIcon.displayName = `TabIcon(${name})`;
@@ -103,6 +98,4 @@ const styles = StyleSheet.create({
   item: { minWidth: 56, alignItems: 'center', justifyContent: 'center' },
   pill: { minWidth: 44, minHeight: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   pillOn: IOS ? { backgroundColor: palette.blueSoft } : {},
-  tabLabel: { fontSize: 11, lineHeight: 14, fontWeight: '600', marginTop: 2 },
-  tabLabelOn: { fontWeight: '700' },
 });

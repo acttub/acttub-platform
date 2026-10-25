@@ -27,7 +27,11 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 jest.mock('@/lib/api', () => ({
-  api: { getPracticeGroup: jest.fn(), getConversation: jest.fn(), patchPracticeGroup: jest.fn() },
+  api: { getPracticeGroup: jest.fn(), getConversation: jest.fn(), patchPracticeGroup: jest.fn(), getVideo: jest.fn(), purgeVideoFile: jest.fn() },
+}));
+jest.mock('expo-video', () => ({
+  useVideoPlayer: () => ({ play: jest.fn(), pause: jest.fn() }),
+  VideoView: 'VideoView',
 }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
 jest.mock('@/lib/guide-state', () => ({ hasSeenSpotlight: jest.fn(), markSpotlightSeen: jest.fn() }));
@@ -123,8 +127,7 @@ test('묶음 제목·회차 흐름·노트 보기를 보여 준다', async () =>
   await fireEvent.press(screen.getByRole('button', { name: /노트 보기/ }));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/report-detail', params: { practiceId: 'p1' } });
 
-  await fireEvent.press(screen.getByRole('button', { name: '연습 영상 보기' }));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/archive-detail', params: { id: 'v1' } });
+  expect(screen.queryByRole('button', { name: '연습 영상 보기' })).not.toBeOnTheScreen();
 });
 
 test('대화를 누르면 순서대로 펼치고, 못 읽으면 다시 누르라고 한다', async () => {
@@ -136,13 +139,29 @@ test('대화를 누르면 순서대로 펼치고, 못 읽으면 다시 누르라
   await fireEvent.press(await screen.findByRole('button', { name: '마지막 대화' }));
   expect(getConversation).toHaveBeenCalledWith('conv-last');
   expect(screen.getAllByText(/^(긴장했어요|어땠어요\?)$/).map((n) => n.props.children)).toEqual(['긴장했어요', '어땠어요?']);
-  expect(screen.getByText('나')).toBeOnTheScreen();
-  expect(screen.getByText('코치')).toBeOnTheScreen();
+  expect(screen.getByLabelText('나')).toBeOnTheScreen();
+  expect(screen.getByLabelText('코치')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '이전 대화 · 3월 6일' }));
   expect(getConversation).toHaveBeenLastCalledWith('conv-old');
   expect(await screen.findByText('대화를 불러오지 못했어요. 다시 눌러 주세요.')).toBeOnTheScreen();
   expect(screen.queryByText('긴장했어요')).not.toBeOnTheScreen();
+});
+
+test('마지막 대화가 회차 대화와 같아도 누른 줄 아래에 한 번만 펼친다', async () => {
+  const groupWithSame = group();
+  groupWithSame.practices[0] = { ...groupWithSame.practices[0], conversation_id: 'conv-last' };
+  getGroup.mockResolvedValue(groupWithSame);
+  getConversation.mockResolvedValue(conversation([[1, 'coach', '한 번만']]));
+  await render(<PracticeGroupScreen />);
+
+  await fireEvent.press(await screen.findByRole('button', { name: '마지막 대화' }));
+  expect(await screen.findAllByText('한 번만')).toHaveLength(1);
+
+  // 회차의 「대화」를 누르면 그 아래로 옮겨 붙고, 다시 받지 않는다.
+  await fireEvent.press(screen.getByRole('button', { name: '대화' }));
+  expect(screen.getAllByText('한 번만')).toHaveLength(1);
+  expect(getConversation).toHaveBeenCalledTimes(1);
 });
 
 test('먼저 누른 대화가 늦게 오면 버린다', async () => {
@@ -156,8 +175,8 @@ test('먼저 누른 대화가 늦게 오면 버린다', async () => {
   await screen.findByText('2회');
 
   await fireEvent.press(screen.getByRole('button', { name: '마지막 대화' }));
-  await fireEvent.press(screen.getByRole('button', { name: '대화' }));
   await fireEvent.press(screen.getByRole('button', { name: '이전 대화 · 3월 6일' }));
+  await fireEvent.press(screen.getByRole('button', { name: '대화' }));
   expect(await screen.findByText('세 번째')).toBeOnTheScreen();
 
   await act(async () => {
@@ -174,6 +193,21 @@ test('열린 테이크가 없으면 다음 테이크를 마지막 회차에 이�
 
   expect(setContinueOrigin).toHaveBeenCalledWith({ kind: 'group', rootId: 'root1', practiceId: 'p2' });
   expect(mockRouter.push).toHaveBeenCalledWith('/upload');
+});
+
+test('영상이 있으면 「연습 영상 보기」 줄이 보이고, 지워졌으면 안내만 보인다', async () => {
+  const { api } = require('@/lib/api');
+  api.getVideo.mockResolvedValueOnce({ id: 'v1', playback_url: 'https://cdn/v1.mp4', purged_at: null });
+  await render(<PracticeGroupScreen />);
+  expect(await screen.findByRole('button', { name: /연습 영상 보기/ })).toBeOnTheScreen();
+});
+
+test('영상이 지워졌으면 「영상이 지워졌어요」', async () => {
+  const { api } = require('@/lib/api');
+  api.getVideo.mockResolvedValueOnce({ id: 'v1', playback_url: null, purged_at: '2026-10-20T00:00:00Z' });
+  await render(<PracticeGroupScreen />);
+  expect(await screen.findByText('영상이 지워졌어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '연습 영상 보기' })).not.toBeOnTheScreen();
 });
 
 test('회차가 없으면 묶음 id로 다음 테이크를 만든다', async () => {

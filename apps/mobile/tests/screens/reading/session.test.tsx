@@ -12,7 +12,7 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
   return { __esModule: true, default: storage };
 });
-const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn(), push: jest.fn(), back: jest.fn() };
 jest.mock('expo-router', () => {
   const { useEffect } = require('react');
   return {
@@ -89,7 +89,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
   await render(<ReadingSession />);
 
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
 });
 
 test('회차를 못 불러오면 알리고 다시 시도로 불러온다', async () => {
@@ -258,7 +258,7 @@ test('더보기에서 회차를 지우면 확인을 받은 뒤 지우고 돌아�
   expect(screen.getByText('1회차')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('회차 삭제'));
-  expect(await screen.findByText('회차를 지울까요?')).toBeOnTheScreen();
+  expect(await screen.findByText('회차를 삭제할까요?')).toBeOnTheScreen();
   expect(screen.getByText('이 회차의 녹음도 함께 지워져요. 외운 대사 표시는 남아요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('삭제'));
 

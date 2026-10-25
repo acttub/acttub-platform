@@ -42,14 +42,14 @@ export function kstDate(iso: string | number): KstDate {
   return { month: at.getUTCMonth() + 1, day: at.getUTCDate(), weekday: at.getUTCDay() };
 }
 
-/** 결과가 나오는 날 — 마감 시각의 한국 날짜. */
-export function resultDay(endsAt: string): KstDate {
-  return kstDate(endsAt);
-}
-
 /** "10/9~10/16" — 시작일부터 마감 직전 날까지. */
 export function periodLabel(startsAt: string, endsAt: string): string {
   const from = kstDate(startsAt);
   const to = kstDate(Date.parse(endsAt) - 1);
   return `${from.month}/${from.day}~${to.month}/${to.day}`;
+}
+
+/** 결과가 나오는 날 — 마감 시각의 한국 날짜. */
+export function resultDay(endsAt: string): KstDate {
+  return kstDate(endsAt);
 }

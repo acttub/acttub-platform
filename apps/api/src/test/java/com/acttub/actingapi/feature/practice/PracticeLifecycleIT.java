@@ -629,6 +629,74 @@ class PracticeLifecycleIT {
         assertThat(second.path("session_purpose").textValue()).as("이어하기는 묶음 첫 회차의 목적을 물려받는다").isEqualTo("stuck");
     }
 
+    @Test
+    @DisplayName("practice.start: 얼굴 가리기 — face_mosaic true 로 시작하면 회차에 남고 같은 요청 id 재전송은 같은 회차, 빼면 다른 본문이다. "
+            + "false·생략은 끔이고, 이어하기에서 빼면 이어받을 회차의 값, 보내면 그 값이다")
+    void practiceStart_faceMosaicIsStoredAndInherited() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        String body = startBody(requestId, video, null, null).replace("}", ",\"face_mosaic\":true}");
+        UUID rootId = UUID.fromString(json(post("/v2/practices").content(body), 201).path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, rootId)).isTrue();
+        assertThat(json(post("/v2/practices").content(body), 201).path("id").textValue())
+                .as("같은 요청 id·같은 본문 재전송").isEqualTo(rootId.toString());
+        assertThat(json(post("/v2/practices").content(startBody(requestId, video, null, null)), 422))
+                .as("얼굴 가리기를 빼면 다른 본문이다")
+                .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
+
+        UUID off = UUID.fromString(json(post("/v2/practices").content(startBody(UUID.randomUUID(), video(member), null, null)
+                .replace("}", ",\"face_mosaic\":false}")), 201).path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, off)).isFalse();
+
+        close(rootId);
+        UUID second = UUID.fromString(json(post("/v2/practices/{id}/continue", rootId)
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 201).path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, second))
+                .as("이어하기에서 빼면 이어받을 회차의 값").isTrue();
+        close(second);
+        UUID third = UUID.fromString(json(post("/v2/practices/{id}/continue", second)
+                .content(continueBody(UUID.randomUUID(), null, null, null).replace("}", ",\"face_mosaic\":false}")), 201)
+                .path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT face_mosaic FROM practices WHERE id=?", Boolean.class, third)).isFalse();
+    }
+
+    @Test
+    @DisplayName("practice.start: 영상 없이 말로 — video_id 없이 stuck·character·concern 으로 시작하면 분석 작업 없이 conversing 회차가 "
+            + "생기고(three_layers_v1), 같은 요청 id 재전송은 같은 회차다. 영상 없이 목적을 빼거나 evaluate 면 422 배열 (SOMA-745)")
+    void practiceStart_withoutVideoOpensTheConversationStage() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        String body = "{\"request_id\":\"" + requestId + "\",\"session_purpose\":\"concern\"}";
+        int jobs = count("ai_jobs");
+
+        JsonNode started = json(post("/v2/practices").content(body), 201);
+
+        UUID id = UUID.fromString(started.path("id").textValue());
+        assertThat(started.path("video_id").isNull()).isTrue();
+        assertThat(started.path("stage").textValue()).isEqualTo("conversing");
+        assertThat(started.path("session_purpose").textValue()).isEqualTo("concern");
+        assertThat(started.path("experience_version").textValue()).isEqualTo("three_layers_v1");
+        assertThat(started.path("job").isNull()).isTrue();
+        assertThat(count("ai_jobs")).as("분석 작업을 만들지 않는다").isEqualTo(jobs);
+        assertThat(jdbc.queryForObject("SELECT video_id FROM practices WHERE id=?", UUID.class, id)).isNull();
+        assertThat(json(post("/v2/practices").content(body), 201).path("id").textValue())
+                .as("같은 요청 id 재전송").isEqualTo(id.toString());
+        assertThat(json(post("/v2/practices").content(body.replace("concern", "stuck")), 422))
+                .isEqualTo(mapper.readTree("{\"detail\":\"request_fingerprint_mismatch\"}"));
+
+        int before = count("practices");
+        for (String noVideo : List.of("{\"request_id\":\"" + UUID.randomUUID() + "\"}",
+                "{\"request_id\":\"" + UUID.randomUUID() + "\",\"session_purpose\":\"evaluate\"}")) {
+            JsonNode rejected = json(post("/v2/practices").content(noVideo), 422);
+            assertThat(rejected.path("detail").isArray()).as(noVideo).isTrue();
+        }
+        assertThat(count("practices")).isEqualTo(before);
+
+        close(id);
+        assertThat(json(post("/v2/practices/{id}/continue", id)
+                .content(continueBody(UUID.randomUUID(), null, null, null)), 422))
+                .as("영상 없는 묶음은 새 영상으로만 잇는다")
+                .isEqualTo(mapper.readTree("{\"detail\":\"video_not_ready\"}"));
+    }
+
     // ---- helpers ----
 
     private String startBody(UUID requestId, UUID videoId, String scene, String blockage, String title) {

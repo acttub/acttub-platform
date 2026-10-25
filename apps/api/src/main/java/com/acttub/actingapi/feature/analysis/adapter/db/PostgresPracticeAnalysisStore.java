@@ -70,7 +70,7 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
         List<Tuple> rows = list(entityManager.createNativeQuery("""
                 SELECT j.user_id,p.id AS practice_id,v.object_key,v.content_type,v.duration_ms,
                        p.situation,p.character_context,p.goal,p.blockage_kind,p.blockage_detail,
-                       p.experience_version,
+                       p.experience_version,p.face_mosaic,
                        (SELECT etag FROM upload_intents u WHERE u.video_id=v.id ORDER BY finalized_at DESC LIMIT 1) AS etag
                 FROM ai_jobs j
                 JOIN practices p ON p.id=j.target_id
@@ -96,7 +96,8 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
                 row.get("blockage_kind", String.class),
                 row.get("blockage_detail", String.class),
                 row.get("experience_version", String.class),
-                row.get("user_id", UUID.class));
+                row.get("user_id", UUID.class),
+                Boolean.TRUE.equals(row.get("face_mosaic", Boolean.class)));
     }
 
     @Override

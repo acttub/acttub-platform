@@ -131,6 +131,19 @@ class PostgresPracticeRepository implements PracticeRepository {
     }
 
     @Override
+    public Started startWithoutVideo(UUID userId, NewPractice practice, Instant now) {
+        return transaction.execute(tx -> {
+            Started replayed = replay(userId, practice);
+            if (replayed != null) {
+                return replayed;
+            }
+            UUID id = UUID.randomUUID();
+            insertPractice(id, id, 1, userId, practice, now, "conversing");
+            return new Started(StartOutcome.CREATED, find(userId, id));
+        });
+    }
+
+    @Override
     public Started continueGroup(UUID userId, UUID from, UUID videoId, NewPractice practice, Quota quota, Instant now) {
         return transaction.execute(tx -> {
             Started replayed = replay(userId, practice);
@@ -138,7 +151,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 return replayed;
             }
             List<Tuple> source = NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT root_id,video_id FROM practices WHERE id=:from AND user_id=:userId", Tuple.class)
+                    "SELECT root_id,video_id,face_mosaic FROM practices WHERE id=:from AND user_id=:userId", Tuple.class)
                     .setParameter("from", from)
                     .setParameter("userId", userId));
             if (source.isEmpty()) {
@@ -164,7 +177,10 @@ class PostgresPracticeRepository implements PracticeRepository {
             insertPractice(id, rootId, ordinal, userId,
                     new NewPractice(practice.requestId(), practice.fingerprint(), video, practice.experienceVersion(),
                             practice.situation(), practice.characterContext(), practice.goal(),
-                            practice.blockageKind(), practice.subBranch(), practice.blockageNote(), null),
+                            practice.blockageKind(), practice.subBranch(), practice.blockageNote(), null, null,
+                            // 얼굴 가리기를 보내지 않았으면 이어받을 회차의 값을 쓴다.
+                            practice.faceMosaic() != null ? practice.faceMosaic()
+                                    : source.getFirst().get("face_mosaic", Boolean.class)),
                     now);
             insertAnalyzeJob(userId, id, practice.requestId(), practice.fingerprint(), now);
             return new Started(StartOutcome.CREATED, find(userId, id));
@@ -505,15 +521,21 @@ class PostgresPracticeRepository implements PracticeRepository {
     }
 
     private void insertPractice(UUID id, UUID rootId, int ordinal, UUID userId, NewPractice practice, Instant now) {
+        insertPractice(id, rootId, ordinal, userId, practice, now, "analyzing");
+    }
+
+    private void insertPractice(UUID id, UUID rootId, int ordinal, UUID userId, NewPractice practice, Instant now,
+            String stage) {
         entityManager.createNativeQuery("""
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,request_id,
                                       request_fingerprint,situation,character_context,goal,blockage_kind,sub_branch,
-                                      blockage_detail,title,session_purpose,created_at,updated_at)
-                VALUES (:id,:userId,:videoId,:rootId,:ordinal,'analyzing',:experienceVersion,:requestId,:fingerprint,
+                                      blockage_detail,title,session_purpose,face_mosaic,created_at,updated_at)
+                VALUES (:id,:userId,CAST(:videoId AS uuid),:rootId,:ordinal,:stage,:experienceVersion,:requestId,:fingerprint,
                         :situation,:characterContext,:goal,:blockageKind,:subBranch,:blockageNote,
                         CAST(:title AS text),
                         COALESCE(CAST(:sessionPurpose AS text),
                                  (SELECT r.session_purpose FROM practices r WHERE r.id=:rootId)),
+                        COALESCE(CAST(:faceMosaic AS boolean), false),
                         :now,:now)
                 """)
                 .setParameter("id", id)
@@ -521,6 +543,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 .setParameter("videoId", practice.videoId())
                 .setParameter("rootId", rootId)
                 .setParameter("ordinal", ordinal)
+                .setParameter("stage", stage)
                 .setParameter("experienceVersion", practice.experienceVersion())
                 .setParameter("requestId", practice.requestId())
                 .setParameter("fingerprint", practice.fingerprint())
@@ -532,6 +555,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 .setParameter("blockageNote", practice.blockageNote())
                 .setParameter("title", practice.title())
                 .setParameter("sessionPurpose", practice.sessionPurpose())
+                .setParameter("faceMosaic", practice.faceMosaic())
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .executeUpdate();
     }

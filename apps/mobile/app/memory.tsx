@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -13,6 +13,7 @@ import {
 } from '@/lib/practice/memory';
 import { palette } from '@/constants/palette';
 import { translate } from '@/lib/i18n';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * 코치가 나에 대해 기억하는 것 — 배우가 보고 고치는 화면.
@@ -158,9 +159,7 @@ export default function MemoryScreen() {
       </Text>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
+        <SkeletonRows count={3} avatar={false} />
       ) : (
         <KeyboardAwareScroll contentContainerStyle={styles.list}>
           {!hasAny && (

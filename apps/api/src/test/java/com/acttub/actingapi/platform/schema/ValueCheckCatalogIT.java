@@ -136,6 +136,10 @@ class ValueCheckCatalogIT {
             "ck_practices_session_purpose",
             // 좋아요순 커서의 기준(live·pending·final)은 저장소 SQL 만 읽고 쓰는 장부 칸이다.
             "ck_entry_ranking_snapshots_basis",
+            // 배우 일지(SOMA-720)의 자동 칸 생성 상태(pending·ready·failed·skipped)는 저장소 SQL 과 JournalService 만 쓴다(JPA 매핑이 없다).
+            "ck_actor_journals_draft_status",
+            // 참여작 얼굴 모자이크 상태(pending·ready·failed, SOMA-809)는 저장소 SQL 만 읽고 쓴다(값 enum 이 따로 없다).
+            "ck_challenge_entries_mosaic_status",
             // 연습 알림 보낸 기록의 칸(practice·streak)은 저장소 SQL 과 ReminderKind#slot 만 쓴다(값 enum 이 따로 없다).
             "ck_practice_reminder_sends_slot",
             // 행동자가 있는 알림은 좋아요·댓글뿐이라는 조합 검사다(값 목록 하나가 아니다).
@@ -165,7 +169,10 @@ class ValueCheckCatalogIT {
             // 오디션 공고(V36)의 출처·분야는 domain 의 AuditionRules 목록이 들고 저장소 native SQL 만 쓴다
             // (같은 선인지는 AuditionSchemaMigrationTest 가 본다).
             "ck_audition_postings_source",
-            "ck_audition_postings_category");
+            "ck_audition_postings_category",
+            // 웹 문의(V63)의 분류·상태 값 목록은 app 의 SupportInquiryRules 상수가 들고 저장소 native SQL 만 쓴다.
+            "ck_support_inquiries_category",
+            "ck_support_inquiries_status");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");

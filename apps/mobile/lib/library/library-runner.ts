@@ -8,6 +8,7 @@ import { compressVideo } from '@/lib/compress';
 import { CompressFailedError } from '@/lib/compress-timeout';
 import { createUploadQueue, type QueuedVideo, type UploadQueue } from '@/lib/library/upload-queue';
 import { VIDEO_MAX_MS, checkVideoForUpload } from '@/lib/library/video-checks';
+import { faceMosaicForNextUpload } from '@/lib/practice/upload-options';
 import { newRequestId } from '@/lib/request-id';
 
 /**
@@ -77,7 +78,7 @@ function instance(): UploadQueue {
         duration_ms: entry.durationMs ?? prepared.durationMs ?? 1_000,
       }),
     put: (url, uri, contentType) => api.startUploadToUrl(url, uri, contentType).result.then((r) => r.kind),
-    complete: (intentId, requestId) => api.completeVideoIntent(intentId, requestId),
+    complete: (intentId, requestId) => api.completeVideoIntent(intentId, requestId, { faceMosaic: faceMosaicForNextUpload() }),
     cleanup: async (prepared, entry) => {
       if (prepared.uri !== entry.uri) await deleteDeviceFile(prepared.uri).catch(() => undefined);
     },
@@ -187,7 +188,7 @@ export async function removePendingUpload(id: string): Promise<void> {
   notify();
 }
 
-/** 옛 보관함 옮기기(legacy-archive)가 항목을 넣을 때 쓴다. */
+/** 업로드 대기 큐에 항목을 넣는다. */
 export function enqueueLibraryUpload(entry: Parameters<UploadQueue['enqueue']>[0]): Promise<QueuedVideo> {
   return instance().enqueue(entry);
 }

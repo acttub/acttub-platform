@@ -2,10 +2,11 @@ import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { CoachPurposeCards } from '@/components/coach-purpose-cards';
 import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
 import { CoachWaiting } from '@/components/coach-waiting';
@@ -13,6 +14,7 @@ import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { CoachNotice } from '@/components/ui/coach-notice';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
@@ -24,12 +26,12 @@ import {
   canSendAnswer,
   coachFailure,
   coachFailureMessage,
-  helpButtonDraft,
+  answerChoices,
+  canContinueConversation,
   isClosed,
   loadCoachSession,
   nextReplyWraps,
   orderedMessages,
-  type HelpButton,
 } from '@/lib/practice/coach';
 import { splitTimestamps } from '@/lib/practice/coach-timestamps';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
@@ -57,6 +59,9 @@ try {
  * SOMA-778) — 따로 된 분석 화면은 없다. 분석이 끝나면 회차를 들고 대화를 연다. 회차 id 없이 열리면(튜토리얼·미리보기·
  * 테스트) 이미 들고 있는 회차로 바로 대화한다.
  */
+/** 다시 연결해도 같은 결과인 실패 — 이미 닫혔거나 더 이어 갈 수 없는 대화다. 「액티 다시 연결하기」를 보이지 않는다. */
+const REOPEN_USELESS = new Set(['closed', 'not_resumable', 'limit_reached']);
+
 export default function CoachScreen() {
   const params = useLocalSearchParams<{ practiceId?: string | string[]; preview?: string }>();
   const preview = __DEV__ && params.preview === '1';
@@ -93,6 +98,8 @@ function CoachTalk() {
   const questionTarget = useSpotlightTarget(TARGET.coachQuestion);
   const composerTarget = useSpotlightTarget(TARGET.coachComposer);
   const scrollRef = useRef<ScrollView>(null);
+  /** 지금 질문 칸의 위쪽 y(스크롤 안 기준) — 키보드가 뜨면 이 자리부터 보이게 올린다. */
+  const questionY = useRef<number | null>(null);
   const mountedRef = useRef(true);
   const startInFlightRef = useRef(false);
   /** 이번 답의 요청 id — 같은 답을 다시 보내면 그대로 쓴다(메시지가 늘지 않는다). */
@@ -119,7 +126,8 @@ function CoachTalk() {
     [],
   );
   const [error, setError] = useState<string | null>(null);
-  const [pastOpen, setPastOpen] = useState(false);
+  /** 보낸 답 — 코치 답이 오기 전까지 오른쪽 말풍선으로 먼저 보인다. 실패하면 입력칸으로 돌려준다. */
+  const [pendingText, setPendingText] = useState<string | null>(null);
   const [sceneOpen, setSceneOpen] = useState(false);
   // 코치 말 속 시간을 눌러 연 영상의 시작점(pen 「추가 · 시간 눌러 장면 보기」).
   const [seek, setSeek] = useState<{ seconds: number; label: string; key: number } | null>(null);
@@ -145,9 +153,10 @@ function CoachTalk() {
     }, 0);
   }, []);
 
+  // 코칭이 끝나면 배우 일지(SOMA-720)로 간다. 튜토리얼 예시 회차는 서버에 없어 지금처럼 미리 쓴 노트(/report)다.
   const goToNote = useCallback(() => {
-    leaveThen(() => router.replace('/report'));
-  }, [leaveThen, router]);
+    leaveThen(() => router.replace(sample ? '/report' : '/journal'));
+  }, [leaveThen, router, sample]);
 
   const applyResult = useCallback(
     (result: CoachTurnResult) => {
@@ -170,7 +179,7 @@ function CoachTalk() {
     try {
       const result = await loadCoachSession(loop, practice.practiceId, startRequestIdRef.current, practice.conversationId, streamCallbacks);
       if (!mountedRef.current) return;
-      if (applyResult(result) && result.note) goToNote();
+      if (applyResult(result) && result.note && !result.conversation.purpose) goToNote();
     } catch (e) {
       if (mountedRef.current) {
         const failure = coachFailure(e);
@@ -212,6 +221,12 @@ function CoachTalk() {
       attemptRef.current = attempt;
       setWaiting(true);
       setError(null);
+      // 카톡처럼 보낸 답을 바로 대화에 올리고 입력칸을 비운다. 그만하기 신호는 말풍선으로 올리지 않는다.
+      const shownAsBubble = trimmed !== COACH_END_WORD;
+      if (shownAsBubble) {
+        setPendingText(trimmed);
+        setInput('');
+      }
       try {
         const result = await loop.replyToCoach(
           buildReplyBody({ conversation, requestId: attempt.requestId, text: trimmed }),
@@ -220,9 +235,11 @@ function CoachTalk() {
         if (!mountedRef.current) return;
         attemptRef.current = null;
         setInput('');
-        if (applyResult(result) && result.note) goToNote();
+        // 대화가 방금 닫혀도 바로 넘기지 않는다 — 마지막 코치 말을 읽고 「일지 쓰고 마치기」로 직접 넘어간다.
+        applyResult(result);
       } catch (e) {
         if (!mountedRef.current) return;
+        if (shownAsBubble) setInput((was) => (was.trim() ? was : trimmed));
         const failure = coachFailure(e);
         setError(coachFailureMessage(failure));
         // 충돌했거나 이미 닫혔으면 입력을 보존한 채 최신 대화를 다시 읽는다.
@@ -231,12 +248,35 @@ function CoachTalk() {
       } finally {
         if (mountedRef.current) {
           setStreamText('');
+          setPendingText(null);
           setWaiting(false);
         }
       }
     },
     [applyResult, closed, conversation, goToNote, loop, practice, reloadConversation, streamCallbacks, waiting],
   );
+
+  /**
+   * 정리 뒤 「대화 이어하기」(SOMA-782) — 같은 대화를 다시 열어 입력창을 돌려준다. 새 회차가 아니다.
+   * 실패하면 닫힌 채로 두고 안내만 보인다. 충돌이면 최신 대화를 다시 읽는다.
+   */
+  const continueTalk = useCallback(async () => {
+    if (!conversation || waiting || !canContinueConversation(conversation, sample)) return;
+    setWaiting(true);
+    setError(null);
+    try {
+      const result = await loop.continueConversation(conversation.id, conversation.revision);
+      if (!mountedRef.current) return;
+      applyResult(result);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      const failure = coachFailure(e);
+      setError(coachFailureMessage(failure));
+      if (failure.kind === 'conflict') await reloadConversation();
+    } finally {
+      if (mountedRef.current) setWaiting(false);
+    }
+  }, [applyResult, conversation, loop, reloadConversation, sample, waiting]);
 
   /** 닫힌 대화에서 다시 코칭하려면 새 회차다 — 「다음 테이크 찍기」로 영상을 새로 고른다(SOMA-672). */
   const startNextTake = () => {
@@ -290,9 +330,15 @@ function CoachTalk() {
     return () => clearTimeout(timer);
   }, [messages, waiting, streamText]);
 
+  // 키보드가 뜨면 답을 쓰는 동안 지금 질문이 보여야 한다 — 맨 끝으로 내리면 긴 질문은 윗부분이 잘렸다(지성 pen 메모).
+  // 질문 위쪽이 화면 맨 위에 오도록 올리고, 질문이 짧아 그 자리까지 못 가면 스크롤이 알아서 끝에서 멈춘다.
   useEffect(() => {
     if (!keyboardVisible) return;
-    const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+    const timer = setTimeout(() => {
+      const y = questionY.current;
+      if (y == null) scrollRef.current?.scrollToEnd({ animated: true });
+      else scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
+    }, 80);
     return () => clearTimeout(timer);
   }, [keyboardVisible]);
 
@@ -308,6 +354,9 @@ function CoachTalk() {
       </SafeAreaView>
     );
   }
+
+  // 대화를 열지 못했다(연결 실패·닫힌 대화 등). 그만하기는 이때 화면 나가기로 쓴다.
+  const openFailed = !conversation && !!error && !connecting && !waiting;
 
   const endConversation = async () => {
     const ok = await confirm({
@@ -325,16 +374,12 @@ function CoachTalk() {
     leaveThen(() => router.dismissAll());
   };
 
-  const pressHelp = (button: HelpButton) => {
-    const draft = helpButtonDraft(button);
-    if (draft) setInput(draft);
-    // 키보드를 띄우지 않는다 — 올라오면 보내기 버튼이 움직여 엔터(줄바꿈)를 잘못 누른다(10/20 피드백). 덧붙여 쓰려면 입력칸을 누른다.
-  };
+  // 예시 답은 입력칸만 채운다 — 고쳐 쓰고 보낸다. 키보드를 띄우지 않는다: 올라오면 보내기 버튼이 움직여 엔터(줄바꿈)를 잘못 누른다(10/20 피드백).
+  const pressChoice = (label: string) => setInput(label);
 
-  const latestQuestion = [...messages].reverse().find((m) => m.role === 'coach')?.text ?? null;
-  // 스트리밍 중에는 쓰이는 글이 같은 말풍선에 자란다. 첫 글자 전에는 이전 모습(기다림 표시) 그대로다.
-  const shownQuestion = streamText || latestQuestion;
-  const past = messages.slice(0, Math.max(0, messages.length - (latestQuestion ? 1 : 0)));
+  const latestCoachIndex = messages.map((m) => m.role).lastIndexOf('coach');
+  const latestQuestion = latestCoachIndex >= 0 ? messages[latestCoachIndex].text : null;
+  const choices = answerChoices(conversation, { busy: waiting || connecting || !!streamText || !!pendingText });
   const canSend = canSendAnswer({ text: input, waiting, closed, conversationId: conversation?.id ?? null });
   const wrapping = conversation ? nextReplyWraps(conversation) : false;
   const sceneVideo = practice.videoUri || practice.playbackUrl;
@@ -380,22 +425,33 @@ function CoachTalk() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
-      <Stack.Screen
-        options={{
-          // 제목은 늘 「질문 대화」(pen 09) — 장면 칸은 SOMA-778 에서 없앴다.
-          title: t('coach.fallbackTitle'),
-          headerShadowVisible: false,
-          // 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(pen 질문 대화 오른쪽 위, SOMA-656·748).
-          headerRight: () =>
-            !closed ? (
-              <Pressable
-                disabled={waiting || connecting || !conversation}
-                onPress={() => void endConversation()} accessibilityRole="button" hitSlop={10}>
-                <Text style={styles.endText}>{t('coach.quickEnd')}</Text>
-              </Pressable>
-            ) : null,
-        }}
+    <SafeAreaView style={styles.safe} edges={keyboardVisible ? ['top'] : ['top', 'bottom']}>
+      {/* iOS 새 구조에서 기본 머리(native header)의 headerRight 누름이 자주 씹혀 「그만하기」가 안 눌렸다(10/23 iOS 제보).
+          머리를 화면 안에 직접 그려 누름을 앱이 받는다. 제목은 늘 「질문 대화」(pen 09). */}
+      <Stack.Screen options={{ headerShown: false }} />
+      <NavHeader
+        title={t('coach.fallbackTitle')}
+        left={
+          <NavIconButton
+            icon="chevron-left"
+            size={24}
+            label={t('common.back')}
+            phLabel="coach_back"
+            onPress={() => (router.canGoBack() ? router.back() : router.dismissTo('/(tabs)'))}
+          />
+        }
+        // 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(pen 질문 대화 오른쪽 위, SOMA-656·748).
+        // 이미 닫힌 대화를 이어 하려다 못 연 경우(conversation_closed 등)는 마칠 대화가 없으니 화면을 나간다.
+        right={
+          !closed ? (
+            <Pressable
+              disabled={waiting || connecting || (!conversation && !openFailed)}
+              onPress={() => (conversation ? void endConversation() : router.back())}
+              accessibilityRole="button" hitSlop={10} style={styles.endButton}>
+              <Text style={styles.endText}>{t('coach.quickEnd')}</Text>
+            </Pressable>
+          ) : null
+        }
       />
 
       {observedLine && (
@@ -408,6 +464,8 @@ function CoachTalk() {
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {/* 오늘 영상 줄 — 누르면 영상을 펼친다. 예전 「영상과 장면 보기」 띠를 대신한다(pen 질문 대화 첫 응답). */}
+          {/* 영상 없이 말로 시작한 회차(SOMA-745)는 펼칠 영상이 없어 줄을 두지 않는다. */}
+          {sceneVideo ? (
           <CoachVideoRow
             open={sceneOpen}
             sub={sceneWritten ? t('coach.sceneWritten') : t('coach.videoHint')}
@@ -417,76 +475,74 @@ function CoachTalk() {
               setSeek(null);
             }}
           />
-          <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} track="coach" startAt={seek} />
+          ) : null}
+          {sceneVideo ? <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} track="coach" startAt={seek} /> : null}
 
-          {(wrapping || past.length > 0) && (
-            <View style={styles.progressHead}>
-              {/* 남은 코치 답변 수는 보이지 않는다 — 마무리 직전에만 알린다. */}
-              {wrapping && <Text style={styles.progressText}>{t('coach.wrapNext')}</Text>}
-              <View style={styles.flex} />
-              {past.length > 0 && (
-                <Pressable
-                  onPress={() => setPastOpen((was) => !was)}
-                  accessibilityRole="button"
-                  accessibilityState={{ expanded: pastOpen }}
-                  hitSlop={8}>
-                  <View style={styles.pastRow}>
-                    <Text style={styles.pastToggle}>{t('coach.pastToggle', { count: Math.floor(past.length / 2) })}</Text>
-                    <Feather name={pastOpen ? 'chevron-up' : 'chevron-down'} size={12} color={palette.textFaint} />
-                  </View>
-                </Pressable>
-              )}
-            </View>
-          )}
+          <CoachPurposeCards purpose={conversation?.purpose} hasVideo={!!sceneVideo} onSeek={(at) => seekTo(at, String(at))} />
 
-          {/* 지난 문답 — 코치 말은 회색 말풍선(왼쪽), 내 답은 파란 말풍선·흰 글자(오른쪽, SOMA-778). */}
-          {pastOpen &&
-            past.map((message) =>
-              message.role === 'coach' ? (
-                <View
-                  key={message.turn_index}
-                  testID="coach-bubble-coach"
-                  style={[styles.pastBubble, styles.pastAi]}
-                  accessibilityLabel={`${t('coach.roleCoach')}: ${message.text}`}>
-                  <Text style={styles.pastAiText}>{message.text}</Text>
-                </View>
-              ) : (
-                <View
-                  key={message.turn_index}
-                  testID="coach-bubble-mine"
-                  style={[styles.pastBubble, styles.pastMine]}
-                  accessibilityLabel={`${t('coach.roleMe')}: ${message.text}`}>
-                  <Text style={styles.pastMineText}>{message.text}</Text>
-                </View>
-              ),
-            )}
+          {/* 마무리 직전에만 알린다 — 남은 코치 답변 수는 보이지 않는다. */}
+          {wrapping && <Text style={styles.progressText}>{t('coach.wrapNext')}</Text>}
 
           {connecting && !latestQuestion && !streamText ? (
             <View style={styles.loading}>
-              <ActivityIndicator color={palette.blue} />
               <Text style={styles.loadingText}>{t('coach.wrapping')}</Text>
               <Text style={styles.loadingHint}>{t('coach.wrappingHint')}</Text>
             </View>
           ) : (
-            <View style={styles.questionBlock} ref={questionTarget.ref} onLayout={questionTarget.onLayout}>
-              {shownQuestion && (
-                <CoachMessage>
-                  {/* 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). 「0:12」만 누를 수 있게 칠한다. */}
-                  <Text style={styles.question}>{withTimestamps(shownQuestion.trim())}</Text>
-                </CoachMessage>
+            // 카톡처럼 쌓이는 대화(10/23 pen) — 코치 말은 왼쪽 마스코트 말풍선, 내 답은 오른쪽 파란 말풍선. 지난 문답을 접지 않는다.
+            // 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). 「0:12」만 누를 수 있게 칠한다.
+            <View style={styles.thread}>
+              {messages.map((message, index) =>
+                message.role === 'coach' ? (
+                  <View
+                    key={message.turn_index}
+                    testID="coach-bubble-coach"
+                    // 지금 질문 — 튜토리얼이 비추고, 키보드가 뜨면 이 말풍선 위쪽으로 올린다.
+                    ref={index === latestCoachIndex ? questionTarget.ref : undefined}
+                    onLayout={
+                      index === latestCoachIndex
+                        ? (event) => {
+                            questionY.current = event.nativeEvent.layout.y;
+                            questionTarget.onLayout();
+                          }
+                        : undefined
+                    }>
+                    <CoachMessage>
+                      <Text style={styles.question}>{withTimestamps(message.text.trim())}</Text>
+                    </CoachMessage>
+                  </View>
+                ) : (
+                  <View
+                    key={message.turn_index}
+                    testID="coach-bubble-mine"
+                    style={[styles.bubble, styles.mine]}
+                    accessibilityLabel={`${t('coach.roleMe')}: ${message.text}`}>
+                    <Text style={styles.mineText}>{message.text}</Text>
+                  </View>
+                ),
               )}
+              {pendingText ? (
+                <View testID="coach-bubble-pending" style={[styles.bubble, styles.mine]}>
+                  <Text style={styles.mineText}>{pendingText}</Text>
+                </View>
+              ) : null}
+              {/* 스트리밍 중에는 쓰이는 글이 새 코치 말풍선에 자란다. */}
+              {streamText ? (
+                <CoachMessage>
+                  <Text style={styles.question}>{withTimestamps(streamText.trim())}</Text>
+                </CoachMessage>
+              ) : null}
             </View>
           )}
 
           {waiting && (
             <View style={styles.thinkingRow}>
-              <ActivityIndicator size="small" color={palette.blue} />
               <Text style={styles.thinkingText}>{t('coach.thinking')}</Text>
             </View>
           )}
 
           {error && <Text style={styles.errorText}>{error}</Text>}
-          {error && !conversation && !waiting && !connecting && (
+          {openFailed && !REOPEN_USELESS.has(startFailureKind ?? '') && (
             <SecondaryButton label={t('coach.reconnect')} onPress={() => void startConversation()} />
           )}
 
@@ -494,9 +550,20 @@ function CoachTalk() {
             <>
               <Text style={styles.doneText}>{conversation?.close_reason === 'system_failure'
                 ? t('coach.doneFailure') : practice.note ? t('coach.doneNormal') : t('coach.doneShort')}</Text>
+              {canContinueConversation(conversation, sample) && (
+                <Pressable
+                  onPress={() => void continueTalk()}
+                  disabled={waiting}
+                  style={styles.continueTalk}
+                  accessibilityRole="button"
+                  testID="coach-continue-talk">
+                  <Text style={styles.continueTalkText}>{t('coach.continueTalk')}</Text>
+                </Pressable>
+              )}
               <PrimaryButton label={practice.note ? t('coach.seeSummary') : t('coach.finishBtn')} onPress={practice.note ? goToNote : finishWithoutNote} />
               {/* 예시 회차는 서버에 없어 이어 갈 수 없다. */}
-              {!sample && (
+              {/* 영상 없이 말로 한 대화(말로 코칭)는 찍은 테이크가 없어 「다음 테이크 찍기」를 두지 않는다. */}
+              {!sample && sceneVideo && (
                 <SecondaryButton label={t('history.nextTake')} onPress={startNextTake} />
               )}
             </>
@@ -505,28 +572,42 @@ function CoachTalk() {
 
         {!closed && (
           <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
-            <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>
-            {/* 빠른 답 한 줄 셋(pen 09) — 누르면 입력칸만 채우고 키보드는 띄우지 않는다. 덧붙이려면 아래 입력칸을 누른다. */}
-            <View style={styles.quickRow} testID="coach-quick-grid">
-              {(
-                [
-                  ['yes', t('coach.quickYes')],
-                  ['no', t('coach.quickNo')],
-                  ['unsure', t('coach.quickUnsure')],
-                ] as const
-              ).map(([button, label]) => (
-                <Pressable
-                  key={button}
-                  style={({ pressed }) => [styles.quick, pressed && styles.quickOn]}
-                  disabled={waiting || connecting || !conversation}
-                  onPress={() => pressHelp(button)}
-                  accessibilityRole="button">
-                  <Text style={styles.quickText} numberOfLines={1}>
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            {/* 키보드가 떠 있으면 답을 쓰는 중이다 — 고르기 버튼·빠른 답·안내 줄을 접어 질문이 보일 자리를 넓힌다. */}
+            {!keyboardVisible && conversation?.purpose?.choices.length ? (
+              <View style={styles.purposeChoices}>
+                {conversation.purpose.choices.map((choice, index) => (
+                  // pen ⓐ3·ⓑ4 「방법 고르기」 — 흰 바탕 · 파란 테두리 알약(모서리 16, 안쪽 7·13), 글 13.5/600 진파랑, 왼쪽 정렬로 쌓는다.
+                  <Pressable
+                    key={index}
+                    style={({ pressed }) => [styles.purposeChoice, pressed && styles.purposeChoiceOn, (waiting || connecting) && styles.purposeChoiceOff]}
+                    disabled={waiting || connecting}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: waiting || connecting }}
+                    onPress={() => {
+                      if (sceneVideo && choice.at != null) seekTo(choice.at, String(choice.at));
+                      void sendText(choice.label);
+                    }}>
+                    <Text style={styles.purposeChoiceText}>{choice.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            {!keyboardVisible && <Text style={styles.chipGuide}>{t('coach.chipGuide')}</Text>}
+            {/* 예시 답 칩(10/23 pen) — 코치가 지금 질문에 맞춰 준 예시 답 1~2개 + 「잘 모르겠어요」. 세로로 한 줄씩, 글자 길이만큼 폭.
+                목적별 코칭은 위의 purpose.choices 를 쓰므로 여기서는 비어 있다. 질문을 기다리는 동안에는 없다. */}
+            {!keyboardVisible && choices.length > 0 && (
+              <View style={styles.exampleChoices} testID="coach-answer-examples">
+                {choices.map((label) => (
+                  <Pressable
+                    key={label}
+                    style={({ pressed }) => [styles.purposeChoice, pressed && styles.purposeChoiceOn]}
+                    onPress={() => pressChoice(label)}
+                    accessibilityRole="button">
+                    <Text style={styles.purposeChoiceText}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
             <View style={styles.inputRow}>
               {MicButton && !sample && <MicButton onText={setInput} disabled={connecting || waiting || !conversation} />}
               <TextInput
@@ -547,11 +628,8 @@ function CoachTalk() {
                 onPress={() => void sendText(input)}
                 accessibilityRole="button"
                 accessibilityLabel={t('coach.send')}>
-                {waiting ? (
-                  <ActivityIndicator size="small" color={palette.onAccent} />
-                ) : (
-                  <Feather name="arrow-up" size={21} color={palette.onAccent} />
-                )}
+                {/* SOMA-828: 전송 중 스피너 제거, 아래 "코치 생각 중" 문구가 대신한다 */}
+                <Feather name="arrow-up" size={21} color={palette.onAccent} />
               </Pressable>
             </View>
           </View>
@@ -564,20 +642,25 @@ function CoachTalk() {
 }
 
 const styles = StyleSheet.create({
+  continueTalk: { alignItems: 'center', paddingVertical: 12 },
+  continueTalkText: { fontSize: 15, fontWeight: '700', color: palette.blueDeep },
+  purposeChoices: { flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginBottom: 10 },
+  purposeChoice: { alignSelf: 'flex-start', maxWidth: '100%', borderRadius: 16, borderWidth: 1, borderColor: palette.blue, backgroundColor: palette.bg, paddingVertical: 7, paddingHorizontal: 13 },
+  purposeChoiceOn: { backgroundColor: palette.blueSoft },
+  purposeChoiceOff: { opacity: 0.5 },
+  purposeChoiceText: { fontSize: 13.5, fontWeight: '600', lineHeight: 19, color: palette.blueDeep },
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
 
+  // 글자 버튼도 아이콘 칸(NavIconButton)처럼 높이 44·좌우 10 을 둬 화면 끝에서 떨어뜨린다(SOMA-837).
+  endButton: { height: 44, paddingHorizontal: 10, justifyContent: 'center' },
   endText: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.textMuted },
 
   // 대화 위 한 줄 「AI가 본 장면 · …」 — 옅은 파랑 띠, 글 13/700 한 줄.
   sceneBar: { backgroundColor: palette.blueSoft, paddingVertical: 9, paddingHorizontal: 24 },
   sceneBarText: { fontSize: 13, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
 
-  progressHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   progressText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
-  // pen 09 「지난 문답 N」 — 오른쪽 끝, 15/700 회색 + 꺾쇠 12.
-  pastRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  pastToggle: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.textFaint },
 
   // pen 09 본문 안쪽 [14,21,0,21].
   body: { paddingTop: 14, paddingHorizontal: 21, paddingBottom: 20, gap: 14 },
@@ -587,19 +670,18 @@ const styles = StyleSheet.create({
   loadingHint: { fontSize: 12.5, lineHeight: 18, color: palette.textFaint, textAlign: 'center', paddingHorizontal: 24 },
 
   // 코치 질문 — 머리줄(CoachMessage) 말풍선 안 16/500(줄 22).
-  questionBlock: { gap: 16 },
   question: { fontSize: 16, fontWeight: '500', color: palette.text, lineHeight: 22 },
   timeLink: { color: palette.blueDeep, fontWeight: '800', textDecorationLine: 'underline' },
 
   thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 39 },
   thinkingText: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
 
-  pastBubble: { maxWidth: '85%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18 },
-  pastAi: { alignSelf: 'flex-start', backgroundColor: palette.bgSoft, borderTopLeftRadius: 4 },
-  pastAiText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 22 },
+  // 카톡식 대화 — 말풍선 사이 14. 코치 말은 CoachMessage(마스코트·이름·회색 말풍선)다.
+  thread: { gap: 14 },
+  bubble: { maxWidth: '85%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18 },
   // 내 답 — 파란 말풍선(palette.blue)에 흰 글자, 오른쪽 위만 뾰족.
-  pastMine: { alignSelf: 'flex-end', backgroundColor: palette.blue, borderTopRightRadius: 4 },
-  pastMineText: { fontSize: 14, fontWeight: '600', color: palette.onAccent, lineHeight: 22 },
+  mine: { alignSelf: 'flex-end', backgroundColor: palette.blue, borderTopRightRadius: 4 },
+  mineText: { fontSize: 15, fontWeight: '500', color: palette.onAccent, lineHeight: 22 },
 
   errorText: { fontSize: 13, fontWeight: '700', color: palette.danger },
   doneText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 23 },
@@ -607,11 +689,8 @@ const styles = StyleSheet.create({
   // pen 09 「Composer」 — 안쪽 [0,21,11,21]: 파란 안내 15/700 · 12 · 빠른 답 · 9 · 입력 줄.
   composer: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11 },
   chipGuide: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
-  // 빠른 답 — 한 줄에 셋, 같은 너비. 회색 알약 높이 39 · 모서리 20, 글 15/700 #333D4B.
-  quickRow: { flexDirection: 'row', gap: 6 },
-  quick: { flex: 1, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bgSoft, paddingHorizontal: 6, marginTop: 12 },
-  quickOn: { backgroundColor: palette.blueSoft },
-  quickText: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.textStrong },
+  // 예시 답 칩 — 목적별 답 버튼과 같은 알약을 세로로 한 줄씩, 글자 길이만큼(10/23 pen: 13.5/600, 사이 6).
+  exampleChoices: { flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 },
   // 마이크 39 · 입력칸 44(모서리 22, 안쪽 좌우 14, 17/500) · 보내기 39, 사이 7. 글이 늘면 칸만 커지고 두 버튼은 아래에 붙는다.
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 7, marginTop: 9 },
   // 한 줄로 시작해 글이 늘면 커지고, 다섯 줄쯤부터는 칸 안에서 스크롤한다(SOMA-656). pen 「칸」 회색 알약.

@@ -1,6 +1,10 @@
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AppState, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
+import { TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
 
 import { flushPendingPushTokenDeletions, configureNotificationHandling, onPushTapped } from '@/lib/notifications';
 import { sweepDeviceFiles } from '@/lib/account-files';
@@ -13,6 +17,7 @@ import { postHog, syncPostHog } from '@/lib/posthog';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { useAuth } from '@/lib/auth';
 import RootLayout from '@/app/_layout';
+import { markHomeReady, resetHomeReadyForTest } from '@/lib/launch-splash';
 
 type AuthState = {
   status: 'loading' | 'signedIn' | 'signedOut';
@@ -59,6 +64,10 @@ jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('react-native-reanimated', () => ({}));
 jest.mock('@/lib/global-font', () => ({}));
 jest.mock('@/lib/analytics', () => ({ logScreenView: jest.fn() }));
+jest.mock('expo-tracking-transparency', () => ({
+  getTrackingPermissionsAsync: jest.fn(),
+  requestTrackingPermissionsAsync: jest.fn(),
+}));
 jest.mock('@/lib/meta-events', () => ({ initMetaSdk: jest.fn() }));
 jest.mock('@/lib/posthog', () => ({ postHog: { touch: jest.fn() }, syncPostHog: jest.fn() }));
 jest.mock('@/lib/signup-attribution-runtime', () => ({ startSignupAttributionListener: jest.fn() }));
@@ -106,6 +115,9 @@ const startupCalls = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // 게이트 테스트는 홈이 이미 준비된 상태로 본다. 홈을 기다리는 로고는 아래 「홈을 기다리는 로고」에서 따로 본다.
+  resetHomeReadyForTest();
+  markHomeReady();
   mockFontsLoaded = true;
   mockNav.segments = ['(tabs)'];
   mockNav.pathname = '/';
@@ -425,6 +437,46 @@ describe('게이트', () => {
   });
 });
 
+describe('홈을 기다리는 로고', () => {
+  beforeEach(() => {
+    resetHomeReadyForTest();
+  });
+
+  test('홈으로 들어가면 홈이 첫 데이터를 받을 때까지 로고를 유지한다', async () => {
+    await renderLayout();
+    expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+
+    await act(async () => markHomeReady());
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
+  });
+
+  test('홈이 3초 안에 준비되지 않으면 로고를 닫는다', async () => {
+    jest.useFakeTimers();
+    try {
+      await renderLayout();
+      expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+      });
+      expect(SplashScreen.hideAsync).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('홈이 아닌 화면으로 가면 기다리지 않는다', async () => {
+    mockNav.pathname = '/analyzing';
+    await renderLayout();
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
+  });
+
+  test('로그아웃 상태면 기다리지 않는다', async () => {
+    auth = signedIn({ status: 'signedOut', user: null });
+    await renderLayout();
+    expect(SplashScreen.hideAsync).toHaveBeenCalled();
+  });
+});
+
 describe('푸시를 누르면', () => {
   test('저녁 리마인드는 홈을 연다', async () => {
     await renderLayout();
@@ -447,5 +499,55 @@ describe('푸시를 누르면', () => {
 
     pushListener?.({ kind: 'challenge_notification', notification_id: 'x1' });
     expect(mockRouter.push).toHaveBeenCalledWith('/notifications');
+  });
+});
+
+// SDK 경계만 대체하고 실제 사전 안내·저장소·Modal 연결을 함께 검증한다.
+describe('추적 허용 전 안내', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    (getTrackingPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'undetermined' });
+    (requestTrackingPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
+    (initMetaSdk as jest.Mock).mockImplementation(async (beforeRequest: () => Promise<void>) => {
+      await beforeRequest();
+      await requestTrackingPermissionsAsync();
+    });
+  });
+
+  afterEach(() => {
+    (initMetaSdk as jest.Mock).mockReset();
+  });
+
+  test('iOS 미결정이면 설명 화면 없이 바로 시스템 추적 팝업만 요청한다(pen S1.2)', async () => {
+    await renderLayout();
+    expect(screen.queryByText('Acttub를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(getTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('Android에서는 안내와 상태 조회 없이 기존 요청을 이어 간다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    await renderLayout();
+    expect(screen.queryByText('Acttub를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(getTrackingPermissionsAsync).not.toHaveBeenCalled();
+    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  test('iOS에서 이미 안내를 본 기기면 다시 띄우지 않고 요청한다', async () => {
+    await AsyncStorage.setItem(TRACKING_INTRO_KEY, '1');
+    await renderLayout();
+    expect(getTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Acttub를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(['granted', 'denied'])('iOS 권한이 %s이면 안내를 건너뛴다', async (status) => {
+    (getTrackingPermissionsAsync as jest.Mock).mockResolvedValue({ status });
+    await renderLayout();
+    expect(screen.queryByText('Acttub를 어떻게 찾아오셨나요?')).not.toBeOnTheScreen();
+    expect(requestTrackingPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
   });
 });

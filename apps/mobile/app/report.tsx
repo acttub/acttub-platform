@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
@@ -19,6 +19,7 @@ import { translate as t } from '@/lib/i18n';
 import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, readOptionalPracticeNote } from '@/lib/practice/note';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeNote } from '@/lib/practice/types';
+import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 
 /**
  * A13 연습 노트(practice.note) — 대화가 끝난 그 회차의 기록.
@@ -33,6 +34,10 @@ import type { PracticeNote } from '@/lib/practice/types';
  */
 export default function ReportScreen() {
   const router = useRouter();
+  // 코칭을 노트·일지·마무리까지 가 봤으면 첫 사용자 화면은 졸업이다(SOMA-827).
+  useEffect(() => {
+    void markFirstUseGraduated();
+  }, []);
   // 마운트 때 한 번만 읽는다 — 마치기에서 clearPractice() 한 직후 다시 읽으면 null 이다.
   const [practice] = useState(() => getPractice());
   // 튜토리얼 예시(SOMA-494) — 노트는 미리 써 둔 것이고, 서버에 남는 것이 없다.
@@ -135,7 +140,6 @@ export default function ReportScreen() {
 
       {loading && (
         <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} size="large" />
           <Text style={styles.loadingText}>{t('report.making')}</Text>
         </View>
       )}
@@ -174,6 +178,8 @@ export default function ReportScreen() {
                 튜토리얼 예시 노트는 서버에 없어 평가를 받지 않는다(SOMA-494). */}
             {!sample && <ReportRating practiceId={practice.practiceId} initial={note.my_rating} key={note.id} />}
 
+            {rating.element}
+
             {sample ? (
               <View style={styles.sampleDone}>
                 <Text style={styles.sampleDoneTitle}>{t('tutorial.sampleDone')}</Text>
@@ -194,7 +200,6 @@ export default function ReportScreen() {
           )}
         </>
       )}
-      {rating.element}
       {tutorialGuide.element}
     </SafeAreaView>
   );

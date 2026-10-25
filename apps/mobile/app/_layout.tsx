@@ -1,3 +1,4 @@
+import { reminderTarget } from '@/lib/reminder-target';
 import Feather from '@expo/vector-icons/Feather';
 import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
@@ -13,13 +14,16 @@ import {
 } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { getTrackingPermissionsAsync } from 'expo-tracking-transparency';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import 'react-native-reanimated';
 
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
@@ -27,6 +31,7 @@ import { api } from '@/lib/api';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
 import { tabBackTitle } from '@/lib/tab-back-title';
+import { HOME_SPLASH_HOLD_MS, isHomeReady, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
 import { AppHeader } from '@/components/app-header';
 import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
@@ -205,8 +210,10 @@ function RootNavigator() {
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
     return onPushTapped((data) => {
-      if (data && typeof data === 'object' && 'kind' in data && data.kind === 'evening_reminder') {
-        router.replace('/(tabs)');
+      // analysis_complete·evening_reminder resume은 같은 회차, 나머지 리마인드는 기존 홈이다.
+      const reminder = reminderTarget(data);
+      if (reminder) {
+        router.replace(reminder as Parameters<typeof router.replace>[0]);
         return;
       }
       if (challengePushTarget(data)) router.push('/notifications');
@@ -321,6 +328,30 @@ function RootNavigator() {
     router,
   ]);
 
+  // 홈으로 들어가는 길이면 홈이 첫 데이터를 받을 때까지 로고를 붙잡는다(lib/launch-splash.ts).
+  // 예전에는 로고가 닫힌 뒤 홈이 데이터를 받는 동안 작은 로딩 표시가 잠깐 보였다.
+  const homeReady = useSyncExternalStore(subscribeHomeReady, isHomeReady);
+  const signedInHome =
+    !updateRequired &&
+    status === 'signedIn' &&
+    Boolean(user) &&
+    consentEntry.status === 'allowed' &&
+    profileStatus === 'complete' &&
+    recovery.status === 'ready' &&
+    recovery.owner === user?.id;
+  const [homeHoldExpired, setHomeHoldExpired] = useState(false);
+  useEffect(() => {
+    if (!signedInHome) return;
+    const timer = setTimeout(() => setHomeHoldExpired(true), HOME_SPLASH_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [signedInHome]);
+  const holdSplashForHome = shouldHoldSplashForHome({
+    signedInHome,
+    pathname,
+    homeReady,
+    holdExpired: homeHoldExpired,
+  });
+
   useEffect(() => {
     const consentScreenReady =
       consentEntry.status === 'error' ||
@@ -337,10 +368,11 @@ function RootNavigator() {
               (profileStatus === 'complete' &&
                 recovery.status === 'ready' &&
                 recovery.owner === user?.id)))));
-    if (readyToShow) {
+    if (readyToShow && !holdSplashForHome) {
       void SplashScreen.hideAsync();
     }
   }, [
+    holdSplashForHome,
     updateRequired,
     status,
     user,
@@ -390,6 +422,7 @@ function RootNavigator() {
           options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
         />
         <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
+        <Stack.Screen name="talk" options={{ title: t('talk.title') }} />
         <Stack.Screen
           name="record-video"
           // 헤더는 여기 한 곳에서 숨긴다 — 화면이 따로 바꾸면 iOS에서 다시 그릴 때마다 뒤집혀 깜빡였다.
@@ -405,13 +438,12 @@ function RootNavigator() {
         <Stack.Screen name="auditions/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
         <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-        <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
         <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
+        <Stack.Screen name="line-pick" options={{ title: t('linePick.title') }} />
+        <Stack.Screen name="challenge-others" options={{ title: t('challenges.sameLineTitle') }} />
         <Stack.Screen name="line-search" options={{ headerShown: false }} />
         <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
-        <Stack.Screen name="archive" options={{ headerShown: false }} />
-        <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
         <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
         <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
         <Stack.Screen name="reading/session" options={{ title: '' }} />
@@ -420,6 +452,8 @@ function RootNavigator() {
         <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
         <Stack.Screen name="reading/play" options={{ headerShown: false }} />
         <Stack.Screen name="reading/diff" options={{ title: t('reading.diffTitle') }} />
+        <Stack.Screen name="reading/coach" options={{ title: t('readingCoach.coachName') }} />
+        <Stack.Screen name="reading/pronunciation" options={{ title: t('reading.pronReportRow') }} />
         {/* 자체 헤더(← 설정 · 제목)를 그린다 — 기본 헤더를 겹치면 라우트 이름 "memory"가 제목으로 나온다. */}
         <Stack.Screen name="memory" options={{ headerShown: false }} />
       </Stack>
@@ -463,19 +497,28 @@ export default function RootLayout() {
   // Meta SDK 초기화(SOMA-481). iOS ATT 팝업은 앱이 활성 상태일 때만 뜨므로,
   // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.
   useEffect(() => {
+    if (!fontsLoaded) return;
+    const initialize = () => initMetaSdk(() => beforeTrackingRequest({
+      platform: Platform.OS,
+      getStatus: async () => (await getTrackingPermissionsAsync()).status,
+      getSeen: () => AsyncStorage.getItem(TRACKING_INTRO_KEY),
+      markSeen: () => AsyncStorage.setItem(TRACKING_INTRO_KEY, '1'),
+      // pen S1.2 — 설명 화면 없이 로그인 화면 위에 바로 iOS 시스템 팝업만 띄운다.
+      show: async () => undefined,
+    }));
     // 설치 귀속 결과는 SDK 초기화 뒤 곧 온다. 받는 쪽은 먼저 세워 둔다(SOMA-588).
     startSignupAttributionListener();
     if (AppState.currentState === 'active') {
-      void initMetaSdk();
+      void initialize();
       return;
     }
     const subscription = AppState.addEventListener('change', (next) => {
       if (next !== 'active') return;
       subscription.remove();
-      void initMetaSdk();
+      void initialize();
     });
     return () => subscription.remove();
-  }, []);
+  }, [fontsLoaded]);
 
   if (!fontsLoaded) return null;
 

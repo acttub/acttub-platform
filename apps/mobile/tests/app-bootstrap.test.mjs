@@ -93,7 +93,7 @@ test('동의 전환 뒤 stale recovery snapshot으로 tabs를 결정하지 않�
   );
 });
 
-test('분석 대기(코치 화면) 복구 경로는 pathname과 params가 모두 같아야 완료한다', () => {
+test('분석 대기(액티 화면) 복구 경로는 pathname과 params가 모두 같아야 완료한다', () => {
   const target = {
     pathname: '/coach',
     params: {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { DialogButtons } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 
@@ -58,6 +59,8 @@ export function RenameDialog({
 
   return (
     <Modal transparent statusBarTranslucent visible={visible} animationType="fade" onRequestClose={() => !busy && onClose()}>
+      {/* 키보드가 뜨면 키보드 위 남은 칸에서 다시 가운데·아래에 놓여 입력칸과 버튼이 가리지 않는다. */}
+      <KeyboardLift>
       <Pressable style={styles.backdrop} onPress={() => !busy && onClose()}>
         <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
           <Text style={styles.title}>{title}</Text>
@@ -82,6 +85,7 @@ export function RenameDialog({
           />
         </Pressable>
       </Pressable>
+      </KeyboardLift>
     </Modal>
   );
 }

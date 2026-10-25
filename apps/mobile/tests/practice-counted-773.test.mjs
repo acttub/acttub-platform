@@ -37,24 +37,13 @@ test('연습 1회: 코칭은 노트가 생긴 회차, 리딩은 끝까지 읽은
   assert.deepEqual(countedPractices({}), []);
 });
 
-test('리딩 완료: 끝까지 갔고 인식된 대사가 한 줄 이상일 때만', () => {
+test('리딩 완료: 끝까지 갔으면 인식된 대사가 없어도 완료다(10/25)', () => {
   assert.equal(readingRunCompleted({ reachedEnd: true, said: { a: '안녕' } }), true);
-  assert.equal(readingRunCompleted({ reachedEnd: true, said: {} }), false);
-  assert.equal(readingRunCompleted({ reachedEnd: true, said: { a: '  ' } }), false);
-  assert.equal(readingRunCompleted({ reachedEnd: false, said: { a: '안녕' } }), false);
-  // 이어하기 전에 서버가 받은 인식이 있으면 이번 실행이 비어도 완료다.
-  assert.equal(readingRunCompleted({ reachedEnd: true, said: {}, priorRecognized: true }), true);
-  assert.equal(readingRunCompleted({ reachedEnd: false, said: {}, priorRecognized: true }), false);
-});
-
-test('리딩 완료 예외: 음성 인식을 못 쓰는 기기(typing)는 끝까지 가면 완료, 인식 기기는 인식 0줄이면 미완료', () => {
+  assert.equal(readingRunCompleted({ reachedEnd: true, said: {} }), true);
+  assert.equal(readingRunCompleted({ reachedEnd: true, said: {}, recognition: 'stt' }), true);
   assert.equal(readingRunCompleted({ reachedEnd: true, said: {}, recognition: 'typing' }), true);
-  assert.equal(readingRunCompleted({ reachedEnd: false, said: {}, recognition: 'typing' }), false);
-  assert.equal(readingRunCompleted({ reachedEnd: true, said: {}, recognition: 'stt' }), false);
-  assert.equal(readingRunCompleted({ reachedEnd: true, said: { a: ' ' }, recognition: 'stt' }), false);
-  assert.equal(readingRunCompleted({ reachedEnd: true, said: { a: '안녕' }, recognition: 'stt' }), true);
-  // 정책을 아직 모르면 인식 기기처럼 본다.
-  assert.equal(readingRunCompleted({ reachedEnd: true, said: {}, recognition: null }), false);
+  assert.equal(readingRunCompleted({ reachedEnd: false, said: { a: '안녕' } }), false);
+  assert.equal(readingRunCompleted({ reachedEnd: false, said: {}, priorRecognized: true }), false);
 });
 
 test('sessionHasRecognized: 녹음 전사나 원문 대조의 말한 것이 있으면 참', () => {
@@ -87,6 +76,6 @@ test('프로필 이번 달 연습도 같은 기준이다(노트 없는 회차·�
 test('홈·프로필·리딩이 이 기준 하나를 쓴다', () => {
   assert.match(read('lib/profile-month-stats.ts'), /countedPractices\(/);
   const home = read('app/(tabs)/index.tsx');
-  assert.match(home, /countedPracticeDates\(/);
+  assert.match(home, /countedPractices\(/);
   assert.match(read('app/reading/play.tsx'), /readingRunCompleted\(/);
 });

@@ -74,7 +74,7 @@ test('줄이는 모듈이 없는 빌드는 원본을 올리지 않고 고른 복
 
 test('올리기가 끝까지 가지 않으면 실패를 알린다', async () => {
   state.upload = 'cancelled';
-  await assert.rejects(photo.pickAndUploadProfilePhoto(), { message: '사진을 올리지 못했어요. 잠시 후 다시 시도해주세요.' });
+  await assert.rejects(photo.pickAndUploadProfilePhoto(), { message: '사진을 올리지 못했어요. 잠시 후 다시 시도해 주세요.' });
   assert.ok(!state.calls.some(([name]) => name === 'profileComplete'));
 });
 

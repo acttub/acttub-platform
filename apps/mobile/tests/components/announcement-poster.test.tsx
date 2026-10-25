@@ -2,16 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { createAudioPlayer } from 'expo-audio';
 import { router } from 'expo-router';
-import { Linking, Platform, Text } from 'react-native';
+import { AppState, Linking, Platform, Text } from 'react-native';
 
 import { AnnouncementPoster } from '@/components/announcement-poster';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import type { Poster } from '@/lib/poster';
+import { localDay, type Poster } from '@/lib/poster';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
+jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
 jest.mock('@/lib/api', () => ({ api: { getPosters: jest.fn() }, APP_VERSION: '0.1.9' }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
@@ -23,7 +24,6 @@ jest.mock('expo-image', () => ({
 type CloudState = {
   status: { available: boolean; consent: 'granted' | 'denied' | 'unknown' } | null;
   statusFailed: boolean;
-  enabled: boolean;
   enable: jest.Mock;
   consentSheet: React.ReactNode;
 };
@@ -40,7 +40,7 @@ const storageSetItem = AsyncStorage.setItem as jest.Mock;
 
 // 2026-10-20 01:00 KST — UTC 로는 아직 19일이라 한국 날짜로 적는지 함께 본다.
 const NOW = Date.parse('2026-10-19T16:00:00Z');
-const TODAY = '2026-10-20';
+const TODAY = localDay(NOW);
 
 function poster(overrides: Partial<Poster> = {}): Poster {
   return {
@@ -73,7 +73,6 @@ beforeEach(async () => {
   mockCloud = {
     status: { available: true, consent: 'unknown' },
     statusFailed: false,
-    enabled: false,
     enable: jest.fn(async () => true),
     consentSheet: null,
   };
@@ -97,7 +96,7 @@ test('로그아웃 상태에서는 포스터를 묻지 않고, 로그인하면 �
   expect(await screen.findByText('이번 주 챌린지')).toBeOnTheScreen();
   expect(screen.getByText('새 소식')).toBeOnTheScreen();
   expect(screen.getByText('새 대사가 올라왔어요')).toBeOnTheScreen();
-  expect(screen.getByText('다시 보지 않기')).toBeOnTheScreen();
+  expect(screen.getByText('오늘 하루 안 보기')).toBeOnTheScreen();
   expect(getPosters).toHaveBeenCalledWith({ platform: 'ios', locale: 'ko', app_version: '0.1.9' });
   expect(log.mock.calls).toEqual([['poster_shown', { slug: 'challenge-week', revision: 2 }]]);
   await waitFor(async () =>
@@ -276,9 +275,8 @@ describe('cloud_voice_off 포스터', () => {
     expect(screen.queryByText('고품질 목소리 출시')).not.toBeOnTheScreen();
   });
 
-  test('이미 켠(켬 + 동의) 사람에게는 띄우지 않는다', async () => {
+  test('이미 동의한 사람에게는 띄우지 않는다', async () => {
     mockCloud.status = { available: true, consent: 'granted' };
-    mockCloud.enabled = true;
     getPosters.mockResolvedValue({ posters: [promo, poster()] });
 
     await render(<AnnouncementPoster loggedIn />);
@@ -299,17 +297,13 @@ describe('cloud_voice_off 포스터', () => {
       ['poster_cta', { slug: 'cloud-voice-launch', revision: 1 }],
     ]);
     expect(mockCloud.enable).not.toHaveBeenCalled();
-    await waitFor(() => expect(mockCloud.enable.mock.calls).toEqual([['promo']]));
+    await waitFor(() => expect(mockCloud.enable.mock.calls).toEqual([[]]));
   });
 
   test('떠 있는 사이 고품질 목소리를 켜면 포스터를 닫는다', async () => {
     getPosters.mockResolvedValue({ posters: [promo] });
     const view = await render(<AnnouncementPoster loggedIn />);
     expect(await screen.findByText('고품질 목소리 출시')).toBeOnTheScreen();
-
-    mockCloud = { ...mockCloud, enabled: true };
-    await view.rerender(<AnnouncementPoster loggedIn />);
-    expect(screen.getByText('고품질 목소리 출시')).toBeOnTheScreen();
 
     mockCloud = { ...mockCloud, status: { available: true, consent: 'granted' } };
     await view.rerender(<AnnouncementPoster loggedIn />);
@@ -339,37 +333,37 @@ describe('포스터 안의 버튼', () => {
     expect(log.mock.calls[1]).toEqual(['poster_close', { slug: 'challenge-week', revision: 2 }]);
   });
 
-  test('다시 보지 않기를 누르면 그 판을 다시 띄우지 않게 적고 닫는다', async () => {
+  test('오늘 하루 안 보기를 누르면 그 판을 다시 띄우지 않게 적고 닫는다', async () => {
     getPosters.mockResolvedValue({ posters: [poster()] });
     await render(<AnnouncementPoster loggedIn />);
 
-    await fireEvent.press(await screen.findByText('다시 보지 않기'));
+    await fireEvent.press(await screen.findByText('오늘 하루 안 보기'));
 
     await waitFor(() => expect(screen.queryByText('이번 주 챌린지')).not.toBeOnTheScreen());
     expect(log.mock.calls[1]).toEqual(['poster_dismiss', { slug: 'challenge-week', revision: 2 }]);
     expect(await storedState()).toEqual({
-      'challenge-week': { revision: 2, lastShownDay: TODAY, shownOnce: true, dismissedForever: true },
+      'challenge-week': { revision: 2, lastShownDay: TODAY, shownOnce: true, dismissedForever: false, hiddenDay: TODAY },
     });
   });
 
-  test('다시 보지 않기 저장이 실패해도 닫고 이벤트를 남긴다', async () => {
+  test('오늘 하루 안 보기 저장이 실패해도 닫고 이벤트를 남긴다', async () => {
     getPosters.mockResolvedValue({ posters: [poster()] });
     await render(<AnnouncementPoster loggedIn />);
     await screen.findByText('이번 주 챌린지');
     storageGetItem.mockRejectedValueOnce(new Error('disk')).mockRejectedValueOnce(new Error('disk'));
 
-    await fireEvent.press(screen.getByText('다시 보지 않기'));
+    await fireEvent.press(screen.getByText('오늘 하루 안 보기'));
 
     await waitFor(() => expect(screen.queryByText('이번 주 챌린지')).not.toBeOnTheScreen());
     expect(log.mock.calls[1]).toEqual(['poster_dismiss', { slug: 'challenge-week', revision: 2 }]);
   });
 
-  test('dismissible 이 false 면 다시 보지 않기를 숨긴다', async () => {
+  test('dismissible 이 false 면 오늘 하루 안 보기를 숨긴다', async () => {
     getPosters.mockResolvedValue({ posters: [poster({ dismissible: false })] });
     await render(<AnnouncementPoster loggedIn />);
 
     expect(await screen.findByText('이번 주 챌린지')).toBeOnTheScreen();
-    expect(screen.queryByText('다시 보지 않기')).not.toBeOnTheScreen();
+    expect(screen.queryByText('오늘 하루 안 보기')).not.toBeOnTheScreen();
   });
 
   test('route 버튼은 닫고 그 앱 경로로 간다', async () => {
@@ -465,4 +459,24 @@ describe('그림과 샘플 소리', () => {
     expect(player.remove).toHaveBeenCalledTimes(1);
     expect(player.release).toHaveBeenCalledTimes(1);
   });
+});
+
+test('일반 닫기 뒤 다음 공지를 띄워 상위 every 공지가 다른 공지를 가리지 않는다', async () => {
+  getPosters.mockResolvedValue({ posters: [poster({ frequency: 'every' }), poster({ slug: 'next', title: '다음 공지', frequency: 'every' })] });
+  await render(<AnnouncementPoster loggedIn />);
+  await fireEvent.press(await screen.findByLabelText('닫기'));
+  expect(await screen.findByText('다음 공지')).toBeOnTheScreen();
+});
+test('백그라운드에서 활성화되면 서버를 다시 조회하고 every 공지를 다시 띄운다', async () => {
+  let change: (state: any) => void = () => {};
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    change = listener;
+    return { remove: jest.fn() };
+  });
+  getPosters.mockResolvedValue({ posters: [poster({ frequency: 'every' })] });
+  await render(<AnnouncementPoster loggedIn />);
+  await fireEvent.press(await screen.findByLabelText('닫기'));
+  await act(() => { change('background'); change('active'); });
+  expect(await screen.findByText('이번 주 챌린지')).toBeOnTheScreen();
+  expect(getPosters).toHaveBeenCalledTimes(2);
 });

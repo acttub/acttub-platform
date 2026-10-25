@@ -30,7 +30,7 @@ test('SOMA-738: 뷰어는 챌린지 id 없이도 열리고, 불러오는 중·�
   assert.match(play, /if \(!id && !entryId\) return;/);
   assert.match(play, /api\.getEntry\(entryId\)/);
   assert.match(play, /\(entries === null \|\| !!error\)/);
-  assert.match(play, /challenges\.playFail/);
+  assert.match(play, /challenges\.playFailTitle/);
   assert.match(play, /statusChange/);
 });
 

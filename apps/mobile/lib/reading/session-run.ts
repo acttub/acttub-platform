@@ -72,8 +72,13 @@ export function createRun(cfg: RunConfig): RunState {
 }
 
 /** 현재 줄의 서버 id. completed 면 null. */
+/** 진행 기준 줄 — 이어하기 앞 상대 대사(leadIn)를 읽는 동안은 멈췄던 줄이다. 그래야 열고 나갈 때 한 줄씩 뒤로 가지 않는다. */
+function progressIndexOf(run: RunState): number {
+  return run.leadInUntil != null ? Math.max(run.index, run.leadInUntil) : run.index;
+}
+
 export function currentLineIdOf(run: RunState): string | null {
-  return run.status === 'done' ? null : (run.lineIds[run.index] ?? null);
+  return run.status === 'done' ? null : (run.lineIds[progressIndexOf(run)] ?? null);
 }
 
 /**
@@ -154,6 +159,19 @@ export function pause(run: RunState): RunState {
   return { ...run, status: 'paused', resumeTo: run.status };
 }
 
+/**
+ * 멈춘 채 「그만하기」 — 여기까지를 이번 회차로 끝낸다. 구간 끝(endIndex)을 마지막으로 지나간 줄로 당긴다. 지금 차례에
+ * 말한 것이 남아 있으면 그 차례까지 읽은 것으로 친다. 아무 줄도 못 지났으면 endIndex 는 startIndex - 1 이 된다(읽은 대사 0).
+ */
+export function stopRun(run: RunState): RunState {
+  if (run.status === 'done') return run;
+  const span = turnSpan(run);
+  const spoke = run.lineIds.slice(span.start, span.end + 1).some((id) => run.said[id] !== undefined);
+  const lastRead = spoke ? span.end : run.index - 1;
+  const end = Math.max(run.startIndex - 1, Math.min(run.endIndex, lastRead));
+  return { ...run, endIndex: end, index: end + 1, status: 'done', resumeTo: null, leadInUntil: null };
+}
+
 /** 재개 — 그 줄을 처음부터 다시 한다(호출자가 상대 읽기·마이크를 다시 연다). */
 export function resume(run: RunState): RunState {
   if (run.status !== 'paused') return run;
@@ -168,10 +186,11 @@ export function tickElapsed(run: RunState, ms: number): RunState {
 export function progressOf(run: RunState): { done: number; total: number } {
   let done = 0;
   let total = 0;
+  const at = progressIndexOf(run);
   for (let i = run.startIndex; i <= run.endIndex; i++) {
     if (run.lines[i]?.type !== 'dialogue') continue;
     total += 1;
-    if (run.status === 'done' || i < run.index) done += 1;
+    if (run.status === 'done' || i < at) done += 1;
   }
   return { done, total };
 }

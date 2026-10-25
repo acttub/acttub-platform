@@ -1,18 +1,19 @@
 import Feather from '@expo/vector-icons/Feather';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Image } from 'expo-image';
-
+import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { setPickedVideo } from '@/lib/practice/picked-video';
+import { ChallengeDone } from '@/components/challenge-done';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { MASCOT as MASCOTS } from '@/components/ui/mascot';
+import { BlueSwitch } from '@/components/ui/list-rows';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -21,7 +22,6 @@ import {
   buildEntryBody,
   canSubmitEntry,
   captionTooLong,
-  doneCopy,
   entryAttemptFor,
   entryFailure,
   entryFailureMessage,
@@ -40,9 +40,9 @@ import {
 } from '@/lib/challenge/funnel';
 import { hasFinishedFirstChallenge, markFirstChallengeFinished } from '@/lib/challenge/intro-state';
 import { CAPTION_MAX, type ChallengeDetail, type EntryVisibility } from '@/lib/challenge/types';
-import { formatClipDuration } from '@/lib/archive-format';
 import { useAuth } from '@/lib/auth';
-import { translate as t } from '@/lib/i18n';
+import { resultDay } from '@/lib/challenge/week-result';
+import { translate as t, translateList } from '@/lib/i18n';
 import { confirmedVideoFor, flushLibraryUploads, localCopyFor, onLibraryChange, saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { takeRecordedVideo } from '@/lib/recorded-video';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
@@ -65,20 +65,20 @@ export default function ChallengeUploadScreen() {
   const challengeId = params.challengeId ?? null;
 
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const [videoId, setVideoId] = useState<string | null>(params.videoId ?? null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
-  const [durationMs, setDurationMs] = useState<number | null>(null);
-  /** 넘겨받은 영상의 출처 — 보관함(videoId)·갤러리·방금 촬영. 머리줄 문구가 출처를 따른다(SOMA-773). */
-  const [fromGallery, setFromGallery] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
-  const [caption, setCaption] = useState('');
-  // pen 챌린지 올리기(SOMA-748) — 「나만 보기」가 먼저 골라져 있다. 공개는 배우가 직접 바꾼다.
-  const [visibility, setVisibility] = useState<EntryVisibility | null>('private');
+    const [caption, setCaption] = useState('');
+  // pen C9.16·C9.17 — 「공개」가 위에 있고 먼저 골라져 있다.
+  const [visibility, setVisibility] = useState<EntryVisibility | null>('public');
+  /** 얼굴 모자이크(SOMA-809) — 공개를 고르면 보이는 켜기 버튼. 기본 꺼짐이고 공개일 때만 요청에 실린다. */
+  const [faceMosaic, setFaceMosaic] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** 방금 만든 참여작 — 있으면 완료 화면이고, 「AI 리포트 보기」가 id 를 쓴다. */
-  const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility } | null>(null);
+  /** 방금 만든 참여작 — 있으면 완료 화면이다. */
+  const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean; first: boolean } | null>(null);
+  const entryShare = useEntryShare(params.line ?? '', () => Alert.alert(t('entryShare.title'), t('entryShare.none')));
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -121,8 +121,6 @@ export default function ChallengeUploadScreen() {
     const recorded = takeRecordedVideo();
     if (!recorded || !user?.id || params.videoId) return;
     setLocalUri(recorded.uri);
-    setDurationMs(recorded.durationMs ?? null);
-    setFromGallery(recorded.source === 'gallery');
     if (videoTooLong(recorded.durationMs)) {
       void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
       setError(t('challengeUpload.errTooLong'));
@@ -168,10 +166,6 @@ export default function ChallengeUploadScreen() {
   }, [params.videoId]);
 
   useEffect(() => {
-    void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
-  }, []);
-
-  useEffect(() => {
     if (!challengeId) return;
     void api
       .getChallenge(challengeId)
@@ -203,13 +197,14 @@ export default function ChallengeUploadScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const body = buildEntryBody({ requestId: 'pending', videoId, caption, visibility });
+      const body = buildEntryBody({ requestId: 'pending', videoId, caption, visibility, faceMosaic });
       const attempt = entryAttemptFor(attemptRef.current, entryFingerprint(body), () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
       attemptRef.current = attempt;
       const entry = await api.createEntry(challengeId, { ...body, request_id: attempt.requestId });
       logEvent('challenge_entry_created', { visibility });
+      const first = !(await hasFinishedFirstChallenge());
       void markFirstChallengeFinished();
-      setCreated({ id: entry.id, visibility });
+      setCreated({ id: entry.id, visibility, faceMosaic: body.face_mosaic === true, first });
     } catch (e) {
       const failure = entryFailure(e);
       void logEvent(CHALLENGE_FUNNEL_EVENTS.submitFailed, submitFailedParams(failure));
@@ -219,54 +214,57 @@ export default function ChallengeUploadScreen() {
       lockRef.current = false;
       setSubmitting(false);
     }
-  }, [caption, challengeId, pendingId, submitting, user?.id, videoId, visibility]);
+  }, [caption, challengeId, faceMosaic, pendingId, submitting, user?.id, videoId, visibility]);
 
   if (created) {
-    const copy = doneCopy(created.visibility);
-    /**
-     * 「AI 리포트 보기」(A18.3) — 같은 대사의 다른 참여작과 견주는 챌린지 리포트로 간다. 이 한 번 누름이 요청이라
-     * 리포트 화면이 열리자마자 만들기를 부탁한다(request=1, SOMA-773). 공개·비공개 참여작 모두 요청할 수 있다(challenge.ai-report).
-     */
-    const getReport = () => {
-      logEvent('challenge_upload_report', { visibility: created.visibility });
-      router.replace({
-        pathname: '/ai-report',
-        params: { entryId: created.id, videoId: videoId ?? '', challengeId: challengeId ?? '', visibility: created.visibility, request: '1' },
-      });
+    const day = challenge ? resultDay(challenge.ends_at) : null;
+    const date = day
+      ? t('challengeDone.date', { month: day.month, day: day.day, weekday: translateList('challengeDone.weekdays')[day.weekday] ?? '' })
+      : null;
+    const isPublic = created.visibility === 'public';
+    const line = challenge?.line ?? params.line ?? '';
+    const parts = [
+      line ? `“${line}”` : '',
+      created.first ? t(isPublic ? 'challengeDone.visPublic' : 'challengeUpload.optPrivate') : '',
+      isPublic ? (date ? t('challengeDone.resultAt', { date }) : '') : created.first ? '' : t('challengeDone.onlyMe'),
+      created.faceMosaic ? t('challengeUpload.doneSubMosaic') : '',
+    ].filter(Boolean);
+    const share = () => {
+      void logEvent('challenge_upload_share', { visibility: created.visibility });
+      void entryShare.openById(created.id);
+    };
+    // 코칭은 기존 올리기(/upload) 흐름으로 이어진다 — 방금 올린 챌린지 영상을 새 연습의 영상으로 미리 골라 둔다.
+    const coachWithThis = () => {
+      if (videoId) setPickedVideo({ videoId, pendingId: null, uri: localUri, playbackUrl: null, durationMs: null });
+      router.push('/upload');
     };
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ headerShown: false }} />
-        {/* pen 10-11 「비공개로 저장했어요」 — 가운데 손 흔드는 액티 + 파란 체크, 제목 · 안내 · AI 리포트 안내 알약, 아래 버튼 둘. */}
-        <View style={styles.doneWrap}>
-          <View style={styles.doneHero}>
-            <Image source={MASCOTS.cheer} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
-            <View style={styles.doneBadgeRing}>
-              <View style={styles.doneBadge}>
-                <Feather name="check" size={16} color={palette.onAccent} />
-              </View>
-            </View>
-          </View>
-          <Text style={[styles.doneTitle, styles.doneGap18]}>{copy.title}</Text>
-          <Text style={[styles.doneSub, styles.doneGap8]}>{copy.body}</Text>
-          <View style={styles.reportHint}>
-            <Ionicons name="sparkles" size={14} color={palette.blueDeep} />
-            <Text style={styles.reportHintText}>{t('challengeUpload.doneGuide')}</Text>
-          </View>
-        </View>
-        <View style={styles.doneFooter}>
-          <PrimaryButton label={t('challengeUpload.getReport')} onPress={getReport} />
-          <SecondaryButton
-            style={styles.ghost}
-            label={t('challengeUpload.goHome')}
-            onPress={() =>
-              challengeId
-                ? router.replace({ pathname: '/challenge-detail', params: { id: challengeId } })
-                : router.replace('/')
-            }
-          />
-        </View>
-      </SafeAreaView>
+      <>
+        <ChallengeDone
+          first={created.first}
+          title={created.first ? t('challengeDone.titleFirst') : t(isPublic ? 'challengeDone.titlePublic' : 'challengeDone.titlePrivate')}
+          sub={parts.join(' · ')}
+          rows={[
+            ...(isPublic ? [{ key: 'share', icon: 'share-2' as const, title: t('challengeDone.share'), sub: t('challengeDone.shareSub'), onPress: share }] : []),
+            { key: 'coach', icon: 'video' as const, title: t('challengeDone.coach'), sub: t('challengeDone.coachSub'), onPress: coachWithThis },
+            ...(challengeId
+              ? [
+                  {
+                    key: 'others',
+                    icon: 'play' as const,
+                    title: t('challengeDone.others'),
+                    sub: t('challengeDone.othersSub'),
+                    onPress: () => router.replace({ pathname: '/challenge-play', params: { id: challengeId } }),
+                  },
+                ]
+              : []),
+          ]}
+          onShare={isPublic ? share : null}
+          onCoach={coachWithThis}
+          onHome={() => router.dismissTo('/')}
+        />
+        {entryShare.sheet}
+      </>
     );
   }
 
@@ -277,8 +275,11 @@ export default function ChallengeUploadScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: true, title: t('challengeUpload.title') }} />
-      <KeyboardAwareScroll contentContainerStyle={styles.content}>
-        <View style={styles.headRow}>
+      {/* 키보드가 뜨면 키보드 높이만큼 아래를 비워 캡션 칸과 「올리기」가 키보드 위에 남게 한다(iOS·안드로이드 같은 방식).
+          예전엔 iOS를 스크롤 자동 인셋에 맡겨 「올리기」가 키보드 뒤에 숨었다. 캡션을 누르면 맨 아래까지 내려 칸이 보이게 한다. */}
+      <KeyboardLift style={styles.body} aboveSafeBottom>
+      <KeyboardAwareScroll ref={scrollRef} contentContainerStyle={styles.content}>
+        <View style={styles.videoRow}>
           <View style={styles.thumbWrap}>
             {localUri ? (
               <VideoView style={styles.thumb} player={player} contentFit="cover" nativeControls={false} />
@@ -288,42 +289,38 @@ export default function ChallengeUploadScreen() {
               </View>
             )}
           </View>
-          <View style={styles.headText}>
-            <Text style={styles.meta} numberOfLines={2}>
-              {challenge ? `“${challenge.line}”` : (params.line ?? '')}
-            </Text>
-            <Text style={styles.metaSub}>
-              {[
-                t(params.videoId ? 'challengeUpload.fromLibrary' : fromGallery ? 'challengeUpload.fromGallery' : 'challengeUpload.justRecorded'),
-                durationMs ? formatClipDuration(Math.round(durationMs / 1000)) : '',
-                challenge ? dDayLabel(challenge) : '',
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </Text>
+          <View style={styles.videoText}>
+            {!!challenge?.line && (
+              <Text style={styles.videoLine} numberOfLines={4}>
+                “{challenge.line}”
+              </Text>
+            )}
+            {!!challenge && <Text style={styles.videoSub}>{dDayLabel(challenge)}</Text>}
           </View>
         </View>
+        <Text style={styles.rangeLabel}>{t('challengeUpload.pickVisibility')}</Text>
 
-        <Text style={styles.pickLabel}>{t('challengeUpload.pickVisibility')}</Text>
-        {showGuide && <Text style={styles.guide}>{t('challengeUpload.guide')}</Text>}
-        <Option
-          title={t('challengeUpload.optPrivate')}
-          sub={t('challengeUpload.optPrivateSub')}
-          selected={visibility === 'private'}
-          onPress={() => chooseVisibility('private')}
-        />
         <Option
           title={t('challengeUpload.optPublic')}
           sub={t('challengeUpload.optPublicSub')}
           selected={visibility === 'public'}
           onPress={() => chooseVisibility('public')}
         />
+        <Option
+          title={t('challengeUpload.optPrivate')}
+          sub={t('challengeUpload.optPrivateSub')}
+          selected={visibility === 'private'}
+          onPress={() => chooseVisibility('private')}
+        />
 
-        {/* 공개를 고르면 표본 활용을 한 줄로 알린다(challenge.ai-report). */}
+        {/* 공개를 고르면 얼굴 모자이크를 켤 수 있다(SOMA-809). 켜면 다른 사람에게는 얼굴을 가린 사본만 간다. */}
         {visibility === 'public' && (
-          <View style={styles.note}>
-            <Feather name="zap" size={13} color={palette.blueDeep} />
-            <Text style={styles.noteText}>{t('challengeUpload.note')}</Text>
+          <View style={styles.mosaicRow}>
+            <View style={styles.flex}>
+              <Text style={styles.mosaicTitle}>{t('challengeUpload.mosaicTitle')}</Text>
+              <Text style={styles.optionSub}>{t('challengeUpload.mosaicSub')}</Text>
+            </View>
+            <BlueSwitch value={faceMosaic} onValueChange={setFaceMosaic} accessibilityLabel={t('challengeUpload.mosaicTitle')} />
           </View>
         )}
 
@@ -333,12 +330,11 @@ export default function ChallengeUploadScreen() {
           placeholderTextColor={palette.textFaint}
           value={caption}
           onChangeText={setCaption}
+          onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
           maxLength={CAPTION_MAX}
           multiline
         />
-        <Text style={styles.counter}>
-          {t('challengeUpload.captionCounter', { count: [...caption].length, max: CAPTION_MAX })}
-        </Text>
+        <Text style={styles.counter}>{t('challengeUpload.captionCounter', { count: [...caption].length, max: CAPTION_MAX })}</Text>
 
         {uploading && <Text style={styles.hint}>{t('challengeUpload.waitingVideo')}</Text>}
         {captionTooLong(caption) && <Text style={styles.error}>{t('challengeUpload.errInvalid')}</Text>}
@@ -347,24 +343,14 @@ export default function ChallengeUploadScreen() {
       </KeyboardAwareScroll>
 
       <CtaBar safeBottom={false}>
-        <PrimaryButton
-          label={t(
-            visibility === 'private'
-              ? 'challengeUpload.submitPrivate'
-              : visibility === 'public'
-                ? 'challengeUpload.submit'
-                : 'challengeUpload.submitNone',
-          )}
-          onPress={() => void submit()}
-          disabled={!ready || ended}
-          loading={submitting}
-        />
+        <PrimaryButton label={t('challengeUpload.submit')} onPress={() => void submit()} disabled={!ready || ended} loading={submitting} />
       </CtaBar>
+      </KeyboardLift>
     </SafeAreaView>
   );
 }
 
-/** 선택지 줄(h9wxCz) — 고르면 연파랑 바탕·파란 글자·체크 동그라미, 안 고르면 빈 동그라미. */
+/** 선택지 줄(pen C9.17) — 고르면 연파랑 바탕·파란 테두리·파란 글자·오른쪽 체크, 안 고르면 흰 바탕 · 회색 테두리. */
 function Option({
   title,
   sub,
@@ -387,22 +373,24 @@ function Option({
         <Text style={[styles.optionTitle, selected && styles.optionTitleOn]}>{title}</Text>
         <Text style={styles.optionSub}>{sub}</Text>
       </View>
-      <Feather name={selected ? 'check-circle' : 'circle'} size={22} color={selected ? palette.blue : palette.checkOff} />
+      {selected && <Feather name="check" size={20} color={palette.blue} />}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  body: { flex: 1 },
   flex: { flex: 1, gap: 6 },
-  content: { paddingHorizontal: 24, paddingTop: 16, gap: 14, paddingBottom: 24 },
-  headRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  content: { paddingHorizontal: 24, paddingTop: 8, gap: 10, paddingBottom: 16 },
+  videoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  videoText: { flex: 1, minWidth: 0, gap: 6 },
+  videoLine: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
+  videoSub: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  rangeLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim },
   thumbWrap: { width: 100, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.textDim },
   thumb: { width: '100%', height: '100%' },
   thumbEmpty: { backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  headText: { flex: 1, minWidth: 0, gap: 6 },
-  meta: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 23 },
-  metaSub: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
   caption: {
     minHeight: 72,
     borderRadius: 12,
@@ -414,30 +402,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   counter: { fontSize: 11.5, color: palette.textFaint, textAlign: 'right', marginTop: -8 },
-  pickLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim, marginTop: 4 },
-  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21 },
-  note: { flexDirection: 'row', gap: 8, backgroundColor: palette.blueSoft, borderRadius: 12, padding: 12 },
-  noteText: { flex: 1, fontSize: 12.5, fontWeight: '600', color: palette.blueDeep, lineHeight: 19 },
   hint: { fontSize: 12.5, color: palette.textFaint },
   error: { fontSize: 13, fontWeight: '700', color: palette.danger },
   // pen h9wxCz — 안 고른 줄은 안쪽 [15,4], 고른 줄은 [15,16] + 연파랑 바탕.
-  option: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 4 },
-  optionOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 16 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 18, borderWidth: 1, borderColor: palette.border },
+  optionOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   optionTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 26 },
   optionTitleOn: { color: palette.blueDeep },
   optionSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
-  ghost: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
-  // 본문 가운데 — 안쪽 [0,25,40,25]. 액티 84×88(체크 28 · 흰 테두리 3, 왼쪽 54 · 위 57) · 18 · 제목 · 8 · 안내 · 14 · 알약.
-  doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25, paddingBottom: 40 },
-  doneHero: { width: 84, height: 88 },
-  doneMascot: { width: 84, height: 88 },
-  doneBadgeRing: { position: 'absolute', left: 51, top: 54, padding: 3, borderRadius: 17, backgroundColor: palette.bg },
-  doneBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  doneTitle: { fontSize: 22, fontWeight: '800', lineHeight: 28, color: palette.text, textAlign: 'center' },
-  doneSub: { fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette.textMuted, textAlign: 'center' },
-  doneGap18: { marginTop: 18 },
-  doneGap8: { marginTop: 8 },
-  reportHint: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 12, marginTop: 14, backgroundColor: palette.blueSoft, borderRadius: 10 },
-  reportHintText: { fontSize: 13, fontWeight: '600', color: palette.blueDeep },
-  doneFooter: { gap: 10, paddingHorizontal: 20, paddingBottom: 11 },
+  mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, paddingHorizontal: 4 },
+  mosaicTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 22 },
 });

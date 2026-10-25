@@ -3,7 +3,7 @@ import { usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -17,6 +17,7 @@ import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { Markdown } from '@/components/markdown';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -40,13 +41,13 @@ import {
   initialScriptInput,
   pendingScript,
   scriptInputReducer,
-  showsSampleLink,
   type ScriptTab,
 } from '@/lib/reading/script-input';
 import { loadIntoCurrent } from '@/lib/reading/store';
 import { isMonologue } from '@/lib/reading/monologue';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { MonologueNameDialog } from '@/components/monologue-name-dialog';
+import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
 import { newRequestId } from '@/lib/request-id';
 import { translate as t } from '@/lib/i18n';
 
@@ -55,6 +56,8 @@ import { translate as t } from '@/lib/i18n';
  * 저장하고, 그동안 R2.11 팝업에 진행 줄 수를 보인다. 파일은 고르는 순간 서버에 올려 글자를 뽑게 한다(R2.2).
  */
 const MASCOT = require('@/assets/images/mascot-reading.png');
+/** pen R2 「대본 읽는 액티」·「예시 대본 카드」 그림. */
+const HERO_ACTY = require('@/assets/images/reading/acty-reading-hero.png');
 
 const PICKER_TYPES = [
   'text/plain',
@@ -107,7 +110,7 @@ export default function ReadingNew() {
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
   // 대본 리딩 튜토리얼의 예시(SOMA-494) — 예시 대본을 채운 채 연다.
-  const sample = useLocalSearchParams<{ sample?: string }>().sample === '1';
+  const sample = useLocalSearchParams<{ sample?: string }>().sample ?? '';
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [popup, setPopup] = useState<Popup | null>(null);
   const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
@@ -178,8 +181,9 @@ export default function ReadingNew() {
     // 이름 없는 독백은 누구의 대사인지 이름부터 받는다(SOMA-597). 닫으면 대본 상세로.
     const solo = saved.characters.filter((c) => !isGroupCharacter(c));
     if (isMonologue(saved.characters) && solo[0].unnamed) return setNaming({ scriptId: saved.id, characterId: solo[0].id });
-    if (saved.characters.length >= 2) router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
-    else router.replace('/reading/detail');
+    // 목소리는 넣을 때 자동으로 정한다 — 바꾸기는 대본 상세 ⋯ 에서만(pen R2).
+    router.replace('/reading/detail');
+    if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
   };
 
   /** 올리고 읽힌 파일이면 [다음]이 보낼 입력을 돌려준다. 실패·읽기 자리 없음은 팝업을 띄우고 null. */
@@ -234,7 +238,22 @@ export default function ReadingNew() {
     if (next) await split(next, { title });
   };
 
-  const setTab = (tab: ScriptTab) => dispatch({ type: 'tab', tab });
+  // 세 번째 선택지 「대본 같이 만들기」(10/25) — 화면을 넘기지 않고 아래에 「예시 대본 고르기 · 새 대본 만들기」를 펼친다.
+  // 예시 대본은 그 아래에서 바로 고르고, 새 대본 만들기는 「다음」으로 대본 만들기(감정 고르기)로 간다.
+  const [makeOpen, setMakeOpen] = useState(false);
+  const [makeChoice, setMakeChoice] = useState<'sample' | 'make' | null>(null);
+  const picker = useSamplePicker({
+    onNeedName: setNaming,
+    // 서버 예시를 못 받았을 때의 내장 예시 — 그 글을 글 붙여넣기 칸에 채워 기존 저장 흐름을 탄다.
+    onLocal: (id) => {
+      setMakeOpen(false);
+      dispatch({ type: 'sample', id });
+    },
+  });
+  const setTab = (tab: ScriptTab) => {
+    setMakeOpen(false);
+    dispatch({ type: 'tab', tab });
+  };
   const closable = popup !== null && popup.kind !== 'splitting' && !(popup.kind === 'consent' && popup.busy);
   // 파일을 올리는 중·나누는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일과 나누기가 버려진다(SOMA-664).
   // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
@@ -260,47 +279,71 @@ export default function ReadingNew() {
     );
   }
 
+  // pen F4 「배역과 대사 찾는 중」 — 팝업이 아니라 전체 화면이다. 나누는 동안은 떠나지 못하므로 닫기(X)는 두지 않는다.
+  if (popup?.kind === 'splitting') {
+    return <SplittingScreen progress={popup.progress} topInset={insets.top} />;
+  }
+
   return (
     <View style={[styles.root, { paddingBottom: keyboard }]}>
       <Stack.Screen options={{ gestureEnabled: !working }} />
-      <View style={styles.content}>
-        <View style={styles.mascotRow}>
-          <Image source={MASCOT} style={styles.mascot} contentFit="contain" accessibilityIgnoresInvertColors />
-          <Text style={styles.title}>{t('reading.newHeading')}</Text>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* pen R2.1 「히어로」 — 대본 읽는 액티(128×100) 옆에 큰 제목과 한 줄 설명. */}
+        <View style={styles.hero}>
+          <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+          <View style={styles.heroText}>
+            <Text style={styles.title}>{t('reading.newHeading')}</Text>
+            <Text style={styles.heroSub}>{t('reading.newSub')}</Text>
+          </View>
         </View>
 
         {/* 「사진」 탭(사진으로 대본 넣기)은 서버에 사진 출처가 없어 숨긴다(SOMA-748). */}
         <View style={styles.segment}>
-          <SegmentTab icon="paperclip" label={t('reading.tabFile')} on={input.tab === 'file'} onPress={() => setTab('file')} />
+          <SegmentTab icon="paperclip" label={t('reading.tabFile')} on={!makeOpen && input.tab === 'file'} onPress={() => setTab('file')} />
           <View ref={pasteTabTarget.ref} onLayout={pasteTabTarget.onLayout} style={styles.segmentSlot}>
-            <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={input.tab === 'paste'} onPress={() => setTab('paste')} />
+            <SegmentTab icon="edit-3" label={t('reading.tabPaste')} on={!makeOpen && input.tab === 'paste'} onPress={() => setTab('paste')} />
           </View>
+          {/* 세 번째 선택지 — 대본이 없으면 같이 만들기. 예시 대본도 여기서 고른다(10/25). */}
+          <SegmentTab icon="message-circle" label={t('reading.entryCocreate')} on={makeOpen} onPress={() => setMakeOpen(true)} />
         </View>
 
-        <TextInput
-          style={styles.titleInput}
-          value={title}
-          onChangeText={setTitle}
-          placeholder={`${t('reading.newTitleLabel')} · ${t('reading.newTitlePlaceholder')}`}
-          placeholderTextColor={palette.textFaint}
-          maxLength={TITLE_MAX}
-          editable={!working}
-          returnKeyType="done"
-          accessibilityLabel={t('reading.newTitleLabel')}
-        />
+        {makeOpen && (
+          <View style={styles.makeArea}>
+            {(['sample', 'make'] as const).map((key) => (
+              <Pressable
+                key={key}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: makeChoice === key }}
+                ph-label={`reading_new_make_${key}`}
+                onPress={() => setMakeChoice(key)}
+                style={[styles.choice, makeChoice === key && styles.choiceOn]}>
+                <Text style={styles.choiceTitle}>{t(key === 'sample' ? 'scriptCocreate.startSample' : 'scriptCocreate.startMake')}</Text>
+                <Text style={styles.choiceSub}>{t(key === 'sample' ? 'scriptCocreate.startSampleSub' : 'scriptCocreate.startMakeSub')}</Text>
+              </Pressable>
+            ))}
+            {makeChoice === 'sample' && <SamplePickerBody list={picker.list} entry={picker.entry} pick={picker.pick} />}
+          </View>
+        )}
 
-        {input.tab === 'file' ? (
-          <Pressable style={styles.dropzone} onPress={onPickFile} disabled={input.file.kind === 'reading'}>
+        {!makeOpen && input.tab === 'file' && (
+          <Pressable
+            style={[styles.dropzone, input.file.kind === 'empty' && styles.dropzoneEmpty]}
+            onPress={onPickFile}
+            disabled={input.file.kind === 'reading'}>
             {input.file.kind === 'empty' && (
               <>
-                <Feather name="upload" size={30} color={palette.blue} />
-                <Text style={styles.dropTitle}>{t('reading.attach')}</Text>
+                <View style={styles.uploadCircle}>
+                  <Feather name="upload" size={26} color={palette.blue} />
+                </View>
+                <Text style={[styles.dropTitle, styles.dropTitleEmpty]}>{t('reading.attach')}</Text>
                 <Text style={styles.dropSub}>{t('reading.attachHint')}</Text>
+                <View style={styles.pickBtn}>
+                  <Text style={styles.pickBtnText}>{t('reading.attachPick')}</Text>
+                </View>
               </>
             )}
             {input.file.kind === 'reading' && (
               <>
-                <ActivityIndicator color={palette.blue} />
                 <Text style={styles.dropTitle}>{t('reading.attachReading')}</Text>
                 <Text style={styles.dropSub} numberOfLines={1}>
                   {`${input.file.file.name} · ${formatFileSize(input.file.file.size)}`}
@@ -319,7 +362,30 @@ export default function ReadingNew() {
               </>
             )}
           </Pressable>
-        ) : (
+        )}
+
+        {/* pen 「제목 입력」 — 라벨 위, 문서 아이콘이 든 흰 칸. 비우면 서버가 대본에서 찾아 붙인다(SOMA-669). */}
+        {!makeOpen && (
+        <View style={styles.titleField}>
+          <Text style={styles.titleLabel}>{t('reading.newTitleLabel')}</Text>
+          <View style={styles.titleBox}>
+            <Feather name="file-text" size={18} color={palette.textFaint} />
+            <TextInput
+              style={styles.titleInput}
+              value={title}
+              onChangeText={setTitle}
+              placeholder={t('reading.newTitlePlaceholder')}
+              placeholderTextColor={palette.textFaint}
+              maxLength={TITLE_MAX}
+              editable={!working}
+              returnKeyType="done"
+              accessibilityLabel={t('reading.newTitleLabel')}
+            />
+          </View>
+        </View>
+        )}
+
+        {!makeOpen && input.tab === 'paste' && (
           <TextInput
             style={styles.textArea}
             value={input.paste.text}
@@ -331,25 +397,36 @@ export default function ReadingNew() {
           />
         )}
 
-        <Text style={styles.guide}>{input.tab === 'file' ? t('reading.newGuideFile') : t('reading.newGuidePaste')}</Text>
-        {input.tab === 'file' && <View style={styles.spacer} />}
-        {showsSampleLink(input) && (
-          <Pressable style={styles.sampleLink} hitSlop={8} onPress={() => dispatch({ type: 'sample' })}>
-            <Text style={styles.sampleText}>{t('reading.sampleLink')}</Text>
-          </Pressable>
+        {!makeOpen && (input.tab === 'paste' || input.file.kind !== 'empty') && (
+          <Text style={styles.guide}>{input.tab === 'file' ? t('reading.newGuideFile') : t('reading.newGuidePaste')}</Text>
         )}
-      </View>
+      </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: (keyboard > 0 ? 0 : insets.bottom) + 10 }]}>
         <View ref={nextTarget.ref} onLayout={nextTarget.onLayout}>
-          <PrimaryButton
-            label={t('reading.next')}
-            onPress={() => pending && void split(pending, { title })}
-            disabled={!pending || !!popup}
-          />
+          {makeOpen ? (
+            <PrimaryButton
+              label={makeChoice === 'sample' ? t('reading.samplePickConfirm') : t('reading.next')}
+              phLabel="reading_new_make_next"
+              loading={makeChoice === 'sample' && picker.busy}
+              disabled={!makeChoice}
+              onPress={() =>
+                makeChoice === 'sample'
+                  ? picker.confirm()
+                  : router.push({ pathname: '/script-cocreate', params: { mode: 'reading', start: 'make' } })
+              }
+            />
+          ) : (
+            <PrimaryButton
+              label={t('reading.next')}
+              onPress={() => pending && void split(pending, { title })}
+              disabled={!pending || !!popup}
+            />
+          )}
         </View>
       </View>
 
+      {picker.dialog}
       <MonologueNameDialog
         target={naming}
         onClose={() => {
@@ -358,8 +435,8 @@ export default function ReadingNew() {
         }}
       />
       <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
-        <View style={[styles.backdrop, popup?.kind === 'consent' && styles.backdropSheet]}>
-          {popup?.kind === 'splitting' && <SplittingCard progress={popup.progress} />}
+        {/* 하단 시트를 쓰지 않는다(10/24 규칙) — 대본 나누기 동의도 가운데 팝업이다. */}
+        <View style={styles.backdrop}>
           {popup?.kind === 'alert' && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{popup.title}</Text>
@@ -404,7 +481,6 @@ export default function ReadingNew() {
           )}
           {popup?.kind === 'consent' && (
             <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-              <View style={styles.handle} />
               <Text style={styles.sheetTitle}>{t('reading.consentTitle')}</Text>
               <Text style={styles.sheetSub}>{t('reading.consentSub')}</Text>
               <View style={styles.sheetPoints}>
@@ -433,21 +509,17 @@ export default function ReadingNew() {
   );
 }
 
-/** R2.11. 진행은 서버가 알려 주는 만큼만 — 줄 수를 세기 전에는 막대만 비어 있다. */
-function SplittingCard({ progress }: { progress: ImportProgress | null }) {
+/** pen F4. 진행은 서버가 알려 주는 만큼만 — 줄 수를 세기 전에는 퍼센트 없이 제목만 보인다. */
+function SplittingScreen({ progress, topInset }: { progress: ImportProgress | null; topInset: number }) {
   const total = progress?.total ?? 0;
-  const ratio = total > 0 ? Math.min(1, (progress?.done ?? 0) / total) : 0;
+  const done = progress?.done ?? 0;
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   return (
-    <View style={[styles.card, styles.splitCard]}>
-      <View style={styles.splitIcon}>
-        <ActivityIndicator color={palette.blue} />
-      </View>
-      <Text style={styles.cardTitle}>{t('reading.splitTitle')}</Text>
-      <Text style={styles.cardBody}>{t('reading.splitBody')}</Text>
-      <View style={styles.bar}>
-        <View style={[styles.barFill, { width: `${ratio * 100}%` }]} />
-      </View>
-      {total > 0 && <Text style={styles.splitCount}>{t('reading.splitLines', { done: progress?.done ?? 0, total })}</Text>}
+    <View style={[styles.root, styles.splitScreen, { paddingTop: topInset + 120 }]}>
+      <Stack.Screen options={{ gestureEnabled: false }} />
+      <Image source={MASCOT} style={styles.splitMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+      <Text style={styles.splitHeading}>{t('reading.splitTitle')}</Text>
+      {total > 0 && <Text style={styles.splitProgress}>{t('reading.splitProgress', { pct, done, total })}</Text>}
     </View>
   );
 }
@@ -461,49 +533,62 @@ function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) 
   );
 }
 
-function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'; label: string; on: boolean; onPress: () => void }) {
+function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3' | 'message-circle'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-      <Feather name={icon} size={16} color={on ? palette.text : palette.textFaint} />
-      <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{label}</Text>
+      <Feather name={icon} size={16} color={on ? palette.blue : palette.textMuted} />
+      <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  content: { flex: 1, paddingHorizontal: 24, paddingTop: 16, gap: 14 },
-  mascotRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  mascot: { width: 52, height: 58 },
-  title: { flex: 1, color: palette.text, fontSize: 21, fontWeight: '900', lineHeight: 30 },
-  titleInput: { backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: palette.text, fontFamily: 'Pretendard', fontSize: 15 },
-  segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 12, padding: 4 },
+  scroll: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 14 },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 114 },
+  heroActy: { width: 128, height: 100 },
+  heroText: { flex: 1, gap: 10 },
+  title: { color: palette.text, fontSize: 24, fontWeight: '900', lineHeight: 32 },
+  heroSub: { color: palette.textMuted, fontSize: 14, fontWeight: '500', lineHeight: 21 },
+  titleField: { gap: 10 },
+  titleLabel: { color: palette.textDim, fontSize: 14, fontWeight: '700' },
+  titleBox: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, backgroundColor: palette.card, borderColor: '#E3E8EF', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16 },
+  titleInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, padding: 0 },
+  segment: { flexDirection: 'row', backgroundColor: '#EEF2F8', borderRadius: 14, padding: 4 },
   segmentSlot: { flex: 1 },
-  segmentTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, paddingVertical: 10 },
+  makeArea: { gap: 12 },
+  choice: { gap: 4, padding: 18, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
+  choiceTitle: { fontSize: 16, fontWeight: '700', color: palette.text },
+  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMuted },
+  segmentTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, height: 58, paddingHorizontal: 4 },
   segmentTabOn: { backgroundColor: palette.card },
-  segmentText: { color: palette.textFaint, fontSize: 14, fontWeight: '700' },
-  segmentTextOn: { color: palette.text, fontWeight: '800' },
-  dropzone: { height: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
+  segmentText: { color: palette.textMuted, fontSize: 13, fontWeight: '700' },
+  segmentTextOn: { color: palette.blue, fontWeight: '800' },
+  dropzone: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
+  // pen 「파일칸」 — 옅은 파랑 바탕, 점선 테두리(#BCD3F3), 모서리 22.
+  dropzoneEmpty: { minHeight: 228, gap: 6, padding: 20, borderRadius: 22, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#BCD3F3', backgroundColor: '#F5F9FE' },
+  uploadCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E6EFFD', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   dropTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
-  dropSub: { color: palette.textFaint, fontSize: 13, fontWeight: '600' },
+  dropTitleEmpty: { fontSize: 17 },
+  dropSub: { color: palette.textFaint, fontSize: 13, fontWeight: '500' },
+  pickBtn: { marginTop: 8, backgroundColor: '#E3EDFD', borderRadius: 22, height: 44, paddingHorizontal: 32, justifyContent: 'center' },
+  pickBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
   replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.card, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
   replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  textArea: { flex: 1, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  textArea: { flex: 1, minHeight: 256, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },
-  spacer: { flex: 1 },
-  sampleLink: { alignSelf: 'center', paddingVertical: 4 },
-  sampleText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textDecorationLine: 'underline' },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  backdropSheet: { justifyContent: 'flex-end', padding: 0 },
   card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },
   cardTitle: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   cardBody: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
   cardButton: { alignSelf: 'stretch', marginTop: 12 },
-  splitCard: { paddingBottom: 24, gap: 8 },
-  splitIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: palette.blueMist, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  bar: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: palette.bgSoft, marginTop: 10, overflow: 'hidden' },
-  barFill: { height: 6, borderRadius: 3, backgroundColor: palette.blue },
+  splitScreen: { paddingHorizontal: 24, gap: 14 },
+  splitMascot: { width: 72, height: 80, marginBottom: 20 },
+  splitHeading: { color: palette.text, fontSize: 28, fontWeight: '800', lineHeight: 38 },
+  splitProgress: { color: palette.blue, fontSize: 17, fontWeight: '800' },
   optionCard: { alignItems: 'stretch', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24, gap: 6 },
   optionTitle: { color: palette.text, fontSize: 20, fontWeight: '900', lineHeight: 28 },
   optionGuide: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
@@ -511,8 +596,7 @@ const styles = StyleSheet.create({
   optionRow: { paddingVertical: 14, paddingHorizontal: 2, borderRadius: 10 },
   optionPressed: { backgroundColor: palette.bgSubtle },
   optionText: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 24 },
-  splitCount: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 20, paddingTop: 10 },
+  sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 18 },
   sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
   sheetSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: 4 },

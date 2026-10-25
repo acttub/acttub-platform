@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
-import { StyleSheet } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { SpotlightGuide, SpotlightHost, type SpotlightStep } from '@/components/spotlight-guide';
 import { logEvent } from '@/lib/analytics';
@@ -42,13 +42,13 @@ test('단계마다 설명과 진행을 보이고, 다음·알겠어요로 끝까
   const onDone = jest.fn();
   await render(<App onDone={onDone} />);
 
-  expect(screen.getByText('액터브 · 1/2')).toBeOnTheScreen();
+  expect(screen.getByText('액티 · 1/2')).toBeOnTheScreen();
   expect(screen.getByText('여기서 연습을 시작해요')).toBeOnTheScreen();
   expect(screen.getByText('찍어 둔 연기 영상을 올리면 질문으로 되짚어 주고, 다음 테이크에서 해볼 한 가지를 남겨요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
 
-  expect(screen.getByText('액터브 · 2/2')).toBeOnTheScreen();
+  expect(screen.getByText('액티 · 2/2')).toBeOnTheScreen();
   expect(screen.getByText('코칭은 여기서 시작해요')).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
 
@@ -65,7 +65,7 @@ test('비친 자리를 누르면 다음 단계로 넘어간다', async () => {
   await render(<App onDone={onDone} />);
 
   await fireEvent.press(screen.getByRole('button', { name: '여기서 연습을 시작해요' }));
-  expect(screen.getByText('액터브 · 2/2')).toBeOnTheScreen();
+  expect(screen.getByText('액티 · 2/2')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '코칭은 여기서 시작해요' }));
   expect(onDone.mock.calls).toEqual([['done']]);
@@ -116,14 +116,14 @@ test('가이드를 내리면 사라지고, 다시 띄우면 첫 단계부터 보
   const onDone = jest.fn();
   const view = await render(<App onDone={onDone} />);
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-  expect(screen.getByText('액터브 · 2/2')).toBeOnTheScreen();
+  expect(screen.getByText('액티 · 2/2')).toBeOnTheScreen();
 
   await view.rerender(<App visible={false} onDone={onDone} />);
   expect(screen.queryByText('코칭은 여기서 시작해요')).not.toBeOnTheScreen();
   expect(screen.queryByRole('button')).not.toBeOnTheScreen();
 
   await view.rerender(<App onDone={onDone} />);
-  expect(screen.getByText('액터브 · 1/2')).toBeOnTheScreen();
+  expect(screen.getByText('액티 · 1/2')).toBeOnTheScreen();
   expect(screen.getByText('여기서 연습을 시작해요')).toBeOnTheScreen();
 });
 
@@ -133,7 +133,7 @@ test('단계가 없으면 띄우지 않는다', async () => {
   expect(screen.toJSON()).toBeNull();
 
   await view.rerender(<App steps={[STEPS[0]]} onDone={onDone} />);
-  expect(screen.getByText('액터브 · 1/1')).toBeOnTheScreen();
+  expect(screen.getByText('액티 · 1/1')).toBeOnTheScreen();
 });
 
 test('onDone 이 새 함수로 바뀌어도 가이드를 다시 띄우지 않고 끝날 때 마지막 것을 부른다', async () => {
@@ -144,7 +144,7 @@ test('onDone 이 새 함수로 바뀌어도 가이드를 다시 띄우지 않고
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
 
   await view.rerender(<App onDone={latest} />);
-  expect(screen.getByText('액터브 · 2/2')).toBeOnTheScreen();
+  expect(screen.getByText('액티 · 2/2')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '알겠어요' }));
   expect(first.mock.calls).toEqual([]);
@@ -204,4 +204,23 @@ describe('덮개와 설명 카드 자리', () => {
 
     expect(await fireEvent(overlay(), 'startShouldSetResponder')).toBe(true);
   });
+});
+
+test('비친 자리 테두리의 맥박은 투명도·크기만 바꾼다 — 자리·크기는 바깥 칸이 들어 매 프레임 레이아웃을 다시 재지 않는다(SOMA-847)', async () => {
+  setTargetRect(TARGET.homeStart, HOME_START);
+  await render(<App onDone={jest.fn()} />);
+
+  type Node = { props: { style?: StyleProp<ViewStyle> }; children: (Node | string)[] | null };
+  const walk = (node: Node | string): Node[] =>
+    typeof node === 'string' ? [] : [node, ...(node.children ?? []).flatMap(walk)];
+  const tree = screen.toJSON() as Node | Node[];
+  const rings = (Array.isArray(tree) ? tree : [tree])
+    .flatMap(walk)
+    .filter((node) => StyleSheet.flatten(node.props.style)?.borderWidth === 3);
+  expect(rings).toHaveLength(1);
+  const pulse = StyleSheet.flatten(rings[0].props.style);
+  expect(pulse).toEqual(expect.objectContaining({ opacity: expect.any(Number), transform: expect.any(Array) }));
+  // 바깥 칸을 채우기만 한다(absoluteFill) — 비친 자리 좌표(x 20, 너비 200)는 바깥 칸에만 있다.
+  expect(pulse).toEqual(expect.objectContaining({ left: 0, top: 0, right: 0, bottom: 0 }));
+  expect(pulse).not.toHaveProperty('width');
 });

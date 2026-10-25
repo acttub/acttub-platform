@@ -19,6 +19,7 @@ import type {
   PatchScriptBody,
   PatchScriptLineBody,
   SplitScriptLineBody,
+  InsertScriptLineBody,
   ProgressBody,
   ProgressResponse,
   ScriptCharacter,
@@ -27,6 +28,7 @@ import type {
   ScriptListResponse,
   ScriptLine,
   ScriptScene,
+  ScriptSource,
   SessionCard,
   SessionDetail,
   StartSessionBody,
@@ -44,6 +46,8 @@ export type DevicePrefs = {
 export interface SavedScript extends DevicePrefs {
   id: string;
   title: string;
+  /** 입력 경로. sample 이면 예시에서 왔을 수 있다(예시 음성을 쓰는지는 서버가 정한다, example-audio). */
+  source?: ScriptSource;
   /** 배역 이름(대본의 배역 순서). 줄의 role 과 같은 값이다. */
   roles: string[];
   characters: ScriptCharacter[];
@@ -93,6 +97,7 @@ export type ScriptTransport = {
   patchLine(id: string, lineId: string, body: PatchScriptLineBody): Promise<ScriptDetail>;
   deleteLine(id: string, lineId: string): Promise<ScriptDetail>;
   splitLine(id: string, lineId: string, body: SplitScriptLineBody): Promise<ScriptDetail>;
+  insertLineAfter(id: string, lineId: string, body: InsertScriptLineBody): Promise<ScriptDetail>;
   remove(id: string): Promise<void>;
   /** 회차(reading.session). */
   startSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail>;
@@ -120,6 +125,7 @@ function server(): ScriptTransport {
     patchLine: (id, lineId, body) => api.updateReadingScriptLine(id, lineId, body),
     deleteLine: (id, lineId) => api.deleteReadingScriptLine(id, lineId),
     splitLine: (id, lineId, body) => api.splitReadingScriptLine(id, lineId, body),
+    insertLineAfter: (id, lineId, body) => api.insertReadingScriptLineAfter(id, lineId, body),
     remove: (id) => api.deleteReadingScript(id),
     startSession: (scriptId, body) => api.startReadingSession(scriptId, body),
     getSession: (sessionId) => api.getReadingSession(sessionId),
@@ -185,6 +191,7 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
     ...merged,
     id: detail.id,
     title: detail.title,
+    source: detail.source,
     roles: characters.map((c) => c.name),
     characters,
     lines: screenLines,
@@ -227,6 +234,28 @@ export async function openScript(detail: ScriptDetail): Promise<SavedScript> {
   const prefs = (await readPrefs())[detail.id] ?? {};
   current = toSavedScript(detail, prefs);
   return current;
+}
+
+/** 대본 상세를 서버에서 받는다. 리딩 「현재 대본」은 바꾸지 않는다(코칭 촬영 카드용). */
+export function getScriptDetail(id: string): Promise<ScriptDetail> {
+  return server().get(id);
+}
+
+/**
+ * 대본 만들기에서 정한 내 배역을 이 기기에 기억한다. 서버의 내 배역은 리딩 회차에만 있어, 아직 읽지 않은 대본은
+ * 「배역 안 고름」으로 보이고 코칭 촬영 카드에서 내 대사를 짚지 못했다. 리딩을 열면 이 배역이 미리 골라진다.
+ */
+export async function rememberMyRoles(id: string, roles: string[]): Promise<void> {
+  const names = roles.filter((r) => r.trim().length > 0);
+  if (names.length === 0) return;
+  const prev = (await readPrefs())[id] ?? {};
+  await writePrefs(id, { ...DEFAULT_PREFS, ...prev, myRoles: names });
+}
+
+/** 이 기기에 기억한 내 배역. 없으면 빈 배열. */
+export async function rememberedMyRoles(id: string): Promise<string[]> {
+  const roles = (await readPrefs())[id]?.myRoles;
+  return Array.isArray(roles) ? roles.filter((r): r is string => typeof r === 'string') : [];
 }
 
 /** 저장된 대본을 현재 대본으로 불러온다. 없거나 남의 것이면(404) null. */
@@ -299,6 +328,22 @@ export async function deleteScriptLine(id: string, lineId: string): Promise<Scri
 /** 줄 하나를 둘로 나눈다(SOMA-785). 앞 글은 그 줄 id 에 남는다. */
 export async function splitScriptLine(id: string, lineId: string, first: string, second: string): Promise<ScriptDetail> {
   const detail = await server().splitLine(id, lineId, { first_text: first.trim(), second_text: second.trim() });
+  if (current?.id === id) current = await openScript(detail);
+  return detail;
+}
+
+/**
+ * 고른 줄 바로 아래에 새 줄을 넣는다(SOMA-816). 대사면 배역을 같이 보내고 지문·장면이면 배역을 보내지 않는다. 기존 줄 id 는 그대로라
+ * 회차·녹음·외운 줄이 이어진다. 현재 대본은 서버가 돌려준 상세로 다시 올린다.
+ */
+export async function insertScriptLineAfter(
+  id: string,
+  lineId: string,
+  line: { kind: LineKind; characterId?: string | null; text: string },
+): Promise<ScriptDetail> {
+  const body: InsertScriptLineBody = { kind: line.kind, text: line.text.trim() };
+  if (line.kind === 'dialogue' && line.characterId) body.character_id = line.characterId;
+  const detail = await server().insertLineAfter(id, lineId, body);
   if (current?.id === id) current = await openScript(detail);
   return detail;
 }

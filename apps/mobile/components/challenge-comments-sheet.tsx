@@ -1,21 +1,18 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
   FlatList,
   Modal,
-  PanResponder,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
 import { avatarLetter } from '@/lib/challenge/browse';
@@ -34,8 +31,8 @@ import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id'
 import { postedAtLabel } from '@/lib/time-label';
 
 /**
- * A15.3 댓글(challenge.react) — 영상 위로 올라오는 바텀시트. 릴스처럼 화면 2/3 높이로 올라와 위로는 영상이
- * 비치고, 손잡이를 끌어 내리면 닫힌다. 입력줄은 맨 아래 둥근 칸 하나다 (SOMA-494).
+ * A15.3 댓글(challenge.react) — 아래에서 올라오는 시트 대신 전체 화면 페이지다(SOMA-821, 하단 시트 금지).
+ * 위 머리줄에 가운데 「댓글 N」·왼쪽 닫기 X, 입력줄은 맨 아래 둥근 칸 하나다 (SOMA-494).
  *
  * 최신순 20개씩 이어 받고, 공백 정리 뒤 1~500자만 보낸다. 같은 댓글의 재전송은 같은 요청 id 라
  * 행이 늘지 않는다. 본인 댓글만 지울 수 있고, 신고로 숨겨진 내 댓글은 원래 자리에 "확인 중"으로
@@ -56,11 +53,9 @@ export function ChallengeCommentsSheet({
   onCountChange?: (delta: number) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
-  // 키보드만큼 시트를 들어 올린다 — 모달 안에서는 창이 줄지 않아 입력줄이 키보드 뒤로 숨었다.
+  // 키보드만큼 아래 여백을 늘려 입력줄을 올린다 — 모달 안에서는 창이 줄지 않아 입력줄이 키보드 뒤로 숨었다.
   // KeyboardAvoidingView 가 edge-to-edge 에서 어긋나는 까닭은 use-keyboard-height 에 적었다.
   const keyboard = useKeyboardHeight();
-  const sheetHeight = keyboard > 0 ? Math.min(height * 0.68, height - keyboard - insets.top - 24) : height * 0.68;
   const [comments, setComments] = useState<EntryComment[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -123,44 +118,25 @@ export function ChallengeCommentsSheet({
     }
   };
 
-  // 시트를 아래로 끌어 닫는다 — 릴스처럼 손잡이·제목 줄을 잡고 내린다.
-  const dragY = useRef(new Animated.Value(0)).current;
-  const drag = useMemo(
-    () =>
-      PanResponder.create({
-        // 손잡이·제목 줄에는 누를 것이 없다 — 닿는 순간 잡아야 안드로이드 모달에서도 끌린다.
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderMove: (_, g) => dragY.setValue(Math.max(0, g.dy)),
-        onPanResponderRelease: (_, g) => {
-          if (g.dy > 120 || g.vy > 1.2) {
-            onClose();
-            dragY.setValue(0);
-          } else {
-            Animated.spring(dragY, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
-          }
-        },
-      }),
-    [dragY, onClose],
-  );
   const length = [...draft].length;
   const ready = canSendComment(draft) && !sending;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* 위쪽은 영상이 비쳐 보이게 옅게만 가린다 — 누르면 닫힌다. */}
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" />
-      <View style={[styles.kav, { bottom: keyboard }]}>
-        <Animated.View
-          style={[styles.sheet, { height: sheetHeight, paddingBottom: keyboard > 0 ? 6 : insets.bottom + 6, transform: [{ translateY: dragY }] }]}>
-          <View {...drag.panHandlers}>
-            <View style={styles.grabber} />
-            <Text style={styles.title}>{t('comments.title', { count: comments?.length ?? 0 })}</Text>
-          </View>
-          <View style={styles.divider} />
-
-          {comments === null && !error && <ActivityIndicator color={palette.blue} style={{ marginVertical: 24 }} />}
+    <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
+      <View style={[styles.page, { paddingTop: insets.top, paddingBottom: keyboard > 0 ? keyboard + 6 : insets.bottom + 6 }]}>
+        <View style={styles.header}>
+          <Pressable
+            style={styles.close}
+            onPress={onClose}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('comments.close')}>
+            <Feather name="x" size={22} color={palette.text} />
+          </Pressable>
+          <Text style={styles.title}>{t('comments.title', { count: comments?.length ?? 0 })}</Text>
+        </View>
+        <View style={styles.divider} />
+          {comments === null && !error && <SkeletonRows count={4} card={false} />}
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <FlatList
@@ -223,11 +199,8 @@ export function ChallengeCommentsSheet({
                 hitSlop={6}
                 accessibilityRole="button"
                 accessibilityLabel={t('comments.send')}>
-                {sending ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
+                {/* SOMA-828: 작은 원형 버튼이라 문구 대신 아이콘을 그대로 둔다(보내는 동안 비활성) */}
                   <Feather name="arrow-up" size={18} color="#FFFFFF" />
-                )}
               </Pressable>
             </View>
             {/* 글자 수는 한도 가까이 갔을 때만 보인다 — 평소엔 입력줄만. */}
@@ -235,23 +208,16 @@ export function ChallengeCommentsSheet({
               <Text style={styles.counter}>{t('comments.counter', { count: length, max: COMMENT_MAX })}</Text>
             )}
           </View>
-        </Animated.View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' },
-  kav: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  sheet: {
-    backgroundColor: palette.bg,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    paddingTop: 8,
-  },
-  grabber: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: palette.border },
-  title: { fontSize: 14.5, fontWeight: '800', color: palette.text, textAlign: 'center', paddingVertical: 12 },
+  page: { flex: 1, backgroundColor: palette.bg },
+  header: { height: 48, justifyContent: 'center' },
+  close: { position: 'absolute', left: 12, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  title: { fontSize: 15, fontWeight: '800', color: palette.text, textAlign: 'center' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: palette.border },
   error: { color: palette.danger, fontSize: 13, fontWeight: '700', paddingVertical: 8, paddingHorizontal: 16 },
   list: { flex: 1 },

@@ -111,7 +111,9 @@ public class DirectVideoConfiguration {
             // 답장(첫 질문이 아닌 턴)은 생각 단계를 MINIMAL 로 보낸다(SOMA-780). LOW 에서 가끔 생각 루프에 빠져 20~28초 걸렸다.
             // false 면 모두 LOW(롤백).
             @Value("${ACTTUB_COACH_FOLLOWUP_MINIMAL_THINKING:true}") boolean followUpMinimalThinking,
-            com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne) {
+            com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne,
+            // 얼굴 가리기 회차는 원본 대신 얼굴을 가린 사본을 올린다(practice.start). 없으면 그 회차는 원본을 올리지 않고 실패한다.
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.media.FaceMosaic> faceMosaic) {
         var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null
                 : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge);
         return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
@@ -120,7 +122,8 @@ public class DirectVideoConfiguration {
                 alternate, modelBShare,
                 flowAb ? flows.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachFlows.NONE)
                         : com.acttub.actingapi.feature.coach.app.CoachFlows.NONE,
-                videoCache, letGoWithoutVideo, followUpMinimalThinking, layerOne);
+                videoCache, letGoWithoutVideo, followUpMinimalThinking, layerOne)
+                .withFaceMosaic(faceMosaic.getIfAvailable(() -> com.acttub.actingapi.integration.media.FaceMosaic.NONE));
     }
 
     @Bean(destroyMethod = "close")

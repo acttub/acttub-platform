@@ -13,7 +13,7 @@ import {
 } from '../lib/reading/script-import.ts';
 
 const TEXT = { kind: 'text', text: '윤서: 여기 있을 줄 알았어.\n태오: 어떻게 알았어.', source: 'paste' };
-const NETWORK = '네트워크 연결을 확인하고 다시 시도해주세요.';
+const NETWORK = '네트워크 연결을 확인하고 다시 시도해 주세요.';
 
 const apiError = (status, code) => new ApiError(status, `raw ${code}`, code, code, { detail: code });
 
@@ -232,7 +232,7 @@ test('reading.script(R2.4): 50MB 넘는 파일은 올리지 않고, 서버가 �
 
   assert.deepEqual(await uploadScriptFile(file, failing('complete', apiError(422, 'script_too_long')).deps), { kind: 'too_long' });
   assert.deepEqual(await uploadScriptFile(file, failing('complete', apiError(429, 'script_upload_busy')).deps), { kind: 'unread', uploadId: 'up-1' });
-  assert.deepEqual(importAlert({ kind: 'busy' }), { title: '저장', message: '요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해주세요.' });
+  assert.deepEqual(importAlert({ kind: 'busy' }), { title: '저장', message: '요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해 주세요.' });
   const noConsent = failing('create', apiError(403, 'script_split_consent_required'));
   assert.deepEqual(await uploadScriptFile(file, noConsent.deps), { kind: 'consent' });
   assert.deepEqual(noConsent.calls, ['create']);

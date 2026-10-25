@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
+import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -37,12 +38,14 @@ class PostgresEntryRepository implements EntryRepository {
     private final EntryLocks locks;
     private final TransactionTemplate transaction;
     private final FailureReporter failures;
+    private final VideoObjectCleanup cleanup;
     /** 묶음 푸시 선점은 그 10분 구간(밤이면 다음 09시)이 지나면 쓸모가 없다 — 이틀이면 넉넉하다. */
     private static final java.time.Duration NOTIFICATION_PUSH_CLAIM_RETENTION = java.time.Duration.ofDays(2);
 
     PostgresEntryRepository(EntityManager em, ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
-                            PlatformTransactionManager transactions, FailureReporter failures) {
+                            PlatformTransactionManager transactions, FailureReporter failures, VideoObjectCleanup cleanup) {
         this.em = em; this.settlement = settlement; this.cards = cards; this.locks = locks; this.failures = failures;
+        this.cleanup = cleanup;
         this.transaction = new TransactionTemplate(transactions);
     }
 
@@ -107,9 +110,10 @@ class PostgresEntryRepository implements EntryRepository {
         boolean open = "public".equals(entry.visibility());
         em.createNativeQuery("""
                 INSERT INTO challenge_entries(id,challenge_id,user_id,video_id,caption,visibility,published_at,status,
-                    request_id,request_fingerprint,created_at,updated_at)
-                VALUES (:id,:challenge,:owner,:video,:caption,:visibility,CASE WHEN :open THEN CAST(:now AS timestamptz) END,'visible',:request,:fingerprint,:now,:now)
-                """).setParameter("id", id).setParameter("challenge", challengeId).setParameter("owner", owner)
+                    request_id,request_fingerprint,created_at,updated_at,face_mosaic,mosaic_status)
+                VALUES (:id,:challenge,:owner,:video,:caption,:visibility,CASE WHEN :open THEN CAST(:now AS timestamptz) END,'visible',:request,:fingerprint,:now,:now,
+                    :mosaic,CASE WHEN :mosaic THEN 'pending' END)
+                """).setParameter("id", id).setParameter("mosaic", entry.faceMosaic()).setParameter("challenge", challengeId).setParameter("owner", owner)
                 .setParameter("video", entry.videoId()).setParameter("caption", entry.caption())
                 .setParameter("visibility", entry.visibility())
                 .setParameter("open", open)
@@ -119,9 +123,11 @@ class PostgresEntryRepository implements EntryRepository {
     }
 
     @Override @Transactional
-    public MyEntry update(UUID owner, UUID entryId, String caption, String visibility, Instant now) {
+    public MyEntry update(UUID owner, UUID entryId, String caption, String visibility, Boolean faceMosaic, Instant now) {
         locks.active(owner);
         Tuple entry = lockOwnEntry(owner, entryId, now);
+        // 모자이크를 먼저 바꾼다 — 같은 요청의 공개 전환이 바뀐 모자이크 상태로 공개 조건을 탄다.
+        if (faceMosaic != null) mosaic(owner, entryId, faceMosaic, now);
         if (caption != null) {
             String next = caption.isEmpty() ? null : caption;
             if (!java.util.Objects.equals(next, entry.get("caption", String.class))) {
@@ -180,10 +186,117 @@ class PostgresEntryRepository implements EntryRepository {
                 """).setParameter("id", entryId).executeUpdate();
         em.createNativeQuery("UPDATE entry_comments SET body=NULL,deleted_at=coalesce(deleted_at,:now) WHERE entry_id=:id")
                 .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+        dropMosaic(owner, entryId, now);
         em.createNativeQuery("""
                 UPDATE challenge_entries SET status='deleted',caption=NULL,video_id=NULL,deleted_at=:now,updated_at=:now
                 WHERE id=:id
                 """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+    }
+
+    /**
+     * 얼굴 모자이크를 켜고 끈다(잠근 본인 참여작). 켜면 새로 만든다 — 이미 만드는 중이거나 준비됐으면 그대로이고, 실패한
+     * 것은 시도 횟수를 비워 다시 만든다. 끄면 만든 사본을 정리 장부에 올린다.
+     */
+    private void mosaic(UUID owner, UUID entryId, boolean on, Instant now) {
+        if (on) {
+            em.createNativeQuery("""
+                    UPDATE challenge_entries SET face_mosaic=true,mosaic_status='pending',mosaic_attempts=0,updated_at=:now
+                    WHERE id=:id AND (NOT face_mosaic OR mosaic_status='failed')
+                    """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+            return;
+        }
+        dropMosaic(owner, entryId, now);
+        em.createNativeQuery("""
+                UPDATE challenge_entries SET face_mosaic=false,mosaic_status=NULL,updated_at=:now WHERE id=:id AND face_mosaic
+                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+    }
+
+    /**
+     * 만든 모자이크본을 정리 장부에 올리고 참조를 푼다. 켜 둔 채면 실패로 둔다(다른 사람에게 보이지 않는다). 아직 만드는
+     * 중인 워커는 붙일 때 이것을 보고 자기 사본을 지운다.
+     */
+    private void dropMosaic(UUID owner, UUID entryId, Instant now) {
+        var rows = NativeTuples.list(em.createNativeQuery(
+                "SELECT mosaic_key FROM challenge_entries WHERE id=:id AND mosaic_key IS NOT NULL", Tuple.class)
+                .setParameter("id", entryId));
+        if (rows.isEmpty()) return;
+        cleanup.scheduleObjectDelete(owner, List.of(rows.getFirst().get("mosaic_key", String.class)), now, now);
+        em.createNativeQuery("""
+                UPDATE challenge_entries SET mosaic_key=NULL,mosaic_status=CASE WHEN face_mosaic THEN 'failed' END,updated_at=:now
+                WHERE id=:id
+                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+    }
+
+    @Override
+    public MosaicJob claimMosaic(int maxAttempts, Instant now) {
+        return transaction.execute(tx -> {
+            // 상한에 닿은 채 남은 것(시도 도중 프로세스가 죽었다)은 실패로 닫는다 — 영원히 만드는 중으로 남지 않는다.
+            em.createNativeQuery("""
+                    UPDATE challenge_entries SET mosaic_status='failed',updated_at=:now
+                    WHERE mosaic_status='pending' AND mosaic_attempts>=:max
+                    """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("max", maxAttempts).executeUpdate();
+            var rows = NativeTuples.list(em.createNativeQuery("""
+                    WITH next AS (
+                        SELECT e.id FROM challenge_entries e
+                        JOIN users u ON u.id=e.user_id
+                        JOIN videos v ON v.id=e.video_id
+                        WHERE e.mosaic_status='pending' AND e.mosaic_attempts<:max AND e.status<>'deleted'
+                          AND u.status='active' AND v.purged_at IS NULL
+                        ORDER BY e.created_at,e.id
+                        LIMIT 1
+                        FOR UPDATE OF e SKIP LOCKED
+                    ), claimed AS (
+                        UPDATE challenge_entries SET mosaic_attempts=mosaic_attempts+1
+                        FROM next WHERE challenge_entries.id=next.id
+                        RETURNING challenge_entries.id,challenge_entries.user_id,challenge_entries.video_id,
+                                  challenge_entries.mosaic_attempts
+                    )
+                    SELECT c.id,c.user_id,c.mosaic_attempts,v.object_key FROM claimed c JOIN videos v ON v.id=c.video_id
+                    """, Tuple.class).setParameter("max", maxAttempts));
+            if (rows.isEmpty()) return null;
+            Tuple row = rows.getFirst();
+            return new MosaicJob(row.get("id", UUID.class), row.get("user_id", UUID.class), row.get("object_key", String.class),
+                    ((Number) row.get("mosaic_attempts")).intValue());
+        });
+    }
+
+    @Override
+    public List<UUID> attachMosaic(MosaicJob job, String mosaicKey, Instant now) {
+        return transaction.execute(tx -> {
+            // 탈퇴·파기와 같은 순서로 사람 행을 먼저 잡는다 — 탈퇴가 키를 모으기 전에 붙였거나, 붙이지 않거나 둘 중 하나다.
+            var owner = NativeTuples.list(em.createNativeQuery(
+                    "SELECT status FROM users WHERE id=:user FOR UPDATE", Tuple.class).setParameter("user", job.userId()));
+            var entry = NativeTuples.list(em.createNativeQuery("""
+                    SELECT mosaic_status,status,video_id FROM challenge_entries WHERE id=:id AND user_id=:user FOR UPDATE
+                    """, Tuple.class).setParameter("id", job.entryId()).setParameter("user", job.userId()));
+            UUID videoId = entry.isEmpty() ? null : entry.getFirst().get("video_id", UUID.class);
+            // 영상 행도 잡는다 — 파일 파기가 모자이크 키를 모으는 것과 줄을 선다.
+            var video = videoId == null ? List.<Tuple>of() : NativeTuples.list(em.createNativeQuery(
+                    "SELECT object_key,purged_at FROM videos WHERE id=:id FOR SHARE", Tuple.class).setParameter("id", videoId));
+            boolean attachable = !owner.isEmpty() && "active".equals(owner.getFirst().get("status", String.class))
+                    && !entry.isEmpty() && "pending".equals(entry.getFirst().get("mosaic_status", String.class))
+                    && !"deleted".equals(entry.getFirst().get("status", String.class))
+                    && !video.isEmpty() && job.objectKey().equals(video.getFirst().get("object_key", String.class))
+                    && video.getFirst().get("purged_at", Instant.class) == null;
+            if (!attachable) {
+                // 지웠거나 껐거나 영상·계정이 사라졌다 — 늦게 만든 사본을 남기지 않는다.
+                return List.of(cleanup.scheduleObjectDelete(job.userId(), List.of(mosaicKey), now, now));
+            }
+            em.createNativeQuery("""
+                    UPDATE challenge_entries SET mosaic_status='ready',mosaic_key=:key,updated_at=:now WHERE id=:id
+                    """).setParameter("key", mosaicKey).setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("id", job.entryId()).executeUpdate();
+            return List.of();
+        });
+    }
+
+    @Override
+    public void failMosaic(MosaicJob job, Instant now) {
+        transaction.executeWithoutResult(tx -> em.createNativeQuery("""
+                UPDATE challenge_entries SET mosaic_status='failed',updated_at=:now
+                WHERE id=:id AND mosaic_status='pending' AND mosaic_attempts=:attempts
+                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", job.entryId())
+                .setParameter("attempts", job.attempts()).executeUpdate());
     }
 
     @Override @Transactional

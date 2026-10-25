@@ -68,9 +68,9 @@ test('제목과 바뀐 문서 줄을 필수부터 보여 주고, 필수에 모�
   await render(<ReconsentPopup visible />);
 
   expect(screen.getByText('동의 문서가 바뀌었어요')).toBeOnTheScreen();
-  // 필수 문서가 있으면 부제 대신 누를 곳을 알려 주는 파란 안내(pen S4R.1).
+  // pen S4.8 — 흰 전체 화면, 제목 아래 회색 설명.
   expect(screen.getByText('바뀐 내용을 보고 「동의하고 계속하기」를 누르세요.')).toBeOnTheScreen();
-  expect(rowLabels()).toEqual(['[필수] 서비스 이용약관', '[선택] 탈퇴 후 영상 보관']);
+  expect(rowLabels()).toEqual(['[필수] 서비스 이용약관 (바뀜)', '[선택] 탈퇴 후 영상 보관']);
   expect(cta()).toBeDisabled();
 
   await fireEvent.press(row('서비스 이용약관'));
@@ -193,7 +193,7 @@ describe('저장 뒤 다시 확인하지 못했을 때', () => {
     // 다시 읽는 사이 auth 가 오류 상태가 돼도 목록과 다시 확인 버튼은 남는다.
     mockAuth = { ...mockAuth, consentEntry: { status: 'error', entry: null, error: new Error('offline') } };
     await view.rerender(<ReconsentPopup visible />);
-    expect(rowLabels()).toEqual(['[필수] 서비스 이용약관']);
+    expect(rowLabels()).toEqual(['[필수] 서비스 이용약관 (바뀜)']);
 
     mockAuth.refreshConsentEntry.mockRejectedValueOnce('timeout');
     await fireEvent.press(screen.getByRole('button', { name: '저장 결과 다시 확인하기' }));
@@ -215,7 +215,7 @@ describe('저장 뒤 다시 확인하지 못했을 때', () => {
     mockAuth = { ...mockAuth, consentEntry: decisionRequired([PRIVACY]) };
     await view.rerender(<ReconsentPopup visible />);
 
-    expect(rowLabels()).toEqual(['[필수] 개인정보 수집·이용 동의']);
+    expect(rowLabels()).toEqual(['[필수] 개인정보 수집·이용 동의 (바뀜)']);
     expect(row('개인정보 수집·이용 동의')).not.toBeChecked();
     expect(screen.queryByText('저장한 결정을 다시 확인하지 못했어요.')).not.toBeOnTheScreen();
     expect(cta()).toBeDisabled();
@@ -280,7 +280,7 @@ test('문서 보기는 시트로 본문을 열고, 닫기나 뒤로 가기는 �
   expect(screen.getByText('제1조 목적')).toBeOnTheScreen();
   await fireEvent(modalOf(screen.getByText('동의 문서가 바뀌었어요')), 'requestClose');
   expect(screen.queryByText('제1조 목적')).not.toBeOnTheScreen();
-  expect(rowLabels()).toEqual(['[필수] 서비스 이용약관', '[선택] 탈퇴 후 영상 보관']);
+  expect(rowLabels()).toEqual(['[필수] 서비스 이용약관 (바뀜)', '[선택] 탈퇴 후 영상 보관']);
 });
 
 test('문서 시트 바깥의 어두운 곳을 눌러도 시트만 닫힌다', async () => {

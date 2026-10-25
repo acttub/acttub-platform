@@ -18,7 +18,7 @@ public final class PosterRules {
 
     public static final Set<String> PLATFORMS = Set.of("ios", "android");
     public static final List<String> DEFAULT_PLATFORMS = List.of("ios", "android");
-    public static final Set<String> FREQUENCIES = Set.of("daily", "once");
+    public static final Set<String> FREQUENCIES = Set.of("daily", "once", "every");
     public static final Set<String> AUDIENCES = Set.of("all", "cloud_voice_off");
     public static final Set<String> CTA_ACTIONS = Set.of("none", "cloud_voice_enable", "route", "url");
 
@@ -108,7 +108,7 @@ public final class PosterRules {
             return violation("ends_at", "ends_at must be after starts_at", draft.endsAt().toString());
         }
         if (draft.frequency() == null || !FREQUENCIES.contains(draft.frequency())) {
-            return violation("frequency", "frequency must be daily or once", draft.frequency());
+            return violation("frequency", "frequency must be daily, once or every", draft.frequency());
         }
         if (draft.audience() == null || !AUDIENCES.contains(draft.audience())) {
             return violation("audience", "audience must be all or cloud_voice_off", draft.audience());

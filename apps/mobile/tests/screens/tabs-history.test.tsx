@@ -176,7 +176,7 @@ describe('길게 누른 메뉴', () => {
     await fireEvent.press(screen.getByText('삭제'));
 
     expect(screen.getByText('이 연습을 기록에서 삭제할까요?')).toBeOnTheScreen();
-    expect(screen.getByText('기록에서 삭제해요. 영상은 보관함에 남아요.')).toBeOnTheScreen();
+    expect(screen.getByText('기록에서 삭제해요. 영상은 그대로 남아요.')).toBeOnTheScreen();
     listPracticeGroups.mockResolvedValue({ groups: [roof, old] });
     await fireEvent.press(screen.getByText('삭제'));
 

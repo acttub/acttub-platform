@@ -1,17 +1,21 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { PracticeMenu, type PracticeMenuItem } from '@/components/ui/coach-practice-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { RenameDialog } from '@/components/ui/coach-rename-dialog';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
+import { PracticeVideoModal } from '@/components/practice-video-modal';
+import { purgeVideoFileIfDue } from '@/lib/practice/upload-options';
 import { forgetLocalCopy } from '@/lib/library/library-runner';
 import { videoErrorMessage } from '@/lib/library/video-checks';
 import { translate as t } from '@/lib/i18n';
@@ -25,6 +29,7 @@ import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
 import { TARGET } from '@/lib/spotlight-targets';
 import type { CoachConversation, PracticeGroupDetail } from '@/lib/practice/types';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /** 처음 한 번 비추는 자리 — 「다음 테이크 찍기」 버튼. */
 const CONTINUE_STEPS: SpotlightStep[] = [{ target: TARGET.groupContinue, text: 'guide.spotContinue' }];
@@ -49,8 +54,15 @@ export default function PracticeGroupScreen() {
   const [loading, setLoading] = useState(true);
   const [conversation, setConversation] = useState<CoachConversation | null>(null);
   const [conversationError, setConversationError] = useState<string | null>(null);
-  const [conversationLoading, setConversationLoading] = useState(false);
+  const [, setConversationLoading] = useState(false);
   const conversationRequest = useRef(0);
+  // P10.2 「연습 영상 보기」 — 묶음 영상의 재생 주소. 파기됐으면 purged.
+  const [video, setVideo] = useState<{ url: string | null; purged: boolean } | null>(null);
+  const [playing, setPlaying] = useState(false);
+  // 지금 펼쳐 둔 대화의 id. 같은 줄을 다시 누르면 접는다(카드를 누르면 아래로 펼친다).
+  const [openId, setOpenId] = useState<string | null>(null);
+  // 같은 대화가 「마지막 대화」와 회차 카드의 「대화」 두 줄에 걸려 있어 둘 다 펼쳐지던 것을 막는다 — 누른 줄 아래에만 붙인다.
+  const [openSlot, setOpenSlot] = useState<'last' | 'round' | null>(null);
   // 처음 한 번만 "이어서 연습할 수 있어요!"를 비춘다. 버튼이 목록 맨 아래라 먼저 내려 준다.
   // 대화 중인 묶음은 「다음 테이크 찍기」가 없으니 비추지 않는다(다음에 들어왔을 때 비춘다).
   const scrollRef = useRef<ScrollView>(null);
@@ -74,8 +86,23 @@ export default function PracticeGroupScreen() {
     };
   }, [group]);
 
-  const openConversation = async (id: string) => {
+  const openConversation = async (id: string, slot: 'last' | 'round' = 'round') => {
+    if (openId === id && openSlot !== slot) {
+      // 이미 받은 대화를 다른 줄 아래로 옮기기만 한다.
+      setOpenSlot(slot);
+      return;
+    }
     const request = ++conversationRequest.current;
+    if (openId === id) {
+      setOpenId(null);
+      setOpenSlot(null);
+      setConversation(null);
+      setConversationError(null);
+      setConversationLoading(false);
+      return;
+    }
+    setOpenId(id);
+    setOpenSlot(slot);
     setConversation(null);
     setConversationError(null);
     setConversationLoading(true);
@@ -105,6 +132,29 @@ export default function PracticeGroupScreen() {
     void load();
     return () => { conversationRequest.current += 1; };
   }, [load]);
+
+  // 노트가 있는 회차는 분석이 끝난 것이다 — 「분석 끝나면 영상 바로 지우기」를 골랐다면 지우고 다시 읽는다.
+  useEffect(() => {
+    if (!group) return;
+    let alive = true;
+    void Promise.all(group.practices.filter((round) => round.note).map((round) => purgeVideoFileIfDue(round.id)))
+      .then((done) => { if (alive && done.some(Boolean)) void load(); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [group, load]);
+
+  // 묶음 영상의 재생 주소는 영상 상세에서만 준다.
+  const groupVideoId = group?.video_id ?? null;
+  useEffect(() => {
+    setVideo(null);
+    if (!groupVideoId) return;
+    let alive = true;
+    void Promise.resolve()
+      .then(() => api.getVideo(groupVideoId))
+      .then((v) => { if (alive) setVideo({ url: v.purged_at ? null : v.playback_url ?? null, purged: Boolean(v.purged_at) }); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [groupVideoId]);
 
   const action = continueActionFor(group);
 
@@ -200,6 +250,31 @@ export default function PracticeGroupScreen() {
     router.push({ pathname: '/report-detail', params: { practiceId } });
   };
 
+  /** 펼친 대화 — 액티는 왼쪽 회색 말풍선(마스코트 머리), 나는 오른쪽 파란 말풍선. 대화 줄 바로 아래에 붙는다. */
+  const renderOpen = (id: string, slot: 'last' | 'round' = 'round') => {
+    if (openId !== id || openSlot !== slot) return null;
+    return (
+      <View key={`open-${id}`} style={styles.chat}>
+        {conversationError && <Text style={styles.error}>{conversationError}</Text>}
+        {conversation &&
+          orderedMessages(conversation).map((message) =>
+            message.role === 'coach' ? (
+              <View key={message.turn_index} style={styles.coachRow}>
+                <Image source={MASCOT.coach} style={MASCOT_SIZE.chat} contentFit="contain" cachePolicy="memory-disk" accessibilityLabel={t('coach.roleCoach')} />
+                <View style={styles.coachBubble}>
+                  <Text style={styles.cardText}>{message.text}</Text>
+                </View>
+              </View>
+            ) : (
+              <View key={message.turn_index} style={styles.meBubble} accessibilityLabel={t('coach.roleMe')}>
+                <Text style={styles.meText}>{message.text}</Text>
+              </View>
+            ),
+          )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen
@@ -228,11 +303,7 @@ export default function PracticeGroupScreen() {
             ) : null,
         }}
       />
-      {loading && (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
-      )}
+      {loading && <SkeletonRows count={4} avatar={false} />}
       {error && <Text style={styles.error}>{error}</Text>}
       {group && (
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
@@ -246,28 +317,22 @@ export default function PracticeGroupScreen() {
             <PrimaryButton label={t(continueActionLabel(action))} onPress={() => resumeConversation(action.practiceId)} />
           )}
 
-          {group.video_id && (
-            <Pressable style={styles.round} onPress={() => router.push({ pathname: '/archive-detail', params: { id: group.video_id! } })} accessibilityRole="button">
-              <Text style={styles.openNote}>{t('history.openVideo')}</Text>
-            </Pressable>
-          )}
           {group.last_conversation_id && (
-            <Pressable style={styles.round} onPress={() => void openConversation(group.last_conversation_id!)} accessibilityRole="button">
+            <Pressable style={styles.round} onPress={() => void openConversation(group.last_conversation_id!, 'last')} accessibilityRole="button">
               <Text style={styles.openNote}>{t('history.lastConversation')}</Text>
             </Pressable>
           )}
-          {conversationLoading && <ActivityIndicator color={palette.blue} />}
-          {conversationError && <Text style={styles.error}>{conversationError}</Text>}
-          {conversation && (
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>{t('history.conversation')}</Text>
-              {orderedMessages(conversation).map(message => (
-                <View key={message.turn_index}>
-                  <Text style={styles.cardLabel}>{t(message.role === 'coach' ? 'coach.roleCoach' : 'coach.roleMe')}</Text>
-                  <Text style={styles.cardText}>{message.text}</Text>
-                </View>
-              ))}
-            </View>
+          {group.last_conversation_id && renderOpen(group.last_conversation_id, 'last')}
+
+          {video && (
+            video.url ? (
+              <Pressable style={styles.round} onPress={() => setPlaying(true)} accessibilityRole="button">
+                <Text style={styles.openNote}>{t('history.viewVideo')}</Text>
+                <Feather name="play" size={18} color={palette.checkOff} />
+              </Pressable>
+            ) : video.purged ? (
+              <Text style={styles.roundMeta}>{t('history.videoPurged')}</Text>
+            ) : null
           )}
 
           <Text style={styles.sectionTitle}>{t('history.roundsTitle')}</Text>
@@ -292,11 +357,13 @@ export default function PracticeGroupScreen() {
                   <Text style={styles.openNote}>{t('history.conversation')}</Text>
                 </Pressable>
               )}
+              {round.conversation_id && renderOpen(round.conversation_id)}
               {round.previous_conversations.map(previous => (
                 <Pressable key={previous.id} style={styles.round} onPress={() => void openConversation(previous.id)} accessibilityRole="button">
                   <Text style={styles.openNote}>{t('history.previousConversation')} · {formatKoreanDate(previous.created_at, { month: 'long', day: 'numeric' })}</Text>
                 </Pressable>
               ))}
+              {round.previous_conversations.map(previous => renderOpen(previous.id))}
             </View>
           ))}
 
@@ -325,6 +392,7 @@ export default function PracticeGroupScreen() {
         onSave={rename}
         onClose={() => setRenameOpen(false)}
       />
+      <PracticeVideoModal uri={playing ? video?.url ?? null : null} onClose={() => setPlaying(false)} />
       {dialog}
       <SpotlightGuide
         visible={guideOpen}
@@ -349,6 +417,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '900', color: palette.text, lineHeight: 32 },
   meta: { fontSize: 12.5, fontWeight: '700', color: palette.textFaint },
   card: { backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6 },
+  chat: { gap: 12, paddingVertical: 8 },
+  coachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 36 },
+  coachBubble: { flexShrink: 1, backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
+  meBubble: { alignSelf: 'flex-end', maxWidth: '78%', backgroundColor: palette.blue, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
+  meText: { fontSize: 14.5, lineHeight: 22, color: palette.onAccent },
   cardLabel: { fontSize: 12, fontWeight: '800', color: palette.textDim },
   cardText: { fontSize: 14.5, lineHeight: 23, color: palette.text },
   sectionTitle: { fontSize: 14, fontWeight: '800', color: palette.textFaint, marginTop: 8 },

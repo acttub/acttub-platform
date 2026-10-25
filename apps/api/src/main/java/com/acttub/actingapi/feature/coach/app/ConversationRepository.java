@@ -103,6 +103,19 @@ public interface ConversationRepository {
     NoteView saveNote(UUID conversationId, NewNote note, Instant now);
 
     /**
+     * 이어 가던 대화가 다시 정리되면 그 노트를 새 내용으로 고친다(SOMA-782). 노트 id·만든 시각은 그대로여서
+     * 일지 연결과 도움됨 평가가 끊기지 않는다. 노트가 아직 없으면 새로 만든다.
+     */
+    NoteView replaceNote(UUID conversationId, NewNote note, Instant now);
+
+    /**
+     * 닫힌 대화를 같은 대화로 다시 연다(SOMA-782 대화 이어하기). 상태를 열림으로, 회차를 대화 중으로 돌리고
+     * {@code state} 를 저장하며 revision 을 하나 올린다. 대화가 닫혀 있지 않거나 revision 이 다르면 아무것도
+     * 쓰지 않고 {@code null} 이다. 새 대화·새 회차를 만들지 않는다.
+     */
+    Saved reopen(UUID conversationId, long expectedRevision, JsonNode state, Instant now);
+
+    /**
      * @param title 초점 문구 원문. 초점 없이 끝난 {@code record_only} 는 {@code null}
      * @param legacyReport 기존 갈래의 원문. 신형이면 {@code null}
      */
@@ -153,11 +166,22 @@ public interface ConversationRepository {
             Instant createdAt,
             List<Turn> turns,
             // 목적별 코칭(SOMA-719). 목적 없이 시작한 대화와 옛 대화는 null.
-            PurposeView purpose) {
+            PurposeView purpose,
+            // 목적 없는 질문 대화의 지금 질문 예시 답 1~2개. 없으면 빈 목록이다.
+            List<String> answerExamples) {
+
+        public ConversationView {
+            answerExamples = answerExamples == null ? List.of() : List.copyOf(answerExamples);
+        }
+
+        public ConversationView(UUID id, UUID practiceId, String status, String closeReason, String experienceVersion,
+                long revision, Instant createdAt, List<Turn> turns, PurposeView purpose) {
+            this(id, practiceId, status, closeReason, experienceVersion, revision, createdAt, turns, purpose, List.of());
+        }
 
         public ConversationView(UUID id, UUID practiceId, String status, String closeReason, String experienceVersion,
                 long revision, Instant createdAt, List<Turn> turns) {
-            this(id, practiceId, status, closeReason, experienceVersion, revision, createdAt, turns, null);
+            this(id, practiceId, status, closeReason, experienceVersion, revision, createdAt, turns, null, List.of());
         }
     }
 

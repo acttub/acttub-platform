@@ -52,3 +52,29 @@ export function splitGuess(text: string): [string, string] {
   if (at < 0) at = Math.floor(middle);
   return [trimmed.slice(0, at).trim(), trimmed.slice(at).trim()];
 }
+
+/** 아래에 추가(SOMA-816)에서 새 대사를 적는 중인 칸. 「지문」은 kind 가 direction 이고 배역이 없다. */
+export type InsertDraft = { speaker: string | 'direction'; text: string };
+
+/**
+ * 처음에 고르는 말하는 쪽 — 고른 줄이 대사면 대본의 배역 순서에서 그 다음 배역(둘뿐이면 상대역), 대사가 아니면 첫 배역.
+ * 배역이 없으면 지문.
+ */
+export function defaultInsertSpeaker(characterIds: string[], lineCharacterId: string | null): string | 'direction' {
+  if (!characterIds.length) return 'direction';
+  const at = lineCharacterId ? characterIds.indexOf(lineCharacterId) : -1;
+  return characterIds[at < 0 ? 0 : (at + 1) % characterIds.length];
+}
+
+/** 추가할 수 있는가 — 글이 있다. (배역은 항상 골라져 있다.) */
+export function canInsertLine(draft: InsertDraft): boolean {
+  return !!draft.text.trim();
+}
+
+/** 서버에 보낼 줄 — 지문이면 배역이 없다. */
+export function insertLineOf(draft: InsertDraft): { kind: LineKind; characterId: string | null; text: string } {
+  const text = draft.text.trim();
+  return draft.speaker === 'direction'
+    ? { kind: 'direction', characterId: null, text }
+    : { kind: 'dialogue', characterId: draft.speaker, text };
+}

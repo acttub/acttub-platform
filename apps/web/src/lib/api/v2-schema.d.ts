@@ -78,6 +78,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/practices/{practice_id}/journal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Practice Journal
+         * @description 그 회차의 배우 일지. 없으면(남의 것 포함) 404 journal_not_found 이고 화면은 노트를 대신 보인다.
+         */
+        get: operations["get_practice_journal_v2_practices__practice_id__journal_get"];
+        /**
+         * Update Practice Journal
+         * @description 배우가 고친 일지를 저장한다. 배우의 답 전체와 자동 칸 전체를 보내고, 글이 빈 항목은 지운다. 고친 뒤에는 자동 칸을
+         *     다시 만들지 않는다. 없으면(남의 것 포함) 404 journal_not_found.
+         */
+        put: operations["update_practice_journal_v2_practices__practice_id__journal_put"];
+        /**
+         * Create Practice Journal
+         * @description 고정 질문 4개의 답으로 그 회차의 배우 일지를 만든다. 서버가 코칭 대화로 자동 칸(오늘 한 연습·장면과 인물·받은 피드백)을
+         *     만들고 배우의 답은 고치지 않고 그대로 둔다. 자동 칸을 만들지 못하면 배우의 답만으로 저장한다(draft_status=failed).
+         *     새로 만들면 201, 이미 있으면 다시 만들지 않고 그 일지를 200 으로 준다. 없는 회차·남의 회차는 404 practice_not_found.
+         */
+        post: operations["create_practice_journal_v2_practices__practice_id__journal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/portfolio/share": {
         parameters: {
             query?: never;
@@ -454,9 +485,97 @@ export interface paths {
          * Complete Video Intent
          * @description 올라온 것을 확인하고 보관함에 영상을 만든다. 만들면 201, 마무리 재전송이면 200 으로 같은 영상이다.
          *     시한(30분)이 지났으면 422 upload_expired 이고 미확정 객체는 삭제 장부로 간다. 아직 안 올라왔으면
-         *     422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다.
+         *     422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다. 본문은 선택이고, face_mosaic 이 true 면
+         *     첫 질문용 미리 올리기를 시작하지 않는다(원본이 코치 AI 쪽으로 가지 않는다).
          */
         post: operations["complete_video_intent_v2_videos_intents__intent_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/sample-scripts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Sample Script
+         * @description 감정·상황·원하는 방향과 배역 수(1~4, 1은 독백)·분량(1·3·10분, 추정)으로 생성 대본을 만든다. 새로 만들면 201,
+         *     같은 request_id 로 다시 오면 먼저 만든 것을 200 으로 준다. 같은 request_id 가 아직 만드는 중이면 409
+         *     sample_script_in_progress, 24시간 20개 초과 429 sample_script_daily_limit, 배역 수·분량이 범위 밖이면 422
+         *     sample_script_invalid_options, 모델이 실패하거나 검사를 통과하지 못하면 502 sample_script_failed.
+         */
+        post: operations["create_sample_script_v2_sample_scripts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/sample-scripts/{sample_script_id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Sample Script
+         * @description 확정 — 지금 버전을 「내 대본」(reading.script)에 저장하고 script_id 를 준다. 처음이면 201, 이미 저장했으면 200 으로
+         *     같은 script_id 다. 대본 수 한도는 리딩과 같다(422 script_limit).
+         */
+        post: operations["save_sample_script_v2_sample_scripts__sample_script_id__save_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/sample-scripts/{sample_script_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revise Sample Script
+         * @description 지금 버전(base_version)을 자유 요청·배역 수·분량으로 한 번에 고친다. 성공한 수정만 세고 무료 3회다(버전을 되돌려도
+         *     돌려주지 않는다). 다 쓰면 429 sample_script_revision_limit, 지금 버전이 아니면 409 sample_script_version_conflict,
+         *     다른 수정 중이면 409 sample_script_busy, 확정한 대본이면 409 sample_script_saved, 바꿀 것이 없으면 422
+         *     sample_script_no_change, 고치지 못하면 502 sample_script_revision_failed(원본·횟수 그대로).
+         */
+        post: operations["revise_sample_script_v2_sample_scripts__sample_script_id__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/sample-scripts/{sample_script_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Sample Script Version
+         * @description 지난 버전을 지금 버전으로 되돌린다. 사용한 수정 횟수는 그대로다. 없는 버전 422 sample_script_version_not_found.
+         */
+        post: operations["restore_sample_script_v2_sample_scripts__sample_script_id__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -654,6 +773,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/scripts/{script_id}/lines/{line_id}/insert-after": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Insert Script Line After
+         * @description 고른 줄 바로 아래에 새 줄 하나를 넣는다(SOMA-816). 뒤 줄들의 순서가 하나씩 밀리고 기존 줄의 id 는 그대로라
+         *     회차·녹음·외운 줄의 연결이 남는다. 구간이 그 줄로 끝나던 회차의 구간은 그대로다(새 줄은 구간 밖). 대사면 이
+         *     대본의 배역이 있어야 하고 지문·장면이면 배역이 없다 — 어기면 422 invalid_line. 글은 앞뒤 공백을 정리하고
+         *     비거나 5,000자를 넘으면 422 배열이다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404 script_not_found.
+         *     고친 대본 전체를 돌려준다.
+         */
+        post: operations["insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/imports": {
         parameters: {
             query?: never;
@@ -679,6 +822,30 @@ export interface paths {
          *     판정을 묻지 않는다. 둘 다 요청 지문에 든다.
          */
         post: operations["import_script_v2_reading_imports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/examples/{example_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Reading Example
+         * @description 예시를 미리 나눈 그대로 내 대본(source sample, 제목은 예시 제목)으로 복사한다. 모델을 부르지 않아 script_split
+         *     동의·하루 나누기 한도를 보지 않는다(게스트도 된다). 새로 복사하면 201, 같은 글의 대본이 이미 있거나 같은
+         *     request_id 의 재전송이면 200 으로 그 대본을 준다(created false). 지운 뒤에는 다시 복사한다. 없거나 꺼진 예시
+         *     404 reading_example_not_found, 대본 수 한도 422 script_limit, 같은 request_id 에 다른 본문 422
+         *     request_fingerprint_mismatch.
+         */
+        post: operations["start_reading_example_v2_reading_examples__example_id__start_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1141,6 +1308,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/coach/conversations/{conversation_id}/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue Coach Conversation
+         * @description 정리까지 마친(닫힌) 대화를 같은 대화로 다시 연다(「더 얘기하기」). 새 회차·새 대화를 만들지 않아 새 코칭으로
+         *     세지 않는다. 이미 열려 있으면 그대로 돌려준다. revision 이 다르면 409 conversation_conflict, 코치 응답
+         *     상한에 가까우면 409 conversation_limit_reached, 이어 갈 수 없는 대화(옛 갈래·연기가 아니어서 끊김)면
+         *     409 conversation_not_resumable. 이어 간 대화가 다시 닫히면 노트는 새 내용으로 고쳐진다.
+         */
+        post: operations["continue_coach_conversation_v2_coach_conversations__conversation_id__continue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/challenges": {
         parameters: {
             query?: never;
@@ -1530,7 +1720,7 @@ export interface paths {
          * Update Challenge Entry
          * @description 작성자만 캡션·공개 범위를 바꾼다(남의 것 404). 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지의
          *     정상 참여작만 된다 — 종료 422 challenge_closed, 신고 숨김 422 entry_hidden, 파일 파기 422 video_not_ready.
-         *     다시 공개해도 published_at 은 처음 값이다.
+         *     다시 공개해도 published_at 은 처음 값이다. face_mosaic 로 얼굴 모자이크를 켜고 끈다.
          */
         patch: operations["update_entry_v2_entries__id__patch"];
         trace?: never;
@@ -1549,6 +1739,26 @@ export interface paths {
          *     아직 만들지 않았거나 파기된 영상은 null 이다.
          */
         get: operations["list_videos_v2_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/sample-scripts/{sample_script_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sample Script
+         * @description 생성 대본의 지금 버전. 없는 것과 남의 것은 같은 404 sample_script_not_found 다.
+         */
+        get: operations["get_sample_script_v2_sample_scripts__sample_script_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1636,6 +1846,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/scripts/{script_id}/example-audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reading Example Audio
+         * @description 예시를 복사한 내 대본의 미리 만든 상대역 음성. 대본의 원문이 켜진 예시와 같고 그 예시에 음성이 있으면 200 —
+         *     voices 는 배역 이름 → 음성을 만든 프리셋, lines 는 예시와 같은 자리·같은 배역·같은 글인 대사 줄마다 line_id 와 1시간
+         *     임시 주소(url)·길이(duration_ms)다. 고친 줄은 빠진다. 상대역이 없는 예시(독백)는 lines 가 비어 있다. 없는 것·남의
+         *     대본 404 script_not_found, 예시가 아니거나 음성이 없는 예시 404 reading_example_audio_not_found.
+         */
+        get: operations["get_reading_example_audio_v2_reading_scripts__script_id__example_audio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/imports/{import_id}": {
         parameters: {
             query?: never;
@@ -1648,6 +1881,26 @@ export interface paths {
          * @description 나누기 요청의 상태. 1초 간격으로 묻는다. 없는 것과 남의 것은 같은 404 import_not_found 다.
          */
         get: operations["get_import_v2_reading_imports__import_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/examples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reading Examples
+         * @description 켜진 예시 대본을 정한 순서로. preview 는 앞 5줄까지이고 지문·장면은 speaker 가 null 이다.
+         */
+        get: operations["list_reading_examples_v2_reading_examples_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2371,6 +2624,149 @@ export interface components {
              */
             updated_at: string;
         };
+        /** JournalAnswers */
+        JournalAnswers: {
+            feeling?: components["schemas"]["JournalFeeling"] | null;
+            unknown?: components["schemas"]["JournalUnknown"] | null;
+            next?: components["schemas"]["JournalNext"] | null;
+            /** Review */
+            review?: string | null;
+        };
+        /**
+         * JournalCharacterAspect
+         * @enum {string}
+         */
+        JournalCharacterAspect: "wants" | "partner" | "situation";
+        /** JournalCharacterItem */
+        JournalCharacterItem: {
+            aspect: components["schemas"]["JournalCharacterAspect"];
+            /** Text */
+            text: string;
+        };
+        /**
+         * JournalFeedbackGiver
+         * @enum {string}
+         */
+        JournalFeedbackGiver: "coach" | "other";
+        /** JournalFeedbackItem */
+        JournalFeedbackItem: {
+            /** Text */
+            text: string;
+            giver?: components["schemas"]["JournalFeedbackGiver"] | null;
+            /** At */
+            at?: number | null;
+        };
+        /** JournalFeeling */
+        JournalFeeling: {
+            /** Choice */
+            choice?: string | null;
+            /** Text */
+            text?: string | null;
+        };
+        /** JournalNext */
+        JournalNext: {
+            /** Undecided */
+            undecided?: boolean | null;
+            /** Text */
+            text?: string | null;
+        };
+        /**
+         * JournalPracticeBasis
+         * @enum {string}
+         */
+        JournalPracticeBasis: "actor_report" | "observed" | "discussed";
+        /** JournalPracticeItem */
+        JournalPracticeItem: {
+            /** Text */
+            text: string;
+            basis?: components["schemas"]["JournalPracticeBasis"] | null;
+        };
+        /** JournalUnknown */
+        JournalUnknown: {
+            /** None */
+            none?: boolean | null;
+            /** Text */
+            text?: string | null;
+        };
+        /** JournalUpdateRequest */
+        JournalUpdateRequest: {
+            answers: components["schemas"]["JournalAnswers"];
+            /** Practice */
+            practice: components["schemas"]["JournalPracticeItem"][];
+            /** Character */
+            character: components["schemas"]["JournalCharacterItem"][];
+            /** Feedback */
+            feedback: components["schemas"]["JournalFeedbackItem"][];
+        };
+        /** JournalCharacterLine */
+        JournalCharacterLine: {
+            /** Aspect */
+            aspect?: string;
+            /** Text */
+            text?: string;
+        };
+        /**
+         * JournalDraftStatus
+         * @enum {string}
+         */
+        JournalDraftStatus: "pending" | "ready" | "failed" | "skipped";
+        /** JournalFeedbackLine */
+        JournalFeedbackLine: {
+            /** Text */
+            text?: string;
+            /** Giver */
+            giver?: string;
+            /** At */
+            at?: number | null;
+        };
+        /** JournalPracticeLine */
+        JournalPracticeLine: {
+            /** Text */
+            text?: string;
+            /** Basis */
+            basis?: string;
+        };
+        /** PracticeJournal */
+        PracticeJournal: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id?: string;
+            /**
+             * Practice Id
+             * Format: uuid
+             */
+            practice_id?: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            answers?: components["schemas"]["JournalAnswers"];
+            draft_status?: components["schemas"]["JournalDraftStatus"];
+            /** Practice */
+            practice?: components["schemas"]["JournalPracticeLine"][];
+            /** Character */
+            character?: components["schemas"]["JournalCharacterLine"][];
+            /** Feedback */
+            feedback?: components["schemas"]["JournalFeedbackLine"][];
+            /** Edited At */
+            edited_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at?: string;
+            /** Title */
+            title?: string | null;
+            /** Purpose */
+            purpose?: string | null;
+            /** Role Name */
+            role_name?: string | null;
+        };
         /** PortfolioShareRequest */
         PortfolioShareRequest: {
             /** Enabled */
@@ -2694,6 +3090,157 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** VideoIntentCompleteRequest */
+        VideoIntentCompleteRequest: {
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
+        };
+        /** SampleScriptCreateRequest */
+        SampleScriptCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            experience?: components["schemas"]["SampleScriptExperience"] | null;
+            /** Age */
+            age?: number | null;
+            gender?: components["schemas"]["SampleScriptGender"] | null;
+            goal?: components["schemas"]["SampleScriptGoal"] | null;
+            /** Emotion */
+            emotion?: string | null;
+            /** Situation */
+            situation?: string | null;
+            /** Direction */
+            direction?: string | null;
+            /** Character Count */
+            character_count?: number | null;
+            /** Length Minutes */
+            length_minutes?: number | null;
+        };
+        /**
+         * SampleScriptExperience
+         * @enum {string}
+         */
+        SampleScriptExperience: "beginner" | "exam" | "experienced";
+        /**
+         * SampleScriptGender
+         * @enum {string}
+         */
+        SampleScriptGender: "female" | "male" | "unspecified";
+        /**
+         * SampleScriptGoal
+         * @enum {string}
+         */
+        SampleScriptGoal: "hobby" | "audition" | "professional";
+        /** SampleScript */
+        SampleScript: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id?: string;
+            /** Version */
+            version?: number;
+            /** Version Count */
+            version_count?: number;
+            /** Title */
+            title?: string;
+            /** Scene */
+            scene?: string;
+            /** Characters */
+            characters?: components["schemas"]["SampleScriptCharacter"][];
+            /** Lines */
+            lines?: components["schemas"]["SampleScriptLine"][];
+            design?: components["schemas"]["SampleScriptDesign"];
+            /** Emotion */
+            emotion?: string;
+            /** Situation */
+            situation?: string;
+            /** Character Count */
+            character_count?: number;
+            /** Length Minutes */
+            length_minutes?: number;
+            /** Estimated Seconds */
+            estimated_seconds?: number;
+            /** Revisions Used */
+            revisions_used?: number;
+            /** Revisions Left */
+            revisions_left?: number;
+            /** Note */
+            note?: string | null;
+            /** Script Id */
+            script_id?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at?: string;
+        };
+        /** SampleScriptCharacter */
+        SampleScriptCharacter: {
+            /** Name */
+            name?: string;
+            /** Gender */
+            gender?: string;
+            /** Age Band */
+            age_band?: string;
+            /** Mine */
+            mine?: boolean;
+        };
+        /** SampleScriptDesign */
+        SampleScriptDesign: {
+            /** Relation */
+            relation?: string;
+            /** Incident */
+            incident?: string;
+            /** Prop */
+            prop?: string;
+            /** My Objective */
+            my_objective?: string;
+            /** Other Reason */
+            other_reason?: string;
+            /** Turn Action */
+            turn_action?: string;
+        };
+        /** SampleScriptLine */
+        SampleScriptLine: {
+            /** Kind */
+            kind?: string;
+            /** Character */
+            character?: string;
+            /** Text */
+            text?: string;
+        };
+        /** SampleScriptSaved */
+        SampleScriptSaved: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id?: string;
+            /**
+             * Script Id
+             * Format: uuid
+             */
+            script_id?: string;
+        };
+        /** SampleScriptRevisionRequest */
+        SampleScriptRevisionRequest: {
+            /** Base Version */
+            base_version: number;
+            /** Text */
+            text?: string | null;
+            /** Character Count */
+            character_count?: number | null;
+            /** Length Minutes */
+            length_minutes?: number | null;
+        };
+        /** SampleScriptRestoreRequest */
+        SampleScriptRestoreRequest: {
+            /** Version */
+            version: number;
         };
         /** ChallengeReportRequest */
         ChallengeReportRequest: {
@@ -3246,6 +3793,14 @@ export interface components {
             /** Second Text */
             second_text: string;
         };
+        /** ReadingScriptLineInsert */
+        ReadingScriptLineInsert: {
+            kind: components["schemas"]["ReadingScriptLineKindInput"];
+            /** Character Id */
+            character_id?: string | null;
+            /** Text */
+            text: string;
+        };
         /** ReadingImportRequest */
         ReadingImportRequest: {
             /**
@@ -3278,6 +3833,24 @@ export interface components {
             /** Duplicate Script Id */
             duplicate_script_id: string | null;
         };
+        /** ReadingExampleStartRequest */
+        ReadingExampleStartRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+        };
+        /** ReadingExampleStarted */
+        ReadingExampleStarted: {
+            /**
+             * Script Id
+             * Format: uuid
+             */
+            script_id: string;
+            /** Created */
+            created: boolean;
+        };
         /** RegisterPushTokenRequest */
         RegisterPushTokenRequest: {
             /** Token */
@@ -3304,17 +3877,16 @@ export interface components {
              * Format: uuid
              */
             request_id: string;
-            /**
-             * Video Id
-             * Format: uuid
-             */
-            video_id: string;
+            /** Video Id */
+            video_id?: string | null;
             scene?: components["schemas"]["PracticeScene"] | null;
             blockage?: components["schemas"]["PracticeBlockage"] | null;
             /** Title */
             title?: string | null;
             /** Session Purpose */
-            session_purpose?: ("evaluate" | "stuck" | "character") | null;
+            session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
         };
         /** PracticeScene */
         PracticeScene: {
@@ -3384,7 +3956,7 @@ export interface components {
             /** Previous Conversations */
             previous_conversations: components["schemas"]["PreviousConversation"][];
             /** Session Purpose */
-            session_purpose?: ("evaluate" | "stuck" | "character") | null;
+            session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
         };
         /** PracticeJob */
         PracticeJob: {
@@ -3415,6 +3987,10 @@ export interface components {
              */
             created_at: string;
         };
+        /** JournalCreateRequest */
+        JournalCreateRequest: {
+            answers: components["schemas"]["JournalAnswers"];
+        };
         /** PracticeContinueRequest */
         PracticeContinueRequest: {
             /**
@@ -3426,6 +4002,8 @@ export interface components {
             video_id?: string | null;
             scene?: components["schemas"]["PracticeScene"] | null;
             blockage?: components["schemas"]["PracticeBlockage"] | null;
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
         };
         /** PracticeStatus */
         PracticeStatus: {
@@ -3808,6 +4386,11 @@ export interface components {
             /** Created At */
             created_at?: string | null;
             purpose?: components["schemas"]["CoachPurpose"] | null;
+            /**
+             * Answer Examples
+             * @description 목적 없는 질문 대화에서 지금 코치 질문 아래에 보일 예시 답(0~2개, 배우 말투). 목적별 코칭은 purpose.choices 를 쓰고 이 값은 빈 목록이다
+             */
+            answer_examples: string[];
         };
         /** CoachLine */
         CoachLine: {
@@ -3875,10 +4458,10 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "evaluate" | "stuck" | "character";
+            purpose: "evaluate" | "stuck" | "character" | "concern";
             /**
              * Step
-             * @description evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap
+             * @description evaluate: card·method·wrap / stuck: reason·line·seen·method·wrap / character: view·cell·wrap / 영상 없이 말로(SOMA-745) stuck: reason·line·method·wrap, character: view·cell·wrap, concern: concern·need·wrap
              */
             step: string;
             /** Choices */
@@ -3946,6 +4529,11 @@ export interface components {
             request_id: string;
             /** Text */
             text?: string;
+            /** Revision */
+            revision?: number | null;
+        };
+        /** CoachContinueRequest */
+        CoachContinueRequest: {
             /** Revision */
             revision?: number | null;
         };
@@ -4039,6 +4627,8 @@ export interface components {
              * @enum {string}
              */
             visibility: "public" | "private";
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
         };
         /** MyChallengeEntry */
         MyChallengeEntry: {
@@ -4071,6 +4661,8 @@ export interface components {
             published_at: string | null;
             /** Playback Url */
             playback_url: string | null;
+            /** Original Playback Url */
+            original_playback_url: string | null;
             /** Liked */
             liked: boolean;
             /** Saved */
@@ -4101,6 +4693,15 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Face Mosaic
+             * @description 얼굴 모자이크를 켰는가. 켜면 다른 사람은 모자이크본만 본다
+             */
+            face_mosaic: boolean;
+            /** Mosaic Status */
+            mosaic_status: ("pending" | "ready" | "failed") | null;
+            /** Poster Url */
+            poster_url: string | null;
         };
         /** MyChallengeEntryParent */
         MyChallengeEntryParent: {
@@ -4444,6 +5045,8 @@ export interface components {
             caption?: string | null;
             /** Visibility */
             visibility?: ("public" | "private") | null;
+            /** Face Mosaic */
+            face_mosaic?: boolean | null;
         };
         /** VideoList */
         VideoList: {
@@ -4571,6 +5174,29 @@ export interface components {
             /** Sessions */
             sessions: components["schemas"]["ReadingSessionCard"][];
         };
+        /** ReadingExampleAudio */
+        ReadingExampleAudio: {
+            /** Example Id */
+            example_id: string;
+            /** Voices */
+            voices: {
+                [key: string]: string;
+            };
+            /** Lines */
+            lines: components["schemas"]["ReadingExampleAudioLine"][];
+        };
+        /** ReadingExampleAudioLine */
+        ReadingExampleAudioLine: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /** Url */
+            url: string;
+            /** Duration Ms */
+            duration_ms: number;
+        };
         /** ReadingImport */
         ReadingImport: {
             /**
@@ -4600,6 +5226,33 @@ export interface components {
          * @enum {string}
          */
         ScriptImportFailure: "not_script" | "no_characters" | "script_too_long" | "script_limit" | "failed";
+        /** ReadingExample */
+        ReadingExample: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Dialogue Count */
+            dialogue_count: number;
+            /** Characters */
+            characters: string[];
+            /** Preview */
+            preview: components["schemas"]["ReadingExamplePreviewLine"][];
+        };
+        /** ReadingExampleList */
+        ReadingExampleList: {
+            /** Examples */
+            examples: components["schemas"]["ReadingExample"][];
+        };
+        /** ReadingExamplePreviewLine */
+        ReadingExamplePreviewLine: {
+            /** Speaker */
+            speaker: string | null;
+            /** Text */
+            text: string;
+        };
         /** PublicPortfolio */
         PublicPortfolio: {
             /** Name */
@@ -4768,6 +5421,8 @@ export interface components {
             published_at: string | null;
             /** Playback Url */
             playback_url: string | null;
+            /** Original Playback Url */
+            original_playback_url: string | null;
             /** Liked */
             liked: boolean;
             /** Saved */
@@ -5801,6 +6456,107 @@ export interface operations {
             };
         };
     };
+    get_practice_journal_v2_practices__practice_id__journal_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeJournal"];
+                };
+            };
+        };
+    };
+    update_practice_journal_v2_practices__practice_id__journal_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JournalUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeJournal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_practice_journal_v2_practices__practice_id__journal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JournalCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 이미 있다 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeJournal"];
+                };
+            };
+            /** @description 만들었다 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeJournal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     set_portfolio_share_v2_portfolio_share_put: {
         parameters: {
             query?: never;
@@ -6416,7 +7172,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["VideoIntentCompleteRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {
@@ -6434,6 +7194,131 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_sample_script_v2_sample_scripts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleScriptCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 같은 request_id 의 재전송 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
+                };
+            };
+            /** @description 만들었다 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_sample_script_v2_sample_scripts__sample_script_id__save_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sample_script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 이미 저장했다 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScriptSaved"];
+                };
+            };
+            /** @description 저장했다 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScriptSaved"];
+                };
+            };
+        };
+    };
+    revise_sample_script_v2_sample_scripts__sample_script_id__revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sample_script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleScriptRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
+                };
+            };
+        };
+    };
+    restore_sample_script_v2_sample_scripts__sample_script_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sample_script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleScriptRestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
                 };
             };
         };
@@ -6768,6 +7653,42 @@ export interface operations {
             };
         };
     };
+    insert_script_line_after_v2_reading_scripts__script_id__lines__line_id__insert_after_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingScriptLineInsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_script_v2_reading_imports_post: {
         parameters: {
             query?: never;
@@ -6797,6 +7718,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadingImportTicket"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_reading_example_v2_reading_examples__example_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                example_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingExampleStartRequest"];
+            };
+        };
+        responses: {
+            /** @description 같은 글의 대본이 이미 있음 또는 재전송 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingExampleStarted"];
+                };
+            };
+            /** @description 복사했다 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingExampleStarted"];
                 };
             };
             /** @description Validation Error */
@@ -7548,6 +8513,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CoachReplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachTurnResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    continue_coach_conversation_v2_coach_conversations__conversation_id__continue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachContinueRequest"];
             };
         };
         responses: {
@@ -8375,6 +9375,28 @@ export interface operations {
             };
         };
     };
+    get_sample_script_v2_sample_scripts__sample_script_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sample_script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleScript"];
+                };
+            };
+        };
+    };
     status: {
         parameters: {
             query?: never;
@@ -8479,6 +9501,28 @@ export interface operations {
             };
         };
     };
+    get_reading_example_audio_v2_reading_scripts__script_id__example_audio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingExampleAudio"];
+                };
+            };
+        };
+    };
     get_import_v2_reading_imports__import_id__get: {
         parameters: {
             query?: never;
@@ -8497,6 +9541,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadingImport"];
+                };
+            };
+        };
+    };
+    list_reading_examples_v2_reading_examples_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingExampleList"];
                 };
             };
         };

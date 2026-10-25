@@ -11,10 +11,12 @@ globalThis.require = () => {
 };
 stubModules({});
 const guide = await import('../lib/guide-state.ts');
+const { setFirstUseOwner } = await import('../lib/practice/first-use-graduation.ts');
 
 beforeEach(() => {
   storage.values.clear();
   broken = false;
+  setFirstUseOwner(null);
 });
 
 test('화면마다 비춘 안내를 따로 기억한다', async () => {
@@ -50,4 +52,27 @@ test('저장소를 못 쓰면 본 것으로 치고, 적기·지우기는 조용�
   await guide.resetSpotlights();
   broken = false;
   assert.equal(await guide.hasSeenTutorial(), false);
+});
+
+test('로그인한 계정마다 따로 기억한다 — 같은 폰의 다른 계정은 홈 안내를 다시 본다(10/25)', async () => {
+  setFirstUseOwner('u1');
+  await guide.markSpotlightSeen('home');
+  assert.equal(await guide.hasSeenSpotlight('home'), true);
+  setFirstUseOwner('u2');
+  assert.equal(await guide.hasSeenSpotlight('home'), false);
+});
+
+test('예전 기기 공용 기록은 이어받지 않는다 — 계정마다 처음엔 한 번 본다', async () => {
+  storage.values.set('acttub.spotlight.home.seen', '1');
+  setFirstUseOwner('u1');
+  assert.equal(await guide.hasSeenSpotlight('home'), false);
+  setFirstUseOwner(null);
+  assert.equal(await guide.hasSeenSpotlight('home'), true);
+});
+
+test('가이드 다시 보기는 지금 계정의 기록도 지운다', async () => {
+  setFirstUseOwner('u1');
+  await guide.markSpotlightSeen('home');
+  await guide.resetSpotlights();
+  assert.equal(await guide.hasSeenSpotlight('home'), false);
 });

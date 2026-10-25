@@ -1,0 +1,61 @@
+{
+  "session": {
+    "input_mode": "no_video",
+    "purpose": "character",
+    "end_reason": "actor_finished"
+  },
+  "conversation": [
+    {
+      "id": "m1",
+      "role": "actor",
+      "text": "돌아오지 말라면서 열쇠는 두고 가라는 인물이 이해가 안 돼요."
+    },
+    {
+      "id": "c1",
+      "role": "ai",
+      "text": "다시 만나고 싶어서 열쇠를 핑계로 붙잡는 걸 수도 있어요."
+    },
+    {
+      "id": "m2",
+      "role": "actor",
+      "text": "그런 인물인지는 아직 모르겠어요."
+    }
+  ],
+  "source_catalog": [
+    {
+      "id": "m1",
+      "kind": "actor_message",
+      "text": "돌아오지 말라면서 열쇠는 두고 가라는 인물이 이해가 안 돼요."
+    },
+    {
+      "id": "c1",
+      "kind": "coach_message",
+      "text": "다시 만나고 싶어서 열쇠를 핑계로 붙잡는 걸 수도 있어요."
+    },
+    {
+      "id": "m2",
+      "kind": "actor_message",
+      "text": "그런 인물인지는 아직 모르겠어요."
+    },
+    {
+      "id": "s1",
+      "kind": "script_excerpt",
+      "text": "다시는 오지 마. 근데 열쇠는 두고 가."
+    }
+  ],
+  "answers": {
+    "feeling": {
+      "choice": "잘 모르겠어요",
+      "text": ""
+    },
+    "unknown": {
+      "none": false,
+      "text": "열쇠를 왜 달라고 하는지"
+    },
+    "next": {
+      "undecided": true,
+      "text": ""
+    },
+    "review": ""
+  }
+}

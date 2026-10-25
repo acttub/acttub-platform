@@ -2,10 +2,10 @@ import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Modal,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Switch,
@@ -17,8 +17,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { MASCOT } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
+import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t, translateList } from '@/lib/i18n';
 import {
   CREDIT_KINDS,
@@ -43,6 +45,7 @@ import {
   type PortfolioCredit,
 } from '@/lib/portfolio';
 import { pickAndUploadPortfolioPhoto } from '@/lib/profile-photo-upload';
+import { SkeletonDetail } from '@/components/ui/skeleton';
 
 /** 편집 중인 경력. id 가 null 이면 새 경력이다. */
 type Editing = { id: string | null; draft: CreditDraft; errors: CreditDraftErrors };
@@ -111,18 +114,18 @@ export default function PortfolioEditScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <Stack.Screen options={{ title: t('portfolio.title') }} />
+        {loadError ? (
         <View style={styles.center}>
-          {loadError ? (
             <>
               <Text style={styles.error}>{loadError}</Text>
               <Pressable style={styles.linkBtn} onPress={() => void load()} accessibilityRole="button">
                 <Text style={styles.linkText}>{t('portfolio.reload')}</Text>
               </Pressable>
             </>
-          ) : (
-            <ActivityIndicator color={palette.blue} />
-          )}
         </View>
+        ) : (
+          <SkeletonDetail lines={5} />
+        )}
       </SafeAreaView>
     );
   }
@@ -222,10 +225,18 @@ export default function PortfolioEditScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('portfolio.title') }} />
       <KeyboardAwareScroll contentContainerStyle={styles.content}>
-        <Text style={styles.lead}>{t('portfolio.lead')}</Text>
+        <View style={styles.hero}>
+          <View style={styles.heroText}>
+            <Text style={styles.heroTitle} accessibilityRole="header">
+              {t(portfolio.credits.length + portfolio.photos.length > 0 ? 'portfolio.heroFilled' : 'portfolio.heroEmpty')}
+            </Text>
+            <Text style={styles.lead}>{t('portfolio.lead')}</Text>
+          </View>
+          <Image source={MASCOT.cheer} style={styles.heroMascot} resizeMode="contain" accessibilityIgnoresInvertColors />
+        </View>
 
         {/* 소개글 */}
-        <Section title={t('portfolio.introTitle')}>
+        <Section title={t('portfolio.introTitle')} right={t('portfolio.count', { count: [...intro.trim()].length, max: INTRO_MAX })}>
           <TextInput
             style={styles.textarea}
             placeholder={t('portfolio.introPlaceholder')}
@@ -237,9 +248,7 @@ export default function PortfolioEditScreen() {
           />
           <View style={styles.rowBetween}>
             <Text style={introTooLong ? styles.fieldError : styles.hint}>
-              {introTooLong
-                ? t('portfolio.introTooLong')
-                : t('portfolio.count', { count: [...intro.trim()].length, max: INTRO_MAX })}
+              {introTooLong ? t('portfolio.introTooLong') : ''}
             </Text>
             <SmallButton
               label={t('portfolio.save')}
@@ -251,7 +260,7 @@ export default function PortfolioEditScreen() {
         </Section>
 
         {/* 경력 */}
-        <Section title={t('portfolio.creditsTitle')}>
+        <Section title={t('portfolio.creditsTitle')} right={t('portfolio.count', { count: portfolio.credits.length, max: CREDIT_MAX })}>
           {portfolio.credits.length === 0 && <Text style={styles.hint}>{t('portfolio.creditsEmpty')}</Text>}
           {portfolio.credits.map((credit, index) => (
             <View key={credit.id} style={styles.item}>
@@ -288,9 +297,7 @@ export default function PortfolioEditScreen() {
             </View>
           ))}
           <View style={styles.rowBetween}>
-            <Text style={styles.hint}>
-              {t('portfolio.count', { count: portfolio.credits.length, max: CREDIT_MAX })}
-            </Text>
+            <View />
             <SmallButton
               label={t('portfolio.creditAdd')}
               onPress={() => setEditing({ id: null, draft: emptyCreditDraft(), errors: {} })}
@@ -301,49 +308,66 @@ export default function PortfolioEditScreen() {
         </Section>
 
         {/* 사진 */}
-        <Section title={t('portfolio.photosTitle')}>
-          {portfolio.photos.length === 0 && <Text style={styles.hint}>{t('portfolio.photosEmpty')}</Text>}
-          {portfolio.photos.map((photo, index) => (
-            <View key={photo.id} style={styles.item}>
-              {photo.url ? (
-                <Image source={{ uri: photo.url }} style={styles.thumb} />
-              ) : (
-                <View style={styles.thumb} />
-              )}
-              <Text style={[styles.itemBody, styles.itemSub]}>
-                {t('portfolio.photoOrder', { order: index + 1 })}
-              </Text>
-              <IconButton
-                icon="arrow-up"
-                label={t('portfolio.moveUp')}
-                onPress={() => movePhoto(photo.id, 'up')}
-                disabled={index === 0 || busy !== null}
-              />
-              <IconButton
-                icon="arrow-down"
-                label={t('portfolio.moveDown')}
-                onPress={() => movePhoto(photo.id, 'down')}
-                disabled={index === portfolio.photos.length - 1 || busy !== null}
-              />
-              <IconButton
-                icon="trash-2"
-                label={t('portfolio.delete')}
-                onPress={() => void removePhoto(photo.id)}
-                disabled={busy !== null}
-              />
-            </View>
-          ))}
-          <View style={styles.rowBetween}>
-            <Text style={styles.hint}>
-              {t('portfolio.count', { count: portfolio.photos.length, max: PHOTO_MAX })}
-            </Text>
-            <SmallButton
-              label={t('portfolio.photoAdd')}
+        <Section title={t('portfolio.photosTitle')} right={t('portfolio.count', { count: portfolio.photos.length, max: PHOTO_MAX })}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
+            {portfolio.photos.map((photo, index) => (
+              <View key={photo.id} style={styles.photoTile}>
+                {photo.url ? (
+                  <Image source={{ uri: photo.url }} style={styles.photoImg} accessibilityLabel={t('portfolio.photoOrder', { order: index + 1 })} />
+                ) : (
+                  <View style={styles.photoImg} accessibilityLabel={t('portfolio.photoOrder', { order: index + 1 })} />
+                )}
+                <Pressable
+                  style={styles.photoX}
+                  onPress={() => void removePhoto(photo.id)}
+                  disabled={busy !== null}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('portfolio.delete')}>
+                  <Feather name="x" size={14} color="#FFFFFF" />
+                </Pressable>
+                <View style={styles.photoMove}>
+                  <Pressable
+                    onPress={() => movePhoto(photo.id, 'up')}
+                    disabled={index === 0 || busy !== null}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('portfolio.moveUp')}
+                    style={[styles.photoMoveBtn, (index === 0 || busy !== null) && styles.disabled]}>
+                    <Feather name="chevron-left" size={16} color="#FFFFFF" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => movePhoto(photo.id, 'down')}
+                    disabled={index === portfolio.photos.length - 1 || busy !== null}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('portfolio.moveDown')}
+                    style={[
+                      styles.photoMoveBtn,
+                      (index === portfolio.photos.length - 1 || busy !== null) && styles.disabled,
+                    ]}>
+                    <Feather name="chevron-right" size={16} color="#FFFFFF" />
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+            <Pressable
+              style={[styles.photoAdd, (!canAddPhoto(portfolio) || busy !== null) && styles.disabled]}
               onPress={addPhoto}
               disabled={!canAddPhoto(portfolio) || busy !== null}
-              busy={busy === 'photo'}
-            />
-          </View>
+              accessibilityRole="button"
+              accessibilityLabel={t('portfolio.photoAdd')}>
+              {busy === 'photo' ? (
+                <LoadingText label={t('loadingText.uploading')} />
+              ) : (
+                <>
+                  <Feather name="plus" size={22} color={palette.blue} />
+                  <Text style={styles.photoAddText}>{t('portfolio.photoAdd')}</Text>
+                </>
+              )}
+            </Pressable>
+          </ScrollView>
+          {portfolio.photos.length === 0 && <Text style={styles.hint}>{t('portfolio.photosEmpty')}</Text>}
           {!canAddPhoto(portfolio) && <Text style={styles.hint}>{t('portfolio.fail.photo_limit')}</Text>}
         </Section>
 
@@ -444,7 +468,7 @@ export default function PortfolioEditScreen() {
                 disabled={busy !== null}
                 accessibilityRole="button">
                 {busy === 'credit' ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <LoadingText label={t('loadingText.saving')} color="#FFFFFF" />
                 ) : (
                   <Text style={[styles.modalBtnText, styles.modalBtnTextPrimary]}>{t('portfolio.save')}</Text>
                 )}
@@ -458,10 +482,13 @@ export default function PortfolioEditScreen() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, right, children }: { title: string; right?: string; children: ReactNode }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {right ? <Text style={styles.sectionCount}>{right}</Text> : null}
+      </View>
       {children}
     </View>
   );
@@ -485,7 +512,7 @@ function SmallButton({
       disabled={disabled}
       accessibilityRole="button">
       {busy ? (
-        <ActivityIndicator size="small" color={palette.blueDeep} />
+        <LoadingText label={t('loadingText.wait')} color={palette.blueDeep} />
       ) : (
         <Text style={styles.smallBtnText}>{label}</Text>
       )}
@@ -546,19 +573,52 @@ function LabeledInput({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bgSubtle },
+  safe: { flex: 1, backgroundColor: palette.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  content: { padding: 20, paddingBottom: 40, gap: 14 },
+  content: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  hero: { paddingBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroText: { flex: 1, gap: 8 },
+  heroMascot: { width: 92, height: 92 },
+  heroTitle: { fontSize: 24, fontWeight: '800', lineHeight: 33, color: palette.text },
   lead: { fontSize: 13.5, lineHeight: 20, color: palette.textDim },
   section: {
-    backgroundColor: palette.card,
-    borderWidth: 1,
-    borderColor: palette.borderSoft,
-    borderRadius: 18,
-    padding: 16,
-    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: palette.borderSoft,
+    paddingVertical: 22,
+    gap: 14,
   },
-  sectionTitle: { fontSize: 15.5, fontWeight: '800', color: palette.text },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: palette.text },
+  sectionCount: { fontSize: 15, fontWeight: '500', color: palette.textFaint },
+  photoRow: { gap: 10 },
+  photoTile: { width: 104, height: 140 },
+  photoImg: { width: 104, height: 140, borderRadius: 16, backgroundColor: palette.bgSoft },
+  photoX: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoMove: { position: 'absolute', left: 6, right: 6, bottom: 6, flexDirection: 'row', justifyContent: 'space-between' },
+  photoMoveBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  photoAdd: {
+    width: 104,
+    height: 140,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: palette.blueSoft,
+    backgroundColor: palette.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  photoAddText: { fontSize: 13, fontWeight: '700', color: palette.blue },
+  creditKind: { fontSize: 13, color: palette.textFaint },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   hint: { fontSize: 12.5, color: palette.textFaint, lineHeight: 18 },
   error: { color: palette.danger, fontSize: 14, textAlign: 'center' },
@@ -567,10 +627,12 @@ const styles = StyleSheet.create({
   linkText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   textarea: {
     minHeight: 120,
-    backgroundColor: palette.bgSoft,
-    borderRadius: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
+    backgroundColor: palette.bg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
     color: palette.text,
     fontSize: 15,
     lineHeight: 22,
@@ -579,12 +641,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    marginBottom: 8,
   },
   itemBody: { flex: 1 },
-  itemTitle: { fontSize: 14.5, fontWeight: '700', color: palette.text },
+  itemTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
   itemSub: { fontSize: 12.5, color: palette.textDim, lineHeight: 18, marginTop: 2 },
   thumb: { width: 52, height: 52, borderRadius: 10, backgroundColor: palette.bgSoft, marginRight: 6 },
   iconBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },

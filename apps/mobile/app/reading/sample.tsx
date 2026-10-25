@@ -1,0 +1,58 @@
+import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { MonologueNameDialog } from '@/components/monologue-name-dialog';
+import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { MascotBubble } from '@/components/ui/mascot-bubble';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { palette } from '@/constants/palette';
+import { translate as t } from '@/lib/i18n';
+
+/**
+ * 예시 대본 고르기(pen R1.15). 목록·「이 대본으로 하기」는 components/reading/sample-picker 와 같다 —
+ * 내 대본 올리기의 「대본 같이 만들기」(10/25)도 같은 부품을 화면 안에 펼쳐 쓴다.
+ */
+export default function SampleScriptPicker() {
+  const router = useRouter();
+  const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
+  const picker = useSamplePicker({ onNeedName: setNaming });
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <NavHeader
+        title={t('reading.samplePickTitle')}
+        left={<NavIconButton icon="chevron-left" size={24} label={t('common.back')} phLabel="reading_sample_back" onPress={() => router.back()} />}
+      />
+      <ScrollView contentContainerStyle={styles.body}>
+        <MascotBubble title={t('reading.samplePickAsk')} guide={t('reading.samplePickGuide')} />
+        <SamplePickerBody list={picker.list} entry={picker.entry} pick={picker.pick} />
+      </ScrollView>
+      <CtaBar>
+        <PrimaryButton
+          label={t('reading.samplePickConfirm')}
+          phLabel="reading_sample_confirm"
+          loading={picker.busy}
+          onPress={picker.confirm}
+        />
+      </CtaBar>
+      <MonologueNameDialog
+        target={naming}
+        onClose={() => {
+          setNaming(null);
+          router.replace('/reading/detail');
+        }}
+      />
+      {picker.dialog}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: palette.bg },
+  body: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
+});

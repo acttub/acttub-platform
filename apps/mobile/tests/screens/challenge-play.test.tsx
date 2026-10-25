@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Dimensions, Share } from 'react-native';
+import { Dimensions } from 'react-native';
 
 import ChallengePlayScreen from '@/app/challenge-play';
 import { logEvent } from '@/lib/analytics';
@@ -40,6 +40,18 @@ jest.mock('expo-video', () => ({
   VideoView: () => null,
 }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
+const mockSystemShare = jest.fn();
+jest.mock('@/lib/challenge/share-native', () => ({
+  videoDeps: { download: jest.fn(), remove: jest.fn() },
+  isInstagramInstalled: jest.fn(async () => true),
+  instagramStoreUrl: jest.fn(() => null),
+  shareVideoToInstagramStory: jest.fn(),
+  saveVideoToLibrary: jest.fn(),
+  copyText: jest.fn(),
+  openSystemShare: (message: string) => mockSystemShare(message),
+  openSystemShareWithVideo: jest.fn(),
+  openUrl: jest.fn(),
+}));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock('@/lib/api', () => ({
   api: {
@@ -182,7 +194,7 @@ describe('불러오기', () => {
     expect(mockPlayer.replaceAsync).toHaveBeenCalledWith('https://play/e1');
     expect(mockPlayer.loop).toBe(true);
     expect(logged('challenge_swipe')).toEqual([{ index: 0 }]);
-    expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '닫기' })).not.toBeOnTheScreen();
   });
 
@@ -276,7 +288,7 @@ describe('참여작이 없을 때', () => {
 
     expect(await screen.findByText('아직 참여작이 없어요. 첫 번째로 참여해 보세요.')).toBeOnTheScreen();
     expect(screen.getByText('“나는 아직 여기 있어”')).toBeOnTheScreen();
-    expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('button', { name: endsWith('나도 이 대사 연기하기') }));
     expect(mockRouter.push).toHaveBeenCalledWith({
@@ -299,27 +311,57 @@ describe('참여작이 없을 때', () => {
   });
 });
 
+describe('내 참여작 얼굴 모자이크 (SOMA-809)', () => {
+  const mine = (over: Partial<EntryCard> = {}) =>
+    entry({
+      is_mine: true,
+      author: { name: '나', user_id: 'me' },
+      playback_url: 'https://play/e1.mosaic',
+      original_playback_url: 'https://play/e1',
+      ...over,
+    });
+
+  test('모자이크본을 먼저 틀고, 원본 보기를 누르면 보던 자리에서 원본으로, 다시 누르면 모자이크본으로 바꾼다', async () => {
+    await renderFeed([mine()]);
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenLastCalledWith('https://play/e1.mosaic'));
+
+    mockPlayer.currentTime = 4;
+    await fireEvent.press(screen.getByRole('button', { name: '원본 보기' }));
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenLastCalledWith('https://play/e1'));
+    await waitFor(() => expect(mockPlayer.currentTime).toBe(4));
+
+    await fireEvent.press(screen.getByRole('button', { name: '모자이크로 보기' }));
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenLastCalledWith('https://play/e1.mosaic'));
+  });
+
+  test('원본 주소가 없으면(남의 참여작·모자이크 준비 전) 원본 보기를 두지 않는다', async () => {
+    await renderFeed([entry({ playback_url: 'https://play/e1.mosaic' }), second({ is_mine: true, original_playback_url: null })]);
+    await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenCalledWith('https://play/e1.mosaic'));
+    expect(screen.queryByRole('button', { name: '원본 보기' })).not.toBeOnTheScreen();
+  });
+});
+
 describe('재생', () => {
   test('재생 주소가 없는 참여작은 바로 재생할 수 없다고 알린다', async () => {
     await renderFeed([entry({ playback_url: null })]);
-    expect(screen.getByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+    expect(screen.getByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     expect(mockPlayer.replaceAsync).not.toHaveBeenCalled();
   });
 
   test('플레이어가 오류를 알리면 안내하고, 다시 준비되면 안내를 걷는다', async () => {
     await renderFeed();
     await act(async () => mockStatusListener({ status: 'error' }));
-    expect(screen.getByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+    expect(screen.getByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     await act(async () => mockStatusListener({ status: 'loading' }));
-    expect(screen.getByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+    expect(screen.getByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     await act(async () => mockStatusListener({ status: 'readyToPlay' }));
-    expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
   });
 
   test('영상을 불러오지 못하면 재생할 수 없다고 알린다', async () => {
     mockPlayer.replaceAsync.mockRejectedValue(new Error('decode'));
     await renderFeed();
-    expect(await screen.findByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     expect(mockPlayer.play).not.toHaveBeenCalled();
   });
 
@@ -330,9 +372,9 @@ describe('재생', () => {
       mockPlayer.replaceAsync.mockReturnValue(new Promise(() => undefined));
       await renderFeed();
       await act(async () => jest.advanceTimersByTime(14_000));
-      expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+      expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
       await act(async () => jest.advanceTimersByTime(1_000));
-      expect(screen.getByText('이 영상을 재생할 수 없어요.')).toBeOnTheScreen();
+      expect(screen.getByText('영상을 불러오지 못했어요')).toBeOnTheScreen();
     } finally {
       jest.useRealTimers();
     }
@@ -343,7 +385,7 @@ describe('재생', () => {
     try {
       await renderFeed();
       await act(async () => jest.advanceTimersByTime(15_000));
-      expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+      expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
     } finally {
       jest.useRealTimers();
     }
@@ -479,7 +521,7 @@ describe('조회수', () => {
     await renderFeed();
     await act(async () => jest.advanceTimersByTime(4_000));
     expect(mocked.recordEntryView).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText('이 영상을 재생할 수 없어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상을 불러오지 못했어요')).not.toBeOnTheScreen();
   });
 });
 
@@ -687,20 +729,33 @@ describe('댓글', () => {
 });
 
 describe('공유', () => {
-  test('참여작 딥링크와 작성자·대사를 담아 공유한다. 공유 창이 실패해도 그대로다', async () => {
-    const share = jest.spyOn(Share, 'share').mockResolvedValueOnce({ action: 'sharedAction' });
+  test('공유 아이콘은 공유 시트를 연다. 공개된 남의 참여작은 링크 대상만 있고, 카카오톡은 딥링크 문장을 보낸다', async () => {
+    mockSystemShare.mockResolvedValue(undefined);
     await renderFeed([entry({ id: 'e 1' })]);
     await fireEvent.press(screen.getByRole('button', { name: '공유' }));
 
-    expect(share).toHaveBeenCalledWith({
-      message: '민지의 “나는 아직 여기 있어” 연기 — acttub 챌린지\nhttps://acttub.com/e/e%201',
-    });
+    expect(await screen.findByText('내 연기 공유하기')).toBeOnTheScreen();
     expect(logged('challenge_share')).toEqual([{ id: 'e 1' }]);
+    expect(screen.queryByText('인스타')).not.toBeOnTheScreen();
+    expect(screen.queryByText('영상으로 저장')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '카카오톡' }));
+    expect(mockSystemShare).toHaveBeenCalledWith(
+      '민지의 “나는 아직 여기 있어” 연기 — acttub 챌린지\nhttps://acttub.com/e/e%201',
+    );
+  });
 
-    share.mockRejectedValueOnce(new Error('dismissed'));
+  test('내 참여작은 인스타 스토리와 영상 저장이 함께 보인다', async () => {
+    await renderFeed([entry({ is_mine: true, author: { name: '나', user_id: 'me' } })]);
     await fireEvent.press(screen.getByRole('button', { name: '공유' }));
-    expect(share).toHaveBeenCalledTimes(2);
-    expect(screen.getByText('첫 테이크')).toBeOnTheScreen();
+    expect(await screen.findByText('인스타')).toBeOnTheScreen();
+    expect(screen.getByText('영상으로 저장')).toBeOnTheScreen();
+  });
+
+  test('공유할 길이 없는 참여작은 시트 대신 안내한다', async () => {
+    await renderFeed([entry({ published_at: null })]);
+    await fireEvent.press(screen.getByRole('button', { name: '공유' }));
+    expect(await screen.findByText('지금은 공유할 수 없는 참여작이에요.')).toBeOnTheScreen();
+    expect(screen.queryByText('영상으로 저장')).not.toBeOnTheScreen();
   });
 });
 
@@ -710,7 +765,6 @@ describe('반응 메뉴', () => {
   }
 
   test('작성자 이름 아래 공유·신고·대사 신고·차단을 둔다. 공유는 같은 공유를 연다', async () => {
-    const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' });
     await renderFeed();
     await openMenu();
 
@@ -718,7 +772,7 @@ describe('반응 메뉴', () => {
     expect(screen.getByText('이 대사 신고')).toBeOnTheScreen();
     expect(screen.getByText('이 사용자 차단')).toBeOnTheScreen();
     await fireEvent.press(screen.getAllByText('공유')[0]);
-    expect(share).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('내 연기 공유하기')).toBeOnTheScreen();
   });
 
   test('내 참여작 메뉴에는 차단이 없다', async () => {
@@ -726,6 +780,20 @@ describe('반응 메뉴', () => {
     await openMenu();
     expect(screen.getByText('이 대사 신고')).toBeOnTheScreen();
     expect(screen.queryByText('이 사용자 차단')).not.toBeOnTheScreen();
+  });
+
+  test('내 참여작 메뉴에는 「신고」가 없다 — 스스로 신고하지 않는다', async () => {
+    await renderFeed([entry({ is_mine: true })]);
+    await openMenu();
+    expect(screen.queryByText('신고')).not.toBeOnTheScreen();
+    expect(screen.getByText('공유')).toBeOnTheScreen();
+  });
+
+  test('내가 연 챌린지에서는 「이 대사 신고」를 두지 않는다', async () => {
+    mocked.getChallenge.mockResolvedValue(challenge({ is_host: true }));
+    await renderFeed([entry()]);
+    await openMenu();
+    expect(screen.queryByText('이 대사 신고')).not.toBeOnTheScreen();
   });
 
   test('작성자 id 가 없는 참여작(탈퇴 등)은 차단할 수 없다', async () => {
@@ -792,11 +860,11 @@ describe('반응 메뉴', () => {
     expect(screen.getByText('첫 테이크')).toBeOnTheScreen();
   });
 
-  test('신고 창을 취소하면 아무것도 보내지 않는다', async () => {
+  test('신고 창을 닫으면 아무것도 보내지 않는다', async () => {
     await renderFeed();
     await openMenu();
     await fireEvent.press(screen.getByText('신고'));
-    await fireEvent.press(screen.getByRole('button', { name: '취소' }));
+    await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
     expect(screen.queryByText('이 영상을 신고할까요?')).not.toBeOnTheScreen();
     expect(mocked.createReport).not.toHaveBeenCalled();
   });

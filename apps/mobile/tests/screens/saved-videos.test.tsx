@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import SavedVideosScreen from '@/app/saved-videos';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
+import { ApiError } from '@/lib/api-request';
 import { entryCard } from '../helpers/challenge-card';
 
 const mockRouter = { back: jest.fn(), push: jest.fn() };
@@ -118,4 +119,10 @@ test('뒤로 버튼은 이전 화면으로 돌아간다', async () => {
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
   await screen.findByText('눈빛 참고');
+});
+
+test('불러오기가 그 밖의 이유로 실패하면 「저장한 영상을 불러오지 못했어요.」라고 알린다(pen C12.5)', async () => {
+  listSaved.mockRejectedValue(new ApiError(400, 'bad'));
+  await render(<SavedVideosScreen />);
+  expect(await screen.findByText('저장한 영상을 불러오지 못했어요.')).toBeOnTheScreen();
 });

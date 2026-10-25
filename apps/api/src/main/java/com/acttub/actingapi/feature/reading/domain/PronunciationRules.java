@@ -29,6 +29,13 @@ public final class PronunciationRules {
     public static final int MAX_MISHEARD = 3;
     public static final int MIN_HABIT_COUNT = 2;
     /**
+     * 줄 색 표시(주황)로 칠할 만큼 다른 소리. 같은 배우가 같은 줄을 두 번 읽은 2,419어절에서 -3 이하로 짚힌 어절이 다시
+     * 읽어도 짚힌 비율은 52~60%(아무 어절 28%)였고, 문턱을 -5·-7·-9로 올려도 거의 오르지 않았다(10/22). 그래서 강도로
+     * 빨강을 정하지 않고, 주황만 이 문턱으로 칠한다.
+     */
+    public static final double MARK_MAX_LPR = -3.0;
+    public static final int MAX_MARKS_PER_LINE = 2;
+    /**
      * 습관으로 셀 만큼 확실히 다른 소리. 표준 발음 낭독 77줄로 6줄 리딩을 2,000번 뽑아 보니, 짚힌 소리를 자리(첫소리·받침·모음)로만
      * 묶으면 79~91% 리딩에서 가짜 습관이 나왔고, 같은 소리 쌍 + 이 문턱이면 약 4% 였다.
      */
@@ -91,7 +98,19 @@ public final class PronunciationRules {
     public record HabitItem(Habit habit, String label, int count, List<Example> examples) {
     }
 
-    public record Report(Summary summary, List<Misheard> misheard, HabitItem habit, List<Integer> skippedLines) {
+    /** 줄 안에서 색을 칠할 어절(10/22 시안 v6 — 주황). {@code index}는 채점 어절 순서다. */
+    public record Mark(int index, String word, double lpr, Integer startMs, Integer endMs) {
+    }
+
+    /** 대본대로 읽은 줄과 그 줄에서 칠할 어절(최대 {@link #MAX_MARKS_PER_LINE}개, lpr 낮은 순). */
+    public record MarkedLine(int lineNo, String text, List<Mark> marks) {
+    }
+
+    /**
+     * @param lines 대본대로 읽은 줄 전부(칠할 어절이 없으면 빈 목록) — 앱이 줄별 색 표시를 그린다. 옛 보고서에는 없다.
+     */
+    public record Report(Summary summary, List<Misheard> misheard, HabitItem habit, List<Integer> skippedLines,
+            List<MarkedLine> lines) {
         /** 쓸 수 있는 줄이 하나도 없으면 보고서를 내지 않는다(skipped). */
         public boolean empty() {
             return summary.linesUsed() == 0;
@@ -106,6 +125,7 @@ public final class PronunciationRules {
         Map<String, List<Example>> habits = new LinkedHashMap<>();
         Map<String, Habit> habitKinds = new LinkedHashMap<>();
         int used = 0;
+        List<MarkedLine> marked = new ArrayList<>();
         for (LineInput line : lines) {
             Use use = line.scored() == null ? Use.NO : use(line);
             if (use == Use.NO) {
@@ -113,6 +133,7 @@ public final class PronunciationRules {
                 continue;
             }
             used += 1;
+            List<Mark> marks = new ArrayList<>();
             for (Word word : line.scored().words()) {
                 if (excluded(word)) {
                     continue;
@@ -127,6 +148,9 @@ public final class PronunciationRules {
                         worst = phone;
                     }
                 }
+                if (worst != null && worst.lpr() <= MARK_MAX_LPR) {
+                    marks.add(new Mark(word.index(), clean(word.word()), worst.lpr(), wordStart(word), wordEnd(word)));
+                }
                 if (worst != null && worst.lpr() <= HABIT_MAX_LPR) {
                     String pair = worst.expected() + "→" + worst.heard();
                     habitKinds.putIfAbsent(pair, habitOf(word, worst));
@@ -135,6 +159,11 @@ public final class PronunciationRules {
                             wordStart(word), wordEnd(word)));
                 }
             }
+            marked.add(new MarkedLine(line.lineNo(), line.scriptText(), marks.stream()
+                    .sorted(Comparator.comparingDouble(Mark::lpr))
+                    .limit(MAX_MARKS_PER_LINE)
+                    .sorted(Comparator.comparingInt(Mark::index))
+                    .toList()));
             if (use == Use.TRANSCRIPT) {
                 // 받아쓰기가 잘린 줄은 받아쓰기와 대본의 차이가 발음 때문이 아니다.
                 misheard.addAll(misheard(line));
@@ -148,7 +177,7 @@ public final class PronunciationRules {
                 .orElse(null);
         double ratio = sounds == 0 ? 0 : Math.round(clear * 1000.0 / sounds) / 1000.0;
         return new Report(new Summary(sounds, clear, ratio, used, skipped.size()),
-                misheard.stream().limit(MAX_MISHEARD).toList(), habit, skipped);
+                misheard.stream().limit(MAX_MISHEARD).toList(), habit, skipped, marked);
     }
 
     /** 줄을 쓰는 근거. {@code TRANSCRIPT}: 받아쓰기가 대본과 닮음. {@code AUDIO}: 받아쓰기는 다르지만 들은 소리가 대본과 같음. */

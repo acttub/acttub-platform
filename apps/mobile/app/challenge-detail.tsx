@@ -1,10 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -35,6 +36,7 @@ import type { ChallengeDetail, EntrySort, ReportReason } from '@/lib/challenge/t
 import { newRequestId } from '@/lib/request-id';
 import { postedAtLabel } from '@/lib/time-label';
 import { translate as t } from '@/lib/i18n';
+import { LoadingText } from '@/components/ui/loading-text';
 
 type Ranked = RankedEntry;
 
@@ -52,7 +54,14 @@ type Ranked = RankedEntry;
 export default function ChallengeDetailScreen() {
   const router = useRouter();
   const { alert, confirm, dialog } = useAppDialog();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, opened } = useLocalSearchParams<{ id?: string; opened?: string }>();
+  /** 방금 등록해서 들어왔으면 아래에 어두운 안내줄을 잠깐 띄운다(C4.7). */
+  const [toast, setToast] = useState(opened === '1');
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(false), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
   const [sort, setSort] = useState<EntrySort>('likes');
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
   const [entries, setEntries] = useState<Ranked[] | null>(null);
@@ -182,7 +191,8 @@ export default function ChallengeDetailScreen() {
           title: t(detailTitleKey(challenge)),
           headerRight: () => (
             <View style={styles.headerRight}>
-              {challenge && !canDelete(challenge) && (
+              {/* 내가 연 챌린지는 신고하지 않는다 — 지울 수 있으면 휴지통, 참여작이 있어 못 지우면 아무것도 없다(10/24 폰 QA). */}
+              {challenge && !challenge.is_host && (
                 <NavIconButton
                   icon="flag"
                   size={19}
@@ -215,7 +225,7 @@ export default function ChallengeDetailScreen() {
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>
-        {!challenge && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 40 }} />}
+        {!challenge && !error && <SkeletonDetail media lines={3} style={{ paddingHorizontal: 0 }} />}
         {error && <Text style={styles.error}>{error}</Text>}
 
         {challenge && (
@@ -267,7 +277,7 @@ export default function ChallengeDetailScreen() {
               </View>
             </View>
 
-            {entries === null && <ActivityIndicator color={palette.blue} style={{ marginTop: 24 }} />}
+            {entries === null && <SkeletonRows count={3} avatar card={false} style={{ paddingHorizontal: 0 }} />}
             {entries?.map((entry) => (
               <Pressable
                 key={entry.id}
@@ -313,7 +323,7 @@ export default function ChallengeDetailScreen() {
             {cursor && (
               <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
                 {loadingMore ? (
-                  <ActivityIndicator color={palette.blue} />
+                  <LoadingText label={t('loadingText.loading')} color={palette.blue} />
                 ) : (
                   <Text style={styles.moreText}>{t('challenges.moreEntries')}</Text>
                 )}
@@ -328,8 +338,13 @@ export default function ChallengeDetailScreen() {
       </ScrollView>
       {challenge && canPerform(challenge) && (
         <CtaBar safeBottom={false}>
-          <PrimaryButton label={t('challenges.tryIt')} onPress={perform} />
+          <PrimaryButton label={t('challenges.performCta')} onPress={perform} />
         </CtaBar>
+      )}
+      {toast && (
+        <View style={styles.toast} pointerEvents="none">
+          <Text style={styles.toastText}>{t('lineNew.doneToast')}</Text>
+        </View>
       )}
       <ChallengeReportSheet
         visible={reportOpen}
@@ -343,6 +358,8 @@ export default function ChallengeDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  toast: { position: 'absolute', left: 24, right: 24, bottom: 96, backgroundColor: palette.navy, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 18 },
+  toastText: { fontSize: 14.5, fontWeight: '700', color: palette.onAccent },
   pressed: { opacity: 0.85 },
   moreBtn: { alignItems: 'center', paddingVertical: 14 },
   moreText: { color: palette.blue, fontSize: 14, fontWeight: '600' },

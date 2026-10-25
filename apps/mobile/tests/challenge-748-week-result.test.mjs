@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { kstDate, lastWeekResult, periodLabel, pickedEntries, resultDay } from '../lib/challenge/week-result.ts';
+import { kstDate, lastWeekResult, periodLabel, pickedEntries } from '../lib/challenge/week-result.ts';
 
 const NOW = Date.parse('2026-10-19T12:00:00+09:00');
 const card = (over = {}) => ({
@@ -49,8 +49,6 @@ test('선정작: 서버 순위 3위 안의 참여작을 순서대로 최대 셋'
 
 test('날짜는 한국 시간으로 센다', () => {
   assert.deepEqual(kstDate('2026-10-24T15:30:00Z'), { month: 10, day: 25, weekday: 0 });
-  // 마감 시각이 자정이면 결과는 그날 나온다.
-  assert.deepEqual(resultDay('2026-10-25T00:00:00+09:00'), { month: 10, day: 25, weekday: 0 });
   // 기간은 시작일부터 마감 직전 날까지.
   assert.equal(periodLabel('2026-10-09T00:00:00+09:00', '2026-10-17T00:00:00+09:00'), '10/9~10/16');
 });

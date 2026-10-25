@@ -11,7 +11,7 @@ import { currentSpotlight } from '@/lib/spotlight-host';
 import { currentTutorial, endTutorial, startTutorial } from '@/lib/tutorial';
 import { createSampleLoop, SAMPLE_PRACTICE_ID, type LoopApi } from '@/lib/tutorial-sample';
 
-const mockRouter = { replace: jest.fn(), dismissAll: jest.fn() };
+const mockRouter = { replace: jest.fn(), dismissAll: jest.fn(), dismissTo: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) };
 const mockNavigation = { dispatch: jest.fn() };
 let mockKeyboardHeight = 0;
 let mockPreventRemove: { enabled: boolean; callback: (e: { data: { action: unknown } }) => void } | null = null;
@@ -22,6 +22,7 @@ const mockLoop = {
   getPracticeAnalysis: jest.fn(),
   startConversation: jest.fn(),
   replyToCoach: jest.fn(),
+  continueConversation: jest.fn(),
 };
 let mockSampleLoop: LoopApi | null = null;
 
@@ -164,7 +165,7 @@ afterEach(() => {
 test('진행 중인 연습이 없으면 홈에서 새로 시작하라고 안내한다', async () => {
   await render(<CoachScreen />);
 
-  expect(screen.getByText('진행 중인 연습이 없어요. 홈에서 새로 시작해주세요.')).toBeOnTheScreen();
+  expect(screen.getByText('진행 중인 연습이 없어요. 홈에서 새로 시작해 주세요.')).toBeOnTheScreen();
   expect(mockLoop.startConversation).not.toHaveBeenCalled();
   expect(screen.queryByPlaceholderText(PLACEHOLDER)).not.toBeOnTheScreen();
 });
@@ -198,7 +199,7 @@ describe('대화 시작', () => {
     await act(async () => resolveStart(turn(conv({ messages: [msg(0, 'coach', '  첫 질문이에요.\n둘째 줄  ')] }))));
 
     expect(screen.getByText('첫 질문이에요.\n둘째 줄')).toBeOnTheScreen();
-    expect(screen.getByText('ACTTUB 코치')).toBeOnTheScreen();
+    expect(screen.getByText('코치')).toBeOnTheScreen();
     expect(screen.queryByText(LOADING)).not.toBeOnTheScreen();
     expect(screen.queryByText(LOADING_HINT)).not.toBeOnTheScreen();
     expect(screen.getByLabelText('답이나 질문을 편하게 적어 주세요')).toBeOnTheScreen();
@@ -207,7 +208,7 @@ describe('대화 시작', () => {
     expect(getPractice()?.conversationId).toBe('c1');
   });
 
-  test('코치가 쓰는 글은 첫 글자부터 말풍선에 자라고, 다시 쓰기 시작하면 비운다', async () => {
+  test('액티가 쓰는 글은 첫 글자부터 말풍선에 자라고, 다시 쓰기 시작하면 비운다', async () => {
     let stream: CoachStreamCallbacks | undefined;
     let resolveStart: (r: CoachTurnResult) => void = () => undefined;
     mockLoop.startConversation.mockImplementation(
@@ -233,7 +234,7 @@ describe('대화 시작', () => {
     expect(screen.getByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
   });
 
-  test('대화가 먼저 열렸는데 코치 말이 없으면(미리 쓰기 중) 읽기만 하지 않고 시작 요청을 한 번 보낸다(SOMA-780)', async () => {
+  test('대화가 먼저 열렸는데 액티 말이 없으면(미리 쓰기 중) 읽기만 하지 않고 시작 요청을 한 번 보낸다(SOMA-780)', async () => {
     mockLoop.getConversation.mockResolvedValue(conv({ coach_reply_count: 0, messages: [] }));
     mockLoop.startConversation.mockResolvedValue(turn(conv()));
     begin({ conversationId: 'c1' });
@@ -246,7 +247,7 @@ describe('대화 시작', () => {
     expect(screen.queryByText(LOADING)).not.toBeOnTheScreen();
   });
 
-  test('이미 시작한 대화는 같은 id 로 이어 가고 지난 문답을 펼쳐 볼 수 있다', async () => {
+  test('이미 시작한 대화는 같은 id 로 이어 가고 지난 문답이 카톡처럼 순서대로 쌓여 보인다', async () => {
     mockLoop.getConversation.mockResolvedValue(ANSWERED);
     begin({ conversationId: 'c1' });
     await render(<CoachScreen />);
@@ -254,17 +255,15 @@ describe('대화 시작', () => {
     expect(await screen.findByText('그때 시선은 어디에 있었나요?')).toBeOnTheScreen();
     expect(mockLoop.getConversation).toHaveBeenCalledWith('c1');
     expect(mockLoop.startConversation).not.toHaveBeenCalled();
-    expect(screen.queryByText('더는 미루지 않기로요')).not.toBeOnTheScreen();
-
-    await fireEvent.press(screen.getByText('지난 문답 1'));
+    // 접는 줄 없이 지난 문답이 모두 보인다(10/23 pen).
+    expect(screen.queryByText(/지난 문답/)).not.toBeOnTheScreen();
     expect(screen.getByText('첫 대사 전에 무엇을 결심했나요?')).toBeOnTheScreen();
-    // 내 답은 파란 말풍선(흰 글자), 코치 말은 회색 말풍선이다(SOMA-778).
+    // 코치 말·내 답·코치 말 순서다.
+    const order = [...screen.getAllByTestId(/coach-bubble-(coach|mine)/)].map((node) => node.props.testID);
+    expect(order).toEqual(['coach-bubble-coach', 'coach-bubble-mine', 'coach-bubble-coach']);
+    // 내 답은 파란 말풍선(흰 글자)이다(SOMA-778).
     expect(screen.getByText('더는 미루지 않기로요')).toHaveStyle({ color: '#FFFFFF' });
     expect(screen.getByTestId('coach-bubble-mine')).toHaveStyle({ backgroundColor: '#4880EE' });
-    expect(screen.getByTestId('coach-bubble-coach')).toHaveStyle({ backgroundColor: '#F2F4F6' });
-
-    await fireEvent.press(screen.getByText('지난 문답 1'));
-    expect(screen.queryByText('더는 미루지 않기로요')).not.toBeOnTheScreen();
   });
 
   test('연결에 실패하면 이유를 보이고, 다시 연결하면 같은 요청 id 로 시작한다', async () => {
@@ -337,13 +336,17 @@ describe('답 보내기', () => {
     expect(screen.getByRole('button', { name: SEND })).toBeDisabled();
     expect(screen.getByText('답을 듣고 생각 중이에요…')).toBeOnTheScreen();
     expect(input()).toBeDisabled();
+    // 보낸 답은 코치 답을 기다리는 동안 바로 오른쪽 말풍선으로 올라가고 입력칸은 빈다.
+    expect(screen.getByTestId('coach-bubble-pending')).toBeOnTheScreen();
+    expect(input()).toHaveDisplayValue('');
     const [body] = mockLoop.replyToCoach.mock.calls[0];
     expect(body).toEqual({ conversation_id: 'c1', request_id: expect.stringMatching(/^[0-9a-f-]{36}$/), text: '더는 미루지 않기로요', revision: 1 });
 
     await act(async () => resolveReply(turn(ANSWERED)));
     expect(screen.getByText('그때 시선은 어디에 있었나요?')).toBeOnTheScreen();
     expect(input()).toHaveDisplayValue('');
-    expect(screen.getByText('지난 문답 1')).toBeOnTheScreen();
+    expect(screen.queryByTestId('coach-bubble-pending')).not.toBeOnTheScreen();
+    expect(screen.getByText('더는 미루지 않기로요')).toBeOnTheScreen();
   });
 
   test('글자 수를 세고 300자를 넘으면 보낼 수 없다', async () => {
@@ -472,7 +475,7 @@ describe('답 보내기', () => {
     expect(mockLoop.replyToCoach).toHaveBeenCalledTimes(1);
   });
 
-  test('다음 답이 마지막 코치 응답이면 마무리한다고 미리 알린다', async () => {
+  test('다음 답이 마지막 액티 응답이면 마무리한다고 미리 알린다', async () => {
     mockLoop.startConversation.mockResolvedValue(turn(conv({ coach_reply_count: 9, reply_limit: 10 })));
     await renderOpen();
 
@@ -481,19 +484,53 @@ describe('답 보내기', () => {
 });
 
 describe('빠른 답과 그만하기', () => {
-  test('빠른 답은 한 줄 셋 — 맞아요·아니요·잘 모르겠어요는 입력칸만 채우고 보내지 않는다(pen 09)', async () => {
+  test('목적별 예시 답이 있으면 그것만 보이고 맞아요·아니요·잘 모르겠어요 한 줄은 숨긴다(같은 답이 두 번 나오지 않게)', async () => {
+    mockLoop.startConversation.mockResolvedValue(
+      turn(
+        conv({
+          purpose: {
+            purpose: 'concern',
+            step: 'c1',
+            choices: [
+              { label: '오디션 준비가 막막해요', at: null },
+              { label: '잘 모르겠어요', at: null },
+            ],
+            scene: null,
+            lines: [],
+            card: null,
+            character_card: null,
+          },
+        }),
+      ),
+    );
     await renderOpen();
 
-    const chips = ['맞아요', '아니요', '잘 모르겠어요'].map((name) => screen.getByRole('button', { name }));
-    expect(chips).toHaveLength(3);
-    expect(screen.getByTestId('coach-quick-grid')).toHaveStyle({ flexDirection: 'row' });
-    await fireEvent.press(screen.getByRole('button', { name: '맞아요' }));
-    expect(input()).toHaveDisplayValue('맞아요');
-    await fireEvent.press(screen.getByRole('button', { name: '아니요' }));
-    expect(input()).toHaveDisplayValue('아니요');
+    expect(screen.getByRole('button', { name: '오디션 준비가 막막해요' })).toBeOnTheScreen();
+    expect(screen.getAllByRole('button', { name: '잘 모르겠어요' })).toHaveLength(1);
+    expect(screen.queryByTestId('coach-quick-grid')).not.toBeOnTheScreen();
+  });
+
+  test('답 버튼은 지금 질문의 예시 답 1~2개와 잘 모르겠어요 — 세로로 쌓고 입력칸만 채우며 보내지 않는다(10/23 pen)', async () => {
+    mockLoop.startConversation.mockResolvedValueOnce(turn(conv({ answer_examples: ['그만 미루기로요', '아직 못 정했어요'] })));
+    await renderOpen();
+
+    expect(screen.queryByRole('button', { name: '맞아요' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '아니요' })).not.toBeOnTheScreen();
+    expect(screen.getByTestId('coach-answer-examples')).toHaveStyle({ flexDirection: 'column' });
+    await fireEvent.press(screen.getByRole('button', { name: '그만 미루기로요' }));
+    expect(input()).toHaveDisplayValue('그만 미루기로요');
+    await fireEvent.press(screen.getByRole('button', { name: '아직 못 정했어요' }));
+    expect(input()).toHaveDisplayValue('아직 못 정했어요');
     await fireEvent.press(screen.getByRole('button', { name: '잘 모르겠어요' }));
     expect(input()).toHaveDisplayValue('잘 모르겠어요');
     expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
+  });
+
+  test('예시 답이 없는 옛 서버 응답이면 잘 모르겠어요만 보인다', async () => {
+    await renderOpen();
+
+    expect(screen.getByRole('button', { name: '잘 모르겠어요' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '맞아요' })).not.toBeOnTheScreen();
   });
 
   test('「직접 쓰기」 칩은 없다 — 위 안내 「답이나 질문을 편하게 적어 주세요」, 입력칸 자리표시 「직접 써도 돼요」', async () => {
@@ -515,6 +552,8 @@ describe('빠른 답과 그만하기', () => {
     mockLoop.replyToCoach.mockResolvedValue(turn(conv({ status: 'closed', close_reason: 'user_ended' })));
     await renderOpen();
 
+    // 화면 오른쪽 끝에 붙지 않게 아이콘 칸과 같은 44 높이·좌우 10 을 둔다(SOMA-837).
+    expect(screen.getByRole('button', { name: '그만하기' })).toHaveStyle({ height: 44, paddingHorizontal: 10 });
     await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
     expect(screen.getByText('여기서 마칠까요?')).toBeOnTheScreen();
     expect(screen.getByText('다 얘기했으면 「마치기」를 누르세요. 지금까지 대화로 오늘 정리를 만들어요.')).toBeOnTheScreen();
@@ -529,20 +568,20 @@ describe('빠른 답과 그만하기', () => {
 });
 
 describe('닫힌 대화', () => {
-  test('노트와 함께 닫히면 정리 화면으로 넘어간다', async () => {
+  test('노트와 함께 닫혀도 마지막 코치 말을 보여 주고, 「일지 쓰고 마치기」를 눌러야 배우 일지로 간다(SOMA-720)', async () => {
     jest.useFakeTimers();
     mockLoop.replyToCoach.mockResolvedValue(turn(conv({ status: 'closed', close_reason: 'exhausted' }), NOTE));
     await renderOpen();
 
     await typeAndSend('마지막 답');
-    expect(screen.getByText('오늘 대화는 여기까지예요. 정리를 만들어 보여드릴게요.')).toBeOnTheScreen();
+    expect(screen.getByText('오늘 대화는 여기까지예요. 코치 말을 읽고 아래에서 일지를 써요.')).toBeOnTheScreen();
     expect(getPractice()?.note).toEqual(NOTE);
     await act(async () => jest.advanceTimersByTime(0));
-    expect(mockRouter.replace).toHaveBeenCalledWith('/report');
+    expect(mockRouter.replace).not.toHaveBeenCalled();
 
-    await fireEvent.press(screen.getByRole('button', { name: '정리 보러 가기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '일지 쓰고 마치기' }));
     await act(async () => jest.advanceTimersByTime(0));
-    expect(mockRouter.replace.mock.calls).toEqual([['/report'], ['/report']]);
+    expect(mockRouter.replace.mock.calls).toEqual([['/journal']]);
   });
 
   test('닫힌 대화로 다시 들어오면 노트를 읽어 정리 화면으로 넘어간다', async () => {
@@ -551,7 +590,7 @@ describe('닫힌 대화', () => {
     begin({ conversationId: 'c1' });
     await render(<CoachScreen />);
 
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/report'));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/journal'));
     expect(mockLoop.getPracticeNote).toHaveBeenCalledWith('p1');
     expect(mockLoop.startConversation).not.toHaveBeenCalled();
   });
@@ -577,6 +616,44 @@ describe('닫힌 대화', () => {
     expect(
       await screen.findByText('대화를 마무리하는 중 연결이 끊겼어요. 남아 있는 기록을 확인하거나 새 회차로 이어갈 수 있어요.'),
     ).toBeOnTheScreen();
+  });
+
+  describe('대화 이어하기(SOMA-782)', () => {
+    async function renderClosed(over: Partial<CoachConversation> = {}) {
+      mockLoop.getConversation.mockResolvedValue(conv({ status: 'closed', close_reason: 'user_ended', revision: 5, ...over }));
+      mockLoop.getPracticeNote.mockRejectedValue(serverError(404, 'note_not_found'));
+      begin({ conversationId: 'c1' });
+      await render(<CoachScreen />);
+      return screen.findByRole('button', { name: '대화 이어하기' });
+    }
+
+    test('정리 뒤 「대화 이어하기」를 누르면 같은 대화가 다시 열려 입력칸이 돌아온다', async () => {
+      mockLoop.continueConversation.mockResolvedValue(turn(conv({ status: 'open', revision: 6, coach_reply_count: 3 })));
+      await fireEvent.press(await renderClosed());
+
+      expect(mockLoop.continueConversation).toHaveBeenCalledWith('c1', 5);
+      expect(await screen.findByPlaceholderText(PLACEHOLDER)).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: '대화 이어하기' })).not.toBeOnTheScreen();
+      expect(mockLoop.startConversation).not.toHaveBeenCalled();
+      expect(mockRouter.replace).not.toHaveBeenCalled();
+    });
+
+    test('이어 갈 수 없으면 안내만 보이고 닫힌 채로 둔다', async () => {
+      mockLoop.continueConversation.mockRejectedValue(serverError(409, 'conversation_limit_reached'));
+      await fireEvent.press(await renderClosed());
+
+      expect(await screen.findByText('이 대화는 많이 이어졌어요. 다음 테이크로 새로 시작해 보세요.')).toBeOnTheScreen();
+      expect(screen.queryByPlaceholderText(PLACEHOLDER)).not.toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: '대화 이어하기' })).toBeOnTheScreen();
+    });
+
+    test('다른 곳에서 먼저 바뀌었으면 최신 대화를 다시 읽는다', async () => {
+      mockLoop.continueConversation.mockRejectedValue(serverError(409, 'conversation_conflict'));
+      await fireEvent.press(await renderClosed());
+
+      await waitFor(() => expect(mockLoop.getConversation).toHaveBeenCalledTimes(2));
+      expect(screen.queryByPlaceholderText(PLACEHOLDER)).not.toBeOnTheScreen();
+    });
   });
 
   test('다음 테이크 찍기는 이 묶음에 이어 새 영상을 고르러 간다', async () => {
@@ -694,7 +771,7 @@ describe('튜토리얼 예시', () => {
     });
   }
 
-  test('미리 쓴 코치와 대화하고, 질문마다 샘플 답을 채워 두며, 두 답 뒤에 정리로 간다', async () => {
+  test('미리 쓴 액티와 대화하고, 질문마다 샘플 답을 채워 두며, 두 답 뒤에 정리로 간다', async () => {
     beginSample();
     await render(<CoachScreen />);
 
@@ -716,6 +793,9 @@ describe('튜토리얼 예시', () => {
 
     await typeAndSend('제가 고쳐 쓴 답');
     expect(await screen.findByText('좋아요. 나눈 이야기를 연습 노트로 정리할게요.')).toBeOnTheScreen();
+    // 마지막 코치 말을 읽을 수 있게 바로 넘기지 않는다. 버튼을 눌러야 정리로 간다.
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/report');
+    await fireEvent.press(screen.getByRole('button', { name: /일지 쓰고 마치기|연습 마치기/ }));
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/report'));
     expect(screen.queryByRole('button', { name: '다음 테이크 찍기' })).not.toBeOnTheScreen();
     expect(getPractice()?.note?.actor_words).toEqual(['컵을 내려놓으면서 더는 미루지 않겠다고 마음먹었어요.']);
@@ -740,6 +820,17 @@ describe('튜토리얼 예시', () => {
   test('실제 회차에서는 뒤로 가기를 막지 않는다', async () => {
     await renderOpen();
     expect(mockPreventRemove?.enabled).toBe(false);
+  });
+
+  test('꺾쇠는 돌아갈 화면이 있으면 뒤로, 알림으로 바로 열어 없으면 이미 있는 홈 탭까지 내려간다(SOMA-853)', async () => {
+    await renderOpen();
+    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+
+    mockRouter.canGoBack.mockReturnValueOnce(false);
+    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
   });
 });
 

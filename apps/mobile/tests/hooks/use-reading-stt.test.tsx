@@ -4,6 +4,7 @@ import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { Platform } from 'react-native';
 
 import { detectSttPolicy, SPEECH_END_GRACE_MS, sttCanPersist, sttVolumeToRms, useReadingStt } from '@/hooks/use-reading-stt';
+import { logEvent } from '@/lib/analytics';
 import type { VadEvent } from '@/lib/reading/vad';
 
 type Handler = (event?: unknown) => void;
@@ -23,6 +24,7 @@ jest.mock('expo-speech-recognition', () => ({
   },
 }));
 jest.mock('expo-file-system', () => ({ Paths: { cache: { uri: 'file:///cache/' } } }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
 jest.mock('expo-audio', () => ({ setAudioModeAsync: jest.fn(async () => undefined) }));
 
 const recognizer = jest.mocked(ExpoSpeechRecognitionModule);
@@ -157,7 +159,7 @@ describe('useReadingStt', () => {
     });
     expect(said).toBe('오늘 왔구나.');
     expect(recognizer.stop).toHaveBeenCalledTimes(1);
-    expect(setAudioModeAsync).toHaveBeenCalledWith({ playsInSilentMode: true, allowsRecording: false });
+    expect(setAudioModeAsync).toHaveBeenCalledWith(expect.objectContaining({ playsInSilentMode: true, allowsRecording: false }));
   });
 
   test('멈춘 뒤 앞 구간의 확정이 먼저 와도 끝(end)까지 기다려 마지막 구간까지 담는다(SOMA-646)', async () => {
@@ -450,5 +452,38 @@ describe('useReadingStt', () => {
     });
     await act(async () => jest.advanceTimersByTime(2_500));
     expect(setAudioModeAsync).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('받아쓰기 실패 신호와 계측(SOMA-804)', () => {
+  test('인식기 오류는 코드·짧은 메시지·글 유무만 reading_stt_error 로 남기고, 다음 듣기에서 초기화된다', async () => {
+    const { stt, hook } = await listen();
+    expect(stt.failed()).toBe(false);
+    await emit('error', { error: 'no-speech', message: 'x'.repeat(300) });
+    expect(stt.failed()).toBe(true);
+    const [name, props] = jest.mocked(logEvent).mock.calls[0];
+    expect(name).toBe('reading_stt_error');
+    expect(props).toEqual({ code: 'no-speech', message: 'x'.repeat(120), platform: Platform.OS, had_text: false });
+    // 오류로 이미 보냈으니 빈 차례 이벤트는 따로 보내지 않는다
+    expect(jest.mocked(logEvent)).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      hook.result.current.start({ onEvent: () => undefined, onInterim: () => undefined });
+    });
+    expect(hook.result.current.failed()).toBe(false);
+  });
+
+  test('글 없이 끝난 차례는 reading_stt_empty_turn 을 한 번만 보내고 실패로 본다', async () => {
+    const { stt } = await listen();
+    await emit('end');
+    expect(stt.failed()).toBe(true);
+    expect(jest.mocked(logEvent)).toHaveBeenCalledWith('reading_stt_empty_turn', { platform: Platform.OS });
+  });
+
+  test('글이 있으면 정상 종료는 실패가 아니고 계측도 없다', async () => {
+    const { stt } = await listen();
+    await emit('result', result('안녕', true));
+    await emit('end');
+    expect(stt.failed()).toBe(false);
+    expect(jest.mocked(logEvent)).not.toHaveBeenCalled();
   });
 });

@@ -94,6 +94,8 @@ class PackageLayerTest {
             // 이탈 설문(SOMA-546). 값 규칙(화면·계기·길이)은 app 의 상수 묶음이고 Schema Entity 는 없다 —
             // 새 표는 native SQL 로 읽고 쓴다(V14 의 다른 연습 표들과 같다, EntityMappingIT 의 대기 목록).
             Map.entry("feedback", Set.of("app", "adapter")),
+            // 웹 문의하기(SOMA-834). 값 규칙은 app 의 상수 묶음이고 새 표는 native SQL 로 읽고 쓴다(Schema Entity 없음).
+            Map.entry("support", Set.of("app", "adapter")),
             // 푸시 토큰에는 행위 규칙이 없다 — 등록은 upsert, 해제는 delete, 발송은 위탁이라
             // domain 에 넣을 것을 지어내야 하는 형태다(ADR-017, admissions 와 같은 판별).
             Map.entry("push", Set.of("app", "adapter", "schema")),

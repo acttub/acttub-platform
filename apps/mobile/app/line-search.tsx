@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -11,6 +11,7 @@ import { browseFailure, browseFailureMessage, dDayLabel, participantsLabel, sear
 import type { ChallengeCard } from '@/lib/challenge/types';
 import { SEARCH_MIN_LENGTH } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * A16.1 대사 검색(challenge.browse).
@@ -61,7 +62,6 @@ export default function LineSearchScreen() {
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <Text style={styles.title}>{t('lineSearch.title')}</Text>
-        <View style={styles.flex} />
         <Pressable onPress={register} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('challenges.addLine')} ph-label="line_search_add">
           <Feather name="plus" size={26} color={palette.blue} />
         </Pressable>
@@ -88,7 +88,7 @@ export default function LineSearchScreen() {
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {!searchable(query) && <Text style={styles.hint}>{t('lineSearch.minLength', { count: SEARCH_MIN_LENGTH })}</Text>}
-        {loading && <ActivityIndicator color={palette.blue} style={{ marginTop: 24 }} />}
+        {loading && !results?.length && <SkeletonRows count={4} avatar={false} card={false} style={{ paddingHorizontal: 0 }} />}
         {error && <Text style={styles.error}>{error}</Text>}
 
         {results?.map((challenge) => (
@@ -129,8 +129,8 @@ export default function LineSearchScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
-  title: { fontSize: 18, fontWeight: '800', color: palette.text },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6, minHeight: 48 },
+  title: { flex: 1, fontSize: 18, fontWeight: '800', color: palette.text },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     height: 46,
   },
   input: { flex: 1, fontSize: 15, color: palette.text },
-  body: { padding: 16, paddingBottom: 60, gap: 4 },
+  body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60, gap: 4 },
   hint: { fontSize: 13, color: palette.textFaint, paddingVertical: 12 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', paddingVertical: 12 },
   row: {
