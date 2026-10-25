@@ -12,6 +12,7 @@ import com.acttub.actingapi.feature.auth.app.AuthService;
 import com.acttub.actingapi.feature.auth.app.LoginCredentials;
 import com.acttub.actingapi.feature.auth.app.PendingConsent;
 import com.acttub.actingapi.feature.auth.app.SignupDecision;
+import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.security.ClientAddress;
 import com.acttub.actingapi.platform.security.CurrentUserService;
@@ -256,7 +257,7 @@ public class AuthController {
     }
 
     private void userLimit(AuthenticatedUser user) {
-        if (!limiter.allow(user.id().toString(), 60)) {
+        if (!limiter.allow(user.id().toString(), AccessGate.PER_USER_PER_MINUTE)) {
             throw new ApiException(429, "rate limit exceeded");
         }
     }

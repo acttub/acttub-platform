@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  *
  * <ol>
  *   <li>{@link #currentUser} — 토큰이 멀쩡하고 계정을 쓸 수 있다.</li>
- *   <li>{@link #rateLimitedUser} — 분당 60회 안이다. <b>게이트 밖</b>의 기능(동의 조회·제출, 내 계정
+ *   <li>{@link #rateLimitedUser} — 분당 {@value #PER_USER_PER_MINUTE}회 안이다. <b>게이트 밖</b>의 기능(동의 조회·제출, 내 계정
  *       조회, 탈퇴)이 여기까지 본다.</li>
  *   <li>{@link #consentedUser} — 현재 판 동의 문서를 모두 결정했다. 프로필 입력이 여기까지 본다 —
  *       개인정보를 받기 전에 수집 동의가 끝나 있어야 한다.</li>
@@ -24,6 +24,14 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class AccessGate {
+    /**
+     * 계정 하나가 1분에 보낼 수 있는 요청 수. 인증 라우터의 주체별 한도({@code AuthController})와
+     * 같은 키(사용자 id)를 쓰므로 두 자리가 이 값을 함께 쓴다. 앱이 켜질 때와 탭을 오갈 때 한 번에
+     * 20~30개를 다시 읽어서 60이면 평범한 사용 20초 만에 막혔다(2026-10-25 dev). AI 기능은 각자
+     * 하루 한도가 따로 있다.
+     */
+    public static final int PER_USER_PER_MINUTE = 180;
+
     private static final String RATE_LIMITED_ATTRIBUTE = AccessGate.class.getName() + ".rateLimited";
     private static final String CONSENTED_ATTRIBUTE = AccessGate.class.getName() + ".consented";
     private static final String GATED_ATTRIBUTE = AccessGate.class.getName() + ".gated";
@@ -54,7 +62,7 @@ public class AccessGate {
             return user;
         }
         AuthenticatedUser user = currentUser(request);
-        if (!limiter.allow(user.id().toString(), 60)) {
+        if (!limiter.allow(user.id().toString(), PER_USER_PER_MINUTE)) {
             throw new ApiException(429, "rate limit exceeded");
         }
         if (request != null) {

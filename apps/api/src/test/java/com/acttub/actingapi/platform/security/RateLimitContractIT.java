@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 분당 60 을 넘긴 요청이 429 {@code rate limit exceeded} 로 거절되는지, <b>세 자리 전부</b>에서
+ * 한도(계정 분당 {@value AccessGate#PER_USER_PER_MINUTE}, IP 분당 60)를 넘긴 요청이 429 {@code rate limit exceeded} 로 거절되는지, <b>세 자리 전부</b>에서
  * 본다 — 주체로 세는 게이트({@code AccessGate}) · 인증 라우터의 주체별 · 같은 라우터의 IP별.
  *
  * <p><b>계약 하네스에서 옮겨 온 기대값이다</b>(SOMA-403 2단계). 하네스는 이것을 세 케이스로
@@ -46,12 +46,17 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @AutoConfigureMockMvc
 class RateLimitContractIT {
 
+    /** 인증 라우터의 IP별 한도. */
+    private static final int PER_IP = 60;
+
     /**
-     * 한도(60)의 두 배보다 크다. 고정 윈도우는 분 경계에서 카운터를 되돌리므로, 경계를 한 번
-     * 넘더라도 <b>반드시</b> 한도를 넘기려면 120 을 넘겨야 한다. 61 회만 보내면 경계에 걸친
-     * 실행에서만 초록이 아닌 flaky 가 된다.
+     * 고정 윈도우는 분 경계에서 카운터를 되돌리므로, 경계를 한 번 넘더라도 <b>반드시</b> 한도를
+     * 넘기려면 한도의 두 배보다 많이 보내야 한다. 한도 + 1 회만 보내면 경계에 걸친 실행에서만
+     * 초록이 아닌 flaky 가 된다.
      */
-    private static final int ENOUGH_TO_CROSS_ANY_WINDOW = 121;
+    private static int enoughToCrossAnyWindow(int limit) {
+        return limit * 2 + 1;
+    }
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
@@ -79,20 +84,20 @@ class RateLimitContractIT {
     }
 
     @Test
-    void theRateLimitedGateRejectsTheSixtyFirstRequestOfAUser() throws Exception {
+    void theRateLimitedGateRejectsTheRequestPastTheLimitOfAUser() throws Exception {
         UUID userId = insertUser();
-        assertRejectedAfterTheLimit(() -> get("/v2/me")
+        assertRejectedAfterTheLimit(AccessGate.PER_USER_PER_MINUTE, () -> get("/v2/me")
                 .header("Authorization", bearer(userId)));
     }
 
     /**
      * 로그아웃은 <b>인증한 뒤</b> 주체별로 센다. 토큰이 유효하기만 하면 본문이 무엇이든 세는
-     * 자리까지 도달한다 — 그래서 401 이 60 번 나오다 61 번째가 429 다.
+     * 자리까지 도달한다 — 그래서 401 이 한도만큼 나오다 그다음이 429 다.
      */
     @Test
     void theAuthRouterCountsPerUserAfterAuthenticating() throws Exception {
         UUID userId = insertUser();
-        assertRejectedAfterTheLimit(() -> post("/v2/auth/logout")
+        assertRejectedAfterTheLimit(AccessGate.PER_USER_PER_MINUTE, () -> post("/v2/auth/logout")
                 .header("Authorization", bearer(userId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refresh_token\":\"없는 토큰\"}"));
@@ -101,7 +106,7 @@ class RateLimitContractIT {
     /** 갱신은 인증 이전에 IP 로 센다 — 토큰이 틀려도 카운터는 오른다. */
     @Test
     void theAuthRouterCountsPerIpBeforeItLooksAtTheToken() throws Exception {
-        assertRejectedAfterTheLimit(() -> post("/v2/auth/refresh")
+        assertRejectedAfterTheLimit(PER_IP, () -> post("/v2/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refresh_token\":\"없는 토큰\"}"));
     }
@@ -112,26 +117,28 @@ class RateLimitContractIT {
      */
     @Test
     void signupCountsPerIpOnItsOwnBucket() throws Exception {
-        assertRejectedAfterTheLimit(() -> post("/v2/auth/signup")
+        assertRejectedAfterTheLimit(PER_IP, () -> post("/v2/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"signup_token\":\"없는 토큰\",\"decisions\":[]}"));
     }
 
-    private void assertRejectedAfterTheLimit(Supplier<MockHttpServletRequestBuilder> request)
+    private void assertRejectedAfterTheLimit(
+            int limit, Supplier<MockHttpServletRequestBuilder> request)
             throws Exception {
-        for (int attempt = 1; attempt <= ENOUGH_TO_CROSS_ANY_WINDOW; attempt++) {
+        int enough = enoughToCrossAnyWindow(limit);
+        for (int attempt = 1; attempt <= enough; attempt++) {
             var response = mvc.perform(request.get()).andReturn().getResponse();
             if (response.getStatus() == 429) {
                 assertThat(mapper.readTree(response.getContentAsString()))
                         .isEqualTo(mapper.readTree("{\"detail\":\"rate limit exceeded\"}"));
                 assertThat(attempt)
-                        .as("한도 60 을 넘기기 전에 거절됐다")
-                        .isGreaterThan(60);
+                        .as("한도 %d 을 넘기기 전에 거절됐다", limit)
+                        .isGreaterThan(limit);
                 return;
             }
         }
         throw new AssertionError(
-                ENOUGH_TO_CROSS_ANY_WINDOW + " 회를 보내도 429 가 나오지 않았다");
+                enough + " 회를 보내도 429 가 나오지 않았다");
     }
 
     private UUID insertUser() {
