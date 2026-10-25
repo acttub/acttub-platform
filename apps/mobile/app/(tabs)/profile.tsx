@@ -215,7 +215,7 @@ export default function ProfileScreen() {
             below
             cards={(entryCards ?? []).map((entry) => ({
               key: entry.id,
-              poster: null,
+              poster: entry.poster_url ? { uri: entry.poster_url, cacheKey: entry.poster_url.split('?')[0] } : null,
               // pen S14.4 — 「“대사”」 아래 작품, 하트 수 · 나만 보기.
               title: [`“${entry.challenge.line}”`, (entry.challenge.work ?? '').trim()].filter(Boolean).join('\n'),
               likes: entry.like_count,

@@ -127,7 +127,10 @@ public interface EntryRepository {
                    boolean faceMosaic,
                    @Schema(requiredMode = REQUIRED, nullable = true, allowableValues = {"pending", "ready", "failed"},
                            description = "모자이크본 상태. 끈 참여작은 null. ready 전에는 공개여도 다른 사람에게 보이지 않는다")
-                   String mosaicStatus) { }
+                   String mosaicStatus,
+                   @Schema(requiredMode = REQUIRED, nullable = true,
+                           description = "영상 첫 장면 JPEG 의 서명 주소(원본에서 뜬다). 아직 없거나 파기된 영상은 null")
+                   String posterUrl) { }
 
     @Schema(name = "MyChallengeEntryCounts", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

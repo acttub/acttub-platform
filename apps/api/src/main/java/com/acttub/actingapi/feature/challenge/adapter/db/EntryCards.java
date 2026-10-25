@@ -27,7 +27,7 @@ class EntryCards {
                    (SELECT count(*) FROM entry_comments cm WHERE cm.entry_id=e.id AND cm.status='visible'
                       AND cm.deleted_at IS NULL AND %s) AS comment_count,
                    e.view_count,e.final_like_count,e.final_rank,e.published_at,e.visibility,e.status,e.created_at,
-                   v.object_key,v.purged_at,e.face_mosaic,e.mosaic_status,e.mosaic_key,
+                   v.object_key,v.poster_key,v.purged_at,e.face_mosaic,e.mosaic_status,e.mosaic_key,
                    EXISTS(SELECT 1 FROM entry_likes l WHERE l.entry_id=e.id AND l.user_id=:viewer) AS liked,
                    EXISTS(SELECT 1 FROM entry_saves s WHERE s.entry_id=e.id AND s.user_id=:viewer) AS saved,
                    c.line,c.work,c.character,c.ends_at,c.moderation,c.ranking_state
@@ -82,7 +82,13 @@ class EntryCards {
                 new Parent(row.get("challenge_id", UUID.class), row.get("line", String.class), row.get("work", String.class),
                         row.get("character", String.class), row.get("ends_at", Instant.class)),
                 row.get("created_at", Instant.class), row.get("face_mosaic", Boolean.class),
-                row.get("mosaic_status", String.class));
+                row.get("mosaic_status", String.class), poster(row));
+    }
+
+    /** 영상 첫 장면 JPEG(원본에서 뜬다 — 본인 목록에만 싣는다). 아직 없거나 파기된 영상은 null 이다. */
+    private String poster(Tuple row) {
+        String key = row.get("poster_key", String.class);
+        return key == null || row.get("purged_at", Instant.class) != null ? null : media.playbackUrl(key);
     }
 
     private static Participant author(Tuple row) {
