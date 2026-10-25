@@ -12,7 +12,7 @@ import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { api } from '@/lib/api';
 import { TARGET } from '@/lib/spotlight-targets';
 import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
-import { shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
+import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { getCurrent, updateScriptMeta } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
 import { activeVariant, assetsPresent } from '@/lib/reading/tts/assets';
@@ -52,7 +52,9 @@ export default function ReadingRoles() {
   const previewRun = useRef(0);
   // 연습 화면과 같은 판정 — 고품질 목소리로 읽을 사람은 그 목소리로 미리 듣는다.
   const [cloudVoice] = useState(() =>
-    api.getCloudVoiceStatus().then(shouldUseCloudVoice).catch(() => false),
+    Promise.all([loadCloudVoiceEnabled(), api.getCloudVoiceStatus().catch(() => null)])
+      .then(([enabled, status]) => shouldUseCloudVoice({ enabled, status }))
+      .catch(() => false),
   );
   const roleListTarget = useSpotlightTarget(TARGET.readingRoleList);
   const saveTarget = useSpotlightTarget(TARGET.readingRoleStart);
