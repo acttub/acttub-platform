@@ -9,6 +9,7 @@
  */
 
 import { spotlightKey, type SpotlightTopic } from './guide-spotlight';
+import { currentFirstUseOwner } from './practice/first-use-graduation';
 import { AUTO_ADVANCE_TIP_KEY } from './reading/guide-flag';
 
 /** 연습 루프를 한 바퀴 돌아보는 튜토리얼(SOMA-494). 끝내거나 "나중에"를 누르면 기록한다. */
@@ -46,12 +47,34 @@ async function mark(key: string): Promise<void> {
   }
 }
 
-export function hasSeenSpotlight(topic: SpotlightTopic): Promise<boolean> {
-  return seen(spotlightKey(topic));
+/**
+ * 화면 가이드는 계정별로 기억한다(10/25). 예전엔 기기 하나에 한 값이라 같은 폰에서 계정을 바꾸면 새 계정도 「봤음」이었다.
+ * 계정을 모르면 예전처럼 기기 값을 쓴다. 예전 기기 값은 업데이트 뒤 처음 묻는 계정이 한 번 이어받고 지운다 —
+ * 한 계정만 쓰던 사람에게 이미 본 가이드가 다시 뜨지 않게.
+ */
+function ownedSpotlightKey(topic: SpotlightTopic, owner: string | null): string {
+  return owner ? `${spotlightKey(topic)}.${owner}` : spotlightKey(topic);
+}
+
+export async function hasSeenSpotlight(topic: SpotlightTopic): Promise<boolean> {
+  const owner = currentFirstUseOwner();
+  if (!owner) return seen(spotlightKey(topic));
+  try {
+    const store = storage();
+    if ((await store.getItem(ownedSpotlightKey(topic, owner))) === '1') return true;
+    if ((await store.getItem(spotlightKey(topic))) === '1') {
+      await store.setItem(ownedSpotlightKey(topic, owner), '1');
+      await store.removeItem(spotlightKey(topic));
+      return true;
+    }
+    return false;
+  } catch {
+    return true; // 못 읽으면 본 것으로 — 매번 뜨는 쪽이 더 나쁘다
+  }
 }
 
 export function markSpotlightSeen(topic: SpotlightTopic): Promise<void> {
-  return mark(spotlightKey(topic));
+  return mark(ownedSpotlightKey(topic, currentFirstUseOwner()));
 }
 
 export function hasSeenTutorial(): Promise<boolean> {
@@ -80,6 +103,7 @@ export async function resetSpotlights(): Promise<void> {
     const store = storage();
     await Promise.all([
       ...SPOTLIGHT_TOPICS.map((topic) => store.removeItem(spotlightKey(topic))),
+      ...SPOTLIGHT_TOPICS.map((topic) => store.removeItem(ownedSpotlightKey(topic, currentFirstUseOwner()))),
       store.removeItem(TUTORIAL_KEY),
       store.removeItem(READING_TUTORIAL_KEY),
       store.removeItem(AUTO_ADVANCE_TIP_KEY),

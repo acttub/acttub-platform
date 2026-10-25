@@ -68,7 +68,7 @@ jest.mock('@/lib/guide-state', () => ({
   markReadingTutorialSeen: jest.fn(async () => undefined),
 }));
 jest.mock('@/lib/practice-days', () => ({ rememberPracticeDays: jest.fn() }));
-jest.mock('@/lib/practice/first-use-graduation', () => ({ hasGraduatedFirstUse: jest.fn(async () => false) }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({ hasGraduatedFirstUse: jest.fn(async () => false), currentFirstUseOwner: jest.fn(() => 'u1') }));
 jest.mock('@/lib/streak-celebration', () => ({
   ...jest.requireActual('@/lib/streak-celebration'),
   readLastSeenStreak: jest.fn(),
@@ -287,7 +287,7 @@ describe('첫 사용자', () => {
     await render(<HomeScreen />);
     expect(await screen.findByText('오늘도\n연기하는 하루,\n멋져요!')).toBeOnTheScreen();
     expect(screen.queryByText('뭐부터 해 볼까요?')).not.toBeOnTheScreen();
-    expect(rememberPracticeDays).toHaveBeenCalledWith([]);
+    expect(rememberPracticeDays).toHaveBeenCalledWith([], 'u1');
   });
 });
 
@@ -382,7 +382,7 @@ describe('연속 연습', () => {
     await render(<HomeScreen />);
 
     expect(await screen.findByText('첫 불꽃이 켜졌어요\n내일도 찍으면 2일이에요')).toBeOnTheScreen();
-    expect(rememberPracticeDays).toHaveBeenCalledWith([{ created_at: expect.any(String) }]);
+    expect(rememberPracticeDays).toHaveBeenCalledWith([{ created_at: expect.any(String) }], 'u1');
     expect(writeLastSeenStreak).toHaveBeenLastCalledWith(1);
     expect(posterProps().blocked).toBe(true);
 
@@ -419,7 +419,7 @@ describe('연속 연습', () => {
     await render(<HomeScreen />);
 
     expect(await screen.findByLabelText('2일 연속 연습 축하')).toBeOnTheScreen();
-    expect(rememberPracticeDays).toHaveBeenCalledWith([]);
+    expect(rememberPracticeDays).toHaveBeenCalledWith([], 'u1');
     expect(writeLastSeenStreak).toHaveBeenLastCalledWith(2);
   });
 

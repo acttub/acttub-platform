@@ -28,6 +28,11 @@ export function setFirstUseOwner(userId: string | null): void {
   owner = userId;
 }
 
+/** 지금 로그인한 계정 id — 기기에 남기는 계정별 기록(연습한 날·가이드 본 기록)의 키에 붙인다. */
+export function currentFirstUseOwner(): string | null {
+  return owner;
+}
+
 export async function hasGraduatedFirstUse(userId: string | null | undefined = owner): Promise<boolean> {
   if (!userId) return false;
   try {

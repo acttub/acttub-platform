@@ -36,6 +36,10 @@ const CAPTION_GUESS = 190;
 
 /** 안내가 떠 있는 동안 비출 자리를 다시 재는 간격. */
 const REMEASURE_MS = 300;
+/** 다시 재기는 처음 이만큼만 한다 — 목록이 늦게 차는 동안이면 충분하고, 계속 재면 저사양 폰에서 버벅인다(10/25). */
+const REMEASURE_FOR_MS = 3000;
+/** 테두리 깜빡임 횟수(왕복). 무한 반복은 덮개 전체를 계속 다시 그리게 해 버벅였다(10/25). */
+const PULSE_TIMES = 6;
 
 /**
  * 화면이 "이 가이드를 띄워 달라"고 맡긴다. 그리는 일은 {@link SpotlightHost} 가 한다 —
@@ -117,7 +121,11 @@ export function SpotlightHost() {
     if (!open) return;
     remeasureTargets();
     const keep = setInterval(remeasureTargets, REMEASURE_MS);
-    return () => clearInterval(keep);
+    const stop = setTimeout(() => clearInterval(keep), REMEASURE_FOR_MS);
+    return () => {
+      clearInterval(keep);
+      clearTimeout(stop);
+    };
   }, [open, index]);
 
   useEffect(() => {
@@ -132,7 +140,7 @@ export function SpotlightHost() {
     shown.value = withTiming(1, { duration: motion.standard, easing: easing.enter });
     pulse.value = withRepeat(
       withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }),
-      -1,
+      PULSE_TIMES,
       true,
     );
   }, [open, pulse, shown]);
@@ -168,7 +176,8 @@ export function SpotlightHost() {
   const rootStyle = useAnimatedStyle(() => ({ opacity: shown.value }));
   // 덮개 하나 — 구멍 둘레에 아주 두꺼운 테두리를 둘러 안쪽 모서리를 고리와 같은 반지름으로 깎는다.
   // 두께가 화면 대각선보다 크면 구멍이 어디 있든 화면 끝까지 덮인다.
-  const shroudWidth = screen.width + screen.height;
+  // 대각선이면 충분하다(예전엔 가로+세로라 더 컸다) — 덮개가 작을수록 다시 그리는 값이 싸다.
+  const shroudWidth = Math.ceil(Math.hypot(screen.width, screen.height));
   const shroudStyle = useAnimatedStyle(() => ({
     left: hx.value - shroudWidth,
     top: hy.value - shroudWidth,

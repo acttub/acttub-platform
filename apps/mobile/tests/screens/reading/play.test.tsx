@@ -39,7 +39,7 @@ const mockNavigation = {
 };
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: () => mockNavigation }));
 jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn() }));
-jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined) }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined), currentFirstUseOwner: () => null }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn() } }));
 const mockAskRating = jest.fn(async () => undefined);
@@ -985,19 +985,16 @@ test('고친 줄이 대사가 아니게 되고 남은 대사가 없으면 완료
   expect(server.patchLine).toHaveBeenCalledWith('s1', 'l5', { kind: 'direction' });
 });
 
-test('인식된 말 없이 「다음」만으로 끝까지 가면 완료로 보내지 않고 별점도 묻지 않는다(SOMA-773)', async () => {
+test('인식된 말이 없어도 끝까지 가면 완료로 보내고 별점을 묻는다(10/25 — 마이크가 못 알아들어도 연습 1회)', async () => {
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
   await screen.findByText('아직 인식된 말이 없어요');
 
   await speechEnds(() => recognizer);
-  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
-  expect(screen.getByText('알아들은 대사가 없어서 이번 리딩은 완료로 남기지 않았어요. 대사를 소리 내어 읽으면 완료로 세요.')).toBeOnTheScreen();
-  expect(screen.queryByText('리딩 완료')).not.toBeOnTheScreen();
-  expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
-  expect(screen.queryByText('말한 것을 원문과 비교하고 있어요.')).not.toBeOnTheScreen();
-  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
-  expect(mockAskRating).not.toHaveBeenCalled();
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: true })));
+  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 });
 
 test('음성 인식을 못 쓰는 기기는 인식된 말 없이 끝까지 가도 완료로 보내고 별점을 묻는다(SOMA-773 예외)', async () => {
