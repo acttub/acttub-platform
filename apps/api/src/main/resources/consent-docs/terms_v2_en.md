@@ -1,6 +1,6 @@
 # Acttub Terms of Service
 
-Effective Date: 2026-11-01 (Notice date: 2026-10-27)
+Effective Date: from sign-up for new members, and 2026-11-01 for members who signed up before then (Notice date: 2026-10-27)
 
 Articles 9 through 19 on the Paid Service and the free scope of use in Article 9(1) **apply from November 1, 2026**.
 
@@ -156,7 +156,7 @@ Users shall not engage in the following acts:
 These Terms shall be interpreted in accordance with the laws of the Republic of Korea, and the court having jurisdiction under the Civil Procedure Act (민사소송법) shall have jurisdiction as the court of first instance over disputes relating to use of the Service.
 
 ## Addendum
-These Terms shall take effect from 2026-11-01 (notice date: 2026-10-27). The Paid Service provisions in Articles 9 through 19 and the free scope of use in Article 9(1) also apply from the same day, November 1, 2026. However, for members who signed up by 23:59 KST on October 31, 2026, the free scope of use in Article 9(1) applies from December 1, 2026; Pro features are provided free of charge from November 1 to November 7, 2026, and the count and storage limits of the free scope are not applied from November 8 to November 30, 2026.
+These Terms take effect for new members from sign-up, and for members who signed up before then from 2026-11-01 (notice date: 2026-10-27). The Paid Service provisions in Articles 9 through 19 and the free scope of use in Article 9(1) apply from November 1, 2026. However, for members who signed up by 23:59 KST on October 31, 2026, the free scope of use in Article 9(1) applies from December 1, 2026; Pro features are provided free of charge from November 1 to November 7, 2026, and the count and storage limits of the free scope are not applied from November 8 to November 30, 2026.
 
 **Business Information**
 - Business name: ACTTUB (액터브)

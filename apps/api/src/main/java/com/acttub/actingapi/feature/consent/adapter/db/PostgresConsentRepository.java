@@ -79,7 +79,6 @@ class PostgresConsentRepository implements ConsentRepository {
                            consent_documents.type, consent_documents.version
                     FROM consent_documents
                     WHERE consent_documents.locale = 'ko'
-                      AND consent_documents.published_at <= now()
                     ORDER BY consent_documents.type,
                              consent_documents.published_at DESC,
                              consent_documents.id DESC),

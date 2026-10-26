@@ -6,7 +6,7 @@
     "locale": "ko",
     "title": "이용약관",
     "required": true,
-    "effectiveAt": "2026-11-01T00:00:00+09:00"
+    "reconsentFrom": "2026-11-01T00:00:00+09:00"
   },
   {
     "file": "privacy_v11.md",
@@ -15,7 +15,7 @@
     "locale": "ko",
     "title": "개인정보 수집·이용 동의",
     "required": true,
-    "effectiveAt": "2026-11-01T00:00:00+09:00"
+    "reconsentFrom": "2026-11-01T00:00:00+09:00"
   },
   {
     "file": "ai_analysis_v2.md",
@@ -72,7 +72,7 @@
     "locale": "en",
     "title": "Terms of Service",
     "required": true,
-    "effectiveAt": "2026-11-01T00:00:00+09:00"
+    "reconsentFrom": "2026-11-01T00:00:00+09:00"
   },
   {
     "file": "ai_analysis_v2_en.md",
@@ -89,7 +89,7 @@
     "locale": "en",
     "title": "Consent to Collection and Use of Personal Information",
     "required": true,
-    "effectiveAt": "2026-11-01T00:00:00+09:00"
+    "reconsentFrom": "2026-11-01T00:00:00+09:00"
   },
   {
     "file": "retention_v1_en.md",
