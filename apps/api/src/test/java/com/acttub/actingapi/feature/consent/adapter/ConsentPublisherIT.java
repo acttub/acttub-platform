@@ -57,6 +57,9 @@ class ConsentPublisherIT {
     ObjectMapper mapper;
 
     @Autowired
+    com.acttub.actingapi.feature.consent.app.ConsentService consentService;
+
+    @Autowired
     ResourceLoader resources;
 
     /** 목록에 적힌 문서 수. 종류나 말이 늘어도 이 테스트는 그대로 맞는다. */
@@ -146,6 +149,75 @@ class ConsentPublisherIT {
                 .containsEntry("id", before.get("id"))
                 .containsEntry("published_at", before.get("published_at"))
                 .containsEntry("body", "오탈자를 고친 약관 본문");
+    }
+
+    private boolean termsVersionIsCurrent(String version) {
+        return consentService.latestDocuments().stream()
+                .anyMatch(document -> "terms".equals(document.type()) && version.equals(document.version()));
+    }
+
+    @Test
+    @Order(2)
+    void effectiveAtKeepsAFutureVersionOutOfTheCurrentSetUntilItsTimeComes(@TempDir Path directory) throws Exception {
+        String current = publishedTermsVersion();
+        String next = nextTermsVersion();
+        java.time.Instant effective = java.time.Instant.now().plus(java.time.Duration.ofDays(3))
+                .truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        Files.writeString(directory.resolve("terms.md"), "시행 전 약관 본문");
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"terms.md","type":"terms","version":"%s","title":"이용약관","required":true,
+                  "effectiveAt":"%s"}]
+                """.formatted(next, effective.atOffset(java.time.ZoneOffset.ofHours(9))));
+
+        assertThat(publisherFor(directory).publish()).isEqualTo(1);
+
+        assertThat(jdbc.queryForObject(
+                "SELECT published_at FROM consent_documents WHERE type='terms' AND version=? AND locale='ko'",
+                java.sql.Timestamp.class, next).toInstant())
+                .as("effectiveAt 이 발행 시각이다").isEqualTo(effective);
+        assertThat(termsVersionIsCurrent(next)).as("시행 전 판은 현재 판이 아니다").isFalse();
+        assertThat(termsVersionIsCurrent(current)).isTrue();
+
+        // 시각이 지난 것을 흉내 낸다: 시행 시각을 과거로 당긴다.
+        jdbc.update("UPDATE consent_documents SET published_at=now() - interval '1 second' "
+                + "WHERE type='terms' AND version=?", next);
+        assertThat(termsVersionIsCurrent(next)).as("시행 시각이 지나면 자동으로 현재 판이다").isTrue();
+        assertThat(termsVersionIsCurrent(current)).isFalse();
+        jdbc.update("DELETE FROM consent_documents WHERE type='terms' AND version=?", next);
+    }
+
+    @Test
+    @Order(2)
+    void effectiveAtNeverMovesTheTimeOfAnExistingRow(@TempDir Path directory) throws Exception {
+        String current = publishedTermsVersion();
+        var before = jdbc.queryForObject(
+                "SELECT published_at FROM consent_documents WHERE type='terms' AND version=? AND locale='ko'",
+                java.sql.Timestamp.class, current);
+        Files.writeString(directory.resolve("terms.md"), "본문");
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"terms.md","type":"terms","version":"%s","title":"이용약관","required":true,
+                  "effectiveAt":"2031-01-01T00:00:00+09:00"}]
+                """.formatted(current));
+
+        assertThat(publisherFor(directory).publish()).isZero();
+
+        assertThat(jdbc.queryForObject(
+                "SELECT published_at FROM consent_documents WHERE type='terms' AND version=? AND locale='ko'",
+                java.sql.Timestamp.class, current)).isEqualTo(before);
+    }
+
+    @Test
+    @Order(2)
+    void invalidEffectiveAtRejectsTheWholeManifest(@TempDir Path directory) throws Exception {
+        Files.writeString(directory.resolve("terms.md"), "본문");
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"terms.md","type":"terms","version":"v99","title":"이용약관","required":true,
+                  "effectiveAt":"내일"}]
+                """);
+
+        assertThatThrownBy(() -> publisherFor(directory).publish())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("effectiveAt");
     }
 
     private ConsentDocumentPublisher publisherFor(Path directory) {

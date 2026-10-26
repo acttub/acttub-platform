@@ -3,6 +3,8 @@ package com.acttub.actingapi.feature.consent.adapter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -56,6 +58,13 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
     private final String configuredDir;
     private final FailureReporter failureReporter;
 
+    /**
+     * 테스트 전용. 켜면 effectiveAt 을 무시해 manifest 의 판이 곧바로 현재 판이 된다. 시행 전 판이
+     * 아직 현재 판이 아닌 동안에도 나머지 통합 테스트가 manifest 의 판을 현재 판으로 쓸 수 있게 한다.
+     */
+    @Value("${consent.docs.ignore-effective-at:false}")
+    private boolean ignoreEffectiveAt;
+
     public ConsentDocumentPublisher(
             ConsentDocumentJpaRepository documents,
             ObjectMapper mapper,
@@ -77,10 +86,18 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             /** 문서가 쓰인 말. 없으면 정본(한국어)이다 (SOMA-544). */
             String locale,
             String title,
+            /** 시행 시각(ISO-8601, 오프셋 포함). 없으면 올린 시각이 발행 시각이다. 새 행에만 쓴다. */
+            String effectiveAt,
             @JsonDeserialize(using = StrictBooleanDeserializer.class) Boolean required) {
 
         String localeOrCanonical() {
             return locale == null || locale.isBlank() ? ConsentLocale.CANONICAL : locale;
+        }
+
+        Instant effectiveInstant() {
+            return effectiveAt == null || effectiveAt.isBlank()
+                    ? null
+                    : OffsetDateTime.parse(effectiveAt).toInstant();
         }
     }
 
@@ -125,6 +142,11 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             if (!ConsentLocale.isSupported(entry.localeOrCanonical())) {
                 throw new IllegalArgumentException("invalid consent locale: " + entry.locale());
             }
+            try {
+                entry.effectiveInstant();
+            } catch (java.time.format.DateTimeParseException invalid) {
+                throw new IllegalArgumentException("invalid consent effectiveAt: " + entry.effectiveAt(), invalid);
+            }
             Resource body = resource(entry.file());
             if (!body.exists()) {
                 throw new java.io.FileNotFoundException(entry.file());
@@ -162,6 +184,17 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
                             entry.version(),
                             entry.localeOrCanonical());
                 }
+                Instant effective = entry.effectiveInstant();
+                // 시행 시각은 이미 올라간 행에서 바꾸지 않는다. 시행일을 옮기려면 사람이 판단한다.
+                if (!ignoreEffectiveAt && effective != null && !effective.equals(document.getPublishedAt())) {
+                    log.warn(
+                            "Consent document {}:{}:{} effectiveAt {} differs from stored published_at {}; not changed",
+                            value.type().dbValue(),
+                            entry.version(),
+                            entry.localeOrCanonical(),
+                            effective,
+                            document.getPublishedAt());
+                }
                 continue;
             }
             try {
@@ -172,7 +205,8 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
                         entry.localeOrCanonical(),
                         entry.title(),
                         value.body(),
-                        entry.required()));
+                        entry.required(),
+                        ignoreEffectiveAt ? null : entry.effectiveInstant()));
                 published++;
             } catch (DataIntegrityViolationException exception) {
                 if (!isUniqueRace(exception)) {

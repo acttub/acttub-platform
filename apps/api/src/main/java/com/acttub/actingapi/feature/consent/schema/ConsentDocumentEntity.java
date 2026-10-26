@@ -31,7 +31,7 @@ public class ConsentDocumentEntity extends AppGeneratedUuidEntity {
     @Column(name = "required", nullable = false)
     boolean required;
 
-    @Column(name = "published_at", nullable = false, insertable = false, updatable = false)
+    @Column(name = "published_at", nullable = false, updatable = false)
     Instant publishedAt;
 
     protected ConsentDocumentEntity() {
@@ -44,7 +44,18 @@ public class ConsentDocumentEntity extends AppGeneratedUuidEntity {
 
     public ConsentDocumentEntity(UUID id, ConsentType type, String version, String locale,
             String title, String body, boolean required) {
+        this(id, type, version, locale, title, body, required, null);
+    }
+
+    /**
+     * {@code effectiveAt} 이 있으면 그 시각이 발행 시각(= 시행 시각)이다. 현재 판 조회는
+     * {@code published_at <= now()} 만 보므로, 시행 전에는 올라가 있어도 현재 판이 아니다.
+     * 없으면 지금이다.
+     */
+    public ConsentDocumentEntity(UUID id, ConsentType type, String version, String locale,
+            String title, String body, boolean required, Instant effectiveAt) {
         super(id);
+        this.publishedAt = effectiveAt != null ? effectiveAt : Instant.now();
         this.type = type;
         this.version = version;
         this.locale = locale;

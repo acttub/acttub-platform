@@ -56,7 +56,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                 (CASE WHEN %s THEN 'granted' ELSE
                 (SELECT c.action FROM user_consents c
                  WHERE c.user_id=%s
-                   AND c.document_id=(SELECT d.id FROM consent_documents d WHERE d.type='script_split' AND d.locale='ko'
+                   AND c.document_id=(SELECT d.id FROM consent_documents d WHERE d.type='script_split' AND d.locale='ko' AND d.published_at <= now()
                                       ORDER BY d.published_at DESC,d.id DESC LIMIT 1)
                  ORDER BY c.occurred_at DESC,c.id DESC LIMIT 1) END)""".formatted(privacyCoversReading(userColumn), userColumn);
     }

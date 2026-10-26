@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 class ConsentManifestLocaleTest {
 
     private record Entry(String file, String type, String version, String locale,
-            String title, Boolean required) {
+            String title, String effectiveAt, Boolean required) {
         String localeOrCanonical() {
             return locale == null || locale.isBlank() ? ConsentLocale.CANONICAL : locale;
         }
@@ -97,5 +97,21 @@ class ConsentManifestLocaleTest {
                         .isEqualTo(seen);
             }
         }
+    }
+
+    @Test
+    @DisplayName("이용약관 v2와 동의 v11은 2026-11-01 0시(KST)에 시행하고, effectiveAt 은 오프셋이 있는 ISO-8601 이다")
+    void termsV2AndPrivacyV11TakeEffectAtNovemberFirstMidnightKst() throws Exception {
+        java.time.Instant expected = java.time.Instant.parse("2026-10-31T15:00:00Z");
+        for (Entry entry : manifest()) {
+            if (entry.effectiveAt() != null) {
+                assertThat(java.time.OffsetDateTime.parse(entry.effectiveAt()).toInstant())
+                        .as(entry.file()).isEqualTo(expected);
+            }
+        }
+        assertThat(manifest())
+                .filteredOn(entry -> entry.edition().equals("terms:v2") || entry.edition().equals("privacy:v11"))
+                .isNotEmpty()
+                .allSatisfy(entry -> assertThat(entry.effectiveAt()).as(entry.file()).isNotNull());
     }
 }

@@ -34,7 +34,7 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
         var rows = list(entityManager.createNativeQuery("""
                 SELECT last_decision.action
                 FROM (SELECT id FROM consent_documents
-                      WHERE type='cloud_voice' AND locale='ko'
+                      WHERE type='cloud_voice' AND locale='ko' AND published_at <= now()
                       ORDER BY published_at DESC,id DESC LIMIT 1) current_document
                 LEFT JOIN LATERAL (SELECT action FROM user_consents
                     WHERE user_id=:userId AND document_id=current_document.id

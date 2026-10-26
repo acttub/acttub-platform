@@ -1106,7 +1106,7 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                 SELECT 1 AS granted
                 FROM (SELECT id
                       FROM consent_documents
-                      WHERE type='retention'
+                      WHERE type='retention' AND published_at <= now()
                       ORDER BY published_at DESC,id DESC
                       LIMIT 1) current_document
                 JOIN LATERAL (SELECT action
