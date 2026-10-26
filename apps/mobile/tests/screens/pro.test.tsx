@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 import ProScreen from '@/app/pro';
 import ProDoneScreen from '@/app/pro-done';
@@ -98,7 +98,7 @@ test('Pro 안내(P0xJ9) — 앱 결제가 닫혀 있으면 비교 표와 가격�
 
   expect(screen.getByText('ACTTUB Pro')).toBeOnTheScreen();
   expect(screen.getByText('하루 1번')).toBeOnTheScreen();
-  expect(screen.getByText('월 3,900원 · 매월 자동 결제 · 언제든 해지')).toBeOnTheScreen();
+  expect(screen.getByText('월 3,900원 또는 연 32,700원 · 자동 결제 · 언제든 해지')).toBeOnTheScreen();
   expect(screen.queryByText('Pro 시작하기')).not.toBeOnTheScreen();
   expect(screen.queryByText(/acttub\.com\/pricing/)).not.toBeOnTheScreen();
   expect(mockIap.initConnection).not.toHaveBeenCalled();
@@ -217,14 +217,67 @@ test('이미 Pro(웹 결제 등)이면 구매 버튼 대신 상태 문구만 보
   expect(mockIap.initConnection).not.toHaveBeenCalled();
 });
 
-test('구독 관리 — 스토어 구독이면 「스토어에서 구독 관리」가 스토어 구독 관리 화면(상품·패키지)을 연다', async () => {
+test('구독 관리 — 스토어 구독이면 「스토어에서 구독 관리」가 스토어 구독 관리 화면을 연다(Android 는 월·연 어느 쪽이든 이 앱의 정기 결제 목록)', async () => {
   billingMe.mockResolvedValue({ ...active, provider: 'google' });
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
   await render(<ProManageScreen />);
   await fireEvent.press(await screen.findByText('스토어에서 구독 관리'));
-  expect(mockIap.deepLinkToSubscriptions).toHaveBeenCalledWith({
-    skuAndroid: 'acttub_pro_monthly',
-    packageNameAndroid: 'com.acttub.app',
+  expect(openURL).toHaveBeenCalledWith('https://play.google.com/store/account/subscriptions?package=com.acttub.app');
+  expect(mockIap.deepLinkToSubscriptions).not.toHaveBeenCalled();
+  openURL.mockRestore();
+});
+
+test('연 구독(30% 할인) — 연을 고르면 연 상품·연 가격·1년 자동 갱신 안내가 보이고 yearly 기본 요금제 오퍼로 결제를 연다', async () => {
+  billingMe.mockResolvedValue({ ...none, app_enabled: true });
+  mockIap.fetchProducts.mockResolvedValue([
+    storeProduct,
+    {
+      id: 'acttub_pro_yearly',
+      displayPrice: '₩32,700',
+      subscriptionOffers: [{ id: 'yearly', basePlanIdAndroid: 'yearly', offerTokenAndroid: 'offer-y' }],
+    },
+  ]);
+  verifyStorePurchase.mockResolvedValue({ ...active, provider: 'google' });
+  await render(<ProScreen />);
+  expect(await screen.findByText('₩3,900 / 월')).toBeOnTheScreen();
+  expect(mockIap.fetchProducts).toHaveBeenCalledWith({ skus: ['acttub_pro_monthly', 'acttub_pro_yearly'], type: 'subs' });
+  expect(screen.getByText('30% 할인')).toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByText('연 구독'));
+  expect(await screen.findByText('₩32,700 / 년')).toBeOnTheScreen();
+  expect(screen.getByText('ACTTUB Pro 연 구독')).toBeOnTheScreen();
+  expect(screen.getByText(/1년마다 자동으로 갱신돼요/)).toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByText('Pro 시작하기'));
+  expect(mockIap.requestPurchase).toHaveBeenCalledWith({
+    type: 'subs',
+    request: {
+      apple: { sku: 'acttub_pro_yearly', appAccountToken: USER },
+      google: {
+        skus: ['acttub_pro_yearly'],
+        obfuscatedAccountId: USER,
+        subscriptionOffers: [{ sku: 'acttub_pro_yearly', offerToken: 'offer-y' }],
+      },
+    },
   });
+  await act(async () => {
+    mockIap.purchaseUpdated?.({ productId: 'acttub_pro_yearly', id: 'o2', purchaseToken: 'play-year' });
+  });
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/pro-done'));
+  expect(verifyStorePurchase).toHaveBeenCalledWith({ platform: 'android', product_id: 'acttub_pro_yearly', purchase_token: 'play-year' });
+});
+
+test('연 상품이 스토어에 아직 없으면 연 구독은 고를 수 없고 월 구독은 그대로 살 수 있다', async () => {
+  billingMe.mockResolvedValue({ ...none, app_enabled: true });
+  mockIap.fetchProducts.mockResolvedValue([storeProduct]);
+  await render(<ProScreen />);
+  expect(await screen.findByText('₩3,900 / 월')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('연 구독'));
+  expect(screen.getByText('₩3,900 / 월')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('Pro 시작하기'));
+  expect(mockIap.requestPurchase).toHaveBeenCalledWith(expect.objectContaining({
+    request: expect.objectContaining({ apple: { sku: 'acttub_pro_monthly', appAccountToken: USER } }),
+  }));
 });
 
 test('결제 완료(kqeG6) — [계속하기]는 들어온 곳으로 돌아간다', async () => {

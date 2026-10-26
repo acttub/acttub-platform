@@ -177,3 +177,21 @@ test('시작 복구 — 서버가 앱 결제를 열었고 아직 Pro 가 아닐 
   assert.equal(recoveryDue(1000, 20_000), false);
   assert.equal(recoveryDue(1000, 31_000), true);
 });
+
+test('연 구독 — 월·연 상품만 우리 구매로 보고, 검증 본문에는 산 상품 ID 를 싣고, 오퍼는 요금제별 기본 요금제에서 고른다', async () => {
+  const sb = await import('../lib/store-billing.ts');
+  assert.equal(sb.isProPurchase({ productId: 'acttub_pro_yearly' }), true);
+  assert.equal(sb.isProPurchase({ productId: 'acttub_pro_weekly' }), false);
+  assert.equal(sb.productPlan('acttub_pro_yearly'), 'yearly');
+  assert.equal(sb.planProductId('yearly'), 'acttub_pro_yearly');
+  assert.deepEqual(sb.verifyBody('android', { productId: 'acttub_pro_yearly', purchaseToken: 'tok' }), {
+    platform: 'android', product_id: 'acttub_pro_yearly', purchase_token: 'tok',
+  });
+  const offers = [
+    { id: 'monthly', basePlanIdAndroid: 'monthly', offerTokenAndroid: 'm' },
+    { id: 'yearly', basePlanIdAndroid: 'yearly', offerTokenAndroid: 'y' },
+    { id: 'intro', basePlanIdAndroid: 'yearly', offerTokenAndroid: 'y-intro' },
+  ];
+  assert.equal(sb.pickOfferToken(offers), 'm');
+  assert.equal(sb.pickOfferToken(offers, 'yearly'), 'y');
+});

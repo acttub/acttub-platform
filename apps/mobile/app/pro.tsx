@@ -16,6 +16,7 @@ import { useStorePurchase } from '@/hooks/use-store-purchase';
 import { api } from '@/lib/api';
 import { purchaseOpen, REFUND_URL, settingsTarget, TERMS_URL, type BillingMe } from '@/lib/billing';
 import { translate as t } from '@/lib/i18n';
+import type { StorePlan } from '@/lib/store-billing';
 
 /**
  * ⑥ Pro · 안내(pen P0xJ9, SOMA-818). 설정 「ACTTUB Pro」 줄과 무료 한도 팝업의 [Pro 알아보기]가 연다. 서버가 앱 결제를 열어 두었고
@@ -31,6 +32,7 @@ export default function ProScreen() {
   }, []);
   useEffect(reload, [reload]);
   const buyable = purchaseOpen(me);
+  const [plan, setPlan] = useState<StorePlan>('monthly');
   const purchase = useStorePurchase({
     enabled: buyable,
     onConfirmed: (confirmed) => {
@@ -59,11 +61,10 @@ export default function ProScreen() {
       <CtaBar>
         {buyable ? (
           <View style={styles.notice}>
-            <Text style={styles.noticeName}>{t('pro.productName')}</Text>
-            <Text style={styles.price}>
-              {purchase.price ? t('pro.priceStore', { price: purchase.price }) : t('pro.priceLoading')}
-            </Text>
-            <Text style={styles.noticeBody}>{Platform.OS === 'ios' ? t('pro.renewIos') : t('pro.renewAndroid')}</Text>
+            <PlanPicker plan={plan} prices={purchase.prices} onPick={setPlan} disabled={purchase.busy} />
+            <Text style={styles.noticeName}>{plan === 'yearly' ? t('pro.productNameYearly') : t('pro.productName')}</Text>
+            <Text style={styles.price}>{planPrice(plan, purchase.prices[plan])}</Text>
+            <Text style={styles.noticeBody}>{renewText(plan)}</Text>
           </View>
         ) : (
           <Text style={styles.price}>{me?.pro ? t('pro.alreadyPro') : t('pro.price')}</Text>
@@ -72,7 +73,8 @@ export default function ProScreen() {
         {buyable && (
           <>
             <PrimaryButton label={purchase.busy && purchase.status ? purchase.status : t('pro.start')}
-              onPress={purchase.begin} disabled={!purchase.available || purchase.busy} phLabel="pro_start" />
+              onPress={() => purchase.begin(plan)} disabled={!purchase.available || purchase.busy || !purchase.prices[plan]}
+              phLabel={plan === 'yearly' ? 'pro_start_yearly' : 'pro_start'} />
             <Pressable onPress={purchase.restore} disabled={purchase.busy} accessibilityRole="button" hitSlop={8}
               style={styles.restore}>
               <Text style={styles.link}>{t('pro.restore')}</Text>
@@ -96,7 +98,59 @@ export default function ProScreen() {
   );
 }
 
+function planPrice(plan: StorePlan, price: string | null): string {
+  if (!price) return t('pro.priceLoading');
+  return plan === 'yearly' ? t('pro.priceStoreYear', { price }) : t('pro.priceStore', { price });
+}
+
+function renewText(plan: StorePlan): string {
+  if (Platform.OS === 'ios') return plan === 'yearly' ? t('pro.renewIosYearly') : t('pro.renewIos');
+  return plan === 'yearly' ? t('pro.renewAndroidYearly') : t('pro.renewAndroid');
+}
+
+/** 월·연 요금제 고르기. 가격은 스토어가 준 현지화 값이고, 스토어에 없는 요금제는 고를 수 없다. */
+function PlanPicker({ plan, prices, onPick, disabled }: {
+  plan: StorePlan;
+  prices: Record<StorePlan, string | null>;
+  onPick: (plan: StorePlan) => void;
+  disabled: boolean;
+}) {
+  const options: { key: StorePlan; label: string; sub: string }[] = [
+    { key: 'monthly', label: t('pro.planMonthly'), sub: prices.monthly ?? '—' },
+    { key: 'yearly', label: t('pro.planYearly'), sub: prices.yearly ?? '—' },
+  ];
+  return (
+    <View style={styles.plans} accessibilityRole="radiogroup">
+      {options.map((o) => {
+        const selected = plan === o.key;
+        const off = disabled || !prices[o.key];
+        return (
+          <Pressable key={o.key} onPress={() => onPick(o.key)} disabled={off} accessibilityRole="radio"
+            accessibilityState={{ selected, disabled: off }} style={[styles.plan, selected && styles.planOn, off && !selected && styles.planOff]}>
+            <View style={styles.planHead}>
+              <Text style={[styles.planLabel, selected && styles.planLabelOn]}>{o.label}</Text>
+              {o.key === 'yearly' && <Text style={styles.planBadge}>{t('pro.planYearlyBadge')}</Text>}
+            </View>
+            <Text style={styles.planSub}>{o.sub}</Text>
+            {o.key === 'yearly' && <Text style={styles.planHint}>{t('pro.planYearlyHint')}</Text>}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  plans: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  plan: { flex: 1, borderWidth: 1.5, borderColor: palette.border, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: palette.card },
+  planOn: { borderColor: palette.blue, backgroundColor: palette.blueMist },
+  planOff: { opacity: 0.5 },
+  planHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  planLabel: { fontSize: 15, fontWeight: '700', color: palette.textStrong },
+  planLabelOn: { color: palette.blueDeep },
+  planBadge: { fontSize: 11, fontWeight: '800', color: palette.onAccent, backgroundColor: palette.blue, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden' },
+  planSub: { fontSize: 13, color: palette.textDim },
+  planHint: { fontSize: 11, color: palette.textFaint, marginTop: 2 },
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24, gap: 10 },
   mascot: { ...MASCOT_SIZE.lg, marginBottom: 6 },

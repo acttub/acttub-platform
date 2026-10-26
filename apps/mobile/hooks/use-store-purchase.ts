@@ -21,8 +21,12 @@ import {
   confirmPurchase,
   isProPurchase,
   pickOfferToken,
-  STORE_PRODUCT_ID,
+  planBasePlanId,
+  planProductId,
+  STORE_PLANS,
+  STORE_PRODUCT_IDS,
   type ConfirmResult,
+  type StorePlan,
   type StorePlatform,
   type StorePurchaseRecord,
 } from '@/lib/store-billing';
@@ -31,13 +35,16 @@ import type { BillingMe } from '@/lib/billing';
 export type StorePurchase = {
   /** 이 기기에서 스토어 구매를 시작할 수 있는가(상품과 가격을 불러왔다). */
   available: boolean;
-  /** 스토어가 알려 준 현지화 가격(예: ₩3,900). 불러오기 전에는 null. */
+  /** 스토어가 알려 준 월 구독 현지화 가격(예: ₩3,900). 불러오기 전에는 null. */
   price: string | null;
+  /** 요금제별 현지화 가격(월·연). 스토어에 상품이 없거나 불러오기 전이면 null. */
+  prices: Record<StorePlan, string | null>;
   busy: boolean;
   /** 진행 중일 때 보일 짧은 상태 문구. */
   status: string | null;
   error: string | null;
-  begin: () => void;
+  /** 고른 요금제로 스토어 결제를 연다(기본 월). */
+  begin: (plan?: StorePlan) => void;
   restore: () => void;
   manage: () => void;
 };
@@ -55,19 +62,28 @@ export function confirmStorePurchase(platform: StorePlatform, purchase: IAP.Purc
   });
 }
 
-/** 스토어의 구독 관리 화면 — iOS 는 시스템 구독 관리, Android 는 Play 스토어 내 구독(상품·패키지 지정). */
-export async function openStoreSubscriptions(): Promise<void> {
+/**
+ * 스토어의 구독 관리 화면 — iOS 는 시스템 구독 관리, Android 는 Play 스토어 정기 결제. Android 는 상품(월·연)을 알 때만 그 구독
+ * 상세로 바로 가고, 모르면 이 앱의 정기 결제 목록을 연다(어느 요금제를 샀는지 앱이 모를 수 있다).
+ */
+export async function openStoreSubscriptions(productId?: string): Promise<void> {
+  const packageName = Application.applicationId ?? ANDROID_PACKAGE;
+  const listUrl =
+    Platform.OS === 'android'
+      ? `https://play.google.com/store/account/subscriptions?package=${packageName}`
+      : 'https://apps.apple.com/account/subscriptions';
+  if (Platform.OS === 'android' && !productId) {
+    await Linking.openURL(listUrl);
+    return;
+  }
   try {
-    await IAP.deepLinkToSubscriptions({
-      skuAndroid: STORE_PRODUCT_ID,
-      packageNameAndroid: Application.applicationId ?? ANDROID_PACKAGE,
-    });
+    await IAP.deepLinkToSubscriptions({ skuAndroid: productId, packageNameAndroid: packageName });
   } catch {
-    const url =
-      Platform.OS === 'android'
-        ? `https://play.google.com/store/account/subscriptions?sku=${STORE_PRODUCT_ID}&package=${Application.applicationId ?? ANDROID_PACKAGE}`
-        : 'https://apps.apple.com/account/subscriptions';
-    await Linking.openURL(url);
+    await Linking.openURL(
+      Platform.OS === 'android' && productId
+        ? `https://play.google.com/store/account/subscriptions?sku=${productId}&package=${packageName}`
+        : listUrl,
+    );
   }
 }
 
@@ -82,11 +98,11 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const platform = storePlatform();
-  const [price, setPrice] = useState<string | null>(null);
+  const [prices, setPrices] = useState<Record<StorePlan, string | null>>({ monthly: null, yearly: null });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const offerToken = useRef<string | null>(null);
+  const offerTokens = useRef<Record<StorePlan, string | null>>({ monthly: null, yearly: null });
   const confirmed = useRef(onConfirmed);
   confirmed.current = onConfirmed;
   const inFlight = useRef(new Set<string>());
@@ -128,11 +144,17 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
     (async () => {
       try {
         await IAP.initConnection();
-        const products = await IAP.fetchProducts({ skus: [STORE_PRODUCT_ID], type: 'subs' });
-        const product = (products ?? []).find((p) => p.id === STORE_PRODUCT_ID);
-        if (!alive || !product) return;
-        offerToken.current = pickOfferToken((product as { subscriptionOffers?: IAP.SubscriptionOffer[] | null }).subscriptionOffers);
-        setPrice(product.displayPrice);
+        const products = await IAP.fetchProducts({ skus: [...STORE_PRODUCT_IDS], type: 'subs' });
+        if (!alive) return;
+        const next: Record<StorePlan, string | null> = { monthly: null, yearly: null };
+        for (const plan of STORE_PLANS) {
+          const product = (products ?? []).find((p) => p.id === planProductId(plan));
+          if (!product) continue;
+          const offers = (product as { subscriptionOffers?: IAP.SubscriptionOffer[] | null }).subscriptionOffers;
+          offerTokens.current[plan] = pickOfferToken(offers, planBasePlanId(plan));
+          next[plan] = product.displayPrice;
+        }
+        setPrices(next);
       } catch {
         if (alive) setError(t('pro.errStore'));
       }
@@ -145,12 +167,13 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
     };
   }, [enabled, platform, userId, handlePurchase]);
 
-  const begin = useCallback(() => {
-    if (!enabled || !platform || !userId || busy) return;
+  const begin = useCallback((plan: StorePlan = 'monthly') => {
+    if (!enabled || !platform || !userId || busy || prices[plan] === null) return;
     setBusy(true);
     setError(null);
     setStatus(t('pro.opening'));
-    const sku = STORE_PRODUCT_ID;
+    const sku = planProductId(plan);
+    const offerToken = offerTokens.current[plan];
     void IAP.requestPurchase({
       type: 'subs',
       request: {
@@ -158,7 +181,7 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
         google: {
           skus: [sku],
           obfuscatedAccountId: userId,
-          subscriptionOffers: offerToken.current ? [{ sku, offerToken: offerToken.current }] : undefined,
+          subscriptionOffers: offerToken ? [{ sku, offerToken }] : undefined,
         },
       },
     }).catch(() => {
@@ -166,7 +189,7 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
       setBusy(false);
       setStatus(null);
     });
-  }, [enabled, platform, userId, busy]);
+  }, [enabled, platform, userId, busy, prices]);
 
   const restore = useCallback(() => {
     if (!enabled || !platform || busy) return;
@@ -200,5 +223,7 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
     void openStoreSubscriptions().catch(() => setError(t('pro.errStore')));
   }, []);
 
-  return { available: enabled && price !== null && !!platform, price, busy, status, error, begin, restore, manage };
+  const price = prices.monthly;
+  const available = enabled && !!platform && (prices.monthly !== null || prices.yearly !== null);
+  return { available, price, prices, busy, status, error, begin, restore, manage };
 }

@@ -13,6 +13,28 @@ import { translate as t } from './i18n.ts';
 /** 양 스토어 공통 상품 ID. 구글은 구독 ID, 기본 요금제(base plan) ID 는 monthly. */
 export const STORE_PRODUCT_ID = 'acttub_pro_monthly';
 export const GOOGLE_BASE_PLAN_ID = 'monthly';
+/** 연 구독(약 30% 할인, 앱 스토어 전용). 구글 기본 요금제 ID 는 yearly. */
+export const STORE_PRODUCT_YEARLY_ID = 'acttub_pro_yearly';
+export const GOOGLE_BASE_PLAN_YEARLY_ID = 'yearly';
+
+export type StorePlan = 'monthly' | 'yearly';
+export const STORE_PLANS: readonly StorePlan[] = ['monthly', 'yearly'];
+export const STORE_PRODUCT_IDS: readonly string[] = [STORE_PRODUCT_ID, STORE_PRODUCT_YEARLY_ID];
+
+export function planProductId(plan: StorePlan): string {
+  return plan === 'yearly' ? STORE_PRODUCT_YEARLY_ID : STORE_PRODUCT_ID;
+}
+
+export function planBasePlanId(plan: StorePlan): string {
+  return plan === 'yearly' ? GOOGLE_BASE_PLAN_YEARLY_ID : GOOGLE_BASE_PLAN_ID;
+}
+
+/** 상품 ID → 요금제. 우리 상품이 아니면 null. */
+export function productPlan(productId: string | null | undefined): StorePlan | null {
+  if (productId === STORE_PRODUCT_ID) return 'monthly';
+  if (productId === STORE_PRODUCT_YEARLY_ID) return 'yearly';
+  return null;
+}
 export const ANDROID_PACKAGE = 'com.acttub.app';
 
 export type StorePlatform = 'ios' | 'android';
@@ -28,16 +50,17 @@ export type VerifyBody =
   | { platform: 'android'; product_id: string; purchase_token: string };
 
 export function isProPurchase(purchase: StorePurchaseRecord | null | undefined): boolean {
-  return purchase?.productId === STORE_PRODUCT_ID;
+  return productPlan(purchase?.productId) !== null;
 }
 
 /** 서버 검증 요청 본문. 영수증(토큰)이 비어 있으면 null — 검증할 수 없다. */
 export function verifyBody(platform: StorePlatform, purchase: StorePurchaseRecord): VerifyBody | null {
   const token = purchase.purchaseToken?.trim();
   if (!token) return null;
+  const productId = productPlan(purchase.productId) ? purchase.productId : STORE_PRODUCT_ID;
   return platform === 'ios'
-    ? { platform, product_id: STORE_PRODUCT_ID, signed_transaction: token }
-    : { platform, product_id: STORE_PRODUCT_ID, purchase_token: token };
+    ? { platform, product_id: productId, signed_transaction: token }
+    : { platform, product_id: productId, purchase_token: token };
 }
 
 export type OfferLike = {
@@ -46,11 +69,11 @@ export type OfferLike = {
   offerTokenAndroid?: string | null;
 };
 
-/** Android 구독을 살 때 넣는 오퍼 토큰 — 기본 요금제(monthly)의 할인 없는 오퍼. 없으면 null. */
-export function pickOfferToken(offers: readonly OfferLike[] | null | undefined): string | null {
-  const monthly = (offers ?? []).filter((o) => o.basePlanIdAndroid === GOOGLE_BASE_PLAN_ID && o.offerTokenAndroid);
-  const base = monthly.find((o) => !o.id || o.id === GOOGLE_BASE_PLAN_ID);
-  return (base ?? monthly[0])?.offerTokenAndroid ?? null;
+/** Android 구독을 살 때 넣는 오퍼 토큰 — 기본 요금제(월 monthly·연 yearly)의 할인 없는 오퍼. 없으면 null. */
+export function pickOfferToken(offers: readonly OfferLike[] | null | undefined, basePlanId: string = GOOGLE_BASE_PLAN_ID): string | null {
+  const plan = (offers ?? []).filter((o) => o.basePlanIdAndroid === basePlanId && o.offerTokenAndroid);
+  const base = plan.find((o) => !o.id || o.id === basePlanId);
+  return (base ?? plan[0])?.offerTokenAndroid ?? null;
 }
 
 export type ConfirmOutcome = 'confirmed' | 'retry' | 'pending' | 'rejected';
