@@ -9,9 +9,8 @@ import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
-import { usePinnedDesktop, usePinnedFeature } from "@/features/site/pinned-features";
+import { SCENE_STEP, usePinnedDesktop, usePinnedScenes } from "@/features/site/pinned-features";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
-import { useSmoothWheel } from "@/features/site/smooth-wheel";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
 
@@ -77,8 +76,6 @@ export default function LandingClient() {
   // 데스크톱: 기능 구간에서 한 화면짜리 무대가 붙어 있고, 스크롤한 만큼 글과 휴대폰이 다음 기능으로 바뀐다.
   const desktop = usePinnedDesktop();
   const featuresRef = useRef<HTMLElement | null>(null);
-  // 데스크톱 휠은 미끄러지듯 부드럽게(useSmoothWheel). 칸에 맞춰 멈추지는 않는다.
-  useSmoothWheel();
   // 아래 구간(data-reveal)은 화면에 들어올 때 스르륵 나타난다.
   // 숨김은 이 효과가 붙은 뒤(html.reveal-ready)에만 걸어서, 스크립트가 늦거나 없으면 그냥 보인다.
   useEffect(() => {
@@ -137,7 +134,7 @@ export default function LandingClient() {
       shotAlt: "앱의 챌린지 화면",
     },
   ];
-  const activeFeature = usePinnedFeature(featuresRef, features.length, desktop);
+  const activeFeature = usePinnedScenes(featuresRef, features.length, desktop);
 
   const faq = HOME_FAQ.map((q) => findFaq(q)).filter((item) => item !== undefined);
 
@@ -215,7 +212,7 @@ export default function LandingClient() {
         <section
           ref={featuresRef}
           aria-label="액터브로 하는 연습"
-          className="relative lg:h-[calc((100dvh-72px)*3)]"
+          className="relative lg:h-[calc((100dvh-72px)*2.2)]"
         >
           {desktop
             ? features.map((f, i) => (
@@ -224,7 +221,7 @@ export default function LandingClient() {
                   id={f.id}
                   aria-hidden="true"
                   className="pointer-events-none absolute left-0 h-px w-px scroll-mt-[72px]"
-                  style={{ top: `calc((100dvh - 72px) * ${i})` }}
+                  style={{ top: `calc((100dvh - 72px) * ${i * SCENE_STEP})` }}
                 />
               ))
             : null}
@@ -237,12 +234,11 @@ export default function LandingClient() {
                     id={desktop ? undefined : f.id}
                     inert={desktop && i !== activeFeature}
                     aria-labelledby={`${f.id}-title`}
-                    className={`flex scroll-mt-20 flex-col items-center gap-10 border-t border-[#edf0f3] py-16 first:border-t-0 lg:absolute lg:inset-0 lg:flex-row lg:border-t-0 lg:py-0 lg:transition lg:duration-500 lg:ease-out motion-reduce:lg:transition-none ${
-                      i === activeFeature
-                        ? "lg:translate-y-0 lg:opacity-100"
-                        : i < activeFeature
-                          ? "lg:-translate-y-6 lg:opacity-0"
-                          : "lg:translate-y-6 lg:opacity-0"
+                    data-scene
+                    data-scene-index={i}
+                    data-scene-travel={56}
+                    className={`flex scroll-mt-20 flex-col items-center gap-10 border-t border-[#edf0f3] py-16 first:border-t-0 lg:absolute lg:inset-0 lg:flex-row lg:border-t-0 lg:py-0 lg:will-change-transform ${
+                      i === 0 ? "" : "lg:opacity-0"
                     }`}
                   >
                 <div className="w-full flex-1">
@@ -293,13 +289,10 @@ export default function LandingClient() {
                         alt=""
                         width={390}
                         height={844}
-                        className={`absolute inset-0 h-full w-full object-cover transition duration-500 ease-out motion-reduce:transition-none ${
-                          i === activeFeature
-                            ? "translate-y-0 opacity-100"
-                            : i < activeFeature
-                              ? "-translate-y-3 opacity-0"
-                              : "translate-y-3 opacity-0"
-                        }`}
+                        data-scene
+                        data-scene-index={i}
+                        data-scene-travel={20}
+                        className={`absolute inset-0 h-full w-full object-cover will-change-transform ${i === 0 ? "" : "opacity-0"}`}
                       />
                     ))}
                   </div>

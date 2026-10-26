@@ -129,14 +129,18 @@ test("게스트가 ?intro=1 이나 소개 링크(#coaching)로 들어와도 홈�
   window.history.replaceState(null, "", "/");
 });
 
-test("데스크톱 고정 무대는 스크롤한 화면 수만큼 다음 기능을 고르고, 폰 배치에서는 기능마다 이동 위치가 있다", async () => {
-  const { featureIndexAt } = await import("../src/features/site/pinned-features.ts");
-  assert.equal(featureIndexAt(-200, 828, 3), 0);
-  assert.equal(featureIndexAt(400, 828, 3), 0);
-  assert.equal(featureIndexAt(420, 828, 3), 1);
-  assert.equal(featureIndexAt(1300, 828, 3), 2);
-  assert.equal(featureIndexAt(5000, 828, 3), 2);
-  assert.equal(featureIndexAt(100, 0, 3), 0);
+test("데스크톱 고정 무대는 스크롤한 만큼 장면이 이어서 바뀌고, 폰 배치에서는 기능마다 이동 위치가 있다", async () => {
+  const { sceneLook, sceneProgress } = await import("../src/features/site/pinned-features.ts");
+  // 스크롤 거리 → 기능 단위 진행도(소수). 처음과 끝에서 멈춘다.
+  assert.equal(sceneProgress(-200, 500, 3), 0);
+  assert.equal(sceneProgress(250, 500, 3), 0.5);
+  assert.equal(sceneProgress(5000, 500, 3), 2);
+  assert.equal(sceneProgress(100, 0, 3), 0);
+  // 지금 장면은 또렷하고 제자리, 반쯤 넘어가면 흐려지며 비켜나고, 한 칸 넘게 떨어지면 안 보인다.
+  assert.deepEqual(sceneLook(1, 1, 40), { opacity: 1, y: 0 });
+  assert.deepEqual(sceneLook(0.75, 1, 40), { opacity: 0.55, y: 10 });
+  assert.equal(sceneLook(0, 2, 40).opacity, 0);
+  assert.equal(sceneLook(2, 0, 40).y, -40);
 
   render(react.createElement(LandingClient));
   assert.deepEqual(
