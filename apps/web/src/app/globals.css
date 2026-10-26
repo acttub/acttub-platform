@@ -126,3 +126,26 @@ body {
   }
 }
 
+/* 홈 스르륵 나타나기 — 아래 구간이 화면에 들어올 때 살짝 올라오며 보인다(landing-client).
+   html.reveal-ready 는 효과가 붙은 뒤에만 달려서, 스크립트가 없으면 그냥 보인다. */
+[data-reveal] {
+  transition:
+    opacity 0.6s ease-out,
+    transform 0.6s ease-out;
+}
+
+html.reveal-ready [data-reveal]:not([data-shown]) {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    transition: none;
+  }
+
+  html.reveal-ready [data-reveal]:not([data-shown]) {
+    opacity: 1;
+    transform: none;
+  }
+}
