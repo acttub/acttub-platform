@@ -74,7 +74,7 @@ public class StoreBillingService {
         if (guest) {
             throw new ApiException(403, "billing_member_required");
         }
-        if (productId != null && !BillingRules.STORE_PRODUCT_ID.equals(productId)) {
+        if (productId != null && !BillingRules.storeProduct(productId)) {
             throw new ApiException(422, "invalid_product");
         }
         Instant now = clock.instant();
@@ -97,7 +97,7 @@ public class StoreBillingService {
             throw new ApiException(422, "invalid_store_receipt");
         }
         AppleTransaction verified = apple.verifyTransaction(signedTransaction.strip());
-        if (!BillingRules.STORE_PRODUCT_ID.equals(verified.productId())) {
+        if (!BillingRules.storeProduct(verified.productId())) {
             throw new ApiException(422, "invalid_product");
         }
         if (verified.appAccountToken() == null || !verified.appAccountToken().equals(userId)) {
@@ -117,7 +117,7 @@ public class StoreBillingService {
         }
         String token = purchaseToken.strip();
         GoogleSubscription sub = google.get(token);
-        if (!BillingRules.STORE_PRODUCT_ID.equals(sub.productId())) {
+        if (!BillingRules.storeProduct(sub.productId())) {
             throw new ApiException(422, "invalid_product");
         }
         if (sub.obfuscatedAccountId() == null || !sub.obfuscatedAccountId().equals(userId.toString())) {
@@ -201,7 +201,7 @@ public class StoreBillingService {
         }
         AppleNotification notification = apple.verifyNotification(signedPayload);
         AppleTransaction tx = notification.transaction();
-        if (tx == null || !BillingRules.STORE_PRODUCT_ID.equals(tx.productId())) {
+        if (tx == null || !BillingRules.storeProduct(tx.productId())) {
             return NotificationResult.IGNORED;
         }
         Optional<StoreRow> row = repository.findStore(BillingRules.PROVIDER_APPLE, tx.originalTransactionId());
@@ -279,7 +279,7 @@ public class StoreBillingService {
             return NotificationResult.IGNORED;
         }
         GoogleSubscription sub = google.get(token);
-        if (!BillingRules.STORE_PRODUCT_ID.equals(sub.productId())
+        if (!BillingRules.storeProduct(sub.productId())
                 || !row.get().userId().toString().equals(sub.obfuscatedAccountId())) {
             LOG.warn("google notification does not match the stored subscription");
             return NotificationResult.IGNORED;

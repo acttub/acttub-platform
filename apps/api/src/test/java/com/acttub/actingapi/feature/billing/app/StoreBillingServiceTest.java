@@ -158,6 +158,32 @@ class StoreBillingServiceTest {
     }
 
     @Test
+    @DisplayName("연 구독(acttub_pro_yearly)도 Apple·Google 모두 검증하면 Pro 가 켜지고 상품 ID 가 남는다")
+    void yearlyProductTurnsProOn() {
+        apple.transaction = new AppleTransaction(ORIGINAL, "t1", BillingRules.STORE_PRODUCT_YEARLY_ID, user,
+                T0.minus(Duration.ofDays(1)), T0.plus(Duration.ofDays(365)), null, null, null, false, "Sandbox");
+        SubscriptionService.View view = service.verify(user, false, "ios", BillingRules.STORE_PRODUCT_YEARLY_ID, "jws", null);
+        assertThat(view.pro()).isTrue();
+        assertThat(view.periodEnd()).isEqualTo(T0.plus(Duration.ofDays(365)));
+
+        UUID other = UUID.randomUUID();
+        google.subscription = new GoogleSubscription("SUBSCRIPTION_STATE_ACTIVE", BillingRules.STORE_PRODUCT_YEARLY_ID,
+                T0.minus(Duration.ofDays(1)), T0.plus(Duration.ofDays(365)), true, other.toString(), null, false);
+        assertThat(service.verify(other, false, "android", BillingRules.STORE_PRODUCT_YEARLY_ID, null, TOKEN).pro()).isTrue();
+    }
+
+    @Test
+    @DisplayName("스토어 상품은 월·연 둘만 받고, 장부 금액은 월 3,900원·연 32,700원이다")
+    void storeProductsAndAmounts() {
+        assertThat(BillingRules.storeProduct("acttub_pro_monthly")).isTrue();
+        assertThat(BillingRules.storeProduct("acttub_pro_yearly")).isTrue();
+        assertThat(BillingRules.storeProduct("acttub_pro_weekly")).isFalse();
+        assertThat(BillingRules.storeProduct(null)).isFalse();
+        assertThat(BillingRules.storeAmount("acttub_pro_monthly")).isEqualTo(3900L);
+        assertThat(BillingRules.storeAmount("acttub_pro_yearly")).isEqualTo(32700L);
+    }
+
+    @Test
     @DisplayName("같은 거래를 다시 검증해도 줄은 하나이고 결과가 같다")
     void appleVerifyTwiceIsIdempotent() {
         apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);

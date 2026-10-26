@@ -442,7 +442,7 @@ class PostgresBillingRepository implements BillingRepository {
                         .setParameter("provider", state.provider())
                         .setParameter("product", state.productId())
                         .setParameter("key", state.key())
-                        .setParameter("amount", (int) BillingRules.AMOUNT)
+                        .setParameter("amount", (int) BillingRules.storeAmount(state.productId()))
                         .setParameter("now", at(now));
                 bindTimestamp(query, "start", state.periodStart());
                 bindTimestamp(query, "end", state.periodEnd());

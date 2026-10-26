@@ -1,5 +1,7 @@
 package com.acttub.actingapi.feature.billing.adapter.store;
 
+import com.acttub.actingapi.feature.billing.app.BillingRules;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -112,7 +114,7 @@ public class GoogleStoreGatewayImpl implements GoogleStoreGateway {
             JsonNode line = body.path("lineItems").path(0);
             JsonNode lines = body.path("lineItems");
             for (JsonNode candidate : lines) {
-                if ("acttub_pro_monthly".equals(candidate.path("productId").asText())) {
+                if (BillingRules.storeProduct(candidate.path("productId").asText())) {
                     line = candidate;
                     break;
                 }
