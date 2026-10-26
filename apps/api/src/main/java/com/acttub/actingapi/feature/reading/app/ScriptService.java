@@ -68,7 +68,7 @@ public class ScriptService {
                 case TOO_LONG -> new ApiException(422, "script_too_long");
             };
         }
-        // 무료 대본 한도(SOMA-818)가 걸리는 사람은 1개까지다. 넘으면 앱이 「무료는 대본 1개까지 보관해요」를 띄운다.
+        // 무료 대본 한도(SOMA-818)가 걸리는 사람은 3개까지다. 넘으면 앱이 「무료는 대본 3개까지 보관해요」를 띄운다.
         boolean free = plan.freeLimited(userId);
         int limit = free ? Math.min(ScriptPlan.FREE_SCRIPTS, ScriptRules.scriptLimit(guest)) : ScriptRules.scriptLimit(guest);
         Creation creation = activeOnly(() -> scripts.create(userId, requestId, fingerprint(draft), draft, limit));

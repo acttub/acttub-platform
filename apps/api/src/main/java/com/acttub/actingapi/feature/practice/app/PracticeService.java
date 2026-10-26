@@ -262,7 +262,7 @@ public class PracticeService {
     }
 
     /**
-     * 새 회차의 하루 한도. 무료 코칭 한도(SOMA-818)가 걸리는 사람은 그것만 본다 — 하루 1회차가 게스트의 분석 3회보다 좁다.
+     * 새 회차의 하루 한도. 무료 코칭 한도(SOMA-818)가 걸리는 사람은 그것만 본다(하루 3회차). 게스트의 분석 한도는 그때 보지 않는다.
      * 그 밖에는 게스트의 분석 한도다.
      */
     private Quota coachingQuota(UUID userId, boolean guest) {
