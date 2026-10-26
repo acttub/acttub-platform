@@ -9,6 +9,7 @@ import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
+import { useScrollSettle } from "@/features/site/scroll-settle";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
@@ -72,6 +73,8 @@ export default function LandingClient() {
   // 다시 온 사람이 새 소개 화면을 못 봤다. 대신 첫 화면 링크를 「이어서 연습하기」로 바꿔 준다.
   // 서버 렌더에서는 게스트가 없다고 보고, 브라우저에서 저장소를 읽어 바꾼다.
   const returningGuest = useSyncExternalStore(subscribeAuthChange, hasGuestSession, () => false);
+  // 데스크톱: 스크롤을 멈췄을 때 구간(data-snap) 윗부분이 머리 근처에 걸쳐 있으면 그 구간에 맞춘다.
+  useScrollSettle();
   // 아래 구간(data-reveal)은 화면에 들어올 때 스르륵 나타난다.
   // 숨김은 이 효과가 붙은 뒤(html.reveal-ready)에만 걸어서, 스크립트가 늦거나 없으면 그냥 보인다.
   useEffect(() => {
@@ -138,7 +141,7 @@ export default function LandingClient() {
       <SiteHeader current="home" />
       <main>
         {/* 첫 화면과 아래 요약 줄을 한 구간으로 묶어 데스크톱에서 한 화면을 채운다. */}
-        <div className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
+        <div data-snap className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
           <section id="hero" className="bg-gradient-to-b from-white to-[#f5f9ff] lg:flex lg:flex-1 lg:items-center">
             <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-5 pb-0 pt-10 sm:px-8 lg:flex-row lg:gap-16 lg:pb-16 lg:pt-[72px]">
               <div className="w-full flex-1">
@@ -208,6 +211,7 @@ export default function LandingClient() {
             key={f.id}
             id={f.id}
             aria-labelledby={`${f.id}-title`}
+            data-snap
             className={`scroll-mt-20 ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
           >
             <div
@@ -253,7 +257,7 @@ export default function LandingClient() {
           </section>
         ))}
 
-        <section aria-labelledby="price-title" className="bg-[#f9fafb]">
+        <section data-snap aria-labelledby="price-title" className="bg-[#f9fafb]">
           <div data-reveal className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
             <h2 id="price-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">
               무료로 시작하고, 더 하고 싶을 때 Pro
@@ -290,7 +294,7 @@ export default function LandingClient() {
           </div>
         </section>
 
-        <section aria-labelledby="faq-title">
+        <section data-snap aria-labelledby="faq-title">
           <div data-reveal className="mx-auto flex max-w-[1200px] flex-col gap-8 px-5 py-16 sm:px-8 lg:flex-row lg:gap-20 lg:py-24">
             <div className="lg:w-[340px]">
               <h2 id="faq-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">자주 묻는 질문</h2>
