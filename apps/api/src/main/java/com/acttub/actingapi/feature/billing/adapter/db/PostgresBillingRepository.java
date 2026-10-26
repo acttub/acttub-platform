@@ -60,6 +60,26 @@ class PostgresBillingRepository implements BillingRepository {
     }
 
     @Override
+    public Optional<Instant> signedUpAt(UUID userId) {
+        return transaction.execute(tx -> {
+            var rows = entityManager.createNativeQuery("SELECT created_at FROM users WHERE id=:userId")
+                    .setParameter("userId", userId)
+                    .getResultList();
+            if (rows.isEmpty() || rows.get(0) == null) {
+                return Optional.<Instant>empty();
+            }
+            Object value = rows.get(0);
+            if (value instanceof OffsetDateTime offset) {
+                return Optional.of(offset.toInstant());
+            }
+            if (value instanceof Instant direct) {
+                return Optional.of(direct);
+            }
+            return Optional.of(((java.sql.Timestamp) value).toInstant());
+        });
+    }
+
+    @Override
     public Optional<Instant> grantEnd(UUID userId, Instant now) {
         return transaction.execute(tx -> {
             Object end = entityManager.createNativeQuery(

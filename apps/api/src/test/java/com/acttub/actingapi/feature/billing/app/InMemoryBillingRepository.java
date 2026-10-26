@@ -57,6 +57,15 @@ class InMemoryBillingRepository implements BillingRepository {
                 .filter(g -> !g[0].isAfter(now) && g[1].isAfter(now)).map(g -> g[1]).max(Instant::compareTo);
     }
 
+    final Map<UUID, Instant> signups = new LinkedHashMap<>();
+    int signupReads;
+
+    @Override
+    public Optional<Instant> signedUpAt(UUID userId) {
+        signupReads++;
+        return Optional.ofNullable(signups.get(userId));
+    }
+
     @Override
     public int scriptCount(UUID userId) {
         return scripts;
