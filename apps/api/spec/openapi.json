@@ -3549,6 +3549,52 @@
         }
       }
     },
+    "/v2/ads/{ad_id}/events" : {
+      "post" : {
+        "tags" : [ "v2-ads" ],
+        "summary" : "Record Ad Event",
+        "description" : "직접·자체 광고의 노출(impression)·클릭(click)을 남긴다. 노출은 한 사람·광고·한국 날짜에 한 번만 남고,\n클릭은 누를 때마다 남는다. 없는 광고는 404 ad_not_found.",
+        "operationId" : "record_ad_event_v2_ads__ad_id__events_post",
+        "parameters" : [ {
+          "name" : "ad_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Ad Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdEventRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/videos/{video_id}" : {
       "get" : {
         "tags" : [ "v2-videos" ],
@@ -5266,6 +5312,92 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AppPosterList"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/ads" : {
+      "get" : {
+        "tags" : [ "v2-ads" ],
+        "summary" : "Pick Ad For Slot",
+        "description" : "칸 하나에 띄울 광고를 고른다. 학원 직접 광고(DIRECT) → 우리 앱 광고(HOUSE) → AdMob(NETWORK) 순이고,\n첫 연습을 끝내기 전이면 NONE 이다. 연습 중 칸은 Pro 면 NONE, 무료면 A/B 로 켠 사람만 받는다.",
+        "operationId" : "pick_ad_v2_ads_get",
+        "parameters" : [ {
+          "name" : "slot",
+          "in" : "query",
+          "description" : "칸 키(예: home_top)",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "title" : "Slot"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdSlotPick"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/ads/{ad_id}" : {
+      "get" : {
+        "tags" : [ "v2-ads" ],
+        "summary" : "Get Direct Ad",
+        "description" : "학원 직접 광고의 상세 화면 정보. 없거나 자체 광고면 404 ad_not_found.",
+        "operationId" : "get_ad_v2_ads__ad_id__get",
+        "parameters" : [ {
+          "name" : "ad_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Ad Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdDetail"
                 }
               }
             }
@@ -10657,6 +10789,24 @@
         "required" : [ "access_token", "account_type", "expires_in", "refresh_token", "token_type", "user" ],
         "title" : "GuestResponse"
       },
+      "AdEventRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "slot" : {
+            "type" : "string",
+            "description" : "광고가 보인 칸 키",
+            "title" : "Slot"
+          },
+          "event" : {
+            "type" : "string",
+            "enum" : [ "impression", "click" ],
+            "title" : "Event"
+          }
+        },
+        "required" : [ "event", "slot" ],
+        "title" : "AdEventRequest"
+      },
       "VideoPatch" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -12677,6 +12827,183 @@
         },
         "required" : [ "posters" ],
         "title" : "AppPosterList"
+      },
+      "AdCreative" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "직접·자체 광고 한 건. DIRECT 는 image_url 이 늘 있고 누르면 광고 상세 화면으로, HOUSE 는 app_path 로 간다.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "image_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "칸 규격의 이미지"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Url"
+          },
+          "headline" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Headline"
+          },
+          "body" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Body"
+          },
+          "app_path" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "HOUSE 의 앱 안 경로"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "App Path"
+          },
+          "advertiser_name" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Advertiser Name"
+          }
+        },
+        "required" : [ "advertiser_name", "app_path", "body", "headline", "id", "image_url" ],
+        "title" : "AdCreative"
+      },
+      "AdSlotPick" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "칸 하나에 띄울 것. kind 가 DIRECT·HOUSE 일 때만 ad 가 있다. NETWORK 면 앱이 AdMob 으로 채우고, NONE 이면 칸을 비운다.",
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "DIRECT", "HOUSE", "NETWORK", "NONE" ],
+            "title" : "Kind"
+          },
+          "slot" : {
+            "type" : "string",
+            "title" : "Slot"
+          },
+          "size" : {
+            "type" : "string",
+            "enum" : [ "LARGE_BANNER", "BANNER", "MEDIUM_RECTANGLE" ],
+            "title" : "Size"
+          },
+          "width" : {
+            "type" : "integer",
+            "title" : "Width"
+          },
+          "height" : {
+            "type" : "integer",
+            "title" : "Height"
+          },
+          "ad" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/AdCreative"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "ad", "height", "kind", "size", "slot", "width" ],
+        "title" : "AdSlotPick"
+      },
+      "AdDetail" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "학원 직접 광고의 상세 화면 정보. 학원 정보는 광고주가 낸 그대로 보인다.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "advertiser_name" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Advertiser Name"
+          },
+          "academy_registration_no" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "학원 등록번호"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Academy Registration No"
+          },
+          "course_name" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "교습과정"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Course Name"
+          },
+          "tuition" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "교습비(추가 경비 포함)"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Tuition"
+          },
+          "headline" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Headline"
+          },
+          "body" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Body"
+          },
+          "image_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "큰 이미지(300x250 → 320x100 → 320x50 순)"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Url"
+          },
+          "link_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "외부 링크"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Link Url"
+          }
+        },
+        "required" : [ "academy_registration_no", "advertiser_name", "body", "course_name", "headline", "id", "image_url", "link_url", "tuition" ],
+        "title" : "AdDetail"
       },
       "AdmissionNotice" : {
         "type" : "object",
