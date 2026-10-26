@@ -24,6 +24,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptFileStorage;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptImportService;
 import com.acttub.actingapi.feature.reading.app.ScriptPlan;
+import com.acttub.actingapi.feature.reading.app.VoicePlan;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
@@ -87,8 +88,9 @@ class ReadingConfiguration {
 
     @Bean
     CloudVoiceService cloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
-            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock) {
-        return new CloudVoiceService(repository, storage, synthesizer, settings, clock);
+            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock, ObjectProvider<VoicePlan> plan) {
+        return new CloudVoiceService(repository, storage, synthesizer, settings, clock,
+                plan.getIfAvailable(() -> VoicePlan.NONE));
     }
 
     @Bean
