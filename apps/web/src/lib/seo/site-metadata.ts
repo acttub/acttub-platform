@@ -157,6 +157,19 @@ export function buildHelpMetadata(siteUrl?: string): Metadata {
   return buildPageMetadata({ path: "/help", title: HELP_TITLE, description: HELP_DESCRIPTION }, siteUrl);
 }
 
+// 개인정보 처리방침은 스토어·앱·푸터가 가리키는 공개 주소라 색인한다. "액터브 개인정보"처럼
+// 이름과 함께 찾는 사람이 닿아야 한다.
+const PRIVACY_TITLE = "개인정보 처리방침";
+const PRIVACY_DESCRIPTION =
+  "액터브(ACTTUB)가 수집하는 개인정보 항목과 이용 목적, 보관 기간, 처리 위탁, 이용자의 권리와 행사 방법을 안내해요.";
+
+export function buildPrivacyMetadata(siteUrl?: string): Metadata {
+  return buildPageMetadata(
+    { path: "/privacy", title: PRIVACY_TITLE, description: PRIVACY_DESCRIPTION },
+    siteUrl,
+  );
+}
+
 export function buildNoindexMetadata(title?: string): Metadata {
   return {
     ...(title ? { title } : {}),
