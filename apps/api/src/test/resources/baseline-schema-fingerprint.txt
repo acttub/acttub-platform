@@ -142,25 +142,24 @@ COLUMN billing_pro_grants.id ord=1 type=uuid len=- null=NO default=-
 COLUMN billing_pro_grants.reason ord=5 type=text len=- null=NO default=-
 COLUMN billing_pro_grants.starts_at ord=3 type=timestamptz len=- null=NO default=-
 COLUMN billing_pro_grants.user_id ord=2 type=uuid len=- null=NO default=-
-COLUMN billing_subscriptions.amount ord=12 type=int4 len=- null=NO default=-
-COLUMN billing_subscriptions.billing_key ord=9 type=text len=- null=YES default=-
-COLUMN billing_subscriptions.canceled_at ord=15 type=timestamptz len=- null=YES default=-
-COLUMN billing_subscriptions.card_company ord=10 type=text len=- null=YES default=-
-COLUMN billing_subscriptions.card_number ord=11 type=text len=- null=YES default=-
-COLUMN billing_subscriptions.created_at ord=19 type=timestamptz len=- null=NO default=now()
-COLUMN billing_subscriptions.current_period_end ord=14 type=timestamptz len=- null=YES default=-
-COLUMN billing_subscriptions.current_period_start ord=13 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.amount ord=11 type=int4 len=- null=NO default=-
+COLUMN billing_subscriptions.billing_key ord=8 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.canceled_at ord=14 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.card_company ord=9 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.card_number ord=10 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.created_at ord=18 type=timestamptz len=- null=NO default=now()
+COLUMN billing_subscriptions.current_period_end ord=13 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.current_period_start ord=12 type=timestamptz len=- null=YES default=-
 COLUMN billing_subscriptions.customer_key ord=5 type=text len=- null=YES default=-
 COLUMN billing_subscriptions.id ord=1 type=uuid len=- null=NO default=-
-COLUMN billing_subscriptions.lease_until ord=18 type=timestamptz len=- null=YES default=-
-COLUMN billing_subscriptions.next_retry_at ord=17 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.lease_until ord=17 type=timestamptz len=- null=YES default=-
+COLUMN billing_subscriptions.next_retry_at ord=16 type=timestamptz len=- null=YES default=-
 COLUMN billing_subscriptions.provider ord=4 type=text len=- null=NO default='toss'::text
-COLUMN billing_subscriptions.retry_count ord=16 type=int4 len=- null=NO default=0
+COLUMN billing_subscriptions.retry_count ord=15 type=int4 len=- null=NO default=0
 COLUMN billing_subscriptions.status ord=3 type=text len=- null=NO default=-
-COLUMN billing_subscriptions.store_original_transaction_id ord=7 type=text len=- null=YES default=-
 COLUMN billing_subscriptions.store_product_id ord=6 type=text len=- null=YES default=-
-COLUMN billing_subscriptions.store_purchase_token ord=8 type=text len=- null=YES default=-
-COLUMN billing_subscriptions.updated_at ord=20 type=timestamptz len=- null=NO default=now()
+COLUMN billing_subscriptions.store_transaction_id ord=7 type=text len=- null=YES default=-
+COLUMN billing_subscriptions.updated_at ord=19 type=timestamptz len=- null=NO default=now()
 COLUMN billing_subscriptions.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN challenge_entries.caption ord=5 type=text len=- null=YES default=-
 COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
@@ -1051,9 +1050,7 @@ CONSTRAINT billing_subscriptions billing_subscriptions_status_not_null NOT NULL 
 CONSTRAINT billing_subscriptions billing_subscriptions_updated_at_not_null NOT NULL updated_at
 CONSTRAINT billing_subscriptions billing_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT billing_subscriptions billing_subscriptions_user_id_not_null NOT NULL user_id
-CONSTRAINT billing_subscriptions uq_billing_subscriptions_apple_txn UNIQUE (store_original_transaction_id)
 CONSTRAINT billing_subscriptions uq_billing_subscriptions_customer_key UNIQUE (customer_key)
-CONSTRAINT billing_subscriptions uq_billing_subscriptions_google_token UNIQUE (store_purchase_token)
 CONSTRAINT billing_subscriptions uq_billing_subscriptions_user UNIQUE (user_id)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_not_null NOT NULL challenge_id
@@ -2142,9 +2139,7 @@ INDEX CREATE UNIQUE INDEX uq_app_posters_slug_locale ON public.app_posters USING
 INDEX CREATE UNIQUE INDEX uq_audition_postings_source_ref ON public.audition_postings USING btree (source, source_ref)
 INDEX CREATE UNIQUE INDEX uq_billing_checkouts_state ON public.billing_checkouts USING btree (state_hash)
 INDEX CREATE UNIQUE INDEX uq_billing_payments_order ON public.billing_payments USING btree (order_id)
-INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_apple_txn ON public.billing_subscriptions USING btree (store_original_transaction_id)
 INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_customer_key ON public.billing_subscriptions USING btree (customer_key)
-INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_google_token ON public.billing_subscriptions USING btree (store_purchase_token)
 INDEX CREATE UNIQUE INDEX uq_billing_subscriptions_user ON public.billing_subscriptions USING btree (user_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_parent ON public.challenge_entries USING btree (id, challenge_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_request ON public.challenge_entries USING btree (user_id, request_id)

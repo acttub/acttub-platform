@@ -53,8 +53,6 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
     implementation("com.nimbusds:nimbus-jose-jwt:9.48")
-    // 앱 스토어 구독 검증(SOMA-818 2단계): Apple 공식 서명 검증·App Store Server API 클라이언트.
-    implementation("com.apple.itunes.storekit:app-store-server-library:5.2.0")
     implementation(platform("software.amazon.awssdk:bom:2.31.30"))
     implementation("software.amazon.awssdk:s3")
     // runtimeOnly 가 아니라 implementation 이다. 제약명 문자열로 유니크 위반을 가르는 코드가

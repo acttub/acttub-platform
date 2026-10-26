@@ -147,8 +147,8 @@ class PostgresBillingRepository implements BillingRepository {
                                                   created_at,updated_at)
                 VALUES (:id,:userId,'expired','toss',:customerKey,:billingKey,:company,:number,:amount,
                         CAST(:now AS timestamptz),CAST(:now AS timestamptz))
-                ON CONFLICT (user_id) DO UPDATE SET provider='toss', store_product_id=NULL, store_original_transaction_id=NULL,
-                    store_purchase_token=NULL, billing_key=EXCLUDED.billing_key, card_company=EXCLUDED.card_company,
+                ON CONFLICT (user_id) DO UPDATE SET provider='toss', store_product_id=NULL, store_transaction_id=NULL,
+                    billing_key=EXCLUDED.billing_key, card_company=EXCLUDED.card_company,
                     card_number=EXCLUDED.card_number, customer_key=EXCLUDED.customer_key, updated_at=EXCLUDED.updated_at
                 RETURNING id
                 """, Tuple.class)
@@ -373,31 +373,7 @@ class PostgresBillingRepository implements BillingRepository {
         throw new IllegalStateException("unexpected timestamp type for " + column);
     }
 
-    // ── 스토어 구독(apple·google) ───────────────────────────────────
-
-    private static String keyColumn(String provider) {
-        return switch (provider) {
-            case BillingRules.PROVIDER_APPLE -> "store_original_transaction_id";
-            case BillingRules.PROVIDER_GOOGLE -> "store_purchase_token";
-            default -> throw new IllegalArgumentException("not a store provider");
-        };
-    }
-
-    @Override
-    public Optional<StoreRow> findStore(String provider, String key) {
-        String column = keyColumn(provider);
-        return transaction.execute(tx -> first(NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id, user_id, provider, status, current_period_end, updated_at FROM billing_subscriptions "
-                        + "WHERE provider=:provider AND " + column + "=:key", Tuple.class)
-                .setParameter("provider", provider)
-                .setParameter("key", key))).map(row -> new StoreRow(
-                        row.get("id", UUID.class),
-                        row.get("user_id", UUID.class),
-                        row.get("provider", String.class),
-                        BillingRules.Status.of(row.get("status", String.class)),
-                        instant(row, "current_period_end"),
-                        instant(row, "updated_at"))));
-    }
+    // ── 스토어 구독(apple·google, RevenueCat) ──────────────────────
 
     /** 값이 없을 때 null 을 바인딩하면 드라이버가 타입을 못 정하므로 SQL 자리에 NULL 을 바로 쓴다. */
     private static String timestampOrNull(String name, Instant value) {
@@ -412,75 +388,55 @@ class PostgresBillingRepository implements BillingRepository {
 
     @Override
     public StoreSave saveStore(UUID userId, StoreState state, Instant now) {
-        boolean apple = BillingRules.PROVIDER_APPLE.equals(state.provider());
-        keyColumn(state.provider());
+        if (!BillingRules.PROVIDER_APPLE.equals(state.provider()) && !BillingRules.PROVIDER_GOOGLE.equals(state.provider())) {
+            throw new IllegalArgumentException("not a store provider");
+        }
+        // 활성 사용자일 때만 넣는다(탈퇴한 사람의 늦은 웹훅이 줄을 되살리지 않게). 토스로 이용 중인 줄은 WHERE 가 막는다.
         String sql = """
-                INSERT INTO billing_subscriptions(id,user_id,status,provider,store_product_id,store_original_transaction_id,
-                    store_purchase_token,amount,current_period_start,current_period_end,canceled_at,created_at,updated_at)
-                VALUES (:id,:userId,:status,:provider,:product,%s,%s,:amount,%s,%s,%s,
-                    CAST(:now AS timestamptz),CAST(:now AS timestamptz))
+                INSERT INTO billing_subscriptions(id,user_id,status,provider,store_product_id,store_transaction_id,amount,
+                    current_period_start,current_period_end,canceled_at,created_at,updated_at)
+                SELECT :id,:userId,:status,:provider,:product,%s,:amount,%s,%s,%s,CAST(:now AS timestamptz),CAST(:now AS timestamptz)
+                WHERE EXISTS (SELECT 1 FROM users WHERE id=:userId AND status='active')
                 ON CONFLICT (user_id) DO UPDATE SET status=EXCLUDED.status, provider=EXCLUDED.provider,
-                    store_product_id=EXCLUDED.store_product_id,
-                    store_original_transaction_id=EXCLUDED.store_original_transaction_id,
-                    store_purchase_token=EXCLUDED.store_purchase_token, customer_key=NULL, billing_key=NULL,
-                    card_company=NULL, card_number=NULL, amount=EXCLUDED.amount,
+                    store_product_id=EXCLUDED.store_product_id, store_transaction_id=EXCLUDED.store_transaction_id,
+                    customer_key=NULL, billing_key=NULL, card_company=NULL, card_number=NULL, amount=EXCLUDED.amount,
                     current_period_start=EXCLUDED.current_period_start, current_period_end=EXCLUDED.current_period_end,
                     canceled_at=EXCLUDED.canceled_at, retry_count=0, next_retry_at=NULL, lease_until=NULL,
                     updated_at=EXCLUDED.updated_at
                 WHERE billing_subscriptions.provider<>'toss' OR billing_subscriptions.status='expired'
                 RETURNING id
-                """.formatted(apple ? ":key" : "NULL", apple ? "NULL" : ":key",
+                """.formatted(state.storeTransactionId() == null ? "NULL" : ":txn",
                 timestampOrNull("start", state.periodStart()), timestampOrNull("end", state.periodEnd()),
                 timestampOrNull("canceled", state.canceledAt()));
-        List<Tuple> saved;
-        try {
-            saved = transaction.execute(tx -> {
-                jakarta.persistence.Query query = entityManager.createNativeQuery(sql, Tuple.class)
-                        .setParameter("id", UUID.randomUUID())
-                        .setParameter("userId", userId)
-                        .setParameter("status", state.status().db())
-                        .setParameter("provider", state.provider())
-                        .setParameter("product", state.productId())
-                        .setParameter("key", state.key())
-                        .setParameter("amount", (int) BillingRules.storeAmount(state.productId()))
-                        .setParameter("now", at(now));
-                bindTimestamp(query, "start", state.periodStart());
-                bindTimestamp(query, "end", state.periodEnd());
-                bindTimestamp(query, "canceled", state.canceledAt());
-                return NativeTuples.list(query);
-            });
-        } catch (RuntimeException failure) {
-            for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-                if (cause.getMessage() != null && cause.getMessage().contains("uq_billing_subscriptions_")) {
-                    return StoreSave.TAKEN;
-                }
+        List<Tuple> saved = transaction.execute(tx -> {
+            jakarta.persistence.Query query = entityManager.createNativeQuery(sql, Tuple.class)
+                    .setParameter("id", UUID.randomUUID())
+                    .setParameter("userId", userId)
+                    .setParameter("status", state.status().db())
+                    .setParameter("provider", state.provider())
+                    .setParameter("product", state.productId())
+                    .setParameter("amount", (int) BillingRules.storeAmount(state.productId()))
+                    .setParameter("now", at(now));
+            if (state.storeTransactionId() != null) {
+                query.setParameter("txn", state.storeTransactionId());
             }
-            throw failure;
-        }
+            bindTimestamp(query, "start", state.periodStart());
+            bindTimestamp(query, "end", state.periodEnd());
+            bindTimestamp(query, "canceled", state.canceledAt());
+            return NativeTuples.list(query);
+        });
         return saved.isEmpty() ? StoreSave.BLOCKED : StoreSave.SAVED;
     }
 
     @Override
-    public boolean updateStore(String provider, String key, StoreState state, Instant now) {
-        String column = keyColumn(provider);
-        String start = state.periodStart() == null ? "current_period_start" : "CAST(:start AS timestamptz)";
-        String canceled = state.canceledAt() == null ? "" : "CAST(:canceled AS timestamptz), ";
-        String sql = "UPDATE billing_subscriptions SET status=:status, current_period_start=" + start
-                + ", current_period_end=" + timestampOrNull("end", state.periodEnd())
-                + ", canceled_at=CASE WHEN CAST(:status AS text)='canceled' THEN COALESCE(canceled_at, " + canceled
-                + "CAST(:now AS timestamptz)) ELSE NULL END, retry_count=0, next_retry_at=NULL, "
-                + "updated_at=CAST(:now AS timestamptz) WHERE provider=:provider AND " + column + "=:key";
-        return transaction.execute(tx -> {
-            jakarta.persistence.Query query = entityManager.createNativeQuery(sql)
-                    .setParameter("status", state.status().db())
-                    .setParameter("now", at(now))
-                    .setParameter("provider", provider)
-                    .setParameter("key", key);
-            bindTimestamp(query, "start", state.periodStart());
-            bindTimestamp(query, "end", state.periodEnd());
-            bindTimestamp(query, "canceled", state.canceledAt());
-            return query.executeUpdate();
-        }) > 0;
+    public boolean expireStore(UUID userId, Instant now) {
+        return transaction.execute(tx -> entityManager.createNativeQuery("""
+                UPDATE billing_subscriptions SET status='expired', canceled_at=NULL, updated_at=CAST(:now AS timestamptz)
+                WHERE user_id=:userId AND provider IN ('apple','google') AND status<>'expired'
+                """)
+                .setParameter("userId", userId)
+                .setParameter("now", at(now))
+                .executeUpdate()) > 0;
     }
 
     private static Subscription subscription(Tuple row) {

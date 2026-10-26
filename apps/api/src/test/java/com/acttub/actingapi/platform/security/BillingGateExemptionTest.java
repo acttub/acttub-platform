@@ -19,18 +19,18 @@ class BillingGateExemptionTest {
         assertThat(ConsentGateInterceptor.gateFor("GET", "/v2/billing/me")).isEqualTo(ConsentGateInterceptor.Gate.FULL);
         assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/checkout")).isEqualTo(ConsentGateInterceptor.Gate.FULL);
 
-        // 스토어 서버 알림(SOMA-818 2단계)은 Apple·Google 서버가 부르므로 앱 게이트 밖이고, 검증 API 는 게이트 안이다.
-        assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/store-notify/apple")).isEqualTo(ConsentGateInterceptor.Gate.NONE);
-        assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/store-notify/google")).isEqualTo(ConsentGateInterceptor.Gate.NONE);
-        assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/store/verify")).isEqualTo(ConsentGateInterceptor.Gate.FULL);
-        assertThat(new ClientVersionFilter().shouldNotFilter(new MockHttpServletRequest("POST", "/v2/billing/store-notify/apple"))).isTrue();
-        assertThat(new ClientVersionFilter().shouldNotFilter(new MockHttpServletRequest("POST", "/v2/billing/store/verify"))).isFalse();
-        MockHttpServletRequest notify = new MockHttpServletRequest("POST", "/v2/billing/store-notify/google");
-        notify.addHeader("Authorization", "Bearer oidc-token");
+        // RevenueCat 웹훅(SOMA-818 2단계)은 RevenueCat 서버가 부르므로 앱 게이트 밖이고(Authorization 헤더는 우리 토큰이 아니라 웹훅 비밀),
+        // 앱의 동기화 API 는 게이트 안이다.
+        assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/store-notify/revenuecat")).isEqualTo(ConsentGateInterceptor.Gate.NONE);
+        assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/billing/store/sync")).isEqualTo(ConsentGateInterceptor.Gate.FULL);
+        assertThat(new ClientVersionFilter().shouldNotFilter(new MockHttpServletRequest("POST", "/v2/billing/store-notify/revenuecat"))).isTrue();
+        assertThat(new ClientVersionFilter().shouldNotFilter(new MockHttpServletRequest("POST", "/v2/billing/store/sync"))).isFalse();
+        MockHttpServletRequest notify = new MockHttpServletRequest("POST", "/v2/billing/store-notify/revenuecat");
+        notify.addHeader("Authorization", "Bearer webhook-secret");
         assertThat(new AccessTokenFilter(mock(CurrentUserService.class)).shouldNotFilter(notify)).isTrue();
-        MockHttpServletRequest verify = new MockHttpServletRequest("POST", "/v2/billing/store/verify");
-        verify.addHeader("Authorization", "Bearer app-token");
-        assertThat(new AccessTokenFilter(mock(CurrentUserService.class)).shouldNotFilter(verify)).isFalse();
+        MockHttpServletRequest sync = new MockHttpServletRequest("POST", "/v2/billing/store/sync");
+        sync.addHeader("Authorization", "Bearer app-token");
+        assertThat(new AccessTokenFilter(mock(CurrentUserService.class)).shouldNotFilter(sync)).isFalse();
 
         ClientVersionFilter version = new ClientVersionFilter();
         assertThat(version.shouldNotFilter(new MockHttpServletRequest("GET", "/v2/billing/web/checkout/abc"))).isTrue();

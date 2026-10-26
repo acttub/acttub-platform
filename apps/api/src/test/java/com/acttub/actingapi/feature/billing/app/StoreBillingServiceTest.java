@@ -3,40 +3,35 @@ package com.acttub.actingapi.feature.billing.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.billing.app.BillingRepository.Subscription;
+import com.acttub.actingapi.feature.billing.app.BillingRepository.StoreState;
 import com.acttub.actingapi.feature.billing.app.BillingRules.Status;
 import com.acttub.actingapi.feature.billing.app.StoreBillingService.NotificationResult;
-import com.acttub.actingapi.feature.billing.app.StoreGateways.AppleNotification;
-import com.acttub.actingapi.feature.billing.app.StoreGateways.AppleStoreGateway;
-import com.acttub.actingapi.feature.billing.app.StoreGateways.AppleTransaction;
-import com.acttub.actingapi.feature.billing.app.StoreGateways.GoogleStoreGateway;
-import com.acttub.actingapi.feature.billing.app.StoreGateways.GoogleSubscription;
+import com.acttub.actingapi.feature.billing.app.StoreGateways.RevenueCatGateway;
 import com.acttub.actingapi.feature.billing.app.StoreGateways.StoreException;
+import com.acttub.actingapi.feature.billing.app.StoreGateways.StoreSubscription;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.support.MutableClock;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 스토어 구독 검증·알림(SOMA-818 2단계). 서명·네트워크 없이 가짜 스토어 값으로 규칙만 본다. */
+/** 스토어 구독(RevenueCat) 동기화·웹훅(SOMA-818 2단계). 네트워크 없이 가짜 RevenueCat 값으로 규칙만 본다. */
 class StoreBillingServiceTest {
     static final Instant T0 = Instant.parse("2026-11-03T01:00:00Z");
-    static final String ORIGINAL = "2000000111";
-    static final String TOKEN = "google-token-1";
+    static final ObjectMapper JSON = new ObjectMapper();
 
     final MutableClock clock = new MutableClock(T0);
     final InMemoryBillingRepository repository = new InMemoryBillingRepository();
     final UUID user = UUID.randomUUID();
-    final FakeApple apple = new FakeApple();
-    final FakeGoogle google = new FakeGoogle();
+    final FakeRevenueCat revenueCat = new FakeRevenueCat();
     final BillingSettings settings = new BillingSettings(false, true, true, "", "", "", "");
     final SubscriptionService subscriptions = new SubscriptionService(settings, repository, new FakeGateway(), new BillingKeyCipher() {
         @Override
@@ -49,13 +44,13 @@ class StoreBillingServiceTest {
             return sealed;
         }
     }, clock);
-    final StoreBillingService service = new StoreBillingService(settings, repository, subscriptions, apple, google, clock);
+    final StoreBillingService service = new StoreBillingService(settings, repository, subscriptions, revenueCat, clock);
 
-    static class FakeApple implements AppleStoreGateway {
-        AppleTransaction transaction;
-        AppleTransaction latest;
-        AppleNotification notification;
+    /** 사람별 RevenueCat entitlement. 없으면 비어 있다. */
+    static class FakeRevenueCat implements RevenueCatGateway {
+        final Map<String, StoreSubscription> customers = new HashMap<>();
         StoreException failure;
+        int calls;
 
         @Override
         public boolean configured() {
@@ -63,113 +58,152 @@ class StoreBillingServiceTest {
         }
 
         @Override
-        public AppleTransaction verifyTransaction(String signedTransaction) {
+        public Optional<StoreSubscription> entitlement(String appUserId) {
+            calls++;
             if (failure != null) {
                 throw failure;
             }
-            if (!"jws".equals(signedTransaction)) {
-                throw new StoreException(StoreException.Kind.INVALID, "invalid_store_receipt");
-            }
-            return transaction;
-        }
-
-        @Override
-        public AppleNotification verifyNotification(String signedPayload) {
-            if (!"payload".equals(signedPayload)) {
-                throw new StoreException(StoreException.Kind.INVALID, "invalid_store_receipt");
-            }
-            return notification;
-        }
-
-        @Override
-        public Optional<AppleTransaction> latest(String originalTransactionId, String environment) {
-            return Optional.ofNullable(latest);
+            return Optional.ofNullable(customers.get(appUserId));
         }
     }
 
-    static class FakeGoogle implements GoogleStoreGateway {
-        GoogleSubscription subscription;
-        final List<String> acknowledged = new ArrayList<>();
-        StoreException failure;
-
-        @Override
-        public boolean configured() {
-            return true;
-        }
-
-        @Override
-        public String packageName() {
-            return "com.acttub.app";
-        }
-
-        @Override
-        public GoogleSubscription get(String purchaseToken) {
-            if (failure != null) {
-                throw failure;
-            }
-            return subscription;
-        }
-
-        @Override
-        public void acknowledge(String productId, String purchaseToken) {
-            acknowledged.add(purchaseToken);
-        }
+    static StoreSubscription active(String store, String product, Instant expires) {
+        return new StoreSubscription(store, product, T0.minus(Duration.ofDays(1)), expires, null, null, null, null, false, "tx-1");
     }
 
-    AppleTransaction appleTx(UUID account, Instant expires, Boolean autoRenew) {
-        return new AppleTransaction(ORIGINAL, "t1", BillingRules.STORE_PRODUCT_ID, account, T0.minus(Duration.ofDays(1)),
-                expires, null, autoRenew, null, false, "Sandbox");
+    static StoreSubscription with(StoreSubscription s, Instant grace, Instant unsubscribed, Instant billingIssue, Instant refunded) {
+        return new StoreSubscription(s.store(), s.productId(), s.purchaseDate(), s.expiresDate(), grace, unsubscribed, billingIssue,
+                refunded, s.sandbox(), s.storeTransactionId());
     }
 
-    AppleNotification notice(String type, Instant signed, AppleTransaction tx) {
-        return new AppleNotification("n-" + type, type, null, signed, tx);
+    void owns(UUID who, StoreSubscription sub) {
+        revenueCat.customers.put(who.toString(), sub);
     }
 
-    GoogleSubscription googleSub(String state, UUID account, Instant expiry, boolean autoRenew, boolean acknowledged) {
-        return new GoogleSubscription(state, BillingRules.STORE_PRODUCT_ID, T0.minus(Duration.ofDays(1)), expiry, autoRenew,
-                account == null ? null : account.toString(), null, acknowledged);
+    static JsonNode event(String type, UUID appUserId, String... extra) throws Exception {
+        String aliases = String.join(",", java.util.Arrays.stream(extra).map(a -> "\"" + a + "\"").toList());
+        return JSON.readTree("{\"api_version\":\"1.0\",\"event\":{\"id\":\"evt-1\",\"type\":\"" + type + "\",\"app_user_id\":\""
+                + appUserId + "\",\"original_app_user_id\":\"" + appUserId + "\",\"aliases\":[" + aliases + "],"
+                + "\"store\":\"APP_STORE\",\"expiration_at_ms\":1,\"entitlement_ids\":[\"pro\"]}}");
     }
 
-    static String rtdn(String token) {
-        String json = "{\"version\":\"1.0\",\"packageName\":\"com.acttub.app\",\"eventTimeMillis\":\"1\","
-                + "\"subscriptionNotification\":{\"version\":\"1.0\",\"notificationType\":2,\"purchaseToken\":\"" + token
-                + "\",\"subscriptionId\":\"acttub_pro_monthly\"}}";
-        return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
-    }
-
-    SubscriptionService.View verifyApple() {
-        return service.verify(user, false, "ios", BillingRules.STORE_PRODUCT_ID, "jws", null);
-    }
-
-    SubscriptionService.View verifyGoogle() {
-        return service.verify(user, false, "android", BillingRules.STORE_PRODUCT_ID, null, TOKEN);
-    }
+    // ── 동기화 ────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("Apple 구매를 검증하면 구독이 apple 출처로 기록되고 Pro 가 켜진다")
-    void appleVerifyTurnsProOn() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        SubscriptionService.View view = verifyApple();
+    @DisplayName("App Store 구독이 있으면 동기화가 apple 출처로 기록하고 Pro 를 켠다")
+    void syncAppleTurnsProOn() {
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        SubscriptionService.View view = service.sync(user, false);
         assertThat(view.pro()).isTrue();
         assertThat(view.provider()).isEqualTo("apple");
         assertThat(view.status()).isEqualTo("active");
         assertThat(view.periodEnd()).isEqualTo(T0.plus(Duration.ofDays(30)));
+        assertThat(view.amount()).isEqualTo(3900L);
         assertThat(subscriptions.pro(user)).isTrue();
     }
 
     @Test
-    @DisplayName("연 구독(acttub_pro_yearly)도 Apple·Google 모두 검증하면 Pro 가 켜지고 상품 ID 가 남는다")
-    void yearlyProductTurnsProOn() {
-        apple.transaction = new AppleTransaction(ORIGINAL, "t1", BillingRules.STORE_PRODUCT_YEARLY_ID, user,
-                T0.minus(Duration.ofDays(1)), T0.plus(Duration.ofDays(365)), null, null, null, false, "Sandbox");
-        SubscriptionService.View view = service.verify(user, false, "ios", BillingRules.STORE_PRODUCT_YEARLY_ID, "jws", null);
+    @DisplayName("Play 연 구독은 google 출처·연 금액(32,500원)으로 기록된다")
+    void syncGoogleYearly() {
+        owns(user, active("play_store", "acttub_pro_yearly", T0.plus(Duration.ofDays(365))));
+        SubscriptionService.View view = service.sync(user, false);
+        assertThat(view.provider()).isEqualTo("google");
+        assertThat(view.amount()).isEqualTo(32500L);
         assertThat(view.pro()).isTrue();
-        assertThat(view.periodEnd()).isEqualTo(T0.plus(Duration.ofDays(365)));
+    }
 
-        UUID other = UUID.randomUUID();
-        google.subscription = new GoogleSubscription("SUBSCRIPTION_STATE_ACTIVE", BillingRules.STORE_PRODUCT_YEARLY_ID,
-                T0.minus(Duration.ofDays(1)), T0.plus(Duration.ofDays(365)), true, other.toString(), null, false);
-        assertThat(service.verify(other, false, "android", BillingRules.STORE_PRODUCT_YEARLY_ID, null, TOKEN).pro()).isTrue();
+    @Test
+    @DisplayName("같은 동기화를 여러 번 해도 줄은 하나이고 결과가 같다(멱등)")
+    void syncIsIdempotent() {
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        SubscriptionService.View first = service.sync(user, false);
+        SubscriptionService.View second = service.sync(user, false);
+        assertThat(repository.subscriptions).hasSize(1);
+        assertThat(second).isEqualTo(first);
+    }
+
+    @Test
+    @DisplayName("RevenueCat 에 entitlement 가 없으면 아무 줄도 만들지 않고 Pro 가 아니다")
+    void syncWithoutEntitlement() {
+        SubscriptionService.View view = service.sync(user, false);
+        assertThat(view.pro()).isFalse();
+        assertThat(repository.subscriptions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("끝난 옛 구매만 있으면 새 줄을 만들지 않는다")
+    void expiredOnlyCreatesNothing() {
+        owns(user, active("app_store", "acttub_pro_monthly", T0.minus(Duration.ofDays(3))));
+        assertThat(service.sync(user, false).pro()).isFalse();
+        assertThat(repository.subscriptions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("우리 상품이 아니거나 App Store·Play 가 아닌 출처(프로모션 등)는 받지 않는다")
+    void unknownProductOrStoreIgnored() {
+        owns(user, active("app_store", "acttub_pro_weekly", T0.plus(Duration.ofDays(30))));
+        assertThat(service.sync(user, false).pro()).isFalse();
+        owns(user, active("promotional", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        assertThat(service.sync(user, false).pro()).isFalse();
+        owns(user, active(null, "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        assertThat(service.sync(user, false).pro()).isFalse();
+        assertThat(repository.subscriptions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("게스트는 403, 앱 결제가 꺼져 있으면 404, RevenueCat 장애는 502, 설정 없음은 503 이고 아무것도 기록하지 않는다")
+    void syncErrors() {
+        assertThatThrownBy(() -> service.sync(user, true)).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.status()).isEqualTo(403));
+        StoreBillingService closed = new StoreBillingService(new BillingSettings(false, false, false, "", "", "", ""), repository,
+                subscriptions, revenueCat, clock);
+        assertThatThrownBy(() -> closed.sync(user, false)).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.status()).isEqualTo(404));
+        revenueCat.failure = new StoreException(StoreException.Kind.UPSTREAM, "x");
+        assertThatThrownBy(() -> service.sync(user, false)).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.status()).isEqualTo(502));
+        StoreBillingService off = new StoreBillingService(settings, repository, subscriptions, StoreGateways.revenueCatDisabled(), clock);
+        assertThatThrownBy(() -> off.sync(user, false)).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.status()).isEqualTo(503));
+        assertThat(repository.subscriptions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("토스로 이용 중인 사람은 스토어 구독이 유효해도 409 already_subscribed 이고 토스 줄은 그대로다")
+    void tossBlocksStore() {
+        UUID id = repository.storeSubscription(user, "toss", Status.ACTIVE, T0.plus(Duration.ofDays(10)));
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        assertThatThrownBy(() -> service.sync(user, false)).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.getMessage()).contains("already_subscribed"));
+        assertThat(repository.subscriptions.get(id).provider()).isEqualTo("toss");
+        assertThat(repository.storeWrites).isZero();
+    }
+
+    @Test
+    @DisplayName("만료된 토스 줄이 있으면 스토어 구독으로 바뀐다")
+    void expiredTossBecomesStore() {
+        repository.storeSubscription(user, "toss", Status.EXPIRED, T0.minus(Duration.ofDays(3)));
+        owns(user, active("play_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        SubscriptionService.View view = service.sync(user, false);
+        assertThat(view.provider()).isEqualTo("google");
+        assertThat(view.pro()).isTrue();
+        assertThat(repository.subscriptions).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("스토어 구독은 active 여도 기간(여유 포함)이 지나면 Pro 가 아니다")
+    void storeProExpiresWithPeriod() {
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        service.sync(user, false);
+        clock.set(T0.plus(Duration.ofDays(30)).plus(BillingRules.STORE_RENEWAL_SKEW).minusSeconds(1));
+        assertThat(subscriptions.pro(user)).isTrue();
+        clock.set(T0.plus(Duration.ofDays(30)).plus(BillingRules.STORE_RENEWAL_SKEW).plusSeconds(1));
+        assertThat(subscriptions.pro(user)).isFalse();
+        assertThat(BillingRules.pro(Status.CANCELED, T0, T0, "apple")).isFalse();
+        assertThat(BillingRules.pro(Status.CANCELED, T0.plusSeconds(1), T0, "google")).isTrue();
+        assertThat(BillingRules.pro(Status.PAST_DUE, T0.plusSeconds(1), T0, "google")).isFalse();
+        // 토스는 기존 규칙 그대로 — active 는 기간과 상관없이 Pro.
+        assertThat(BillingRules.pro(Status.ACTIVE, T0.minus(Duration.ofDays(9)), T0, "toss")).isTrue();
     }
 
     @Test
@@ -184,307 +218,209 @@ class StoreBillingServiceTest {
     }
 
     @Test
-    @DisplayName("같은 거래를 다시 검증해도 줄은 하나이고 결과가 같다")
-    void appleVerifyTwiceIsIdempotent() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        verifyApple();
-        verifyApple();
-        assertThat(repository.subscriptions).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("App Store Server API 최신 상태가 있으면 자동갱신 끔을 반영해 canceled 가 된다")
-    void appleLatestStatusShowsCanceled() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        apple.latest = appleTx(user, T0.plus(Duration.ofDays(30)), false);
-        SubscriptionService.View view = verifyApple();
-        assertThat(view.status()).isEqualTo("canceled");
-        assertThat(view.pro()).isTrue();
-    }
-
-    @Test
-    @DisplayName("거래의 appAccountToken 이 요청 사용자와 다르거나 없으면 403 store_account_mismatch")
-    void appleAccountMismatchRejected() {
-        apple.transaction = appleTx(UUID.randomUUID(), T0.plus(Duration.ofDays(30)), null);
-        assertThatThrownBy(this::verifyApple).isInstanceOfSatisfying(ApiException.class,
-                e -> assertThat(e.getMessage()).contains("store_account_mismatch"));
-        apple.transaction = appleTx(null, T0.plus(Duration.ofDays(30)), null);
-        assertThatThrownBy(this::verifyApple).isInstanceOf(ApiException.class);
-        assertThat(repository.subscriptions).isEmpty();
-    }
-
-    @Test
-    @DisplayName("같은 원거래를 다른 사용자가 이미 쓰고 있으면 409 store_account_conflict")
-    void sameTransactionOtherUserRejected() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        verifyApple();
-        UUID other = UUID.randomUUID();
-        apple.transaction = appleTx(other, T0.plus(Duration.ofDays(30)), null);
-        assertThatThrownBy(() -> service.verify(other, false, "ios", null, "jws", null))
-                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getMessage()).contains("store_account_conflict"));
-        assertThat(repository.find(other)).isEmpty();
-    }
-
-    @Test
-    @DisplayName("저장소 유니크 위반(경합)도 store_account_conflict 로 거부한다")
-    void uniqueViolationBecomesConflict() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        repository.uniqueViolation = true;
-        assertThatThrownBy(this::verifyApple).isInstanceOfSatisfying(ApiException.class,
-                e -> assertThat(e.getMessage()).contains("store_account_conflict"));
-    }
-
-    @Test
-    @DisplayName("상품이 다르면 422, 게스트는 403, 앱 결제가 꺼져 있으면 404")
-    void guardRails() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        assertThatThrownBy(() -> service.verify(user, false, "ios", "other_product", "jws", null)).isInstanceOf(ApiException.class);
-        assertThatThrownBy(() -> service.verify(user, true, "ios", null, "jws", null)).isInstanceOf(ApiException.class);
-        assertThatThrownBy(() -> service.verify(user, false, "web", null, "jws", null)).isInstanceOf(ApiException.class);
-        StoreBillingService off = new StoreBillingService(BillingSettings.disabled(), repository, subscriptions, apple, google, clock);
-        assertThatThrownBy(() -> off.verify(user, false, "ios", null, "jws", null)).isInstanceOfSatisfying(ApiException.class,
-                e -> assertThat(e.getMessage()).contains("billing_unavailable"));
-        assertThat(repository.subscriptions).isEmpty();
-    }
-
-    @Test
-    @DisplayName("가짜 서명(검증 실패)은 422, 스토어 장애는 502, 설정 없음은 503 이고 아무것도 기록하지 않는다")
-    void verificationFailures() {
-        assertThatThrownBy(() -> service.verify(user, false, "ios", null, "forged", null)).isInstanceOfSatisfying(ApiException.class,
-                e -> assertThat(e.getMessage()).contains("invalid_store_receipt"));
-        apple.failure = new StoreException(StoreException.Kind.UPSTREAM, "store_upstream_error");
-        assertThatThrownBy(this::verifyApple).isInstanceOf(ApiException.class);
-        apple.failure = new StoreException(StoreException.Kind.UNAVAILABLE, "store_unavailable");
-        assertThatThrownBy(this::verifyApple).isInstanceOf(ApiException.class);
-        assertThat(repository.subscriptions).isEmpty();
-    }
-
-    @Test
-    @DisplayName("토스로 이용 중인 사람의 스토어 구독은 409 already_subscribed 이고 토스 줄은 그대로다")
-    void tossBlocksStore() {
-        UUID id = repository.storeSubscription(user, "toss", Status.ACTIVE, T0.plus(Duration.ofDays(10)));
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        assertThatThrownBy(this::verifyApple).isInstanceOfSatisfying(ApiException.class,
-                e -> assertThat(e.getMessage()).contains("already_subscribed"));
-        assertThat(repository.subscriptions.get(id).provider()).isEqualTo("toss");
-    }
-
-    @Test
-    @DisplayName("다른 스토어 구독이 유효하면 새 스토어 구독을 받지 않는다(사용자당 하나)")
-    void otherStoreActiveBlocks() {
-        google.subscription = googleSub("SUBSCRIPTION_STATE_ACTIVE", user, T0.plus(Duration.ofDays(20)), true, true);
-        verifyGoogle();
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        assertThatThrownBy(this::verifyApple).isInstanceOfSatisfying(ApiException.class,
-                e -> assertThat(e.getMessage()).contains("already_subscribed"));
-        assertThat(repository.find(user).orElseThrow().provider()).isEqualTo("google");
-    }
-
-    @Test
-    @DisplayName("이미 끝난 옛 구매를 복원해도 유효한 구독 줄을 덮지 않는다")
-    void restoringExpiredPurchaseKeepsCurrent() {
-        google.subscription = googleSub("SUBSCRIPTION_STATE_ACTIVE", user, T0.plus(Duration.ofDays(20)), true, true);
-        verifyGoogle();
-        apple.transaction = appleTx(user, T0.minus(Duration.ofDays(40)), null);
-        SubscriptionService.View view = verifyApple();
-        assertThat(view.provider()).isEqualTo("google");
-        assertThat(view.pro()).isTrue();
-    }
-
-    @Test
-    @DisplayName("만료된 토스 줄이 있으면 스토어 구독으로 바뀌고 카드 정보는 지워진다")
-    void expiredTossReplacedByStore() {
-        repository.storeSubscription(user, "toss", Status.EXPIRED, T0.minus(Duration.ofDays(3)));
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        SubscriptionService.View view = verifyApple();
-        assertThat(view.provider()).isEqualTo("apple");
-        assertThat(view.pro()).isTrue();
-        assertThat(view.cardLast4()).isNull();
-    }
-
-    @Test
-    @DisplayName("스토어 구독은 active 여도 기간(여유 포함)이 지나면 Pro 가 아니다")
-    void storeProExpiresWithPeriod() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        verifyApple();
-        clock.set(T0.plus(Duration.ofDays(30)).plus(BillingRules.STORE_RENEWAL_SKEW).minusSeconds(1));
-        assertThat(subscriptions.pro(user)).isTrue();
-        clock.set(T0.plus(Duration.ofDays(30)).plus(BillingRules.STORE_RENEWAL_SKEW).plusSeconds(1));
-        assertThat(subscriptions.pro(user)).isFalse();
-        assertThat(BillingRules.pro(Status.CANCELED, T0, T0, "apple")).isFalse();
-        assertThat(BillingRules.pro(Status.CANCELED, T0.plusSeconds(1), T0, "google")).isTrue();
-        assertThat(BillingRules.pro(Status.PAST_DUE, T0.plusSeconds(1), T0, "google")).isFalse();
-        // 토스는 기존 규칙 그대로 — active 는 기간과 상관없이 Pro.
-        assertThat(BillingRules.pro(Status.ACTIVE, T0.minus(Duration.ofDays(9)), T0, "toss")).isTrue();
-    }
-
-    @Test
-    @DisplayName("Apple 갱신 알림은 기간을 늘리고, 같은 알림을 또 받아도 결과가 같다(멱등)")
-    void appleRenewalNotificationIdempotent() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        verifyApple();
-        Instant renewed = T0.plus(Duration.ofDays(60));
-        clock.set(T0.plus(Duration.ofDays(29)));
-        apple.notification = notice("DID_RENEW", clock.instant(), appleTx(user, renewed, true));
-        assertThat(service.handleAppleNotification("payload")).isEqualTo(NotificationResult.APPLIED);
-        Subscription first = repository.find(user).orElseThrow();
-        assertThat(first.periodEnd()).isEqualTo(renewed);
-        assertThat(service.handleAppleNotification("payload")).isIn(NotificationResult.APPLIED, NotificationResult.IGNORED);
-        Subscription second = repository.find(user).orElseThrow();
-        assertThat(second.periodEnd()).isEqualTo(renewed);
-        assertThat(second.status()).isEqualTo(Status.ACTIVE);
-        assertThat(repository.subscriptions).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("늦게 도착한 옛 알림이 더 새로운 상태를 되돌리지 못한다")
-    void staleAppleNotificationIgnored() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        verifyApple();
-        clock.set(T0.plus(Duration.ofDays(1)));
-        apple.notification = notice("DID_CHANGE_RENEWAL_STATUS", clock.instant(), appleTx(user, T0.plus(Duration.ofDays(30)), false));
-        service.handleAppleNotification("payload");
-        assertThat(repository.find(user).orElseThrow().status()).isEqualTo(Status.CANCELED);
-        // 자동갱신을 다시 켠 알림(더 나중)을 반영한 뒤, 그보다 먼저 서명된 '끔' 알림이 뒤늦게 도착한다.
-        clock.set(T0.plus(Duration.ofDays(2)));
-        apple.notification = notice("DID_CHANGE_RENEWAL_STATUS", clock.instant(), appleTx(user, T0.plus(Duration.ofDays(30)), true));
-        service.handleAppleNotification("payload");
-        assertThat(repository.find(user).orElseThrow().status()).isEqualTo(Status.ACTIVE);
-        apple.notification = notice("DID_CHANGE_RENEWAL_STATUS", T0.plus(Duration.ofDays(1)), appleTx(user, T0.plus(Duration.ofDays(30)), false));
-        assertThat(service.handleAppleNotification("payload")).isEqualTo(NotificationResult.IGNORED);
-        assertThat(repository.find(user).orElseThrow().status()).isEqualTo(Status.ACTIVE);
-    }
-
-    @Test
-    @DisplayName("환불·만료·결제 재시도 알림이 상태를 바꾼다")
-    void appleRefundExpireAndRetry() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        verifyApple();
-        clock.set(T0.plus(Duration.ofDays(5)));
-        apple.notification = notice("REFUND", clock.instant(), appleTx(user, T0.plus(Duration.ofDays(30)), true));
-        service.handleAppleNotification("payload");
-        assertThat(repository.find(user).orElseThrow().status()).isEqualTo(Status.EXPIRED);
-        assertThat(subscriptions.pro(user)).isFalse();
-        // 만료 뒤 결제 재시도 중이면 past_due, 유예기간이면 그 끝까지 active.
-        clock.set(T0.plus(Duration.ofDays(31)));
-        AppleTransaction retry = new AppleTransaction(ORIGINAL, "t1", BillingRules.STORE_PRODUCT_ID, user, T0, T0.plus(Duration.ofDays(30)),
-                null, true, null, true, "Sandbox");
-        apple.notification = notice("DID_FAIL_TO_RENEW", clock.instant(), retry);
-        service.handleAppleNotification("payload");
-        assertThat(repository.find(user).orElseThrow().status()).isEqualTo(Status.PAST_DUE);
-        AppleTransaction grace = new AppleTransaction(ORIGINAL, "t1", BillingRules.STORE_PRODUCT_ID, user, T0, T0.plus(Duration.ofDays(30)),
-                null, true, T0.plus(Duration.ofDays(40)), true, "Sandbox");
-        clock.set(T0.plus(Duration.ofDays(32)));
-        apple.notification = notice("DID_FAIL_TO_RENEW", clock.instant(), grace);
-        service.handleAppleNotification("payload");
-        assertThat(subscriptions.pro(user)).isTrue();
-    }
-
-    @Test
-    @DisplayName("아직 앱이 검증하지 않은 구매·다른 사용자 토큰의 알림은 무시하고, 서명이 틀리면 예외")
-    void appleUnknownNotificationIgnored() {
-        apple.notification = notice("DID_RENEW", T0, appleTx(user, T0.plus(Duration.ofDays(30)), true));
-        assertThat(service.handleAppleNotification("payload")).isEqualTo(NotificationResult.IGNORED);
-        assertThat(repository.subscriptions).isEmpty();
-        apple.notification = notice("TEST", T0, null);
-        assertThat(service.handleAppleNotification("payload")).isEqualTo(NotificationResult.IGNORED);
-        assertThatThrownBy(() -> service.handleAppleNotification("forged")).isInstanceOf(StoreException.class);
-        // 기록된 줄이 있어도 다른 사용자의 토큰이 실린 알림은 반영하지 않는다.
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        verifyApple();
-        apple.notification = notice("EXPIRED", T0.plusSeconds(60), appleTx(UUID.randomUUID(), T0.minus(Duration.ofDays(1)), true));
-        assertThat(service.handleAppleNotification("payload")).isEqualTo(NotificationResult.IGNORED);
-        assertThat(repository.find(user).orElseThrow().status()).isEqualTo(Status.ACTIVE);
-    }
-
-    @Test
-    @DisplayName("Google 구매를 검증하면 Pro 가 켜지고 서버가 승인한다(이미 승인된 건 다시 승인하지 않는다)")
-    void googleVerifyAcknowledges() {
-        google.subscription = googleSub("SUBSCRIPTION_STATE_ACTIVE", user, T0.plus(Duration.ofDays(30)), true, false);
-        SubscriptionService.View view = verifyGoogle();
-        assertThat(view.pro()).isTrue();
-        assertThat(view.provider()).isEqualTo("google");
-        assertThat(google.acknowledged).containsExactly(TOKEN);
-        google.subscription = googleSub("SUBSCRIPTION_STATE_ACTIVE", user, T0.plus(Duration.ofDays(30)), true, true);
-        verifyGoogle();
-        assertThat(google.acknowledged).hasSize(1);
-        assertThat(repository.subscriptions).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("Google obfuscatedAccountId 가 다르거나 없으면 403, 결제 대기면 409, 기록하지 않는다")
-    void googleRejections() {
-        google.subscription = googleSub("SUBSCRIPTION_STATE_ACTIVE", UUID.randomUUID(), T0.plus(Duration.ofDays(30)), true, false);
-        assertThatThrownBy(this::verifyGoogle).isInstanceOfSatisfying(ApiException.class,
-                e -> assertThat(e.getMessage()).contains("store_account_mismatch"));
-        google.subscription = googleSub("SUBSCRIPTION_STATE_ACTIVE", null, T0.plus(Duration.ofDays(30)), true, false);
-        assertThatThrownBy(this::verifyGoogle).isInstanceOf(ApiException.class);
-        google.subscription = googleSub("SUBSCRIPTION_STATE_PENDING", user, T0.plus(Duration.ofDays(30)), true, false);
-        assertThatThrownBy(this::verifyGoogle).isInstanceOfSatisfying(ApiException.class,
-                e -> assertThat(e.getMessage()).contains("payment_pending"));
-        assertThat(repository.subscriptions).isEmpty();
-        assertThat(google.acknowledged).isEmpty();
-    }
-
-    @Test
-    @DisplayName("Google 상태 매핑: 자동갱신 끔 canceled, 유예 active(+7일), 보류 past_due, 만료 expired")
-    void googleStateMapping() {
-        Instant end = T0.plus(Duration.ofDays(3));
-        assertThat(StoreBillingService.googleState("t", googleSub("SUBSCRIPTION_STATE_ACTIVE", user, end, false, true), T0).status())
-                .isEqualTo(Status.CANCELED);
-        assertThat(StoreBillingService.googleState("t", googleSub("SUBSCRIPTION_STATE_CANCELED", user, end, false, true), T0).status())
-                .isEqualTo(Status.CANCELED);
-        var grace = StoreBillingService.googleState("t", googleSub("SUBSCRIPTION_STATE_IN_GRACE_PERIOD", user, end, true, true), T0);
-        assertThat(grace.status()).isEqualTo(Status.ACTIVE);
-        assertThat(grace.periodEnd()).isEqualTo(end.plus(BillingRules.GOOGLE_GRACE));
-        assertThat(StoreBillingService.googleState("t", googleSub("SUBSCRIPTION_STATE_ON_HOLD", user, end, true, true), T0).status())
-                .isEqualTo(Status.PAST_DUE);
-        assertThat(StoreBillingService.googleState("t", googleSub("SUBSCRIPTION_STATE_EXPIRED", user, end, false, true), T0).status())
-                .isEqualTo(Status.EXPIRED);
-    }
-
-    @Test
-    @DisplayName("RTDN 은 구독을 다시 조회해 상태를 쓰고, 같은 알림을 여러 번 받아도 결과가 같다")
-    void googleNotificationRequeriesAndIsIdempotent() {
-        google.subscription = googleSub("SUBSCRIPTION_STATE_ACTIVE", user, T0.plus(Duration.ofDays(30)), true, true);
-        verifyGoogle();
-        clock.set(T0.plus(Duration.ofDays(10)));
-        google.subscription = googleSub("SUBSCRIPTION_STATE_CANCELED", user, T0.plus(Duration.ofDays(30)), false, true);
-        assertThat(service.handleGoogleNotification(rtdn(TOKEN))).isEqualTo(NotificationResult.APPLIED);
-        service.handleGoogleNotification(rtdn(TOKEN));
-        service.handleGoogleNotification(rtdn(TOKEN));
-        assertThat(repository.find(user).orElseThrow().status()).isEqualTo(Status.CANCELED);
-        assertThat(subscriptions.pro(user)).isTrue();
-        clock.set(T0.plus(Duration.ofDays(31)));
-        google.subscription = googleSub("SUBSCRIPTION_STATE_EXPIRED", user, T0.plus(Duration.ofDays(30)), false, true);
-        service.handleGoogleNotification(rtdn(TOKEN));
-        assertThat(subscriptions.pro(user)).isFalse();
-        assertThat(repository.subscriptions).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("RTDN: 모르는 토큰·다른 패키지·테스트 알림은 무시하고, 스토어 조회 실패는 예외로 다시 보내게 한다")
-    void googleNotificationEdgeCases() {
-        google.subscription = googleSub("SUBSCRIPTION_STATE_ACTIVE", user, T0.plus(Duration.ofDays(30)), true, true);
-        assertThat(service.handleGoogleNotification(rtdn("unknown"))).isEqualTo(NotificationResult.IGNORED);
-        String wrongPackage = Base64.getEncoder().encodeToString(
-                "{\"packageName\":\"com.other\",\"subscriptionNotification\":{\"purchaseToken\":\"x\"}}".getBytes(StandardCharsets.UTF_8));
-        assertThat(service.handleGoogleNotification(wrongPackage)).isEqualTo(NotificationResult.IGNORED);
-        String test = Base64.getEncoder().encodeToString(
-                "{\"packageName\":\"com.acttub.app\",\"testNotification\":{\"version\":\"1.0\"}}".getBytes(StandardCharsets.UTF_8));
-        assertThat(service.handleGoogleNotification(test)).isEqualTo(NotificationResult.IGNORED);
-        assertThatThrownBy(() -> service.handleGoogleNotification("%%%")).isInstanceOf(StoreException.class);
-        verifyGoogle();
-        google.failure = new StoreException(StoreException.Kind.UPSTREAM, "store_upstream_error");
-        assertThatThrownBy(() -> service.handleGoogleNotification(rtdn(TOKEN))).isInstanceOf(StoreException.class);
-    }
-
-    @Test
     @DisplayName("스토어 구독은 서버에서 해지·재시도할 수 없다(스토어에서 해지)")
     void storeSubscriptionIsNotServerCancelable() {
-        apple.transaction = appleTx(user, T0.plus(Duration.ofDays(30)), null);
-        verifyApple();
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        service.sync(user, false);
         assertThatThrownBy(() -> subscriptions.cancel(user)).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.getMessage()).contains("managed_by_store"));
+    }
+
+    // ── 상태 매핑 ──────────────────────────────────────────────────
+
+    StoreState map(StoreSubscription sub) {
+        return StoreBillingService.storeState(sub, T0, false).orElseThrow();
+    }
+
+    static StoreSubscription sandbox(StoreSubscription s) {
+        return new StoreSubscription(s.store(), s.productId(), s.purchaseDate(), s.expiresDate(), s.gracePeriodExpiresDate(),
+                s.unsubscribeDetectedAt(), s.billingIssuesDetectedAt(), s.refundedAt(), true, s.storeTransactionId());
+    }
+
+    @Test
+    @DisplayName("샌드박스 구매는 BILLING_REVENUECAT_ALLOW_SANDBOX 가 켜진 서버(dev)에서만 Pro 를 연다")
+    void sandboxOnlyWhenAllowed() {
+        owns(user, sandbox(active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30)))));
+        assertThat(service.sync(user, false).pro()).isFalse();
+        assertThat(repository.subscriptions).isEmpty();
+        StoreBillingService dev = new StoreBillingService(settings, repository, subscriptions, revenueCat, clock, true);
+        assertThat(dev.sync(user, false).pro()).isTrue();
+        // 운영 설정으로 다시 읽으면 샌드박스 줄은 끝낸다.
+        assertThat(service.sync(user, false).pro()).isFalse();
+        assertThat(repository.find(user).orElseThrow().status()).isEqualTo(Status.EXPIRED);
+    }
+
+    @Test
+    @DisplayName("상태 매핑: 기간 안 active, 자동 갱신 끔 canceled(끈 시각 기록), 환불 expired, 기간 지남 expired")
+    void mapsLifecycle() {
+        StoreSubscription base = active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(10)));
+        assertThat(map(base).status()).isEqualTo(Status.ACTIVE);
+        assertThat(map(base).provider()).isEqualTo("apple");
+        assertThat(map(base).storeTransactionId()).isEqualTo("tx-1");
+
+        Instant off = T0.minus(Duration.ofHours(2));
+        StoreState canceled = map(with(base, null, off, null, null));
+        assertThat(canceled.status()).isEqualTo(Status.CANCELED);
+        assertThat(canceled.canceledAt()).isEqualTo(off);
+        assertThat(canceled.periodEnd()).isEqualTo(T0.plus(Duration.ofDays(10)));
+
+        // 이번 기간 시작 뒤에 알아챈 환불은 기간이 남아 있어도 끝이다.
+        assertThat(map(with(base, null, null, null, T0.minus(Duration.ofHours(1)))).status()).isEqualTo(Status.EXPIRED);
+        // 지난 기간의 환불(이번 기간 시작 전)은 지금 구독에 영향이 없다.
+        assertThat(map(with(base, null, null, null, T0.minus(Duration.ofDays(40)))).status()).isEqualTo(Status.ACTIVE);
+
+        StoreSubscription over = active("play_store", "acttub_pro_monthly", T0.minus(Duration.ofHours(1)));
+        assertThat(map(over).status()).isEqualTo(Status.EXPIRED);
+        assertThat(map(over).provider()).isEqualTo("google");
+        assertThat(map(active("app_store", "acttub_pro_monthly", null)).status()).isEqualTo(Status.EXPIRED);
+    }
+
+    @Test
+    @DisplayName("결제 문제(billing issue): 기간 안이면 active, 유예 안이면 active(유예 끝까지), 유예도 끝나면 past_due(Pro 아님)")
+    void mapsBillingIssues() {
+        Instant issue = T0.minus(Duration.ofDays(1));
+        StoreSubscription inPeriod = with(active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(2))), null, null, issue, null);
+        assertThat(map(inPeriod).status()).isEqualTo(Status.ACTIVE);
+
+        Instant graceEnd = T0.plus(Duration.ofDays(3));
+        StoreSubscription inGrace = with(active("play_store", "acttub_pro_monthly", T0.minus(Duration.ofDays(1))), graceEnd, null, issue,
+                null);
+        StoreState grace = map(inGrace);
+        assertThat(grace.status()).isEqualTo(Status.ACTIVE);
+        assertThat(grace.periodEnd()).isEqualTo(graceEnd);
+
+        StoreSubscription retrying = with(active("app_store", "acttub_pro_monthly", T0.minus(Duration.ofDays(1))),
+                T0.minus(Duration.ofHours(1)), null, issue, null);
+        StoreState pastDue = map(retrying);
+        assertThat(pastDue.status()).isEqualTo(Status.PAST_DUE);
+        assertThat(BillingRules.pro(pastDue.status(), pastDue.periodEnd(), T0, pastDue.provider())).isFalse();
+    }
+
+    @Test
+    @DisplayName("결제 문제로 past_due 가 된 줄은 동기화로 기록되고 Pro 가 꺼진다. 해결되면 다시 active")
+    void billingIssueRoundTrip() {
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        service.sync(user, false);
+        clock.set(T0.plus(Duration.ofDays(31)));
+        owns(user, with(active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))), null, null,
+                T0.plus(Duration.ofDays(30)), null));
+        SubscriptionService.View view = service.sync(user, false);
+        assertThat(view.status()).isEqualTo("past_due");
+        assertThat(view.pro()).isFalse();
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(61))));
+        assertThat(service.sync(user, false).pro()).isTrue();
+    }
+
+    // ── 웹훅 ──────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("웹훅은 본문 상태를 믿지 않고 RevenueCat 을 다시 읽어 쓰며, 같은 이벤트를 여러 번 받아도 결과가 같다(멱등)")
+    void webhookRereadsAndIsIdempotent() throws Exception {
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        // 본문은 EXPIRATION 이라고 하지만 RevenueCat 의 현재 상태는 active 다 — 현재 상태가 이긴다.
+        JsonNode body = event("EXPIRATION", user);
+        for (int i = 0; i < 3; i++) {
+            assertThat(service.handleRevenueCatEvent(body)).isEqualTo(NotificationResult.APPLIED);
+        }
+        assertThat(repository.subscriptions).hasSize(1);
+        assertThat(subscriptions.view(user).status()).isEqualTo("active");
+        assertThat(revenueCat.calls).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("만료·환불 웹훅 뒤 RevenueCat 이 끝났다고 하면 expired 가 되고 Pro 가 꺼진다")
+    void webhookExpiresAndRefunds() throws Exception {
+        owns(user, active("play_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        service.sync(user, false);
+        owns(user, with(active("play_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))), null, null, null,
+                T0.plus(Duration.ofMinutes(5))));
+        clock.set(T0.plus(Duration.ofMinutes(10)));
+        service.handleRevenueCatEvent(event("CANCELLATION", user));
+        assertThat(subscriptions.view(user).status()).isNotEqualTo("active");
+        assertThat(subscriptions.pro(user)).isFalse();
+
+        UUID other = UUID.randomUUID();
+        owns(other, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(1))));
+        service.sync(other, false);
+        clock.set(T0.plus(Duration.ofDays(2)));
+        service.handleRevenueCatEvent(event("EXPIRATION", other));
+        assertThat(subscriptions.pro(other)).isFalse();
+        assertThat(repository.find(other).orElseThrow().status()).isEqualTo(Status.EXPIRED);
+    }
+
+    @Test
+    @DisplayName("다른 계정으로 옮겨지면(TRANSFER) 양쪽을 다시 읽어 옛 계정은 expired, 새 계정은 active")
+    void transferMovesBothSides() throws Exception {
+        UUID from = UUID.randomUUID();
+        owns(from, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        service.sync(from, false);
+        revenueCat.customers.remove(from.toString());
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        JsonNode transfer = JSON.readTree("{\"api_version\":\"1.0\",\"event\":{\"id\":\"e\",\"type\":\"TRANSFER\","
+                + "\"transferred_from\":[\"" + from + "\"],\"transferred_to\":[\"" + user + "\"]}}");
+        assertThat(service.handleRevenueCatEvent(transfer)).isEqualTo(NotificationResult.APPLIED);
+        assertThat(repository.find(from).orElseThrow().status()).isEqualTo(Status.EXPIRED);
+        assertThat(subscriptions.pro(user)).isTrue();
+        // 다시 와도 같다.
+        service.handleRevenueCatEvent(transfer);
+        assertThat(repository.find(from).orElseThrow().status()).isEqualTo(Status.EXPIRED);
+        assertThat(subscriptions.pro(user)).isTrue();
+    }
+
+    @Test
+    @DisplayName("웹훅: TEST·익명 ID·기능 꺼짐은 무시하고, 본문 꼴이 틀리면 INVALID, RevenueCat 장애는 UPSTREAM 으로 다시 보내게 한다")
+    void webhookIgnoresAndFails() throws Exception {
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        assertThat(service.handleRevenueCatEvent(event("TEST", user))).isEqualTo(NotificationResult.IGNORED);
+        JsonNode anonymous = JSON.readTree("{\"event\":{\"type\":\"INITIAL_PURCHASE\",\"app_user_id\":\"$RCAnonymousID:abc\","
+                + "\"aliases\":[\"$RCAnonymousID:abc\"]}}");
+        assertThat(service.handleRevenueCatEvent(anonymous)).isEqualTo(NotificationResult.IGNORED);
+        assertThat(revenueCat.calls).isZero();
+
+        StoreBillingService closed = new StoreBillingService(new BillingSettings(false, false, false, "", "", "", ""), repository,
+                subscriptions, revenueCat, clock);
+        assertThat(closed.handleRevenueCatEvent(event("RENEWAL", user))).isEqualTo(NotificationResult.IGNORED);
+        StoreBillingService off = new StoreBillingService(settings, repository, subscriptions, StoreGateways.revenueCatDisabled(), clock);
+        assertThat(off.handleRevenueCatEvent(event("RENEWAL", user))).isEqualTo(NotificationResult.IGNORED);
+
+        assertThatThrownBy(() -> service.handleRevenueCatEvent(JSON.readTree("{\"nope\":1}")))
+                .isInstanceOfSatisfying(StoreException.class, e -> assertThat(e.kind()).isEqualTo(StoreException.Kind.INVALID));
+        assertThatThrownBy(() -> service.handleRevenueCatEvent(null))
+                .isInstanceOfSatisfying(StoreException.class, e -> assertThat(e.kind()).isEqualTo(StoreException.Kind.INVALID));
+
+        revenueCat.failure = new StoreException(StoreException.Kind.UPSTREAM, "x");
+        assertThatThrownBy(() -> service.handleRevenueCatEvent(event("RENEWAL", user)))
+                .isInstanceOfSatisfying(StoreException.class, e -> assertThat(e.kind()).isEqualTo(StoreException.Kind.UPSTREAM));
+        assertThat(repository.subscriptions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("웹훅: 토스로 이용 중인 사람·탈퇴한 사람의 줄은 쓰지 않는다")
+    void webhookRespectsTossAndInactiveUsers() throws Exception {
+        UUID id = repository.storeSubscription(user, "toss", Status.ACTIVE, T0.plus(Duration.ofDays(10)));
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        assertThat(service.handleRevenueCatEvent(event("INITIAL_PURCHASE", user))).isEqualTo(NotificationResult.IGNORED);
+        assertThat(repository.subscriptions.get(id).provider()).isEqualTo("toss");
+
+        UUID gone = UUID.randomUUID();
+        repository.inactiveUsers.add(gone);
+        owns(gone, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        assertThat(service.handleRevenueCatEvent(event("RENEWAL", gone))).isEqualTo(NotificationResult.IGNORED);
+        assertThat(repository.find(gone)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("웹훅이 고르는 사람: app_user_id·original·aliases·이전 대상 중 UUID 꼴만, 중복 없이 최대 10명")
+    void webhookUserSelection() throws Exception {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        JsonNode e = JSON.readTree("{\"app_user_id\":\"" + a + "\",\"original_app_user_id\":\"" + a + "\",\"aliases\":[\"" + b
+                + "\",\"$RCAnonymousID:1\",3]}");
+        assertThat(StoreBillingService.users(e)).containsExactly(a, b);
+        StringBuilder many = new StringBuilder("{\"aliases\":[");
+        for (int i = 0; i < 15; i++) {
+            many.append(i == 0 ? "" : ",").append('"').append(UUID.randomUUID()).append('"');
+        }
+        assertThat(StoreBillingService.users(JSON.readTree(many.append("]}").toString()))).hasSize(StoreBillingService.MAX_USERS_PER_EVENT);
     }
 }

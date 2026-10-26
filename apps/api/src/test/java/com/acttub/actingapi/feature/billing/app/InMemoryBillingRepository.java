@@ -218,46 +218,40 @@ class InMemoryBillingRepository implements BillingRepository {
     }
 
     // ── 스토어 구독 ────────────────────────────────────────────────
-    final Map<UUID, String> storeKeys = new LinkedHashMap<>();
+    /** 스토어 거래 ID 기록(유일하지 않음)과 마지막으로 쓴 시각 — 멱등 확인용. */
+    final Map<UUID, String> storeTransactions = new LinkedHashMap<>();
     final Map<UUID, Instant> storeUpdatedAt = new LinkedHashMap<>();
-    /** 다른 계정이 이미 쓰는 키처럼 유니크 위반을 흉내 내려면 true. */
-    boolean uniqueViolation;
-
-    @Override
-    public Optional<StoreRow> findStore(String provider, String key) {
-        return subscriptions.values().stream()
-                .filter(s -> provider.equals(s.provider()) && key.equals(storeKeys.get(s.id())))
-                .findFirst()
-                .map(s -> new StoreRow(s.id(), s.userId(), s.provider(), s.status(), s.periodEnd(), storeUpdatedAt.get(s.id())));
-    }
+    /** 탈퇴처럼 활성 사용자가 아닌 사람. 이 사람에게는 스토어 줄을 쓰지 않는다. */
+    final java.util.Set<UUID> inactiveUsers = new java.util.HashSet<>();
+    int storeWrites;
 
     @Override
     public StoreSave saveStore(UUID userId, StoreState state, Instant now) {
-        if (uniqueViolation) {
-            return StoreSave.TAKEN;
+        if (inactiveUsers.contains(userId)) {
+            return StoreSave.BLOCKED;
         }
         Optional<Subscription> existing = find(userId);
-        UUID id = existing.map(Subscription::id).orElseGet(UUID::randomUUID);
         if (existing.isPresent() && existing.get().toss() && existing.get().status() != Status.EXPIRED) {
             return StoreSave.BLOCKED;
         }
-        put(new Subscription(id, userId, state.status(), null, null, null, null, BillingRules.AMOUNT, state.periodStart(),
-                state.periodEnd(), state.canceledAt(), 0, null, state.provider()));
-        storeKeys.put(id, state.key());
+        UUID id = existing.map(Subscription::id).orElseGet(UUID::randomUUID);
+        put(new Subscription(id, userId, state.status(), null, null, null, null, BillingRules.storeAmount(state.productId()),
+                state.periodStart(), state.periodEnd(), state.canceledAt(), 0, null, state.provider()));
+        storeTransactions.put(id, state.storeTransactionId());
         storeUpdatedAt.put(id, now);
+        storeWrites++;
         return StoreSave.SAVED;
     }
 
     @Override
-    public boolean updateStore(String provider, String key, StoreState state, Instant now) {
-        Optional<StoreRow> row = findStore(provider, key);
-        if (row.isEmpty()) {
+    public boolean expireStore(UUID userId, Instant now) {
+        Optional<Subscription> existing = find(userId);
+        if (existing.isEmpty() || existing.get().toss() || existing.get().status() == Status.EXPIRED) {
             return false;
         }
-        Subscription s = subscriptions.get(row.get().subscriptionId());
-        put(new Subscription(s.id(), s.userId(), state.status(), null, null, null, null, s.amount(),
-                state.periodStart() == null ? s.periodStart() : state.periodStart(), state.periodEnd(),
-                state.status() == Status.CANCELED ? now : null, 0, null, s.provider()));
+        Subscription s = existing.get();
+        put(new Subscription(s.id(), s.userId(), Status.EXPIRED, null, null, null, null, s.amount(), s.periodStart(),
+                s.periodEnd(), null, 0, null, s.provider()));
         storeUpdatedAt.put(s.id(), now);
         return true;
     }
