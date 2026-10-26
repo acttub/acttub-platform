@@ -119,7 +119,6 @@ import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
 import type { BillingMe } from '@/lib/billing';
-import type { VerifyBody } from '@/lib/store-billing';
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 import type { DiscoveryPayload } from '@/lib/discovery';
 import type { AirbridgeDevicePayload } from '@/lib/airbridge-device';
@@ -425,11 +424,11 @@ export const api = {
     return request('/v2/billing/me', {}, { auth: true, timeoutMs: 10_000 });
   },
   /**
-   * 스토어 구독 검증(2단계). 구매 뒤 거래 JWS(iOS)·구매 토큰(Android)을 보내면 서버가 스토어 쪽으로 확인하고 Pro 를 켠 상태를 돌려준다.
-   * 같은 영수증을 다시 보내도 결과가 같다(멱등).
+   * 스토어 구독 동기화(2단계, RevenueCat). 구매·복원 뒤 부르면 서버가 RevenueCat 에서 이 사람의 상태를 다시 읽어 반영하고
+   * me 와 같은 모양을 돌려준다. 여러 번 불러도 결과가 같다(멱등).
    */
-  verifyStorePurchase(body: VerifyBody): Promise<BillingMe> {
-    return request('/v2/billing/store/verify', jsonInit(body), { auth: true, timeoutMs: 20_000 });
+  syncStorePurchases(): Promise<BillingMe> {
+    return request('/v2/billing/store/sync', jsonInit({}), { auth: true, timeoutMs: 20_000 });
   },
 
 

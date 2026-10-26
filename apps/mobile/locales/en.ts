@@ -912,7 +912,6 @@ const en: DeepStringShape<typeof ko> = {
     errStore: 'Could not reach the store. Please try again in a moment.',
     errGeneric: 'Could not confirm the payment. Please try again in a moment.',
     errRetry: 'Your payment went through, but confirming it is taking a while. It will apply when you reopen the app.',
-    errAccount: 'This subscription was bought with another ACTTUB account. Please sign in with that account.',
     errAlready: 'You already have Pro.',
     errPending: 'The payment is not finished yet. It will apply once it completes.',
     history: 'Payment history',
