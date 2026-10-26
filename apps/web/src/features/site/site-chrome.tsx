@@ -30,8 +30,9 @@ export function SiteHeader({ current = "home" }: { current?: NavKey }) {
   const [open, setOpen] = useState(false);
   const appHref = useAppDownloadHref("landing_header");
 
+  // 흐림(backdrop-blur)은 스크롤할 때마다 뒤를 다시 그려 버벅임의 원인이 돼서 쓰지 않는다.
   return (
-    <header className="sticky top-0 z-30 border-b border-[#edf0f3] bg-white/95 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-[#edf0f3] bg-white">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-10 px-5 sm:h-[72px] sm:px-8">
         <Link href="/?intro=1" aria-label="ACTTUB 홈" className={`shrink-0 rounded ${FOCUS}`}>
           <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto sm:h-7" />

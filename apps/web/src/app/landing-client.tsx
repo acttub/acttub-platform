@@ -2,14 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
-import { useSectionPaging } from "@/features/site/section-paging";
+import { useScrollSettle } from "@/features/site/scroll-settle";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
@@ -73,7 +73,31 @@ export default function LandingClient() {
   // 다시 온 사람이 새 소개 화면을 못 봤다. 대신 첫 화면 링크를 「이어서 연습하기」로 바꿔 준다.
   // 서버 렌더에서는 게스트가 없다고 보고, 브라우저에서 저장소를 읽어 바꾼다.
   const returningGuest = useSyncExternalStore(subscribeAuthChange, hasGuestSession, () => false);
-  useSectionPaging();
+  // 데스크톱: 스크롤을 멈췄을 때 구간(data-snap) 윗부분이 머리 근처에 걸쳐 있으면 그 구간에 맞춘다.
+  useScrollSettle();
+  // 아래 구간(data-reveal)은 화면에 들어올 때 스르륵 나타난다.
+  // 숨김은 이 효과가 붙은 뒤(html.reveal-ready)에만 걸어서, 스크립트가 늦거나 없으면 그냥 보인다.
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const root = document.documentElement;
+    const targets = [...document.querySelectorAll<HTMLElement>("[data-reveal]")];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          (entry.target as HTMLElement).dataset.shown = "";
+          observer.unobserve(entry.target);
+        }
+      },
+      { rootMargin: "0px 0px -10% 0px" },
+    );
+    for (const el of targets) observer.observe(el);
+    root.classList.add("reveal-ready");
+    return () => {
+      observer.disconnect();
+      root.classList.remove("reveal-ready");
+    };
+  }, []);
 
   const features: Feature[] = [
     {
@@ -113,8 +137,7 @@ export default function LandingClient() {
   const faq = HOME_FAQ.map((q) => findFaq(q)).filter((item) => item !== undefined);
 
   return (
-    // data-landing-snap·data-snap: 데스크톱에서 한 번 내리면 다음 구간까지 부드럽게 넘어간다(useSectionPaging).
-    <div data-landing-snap className="min-h-dvh break-keep bg-white text-[#191f28]">
+    <div className="min-h-dvh break-keep bg-white text-[#191f28]">
       <SiteHeader current="home" />
       <main>
         {/* 첫 화면과 아래 요약 줄을 한 구간으로 묶어 데스크톱에서 한 화면을 채운다. */}
@@ -181,16 +204,19 @@ export default function LandingClient() {
           </div>
         </div>
 
+        {/* 기능 셋. 모든 구간이 같은 방식으로 내려가도록 고정·스크롤 연동 없이 글과 휴대폰을 나란히 둔다.
+            데스크톱은 기능마다 좌우를 번갈아 두고, 화면에 들어올 때 스르륵 나타난다. */}
         {features.map((f, i) => (
           <section
             key={f.id}
             id={f.id}
             aria-labelledby={`${f.id}-title`}
             data-snap
-            className={`scroll-mt-20 lg:flex lg:min-h-[calc(100dvh-72px)] lg:items-center ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
+            className={`scroll-mt-20 ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
           >
             <div
-              className={`mx-auto flex w-full max-w-[1200px] flex-col items-center gap-10 px-5 py-16 sm:px-8 lg:gap-[90px] lg:py-24 ${i % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"}`}
+              data-reveal
+              className={`mx-auto flex max-w-[1200px] flex-col items-center gap-10 px-5 py-16 sm:px-8 lg:gap-[90px] lg:py-24 ${i % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"}`}
             >
               <div className="w-full flex-1">
                 <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
@@ -232,7 +258,7 @@ export default function LandingClient() {
         ))}
 
         <section data-snap aria-labelledby="price-title" className="bg-[#f9fafb]">
-          <div className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
+          <div data-reveal className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
             <h2 id="price-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">
               무료로 시작하고, 더 하고 싶을 때 Pro
             </h2>
@@ -268,8 +294,8 @@ export default function LandingClient() {
           </div>
         </section>
 
-        <section data-snap aria-labelledby="faq-title" className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
-          <div className="flex flex-col gap-8 lg:flex-row lg:gap-20">
+        <section data-snap aria-labelledby="faq-title">
+          <div data-reveal className="mx-auto flex max-w-[1200px] flex-col gap-8 px-5 py-16 sm:px-8 lg:flex-row lg:gap-20 lg:py-24">
             <div className="lg:w-[340px]">
               <h2 id="faq-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">자주 묻는 질문</h2>
               <div className="mt-6 rounded-[18px] bg-[#f9fafb] p-[22px]">
@@ -297,8 +323,10 @@ export default function LandingClient() {
           </div>
         </section>
 
-        <section data-snap aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
-          <div className="mx-auto flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
+      </main>
+      <div>
+        <section aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
+          <div data-reveal className="mx-auto flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
             <div className="flex-1">
               <h2 id="band-title" className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.03em] sm:text-4xl">
                 오늘 찍은 연기,
@@ -315,9 +343,6 @@ export default function LandingClient() {
             <StoreBadges surface="landing_cta" className="lg:flex-col" />
           </div>
         </section>
-      </main>
-      {/* 맨 아래 바닥 정보까지 내려갈 수 있게 바닥은 끝에 맞춘다. */}
-      <div data-snap="end">
         <SiteFooter showBadges={false} />
       </div>
       <StickyDownloadBar heroId="hero" />
