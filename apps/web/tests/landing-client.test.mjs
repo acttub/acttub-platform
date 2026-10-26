@@ -129,29 +129,19 @@ test("게스트가 ?intro=1 이나 소개 링크(#coaching)로 들어와도 홈�
   window.history.replaceState(null, "", "/");
 });
 
-test("데스크톱 고정 무대는 스크롤한 만큼 장면이 이어서 바뀌고, 폰 배치에서는 기능마다 이동 위치가 있다", async () => {
-  const { sceneLook, sceneProgress } = await import("../src/features/site/pinned-features.ts");
-  // 스크롤 거리 → 기능 단위 진행도(소수). 처음과 끝에서 멈춘다.
-  assert.equal(sceneProgress(-200, 500, 3), 0);
-  assert.equal(sceneProgress(250, 500, 3), 0.5);
-  assert.equal(sceneProgress(5000, 500, 3), 2);
-  assert.equal(sceneProgress(100, 0, 3), 0);
-  // 지금 장면은 또렷하고 제자리, 반쯤 넘어가면 흐려지며 비켜나고, 한 칸 넘게 떨어지면 안 보인다.
-  assert.deepEqual(sceneLook(1, 1, 40), { opacity: 1, y: 0 });
-  assert.deepEqual(sceneLook(0.75, 1, 40), { opacity: 0.6, y: 10 });
-  // 휴대폰 화면(fade 1)은 바뀌는 한가운데서도 둘이 반씩 겹쳐 화면이 비지 않는다.
-  assert.equal(sceneLook(0.5, 0, 20, 1).opacity + sceneLook(0.5, 1, 20, 1).opacity, 1);
-  assert.equal(sceneLook(0, 2, 40).opacity, 0);
-  assert.equal(sceneLook(2, 0, 40).y, -40);
-
+test("기능 셋은 고정 없이 글과 휴대폰이 나란히 흐르고, 화면에 들어올 때 나타난다", () => {
   render(react.createElement(LandingClient));
-  assert.deepEqual(
-    [...window.document.querySelectorAll('[aria-hidden="true"] ol li')].map((li) => li.textContent),
-    ["연기 코칭", "대본 리딩", "챌린지"],
-  );
-  for (const id of ["coaching", "reading", "challenge"]) {
-    assert.equal(window.document.getElementById(id).tagName, "ARTICLE");
+  for (const [id, alt] of [
+    ["coaching", "앱의 연습 노트 화면"],
+    ["reading", "앱의 대본 리딩 화면"],
+    ["challenge", "앱의 챌린지 화면"],
+  ]) {
+    const section = window.document.getElementById(id);
+    assert.equal(section.tagName, "SECTION");
+    assert.ok(section.querySelector("[data-reveal]"));
+    assert.ok(within(section).getByRole("img", { name: alt }));
   }
+  assert.equal(window.document.querySelector("[data-scene]"), null);
 });
 
 test("첫 화면이 헤더 밑으로 들어가면 아래 고정 다운로드 바가 나타난다", () => {

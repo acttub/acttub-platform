@@ -2,14 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
-import { SCENE_STEP, usePinnedDesktop, usePinnedScenes } from "@/features/site/pinned-features";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
@@ -73,9 +72,6 @@ export default function LandingClient() {
   // 다시 온 사람이 새 소개 화면을 못 봤다. 대신 첫 화면 링크를 「이어서 연습하기」로 바꿔 준다.
   // 서버 렌더에서는 게스트가 없다고 보고, 브라우저에서 저장소를 읽어 바꾼다.
   const returningGuest = useSyncExternalStore(subscribeAuthChange, hasGuestSession, () => false);
-  // 데스크톱: 기능 구간에서 한 화면짜리 무대가 붙어 있고, 스크롤한 만큼 글과 휴대폰이 다음 기능으로 바뀐다.
-  const desktop = usePinnedDesktop();
-  const featuresRef = useRef<HTMLElement | null>(null);
   // 아래 구간(data-reveal)은 화면에 들어올 때 스르륵 나타난다.
   // 숨김은 이 효과가 붙은 뒤(html.reveal-ready)에만 걸어서, 스크립트가 늦거나 없으면 그냥 보인다.
   useEffect(() => {
@@ -134,7 +130,6 @@ export default function LandingClient() {
       shotAlt: "앱의 챌린지 화면",
     },
   ];
-  const activeFeature = usePinnedScenes(featuresRef, features.length, desktop);
 
   const faq = HOME_FAQ.map((q) => findFaq(q)).filter((item) => item !== undefined);
 
@@ -206,114 +201,57 @@ export default function LandingClient() {
           </div>
         </div>
 
-        {/* 기능 셋. 데스크톱은 구간 높이가 기능 수 × 한 화면이고, 한 화면짜리 무대가 머리 아래에 붙은 채
-            스크롤한 만큼 글과 휴대폰이 다음 기능으로 바뀐다(토스식 고정 화면). 이동 위치용 표식은 무대 밖에 둔다.
-            폰·태블릿은 기능마다 글 아래에 휴대폰을 둔다. */}
-        <section
-          ref={featuresRef}
-          aria-label="액터브로 하는 연습"
-          className="relative lg:h-[calc((100dvh-72px)*2.2)]"
-        >
-          {desktop
-            ? features.map((f, i) => (
-                <span
-                  key={f.id}
-                  id={f.id}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute left-0 h-px w-px scroll-mt-[72px]"
-                  style={{ top: `calc((100dvh - 72px) * ${i * SCENE_STEP})` }}
-                />
-              ))
-            : null}
-          <div className="lg:sticky lg:top-[72px] lg:h-[calc(100dvh-72px)] lg:overflow-hidden">
-            <div className="mx-auto flex h-full max-w-[1200px] gap-[90px] px-5 sm:px-8">
-              <div className="relative w-full flex-1">
-                {features.map((f, i) => (
-                  <article
-                    key={f.id}
-                    id={desktop ? undefined : f.id}
-                    inert={desktop && i !== activeFeature}
-                    aria-labelledby={`${f.id}-title`}
-                    data-scene
-                    data-scene-index={i}
-                    data-scene-travel={56}
-                    className={`flex scroll-mt-20 flex-col items-center gap-10 border-t border-[#edf0f3] py-16 first:border-t-0 lg:absolute lg:inset-0 lg:flex-row lg:border-t-0 lg:py-0 lg:will-change-transform ${
-                      i === 0 ? "" : "lg:opacity-0"
-                    }`}
-                  >
-                <div className="w-full flex-1">
-                  <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
-                  <h2 id={`${f.id}-title`} className="mt-3 text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
-                    {f.title[0]}
-                    <br />
-                    {f.title[1]}
-                  </h2>
-                  <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{f.body}</p>
-                  <ul className="mt-5 space-y-2">
-                    {f.bullets.map((b) => (
-                      <li key={b} className="flex gap-2.5 text-[15px] text-[#333d4b] sm:text-base">
-                        <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#4880ee]" />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-7 flex flex-wrap gap-2.5">
-                    <a
-                      href={appSectionHref}
-                      data-app-download="landing_app_section"
-                      className={`inline-flex h-12 items-center rounded-[14px] bg-[#4880ee] px-[18px] text-[15px] font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
-                    >
-                      {f.appLabel}
-                    </a>
-                    {f.web ? (
-                      <Link
-                        href={f.web.href}
-                        className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
-                      >
-                        {f.web.label}
-                      </Link>
-                    ) : null}
-                  </div>
-                </div>
-                    <Phone src={f.shot} alt={f.shotAlt} className="w-[240px] shrink-0 lg:hidden" />
-                  </article>
-                ))}
-              </div>
-              <div aria-hidden="true" className="hidden w-[300px] shrink-0 lg:flex lg:flex-col lg:items-center lg:justify-center lg:gap-6">
-                <div className="w-[280px] rounded-[44px] bg-[#111] p-2.5 shadow-[0_30px_60px_rgba(25,31,40,0.22)]">
-                  <div className="relative aspect-[390/844] overflow-hidden rounded-[34px] bg-white">
-                    {features.map((f, i) => (
-                      <Image
-                        key={f.id}
-                        src={f.shot}
-                        alt=""
-                        width={390}
-                        height={844}
-                        data-scene
-                        data-scene-index={i}
-                        data-scene-travel={20}
-                        data-scene-fade={1}
-                        className={`absolute inset-0 h-full w-full object-cover will-change-transform ${i === 0 ? "" : "opacity-0"}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <ol className="flex gap-2 text-[13px] font-bold">
-                  {features.map((f, i) => (
-                    <li
-                      key={f.id}
-                      className={`rounded-full px-3 py-1.5 transition-colors duration-300 ${
-                        i === activeFeature ? "bg-[#eaf3fe] text-[#3268d8]" : "text-[#8b95a1]"
-                      }`}
-                    >
-                      {f.kicker}
+        {/* 기능 셋. 모든 구간이 같은 방식으로 내려가도록 고정·스크롤 연동 없이 글과 휴대폰을 나란히 둔다.
+            데스크톱은 기능마다 좌우를 번갈아 두고, 화면에 들어올 때 스르륵 나타난다. */}
+        {features.map((f, i) => (
+          <section
+            key={f.id}
+            id={f.id}
+            aria-labelledby={`${f.id}-title`}
+            className={`scroll-mt-20 ${i % 2 === 1 ? "bg-[#f9fafb]" : ""}`}
+          >
+            <div
+              data-reveal
+              className={`mx-auto flex max-w-[1200px] flex-col items-center gap-10 px-5 py-16 sm:px-8 lg:gap-[90px] lg:py-24 ${i % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"}`}
+            >
+              <div className="w-full flex-1">
+                <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
+                <h2 id={`${f.id}-title`} className="mt-3 text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
+                  {f.title[0]}
+                  <br />
+                  {f.title[1]}
+                </h2>
+                <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{f.body}</p>
+                <ul className="mt-5 space-y-2">
+                  {f.bullets.map((b) => (
+                    <li key={b} className="flex gap-2.5 text-[15px] text-[#333d4b] sm:text-base">
+                      <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#4880ee]" />
+                      {b}
                     </li>
                   ))}
-                </ol>
+                </ul>
+                <div className="mt-7 flex flex-wrap gap-2.5">
+                  <a
+                    href={appSectionHref}
+                    data-app-download="landing_app_section"
+                    className={`inline-flex h-12 items-center rounded-[14px] bg-[#4880ee] px-[18px] text-[15px] font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
+                  >
+                    {f.appLabel}
+                  </a>
+                  {f.web ? (
+                    <Link
+                      href={f.web.href}
+                      className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
+                    >
+                      {f.web.label}
+                    </Link>
+                  ) : null}
+                </div>
               </div>
+              <Phone src={f.shot} alt={f.shotAlt} className="w-[240px] shrink-0 lg:w-[280px]" />
             </div>
-          </div>
-        </section>
+          </section>
+        ))}
 
         <section aria-labelledby="price-title" className="bg-[#f9fafb]">
           <div data-reveal className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24">
