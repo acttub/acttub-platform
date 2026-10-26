@@ -129,17 +129,23 @@ test("게스트가 ?intro=1 이나 소개 링크(#coaching)로 들어와도 홈�
   window.history.replaceState(null, "", "/");
 });
 
-test("데스크톱 고정 휴대폰은 화면 가운데를 지나는 기능 글에 맞춰 화면과 표시를 바꾼다", () => {
-  render(react.createElement(LandingClient));
-  const pills = () => [...window.document.querySelectorAll('[aria-hidden="true"] ol li')];
-  const active = () => pills().filter((li) => li.className.includes("text-[#3268d8]")).map((li) => li.textContent);
+test("데스크톱 고정 무대는 스크롤한 화면 수만큼 다음 기능을 고르고, 폰 배치에서는 기능마다 이동 위치가 있다", async () => {
+  const { featureIndexAt } = await import("../src/features/site/pinned-features.ts");
+  assert.equal(featureIndexAt(-200, 828, 3), 0);
+  assert.equal(featureIndexAt(400, 828, 3), 0);
+  assert.equal(featureIndexAt(420, 828, 3), 1);
+  assert.equal(featureIndexAt(1300, 828, 3), 2);
+  assert.equal(featureIndexAt(5000, 828, 3), 2);
+  assert.equal(featureIndexAt(100, 0, 3), 0);
 
-  assert.deepEqual(pills().map((li) => li.textContent), ["연기 코칭", "대본 리딩", "챌린지"]);
-  assert.deepEqual(active(), ["연기 코칭"]);
-  intersect(window.document.getElementById("challenge"), true);
-  assert.deepEqual(active(), ["챌린지"]);
-  intersect(window.document.getElementById("reading"), true);
-  assert.deepEqual(active(), ["대본 리딩"]);
+  render(react.createElement(LandingClient));
+  assert.deepEqual(
+    [...window.document.querySelectorAll('[aria-hidden="true"] ol li')].map((li) => li.textContent),
+    ["연기 코칭", "대본 리딩", "챌린지"],
+  );
+  for (const id of ["coaching", "reading", "challenge"]) {
+    assert.equal(window.document.getElementById(id).tagName, "ARTICLE");
+  }
 });
 
 test("첫 화면이 헤더 밑으로 들어가면 아래 고정 다운로드 바가 나타난다", () => {
