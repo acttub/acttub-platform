@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
+import { CoachingLimitSheet } from '@/components/pro-ui';
 import { pt, type MenuAnchor } from '@/components/ui/anchored-menu';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
@@ -199,6 +200,8 @@ export default function UploadScreen() {
   const tutorialGuide = useTutorialSpotlight('upload');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 무료 코칭 하루 1회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.
+  const [freeLimit, setFreeLimit] = useState(false);
   const attemptRef = useRef<RequestAttempt | null>(null);
   const startLockRef = useRef(false);
 
@@ -451,6 +454,10 @@ export default function UploadScreen() {
           return;
         }
         setError(t('start.inProgressBody'));
+        return;
+      }
+      if (failure.kind === 'free_limit') {
+        setFreeLimit(true);
         return;
       }
       if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
@@ -740,6 +747,7 @@ export default function UploadScreen() {
       )}
       {dialog}
       {tutorialGuide.element}
+      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
     </SafeAreaView>
   );
 }

@@ -115,6 +115,8 @@ export type StartFailure =
   | { kind: 'video_not_ready' }
   /** 게스트 하루 3회를 다 썼다. 회차도 작업도 생기지 않았다. */
   | { kind: 'daily_limit' }
+  /** 무료 코칭 하루 1회를 다 썼다(SOMA-818, 서버 무료 한도 플래그가 켜졌을 때만). Pro 시트를 띄운다. */
+  | { kind: 'free_limit' }
   /** 같은 요청 id로 다른 본문을 보냈다. 새 요청 id로 다시 만든다. */
   | { kind: 'fingerprint_mismatch' }
   /** 연결이 끊겼다. 같은 요청 id로 다시 보내면 회차는 하나다. */
@@ -127,6 +129,7 @@ export function startFailure(error: unknown): StartFailure {
   const status = errorStatus(error);
   if (code === 'practice_in_progress' || status === 409) return { kind: 'in_progress' };
   if (code === 'video_not_ready') return { kind: 'video_not_ready' };
+  if (code === 'free_daily_coaching_limit') return { kind: 'free_limit' };
   if (code === 'guest_daily_analysis_limit' || status === 429) return { kind: 'daily_limit' };
   if (code === 'request_fingerprint_mismatch') return { kind: 'fingerprint_mismatch' };
   if (isOfflineError(error)) return { kind: 'offline' };

@@ -370,9 +370,11 @@ if [ "${SMOKE_RESTORE:-true}" = true ]; then
   compose exec -T db pg_dump -Fc -U acttub -d acttub > "$WORK/smoke.dump" || fail "db 컨테이너에서 pg_dump 가 실패했다"
   (cd "$WORK" && "$RESTORE_SH" --counts) > "$WORK/counts-before.tsv" || fail "restore-db.sh --counts 가 실패했다"
   (cd "$WORK" && "$RESTORE_SH" --manifest) > "$WORK/manifest-before.tsv" || fail "restore-db.sh --manifest 가 실패했다"
-  # 7 단계의 $latest(db/migration 의 최대 버전) = 이력 행 수. 상수로 적으면 V5 가 들어오는 날 여기서 빨강이 된다.
-  grep -q "$(printf '^flyway_schema_history\t%s$' "$latest")" "$WORK/counts-before.tsv" \
-    || fail "--counts 에 flyway_schema_history $latest 가 없다: $(tr '\n' ' ' < "$WORK/counts-before.tsv")"
+  # 이력 행 수 = db/migration 의 버전 파일 수. 상수로 적으면 V5 가 들어오는 날 여기서 빨강이 된다. 최대 버전 번호와는 다를 수
+  # 있다 — 다른 브랜치가 앞 번호를 잡아 둔 동안(예: V59 를 비워 두고 V60 을 먼저 올린 PR) 번호에 빈칸이 생긴다.
+  applied="$(ls "$MIGRATIONS" | grep -cE '^V[0-9]+__')"
+  grep -q "$(printf '^flyway_schema_history\t%s$' "$applied")" "$WORK/counts-before.tsv" \
+    || fail "--counts 에 flyway_schema_history $applied 가 없다: $(tr '\n' ' ' < "$WORK/counts-before.tsv")"
   echo "  $(wc -c < "$WORK/smoke.dump" | tr -d ' ')B, 테이블 $(wc -l < "$WORK/counts-before.tsv" | tr -d ' ')개"
 
   step "DB 를 바꾼 뒤(smoke_marker) 깨진 덤프로 복원 → exit≠0, 바꾼 것이 그대로, api healthy"

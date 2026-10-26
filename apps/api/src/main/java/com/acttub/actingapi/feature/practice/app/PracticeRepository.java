@@ -34,7 +34,7 @@ public interface PracticeRepository {
      * 영상 없이 말로 하는 회차(SOMA-745). 영상 확인·분석 작업·분석 한도 없이 첫 회차를 바로 {@code conversing} 으로 만든다.
      * 같은 요청 id 재전송 규칙은 {@link #start} 와 같다.
      */
-    Started startWithoutVideo(UUID userId, NewPractice practice, Instant now);
+    Started startWithoutVideo(UUID userId, NewPractice practice, Quota quota, Instant now);
 
     Started continueGroup(UUID userId, UUID from, UUID videoId, NewPractice practice, Quota quota, Instant now);
 
@@ -83,11 +83,20 @@ public interface PracticeRepository {
     }
 
     /**
-     * 게스트의 하루 한도. 회원은 {@code null} 이다.
+     * 하루 한도. 없으면 {@code null} 이다. 게스트의 분석 한도({@link Kind#ANALYSES})와 무료 이용자의 코칭 한도
+     * ({@link Kind#SESSIONS}, SOMA-818 — 오늘 만든 회차 수)가 있다.
      *
      * @param since 한국 시간 오늘 0시
      */
-    record Quota(int limit, Instant since) {
+    record Quota(int limit, Instant since, Kind kind) {
+        public Quota(int limit, Instant since) {
+            this(limit, since, Kind.ANALYSES);
+        }
+
+        public enum Kind {
+            ANALYSES,
+            SESSIONS
+        }
     }
 
     /** @param practice 만들었거나(CREATED) 같은 요청이 이미 만든(REPLAYED) 회차. 그 밖에는 {@code null} */

@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { WEB_BILLING_ENABLED } from "@/features/billing/billing-flow";
+import { SubscribeButton } from "@/features/billing/subscribe-button";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { buildNoindexMetadata } from "@/lib/seo/site-metadata";
 
@@ -73,12 +75,20 @@ export default function PricingPage() {
               <li className="py-2.5">발음·딕션 피드백 (Pro 전용 · 준비 중)</li>
               <li className="py-2.5">참여작·댓글·프로필에 Pro 배지</li>
             </ul>
-            <Link
-              href="/pg-review"
-              className={`mt-5 flex h-[52px] items-center justify-center rounded-[14px] bg-[#4880ee] text-base font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
-            >
-              Pro 구독하기
-            </Link>
+            {WEB_BILLING_ENABLED ? (
+              <SubscribeButton
+                className={`mt-5 flex h-[52px] w-full items-center justify-center rounded-[14px] bg-[#4880ee] text-base font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
+              >
+                Pro 구독하기
+              </SubscribeButton>
+            ) : (
+              <Link
+                href="/pg-review"
+                className={`mt-5 flex h-[52px] items-center justify-center rounded-[14px] bg-[#4880ee] text-base font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
+              >
+                Pro 구독하기
+              </Link>
+            )}
             <p className="mt-3 text-[13.5px] leading-[1.6] text-[#6b7684]">
               언제든 다음 자동결제를 해지할 수 있고, 해지해도 현재 결제기간이 끝날 때까지 Pro를 이용할 수 있어요. 유료 기능을 쓰지 않았다면 결제 후 7일 이내에 전액 환불하고, 이용한 뒤에는 이용한 날짜만큼 빼고 환불해요.
             </p>

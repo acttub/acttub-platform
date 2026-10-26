@@ -29,8 +29,15 @@ public class ScriptImportService {
     private final ScriptUploadService uploads;
     private final CanonicalJson canonical;
     private final Clock clock;
+    private final ScriptPlan plan;
 
     public ScriptImportService(ScriptImportRepository imports, ScriptUploadService uploads, CanonicalJson canonical, Clock clock) {
+        this(imports, uploads, canonical, clock, ScriptPlan.UNLIMITED);
+    }
+
+    public ScriptImportService(ScriptImportRepository imports, ScriptUploadService uploads, CanonicalJson canonical, Clock clock,
+            ScriptPlan plan) {
+        this.plan = plan;
         this.imports = imports;
         this.uploads = uploads;
         this.canonical = canonical;
@@ -60,19 +67,21 @@ public class ScriptImportService {
         if (sample == null && !"granted".equals(imports.consent(userId))) {
             throw new ApiException(403, "script_split_consent_required");
         }
+        boolean free = plan.freeLimited(userId);
+        int scriptLimit = free ? Math.min(ScriptPlan.FREE_SCRIPTS, ScriptRules.scriptLimit(guest)) : ScriptRules.scriptLimit(guest);
         Requested requested;
         try {
             requested = imports.request(userId, requestId,
                     fingerprint(normalizedTitle, rawText, source, submission.allowDuplicate(), submission.skipScriptCheck()),
                     new ScriptImportRepository.Submission(normalizedTitle, rawText, ScriptText.hash(rawText), source,
                             submission.allowDuplicate(), submission.skipScriptCheck(), submission.uploadId()),
-                    sample, ScriptRules.scriptLimit(guest), ScriptSplitRules.DAILY_IMPORTS, clock.instant());
+                    sample, scriptLimit, ScriptSplitRules.DAILY_IMPORTS, clock.instant());
         } catch (ScriptRepository.OwnerNotActive closed) {
             throw new ApiException(403, "account_deactivated", closed);
         }
         return switch (requested.outcome()) {
             case FINGERPRINT_MISMATCH -> throw new ApiException(422, "request_fingerprint_mismatch");
-            case OVER_SCRIPT_LIMIT -> throw new ApiException(422, "script_limit");
+            case OVER_SCRIPT_LIMIT -> throw free ? new ApiException(403, "free_script_limit") : new ApiException(422, "script_limit");
             case OVER_DAILY_LIMIT -> throw new ApiException(429, "script_split_daily_limit");
             case DUPLICATE -> new Ticket(null, requested.duplicateScriptId(), false);
             case REPLAYED, IN_FLIGHT -> new Ticket(requested.importId(), null, false);
