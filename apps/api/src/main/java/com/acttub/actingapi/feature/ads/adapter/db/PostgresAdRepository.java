@@ -17,7 +17,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 광고의 Postgres 구현 — {@code ads}·{@code ad_events} (V65). 첫 연습 판정은 코칭·리딩·챌린지 표를 읽기만 한다. */
+/** 광고의 Postgres 구현 — {@code ads}·{@code ad_events} (V66). 첫 연습 판정은 코칭·리딩·챌린지 표를 읽기만 한다. */
 @Repository
 class PostgresAdRepository implements AdRepository {
     private static final String COLUMNS = """

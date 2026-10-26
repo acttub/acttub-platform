@@ -8,7 +8,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.ads.domain.Ad;
 
-/** 광고 저장소 — {@code ads}·{@code ad_events} (V65). */
+/** 광고 저장소 — {@code ads}·{@code ad_events} (V66). */
 public interface AdRepository {
 
     /** 지금 켜져 있고(active) 기간 안인 광고 중 이 칸을 대상으로 한 것. */

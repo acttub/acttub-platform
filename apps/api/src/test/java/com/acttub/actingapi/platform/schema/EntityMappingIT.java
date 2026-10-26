@@ -151,7 +151,7 @@ class EntityMappingIT {
             "reading_examples",
             // ACTTUB Pro 정기결제(V64, SOMA-818)는 결제 저장소의 native SQL(조건부 갱신·점유·멱등 기록)만 쓴다.
             "billing_subscriptions", "billing_checkouts", "billing_payments", "billing_pro_grants",
-            // 앱 광고 칸(V65, SOMA-876)은 광고 저장소의 native SQL(고르기·노출 upsert·클릭)만 쓴다.
+            // 앱 광고 칸(V66, SOMA-876)은 광고 저장소의 native SQL(고르기·노출 upsert·클릭)만 쓴다.
             "ads", "ad_events");
 
     @Test
