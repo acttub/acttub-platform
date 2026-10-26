@@ -6,12 +6,51 @@ import { useAuth } from '@/lib/auth';
 const mockBack = jest.fn();
 jest.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => ({ back: mockBack }) }));
 jest.mock('@/lib/auth', () => ({ useAuth: jest.fn() }));
+const mockBillingMe = jest.fn();
+jest.mock('@/lib/api', () => ({ api: { billingMe: () => mockBillingMe() } }));
+const mockOpenStore = jest.fn(() => Promise.resolve());
+jest.mock('@/hooks/use-store-purchase', () => ({ openStoreSubscriptions: () => mockOpenStore() }));
 
 const deleteAccount = jest.fn();
 
 beforeEach(() => {
   jest.clearAllMocks();
   (useAuth as jest.Mock).mockReturnValue({ user: { email: 'me@acttub.app' }, deleteAccount });
+  mockBillingMe.mockRejectedValue(Object.assign(new Error('closed'), { status: 404, code: 'billing_unavailable' }));
+});
+
+const STORE_NOTE = 'App Store·Google Play에서 산 구독은 탈퇴해도 해지되지 않아요. 스토어 구독 관리에서 따로 해지해 주세요.';
+const billing = (provider: string | null, status: string) => ({
+  status, pro: status !== 'expired', amount: 3900, period_end: null, next_billing_at: null, card_company: null,
+  card_last4: null, retry_count: 0, limits_enforced: true, provider,
+});
+
+test('스토어 구독은 탈퇴해도 해지되지 않는다고 누구에게나 알리고, 결제가 닫혀 있으면 링크는 없다', async () => {
+  await render(<DeleteAccountScreen />);
+  expect(screen.getByText('스토어 구독')).toBeOnTheScreen();
+  expect(screen.getByText(STORE_NOTE)).toBeOnTheScreen();
+  await waitFor(() => expect(mockBillingMe).toHaveBeenCalledTimes(1));
+  expect(screen.queryByRole('link', { name: '스토어에서 구독 관리' })).not.toBeOnTheScreen();
+});
+
+test('스토어 구독이 돌고 있으면 화면 안에 「스토어에서 구독 관리」 링크를 보이고 누르면 스토어 구독 관리를 연다', async () => {
+  mockBillingMe.mockResolvedValue(billing('google', 'active'));
+  await render(<DeleteAccountScreen />);
+  const link = await screen.findByRole('link', { name: '스토어에서 구독 관리' });
+  await fireEvent.press(link);
+  expect(mockOpenStore).toHaveBeenCalledTimes(1);
+});
+
+test('웹(토스) 구독이나 이미 해지한 스토어 구독에는 스토어 링크를 보이지 않는다', async () => {
+  for (const me of [billing('toss', 'active'), billing('apple', 'canceled'), billing(null, 'none')]) {
+    mockBillingMe.mockResolvedValue(me);
+    const view = await render(<DeleteAccountScreen />);
+    await waitFor(() => expect(mockBillingMe).toHaveBeenCalled());
+    expect(screen.queryByRole('link', { name: '스토어에서 구독 관리' })).not.toBeOnTheScreen();
+    expect(screen.getByText(STORE_NOTE)).toBeOnTheScreen();
+    await view.unmount();
+    mockBillingMe.mockClear();
+  }
 });
 
 test('확인 줄을 눌러야 탈퇴 버튼이 켜지고, 두 번 확인하면 계정을 지운다', async () => {

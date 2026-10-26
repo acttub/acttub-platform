@@ -1,12 +1,15 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { DangerButton, SecondaryButton } from '@/components/ui/buttons';
+import { openStoreSubscriptions } from '@/hooks/use-store-purchase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { storeSubscribed } from '@/lib/billing';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
@@ -24,6 +27,9 @@ import { translate as t } from '@/lib/i18n';
  *
  * 실수 탈퇴는 두 번 확인으로 막는다 — "연습·노트는 돌아오지 않아요" 확인 줄을 눌러야 버튼이
  * 켜지고, 누르면 확인 창이 한 번 더 묻는다. 복구 요청은 받지 않는다.
+ *
+ * App Store·Google Play 에서 산 구독은 탈퇴해도 해지되지 않는다(스토어와 이용자 사이의 거래라 우리가 끌 수 없다, SOMA-818).
+ * 그래서 누구에게나 그 사실을 적고, 지금 스토어 구독이 돌고 있는 사람에게는 스토어 구독 관리 링크를 화면 안에 함께 보인다.
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
@@ -31,6 +37,21 @@ export default function DeleteAccountScreen() {
   const { confirm, alert, dialog } = useAppDialog();
   const [working, setWorking] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [storeActive, setStoreActive] = useState(false);
+
+  // 결제가 닫힌 서버·게스트·네트워크 오류면 링크만 숨긴다 — 안내 문구는 그대로 보인다.
+  useEffect(() => {
+    let live = true;
+    api
+      .billingMe()
+      .then((me) => {
+        if (live) setStoreActive(storeSubscribed(me));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const run = async () => {
     const ok = await confirm({
@@ -76,6 +97,18 @@ export default function DeleteAccountScreen() {
           <Bullet>{t('deleteAccount.keptPractice')}</Bullet>
           <Bullet>{t('deleteAccount.keptChallenge')}</Bullet>
           <Bullet>{t('deleteAccount.keptComment')}</Bullet>
+        </Section>
+
+        <Section label={t('deleteAccount.secStore')}>
+          <Bullet>{t('deleteAccount.storeNote')}</Bullet>
+          {storeActive && (
+            <Pressable
+              onPress={() => void openStoreSubscriptions().catch(() => undefined)}
+              accessibilityRole="link"
+              hitSlop={8}>
+              <Text style={styles.storeLink}>{t('pro.manageStore')}</Text>
+            </Pressable>
+          )}
         </Section>
 
         <Section label={t('deleteAccount.secRestart')}>
@@ -154,6 +187,7 @@ const styles = StyleSheet.create({
     color: palette.textDim,
     lineHeight: 23,
   },
+  storeLink: { fontSize: 14, fontWeight: '700', color: palette.blue, paddingVertical: 4 },
 
   ack: {
     marginTop: 28,
