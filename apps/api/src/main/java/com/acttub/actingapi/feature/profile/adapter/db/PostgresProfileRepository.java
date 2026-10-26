@@ -22,6 +22,7 @@ import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
+import com.acttub.actingapi.integration.revenuecat.RevenueCatCustomerClient;
 import com.acttub.actingapi.platform.schema.ActingDirection;
 import com.acttub.actingapi.platform.schema.ActingExperience;
 import com.acttub.actingapi.platform.schema.ActingGoal;
@@ -45,17 +46,22 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
     /** 탈퇴 전 챌린지 마감 집계 — 이 저장소가 남의 표를 함께 치는 다른 정리와 같은 트랜잭션에서 돈다. */
     private final ChallengeWithdrawal challenges;
 
+    /** 탈퇴 때 RevenueCat 고객 삭제를 장부에 올릴지 정한다(켜져 있을 때만). 바깥 호출은 장부의 실행기가 한다. */
+    private final RevenueCatCustomerClient revenueCat;
+
     PostgresProfileRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
             AccountSecrets secrets,
             PostgresObjectCleanupLedger cleanups,
-            ChallengeWithdrawal challenges) {
+            ChallengeWithdrawal challenges,
+            RevenueCatCustomerClient revenueCat) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.secrets = secrets;
         this.cleanups = cleanups;
         this.challenges = challenges;
+        this.revenueCat = revenueCat;
     }
 
     /**
@@ -780,6 +786,13 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                     .setParameter("userId", userId)
                     .executeUpdate();
             cleanups.addAll(hashIdentities(userId, now));
+            // RevenueCat 고객 정보(SOMA-818, V65)도 지운다 — 앱이 RevenueCat SDK 에 우리 user id 로 붙으므로 app_user_id 가 곧
+            // user id 다. 꺼진 서버(BILLING_REVENUECAT_ENABLED=false·비밀 키 없음)는 올리지 않는다. 바깥 호출은 커밋 뒤 장부가 한다 —
+            // 실패해도 탈퇴는 되돌리지 않고, 5분부터 다시 시도하다 7일 뒤 포기하며 알린다. 이미 없는 고객(404)은 성공이다.
+            if (revenueCat.enabled()) {
+                cleanups.add(this.cleanups.enqueue(
+                        userId, "revenuecat_delete", secrets.encrypt(userId.toString()), now, now));
+            }
 
             // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
             // V9 는 옛 닉네임을 `user_profiles.name` 으로 복사만 해서 값이 이 컬럼에도 남아 있고,
