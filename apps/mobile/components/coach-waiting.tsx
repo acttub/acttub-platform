@@ -284,7 +284,7 @@ export function CoachWaiting({
     if (!practiceId || stopping) return;
     if (sample) {
       finishTutorial('left');
-      router.replace('/(tabs)');
+      router.dismissTo('/(tabs)');
       return;
     }
     const ok = await confirm({
@@ -305,7 +305,7 @@ export function CoachWaiting({
       }
       finishedRef.current = true;
       void logEvent('analysis_cancelled', {});
-      router.replace('/(tabs)');
+      router.dismissTo('/(tabs)');
     } catch {
       setError(t('analyzing.stopFailed'));
     } finally {
@@ -401,7 +401,7 @@ export function CoachWaiting({
             {recovery !== 'none' && (
               <PrimaryButton label={t('common.retry')} onPress={() => void retry()} loading={retrying} style={styles.wide} />
             )}
-            <Pressable onPress={() => router.replace('/(tabs)')} hitSlop={8} accessibilityRole="button">
+            <Pressable onPress={() => router.dismissTo('/(tabs)')} hitSlop={8} accessibilityRole="button">
               <Text style={styles.link}>{t('analyzing.leaveLater')}</Text>
             </Pressable>
           </View>
@@ -419,7 +419,7 @@ export function CoachWaiting({
               {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 여기서는 홈으로 나간다. */}
               <Pressable
                 style={({ pressed }) => [styles.notify, pressed && styles.pressed]}
-                onPress={() => router.replace('/(tabs)')}
+                onPress={() => router.dismissTo('/(tabs)')}
                 accessibilityRole="button"
                 accessibilityLabel={t('analyzing.notifyMe')}>
                 <Text style={styles.notifyText}>{t('analyzing.notifyMe')}</Text>

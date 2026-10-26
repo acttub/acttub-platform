@@ -139,7 +139,9 @@ final class DirectVideoPrompts {
             java.util.Map.entry("짚어주기", "point-out"),
             java.util.Map.entry("짚어주기(다른 쪽)", "point-out-other"),
             java.util.Map.entry("내려놓기", "let-go"),
-            java.util.Map.entry("답하기", "answer"));
+            java.util.Map.entry("답하기", "answer"),
+            java.util.Map.entry(PracticeLoopRouter.ASK_DONE, "ask-done"),
+            java.util.Map.entry(PracticeLoopRouter.WRAP_DONE, "wrap-done"));
 
     /**
      * 할 일 하나의 상황별 프롬프트. 한국어는 {@code tasks/ko}, 그 밖의 말은 {@code tasks/en}에서 읽는다.

@@ -25,7 +25,7 @@ import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditi
 import { upcomingNotices, type AdmissionsResponse } from '@/lib/admissions';
 import { isKorean, translate as t, translateList } from '@/lib/i18n';
 import { firstTimeStateFrom, setFirstTimeState } from '@/lib/practice/first-time';
-import { hasGraduatedFirstUse } from '@/lib/practice/first-use-graduation';
+import { currentFirstUseOwner, hasGraduatedFirstUse } from '@/lib/practice/first-use-graduation';
 import { challengeDaysLeft, pickToday, primaryFeature, wasYesterday, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
@@ -230,7 +230,7 @@ export default function HomeScreen() {
         const counted = countedPractices({ groups: groupList, readingSessions, entries });
         setEnteredChallengeIds(new Set(entries.flatMap((entry) => (entry.challenge?.id ? [entry.challenge.id] : []))));
         setPractices(counted);
-        return rememberPracticeDays(counted.map((p) => ({ created_at: p.at }))).then((days) => {
+        return rememberPracticeDays(counted.map((p) => ({ created_at: p.at })), currentFirstUseOwner()).then((days) => {
           if (!cancelled) setActivityDays(days);
         });
       });
@@ -625,7 +625,7 @@ export default function HomeScreen() {
               <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
               <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
             </View>
-            <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             {bell}
           </View>
 

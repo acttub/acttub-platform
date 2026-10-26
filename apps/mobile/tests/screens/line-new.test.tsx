@@ -128,3 +128,9 @@ test('게스트는 회원만 이용할 수 있다고 안내받는다', async () 
   await fireEvent.press(cta());
   expect(await screen.findByText('챌린지는 회원만 이용할 수 있어요.')).toBeOnTheScreen();
 });
+
+test('모달 위 끝과 닫기 버튼 사이에 여백을 둔다', async () => {
+  await render(<LineNewScreen />);
+  // iOS 시트는 위 안전 영역이 0이라 머리줄 자체 여백이 없으면 닫기 버튼이 시트 끝에 붙는다.
+  expect(screen.getByTestId('line-new-header')).toHaveStyle({ paddingTop: 16 });
+});

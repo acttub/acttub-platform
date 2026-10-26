@@ -114,7 +114,7 @@ export default function GuestTransferScreen() {
           </View>
           <View style={styles.doneActions}>
             {/* 목록은 화면이 열릴 때마다 서버에서 다시 받는다. 기록으로 보내면 옮긴 연습이 보인다. */}
-            <PrimaryButton label={t('guestTransfer.seeHistory')} onPress={() => router.replace('/(tabs)/history')} />
+            <PrimaryButton label={t('guestTransfer.seeHistory')} onPress={() => router.dismissTo('/(tabs)/history')} />
             <TextButton size="large" label={t('guestTransfer.another')} onPress={enterAnother} />
           </View>
         </View>

@@ -21,7 +21,7 @@ const mine = (over = {}) => {
   return { ...base, content_version: 1, visibility: 'public',
   status: 'visible', category: 'public', challenge_hidden: false,
   challenge: { id: id(1), line: '가지 마.', work: '창작', character: null, ends_at: '2026-09-29T03:00:00Z' },
-  created_at: '2026-09-23T03:00:00Z', face_mosaic: false, mosaic_status: null, ...over };
+  created_at: '2026-09-23T03:00:00Z', face_mosaic: false, mosaic_status: null, poster_url: null, ...over };
 };
 const comment = (over = {}) => ({
   id: id(4), author: { user_id: id(7), name: '니나' }, body: '좋아요', created_at: '2026-09-23T03:00:00Z',

@@ -149,7 +149,7 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
         <View style={[styles.card, { marginTop: insets.top, marginBottom: insets.bottom }]}>
           {image ? (
             <View style={styles.art}>
-              <Image source={image} style={styles.mascot} contentFit="contain" />
+              <Image source={image} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" />
             </View>
           ) : null}
           {poster.badge ? <Text style={styles.badge}>{poster.badge}</Text> : null}

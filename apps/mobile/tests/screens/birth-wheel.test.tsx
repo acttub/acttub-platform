@@ -16,9 +16,12 @@ test('생년월일 휠은 안쪽 스크롤을 먼저 받고, 만지는 동안 �
   }
 });
 
-test('천천히 놓아 관성이 없어도 가운데 값을 고른다', async () => {
+test('값은 칸에 붙은 뒤에만 고른다 — 손을 뗄 때 고르면 칸 맞춤이 끊긴다', async () => {
   const onChange = jest.fn();
   await render(<BirthWheel value={{ year: 2000, month: 5, day: 10 }} years={[1999, 2000, 2001]} onChange={onChange} />);
-  await fireEvent(screen.getByTestId('birth-month'), 'scrollEndDrag', { nativeEvent: { contentOffset: { x: 0, y: 44 * 6 } } });
-  expect(onChange).toHaveBeenCalled();
+  const month = screen.getByTestId('birth-month');
+  await fireEvent(month, 'scrollEndDrag', { nativeEvent: { contentOffset: { x: 0, y: 44 * 6 } } });
+  expect(onChange).not.toHaveBeenCalled();
+  await fireEvent(month, 'momentumScrollEnd', { nativeEvent: { contentOffset: { x: 0, y: 44 * 6 } } });
+  expect(onChange).toHaveBeenCalledWith({ year: 2000, month: 7, day: 10 });
 });

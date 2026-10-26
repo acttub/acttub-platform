@@ -32,7 +32,8 @@ function storage(): Storage {
 }
 
 export async function loadCloudVoiceEnabled(): Promise<boolean> {
-  try { return (await storage().getItem(CLOUD_VOICE_KEY)) === 'on'; } catch { return false; }
+  // 기본은 켜짐(10/25 사용자 결정) — 끈 적이 있을 때만 끈다. 켜져 있어도 동의·서버 한도가 따로 막는다(shouldUseCloudVoice).
+  try { return (await storage().getItem(CLOUD_VOICE_KEY)) !== 'off'; } catch { return true; }
 }
 
 export async function saveCloudVoiceEnabled(enabled: boolean): Promise<void> {

@@ -320,7 +320,7 @@ export default function ReadingNew() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* pen R2.1 「히어로」 — 대본 읽는 액티(128×100) 옆에 큰 제목과 한 줄 설명. */}
         <View style={styles.hero}>
-          <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <View style={styles.heroText}>
             <Text style={styles.title}>{t('reading.newHeading')}</Text>
             <Text style={styles.heroSub}>{t('reading.newSub')}</Text>
@@ -573,7 +573,7 @@ function SplittingScreen({ progress, topInset }: { progress: ImportProgress | nu
   return (
     <View style={[styles.root, styles.splitScreen, { paddingTop: topInset + 120 }]}>
       <Stack.Screen options={{ gestureEnabled: false }} />
-      <Image source={MASCOT} style={styles.splitMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+      <Image source={MASCOT} style={styles.splitMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <Text style={styles.splitHeading}>{t('reading.splitTitle')}</Text>
       {total > 0 && <Text style={styles.splitProgress}>{t('reading.splitProgress', { pct, done, total })}</Text>}
     </View>

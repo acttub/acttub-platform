@@ -75,7 +75,7 @@ export function ProSheetCard({
 }) {
   return (
     <View style={styles.sheet} accessibilityViewIsModal>
-      <Image source={MASCOT[pose]} style={styles.sheetMascot} contentFit="contain" />
+      <Image source={MASCOT[pose]} style={styles.sheetMascot} contentFit="contain" cachePolicy="memory-disk" />
       <Text style={styles.sheetTitle}>{title}</Text>
       <Text style={styles.sheetBody}>{body}</Text>
       <Button variant={destructive ? 'danger' : 'primary'} label={primary} onPress={onPrimary} loading={busy} disabled={busy}

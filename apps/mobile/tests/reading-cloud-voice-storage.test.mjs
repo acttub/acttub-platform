@@ -11,8 +11,8 @@ beforeEach(() => {
   state.broken = false;
 });
 
-test('고품질 목소리 켬·끔을 기기에 남기고 읽는다', async () => {
-  assert.equal(await loadCloudVoiceEnabled(), false);
+test('고품질 목소리 켬·끔을 기기에 남기고 읽는다 — 한 번도 안 건드렸으면 켜짐(10/25 사용자 결정)', async () => {
+  assert.equal(await loadCloudVoiceEnabled(), true);
   await saveCloudVoiceEnabled(true);
   assert.equal(state.items.get(CLOUD_VOICE_KEY), 'on');
   assert.equal(await loadCloudVoiceEnabled(), true);
@@ -21,7 +21,7 @@ test('고품질 목소리 켬·끔을 기기에 남기고 읽는다', async () =
   assert.equal(await loadCloudVoiceEnabled(), false);
 });
 
-test('저장소를 못 읽으면 꺼진 것으로 본다', async () => {
+test('저장소를 못 읽으면 기본(켜짐)으로 본다 — 동의·서버 한도는 따로 막는다', async () => {
   state.broken = true;
-  assert.equal(await loadCloudVoiceEnabled(), false);
+  assert.equal(await loadCloudVoiceEnabled(), true);
 });

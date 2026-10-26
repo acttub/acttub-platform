@@ -437,7 +437,7 @@ function CoachTalk() {
             size={24}
             label={t('common.back')}
             phLabel="coach_back"
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+            onPress={() => (router.canGoBack() ? router.back() : router.dismissTo('/(tabs)'))}
           />
         }
         // 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(pen 질문 대화 오른쪽 위, SOMA-656·748).
@@ -447,7 +447,7 @@ function CoachTalk() {
             <Pressable
               disabled={waiting || connecting || (!conversation && !openFailed)}
               onPress={() => (conversation ? void endConversation() : router.back())}
-              accessibilityRole="button" hitSlop={10}>
+              accessibilityRole="button" hitSlop={10} style={styles.endButton}>
               <Text style={styles.endText}>{t('coach.quickEnd')}</Text>
             </Pressable>
           ) : null
@@ -652,6 +652,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
 
+  // 글자 버튼도 아이콘 칸(NavIconButton)처럼 높이 44·좌우 10 을 둬 화면 끝에서 떨어뜨린다(SOMA-837).
+  endButton: { height: 44, paddingHorizontal: 10, justifyContent: 'center' },
   endText: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.textMuted },
 
   // 대화 위 한 줄 「AI가 본 장면 · …」 — 옅은 파랑 띠, 글 13/700 한 줄.

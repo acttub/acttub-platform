@@ -107,6 +107,7 @@ import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
@@ -279,6 +280,12 @@ export default function ReadingPlay() {
   const speechQueue = useRef<tts.SpeechQueueHandle | null>(null);
   const mounted = useRef(true);
   const scrollRef = useRef<ScrollView | null>(null);
+  // 끝난 화면 — 「이번 리딩 어땠나요?」 한 줄 칸을 누르면 키보드 위로 올린다(10/26 폰: 키보드에 가렸다).
+  const doneScrollRef = useRef<ScrollView | null>(null);
+  const keyboardHeight = useKeyboardHeight();
+  const liftRatingInput = useCallback(() => {
+    setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
+  }, []);
   // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494). 튜토리얼 대본은 세지 않는다.
   const { after: askRating, element: ratingCard } = useAppRating();
   const fromTutorialRef = useRef(false);
@@ -295,6 +302,8 @@ export default function ReadingPlay() {
   const [restarting, setRestarting] = useState(false);
   /** 시작 전 [시작] 위에 자동 넘김 안내를 보일지 — 숨기지 않았고 자동 넘김 회차일 때만. */
   const [startHint, setStartHint] = useState(false);
+  /** 시작 팝업의 어두운 덮개가 시작하는 높이 — 진행 막대 아래부터 덮는다. */
+  const [tipTop, setTipTop] = useState(0);
   /** 완료 화면이 뜬 직후 잠깐은 버튼을 받지 않는다 — 실행 중 [다음]을 연타하다 새 연습이 바로 시작되지 않게(SOMA-772). */
   const [doneLocked, setDoneLocked] = useState(true);
   /** 완료 화면 [완료] 뒤의 리딩 마무리(pen 「새 · 리딩 마무리」). */
@@ -1481,7 +1490,7 @@ export default function ReadingPlay() {
     return (
       <View style={[styles.root, styles.center]}>
         <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
+        <Pressable style={styles.pill} onPress={() => router.dismissTo('/reading')}>
           <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
         </Pressable>
       </View>
@@ -1511,7 +1520,7 @@ export default function ReadingPlay() {
     return (
       <View style={[styles.root, styles.prepRoot, { paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.prepBody}>
-          <Image source={MASCOT_IMG[prepPose]} style={styles.prepMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+          <Image source={MASCOT_IMG[prepPose]} style={styles.prepMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.prepTitle}>{title}</Text>
           {percent !== null && (
             <>
@@ -1599,7 +1608,7 @@ export default function ReadingPlay() {
             <Text style={styles.wrapBadgeText}>{t('reading.wrapBadge')}</Text>
           </View>
           <View style={styles.wrapHead}>
-            <Image source={MASCOT_IMG[donePose]} style={styles.wrapMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT_IMG[donePose]} style={styles.wrapMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.wrapHeading}>{t('reading.wrapHeading')}</Text>
           </View>
           <View style={styles.wrapCard}>
@@ -1630,6 +1639,15 @@ export default function ReadingPlay() {
       priorRecognized: sessionHasRecognized(session),
       recognition: sttMode?.kind ?? null,
     });
+    // 완료 화면들이 함께 쓰는 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서,
+    // 이미 있는 탭까지 내려간다(SOMA-853).
+    const goHomeButton = <PrimaryButton label={t('reading.goHome')} onPress={() => router.dismissTo('/(tabs)')} disabled={doneLocked} />;
+    const otherScriptRow = (
+      <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
+        <Feather name="file-text" size={16} color={palette.textDim} />
+        <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
+      </Pressable>
+    );
     if (completed && (firstRunRef.current || fromTutorialRef.current)) {
       // pen R9.51 첫 리딩 끝 — 액티 칭찬 아래 가운데에 큰 「홈으로 가기」, 그 밑에 「한 번 더 읽기」. 하단 버튼 영역은 없다.
       const total = wrapUpProgress(run.lines, run.endIndex).total;
@@ -1637,11 +1655,11 @@ export default function ReadingPlay() {
         <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
           <Text style={styles.firstDoneBar}>{t('reading.completeTitle')}</Text>
           <View style={styles.firstDoneBody}>
-            <Image source={MASCOT_IMG[FIRST_DONE_POSE]} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+            <Image source={MASCOT_IMG[FIRST_DONE_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.firstDoneTitle}>{t('reading.firstDoneTitle')}</Text>
             <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
             <View style={styles.firstDoneActions}>
-              <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+              {goHomeButton}
               <Pressable
                 style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
                 onPress={() => void readAgain()}
@@ -1671,9 +1689,9 @@ export default function ReadingPlay() {
       const total = monoResult?.rows.length ?? 0;
       const statusLabel = { read: t('reading.monologueStatusRead'), missed: t('reading.monologueStatusMissed'), different: t('reading.monologueStatusDifferent') };
       return (
-        <View style={styles.root}>
-          <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-            <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+        <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
+          <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
+            <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.doneTitle}>{t(completed ? 'reading.monologueDoneTitle' : 'reading.notCountedTitle')}</Text>
             {!completed ? (
               <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>
@@ -1734,21 +1752,18 @@ export default function ReadingPlay() {
                 </>
               )}
             </Pressable>
-            <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
-              <Feather name="file-text" size={16} color={palette.textDim} />
-              <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
-            </Pressable>
+            {otherScriptRow}
             </View>
             {completed && !fromTutorialRef.current && (
               <View style={styles.ratingSlot}>
-                <ReadingRating sessionId={session.id} />
+                <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />
               </View>
             )}
           {ratingCard}
           </ScrollView>
           <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
             {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+            {goHomeButton}
           </View>
           {dialog}
         </View>
@@ -1759,9 +1774,9 @@ export default function ReadingPlay() {
     const compared = sttMode?.kind === 'stt';
     const textOf = (lineId: string) => run.lines[run.lineIds.indexOf(lineId)]?.text ?? '';
     return (
-      <View style={styles.root}>
-        <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-          <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+      <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
+        <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
+          <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.doneTitle}>{t(completed ? 'reading.completeTitle' : 'reading.notCountedTitle')}</Text>
           {!completed && <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>}
           <Text style={styles.dim}>{script.title}</Text>
@@ -1825,16 +1840,13 @@ export default function ReadingPlay() {
               </>
             )}
           </Pressable>
-          <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.replace('/reading')} accessibilityRole="button">
-            <Feather name="file-text" size={16} color={palette.textDim} />
-            <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
-          </Pressable>
+          {otherScriptRow}
           </View>
 
           {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
           {completed && !fromTutorialRef.current && (
             <View style={styles.ratingSlot}>
-              <ReadingRating sessionId={session.id} />
+              <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />
             </View>
           )}
 
@@ -1842,7 +1854,7 @@ export default function ReadingPlay() {
         </ScrollView>
         <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
           {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            <PrimaryButton label={t('reading.goHome')} onPress={() => router.replace('/(tabs)')} disabled={doneLocked} />
+            {goHomeButton}
         </View>
         {dialog}
       </View>
@@ -1896,7 +1908,7 @@ export default function ReadingPlay() {
         {notice?.kind === 'dropped' ? <Text style={styles.droppedText}>{t('reading.recordingDropped', { count: notice.count })}</Text> : <View />}
         <Text style={styles.counter}>{monoCounter ?? formatProgress(run)}</Text>
       </View>
-      <View style={styles.progressTrack}>
+      <View style={styles.progressTrack} onLayout={(e) => setTipTop(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
         <View style={[styles.progressFill, { width: `${Math.round((progressOf(run).done / Math.max(1, progressOf(run).total)) * 100)}%` }]} />
       </View>
       {notice?.kind === 'cloud_fallback' && (
@@ -2052,15 +2064,17 @@ export default function ReadingPlay() {
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
 
       {hold === 'tip' ? (
-        // pen 「새 · 리딩 시작 전」 — 자동 넘김 안내를 팝업 대신 아래에 두고 [시작]으로 첫 줄을 연다.
-        <View style={[styles.startBar, { paddingBottom: insets.bottom + 12 }]}>
-          {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
-          <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
-          {startHint && (
-            <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
-              <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
-            </Pressable>
-          )}
+        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
+        <View style={[styles.backdrop, { top: tipTop }]}>
+          <View style={styles.startCard}>
+            {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
+            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
+            {startHint && (
+              <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
+                <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       ) : (
       <>
@@ -2253,7 +2267,7 @@ const styles = StyleSheet.create({
   diffAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2 },
   diffAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
-  maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, backgroundColor: palette.card },
+  maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, backgroundColor: palette.card },
   maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.card },
   maskOptOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
   maskOptText: { fontSize: 13, fontWeight: '600', textAlign: 'center', color: palette.textDim },
@@ -2274,7 +2288,7 @@ const styles = StyleSheet.create({
   readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
   wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 20 },
-  startBar: { paddingHorizontal: 24, paddingTop: 14, gap: 10, alignItems: 'stretch' },
+  startCard: { width: '100%', maxWidth: 334, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, gap: 10 },
   startHint: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21, textAlign: 'center' },
   startSkip: { color: palette.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },
 
@@ -2340,16 +2354,5 @@ const styles = StyleSheet.create({
   pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
   pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 
-  backdrop: { flex: 1, backgroundColor: 'rgba(15, 21, 37, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
-  sheet: { width: '100%', backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 22, paddingTop: 10, gap: 4 },
-  sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
-  sheetNote: { color: palette.blueDeep, fontFamily: 'Pretendard', fontSize: 13, marginBottom: 6 },
-  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
-  sheetRowBody: { flex: 1, gap: 3 },
-  sheetRowTitle: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 15 },
-  sheetRowTitleOn: { color: palette.blueDeep },
-  sheetRowDesc: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center' },
-  radioOn: { borderColor: palette.blue, backgroundColor: palette.blue },
-  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
+  backdrop: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 21, 37, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
 });

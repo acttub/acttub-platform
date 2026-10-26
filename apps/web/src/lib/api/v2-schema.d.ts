@@ -4700,6 +4700,8 @@ export interface components {
             face_mosaic: boolean;
             /** Mosaic Status */
             mosaic_status: ("pending" | "ready" | "failed") | null;
+            /** Poster Url */
+            poster_url: string | null;
         };
         /** MyChallengeEntryParent */
         MyChallengeEntryParent: {

@@ -51,6 +51,11 @@ test('열 때 기기 설정과 서버 상태를 읽는다', async () => {
   seen('failed:false');
 });
 
+test('한 번도 안 건드린 기기는 켜짐으로 읽는다(10/25 사용자 결정)', async () => {
+  await show();
+  seen('enabled:true');
+});
+
 test('서버 상태를 못 읽으면 실패를 알린다', async () => {
   apiMock.getCloudVoiceStatus.mockRejectedValue(new Error('down'));
   await show();
@@ -81,6 +86,8 @@ test('이미 동의했으면 바로 켜고 안내를 잠시 띄운다', async ()
 });
 
 test('쓸 수 없는 상태면 켜지 않는다', async () => {
+  // 끈 적이 있는 기기에서 켜는 흐름을 본다(기본은 켜짐).
+  await AsyncStorage.setItem('acttub.cloudVoice', 'off');
   await show();
   apiMock.getCloudVoiceStatus.mockResolvedValue(status({ available: false }));
   let result = true;
@@ -177,6 +184,8 @@ test('다시 읽기는 최신 서버 상태를 돌려준다', async () => {
 });
 
 test('안드로이드 뒤로 가기로 동의 시트를 닫으면 아무것도 기록하지 않는다', async () => {
+  // 끈 적이 있는 기기에서 켜는 흐름을 본다(기본은 켜짐).
+  await AsyncStorage.setItem('acttub.cloudVoice', 'off');
   await show();
   await act(async () => { await voice.enable('settings'); });
   seen('동의하고 켜기');
@@ -189,6 +198,8 @@ test('안드로이드 뒤로 가기로 동의 시트를 닫으면 아무것도 �
 });
 
 test('동의 기록이 실패하면 시트에 남아 실패를 알리고, 다시 누르면 켠다', async () => {
+  // 끈 적이 있는 기기에서 켜는 흐름을 본다(기본은 켜짐).
+  await AsyncStorage.setItem('acttub.cloudVoice', 'off');
   await show();
   await act(async () => { await voice.enable('settings'); });
   apiMock.recordConsent.mockRejectedValueOnce(new Error('down'));
@@ -199,7 +210,7 @@ test('동의 기록이 실패하면 시트에 남아 실패를 알리고, 다시
   seen('동의 기록에 실패했어요. 다시 시도해 주세요.');
   seen('동의하고 켜기');
   seen('enabled:false');
-  expect(await AsyncStorage.getItem('acttub.cloudVoice')).toBeNull();
+  expect(await AsyncStorage.getItem('acttub.cloudVoice')).toBe('off');
 
   await fireEvent.press(screen.getByText('동의하고 켜기'));
   await flush();

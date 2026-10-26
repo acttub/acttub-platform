@@ -128,7 +128,7 @@ export default function ChallengeResultScreen() {
         )}
       </ScrollView>
       <CtaBar safeBottom={false}>
-        {nextId ? <TextButton label={t('challengeResult.seeChallenges')} tone="accent" onPress={() => router.replace('/challenges')} /> : null}
+        {nextId ? <TextButton label={t('challengeResult.seeChallenges')} tone="accent" onPress={() => router.dismissTo('/challenges')} /> : null}
         <PrimaryButton label={t(nextId ? 'challengeResult.seeWeek' : 'challengeResult.seeChallenges')} onPress={seeWeek} />
       </CtaBar>
     </SafeAreaView>

@@ -4,24 +4,41 @@ import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { fetchMe, logout, withdraw, type Me } from "@/lib/api/v2/auth";
 import { errorMessage } from "@/lib/api/v2/errors";
-import { memberProvider } from "@/lib/auth/token-store";
+import { memberProvider, subscribeAuthChange } from "@/lib/auth/token-store";
+import { PAYMENT_START_NOTICE } from "@/features/help/help-content";
+import { hasPendingCarry, redeemGuestCarry, takeCarryStatus, type CarryOutcome } from "./carry-guest";
 
 const PROVIDER_NAME: Record<string, string> = { google: "구글", naver: "네이버", kakao: "카카오", apple: "애플" };
 
 type Loaded = { kind: "member"; me: Me } | { kind: "error"; message: string };
 
-function subscribeStorage(onChange: () => void): () => void {
-  window.addEventListener("storage", onChange);
-  return () => window.removeEventListener("storage", onChange);
-}
-
 /** 내 계정(SOMA-834). 로그인하지 않았으면 로그인 안내만 보이고, 아래 삭제 안내는 누구에게나 보인다. */
 export function AccountPanel() {
   // null = 아직 브라우저를 못 봤다(서버 그림), "" = 회원 아님, 그 밖 = 로그인한 제공자.
-  const provider = useSyncExternalStore(subscribeStorage, () => memberProvider() ?? "", () => null);
+  const provider = useSyncExternalStore(subscribeAuthChange, () => memberProvider() ?? "", () => null);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [carry, setCarry] = useState<CarryOutcome | "pending" | null>(null);
+  const [withdrawn, setWithdrawn] = useState(false);
+
+  useEffect(() => {
+    // 로그인 직후의 옮기기 결과와 탈퇴 완료 표시는 한 번만 읽는다.
+    const status = takeCarryStatus();
+    const left = new URLSearchParams(window.location.search).get("withdrawn") === "1";
+    void Promise.resolve().then(() => {
+      if (status === "moved") setCarry("moved");
+      else if (status === "failed" || hasPendingCarry()) setCarry("failed");
+      setWithdrawn(left);
+    });
+  }, []);
+
+  async function retryCarry() {
+    setCarry("pending");
+    const result = await redeemGuestCarry();
+    takeCarryStatus();
+    setCarry(result === "moved" ? "moved" : hasPendingCarry() ? "failed" : null);
+  }
 
   useEffect(() => {
     if (!provider) return;
@@ -51,11 +68,21 @@ export function AccountPanel() {
     );
   }
 
+  if (state.kind === "guest" && withdrawn) {
+    return (
+      <section role="status" className={card}>
+        <h2 className="text-xl font-black">탈퇴가 끝났어요</h2>
+        <p className="mt-2 text-sm leading-6 text-[#4e5968]">그동안 ACTTUB을 써 주셔서 고마워요. App Store·Google Play에서 구독했다면 그곳에서 따로 해지해 주세요.</p>
+        <Link href="/" className="mt-4 inline-block text-sm font-semibold text-[#3182f6]">처음으로</Link>
+      </section>
+    );
+  }
+
   if (state.kind === "guest") {
     return (
       <section className={card}>
         <h2 className="text-xl font-black">내 계정</h2>
-        <p className="mt-2 text-sm leading-6 text-[#4e5968]">앱 계정으로 로그인하면 구독 확인과 탈퇴를 웹에서도 할 수 있어요.</p>
+        <p className="mt-2 text-sm leading-6 text-[#4e5968]">앱에서 만든 계정으로 로그인하면 로그아웃과 탈퇴를 웹에서도 할 수 있어요.</p>
         <Link href="/login?next=/account" className="mt-4 inline-block rounded-2xl bg-[#3182f6] px-5 py-3 font-bold text-white">로그인</Link>
       </section>
     );
@@ -104,6 +131,18 @@ export function AccountPanel() {
             앱에서 프로필을 마저 채우면 웹에서도 코칭과 리딩을 이어서 쓸 수 있어요.
           </p>
         ) : null}
+        {carry === "moved" ? (
+          <p role="status" className="mt-4 rounded-2xl bg-[#e8f3ff] p-4 text-sm leading-6 text-[#1b64da]">이 브라우저에서 한 연습을 내 계정으로 옮겼어요.</p>
+        ) : null}
+        {carry === "failed" || carry === "pending" ? (
+          <div role="status" className="mt-4 rounded-2xl bg-[#fff8ec] p-4 text-sm leading-6 text-[#8a4b00]">
+            이 브라우저에서 한 연습을 아직 옮기지 못했어요. 연습은 이 브라우저에 그대로 있어요.
+            {!me.profile_complete ? " 앱에서 프로필을 채운 뒤 다시 시도해 주세요." : null}
+            <button type="button" disabled={carry === "pending"} onClick={() => void retryCarry()} className="ml-2 font-bold underline underline-offset-2">
+              {carry === "pending" ? "옮기는 중이에요" : "다시 옮기기"}
+            </button>
+          </div>
+        ) : null}
         <button type="button" disabled={pending !== null} onClick={() => void doLogout()} className="mt-5 rounded-2xl px-4 py-2.5 text-sm font-bold text-[#4e5968] ring-1 ring-[#e5e8eb]">
           로그아웃
         </button>
@@ -111,7 +150,7 @@ export function AccountPanel() {
 
       <section className={card}>
         <h2 className="text-xl font-black">구독</h2>
-        <p className="mt-2 text-sm leading-6 text-[#4e5968]">Pro 결제는 11월에 시작해요. 지금은 결제되는 것이 없어요.</p>
+        <p className="mt-2 text-sm leading-6 text-[#4e5968]">{PAYMENT_START_NOTICE}</p>
         <Link href="/pricing" className="mt-3 inline-block text-sm font-semibold text-[#3182f6]">요금 안내 보기</Link>
       </section>
 

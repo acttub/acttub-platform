@@ -12,7 +12,7 @@ import { palette } from '@/constants/palette';
 export function ReadingCoachMark({ label, text, onClose }: { label: string; text: string; onClose: () => void }) {
   return (
     <Pressable style={styles.row} onPress={onClose} accessibilityRole="button" accessibilityLabel={text} ph-label="reading_coach_mark">
-      <Image source={MASCOT.reading} style={MASCOT_SIZE.guide} contentFit="contain" accessibilityIgnoresInvertColors />
+      <Image source={MASCOT.reading} style={MASCOT_SIZE.guide} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <View style={styles.bubble}>
         <Text style={styles.label}>{label}</Text>
         <Text style={styles.text}>{text}</Text>

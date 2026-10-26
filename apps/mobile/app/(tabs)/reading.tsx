@@ -207,7 +207,6 @@ export default function ReadingList() {
     }
   };
 
-  const voiceOn = cloudVoice.enabled && cloudVoice.status?.consent === 'granted';
   const voiceBar = (
     cloudVoice.status?.available ? (
       <View style={styles.voiceBar}>
@@ -257,20 +256,6 @@ export default function ReadingList() {
               {firstTime && (
                 <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
               )}
-              {/* pen R1.3 — 대본이 있으면 고품질 목소리 띠 대신 제목 옆 「Free」 알약. 누르면 켜고(동의 흐름·「켰어요」 토스트), 켠 뒤 누르면 끈다. */}
-              {!empty && cloudVoice.status?.available && (
-                <Pressable
-                  style={({ pressed }) => [styles.freePill, voiceOn && styles.freePillOn, pressed && styles.pressed]}
-                  accessibilityRole="switch"
-                  accessibilityLabel={t('cloudVoice.bannerLabel')}
-                  accessibilityState={{ checked: voiceOn, disabled: cloudVoice.busy }}
-                  ph-label="reading_free_voice"
-                  disabled={cloudVoice.busy}
-                  onPress={() => void (voiceOn ? cloudVoice.disable() : cloudVoice.enable('settings'))}>
-                  {voiceOn && <Feather name="check" size={13} color={palette.onAccent} />}
-                  <Text style={[styles.freePillText, voiceOn && styles.freePillTextOn]}>{t('cloudVoice.freePill')}</Text>
-                </Pressable>
-              )}
               {!empty && (
                 <Pressable
                   ref={newTarget.ref}
@@ -287,6 +272,9 @@ export default function ReadingList() {
           }
         />
       </View>
+
+      {/* 고품질 목소리 띠 — 대본이 있어도 머리 아래에 둔다(10/25 사용자 결정, 기본 켜짐). */}
+      {!empty && voiceBar}
 
       {error && (
         <View style={styles.errorBox}>
@@ -513,10 +501,6 @@ const styles = StyleSheet.create({
   resumeEyebrow: { color: 'rgba(255,255,255,0.88)', fontSize: 13, fontWeight: '700', lineHeight: 20 },
   resumeTitle: { color: palette.onAccent, maxWidth: '78%', fontSize: 22, fontWeight: '900', lineHeight: 31 },
   resumeHint: { color: 'rgba(255,255,255,0.85)', maxWidth: '64%', fontSize: 12.5, fontWeight: '600', lineHeight: 19 },
-  freePill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: '#EAF3FE' },
-  freePillOn: { backgroundColor: palette.blue },
-  freePillText: { color: palette.blue, fontSize: 14, fontWeight: '800' },
-  freePillTextOn: { color: palette.onAccent },
   resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.card, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
   resumeBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
   pressed: { opacity: 0.85 },

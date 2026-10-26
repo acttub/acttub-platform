@@ -136,6 +136,19 @@ class AccountNotificationIT {
     }
 
     @Test
+    @DisplayName("account.notification: 0.1.0 회차(practices)의 분석이 끝나도 주인의 단말을 찾고, 토글을 끄면 비운다(SOMA-844)")
+    void accountNotification_practiceRoundFindsTheOwnersDevices() throws Exception {
+        register(bearer, "ExponentPushToken[phone]");
+        UUID round = practiceRound(member);
+
+        assertThat(tokens.analysisDoneTargets(round)).extracting(PushTarget::token)
+                .containsExactly("ExponentPushToken[phone]");
+
+        patchSettings("{\"analysis_done\":false}", 200);
+        assertThat(tokens.analysisDoneTargets(round)).isEmpty();
+    }
+
+    @Test
     @DisplayName("account.notification: 폰 두 대에 로그인한 회원이 토글 셋을 끄면 서버 토큰이 모두 사라지고 하나를 켜면 다시 등록된다")
     void accountNotification_turningAllPushesOffForgetsEveryDevice() throws Exception {
         UUID other = member();
@@ -333,6 +346,21 @@ class AccountNotificationIT {
                 VALUES (?,?,?,'analyzing','상황','인물','분석','캐릭터 분석','목표')
                 """, session, owner, upload);
         return session;
+    }
+
+    private UUID practiceRound(UUID owner) {
+        UUID video = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms)
+                VALUES (?,?,?,'video/mp4',1000,12000)
+                """, video, owner, "videos/" + video + ".mp4");
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,
+                                      blockage_kind,sub_branch,situation)
+                VALUES (?,?,?,?,1,'analyzing','legacy','표현','감정','문 앞에서 돌아선다')
+                """, id, owner, video, id);
+        return id;
     }
 
     private void register(String authorization, String token) throws Exception {

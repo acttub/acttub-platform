@@ -12,7 +12,7 @@ import { TARGET } from '@/lib/spotlight-targets';
 /**
  * 하단 탭 — 홈 / 코칭 / 대본 / 챌린지 / 프로필(pen TabBar, SOMA-748·770). 모양은 공통 부품 components/ui/tab-bar.
  *
- * 글자 없는 아이콘 탭이라 탭마다 화면 읽기 이름(tabBarAccessibilityLabel)과 누름 기록 이름(ph-label)을 단다(SOMA-770 피드백 9).
+ * 글자 없는 아이콘 탭이라(SOMA-838) 탭마다 화면 읽기 이름(tabBarAccessibilityLabel)과 누름 기록 이름(ph-label)을 단다(SOMA-770 피드백 9).
  * 예전 가운데 촬영 버튼은 없어지고 코칭은 코칭 탭에서 시작한다. 카메라 화면(record-video)은 코칭·챌린지에서 연다.
  * 첫 사용자(홈 「뭐부터 해 볼까요?」 기준 — 묶음·대본·연습한 날이 모두 없음)로 확인되면 모든 탭에서 탭바를 숨기고, 무엇이든 시작하면 다시 보인다(bHxn1I, SOMA-781).
  * 판단은 홈이 받은 기록으로 lib/practice/first-time 한 곳에서 한다. 아직 모르면(홈을 거치지 않고 다른 탭으로 들어온 경우) 보인다.
@@ -36,7 +36,9 @@ export default function TabLayout() {
 
   return (
     <>
+      {/* 뒤로가기는 들어온 순서대로 돌아간다. 기본값(firstRoute)은 숨긴 탭(지난 연습)에서도 홈으로 보낸다. */}
       <Tabs
+        backBehavior="history"
         screenOptions={{
           tabBarActiveTintColor: palette.blue,
           tabBarInactiveTintColor: palette.textFaint,
@@ -48,14 +50,14 @@ export default function TabLayout() {
           name="index"
           options={{
             ...tab('home'),
-            tabBarIcon: tabIcon('home-outline', t('tabs.home')),
+            tabBarIcon: tabIcon('home-outline'),
           }}
         />
         <Tabs.Screen
           name="coaching"
-          options={{ ...tab('coaching'), tabBarIcon: tabIcon('chatbubble-outline', t('tabs.coaching'), coachingTarget) }}
+          options={{ ...tab('coaching'), tabBarIcon: tabIcon('chatbubble-outline', coachingTarget) }}
         />
-        <Tabs.Screen name="reading" options={{ ...tab('reading'), tabBarIcon: tabIcon('book-outline', t('tabs.reading'), readingTarget) }} />
+        <Tabs.Screen name="reading" options={{ ...tab('reading'), tabBarIcon: tabIcon('book-outline', readingTarget) }} />
         {/* 기록·예전 촬영 자리는 탭바에서 빠졌지만 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
         <Tabs.Screen name="history" options={{ href: null }} />
         <Tabs.Screen name="record" options={{ href: null }} />
@@ -64,11 +66,11 @@ export default function TabLayout() {
           name="challenges"
           options={{
             ...tab('challenge'),
-            tabBarIcon: tabIcon('trophy-outline', t('tabs.challenge'), challengeTarget),
+            tabBarIcon: tabIcon('trophy-outline', challengeTarget),
             tabBarBadge: unread.badge ?? undefined,
           }}
         />
-        <Tabs.Screen name="profile" options={{ ...tab('profile'), tabBarIcon: tabIcon('person-outline', t('tabs.profile'), profileTarget) }} />
+        <Tabs.Screen name="profile" options={{ ...tab('profile'), tabBarIcon: tabIcon('person-outline', profileTarget) }} />
       </Tabs>
     </>
   );

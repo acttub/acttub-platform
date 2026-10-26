@@ -128,7 +128,7 @@ export default function CoachingTab() {
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstBody}>
             <View style={styles.introRow}>
-              <Image source={MASCOT.slate} style={styles.introMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+              <Image source={MASCOT.slate} style={styles.introMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
               <View style={styles.introBubble}>
                 <Text style={styles.introTitle}>{t('coachingTab.firstTitle')}</Text>
                 <Text style={styles.introBody}>{t('coachingTab.firstBody')}</Text>
@@ -159,12 +159,9 @@ export default function CoachingTab() {
             </View>
             <ScriptCocreateEntry style={styles.entryGap} />
           </ScrollView>
-          <View style={[styles.firstFooter, { paddingBottom: 21 + tabBarSpace }]}>
-            <PrimaryButton label={t('coachingTab.startNow')} phLabel="coaching_first_next" onPress={startNew} />
-            <Pressable onPress={startNew} accessibilityRole="button" accessibilityLabel={t('coachingTab.uploadVideo')} ph-label="coaching_first_upload" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
-              <Feather name="upload" size={15} color={palette.textDim} />
-              <Text style={styles.linkText}>{t('coachingTab.uploadVideo')}</Text>
-            </Pressable>
+          {/* 찍기·올리기는 같은 화면(app/upload)에서 고르므로 버튼 하나로 두고, 엄지 닿는 아래쪽에 붙인다(SOMA-842). */}
+          <View style={[styles.firstFooter, { paddingBottom: 8 + tabBarSpace }]}>
+            <PrimaryButton label={t('coachingTab.choice.video')} phLabel="coaching_first_next" onPress={startNew} />
             <Pressable onPress={() => router.push('/talk')} accessibilityRole="button" accessibilityLabel={t('coachingTab.choice.talk')} ph-label="coaching_first_talk" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
               <Feather name="message-circle" size={15} color={palette.textDim} />
               <Text style={styles.linkText}>{t('coachingTab.choice.talk')}</Text>
@@ -177,7 +174,7 @@ export default function CoachingTab() {
           <View style={styles.memo}>
             <View style={styles.memoHead}>
               <View style={styles.memoAvatar}>
-                <Image source={MASCOT.coach} style={styles.memoMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+                <Image source={MASCOT.coach} style={styles.memoMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
               </View>
               <View style={styles.flex}>
                 <Text style={styles.memoKind}>{t(resuming ? 'coachingTab.resumeKind' : 'coachingTab.memoKind')}</Text>
@@ -282,7 +279,7 @@ function ExampleCoachLine({ text }: { text: string }) {
   return (
     <View style={styles.coachRow}>
       <View style={styles.coachAvatar}>
-        <Image source={MASCOT.coach} style={styles.coachMascot} contentFit="contain" accessibilityIgnoresInvertColors />
+        <Image source={MASCOT.coach} style={styles.coachMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       </View>
       <View style={styles.coachBubble}>
         <Text style={styles.coachText}>{text}</Text>

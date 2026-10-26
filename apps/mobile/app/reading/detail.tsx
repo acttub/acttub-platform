@@ -7,6 +7,7 @@ import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
@@ -65,16 +66,7 @@ export default function ReadingDetail() {
     }, [load]),
   );
 
-  if (!script) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
-          <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  if (!script) return <ReadingNoScript />;
 
   const removeScript = async () => {
     const ok = await confirm({
@@ -86,7 +78,7 @@ export default function ReadingDetail() {
     if (!ok) return;
     try {
       await deleteScript(script.id);
-      router.replace('/reading');
+      router.dismissTo('/reading');
     } catch (e) {
       void alert({ title: t('reading.deleteAction'), message: scriptErrorMessage(e) });
     }
@@ -226,8 +218,6 @@ function SessionRow({ card, onOpen, onDelete }: { card: SessionCard; onOpen: () 
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
   content: { paddingHorizontal: 20, paddingTop: 4 },
   head: { gap: 5, paddingBottom: 20 },
   title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 24 },
@@ -261,6 +251,4 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1, backgroundColor: palette.bg },
   primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 15, backgroundColor: palette.blue },
   primaryText: { color: palette.onAccent, fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
-  pillText: { color: palette.onAccent, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 });

@@ -50,7 +50,7 @@ export default function ProScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader left={<NavIconButton icon="x" size={28} label={t('common.close')} phLabel="pro_close" onPress={() => router.back()} />} />
       <ScrollView contentContainerStyle={styles.body}>
-        <Image source={MASCOT.cheer} style={styles.mascot} contentFit="contain" />
+        <Image source={MASCOT.cheer} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" />
         <ProBadge />
         <Text style={styles.title}>{t('pro.title')}</Text>
         <Text style={styles.tagline}>{t('pro.tagline')}</Text>

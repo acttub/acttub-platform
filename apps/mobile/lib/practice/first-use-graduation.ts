@@ -24,8 +24,36 @@ const keyFor = (userId: string) => `acttub.firstUse.graduated.${userId}`;
 /** 지금 로그인한 계정 — 로그인 상태(lib/auth)가 바뀔 때 알려 준다. 화면이 계정을 몰라도 표시를 남길 수 있게. */
 let owner: string | null = null;
 
+let waiters: ((id: string) => void)[] = [];
+
 export function setFirstUseOwner(userId: string | null): void {
   owner = userId;
+  if (!userId) return;
+  const ready = waiters;
+  waiters = [];
+  for (const resolve of ready) resolve(userId);
+}
+
+/**
+ * 계정이 정해지면 그 id, `waitMs` 안에 안 정해지면 null. 앱을 막 켜면 화면이 로그인 정보(me)보다 먼저 그려져
+ * 계정별 기록을 계정 없이 읽게 된다 — 그러면 본 안내를 못 본 것으로 읽어 켤 때마다 다시 띄웠다(10/26).
+ */
+export function firstUseOwnerReady(waitMs: number): Promise<string | null> {
+  if (owner || waitMs <= 0) return Promise.resolve(owner);
+  return new Promise((resolve) => {
+    const done = (id: string | null) => {
+      clearTimeout(timer);
+      waiters = waiters.filter((w) => w !== done);
+      resolve(id);
+    };
+    const timer = setTimeout(() => done(owner), waitMs);
+    waiters.push(done);
+  });
+}
+
+/** 지금 로그인한 계정 id — 기기에 남기는 계정별 기록(연습한 날·가이드 본 기록)의 키에 붙인다. */
+export function currentFirstUseOwner(): string | null {
+  return owner;
 }
 
 export async function hasGraduatedFirstUse(userId: string | null | undefined = owner): Promise<boolean> {

@@ -17,7 +17,7 @@ test('③ 단계 표시: 동그라미 20 · 번호 13/700 · 이름 14/700 · �
 
 test('③ 새 연습: 머리 오른쪽 설정, 본문 좌우 24, 권리 체크 15/700 · 버튼 52 · 안내 14/500', () => {
   const upload = read('app/upload.tsx');
-  assert.match(upload, /headerRight: \(\) => \(\s*<NavIconButton icon="settings"/);
+  assert.match(upload, /headerRight: firstTimeUser\s*\? \(\) => \(\s*<NavIconButton icon="settings"/);
   assert.match(upload, /stepBody: \{ paddingTop: 16, paddingHorizontal: 24,/);
   assert.match(upload, /rightsText: \{ flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette\.textStrong \}/);
   assert.match(upload, /submit: \{ height: 52, borderRadius: 16,/);

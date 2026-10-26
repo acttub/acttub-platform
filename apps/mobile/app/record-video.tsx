@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { RecordModeSlider } from '@/components/record-mode-slider';
@@ -58,6 +58,9 @@ function remainingLabel(sec: number): string {
 
 export default function RecordVideoScreen() {
   const { height: windowHeight } = useWindowDimensions();
+  // SafeAreaView 대신 루트 값을 쓴다 — 전체 화면 모달 안의 SafeAreaView 는 올라오는 중 받은 0을 고치지 않아 iOS 에서 버튼이 상태 표시줄 밑에 깔렸다.
+  const insets = useSafeAreaInsets();
+  const safePad = { paddingTop: insets.top, paddingBottom: insets.bottom };
   const router = useRouter();
   // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로. 업로드 화면의 촬영 버튼에서
   //   왔으면(picker 없음) 보관함에 저장하고 그 업로드 화면으로 되돌아간다.
@@ -322,6 +325,15 @@ export default function RecordVideoScreen() {
     router.back();
   }, [challengeId, firstCoaching, isChallenge, line, mode, picker, router, saveToLibrary, toUpload, work]);
 
+  // 닫기는 녹화 중·멈춘 뒤에도 받는다 — 예전엔 녹화 중 막혀 있어, iOS 에서 멈춤 뒤 녹화가 늦게 끝나면 위쪽 닫기가 안 눌렸다(10/25 QA).
+  // 찍던 것은 버린다. 먼저 끝남·떠남 표시를 해서 녹화가 끝나도 저장·이동하지 않게 한다.
+  const close = useCallback(() => {
+    finishedRef.current = true;
+    leavingRef.current = true;
+    if (recording) cameraRef.current?.stopRecording();
+    router.back();
+  }, [recording, router]);
+
   const finishWith = useCallback(
     (uri: string | null) => {
       if (finishedRef.current) return;
@@ -352,13 +364,14 @@ export default function RecordVideoScreen() {
     try {
       // maxDuration 으로 상한에서 네이티브가 스스로 멈춘다 — resolve 되면 결과를 넘긴다.
       const result = await cameraRef.current.recordAsync({ maxDuration: maxSec });
-      if (isChallenge) {
+      // 닫기로 버린 녹화는 고른 것도 실패도 아니다.
+      if (isChallenge && !leavingRef.current) {
         void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', result?.uri ? 'selected' : 'failed'));
       }
       finishWith(result?.uri ?? null);
     } catch {
       // 촬영이 실패하면 화면만 되돌린다(업로드에서 다시 시도).
-      if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', 'failed'));
+      if (isChallenge && !leavingRef.current) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', 'failed'));
       finishWith(null);
     } finally {
       // 곧바로 다른 화면으로 넘어갔으면 녹화 표시를 되돌리지 않는다 — 같은 순간에 바꾸면 안드로이드에서 꺼진다.
@@ -414,7 +427,7 @@ export default function RecordVideoScreen() {
     return (
       <View style={styles.permDark}>
         <StatusBar style="light" />
-        <SafeAreaView style={styles.permSafe}>
+        <View style={[styles.permSafe, safePad]}>
           <View style={styles.topRow}>
             <Pressable
               style={styles.closeBtn}
@@ -442,7 +455,7 @@ export default function RecordVideoScreen() {
               </Pressable>
             </View>
           )}
-        </SafeAreaView>
+        </View>
         {dialog}
       </View>
     );
@@ -460,13 +473,12 @@ export default function RecordVideoScreen() {
         {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
         <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
-        <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+        <View style={[styles.overlay, safePad]} pointerEvents="box-none">
           <View>
             <View style={styles.chTopRow}>
               <Pressable
                 style={styles.closeBtn}
-                onPress={() => router.back()}
-                disabled={recording}
+                onPress={close}
                 accessibilityRole="button"
                 accessibilityLabel={t('common.close')}
                 ph-label="record_close">
@@ -535,7 +547,7 @@ export default function RecordVideoScreen() {
             </Text>
             {slider}
           </View>
-        </SafeAreaView>
+        </View>
         {dialog}
       </View>
     );
@@ -552,15 +564,14 @@ export default function RecordVideoScreen() {
       {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
       <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
-      <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+      <View style={[styles.overlay, safePad]} pointerEvents="box-none">
         <View style={styles.topGroup} pointerEvents="box-none">
         {recordScript ? (
           // 대본으로 찍을 때(pen P2.14) — 닫기 · 시간 알약 `0:12 / 5:00` · 카메라 돌리기를 한 줄로 두고, 대본 카드는 그 아래.
           <View style={styles.chTopRow}>
             <Pressable
               style={styles.closeBtn}
-              onPress={() => router.back()}
-              disabled={recording}
+              onPress={close}
               accessibilityRole="button"
               accessibilityLabel={t('common.close')}
               ph-label="record_close">
@@ -586,23 +597,26 @@ export default function RecordVideoScreen() {
             )}
           </View>
         ) : (
-        <View style={styles.topRow}>
-          {recording ? (
-            <View style={styles.timerPill}>
-              <View style={styles.recDot} />
-              <Text style={styles.timerText}>
-                {remainMin}:{String(remainSec).padStart(2, '0')}
-              </Text>
-            </View>
-          ) : (
-            <Pressable
-              style={styles.closeBtn}
-              onPress={() => router.back()}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.close')}
-              ph-label="record_close">
-              <Text style={styles.closeText}>✕</Text>
-            </Pressable>
+        // 녹화 중엔 닫기 · 남은 시간 · 빈 칸으로 남은 시간을 가운데에 둔다.
+        <View style={recording ? styles.chTopRow : styles.topRow}>
+          <Pressable
+            style={styles.closeBtn}
+            onPress={close}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            ph-label="record_close">
+            <Text style={styles.closeText}>✕</Text>
+          </Pressable>
+          {recording && (
+            <>
+              <View style={styles.timerPill}>
+                <View style={styles.recDot} />
+                <Text style={styles.timerText}>
+                  {remainMin}:{String(remainSec).padStart(2, '0')}
+                </Text>
+              </View>
+              <View style={styles.closeBtn} />
+            </>
           )}
         </View>
         )}
@@ -679,7 +693,7 @@ export default function RecordVideoScreen() {
           )}
           {slider}
         </View>
-      </SafeAreaView>
+      </View>
       {dialog}
     </View>
   );

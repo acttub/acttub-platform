@@ -1,17 +1,18 @@
 import Constants from 'expo-constants';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
+import { pt } from '@/components/ui/anchored-menu';
 import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { proVisible, settingsSub, settingsTarget, type BillingMe } from '@/lib/billing';
-import { translate as t } from '@/lib/i18n';
+import { languagePreference, saveLanguagePreference, translate as t, type LanguagePreference } from '@/lib/i18n';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
 
@@ -24,7 +25,23 @@ import { openStoreReviewPage } from '@/lib/store-review';
 export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
-  const { confirm, alert, dialog } = useAppDialog();
+  const { confirm, alert, sheet, dialog } = useAppDialog();
+  // 표시 언어(SOMA-827 후속). 고른 값은 다음에 켤 때 적용된다 — 지금 줄에는 고른 값을 보인다.
+  const [language, setLanguage] = useState<LanguagePreference>(languagePreference());
+  const LANGUAGE_LABEL: Record<LanguagePreference, string> = {
+    system: t('settings.languageSystem'),
+    ko: '한국어',
+    en: 'English',
+  };
+  const chooseLanguage = (next: LanguagePreference) => {
+    if (next === language) return;
+    void saveLanguagePreference(next)
+      .then(() => {
+        setLanguage(next);
+        void alert({ title: t('settings.languageChangedTitle'), message: t('settings.languageChangedBody', { language: LANGUAGE_LABEL[next] }) });
+      })
+      .catch(() => void alert({ title: t('settings.languageTitle'), message: t('settings.languageSaveFail') }));
+  };
   // 실험 기능 — 발음 피드백. 기본 꺼짐, 기기에만 저장.
   const [voiceFeedback, setVoiceFeedback] = useState(false);
   useEffect(() => {
@@ -60,10 +77,10 @@ export default function SettingsScreen() {
 
   const openContactMail = async () => {
     const url = 'mailto:acttub0527@gmail.com?subject=' + encodeURIComponent(t('settings.contactSubject'));
+    // canOpenURL 은 안드로이드 11+ 에서 매니페스트 <queries> 에 mailto 가 없으면 메일 앱이 있어도 false 다(10/25 제보).
+    // 바로 열고, 받을 앱이 정말 없어 openURL 이 실패할 때만 주소를 알려 준다.
     try {
-      const okToOpen = await Linking.canOpenURL(url);
-      if (okToOpen) await Linking.openURL(url);
-      else throw new Error('cannot open');
+      await Linking.openURL(url);
     } catch {
       void alert({ title: t('settings.contactMailFail'), message: 'acttub0527@gmail.com' });
     }
@@ -93,6 +110,19 @@ export default function SettingsScreen() {
         <SectionTitle>{t('settings.profile')}</SectionTitle>
         <View style={styles.group}>
           <SettingsCard position="first" icon="user" title={t('settings.profileEditTitle')} sub={t('settings.profileEditBody')} onPress={() => router.push('/profile-edit')} />
+          <SettingsCard
+            position="middle"
+            icon="globe"
+            title={t('settings.languageTitle')}
+            sub={LANGUAGE_LABEL[language]}
+            onPress={(e?: GestureResponderEvent) =>
+              void sheet({
+                anchor: pt(e),
+                title: t('settings.languageTitle'),
+                actions: (['system', 'ko', 'en'] as const).map((value) => ({ label: LANGUAGE_LABEL[value], onPress: () => chooseLanguage(value) })),
+              })
+            }
+          />
           {/* 웹에서 로그인 없이 해 본 연습·대본을 여섯 자리 코드로 이 계정에 가져온다. */}
           <SettingsCard position="last" icon="download" title={t('settings.transferTitle')} sub={t('settings.transferBody')} onPress={() => router.push('/guest-transfer')} />
         </View>

@@ -292,27 +292,29 @@ describe('더보기 메뉴', () => {
 });
 
 describe('고품질 목소리 띠', () => {
-  test('대본이 있으면 띠 대신 제목 옆 「Free」 알약 — 누르면 동의 흐름으로 켠다(pen R1.3)', async () => {
+  test('대본이 있어도 무료 기한이 붙은 띠와 스위치가 있다 — 켜면 동의 흐름으로 간다', async () => {
     voice.status = { available: true, consent: 'none', free_until: '2026-12-31T03:00:00Z' };
     await render(<ReadingList />);
 
-    const pill = await screen.findByRole('switch', { name: '고품질 AI 목소리로 리딩해요' });
-    expect(screen.getByText('Free')).toBeOnTheScreen();
-    expect(pill).not.toBeChecked();
-    expect(screen.queryByText('12월 31일까지 무료')).not.toBeOnTheScreen();
-
-    await fireEvent.press(pill);
+    expect(await screen.findByText('옥상 장면')).toBeOnTheScreen();
+    expect(screen.getByText('고품질 AI 목소리로 리딩해요')).toBeOnTheScreen();
+    expect(screen.getByText('12월 31일까지 무료')).toBeOnTheScreen();
+    expect(screen.queryByText('Free')).not.toBeOnTheScreen();
+    const toggle = screen.getByRole('switch');
+    // 동의 전에는 켜 둔 값이어도 쓸 수 없으니 꺼진 모습이다.
+    expect(toggle).toHaveProp('value', false);
+    await fireEvent(toggle, 'valueChange', true);
     expect(voice.enable).toHaveBeenCalledWith('settings');
   });
 
-  test('동의하고 켠 상태면 알약이 켜져 있고, 누르면 끈다', async () => {
+  test('동의했고 켜 둔 상태(기본)면 스위치가 켜져 있고, 끄면 끈다', async () => {
     voice.status = { available: true, consent: 'granted', free_until: null };
     voice.enabled = true;
     await render(<ReadingList />);
 
-    const pill = await screen.findByRole('switch', { name: '고품질 AI 목소리로 리딩해요' });
-    expect(pill).toBeChecked();
-    await fireEvent.press(pill);
+    const toggle = await screen.findByRole('switch');
+    expect(toggle).toHaveProp('value', true);
+    await fireEvent(toggle, 'valueChange', false);
     expect(voice.disable).toHaveBeenCalled();
   });
 

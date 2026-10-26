@@ -50,6 +50,7 @@ export function RatingBox<Value extends string>({
   thanks,
   commentMax,
   save: persist,
+  onInputFocus,
 }: {
   initial: { rating: Value; comment: string | null } | null;
   title: string;
@@ -59,6 +60,8 @@ export function RatingBox<Value extends string>({
   thanks: string;
   commentMax: number;
   save: (requestId: string, rating: Value, comment: string | null) => Promise<'sent' | 'queued' | 'dropped'>;
+  /** 한 줄 칸을 눌렀을 때 — 부른 화면이 칸을 키보드 위로 올린다. */
+  onInputFocus?: () => void;
 }) {
   const [rating, setRating] = useState<Value | null>(initial?.rating ?? null);
   // 서버에 붙어 있는(또는 보내는 중인) 한 줄. 칩을 바꿔도 이 한 줄은 그대로 함께 보낸다.
@@ -122,6 +125,7 @@ export function RatingBox<Value extends string>({
             placeholder={placeholder}
             placeholderTextColor={palette.textFaint}
             maxLength={commentMax}
+            onFocus={onInputFocus}
           />
           <Pressable style={styles.send} onPress={send} accessibilityRole="button">
             <Text style={styles.sendText}>{sendLabel}</Text>

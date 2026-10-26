@@ -9,6 +9,7 @@
  */
 
 import { spotlightKey, type SpotlightTopic } from './guide-spotlight';
+import { currentFirstUseOwner, firstUseOwnerReady } from './practice/first-use-graduation';
 import { AUTO_ADVANCE_TIP_KEY } from './reading/guide-flag';
 
 /** 연습 루프를 한 바퀴 돌아보는 튜토리얼(SOMA-494). 끝내거나 "나중에"를 누르면 기록한다. */
@@ -46,12 +47,25 @@ async function mark(key: string): Promise<void> {
   }
 }
 
-export function hasSeenSpotlight(topic: SpotlightTopic): Promise<boolean> {
-  return seen(spotlightKey(topic));
+/**
+ * 화면 가이드는 계정별로 기억한다(10/25). 예전엔 기기 하나에 한 값이라 같은 폰에서 계정을 바꾸면 새 계정도 「봤음」이었다.
+ * 계정을 모르면 예전처럼 기기 값을 쓴다. 예전 기기 값은 누구 것인지 몰라 이어받지 않는다 — 처음엔 이어받게 했더니
+ * 업데이트 뒤 처음 들어온 새 계정이 앞 계정의 「봤음」을 가져가 첫 연습 안내를 못 봤다(폰 확인). 1.0.0 안내는 새 내용이라
+ * 기존 사용자도 계정마다 한 번 보는 게 맞다.
+ */
+function ownedSpotlightKey(topic: SpotlightTopic, owner: string | null): string {
+  return owner ? `${spotlightKey(topic)}.${owner}` : spotlightKey(topic);
+}
+
+/** 계정이 정해질 때까지 기다리는 한도. 로그인된 앱은 켜고 1초 안에 me 를 받는다. 로그인 전 화면에서는 안내를 띄우지 않는다. */
+const OWNER_WAIT_MS = 4000;
+
+export async function hasSeenSpotlight(topic: SpotlightTopic, waitMs = OWNER_WAIT_MS): Promise<boolean> {
+  return seen(ownedSpotlightKey(topic, await firstUseOwnerReady(waitMs)));
 }
 
 export function markSpotlightSeen(topic: SpotlightTopic): Promise<void> {
-  return mark(spotlightKey(topic));
+  return mark(ownedSpotlightKey(topic, currentFirstUseOwner()));
 }
 
 export function hasSeenTutorial(): Promise<boolean> {
@@ -80,6 +94,7 @@ export async function resetSpotlights(): Promise<void> {
     const store = storage();
     await Promise.all([
       ...SPOTLIGHT_TOPICS.map((topic) => store.removeItem(spotlightKey(topic))),
+      ...SPOTLIGHT_TOPICS.map((topic) => store.removeItem(ownedSpotlightKey(topic, currentFirstUseOwner()))),
       store.removeItem(TUTORIAL_KEY),
       store.removeItem(READING_TUTORIAL_KEY),
       store.removeItem(AUTO_ADVANCE_TIP_KEY),

@@ -39,7 +39,7 @@ const mockNavigation = {
 };
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: () => mockNavigation }));
 jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn() }));
-jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined) }));
+jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined), currentFirstUseOwner: () => null }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn() } }));
 const mockAskRating = jest.fn(async () => undefined);
@@ -225,7 +225,7 @@ test('현재 대본이나 회차가 없으면 내 대본으로 돌아가는 길�
   await render(<ReadingPlay />);
 
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
 });
 
 test('회차 구간의 줄이 대본에 없으면 실행하지 않는다', async () => {
@@ -268,7 +268,7 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
   expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 
   await pressWhenReady('홈으로 가기');
-  expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
   expect(server.deleteSession).not.toHaveBeenCalled();
 });
 
@@ -550,6 +550,8 @@ test('내 대사만 가리면 내 줄이 막대로 바뀌고, 첫 단어·원문
   // 시트 대신 컨트롤 바 위에 세 칸이 펼쳐진다(SOMA-821). 펼친 동안은 자동 넘김이 멈춘다.
   expect(screen.getByRole('radio', { name: '내 대사만 가리기' })).toBeOnTheScreen();
   expect(screen.getByRole('radio', { name: '모든 대사 보기' })).toBeChecked();
+  // 세 칸이 아래 컨트롤 바 경계선에 붙지 않게 아래 여백을 둔다(SOMA-840).
+  expect(screen.getByRole('radio', { name: '내 대사만 가리기' }).parent).toHaveStyle({ paddingBottom: 12 });
   expect(screen.getByText('넘김 멈춤')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대사만 가리기'));
   // 고르면 접힌다.
@@ -762,6 +764,15 @@ test('자동 넘김 안내를 숨기지 않았으면 [시작] 위에 안내를 �
   await fireEvent.press(screen.getByText('시작하고 이 안내는 다음부터 숨기기'));
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBe('1');
+});
+
+test('시작 팝업이 떠 있어도 [나가기]로 나가고, 시작 전이라 회차를 남기지 않는다(SOMA-839)', async () => {
+  const server = await startPlay(PARTNER_FIRST, undefined, { begin: false });
+  await screen.findByText('시작');
+
+  await fireEvent.press(screen.getByText('나가기'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading/detail'));
+  expect(server.deleteSession).toHaveBeenCalledWith('r1');
 });
 
 test('자동 넘김 안내를 [시작]으로 닫으면 다음에 또 띄운다', async () => {
@@ -985,19 +996,16 @@ test('고친 줄이 대사가 아니게 되고 남은 대사가 없으면 완료
   expect(server.patchLine).toHaveBeenCalledWith('s1', 'l5', { kind: 'direction' });
 });
 
-test('인식된 말 없이 「다음」만으로 끝까지 가면 완료로 보내지 않고 별점도 묻지 않는다(SOMA-773)', async () => {
+test('인식된 말이 없어도 끝까지 가면 완료로 보내고 별점을 묻는다(10/25 — 마이크가 못 알아들어도 연습 1회)', async () => {
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   const server = await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
   await screen.findByText('아직 인식된 말이 없어요');
 
   await speechEnds(() => recognizer);
-  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
-  expect(screen.getByText('알아들은 대사가 없어서 이번 리딩은 완료로 남기지 않았어요. 대사를 소리 내어 읽으면 완료로 세요.')).toBeOnTheScreen();
-  expect(screen.queryByText('리딩 완료')).not.toBeOnTheScreen();
-  expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
-  expect(screen.queryByText('말한 것을 원문과 비교하고 있어요.')).not.toBeOnTheScreen();
-  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
-  expect(mockAskRating).not.toHaveBeenCalled();
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: true })));
+  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
 });
 
 test('음성 인식을 못 쓰는 기기는 인식된 말 없이 끝까지 가도 완료로 보내고 별점을 묻는다(SOMA-773 예외)', async () => {
@@ -1108,7 +1116,7 @@ test('완료 화면이 뜬 직후에는 다시 연습·완료를 받지 않고, 
   await fireEvent.press(screen.getByText('다시 연습'));
   await fireEvent.press(screen.getByText('홈으로 가기'));
   expect(server.startSession).not.toHaveBeenCalled();
-  expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/(tabs)');
   await waitFor(() => expect(screen.getByRole('button', { name: '다시 연습' })).toBeEnabled(), { timeout: 2000 });
 });
 
@@ -1757,6 +1765,20 @@ test('인식기가 일부만 받아쓰고 스스로 멈추면 90% 대조 없이 
   await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1));
 });
 
+test('독백 결과의 다른 대본으로·홈으로 가기는 이미 있는 탭까지 내려간다(SOMA-853)', async () => {
+  await startMonologue();
+  mockStt.finish.mockResolvedValueOnce('그래서 더 말하기 싫었어 네가 그걸 아니까 그래서 더 아팠어');
+  await fireEvent.press(screen.getByText('끝내기'));
+  expect(await screen.findByText('끝까지 읽었어요')).toBeOnTheScreen();
+
+  await waitFor(() => expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeEnabled(), { timeout: 2000 });
+  await fireEvent.press(screen.getByText('다른 대본으로'));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  await fireEvent.press(screen.getByText('홈으로 가기'));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
+});
+
 test('독백 끝내기는 받아쓴 글을 녹음 전사로 올린다(#853)', async () => {
   await startMonologue();
   mockStt.finish.mockResolvedValueOnce('그래서 더 말하기 싫었어 네가 그걸 아니까');
@@ -1914,9 +1936,9 @@ test('완료 화면은 액티 · 대사 줄 수 줄 아래에 홈으로 가기�
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   await waitFor(() => expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeEnabled(), { timeout: 2000 });
   await fireEvent.press(screen.getByText('다른 대본으로'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
   await fireEvent.press(screen.getByText('홈으로 가기'));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
 });
 
 test('첫 리딩이면 끝에서 칭찬과 큰 홈으로 가기, 그 밑에 한 번 더 읽기만 보인다(pen R9.51)', async () => {
@@ -1929,6 +1951,10 @@ test('첫 리딩이면 끝에서 칭찬과 큰 홈으로 가기, 그 밑에 한 
   expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '한 번 더 읽기' })).toBeOnTheScreen();
   expect(screen.queryByText('다른 대본으로')).not.toBeOnTheScreen();
+  // 탭 묶음을 하나 더 쌓지 않고 이미 있는 홈 탭까지 내려간다(SOMA-853).
+  await pressWhenReady('홈으로 가기');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
+  expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
 });
 
 test('첫 리딩 버튼 안내가 떠 있는 동안은 말이 끝나도 넘기지 않고, 「알겠어요」를 누르면 이어 간다', async () => {

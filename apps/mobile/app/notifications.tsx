@@ -79,7 +79,7 @@ export default function NotificationsScreen() {
       return;
     }
     if (target.kind === 'home') {
-      router.replace('/(tabs)');
+      router.dismissTo('/(tabs)');
       return;
     }
     if (target.kind === 'challenge') {

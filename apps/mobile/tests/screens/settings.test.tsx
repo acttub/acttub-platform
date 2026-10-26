@@ -21,6 +21,11 @@ jest.mock('@/lib/reading/voice-feedback-setting', () => ({ loadVoiceFeedbackEnab
 jest.mock('@/lib/api', () => ({ api: { consentEntry: jest.fn(), recordConsent: jest.fn(), billingMe: jest.fn(() => Promise.reject(Object.assign(new Error('closed'), { status: 404, code: 'billing_unavailable' }))) } }));
 jest.mock('@/lib/store-review', () => ({ openStoreReviewPage: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: jest.fn() }));
+jest.mock('@/lib/i18n', () => ({
+  ...jest.requireActual('@/lib/i18n'),
+  languagePreference: () => 'system',
+  saveLanguagePreference: jest.fn(async () => undefined),
+}));
 jest.mock('@/lib/notifications', () => ({
   DEFAULT_NOTIFICATION_SETTINGS: { analysis_done: true, challenge: true, evening_reminder: true },
   loadNotificationSettings: jest.fn(),
@@ -391,7 +396,7 @@ describe('설정', () => {
     ['프로필 수정', '/profile-edit'],
     ['웹 연습 가져오기', '/guest-transfer'],
     ['알림', '/notification-settings'],
-    ['챌린지 기록', '/challenge-entries'],
+    ['챌린지', '/challenge-entries'],
     ['차단한 사용자', '/blocked-users'],
     ['동의 내역', '/consent-history'],
     ['회원 탈퇴', '/delete-account'],
@@ -420,8 +425,8 @@ describe('설정', () => {
   });
 
   describe('문의·신고 메일', () => {
-    test('메일 앱을 열 수 있으면 제목을 채워 연다', async () => {
-      jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(true);
+    test('canOpenURL 이 false 여도(안드로이드 11+ 패키지 가시성) 묻지 않고 제목을 채워 연다', async () => {
+      const canOpen = jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(false);
       const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
       await settingsLoaded();
 
@@ -430,10 +435,12 @@ describe('설정', () => {
       await waitFor(() =>
         expect(openURL).toHaveBeenCalledWith(`mailto:acttub0527@gmail.com?subject=${encodeURIComponent('[Acttub] 문의·신고')}`),
       );
+      expect(canOpen).not.toHaveBeenCalled();
+      expect(screen.queryByText('메일 앱을 열지 못했어요. acttub0527@gmail.com 으로 보내주세요.')).not.toBeOnTheScreen();
     });
 
-    test('열 수 없으면 주소를 알려 준다', async () => {
-      jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(false);
+    test('받을 메일 앱이 정말 없어 열기가 실패하면 주소를 알려 준다', async () => {
+      jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('No Activity found to handle Intent'));
       await settingsLoaded();
 
       await fireEvent.press(screen.getByRole('button', { name: '문의·신고 메일 보내기' }));
@@ -465,5 +472,29 @@ describe('설정', () => {
     await settingsLoaded();
     await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('언어(SOMA-827 후속)', () => {
+  test('프로필 묶음에 언어 줄이 있고, 고르면 저장하고 다시 켜면 바뀐다고 알린다', async () => {
+    const { saveLanguagePreference } = jest.requireMock('@/lib/i18n');
+    await settingsLoaded();
+
+    expect(screen.getByText('언어')).toBeOnTheScreen();
+    expect(screen.getByText('기기 설정 따름')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('언어'));
+    expect(screen.getByText('한국어')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('English'));
+
+    expect(saveLanguagePreference).toHaveBeenCalledWith('en');
+    expect(await screen.findByText('앱을 완전히 껐다 켜면 English로 바뀌어요.')).toBeOnTheScreen();
+  });
+
+  test('지금과 같은 것을 고르면 저장하지 않는다', async () => {
+    const { saveLanguagePreference } = jest.requireMock('@/lib/i18n');
+    await settingsLoaded();
+    await fireEvent.press(screen.getByText('언어'));
+    await fireEvent.press(screen.getAllByText('기기 설정 따름').at(-1)!);
+    expect(saveLanguagePreference).not.toHaveBeenCalled();
   });
 });

@@ -98,15 +98,19 @@ class PostgresPushTokenRepository implements PushTokenRepository {
      * ⚠ 토글은 프로필의 것이다({@code user_profiles}). 보내기 직전에 읽어 거르는 일이라 같은 질의에서
      * 읽는다 — 다른 feature 의 Schema Entity 를 import 하지 않도록 native SQL 로 둔다. 프로필 행이 없으면
      * 기본값(켜짐)으로 본다.
+     *
+     * <p>분석 워커가 둘이라 받는 id 도 둘 중 하나다 — 0.1.0 회차({@code practices}, practice.analyze)와 옛 세션
+     * ({@code practice_sessions}). 옛 표만 보면 0.1.0 회차의 완료 알림이 한 통도 나가지 않는다(SOMA-844).
      */
     @Override
     public List<PushTarget> analysisDoneTargets(UUID sessionId) {
         return list(entityManager.createNativeQuery("""
                 SELECT push.token, push.locale
                 FROM push_tokens push
-                JOIN practice_sessions practice ON practice.user_id=push.user_id
                 LEFT JOIN user_profiles profile ON profile.user_id=push.user_id
-                WHERE practice.id=:sessionId
+                WHERE push.user_id IN (SELECT user_id FROM practices WHERE id=:sessionId
+                                       UNION ALL
+                                       SELECT user_id FROM practice_sessions WHERE id=:sessionId)
                   AND COALESCE(profile.notify_analysis_done,true)
                 ORDER BY push.created_at
                 """, Tuple.class)

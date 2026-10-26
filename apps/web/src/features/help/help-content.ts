@@ -5,11 +5,14 @@
  */
 export type Notice = { date: string; title: string; body: string; href?: string };
 
+/** 결제 시작 안내. /pricing 의 문구와 같게 둔다 — 시작일이 정해지기 전에는 "준비하고 있어요"로만 말한다. */
+export const PAYMENT_START_NOTICE = "유료 결제는 11월 시작을 준비하고 있어요. 그 전에는 실제로 결제되지 않아요.";
+
 export const NOTICES: Notice[] = [
   {
-    date: "2026-10-26",
-    title: "ACTTUB Pro 결제는 11월에 시작해요",
-    body: "그 전에는 실제로 결제되지 않아요. 가격과 해지·환불 기준은 요금 안내에서 볼 수 있어요.",
+    date: "2026-10-25",
+    title: "ACTTUB Pro 유료 결제는 11월 시작을 준비하고 있어요",
+    body: "그 전에는 실제로 결제되지 않아요. 정확한 시작일은 따로 안내해요. 가격과 해지·환불 기준은 요금 안내에서 볼 수 있어요.",
     href: "/pricing",
   },
 ];
@@ -24,13 +27,13 @@ export const FAQ: FaqCategory[] = [
     items: [
       {
         q: "웹에서도 앱 계정으로 쓸 수 있나요?",
-        a: "지금 웹은 로그인 없이 게스트로 써요. 웹에서 한 연습은 이관 코드로 앱 계정에 옮길 수 있어요. 앱 계정으로 웹에 로그인하는 기능은 준비하고 있어요.",
-        href: "/transfer",
-        hrefLabel: "앱으로 옮기기",
+        a: "앱에서 만든 계정이라면 같은 구글 계정으로 웹에도 로그인할 수 있어요. 새 가입은 앱에서 해요. 로그인하면 이 브라우저에서 게스트로 한 연습을 내 계정으로 옮기고, 옮기지 못하면 내 계정 화면에서 다시 옮길 수 있어요. 카카오·애플 로그인은 지금은 앱에서만 돼요.",
+        href: "/login",
+        hrefLabel: "로그인",
       },
       {
         q: "웹에서 한 연습은 어디에 남나요?",
-        a: "앱으로 옮기기 전에는 그 브라우저에만 남아요. 브라우저 기록을 지우면 다시 볼 수 없으니, 계속 쓰려면 앱으로 옮겨 주세요.",
+        a: "로그인하거나 앱으로 옮기기 전에는 그 브라우저에만 남아요. 브라우저 기록을 지우면 다시 볼 수 없으니, 계속 쓰려면 로그인하거나 앱으로 옮겨 주세요.",
       },
       {
         q: "앱에서는 어떤 방법으로 로그인하나요?",
@@ -44,7 +47,7 @@ export const FAQ: FaqCategory[] = [
     items: [
       {
         q: "ACTTUB Pro는 얼마인가요?",
-        a: "월 3,900원(부가세 포함)이고, 결제일부터 1개월마다 정기결제돼요. 결제는 11월에 시작해요.",
+        a: "월 3,900원(부가세 포함)이고, 결제일부터 1개월마다 정기결제돼요. 유료 결제는 11월 시작을 준비하고 있고, 그 전에는 실제로 결제되지 않아요.",
         href: "/pricing",
         hrefLabel: "요금 안내",
       },
@@ -138,3 +141,12 @@ export const INQUIRY_CATEGORY: Record<InquiryType, "account" | "billing" | "refu
 /** 서버가 받는 내용 길이(자). */
 export const INQUIRY_BODY_MIN = 10;
 export const INQUIRY_BODY_MAX = 3000;
+
+/** 질문 문장으로 자주 묻는 질문 한 개를 찾는다. 홈처럼 일부만 보여 주는 곳에서 같은 답을 쓰기 위해. */
+export function findFaq(q: string): FaqItem | undefined {
+  for (const c of FAQ) {
+    const item = c.items.find((i) => i.q === q);
+    if (item) return item;
+  }
+  return undefined;
+}

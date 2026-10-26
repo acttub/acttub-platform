@@ -32,10 +32,10 @@ class PushServiceTest {
         assertThat(sender.sent)
                 .extracting(PushMessage::to)
                 .containsExactly("ExponentPushToken[aaa]", "ExponentPushToken[bbb]");
-        // 알림을 탭한 앱이 어느 연습으로 이어갈지 알 수 있어야 한다.
+        // 앱(analysisPushTarget)이 이 두 키로 완료 푸시를 알아보고, 탭하면 그 회차를 연다(SOMA-844).
         assertThat(sender.sent)
                 .allSatisfy(message -> assertThat(message.data())
-                        .isEqualTo(Map.of("sessionId", sessionId.toString())));
+                        .isEqualTo(Map.of("kind", "analysis_complete", "practice_id", sessionId.toString())));
         assertThat(sender.sent.getFirst().title()).isNotBlank();
         assertThat(sender.sent.getFirst().body()).isNotBlank();
     }

@@ -14,9 +14,10 @@ import {
   saveRecordingToLibrary,
 } from '@/lib/library/library-runner';
 import { setPickedVideo, takePickedVideo } from '@/lib/practice/picked-video';
+import { setFirstTimeState } from '@/lib/practice/first-time';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+const mockRouter = { dismissTo: jest.fn(), push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 let mockParams: Record<string, string> = {};
 let mockFocusEffect: () => void = () => undefined;
 const mockPlayer = { pause: jest.fn(), addListener: jest.fn(() => ({ remove: jest.fn() })), loop: true };
@@ -25,7 +26,14 @@ jest.mock('expo-router', () => {
   const { useEffect } = require('react');
   const { Text } = require('react-native');
   return {
-    Stack: { Screen: ({ options }: { options?: { title?: string } }) => <Text>{options?.title}</Text> },
+    Stack: {
+      Screen: ({ options }: { options?: { title?: string; headerRight?: () => React.ReactNode } }) => (
+        <>
+          <Text>{options?.title}</Text>
+          {options?.headerRight?.()}
+        </>
+      ),
+    },
     useRouter: () => mockRouter,
     useLocalSearchParams: () => mockParams,
     useFocusEffect: (effect: () => void) => {
@@ -119,6 +127,28 @@ async function checkRightsAndStart() {
   await ensureRights();
   await fireEvent.press(screen.getByRole('button', { name: '질문 받기' }));
 }
+
+// 탭바를 숨긴 첫 사용자만 설정으로 가는 길이 없다 — 연습을 해서 탭바가 보이면 머리의 설정 버튼을 두지 않는다(SOMA-849).
+describe('머리 설정 버튼', () => {
+  afterEach(() => act(() => setFirstTimeState('unknown')));
+
+  test('첫 사용자라 탭바가 숨으면 설정 버튼을 두고, 누르면 설정으로 간다', async () => {
+    setFirstTimeState('first');
+    await render(<UploadScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: '설정' }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/settings');
+  });
+
+  test('연습을 해서(또는 아직 몰라서) 탭바가 보이면 설정 버튼이 없다', async () => {
+    setFirstTimeState('practiced');
+    await render(<UploadScreen />);
+    expect(screen.queryByRole('button', { name: '설정' })).not.toBeOnTheScreen();
+
+    await act(async () => setFirstTimeState('unknown'));
+    expect(screen.queryByRole('button', { name: '설정' })).not.toBeOnTheScreen();
+  });
+});
 
 describe('영상을 고르기 전', () => {
   test('세션 목적부터 묻고, 목적을 고르고 다음을 누르면 영상 고르기로 간다 — 나가면 영상 없이 나갔다고 센다', async () => {
@@ -231,6 +261,10 @@ describe('갤러리에서 고르기', () => {
     await fireEvent.press(screen.getByText(RIGHTS));
     await fireEvent.press(screen.getByRole('button', { name: '업로드 중…' }));
     expect(await screen.findByText('영상을 올리고 있어요')).toBeOnTheScreen();
+    // 홈으로 나가면 이미 있는 홈 탭까지 내려간다 — 탭 묶음을 하나 더 쌓지 않는다(SOMA-853).
+    await fireEvent.press(screen.getByRole('button', { name: '홈에서 기다리기' }));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
   });
 
   test('올리기가 실패로 남으면 다시 올려 볼 수 있다고 알린다', async () => {
@@ -654,7 +688,7 @@ describe('영상 업로드를 망설일 때', () => {
     await openReasons();
     await fireEvent.press(screen.getByRole('radio', { name: '지금은 못 찍어요' }));
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(scheduleUploadLaterReminder).toHaveBeenCalled();
   });
 
