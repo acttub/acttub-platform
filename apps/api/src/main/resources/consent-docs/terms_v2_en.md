@@ -16,7 +16,7 @@ These Terms of Service set forth the rights, obligations, and responsibilities b
 6. "Payment Channel" means where the user pays for Pro: web payment (recurring card payment through Toss Payments), App Store in-app purchase (Apple), or Google Play in-app purchase (Google).
 7. "App Marketplace Operator" means Apple (App Store) and Google (Google Play), which handle billing, receipts, cancellation, and refunds for in-app purchases.
 8. "Billing Period" means the period of use obtained by one payment of the Pro fee: one month from the payment date for a monthly subscription (until the same day of the next month, or the last day of that month if there is no such day), and one year from the payment date for an annual subscription.
-9. "Paid Features" means features available only with Pro, such as coaching and script storage beyond the free limits, the pronunciation report, and the premium reading voice.
+9. "Paid Features" means features available only with Pro, such as coaching and script storage beyond the free limits, enhanced coaching (Article 9(1)), the pronunciation report, and the premium reading voice.
 10. Terms not defined in these Terms shall follow applicable laws and general customary practice.
 
 ## Article 3 (Posting and Amendment of the Terms)
@@ -66,8 +66,9 @@ Users shall not engage in the following acts:
 
 ## Article 9 (Content and Price of the Paid Service)
 1. The Company provides the Free Service and the Paid Service (Pro). From November 1, 2026, the scope of use is as follows:
-   - Free: AI coaching once a day, one reading script stored at a time, participation in challenges
-   - Pro: unlimited AI coaching and reading script storage, the pronunciation report, the premium reading voice, and a PRO badge
+   - Free: AI coaching three times a day, up to three reading scripts stored at a time, participation in challenges
+   - Pro: unlimited AI coaching and reading script storage, enhanced coaching, the pronunciation report, the premium reading voice, no ads during practice, and a PRO badge
+   - Enhanced coaching consists of the following three features: (1) coaching by a higher-tier AI model than the free plan; (2) coaching that points out habits recurring across sessions, based on the coaching records of earlier sessions (habit-aware coaching); and (3) more detailed coaching notes with observations by scene and line.
    - The premium reading voice is provided free to all members until October 31, 2026, and is included in Pro from November 1.
 2. The price of Pro, including VAT, is KRW 3,900 for a monthly subscription and KRW 32,500 for an annual subscription. Web payment offers only the monthly subscription; the annual subscription is offered only through App Store and Google Play payment. The amount actually charged by an app marketplace is the amount shown on its payment screen.
 3. Before payment, the Company displays, on the subscription information screen and the payment screen, each product's scope of use, price, Billing Period, whether it renews automatically, and how to cancel and obtain a refund, and the user pays after reviewing them.

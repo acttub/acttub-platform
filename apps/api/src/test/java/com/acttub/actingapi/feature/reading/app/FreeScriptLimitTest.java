@@ -23,7 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 무료 대본 1개 보관(SOMA-818) — 한도가 걸리면 저장 한도를 1로 넘기고 넘으면 403 free_script_limit. */
+/** 무료 대본 3개 보관(SOMA-818) — 한도가 걸리면 저장 한도를 3으로 넘기고 넘으면 403 free_script_limit. */
 class FreeScriptLimitTest {
     final ScriptRepository scripts = mock(ScriptRepository.class);
     final ScriptImportRepository imports = mock(ScriptImportRepository.class);
@@ -34,14 +34,14 @@ class FreeScriptLimitTest {
             List.of(new ScriptDraft.Line(1, "dialogue", 0, "안녕")));
 
     @Test
-    @DisplayName("직접 저장 — 한도가 걸리면 1개 한도로 저장하고, 넘으면 403 free_script_limit")
+    @DisplayName("직접 저장 — 한도가 걸리면 3개 한도로 저장하고, 넘으면 403 free_script_limit")
     void directSave() {
         when(scripts.create(eq(user), any(), anyString(), any(), anyInt()))
                 .thenReturn(new ScriptRepository.Creation(null, false, ScriptRepository.Outcome.OVER_LIMIT));
         ScriptService limited = new ScriptService(scripts, null, canonical, clock, id -> true);
         assertThatThrownBy(() -> limited.create(user, false, UUID.randomUUID(), draft))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getMessage()).contains("free_script_limit"));
-        verify(scripts).create(eq(user), any(), anyString(), any(), eq(ScriptPlan.FREE_SCRIPTS));
+        verify(scripts).create(eq(user), any(), anyString(), any(), eq(3));
 
         ScriptService free = new ScriptService(scripts, null, canonical, clock, ScriptPlan.UNLIMITED);
         assertThatThrownBy(() -> free.create(user, false, UUID.randomUUID(), draft)).hasMessageContaining("script_limit")
@@ -52,7 +52,7 @@ class FreeScriptLimitTest {
     @DisplayName("나누기 요청 — 한도가 걸리면 넘을 때 403 free_script_limit")
     void importRequest() {
         when(imports.consent(user)).thenReturn("granted");
-        when(imports.request(eq(user), any(), anyString(), any(), any(), eq(ScriptPlan.FREE_SCRIPTS), anyInt(), any()))
+        when(imports.request(eq(user), any(), anyString(), any(), any(), eq(3), anyInt(), any()))
                 .thenReturn(new ScriptImportRepository.Requested(null, null, ScriptImportRepository.Outcome.OVER_SCRIPT_LIMIT));
         ScriptImportService service = new ScriptImportService(imports, null, canonical, clock, id -> true);
         assertThatThrownBy(() -> service.request(user, false, UUID.randomUUID(),

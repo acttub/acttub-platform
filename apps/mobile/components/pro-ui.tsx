@@ -22,11 +22,14 @@ export function ProBadge({ small = false }: { small?: boolean }) {
   );
 }
 
-/** pen 「비교」 — 무료/Pro 네 줄. */
+/** pen 「비교」 — 무료/Pro. 코칭 고도화 세 줄(상위 모델·습관 기억·자세한 노트)은 11/1 무료 한도 개정 때 더했다(SOMA-818). */
 export function ProCompareTable() {
   const rows: [string, string, string][] = [
     [t('pro.rowCoaching'), t('pro.freeCoaching'), t('pro.unlimited')],
     [t('pro.rowScripts'), t('pro.freeScripts'), t('pro.unlimited')],
+    [t('pro.rowModel'), t('pro.freeBasic'), t('pro.proModel')],
+    [t('pro.rowHabit'), t('pro.freeNone'), t('pro.proHabit')],
+    [t('pro.rowNote'), t('pro.freeBasic'), t('pro.proNote')],
     [t('pro.rowPron'), t('pro.freeNone'), t('pro.proPron')],
     [t('pro.rowChallenge'), t('pro.freeChallenge'), t('pro.proChallenge')],
   ];

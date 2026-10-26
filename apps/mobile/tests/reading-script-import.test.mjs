@@ -148,7 +148,7 @@ test('reading.script(R2.14·R2.15): 접수 거절 — 동의 없음은 시트, �
     message: '대본은 하루 20번까지 나눌 수 있어요.\n내일 다시 넣어 주세요.',
   });
   assert.deepEqual(await stopFor(apiError(422, 'script_limit')), { kind: 'script_limit' });
-  // 무료 대본 1개(SOMA-818)는 알림 대신 Pro 시트를 띄우므로 알림 문구가 없다.
+  // 무료 대본 한도(SOMA-818)는 알림 대신 Pro 시트를 띄우므로 알림 문구가 없다.
   const free = await stopFor(apiError(403, 'free_script_limit'));
   assert.deepEqual(free, { kind: 'free_limit' });
   assert.equal(importAlert(free), null);

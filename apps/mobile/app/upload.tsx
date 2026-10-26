@@ -202,7 +202,7 @@ export default function UploadScreen() {
   const tutorialGuide = useTutorialSpotlight('upload');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // 무료 코칭 하루 1회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.
+  // 무료 코칭 하루 3회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.
   const [freeLimit, setFreeLimit] = useState(false);
   const attemptRef = useRef<RequestAttempt | null>(null);
   const startLockRef = useRef(false);

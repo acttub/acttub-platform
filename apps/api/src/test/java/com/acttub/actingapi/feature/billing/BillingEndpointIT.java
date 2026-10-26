@@ -216,12 +216,44 @@ class BillingEndpointIT {
     }
 
     @Test
-    @DisplayName("무료 한도가 켜져 있으면 Pro 가 아닌 사람의 두 번째 코칭은 429 free_daily_coaching_limit, Pro 면 막지 않는다")
+    @DisplayName("무료 한도가 켜져 있으면 Pro 가 아닌 사람은 하루 코칭 3번까지 되고 네 번째는 429 free_daily_coaching_limit")
     void freeCoachingLimit() throws Exception {
         String talk = "{\"request_id\":\"%s\",\"session_purpose\":\"concern\"}";
-        json(post("/v2/practices").content(talk.formatted(UUID.randomUUID())), 201);
+        for (int index = 0; index < 3; index++) {
+            json(post("/v2/practices").content(talk.formatted(UUID.randomUUID())), 201);
+        }
         assertThat(json(post("/v2/practices").content(talk.formatted(UUID.randomUUID())), 429).path("detail").asText())
                 .contains("free_daily_coaching_limit");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practices", Integer.class)).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("무료 한도가 켜져 있으면 Pro 가 아닌 사람은 리딩 대본 3개까지 보관하고 네 번째는 403 free_script_limit")
+    void freeScriptLimit() throws Exception {
+        for (int index = 0; index < 3; index++) {
+            json(post("/v2/reading/scripts").content(script("대본 " + index)), 201);
+        }
+        assertThat(json(post("/v2/reading/scripts").content(script("대본 4")), 403).path("detail").asText())
+                .contains("free_script_limit");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM scripts", Integer.class)).isEqualTo(3);
+    }
+
+    /** 배역 둘, 대사 둘인 직접 저장 본문. */
+    private String script(String title) {
+        var body = mapper.createObjectNode();
+        body.put("request_id", UUID.randomUUID().toString());
+        body.put("title", title);
+        body.put("source", "paste");
+        body.put("raw_text", title + " 원문");
+        var characters = body.putArray("characters");
+        characters.addObject().put("name", "니나");
+        characters.addObject().put("name", "트레플레프");
+        var lines = body.putArray("lines");
+        for (int index = 0; index < 2; index++) {
+            lines.addObject().put("ordinal", index + 1).put("kind", "dialogue").put("character_index", index)
+                    .put("text", "대사 " + (index + 1));
+        }
+        return body.toString();
     }
 
     private void subscribe() throws Exception {

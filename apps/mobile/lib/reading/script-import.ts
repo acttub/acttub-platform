@@ -42,7 +42,7 @@ export type ImportStop =
   | { kind: 'no_characters' } // R2.13
   | { kind: 'too_long' } // R2.12
   | { kind: 'script_limit' } // R2.12
-  | { kind: 'free_limit' } // 무료 대본 1개(SOMA-818, pen WLdNc). 서버 무료 한도 플래그가 켜졌을 때만 온다
+  | { kind: 'free_limit' } // 무료 대본 3개(SOMA-818, pen WLdNc). 서버 무료 한도 플래그가 켜졌을 때만 온다
   | { kind: 'busy' } // R2.12, 서버의 읽기 자리가 없다. 올린 파일은 그대로 두고 [다음]에서 다시 읽는다
   | { kind: 'upload_used' } // 이미 대본이 된 원본. runScriptImport 가 다시 올려 한 번 더 보낸다
   | { kind: 'error'; message: string }; // R2.12 공용

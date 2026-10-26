@@ -6,7 +6,7 @@ import java.time.ZoneId;
 
 /**
  * 앱 ACTTUB Pro 정기결제의 고정 규칙(SOMA-818, billing.subscription). 값은 acttub.com/pricing 과 같다 —
- * 월 3,900원(부가세 포함), 무료는 코칭 하루 1번·리딩 대본 1개 보관.
+ * 월 3,900원(부가세 포함), 무료는 코칭 하루 3번·리딩 대본 3개 보관.
  */
 public final class BillingRules {
     public static final long AMOUNT = 3900L;
@@ -27,10 +27,10 @@ public final class BillingRules {
     public static final Duration GOOGLE_GRACE = Duration.ofDays(7);
     public static final String ORDER_NAME = "ACTTUB Pro 월 구독";
     public static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-    /** 무료 코칭은 한국 시간 하루에 회차 1개. */
-    public static final int FREE_DAILY_COACHING = 1;
+    /** 무료 코칭은 한국 시간 하루에 회차 3개. */
+    public static final int FREE_DAILY_COACHING = 3;
     /** 무료 리딩 대본 보관 개수. */
-    public static final int FREE_SCRIPTS = 1;
+    public static final int FREE_SCRIPTS = 3;
     /** 자동결제가 실패한 뒤 다시 시도하는 간격과 횟수. 횟수를 다 쓰면 expired 다. */
     public static final Duration RETRY_DELAY = Duration.ofDays(1);
     public static final int MAX_RETRIES = 3;

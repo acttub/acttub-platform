@@ -21,7 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 무료 코칭 하루 1회(SOMA-818) — 플래그가 켜지고 Pro 가 아닐 때만 회차 한도를 건다. */
+/** 무료 코칭 하루 3회(SOMA-818) — 플래그가 켜지고 Pro 가 아닐 때만 회차 한도를 건다. */
 class FreeCoachingLimitTest {
     final PracticeRepository practices = mock(PracticeRepository.class);
     final MutableClock clock = new MutableClock(Instant.parse("2026-10-23T05:00:00Z"));
@@ -37,7 +37,7 @@ class FreeCoachingLimitTest {
     }
 
     @Test
-    @DisplayName("한도가 걸리면 오늘 0시(KST) 이후 회차 1개 한도를 넘겨 429 free_daily_coaching_limit")
+    @DisplayName("한도가 걸리면 오늘 0시(KST) 이후 회차 3개 한도를 넘겨 429 free_daily_coaching_limit")
     void limited() {
         when(practices.startWithoutVideo(eq(user), any(), any(), any())).thenReturn(new Started(StartOutcome.QUOTA, null));
         assertThatThrownBy(() -> service(id -> true).start(user, false, null, talk()))
@@ -45,7 +45,7 @@ class FreeCoachingLimitTest {
         ArgumentCaptor<Quota> quota = ArgumentCaptor.forClass(Quota.class);
         verify(practices).startWithoutVideo(eq(user), any(), quota.capture(), any());
         assertThat(quota.getValue().kind()).isEqualTo(Quota.Kind.SESSIONS);
-        assertThat(quota.getValue().limit()).isEqualTo(1);
+        assertThat(quota.getValue().limit()).isEqualTo(3);
         assertThat(quota.getValue().since().atOffset(ZoneOffset.ofHours(9)).getHour()).isZero();
     }
 

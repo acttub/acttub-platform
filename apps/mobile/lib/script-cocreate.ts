@@ -152,7 +152,7 @@ export function errorKey(code: string | undefined): string {
       return 'scriptCocreate.errorRevision';
     case 'script_limit':
       return 'scriptCocreate.errorScriptLimit';
-    // 무료 대본 1개(SOMA-818) — 서버 무료 한도 플래그가 켜졌을 때만 온다.
+    // 무료 대본 3개(SOMA-818) — 서버 무료 한도 플래그가 켜졌을 때만 온다.
     case 'free_script_limit':
       return 'pro.scriptLimitTitle';
     default:

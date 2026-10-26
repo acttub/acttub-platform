@@ -49,8 +49,14 @@ test("요금 안내는 무료와 Pro의 차이를 같은 말로 보인다", () =
   const table = screen.getByRole("table");
   assert.deepEqual(
     within(table).getByRole("rowheader", { name: "AI 연기 코칭" }).closest("tr").textContent,
-    "AI 연기 코칭하루 1회제한 없음",
+    "AI 연기 코칭하루 3회제한 없음",
   );
+  assert.equal(within(table).getByRole("rowheader", { name: "리딩 대본 보관" }).closest("tr").textContent, "리딩 대본 보관3개제한 없음");
+  // 코칭 고도화 세 가지(상위 모델·습관 기억·자세한 노트)는 Pro 혜택이다.
+  assert.match(pro.textContent, /상위 AI 모델로 코칭/);
+  assert.match(pro.textContent, /습관을 기억하는 코칭/);
+  assert.match(pro.textContent, /더 자세한 코칭 노트/);
+  assert.match(pro.textContent, /연습 중 광고 없음/);
 });
 
 test("환불정책은 이용한 날짜만큼 빼는 기준과 30일 예시 금액을 보인다", () => {

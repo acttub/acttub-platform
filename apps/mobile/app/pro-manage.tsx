@@ -49,6 +49,9 @@ export default function ProManageScreen() {
             <View style={styles.benefits}>
               <ProBenefitRow title={t('pro.rowCoaching')} sub={t('pro.unlimited')} />
               <ProBenefitRow title={t('pro.rowScripts')} sub={t('pro.unlimited')} />
+              <ProBenefitRow title={t('pro.rowModel')} sub={t('pro.proModel')} />
+              <ProBenefitRow title={t('pro.rowHabit')} sub={t('pro.proHabit')} />
+              <ProBenefitRow title={t('pro.rowNote')} sub={t('pro.proNote')} />
               <ProBenefitRow title={t('pro.rowPron')} sub={t('pro.managePron')} />
             </View>
             {managedNote(me) && <Text style={styles.note}>{managedNote(me)}</Text>}

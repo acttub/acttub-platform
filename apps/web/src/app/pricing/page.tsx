@@ -24,11 +24,15 @@ const FAQ = [
 ] as const;
 
 const COMPARE = [
-  ["AI 연기 코칭", "하루 1회", "제한 없음"],
-  ["리딩 대본 보관", "1개", "제한 없음"],
+  ["AI 연기 코칭", "하루 3회", "제한 없음"],
+  ["코칭 AI 모델", "기본 모델", "상위 모델"],
+  ["습관을 기억하는 코칭", "—", "회차를 넘어 반복되는 버릇을 짚어 줘요"],
+  ["코칭 노트", "기본", "장면·대사별로 더 자세히"],
+  ["리딩 대본 보관", "3개", "제한 없음"],
   ["같은 대본 반복 연습", "제한 없음", "제한 없음"],
   ["리딩 고품질 목소리", "10월 31일까지 무료", "포함"],
   ["발음 보고서", "—", "준비 중"],
+  ["연습 중 광고", "—", "광고 없음"],
   ["챌린지 참여·시청·댓글", "무료", "무료 · Pro 배지"],
 ] as const;
 
@@ -56,8 +60,8 @@ export default function PricingPage() {
             <p className="mt-2 text-[28px] font-extrabold tracking-[-0.03em] sm:text-[34px]">0원</p>
             <p className="text-[13.5px] text-[#6b7684]">11월 1일부터 무료 이용 범위</p>
             <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
-              <li className="py-2.5">코칭 하루 1회</li>
-              <li className="py-2.5">리딩 대본 1개 보관 · 같은 대본 반복 연습은 제한 없음</li>
+              <li className="py-2.5">코칭 하루 3회</li>
+              <li className="py-2.5">리딩 대본 3개 보관 · 같은 대본 반복 연습은 제한 없음</li>
               <li className="py-2.5">챌린지 참여·시청·댓글</li>
             </ul>
             <p className="mt-4 text-[13.5px] leading-[1.6] text-[#6b7684]">
@@ -75,8 +79,12 @@ export default function PricingPage() {
             <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
               <li className="py-2.5">코칭 횟수 제한 없음</li>
               <li className="py-2.5">리딩 대본 개수 제한 없음</li>
+              <li className="py-2.5">상위 AI 모델로 코칭</li>
+              <li className="py-2.5">습관을 기억하는 코칭 · 회차를 넘어 반복되는 버릇을 짚어 줘요</li>
+              <li className="py-2.5">더 자세한 코칭 노트 · 장면·대사별 관찰</li>
               <li className="py-2.5">발음 보고서 (Pro 전용 · 준비 중)</li>
               <li className="py-2.5">리딩 고품질 목소리 (10월 31일까지는 모두 무료)</li>
+              <li className="py-2.5">연습 중 광고 없음</li>
               <li className="py-2.5">참여작·댓글·프로필에 Pro 배지</li>
             </ul>
             {WEB_BILLING_ENABLED ? (
