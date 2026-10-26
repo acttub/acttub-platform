@@ -111,7 +111,7 @@ export function useStorePurchase({ enabled, onConfirmed }: Options): StorePurcha
   useEffect(() => {
     if (!ready || !userId) return undefined;
     let alive = true;
-    (async () => {
+    void (async () => {
       try {
         await identify(userId);
         const offering = (await Purchases.getOfferings()).current;
