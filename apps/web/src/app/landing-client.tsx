@@ -11,6 +11,7 @@ import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { usePinnedDesktop, usePinnedFeature } from "@/features/site/pinned-features";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
+import { useSmoothWheel } from "@/features/site/smooth-wheel";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
 
@@ -76,7 +77,9 @@ export default function LandingClient() {
   // 데스크톱: 기능 구간에서 한 화면짜리 무대가 붙어 있고, 스크롤한 만큼 글과 휴대폰이 다음 기능으로 바뀐다.
   const desktop = usePinnedDesktop();
   const featuresRef = useRef<HTMLElement | null>(null);
-  // 스크롤은 브라우저 기본 그대로 두고(하입나우·토스처럼), 아래 구간(data-reveal)은 화면에 들어올 때 스르륵 나타난다.
+  // 데스크톱 휠은 미끄러지듯 부드럽게(useSmoothWheel). 칸에 맞춰 멈추지는 않는다.
+  useSmoothWheel();
+  // 아래 구간(data-reveal)은 화면에 들어올 때 스르륵 나타난다.
   // 숨김은 이 효과가 붙은 뒤(html.reveal-ready)에만 걸어서, 스크립트가 늦거나 없으면 그냥 보인다.
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
