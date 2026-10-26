@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
@@ -193,6 +194,8 @@ export default function HistoryScreen() {
             </Pressable>
           ))}
         </View>
+
+        <AdSlot slot="archive_top" style={{ marginBottom: 12 }} />
 
         {loading && (
           <SkeletonRows count={5} avatar card={false} />

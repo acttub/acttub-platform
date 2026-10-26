@@ -94,7 +94,7 @@ export function ReadingPanel() {
       </div>
       <div className="-mt-3 ml-auto w-[88%] rounded-[24px] bg-[#191f28] p-5 text-white shadow-[0_24px_50px_rgba(25,31,40,0.28)]">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-black">발음·딕션 피드백</p>
+          <p className="text-sm font-black">발음 보고서</p>
           <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-black text-[#8fbfff]">Pro 전용 · 준비 중</span>
         </div>
         <div className="mt-4 flex h-9 items-center gap-1">

@@ -22,6 +22,7 @@ import 'react-native-reanimated';
 import '@/lib/global-font';
 import { useStoreRecovery } from '@/hooks/use-store-recovery';
 import { logScreenView } from '@/lib/analytics';
+import { initAdMob } from '@/lib/ads-native';
 import { initMetaSdk } from '@/lib/meta-events';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
@@ -438,6 +439,7 @@ function RootNavigator() {
             한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
         <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
         <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="ad/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="auditions/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
         <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
@@ -505,14 +507,18 @@ export default function RootLayout() {
   // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.
   useEffect(() => {
     if (!fontsLoaded) return;
-    const initialize = () => initMetaSdk(() => beforeTrackingRequest({
-      platform: Platform.OS,
-      getStatus: async () => (await getTrackingPermissionsAsync()).status,
-      getSeen: () => AsyncStorage.getItem(TRACKING_INTRO_KEY),
-      markSeen: () => AsyncStorage.setItem(TRACKING_INTRO_KEY, '1'),
-      // pen S1.2 — 설명 화면 없이 로그인 화면 위에 바로 iOS 시스템 팝업만 띄운다.
-      show: async () => undefined,
-    }));
+    // AdMob(SOMA-876)은 ATT 답을 받은 뒤 초기화한다 — 같은 팝업을 다시 묻지 않는다.
+    const initialize = async () => {
+      await initMetaSdk(() => beforeTrackingRequest({
+        platform: Platform.OS,
+        getStatus: async () => (await getTrackingPermissionsAsync()).status,
+        getSeen: () => AsyncStorage.getItem(TRACKING_INTRO_KEY),
+        markSeen: () => AsyncStorage.setItem(TRACKING_INTRO_KEY, '1'),
+        // pen S1.2 — 설명 화면 없이 로그인 화면 위에 바로 iOS 시스템 팝업만 띄운다.
+        show: async () => undefined,
+      }));
+      await initAdMob();
+    };
     // 설치 귀속 결과는 SDK 초기화 뒤 곧 온다. 받는 쪽은 먼저 세워 둔다(SOMA-588).
     startSignupAttributionListener();
     if (AppState.currentState === 'active') {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
@@ -407,6 +408,9 @@ export function CoachWaiting({
           </View>
         )}
       </ScrollView>
+
+      {/* 광고 칸(SOMA-876) — 연습 중 칸이라 무료 사용자 일부만 받는다. 아래 버튼 묶음 바로 위, 24 띄운다. */}
+      {!error && !sample && <AdSlot slot="analyzing_wait" style={{ marginHorizontal: 24, marginBottom: 24 }} />}
 
       {!error && (
         <View style={styles.bottom}>

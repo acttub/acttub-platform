@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT as MASCOTS } from '@/components/ui/mascot';
@@ -69,6 +70,8 @@ export function ChallengeDone({
           </View>
         )}
       </ScrollView>
+      {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 버튼 묶음 바로 위(CtaBar 위 여백 12 + 12 = 24). */}
+      <AdSlot slot="challenge_upload_done" style={{ marginHorizontal: 24, marginBottom: 12 }} />
       <CtaBar safeBottom={false}>
         <PrimaryButton label={t('challengeDone.home')} onPress={onHome} />
         {first && onShare ? <TextButton label={t('challengeDone.share')} tone="accent" size="large" onPress={onShare} /> : null}

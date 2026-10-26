@@ -134,6 +134,23 @@ test('account.withdraw: "연습·노트는 돌아오지 않아요"를 확인받�
   assert.ok(screen.indexOf('await confirm({') < screen.indexOf('await deleteAccount()'));
 });
 
+test('account.withdraw: 스토어 구독은 탈퇴해도 해지되지 않는다고 화면 안에 적고, 구독 중이면 스토어 관리 링크를 보인다(SOMA-818)', async () => {
+  const screen = stripComments(readSource('app/delete-account.tsx'));
+  const { default: ko } = await import('../locales/ko.ts');
+  const { default: en } = await import('../locales/en.ts');
+
+  assert.match(ko.deleteAccount.storeNote, /App Store·Google Play/);
+  assert.match(ko.deleteAccount.storeNote, /해지되지 않아요/);
+  assert.match(ko.deleteAccount.storeNote, /따로 해지해 주세요/);
+  assert.match(en.deleteAccount.storeNote, /not canceled/);
+  assert.match(screen, /deleteAccount\.storeNote\b/);
+  // 링크는 기존 스토어 구독 관리 함수를 쓰고, 시트가 아니라 화면 안의 링크다.
+  assert.match(screen, /openStoreSubscriptions\(\)/);
+  assert.match(screen, /storeSubscribed\(me\)/);
+  assert.match(screen, /accessibilityRole="link"/);
+  assert.doesNotMatch(screen, /BottomSheet|bottom-sheet|Modal/);
+});
+
 test('설정에서 탈퇴로 들어갈 수 있다', () => {
   const settings = readSource('app/settings.tsx');
   const layout = readSource('app/_layout.tsx');

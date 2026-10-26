@@ -15,7 +15,9 @@ const FOCUS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4880ee]";
 
 const FAQ = [
-  ["지금 결제되나요?", "유료 결제는 11월 시작을 준비하고 있어요. 결제 시작 전에는 실제로 결제되지 않고, 정확한 시작일은 별도로 안내해요."],
+  ["언제부터 결제되나요?", "2026년 11월 1일부터 결제를 시작해요. 그 전에는 결제되지 않고, 무료 한도도 그날부터 적용해요."],
+  ["10월 26일까지 가입했는데 바로 결제해야 하나요?", "아니요. 2026년 10월 26일까지 가입한 회원은 11월 1일부터 30일까지 Pro를 무료로 써요. 카드를 등록하지 않으니 끝나도 자동으로 결제되지 않고 무료로 돌아가요."],
+  ["앱에서도 결제할 수 있나요?", "iOS 앱은 App Store, Android 앱은 Google Play로 월 구독(3,900원)이나 연 구독(32,500원)을 결제할 수 있어요. 웹은 월 구독만 있어요. 한 계정은 한 곳에서만 구독할 수 있어요."],
   ["무료 이용자가 자동으로 유료가 되나요?", "현재 무료 이용자가 동의 없이 유료로 전환되지는 않아요."],
   ["해지하면 바로 Pro를 못 쓰나요?", "자동결제만 해지하면 현재 결제기간이 끝날 때까지 Pro를 이용할 수 있어요."],
   ["구독을 해지하면 회원 탈퇴가 되나요?", "구독 해지는 회원 탈퇴와 별개예요."],
@@ -25,8 +27,8 @@ const COMPARE = [
   ["AI 연기 코칭", "하루 1회", "제한 없음"],
   ["리딩 대본 보관", "1개", "제한 없음"],
   ["같은 대본 반복 연습", "제한 없음", "제한 없음"],
-  ["코치·리딩 음성 품질", "같음", "같음"],
-  ["발음·딕션 피드백", "—", "준비 중"],
+  ["리딩 고품질 목소리", "10월 31일까지 무료", "포함"],
+  ["발음 보고서", "—", "준비 중"],
   ["챌린지 참여·시청·댓글", "무료", "무료 · Pro 배지"],
 ] as const;
 
@@ -45,21 +47,21 @@ export default function PricingPage() {
 
         <aside aria-label="결제 시작 안내" className="mb-6 flex gap-2.5 rounded-[14px] bg-[#fff1e8] px-[18px] py-3.5 text-[13.5px] font-semibold leading-5 text-[#8a4b00] sm:text-[15px]">
           <span aria-hidden="true">⚠</span>
-          <p>유료 결제는 11월 시작을 준비하고 있어요. 그 전에는 실제로 결제되지 않고, 무료 한도도 아직 적용하지 않아요.</p>
+          <p>2026년 11월 1일부터 결제를 시작해요. 무료 한도도 그날부터 적용해요. 10월 26일까지 가입한 회원은 11월 한 달 동안 Pro를 무료로 써요.</p>
         </aside>
 
         <div className="flex flex-col-reverse gap-3 md:grid md:grid-cols-2 md:gap-5">
           <section aria-labelledby="free-title" className="flex flex-col rounded-3xl border border-[#e5e8eb] p-[22px] sm:p-[30px]">
             <h2 id="free-title" className="text-lg font-extrabold">무료</h2>
             <p className="mt-2 text-[28px] font-extrabold tracking-[-0.03em] sm:text-[34px]">0원</p>
-            <p className="text-[13.5px] text-[#6b7684]">출시 후 무료 이용 범위</p>
+            <p className="text-[13.5px] text-[#6b7684]">11월 1일부터 무료 이용 범위</p>
             <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
               <li className="py-2.5">코칭 하루 1회</li>
               <li className="py-2.5">리딩 대본 1개 보관 · 같은 대본 반복 연습은 제한 없음</li>
               <li className="py-2.5">챌린지 참여·시청·댓글</li>
             </ul>
             <p className="mt-4 text-[13.5px] leading-[1.6] text-[#6b7684]">
-              현재 무료 이용 범위의 변경 시점과 기존 이용자 적용 방법은 판매 시작 전에 안내해요.
+              2026년 10월 26일까지 가입한 회원은 11월 30일까지 Pro를 무료로 쓰고, 12월 1일부터 이 범위를 적용해요. 카드 등록이 없어 자동으로 결제되지 않아요.
             </p>
           </section>
 
@@ -68,11 +70,13 @@ export default function PricingPage() {
             <p className="mt-2 text-[28px] font-extrabold tracking-[-0.03em] sm:text-[34px]">
               월 3,900원 <span className="text-base font-semibold text-[#6b7684]">부가세 포함</span>
             </p>
-            <p className="text-[13.5px] text-[#6b7684]">결제일부터 1개월 · 매월 정기결제</p>
+            <p className="text-[13.5px] text-[#6b7684]">웹은 월 구독 · 결제일부터 1개월마다 자동결제</p>
+            <p className="text-[13.5px] text-[#6b7684]">앱(App Store·Google Play)에서는 연 32,500원(부가세 포함) 연 구독도 있어요</p>
             <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
               <li className="py-2.5">코칭 횟수 제한 없음</li>
               <li className="py-2.5">리딩 대본 개수 제한 없음</li>
-              <li className="py-2.5">발음·딕션 피드백 (Pro 전용 · 준비 중)</li>
+              <li className="py-2.5">발음 보고서 (Pro 전용 · 준비 중)</li>
+              <li className="py-2.5">리딩 고품질 목소리 (10월 31일까지는 모두 무료)</li>
               <li className="py-2.5">참여작·댓글·프로필에 Pro 배지</li>
             </ul>
             {WEB_BILLING_ENABLED ? (

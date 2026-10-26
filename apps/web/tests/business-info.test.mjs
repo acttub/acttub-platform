@@ -25,6 +25,8 @@ for (const tone of ["light", "dark"]) {
     );
     assert.equal(lines.every((line) => !/:\s*(\||$)/.test(line)), true);
 
+    assert.equal(lines[2], "통신판매업 신고번호: 2026-서울동대문-1884");
+
     const check = screen.getByRole("link", { name: "사업자정보 확인" });
     const shownNumber = lines[1].match(/\d{3}-\d{2}-\d{5}/)[0];
     assert.equal(new URL(check.getAttribute("href")).searchParams.get("wrkr_no"), shownNumber.replaceAll("-", ""));

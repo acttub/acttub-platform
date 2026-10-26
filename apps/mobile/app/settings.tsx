@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
 import { pt } from '@/components/ui/anchored-menu';
@@ -92,6 +93,7 @@ export default function SettingsScreen() {
       <NavHeader title={t('settings.title')} left={<NavBackButton onPress={() => router.back()} />} />
 
       <ScrollView contentContainerStyle={styles.list}>
+        <AdSlot slot="settings_top" />
         {billing && proVisible(billing) && (
           <>
             <SectionTitle>{t('pro.settingsSection')}</SectionTitle>

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps,
 import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT } from '@/components/ui/mascot';
@@ -638,6 +639,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.body}>
+          <AdSlot slot="home_top" />
           {/* 이번 주 연습 카드(pen P1.1) — 연속 일수와 요일별 점. 한 날은 파란 체크, 오늘은 파란 테두리. */}
           <View style={styles.weekCard} testID="home-week">
             <View style={styles.weekHead}>

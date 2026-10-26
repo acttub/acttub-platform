@@ -37,18 +37,21 @@
   [공통 상태](../common.md#공통-상태)). 게스트 옮기기는 이 전이를 일으키지 않는다.
 
 account_cleanup_operations(상태 컬럼 없음, 종류는 `ck_account_cleanup_operations_kind`의 object_delete·
-apple_revoke·kakao_unlink·naver_revoke·reading_recording_delete):
+apple_revoke·kakao_unlink·naver_revoke·reading_recording_delete·revenuecat_delete):
 
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
 | 대기(`next_attempt_at`) | 탈퇴 트랜잭션이 해제 값·객체 키를 옮김. 사진(프로필·포트폴리오)의 교체·삭제, 영상 삭제·파일만 파기·만료된 미확정 업로드, 리딩의 대본·회차·녹음 삭제도 객체 삭제를 올린다 | account.withdraw, account.profile, account.portfolio, practice.record, practice.library, reading.script, reading.session, reading.recording |
 | 재시도(`attempt_count`, `last_error`) | 시도 실패. 다음 시도를 늦춘다(간격은 [CONTRACT §6-8](../../../apps/api/CONTRACT.md#6-8-탈퇴)) | account.withdraw |
 | 기한 넘김(객체 삭제만, `expires_at` 지남) | 7일 동안 성공하지 못함. 성공할 때까지 계속 시도하고 7일마다 운영자에게 알린다(복구 대상) | account.withdraw |
-| 행 없음 | 성공. 제공자 해제는 7일이 지나면 값과 함께 지운다(애플 폐기는 App Store 필수라 운영자에게 알린다) | account.withdraw |
+| 행 없음 | 성공. 제공자 해제와 RevenueCat 고객 삭제는 7일이 지나면 값과 함께 지운다(애플 폐기는 App Store 필수, RevenueCat 삭제는 처리방침의 약속이라 운영자에게 알린다) | account.withdraw |
 
 불변 조건: 끝난 정리는 장부에 남지 않는다. 객체 삭제는 성공하기 전에는 대상 키를 지우지 않는다. 끝 상태는
 행 없음이다.
 
+- RevenueCat 고객 정보(SOMA-818): 서버가 RevenueCat 을 켰으면(`BILLING_REVENUECAT_ENABLED`·비밀 키) 탈퇴 트랜잭션이
+  `revenuecat_delete`(값은 회원 id = app_user_id)를 장부에 올리고, 커밋 뒤 `DELETE /v1/subscribers/{app_user_id}` 를 부른다.
+  404(이미 없음)는 성공이다. 스토어 구독 자체는 해지하지 않는다 — 해지는 이용자가 App Store·Google Play 에서 한다(탈퇴 화면 안내).
 - 서버 해제에 필요한 값(애플 토큰, 카카오 대상 ID, 네이버 토큰)과 지울 영상·녹음 객체의 목록은 파기
   전에 정리 장부에 암호화해 옮긴다. 해제 값을 최대 7일, 객체 키를 삭제가 성공할 때까지 들고 있는 것(위 표)을
   처리방침에 적는다.

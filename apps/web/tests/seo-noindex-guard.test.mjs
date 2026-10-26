@@ -104,3 +104,12 @@ test("llms.txt는 존재하고 서비스 도메인을 안내한다", () => {
   assert.notEqual(content.trim(), "");
   assert.match(content, /acttub\.com/);
 });
+
+test("app-ads.txt는 AdMob 게시자 한 줄만 담는다", () => {
+  const appAdsPath = path.join(appRoot, "public", "app-ads.txt");
+
+  assert.equal(existsSync(appAdsPath), true);
+  if (!existsSync(appAdsPath)) return;
+
+  assert.equal(readSource(appAdsPath), "google.com, pub-9577213564323927, DIRECT, f08c47fec0942fa0\n");
+});

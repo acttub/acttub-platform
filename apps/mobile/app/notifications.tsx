@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { palette } from '@/constants/palette';
@@ -124,6 +125,7 @@ export default function NotificationsScreen() {
         {groups === null && !error && <SkeletonRows count={6} card={false} style={styles.skeletonFlush} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
         {groups !== null && groups.length === 0 && !error && <Text style={styles.empty}>{t('notifications.empty')}</Text>}
+        <AdSlot slot="notifications_top" style={{ marginBottom: 12 }} />
 
         {groups?.map((group) => (
           <Pressable key={group.group_key} style={styles.row} onPress={() => void open(group)} accessibilityRole="button">

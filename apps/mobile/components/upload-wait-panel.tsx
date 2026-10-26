@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AdSlot } from '@/components/ad-slot';
 import { palette } from '@/constants/palette';
 import { MASCOT } from '@/components/ui/mascot';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -33,6 +34,8 @@ export function UploadWaitPanel({
           </View>
         )}
       </View>
+      {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 버튼 묶음 바로 위(footer 위 여백 16 + 8 = 24). */}
+      {!failed && <AdSlot slot="upload_wait" style={{ marginHorizontal: 24, marginBottom: 8 }} />}
       <View style={styles.footer}>
         {failed ? (
           <PrimaryButton label={t('upload.waitRetry')} onPress={onRetry} />

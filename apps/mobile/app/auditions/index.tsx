@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
@@ -192,6 +193,7 @@ export default function AuditionsScreen() {
             sections={sections}
             keyExtractor={(item) => item.id}
             stickySectionHeadersEnabled={false}
+            ListHeaderComponent={<AdSlot slot="auditions_top" style={{ marginTop: 8, marginBottom: 8 }} />}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             contentContainerStyle={styles.list}
