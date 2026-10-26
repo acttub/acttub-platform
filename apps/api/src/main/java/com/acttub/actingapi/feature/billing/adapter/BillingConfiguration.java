@@ -40,10 +40,10 @@ class BillingConfiguration {
             @Value("${BILLING_WEB_RETURN_URL:}") String returnUrl,
             @Value("${BILLING_TOSS_CLIENT_KEY:}") String clientKey,
             @Value("${BILLING_TOSS_SECRET_KEY:}") String secretKey,
-            @Value("${BILLING_LEGACY_SIGNUP_BEFORE:2026-10-31T15:00:00Z}") String legacySignupBefore,
+            @Value("${BILLING_LEGACY_SIGNUP_BEFORE:}") String legacySignupBefore,
             @Value("${BILLING_LEGACY_LIMITS_FROM:2026-11-30T15:00:00Z}") String legacyLimitsFrom) {
         BillingSettings settings = new BillingSettings(enabled, appEnabled, freeLimits, origin, returnUrl, clientKey, secretKey,
-                Instant.parse(legacySignupBefore.strip()), Instant.parse(legacyLimitsFrom.strip()));
+                legacySignupBefore.isBlank() ? null : Instant.parse(legacySignupBefore.strip()), Instant.parse(legacyLimitsFrom.strip()));
         if (enabled) {
             String reason = settings.invalidReason();
             if (reason == null) {

@@ -20,8 +20,9 @@ class LegacyFreeLimitsTest {
     final UUID newUser = UUID.randomUUID();
 
     LegacyFreeLimitsTest() {
-        repository.signups.put(oldUser, Instant.parse("2026-10-31T14:59:59Z"));
-        repository.signups.put(newUser, Instant.parse("2026-10-31T15:00:00Z"));
+        repository.termsV2 = Instant.parse("2026-11-01T00:00:00Z"); // 약관 v2 발행 시각
+        repository.signups.put(oldUser, Instant.parse("2026-10-31T23:59:59Z"));
+        repository.signups.put(newUser, Instant.parse("2026-11-01T00:00:00Z"));
     }
 
     SubscriptionService service(boolean limits) {
@@ -72,6 +73,33 @@ class LegacyFreeLimitsTest {
         SubscriptionService service = service(false);
         assertThat(service.freeLimited(newUser)).isFalse();
         assertThat(service.freeLimited(oldUser)).isFalse();
+    }
+
+    @Test
+    @DisplayName("약관 v2 가 아직 발행 전이면 모두 기존 회원이고, 발행 시각은 찾으면 한 번만 읽는다")
+    void termsNotPublishedYet() {
+        repository.termsV2 = null;
+        SubscriptionService service = service(true);
+        assertThat(service.freeLimited(newUser)).isFalse();
+        repository.termsV2 = Instant.parse("2026-11-01T00:00:00Z");
+        clock.advance(java.time.Duration.ofMinutes(2));
+        assertThat(service.freeLimited(newUser)).isTrue();
+        service.freeLimited(oldUser);
+        service.freeLimited(newUser);
+        assertThat(repository.termsReads).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("설정으로 기준 시각을 덮어쓰면 약관을 읽지 않는다")
+    void overrideCutoff() {
+        SubscriptionService service = new SubscriptionService(new BillingSettings(true, false, true,
+                "https://dev.acttub.com", "https://acttub.com/pricing/result", CLIENT, SECRET,
+                Instant.parse("2026-10-31T15:00:00Z"), BillingSettings.DEFAULT_LEGACY_LIMITS_FROM),
+                repository, new FakeGateway(), null, clock);
+        repository.signups.put(oldUser, Instant.parse("2026-10-31T14:59:59Z"));
+        assertThat(service.freeLimited(oldUser)).isFalse();
+        assertThat(service.freeLimited(newUser)).isTrue();
+        assertThat(repository.termsReads).isZero();
     }
 
     @Test

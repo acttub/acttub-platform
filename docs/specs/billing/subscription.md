@@ -69,7 +69,7 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
   회원 한도(100)로 본다 — 한도 직전에 동시에 여러 개를 넣으면 3개를 넘을 수 있다.
 
 ### 기존 회원 유예 (SOMA-818)
-2026-10-31 23:59 KST 까지 가입한 회원(`users.created_at` < `BILLING_LEGACY_SIGNUP_BEFORE`, 기본 `2026-10-31T15:00:00Z`)에게는 무료 한도(코칭 하루 3회·리딩 대본 3개)를 `BILLING_LEGACY_LIMITS_FROM`(기본 `2026-11-30T15:00:00Z`, 12월 1일 00:00 KST) 전까지 걸지 않는다. 11월 1일부터 가입한 회원은 바로 걸린다. 게스트도 `users` 줄이라 같은 규칙이다. `GET /v2/billing/me` 의 `limits_enforced` 도 같은 판정을 써 회원마다 값이 다르다(앱은 이 값을 쓰지 않고 429·403 응답으로 시트를 띄운다). 한도만 미룬다 — Pro 판정·고품질 목소리·광고는 그대로다. 가입 시각은 바뀌지 않아 프로세스 안에 기억하고, 유예가 끝난 뒤에는 조회하지 않는다.
+약관 v2 발행 전에 가입한 회원(`users.created_at` < `consent_documents` 의 terms·v2·ko `published_at`. 아직 발행 전이면 모두 기존 회원. 찾은 값은 기억하고 못 찾으면 1분에 한 번만 다시 묻는다. `BILLING_LEGACY_SIGNUP_BEFORE` 로 덮어쓸 수 있다)에게는 무료 한도(코칭 하루 3회·리딩 대본 3개)를 `BILLING_LEGACY_LIMITS_FROM`(기본 `2026-11-30T15:00:00Z`, 12월 1일 00:00 KST) 전까지 걸지 않는다. 11월 1일부터 가입한 회원은 바로 걸린다. 게스트도 `users` 줄이라 같은 규칙이다. `GET /v2/billing/me` 의 `limits_enforced` 도 같은 판정을 써 회원마다 값이 다르다(앱은 이 값을 쓰지 않고 429·403 응답으로 시트를 띄운다). 한도만 미룬다 — Pro 판정·고품질 목소리·광고는 그대로다. 가입 시각은 바뀌지 않아 프로세스 안에 기억하고, 유예가 끝난 뒤에는 조회하지 않는다.
 
 ## 설정
 `BILLING_APP_ENABLED`, `BILLING_FREE_LIMITS_ENABLED`, `BILLING_PUBLIC_ORIGIN`(토스가 되돌려 보낼 이 API 의 https 주소),

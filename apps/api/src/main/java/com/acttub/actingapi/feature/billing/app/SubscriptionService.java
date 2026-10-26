@@ -45,6 +45,9 @@ public class SubscriptionService {
     private final BillingKeyCipher cipher;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
+    private static final long TERMS_RECHECK_MILLIS = 60_000L;
+    private volatile Instant termsPublishedAt;
+    private volatile long termsCheckedAt;
     private static final int SIGNUP_CACHE_MAX = 50_000;
     private final java.util.concurrent.ConcurrentHashMap<UUID, Instant> signupTimes = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -75,9 +78,30 @@ public class SubscriptionService {
     }
 
     /**
-     * 기존 회원 유예 — 가입 시각이 legacySignupBefore 전이고 지금이 legacyLimitsFrom 전이다. 유예가 끝난 뒤에는 DB 를 읽지
+     * 기존 회원 유예 — 가입 시각이 기준(약관 v2 발행 시각, legacyCutoff) 전이고 지금이 legacyLimitsFrom 전이다. 유예가 끝난 뒤에는 DB 를 읽지
      * 않는다. 가입 시각은 바뀌지 않으므로 프로세스 안에 기억해 판정마다 쿼리가 나가지 않게 한다(게스트도 users 줄이라 같은 규칙).
      */
+    /**
+     * 기존 회원의 가입 기준 시각 — 설정으로 덮어쓰지 않았으면 약관 v2(ko)의 발행 시각이다. 아직 발행 전이면 null(모두 기존 회원).
+     * 발행 시각은 한 번 찾으면 기억하고, 못 찾았을 때는 1분에 한 번만 다시 묻는다.
+     */
+    private Instant legacyCutoff() {
+        if (settings.legacySignupBefore() != null) {
+            return settings.legacySignupBefore();
+        }
+        Instant known = termsPublishedAt;
+        if (known != null) {
+            return known;
+        }
+        long nowMillis = clock.millis();
+        if (nowMillis - termsCheckedAt < TERMS_RECHECK_MILLIS && termsCheckedAt != 0) {
+            return null;
+        }
+        termsCheckedAt = nowMillis;
+        termsPublishedAt = repository.termsV2PublishedAt().orElse(null);
+        return termsPublishedAt;
+    }
+
     private boolean legacyGrace(UUID userId) {
         if (!clock.instant().isBefore(settings.legacyLimitsFrom())) {
             return false;
@@ -93,7 +117,8 @@ public class SubscriptionService {
             }
             signupTimes.put(userId, signedUp);
         }
-        return signedUp.isBefore(settings.legacySignupBefore());
+        Instant cutoff = legacyCutoff();
+        return cutoff == null || signedUp.isBefore(cutoff);
     }
 
     public boolean available() {

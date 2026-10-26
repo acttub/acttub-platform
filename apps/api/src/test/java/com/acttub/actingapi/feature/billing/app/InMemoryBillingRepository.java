@@ -59,6 +59,14 @@ class InMemoryBillingRepository implements BillingRepository {
 
     final Map<UUID, Instant> signups = new LinkedHashMap<>();
     int signupReads;
+    Instant termsV2;
+    int termsReads;
+
+    @Override
+    public Optional<Instant> termsV2PublishedAt() {
+        termsReads++;
+        return Optional.ofNullable(termsV2);
+    }
 
     @Override
     public Optional<Instant> signedUpAt(UUID userId) {
