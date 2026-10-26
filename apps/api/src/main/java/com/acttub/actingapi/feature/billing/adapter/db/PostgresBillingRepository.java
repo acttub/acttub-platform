@@ -236,7 +236,7 @@ class PostgresBillingRepository implements BillingRepository {
                     SELECT s.id FROM billing_subscriptions s
                     WHERE s.provider='toss'
                       AND ((s.status IN ('active','canceled') AND s.current_period_end <= CAST(:now AS timestamptz))
-                           OR (s.status='past_due' AND s.next_retry_at <= CAST(:now AS timestamptz))))
+                           OR (s.status='past_due' AND s.next_retry_at <= CAST(:now AS timestamptz)))
                       AND (s.lease_until IS NULL OR s.lease_until < CAST(:now AS timestamptz))
                       -- 결과를 모르는 결제가 있으면 그 결제를 먼저 확인한다(같은 키로 다시 묻는 쪽이 맡는다).
                       AND NOT EXISTS (SELECT 1 FROM billing_payments p
