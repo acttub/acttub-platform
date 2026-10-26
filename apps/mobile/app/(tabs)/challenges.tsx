@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { ChallengeIntro } from '@/components/challenge-intro';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { BandGradient } from '@/components/ui/band-gradient';
@@ -316,6 +317,8 @@ export default function ChallengesScreen() {
             onPerform={canPerform(featured) ? () => perform(featured) : undefined}
           />
         )}
+
+        <AdSlot slot="challenges_tab_top" />
 
         <View style={styles.tabRow}>
           {TABS.map(({ key, label }) => (

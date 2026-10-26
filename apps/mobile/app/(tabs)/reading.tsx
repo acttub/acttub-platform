@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
@@ -370,6 +371,8 @@ export default function ReadingList() {
               </Pressable>
             </View>
           )}
+
+          <AdSlot slot="reading_tab_top" style={{ marginBottom: 16 }} />
 
           {list && (
             <View style={styles.sectionHead}>

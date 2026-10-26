@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { SkeletonCards } from '@/components/ui/skeleton';
@@ -94,6 +95,7 @@ export default function SavedVideosScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
+        <AdSlot slot="saved_videos_top" />
         <Text style={styles.hint}>{t(tab === 'mine' ? 'savedVideos.hintMine' : 'savedVideos.hintSaved')}</Text>
         {!!error && <Text style={styles.empty}>{error}</Text>}
         {items === null && !error && <SkeletonCards count={4} columns={2} aspectRatio={0.78} style={{ paddingHorizontal: 0 }} />}

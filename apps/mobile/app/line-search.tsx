@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -87,6 +88,7 @@ export default function LineSearchScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <AdSlot slot="line_search_top" style={{ marginBottom: 12 }} />
         {!searchable(query) && <Text style={styles.hint}>{t('lineSearch.minLength', { count: SEARCH_MIN_LENGTH })}</Text>}
         {loading && !results?.length && <SkeletonRows count={4} avatar={false} card={false} style={{ paddingHorizontal: 0 }} />}
         {error && <Text style={styles.error}>{error}</Text>}
