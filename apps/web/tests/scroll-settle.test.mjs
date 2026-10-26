@@ -23,3 +23,13 @@ test("멀리 떨어졌거나 이미 맞으면 건드리지 않는다", () => {
 test("맞출 자리는 스크롤 끝을 넘지 않는다", () => {
   assert.equal(settleTarget([0, 4980], 4800, 250, 4900), 4900);
 });
+
+test("방금 맞춰 있던 자리에서 조금씩 벗어나는 중이면 그 자리로 되돌리지 않는다", () => {
+  const pts = [0, 828, 1700];
+  assert.equal(settleTarget(pts, 948, 165, 5000, 828), null);
+  assert.equal(settleTarget(pts, 708, 165, 5000, 828), null);
+  // 맞춰 있던 자리가 없으면(다른 곳에서 와서 살짝 지나침) 되돌려 맞춘다.
+  assert.equal(settleTarget(pts, 948, 165, 5000, null), 828);
+  // 벗어나는 중이어도 다음 구간이 가까우면 그쪽으로 맞춘다.
+  assert.equal(settleTarget(pts, 1600, 165, 5000, 828), 1700);
+});

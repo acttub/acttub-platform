@@ -12,17 +12,26 @@ export const SETTLE_MEDIA = "(min-width: 1024px) and (min-height: 640px)";
 /** sm 이상 머리(SiteHeader) 높이 */
 export const SETTLE_HEADER = 72;
 /** 구간 윗부분이 화면 높이의 이 비율 안쪽에 걸쳐 있을 때만 맞춘다. */
-export const SETTLE_RANGE = 0.3;
+export const SETTLE_RANGE = 0.2;
 /** 스크롤이 이만큼 조용하면 멈춘 것으로 본다(scrollend 를 못 쓰는 브라우저용). */
 const IDLE_MS = 160;
 
 /**
  * 지금 위치 y 에서 맞출 위치. points 는 각 구간이 머리 바로 아래에 오는 scrollY 들.
  * 가장 가까운 자리가 range(px) 안이면 그 자리, 이미 맞거나 멀면 null.
+ * leaving 은 방금까지 맞춰 있던 자리다. 거기서 일부러 조금씩 벗어나는 중이면 그 자리로 되돌리지 않는다
+ * (안 그러면 천천히 내릴 때마다 제자리로 끌려온다).
  */
-export function settleTarget(points: number[], y: number, range: number, maxScroll: number): number | null {
+export function settleTarget(
+  points: number[],
+  y: number,
+  range: number,
+  maxScroll: number,
+  leaving: number | null = null,
+): number | null {
   let best: number | null = null;
   for (const p of points) {
+    if (leaving !== null && Math.abs(p - leaving) < 2) continue;
     const target = Math.min(Math.max(p, 0), maxScroll);
     const d = Math.abs(target - y);
     if (d <= range && (best === null || d < Math.abs(best - y))) best = target;
@@ -38,6 +47,8 @@ export function useScrollSettle(): void {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
     let timer = 0;
     let pointerDown = false;
+    /** 마지막으로 맞춰 있던 자리. 거기서 range 밖으로 멀어지면 잊는다. */
+    let anchor: number | null = null;
 
     const settle = () => {
       if (!media.matches || reduce.matches || pointerDown) return;
@@ -46,10 +57,21 @@ export function useScrollSettle(): void {
       );
       const viewport = window.innerHeight - SETTLE_HEADER;
       const max = document.documentElement.scrollHeight - window.innerHeight;
+      const y = window.scrollY;
+      const range = viewport * SETTLE_RANGE;
       // 맨 아래(바닥 정보)에 닿아 있으면 맞추지 않는다.
-      if (window.scrollY >= max - 2) return;
-      const target = settleTarget(points, window.scrollY, viewport * SETTLE_RANGE, max);
-      if (target !== null) window.scrollTo({ top: target, behavior: "smooth" });
+      if (y >= max - 2) return;
+      if (anchor !== null && Math.abs(y - anchor) > range) anchor = null;
+      const aligned = points.find((p) => Math.abs(p - y) < 2);
+      if (aligned !== undefined) {
+        anchor = aligned;
+        return;
+      }
+      const target = settleTarget(points, y, range, max, anchor);
+      if (target !== null) {
+        anchor = target;
+        window.scrollTo({ top: target, behavior: "smooth" });
+      }
     };
 
     const hasScrollEnd = "onscrollend" in window;
