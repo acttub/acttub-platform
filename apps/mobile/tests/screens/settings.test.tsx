@@ -12,9 +12,13 @@ import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/readin
 import { openStoreReviewPage } from '@/lib/store-review';
 
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => true) };
-jest.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => mockRouter }));
+jest.mock('expo-router', () => ({
+  Stack: { Screen: () => null },
+  useRouter: () => mockRouter,
+  useFocusEffect: (effect: () => void) => require('react').useEffect(effect, [effect]),
+}));
 jest.mock('@/lib/reading/voice-feedback-setting', () => ({ loadVoiceFeedbackEnabled: jest.fn(), saveVoiceFeedbackEnabled: jest.fn() }));
-jest.mock('@/lib/api', () => ({ api: { consentEntry: jest.fn(), recordConsent: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { consentEntry: jest.fn(), recordConsent: jest.fn(), billingMe: jest.fn(() => Promise.reject(Object.assign(new Error('closed'), { status: 404, code: 'billing_unavailable' }))) } }));
 jest.mock('@/lib/store-review', () => ({ openStoreReviewPage: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: jest.fn() }));
 jest.mock('@/lib/i18n', () => ({

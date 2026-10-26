@@ -118,6 +118,7 @@ import type { VoiceModelFiles } from '@/lib/reading/tts/assets';
 import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
+import type { BillingMe } from '@/lib/billing';
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 import type { DiscoveryPayload } from '@/lib/discovery';
 import type { AirbridgeDevicePayload } from '@/lib/airbridge-device';
@@ -416,6 +417,20 @@ export const api = {
     const query = new URLSearchParams(params);
     return request(`/v2/app/posters?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
   },
+
+  // 앱 Pro 정기결제(SOMA-818) -------------------------------------------------
+  /** 구독 상태와 Pro 권한. 서버가 결제 기능을 닫아 두었으면 404 billing_unavailable — 앱은 Pro 진입점을 숨긴다. */
+  billingMe(): Promise<BillingMe> {
+    return request('/v2/billing/me', {}, { auth: true, timeoutMs: 10_000 });
+  },
+  /**
+   * 스토어 구독 동기화(2단계, RevenueCat). 구매·복원 뒤 부르면 서버가 RevenueCat 에서 이 사람의 상태를 다시 읽어 반영하고
+   * me 와 같은 모양을 돌려준다. 여러 번 불러도 결과가 같다(멱등).
+   */
+  syncStorePurchases(): Promise<BillingMe> {
+    return request('/v2/billing/store/sync', jsonInit({}), { auth: true, timeoutMs: 20_000 });
+  },
+
 
   /** 리딩 기기 목소리 모델(fp16 묶음)의 내려받을 임시 주소(SOMA-747). 서버에 없으면 404·503 — 앱은 원본 fp32 로 받는다. */
   getVoiceModel(): Promise<VoiceModelFiles> {

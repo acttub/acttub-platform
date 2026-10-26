@@ -556,7 +556,7 @@ describe('빠른 답과 그만하기', () => {
     expect(screen.getByRole('button', { name: '그만하기' })).toHaveStyle({ height: 44, paddingHorizontal: 10 });
     await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
     expect(screen.getByText('여기서 마칠까요?')).toBeOnTheScreen();
-    expect(screen.getByText('다 얘기했으면 「마치기」를 누르세요. 지금까지 대화로 오늘 정리를 만들어요.')).toBeOnTheScreen();
+    expect(screen.getByText('다 얘기했으면 「마치기」를 누르세요. 이어서 일지를 쓰면 오늘 대화와 함께 정리돼요.')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('계속하기'));
     expect(mockLoop.replyToCoach).not.toHaveBeenCalled();
 
@@ -564,6 +564,27 @@ describe('빠른 답과 그만하기', () => {
     await fireEvent.press(screen.getByText('마치기'));
     expect(await screen.findByText('오늘은 여기까지 나눴어요. 노트로 남기기엔 짧아서, 다음에 이어서 해요.')).toBeOnTheScreen();
     expect(mockLoop.replyToCoach.mock.calls[0][0]).toMatchObject({ conversation_id: 'c1', text: '그만', revision: 1 });
+  });
+
+  test('「마치기」가 보낸 "그만"은 서버 대화에 남아도 내 말풍선으로 보이지 않는다(10/26)', async () => {
+    const ended = conv({
+      status: 'closed',
+      close_reason: 'user_ended',
+      messages: [
+        msg(0, 'coach', '첫 대사 전에 무엇을 결심했나요?'),
+        msg(1, 'actor', '잘 모르겠어요'),
+        msg(2, 'coach', '어디서 막혔나요?'),
+        msg(3, 'actor', '그만'),
+        msg(4, 'coach', '오늘은 여기까지 해요.'),
+      ],
+    });
+    mockLoop.replyToCoach.mockResolvedValue(turn(ended));
+    await renderOpen();
+
+    await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
+    await fireEvent.press(screen.getByText('마치기'));
+    expect(await screen.findByText('오늘은 여기까지 해요.')).toBeOnTheScreen();
+    expect(screen.getAllByTestId('coach-bubble-mine').map((b) => b.props.accessibilityLabel)).toEqual(['나: 잘 모르겠어요']);
   });
 });
 
@@ -574,7 +595,7 @@ describe('닫힌 대화', () => {
     await renderOpen();
 
     await typeAndSend('마지막 답');
-    expect(screen.getByText('오늘 대화는 여기까지예요. 코치 말을 읽고 아래에서 일지를 써요.')).toBeOnTheScreen();
+    expect(screen.getByText('오늘 대화는 여기까지예요. 아래에서 일지를 쓰고 마쳐요.')).toBeOnTheScreen();
     expect(getPractice()?.note).toEqual(NOTE);
     await act(async () => jest.advanceTimersByTime(0));
     expect(mockRouter.replace).not.toHaveBeenCalled();

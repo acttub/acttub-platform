@@ -130,7 +130,7 @@ test('서버 프로필의 이름·사진·목표와 경력·소개를 보이고,
   await render(<ProfileScreen />);
 
   // 챌린지: 이번 달 참여작 3개 — 같은 챌린지(c2)에 두 번 올린 것도 2회로 센다.
-  expect(await screen.findByText('이번 달 연습')).toBeOnTheScreen();
+  expect(await screen.findByText('이달 마친 연습')).toBeOnTheScreen();
   expect(screen.getByText('8')).toBeOnTheScreen();
   expect(screen.getByText('4')).toBeOnTheScreen();
   expect(screen.getByText('1')).toBeOnTheScreen();
@@ -158,7 +158,7 @@ test('서버 이름을 아직 못 읽었으면 기기에 적어 둔 이름을 �
   expect(await screen.findByText('민지')).toBeOnTheScreen();
   expect(screen.getByTestId('default-avatar')).toBeOnTheScreen();
   expect(screen.queryByText('민')).not.toBeOnTheScreen();
-  expect(screen.getByText('이번 달 연습')).toBeOnTheScreen();
+  expect(screen.getByText('이달 마친 연습')).toBeOnTheScreen();
   expect(screen.getAllByText('0')).toHaveLength(4);
   expect(screen.getByText('한 줄 소개를 적어보세요')).toBeOnTheScreen();
 });

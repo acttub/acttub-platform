@@ -70,6 +70,12 @@ public class TossBillingGateway implements PgReviewGateway {
 
     @Override
     public String issueBillingKey(String authKey, String customerKey) {
+        return issue(authKey, customerKey).billingKey();
+    }
+
+    /** 응답의 {@code cardCompany}·{@code cardNumber}(가린 번호)를 함께 읽는다. 없으면 {@code null}. */
+    @Override
+    public IssuedKey issue(String authKey, String customerKey) {
         String authorization = authorization();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("authKey", authKey);
@@ -82,7 +88,12 @@ public class TossBillingGateway implements PgReviewGateway {
         if (billingKey.isBlank()) {
             throw new GatewayException(GatewayException.Outcome.REJECTED, "billing_key_missing");
         }
-        return billingKey;
+        JsonNode json = reply.json();
+        String company = json.path("cardCompany").isTextual() ? json.path("cardCompany").asText() : null;
+        String number = json.path("cardNumber").isTextual()
+                ? json.path("cardNumber").asText()
+                : (json.path("card").path("number").isTextual() ? json.path("card").path("number").asText() : null);
+        return new IssuedKey(billingKey, shortText(company), shortText(number));
     }
 
     @Override
@@ -136,6 +147,14 @@ public class TossBillingGateway implements PgReviewGateway {
             // 원인을 붙이지 않는다: 메시지에 빌링키가 든 URL 이 실린다.
             throw new GatewayException(GatewayException.Outcome.UNKNOWN, "gateway_unreachable");
         }
+    }
+
+    /** 표시용 짧은 글만 받는다(카드사 이름·가린 번호). 그 밖에는 버린다. */
+    private static String shortText(String value) {
+        if (value == null || value.isBlank() || value.length() > 40) {
+            return null;
+        }
+        return value.matches("[\\p{L}0-9*\\- ]+") ? value : null;
     }
 
     private static GatewayException rejected(Reply reply, String fallbackCode) {

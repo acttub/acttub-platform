@@ -20,6 +20,7 @@ import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from
 import 'react-native-reanimated';
 
 import '@/lib/global-font';
+import { useStoreRecovery } from '@/hooks/use-store-recovery';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -129,6 +130,8 @@ function RootNavigator() {
   // 다시 읽는 중(checking)에는 그대로 둔다 — 팝업 안에서 다시 읽는 동안 스피너로 남고,
   // 앱을 처음 켤 때의 판정 대기에는 열리지 않는다.
   const reconsentEligible = status === 'signedIn' && !updateRequired && !signupPending;
+  // 결제는 됐는데 Pro 가 안 켜진 스토어 구매를 앱을 켜거나 앞으로 가져올 때 다시 확인받는다(SOMA-818 2단계).
+  useStoreRecovery(reconsentEligible && consentEntry.status === 'allowed');
   const [reconsentOpen, setReconsentOpen] = useState(false);
   useEffect(() => {
     if (!reconsentEligible || consentEntry.status === 'allowed') setReconsentOpen(false);
@@ -456,6 +459,10 @@ function RootNavigator() {
         <Stack.Screen name="reading/pronunciation" options={{ title: t('reading.pronReportRow') }} />
         {/* 자체 헤더(← 설정 · 제목)를 그린다 — 기본 헤더를 겹치면 라우트 이름 "memory"가 제목으로 나온다. */}
         <Stack.Screen name="memory" options={{ headerShown: false }} />
+        {/* 앱 Pro 정기결제(SOMA-818). 서버 플래그가 꺼져 있으면 진입점(설정 줄·한도 시트)이 없어 열리지 않는다. */}
+        <Stack.Screen name="pro" options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="pro-done" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="pro-manage" options={{ headerShown: false }} />
       </Stack>
       <ReconsentPopup visible={reconsentOpen} />
       {/* 가입 동의·재동의의 광고성 정보 처리 결과(S5.13)를 다음 화면 위에 띄운다. */}

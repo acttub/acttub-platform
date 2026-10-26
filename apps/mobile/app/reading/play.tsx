@@ -110,6 +110,7 @@ import { ReadingRating } from '@/components/reading-rating';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
+import { skipsFirstReadingGuide } from '@/lib/returning-account';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
 import { exampleVoicesMatch, type ExampleAudio } from '@/lib/reading/example-audio';
@@ -758,14 +759,30 @@ export default function ReadingPlay() {
   // ── 첫 리딩 안내(SOMA-748) — 진행 상태를 보고 띄울 뿐, 진행 규칙은 건드리지 않는다 ─────────────
   useEffect(() => {
     let alive = true;
-    void hasSeenFirstReadingGuide().then((seen) => {
+    // 이어 읽는 회차거나 다른 대본을 읽어 본 계정(앱을 다시 깐 기존 사용자)은 첫 리딩이 아니다 — 안내 없이 본 것으로 남긴다(10/26).
+    const resumed = !!session && session.progress_seq > 0;
+    const scriptId = script?.id;
+    void hasSeenFirstReadingGuide().then(async (seen) => {
+      if (!alive || seen) return;
+      const scripts = resumed
+        ? null
+        : await Promise.resolve()
+            .then(() => api.listReadingScripts())
+            .then((r) => r.scripts)
+            .catch(() => null);
       if (!alive) return;
-      setCoachOn(!seen);
-      if (!seen) firstRunRef.current = true;
+      if (skipsFirstReadingGuide({ resumed, scriptId, scripts })) {
+        void markFirstReadingGuideSeen();
+        return;
+      }
+      setCoachOn(true);
+      firstRunRef.current = true;
     });
     return () => {
       alive = false;
     };
+    // 화면을 열 때 한 번만 정한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // pen 7-1: 두 번째 내 차례에서 한 번만, 대본 위를 어둡게 덮고 버튼 넷을 설명한다. 작은 힌트 말풍선은 더는 띄우지 않는다.
   const myTurnsBefore = run
@@ -921,7 +938,10 @@ export default function ReadingPlay() {
   const closeGuide = useCallback(() => {
     setCoachOn(false);
     void markFirstReadingGuideSeen();
+    // 안내를 읽는 동안 흐른 침묵으로 내 차례가 끝나 버리지 않게, 미뤄 둔 넘김을 버리고 이 차례를 처음부터 다시 듣는다(10/26).
+    deferredRef.current = null;
     releaseHold();
+    setAttempt((a) => a + 1);
   }, [releaseHold]);
 
   useEffect(() => {
@@ -2063,20 +2083,7 @@ export default function ReadingPlay() {
       )}
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
 
-      {hold === 'tip' ? (
-        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
-        <View style={[styles.backdrop, { top: tipTop }]}>
-          <View style={styles.startCard}>
-            {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
-            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
-            {startHint && (
-              <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
-                <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      ) : (
+      {/* 시작 전에는 아래 버튼 줄을 숨기되 자리는 남긴다 — 빼 버리면 대사 카드가 폰 아래 버튼 줄 밑으로 내려가 잘렸다(10/26). */}
       <>
       {hold === 'mask_sheet' && (
         // 대사 보기 고르기 — 시트 대신 컨트롤 바로 위에 세 칸으로 펼친다. 고르면 접히고, 펼친 동안은 자동 넘김이 멈춰 있다.
@@ -2091,7 +2098,11 @@ export default function ReadingPlay() {
           })}
         </View>
       )}
-      <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
+      <View
+        style={[styles.controls, { paddingBottom: insets.bottom + 12 }, hold === 'tip' && styles.controlsHidden]}
+        pointerEvents={hold === 'tip' ? 'none' : 'auto'}
+        accessibilityElementsHidden={hold === 'tip'}
+        importantForAccessibility={hold === 'tip' ? 'no-hide-descendants' : 'auto'}>
         <Pressable style={[styles.eyeBtn, masking && styles.eyeBtnOn]} onPress={openMaskSheet} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('reading.maskSheetTitle')} ph-label="reading_play_mask">
           <Feather name={masking ? 'eye-off' : 'eye'} size={20} color={masking ? palette.blueDeep : palette.textDim} />
           {masking && <View style={styles.eyeDot} />}
@@ -2140,6 +2151,19 @@ export default function ReadingPlay() {
         )}
       </View>
       </>
+      {hold === 'tip' && (
+        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
+        <View style={[styles.backdrop, { top: tipTop }]}>
+          <View style={styles.startCard}>
+            {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
+            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
+            {startHint && (
+              <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
+                <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
       )}
 
       {script && (
@@ -2341,6 +2365,7 @@ const styles = StyleSheet.create({
   hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10, lineHeight: 19 },
 
   controls: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
+  controlsHidden: { opacity: 0 },
   eyeBtn: { width: 54, height: 52, borderRadius: 12, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   eyeBtnOn: { backgroundColor: palette.blueSoft },
   backBtnOff: { opacity: 0.4 },

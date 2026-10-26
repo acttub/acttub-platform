@@ -129,23 +129,19 @@ test("게스트가 ?intro=1 이나 소개 링크(#coaching)로 들어와도 홈�
   window.history.replaceState(null, "", "/");
 });
 
-test("데스크톱 고정 무대는 스크롤한 화면 수만큼 다음 기능을 고르고, 폰 배치에서는 기능마다 이동 위치가 있다", async () => {
-  const { featureIndexAt } = await import("../src/features/site/pinned-features.ts");
-  assert.equal(featureIndexAt(-200, 828, 3), 0);
-  assert.equal(featureIndexAt(400, 828, 3), 0);
-  assert.equal(featureIndexAt(420, 828, 3), 1);
-  assert.equal(featureIndexAt(1300, 828, 3), 2);
-  assert.equal(featureIndexAt(5000, 828, 3), 2);
-  assert.equal(featureIndexAt(100, 0, 3), 0);
-
+test("기능 셋은 고정 없이 글과 휴대폰이 나란히 흐르고, 화면에 들어올 때 나타난다", () => {
   render(react.createElement(LandingClient));
-  assert.deepEqual(
-    [...window.document.querySelectorAll('[aria-hidden="true"] ol li')].map((li) => li.textContent),
-    ["연기 코칭", "대본 리딩", "챌린지"],
-  );
-  for (const id of ["coaching", "reading", "challenge"]) {
-    assert.equal(window.document.getElementById(id).tagName, "ARTICLE");
+  for (const [id, alt] of [
+    ["coaching", "앱의 연습 노트 화면"],
+    ["reading", "앱의 대본 리딩 화면"],
+    ["challenge", "앱의 챌린지 화면"],
+  ]) {
+    const section = window.document.getElementById(id);
+    assert.equal(section.tagName, "SECTION");
+    assert.ok(section.querySelector("[data-reveal]"));
+    assert.ok(within(section).getByRole("img", { name: alt }));
   }
+  assert.equal(window.document.querySelector("[data-scene]"), null);
 });
 
 test("첫 화면이 헤더 밑으로 들어가면 아래 고정 다운로드 바가 나타난다", () => {

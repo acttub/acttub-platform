@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
+import { CoachingLimitSheet } from '@/components/pro-ui';
 import { pt, type MenuAnchor } from '@/components/ui/anchored-menu';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
@@ -159,7 +160,9 @@ export default function UploadScreen() {
   const [uploadOptions, setUploadOptions] = useState<UploadOptions | null>(null);
   // 망설임 페이지를 닫으면 연 곳으로 돌아간다 — 뒤로 가기로 열었으면 목적 단계, 영상 단계 링크로 열었으면 영상 단계.
   const reasonBackRef = useRef<UploadStep>('purpose');
-  const showReason = () => { reasonBackRef.current = 'purpose'; setReasonSheet(true); };
+  // 뒤로 가기로 여는 망설임 페이지는 이 화면에서 한 번만 연다 — 매번 끼어들면 나가려는 사람이 뒤로를 세 번 눌러야 했다(10/26).
+  const reasonAskedOnBack = useRef(false);
+  const showReason = () => { reasonAskedOnBack.current = true; reasonBackRef.current = 'purpose'; setReasonSheet(true); };
   const showReasonFromLink = () => { reasonBackRef.current = 'source'; setReasonSheet(true); };
   const closeReason = () => { setReasonSheet(false); setStep(reasonBackRef.current); };
   const reasonRoute = (go: () => void) => {
@@ -183,7 +186,7 @@ export default function UploadScreen() {
       return;
     }
     const back = previousUploadStep(step);
-    if (back && !sample && !picked) showReason();
+    if (back && !sample && !picked && !reasonAskedOnBack.current) showReason();
     else if (back) setStep(back);
   });
   const leaveThen = (go: () => void) => {
@@ -199,6 +202,8 @@ export default function UploadScreen() {
   const tutorialGuide = useTutorialSpotlight('upload');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 무료 코칭 하루 1회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.
+  const [freeLimit, setFreeLimit] = useState(false);
   const attemptRef = useRef<RequestAttempt | null>(null);
   const startLockRef = useRef(false);
 
@@ -451,6 +456,10 @@ export default function UploadScreen() {
           return;
         }
         setError(t('start.inProgressBody'));
+        return;
+      }
+      if (failure.kind === 'free_limit') {
+        setFreeLimit(true);
         return;
       }
       if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
@@ -740,6 +749,7 @@ export default function UploadScreen() {
       )}
       {dialog}
       {tutorialGuide.element}
+      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
     </SafeAreaView>
   );
 }
