@@ -1,5 +1,5 @@
-/** 하단 사업자 정보. 통신판매업 신고번호가 나오면 MAIL_ORDER_REPORT_NO 한 곳만 바꾼다. */
-export const MAIL_ORDER_REPORT_NO = "신고 처리 중";
+/** 하단 사업자 정보. 통신판매업 신고번호는 2026-10-21 서울특별시 동대문구 신고분이다. */
+export const MAIL_ORDER_REPORT_NO = "2026-서울동대문-1884";
 
 export const BUSINESS_INFO = {
   name: "액터브(ACTTUB)",

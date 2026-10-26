@@ -276,11 +276,11 @@ export default function LandingClient() {
                 <p className="mt-2 text-[34px] font-extrabold tracking-[-0.03em]">
                   월 3,900원 <span className="text-base font-semibold text-[#6b7684]">부가세 포함</span>
                 </p>
-                <p className="text-[13.5px] text-[#6b7684]">결제일부터 1개월 · 매월 정기결제</p>
+                <p className="text-[13.5px] text-[#6b7684]">웹은 월 구독 · 결제일부터 1개월마다 자동결제</p>
                 <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
                   <li className="py-2.5">코칭 횟수 제한 없음</li>
                   <li className="py-2.5">리딩 대본 개수 제한 없음</li>
-                  <li className="py-2.5">발음·딕션 피드백 (준비 중)</li>
+                  <li className="py-2.5">발음 보고서 (준비 중)</li>
                 </ul>
               </div>
             </div>

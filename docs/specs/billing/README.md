@@ -1,6 +1,6 @@
 # 결제
 
-[billing.pg-review PG 심사 전용 테스트 결제](pg-review.md)와 [billing.subscription 앱 ACTTUB Pro 정기결제](subscription.md)가 있다. 앱 정기결제는 플래그(기본 꺼짐) 뒤에 있고 지금은 토스 테스트 키만 받는다. 환불 화면은 아직 없다.
+[billing.pg-review PG 심사 전용 테스트 결제](pg-review.md)와 [billing.subscription 앱 ACTTUB Pro 정기결제](subscription.md)가 있다. 앱 정기결제는 플래그(기본 꺼짐) 뒤에 있고 지금은 토스 테스트 키만 받는다. 환불 화면은 아직 없다. 2026년 11월 결제 시작·약관 개정 공지 문구는 [notice-2026-11](notice-2026-11.md)에 있다.
 
 | 기능 | 계정·저장 | 노출 |
 |---|---|---|
