@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
+import { usePinnedDesktop, usePinnedFeature } from "@/features/site/pinned-features";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
@@ -72,22 +73,9 @@ export default function LandingClient() {
   // 다시 온 사람이 새 소개 화면을 못 봤다. 대신 첫 화면 링크를 「이어서 연습하기」로 바꿔 준다.
   // 서버 렌더에서는 게스트가 없다고 보고, 브라우저에서 저장소를 읽어 바꾼다.
   const returningGuest = useSyncExternalStore(subscribeAuthChange, hasGuestSession, () => false);
-  // 데스크톱: 기능 글이 화면 가운데를 지날 때 오른쪽에 붙어 있는 휴대폰 화면을 그 기능으로 바꾼다(토스·스픽식 고정 화면).
-  const [activeFeature, setActiveFeature] = useState(0);
-  const featureRefs = useRef<(HTMLElement | null)[]>([]);
-  useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) setActiveFeature(Number((entry.target as HTMLElement).dataset.featureIndex));
-        }
-      },
-      { rootMargin: "-45% 0px -45% 0px" },
-    );
-    for (const el of featureRefs.current) if (el) observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  // 데스크톱: 기능 구간에서 한 화면짜리 무대가 붙어 있고, 스크롤한 만큼 글과 휴대폰이 다음 기능으로 바뀐다.
+  const desktop = usePinnedDesktop();
+  const featuresRef = useRef<HTMLElement | null>(null);
 
   const features: Feature[] = [
     {
@@ -123,6 +111,7 @@ export default function LandingClient() {
       shotAlt: "앱의 챌린지 화면",
     },
   ];
+  const activeFeature = usePinnedFeature(featuresRef, features.length, desktop);
 
   const faq = HOME_FAQ.map((q) => findFaq(q)).filter((item) => item !== undefined);
 
@@ -194,62 +183,81 @@ export default function LandingClient() {
           </div>
         </div>
 
-        {/* 기능 셋. 데스크톱은 왼쪽 글이 내려가는 동안 오른쪽 휴대폰이 화면에 붙어 있고 화면만 바뀐다.
+        {/* 기능 셋. 데스크톱은 구간 높이가 기능 수 × 한 화면이고, 한 화면짜리 무대가 머리 아래에 붙은 채
+            스크롤한 만큼 글과 휴대폰이 다음 기능으로 바뀐다(토스식 고정 화면). 이동 위치용 표식은 무대 밖에 둔다.
             폰·태블릿은 기능마다 글 아래에 휴대폰을 둔다. */}
-        <section aria-label="액터브로 하는 연습">
-          <div className="mx-auto flex max-w-[1200px] gap-[90px] px-5 sm:px-8">
-            <div className="w-full flex-1">
-              {features.map((f, i) => (
-                <article
+        <section
+          ref={featuresRef}
+          aria-label="액터브로 하는 연습"
+          className="relative lg:h-[calc((100dvh-72px)*3)]"
+        >
+          {desktop
+            ? features.map((f, i) => (
+                <span
                   key={f.id}
                   id={f.id}
-                  ref={(el) => {
-                    featureRefs.current[i] = el;
-                  }}
-                  data-feature-index={i}
-                  aria-labelledby={`${f.id}-title`}
-                  className="flex scroll-mt-20 flex-col items-center gap-10 border-t border-[#edf0f3] py-16 first:border-t-0 lg:min-h-[calc(100dvh-72px)] lg:flex-row lg:border-t-0 lg:py-0"
-                >
-                  <div className="w-full flex-1">
-                    <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
-                    <h2 id={`${f.id}-title`} className="mt-3 text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
-                      {f.title[0]}
-                      <br />
-                      {f.title[1]}
-                    </h2>
-                    <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{f.body}</p>
-                    <ul className="mt-5 space-y-2">
-                      {f.bullets.map((b) => (
-                        <li key={b} className="flex gap-2.5 text-[15px] text-[#333d4b] sm:text-base">
-                          <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#4880ee]" />
-                          {b}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="mt-7 flex flex-wrap gap-2.5">
-                      <a
-                        href={appSectionHref}
-                        data-app-download="landing_app_section"
-                        className={`inline-flex h-12 items-center rounded-[14px] bg-[#4880ee] px-[18px] text-[15px] font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-0 h-px w-px scroll-mt-[72px]"
+                  style={{ top: `calc((100dvh - 72px) * ${i})` }}
+                />
+              ))
+            : null}
+          <div className="lg:sticky lg:top-[72px] lg:h-[calc(100dvh-72px)] lg:overflow-hidden">
+            <div className="mx-auto flex h-full max-w-[1200px] gap-[90px] px-5 sm:px-8">
+              <div className="relative w-full flex-1">
+                {features.map((f, i) => (
+                  <article
+                    key={f.id}
+                    id={desktop ? undefined : f.id}
+                    inert={desktop && i !== activeFeature}
+                    aria-labelledby={`${f.id}-title`}
+                    className={`flex scroll-mt-20 flex-col items-center gap-10 border-t border-[#edf0f3] py-16 first:border-t-0 lg:absolute lg:inset-0 lg:flex-row lg:border-t-0 lg:py-0 lg:transition lg:duration-500 lg:ease-out motion-reduce:lg:transition-none ${
+                      i === activeFeature
+                        ? "lg:translate-y-0 lg:opacity-100"
+                        : i < activeFeature
+                          ? "lg:-translate-y-6 lg:opacity-0"
+                          : "lg:translate-y-6 lg:opacity-0"
+                    }`}
+                  >
+                <div className="w-full flex-1">
+                  <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
+                  <h2 id={`${f.id}-title`} className="mt-3 text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
+                    {f.title[0]}
+                    <br />
+                    {f.title[1]}
+                  </h2>
+                  <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{f.body}</p>
+                  <ul className="mt-5 space-y-2">
+                    {f.bullets.map((b) => (
+                      <li key={b} className="flex gap-2.5 text-[15px] text-[#333d4b] sm:text-base">
+                        <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#4880ee]" />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-7 flex flex-wrap gap-2.5">
+                    <a
+                      href={appSectionHref}
+                      data-app-download="landing_app_section"
+                      className={`inline-flex h-12 items-center rounded-[14px] bg-[#4880ee] px-[18px] text-[15px] font-bold text-white transition hover:bg-[#3268d8] ${FOCUS}`}
+                    >
+                      {f.appLabel}
+                    </a>
+                    {f.web ? (
+                      <Link
+                        href={f.web.href}
+                        className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
                       >
-                        {f.appLabel}
-                      </a>
-                      {f.web ? (
-                        <Link
-                          href={f.web.href}
-                          className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
-                        >
-                          {f.web.label}
-                        </Link>
-                      ) : null}
-                    </div>
+                        {f.web.label}
+                      </Link>
+                    ) : null}
                   </div>
-                  <Phone src={f.shot} alt={f.shotAlt} className="w-[240px] shrink-0 lg:hidden" />
-                </article>
-              ))}
-            </div>
-            <div aria-hidden="true" className="hidden w-[300px] shrink-0 lg:block">
-              <div className="sticky top-[72px] flex h-[calc(100dvh-72px)] flex-col items-center justify-center gap-6">
+                </div>
+                    <Phone src={f.shot} alt={f.shotAlt} className="w-[240px] shrink-0 lg:hidden" />
+                  </article>
+                ))}
+              </div>
+              <div aria-hidden="true" className="hidden w-[300px] shrink-0 lg:flex lg:flex-col lg:items-center lg:justify-center lg:gap-6">
                 <div className="w-[280px] rounded-[44px] bg-[#111] p-2.5 shadow-[0_30px_60px_rgba(25,31,40,0.22)]">
                   <div className="relative aspect-[390/844] overflow-hidden rounded-[34px] bg-white">
                     {features.map((f, i) => (
