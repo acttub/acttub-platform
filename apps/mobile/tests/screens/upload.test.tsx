@@ -653,6 +653,20 @@ describe('영상 업로드를 망설일 때', () => {
     expect(screen.getByText('이유에 맞는 방법이 있어요.')).toBeOnTheScreen();
   }
 
+  test('뒤로 가기로 여는 망설임 페이지는 한 번만 — 다시 뒤로 가면 바로 목적 단계로 간다(10/26)', async () => {
+    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    await openReasons();
+    // 망설임 페이지에서 뒤로 → 목적 단계
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    expect(screen.getByText('하나 고르고 「질문 받기」를 누르세요.')).toBeOnTheScreen();
+    // 영상 단계에서 다시 뒤로 → 망설임 페이지 없이 목적 단계
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
+    expect(screen.queryByText('이유에 맞는 방법이 있어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('하나 고르고 「질문 받기」를 누르세요.')).not.toBeOnTheScreen();
+  });
+
   test('얼굴·영상 걱정 → 다음 → 올리기 옵션 → 이대로 올리기로 영상 단계에 돌아온다', async () => {
     await openReasons();
     await fireEvent.press(screen.getByRole('radio', { name: '얼굴·영상이 남는 게 걱정돼요' }));

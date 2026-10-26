@@ -140,6 +140,9 @@ test('대화 중인 묶음이 있으면 맨 위 「하던 코칭 · 이어서 �
 
   expect(await screen.findByText('코치와 하던 대화가 남아 있어요.')).toBeOnTheScreen();
   expect(screen.getByText('카페, 헤어지자는 말')).toBeOnTheScreen();
+  // 상태 안내에 「다음엔 이렇게 해 봐요」 제목을 붙이지 않고, 같은 뜻의 「이전 코칭 이어 하기」 링크도 두지 않는다(10/26).
+  expect(screen.queryByText('다음엔 이렇게 해 봐요')).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '이전 코칭 이어 하기' })).not.toBeOnTheScreen();
   expect(screen.queryByText('코칭이 처음이죠?')).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '이어서 하기' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'open-1' } });

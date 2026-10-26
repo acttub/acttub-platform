@@ -14,6 +14,11 @@ export function skipsHomeGuide(countedPracticeCount: number): boolean {
   return countedPracticeCount >= RETURNING_MIN_PRACTICES;
 }
 
+/** 챌린지 탭 첫 고르기 화면 — 참여작을 올린 적이 있거나 「연습 1회」가 기준 이상 쌓였으면 건너뛴다. */
+export function skipsChallengeFirstPick(input: { entryCount: number; countedPracticeCount: number }): boolean {
+  return input.entryCount > 0 || input.countedPracticeCount >= RETURNING_MIN_PRACTICES;
+}
+
 /** 리딩 탭 — 이미 올린 대본이 있으면 「대본을 넣어 보세요」를 띄우지 않는다. */
 export function skipsReadingTabGuide(scriptCount: number): boolean {
   return scriptCount > 0;
