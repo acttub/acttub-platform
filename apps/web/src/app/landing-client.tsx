@@ -292,6 +292,7 @@ export default function LandingClient() {
                         data-scene
                         data-scene-index={i}
                         data-scene-travel={20}
+                        data-scene-fade={1}
                         className={`absolute inset-0 h-full w-full object-cover will-change-transform ${i === 0 ? "" : "opacity-0"}`}
                       />
                     ))}

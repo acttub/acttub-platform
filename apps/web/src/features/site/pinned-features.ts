@@ -20,10 +20,14 @@ export function sceneProgress(offset: number, step: number, count: number): numb
   return Math.min(Math.max(offset / step, 0), count - 1);
 }
 
-/** 진행도 p 에서 i 번째 장면의 보이는 정도와 세로 이동(px). 가까울수록 또렷하고 제자리. */
-export function sceneLook(p: number, i: number, travel: number): { opacity: number; y: number } {
+/**
+ * 진행도 p 에서 i 번째 장면의 보이는 정도와 세로 이동(px). 가까울수록 또렷하고 제자리.
+ * fade 가 클수록 빨리 사라진다. 글은 겹치면 지저분해서 빠르게(1.6), 휴대폰 화면은 겹쳐도 되니
+ * 1 로 둬서 바뀌는 중간에도 화면이 비어 보이지 않게 한다.
+ */
+export function sceneLook(p: number, i: number, travel: number, fade = 1.6): { opacity: number; y: number } {
   const d = i - p;
-  const opacity = Math.min(Math.max(1 - Math.abs(d) * 1.8, 0), 1);
+  const opacity = Math.min(Math.max(1 - Math.abs(d) * fade, 0), 1);
   return { opacity, y: Math.max(Math.min(d, 1), -1) * travel };
 }
 
@@ -44,7 +48,7 @@ export function usePinnedDesktop(): boolean {
 }
 
 /**
- * 스크롤에 맞춰 무대 안 장면([data-scene] + data-scene-index, 이동 폭 data-scene-travel)을 직접 움직이고,
+ * 스크롤에 맞춰 무대 안 장면([data-scene] + data-scene-index, 이동 폭 data-scene-travel, 사라지는 빠르기 data-scene-fade)을 직접 움직이고,
  * 지금 가장 또렷한 기능 번호를 돌려준다(버튼 막기·표시용). 번호가 바뀔 때만 다시 그린다.
  */
 export function usePinnedScenes(sectionRef: RefObject<HTMLElement | null>, count: number, desktop: boolean): number {
@@ -74,7 +78,7 @@ export function usePinnedScenes(sectionRef: RefObject<HTMLElement | null>, count
           s.style.transform = "";
           continue;
         }
-        const look = sceneLook(p, i, Number(s.dataset.sceneTravel ?? 40));
+        const look = sceneLook(p, i, Number(s.dataset.sceneTravel ?? 40), Number(s.dataset.sceneFade ?? 1.6));
         s.style.opacity = String(look.opacity);
         s.style.transform = `translate3d(0, ${look.y.toFixed(1)}px, 0)`;
       }
