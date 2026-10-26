@@ -54,6 +54,11 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
     private static final String OPS_CORE_SQL = load("/admin/ops-core.sql");
     /** 수집기 psql 경로와 같은 상한. 넘기면 이 트랜잭션만 취소된다. */
     private static final String OPS_CORE_TIMEOUT = "SET LOCAL statement_timeout = '20s'";
+    /**
+     * 이 SQL 은 예상 비용이 Postgres JIT 최적화 기준(50만)을 넘어서, 실행 0.4초 앞에 JIT 컴파일만 19초가 붙었다.
+     * 한 번 도는 집계라 컴파일 이득이 없으니 이 트랜잭션에서만 JIT 를 끈다.
+     */
+    private static final String OPS_CORE_NO_JIT = "SET LOCAL jit = off";
 
     private final EntityManager entityManager;
 
@@ -978,6 +983,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
         return entityManager.unwrap(Session.class).doReturningWork(connection -> {
             try (Statement guard = connection.createStatement()) {
                 guard.execute(OPS_CORE_TIMEOUT);
+                guard.execute(OPS_CORE_NO_JIT);
                 guard.execute("SET TRANSACTION READ ONLY");
             }
             try (PreparedStatement statement = connection.prepareStatement(OPS_CORE_SQL)) {
