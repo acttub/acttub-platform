@@ -185,7 +185,8 @@ export default function CoachingTab() {
             </View>
             {resuming || nextTake ? (
               <View style={styles.quote}>
-                <Text style={styles.quoteLabel}>{t('coachingTab.memoNext')}</Text>
+                {/* 하던 코칭에는 「다음엔 이렇게 해 봐요」 제목을 붙이지 않는다 — 아래 문장은 조언이 아니라 상태 안내다(10/26). */}
+                {!resuming && <Text style={styles.quoteLabel}>{t('coachingTab.memoNext')}</Text>}
                 <Text style={styles.quoteText}>{resuming ? t('coachingTab.resumeBody') : nextTake}</Text>
               </View>
             ) : null}
@@ -214,15 +215,18 @@ export default function CoachingTab() {
           </View>
 
           <TalkEntryButton onPress={() => router.push('/talk')} />
-          <Pressable
-            onPress={pickPrevious}
-            accessibilityRole="button"
-            accessibilityLabel={t('coachingTab.menuResume')}
-            ph-label="coaching_pick_previous"
-            style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
-            <Feather name="clock" size={15} color={palette.textDim} />
-            <Text style={styles.linkText}>{t('coachingTab.menuResume')}</Text>
-          </Pressable>
+          {/* 맨 위 카드가 이미 「이어서 하기」면 같은 뜻의 링크를 또 두지 않는다(10/26). */}
+          {!resuming && (
+            <Pressable
+              onPress={pickPrevious}
+              accessibilityRole="button"
+              accessibilityLabel={t('coachingTab.menuResume')}
+              ph-label="coaching_pick_previous"
+              style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+              <Feather name="clock" size={15} color={palette.textDim} />
+              <Text style={styles.linkText}>{t('coachingTab.menuResume')}</Text>
+            </Pressable>
+          )}
           {hasScripts ? (
             <Pressable
               onPress={() => router.push('/coach-scripts')}

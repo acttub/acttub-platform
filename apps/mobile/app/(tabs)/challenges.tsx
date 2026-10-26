@@ -25,7 +25,16 @@ import {
   participantsLabel,
   pinsFeatured,
 } from '@/lib/challenge/browse';
-import { hasBrowsedChallenges, hasFinishedFirstChallenge, hasSeenChallengeIntro, markChallengeIntroSeen, markChallengesBrowsed } from '@/lib/challenge/intro-state';
+import {
+  hasBrowsedChallenges,
+  hasFinishedFirstChallenge,
+  hasSeenChallengeIntro,
+  markChallengeIntroSeen,
+  markChallengesBrowsed,
+  markFirstChallengeFinished,
+} from '@/lib/challenge/intro-state';
+import { countedPractices } from '@/lib/practice/counted';
+import { skipsChallengeFirstPick } from '@/lib/returning-account';
 import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
@@ -69,6 +78,8 @@ export default function ChallengesScreen() {
   const [showGuide, setShowGuide] = useState(false);
   /** 첫 챌린지 화면에서 「챌린지 둘러보기」를 고른 적이 있으면 기본 챌린지 홈을 보인다(SOMA-827). */
   const [browsed, setBrowsed] = useState(false);
+  /** 첫 고르기 화면을 띄울지 기기·서버 기록으로 다 따져 봤는가. 따지기 전에는 띄우지 않는다. */
+  const [firstPickChecked, setFirstPickChecked] = useState(false);
   const unread = useUnreadNotifications();
   /** 첫 사용자용 고르기(C1.16·C1.18) — 고른 줄. 기본 선택은 없고 「다음」을 눌러야 넘어간다. */
   const [firstPick, setFirstPick] = useState<'perform' | 'browse' | null>(null);
@@ -127,12 +138,46 @@ export default function ChallengesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
-      void hasBrowsedChallenges().then(setBrowsed);
+      // 첫 고르기 화면은 기기 기록으로 정하는데, 앱을 다시 깐 기존 사용자에게도 다시 떴다(10/26). 기기 기록이 비었으면
+      // 서버 기록(올린 참여작·「연습 1회」)을 한 번 보고, 이미 써 본 계정이면 고르기 없이 기본 챌린지 홈을 보인다.
+      let live = true;
+      setFirstPickChecked(false);
+      void Promise.all([hasFinishedFirstChallenge(), hasBrowsedChallenges()]).then(async ([done, seenBrowse]) => {
+        if (!live) return;
+        setShowGuide(!done);
+        setBrowsed(seenBrowse);
+        if (done || seenBrowse) {
+          setFirstPickChecked(true);
+          return;
+        }
+        const [entries, groups] = await Promise.all([
+          Promise.resolve()
+            .then(() => api.listMyChallengeEntries())
+            .then((r) => r.entries)
+            .catch(() => []),
+          Promise.resolve()
+            .then(() => api.listPracticeGroups('all'))
+            .then((r) => r.groups)
+            .catch(() => []),
+        ]);
+        if (!live) return;
+        const countedPracticeCount = countedPractices({ groups, entries }).length;
+        if (entries.length > 0) {
+          void markFirstChallengeFinished();
+          setShowGuide(false);
+        } else if (skipsChallengeFirstPick({ entryCount: entries.length, countedPracticeCount })) {
+          void markChallengesBrowsed();
+          setBrowsed(true);
+        }
+        setFirstPickChecked(true);
+      });
       void api
         .listChallenges({ tab: 'ended' })
         .then((result) => setLastWeek(lastWeekResult(result.challenges)))
         .catch(() => setLastWeek(null));
+      return () => {
+        live = false;
+      };
     }, []),
   );
 
@@ -166,7 +211,7 @@ export default function ChallengesScreen() {
   const tapCard = (challenge: ChallengeCard) => openDetail(challenge);
 
   /** 첫 챌린지 참여를 끝내기 전에는 이번 주 대사 하나만 보여 주고 둘 중 하나를 고르게 한다. */
-  const selectMode = showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
+  const selectMode = firstPickChecked && showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
 
   const emptyText =
     tab === 'ended' ? t('challenges.emptyEnded') : tab === 'mine' ? t('challenges.emptyMine') : t('challenges.emptyRunning');

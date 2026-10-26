@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { RETURNING_MIN_PRACTICES, skipsFirstReadingGuide, skipsHomeGuide, skipsReadingTabGuide } from '../lib/returning-account.ts';
+import {
+  RETURNING_MIN_PRACTICES,
+  skipsChallengeFirstPick,
+  skipsFirstReadingGuide,
+  skipsHomeGuide,
+  skipsReadingTabGuide,
+} from '../lib/returning-account.ts';
 
 test('홈 — 첫 연습 직후에는 안내를 띄우고, 연습이 쌓인 계정은 건너뛴다', () => {
   assert.equal(skipsHomeGuide(0), false);
@@ -32,4 +38,11 @@ test('리딩 버튼 안내 — 이어 읽는 회차나 다른 대본을 읽어 �
   );
   // 목록을 못 읽으면 회차만 본다.
   assert.equal(skipsFirstReadingGuide({ resumed: false, scriptId: 's1', scripts: null }), false);
+});
+
+test('챌린지 첫 고르기 — 참여작이 있거나 연습이 쌓인 계정은 건너뛴다', () => {
+  assert.equal(skipsChallengeFirstPick({ entryCount: 0, countedPracticeCount: 0 }), false);
+  assert.equal(skipsChallengeFirstPick({ entryCount: 0, countedPracticeCount: RETURNING_MIN_PRACTICES - 1 }), false);
+  assert.equal(skipsChallengeFirstPick({ entryCount: 1, countedPracticeCount: 0 }), true);
+  assert.equal(skipsChallengeFirstPick({ entryCount: 0, countedPracticeCount: RETURNING_MIN_PRACTICES }), true);
 });
