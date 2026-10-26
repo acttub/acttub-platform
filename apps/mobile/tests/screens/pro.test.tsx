@@ -85,7 +85,12 @@ test('Pro 안내(P0xJ9) — 앱 결제가 닫혀 있으면 비교 표와 가격�
   await render(<ProScreen />);
 
   expect(screen.getByText('ACTTUB Pro')).toBeOnTheScreen();
-  expect(screen.getByText('하루 1번')).toBeOnTheScreen();
+  expect(screen.getByText('하루 3번')).toBeOnTheScreen();
+  expect(screen.getByText('3개')).toBeOnTheScreen();
+  // 코칭 고도화 세 줄(SOMA-818, 11/1 무료 한도 개정).
+  expect(screen.getByText('상위 모델')).toBeOnTheScreen();
+  expect(screen.getByText('반복되는 버릇을 짚어 줘요')).toBeOnTheScreen();
+  expect(screen.getByText('장면·대사별로 자세히')).toBeOnTheScreen();
   expect(screen.getByText('월 3,900원 또는 연 32,500원 · 자동 결제 · 언제든 해지')).toBeOnTheScreen();
   expect(screen.queryByText('Pro 시작하기')).not.toBeOnTheScreen();
   expect(screen.queryByText(/acttub\.com\/pricing/)).not.toBeOnTheScreen();

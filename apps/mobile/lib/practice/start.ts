@@ -115,7 +115,7 @@ export type StartFailure =
   | { kind: 'video_not_ready' }
   /** 게스트 하루 3회를 다 썼다. 회차도 작업도 생기지 않았다. */
   | { kind: 'daily_limit' }
-  /** 무료 코칭 하루 1회를 다 썼다(SOMA-818, 서버 무료 한도 플래그가 켜졌을 때만). Pro 시트를 띄운다. */
+  /** 무료 코칭 하루 3회를 다 썼다(SOMA-818, 서버 무료 한도 플래그가 켜졌을 때만). Pro 시트를 띄운다. */
   | { kind: 'free_limit' }
   /** 같은 요청 id로 다른 본문을 보냈다. 새 요청 id로 다시 만든다. */
   | { kind: 'fingerprint_mismatch' }

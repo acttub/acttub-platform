@@ -105,8 +105,10 @@ type Popup =
   | { kind: 'duplicate'; title: string; input: ImportInput; flags: ImportFlags } // R2.7
   | { kind: 'not_script'; input: ImportInput; flags: ImportFlags } // R2.8
   | { kind: 'consent'; document: ConsentEntryDocument; resume: Resume; expanded: boolean; busy: boolean } // R2.14
-  /** pen WLdNc 「무료는 대본 1개까지 보관해요」(SOMA-818) — 서버가 403 free_script_limit 을 줄 때만. */
+  /** pen WLdNc 「무료는 대본 3개까지 보관해요」(SOMA-818) — 서버가 403 free_script_limit 을 줄 때만. */
   | { kind: 'free_limit'; resume: Resume; busy: boolean }
+  /** 보관한 대본이 둘 이상이면 지울 대본을 먼저 고른다(무료 3개). */
+  | { kind: 'free_pick'; resume: Resume; scripts: { id: string; title: string }[] }
   /** pen K7q5Vk 「지금 대본과 바꾸기」 확인 — 지우면 그 대본의 연습 기록도 함께 지워진다. */
   | { kind: 'free_replace'; resume: Resume; scriptId: string; title: string; busy: boolean };
 
@@ -162,13 +164,14 @@ export default function ReadingNew() {
     }
   };
 
-  // 「지금 대본과 바꾸기」 — 보관 중인 대본(무료는 하나)을 찾아 확인을 묻는다.
+  // 「대본 하나 지우고 넣기」 — 보관 중인 대본(무료는 3개까지)을 읽는다. 하나면 바로 확인을 묻고, 둘 이상이면 지울 대본을 고르게 한다.
   const askReplace = async (resume: Resume) => {
     setPopup({ kind: 'free_limit', resume, busy: true });
     try {
-      const current = (await listScripts()).scripts[0];
-      if (!current) return setPopup(null);
-      setPopup({ kind: 'free_replace', resume, scriptId: current.id, title: current.title, busy: false });
+      const scripts = (await listScripts()).scripts.map(({ id, title }) => ({ id, title }));
+      if (scripts.length === 0) return setPopup(null);
+      if (scripts.length === 1) return setPopup({ kind: 'free_replace', resume, scriptId: scripts[0].id, title: scripts[0].title, busy: false });
+      setPopup({ kind: 'free_pick', resume, scripts });
     } catch (error) {
       failWith(error);
     }
@@ -511,6 +514,30 @@ export default function ReadingNew() {
               busy={popup.busy}
             />
           )}
+          {popup?.kind === 'free_pick' && (
+            <View style={[styles.card, styles.optionCard]}>
+              <Text style={styles.optionTitle}>{t('pro.pickTitle')}</Text>
+              <Text style={styles.optionGuide}>{t('pro.pickGuide')}</Text>
+              {/* 11/1 전에 넣은 대본은 3개를 넘을 수 있어 목록은 스크롤한다. */}
+              <ScrollView style={styles.pickList} contentContainerStyle={styles.pickListBody}>
+                {popup.scripts.map((script) => (
+                  <Pressable
+                    key={script.id}
+                    style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
+                    accessibilityRole="button"
+                    onPress={() => setPopup({ kind: 'free_replace', resume: popup.resume, scriptId: script.id, title: script.title, busy: false })}>
+                    <Text style={styles.optionText} numberOfLines={1}>{script.title}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Pressable
+                style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
+                accessibilityRole="button"
+                onPress={() => setPopup(null)}>
+                <Text style={styles.optionText}>{t('pro.replaceCancel')}</Text>
+              </Pressable>
+            </View>
+          )}
           {popup?.kind === 'free_replace' && (
             <ProSheetCard
               title={t('pro.replaceTitle', { title: popup.title })}
@@ -651,6 +678,8 @@ const styles = StyleSheet.create({
   optionName: { color: palette.textMuted, fontSize: 13, marginBottom: 6 },
   optionRow: { paddingVertical: 14, paddingHorizontal: 2, borderRadius: 10 },
   optionPressed: { backgroundColor: palette.bgSubtle },
+  pickList: { alignSelf: 'stretch', maxHeight: 264 },
+  pickListBody: { gap: 6 },
   optionText: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 24 },
   sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 18 },
