@@ -636,6 +636,24 @@ describe('첫 안내', () => {
     expect(posterProps().onboardingJustFinished).toBe(true);
   });
 
+  test('연습이 쌓인 계정(앱을 다시 깐 기존 사용자)에게는 「첫 연습 끝!」 안내를 띄우지 않고 본 것으로 적는다(10/26)', async () => {
+    listPracticeGroups.mockResolvedValue({
+      groups: [
+        group({
+          title: '카페 장면',
+          practices: [round('r1', isoDaysAgo(1), true), round('r2', isoDaysAgo(2), true), round('r3', isoDaysAgo(3), true)],
+        }),
+      ],
+    });
+    (hasSeenSpotlight as jest.Mock).mockResolvedValue(false);
+    await render(withHost);
+
+    await screen.findByText('이것도 해 볼까요?');
+    await waitFor(() => expect(markSpotlightSeen).toHaveBeenCalledWith('home'));
+    await act(async () => new Promise((r) => setTimeout(r, 900)));
+    expect(screen.queryByText('건너뛰기')).not.toBeOnTheScreen();
+  });
+
   test('첫 연습을 끝낸 홈에서 안내를 띄우고, 안내를 본 그 방문에는 공지 포스터를 미룬다', async () => {
     practiced();
     (hasSeenSpotlight as jest.Mock).mockResolvedValue(false);

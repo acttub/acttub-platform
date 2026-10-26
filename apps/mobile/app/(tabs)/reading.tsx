@@ -11,6 +11,7 @@ import { palette } from '@/constants/palette';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { hasSeenReadingTutorial, hasSeenSpotlight, markReadingTutorialSeen, markSpotlightSeen } from '@/lib/guide-state';
+import { skipsReadingTabGuide } from '@/lib/returning-account';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -90,6 +91,14 @@ export default function ReadingList() {
       if (!seen && guideFocused.current && !firstTimeRef.current) setGuideOpen(true);
     });
   }, []);
+
+  // 대본을 이미 올린 계정(앱을 다시 깐 기존 사용자)에게는 「대본을 넣어 보세요」를 띄우지 않고 본 것으로 남긴다(10/26).
+  const hasScripts = !!list && skipsReadingTabGuide(Math.max(list.total_count, list.scripts.length));
+  useEffect(() => {
+    if (!guideOpen || !hasScripts) return;
+    setGuideOpen(false);
+    void markSpotlightSeen('reading');
+  }, [guideOpen, hasScripts]);
 
   const load = useCallback(async (keyword: string) => {
     const mine = ++generation.current;
@@ -424,7 +433,7 @@ export default function ReadingList() {
 
       {/* 가이드는 제 창에 뜬다 — 목록 어디에 두든 자리를 차지하지 않는다. */}
       <SpotlightGuide
-        visible={guideOpen}
+        visible={guideOpen && !!list && !hasScripts}
         topic="reading"
         steps={READING_STEPS}
         onDone={() => {
