@@ -90,57 +90,59 @@ iOS 는 2단계 전에 앱 화면으로 외부 결제 안내(hD5to)를 띄운다
 
 ## 개정: 스토어 구독 (SOMA-818, 2단계)
 
-앱의 Pro 구매는 App Store·Google Play 구독이다(RevenueCat 없이 서버가 직접 검증). 상품은 양 스토어 공통 `acttub_pro_monthly`
-(월 3,900원, 1개월 자동 갱신)과 `acttub_pro_yearly`(연 32,500원 = 월 요금 12개월 46,800원에서 30% 할인, 1년 자동 갱신) 둘이다.
-Google 은 구독 ID 가 각각 `acttub_pro_monthly`·`acttub_pro_yearly`, 기본 요금제 ID 가 `monthly`·`yearly`다. Apple 은 같은 구독 그룹에 두 상품을 둔다.
-장부 amount 는 산 상품의 정가(3,900·32,500)이고 실제 청구액은 스토어가 정한다. Pro 화면은 월·연을 고르게 하고(기본 월), 스토어에 없는 요금제는 고를 수 없다.
+앱의 Pro 구매는 App Store·Google Play 구독이고 RevenueCat 으로 받는다(앱 SDK `react-native-purchases`, 서버는 RevenueCat REST API v1).
+상품은 양 스토어 공통 `acttub_pro_monthly`(월 3,900원, 1개월 자동 갱신)과 `acttub_pro_yearly`(연 32,500원 = 월 요금 12개월 46,800원에서 30% 할인,
+1년 자동 갱신) 둘이다. Google 은 구독 ID 가 각각 `acttub_pro_monthly`·`acttub_pro_yearly`, 기본 요금제 ID 가 `monthly`·`yearly`다. Apple 은 같은 구독
+그룹에 두 상품을 둔다. RevenueCat 에서는 entitlement `pro` 에 두 상품을 붙이고, current offering(`default`)의 `$rc_monthly`·`$rc_annual` 패키지로 판다.
+장부 amount 는 산 상품의 정가(3,900·32,500)이고 실제 청구액은 스토어가 정한다. Pro 화면은 월·연을 고르게 하고(기본 월), 오퍼링에 없는 요금제는 고를 수 없다.
 연 구독은 앱 스토어 전용이다 — 웹 토스는 계약 조건(서비스 제공 기간 1개월 이내) 때문에 월 구독만 판다. 웹 토스 결제는 이 단계 범위가 아니다.
 
 ### 앱이 사용자에게 보이는 동작
 - Pro 안내 화면은 서버가 앱 결제를 열었고(`app_enabled`) 아직 Pro 가 아닐 때만 [Pro 시작하기]·[구매 복원]을 그린다. 버튼 위에 상품명,
-  스토어가 준 현지화 가격, 1개월 자동 갱신, 해지 방법(iOS 설정 > Apple 계정 > 구독, Android Play 스토어 > 결제 및 정기 결제), 약관 링크를
-  둔다. 이미 Pro(웹 결제·기간 부여 포함)이면 버튼 대신 「이미 Pro를 이용 중이에요」만 보인다. 앱 안에서 웹 결제로 보내는 링크·문구는 없다.
+  스토어가 준 현지화 가격(패키지의 priceString), 자동 갱신 주기, 해지 방법(iOS 설정 > Apple 계정 > 구독, Android Play 스토어 > 결제 및 정기 결제),
+  약관 링크를 둔다. 이미 Pro(웹 결제·기간 부여 포함)이면 버튼 대신 「이미 Pro를 이용 중이에요」만 보인다. 앱 안에서 웹 결제로 보내는 링크·문구는 없다.
 - 진행 중에는 스피너 대신 짧은 문구(결제창을 여는 중이에요 / 결제를 확인하고 있어요 / 구독을 찾는 중이에요)를 보인다. 팝업·바텀시트는 쓰지 않는다.
-- 구독 관리: 스토어 구독이면 「스토어에서 구독 관리」가 스토어의 구독 관리 화면을 연다(Android 는 상품·패키지 지정).
+- 구독 관리: 스토어 구독이면 「스토어에서 구독 관리」가 스토어의 구독 관리 화면을 연다.
+- 빌드에 RevenueCat 공개 SDK 키(`EXPO_PUBLIC_REVENUECAT_IOS_KEY`·`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`)가 없으면 SDK 를 열지 않고 구매 버튼이 눌리지 않는다.
 
-### 검증 API
-`POST /v2/billing/store/verify`(로그인 필요, 앱 헤더·동의 게이트 안) `{platform: ios|android, product_id?, signed_transaction?(iOS 거래 JWS),
-purchase_token?(Android)}` → `GET /v2/billing/me` 와 같은 모양. 같은 영수증을 다시 보내도 결과가 같다(멱등).
-- 구매자 연결: iOS `appAccountToken`·Android `obfuscatedAccountId` 가 요청 사용자 id(UUID)와 같아야 한다. 다르거나 없으면 403 `store_account_mismatch`.
-- 같은 원거래(apple)·구매 토큰(google)이 다른 사용자 줄에 있으면 409 `store_account_conflict`(DB 유니크가 경합의 바닥).
-- 토스로 이용 중이거나 다른 스토어 구독이 유효하면 409 `already_subscribed`. 이미 끝난 옛 구매를 복원해도 유효한 줄을 덮지 않는다.
-- 그 밖: 404 `billing_unavailable`(앱 결제 꺼짐), 403 `billing_member_required`, 422 `invalid_platform`·`invalid_product`·
-  `invalid_store_receipt`(서명·영수증 불량), 409 `payment_pending`(Google 느린 결제 수단 대기), 503 `store_unavailable`(해당 스토어 검증 꺼짐·설정
-  오류), 502 `store_upstream_error`(스토어 조회 실패 — 앱이 다시 시도), 429.
-- Apple: 공식 app-store-server-library 의 `SignedDataVerifier` 가 JWS 서명 체인(리소스로 둔 Apple Root CA G3), 번들 ID, 앱 Apple ID(운영),
-  환경을 검증한다. 운영으로 먼저 검증하고 환경이 다르면 샌드박스로 다시 검증한다. `.p8` 키가 있으면 App Store Server API 로 갱신 정보
-  (자동갱신 끔·결제 유예·재시도)를 읽고, 없으면 거래 JWS 만으로 판단한다(자동갱신 끔은 알림이 알려 준다).
-- Google: 서비스 계정으로 `purchases.subscriptionsv2.get` 을 조회하고, 승인(acknowledge) 전이면 서버가 승인한다. 앱은 Android 거래를 끝내지 않는다.
+### 구매자 연결
+RevenueCat app user id = 우리 user id(UUID)다. 앱은 SDK 를 처음 쓸 때 그 id 로 `configure`, 사람이 바뀌면 `logIn`, 로그아웃하면 `logOut` 한다.
+같은 스토어 계정의 구매를 다른 우리 계정이 복원하면 누구에게 줄지는 RevenueCat 프로젝트의 복원 규칙(기본: 새 계정으로 옮김)이 정하고, 옮겨지면
+TRANSFER 웹훅으로 양쪽을 다시 읽는다(옛 계정은 expired).
+
+### 동기화 API
+`POST /v2/billing/store/sync`(로그인 필요, 앱 헤더·동의 게이트 안, 본문 없음) → `GET /v2/billing/me` 와 같은 모양. 앱은 구매·복원 뒤(네트워크·5xx 는
+재시도, 결제 직후 아직 Pro 가 아니면 잠깐 뒤 다시) 부르고 응답의 `pro` 로만 화면을 바꾼다. 서버는 RevenueCat `GET /v1/subscribers/{user id}`(비밀 키)로
+entitlement 를 읽어 사람당 한 줄을 덮어쓴다 — 여러 번 불러도 결과가 같다(멱등).
+- 404 `billing_unavailable`(앱 결제 꺼짐), 403 `billing_member_required`, 409 `already_subscribed`(토스로 이용 중인데 스토어 구독도 유효 — 토스 줄은 그대로),
+  503 `store_unavailable`(RevenueCat 꺼짐·키 거부), 502 `store_upstream_error`(RevenueCat 조회 실패 — 앱이 다시 시도), 429.
 
 ### 상태와 Pro 판정
-- 기간 끝(`current_period_end`)은 스토어 만료 시각. Apple: 만료 전 자동갱신 끔 → `canceled`(기간 끝까지 Pro), 만료 전 → `active`, 결제 유예 →
-  `active`(유예 끝까지), 결제 재시도 중 → `past_due`(Pro 아님), 만료·환불·취소 → `expired`. Google: ACTIVE → `active`(자동갱신 끔이면
-  `canceled`), CANCELED → `canceled`, IN_GRACE_PERIOD → `active`(만료 +7일), ON_HOLD·PAUSED → `past_due`, EXPIRED → `expired`.
-- 스토어 구독은 `active` 여도 기간(+갱신 알림 여유 6시간)이 지나면 Pro 가 아니다 — 만료 알림을 못 받아도 영구 Pro 로 남지 않는다.
+- 출처(provider)는 RevenueCat store 로 정한다: `app_store` → apple, `play_store` → google. 그 밖(프로모션·웹 등)이나 우리 상품이 아니면 스토어 구독으로 보지 않는다.
+- 샌드박스 구매(`is_sandbox`)는 `BILLING_REVENUECAT_ALLOW_SANDBOX=true` 인 서버(dev)에서만 Pro 를 연다. 운영은 무시한다.
+- 기간 끝(`current_period_end`)은 RevenueCat expires_date. 기간 안: 자동 갱신 끔(`unsubscribe_detected_at`) → `canceled`(기간 끝까지 Pro), 아니면 `active`
+  (결제 문제가 있어도 기간 안이면 active). 기간 지남: 결제 유예(`grace_period_expires_date`) 안 → `active`(유예 끝까지), 결제 문제(`billing_issues_detected_at`)
+  → `past_due`(Pro 아님), 그 밖 → `expired`. 이번 기간 시작 뒤에 알아챈 환불(`refunded_at`)은 바로 `expired`.
+- RevenueCat 에 entitlement 가 없으면(산 적 없음·다른 계정으로 옮겨짐) 남아 있는 스토어 줄을 `expired` 로 끝낸다. 끝난 옛 구매만 있으면 새 줄을 만들지 않는다.
+- 스토어 구독은 `active` 여도 기간(+갱신 알림 여유 6시간)이 지나면 Pro 가 아니다 — 웹훅을 못 받아도 영구 Pro 로 남지 않는다.
   `canceled` 는 기간 끝까지만. 토스 구독의 판정은 그대로다.
-- 스토어 구독은 서버에서 해지·재시도하지 않는다(409 `managed_by_store`). 스케줄러는 `toss` 줄만 집는다.
+- 스토어 구독은 서버에서 해지·재시도하지 않는다(409 `managed_by_store`). 스케줄러는 `toss` 줄만 집는다. 탈퇴한(활성 아닌) 사람의 줄은 쓰지 않는다.
+- `store_transaction_id` 는 마지막으로 본 스토어 거래 ID 기록일 뿐 유일하지 않다.
 
-### 알림 (인증 없는 서버 호출 — 앱 헤더·토큰·동의 게이트 밖)
-- `POST /v2/billing/store-notify/apple` `{signedPayload}` — App Store Server Notifications V2. 서명(위와 같은 검증)이 권한이다. 서명이 틀리면 400.
-  갱신·만료·환불(REFUND·REVOKE)·자동갱신 끔·결제 재시도·유예를 같은 원거래 줄에 반영한다. 우리 줄이 아닌 알림(앱이 아직 검증하지 않은 구매,
-  다른 상품, TEST)은 무시하고 200 으로 돌려준다.
-- `POST /v2/billing/store-notify/google` — Pub/Sub 푸시(`message.data` base64 RTDN). 푸시 인증은 설정으로 고른다: `token`(주소의 `?token=` 이 비밀
-  값과 같음, 상수 시간 비교) 또는 `oidc`(Google 서명 OIDC 토큰의 서명·발급자·audience·서비스 계정 이메일 확인). 비어 있으면 모두 401. 알림 내용은 믿지 않고
-  구매 토큰으로 `subscriptionsv2.get` 을 다시 조회해 현재 상태를 쓴다. 조회 실패는 502 로 돌려 Pub/Sub 이 다시 보내게 한다.
-- 멱등: 알림은 현재 상태를 덮어쓰는 방식이라 같은 알림이 여러 번 와도 결과가 같다. Apple 알림은 기간이 앞으로 가지 않는 한 서명 시각이 마지막 기록
-  시각보다 이르면(늦게 도착한 옛 알림) 무시한다.
+### 웹훅 (RevenueCat 서버 호출 — 앱 헤더·토큰·동의 게이트 밖)
+- `POST /v2/billing/store-notify/revenuecat` — RevenueCat 대시보드 웹훅. `Authorization` 헤더 전체가 `REVENUECAT_WEBHOOK_AUTH` 와 같아야 한다(SHA-256 뒤 상수
+  시간 비교). 비어 있거나 다르면 401. 운영 웹훅은 Production 만, dev 웹훅은 Sandbox 만 받도록 대시보드에서 나눈다.
+- 본문의 상태 값은 믿지 않는다. `event` 의 `app_user_id`·`original_app_user_id`·`aliases`·`transferred_from`·`transferred_to` 중 UUID 꼴인 우리 사람(최대 10명)을
+  골라 각자 RevenueCat 을 다시 읽어 위 규칙으로 덮어쓴다. 그래서 같은 이벤트가 여러 번 오거나 순서가 바뀌어도 결과가 같다(멱등). `TEST`·익명 ID·기능
+  꺼짐은 무시하고 200. 본문 꼴이 틀리면 400, RevenueCat 조회 실패는 502·503 으로 돌려 RevenueCat 이 다시 보내게 한다.
 
 ### 설정(모두 기본 꺼짐, 비밀 값은 환경변수로만)
-`BILLING_APP_ENABLED`(앱 화면·검증 API), `BILLING_APPLE_ENABLED`·`BILLING_APPLE_BUNDLE_ID`(기본 com.acttub.app)·`BILLING_APPLE_APP_ID`·
-`BILLING_APPLE_ONLINE_CHECKS`·`BILLING_APPLE_API_PRIVATE_KEY`·`BILLING_APPLE_API_KEY_ID`·`BILLING_APPLE_API_ISSUER_ID`,
-`BILLING_GOOGLE_ENABLED`·`BILLING_GOOGLE_PACKAGE_NAME`(기본 com.acttub.app)·`BILLING_GOOGLE_SERVICE_ACCOUNT_JSON`·`BILLING_GOOGLE_PUSH_AUTH`·
-`BILLING_GOOGLE_PUSH_TOKEN`·`BILLING_GOOGLE_PUSH_AUDIENCE`·`BILLING_GOOGLE_PUSH_SERVICE_ACCOUNT`.
+서버: `BILLING_APP_ENABLED`(앱 화면·동기화 API), `BILLING_REVENUECAT_ENABLED`(기본 false), `REVENUECAT_SECRET_API_KEY`(V1 비밀 키), `REVENUECAT_WEBHOOK_AUTH`,
+`REVENUECAT_ENTITLEMENT_ID`(기본 pro), `BILLING_REVENUECAT_ALLOW_SANDBOX`(기본 false, dev 만 true).
+앱 빌드: `EXPO_PUBLIC_REVENUECAT_IOS_KEY`·`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`(RevenueCat 공개 SDK 키). RevenueCat SDK 는 네이티브 모듈이라 Expo Go 가 아니라
+개발 빌드·스토어 빌드에서만 실제 결제가 된다.
 
 ### 앱의 복구
-서버 확인 전에 앱이 꺼졌거나 네트워크가 끊겨 결제는 됐는데 Pro 가 안 켜진 구매는, 앱을 켜거나 앞으로 가져올 때(30초 간격) 서버가 앱 결제를 열었고 아직
-Pro 가 아닌 사람에 한해 스토어의 미완료 거래를 읽어 다시 서버에 확인받는다. 확인 요청은 네트워크·서버 오류에서 재시도하고, iOS 거래는 서버 OK 뒤에만 끝낸다.
+서버 동기화 전에 앱이 꺼졌거나 네트워크가 끊겨 결제는 됐는데 Pro 가 안 켜진 구매는, 앱을 켜거나 앞으로 가져올 때(30초 간격) 서버가 앱 결제를 열었고 아직
+Pro 가 아닌 사람에 한해 RevenueCat SDK 를 그 사람으로 열고(SDK 가 남은 거래를 올린다), 고객 정보에 활성 `pro` entitlement 가 있으면 서버 동기화를 부른다.
+갱신·만료·환불은 웹훅이 반영한다.
