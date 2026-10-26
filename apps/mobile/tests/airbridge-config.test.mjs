@@ -147,7 +147,27 @@ test('운영 및 운영 내부 배포는 EAS production 변수 세트를 선택�
     assert.equal(build[profile].environment, 'production', profile);
   }
   // 개발 계열의 기존 EAS 변수 선택 동작은 바꾸지 않는다.
-  for (const profile of ['development', 'preview', 'testflight-dev']) {
+  for (const profile of ['development', 'preview', 'testflight-dev', 'play-dev']) {
     assert.equal(Object.hasOwn(build[profile], 'environment'), false, profile);
   }
+});
+
+// Play 내부 테스트 트랙에서 구독 상품·결제를 시험하려면 dev 서버를 쓰는 스토어용 AAB 가 필요하다.
+// preview·development 는 APK(내부 배포)라 Play 결제를 시험할 수 없다.
+test('play-dev 는 dev 서버를 쓰는 스토어용 AAB 를 Play 내부 테스트 트랙에 올린다', () => {
+  const { build, submit } = readJson('eas.json');
+  const playDev = build['play-dev'];
+  assert.equal(playDev.env.EXPO_PUBLIC_API_URL, 'https://dev.acttub.com');
+  assert.equal(playDev.env.AIRBRIDGE_ENVIRONMENT, 'development');
+  assert.deepEqual(playDev.env, build.development.env);
+  assert.ok(playDev.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY);
+  assert.equal(playDev.android.buildType, 'app-bundle');
+  assert.equal(Object.hasOwn(playDev, 'distribution'), false);
+  assert.equal(Object.hasOwn(playDev, 'developmentClient'), false);
+  assert.equal(playDev.autoIncrement, build.production.autoIncrement);
+
+  assert.deepEqual(submit['play-dev'].android, {
+    serviceAccountKeyPath: submit.production.android.serviceAccountKeyPath,
+    track: 'internal',
+  });
 });
