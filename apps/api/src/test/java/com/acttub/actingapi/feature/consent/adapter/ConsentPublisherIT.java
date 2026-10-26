@@ -66,6 +66,23 @@ class ConsentPublisherIT {
         }
     }
 
+    /** 지금 발행 중인 한국어 이용약관의 판(manifest). 약관 판이 올라가도 아래 두 테스트는 그대로 맞는다. */
+    private String publishedTermsVersion() throws Exception {
+        try (var in = getClass().getResourceAsStream("/consent-docs/manifest.json")) {
+            for (var entry : new com.fasterxml.jackson.databind.ObjectMapper().readTree(in)) {
+                String locale = entry.path("locale").asText("ko");
+                if ("terms".equals(entry.path("type").asText()) && ("ko".equals(locale) || locale.isBlank())) {
+                    return entry.path("version").asText();
+                }
+            }
+        }
+        throw new IllegalStateException("manifest 에 한국어 terms 가 없다");
+    }
+
+    private String nextTermsVersion() throws Exception {
+        return "v" + (Integer.parseInt(publishedTermsVersion().substring(1)) + 1);
+    }
+
     @Test
     @Order(1)
     void emptyDatabaseBootPublishesWholeManifestAndRepeatIsIdempotent() throws Exception {
@@ -91,31 +108,34 @@ class ConsentPublisherIT {
     @Order(2)
     void accountConsent_newerVersionInTheDeployedFilesBecomesANewRowAndTheOldOneStays(
             @TempDir Path directory) throws Exception {
+        String current = publishedTermsVersion();
+        String next = nextTermsVersion();
         Files.writeString(directory.resolve("terms.md"), "새 약관 본문");
         Files.writeString(directory.resolve("manifest.json"), """
-                [{"file":"terms.md","type":"terms","version":"v2","title":"이용약관","required":true}]
-                """);
+                [{"file":"terms.md","type":"terms","version":"%s","title":"이용약관","required":true}]
+                """.formatted(next));
 
         assertThat(publisherFor(directory).publish()).isEqualTo(1);
 
         assertThat(jdbc.queryForList(
                 // 번역본(en)은 한국어 행의 판에 딸린 것이라 판 목록은 한국어 행으로 센다 (README 「말」).
                 "SELECT version FROM consent_documents WHERE type='terms' AND locale='ko' ORDER BY published_at,version",
-                String.class)).containsExactly("v1", "v2");
+                String.class)).endsWith(current, next);
         assertThat(publisherFor(directory).publish()).isZero();
-        jdbc.update("DELETE FROM consent_documents WHERE type='terms' AND version='v2'");
+        jdbc.update("DELETE FROM consent_documents WHERE type='terms' AND version=?", next);
     }
 
     @Test
     @Order(2)
     void accountConsent_sameVersionWithEditedTextIsRewrittenInPlaceWithoutReconsent(
             @TempDir Path directory) throws Exception {
+        String current = publishedTermsVersion();
         var before = jdbc.queryForMap(
-                "SELECT id,published_at FROM consent_documents WHERE type='terms' AND version='v1' AND locale='ko'");
+                "SELECT id,published_at FROM consent_documents WHERE type='terms' AND version=? AND locale='ko'", current);
         Files.writeString(directory.resolve("terms.md"), "오탈자를 고친 약관 본문");
         Files.writeString(directory.resolve("manifest.json"), """
-                [{"file":"terms.md","type":"terms","version":"v1","title":"이용약관","required":true}]
-                """);
+                [{"file":"terms.md","type":"terms","version":"%s","title":"이용약관","required":true}]
+                """.formatted(current));
 
         assertThat(publisherFor(directory).publish()).as("새 판이 아니다").isZero();
 

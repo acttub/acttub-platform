@@ -1,16 +1,16 @@
 [
   {
-    "file": "terms_v1.md",
+    "file": "terms_v2.md",
     "type": "terms",
-    "version": "v1",
+    "version": "v2",
     "locale": "ko",
     "title": "이용약관",
     "required": true
   },
   {
-    "file": "privacy_v10.md",
+    "file": "privacy_v11.md",
     "type": "privacy",
-    "version": "v10",
+    "version": "v11",
     "locale": "ko",
     "title": "개인정보 수집·이용 동의",
     "required": true
@@ -64,9 +64,9 @@
     "required": false
   },
   {
-    "file": "terms_v1_en.md",
+    "file": "terms_v2_en.md",
     "type": "terms",
-    "version": "v1",
+    "version": "v2",
     "locale": "en",
     "title": "Terms of Service",
     "required": true
@@ -80,9 +80,9 @@
     "required": true
   },
   {
-    "file": "privacy_v10_en.md",
+    "file": "privacy_v11_en.md",
     "type": "privacy",
-    "version": "v10",
+    "version": "v11",
     "locale": "en",
     "title": "Consent to Collection and Use of Personal Information",
     "required": true
