@@ -40,9 +40,12 @@ export function stopReadingLive(): void {
   native?.stop();
 }
 
-/** 앱이 배경에 있어도 리딩(소리·마이크)이 계속 도는가. 아니면 화면이 배경으로 갈 때 멈춘다. */
+/**
+ * 앱이 배경에 있어도 리딩(소리·마이크)이 계속 도는가. 아니면 화면이 배경으로 갈 때 멈춘다.
+ * 1.0.2 부터 iOS 도 배경 오디오(UIBackgroundModes audio)를 쓰지 않아 늘 false 다. Live Activity 는 그대로 띄운다.
+ */
 export function readingKeepsRunning(): boolean {
-  return native?.keepsRunning() ?? false;
+  return false;
 }
 
 export function onReadingLiveEvent(name: keyof Events, listener: () => void): () => void {

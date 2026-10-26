@@ -25,7 +25,7 @@ test('iOS 는 인식이 끝나면 오디오를 일반 재생으로 되돌리고,
   restorePlaybackAudio();
   await new Promise((resolve) => setImmediate(resolve));
   // 배경으로 가도 멈추지 않는 리딩 설정(SOMA-802)은 되돌릴 때도 유지한다.
-  const restored = { playsInSilentMode: true, allowsRecording: false, shouldPlayInBackground: true, allowsBackgroundRecording: true };
+  const restored = { playsInSilentMode: true, allowsRecording: false, shouldPlayInBackground: false, allowsBackgroundRecording: false };
   assert.deepEqual(s.modes, [restored, restored]);
 });
 
@@ -46,7 +46,7 @@ test('리딩을 시작하면 배경에서도 재생을 멈추지 않게 하고, 
   keepReadingInBackground();
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(s.modes, [
-    { playsInSilentMode: true, shouldPlayInBackground: true, allowsBackgroundRecording: false },
-    { playsInSilentMode: true, shouldPlayInBackground: true, allowsBackgroundRecording: true },
+    { playsInSilentMode: true, shouldPlayInBackground: false, allowsBackgroundRecording: false },
+    { playsInSilentMode: true, shouldPlayInBackground: false, allowsBackgroundRecording: false },
   ]);
 });

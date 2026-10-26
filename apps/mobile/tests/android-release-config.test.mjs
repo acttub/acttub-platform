@@ -44,3 +44,9 @@ test('안드로이드는 사진·동영상 읽기 권한을 막는다', () => {
   assert.ok(blocked.includes('android.permission.READ_MEDIA_VIDEO'));
   assert.ok(blocked.includes('android.permission.READ_MEDIA_VISUAL_USER_SELECTED'));
 });
+
+// App Review 2.5.4(1.0.1): 배경 오디오를 쓰는 기능이 없다는 지적 — iOS 배경 모드에 audio 를 두지 않는다.
+test('iOS 는 UIBackgroundModes audio 를 선언하지 않는다', () => {
+  const ios = JSON.parse(readFileSync(path.join(appRoot, 'app.json'), 'utf8')).expo.ios;
+  assert.ok(!(ios.infoPlist?.UIBackgroundModes ?? []).includes('audio'));
+});
