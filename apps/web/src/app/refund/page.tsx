@@ -78,7 +78,7 @@ export default function RefundPage() {
                 </div>
               ))}
             </dl>
-            <p className="mt-4 text-sm font-bold leading-7 text-[#6b7684]">유료 기능은 무료 이용 범위를 넘는 코칭과 대본 보관, 발음 보고서, 리딩 고품질 목소리처럼 Pro로만 쓸 수 있는 기능이에요. 남은 금액은 결제금액에서 이용한 날짜만큼의 금액을 뺀 금액이에요.</p>
+            <p className="mt-4 text-sm font-bold leading-7 text-[#6b7684]">유료 기능은 무료 이용 범위를 넘는 코칭과 대본 보관, 상위 AI 모델·습관을 기억하는 코칭·더 자세한 코칭 노트, 발음 보고서, 리딩 고품질 목소리처럼 Pro로만 쓸 수 있는 기능이에요. 남은 금액은 결제금액에서 이용한 날짜만큼의 금액을 뺀 금액이에요.</p>
             <div className="mt-5 rounded-2xl bg-[#f9fafb] p-4 ring-1 ring-[#e5e8eb]">
               <p className="text-sm font-black text-[#191f28]">결제주기(결제일부터 1개월)가 30일일 때 3,900원을 결제했다면</p>
               <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">

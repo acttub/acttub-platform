@@ -262,7 +262,7 @@ export default function LandingClient() {
             <h2 id="price-title" className="text-[26px] font-extrabold tracking-[-0.035em] sm:text-[38px]">
               무료로 시작하고, 더 하고 싶을 때 Pro
             </h2>
-            <p className="mt-3 text-base text-[#4e5968] sm:text-[17px]">무료와 Pro는 같은 코치를 써요. 차이는 횟수와 보관 개수예요.</p>
+            <p className="mt-3 text-base text-[#4e5968] sm:text-[17px]">무료로도 매일 코칭을 받아요. Pro는 횟수 제한 없이, 상위 AI 모델로 더 자세히 코칭해요.</p>
             <p className="mt-2 text-sm text-[#8a4b00]">{PAYMENT_START_NOTICE}</p>
             <div className="mt-8 grid gap-4 md:grid-cols-2 md:gap-5">
               <div className="rounded-3xl border border-[#e5e8eb] bg-white p-6 sm:p-[30px]">
@@ -270,8 +270,8 @@ export default function LandingClient() {
                 <p className="mt-2 text-[34px] font-extrabold tracking-[-0.03em]">0원</p>
                 <p className="text-[13.5px] text-[#6b7684]">출시 후 무료 이용 범위 · 지금은 한도를 적용하지 않아요</p>
                 <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
-                  <li className="py-2.5">코칭 하루 1회</li>
-                  <li className="py-2.5">리딩 대본 1개 보관</li>
+                  <li className="py-2.5">코칭 하루 3회</li>
+                  <li className="py-2.5">리딩 대본 3개 보관</li>
                   <li className="py-2.5">챌린지 참여·시청·댓글</li>
                 </ul>
               </div>
@@ -284,6 +284,7 @@ export default function LandingClient() {
                 <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
                   <li className="py-2.5">코칭 횟수 제한 없음</li>
                   <li className="py-2.5">리딩 대본 개수 제한 없음</li>
+                  <li className="py-2.5">상위 AI 모델·습관을 기억하는 코칭·더 자세한 코칭 노트</li>
                   <li className="py-2.5">발음 보고서 (준비 중)</li>
                 </ul>
               </div>
