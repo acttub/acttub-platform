@@ -276,7 +276,8 @@ const ko = {
     shareText: '{{name}}의 “{{line}}” 연기 — acttub 챌린지',
     // SOMA-748 프로필 탭 개편
     introEmpty: '한 줄 소개를 적어보세요',
-    monthLabel: '이번 달 연습',
+    // 「연습 1회」 기준(SOMA-773 — 노트까지 간 코칭, 끝까지 읽은 리딩, 올린 참여작)만 센다는 걸 이름에 드러낸다(10/26).
+    monthLabel: '이달 마친 연습',
     edit: '편집',
     monthTitle: '이번 달 연습 {{count}}번',
     kindCoaching: '코칭',
