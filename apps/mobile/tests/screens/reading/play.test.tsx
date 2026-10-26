@@ -41,7 +41,7 @@ jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: ()
 jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn() }));
 jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined), currentFirstUseOwner: () => null }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
-jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn(), listReadingScripts: jest.fn() } }));
 const mockAskRating = jest.fn(async () => undefined);
 jest.mock('@/hooks/use-app-rating', () => ({ useAppRating: () => ({ after: mockAskRating, element: null }) }));
 
@@ -1981,6 +1981,27 @@ test('첫 리딩 버튼 안내가 떠 있는 동안은 말이 끝나도 넘기�
   // 안내 중에 끝난 말은 닫은 뒤에 넘긴다(미뤄 둔 넘김). 아직 듣는 중이면 말이 끝나야 넘어간다.
   if (mic) await speechEnds();
   expect(await screen.findByText(/처음인데 끝까지 읽었어요/, {}, { timeout: 4000 })).toBeOnTheScreen();
+});
+
+test('다른 대본을 읽어 본 계정(앱을 다시 깐 기존 사용자)에게는 첫 리딩 버튼 안내를 띄우지 않고 본 것으로 적는다(10/26)', async () => {
+  await AsyncStorage.removeItem('acttub.reading.firstGuideSeen');
+  jest.mocked(api.listReadingScripts).mockResolvedValue({
+    scripts: [{ id: 'other-script', last_practiced_at: '2026-10-16T02:00:00Z' }],
+    total_count: 1,
+    in_progress_count: 0,
+  } as never);
+  try {
+    await startPlay();
+    await screen.findByText('듣는 중');
+    await waitFor(async () => expect(await AsyncStorage.getItem('acttub.reading.firstGuideSeen')).toBe('1'));
+    await speechEnds();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300));
+    });
+    expect(screen.queryByText('알겠어요')).not.toBeOnTheScreen();
+  } finally {
+    jest.mocked(api.listReadingScripts).mockReset();
+  }
 });
 
 // ── 예시 대본의 미리 만든 음성(example-audio) ─────────────────────────────────────────

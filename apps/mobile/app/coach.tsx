@@ -511,7 +511,7 @@ function CoachTalk() {
                       <Text style={styles.question}>{withTimestamps(message.text.trim())}</Text>
                     </CoachMessage>
                   </View>
-                ) : (
+                ) : message.text.trim() === COACH_END_WORD ? null /* 「마치기」가 보낸 끝 신호 — 내가 쓴 말이 아니라 말풍선으로 두지 않는다(10/26) */ : (
                   <View
                     key={message.turn_index}
                     testID="coach-bubble-mine"

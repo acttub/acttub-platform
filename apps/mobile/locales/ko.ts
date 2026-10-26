@@ -276,7 +276,8 @@ const ko = {
     shareText: '{{name}}의 “{{line}}” 연기 — acttub 챌린지',
     // SOMA-748 프로필 탭 개편
     introEmpty: '한 줄 소개를 적어보세요',
-    monthLabel: '이번 달 연습',
+    // 「연습 1회」 기준(SOMA-773 — 노트까지 간 코칭, 끝까지 읽은 리딩, 올린 참여작)만 센다는 걸 이름에 드러낸다(10/26).
+    monthLabel: '이달 마친 연습',
     edit: '편집',
     monthTitle: '이번 달 연습 {{count}}번',
     kindCoaching: '코칭',
@@ -750,7 +751,7 @@ const ko = {
     todayChallengeSubEnteredPlain: '참여 완료',
     todayStartEyebrow: '오늘의 연습',
     todayStartTitle: '찍어 둔 연기로\n코칭 받기',
-    todayStartSub: '영상을 보며 주면 질문으로 같이 되돌아봐요.',
+    todayStartSub: '영상을 보여 주면 질문으로 같이 되돌아봐요.',
     todayStartCta: '코칭 시작하기',
     uploadEyebrow: '올리는 중',
     uploadTitle: '코칭 영상',
@@ -1112,7 +1113,7 @@ const ko = {
     noPractice: '진행 중인 연습이 없어요. 홈에서 새로 시작해 주세요.',
     sendFail: '전송에 실패했어요.',
     endTitle: '여기서 마칠까요?',
-    endMsg: '다 얘기했으면 「마치기」를 누르세요. 지금까지 대화로 오늘 정리를 만들어요.',
+    endMsg: '다 얘기했으면 「마치기」를 누르세요. 이어서 일지를 쓰면 오늘 대화와 함께 정리돼요.',
     endConfirm: '마치기',
     fallbackTitle: '질문 대화',
     stripTitle: '영상과 장면 보기',
@@ -1126,7 +1127,7 @@ const ko = {
     reconnect: '코치 다시 연결하기',
     doneShort: '오늘은 여기까지 나눴어요. 노트로 남기기엔 짧아서, 다음에 이어서 해요.',
     doneFailure: '대화를 마무리하는 중 연결이 끊겼어요. 남아 있는 기록을 확인하거나 새 회차로 이어갈 수 있어요.',
-    doneNormal: '오늘 대화는 여기까지예요. 코치 말을 읽고 아래에서 일지를 써요.',
+    doneNormal: '오늘 대화는 여기까지예요. 아래에서 일지를 쓰고 마쳐요.',
     finishBtn: '연습 마치기',
     seeSummary: '일지 쓰고 마치기',
     // 정리 뒤 같은 대화를 이어 간다(SOMA-782, pen ⓐ4 「대화 이어하기」).

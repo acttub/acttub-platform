@@ -284,7 +284,7 @@ const en: DeepStringShape<typeof ko> = {
     shareText: '{{name}} performing “{{line}}” — acttub challenge',
     // SOMA-748 profile tab redesign
     introEmpty: 'Add a one-line intro',
-    monthLabel: 'Practice this month',
+    monthLabel: 'Finished this month',
     edit: 'Edit',
     monthTitle: '{{count}} practices this month',
     kindCoaching: 'Coaching',
@@ -1119,7 +1119,7 @@ const en: DeepStringShape<typeof ko> = {
     noPractice: 'No practice in progress. Start a new one from Home.',
     sendFail: 'Failed to send.',
     endTitle: 'Wrap up here?',
-    endMsg: 'If you’ve said it all, tap “Finish”. We’ll turn the conversation into today’s summary.',
+    endMsg: 'If you’ve said it all, tap “Finish”. Write your journal next and today’s conversation is summarized with it.',
     endConfirm: 'Finish',
     fallbackTitle: 'Question session',
     stripTitle: 'View video & scene',
@@ -1133,7 +1133,7 @@ const en: DeepStringShape<typeof ko> = {
     doneShort:
       'That’s all for today. It’s a bit short to keep as a note — let’s pick it up next time.',
     doneFailure: 'The connection was interrupted while closing. You can review the saved conversation or start another round.',
-    doneNormal: 'That’s it for today’s conversation. Read the coach’s last words, then write your journal below.',
+    doneNormal: 'That’s it for today’s conversation. Write your journal below to finish.',
     finishBtn: 'Finish practice',
     seeSummary: 'Write journal and finish',
     // Continue the same conversation after the summary (SOMA-782, pen ⓐ4).

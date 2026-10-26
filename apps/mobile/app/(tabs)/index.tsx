@@ -19,6 +19,7 @@ import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
+import { skipsHomeGuide } from '@/lib/returning-account';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
 import { currentTutorial } from '@/lib/tutorial';
 import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
@@ -159,6 +160,13 @@ export default function HomeScreen() {
       live = false;
     };
   }, [meId, graduationCheck]);
+
+  // 이미 연습이 쌓인 계정(앱을 다시 깐 기존 사용자)에게는 「첫 연습 끝!」 안내를 띄우지 않고 본 것으로 남긴다(10/26).
+  useEffect(() => {
+    if (!guideOpen || !skipsHomeGuide(practices.length)) return;
+    setGuideOpen(false);
+    void markSpotlightSeen('home');
+  }, [guideOpen, practices.length]);
 
   const openHomeGuideIfNew = useCallback(() => {
     void hasSeenSpotlight('home').then((seen) => {
@@ -737,7 +745,7 @@ export default function HomeScreen() {
       )}
 
       <SpotlightGuide
-        visible={guideOpen && overlaysReady && loaded && !firstUser && practiced}
+        visible={guideOpen && overlaysReady && loaded && !firstUser && practiced && !skipsHomeGuide(practices.length)}
         topic="home"
         steps={HOME_STEPS}
         onDone={() => {

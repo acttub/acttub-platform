@@ -110,6 +110,7 @@ import { ReadingRating } from '@/components/reading-rating';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
+import { skipsFirstReadingGuide } from '@/lib/returning-account';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
 import { exampleVoicesMatch, type ExampleAudio } from '@/lib/reading/example-audio';
@@ -758,14 +759,30 @@ export default function ReadingPlay() {
   // ── 첫 리딩 안내(SOMA-748) — 진행 상태를 보고 띄울 뿐, 진행 규칙은 건드리지 않는다 ─────────────
   useEffect(() => {
     let alive = true;
-    void hasSeenFirstReadingGuide().then((seen) => {
+    // 이어 읽는 회차거나 다른 대본을 읽어 본 계정(앱을 다시 깐 기존 사용자)은 첫 리딩이 아니다 — 안내 없이 본 것으로 남긴다(10/26).
+    const resumed = !!session && session.progress_seq > 0;
+    const scriptId = script?.id;
+    void hasSeenFirstReadingGuide().then(async (seen) => {
+      if (!alive || seen) return;
+      const scripts = resumed
+        ? null
+        : await Promise.resolve()
+            .then(() => api.listReadingScripts())
+            .then((r) => r.scripts)
+            .catch(() => null);
       if (!alive) return;
-      setCoachOn(!seen);
-      if (!seen) firstRunRef.current = true;
+      if (skipsFirstReadingGuide({ resumed, scriptId, scripts })) {
+        void markFirstReadingGuideSeen();
+        return;
+      }
+      setCoachOn(true);
+      firstRunRef.current = true;
     });
     return () => {
       alive = false;
     };
+    // 화면을 열 때 한 번만 정한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // pen 7-1: 두 번째 내 차례에서 한 번만, 대본 위를 어둡게 덮고 버튼 넷을 설명한다. 작은 힌트 말풍선은 더는 띄우지 않는다.
   const myTurnsBefore = run
@@ -921,7 +938,10 @@ export default function ReadingPlay() {
   const closeGuide = useCallback(() => {
     setCoachOn(false);
     void markFirstReadingGuideSeen();
+    // 안내를 읽는 동안 흐른 침묵으로 내 차례가 끝나 버리지 않게, 미뤄 둔 넘김을 버리고 이 차례를 처음부터 다시 듣는다(10/26).
+    deferredRef.current = null;
     releaseHold();
+    setAttempt((a) => a + 1);
   }, [releaseHold]);
 
   useEffect(() => {
