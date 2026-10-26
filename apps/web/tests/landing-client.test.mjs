@@ -138,7 +138,9 @@ test("데스크톱 고정 무대는 스크롤한 만큼 장면이 이어서 바�
   assert.equal(sceneProgress(100, 0, 3), 0);
   // 지금 장면은 또렷하고 제자리, 반쯤 넘어가면 흐려지며 비켜나고, 한 칸 넘게 떨어지면 안 보인다.
   assert.deepEqual(sceneLook(1, 1, 40), { opacity: 1, y: 0 });
-  assert.deepEqual(sceneLook(0.75, 1, 40), { opacity: 0.55, y: 10 });
+  assert.deepEqual(sceneLook(0.75, 1, 40), { opacity: 0.6, y: 10 });
+  // 휴대폰 화면(fade 1)은 바뀌는 한가운데서도 둘이 반씩 겹쳐 화면이 비지 않는다.
+  assert.equal(sceneLook(0.5, 0, 20, 1).opacity + sceneLook(0.5, 1, 20, 1).opacity, 1);
   assert.equal(sceneLook(0, 2, 40).opacity, 0);
   assert.equal(sceneLook(2, 0, 40).y, -40);
 
