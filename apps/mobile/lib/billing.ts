@@ -105,6 +105,15 @@ export function settingsTarget(me: BillingMe): '/pro-manage' | '/pro' {
   return me.pro || (me.status !== 'none' && me.status !== 'expired') ? '/pro-manage' : '/pro';
 }
 
+/**
+ * App Store·Google Play 구독이 아직 돌고 있는가(자동 갱신이 켜져 있거나 결제 재시도 중). 탈퇴해도 스토어 구독은 해지되지 않으므로
+ * 탈퇴 화면이 이 사람에게 스토어 구독 관리 링크를 보인다. 이미 해지했으면(canceled) 더 결제되지 않아 링크가 필요 없다.
+ */
+export function storeSubscribed(me: BillingMe | null | undefined): boolean {
+  if (!me || (me.provider !== 'apple' && me.provider !== 'google')) return false;
+  return me.status === 'active' || me.status === 'past_due';
+}
+
 /** 구독 관리 아래 안내 — 어디서 결제한 구독인지만 말한다(링크 없음). */
 export function managedNote(me: BillingMe): string | null {
   if (me.provider === 'toss') return t('pro.webManaged');

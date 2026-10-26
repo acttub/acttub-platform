@@ -74,7 +74,7 @@ revision 이 포스터와 다르면 그 slug 의 기록은 없던 것으로 본�
   닫고 그 앱 경로로 간다. `url` 은 닫고 외부 브라우저로 연다.
 - 고품질 목소리를 켜면(켬 + granted) 떠 있던 `cloud_voice_off` 포스터를 닫는다.
 - 분석 이벤트는 `poster_shown`·`poster_cta`·`poster_close`·`poster_dismiss`(`{slug, revision}`)다.
-- 첫 포스터(seed, V29): `cloud-voice-launch` ko·en, 켜짐, 우선순위 10, 2026-12-01 00:00(KST)에 끝, 매일, `cloud_voice_off`,
+- 첫 포스터(seed, V29): `cloud-voice-launch` ko·en, 켜짐, 우선순위 10, 2026-12-01 00:00(KST)에 끝(V35 가 2026-11-01 00:00(KST) 끝으로 당겼다 — 10월 31일까지 보인다), 매일, `cloud_voice_off`,
   마스코트 그림·샘플 소리, 버튼 「무료로 켜기」(`cloud_voice_enable`), 다시 보지 않기 보임. 문구는 0.1.2 앱의 홍보 문구다.
 
 ## 예외

@@ -20,7 +20,9 @@ public enum AccountCleanupKind implements PgEnum {
      * 리딩 녹음 객체 삭제(reading.recording) — 대본·회차 삭제, 같은 줄의 다시 말하기(대체), 탈퇴 파기, 변환
      * 결과를 반영하지 못한 객체. 값은 {@code object_delete} 와 같은 객체 키 목록이다.
      */
-    READING_RECORDING_DELETE("reading_recording_delete");
+    READING_RECORDING_DELETE("reading_recording_delete"),
+    /** RevenueCat 고객 삭제(SOMA-818) — 탈퇴한 사람의 RevenueCat 고객 정보. 값은 app_user_id(우리 user id)다. */
+    REVENUECAT_DELETE("revenuecat_delete");
 
     private final String dbValue;
 

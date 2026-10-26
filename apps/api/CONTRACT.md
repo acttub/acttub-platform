@@ -591,11 +591,13 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
   **파기 전에** `account_cleanup_operations`(V11)로 옮겨 두기만 한다 — `object_delete`(객체 키 목록),
   `apple_revoke`(애플 토큰), `kakao_unlink`(회원번호), `naver_revoke`(refresh token), 그리고 `reading_recording_delete`
-  (리딩 녹음 객체 키 목록, V13·§6-14 — 실행은 `object_delete` 와 같다). 커밋 뒤 바로 한 번
+  (리딩 녹음 객체 키 목록, V13·§6-14 — 실행은 `object_delete` 와 같다), `revenuecat_delete`(app_user_id = 회원 id, V65 —
+  RevenueCat REST v1 `DELETE /v1/subscribers/{app_user_id}`, 200·404 가 성공. `BILLING_REVENUECAT_ENABLED` 가 켜지고 비밀 키가
+  있을 때만 올린다). 커밋 뒤 바로 한 번
   시도하고, 실패하면 5분에서 두 배씩(최대 12시간) 늘려 다시 시도한다. 성공하면 행을 값과 함께 지운다 —
   **끝난 것은 장부에 남지 않는다.**
 - **7일이 지난 뒤는 종류가 가른다**(`AccountCleanupRepository.OBJECT_DELETE_KINDS`). **제공자 해제**
-  (`apple_revoke`·`kakao_unlink`·`naver_revoke`)는 포기하고 값과 함께 지운다 — 해제에 쓸 값을 그보다 오래 들고
+  (`apple_revoke`·`kakao_unlink`·`naver_revoke`·`revenuecat_delete`)는 포기하고 값과 함께 지운다(애플 폐기와 RevenueCat 삭제는 포기할 때 운영자에게 알린다) — 해제에 쓸 값을 그보다 오래 들고
   있지 않는다. **객체 삭제**(`object_delete`·`reading_recording_delete`)는 **성공할 때까지 대상 키를 지우지
   않는다**: `expires_at` 이 지나도 계속 집어 시도하고, 그때마다 `ObjectDeletionOverdue` 로 운영자에게 알린 뒤
   다음 알림을 7일 뒤로 미룬다(같은 작업을 일주일에 한 번보다 자주 알리지 않는다). 키를 먼저 버리면 그 객체를

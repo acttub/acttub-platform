@@ -868,7 +868,7 @@ CONSTRAINT account_cleanup_operations account_cleanup_operations_pkey PRIMARY KE
 CONSTRAINT account_cleanup_operations account_cleanup_operations_updated_at_not_null NOT NULL updated_at
 CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_not_null NOT NULL user_id
-CONSTRAINT account_cleanup_operations ck_account_cleanup_operations_kind CHECK ((kind = ANY (ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text, 'reading_recording_delete'::text])))
+CONSTRAINT account_cleanup_operations ck_account_cleanup_operations_kind CHECK ((kind = ANY (ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text, 'reading_recording_delete'::text, 'revenuecat_delete'::text])))
 CONSTRAINT actor_journals actor_journals_answers_not_null NOT NULL answers
 CONSTRAINT actor_journals actor_journals_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES coach_conversations(id) ON DELETE SET NULL
 CONSTRAINT actor_journals actor_journals_created_at_not_null NOT NULL created_at

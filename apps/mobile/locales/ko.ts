@@ -1599,6 +1599,9 @@ const ko = {
     keptPractice: '연습 기록은 나와 끊긴 채로 남아요.',
     keptChallenge: '챌린지 참여작은 비공개로 내려가요.',
     keptComment: '댓글은 작성자 이름만 ‘탈퇴한 사용자’로 바뀌어 남아요.',
+    secStore: '스토어 구독',
+    storeNote:
+      'App Store·Google Play에서 산 구독은 탈퇴해도 해지되지 않아요. 스토어 구독 관리에서 따로 해지해 주세요.',
     acknowledge: '연습·노트는 돌아오지 않아요',
     secRestart: '다시 시작하려면',
     restartBody:

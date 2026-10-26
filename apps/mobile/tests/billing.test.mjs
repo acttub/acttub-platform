@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   billingClosed,
   managedNote,
+  storeSubscribed,
   proVisible,
   purchaseOpen,
   cardLabel,
@@ -81,6 +82,16 @@ test('billing: 결제한 곳만 한 줄로 알리고 링크·웹 결제 안내�
   assert.equal(managedNote(me({ provider: null })), null);
   assert.doesNotMatch(String(managedNote(me({ provider: 'toss' }))), /acttub\.com|pricing|http/);
   assert.equal(planLine(me({ status: 'none', pro: true, grant_ends_at: '2026-11-30T14:59:00Z' })), '11월 30일까지 Pro 이용 기간이에요');
+});
+
+test('billing: 탈퇴 화면의 스토어 링크는 스토어 구독이 돌고 있을 때만(SOMA-818)', () => {
+  assert.equal(storeSubscribed(me({ provider: 'google', status: 'active' })), true);
+  assert.equal(storeSubscribed(me({ provider: 'apple', status: 'past_due' })), true);
+  assert.equal(storeSubscribed(me({ provider: 'apple', status: 'canceled' })), false);
+  assert.equal(storeSubscribed(me({ provider: 'google', status: 'expired' })), false);
+  assert.equal(storeSubscribed(me({ provider: 'toss', status: 'active' })), false);
+  assert.equal(storeSubscribed(me({ provider: null, status: 'none' })), false);
+  assert.equal(storeSubscribed(null), false);
 });
 
 test('billing: 무료 한도 오류 → 시트', () => {

@@ -1601,6 +1601,9 @@ const en: DeepStringShape<typeof ko> = {
     keptPractice: 'Your practice records stay, no longer linked to you.',
     keptChallenge: 'Your challenge entries become private.',
     keptComment: 'Your comments remain, with the author shown as “Deleted user”.',
+    secStore: 'Store subscriptions',
+    storeNote:
+      'Subscriptions bought on the App Store or Google Play are not canceled when you delete your account. Please cancel them separately in your store’s subscription settings.',
     acknowledge: 'My practices and notes will not come back',
     secRestart: 'To start again',
     restartBody:
