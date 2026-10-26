@@ -36,6 +36,34 @@ COLUMN actor_memory_entries.updated_at ord=8 type=timestamptz len=- null=NO defa
 COLUMN actor_memory_entries.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN actor_memory_entries.value ord=4 type=text len=- null=NO default=-
 COLUMN actor_memory_entries.written_by ord=5 type=text len=- null=NO default=-
+COLUMN ad_events.ad_id ord=2 type=uuid len=- null=NO default=-
+COLUMN ad_events.created_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN ad_events.day ord=6 type=date len=- null=NO default=-
+COLUMN ad_events.event ord=5 type=text len=- null=NO default=-
+COLUMN ad_events.id ord=1 type=uuid len=- null=NO default=-
+COLUMN ad_events.slot ord=4 type=text len=- null=NO default=-
+COLUMN ad_events.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN ads.academy_registration_no ord=8 type=text len=- null=YES default=-
+COLUMN ads.advertiser_name ord=7 type=text len=- null=YES default=-
+COLUMN ads.app_path ord=17 type=text len=- null=YES default=-
+COLUMN ads.audience ord=5 type=text len=- null=NO default='all'::text
+COLUMN ads.body ord=12 type=text len=- null=YES default=-
+COLUMN ads.course_name ord=9 type=text len=- null=YES default=-
+COLUMN ads.created_at ord=20 type=timestamptz len=- null=NO default=now()
+COLUMN ads.ends_at ord=19 type=timestamptz len=- null=YES default=-
+COLUMN ads.headline ord=11 type=text len=- null=YES default=-
+COLUMN ads.id ord=1 type=uuid len=- null=NO default=-
+COLUMN ads.image_banner ord=14 type=text len=- null=YES default=-
+COLUMN ads.image_large_banner ord=13 type=text len=- null=YES default=-
+COLUMN ads.image_medium_rectangle ord=15 type=text len=- null=YES default=-
+COLUMN ads.kind ord=2 type=text len=- null=NO default=-
+COLUMN ads.link_url ord=16 type=text len=- null=YES default=-
+COLUMN ads.priority ord=6 type=int4 len=- null=NO default=0
+COLUMN ads.slots ord=4 type=_text len=- null=NO default='{}'::text[]
+COLUMN ads.starts_at ord=18 type=timestamptz len=- null=YES default=-
+COLUMN ads.status ord=3 type=text len=- null=NO default='active'::text
+COLUMN ads.tuition ord=10 type=text len=- null=YES default=-
+COLUMN ads.updated_at ord=21 type=timestamptz len=- null=NO default=now()
 COLUMN ai_jobs.attempt_count ord=8 type=int4 len=- null=NO default=0
 COLUMN ai_jobs.created_at ord=14 type=timestamptz len=- null=NO default=now()
 COLUMN ai_jobs.failure_reason ord=11 type=text len=- null=YES default=-
@@ -915,6 +943,25 @@ CONSTRAINT actor_memory_entries ck_actor_memory_entries_written_by CHECK ((writt
 CONSTRAINT actor_memory_entries ck_actor_memory_value_length CHECK ((char_length(value) <= 1000))
 CONSTRAINT actor_memory_entries ck_actor_memory_value_not_blank CHECK ((btrim(value) <> ''::text))
 CONSTRAINT actor_memory_entries uq_actor_memory_user_field UNIQUE (user_id, field)
+CONSTRAINT ad_events ad_events_ad_id_fkey FOREIGN KEY (ad_id) REFERENCES ads(id) ON DELETE CASCADE
+CONSTRAINT ad_events ad_events_ad_id_not_null NOT NULL ad_id
+CONSTRAINT ad_events ad_events_created_at_not_null NOT NULL created_at
+CONSTRAINT ad_events ad_events_day_not_null NOT NULL day
+CONSTRAINT ad_events ad_events_event_not_null NOT NULL event
+CONSTRAINT ad_events ad_events_id_not_null NOT NULL id
+CONSTRAINT ad_events ad_events_pkey PRIMARY KEY (id)
+CONSTRAINT ad_events ad_events_slot_not_null NOT NULL slot
+CONSTRAINT ad_events ad_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT ad_events ad_events_user_id_not_null NOT NULL user_id
+CONSTRAINT ads ads_audience_not_null NOT NULL audience
+CONSTRAINT ads ads_created_at_not_null NOT NULL created_at
+CONSTRAINT ads ads_id_not_null NOT NULL id
+CONSTRAINT ads ads_kind_not_null NOT NULL kind
+CONSTRAINT ads ads_pkey PRIMARY KEY (id)
+CONSTRAINT ads ads_priority_not_null NOT NULL priority
+CONSTRAINT ads ads_slots_not_null NOT NULL slots
+CONSTRAINT ads ads_status_not_null NOT NULL status
+CONSTRAINT ads ads_updated_at_not_null NOT NULL updated_at
 CONSTRAINT ai_jobs ai_jobs_attempt_count_not_null NOT NULL attempt_count
 CONSTRAINT ai_jobs ai_jobs_created_at_not_null NOT NULL created_at
 CONSTRAINT ai_jobs ai_jobs_id_not_null NOT NULL id
@@ -2022,6 +2069,8 @@ INDEX CREATE INDEX idx_user_identities_uid_hash ON public.user_identities USING 
 INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btree (user_id)
 INDEX CREATE INDEX idx_videos_user_created ON public.videos USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_actor_journals_user ON public.actor_journals USING btree (user_id, created_at DESC)
+INDEX CREATE INDEX ix_ad_events_ad_day ON public.ad_events USING btree (ad_id, event, day)
+INDEX CREATE INDEX ix_ads_kind_status ON public.ads USING btree (kind, status)
 INDEX CREATE INDEX ix_billing_checkouts_user ON public.billing_checkouts USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_billing_payments_subscription ON public.billing_payments USING btree (subscription_id, period_start, attempt)
 INDEX CREATE INDEX ix_billing_payments_unknown ON public.billing_payments USING btree (status, updated_at) WHERE (status = 'unknown'::text)
@@ -2053,6 +2102,8 @@ INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_clea
 INDEX CREATE UNIQUE INDEX actor_journals_pkey ON public.actor_journals USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memories_pkey ON public.actor_memories USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entries USING btree (id)
+INDEX CREATE UNIQUE INDEX ad_events_pkey ON public.ad_events USING btree (id)
+INDEX CREATE UNIQUE INDEX ads_pkey ON public.ads USING btree (id)
 INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
 INDEX CREATE UNIQUE INDEX analyses_pkey ON public.analyses USING btree (id)
 INDEX CREATE UNIQUE INDEX anomalies_pkey ON public.anomalies USING btree (id)
@@ -2133,6 +2184,7 @@ INDEX CREATE UNIQUE INDEX upload_intents_pkey ON public.upload_intents USING btr
 INDEX CREATE UNIQUE INDEX uq_actor_journals_practice ON public.actor_journals USING btree (practice_id)
 INDEX CREATE UNIQUE INDEX uq_actor_memories_user_field_scene ON public.actor_memories USING btree (user_id, field, scene_root_id) NULLS NOT DISTINCT
 INDEX CREATE UNIQUE INDEX uq_actor_memory_user_field ON public.actor_memory_entries USING btree (user_id, field)
+INDEX CREATE UNIQUE INDEX uq_ad_events_impression ON public.ad_events USING btree (ad_id, user_id, day) WHERE (event = 'impression'::text)
 INDEX CREATE UNIQUE INDEX uq_ai_jobs_user_request ON public.ai_jobs USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_analyses_practice ON public.analyses USING btree (practice_id)
 INDEX CREATE UNIQUE INDEX uq_app_posters_slug_locale ON public.app_posters USING btree (slug, COALESCE(locale, ''::text))
@@ -2219,6 +2271,8 @@ TABLE account_cleanup_operations
 TABLE actor_journals
 TABLE actor_memories
 TABLE actor_memory_entries
+TABLE ad_events
+TABLE ads
 TABLE ai_jobs
 TABLE analyses
 TABLE anomalies
