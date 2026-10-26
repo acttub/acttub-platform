@@ -885,7 +885,7 @@ const en: DeepStringShape<typeof ko> = {
     proPron: 'Included',
     proChallenge: 'PRO badge',
     managePron: 'Available after each reading',
-    price: '₩3,900 a month or ₩32,700 a year · Auto-renews · Cancel anytime',
+    price: '₩3,900 a month or ₩32,500 a year · Auto-renews · Cancel anytime',
     start: 'Start Pro',
     loadingPlan: 'Loading your plan',
     productName: 'ACTTUB Pro monthly',

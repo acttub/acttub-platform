@@ -98,7 +98,7 @@ test('Pro 안내(P0xJ9) — 앱 결제가 닫혀 있으면 비교 표와 가격�
 
   expect(screen.getByText('ACTTUB Pro')).toBeOnTheScreen();
   expect(screen.getByText('하루 1번')).toBeOnTheScreen();
-  expect(screen.getByText('월 3,900원 또는 연 32,700원 · 자동 결제 · 언제든 해지')).toBeOnTheScreen();
+  expect(screen.getByText('월 3,900원 또는 연 32,500원 · 자동 결제 · 언제든 해지')).toBeOnTheScreen();
   expect(screen.queryByText('Pro 시작하기')).not.toBeOnTheScreen();
   expect(screen.queryByText(/acttub\.com\/pricing/)).not.toBeOnTheScreen();
   expect(mockIap.initConnection).not.toHaveBeenCalled();
@@ -233,7 +233,7 @@ test('연 구독(30% 할인) — 연을 고르면 연 상품·연 가격·1년 �
     storeProduct,
     {
       id: 'acttub_pro_yearly',
-      displayPrice: '₩32,700',
+      displayPrice: '₩32,500',
       subscriptionOffers: [{ id: 'yearly', basePlanIdAndroid: 'yearly', offerTokenAndroid: 'offer-y' }],
     },
   ]);
@@ -244,7 +244,7 @@ test('연 구독(30% 할인) — 연을 고르면 연 상품·연 가격·1년 �
   expect(screen.getByText('30% 할인')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('연 구독'));
-  expect(await screen.findByText('₩32,700 / 년')).toBeOnTheScreen();
+  expect(await screen.findByText('₩32,500 / 년')).toBeOnTheScreen();
   expect(screen.getByText('ACTTUB Pro 연 구독')).toBeOnTheScreen();
   expect(screen.getByText(/1년마다 자동으로 갱신돼요/)).toBeOnTheScreen();
 

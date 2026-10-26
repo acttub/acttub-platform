@@ -17,10 +17,10 @@ public final class BillingRules {
     /** 양 스토어 공통 상품 ID. 구글은 구독 ID 이고 기본 요금제(base plan)는 {@link #GOOGLE_BASE_PLAN_ID}. */
     public static final String STORE_PRODUCT_ID = "acttub_pro_monthly";
     public static final String GOOGLE_BASE_PLAN_ID = "monthly";
-    /** 연 구독(앱 스토어 전용). 월 3,900원 × 12개월에서 30% 할인한 연 32,700원(46,800원의 69.9%). 구글 기본 요금제는 yearly. 웹 토스는 아직 월 구독만 판다. */
+    /** 연 구독(앱 스토어 전용). 월 3,900원 × 12개월에서 30% 할인한 연 32,500원(46,800원의 69.4%). 구글 기본 요금제는 yearly. 웹 토스는 아직 월 구독만 판다. */
     public static final String STORE_PRODUCT_YEARLY_ID = "acttub_pro_yearly";
     public static final String GOOGLE_BASE_PLAN_YEARLY_ID = "yearly";
-    public static final long YEARLY_AMOUNT = 32700L;
+    public static final long YEARLY_AMOUNT = 32500L;
     /** 스토어 갱신 알림이 늦어도 갱신 직후 Pro 가 끊기지 않게 active 에 주는 여유. */
     public static final Duration STORE_RENEWAL_SKEW = Duration.ofHours(6);
     /** 구글 결제 유예(IN_GRACE_PERIOD) 때 만료 시각 뒤로 Pro 를 이어 주는 기간. 알림이 상태를 바로잡는다. */

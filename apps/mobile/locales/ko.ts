@@ -878,7 +878,7 @@ const ko = {
     proPron: '받을 수 있어요',
     proChallenge: 'PRO 배지',
     managePron: '리딩이 끝나면 받을 수 있어요',
-    price: '월 3,900원 또는 연 32,700원 · 자동 결제 · 언제든 해지',
+    price: '월 3,900원 또는 연 32,500원 · 자동 결제 · 언제든 해지',
     start: 'Pro 시작하기',
     loadingPlan: '구독 정보를 불러오는 중이에요',
     productName: 'ACTTUB Pro 월 구독',

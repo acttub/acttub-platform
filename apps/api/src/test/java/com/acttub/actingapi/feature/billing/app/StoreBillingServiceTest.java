@@ -173,14 +173,14 @@ class StoreBillingServiceTest {
     }
 
     @Test
-    @DisplayName("스토어 상품은 월·연 둘만 받고, 장부 금액은 월 3,900원·연 32,700원이다")
+    @DisplayName("스토어 상품은 월·연 둘만 받고, 장부 금액은 월 3,900원·연 32,500원이다")
     void storeProductsAndAmounts() {
         assertThat(BillingRules.storeProduct("acttub_pro_monthly")).isTrue();
         assertThat(BillingRules.storeProduct("acttub_pro_yearly")).isTrue();
         assertThat(BillingRules.storeProduct("acttub_pro_weekly")).isFalse();
         assertThat(BillingRules.storeProduct(null)).isFalse();
         assertThat(BillingRules.storeAmount("acttub_pro_monthly")).isEqualTo(3900L);
-        assertThat(BillingRules.storeAmount("acttub_pro_yearly")).isEqualTo(32700L);
+        assertThat(BillingRules.storeAmount("acttub_pro_yearly")).isEqualTo(32500L);
     }
 
     @Test
