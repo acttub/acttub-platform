@@ -14,8 +14,8 @@
         "AIRBRIDGE_ENVIRONMENT": "development",
         "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
         "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1",
-        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": ""
+        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "appl_YrJGmQOFDQhDOvxLdFLJFIEWMyd",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_ZuNUaXGNbTZhjFDlKyfYHGyDcnL"
       },
       "android": {
         "buildType": "apk"
@@ -30,8 +30,8 @@
         "AIRBRIDGE_ENVIRONMENT": "development",
         "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
         "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1",
-        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": ""
+        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "appl_YrJGmQOFDQhDOvxLdFLJFIEWMyd",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_ZuNUaXGNbTZhjFDlKyfYHGyDcnL"
       },
       "android": {
         "buildType": "apk"
@@ -47,8 +47,8 @@
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_yKsf6CHZwoyLTzfUv9PfwFEwWVNR7kqreTVCCWfCq7gH",
         "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
         "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1",
-        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": ""
+        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "appl_YrJGmQOFDQhDOvxLdFLJFIEWMyd",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_ZuNUaXGNbTZhjFDlKyfYHGyDcnL"
       },
       "environment": "production"
     },
@@ -62,8 +62,8 @@
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_yKsf6CHZwoyLTzfUv9PfwFEwWVNR7kqreTVCCWfCq7gH",
         "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
         "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1",
-        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": ""
+        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "appl_YrJGmQOFDQhDOvxLdFLJFIEWMyd",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_ZuNUaXGNbTZhjFDlKyfYHGyDcnL"
       },
       "android": {
         "buildType": "apk"
@@ -79,8 +79,8 @@
         "AIRBRIDGE_ENVIRONMENT": "development",
         "EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY": "481f742a85be0ce2a2b4c493a105ac0e",
         "EXPO_PUBLIC_NAVER_CLIENT_ID": "eKhoqsV5Qnw0HRf8UXK1",
-        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": ""
+        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "appl_YrJGmQOFDQhDOvxLdFLJFIEWMyd",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_ZuNUaXGNbTZhjFDlKyfYHGyDcnL"
       }
     }
   },
