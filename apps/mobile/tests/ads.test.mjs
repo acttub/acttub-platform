@@ -43,3 +43,10 @@ test('그릴 수 없는 응답은 비운다', () => {
   assert.equal(renderableKind(pick('HOUSE', creative({ headline: '챌린지', app_path: 'https://x' }))), 'NONE');
   assert.equal(renderableKind(pick('WHAT')), 'NONE');
 });
+
+test('네이티브 모듈이 없으면(테스트·Expo Go) AdMob 초기화는 조용히 끝나고 배너 모듈은 없다', async () => {
+  const { initAdMob, loadBannerModule } = await import('../lib/ads-native.ts');
+  await initAdMob();
+  await initAdMob();
+  assert.equal(loadBannerModule(), null);
+});

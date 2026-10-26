@@ -2,7 +2,7 @@
  * AdMob SDK 초기화(SOMA-876). 네이티브 모듈은 development build 이상에만 있으므로 함수 안 require 로 가드한다.
  * iOS ATT 는 따로 묻지 않는다 — app/_layout 이 Meta SDK 초기화(ATT 요청 포함)를 끝낸 뒤 이 함수를 부른다.
  */
-import { AD_MAX_CONTENT_RATING } from '@/lib/ads';
+import { AD_MAX_CONTENT_RATING } from './ads.ts';
 
 let started: Promise<void> | null = null;
 

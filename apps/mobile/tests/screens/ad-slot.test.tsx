@@ -71,7 +71,7 @@ test('학원 광고는 「광고」 라벨과 함께 그리고, 이미지가 뜨
   expect(screen.getByText('광고')).toBeTruthy();
   image.props.onLoad();
   expect(recordAdEvent).toHaveBeenCalledWith('ad-1', 'archive_top', 'impression');
-  fireEvent.press(screen.getByLabelText('광고 한빛연기학원'));
+  await fireEvent.press(screen.getByLabelText('광고 한빛연기학원'));
   expect(recordAdEvent).toHaveBeenCalledWith('ad-1', 'archive_top', 'click');
   expect(mockPush).toHaveBeenCalledWith({ pathname: '/ad/[id]', params: { id: 'ad-1' } });
 });
@@ -82,7 +82,7 @@ test('우리 앱 광고는 문구로 그리고 앱 안 경로로 간다', async 
     ad: creative({ id: 'h-1', headline: '이번 주 챌린지 대사가 나왔어요', app_path: '/(tabs)/challenges' }),
   });
   await render(<AdSlot slot="profile_top" />);
-  fireEvent.press(await screen.findByText('이번 주 챌린지 대사가 나왔어요'));
+  await fireEvent.press(await screen.findByText('이번 주 챌린지 대사가 나왔어요'));
   expect(mockPush).toHaveBeenCalledWith('/(tabs)/challenges');
 });
 
