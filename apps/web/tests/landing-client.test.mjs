@@ -129,6 +129,21 @@ test("게스트가 ?intro=1 이나 소개 링크(#coaching)로 들어와도 홈�
   window.history.replaceState(null, "", "/");
 });
 
+test("기능 셋은 고정 없이 글과 휴대폰이 나란히 흐르고, 화면에 들어올 때 나타난다", () => {
+  render(react.createElement(LandingClient));
+  for (const [id, alt] of [
+    ["coaching", "앱의 연습 노트 화면"],
+    ["reading", "앱의 대본 리딩 화면"],
+    ["challenge", "앱의 챌린지 화면"],
+  ]) {
+    const section = window.document.getElementById(id);
+    assert.equal(section.tagName, "SECTION");
+    assert.ok(section.querySelector("[data-reveal]"));
+    assert.ok(within(section).getByRole("img", { name: alt }));
+  }
+  assert.equal(window.document.querySelector("[data-scene]"), null);
+});
+
 test("첫 화면이 헤더 밑으로 들어가면 아래 고정 다운로드 바가 나타난다", () => {
   render(react.createElement(LandingClient));
   const hero = window.document.getElementById("hero");
