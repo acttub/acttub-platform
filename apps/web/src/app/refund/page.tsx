@@ -117,7 +117,8 @@ export default function RefundPage() {
       <footer className="border-t border-[#e5e8eb] bg-white px-5 py-8 text-sm font-bold text-[#3182f6] sm:px-8">
         <div className="mx-auto flex max-w-4xl flex-wrap gap-x-5 gap-y-2">
           <Link href="/pricing" className="underline underline-offset-4">상품·가격 안내</Link>
-          <Link href="/terms" className="underline underline-offset-4">이용약관·개인정보 처리방침</Link>
+          <Link href="/terms" className="underline underline-offset-4">이용약관</Link>
+          <Link href="/privacy" className="underline underline-offset-4">개인정보 처리방침</Link>
           <Link href="/" className="underline underline-offset-4">ACTTUB 홈</Link>
           <div className="basis-full pt-2 font-normal"><BusinessInfo /></div>
         </div>

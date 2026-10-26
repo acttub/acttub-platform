@@ -114,3 +114,16 @@ test("환불정책은 앱 결제의 스토어 환불, 앱 전용 연 구독, 탈
   assert.match(app.textContent, /회원을 탈퇴해도 스토어 구독은 해지되지 않아요/);
   assert.match(screen.getByRole("heading", { name: "자동결제 해지와 즉시 종료는 달라요" }).closest("section").textContent, /결제주기는 결제일부터 1개월\(다음 달 같은 날까지\)이에요\./);
 });
+
+test("요금 안내 푸터와 환불정책 하단은 개인정보 처리방침을 /privacy 로, 이용약관을 /terms 로 보낸다", () => {
+  render(h(PricingPage));
+  const footers = document.querySelectorAll("footer");
+  const footer = footers[footers.length - 1];
+  assert.equal(within(footer).getByRole("link", { name: "개인정보 처리방침" }).getAttribute("href"), "/privacy");
+  assert.equal(within(footer).getByRole("link", { name: "이용약관" }).getAttribute("href"), "/terms");
+  cleanup();
+
+  render(h(RefundPage));
+  assert.equal(screen.getByRole("link", { name: "개인정보 처리방침" }).getAttribute("href"), "/privacy");
+  assert.equal(screen.getByRole("link", { name: "이용약관" }).getAttribute("href"), "/terms");
+});

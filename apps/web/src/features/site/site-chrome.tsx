@@ -136,7 +136,8 @@ const FOOTER_GROUPS = [
   {
     title: "정책",
     links: [
-      { href: "/terms", label: "이용약관·개인정보" },
+      { href: "/terms", label: "이용약관" },
+      { href: "/privacy", label: "개인정보 처리방침" },
       { href: "/guide", label: "연기 연습 가이드" },
     ],
   },
