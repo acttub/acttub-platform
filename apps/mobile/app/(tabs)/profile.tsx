@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { SkeletonCards } from '@/components/ui/skeleton';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -164,6 +165,8 @@ export default function ProfileScreen() {
             <Text style={styles.editText}>{t('profileTab.edit')}</Text>
           </Pressable>
         </View>
+
+        <AdSlot slot="profile_top" style={{ marginTop: 12 }} />
 
         {/* 「코치가 기억하는 것」 바로가기는 뺐다(10/25 결정) — 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다. */}
         <View style={styles.month}>

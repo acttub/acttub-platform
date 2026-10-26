@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
@@ -72,6 +73,7 @@ export default function UniversityDetailScreen() {
       {payload && university && (
         <ScrollView contentContainerStyle={styles.list}>
           <UniversityHeader university={university} />
+          <AdSlot slot="admission_detail_top" />
 
           <View style={styles.notice}>
             {/* Pretendard 서브셋에 원문자(U+2460~24FF)가 없어 'ⓘ'는 두부로 나온다. */}

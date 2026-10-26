@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
 
+import { AdSlot } from '@/components/ad-slot';
 import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -576,6 +577,8 @@ function SplittingScreen({ progress, topInset }: { progress: ImportProgress | nu
       <Image source={MASCOT} style={styles.splitMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <Text style={styles.splitHeading}>{t('reading.splitTitle')}</Text>
       {total > 0 && <Text style={styles.splitProgress}>{t('reading.splitProgress', { pct, done, total })}</Text>}
+      {/* 광고 칸(SOMA-876) — 연습 중 칸, 위쪽 묶음 바로 아래 24. */}
+      <AdSlot slot="script_parse_wait" style={{ alignSelf: 'stretch', marginTop: 24 }} />
     </View>
   );
 }

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { ReportRating } from '@/components/report-rating';
@@ -105,6 +106,8 @@ export default function CoachingDoneScreen() {
           </View>
         )}
       </KeyboardAwareScroll>
+      {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 버튼 묶음 바로 위(CtaBar 위 여백 12 + 12 = 24). */}
+      <AdSlot slot="coaching_done" style={{ marginHorizontal: 24, marginBottom: 12 }} />
       <CtaBar safeBottom={false}>
         {/* pen P16.1·P16.2 — 아래 버튼은 「확인」, 누르면 홈. */}
         <PrimaryButton label={t('note.doneConfirm')} onPress={() => router.dismissTo('/(tabs)')} />

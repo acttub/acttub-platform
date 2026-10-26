@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
@@ -80,6 +81,7 @@ export default function AdmissionsScreen() {
 
       {payload && (
         <ScrollView contentContainerStyle={styles.list}>
+          <AdSlot slot="admissions_top" />
           <View style={styles.notice}>
             {/* Pretendard 서브셋에 원문자(U+2460~24FF)가 없어 'ⓘ'는 두부로 나온다.
                 아이콘 폰트는 서브셋 대상이 아니라서 Feather 로 그린다. */}

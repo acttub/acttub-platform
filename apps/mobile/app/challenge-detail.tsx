@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -249,6 +250,8 @@ export default function ChallengeDetailScreen() {
               </Text>
               {showGuide && !ended && <Text style={styles.guide}>{t('challenges.detailGuide')}</Text>}
             </View>
+
+            <AdSlot slot="challenge_detail_top" />
 
             {!!moderation && <Text style={styles.notice}>{moderation}</Text>}
             {!!notice && <Text style={styles.notice}>{notice}</Text>}

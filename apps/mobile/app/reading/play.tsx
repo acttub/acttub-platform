@@ -1,3 +1,4 @@
+import { AdSlot } from '@/components/ad-slot';
 import { clearReachedEnd, markReachedEnd } from '@/lib/reading/progress-display';
 import Feather from '@expo/vector-icons/Feather';
 import { File, Paths } from 'expo-file-system';
@@ -1551,6 +1552,8 @@ export default function ReadingPlay() {
             </>
           )}
         </View>
+        {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래쪽 묶음 바로 위. */}
+        <AdSlot slot="voice_prepare_wait" style={{ marginBottom: download ? 24 : 0 }} />
         {download && (
           <View style={styles.prepNote}>
             <Feather name="info" size={18} color={palette.blueDeep} />
