@@ -9,6 +9,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { Button, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -250,10 +251,7 @@ export default function ChallengeEntriesScreen() {
         {entries === null && !error && <SkeletonRows count={4} avatar style={styles.flush} />}
         {!!error && <InlineError message={error} onRetry={() => void load()} />}
         {entries !== null && shown.length === 0 && !error && (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{t('challengeEntries.emptyTitle')}</Text>
-            <Text style={styles.emptyText}>{t('challengeEntries.emptySub')}</Text>
-          </View>
+          <InlineEmpty title={t('challengeEntries.emptyTitle')} description={t('challengeEntries.emptySub')} />
         )}
 
         {shown.map((entry) => (
@@ -330,9 +328,6 @@ const styles = StyleSheet.create({
   tabsScroll: { flexGrow: 0 },
   tabs: { gap: space[1.5], paddingHorizontal: space.gutter, paddingVertical: space[3] },
   body: { paddingHorizontal: space.gutter, paddingBottom: space[10] },
-  empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], gap: space[1.5], alignItems: 'center' },
-  emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
-  emptyText: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
   truncated: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingVertical: space[6] },
   row: {
     flexDirection: 'row',

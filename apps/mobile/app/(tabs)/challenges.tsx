@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { defaultAvatarColor } from '@/components/ui/default-avatar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavIconButton } from '@/components/ui/nav-header';
@@ -361,9 +362,7 @@ export default function ChallengesScreen() {
         )}
 
         {challenges !== null && challenges.length === 0 && !featured && !error && (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{emptyText}</Text>
-          </View>
+          <InlineEmpty title={emptyText} />
         )}
 
         {tab !== 'mine' && (
@@ -665,8 +664,6 @@ const styles = StyleSheet.create({
   performBtn: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: radius.full, paddingHorizontal: space[1.5], backgroundColor: palette.blueSoft },
   performGo: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.onAccent, alignItems: 'center', justifyContent: 'center' },
   performText: { ...type.headline, color: palette.blueDeep },
-  empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], alignItems: 'center' },
-  emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
   registerBtn: {
     flexDirection: 'row',
     alignItems: 'center',

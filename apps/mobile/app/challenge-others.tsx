@@ -10,6 +10,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { SkeletonCards } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
@@ -105,10 +106,7 @@ export default function ChallengeOthersScreen() {
         {entries === null && <SkeletonCards count={4} columns={2} aspectRatio={1 / 1.4} style={styles.flush} />}
         {failed && <InlineError message={t('challengeOthers.loadFail')} onRetry={() => setReload((n) => n + 1)} />}
         {entries?.length === 0 && !failed && (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{t('challenges.emptyEntriesTitle')}</Text>
-            <Text style={styles.emptyText}>{t('challenges.emptyEntriesSub')}</Text>
-          </View>
+          <InlineEmpty title={t('challenges.emptyEntriesTitle')} description={t('challenges.emptyEntriesSub')} />
         )}
         <View style={styles.grid}>
           {visible.map((entry) => (
@@ -172,9 +170,6 @@ const styles = StyleSheet.create({
   line: { ...type.title2, color: palette.text },
   meta: { ...type.caption, color: palette.textMeta },
   tabs: { flexDirection: 'row', gap: space[1.5], marginVertical: space[2] },
-  empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], gap: space[1.5], alignItems: 'center' },
-  emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
-  emptyText: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[3] },
   tile: { borderRadius: radius.lg, overflow: 'hidden', backgroundColor: palette.text, justifyContent: 'flex-end' },
   tileInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: space[3], backgroundColor: palette.scrim },

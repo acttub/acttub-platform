@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { Chip } from '@/components/ui/chip';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -228,9 +229,7 @@ export default function AuditionsScreen() {
               filtered ? (
                 <StatusScreen kind="empty" title={t('auditions.emptyFiltered')} body={t('auditions.emptyFilteredHint')} />
               ) : (
-                <View style={styles.empty}>
-                  <Text style={styles.emptyTitle}>{emptyText}</Text>
-                </View>
+                <InlineEmpty title={emptyText} />
               )
             }
             ListFooterComponent={
@@ -360,8 +359,6 @@ const styles = StyleSheet.create({
 
   list: { paddingHorizontal: space.gutter, paddingTop: space[1], paddingBottom: space[10] },
   sectionTitle: { marginTop: space[3], marginBottom: space[3], ...type.body2Bold, color: palette.textSub },
-  empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], alignItems: 'center' },
-  emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], marginTop: space[6] },
   footerText: { ...type.caption, color: palette.textMeta },
 

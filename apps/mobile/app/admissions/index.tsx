@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { Chip } from '@/components/ui/chip';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -215,9 +216,7 @@ export default function AdmissionsScreen() {
           ))}
 
           {visible.length === 0 && (
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>조건에 맞는 대학이 없어요</Text>
-            </View>
+            <InlineEmpty title="조건에 맞는 대학이 없어요" />
           )}
 
           <Text style={styles.foot}>
@@ -322,8 +321,6 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3] },
   filterLabel: { width: 56, paddingTop: space[1.5], ...type.captionBold, color: palette.textSub },
   chips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
-  empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], alignItems: 'center' },
-  emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], flexWrap: 'wrap' },

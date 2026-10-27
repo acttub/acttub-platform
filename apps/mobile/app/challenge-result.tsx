@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChallengeNotice } from '@/components/challenge-notice';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
@@ -96,9 +97,7 @@ export default function ChallengeResultScreen() {
             {!!notice && ranksHidden(challenge) && <ChallengeNotice message={notice} />}
             {picked === null && <SkeletonRows count={2} avatar card={false} style={styles.flush} />}
             {picked?.length === 0 && !ranksHidden(challenge) && (
-              <View style={styles.empty}>
-                <Text style={styles.emptyTitle}>{t('challengeResult.noPicked')}</Text>
-              </View>
+              <InlineEmpty title={t('challengeResult.noPicked')} />
             )}
             {picked?.map((entry) => (
               <Pressable
@@ -163,8 +162,6 @@ const styles = StyleSheet.create({
   period: { ...type.caption, color: palette.onMediaSub },
   line: { ...type.headline, fontWeight: '700', color: palette.onAccent },
   section: { ...type.headline, color: palette.text, marginTop: space[2] },
-  empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], alignItems: 'center' },
-  emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
   rank: { width: 24, ...type.headline, color: palette.blueDeep, textAlign: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: space[1] },

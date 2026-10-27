@@ -12,6 +12,7 @@ import { pt } from '@/components/ui/anchored-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
@@ -322,10 +323,7 @@ export default function ChallengeDetailScreen() {
             )}
 
             {entries !== null && entries.length === 0 && !error && (
-              <View style={styles.empty}>
-                <Text style={styles.emptyTitle}>{t('challenges.emptyEntriesTitle')}</Text>
-                <Text style={styles.emptyText}>{t('challenges.emptyEntriesSub')}</Text>
-              </View>
+              <InlineEmpty title={t('challenges.emptyEntriesTitle')} description={t('challenges.emptyEntriesSub')} />
             )}
           </>
         )}
@@ -382,7 +380,4 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], gap: space[1.5], alignItems: 'center' },
-  emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
-  emptyText: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
 });
