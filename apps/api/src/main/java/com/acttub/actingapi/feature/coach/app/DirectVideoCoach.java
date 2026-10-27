@@ -676,6 +676,8 @@ public final class DirectVideoCoach {
                         .map(t -> t.text()).collect(java.util.stream.Collectors.joining("\n")) + "\n" + (actorText == null ? "" : actorText));
                 // 결과를 장담하는 문장도 뗀다(talk/mode 규칙). 스트리밍도 다 쓴 뒤 저장한 말이 화면을 덮는다.
                 shown = PurposeLoop.withoutPromises(shown);
+                // 정리 뒤 답은 묻지 않는다 — 지시에도 모델이 "~골라 볼까요?"를 붙였다(10/27 폰 재생). 물음 문장을 뗀다(남는 게 없으면 그대로).
+                if (PurposeLoop.answersAfterWrap(purposeTurn)) shown = DirectVideoPracticeLoop.withoutQuestions(shown);
             }
             int polished = 0;
             if (loop && !cut) {

@@ -9810,6 +9810,14 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "line_notes" : {
+            "type" : "array",
+            "description" : "Pro 의 대사별로 본 것. 없으면 빈 배열",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachNoteLine"
+            },
+            "title" : "Line Notes"
           }
         },
         "required" : [ "actor_words", "conversation_id", "corrections", "created_at", "fallback", "format", "id", "kind", "source_revision", "summary_quotes", "tags" ],
@@ -10014,6 +10022,26 @@
         },
         "required" : [ "conversation", "message" ],
         "title" : "CoachTurnResult"
+      },
+      "CoachNoteLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "line" : {
+            "type" : "string",
+            "title" : "Line"
+          },
+          "seen" : {
+            "type" : "string",
+            "title" : "Seen"
+          },
+          "try" : {
+            "type" : "string",
+            "title" : "Try"
+          }
+        },
+        "required" : [ "line", "seen", "try" ],
+        "title" : "CoachNoteLine"
       },
       "CoachReplyRequest" : {
         "type" : "object",

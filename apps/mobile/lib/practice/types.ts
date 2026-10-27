@@ -252,6 +252,13 @@ export type NoteQuote = {
   source_ref: string;
 };
 
+/** Pro 「대사별로 본 것」 한 항목 — 대사·순간, 코치가 본 것, 다음 테이크에 해 볼 것. */
+export type NoteLine = {
+  line: string;
+  seen: string;
+  try: string;
+};
+
 export type PracticeNote = {
   id: string;
   conversation_id: string;
@@ -274,6 +281,8 @@ export type PracticeNote = {
   created_at: string;
   /** 이 노트에 남긴 평가. 없으면 null. 코치 응답에 실린 노트는 언제나 null 이다(노트 조회만 채운다). */
   my_rating?: NoteRating | null;
+  /** Pro 의 대사별로 본 것. 없거나 옛 서버면 비어 있다. */
+  line_notes?: NoteLine[];
 };
 
 // ─── 노트 평가(practice.note) ────────────────────────────────────────────────

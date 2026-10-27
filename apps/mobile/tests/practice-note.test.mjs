@@ -106,3 +106,19 @@ test('practice.note: 폴백 노트는 확인된 것만 담았다고 알린다', 
   assert.equal(noteFallbackNotice(note()), null);
   assert.equal(typeof noteFallbackNotice(note({ fallback: true })), 'string');
 });
+
+test('practice.note: Pro 의 대사별로 본 것은 요약 뒤·다음 테이크 앞에 들어가고 없으면 칸이 없다', () => {
+  const full = { line: '가지 마', seen: '목소리가 커지는 쪽으로 갔어요', try: '첫 마디를 낮게 해 봐요' };
+  const sections = noteSections(note({ line_notes: [full] }));
+  assert.deepEqual(sections.map((s) => s.kind), ['summary', 'lines', 'next', 'cheer']);
+  assert.deepEqual(sections[1].items, [full]);
+  // 옛 서버(필드 없음)·무료(빈 배열)는 칸이 없다.
+  assert.deepEqual(noteSections(note()).map((s) => s.kind), ['summary', 'next', 'cheer']);
+  assert.deepEqual(noteSections(note({ line_notes: [] })).map((s) => s.kind), ['summary', 'next', 'cheer']);
+});
+
+test('practice.note: 대사별로 본 것은 세 칸이 찬 항목만 최대 셋', () => {
+  const ok = (n) => ({ line: `대사${n}`, seen: '본 것', try: '해 볼 것' });
+  const sections = noteSections(note({ line_notes: [ok(1), { line: '', seen: 'x', try: 'y' }, { line: 'a', seen: ' ', try: 'y' }, ok(2), ok(3), ok(4)] }));
+  assert.deepEqual(sections[1].items.map((i) => i.line), ['대사1', '대사2', '대사3']);
+});
