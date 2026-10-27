@@ -17,6 +17,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
 import { CoachingLimitSheet } from '@/components/pro-ui';
 import { pt, type MenuAnchor } from '@/components/ui/anchored-menu';
+import { Checkbox } from '@/components/ui/checkbox';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
 import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';
@@ -699,9 +700,7 @@ export default function UploadScreen() {
               disabled={locked}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: agreedRights, disabled: locked }}>
-              <View style={[styles.check, agreedRights && styles.checkOn]}>
-                {agreedRights && <Text style={styles.checkMark}>✓</Text>}
-              </View>
+              <Checkbox checked={agreedRights} />
               <Text style={styles.rightsText}>{t('upload.rights')}</Text>
             </Pressable>
             <Pressable
@@ -791,9 +790,6 @@ const styles = StyleSheet.create({
   sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
   // pen 03 「Rights」 — 네모 22(모서리 6), 10 띄워 글 15/700 `text`(줄 21).
   rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: palette.textDisabled, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  checkMark: { color: palette.bg, fontSize: 13, fontWeight: '900' },
   rightsText: { flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.text },
 
   // pen 버튼/Primary — 높이 48 · 모서리 16 · 글자 17/700. 막혀 있으면 Disabled(#E5E8EB · #B0B8C1). 준비 전에도 눌러서

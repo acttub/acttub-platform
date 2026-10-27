@@ -4,13 +4,16 @@ import { StyleSheet, Text } from 'react-native';
 
 import { Button, DangerButton, PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
+import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { ActionSheetCard, DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { IconOptionRow, OptionCard, SelectRow } from '@/components/ui/option-card';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { BackOnlyHeader, ProgressHeader, StepHeader } from '@/components/ui/step-header';
+import { TextField } from '@/components/ui/text-field';
 
 // 공통 부품(SOMA-770) — 화면들이 기대는 접근성 이름·상태와 누름 전달을 지킨다.
 
@@ -38,6 +41,13 @@ describe('버튼', () => {
     expect(screen.getByText('아이콘')).toBeOnTheScreen();
   });
 
+  test('작은 버튼(sm)은 높이 32 옅은 파랑 바탕에 blue-deep 글자다', async () => {
+    await render(<Button label="다시 시도" size="sm" onPress={jest.fn()} />);
+    const box = StyleSheet.flatten(screen.getByRole('button', { name: '다시 시도' }).props.style);
+    expect([box.height, box.borderRadius, box.backgroundColor]).toEqual([32, 12, '#EAF3FE']);
+    expect(StyleSheet.flatten(screen.getByText('다시 시도').props.style).color).toBe('#3268D8');
+  });
+
   test('글자 버튼도 이름으로 누른다', async () => {
     const press = jest.fn();
     await render(<TextButton label="나중에" onPress={press} />);
@@ -45,7 +55,7 @@ describe('버튼', () => {
     expect(press).toHaveBeenCalled();
   });
 
-  test('파란 글자 링크(tone=accent)는 글자만 파랗고 누름은 같다', async () => {
+  test('링크 글자 버튼(tone=accent)은 blue-deep, 보조 글자 버튼은 text-sub 다', async () => {
     const press = jest.fn();
     await render(
       <>
@@ -54,8 +64,8 @@ describe('버튼', () => {
       </>,
     );
     const color = (label: string) => StyleSheet.flatten(screen.getByText(label).props.style).color;
-    expect(color('다시 불러오기')).toBe('#4880EE');
-    expect(color('건너뛰기')).not.toBe('#4880EE');
+    expect(color('다시 불러오기')).toBe('#3268D8');
+    expect(color('건너뛰기')).toBe('#4E5968');
     await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
     expect(press).toHaveBeenCalledTimes(1);
   });
@@ -272,5 +282,45 @@ describe('상태 화면·말풍선·아래 칸', () => {
       </CtaBar>,
     );
     expect(screen.getByText('저장하고 마치기')).toBeOnTheScreen();
+  });
+});
+
+describe('체크·입력칸·오류 줄', () => {
+  test('체크는 원형 하나이고 되돌릴 수 없는 동의만 켜짐이 빨강이다', async () => {
+    const drawn = async (node: React.ReactElement) => {
+      const view = await render(node);
+      const json = JSON.parse(JSON.stringify(view.toJSON()));
+      await view.unmount();
+      return [json.children[0], StyleSheet.flatten(json.props.style).color];
+    };
+    const [onGlyph] = await drawn(<Feather name="check-circle" size={22} />);
+    const [offGlyph] = await drawn(<Feather name="circle" size={22} />);
+    expect(await drawn(<Checkbox checked />)).toEqual([onGlyph, '#4880EE']);
+    expect(await drawn(<Checkbox checked={false} />)).toEqual([offGlyph, '#B0B8C1']);
+    expect(await drawn(<Checkbox checked danger />)).toEqual([onGlyph, '#E42939']);
+  });
+
+  test('입력칸은 이름표로 읽히고, 입력 중 파랑 · 오류면 빨강 테두리와 아래 한 줄이다', async () => {
+    const { rerender } = await render(<TextField label="이름" placeholder="이름을 입력해 주세요" />);
+    const border = () => StyleSheet.flatten(screen.getByLabelText('이름').props.style).borderColor;
+    expect(border()).toBe('#E5E8EB');
+    await fireEvent(screen.getByLabelText('이름'), 'focus');
+    expect(border()).toBe('#4880EE');
+    await rerender(<TextField label="이름" error="두 글자 이상 입력해 주세요" />);
+    expect(border()).toBe('#E42939');
+    expect(screen.getByText('두 글자 이상 입력해 주세요')).toBeOnTheScreen();
+  });
+
+  test('불러오기 오류 상자는 다시 시도를 알리고, 오류 줄은 문구만 둔다', async () => {
+    const retry = jest.fn();
+    await render(
+      <>
+        <InlineError message="목록을 불러오지 못했어요" onRetry={retry} />
+        <InlineErrorLine message="저장하지 못했어요." />
+      </>,
+    );
+    await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('저장하지 못했어요.')).toBeOnTheScreen();
   });
 });

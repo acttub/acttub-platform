@@ -25,7 +25,7 @@ export function ScriptCocreateEntry({ style }: { style?: StyleProp<ViewStyle> })
         <Text style={styles.title}>{t('scriptCocreate.entryTitle')}</Text>
         <Text style={styles.sub}>{t('scriptCocreate.entrySub')}</Text>
       </View>
-      <Feather name="chevron-right" size={18} color={palette.textDisabled} />
+      <Feather name="chevron-right" size={18} color={palette.iconFaint} />
     </Pressable>
   );
 }

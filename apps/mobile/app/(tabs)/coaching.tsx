@@ -241,7 +241,7 @@ export default function CoachingTab() {
                 <Text style={styles.entryTitle}>{t('coachingTab.menuMyScripts')}</Text>
                 <Text style={styles.entrySub}>{t('coachingTab.menuMyScriptsSub')}</Text>
               </View>
-              <Feather name="chevron-right" size={18} color={palette.textDisabled} />
+              <Feather name="chevron-right" size={18} color={palette.iconFaint} />
             </Pressable>
           ) : null}
           <ScriptCocreateEntry style={styles.entryGap} />

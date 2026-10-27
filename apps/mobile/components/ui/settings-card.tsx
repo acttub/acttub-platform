@@ -41,7 +41,7 @@ export function SettingsCard({
         <Text style={styles.title}>{title}</Text>
         {!!sub && <Text style={styles.sub}>{sub}</Text>}
       </View>
-      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.textDisabled} /> : null)}
+      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.iconFaint} /> : null)}
     </>
   );
   const shape = radiusFor(position);

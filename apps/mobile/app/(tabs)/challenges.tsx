@@ -305,7 +305,7 @@ export default function ChallengesScreen() {
                 {t('challenges.resultBannerSub', { count: Math.min(3, lastWeek.entry_count) })}
               </Text>
             </View>
-            <Feather name="chevron-right" size={20} color={palette.textDisabled} />
+            <Feather name="chevron-right" size={20} color={palette.iconFaint} />
           </Pressable>
         )}
 

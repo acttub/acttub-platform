@@ -160,7 +160,7 @@ export default function ProfileEditScreen() {
               <Text style={[styles.rowValue, row.field === 'bio' && !row.value && styles.rowEmpty]} numberOfLines={1}>
                 {row.value || (row.field === 'bio' ? t('profileName.editBioRowEmpty') : '')}
               </Text>
-              <Feather name="chevron-right" size={16} color={palette.textDisabled} />
+              <Feather name="chevron-right" size={16} color={palette.iconFaint} />
             </Pressable>
           </View>
         ))}
@@ -171,7 +171,7 @@ export default function ProfileEditScreen() {
           accessibilityRole="button">
           <Text style={styles.rowLabel}>{t('profileName.rowPortfolio')}</Text>
           <Text style={[styles.rowValue, styles.rowEmpty]}>{t('profileName.editPortfolioRowEmpty')}</Text>
-          <Feather name="chevron-right" size={16} color={palette.textDisabled} />
+          <Feather name="chevron-right" size={16} color={palette.iconFaint} />
         </Pressable>
       </ScrollView>
     </SafeAreaView>

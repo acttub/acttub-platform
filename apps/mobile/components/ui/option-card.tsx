@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Checkbox } from '@/components/ui/checkbox';
 import { palette } from '@/constants/palette';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
@@ -51,7 +52,7 @@ export function OptionCard({
         <Text style={styles.cardTitle}>{title}</Text>
         {sub ? <Text style={styles.cardSub}>{sub}</Text> : null}
       </View>
-      {right ?? <Feather name="chevron-right" size={18} color={palette.textDisabled} />}
+      {right ?? <Feather name="chevron-right" size={18} color={palette.iconFaint} />}
     </Pressable>
   );
 }
@@ -131,12 +132,7 @@ export function SelectRow({
 }) {
   let mark: ReactNode = null;
   if (trailing === 'check') mark = selected ? <Feather name="check" size={20} color={palette.blue} /> : null;
-  else if (multi)
-    mark = (
-      <View style={[styles.checkbox, selected && styles.checkboxOn]}>
-        {selected ? <Feather name="check" size={12} color={palette.onAccent} /> : null}
-      </View>
-    );
+  else if (multi) mark = <Checkbox checked={selected} />;
   else mark = <View style={[styles.radio, selected && styles.radioOn]} />;
   return (
     <Pressable
@@ -208,14 +204,4 @@ const styles = StyleSheet.create({
   optionSub: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMeta },
   radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: palette.textDisabled },
   radioOn: { borderWidth: 5, borderColor: palette.blue },
-  checkbox: {
-    width: 16,
-    height: 16,
-    borderRadius: 2,
-    borderWidth: 1.5,
-    borderColor: palette.textDisabled,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxOn: { backgroundColor: palette.blue, borderColor: palette.blue },
 });

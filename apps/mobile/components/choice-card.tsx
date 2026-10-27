@@ -79,7 +79,7 @@ export function ChoiceCard({
         ) : mark === 'radio' ? (
           <View style={styles.radio} />
         ) : mark === 'chevron' ? (
-          <Feather name="chevron-right" size={20} color={palette.textDisabled} />
+          <Feather name="chevron-right" size={20} color={palette.iconFaint} />
         ) : null
       ) : selected ? (
         <Feather name="check" size={22} color={palette.blue} />

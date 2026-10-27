@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -7,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
+import { Checkbox } from '@/components/ui/checkbox';
 import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t, translateList } from '@/lib/i18n';
 import {
@@ -113,11 +113,7 @@ export default function ProfileEditItemScreen() {
       accessibilityRole={multi ? 'checkbox' : 'radio'}
       accessibilityState={multi ? { checked: selected } : { selected }}>
       <Text style={styles.optionText}>{label}</Text>
-      <Feather
-        name={multi ? (selected ? 'check-square' : 'square') : selected ? 'check-circle' : 'circle'}
-        size={22}
-        color={selected ? palette.blue : palette.textDisabled}
-      />
+      <Checkbox checked={selected} />
     </Pressable>
   );
 
