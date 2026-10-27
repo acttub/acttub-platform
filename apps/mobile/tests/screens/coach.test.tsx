@@ -60,7 +60,10 @@ jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 // 분석 대기(components/coach-waiting)가 부르는 것 — 회차 id 없이 여는 이 파일에서는 쓰이지 않는다(coach-waiting.test.tsx 가 본다).
 jest.mock('@/lib/api', () => ({ api: {} }));
 jest.mock('@/lib/library/library-runner', () => ({ localCopyFor: jest.fn() }));
-jest.mock('@/lib/notifications', () => ({ onPushReceived: () => () => undefined }));
+jest.mock('@/lib/notifications', () => ({
+  hideForegroundPush: () => () => undefined,
+  onPushReceived: () => () => undefined,
+}));
 jest.mock('@/hooks/use-keyboard-height', () => ({ useKeyboardHeight: () => mockKeyboardHeight }));
 jest.mock('@/lib/tutorial-loop', () => ({
   loopApiFor: (practiceId: string | null | undefined) =>
