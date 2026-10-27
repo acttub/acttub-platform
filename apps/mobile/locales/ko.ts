@@ -19,6 +19,7 @@ const ko = {
     analyzing: '살펴보는 중…',
     coachWriting: '코치가 답을 쓰는 중…',
     checking: '확인하는 중…',
+    starting: '시작하는 중…',
   },
   common: {
     confirm: '확인',
@@ -192,6 +193,7 @@ const ko = {
       concern: '오디션·입시·연습 고민이 있으면',
     },
     failed: '코칭을 시작하지 못했어요. 다시 눌러 주세요.',
+    inProgressMissing: '진행 중인 코칭을 찾지 못했어요. 다시 눌러 주세요.',
   },
   coachingTab: {
     firstTitle: '코칭이 처음이죠?',

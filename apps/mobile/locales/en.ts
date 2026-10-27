@@ -27,6 +27,7 @@ const en: DeepStringShape<typeof ko> = {
     analyzing: 'Reviewing…',
     coachWriting: 'Your coach is writing…',
     checking: 'Checking…',
+    starting: 'Starting…',
   },
   common: {
     confirm: 'OK',
@@ -200,6 +201,7 @@ const en: DeepStringShape<typeof ko> = {
       concern: 'Auditions, exams or practice on your mind',
     },
     failed: "Couldn't start coaching. Please tap again.",
+    inProgressMissing: "Couldn't find your coaching in progress. Please tap again.",
   },
   coachingTab: {
     firstTitle: 'First time with coaching?',
