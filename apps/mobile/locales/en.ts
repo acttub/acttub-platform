@@ -678,7 +678,6 @@ const en: DeepStringShape<typeof ko> = {
   challengeDone: {
     date: '{{month}}/{{day}} ({{weekday}})',
     weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-    firstNav: 'You’re in',
     titlePublic: 'You’re in the challenge!',
     titlePrivate: 'Saved for you only',
     titleFirst: 'Your first challenge is done.\nWell done!',

@@ -671,7 +671,6 @@ const ko = {
   challengeDone: {
     date: '{{month}}/{{day}}({{weekday}})',
     weekdays: ['일', '월', '화', '수', '목', '금', '토'],
-    firstNav: '참여 완료',
     titlePublic: '챌린지에 올렸어요!',
     titlePrivate: '나만 보기로 저장했어요',
     titleFirst: '첫 챌린지 해냈어요.\n정말 멋졌어요!',

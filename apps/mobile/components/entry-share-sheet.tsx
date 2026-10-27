@@ -3,7 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { InlineErrorLine } from '@/components/ui/inline-error';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { Toast } from '@/components/ui/toast';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
@@ -228,12 +232,10 @@ export function EntryShareSheet({
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
       <View style={[styles.page, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <View style={styles.header}>
-          <Pressable style={styles.close} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('entryShare.close')}>
-            <Feather name="x" size={22} color={palette.text} />
-          </Pressable>
-          <Text style={styles.title}>{t('entryShare.title')}</Text>
-        </View>
+        <NavHeader
+          title={t('entryShare.title')}
+          left={<NavIconButton icon="x" label={t('entryShare.close')} phLabel="challenge_share_close" onPress={onClose} />}
+        />
         <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.preview}>
           <View style={styles.thumb}>
@@ -285,41 +287,34 @@ export function EntryShareSheet({
           </View>
         ) : null}
         {notice?.kind === 'error' ? (
-          <Text style={styles.error} accessibilityLiveRegion="polite">
-            {notice.text}
-          </Text>
+          <View style={styles.error}>
+            <InlineErrorLine message={notice.text} />
+          </View>
         ) : null}
         </ScrollView>
       </View>
       {notice?.kind === 'toast' ? (
-        <View style={styles.toast} pointerEvents="none" accessibilityLiveRegion="polite">
-          <Text style={styles.toastText}>{notice.text}</Text>
-        </View>
+        <Toast message={notice.text} bottom={insets.bottom + space[3]} />
       ) : null}
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { height: 48, justifyContent: 'center' },
-  close: { position: 'absolute', left: 12, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
-  title: { fontSize: 16, fontWeight: '800', color: palette.text, textAlign: 'center' },
-  body: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
-  preview: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.bgSoft, borderRadius: 14, padding: 12, marginTop: 14 },
-  thumb: { width: 44, height: 56, borderRadius: 8, backgroundColor: palette.border, alignItems: 'center', justifyContent: 'center' },
+  page: { flex: 1, backgroundColor: palette.bg },
+  body: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[8] },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: space[3], backgroundColor: palette.bgSubtle, borderRadius: radius.md, padding: space[3], marginTop: space[3] },
+  thumb: { width: 44, height: 56, borderRadius: radius.sm, backgroundColor: palette.border, alignItems: 'center', justifyContent: 'center' },
   previewText: { flex: 1, gap: 2 },
-  previewLine: { fontSize: 15, fontWeight: '700', color: palette.text },
-  previewSub: { fontSize: 13, fontWeight: '500', color: palette.textMeta },
-  targets: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 20 },
-  target: { alignItems: 'center', gap: 8, minWidth: 56 },
-  circle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  targetLabel: { fontSize: 12, fontWeight: '600', color: palette.textMeta },
-  save: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 22, paddingVertical: 14, borderRadius: 14, backgroundColor: palette.bgSoft },
-  saveText: { fontSize: 15, fontWeight: '600', color: palette.text },
-  status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14 },
-  statusText: { fontSize: 13, fontWeight: '600', color: palette.blueDeep },
-  error: { fontSize: 13, fontWeight: '600', color: palette.danger, textAlign: 'center', marginTop: 14, lineHeight: 19 },
-  toast: { position: 'absolute', left: 24, right: 24, bottom: 120, backgroundColor: '#191F28E6', borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
-  toastText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  previewLine: { ...type.body1Bold, color: palette.text },
+  previewSub: { ...type.caption, color: palette.textMeta },
+  targets: { flexDirection: 'row', justifyContent: 'space-around', marginTop: space[5] },
+  target: { alignItems: 'center', gap: space[2], minWidth: 56 },
+  circle: { width: 52, height: 52, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  targetLabel: { ...type.caption, color: palette.textSub },
+  save: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2], marginTop: space[6], height: 48, borderRadius: radius.lg, backgroundColor: palette.bgSoft },
+  saveText: { ...type.headline, color: palette.textSub },
+  status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2], marginTop: space[3] },
+  statusText: { ...type.captionBold, color: palette.blueDeep },
+  error: { marginTop: space[3] },
 });
