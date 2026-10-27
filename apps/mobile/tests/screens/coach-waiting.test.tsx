@@ -72,6 +72,7 @@ jest.mock('@react-navigation/native', () => ({
 }));
 jest.mock('@/components/mic-button', () => ({ MicButton: () => null }));
 jest.mock('@/lib/notifications', () => ({
+  hideForegroundPush: () => () => undefined,
   onPushReceived: (listener: (data: unknown) => void) => {
     mockPushListener = listener;
     return () => {

@@ -63,11 +63,32 @@ beforeEach(async () => {
   });
 });
 
-test('포그라운드에서도 배너와 목록으로 보여 주고 소리는 내지 않는다', async () => {
+test('앱이 떠 있을 때도 알림은 배너와 목록으로 보여 주고 소리는 내지 않는다', async () => {
   n.configureNotificationHandling();
-  assert.deepEqual(await state.handler.handleNotification(), {
+  assert.deepEqual(await state.handler.handleNotification({ request: { content: { data: { kind: 'analysis_complete', practice_id: 'p1' } } } }), {
     shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false,
   });
+  assert.equal((await state.handler.handleNotification()).shouldShowBanner, true);
+});
+
+test('보고 있는 화면이 숨기라고 건 알림만 숨기고, 풀면 다시 띄운다', async () => {
+  n.configureNotificationHandling();
+  const mine = { request: { content: { data: { kind: 'analysis_complete', practice_id: 'p1' } } } };
+  const other = { request: { content: { data: { kind: 'analysis_complete', practice_id: 'p2' } } } };
+  const release = n.hideForegroundPush((data) => data?.practice_id === 'p1');
+  assert.deepEqual(await state.handler.handleNotification(mine), {
+    shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false,
+  });
+  assert.equal((await state.handler.handleNotification(other)).shouldShowBanner, true);
+  release();
+  assert.equal((await state.handler.handleNotification(mine)).shouldShowBanner, true);
+});
+
+test('숨김 조건이 오류를 내도 알림은 띄운다', async () => {
+  n.configureNotificationHandling();
+  const release = n.hideForegroundPush(() => { throw new Error('boom'); });
+  assert.equal((await state.handler.handleNotification({ request: { content: { data: {} } } })).shouldShowBanner, true);
+  release();
 });
 
 test('받은 푸시와 누른 푸시의 자료를 넘기고, 끊으면 더 듣지 않는다', () => {
