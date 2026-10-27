@@ -658,8 +658,12 @@ final class DirectVideoPracticeLoop {
         if (loop == null || !loop.isObject() || wasCut(state)) return null;
         String design = loop.path("design").asText("");
         String habit = habit(design);
-        String next = first(DESIGN_NEXT, design);
-        if (habit.isBlank() && next.isBlank()) return null;
+        // 설계의 "다음 테이크: 없음"(영상 없이 말로 첫 응답 등)은 다음 테이크가 아니다 — 그대로 쓰면 노트에 "없음"이 제안으로 남았다(10/26 운영 4건).
+        String next = noneAsBlank(first(DESIGN_NEXT, design));
+        // 정리에서 정한 다음 테이크. 설계에 버릇·다음 테이크 줄이 없는 목적별 코칭(막힌 곳·고민 상담)도 이것으로 노트를 채운다 —
+        // 예전에는 여기서 null 을 돌려 생성기로 넘어가 정리한 제안이 있어도 빈 노트(record_only)가 됐다(10/25·26 운영).
+        String closingNext = closingNextTake(loop.path("statuses"));
+        if (habit.isBlank() && next.isBlank() && closingNext.isBlank()) return null;
         var mapper = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER;
         Round round = round(loop, session.turns());
         var quotes = mapper.createArrayNode();
@@ -672,7 +676,6 @@ final class DirectVideoPracticeLoop {
                 .put("source_ref", StructuredCoachEngine.turnId(session, round.reasonIndex()));
         String title = habit.isBlank() ? null : shorten(habit, TITLE_MAX);
         // 마무리2의 상태 칸에 다시 정한 다음 테이크가 있으면 그것을 쓴다 — 배우가 그 버릇을 지키겠다고 했으면 설계의 "반대쪽"과 다르다.
-        String closingNext = closingNextTake(loop.path("statuses"));
         if (!closingNext.isBlank()) next = closingNext;
         String nextTake = next.isBlank() ? null : next;
         var empty = mapper.createArrayNode();
@@ -786,6 +789,13 @@ final class DirectVideoPracticeLoop {
             return NEXT_TAKE_PREFIX.matcher(value).replaceFirst("").strip();
         }
         return "";
+    }
+
+    /** "없음"·"모름"으로 시작하는 칸 값은 빈 값으로 본다. */
+    static String noneAsBlank(String value) {
+        if (value == null) return "";
+        String v = value.strip();
+        return v.startsWith("없음") || v.startsWith("모름") ? "" : v;
     }
 
     /** 설계의 다음 테이크(버릇의 반대쪽). 없으면 빈 문자열. */

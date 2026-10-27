@@ -370,4 +370,36 @@ class PurposeLoopTest {
         assertThat(PurposeLoop.withoutUngroundedQuotes("", actor)).isEmpty();
         assertThat(PurposeLoop.withoutUngroundedQuotes("따옴표 없는 말이에요.", null)).isEqualTo("따옴표 없는 말이에요.");
     }
+
+    @Test void talkAnswersQuestionsAfterTheWrapInsteadOfWrappingAgain() {
+        // 10/25 운영 afedbad8: 정리 뒤 "예시로 읽어줄 수 있어?"(방법 요청)에 정리를 한 번 더 하고 닫았다.
+        var wrapped = state("{\"step\":3,\"questions\":2}");
+        var method = PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, wrapped, "예시로 읽어줄 수 있어?", null,
+                kind(PracticeLoopRouter.Kind.METHOD), 3);
+        assertThat(method.doing()).isEqualTo("answer");
+        assertThat(method.wrap()).isFalse();
+        assertThat(method.end()).isFalse();
+        assertThat(PurposeLoop.instruction(method, wrapped, "예시로 읽어줄 수 있어?")).contains("정리는 이미 했다");
+        // 분류가 답이어도 물음표가 있으면 답한다(10/26 운영 2ccd52cd).
+        var drama = PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, wrapped, "드라마에 나온 연기를 따라 하고싶으면 어떻게 하나요?", null, ANSWERED, 5);
+        assertThat(drama.doing()).isEqualTo("answer");
+        // 물음이 아니면 예전처럼 정리로 받는다.
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, wrapped, "해 볼게요", null, ANSWERED, 3).wrap()).isTrue();
+        // 응답 상한은 그대로 정리한다.
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, wrapped, "왜요?", null,
+                kind(PracticeLoopRouter.Kind.QUESTION), PurposeLoop.REPLY_CAP - 1).wrap()).isTrue();
+        // 영상 코칭은 바꾸지 않는다.
+        var videoWrapped = state("{\"step\":4,\"questions\":2}");
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.STUCK, videoWrapped, "예시로 보여줄 수 있어?", null,
+                kind(PracticeLoopRouter.Kind.METHOD), 3).wrap()).isTrue();
+    }
+
+    @Test void talkAnswersAQuestionEvenAtTheQuestionCap() {
+        var asked2 = state("{\"step\":1,\"questions\":2}");
+        var talk = PurposeLoop.decide(PurposeLoop.Purpose.TALK_CHARACTER, asked2, "왜요?", null, kind(PracticeLoopRouter.Kind.QUESTION), 2);
+        assertThat(talk.doing()).isEqualTo("answer");
+        assertThat(talk.wrap()).isFalse();
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.CHARACTER, asked2, "왜요?", null, kind(PracticeLoopRouter.Kind.QUESTION), 2).wrap())
+                .as("영상 코칭은 예전처럼 상한에서 정리").isTrue();
+    }
 }

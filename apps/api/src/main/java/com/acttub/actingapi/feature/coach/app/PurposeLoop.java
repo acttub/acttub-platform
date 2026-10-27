@@ -177,6 +177,11 @@ final class PurposeLoop {
         if (replies >= REPLY_CAP - 1) {
             return new Turn(purpose, "wrap", "wrap", true, false, label, chip, answerLike ? current : null);
         }
+        // 영상 없이 말로: 정리한 뒤 이어 간 대화에서 배우가 물으면 정리를 다시 하지 않고 물음에만 답한다. 대화는 열어 둔다.
+        // 2026-10-25·26 운영: 정리 뒤 "예시로 읽어줄 수 있어?", "드라마 연기를 따라 하고 싶으면 어떻게 하나요?"에 정리를 한 번 더 하고 닫았다.
+        if (purpose.talk() && !chip && "wrap".equals(current) && asksAfterWrap(kind, actorText)) {
+            return new Turn(purpose, current, "answer", false, false, label, false, null);
+        }
         // 스무고개 막기(10/20 페르소나 시험): "잘 모르겠어요"가 대화에서 두 번째이거나, 배우가 "그래서 어떻게 해요?"처럼
         // 방법을 달라고 하면 더 묻지 않고 코치가 영상에서 본 것으로 직접 방향을 정해 주며 끝낸다.
         boolean dontKnow = chip ? DONT_KNOW.equals(pressed)
@@ -209,7 +214,9 @@ final class PurposeLoop {
         // 답하면서 함께 물은 것이 있으면(왜요? 그래서 어떻게 해요?) 단계 일을 하기 전에 먼저 답하게 한다.
         boolean answering = "answer".equals(turn.doing()) || turn.end();
         // 질문 상한: 막힌 곳·인물은 코치가 두 번 물었으면 더 묻지 않고 정해 준다. 배우가 물은 것은 정리 첫 문장에서 답한다.
-        if (purpose != Purpose.EVALUATE && !turn.wrap() && !turn.end() && loop.path("questions").asInt(0) >= MAX_QUESTIONS) {
+        // 영상 없이 말로는 배우가 물은 말이면 상한이어도 정리로 덮지 않고 답한다 — 영상이 없어 배우 물음이 코칭의 재료다. 응답 상한(REPLY_CAP)은 그대로 정리한다.
+        boolean talkAnswer = purpose.talk() && "answer".equals(turn.doing());
+        if (purpose != Purpose.EVALUATE && !turn.wrap() && !turn.end() && !talkAnswer && loop.path("questions").asInt(0) >= MAX_QUESTIONS) {
             turn = Turn.directing(purpose, label, false, turn.answeredStep(), dontKnow);
             if (kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION) turn = turn.asking();
         }
@@ -222,6 +229,12 @@ final class PurposeLoop {
     /** 대화를 다시 연 시점의 코치 응답 수. 다시 연 적이 없으면 -1. */
     static int resumedAt(JsonNode loop) {
         return loop == null ? -1 : loop.path(PracticeLoopRouter.RESUMED_AT).asInt(-1);
+    }
+
+    /** 정리 뒤 배우 말이 코치에게 묻는 말인가(물음·평가 요청·방법 요청, 또는 물음표·"어떻게 해요"). */
+    static boolean asksAfterWrap(PracticeLoopRouter.Kind kind, String actorText) {
+        return kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION
+                || kind == PracticeLoopRouter.Kind.METHOD || asksSomething(actorText);
     }
 
     /** 배우 말에 코치에게 묻는 말이 있는가. */
@@ -721,6 +734,10 @@ final class PurposeLoop {
         } else if (turn.purpose() == Purpose.CHARACTER && turn.wrap()) {
             lines.add("- 인물 카드에는 첫 응답 <설계>의 대본 단서·테이크 속 인물·다른 가능성에서 배우가 말하지 않은 칸을 둘 이상 (영상)으로 채운다. "
                     + "정리 둘째 문장은 배우 해석과 다른 가능성 하나를 그 단서 대사와 함께 말하고, 그 둘로 이 인물이 어떻게 더 입체적이 되는지 말한다.");
+        }
+        if (turn.purpose().talk() && "wrap".equals(turn.step()) && "answer".equals(turn.doing())) {
+            lines.add("- 정리는 이미 했다. 이번에는 배우가 정리 뒤에 물은 것에만 답한다. 정리를 다시 쓰거나 새 질문을 하지 않고, <보기>도 쓰지 않는다. "
+                    + "할 수 없는 것을 물었으면 할 수 없다는 말로 끝내지 말고 배우가 지금 해 볼 수 있는 방법 하나를 함께 말한다.");
         }
         if (turn.asked()) {
             lines.add("- 배우가 이번 말에서 함께 물은 것이 있다. 이번 할 일을 하기 전에 그 물음에 먼저 한두 문장으로 솔직하게 답한다. "
