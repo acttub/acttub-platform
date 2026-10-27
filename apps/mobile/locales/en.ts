@@ -412,7 +412,6 @@ const en: DeepStringShape<typeof ko> = {
     emptySub: 'If you can’t find the line, you can add it yourself.',
   },
   lineNew: {
-    stepLabel: '{{step}} / 3',
     defaultWork: 'Original line',
     doneToast: 'Your challenge is open. Waiting for the first entry.',
     title3New: 'How long should it run?',

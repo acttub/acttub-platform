@@ -405,7 +405,6 @@ const ko = {
     emptySub: '찾는 대사가 없으면 직접 등록할 수 있어요.',
   },
   lineNew: {
-    stepLabel: '{{step}} / 3',
     defaultWork: '창작 대사',
     doneToast: '챌린지를 열었어요. 첫 참여를 기다려요.',
     title3New: '얼마 동안 열어 둘까요?',
