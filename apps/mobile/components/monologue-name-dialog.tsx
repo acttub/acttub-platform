@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, StyleSheet, View } from 'react-native';
 
 import { KeyboardLift } from '@/components/keyboard-lift';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { DialogCard } from '@/components/ui/dialog';
+import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
+import { space } from '@/constants/tokens';
 import { updateScriptMeta } from '@/lib/reading/store';
-import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -42,53 +45,31 @@ export function MonologueNameDialog({
     <Modal transparent statusBarTranslucent visible animationType="fade" onRequestClose={() => !busy && onClose()}>
       {/* 키보드가 뜨면 키보드 위 남은 칸 가운데에 놓여 「저장」이 가리지 않는다. */}
       <KeyboardLift style={styles.backdrop}>
-        <View style={styles.card}>
-          <Text style={styles.title}>{t('reading.monologueNameTitle')}</Text>
-          <Text style={styles.body}>{t('reading.monologueNameBody')}</Text>
-          <View style={[styles.field, failed && styles.fieldBad]}>
-            <TextInput
-              style={styles.input}
+        <DialogCard title={t('reading.monologueNameTitle')} message={t('reading.monologueNameBody')}>
+          <View style={styles.form}>
+            <TextField
               value={name}
               onChangeText={setName}
               placeholder={t('reading.monologueNamePlaceholder')}
-              placeholderTextColor={palette.textMeta}
+              accessibilityLabel={t('reading.monologueNamePlaceholder')}
+              error={failed ? t('reading.titleSaveFail') : null}
               autoFocus
             />
+            <PrimaryButton
+              label={t('reading.monologueNameSave')}
+              disabled={!next}
+              loading={busy}
+              loadingLabel={t('loadingText.saving')}
+              onPress={() => void save()}
+            />
           </View>
-          {failed && <Text style={styles.error}>{t('reading.titleSaveFail')}</Text>}
-          <Pressable
-            style={[styles.save, (!next || busy) && styles.saveOff]}
-            disabled={!next || busy}
-            onPress={() => void save()}
-            accessibilityRole="button">
-            {busy ? <LoadingText label={t('loadingText.saving')} color="#fff" /> : <Text style={styles.saveText}>{t('reading.monologueNameSave')}</Text>}
-          </Pressable>
-        </View>
+        </DialogCard>
       </KeyboardLift>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  // pen Dialog/Confirm 과 같은 틀 — 버튼은 하나(이름을 정해야 다음으로 간다).
-  card: { width: '100%', maxWidth: 334, backgroundColor: palette.bg, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18 },
-  title: { fontSize: 17, fontWeight: '800', color: palette.text, textAlign: 'center' },
-  body: { marginTop: 8, color: palette.textSub, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
-  field: {
-    marginTop: 18,
-    borderWidth: 1.5,
-    borderColor: palette.border,
-    borderRadius: 14,
-    backgroundColor: palette.bgSoft,
-    paddingHorizontal: 14,
-    height: 50,
-    justifyContent: 'center',
-  },
-  fieldBad: { borderColor: palette.danger },
-  input: { color: palette.text, fontFamily: 'Pretendard', fontSize: 15, padding: 0 },
-  error: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13, marginTop: 10 },
-  save: { marginTop: 18, borderRadius: 14, minHeight: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.blue },
-  saveOff: { opacity: 0.5 },
-  saveText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
+  form: { gap: space[4], paddingTop: space[4] },
 });

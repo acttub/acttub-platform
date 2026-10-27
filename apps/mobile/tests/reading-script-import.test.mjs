@@ -8,7 +8,6 @@ import {
   retryFlags,
   runImport,
   runScriptImport,
-  scriptSplitDocument,
   uploadScriptFile,
 } from '../lib/reading/script-import.ts';
 
@@ -82,7 +81,7 @@ test('reading.script(R2.12): 120초가 지나도 끝나지 않으면 공용 오�
   assert.deepEqual(result, { kind: 'error', message: NETWORK });
   assert.equal(state.now, 120_000);
   assert.equal(state.polls, 121);
-  assert.deepEqual(importAlert(result), { title: '저장', message: NETWORK });
+  assert.deepEqual(importAlert(result), { title: '대본을 넣지 못했어요', message: NETWORK });
 });
 
 test('reading.script: 묻다가 연결이 끊겨도 계속 묻고, 없는 작업(404)이면 멈춘다', async () => {
@@ -109,13 +108,13 @@ test('reading.script: 작업 실패 종류마다 팝업이 갈린다 — 대본 
   ]);
   assert.deepEqual(await outcome('script_too_long'), [
     'too_long',
-    { title: '저장', message: '대본이 너무 길어요. 원문 100,000자까지 저장할 수 있어요.' },
+    { title: '대본이 너무 길어요', message: '원문 100,000자까지 저장할 수 있어요.' },
   ]);
   assert.deepEqual(await outcome('script_limit'), [
     'script_limit',
-    { title: '저장', message: '대본은 100개까지 둘 수 있어요. 안 쓰는 대본을 지우면 다시 저장할 수 있어요.' },
+    { title: '대본을 더 넣을 수 없어요', message: '대본은 100개까지 둘 수 있어요. 안 쓰는 대본을 지우면 다시 넣을 수 있어요.' },
   ]);
-  assert.deepEqual(await outcome('failed'), ['error', { title: '저장', message: NETWORK }]);
+  assert.deepEqual(await outcome('failed'), ['error', { title: '대본을 넣지 못했어요', message: NETWORK }]);
 });
 
 test('reading.script(R2.7·R2.8): 같은 글이면 그 대본 id로 멈추고, 다시 보낼 때는 새 요청 id에 플래그를 단다', async () => {
@@ -134,14 +133,15 @@ test('reading.script(R2.7·R2.8): 같은 글이면 그 대본 id로 멈추고, �
   assert.equal(retryFlags({ kind: 'daily_limit' }), null);
 });
 
-test('reading.script(R2.14·R2.15): 접수 거절 — 동의 없음은 시트, 하루 한도는 알림, 연결 끊김은 공용 오류', async () => {
+test('reading.script(R2.15): 접수 거절 — 하루 한도는 알림, 동의 없음(403)은 따로 묻지 않고 공용 오류, 연결 끊김도 공용 오류', async () => {
   const stopFor = async (error) => {
     const { deps, onProgress } = fakeServer({ startError: error });
     return runImport(importBody(TEXT, {}, 'r'), deps, onProgress);
   };
-  const consent = await stopFor(apiError(403, 'script_split_consent_required'));
-  assert.deepEqual(consent, { kind: 'consent' });
-  assert.equal(importAlert(consent), null);
+  assert.deepEqual(importAlert(await stopFor(apiError(403, 'script_split_consent_required'))), {
+    title: '대본을 넣지 못했어요',
+    message: 'raw script_split_consent_required',
+  });
 
   assert.deepEqual(importAlert(await stopFor(apiError(429, 'script_split_daily_limit'))), {
     title: '오늘은 대본을 더 넣을 수 없어요',
@@ -153,33 +153,6 @@ test('reading.script(R2.14·R2.15): 접수 거절 — 동의 없음은 시트, �
   assert.deepEqual(free, { kind: 'free_limit' });
   assert.equal(importAlert(free), null);
   assert.deepEqual(await stopFor(new NetworkError()), { kind: 'error', message: NETWORK });
-});
-
-test('reading.script(R2.14): 동의한 뒤 같은 본문을 다시 보내면 나눈다 — 동의 문서는 script_split 현재 판', async () => {
-  let granted = false;
-  const { state, deps, onProgress } = fakeServer({
-    jobs: [{ status: 'succeeded', progress: { done_lines: 4, total_lines: 4 }, script_id: 'sc-2' }],
-  });
-  const start = deps.start;
-  deps.start = async (body) => {
-    if (!granted) {
-      state.bodies.push(body);
-      throw apiError(403, 'script_split_consent_required');
-    }
-    return start(body);
-  };
-  const body = importBody(TEXT, {}, 'rid-1');
-
-  assert.deepEqual(await runImport(body, deps, onProgress), { kind: 'consent' });
-  const documents = [
-    { id: 'd-terms', type: 'terms' },
-    { id: 'd-split', type: 'script_split' },
-  ];
-  assert.equal(scriptSplitDocument(documents)?.id, 'd-split');
-  assert.equal(scriptSplitDocument([{ id: 'd-terms', type: 'terms' }]), null, '법무 문서가 없으면 없다');
-  granted = true;
-  assert.deepEqual(await runImport(body, deps, onProgress), { kind: 'saved', scriptId: 'sc-2' });
-  assert.deepEqual(state.bodies[0], state.bodies[1]);
 });
 
 test('reading.script(R2.2): 파일은 올릴 자리 → PUT → 읽기 세 단계로 올리고 upload_id 를 받는다', async () => {
@@ -236,10 +209,7 @@ test('reading.script(R2.4): 50MB 넘는 파일은 올리지 않고, 서버가 �
 
   assert.deepEqual(await uploadScriptFile(file, failing('complete', apiError(422, 'script_too_long')).deps), { kind: 'too_long' });
   assert.deepEqual(await uploadScriptFile(file, failing('complete', apiError(429, 'script_upload_busy')).deps), { kind: 'unread', uploadId: 'up-1' });
-  assert.deepEqual(importAlert({ kind: 'busy' }), { title: '저장', message: '요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해 주세요.' });
-  const noConsent = failing('create', apiError(403, 'script_split_consent_required'));
-  assert.deepEqual(await uploadScriptFile(file, noConsent.deps), { kind: 'consent' });
-  assert.deepEqual(noConsent.calls, ['create']);
+  assert.deepEqual(importAlert({ kind: 'busy' }), { title: '지금은 대본을 넣을 수 없어요', message: '요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해 주세요.' });
 });
 
 /** 파일 나누기 서버 흉내: 원본 읽기·올리기·접수를 한 장부에 적는다. used 에 든 upload_id 는 이미 대본이 된 원본이다. */

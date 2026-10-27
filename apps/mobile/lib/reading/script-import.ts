@@ -33,7 +33,6 @@ export const TITLE_MAX = 200;
 
 /** 나누기가 저장까지 가지 못한 이유. 화면 팝업 하나에 대응한다. */
 export type ImportStop =
-  | { kind: 'consent' } // R2.14
   | { kind: 'daily_limit' } // R2.15
   | { kind: 'file_too_large' } // R2.4
   | { kind: 'file_unreadable' } // R2.4
@@ -72,7 +71,6 @@ export function retryFlags(stop: ImportStop): ImportFlags | null {
 }
 
 const STOP_BY_CODE: Record<string, ImportStop> = {
-  script_split_consent_required: { kind: 'consent' },
   script_split_daily_limit: { kind: 'daily_limit' },
   script_file_too_large: { kind: 'file_too_large' },
   script_file_unreadable: { kind: 'file_unreadable' },
@@ -217,10 +215,9 @@ export async function runScriptImport(
   return runImport(importBody({ ...input, uploadId: again.uploadId }, flags, deps.newRequestId()), deps.import, onProgress, signal);
 }
 
-/** [확인] 하나짜리 알림의 글(R2.4·R2.12·R2.13·R2.15). 동의·중복·대본 아님은 버튼이 다른 팝업이라 null. */
+/** [확인] 하나짜리 알림의 글(R2.4·R2.12·R2.13·R2.15). 제목은 결과 문장이다. 중복·대본 아님·무료 한도는 버튼이 다른 팝업이라 null. */
 export function importAlert(stop: ImportStop): { title: string; message: string } | null {
   switch (stop.kind) {
-    case 'consent':
     case 'duplicate':
     case 'not_script':
     case 'free_limit':
@@ -234,19 +231,14 @@ export function importAlert(stop: ImportStop): { title: string; message: string 
     case 'daily_limit':
       return { title: t('reading.dailyLimitTitle'), message: t('reading.dailyLimitBody') };
     case 'too_long':
-      return { title: t('common.save'), message: t('reading.errorScriptTooLong') };
+      return { title: t('reading.tooLongTitle'), message: t('reading.tooLongBody') };
     case 'script_limit':
-      return { title: t('common.save'), message: t('reading.errorScriptLimit') };
+      return { title: t('reading.scriptLimitTitle'), message: t('reading.scriptLimitBody') };
     case 'busy':
-      return { title: t('common.save'), message: t('errors.rateLimited') };
+      return { title: t('reading.busyTitle'), message: t('errors.rateLimited') };
     case 'upload_used':
-      return { title: t('common.save'), message: t('errors.network') };
+      return { title: t('reading.importFailTitle'), message: t('errors.network') };
     case 'error':
-      return { title: t('common.save'), message: stop.message };
+      return { title: t('reading.importFailTitle'), message: stop.message };
   }
-}
-
-/** 동의 항목 가운데 대본 나누기 문서(현재 판). 법무 문서가 발행되기 전에는 없다. */
-export function scriptSplitDocument<D extends { type: string }>(documents: readonly D[]): D | null {
-  return documents.find((d) => d.type === 'script_split') ?? null;
 }
