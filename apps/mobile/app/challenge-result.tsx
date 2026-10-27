@@ -10,6 +10,7 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
+import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -111,6 +112,7 @@ export default function ChallengeResultScreen() {
                   <Text style={styles.name} numberOfLines={1}>
                     {entry.author.name}
                   </Text>
+                  <FoundingBadge number={entry.author.founding_number} />
                   <Text style={styles.sub} numberOfLines={1}>
                     {t('challengeResult.pickedSub', { count: entry.final_like_count ?? entry.like_count })}
                   </Text>

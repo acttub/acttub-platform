@@ -13,6 +13,7 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { SkeletonCards } from '@/components/ui/skeleton';
+import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -154,6 +155,7 @@ function Tile({ entry, onPress }: { entry: EntryCard; onPress: () => void }) {
         <Text style={styles.tileName} numberOfLines={1}>
           {entry.author.name}
         </Text>
+        <FoundingBadge number={entry.author.founding_number} onDark />
         <View style={styles.likes}>
           <Feather name="heart" size={12} color={palette.onAccent} />
           <Text style={styles.tileName}>{entry.like_count}</Text>

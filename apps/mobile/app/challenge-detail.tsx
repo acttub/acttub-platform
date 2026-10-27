@@ -17,6 +17,7 @@ import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { Toast } from '@/components/ui/toast';
+import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -292,6 +293,7 @@ export default function ChallengeDetailScreen() {
                     <Text style={styles.author} numberOfLines={1}>
                       {entry.author.name}
                     </Text>
+                    <FoundingBadge number={entry.author.founding_number} inline />
                     {entry.isNew && <Text style={styles.newBadge}>{t('challenges.newBadge')}</Text>}
                   </View>
                   <Text style={styles.entryMeta} numberOfLines={1}>
