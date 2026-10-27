@@ -44,7 +44,9 @@ class PostgresConversationRepository implements ConversationRepository {
      * 영상 없는 갈래를 탄다({@code PurposeLoop}). 저장된 값과 API 의 목적은 붙이지 않은 그대로다.
      */
     private static final String SESSION_PURPOSE =
-            "CASE WHEN p.video_id IS NULL AND p.session_purpose IS NOT NULL THEN 'talk:' || p.session_purpose ELSE p.session_purpose END";
+            // 리딩 녹음으로 시작한 회차(SOMA-791, reading)는 영상이 없어도 말 표시를 붙이지 않는다 — 소리를 듣는 따로 된 갈래다.
+            "CASE WHEN p.video_id IS NULL AND p.session_purpose IS NOT NULL AND p.session_purpose<>'reading'"
+            + " THEN 'talk:' || p.session_purpose ELSE p.session_purpose END";
 
     @Override
     public Loaded loadByPractice(UUID userId, UUID practiceId) {

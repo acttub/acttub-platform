@@ -73,6 +73,7 @@ import type {
   CoachTurnResult,
   ContinuePracticeBody,
   CreatePracticeBody,
+  CreateReadingPracticeBody,
   CreateTalkPracticeBody,
   FeedbackBody,
   GroupPatch,
@@ -113,7 +114,7 @@ import type {
 } from '@/lib/reading/types';
 import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voice';
 import type { PronunciationState } from '@/lib/reading/pronunciation-report';
-import { RECORDING_COACH_PROBE_ID, type RecordingCoach } from '@/lib/reading/recording-coach';
+import type { ReadingVoiceCoaching } from '@/lib/reading/voice-coaching';
 import type { VoiceModelFiles } from '@/lib/reading/tts/assets';
 import type { PostersResponse } from '@/lib/poster';
 import type { AdDetail, AdSlotPick } from '@/lib/ads';
@@ -1076,7 +1077,7 @@ export const api = {
    * 하나가 한 트랜잭션으로 생긴다. 같은 request_id 의 재전송은 같은 회차이고, 같은 id 에 다른
    * 본문이면 422 request_fingerprint_mismatch 다. 확정 전 영상은 422 video_not_ready.
    */
-  createPractice(body: CreatePracticeBody | CreateTalkPracticeBody, options: ApiCallOptions = {}): Promise<Practice> {
+  createPractice(body: CreatePracticeBody | CreateTalkPracticeBody | CreateReadingPracticeBody, options: ApiCallOptions = {}): Promise<Practice> {
     return postIdempotent<Practice>('/v2/practices', body, {
       requestId: body.request_id,
       timeoutMs: 30_000,
@@ -1257,22 +1258,9 @@ export const api = {
     return request<PronunciationState>(`/v2/reading/sessions/${encodeURIComponent(sessionId)}/pronunciation`, {}, { timeoutMs: 15_000 });
   },
 
-  /** 리딩 녹음 코치(SOMA-791, 실험) 켜짐 확인 — 없는 대화를 물어 오류 코드만 본다(lib/reading/recording-coach). */
-  probeRecordingCoach(): Promise<RecordingCoach> {
-    return request<RecordingCoach>(`/v2/recording-coaches/${RECORDING_COACH_PROBE_ID}`, {}, { timeoutMs: 10_000 });
-  },
-
-  /** 회차 녹음으로 첫 차례를 만든다(모델을 요청 안에서 부른다). 그 회차에 이미 있으면 같은 대화. */
-  startRecordingCoach(readingSessionId: string): Promise<RecordingCoach> {
-    return request<RecordingCoach>('/v2/recording-coaches', jsonInit({ reading_session_id: readingSessionId }), { timeoutMs: 90_000 });
-  },
-
-  replyRecordingCoach(coachId: string, text: string): Promise<RecordingCoach> {
-    return request<RecordingCoach>(
-      `/v2/recording-coaches/${encodeURIComponent(coachId)}/reply`,
-      jsonInit({ text: text.trim() }),
-      { timeoutMs: 90_000 },
-    );
+  /** 리딩 녹음으로 바로 코칭(SOMA-791) 가능 여부. 스위치 꺼짐·없는 회차는 404 — 호출한 쪽이 카드를 숨긴다. */
+  getReadingVoiceCoaching(sessionId: string): Promise<ReadingVoiceCoaching> {
+    return request<ReadingVoiceCoaching>(`/v2/reading/sessions/${encodeURIComponent(sessionId)}/voice-coaching`, {}, { timeoutMs: 10_000 });
   },
 
   /** 리딩 평가(reading.session, SOMA-661) — 리딩 회차 하나에 사람 하나, 다시 보내면 덮어쓴다. */

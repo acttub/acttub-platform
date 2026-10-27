@@ -161,6 +161,15 @@ export type CreateTalkPracticeBody = {
   session_purpose: 'stuck' | 'character' | 'concern';
 };
 
+/**
+ * 리딩 녹음으로 바로 코칭(SOMA-791). 영상 없이 그 리딩 회차의 내 녹음으로 대화 단계 회차를 만든다.
+ * 이미 시작한 회차가 있으면 서버가 그 회차를 돌려준다. 422 reading_voice_not_enough_audio · 404 session_not_found.
+ */
+export type CreateReadingPracticeBody = {
+  request_id: string;
+  reading_session_id: string;
+};
+
 /** 이어하기. video_id가 없으면 서버가 이전 회차의 영상을 그대로 쓴다. */
 export type ContinuePracticeBody = {
   request_id: string;
@@ -186,7 +195,7 @@ export type CoachMessage = {
  * 동시 요청은 revision 으로 가른다(다르면 409 conversation_conflict).
  */
 export type CoachPurpose = {
-  purpose: 'evaluate' | 'stuck' | 'character' | 'concern';
+  purpose: 'evaluate' | 'stuck' | 'character' | 'concern' | 'reading';
   step: string;
   choices: { label: string; at: number | null }[];
   scene: { situation: string; character: string; partner: string } | null;

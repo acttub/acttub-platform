@@ -53,15 +53,19 @@ final class PracticeDtos {
             @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern"})
             @jakarta.validation.constraints.Pattern(regexp = "evaluate|stuck|character|concern") String sessionPurpose,
             @Schema(nullable = true, description = "얼굴 가리기. 기본 false. 켜면 분석·코치는 원본 대신 서버가 얼굴을 가린 사본을 본다. 사본을 만들지 못하면(얼굴을 못 찾음 포함) 원본을 쓰지 않고 분석이 실패로 닫힌다. 원본은 지우지 않는다. 영상 없는 회차에서는 무시한다.")
-            Boolean faceMosaic) {
+            Boolean faceMosaic,
+            @Schema(nullable = true, description = "리딩 녹음으로 시작(SOMA-791). 내 리딩 회차 id. 보내면 video_id·session_purpose 는 빼고, 서버가 목적을 reading 으로 둔다. 그 회차의 소리 든 내 대사 녹음이 3줄 미만이면 422 reading_voice_not_enough_audio, 남의·없는 회차면 404 session_not_found. 같은 리딩 회차로 이미 시작했으면 그 회차를 돌려준다.")
+            UUID readingSessionId) {
 
         /**
          * 영상이 없으면 말로 하는 목적이어야 한다(SOMA-745). 영상을 빼고 목적도 없으면 예전처럼 값 모양 오류 422(배열)다.
+         * 리딩 녹음으로 시작하면(SOMA-791) 영상도 목적도 보내지 않는다.
          */
         @com.fasterxml.jackson.annotation.JsonIgnore
         @Schema(hidden = true)
         @jakarta.validation.constraints.AssertTrue
         boolean isVideoOrTalkPurpose() {
+            if (readingSessionId != null) return videoId == null && (sessionPurpose == null || sessionPurpose.isBlank());
             return PracticeRules.videoMatchesPurpose(videoId != null, PracticeRules.sessionPurpose(sessionPurpose));
         }
     }
@@ -155,7 +159,7 @@ final class PracticeDtos {
             @Schema(nullable = true) JobResponse job,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<PreviousConversationResponse> previousConversations,
-            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern"}) String sessionPurpose) {
+            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern", "reading"}) String sessionPurpose) {
 
         static PracticeResponse of(PracticeView view) {
             return new PracticeResponse(

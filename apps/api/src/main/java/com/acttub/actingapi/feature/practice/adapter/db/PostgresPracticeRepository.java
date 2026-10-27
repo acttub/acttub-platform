@@ -147,6 +147,41 @@ class PostgresPracticeRepository implements PracticeRepository {
     }
 
     @Override
+    public Started startFromReading(UUID userId, NewPractice practice, UUID readingSessionId, Instant now) {
+        return transaction.execute(tx -> {
+            Started replayed = replay(userId, practice);
+            if (replayed != null) {
+                return replayed;
+            }
+            // 같은 사람의 겹친 요청을 줄 세운다. 리딩 회차 하나에 이 코칭은 하나다 — 이미 있으면(다른 요청 id 로 다시 눌렀어도)
+            // 그 회차를 돌려준다.
+            NativeTuples.list(entityManager.createNativeQuery(
+                    "SELECT id FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
+                    .setParameter("userId", userId));
+            UUID existing = existingFromReading(userId, readingSessionId);
+            if (existing != null) {
+                return new Started(StartOutcome.REPLAYED, find(userId, existing));
+            }
+            UUID id = UUID.randomUUID();
+            insertPractice(id, id, 1, userId, practice, now, "conversing");
+            entityManager.createNativeQuery("UPDATE practices SET reading_session_id=:readingSessionId WHERE id=:id")
+                    .setParameter("readingSessionId", readingSessionId)
+                    .setParameter("id", id)
+                    .executeUpdate();
+            return new Started(StartOutcome.CREATED, find(userId, id));
+        });
+    }
+
+    @Override
+    public UUID existingFromReading(UUID userId, UUID readingSessionId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
+                "SELECT id FROM practices WHERE user_id=:userId AND reading_session_id=:readingSessionId", Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("readingSessionId", readingSessionId));
+        return rows.isEmpty() ? null : rows.getFirst().get("id", UUID.class);
+    }
+
+    @Override
     public Started continueGroup(UUID userId, UUID from, UUID videoId, NewPractice practice, Quota quota, Instant now) {
         return transaction.execute(tx -> {
             Started replayed = replay(userId, practice);
@@ -514,7 +549,8 @@ class PostgresPracticeRepository implements PracticeRepository {
         if (quota.kind() == Quota.Kind.SESSIONS) {
             // 무료 코칭 한도(SOMA-818): 오늘 만든 회차 수. 영상 있는·없는 코칭과 이어하기가 모두 든다.
             Number sessions = (Number) entityManager.createNativeQuery(
-                    "SELECT count(*) FROM practices WHERE user_id=:userId AND created_at>=:since")
+                    // 리딩 녹음으로 시작한 코칭(SOMA-791)은 무료라 세지 않는다. 그 묶음을 영상으로 이은 회차는 센다.
+                    "SELECT count(*) FROM practices WHERE user_id=:userId AND created_at>=:since AND reading_session_id IS NULL")
                     .setParameter("userId", userId)
                     .setParameter("since", quota.since().atOffset(ZoneOffset.UTC))
                     .getSingleResult();
@@ -546,7 +582,9 @@ class PostgresPracticeRepository implements PracticeRepository {
                         :situation,:characterContext,:goal,:blockageKind,:subBranch,:blockageNote,
                         CAST(:title AS text),
                         COALESCE(CAST(:sessionPurpose AS text),
-                                 (SELECT r.session_purpose FROM practices r WHERE r.id=:rootId)),
+                                 -- 리딩 녹음으로 시작한 묶음(SOMA-791)을 영상으로 이으면 그 회차는 평가 받기 코칭이다.
+                                 (SELECT CASE WHEN r.session_purpose='reading' THEN 'evaluate' ELSE r.session_purpose END
+                                  FROM practices r WHERE r.id=:rootId)),
                         COALESCE(CAST(:faceMosaic AS boolean), false),
                         :now,:now)
                 """)

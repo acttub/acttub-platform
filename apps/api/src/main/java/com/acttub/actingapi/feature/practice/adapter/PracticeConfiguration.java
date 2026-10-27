@@ -27,9 +27,12 @@ class PracticeConfiguration {
             @Value("${ACTTUB_THREE_LAYERS_ENABLED:false}") boolean threeLayersEnabled,
             @Value("${ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:true}") boolean guestDailyAnalysisLimitEnabled,
             ObjectProvider<CoachingPlan> plan,
+            ObjectProvider<com.acttub.actingapi.feature.practice.app.ReadingVoice> readingVoice,
             Clock clock) {
         // 무료 코칭 한도(SOMA-818)는 결제 도메인이 구현한다. 그 빈이 없는 조립(좁은 테스트 등)에서는 한도가 없다.
+        // 리딩 녹음으로 시작하는 코칭(SOMA-791)은 리딩 도메인이 확인한다. 스위치가 꺼졌으면 그 빈이 없고 시작은 404 다.
         return new PracticeService(practices, legacy, posters, threeLayersEnabled, guestDailyAnalysisLimitEnabled,
-                plan.getIfAvailable(() -> CoachingPlan.UNLIMITED), clock);
+                plan.getIfAvailable(() -> CoachingPlan.UNLIMITED), clock)
+                .withReadingVoice(readingVoice.getIfAvailable(() -> com.acttub.actingapi.feature.practice.app.ReadingVoice.OFF));
     }
 }

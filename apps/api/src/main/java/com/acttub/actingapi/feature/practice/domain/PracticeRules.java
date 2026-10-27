@@ -32,6 +32,9 @@ public final class PracticeRules {
     /**
      * 영상 없이 말로 시작할 수 있는 목적(SOMA-745): 막힌 곳 풀기·인물 이해하기·고민 상담. 고민 상담은 영상 없는 회차에만 쓴다.
      */
+    /** 리딩 녹음으로 시작한 코칭(SOMA-791)의 목적. 앱이 고르지 않고 서버가 둔다 — 요청 목적 값으로는 받지 않는다. */
+    public static final String READING_PURPOSE = "reading";
+
     public static final java.util.List<String> TALK_PURPOSES = java.util.List.of("stuck", "character", "concern");
 
     /**

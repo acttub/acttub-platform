@@ -51,7 +51,12 @@ final class PurposeLoop {
         CHARACTER("character", "character", List.of("view", "cell", "wrap")),
         TALK_STUCK("stuck", "talk/stuck", List.of("reason", "line", "method", "wrap")),
         TALK_CHARACTER("character", "talk/character", List.of("view", "cell", "wrap")),
-        CONCERN("concern", "talk/concern", List.of("concern", "need", "wrap"));
+        CONCERN("concern", "talk/concern", List.of("concern", "need", "wrap")),
+        /**
+         * 리딩 녹음으로 시작한 코칭(SOMA-791). 영상 대신 리딩 녹음을 이은 소리와 대본을 받는다. 짧게 시작한다: 들린 것 하나와 대본 질문 →
+         * 배우 답으로 그 대사에서 해 볼 것 하나 → 정리하며 그 한 줄을 영상으로 찍어 더 깊게 받자고 권한다. 목적은 고르지 않는다.
+         */
+        READING("reading", "reading", List.of("hear", "try", "wrap"));
 
         final String id;
         /** 프롬프트 폴더({@code coaching/direct-video/purpose/<dir>}). */
@@ -67,6 +72,16 @@ final class PurposeLoop {
         /** 영상 없이 말로 하는 갈래인가. */
         boolean talk() {
             return dir.startsWith("talk/");
+        }
+
+        /** 리딩 녹음(소리)만 듣는 갈래인가(SOMA-791). 영상은 없고 소리는 있다. */
+        boolean listen() {
+            return this == READING;
+        }
+
+        /** 영상 없이 이어 가는 대화(말로·리딩 녹음). 정리 뒤 물음에 답하고, 질문 상한이어도 배우 물음에는 답한다. */
+        boolean conversational() {
+            return talk() || listen();
         }
 
         /** 인물 이해하기(영상 있음·없음). 인물 카드를 채운다. */
@@ -99,7 +114,8 @@ final class PurposeLoop {
             Map.entry("card", "결과 카드"), Map.entry("intent", "하려던 것"), Map.entry("method", "방법 고르기"),
             Map.entry("reason", "어떻게 막혔는지"), Map.entry("line", "어느 대사인지"), Map.entry("seen", "그곳에서 본 것"),
             Map.entry("view", "어떤 사람으로 봤는지"), Map.entry("cell", "인물 카드 채우기"), Map.entry("wrap", "정리"),
-            Map.entry("concern", "어떤 고민인지"), Map.entry("need", "무엇이 필요한지"));
+            Map.entry("concern", "어떤 고민인지"), Map.entry("need", "무엇이 필요한지"),
+            Map.entry("hear", "녹음에서 들린 것"), Map.entry("try", "그 대사에서 해 볼 것"));
 
     // ---- 이번 응답 정하기 ----
 
@@ -179,7 +195,7 @@ final class PurposeLoop {
         }
         // 영상 없이 말로: 정리한 뒤 이어 간 대화에서 배우가 물으면 정리를 다시 하지 않고 물음에만 답한다. 대화는 열어 둔다.
         // 2026-10-25·26 운영: 정리 뒤 "예시로 읽어줄 수 있어?", "드라마 연기를 따라 하고 싶으면 어떻게 하나요?"에 정리를 한 번 더 하고 닫았다.
-        if (purpose.talk() && !chip && "wrap".equals(current) && asksAfterWrap(kind, actorText)) {
+        if (purpose.conversational() && !chip && "wrap".equals(current) && asksAfterWrap(kind, actorText)) {
             return new Turn(purpose, current, "answer", false, false, label, false, null);
         }
         // 스무고개 막기(10/20 페르소나 시험): "잘 모르겠어요"가 대화에서 두 번째이거나, 배우가 "그래서 어떻게 해요?"처럼
@@ -215,7 +231,7 @@ final class PurposeLoop {
         boolean answering = "answer".equals(turn.doing()) || turn.end();
         // 질문 상한: 막힌 곳·인물은 코치가 두 번 물었으면 더 묻지 않고 정해 준다. 배우가 물은 것은 정리 첫 문장에서 답한다.
         // 영상 없이 말로는 배우가 물은 말이면 상한이어도 정리로 덮지 않고 답한다 — 영상이 없어 배우 물음이 코칭의 재료다. 응답 상한(REPLY_CAP)은 그대로 정리한다.
-        boolean talkAnswer = purpose.talk() && "answer".equals(turn.doing());
+        boolean talkAnswer = purpose.conversational() && "answer".equals(turn.doing());
         if (purpose != Purpose.EVALUATE && !turn.wrap() && !turn.end() && !talkAnswer && loop.path("questions").asInt(0) >= MAX_QUESTIONS) {
             turn = Turn.directing(purpose, label, false, turn.answeredStep(), dontKnow);
             if (kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION) turn = turn.asking();
@@ -233,7 +249,7 @@ final class PurposeLoop {
 
     /** 영상 없이 말로: 정리한 뒤 배우가 물어 답만 하는 응답. */
     static boolean answersAfterWrap(Turn turn) {
-        return turn != null && turn.purpose().talk() && "wrap".equals(turn.step()) && "answer".equals(turn.doing());
+        return turn != null && turn.purpose().conversational() && "wrap".equals(turn.step()) && "answer".equals(turn.doing());
     }
 
     private static final Pattern SENTENCE = Pattern.compile("[^.!?\\n]+[.!?~]*");
@@ -743,6 +759,7 @@ final class PurposeLoop {
 
     /** 영상 없는 모드 지시(SOMA-745). 영상이 있는 갈래면 빈 문자열이다 — 영상 있는 코치의 지시는 한 글자도 바뀌지 않는다. */
     private static String talkMode(Purpose purpose) {
+        if (purpose != null && purpose.listen()) return "\n\n" + DirectVideoPrompts.purposeResource("reading/mode");
         return purpose != null && purpose.talk() ? "\n\n" + DirectVideoPrompts.purposeResource("talk/mode") : "";
     }
 
@@ -769,7 +786,10 @@ final class PurposeLoop {
         if (loop.path("card").isObject()) lines.add("- 지금 결과 카드: " + loop.path("card"));
         if (loop.path("character_card").isObject()) lines.add("- 지금 인물 카드: " + loop.path("character_card"));
         if (loop.path("choices").size() > 0) lines.add("- 직전에 내준 버튼: " + loop.path("choices"));
-        if (turn.direct() && turn.purpose().talk()) {
+        if (turn.direct() && turn.purpose().listen()) {
+            lines.add("- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 녹음에서 들은 것과 "
+                    + "대본으로 직접 정한다: 어느 대사에서, 상대에게 무엇을 하며 읽어 볼지. 표정·몸은 말하지 않는다. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.");
+        } else if (turn.direct() && turn.purpose().talk()) {
             lines.add("- 배우가 방향을 달라고 했다(또는 거듭 모르겠다고 했다). 더 묻지 않는다. 배우가 아직 고르지 않은 것은 코치가 배우가 한 말과 "
                     + "배우가 적은 대사로 직접 정한다. 영상은 없다 — 본 것처럼 말하지 않는다. 배우가 물은 것이 있으면 첫 문장에서 그 물음에 답한다.");
         } else if (turn.direct()) {
@@ -813,6 +833,7 @@ final class PurposeLoop {
             case TALK_STUCK -> "막힌 곳 풀기 (영상 없이 말로)";
             case TALK_CHARACTER -> "인물 이해하기 (영상 없이 말로)";
             case CONCERN -> "고민 상담 (영상 없이 말로)";
+            case READING -> "리딩 녹음 코칭";
         };
     }
 

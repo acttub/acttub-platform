@@ -97,6 +97,9 @@ class PracticeController {
         RequestIdHeader.requireMatching(requestIdHeader, body.requestId());
         requireBlockagePair(body.blockage());
         AuthenticatedUser user = auth.gatedUser(request);
+        if (body.readingSessionId() != null) {
+            return PracticeResponse.of(practices.startFromReading(user.id(), body.requestId(), body.readingSessionId()));
+        }
         return PracticeResponse.of(practices.start(
                 user.id(), user.guest(), contract,
                 draft(body.requestId(), body.videoId(), body.scene(), body.blockage(), body.title(), body.sessionPurpose(),

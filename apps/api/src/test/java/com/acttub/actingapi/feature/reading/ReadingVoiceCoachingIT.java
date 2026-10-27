@@ -3,18 +3,13 @@ package com.acttub.actingapi.feature.reading;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
-
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.feature.reading.app.RecordingCoachModel;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -28,10 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -39,47 +31,29 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.acttub.actingapi.feature.coach.app.CoachReadingAudio;
 
 /**
- * reading.recording-coach(실험, SOMA-791) — 스위치를 켠 배포에서 리딩 회차의 녹음으로 두 차례 대화하는 것을 HTTP 와 실제
- * Postgres 로 본다. 모델은 가짜다(받은 녹음·차례를 적어 두고 정해 둔 답을 낸다).
+ * reading.voice-coaching(SOMA-791) — 스위치를 켠 배포에서 리딩 회차의 녹음으로 코칭 회차를 시작하는 것을 HTTP 와 실제 Postgres 로 본다.
+ * 리딩 완료 화면 카드 확인, 코칭 시작(무료·목적 reading·리딩 회차 하나에 하나), 코치가 읽는 재료 글.
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
     "ACCOUNT_CLEANUP_ENABLED=false",
     "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "ACTTUB_RECORDING_COACH_ENABLED=true"
+    "ACTTUB_READING_VOICE_COACHING_ENABLED=true"
 })
 @AutoConfigureMockMvc
-@Import({MutableClock.Fixture.class, ReadingRecordingCoachIT.FakeModel.class})
-class ReadingRecordingCoachIT {
+@Import(MutableClock.Fixture.class)
+class ReadingVoiceCoachingIT {
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
-        String name = PostgresContainerSupport.createDatabaseName("reading_recording_coach");
+        String name = PostgresContainerSupport.createDatabaseName("reading_voice_coaching");
         registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
         registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
         registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class FakeModel {
-        static final List<List<RecordingCoachModel.Turn>> CALLS = new CopyOnWriteArrayList<>();
-        static final List<Integer> CLIPS = new CopyOnWriteArrayList<>();
-
-        @Bean
-        @Primary
-        RecordingCoachModel fakeRecordingCoachModel() {
-            return (instruction, script, clips, turns) -> {
-                CALLS.add(turns);
-                CLIPS.add(clips.size());
-                String text = turns.size() == 1
-                        ? "<설계>\n들린 것\n고른 녹음: 2\n</설계>\n\"대사 3\"은 끝이 내려가요. 니나는 왜 이 말을 해요?"
-                        : "방금 말한 것과 녹음이 맞아요. 소리로는 여기까지예요. 이 한 줄만 영상으로 찍어 볼래요?";
-                return new RecordingCoachModel.Reply(text, "fake-model");
-            };
-        }
     }
 
     @Autowired
@@ -92,6 +66,8 @@ class ReadingRecordingCoachIT {
     JwtService jwt;
     @Autowired
     MutableClock clock;
+    @Autowired
+    CoachReadingAudio readingAudio;
 
     private UUID member;
     private String bearer;
@@ -107,104 +83,89 @@ class ReadingRecordingCoachIT {
                     VALUES (?,?,'v1',?,?,?,?)
                     """, UUID.randomUUID(), type, type + " 제목", type + " 본문", !"retention".equals(type), PUBLISHED);
         }
-        clock.set(Instant.parse("2026-10-21T08:00:00Z"));
-        FakeModel.CALLS.clear();
-        FakeModel.CLIPS.clear();
+        clock.set(Instant.parse("2026-10-27T08:00:00Z"));
         member = member();
         bearer = bearer(member);
         session = startSession(bearer);
     }
 
     @Test
-    @DisplayName("reading.recording-coach: 소리가 든 내 대사 녹음 셋으로 첫 차례를 만든다 — 숨은 칸은 응답에 없고 DB 에만 "
-            + "남으며, 같은 회차로 다시 부르면 모델을 부르지 않고 200 으로 같은 대화를 준다")
-    void start_createsTheFirstTurnOncePerSession() throws Exception {
-        recordAll("stt", "대사");
+    @DisplayName("reading.voice-coaching: 카드는 소리 든 내 대사 녹음이 3줄 이상일 때만 열린다 — 2줄·빈 녹음이면 닫히고, 남의 회차는 404")
+    void card_opensOnlyWithThreeAudibleLines() throws Exception {
+        record(3, "stt", "  ");
+        JsonNode silent = json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200);
+        assertThat(silent.path("available").booleanValue()).isFalse();
+        assertThat(silent.path("practice_id").isNull()).isTrue();
 
-        JsonNode created = json(post("/v2/recording-coaches").content(start(session)), bearer, 201);
-        assertThat(created.properties()).extracting(Map.Entry::getKey).containsExactlyInAnyOrder(
-                "id", "reading_session_id", "status", "messages", "video_line", "created_at", "updated_at");
-        assertThat(created.path("status").textValue()).isEqualTo("asked");
-        assertThat(created.path("messages")).hasSize(1);
-        assertThat(created.path("messages").get(0).path("role").textValue()).isEqualTo("coach");
-        assertThat(created.path("messages").get(0).path("text").textValue())
-                .isEqualTo("\"대사 3\"은 끝이 내려가요. 니나는 왜 이 말을 해요?");
-        assertThat(created.path("video_line").path("line_id").textValue()).isEqualTo(ninaLines.get(1).toString());
-        assertThat(created.path("video_line").path("text").textValue()).isEqualTo("대사 3");
-        assertThat(FakeModel.CLIPS).containsExactly(3);
+        jdbc.update("DELETE FROM reading_recordings");
+        record(2, "stt", "대사");
+        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200).path("available").booleanValue())
+                .isFalse();
+        JsonNode refused = json(post("/v2/practices").content(start(session)), bearer, 422);
+        assertThat(refused).isEqualTo(mapper.readTree("{\"detail\":\"reading_voice_not_enough_audio\"}"));
 
-        Map<String, Object> row = jdbc.queryForMap("SELECT * FROM reading_recording_coaches");
-        assertThat(row.get("user_id")).isEqualTo(member);
-        assertThat(row.get("model")).isEqualTo("fake-model");
-        assertThat(row.get("clip_count")).isEqualTo(3);
-        assertThat((String) row.get("first_design")).contains("고른 녹음: 2");
+        jdbc.update("DELETE FROM reading_recordings");
+        record(3, "stt", "대사");
+        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200).path("available").booleanValue())
+                .isTrue();
 
-        JsonNode again = json(post("/v2/recording-coaches").content(start(session)), bearer, 200);
-        assertThat(again.path("id").textValue()).isEqualTo(created.path("id").textValue());
-        assertThat(FakeModel.CALLS).hasSize(1);
+        String stranger = bearer(member());
+        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), stranger, 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"session_not_found\"}"));
+        assertThat(json(post("/v2/practices").content(start(session)), stranger, 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"session_not_found\"}"));
     }
 
     @Test
-    @DisplayName("reading.recording-coach: 배우 답을 받아 둘째 차례로 영상 권유까지 끝낸다 — 다시 보내도 모델을 다시 "
-            + "부르지 않는다")
-    void reply_finishesTheConversation() throws Exception {
-        recordAll("stt", "대사");
-        String id = json(post("/v2/recording-coaches").content(start(session)), bearer, 201).path("id").textValue();
+    @DisplayName("reading.voice-coaching: 시작하면 영상 없이 목적 reading 으로 바로 대화 회차가 생기고, 같은 리딩 회차로 다시 누르면 같은 회차다")
+    void start_createsOneConversingPracticePerReadingSession() throws Exception {
+        record(3, "stt", "대사");
 
-        JsonNode answered = json(post("/v2/recording-coaches/{id}/reply", id).content("{\"text\":\" 화가 나서요 \"}"),
-                bearer, 200);
-        assertThat(answered.path("status").textValue()).isEqualTo("answered");
-        assertThat(answered.path("messages")).hasSize(3);
-        assertThat(answered.path("messages").get(1).path("role").textValue()).isEqualTo("actor");
-        assertThat(answered.path("messages").get(1).path("text").textValue()).isEqualTo("화가 나서요");
-        assertThat(answered.path("messages").get(2).path("text").textValue()).endsWith("찍어 볼래요?");
+        JsonNode created = json(post("/v2/practices").content(start(session)), bearer, 201);
+        assertThat(created.path("video_id").isNull()).isTrue();
+        assertThat(created.path("session_purpose").textValue()).isEqualTo("reading");
+        assertThat(created.path("stage").textValue()).isEqualTo("conversing");
+        UUID practice = UUID.fromString(created.path("id").textValue());
+        assertThat(jdbc.queryForObject("SELECT reading_session_id FROM practices WHERE id=?", UUID.class, practice))
+                .isEqualTo(session);
+        assertThat(jdbc.queryForObject("SELECT experience_version FROM practices WHERE id=?", String.class, practice))
+                .isEqualTo("three_layers_v1");
 
-        json(post("/v2/recording-coaches/{id}/reply", id).content("{\"text\":\"또\"}"), bearer, 200);
-        assertThat(FakeModel.CALLS).hasSize(2);
-        assertThat(json(get("/v2/recording-coaches/{id}", id), bearer, 200).path("messages")).hasSize(3);
+        JsonNode again = json(post("/v2/practices").content(start(session)), bearer, 201);
+        assertThat(again.path("id").textValue()).isEqualTo(practice.toString());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practices", Integer.class)).isEqualTo(1);
+        assertThat(json(get("/v2/reading/sessions/{id}/voice-coaching", session), bearer, 200).path("practice_id").textValue())
+                .isEqualTo(practice.toString());
+
+        CoachReadingAudio.Prepared material = readingAudio.prepare(member, practice, false);
+        assertThat(material.audio()).isNull();
+        assertThat(material.mimeType()).isEqualTo("audio/wav");
+        assertThat(material.material()).startsWith("[리딩 녹음]\n[대본]\n1. 니나(내 대사, 녹음 1): 대사 1\n2. 트레플레프(상대 대사): 대사 2\n")
+                .contains("- 녹음 3: ", "\"대사 5\"", "[서버가 잰 소리]");
+        assertThat(readingAudio.prepare(bearerless(), practice, false)).as("남의 회차는 재료가 없다").isNull();
     }
 
     @Test
-    @DisplayName("reading.recording-coach: 소리가 든 녹음이 셋보다 적으면 422 recording_coach_not_enough_audio — 받아쓴 "
-            + "글이 빈 녹음은 소리가 없는 것으로 센다")
-    void start_needsThreeAudibleLines() throws Exception {
-        recordAll("stt", " ");
-        MockHttpServletResponse response = perform(post("/v2/recording-coaches").content(start(session)), bearer, 422);
-        assertThat(response.getContentAsString()).contains("recording_coach_not_enough_audio");
-        assertThat(FakeModel.CALLS).isEmpty();
+    @DisplayName("reading.voice-coaching: 요청은 리딩 회차만 싣는다 — 영상이나 목적을 같이 보내면 422 배열이고 아무것도 남지 않는다")
+    void start_rejectsAVideoOrPurposeAlongside() throws Exception {
+        record(3, "stt", "대사");
+        ObjectNode body = (ObjectNode) mapper.readTree(start(session));
+        body.put("session_purpose", "character");
+        perform(post("/v2/practices").content(body.toString()), bearer, 422);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practices", Integer.class)).isZero();
     }
 
-    @Test
-    @DisplayName("reading.recording-coach: 남의 회차는 404 session_not_found, 남의 대화는 404 recording_coach_not_found")
-    void othersAreNotFound() throws Exception {
-        recordAll("none", null);
-        String id = json(post("/v2/recording-coaches").content(start(session)), bearer, 201).path("id").textValue();
-        String other = bearer(member());
-
-        assertThat(perform(post("/v2/recording-coaches").content(start(session)), other, 404).getContentAsString())
-                .contains("session_not_found");
-        assertThat(perform(get("/v2/recording-coaches/{id}", id), other, 404).getContentAsString())
-                .contains("recording_coach_not_found");
-    }
-
-    @Test
-    @DisplayName("reading.recording-coach: 회차가 지워지면 대화도 함께 지워진다(ON DELETE CASCADE)")
-    void deletingTheSessionDeletesTheConversation() throws Exception {
-        recordAll("stt", "대사");
-        json(post("/v2/recording-coaches").content(start(session)), bearer, 201);
-
-        jdbc.update("DELETE FROM reading_recordings WHERE reading_session_id=?", session);
-        jdbc.update("DELETE FROM reading_sessions WHERE id=?", session);
-
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_recording_coaches", Integer.class)).isZero();
+    private UUID bearerless() {
+        return UUID.randomUUID();
     }
 
     private String start(UUID sessionId) {
-        return "{\"reading_session_id\":\"" + sessionId + "\"}";
+        UUID requestId = UUID.randomUUID();
+        return "{\"request_id\":\"" + requestId + "\",\"reading_session_id\":\"" + sessionId + "\"}";
     }
 
-    private void recordAll(String source, String transcript) {
-        for (UUID line : ninaLines) {
+    private void record(int count, String source, String transcript) {
+        for (UUID line : ninaLines.subList(0, count)) {
             jdbc.update("""
                     INSERT INTO reading_recordings(id,user_id,reading_session_id,line_id,request_id,attempt_no,object_key,
                                                    content_type,byte_size,duration_ms,transcript,transcript_source)

@@ -130,10 +130,12 @@ public final class ActorJournal {
     public static ObjectNode modelInput(ObjectMapper json, CoachSessionSnapshot session, PurposeView purpose, Answers answers) {
         ObjectNode input = json.createObjectNode();
         String rawPurpose = session.sessionPurpose();
-        boolean noVideo = rawPurpose != null && rawPurpose.startsWith("talk:");
+        // 리딩 녹음으로 시작한 회차(SOMA-791)도 영상이 없다. 소리만 들었다는 것을 따로 남긴다.
+        boolean readingVoice = "reading".equals(rawPurpose);
+        boolean noVideo = rawPurpose != null && rawPurpose.startsWith("talk:") || readingVoice;
         ObjectNode meta = input.putObject("session");
-        meta.put("input_mode", noVideo ? "no_video" : "video");
-        String purposeId = rawPurpose == null ? null : noVideo ? rawPurpose.substring("talk:".length()) : rawPurpose;
+        meta.put("input_mode", readingVoice ? "reading_voice" : noVideo ? "no_video" : "video");
+        String purposeId = rawPurpose == null ? null : noVideo && !readingVoice ? rawPurpose.substring("talk:".length()) : rawPurpose;
         if (purposeId == null) meta.putNull("purpose"); else meta.put("purpose", purposeId);
         if (session.closeReason() == null) meta.putNull("end_reason"); else meta.put("end_reason", session.closeReason());
 
