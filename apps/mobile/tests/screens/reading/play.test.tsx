@@ -230,7 +230,7 @@ test('현재 대본이나 회차가 없으면 내 대본으로 돌아가는 길�
 
 test('회차 구간의 줄이 대본에 없으면 실행하지 않는다', async () => {
   await startPlay({ start_line_id: 'gone' }, undefined, { begin: false });
-  expect(screen.getByText('대본이 없어요.')).toBeOnTheScreen();
+  expect(screen.getByText('대본이 없어요')).toBeOnTheScreen();
 });
 
 test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 넘기고, 끝까지 가면 완료 화면을 보인다', async () => {
