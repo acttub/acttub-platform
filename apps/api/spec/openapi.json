@@ -9813,26 +9813,6 @@
         "required" : [ "actor_words", "conversation_id", "corrections", "created_at", "fallback", "format", "id", "kind", "source_revision", "summary_quotes", "tags" ],
         "title" : "CoachNote"
       },
-      "CoachNoteLine" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "line" : {
-            "type" : "string",
-            "title" : "Line"
-          },
-          "seen" : {
-            "type" : "string",
-            "title" : "Seen"
-          },
-          "try" : {
-            "type" : "string",
-            "title" : "Try"
-          }
-        },
-        "required" : [ "line", "seen", "try" ],
-        "title" : "CoachNoteLine"
-      },
       "CoachNoteQuote" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -10032,6 +10012,26 @@
         },
         "required" : [ "conversation", "message" ],
         "title" : "CoachTurnResult"
+      },
+      "CoachNoteLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "line" : {
+            "type" : "string",
+            "title" : "Line"
+          },
+          "seen" : {
+            "type" : "string",
+            "title" : "Seen"
+          },
+          "try" : {
+            "type" : "string",
+            "title" : "Try"
+          }
+        },
+        "required" : [ "line", "seen", "try" ],
+        "title" : "CoachNoteLine"
       },
       "CoachReplyRequest" : {
         "type" : "object",

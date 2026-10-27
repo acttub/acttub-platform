@@ -255,6 +255,7 @@ COLUMN coach_notes.format ord=3 type=text len=- null=NO default=-
 COLUMN coach_notes.id ord=1 type=uuid len=- null=NO default=-
 COLUMN coach_notes.kind ord=4 type=text len=- null=NO default=-
 COLUMN coach_notes.legacy_report ord=13 type=jsonb len=- null=YES default=-
+COLUMN coach_notes.line_notes ord=15 type=jsonb len=- null=NO default='[]'::jsonb
 COLUMN coach_notes.next_take ord=7 type=text len=- null=YES default=-
 COLUMN coach_notes.source_revision ord=12 type=int4 len=- null=NO default=-
 COLUMN coach_notes.summary_quotes ord=6 type=jsonb len=- null=NO default='[]'::jsonb
