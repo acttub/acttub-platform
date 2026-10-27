@@ -130,7 +130,7 @@ export default function GuestTransferScreen() {
               setError(null);
             }}
             placeholder={'0'.repeat(TRANSFER_CODE_LENGTH)}
-            placeholderTextColor={palette.checkOff}
+            placeholderTextColor={palette.textDisabled}
             keyboardType="number-pad"
             maxLength={TRANSFER_CODE_LENGTH}
             autoFocus
@@ -168,7 +168,7 @@ export default function GuestTransferScreen() {
                   <Feather
                     name={selected ? 'check-circle' : 'circle'}
                     size={18}
-                    color={selected ? palette.blue : palette.checkOff}
+                    color={selected ? palette.blue : palette.textDisabled}
                   />
                   <View style={styles.optionBody}>
                     <Text style={styles.optionTitle}>
@@ -204,8 +204,8 @@ const styles = StyleSheet.create({
   // pen S7.1 — 안쪽 24, 줄 사이 14. 제목 22/800, 설명 14/1.5, 안내 12.5/1.44.
   content: { flexGrow: 1, padding: 24, gap: 14 },
   heading: { fontSize: 22, fontWeight: '800', color: palette.text, lineHeight: 30 },
-  body: { fontSize: 14, lineHeight: 21, color: palette.textDim },
-  hint: { fontSize: 12.5, lineHeight: 18, color: palette.textFaint },
+  body: { fontSize: 14, lineHeight: 21, color: palette.textSub },
+  hint: { fontSize: 12.5, lineHeight: 18, color: palette.textMeta },
   center: { textAlign: 'center' },
   codeInput: {
     marginTop: 8,
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     top: '22%',
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderRadius: 18,
     padding: 20,
     gap: 12,

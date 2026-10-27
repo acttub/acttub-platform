@@ -41,7 +41,7 @@ export default function TabLayout() {
         backBehavior="history"
         screenOptions={{
           tabBarActiveTintColor: palette.blue,
-          tabBarInactiveTintColor: palette.textFaint,
+          tabBarInactiveTintColor: palette.iconFaint,
           tabBarStyle: firstTime ? TAB_BAR_HIDDEN : tabBarStyle,
           tabBarShowLabel: false,
           headerShown: false,

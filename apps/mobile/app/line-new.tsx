@@ -120,7 +120,7 @@ export default function LineNewScreen() {
             <TextInput
               style={styles.lineInput}
               placeholder={t('lineNew.linePh')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
               value={draft.line}
               onChangeText={(line) => set({ line })}
               multiline
@@ -143,7 +143,7 @@ export default function LineNewScreen() {
             <TextInput
               style={styles.input}
               placeholder={t('lineNew.workPh')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
               value={draft.work}
               onChangeText={(work) => set({ work })}
               autoFocus
@@ -152,7 +152,7 @@ export default function LineNewScreen() {
             <TextInput
               style={styles.input}
               placeholder={t('lineNew.rolePh')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
               value={draft.character}
               onChangeText={(character) => set({ character })}
             />
@@ -160,7 +160,7 @@ export default function LineNewScreen() {
             <TextInput
               style={[styles.input, styles.noteInput]}
               placeholder={t('lineNew.notePh')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
               value={draft.sceneNote}
               onChangeText={(sceneNote) => set({ sceneNote })}
               multiline
@@ -221,11 +221,11 @@ const styles = StyleSheet.create({
   dots: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center' },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.border },
   dotOn: { width: 18, backgroundColor: palette.blue },
-  stepText: { fontSize: 12.5, fontWeight: '700', color: palette.textFaint },
-  fieldLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted, marginTop: 10 },
+  stepText: { fontSize: 12.5, fontWeight: '700', color: palette.textMeta },
+  fieldLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMeta, marginTop: 10 },
   content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 10 },
   title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
-  sub: { fontSize: 14, color: palette.textDim, lineHeight: 22, paddingBottom: 6 },
+  sub: { fontSize: 14, color: palette.textSub, lineHeight: 22, paddingBottom: 6 },
   label: { fontSize: 17, fontWeight: '800', color: palette.text, marginTop: 18 },
   lineInput: {
     minHeight: 120,
@@ -238,9 +238,9 @@ const styles = StyleSheet.create({
   },
   input: { borderRadius: 12, backgroundColor: palette.bgSoft, padding: 14, fontSize: 15, color: palette.text },
   noteInput: { minHeight: 90 },
-  counter: { fontSize: 12, color: palette.textFaint, textAlign: 'right' },
+  counter: { fontSize: 12, color: palette.textMeta, textAlign: 'right' },
   hintRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  hint: { fontSize: 12.5, color: palette.textFaint },
+  hint: { fontSize: 12.5, color: palette.textMeta },
   durationRow: { flexDirection: 'row', gap: 10, paddingTop: 6 },
   duration: {
     flex: 1,
@@ -252,11 +252,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   durationOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  durationText: { fontSize: 15, fontWeight: '700', color: palette.textDim },
+  durationText: { fontSize: 15, fontWeight: '700', color: palette.textSub },
   durationTextOn: { color: palette.blueDeep },
   preview: { backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6, marginTop: 14 },
   previewLine: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 25 },
-  previewMeta: { fontSize: 12.5, color: palette.textMuted },
-  previewNote: { fontSize: 12.5, color: palette.textFaint, lineHeight: 19 },
+  previewMeta: { fontSize: 12.5, color: palette.textMeta },
+  previewNote: { fontSize: 12.5, color: palette.textMeta, lineHeight: 19 },
   error: { fontSize: 13.5, fontWeight: '700', color: palette.danger, marginTop: 8 },
 });

@@ -69,14 +69,14 @@ export default function ProManageScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  loading: { marginTop: 80, textAlign: 'center', fontSize: 14, color: palette.textFaint },
+  loading: { marginTop: 80, textAlign: 'center', fontSize: 14, color: palette.textMeta },
   manageLink: { fontSize: 14, fontWeight: '700', color: palette.blue, paddingHorizontal: 4, paddingVertical: 6 },
   body: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, gap: 18 },
   plan: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 18, gap: 8 },
   planWarn: { backgroundColor: palette.dangerSoft },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   planTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  planLine: { fontSize: 14, color: palette.textStrong, lineHeight: 20 },
+  planLine: { fontSize: 14, color: palette.text, lineHeight: 20 },
   benefits: { paddingHorizontal: 4 },
-  note: { fontSize: 13, color: palette.textFaint, lineHeight: 19, paddingHorizontal: 4 },
+  note: { fontSize: 13, color: palette.textMeta, lineHeight: 19, paddingHorizontal: 4 },
 });

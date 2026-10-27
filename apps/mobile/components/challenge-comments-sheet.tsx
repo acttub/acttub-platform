@@ -186,7 +186,7 @@ export function ChallengeCommentsSheet({
               <TextInput
                 style={styles.input}
                 placeholder={t('comments.placeholder')}
-                placeholderTextColor={palette.textFaint}
+                placeholderTextColor={palette.textMeta}
                 value={draft}
                 onChangeText={setDraft}
                 maxLength={COMMENT_MAX}
@@ -200,7 +200,7 @@ export function ChallengeCommentsSheet({
                 accessibilityRole="button"
                 accessibilityLabel={t('comments.send')}>
                 {/* SOMA-828: 작은 원형 버튼이라 문구 대신 아이콘을 그대로 둔다(보내는 동안 비활성) */}
-                  <Feather name="arrow-up" size={18} color="#FFFFFF" />
+                  <Feather name="arrow-up" size={18} color={ready ? palette.onAccent : palette.textDisabled} />
               </Pressable>
             </View>
             {/* 글자 수는 한도 가까이 갔을 때만 보인다 — 평소엔 입력줄만. */}
@@ -224,16 +224,16 @@ const styles = StyleSheet.create({
   listContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, gap: 18 },
   emptyBox: { alignItems: 'center', paddingVertical: 48, gap: 6 },
   emptyTitle: { color: palette.text, fontSize: 17, fontWeight: '800' },
-  empty: { color: palette.textFaint, fontSize: 13.5, textAlign: 'center' },
+  empty: { color: palette.textMeta, fontSize: 13.5, textAlign: 'center' },
   row: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 13, fontWeight: '900', color: palette.blueDeep },
   body: { flex: 1, gap: 3 },
-  meta: { fontSize: 12, color: palette.textFaint },
+  meta: { fontSize: 12, color: palette.textMeta },
   name: { fontSize: 12.5, fontWeight: '800', color: palette.text },
   text: { fontSize: 14, lineHeight: 20, color: palette.text },
-  hidden: { fontStyle: 'italic', color: palette.textFaint },
-  action: { fontSize: 12, fontWeight: '700', color: palette.textFaint, marginTop: 4 },
+  hidden: { fontStyle: 'italic', color: palette.textMeta },
+  action: { fontSize: 12, fontWeight: '700', color: palette.textMeta, marginTop: 4 },
   inputBar: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.border,
@@ -253,6 +253,6 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, minHeight: 34, maxHeight: 110, paddingVertical: 7, fontSize: 14, color: palette.text },
   send: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  sendOff: { backgroundColor: palette.blueLine },
-  counter: { fontSize: 11, color: palette.textFaint, textAlign: 'right', paddingTop: 4, paddingRight: 6 },
+  sendOff: { backgroundColor: palette.border },
+  counter: { fontSize: 11, color: palette.textMeta, textAlign: 'right', paddingTop: 4, paddingRight: 6 },
 });

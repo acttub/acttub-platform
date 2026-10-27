@@ -142,13 +142,13 @@ export default function AuditionsScreen() {
         <>
           <View style={styles.controls}>
             <View style={styles.searchBox}>
-              <Feather name="search" size={15} color={palette.textFaint} />
+              <Feather name="search" size={15} color={palette.iconFaint} />
               <TextInput
                 style={styles.search}
                 value={filters.query}
                 onChangeText={(query) => setFilters((was) => ({ ...was, query }))}
                 placeholder={t('auditions.searchPh')}
-                placeholderTextColor={palette.textFaint}
+                placeholderTextColor={palette.textMeta}
                 returnKeyType="search"
                 clearButtonMode="while-editing"
               />
@@ -228,7 +228,7 @@ export default function AuditionsScreen() {
             }
             ListFooterComponent={
               <View style={styles.footer}>
-                <Feather name="info" size={13} color={palette.textFaint} />
+                <Feather name="info" size={13} color={palette.iconFaint} />
                 <Text style={styles.footerText}>{t('auditions.footer')}</Text>
               </View>
             }
@@ -322,7 +322,7 @@ function AuditionCard({
         accessibilityLabel={starred ? t('auditions.unstarA11y') : t('auditions.starA11y')}
         ph-label="auditions_star"
         style={styles.star}>
-        <Ionicons name={starred ? 'star' : 'star-outline'} size={20} color={starred ? palette.hintIcon : palette.checkOff} />
+        <Ionicons name={starred ? 'star' : 'star-outline'} size={20} color={starred ? palette.flame : palette.textDisabled} />
       </Pressable>
     </Pressable>
   );
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   headerTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  headerMeta: { paddingHorizontal: 24, paddingBottom: 6, fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
+  headerMeta: { paddingHorizontal: 24, paddingBottom: 6, fontSize: 12.5, fontWeight: '600', color: palette.textMeta },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   link: { fontSize: 13, fontWeight: '800', color: palette.blue },
 
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 46,
     borderRadius: 14,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
   },
@@ -388,28 +388,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 30,
     borderRadius: 15,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
     justifyContent: 'center',
   },
   chipOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  chipText: { fontSize: 11.5, fontWeight: '800', color: palette.textDim },
-  chipCount: { fontWeight: '600', color: palette.textFaint },
+  chipText: { fontSize: 11.5, fontWeight: '800', color: palette.textSub },
+  chipCount: { fontWeight: '600', color: palette.textMeta },
   chipTextOn: { color: '#FFFFFF' },
 
   list: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 72 },
-  sectionTitle: { marginTop: 14, marginBottom: 10, fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
+  sectionTitle: { marginTop: 14, marginBottom: 10, fontSize: 12.5, fontWeight: '800', color: palette.textMeta },
   empty: {
     paddingVertical: 48,
     textAlign: 'center',
     fontSize: 13,
     fontWeight: '600',
-    color: palette.textFaint,
+    color: palette.textMeta,
     lineHeight: 20,
   },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 22 },
-  footerText: { fontSize: 11.5, fontWeight: '600', color: palette.textFaint },
+  footerText: { fontSize: 11.5, fontWeight: '600', color: palette.textMeta },
 
   card: {
     marginBottom: 10,
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     paddingLeft: 14,
     paddingRight: 10,
     borderRadius: 18,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     shadowColor: '#191F28',
     shadowOpacity: 0.06,
     shadowRadius: 20,
@@ -441,10 +441,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   tagNew: { backgroundColor: palette.blue, color: '#FFFFFF' },
-  tagCategory: { backgroundColor: palette.bgSoft, color: palette.textDim },
-  source: { flexShrink: 1, fontSize: 11, fontWeight: '600', color: palette.textFaint },
+  tagCategory: { backgroundColor: palette.bgSoft, color: palette.textSub },
+  source: { flexShrink: 1, fontSize: 11, fontWeight: '600', color: palette.textMeta },
   title: { fontSize: 14.5, fontWeight: '700', color: palette.text, lineHeight: 20 },
-  meta: { fontSize: 12, fontWeight: '500', color: palette.textFaint },
+  meta: { fontSize: 12, fontWeight: '500', color: palette.textMeta },
   star: { padding: 4 },
 
   dday: { width: 62, paddingVertical: 8, borderRadius: 12, alignItems: 'center', gap: 2 },
@@ -456,6 +456,6 @@ const styles = StyleSheet.create({
   ddayTextUrgent: { color: palette.danger },
   ddayTextSoon: { color: palette.amber },
   ddayTextOk: { color: palette.blue },
-  ddayTextNone: { fontSize: 12.5, color: palette.textDim },
-  ddaySub: { fontSize: 9.5, fontWeight: '600', color: palette.textFaint },
+  ddayTextNone: { fontSize: 12.5, color: palette.textSub },
+  ddaySub: { fontSize: 9.5, fontWeight: '600', color: palette.textMeta },
 });

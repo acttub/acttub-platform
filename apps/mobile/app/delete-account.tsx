@@ -124,7 +124,7 @@ export default function DeleteAccountScreen() {
           <Feather
             name="check-circle"
             size={20}
-            color={acknowledged ? palette.danger : palette.checkOff}
+            color={acknowledged ? palette.danger : palette.textDisabled}
           />
           <Text style={[styles.ackText, acknowledged && styles.ackTextOn]}>
             {t('deleteAccount.acknowledge')}
@@ -168,23 +168,23 @@ const styles = StyleSheet.create({
   // pen S17.1 — 좌우 20, 위 20. 제목 21/900, 이메일 13.5/600, 묶음마다 위 24 + 윗선 · 안쪽 16.
   body: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 4 },
   title: { fontSize: 21, fontWeight: '900', color: palette.text, lineHeight: 31 },
-  account: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint, marginTop: 6 },
+  account: { fontSize: 13.5, fontWeight: '600', color: palette.textMeta, marginTop: 6 },
 
   section: {
     marginTop: 24,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: palette.borderSoft,
+    borderTopColor: palette.border,
     gap: 8,
   },
-  sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textFaint },
+  sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textMeta },
   bullet: { flexDirection: 'row', gap: 8 },
-  dot: { fontSize: 14, fontWeight: '900', color: palette.checkOff, lineHeight: 23 },
+  dot: { fontSize: 14, fontWeight: '900', color: palette.textDisabled, lineHeight: 23 },
   bulletText: {
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-    color: palette.textDim,
+    color: palette.textSub,
     lineHeight: 23,
   },
   storeLink: { fontSize: 14, fontWeight: '700', color: palette.blue, paddingVertical: 4 },
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   ackOn: { backgroundColor: palette.dangerSoft },
-  ackText: { flex: 1, fontSize: 14.5, fontWeight: '800', color: palette.textDim },
+  ackText: { flex: 1, fontSize: 14.5, fontWeight: '800', color: palette.textSub },
   ackTextOn: { color: palette.text },
 
   danger: { marginTop: 12 },

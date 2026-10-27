@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   mascot: { width: 52, height: 58 },
   title: { flex: 1, fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text },
   nextCard: { gap: 6, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: palette.bgSoft },
-  nextLabel: { fontSize: 12, fontWeight: '800', color: palette.textMuted },
+  nextLabel: { fontSize: 12, fontWeight: '800', color: palette.textMeta },
   nextText: { fontSize: 16, fontWeight: '800', lineHeight: 23, color: palette.text },
   reminder: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: palette.blueSoft },
   reminderText: { flex: 1, fontSize: 14, fontWeight: '700', color: palette.blueDeep },

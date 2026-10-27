@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'transparent' },
   card: {
     position: 'absolute',
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#000',

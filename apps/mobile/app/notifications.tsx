@@ -167,20 +167,20 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
-  empty: { color: palette.textDim, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
-  // pen S/NotifRow — 위아래 18, 아래 선 #EDF0F3, 칸 사이 14.
+  empty: { color: palette.textSub, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
+  // pen S/NotifRow — 위아래 18, 아래 선 `border`, 칸 사이 14.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
+    borderBottomColor: palette.border,
   },
   rowBody: { flex: 1, gap: 4 },
-  rowText: { fontSize: 15.5, fontWeight: '400', color: palette.textDim, lineHeight: 22 },
+  rowText: { fontSize: 15.5, fontWeight: '400', color: palette.textSub, lineHeight: 22 },
   rowTextUnread: { fontWeight: '800', color: palette.text },
-  rowMeta: { fontSize: 13, color: palette.textFaint },
+  rowMeta: { fontSize: 13, color: palette.textMeta },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.blue },
   keep: { fontSize: 12, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', paddingTop: 16 },
 });

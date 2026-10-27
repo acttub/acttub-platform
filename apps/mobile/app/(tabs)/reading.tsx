@@ -382,13 +382,13 @@ export default function ReadingList() {
           )}
           {/* pen R1.3·R1.4 — 검색칸은 「업로드한 대본」 머리 아래, 목록 바로 위에 둔다. */}
           <View style={styles.search}>
-            <Feather name="search" size={16} color={palette.textFaint} />
+            <Feather name="search" size={16} color={palette.iconFaint} />
             <TextInput
               style={styles.searchInput}
               value={q}
               onChangeText={setQ}
               placeholder={t('reading.searchPlaceholder')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
             />
           </View>
           {loading && !list && (
@@ -415,7 +415,7 @@ export default function ReadingList() {
                     </Text>
                   </View>
                   <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_script_more" onPress={(e) => more(s, e)}>
-                    <Feather name="more-horizontal" size={18} color={palette.textFaint} />
+                    <Feather name="more-horizontal" size={18} color={palette.iconFaint} />
                   </Pressable>
                 </Pressable>
               );
@@ -513,18 +513,18 @@ const styles = StyleSheet.create({
   resumeEyebrow: { color: 'rgba(255,255,255,0.88)', fontSize: 13, fontWeight: '700', lineHeight: 20 },
   resumeTitle: { color: palette.onAccent, maxWidth: '78%', fontSize: 22, fontWeight: '900', lineHeight: 31 },
   resumeHint: { color: 'rgba(255,255,255,0.85)', maxWidth: '64%', fontSize: 12.5, fontWeight: '600', lineHeight: 19 },
-  resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.card, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
+  resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.bg, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
   resumeBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
   pressed: { opacity: 0.85 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
   sectionTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 24 },
-  sectionCount: { color: palette.textFaint, fontSize: 13, fontWeight: '600' },
+  sectionCount: { color: palette.textMeta, fontSize: 13, fontWeight: '600' },
   list: { gap: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 4 },
   rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 6 },
   rowTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 24 },
-  rowMeta: { color: palette.textFaint, fontSize: 13, fontWeight: '600', lineHeight: 20 },
+  rowMeta: { color: palette.textMeta, fontSize: 13, fontWeight: '600', lineHeight: 20 },
   moreBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  noMatch: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
+  noMatch: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
 });

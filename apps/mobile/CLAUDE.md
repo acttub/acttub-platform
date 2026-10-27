@@ -7,6 +7,7 @@
 3. 작업 갈래에 맞는 정본을 읽습니다.
    - **네이티브 설정·플러그인** → `app.json`, `app.config.js`, `plugins/*`
    - **EAS 빌드·제출·Firebase 파일** → `eas.json`, `.easignore`, `app.config.js`
+   - **화면·부품·색·글자** → [DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md). 「의도된 차이」는 하나로 맞추지 않습니다.
    - **연습 화면 대응** → [PRACTICE-FLOW.md](docs/PRACTICE-FLOW.md)의 화면 표
    - **테스트·CI** → 루트 `.github/workflows/ci.yml`의 `mobile` 잡
    - **API 계약 변경** → [계약 변경 절차](../api/CONTRACT.md#계약-변경-절차)의 모바일 소비자 확인

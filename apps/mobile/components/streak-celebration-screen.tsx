@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   dotDone: { backgroundColor: '#FFFFFF' },
   dotFill: { ...StyleSheet.absoluteFillObject, borderRadius: DOT / 2, backgroundColor: '#FFFFFF' },
-  check: { fontSize: 16, fontWeight: '900', color: palette.flameDeep },
+  check: { fontSize: 16, fontWeight: '900', color: palette.text },
   next: {
     fontSize: 16,
     fontWeight: '700',
@@ -186,5 +186,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pressed: { opacity: 0.9 },
-  ctaText: { fontSize: 17, fontWeight: '900', color: palette.flameDeep },
+  ctaText: { fontSize: 17, fontWeight: '900', color: palette.text },
 });

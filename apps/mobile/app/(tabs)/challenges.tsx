@@ -298,14 +298,14 @@ export default function ChallengesScreen() {
             }}
             accessibilityRole="button"
             accessibilityLabel={t('challenges.resultBanner')}>
-            <Feather name="award" size={20} color={palette.flameDeep} />
+            <Feather name="award" size={20} color={palette.flame} />
             <View style={styles.flex}>
               <Text style={styles.bannerTitle}>{t('challenges.resultBanner')}</Text>
               <Text style={styles.bannerSub}>
                 {t('challenges.resultBannerSub', { count: Math.min(3, lastWeek.entry_count) })}
               </Text>
             </View>
-            <Feather name="chevron-right" size={20} color={palette.checkOff} />
+            <Feather name="chevron-right" size={20} color={palette.textDisabled} />
           </Pressable>
         )}
 
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.flameSoft,
   },
   bannerTitle: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
-  bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMuted, lineHeight: 18, marginTop: 6 },
+  bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMeta, lineHeight: 18, marginTop: 6 },
   weekHero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, gap: 10, overflow: 'hidden' },
   weekHeroTop: { gap: 10 },
   weekChip: {
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   weekLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
-  names: { fontSize: 11, fontWeight: '500', color: palette.textMuted, lineHeight: 16, flexShrink: 1 },
+  names: { fontSize: 11, fontWeight: '500', color: palette.textMeta, lineHeight: 16, flexShrink: 1 },
   likes: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   hero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, minHeight: 300, gap: 10, justifyContent: 'flex-end', overflow: 'hidden' },
   heroTop: { flex: 1, gap: 10, justifyContent: 'flex-end' },
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
   heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.18)' },
   sameHead: { gap: 4, marginTop: 6 },
   sameTitle: { fontSize: 18, fontWeight: '800', color: palette.text, lineHeight: 24 },
-  sameMeta: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
+  sameMeta: { fontSize: 13, fontWeight: '500', color: palette.textMeta, lineHeight: 20 },
   pick: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, borderWidth: 1, borderColor: palette.border, paddingVertical: 17, paddingHorizontal: 18 },
   pickOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   pickText: { fontSize: 16, fontWeight: '700', color: palette.text },
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
   tabRow: { flexDirection: 'row', gap: 4, paddingTop: 4 },
   tab: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 18 },
   tabOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 16 },
-  tabText: { fontSize: 15, fontWeight: '600', color: palette.textFaint, lineHeight: 23 },
+  tabText: { fontSize: 15, fontWeight: '600', color: palette.textMeta, lineHeight: 23 },
   tabTextOn: { fontWeight: '800', color: palette.blue },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
   row: { borderRadius: 18, gap: 12, padding: 16, backgroundColor: palette.onAccent, borderWidth: 1, borderColor: '#E8EDF5' },
@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, minWidth: 0, gap: 9 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   line: { fontSize: 17, fontWeight: '800', color: palette.text, lineHeight: 25 },
-  meta: { flex: 1, fontSize: 12, fontWeight: '500', color: palette.textFaint, lineHeight: 18 },
+  meta: { flex: 1, fontSize: 12, fontWeight: '500', color: palette.textMeta, lineHeight: 18 },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   avatars: { flexDirection: 'row' },
   avatar: {
@@ -688,7 +688,7 @@ const styles = StyleSheet.create({
   performGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.onAccent, alignItems: 'center', justifyContent: 'center' },
   performText: { fontSize: 15, fontWeight: '700', color: palette.blue },
   empty: { paddingVertical: 48, alignItems: 'center' },
-  emptyText: { fontSize: 14.5, color: palette.textDim, textAlign: 'center', lineHeight: 23 },
+  emptyText: { fontSize: 14.5, color: palette.textSub, textAlign: 'center', lineHeight: 23 },
   registerBtn: {
     flexDirection: 'row',
     alignItems: 'center',

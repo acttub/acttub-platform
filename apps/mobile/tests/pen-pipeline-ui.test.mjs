@@ -27,7 +27,7 @@ test('공통 부품: 버튼·헤더·진행 머리·말풍선이 pen 00-componen
   const progress = read('components/ui/step-header.tsx');
   assert.match(progress, /progress: \{ height: 44, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 18 \}/);
   assert.match(progress, /height: 7,\s*marginLeft: 21,\s*marginRight: 11,/);
-  assert.match(progress, /count: \{ fontSize: 15, fontWeight: '700', color: palette\.textFaint \}/);
+  assert.match(progress, /count: \{ fontSize: 15, fontWeight: '700', color: palette\.textMeta \}/);
 
   const bubble = read('components/ui/mascot-bubble.tsx');
   assert.match(bubble, /MASCOT_SIZE\.bubble/);
@@ -46,7 +46,7 @@ test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 �
 
   const summary = read('components/ui/summary-row.tsx');
   assert.match(summary, /padding: 15,\s*borderRadius: 16,\s*borderWidth: 1,\s*borderColor: palette\.border,/);
-  assert.match(summary, /label: \{ fontSize: 14, fontWeight: '600', color: palette\.textMuted \}/);
+  assert.match(summary, /label: \{ fontSize: 14, fontWeight: '600', color: palette\.textMeta \}/);
   assert.match(summary, /value: \{ flexShrink: 1, fontSize: 16, fontWeight: '700'/);
 
   const consent = read('components/consent-row.tsx');
@@ -58,7 +58,7 @@ test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 �
 
   const card = read('components/ui/settings-card.tsx');
   assert.match(card, /iconCell: \{ width: 44, height: 44,/);
-  assert.match(card, /borderColor: palette\.borderStrong,/);
+  assert.match(card, /borderColor: palette\.border,/);
   assert.match(card, /title: \{ fontSize: 15\.5, fontWeight: '800'/);
   assert.match(card, /sub: \{ fontSize: 12\.5,/);
   // 설정 화면(pen S15.3)은 묶음 카드(18/6 모서리)로 그린다 — 보관함·Pro 줄은 없다.

@@ -12,7 +12,7 @@ export type StatusChip = { label: string; tone: ScriptCardStatus };
 export const CHIP_TONE: Record<ScriptCardStatus, { color: string; bg: string }> = {
   reading: { color: palette.blue, bg: palette.blueSoft },
   completed: { color: palette.green, bg: palette.greenSoft },
-  no_cast: { color: palette.textDim, bg: palette.bgSoft },
+  no_cast: { color: palette.textSub, bg: palette.bgSoft },
 };
 
 export function listHeader(list: Pick<ScriptListResponse, 'total_count' | 'in_progress_count'>): string {

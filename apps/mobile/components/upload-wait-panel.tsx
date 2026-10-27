@@ -55,10 +55,10 @@ const styles = StyleSheet.create({
   body: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 16, paddingHorizontal: 24 },
   mascot: { width: 84, height: 94 },
   title: { alignSelf: 'stretch', fontSize: 21, fontWeight: '800', lineHeight: 30, color: palette.text, textAlign: 'center' },
-  sub: { alignSelf: 'stretch', fontSize: 15, lineHeight: 22, color: palette.textDim, textAlign: 'center' },
+  sub: { alignSelf: 'stretch', fontSize: 15, lineHeight: 22, color: palette.textSub, textAlign: 'center' },
   track: { width: 240, height: 8, borderRadius: 4, backgroundColor: palette.bgSoft, overflow: 'hidden' },
   fill: { width: '50%', height: 8, borderRadius: 4, backgroundColor: palette.blue },
   footer: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 13, gap: 8 },
   cancel: { height: 52, borderRadius: 14, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  cancelText: { fontSize: 16, fontWeight: '700', lineHeight: 23, color: palette.textStrong },
+  cancelText: { fontSize: 16, fontWeight: '700', lineHeight: 23, color: palette.text },
 });

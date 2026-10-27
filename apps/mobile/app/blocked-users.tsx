@@ -88,17 +88,17 @@ const styles = StyleSheet.create({
   // pen S18.4 본문 — 좌우 22, 위 16.
   body: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 48 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
-  empty: { color: palette.textDim, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
-  // pen S/BlockRow — 위아래 18, 아래 선 #CBD1D8, 칸 사이 14.
+  empty: { color: palette.textSub, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
+  // pen S/BlockRow — 위아래 18, 아래 선 `border`, 칸 사이 14.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: palette.borderStrong,
+    borderBottomColor: palette.border,
   },
   name: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.text },
-  unblock: { borderRadius: 999, borderWidth: 1, borderColor: palette.borderStrong, paddingHorizontal: 15, paddingVertical: 9 },
-  unblockText: { fontSize: 13.5, fontWeight: '800', color: palette.textDim },
+  unblock: { borderRadius: 999, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 15, paddingVertical: 9 },
+  unblockText: { fontSize: 13.5, fontWeight: '800', color: palette.textSub },
 });

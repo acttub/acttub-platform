@@ -12,7 +12,7 @@ type FeatherName = ComponentProps<typeof Feather>['name'];
  */
 export const CHOICE_TINT = {
   blue: { tile: '#E3ECFF', icon: '#3B6EF5' },
-  amber: { tile: '#FFF3D9', icon: palette.hintIcon },
+  amber: { tile: '#FFF3D9', icon: palette.flame },
   violet: { tile: '#EFEAFE', icon: '#7C5CFA' },
   plain: { tile: null, icon: palette.blue },
 } as const;
@@ -79,7 +79,7 @@ export function ChoiceCard({
         ) : mark === 'radio' ? (
           <View style={styles.radio} />
         ) : mark === 'chevron' ? (
-          <Feather name="chevron-right" size={20} color={palette.checkOff} />
+          <Feather name="chevron-right" size={20} color={palette.textDisabled} />
         ) : null
       ) : selected ? (
         <Feather name="check" size={22} color={palette.blue} />
@@ -112,8 +112,8 @@ const styles = StyleSheet.create({
   // pen P3.0 — 제목 17/800(고르면 #13205A), 설명 14/400 #6B7684.
   iconTitle: { fontWeight: '800', lineHeight: 24 },
   iconTitleOn: { color: '#13205A' },
-  sub: { fontSize: 14, fontWeight: '500', lineHeight: 21, color: palette.textFaint },
-  iconSub: { fontWeight: '400', lineHeight: 20, color: palette.textMuted },
+  sub: { fontSize: 14, fontWeight: '500', lineHeight: 21, color: palette.textMeta },
+  iconSub: { fontWeight: '400', lineHeight: 20, color: palette.textMeta },
   checkCircle: { width: 26, height: 26, borderRadius: 13, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.bg },
 });

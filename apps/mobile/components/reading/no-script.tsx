@@ -22,7 +22,7 @@ export function ReadingNoScript() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
+  dim: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 15 },
   pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
   pillText: { color: palette.onAccent, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
 });

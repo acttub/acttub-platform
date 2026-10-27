@@ -24,6 +24,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 8 },
   title: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.text, textAlign: 'center' },
-  sub: { fontSize: 15, fontWeight: '500', lineHeight: 22, color: palette.textFaint, textAlign: 'center' },
+  sub: { fontSize: 15, fontWeight: '500', lineHeight: 22, color: palette.textMeta, textAlign: 'center' },
   bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, gap: 8 },
 });

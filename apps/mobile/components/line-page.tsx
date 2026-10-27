@@ -51,7 +51,7 @@ export function LinePage({
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: palette.card },
+  page: { flex: 1, backgroundColor: palette.bg },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, height: 52 },
   close: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 17, fontWeight: '800', color: palette.text },

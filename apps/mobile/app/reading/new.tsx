@@ -403,13 +403,13 @@ export default function ReadingNew() {
         <View style={styles.titleField}>
           <Text style={styles.titleLabel}>{t('reading.newTitleLabel')}</Text>
           <View style={styles.titleBox}>
-            <Feather name="file-text" size={18} color={palette.textFaint} />
+            <Feather name="file-text" size={18} color={palette.iconFaint} />
             <TextInput
               style={styles.titleInput}
               value={title}
               onChangeText={setTitle}
               placeholder={t('reading.newTitlePlaceholder')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
               maxLength={TITLE_MAX}
               editable={!working}
               returnKeyType="done"
@@ -426,7 +426,7 @@ export default function ReadingNew() {
             onChangeText={(text) => dispatch({ type: 'paste', text })}
             multiline
             placeholder={t('reading.pastePlaceholder')}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.textMeta}
             textAlignVertical="top"
           />
         )}
@@ -573,7 +573,7 @@ export default function ReadingNew() {
               </View>
               <Pressable style={styles.more} hitSlop={8} onPress={() => setPopup({ ...popup, expanded: !popup.expanded })}>
                 <Text style={styles.moreText}>{t('reading.consentMore')}</Text>
-                <Feather name={popup.expanded ? 'chevron-down' : 'chevron-right'} size={15} color={palette.textDim} />
+                <Feather name={popup.expanded ? 'chevron-down' : 'chevron-right'} size={15} color={palette.textSub} />
               </Pressable>
               {popup.expanded && (
                 <ScrollView style={styles.docBody}>
@@ -622,7 +622,7 @@ function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) 
 function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3' | 'message-circle'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-      <Feather name={icon} size={16} color={on ? palette.blue : palette.textMuted} />
+      <Feather name={icon} size={16} color={on ? palette.blue : palette.textMeta} />
       <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
     </Pressable>
   );
@@ -636,10 +636,10 @@ const styles = StyleSheet.create({
   heroActy: { width: 128, height: 100 },
   heroText: { flex: 1, gap: 10 },
   title: { color: palette.text, fontSize: 24, fontWeight: '900', lineHeight: 32 },
-  heroSub: { color: palette.textMuted, fontSize: 14, fontWeight: '500', lineHeight: 21 },
+  heroSub: { color: palette.textMeta, fontSize: 14, fontWeight: '500', lineHeight: 21 },
   titleField: { gap: 10 },
-  titleLabel: { color: palette.textDim, fontSize: 14, fontWeight: '700' },
-  titleBox: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, backgroundColor: palette.card, borderColor: '#E3E8EF', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16 },
+  titleLabel: { color: palette.textSub, fontSize: 14, fontWeight: '700' },
+  titleBox: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, backgroundColor: palette.bg, borderColor: '#E3E8EF', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16 },
   titleInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, padding: 0 },
   segment: { flexDirection: 'row', backgroundColor: '#EEF2F8', borderRadius: 14, padding: 4 },
   segmentSlot: { flex: 1 },
@@ -647,10 +647,10 @@ const styles = StyleSheet.create({
   choice: { gap: 4, padding: 18, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
   choiceTitle: { fontSize: 16, fontWeight: '700', color: palette.text },
-  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMuted },
+  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMeta },
   segmentTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, height: 58, paddingHorizontal: 4 },
-  segmentTabOn: { backgroundColor: palette.card },
-  segmentText: { color: palette.textMuted, fontSize: 13, fontWeight: '700' },
+  segmentTabOn: { backgroundColor: palette.bg },
+  segmentText: { color: palette.textMeta, fontSize: 13, fontWeight: '700' },
   segmentTextOn: { color: palette.blue, fontWeight: '800' },
   dropzone: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
   // pen 「파일칸」 — 옅은 파랑 바탕, 점선 테두리(#BCD3F3), 모서리 22.
@@ -658,18 +658,18 @@ const styles = StyleSheet.create({
   uploadCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E6EFFD', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   dropTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
   dropTitleEmpty: { fontSize: 17 },
-  dropSub: { color: palette.textFaint, fontSize: 13, fontWeight: '500' },
+  dropSub: { color: palette.textMeta, fontSize: 13, fontWeight: '500' },
   pickBtn: { marginTop: 8, backgroundColor: '#E3EDFD', borderRadius: 22, height: 44, paddingHorizontal: 32, justifyContent: 'center' },
   pickBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
-  replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.card, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
+  replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
   replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  textArea: { flex: 1, minHeight: 256, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  textArea: { flex: 1, minHeight: 256, backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },
+  card: { width: '100%', maxWidth: 340, backgroundColor: palette.bg, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },
   cardTitle: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
-  cardBody: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  cardBody: { color: palette.textSub, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
   cardButton: { alignSelf: 'stretch', marginTop: 12 },
   splitScreen: { paddingHorizontal: 24, gap: 14 },
   splitMascot: { width: 72, height: 80, marginBottom: 20 },
@@ -678,24 +678,24 @@ const styles = StyleSheet.create({
   optionCard: { alignItems: 'stretch', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24, gap: 6 },
   optionTitle: { color: palette.text, fontSize: 20, fontWeight: '900', lineHeight: 28 },
   optionGuide: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
-  optionName: { color: palette.textMuted, fontSize: 13, marginBottom: 6 },
+  optionName: { color: palette.textMeta, fontSize: 13, marginBottom: 6 },
   optionRow: { paddingVertical: 14, paddingHorizontal: 2, borderRadius: 10 },
   optionPressed: { backgroundColor: palette.bgSubtle },
   pickList: { alignSelf: 'stretch', maxHeight: 264 },
   pickListBody: { gap: 6 },
   optionText: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 24 },
-  sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 },
+  sheet: { alignSelf: 'stretch', backgroundColor: palette.bg, borderRadius: 22, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 18 },
   sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
-  sheetSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: 4 },
+  sheetSub: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13, marginTop: 4 },
   sheetPoints: { gap: 12, marginTop: 20 },
   point: { flexDirection: 'row', gap: 10 },
   pointIcon: { marginTop: 2 },
-  pointText: { flex: 1, color: palette.textStrong, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21 },
+  pointText: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21 },
   more: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', marginTop: 16 },
-  moreText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  moreText: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   docBody: { maxHeight: 220, marginTop: 10, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 12 },
   sheetButton: { marginTop: 22 },
   sheetCancel: { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
-  sheetCancelText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 15 },
+  sheetCancelText: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 15 },
 });

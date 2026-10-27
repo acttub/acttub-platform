@@ -51,7 +51,7 @@ test('동의 제목 24, 모두 동의 바탕은 꺼짐 #F9FAFB(S4.1)', () => {
 test('회원 탈퇴 묶음은 윗선 · 위 16 안쪽, 제목 21/900(S17.1)', () => {
   const del = read('app/delete-account.tsx');
   assert.match(del, /title: \{ fontSize: 21, fontWeight: '900'/);
-  assert.match(del, /borderTopColor: palette\.borderSoft/);
+  assert.match(del, /borderTopColor: palette\.border/);
 });
 
 test('웹 연습 가져오기 완료는 가운데 96 동그라미와 아래 버튼(S7.7)', () => {
