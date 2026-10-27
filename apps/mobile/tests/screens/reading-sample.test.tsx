@@ -6,8 +6,10 @@ import { ApiError } from '@/lib/api-request';
 import { loadIntoCurrent } from '@/lib/reading/store';
 
 const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
+let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
+  useLocalSearchParams: () => mockParams,
   Stack: { Screen: () => null },
 }));
 jest.mock('react-native-safe-area-context', () => ({
@@ -45,6 +47,7 @@ const savedScript = { id: 's9', title: '복도, 아침', characters: [{ id: 'c1'
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockParams = {};
   jest.mocked(api.listReadingExamples).mockResolvedValue(SERVER);
   jest.mocked(api.startReadingExample).mockResolvedValue({ script_id: 's9', created: true });
   jest.mocked(loadIntoCurrent).mockResolvedValue(savedScript as never);
@@ -137,4 +140,18 @@ test('복사는 됐는데 대본을 못 불러오면 공용 안내를 띄우고 
   await fireEvent.press(screen.getByRole('button', { name: '이 대본으로 하기' }));
   expect(await screen.findByText('네트워크 연결을 확인하고 다시 시도해 주세요.')).toBeOnTheScreen();
   expect(mockRouter.replace).not.toHaveBeenCalled();
+});
+
+test('입시생으로 들어오면(?exam=1) 입시 예시를 맨 앞에 두고 골라 둔다(SOMA-864)', async () => {
+  mockParams = { exam: '1' };
+  jest.mocked(api.listReadingExamples).mockResolvedValue({
+    examples: [
+      ...SERVER.examples,
+      { id: 'exam-brother', title: '형에게', summary: '도윤 · 독백 · 입시', dialogue_count: 7, characters: ['도윤'], preview: [{ speaker: '도윤', text: '형, 나야. 받지 마. 그냥 들어.' }], category: 'exam' },
+    ],
+  } as never);
+  await render(<SampleScriptPicker />);
+  await waitFor(() => expect(screen.getByText('형, 나야. 받지 마. 그냥 들어.')).toBeOnTheScreen());
+  await fireEvent.press(screen.getByRole('button', { name: '이 대본으로 하기' }));
+  await waitFor(() => expect(api.startReadingExample).toHaveBeenCalledWith('exam-brother', expect.anything()));
 });

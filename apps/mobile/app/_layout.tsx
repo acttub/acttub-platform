@@ -1,4 +1,5 @@
 import { reminderOpenEvent, reminderTarget } from '@/lib/reminder-target';
+import { takeSignupLanding } from '@/lib/signup-landing';
 import Feather from '@expo/vector-icons/Feather';
 import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
@@ -320,6 +321,9 @@ function RootNavigator() {
       }
     } else if (inLogin || inConsent || inProfileName) {
       router.replace(bootstrap.route as Href);
+      // 입시생은 가입을 마치면 홈 위에 입시 예시 대본 고르기를 한 번 연다(SOMA-864). 뒤로 가면 홈이다.
+      const landing = inProfileName && bootstrap.route === '/(tabs)' ? takeSignupLanding() : null;
+      if (landing) router.push(landing as Href);
     }
     completedBootstrapRef.current = {
       sessionKey,

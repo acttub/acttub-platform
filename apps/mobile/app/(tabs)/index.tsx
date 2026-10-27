@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type Ref } from 'react';
 import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -41,7 +41,7 @@ import { AnnouncementPoster } from '@/components/announcement-poster';
 import { HomeUploadCard } from '@/components/home-upload-card';
 import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
-import { homeDeadlineSections } from '@/lib/home-sections';
+import { examCountdown, homeDeadlineSections } from '@/lib/home-sections';
 import { markHomeReady } from '@/lib/launch-splash';
 import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 import { useNextTakes } from '@/hooks/use-next-takes';
@@ -267,6 +267,7 @@ export default function HomeScreen() {
 
   // 연기 입시 일정 — 입시생에게만 보이는 구역이라 입시생일 때만 읽는다(SOMA-654). 실패하면 구역만 빠진다.
   const wantsAdmissions = isKorean() && homeDeadlineSections(profile.me?.profile, kstDate()).admissions;
+  const examDays = examCountdown(profile.me?.profile, kstDate());
   useEffect(() => {
     if (!wantsAdmissions) return;
     let cancelled = false;
@@ -640,6 +641,18 @@ export default function HomeScreen() {
 
           <View style={styles.body}>
           <AdSlot slot="home_top" />
+          {examDays !== null && (
+            // 입시생 실기 D-day(SOMA-864) — 누르면 입시 예시가 앞에 온 예시 대본 고르기.
+            <Pressable
+              style={styles.examRow}
+              onPress={() => router.push('/reading/sample?exam=1' as Href)}
+              accessibilityRole="button"
+              accessibilityLabel={t('home.examCountdown', { dday: examDays === 0 ? 'DAY' : examDays })}>
+              <Feather name="calendar" size={16} color={palette.blueDeep} />
+              <Text style={styles.examText}>{t('home.examCountdown', { dday: examDays === 0 ? 'DAY' : examDays })}</Text>
+              <Feather name="chevron-right" size={16} color={palette.blueDeep} />
+            </Pressable>
+          )}
           {/* 주 기능 카드 하나 — 첫 가이드가 비추는 자리다. 올리는 중이면 올리는 카드가 대신한다. */}
           {waitingUpload.card && <HomeUploadCard upload={waitingUpload} />}
           {!waitingUpload.card && (
@@ -1113,6 +1126,8 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     backgroundColor: palette.bg,
   },
+  examRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], backgroundColor: palette.blueSoft, borderRadius: radius.lg, paddingHorizontal: space[4], paddingVertical: space[3] },
+  examText: { ...type.captionBold, flex: 1, color: palette.blueDeep },
   dday: { minWidth: 52, height: 24, paddingHorizontal: space[2], borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   ddayText: type.micro,
 });

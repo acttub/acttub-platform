@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { birthStepOutcome, nextOpenStep, onboardingSteps, stepAfter, stepBefore, stepReady } from '../lib/onboarding-steps.ts';
+import { birthStepOutcome, examDateOk, nextOpenStep, onboardingSteps, stepAfter, stepBefore, stepReady } from '../lib/onboarding-steps.ts';
 
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 const NOW = new Date('2026-10-19T03:00:00Z');
@@ -41,7 +41,7 @@ test('birthStepOutcome: 만 14세 미만은 「가입할 수 없어요」, 잘�
 
 test('가입 게이트는 한 화면에 한 질문 위저드다 — 저장·유입 경로·만 14세 닫힘 처리는 그대로', () => {
   const screen = read('app/profile-name.tsx');
-  assert.match(screen, /onboardingSteps\(askDiscovery\)/);
+  assert.match(screen, /onboardingSteps\(askDiscovery, form\.experience === 'exam_prep'\)/);
   assert.match(screen, /saveProfile\(buildProfilePayload\(form, now\)\)/);
   assert.match(screen, /api\.recordDiscoveryAnswer\(buildDiscoveryPayload\(answer\)\)/);
   assert.match(screen, /closeAccountUnder14\(\)/);
@@ -59,4 +59,16 @@ test('nextOpenStep: 답하면 그 뒤 아직 안 답한 질문으로, 앞 칸을
   // 다 답했으면 끝(저장).
   assert.equal(nextOpenStep(steps, new Set(steps), 'directions'), null);
   assert.equal(nextOpenStep(onboardingSteps(false), new Set(['name', 'birth', 'gender', 'goal', 'career']), 'directions'), null);
+});
+
+test('입시생이면 경력 뒤에 실기 날짜를 묻고, 날짜는 오늘부터 400일 안만 받는다(SOMA-864)', () => {
+  assert.deepEqual(onboardingSteps(false, true), ['name', 'birth', 'gender', 'goal', 'career', 'exam_date', 'directions']);
+  assert.deepEqual(onboardingSteps(true), ['name', 'birth', 'gender', 'goal', 'career', 'directions', 'discovery']);
+  const now = new Date(2026, 9, 27, 21, 0);
+  assert.equal(examDateOk('2026-10-27', now), true);
+  assert.equal(examDateOk('2026-10-26', now), false);
+  assert.equal(examDateOk('2027-11-30', now), true);
+  assert.equal(examDateOk('2027-12-02', now), false);
+  assert.equal(examDateOk('2026-02-30', now), false);
+  assert.equal(examDateOk('x', now), false);
 });

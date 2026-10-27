@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { loadExamples, localExamples, normalizeExamples } from '../lib/reading/examples.ts';
+import { orderExamples, loadExamples, localExamples, normalizeExamples } from '../lib/reading/examples.ts';
 import { SAMPLE_SCRIPTS, dialogueCount } from '../lib/reading/sample.ts';
 
 const SERVER = {
@@ -40,6 +40,7 @@ test('서버 목록을 화면 모양으로 바꾼다', () => {
         { speaker: '윤서', text: '여기 있을 줄 알았어.' },
         { speaker: null, text: '(옥상 난간)' },
       ],
+      category: 'general',
     },
     {
       id: 'minji',
@@ -48,6 +49,7 @@ test('서버 목록을 화면 모양으로 바꾼다', () => {
       dialogueCount: 0,
       characters: ['민지'],
       preview: [{ speaker: null, text: '오늘도 괜찮다고 말했다.' }],
+      category: 'general',
     },
   ]);
 });
@@ -104,4 +106,15 @@ test('서버에서 받으면 server, 실패·빈 목록이면 내장 목록(loca
 
   const empty = await loadExamples(async () => ({ examples: [] }));
   assert.equal(empty.source, 'local');
+});
+
+test('입시 예시를 표시하고, 입시생으로 들어오면 앞에 둔다(SOMA-864)', () => {
+  const list = normalizeExamples({ examples: [
+    { id: 'a', title: 'A', summary: '', dialogue_count: 3, characters: [], preview: [] },
+    { id: 'b', title: 'B', summary: '', dialogue_count: 3, characters: [], preview: [], category: 'exam' },
+    { id: 'c', title: 'C', summary: '', dialogue_count: 3, characters: [], preview: [], category: 'weird' },
+  ] });
+  assert.deepEqual(list.map((e) => e.category), ['general', 'exam', 'general']);
+  assert.deepEqual(orderExamples(list, true).map((e) => e.id), ['b', 'a', 'c']);
+  assert.deepEqual(orderExamples(list, false).map((e) => e.id), ['a', 'b', 'c']);
 });

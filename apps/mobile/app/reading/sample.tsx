@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,7 +20,9 @@ import { translate as t } from '@/lib/i18n';
 export default function SampleScriptPicker() {
   const router = useRouter();
   const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
-  const picker = useSamplePicker({ onNeedName: setNaming });
+  // 입시 준비 배우의 가입 직후·실기 알림은 ?exam=1 로 온다(SOMA-864).
+  const exam = useLocalSearchParams<{ exam?: string }>().exam === '1';
+  const picker = useSamplePicker({ onNeedName: setNaming, exam });
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
