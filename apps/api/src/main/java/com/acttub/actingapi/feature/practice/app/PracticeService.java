@@ -111,9 +111,11 @@ public class PracticeService {
             case READY -> { }
         }
         String payload = "practice_start|reading|" + readingSessionId;
+        // 장면·막힘 칸은 적지 않은 시작과 같은 빈 값이다(표의 NOT NULL 기본).
         NewPractice practice = new NewPractice(requestId, fingerprint(payload), null,
-                ExperienceVersion.THREE_LAYERS_V1.dbValue(), null, null, null, null, null, null, null,
-                PracticeRules.READING_PURPOSE, null);
+                ExperienceVersion.THREE_LAYERS_V1.dbValue(), PracticeRules.scene(null), PracticeRules.scene(null),
+                PracticeRules.scene(null), PracticeRules.blockage(null), PracticeRules.blockage(null), PracticeRules.note(null),
+                null, PracticeRules.READING_PURPOSE, null);
         return answer(practices.startFromReading(userId, practice, readingSessionId, clock.instant()));
     }
 
