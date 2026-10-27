@@ -97,7 +97,9 @@
     이 회원에게 보낸 id는 피하고(모두 썼으면 가장 오래전에 쓴 것), 고르는 것은 회원·날짜·칸으로 정해진다. 한국어가 아닌 설정에는 최소한의 영어 문구를 쓴다.
     작품 제목·대사·이벤트·홍보는 넣지 않는다.
   - **푸시 data**: `kind`는 `evening_reminder`로 둔다(지금 앱이 이 값일 때 누르면 홈으로 보내므로 앱 빌드 없이 동작 유지), 실제 종류는 `reminder_kind`(resume·pending_video·unread_script·homework·reading·general·first_practice·first_nudge·streak), `skipped_days`, `template_id`, resume이면 `conversation_id`와
-    `practice_id`(새 앱은 해당 회차 코치 화면을 열고, 기존 앱은 홈), homework이면 `practice_id`, pending_video이면 `video_id`, unread_script이면 `script_id`(pending_video·unread_script는 앱에서 아직 쓰지 않는다). 앱 판 0.1.x의 탭 처리는 `evening_reminder`만 홈으로 보내므로 새 종류를 눌러도 앱이 열릴 뿐 특정 화면으로 가지 않는다(새 앱은 resume만 해당 코치 대화로 바로 간다).
+    `practice_id`(새 앱은 해당 회차 코치 화면을 열고, 기존 앱은 홈), homework이면 `practice_id`, pending_video이면 `video_id`, unread_script이면 `script_id`. 앱 판 0.1.x의 탭 처리는 `evening_reminder`만 홈으로 보내므로 새 종류를 눌러도 앱이 열릴 뿐 특정 화면으로 가지 않는다.
+    1.1.0부터 앱은 알림이 말한 화면을 바로 연다(SOMA-862): resume은 그 코치 대화, homework는 그 묶음의 다음 테이크 준비 화면, pending_video는 그 영상을 얹은 새 연습 준비 화면, unread_script는 그 대본의 리딩 준비 화면, first_practice·first_nudge는 예시 대본 고르기(첫 예시가 골라져 있다). 대상 id가 없거나, 대상이 지워졌거나(영상 파일 파기 포함) 못 찾으면 홈이다. reading·general·streak은 홈이다.
+    누르면 앱이 `reminder_open`(reminder_kind·template_id·target)을 남기고, 대상을 찾아 여는 세 종류는 `reminder_target`(reminder_kind·result=opened|home)을 한 번 더 남긴다.
   - 보낼 자리는 보내기 전에 `practice_reminder_sends`에 먼저 넣어 선점하고(`ON CONFLICT DO NOTHING`), 선점한 쪽만 보낸다. 탈퇴와 게스트 파기는 이 기록을 지운다.
 - 리마인드 토글을 끄면 서버 발송 대상에서 제외한다. 업데이트한 앱은 옛 판이 예약한 로컬 알람을 모두
   취소하고 새 로컬 알람을 만들지 않는다.
