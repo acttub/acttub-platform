@@ -74,19 +74,24 @@ export function AnchoredMenu({
   );
 }
 
-/** 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘, `selected`(고른 값)는 blue-deep 글자 + 오른쪽 체크. */
+/**
+ * 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘, `selected`(고른 값)는 blue-deep 글자 + 오른쪽 체크.
+ * `badge`는 이름 옆 작은 표시(목소리 메뉴의 「추천」, blue-soft · micro blue-deep).
+ */
 export function MenuItem({
   label,
   onPress,
   destructive,
   selected,
   icon,
+  badge,
 }: {
   label: string;
   onPress: () => void;
   destructive?: boolean;
   selected?: boolean;
   icon?: ComponentProps<typeof Feather>['name'];
+  badge?: string;
 }) {
   const color = destructive ? palette.danger : selected ? palette.blueDeep : palette.text;
   return (
@@ -100,6 +105,7 @@ export function MenuItem({
       <Text style={[styles.label, { color }]} numberOfLines={1}>
         {label}
       </Text>
+      {badge ? <Text style={styles.badge}>{badge}</Text> : null}
       {selected ? <Feather name="check" size={18} color={palette.blue} style={styles.check} /> : null}
     </Pressable>
   );
@@ -120,4 +126,5 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: palette.bgSoft },
   label: { ...type.body2Bold, flexShrink: 1 },
   check: { marginLeft: 'auto' },
+  badge: { ...type.micro, color: palette.blueDeep, backgroundColor: palette.blueSoft, borderRadius: radius.full, overflow: 'hidden', paddingHorizontal: space[2], paddingVertical: 2 },
 });

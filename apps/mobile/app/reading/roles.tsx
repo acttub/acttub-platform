@@ -1,11 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
+import { ReadingNoScript } from '@/components/reading/no-script';
+import { AnchoredMenu, MENU_ITEM_HEIGHT, MENU_PAD, MenuItem, pt, type MenuAnchor } from '@/components/ui/anchored-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { useAppDialog } from '@/components/app-dialog';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -18,7 +21,19 @@ import * as engine from '@/lib/reading/tts/engine';
 import { activeVariant, assetsPresent } from '@/lib/reading/tts/assets';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
 import { exampleLineUri, loadExampleAudio } from '@/lib/reading/example-audio-runtime';
-import { autoVoiceOf, isKnownPreset, shownVoices, voiceChanges, voiceLabel, voiceName, type VoicePreset } from '@/lib/reading/voices';
+import {
+  autoVoiceOf,
+  genderOfVoice,
+  isKnownPreset,
+  recommendedVoice,
+  shownVoices,
+  switchGender,
+  voiceChanges,
+  voiceChoice,
+  voiceName,
+  VOICES_BY_GENDER,
+  type VoicePreset,
+} from '@/lib/reading/voices';
 import type { ScriptCharacter } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
 
@@ -28,20 +43,17 @@ import { translate as t } from '@/lib/i18n';
  * 미리 듣기는 연습 때 읽을 엔진으로 — 고품질 목소리를 쓰는 중이면 앱에 넣은 Gemini 샘플, 아니면 기기 목소리(Supertonic).
  */
 const NO_CHARACTERS: ScriptCharacter[] = [];
-// 나이 순서(젊은 → 노년). 이름은 음높이로 정한 느낌이다(SOMA-670, lib/reading/voices PREFERENCE 와 같은 판단).
-const MALE: VoicePreset[] = ['M1', 'M4', 'M3', 'M2', 'M5'];
-const FEMALE: VoicePreset[] = ['F2', 'F4', 'F1', 'F3', 'F5'];
+const MENU_LABEL_HEIGHT = 32;
 
 export default function ReadingRoles() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { alert, dialog } = useAppDialog();
   const fromNew = useLocalSearchParams<{ from?: string }>().from === 'new';
   const script = getCurrent();
   const characters = script?.characters ?? NO_CHARACTERS;
   /** 이 화면에서 고친 값만(배역 id → 프리셋, null=자동). [저장] 전에는 대본에 없다. */
   const [chosen, setChosen] = useState<Record<string, string | null>>({});
-  const [sheetFor, setSheetFor] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ characterId: string; anchor?: MenuAnchor } | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -90,16 +102,7 @@ export default function ReadingRoles() {
   );
   const assigned = useMemo(() => shownVoices(characters, chosen), [characters, chosen]);
 
-  if (!script) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.empty}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading/new')}>
-          <Text style={styles.pillText}>{t('reading.toNewScript')}</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  if (!script) return <ReadingNoScript />;
 
   const stopPreview = () => {
     previewRun.current += 1;
@@ -122,14 +125,14 @@ export default function ReadingRoles() {
         if (uri) {
           if (current()) await engine.play(uri);
         } else if (current()) {
-          void alert({ title: t('reading.voicePreview'), message: t('reading.voiceNotReady') });
+          void alert({ title: t('reading.voicePreviewFailedTitle'), message: t('reading.voicePreviewNotReady') });
         }
       } else {
         await engine.ensureReady(() => {});
         if (current()) await engine.preview(preset);
       }
     } catch {
-      if (current()) void alert({ title: t('reading.voicePreview'), message: t('reading.voiceNotReady') });
+      if (current()) void alert({ title: t('reading.voicePreviewFailedTitle'), message: t('reading.voicePreviewNotReady') });
     } finally {
       if (current()) setPreviewing(null);
     }
@@ -161,10 +164,9 @@ export default function ReadingRoles() {
     if (heard) void preview(characterId, heard);
   };
 
-  // 목소리를 고르면 바꾸고 펼친 칸을 접는다.
-  const pickVoice = (characterId: string, value: VoicePreset | null) => {
-    choose(characterId, value);
-    setSheetFor(null);
+  const pickVoice = (characterId: string, preset: VoicePreset) => {
+    choose(characterId, voiceChoice(characters, chosen, characterId, preset));
+    setMenu(null);
   };
 
   const onSave = async () => {
@@ -179,7 +181,7 @@ export default function ReadingRoles() {
         await updateScriptMeta(script.id, { characters: changes });
       } catch {
         savingRef.current = false;
-        void alert({ title: t('reading.voiceLabel'), message: t('reading.voiceSaveFailed') });
+        void alert({ title: t('reading.voiceSaveFailedTitle'), message: t('reading.voiceSaveFailed') });
         return;
       } finally {
         setSaving(false);
@@ -195,96 +197,109 @@ export default function ReadingRoles() {
   };
 
 
+  const menuFor = menu ? effective.find((c) => c.id === menu.characterId) : undefined;
+  const menuVoice = menuFor ? assigned[menuFor.id] : undefined;
+  const menuGender = menuVoice ? genderOfVoice(menuVoice) : null;
+
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.step}>{t('reading.voicesStep')}</Text>
-        <Text style={styles.title}>{t('reading.voicesHeading')}</Text>
+        <View style={styles.heading}>
+          <Text style={styles.step}>{t('reading.voicesStep')}</Text>
+          <Text style={styles.title}>{t('reading.voicesHeading')}</Text>
+        </View>
 
         <View style={styles.scriptCard}>
-          <View style={styles.scriptIcon}>
-            <Feather name="file-text" size={16} color={palette.blue} />
-          </View>
-          <View style={styles.scriptInfo}>
+          <Feather name="file-text" size={22} color={palette.textSub} />
+          <View style={styles.flex}>
             <Text style={styles.scriptTitle} numberOfLines={1}>{script.title}</Text>
-            <Text style={styles.scriptMeta}>
+            <Text style={styles.meta}>
               {t('reading.voicesScriptMeta', { characters: characters.length, dialogues: script.dialogueCount })}
             </Text>
           </View>
-          <Pressable style={styles.viewAll} hitSlop={8} onPress={() => router.push('/reading/full')}>
-            <Text style={styles.viewAllText}>{t('reading.viewAll')}</Text>
-            <Feather name="chevron-right" size={14} color={palette.blueDeep} />
+          <Pressable hitSlop={8} onPress={() => router.push('/reading/full')} accessibilityRole="button">
+            <Text style={styles.viewAll}>{t('reading.viewAll')}</Text>
           </Pressable>
         </View>
 
-        <Text style={styles.section}>{t('reading.voicesSection')}</Text>
-        <Text style={styles.note}>{t('reading.voicesNote')}</Text>
+        <View style={styles.sectionHead}>
+          <Text style={styles.section}>{t('reading.voicesSection')}</Text>
+          <Text style={styles.meta}>{t('reading.voicesNote')}</Text>
+        </View>
 
         <View style={styles.list} ref={roleListTarget.ref} onLayout={roleListTarget.onLayout}>
           {effective.map((c) => {
             const playing = previewing === c.id;
-            const open = sheetFor === c.id;
-            const value = isKnownPreset(c.voice_preset) ? c.voice_preset : null;
+            const open = menu?.characterId === c.id;
+            const voice = isKnownPreset(c.voice_preset) ? c.voice_preset : assigned[c.id];
+            const gender = voice ? t(genderOfVoice(voice) === 'm' ? 'reading.voiceGenderMale' : 'reading.voiceGenderFemale') : null;
             return (
-              <View key={c.id} style={styles.rowBox}>
-              <View style={styles.row}>
-                <View style={styles.rowInfo}>
+              <View key={c.id} style={styles.row}>
+                <View style={styles.flex}>
                   <Text style={styles.rowName} numberOfLines={1}>{c.name}</Text>
-                  <Text style={[styles.rowMeta, playing && styles.rowMetaPlaying]}>
+                  <Text style={playing ? styles.previewing : styles.meta}>
                     {playing ? t('reading.voicePreviewing') : t('reading.voicesLines', { count: c.dialogue_count })}
                   </Text>
                 </View>
-                <Pressable style={styles.voiceChip} onPress={() => setSheetFor(open ? null : c.id)} accessibilityRole="button" accessibilityState={{ expanded: open }}>
-                  <Text style={styles.voiceChipText}>
-                    {voiceLabel(isKnownPreset(c.voice_preset) ? c.voice_preset : assigned[c.id])}
-                  </Text>
-                  <Feather name={open ? 'chevron-up' : 'chevron-down'} size={13} color={palette.blueDeep} />
+                {gender && (
+                  <Pressable
+                    style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+                    onPress={() => choose(c.id, switchGender(characters, chosen, c.id))}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('reading.voiceGenderToggle', { gender })}
+                    ph-label="reading_voice_gender">
+                    <Text style={styles.pillText}>{gender}</Text>
+                    <Feather name="repeat" size={14} color={palette.iconFaint} />
+                  </Pressable>
+                )}
+                <Pressable
+                  style={({ pressed }) => [styles.pill, open && styles.pillOpen, pressed && styles.pressed]}
+                  onPress={(e: GestureResponderEvent) => setMenu(open ? null : { characterId: c.id, anchor: pt(e) })}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: open }}
+                  ph-label="reading_voice_menu">
+                  <Text style={[styles.pillText, open && styles.pillTextOpen]}>{voiceName(voice)}</Text>
+                  <Feather name="chevron-down" size={14} color={open ? palette.blueDeep : palette.iconFaint} />
                 </Pressable>
                 <Pressable
-                  style={[styles.playBtn, playing && styles.playBtnOn]}
-                  hitSlop={6}
+                  style={({ pressed }) => [styles.play, playing && styles.playOn, pressed && styles.pressed]}
+                  hitSlop={4}
+                  accessibilityRole="button"
                   accessibilityLabel={t('reading.voicePreview')}
+                  ph-label="reading_voice_preview"
                   onPress={() => togglePreview(c.id)}>
-                  <Feather name={playing ? 'square' : 'volume-2'} size={14} color={playing ? '#fff' : palette.blueDeep} />
+                  <Feather name={playing ? 'square' : 'volume-2'} size={18} color={playing ? palette.onAccent : palette.textSub} />
                 </Pressable>
-              </View>
-              {open && (
-                // 목소리 고르기 — 시트 대신 그 배역 줄 아래에 펼친다(SOMA-821). 고르면 접히고, 미리 듣기 버튼은 그대로 쓴다.
-                <View style={styles.picker}>
-                  <Pressable style={[styles.autoBtn, value === null && styles.chipOn]} onPress={() => pickVoice(c.id, null)}>
-                    {value === null && <Feather name="check" size={15} color={palette.blueDeep} />}
-                    <Text style={[styles.chipText, value === null && styles.chipTextOn]}>
-                      {t('reading.voiceRecommended', { voice: voiceLabel(autoVoiceOf(characters, chosen, c.id)) })}
-                    </Text>
-                  </Pressable>
-                  {[
-                    { label: t('reading.voicesMale'), presets: MALE },
-                    { label: t('reading.voicesFemale'), presets: FEMALE },
-                  ].map((group) => (
-                    <View key={group.label} style={styles.group}>
-                      <Text style={styles.groupLabel}>{group.label}</Text>
-                      <View style={styles.chips}>
-                        {group.presets.map((p) => (
-                          <Pressable key={p} style={[styles.chip, value === p && styles.chipOn]} onPress={() => pickVoice(c.id, p)}>
-                            <Text style={[styles.chipText, value === p && styles.chipTextOn]}>{voiceName(p)}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
               </View>
             );
           })}
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+      <CtaBar>
         <View ref={saveTarget.ref} onLayout={saveTarget.onLayout}>
-          <PrimaryButton label={saving ? `${t('common.saving')}…` : t('common.save')} onPress={onSave} disabled={saving} />
+          <PrimaryButton label={t('common.save')} loading={saving} loadingLabel={t('loadingText.saving')} onPress={onSave} />
         </View>
-      </View>
+      </CtaBar>
+
+      {menuFor && menuGender && (
+        <AnchoredMenu
+          anchor={menu?.anchor}
+          width={216}
+          estimatedHeight={MENU_LABEL_HEIGHT + MENU_ITEM_HEIGHT * VOICES_BY_GENDER[menuGender].length + MENU_PAD * 2}
+          onClose={() => setMenu(null)}>
+          <Text style={styles.menuLabel}>{t(menuGender === 'm' ? 'reading.voicesMale' : 'reading.voicesFemale')}</Text>
+          {VOICES_BY_GENDER[menuGender].map((p) => (
+            <MenuItem
+              key={p}
+              label={voiceName(p)}
+              selected={p === menuVoice}
+              badge={p === recommendedVoice(characters, chosen, menuFor.id, menuGender) ? t('reading.voiceRecommendedBadge') : undefined}
+              onPress={() => pickVoice(menuFor.id, p)}
+            />
+          ))}
+        </AnchoredMenu>
+      )}
 
       {dialog}
       {tutorialGuide.element}
@@ -294,44 +309,27 @@ export default function ReadingRoles() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  empty: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 15 },
-  content: { padding: 20, gap: 10 },
-  step: { color: palette.blue, fontFamily: 'Pretendard-SemiBold', fontSize: 12, letterSpacing: 0.3 },
-  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 2 },
-  scriptCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.blueSoft, borderRadius: 12, padding: 14, marginTop: 4 },
-  scriptIcon: { width: 36, height: 36, borderRadius: 9, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
-  scriptInfo: { flex: 1, gap: 2 },
-  scriptTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  scriptMeta: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13 },
-  viewAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  viewAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  section: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 10 },
-  note: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12, marginTop: -6 },
-  rowBox: { gap: 0 },
-  picker: { gap: 8, marginTop: -2, padding: 14, borderColor: palette.border, borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, backgroundColor: palette.bg },
-  list: { gap: 8, marginTop: 2 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
-  rowInfo: { flex: 1, gap: 2 },
-  rowName: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  rowMeta: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12 },
-  rowMetaPlaying: { color: palette.blue },
-  voiceChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  voiceChipText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  playBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  playBtnOn: { backgroundColor: palette.blue },
-  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.border, borderTopWidth: 1, backgroundColor: palette.bg },
-  primary: { backgroundColor: palette.blue, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  primaryOff: { backgroundColor: palette.textDisabled },
-  primaryText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
-  pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  autoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 13, marginTop: 6 },
-  group: { gap: 8, marginTop: 4 },
-  groupLabel: { color: palette.textSub, fontFamily: 'Pretendard', fontSize: 12 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexBasis: '31%', flexGrow: 1, alignItems: 'center', borderColor: palette.border, borderWidth: 1, borderRadius: 12, paddingVertical: 12 },
-  chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  chipText: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  chipTextOn: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold' },
+  flex: { flex: 1, gap: space[1] },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[6], gap: space[6] },
+  heading: { gap: space[1] },
+  step: { ...type.captionBold, color: palette.blueDeep },
+  title: { ...type.title2, color: palette.text },
+  scriptCard: { flexDirection: 'row', alignItems: 'center', gap: space[3], backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4] },
+  scriptTitle: { ...type.body1Bold, color: palette.text },
+  meta: { ...type.caption, color: palette.textMeta },
+  previewing: { ...type.captionBold, color: palette.blueDeep },
+  viewAll: { ...type.captionBold, color: palette.blueDeep },
+  sectionHead: { gap: space[1], marginBottom: -space[3] },
+  section: { ...type.headline, color: palette.text },
+  list: { gap: space[3] },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space[2], borderWidth: 1, borderColor: palette.border, borderRadius: radius.lg, padding: space[4] },
+  rowName: { ...type.body1Bold, color: palette.text },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: space[1], height: 32, paddingHorizontal: space[3], borderRadius: radius.md, backgroundColor: palette.bgSoft },
+  pillOpen: { backgroundColor: palette.blueSoft, borderWidth: 1.5, borderColor: palette.blue, paddingHorizontal: space[3] - 1.5 },
+  pillText: { ...type.captionBold, color: palette.textSub },
+  pillTextOpen: { color: palette.blueDeep },
+  play: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
+  playOn: { backgroundColor: palette.blue },
+  pressed: { opacity: 0.7 },
+  menuLabel: { ...type.caption, color: palette.textMeta, height: MENU_LABEL_HEIGHT, paddingHorizontal: space[4], paddingTop: space[2] },
 });

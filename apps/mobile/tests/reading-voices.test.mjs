@@ -112,9 +112,4 @@ test('reading.cast: 목소리 정하기는 코드 대신 이름을 보이고, �
   ]) {
     assert.match(ko, new RegExp(`${code}: '${name}'`), code);
   }
-  const roles = readSrc('app/reading/roles.tsx');
-  assert.match(roles, /const MALE: VoicePreset\[\] = \['M1', 'M4', 'M3', 'M2', 'M5'\];/);
-  assert.match(roles, /const FEMALE: VoicePreset\[\] = \['F2', 'F4', 'F1', 'F3', 'F5'\];/);
-  assert.doesNotMatch(roles, /\{p\}<\/Text>/, '시트에 코드가 그대로 보이지 않는다');
-  assert.match(roles, /voiceName\(p\)/);
 });

@@ -140,10 +140,52 @@ export function voiceName(preset: string | null | undefined): string {
   return isKnownPreset(preset) ? translate(`reading.voiceName.${preset}`) : preset;
 }
 
-/** 목소리 칩 글 — 「여성 · 따뜻한 노년」. 자동 배정도 「자동」 없이 성별과 이름으로 보인다(SOMA-742). */
-export function voiceLabel(preset: string | null | undefined): string {
-  if (!preset) return '-';
-  if (!isKnownPreset(preset)) return preset;
-  const gender = translate(preset.startsWith('M') ? 'reading.voiceGenderMale' : 'reading.voiceGenderFemale');
-  return `${gender} · ${voiceName(preset)}`;
+export type VoiceGender = 'm' | 'f';
+
+export function genderOfVoice(preset: VoicePreset): VoiceGender {
+  return preset.startsWith('M') ? 'm' : 'f';
+}
+
+/** 목소리 메뉴에 보일 그 성별 목소리 다섯 — 나이 순서(젊은 → 노년). */
+export const VOICES_BY_GENDER: Record<VoiceGender, VoicePreset[]> = {
+  m: ['M1', 'M4', 'M3', 'M2', 'M5'],
+  f: ['F2', 'F4', 'F1', 'F3', 'F5'],
+};
+
+/**
+ * 이 배역을 `gender` 성별로 둘 때의 추천 목소리 — 서버 배정 표에서 그 배역 나이대의 목록 중 다른 배역이 지금 쓰지 않는 첫 목소리
+ * (다 쓰였으면 첫 목소리). 다른 배역의 목소리를 밀어내지 않는다(10-27).
+ */
+export function recommendedVoice(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+  gender: VoiceGender,
+): VoicePreset {
+  const shown = shownVoices(characters, chosen);
+  const taken = new Set(characters.filter((c) => c.id !== characterId).map((c) => shown[c.id]));
+  const band = characters.find((c) => c.id === characterId)?.age_band;
+  const list = PREFERENCE[gender][band === 'child' ? 'young' : band ?? 'unknown'];
+  return list.find((v) => !taken.has(v)) ?? list[0];
+}
+
+/** 메뉴에서 고른 목소리의 저장값 — 자동으로 둘 때 받는 목소리와 같으면 자동(null)으로 둔다. */
+export function voiceChoice(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+  preset: VoicePreset,
+): VoicePreset | null {
+  return autoVoiceOf(characters, chosen, characterId) === preset ? null : preset;
+}
+
+/** 남녀 토글 — 지금 들리는 목소리의 반대 성별 추천 목소리를 고른다(10-27 사용자 결정). */
+export function switchGender(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+): VoicePreset | null {
+  const now = shownVoices(characters, chosen)[characterId];
+  const target: VoiceGender = now && genderOfVoice(now) === 'm' ? 'f' : 'm';
+  return voiceChoice(characters, chosen, characterId, recommendedVoice(characters, chosen, characterId, target));
 }
