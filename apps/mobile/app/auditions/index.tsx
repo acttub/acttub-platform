@@ -221,7 +221,7 @@ export default function AuditionsScreen() {
             ListEmptyComponent={
               // 조건으로 걸러 비었으면 마스코트와 함께 「초기화」를 알린다(pen NQ33xk). 그 밖의 빈 목록은 한 줄 안내다.
               filtered ? (
-                <StatusScreen title={t('auditions.emptyFiltered')} body={t('auditions.emptyFilteredHint')} bodyTone="blue" />
+                <StatusScreen kind="empty" title={t('auditions.emptyFiltered')} body={t('auditions.emptyFilteredHint')} />
               ) : (
                 <Text style={styles.empty}>{emptyText}</Text>
               )

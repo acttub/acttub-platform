@@ -1,4 +1,4 @@
-import type { TextStyle } from 'react-native';
+import type { TextStyle, ViewStyle } from 'react-native';
 
 /**
  * 글자·모서리·간격 토큰. 이름과 값은 디자인 시스템 pen 변수(`docs/DESIGN-SYSTEM.md` 「글자」·「모서리·간격·그림자」)와 같다.
@@ -23,3 +23,12 @@ export const radius = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, full: 999 } as con
 
 /** 6 은 아이콘–글자 사이에만. `gutter` 는 화면 좌우 여백. */
 export const space = { 1: 4, 1.5: 6, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, gutter: 20 } as const;
+
+/** shadow-overlay — 메뉴·토스트·시트·iOS 탭바에만. 카드는 그림자 대신 1px 테두리. */
+export const shadowOverlay = {
+  shadowColor: '#000000',
+  shadowOpacity: 0.16,
+  shadowRadius: 18,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 10,
+} satisfies ViewStyle;

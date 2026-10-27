@@ -291,7 +291,7 @@ export default function ScriptCocreateScreen() {
             ) : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </ScrollView>
-          <CtaBar divider>
+          <CtaBar>
             {freeLeft(script.revisions_left, regenUsed) <= 0 ? (
               <Text style={styles.left}>{t('scriptCocreate.errorRevisionLimit')}</Text>
             ) : null}
@@ -326,7 +326,7 @@ export default function ScriptCocreateScreen() {
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </KeyboardAwareScroll>
-          <CtaBar divider>
+          <CtaBar>
             <PrimaryButton
               label={t('scriptCocreate.applyEdit')}
               phLabel="script_cocreate_apply_edit"
@@ -346,8 +346,8 @@ export default function ScriptCocreateScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
           <CtaBar>
-            <PrimaryButton label={t('scriptCocreate.failRetry')} phLabel="script_cocreate_fail_retry" onPress={() => void generate()} />
             <SecondaryButton label={t('scriptCocreate.failOwn')} phLabel="script_cocreate_fail_own" onPress={() => router.dismissTo('/reading/new')} />
+            <PrimaryButton label={t('scriptCocreate.failRetry')} phLabel="script_cocreate_fail_retry" onPress={() => void generate()} />
           </CtaBar>
         </View>
       ) : step === 'start' ? (
@@ -367,7 +367,7 @@ export default function ScriptCocreateScreen() {
               </Pressable>
             ))}
           </ScrollView>
-          <CtaBar divider>
+          <CtaBar>
             <PrimaryButton
               label={t('scriptCocreate.next')}
               phLabel="script_cocreate_start_next"
@@ -386,8 +386,8 @@ export default function ScriptCocreateScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </ScrollView>
           <CtaBar>
-            <PrimaryButton label={t('scriptCocreate.recordNow')} phLabel="script_cocreate_record_now" onPress={recordNow} />
             <SecondaryButton label={t('scriptCocreate.later')} phLabel="script_cocreate_later" onPress={() => router.back()} />
+            <PrimaryButton label={t('scriptCocreate.recordNow')} phLabel="script_cocreate_record_now" onPress={recordNow} />
           </CtaBar>
         </View>
       ) : (
@@ -442,7 +442,7 @@ export default function ScriptCocreateScreen() {
             )}
           </KeyboardAwareScroll>
           {step === 'emotion' ? (
-            <CtaBar divider>
+            <CtaBar>
               <PrimaryButton
                 label={t('scriptCocreate.next')}
                 phLabel="script_cocreate_emotion_next"
@@ -451,7 +451,7 @@ export default function ScriptCocreateScreen() {
               />
             </CtaBar>
           ) : step === 'situation' ? (
-            <CtaBar divider>
+            <CtaBar>
               <PrimaryButton
                 label={t('scriptCocreate.next')}
                 phLabel="script_cocreate_situation_next"
@@ -460,7 +460,7 @@ export default function ScriptCocreateScreen() {
               />
             </CtaBar>
           ) : step === 'direction' ? (
-            <CtaBar divider>
+            <CtaBar>
               <PrimaryButton label={t('scriptCocreate.generate')} phLabel="script_cocreate_generate" onPress={generate} />
             </CtaBar>
           ) : null}

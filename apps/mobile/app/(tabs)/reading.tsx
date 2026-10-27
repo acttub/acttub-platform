@@ -18,7 +18,7 @@ import { currentTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
-import { LargeTitleHeader, NavIconButton } from '@/components/ui/nav-header';
+import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { BandGradient } from '@/components/ui/band-gradient';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
@@ -253,13 +253,13 @@ export default function ReadingList() {
           <Image source={HERO_WINDOW} style={styles.emptyWindow} resizeMode="cover" accessibilityElementsHidden />
         </View>
       )}
-      {/* pen 「헤더 / 큰 제목」 — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
+      {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
           돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
       <View style={styles.headWrap}>
-        <LargeTitleHeader
+        <NavHeader
+          large
           title={empty ? '' : t('reading.listTitle')}
-          onBack={firstTime ? () => router.navigate('/') : undefined}
-          backPhLabel="reading_back_home"
+          left={firstTime ? <NavBackButton onPress={() => router.navigate('/')} phLabel="reading_back_home" /> : undefined}
           right={
             <View style={styles.headRight}>
               {/* 탭바가 숨어 프로필 탭의 설정으로 못 가므로 로그아웃·탈퇴 길을 남긴다(SOMA-781). */}

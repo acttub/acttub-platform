@@ -73,9 +73,9 @@ export function ChallengeDone({
       {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 버튼 묶음 바로 위(CtaBar 위 여백 12 + 12 = 24). */}
       <AdSlot slot="challenge_upload_done" style={{ marginHorizontal: 24, marginBottom: 12 }} />
       <CtaBar safeBottom={false}>
-        <PrimaryButton label={t('challengeDone.home')} onPress={onHome} />
         {first && onShare ? <TextButton label={t('challengeDone.share')} tone="accent" size="large" onPress={onShare} /> : null}
         {first && onCoach ? <TextButton label={t('challengeDone.coach')} tone="accent" size="large" onPress={onCoach} /> : null}
+        <PrimaryButton label={t('challengeDone.home')} onPress={onHome} />
       </CtaBar>
     </SafeAreaView>
   );

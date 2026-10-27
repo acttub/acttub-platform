@@ -116,8 +116,8 @@ export default function CoachScriptsScreen() {
               <PrimaryButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
             ) : (
               <>
-                <PrimaryButton label={t('coachScripts.next')} phLabel="coach_scripts_next" disabled={!picked} loading={opening} onPress={() => void record()} />
                 <SecondaryButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
+                <PrimaryButton label={t('coachScripts.next')} phLabel="coach_scripts_next" disabled={!picked} loading={opening} onPress={() => void record()} />
               </>
             )}
           </CtaBar>

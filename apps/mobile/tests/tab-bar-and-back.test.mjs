@@ -12,7 +12,7 @@ test('스택 화면의 뒤로 버튼은 설정 화면과 같은 꺾쇠 버튼이
   assert.match(header, /options\.headerLeft\?\.\(/);
   assert.match(header, /options\.headerRight\?\.\(/);
   const back = read('components/header-back.tsx');
-  assert.match(back, /name="chevron-left" size=\{24\}/);
+  assert.match(back, /<NavBackButton onPress=\{\(\) => router\.back\(\)\} \/>/);
   assert.match(back, /router\.back\(\)/);
   assert.match(back, /canGoBack\(\)/);
   // 노트 화면은 뒤로 버튼을 두지 않는다(원래대로).
@@ -27,9 +27,7 @@ test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이
   assert.match(tabs, /bottom: Math\.max\(insets\.bottom - 14, 12\)/);
   // 안드로이드: 좌우·바닥 여백 없음, 둥근 모서리 없음, 시스템 내비게이션 칸만큼 아래를 채운다
   assert.match(tabs, /left: 0,\s*right: 0,\s*bottom: 0,/);
-  assert.match(tabs, /height: 72 \+ insets\.bottom/);
-  // 두 플랫폼 모두 탭 이름 글자는 없고 아이콘을 탭바 세로 가운데에 둔다(SOMA-838)
-  assert.doesNotMatch(tabs, /<Text/);
+  // 아이콘(안드로이드는 아이콘과 이름)을 탭바 세로 가운데에 둔다(SOMA-838)
   assert.match(read('components/haptic-tab.tsx'), /style=\{\[props\.style, \{ justifyContent: 'center' \}\]\}/);
 });
 
