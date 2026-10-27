@@ -48,10 +48,13 @@ const PREFERENCE: Record<'m' | 'f', Record<'young' | 'adult' | 'senior' | 'unkno
 
 /**
  * 서버 VoiceAssignment 와 같은 배정. 고정한 목소리는 쓴 것으로 치고, 자동 배역은 순서대로 — 성별을 알면 그 목록에서 아직
- * 안 쓴 첫 목소리(다 썼으면 첫 목소리), 모르면 예전 순환에서 아직 안 쓴 다음 목소리(다 썼으면 순환 그대로)를 받는다.
+ * 안 쓴 첫 목소리(다 썼으면 첫 목소리), 모르면 성별 아는 배역이 적은 쪽 성별 목록에서, 양쪽이 같으면 예전 순환에서 아직 안 쓴 다음 목소리(다 썼으면 순환 그대로)를 받는다.
  */
 function assign(characters: (Omit<VoicedCharacter, 'voice'>)[]): Record<string, VoicePreset> {
   const used = new Set<VoicePreset>(characters.flatMap((c) => (isKnownPreset(c.voice_preset) ? [c.voice_preset] : [])));
+  // 성별 모름 배역은 성별을 아는 배역이 적은 쪽 성별로 준다 — 서버와 같다(SOMA-912).
+  const count = { m: 0, f: 0 };
+  for (const c of characters) if (c.gender === 'm' || c.gender === 'f') count[c.gender] += 1;
   let ptr = 0;
   const out: Record<string, VoicePreset> = {};
   for (const c of characters) {
@@ -60,9 +63,14 @@ function assign(characters: (Omit<VoicedCharacter, 'voice'>)[]): Record<string, 
       continue;
     }
     let pick: VoicePreset;
-    if (c.gender === 'm' || c.gender === 'f') {
+    let gender = c.gender === 'm' || c.gender === 'f' ? c.gender : null;
+    if (!gender && count.m !== count.f) {
+      gender = count.m < count.f ? 'm' : 'f';
+      count[gender] += 1;
+    }
+    if (gender) {
       const age = c.age_band === 'child' ? 'young' : c.age_band ?? 'unknown';
-      const list = PREFERENCE[c.gender][age];
+      const list = PREFERENCE[gender][age];
       pick = list.find((v) => !used.has(v)) ?? list[0];
     } else {
       const n = AUTO_ROTATION.length;

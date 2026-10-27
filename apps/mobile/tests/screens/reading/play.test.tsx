@@ -130,7 +130,7 @@ jest.mock('expo-file-system', () => ({
   },
 }));
 
-const queue = { prime: jest.fn(), first: jest.fn(), take: jest.fn(), cancel: jest.fn() };
+const queue = { prime: jest.fn(), first: jest.fn(), take: jest.fn(), make: jest.fn(), cancel: jest.fn() };
 let mic: Listener | null = null;
 let recognizer: Listener | null = null;
 let appStateListeners: ((state: string) => void)[] = [];
@@ -168,6 +168,7 @@ beforeEach(async () => {
   jest.mocked(tts.createQueueFor).mockReturnValue(queue as never);
   queue.first.mockResolvedValue(undefined);
   queue.take.mockResolvedValue('file:///speech.wav');
+  queue.make.mockResolvedValue(null);
   mockMic.start.mockImplementation(async (onEvent: Listener['onEvent']) => {
     mic = { onEvent };
     return true;
@@ -578,6 +579,29 @@ test('고품질 목소리를 켰고 쓸 수 있으면 서버 음성으로 읽고
   expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(tts.ensureReady).not.toHaveBeenCalled();
+});
+
+test('서버 음성 회차에서 큐가 아직 못 만든 줄은 기기 목소리로 넘기지 않고 서버 음성으로 지금 만든다(SOMA-912)', async () => {
+  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
+  jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
+  queue.take.mockResolvedValue(null);
+  queue.make.mockResolvedValue('file:///cache/now.wav');
+  await startPlay(PARTNER_FIRST);
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(queue.make).toHaveBeenCalledWith({ text: '응, 늦어서 미안해.', preset: 'F1', lang: 'ko' });
+  expect(tts.play).toHaveBeenCalledWith('file:///cache/now.wav');
+  expect(speakWithDevice).not.toHaveBeenCalled();
+});
+
+test('남은 하루 한도로 이번 회차 상대 대사를 다 못 읽으면 처음부터 앱 목소리로 읽는다(SOMA-912)', async () => {
+  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
+  // 남은 한도 1줄, 이번 회차 상대 대사는 그보다 많다.
+  jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 9 });
+  await startPlay({ start_line_id: 'l2', end_line_id: 'l6' }, scriptDetail([...TWO_ROLE_LINES, ['dialogue', '서연', '오래 기다렸지?']]));
+
+  await waitFor(() => expect(tts.createQueueFor).toHaveBeenCalled());
+  expect(jest.mocked(tts.createQueueFor).mock.calls[0]).toEqual(['s1', expect.objectContaining({ cloud: false })]);
 });
 
 test('받아 둔 서버 음성을 틀지 못하면 그 파일을 지우고 이 줄은 기기 목소리로 읽은 뒤 넘어간다', async () => {
