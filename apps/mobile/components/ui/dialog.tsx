@@ -26,6 +26,8 @@ export function DialogButtons({
   onConfirm,
   destructive,
   busy,
+  confirmDisabled,
+  busyLabel,
 }: {
   /** 없으면 확인 하나만(알림창). */
   cancelLabel?: string;
@@ -34,13 +36,25 @@ export function DialogButtons({
   onConfirm: () => void;
   destructive?: boolean;
   busy?: boolean;
+  /** 바뀐 것이 없어 저장할 게 없을 때처럼 확인을 막는다. */
+  confirmDisabled?: boolean;
+  /** busy 동안 확인 버튼 문구(「저장하는 중…」). */
+  busyLabel?: string;
 }) {
   return (
     <View style={styles.buttonRow}>
       {cancelLabel ? (
         <Button variant="secondary" label={cancelLabel} onPress={() => onCancel?.()} disabled={busy} style={styles.fill} />
       ) : null}
-      <Button variant={destructive ? 'danger' : 'primary'} label={confirmLabel} onPress={onConfirm} loading={busy} style={styles.fill} />
+      <Button
+        variant={destructive ? 'danger' : 'primary'}
+        label={confirmLabel}
+        onPress={onConfirm}
+        loading={busy}
+        loadingLabel={busyLabel}
+        disabled={confirmDisabled}
+        style={styles.fill}
+      />
     </View>
   );
 }

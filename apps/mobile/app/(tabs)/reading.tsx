@@ -2,13 +2,18 @@ import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
+import { Button } from '@/components/ui/buttons';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { InlineError } from '@/components/ui/inline-error';
+import { BlueSwitch } from '@/components/ui/list-rows';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { hasSeenReadingTutorial, hasSeenSpotlight, markReadingTutorialSeen, markSpotlightSeen } from '@/lib/guide-state';
@@ -19,7 +24,6 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
-import { BandGradient } from '@/components/ui/band-gradient';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
@@ -28,7 +32,6 @@ import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { deleteScript, fetchSession, listScripts, listSessions, loadIntoCurrent, setCurrentSession } from '@/lib/reading/store';
 import type { ScriptCard, ScriptListResponse, SessionCard } from '@/lib/reading/types';
 import { isKorean, translate as t } from '@/lib/i18n';
-import { LoadingText } from '@/components/ui/loading-text';
 import type { GestureResponderEvent } from 'react-native';
 
 import { pt } from '@/components/ui/anchored-menu';
@@ -41,19 +44,17 @@ import { pt } from '@/components/ui/anchored-menu';
 const SEARCH_DEBOUNCE_MS = 300;
 
 type EntryKey = 'upload' | 'sample' | 'make';
-// pen R1.13 입구 카드 — 위에서 아래로 옅어지는 그라데이션 카드 셋. 누르면 바로 들어간다.
-const ENTRY_CHOICES: { key: EntryKey; title: string; sub: string; stops: readonly (readonly [number, string])[]; dark?: boolean }[] = [
-  { key: 'upload', title: 'reading.entryUpload', sub: 'reading.entryUploadSub', stops: [[0, '#4A93FF'], [1, '#176BFF']], dark: true },
-  { key: 'sample', title: 'reading.entrySample', sub: 'reading.entrySampleSub', stops: [[0, '#F3F8FF'], [1, '#E3EEFF']] },
-  { key: 'make', title: 'reading.entryMake', sub: 'reading.entryMakeSub', stops: [[0, '#F3F8FF'], [1, '#E3EEFF']] },
+// pen R1.13 입구 카드 셋 — 주 입구(내 대본 올리기)만 파랑, 나머지는 흰 카드 + 1px 테두리. 누르면 바로 들어간다.
+const ENTRY_CHOICES: { key: EntryKey; title: string; sub: string; primary?: boolean }[] = [
+  { key: 'upload', title: 'reading.entryUpload', sub: 'reading.entryUploadSub', primary: true },
+  { key: 'sample', title: 'reading.entrySample', sub: 'reading.entrySampleSub' },
+  { key: 'make', title: 'reading.entryMake', sub: 'reading.entryMakeSub' },
 ];
 const ENTRY_ART: Partial<Record<EntryKey, number>> = {
   upload: require('@/assets/images/reading/upload-folder-3d.png'),
   sample: require('@/assets/images/reading/sample-script-3d.png'),
 };
 const HERO_ACTY = require('@/assets/images/reading/hero-acty-stack.png');
-const HERO_WINDOW = require('@/assets/images/home/window-light.png');
-
 
 /** 대본 탭에서 처음 한 번 비추는 자리 — 대본을 들이는 버튼 하나뿐이다 (SOMA-550). */
 const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guide.spotReadingNew' }];
@@ -220,22 +221,16 @@ export default function ReadingList() {
   const voiceBar = (
     cloudVoice.status?.available ? (
       <View style={styles.voiceBar}>
-        <MaterialCommunityIcons name="waveform" size={19} color={palette.blue} />
+        <MaterialCommunityIcons name="waveform" size={18} color={palette.blue} />
         <Text style={styles.voiceText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
           {t('cloudVoice.bannerLabel')}
         </Text>
-        {!!voiceFreeUntil && (
-          <View style={styles.voiceBadge}>
-            <Text style={styles.voiceBadgeText}>{t('cloudVoice.bannerFree', { date: voiceFreeUntil })}</Text>
-          </View>
-        )}
-        <Switch
+        {!!voiceFreeUntil && <Text style={styles.voiceBadgeText}>{t('cloudVoice.bannerFree', { date: voiceFreeUntil })}</Text>}
+        <BlueSwitch
           value={cloudVoice.enabled && cloudVoice.status.consent === 'granted'}
           onValueChange={(value) => void (value ? cloudVoice.enable('settings') : cloudVoice.disable())}
           disabled={cloudVoice.busy}
-          trackColor={{ true: palette.blue, false: palette.border }}
-          thumbColor={palette.onAccent}
-          ios_backgroundColor={palette.border}
+          accessibilityLabel={t('cloudVoice.bannerLabel')}
         />
       </View>
     ) : null
@@ -247,11 +242,8 @@ export default function ReadingList() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: tabBarSpace + 20 }]}
       keyboardShouldPersistTaps="handled">
       {empty && (
-        // pen R1.13 「연한 블루 배경」(#E4EEFC → #FBFDFF)과 창빛 장식.
-        <View style={[styles.emptyBg, { height: 250 + insets.top }]} pointerEvents="none">
-          <BandGradient stops={[[0, '#E4EEFC'], [0.72, '#E4EEFC'], [1, '#FBFDFF']]} />
-          <Image source={HERO_WINDOW} style={styles.emptyWindow} resizeMode="cover" accessibilityElementsHidden />
-        </View>
+        // pen R1.13 — 위쪽 blue-soft 단색 띠(아래 모서리 24).
+        <View style={[styles.emptyBg, { height: 300 + insets.top }]} pointerEvents="none" />
       )}
       {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
           돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
@@ -267,16 +259,16 @@ export default function ReadingList() {
                 <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
               )}
               {!empty && (
-                <Pressable
-                  ref={newTarget.ref}
-                  onLayout={newTarget.onLayout}
-                  style={styles.newBtn}
-                  accessibilityRole="button"
-                  // 「새 대본」은 바로 내 대본 올리기로 간다 — 같이 만들기는 그 화면의 세 번째 선택지다(10/25).
-                  onPress={() => router.push('/reading/new')}>
-                  <Feather name="plus" size={16} color={palette.onAccent} />
-                  <Text style={styles.newText}>{t('reading.titleNew')}</Text>
-                </Pressable>
+                <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
+                  {/* 「새 대본」은 바로 내 대본 올리기로 간다 — 같이 만들기는 그 화면의 세 번째 선택지다(10/25). */}
+                  <Button
+                    size="md"
+                    label={t('reading.titleNew')}
+                    icon={<Feather name="plus" size={16} color={palette.onAccent} />}
+                    phLabel="reading_new"
+                    onPress={() => router.push('/reading/new')}
+                  />
+                </View>
               )}
             </View>
           }
@@ -286,14 +278,7 @@ export default function ReadingList() {
       {/* 고품질 목소리 띠 — 대본이 있어도 머리 아래에 둔다(10/25 사용자 결정, 기본 켜짐). */}
       {!empty && voiceBar}
 
-      {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{t('reading.listLoadFail')}</Text>
-          <Pressable onPress={() => void load(q)}>
-            <Text style={styles.retry}>{t('common.retry')}</Text>
-          </Pressable>
-        </View>
-      )}
+      {error && <InlineError message={t('reading.listLoadFail')} onRetry={() => void load(q)} />}
 
       {empty ? (
         // pen R1.13 — 큰 「리딩」 제목과 책 위 액티, 고품질 목소리 알약, 그라데이션 입구 카드 셋(누르면 바로 들어감).
@@ -308,36 +293,32 @@ export default function ReadingList() {
           {voiceBar}
           <View style={styles.entryCards}>
             {ENTRY_CHOICES.map((c) => (
-              // pen 카드 그림자 — 아래로 5 밀린 진한 그림자(밑턱)와 흐린 그림자.
-              <View key={c.key} style={[styles.entryLip, { backgroundColor: c.dark ? '#0E52CC' : '#BCD3FA' }]}>
               <Pressable
+                key={c.key}
                 ref={c.key === 'upload' ? newTarget.ref : undefined}
                 onLayout={c.key === 'upload' ? newTarget.onLayout : undefined}
-                style={({ pressed }) => [styles.entryCard, c.dark ? styles.entryCardDark : styles.entryCardLight, pressed && { opacity: 0.85 }]}
+                style={({ pressed }) => [styles.entryCard, c.primary ? styles.entryCardPrimary : styles.entryCardPlain, pressed && styles.pressed]}
                 accessibilityRole="button"
                 accessibilityLabel={t(c.title)}
                 ph-label={`reading_entry_${c.key}`}
                 onPress={() => goEntry(c.key)}>
-                <BandGradient stops={c.stops} />
                 <View style={styles.entryArt}>
                   {ENTRY_ART[c.key] != null ? (
                     <Image source={ENTRY_ART[c.key]} style={styles.entryArtImg} resizeMode="contain" accessibilityElementsHidden />
                   ) : (
                     <View style={styles.entryTile}>
-                      <BandGradient stops={[[0, '#7FB0FF'], [1, '#3B86FF']]} />
-                      <MaterialCommunityIcons name="auto-fix" size={26} color="#FFFFFF" />
+                      <MaterialCommunityIcons name="auto-fix" size={26} color={palette.onAccent} />
                     </View>
                   )}
                 </View>
                 <View style={styles.entryBody}>
-                  <Text style={[styles.entryTitle, c.dark && { color: '#FFFFFF' }]}>{t(c.title)}</Text>
-                  <Text style={[styles.entrySub, c.dark && { color: '#DCE8FF' }]}>{t(c.sub)}</Text>
+                  <Text style={[styles.entryTitle, c.primary && styles.onAccent]}>{t(c.title)}</Text>
+                  <Text style={[styles.entrySub, c.primary && styles.onMediaSub]}>{t(c.sub)}</Text>
                 </View>
-                <View style={[styles.entryGo, c.dark ? styles.entryGoDark : styles.entryGoLight]}>
-                  <Feather name="chevron-right" size={20} color={palette.blue} />
+                <View style={[styles.entryGo, !c.primary && styles.entryGoPlain]}>
+                  <Feather name="chevron-right" size={18} color={palette.blue} />
                 </View>
               </Pressable>
-              </View>
             ))}
           </View>
         </View>
@@ -345,11 +326,8 @@ export default function ReadingList() {
         <>
           {resume && !searching && (
             <View style={styles.resumeCard}>
-              {/* pen R1.3 — 하늘색 그라데이션 위 창·달·구름, 책 더미 위에서 읽는 액티 */}
-              <BandGradient stops={[[0, '#86B7FF'], [1, '#4A8BF5']]} />
-              <Image source={HERO_WINDOW} style={styles.resumeWindow} resizeMode="cover" accessibilityElementsHidden />
-              <View style={styles.resumeCloud} pointerEvents="none" />
-              <Feather name="moon" size={26} color="rgba(255,255,255,0.85)" style={styles.resumeMoon} />
+              {/* pen R1.3 — 파랑 단색 카드, 오른쪽 위 달, 책 더미 위에서 읽는 액티 */}
+              <Feather name="moon" size={22} color={palette.onAccent} style={styles.resumeMoon} />
               <Image source={HERO_ACTY} style={styles.resumeActy} resizeMode="contain" accessibilityElementsHidden />
               <Text style={styles.resumeEyebrow}>{t('reading.resumeEyebrow')}</Text>
               <Text style={styles.resumeTitle}>
@@ -366,13 +344,13 @@ export default function ReadingList() {
                 onPress={() => void continueReading()}
                 disabled={resuming}
                 accessibilityRole="button">
-                {resuming ? <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} /> : <Text style={styles.resumeBtnText}>{t('reading.resumeGo')}</Text>}
-                <Feather name="arrow-right" size={18} color={palette.blueDeep} />
+                <Text style={styles.resumeBtnText}>{resuming ? t('loadingText.preparing') : t('reading.resumeGo')}</Text>
+                {!resuming && <Feather name="arrow-right" size={16} color={palette.blueDeep} />}
               </Pressable>
             </View>
           )}
 
-          <AdSlot slot="reading_tab_top" style={{ marginBottom: 16 }} />
+          <AdSlot slot="reading_tab_top" />
 
           {list && (
             <View style={styles.sectionHead}>
@@ -382,7 +360,7 @@ export default function ReadingList() {
           )}
           {/* pen R1.3·R1.4 — 검색칸은 「업로드한 대본」 머리 아래, 목록 바로 위에 둔다. */}
           <View style={styles.search}>
-            <Feather name="search" size={16} color={palette.iconFaint} />
+            <Feather name="search" size={18} color={palette.iconFaint} />
             <TextInput
               style={styles.searchInput}
               value={q}
@@ -410,8 +388,8 @@ export default function ReadingList() {
                   <View style={styles.rowBody}>
                     <Text style={styles.rowTitle} numberOfLines={1}>{s.title}</Text>
                     <Text style={styles.rowMeta} numberOfLines={1}>
+                      {chip && tone ? <Text style={[styles.rowChip, { color: tone.color }]}>{`${chip.label} · `}</Text> : null}
                       {myCharactersLabel(s)} · {t('reading.dialogueCount', { count: s.dialogue_count })}
-                      {chip && tone ? <Text style={{ color: tone.color }}>{` · ${chip.label}`}</Text> : null}
                     </Text>
                   </View>
                   <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_script_more" onPress={(e) => more(s, e)}>
@@ -420,7 +398,7 @@ export default function ReadingList() {
                 </Pressable>
               );
             })}
-            {scripts.length === 0 && searching && <Text style={styles.noMatch}>{t('reading.noMatch')}</Text>}
+            {scripts.length === 0 && searching && <InlineEmpty title={t('reading.noMatch')} description={t('reading.noMatchSub')} />}
           </View>
         </>
       )}
@@ -450,81 +428,86 @@ export default function ReadingList() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: 20, gap: 12 },
-  // 큰 제목 머리는 제 안쪽 여백(28)을 가지므로 목록 여백(20)을 거둔다.
-  headWrap: { marginHorizontal: -20 },
-  headRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
-  newText: { color: palette.onAccent, fontSize: 14, fontWeight: '800' },
-  // pen 「AI 목소리 배너」 — 높이 39, 모서리 20, 옅은 파랑 바탕, 글 12.5/700, 무료 배지 모서리 8.
-  // pen 「고품질 AI 목소리 공지」 — 흰 알약(48, 모서리 24, 테두리 #C7DAF5), 무료 기간은 파란 글자.
+  content: { paddingHorizontal: space.gutter, gap: space[3] },
+  // 큰 제목 머리는 제 안쪽 여백(20)을 가지므로 목록 여백(20)을 거둔다.
+  headWrap: { marginHorizontal: -space.gutter },
+  headRight: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  // pen 「고품질 AI 목소리 공지」 — 흰 알약(48, r-full, 1px border), 무료 기간은 blue-deep.
   voiceBar: {
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FFFFFFE8',
+    gap: space[2],
+    backgroundColor: palette.bg,
     borderWidth: 1,
-    borderColor: '#C7DAF5',
-    borderRadius: 24,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    shadowColor: '#8CB5ED',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    borderColor: palette.border,
+    borderRadius: radius.full,
+    paddingLeft: space[3],
+    paddingRight: space[1],
   },
-  voiceText: { flex: 1, fontSize: 12, fontWeight: '600', color: '#25334D' },
-  voiceBadge: {},
-  voiceBadgeText: { fontSize: 10, fontWeight: '700', color: palette.blue },
-  search: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.bgSoft, borderRadius: 12, paddingHorizontal: 12, height: 46 },
-  searchInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 14, padding: 0 },
-  errorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.dangerSoft, borderRadius: 12, padding: 12 },
-  errorText: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
-  retry: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  loading: { alignItems: 'center', paddingVertical: 60 },
-  entry: { gap: 16 },
-  emptyBg: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
-  emptyWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
+  voiceText: { ...type.captionBold, flex: 1, color: palette.text },
+  voiceBadgeText: { ...type.micro, color: palette.blueDeep },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[2],
+    backgroundColor: palette.bg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius.md,
+    paddingHorizontal: space[4],
+    height: 48,
+  },
+  searchInput: { ...type.body1, lineHeight: undefined, flex: 1, color: palette.text, padding: 0 },
+  entry: { gap: space[4] },
+  emptyBg: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: palette.blueSoft, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
   hero: { height: 188, flexDirection: 'row', alignItems: 'center' },
-  heroText: { flex: 1, gap: 14 },
-  heroTitle: { color: '#0B1328', fontSize: 44, fontWeight: '800', letterSpacing: -1 },
-  heroSub: { color: '#59677F', fontSize: 14, lineHeight: 23 },
-  heroActy: { width: 170, height: 188, marginRight: -6 },
-  entryCards: { gap: 18, paddingTop: 10 },
-  entryCard: { height: 108, borderRadius: 26, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderWidth: 1 },
-  entryLip: { borderRadius: 26, paddingBottom: 5, shadowColor: '#176BFF', shadowOpacity: 0.15, shadowRadius: 18, shadowOffset: { width: 0, height: 12 } },
-  entryCardDark: { borderColor: '#4A93FF', borderWidth: 0 },
-  entryCardLight: { borderColor: '#C7DBFF' },
+  heroText: { flex: 1, gap: space[3] },
+  heroTitle: { ...type.display, color: palette.text },
+  heroSub: { ...type.body2, color: palette.textSub },
+  heroActy: { width: 170, height: 188 },
+  entryCards: { gap: space[3], paddingTop: space[2] },
+  entryCard: { minHeight: 108, borderRadius: radius.lg, flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4] },
+  entryCardPrimary: { backgroundColor: palette.blue },
+  entryCardPlain: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   entryArt: { width: 68, height: 76, alignItems: 'center', justifyContent: 'center' },
   entryArtImg: { width: 68, height: 76 },
-  entryTile: { width: 52, height: 52, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  entryBody: { flex: 1, gap: 7 },
-  entryTitle: { color: '#101B32', fontSize: 16, fontWeight: '700', lineHeight: 22 },
-  entrySub: { color: '#7D8BA3', fontSize: 12, lineHeight: 18 },
-  entryGo: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', elevation: 2 },
-  entryGoDark: { shadowColor: '#0E52CC', shadowOpacity: 0.4, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  entryGoLight: { shadowColor: '#BCD3FA', shadowOpacity: 1, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  resumeCard: { backgroundColor: palette.blue, borderRadius: 24, padding: 20, paddingBottom: 22, gap: 8, overflow: 'hidden' },
-  resumeWindow: { position: 'absolute', right: -10, top: 0, width: 210, height: 180, opacity: 0.18 },
-  resumeCloud: { position: 'absolute', left: -40, right: -40, bottom: -70, height: 120, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.22)' },
-  resumeMoon: { position: 'absolute', right: 26, top: 22 },
-  resumeActy: { position: 'absolute', right: -4, bottom: -6, width: 128, height: 142 },
-  resumeEyebrow: { color: 'rgba(255,255,255,0.88)', fontSize: 13, fontWeight: '700', lineHeight: 20 },
-  resumeTitle: { color: palette.onAccent, maxWidth: '78%', fontSize: 22, fontWeight: '900', lineHeight: 31 },
-  resumeHint: { color: 'rgba(255,255,255,0.85)', maxWidth: '64%', fontSize: 12.5, fontWeight: '600', lineHeight: 19 },
-  resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.bg, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
-  resumeBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
+  entryTile: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  entryBody: { flex: 1, gap: space[1] },
+  entryTitle: { ...type.body1Bold, color: palette.text },
+  entrySub: { ...type.caption, color: palette.textMeta },
+  onAccent: { color: palette.onAccent },
+  onMediaSub: { color: palette.onMediaSub },
+  entryGo: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
+  entryGoPlain: { borderWidth: 1, borderColor: palette.border },
+  resumeCard: { backgroundColor: palette.blue, borderRadius: radius.lg, padding: space[5], gap: space[2], overflow: 'hidden' },
+  resumeMoon: { position: 'absolute', right: space[5], top: space[5] },
+  resumeActy: { position: 'absolute', right: 0, bottom: 0, width: 96, height: 106 },
+  resumeEyebrow: { ...type.caption, color: palette.onMediaSub },
+  resumeTitle: { ...type.title2, color: palette.onAccent, maxWidth: '78%' },
+  resumeHint: { ...type.caption, color: palette.onMediaSub, maxWidth: '64%' },
+  resumeBtn: {
+    alignSelf: 'flex-start',
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[1.5],
+    backgroundColor: palette.bg,
+    borderRadius: radius.full,
+    paddingHorizontal: space[4],
+    marginTop: space[1],
+  },
+  resumeBtnText: { ...type.body2Bold, color: palette.blueDeep },
   pressed: { opacity: 0.85 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
-  sectionTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 24 },
-  sectionCount: { color: palette.textMeta, fontSize: 13, fontWeight: '600' },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space[2] },
+  sectionTitle: { ...type.headline, color: palette.text },
+  sectionCount: { ...type.caption, color: palette.textMeta },
   list: { gap: 0 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 4 },
-  rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rowBody: { flex: 1, minWidth: 0, gap: 6 },
-  rowTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 24 },
-  rowMeta: { color: palette.textMeta, fontSize: 13, fontWeight: '600', lineHeight: 20 },
-  moreBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  noMatch: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
+  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
+  rowIcon: { width: 24, alignItems: 'center' },
+  rowBody: { flex: 1, minWidth: 0, gap: space[1] },
+  rowTitle: { ...type.body1Bold, color: palette.text },
+  rowMeta: { ...type.caption, color: palette.textMeta },
+  rowChip: type.captionBold,
+  moreBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 });
