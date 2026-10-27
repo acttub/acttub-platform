@@ -120,6 +120,13 @@ public interface ProfileRepository {
     NotificationSettings notificationSettings(UUID userId);
 
     /**
+     * 실기 날짜를 바꾼다({@code null} 이면 지운다). 다른 프로필 칸은 건드리지 않는다.
+     *
+     * @return 바꿨으면 true. 프로필 행이 없거나 계정이 활성이 아니면 false
+     */
+    boolean updateExamDate(UUID userId, LocalDate examDate);
+
+    /**
      * 보낸 토글만 바꾼다({@code null} 은 그대로 둔다). 토글 <b>셋이 다</b> 꺼지면 같은
      * 트랜잭션에서 그 회원의 푸시 토큰을 전부 지운다 — 토글은 회원 단위라 기기마다가 아니다.
      *

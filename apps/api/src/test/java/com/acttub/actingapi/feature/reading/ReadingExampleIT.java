@@ -148,18 +148,47 @@ class ReadingExampleIT {
     }
 
     @Test
-    @DisplayName("예시 대본 목록: 켜진 3편을 sort_order 순으로 — 대사 수·배역·미리보기 5줄(지문은 speaker null)")
+    @DisplayName("입시 예시 3편: raw_text 의 대사·지문 줄이 draft 줄과 순서까지 같고 category=exam 이다")
+    void examExamplesRawTextMatchesDraft() throws Exception {
+        for (String id : List.of("exam-result", "exam-brother", "exam-studio")) {
+            assertThat(jdbc.queryForObject("SELECT category FROM reading_examples WHERE id=?", String.class, id)).isEqualTo("exam");
+            String raw = jdbc.queryForObject("SELECT raw_text FROM reading_examples WHERE id=?", String.class, id);
+            JsonNode draft = mapper.readTree(jdbc.queryForObject("SELECT CAST(draft AS text) FROM reading_examples WHERE id=?", String.class, id));
+            List<String> expected = new java.util.ArrayList<>();
+            for (String line : raw.split("\n")) {
+                if (line.isBlank()) continue;
+                if (line.startsWith("(")) { expected.add("direction|" + line); continue; }
+                int colon = line.indexOf(": ");
+                if (colon > 0 && colon <= 3) expected.add("dialogue|" + line.substring(0, colon) + "|" + line.substring(colon + 2));
+            }
+            List<String> actual = new java.util.ArrayList<>();
+            for (JsonNode line : draft.path("lines")) {
+                actual.add("direction".equals(line.path("kind").textValue())
+                        ? "direction|" + line.path("text").textValue()
+                        : "dialogue|" + draft.path("characters").get(line.path("character").intValue()).textValue() + "|" + line.path("text").textValue());
+            }
+            assertThat(actual).as(id).isEqualTo(expected);
+        }
+    }
+
+    @Test
+    @DisplayName("예시 대본 목록: 켜진 6편(일반 3 + 입시 3)을 sort_order 순으로 — 대사 수·배역·미리보기 5줄(지문은 speaker null)")
     void listsActiveExamplesInOrder() throws Exception {
         JsonNode body = json(get("/v2/reading/examples"), 200, bearer);
         JsonNode examples = body.path("examples");
-        assertThat(examples).extracting(e -> e.path("id").textValue()).containsExactly("rooftop", "cafe", "minji");
+        assertThat(examples).extracting(e -> e.path("id").textValue()).containsExactly("rooftop", "cafe", "minji", "exam-result", "exam-brother", "exam-studio");
         assertThat(examples).extracting(e -> e.path("title").textValue())
-                .containsExactly("옥상, 밤", "카페, 헤어지자는 말", "민지의 독백");
+                .containsExactly("옥상, 밤", "카페, 헤어지자는 말", "민지의 독백", "발표 한 시간 전", "형에게", "새벽 연습실");
+        assertThat(examples).extracting(e -> e.path("category").textValue())
+                .containsExactly("general", "general", "general", "exam", "exam", "exam");
         assertThat(examples).extracting(e -> e.path("summary").textValue())
-                .containsExactly("윤서 · 태오 · 2인 대화", "서연 · 준호 · 2인 대화", "혼자 읽는 독백");
-        assertThat(examples).extracting(e -> e.path("dialogue_count").intValue()).containsExactly(15, 15, 7);
+                .containsExactly("윤서 · 태오 · 2인 대화", "서연 · 준호 · 2인 대화", "혼자 읽는 독백",
+                        "지민 · 독백 · 입시", "도윤 · 독백 · 입시", "서연 · 지호 · 2인 지정대사");
+        assertThat(examples).extracting(e -> e.path("dialogue_count").intValue()).containsExactly(15, 15, 7, 6, 7, 11);
         assertThat(examples.get(1).path("characters")).extracting(JsonNode::textValue).containsExactly("서연", "준호");
         assertThat(examples.get(2).path("characters")).extracting(JsonNode::textValue).containsExactly("민지");
+        assertThat(examples.get(3).path("characters")).extracting(JsonNode::textValue).containsExactly("지민");
+        assertThat(examples.get(5).path("characters")).extracting(JsonNode::textValue).containsExactly("서연", "지호");
 
         JsonNode preview = examples.get(0).path("preview");
         assertThat(preview).hasSize(5);
@@ -169,11 +198,11 @@ class ReadingExampleIT {
         assertThat(preview.get(1).path("text").textValue()).isEqualTo("여기 있을 줄 알았어.");
         assertThat(preview.get(2).path("speaker").textValue()).isEqualTo("태오");
         assertThat(examples.get(0).fieldNames()).toIterable()
-                .containsExactlyInAnyOrder("id", "title", "summary", "dialogue_count", "characters", "preview");
+                .containsExactlyInAnyOrder("id", "title", "summary", "category", "dialogue_count", "characters", "preview");
 
         jdbc.update("UPDATE reading_examples SET active=false WHERE id='cafe'");
         assertThat(json(get("/v2/reading/examples"), 200, bearer).path("examples"))
-                .extracting(e -> e.path("id").textValue()).containsExactly("rooftop", "minji");
+                .extracting(e -> e.path("id").textValue()).containsExactly("rooftop", "minji", "exam-result", "exam-brother", "exam-studio");
     }
 
     @Test

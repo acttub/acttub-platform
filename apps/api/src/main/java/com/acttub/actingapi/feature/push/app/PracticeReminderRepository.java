@@ -19,9 +19,18 @@ public interface PracticeReminderRepository {
      * @param lastWasReading   가장 최근 연습 사건이 리딩이다
      * @param practicedToday   오늘(한국) 연습 사건이 있다
      * @param sentToday        오늘 이미 보낸 칸('practice'·'streak')
+     * @param examPrep         프로필 experience 가 exam_prep 인가
+     * @param examDate         프로필 실기 날짜(없으면 null)
      */
     record Candidate(UUID userId, List<PushTarget> targets, Instant firstPracticeAt, LocalDate lastPracticeDay,
-                     boolean neverPracticed, boolean lastWasReading, boolean practicedToday, Set<String> sentToday) {}
+                     boolean neverPracticed, boolean lastWasReading, boolean practicedToday, Set<String> sentToday,
+                     boolean examPrep, LocalDate examDate) {
+        public Candidate(UUID userId, List<PushTarget> targets, Instant firstPracticeAt, LocalDate lastPracticeDay,
+                         boolean neverPracticed, boolean lastWasReading, boolean practicedToday, Set<String> sentToday) {
+            this(userId, targets, firstPracticeAt, lastPracticeDay, neverPracticed, lastWasReading, practicedToday, sentToday,
+                    false, null);
+        }
+    }
 
     /** 연속 기록 알림 후보: 오늘 연습 전이고 어제까지 연습한 회원. */
     List<Candidate> candidates(LocalDate today, Instant windowStart, String minimumAppVersion);

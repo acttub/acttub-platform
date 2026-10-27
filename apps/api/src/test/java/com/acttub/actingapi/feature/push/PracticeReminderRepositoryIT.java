@@ -188,6 +188,23 @@ class PracticeReminderRepositoryIT {
     }
 
     @Test
+    void candidatesCarryExamPrepAndExamDate() {
+        UUID exam = user("exam", true, "0.1.2", "2026-09-01T10:00");
+        video(exam, "2026-10-20T20:00");
+        jdbc.update("UPDATE user_profiles SET experience='exam_prep',exam_date=DATE '2026-11-05' WHERE user_id=?", exam);
+        UUID plain = user("plain", true, "0.1.2", "2026-09-01T10:00");
+        video(plain, "2026-10-20T20:00");
+
+        List<Candidate> all = reminders.candidates(TODAY, WINDOW, "0.1.2");
+        Candidate c = find(all, exam);
+        assertThat(c.examPrep()).isTrue();
+        assertThat(c.examDate()).isEqualTo(LocalDate.of(2026, 11, 5));
+        Candidate p = find(all, plain);
+        assertThat(p.examPrep()).isFalse();
+        assertThat(p.examDate()).isNull();
+    }
+
+    @Test
     void lastEventKindReportsReading() {
         UUID reader = user("reader", true, "0.1.2", "2026-09-01T10:00");
         video(reader, "2026-10-19T20:00");

@@ -137,6 +137,19 @@ public class ProfileService implements ProfileGate {
         return view(saved);
     }
 
+    /** 실기 날짜로 받는 가장 먼 날(오늘로부터 일수). */
+    public static final int EXAM_DATE_MAX_DAYS = 400;
+
+    /**
+     * 실기 날짜를 적는다. 값은 한국 날짜 기준 오늘~오늘+{@value #EXAM_DATE_MAX_DAYS}일만 받는다(범위 검사는 부르는 쪽).
+     * 적을 수 없는 계정은 다른 쓰기와 같이 거절한다.
+     */
+    public void updateExamDate(UUID userId, LocalDate examDate) {
+        if (!profiles.updateExamDate(userId, examDate)) {
+            throw refused(userId);
+        }
+    }
+
     public NotificationSettings notificationSettings(UUID userId) {
         NotificationSettings settings = profiles.notificationSettings(userId);
         if (settings == null) {

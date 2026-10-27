@@ -166,7 +166,7 @@ class AccountWritesAndPhotoCleanupIT {
             Future<Integer> saving = pool.submit(() -> authorized(put("/v2/me/profile")
                     .contentType(MediaType.APPLICATION_JSON).content("""
                             {"name":"다시 찬 이름","gender":"female","birth_date":"2001-03-14","directions":["media"],
-                             "experience":"exam_prep","goal":"audition","bio":"다시 찬 소개"}
+                             "experience":"exam_prep","goal":"audition","bio":"다시 찬 소개","exam_date":null}
                             """)).getStatus());
             awaitLockWaiters(1);
             // 기기 B: 탈퇴. 저장이 users 행을 잡고 있으면 그 뒤에 줄을 서고, 아니면 먼저 끝난다.
