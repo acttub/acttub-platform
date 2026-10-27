@@ -1938,6 +1938,8 @@ const ko = {
     lineDeleteConfirm: '지우기',
     lineDeleteEmptyRange: '이 대사 하나만 연습한 기록이 있어 지울 수 없어요.',
     lineDeleteLast: '대본의 마지막 줄은 지울 수 없어요.',
+    lineDeleteRefusedTitle: '지울 수 없어요',
+    lineDeleteFailTitle: '지우지 못했어요',
     lineSplitSub: '자를 곳에서 나눠 앞뒤 칸에 적어 주세요. 지난 리딩과 녹음은 앞 대사에 남아요.',
     lineSplitFirst: '앞 대사',
     lineSplitSecond: '뒤 대사',
