@@ -854,6 +854,36 @@ final class PurposeLoop {
 
     /** 첫 응답을 질문 한 줄로 줄이지 않는 목적. 평가 첫 답은 결과를 짧게 말한다. */
     static boolean keepsWholeOpening(Purpose purpose) {
-        return purpose == Purpose.EVALUATE;
+        // 리딩 녹음(SOMA-791)의 첫 답은 들린 것 한 문장과 질문 한 문장이다. 질문 줄만 남기면 들린 것이 사라진다(10/27 dev 실제 녹음).
+        return purpose == Purpose.EVALUATE || purpose == Purpose.READING;
+    }
+
+    private static final Pattern READING_LINE = Pattern.compile("(?m)^- 녹음 \\d+: \\S+ \"(.+)\"$");
+    private static final Pattern TAKE_ACTION = Pattern.compile("[\"”」]\\s*에서\\s*(.+)$", Pattern.DOTALL);
+
+    /**
+     * 리딩 녹음 코칭(SOMA-791) 정리의 다음 테이크를 {@code "대본 그 줄 그대로"에서 해 볼 것} 으로 바로잡는다. 앱은 따옴표 안을 촬영 화면에
+     * 띄운다. 10/27 dev 실제 녹음: 모델이 두 문장짜리 대사를 줄을 나눠 써서, 행동 문장만 뽑으니 여는 따옴표와 앞 문장이 빠졌다.
+     * 내 대사 줄(재료 글의 줄별 시간 목록) 가운데 다음 테이크와 가장 길게 겹치는 줄을 고른다. 못 고르면 그대로 둔다.
+     */
+    static String readingTake(String take, String material) {
+        if (take == null || take.isBlank() || material == null) return take;
+        String flat = take.replaceAll("\\s+", " ").strip();
+        String bare = compact(flat);
+        String best = null;
+        int bestOverlap = 0;
+        Matcher line = READING_LINE.matcher(material);
+        while (line.find()) {
+            String text = line.group(1).strip();
+            int overlap = commonRun(compact(text), bare);
+            if (overlap > bestOverlap) {
+                best = text;
+                bestOverlap = overlap;
+            }
+        }
+        if (best == null || bestOverlap < Math.min(6, compact(best).length())) return take;
+        Matcher action = TAKE_ACTION.matcher(flat);
+        String rest = action.find() ? action.group(1).strip() : "";
+        return rest.isEmpty() ? "\"" + best + "\"" : "\"" + best + "\"에서 " + rest;
     }
 }

@@ -605,6 +605,7 @@ public final class DirectVideoCoach {
                 // 상태 칸은 서버가 쓴다. 정리의 행동 한 줄은 노트의 다음 촬영이 된다(숨은 줄을 빠뜨렸으면 정리 말의 행동 문장).
                 String take = purposeTurn.wrap() ? DirectVideoPracticeLoop.nextTake(message) : "";
                 if (purposeTurn.wrap() && take.isBlank()) take = DirectVideoPracticeLoop.actionLine(parsed.message());
+                if (listen && purposeTurn.wrap()) take = PurposeLoop.readingTake(take, reading.material());
                 purposeTake = take;
                 String status = PurposeLoop.status(purposeTurn, take);
                 DirectVideoDialogueEvidence.requireGrounded(uploaded, "<상태>\n" + status + "\n</상태>", written);

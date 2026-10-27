@@ -116,6 +116,15 @@ class DirectVideoCoachReadingTest {
         assertThat(audios).allSatisfy(file -> assertThat(file).doesNotExist());
     }
 
+    /** 10/27 dev 실제 녹음: 모델이 들린 것과 질문을 두 줄로 쓰면 질문 줄만 남아 들린 것이 사라졌다. */
+    @Test void anOpeningOnTwoLinesKeepsWhatWasHeard() {
+        when(model.reply(eq(uploaded), anyList(), anyString())).thenReturn(OPENING.replace(
+                "\"가지 마\"는 다른 대사들보다 빨라요. 이 말을", "\"가지 마\"는 다른 대사들보다 빨라요.\n이 말을"));
+        var result = coach(audio()).turn(fresh(), null, UUID.randomUUID());
+        assertThat(result.reply().message())
+                .isEqualTo("\"가지 마\"는 다른 대사들보다 빨라요.\n이 말을 할 때 민수는 지혜한테서 무슨 말을 듣고 싶었어요?");
+    }
+
     @Test void theSecondReplyIsTheTryStepWithTheReadingTurnPrompt() {
         when(model.reply(eq(uploaded), anyList(), anyString())).thenReturn(OPENING,
                 "붙잡고 싶었다면, \"가지 마\"가 빠른 건 그 마음과 달라요. 다시 읽을 때 지혜한테 무엇을 하면서 말해 볼래요?\n"

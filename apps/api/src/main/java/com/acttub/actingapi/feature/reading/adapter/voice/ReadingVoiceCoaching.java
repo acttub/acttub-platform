@@ -32,6 +32,13 @@ public class ReadingVoiceCoaching implements ReadingVoice, CoachReadingAudio {
     private final Supplier<ObjectStorage> storage;
     private final RecordingSounds sounds;
     private final AudioJoiner joiner;
+    /** 회차·녹음별 모델 글. 오래된 것부터 버린다. */
+    private final Map<String, String> texts = java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return size() > 200;
+        }
+    });
 
     public ReadingVoiceCoaching(ReadingVoiceMaterials materials, Supplier<ObjectStorage> storage, RecordingSounds sounds,
             AudioJoiner joiner) {
@@ -73,8 +80,9 @@ public class ReadingVoiceCoaching implements ReadingVoice, CoachReadingAudio {
         // 같은 녹음이면 같은 열쇠다 — 다시 녹음하면 객체 키가 바뀌어 새로 올린다.
         String sourceKey = readingSessionId + ":" + Integer.toHexString(String.join("|",
                 prepared.clips().stream().map(Clip::objectKey).toList()).hashCode());
-        String cues = RecordingSoundCues.block(RecordingSoundCues.pick(prepared.clips(), sounds.measure(prepared.clips())));
-        String text = ReadingVoiceMaterial.modelText(prepared, durations, cues);
+        // 소리 재기는 녹음을 내려받아 채점 서비스를 부른다 — 같은 녹음이면 턴마다 다시 재지 않고 처음 만든 글을 쓴다.
+        String text = texts.computeIfAbsent(practiceId + ":" + sourceKey, key -> ReadingVoiceMaterial.modelText(prepared, durations,
+                RecordingSoundCues.block(RecordingSoundCues.pick(prepared.clips(), sounds.measure(prepared.clips())))));
         Path audio = withAudio ? join(prepared.clips()) : null;
         return new CoachReadingAudio.Prepared(audio, "audio/wav", sourceKey, text);
     }
