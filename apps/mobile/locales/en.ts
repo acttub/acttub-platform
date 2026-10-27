@@ -564,6 +564,7 @@ const en: DeepStringShape<typeof ko> = {
     mosaicTitle: 'Face mosaic',
     mosaicSub: 'Others only see a version with your face pixelated',
     doneSubMosaic: 'We are making the face mosaic. Others will see it once it is ready.',
+    submitting: 'Uploading…',
   },
   linePick: {
     title: 'Pick a line',

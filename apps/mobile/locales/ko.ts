@@ -557,6 +557,7 @@ const ko = {
     mosaicTitle: '얼굴 모자이크',
     mosaicSub: '다른 사람에게는 얼굴을 가린 영상만 보여요',
     doneSubMosaic: '얼굴 모자이크를 만드는 중이에요. 다 되면 다른 배우들에게 보여요.',
+    submitting: '올리는 중…',
   },
   linePick: {
     title: '대사 고르기',
