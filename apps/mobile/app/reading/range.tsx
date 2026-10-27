@@ -303,7 +303,14 @@ export default function ReadingRange() {
           })}
         </ScrollView>
         </View>
-        <Text style={styles.hint}>{mono ? t('reading.monologueCard', { count: script.dialogueCount }) : t('reading.rangeMultiNote')}</Text>
+        {/* 대사가 한 줄뿐인 대본은 한 번에 읽게 된다 — 나눠 읽는 길을 같은 안내 자리에 알린다(SOMA-727, 팝업 없음). */}
+        <Text style={styles.hint}>
+          {dialogues.length === 1
+            ? t('reading.rangeSingleLineNote')
+            : mono
+              ? t('reading.monologueCard', { count: script.dialogueCount })
+              : t('reading.rangeMultiNote')}
+        </Text>
 
         <View style={styles.bleed}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>

@@ -239,3 +239,11 @@ test('아래에 추가에서 지문을 고르면 배역 없이 보내고, 취소
   expect(server.insertLineAfter).toHaveBeenCalledWith('s1', 'l4', { kind: 'direction', text: '(사이)' });
   expect(screen.getByLabelText('새 대사를 적어 주세요')).toBeOnTheScreen();
 });
+
+test('SOMA-727: 대사가 한 줄뿐인 대본은 위 안내가 「나누기」로 나눠 읽을 수 있다고 알린다', async () => {
+  await openFixtureScript(scriptDetail([['dialogue', '세훈', '안 돼 편지까지 썼잖아 이제는 정말 안 돼 솔직하게 말씀드리자']]));
+  await render(<ReadingFull />);
+
+  expect(screen.getByText('대사가 한 줄뿐이에요. 줄을 눌러 「나누기」로 문장마다 나눠 읽을 수 있어요')).toBeOnTheScreen();
+  expect(screen.queryByText('혼자 하는 대본이라 문장마다 나눴어요')).not.toBeOnTheScreen();
+});

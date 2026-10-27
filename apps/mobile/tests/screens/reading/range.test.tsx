@@ -366,3 +366,11 @@ test('예시에서 온 대본(sample)은 목소리 모델을 미리 받지 않�
   expect(screen.getByText('누구로, 어디를 연습할까요?')).toBeOnTheScreen();
   expect(engine.prefetchIfWifi).not.toHaveBeenCalled();
 });
+
+test('SOMA-727: 대사가 한 줄뿐인 대본은 같은 안내 자리에 나눠 읽는 길을 알린다(팝업 없음)', async () => {
+  await show(scriptDetail([['dialogue', '세훈', '안 돼 편지까지 썼잖아 이제는 정말 안 돼 솔직하게 말씀드리자']]));
+
+  expect(screen.getByText('대사가 한 줄뿐이라 한 번에 읽어요. 나눠 읽으려면 대본 보기에서 줄을 눌러 「나누기」를 고르세요.')).toBeOnTheScreen();
+  expect(screen.queryByText('1문장 · 혼자 하는 대본')).not.toBeOnTheScreen();
+  expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
+});
