@@ -44,6 +44,8 @@ public final class DirectVideoCoach {
     /** 코치 흐름 A/B(SOMA-636). NONE 이면 모두 A(롤백). */
     private final CoachFlows flows;
     private CoachOpenings openings = CoachOpenings.NONE;
+    private CoachPro coachPro = CoachPro.NONE;
+    private CoachProMemory proMemory = CoachProMemory.NONE;
     // 코치 모델 비교(SOMA-657). 새 대화의 alternateShare% 는 코치 답을 alternate 모델로 쓴다.
     // 분류·줄이기·영상 올리기는 늘 기본 모델이다. null 이거나 0 이면 모두 기본 모델(롤백).
     private final DirectVideoModel alternate;
@@ -149,6 +151,13 @@ public final class DirectVideoCoach {
     /** 첫 코칭 첫 말 비교의 배정기를 끼운다. 기본은 {@link CoachOpenings#NONE}(모두 A). */
     public DirectVideoCoach withOpenings(CoachOpenings openings) {
         this.openings = openings == null ? CoachOpenings.NONE : openings;
+        return this;
+    }
+
+    /** Pro 지난 연습 기억(SOMA-900)을 끼운다. 기본은 모두 무료(기억 칸 없음). */
+    public DirectVideoCoach withProMemory(CoachPro pro, CoachProMemory memory) {
+        this.coachPro = pro == null ? CoachPro.NONE : pro;
+        this.proMemory = memory == null ? CoachProMemory.NONE : memory;
         return this;
     }
 
@@ -447,6 +456,7 @@ public final class DirectVideoCoach {
             String prompt = DirectVideoPrompts.withAudioFacts(DirectVideoPrompts.withFaceMosaicFact(
                     CoachPrompt.actorProfileBlock(session.actorProfile())
                     + CoachPrompt.priorContextBlock(session.priorForModel().withoutCoachGuesses(), true, false)
+                    + (loop && !talk ? proMemoryBlock(session, state) : "")
                     + (loop ? DirectVideoPracticeLoop.actorMaterial(session) + layerBlock : "") + task,
                     !talk && source.faceMosaic()), uploaded);
             // 말로 하는 회차는 영상이 없어 첫 응답의 대화 기록이 비고, 모델은 빈 대화를 받지 않는다. 시작을 알리는 배우 쪽 한 줄을
@@ -1379,19 +1389,48 @@ public final class DirectVideoCoach {
         }
     }
 
+    static final String PRO_MEMORY = "pro_memory";
+
+    /**
+     * Pro 지난 연습 기억 칸(SOMA-900). 첫 응답에서 한 번만 정해 상태에 남기고, 둘째 응답부터는 상태의 것을 그대로 쓴다 —
+     * 대화 도중 구독이 바뀌거나 새 노트가 생겨도 같은 대화의 코치가 흔들리지 않는다. 배포 전에 시작한 대화는 칸이 없다.
+     * 읽기에 실패하면 칸 없이 간다(코칭은 이어 간다).
+     */
+    private String proMemoryBlock(CoachSessionSnapshot session, ObjectNode state) {
+        JsonNode stored = state.path(PRO_MEMORY);
+        if (stored.isObject()) return stored.path("block").asText("");
+        if (!session.turns().isEmpty()) return "";
+        ObjectNode memory = state.putObject(PRO_MEMORY);
+        boolean pro = CoachPro.safe(coachPro, session.userId());
+        memory.put("pro", pro);
+        String block = "";
+        if (pro) {
+            try {
+                var pasts = proMemory.recent(session.userId(), session.practiceSessionId(), CoachProMemory.LIMIT);
+                block = CoachProMemory.block(pasts);
+                memory.put("pasts", pasts.size());
+            } catch (RuntimeException failure) {
+                failures.report(failure, FailureKind.UNEXPECTED,
+                        new FailureContext("DirectVideoCoach.proMemory", session.practiceSessionId()));
+            }
+        }
+        memory.put("block", block);
+        return block;
+    }
+
     /** 저장된 상태를 복사해 다음 판으로 올린다. 저장 판이 어긋나면 실패한다. */
     /** 1층 배정. 저장된 값이 있으면 그대로, 없으면 연습 id 로 정한다. */
     private String layerOneArm(CoachSessionSnapshot session) {
         JsonNode stored = session.coachingState() == null ? null : session.coachingState().path(LAYER1).path("arm");
         if (stored != null && stored.isTextual() && !stored.asText().isEmpty()) return stored.asText();
-        return layerOne.arm(session.practiceSessionId());
+        return layerOne.arm(session.practiceSessionId(), session.userId());
     }
 
     /** 1층 칸. 상태에 있으면 그것, 없으면 끝난 결과를 가져와 상태에 남긴다. 배정·기다림·사용 여부도 상태에 적는다. */
     private String layerOneBlock(CoachSessionSnapshot session, ObjectNode state, String arm) {
         ObjectNode layer = state.path(LAYER1).isObject() ? (ObjectNode) state.path(LAYER1) : state.putObject(LAYER1);
         layer.put("arm", arm);
-        if (!CoachLayerOne.ON.equals(arm)) return "";
+        if (!CoachLayerOne.on(arm)) return "";
         String block = layer.path("block").asText("");
         if (block.isEmpty()) {
             try {
