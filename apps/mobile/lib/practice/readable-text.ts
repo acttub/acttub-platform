@@ -50,3 +50,23 @@ export function readableText(text: string): boolean {
 export function hasUnreadableText(text: string): boolean {
   return text.trim().length > 0 && !readableText(text.trim());
 }
+
+/**
+ * 입력칸에 들어오는 글에서 허용 범위 밖 글자를 뺀다. 아무것도 빠지지 않으면 받은 문자열을 그대로 돌려준다
+ * (한글 조합 중인 입력값을 건드리지 않으려고 NFC 정규화는 하지 않는다 — 분해형 é 는 e 만 남는다).
+ */
+export function stripUnreadable(text: string): string {
+  let out = '';
+  let previous = -1;
+  let removed = false;
+  for (const ch of text) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (allowed(c, previous)) {
+      out += ch;
+      previous = c;
+    } else {
+      removed = true;
+    }
+  }
+  return removed ? out : text;
+}

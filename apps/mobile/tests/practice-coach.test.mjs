@@ -175,3 +175,15 @@ test('허용 범위 밖 글자(결합 기호를 쌓은 글·보이지 않는 글
   assert.equal(canSendAnswer({ text: 'Z\u0325\u031c\u0318', waiting: false, closed: false, conversationId: 'conv-1' }), false);
   assert.equal(coachFailure(Object.assign(new Error('x'), { status: 400, code: 'unreadable_text' })).kind, 'unreadable');
 });
+
+test('입력칸은 허용 범위 밖 글자를 받지 않는다(SOMA-905)', async () => {
+  const { stripUnreadable } = await import('../lib/practice/readable-text.ts');
+  assert.equal(stripUnreadable('Z\u0325\u031c\u0318a\u031clgo...'), 'Zalgo...');
+  assert.equal(stripUnreadable('네\u200B 좋아요'), '네 좋아요');
+  assert.equal(stripUnreadable('漢字 그만'), ' 그만');
+  const ok = '좋아요 👍🏻 ❤️‍🔥 1️⃣ ㅋㅋ… “진짜”';
+  assert.equal(stripUnreadable(ok), ok);
+  const same = '옆 사람을 봤어요';
+  assert.ok(Object.is(stripUnreadable(same), same));
+  assert.equal(stripUnreadable('a\uFE0F\uFE0F'), 'a\uFE0F');
+});

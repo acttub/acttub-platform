@@ -44,7 +44,7 @@ import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/se
 import type { CoachConversation, CoachTurnResult } from '@/lib/practice/types';
 import { readingNextLine } from '@/lib/reading/voice-coaching';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
-import { hasUnreadableText } from '@/lib/practice/readable-text';
+import { hasUnreadableText, stripUnreadable } from '@/lib/practice/readable-text';
 import { newRequestId } from '@/lib/request-id';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -119,6 +119,13 @@ function CoachTalk() {
   const [conversation, setConversation] = useState<CoachConversation | null>(null);
   const messages = useMemo(() => (conversation ? orderedMessages(conversation) : []), [conversation]);
   const [input, setInput] = useState('');
+  // 허용 범위 밖 글자(결합 기호를 쌓은 글 등)는 입력칸에 들어오지 않는다(SOMA-905). 뺀 게 있으면 한 줄 알린다.
+  const [strippedInput, setStrippedInput] = useState(false);
+  const changeInput = useCallback((text: string) => {
+    const kept = stripUnreadable(text);
+    setStrippedInput(kept !== text);
+    setInput(kept);
+  }, []);
   const inputRef = useRef<TextInput>(null);
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
@@ -675,7 +682,7 @@ function CoachTalk() {
               </View>
             )}
             <View style={styles.inputRow}>
-              {MicButton && !sample && <MicButton onText={setInput} disabled={connecting || waiting || !conversation} />}
+              {MicButton && !sample && <MicButton onText={changeInput} disabled={connecting || waiting || !conversation} />}
               <TextInput
                 ref={inputRef}
                 style={styles.input}
@@ -683,7 +690,7 @@ function CoachTalk() {
                 placeholderTextColor={palette.textMeta}
                 accessibilityLabel={t('coach.composerLabel')}
                 value={input}
-                onChangeText={setInput}
+                onChangeText={changeInput}
                 maxLength={COACH_ANSWER_MAX}
                 multiline
                 editable={!connecting && !waiting && !!conversation}
@@ -698,7 +705,11 @@ function CoachTalk() {
                 <Feather name="arrow-up" size={20} color={canSend ? palette.onAccent : palette.textDisabled} />
               </Pressable>
             </View>
-            {hasUnreadableText(input) && <InlineErrorLine message={t('coach.answerUnreadable')} />}
+            {strippedInput && input.trim() ? (
+              <InlineErrorLine message={t('coach.answerStripped')} />
+            ) : (
+              hasUnreadableText(input) && <InlineErrorLine message={t('coach.answerUnreadable')} />
+            )}
           </View>
         )}
       </View>
