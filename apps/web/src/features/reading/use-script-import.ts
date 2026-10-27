@@ -5,12 +5,10 @@
  * 흐름 자체는 src/lib/reading/script/import.ts 가 맡고, 여기서는 서버 함수를 잇고 화면 상태로 옮긴다.
  */
 import { useEffect, useRef, useState } from "react";
-import { listConsentDocuments, recordConsent } from "@/lib/api/v2/consents";
 import { completeUpload, createUpload, getImport, putUpload, startImport } from "@/lib/api/v2/reading-imports";
 import { getScript } from "@/lib/api/v2/reading-scripts";
 import { wait } from "@/lib/api/v2/idempotency";
 import {
-  agreeAndRetry,
   IMPORT_FAILED_COPY,
   newAttempt,
   retryWith,
@@ -33,10 +31,6 @@ const apiDeps: ScriptImportDeps = {
   getImport,
   wait,
   now: () => Date.now(),
-  listConsentDocuments: async () => (await listConsentDocuments()).documents,
-  grantConsent: async (documentId) => {
-    await recordConsent({ document_id: documentId, action: "granted" });
-  },
   getScript,
 };
 
@@ -52,8 +46,6 @@ export interface ScriptImporter {
   start: (input: ScriptInput) => void;
   /** R2.7 [새로 넣기]·R2.8 [그래도 나누기] */
   retry: (flag: "allowDuplicate" | "skipScriptCheck") => void;
-  /** R2.14 [동의하고 나누기] */
-  agree: () => void;
   close: () => void;
 }
 
@@ -99,10 +91,6 @@ export function useScriptImport(onSaved: () => void, deps: ScriptImportDeps = ap
     retry: (flag) => {
       const attempt = attemptInDialog();
       if (attempt) void run((d, onProgress) => runImport(retryWith(attempt, flag), d, onProgress));
-    },
-    agree: () => {
-      const attempt = attemptInDialog();
-      if (attempt) void run((d, onProgress) => agreeAndRetry(attempt, d, onProgress));
     },
     close: () => setView({ kind: "idle" }),
   };

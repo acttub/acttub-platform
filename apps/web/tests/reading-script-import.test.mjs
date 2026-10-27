@@ -1,11 +1,11 @@
 // reading.script — 대본 넣기 한 번의 흐름: 파일 올리기 세 단계, 나누기 맡기기, 1초 폴링과 120초 기한, 실패 종류,
-// 플래그를 켠 재요청, 동의 뒤 재요청, 이미 대본이 된 원본의 다시 올리기. 서버 호출은 가짜로 바꿔 순서와 실린 값을 본다.
+// 플래그를 켠 재요청, 이미 대본이 된 원본의 다시 올리기. 서버 호출은 가짜로 바꿔 순서와 실린 값을 본다.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { agreeAndRetry, newAttempt, retryWith, runImport } = await import("../src/lib/reading/script/import.ts");
+const { newAttempt, retryWith, runImport } = await import("../src/lib/reading/script/import.ts");
 const { ApiError, NetworkError } = await import("../src/lib/api/v2/errors.ts");
 
 const job = (status, done = 0, total = 0, rest = {}) => ({
@@ -48,13 +48,6 @@ function fakeServer({ jobs = [job("succeeded", 0, 0, { script_id: "script-9" })]
       clock += ms;
     },
     now: () => clock,
-    listConsentDocuments: async () => [
-      { id: "doc-privacy", type: "privacy" },
-      { id: "doc-split", type: "script_split" },
-    ],
-    grantConsent: async (documentId) => {
-      calls.push(["grantConsent", documentId]);
-    },
     ...overrides,
   };
   return { deps, calls, elapsed: () => clock };
@@ -134,12 +127,12 @@ test("reading.script: 실패한 작업은 failure 마다 대본 아님(R2.8)·�
   }
 });
 
-test("reading.script: 서버 오류 코드는 동의(R2.14)·하루 한도(R2.15)·파일(R2.4)·저장 실패(R2.12) 대화상자가 된다", async () => {
+test("reading.script: 서버 오류 코드는 하루 한도(R2.15)·파일(R2.4)·저장 실패(R2.12) 대화상자가 되고, 나누기 동의 없음은 동의를 묻지 않고 웹에서는 넣을 수 없다는 안내가 된다", async () => {
   const at = (stage, error) => ({ [stage]: async () => Promise.reject(error) });
   const cases = [
-    [text(), at("startImport", new ApiError(403, "script_split_consent_required", "")), { kind: "consent_required" }],
+    [text(), at("startImport", new ApiError(403, "script_split_consent_required", "")), { kind: "split_unavailable" }],
     [text(), at("startImport", new ApiError(429, "script_split_daily_limit", "")), { kind: "daily_limit" }],
-    [file(), at("createUpload", new ApiError(403, "script_split_consent_required", "")), { kind: "consent_required" }],
+    [file(), at("createUpload", new ApiError(403, "script_split_consent_required", "")), { kind: "split_unavailable" }],
     [file(), at("createUpload", new ApiError(422, "script_file_too_large", "")), { kind: "file_too_large" }],
     [file(), at("completeUpload", new ApiError(422, "script_file_unreadable", "")), { kind: "file_unreadable" }],
     [
@@ -210,52 +203,6 @@ test("reading.script: R2.8 [그래도 나누기]는 새 요청 id 에 skip_scrip
 
   assert.notEqual(again.requestId, attempt.requestId);
   assert.deepEqual(second.calls[0][2], { raw_text: "오늘 장 볼 것: 우유, 달걀", source: "paste", allow_duplicate: false, skip_script_check: true });
-});
-
-test("reading.script: R2.14 [동의하고 나누기]는 현재 판 script_split 문서에 동의한 뒤 같은 요청 id 로 다시 맡긴다", async () => {
-  let consented = false;
-  const { deps, calls } = fakeServer({
-    overrides: {
-      grantConsent: async (documentId) => {
-        calls.push(["grantConsent", documentId]);
-        consented = true;
-      },
-      startImport: async (body, requestId) => {
-        calls.push(["startImport", requestId, body]);
-        if (!consented) throw new ApiError(403, "script_split_consent_required", "");
-        return { import_id: "import-1", duplicate_script_id: null };
-      },
-    },
-  });
-  const blocked = await runImport(newAttempt(text()), deps, () => {});
-  assert.deepEqual(blocked.outcome, { kind: "consent_required" });
-
-  const { outcome } = await agreeAndRetry(blocked.attempt, deps, () => {});
-
-  assert.deepEqual(outcome, { kind: "saved", scriptId: "script-9" });
-  assert.deepEqual(names(calls), ["startImport", "grantConsent", "startImport", "getImport"]);
-  assert.equal(calls[1][1], "doc-split");
-  assert.equal(calls[2][1], calls[0][1]);
-});
-
-test("reading.script: 게스트라 동의를 받지 않거나(403 member_only) 동의 문서가 아직 없으면 다시 맡기지 않고 웹에서는 넣을 수 없다는 안내로 끝난다", async () => {
-  const attempt = newAttempt(text());
-  const guest = fakeServer({
-    overrides: { grantConsent: async () => Promise.reject(new ApiError(403, "member_only", "member_only")) },
-  });
-  assert.deepEqual((await agreeAndRetry(attempt, guest.deps, () => {})).outcome, { kind: "split_unavailable" });
-  assert.deepEqual(guest.calls, []);
-
-  const noDocument = fakeServer({ overrides: { listConsentDocuments: async () => [{ id: "doc-privacy", type: "privacy" }] } });
-  assert.deepEqual((await agreeAndRetry(attempt, noDocument.deps, () => {})).outcome, { kind: "split_unavailable" });
-  assert.deepEqual(noDocument.calls, []);
-});
-
-test("reading.script: 동의 저장이 연결 문제로 실패하면 다시 맡기지 않고 동의 대화상자에 까닭을 실어 다시 누를 수 있게 한다", async () => {
-  const flaky = fakeServer({ overrides: { grantConsent: async () => Promise.reject(new NetworkError("끊김")) } });
-  const { outcome } = await agreeAndRetry(newAttempt(text()), flaky.deps, () => {});
-  assert.deepEqual(outcome, { kind: "consent_required", error: "응답을 받지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요." });
-  assert.deepEqual(flaky.calls, []);
 });
 
 test("reading.script: [새로 넣기]로 들고 있던 upload_id 가 이미 대본이 됐으면(422 script_upload_used) 파일을 새로 올려 새 요청 id 로 allow_duplicate 를 켠 채 한 번 더 맡긴다", async () => {
