@@ -63,10 +63,10 @@ beforeEach(async () => {
   });
 });
 
-test('포그라운드에서도 배너와 목록으로 보여 주고 소리는 내지 않는다', async () => {
+test('앱이 떠 있을 때 온 알림은 배너·목록에 띄우지 않고 소리도 내지 않는다', async () => {
   n.configureNotificationHandling();
   assert.deepEqual(await state.handler.handleNotification(), {
-    shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false,
+    shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false,
   });
 });
 

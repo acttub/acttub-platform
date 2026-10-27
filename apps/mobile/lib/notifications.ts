@@ -69,15 +69,16 @@ const notificationSync = createNotificationSync({
 });
 
 /**
- * 포그라운드에서도 알림을 배너로 보여준다. 앱 기동 시 한 번 부른다.
+ * 앱이 떠 있는 동안 온 알림은 배너·알림 목록에 띄우지 않는다. 화면이 이미 같은 내용을
+ * 보여 주므로(분석 완료 등) 겹쳐 뜨지 않게 한다. 앱 기동 시 한 번 부른다.
  * 모듈이 없으면 아무 일도 하지 않는다.
  */
 export function configureNotificationHandling(): void {
   if (!notifications) return;
   notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
+      shouldShowBanner: false,
+      shouldShowList: false,
       shouldPlaySound: false,
       shouldSetBadge: false,
     }),
