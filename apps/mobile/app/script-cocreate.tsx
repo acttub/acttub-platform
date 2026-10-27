@@ -13,6 +13,7 @@ import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { KeyboardLift } from '@/components/keyboard-lift';
+import { useAppDialog } from '@/components/app-dialog';
 import { useWaitExit } from '@/hooks/use-wait-exit';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -73,6 +74,7 @@ export default function ScriptCocreateScreen() {
   const skipStart = start === 'make';
   const readingMode = mode === 'reading';
   const { profile } = useAuth();
+  const { confirm: ask, dialog } = useAppDialog();
   const me = profile.me?.profile ?? null;
   const [step, setStep] = useState<Step>(readingMode && !skipStart ? 'start' : 'emotion');
   const [startChoice, setStartChoice] = useState<'sample' | 'make' | null>(null);
@@ -245,7 +247,16 @@ export default function ScriptCocreateScreen() {
   };
 
   // 만드는 중에 뒤로 가면 시작한 탭(대본 올리기에서 왔으면 리딩, 코칭 입구면 코칭)의 첫 화면으로 간다(10-27 정함).
-  const leaveWaiting = useWaitExit(step === 'generating', readingMode ? '/reading' : '/coaching');
+  // 나간 뒤에는 만든 대본을 다시 찾을 길이 없어 나가기 전에 묻는다.
+  const leaveWaiting = useWaitExit(step === 'generating', readingMode ? '/reading' : '/coaching', () =>
+    ask({
+      title: t('scriptCocreate.leaveTitle'),
+      message: t('scriptCocreate.leaveBody'),
+      cancelLabel: t('scriptCocreate.leaveStay'),
+      confirmLabel: t('scriptCocreate.leaveGo'),
+      destructive: true,
+    }),
+  );
 
   const back = () => {
     if (step === 'generating') return leaveWaiting();
@@ -471,6 +482,7 @@ export default function ScriptCocreateScreen() {
           ) : null}
         </KeyboardLift>
       )}
+      {dialog}
     </SafeAreaView>
   );
 }

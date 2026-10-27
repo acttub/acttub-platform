@@ -334,6 +334,9 @@ export default function UploadScreen() {
   // 기다리는 업로드로 남기고 홈으로 간다. 나가도 계속 올라가고, 홈 맨 위 카드가 이어서 코칭을 시작하게 한다.
   // 올리던 영상을 버리는 길은 두지 않는다.
   const leaveWaiting = () => {
+    if (leaving) return;
+    // 기록이 끝나기 전에 다시 누르거나 업로드가 끝나 코칭이 먼저 시작되지 않게 바로 막는다.
+    setLeaving(true);
     const pendingId = picked?.pendingId;
     const remembered = user?.id && pendingId
       ? rememberWaitingUpload({
@@ -479,7 +482,7 @@ export default function UploadScreen() {
   };
 
   useEffect(() => {
-    if (waitPanel && !uploading && videoId && !starting) {
+    if (waitPanel && !uploading && videoId && !starting && !leaving) {
       setWaitPanel(false);
       void start();
     }

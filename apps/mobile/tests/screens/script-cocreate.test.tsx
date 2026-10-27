@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ScriptCocreateScreen from '@/app/script-cocreate';
 import { ScriptCocreateEntry } from '@/components/script-cocreate-entry';
@@ -373,7 +373,13 @@ test('만드는 중 — 화면을 닫지 말라고 안내하고, 뒤로 가면 �
   expect(await screen.findByText('30초에서 1분쯤 걸려요. 화면을 닫지 말고 기다려 주세요.')).toBeOnTheScreen();
   expect(screen.queryByText('화면을 나가도 대본은 계속 만들어져요')).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
+  // 나가면 만든 대본을 다시 찾을 수 없어 먼저 묻는다. 「계속 기다리기」면 남는다.
+  expect(await screen.findByText('지금 나가면 만들던 대본이 사라져요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '계속 기다리기' }));
+  expect(mockRouter.dismissTo).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+  await fireEvent.press(await screen.findByRole('button', { name: '나가기' }));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching'));
   expect(mockRouter.back).not.toHaveBeenCalled();
 });
 
@@ -388,5 +394,6 @@ test('만드는 중 — 대본 올리기(리딩)에서 열었으면 안드로이
   const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
   expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   await act(async () => preventRemove.mock.calls.at(-1)[1]({ data: { action: { type: 'GO_BACK' } } }));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  await fireEvent.press(await screen.findByRole('button', { name: '나가기' }));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading'));
 });
