@@ -357,10 +357,12 @@ jobs:
           GUEST_DAILY_LIMIT_ENABLED: ${{ needs.guard.outputs.environment == 'dev' && 'false' || 'true' }}
           # 개인화 연습 알림(SOMA-720). dev·운영 모두 켠다. 켜면 옛 저녁 8시 고정 알림은 보내지 않는다. 끄려면 'false'로 바꿔 배포한다.
           PRACTICE_REMINDER_ENABLED: 'true'
+          # dev·운영이 한 박스를 나눠 쓴다. CPU 가 모자랄 때 dev 몫을 1/4로 낮춰 운영 코칭이 먼저 쓴다(10/27). 운영은 비워 기본 1024.
+          CPU_SHARES: ${{ needs.guard.outputs.environment == 'dev' && '256' || '' }}
         run: |
           set -euo pipefail
           # shellcheck disable=SC2029
-          ssh "$SERVER" "cd '$REMOTE_DIR' && DEPLOY_THREE_LAYERS_ENABLED='$THREE_LAYERS_ENABLED' DEPLOY_DIRECT_VIDEO_ENABLED='$DIRECT_VIDEO_ENABLED' DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED='$GUEST_DAILY_LIMIT_ENABLED' DEPLOY_PRACTICE_REMINDER_ENABLED='$PRACTICE_REMINDER_ENABLED' ./deploy.sh '$GITHUB_SHA' '$API_IMAGE' '$WEB_IMAGE' '$BACKUP_IMAGE'"
+          ssh "$SERVER" "cd '$REMOTE_DIR' && DEPLOY_THREE_LAYERS_ENABLED='$THREE_LAYERS_ENABLED' DEPLOY_DIRECT_VIDEO_ENABLED='$DIRECT_VIDEO_ENABLED' DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED='$GUEST_DAILY_LIMIT_ENABLED' DEPLOY_PRACTICE_REMINDER_ENABLED='$PRACTICE_REMINDER_ENABLED' DEPLOY_CPU_SHARES='$CPU_SHARES' ./deploy.sh '$GITHUB_SHA' '$API_IMAGE' '$WEB_IMAGE' '$BACKUP_IMAGE'"
 
       # 터널을 거쳐 밖에서 봅니다. cloudflared 는 같은 compose 의 edge 프로필에 있고 deploy.sh 의 --wait 가
       # 그 healthy(엣지 연결)까지 기다렸으므로 보통 첫 시도에 맞습니다. 재시도는 DNS·엣지 전파 몫입니다.
