@@ -12,7 +12,7 @@ import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-hea
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { IconOptionRow, OptionCard, SelectRow } from '@/components/ui/option-card';
 import { StatusScreen } from '@/components/ui/status-screen';
-import { BackOnlyHeader, ProgressHeader, StepHeader } from '@/components/ui/step-header';
+import { StepHeader } from '@/components/ui/step-header';
 import { TextField } from '@/components/ui/text-field';
 
 // 공통 부품(SOMA-770) — 화면들이 기대는 접근성 이름·상태와 누름 전달을 지킨다.
@@ -91,31 +91,31 @@ describe('머리', () => {
     expect(screen.getByRole('button', { name: '더 보기' }).props['ph-label']).toBe('more');
   });
 
-  test('제목이 없으면 꺾쇠만 그린다', async () => {
+  test('제목이 없으면 꺾쇠만 그리고, 꺾쇠는 26 이다', async () => {
     const back = jest.fn();
-    await render(<BackOnlyHeader onBack={back} />);
+    const view = await render(<NavHeader left={<NavBackButton onPress={back} label="나가기" />} />);
     expect(screen.queryByRole('header')).not.toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+    await fireEvent.press(screen.getByRole('button', { name: '나가기' }));
     expect(back).toHaveBeenCalled();
+    expect(JSON.stringify(view.toJSON())).toContain('"fontSize":26');
   });
 
-  test('진행 머리는 n/N 과 진행 값을 알린다', async () => {
+  test('머리 제목은 headline, 큰 머리 제목은 display 다', async () => {
+    const view = await render(<NavHeader title="알림" />);
+    const title = () => StyleSheet.flatten(screen.getByRole('header').props.style);
+    expect([title().fontSize, title().fontWeight]).toEqual([17, '600']);
+    await view.rerender(<NavHeader large title="내 대본" right={<Text>새 대본</Text>} />);
+    expect([title().fontSize, title().fontWeight]).toEqual([28, '700']);
+    expect(screen.getByText('새 대본')).toBeOnTheScreen();
+  });
+
+  test('단계 머리는 꺾쇠 · n / N 과 진행 값을 알린다', async () => {
     const back = jest.fn();
-    await render(<ProgressHeader step={3} total={8} onBack={back} />);
-    expect(screen.getByText('3/8')).toBeOnTheScreen();
+    await render(<StepHeader step={3} total={8} onBack={back} />);
+    expect(screen.getByText('3 / 8')).toBeOnTheScreen();
     expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 8, now: 3 });
     await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
     expect(back).toHaveBeenCalled();
-  });
-
-  test('점 단계 머리는 닫기 또는 꺾쇠를 두고 지금 단계를 알린다', async () => {
-    const close = jest.fn();
-    const view = await render(<StepHeader step={2} total={3} onClose={close} />);
-    expect(screen.getByText('2 / 3')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
-    expect(close).toHaveBeenCalled();
-
-    await view.rerender(<StepHeader step={1} total={3} onClose={close} icon="chevron-left" />);
     expect(screen.getByRole('button', { name: '뒤로' }).props['ph-label']).toBe('step_back');
   });
 });
@@ -236,37 +236,40 @@ describe('확인창·시트', () => {
 });
 
 describe('상태 화면·말풍선·아래 칸', () => {
-  test('상태 화면은 제목·설명·버튼과 꺾쇠를 둔다', async () => {
+  test('오류 상태 화면은 머리에 화면 이름, 제목 title1, 가운데 40 버튼을 둔다', async () => {
     const retry = jest.fn();
     const back = jest.fn();
     await render(
       <StatusScreen
+        header="오디션 공고"
         title="공고를 불러오지 못했어요"
-        body="인터넷을 확인해 주세요."
+        body="인터넷 연결을 확인해 주세요."
         note="오류 503"
         onBack={back}
-        safeArea
         primary={{ label: '다시 시도', onPress: retry }}
         secondary={{ label: '닫기', onPress: back }}
       />,
     );
+    expect(screen.getByRole('header')).toHaveTextContent('오디션 공고');
+    expect(StyleSheet.flatten(screen.getByText('공고를 불러오지 못했어요').props.style).fontSize).toBe(24);
     expect(screen.getByText('오류 503')).toBeOnTheScreen();
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: '다시 시도' }).props.style).height).toBe(40);
     await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+    await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
     await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-    expect(retry).toHaveBeenCalled();
-    expect(back).toHaveBeenCalled();
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(back).toHaveBeenCalledTimes(2);
   });
 
-  test('큰 상태 화면과 아이콘 상태 화면도 그린다', async () => {
-    const view = await render(
-      <StatusScreen size="large" title="지금은 가입할 수 없어요" body="만 14세 이상부터" actions={<Text>직접 버튼</Text>} />,
-    );
-    expect(screen.getByText('만 14세 이상부터')).toBeOnTheScreen();
-    expect(screen.getByText('직접 버튼')).toBeOnTheScreen();
-
-    await view.rerender(<StatusScreen icon="mic-off" title="마이크가 필요해요" body="설정에서 켜세요." bodyTone="blue" />);
-    expect(screen.getByText('설정에서 켜세요.')).toBeOnTheScreen();
+  test('빈 상태는 제목 title2 이고 머리가 없으면 그리지 않는다, 불러오는 중은 뼈대다', async () => {
+    const view = await render(<StatusScreen kind="empty" title="조건에 맞는 공고가 없어요" />);
+    expect(StyleSheet.flatten(screen.getByText('조건에 맞는 공고가 없어요').props.style).fontSize).toBe(20);
+    expect(screen.queryByRole('header')).not.toBeOnTheScreen();
     expect(screen.queryByRole('button')).not.toBeOnTheScreen();
+
+    await view.rerender(<StatusScreen kind="loading" header="알림" />);
+    expect(screen.getByRole('header')).toHaveTextContent('알림');
+    expect(screen.getByTestId('skeleton')).toBeOnTheScreen();
   });
 
   test('말풍선은 파란 안내와 회색 보조를 둘 다 쓸 수 있다', async () => {

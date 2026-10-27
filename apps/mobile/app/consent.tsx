@@ -10,7 +10,7 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
-import { BareBackButton } from '@/components/ui/nav-header';
+import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import type { ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -207,9 +207,7 @@ export default function ConsentScreen() {
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ headerShown: false }} />
       {/* 나가면 아무것도 남지 않는다. 계정도, 제공자가 준 이름도. */}
-      <View style={styles.header}>
-        <BareBackButton label={t('consent.exit')} phLabel="consent_exit" disabled={busy} onPress={() => cancelSignup()} />
-      </View>
+      <NavHeader left={<NavBackButton label={t('consent.exit')} phLabel="consent_exit" disabled={busy} onPress={() => cancelSignup()} />} />
 
       <ScrollView contentContainerStyle={styles.list}>
         <Image source={MASCOT.coach} style={MASCOT_SIZE.bubble} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
@@ -238,7 +236,6 @@ export default function ConsentScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  header: { height: 44, justifyContent: 'center', paddingHorizontal: 24 },
   // 좌우 여백 24 · 제목 26/800 줄높이 1.34 · 설명 15/400 줄높이 1.5(제목과 6~8 사이).
   list: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
   title: { marginTop: 8, fontSize: 24, fontWeight: '800', lineHeight: 32, color: palette.text },

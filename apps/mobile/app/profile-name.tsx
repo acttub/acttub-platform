@@ -12,7 +12,7 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { StatusScreen } from '@/components/ui/status-screen';
-import { ProgressHeader } from '@/components/ui/step-header';
+import { StepHeader } from '@/components/ui/step-header';
 import { motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
@@ -243,7 +243,6 @@ export default function ProfileNameScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <StatusScreen
-          size="large"
           onBack={goBack}
           mascot={MASCOT.coach}
           title={t('profileName.blockedTitle')}
@@ -428,7 +427,7 @@ export default function ProfileNameScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={keyboardHeight > 0 ? ['top'] : ['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ProgressHeader step={index} total={steps.length} onBack={goBack} />
+      <StepHeader step={index} total={steps.length} onBack={goBack} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         {/* 생년월일 휠을 만지는 동안은 화면이 같이 움직이지 않게 멈춘다(10/25). */}
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={!wheelTouch}>

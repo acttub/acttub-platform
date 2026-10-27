@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MASCOT } from '@/components/ui/mascot';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { StatusScreen } from '@/components/ui/status-screen';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 import { openNotificationPermissionSettings } from '@/lib/notifications';
@@ -25,16 +24,11 @@ export default function NotificationOffScreen() {
         mascot={MASCOT.whisper}
         title={t('settings.notifPermissionTitle')}
         body={t('settings.notifOffHint')}
-        bodyTone="blue"
-        actions={
-          <>
-            <PrimaryButton
-              label={t('settings.notifOffOpen')}
-              onPress={() => void openNotificationPermissionSettings().catch(() => undefined)}
-            />
-            <SecondaryButton label={t('settings.notifOffSkip')} onPress={back} />
-          </>
-        }
+        primary={{
+          label: t('settings.notifOffOpen'),
+          onPress: () => void openNotificationPermissionSettings().catch(() => undefined),
+        }}
+        secondary={{ label: t('settings.notifOffSkip'), onPress: back }}
       />
     </SafeAreaView>
   );

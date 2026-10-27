@@ -1521,7 +1521,6 @@ export default function ReadingPlay() {
   if (phase.kind === 'need_mic') {
     return (
       <ReadingStatus
-        icon="mic-off"
         title={t('reading.micNeededTitle')}
         body={t('reading.micNeededBody')}
         onBack={exitToDetail}
@@ -1601,7 +1600,6 @@ export default function ReadingPlay() {
   if (phase.kind === 'voice_unsupported') {
     return (
       <ReadingStatus
-        icon="smartphone"
         title={t('reading.voiceUnsupportedTitle')}
         body={t('reading.voiceUnsupportedBody')}
         onBack={exitToDetail}
