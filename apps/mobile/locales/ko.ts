@@ -559,8 +559,8 @@ const ko = {
   },
   challengeOthers: {
     meta: '참여 {{count}}명 · {{dday}}',
-    empty: '아직 올라온 참여작이 없어요. 첫 번째로 올려 봐요.',
     more: '더 보기',
+    loadFail: '참여작을 불러오지 못했어요',
   },
   challenges: {
     shareA11y: '이 챌린지 공유하기',
@@ -660,7 +660,7 @@ const ko = {
     period: '지난주 대사 · {{period}}',
     picked: '선정작 {{count}}',
     pickedSub: '좋아요 {{count}}',
-    noPicked: '좋아요를 받은 참여작이 없어 선정작이 없어요.',
+    noPicked: '좋아요를 받은 참여작이 없어 선정작이 없어요',
     mine: '내 참여작',
     minePublic: '공개',
     minePrivate: '나만 보기',
@@ -668,6 +668,7 @@ const ko = {
     mineNone: '이번에는 참여하지 않았어요.',
     seeWeek: '이번 주 대사 보기',
     seeChallenges: '챌린지 둘러보기',
+    rank: '{{rank}}위',
   },
   challengeDone: {
     date: '{{month}}/{{day}}({{weekday}})',

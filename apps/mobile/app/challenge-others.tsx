@@ -5,13 +5,18 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import Feather from '@expo/vector-icons/Feather';
+
 import { PrimaryButton } from '@/components/ui/buttons';
-import { SkeletonCards } from '@/components/ui/skeleton';
+import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineError } from '@/components/ui/inline-error';
+import { SkeletonCards } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { browseFailure, browseFailureMessage, canPerform, dDayLabel } from '@/lib/challenge/browse';
+import { canPerform, dDayLabel } from '@/lib/challenge/browse';
 import type { ChallengeDetail, EntryCard, EntrySort } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
@@ -27,7 +32,8 @@ export default function ChallengeOthersScreen() {
   const [sort, setSort] = useState<EntrySort>('likes');
   const [entries, setEntries] = useState<EntryCard[] | null>(null);
   const [shown, setShown] = useState(GRID_PAGE);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -38,20 +44,20 @@ export default function ChallengeOthersScreen() {
     if (!id) return;
     let alive = true;
     setEntries(null);
-    setError(null);
+    setFailed(false);
     setShown(GRID_PAGE);
     api
       .listChallengeEntries(id, { sort })
       .then((r) => alive && setEntries(r.entries.filter((e) => e.playback_url)))
-      .catch((e) => {
+      .catch(() => {
         if (!alive) return;
         setEntries([]);
-        setError(browseFailureMessage(browseFailure(e)));
+        setFailed(true);
       });
     return () => {
       alive = false;
     };
-  }, [id, sort]);
+  }, [id, sort, reload]);
 
   const perform = () => {
     if (!challenge || !canPerform(challenge)) return;
@@ -85,18 +91,25 @@ export default function ChallengeOthersScreen() {
               ['latest', 'challenges.tabLatest'],
             ] as const
           ).map(([key, label]) => (
-            <Pressable
+            <Chip
               key={key}
-              style={[styles.pill, sort === key && styles.pillOn]}
+              label={t(label)}
+              role="radio"
+              selected={sort === key}
+              style={styles.chip}
+              phLabel={`challenge_others_sort_${key}`}
               onPress={() => setSort(key)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: sort === key }}>
-              <Text style={[styles.pillText, sort === key && styles.pillTextOn]}>{t(label)}</Text>
-            </Pressable>
+            />
           ))}
         </View>
-        {entries === null && <SkeletonCards count={4} columns={2} aspectRatio={1 / 1.4} style={{ paddingHorizontal: 0 }} />}
-        {entries?.length === 0 && <Text style={styles.empty}>{error ?? t('challengeOthers.empty')}</Text>}
+        {entries === null && <SkeletonCards count={4} columns={2} aspectRatio={1 / 1.4} style={styles.flush} />}
+        {failed && <InlineError message={t('challengeOthers.loadFail')} onRetry={() => setReload((n) => n + 1)} />}
+        {entries?.length === 0 && !failed && (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>{t('challenges.emptyEntriesTitle')}</Text>
+            <Text style={styles.emptyText}>{t('challenges.emptyEntriesSub')}</Text>
+          </View>
+        )}
         <View style={styles.grid}>
           {visible.map((entry) => (
             <Tile key={entry.id} entry={entry} onPress={() => open(entry)} />
@@ -110,7 +123,11 @@ export default function ChallengeOthersScreen() {
       </ScrollView>
       {challenge && canPerform(challenge) && (
         <CtaBar safeBottom={false}>
-          <PrimaryButton label={t('challenges.performCta')} onPress={perform} />
+          <PrimaryButton
+            label={t('challenges.performCta')}
+            icon={<Feather name="video" size={18} color={palette.onAccent} />}
+            onPress={perform}
+          />
         </CtaBar>
       )}
     </SafeAreaView>
@@ -120,7 +137,7 @@ export default function ChallengeOthersScreen() {
 /** 재생 없이 첫 장면만 멈춰 보여 주는 칸. */
 function Tile({ entry, onPress }: { entry: EntryCard; onPress: () => void }) {
   const { width } = useWindowDimensions();
-  const size = (width - 48 - 12) / 2;
+  const size = (width - space.gutter * 2 - space[3]) / 2;
   const focused = useIsFocused();
   const player = useVideoPlayer(sourceWhileFocused(entry.playback_url, focused), (p) => {
     p.muted = true;
@@ -139,7 +156,10 @@ function Tile({ entry, onPress }: { entry: EntryCard; onPress: () => void }) {
         <Text style={styles.tileName} numberOfLines={1}>
           {entry.author.name}
         </Text>
-        <Text style={styles.tileName}>♡ {entry.like_count}</Text>
+        <View style={styles.likes}>
+          <Feather name="heart" size={12} color={palette.onAccent} />
+          <Text style={styles.tileName}>{entry.like_count}</Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -147,19 +167,20 @@ function Tile({ entry, onPress }: { entry: EntryCard; onPress: () => void }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24, gap: 8 },
-  line: { fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text },
-  meta: { fontSize: 13, fontWeight: '500', lineHeight: 19, color: palette.textMeta },
-  tabs: { flexDirection: 'row', gap: 8, marginVertical: 8 },
-  pill: { paddingHorizontal: 14, height: 34, borderRadius: 17, backgroundColor: '#F1F2F4', alignItems: 'center', justifyContent: 'center' },
-  pillOn: { backgroundColor: palette.text },
-  pillText: { fontSize: 14, fontWeight: '700', color: palette.textMeta },
-  pillTextOn: { color: '#fff' },
-  empty: { fontSize: 14, color: palette.textMeta, textAlign: 'center', marginTop: 40 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  tile: { borderRadius: 16, overflow: 'hidden', backgroundColor: '#222', justifyContent: 'flex-end' },
-  tileInfo: { flexDirection: 'row', justifyContent: 'space-between', padding: 10, backgroundColor: 'rgba(0,0,0,0.25)' },
-  tileName: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  more: { height: 44, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  moreText: { fontSize: 14, fontWeight: '700', color: palette.blue },
+  flush: { paddingHorizontal: 0 },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[6], gap: space[2] },
+  line: { ...type.title2, color: palette.text },
+  meta: { ...type.caption, color: palette.textMeta },
+  tabs: { flexDirection: 'row', gap: space[1.5], marginVertical: space[2] },
+  chip: { minHeight: 32, paddingVertical: space[1] },
+  empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], gap: space[1.5], alignItems: 'center' },
+  emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
+  emptyText: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[3] },
+  tile: { borderRadius: radius.lg, overflow: 'hidden', backgroundColor: palette.text, justifyContent: 'flex-end' },
+  tileInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: space[3], backgroundColor: palette.scrim },
+  likes: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  tileName: { ...type.captionBold, color: palette.onAccent },
+  more: { height: 44, alignItems: 'center', justifyContent: 'center', marginTop: space[2] },
+  moreText: { ...type.body2Bold, color: palette.blueDeep },
 });

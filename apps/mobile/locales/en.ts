@@ -566,8 +566,8 @@ const en: DeepStringShape<typeof ko> = {
   },
   challengeOthers: {
     meta: '{{count}} entries · {{dday}}',
-    empty: 'No entries yet. Be the first.',
     more: 'Show more',
+    loadFail: 'Couldn\'t load the entries',
   },
   challenges: {
     shareA11y: 'Share this challenge',
@@ -667,7 +667,7 @@ const en: DeepStringShape<typeof ko> = {
     period: 'Last week’s line · {{period}}',
     picked: '{{count}} picks',
     pickedSub: '{{count}} likes',
-    noPicked: 'No entry got likes, so there are no picks.',
+    noPicked: 'No picks, since no entry got a like',
     mine: 'Your entry',
     minePublic: 'Public',
     minePrivate: 'Only me',
@@ -675,6 +675,7 @@ const en: DeepStringShape<typeof ko> = {
     mineNone: 'You didn’t join this one.',
     seeWeek: 'See this week’s line',
     seeChallenges: 'Browse challenges',
+    rank: '#{{rank}}',
   },
   challengeDone: {
     date: '{{month}}/{{day}} ({{weekday}})',
