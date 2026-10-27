@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   },
   progressLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   steps: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  stepDone: { width: 18, height: 3, borderRadius: 9999, backgroundColor: palette.blueSoft },
+  stepDone: { width: 18, height: 3, borderRadius: 9999, backgroundColor: palette.blue },
   stepNow: { width: 26, height: 3, borderRadius: 9999, backgroundColor: palette.blue },
   stepLabel: { fontSize: 12.5, fontWeight: '700', color: palette.textSub },
 

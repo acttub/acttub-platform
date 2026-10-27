@@ -7,8 +7,8 @@ import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
 /**
- * 질문 대화의 코치 머리줄 — pen 09 「Coach Message」. 왼쪽 액티 30×36, 9 띄워 이름 「ACTTUB 코치」 15/800 #D9622B,
- * 3 띄워 회색 말풍선(#F2F4F6, 모서리 18, 안쪽 [13,12], 줄 사이 6). 말풍선 아래 회색 한 줄(`below`, 경과 시간 등)은 4 더 띄운다.
+ * 질문 대화의 코치 머리줄 — pen 09 「Coach Message」. 왼쪽 액티 30×36, 9 띄워 이름 「ACTTUB 코치」 15/800 `text`,
+ * 3 띄워 회색 말풍선(`bgSoft`, 모서리 18, 안쪽 [13,12], 줄 사이 6). 말풍선 아래 회색 한 줄(`below`, 경과 시간 등)은 4 더 띄운다.
  * 분석 대기(「영상 보는 중」)와 대화의 코치 질문이 같이 쓴다.
  */
 export function CoachMessage({ children, below }: { children: ReactNode; below?: ReactNode }) {

@@ -1024,7 +1024,7 @@ const styles = StyleSheet.create({
   choiceSub: { marginTop: 3, fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMeta },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   radioOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  steps: { gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: palette.blueSoft },
+  steps: { gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: palette.border },
   stepsTitle: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },

@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   wide: { alignSelf: 'stretch' },
   pressed: { opacity: 0.75 },
 
-  // 말풍선 안 — 도는 표시 · 「영상 보는 중이에요」 17/700, 아래 단계 문구 15/500 #333D4B.
+  // 말풍선 안 — 도는 표시 · 「영상 보는 중이에요」 17/700, 아래 단계 문구 15/500 `text`.
   watchingBox: { gap: 6 },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   watching: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.text },

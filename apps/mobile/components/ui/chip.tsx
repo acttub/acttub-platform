@@ -6,8 +6,8 @@ import { palette } from '@/constants/palette';
  * pen 「S/Chip」(SOMA-770 공통) — 알약(모서리 끝까지), 흰 바탕 · 1px #E5E8EB 테두리, 안쪽 [11,16], 글자 14/700 #4E5968.
  * 고르면 옅은 파랑 바탕 · 파란 테두리 · 진한 파랑 글자. 감정·필터·답 칩이 같이 쓴다.
  *
- * variant="answer"는 가입 질문의 답 칩(pen 01 가입 「Options」) — 높이 42, 안쪽 좌우 18(`compact`면 16), 글자 15/600 #333D4B.
- * 고르면 #EAF3FE 바탕 · 1.5 #4880EE 테두리 · 15/700 #4880EE.
+ * variant="answer"는 가입 질문의 답 칩(pen 01 가입 「Options」) — 높이 42, 안쪽 좌우 18(`compact`면 16), 글자 15/600 `text`.
+ * 고르면 `blueSoft` 바탕 · 1.5 `blue` 테두리 · 15/700 `blue`.
  * 고르는 칩이면 `role`로 radio(하나)·checkbox(여럿)를 알려 화면 읽기가 고른 상태를 읽게 한다.
  */
 export function Chip({

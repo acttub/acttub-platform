@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 48 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
   empty: { color: palette.textSub, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
-  // pen S/BlockRow — 위아래 18, 아래 선 #CBD1D8, 칸 사이 14.
+  // pen S/BlockRow — 위아래 18, 아래 선 `border`, 칸 사이 14.
   row: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -629,7 +629,7 @@ function CoachTalk() {
                 accessibilityRole="button"
                 accessibilityLabel={t('coach.send')}>
                 {/* SOMA-828: 전송 중 스피너 제거, 아래 "코치 생각 중" 문구가 대신한다 */}
-                <Feather name="arrow-up" size={21} color={palette.onAccent} />
+                <Feather name="arrow-up" size={21} color={canSend ? palette.onAccent : palette.textDisabled} />
               </Pressable>
             </View>
           </View>
@@ -711,5 +711,5 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   send: { width: 39, height: 39, borderRadius: 20, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginBottom: 2.5 },
-  sendOff: { backgroundColor: palette.blueSoft },
+  sendOff: { backgroundColor: palette.border },
 });

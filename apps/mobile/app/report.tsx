@@ -235,8 +235,6 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 20,
     backgroundColor: palette.blueSoft,
-    borderWidth: 1,
-    borderColor: palette.blueSoft,
     padding: 18,
   },
   sampleDoneTitle: { fontSize: 17, fontWeight: '800', color: palette.text },

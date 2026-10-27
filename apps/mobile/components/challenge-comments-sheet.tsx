@@ -200,7 +200,7 @@ export function ChallengeCommentsSheet({
                 accessibilityRole="button"
                 accessibilityLabel={t('comments.send')}>
                 {/* SOMA-828: 작은 원형 버튼이라 문구 대신 아이콘을 그대로 둔다(보내는 동안 비활성) */}
-                  <Feather name="arrow-up" size={18} color="#FFFFFF" />
+                  <Feather name="arrow-up" size={18} color={ready ? palette.onAccent : palette.textDisabled} />
               </Pressable>
             </View>
             {/* 글자 수는 한도 가까이 갔을 때만 보인다 — 평소엔 입력줄만. */}
@@ -253,6 +253,6 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, minHeight: 34, maxHeight: 110, paddingVertical: 7, fontSize: 14, color: palette.text },
   send: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  sendOff: { backgroundColor: palette.blueSoft },
+  sendOff: { backgroundColor: palette.border },
   counter: { fontSize: 11, color: palette.textMeta, textAlign: 'right', paddingTop: 4, paddingRight: 6 },
 });

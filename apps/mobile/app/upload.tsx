@@ -789,7 +789,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
-  // pen 03 「Rights」 — 네모 22(모서리 6), 10 띄워 글 15/700 #333D4B(줄 21).
+  // pen 03 「Rights」 — 네모 22(모서리 6), 10 띄워 글 15/700 `text`(줄 21).
   rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: palette.textDisabled, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },

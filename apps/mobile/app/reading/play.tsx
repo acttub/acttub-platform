@@ -2362,7 +2362,7 @@ const styles = StyleSheet.create({
   aidText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   bars: { gap: 8, justifyContent: 'center' },
   barPast: { height: 10, borderRadius: 5, backgroundColor: palette.bgSoft },
-  barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blueSoft },
+  barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blue },
   listenBars: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 16 },
   listenBar: { width: 3, borderRadius: 2, backgroundColor: palette.blue },
   hint: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10, lineHeight: 19 },

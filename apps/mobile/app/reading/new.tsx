@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   dropSub: { color: palette.textMeta, fontSize: 13, fontWeight: '500' },
   pickBtn: { marginTop: 8, backgroundColor: '#E3EDFD', borderRadius: 22, height: 44, paddingHorizontal: 32, justifyContent: 'center' },
   pickBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
-  replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.bg, borderColor: palette.blueSoft, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
+  replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
   replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   textArea: { flex: 1, minHeight: 256, backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },

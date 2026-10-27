@@ -6,7 +6,7 @@ import { translate as t } from '@/lib/i18n';
 
 /**
  * 코치 화면 맨 위 「오늘 영상」 줄 — 누르면 영상을 펼친다(pen 질문 대화 첫 응답). 분석 대기(「영상 보는 중」)와 대화가
- * 같은 줄을 쓴다(SOMA-778). pen 09 「오늘 영상」 — 56 썸네일(#4E5968, 모서리 14, 가운데 재생 동그라미 32 #333D4B · 아이콘 16),
+ * 같은 줄을 쓴다(SOMA-778). pen 09 「오늘 영상」 — 56 썸네일(`textSub`, 모서리 14, 가운데 재생 동그라미 32 `text` · 아이콘 16),
  * 9 띄워 글 17/700 · 4 띄워 보조 15/500.
  */
 export function CoachVideoRow({ open, sub, onPress }: { open: boolean; sub: string; onPress: () => void }) {
