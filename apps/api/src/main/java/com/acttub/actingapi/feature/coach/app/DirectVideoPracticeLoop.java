@@ -587,6 +587,16 @@ final class DirectVideoPracticeLoop {
         if (loop.path("flow").asText("").isEmpty()) loop.put("flow", flow);
     }
 
+    /** 이 대화의 첫 말 쪽(첫 코칭 첫 말 A/B). "a"는 질문 한 줄, "b"는 본 것과 다음 테이크를 먼저. 없으면 빈 문자열(배포 전 대화). */
+    static String storedOpening(JsonNode state) {
+        return state == null ? "" : state.path(STATE_KEY).path("opening").asText("");
+    }
+
+    static void rememberOpening(ObjectNode state, String opening) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        if (loop.path("opening").asText("").isEmpty()) loop.put("opening", opening);
+    }
+
     /** 이 대화의 "이미 그렇게 했다" 처리 쪽(SOMA-855). "on"은 실험, "off"는 대조. 없으면 빈 문자열(배포 전 대화). */
     static String storedAlready(JsonNode state) {
         return state == null ? "" : state.path(STATE_KEY).path("already_ab").asText("");
