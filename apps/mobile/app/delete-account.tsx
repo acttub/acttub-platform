@@ -81,10 +81,13 @@ export default function DeleteAccountScreen() {
     }
   };
 
+  // 알림·링크로 바로 열어 돌아갈 화면이 없으면 설정으로 간다.
+  const leave = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <NavHeader title={t('deleteAccount.screenTitle')} left={<NavBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/settings'))} disabled={working} />} />
+      <NavHeader title={t('deleteAccount.screenTitle')} left={<NavBackButton onPress={leave} disabled={working} />} />
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>{t('deleteAccount.title')}</Text>
         {!!user?.email && <Text style={styles.account}>{user.email}</Text>}
@@ -135,7 +138,7 @@ export default function DeleteAccountScreen() {
           loading={working}
           loadingLabel={t('deleteAccount.working')}
         />
-        <SecondaryButton label={t('deleteAccount.keep')} onPress={() => router.back()} disabled={working} />
+        <SecondaryButton label={t('deleteAccount.keep')} onPress={leave} disabled={working} />
       </CtaBar>
       {dialog}
     </SafeAreaView>
