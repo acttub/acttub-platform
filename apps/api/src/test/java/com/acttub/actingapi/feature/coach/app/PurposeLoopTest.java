@@ -370,4 +370,62 @@ class PurposeLoopTest {
         assertThat(PurposeLoop.withoutUngroundedQuotes("", actor)).isEmpty();
         assertThat(PurposeLoop.withoutUngroundedQuotes("따옴표 없는 말이에요.", null)).isEqualTo("따옴표 없는 말이에요.");
     }
+
+    @Test void talkAnswersQuestionsAfterTheWrapInsteadOfWrappingAgain() {
+        // 10/25 운영 afedbad8: 정리 뒤 "예시로 읽어줄 수 있어?"(방법 요청)에 정리를 한 번 더 하고 닫았다.
+        var wrapped = state("{\"step\":3,\"questions\":2}");
+        var method = PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, wrapped, "예시로 읽어줄 수 있어?", null,
+                kind(PracticeLoopRouter.Kind.METHOD), 3);
+        assertThat(method.doing()).isEqualTo("answer");
+        assertThat(method.wrap()).isFalse();
+        assertThat(method.end()).isFalse();
+        assertThat(PurposeLoop.instruction(method, wrapped, "예시로 읽어줄 수 있어?")).contains("정리는 이미 했다");
+        // 분류가 답이어도 물음표가 있으면 답한다(10/26 운영 2ccd52cd).
+        var drama = PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, wrapped, "드라마에 나온 연기를 따라 하고싶으면 어떻게 하나요?", null, ANSWERED, 5);
+        assertThat(drama.doing()).isEqualTo("answer");
+        // 물음이 아니면 예전처럼 정리로 받는다.
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, wrapped, "해 볼게요", null, ANSWERED, 3).wrap()).isTrue();
+        // 응답 상한은 그대로 정리한다.
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, wrapped, "왜요?", null,
+                kind(PracticeLoopRouter.Kind.QUESTION), PurposeLoop.REPLY_CAP - 1).wrap()).isTrue();
+        // 영상 코칭은 바꾸지 않는다.
+        var videoWrapped = state("{\"step\":4,\"questions\":2}");
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.STUCK, videoWrapped, "예시로 보여줄 수 있어?", null,
+                kind(PracticeLoopRouter.Kind.METHOD), 3).wrap()).isTrue();
+    }
+
+    @Test void talkAnswersAQuestionEvenAtTheQuestionCap() {
+        var asked2 = state("{\"step\":1,\"questions\":2}");
+        var talk = PurposeLoop.decide(PurposeLoop.Purpose.TALK_CHARACTER, asked2, "왜요?", null, kind(PracticeLoopRouter.Kind.QUESTION), 2);
+        assertThat(talk.doing()).isEqualTo("answer");
+        assertThat(talk.wrap()).isFalse();
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.CHARACTER, asked2, "왜요?", null, kind(PracticeLoopRouter.Kind.QUESTION), 2).wrap())
+                .as("영상 코칭은 예전처럼 상한에서 정리").isTrue();
+    }
+
+    @Test void talkAnswersAfterTheWrapCarryNoButtons() {
+        ObjectNode wrapped = state("{\"step\":3,\"questions\":2,\"choices\":[]}");
+        var turn = PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, wrapped, "예시로 읽어줄 수 있어?", null,
+                kind(PracticeLoopRouter.Kind.METHOD), 3);
+        PurposeLoop.remember(wrapped, turn, PurposeLoop.extract("<코치>팁</코치>\n<보기>\n하나\n</보기>"));
+        assertThat(PurposeLoop.loop(wrapped).path("choices").size()).as("잘 모르겠어요도 붙이지 않는다").isZero();
+        // 정리 전 답은 예전처럼 버튼과 잘 모르겠어요를 둔다.
+        ObjectNode early = state("{\"step\":0,\"questions\":1}");
+        var line = PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, early, "감정이 안 따라와요", null, ANSWERED, 1);
+        PurposeLoop.remember(early, line, PurposeLoop.extract("<코치>어느 대사요?</코치>\n<보기>\n첫 대사\n</보기>"));
+        assertThat(PurposeLoop.loop(early).path("choices").size()).isEqualTo(2);
+    }
+
+    @Test void talkDropsSentencesThatPromiseAResult() {
+        // 10/27 dev 재생 원문.
+        String reply = "직접 소리 내어 읽어 주긴 어렵지만, 팁은 줄 수 있어요.\n\"남편 이야기는 얼마든지 받습니다\"를 마치 엄청난 비밀을 허락해 주듯 장난스럽게 던져 보세요.\n꽁트의 재미가 훨씬 더 잘 느껴질 거예요.";
+        assertThat(PurposeLoop.withoutPromises(reply)).isEqualTo(
+                "직접 소리 내어 읽어 주긴 어렵지만, 팁은 줄 수 있어요.\n\"남편 이야기는 얼마든지 받습니다\"를 마치 엄청난 비밀을 허락해 주듯 장난스럽게 던져 보세요.");
+        assertThat(PurposeLoop.withoutPromises("이렇게 해 봐요. 훨씬 자연스러워질 거예요! 어때요?")).isEqualTo("이렇게 해 봐요. 어때요?");
+        assertThat(PurposeLoop.withoutPromises("훨씬 나아질 거예요.")).as("한 문장뿐이면 둔다").isEqualTo("훨씬 나아질 거예요.");
+        assertThat(PurposeLoop.promises("그 장면에서 해 볼 거예요?")).as("물음은 둔다").isFalse();
+        assertThat(PurposeLoop.promises("\"내가 갈 거예요.\"")).as("따옴표 대사는 둔다").isFalse();
+        assertThat(PurposeLoop.promises("상대가 웃는 거예요.")).as("ㄹ 받침이 아니면 둔다").isFalse();
+        assertThat(PurposeLoop.promises("상대에게 더 잘 들릴 거예요.")).isTrue();
+    }
 }
