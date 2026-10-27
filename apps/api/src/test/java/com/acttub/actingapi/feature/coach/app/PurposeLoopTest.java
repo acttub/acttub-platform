@@ -428,4 +428,12 @@ class PurposeLoopTest {
         assertThat(PurposeLoop.promises("상대가 웃는 거예요.")).as("ㄹ 받침이 아니면 둔다").isFalse();
         assertThat(PurposeLoop.promises("상대에게 더 잘 들릴 거예요.")).isTrue();
     }
+
+    @Test void talkAnswerAfterTheWrapLosesItsTrailingQuestion() {
+        // 10/27 폰 재생 원문: 정리 뒤 답이 새 질문으로 끝났다.
+        String reply = "긴 대사는 이유를 쪼개서 상대에게 하나씩 던지듯 해 보세요.\n지금 설득해야 하는 가장 큰 이유가 무엇인지부터 골라 볼까요?";
+        assertThat(DirectVideoPracticeLoop.withoutQuestions(reply)).isEqualTo("긴 대사는 이유를 쪼개서 상대에게 하나씩 던지듯 해 보세요.");
+        var turn = PurposeLoop.decide(PurposeLoop.Purpose.TALK_STUCK, state("{\"step\":3,\"questions\":2}"), "긴 대사는 어떻게 해요", null, ANSWERED, 4);
+        assertThat(PurposeLoop.answersAfterWrap(turn)).isTrue();
+    }
 }
