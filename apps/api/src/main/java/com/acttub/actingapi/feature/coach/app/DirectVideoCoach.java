@@ -630,6 +630,8 @@ public final class DirectVideoCoach {
             if (talk) {
                 shown = PurposeLoop.withoutUngroundedQuotes(shown, session.turns().stream().filter(t -> !"ai".equals(t.role()))
                         .map(t -> t.text()).collect(java.util.stream.Collectors.joining("\n")) + "\n" + (actorText == null ? "" : actorText));
+                // 결과를 장담하는 문장도 뗀다(talk/mode 규칙). 스트리밍도 다 쓴 뒤 저장한 말이 화면을 덮는다.
+                shown = PurposeLoop.withoutPromises(shown);
             }
             int polished = 0;
             if (loop && !cut) {

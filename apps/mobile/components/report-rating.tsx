@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 import { noteRatings } from '@/lib/note-rating';
@@ -68,6 +69,7 @@ export function RatingBox<Value extends string>({
   const [comment, setComment] = useState<string | null>(initial?.comment ?? null);
   const [draft, setDraft] = useState(initial?.comment ?? '');
   const [thanked, setThanked] = useState(false);
+  const [focused, setFocused] = useState(false);
   // 겹쳐 누른 칩의 늦은 실패가 나중 선택을 되돌리지 않게, 마지막 요청만 화면을 바꾼다.
   const latest = useRef<string | null>(null);
 
@@ -110,7 +112,7 @@ export function RatingBox<Value extends string>({
             onPress={() => choose(key)}
             accessibilityRole="button"
             accessibilityState={{ selected: rating === key }}>
-            <Feather name={icon} size={15} color={rating === key ? palette.blueDeep : palette.textSub} />
+            <Feather name={icon} size={16} color={rating === key ? palette.blueDeep : palette.textSub} />
             <Text style={[styles.chipText, rating === key && styles.chipTextOn]}>{label}</Text>
           </Pressable>
         ))}
@@ -119,13 +121,17 @@ export function RatingBox<Value extends string>({
       {rating && !thanked && (
         <View style={styles.inputRow}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, focused && styles.inputFocus]}
             value={draft}
             onChangeText={setDraft}
             placeholder={placeholder}
             placeholderTextColor={palette.textMeta}
             maxLength={commentMax}
-            onFocus={onInputFocus}
+            onFocus={() => {
+              setFocused(true);
+              onInputFocus?.();
+            }}
+            onBlur={() => setFocused(false)}
           />
           <Pressable style={styles.send} onPress={send} accessibilityRole="button">
             <Text style={styles.sendText}>{sendLabel}</Text>
@@ -136,36 +142,39 @@ export function RatingBox<Value extends string>({
   );
 }
 
+// 제목 body2-bold + Chip(흰 바탕 · 1px border, 고르면 blue-soft · 1.5px blue). 한 줄은 TextField(입력 중 1.5px blue) + Button/Primary-sm.
 const styles = StyleSheet.create({
-  // pen 「배우 일지」 평가 줄(SOMA-770) — 바탕 카드 없이 제목 14/800 + 회색 알약 칩(안쪽 10·16, 글 15/700).
-  box: { gap: 10 },
-  title: { fontSize: 14, fontWeight: '800', lineHeight: 21, color: palette.text },
-  row: { flexDirection: 'row', gap: 8 },
+  box: { gap: space[3] },
+  title: { ...type.body2Bold, color: palette.text },
+  row: { flexDirection: 'row', gap: space[2] },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    backgroundColor: palette.bgSoft,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: space[1.5],
+    minHeight: 40,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
+    paddingHorizontal: space[4],
   },
-  chipOn: { backgroundColor: palette.blueSoft },
-  chipText: { fontSize: 15, fontWeight: '700', color: palette.textSub },
+  chipOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft, paddingHorizontal: space[4] - 0.5 },
+  chipText: { ...type.body2Bold, color: palette.textSub },
   chipTextOn: { color: palette.blueDeep },
-  inputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  inputRow: { flexDirection: 'row', gap: space[2], alignItems: 'center' },
   input: {
     flex: 1,
+    height: 48,
     backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    borderRadius: radius.md,
+    paddingHorizontal: space[4],
+    ...type.body2,
     color: palette.text,
   },
-  send: { backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11 },
-  sendText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
-  thanks: { fontSize: 14, fontWeight: '700', color: palette.blueDeep },
+  inputFocus: { borderWidth: 1.5, borderColor: palette.blue },
+  send: { height: 32, justifyContent: 'center', backgroundColor: palette.blue, borderRadius: radius.md, paddingHorizontal: space[3] },
+  sendText: { ...type.body2Bold, color: palette.onAccent },
+  thanks: { ...type.captionBold, color: palette.blueDeep },
 });

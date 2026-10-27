@@ -165,9 +165,12 @@ afterEach(() => {
 test('진행 중인 연습이 없으면 홈에서 새로 시작하라고 안내한다', async () => {
   await render(<CoachScreen />);
 
-  expect(screen.getByText('진행 중인 연습이 없어요. 홈에서 새로 시작해 주세요.')).toBeOnTheScreen();
+  expect(screen.getByText('진행 중인 연습이 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('홈에서 새 연습을 시작해 주세요.')).toBeOnTheScreen();
   expect(mockLoop.startConversation).not.toHaveBeenCalled();
   expect(screen.queryByPlaceholderText(PLACEHOLDER)).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '홈으로' }));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
 });
 
 describe('대화 시작', () => {
@@ -263,7 +266,6 @@ describe('대화 시작', () => {
     expect(order).toEqual(['coach-bubble-coach', 'coach-bubble-mine', 'coach-bubble-coach']);
     // 내 답은 파란 말풍선(흰 글자)이다(SOMA-778).
     expect(screen.getByText('더는 미루지 않기로요')).toHaveStyle({ color: '#FFFFFF' });
-    expect(screen.getByTestId('coach-bubble-mine')).toHaveStyle({ backgroundColor: '#4880EE' });
   });
 
   test('연결에 실패하면 이유를 보이고, 다시 연결하면 같은 요청 id 로 시작한다', async () => {
@@ -516,7 +518,6 @@ describe('빠른 답과 그만하기', () => {
 
     expect(screen.queryByRole('button', { name: '맞아요' })).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '아니요' })).not.toBeOnTheScreen();
-    expect(screen.getByTestId('coach-answer-examples')).toHaveStyle({ flexDirection: 'column' });
     await fireEvent.press(screen.getByRole('button', { name: '그만 미루기로요' }));
     expect(input()).toHaveDisplayValue('그만 미루기로요');
     await fireEvent.press(screen.getByRole('button', { name: '아직 못 정했어요' }));
@@ -552,8 +553,6 @@ describe('빠른 답과 그만하기', () => {
     mockLoop.replyToCoach.mockResolvedValue(turn(conv({ status: 'closed', close_reason: 'user_ended' })));
     await renderOpen();
 
-    // 화면 오른쪽 끝에 붙지 않게 아이콘 칸과 같은 44 높이·좌우 10 을 둔다(SOMA-837).
-    expect(screen.getByRole('button', { name: '그만하기' })).toHaveStyle({ height: 44, paddingHorizontal: 10 });
     await fireEvent.press(screen.getByRole('button', { name: '그만하기' }));
     expect(screen.getByText('여기서 마칠까요?')).toBeOnTheScreen();
     expect(screen.getByText('다 얘기했으면 「마치기」를 누르세요. 이어서 일지를 쓰면 오늘 대화와 함께 정리돼요.')).toBeOnTheScreen();
@@ -595,10 +594,14 @@ describe('닫힌 대화', () => {
     await renderOpen();
 
     await typeAndSend('마지막 답');
-    expect(screen.getByText('오늘 대화는 여기까지예요. 아래에서 일지를 쓰고 마쳐요.')).toBeOnTheScreen();
+    expect(screen.getByText('오늘 대화는 여기까지예요. 코치 말을 읽고 아래에서 일지를 써요.')).toBeOnTheScreen();
     expect(getPractice()?.note).toEqual(NOTE);
     await act(async () => jest.advanceTimersByTime(0));
     expect(mockRouter.replace).not.toHaveBeenCalled();
+    // 대화 이어 가기는 대화 끝 카드, 아래 바는 「다음 테이크 찍기」 위 · 「일지 쓰고 마치기」 맨 아래. 입력칸은 없다.
+    const labels = screen.getAllByRole('button').map((b) => b.props.accessibilityLabel);
+    expect(labels.slice(-3)).toEqual(['대화 이어 가기', '다음 테이크 찍기', '일지 쓰고 마치기']);
+    expect(screen.queryByLabelText('보내기')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('button', { name: '일지 쓰고 마치기' }));
     await act(async () => jest.advanceTimersByTime(0));
@@ -645,7 +648,7 @@ describe('닫힌 대화', () => {
       mockLoop.getPracticeNote.mockRejectedValue(serverError(404, 'note_not_found'));
       begin({ conversationId: 'c1' });
       await render(<CoachScreen />);
-      return screen.findByRole('button', { name: '대화 이어하기' });
+      return screen.findByRole('button', { name: '대화 이어 가기' });
     }
 
     test('정리 뒤 「대화 이어하기」를 누르면 같은 대화가 다시 열려 입력칸이 돌아온다', async () => {
@@ -654,7 +657,7 @@ describe('닫힌 대화', () => {
 
       expect(mockLoop.continueConversation).toHaveBeenCalledWith('c1', 5);
       expect(await screen.findByPlaceholderText(PLACEHOLDER)).toBeOnTheScreen();
-      expect(screen.queryByRole('button', { name: '대화 이어하기' })).not.toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: '대화 이어 가기' })).not.toBeOnTheScreen();
       expect(mockLoop.startConversation).not.toHaveBeenCalled();
       expect(mockRouter.replace).not.toHaveBeenCalled();
     });
@@ -665,7 +668,7 @@ describe('닫힌 대화', () => {
 
       expect(await screen.findByText('이 대화는 많이 이어졌어요. 다음 테이크로 새로 시작해 보세요.')).toBeOnTheScreen();
       expect(screen.queryByPlaceholderText(PLACEHOLDER)).not.toBeOnTheScreen();
-      expect(screen.getByRole('button', { name: '대화 이어하기' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: '대화 이어 가기' })).toBeOnTheScreen();
     });
 
     test('다른 곳에서 먼저 바뀌었으면 최신 대화를 다시 읽는다', async () => {

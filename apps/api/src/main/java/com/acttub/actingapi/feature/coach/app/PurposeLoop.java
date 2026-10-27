@@ -231,6 +231,53 @@ final class PurposeLoop {
         return loop == null ? -1 : loop.path(PracticeLoopRouter.RESUMED_AT).asInt(-1);
     }
 
+    /** 영상 없이 말로: 정리한 뒤 배우가 물어 답만 하는 응답. */
+    static boolean answersAfterWrap(Turn turn) {
+        return turn != null && turn.purpose().talk() && "wrap".equals(turn.step()) && "answer".equals(turn.doing());
+    }
+
+    private static final Pattern SENTENCE = Pattern.compile("[^.!?\\n]+[.!?~]*");
+
+    /**
+     * 결과를 장담하는 문장("꽁트의 재미가 훨씬 더 잘 느껴질 거예요.")을 뗀다. 영상 없이 말로 하는 회차 규칙(talk/mode)이 금지하는데
+     * 모델이 정리 뒤 답 끝에 붙였다(10/27 dev 재생). 물음은 두고, 문장이 하나뿐이거나 모두 장담이면 그대로 둔다.
+     */
+    static String withoutPromises(String text) {
+        if (text == null || text.isBlank()) return text;
+        Matcher m = SENTENCE.matcher(text);
+        var kept = new StringBuilder();
+        int last = 0;
+        int total = 0;
+        int dropped = 0;
+        while (m.find()) {
+            String sentence = m.group();
+            if (sentence.isBlank()) continue;
+            total++;
+            String gap = text.substring(last, m.start());
+            last = m.end();
+            if (promises(sentence)) {
+                dropped++;
+                continue;
+            }
+            kept.append(gap).append(sentence);
+        }
+        kept.append(text.substring(last));
+        if (dropped == 0 || dropped == total) return text;
+        return kept.toString().replaceAll("\\n{3,}", "\n\n").strip();
+    }
+
+    /** "~ㄹ 거예요."로 끝나는 평서문(앞 글자에 ㄹ 받침). 물음과 따옴표로 끝나는 대사는 아니다. */
+    static boolean promises(String sentence) {
+        String s = sentence.strip();
+        if (s.endsWith("?")) return false;
+        s = s.replaceAll("[.!~]+$", "");
+        if (!s.endsWith("거예요")) return false;
+        String before = s.substring(0, s.length() - 3).stripTrailing();
+        if (before.isEmpty()) return false;
+        char c = before.charAt(before.length() - 1);
+        return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 == 8;
+    }
+
     /** 정리 뒤 배우 말이 코치에게 묻는 말인가(물음·평가 요청·방법 요청, 또는 물음표·"어떻게 해요"). */
     static boolean asksAfterWrap(PracticeLoopRouter.Kind kind, String actorText) {
         return kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION
@@ -592,7 +639,8 @@ final class PurposeLoop {
         if (output.card() != null) loop.set("card", mergeCard(loop.get("card"), output.card(), turn.wrap()));
         if (output.characterCard() != null) loop.set("character_card", output.characterCard());
         if (output.scene() != null) loop.set("scene", output.scene());
-        if (turn.wrap() || turn.end()) putChoices(loop, List.of());
+        // 영상 없이 말로 정리 뒤 답(answerAfterWrap)은 묻지 않는 답이라 「잘 모르겠어요」도 붙이지 않는다(10/27 dev 재생).
+        if (turn.wrap() || turn.end() || answersAfterWrap(turn)) putChoices(loop, List.of());
         else if ("card".equals(turn.step())) putChoices(loop, cardChoices(loop));
         else if ("method".equals(turn.step())) putChoices(loop, withDontKnow(untimed(output.choices())));
         else putChoices(loop, withDontKnow(output.choices()));
@@ -735,9 +783,10 @@ final class PurposeLoop {
             lines.add("- 인물 카드에는 첫 응답 <설계>의 대본 단서·테이크 속 인물·다른 가능성에서 배우가 말하지 않은 칸을 둘 이상 (영상)으로 채운다. "
                     + "정리 둘째 문장은 배우 해석과 다른 가능성 하나를 그 단서 대사와 함께 말하고, 그 둘로 이 인물이 어떻게 더 입체적이 되는지 말한다.");
         }
-        if (turn.purpose().talk() && "wrap".equals(turn.step()) && "answer".equals(turn.doing())) {
+        if (answersAfterWrap(turn)) {
             lines.add("- 정리는 이미 했다. 이번에는 배우가 정리 뒤에 물은 것에만 답한다. 정리를 다시 쓰거나 새 질문을 하지 않고, <보기>도 쓰지 않는다. "
-                    + "할 수 없는 것을 물었으면 할 수 없다는 말로 끝내지 말고 배우가 지금 해 볼 수 있는 방법 하나를 함께 말한다.");
+                    + "할 수 없는 것을 물었으면 할 수 없다는 말로 끝내지 말고 배우가 지금 해 볼 수 있는 방법 하나를 함께 말한다. "
+                    + "해 보면 어떻게 될지 장담하는 말(\"~느껴질 거예요\", \"~될 거예요\")로 끝내지 않는다.");
         }
         if (turn.asked()) {
             lines.add("- 배우가 이번 말에서 함께 물은 것이 있다. 이번 할 일을 하기 전에 그 물음에 먼저 한두 문장으로 솔직하게 답한다. "

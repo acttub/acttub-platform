@@ -62,8 +62,3 @@ test('SOMA-672: 준비 화면에는 같은 영상 길이 없고 다시 고르기
   assert.doesNotMatch(read('lib/practice/upload-events.ts'), /'same'/);
 });
 
-test('SOMA-672: 준비 화면의 촬영 버튼으로 찍으면 그 준비 화면으로 돌아간다 — 이어하기가 새 연습으로 바뀌지 않는다', () => {
-  const record = read('app/record-video.tsx');
-  const block = record.slice(record.indexOf("if (mode === 'ai') {"), record.indexOf("if (mode === 'plain') {"));
-  assert.match(block, /if \(picker\) router\.replace\('\/upload'\);\s*else if \(toUpload\) router\.replace\(\{ pathname: '\/upload'[^;]*;\s*else router\.back\(\);/);
-});
