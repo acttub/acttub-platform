@@ -271,6 +271,7 @@ public class ScriptCocreateService {
         }
         RuntimeException modelFailure = null;
         String reason = "no attempt";
+        String feedback = "";
         for (int attempt = 0; attempt < ATTEMPTS; attempt++) {
             Slot ending = CocreateRules.pick(CocreateRules.ENDINGS, base.minor(), avoidEndings, random);
             Slot prop = CocreateRules.pick(CocreateRules.PROPS, base.minor(), avoidProps, random);
@@ -279,7 +280,7 @@ public class ScriptCocreateService {
             Conditions conditions = base.withSlot(ending, prop);
             ScriptCocreateModel.Reply reply;
             try {
-                reply = model.generate(generatePrompt(conditions), maxTokens(conditions.minutes()));
+                reply = model.generate(generatePrompt(conditions) + feedback, maxTokens(conditions.minutes()));
             } catch (RuntimeException failure) {
                 modelFailure = failure;
                 reason = "model: " + failure.getMessage();
@@ -289,6 +290,7 @@ public class ScriptCocreateService {
             List<Issue> issues = CocreateRules.check(script, conditions);
             if (issues.stream().anyMatch(Issue::structural)) {
                 reason = "structure: " + issues;
+                feedback = lengthFeedback(script, conditions);
                 continue;
             }
             script = fix(script, issues, conditions);
@@ -306,6 +308,26 @@ public class ScriptCocreateService {
         throw modelFailure != null
                 ? ApiException.external(502, "sample_script_failed", modelFailure)
                 : ApiException.unexpected(502, "sample_script_failed", new IllegalStateException(reason));
+    }
+
+    /**
+     * 직전 시도가 분량 때문에 막혔으면 다음 시도 프롬프트 끝에 붙일 안내. 같은 프롬프트를 그대로 다시 부르면 같은 길이로 또
+     * 벗어나기 쉬워서, 실제 글자 수와 허용 범위를 알려 준다. 프롬프트 파일은 건드리지 않고 코드에서만 덧붙인다.
+     */
+    static String lengthFeedback(CocreatedScript script, Conditions conditions) {
+        if (script == null) {
+            return "";
+        }
+        int minutes = conditions.minutes();
+        int chars = script.dialogueChars();
+        int min = CocreateRules.minChars(minutes);
+        int max = CocreateRules.maxChars(minutes);
+        if (chars >= min && chars <= max) {
+            return "";
+        }
+        return "\n\n[직전 시도 결과] 대사 텍스트 합계가 %d자여서 허용 %d~%d자를 %s. 이번에는 %d자 안팎(%d~%d자)으로 %s."
+                .formatted(chars, min, max, chars < min ? "밑돌았다" : "넘었다", CocreateRules.targetChars(minutes), min, max,
+                        chars < min ? "조금 더 길게 쓴다" : "더 짧게 줄여 쓴다");
     }
 
     private Revised reviseOnce(CocreatedScript script, Conditions target, String request) {
