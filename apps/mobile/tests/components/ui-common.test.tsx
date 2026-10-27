@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button, DangerButton, PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DoneScreen } from '@/components/ui/done-screen';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { AnchoredMenu, MenuItem } from '@/components/ui/anchored-menu';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
@@ -296,6 +297,25 @@ describe('상태 화면·말풍선·아래 칸', () => {
     );
     const bar = StyleSheet.flatten(screen.getByText('저장하고 마치기').parent?.props.style);
     expect([bar.paddingTop, bar.paddingHorizontal, bar.paddingBottom, bar.gap, bar.borderTopWidth]).toEqual([12, 20, 12, 8, undefined]);
+  });
+});
+
+describe('완료 화면', () => {
+  test('머리 없이 제목 title1 · 대본 이름 · 내용을 두고 아래 「홈으로 가기」 하나로 홈에 간다', async () => {
+    const home = jest.fn();
+    await render(
+      <DoneScreen title="오늘 리딩을 마쳤어요" scriptName="버스정류장" onHome={home}>
+        <Text>다시 읽기</Text>
+      </DoneScreen>,
+    );
+    expect(StyleSheet.flatten(screen.getByRole('header').props.style).fontSize).toBe(24);
+    expect(screen.getByRole('header')).toHaveTextContent('오늘 리딩을 마쳤어요');
+    expect(screen.getByText('버스정류장')).toBeOnTheScreen();
+    expect(screen.getByText('다시 읽기')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+    expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['홈으로 가기']);
+    await fireEvent.press(screen.getByRole('button', { name: '홈으로 가기' }));
+    expect(home).toHaveBeenCalledTimes(1);
   });
 });
 
