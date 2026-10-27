@@ -54,6 +54,14 @@ public class ChallengeEntryEntity extends AppGeneratedUuidEntity {
     private String mosaicKey;
     @Column(name="mosaic_attempts", nullable=false)
     private int mosaicAttempts;
+    @Column(name="moderation_status", nullable=true, columnDefinition="text")
+    private String moderationStatus;
+    @Column(name="moderation_attempts", nullable=false)
+    private int moderationAttempts;
+    @Column(name="moderation_model", nullable=true, columnDefinition="text")
+    private String moderationModel;
+    @Column(name="moderated_at", nullable=true)
+    private Instant moderatedAt;
     protected ChallengeEntryEntity() { }
     public UUID getChallengeId() { return challengeId; }
     public UUID getUserId() { return userId; }
@@ -76,4 +84,8 @@ public class ChallengeEntryEntity extends AppGeneratedUuidEntity {
     public String getMosaicStatus() { return mosaicStatus; }
     public String getMosaicKey() { return mosaicKey; }
     public int getMosaicAttempts() { return mosaicAttempts; }
+    public String getModerationStatus() { return moderationStatus; }
+    public int getModerationAttempts() { return moderationAttempts; }
+    public String getModerationModel() { return moderationModel; }
+    public Instant getModeratedAt() { return moderatedAt; }
 }

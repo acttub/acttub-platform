@@ -46,8 +46,10 @@ class PostgresEntryReportRepository implements ReportRepository {
                 if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
                 if (reporter.equals(target.author())) throw new ApiException(422, "self_report");
                 insert(id, reporter, requestId, fingerprint, report, target.contentVersion(), target.caption(), now);
-                em.createNativeQuery("UPDATE challenge_entries SET status='hidden_by_report',updated_at=:now WHERE id=:id AND status='visible'")
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", report.targetId()).executeUpdate();
+                if (hidesEntry(report.targetId())) {
+                    em.createNativeQuery("UPDATE challenge_entries SET status='hidden_by_report',updated_at=:now WHERE id=:id AND status='visible'")
+                            .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", report.targetId()).executeUpdate();
+                }
             }
             case "comment" -> {
                 var comment = lockVisibleComment(reporter, report.targetId());
@@ -78,6 +80,22 @@ class PostgresEntryReportRepository implements ReportRepository {
             }
         }
         return new Filed(new Receipt(id, "received"), true);
+    }
+
+    /**
+     * 이 신고로 참여작을 숨기는가. AI 검사를 통과한 참여작은 처리되지 않은 사람 신고가 서로 다른
+     * {@link ChallengeRules#PASSED_ENTRY_REPORT_THRESHOLD} 명에게서 모여야 숨긴다 — 한 사람의 악의적 신고로 정상 영상이
+     * 내려가지 않게. 검사 전·실패·애매 판정은 지금처럼 신고 하나에 숨긴다.
+     */
+    private boolean hidesEntry(UUID entryId) {
+        String moderation = (String) em.createNativeQuery("SELECT moderation_status FROM challenge_entries WHERE id=:id")
+                .setParameter("id", entryId).getSingleResult();
+        if (!"passed".equals(moderation)) return true;
+        long reporters = ((Number) em.createNativeQuery("""
+                SELECT count(DISTINCT reporter_id) FROM entry_reports
+                WHERE target_type='entry' AND target_id=:id AND status='received' AND source='user'
+                """).setParameter("id", entryId).getSingleResult()).longValue();
+        return reporters >= ChallengeRules.PASSED_ENTRY_REPORT_THRESHOLD;
     }
 
     /** 같은 요청의 재전송, 또는 같은 사람의 같은 대상 재신고(처리 뒤라도 다시 숨기지 않는다). 없으면 {@code null}. */
@@ -163,10 +181,21 @@ class PostgresEntryReportRepository implements ReportRepository {
                 "SELECT count(*) FROM entry_reports WHERE target_type=:type AND target_id=:target AND status='received'")
                 .setParameter("type", type).setParameter("target", target).getSingleResult()).longValue();
         // kept_hidden 은 지금 상태(참여작·댓글의 숨김, 챌린지의 검토)를 그대로 둔다. 챌린지를 아예 내릴지는 운영이
-        // moderation 경로로 따로 정한다.
+        // moderation 경로로 따로 정한다. 참여작은 아직 보이는 채 올라온 것(AI 확인 필요·검사 실패, 검사 통과 뒤 신고 하나)도
+        // 있으므로 숨김 유지는 숨긴다.
+        if ("kept_hidden".equals(resolution) && "entry".equals(type)) {
+            em.createNativeQuery("UPDATE challenge_entries SET status='hidden_by_report',updated_at=:now WHERE id=:id AND status='visible'")
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", target).executeUpdate();
+        }
         if (!"kept_hidden".equals(resolution) && open == 0) {
             String release = switch (type) {
-                case "entry" -> "UPDATE challenge_entries SET status='visible' WHERE id=:id AND status='hidden_by_report'";
+                // 운영이 풀었으면 사람이 본 것이다 — AI 판정(숨김·확인 필요·실패)은 통과로 바꾼다.
+                case "entry" -> """
+                        UPDATE challenge_entries SET status=CASE WHEN status='hidden_by_report' THEN 'visible' ELSE status END,
+                            moderation_status=CASE WHEN moderation_status IN ('flagged','review','failed') THEN 'passed'
+                                                   ELSE moderation_status END
+                        WHERE id=:id AND status<>'deleted'
+                        """;
                 case "comment" -> "UPDATE entry_comments SET status='visible' WHERE id=:id AND status='hidden'";
                 default -> "UPDATE challenges SET moderation='visible' WHERE id=:id AND moderation='review'";
             };

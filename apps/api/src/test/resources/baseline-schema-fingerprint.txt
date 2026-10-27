@@ -199,6 +199,10 @@ COLUMN challenge_entries.final_eligible ord=12 type=bool len=- null=YES default=
 COLUMN challenge_entries.final_like_count ord=11 type=int8 len=- null=YES default=-
 COLUMN challenge_entries.final_rank ord=13 type=int4 len=- null=YES default=-
 COLUMN challenge_entries.id ord=1 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.moderated_at ord=26 type=timestamptz len=- null=YES default=-
+COLUMN challenge_entries.moderation_attempts ord=24 type=int4 len=- null=NO default=0
+COLUMN challenge_entries.moderation_model ord=25 type=text len=- null=YES default=-
+COLUMN challenge_entries.moderation_status ord=23 type=text len=- null=YES default=-
 COLUMN challenge_entries.mosaic_attempts ord=22 type=int4 len=- null=NO default=0
 COLUMN challenge_entries.mosaic_key ord=21 type=text len=- null=YES default=-
 COLUMN challenge_entries.mosaic_status ord=20 type=text len=- null=YES default=-
@@ -376,13 +380,14 @@ COLUMN entry_reports.created_at ord=16 type=timestamptz len=- null=NO default=no
 COLUMN entry_reports.id ord=1 type=uuid len=- null=NO default=-
 COLUMN entry_reports.note ord=6 type=text len=- null=YES default=-
 COLUMN entry_reports.reason ord=5 type=text len=- null=NO default=-
-COLUMN entry_reports.reporter_id ord=4 type=uuid len=- null=NO default=-
+COLUMN entry_reports.reporter_id ord=4 type=uuid len=- null=YES default=-
 COLUMN entry_reports.request_fingerprint ord=15 type=bpchar len=64 null=NO default=-
 COLUMN entry_reports.request_id ord=14 type=uuid len=- null=NO default=-
 COLUMN entry_reports.resolution ord=8 type=text len=- null=YES default=-
 COLUMN entry_reports.resolution_note ord=11 type=text len=- null=YES default=-
 COLUMN entry_reports.reviewed_at ord=10 type=timestamptz len=- null=YES default=-
 COLUMN entry_reports.reviewed_by ord=9 type=text len=- null=YES default=-
+COLUMN entry_reports.source ord=17 type=text len=- null=NO default='user'::text
 COLUMN entry_reports.status ord=7 type=text len=- null=NO default='received'::text
 COLUMN entry_reports.target_id ord=3 type=uuid len=- null=NO default=-
 COLUMN entry_reports.target_text ord=13 type=text len=- null=YES default=-
@@ -1099,6 +1104,7 @@ CONSTRAINT challenge_entries challenge_entries_content_version_not_null NOT NULL
 CONSTRAINT challenge_entries challenge_entries_created_at_not_null NOT NULL created_at
 CONSTRAINT challenge_entries challenge_entries_face_mosaic_not_null NOT NULL face_mosaic
 CONSTRAINT challenge_entries challenge_entries_id_not_null NOT NULL id
+CONSTRAINT challenge_entries challenge_entries_moderation_attempts_not_null NOT NULL moderation_attempts
 CONSTRAINT challenge_entries challenge_entries_mosaic_attempts_not_null NOT NULL mosaic_attempts
 CONSTRAINT challenge_entries challenge_entries_pkey PRIMARY KEY (id)
 CONSTRAINT challenge_entries challenge_entries_request_fingerprint_not_null NOT NULL request_fingerprint
@@ -1114,6 +1120,8 @@ CONSTRAINT challenge_entries ck_challenge_entries_caption CHECK ((char_length(ca
 CONSTRAINT challenge_entries ck_challenge_entries_deleted CHECK (((status = 'deleted'::text) = (deleted_at IS NOT NULL)))
 CONSTRAINT challenge_entries ck_challenge_entries_final_likes CHECK ((final_like_count >= 0))
 CONSTRAINT challenge_entries ck_challenge_entries_final_rank CHECK ((final_rank > 0))
+CONSTRAINT challenge_entries ck_challenge_entries_moderation_attempts CHECK ((moderation_attempts >= 0))
+CONSTRAINT challenge_entries ck_challenge_entries_moderation_status CHECK ((moderation_status = ANY (ARRAY['pending'::text, 'passed'::text, 'flagged'::text, 'review'::text, 'failed'::text])))
 CONSTRAINT challenge_entries ck_challenge_entries_mosaic_attempts CHECK ((mosaic_attempts >= 0))
 CONSTRAINT challenge_entries ck_challenge_entries_mosaic_ready CHECK (((mosaic_status <> 'ready'::text) OR (mosaic_key IS NOT NULL)))
 CONSTRAINT challenge_entries ck_challenge_entries_mosaic_requested CHECK ((face_mosaic = (mosaic_status IS NOT NULL)))
@@ -1373,6 +1381,8 @@ CONSTRAINT entry_reports ck_entry_reports_note CHECK ((char_length(note) <= 200)
 CONSTRAINT entry_reports ck_entry_reports_reason CHECK ((reason = ANY (ARRAY['copyright'::text, 'inappropriate'::text, 'spam'::text, 'duplicate'::text, 'other'::text])))
 CONSTRAINT entry_reports ck_entry_reports_resolution CHECK ((resolution = ANY (ARRAY['restored'::text, 'kept_hidden'::text, 'dismissed'::text])))
 CONSTRAINT entry_reports ck_entry_reports_reviewed CHECK (((status = 'reviewed'::text) = ((resolution IS NOT NULL) AND (reviewed_at IS NOT NULL))))
+CONSTRAINT entry_reports ck_entry_reports_source CHECK ((source = ANY (ARRAY['user'::text, 'ai'::text])))
+CONSTRAINT entry_reports ck_entry_reports_source_reporter CHECK (((source = 'ai'::text) = (reporter_id IS NULL)))
 CONSTRAINT entry_reports ck_entry_reports_status CHECK ((status = ANY (ARRAY['received'::text, 'reviewed'::text])))
 CONSTRAINT entry_reports ck_entry_reports_target_type CHECK ((target_type = ANY (ARRAY['entry'::text, 'comment'::text, 'challenge'::text])))
 CONSTRAINT entry_reports ck_entry_reports_version CHECK ((target_version > 0))
@@ -1381,9 +1391,9 @@ CONSTRAINT entry_reports entry_reports_id_not_null NOT NULL id
 CONSTRAINT entry_reports entry_reports_pkey PRIMARY KEY (id)
 CONSTRAINT entry_reports entry_reports_reason_not_null NOT NULL reason
 CONSTRAINT entry_reports entry_reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES users(id)
-CONSTRAINT entry_reports entry_reports_reporter_id_not_null NOT NULL reporter_id
 CONSTRAINT entry_reports entry_reports_request_fingerprint_not_null NOT NULL request_fingerprint
 CONSTRAINT entry_reports entry_reports_request_id_not_null NOT NULL request_id
+CONSTRAINT entry_reports entry_reports_source_not_null NOT NULL source
 CONSTRAINT entry_reports entry_reports_status_not_null NOT NULL status
 CONSTRAINT entry_reports entry_reports_target_id_not_null NOT NULL target_id
 CONSTRAINT entry_reports entry_reports_target_type_not_null NOT NULL target_type
@@ -2067,6 +2077,7 @@ INDEX CREATE INDEX ix_billing_payments_subscription ON public.billing_payments U
 INDEX CREATE INDEX ix_billing_payments_unknown ON public.billing_payments USING btree (status, updated_at) WHERE (status = 'unknown'::text)
 INDEX CREATE INDEX ix_billing_pro_grants_user ON public.billing_pro_grants USING btree (user_id, ends_at DESC)
 INDEX CREATE INDEX ix_billing_subscriptions_due ON public.billing_subscriptions USING btree (status, current_period_end)
+INDEX CREATE INDEX ix_challenge_entries_moderation_pending ON public.challenge_entries USING btree (created_at, id) WHERE (moderation_status = 'pending'::text)
 INDEX CREATE INDEX ix_challenge_entries_mosaic_pending ON public.challenge_entries USING btree (created_at, id) WHERE (mosaic_status = 'pending'::text)
 INDEX CREATE INDEX ix_challenge_entries_owner ON public.challenge_entries USING btree (user_id, created_at)
 INDEX CREATE INDEX ix_challenge_entries_public ON public.challenge_entries USING btree (challenge_id, published_at DESC, id DESC) WHERE ((visibility = 'public'::text) AND (status = 'visible'::text))
