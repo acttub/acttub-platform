@@ -19,7 +19,6 @@ export type ScriptInput = {
   tab: ScriptTab;
   file: FileSlot;
   paste: { text: string; source: ScriptSource | null };
-  /** 탭마다 적은 제목. 파일을 고르면 파일 탭 제목을 파일 이름으로 채운다. */
   title: Record<ScriptTab, string>;
 };
 
@@ -71,7 +70,6 @@ export function pendingScript(state: ScriptInput): ImportInput | null {
   return text ? { kind: 'text', text, source: state.paste.source ?? 'typed' } : null;
 }
 
-/** 파일 이름 → 제목 칸에 미리 채울 글. 확장자를 떼고 밑줄은 띄어쓰기로(`버스정류장_대본.txt` → 「버스정류장 대본」). */
 export function titleFromFileName(name: string): string {
   const dot = name.lastIndexOf('.');
   const stem = dot >= 0 ? name.slice(0, dot) : name;

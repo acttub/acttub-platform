@@ -222,7 +222,6 @@ const styles = StyleSheet.create({
   meta: { ...type.caption, color: palette.textMeta },
   viewScript: { flexDirection: 'row', alignItems: 'center', gap: space[1], alignSelf: 'flex-start', paddingTop: space[1] },
   viewScriptText: { ...type.captionBold, color: palette.blueDeep },
-  // pen 「SecHead」 — 위 칸과 1px 선으로 나눈다.
   sectionTitle: { ...type.headline, color: palette.text, paddingTop: space[4], paddingBottom: space[2], borderTopColor: palette.border, borderTopWidth: 1 },
   row: {
     minHeight: 56,

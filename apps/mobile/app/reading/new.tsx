@@ -97,7 +97,6 @@ const DEPS: ScriptImportDeps = {
   newRequestId,
 };
 
-/** 멈춘 그 요청을 다시 할 때 — 파일은 올리다가, 글은 나누다가 멈췄다. */
 type Resume = { kind: 'import'; input: ImportInput; flags: ImportFlags } | { kind: 'upload'; file: PickedScriptFile };
 
 /** R2 위 팝업 하나. iOS 는 닫히는 모달 위에 새 모달을 띄우지 못해 모든 장을 한 모달에 그린다. */
@@ -123,7 +122,6 @@ export default function ReadingNew() {
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [popup, setPopup] = useState<Popup | null>(null);
   const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
-  // 배우가 적는 대본 제목(SOMA-669). 비우면 서버가 대본에서 찾아 붙인다. 파일을 고르면 파일 이름으로 채운다.
   const title = input.title[input.tab];
   const pasteTabTarget = useSpotlightTarget(TARGET.readingDrop);
   const nextTarget = useSpotlightTarget(TARGET.readingNext);
@@ -137,13 +135,9 @@ export default function ReadingNew() {
     return () => controller.abort();
   }, []);
 
-  // 저장한 대본을 다시 읽지 못한 것처럼 원인이 남지 않은 실패는 R2.12 공용 문구다.
-  const failWith = (error?: unknown) =>
-    setPopup(
-      error === undefined
-        ? { kind: 'alert', title: t('reading.openFailTitle'), message: t('errors.network') }
-        : { kind: 'alert', title: t('reading.importFailTitle'), message: scriptErrorMessage(error) },
-    );
+  const failWith = (error: unknown) =>
+    setPopup({ kind: 'alert', title: t('reading.importFailTitle'), message: scriptErrorMessage(error) });
+  const failToOpen = () => setPopup({ kind: 'alert', title: t('reading.openFailTitle'), message: t('errors.network') });
 
   const showStop = async (stop: ImportStop, resume: Resume) => {
     const alert = importAlert(stop);
@@ -155,7 +149,7 @@ export default function ReadingNew() {
     if (stop.kind === 'not_script') return setPopup({ kind: 'not_script', input: resume.input, flags });
     if (stop.kind === 'duplicate') {
       const existing = await loadIntoCurrent(stop.scriptId);
-      if (!existing) return failWith();
+      if (!existing) return failToOpen();
       setPopup({ kind: 'duplicate', title: existing.title, input: resume.input, flags });
     }
   };
@@ -205,7 +199,7 @@ export default function ReadingNew() {
     if (result.kind !== 'saved') return showStop(result, { kind: 'import', input, flags });
     const saved = await loadIntoCurrent(result.scriptId);
     if (signal?.aborted) return;
-    if (!saved) return failWith();
+    if (!saved) return failToOpen();
     setPopup(null);
     // 이름 없는 독백은 누구의 대사인지 이름부터 받는다(SOMA-597). 닫으면 대본 상세로.
     const solo = saved.characters.filter((c) => !isGroupCharacter(c));
@@ -305,7 +299,6 @@ export default function ReadingNew() {
     <KeyboardLift style={styles.root}>
       <Stack.Screen options={{ gestureEnabled: !working }} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* pen R2.1 「히어로」 — 대본 읽는 액티 옆에 큰 제목과 한 줄 설명. */}
         <View style={styles.hero}>
           <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <View style={styles.heroText}>
@@ -368,7 +361,6 @@ export default function ReadingNew() {
           </View>
         )}
 
-        {/* 파일 탭의 제목칸은 파일이 읽힌 뒤에만, 파일 이름으로 채워 둔다. 비우면 서버가 대본에서 찾아 붙인다(SOMA-669). */}
         {!makeOpen && (input.tab === 'paste' || file.kind === 'ready') && (
           <View style={styles.titleField}>
             <TextField
@@ -534,7 +526,6 @@ function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
   );
 }
 
-/** pen Tabs/Segmented — bg-soft 칸 안에서 고른 칸만 흰 바탕 · text 글자. */
 function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3' | 'message-circle'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>

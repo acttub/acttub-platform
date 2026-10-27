@@ -49,7 +49,6 @@ export function TitleEditDialog({
 
   return (
     <Modal transparent statusBarTranslucent visible animationType="fade" onRequestClose={() => onClose(false)}>
-      {/* 키보드가 뜨면 키보드 위 남은 칸 가운데에 놓여 입력칸과 버튼이 가리지 않는다. */}
       <KeyboardLift>
         <Pressable style={styles.backdrop} onPress={() => !busy && onClose(false)} testID="title-edit-backdrop">
           <Pressable style={styles.stop} onPress={(e) => e.stopPropagation()}>
@@ -92,6 +91,5 @@ const styles = StyleSheet.create({
   stop: { width: '100%', alignItems: 'center' },
   field: { paddingTop: space[2] },
   input: { paddingRight: space[10] },
-  // 입력칸(48) 안 오른쪽 끝 — 오류 줄이 아래에 붙어도 칸 위에 머문다.
   clear: { position: 'absolute', top: space[2], right: 0, width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
 });

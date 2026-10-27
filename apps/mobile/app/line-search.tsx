@@ -151,7 +151,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[4],
     height: 48,
   },
-  // 테두리가 0.5 두꺼워진 만큼 안쪽을 줄여 칸 크기가 그대로다.
   searchBoxFocus: { borderWidth: 1.5, borderColor: palette.blue, paddingHorizontal: space[4] - 0.5 },
   input: { ...type.body1, lineHeight: undefined, flex: 1, color: palette.text, padding: 0 },
   body: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[10], gap: space[1] },

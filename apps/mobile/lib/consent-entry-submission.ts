@@ -197,7 +197,6 @@ export async function submitConsentDecisions({
 /**
  * 가입 화면에 보이지 않는 선택 문서. 개인정보 수집·이용 동의 v9 부터 이 두 처리가 그 동의에 들어 있어(SOMA-726)
  * 서버가 v9 동의자를 두 기능의 동의자로 본다. 가입 제출에서는 안 고른 선택 문서처럼 거절로 채워진다.
- * (v9 이전 동의자에게 고품질 목소리는 기능 안 팝업(use-cloud-voice)이 묻는다. 대본 나누기는 따로 묻지 않는다 — 필수 판이 v9 이상이다.)
  */
 export const SIGNUP_DEFERRED_TYPES: readonly string[] = ['cloud_voice', 'script_split'];
 

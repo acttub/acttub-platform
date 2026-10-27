@@ -166,7 +166,6 @@ const styles = StyleSheet.create({
   rowHead: { paddingBottom: 1 },
   rowJoined: { paddingVertical: 1 },
   rowPressed: { backgroundColor: palette.bgSoft },
-  // pen R3.4 지문 — 왼쪽 회색 세로선과 text-meta 글자.
   direction: { ...type.caption, color: palette.textMeta, borderLeftColor: palette.border, borderLeftWidth: 2, paddingLeft: space[3] },
   scene: { ...type.body2Bold, color: palette.textSub, marginTop: space[1.5] },
   role: { ...type.captionBold, width: 44, color: palette.text, paddingTop: 1 },

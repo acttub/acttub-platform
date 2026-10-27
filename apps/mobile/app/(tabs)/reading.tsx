@@ -44,7 +44,6 @@ import { pt } from '@/components/ui/anchored-menu';
 const SEARCH_DEBOUNCE_MS = 300;
 
 type EntryKey = 'upload' | 'sample' | 'make';
-// pen R1.13 입구 카드 셋 — 주 입구(내 대본 올리기)만 파랑, 나머지는 흰 카드 + 1px 테두리. 누르면 바로 들어간다.
 const ENTRY_CHOICES: { key: EntryKey; title: string; sub: string; primary?: boolean }[] = [
   { key: 'upload', title: 'reading.entryUpload', sub: 'reading.entryUploadSub', primary: true },
   { key: 'sample', title: 'reading.entrySample', sub: 'reading.entrySampleSub' },
@@ -242,7 +241,6 @@ export default function ReadingList() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: tabBarSpace + 20 }]}
       keyboardShouldPersistTaps="handled">
       {empty && (
-        // pen R1.13 — 위쪽 blue-soft 단색 띠(아래 모서리 24).
         <View style={[styles.emptyBg, { height: 300 + insets.top }]} pointerEvents="none" />
       )}
       {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
@@ -260,7 +258,6 @@ export default function ReadingList() {
               )}
               {!empty && (
                 <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
-                  {/* 「새 대본」은 바로 내 대본 올리기로 간다 — 같이 만들기는 그 화면의 세 번째 선택지다(10/25). */}
                   <Button
                     size="md"
                     label={t('reading.titleNew')}
@@ -326,7 +323,6 @@ export default function ReadingList() {
         <>
           {resume && !searching && (
             <View style={styles.resumeCard}>
-              {/* pen R1.3 — 파랑 단색 카드, 오른쪽 위 달, 책 더미 위에서 읽는 액티 */}
               <Feather name="moon" size={22} color={palette.onAccent} style={styles.resumeMoon} />
               <Image source={HERO_ACTY} style={styles.resumeActy} resizeMode="contain" accessibilityElementsHidden />
               <Text style={styles.resumeEyebrow}>{t('reading.resumeEyebrow')}</Text>
@@ -429,10 +425,8 @@ export default function ReadingList() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   content: { paddingHorizontal: space.gutter, gap: space[3] },
-  // 큰 제목 머리는 제 안쪽 여백(20)을 가지므로 목록 여백(20)을 거둔다.
   headWrap: { marginHorizontal: -space.gutter },
   headRight: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
-  // pen 「고품질 AI 목소리 공지」 — 흰 알약(48, r-full, 1px border), 무료 기간은 blue-deep.
   voiceBar: {
     minHeight: 48,
     flexDirection: 'row',

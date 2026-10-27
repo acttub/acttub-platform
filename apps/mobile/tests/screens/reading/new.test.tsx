@@ -78,7 +78,6 @@ test('처음에는 파일 탭을 보이고, 넣은 것이 없으면 다음을 �
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
   expect(screen.getByText('TXT · DOCX · PDF · HWP · 50MB까지')).toBeOnTheScreen();
   expect(screen.getByText('파일 선택하기')).toBeOnTheScreen();
-  // 파일 탭의 제목칸은 파일을 고른 뒤에만 보인다.
   expect(screen.queryByLabelText('제목 (선택)')).not.toBeOnTheScreen();
   // 예시 대본은 「대본 같이 만들기」에서 고른다 — 이 화면에는 링크가 없다(10/25).
   expect(screen.queryByText('예시 대본으로 시작해보기')).not.toBeOnTheScreen();

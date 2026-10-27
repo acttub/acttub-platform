@@ -215,7 +215,7 @@ export async function runScriptImport(
   return runImport(importBody({ ...input, uploadId: again.uploadId }, flags, deps.newRequestId()), deps.import, onProgress, signal);
 }
 
-/** [확인] 하나짜리 알림의 글(R2.4·R2.12·R2.13·R2.15). 제목은 결과 문장이다. 중복·대본 아님·무료 한도는 버튼이 다른 팝업이라 null. */
+/** [확인] 하나짜리 알림의 글(R2.4·R2.12·R2.13·R2.15). 중복·대본 아님·무료 한도는 버튼이 다른 팝업이라 null. */
 export function importAlert(stop: ImportStop): { title: string; message: string } | null {
   switch (stop.kind) {
     case 'duplicate':

@@ -53,7 +53,6 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     backgroundColor: palette.bg,
   },
-  // 테두리가 0.5 두꺼워진 만큼 안쪽을 줄여 고를 때 카드 크기가 그대로다.
   on: {
     borderWidth: 1.5,
     borderColor: palette.blue,

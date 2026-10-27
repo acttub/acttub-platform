@@ -33,7 +33,6 @@ export type ImportOutcome =
   | { kind: "no_characters" }
   /** R2.15 */
   | { kind: "daily_limit" }
-  /** 서버가 나누기 동의(개인정보 동의 v9 이상)가 없다고 막았다. 웹 게스트는 그 동의를 할 수 없어 따로 묻지 않는다 */
   | { kind: "split_unavailable" }
   /** R2.4 */
   | { kind: "file_too_large" }

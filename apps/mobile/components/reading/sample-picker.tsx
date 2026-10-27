@@ -87,10 +87,6 @@ export function useSamplePicker({ onNeedName, onLocal }: Options) {
   return { list, entry, pick: setPickedId, busy, confirm, dialog };
 }
 
-/**
- * 고른 예시의 미리보기와 예시 고르기 칩. 예시 대본 화면은 테두리 카드 아래 「예시 대본」 칩 줄(pen reading-sample.server),
- * 새 대본 안에 펼칠 때는 칩 줄 아래 bg-subtle 미리보기(pen reading-new.make-sample)다.
- */
 export function SamplePickerBody({
   list,
   entry,

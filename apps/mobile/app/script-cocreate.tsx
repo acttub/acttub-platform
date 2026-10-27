@@ -359,7 +359,6 @@ export default function ScriptCocreateScreen() {
         </KeyboardLift>
       ) : step === 'failed' ? (
         <View style={styles.flex}>
-          {/* pen script-cocreate.failed — 갸웃하는 액티 120 · 제목 title1 · 까닭 한 줄. 「내 대본 넣기」 글자 버튼 위, 「다시 만들기」 아래. */}
           <View style={styles.fail}>
             <Image source={MASCOT.coach} style={MASCOT_SIZE.xl} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.failTitle}>{t('scriptCocreate.failTitle')}</Text>
@@ -507,7 +506,6 @@ function CastAndLength({
   );
 }
 
-/** pen script-cocreate.direction 「몇 명이 나와요?」 — 같은 너비 칸 둘(Chip r-md). 「3명 이상」은 서버가 아직 받지 않아 두지 않는다. */
 function CastPicker({ characterCount, onCount }: { characterCount: number; onCount: (n: number) => void }) {
   return (
     <View style={styles.castBlock}>
@@ -551,7 +549,6 @@ function LengthPicker({ minutes, onMinutes }: { minutes: number; onMinutes: (n: 
   );
 }
 
-/** pen script-cocreate.emotion·situation — 두 칸씩 Chip(r-md), 마지막(잘 모르겠어요·아무거나 좋아요)은 한 줄 전체. */
 function ChoiceGrid({
   options,
   value,
@@ -629,7 +626,6 @@ const styles = StyleSheet.create({
   pill: { maxWidth: '100%', borderRadius: radius.full, paddingVertical: space[1], paddingHorizontal: space[2], backgroundColor: palette.blueSoft },
   pillText: { ...type.micro, color: palette.blueDeep },
   hint: { ...type.caption, color: palette.textMeta },
-  // 결과(pen script-cocreate.result) — 제목 title2, 요약 caption, 대본은 bg-subtle 카드에 배역 이름 옆 대사.
   resultBody: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[5], gap: space[2] },
   scriptTitle: { ...type.title2, color: palette.text, marginTop: space[2] },
   summary: { ...type.caption, color: palette.textMeta },
