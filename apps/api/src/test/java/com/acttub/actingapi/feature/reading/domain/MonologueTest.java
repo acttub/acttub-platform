@@ -50,4 +50,37 @@ class MonologueTest {
 
         assertThat(Monologue.split(draft)).isSameAs(draft);
     }
+
+    @Test
+    @DisplayName("SOMA-727: 이름표가 붙은 200자 독백을 직접 입력해도 문장마다 한 줄로 나뉜다")
+    void splitsATypedMonologueBySentence() {
+        String text = "안 돼... 편지까지 썼잖아. 이제는 정말 안 돼. 솔직하게 말씀드리자. 선생님, 진심으로 용서를 빕니다. 사실 저는... 아니야, 이렇게 말하면 안 돼.";
+        ScriptDraft draft = new ScriptDraft("직접 입력", "세훈  " + text + "\n", "typed", List.of("세훈"), List.of(
+                new ScriptDraft.Line(1, "dialogue", 0, text)));
+
+        assertThat(Monologue.split(draft).lines()).extracting(ScriptDraft.Line::text).containsExactly(
+                "안 돼...", "편지까지 썼잖아.", "이제는 정말 안 돼.", "솔직하게 말씀드리자.", "선생님, 진심으로 용서를 빕니다.", "사실 저는...",
+                "아니야, 이렇게 말하면 안 돼.");
+    }
+
+    @Test
+    @DisplayName("SOMA-727: 끝 부호 없이 줄 바꿈만 있는 독백(가사·시)은 원문 줄마다 한 줄로 나눈다 — 단어 중간에서 끊긴 줄은 붙인 채로 둔다")
+    void splitsAnUnpunctuatedMonologueByRawLines() {
+        String raw = "노래 독백\n민지  오늘 이 순간\n바로 여기\n오래 기다려 온 이 순간\n\n나만의 꿈이\n이루어질지 몰라\n";
+        String joined = "오늘 이 순간 바로 여기 오래 기다려 온 이 순간 나만의 꿈이 이루어질지 몰라";
+        ScriptDraft draft = new ScriptDraft("노래 독백", raw, "paste", List.of("민지"), List.of(
+                new ScriptDraft.Line(1, "dialogue", 0, joined)));
+
+        assertThat(Monologue.split(draft).lines()).extracting(line -> line.ordinal() + "|" + line.text()).containsExactly(
+                "1|오늘 이 순간", "2|바로 여기", "3|오래 기다려 온 이 순간", "4|나만의 꿈이", "5|이루어질지 몰라");
+
+        assertThat(Monologue.rawLines("내가 정말 오직 너만 바라봤어", "내가 정말 오\n직 너만 바라봤어"))
+                .as("「오⏎직」을 붙여 이은 자리").containsExactly("내가 정말 오직 너만 바라봤어");
+        assertThat(Monologue.rawLines("내가 정말 오직 너만 바라봤어", "내가 정말 오\n직 너만\n바라봤어"))
+                .containsExactly("내가 정말 오직 너만", "바라봤어");
+        assertThat(Monologue.rawLines("원문과 다르게 고친 대사", "원문과 다른\n대사"))
+                .as("나누기가 글을 고쳤으면 나누지 않는다").containsExactly("원문과 다르게 고친 대사");
+        assertThat(Monologue.rawLines("오늘 이 순간 바로 여기", "오늘 이 순간\n오늘 이 순간\n바로 여기"))
+                .as("제목이 첫 줄과 같아도 맞는 자리에서 시작한다").containsExactly("오늘 이 순간", "바로 여기");
+    }
 }
