@@ -1,24 +1,26 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
 import { MarketingNoticeDialog } from '@/components/marketing-notice-dialog';
 import { Markdown } from '@/components/markdown';
-import { BlueSwitch, TwoLineRow } from '@/components/ui/list-rows';
+import { BlueSwitch } from '@/components/ui/list-rows';
+import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { consentChangeFailureAction, consentSettingsRows, type ConsentSettingsRow } from '@/lib/consent-entry';
 import { translate as t } from '@/lib/i18n';
 import { isMarketingConsent, marketingDecisionNotice, type MarketingNotice } from '@/lib/marketing-consent';
 import { SkeletonRows } from '@/components/ui/skeleton';
 
-/** 「동의함 · 2026.09.03」 / 「거절함」 / 「아직 결정하지 않음」. */
 function decisionLine(row: ConsentSettingsRow): string {
   if (row.decision === null) return t('settings.docUndecided');
-  const word = t(row.decision === 'granted' ? 'settings.decisionGranted' : 'settings.decisionDeclined');
+  const word = t(row.decision === 'granted' ? 'settings.decisionGrantedShort' : 'settings.decisionDeclinedShort');
   return row.decidedDate ? `${word} · ${row.decidedDate}` : word;
 }
 
@@ -34,7 +36,7 @@ export default function ConsentHistoryScreen() {
   const [rows, setRows] = useState<ConsentSettingsRow[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const loadConsents = useCallback(async () => {
@@ -43,11 +45,11 @@ export default function ConsentHistoryScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setLoadError(null);
+    setLoadError(false);
     try {
       await loadConsents();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : t('consent.docFail'));
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -76,7 +78,7 @@ export default function ConsentHistoryScreen() {
         if (consentChangeFailureAction(err) === 'reload') {
           // 보는 사이 새 판이 나왔다. 목록을 다시 받아 현재 판을 보여 준다.
           await loadConsents().catch(() => undefined);
-          void alert({ title: t('settings.changeFailTitle'), message: t('consent.outdated') });
+          void alert({ title: t('settings.consentOutdatedTitle'), message: t('settings.consentOutdatedBody') });
         } else {
           setRows((current) => current.map((item) => (item.id === row.id ? { ...item, decision: row.decision } : item))); // 실패 시 롤백
           void alert({
@@ -94,31 +96,46 @@ export default function ConsentHistoryScreen() {
   // 필수를 먼저, 선택을 뒤에.
   const ordered = [...rows.filter((row) => row.required), ...rows.filter((row) => !row.required)];
 
+  if (loadError) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <StatusScreen
+          header={t('settings.consentHistory')}
+          onBack={() => router.back()}
+          title={t('settings.consentLoadFail')}
+          body={t('settings.retryLater')}
+          primary={{ label: t('consent.reload'), onPress: () => void load() }}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('settings.consentHistory')} left={<NavBackButton onPress={() => router.back()} />} />
       {loading ? (
         <SkeletonRows count={6} avatar={false} card={false} />
-      ) : loadError ? (
-        <View style={styles.center}>
-          <Text style={styles.loadError}>{loadError}</Text>
-          <Pressable style={styles.reloadBtn} onPress={() => void load()} accessibilityRole="button">
-            <Text style={styles.reloadText}>{t('consent.reload')}</Text>
-          </Pressable>
-        </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
-          {ordered.map((row) => {
+          {ordered.map((row, i) => {
             const open = !!expanded[row.id];
             const title = row.required ? row.title : `${row.title}${t('settings.optionalSuffix')}`;
             return (
-              <View key={row.id}>
-                <TwoLineRow
-                  title={title}
-                  sub={decisionLine(row)}
+              <View key={row.id} style={i > 0 && styles.divider}>
+                <Pressable
                   onPress={() => setExpanded((e) => ({ ...e, [row.id]: !e[row.id] }))}
-                />
+                  style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={title}
+                  accessibilityState={{ expanded: open }}>
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowTitle}>{title}</Text>
+                    <Text style={[styles.rowSub, row.decision === null && styles.rowSubUndecided]}>{decisionLine(row)}</Text>
+                  </View>
+                  <Feather name={open ? 'chevron-up' : 'chevron-down'} size={18} color={palette.iconFaint} />
+                </Pressable>
                 {open && (
                   <View style={styles.docBody}>
                     <Text style={styles.docMeta}>
@@ -140,13 +157,15 @@ export default function ConsentHistoryScreen() {
                         />
                       </View>
                     )}
-                    <Markdown source={row.body} />
+                    <View style={styles.doc}>
+                      <Markdown source={row.body} />
+                    </View>
                   </View>
                 )}
               </View>
             );
           })}
-          <Text style={styles.note}>{t('settings.consentHistoryNote')}</Text>
+          <Text style={[styles.note, styles.divider]}>{t('settings.consentHistoryNote')}</Text>
         </ScrollView>
       )}
       {dialog}
@@ -157,14 +176,26 @@ export default function ConsentHistoryScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadError: { color: palette.danger, fontSize: 14, textAlign: 'center', paddingHorizontal: 24 },
-  reloadBtn: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
-  docBody: { paddingBottom: 12, gap: 10 },
-  docMeta: { fontSize: 13, fontWeight: '500', color: palette.textMeta },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-  switchLabel: { fontSize: 15, fontWeight: '700', color: palette.text },
-  note: { marginTop: 8, fontSize: 13, fontWeight: '600', lineHeight: 18, color: palette.textMeta },
+  list: { paddingHorizontal: space.gutter, paddingBottom: space[6] },
+  divider: { borderTopWidth: 1, borderTopColor: palette.border },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
+  pressed: { opacity: 0.6 },
+  rowText: { flex: 1, minWidth: 0, gap: 2 },
+  rowTitle: { ...type.body1Bold, color: palette.text },
+  rowSub: { ...type.caption, color: palette.textMeta },
+  rowSubUndecided: { ...type.captionBold, color: palette.amber },
+  docBody: { paddingBottom: space[4], gap: space[3] },
+  docMeta: { ...type.caption, color: palette.textMeta },
+  switchRow: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: space[4],
+    borderRadius: radius.md,
+    backgroundColor: palette.bgSubtle,
+  },
+  switchLabel: { ...type.body1Bold, color: palette.text },
+  doc: { padding: space[4], borderRadius: radius.md, borderWidth: 1, borderColor: palette.border },
+  note: { ...type.caption, color: palette.textMeta, paddingVertical: space[3] },
 });

@@ -27,7 +27,7 @@ export type ButtonSize = 'lg' | 'md' | 'sm';
 
 /**
  * 앱의 기본 버튼 — 디자인 시스템 pen 「Button/*」. 높이 48·40·32, 모서리 16(32 는 12).
- * primary: blue · on-accent / secondary: bg-soft · text-sub / danger: danger · on-accent. sm 은 blue-soft · blue-deep 하나다.
+ * primary: blue · on-accent / secondary: bg-soft · text-sub / danger: danger · on-accent. sm 은 blue-soft · blue-deep, secondary sm 은 bg-soft · text-sub(pen 「Button/Secondary-sm」).
  * 막혀 있으면 어느 모양이든 Disabled(border 바탕 · text-disabled 글자), 처리 중이면 60% 흐림과 「~하는 중…」 문구.
  */
 export function Button({
@@ -48,7 +48,7 @@ export function Button({
   const filled = variant !== 'secondary' && !small;
   const labelStyle = [
     size === 'lg' ? styles.label : styles.labelSmall,
-    small ? styles.smLabel : filled ? styles.filledLabel : styles.secondaryLabel,
+    small && variant !== 'secondary' ? styles.smLabel : filled ? styles.filledLabel : styles.secondaryLabel,
   ];
   return (
     <Pressable
@@ -63,6 +63,7 @@ export function Button({
         styles[variant],
         size === 'md' && styles.md,
         small && styles.sm,
+        small && variant === 'secondary' && styles.secondary,
         disabled && styles.disabled,
         loading && styles.busy,
         pressed && !off && styles.pressed,
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[4],
   },
   md: { height: 40 },
-  sm: { height: 32, borderRadius: radius.md, backgroundColor: palette.blueSoft },
+  sm: { height: 32, borderRadius: radius.md, paddingHorizontal: space[3], backgroundColor: palette.blueSoft },
   primary: { backgroundColor: palette.blue },
   secondary: { backgroundColor: palette.bgSoft },
   danger: { backgroundColor: palette.danger },

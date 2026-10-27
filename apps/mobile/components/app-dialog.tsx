@@ -13,6 +13,8 @@ export type DialogAction = {
   onPress?: () => void;
   /** 빨간 글씨 — 되돌릴 수 없는 동작. */
   destructive?: boolean;
+  /** 고른 값(언어 등) — blue-deep 글자 + 체크. */
+  selected?: boolean;
   /** 글자 앞 아이콘(「제목 수정」 연필·「대본 삭제」 휴지통, 18). 빨간 줄이면 아이콘도 빨갛다. */
   icon?: ComponentProps<typeof Feather>['name'];
 };
@@ -100,6 +102,7 @@ export function useAppDialog() {
             label={action.label}
             icon={action.icon}
             destructive={action.destructive}
+            selected={action.selected}
             onPress={() => {
               close(true);
               action.onPress?.();

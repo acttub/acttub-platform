@@ -375,12 +375,13 @@ describe('내 계정을 아직 못 읽었으면', () => {
     expect(screen.queryByText('프로필을 불러오지 못했어요.')).not.toBeOnTheScreen();
   });
 
-  test('실패했으면 다시 불러오기를 둔다', async () => {
+  test('실패했으면 화면 전체 오류와 다시 시도를 둔다', async () => {
     auth(null, 'error');
     await render(<ProfileNameScreen />);
-    await fireEvent.press(button('다시 불러오기'));
+    expect(screen.getByText('프로필을 불러오지 못했어요')).toBeOnTheScreen();
+    expect(screen.getByText('인터넷 연결을 확인해 주세요.')).toBeOnTheScreen();
+    await fireEvent.press(button('다시 시도'));
     expect(reloadProfile).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('프로필을 불러오지 못했어요.')).toBeOnTheScreen();
   });
 });
 

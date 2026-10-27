@@ -12,6 +12,7 @@ import { AnchoredMenu, MenuItem } from '@/components/ui/anchored-menu';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { IconOptionRow, OptionCard, SelectRow } from '@/components/ui/option-card';
 import { StatusScreen } from '@/components/ui/status-screen';
@@ -49,6 +50,13 @@ describe('버튼', () => {
     const box = StyleSheet.flatten(screen.getByRole('button', { name: '다시 시도' }).props.style);
     expect([box.height, box.borderRadius, box.backgroundColor]).toEqual([32, 12, '#EAF3FE']);
     expect(StyleSheet.flatten(screen.getByText('다시 시도').props.style).color).toBe('#3268D8');
+  });
+
+  test('보조 작은 버튼(secondary sm)은 bg-soft 바탕에 text-sub 글자다', async () => {
+    await render(<Button label="차단 풀기" size="sm" variant="secondary" onPress={jest.fn()} />);
+    const box = StyleSheet.flatten(screen.getByRole('button', { name: '차단 풀기' }).props.style);
+    expect([box.height, box.borderRadius, box.backgroundColor]).toEqual([32, 12, '#F2F4F6']);
+    expect(StyleSheet.flatten(screen.getByText('차단 풀기').props.style).color).toBe('#4E5968');
   });
 
   test('글자 버튼도 이름으로 누른다', async () => {
@@ -244,6 +252,18 @@ describe('확인창·시트', () => {
     await fireEvent.press(screen.getByRole('button', { name: '대본 삭제' }));
     expect(pick).toHaveBeenCalledTimes(1);
   });
+
+  test('고른 메뉴 항목은 고름 상태를 알리고 blue-deep 글자다', async () => {
+    await render(
+      <AnchoredMenu estimatedHeight={100} onClose={jest.fn()}>
+        <MenuItem label="한국어" selected onPress={jest.fn()} />
+        <MenuItem label="English" selected={false} onPress={jest.fn()} />
+      </AnchoredMenu>,
+    );
+    expect(screen.getByRole('button', { name: '한국어', selected: true })).toBeOnTheScreen();
+    expect(StyleSheet.flatten(screen.getByText('한국어').props.style).color).toBe('#3268D8');
+    expect(StyleSheet.flatten(screen.getByText('English').props.style).color).toBe('#191F28');
+  });
 });
 
 describe('상태 화면·말풍선·아래 칸', () => {
@@ -352,6 +372,16 @@ describe('체크·입력칸·오류 줄', () => {
     await rerender(<TextField label="이름" error="두 글자 이상 입력해 주세요" />);
     expect(border()).toBe('#E42939');
     expect(screen.getByText('두 글자 이상 입력해 주세요')).toBeOnTheScreen();
+    expect(StyleSheet.flatten(screen.getByText('두 글자 이상 입력해 주세요').props.style).color).toBe('#E42939');
+  });
+
+  test('목록 빈 상자는 제목과 설명을 두고, 설명이 없으면 제목만 그린다', async () => {
+    const { rerender } = await render(<InlineEmpty title="아직 알림이 없어요" description="좋아요·댓글 소식이 여기에 와요" />);
+    expect(StyleSheet.flatten(screen.getByText('아직 알림이 없어요').props.style)).toMatchObject({ fontSize: 14, fontWeight: '700', color: '#4E5968' });
+    expect(screen.getByText('좋아요·댓글 소식이 여기에 와요')).toBeOnTheScreen();
+    await rerender(<InlineEmpty title="차단한 사용자가 없어요" />);
+    expect(screen.getByText('차단한 사용자가 없어요')).toBeOnTheScreen();
+    expect(screen.queryByText('좋아요·댓글 소식이 여기에 와요')).not.toBeOnTheScreen();
   });
 
   test('불러오기 오류 상자는 다시 시도를 알리고, 오류 줄은 문구만 둔다', async () => {

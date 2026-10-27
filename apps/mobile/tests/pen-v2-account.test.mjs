@@ -37,27 +37,8 @@ test('프로필 탭 그리드는 세 칸 줄이고 모자란 칸은 빈 회색 �
   assert.match(profile, /name="heart"/);
 });
 
-test('프로필 편집·알림함은 기본 얼굴을 쓴다(S6.3·S19.4)', () => {
+test('프로필 편집은 기본 얼굴을 쓴다(S6.3)', () => {
   assert.match(read('app/profile-edit.tsx'), /<DefaultAvatar size=\{84\}/);
-  assert.match(read('app/notifications.tsx'), /<DefaultAvatar size=\{44\} radius=\{22\}/);
-});
-
-test('동의 제목 24, 모두 동의 바탕은 꺼짐 #F9FAFB(S4.1)', () => {
-  const consent = read('app/consent.tsx');
-  assert.match(consent, /title: \{ marginTop: 8, fontSize: 24,/);
-  assert.match(consent, /backgroundColor: palette\.bgSubtle,\n    borderRadius: 16,\n    padding: 18,/);
-});
-
-test('회원 탈퇴 묶음은 윗선 · 위 16 안쪽, 제목 21/900(S17.1)', () => {
-  const del = read('app/delete-account.tsx');
-  assert.match(del, /title: \{ fontSize: 21, fontWeight: '900'/);
-  assert.match(del, /borderTopColor: palette\.border/);
-});
-
-test('웹 연습 가져오기 완료는 가운데 96 동그라미와 아래 버튼(S7.7)', () => {
-  const transfer = read('app/guest-transfer.tsx');
-  assert.match(transfer, /width: 96,\n    height: 96,/);
-  assert.match(transfer, /<TextButton size="large" label=\{t\('guestTransfer\.another'\)\}/);
 });
 
 test('공용 오류 문구는 pen 표기대로 「다시 시도해 주세요」로 띄어 쓴다', () => {

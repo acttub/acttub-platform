@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 import type { MarketingNotice } from '@/lib/marketing-consent';
 import { subscribeMarketingNotice } from '@/lib/marketing-notice';
@@ -13,8 +14,6 @@ const NOTICE_VISIBLE_MS = 7000;
 /**
  * S5.13 광고성 정보 수신 동의 결과 안내 — 다음 화면 아래쪽에 뜨는 어두운 토스트(제목 · 「이메일 · 앱 푸시 · Acttub · 처리일」 · 바꾸는 곳 안내).
  * 정보통신망법 제50조 제7항의 처리 결과(보낸 곳 · 처리일 · 매체별 결과)를 담는다. 화면을 막지 않고 일정 시간 뒤 사라지며, 누르면 닫힌다.
- *
- * 모양은 pen 「광고성 정보 동의 결과(S5.13)」 — 좌우 24, 모서리 12 어두운 카드(#2B2F36), 안쪽 [12,16], 제목 14/700 흰색, 둘째·셋째 줄 12/400 회색.
  */
 export function MarketingNoticeDialog({ notice, onClose }: { notice: MarketingNotice | null; onClose: () => void }) {
   const insets = useSafeAreaInsets();
@@ -29,7 +28,7 @@ export function MarketingNoticeDialog({ notice, onClose }: { notice: MarketingNo
   const channels = notice.rows.map((row) => (same ? row.channel : `${row.channel} ${row.result}`)).join(' · ');
   const detail = [channels, notice.sender, notice.date].filter(Boolean).join(' · ');
   return (
-    <View style={[styles.wrap, { bottom: 96 + insets.bottom }]} pointerEvents="box-none">
+    <View style={[styles.wrap, { bottom: space[10] + insets.bottom }]} pointerEvents="box-none">
       <Pressable
         style={styles.toast}
         testID="marketing-notice-card"
@@ -52,8 +51,8 @@ export function MarketingNoticeHost() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', left: 24, right: 24, zIndex: 50 },
-  toast: { backgroundColor: '#2B2F36', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, gap: 4, alignItems: 'center' },
-  title: { fontSize: 14, fontWeight: '700', lineHeight: 20, color: '#FFFFFF', textAlign: 'center' },
-  line: { fontSize: 12, fontWeight: '400', lineHeight: 18, color: '#B0B8C1', textAlign: 'center' },
+  wrap: { position: 'absolute', left: space.gutter, right: space.gutter, zIndex: 50 },
+  toast: { backgroundColor: palette.toast, borderRadius: radius.lg, padding: space[4], gap: space[1], alignItems: 'center' },
+  title: { ...type.body2Bold, color: palette.onAccent, textAlign: 'center' },
+  line: { ...type.caption, color: palette.onMediaSub, textAlign: 'center' },
 });

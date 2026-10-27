@@ -102,6 +102,7 @@ apple_revoke·kakao_unlink·naver_revoke·reading_recording_delete·revenuecat_d
 - 탈퇴 직후 같은 제공자로 로그인: 새 계정이다. 3년이 지나 해시가 지워진 뒤에는 철회 요청의 본인
   확인을 할 수 없는데, 그때는 보관하던 영상도 이미 파기된 뒤다.
 - 이미 탈퇴한 계정에 다시 탈퇴 요청: 최초 탈퇴 시각을 유지하고 파기만 다시 돈다.
+- 앱 탈퇴 화면을 돌아갈 화면 없이 열었으면(알림·링크로 바로 연 경우) 머리 꺾쇠는 설정으로 간다.
 
 ## 검증 방법
 - 탈퇴 뒤 DB: users 행은 남고 email이 NULL이고 status가 deactivated다. user_identities 행은

@@ -149,6 +149,7 @@ test('일부만 저장되면 저장된 줄은 잠그고 실패한 줄의 체크�
   expect(row('개인정보 수집·이용 동의')).toBeEnabled();
   expect(row('개인정보 수집·이용 동의')).not.toBeChecked();
   expect(cta()).toBeDisabled();
+  expect(screen.getByText('일부 문서를 저장하지 못했어요. 다시 체크해 주세요.')).toBeOnTheScreen();
   expect(mockAuth.refreshConsentEntry).not.toHaveBeenCalled();
 
   recordConsent.mockClear();
@@ -198,7 +199,7 @@ describe('저장 뒤 다시 확인하지 못했을 때', () => {
     mockAuth.refreshConsentEntry.mockRejectedValueOnce('timeout');
     await fireEvent.press(screen.getByRole('button', { name: '저장 결과 다시 확인하기' }));
 
-    expect(screen.getByText('저장한 결정을 다시 확인하지 못했어요.')).toBeOnTheScreen();
+    expect(screen.getByText('저장 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
     expect(recordConsent).toHaveBeenCalledTimes(1);
   });
 
@@ -210,14 +211,14 @@ describe('저장 뒤 다시 확인하지 못했을 때', () => {
 
     await fireEvent.press(row('서비스 이용약관'));
     await fireEvent.press(cta());
-    expect(screen.getByText('저장한 결정을 다시 확인하지 못했어요.')).toBeOnTheScreen();
+    expect(screen.getByText('저장 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
 
     mockAuth = { ...mockAuth, consentEntry: decisionRequired([PRIVACY]) };
     await view.rerender(<ReconsentPopup visible />);
 
     expect(rowLabels()).toEqual(['[필수] 개인정보 수집·이용 동의 (바뀜)']);
     expect(row('개인정보 수집·이용 동의')).not.toBeChecked();
-    expect(screen.queryByText('저장한 결정을 다시 확인하지 못했어요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText('저장 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.')).not.toBeOnTheScreen();
     expect(cta()).toBeDisabled();
   });
 });
@@ -244,25 +245,18 @@ test('목록을 확인하는 중에는 줄 없이 기다린다', async () => {
 });
 
 describe('목록을 못 불러왔을 때', () => {
-  test('오류와 다시 불러오기를 보이고, 누르면 다시 읽는다', async () => {
+  test('오류 상자와 다시 시도를 보이고, 누르면 다시 읽는다', async () => {
     mockAuth.consentEntry = { status: 'error', entry: null, error: new Error('서버 점검 중') };
     mockAuth.refreshConsentEntry.mockRejectedValueOnce(new Error('again'));
     await render(<ReconsentPopup visible />);
 
-    expect(screen.getByText('서버 점검 중')).toBeOnTheScreen();
+    expect(screen.getByText('동의 문서를 불러오지 못했어요')).toBeOnTheScreen();
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
 
-    await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
+    await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
 
     expect(mockAuth.refreshConsentEntry).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('서버 점검 중')).toBeOnTheScreen();
-  });
-
-  test('오류가 Error 가 아니면 기본 문구를 보인다', async () => {
-    mockAuth.consentEntry = { status: 'error', entry: null, error: 'boom' };
-    await render(<ReconsentPopup visible />);
-
-    expect(screen.getByText('동의 문서를 불러오지 못했어요.')).toBeOnTheScreen();
+    expect(screen.getByText('동의 문서를 불러오지 못했어요')).toBeOnTheScreen();
   });
 });
 
