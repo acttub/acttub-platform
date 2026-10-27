@@ -761,7 +761,6 @@ const en: DeepStringShape<typeof ko> = {
     uploadEyebrow: 'Uploading',
     uploadTitle: 'Coaching video',
     uploadSub: 'Once it is up, Acty watches it right away',
-    uploadCta: 'Uploading…',
     uploadReadyEyebrow: 'Uploaded',
     uploadReadyCta: 'Video watched · Get questions',
     uploadFailedEyebrow: 'Upload failed',

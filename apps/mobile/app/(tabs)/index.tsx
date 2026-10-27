@@ -12,6 +12,7 @@ import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
 import { practiceStreak, sceneTitle } from '@/lib/practice/groups';
@@ -60,12 +61,6 @@ const FIRST_PICK_ROUTE: Record<FirstPick, '/coaching' | '/reading'> = {
   coaching: '/coaching',
   reading: '/reading',
 };
-
-/** 히어로 바탕 — 연한 파랑에서 화면 바탕색으로 서서히 옅어지는 띠(그라데이션 모듈이 없어 단색 띠를 겹친다). */
-const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
-
-/** 추천 연습 카드 바탕(pen #202121). */
-const DARK_CARD = '#202121';
 
 /** 안드로이드 뒤로가기를 이 시간 안에 한 번 더 누르면 앱을 닫는다. */
 const EXIT_BACK_WINDOW_MS = 2000;
@@ -609,7 +604,7 @@ export default function HomeScreen() {
               />
             </View>
           </ScrollView>
-          <View style={[styles.firstFooter, { paddingBottom: 11 + tabBarSpace }]}>
+          <View style={[styles.firstFooter, { paddingBottom: space[3] + tabBarSpace }]}>
             <PrimaryButton
               label={t('home.firstContinue')}
               disabled={!firstPick}
@@ -621,50 +616,45 @@ export default function HomeScreen() {
           </View>
         </View>
       ) : (
-        <ScrollView style={styles.scrollBg} contentContainerStyle={[styles.container, { paddingBottom: tabBarSpace + 20 }]} showsVerticalScrollIndicator={false}>
-          {/* 히어로(pen P1.1) — 연한 파랑 바탕·창빛 장식 위에 인사와 책 위에서 읽는 액티, 오른쪽 위 알림 버튼. */}
-          <View style={styles.hero}>
-            <View style={styles.heroBg} pointerEvents="none">
-              {HERO_FADE.map((c, i) => (
-                <View key={i} style={{ height: i === 0 ? 190 : 10, backgroundColor: c }} />
-              ))}
+        <ScrollView contentContainerStyle={{ paddingBottom: tabBarSpace + space[5] }} showsVerticalScrollIndicator={false}>
+          {/* 히어로(pen 「홈」) — blue-soft 띠(아래 모서리 24) 안에 인사·책 읽는 액티·알림 버튼과 이번 주 연습 카드. */}
+          <View style={styles.heroBand}>
+            <View style={styles.hero}>
+              <View style={styles.heroText}>
+                <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
+                <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
+              </View>
+              <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+              {bell}
             </View>
-            <Image source={require('@/assets/images/home/window-light.png')} style={styles.heroWindow} contentFit="cover" accessibilityIgnoresInvertColors />
-            <View style={styles.heroText}>
-              <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
-              <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
+            {/* 이번 주 연습 카드 — 연속 일수와 요일별 점. 한 날은 파란 체크, 오늘은 파란 테두리. */}
+            <View style={styles.weekCard} testID="home-week">
+              <View style={styles.weekHead}>
+                <Text style={styles.weekTitle}>{t('home.weekTitle')}</Text>
+                {streak > 0 && (
+                  <View style={styles.streakPill} accessibilityLabel={t('home.streakA11y', { n: streak })}>
+                    <Ionicons name="flame-outline" size={16} color={palette.flame} />
+                    <Text style={styles.streakText}>{t('home.streakDaysRow', { n: streak })}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.week}>
+                {days.map((d) => (
+                  <View key={d.key} style={styles.weekCol}>
+                    <View
+                      testID={d.count > 0 ? 'home-week-done' : d.isToday ? 'home-week-today' : 'home-week-empty'}
+                      style={[styles.weekDot, d.count > 0 && styles.weekDotDone, d.count === 0 && d.isToday && styles.weekDotToday]}>
+                      {d.count > 0 && <Feather name="check" size={18} color={palette.onAccent} />}
+                    </View>
+                    <Text style={[styles.weekLabel, d.isToday && styles.weekLabelToday]}>{d.isToday ? t('home.today') : d.label}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
-            <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-            {bell}
           </View>
 
           <View style={styles.body}>
           <AdSlot slot="home_top" />
-          {/* 이번 주 연습 카드(pen P1.1) — 연속 일수와 요일별 점. 한 날은 파란 체크, 오늘은 파란 테두리. */}
-          <View style={styles.weekCard} testID="home-week">
-            <View style={styles.weekHead}>
-              <Text style={styles.weekTitle}>{t('home.weekTitle')}</Text>
-              {streak > 0 && (
-                <View style={styles.streakPill} accessibilityLabel={t('home.streakA11y', { n: streak })}>
-                  <Ionicons name="flame-outline" size={15} color={palette.flame} />
-                  <Text style={styles.streakText}>{t('home.streakDaysRow', { n: streak })}</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.week}>
-              {days.map((d) => (
-                <View key={d.key} style={styles.weekCol}>
-                  <View
-                    testID={d.count > 0 ? 'home-week-done' : d.isToday ? 'home-week-today' : 'home-week-empty'}
-                    style={[styles.weekDot, d.count > 0 && styles.weekDotDone, d.count === 0 && d.isToday && styles.weekDotToday]}>
-                    {d.count > 0 && <Feather name="check" size={18} color={palette.onAccent} />}
-                  </View>
-                  <Text style={[styles.weekLabel, d.isToday && styles.weekLabelToday]}>{d.isToday ? t('home.today') : d.label}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
           {/* 주 기능 카드 하나 — 첫 가이드가 비추는 자리다. 올리는 중이면 올리는 카드가 대신한다. */}
           {waitingUpload.card && <HomeUploadCard upload={waitingUpload} />}
           {!waitingUpload.card && (
@@ -698,7 +688,7 @@ export default function HomeScreen() {
                 style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
                 <View style={[styles.rowIcon, row.tone === 'orange' && styles.rowIconOrange]}>
                   {row.tone === 'orange' ? (
-                    <Ionicons name={row.icon === 'award' ? 'trophy-outline' : 'play-outline'} size={20} color={ORANGE} />
+                    <Ionicons name={row.icon === 'award' ? 'trophy-outline' : 'play-outline'} size={20} color={palette.flame} />
                   ) : (
                     <Feather name={row.icon} size={20} color={palette.blue} />
                   )}
@@ -707,7 +697,7 @@ export default function HomeScreen() {
                   <Text style={styles.listTitle} numberOfLines={1}>{row.title}</Text>
                   <Text style={styles.listMeta} numberOfLines={1}>{row.sub}</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color="#9AA3B2" />
+                <Feather name="chevron-right" size={18} color={palette.iconFaint} />
               </Pressable>
             ))}
           </View>
@@ -736,7 +726,7 @@ export default function HomeScreen() {
                       <Text style={styles.listTitle} numberOfLines={2}>{row.title}</Text>
                       <Text style={styles.listMeta} numberOfLines={1}>{row.sub}</Text>
                     </View>
-                    <Feather name="chevron-right" size={18} color="#9AA3B2" />
+                    <Feather name="chevron-right" size={18} color={palette.iconFaint} />
                   </Pressable>
                 ))}
               </View>
@@ -773,13 +763,11 @@ type DeadlineBlock = {
   rows: { id: string; days: number; title: string; sub: string }[];
 };
 
-const ORANGE = '#F07A1A';
-
-/** pen D-day 알약 — 3일 안은 빨강, 10일 안은 주황, 그 밖은 파랑. */
+/** D-day 배지 — 3일 안은 danger, 10일 안은 amber, 그 밖은 파랑. */
 function ddayTone(days: number): { box: { backgroundColor: string }; text: { color: string } } {
-  if (days <= 3) return { box: { backgroundColor: '#FDECEC' }, text: { color: '#E5484D' } };
-  if (days <= 10) return { box: { backgroundColor: '#FFF1E4' }, text: { color: ORANGE } };
-  return { box: { backgroundColor: '#E8F1FF' }, text: { color: '#2F6EF2' } };
+  if (days <= 3) return { box: { backgroundColor: palette.dangerSoft }, text: { color: palette.danger } };
+  if (days <= 10) return { box: { backgroundColor: palette.amberSoft }, text: { color: palette.amber } };
+  return { box: { backgroundColor: palette.blueSoft }, text: { color: palette.blueDeep } };
 }
 
 /** 2026-10-26 → 10월 26일. */
@@ -890,7 +878,7 @@ function TodayCardBody({
         accessibilityLabel={cta}
         style={({ pressed }) => [styles.todayCta, pressed && styles.pressed]}>
         <Text style={styles.todayCtaText}>{cta}</Text>
-        <Feather name="arrow-right" size={16} color={palette.blue} />
+        <Feather name="arrow-right" size={16} color={palette.blueDeep} />
       </Pressable>
     </>
   );
@@ -967,97 +955,96 @@ function HomeSkeleton() {
   return (
     <SkeletonGroup style={styles.skeleton}>
       <View style={styles.skeletonHero}>
-        <SkeletonBlock width="58%" height={26} radius={8} />
-        <SkeletonBlock width="44%" height={26} radius={8} />
+        <SkeletonBlock width="58%" height={28} radius={radius.sm} />
+        <SkeletonBlock width="44%" height={28} radius={radius.sm} />
         <SkeletonBlock width="50%" height={13} style={styles.skeletonGap} />
       </View>
       <View style={styles.skeletonCard}>
         <SkeletonBlock width="36%" height={16} />
         <View style={styles.week}>
           {Array.from({ length: 7 }, (_, i) => (
-            <SkeletonBlock key={i} width={34} height={34} radius={17} />
+            <SkeletonBlock key={i} width={36} height={36} radius={radius.full} />
           ))}
         </View>
       </View>
-      <SkeletonBlock height={150} radius={20} />
+      <SkeletonBlock height={164} radius={radius.lg} />
       <SkeletonBlock width="40%" height={16} style={styles.skeletonGap} />
-      <SkeletonBlock height={64} radius={16} />
-      <SkeletonBlock height={64} radius={16} />
+      <SkeletonBlock height={75} radius={radius.lg} />
+      <SkeletonBlock height={75} radius={radius.lg} />
     </SkeletonGroup>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  safeHero: { backgroundColor: '#E4EEFC' },
-  skeleton: { flex: 1, gap: 14, paddingHorizontal: 20, paddingTop: 14, backgroundColor: '#F7FAFE' },
-  skeletonHero: { gap: 10, paddingHorizontal: 4, paddingBottom: 18 },
-  skeletonGap: { marginTop: 6 },
-  skeletonCard: { gap: 16, padding: 18, borderRadius: 20, backgroundColor: palette.bg },
-  // 아래 탭 바가 화면 위에 떠 있어 그만큼 바닥을 비운다.
-  scrollBg: { backgroundColor: '#F7FAFE' },
-  container: {},
+  safeHero: { backgroundColor: palette.blueSoft },
+  skeleton: { flex: 1, gap: space[3], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
+  skeletonHero: { gap: space[2], paddingBottom: space[4] },
+  skeletonGap: { marginTop: space[1.5] },
+  skeletonCard: { gap: space[3], padding: space[4], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
   flex: { flex: 1, minWidth: 0 },
   pressed: { opacity: 0.85 },
 
   // 첫 사용자 홈
-  firstContainer: { paddingTop: 32, paddingHorizontal: 20, paddingBottom: 24 },
-  firstQuestion: { gap: 4, paddingTop: 36, paddingLeft: 2 },
-  firstQuestionTitle: { fontSize: 20, fontWeight: '800', color: palette.text },
-  firstQuestionSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMeta },
-  firstChoices: { gap: 12, paddingTop: 16 },
-  firstFooter: { paddingHorizontal: 20, paddingTop: 8 },
+  firstContainer: { paddingTop: space[8], paddingHorizontal: space.gutter, paddingBottom: space[6] },
+  firstQuestion: { gap: space[1], paddingTop: space[8] },
+  firstQuestionTitle: { ...type.title2, color: palette.text },
+  firstQuestionSub: { ...type.caption, color: palette.textMeta },
+  firstChoices: { gap: space[3], paddingTop: space[4] },
+  firstFooter: { paddingHorizontal: space.gutter, paddingTop: space[2] },
   choice: {
-    gap: 14,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: palette.bgSoft,
-    backgroundColor: palette.bgSoft,
+    gap: space[3],
+    paddingVertical: space[5],
+    paddingHorizontal: space[4],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
   },
-  choiceOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  choiceTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  choiceIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
-  choiceText: { fontSize: 18, fontWeight: '700', lineHeight: 24, color: palette.text },
+  choiceOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5 },
+  choiceTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3] },
+  choiceIcon: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  choiceText: { ...type.body1Bold, color: palette.text },
   choiceTextOn: { color: palette.blueDeep },
-  choiceSub: { marginTop: 3, fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMeta },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
+  choiceSub: { marginTop: space[1], ...type.body2, color: palette.textSub },
+  radio: { width: 22, height: 22, borderRadius: radius.full, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   radioOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  steps: { gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: palette.border },
-  stepsTitle: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
-  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
-  stepNumText: { fontSize: 12, fontWeight: '700', color: palette.blue },
-  stepText: { flex: 1, fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.text },
+  steps: { gap: space[2], paddingTop: space[3], borderTopWidth: 1, borderTopColor: palette.border },
+  stepsTitle: { ...type.captionBold, color: palette.blueDeep },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  stepNum: { width: 20, height: 20, borderRadius: radius.full, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
+  stepNumText: { ...type.micro, color: palette.blueDeep },
+  stepText: { flex: 1, ...type.body2, color: palette.text },
 
-  // 히어로
-  // pen P1.1 히어로 — 상태 막대 아래 높이 200. 글은 위 14, 액티는 위 12, 알림 버튼은 위 4.
-  hero: { height: 200 },
-  heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 250 },
-  heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
-  heroText: { position: 'absolute', top: 14, left: 24, width: 190, gap: 10 },
-  heroTitle: { fontSize: 26, fontWeight: '800', lineHeight: 34, color: palette.text },
-  heroSub: { fontSize: 13, fontWeight: '400', lineHeight: 20, color: palette.textMeta },
-  heroActy: { position: 'absolute', top: 12, right: 14, width: 170, height: 188 },
-  body: { paddingHorizontal: 20, paddingTop: 4, gap: 16 },
-  streakPill: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  streakText: { fontSize: 13, fontWeight: '700', color: palette.text },
+  // 히어로 띠(pen 「홈」) — blue-soft, 아래 모서리 24, 안쪽 좌우·아래 20. 인사 글은 왼쪽, 액티는 오른쪽, 알림 버튼은 오른쪽 위.
+  heroBand: {
+    backgroundColor: palette.blueSoft,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
+    paddingHorizontal: space.gutter,
+    paddingBottom: space[5],
+    gap: space[2],
+  },
+  hero: { height: 180 },
+  heroText: { position: 'absolute', top: space[6], left: 0, width: 190, gap: space[2] },
+  heroTitle: { ...type.display, color: palette.text },
+  heroSub: { ...type.body2, color: palette.textSub },
+  heroActy: { position: 'absolute', top: space[6], right: -space[1], width: 170, height: 156 },
+  body: { paddingHorizontal: space.gutter, paddingTop: space[6], gap: space[4] },
+  streakPill: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  streakText: { ...type.captionBold, color: palette.text },
   bell: {
     position: 'absolute',
-    top: 4,
-    right: 12,
+    top: 0,
+    right: -space[2],
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2E5A96',
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
   },
   bellDot: {
     position: 'absolute',
@@ -1065,118 +1052,86 @@ const styles = StyleSheet.create({
     right: 11,
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: palette.flame,
+    borderRadius: radius.full,
+    backgroundColor: palette.danger,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: palette.bg,
   },
 
-  // 이번 주 연습 카드
+  // 이번 주 연습 카드 — 흰 카드 r16 + 1px border, 안쪽 16, 요일 점 36.
   weekCard: {
     backgroundColor: palette.bg,
-    borderRadius: 20,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#E8EDF5',
-    paddingTop: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    gap: 14,
-    shadowColor: '#2E5A96',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+    borderColor: palette.border,
+    padding: space[4],
+    gap: space[3],
   },
   weekHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  weekTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
+  weekTitle: { ...type.headline, color: palette.text },
   week: { flexDirection: 'row', justifyContent: 'space-between' },
-  weekCol: { alignItems: 'center', gap: 6, width: 40 },
-  weekDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#EEF1F6', alignItems: 'center', justifyContent: 'center' },
+  weekCol: { alignItems: 'center', gap: space[1.5], width: 40 },
+  weekDot: { width: 36, height: 36, borderRadius: radius.full, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   weekDotDone: { backgroundColor: palette.blue },
-  weekDotToday: { backgroundColor: palette.bg, borderWidth: 2, borderColor: palette.blue },
-  weekLabel: { fontSize: 12, fontWeight: '500', lineHeight: 16, color: '#7A8496' },
-  weekLabelToday: { fontWeight: '800', color: palette.text },
+  weekDotToday: { backgroundColor: palette.bg, borderWidth: 1.5, borderColor: palette.blue },
+  weekLabel: { ...type.micro, color: palette.textMeta },
+  weekLabelToday: { color: palette.text },
 
-  // 추천 연습 카드(pen P1.1) — 어두운 바탕에 흰 글자, 흰 알약 버튼. 올리는 중 카드도 같은 모양이다.
+  // 오늘 할 것 카드 — text 바탕 r16, 안쪽 20, 흰 글자, 흰 버튼(md 40). 올리는 중 카드도 같은 모양이다.
   todayCard: {
-    minHeight: 196,
-    backgroundColor: DARK_CARD,
-    borderRadius: 22,
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    gap: 8,
-    overflow: 'hidden',
-    shadowColor: '#2F6EF2',
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
+    backgroundColor: palette.text,
+    borderRadius: radius.lg,
+    padding: space[5],
+    gap: space[2],
   },
-  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  eyebrow: { fontSize: 13, fontWeight: '600', lineHeight: 18, color: 'rgba(255,255,255,0.9)' },
-  todayTitle: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.onAccent, maxWidth: 260 },
-  todaySub: { fontSize: 12, fontWeight: '400', lineHeight: 18, color: 'rgba(255,255,255,0.8)' },
-  // pen 「틈」 1×2 — 버튼은 부연 바로 아래에 붙고, 남는 높이는 카드 아래에 빈다.
-  todaySpacer: { height: 2 },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  eyebrow: { ...type.caption, color: palette.onMediaSub },
+  todayTitle: { ...type.title2, color: palette.onAccent },
+  todaySub: { ...type.caption, color: palette.onMediaSub },
+  todaySpacer: { height: space[2] },
   todayCta: {
     alignSelf: 'flex-start',
-    height: 42,
-    borderRadius: 21,
-    paddingHorizontal: 22,
-    backgroundColor: palette.onAccent,
+    height: 40,
+    borderRadius: radius.lg,
+    paddingHorizontal: space[4],
+    backgroundColor: palette.bg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space[1.5],
   },
-  todayCtaText: { fontSize: 15, fontWeight: '800', color: palette.blue },
+  todayCtaText: { ...type.body2Bold, color: palette.blueDeep },
 
-  // 이것도 해 볼까요? · 마감 구역
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, paddingHorizontal: 2 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', lineHeight: 22, color: palette.text },
-  sectionAll: { fontSize: 13, fontWeight: '700', color: '#2F6EF2' },
-  rowList: { gap: 10 },
-  // pen 마감 줄 사이 8.
-  deadlineList: { gap: 8 },
-  deadlineBlock: { gap: 16 },
+  // 이것도 해 볼까요? · 마감 구역 — ListRow(흰 r16 + 1px border, 안쪽 16, 타일 40 r12).
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[2] },
+  sectionTitle: { ...type.headline, color: palette.text },
+  sectionAll: { ...type.captionBold, color: palette.blueDeep },
+  rowList: { gap: space[3] },
+  deadlineList: { gap: space[2] },
+  deadlineBlock: { gap: space[3] },
   listRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    paddingLeft: 10,
-    paddingRight: 6,
-    borderRadius: 18,
+    gap: space[3],
+    padding: space[4],
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#E8EDF5',
+    borderColor: palette.border,
     backgroundColor: palette.bg,
-    shadowColor: '#2E5A96',
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 1,
   },
-  rowIcon: { width: 40, height: 40, borderRadius: 15, backgroundColor: '#E8F1FF', alignItems: 'center', justifyContent: 'center', marginRight: 4 },
-  rowIconOrange: { backgroundColor: '#FFF1E4' },
-  listTitle: { fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.text },
-  listMeta: { marginTop: 3, fontSize: 12, fontWeight: '400', lineHeight: 17, color: '#7A8496' },
+  rowIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  rowIconOrange: { backgroundColor: palette.flameSoft },
+  listTitle: { ...type.body1Bold, color: palette.text },
+  listMeta: { marginTop: space[1] / 2, ...type.caption, color: palette.textMeta },
   deadlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    paddingLeft: 16,
-    paddingRight: 14,
-    borderRadius: 16,
+    gap: space[3],
+    padding: space[4],
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#E8EDF5',
+    borderColor: palette.border,
     backgroundColor: palette.bg,
-    shadowColor: '#2E5A96',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
   },
-  dday: { width: 58, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  ddayText: { fontSize: 13, fontWeight: '800' },
+  dday: { minWidth: 52, height: 24, paddingHorizontal: space[2], borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  ddayText: type.micro,
 });
-
