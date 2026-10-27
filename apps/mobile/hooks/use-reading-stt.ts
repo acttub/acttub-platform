@@ -3,6 +3,7 @@ import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-spe
 import { useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 
+import { deleteDeviceFile } from '@/lib/account-files';
 import { logEvent } from '@/lib/analytics';
 import { speechLocale } from '@/lib/i18n';
 import { READING_STT_IOS_CATEGORY } from '@/lib/reading/ios-audio';
@@ -24,6 +25,13 @@ import { DEFAULT_VAD, VAD_TICK_MS, createSilenceDetector, createVolumeFeed, type
 const VOLUME_INTERVAL_MS = 50;
 /** 인식기가 말 끝을 알린 뒤 넘기기 전까지 더 기다리는 시간(SOMA-741). */
 export const SPEECH_END_GRACE_MS = 1300;
+/**
+ * 아직 받아쓴 글이 없는데 인식기가 「말 없음」으로 스스로 끝나면 차례가 열려 있는 동안 다시 듣는 최대 횟수.
+ * 안드로이드 인식기는 대사를 읽기 전 침묵이 몇 초 이어지면 no-speech 로 끝나는데, 그 뒤 녹음기로만 넘기면
+ * 배우가 실제로 읽은 말이 받아쓰이지 않는다(10/26 빈 받아쓰기 90건 중 약 40건이 소리 있음).
+ */
+export const STT_RESTART_MAX = 3;
+const RESTARTABLE_ERRORS = new Set(['no-speech', 'speech-timeout']);
 
 /** 인식기의 음량(-2~10, 0 아래는 들리지 않음)을 침묵 감지기가 아는 0~1 로. 실기기에서 맞춰 볼 근사값이다. */
 export function sttVolumeToRms(value: number): number {
@@ -116,6 +124,10 @@ export function useReadingStt(): SttHandle {
   const errored = useRef(false);
   const endedEmpty = useRef(false);
   const emptyReported = useRef(false);
+  /** 이번 차례의 시작 옵션과 다시 듣기 상태 — 말 없음 오류 뒤 end 에서 같은 옵션으로 다시 켠다. */
+  const startOptions = useRef<{ lang: string; persist: boolean }>({ lang: '', persist: false });
+  const restartPending = useRef(false);
+  const restarts = useRef(0);
 
   const finishNow = useCallback((value: string) => {
     active.current = false;
@@ -176,14 +188,60 @@ export function useReadingStt(): SttHandle {
     if (active.current || settle.current) finishNow(text.current);
     if (unasked) callbacks.current?.onEnd?.();
   }, [finishNow]);
-  useSpeechRecognitionEvent('end', ended);
+  const startRecognizer = useCallback((lang: string, persist: boolean) => {
+    ExpoSpeechRecognitionModule.start({
+      lang,
+      interimResults: true,
+      continuous: true,
+      requiresOnDeviceRecognition: false,
+      volumeChangeEventOptions: { enabled: true, intervalMillis: VOLUME_INTERVAL_MS },
+      // 기본(measurement)은 iOS 재생·녹음 소리를 크게 줄인다 — 일반 모드로 켠다(SOMA-710).
+      iosCategory: READING_STT_IOS_CATEGORY,
+      ...(persist
+        ? { recordingOptions: { persist: true, outputDirectory: Paths.cache.uri, outputFileName: `reading-line-${Date.now()}.wav` } }
+        : {}),
+    });
+  }, []);
+  /**
+   * 말 없음으로 끝난 인식기를 같은 차례 안에서 다시 켠다. 오류 뒤 네이티브가 정리를 마치고 보내는 end 에서 부른다 —
+   * 그 전에 켜면 앞 세션의 end 가 새 듣기를 끝내 버린다. 앞 조각 파일은 침묵뿐이라 지운다.
+   */
+  const restart = useCallback((): boolean => {
+    if (!active.current || settle.current) return false;
+    const silent = recordings.discard();
+    if (silent) void deleteDeviceFile(silent).catch(() => undefined);
+    const { lang, persist } = startOptions.current;
+    recordings.begin(persist);
+    try {
+      startRecognizer(lang, persist);
+      return true;
+    } catch {
+      recordings.discard();
+      return false;
+    }
+  }, [recordings, startRecognizer]);
+  useSpeechRecognitionEvent('end', () => {
+    if (restartPending.current) {
+      restartPending.current = false;
+      if (restart()) return;
+    }
+    ended();
+  });
   useSpeechRecognitionEvent('error', (event) => {
+    const code = String(event?.error ?? 'unknown').slice(0, 40);
+    // 받아쓴 글이 아직 없고 차례가 열려 있으면 말 없음은 실패가 아니다 — end 를 기다렸다가 다시 듣는다.
+    if (active.current && !settle.current && !text.current.trim() && RESTARTABLE_ERRORS.has(code) && restarts.current < STT_RESTART_MAX) {
+      restarts.current += 1;
+      restartPending.current = true;
+      void logEvent('reading_stt_restart', { code, attempt: restarts.current, platform: Platform.OS });
+      return;
+    }
     // 오류 코드와 짧은 메시지만 보낸다 — 받아쓴 글은 보내지 않는다.
     if (active.current || settle.current) {
       errored.current = true;
       emptyReported.current = true;
       void logEvent('reading_stt_error', {
-        code: String(event?.error ?? 'unknown').slice(0, 40),
+        code,
         message: String(event?.message ?? '').slice(0, 120),
         platform: Platform.OS,
         had_text: !!text.current.trim(),
@@ -198,25 +256,18 @@ export function useReadingStt(): SttHandle {
     errored.current = false;
     endedEmpty.current = false;
     emptyReported.current = false;
+    restartPending.current = false;
+    restarts.current = 0;
     const persist = !!options?.persist && sttCanPersist();
+    const lang = options?.locale ?? speechLocale();
+    startOptions.current = { lang, persist };
     recordings.begin(persist);
     callbacks.current = next;
     stopTicking();
     volumeFeed.current = createVolumeFeed(createSilenceDetector(DEFAULT_VAD, Date.now()), (vad) => callbacks.current?.onEvent(vad));
     ticker.current = setInterval(() => volumeFeed.current?.tick(), VAD_TICK_MS);
     try {
-      ExpoSpeechRecognitionModule.start({
-        lang: options?.locale ?? speechLocale(),
-        interimResults: true,
-        continuous: true,
-        requiresOnDeviceRecognition: false,
-        volumeChangeEventOptions: { enabled: true, intervalMillis: VOLUME_INTERVAL_MS },
-        // 기본(measurement)은 iOS 재생·녹음 소리를 크게 줄인다 — 일반 모드로 켠다(SOMA-710).
-        iosCategory: READING_STT_IOS_CATEGORY,
-        ...(persist
-          ? { recordingOptions: { persist: true, outputDirectory: Paths.cache.uri, outputFileName: `reading-line-${Date.now()}.wav` } }
-          : {}),
-      });
+      startRecognizer(lang, persist);
       active.current = true;
       return true;
     } catch {
@@ -225,7 +276,7 @@ export function useReadingStt(): SttHandle {
       recordings.discard();
       return false;
     }
-  }, [recordings, stopTicking]);
+  }, [recordings, startRecognizer, stopTicking]);
 
   const finish = useCallback((): Promise<string> => {
     if (!active.current) return Promise.resolve(text.current);
@@ -250,6 +301,7 @@ export function useReadingStt(): SttHandle {
     const listening = active.current || settle.current !== null;
     settle.current = null;
     active.current = false;
+    restartPending.current = false;
     stopTicking();
     if (!listening) return;
     try {
