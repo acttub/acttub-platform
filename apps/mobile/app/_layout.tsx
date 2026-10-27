@@ -1,4 +1,4 @@
-import { reminderTarget } from '@/lib/reminder-target';
+import { reminderOpenEvent, reminderTarget } from '@/lib/reminder-target';
 import Feather from '@expo/vector-icons/Feather';
 import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
@@ -21,7 +21,7 @@ import 'react-native-reanimated';
 
 import '@/lib/global-font';
 import { useStoreRecovery } from '@/hooks/use-store-recovery';
-import { logScreenView } from '@/lib/analytics';
+import { logEvent, logScreenView } from '@/lib/analytics';
 import { adRequestConfigFor } from '@/lib/ads';
 import { initAdMob, setAdRequestConfig } from '@/lib/ads-native';
 import { kstDate } from '@/lib/auditions';
@@ -221,7 +221,9 @@ function RootNavigator() {
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
     return onPushTapped((data) => {
-      // analysis_complete·evening_reminder resume은 같은 회차, 나머지 리마인드는 기존 홈이다.
+      // analysis_complete·resume은 같은 회차, 다른 연습 알림은 알림이 말한 화면(SOMA-862), 못 정하면 홈이다.
+      const opened = reminderOpenEvent(data);
+      if (opened) void logEvent('reminder_open', opened);
       const reminder = reminderTarget(data);
       if (reminder) {
         router.replace(reminder as Parameters<typeof router.replace>[0]);
