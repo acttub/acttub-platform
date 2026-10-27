@@ -33,6 +33,7 @@ export const TITLE_MAX = 200;
 
 /** 나누기가 저장까지 가지 못한 이유. 화면 팝업 하나에 대응한다. */
 export type ImportStop =
+  | { kind: 'not_allowed' } // 403 나누기 동의 없음(개인정보 v9 이전). 따로 묻지 않고 알리기만 한다
   | { kind: 'daily_limit' } // R2.15
   | { kind: 'file_too_large' } // R2.4
   | { kind: 'file_unreadable' } // R2.4
@@ -71,6 +72,7 @@ export function retryFlags(stop: ImportStop): ImportFlags | null {
 }
 
 const STOP_BY_CODE: Record<string, ImportStop> = {
+  script_split_consent_required: { kind: 'not_allowed' },
   script_split_daily_limit: { kind: 'daily_limit' },
   script_file_too_large: { kind: 'file_too_large' },
   script_file_unreadable: { kind: 'file_unreadable' },
@@ -238,6 +240,8 @@ export function importAlert(stop: ImportStop): { title: string; message: string 
       return { title: t('reading.busyTitle'), message: t('errors.rateLimited') };
     case 'upload_used':
       return { title: t('reading.importFailTitle'), message: t('errors.network') };
+    case 'not_allowed':
+      return { title: t('reading.importFailTitle'), message: t('errors.forbidden') };
     case 'error':
       return { title: t('reading.importFailTitle'), message: stop.message };
   }

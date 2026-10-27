@@ -11,7 +11,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
-import { Button, PrimaryButton } from '@/components/ui/buttons';
+import { Button, PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { InfoBanner } from '@/components/ui/info-banner';
@@ -469,7 +469,7 @@ export default function ReadingNew() {
                   </Pressable>
                 ))}
               </ScrollView>
-              <DialogButtons confirmLabel={t('pro.replaceCancel')} onConfirm={() => setPopup(null)} />
+              <TextButton label={t('pro.replaceCancel')} onPress={() => setPopup(null)} />
             </DialogCard>
           )}
           {popup?.kind === 'free_replace' && (

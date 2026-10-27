@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   cardTitle: { ...type.headline, color: palette.text },
   meta: { ...type.caption, color: palette.textMeta },
   row: { flexDirection: 'row', gap: space[3] },
-  speaker: { ...type.body2Bold, width: 32, color: palette.text },
+  speaker: { ...type.body2Bold, minWidth: 32, color: palette.text },
   speakerLead: { color: palette.blueDeep },
   line: { ...type.body2, flex: 1, color: palette.text },
   direction: { color: palette.textMeta },

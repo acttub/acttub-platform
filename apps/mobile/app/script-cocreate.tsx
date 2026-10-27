@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
   note: { ...type.captionBold, color: palette.blueDeep },
   paper: { marginTop: space[2], gap: space[2], padding: space[4], borderRadius: radius.lg, backgroundColor: palette.bgSubtle },
   lineRow: { flexDirection: 'row', gap: space[3] },
-  speaker: { ...type.body2Bold, width: 40, color: palette.text },
+  speaker: { ...type.body2Bold, minWidth: 40, color: palette.text },
   speakerMine: { color: palette.blueDeep },
   dialogue: { ...type.body2, flex: 1, color: palette.text },
   direction: { ...type.caption, color: palette.textMeta },

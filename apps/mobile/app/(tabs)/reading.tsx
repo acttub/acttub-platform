@@ -339,7 +339,8 @@ export default function ReadingList() {
                 style={({ pressed }) => [styles.resumeBtn, pressed && styles.pressed]}
                 onPress={() => void continueReading()}
                 disabled={resuming}
-                accessibilityRole="button">
+                accessibilityRole="button"
+                accessibilityState={{ busy: resuming, disabled: resuming }}>
                 <Text style={styles.resumeBtnText}>{resuming ? t('loadingText.preparing') : t('reading.resumeGo')}</Text>
                 {!resuming && <Feather name="arrow-right" size={16} color={palette.blueDeep} />}
               </Pressable>

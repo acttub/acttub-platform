@@ -138,10 +138,9 @@ test('reading.script(R2.15): 접수 거절 — 하루 한도는 알림, 동의 �
     const { deps, onProgress } = fakeServer({ startError: error });
     return runImport(importBody(TEXT, {}, 'r'), deps, onProgress);
   };
-  assert.deepEqual(importAlert(await stopFor(apiError(403, 'script_split_consent_required'))), {
-    title: '대본을 넣지 못했어요',
-    message: 'raw script_split_consent_required',
-  });
+  const refused = await stopFor(apiError(403, 'script_split_consent_required'));
+  assert.deepEqual(refused, { kind: 'not_allowed' });
+  assert.deepEqual(importAlert(refused), { title: '대본을 넣지 못했어요', message: '이 작업을 할 권한이 없어요.' });
 
   assert.deepEqual(importAlert(await stopFor(apiError(429, 'script_split_daily_limit'))), {
     title: '오늘은 대본을 더 넣을 수 없어요',

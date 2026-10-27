@@ -280,6 +280,20 @@ test.each([
   expect(mockRouter.replace).not.toHaveBeenCalled();
 });
 
+test('나누기 동의가 없다는 403은 동의를 묻지 않고 알림 하나로 끝낸다', async () => {
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'consent', 'script_split_consent_required'));
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('대본을 넣지 못했어요')).toBeOnTheScreen();
+  expect(screen.getByText('이 작업을 할 권한이 없어요.')).toBeOnTheScreen();
+  expect(screen.queryByText('대본을 못 나눴어요')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('확인'));
+  expect(screen.queryByText('대본을 넣지 못했어요')).not.toBeOnTheScreen();
+  expect(api.importScript).toHaveBeenCalledTimes(1);
+});
+
 test('나눈 대본을 불러오지 못하면 연결 문구를 띄운다', async () => {
   server.get.mockRejectedValue(new Error('offline'));
   await render(<ReadingNew />);
