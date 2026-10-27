@@ -8,6 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { palette } from '@/constants/palette';
 import { DiffText } from '@/components/diff-text';
+import { ReadingNoScript } from '@/components/reading/no-script';
+import { MASCOT } from '@/components/ui/mascot';
+import { StatusScreen } from '@/components/ui/status-screen';
+import { radius, space, type } from '@/constants/tokens';
 import { latestRecordings } from '@/lib/reading/recording-plan';
 import { onRecordingQueueChange } from '@/lib/reading/recording-runner';
 import { isPlaybackExpired } from '@/lib/reading/session-cards';
@@ -87,26 +91,12 @@ export default function ReadingDiff() {
   };
 
   if (!script || !review) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.replace('/reading/detail')}>
-          <Text style={styles.pillText}>{t('reading.toDetail')}</Text>
-        </Pressable>
-      </View>
-    );
+    return <ReadingNoScript />;
   }
 
   if (!rows.some((row) => row.different)) {
     // pen R9.47 — 다르게 말한 대사가 없을 때
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.emptyText}>{t('reading.diffEmpty')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.back()} accessibilityRole="button">
-          <Text style={styles.pillText}>{t('reading.diffBack')}</Text>
-        </Pressable>
-      </View>
-    );
+    return <StatusScreen kind="empty" mascot={MASCOT.reading} title={t('reading.diffEmpty')} primary={{ label: t('reading.diffBack'), onPress: () => router.back() }} />;
   }
 
   return (
@@ -133,7 +123,7 @@ export default function ReadingDiff() {
               <Text style={styles.roleCard}>{row.line.role}</Text>
               {!!rec?.playback_url && (
                 <Pressable style={styles.playBtn} onPress={() => void play(row.lineId)} hitSlop={8} accessibilityRole="button">
-                  <Feather name={playing ? 'square' : 'play'} size={13} color={palette.blueDeep} />
+                  <Feather name={playing ? 'square' : 'play'} size={14} color={palette.blueDeep} />
                   <Text style={styles.playText}>{t('reading.myRecording')}</Text>
                 </Pressable>
               )}
@@ -148,26 +138,17 @@ export default function ReadingDiff() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  emptyText: { color: palette.textSub, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24, textAlign: 'center' },
-  dim: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 15 },
-  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 14 },
-  count: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 13 },
-  // 지문 — 리딩 화면(R9.10)처럼 왼쪽 회색.
-  direction: { color: palette.textDisabled, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
-  // 그냥 지나간 줄 — 작은 회색 배역 + 회색 대사(pen 「지난 줄」).
-  row: { gap: 3, paddingHorizontal: 4 },
-  // 다르게 말한 줄 — 회색 카드 · 파란 테두리 1.5 · 모서리 16 · 안쪽 [16,18].
-  rowDifferent: { gap: 8, backgroundColor: palette.bgSoft, borderRadius: 16, borderWidth: 1.5, borderColor: palette.blue, paddingVertical: 16, paddingHorizontal: 18 },
-  rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  role: { color: palette.textMeta, fontFamily: 'Pretendard-Bold', fontSize: 12.5 },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[6], gap: space[3] },
+  count: { ...type.captionBold, color: palette.blueDeep },
+  direction: { ...type.caption, color: palette.textMeta },
+  row: { gap: space[1], paddingHorizontal: space[1] },
+  rowDifferent: { gap: space[2], backgroundColor: palette.bgSubtle, borderRadius: radius.lg, borderWidth: 1.5, borderColor: palette.blue, padding: space[4] },
+  rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[2] },
+  role: { ...type.micro, color: palette.textMeta },
   roleMine: { color: palette.blueDeep },
-  roleCard: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 13 },
-  text: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 15, lineHeight: 22 },
-  textCard: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 19, lineHeight: 27 },
-  // 「▷ 내 녹음」 알약.
-  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blueSoft, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 10 },
-  playText: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 12.5 },
-  pill: { backgroundColor: palette.blue, borderRadius: 999, minHeight: 44, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
-  pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  roleCard: { ...type.captionBold, color: palette.text },
+  text: { ...type.body2, color: palette.textSub },
+  textCard: { ...type.body1Bold, color: palette.text },
+  playBtn: { flexDirection: 'row', alignItems: 'center', gap: space[1], backgroundColor: palette.blueSoft, borderRadius: radius.full, height: 32, paddingHorizontal: space[3] },
+  playText: { ...type.micro, color: palette.blueDeep },
 });

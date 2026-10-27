@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { radius, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { recordingCoachOnFromProbe } from '@/lib/reading/recording-coach';
@@ -86,8 +87,8 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
 const styles = StyleSheet.create({
   wrap: { alignSelf: 'stretch', gap: 6, marginTop: 8 },
   card: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 20, gap: 6 },
-  title: { color: palette.text, fontSize: 17, fontWeight: '700', lineHeight: 24 },
-  sub: { color: palette.textSub, fontSize: 14, lineHeight: 21 },
+  title: { ...type.headline, color: palette.text },
+  sub: { ...type.body2, color: palette.textSub },
   cta: {
     marginTop: 10,
     minHeight: 44,
@@ -96,15 +97,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: palette.blue,
-    borderRadius: 12,
+    borderRadius: radius.md,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  ctaText: { color: palette.onAccent, fontSize: 15, fontWeight: '700' },
+  ctaText: { ...type.body2Bold, color: palette.onAccent },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 8 },
-  rowText: { color: palette.textSub, fontSize: 15, fontWeight: '600' },
+  rowText: { ...type.body2Bold, color: palette.textSub },
   pro: { backgroundColor: palette.text, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  proText: { color: palette.onAccent, fontSize: 11, fontWeight: '800' },
+  proText: { ...type.micro, color: palette.onAccent },
   flex: { flex: 1 },
   pressed: { opacity: 0.8 },
 });

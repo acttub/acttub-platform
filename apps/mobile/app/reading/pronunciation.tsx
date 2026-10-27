@@ -3,9 +3,12 @@ import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { disposeAudioPlayer } from '@/lib/audio-dispose';
 import { translate as t } from '@/lib/i18n';
@@ -34,10 +37,10 @@ const PAD_MS = 150;
  * 들어 보기는 이번 녹음만 튼다 — 지난 녹음 비교·모범 음성은 넣지 않는다(10/22 사용자). 자동 판정이라 단정하지 않는다.
  */
 export default function PronunciationReportScreen() {
-  const insets = useSafeAreaInsets();
   const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
   const [state, setState] = useState<PronunciationState | null>(null);
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [recordings, setRecordings] = useState<SessionRecording[]>([]);
   const [playing, setPlaying] = useState<string | null>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
@@ -78,7 +81,7 @@ export default function PronunciationReportScreen() {
       disposeAudioPlayer(playerRef.current);
       playerRef.current = null;
     };
-  }, [sessionId, loadRecordings]);
+  }, [sessionId, loadRecordings, attempt]);
 
   /** 보고서 줄 번호(대본 순서, 1부터)로 그 줄 id 를 찾는다. 글이 다르면 같은 글의 줄을 찾는다. */
   const lineIdOf = (line: PronunciationLine): string | null => {
@@ -122,33 +125,38 @@ export default function PronunciationReportScreen() {
     setPlaying(key);
   };
 
-  if (failed || !sessionId) {
+  const retry = () => {
+    setFailed(false);
+    setState(null);
+    setAttempt((n) => n + 1);
+  };
+  if (failed || !sessionId || (state && pronunciationSettled(state.status) && state.status !== 'skipped' && !(state.status === 'done' && state.report))) {
     return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('pronReport.failed')}</Text>
-      </View>
+      <StatusScreen
+        title={t('pronReport.failedTitle')}
+        body={t('pronReport.failed')}
+        primary={sessionId ? { label: t('common.retry'), onPress: retry } : undefined}
+      />
     );
   }
   if (!state || !pronunciationSettled(state.status)) {
     return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('pronReport.waiting')}</Text>
+      <View style={styles.waiting}>
+        <Image source={MASCOT.reading} style={MASCOT_SIZE.xl} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+        <Text style={styles.waitingTitle}>{t('pronReport.waitingTitle')}</Text>
+        <Text style={styles.waitingBody}>{t('pronReport.waiting')}</Text>
       </View>
     );
   }
-  if (state.status !== 'done' || !state.report) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t(state.status === 'skipped' ? 'pronReport.skipped' : 'pronReport.failed')}</Text>
-      </View>
-    );
+  if (state.status === 'skipped' || !state.report) {
+    return <StatusScreen kind="empty" mascot={MASCOT.reading} title={t('pronReport.skippedTitle')} body={t('pronReport.skipped')} />;
   }
 
   const report = state.report;
   const lines = report.lines ?? [];
   const markedCount = markedLineCount(report);
   return (
-    <ScrollView style={styles.root} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}>
+    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <Text style={styles.title}>{markedCount > 0 ? t('pronReport.titleSome', { count: markedCount }) : t('pronReport.titleNone')}</Text>
       <Text style={styles.sub}>{t('pronReport.sub')}</Text>
       {report.habit && (
@@ -177,13 +185,13 @@ export default function PronunciationReportScreen() {
                   const key = `${lineKey}-${mark.index}`;
                   return (
                     <Pressable key={key} onPress={() => void play(key, lineId!, mark)} hitSlop={8} accessibilityRole="button" style={styles.chip}>
-                      <Feather name={playing === key ? 'square' : 'play'} size={12} color={palette.flame} />
+                      <Feather name={playing === key ? 'square' : 'play'} size={14} color={palette.amber} />
                       <Text style={styles.chipMarked}>{t('pronReport.playWord', { word: mark.word })}</Text>
                     </Pressable>
                   );
                 })}
                 <Pressable onPress={() => void play(lineKey, lineId!)} hitSlop={6} accessibilityRole="button" style={styles.chip}>
-                  <Feather name={playing === lineKey ? 'square' : 'play'} size={12} color={palette.blueDeep} />
+                  <Feather name={playing === lineKey ? 'square' : 'play'} size={14} color={palette.blueDeep} />
                   <Text style={styles.chipText}>{t('pronReport.playLine')}</Text>
                 </Pressable>
               </View>
@@ -207,23 +215,24 @@ export default function PronunciationReportScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32 },
-  dim: { color: palette.textSub, fontSize: 15, lineHeight: 22, textAlign: 'center' },
-  content: { paddingHorizontal: 20, paddingTop: 20, gap: 22 },
-  title: { color: palette.text, fontSize: 22, fontWeight: '800', lineHeight: 30 },
-  sub: { color: palette.textSub, fontSize: 14, lineHeight: 21, marginTop: -14 },
-  habit: { gap: 4 },
-  habitKind: { color: palette.textMeta, fontSize: 13, fontWeight: '600' },
-  habitText: { color: palette.text, fontSize: 16, fontWeight: '600' },
-  line: { gap: 10 },
-  lineText: { color: palette.text, fontSize: 18, lineHeight: 28 },
-  marked: { color: palette.text, fontWeight: '700', backgroundColor: palette.flameSoft },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.bgSoft, borderRadius: 14, paddingVertical: 7, paddingHorizontal: 12 },
-  chipText: { color: palette.blueDeep, fontSize: 13, fontWeight: '600' },
-  chipMarked: { color: palette.text, fontSize: 13, fontWeight: '600' },
-  misheard: { gap: 8 },
-  sectionTitle: { color: palette.textMeta, fontSize: 13, fontWeight: '600' },
-  misheardRow: { color: palette.text, fontSize: 15, lineHeight: 22 },
-  note: { color: palette.textMeta, fontSize: 12, lineHeight: 18 },
+  waiting: { flex: 1, backgroundColor: palette.bg, alignItems: 'center', paddingTop: 96, paddingHorizontal: space.gutter, gap: space[3] },
+  waitingTitle: { ...type.title2, color: palette.text, textAlign: 'center' },
+  waitingBody: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[8], gap: space[6] },
+  title: { ...type.title2, color: palette.text },
+  sub: { ...type.body2, color: palette.textSub, marginTop: -space[5] },
+  habit: { gap: space[1], backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4] },
+  habitKind: { ...type.caption, color: palette.textMeta },
+  habitText: { ...type.body1Bold, color: palette.text },
+  line: { gap: space[2] },
+  lineText: { ...type.body1, color: palette.text },
+  marked: { ...type.body1Bold, color: palette.amber, backgroundColor: palette.amberSoft },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: space[1], height: 32, backgroundColor: palette.bgSoft, borderRadius: radius.md, paddingHorizontal: space[3] },
+  chipText: { ...type.body2Bold, color: palette.blueDeep },
+  chipMarked: { ...type.body2Bold, color: palette.text },
+  misheard: { gap: space[2] },
+  sectionTitle: { ...type.captionBold, color: palette.textMeta },
+  misheardRow: { ...type.body2, color: palette.text },
+  note: { ...type.caption, color: palette.textMeta },
 });

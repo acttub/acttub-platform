@@ -5,10 +5,11 @@ import { File, Paths } from 'expo-file-system';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
-import { AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
 import { LineEditSheet } from '@/components/line-edit-sheet';
@@ -17,8 +18,8 @@ import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/u
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
 import { deleteDeviceFile } from '@/lib/account-files';
 import { hasSeenFirstReadingGuide, hideAutoAdvanceTip, isAutoAdvanceTipHidden, markFirstReadingGuideSeen } from '@/lib/reading/guide-flag';
-import { PrimaryButton } from '@/components/ui/buttons';
-import { CtaBar } from '@/components/ui/cta-bar';
+import { Button, PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { DoneScreen } from '@/components/ui/done-screen';
 import { InfoBanner } from '@/components/ui/info-banner';
 import { ReadingGuideOverlay } from '@/components/ui/reading-guide-overlay';
 import { ReadingStatus } from '@/components/ui/reading-status';
@@ -106,12 +107,12 @@ import { pronunciationServerUrl, scorePronunciation } from '@/lib/reading/pronun
 import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
 import { ReadingAfterCard } from '@/components/reading-after-card';
+import { ReadingNoScript } from '@/components/reading/no-script';
 import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
-import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
-import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
+import { MASCOT as MASCOT_IMG, MASCOT_SIZE, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
 import { skipsFirstReadingGuide } from '@/lib/returning-account';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
@@ -286,7 +287,6 @@ export default function ReadingPlay() {
   const scrollRef = useRef<ScrollView | null>(null);
   // 끝난 화면 — 「이번 리딩 어땠나요?」 한 줄 칸을 누르면 키보드 위로 올린다(10/26 폰: 키보드에 가렸다).
   const doneScrollRef = useRef<ScrollView | null>(null);
-  const keyboardHeight = useKeyboardHeight();
   const liftRatingInput = useCallback(() => {
     setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
   }, []);
@@ -305,13 +305,11 @@ export default function ReadingPlay() {
   const readAgainRequestIds = useRef<Record<string, string>>({});
   const [restarting, setRestarting] = useState(false);
   /** 시작 전 [시작] 위에 자동 넘김 안내를 보일지 — 숨기지 않았고 자동 넘김 회차일 때만. */
-  const [startHint, setStartHint] = useState(false);
   /** 시작 팝업의 어두운 덮개가 시작하는 높이 — 진행 막대 아래부터 덮는다. */
   const [tipTop, setTipTop] = useState(0);
   /** 완료 화면이 뜬 직후 잠깐은 버튼을 받지 않는다 — 실행 중 [다음]을 연타하다 새 연습이 바로 시작되지 않게(SOMA-772). */
   const [doneLocked, setDoneLocked] = useState(true);
   /** 완료 화면 [완료] 뒤의 리딩 마무리(pen 「새 · 리딩 마무리」). */
-  const [wrapUp, setWrapUp] = useState(false);
   /** 첫 리딩 안내 — 본 적이 없을 때만. done 은 이미 지나간 안내. */
   const [coachOn, setCoachOn] = useState(false);
   const firstRunRef = useRef(false);
@@ -594,14 +592,11 @@ export default function ReadingPlay() {
     setEngine(next);
   }, []);
 
-  /**
-   * 준비가 끝나면 「리딩 시작 전」(pen GqB1I)에 멈춘다 — [시작]을 눌러야 첫 줄을 연다(SOMA-772). 안내를 숨겼거나
-   * 옛 회차(advance=manual)여도 바로 시작하지 않는다. 자동 넘김 안내 글만 그때 뺀다.
-   */
   const startRunning = useCallback(() => {
-    setStartHint(!tipHiddenRef.current && session?.advance === 'silence');
-    holdRef.current = 'tip';
-    setPhase({ kind: 'running', hold: 'tip' });
+    const hold = !tipHiddenRef.current && session?.advance === 'silence' ? 'tip' : null;
+    if (!hold) startedRef.current = true;
+    holdRef.current = hold;
+    setPhase({ kind: 'running', hold });
   }, [session?.advance]);
 
   // ── 목소리 준비 → 실행 ─────────────────────────────────────────────────────
@@ -1512,14 +1507,7 @@ export default function ReadingPlay() {
 
   // ── 화면 ────────────────────────────────────────────────────────────────────
   if (!script || !session || !config || !run) {
-    return (
-      <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>{t('reading.noScript')}</Text>
-        <Pressable style={styles.pill} onPress={() => router.dismissTo('/reading')}>
-          <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
-        </Pressable>
-      </View>
-    );
+    return <ReadingNoScript header={t('reading.tabTitle')} onBack={() => router.dismissTo('/reading')} />;
   }
 
   if (phase.kind === 'need_mic') {
@@ -1616,41 +1604,6 @@ export default function ReadingPlay() {
     return <ReadingStatus title={phase.message} onBack={exitToDetail} primary={{ label: t('reading.toDetail'), onPress: exitToDetail }} />;
   }
 
-  if (phase.kind === 'done' && wrapUp) {
-    const wrap = wrapUpProgress(run.lines, run.endIndex);
-    // pen 「새 · 리딩 마무리」. 이어 읽기 알림·「일정 붙여 두기」는 서버·알림 기능이 없어 숨긴다.
-    return (
-      <View style={[styles.root, { paddingTop: insets.top + 24 }]}>
-        <ScrollView contentContainerStyle={styles.wrapContent}>
-          <View style={styles.wrapBadge}>
-            <Feather name="check-circle" size={16} color={palette.green} />
-            <Text style={styles.wrapBadgeText}>{t('reading.wrapBadge')}</Text>
-          </View>
-          <View style={styles.wrapHead}>
-            <Image source={MASCOT_IMG[donePose]} style={styles.wrapMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-            <Text style={styles.wrapHeading}>{t('reading.wrapHeading')}</Text>
-          </View>
-          <View style={styles.wrapCard}>
-            <Text style={styles.wrapMeta}>{t('reading.wrapMeta', { title: script.title, total: wrap.total })}</Text>
-            <Text style={styles.wrapNext}>
-              {wrap.next === null ? t('reading.wrapAll') : t('reading.wrapNext', { readTo: wrap.readTo, next: wrap.next })}
-            </Text>
-          </View>
-          <Pressable style={styles.wrapRow} onPress={toCoach} accessibilityRole="button">
-            <Feather name="video" size={18} color={palette.textSub} />
-            <Text style={styles.wrapRowText}>{t('reading.wrapCoach')}</Text>
-            <Feather name="chevron-right" size={18} color={palette.iconFaint} />
-          </Pressable>
-        {ratingCard}
-        </ScrollView>
-        <CtaBar>
-          <PrimaryButton label={t('common.confirm')} onPress={exitToDetail} />
-        </CtaBar>
-        {dialog}
-      </View>
-    );
-  }
-
   if (phase.kind === 'done') {
     const completed = !stopUncountedRef.current && readingRunCompleted({
       reachedEnd: true,
@@ -1658,134 +1611,145 @@ export default function ReadingPlay() {
       priorRecognized: sessionHasRecognized(session),
       recognition: sttMode?.kind ?? null,
     });
-    // 완료 화면들이 함께 쓰는 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서,
-    // 이미 있는 탭까지 내려간다(SOMA-853).
-    const goHomeButton = <PrimaryButton label={t('reading.goHome')} onPress={() => router.dismissTo('/(tabs)')} disabled={doneLocked} />;
-    const otherScriptRow = (
-      <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
-        <Feather name="file-text" size={16} color={palette.textSub} />
-        <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
-      </Pressable>
+    const coaching = completed && !fromTutorialRef.current;
+    const busy = doneLocked || restarting;
+    const roles = config.myNames.join(', ');
+    // 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서, 이미 있는 탭까지 내려간다(SOMA-853).
+    const goHome = () => router.dismissTo('/(tabs)');
+    const links = (
+      <View style={styles.doneLinks}>
+        <Pressable
+          style={[styles.doneLink, busy && styles.doneLinkOff]}
+          onPress={() => void readAgain()}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={t('reading.readAgain')}
+          accessibilityState={{ disabled: busy }}>
+          {restarting ? (
+            <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
+          ) : (
+            <>
+              <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
+              <Text style={[styles.doneLinkText, styles.doneLinkAccent]}>{t('reading.readAgain')}</Text>
+            </>
+          )}
+        </Pressable>
+        <Pressable style={styles.doneLink} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
+          <Feather name="file-text" size={16} color={palette.textSub} />
+          <Text style={styles.doneLinkText}>{t('reading.otherScript')}</Text>
+        </Pressable>
+      </View>
     );
-    if (completed && (firstRunRef.current || fromTutorialRef.current)) {
-      // pen R9.51 첫 리딩 끝 — 액티 칭찬 아래 가운데에 큰 「홈으로 가기」, 그 밑에 「한 번 더 읽기」. 하단 버튼 영역은 없다.
+    const summary = (line: string) => (
+      <View style={styles.doneSummary}>
+        <Text style={styles.doneSummaryText}>{line}</Text>
+        {pendingUploads > 0 && <Text style={styles.doneMeta}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
+      </View>
+    );
+    const note = (text: string, icon?: 'info' | 'wifi-off') => (
+      <View style={styles.noteBox}>
+        {icon && <Feather name={icon} size={16} color={palette.iconFaint} />}
+        <Text style={styles.noteText}>{text}</Text>
+      </View>
+    );
+    const rating = coaching && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
+    const reportRow = coaching ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
+
+    if (!completed) {
+      return (
+        <>
+          <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked}>
+            <View style={styles.doneBody}>
+              <View style={styles.doneHead}>
+                <Text style={styles.doneDesc}>{t('reading.notCountedBody')}</Text>
+                <Text style={styles.doneDesc}>{script.title}</Text>
+              </View>
+              {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
+              {links}
+              {ratingCard}
+            </View>
+          </DoneScreen>
+          {dialog}
+        </>
+      );
+    }
+    if (firstRunRef.current || fromTutorialRef.current) {
       const total = wrapUpProgress(run.lines, run.endIndex).total;
       return (
-        <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.firstDoneBar}>{t('reading.completeTitle')}</Text>
-          <View style={styles.firstDoneBody}>
-            <Image source={MASCOT_IMG[FIRST_DONE_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-            <Text style={styles.firstDoneTitle}>{t('reading.firstDoneTitle')}</Text>
-            <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
-            <View style={styles.firstDoneActions}>
-              {goHomeButton}
-              <Pressable
-                style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
-                onPress={() => void readAgain()}
-                disabled={doneLocked || restarting}
-                accessibilityRole="button"
-                accessibilityLabel={t('reading.firstDoneAgain')}
-                accessibilityState={{ disabled: doneLocked || restarting }}>
-                {restarting ? (
-                  <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
-                ) : (
-                  <>
-                    <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
-                    <Text style={styles.readAgainText}>{t('reading.firstDoneAgain')}</Text>
-                  </>
-                )}
-              </Pressable>
+        <>
+          <DoneScreen mascot={MASCOT_IMG[FIRST_DONE_POSE]} title={t('reading.firstDoneTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked}>
+            <View style={styles.doneBody}>
+              {summary(t('reading.firstDoneMeta', { roles, total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) }))}
+              {links}
+              {ratingCard}
             </View>
-            {ratingCard}
-          </View>
+          </DoneScreen>
           {dialog}
-        </View>
+        </>
       );
     }
     if (monologue) {
-      // 독백 결과(pen T79rDt) — 끝난 뒤 녹음 전체를 문장별로 맞춘 결과. 「원문과 다르게 말한 대사」 칸은 두지 않는다.
       const compared = sttMode?.kind === 'stt' && !!monoResult;
       const total = monoResult?.rows.length ?? 0;
       const statusLabel = { read: t('reading.monologueStatusRead'), missed: t('reading.monologueStatusMissed'), different: t('reading.monologueStatusDifferent') };
       return (
-        <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
-          <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-            <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-            <Text style={styles.doneTitle}>{t(completed ? 'reading.monologueDoneTitle' : 'reading.notCountedTitle')}</Text>
-            {!completed ? (
-              <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>
-            ) : compared ? (
-              <Text style={styles.dim}>
-                {monoResult!.missed > 0 ? t('reading.monologueMissed', { total, count: monoResult!.missed }) : t('reading.monologueAllRead', { total })}
-              </Text>
-            ) : null}
-            <Text style={styles.dim}>{script.title}</Text>
-            <View style={styles.doneStats}>
-            <Text style={styles.doneStat}>{config.myNames.join(', ')} · {mmss(run.elapsedMs)}</Text>
-            {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
-          </View>
-            {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
-            {completed && !fromTutorialRef.current && <><ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" /><PrimaryButton label={t('reading.recordForCoach')} onPress={toCoach} disabled={doneLocked} /></>}
-            {!compared ? (
-              <View style={styles.noteBox}>
-                <Feather name="info" size={16} color={palette.textMeta} />
-                <Text style={styles.noteText}>{t('reading.noSttNote')}</Text>
-              </View>
-            ) : (
-              <View style={styles.diffBox}>
-                {monoResult!.rows.map((r, k) =>
-                  r.status === 'missed' ? (
-                    <Pressable
-                      key={r.lineId}
-                      style={styles.monoRow}
-                      onPress={() => void readAgain(r.lineId)}
-                      disabled={doneLocked || restarting}
-                      accessibilityRole="button"
-                      ph-label="reading_monologue_retry_from">
-                      <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
-                      <Text style={styles.monoTagMissed}>{`${statusLabel.missed} · ${t('reading.monologueRetryFrom')}`}</Text>
-                    </Pressable>
-                  ) : (
-                    <View key={r.lineId} style={styles.monoRow}>
-                      <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
-                      <Text style={styles.monoTag}>{statusLabel[r.status]}</Text>
-                    </View>
-                  ),
+        <>
+          <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.monologueDoneTitle')} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={reportRow}>
+            <View style={styles.doneBody}>
+              <View style={styles.doneHead}>
+                {compared && (
+                  <Text style={styles.doneDesc}>
+                    {monoResult!.missed > 0 ? t('reading.monologueMissed', { total, count: monoResult!.missed }) : t('reading.monologueAllRead', { total })}
+                  </Text>
                 )}
+                <Text style={styles.doneDesc}>{script.title}</Text>
               </View>
-            )}
-            <View style={styles.doneLinks}>
-            <Pressable
-              style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
-              onPress={() => void readAgain()}
-              disabled={doneLocked || restarting}
-              accessibilityRole="button"
-              accessibilityLabel={t('reading.readAgain')}
-              accessibilityState={{ disabled: doneLocked || restarting }}>
-              {restarting ? (
-                <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
-              ) : (
+              {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
+              {coaching && (
                 <>
-                  <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
-                  <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
+                  <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />
+                  <Button
+                    size="md"
+                    label={t('reading.recordForCoach')}
+                    icon={<Feather name="video" size={16} color={palette.onAccent} />}
+                    onPress={toCoach}
+                    disabled={doneLocked}
+                    style={styles.doneCoach}
+                  />
                 </>
               )}
-            </Pressable>
-            {otherScriptRow}
+              {!compared ? (
+                note(t('reading.noSttNote'), 'info')
+              ) : (
+                <View style={styles.resultCard}>
+                  {monoResult!.rows.map((r, k) =>
+                    r.status === 'missed' ? (
+                      <Pressable
+                        key={r.lineId}
+                        style={styles.monoRow}
+                        onPress={() => void readAgain(r.lineId)}
+                        disabled={busy}
+                        accessibilityRole="button"
+                        ph-label="reading_monologue_retry_from">
+                        <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
+                        <Text style={styles.monoTagMissed}>{`${statusLabel.missed} · ${t('reading.monologueRetryFrom')}`}</Text>
+                      </Pressable>
+                    ) : (
+                      <View key={r.lineId} style={styles.monoRow}>
+                        <Text style={styles.monoRowText}>{`${k + 1}. ${r.text}`}</Text>
+                        <Text style={styles.monoTag}>{statusLabel[r.status]}</Text>
+                      </View>
+                    ),
+                  )}
+                </View>
+              )}
+              {links}
+              {rating}
+              {ratingCard}
             </View>
-            {completed && !fromTutorialRef.current && (
-              <View style={styles.ratingSlot}>
-                <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />
-              </View>
-            )}
-          {ratingCard}
-          </ScrollView>
-          <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
-            {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            {goHomeButton}
-          </View>
+          </DoneScreen>
           {dialog}
-        </View>
+        </>
       );
     }
     const readCount = readDialogueCount(run.lines, run.startIndex, run.endIndex);
@@ -1793,90 +1757,41 @@ export default function ReadingPlay() {
     const compared = sttMode?.kind === 'stt';
     const textOf = (lineId: string) => run.lines[run.lineIds.indexOf(lineId)]?.text ?? '';
     return (
-      <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
-        <ScrollView ref={doneScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
-          <Image source={MASCOT_IMG[completed ? donePose : NOT_COUNTED_POSE]} style={styles.doneMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-          <Text style={styles.doneTitle}>{t(completed ? 'reading.completeTitle' : 'reading.notCountedTitle')}</Text>
-          {!completed && <Text style={styles.dim}>{t('reading.notCountedBody')}</Text>}
-          <Text style={styles.dim}>{script.title}</Text>
-          <View style={styles.doneStats}>
-            <Text style={styles.doneStat}>{completed ? t('reading.doneLineStats', { roles: config.myNames.join(', '), count: readCount, time: mmss(run.elapsedMs) }) : `${config.myNames.join(', ')} · ${mmss(run.elapsedMs)}`}</Text>
-            {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
-          </View>
-          {completed && !wholeScript && <Text style={styles.doneStatFaint}>{t('reading.donePartialNote')}</Text>}
-          {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
-          {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
-          <VoiceFeedbackSummary items={lineFeedback} />
-
-          {!completed ? null : !compared ? (
-            <View style={styles.noteBox}>
-              <Feather name="info" size={16} color={palette.textMeta} />
-              <Text style={styles.noteText}>{t('reading.noSttNote')}</Text>
-            </View>
-          ) : different.kind === 'waiting' ? (
-            <View style={styles.noteBox}>
-              <Text style={styles.noteText}>{t('reading.differentWaiting')}</Text>
-            </View>
-          ) : different.kind === 'later' ? (
-            <View style={styles.noteBox}>
-              <Feather name="wifi-off" size={16} color={palette.textMeta} />
-              <Text style={styles.noteText}>{t('reading.differentLater')}</Text>
-            </View>
-          ) : different.kind === 'ready' && different.lines.length > 0 ? (
-            <View style={styles.diffBox}>
-              <View style={styles.diffHead}>
-                <Text style={styles.diffTitle}>{t('reading.differentTitle')}</Text>
-                <Text style={styles.diffCount}>{t('reading.differentCount', { count: different.lines.length })}</Text>
-              </View>
-              {different.lines.slice(0, 2).map((d) => (
-                <View key={d.line_id} style={styles.diffRow}>
-                  <Text style={styles.diffNo}>{t('reading.lineNo', { n: d.dialogue_no })}</Text>
-                  <DiffText text={textOf(d.line_id)} different={d} />
+      <>
+        <DoneScreen mascot={MASCOT_IMG[donePose]} title={t('reading.completeTitle')} scriptName={script.title} onHome={goHome} homeDisabled={doneLocked} mascotTop scrollRef={doneScrollRef} footer={reportRow}>
+          <View style={styles.doneBody}>
+            {summary(t('reading.doneLineStats', { roles, count: readCount, time: mmss(run.elapsedMs) }))}
+            {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
+            {coaching && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
+            <VoiceFeedbackSummary items={lineFeedback} />
+            {!compared ? (
+              note(t('reading.noSttNote'), 'info')
+            ) : different.kind === 'waiting' ? (
+              note(t('reading.differentWaiting'))
+            ) : different.kind === 'later' ? (
+              note(t('reading.differentLater'), 'wifi-off')
+            ) : different.kind === 'ready' && different.lines.length > 0 ? (
+              <View style={styles.resultCard}>
+                <View style={styles.diffHead}>
+                  <Text style={styles.diffTitle}>{t('reading.differentTitle')}</Text>
+                  <Text style={styles.diffCount}>{t('reading.differentCount', { count: different.lines.length })}</Text>
                 </View>
-              ))}
-              <Pressable style={styles.diffAll} onPress={() => router.push('/reading/diff')} hitSlop={6}>
-                <Text style={styles.diffAllText}>{t('reading.seeAll')}</Text>
-                <Feather name="chevron-right" size={16} color={palette.blueDeep} />
-              </Pressable>
-            </View>
-          ) : null}
-
-          {/* 다시 연습은 실행 중 [다음] 자리(아래 오른쪽)를 피해 본문에 둔다 — 연타로 새 연습이 바로 시작되지 않게(SOMA-772). */}
-          <View style={styles.doneLinks}>
-          <Pressable
-            style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
-            onPress={() => void readAgain()}
-            disabled={doneLocked || restarting}
-            accessibilityRole="button"
-            accessibilityLabel={t('reading.readAgain')}
-            accessibilityState={{ disabled: doneLocked || restarting }}>
-            {restarting ? (
-              <LoadingText label={t('loadingText.preparing')} color={palette.blueDeep} />
-            ) : (
-              <>
-                <Feather name="rotate-ccw" size={16} color={palette.blueDeep} />
-                <Text style={styles.readAgainText}>{t('reading.readAgain')}</Text>
-              </>
-            )}
-          </Pressable>
-          {otherScriptRow}
+                {different.lines.slice(0, 2).map((d) => (
+                  <View key={d.line_id} style={styles.diffRow}>
+                    <Text style={styles.doneMeta}>{t('reading.lineNo', { n: d.dialogue_no })}</Text>
+                    <DiffText text={textOf(d.line_id)} different={d} />
+                  </View>
+                ))}
+                <TextButton tone="accent" label={t('reading.seeAll')} onPress={() => router.push('/reading/diff')} />
+              </View>
+            ) : null}
+            {links}
+            {rating}
+            {ratingCard}
           </View>
-
-          {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
-          {completed && !fromTutorialRef.current && (
-            <View style={styles.ratingSlot}>
-              <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />
-            </View>
-          )}
-
-        {ratingCard}
-        </ScrollView>
-        <View style={[styles.doneBar, { paddingBottom: insets.bottom + 10 }]}>
-          {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" />}
-            {goHomeButton}
-        </View>
+        </DoneScreen>
         {dialog}
-      </View>
+      </>
     );
   }
 
@@ -2153,14 +2068,12 @@ export default function ReadingPlay() {
       {hold === 'tip' && (
         // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
         <View style={[styles.backdrop, { top: tipTop }]}>
-          <View style={styles.startCard}>
-            {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
-            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
-            {startHint && (
-              <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
-                <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
-              </Pressable>
-            )}
+          <View style={styles.startCard} accessibilityViewIsModal>
+            <Image source={MASCOT_IMG.reading} style={MASCOT_SIZE.md} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+            <Text style={styles.startTitle} accessibilityRole="header">{t('reading.startTitle')}</Text>
+            <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>
+            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} style={styles.startButton} />
+            <TextButton label={t('reading.startSkipNext')} onPress={() => void closeTip(true)} />
           </View>
         </View>
       )}
@@ -2240,139 +2153,110 @@ function ListeningBars() {
 }
 
 const styles = StyleSheet.create({
+  doneBody: { gap: space[4] },
+  doneHead: { gap: space[2], marginTop: -space[1] },
+  doneDesc: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  doneMeta: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
+  doneSummary: { backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4], gap: space[1], alignItems: 'center' },
+  doneSummaryText: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  doneLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[6] },
+  doneLink: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], height: 40 },
+  doneLinkOff: { opacity: 0.4 },
+  doneLinkText: { ...type.body2Bold, color: palette.textSub },
+  doneLinkAccent: { color: palette.blueDeep },
+  doneCoach: { alignSelf: 'center' },
+  noteBox: { flexDirection: 'row', alignItems: 'center', gap: space[3], borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, padding: space[4] },
+  noteText: { flex: 1, ...type.caption, color: palette.textSub },
+  resultCard: { borderColor: palette.border, borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: space[4], paddingVertical: space[2], gap: space[2] },
+  diffHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomColor: palette.border, borderBottomWidth: 1, paddingVertical: space[2] },
+  diffTitle: { ...type.body2Bold, color: palette.text },
+  diffCount: { ...type.micro, color: palette.amber, backgroundColor: palette.amberSoft, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2, overflow: 'hidden' },
+  diffRow: { gap: space[1], alignItems: 'flex-start' },
+  monoRow: { gap: space[1], paddingVertical: space[3], borderBottomColor: palette.border, borderBottomWidth: 1 },
+  monoRowText: { ...type.body2Bold, color: palette.text },
+  monoTag: { ...type.caption, color: palette.textMeta },
+  monoTagMissed: { ...type.captionBold, color: palette.amber },
   root: { flex: 1, backgroundColor: palette.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 12, padding: 28 },
-  dim: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 15, textAlign: 'center', lineHeight: 22 },
-  downloadTrack: { alignSelf: 'stretch', height: 8, borderRadius: 999, backgroundColor: palette.bgSoft, overflow: 'hidden', marginTop: 8 },
-  downloadFill: { height: 8, borderRadius: 999, backgroundColor: palette.blue },
+  downloadTrack: { alignSelf: 'stretch', height: 8, borderRadius: radius.full, backgroundColor: palette.bgSoft, overflow: 'hidden', marginTop: 8 },
+  downloadFill: { height: 8, borderRadius: radius.full, backgroundColor: palette.blue },
   prepRoot: { paddingHorizontal: 24 },
   prepBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   prepMascot: { width: 84, height: 94, marginBottom: 8 },
-  prepTitle: { color: palette.text, fontSize: 24, fontWeight: '800', lineHeight: 34, textAlign: 'center' },
-  prepProgress: { color: palette.blue, fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  primaryWide: { alignSelf: 'stretch', backgroundColor: palette.blue, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 12 },
-  primaryWideText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  textButton: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 15, paddingVertical: 10 },
+  prepTitle: { ...type.title1, color: palette.text, textAlign: 'center' },
+  prepProgress: { ...type.body2Bold, color: palette.blue, textAlign: 'center' },
 
-  monoNow: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18, lineHeight: 27, marginTop: 6 },
-  monoOther: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 23, marginTop: 6 },
-  monoRow: { alignSelf: 'stretch', gap: 2, paddingVertical: 8, borderBottomColor: palette.border, borderBottomWidth: 1 },
-  monoRowText: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 15, lineHeight: 22 },
-  monoTag: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12 },
-  monoTagMissed: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  doneMascot: { width: 120, height: 120 },
-  doneLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
-  otherScript: { marginTop: 0 },
-  otherScriptText: { color: palette.textSub, fontSize: 15, fontWeight: '700' },
-  firstDoneBar: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center', paddingVertical: 12 },
-  firstDoneBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
-  firstDoneTitle: { color: palette.text, fontSize: 24, fontWeight: '800', lineHeight: 32, textAlign: 'center', marginTop: 12 },
-  firstDoneMeta: { color: palette.textMeta, fontSize: 14, lineHeight: 21, textAlign: 'center' },
-  firstDoneActions: { alignSelf: 'stretch', gap: 8, marginTop: 24 },
-  doneIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
-  doneTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 4, textAlign: 'center' },
-  doneContent: { alignItems: 'center', gap: 12, paddingHorizontal: 24, paddingBottom: 24 },
-  doneStats: { alignSelf: 'stretch', backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6, alignItems: 'center' },
-  doneStat: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 14, lineHeight: 21 },
-  doneStatFaint: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12 },
-  noteBox: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14 },
-  noteText: { flex: 1, color: palette.textSub, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
-  diffBox: { alignSelf: 'stretch', backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 12 },
-  diffHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', borderBottomColor: palette.border, borderBottomWidth: 1, paddingBottom: 10 },
-  diffTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  diffCount: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 13, backgroundColor: palette.amberSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
-  diffRow: { gap: 4 },
-  diffNo: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  diffAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2 },
-  diffAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  monoNow: { ...type.headline, color: palette.text, marginTop: 6 },
+  monoOther: { ...type.body2, color: palette.textMeta, marginTop: 6 },
   // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
   maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, backgroundColor: palette.bg },
-  maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.bg },
+  maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.bg },
   maskOptOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
-  maskOptText: { fontSize: 13, fontWeight: '600', textAlign: 'center', color: palette.textSub },
+  maskOptText: { ...type.captionBold, textAlign: 'center', color: palette.textSub },
   maskOptTextOn: { color: palette.blueDeep, fontWeight: '800' },
-  ratingSlot: { alignSelf: 'stretch' },
-  doneBar: { paddingHorizontal: 24, paddingTop: 12, gap: 10, borderTopColor: palette.border, borderTopWidth: 1 },
-  wrapContent: { paddingHorizontal: 24, paddingBottom: 24 },
-  wrapBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.greenSoft, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
-  wrapBadgeText: { color: palette.green, fontSize: 13, fontWeight: '800', lineHeight: 18 },
-  wrapHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
-  wrapMascot: { width: 52, height: 58 },
-  wrapHeading: { flex: 1, color: palette.text, fontSize: 22, fontWeight: '800', lineHeight: 29 },
-  wrapCard: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, gap: 6, marginTop: 18 },
-  wrapMeta: { color: palette.textMeta, fontSize: 12, fontWeight: '800', lineHeight: 17 },
-  wrapNext: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 23 },
-  readAgainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 },
-  readAgainOff: { opacity: 0.4 },
-  readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
-  wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
-  wrapRowText: { flex: 1, color: palette.textSub, fontSize: 14, fontWeight: '700', lineHeight: 20 },
-  startCard: { width: '100%', maxWidth: 334, backgroundColor: palette.bg, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, gap: 10 },
-  startHint: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21, textAlign: 'center' },
-  startSkip: { color: palette.textMeta, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },
+  startCard: { width: '100%', maxWidth: 362, backgroundColor: palette.bg, borderRadius: radius.xl, padding: space[6], paddingBottom: space[2], gap: space[2], alignItems: 'center' },
+  startTitle: { ...type.headline, color: palette.text, textAlign: 'center' },
+  startHint: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  startButton: { alignSelf: 'stretch', marginTop: space[2] },
 
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   exitBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  exitText: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  droppedText: { color: palette.danger, fontFamily: 'Pretendard-Bold', fontSize: 12 },
-  counter: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  exitText: { ...type.body2Bold, color: palette.textSub },
+  droppedText: { ...type.micro, color: palette.danger },
+  counter: { ...type.micro, color: palette.textMeta },
   progressTrack: { height: 4, backgroundColor: palette.bgSoft, marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', marginTop: 8 },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
-  toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
-  toastText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: radius.lg, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
+  toastText: { ...type.captionBold, color: palette.onAccent },
   jumpToast: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 0, marginBottom: 10 },
 
   flow: { flex: 1 },
   flowContent: { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, gap: 18 },
-  direction: { color: palette.textDisabled, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
+  direction: { ...type.caption, color: palette.textDisabled },
   pastRow: { gap: 3, paddingHorizontal: 4 },
-  pastRole: { color: palette.textDisabled, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  pastText: { color: palette.textDisabled, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  pastRole: { ...type.micro, color: palette.textDisabled },
+  pastText: { ...type.body2, color: palette.textDisabled },
   pastRowPressed: { backgroundColor: palette.blueSoft, borderRadius: 12 },
   spoken: { gap: 2 },
   differs: { textDecorationLine: 'underline', textDecorationColor: palette.flame, color: palette.textMeta },
-  spokenSaid: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12, lineHeight: 18 },
-  spokenLabel: { fontFamily: 'Pretendard-SemiBold' },
-  card: { borderRadius: 16, paddingVertical: 16, paddingHorizontal: 18, gap: 10, borderWidth: 1.5 },
+  spokenSaid: { ...type.caption, color: palette.textMeta },
+  spokenLabel: { fontWeight: '600' },
+  card: { borderRadius: radius.lg, paddingVertical: 16, paddingHorizontal: 18, gap: 10, borderWidth: 1.5 },
   cardOther: { backgroundColor: palette.bgSoft, borderColor: palette.bgSoft },
   cardMine: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  cardRole: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 13, flexShrink: 1 },
+  cardRole: { ...type.captionBold, color: palette.text, flexShrink: 1 },
   cardRoleMine: { color: palette.blueDeep },
   cardHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  chipText: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  chipText: { ...type.micro, color: palette.textMeta },
   chipTextMine: { color: palette.blueDeep },
-  saidBox: { backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 12, gap: 4 },
-  saidLabel: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
-  saidText: { color: palette.text, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20 },
-  lineText: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 21, lineHeight: 31 },
+  saidBox: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, padding: 12, gap: 4 },
+  saidLabel: { ...type.micro, color: palette.textMeta },
+  saidText: { ...type.body2, color: palette.text },
+  lineText: { ...type.title2, color: palette.text },
   firstWordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   firstWordRest: { flex: 1 },
   aidRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  aidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.bg, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  aidText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  aidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.bg, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 7 },
+  aidText: { ...type.captionBold, color: palette.blueDeep },
   bars: { gap: 8, justifyContent: 'center' },
   barPast: { height: 10, borderRadius: 5, backgroundColor: palette.bgSoft },
   barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blue },
   listenBars: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 16 },
   listenBar: { width: 3, borderRadius: 2, backgroundColor: palette.blue },
-  hint: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10, lineHeight: 19 },
+  hint: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10 },
 
-  controls: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.border, borderTopWidth: 1 },
+  controls: { flexDirection: 'row', gap: space[2], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
   controlsHidden: { opacity: 0 },
-  eyeBtn: { width: 54, height: 52, borderRadius: 12, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
+  eyeBtn: { width: 48, height: 48, borderRadius: radius.lg, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   eyeBtnOn: { backgroundColor: palette.blueSoft },
   backBtnOff: { opacity: 0.4 },
   eyeDot: { position: 'absolute', top: 9, right: 9, width: 7, height: 7, borderRadius: 4, backgroundColor: palette.blue },
-  ctrl: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 15 },
+  ctrl: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], borderRadius: radius.lg, height: 48 },
   ctrlGhost: { backgroundColor: palette.bgSoft },
-  ctrlGhostText: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 16 },
+  ctrlGhostText: { ...type.body1Bold, color: palette.textSub },
   ctrlPrimary: { backgroundColor: palette.blue },
-  ctrlOff: { backgroundColor: palette.textDisabled },
-  ctrlPrimaryText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
-  pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  ctrlPrimaryText: { ...type.body1Bold, color: palette.onAccent },
 
-  backdrop: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 21, 37, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
+  backdrop: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
 });

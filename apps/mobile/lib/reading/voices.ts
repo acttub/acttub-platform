@@ -140,10 +140,65 @@ export function voiceName(preset: string | null | undefined): string {
   return isKnownPreset(preset) ? translate(`reading.voiceName.${preset}`) : preset;
 }
 
-/** 목소리 칩 글 — 「여성 · 따뜻한 노년」. 자동 배정도 「자동」 없이 성별과 이름으로 보인다(SOMA-742). */
-export function voiceLabel(preset: string | null | undefined): string {
-  if (!preset) return '-';
-  if (!isKnownPreset(preset)) return preset;
-  const gender = translate(preset.startsWith('M') ? 'reading.voiceGenderMale' : 'reading.voiceGenderFemale');
-  return `${gender} · ${voiceName(preset)}`;
+export type VoiceGender = 'm' | 'f';
+
+export function genderOfVoice(preset: VoicePreset): VoiceGender {
+  return preset.startsWith('M') ? 'm' : 'f';
+}
+
+export const VOICES_BY_GENDER: Record<VoiceGender, VoicePreset[]> = {
+  m: ['M1', 'M4', 'M3', 'M2', 'M5'],
+  f: ['F2', 'F4', 'F1', 'F3', 'F5'],
+};
+
+export function recommendedVoice(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+  gender: VoiceGender,
+): VoicePreset {
+  const shown = shownVoices(characters, chosen);
+  const taken = new Set(characters.filter((c) => c.id !== characterId).map((c) => shown[c.id]));
+  const band = characters.find((c) => c.id === characterId)?.age_band;
+  const list = PREFERENCE[gender][band === 'child' ? 'young' : band ?? 'unknown'];
+  return list.find((v) => !taken.has(v)) ?? list[0];
+}
+
+export function voiceChoice(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+  preset: VoicePreset,
+): Record<string, VoicePreset | null> {
+  const before = shownVoices(characters, chosen);
+  const patch: Record<string, VoicePreset | null> = {
+    [characterId]: autoVoiceOf(characters, chosen, characterId) === preset ? null : preset,
+  };
+  for (let round = 0; round <= characters.length; round++) {
+    const after = shownVoices(characters, { ...chosen, ...patch });
+    let moved = false;
+    if (after[characterId] !== preset) {
+      patch[characterId] = preset;
+      moved = true;
+    }
+    for (const c of characters) {
+      const was = before[c.id];
+      if (c.id !== characterId && was && after[c.id] !== was) {
+        patch[c.id] = was;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return patch;
+}
+
+export function switchGender(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+): Record<string, VoicePreset | null> {
+  const now = shownVoices(characters, chosen)[characterId];
+  const target: VoiceGender = now && genderOfVoice(now) === 'm' ? 'f' : 'm';
+  return voiceChoice(characters, chosen, characterId, recommendedVoice(characters, chosen, characterId, target));
 }

@@ -1,10 +1,17 @@
+import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { KeyboardLift } from '@/components/keyboard-lift';
+import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineError } from '@/components/ui/inline-error';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import {
@@ -21,7 +28,6 @@ import {
  */
 export default function ReadingCoachScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
   const [coach, setCoach] = useState<RecordingCoach | null>(null);
   const [failure, setFailure] = useState<RecordingCoachFailure | null>(null);
@@ -69,52 +75,76 @@ export default function ReadingCoachScreen() {
     }
   };
 
-  const failureText = failure ? t(`readingCoach.fail_${failure}`) : null;
   const canSend = !!coach && coach.status === 'asked' && !!input.trim() && input.trim().length <= RECORDING_COACH_REPLY_MAX && !busy;
   const answered = coach?.status === 'answered';
+  const close = () => router.back();
+  const screenFailure = failure && (!coach || failure === 'not_enough_audio' || failure === 'gone') ? failure : null;
+  const retryable = failure === 'unavailable' || failure === 'other';
+
+  const header = (
+    <Stack.Screen
+      options={{
+        title: t('readingCoach.title'),
+        headerRight: () => (
+          <Pressable onPress={close} hitSlop={8} accessibilityRole="button" ph-label="reading_coach_quit" style={styles.quitButton}>
+            <Text style={styles.quit}>{t('readingCoach.quit')}</Text>
+          </Pressable>
+        ),
+      }}
+    />
+  );
+
+  if (!sessionId || screenFailure) {
+    const kind = screenFailure ?? 'gone';
+    return (
+      <>
+        {header}
+        <StatusScreen
+          kind={retryable && screenFailure ? 'error' : 'empty'}
+          mascot={retryable && screenFailure ? MASCOT.dizzy : MASCOT.coach}
+          title={t(`readingCoach.fail_${kind}`)}
+          body={sessionId ? t(`readingCoach.failBody_${kind}`) : t('readingCoach.noSessionBody')}
+          primary={retryable && screenFailure ? { label: t('readingCoach.retry'), onPress: () => void start(), loading: busy } : undefined}
+          secondary={retryable && screenFailure ? undefined : { label: t('readingCoach.close'), onPress: close }}
+        />
+      </>
+    );
+  }
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={88}>
-      {/* pen R13 — 가운데 「액티와 얘기하기」, 오른쪽 「그만하기」 */}
-      <Stack.Screen
-        options={{
-          title: t('readingCoach.title'),
-          headerRight: () => (
-            <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" ph-label="reading_coach_quit" style={styles.quitButton}>
-              <Text style={styles.quit}>{t('readingCoach.quit')}</Text>
-            </Pressable>
-          ),
-        }}
-      />
+    <KeyboardLift style={styles.root} aboveSafeBottom>
+      {header}
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
         {!coach && busy && (
           <View style={styles.waiting}>
+            <Image source={MASCOT.coach} style={MASCOT_SIZE.lg} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.waitingText}>{t('readingCoach.listening')}</Text>
           </View>
         )}
-        {coach?.messages.map((m, i) => (
-          <View key={i} style={[styles.bubble, m.role === 'coach' ? styles.coachBubble : styles.actorBubble]}>
-            {m.role === 'coach' && <Text style={styles.coachName}>{t('readingCoach.coachName')}</Text>}
-            <Text style={[styles.bubbleText, m.role === 'actor' && styles.actorText]}>{m.text}</Text>
-          </View>
-        ))}
-        {coach && busy && (
-          <View style={styles.thinking}>
-            <Text style={styles.thinkingText}>{t('readingCoach.thinking')}</Text>
-          </View>
+        {coach?.messages.map((m, i) =>
+          m.role === 'coach' ? (
+            <View key={i} style={styles.coachRow}>
+              <Image source={MASCOT.coach} style={MASCOT_SIZE.chat} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+              <View style={styles.coachCol}>
+                <Text style={styles.coachName}>{t('readingCoach.coachName')}</Text>
+                <View style={[styles.bubble, styles.coachBubble]}>
+                  <Text style={styles.bubbleText}>{m.text}</Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <View key={i} style={[styles.bubble, styles.actorBubble]}>
+              <Text style={[styles.bubbleText, styles.actorText]}>{m.text}</Text>
+            </View>
+          ),
         )}
-        {failureText && (
-          <View style={styles.failure}>
-            <Text style={styles.failureText}>{failureText}</Text>
-            {(failure === 'unavailable' || failure === 'other') && (
-              <Pressable onPress={() => void (coach ? send() : start())} hitSlop={8} accessibilityRole="button">
-                <Text style={styles.retry}>{t('readingCoach.retry')}</Text>
-              </Pressable>
-            )}
-          </View>
+        {coach && busy && <Text style={styles.thinkingText}>{t('readingCoach.thinking')}</Text>}
+        {coach && failure && !busy && (
+          <InlineError message={t('readingCoach.replyFailed')} onRetry={() => void send()} />
         )}
         {answered && coach?.video_line && (
           <View style={styles.videoCard}>
@@ -124,23 +154,23 @@ export default function ReadingCoachScreen() {
         )}
       </ScrollView>
 
-      {answered || failure === 'not_enough_audio' || failure === 'gone' ? (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-          {answered && coach?.video_line ? (
+      {answered ? (
+        <CtaBar>
+          {coach?.video_line ? (
             <>
+              <TextButton label={t('readingCoach.later')} phLabel="reading_coach_later" onPress={close} />
               <PrimaryButton
                 label={t('readingCoach.recordLine')}
                 phLabel="reading_coach_record_line"
                 onPress={() => router.push({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } })}
               />
-              <SecondaryButton label={t('readingCoach.later')} phLabel="reading_coach_later" onPress={() => router.back()} />
             </>
           ) : (
-            <SecondaryButton label={t('readingCoach.close')} phLabel="reading_coach_close" onPress={() => router.back()} />
+            <SecondaryButton label={t('readingCoach.close')} phLabel="reading_coach_close" onPress={close} />
           )}
-        </View>
+        </CtaBar>
       ) : coach ? (
-        <View style={[styles.composer, { paddingBottom: insets.bottom + 10 }]}>
+        <CtaBar style={styles.composer}>
           <TextInput
             style={styles.input}
             value={input}
@@ -159,51 +189,35 @@ export default function ReadingCoachScreen() {
             accessibilityLabel={t('readingCoach.send')}
             ph-label="reading_coach_send"
             style={[styles.send, !canSend && styles.sendOff]}>
-            <Text style={styles.sendText}>{t('readingCoach.send')}</Text>
+            <Feather name="arrow-up" size={20} color={canSend ? palette.onAccent : palette.textDisabled} />
           </Pressable>
-        </View>
+        </CtaBar>
       ) : null}
-    </KeyboardAvoidingView>
+    </KeyboardLift>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingHorizontal: 24, paddingVertical: 20, gap: 14 },
-  // 글자 버튼도 아이콘 칸(NavIconButton)처럼 높이 44·좌우 10 을 둬 화면 끝에서 떨어뜨린다(SOMA-837).
-  quitButton: { height: 44, paddingHorizontal: 10, justifyContent: 'center' },
-  quit: { color: palette.textMeta, fontSize: 15, fontWeight: '600' },
-  waiting: { alignItems: 'center', gap: 12, paddingVertical: 48 },
-  waitingText: { color: palette.textSub, fontSize: 15, lineHeight: 22, textAlign: 'center' },
-  bubble: { maxWidth: '88%', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12, gap: 4 },
-  coachBubble: { alignSelf: 'flex-start', backgroundColor: palette.bgSoft },
-  actorBubble: { alignSelf: 'flex-end', backgroundColor: palette.blue },
-  coachName: { color: palette.text, fontSize: 12, fontWeight: '700' },
-  bubbleText: { color: palette.text, fontSize: 16, lineHeight: 24 },
+  body: { paddingHorizontal: space.gutter, paddingVertical: space[4], gap: space[3] },
+  quitButton: { height: 44, paddingHorizontal: space[2], justifyContent: 'center' },
+  quit: { ...type.body2Bold, color: palette.textSub },
+  waiting: { alignItems: 'center', gap: space[4], paddingTop: 96 },
+  waitingText: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  coachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2], maxWidth: '85%' },
+  coachCol: { flexShrink: 1, gap: space[1] },
+  coachName: { ...type.captionBold, color: palette.text },
+  bubble: { borderRadius: radius.lg, paddingVertical: space[3], paddingHorizontal: space[4] },
+  coachBubble: { backgroundColor: palette.bgSoft, borderTopLeftRadius: radius.xs },
+  actorBubble: { alignSelf: 'flex-end', maxWidth: '85%', backgroundColor: palette.blueDeep, borderTopRightRadius: radius.xs },
+  bubbleText: { ...type.body1, color: palette.text },
   actorText: { color: palette.onAccent },
-  thinking: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  thinkingText: { color: palette.textMeta, fontSize: 14 },
-  failure: { gap: 8, paddingVertical: 4 },
-  failureText: { color: palette.textSub, fontSize: 15, lineHeight: 22 },
-  retry: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
-  videoCard: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 20, gap: 8, marginTop: 6 },
-  videoTitle: { color: palette.blueDeep, fontSize: 14, fontWeight: '700' },
-  videoLine: { color: palette.text, fontSize: 17, fontWeight: '600', lineHeight: 25 },
-  footer: { paddingHorizontal: 24, paddingTop: 10, gap: 8, backgroundColor: palette.bg },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 16, paddingTop: 8, backgroundColor: palette.bg },
-  input: {
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 140,
-    borderRadius: 22,
-    backgroundColor: palette.bgSoft,
-    paddingHorizontal: 16,
-    paddingTop: 11,
-    paddingBottom: 11,
-    fontSize: 16,
-    color: palette.text,
-  },
-  send: { height: 44, borderRadius: 22, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.blue },
+  thinkingText: { ...type.body2, color: palette.textMeta },
+  videoCard: { backgroundColor: palette.blueSoft, borderRadius: radius.lg, padding: space[4], gap: space[2] },
+  videoTitle: { ...type.body2Bold, color: palette.blueDeep },
+  videoLine: { ...type.headline, color: palette.text },
+  composer: { flexDirection: 'row', alignItems: 'flex-end' },
+  input: { flex: 1, ...type.body1, minHeight: 44, maxHeight: 140, borderRadius: radius.full, backgroundColor: palette.bgSoft, paddingHorizontal: space[4], paddingTop: space[3] - 2, paddingBottom: space[3] - 2, color: palette.text },
+  send: { width: 40, height: 40, marginBottom: 2, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.blue },
   sendOff: { backgroundColor: palette.border },
-  sendText: { color: palette.onAccent, fontSize: 15, fontWeight: '700' },
 });

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { radius, type } from '@/constants/tokens';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { LinePage } from '@/components/line-page';
 import { translate as t } from '@/lib/i18n';
@@ -184,34 +185,33 @@ export function LineEditSheet({
 }
 
 const styles = StyleSheet.create({
-  sub: { fontSize: 14, color: palette.textMeta },
+  sub: { ...type.body2, color: palette.textMeta },
   body: { flex: 1 },
   bodyContent: { gap: 10, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
-  kinds: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 12, padding: 4 },
+  kinds: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: 4 },
   kind: { flex: 1, alignItems: 'center', borderRadius: 9, paddingVertical: 10 },
-  kindOn: { backgroundColor: palette.bg, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  kindText: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  kindTextOn: { color: palette.text, fontFamily: 'Pretendard-Bold' },
-  label: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 13, marginTop: 6 },
+  kindOn: { backgroundColor: palette.bg },
+  kindText: { ...type.body2Bold, color: palette.textMeta },
+  kindTextOn: { color: palette.text },
+  label: { ...type.captionBold, color: palette.textSub, marginTop: 6 },
   roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  role: { maxWidth: '100%', borderRadius: 999, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: palette.bg },
+  role: { maxWidth: '100%', borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: palette.bg },
   roleOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
-  roleText: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  roleText: { ...type.body2Bold, color: palette.textSub },
   roleTextOn: { color: palette.blueDeep },
   renameLink: { alignSelf: 'flex-start' },
-  renameLinkText: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13, textDecorationLine: 'underline' },
+  renameLinkText: { ...type.caption, color: palette.textMeta, textDecorationLine: 'underline' },
   input: {
     backgroundColor: palette.bgSubtle,
     borderColor: palette.border,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: palette.text,
-    fontFamily: 'Pretendard',
-    fontSize: 15,
+    ...type.body1,
   },
   textInput: { minHeight: 96, maxHeight: 180, lineHeight: 22 },
-  error: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
+  error: { ...type.caption, color: palette.danger },
   button: { flex: 1 },
 });
