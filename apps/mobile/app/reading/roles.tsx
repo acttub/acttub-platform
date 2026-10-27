@@ -22,7 +22,6 @@ import { activeVariant, assetsPresent } from '@/lib/reading/tts/assets';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
 import { exampleLineUri, loadExampleAudio } from '@/lib/reading/example-audio-runtime';
 import {
-  autoVoiceOf,
   genderOfVoice,
   isKnownPreset,
   recommendedVoice,
@@ -32,6 +31,7 @@ import {
   voiceChoice,
   voiceName,
   VOICES_BY_GENDER,
+  type VoiceGender,
   type VoicePreset,
 } from '@/lib/reading/voices';
 import type { ScriptCharacter } from '@/lib/reading/types';
@@ -43,6 +43,7 @@ import { translate as t } from '@/lib/i18n';
  * 미리 듣기는 연습 때 읽을 엔진으로 — 고품질 목소리를 쓰는 중이면 앱에 넣은 Gemini 샘플, 아니면 기기 목소리(Supertonic).
  */
 const NO_CHARACTERS: ScriptCharacter[] = [];
+const genderOf = (voice: VoicePreset | undefined, known?: 'm' | 'f' | null): VoiceGender => (voice ? genderOfVoice(voice) : known ?? 'f');
 const MENU_LABEL_HEIGHT = 32;
 
 export default function ReadingRoles() {
@@ -158,9 +159,10 @@ export default function ReadingRoles() {
     if (preset) void preview(characterId, preset);
   };
 
-  const choose = (characterId: string, value: VoicePreset | null) => {
-    setChosen((prev) => ({ ...prev, [characterId]: value }));
-    const heard = value ?? autoVoiceOf(characters, chosen, characterId);
+  const choose = (characterId: string, patch: Record<string, VoicePreset | null>) => {
+    const next = { ...chosen, ...patch };
+    setChosen(next);
+    const heard = shownVoices(characters, next)[characterId];
     if (heard) void preview(characterId, heard);
   };
 
@@ -199,7 +201,7 @@ export default function ReadingRoles() {
 
   const menuFor = menu ? effective.find((c) => c.id === menu.characterId) : undefined;
   const menuVoice = menuFor ? assigned[menuFor.id] : undefined;
-  const menuGender = menuVoice ? genderOfVoice(menuVoice) : null;
+  const menuGender = menuFor ? genderOf(menuVoice, menuFor.gender) : null;
 
   return (
     <View style={styles.root}>
@@ -232,7 +234,7 @@ export default function ReadingRoles() {
             const playing = previewing === c.id;
             const open = menu?.characterId === c.id;
             const voice = isKnownPreset(c.voice_preset) ? c.voice_preset : assigned[c.id];
-            const gender = voice ? t(genderOfVoice(voice) === 'm' ? 'reading.voiceGenderMale' : 'reading.voiceGenderFemale') : null;
+            const gender = t(genderOf(voice, c.gender) === 'm' ? 'reading.voiceGenderMale' : 'reading.voiceGenderFemale');
             return (
               <View key={c.id} style={styles.row}>
                 <View style={styles.flex}>
@@ -241,17 +243,15 @@ export default function ReadingRoles() {
                     {playing ? t('reading.voicePreviewing') : t('reading.voicesLines', { count: c.dialogue_count })}
                   </Text>
                 </View>
-                {gender && (
-                  <Pressable
-                    style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
-                    onPress={() => choose(c.id, switchGender(characters, chosen, c.id))}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('reading.voiceGenderToggle', { gender })}
-                    ph-label="reading_voice_gender">
-                    <Text style={styles.pillText}>{gender}</Text>
-                    <Feather name="repeat" size={14} color={palette.iconFaint} />
-                  </Pressable>
-                )}
+                <Pressable
+                  style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+                  onPress={() => choose(c.id, switchGender(characters, chosen, c.id))}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('reading.voiceGenderToggle', { gender })}
+                  ph-label="reading_voice_gender">
+                  <Text style={styles.pillText}>{gender}</Text>
+                  <Feather name="repeat" size={14} color={palette.iconFaint} />
+                </Pressable>
                 <Pressable
                   style={({ pressed }) => [styles.pill, open && styles.pillOpen, pressed && styles.pressed]}
                   onPress={(e: GestureResponderEvent) => setMenu(open ? null : { characterId: c.id, anchor: pt(e) })}

@@ -159,7 +159,8 @@ test('저장에 실패하면 알리고 고른 목소리를 그대로 두어 다�
 
   await fireEvent.press(screen.getByText('저장'));
   await waitFor(() => expect(mockRouter.back).toHaveBeenCalledTimes(1));
-  expect(server.patch).toHaveBeenLastCalledWith('s1', { characters: [{ id: 'c2', voice_preset: 'F5' }] });
+  expect(server.patch).toHaveBeenLastCalledWith('s1', { characters: [{ id: 'c1', voice_preset: 'M1' }, { id: 'c2', voice_preset: 'F5' }] });
+  expect(screen.getByText('밝은 청년')).toBeOnTheScreen();
 });
 
 test('저장하는 동안은 버튼이 저장 중으로 바뀐다', async () => {

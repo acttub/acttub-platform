@@ -169,15 +169,35 @@ export function voiceChoice(
   chosen: Record<string, string | null>,
   characterId: string,
   preset: VoicePreset,
-): VoicePreset | null {
-  return autoVoiceOf(characters, chosen, characterId) === preset ? null : preset;
+): Record<string, VoicePreset | null> {
+  const before = shownVoices(characters, chosen);
+  const patch: Record<string, VoicePreset | null> = {
+    [characterId]: autoVoiceOf(characters, chosen, characterId) === preset ? null : preset,
+  };
+  for (let round = 0; round <= characters.length; round++) {
+    const after = shownVoices(characters, { ...chosen, ...patch });
+    let moved = false;
+    if (after[characterId] !== preset) {
+      patch[characterId] = preset;
+      moved = true;
+    }
+    for (const c of characters) {
+      const was = before[c.id];
+      if (c.id !== characterId && was && after[c.id] !== was) {
+        patch[c.id] = was;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return patch;
 }
 
 export function switchGender(
   characters: VoicedCharacter[],
   chosen: Record<string, string | null>,
   characterId: string,
-): VoicePreset | null {
+): Record<string, VoicePreset | null> {
   const now = shownVoices(characters, chosen)[characterId];
   const target: VoiceGender = now && genderOfVoice(now) === 'm' ? 'f' : 'm';
   return voiceChoice(characters, chosen, characterId, recommendedVoice(characters, chosen, characterId, target));
