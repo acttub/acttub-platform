@@ -80,6 +80,7 @@ export default function ReadingFull() {
   };
 
   const monologue = isMonologue(script.characters);
+  const singleLine = script.lines.filter((l) => l.type === 'dialogue').length === 1;
   /** 줄 하나 — 묶인 대사(SOMA-806) 안에서도 줄마다 눌러 메뉴를 연다. */
   const row = (i: number, body: React.ReactNode, joined?: 'head' | 'rest') => (
     <View key={script.lineIds[i] ?? i}>
@@ -112,7 +113,10 @@ export default function ReadingFull() {
         <View style={styles.head}>
           <Text style={styles.title}>{script.title}</Text>
           {/* 독백은 서버가 문장마다 나눠 둔다(SOMA-597) — 그 안내가 줄 고치기 안내 자리에 온다(pen UQWzz). */}
-          <Text style={styles.hint}>{t(monologue ? 'reading.monologueFullNote' : 'reading.lineEditHint')}</Text>
+          {/* 대사가 한 줄뿐이면 줄 메뉴의 「나누기」로 나눠 읽을 수 있다고 같은 자리에 알린다(SOMA-727). */}
+          <Text style={styles.hint}>
+            {t(singleLine ? 'reading.singleLineHint' : monologue ? 'reading.monologueFullNote' : 'reading.lineEditHint')}
+          </Text>
         </View>
         {/* 같은 배역 연속 대사는 배역 이름 하나 아래 줄마다 이어 보인다(SOMA-806). 저장된 줄은 그대로다. */}
         {lineGroups(script.lines, { monologue }).map(({ start, end }) => {
