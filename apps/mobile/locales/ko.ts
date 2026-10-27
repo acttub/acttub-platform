@@ -1398,7 +1398,7 @@ const ko = {
     marketingDeclined: '수신 거부',
     // SOMA-748 동의 화면 개편
     reconsentRequiredHint: '바뀐 내용을 보고 「동의하고 계속하기」를 누르세요.',
-    reconsentHint: '고품질 목소리와 대본 나누기가 개인정보 수집·이용에 들어갔어요.',
+    reconsentHint: '11월 Pro 결제 시작에 맞춰 약관과 동의 문서가 바뀌었어요.',
     headerTitle: '약관 동의',
     heading: 'Acttub를 쓰려면 동의가 필요해요',
     // 제목 아래 파란 안내 줄 — 아무것도 안 골랐을 때 / 필수를 다 골랐을 때(pen 01 약관 동의)
