@@ -207,7 +207,8 @@ export default function ReadingRoles() {
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.heading}>
-          <Text style={styles.step}>{t('reading.voicesStep')}</Text>
+          {/* 「2단계」는 새 대본 올리기 흐름에서만 맞다 — 대본 메뉴 「목소리 바꾸기」로 오면 1단계가 없다(10/28 폰 확인). */}
+          {fromNew && <Text style={styles.step}>{t('reading.voicesStep')}</Text>}
           <Text style={styles.title}>{t('reading.voicesHeading')}</Text>
         </View>
 

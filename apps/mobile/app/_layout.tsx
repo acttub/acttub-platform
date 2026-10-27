@@ -60,7 +60,7 @@ import {
 } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
-import { translate as t } from '@/lib/i18n';
+import { onLanguageChange, translate as t } from '@/lib/i18n';
 
 // 아이콘 폰트가 로드되기 전에 UI가 그려지면 탭바 아이콘이 빈칸으로 뜬다.
 // 로드가 끝날 때까지 스플래시를 유지해 아이콘 누락(회귀)을 막는다.
@@ -498,6 +498,8 @@ function ScreenTracker() {
 }
 
 export default function RootLayout() {
+  const [languageKey, setLanguageKey] = useState(0);
+  useEffect(() => onLanguageChange(() => setLanguageKey((k) => k + 1)), []);
   const [fontsLoaded] = useFonts({
     ...Feather.font,
     // 굵기별 static 서브셋 — 가변폰트는 안드로이드에서 fontWeight가 안 먹는다([[global-font]]).
@@ -549,7 +551,8 @@ export default function RootLayout() {
       <AuthProvider>
         <ThemeProvider value={theme}>
           <ScreenTracker />
-          <RootNavigator />
+          {/* 언어를 바꾸면 화면 전체를 새로 그린다 — 홈부터 다시 열리지만 껐다 켤 필요는 없다. */}
+          <RootNavigator key={languageKey} />
           {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
               비출 자리의 좌표가 맞는다 (SOMA-550). */}
           <SpotlightHost />

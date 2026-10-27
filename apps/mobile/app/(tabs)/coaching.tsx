@@ -85,7 +85,6 @@ export default function CoachingTab() {
   // 새 연습은 세션 목적 → 영상 고르기 순서다(app/upload).
   const startNew = () => router.push('/upload');
   // 「이전 코칭 이어 하기」는 지난 코칭 목록에서 고른다.
-  const pickPrevious = () => router.push('/history');
   // 「하던 코칭 · 이어서 하기」는 열린 대화로, 「저번 코치 메모 · 한 번 더 연습」은 열린 대화가 있으면 그 대화, 없으면 다음 테이크(새 영상)로 간다.
   const again = () => {
     if (entry?.kind === 'resume') {
@@ -219,18 +218,7 @@ export default function CoachingTab() {
           </View>
 
           <TalkEntryButton onPress={() => router.push('/talk')} />
-          {/* 맨 위 카드가 이미 「이어서 하기」면 같은 뜻의 링크를 또 두지 않는다(10/26). */}
-          {!resuming && (
-            <Pressable
-              onPress={pickPrevious}
-              accessibilityRole="button"
-              accessibilityLabel={t('coachingTab.menuResume')}
-              ph-label="coaching_pick_previous"
-              style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
-              <Feather name="clock" size={15} color={palette.textSub} />
-              <Text style={styles.linkText}>{t('coachingTab.menuResume')}</Text>
-            </Pressable>
-          )}
+          {/* 「이전 코칭 이어 하기」 링크는 뺐다 — 위 「지난 코칭 다시 보기」와 같은 기록 화면으로 갔다(10/28 폰 확인). 하던 대화는 맨 위 카드가 잇는다. */}
           {hasScripts ? (
             <Pressable
               onPress={() => router.push('/coach-scripts')}

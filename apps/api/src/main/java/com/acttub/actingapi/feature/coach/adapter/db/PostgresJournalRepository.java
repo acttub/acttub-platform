@@ -34,12 +34,27 @@ class PostgresJournalRepository implements JournalRepository {
                    COALESCE(NULLIF(btrim(p.title),''),NULLIF(btrim(root.title),'')) AS title,
                    p.session_purpose AS purpose,
                    COALESCE(NULLIF(btrim(c.state->'purpose_loop'->'scene'->>'character'),''),
-                            CASE WHEN char_length(btrim(p.character_context)) BETWEEN 1 AND 12 THEN btrim(p.character_context) END) AS role_name
+                            CASE WHEN char_length(btrim(p.character_context)) BETWEEN 1 AND 12 THEN btrim(p.character_context) END) AS role_name,
+                   NULLIF(btrim(up.name),'') AS actor_name,NULLIF(btrim(u.nickname),'') AS actor_nickname
             FROM actor_journals j
             JOIN practices p ON p.id=j.practice_id
             JOIN practices root ON root.id=p.root_id
             LEFT JOIN coach_conversations c ON c.id=j.conversation_id
+            LEFT JOIN users u ON u.id=j.user_id
+            LEFT JOIN user_profiles up ON up.user_id=j.user_id
             """;
+
+    /**
+     * 배역 이름이 배우 자신의 이름이면 배역을 모르는 것으로 본다 — 영상에서 인물을 못 알아본 AI 가 배우 이름을 인물 칸에 넣어
+     * 일지 머리가 「WooYoung 역」으로 보였다(10/28 dev).
+     */
+    static String roleOrNull(String role, String actorName, String actorNickname) {
+        if (role == null || role.isBlank()) return null;
+        String r = role.strip();
+        if (actorName != null && r.equalsIgnoreCase(actorName.strip())) return null;
+        if (actorNickname != null && r.equalsIgnoreCase(actorNickname.strip())) return null;
+        return r;
+    }
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -118,6 +133,6 @@ class PostgresJournalRepository implements JournalRepository {
                 row.get("updated_at", Instant.class),
                 row.get("title", String.class),
                 row.get("purpose", String.class),
-                row.get("role_name", String.class));
+                roleOrNull(row.get("role_name", String.class), row.get("actor_name", String.class), row.get("actor_nickname", String.class)));
     }
 }

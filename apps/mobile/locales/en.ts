@@ -362,6 +362,8 @@ const en: DeepStringShape<typeof ko> = {
     withdrawn: 'Deleted user',
     underReview: 'This comment is under review.',
     delete: 'Delete',
+    deleteTitle: 'Delete this comment?',
+    deleteConfirm: 'Delete',
     report: 'Report',
     emptyTitle: 'No comments yet',
     empty: 'Be the first to comment.',
@@ -513,6 +515,7 @@ const en: DeepStringShape<typeof ko> = {
   // SOMA-819 entry share sheet
   entryShare: {
     title: 'Share my performance',
+    titleOthers: 'Share this performance',
     previewSub: '{{name}}’s performance · acttub challenge',
     instagram: 'Instagram',
     kakao: 'KakaoTalk',

@@ -18,6 +18,7 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
+import { useAppDialog } from '@/components/app-dialog';
 import { avatarLetter } from '@/lib/challenge/browse';
 import {
   buildCommentBody,
@@ -59,6 +60,7 @@ export function ChallengeCommentsSheet({
   // 키보드만큼 아래 여백을 늘려 입력줄을 올린다 — 모달 안에서는 창이 줄지 않아 입력줄이 키보드 뒤로 숨었다.
   // KeyboardAvoidingView 가 edge-to-edge 에서 어긋나는 까닭은 use-keyboard-height 에 적었다.
   const keyboard = useKeyboardHeight();
+  const { confirm, dialog } = useAppDialog();
   const [comments, setComments] = useState<EntryComment[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -114,7 +116,15 @@ export function ChallengeCommentsSheet({
     }
   };
 
+  // 지우면 되돌릴 수 없으니 한 번 묻는다(UX 가이드 3절, 10/28 폰 확인 — 누르자마자 지워졌다).
   const remove = async (comment: EntryComment) => {
+    const ok = await confirm({
+      title: t('comments.deleteTitle'),
+      confirmLabel: t('comments.deleteConfirm'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteComment(comment.id);
       setComments((prev) => (prev ?? []).filter((c) => c.id !== comment.id));
@@ -214,6 +224,7 @@ export function ChallengeCommentsSheet({
             )}
           </View>
       </View>
+      {dialog}
     </Modal>
   );
 }
