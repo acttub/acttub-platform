@@ -488,4 +488,12 @@ class SplitResponseTest {
         assertThat(rows.get(6).kind()).as("내레이션 표시").isEqualTo(Kind.DIALOGUE);
         assertThat(rows.get(7).kind()).as("화면 밖 목소리는 들리는 말").isEqualTo(Kind.DIALOGUE);
     }
+
+    @Test
+    @DisplayName("SOMA-903: 배역 목록이 등장인물 소개 줄을 통째로 옮기면 대시 뒤 설명을 떼고 대괄호에 늘어놓은 배역은 하나씩 받는다")
+    void rosterDropsCastDescriptions() {
+        String answer = "지수 – 카페 주인\tf\tyoung\n민호의 친구들[(1)구두쇠, (2)허세남]\tm\tyoung\n멀티맨(남)- 할아버지 손님\tm\n"
+                + "J-1\n지수\n";
+        assertThat(SplitResponse.roster(answer)).containsExactly("지수", "구두쇠", "허세남", "멀티맨(남)", "J-1");
+    }
 }
