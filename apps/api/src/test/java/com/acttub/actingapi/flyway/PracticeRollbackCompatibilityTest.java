@@ -193,6 +193,8 @@ class PracticeRollbackCompatibilityTest {
                         + "(ARRAY['child'::text, 'young'::text, 'adult'::text, 'senior'::text])))",
                 // V44 의 가입한 클라이언트 판(SOMA-643). NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
                 "COLUMN user_profiles.signup_client ord=19 type=text len=- null=YES default=-",
+                // V71 의 실기 날짜(SOMA-864). NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
+                "COLUMN user_profiles.exam_date ord=20 type=date len=- null=YES default=-",
                 // V45 의 대사 줄의 말과 소리 낼 글(SOMA-751). NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
                 "COLUMN script_lines.lang ord=8 type=text len=- null=YES default=-",
                 "COLUMN script_lines.speech ord=9 type=text len=- null=YES default=-",
