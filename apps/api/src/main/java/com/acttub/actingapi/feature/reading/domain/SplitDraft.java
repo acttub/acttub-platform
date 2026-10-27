@@ -188,7 +188,7 @@ public final class SplitDraft {
             if (kind == Kind.DIALOGUE && header.isEmpty() && inner == null && previous != null && previous.kind() == Kind.DIALOGUE
                     && !previous.header().isBlank() && previous.into() != null && previous.into() == (assembled.isEmpty() ? null : assembled.getLast())
                     && previous.model() != null && previous.model().speaker().equals(row.speaker()) && !LineReview.cut(previous.line().text(), width)) {
-                String[] other = otherLabel(shown, row.speaker(), known, listed, heads);
+                String[] other = otherLabel(shown, ScriptText.visible(previous.line().text()).stripLeading(), previous.header(), row.speaker(), known, listed, heads);
                 if (other != null) {
                     row = new Row(line.no(), Kind.DIALOGUE, other[0], other[1]);
                     header = other[1];
@@ -304,23 +304,51 @@ public final class SplitDraft {
     }
 
     /** 줄 맨 앞의 이름표 후보 — 글자·숫자 두~열 자 + 공백·탭·U+3000 + 말. */
-    private static final Pattern LABEL = Pattern.compile("([\\p{L}\\p{N}]{2,10})[ \\t\\u3000]+(?=\\S)");
+    private static final Pattern LABEL = Pattern.compile("([\\p{L}\\p{N}]{2,10})([ \\t\\u3000]+)(?=\\S)");
+    /** 앞 줄 머리가 이름 + 공백뿐인가 — 「지수 : 」·「민호 / 」처럼 구분 부호를 쓰는 대본은 부호 없는 「경비 퇴장하면,」이 지문이다. */
+    private static final Pattern BARE_HEAD = Pattern.compile("[\\p{L}\\p{N}]+[ \\t\\u3000]+");
+    /**
+     * 이름 뒤 첫 낱말이 호칭·직함이면 이름표가 아니라 대사 속 이름이다 — 「민수 씨가 오늘…」·「정우 군은…」·「순자 할머니도…」(운영 대본
+     * 759편 대조, SOMA-903).
+     */
+    private static final Pattern TITLE_WORD = Pattern.compile("(?:씨|양|군|님|형|형님|누나|언니|오빠|선배|선생님?|할머니|할아버지|아저씨|아줌마"
+            + "|감독님?|사장님?|어머니|아버지|엄마|아빠|대리님?|팀장님?|부장님?|과장님?|선수|기자|작가님?)"
+            + "(?:이|가|은|는|을|를|의|도|와|과|랑|이랑|한테|에게|께|께서|요|하고|만|이야|야|아)?[,.!?…~]*");
+    /** 이름 뒤 첫 낱말이 조사로 끝나면 이름까지 한 낱말 덩어리다 — 「민호 김씨가 소개하는…」. */
+    private static final Pattern PARTICLE_WORD = Pattern.compile("\\p{L}{2,}(?:가|이|는|은|를|을|의|에게|한테|와|과|도)");
 
     /**
      * 줄이 화자와 다른 배역의 이름표로 시작하면 {배역 이름, 뗄 머리}, 아니면 null (2026-10-27 운영, SOMA-903). 이름표는 이 대본의 배역
-     * 이름(배역 목록·모델 화자)이나 배역 목록·등장인물 소개 줄에 나온 이름이고, 원문 두 줄 이상이 그 이름 + 공백으로 시작해야 한다 — 대사
+     * 이름(배역 목록·모델 화자)과 같거나 등장인물 소개 줄에 낱말로 나온 이름이고, 원문 두 줄 이상이 그 이름 + 공백으로 시작해야 한다 — 대사
      * 첫 낱말(「그래 」)이나 부르는 말 한 번을 이름표로 보지 않는다. 화자의 줄인·변형 이름(「지수」↔「김지수」)과 함께 말하기 머리는 보지 않는다.
      * 나누기 답이 이 줄 화자를 비워 앞 대사 화자로 채워졌거나(fillSpeakers), 목록의 「민호의 친구들[(1)구두쇠, …]」 같은 이름 때문에 이름표를
      * 화자로 쓰지 못한 줄이다. 배역 이름과 띄어쓰기만 다르면 그 표기, 아니면 원문 이름표를 화자로 쓴다.
+     *
+     * <p>운영 대본 759편에서 이 규칙이 바꿀 자리를 세어 좁혔다(SOMA-903): 앞 줄 머리가 이름 + 공백뿐일 때만(쌍점·빗금 머리 대본 제외), 이름 뒤
+     * 띄움이 앞 줄 머리와 같은 모양일 때만(이름 뒤를 여러 칸 띄우는 대본에서 한 칸 띄운 「민호 김.」은 부르는 말), 첫 낱말이 호칭·직함이나 조사로 끝나는 낱말이 아닐 때만,
+     * 소개 줄에서는 낱말 경계로만(「모든 학생들」의 「모든」·「누군가의」의 「누군가」는 이름이 아니다).
      */
-    private static String[] otherLabel(String shown, String speaker, List<String> known, String listed, Heads heads) {
+    private static String[] otherLabel(String shown, String previousText, String previousHeader, String speaker, List<String> known,
+            String listed, Heads heads) {
         Matcher label = LABEL.matcher(shown);
-        if (!label.lookingAt()) {
+        if (!label.lookingAt() || !BARE_HEAD.matcher(previousHeader).matches()) {
             return null;
         }
         String name = label.group(1);
-        if (GROUP_HEAD.matcher(name).matches() || relation(name, speaker) != null || typo(name, speaker, heads.known)
-                || !heads.known.contains(name) && !listed.contains(name)) {
+        String gap = label.group(2);
+        String previousGap = previousHeader.substring(previousHeader.stripTrailing().length());
+        if (gap.equals(" ") != previousGap.equals(" ") || !previousText.startsWith(previousHeader.stripTrailing())) {
+            return null;
+        }
+        String rest = shown.substring(label.end());
+        String next = rest.split("[ \\t\\u3000]", 2)[0];
+        if (TITLE_WORD.matcher(next).matches() || PARTICLE_WORD.matcher(next).matches()) {
+            return null;
+        }
+        boolean named = heads.known.stream().anyMatch(knownName -> CharacterNames.squash(knownName).equals(name))
+                || known.stream().anyMatch(knownName -> CharacterNames.squash(knownName).equals(name))
+                || Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(name) + "(?![\\p{L}\\p{N}])").matcher(listed).find();
+        if (!named || GROUP_HEAD.matcher(name).matches() || relation(name, speaker) != null || typo(name, speaker, heads.known)) {
             return null;
         }
         Pattern started = Pattern.compile(Pattern.quote(name) + "[ \\t\\u3000]+\\S");

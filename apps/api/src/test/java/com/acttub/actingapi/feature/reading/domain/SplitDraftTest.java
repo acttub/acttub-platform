@@ -842,6 +842,55 @@ class SplitDraftTest {
     }
 
     @Test
+    @DisplayName("SOMA-903: 호칭이 붙은 이름·쌍점 머리 대본의 지문·띄움 모양이 다른 이름은 다른 배역 이름표로 보지 않고 지금처럼 앞 대사에 잇는다")
+    void keepsGluingNamesInsideSpeech() {
+        // 「민호 씨가 …」는 지수 대사 속 이름이다(운영 대본 759편 대조에서 나온 꼴)
+        String titled = """
+                민호 안녕하세요.
+                지수 아버지한테 미리 말해 두는 게 낫겠네요.
+                민호 씨가 오늘 찾아올지도 몰라요.
+                민호 네, 그럴게요.
+                """;
+        Map<Integer, Row> titledRows = new LinkedHashMap<>();
+        titledRows.put(1, new Row(1, Kind.DIALOGUE, "민호", "민호 "));
+        titledRows.put(2, new Row(2, Kind.DIALOGUE, "지수", "지수 "));
+        titledRows.put(3, new Row(3, Kind.DIALOGUE, "지수", ""));
+        titledRows.put(4, new Row(4, Kind.DIALOGUE, "민호", "민호 "));
+        assertThat(spoken(SplitDraft.assemble(null, titled, "file", NumberedLine.of(titled), titledRows, List.of("지수", "민호"))))
+                .noneMatch(line -> line.startsWith("민호|씨가"));
+
+        // 쌍점 머리 대본에서 부호 없는 「경비 퇴장하면,」은 이름표가 아니다
+        String colon = """
+                경비 : 어서 오세요.
+                지수 : 네 수고하세요.
+                경비 퇴장하면,
+                경비 : 안녕히 가세요.
+                """;
+        Map<Integer, Row> colonRows = new LinkedHashMap<>();
+        colonRows.put(1, new Row(1, Kind.DIALOGUE, "경비", "경비 : "));
+        colonRows.put(2, new Row(2, Kind.DIALOGUE, "지수", "지수 : "));
+        colonRows.put(3, new Row(3, Kind.DIALOGUE, "지수", ""));
+        colonRows.put(4, new Row(4, Kind.DIALOGUE, "경비", "경비 : "));
+        assertThat(spoken(SplitDraft.assemble(null, colon, "file", NumberedLine.of(colon), colonRows, List.of("지수", "경비"))))
+                .noneMatch(line -> line.startsWith("경비|퇴장하면"));
+
+        // 이름 뒤를 여러 칸 띄우는 대본에서 한 칸 띄운 「민호 김.」은 부르는 말이다
+        String spaced = """
+                민호   안녕.
+                지수   (다가가며)
+                민호 김. 이렇게 가까이 있다니.
+                민호   반가워.
+                """;
+        Map<Integer, Row> spacedRows = new LinkedHashMap<>();
+        spacedRows.put(1, new Row(1, Kind.DIALOGUE, "민호", "민호   "));
+        spacedRows.put(2, new Row(2, Kind.DIALOGUE, "지수", "지수   "));
+        spacedRows.put(3, new Row(3, Kind.DIALOGUE, "지수", ""));
+        spacedRows.put(4, new Row(4, Kind.DIALOGUE, "민호", "민호   "));
+        assertThat(spoken(SplitDraft.assemble(null, spaced, "file", NumberedLine.of(spaced), spacedRows, List.of("지수", "민호"))))
+                .noneMatch(line -> line.startsWith("민호|김."));
+    }
+
+    @Test
     @DisplayName("2026-10-27: 다른 배역 이름으로 시작해도 원문이 그 이름을 이름표로 두 줄 이상 쓰지 않았거나 앞 줄이 줄 너비에서 끊겼으면 앞 대사에 잇는다")
     void keepsGluingVocativesAndWrappedLines() {
         // 「수진 」으로 시작하는 줄이 하나뿐이면 이름표가 아니라 부르는 말일 수 있다 — 앞 대사에 잇는다
