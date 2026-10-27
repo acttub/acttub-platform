@@ -142,7 +142,7 @@ export default function LoginScreen() {
       )}
       {provider === 'apple' &&
         (SymbolView ? (
-          <SymbolView name="apple.logo" tintColor="#FFFFFF" size={size === 'wide' ? 22 : 24} />
+          <SymbolView name="apple.logo" tintColor={palette.onAccent} size={size === 'wide' ? 22 : 24} />
         ) : (
           <Text style={styles.appleGlyph}></Text>
         ))}

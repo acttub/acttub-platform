@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   reason: { ...type.body2, color: palette.textSub },
   subtitle: { ...type.captionBold, color: palette.blueDeep },
   list: { flexShrink: 1 },
-  checking: { paddingVertical: space[2], gap: 10 },
+  checking: { paddingVertical: space[2], gap: space[3] },
   footer: { gap: space[3] },
 
   sheetLayer: {

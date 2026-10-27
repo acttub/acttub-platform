@@ -1708,8 +1708,6 @@ const ko = {
     deniedOpen: '설정 열기',
   },
   stack: {
-    withdraw: '회원 탈퇴',
-    backToSettings: '설정',
     upload: '영상 올리기',
     analyzing: '분석 중',
     coach: '액티와 되짚기',

@@ -1711,8 +1711,6 @@ const en: DeepStringShape<typeof ko> = {
     deniedOpen: 'Open settings',
   },
   stack: {
-    withdraw: 'Delete account',
-    backToSettings: 'Settings',
     upload: 'Upload video',
     analyzing: 'Analyzing',
     coach: 'Reflect with coach',

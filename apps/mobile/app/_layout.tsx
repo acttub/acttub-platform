@@ -416,14 +416,9 @@ function RootNavigator() {
         <Stack.Screen name="profile-name" options={{ headerShown: false }} />
         <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
         <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
-        <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
         <Stack.Screen
           name="(tabs)"
           options={({ route }) => ({ headerShown: false, title: tabBackTitle(getFocusedRouteNameFromRoute(route)) })}
-        />
-        <Stack.Screen
-          name="delete-account"
-          options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
         />
         <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
         <Stack.Screen name="talk" options={{ title: t('talk.title') }} />
