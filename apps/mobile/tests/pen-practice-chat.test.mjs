@@ -78,12 +78,9 @@ test('⑨ 영상 보는 중: 경과 15/500, 예시 안내 15, 「끝나면 알�
   assert.match(waiting, /link: \{ color: palette\.textMeta, fontSize: 15, fontWeight: '700'/);
 });
 
-test('C9.12·C19 챌린지 완료: 올리기·마무리가 같은 ChallengeDone 모양(액티 + 제목 22/800 + 한 줄 + 이어갈 줄 + 홈으로 가기)', () => {
+test('C9.12·C19 챌린지 완료: 올리기 완료는 ChallengeDone 이고 코칭은 기존 올리기로 잇는다', () => {
   const upload = read('app/challenge-upload.tsx');
-  const done = read('components/challenge-done.tsx');
   assert.match(upload, /<ChallengeDone/);
-  assert.match(done, /source=\{MASCOTS\.cheer\}/);
-  assert.match(done, /title: \{ fontSize: 24, fontWeight: '800'/);
   assert.match(upload, /router\.push\('\/upload'\)/);
   assert.doesNotMatch(upload, /reportHint|\/ai-report/);
 });

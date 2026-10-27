@@ -247,7 +247,6 @@ export default function ChallengeUploadScreen() {
     return (
       <>
         <ChallengeDone
-          first={created.first}
           title={created.first ? t('challengeDone.titleFirst') : t(isPublic ? 'challengeDone.titlePublic' : 'challengeDone.titlePrivate')}
           sub={parts.join(' · ')}
           rows={[
@@ -265,8 +264,6 @@ export default function ChallengeUploadScreen() {
                 ]
               : []),
           ]}
-          onShare={isPublic ? share : null}
-          onCoach={coachWithThis}
           onHome={() => router.dismissTo('/')}
         />
         {entryShare.sheet}
