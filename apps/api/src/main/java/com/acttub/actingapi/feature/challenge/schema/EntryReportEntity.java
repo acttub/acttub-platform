@@ -14,8 +14,11 @@ public class EntryReportEntity extends AppGeneratedUuidEntity {
     private EntryReportTarget targetType;
     @Column(name="target_id", nullable=false)
     private UUID targetId;
-    @Column(name="reporter_id", nullable=false)
+    /** 사람 신고만 갖는다. AI 신고(source='ai')는 비어 있다. */
+    @Column(name="reporter_id", nullable=true)
     private UUID reporterId;
+    @Column(name="source", nullable=false, columnDefinition="text")
+    private String source;
     @Convert(converter=EntryReportReason.JpaConverter.class)
     @Column(name="reason", nullable=false, columnDefinition="text")
     private EntryReportReason reason;

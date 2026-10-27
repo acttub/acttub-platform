@@ -315,6 +315,31 @@ class ChallengeEntryIT {
         assertThat(edit(entry, Map.of("visibility", "private"), 200).path("visibility").asText()).isEqualTo("private");
     }
 
+    @Test void challengeEntry_publicEntriesShowAtOnceAndAreQueuedForTheAiCheck() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        String open = enter(challenge, video(user, 30_000), "public", 201).path("id").asText();
+        String closed = enter(challenge, video(user, 30_000), "private", 201).path("id").asText();
+        assertThat(moderationOf(open)).isEqualTo("pending");
+        assertThat(moderationOf(closed)).isNull();
+        assertThat(ids(response(get("/v2/challenges/{id}/entries", challenge), 200, token(member("관객"))))).containsExactly(open);
+        // 한 번 본 영상은 비공개→공개로 다시 열어도 다시 보지 않는다. 캡션이 바뀌면 다시 본다.
+        jdbc.update("UPDATE challenge_entries SET moderation_status='passed',moderation_attempts=2 WHERE id=?::uuid", open);
+        edit(open, Map.of("visibility", "private"), 200);
+        edit(open, Map.of("visibility", "public"), 200);
+        assertThat(moderationOf(open)).isEqualTo("passed");
+        edit(open, Map.of("caption", "새 캡션"), 200);
+        assertThat(jdbc.queryForMap("SELECT moderation_status,moderation_attempts FROM challenge_entries WHERE id=?::uuid", open))
+                .containsEntry("moderation_status", "pending").containsEntry("moderation_attempts", 0);
+        edit(closed, Map.of("caption", "비공개 캡션"), 200);
+        assertThat(moderationOf(closed)).isNull();
+        edit(closed, Map.of("visibility", "public"), 200);
+        assertThat(moderationOf(closed)).isEqualTo("pending");
+    }
+
+    private String moderationOf(String entry) {
+        return jdbc.queryForObject("SELECT moderation_status FROM challenge_entries WHERE id=?::uuid", String.class, entry);
+    }
+
     @Test void challengeEntry_onlyTheAuthorEditsTheCaptionAndEachChangeBumpsTheVersion() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         String entry = enter(challenge, video(user, 30_000), "public", 201).path("id").asText();

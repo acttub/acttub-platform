@@ -1187,6 +1187,17 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 좋아요 수는 연결 행을 다시 센다(§7 머리말 1번).
 - POST `/v2/reports`는 옛 연습 리포트 작업(`create_report_v2_reports_post`)이 아니라 챌린지 신고
   (`create_challenge_report_v2_reports_post`)다. V19는 `entry_saves`·`entry_comments`·`entry_reports`를 더한다.
+- **공개 참여작 AI 검사**(V70, SOMA-907): 공개 참여작은 검사를 기다리지 않고 바로 보인다. 공개로 만들거나, 처음 공개로
+  바꾸거나, 공개 중 캡션이 바뀌면 `challenge_entries.moderation_status='pending'` 이 되고, `challenge/app/EntryModerationWorker`
+  가 집기(시도 수를 올려 커밋) · 판정 받기(`EntryModerationModel`, Gemini — 원본 영상 + 챌린지 대사 + 캡션, 트랜잭션 밖) ·
+  붙이기로 돈다. 붙이기는 신고와 같은 순서(챌린지 마감 집계 → 참여작 행)로 잡고, 집은 뒤 캡션이 바뀌었거나 다른 시도가
+  앞섰으면 버린다. 판정은 `passed`(그대로) · `flagged`(신고 숨김으로 돌리고 AI 신고를 남긴다) · `review`(보이게 두고 AI 신고)
+  이고, `ChallengeRules.MODERATION_MAX_ATTEMPTS` 번 실패하면 `failed`(보이게 두고 AI 신고)다. AI 신고는
+  `entry_reports.source='ai'`, `reporter_id` 없음이며 운영 판정 화면에 사람 신고와 함께 나온다. 운영이 풀면(restored·dismissed)
+  AI 판정은 `passed` 가 되고, 숨김 유지(kept_hidden)는 아직 보이던 참여작도 숨긴다. `passed` 참여작은 처리 전 사람 신고가
+  서로 다른 `PASSED_ENTRY_REPORT_THRESHOLD` 명에게서 모여야 숨기고, 그 밖의 참여작은 지금처럼 신고 하나에 숨긴다. 스위치는
+  `ANALYSIS_WORKER_ENABLED` 와 `CHALLENGE_MODERATION_ENABLED`(테스트는 후자를 전역으로 끈다), 모델은
+  `CHALLENGE_MODERATION_MODEL`(없으면 `GEMINI_MODEL`)이다. V70 은 이미 공개된 참여작을 한 번 검사 차례로 둔다.
 
 ### 6-19. 챌린지 AI 리포트 (0.1.0)
 

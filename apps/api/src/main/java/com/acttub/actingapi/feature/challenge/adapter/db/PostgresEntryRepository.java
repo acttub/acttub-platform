@@ -110,9 +110,9 @@ class PostgresEntryRepository implements EntryRepository {
         boolean open = "public".equals(entry.visibility());
         em.createNativeQuery("""
                 INSERT INTO challenge_entries(id,challenge_id,user_id,video_id,caption,visibility,published_at,status,
-                    request_id,request_fingerprint,created_at,updated_at,face_mosaic,mosaic_status)
+                    request_id,request_fingerprint,created_at,updated_at,face_mosaic,mosaic_status,moderation_status)
                 VALUES (:id,:challenge,:owner,:video,:caption,:visibility,CASE WHEN :open THEN CAST(:now AS timestamptz) END,'visible',:request,:fingerprint,:now,:now,
-                    :mosaic,CASE WHEN :mosaic THEN 'pending' END)
+                    :mosaic,CASE WHEN :mosaic THEN 'pending' END,CASE WHEN :open THEN 'pending' END)
                 """).setParameter("id", id).setParameter("mosaic", entry.faceMosaic()).setParameter("challenge", challengeId).setParameter("owner", owner)
                 .setParameter("video", entry.videoId()).setParameter("caption", entry.caption())
                 .setParameter("visibility", entry.visibility())
@@ -128,9 +128,11 @@ class PostgresEntryRepository implements EntryRepository {
         Tuple entry = lockOwnEntry(owner, entryId, now);
         // 모자이크를 먼저 바꾼다 — 같은 요청의 공개 전환이 바뀐 모자이크 상태로 공개 조건을 탄다.
         if (faceMosaic != null) mosaic(owner, entryId, faceMosaic, now);
+        boolean captionChanged = false;
         if (caption != null) {
             String next = caption.isEmpty() ? null : caption;
             if (!java.util.Objects.equals(next, entry.get("caption", String.class))) {
+                captionChanged = true;
                 em.createNativeQuery("""
                         UPDATE challenge_entries SET caption=:caption,content_version=content_version+1,updated_at=:now WHERE id=:id
                         """).setParameter("caption", next).setParameter("now", now.atOffset(ZoneOffset.UTC))
@@ -156,6 +158,12 @@ class PostgresEntryRepository implements EntryRepository {
             em.createNativeQuery("UPDATE challenge_entries SET visibility='private',updated_at=:now WHERE id=:id")
                     .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
         }
+        // 공개 참여작 AI 검사(SOMA-907): 처음 공개되거나 공개 중 캡션이 바뀌면 다시 검사 차례로 둔다. 영상은 바뀌지 않으므로
+        // 한 번 본 참여작을 비공개→공개로 다시 여는 것만으로는 검사하지 않는다.
+        em.createNativeQuery("""
+                UPDATE challenge_entries SET moderation_status='pending',moderation_attempts=0
+                WHERE id=:id AND visibility='public' AND status='visible' AND (moderation_status IS NULL OR :changed)
+                """).setParameter("id", entryId).setParameter("changed", captionChanged).executeUpdate();
         return cards.mine(owner, entryId);
     }
 
