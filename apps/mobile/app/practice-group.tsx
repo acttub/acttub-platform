@@ -42,7 +42,7 @@ const CONTINUE_STEPS: SpotlightStep[] = [{ target: TARGET.groupContinue, text: '
  * A1.2 연습 기록 상세 — 묶음 하나.
  *
  * 묶음의 영상, 회차 흐름(n차 · 시각 · 대화 수 · 노트 제목 · 노트 보기), 마지막 대화와 이어 가는 버튼 하나를
- * 보여 준다(practice.library). 열린 테이크가 있으면 맨 위에 「대화 이어 가기」(그 대화로 바로), 없으면 아래에
+ * 보여 준다(practice.library). 열린 테이크가 있으면 그 회차 카드 안에 「대화 이어 가기」(그 대화로 바로), 아래 고정 바에
  * 「다음 테이크 찍기」(새 영상을 골라 장면은 비운 채 시작)다(practice.resume, SOMA-672). 숨김은 묶음 전체이고
  * 영상은 보관함에 남는다.
  *
