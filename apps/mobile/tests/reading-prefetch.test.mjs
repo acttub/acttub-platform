@@ -172,3 +172,18 @@ test('대본이 다르면 파일 이름도 다르다 — 대본을 지울 때 �
   assert.notEqual(a, b);
   assert.equal(isSpeechFileName(a) && isSpeechFileName(b), true);
 });
+
+test('make 는 큐가 아직 손대지 않았거나 실패한 줄을 지금 만들고, 만들어 둔 줄은 다시 만들지 않는다(SOMA-912)', async () => {
+  const { calls, synthesize } = fakeSynth();
+  const queue = createSpeechQueue({ synthesize, ...options });
+  assert.equal(await queue.take('건너뛴 줄'), null);
+  const made = queue.make('건너뛴 줄');
+  assert.equal(calls.length, 1);
+  calls[0].resolve('file:///skip.wav');
+  assert.equal(await made, 'file:///skip.wav');
+  assert.equal(await queue.make('건너뛴 줄'), 'file:///skip.wav');
+  assert.equal(calls.length, 1);
+  const failed = queue.make('실패할 줄');
+  calls[1].reject(new Error('x'));
+  assert.equal(await failed, null);
+});

@@ -92,10 +92,10 @@ test('reading.cast: 같은 성별 목소리를 다 쓰면 목록 첫 목소리�
   assert.deepEqual(Object.values(shownVoices(men, { m0: null })), ['M3', 'M4', 'M2', 'M1', 'M5', 'M3']);
 });
 
-test('reading.cast: 성별을 모르면 예전 순환이되, 이미 쓴 목소리는 건너뛴다', () => {
+test('reading.cast: 성별을 모르면 성별 아는 배역이 적은 쪽, 같으면 예전 순환이되 이미 쓴 목소리는 건너뛴다', () => {
   const mixed = [cg('a', 'f', 'young', 'M2'), cg('b', null, null), cg('c', null, null)];
-  // a 가 F2 를 쓰므로 순환은 F1, M1 (F2 를 건너뛸 차례가 아님) → b F1, c M1.
-  assert.deepEqual(shownVoices(mixed, { a: null }), { a: 'F2', b: 'F1', c: 'M1' });
+  // a 가 여자(F2)라 b 는 남자 M1, 이제 남녀가 같으니 c 는 순환 첫 자리 F1.
+  assert.deepEqual(shownVoices(mixed, { a: null }), { a: 'F2', b: 'M1', c: 'F1' });
   const pinnedF1 = [cg('a', null, null, 'F1'), cg('b', null, null, 'M2')];
   assert.equal(autoVoiceOf(pinnedF1, {}, 'b'), 'M1', '고정한 F1 은 건너뛴다');
 });
@@ -112,4 +112,12 @@ test('reading.cast: 목소리 정하기는 코드 대신 이름을 보이고, �
   ]) {
     assert.match(ko, new RegExp(`${code}: '${name}'`), code);
   }
+});
+
+test('reading.cast: 여자 둘과 성별 모를 배역 하나면 그 배역은 남자 목소리다(SOMA-912 운영 대본)', () => {
+  const cast = [cg('helen', 'f', 'senior'), cg('elsa', 'f', 'young'), cg('marius', null, null)];
+  assert.deepEqual(shownVoices(cast, { helen: 'F5' }), { helen: 'F5', elsa: 'F2', marius: 'M1' });
+  // 남자가 많으면 성별 모를 배역은 여자 목소리(앞 배역을 고정해 미리 셈을 부른다).
+  const men = [cg('a', 'm', 'adult'), cg('b', 'm', null), cg('c', null, null)];
+  assert.deepEqual(shownVoices(men, { a: 'M4' }), { a: 'M4', b: 'M1', c: 'F1' });
 });

@@ -41,3 +41,9 @@ test('consentBodyWithoutTitle: 시트가 제목을 따로 보여 주므로 문�
   assert.equal(consentBodyWithoutTitle('시행일: 오늘'), '시행일: 오늘');
   assert.equal(consentBodyWithoutTitle('## 소제목은 남긴다'), '## 소제목은 남긴다');
 });
+
+test('남은 하루 한도로 이번 회차 상대 대사를 다 못 읽으면 서버 음성을 쓰지 않는다(SOMA-912)', () => {
+  const status = { available: true, free_until: null, consent: 'granted', daily_limit: 300, daily_used: 100 };
+  assert.equal(shouldUseCloudVoice({ enabled: true, status, lines: 200 }), true);
+  assert.equal(shouldUseCloudVoice({ enabled: true, status, lines: 201 }), false);
+});

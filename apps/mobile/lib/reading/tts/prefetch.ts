@@ -37,6 +37,11 @@ export type SpeechQueue = {
    * 아직 손도 안 댔거나 실패했으면 null — 부르는 쪽이 그때 직접 만든다.
    */
   take: (text: SpeechLine) => Promise<string | null>;
+  /**
+   * 그 줄을 지금 만든다 — 아직 손대지 않았거나 실패한 줄. 만드는 중이면 그것을 기다린다. 실패하면 null (SOMA-912:
+   * 서버 음성 회차에서 큐가 못 따라온 줄을 곧바로 기기 목소리로 읽어 한 배역의 목소리가 중간에 바뀌던 것을 막는다).
+   */
+  make: (text: SpeechLine) => Promise<string | null>;
   /** 화면을 나갈 때. 만들던 것이 끝나도 다음 줄로 넘어가지 않는다. */
   cancel: () => void;
   /** 시험용 — 지금 만들고 있는 한 줄이 끝날 때까지 기다린다(다음 줄은 그때 막 시작한다). */
@@ -115,6 +120,10 @@ export function createSpeechQueue(options: SpeechQueueOptions): SpeechQueue {
       if (ready) return ready;
       const making = inFlight.get(key);
       return making ? await making : null;
+    },
+    async make(line) {
+      if (!textOf(line)) return null;
+      return done.get(keyOf(line)) ?? (await makeOne(line));
     },
     cancel() {
       cancelled = true;

@@ -11,9 +11,20 @@ export type CloudVoiceStatus = {
 export type CloudVoicePreset = 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'F1' | 'F2' | 'F3' | 'F4' | 'F5';
 export const CLOUD_VOICE_KEY = 'acttub.cloudVoice';
 
-export function shouldUseCloudVoice(input: { enabled: boolean; status: CloudVoiceStatus | null }): boolean {
-  const { enabled, status } = input;
-  return !!(enabled && status?.available && status.consent === 'granted' && status.daily_used < status.daily_limit);
+/**
+ * lines 는 이번 회차에 서버 음성으로 읽을 상대 대사 수. 남은 하루 한도가 그보다 적으면 회차 중간에 한도(429)에 걸려 남은 줄을
+ * 기기 목소리로 읽게 되고, 같은 배역의 목소리가 중간에 바뀐다(SOMA-912). 그런 회차는 처음부터 앱 목소리로 읽는다.
+ * 서버에 저장본이 있는 줄은 한도를 쓰지 않지만 기기는 알 수 없어 모두 센다.
+ */
+export function shouldUseCloudVoice(input: { enabled: boolean; status: CloudVoiceStatus | null; lines?: number }): boolean {
+  const { enabled, status, lines = 0 } = input;
+  return !!(
+    enabled &&
+    status?.available &&
+    status.consent === 'granted' &&
+    status.daily_used < status.daily_limit &&
+    lines <= status.daily_limit - status.daily_used
+  );
 }
 
 export function shouldStopCloudVoiceForSession(error: { status?: number } | null | undefined): boolean {

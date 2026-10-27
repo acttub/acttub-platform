@@ -93,8 +93,8 @@ class VoiceAssignmentTest {
     void unknownGenderRotatesAndSkipsUsedPresets() {
         assertThat(VoiceAssignment.assign(List.of(auto(M, CharacterAgeBand.YOUNG), auto(null, null), auto(null, null))))
                 .containsExactly("M1", "F1", "F2");
-        assertThat(VoiceAssignment.assign(List.of(auto(null, null), auto(F, null))))
-                .as("순환이 가져간 F1 을 성별 목록도 건너뛴다").containsExactly("F1", "F2");
+        assertThat(VoiceAssignment.assign(List.of(auto(null, null), auto(null, null), auto(F, null))))
+                .as("순환이 가져간 F1 을 성별 목록도 건너뛴다(SOMA-912: 여자가 하나라 첫 모름 배역은 남자)").containsExactly("M1", "F1", "F2");
         assertThat(VoiceAssignment.assign(List.of(pinned("M1"), auto(null, CharacterAgeBand.ADULT), auto(null, null))))
                 .as("나이대만 알면 성별을 모르는 것과 같다").containsExactly("M1", "F1", "F2");
     }
@@ -127,6 +127,15 @@ class VoiceAssignmentTest {
 
     private static Cast pinned(String preset) {
         return new Cast(preset, null, null);
+    }
+
+    @Test
+    @DisplayName("SOMA-912: 여자 둘과 성별 모를 배역 하나면 그 배역은 남자 목소리다")
+    void unknownGenderTakesTheFewerGender() {
+        assertThat(VoiceAssignment.assign(List.of(auto(F, CharacterAgeBand.SENIOR), auto(F, CharacterAgeBand.YOUNG),
+                new VoiceAssignment.Cast(null, null, null)))).containsExactly("F5", "F2", "M1");
+        assertThat(VoiceAssignment.assign(List.of(auto(M, CharacterAgeBand.ADULT), auto(M, null),
+                new VoiceAssignment.Cast(null, null, null)))).containsExactly("M3", "M1", "F1");
     }
 
     private static List<String> presets(String... values) {

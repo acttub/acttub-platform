@@ -616,7 +616,16 @@ export default function ReadingPlay() {
     ]);
     if (!mounted.current) return;
     deviceVoiceRef.current = deviceVoice;
-    if (shouldUseCloudVoice({ enabled: cloudEnabled, status: cloudStatus })) {
+    // 이번 회차에 서버 음성으로 만들 상대 대사 수 — 남은 한도로 끝까지 못 읽으면 서버 음성을 쓰지 않는다(SOMA-912).
+    const cloudLines = new Set<string>();
+    if (config) {
+      for (let i = runRef.current?.index ?? config.startIndex; i <= config.endIndex; i++) {
+        const l = config.lines[i];
+        if (l?.type !== 'dialogue' || config.myRoles.includes(l.role)) continue;
+        for (const part of speechParts(l)) cloudLines.add(`${presetFor(l.role)}\u0000${speakableText(part.text)}`);
+      }
+    }
+    if (shouldUseCloudVoice({ enabled: cloudEnabled, status: cloudStatus, lines: cloudLines.size })) {
       chooseEngine('cloud');
       startRunning();
       await primeSpeech(runRef.current?.index ?? 0)?.first();
@@ -887,7 +896,11 @@ export default function ReadingPlay() {
             await speakWithDevice(text, preset, { locale: speechLocaleFor(lang) });
             continue;
           }
-          const ready = await primeSpeech(from)?.take({ text, preset, lang });
+          // 큐가 아직 못 만든 줄(건너뛰기·앞 줄 실패)은 기기 목소리로 바로 넘기지 않고 이 엔진으로 지금 만든다 — 같은 배역을
+          // 다른 목소리가 중간중간 읽지 않게(SOMA-912). 앱 목소리는 아래 tts.speak 가 같은 일을 한다.
+          const queue = primeSpeech(from);
+          let ready = (await queue?.take({ text, preset, lang })) ?? null;
+          if (!ready && engine === 'cloud' && !cancelled && mounted.current) ready = (await queue?.make?.({ text, preset, lang })) ?? null;
           if (cancelled || !mounted.current) return;
           if (ready) {
             setLineEngine(engine);

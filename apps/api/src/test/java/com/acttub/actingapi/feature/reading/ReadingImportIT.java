@@ -1086,7 +1086,7 @@ class ReadingImportIT {
         assertThat(script.path("characters")).extracting(character -> character.path("name").textValue() + "|"
                         + character.path("gender").textValue() + "|" + character.path("age_band").textValue() + "|"
                         + character.path("voice").textValue())
-                .as("대사 수가 같으면 먼저 말한 순 — 성별 모르는 뱅코우·마녀는 순환(F1, 다음 M1)").containsExactly("뱅코우|null|senior|F1", "맥베스|m|adult|M3", "마녀|null|null|M1");
+                .as("대사 수가 같으면 먼저 말한 순 — 성별 아는 배역이 남자 하나라 성별 모르는 뱅코우는 적은 쪽(여자)·나이대 목록의 F5, 그 뒤 수가 같아진 마녀는 순환의 F1 (SOMA-912)").containsExactly("뱅코우|null|senior|F5", "맥베스|m|adult|M3", "마녀|null|null|F1");
     }
 
     /** 글을 접수하고 워커를 한 번 돌려 만든 대본 id. */
