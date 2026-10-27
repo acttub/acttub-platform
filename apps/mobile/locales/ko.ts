@@ -1309,6 +1309,11 @@ const ko = {
     fallbackNotice: '정리를 다 만들지 못해 확인된 것만 담았어요.',
     title: '배우 일지',
     loadFail: '연습 노트를 불러오지 못했어요.',
+    loadFailTitle: '연습 노트를 불러오지 못했어요',
+    loadFailBody: '잠시 후 다시 시도해 주세요.',
+    noneTitle: '아직 정리가 없어요',
+    noneBody: '잠시 뒤 다시 열어 주세요.',
+    noneDetailBody: '코칭이 끝나면 여기에 정리돼요',
     finish: '연습 마치기',
     // 배우 일지·코칭 마무리(SOMA-748)
     saveFinish: '저장하고 마치기',
@@ -1376,6 +1381,8 @@ const ko = {
     rateSend: '보내기',
     rateThanks: '고마워요! 다음 코칭에 반영할게요.',
     noPractice: '진행 중인 연습이 없어요.',
+    noPracticeTitle: '진행 중인 연습이 없어요',
+    noPracticeBody: '홈에서 새 연습을 시작해 주세요.',
     making: '대화를 정리해서 카드를 만들고 있어요…',
   },
   consent: {

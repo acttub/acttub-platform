@@ -1315,6 +1315,11 @@ const en: DeepStringShape<typeof ko> = {
     fallbackNotice: "The note couldn't be finished, so it holds only what was confirmed.",
     title: 'Actor journal',
     loadFail: "Couldn't load the practice note.",
+    loadFailTitle: "Couldn't load your practice note",
+    loadFailBody: 'Please try again in a moment.',
+    noneTitle: 'No summary yet',
+    noneBody: 'Open it again in a little while.',
+    noneDetailBody: "It'll show up here once coaching ends.",
     finish: 'Finish practice',
     // Actor journal and wrap-up (SOMA-748)
     saveFinish: 'Save and finish',
@@ -1380,6 +1385,8 @@ const en: DeepStringShape<typeof ko> = {
     rateSend: 'Send',
     rateThanks: 'Thank you! We’ll fold it into the next session.',
     noPractice: 'No practice in progress.',
+    noPracticeTitle: 'No practice in progress',
+    noPracticeBody: 'Start a new practice from Home.',
     making: 'Turning the conversation into your card…',
   },
   consent: {
