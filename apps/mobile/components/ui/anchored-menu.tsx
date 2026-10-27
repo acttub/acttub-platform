@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     paddingVertical: MENU_PAD,
     ...shadowOverlay,
   },
-  item: { height: MENU_ITEM_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingHorizontal: space[4] },
+  item: { minHeight: MENU_ITEM_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingHorizontal: space[4] },
   pressed: { backgroundColor: palette.bgSoft },
   label: { ...type.body2Bold, flexShrink: 1 },
 });

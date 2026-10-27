@@ -239,7 +239,7 @@ describe('확인창·시트', () => {
     );
     const card = StyleSheet.flatten(screen.getByTestId('anchored-menu').props.style);
     expect([card.width, card.borderWidth, card.borderRadius, card.overflow]).toEqual([200, 1, 12, undefined]);
-    expect(StyleSheet.flatten(screen.getByRole('button', { name: '제목 수정' }).props.style).height).toBe(44);
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: '제목 수정' }).props.style).minHeight).toBe(44);
     expect(StyleSheet.flatten(screen.getByText('대본 삭제').props.style).color).toBe('#E42939');
     await fireEvent.press(screen.getByRole('button', { name: '대본 삭제' }));
     expect(pick).toHaveBeenCalledTimes(1);

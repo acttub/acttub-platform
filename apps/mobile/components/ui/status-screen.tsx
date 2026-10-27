@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { type ImageSourcePropType, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/buttons';
@@ -61,7 +61,8 @@ export function StatusScreen({
           ))}
         </SkeletonGroup>
       ) : (
-        <View style={styles.body}>
+        // 작은 기기·큰 글자에서도 버튼까지 닿게 본문을 스크롤로 둔다.
+        <ScrollView contentContainerStyle={styles.body}>
           <Image
             source={mascot}
             style={empty ? MASCOT_SIZE.empty : MASCOT_SIZE.xl}
@@ -80,7 +81,7 @@ export function StatusScreen({
               ) : null}
             </View>
           ) : null}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -88,7 +89,7 @@ export function StatusScreen({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingTop: 96, paddingHorizontal: space.gutter, gap: space[3], alignItems: 'center' },
+  body: { paddingTop: 96, paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3], alignItems: 'center' },
   title: { ...type.title1, color: palette.text, textAlign: 'center' },
   titleEmpty: type.title2,
   text: { ...type.body2, color: palette.textSub, textAlign: 'center' },
