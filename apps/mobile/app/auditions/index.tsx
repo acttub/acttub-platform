@@ -385,11 +385,11 @@ const styles = StyleSheet.create({
   tags: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
   tag: {
     paddingHorizontal: space[1.5],
+    ...type.micro,
     height: 20,
     lineHeight: 20,
     borderRadius: radius.full,
     overflow: 'hidden',
-    ...type.micro,
   },
   tagNew: { backgroundColor: palette.blue, color: palette.onAccent },
   tagCategory: { backgroundColor: palette.bgSoft, color: palette.textSub },

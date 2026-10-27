@@ -302,12 +302,12 @@ function FilterRow({
 const styles = StyleSheet.create({
   campus: {
     paddingHorizontal: space[1.5],
+    ...type.micro,
     height: 20,
     lineHeight: 20,
     borderRadius: radius.full,
     overflow: 'hidden',
     backgroundColor: palette.bgSoft,
-    ...type.micro,
     color: palette.textSub,
   },
   filterBar: { flexDirection: 'row', gap: space[1.5], flexWrap: 'wrap' },

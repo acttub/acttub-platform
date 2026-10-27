@@ -12,6 +12,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type GestureResponderEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
@@ -39,7 +40,6 @@ import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { newRequestId } from '@/lib/request-id';
 import { limitVideoBuffer } from '@/lib/video-memory';
-import type { GestureResponderEvent } from 'react-native';
 
 /**
  * A15 챌린지 피드 — 고른 챌린지 **안에서만** 참여작을 위아래로 넘겨 본다.

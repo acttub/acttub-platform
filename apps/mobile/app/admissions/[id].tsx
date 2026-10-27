@@ -56,7 +56,6 @@ export default function UniversityDetailScreen() {
       .then(setPayload)
       .catch(() => setError('입시 정보를 불러오지 못했어요'));
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [id]);
 
   const university = payload?.universities[0] ?? null;
@@ -469,12 +468,12 @@ const styles = StyleSheet.create({
   region: { ...type.captionBold, color: palette.textMeta },
   tag: {
     paddingHorizontal: space[2],
+    ...type.micro,
     height: 20,
     lineHeight: 20,
     borderRadius: radius.full,
     overflow: 'hidden',
     backgroundColor: palette.bgSoft,
-    ...type.micro,
     color: palette.textSub,
   },
   notice: {
