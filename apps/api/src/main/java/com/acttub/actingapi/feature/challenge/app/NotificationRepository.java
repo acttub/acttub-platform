@@ -46,7 +46,9 @@ public interface NotificationRepository {
                  @Schema(requiredMode = REQUIRED) Instant latestAt,
                  @Schema(requiredMode = REQUIRED) boolean read,
                  @Schema(requiredMode = REQUIRED, description = "대상이 삭제·비공개·숨김으로 볼 수 없으면 false(본인 AI 리포트는 예외)")
-                 boolean targetAvailable) { }
+                 boolean targetAvailable,
+                 @Schema(requiredMode = REQUIRED, description = "대상이 받는 사람 본인의 참여작이고 신고·AI 검사로 운영 확인 중이라 숨겨졌으면 true")
+                 boolean targetHidden) { }
 
     @Schema(name = "ChallengeNotifications", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

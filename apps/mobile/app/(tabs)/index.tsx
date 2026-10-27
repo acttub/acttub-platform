@@ -20,6 +20,7 @@ import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { rememberPracticeDays } from '@/lib/practice-days';
+import { dDayLabel } from '@/lib/challenge/browse';
 import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
 import { skipsHomeGuide } from '@/lib/returning-account';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
@@ -481,7 +482,7 @@ export default function HomeScreen() {
     tone: 'orange',
     title: t('home.rowChallenge'),
     sub: featured
-      ? [`‘${featured.line}’`, featuredDays !== null && featuredDays >= 0 ? `D-${featuredDays}` : null].filter(Boolean).join(' · ')
+      ? [`‘${featured.line}’`, featuredDays !== null && featuredDays >= 0 ? dDayLabel(featured) : null].filter(Boolean).join(' · ')
       : t('home.rowChallengeSub'),
     phLabel: 'home_row_challenge',
     onPress: () => (featured ? router.push({ pathname: '/challenge-detail', params: { id: featured.id } }) : router.push('/challenges')),

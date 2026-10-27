@@ -12359,9 +12359,14 @@
             "type" : "boolean",
             "description" : "대상이 삭제·비공개·숨김으로 볼 수 없으면 false(본인 AI 리포트는 예외)",
             "title" : "Target Available"
+          },
+          "target_hidden" : {
+            "type" : "boolean",
+            "description" : "대상이 받는 사람 본인의 참여작이고 신고·AI 검사로 운영 확인 중이라 숨겨졌으면 true",
+            "title" : "Target Hidden"
           }
         },
-        "required" : [ "actor_count", "actor_name", "challenge_id", "comment_excerpt", "comment_id", "entry_id", "event_count", "group_key", "kind", "latest_at", "read", "target_available" ],
+        "required" : [ "actor_count", "actor_name", "challenge_id", "comment_excerpt", "comment_id", "entry_id", "event_count", "group_key", "kind", "latest_at", "read", "target_available", "target_hidden" ],
         "title" : "ChallengeNotificationGroup"
       },
       "ChallengeNotifications" : {

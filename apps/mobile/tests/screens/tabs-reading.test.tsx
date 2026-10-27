@@ -356,7 +356,7 @@ describe('처음 온 사람', () => {
     await render(withHost);
 
     expect(await screen.findByText('대본을 넣어 보세요')).toBeOnTheScreen();
-    expect(screen.queryByText('대본 리딩 한 바퀴 해볼까요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('대본 리딩 한 바퀴 해 볼까요?')).not.toBeOnTheScreen();
     expect(markReadingTutorialSeen).toHaveBeenCalled();
     expect(hasSeenSpotlight).toHaveBeenCalledWith('reading');
   });
@@ -367,7 +367,7 @@ describe('처음 온 사람', () => {
     await render(withHost);
 
     expect(await screen.findByText('대본을 넣어 보세요')).toBeOnTheScreen();
-    expect(screen.queryByText('대본 리딩 한 바퀴 해볼까요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('대본 리딩 한 바퀴 해 볼까요?')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByText('알겠어요'));
     await waitFor(() => expect(markSpotlightSeen).toHaveBeenCalledWith('reading'));
     expect(screen.queryByText('대본을 넣어 보세요')).not.toBeOnTheScreen();

@@ -46,6 +46,11 @@ class PostgresNotificationRepository implements NotificationRepository {
               ELSE EXISTS(SELECT 1 %s WHERE e.id=n.entry_id AND %s)
             END
             """.formatted(ChallengeVisibility.ENTRY_FROM, ChallengeVisibility.PUBLIC_ENTRY);
+    /** 받는 사람 본인의 참여작이 신고·AI 검사로 운영 확인 중이라 숨겨졌는가 — 알림을 눌렀을 때 이유를 말해 주려고 쓴다. */
+    private static final String OWN_HIDDEN = """
+            EXISTS(SELECT 1 FROM challenge_entries e
+                   WHERE e.id=n.entry_id AND e.user_id=n.user_id AND e.status='hidden_by_report')
+            """;
     private final EntityManager em;
 
     PostgresNotificationRepository(EntityManager em) { this.em = em; }
@@ -73,12 +78,13 @@ class PostgresNotificationRepository implements NotificationRepository {
                          (array_agg(n.entry_id ORDER BY n.created_at DESC,n.id DESC))[1] AS entry_id,
                          (array_agg(n.comment_id ORDER BY n.created_at DESC,n.id DESC))[1] AS comment_id,
                          (array_agg(n.actor_user_id ORDER BY n.created_at DESC,n.id DESC))[1] AS actor_id,
-                         bool_or(%s) AS available
+                         bool_or(%s) AS available,
+                         bool_or(%s) AS hidden
                   FROM notifications n
                   WHERE n.user_id=:user AND n.expires_at>:now AND %s
                   GROUP BY n.group_key
                 ) g
-                """.formatted(AVAILABLE, VALID) + (at == null ? "" : " WHERE (g.latest_at,g.group_key)<(:at,:after) ")
+                """.formatted(AVAILABLE, OWN_HIDDEN, VALID) + (at == null ? "" : " WHERE (g.latest_at,g.group_key)<(:at,:after) ")
                 + " ORDER BY g.latest_at DESC,g.group_key DESC", Tuple.class)
                 .setParameter("user", user).setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setMaxResults(NotificationRules.PAGE + 1);
@@ -94,7 +100,8 @@ class PostgresNotificationRepository implements NotificationRepository {
                     ((Number) row.get("actor_count")).longValue(), ((Number) row.get("event_count")).longValue(),
                     actor == null ? null : name(actor), row.get("challenge_id", UUID.class), row.get("entry_id", UUID.class), comment,
                     comment == null || !available ? null : excerpt(comment), row.get("latest_at", Instant.class),
-                    ((Number) row.get("unread")).longValue() == 0, available));
+                    ((Number) row.get("unread")).longValue() == 0, available,
+                    !available && Boolean.TRUE.equals(row.get("hidden", Boolean.class))));
         }
         String next = more ? Base64.getUrlEncoder().withoutPadding().encodeToString(("N|" + user + "|" + groups.getLast().latestAt()
                 + "|" + groups.getLast().groupKey()).getBytes(StandardCharsets.UTF_8)) : null;

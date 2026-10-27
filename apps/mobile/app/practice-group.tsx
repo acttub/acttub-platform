@@ -31,6 +31,8 @@ import { PRACTICE_TITLE_MAX } from '@/lib/practice/start';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
+import { countedPractices } from '@/lib/practice/counted';
+import { skipsGroupGuide } from '@/lib/returning-account';
 import { TARGET } from '@/lib/spotlight-targets';
 import type { CoachConversation, PracticeGroupDetail } from '@/lib/practice/types';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -77,8 +79,21 @@ export default function PracticeGroupScreen() {
     if (!group || group.in_progress_practice_id) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let alive = true;
-    void hasSeenSpotlight('group').then((seen) => {
+    void hasSeenSpotlight('group').then(async (seen) => {
       if (seen || !alive) return;
+      // 안내를 본 기록은 기기에만 남아, 다시 깐 기존 계정에도 떴다 — 서버 기록으로 이미 써 본 계정이면 본 것으로 남긴다.
+      const groups = await Promise.resolve()
+        .then(() => api.listPracticeGroups('all'))
+        .then((r) => r.groups)
+        .catch(() => null);
+      if (!alive) return;
+      if (groups && skipsGroupGuide({
+        countedPracticeCount: countedPractices({ groups }).length,
+        continuedBefore: groups.some((g) => g.practices.length > 1),
+      })) {
+        void markSpotlightSeen('group');
+        return;
+      }
       timer = setTimeout(() => alive && setGuideOpen(true), 300);
     });
     return () => {

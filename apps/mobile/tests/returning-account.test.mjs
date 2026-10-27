@@ -5,6 +5,7 @@ import {
   RETURNING_MIN_PRACTICES,
   skipsChallengeFirstPick,
   skipsFirstReadingGuide,
+  skipsGroupGuide,
   skipsHomeGuide,
   skipsReadingTabGuide,
 } from '../lib/returning-account.ts';
@@ -45,4 +46,12 @@ test('챌린지 첫 고르기 — 참여작이 있거나 연습이 쌓인 계정
   assert.equal(skipsChallengeFirstPick({ entryCount: 0, countedPracticeCount: RETURNING_MIN_PRACTICES - 1 }), false);
   assert.equal(skipsChallengeFirstPick({ entryCount: 1, countedPracticeCount: 0 }), true);
   assert.equal(skipsChallengeFirstPick({ entryCount: 0, countedPracticeCount: RETURNING_MIN_PRACTICES }), true);
+});
+
+test('코칭 기록 상세 — 이어 찍은 적이 있거나 연습이 쌓인 계정은 「이어서 연습할 수 있어요!」를 건너뛴다', () => {
+  assert.equal(skipsGroupGuide({ countedPracticeCount: 1, continuedBefore: false }), false);
+  assert.equal(skipsGroupGuide({ countedPracticeCount: RETURNING_MIN_PRACTICES - 1, continuedBefore: false }), false);
+  assert.equal(skipsGroupGuide({ countedPracticeCount: RETURNING_MIN_PRACTICES, continuedBefore: false }), true);
+  assert.equal(skipsGroupGuide({ countedPracticeCount: 1, continuedBefore: true }), true);
+  assert.equal(skipsGroupGuide({ countedPracticeCount: 16, continuedBefore: false }), true);
 });

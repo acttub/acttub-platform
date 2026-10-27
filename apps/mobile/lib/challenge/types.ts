@@ -252,6 +252,8 @@ export type NotificationGroup = {
   read: boolean;
   /** 대상이 삭제·비공개·숨김·차단으로 보이지 않으면 거짓이다(본인 리포트는 예외). */
   target_available: boolean;
+  /** 대상이 내 참여작이고 신고·AI 검사로 운영 확인 중이라 숨겨졌으면 참이다. 예전 서버는 보내지 않는다. */
+  target_hidden?: boolean;
 };
 
 export type NotificationsResponse = {

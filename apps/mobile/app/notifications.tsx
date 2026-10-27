@@ -81,7 +81,7 @@ export default function NotificationsScreen() {
     const target = targetOf(group);
     logEvent('notification_open', { kind: group.kind, target: target.kind });
     if (target.kind === 'unavailable') {
-      void alert({ title: unavailableMessage() });
+      void alert({ title: unavailableMessage(target) });
       return;
     }
     if (target.kind === 'home') {
