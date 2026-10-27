@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
-import { InfoBanner } from '@/components/ui/info-banner';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
@@ -269,7 +268,6 @@ export default function ScriptCocreateScreen() {
         <View style={styles.center}>
           <Text style={styles.waitTitle}>{t('scriptCocreate.generating')}</Text>
           <Text style={styles.waitSub}>{t('scriptCocreate.generatingSub')}</Text>
-          <InfoBanner title={t('scriptCocreate.generatingLeaveTitle')} body={t('scriptCocreate.generatingLeaveBody')} style={styles.waitBanner} />
         </View>
       ) : step === 'result' && script ? (
         <View style={styles.flex}>
@@ -613,7 +611,6 @@ const styles = StyleSheet.create({
   failTitle: { fontSize: 21, fontWeight: '800', lineHeight: 30, color: palette.text, textAlign: 'center' },
   failSub: { fontSize: 15, lineHeight: 22, color: palette.textMeta, textAlign: 'center' },
   waitSub: { fontSize: 14, fontWeight: '500', color: palette.textMeta, textAlign: 'center' },
-  waitBanner: { alignSelf: 'stretch', marginTop: 14 },
   body: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   input: {

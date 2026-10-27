@@ -331,7 +331,7 @@ export default function UploadScreen() {
   }, [picked?.pendingId, picked?.videoId, user?.id]);
 
   // 「영상 올리는 중」 한 장(SOMA-817) — 올리는 중에 질문 받기를 누르면 다 올라갈 때까지 기다린다. 뒤로 가면(실패면 「나중에 할게요」도)
-  // 기다리는 업로드로 남기고 코칭 탭 첫 화면으로 간다(10-27 정함). 나가도 계속 올라가고, 홈 맨 위 카드가 이어서 코칭을 시작하게 한다.
+  // 기다리는 업로드로 남기고 홈으로 간다. 나가도 계속 올라가고, 홈 맨 위 카드가 이어서 코칭을 시작하게 한다.
   // 올리던 영상을 버리는 길은 두지 않는다.
   const leaveWaiting = () => {
     const pendingId = picked?.pendingId;
@@ -347,7 +347,7 @@ export default function UploadScreen() {
           savedAt: Date.now(),
         })
       : Promise.resolve();
-    void remembered.catch(() => undefined).then(() => leaveThen(() => router.dismissTo('/coaching')));
+    void remembered.catch(() => undefined).then(() => leaveThen(() => router.dismissTo('/(tabs)')));
   };
   // 압축 실패(P3.27) — 영상을 버리고 고르기로 돌아간다.
   const pickOther = () => {

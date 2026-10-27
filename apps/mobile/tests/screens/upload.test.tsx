@@ -266,20 +266,20 @@ describe('갤러리에서 고르기', () => {
     expect(await screen.findByText('영상을 올리고 있어요')).toBeOnTheScreen();
     expect(screen.getByText('영상 길이에 따라 1분쯤 걸려요.')).toBeOnTheScreen();
     expect(screen.getByText('화면을 나가도 영상은 계속 올라가요')).toBeOnTheScreen();
-    expect(screen.getByText('다 올라가면 알림으로 알려 드릴게요.')).toBeOnTheScreen();
+    expect(screen.getByText('홈에서 올라가는 모습을 이어서 볼 수 있어요.')).toBeOnTheScreen();
     // 버튼·진행 막대 없이 기다린다. 올리던 영상을 버리는 길도 없다(10-27).
     expect(screen.queryAllByRole('button')).toEqual([]);
     expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
-    // 뒤로 가면 기다리는 업로드로 남기고 코칭 탭 첫 화면으로 간다 — 탭 묶음을 하나 더 쌓지 않는다(SOMA-853).
+    // 뒤로 가면 기다리는 업로드로 남기고 홈으로 간다(기다리는 업로드 카드가 홈에 있다) — 탭 묶음을 하나 더 쌓지 않는다(SOMA-853).
     const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
     expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
     await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
-    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(JSON.parse((await AsyncStorage.getItem('acttub.waitingUpload:u1')) as string)).toMatchObject({ owner: 'u1', pendingId: 'pend-1', videoId: null });
     expect(removePendingUpload).not.toHaveBeenCalled();
   });
 
-  test('올리기가 끊겨 실패 한 장이 뜨면 「나중에 할게요」는 영상을 버리지 않고 뒤로 가기와 같이 코칭 탭으로 나간다', async () => {
+  test('올리기가 끊겨 실패 한 장이 뜨면 「나중에 할게요」는 영상을 버리지 않고 뒤로 가기와 같이 홈으로 나간다', async () => {
     (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///g.mov' }] });
     (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'pend-1', uri: 'file:///doc/g.mov' } });
     (pendingLibraryUploads as jest.Mock).mockResolvedValue([{ id: 'pend-1', status: 'failed' }]);
@@ -290,7 +290,7 @@ describe('갤러리에서 고르기', () => {
     expect(await screen.findByText('영상을 다 올리지 못했어요')).toBeOnTheScreen();
     expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel ?? null)).toEqual([null, '다시 올리기']);
     await fireEvent.press(screen.getByText('나중에 할게요'));
-    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
     expect(removePendingUpload).not.toHaveBeenCalled();
   });
 

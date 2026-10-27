@@ -10,7 +10,7 @@ import { translate as t } from '@/lib/i18n';
 
 /**
  * pen P3.2·P3.24 「⑧ 새 연습 · 영상 올리는 중」(SOMA-817) — 영상이 다 올라가기를 기다리는 한 장.
- * 버튼은 없다. 뒤로 가면 기다리는 업로드로 남기고 코칭 탭으로 나간다(10-27 정함). 올리기 큐가 진행률을 주지 않아 막대도 없다.
+ * 버튼은 없다. 뒤로 가면 기다리는 업로드로 남기고 홈으로 나간다. 올리기 큐가 진행률을 주지 않아 막대도 없다.
  * 실패하면 「나중에 할게요」(뒤로 가기와 같은 길)와 「다시 올리기」.
  */
 export function UploadWaitPanel({ failed, onLater, onRetry }: { failed: boolean; onLater: () => void; onRetry: () => void }) {

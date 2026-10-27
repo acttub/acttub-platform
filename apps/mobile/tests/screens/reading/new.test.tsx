@@ -207,7 +207,7 @@ test('나누는 동안 서버가 알려 주는 줄 수와 나가도 계속된다
   expect(await screen.findByText('30% · 3 / 10줄')).toBeOnTheScreen();
   expect(screen.getByText('대본 길이에 따라 1분쯤 걸려요.')).toBeOnTheScreen();
   expect(screen.getByText('화면을 나가도 나누기는 계속돼요')).toBeOnTheScreen();
-  expect(screen.getByText('다 되면 알림으로 알려 드릴게요.')).toBeOnTheScreen();
+  expect(screen.getByText('다 되면 리딩 탭 대본 목록에 생겨요.')).toBeOnTheScreen();
   const back = jest.mocked(usePreventRemove).mock.calls.filter(([on]) => on).at(-1)![1];
   await act(async () => back({ data: { action: { type: 'GO_BACK' } } } as never));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
