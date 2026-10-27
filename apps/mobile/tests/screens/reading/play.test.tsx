@@ -38,7 +38,7 @@ const mockNavigation = {
   }),
 };
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: () => mockNavigation }));
-jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn() }));
+jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined), currentFirstUseOwner: () => null }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn(), listReadingScripts: jest.fn() } }));
@@ -690,6 +690,25 @@ test('내려받기를 고르면 받는 양과 불러오는 단계를 보이고, 
   await begin();
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(tts.play).toHaveBeenCalledWith('file:///speech.wav');
+});
+
+test('목소리를 내려받는 중에 뒤로 가면(안드로이드 뒤로 키·밀어서 나가기) 리딩 탭 첫 화면으로 간다', async () => {
+  jest.mocked(missingModelBytes).mockReturnValue(400 * 1024 * 1024);
+  jest.mocked(currentNetworkType).mockResolvedValue('wifi');
+  let report: (p: Parameters<NonNullable<Parameters<typeof tts.ensureReady>[0]>>[0]) => void = () => undefined;
+  jest.mocked(tts.ensureReady).mockImplementation((onProgress) => {
+    report = onProgress!;
+    return new Promise<void>(() => undefined);
+  });
+  await startPlay(PARTNER_FIRST, undefined, { begin: false });
+  expect(await screen.findByText('음성을 준비하고 있어요…')).toBeOnTheScreen();
+  await act(async () => report({ phase: 'download', receivedBytes: 100 * 1024 * 1024, totalBytes: 400 * 1024 * 1024, percent: 25, etaSeconds: 30 }));
+  expect(screen.getByText('상대역 목소리를 준비하고 있어요…')).toBeOnTheScreen();
+
+  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  const back = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
+  await act(async () => back({ data: { action: { type: 'GO_BACK' } } }));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
 });
 
 test.each([

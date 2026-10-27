@@ -10,9 +10,11 @@ import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { InfoBanner } from '@/components/ui/info-banner';
 import { palette } from '@/constants/palette';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { useWaitExit } from '@/hooks/use-wait-exit';
 import { logEvent } from '@/lib/analytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { api } from '@/lib/api';
@@ -85,6 +87,8 @@ export function CoachWaiting({
   // 튜토리얼 예시(SOMA-494) — 조회도 분석도 없이 몇 초 뒤 대화를 연다.
   // 설명(스포트라이트)을 다 본 뒤에 넘긴다 — 읽는 도중에 화면이 바뀌면 안 된다.
   const sample = isSamplePracticeId(practiceId);
+  // 영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다(10-27 정함). 분석은 서버에서 계속되고 끝나면 완료 푸시가 온다.
+  const leave = useWaitExit(!sample && !error, '/coaching');
   const [sampleReady, setSampleReady] = useState(false);
   const [guideDone, setGuideDone] = useState(false);
   const progressTarget = useSpotlightTarget(TARGET.analyzingProgress);
@@ -418,12 +422,11 @@ export function CoachWaiting({
             <Text style={styles.notice}>{t('tutorial.sampleAnalyzing')}</Text>
           ) : (
             <>
-              <Text style={styles.notice}>{t('analyzing.usualTime')}</Text>
-              <Text style={styles.leaveHint}>{t('analyzing.leaveHint')}</Text>
-              {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 여기서는 홈으로 나간다. */}
+              <InfoBanner title={t('analyzing.leaveTitle')} body={t('analyzing.leaveBody')} style={styles.wide} />
+              {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 뒤로 가기와 같은 코칭 탭으로 나간다. */}
               <Pressable
                 style={({ pressed }) => [styles.notify, pressed && styles.pressed]}
-                onPress={() => router.dismissTo('/(tabs)')}
+                onPress={leave}
                 accessibilityRole="button"
                 accessibilityLabel={t('analyzing.notifyMe')}>
                 <Text style={styles.notifyText}>{t('analyzing.notifyMe')}</Text>
@@ -462,7 +465,6 @@ const styles = StyleSheet.create({
   // pen 09 아래 — 안쪽 [0,21,11,21], 안내 15/500 회색 · 14 · 파란 안내 14.5/700 · 10 · 회색 버튼 48 · 13 · 그만두기 15/700.
   bottom: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11, alignItems: 'center' },
   notice: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textMeta, textAlign: 'center' },
-  leaveHint: { fontSize: 14.5, fontWeight: '700', lineHeight: 19, color: palette.blueDeep, textAlign: 'center', marginTop: 14 },
   notify: { alignSelf: 'stretch', height: 48, borderRadius: 16, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   notifyText: { fontSize: 18, fontWeight: '700', color: palette.text },
   quit: { marginTop: 7 },

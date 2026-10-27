@@ -119,7 +119,7 @@ export async function runImport(
   onProgress: (progress: ImportProgress) => void,
   signal?: AbortSignal,
 ): Promise<ImportResult> {
-  if (signal?.aborted) return { kind: 'cancelled' };
+  // 떠난 뒤에도 접수는 한다 — 파일 읽기를 기다리는 사이 뒤로 가도 나누기는 서버에서 계속돼야 한다(10-27). 묻기만 멈춘다.
   const deadline = deps.now() + IMPORT_TIMEOUT_MS;
   let ticket: ImportTicket;
   try {

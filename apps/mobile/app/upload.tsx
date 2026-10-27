@@ -156,6 +156,7 @@ export default function UploadScreen() {
   // 영상 단계의 고른 길(기본 없음) — 권리 체크 뒤 「질문 받기」를 누르면 그 길로 간다.
   const [sourceChoice, setSourceChoice] = useState<'record' | 'gallery' | null>(null);
   const [reasonSheet, setReasonSheet] = useState(false);
+  const [waitPanel, setWaitPanel] = useState(false);
   // P3.26 올리기 옵션 — 고르면 시작 요청에 싣는다. 고르지 않으면 null(옵션 없이 올린다).
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [uploadOptions, setUploadOptions] = useState<UploadOptions | null>(null);
@@ -176,7 +177,11 @@ export default function UploadScreen() {
     if (result === 'denied') void alert({ title: t('uploadFlow.hLater'), message: t('uploadFlow.laterDenied') });
     reasonRoute(() => router.dismissTo('/(tabs)'));
   };
-  usePreventRemove(!leaving && (optionsOpen || reasonSheet || previousUploadStep(step) !== null), () => {
+  usePreventRemove(!leaving && (waitPanel || optionsOpen || reasonSheet || previousUploadStep(step) !== null), () => {
+    if (waitPanel) {
+      leaveWaiting();
+      return;
+    }
     if (optionsOpen) {
       setOptionsOpen(false);
       setReasonSheet(true);
@@ -325,30 +330,27 @@ export default function UploadScreen() {
     };
   }, [picked?.pendingId, picked?.videoId, user?.id]);
 
-  // 「영상 올리는 중」 한 장(SOMA-817) — 올리는 중에 질문 받기를 누르면 다 올라갈 때까지 기다린다. 홈으로 나가도 계속 올라가고,
-  // 홈 맨 위 카드가 이어서 코칭을 시작하게 한다.
-  const [waitPanel, setWaitPanel] = useState(false);
-  const waitHome = () => {
-    if (!user?.id || !picked?.pendingId) return;
-    const owner = user.id;
-    const pendingId = picked.pendingId;
-    void rememberWaitingUpload({
-      owner,
-      pendingId,
-      videoId: null,
-      requestId: newRequestId(),
-      continueFrom: plan.continueFrom,
-      scene,
-      blockage,
-      savedAt: Date.now(),
-    }).then(() => leaveThen(() => router.dismissTo('/(tabs)')));
-  };
-  const waitCancel = () => {
+  // 「영상 올리는 중」 한 장(SOMA-817) — 올리는 중에 질문 받기를 누르면 다 올라갈 때까지 기다린다. 뒤로 가면(실패면 「나중에 할게요」도)
+  // 기다리는 업로드로 남기고 홈으로 간다. 나가도 계속 올라가고, 홈 맨 위 카드가 이어서 코칭을 시작하게 한다.
+  // 올리던 영상을 버리는 길은 두지 않는다.
+  const leaveWaiting = () => {
+    if (leaving) return;
+    // 기록이 끝나기 전에 다시 누르거나 업로드가 끝나 코칭이 먼저 시작되지 않게 바로 막는다.
+    setLeaving(true);
     const pendingId = picked?.pendingId;
-    setWaitPanel(false);
-    setPicked(null);
-    if (pendingId) void removePendingUpload(pendingId).catch(() => undefined);
-    if (user?.id) void forgetWaitingUpload(user.id);
+    const remembered = user?.id && pendingId
+      ? rememberWaitingUpload({
+          owner: user.id,
+          pendingId,
+          videoId: null,
+          requestId: newRequestId(),
+          continueFrom: plan.continueFrom,
+          scene,
+          blockage,
+          savedAt: Date.now(),
+        })
+      : Promise.resolve();
+    void remembered.catch(() => undefined).then(() => leaveThen(() => router.dismissTo('/(tabs)')));
   };
   // 압축 실패(P3.27) — 영상을 버리고 고르기로 돌아간다.
   const pickOther = () => {
@@ -480,7 +482,7 @@ export default function UploadScreen() {
   };
 
   useEffect(() => {
-    if (waitPanel && !uploading && videoId && !starting) {
+    if (waitPanel && !uploading && videoId && !starting && !leaving) {
       setWaitPanel(false);
       void start();
     }
@@ -610,7 +612,7 @@ export default function UploadScreen() {
       )}
 
       {step === 'source' && waitPanel && (
-        <UploadWaitPanel failed={uploadFailed} onHome={waitHome} onRetry={waitRetry} onCancel={waitCancel} />
+        <UploadWaitPanel failed={uploadFailed} onLater={leaveWaiting} onRetry={waitRetry} />
       )}
 
       {step === 'source' && !waitPanel && compressFailed && (

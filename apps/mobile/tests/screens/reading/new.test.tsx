@@ -15,14 +15,14 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
   return { __esModule: true, default: storage };
 });
-const mockRouter = { replace: jest.fn(), push: jest.fn() };
+const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn() };
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn() }));
+jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('expo-file-system', () => ({
   File: class {
@@ -195,7 +195,7 @@ test('튜토리얼 예시로 들어오면 예시 대본을 채운 채 연다', a
   expect(screen.getByDisplayValue(SAMPLE_SCRIPT)).toBeOnTheScreen();
 });
 
-test('나누는 동안 서버가 알려 주는 줄 수를 보인다', async () => {
+test('나누는 동안 서버가 알려 주는 줄 수와 나가도 계속된다는 안내를 보이고, 뒤로 가면 리딩 탭 첫 화면으로 간다', async () => {
   jest.mocked(api.getScriptImport)
     .mockResolvedValueOnce(job({ status: 'running', progress: { done_lines: 3, total_lines: 10 }, script_id: null }))
     .mockResolvedValue(job());
@@ -205,7 +205,12 @@ test('나누는 동안 서버가 알려 주는 줄 수를 보인다', async () =
   const pressing = fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('배역과 대사를 찾고 있어요…')).toBeOnTheScreen();
   expect(await screen.findByText('30% · 3 / 10줄')).toBeOnTheScreen();
-  expect(usePreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+  expect(screen.getByText('대본 길이에 따라 1분쯤 걸려요.')).toBeOnTheScreen();
+  expect(screen.getByText('화면을 나가도 나누기는 계속돼요')).toBeOnTheScreen();
+  expect(screen.getByText('다 되면 리딩 탭 대본 목록에 생겨요.')).toBeOnTheScreen();
+  const back = jest.mocked(usePreventRemove).mock.calls.filter(([on]) => on).at(-1)![1];
+  await act(async () => back({ data: { action: { type: 'GO_BACK' } } } as never));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
   await act(async () => pressing);
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
 });

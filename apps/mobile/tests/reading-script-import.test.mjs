@@ -359,6 +359,20 @@ test('reading.script(R2.11): 화면을 떠나면(signal 끊김) 묻기를 멈추
   assert.deepEqual(files.calls, [], '떠난 뒤에는 아무것도 보내지 않는다');
 });
 
+test('reading.script(R2.11): 원본 읽기를 기다리는 사이 뒤로 가도 나누기는 접수한다 — 일은 서버에서 계속된다(10-27)', async () => {
+  const files = fileServer();
+  const leave = new AbortController();
+  const complete = files.deps.upload.complete;
+  files.deps.upload.complete = async (id) => {
+    await complete(id);
+    leave.abort();
+  };
+
+  await runScriptImport({ kind: 'file', file: PICKED, uploadId: 'up-1' }, {}, files.deps, () => {}, () => {}, leave.signal);
+
+  assert.deepEqual(files.calls, [['complete', 'up-1'], ['import', 'up-1', 'rid-1']]);
+});
+
 test('reading.script(R2.7): 대본이 된 원본을 플래그 없이 다시 보내면 다시 올리지 않고 그 대본으로 R2.7 이다', async () => {
   const { calls, deps } = fileServer({ used: ['up-1'] });
   const uploaded = [];
