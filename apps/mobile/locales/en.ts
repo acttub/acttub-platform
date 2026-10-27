@@ -1256,11 +1256,12 @@ const en: DeepStringShape<typeof ko> = {
     doneShort:
       'That’s all for today. It’s a bit short to keep as a note — let’s pick it up next time.',
     doneFailure: 'The connection was interrupted while closing. You can review the saved conversation or start another round.',
-    doneNormal: 'That’s it for today’s conversation. Write your journal below to finish.',
+    doneNormal: 'That’s it for today’s conversation. Read the coach’s notes, then write your journal below.',
     finishBtn: 'Finish practice',
     seeSummary: 'Write journal and finish',
     // Continue the same conversation after the summary (SOMA-782, pen ⓐ4).
     continueTalk: 'Keep talking',
+    continueTalkSub: 'Still curious? Ask the coach more.',
     continueLimit: 'This conversation has gone on a long while. Start fresh with your next take.',
     continueNotResumable: 'This conversation can’t be continued. Start fresh with your next take.',
     composerLabel: 'Write your answer or question freely',
@@ -1776,7 +1777,8 @@ const en: DeepStringShape<typeof ko> = {
     failed: 'Analysis failed. Please try again.',
     cancelled: 'Analysis stopped. The video stays as is.',
     deactivated: 'The account closed before the analysis finished.',
-    partialNotice: "Some stretches weren't seen. We'll start from what was.",
+    partialTitle: "Some stretches weren't seen",
+    partialNotice: "We'll start from what was seen.",
   },
   readingCoach: {
     coachName: 'ACTTUB coach',
