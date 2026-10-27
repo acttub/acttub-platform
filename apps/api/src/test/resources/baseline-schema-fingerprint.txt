@@ -255,6 +255,7 @@ COLUMN coach_notes.format ord=3 type=text len=- null=NO default=-
 COLUMN coach_notes.id ord=1 type=uuid len=- null=NO default=-
 COLUMN coach_notes.kind ord=4 type=text len=- null=NO default=-
 COLUMN coach_notes.legacy_report ord=13 type=jsonb len=- null=YES default=-
+COLUMN coach_notes.line_notes ord=15 type=jsonb len=- null=NO default='[]'::jsonb
 COLUMN coach_notes.next_take ord=7 type=text len=- null=YES default=-
 COLUMN coach_notes.source_revision ord=12 type=int4 len=- null=NO default=-
 COLUMN coach_notes.summary_quotes ord=6 type=jsonb len=- null=NO default='[]'::jsonb
@@ -1195,6 +1196,7 @@ CONSTRAINT coach_notes coach_notes_fallback_not_null NOT NULL fallback
 CONSTRAINT coach_notes coach_notes_format_not_null NOT NULL format
 CONSTRAINT coach_notes coach_notes_id_not_null NOT NULL id
 CONSTRAINT coach_notes coach_notes_kind_not_null NOT NULL kind
+CONSTRAINT coach_notes coach_notes_line_notes_not_null NOT NULL line_notes
 CONSTRAINT coach_notes coach_notes_pkey PRIMARY KEY (id)
 CONSTRAINT coach_notes coach_notes_source_revision_not_null NOT NULL source_revision
 CONSTRAINT coach_notes coach_notes_summary_quotes_not_null NOT NULL summary_quotes

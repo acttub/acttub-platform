@@ -12,6 +12,7 @@ import com.acttub.actingapi.feature.report.app.PracticeNote;
 import com.acttub.actingapi.feature.report.app.PublicReport.AnalysisReport;
 import com.acttub.actingapi.feature.report.app.PublicReport.ExpressionReport;
 import com.acttub.actingapi.feature.report.app.PublicReport.PublicPracticeNote;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -214,6 +215,13 @@ final class ConversationDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"actor", "observation"}) String kind,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String sourceRef) { }
 
+    /** Pro 「대사별로 본 것」 한 항목(SOMA-900). {@code line} 대사·순간, {@code seen} 코치가 본 것, {@code try} 다음 테이크에 해 볼 것. */
+    @Schema(name = "CoachNoteLine", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record LineNote(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String line,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String seen,
+            @JsonProperty("try") @Schema(name = "try", requiredMode = Schema.RequiredMode.REQUIRED) String tryNext) { }
+
     @Schema(name = "CoachNote", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record NoteResponse(
@@ -231,7 +239,8 @@ final class ConversationDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long sourceRevision,
             @Schema(nullable = true, anyOf = {AnalysisReport.class, ExpressionReport.class, PublicPracticeNote.class}) JsonNode report,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt,
-            @Schema(nullable = true) NoteRatingDtos.NoteRatingResponse myRating) {
+            @Schema(nullable = true) NoteRatingDtos.NoteRatingResponse myRating,
+            @Schema(requiredMode = Schema.RequiredMode.NOT_REQUIRED, description = "Pro 의 대사별로 본 것. 없으면 빈 배열") List<LineNote> lineNotes) {
 
         static NoteResponse of(NoteView view) {
             return of(view, null);
@@ -247,7 +256,13 @@ final class ConversationDtos {
                             strings(view.tags()), view.fallback(), view.sourceRevision(),
                             PracticeNote.publicView(view.legacyReport()),
                             view.createdAt(),
-                            myRating);
+                            myRating,
+                            lineNotes(view.lineNotes()));
+        }
+
+        private static List<LineNote> lineNotes(JsonNode value) {
+            if (value == null || !value.isArray()) return List.of();
+            return JSON.convertValue(value, new TypeReference<List<LineNote>>() { });
         }
 
         private static List<String> strings(JsonNode value) {

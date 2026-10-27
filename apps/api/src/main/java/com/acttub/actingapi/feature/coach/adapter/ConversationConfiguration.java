@@ -42,6 +42,23 @@ class ConversationConfiguration {
                 journals, conversations, generators.report(), telemetry, json, clock, java.util.UUID::randomUUID);
     }
 
+    /** Pro 「대사별로 본 것」(SOMA-900). 끄면(ACTTUB_COACH_NOTE_DETAIL=false) 아무것도 쓰지 않는다. */
+    @Bean(destroyMethod = "close")
+    com.acttub.actingapi.feature.coach.app.LineNoteWriter lineNoteWriter(
+            ConversationRepository conversations,
+            com.google.genai.Client client,
+            ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachPro> pro,
+            FailureReporter failureReporter,
+            @org.springframework.beans.factory.annotation.Value("${ACTTUB_COACH_NOTE_DETAIL:true}") boolean enabled,
+            @org.springframework.beans.factory.annotation.Value("${ACTTUB_COACH_NOTE_DETAIL_MODEL:gemini-3.1-pro-preview}") String model) {
+        return com.acttub.actingapi.feature.coach.app.LineNoteWriter.withOwnExecutor(
+                enabled,
+                pro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
+                new GeminiLineNoteModel(client, model),
+                conversations,
+                failureReporter);
+    }
+
     /**
      * 종료 알림은 선택이다 — {@code memory} 가 구현을 내지만, 없어도 대화는 돌아야 한다
      * ({@code AnalysisCompletionListener} 와 같은 형태).
@@ -55,9 +72,10 @@ class ConversationConfiguration {
             ObjectProvider<ConversationClosedListener> closedListener,
             CoachProfile profiles,
             CoachMemory memory,
-            FailureReporter failureReporter) {
+            FailureReporter failureReporter,
+            com.acttub.actingapi.feature.coach.app.LineNoteWriter lineNotes) {
         return new ConversationService(conversations, coach, notes, clock, closedListener.getIfAvailable(),
-                profiles, memory, failureReporter);
+                profiles, memory, failureReporter, lineNotes);
     }
 
     /** 분석이 끝나면 첫 질문을 미리 쓴다(SOMA-780). false 면 예전처럼 앱의 시작 요청이 올 때 쓴다(롤백). */
