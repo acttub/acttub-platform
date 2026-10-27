@@ -4,7 +4,7 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 
 /**
- * 디자인 시스템 pen 「Chip/Off」·「Chip/On」 — 높이 40 알약, 흰 바탕 · 1px border, 안쪽 좌우 16, body2-bold text-sub.
+ * 디자인 시스템 pen 「Chip/Off」·「Chip/On」 — 높이 40(긴 글자는 늘어남) 알약, 흰 바탕 · 1px border, 안쪽 좌우 16, body2-bold text-sub.
  * 고르면 blue-soft 바탕 · 1.5px blue 테두리 · blue-deep 글자. 감정·필터·답 칩이 같이 쓴다.
  * 고르는 칩이면 `role`로 radio(하나)·checkbox(여럿)를 알려 화면 읽기가 고른 상태를 읽게 한다.
  */
@@ -45,15 +45,23 @@ export function Chip({
 
 const styles = StyleSheet.create({
   chip: {
-    height: 40,
+    minHeight: 40,
     justifyContent: 'center',
+    paddingVertical: space[2],
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.bg,
     paddingHorizontal: space[4],
   },
-  on: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5 },
+  // 테두리가 0.5 두꺼워진 만큼 안쪽을 줄여 고를 때 칩 크기가 그대로다.
+  on: {
+    backgroundColor: palette.blueSoft,
+    borderColor: palette.blue,
+    borderWidth: 1.5,
+    paddingHorizontal: space[4] - 0.5,
+    paddingVertical: space[2] - 0.5,
+  },
   pressed: { opacity: 0.7 },
   dim: { opacity: 0.5 },
   label: { ...type.body2Bold, color: palette.textSub },

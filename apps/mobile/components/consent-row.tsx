@@ -69,7 +69,7 @@ export function ConsentRow({
             accessibilityRole="button"
             accessibilityLabel={arrow.accessibilityLabel}
             ph-label="consent_row_open">
-            <Feather name={arrow.icon} size={18} color={palette.textDisabled} />
+            <Feather name={arrow.icon} size={18} color={palette.iconFaint} />
           </Pressable>
         )}
       </Pressable>
