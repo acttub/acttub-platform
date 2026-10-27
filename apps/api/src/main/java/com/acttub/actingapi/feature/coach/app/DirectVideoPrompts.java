@@ -177,6 +177,18 @@ final class DirectVideoPrompts {
         return practiceLoopTask(doing, language);
     }
 
+    /** 첫 코칭 첫 말 B의 첫 응답 지시. 한국어 B 대화의 첫 응답 시스템 프롬프트 맨 끝에 붙는다. */
+    static String openingBlock(String opening, java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return CoachOpenings.B.equals(opening) && korean ? "\n\n" + resource("openings/b") : "";
+    }
+
+    /** 첫 코칭 첫 말 B 대화의 둘째 응답부터의 지시. 연습 루프 턴 조립 맨 끝에 붙는다. */
+    static String openingTurnBlock(String opening, java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return CoachOpenings.B.equals(opening) && korean ? "\n\n" + resource("openings/b-turn") : "";
+    }
+
     /** B 흐름에서 [이번 응답] 끝에 붙는 흐름 안내. 공통 지시의 네 단계 순서 대신 세 단계를 따르게 한다. 한국어 대화에만 붙는다. */
     static String flowBlock(String flow, java.util.Locale language) {
         boolean korean = language == null || "ko".equals(language.getLanguage());
