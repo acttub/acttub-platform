@@ -43,6 +43,7 @@ public final class DirectVideoCoach {
     private final CoachPersonas personas;
     /** 코치 흐름 A/B(SOMA-636). NONE 이면 모두 A(롤백). */
     private final CoachFlows flows;
+    private CoachOpenings openings = CoachOpenings.NONE;
     // 코치 모델 비교(SOMA-657). 새 대화의 alternateShare% 는 코치 답을 alternate 모델로 쓴다.
     // 분류·줄이기·영상 올리기는 늘 기본 모델이다. null 이거나 0 이면 모두 기본 모델(롤백).
     private final DirectVideoModel alternate;
@@ -145,6 +146,12 @@ public final class DirectVideoCoach {
         return this;
     }
 
+    /** 첫 코칭 첫 말 비교의 배정기를 끼운다. 기본은 {@link CoachOpenings#NONE}(모두 A). */
+    public DirectVideoCoach withOpenings(CoachOpenings openings) {
+        this.openings = openings == null ? CoachOpenings.NONE : openings;
+        return this;
+    }
+
     public DirectVideoCoach withFaceMosaic(FaceMosaic faceMosaic) {
         this.faceMosaic = faceMosaic == null ? FaceMosaic.NONE : faceMosaic;
         return this;
@@ -189,6 +196,8 @@ public final class DirectVideoCoach {
         String arm = loop && purpose == null ? coachArm(session) : "a";
         String flow = loop && purpose == null ? flow(session, operationId) : CoachFlows.A;
         String alreadyArm = loop && purpose == null ? alreadyArm(session) : ALREADY_OFF;
+        String opening = loop && purpose == null ? opening(session, actorText, operationId) : CoachOpenings.A;
+        boolean openingB = CoachOpenings.B.equals(opening);
         DirectVideoModel speaker = coachModel(arm);
         var history = new ArrayList<DirectVideoModel.Message>();
         if (loop) {
@@ -348,6 +357,7 @@ public final class DirectVideoCoach {
             if (loop && purpose == null) DirectVideoPracticeLoop.rememberCoachModel(state, arm);
             if (loop && purpose == null) DirectVideoPracticeLoop.rememberFlow(state, flow);
             if (loop && purpose == null) DirectVideoPracticeLoop.rememberAlready(state, alreadyArm);
+            if (loop && purpose == null) DirectVideoPracticeLoop.rememberOpening(state, opening);
             if (loop) {
                 DirectVideoDialogueEvidence.discardUngroundedDesign(uploaded, state, written);
                 history.clear();
@@ -383,6 +393,7 @@ public final class DirectVideoCoach {
                 // 자문위원과 맞춤 코칭 배우 모두 "어때요?" 예문을 뺀다(SOMA-795 재생 v2: 맞춤 코칭 배우에게 "~해 보는 건 어때요?"가 남았다).
                 // 성격이 없는 배우(맞춤 코칭 없음)의 할 일 파일은 그대로다.
                 if (!persona.isEmpty()) task = DirectVideoPrompts.withoutHowAbout(task);
+                task = task + DirectVideoPrompts.openingTurnBlock(opening, language);
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop.turn", DirectVideoPrompts.practiceLoopTurn())
                         : new LlmPrompt("coach.practice-loop.turn.en", DirectVideoPrompts.practiceLoopTurnEnglish());
@@ -418,7 +429,8 @@ public final class DirectVideoCoach {
                 if (coaching != null && (language == null || "ko".equals(language.getLanguage()))) {
                     first = coaching.withoutNeverSay(coaching.firstTask(first));
                 }
-                task = first + AnswerExamples.INSTRUCTION + personaBlock(persona, profile, language);
+                task = first + AnswerExamples.INSTRUCTION + personaBlock(persona, profile, language)
+                        + DirectVideoPrompts.openingBlock(opening, language);
                 // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop", DirectVideoPrompts.practiceLoop())
@@ -578,7 +590,9 @@ public final class DirectVideoCoach {
             boolean cut = loop && !talk && session.turns().isEmpty() && DirectVideoPracticeLoop.notActing(parsed);
             if (cut) shown = DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText));
             // 첫 응답은 질문 한 문장이다. 앞에 붙인 인사·작품 설명 같은 군말은 걷어낸다.
-            if (loop && !cut && !streaming && session.turns().isEmpty() && (purpose == null || !PurposeLoop.keepsWholeOpening(purpose))) {
+            // 첫 코칭 첫 말 B는 본 것·다음 테이크·질문까지 여러 줄이 한 덩어리라 질문 줄만 남기지 않는다.
+            if (loop && !cut && !streaming && session.turns().isEmpty() && !(openingB && purpose == null)
+                    && (purpose == null || !PurposeLoop.keepsWholeOpening(purpose))) {
                 shown = DirectVideoPracticeLoop.onlyFirstQuestion(shown);
             }
             if (branch != null && !streaming) {
@@ -653,6 +667,8 @@ public final class DirectVideoCoach {
             if (branch != null && CoachFlows.B.equals(flow) && PracticeLoopRouter.GAP.equals(branch.doing())) limit = Math.max(limit, TELL_REPLY);
             // 다르게 정리(SOMA-855)는 배우가 한 것 인정 + 덜 들린 대사 + 새 행동까지 말한다.
             if (branch != null && PracticeLoopRouter.WRAP_DONE.equals(branch.doing())) limit = Math.max(limit, TELL_REPLY);
+            // 첫 코칭 첫 말 B의 첫 응답은 200자 안쪽 여러 줄이 목표다. 줄이기는 40~60자 질문 한 줄로 만들어 버리므로 건너뛴다.
+            if (openingB && session.turns().isEmpty()) limit = Integer.MAX_VALUE;
             while (loop && !cut && !streaming && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > limit) {
                 String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), persona, profile, uploaded, written, operationId);
                 shortened++;
@@ -665,7 +681,7 @@ public final class DirectVideoCoach {
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
                             "shorten_calls", Integer.toString(shortened), "polish_calls", Integer.toString(polished), "empty_retry", Boolean.toString(emptyRetry), "light_retry", Boolean.toString(lightRetry), "broken_retry", Boolean.toString(brokenRetry),
-                            "persona", persona, "coach_model_arm", arm, "layer1_arm", layerArm, "layer1_used", Boolean.toString(!layerBlock.isEmpty()), "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow, "already_arm", alreadyArm,
+                            "persona", persona, "coach_model_arm", arm, "layer1_arm", layerArm, "layer1_used", Boolean.toString(!layerBlock.isEmpty()), "model_fallback", Boolean.toString(modelFallback), "coach_flow", flow, "coach_opening", opening, "already_arm", alreadyArm,
                             "stream", Boolean.toString(streaming), "video_reused", Boolean.toString(videoReused),
                             "video_omitted", Boolean.toString(videoOmitted),
                             "classify_ms", Long.toString(millis(startedNanos, classifiedNanos)),
@@ -790,6 +806,25 @@ public final class DirectVideoCoach {
         if (!stored.isEmpty()) return stored;
         if (!session.turns().isEmpty() || alternateShare <= 0 || session.practiceSessionId() == null) return "a";
         return Math.floorMod(session.practiceSessionId().hashCode(), 100) < alternateShare ? "b" : "a";
+    }
+
+    /**
+     * 이 대화의 첫 말 쪽(첫 코칭 첫 말 A/B). 저장된 값이 있으면 그대로, 첫 응답이면 배정을 묻는다.
+     * 한국어가 아니거나 이어서 하는 연습이면 묻지 않고 A 다. 배포 전에 시작한 대화(저장값 없음)와 배정 실패도 A 다.
+     */
+    String opening(CoachSessionSnapshot session, String actorText, UUID operationId) {
+        String stored = DirectVideoPracticeLoop.storedOpening(session.coachingState());
+        if (!stored.isEmpty()) return stored;
+        if (!session.turns().isEmpty()) return CoachOpenings.A;
+        java.util.Locale language = DirectVideoPracticeLoop.replyLanguage(session, actorText);
+        if (language != null && !"ko".equals(language.getLanguage())) return CoachOpenings.A;
+        if (session.priorForModel().earlierConversation() != null) return CoachOpenings.A;
+        try {
+            return CoachOpenings.B.equals(openings.assign(session)) ? CoachOpenings.B : CoachOpenings.A;
+        } catch (RuntimeException failure) {
+            failures.report(failure, FailureKind.UNEXPECTED, new FailureContext("DirectVideoCoach.opening", operationId));
+            return CoachOpenings.A;
+        }
     }
 
     static final String ALREADY_ON = "on";
