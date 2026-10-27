@@ -43,7 +43,11 @@ export function videoErrorMessage(error: unknown): string {
   if (error === 'video_empty') return t('errors.uploadFail');
   const code = videoErrorCodeOf(error);
   if (code) return t(MESSAGE_KEY[code]);
-  if (error instanceof ApiError) return error.message;
+  if (error instanceof ApiError) {
+    if (error.code === 'video_not_found') return t('archive.notFound');
+    // 모르는 4xx 는 friendlyError 가 서버 코드(detail)를 그대로 메시지로 둔다 — 코드를 화면에 보이지 않는다.
+    return error.message === error.code ? t('errors.uploadFail') : error.message;
+  }
   return error instanceof Error && error.message ? error.message : t('errors.uploadFail');
 }
 

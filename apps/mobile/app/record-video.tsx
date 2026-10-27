@@ -468,7 +468,7 @@ export default function RecordVideoScreen() {
   const hint =
     phase === 'loadingToday' ? (
       <View style={styles.hintRow}>
-        <Feather name="loader" size={14} color={palette.onMediaSub} />
+        <Feather name="rotate-cw" size={14} color={palette.onMediaSub} />
         <Text style={styles.hint}>{t('recordMode.loadingToday')}</Text>
       </View>
     ) : (

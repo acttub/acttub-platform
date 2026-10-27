@@ -468,6 +468,7 @@ const en: DeepStringShape<typeof ko> = {
     tooLongBody: 'You can upload up to 5 minutes. Pick a shorter video.',
     emptyTitle: "Couldn't read that video",
     emptyBody: 'Pick a different video.',
+    notFound: "Couldn't find that video. Pick it again.",
     quota: 'Your storage is full. Delete a video or remove just its file to upload again.',
     uploadExpired: 'The upload slot expired, so it starts over.',
   },
@@ -2361,7 +2362,7 @@ const en: DeepStringShape<typeof ko> = {
     errorScriptLimit: 'My scripts is full. Delete an unused script in Reading and try again.',
   },
   uploadFlow: {
-    hesitateTitle: 'Hesitant about\nuploading a video?',
+    hesitateTitle: 'Hesitant about uploading a video?',
     hesitateSub: 'There is a way that fits your reason.',
     hFace: 'I worry my face or video will stay',
     hFaceSub: 'Hide your face, or delete the video right after analysis',

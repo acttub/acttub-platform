@@ -30,3 +30,9 @@ test('practice.record: 보관함이 받지 않은 영상 알림은 제목이 결
   });
   assert.deepEqual(videoRejectDialog('video_empty'), { title: '영상을 읽지 못했어요', message: '다른 영상을 골라 주세요.' });
 });
+
+test('practice.start: 영상 오류 문구에 서버 코드를 보이지 않는다(400 video_not_found·모르는 코드)', () => {
+  assert.equal(videoErrorMessage(new ApiError(400, 'video_not_found', 'video_not_found')), '영상을 찾지 못했어요. 영상을 다시 골라 주세요.');
+  assert.equal(videoErrorMessage(new ApiError(400, 'weird_code', 'weird_code')), '영상 업로드에 실패했어요. 네트워크를 확인해주세요.');
+  assert.equal(videoErrorMessage(new ApiError(503, '연결이 불안정해요.', 'x')), '연결이 불안정해요.');
+});
