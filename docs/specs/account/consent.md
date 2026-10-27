@@ -85,7 +85,7 @@
 돼요」다. 고른 것을 다시 비워 계속할 수 없게 되면 첫 문구로 돌아간다(SOMA-790, pen 파이프라인 반영버전).
 cloud_voice와 script_split은 가입·게이트에서 묻지 않는다. 개인정보 수집·이용 동의 v9부터 두 처리가 그 동의에 들어 있어(SOMA-726)
 서버는 v9 이상 동의자를 두 기능의 동의자로 본다. cloud_voice는 v9 이전 동의자에게 그 기능을 쓸 때 묻고([reading.cloud-voice](../reading/cloud-voice.md)),
-script_split은 앱·웹 어디서도 따로 묻지 않는다 — 필수 판이 v10이라 묻는 팝업이 뜰 일이 없다(10-27, [reading.script](../reading/script.md#규칙제약)
+script_split은 앱·웹 어디서도 따로 묻지 않는다 — 필수 판이 v9 이상(지금 v11)이라 묻는 팝업이 뜰 일이 없다(10-27, [reading.script](../reading/script.md#규칙제약)
 「나누기 작업」). 진입에서 묻게 하면 새 판을 올린 날 모든 회원이 쓰지도 않을 기능의 동의 화면을 다시 본다(`ConsentDocument.askedAtEntry`).
 
 ## 규칙·제약
