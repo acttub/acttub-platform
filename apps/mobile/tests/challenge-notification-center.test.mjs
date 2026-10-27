@@ -70,6 +70,11 @@ test('challenge.notification: 묶음을 누르면 대상으로 가고 볼 수 �
   });
   // 비공개·삭제·숨김·차단으로 보이지 않으면 이동하지 않는다.
   assert.deepEqual(targetOf(group({ target_available: false })), { kind: 'unavailable' });
+  // 내 참여작이 운영 확인 중이라 숨겨졌으면 열 수 없는 이유를 따로 말한다.
+  const hidden = targetOf(group({ target_available: false, target_hidden: true }));
+  assert.deepEqual(hidden, { kind: 'unavailable', hidden: true });
+  assert.match(unavailableMessage(hidden), /운영 확인 중/);
+  assert.doesNotMatch(unavailableMessage(), /운영 확인 중/);
   assert.match(unavailableMessage(), /볼 수 없는/);
   // 없앤 AI 리포트 알림은 챌린지 화면으로, 챌린지를 모르면 홈으로 간다(SOMA-820).
   assert.deepEqual(targetOf(group({ kind: 'entry_ai_report_ready', target_available: false })), {

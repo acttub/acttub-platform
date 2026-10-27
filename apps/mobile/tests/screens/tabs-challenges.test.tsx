@@ -59,7 +59,12 @@ jest.mock('expo-video', () => {
 
 const listChallenges = api.listChallenges as jest.Mock;
 const DAY = 24 * 60 * 60 * 1000;
-const inThreeDays = () => new Date(Date.now() + 3 * DAY - 60 * 60 * 1000).toISOString();
+// 한국 날짜로 사흘 뒤 정오 마감 — D-day 는 한국 날짜로 세므로 테스트를 돌리는 시각과 상관없이 D-3 이다.
+const KST_MS = 9 * 60 * 60 * 1000;
+const inThreeDays = () => {
+  const todayStart = Math.floor((Date.now() + KST_MS) / DAY) * DAY - KST_MS;
+  return new Date(todayStart + 3 * DAY + 12 * 60 * 60 * 1000).toISOString();
+};
 const yesterday = () => new Date(Date.now() - DAY).toISOString();
 
 function card(over: Partial<ChallengeCard> = {}): ChallengeCard {

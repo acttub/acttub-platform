@@ -46,7 +46,7 @@ export type NotificationTarget =
   | { kind: 'entry'; challengeId: string; entryId: string }
   | { kind: 'challenge'; challengeId: string }
   | { kind: 'home' }
-  | { kind: 'unavailable' };
+  | { kind: 'unavailable'; hidden?: true };
 
 /**
  * 묶음을 눌렀을 때 갈 곳. 대상이 보이지 않으면 안내만 한다. 없앤 AI 리포트 알림(옛 알림이 남아 있을 수 있다)은
@@ -56,7 +56,7 @@ export function targetOf(group: NotificationGroup): NotificationTarget {
   if (group.kind === 'entry_ai_report_ready') {
     return group.challenge_id ? { kind: 'challenge', challengeId: group.challenge_id } : { kind: 'home' };
   }
-  if (!group.target_available) return { kind: 'unavailable' };
+  if (!group.target_available) return group.target_hidden ? { kind: 'unavailable', hidden: true } : { kind: 'unavailable' };
   if (group.kind === 'challenge_ended') {
     return group.challenge_id ? { kind: 'challenge', challengeId: group.challenge_id } : { kind: 'unavailable' };
   }
@@ -65,8 +65,9 @@ export function targetOf(group: NotificationGroup): NotificationTarget {
     : { kind: 'unavailable' };
 }
 
-export function unavailableMessage(): string {
-  return translate('notifications.unavailable');
+/** 알림 대상을 열 수 없을 때의 안내. 내 참여작이 운영 확인 중이라 숨겨졌으면 그 이유를 말한다. */
+export function unavailableMessage(target?: { hidden?: true }): string {
+  return translate(target?.hidden ? 'notifications.unavailableHidden' : 'notifications.unavailable');
 }
 
 /** 묶음을 읽음으로 표시한 목록(화면이 바로 반영한다). */

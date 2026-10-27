@@ -63,7 +63,7 @@ test('대화와 함께 온 노트를 바로 보여 주고 서버에서 다시 �
   await render(<ReportScreen />);
 
   expect(screen.getByText('첫 대사의 숨')).toBeOnTheScreen();
-  expect(screen.getByText('다음에 해볼 것까지')).toBeOnTheScreen();
+  expect(screen.getByText('다음에 해 볼 것까지')).toBeOnTheScreen();
   expect(screen.getByText('첫 줄 전에 한 박자 쉬기')).toBeOnTheScreen();
   expect(mockGetNote).not.toHaveBeenCalled();
 });

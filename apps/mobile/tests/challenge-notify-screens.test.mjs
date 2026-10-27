@@ -33,7 +33,7 @@ test('challenge.notification: 묶음을 누르면 대상으로 가고 볼 수 �
   const screen = read('app/notifications.tsx');
 
   assert.match(screen, /targetOf\(group\)/);
-  assert.match(screen, /unavailableMessage\(\)/);
+  assert.match(screen, /unavailableMessage\(target\)/);
   assert.match(screen, /pathname: '\/challenge-play'/);
   assert.match(screen, /pathname: '\/challenge-detail'/);
 });

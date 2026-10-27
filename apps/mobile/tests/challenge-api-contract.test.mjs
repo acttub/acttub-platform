@@ -30,7 +30,7 @@ const comment = (over = {}) => ({
 const group = (over = {}) => ({
   group_key: `${id(8)}|entry_liked|${id(2)}|1790132400`, kind: 'entry_liked', actor_count: 3, event_count: 3,
   actor_name: '니나', challenge_id: id(1), entry_id: id(2), comment_id: null, comment_excerpt: null,
-  latest_at: '2026-09-23T03:00:00Z', read: false, target_available: true, ...over,
+  latest_at: '2026-09-23T03:00:00Z', read: false, target_available: true, target_hidden: false, ...over,
 });
 
 test('챌린지 목록·상세·개설·삭제는 서버 계약 그대로 오간다', async t => {

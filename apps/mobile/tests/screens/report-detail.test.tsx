@@ -43,7 +43,7 @@ test('노트의 제목·종류·날짜·다음 한 가지를 보여 준다', asy
 
   expect(await screen.findByText('첫 대사의 숨')).toBeOnTheScreen();
   expect(getPracticeNote).toHaveBeenCalledWith('p1');
-  expect(screen.getByText('다음에 해볼 것까지')).toBeOnTheScreen();
+  expect(screen.getByText('다음에 해 볼 것까지')).toBeOnTheScreen();
   expect(screen.getByText('3월 5일')).toBeOnTheScreen();
   expect(screen.getByText('첫 줄 전에 한 박자 쉬기')).toBeOnTheScreen();
   expect(screen.queryByText('정리를 다 만들지 못해 확인된 것만 담았어요.')).not.toBeOnTheScreen();

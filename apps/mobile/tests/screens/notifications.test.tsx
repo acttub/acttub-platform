@@ -122,6 +122,20 @@ test('대상을 볼 수 없으면 이동하지 않고 볼 수 없다고 알린�
   expect(readNotifications).toHaveBeenCalledWith({ group_keys: ['k'] });
 });
 
+test('내 참여작이 운영 확인 중이라 숨겨졌으면 그 이유로 알린다', async () => {
+  listNotifications.mockResolvedValue({
+    groups: [group({ group_key: 'k', target_available: false, target_hidden: true })],
+    next_cursor: null,
+  });
+  readNotifications.mockResolvedValue(undefined);
+  await render(<NotificationsScreen />);
+
+  await fireEvent.press(await screen.findByText('1명이 좋아해요'));
+
+  expect(await screen.findByText('운영 확인 중이라 지금은 볼 수 없는 영상이에요')).toBeOnTheScreen();
+  expect(mockRouter.push).not.toHaveBeenCalled();
+});
+
 test('모두 읽음은 가장 최신 묶음까지를 읽음으로 보낸다', async () => {
   listNotifications.mockResolvedValue({ groups: [commented, liked], next_cursor: null });
   readNotifications.mockRejectedValue(new Error('down'));
