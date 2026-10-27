@@ -9,6 +9,7 @@ import {
   AD_RADIUS,
   AD_SIZES,
   AD_SLOTS,
+  adRequestConfigFor,
   bannerUnitFor,
   renderableKind,
   shouldRequestSlot,
@@ -18,6 +19,8 @@ import {
 import { loadBannerModule } from '@/lib/ads-native';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
+import { kstDate } from '@/lib/auditions';
+import { useAuth } from '@/lib/auth';
 import { getFirstTimeState, subscribeFirstTimeState } from '@/lib/practice/first-time';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -41,6 +44,7 @@ type Props = {
  */
 export function AdSlot({ slot, style }: Props) {
   const router = useRouter();
+  const { profile } = useAuth();
   const firstTime = useSyncExternalStore(subscribeFirstTimeState, getFirstTimeState, getFirstTimeState);
   const [pick, setPick] = useState<AdSlotPick | null>(() => lastPick.get(slot) ?? null);
   const [loaded, setLoaded] = useState(() => lastPick.has(slot));
@@ -93,6 +97,10 @@ export function AdSlot({ slot, style }: Props) {
         <BannerAd
           unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
           size={BannerAdSize[size]}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
+              .requestNonPersonalizedAdsOnly,
+          }}
           onAdLoaded={() => void logEvent('ad_network_loaded', { slot })}
           onAdFailedToLoad={() => setFailed(true)}
         />
