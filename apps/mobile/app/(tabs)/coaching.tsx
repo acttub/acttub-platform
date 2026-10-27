@@ -13,6 +13,7 @@ import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { MASCOT } from '@/components/ui/mascot';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { api } from '@/lib/api';
@@ -111,14 +112,16 @@ export default function CoachingTab() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* 첫 사용자 홈에서 이 길을 고른 뒤에도 홈(뭐부터 해 볼까요?)으로 돌아가 다른 길을 고를 수 있다(SOMA-771). */}
+      {/* 탭 첫 화면 머리(NavHeader/Large) — 큰 왼쪽 제목 「코칭」과 오른쪽 설정. */}
       <NavHeader
+        large
         title={t('coachingTab.title')}
         // 탭바가 보이면 하단 탭으로 홈에 갈 수 있어 뒤로를 두지 않는다 — 탭바를 숨긴 첫 사용자만(10/22 피드백).
         left={firstTime ? <NavIconButton icon="chevron-left" size={24} label={t('common.back')} phLabel="coaching_back_home" onPress={() => router.navigate('/')} /> : undefined}
         right={
-          // 첫 사용자는 탭바가 숨어 프로필 탭의 설정으로 못 간다 — 로그아웃·탈퇴 길을 남긴다(SOMA-781).
+          // 첫 사용자는 탭바가 숨어 프로필 탭의 설정으로 못 간다 — 로그아웃·탈퇴 길을 남긴다(SOMA-781). 그 밖에는 프로필 탭에 설정이 있다.
           firstTime && first ? (
-            <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="coaching_first_settings" onPress={() => router.push('/settings')} />
+            <NavIconButton icon="settings" size={22} label={t('settings.title')} phLabel="coaching_first_settings" onPress={() => router.push('/settings')} />
           ) : undefined
         }
       />
@@ -160,16 +163,17 @@ export default function CoachingTab() {
             <ScriptCocreateEntry style={styles.entryGap} />
           </ScrollView>
           {/* 찍기·올리기는 같은 화면(app/upload)에서 고르므로 버튼 하나로 두고, 엄지 닿는 아래쪽에 붙인다(SOMA-842). */}
-          <View style={[styles.firstFooter, { paddingBottom: 8 + tabBarSpace }]}>
-            <PrimaryButton label={t('coachingTab.choice.video')} phLabel="coaching_first_next" onPress={startNew} />
+          {/* 아래 바 — 보조 글자 버튼 위, 주 버튼 맨 아래. */}
+          <View style={[styles.firstFooter, { paddingBottom: space[2] + tabBarSpace }]}>
             <Pressable onPress={() => router.push('/talk')} accessibilityRole="button" accessibilityLabel={t('coachingTab.choice.talk')} ph-label="coaching_first_talk" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
               <Feather name="message-circle" size={15} color={palette.textSub} />
               <Text style={styles.linkText}>{t('coachingTab.choice.talk')}</Text>
             </Pressable>
+            <PrimaryButton label={t('coachingTab.choice.video')} phLabel="coaching_first_next" onPress={startNew} />
           </View>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.nextBody, { paddingBottom: tabBarSpace + 20 }]}>
+        <ScrollView contentContainerStyle={[styles.nextBody, { paddingBottom: tabBarSpace + space[5] }]}>
           {/* 저번 코치 메모(노트의 다음 테이크 문장) 또는 하던 코칭 — 맨 위 카드 */}
           <View style={styles.memo}>
             <View style={styles.memoHead}>
@@ -330,73 +334,72 @@ function Tile({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1, minWidth: 0 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.85 },
 
-  // 처음(pen P13.1·P13.2) — 액티 말풍선 · 예시 대화 · 대사 만들기 줄 · 아래 버튼 셋.
-  firstBody: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 16 },
-  introRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 13, paddingLeft: 6 },
-  introMascot: { width: 52, height: 61, marginBottom: 4 },
-  introBubble: { flex: 1, minWidth: 0, gap: 5, paddingTop: 11, paddingHorizontal: 14, paddingBottom: 12, borderRadius: 16, backgroundColor: palette.bgSoft },
-  introTitle: { fontSize: 19, fontWeight: '700', lineHeight: 25, color: palette.text },
-  introBody: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMeta },
-  exampleLabel: { paddingTop: 28, paddingBottom: 10, fontSize: 13, fontWeight: '700', color: palette.textMeta },
-  example: { gap: 10, padding: 16, borderRadius: 20, backgroundColor: palette.bgSoft },
-  exampleVideo: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 10, paddingVertical: 8, paddingLeft: 8, paddingRight: 12, borderRadius: 14, backgroundColor: palette.bg },
-  exampleThumb: { width: 40, height: 40, borderRadius: 10, backgroundColor: palette.text, alignItems: 'center', justifyContent: 'center' },
-  exampleVideoText: { gap: 1 },
-  exampleVideoTitle: { fontSize: 13.5, fontWeight: '700', color: palette.text },
-  exampleVideoSub: { fontSize: 12, fontWeight: '500', color: palette.textMeta },
-  coachRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  coachAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  // 처음 — 액티 말풍선 · 예시 대화(bg-subtle 묶음) · 대사 만들기 줄 · 아래 보조 글자 버튼 위 · 주 버튼 아래.
+  firstBody: { paddingTop: space[2], paddingHorizontal: space.gutter, paddingBottom: space[4] },
+  introRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  introMascot: { width: 52, height: 61 },
+  introBubble: { flex: 1, minWidth: 0, gap: space[1], padding: space[4], borderRadius: radius.lg, backgroundColor: palette.bgSoft },
+  introTitle: { ...type.body1Bold, color: palette.text },
+  introBody: { ...type.caption, color: palette.textSub },
+  exampleLabel: { paddingTop: space[6], paddingBottom: space[2], ...type.captionBold, color: palette.textSub },
+  example: { gap: space[3], padding: space[4], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSubtle },
+  exampleVideo: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: space[2], padding: space[2], paddingRight: space[3], borderRadius: radius.md, backgroundColor: palette.bg },
+  exampleThumb: { width: 32, height: 32, borderRadius: radius.sm, backgroundColor: palette.text, alignItems: 'center', justifyContent: 'center' },
+  exampleVideoText: { gap: 2 },
+  exampleVideoTitle: { ...type.captionBold, color: palette.text },
+  exampleVideoSub: { ...type.micro, color: palette.textMeta },
+  coachRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space[2] },
+  coachAvatar: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   coachMascot: { width: 19, height: 20 },
-  coachBubble: { flexShrink: 1, paddingVertical: 9, paddingHorizontal: 12, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderBottomRightRadius: 14, borderBottomLeftRadius: 4, backgroundColor: palette.bg },
-  coachText: { fontSize: 14, fontWeight: '600', lineHeight: 20, color: palette.text },
+  coachBubble: { flexShrink: 1, paddingVertical: space[2], paddingHorizontal: space[3], borderRadius: radius.lg, borderBottomLeftRadius: radius.xs, backgroundColor: palette.bg },
+  coachText: { ...type.captionBold, color: palette.text },
   exampleMeRow: { flexDirection: 'row', justifyContent: 'flex-end' },
-  exampleMe: { paddingVertical: 9, paddingHorizontal: 12, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderBottomLeftRadius: 14, borderBottomRightRadius: 4, backgroundColor: palette.blue },
-  exampleMeText: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.onAccent },
-  exampleNote: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, paddingHorizontal: 2 },
-  exampleNoteText: { flex: 1, fontSize: 13, fontWeight: '600', color: palette.textMeta },
-  firstFooter: { gap: 4, paddingTop: 8, paddingHorizontal: 20 },
+  exampleMe: { paddingVertical: space[2], paddingHorizontal: space[3], borderRadius: radius.lg, borderBottomRightRadius: radius.xs, backgroundColor: palette.blueDeep },
+  exampleMeText: { ...type.captionBold, color: palette.onAccent },
+  exampleNote: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingTop: space[3] },
+  exampleNoteText: { flex: 1, ...type.caption, color: palette.textMeta },
+  firstFooter: { gap: space[2], paddingTop: space[2], paddingHorizontal: space.gutter },
 
-  // 다음 연습·하던 코칭(pen P13.3~P13.5) — 본문 padding 11/21, 메모 카드 → 타일 → 보조 줄 → 최근 코칭.
-  nextBody: { paddingTop: 11, paddingHorizontal: 21 },
-  memo: { gap: 16, paddingTop: 18, paddingHorizontal: 18, paddingBottom: 16, borderRadius: 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
-  memoHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  memoAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  memoMascot: { width: 24, height: 26 },
-  memoKind: { fontSize: 14, fontWeight: '700', color: palette.text },
-  memoMeta: { marginTop: 1, fontSize: 12.5, fontWeight: '500', color: palette.textMeta },
-  quote: { gap: 4, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: palette.blue },
-  quoteLabel: { fontSize: 12.5, fontWeight: '600', color: palette.blueDeep },
-  quoteText: { fontSize: 16, fontWeight: '600', lineHeight: 23, color: palette.text },
+  // 다음 연습·하던 코칭 — 저번 코치 메모 카드(흰 카드 + bg-subtle 인용) → 타일 둘 → 보조 줄 → 최근 코칭.
+  nextBody: { paddingTop: space[2], paddingHorizontal: space.gutter },
+  memo: { gap: space[3], padding: space[4], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
+  memoHead: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  memoAvatar: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  memoMascot: { width: 26, height: 30 },
+  memoKind: { ...type.body2Bold, color: palette.text },
+  memoMeta: { ...type.caption, color: palette.textMeta },
+  quote: { gap: space[1], padding: space[3], borderRadius: radius.md, backgroundColor: palette.bgSubtle },
+  quoteLabel: { ...type.micro, color: palette.blueDeep },
+  quoteText: { ...type.body1, color: palette.text },
   memoFooter: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
-  againBtn: { height: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 12, paddingRight: 14, borderRadius: 19, backgroundColor: palette.blue },
-  againText: { fontSize: 14, fontWeight: '700', color: palette.onAccent },
-  tiles: { flexDirection: 'row', gap: 10, paddingTop: 12 },
-  tile: { flex: 1, gap: 8, padding: 12, borderRadius: 18, backgroundColor: palette.bgSoft },
+  againBtn: { height: 32, flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingHorizontal: space[3], borderRadius: radius.full, backgroundColor: palette.blue },
+  againText: { ...type.body2Bold, color: palette.onAccent },
+  tiles: { flexDirection: 'row', gap: space[2], paddingTop: space[3] },
+  tile: { flex: 1, gap: space[2], padding: space[3], borderRadius: radius.lg, backgroundColor: palette.bgSoft },
   tileAccent: { backgroundColor: palette.blueSoft },
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tileText: { gap: 4 },
-  tileTitle: { fontSize: 16, fontWeight: '700', lineHeight: 22, color: palette.text },
+  tileText: { gap: space[1] },
+  tileTitle: { ...type.body1Bold, color: palette.text },
   tileTitleAccent: { color: palette.blueDeep },
-  tileSub: { fontSize: 12.5, fontWeight: '500', color: palette.textMeta },
-  link: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  linkText: { fontSize: 15, fontWeight: '600', color: palette.textSub },
-  entryGap: { marginTop: 12 },
-  entryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSoft },
-  entryIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bgSoft },
+  tileSub: { ...type.micro, color: palette.textMeta },
+  link: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5] },
+  linkText: { ...type.body2Bold, color: palette.textSub },
+  entryGap: { marginTop: space[3] },
+  entryRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
+  entryIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   entryText: { flex: 1, minWidth: 0, gap: 2 },
-  entryTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
-  entrySub: { fontSize: 12, fontWeight: '500', color: palette.textMeta },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
+  entryTitle: { ...type.body2Bold, color: palette.text },
+  entrySub: { ...type.caption, color: palette.textMeta },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[6] },
+  sectionTitle: { ...type.body1Bold, color: palette.text },
   more: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  moreText: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
-  recent: { paddingTop: 10, gap: 10 },
-  recentRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  thumb: { width: 56, height: 56, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.text, alignItems: 'center', justifyContent: 'center' },
-  play: { width: 22, height: 22, borderRadius: 11, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center' },
-  recentTitle: { fontSize: 15, fontWeight: '700', color: palette.text },
-  recentMeta: { marginTop: 4, fontSize: 12.5, fontWeight: '500', color: palette.textMeta },
+  moreText: { ...type.captionBold, color: palette.textSub },
+  recent: { paddingTop: space[3], gap: space[3] },
+  recentRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  thumb: { width: 44, height: 44, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
+  play: { width: 20, height: 20, borderRadius: radius.full, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center' },
+  recentTitle: { ...type.body2Bold, color: palette.text },
+  recentMeta: { marginTop: 2, ...type.caption, color: palette.textMeta },
 });
