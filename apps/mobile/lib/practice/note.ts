@@ -1,10 +1,10 @@
 import { translate } from '../i18n.ts';
-import type { NoteKind, NoteQuote, PracticeNote } from './types.ts';
+import type { NoteKind, NoteLine, NoteQuote, PracticeNote } from './types.ts';
 
 /**
  * 연습 노트 화면의 규칙(practice.note). 노트는 그 회차만 말하고 이전 연습과 견주지 않는다.
  *
- * 보여 주는 순서는 짧은 대화 요약 → 다음 촬영에서 해볼 한 가지 → 응원 문구다(PRD). 비교 기준과
+ * 보여 주는 순서는 짧은 대화 요약 →(Pro) 대사별로 본 것 → 다음 촬영에서 해볼 한 가지 → 응원 문구다(PRD). 비교 기준과
  * 내부 출처 카탈로그는 기본 화면에서 빼고, 제안은 선택·실행으로 바꾸지 않는다. 제목은 초점 문구
  * 원문이고, 초점 없이 끝난 노트(record_only)는 제목이 없어 묶음의 대체 제목을 쓴다.
  */
@@ -37,6 +37,7 @@ export function noteFallbackNotice(note: Pick<PracticeNote, 'fallback'>): string
 
 export type NoteSection =
   | { kind: 'summary'; label: string; quotes: NoteQuote[]; text: string | null }
+  | { kind: 'lines'; label: string; items: NoteLine[] }
   | { kind: 'next'; label: string; text: string; hasProposal: boolean }
   | { kind: 'cheer'; label: string; text: string };
 
@@ -71,12 +72,24 @@ function noteBody(note: Pick<PracticeNote, 'next_take' | 'report'>): { next: str
   return { next, summary };
 }
 
+/** 「대사별로 본 것」 — 세 칸이 모두 찬 항목만, 최대 셋. 옛 서버·무료는 비어 있다. */
+export const NOTE_LINES_MAX = 3;
+
+export function noteLines(note: Pick<PracticeNote, 'line_notes'>): NoteLine[] {
+  const items = Array.isArray(note.line_notes) ? note.line_notes : [];
+  return items
+    .map((item) => ({ line: item?.line?.trim() ?? '', seen: item?.seen?.trim() ?? '', try: item?.try?.trim() ?? '' }))
+    .filter((item) => item.line && item.seen && item.try)
+    .slice(0, NOTE_LINES_MAX);
+}
+
 export function noteSections(note: PracticeNote): NoteSection[] {
   // 「이번에 해 본 것」에는 배우가 한 말만 둔다. 코치 관찰(observation 인용·노트 제목과 같은 요약)은 제목과
   // 겹쳐 같은 말이 되풀이되므로 넣지 않는다(SOMA-771).
   const quotes = note.summary_quotes.filter((quote) => quote.kind === 'actor').slice(0, SUMMARY_QUOTE_MAX);
   const { next, summary: rawSummary } = noteBody(note);
   const summary = rawSummary?.trim() && rawSummary.trim() !== note.title?.trim() ? rawSummary : null;
+  const lines = noteLines(note);
   return [
     {
       kind: 'summary',
@@ -84,6 +97,7 @@ export function noteSections(note: PracticeNote): NoteSection[] {
       quotes,
       text: quotes.length === 0 ? summary || translate('note.summaryEmpty') : null,
     },
+    ...(lines.length > 0 ? [{ kind: 'lines' as const, label: translate('note.linesLabel'), items: lines }] : []),
     {
       kind: 'next',
       label: translate('note.nextLabel'),
