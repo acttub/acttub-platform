@@ -79,8 +79,11 @@ public class DirectVideoConfiguration {
     com.acttub.actingapi.feature.coach.app.CoachLayerOne coachLayerOne(
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.observation.LayerOneObserver> observer,
             FailureReporter failures,
-            @Value("${ACTTUB_COACH_LAYER1_SHARE:0}") int share) {
-        return new com.acttub.actingapi.feature.coach.app.CoachLayerOne(observer.getIfAvailable(), share, failures);
+            @Value("${ACTTUB_COACH_LAYER1_SHARE:0}") int share,
+            // Pro 배우는 A/B 와 상관없이 1층(상위 모델 관찰)을 받는다(SOMA-900). Pro 고도화 스위치는 ACTTUB_COACH_PRO.
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachPro> pro) {
+        return new com.acttub.actingapi.feature.coach.app.CoachLayerOne(observer.getIfAvailable(), share, failures,
+                pro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE));
     }
 
     @Bean
@@ -120,7 +123,10 @@ public class DirectVideoConfiguration {
             @Value("${ACTTUB_COACH_FOLLOWUP_MINIMAL_THINKING:true}") boolean followUpMinimalThinking,
             com.acttub.actingapi.feature.coach.app.CoachLayerOne layerOne,
             // 얼굴 가리기 회차는 원본 대신 얼굴을 가린 사본을 올린다(practice.start). 없으면 그 회차는 원본을 올리지 않고 실패한다.
-            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.media.FaceMosaic> faceMosaic) {
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.media.FaceMosaic> faceMosaic,
+            // Pro 지난 연습 기억(SOMA-900). Pro 판정 스위치는 ACTTUB_COACH_PRO(값이 없으면 dev 만 켜짐).
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachPro> coachPro,
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachProMemory> proMemory) {
         var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null
                 : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge);
         return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
@@ -132,6 +138,8 @@ public class DirectVideoConfiguration {
                 videoCache, letGoWithoutVideo, followUpMinimalThinking, layerOne)
                 .withFaceMosaic(faceMosaic.getIfAvailable(() -> com.acttub.actingapi.integration.media.FaceMosaic.NONE))
                 .withAlreadyShare(alreadyShare(alreadyShare, siteUrl))
+                .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
+                        proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE))
                 .withOpenings(openingAb(openingAb, siteUrl)
                         ? openings.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachOpenings.NONE)
                         : com.acttub.actingapi.feature.coach.app.CoachOpenings.NONE);

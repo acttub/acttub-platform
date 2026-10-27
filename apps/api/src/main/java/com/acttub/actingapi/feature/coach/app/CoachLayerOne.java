@@ -30,6 +30,8 @@ import com.acttub.actingapi.platform.observability.FailureReporter;
 public final class CoachLayerOne implements AutoCloseable {
     public static final String ON = "on";
     public static final String OFF = "off";
+    /** Pro 배우라서 받는 쪽(SOMA-900). A/B 배정(ON)과 따로 적어 비교 분석에서 섞이지 않게 한다. 동작은 ON 과 같다. */
+    public static final String PRO = "pro";
     public static final CoachLayerOne NONE = new CoachLayerOne(null, 0, null, Clock.systemUTC());
     static final Duration KEEP = Duration.ofHours(2);
 
@@ -52,30 +54,56 @@ public final class CoachLayerOne implements AutoCloseable {
     private final int share;
     private final FailureReporter failures;
     private final Clock clock;
+    private final CoachPro pro;
     private final ExecutorService pool;
     private final Map<UUID, Entry> running = new ConcurrentHashMap<>();
 
     public CoachLayerOne(LayerOneObserver observer, int share, FailureReporter failures) {
-        this(observer, share, failures, Clock.systemUTC());
+        this(observer, share, failures, Clock.systemUTC(), null);
+    }
+
+    /**
+     * Pro 배우는 A/B 배정과 상관없이 1층을 받는다(SOMA-900 「상위 AI 모델」). 관찰은 상위 모델이 뒤에서 하고 코치는 기다리지
+     * 않으므로 코칭이 늦어지지 않는다 — 끝난 턴부터 칸이 붙는다.
+     */
+    public CoachLayerOne(LayerOneObserver observer, int share, FailureReporter failures, CoachPro pro) {
+        this(observer, share, failures, Clock.systemUTC(), pro);
     }
 
     CoachLayerOne(LayerOneObserver observer, int share, FailureReporter failures, Clock clock) {
+        this(observer, share, failures, clock, null);
+    }
+
+    CoachLayerOne(LayerOneObserver observer, int share, FailureReporter failures, Clock clock, CoachPro pro) {
         this.observer = observer;
         this.share = observer == null ? 0 : Math.max(0, Math.min(100, share));
+        this.pro = observer == null || pro == null ? CoachPro.NONE : pro;
         this.failures = failures;
         this.clock = clock;
-        this.pool = this.share == 0 ? null : Executors.newFixedThreadPool(2, runnable -> {
+        this.pool = this.share == 0 && this.pro == CoachPro.NONE ? null : Executors.newFixedThreadPool(2, runnable -> {
             Thread thread = new Thread(runnable, "coach-layer1");
             thread.setDaemon(true);
             return thread;
         });
     }
 
-    /** 이 연습이 1층을 받는 쪽인지. */
+    /** 이 연습이 1층을 받는 쪽인지(A/B 배정만). */
     public String arm(UUID practiceId) {
         if (share == 0 || practiceId == null) return OFF;
         long mixed = practiceId.getLeastSignificantBits() * 0x9E3779B97F4A7C15L ^ practiceId.getMostSignificantBits();
         return Math.floorMod(Long.hashCode(mixed >>> 7), 100) < share ? ON : OFF;
+    }
+
+    /** 이 연습이 1층을 받는 쪽인지. A/B 로 받는 쪽이면 ON, 아니어도 Pro 배우면 PRO 다(SOMA-900). */
+    public String arm(UUID practiceId, UUID userId) {
+        String byShare = arm(practiceId);
+        if (ON.equals(byShare) || practiceId == null) return byShare;
+        return CoachPro.safe(pro, userId) ? PRO : OFF;
+    }
+
+    /** 1층 칸을 붙이는 쪽인지. */
+    public static boolean on(String arm) {
+        return ON.equals(arm) || PRO.equals(arm);
     }
 
     /**
@@ -83,7 +111,7 @@ public final class CoachLayerOne implements AutoCloseable {
      * 이미 시작했으면 아무것도 하지 않는다.
      */
     public void start(UUID practiceId, UUID userId, Path file, String mimeType, Scene scene) {
-        if (!ON.equals(arm(practiceId)) || file == null) return;
+        if (!on(arm(practiceId, userId)) || file == null || pool == null) return;
         prune();
         if (running.containsKey(practiceId)) return;
         Path copy;
