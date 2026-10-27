@@ -32,7 +32,6 @@ test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 �
   assert.match(summary, /value: \{ flexShrink: 1, fontSize: 16, fontWeight: '700'/);
 
   const consent = read('components/consent-row.tsx');
-  assert.match(consent, /minHeight: 55,/);
   // 긴 제목(「[선택] 광고성 정보 (이메일 · 앱 푸시)」)이 잘리지 않게 두 줄까지 내린다(10/22 피드백).
   assert.match(consent, /numberOfLines=\{2\}/);
   assert.doesNotMatch(consent, /numberOfLines=\{1\}/);

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 
 type Arrow = {
   icon: 'chevron-right' | 'chevron-down';
@@ -12,14 +13,13 @@ type Arrow = {
 };
 
 /**
- * 동의 항목 한 줄 — 체크 · 제목 · (문서가 있으면) 화살표. 가입 동의 화면과 재동의 팝업이 같이 쓴다.
+ * 동의 항목 한 줄 — 체크 · (필수/선택 꼬리표) · 제목 · (문서가 있으면) 꺾쇠. 가입 동의 화면과 재동의 팝업이 같이 쓴다.
  *
  * 필수·선택 모두 체크 한 줄이다. 선택 문서는 체크하면 동의, 비워 두면 거절이다(SOMA-544).
  * 거절 버튼을 두면 안 고르고 지나갈 수가 없어 '선택'이라는 말과 어긋났다.
  * children은 줄 아래에 펼쳐 보일 것(가입 화면의 문서 본문)이다.
- * 모양은 pen 「약관 / 동의 행」(파이프라인 반영버전) — 높이 55, 안쪽 [0,14], 체크 18 · 10 띄워 글 16/700 `text` · 꺾쇠 18, 줄 사이 선 없음.
- * `compact`는 아래에 하위 항목을 다는 줄(광고성 정보) — 높이를 글 높이(20)로 줄인다. 높이는 최소값이라 긴 제목은
- * 두 줄까지 내려가며 줄이 늘어난다(10/22 피드백 — 「[선택] 광고성 정보 (이메일 · 앱 푸시)」가 한 줄 고정이라 잘렸다).
+ * 모양은 화면 pen 「consent.*」 — 최소 높이 56, 체크 22 · 12 띄워 꼬리표 · 글 body1-bold · 꺾쇠 20. 체크와 글자는 위쪽을 맞추고
+ * 긴 제목은 두 줄까지 내려간다. `dense`는 재동의 팝업 줄(pen 「root.reconsent-*」) — 최소 높이 52, 글 body2-bold, 꺾쇠 18.
  */
 export function ConsentRow({
   label,
@@ -28,8 +28,7 @@ export function ConsentRow({
   onToggle,
   arrow,
   children,
-  divided,
-  compact,
+  dense,
   tag,
 }: {
   label: string;
@@ -38,16 +37,14 @@ export function ConsentRow({
   onToggle: () => void;
   arrow?: Arrow;
   children?: ReactNode;
-  /** 줄 아래 선을 긋는 옛 모양(pen S/ConsentRow) — 재동의 팝업. */
-  divided?: boolean;
-  compact?: boolean;
-  /** 가입 동의 화면 모양(pen S4.1) — 동그라미 체크 · 필수/선택 표 · 글 16/600. 접근성 이름은 「[필수] 제목」이다. */
+  dense?: boolean;
+  /** 필수/선택 꼬리표. 접근성 이름은 「필수 제목」이다. */
   tag?: { text: string; required: boolean };
 }) {
   return (
-    <View style={divided && styles.dividedWrap}>
+    <View>
       <Pressable
-        style={[styles.row, compact && styles.compact, divided && styles.dividedRow, locked && styles.locked]}
+        style={[styles.row, dense && styles.dense, locked && styles.locked]}
         onPress={onToggle}
         disabled={locked}
         accessibilityRole="checkbox"
@@ -59,7 +56,7 @@ export function ConsentRow({
             <Text style={[styles.tagText, tag.required ? styles.tagTextRequired : styles.tagTextOptional]}>{tag.text}</Text>
           </View>
         )}
-        <Text style={[styles.label, divided && styles.dividedLabel, tag && styles.tagLabel]} numberOfLines={2}>
+        <Text style={[styles.label, dense && styles.denseLabel]} numberOfLines={2}>
           {label}
         </Text>
         {arrow && (
@@ -69,7 +66,7 @@ export function ConsentRow({
             accessibilityRole="button"
             accessibilityLabel={arrow.accessibilityLabel}
             ph-label="consent_row_open">
-            <Feather name={arrow.icon} size={18} color={palette.iconFaint} />
+            <Feather name={arrow.icon} size={dense ? 18 : 20} color={palette.iconFaint} />
           </Pressable>
         )}
       </Pressable>
@@ -79,24 +76,16 @@ export function ConsentRow({
 }
 
 const styles = StyleSheet.create({
-  dividedWrap: { borderBottomWidth: 1, borderBottomColor: palette.border },
-  dividedRow: { minHeight: undefined, paddingVertical: 16, paddingHorizontal: 0, gap: 12 },
-  dividedLabel: { fontSize: 15, fontWeight: '600' },
-  row: {
-    minHeight: 55,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-  },
-  compact: { minHeight: 20 },
+  // 한 줄일 때 56 가운데에 오도록 위아래 16, 두 줄이면 줄이 늘어난다.
+  row: { minHeight: 56, flexDirection: 'row', alignItems: 'flex-start', gap: space[3], paddingVertical: space[4] },
+  dense: { minHeight: 52, paddingVertical: 15 },
   locked: { opacity: 0.6 },
-  tag: { borderRadius: 6, paddingHorizontal: 7, height: 22, alignItems: 'center', justifyContent: 'center' },
+  tag: { height: 20, marginTop: 2, paddingHorizontal: space[1.5], borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   tagRequired: { backgroundColor: palette.blueSoft },
   tagOptional: { backgroundColor: palette.bgSoft },
-  tagText: { fontSize: 12, fontWeight: '700' },
+  tagText: type.micro,
   tagTextRequired: { color: palette.blueDeep },
   tagTextOptional: { color: palette.textMeta },
-  tagLabel: { fontSize: 16, fontWeight: '600' },
-  label: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.text },
+  label: { flex: 1, ...type.body1Bold, color: palette.text },
+  denseLabel: type.body2Bold,
 });

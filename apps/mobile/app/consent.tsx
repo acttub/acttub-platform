@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -9,9 +10,11 @@ import { Markdown } from '@/components/markdown';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import type { ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
@@ -65,7 +68,8 @@ export default function ConsentScreen() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // 새 판(문서를 다시 받는 중)은 주의 상자, 그 밖의 실패는 빨간 한 줄로 보인다.
+  const [error, setError] = useState<{ kind: 'outdated' } | { kind: 'fail'; message: string } | null>(null);
 
   const documents = useMemo<ConsentDocument[]>(() => signup?.documents ?? [], [signup?.documents]);
   const layout = useMemo(() => signupScreenLayout(documents), [documents]);
@@ -160,10 +164,10 @@ export default function ConsentScreen() {
     } catch (cause) {
       if (signupFailureAction(cause) === 'reload_documents') {
         // 보는 사이 새 판이 나왔다. 문서를 다시 받아 화면을 새로 그린다.
-        setError(t('consent.outdated'));
+        setError({ kind: 'outdated' });
         await reloadSignupDocuments().catch(() => undefined);
       } else {
-        setError(errorMessage(cause, t('consent.agreeFail')));
+        setError({ kind: 'fail', message: errorMessage(cause, t('consent.agreeFail')) });
       }
     } finally {
       setBusy(false);
@@ -216,19 +220,25 @@ export default function ConsentScreen() {
         <View style={styles.lines}>{lines.map(renderLine)}</View>
       </ScrollView>
 
-      <CtaBar safeBottom={false}>
-        {error && <Text style={styles.error}>{error}</Text>}
+      <CtaBar safeBottom={false} style={styles.cta}>
+        {error?.kind === 'outdated' && (
+          <View style={styles.outdated} accessibilityRole="alert">
+            <Feather name="alert-triangle" size={20} color={palette.amber} />
+            <Text style={styles.outdatedText}>{t('consent.outdated')}</Text>
+          </View>
+        )}
+        {error?.kind === 'fail' && <InlineErrorLine message={error.message} />}
         <Pressable
-          style={[styles.allRow, everythingGranted && styles.allRowOn]}
+          style={[styles.allRow, everythingGranted && styles.allRowOn, busy && styles.locked]}
           onPress={toggleEverything}
           disabled={busy}
           accessibilityRole="checkbox"
           accessibilityHint={t('consent.allAgreeHint')}
           accessibilityState={{ checked: everythingGranted }}>
           <Checkbox checked={everythingGranted} />
-          <Text style={styles.allLabel}>{t('consent.allAgreeStart')}</Text>
+          <Text style={[styles.allLabel, everythingGranted && styles.allLabelOn]}>{t('consent.allAgreeStart')}</Text>
         </Pressable>
-        <PrimaryButton label={t('consent.ctaStart')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} />
+        <PrimaryButton label={t('consent.ctaStart')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} loadingLabel={t('consent.saving')} />
       </CtaBar>
     </SafeAreaView>
   );
@@ -236,22 +246,29 @@ export default function ConsentScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  // 좌우 여백 24 · 제목 26/800 줄높이 1.34 · 설명 15/400 줄높이 1.5(제목과 6~8 사이).
-  list: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
-  title: { marginTop: 8, fontSize: 24, fontWeight: '800', lineHeight: 32, color: palette.text },
-  hint: { marginTop: 8, fontSize: 15, fontWeight: '400', lineHeight: 22, color: palette.textMeta },
-  lines: { marginTop: 20 },
-  docBody: { paddingHorizontal: 14, paddingBottom: 12 },
-  // 모두 동의하기(pen S4.1) — 안쪽 18, 모서리 16, 칸 사이 12. 꺼짐 #F9FAFB → 켜짐 #EAF3FE.
+  list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[4] },
+  title: { marginTop: space[3], ...type.title1, color: palette.text },
+  hint: { marginTop: space[2], ...type.body2, color: palette.textMeta },
+  lines: { marginTop: space[5] },
+  // 본문은 체크 칸(22 + 12)만큼 들인다.
+  docBody: { paddingLeft: 34, paddingBottom: space[3] },
+  cta: { gap: space[3] },
+  outdated: { flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4], borderRadius: radius.md, backgroundColor: palette.amberSoft },
+  outdatedText: { flex: 1, ...type.body2Bold, color: palette.amber },
+  // 모두 동의하기 — pen 「SelectCard」. 꺼짐 흰 바탕 + 1px border, 켜짐 blue-soft + 1.5px blue.
   allRow: {
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: palette.bgSubtle,
-    borderRadius: 16,
-    padding: 18,
+    gap: space[3],
+    paddingHorizontal: space[4],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
   },
-  allRowOn: { backgroundColor: palette.blueSoft },
-  allLabel: { flex: 1, fontSize: 18, fontWeight: '700', lineHeight: 27, color: palette.text },
-  error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
+  allRowOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft, paddingHorizontal: space[4] - 0.5 },
+  locked: { opacity: 0.6 },
+  allLabel: { flex: 1, ...type.headline, color: palette.text },
+  allLabelOn: { color: palette.blueDeep },
 });
