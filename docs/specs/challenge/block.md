@@ -4,7 +4,7 @@
 
 - 도입: 0.1.0
 - 결정 기록: ADR-032
-- 화면: A15(반응 메뉴의 "이 사용자 차단"), A15.3(댓글 모달), A4 설정의 차단 목록(미설계)
+- 화면: A15(⋯ 메뉴의 "이 사용자 차단"), A15.3(댓글 모달), A4 설정의 차단 목록(미설계)
 - 테이블: user_blocks(ERD에 추가), challenge_entries, entry_comments, notifications
 
 ## 기능

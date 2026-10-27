@@ -1,24 +1,32 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { useAppDialog } from '@/components/app-dialog';
-import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
+import { useAppDialog, type DialogAction } from '@/components/app-dialog';
+import { ChallengeLineCard } from '@/components/challenge-line-card';
+import { ChallengeNotice } from '@/components/challenge-notice';
+import { pt } from '@/components/ui/anchored-menu';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavIconButton } from '@/components/ui/nav-header';
+import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
+import { Toast } from '@/components/ui/toast';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
   avatarLetter,
   browseFailure,
   browseFailureMessage,
-  canDelete,
   canPerform,
+  canRetryBrowse,
   dDayLabel,
   detailTitleKey,
   firstBadgeLabel,
@@ -28,8 +36,10 @@ import {
   rankEntries,
   rankingNotice,
   ranksHidden,
+  type BrowseFailure,
   type RankedEntry,
 } from '@/lib/challenge/browse';
+import { detailHeader, type DetailMenuItem } from '@/lib/challenge/menu';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { hasFinishedFirstChallenge } from '@/lib/challenge/intro-state';
 import { buildReportBody, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
@@ -37,7 +47,6 @@ import type { ChallengeDetail, EntrySort, ReportReason } from '@/lib/challenge/t
 import { newRequestId } from '@/lib/request-id';
 import { postedAtLabel } from '@/lib/time-label';
 import { translate as t } from '@/lib/i18n';
-import { LoadingText } from '@/components/ui/loading-text';
 
 type Ranked = RankedEntry;
 
@@ -54,9 +63,9 @@ type Ranked = RankedEntry;
  */
 export default function ChallengeDetailScreen() {
   const router = useRouter();
-  const { alert, confirm, dialog } = useAppDialog();
+  const { alert, confirm, sheet, dialog } = useAppDialog();
   const { id, opened } = useLocalSearchParams<{ id?: string; opened?: string }>();
-  /** 방금 등록해서 들어왔으면 아래에 어두운 안내줄을 잠깐 띄운다(C4.7). */
+  /** 방금 등록해서 들어왔으면 아래에 토스트를 잠깐 띄운다(C4.7). */
   const [toast, setToast] = useState(opened === '1');
   useEffect(() => {
     if (!toast) return;
@@ -70,7 +79,7 @@ export default function ChallengeDetailScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   /** 지금 보이는 정렬. 이어 받는 중에 정렬을 바꾸면 늦게 온 옛 정렬의 결과를 버린다. */
   const shownSort = useRef<EntrySort>('likes');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<BrowseFailure | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
@@ -93,9 +102,8 @@ export default function ChallengeDetailScreen() {
         setEntries(rankEntries(list.entries, nextSort));
         setCursor(list.next_cursor);
       } catch (e) {
-        const failure = browseFailure(e);
         setEntries([]);
-        setError(browseFailureMessage(failure));
+        setError(browseFailure(e));
       }
     },
     [id],
@@ -116,7 +124,7 @@ export default function ChallengeDetailScreen() {
       setCursor(list.next_cursor);
     } catch (e) {
       if (browseFailure(e).kind === 'cursor_expired') void load(sort);
-      else setError(browseFailureMessage(browseFailure(e)));
+      else setError(browseFailure(e));
     } finally {
       setLoadingMore(false);
     }
@@ -143,7 +151,7 @@ export default function ChallengeDetailScreen() {
     } catch (e) {
       const failure = browseFailure(e);
       void alert({
-        title: t('challenges.deleteTitle'),
+        title: t('challenges.deleteFailTitle'),
         message: failure.kind === 'other' ? t('challenges.deleteHasEntries') : browseFailureMessage(failure),
       });
     }
@@ -160,7 +168,7 @@ export default function ChallengeDetailScreen() {
       logEvent('challenge_report', { reason, target: 'challenge' });
       void alert({ title: t('videoReport.doneTitle'), message: reportDoneMessage('challenge') });
     } catch (e) {
-      void alert({ title: t('videoReport.titleChallenge'), message: reportFailureMessage(reportFailure(e)) });
+      void alert({ title: t('videoReport.failTitle'), message: reportFailureMessage(reportFailure(e)) });
     }
   };
 
@@ -183,6 +191,14 @@ export default function ChallengeDetailScreen() {
   const hideRanks = challenge ? ranksHidden(challenge) : false;
   const notice = challenge ? rankingNotice(challenge) : null;
   const moderation = challenge ? moderationNotice(challenge) : null;
+  const header = detailHeader(challenge);
+  const menuAction: Record<DetailMenuItem, DialogAction> = {
+    share: { label: t('challenges.menuShare'), icon: 'share-2', onPress: share },
+    report: { label: t('challenges.menuReport'), icon: 'flag', onPress: () => setReportOpen(true) },
+    delete: { label: t('challenges.menuDelete'), icon: 'trash-2', destructive: true, onPress: () => void remove() },
+  };
+  const openMenu = (e: GestureResponderEvent, items: readonly DetailMenuItem[]) =>
+    void sheet({ anchor: pt(e), actions: items.map((item) => menuAction[item]) });
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -190,71 +206,43 @@ export default function ChallengeDetailScreen() {
         options={{
           headerShown: true,
           title: t(detailTitleKey(challenge)),
-          headerRight: () => (
-            <View style={styles.headerRight}>
-              {/* 내가 연 챌린지는 신고하지 않는다 — 지울 수 있으면 휴지통, 참여작이 있어 못 지우면 아무것도 없다(10/24 폰 QA). */}
-              {challenge && !challenge.is_host && (
-                <NavIconButton
-                  icon="flag"
-                  size={19}
-                  color={palette.textSub}
-                  label={t('challenges.reportA11y')}
-                  phLabel="challenge_detail_report"
-                  onPress={() => setReportOpen(true)}
-                />
-              )}
-              {challenge && canDelete(challenge) && (
-                <NavIconButton
-                  icon="trash-2"
-                  size={19}
-                  color={palette.textSub}
-                  label={t('challenges.deleteA11y')}
-                  phLabel="challenge_detail_delete"
-                  onPress={() => void remove()}
-                />
-              )}
+          headerRight: () =>
+            header.kind === 'share' ? (
+              <NavIconButton icon="share-2" label={t('challenges.shareA11y')} phLabel="challenge_detail_share" onPress={share} />
+            ) : header.kind === 'menu' ? (
               <NavIconButton
-                icon="share-2"
-                size={20}
-                color={palette.textSub}
-                label={t('challenges.shareA11y')}
-                phLabel="challenge_detail_share"
-                onPress={share}
+                icon="more-horizontal"
+                label={t('challenges.moreA11y')}
+                phLabel="challenge_detail_more"
+                onPress={(e) => openMenu(e, header.items)}
               />
-            </View>
-          ),
+            ) : null,
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>
-        {!challenge && !error && <SkeletonDetail media lines={3} style={{ paddingHorizontal: 0 }} />}
-        {error && <Text style={styles.error}>{error}</Text>}
+        {!challenge && !error && <SkeletonDetail media lines={3} style={styles.flush} />}
+        {error && !canRetryBrowse(error) && <InlineErrorLine message={browseFailureMessage(error)} />}
+        {error && canRetryBrowse(error) && (
+          <InlineError message={browseFailureMessage(error)} onRetry={() => void load(sort)} />
+        )}
 
         {challenge && (
           <>
-            <View style={styles.lineCard}>
-              <View style={styles.chip}>
-                <Feather name="zap" size={15} color={palette.onAccent} />
-                <Text style={styles.chipText}>
-                  {challenge.origin === 'team' && challenge.featured_on && !ended ? t('challenges.weekLabel') : hostLabel(challenge)} ·{' '}
-                  {dDayLabel(challenge)}
-                </Text>
-              </View>
-              <Text style={styles.line}>“{challenge.line}”</Text>
-              {!!(challenge.work || challenge.character) && (
-                <Text style={styles.work}>{[challenge.work, challenge.character].filter(Boolean).join(' · ')}</Text>
-              )}
-              {!!challenge.scene_note && <Text style={styles.note}>{challenge.scene_note}</Text>}
-              <Text style={styles.stat}>
-                {t('challenges.entryCount', { count: challenge.entry_count })} ·{' '}
-                {t('challenges.likeSum', { count: challenge.like_sum })}
-              </Text>
-              {showGuide && !ended && <Text style={styles.guide}>{t('challenges.detailGuide')}</Text>}
-            </View>
+            <ChallengeLineCard
+              pill={`${challenge.origin === 'team' && challenge.featured_on && !ended ? t('challenges.weekLabel') : hostLabel(challenge)} · ${dDayLabel(challenge)}`}
+              line={challenge.line}
+              meta={[
+                [challenge.work, challenge.character].filter(Boolean).join(' · '),
+                challenge.scene_note,
+                `${t('challenges.entryCount', { count: challenge.entry_count })} · ${t('challenges.likeSum', { count: challenge.like_sum })}`,
+              ]}
+            />
+            {showGuide && !ended && <Text style={styles.guide}>{t('challenges.detailGuide')}</Text>}
 
             <AdSlot slot="challenge_detail_top" />
 
-            {!!moderation && <Text style={styles.notice}>{moderation}</Text>}
-            {!!notice && <Text style={styles.notice}>{notice}</Text>}
+            {!!moderation && <ChallengeNotice message={moderation} tone={challenge.moderation === 'hidden' ? 'danger' : 'amber'} />}
+            {!!notice && <ChallengeNotice message={notice} />}
 
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>{t('challenges.otherActors')}</Text>
@@ -265,22 +253,23 @@ export default function ChallengeDetailScreen() {
                     ['latest', 'challenges.tabRecent'],
                   ] as const
                 ).map(([key, label]) => (
-                  <Pressable
+                  <Chip
                     key={key}
-                    hitSlop={6}
+                    label={t(label)}
+                    role="radio"
+                    selected={sort === key}
+                    size="sm"
+                    phLabel={`challenge_detail_sort_${key}`}
                     onPress={() => {
                       setSort(key);
                       setEntries(null);
                     }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: sort === key }}>
-                    <Text style={[styles.tabText, sort === key && styles.tabTextOn]}>{t(label)}</Text>
-                  </Pressable>
+                  />
                 ))}
               </View>
             </View>
 
-            {entries === null && <SkeletonRows count={3} avatar card={false} style={{ paddingHorizontal: 0 }} />}
+            {entries === null && <SkeletonRows count={3} avatar card={false} style={styles.flush} />}
             {entries?.map((entry) => (
               <Pressable
                 key={entry.id}
@@ -326,7 +315,7 @@ export default function ChallengeDetailScreen() {
             {cursor && (
               <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
                 {loadingMore ? (
-                  <LoadingText label={t('loadingText.loading')} color={palette.blue} />
+                  <ActivityIndicator color={palette.iconFaint} accessibilityLabel={t('loadingText.loading')} />
                 ) : (
                   <Text style={styles.moreText}>{t('challenges.moreEntries')}</Text>
                 )}
@@ -334,7 +323,7 @@ export default function ChallengeDetailScreen() {
             )}
 
             {entries !== null && entries.length === 0 && !error && (
-              <Text style={styles.empty}>{t('challenges.emptyEntries')}</Text>
+              <InlineEmpty title={t('challenges.emptyEntriesTitle')} description={t('challenges.emptyEntriesSub')} />
             )}
           </>
         )}
@@ -344,11 +333,7 @@ export default function ChallengeDetailScreen() {
           <PrimaryButton label={t('challenges.performCta')} onPress={perform} />
         </CtaBar>
       )}
-      {toast && (
-        <View style={styles.toast} pointerEvents="none">
-          <Text style={styles.toastText}>{t('lineNew.doneToast')}</Text>
-        </View>
-      )}
+      {toast && <Toast message={t('lineNew.doneToast')} bottom={TOAST_ABOVE_CTA} />}
       <ChallengeReportSheet
         visible={reportOpen}
         target="challenge"
@@ -360,50 +345,39 @@ export default function ChallengeDetailScreen() {
   );
 }
 
+/** 아래 고정 바(위아래 12 + 버튼 48) 위 12. */
+const TOAST_ABOVE_CTA = space[3] * 3 + 48;
+
 const styles = StyleSheet.create({
-  toast: { position: 'absolute', left: 24, right: 24, bottom: 96, backgroundColor: palette.text, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 18 },
-  toastText: { fontSize: 14.5, fontWeight: '700', color: palette.onAccent },
-  pressed: { opacity: 0.85 },
-  moreBtn: { alignItems: 'center', paddingVertical: 14 },
-  moreText: { color: palette.blue, fontSize: 14, fontWeight: '600' },
+  pressed: { opacity: 0.7 },
+  flush: { paddingHorizontal: 0 },
+  moreBtn: { alignItems: 'center', paddingVertical: space[3] },
+  moreText: { ...type.body2Bold, color: palette.blueDeep },
   safe: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
-  error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
-  lineCard: { backgroundColor: palette.text, borderRadius: 20, padding: 18, gap: 10 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  chipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent },
-  line: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
-  work: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)', lineHeight: 20 },
-  note: { fontSize: 12.5, color: 'rgba(255, 255, 255, 0.67)', lineHeight: 19 },
-  stat: { fontSize: 12.5, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)' },
-  guide: { fontSize: 14, fontWeight: '700', color: palette.blueDeep, lineHeight: 21 },
-  notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber, paddingVertical: 4 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
-  tabRow: { flexDirection: 'row', gap: 12 },
-  tabText: { fontSize: 13, fontWeight: '700', color: palette.textMeta },
-  tabTextOn: { fontWeight: '800', color: palette.text },
-  entry: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, paddingHorizontal: 4, borderRadius: 16 },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[6], gap: space[3] },
+  guide: { ...type.body2, color: palette.textSub },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space[1] },
+  sectionTitle: { ...type.headline, color: palette.text },
+  tabRow: { flexDirection: 'row', gap: space[1.5] },
+  entry: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[4] },
   rankCell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  rank: { fontSize: 17, fontWeight: '900', color: palette.blue },
-  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 13, fontWeight: '900', color: palette.blueDeep },
-  entryBody: { flex: 1, minWidth: 0, gap: 6 },
-  entryHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  author: { flexShrink: 1, fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 24 },
-  newBadge: { fontSize: 10.5, fontWeight: '900', color: palette.blue },
-  entryMeta: { fontSize: 13, fontWeight: '600', color: palette.textMeta, lineHeight: 20 },
-  caption: { fontSize: 13, color: palette.textMeta, lineHeight: 19 },
-  firstBadge: { fontSize: 12, fontWeight: '800', color: palette.blueDeep },
-  empty: { fontSize: 14, color: palette.textSub, textAlign: 'center', paddingVertical: 40, lineHeight: 22 },
+  rank: { ...type.title2, color: palette.blueDeep },
+  avatar: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { ...type.body2Bold, color: palette.blueDeep },
+  entryBody: { flex: 1, minWidth: 0, gap: space[1] },
+  entryHead: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  author: { ...type.body1Bold, flexShrink: 1, color: palette.text },
+  newBadge: { ...type.micro, color: palette.blueDeep },
+  entryMeta: { ...type.caption, color: palette.textMeta },
+  caption: { ...type.body2, color: palette.textSub },
+  firstBadge: {
+    ...type.micro,
+    alignSelf: 'flex-start',
+    color: palette.blueDeep,
+    backgroundColor: palette.blueSoft,
+    borderRadius: radius.full,
+    paddingHorizontal: space[1.5],
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
 });

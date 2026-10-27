@@ -86,3 +86,16 @@ test('저장한 대본이 없으면 대본 같이 만들기로 보낸다', async
   await fireEvent.press(screen.getByRole('button', { name: '새 대본 같이 만들기' }));
   expect(mockRouter.replace).toHaveBeenCalledWith('/script-cocreate');
 });
+
+test('대본을 여는 동안 「다음」은 「여는 중…」으로 바뀐다', async () => {
+  mockListScripts.mockResolvedValue({ scripts: [card('s1', '네가 좋아하는 케이크', ['지훈'])], total_count: 1, in_progress_count: 0 });
+  mockGetScriptDetail.mockReturnValue(new Promise(() => undefined));
+  await render(<CoachScriptsScreen />);
+
+  await fireEvent.press(await screen.findByText('네가 좋아하는 케이크'));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(screen.getByText('여는 중…')).toBeOnTheScreen();
+  // 「새 대본 같이 만들기」는 주 버튼 위의 글자 버튼이다.
+  await fireEvent.press(screen.getByRole('button', { name: '새 대본 같이 만들기' }));
+  expect(mockRouter.replace).toHaveBeenCalledWith('/script-cocreate');
+});

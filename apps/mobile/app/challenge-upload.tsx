@@ -3,18 +3,23 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { setPickedVideo } from '@/lib/practice/picked-video';
 import { ChallengeDone } from '@/components/challenge-done';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { Checkbox } from '@/components/ui/checkbox';
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
+import { TextField } from '@/components/ui/text-field';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { dDayLabel, isEnded } from '@/lib/challenge/browse';
@@ -78,7 +83,8 @@ export default function ChallengeUploadScreen() {
   const [error, setError] = useState<string | null>(null);
   /** 방금 만든 참여작 — 있으면 완료 화면이다. */
   const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean; first: boolean } | null>(null);
-  const entryShare = useEntryShare(params.line ?? '', () => Alert.alert(t('entryShare.title'), t('entryShare.none')));
+  const { alert, dialog } = useAppDialog();
+  const entryShare = useEntryShare(params.line ?? '', () => void alert({ title: t('entryShare.title'), message: t('entryShare.none') }));
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -241,7 +247,6 @@ export default function ChallengeUploadScreen() {
     return (
       <>
         <ChallengeDone
-          first={created.first}
           title={created.first ? t('challengeDone.titleFirst') : t(isPublic ? 'challengeDone.titlePublic' : 'challengeDone.titlePrivate')}
           sub={parts.join(' · ')}
           rows={[
@@ -259,11 +264,10 @@ export default function ChallengeUploadScreen() {
                 ]
               : []),
           ]}
-          onShare={isPublic ? share : null}
-          onCoach={coachWithThis}
           onHome={() => router.dismissTo('/')}
         />
         {entryShare.sheet}
+        {dialog}
       </>
     );
   }
@@ -295,7 +299,7 @@ export default function ChallengeUploadScreen() {
                 “{challenge.line}”
               </Text>
             )}
-            {!!challenge && <Text style={styles.videoSub}>{dDayLabel(challenge)}</Text>}
+            {!!challenge && <Text style={[styles.videoSub, ended && styles.videoSubEnded]}>{dDayLabel(challenge)}</Text>}
           </View>
         </View>
         <Text style={styles.rangeLabel}>{t('challengeUpload.pickVisibility')}</Text>
@@ -324,10 +328,10 @@ export default function ChallengeUploadScreen() {
           </View>
         )}
 
-        <TextInput
+        <TextField
           style={styles.caption}
           placeholder={t('challengeUpload.captionPh')}
-          placeholderTextColor={palette.textMeta}
+          accessibilityLabel={t('challengeUpload.captionPh')}
           value={caption}
           onChangeText={setCaption}
           onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
@@ -337,13 +341,20 @@ export default function ChallengeUploadScreen() {
         <Text style={styles.counter}>{t('challengeUpload.captionCounter', { count: [...caption].length, max: CAPTION_MAX })}</Text>
 
         {uploading && <Text style={styles.hint}>{t('challengeUpload.waitingVideo')}</Text>}
-        {captionTooLong(caption) && <Text style={styles.error}>{t('challengeUpload.errInvalid')}</Text>}
-        {ended && <Text style={styles.error}>{t('challengeUpload.errClosed')}</Text>}
-        {!!error && <Text style={styles.error}>{error}</Text>}
+        {captionTooLong(caption) && <InlineErrorLine message={t('challengeUpload.errInvalid')} />}
+        {ended && <InlineErrorLine message={t('challengeUpload.errClosed')} />}
+        {!!error && <InlineErrorLine message={error} />}
       </KeyboardAwareScroll>
 
       <CtaBar safeBottom={false}>
-        <PrimaryButton label={t('challengeUpload.submit')} onPress={() => void submit()} disabled={!ready || ended} loading={submitting} />
+        {/* 챌린지를 못 찾았거나 끝났으면 올릴 곳이 없어 꺼 둔다. */}
+        <PrimaryButton
+          label={t('challengeUpload.submit')}
+          onPress={() => void submit()}
+          disabled={!ready || ended || !challenge}
+          loading={submitting}
+          loadingLabel={t('challengeUpload.submitting')}
+        />
       </CtaBar>
       </KeyboardLift>
     </SafeAreaView>
@@ -373,7 +384,7 @@ function Option({
         <Text style={[styles.optionTitle, selected && styles.optionTitleOn]}>{title}</Text>
         <Text style={styles.optionSub}>{sub}</Text>
       </View>
-      {selected && <Feather name="check" size={20} color={palette.blue} />}
+      {selected && <Checkbox checked />}
     </Pressable>
   );
 }
@@ -381,35 +392,25 @@ function Option({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { flex: 1 },
-  flex: { flex: 1, gap: 6 },
-  content: { paddingHorizontal: 24, paddingTop: 8, gap: 10, paddingBottom: 16 },
-  videoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  videoText: { flex: 1, minWidth: 0, gap: 6 },
-  videoLine: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
-  videoSub: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
-  rangeLabel: { fontSize: 14, fontWeight: '800', color: palette.textSub },
-  thumbWrap: { width: 100, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.textSub },
+  flex: { flex: 1, gap: space[1] },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[3], paddingBottom: space[4] },
+  videoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3] },
+  videoText: { flex: 1, minWidth: 0, gap: space[1.5] },
+  videoLine: { ...type.body1Bold, color: palette.text },
+  videoSub: { ...type.caption, color: palette.textMeta },
+  videoSubEnded: { color: palette.danger },
+  rangeLabel: { ...type.body2Bold, color: palette.textSub, marginTop: space[2] },
+  thumbWrap: { width: 72, height: 100, borderRadius: radius.md, overflow: 'hidden', backgroundColor: palette.textSub },
   thumb: { width: '100%', height: '100%' },
   thumbEmpty: { backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  caption: {
-    minHeight: 72,
-    borderRadius: 12,
-    backgroundColor: palette.bgSoft,
-    padding: 12,
-    fontSize: 14,
-    color: palette.text,
-    textAlignVertical: 'top',
-    marginTop: 4,
-  },
-  counter: { fontSize: 11.5, color: palette.textMeta, textAlign: 'right', marginTop: -8 },
-  hint: { fontSize: 12.5, color: palette.textMeta },
-  error: { fontSize: 13, fontWeight: '700', color: palette.danger },
-  // pen h9wxCz — 안 고른 줄은 안쪽 [15,4], 고른 줄은 [15,16] + 연파랑 바탕.
-  option: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 18, borderWidth: 1, borderColor: palette.border },
-  optionOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  optionTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 26 },
+  caption: { minHeight: 96, paddingTop: space[3], textAlignVertical: 'top', marginTop: space[1] },
+  counter: { ...type.caption, color: palette.textMeta, textAlign: 'right', marginTop: -space[1] },
+  hint: { ...type.caption, color: palette.textMeta },
+  option: { flexDirection: 'row', alignItems: 'center', gap: space[3], borderRadius: radius.lg, paddingVertical: space[3], paddingHorizontal: space[4], borderWidth: 1, borderColor: palette.border },
+  optionOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5, paddingVertical: space[3] - 0.5 },
+  optionTitle: { ...type.headline, fontWeight: '700', color: palette.text },
   optionTitleOn: { color: palette.blueDeep },
-  optionSub: { fontSize: 13, fontWeight: '500', color: palette.textMeta, lineHeight: 20 },
-  mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, paddingHorizontal: 4 },
-  mosaicTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 22 },
+  optionSub: { ...type.caption, color: palette.textMeta },
+  mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[1] },
+  mosaicTitle: { ...type.body1Bold, color: palette.text },
 });
