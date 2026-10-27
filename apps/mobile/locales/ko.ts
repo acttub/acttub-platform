@@ -1665,8 +1665,6 @@ const ko = {
     deleteAllTitle: '기억을 전부 지울까요?',
     deleteAllMsg: '코치가 나에 대해 알던 것이 모두 사라집니다. 되돌릴 수 없어요.',
     deleteAllConfirm: '전부 지우기',
-    backToSettings: '← 설정',
-    backToProfile: '← 프로필',
     screenTitle: '코치가 기억하는 것',
     introBody:
       '코치는 첫 연습과 그 뒤 세 번째 연습마다 여기에 새로 적어요. 다음 연습을 시작할 때 이 내용을 참고해요.',
