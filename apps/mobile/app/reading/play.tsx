@@ -109,6 +109,7 @@ import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feed
 import { ReadingAfterCard } from '@/components/reading-after-card';
 import { ReadingNoScript } from '@/components/reading/no-script';
 import { LoadingText } from '@/components/ui/loading-text';
+import { ReadingCompareLink } from '@/components/reading/compare-link';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
@@ -1743,6 +1744,7 @@ export default function ReadingPlay() {
                   )}
                 </View>
               )}
+              <ReadingCompareLink scriptId={script.id} session={session} />
               {links}
               {rating}
               {ratingCard}
@@ -1785,6 +1787,7 @@ export default function ReadingPlay() {
                 <TextButton tone="accent" label={t('reading.seeAll')} onPress={() => router.push('/reading/diff')} />
               </View>
             ) : null}
+            <ReadingCompareLink scriptId={script.id} session={session} />
             {links}
             {rating}
             {ratingCard}
