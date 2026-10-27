@@ -28,6 +28,7 @@ import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
  * 누르기까지의 시간도 겨친다. 이때는 분석 작업이 다시 올리지 않는다.
  */
 public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWarmup {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(CoachVideoWarmup.class);
     /** 처리 대기 한도. 첫 질문이 직접 올릴 때와 같다. */
     static final Duration PROCESSING = Duration.ofSeconds(180);
     private final DirectVideoModel model;
@@ -80,7 +81,13 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
         if (model == null || storage == null || !cache.enabled() || objectKey == null || objectKey.isBlank()) return;
         String mimeType = contentType == null || contentType.isBlank() ? "video/mp4" : contentType;
         String label = cache.sourceLabel(objectKey, etag);
-        cache.warmSource(objectKey, etag, () -> prepare(download(objectKey, etag), mimeType, label));
+        long requested = System.nanoTime();
+        cache.warmSource(objectKey, etag, () -> {
+            var timing = new Timing("upload", requested);
+            Path local = download(objectKey, etag);
+            timing.downloaded();
+            return prepare(local, mimeType, label, timing);
+        });
     }
 
     /** 원본을 내려받는다. 올린 뒤 바뀌었으면(etag 가 다르면) 준비하지 않는다 — 첫 질문이 직접 한다. */
@@ -145,35 +152,101 @@ public final class CoachVideoWarmup implements DirectVideoWarmup, VideoUploadWar
             throw new UncheckedIOException(failure);
         }
         Path copy = made;
-        if (!cache.warm(key, () -> prepare(copy, mimeType, label))) deleteQuietly(copy);
+        long requested = System.nanoTime();
+        String source = key.objectKey() != null && key.objectKey().endsWith("#face-mosaic") ? "analysis_mosaic" : "analysis";
+        if (!cache.warm(key, () -> prepare(copy, mimeType, label, new Timing(source, requested)))) deleteQuietly(copy);
     }
 
-    private CoachVideoCache.Prepared prepare(Path copy, String mimeType, String label) {
+    private CoachVideoCache.Prepared prepare(Path copy, String mimeType, String label, Timing timing) {
         DirectVideoModel.Video uploaded = null;
+        timing.size(copy);
         try {
+            timing.started();
             DirectVideoModel.InputInspection inspection = model.inspect(copy);
+            timing.inspected();
             // 소리가 없거나 빈 영상이면 올리지 않는다. 첫 질문이 이 검사 결과로 바로 안내한다.
             if (inspection != null && (inspection.unusableAudio() || inspection.emptyInput())) {
+                timing.outcome = "blocked";
                 return new CoachVideoCache.Prepared(inspection, null);
             }
             uploaded = label != null ? model.upload(copy, mimeType, inspection, label)
                     : inspection == null || inspection.hasAudioTrack() == null
                     ? model.upload(copy, mimeType) : model.upload(copy, mimeType, inspection);
+            timing.uploaded();
             long deadline = System.nanoTime() + processingWait.toNanos();
             while (!model.ready(uploaded)) {
+                timing.polls++;
                 if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
                 Thread.sleep(500);
             }
+            timing.polls++;
+            timing.outcome = "ok";
             return new CoachVideoCache.Prepared(inspection, uploaded);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
+            timing.outcome = "interrupted";
             deleteUploaded(uploaded);
             return null;
         } catch (RuntimeException failure) {
+            timing.outcome = "failed:" + failure.getClass().getSimpleName();
             deleteUploaded(uploaded);
             throw failure;
         } finally {
             deleteQuietly(copy);
+            timing.log();
+        }
+    }
+
+    /**
+     * 미리 준비 단계별 시간(10/27). 첫 질문의 warm_wait_ms 가 길 때 어느 단계(뒤에서 시작하기까지·내려받기·소리 검사·
+     * Gemini 올리기·처리 대기)가 늦었는지 가른다. 값이 없는 단계는 -1. 로그만 남기고 동작은 바꾸지 않는다.
+     */
+    private static final class Timing {
+        private final String source;
+        private final long requested;
+        private long downloaded = -1;
+        private long started = -1;
+        private long inspected = -1;
+        private long uploaded = -1;
+        private long bytes = -1;
+        int polls;
+        String outcome = "unknown";
+
+        Timing(String source, long requested) {
+            this.source = source;
+            this.requested = requested;
+        }
+
+        void downloaded() { downloaded = System.nanoTime(); }
+        void started() { started = System.nanoTime(); }
+        void inspected() { inspected = System.nanoTime(); }
+        void uploaded() { uploaded = System.nanoTime(); }
+
+        void size(Path path) {
+            try {
+                bytes = Files.size(path);
+            } catch (IOException | RuntimeException ignored) {
+                bytes = -1;
+            }
+        }
+
+        void log() {
+            long end = System.nanoTime();
+            try {
+                // 올리기 끝 준비는 내려받기를 포함한다: 요청 → 내려받기 끝. 분석 작업 준비는 사본만 만들므로 -1.
+                long download = downloaded < 0 ? -1 : ms(requested, downloaded);
+                long queued = downloaded < 0 ? ms(requested, started) : -1;
+                LOG.info("coach warm timing source={} outcome={} bytes={} total_ms={} queued_ms={} download_ms={} "
+                                + "inspect_ms={} upload_ms={} processing_ms={} polls={}",
+                        source, outcome, bytes, ms(requested, end), queued, download,
+                        ms(started, inspected), ms(inspected, uploaded), ms(uploaded, uploaded < 0 ? -1 : end), polls);
+            } catch (RuntimeException ignored) {
+                // 시간 기록은 덤이다.
+            }
+        }
+
+        private static long ms(long from, long to) {
+            return from < 0 || to < 0 ? -1 : (to - from) / 1_000_000;
         }
     }
 
