@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.billing.adapter;
 
 import java.time.Clock;
+import java.time.Instant;
 
 import com.acttub.actingapi.feature.billing.adapter.toss.TossBillingGateway;
 import com.acttub.actingapi.feature.billing.app.AppBillingGateway;
@@ -38,8 +39,11 @@ class BillingConfiguration {
             @Value("${BILLING_PUBLIC_ORIGIN:}") String origin,
             @Value("${BILLING_WEB_RETURN_URL:}") String returnUrl,
             @Value("${BILLING_TOSS_CLIENT_KEY:}") String clientKey,
-            @Value("${BILLING_TOSS_SECRET_KEY:}") String secretKey) {
-        BillingSettings settings = new BillingSettings(enabled, appEnabled, freeLimits, origin, returnUrl, clientKey, secretKey);
+            @Value("${BILLING_TOSS_SECRET_KEY:}") String secretKey,
+            @Value("${BILLING_LEGACY_SIGNUP_BEFORE:}") String legacySignupBefore,
+            @Value("${BILLING_LEGACY_LIMITS_FROM:2026-11-30T15:00:00Z}") String legacyLimitsFrom) {
+        BillingSettings settings = new BillingSettings(enabled, appEnabled, freeLimits, origin, returnUrl, clientKey, secretKey,
+                legacySignupBefore.isBlank() ? null : Instant.parse(legacySignupBefore.strip()), Instant.parse(legacyLimitsFrom.strip()));
         if (enabled) {
             String reason = settings.invalidReason();
             if (reason == null) {

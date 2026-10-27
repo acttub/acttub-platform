@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.billing.app;
 
 import java.net.URI;
+import java.time.Instant;
 
 /**
  * ACTTUB Pro 결제의 설정(SOMA-818). 스위치가 둘이다.
@@ -16,6 +17,8 @@ import java.net.URI;
  * <p>무료 한도 강제({@code BILLING_FREE_LIMITS_ENABLED}, 기본 false)는 둘 중 하나가 열려 있을 때만 의미가 있다.
  * {@link #toString()} 은 비밀 값을 싣지 않는다.
  *
+ * @param legacySignupBefore 덮어쓰기용(선택, null 이면 약관 v2 ko 발행 시각). 이 시각 전에 가입한 회원(users.created_at)은 기존 회원이다
+ * @param legacyLimitsFrom 기존 회원에게 무료 한도가 걸리기 시작하는 시각. 그 전까지는 한도가 없다(Pro 판정·목소리·광고는 그대로)
  * @param origin 토스가 브라우저를 되돌려 보낼 이 API 의 공개 주소(https 도메인, 개발용 루프백 http)
  * @param returnUrl 카드 등록이 끝나면 웹으로 돌아갈 주소(https, 개발용 루프백 http)
  */
@@ -26,9 +29,21 @@ public record BillingSettings(
         String origin,
         String returnUrl,
         String clientKey,
-        String secretKey) {
+        String secretKey,
+        Instant legacySignupBefore,
+        Instant legacyLimitsFrom) {
+
+    /** 기존 회원에게도 무료 한도가 걸리기 시작하는 시각(2026-12-01 00:00 KST). */
+    public static final Instant DEFAULT_LEGACY_LIMITS_FROM = Instant.parse("2026-11-30T15:00:00Z");
+
+    public BillingSettings(boolean enabled, boolean appEnabled, boolean freeLimitsEnabled, String origin,
+            String returnUrl, String clientKey, String secretKey) {
+        this(enabled, appEnabled, freeLimitsEnabled, origin, returnUrl, clientKey, secretKey,
+                null, DEFAULT_LEGACY_LIMITS_FROM);
+    }
 
     public BillingSettings {
+        legacyLimitsFrom = legacyLimitsFrom == null ? DEFAULT_LEGACY_LIMITS_FROM : legacyLimitsFrom;
         origin = strip(origin);
         returnUrl = strip(returnUrl);
         clientKey = strip(clientKey);

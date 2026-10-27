@@ -22,6 +22,12 @@ public interface BillingRepository {
 
     int scriptCount(UUID userId);
 
+    /** 회원(게스트 포함) 가입 시각 — users.created_at. 없는 사용자면 비어 있다. 기존 회원 무료 한도 유예 판정용. */
+    Optional<Instant> signedUpAt(UUID userId);
+
+    /** 약관 v2(type=terms, version=v2, locale=ko)의 발행 시각 — consent_documents.published_at. 아직 없으면 비어 있다. */
+    Optional<Instant> termsV2PublishedAt();
+
     /**
      * 카드 없이 서버가 준 Pro 기간(billing_pro_grants) 중 지금 유효한 것의 가장 늦은 끝. 없으면 비어 있다. 부여는 SQL·관리
      * 경로로만 하고 이 저장소는 읽기만 한다.

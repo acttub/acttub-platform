@@ -52,6 +52,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
         "BILLING_WEB_ENABLED=true",
         "BILLING_WEB_RETURN_URL=https://acttub.com/pricing/result",
         "BILLING_FREE_LIMITS_ENABLED=true",
+        "BILLING_LEGACY_SIGNUP_BEFORE=2000-01-01T00:00:00Z",
         "BILLING_PUBLIC_ORIGIN=https://billing.acttub.test",
         "BILLING_TOSS_CLIENT_KEY=test_ck_fakefakefake1234",
         "BILLING_TOSS_SECRET_KEY=test_sk_fakefakefake1234",

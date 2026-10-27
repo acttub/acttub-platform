@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 무료 한도가 걸리는가(SOMA-818) — 코칭(하루 3회차)과 리딩 대본(3개). 결제 기능이 열려 있고
- * {@code BILLING_FREE_LIMITS_ENABLED=true} 이고 Pro 가 아닐 때만 true 다. 플래그가 꺼져 있으면 DB 를 읽지 않는다.
+ * {@code BILLING_FREE_LIMITS_ENABLED=true} 이고 Pro 가 아니고, 10월까지 가입한 회원의 유예 기간(~12/1 00:00 KST)이 아닐 때만 true 다. 플래그가 꺼져 있으면 DB 를 읽지 않는다.
  */
 @Component
 class BillingPlanLimits implements CoachingPlan, ScriptPlan, VoicePlan {
@@ -22,7 +22,7 @@ class BillingPlanLimits implements CoachingPlan, ScriptPlan, VoicePlan {
 
     @Override
     public boolean freeLimited(UUID userId) {
-        return subscriptions.settings().limitsEnforced() && !subscriptions.pro(userId);
+        return subscriptions.freeLimited(userId);
     }
 
     /** 리딩 고품질 목소리를 무료 기간 뒤에도 쓸 수 있는가 — 결제했거나 서버가 준 Pro 기간 안이면 true. */
