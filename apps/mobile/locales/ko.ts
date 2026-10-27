@@ -1234,6 +1234,7 @@ const ko = {
     closed: '이 대화는 마쳤어요. 이어서 하려면 새 회차로 시작해요.',
     notReady: '분석이 아직 끝나지 않았어요.',
     answerTooLong: '답은 300자까지 쓸 수 있어요.',
+    answerUnreadable: '읽을 수 없는 글자가 섞여 있어요. 지우고 다시 써 주세요.',
     offline: '연결이 끊겼어요. 잠시 뒤 다시 보내 주세요.',
     wrapNext: '다음 답으로 마무리해요',
     endWord: '그만',

@@ -1240,6 +1240,7 @@ const en: DeepStringShape<typeof ko> = {
     closed: 'This conversation is finished. Start a new take to continue.',
     notReady: 'The analysis is not finished yet.',
     answerTooLong: 'Answers can hold up to 300 characters.',
+    answerUnreadable: "Some characters can't be read. Please remove them and try again.",
     offline: 'The connection dropped. Please send it again in a moment.',
     wrapNext: 'The next reply wraps things up',
     endWord: 'Stop',

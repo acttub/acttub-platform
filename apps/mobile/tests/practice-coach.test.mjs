@@ -161,3 +161,17 @@ test('질문 대화의 답 버튼: 서버 예시 답 1~2개 + 잘 모르겠어�
   const answered = conversation({ messages: [...asked.messages, { turn_index: 1, role: 'actor', text: '멀리요', created_at: null }] });
   assert.deepEqual(answerChoices(answered, { busy: false }), []);
 });
+
+test('허용 범위 밖 글자(결합 기호를 쌓은 글·보이지 않는 글자)가 섞인 답은 보내지 않는다', async () => {
+  const { readableText, hasUnreadableText } = await import('../lib/practice/readable-text.ts');
+  for (const ok of ['옆 사람이 웃는지 궁금해서 봤어요', 'ㅋㅋㅋ 모르겠어요ㅠㅠ...', 'I see!', '「그만」… “진짜”요? ※ →', '좋아요 👍🏻😂 ❤️‍🔥 👨‍👩‍👧 🇰🇷 1️⃣', 'cafe\u0301 ₩3,900']) {
+    assert.equal(readableText(ok), true, ok);
+  }
+  for (const bad of ['Z\u0325\u031c\u0318\u0316a\u031clgo...', '안녕\u0301', '\u200B', '네\u200B', '\u202Eabc', '\u200D', 'a\uFE0F\uFE0F', '漢字', 'こんにちは', '   ']) {
+    assert.equal(readableText(bad), false, JSON.stringify(bad));
+  }
+  assert.equal(hasUnreadableText(''), false);
+  assert.equal(hasUnreadableText('Z\u0325\u031c'), true);
+  assert.equal(canSendAnswer({ text: 'Z\u0325\u031c\u0318', waiting: false, closed: false, conversationId: 'conv-1' }), false);
+  assert.equal(coachFailure(Object.assign(new Error('x'), { status: 400, code: 'unreadable_text' })).kind, 'unreadable');
+});

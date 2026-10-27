@@ -44,6 +44,7 @@ import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/se
 import type { CoachConversation, CoachTurnResult } from '@/lib/practice/types';
 import { readingNextLine } from '@/lib/reading/voice-coaching';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
+import { hasUnreadableText } from '@/lib/practice/readable-text';
 import { newRequestId } from '@/lib/request-id';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -697,6 +698,7 @@ function CoachTalk() {
                 <Feather name="arrow-up" size={20} color={canSend ? palette.onAccent : palette.textDisabled} />
               </Pressable>
             </View>
+            {hasUnreadableText(input) && <InlineErrorLine message={t('coach.answerUnreadable')} />}
           </View>
         )}
       </View>

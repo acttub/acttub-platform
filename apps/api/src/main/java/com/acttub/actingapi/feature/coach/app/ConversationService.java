@@ -239,6 +239,8 @@ public class ConversationService {
     }
 
     private Turn replyTurn(UUID userId, UUID conversationId, UUID requestId, String text, Long revision, CoachStream stream) {
+        // 결합 기호를 쌓은 글자 같은 허용 범위 밖 글자는 저장하지도 코치에게 넘기지도 않는다.
+        if (!ActorTextCharset.readable(text)) throw new ApiException(400, "unreadable_text");
         Loaded loaded = require(conversations.loadByConversation(userId, conversationId));
         String fingerprint = fingerprint("coach_reply|" + conversationId + "|" + text);
         Replay replayed = conversations.findReplay(conversationId, requestId, fingerprint);
