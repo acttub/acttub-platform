@@ -81,14 +81,14 @@ test('검색어로 대학·학과·지역을 찾는다', async () => {
   expect(screen.getByText('대학 1곳')).toBeOnTheScreen();
 
   await fireEvent.changeText(screen.getByPlaceholderText('대학·학과·지역 검색'), '없는말');
-  expect(screen.getByText('조건에 맞는 대학이 없어요.')).toBeOnTheScreen();
+  expect(screen.getByText('조건에 맞는 대학이 없어요')).toBeOnTheScreen();
 });
 
 test('접수 가능만 고르면 마감된 전형의 대학을 뺀다', async () => {
   await loaded();
-  await fireEvent.press(screen.getByRole('button', { name: '접수 가능만' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: '접수 가능만' }));
 
-  expect(screen.getByRole('button', { name: '접수 가능만' })).toBeSelected();
+  expect(screen.getByRole('checkbox', { name: '접수 가능만' })).toBeChecked();
   expect(screen.getByRole('button', { name: '필터 1' })).toBeSelected();
   expect(names()).toEqual(['한국예술대학교', '경기연기대학', '날짜없는대학']);
 });
@@ -99,7 +99,7 @@ describe('필터', () => {
     await fireEvent.press(screen.getByRole('button', { name: '필터' }));
 
     for (const label of ['경기', '부산', '서울', '수시', '정시', '연기', '뮤지컬', 'dance', '자유연기', 'mime', '4년제', '전문대', 'cyber', '수능 최저 없음']) {
-      expect(screen.getByRole('button', { name: label })).toBeOnTheScreen();
+      expect(screen.getByRole('checkbox', { name: label })).toBeOnTheScreen();
     }
     expect(screen.queryByText('필터 초기화')).not.toBeOnTheScreen();
   });
@@ -108,13 +108,13 @@ describe('필터', () => {
     await loaded();
     await fireEvent.press(screen.getByRole('button', { name: '필터' }));
 
-    await fireEvent.press(screen.getByRole('button', { name: '경기' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: '경기' }));
     expect(names()).toEqual(['경기연기대학']);
-    await fireEvent.press(screen.getByRole('button', { name: '부산' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: '부산' }));
     expect(names()).toEqual(['경기연기대학', '날짜없는대학']);
     expect(screen.getByRole('button', { name: '필터 2' })).toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByRole('button', { name: '경기' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: '경기' }));
     expect(names()).toEqual(['날짜없는대학']);
   });
 
@@ -127,7 +127,7 @@ describe('필터', () => {
   ])('%s 칩으로 거른다', async (label, expected) => {
     await loaded();
     await fireEvent.press(screen.getByRole('button', { name: '필터' }));
-    await fireEvent.press(screen.getByRole('button', { name: label }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: label }));
     expect(names()).toEqual(expected);
   });
 
@@ -135,8 +135,8 @@ describe('필터', () => {
     await loaded();
     await fireEvent.changeText(screen.getByPlaceholderText('대학·학과·지역 검색'), '대학');
     await fireEvent.press(screen.getByRole('button', { name: '필터' }));
-    await fireEvent.press(screen.getByRole('button', { name: '서울' }));
-    await fireEvent.press(screen.getByRole('button', { name: '접수 가능만' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: '서울' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: '접수 가능만' }));
     expect(screen.getByRole('button', { name: '필터 2' })).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByText('필터 초기화'));
@@ -165,10 +165,13 @@ describe('필터', () => {
   });
 });
 
-test('못 불러오면 그렇다고 알린다', async () => {
-  getAdmissions.mockRejectedValue(new Error('down'));
+test('못 불러오면 그렇다고 알리고, 다시 시도하면 다시 읽는다', async () => {
+  getAdmissions.mockRejectedValueOnce(new Error('down'));
   await render(<AdmissionsScreen />);
-  expect(await screen.findByText('입시 정보를 불러오지 못했어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('입시 정보를 불러오지 못했어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByText(/^대학 \d+곳$/)).toBeOnTheScreen();
+  expect(screen.queryByText('입시 정보를 불러오지 못했어요')).not.toBeOnTheScreen();
 });
 
 test('뒤로는 이전 화면으로 간다', async () => {
