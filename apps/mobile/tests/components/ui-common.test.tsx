@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 
+import { Badge } from '@/components/ui/badge';
 import { Button, DangerButton, PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -295,6 +296,15 @@ describe('상태 화면·말풍선·아래 칸', () => {
     );
     const bar = StyleSheet.flatten(screen.getByText('저장하고 마치기').parent?.props.style);
     expect([bar.paddingTop, bar.paddingHorizontal, bar.paddingBottom, bar.gap, bar.borderTopWidth]).toEqual([12, 20, 12, 8, undefined]);
+  });
+});
+
+describe('배지', () => {
+  test('숫자 배지는 높이 20 · 최소 폭 20 빨간 알약에 글자를 그대로 둔다', async () => {
+    await render(<Badge label="99+" />);
+    const box = StyleSheet.flatten(screen.getByText('99+').parent?.props.style);
+    expect([box.height, box.minWidth, box.backgroundColor, box.borderRadius]).toEqual([20, 20, '#E42939', 999]);
+    expect(StyleSheet.flatten(screen.getByText('99+').props.style).fontSize).toBe(12);
   });
 });
 

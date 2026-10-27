@@ -4,7 +4,6 @@ import React from 'react';
 import { TAB_BAR_HIDDEN, tabButton, tabIcon, useTabBarStyle } from '@/components/ui/tab-bar';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { palette } from '@/constants/palette';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { translate as t } from '@/lib/i18n';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -12,7 +11,8 @@ import { TARGET } from '@/lib/spotlight-targets';
 /**
  * 하단 탭 — 홈 / 코칭 / 대본 / 챌린지 / 프로필(pen TabBar, SOMA-748·770). 모양은 공통 부품 components/ui/tab-bar.
  *
- * 글자 없는 아이콘 탭이라(SOMA-838) 탭마다 화면 읽기 이름(tabBarAccessibilityLabel)과 누름 기록 이름(ph-label)을 단다(SOMA-770 피드백 9).
+ * iOS 는 글자 없는 아이콘 탭, 안드로이드는 아이콘 아래 탭 이름(디자인 시스템 「의도된 차이」). 탭마다 화면 읽기 이름(tabBarAccessibilityLabel)과
+ * 누름 기록 이름(ph-label)을 단다(SOMA-770 피드백 9).
  * 예전 가운데 촬영 버튼은 없어지고 코칭은 코칭 탭에서 시작한다. 카메라 화면(record-video)은 코칭·챌린지에서 연다.
  * 첫 사용자(홈 「뭐부터 해 볼까요?」 기준 — 묶음·대본·연습한 날이 모두 없음)로 확인되면 모든 탭에서 탭바를 숨기고, 무엇이든 시작하면 다시 보인다(bHxn1I, SOMA-781).
  * 판단은 홈이 받은 기록으로 lib/practice/first-time 한 곳에서 한다. 아직 모르면(홈을 거치지 않고 다른 탭으로 들어온 경우) 보인다.
@@ -40,8 +40,6 @@ export default function TabLayout() {
       <Tabs
         backBehavior="history"
         screenOptions={{
-          tabBarActiveTintColor: palette.blue,
-          tabBarInactiveTintColor: palette.iconFaint,
           tabBarStyle: firstTime ? TAB_BAR_HIDDEN : tabBarStyle,
           tabBarShowLabel: false,
           headerShown: false,
@@ -50,27 +48,26 @@ export default function TabLayout() {
           name="index"
           options={{
             ...tab('home'),
-            tabBarIcon: tabIcon('home-outline'),
+            tabBarIcon: tabIcon('home-outline', t('tabs.home')),
           }}
         />
         <Tabs.Screen
           name="coaching"
-          options={{ ...tab('coaching'), tabBarIcon: tabIcon('chatbubble-outline', coachingTarget) }}
+          options={{ ...tab('coaching'), tabBarIcon: tabIcon('chatbubble-outline', t('tabs.coaching'), { target: coachingTarget }) }}
         />
-        <Tabs.Screen name="reading" options={{ ...tab('reading'), tabBarIcon: tabIcon('book-outline', readingTarget) }} />
+        <Tabs.Screen name="reading" options={{ ...tab('reading'), tabBarIcon: tabIcon('book-outline', t('tabs.reading'), { target: readingTarget }) }} />
         {/* 기록·예전 촬영 자리는 탭바에서 빠졌지만 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
         <Tabs.Screen name="history" options={{ href: null }} />
         <Tabs.Screen name="record" options={{ href: null }} />
-        {/* 배지는 읽지 않은 알림 묶음 수다(challenge.notification). */}
+        {/* 배지는 읽지 않은 알림 묶음 수다(challenge.notification). 공용 Badge 를 아이콘 칸에 단다. */}
         <Tabs.Screen
           name="challenges"
           options={{
             ...tab('challenge'),
-            tabBarIcon: tabIcon('trophy-outline', challengeTarget),
-            tabBarBadge: unread.badge ?? undefined,
+            tabBarIcon: tabIcon('trophy-outline', t('tabs.challenge'), { target: challengeTarget, badge: unread.badge }),
           }}
         />
-        <Tabs.Screen name="profile" options={{ ...tab('profile'), tabBarIcon: tabIcon('person-outline', profileTarget) }} />
+        <Tabs.Screen name="profile" options={{ ...tab('profile'), tabBarIcon: tabIcon('person-outline', t('tabs.profile'), { target: profileTarget }) }} />
       </Tabs>
     </>
   );
