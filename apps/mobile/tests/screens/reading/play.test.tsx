@@ -67,6 +67,7 @@ jest.mock('@/lib/reading/tts/engine', () => ({
   play: jest.fn(),
   speak: jest.fn(),
   stop: jest.fn(),
+  discardSpeechFile: jest.fn(),
   ensureReady: jest.fn(),
   isReady: jest.fn(),
 }));
@@ -577,6 +578,19 @@ test('고품질 목소리를 켰고 쓸 수 있으면 서버 음성으로 읽고
   expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(tts.ensureReady).not.toHaveBeenCalled();
+});
+
+test('받아 둔 서버 음성을 틀지 못하면 그 파일을 지우고 이 줄은 기기 목소리로 읽은 뒤 넘어간다', async () => {
+  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
+  jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: true, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0 });
+  queue.take.mockResolvedValue('file:///cache/broken.wav');
+  jest.mocked(tts.play).mockRejectedValueOnce(Object.assign(new Error('재생 실패: not_started'), { kind: 'playback' }));
+  await startPlay(PARTNER_FIRST);
+
+  expect(await screen.findByText(ME)).toBeOnTheScreen();
+  expect(tts.play).toHaveBeenCalledWith('file:///cache/broken.wav');
+  expect(tts.discardSpeechFile).toHaveBeenCalledWith('file:///cache/broken.wav');
+  expect(speakWithDevice).toHaveBeenCalledWith('응, 늦어서 미안해.', 'F1', { locale: 'ko-KR' });
 });
 
 test('서버 음성을 못 받았는데 기기 목소리도 없으면 글로 보이고 다음을 눌러 넘긴다', async () => {

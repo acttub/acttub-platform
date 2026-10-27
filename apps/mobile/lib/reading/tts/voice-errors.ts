@@ -2,9 +2,9 @@
  * 상대역 목소리 준비 실패의 종류 (SOMA-494). 계측(reading_voice_failed)과 안내 문구가 이것으로 갈린다.
  * 메시지·경로 같은 원문은 계측에 보내지 않는다 — 종류만 보낸다.
  */
-export type VoiceErrorKind = 'network' | 'storage' | 'parse' | 'model_load' | 'unknown';
+export type VoiceErrorKind = 'network' | 'storage' | 'parse' | 'model_load' | 'playback' | 'unknown';
 
-const KINDS: readonly VoiceErrorKind[] = ['network', 'storage', 'parse', 'model_load', 'unknown'];
+const KINDS: readonly VoiceErrorKind[] = ['network', 'storage', 'parse', 'model_load', 'playback', 'unknown'];
 
 export class VoicePrepareError extends Error {
   readonly kind: VoiceErrorKind;

@@ -826,6 +826,20 @@ export default function ReadingPlay() {
       if (holdRef.current) deferredRef.current = { kind: 'advance', from };
       else goNext(from);
     };
+    // 저장해 둔 소리를 틀지 못하면(재생 실패·시작 안 됨) 그 파일을 지우고 이 줄은 기기 목소리로 읽는다(SOMA-906).
+    // 지운 파일은 다음에 다시 받거나 만든다. 기기 목소리도 없으면 그대로 다음 줄로 넘어간다.
+    const playSaved = async (uri: string, readWithDevice: () => Promise<void>) => {
+      try {
+        await tts.play(uri);
+        return;
+      } catch (e) {
+        void logEvent('reading_line_voice_failed', { engine, kind: voiceErrorKind(e) });
+        tts.discardSpeechFile(uri);
+      }
+      if (cancelled || !mounted.current || !deviceVoiceRef.current) return;
+      setLineEngine('device_voice');
+      await readWithDevice();
+    };
     void (async () => {
       try {
         if (engine === 'text_only') {
@@ -843,7 +857,12 @@ export default function ReadingPlay() {
             if (cancelled || !mounted.current) return;
             if (uri) {
               setLineEngine('example');
-              await tts.play(uri);
+              await playSaved(uri, async () => {
+                for (const part of speechParts(l)) {
+                  if (cancelled || !mounted.current) return;
+                  await speakWithDevice(speakableText(part.text), presetFor(l.role), { locale: speechLocaleFor(part.lang) });
+                }
+              });
               continue;
             }
             if (!deviceVoiceRef.current) {
@@ -870,7 +889,7 @@ export default function ReadingPlay() {
           if (cancelled || !mounted.current) return;
           if (ready) {
             setLineEngine(engine);
-            await tts.play(ready);
+            await playSaved(ready, () => speakWithDevice(text, preset, { locale: speechLocaleFor(lang) }));
           } else if (engine === 'supertonic') {
             setLineEngine('supertonic');
             await tts.speak(text, preset, { scriptId: script?.id, lang });
