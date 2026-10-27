@@ -392,15 +392,9 @@ describe('시작 안내', () => {
     await AsyncStorage.removeItem('acttub.challenge.introSeen');
     await render(<ChallengesScreen />);
     await screen.findByText('“나는 아직 여기 있어”');
-    expect(screen.queryByText('배우들이 같은 대사를 어떻게 연기했는지 보고, 나도 올려요.')).not.toBeOnTheScreen();
     await waitFor(async () => expect(await AsyncStorage.getItem('acttub.challenge.introSeen')).toBe('1'));
   });
 
-  test('이미 본 기기에서는 띄우지 않는다', async () => {
-    await render(<ChallengesScreen />);
-    await screen.findByText('“나는 아직 여기 있어”');
-    expect(screen.queryByText('배우들이 같은 대사를 어떻게 연기했는지 보고, 나도 올려요.')).not.toBeOnTheScreen();
-  });
 });
 
 describe('첫 챌린지 전(C1.16·C1.18)', () => {

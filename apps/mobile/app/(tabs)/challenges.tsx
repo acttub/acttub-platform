@@ -6,7 +6,6 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { ChallengeIntro } from '@/components/challenge-intro';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
@@ -76,7 +75,6 @@ export default function ChallengesScreen() {
   /** 지금 보이는 탭. 이어 받는 중에 탭을 바꾸면 늦게 온 옛 탭의 결과를 버린다. */
   const shownTab = useRef<ChallengeTab>('popular');
   const [error, setError] = useState<BrowseFailure | null>(null);
-  const [intro, setIntro] = useState(false);
   /** 지난주 결과 띠 — 끝난 지 7일 안의 공식 챌린지. 못 읽으면 띠만 없다. */
   const [lastWeek, setLastWeek] = useState<ChallengeCard | null>(null);
   /** 파란 「누를 것 안내」는 첫 챌린지 참여를 끝낼 때까지만. */
@@ -384,20 +382,9 @@ export default function ChallengesScreen() {
         )}
       </ScrollView>
       )}
-
-      <ChallengeIntro
-        visible={intro}
-        onDone={(seeWeek) => {
-          setIntro(false);
-          void markChallengeIntroSeen();
-          if (seeWeek && featured) openDetail(featured);
-        }}
-        canSeeWeek={Boolean(featured)}
-      />
     </SafeAreaView>
   );
 }
-
 
 function Avatars({ participants, border }: { participants: ChallengeCard['participants']; border: string }) {
   if (participants.length === 0) return null;
