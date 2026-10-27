@@ -301,4 +301,22 @@ class DirectVideoPracticeLoopTest {
                 .isEqualTo("\"<thoughtful>\"이 아니라 \"그만해\"에서요.");
         assertThat(DirectVideoPracticeLoop.parse("thought 라는 말은 안 써요?").message()).isEqualTo("thought 라는 말은 안 써요?");
     }
+
+    @Test void talkNotesUseTheWrapTakeAndNeverSuggestNone() {
+        // 10/26 운영: 첫 질문 뒤 바로 그만 — 설계의 "다음 테이크: 없음"이 노트 제안으로 남았다.
+        String talkDesign = "입력: 영상 없음 (말로 하는 코칭)\n장면: 모름 | 모름 | 모름\n대사 시간: 없음\n다음 테이크: 없음";
+        ObjectNode stopped = state(talkDesign, "", "목적: character\n배우의 말: 그만\n단계: view\n할 일: 끝\n다음 테이크: 없음");
+        assertThat(DirectVideoPracticeLoop.note(session(stopped, "", "그 외", "그 외", "", "첫 말", "그만"), 1)).isNull();
+        // 10/25 운영 afedbad8: 막힌 곳 풀기 정리에서 제안을 정했는데 설계에 다음 테이크 줄이 없어 빈 노트가 됐다.
+        String stuckDesign = "입력: 영상 없음 (말로 하는 코칭)\n장면: 모름 | 모름 | 모름\n대사 시간: 없음";
+        ObjectNode wrapped = state(stuckDesign, "",
+                "목적: stuck\n배우의 말: 답\n단계: line\n할 일: line\n다음 테이크: 없음",
+                "목적: stuck\n배우의 말: 답\n단계: wrap\n할 일: 정리하기\n다음 테이크: 뜸을 들이며 분위기를 띄우기");
+        var note = DirectVideoPracticeLoop.note(session(wrapped, "", "그 외", "그 외", "", "첫 말", "대사", "물음", "톤"), 2);
+        assertThat(note.kind()).isEqualTo("action");
+        assertThat(note.nextTake()).isEqualTo("뜸을 들이며 분위기를 띄우기");
+        assertThat(note.title()).isNull();
+        assertThat(DirectVideoPracticeLoop.noneAsBlank(" 없음 ")).isEmpty();
+        assertThat(DirectVideoPracticeLoop.noneAsBlank("끝을 늦춘다")).isEqualTo("끝을 늦춘다");
+    }
 }
