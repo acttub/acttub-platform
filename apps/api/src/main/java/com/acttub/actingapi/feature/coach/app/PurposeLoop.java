@@ -399,6 +399,12 @@ final class PurposeLoop {
     /** 걷어 낸 숨은 칸. 없는 칸은 {@code null}(버튼은 빈 목록). */
     record Output(List<PurposeView.Choice> choices, ObjectNode card, ObjectNode characterCard, ObjectNode scene) { }
 
+    /**
+     * 보기 끝에 완성 글자 바로 뒤로 붙은 낱자모(ㄱ-ㅎ·ㅏ-ㅣ) — 모델이 남긴 오타다(10/28 dev 「객관적인 상태가 궁금해요ㄴ」).
+     * 띄어 쓴 「ㅋㅋ」 같은 것은 건드리지 않는다.
+     */
+    private static final Pattern STRAY_JAMO = Pattern.compile("([\\uAC00-\\uD7A3])[\\u3131-\\u318E]+$");
+
     static Output extract(String raw) {
         String text = raw == null ? "" : raw;
         var choices = new ArrayList<PurposeView.Choice>();
@@ -412,6 +418,7 @@ final class PurposeLoop {
                     at = lead.seconds();
                     label = label.substring(lead.end()).strip();
                 }
+                label = STRAY_JAMO.matcher(label).replaceFirst("$1").strip();
                 if (label.isEmpty() || "직접 쓰기".equals(label) || DONT_KNOW.equals(label)) continue;
                 if (label.length() > CHOICE_LENGTH) label = label.substring(0, CHOICE_LENGTH).strip();
                 final String kept = label;
