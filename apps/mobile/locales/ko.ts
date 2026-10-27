@@ -2105,7 +2105,7 @@ const ko = {
     doneLineStats: '{{roles}} · 대사 {{count}}줄 · {{time}}',
     firstDoneTitle: '처음인데 끝까지 읽었어요.\n정말 잘했어요!',
     firstDoneMeta: '{{roles}} · {{total}}줄 중 {{count}}줄',
-    recordForCoach: '녹음으로 코칭 받기',
+    recordForCoach: '이 대본으로 찍어서 코칭받기',
     guideHead: '이제 내 차례예요. 아래 버튼 네 개만 알려 줄게요.',
     guideEye: '눈: 대사를 가려요. 외워서 읽어 볼 때 써요.',
     guidePrev: '이전 대사: 한 줄 앞으로 돌아가요. 다시 읽고 싶을 때 눌러요.',

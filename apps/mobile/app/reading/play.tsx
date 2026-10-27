@@ -1721,7 +1721,7 @@ export default function ReadingPlay() {
                   <Button
                     size="md"
                     label={t('reading.recordForCoach')}
-                    icon={<Feather name="mic" size={16} color={palette.onAccent} />}
+                    icon={<Feather name="video" size={16} color={palette.onAccent} />}
                     onPress={toCoach}
                     disabled={doneLocked}
                     style={styles.doneCoach}

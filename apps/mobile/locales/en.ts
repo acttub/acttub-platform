@@ -2107,7 +2107,7 @@ const en: DeepStringShape<typeof ko> = {
     doneLineStats: '{{roles}} · {{count}} lines · {{time}}',
     firstDoneTitle: 'Your first read-through, all the way.\nWell done!',
     firstDoneMeta: '{{roles}} · {{count}} of {{total}} lines',
-    recordForCoach: 'Get coaching on the recording',
+    recordForCoach: 'Film this script for coaching',
     guideHead: "It's your turn. Here are the four buttons below.",
     guideEye: 'Eye: hides the line. Use it when reading from memory.',
     guidePrev: 'Previous line: goes back one line to read it again.',
