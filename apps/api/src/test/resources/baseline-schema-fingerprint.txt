@@ -1196,6 +1196,7 @@ CONSTRAINT coach_notes coach_notes_fallback_not_null NOT NULL fallback
 CONSTRAINT coach_notes coach_notes_format_not_null NOT NULL format
 CONSTRAINT coach_notes coach_notes_id_not_null NOT NULL id
 CONSTRAINT coach_notes coach_notes_kind_not_null NOT NULL kind
+CONSTRAINT coach_notes coach_notes_line_notes_not_null NOT NULL line_notes
 CONSTRAINT coach_notes coach_notes_pkey PRIMARY KEY (id)
 CONSTRAINT coach_notes coach_notes_source_revision_not_null NOT NULL source_revision
 CONSTRAINT coach_notes coach_notes_summary_quotes_not_null NOT NULL summary_quotes
