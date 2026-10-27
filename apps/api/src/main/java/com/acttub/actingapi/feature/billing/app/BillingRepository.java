@@ -34,6 +34,22 @@ public interface BillingRepository {
      */
     Optional<Instant> grantEnd(UUID userId, Instant now);
 
+    // ── 창립 멤버(SOMA-861) ─────────────────────────────────────────
+
+    /** 창립 멤버 정원. */
+    int FOUNDING_LIMIT = 100;
+
+    /**
+     * 실제 유료 결제로 Pro 가 처음 열린 사람에게 창립 번호를 한 번만 준다. 이미 있거나 정원이 찼거나 활성 사용자가 아니면 비어 있다.
+     * 동시에 불러도 번호가 겹치거나 100을 넘지 않는다.
+     */
+    Optional<Integer> assignFoundingNumber(UUID userId, String provider, Instant now);
+
+    Optional<Integer> foundingNumber(UUID userId);
+
+    /** 남은 자리 수 — 0 이상 100 이하. */
+    int foundingRemaining();
+
     // ── 카드 등록 창 ────────────────────────────────────────────────
 
     void openCheckout(Checkout checkout);

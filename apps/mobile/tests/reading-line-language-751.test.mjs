@@ -76,5 +76,5 @@ test('reading.play: 상대 대사·받아쓰기·발음 피드백이 줄의 말�
   assert.match(play, /locale: speechLocaleFor\(lineLanguage\(mine\)\)/);
   assert.match(play, /if \(!isKoreanLine\(line\)\) return;/);
   const hook = read('../hooks/use-reading-stt.ts');
-  assert.match(hook, /lang: options\?\.locale \?\? speechLocale\(\),/);
+  assert.match(hook, /const lang = options\?\.locale \?\? speechLocale\(\);/);
 });

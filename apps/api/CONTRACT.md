@@ -1405,9 +1405,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `@Hidden`)와 리딩 녹음 재료 빈이 생긴다. 시작은 연습 시작(`POST /v2/practices`)의 `reading_session_id` 다 — 스위치가 꺼졌으면
   404 `session_not_found`. 행동 계약은 [reading.voice-coaching](../../docs/specs/reading/voice-coaching.md)가 정본이고
   `ReadingVoiceCoachingIT`(스위치 켬)가 지킨다.
-- `practices.reading_session_id`(V68, reading_sessions ON DELETE SET NULL, 부분 유일 인덱스)로 묶음 첫 회차를 리딩 회차에 잇는다.
+- `practices.reading_session_id`(V69, reading_sessions ON DELETE SET NULL, 부분 유일 인덱스)로 묶음 첫 회차를 리딩 회차에 잇는다.
   시작은 사용자 행 잠금 뒤 있는지 보고 넣는다. 무료 코칭 한도는 `reading_session_id IS NULL` 회차만 센다.
-  예전 실험 표 `reading_recording_coaches`(V48)는 V68 이 지웠다.
+  예전 실험 표 `reading_recording_coaches`(V48)는 V69 가 지웠다.
 - 녹음 내려받기·잇기(ffmpeg)·모델 업로드는 코치 턴 안(트랜잭션 밖, §5-4)이다.
 
 ### 6-29. 찍을 대사 같이 만들기 (SOMA-721)

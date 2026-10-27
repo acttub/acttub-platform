@@ -423,4 +423,52 @@ class StoreBillingServiceTest {
         }
         assertThat(StoreBillingService.users(JSON.readTree(many.append("]}").toString()))).hasSize(StoreBillingService.MAX_USERS_PER_EVENT);
     }
+
+    // ── 창립 멤버(SOMA-861) ──────────────────────────────────────
+
+    @Test
+    @DisplayName("스토어 유료 구독이 처음 열리면 창립 번호 1번을 받고, 다시 동기화해도 그대로다")
+    void foundingNumberOnFirstPaidStorePurchase() {
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        SubscriptionService.View first = service.sync(user, false);
+        assertThat(first.foundingNumber()).isEqualTo(1);
+        assertThat(first.foundingRemaining()).isEqualTo(99);
+        assertThat(service.sync(user, false).foundingNumber()).isEqualTo(1);
+        assertThat(repository.foundingRemaining()).isEqualTo(99);
+    }
+
+    @Test
+    @DisplayName("샌드박스 구매와 끝난 옛 구매는 창립 번호를 받지 않는다")
+    void sandboxAndExpiredAreNotFounding() {
+        UUID sandboxUser = UUID.randomUUID();
+        StoreBillingService sandboxAllowed = new StoreBillingService(settings, repository, subscriptions, revenueCat, clock, true);
+        StoreSubscription base = active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30)));
+        owns(sandboxUser, new StoreSubscription(base.store(), base.productId(), base.purchaseDate(), base.expiresDate(), null, null,
+                null, null, true, "tx-sb"));
+        assertThat(sandboxAllowed.sync(sandboxUser, false).foundingNumber()).isNull();
+        owns(user, active("app_store", "acttub_pro_monthly", T0.minus(Duration.ofDays(1))));
+        assertThat(service.sync(user, false).foundingNumber()).isNull();
+        assertThat(repository.foundingRemaining()).isEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("해지(canceled)해도 번호가 남고, 100명이 차면 101번째는 받지 않는다")
+    void keepsNumberAfterCancelAndStopsAtLimit() {
+        owns(user, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        service.sync(user, false);
+        owns(user, with(active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))), null, T0, null, null));
+        assertThat(service.sync(user, false).foundingNumber()).isEqualTo(1);
+        for (int i = 0; i < 99; i++) {
+            UUID other = UUID.randomUUID();
+            owns(other, active("play_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+            service.sync(other, false);
+        }
+        assertThat(repository.foundingRemaining()).isZero();
+        UUID late = UUID.randomUUID();
+        owns(late, active("app_store", "acttub_pro_monthly", T0.plus(Duration.ofDays(30))));
+        SubscriptionService.View view = service.sync(late, false);
+        assertThat(view.pro()).isTrue();
+        assertThat(view.foundingNumber()).isNull();
+        assertThat(view.foundingRemaining()).isZero();
+    }
 }

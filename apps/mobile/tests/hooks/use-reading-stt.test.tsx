@@ -3,7 +3,7 @@ import { setAudioModeAsync } from 'expo-audio';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { Platform } from 'react-native';
 
-import { detectSttPolicy, SPEECH_END_GRACE_MS, sttCanPersist, sttVolumeToRms, useReadingStt } from '@/hooks/use-reading-stt';
+import { detectSttPolicy, SPEECH_END_GRACE_MS, STT_RESTART_MAX, sttCanPersist, sttVolumeToRms, useReadingStt } from '@/hooks/use-reading-stt';
 import { logEvent } from '@/lib/analytics';
 import type { VadEvent } from '@/lib/reading/vad';
 
@@ -24,6 +24,7 @@ jest.mock('expo-speech-recognition', () => ({
   },
 }));
 jest.mock('expo-file-system', () => ({ Paths: { cache: { uri: 'file:///cache/' } } }));
+jest.mock('@/lib/account-files', () => ({ deleteDeviceFile: jest.fn(async () => undefined) }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(async () => undefined) }));
 jest.mock('expo-audio', () => ({ setAudioModeAsync: jest.fn(async () => undefined) }));
 
@@ -459,11 +460,11 @@ describe('받아쓰기 실패 신호와 계측(SOMA-804)', () => {
   test('인식기 오류는 코드·짧은 메시지·글 유무만 reading_stt_error 로 남기고, 다음 듣기에서 초기화된다', async () => {
     const { stt, hook } = await listen();
     expect(stt.failed()).toBe(false);
-    await emit('error', { error: 'no-speech', message: 'x'.repeat(300) });
+    await emit('error', { error: 'network', message: 'x'.repeat(300) });
     expect(stt.failed()).toBe(true);
     const [name, props] = jest.mocked(logEvent).mock.calls[0];
     expect(name).toBe('reading_stt_error');
-    expect(props).toEqual({ code: 'no-speech', message: 'x'.repeat(120), platform: Platform.OS, had_text: false });
+    expect(props).toEqual({ code: 'network', message: 'x'.repeat(120), platform: Platform.OS, had_text: false });
     // 오류로 이미 보냈으니 빈 차례 이벤트는 따로 보내지 않는다
     expect(jest.mocked(logEvent)).toHaveBeenCalledTimes(1);
     await act(async () => {
@@ -485,5 +486,82 @@ describe('받아쓰기 실패 신호와 계측(SOMA-804)', () => {
     await emit('end');
     expect(stt.failed()).toBe(false);
     expect(jest.mocked(logEvent)).not.toHaveBeenCalled();
+  });
+});
+
+describe('말 없음으로 끝난 인식기를 차례 안에서 다시 켠다(안드로이드 빈 받아쓰기)', () => {
+  test('글이 없을 때 no-speech 는 실패가 아니다 — end 뒤 같은 옵션으로 다시 켜고, 앞 침묵 파일은 지우며, 이후 말을 받아쓴다', async () => {
+    const { deleteDeviceFile } = jest.requireMock('@/lib/account-files');
+    const ends: string[] = [];
+    const hook = await renderHook(() => useReadingStt());
+    await act(async () => {
+      hook.result.current.start({ onEvent: () => undefined, onInterim: () => undefined, onEnd: () => ends.push('end') }, { persist: true, locale: 'ko-KR' });
+    });
+    await emit('error', { error: 'no-speech', message: 'No speech was detected.' });
+    expect(recognizer.start).toHaveBeenCalledTimes(1); // 앞 세션의 end 전에는 켜지 않는다
+    await emit('audioend', { uri: 'file:///cache/silent.wav' });
+    await emit('end');
+    expect(recognizer.start).toHaveBeenCalledTimes(2);
+    expect(recognizer.start.mock.calls[1][0]).toMatchObject({ lang: 'ko-KR', continuous: true, recordingOptions: { persist: true } });
+    expect(deleteDeviceFile).toHaveBeenCalledWith('file:///cache/silent.wav');
+    expect(ends).toEqual([]);
+    expect(hook.result.current.failed()).toBe(false);
+    expect(jest.mocked(logEvent)).toHaveBeenCalledWith('reading_stt_restart', { code: 'no-speech', attempt: 1, platform: Platform.OS });
+    expect(jest.mocked(logEvent)).not.toHaveBeenCalledWith('reading_stt_error', expect.anything());
+
+    await emit('result', result('여기 있을 줄 알았어', true));
+    let said = '';
+    await act(async () => {
+      const pending = hook.result.current.finish();
+      mockHandlers.audioend({ uri: 'file:///cache/spoken.wav' });
+      mockHandlers.end();
+      said = await pending;
+    });
+    expect(said).toBe('여기 있을 줄 알았어');
+    await expect(hook.result.current.detachRecording()).resolves.toBe('file:///cache/spoken.wav');
+  });
+
+  test(`다시 켜기는 ${STT_RESTART_MAX}번까지 — 그 뒤 말 없음은 예전처럼 끝내고 onEnd 로 녹음기에 넘긴다`, async () => {
+    const ends: string[] = [];
+    const hook = await renderHook(() => useReadingStt());
+    await act(async () => {
+      hook.result.current.start({ onEvent: () => undefined, onInterim: () => undefined, onEnd: () => ends.push('end') });
+    });
+    for (let i = 0; i < STT_RESTART_MAX; i += 1) {
+      await emit('error', { error: 'no-speech' });
+      await emit('end');
+    }
+    expect(recognizer.start).toHaveBeenCalledTimes(1 + STT_RESTART_MAX);
+    await emit('error', { error: 'no-speech' });
+    await emit('end');
+    expect(recognizer.start).toHaveBeenCalledTimes(1 + STT_RESTART_MAX);
+    expect(ends).toEqual(['end']);
+    expect(hook.result.current.failed()).toBe(true);
+  });
+
+  test('이미 받아쓴 글이 있거나, 끝내는 중이거나, 끊긴 뒤의 말 없음은 다시 켜지 않는다', async () => {
+    const { stt } = await listen();
+    await emit('result', result('응'));
+    await emit('error', { error: 'no-speech' });
+    await emit('end');
+    expect(recognizer.start).toHaveBeenCalledTimes(1);
+
+    const second = await listen();
+    let said = 'x';
+    await act(async () => {
+      const pending = second.stt.finish();
+      mockHandlers.error({ error: 'no-speech' });
+      mockHandlers.end();
+      said = await pending;
+    });
+    expect(said).toBe('');
+    expect(recognizer.start).toHaveBeenCalledTimes(2);
+
+    const third = await listen();
+    await emit('error', { error: 'no-speech' });
+    await act(async () => third.stt.abort());
+    await emit('end');
+    expect(recognizer.start).toHaveBeenCalledTimes(3);
+    expect(stt).toBeDefined();
   });
 });

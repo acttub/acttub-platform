@@ -24,7 +24,7 @@ import { useAuth } from '@/lib/auth';
 import { translate as t, translateList } from '@/lib/i18n';
 import { localCopyFor } from '@/lib/library/library-runner';
 import { logMetaEvent } from '@/lib/meta-events';
-import { onPushReceived } from '@/lib/notifications';
+import { hideForegroundPush, onPushReceived } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import {
   analysisFailureMessage,
@@ -247,13 +247,20 @@ export function CoachWaiting({
   }, [practiceId]);
 
   // 화면을 떠나면 조회만 멈춘다(작업은 서버에서 계속 돈다). 돌아오면 기다리지 않고 다시 읽는다.
+  // 이 화면을 보는 동안에는 이 연습의 분석 완료 알림을 배너로 띄우지 않는다(화면이 바로 결과를
+  // 읽는다). 다른 화면으로 가면 풀려서 알림이 뜬다.
   useFocusEffect(
     useCallback(() => {
       void run();
+      const showPushAgain =
+        practiceId && !preview
+          ? hideForegroundPush((data) => analysisPushTarget(data)?.practiceId === practiceId)
+          : undefined;
       return () => {
         controllerRef.current?.abort();
+        showPushAgain?.();
       };
-    }, [run]),
+    }, [run, practiceId, preview]),
   );
 
   // 배경에서 돌아온 직후에도 다음 조회를 기다리지 않는다.

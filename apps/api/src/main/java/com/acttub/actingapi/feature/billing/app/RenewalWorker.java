@@ -108,6 +108,7 @@ public class RenewalWorker {
         if ("first".equals(payment.kind())) {
             if (charge == Charge.DONE && sub.status() == Status.EXPIRED) {
                 repository.activate(sub.id(), payment.periodStart(), payment.periodEnd(), now);
+                service.assignFounding(sub.userId(), BillingRules.PROVIDER_TOSS);
             }
             return;
         }

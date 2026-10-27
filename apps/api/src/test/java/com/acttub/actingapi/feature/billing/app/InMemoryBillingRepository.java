@@ -123,6 +123,28 @@ class InMemoryBillingRepository implements BillingRepository {
         return s.id();
     }
 
+    final Map<UUID, Integer> founding = new LinkedHashMap<>();
+    final java.util.Set<UUID> foundingBlocked = new java.util.HashSet<>();
+
+    @Override
+    public Optional<Integer> assignFoundingNumber(UUID userId, String provider, Instant now) {
+        if (inactiveUsers.contains(userId) || founding.containsKey(userId) || founding.size() >= FOUNDING_LIMIT) {
+            return Optional.empty();
+        }
+        founding.put(userId, founding.size() + 1);
+        return Optional.of(founding.size());
+    }
+
+    @Override
+    public Optional<Integer> foundingNumber(UUID userId) {
+        return Optional.ofNullable(founding.get(userId));
+    }
+
+    @Override
+    public int foundingRemaining() {
+        return FOUNDING_LIMIT - founding.size();
+    }
+
     @Override
     public void activate(UUID id, Instant periodStart, Instant periodEnd, Instant now) {
         Subscription s = subscriptions.get(id);
