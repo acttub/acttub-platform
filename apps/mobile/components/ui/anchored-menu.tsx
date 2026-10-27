@@ -62,12 +62,16 @@ export function AnchoredMenu({
   const pos = placeMenu(anchor, { width, height: estimatedHeight }, screen, insets);
   return (
     <Modal transparent statusBarTranslucent visible animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
+      {/* 덮개·카드가 접근성 요소가 되면 메뉴 항목이 하나로 묶여 따로 누를 수 없다. 닫기는 스크린리더 닫기 동작으로. */}
+      <Pressable style={styles.overlay} onPress={onClose} accessible={false}>
         <Pressable
           testID="anchored-menu"
+          accessible={false}
           style={[styles.card, { left: pos.left, top: pos.top, width: pos.width }]}
           onPress={(e) => e.stopPropagation()}>
-          <View accessibilityViewIsModal>{children}</View>
+          <View accessibilityViewIsModal onAccessibilityEscape={onClose}>
+            {children}
+          </View>
         </Pressable>
       </Pressable>
     </Modal>

@@ -32,7 +32,8 @@ export function ReadingGuideOverlay({ onClose }: { onClose: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12, zIndex: 50 },
+  // 덮개 위에 흰 안내 문장을 바로 얹어서 scrim(45%)으로는 대비가 모자라 더 진하게 둔다.
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,20,30,0.82)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12, zIndex: 50 },
   mascot: { width: 132, height: 148 },
   head: { ...type.headline, color: palette.onAccent, textAlign: 'center' },
   list: { alignSelf: 'stretch', gap: 8, marginTop: 4 },
