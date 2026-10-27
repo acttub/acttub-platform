@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
-import { beforeEach, test } from 'node:test';
+import { beforeEach, mock, test } from 'node:test';
 
 // 엔진은 그대로 실행하고 파일·음성 모델·재생기 등 네이티브 경계만 대체한다.
 globalThis.__readingEngineTest = { files: new Map(), players: [], calls: [], active: 0, peak: 0, gate: null };
@@ -217,4 +217,44 @@ test('다 재생한 재생기는 바로 놓는다 — 남겨 두면 상태 갱�
   assert.equal(player.removed, true);
   // 이미 놓은 뒤 stop() 이 와도 다시 놓지 않고 조용히 지나간다.
   engine.stop();
+});
+
+test('재생기가 실패를 알리면 기다리지 않고 playback 실패로 끝낸다', async () => {
+  const playback = engine.play('file:///broken.wav');
+  const player = state.players.at(-1);
+  player.listener({ isLoaded: false, didJustFinish: false, playbackState: 'failed', duration: 0 });
+  await assert.rejects(playback, (e) => e.kind === 'playback');
+  assert.equal(player.listener, null);
+});
+
+test('정해진 시간 안에 재생이 시작되지 않으면 소리 없이 갇히지 않고 playback 실패로 끝낸다', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const playback = engine.play('file:///silent.wav');
+    const player = state.players.at(-1);
+    player.listener({ isLoaded: true, didJustFinish: false, playing: false, currentTime: 0, duration: 1.3 });
+    mock.timers.tick(engine.PLAYBACK_START_TIMEOUT_MS);
+    await assert.rejects(playback, (e) => e.kind === 'playback');
+    assert.equal(player.listener, null);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('재생이 시작됐는데 끝 사건이 오지 않으면 소리 길이와 여유 시간 뒤에 끝난 것으로 본다', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    let finished = false;
+    const playback = engine.play('file:///no-end-event.wav').then(() => { finished = true; });
+    const player = state.players.at(-1);
+    player.listener({ isLoaded: true, didJustFinish: false, playing: true, currentTime: 0.2, duration: 3.7 });
+    mock.timers.tick(engine.PLAYBACK_START_TIMEOUT_MS);
+    await flush();
+    assert.equal(finished, false);
+    mock.timers.tick(3500 + engine.PLAYBACK_END_MARGIN_MS);
+    await playback;
+    assert.equal(finished, true);
+  } finally {
+    mock.timers.reset();
+  }
 });
