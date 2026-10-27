@@ -68,20 +68,48 @@ const notificationSync = createNotificationSync({
   now: () => Date.now(),
 });
 
+/** 지금 보고 있는 화면이 숨기라고 걸어 둔 조건들. 하나라도 맞으면 그 알림은 띄우지 않는다. */
+const foregroundHiders = new Set<(data: unknown) => boolean>();
+
 /**
- * 앱이 떠 있는 동안 온 알림은 배너·알림 목록에 띄우지 않는다. 화면이 이미 같은 내용을
- * 보여 주므로(분석 완료 등) 겹쳐 뜨지 않게 한다. 앱 기동 시 한 번 부른다.
+ * 보고 있는 화면이 같은 내용을 이미 보여 주는 알림만 앱이 떠 있을 때 숨긴다(예: 그 연습의
+ * 분석 대기 화면에서 받은 분석 완료). 화면에 들어올 때 걸고, 돌려준 함수로 떠날 때 푼다.
+ */
+export function hideForegroundPush(match: (data: unknown) => boolean): () => void {
+  foregroundHiders.add(match);
+  return () => {
+    foregroundHiders.delete(match);
+  };
+}
+
+function shouldShowInForeground(data: unknown): boolean {
+  for (const match of foregroundHiders) {
+    try {
+      if (match(data)) return false;
+    } catch {
+      // 조건이 깨져도 알림은 띄운다.
+    }
+  }
+  return true;
+}
+
+/**
+ * 앱이 떠 있을 때도 알림을 배너로 보여 준다. 다만 보고 있는 화면이 숨기라고 한 알림은 배너·목록
+ * 모두 띄우지 않는다(안드로이드는 목록만 켜도 화면에 뜬다). 앱 기동 시 한 번 부른다.
  * 모듈이 없으면 아무 일도 하지 않는다.
  */
 export function configureNotificationHandling(): void {
   if (!notifications) return;
   notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: false,
-      shouldShowList: false,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-    }),
+    handleNotification: async (notification?: { request?: { content?: { data?: unknown } } }) => {
+      const show = shouldShowInForeground(notification?.request?.content?.data ?? null);
+      return {
+        shouldShowBanner: show,
+        shouldShowList: show,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    },
   });
 }
 
