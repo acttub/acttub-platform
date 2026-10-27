@@ -356,9 +356,12 @@ function CoachTalk() {
   if (!practice) {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
-        <View style={styles.body}>
-          <InlineErrorLine message={t('coach.noPractice')} />
-        </View>
+        <StatusScreen
+          mascot={MASCOT.coach}
+          title={t('report.noPracticeTitle')}
+          body={t('report.noPracticeBody')}
+          primary={{ label: t('common.goHome'), onPress: () => router.dismissTo('/(tabs)') }}
+        />
       </SafeAreaView>
     );
   }
@@ -496,7 +499,6 @@ function CoachTalk() {
 
           {connecting && !latestQuestion && !streamText ? (
             <View style={styles.loading}>
-              <Feather name="rotate-cw" size={20} color={palette.iconFaint} />
               <Text style={styles.loadingText}>{t('coach.wrapping')}</Text>
               <Text style={styles.loadingHint}>{t('coach.wrappingHint')}</Text>
             </View>
@@ -549,7 +551,6 @@ function CoachTalk() {
 
           {waiting && (
             <View style={styles.thinkingRow}>
-              <Feather name="rotate-cw" size={12} color={palette.iconFaint} />
               <Text style={styles.thinkingText}>{t('coach.thinking')}</Text>
             </View>
           )}

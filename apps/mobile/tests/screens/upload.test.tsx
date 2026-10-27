@@ -190,7 +190,6 @@ describe('영상을 고르기 전', () => {
   });
 
   test('첫 코칭이어도 단계마다 「처음이면 ~를 누르세요」를 반복하지 않고, (10/20 피드백)', async () => {
-    mockParams = { first: '1' };
     await render(<UploadScreen />);
     expect(screen.queryByText('처음이면 「평가 받기」를 누르세요.')).not.toBeOnTheScreen();
     await toSourceStep();

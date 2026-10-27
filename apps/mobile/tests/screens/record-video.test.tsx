@@ -437,14 +437,14 @@ describe('기본 촬영 화면', () => {
     expect(takePickedVideo()?.pendingId).toBe('pend1');
   });
 
-  test('코칭 탭 「지금 찍어서 코칭 받기」(next=upload)에서 왔으면 용도 줄 없이 찍고, 새 준비 화면을 첫 안내와 함께 연다', async () => {
-    mockParams = { mode: 'ai', next: 'upload', first: '1' };
+  test('코칭 탭 「지금 찍어서 코칭 받기」(next=upload)에서 왔으면 용도 줄 없이 찍고, 새 준비 화면을 연다', async () => {
+    mockParams = { mode: 'ai', next: 'upload' };
     await render(<RecordVideoScreen />);
 
     expect(screen.queryByText('옆으로 넘겨 용도를 바꿔요')).not.toBeOnTheScreen();
     await recordAndStop();
 
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/upload', params: { first: '1' } }));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/upload'));
     expect(mockRouter.back).not.toHaveBeenCalled();
     expect(takePickedVideo()?.pendingId).toBe('pend1');
   });
@@ -601,7 +601,8 @@ describe('모든 촬영의 앨범 버튼', () => {
     await startRecording();
 
     expect(screen.getByText('0:00 / 5:00')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByLabelText('앨범에서 고르기'));
+    expect(screen.queryByLabelText('앨범에서 고르기')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('앨범에서 고르기', { includeHiddenElements: true }));
     expect(launchPicker).not.toHaveBeenCalled();
   });
 });
@@ -932,7 +933,7 @@ describe('용도 고르기(하단 탭에서 곧장 연 촬영)', () => {
     expect(await swipe(-120, 10)).toEqual({ onTouch: true, onMove: true });
   });
 
-  test('녹화를 시작해도 안내 자리와 용도 줄을 치우지 않아 셔터가 움직이지 않는다(SOMA-737)', async () => {
+  test('녹화 중에도 용도 줄과 안내 자리가 남는다(SOMA-737 — 치우면 셔터가 내려간다)', async () => {
     mockParams = { mode: 'ai', picker: '1' };
     await render(<RecordVideoScreen />);
     expect(screen.getByText('옆으로 넘겨 용도를 바꿔요')).toBeOnTheScreen();
@@ -940,7 +941,7 @@ describe('용도 고르기(하단 탭에서 곧장 연 촬영)', () => {
     await startRecording();
 
     expect(screen.getByText('5분 남았어요')).toBeOnTheScreen();
-    expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel ?? null)).toHaveLength(3);
+    expect(screen.getAllByRole('tab', { includeHiddenElements: true })).toHaveLength(3);
   });
 
   test('녹화 중에는 넘겨도 용도가 바뀌지 않는다', async () => {

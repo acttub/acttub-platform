@@ -140,6 +140,8 @@ test('진행 중인 연습이 없으면 그렇다고 알리고, 홈으로는 평
   await render(<ReportScreen />);
 
   expect(screen.getByText('진행 중인 연습이 없어요')).toBeOnTheScreen();
+  // 다시 읽어도 같으니 「다시 시도」는 없다.
+  expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('홈으로'));
 
   expect(after).not.toHaveBeenCalled();

@@ -123,7 +123,7 @@ export default function UploadScreen() {
   const { alert, dialog } = useAppDialog();
 
   // 튜토리얼의 예시(SOMA-494) — 예시 영상과 장면을 채워 두고, 시작하면 서버 없이 예시 회차로 간다.
-  const params = useLocalSearchParams<{ sample?: string; first?: string }>();
+  const params = useLocalSearchParams<{ sample?: string }>();
   const sample = params.sample === '1';
   const firstTimeUser = useFirstTimeUser();
   const [plan] = useState<StartPlan>(() => planFor(sample ? null : takeContinueOrigin()));
@@ -665,11 +665,7 @@ export default function UploadScreen() {
                     <Text style={styles.pickedMeta} numberOfLines={1}>{t('tutorial.sample.situation')}</Text>
                   ) : (
                     <View style={styles.pickedStatus}>
-                      <Feather
-                        name={uploading ? 'rotate-cw' : 'check-circle'}
-                        size={14}
-                        color={uploading ? palette.textMeta : palette.green}
-                      />
+                      {!uploading && <Feather name="check-circle" size={14} color={palette.green} />}
                       <Text style={[styles.pickedMeta, !uploading && styles.pickedSaved]} numberOfLines={1}>
                         {uploading ? t('archive.statusUploading') : t('archive.statusSaved')}
                       </Text>
@@ -704,7 +700,6 @@ export default function UploadScreen() {
             {/* 질문 받기를 누른 뒤 — 보내는 중이라는 걸 바로 보인다(SOMA-671). */}
             {locked && (
               <View style={styles.sendingBar} accessibilityLiveRegion="polite">
-                <Feather name="rotate-cw" size={16} color={palette.blueDeep} />
                 <Text style={styles.sendingText}>{t('upload.sending')}</Text>
               </View>
             )}
@@ -734,7 +729,6 @@ export default function UploadScreen() {
               accessibilityLabel={submitLabel}
               accessibilityState={{ disabled: !canSubmit || starting }}>
               {/* 보내는 중·영상이 아직 올라가는 중이면 무엇을 기다리는지 버튼이 말한다(SOMA-671). */}
-              {starting || uploading ? <Feather name="rotate-cw" size={18} color={palette.onAccent} /> : null}
               <Text style={[styles.submitText, !canSubmit && !uploading && !starting && styles.submitTextDisabled]}>{submitLabel}</Text>
             </Pressable>
             {hint && picked && <Text style={styles.submitHint}>{hint}</Text>}

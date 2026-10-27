@@ -1190,7 +1190,6 @@ const ko = {
     },
   },
   analyzing: {
-    screenTitle: '새 연습',
     stages: [
       '장면을 처음부터 끝까지 보고 있어요…',
       '대사·템포·움직임·표정을 뜯어보는 중…',
@@ -1233,7 +1232,6 @@ const ko = {
     offline: '연결이 끊겼어요. 잠시 뒤 다시 보내 주세요.',
     wrapNext: '다음 답으로 마무리해요',
     endWord: '그만',
-    noPractice: '진행 중인 연습이 없어요. 홈에서 새로 시작해 주세요.',
     sendFail: '전송에 실패했어요.',
     endTitle: '여기서 마칠까요?',
     endMsg: '다 얘기했으면 「마치기」를 누르세요. 이어서 일지를 쓰면 오늘 대화와 함께 정리돼요.',
@@ -1380,7 +1378,6 @@ const ko = {
     ratePh: '한 줄 더 남겨주실래요? (선택)',
     rateSend: '보내기',
     rateThanks: '고마워요! 다음 코칭에 반영할게요.',
-    noPractice: '진행 중인 연습이 없어요.',
     noPracticeTitle: '진행 중인 연습이 없어요',
     noPracticeBody: '홈에서 새 연습을 시작해 주세요.',
     making: '대화를 정리해서 카드를 만들고 있어요…',

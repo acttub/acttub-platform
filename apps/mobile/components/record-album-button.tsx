@@ -32,12 +32,16 @@ function useRecentPoster(): { uri: string; cacheKey: string } | null {
 }
 
 /** 촬영 화면 왼쪽 아래 앨범 버튼(pen record-video 「upload · 최근 영상」). 누르면 사진첩에서 영상을 고른다. */
-export function RecordAlbumButton({ onPress }: { onPress: () => void }) {
+/** hidden 이면(녹화 중) 자리를 둔 채 보이지 않고 눌리지 않으며 화면 읽기에서도 빠진다. */
+export function RecordAlbumButton({ onPress, hidden = false }: { onPress: () => void; hidden?: boolean }) {
   const poster = useRecentPoster();
   return (
     <Pressable
-      style={styles.album}
+      style={[styles.album, hidden && styles.hidden]}
       onPress={onPress}
+      disabled={hidden}
+      accessibilityElementsHidden={hidden}
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
       accessibilityRole="button"
       accessibilityLabel={t('record.album')}
       ph-label="record_gallery">
@@ -63,4 +67,5 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   thumb: { width: '100%', height: '100%' },
+  hidden: { opacity: 0 },
 });

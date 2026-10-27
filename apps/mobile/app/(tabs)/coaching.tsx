@@ -82,8 +82,8 @@ export default function CoachingTab() {
   );
 
   const first = entry?.kind === 'first';
-  // 새 연습은 세션 목적 → 영상 고르기 순서다(app/upload). 첫 코칭이면 단계마다 파란 안내를 켠다.
-  const startNew = () => router.push({ pathname: '/upload', params: first ? { first: '1' } : {} });
+  // 새 연습은 세션 목적 → 영상 고르기 순서다(app/upload).
+  const startNew = () => router.push('/upload');
   // 「이전 코칭 이어 하기」는 지난 코칭 목록에서 고른다.
   const pickPrevious = () => router.push('/history');
   // 「하던 코칭 · 이어서 하기」는 열린 대화로, 「저번 코치 메모 · 한 번 더 연습」은 열린 대화가 있으면 그 대화, 없으면 다음 테이크(새 영상)로 간다.

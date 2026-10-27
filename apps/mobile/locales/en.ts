@@ -1196,7 +1196,6 @@ const en: DeepStringShape<typeof ko> = {
     },
   },
   analyzing: {
-    screenTitle: 'New practice',
     stages: [
       'Watching your scene from start to finish…',
       'Breaking down lines, tempo, movement, expressions…',
@@ -1239,7 +1238,6 @@ const en: DeepStringShape<typeof ko> = {
     offline: 'The connection dropped. Please send it again in a moment.',
     wrapNext: 'The next reply wraps things up',
     endWord: 'Stop',
-    noPractice: 'No practice in progress. Start a new one from Home.',
     sendFail: 'Failed to send.',
     endTitle: 'Wrap up here?',
     endMsg: 'If you’ve said it all, tap “Finish”. Write your journal next and today’s conversation is summarized with it.',
@@ -1384,7 +1382,6 @@ const en: DeepStringShape<typeof ko> = {
     ratePh: 'One more line? (optional)',
     rateSend: 'Send',
     rateThanks: 'Thank you! We’ll fold it into the next session.',
-    noPractice: 'No practice in progress.',
     noPracticeTitle: 'No practice in progress',
     noPracticeBody: 'Start a new practice from Home.',
     making: 'Turning the conversation into your card…',

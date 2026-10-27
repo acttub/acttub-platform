@@ -165,9 +165,12 @@ afterEach(() => {
 test('진행 중인 연습이 없으면 홈에서 새로 시작하라고 안내한다', async () => {
   await render(<CoachScreen />);
 
-  expect(screen.getByText('진행 중인 연습이 없어요. 홈에서 새로 시작해 주세요.')).toBeOnTheScreen();
+  expect(screen.getByText('진행 중인 연습이 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('홈에서 새 연습을 시작해 주세요.')).toBeOnTheScreen();
   expect(mockLoop.startConversation).not.toHaveBeenCalled();
   expect(screen.queryByPlaceholderText(PLACEHOLDER)).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '홈으로' }));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
 });
 
 describe('대화 시작', () => {

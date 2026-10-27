@@ -38,11 +38,12 @@ import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
  * 디자인의 「내가 발견한 것 · 직접 써요」 칸과 「다음 연습 날에 붙여 둘게요」 줄은 노트 수정·일정 API가 없어 두지 않는다.
  */
 /** 노트를 보일 수 없는 까닭. 화면은 셋 모두 StatusScreen 에 아래 바 「홈으로」 위 · 「다시 시도」 아래다. */
+// 진행 중 회차가 없으면 다시 읽어도 같으므로 「다시 시도」 없이 「홈으로」만 둔다.
 type NoteProblem = 'no_practice' | 'none' | 'load_fail';
-const NOTE_PROBLEM: Record<NoteProblem, { title: string; body: string; mascot: 'dizzy' | 'coach' }> = {
-  no_practice: { title: 'report.noPracticeTitle', body: 'report.noPracticeBody', mascot: 'coach' },
-  none: { title: 'note.noneTitle', body: 'note.noneBody', mascot: 'coach' },
-  load_fail: { title: 'note.loadFailTitle', body: 'note.loadFailBody', mascot: 'dizzy' },
+const NOTE_PROBLEM: Record<NoteProblem, { title: string; body: string; mascot: 'dizzy' | 'coach'; retry: boolean }> = {
+  no_practice: { title: 'report.noPracticeTitle', body: 'report.noPracticeBody', mascot: 'coach', retry: false },
+  none: { title: 'note.noneTitle', body: 'note.noneBody', mascot: 'coach', retry: true },
+  load_fail: { title: 'note.loadFailTitle', body: 'note.loadFailBody', mascot: 'dizzy', retry: true },
 };
 
 export default function ReportScreen() {
@@ -153,7 +154,6 @@ export default function ReportScreen() {
 
       {loading && (
         <View style={styles.center}>
-          <Feather name="rotate-cw" size={20} color={palette.iconFaint} />
           <Text style={styles.loadingText}>{t('report.making')}</Text>
         </View>
       )}
@@ -166,8 +166,14 @@ export default function ReportScreen() {
             body={t(NOTE_PROBLEM[error].body)}
           />
           <CtaBar safeBottom={false}>
-            <TextButton label={t('common.goHome')} phLabel="report_go_home" onPress={finish} />
-            <PrimaryButton label={t('common.retry')} phLabel="report_retry" onPress={() => void loadNote()} />
+            {NOTE_PROBLEM[error].retry ? (
+              <>
+                <TextButton label={t('common.goHome')} phLabel="report_go_home" onPress={finish} />
+                <PrimaryButton label={t('common.retry')} phLabel="report_retry" onPress={() => void loadNote()} />
+              </>
+            ) : (
+              <PrimaryButton label={t('common.goHome')} phLabel="report_go_home" onPress={finish} />
+            )}
           </CtaBar>
         </>
       )}

@@ -81,13 +81,11 @@ export default function RecordVideoScreen() {
     challengeId?: string;
     picker?: string;
     next?: string;
-    first?: string;
     maxSec?: string;
   }>();
   const picker = params.picker === '1';
   // next=upload: 코칭 탭 「지금 찍어서 코칭 받기」 → 찍는 법 → 여기. 준비 화면이 뒤에 없으니 찍은 뒤 새로 연다.
   const toUpload = params.next === 'upload';
-  const firstCoaching = params.first === '1';
   const [mode, setMode] = useState<string | undefined>(params.mode);
   // 오늘의 대사로 넘기면 여기에 그 챌린지를 채운다 — 챌린지 화면에서 오면 처음부터 들어 있다.
   const [challengeParams, setChallengeParams] = useState({
@@ -302,7 +300,7 @@ export default function RecordVideoScreen() {
         // 하단 탭에서 곧장 왔으면 새 준비 화면을 연다. 준비 화면의 촬영 버튼에서 왔으면 그 화면으로 돌아간다 —
         // 새 준비 화면을 또 열면 다음 테이크(이어하기)가 새 연습으로 바뀐다(SOMA-672).
         if (picker) router.replace('/upload');
-        else if (toUpload) router.replace({ pathname: '/upload', params: firstCoaching ? { first: '1' } : {} });
+        else if (toUpload) router.replace('/upload');
         else router.back();
       });
       return;
@@ -317,7 +315,7 @@ export default function RecordVideoScreen() {
     }
     leavingRef.current = true;
     router.back();
-  }, [challengeId, firstCoaching, isChallenge, line, mode, picker, router, saveToLibrary, toUpload, work]);
+  }, [challengeId, isChallenge, line, mode, picker, router, saveToLibrary, toUpload, work]);
 
   // 닫기는 녹화 중·멈춘 뒤에도 받는다 — 예전엔 녹화 중 막혀 있어, iOS 에서 멈춤 뒤 녹화가 늦게 끝나면 위쪽 닫기가 안 눌렸다(10/25 QA).
   // 찍던 것은 버린다. 먼저 끝남·떠남 표시를 해서 녹화가 끝나도 저장·이동하지 않게 한다.
@@ -394,6 +392,7 @@ export default function RecordVideoScreen() {
 
   // 챌린지 모드 "업로드" — 찍는 대신 갤러리에서 골라 그대로 올리기로 간다.
   const pickFromGallery = useCallback(async () => {
+    if (recording) return;
     const result = await ImagePicker.launchImageLibraryAsync(VIDEO_PICKER_OPTIONS);
     const picked = !result.canceled && !!result.assets[0];
     if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('gallery', picked ? 'selected' : 'cancelled'));
@@ -410,7 +409,7 @@ export default function RecordVideoScreen() {
       source: 'gallery',
     });
     goNext();
-  }, [goNext, isChallenge]);
+  }, [goNext, isChallenge, recording]);
 
 
   const flip = () => setFacing((f) => (f === 'back' ? 'front' : 'back'));
@@ -425,7 +424,7 @@ export default function RecordVideoScreen() {
         <StatusBar style="light" />
         <View style={[styles.overlay, safePad]}>
           <View style={styles.topBar}>
-            <CloseButton onPress={() => router.back()} />
+            <CloseButton phLabel="record_perm_close" onPress={() => router.back()} />
           </View>
           {showNotice && (
             <View style={styles.permNotice}>
@@ -467,10 +466,7 @@ export default function RecordVideoScreen() {
   // 「오늘의 대사 불러오는 중」은 안내 자리에 둔다 — 셔터가 움직이지 않는다.
   const hint =
     phase === 'loadingToday' ? (
-      <View style={styles.hintRow}>
-        <Feather name="rotate-cw" size={14} color={palette.onMediaSub} />
-        <Text style={styles.hint}>{t('recordMode.loadingToday')}</Text>
-      </View>
+      <Text style={styles.hint}>{t('recordMode.loadingToday')}</Text>
     ) : (
       <Text style={styles.hint}>{hintText}</Text>
     );
@@ -486,7 +482,7 @@ export default function RecordVideoScreen() {
       <View style={[styles.overlay, safePad]} pointerEvents="box-none">
         <View style={styles.topGroup} pointerEvents="box-none">
           <View style={styles.topBar}>
-            <CloseButton onPress={close} />
+            <CloseButton phLabel="record_close" onPress={close} />
             {showPill && (
               <View style={[styles.timerPill, recording && styles.timerPillRec]}>
                 <View style={[styles.recDot, recording && styles.recDotRec]} />
@@ -501,7 +497,7 @@ export default function RecordVideoScreen() {
                 onPress={toggleCover}
                 accessibilityRole="button"
                 accessibilityLabel={t(coverHidden ? 'record.showLine' : 'record.hideLine')}
-                ph-label="record_toggle_line">
+                ph-label={cover === 'script' ? 'record_toggle_script' : 'record_toggle_line'}>
                 <Feather name={coverHidden ? 'eye-off' : 'eye'} size={22} color={palette.onAccent} />
               </Pressable>
             ) : (
@@ -544,9 +540,7 @@ export default function RecordVideoScreen() {
           {!isChallenge && hint}
           <View style={styles.controls}>
             {/* 녹화 중엔 앨범·전환을 자리를 둔 채 숨긴다 — 셔터가 늘 가운데에 머문다. */}
-            <View style={recording ? styles.hiddenKeepSpace : undefined} pointerEvents={recording ? 'none' : 'auto'}>
-              <RecordAlbumButton onPress={() => void pickFromGallery()} />
-            </View>
+            <RecordAlbumButton hidden={recording} onPress={() => void pickFromGallery()} />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={recording ? t('record.stop') : t('record.start')}
@@ -561,6 +555,7 @@ export default function RecordVideoScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('record.flip')}
               accessibilityElementsHidden={recording}
+              importantForAccessibility={recording ? 'no-hide-descendants' : 'auto'}
               ph-label="record_flip"
               onPress={flip}>
               <Feather name="refresh-cw" size={22} color={palette.onAccent} />
@@ -585,7 +580,7 @@ export default function RecordVideoScreen() {
   );
 }
 
-function CloseButton({ onPress }: { onPress: () => void }) {
+function CloseButton({ onPress, phLabel }: { onPress: () => void; phLabel: string }) {
   return (
     <Pressable
       style={styles.closeBtn}
@@ -593,7 +588,7 @@ function CloseButton({ onPress }: { onPress: () => void }) {
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel={t('common.close')}
-      ph-label="record_close">
+      ph-label={phLabel}>
       <Feather name="x" size={30} color={palette.onAccent} />
     </Pressable>
   );
@@ -669,7 +664,6 @@ const styles = StyleSheet.create({
   shutterIn: { width: 68, height: 68, borderRadius: radius.full, backgroundColor: palette.danger },
   shutterStop: { width: 32, height: 32, borderRadius: radius.sm, backgroundColor: palette.danger },
   hiddenKeepSpace: { opacity: 0 },
-  hintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5] },
   hint: { ...type.caption, color: palette.onMediaSub, textAlign: 'center' },
   permNotice: {
     flexDirection: 'row',
