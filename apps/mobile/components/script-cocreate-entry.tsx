@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -19,7 +20,7 @@ export function ScriptCocreateEntry({ style }: { style?: StyleProp<ViewStyle> })
       ph-label="coaching_script_cocreate"
       style={({ pressed }) => [styles.row, style, pressed && styles.pressed]}>
       <View style={styles.icon}>
-        <Feather name="edit-3" size={18} color={palette.textMeta} />
+        <Feather name="edit-3" size={18} color={palette.blue} />
       </View>
       <View style={styles.text}>
         <Text style={styles.title}>{t('scriptCocreate.entryTitle')}</Text>
@@ -34,17 +35,16 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    gap: space[3],
+    padding: space[4],
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: palette.bgSoft,
+    backgroundColor: palette.bg,
   },
   pressed: { opacity: 0.85 },
-  icon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bgSoft },
-  text: { flex: 1, minWidth: 0, gap: 2 },
-  title: { fontSize: 15, fontWeight: '800', color: palette.text },
-  sub: { fontSize: 12, fontWeight: '500', color: palette.textMeta },
+  icon: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.blueSoft },
+  text: { flex: 1, minWidth: 0, gap: space[1] },
+  title: { ...type.body1Bold, color: palette.text },
+  sub: { ...type.caption, color: palette.textMeta },
 });

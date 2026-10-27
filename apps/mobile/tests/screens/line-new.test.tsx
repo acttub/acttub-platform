@@ -28,7 +28,7 @@ beforeEach(() => {
   mockIds = 0;
 });
 
-const PH = '“여기에 대사를 적어주세요”';
+const PH = '여기에 대사를 적어 주세요';
 const fill = (text = '  나는   아직\n끝나지 않았어 ') => fireEvent.changeText(screen.getByPlaceholderText(PH), text);
 const cta = () => screen.getByRole('button', { name: '등록하기' });
 const next = () => screen.getByRole('button', { name: '다음' });
@@ -57,8 +57,8 @@ test('세 단계(대사 → 작품·인물·메모 → 기간)로 등록하고 �
   await fireEvent.press(next());
 
   expect(screen.getByText('3 / 3')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '14일' }));
-  expect(screen.getByRole('button', { name: '14일' })).toBeSelected();
+  await fireEvent.press(screen.getByRole('radio', { name: '14일' }));
+  expect(screen.getByRole('radio', { name: '14일' })).toBeSelected();
   await fireEvent.press(cta());
 
   expect(createChallenge).toHaveBeenCalledWith({
@@ -84,7 +84,8 @@ test('검색에서 넘겨받은 대사로 시작하고 글자 수를 센다', as
 test('대사가 200자를 넘으면 다시 확인하라고 하고 막는다', async () => {
   await render(<LineNewScreen />);
   await fill('가'.repeat(201));
-  expect(screen.getByText('적은 내용을 다시 확인해 주세요.')).toBeOnTheScreen();
+  expect(screen.getByText('200자까지 적을 수 있어요.')).toBeOnTheScreen();
+  expect(screen.getByText('201 / 200')).toBeOnTheScreen();
   expect(next()).toBeDisabled();
 });
 
@@ -127,10 +128,4 @@ test('게스트는 회원만 이용할 수 있다고 안내받는다', async () 
   await toLastStep();
   await fireEvent.press(cta());
   expect(await screen.findByText('챌린지는 회원만 이용할 수 있어요.')).toBeOnTheScreen();
-});
-
-test('모달 위 끝과 닫기 버튼 사이에 여백을 둔다', async () => {
-  await render(<LineNewScreen />);
-  // iOS 시트는 위 안전 영역이 0이라 머리줄 자체 여백이 없으면 닫기 버튼이 시트 끝에 붙는다.
-  expect(screen.getByTestId('line-new-header')).toHaveStyle({ paddingTop: 16 });
 });

@@ -100,9 +100,9 @@ test('대본 카드마다 배역·대사 수·상태를 보여 준다', async ()
   expect(voice.refresh).toHaveBeenCalled();
   expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
   expect(screen.getByText('전체 3개')).toBeOnTheScreen();
-  expect(screen.getByText('민지 · 대사 12개 · 연습 중')).toBeOnTheScreen();
+  expect(screen.getByText('연습 중 · 민지 · 대사 12개')).toBeOnTheScreen();
   expect(screen.getByText('배역 미선택 · 대사 12개')).toBeOnTheScreen();
-  expect(screen.getByText('민지 · 대사 12개 · 연습 완료')).toBeOnTheScreen();
+  expect(screen.getByText('연습 완료 · 민지 · 대사 12개')).toBeOnTheScreen();
   expect(screen.queryByText('고품질 AI 목소리로 리딩해요')).not.toBeOnTheScreen();
   // pen R1.3 — 대본이 있으면 큰 제목은 「내 대본」
   expect(screen.getByRole('header', { name: '내 대본' })).toBeOnTheScreen();
@@ -153,7 +153,8 @@ test('검색어는 잠깐 기다렸다가 서버에 묻고, 맞는 대본이 없
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '햄릿');
   expect(listScripts).toHaveBeenCalledTimes(1);
 
-  expect(await screen.findByText('검색 결과가 없어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('검색 결과가 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('작품명이나 배역 이름으로 찾아보세요')).toBeOnTheScreen();
   expect(listScripts).toHaveBeenLastCalledWith('햄릿');
   expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
   expect(screen.queryByText('대사를 같이 맞춰 읽으며\n연기 감각을 키워보세요.')).not.toBeOnTheScreen();

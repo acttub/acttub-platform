@@ -4,7 +4,6 @@
  * 서버 호출은 deps 로 받아 화면 없이 테스트한다.
  */
 import { ApiError, errorMessage, isRateLimited, NetworkError, READING_SCRIPT_MESSAGES } from "../../api/v2/errors";
-import type { ConsentDocument } from "../../api/v2/types";
 import type { ImportRequest, ImportTicket, ScriptImport, ScriptUpload } from "../api-types";
 import { newRequestId } from "../request-id";
 
@@ -32,11 +31,8 @@ export type ImportOutcome =
   | { kind: "not_script" }
   /** R2.13 */
   | { kind: "no_characters" }
-  /** R2.14. error 는 동의를 저장하지 못한 까닭 */
-  | { kind: "consent_required"; error?: string }
   /** R2.15 */
   | { kind: "daily_limit" }
-  /** 웹 게스트는 나누기 동의(선택 문서)를 결정할 수 없고, 동의 문서가 아직 없을 수도 있다. 게스트 동의를 열지 정해지면 바뀔 자리 */
   | { kind: "split_unavailable" }
   /** R2.4 */
   | { kind: "file_too_large" }
@@ -56,8 +52,6 @@ export interface ImportDeps {
   completeUpload: (uploadId: string) => Promise<void>;
   startImport: (body: Omit<ImportRequest, "request_id">, requestId: string) => Promise<ImportTicket>;
   getImport: (importId: string, signal?: AbortSignal) => Promise<ScriptImport>;
-  listConsentDocuments: () => Promise<ConsentDocument[]>;
-  grantConsent: (documentId: string) => Promise<void>;
   wait: (ms: number, signal?: AbortSignal) => Promise<void>;
   now: () => number;
 }
@@ -72,7 +66,6 @@ const IMPORT_TIMEOUT_MS = 120_000;
 
 /** R2.12 공용 문구 */
 export const IMPORT_FAILED_COPY = "네트워크 연결을 확인하고 다시 시도해주세요.";
-const CONSENT_FAILED_COPY = "동의를 저장하지 못했어요. 다시 시도해 주세요.";
 
 export function newAttempt(input: ScriptInput): ImportAttempt {
   return { input, requestId: newRequestId(), uploadId: null, allowDuplicate: false, skipScriptCheck: false };
@@ -109,7 +102,7 @@ function outcomeOfImport(job: ScriptImport): ImportOutcome | null {
 }
 
 const ERROR_OUTCOMES: Record<string, ImportOutcome> = {
-  script_split_consent_required: { kind: "consent_required" },
+  script_split_consent_required: { kind: "split_unavailable" },
   script_split_daily_limit: { kind: "daily_limit" },
   script_file_too_large: { kind: "file_too_large" },
   script_file_unreadable: { kind: "file_unreadable" },
@@ -198,24 +191,4 @@ export async function runImport(
   } catch (cause) {
     return { outcome: outcomeOfError(cause), attempt: current };
   }
-}
-
-/**
- * R2.14 [동의하고 나누기]. 현재 판 script_split 문서에 동의하고 막혔던 것을 같은 요청 id 로 다시 맡긴다.
- * 동의를 저장하지 못하면 대화상자를 그대로 두고 까닭을 싣는다.
- */
-export async function agreeAndRetry(
-  attempt: ImportAttempt,
-  deps: ImportDeps,
-  onProgress: (progress: ImportProgress) => void,
-): Promise<{ outcome: ImportOutcome; attempt: ImportAttempt }> {
-  try {
-    const document = (await deps.listConsentDocuments()).find((d) => d.type === "script_split");
-    if (!document) return { outcome: { kind: "split_unavailable" }, attempt };
-    await deps.grantConsent(document.id);
-  } catch (cause) {
-    if (cause instanceof ApiError && cause.code === "member_only") return { outcome: { kind: "split_unavailable" }, attempt };
-    return { outcome: { kind: "consent_required", error: errorMessage(cause, CONSENT_FAILED_COPY) }, attempt };
-  }
-  return runImport(attempt, deps, onProgress);
 }
