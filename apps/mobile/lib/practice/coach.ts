@@ -3,6 +3,7 @@ import { translate } from '../i18n.ts';
 import type { CoachConversation, CoachMessage, CoachReplyBody, CoachStreamCallbacks, CoachTurnResult, PracticeDetail, PracticeNote } from './types.ts';
 import { COACH_ANSWER_MAX } from './types.ts';
 import { readOptionalPracticeNote } from './note.ts';
+import { readableText } from './readable-text.ts';
 
 /**
  * 코치 대화 화면의 규칙(practice.coach). 코치의 행동 규칙(CONTRACT §7·§8, ADR-027)은 서버 것이고,
@@ -47,7 +48,7 @@ export type CoachInput = {
 
 export function canSendAnswer(input: CoachInput): boolean {
   const text = input.text.trim();
-  return Boolean(text && !input.waiting && !input.closed && input.conversationId) && text.length <= COACH_ANSWER_MAX;
+  return Boolean(text && !input.waiting && !input.closed && input.conversationId) && text.length <= COACH_ANSWER_MAX && readableText(text);
 }
 
 /** 서버가 422로 막기 전에 화면이 먼저 막는다. */
@@ -132,6 +133,8 @@ export type CoachFailure =
   | { kind: 'not_resumable' }
   | { kind: 'fingerprint_mismatch' }
   | { kind: 'too_long' }
+  /** 허용 범위 밖 글자(결합 기호를 쌓은 글 등)가 섞였다. */
+  | { kind: 'unreadable' }
   | { kind: 'offline' }
   | { kind: 'other' };
 
@@ -144,6 +147,7 @@ export function coachFailure(error: unknown): CoachFailure {
   if (code === 'conversation_limit_reached') return { kind: 'limit_reached' };
   if (code === 'conversation_not_resumable') return { kind: 'not_resumable' };
   if (code === 'request_fingerprint_mismatch') return { kind: 'fingerprint_mismatch' };
+  if (code === 'unreadable_text') return { kind: 'unreadable' };
   if (status === 422) return { kind: 'too_long' };
   if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other' };
@@ -163,6 +167,8 @@ export function coachFailureMessage(failure: CoachFailure): string {
       return translate('coach.continueNotResumable');
     case 'too_long':
       return translate('coach.answerTooLong');
+    case 'unreadable':
+      return translate('coach.answerUnreadable');
     case 'fingerprint_mismatch':
       return translate('errors.requestChanged');
     case 'offline':

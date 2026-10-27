@@ -70,6 +70,7 @@ public final class DirectVideoSessions implements AutoCloseable {
     public View get(UUID owner, UUID id) { return view(owned(owner, id)); }
 
     public View send(UUID owner, UUID id, String text) {
+        if (!ActorTextCharset.readable(text)) throw new ApiException(400, "unreadable_text");
         Session session = owned(owner, id);
         synchronized (session) {
             if (session.messages.size() >= 19) throw new ApiException(409, "direct_video_turn_limit");
