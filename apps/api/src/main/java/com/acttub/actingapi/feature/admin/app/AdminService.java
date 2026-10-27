@@ -139,9 +139,9 @@ public class AdminService {
         return new AdminAdvisorSessions(List.copyOf(sessions), advisorEmailHashes.size(), PLAYBACK_TTL_SECONDS);
     }
 
-    public AdminSessions sessions(int limit) {
+    public AdminSessions sessions(int limit, List<UUID> ids) {
         List<AdminSession> sessions = new ArrayList<>();
-        for (AdminMetricsRepository.SessionRow row : metrics.sessions(limit, excludeEmails)) {
+        for (AdminMetricsRepository.SessionRow row : metrics.sessions(limit, excludeEmails, ids)) {
             sessions.add(new AdminSession(
                     row.coachSessionId().toString(),
                     row.createdAt(),

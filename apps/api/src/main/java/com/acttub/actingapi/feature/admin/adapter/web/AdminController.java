@@ -294,10 +294,36 @@ class AdminController {
                     exclusiveMaximum = false,
                     defaultValue = "20"))
             @RequestParam(name = "limit", defaultValue = "20") String rawLimit,
+            @Parameter(description = "쉼표로 나눈 coach_session_id(최대 50개). 주면 그 세션들만 최신순으로 준다.")
+            @RequestParam(name = "ids", required = false) String rawIds,
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
         int limit = bounded(rawLimit, "limit", MAX_SESSIONS);
-        return admin.sessions(limit);
+        return admin.sessions(limit, sessionIds(rawIds));
+    }
+
+    /** 쉼표로 나눈 UUID 목록. 빈 값은 '조건 없음'이고, 못 읽거나 {@link #MAX_SESSIONS} 개를 넘으면 422 다. */
+    private static List<UUID> sessionIds(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        java.util.LinkedHashSet<UUID> ids = new java.util.LinkedHashSet<>();
+        for (String part : raw.split(",")) {
+            String value = part.strip();
+            if (value.isEmpty()) {
+                continue;
+            }
+            try {
+                ids.add(UUID.fromString(value));
+            } catch (IllegalArgumentException exception) {
+                throw queryError("uuid_parsing", "ids", "Input should be a valid UUID", value, null);
+            }
+        }
+        if (ids.size() > MAX_SESSIONS) {
+            throw queryError("too_long", "ids", "List should have at most " + MAX_SESSIONS + " items",
+                    Integer.toString(ids.size()), Map.of("max_length", MAX_SESSIONS));
+        }
+        return List.copyOf(ids);
     }
 
     @Operation(

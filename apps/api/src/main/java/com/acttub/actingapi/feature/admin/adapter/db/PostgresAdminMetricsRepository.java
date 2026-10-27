@@ -67,7 +67,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
     }
 
     @Override
-    public List<SessionRow> sessions(int limit, List<String> excludeEmails) {
+    public List<SessionRow> sessions(int limit, List<String> excludeEmails, List<UUID> ids) {
         // 0.1.0 대화(coach_conversations)와 아직 옮겨지지 않은 옛 코치 세션을 함께 본다. 이관은 같은 id 로
         // 옮기므로 새 표에 있는 옛 행은 뺀다(SOMA-566). 영상은 0.1.0 이 videos, 옛 행이 확정된 업로드다.
         StringBuilder sql = new StringBuilder("""
@@ -125,15 +125,25 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
             sql.append("""
                     LEFT JOIN users AS app_user
                       ON app_user.id = coach.user_id
-                    WHERE app_user.email IS NULL
+                    WHERE (app_user.email IS NULL
                        OR lower(app_user.email) NOT IN (
                     """);
-            sql.append(namedParameters("email", excludeEmails.size())).append(")\n");
+            sql.append(namedParameters("email", excludeEmails.size())).append("))\n");
+        }
+        // ops 가 오래된 세션을 id 로 콕 집어 볼 때만 건다(최근 50건 밖의 세션 상세·이름 검색).
+        if (!ids.isEmpty()) {
+            sql.append(excludeEmails.isEmpty() ? "WHERE " : "  AND ")
+                    .append("coach.id IN (")
+                    .append(namedParameters("id", ids.size()))
+                    .append(")\n");
         }
         sql.append("ORDER BY coach.created_at DESC LIMIT :limit");
 
         Query query = entityManager.createNativeQuery(sql.toString(), Tuple.class)
                 .setParameter("limit", limit);
+        for (int index = 0; index < ids.size(); index++) {
+            query.setParameter("id" + index, ids.get(index));
+        }
         for (int index = 0; index < excludeEmails.size(); index++) {
             query.setParameter(
                     "email" + index,

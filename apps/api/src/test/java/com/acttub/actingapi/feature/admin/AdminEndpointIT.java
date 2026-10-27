@@ -284,6 +284,35 @@ class AdminEndpointIT {
     }
 
     @Test
+    void idsPickOlderSessionsOutsideTheRecentWindowAndKeepTheTeamExcluded() throws Exception {
+        UUID oldest = insertCoach(insertPractice(REAL_USER, "old.mp4", "pending", NOW.minusDays(30)), NOW.minusDays(30));
+        for (int index = 0; index < 3; index++) {
+            OffsetDateTime createdAt = NOW.plusMinutes(index);
+            insertCoach(insertPractice(REAL_USER, "new-" + index + ".mp4", "pending", createdAt), createdAt);
+        }
+
+        JsonNode recent = authorized("/v2/admin/sessions?limit=1", 200);
+        assertThat(recent.path("sessions").get(0).path("coach_session_id").textValue())
+                .isNotEqualTo(oldest.toString());
+
+        JsonNode picked = authorized("/v2/admin/sessions?limit=50&ids=" + oldest + "," + realFinalCoach, 200);
+        List<String> pickedIds = new ArrayList<>();
+        picked.path("sessions").forEach(session -> pickedIds.add(session.path("coach_session_id").textValue()));
+        assertThat(pickedIds).containsExactlyInAnyOrder(oldest.toString(), realFinalCoach.toString());
+        assertThat(picked.toString()).doesNotContain("Team@Acttub.com", TEAM_USER.toString());
+
+        JsonNode invalid = authorized("/v2/admin/sessions?ids=nope", 422);
+        assertThat(invalid.at("/detail/0/type").textValue()).isEqualTo("uuid_parsing");
+        assertThat(invalid.at("/detail/0/loc/1").textValue()).isEqualTo("ids");
+        StringBuilder tooMany = new StringBuilder();
+        for (int index = 0; index < 51; index++) {
+            tooMany.append(index == 0 ? "" : ",").append(UUID.randomUUID());
+        }
+        JsonNode above = authorized("/v2/admin/sessions?ids=" + tooMany, 422);
+        assertThat(above.at("/detail/0/type").textValue()).isEqualTo("too_long");
+    }
+
+    @Test
     void limitIsValidatedBeforeTheStoreBoundaryWithPydanticErrorShape() throws Exception {
         JsonNode below = authorized("/v2/admin/sessions?limit=0", 422);
         assertThat(below).isEqualTo(mapper.readTree("""
