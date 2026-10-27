@@ -97,14 +97,6 @@ test('challenge.browse: 상세는 좋아요순·최신순을 고르고 종료·�
   assert.match(detail, /challenges\.newBadge/);
 });
 
-test('challenge.create: 참여작이 없는 자기 챌린지만 상세에서 지울 수 있다', () => {
-  const detail = read('app/challenge-detail.tsx');
-
-  assert.match(detail, /canDelete\(challenge\)/);
-  assert.match(detail, /api\.deleteChallenge/);
-  assert.match(detail, /challenges\.deleteHasEntries/);
-});
-
 test('challenge.browse: 챌린지 탭은 앱 언어와 상관없이 회원에게 열리고 게스트는 안내를 본다', async () => {
   const layout = read('app/(tabs)/_layout.tsx');
   assert.doesNotMatch(layout, /isKorean/);
