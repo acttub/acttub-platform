@@ -104,7 +104,7 @@ class AccountProfileIT {
         JsonNode before = me();
         assertThat(before).isEqualTo(mapper.readTree("""
                 {"id":"%s","email":"actor@example.test",
-                 "status":"active","account_type":"member","profile_complete":false,"profile":null}
+                 "status":"active","account_type":"member","profile_complete":false,"profile":null,"founding_number":null}
                 """.formatted(userId)));
         var blocked = protectedApi();
         assertThat(blocked.getStatus()).isEqualTo(403);
