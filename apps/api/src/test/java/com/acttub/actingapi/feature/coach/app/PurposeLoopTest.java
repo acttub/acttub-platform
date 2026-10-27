@@ -56,6 +56,18 @@ class PurposeLoopTest {
                 .doesNotContain("[영상 없이 말로 하는 코칭]");
     }
 
+    /** 10/27 dev 실제 녹음: 두 문장짜리 대사의 앞 문장과 여는 따옴표가 빠진 다음 테이크를 대본 줄 그대로 되살린다. */
+    @Test void aReadingTakeIsRestoredToTheWholeScriptLine() {
+        String material = "[리딩 녹음]\n[소리 안 줄별 시간]\n- 녹음 1: 0:00~0:03 \"안녕.\"\n"
+                + "- 녹음 2: 0:04~0:09 \"그래서 더 말하기 싫었어. 네가 그걸 아니까.\"\n[서버가 잰 소리]\n";
+        assertThat(PurposeLoop.readingTake("네가 그걸 아니까.\"에서 윤서가 걱정하지 않게 달래며 말해 봐도 좋아요", material))
+                .isEqualTo("\"그래서 더 말하기 싫었어. 네가 그걸 아니까.\"에서 윤서가 걱정하지 않게 달래며 말해 봐도 좋아요");
+        assertThat(PurposeLoop.readingTake("“그래서 더\n말하기 싫었어. 네가 그걸 아니까.”에서 달래기", material))
+                .isEqualTo("\"그래서 더 말하기 싫었어. 네가 그걸 아니까.\"에서 달래기");
+        assertThat(PurposeLoop.readingTake("상대를 보며 말해 봐도 좋아요", material)).as("대본 줄과 안 겹치면 그대로")
+                .isEqualTo("상대를 보며 말해 봐도 좋아요");
+    }
+
     @Test void evaluateGoesFromTheCardToFixingTogether() {
         var card = state("{\"step\":0,\"choices\":[{\"label\":\"코치와 같이 고치기\",\"at\":null},{\"label\":\"다른 것도 봐 주세요\",\"at\":null}]}");
         String pressed = PurposeLoop.pressed(card, "코치와 같이 고치기");
