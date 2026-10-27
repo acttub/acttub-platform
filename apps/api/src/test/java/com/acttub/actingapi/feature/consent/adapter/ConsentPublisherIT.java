@@ -148,6 +148,31 @@ class ConsentPublisherIT {
                 .containsEntry("body", "오탈자를 고친 약관 본문");
     }
 
+    @Test
+    @Order(2)
+    void invalidReconsentFromRejectsTheWholeManifestAndValidOneIsPublishedAtTheActualTime(
+            @TempDir Path directory) throws Exception {
+        Files.writeString(directory.resolve("terms.md"), "본문");
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"terms.md","type":"terms","version":"v99","title":"이용약관","required":true,
+                  "reconsentFrom":"내일"}]
+                """);
+        assertThatThrownBy(() -> publisherFor(directory).publish())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("reconsentFrom");
+
+        String next = nextTermsVersion();
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"terms.md","type":"terms","version":"%s","title":"이용약관","required":true,
+                  "reconsentFrom":"2031-01-01T00:00:00+09:00"}]
+                """.formatted(next));
+        assertThat(publisherFor(directory).publish()).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT published_at <= now() FROM consent_documents WHERE type='terms' AND version=? AND locale='ko'",
+                Boolean.class, next)).as("현재 판은 발행 즉시 바뀐다 — 미래 시각으로 넣지 않는다").isTrue();
+        jdbc.update("DELETE FROM consent_documents WHERE type='terms' AND version=?", next);
+    }
+
     private ConsentDocumentPublisher publisherFor(Path directory) {
         return new ConsentDocumentPublisher(
                 documents, mapper, resources, directory.toString(), new RecordingFailureReporter());
