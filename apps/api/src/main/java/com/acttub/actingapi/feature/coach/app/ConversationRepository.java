@@ -103,6 +103,14 @@ public interface ConversationRepository {
     NoteView saveNote(UUID conversationId, NewNote note, Instant now);
 
     /**
+     * 노트에 「대사별로 본 것」을 붙인다(SOMA-900, Pro). 노트가 이미 저장된 뒤 따로 부른다. 노트가 없으면 아무것도 쓰지
+     * 않는다.
+     *
+     * @param lineNotes {@code [{line, seen, try}]}
+     */
+    void saveLineNotes(UUID conversationId, JsonNode lineNotes);
+
+    /**
      * 이어 가던 대화가 다시 정리되면 그 노트를 새 내용으로 고친다(SOMA-782). 노트 id·만든 시각은 그대로여서
      * 일지 연결과 도움됨 평가가 끊기지 않는다. 노트가 아직 없으면 새로 만든다.
      */
@@ -150,7 +158,16 @@ public interface ConversationRepository {
             boolean fallback,
             long sourceRevision,
             JsonNode legacyReport,
-            Instant createdAt) {
+            Instant createdAt,
+            // Pro 「대사별로 본 것」(SOMA-900). 없으면 빈 배열이다.
+            JsonNode lineNotes) {
+
+        public NoteView(UUID id, UUID conversationId, String format, String kind, String title, JsonNode summaryQuotes,
+                String nextTake, JsonNode actorWords, JsonNode corrections, JsonNode tags, boolean fallback,
+                long sourceRevision, JsonNode legacyReport, Instant createdAt) {
+            this(id, conversationId, format, kind, title, summaryQuotes, nextTake, actorWords, corrections, tags,
+                    fallback, sourceRevision, legacyReport, createdAt, null);
+        }
     }
 
     /** 대화 하나를 턴과 함께 읽는다(화면의 복귀·이전 대화 보기). 없거나 남의 것이면 {@code null}. */
