@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
@@ -66,7 +66,8 @@ export function NavIconButton({
   icon: FeatherName;
   label: string;
   phLabel: string;
-  onPress: () => void;
+  /** 누른 이벤트를 받으면 ⋯ 메뉴를 누른 자리 아래에 띄울 수 있다(`pt(e)`). */
+  onPress: (e: GestureResponderEvent) => void;
   color?: string;
   size?: number;
   disabled?: boolean;

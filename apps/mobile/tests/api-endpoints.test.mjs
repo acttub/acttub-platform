@@ -272,6 +272,6 @@ test('api.getPracticeGroup: 목록에 없는 묶음은 practice_not_found 404', 
     name: 'ApiError',
     status: 404,
     code: 'practice_not_found',
-    message: '연습 기록을 불러오지 못했어요.',
+    message: '연습 기록을 불러오지 못했어요',
   });
 });

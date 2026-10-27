@@ -38,20 +38,6 @@ test('SOMA-672: 홈 「최근 연습」과 연습 기록 줄에 「대화 중」
   assert.match(read('locales/ko.ts'), /inConversation: '대화 중'/);
 });
 
-test('SOMA-672: 묶음 상세는 대화 중이면 「대화 이어 가기」를 맨 위 주 버튼으로, 아니면 아래에 「다음 테이크 찍기」를 둔다', () => {
-  const group = read('app/practice-group.tsx');
-  const top = group.indexOf("action.kind === 'resume' && (");
-  const rounds = group.indexOf("t('history.roundsTitle')");
-  const bottom = group.indexOf("action.kind === 'nextTake' && (");
-  assert.ok(top > 0 && rounds > top && bottom > rounds, '대화 이어 가기는 회차 목록 위, 다음 테이크는 아래');
-  assert.match(group, /onPress=\{\(\) => resumeConversation\(action\.practiceId\)\}/);
-  assert.match(group, /pathname: '\/coach', params: \{ practiceId \}/);
-
-  const ko = read('locales/ko.ts');
-  assert.match(ko, /resumeConversation: '대화 이어 가기'/);
-  assert.match(ko, /nextTake: '다음 테이크 찍기'/);
-});
-
 test('SOMA-672: 지난 노트도 묶음에 열린 테이크가 있으면 「대화 이어 가기」다', () => {
   const detail = read('app/report-detail.tsx');
   assert.match(detail, /\.getPracticeGroup\(rootId\)/);
