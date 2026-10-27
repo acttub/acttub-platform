@@ -68,6 +68,17 @@ class PurposeLoopTest {
                 .isEqualTo("상대를 보며 말해 봐도 좋아요");
     }
 
+    /** 10/27 dev 합성 음성 시험: 정리 끝에 해요체가 아닌 다음 테이크 메모가 붙어 보였다. */
+    @Test void aReadingWrapDropsAPlainMemoTail() {
+        assertThat(PurposeLoop.withoutPlainTail("\"괜찮아, 진짜 괜찮다니까\"에서 웃으며 보내 봐요.\n영상으로 찍으면 더 깊게 코칭할 수 있어요.\n"
+                + "\"나 혼자서도 잘 지내\"까지 웃으며 보내 주기."))
+                .isEqualTo("\"괜찮아, 진짜 괜찮다니까\"에서 웃으며 보내 봐요.\n영상으로 찍으면 더 깊게 코칭할 수 있어요.");
+        assertThat(PurposeLoop.withoutPlainTail("영상으로 찍어 볼래요?")).isEqualTo("영상으로 찍어 볼래요?");
+        assertThat(PurposeLoop.withoutPlainTail("웃으며 보내 주기.")).as("다 떼면 그대로").isEqualTo("웃으며 보내 주기.");
+        assertThat(PurposeLoop.withoutPlainTail("\"가지 마\"에서 붙잡아 봐도 좋아요.\n영상으로 올리면 더 깊게 볼게요.")).as("그대로")
+                .isEqualTo("\"가지 마\"에서 붙잡아 봐도 좋아요.\n영상으로 올리면 더 깊게 볼게요.");
+    }
+
     @Test void evaluateGoesFromTheCardToFixingTogether() {
         var card = state("{\"step\":0,\"choices\":[{\"label\":\"코치와 같이 고치기\",\"at\":null},{\"label\":\"다른 것도 봐 주세요\",\"at\":null}]}");
         String pressed = PurposeLoop.pressed(card, "코치와 같이 고치기");

@@ -886,4 +886,17 @@ final class PurposeLoop {
         String rest = action.find() ? action.group(1).strip() : "";
         return rest.isEmpty() ? "\"" + best + "\"" : "\"" + best + "\"에서 " + rest;
     }
+
+    private static final Pattern POLITE_END = Pattern.compile("요[.!?~…]*[\"”」』]?$");
+
+    /**
+     * 리딩 녹음 코칭(SOMA-791) 정리 끝에 붙은 해요체가 아닌 문장을 뗀다. 10/27 dev 합성 음성 시험: 두 문장 정리 뒤에
+     * "\"나 혼자서도 잘 지내\"까지 웃으며 보내 주기." 같은 다음 테이크 메모가 배우에게 보였다. 다 떼면 원래 말을 둔다.
+     */
+    static String withoutPlainTail(String shown) {
+        if (shown == null || shown.isBlank()) return shown;
+        var lines = new ArrayList<>(shown.strip().lines().map(String::strip).filter(line -> !line.isEmpty()).toList());
+        while (lines.size() > 1 && !POLITE_END.matcher(lines.getLast()).find()) lines.removeLast();
+        return lines.size() == shown.strip().lines().filter(line -> !line.isBlank()).count() ? shown : String.join("\n", lines);
+    }
 }
