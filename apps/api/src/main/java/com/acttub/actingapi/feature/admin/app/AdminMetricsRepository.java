@@ -29,8 +29,11 @@ import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionDe
  */
 public interface AdminMetricsRepository {
 
-    /** 최근 코치 세션. 오브젝트 키는 재생 주소를 만들 수 있을 때만 채워져 있다. */
-    List<SessionRow> sessions(int limit, List<String> excludeEmails);
+    /**
+     * 최근 코치 세션. 오브젝트 키는 재생 주소를 만들 수 있을 때만 채워져 있다.
+     * {@code ids} 가 비어 있지 않으면 그 세션들만 최신순으로 준다.
+     */
+    List<SessionRow> sessions(int limit, List<String> excludeEmails, List<UUID> ids);
 
     /**
      * 이메일 SHA-256(소문자·앞뒤 공백 제거)이 {@code advisorEmailHashes} 에 든 계정의 코치 대화, 최신순.
