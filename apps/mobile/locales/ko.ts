@@ -398,10 +398,11 @@ const ko = {
   },
   lineSearch: {
     minLength: '두 글자 이상 적어 주세요.',
-    title: '대사',
+    title: '대사 찾기',
     placeholder: '대사·작품·배우 검색',
-    empty: '검색 결과가 없어요.',
-    registerCta: '찾는 대사가 없어요? 직접 등록하기',
+    empty: '검색 결과가 없어요',
+    registerCta: '직접 등록하기',
+    emptySub: '찾는 대사가 없으면 직접 등록할 수 있어요.',
   },
   lineNew: {
     stepLabel: '{{step}} / 3',
@@ -571,7 +572,7 @@ const ko = {
   linePick: {
     title: '대사 고르기',
     ask: '어떤 대사에 올릴까요?',
-    empty: '올릴 수 있는 대사가 없어요.',
+    empty: '올릴 수 있는 대사가 없어요',
   },
   challengeOthers: {
     meta: '참여 {{count}}명 · {{dday}}',

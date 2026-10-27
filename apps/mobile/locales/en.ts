@@ -405,10 +405,11 @@ const en: DeepStringShape<typeof ko> = {
   },
   lineSearch: {
     minLength: 'Type at least two characters.',
-    title: 'Lines',
+    title: 'Find a line',
     placeholder: 'Search lines, works, actors',
     empty: 'No results.',
-    registerCta: "Can't find the line? Add it yourself",
+    registerCta: 'Add it yourself',
+    emptySub: 'If you can’t find the line, you can add it yourself.',
   },
   lineNew: {
     stepLabel: '{{step}} / 3',

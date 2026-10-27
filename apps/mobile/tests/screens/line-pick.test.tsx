@@ -63,7 +63,7 @@ describe('LinePickScreen (C9.16)', () => {
       pathname: '/challenge-upload',
       params: { challengeId: 'f1', line: '잘 지내, 진짜로.', work: '햄릿' },
     });
-    await fireEvent.press(screen.getByText('+ 찾는 대사가 없나요? 직접 등록하기'));
+    await fireEvent.press(screen.getByText('찾는 대사가 없나요? 직접 등록하기'));
     expect(mockRouter.push).toHaveBeenCalledWith('/line-new');
     await waitFor(() => expect(entries).toHaveBeenCalled());
   });
@@ -87,5 +87,13 @@ describe('LinePickScreen (C9.16)', () => {
     expect(video).toHaveStyle({ opacity: 0 });
     await act(async () => video.props.onPress());
     expect(screen.getByTestId('example-video')).toHaveStyle({ opacity: 1 });
+  });
+
+  test('목록을 못 불러오면 InlineError 의 다시 시도로 같은 탭을 다시 묻고, 비었으면 그렇게 말한다', async () => {
+    list.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ featured: null, challenges: [], next_cursor: null });
+    await render(<LinePickScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('올릴 수 있는 대사가 없어요')).toBeOnTheScreen();
+    expect(list.mock.calls).toEqual([[{ tab: 'popular' }], [{ tab: 'popular' }]]);
   });
 });
