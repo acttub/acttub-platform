@@ -284,7 +284,14 @@ public final class DirectVideoCoach {
             } else if (firstLoop) {
                 // 첫 답: 분석 작업이 미리 검사·올려 둔 영상이 있으면 기다려 쓴다(SOMA-780). 없거나 실패했으면 아래에서 직접 한다.
                 long warmStarted = System.nanoTime();
-                CoachVideoCache.Prepared warmed = videoCache.claimWarm(videoKey, CoachVideoCache.WARM_WAIT);
+                // 미리 준비가 10초 넘게 걸리면 같은 원본을 새로 올리는 일을 함께 시작해 먼저 끝난 쪽을 쓴다(10/27).
+                // 얼굴 가리기 사본은 만드는 데 오래 걸려 겹쳐 하지 않는다.
+                var original = source;
+                String hedgeMime = mimeType;
+                String hedgeLabel = videoCache.label(videoKey);
+                CoachVideoCache.Prepared warmed = videoCache.claimWarm(videoKey, CoachVideoCache.WARM_WAIT,
+                        CoachVideoCache.HEDGE_AFTER,
+                        source.faceMosaic() ? null : () -> prepareDirect(original, hedgeMime, hedgeLabel));
                 warmWaitNanos = System.nanoTime() - warmStarted;
                 if (warmed != null) {
                     inspection = warmed.inspection();
@@ -1417,5 +1424,61 @@ public final class DirectVideoCoach {
         CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
         state.put("revision", session.stateRevision() + 1);
         return state;
+    }
+
+    /**
+     * 미리 준비가 늦을 때 함께 도는 준비(10/27): 원본을 받아 소리 검사·올리기·처리 대기를 한다. 소리가 없거나 빈 영상이면
+     * 올리지 않고 검사 결과만 돌려준다 — 첫 질문이 그 결과로 안내한다. 미리 준비와 같은 일이다.
+     */
+    private CoachVideoCache.Prepared prepareDirect(CoachVideoSource.Video source, String mimeType, String label) {
+        Path file = null;
+        DirectVideoModel.Video sent = null;
+        try {
+            file = Files.createTempFile("coach-hedge-", ".video");
+            var metadata = storage.downloadToPath(source.objectKey(), file);
+            if (source.etag() != null && !source.etag().isBlank() && metadata != null && metadata.etag() != null
+                    && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
+                throw new IllegalStateException("original video changed after upload");
+            }
+            DirectVideoModel.InputInspection inspection = model.inspect(file);
+            if (inspection != null && (inspection.unusableAudio() || inspection.emptyInput())) {
+                return new CoachVideoCache.Prepared(inspection, null);
+            }
+            sent = label != null ? model.upload(file, mimeType, inspection, label)
+                    : inspection == null || inspection.hasAudioTrack() == null
+                    ? model.upload(file, mimeType) : model.upload(file, mimeType, inspection);
+            long deadline = System.nanoTime() + Duration.ofSeconds(180).toNanos();
+            while (!model.ready(sent)) {
+                if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
+                Thread.sleep(500);
+            }
+            return new CoachVideoCache.Prepared(inspection, sent);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            deleteQuietly(sent);
+            return null;
+        } catch (java.io.IOException failure) {
+            throw new java.io.UncheckedIOException(failure);
+        } catch (RuntimeException failure) {
+            deleteQuietly(sent);
+            throw failure;
+        } finally {
+            if (file != null) {
+                try {
+                    Files.deleteIfExists(file);
+                } catch (java.io.IOException ignored) {
+                    // 임시 파일 정리 실패는 코칭에 영향이 없다.
+                }
+            }
+        }
+    }
+
+    private void deleteQuietly(DirectVideoModel.Video video) {
+        if (video == null) return;
+        try {
+            model.delete(video);
+        } catch (RuntimeException ignored) {
+            // 못 지운 파일은 Gemini 가 48시간 뒤 지우고, 이름표가 있으면 고아 청소가 먼저 지운다.
+        }
     }
 }

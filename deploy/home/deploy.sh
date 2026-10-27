@@ -45,6 +45,8 @@ THREE_LAYERS_ENABLED="${DEPLOY_THREE_LAYERS_ENABLED:-}"
 DIRECT_VIDEO_ENABLED="${DEPLOY_DIRECT_VIDEO_ENABLED:-}"
 GUEST_DAILY_LIMIT_ENABLED="${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-}"
 PRACTICE_REMINDER_ENABLED="${DEPLOY_PRACTICE_REMINDER_ENABLED:-}"
+# CPU 가 모자랄 때의 몫(compose 의 *_CPU_SHARES). dev 는 낮춰 운영 코칭이 먼저 쓰게 한다. 비우면 compose 기본(1024).
+CPU_SHARES="${DEPLOY_CPU_SHARES:-}"
 # 옛 nginx worker 를 기다리는 상한. proxy/nginx.conf 의 worker_shutdown_timeout(120s)에 여유를 더한다.
 DRAIN_SECONDS=130
 ACTIVE=proxy/active.conf
@@ -65,6 +67,7 @@ case "$GUEST_DAILY_LIMIT_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_GUEST_DAI
 case "$THREE_LAYERS_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_THREE_LAYERS_ENABLED 는 true 또는 false" ;; esac
 case "$DIRECT_VIDEO_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_DIRECT_VIDEO_ENABLED 는 true 또는 false" ;; esac
 case "$PRACTICE_REMINDER_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_PRACTICE_REMINDER_ENABLED 는 true 또는 false" ;; esac
+[ -z "$CPU_SHARES" ] || [[ "$CPU_SHARES" =~ ^[1-9][0-9]{0,5}$ ]] || fail "DEPLOY_CPU_SHARES 는 양의 정수: '$CPU_SHARES'"
 [[ "$WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]] || fail "DEPLOY_WAIT_SECONDS 는 양의 초 단위 정수: '$WAIT_SECONDS'"
 [ -f compose.yml ] || fail "compose.yml 이 없다 — 프로젝트 디렉토리(/svc/acttub/<env>)에서 실행한다: $PWD"
 [ -f proxy/nginx.conf ] || fail "proxy/nginx.conf 가 없다 — 워크플로가 compose.yml 과 함께 보낸다: $PWD"
@@ -191,6 +194,7 @@ EOF
 [ -z "$DIRECT_VIDEO_ENABLED" ] || printf 'ACTTUB_DIRECT_VIDEO_ENABLED=%s\n' "$DIRECT_VIDEO_ENABLED" >> "$RELEASE_FILE"
 [ -z "$GUEST_DAILY_LIMIT_ENABLED" ] || printf 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=%s\n' "$GUEST_DAILY_LIMIT_ENABLED" >> "$RELEASE_FILE"
 [ -z "$PRACTICE_REMINDER_ENABLED" ] || printf 'ACTTUB_PRACTICE_REMINDER_ENABLED=%s\n' "$PRACTICE_REMINDER_ENABLED" >> "$RELEASE_FILE"
+[ -z "$CPU_SHARES" ] || printf 'API_CPU_SHARES=%s\nWEB_CPU_SHARES=%s\nPRON_CPU_SHARES=%s\n' "$CPU_SHARES" "$CPU_SHARES" "$CPU_SHARES" >> "$RELEASE_FILE"
 # --no-env-resolution 은 첫 배포의 아직 없는 release.env 를 읽지 않고 치환과 활성 프로필만 검증한다.
 services="$(compose config --no-env-resolution --services)" || fail "compose 설정 검증에 실패했다"
 grep -qx proxy <<< "$services" || fail "compose.yml 에 proxy 서비스가 없다 — deploy.sh 와 compose.yml 은 같은 커밋의 것이어야 한다"

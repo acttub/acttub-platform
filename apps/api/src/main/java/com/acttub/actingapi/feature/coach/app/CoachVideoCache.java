@@ -51,6 +51,12 @@ public final class CoachVideoCache implements AutoCloseable {
     public static final CoachVideoCache NONE = new CoachVideoCache(null, Duration.ZERO, Clock.systemUTC(), null);
     /** 첫 질문이 미리 준비를 기다리는 최대 시간. 처리 대기 한도(180초)보다 짧다 — 넘으면 직접 올린다. */
     public static final Duration WARM_WAIT = Duration.ofSeconds(150);
+    /**
+     * 미리 준비가 이만큼 지나도 안 끝나면 같은 준비를 하나 더 동시에 시작하고 먼저 끝난 쪽을 쓴다(10/27). 10/27 19:05 운영 첫 질문이
+     * 미리 준비를 39.8초 기다렸는데, 앞뒤 영상은 5~7초에 준비됐다. 평소 준비(약 7초)는 건드리지 않을 만큼 길게 잡는다.
+     */
+    public static final Duration HEDGE_AFTER = Duration.ofSeconds(10);
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(CoachVideoCache.class);
     /** 이름표 앞머리. 뒤에 배포 환경·회차·원본 지문이 붙는다. */
     static final String LABEL_PREFIX = "acttub-coach:";
     /** 올리기 끝에서 준비한 파일의 이름표에 회차 대신 붙는 말. 회차 번호(UUID)와 겹치지 않는다. */
@@ -255,6 +261,15 @@ public final class CoachVideoCache implements AutoCloseable {
      * 실패했거나, 너무 오래 걸리면 null — 그때는 지금처럼 직접 올린다.
      */
     public Prepared claimWarm(Key key, Duration wait) {
+        return claimWarm(key, wait, null, null);
+    }
+
+    /**
+     * {@link #claimWarm(Key, Duration)} 와 같되, 미리 준비가 {@code hedgeAfter} 안에 끝나지 않으면 {@code hedge}(같은 원본을
+     * 새로 검사·올리는 일)를 함께 시작해 먼저 끝난 쪽을 돌려준다. 진 쪽이 올린 영상은 끝나는 대로 지운다. 둘 다 실패하거나
+     * {@code wait} 를 넘기면 null — 그때는 지금처럼 직접 올린다.
+     */
+    public Prepared claimWarm(Key key, Duration wait, Duration hedgeAfter, Supplier<Prepared> hedge) {
         if (!enabled() || key == null) return null;
         Warm warm = key.practiceId() == null ? null : warming.remove(key.practiceId());
         if (warm != null && !warm.key().equals(key)) {
@@ -268,13 +283,65 @@ public final class CoachVideoCache implements AutoCloseable {
             discard(warm);
             return null;
         }
+        long waitMs = wait == null || wait.isNegative() ? 0 : wait.toMillis();
+        long hedgeMs = hedge == null || hedgeAfter == null || hedgeAfter.isNegative() ? waitMs : Math.min(hedgeAfter.toMillis(), waitMs);
         try {
-            return warm.result().get(wait == null || wait.isNegative() ? 0 : wait.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (TimeoutException | ExecutionException | InterruptedException notReady) {
+            return warm.result().get(hedgeMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException late) {
+            if (hedgeMs >= waitMs) {
+                discard(warm);
+                return null;
+            }
+        } catch (ExecutionException | InterruptedException notReady) {
             if (notReady instanceof InterruptedException) Thread.currentThread().interrupt();
             discard(warm);
             return null;
         }
+        // 미리 준비가 늦다 — 같은 준비를 하나 더 시작해 먼저 끝난 쪽을 쓴다.
+        long hedgeStarted = System.nanoTime();
+        CompletableFuture<Prepared> second = new CompletableFuture<>();
+        start(second, hedge, "CoachVideoCache.hedge");
+        CompletableFuture<Prepared> first = firstUsable(warm.result(), second);
+        Prepared won = null;
+        try {
+            won = first.get(waitMs - hedgeMs, TimeUnit.MILLISECONDS);
+            return won;
+        } catch (TimeoutException | ExecutionException | InterruptedException notReady) {
+            if (notReady instanceof InterruptedException) Thread.currentThread().interrupt();
+            return null;
+        } finally {
+            Prepared kept = won;
+            String winner = won == null ? "none" : warm.result().isDone() && warm.result().getNow(null) == won ? "warm" : "hedge";
+            LOG.info("coach warm hedge practice={} winner={} hedge_after_ms={} raced_ms={}",
+                    key.practiceId() == null ? "-" : key.practiceId().toString().substring(0, 8), winner, hedgeMs,
+                    (System.nanoTime() - hedgeStarted) / 1_000_000);
+            dropUnless(warm.result(), kept);
+            dropUnless(second, kept);
+        }
+    }
+
+    /** 먼저 끝난 쓸 수 있는 결과(null 아님). 둘 다 null·실패로 끝나면 null. */
+    private static CompletableFuture<Prepared> firstUsable(CompletableFuture<Prepared> a, CompletableFuture<Prepared> b) {
+        CompletableFuture<Prepared> first = new CompletableFuture<>();
+        Runnable settle = () -> {
+            if (a.isDone() && b.isDone()) first.complete(null);
+        };
+        for (CompletableFuture<Prepared> each : List.of(a, b)) {
+            each.whenComplete((prepared, failure) -> {
+                if (failure == null && prepared != null) first.complete(prepared);
+                else settle.run();
+            });
+        }
+        return first;
+    }
+
+    /** 쓰지 않을 준비: 올린 영상이 있으면(지금 또는 끝나는 대로) 지운다. 쓰는 것과 같은 파일이면 그대로 둔다. */
+    private void dropUnless(CompletableFuture<Prepared> result, Prepared kept) {
+        result.thenAccept(prepared -> {
+            if (prepared == null || prepared == kept || prepared.video() == null) return;
+            if (kept != null && same(prepared.video(), kept.video())) return;
+            delete(prepared.video());
+        });
     }
 
     static boolean same(DirectVideoModel.Video a, DirectVideoModel.Video b) {
