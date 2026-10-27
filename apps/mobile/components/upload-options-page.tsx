@@ -50,6 +50,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   text: { flex: 1, gap: 2 },
   title: { fontSize: 16, fontWeight: '700', lineHeight: 22, color: palette.text },
-  sub: { fontSize: 13, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
+  sub: { fontSize: 13, fontWeight: '500', lineHeight: 19, color: palette.textMeta },
   bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10 },
 });

@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
@@ -194,6 +195,8 @@ export default function HistoryScreen() {
           ))}
         </View>
 
+        <AdSlot slot="archive_top" style={{ marginBottom: 12 }} />
+
         {loading && (
           <SkeletonRows count={5} avatar card={false} />
         )}
@@ -280,17 +283,17 @@ const styles = StyleSheet.create({
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: palette.borderSoft,
+    borderColor: palette.border,
     paddingVertical: 18,
     paddingHorizontal: 8,
   },
   stat: { flex: 1, alignItems: 'center', gap: 4 },
   statValue: { fontSize: 20, fontWeight: '800', color: palette.text },
-  statLabel: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
-  statDivider: { width: 1, height: 28, backgroundColor: palette.borderSoft },
+  statLabel: { fontSize: 12, fontWeight: '600', color: palette.textMeta },
+  statDivider: { width: 1, height: 28, backgroundColor: palette.border },
   filters: { flexDirection: 'row', gap: 8, marginTop: 16, marginBottom: 6 },
   filterChip: {
     borderRadius: 9999,
@@ -301,12 +304,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   filterChipOn: { backgroundColor: palette.text, borderColor: palette.text },
-  filterText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
+  filterText: { fontSize: 13, fontWeight: '700', color: palette.textSub },
   filterTextOn: { color: '#FFFFFF' },
   center: { paddingVertical: 40, alignItems: 'center' },
   error: { color: palette.danger, textAlign: 'center', paddingVertical: 10 },
-  empty: { color: palette.textDim, textAlign: 'center', marginTop: 48, fontSize: 15, lineHeight: 24 },
-  monthHeader: { fontSize: 14, fontWeight: '800', color: palette.textFaint, marginTop: 18, marginBottom: 4 },
+  empty: { color: palette.textSub, textAlign: 'center', marginTop: 48, fontSize: 15, lineHeight: 24 },
+  monthHeader: { fontSize: 14, fontWeight: '800', color: palette.textMeta, marginTop: 18, marginBottom: 4 },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -334,10 +337,10 @@ const styles = StyleSheet.create({
   thumbBadgeText: { fontSize: 11.5, fontWeight: '800', color: '#fff' },
   rowBody: { flex: 1, gap: 4, paddingTop: 2 },
   rowTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 21 },
-  rowMeta: { fontSize: 12.5, color: palette.textFaint },
+  rowMeta: { fontSize: 12.5, color: palette.textMeta },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 3 },
   chip: { borderRadius: 9999, backgroundColor: palette.bgSoft, paddingVertical: 3, paddingHorizontal: 9 },
-  chipText: { fontSize: 11.5, fontWeight: '700', color: palette.textMuted },
+  chipText: { fontSize: 11.5, fontWeight: '700', color: palette.textMeta },
   talkingChip: { alignSelf: 'flex-start', backgroundColor: palette.blueSoft },
   talkingChipText: { fontWeight: '800', color: palette.blueDeep },
 });

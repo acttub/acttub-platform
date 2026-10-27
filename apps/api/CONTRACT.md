@@ -591,11 +591,13 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
   **파기 전에** `account_cleanup_operations`(V11)로 옮겨 두기만 한다 — `object_delete`(객체 키 목록),
   `apple_revoke`(애플 토큰), `kakao_unlink`(회원번호), `naver_revoke`(refresh token), 그리고 `reading_recording_delete`
-  (리딩 녹음 객체 키 목록, V13·§6-14 — 실행은 `object_delete` 와 같다). 커밋 뒤 바로 한 번
+  (리딩 녹음 객체 키 목록, V13·§6-14 — 실행은 `object_delete` 와 같다), `revenuecat_delete`(app_user_id = 회원 id, V65 —
+  RevenueCat REST v1 `DELETE /v1/subscribers/{app_user_id}`, 200·404 가 성공. `BILLING_REVENUECAT_ENABLED` 가 켜지고 비밀 키가
+  있을 때만 올린다). 커밋 뒤 바로 한 번
   시도하고, 실패하면 5분에서 두 배씩(최대 12시간) 늘려 다시 시도한다. 성공하면 행을 값과 함께 지운다 —
   **끝난 것은 장부에 남지 않는다.**
 - **7일이 지난 뒤는 종류가 가른다**(`AccountCleanupRepository.OBJECT_DELETE_KINDS`). **제공자 해제**
-  (`apple_revoke`·`kakao_unlink`·`naver_revoke`)는 포기하고 값과 함께 지운다 — 해제에 쓸 값을 그보다 오래 들고
+  (`apple_revoke`·`kakao_unlink`·`naver_revoke`·`revenuecat_delete`)는 포기하고 값과 함께 지운다(애플 폐기와 RevenueCat 삭제는 포기할 때 운영자에게 알린다) — 해제에 쓸 값을 그보다 오래 들고
   있지 않는다. **객체 삭제**(`object_delete`·`reading_recording_delete`)는 **성공할 때까지 대상 키를 지우지
   않는다**: `expires_at` 이 지나도 계속 집어 시도하고, 그때마다 `ObjectDeletionOverdue` 로 운영자에게 알린 뒤
   다음 알림을 7일 뒤로 미룬다(같은 작업을 일주일에 한 번보다 자주 알리지 않는다). 키를 먼저 버리면 그 객체를
@@ -1428,6 +1430,26 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 모델 호출은 트랜잭션 밖이다(§5-4). 모델은 연습 노트와 같은 `OpenAiTextGenerators.report()`(노트용 키)이고 기록 단계는 `report`
   (`report_type=actor_journal`)다. 프롬프트 `coaching/journal-create.txt` 는 10/19 채택 v4 원문 그대로다.
 - 코칭 숙제 알림(`PostgresPracticeReminderRepository.latestHomework`)은 그 회차 일지의 「다음에 해 볼 것」이 있으면 노트 제안보다 먼저 쓴다.
+
+### 6-31. ACTTUB Pro 정기결제 (SOMA-818)
+
+- 행동 계약은 [billing.subscription](../../docs/specs/billing/subscription.md)이 정본이고 `SubscriptionServiceTest`(상태 전이·멱등·해지
+  후 기간 유지·재시도)가 지킨다. 플래그(`BILLING_APP_ENABLED`, 기본 false) 뒤의 기능이라 OpenAPI 에 싣지 않는다(`@Hidden`).
+- 표 넷(V64)은 native SQL 만 쓴다(Schema Entity 없음, CHECK 없음 — 값은 `BillingRules` 와 저장소 SQL 이 지킨다). 상태 쓰기는 모두
+  조건부 UPDATE 한 문장이라 사용자의 해지와 스케줄러의 결제가 겹쳐도 서로 덮지 않는다. `billing_payments.order_id` UNIQUE 가
+  멱등의 바닥이다(INSERT … ON CONFLICT DO NOTHING 뒤 승인).
+- 토스 호출은 트랜잭션 밖이다(§5-4). 빌링키는 `AccountSecrets` 암호문이고 로그·예외·응답에 싣지 않는다.
+- 무료 한도는 `practice.app.CoachingPlan`·`reading.app.ScriptPlan` Port 를 결제 adapter(`BillingPlanLimits`)가 구현한다. 오류
+  `429 free_daily_coaching_limit`·`403 free_script_limit` 은 한도 플래그가 꺼져 있으면 나가지 않는다.
+- 브라우저 경로 `/v2/billing/web/**` 는 ClientVersionFilter·AccessTokenFilter·ConsentGateInterceptor(GET) 밖이다.
+- 스토어 구독(2단계, RevenueCat): `POST /v2/billing/store/sync`(앱 토큰·게이트 안)와 웹훅 `POST /v2/billing/store-notify/revenuecat`
+  (Authorization 헤더가 `REVENUECAT_WEBHOOK_AUTH` 와 같아야 하는 서버 호출이라 ClientVersionFilter·AccessTokenFilter·ConsentGateInterceptor 밖 —
+  `BillingGateExemptionTest` 가 지킨다). 둘 다 RevenueCat REST v1 `GET /v1/subscribers/{user id}`(비밀 키)로 entitlement 를 다시 읽어
+  사람당 한 줄을 덮어쓴다 — 웹훅 본문의 상태는 믿지 않아 멱등이다(`adapter/store/RevenueCatGatewayImpl`). 규칙은 `StoreBillingService`(app)이고
+  RevenueCat 호출은 `StoreGateways.RevenueCatGateway` Port 뒤라 `StoreBillingServiceTest` 가 가짜 값으로 상태 매핑(만료·환불·결제 문제·유예)·
+  멱등·이전(TRANSFER)·토스 보호·샌드박스 차단을 본다. 스토어 구독의 Pro 는 active 여도 기간이 지나면 끝난다(`BillingRules.pro(.., provider)`).
+  새 오류 코드는 `ErrorContractInventoryTest` 표에 있다.
+- 이 Mac 에서 Testcontainers 를 못 돌려 저장소 SQL 의 통합 테스트는 CI 에서만 돈다(`BillingEndpointIT`, `StoreBillingEndpointIT`).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

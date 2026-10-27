@@ -53,7 +53,8 @@ class PracticeRollbackCompatibilityTest {
             "app_posters", "script_imports", "script_uploads", "audition_postings", "user_discovery_answers",
             "reading_session_ratings", "user_active_days", "user_airbridge_device_lookups",
             "practice_reminder_sends", "reading_recording_coaches", "reading_pronunciation_reports",
-            "script_cocreations", "actor_journals", "reading_examples", "support_inquiries");
+            "script_cocreations", "actor_journals", "reading_examples", "support_inquiries", "billing_subscriptions",
+            "billing_checkouts", "billing_payments", "billing_pro_grants", "ads", "ad_events");
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
@@ -104,8 +105,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V63 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 50;
+    /** V14~V66 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)·ACTTUB Pro 결제(V64, SOMA-818)·탈퇴 때 RevenueCat 고객 삭제(V65, SOMA-818)·앱 광고 칸(V66, SOMA-876)이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 53;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -152,6 +153,15 @@ class PracticeRollbackCompatibilityTest {
         if (expected.remove(readingStatusBefore)) {
             expected.add("CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY "
                     + "(ARRAY['in_progress'::text, 'completed'::text])))");
+        }
+        // V65 가 정리 장부의 종류에 revenuecat_delete 를 더했다(SOMA-818). 넓히기만 했으므로 옛 서버가 쓰는 값은 그대로 통한다.
+        String cleanupKindsBefore = "CONSTRAINT account_cleanup_operations ck_account_cleanup_operations_kind CHECK ((kind = ANY "
+                + "(ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text, "
+                + "'reading_recording_delete'::text])))";
+        if (expected.remove(cleanupKindsBefore)) {
+            expected.add("CONSTRAINT account_cleanup_operations ck_account_cleanup_operations_kind CHECK ((kind = ANY "
+                    + "(ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text, "
+                    + "'reading_recording_delete'::text, 'revenuecat_delete'::text])))");
         }
         expected.remove("INDEX CREATE UNIQUE INDEX uq_reading_sessions_open_script ON public.reading_sessions "
                 + "USING btree (script_id) WHERE (status = 'in_progress'::text)");

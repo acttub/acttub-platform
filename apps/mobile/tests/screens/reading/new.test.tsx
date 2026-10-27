@@ -544,3 +544,77 @@ test('탭마다 넣은 것을 따로 들고, 보고 있는 탭의 것을 보낸�
   expect(screen.getByDisplayValue(PASTED)).toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeEnabled();
 });
+
+test('무료 대본 한도(free_script_limit)에서 보관 대본이 하나면 「무료는 대본 3개까지 보관해요」, 바꾸기를 확인하면 지우고 같은 글로 다시 나눈다 (SOMA-818)', async () => {
+  jest.mocked(api.importScript)
+    .mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'))
+    .mockResolvedValueOnce({ import_id: 'i1', duplicate_script_id: null });
+  server.list.mockResolvedValue({
+    scripts: [{ id: 'old', title: '옥상, 밤' }],
+    total_count: 1,
+    in_progress_count: 0,
+  } as never);
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+
+  expect(await screen.findByText('무료는 대본 3개까지 보관해요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('대본 하나 지우고 넣기'));
+  expect(await screen.findByText('「옥상, 밤」을 지우고\n새 대본을 넣을까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('지우고 새 대본 넣기'));
+
+  await waitFor(() => expect(server.remove).toHaveBeenCalledWith('old'));
+  await waitFor(() => expect(api.importScript).toHaveBeenCalledTimes(2));
+  expect(jest.mocked(api.importScript).mock.calls[1][0]).toEqual(expect.objectContaining({ raw_text: PASTED }));
+});
+
+test('무료 대본 3개가 차 있으면 지울 대본을 고르고, 고른 대본만 지운 뒤 다시 나눈다 (SOMA-818)', async () => {
+  jest.mocked(api.importScript)
+    .mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'))
+    .mockResolvedValueOnce({ import_id: 'i1', duplicate_script_id: null });
+  server.list.mockResolvedValue({
+    scripts: [{ id: 'a', title: '옥상, 밤' }, { id: 'b', title: '갈매기' }, { id: 'c', title: '세 자매' }],
+    total_count: 3,
+    in_progress_count: 0,
+  } as never);
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+
+  await fireEvent.press(await screen.findByText('대본 하나 지우고 넣기'));
+  expect(await screen.findByText('어떤 대본을 지울까요?')).toBeOnTheScreen();
+  expect(screen.getByText('옥상, 밤')).toBeOnTheScreen();
+  expect(screen.getByText('세 자매')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('갈매기'));
+  expect(await screen.findByText('「갈매기」을 지우고\n새 대본을 넣을까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('지우고 새 대본 넣기'));
+
+  await waitFor(() => expect(server.remove).toHaveBeenCalledWith('b'));
+  expect(server.remove).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(api.importScript).toHaveBeenCalledTimes(2));
+});
+
+test('지울 대본 고르기에서 취소하면 아무것도 지우지 않는다 (SOMA-818)', async () => {
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'));
+  server.list.mockResolvedValue({
+    scripts: [{ id: 'a', title: '옥상, 밤' }, { id: 'b', title: '갈매기' }],
+    total_count: 2,
+    in_progress_count: 0,
+  } as never);
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await fireEvent.press(await screen.findByText('대본 하나 지우고 넣기'));
+  await fireEvent.press(await screen.findByText('취소'));
+  await waitFor(() => expect(screen.queryByText('어떤 대본을 지울까요?')).not.toBeOnTheScreen());
+  expect(server.remove).not.toHaveBeenCalled();
+});
+
+test('무료 대본 시트의 [Pro 알아보기]는 Pro 안내로 간다', async () => {
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'));
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  await fireEvent.press(await screen.findByText('Pro 알아보기'));
+  expect(mockRouter.push).toHaveBeenCalledWith('/pro');
+});

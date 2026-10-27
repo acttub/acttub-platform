@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps,
 import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, ToastAndroid, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT } from '@/components/ui/mascot';
@@ -19,6 +20,7 @@ import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
+import { skipsHomeGuide } from '@/lib/returning-account';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
 import { currentTutorial } from '@/lib/tutorial';
 import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
@@ -159,6 +161,13 @@ export default function HomeScreen() {
       live = false;
     };
   }, [meId, graduationCheck]);
+
+  // 이미 연습이 쌓인 계정(앱을 다시 깐 기존 사용자)에게는 「첫 연습 끝!」 안내를 띄우지 않고 본 것으로 남긴다(10/26).
+  useEffect(() => {
+    if (!guideOpen || !skipsHomeGuide(practices.length)) return;
+    setGuideOpen(false);
+    void markSpotlightSeen('home');
+  }, [guideOpen, practices.length]);
 
   const openHomeGuideIfNew = useCallback(() => {
     void hasSeenSpotlight('home').then((seen) => {
@@ -630,6 +639,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.body}>
+          <AdSlot slot="home_top" />
           {/* 이번 주 연습 카드(pen P1.1) — 연속 일수와 요일별 점. 한 날은 파란 체크, 오늘은 파란 테두리. */}
           <View style={styles.weekCard} testID="home-week">
             <View style={styles.weekHead}>
@@ -737,7 +747,7 @@ export default function HomeScreen() {
       )}
 
       <SpotlightGuide
-        visible={guideOpen && overlaysReady && loaded && !firstUser && practiced}
+        visible={guideOpen && overlaysReady && loaded && !firstUser && practiced && !skipsHomeGuide(practices.length)}
         topic="home"
         steps={HOME_STEPS}
         onDone={() => {
@@ -994,7 +1004,7 @@ const styles = StyleSheet.create({
   firstContainer: { paddingTop: 32, paddingHorizontal: 20, paddingBottom: 24 },
   firstQuestion: { gap: 4, paddingTop: 36, paddingLeft: 2 },
   firstQuestionTitle: { fontSize: 20, fontWeight: '800', color: palette.text },
-  firstQuestionSub: { fontSize: 13.5, fontWeight: '500', color: palette.textFaint },
+  firstQuestionSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMeta },
   firstChoices: { gap: 12, paddingTop: 16 },
   firstFooter: { paddingHorizontal: 20, paddingTop: 8 },
   choice: {
@@ -1008,18 +1018,18 @@ const styles = StyleSheet.create({
   },
   choiceOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   choiceTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  choiceIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center' },
+  choiceIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   choiceText: { fontSize: 18, fontWeight: '700', lineHeight: 24, color: palette.text },
   choiceTextOn: { color: palette.blueDeep },
-  choiceSub: { marginTop: 3, fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMuted },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center' },
+  choiceSub: { marginTop: 3, fontSize: 14, fontWeight: '400', lineHeight: 21, color: palette.textMeta },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   radioOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  steps: { gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: palette.blueLine },
+  steps: { gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: palette.border },
   stepsTitle: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center' },
+  stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   stepNumText: { fontSize: 12, fontWeight: '700', color: palette.blue },
-  stepText: { flex: 1, fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textStrong },
+  stepText: { flex: 1, fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.text },
 
   // 히어로
   // pen P1.1 히어로 — 상태 막대 아래 높이 200. 글은 위 14, 액티는 위 12, 알림 버튼은 위 4.
@@ -1028,11 +1038,11 @@ const styles = StyleSheet.create({
   heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
   heroText: { position: 'absolute', top: 14, left: 24, width: 190, gap: 10 },
   heroTitle: { fontSize: 26, fontWeight: '800', lineHeight: 34, color: palette.text },
-  heroSub: { fontSize: 13, fontWeight: '400', lineHeight: 20, color: palette.textMuted },
+  heroSub: { fontSize: 13, fontWeight: '400', lineHeight: 20, color: palette.textMeta },
   heroActy: { position: 'absolute', top: 12, right: 14, width: 170, height: 188 },
   body: { paddingHorizontal: 20, paddingTop: 4, gap: 16 },
   streakPill: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  streakText: { fontSize: 13, fontWeight: '700', color: palette.textStrong },
+  streakText: { fontSize: 13, fontWeight: '700', color: palette.text },
   bell: {
     position: 'absolute',
     top: 4,
@@ -1063,7 +1073,7 @@ const styles = StyleSheet.create({
 
   // 이번 주 연습 카드
   weekCard: {
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#E8EDF5',
@@ -1083,7 +1093,7 @@ const styles = StyleSheet.create({
   weekCol: { alignItems: 'center', gap: 6, width: 40 },
   weekDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#EEF1F6', alignItems: 'center', justifyContent: 'center' },
   weekDotDone: { backgroundColor: palette.blue },
-  weekDotToday: { backgroundColor: palette.card, borderWidth: 2, borderColor: palette.blue },
+  weekDotToday: { backgroundColor: palette.bg, borderWidth: 2, borderColor: palette.blue },
   weekLabel: { fontSize: 12, fontWeight: '500', lineHeight: 16, color: '#7A8496' },
   weekLabelToday: { fontWeight: '800', color: palette.text },
 
@@ -1138,7 +1148,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#E8EDF5',
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     shadowColor: '#2E5A96',
     shadowOpacity: 0.07,
     shadowRadius: 14,
@@ -1159,7 +1169,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E8EDF5',
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     shadowColor: '#2E5A96',
     shadowOpacity: 0.06,
     shadowRadius: 10,

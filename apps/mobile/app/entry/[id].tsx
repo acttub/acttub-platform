@@ -79,7 +79,7 @@ export default function EntryLinkScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#000000' },
   safeLight: { backgroundColor: palette.bg },
-  messageLight: { fontSize: 15, color: palette.textDim, textAlign: 'center', lineHeight: 22 },
+  messageLight: { fontSize: 15, color: palette.textSub, textAlign: 'center', lineHeight: 22 },
   ctaBlue: { backgroundColor: palette.blue, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
   ctaBlueText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
   close: { position: 'absolute', top: 56, left: 20, zIndex: 2 },

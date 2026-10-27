@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -196,7 +197,7 @@ export default function ChallengeDetailScreen() {
                 <NavIconButton
                   icon="flag"
                   size={19}
-                  color={palette.textDim}
+                  color={palette.textSub}
                   label={t('challenges.reportA11y')}
                   phLabel="challenge_detail_report"
                   onPress={() => setReportOpen(true)}
@@ -206,7 +207,7 @@ export default function ChallengeDetailScreen() {
                 <NavIconButton
                   icon="trash-2"
                   size={19}
-                  color={palette.textDim}
+                  color={palette.textSub}
                   label={t('challenges.deleteA11y')}
                   phLabel="challenge_detail_delete"
                   onPress={() => void remove()}
@@ -215,7 +216,7 @@ export default function ChallengeDetailScreen() {
               <NavIconButton
                 icon="share-2"
                 size={20}
-                color={palette.textDim}
+                color={palette.textSub}
                 label={t('challenges.shareA11y')}
                 phLabel="challenge_detail_share"
                 onPress={share}
@@ -249,6 +250,8 @@ export default function ChallengeDetailScreen() {
               </Text>
               {showGuide && !ended && <Text style={styles.guide}>{t('challenges.detailGuide')}</Text>}
             </View>
+
+            <AdSlot slot="challenge_detail_top" />
 
             {!!moderation && <Text style={styles.notice}>{moderation}</Text>}
             {!!notice && <Text style={styles.notice}>{notice}</Text>}
@@ -316,7 +319,7 @@ export default function ChallengeDetailScreen() {
                     <Text style={styles.firstBadge}>{firstBadgeLabel(entry, ended)}</Text>
                   )}
                 </View>
-                <Feather name="chevron-right" size={20} color={palette.textFaint} />
+                <Feather name="chevron-right" size={20} color={palette.iconFaint} />
               </Pressable>
             ))}
 
@@ -358,7 +361,7 @@ export default function ChallengeDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  toast: { position: 'absolute', left: 24, right: 24, bottom: 96, backgroundColor: palette.navy, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 18 },
+  toast: { position: 'absolute', left: 24, right: 24, bottom: 96, backgroundColor: palette.text, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 18 },
   toastText: { fontSize: 14.5, fontWeight: '700', color: palette.onAccent },
   pressed: { opacity: 0.85 },
   moreBtn: { alignItems: 'center', paddingVertical: 14 },
@@ -367,7 +370,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, gap: 14 },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
-  lineCard: { backgroundColor: palette.navy, borderRadius: 20, padding: 18, gap: 10 },
+  lineCard: { backgroundColor: palette.text, borderRadius: 20, padding: 18, gap: 10 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -388,7 +391,7 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   sectionTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
   tabRow: { flexDirection: 'row', gap: 12 },
-  tabText: { fontSize: 13, fontWeight: '700', color: palette.textFaint },
+  tabText: { fontSize: 13, fontWeight: '700', color: palette.textMeta },
   tabTextOn: { fontWeight: '800', color: palette.text },
   entry: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, paddingHorizontal: 4, borderRadius: 16 },
   rankCell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
@@ -399,8 +402,8 @@ const styles = StyleSheet.create({
   entryHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   author: { flexShrink: 1, fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 24 },
   newBadge: { fontSize: 10.5, fontWeight: '900', color: palette.blue },
-  entryMeta: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
-  caption: { fontSize: 13, color: palette.textMuted, lineHeight: 19 },
+  entryMeta: { fontSize: 13, fontWeight: '600', color: palette.textMeta, lineHeight: 20 },
+  caption: { fontSize: 13, color: palette.textMeta, lineHeight: 19 },
   firstBadge: { fontSize: 12, fontWeight: '800', color: palette.blueDeep },
-  empty: { fontSize: 14, color: palette.textDim, textAlign: 'center', paddingVertical: 40, lineHeight: 22 },
+  empty: { fontSize: 14, color: palette.textSub, textAlign: 'center', paddingVertical: 40, lineHeight: 22 },
 });

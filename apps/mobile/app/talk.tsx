@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CoachingLimitSheet } from '@/components/pro-ui';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { ChoiceCard } from '@/components/choice-card';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -26,6 +27,8 @@ export default function TalkScreen() {
   const [picked, setPicked] = useState<TalkPurpose | null>(null);
   const [starting, setStarting] = useState<TalkPurpose | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 무료 코칭 하루 3회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.
+  const [freeLimit, setFreeLimit] = useState(false);
   const attemptRef = useRef<RequestAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -53,6 +56,10 @@ export default function TalkScreen() {
       router.replace('/coach');
     } catch (e) {
       const failure = startFailure(e);
+      if (failure.kind === 'free_limit') {
+        setFreeLimit(true);
+        return;
+      }
       if (failure.kind === 'in_progress') {
         const open = await api
           .listPracticeGroups('all')
@@ -90,6 +97,7 @@ export default function TalkScreen() {
         </View>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
+      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
       <View style={styles.footer}>
         <PrimaryButton label={t('talk.next')} phLabel="talk_next" disabled={!picked || starting !== null} onPress={() => picked && void start(picked)} />
       </View>

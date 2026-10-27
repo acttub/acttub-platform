@@ -54,7 +54,7 @@ export function ListRow({
         {title}
       </Text>
       {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-      {right ?? (onPress && !danger ? <Feather name="chevron-right" size={18} color={palette.checkOff} /> : null)}
+      {right ?? (onPress && !danger ? <Feather name="chevron-right" size={20} color={palette.iconFaint} /> : null)}
     </>
   );
   if (!onPress) return <View style={styles.row}>{body}</View>;
@@ -69,7 +69,7 @@ export function ListRow({
   );
 }
 
-/** 앱 공통 스위치 — 켜지면 파랑(pen S2/Switch). */
+/** 앱 공통 스위치 — pen 「Switch/On」·「Switch/Off」: 켜짐 blue, 꺼짐 text-disabled. */
 export function BlueSwitch({
   value,
   onValueChange,
@@ -86,9 +86,9 @@ export function BlueSwitch({
       value={value}
       onValueChange={onValueChange}
       disabled={disabled}
-      trackColor={{ true: palette.blue, false: palette.border }}
+      trackColor={{ true: palette.blue, false: palette.textDisabled }}
       thumbColor={palette.onAccent}
-      ios_backgroundColor={palette.border}
+      ios_backgroundColor={palette.textDisabled}
       accessibilityLabel={accessibilityLabel}
     />
   );
@@ -112,7 +112,7 @@ export function TwoLineRow({
         <Text style={styles.twoLineTitle}>{title}</Text>
         {sub ? <Text style={styles.twoLineSub}>{sub}</Text> : null}
       </View>
-      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.checkOff} /> : null)}
+      {right ?? (onPress ? <Feather name="chevron-right" size={20} color={palette.iconFaint} /> : null)}
     </>
   );
   if (!onPress) return <View style={styles.twoLine}>{body}</View>;
@@ -129,15 +129,15 @@ export function TwoLineRow({
 
 const styles = StyleSheet.create({
   sectionLabel: { paddingTop: 6, paddingBottom: 2 },
-  sectionLabelText: { fontSize: 13, fontWeight: '700', lineHeight: 18, color: palette.textMuted },
+  sectionLabelText: { fontSize: 13, fontWeight: '700', lineHeight: 18, color: palette.textMeta },
   sectionGap: { height: 4, backgroundColor: palette.bgSubtle, marginVertical: 4 },
   row: { minHeight: 33, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 14 },
   pressed: { opacity: 0.6 },
   rowTitle: { flex: 1, fontSize: 15, fontWeight: '600', lineHeight: 21, color: palette.text },
   rowDanger: { color: palette.danger },
-  rowValue: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textMuted },
+  rowValue: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textMeta },
   twoLine: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12 },
   twoLineText: { flex: 1, minWidth: 0 },
   twoLineTitle: { fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.text },
-  twoLineSub: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMuted },
+  twoLineSub: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMeta },
 });

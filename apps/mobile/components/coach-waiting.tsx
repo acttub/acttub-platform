@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
@@ -408,6 +409,9 @@ export function CoachWaiting({
         )}
       </ScrollView>
 
+      {/* 광고 칸(SOMA-876) — 연습 중 칸이라 무료 사용자 일부만 받는다. 아래 버튼 묶음 바로 위, 24 띄운다. */}
+      {!error && !sample && <AdSlot slot="analyzing_wait" style={{ marginHorizontal: 24, marginBottom: 24 }} />}
+
       {!error && (
         <View style={styles.bottom}>
           {sample ? (
@@ -444,12 +448,12 @@ const styles = StyleSheet.create({
   wide: { alignSelf: 'stretch' },
   pressed: { opacity: 0.75 },
 
-  // 말풍선 안 — 도는 표시 · 「영상 보는 중이에요」 17/700, 아래 단계 문구 15/500 #333D4B.
+  // 말풍선 안 — 도는 표시 · 「영상 보는 중이에요」 17/700, 아래 단계 문구 15/500 `text`.
   watchingBox: { gap: 6 },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   watching: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.text },
-  stageText: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textStrong },
-  elapsed: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
+  stageText: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.text },
+  elapsed: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textMeta },
 
   errorTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 21 },
   errorBody: { fontSize: 15, fontWeight: '600', color: palette.danger, lineHeight: 21 },
@@ -457,10 +461,10 @@ const styles = StyleSheet.create({
 
   // pen 09 아래 — 안쪽 [0,21,11,21], 안내 15/500 회색 · 14 · 파란 안내 14.5/700 · 10 · 회색 버튼 48 · 13 · 그만두기 15/700.
   bottom: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11, alignItems: 'center' },
-  notice: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint, textAlign: 'center' },
+  notice: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textMeta, textAlign: 'center' },
   leaveHint: { fontSize: 14.5, fontWeight: '700', lineHeight: 19, color: palette.blueDeep, textAlign: 'center', marginTop: 14 },
   notify: { alignSelf: 'stretch', height: 48, borderRadius: 16, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
-  notifyText: { fontSize: 18, fontWeight: '700', color: palette.textStrong },
+  notifyText: { fontSize: 18, fontWeight: '700', color: palette.text },
   quit: { marginTop: 7 },
-  link: { color: palette.textFaint, fontSize: 15, fontWeight: '700', lineHeight: 19, textAlign: 'center', paddingVertical: 6 },
+  link: { color: palette.textMeta, fontSize: 15, fontWeight: '700', lineHeight: 19, textAlign: 'center', paddingVertical: 6 },
 });

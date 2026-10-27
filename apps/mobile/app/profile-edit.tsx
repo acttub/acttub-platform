@@ -135,13 +135,13 @@ export default function ProfileEditScreen() {
           <View style={styles.chipRow}>
             {!!p?.birth_date && (
               <View style={styles.chip}>
-                <Feather name="gift" size={13} color={palette.textMuted} />
+                <Feather name="gift" size={13} color={palette.textMeta} />
                 <Text style={styles.chipText}>{p.birth_date.replace(/-/g, '.')}</Text>
               </View>
             )}
             {!!p?.gender && (
               <View style={styles.chip}>
-                <Feather name="user" size={13} color={palette.textMuted} />
+                <Feather name="user" size={13} color={palette.textMeta} />
                 <Text style={styles.chipText}>{t(GENDER_LABEL_KEYS[p.gender])}</Text>
               </View>
             )}
@@ -160,7 +160,7 @@ export default function ProfileEditScreen() {
               <Text style={[styles.rowValue, row.field === 'bio' && !row.value && styles.rowEmpty]} numberOfLines={1}>
                 {row.value || (row.field === 'bio' ? t('profileName.editBioRowEmpty') : '')}
               </Text>
-              <Feather name="chevron-right" size={16} color={palette.checkOff} />
+              <Feather name="chevron-right" size={16} color={palette.iconFaint} />
             </Pressable>
           </View>
         ))}
@@ -171,7 +171,7 @@ export default function ProfileEditScreen() {
           accessibilityRole="button">
           <Text style={styles.rowLabel}>{t('profileName.rowPortfolio')}</Text>
           <Text style={[styles.rowValue, styles.rowEmpty]}>{t('profileName.editPortfolioRowEmpty')}</Text>
-          <Feather name="chevron-right" size={16} color={palette.checkOff} />
+          <Feather name="chevron-right" size={16} color={palette.iconFaint} />
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -186,15 +186,15 @@ const styles = StyleSheet.create({
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
   // pen S6.3 — 좌우 16, 카드 위 16, 줄 사이 9.
   body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 9 },
-  summary: { flexDirection: 'row', alignItems: 'center', gap: 18, padding: 18, marginBottom: 6, borderRadius: 20, backgroundColor: palette.bgSubtle, borderWidth: 1, borderColor: palette.borderSoft },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: 18, padding: 18, marginBottom: 6, borderRadius: 20, backgroundColor: palette.bgSubtle, borderWidth: 1, borderColor: palette.border },
   summaryText: { flex: 1, gap: 6 },
   summaryName: { fontSize: 20, fontWeight: '800', color: palette.text },
   // pen S6.4 소개가 있으면 #4E5968, 없으면 안내 #8B95A1.
-  summaryBio: { fontSize: 14, color: palette.textDim, lineHeight: 20 },
-  summaryBioEmpty: { color: palette.textFaint },
+  summaryBio: { fontSize: 14, color: palette.textSub, lineHeight: 20 },
+  summaryBioEmpty: { color: palette.textMeta },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: 9, paddingVertical: 4 },
-  chipText: { fontSize: 12, fontWeight: '500', color: palette.textDim },
+  chipText: { fontSize: 12, fontWeight: '500', color: palette.textSub },
   photoBox: { alignItems: 'center', gap: 8 },
   photo: {
     width: 84,
@@ -208,12 +208,12 @@ const styles = StyleSheet.create({
   photoImg: { width: '100%', height: '100%' },
   photoLinks: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   photoLink: { fontSize: 12, fontWeight: '700', color: palette.blue },
-  photoRemove: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
-  divider: { height: 1, backgroundColor: palette.borderSoft },
+  photoRemove: { fontSize: 12, fontWeight: '700', color: palette.textMeta },
+  divider: { height: 1, backgroundColor: palette.border },
   // pen S6.3 줄 — 높이 53(위아래 15), 왼 16 · 오른 12, 모서리 16, 칸 사이 10.
-  row: { minHeight: 53, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingLeft: 16, paddingRight: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.card },
+  row: { minHeight: 53, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingLeft: 16, paddingRight: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.bg },
   pressed: { opacity: 0.6 },
-  rowLabel: { fontSize: 14, fontWeight: '600', color: palette.textMuted },
-  rowEmpty: { fontSize: 15, fontWeight: '500', color: palette.textFaint },
+  rowLabel: { fontSize: 14, fontWeight: '600', color: palette.textMeta },
+  rowEmpty: { fontSize: 15, fontWeight: '500', color: palette.textMeta },
   rowValue: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.text, textAlign: 'right' },
 });

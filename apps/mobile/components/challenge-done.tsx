@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT as MASCOTS } from '@/components/ui/mascot';
@@ -63,16 +64,18 @@ export function ChallengeDone({
                   <Text style={styles.rowTitle}>{row.title}</Text>
                   <Text style={styles.rowSub}>{row.sub}</Text>
                 </View>
-                <Feather name="chevron-right" size={18} color={palette.checkOff} />
+                <Feather name="chevron-right" size={18} color={palette.iconFaint} />
               </Pressable>
             ))}
           </View>
         )}
       </ScrollView>
+      {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 버튼 묶음 바로 위(CtaBar 위 여백 12 + 12 = 24). */}
+      <AdSlot slot="challenge_upload_done" style={{ marginHorizontal: 24, marginBottom: 12 }} />
       <CtaBar safeBottom={false}>
-        <PrimaryButton label={t('challengeDone.home')} onPress={onHome} />
         {first && onShare ? <TextButton label={t('challengeDone.share')} tone="accent" size="large" onPress={onShare} /> : null}
         {first && onCoach ? <TextButton label={t('challengeDone.coach')} tone="accent" size="large" onPress={onCoach} /> : null}
+        <PrimaryButton label={t('challengeDone.home')} onPress={onHome} />
       </CtaBar>
     </SafeAreaView>
   );
@@ -85,12 +88,12 @@ const styles = StyleSheet.create({
   mascot: { width: 130, height: 148 },
   mascotFirst: { width: 150, height: 170 },
   title: { fontSize: 24, fontWeight: '800', lineHeight: 33, letterSpacing: -0.5, color: palette.text, textAlign: 'center', marginTop: 12 },
-  sub: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textFaint, textAlign: 'center', marginTop: 12 },
+  sub: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textMeta, textAlign: 'center', marginTop: 12 },
   rows: { alignSelf: 'stretch', gap: 0, paddingTop: 16 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 4 },
   rowIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   rowTitle: { fontSize: 16, fontWeight: '700', color: palette.text, lineHeight: 22 },
-  rowSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 18 },
+  rowSub: { fontSize: 13, fontWeight: '500', color: palette.textMeta, lineHeight: 18 },
   pressed: { opacity: 0.85 },
 });

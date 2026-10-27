@@ -148,7 +148,11 @@ class EntityMappingIT {
             // 배우 일지(V59, SOMA-720)는 코치 저장소의 native SQL(만들기·생성 결과·고치기)과 탈퇴 파기만 쓴다.
             "actor_journals",
             // 예시 대본(V61)은 리딩 저장소의 native SQL(목록·하나 읽기)만 읽는다 — 행은 마이그레이션·운영 SQL 이 넣는다.
-            "reading_examples");
+            "reading_examples",
+            // ACTTUB Pro 정기결제(V64, SOMA-818)는 결제 저장소의 native SQL(조건부 갱신·점유·멱등 기록)만 쓴다.
+            "billing_subscriptions", "billing_checkouts", "billing_payments", "billing_pro_grants",
+            // 앱 광고 칸(V66, SOMA-876)은 광고 저장소의 native SQL(고르기·노출 upsert·클릭)만 쓴다.
+            "ads", "ad_events");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 40개 활성 엔티티를 포함한다")

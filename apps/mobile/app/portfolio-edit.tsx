@@ -240,7 +240,7 @@ export default function PortfolioEditScreen() {
           <TextInput
             style={styles.textarea}
             placeholder={t('portfolio.introPlaceholder')}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.textMeta}
             value={intro}
             onChangeText={setIntro}
             multiline
@@ -539,7 +539,7 @@ function IconButton({
       hitSlop={6}
       accessibilityRole="button"
       accessibilityLabel={label}>
-      <Feather name={icon} size={17} color={palette.textDim} />
+      <Feather name={icon} size={17} color={palette.textSub} />
     </Pressable>
   );
 }
@@ -580,16 +580,16 @@ const styles = StyleSheet.create({
   heroText: { flex: 1, gap: 8 },
   heroMascot: { width: 92, height: 92 },
   heroTitle: { fontSize: 24, fontWeight: '800', lineHeight: 33, color: palette.text },
-  lead: { fontSize: 13.5, lineHeight: 20, color: palette.textDim },
+  lead: { fontSize: 13.5, lineHeight: 20, color: palette.textSub },
   section: {
     borderTopWidth: 1,
-    borderTopColor: palette.borderSoft,
+    borderTopColor: palette.border,
     paddingVertical: 22,
     gap: 14,
   },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: palette.text },
-  sectionCount: { fontSize: 15, fontWeight: '500', color: palette.textFaint },
+  sectionCount: { fontSize: 15, fontWeight: '500', color: palette.textMeta },
   photoRow: { gap: 10 },
   photoTile: { width: 104, height: 140 },
   photoImg: { width: 104, height: 140, borderRadius: 16, backgroundColor: palette.bgSoft },
@@ -618,9 +618,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   photoAddText: { fontSize: 13, fontWeight: '700', color: palette.blue },
-  creditKind: { fontSize: 13, color: palette.textFaint },
+  creditKind: { fontSize: 13, color: palette.textMeta },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  hint: { fontSize: 12.5, color: palette.textFaint, lineHeight: 18 },
+  hint: { fontSize: 12.5, color: palette.textMeta, lineHeight: 18 },
   error: { color: palette.danger, fontSize: 14, textAlign: 'center' },
   fieldError: { fontSize: 12.5, color: palette.danger },
   linkBtn: { paddingHorizontal: 16, paddingVertical: 8 },
@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
   },
   itemBody: { flex: 1 },
   itemTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  itemSub: { fontSize: 12.5, color: palette.textDim, lineHeight: 18, marginTop: 2 },
+  itemSub: { fontSize: 12.5, color: palette.textSub, lineHeight: 18, marginTop: 2 },
   thumb: { width: 52, height: 52, borderRadius: 10, backgroundColor: palette.bgSoft, marginRight: 6 },
   iconBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
   smallBtn: {
@@ -673,14 +673,14 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     top: '12%',
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderRadius: 18,
     padding: 20,
     gap: 12,
   },
   modalTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
   field: { gap: 6 },
-  fieldLabel: { fontSize: 13, fontWeight: '800', color: palette.textMuted },
+  fieldLabel: { fontSize: 13, fontWeight: '800', color: palette.textMeta },
   input: {
     backgroundColor: palette.bgSoft,
     borderRadius: 12,
@@ -699,11 +699,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  chipText: { fontSize: 13.5, fontWeight: '700', color: palette.textDim },
+  chipText: { fontSize: 13.5, fontWeight: '700', color: palette.textSub },
   chipTextOn: { color: palette.blueDeep },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
   modalBtn: { minWidth: 72, alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 10 },
   modalBtnPrimary: { backgroundColor: palette.blue },
-  modalBtnText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
+  modalBtnText: { fontSize: 14, fontWeight: '700', color: palette.textSub },
   modalBtnTextPrimary: { color: '#FFFFFF' },
 });

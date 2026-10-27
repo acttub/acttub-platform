@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
@@ -39,6 +39,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  label: { fontSize: 12, fontWeight: '800', lineHeight: 17, color: palette.flameDeep },
+  label: { fontSize: 12, fontWeight: '800', lineHeight: 17, color: palette.text },
   text: { fontSize: 15, fontWeight: '800', lineHeight: 22, color: palette.text },
 });

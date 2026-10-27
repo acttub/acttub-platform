@@ -69,7 +69,7 @@ export function RenameDialog({
             value={value}
             onChangeText={setValue}
             placeholder={placeholder}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.textMeta}
             maxLength={maxLength}
             autoFocus
             returnKeyType="done"
@@ -93,7 +93,7 @@ export function RenameDialog({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
   // pen 「추가 · 제목 바꾸기」(ioeo9w) — 카드 334 · 모서리 22 · 안쪽 [24,20,20,20] · 간격 12, 제목 18/800, 칸 모서리 12 · 높이 50 · 16/700.
-  card: { width: '100%', maxWidth: 334, backgroundColor: palette.card, borderRadius: 22, paddingTop: 24, paddingHorizontal: 20, paddingBottom: 20, gap: 12 },
+  card: { width: '100%', maxWidth: 334, backgroundColor: palette.bg, borderRadius: 22, paddingTop: 24, paddingHorizontal: 20, paddingBottom: 20, gap: 12 },
   title: { fontSize: 18, fontWeight: '800', lineHeight: 27, color: palette.text },
   input: {
     backgroundColor: palette.bgSoft,
@@ -108,6 +108,6 @@ const styles = StyleSheet.create({
     color: palette.text,
   },
   inputBad: { borderColor: palette.danger },
-  hint: { fontSize: 13, fontWeight: '600', lineHeight: 20, color: palette.textMuted },
+  hint: { fontSize: 13, fontWeight: '600', lineHeight: 20, color: palette.textMeta },
   fail: { color: palette.danger },
 });

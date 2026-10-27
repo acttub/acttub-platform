@@ -163,7 +163,7 @@ export default function CoachingTab() {
           <View style={[styles.firstFooter, { paddingBottom: 8 + tabBarSpace }]}>
             <PrimaryButton label={t('coachingTab.choice.video')} phLabel="coaching_first_next" onPress={startNew} />
             <Pressable onPress={() => router.push('/talk')} accessibilityRole="button" accessibilityLabel={t('coachingTab.choice.talk')} ph-label="coaching_first_talk" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
-              <Feather name="message-circle" size={15} color={palette.textDim} />
+              <Feather name="message-circle" size={15} color={palette.textSub} />
               <Text style={styles.linkText}>{t('coachingTab.choice.talk')}</Text>
             </Pressable>
           </View>
@@ -185,7 +185,8 @@ export default function CoachingTab() {
             </View>
             {resuming || nextTake ? (
               <View style={styles.quote}>
-                <Text style={styles.quoteLabel}>{t('coachingTab.memoNext')}</Text>
+                {/* 하던 코칭에는 「다음엔 이렇게 해 봐요」 제목을 붙이지 않는다 — 아래 문장은 조언이 아니라 상태 안내다(10/26). */}
+                {!resuming && <Text style={styles.quoteLabel}>{t('coachingTab.memoNext')}</Text>}
                 <Text style={styles.quoteText}>{resuming ? t('coachingTab.resumeBody') : nextTake}</Text>
               </View>
             ) : null}
@@ -214,15 +215,18 @@ export default function CoachingTab() {
           </View>
 
           <TalkEntryButton onPress={() => router.push('/talk')} />
-          <Pressable
-            onPress={pickPrevious}
-            accessibilityRole="button"
-            accessibilityLabel={t('coachingTab.menuResume')}
-            ph-label="coaching_pick_previous"
-            style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
-            <Feather name="clock" size={15} color={palette.textDim} />
-            <Text style={styles.linkText}>{t('coachingTab.menuResume')}</Text>
-          </Pressable>
+          {/* 맨 위 카드가 이미 「이어서 하기」면 같은 뜻의 링크를 또 두지 않는다(10/26). */}
+          {!resuming && (
+            <Pressable
+              onPress={pickPrevious}
+              accessibilityRole="button"
+              accessibilityLabel={t('coachingTab.menuResume')}
+              ph-label="coaching_pick_previous"
+              style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+              <Feather name="clock" size={15} color={palette.textSub} />
+              <Text style={styles.linkText}>{t('coachingTab.menuResume')}</Text>
+            </Pressable>
+          )}
           {hasScripts ? (
             <Pressable
               onPress={() => router.push('/coach-scripts')}
@@ -231,13 +235,13 @@ export default function CoachingTab() {
               ph-label="coaching_my_scripts"
               style={({ pressed }) => [styles.entryRow, styles.entryGap, pressed && styles.pressed]}>
               <View style={styles.entryIcon}>
-                <Feather name="file-text" size={18} color={palette.textMuted} />
+                <Feather name="file-text" size={18} color={palette.textMeta} />
               </View>
               <View style={styles.entryText}>
                 <Text style={styles.entryTitle}>{t('coachingTab.menuMyScripts')}</Text>
                 <Text style={styles.entrySub}>{t('coachingTab.menuMyScriptsSub')}</Text>
               </View>
-              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+              <Feather name="chevron-right" size={18} color={palette.iconFaint} />
             </Pressable>
           ) : null}
           <ScriptCocreateEntry style={styles.entryGap} />
@@ -246,7 +250,7 @@ export default function CoachingTab() {
             <Text style={styles.sectionTitle}>{t('coachingTab.recentTitle')}</Text>
             <Pressable onPress={() => router.push('/history')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('coachingTab.viewAll')} ph-label="coaching_recent_all" style={styles.more}>
               <Text style={styles.moreText}>{t('coachingTab.viewAll')}</Text>
-              <Feather name="chevron-right" size={14} color={palette.textFaint} />
+              <Feather name="chevron-right" size={14} color={palette.iconFaint} />
             </Pressable>
           </View>
           <View style={styles.recent}>
@@ -313,7 +317,7 @@ function Tile({
       style={({ pressed }) => [styles.tile, accent && styles.tileAccent, pressed && styles.pressed]}>
       <View style={styles.tileTop}>
         <Feather name={icon} size={22} color={accent ? palette.blue : palette.text} />
-        <Feather name="arrow-up-right" size={16} color={palette.checkOff} />
+        <Feather name="arrow-up-right" size={16} color={palette.textDisabled} />
       </View>
       <View style={styles.tileText}>
         <Text style={[styles.tileTitle, accent && styles.tileTitleAccent]}>{title}</Text>
@@ -335,34 +339,34 @@ const styles = StyleSheet.create({
   introMascot: { width: 52, height: 61, marginBottom: 4 },
   introBubble: { flex: 1, minWidth: 0, gap: 5, paddingTop: 11, paddingHorizontal: 14, paddingBottom: 12, borderRadius: 16, backgroundColor: palette.bgSoft },
   introTitle: { fontSize: 19, fontWeight: '700', lineHeight: 25, color: palette.text },
-  introBody: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMuted },
-  exampleLabel: { paddingTop: 28, paddingBottom: 10, fontSize: 13, fontWeight: '700', color: palette.textMuted },
+  introBody: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMeta },
+  exampleLabel: { paddingTop: 28, paddingBottom: 10, fontSize: 13, fontWeight: '700', color: palette.textMeta },
   example: { gap: 10, padding: 16, borderRadius: 20, backgroundColor: palette.bgSoft },
-  exampleVideo: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 10, paddingVertical: 8, paddingLeft: 8, paddingRight: 12, borderRadius: 14, backgroundColor: palette.card },
-  exampleThumb: { width: 40, height: 40, borderRadius: 10, backgroundColor: palette.textStrong, alignItems: 'center', justifyContent: 'center' },
+  exampleVideo: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 10, paddingVertical: 8, paddingLeft: 8, paddingRight: 12, borderRadius: 14, backgroundColor: palette.bg },
+  exampleThumb: { width: 40, height: 40, borderRadius: 10, backgroundColor: palette.text, alignItems: 'center', justifyContent: 'center' },
   exampleVideoText: { gap: 1 },
   exampleVideoTitle: { fontSize: 13.5, fontWeight: '700', color: palette.text },
-  exampleVideoSub: { fontSize: 12, fontWeight: '500', color: palette.textFaint },
+  exampleVideoSub: { fontSize: 12, fontWeight: '500', color: palette.textMeta },
   coachRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   coachAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   coachMascot: { width: 19, height: 20 },
-  coachBubble: { flexShrink: 1, paddingVertical: 9, paddingHorizontal: 12, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderBottomRightRadius: 14, borderBottomLeftRadius: 4, backgroundColor: palette.card },
+  coachBubble: { flexShrink: 1, paddingVertical: 9, paddingHorizontal: 12, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderBottomRightRadius: 14, borderBottomLeftRadius: 4, backgroundColor: palette.bg },
   coachText: { fontSize: 14, fontWeight: '600', lineHeight: 20, color: palette.text },
   exampleMeRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   exampleMe: { paddingVertical: 9, paddingHorizontal: 12, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderBottomLeftRadius: 14, borderBottomRightRadius: 4, backgroundColor: palette.blue },
   exampleMeText: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.onAccent },
   exampleNote: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, paddingHorizontal: 2 },
-  exampleNoteText: { flex: 1, fontSize: 13, fontWeight: '600', color: palette.textMuted },
+  exampleNoteText: { flex: 1, fontSize: 13, fontWeight: '600', color: palette.textMeta },
   firstFooter: { gap: 4, paddingTop: 8, paddingHorizontal: 20 },
 
   // 다음 연습·하던 코칭(pen P13.3~P13.5) — 본문 padding 11/21, 메모 카드 → 타일 → 보조 줄 → 최근 코칭.
   nextBody: { paddingTop: 11, paddingHorizontal: 21 },
-  memo: { gap: 16, paddingTop: 18, paddingHorizontal: 18, paddingBottom: 16, borderRadius: 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.card },
+  memo: { gap: 16, paddingTop: 18, paddingHorizontal: 18, paddingBottom: 16, borderRadius: 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
   memoHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   memoAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   memoMascot: { width: 24, height: 26 },
   memoKind: { fontSize: 14, fontWeight: '700', color: palette.text },
-  memoMeta: { marginTop: 1, fontSize: 12.5, fontWeight: '500', color: palette.textFaint },
+  memoMeta: { marginTop: 1, fontSize: 12.5, fontWeight: '500', color: palette.textMeta },
   quote: { gap: 4, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: palette.blue },
   quoteLabel: { fontSize: 12.5, fontWeight: '600', color: palette.blueDeep },
   quoteText: { fontSize: 16, fontWeight: '600', lineHeight: 23, color: palette.text },
@@ -376,23 +380,23 @@ const styles = StyleSheet.create({
   tileText: { gap: 4 },
   tileTitle: { fontSize: 16, fontWeight: '700', lineHeight: 22, color: palette.text },
   tileTitleAccent: { color: palette.blueDeep },
-  tileSub: { fontSize: 12.5, fontWeight: '500', color: palette.textFaint },
+  tileSub: { fontSize: 12.5, fontWeight: '500', color: palette.textMeta },
   link: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  linkText: { fontSize: 15, fontWeight: '600', color: palette.textDim },
+  linkText: { fontSize: 15, fontWeight: '600', color: palette.textSub },
   entryGap: { marginTop: 12 },
   entryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSoft },
   entryIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bgSoft },
   entryText: { flex: 1, minWidth: 0, gap: 2 },
   entryTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
-  entrySub: { fontSize: 12, fontWeight: '500', color: palette.textMuted },
+  entrySub: { fontSize: 12, fontWeight: '500', color: palette.textMeta },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
   more: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  moreText: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  moreText: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
   recent: { paddingTop: 10, gap: 10 },
   recentRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  thumb: { width: 56, height: 56, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.textStrong, alignItems: 'center', justifyContent: 'center' },
+  thumb: { width: 56, height: 56, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.text, alignItems: 'center', justifyContent: 'center' },
   play: { width: 22, height: 22, borderRadius: 11, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center' },
   recentTitle: { fontSize: 15, fontWeight: '700', color: palette.text },
-  recentMeta: { marginTop: 4, fontSize: 12.5, fontWeight: '500', color: palette.textFaint },
+  recentMeta: { marginTop: 4, fontSize: 12.5, fontWeight: '500', color: palette.textMeta },
 });

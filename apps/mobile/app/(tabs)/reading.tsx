@@ -5,18 +5,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { hasSeenReadingTutorial, hasSeenSpotlight, markReadingTutorialSeen, markSpotlightSeen } from '@/lib/guide-state';
+import { skipsReadingTabGuide } from '@/lib/returning-account';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
-import { LargeTitleHeader, NavIconButton } from '@/components/ui/nav-header';
+import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { BandGradient } from '@/components/ui/band-gradient';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
@@ -90,6 +92,14 @@ export default function ReadingList() {
       if (!seen && guideFocused.current && !firstTimeRef.current) setGuideOpen(true);
     });
   }, []);
+
+  // 대본을 이미 올린 계정(앱을 다시 깐 기존 사용자)에게는 「대본을 넣어 보세요」를 띄우지 않고 본 것으로 남긴다(10/26).
+  const hasScripts = !!list && skipsReadingTabGuide(Math.max(list.total_count, list.scripts.length));
+  useEffect(() => {
+    if (!guideOpen || !hasScripts) return;
+    setGuideOpen(false);
+    void markSpotlightSeen('reading');
+  }, [guideOpen, hasScripts]);
 
   const load = useCallback(async (keyword: string) => {
     const mine = ++generation.current;
@@ -243,13 +253,13 @@ export default function ReadingList() {
           <Image source={HERO_WINDOW} style={styles.emptyWindow} resizeMode="cover" accessibilityElementsHidden />
         </View>
       )}
-      {/* pen 「헤더 / 큰 제목」 — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
+      {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
           돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
       <View style={styles.headWrap}>
-        <LargeTitleHeader
+        <NavHeader
+          large
           title={empty ? '' : t('reading.listTitle')}
-          onBack={firstTime ? () => router.navigate('/') : undefined}
-          backPhLabel="reading_back_home"
+          left={firstTime ? <NavBackButton onPress={() => router.navigate('/')} phLabel="reading_back_home" /> : undefined}
           right={
             <View style={styles.headRight}>
               {/* 탭바가 숨어 프로필 탭의 설정으로 못 가므로 로그아웃·탈퇴 길을 남긴다(SOMA-781). */}
@@ -362,6 +372,8 @@ export default function ReadingList() {
             </View>
           )}
 
+          <AdSlot slot="reading_tab_top" style={{ marginBottom: 16 }} />
+
           {list && (
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>{t('reading.uploadedTitle')}</Text>
@@ -370,13 +382,13 @@ export default function ReadingList() {
           )}
           {/* pen R1.3·R1.4 — 검색칸은 「업로드한 대본」 머리 아래, 목록 바로 위에 둔다. */}
           <View style={styles.search}>
-            <Feather name="search" size={16} color={palette.textFaint} />
+            <Feather name="search" size={16} color={palette.iconFaint} />
             <TextInput
               style={styles.searchInput}
               value={q}
               onChangeText={setQ}
               placeholder={t('reading.searchPlaceholder')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
             />
           </View>
           {loading && !list && (
@@ -403,7 +415,7 @@ export default function ReadingList() {
                     </Text>
                   </View>
                   <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_script_more" onPress={(e) => more(s, e)}>
-                    <Feather name="more-horizontal" size={18} color={palette.textFaint} />
+                    <Feather name="more-horizontal" size={18} color={palette.iconFaint} />
                   </Pressable>
                 </Pressable>
               );
@@ -424,7 +436,7 @@ export default function ReadingList() {
 
       {/* 가이드는 제 창에 뜬다 — 목록 어디에 두든 자리를 차지하지 않는다. */}
       <SpotlightGuide
-        visible={guideOpen}
+        visible={guideOpen && !!list && !hasScripts}
         topic="reading"
         steps={READING_STEPS}
         onDone={() => {
@@ -501,18 +513,18 @@ const styles = StyleSheet.create({
   resumeEyebrow: { color: 'rgba(255,255,255,0.88)', fontSize: 13, fontWeight: '700', lineHeight: 20 },
   resumeTitle: { color: palette.onAccent, maxWidth: '78%', fontSize: 22, fontWeight: '900', lineHeight: 31 },
   resumeHint: { color: 'rgba(255,255,255,0.85)', maxWidth: '64%', fontSize: 12.5, fontWeight: '600', lineHeight: 19 },
-  resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.card, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
+  resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.bg, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
   resumeBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
   pressed: { opacity: 0.85 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
   sectionTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 24 },
-  sectionCount: { color: palette.textFaint, fontSize: 13, fontWeight: '600' },
+  sectionCount: { color: palette.textMeta, fontSize: 13, fontWeight: '600' },
   list: { gap: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 4 },
   rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 6 },
   rowTitle: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 24 },
-  rowMeta: { color: palette.textFaint, fontSize: 13, fontWeight: '600', lineHeight: 20 },
+  rowMeta: { color: palette.textMeta, fontSize: 13, fontWeight: '600', lineHeight: 20 },
   moreBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  noMatch: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
+  noMatch: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
 });

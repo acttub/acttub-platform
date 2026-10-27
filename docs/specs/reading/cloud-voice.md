@@ -10,7 +10,8 @@
 ## 기능
 배우가 「고품질 목소리」를 켜면 상대 대사를 서버가 Google Gemini TTS로 만든 음성으로 읽는다. 켜지 않으면
 지금처럼 기기 음성([reading.cast](cast.md))으로 읽는다. 출시 기념으로 무료 기간(2026-10-31까지) 동안 모두에게 열고,
-앱을 켤 때 하루 한 번 알리는 팝업을 띄운다.
+앱을 켤 때 하루 한 번 알리는 팝업을 띄운다. 2026-11-01부터는 Pro 혜택이다(SOMA-818) — 무료 기간이 끝나면
+결제했거나 서버가 준 Pro 기간(`billing_pro_grants`) 안인 사람만 쓰고, 상태 응답의 `free_until`은 무료 기간에만 내려간다.
 
 ## 의도
 기기 음성은 무료·오프라인이지만 억양이 단조롭다. 상대역이 사람처럼 읽으면 리딩이 실제 맞춰 보기에 가까워진다.
@@ -64,7 +65,7 @@
 - text가 비었거나 5,000자 초과, 모르는 voice: 400 invalid_voice_request. 앱은 그 회차에서 그 줄을 서버에 다시 보내지 않고
   네트워크 실패와 같은 대체 순서로 읽는다.
 - TTS 모델 설정(GEMINI_TTS_MODEL)이 비어 있으면 status.available=false.
-- 설정 없음·무료 기간 종료·월 상한·Gemini 또는 저장소 실패: 모두 503 cloud_voice_unavailable이다.
+- 설정 없음·무료 기간 종료(Pro 아님)·월 상한·Gemini 또는 저장소 실패: 모두 503 cloud_voice_unavailable이다.
 
 ## 검증 방법
 - 동의 없이 POST /v2/reading/voice: 403 cloud_voice_consent_required.

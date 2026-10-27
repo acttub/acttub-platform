@@ -285,7 +285,7 @@ export default function ChallengeUploadScreen() {
               <VideoView style={styles.thumb} player={player} contentFit="cover" nativeControls={false} />
             ) : (
               <View style={[styles.thumb, styles.thumbEmpty]}>
-                <Feather name="video" size={20} color={palette.textFaint} />
+                <Feather name="video" size={20} color={palette.iconFaint} />
               </View>
             )}
           </View>
@@ -327,7 +327,7 @@ export default function ChallengeUploadScreen() {
         <TextInput
           style={styles.caption}
           placeholder={t('challengeUpload.captionPh')}
-          placeholderTextColor={palette.textFaint}
+          placeholderTextColor={palette.textMeta}
           value={caption}
           onChangeText={setCaption}
           onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
@@ -386,9 +386,9 @@ const styles = StyleSheet.create({
   videoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   videoText: { flex: 1, minWidth: 0, gap: 6 },
   videoLine: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
-  videoSub: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
-  rangeLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim },
-  thumbWrap: { width: 100, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.textDim },
+  videoSub: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
+  rangeLabel: { fontSize: 14, fontWeight: '800', color: palette.textSub },
+  thumbWrap: { width: 100, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.textSub },
   thumb: { width: '100%', height: '100%' },
   thumbEmpty: { backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   caption: {
@@ -401,15 +401,15 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     marginTop: 4,
   },
-  counter: { fontSize: 11.5, color: palette.textFaint, textAlign: 'right', marginTop: -8 },
-  hint: { fontSize: 12.5, color: palette.textFaint },
+  counter: { fontSize: 11.5, color: palette.textMeta, textAlign: 'right', marginTop: -8 },
+  hint: { fontSize: 12.5, color: palette.textMeta },
   error: { fontSize: 13, fontWeight: '700', color: palette.danger },
   // pen h9wxCz — 안 고른 줄은 안쪽 [15,4], 고른 줄은 [15,16] + 연파랑 바탕.
   option: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 18, borderWidth: 1, borderColor: palette.border },
   optionOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   optionTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 26 },
   optionTitleOn: { color: palette.blueDeep },
-  optionSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
+  optionSub: { fontSize: 13, fontWeight: '500', color: palette.textMeta, lineHeight: 20 },
   mosaicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, paddingHorizontal: 4 },
   mosaicTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 22 },
 });

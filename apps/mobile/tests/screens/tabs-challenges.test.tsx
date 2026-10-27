@@ -36,7 +36,15 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   default: require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
-jest.mock('@/lib/api', () => ({ api: { listChallenges: jest.fn(), listChallengeEntries: jest.fn(), unreadNotificationCount: jest.fn() } }));
+jest.mock('@/lib/api', () => ({
+  api: {
+    listChallenges: jest.fn(),
+    listChallengeEntries: jest.fn(),
+    unreadNotificationCount: jest.fn(),
+    listMyChallengeEntries: jest.fn(),
+    listPracticeGroups: jest.fn(),
+  },
+}));
 jest.mock('expo-video', () => {
   const { Text } = require('react-native');
   return {
@@ -411,6 +419,43 @@ describe('첫 챌린지 전(C1.16·C1.18)', () => {
     expect(await AsyncStorage.getItem('acttub.challenge.browsed')).toBe('1');
 
     await AsyncStorage.removeItem('acttub.challenge.browsed');
+  });
+
+  test('기기 기록이 없어도 연습이 쌓인 계정(앱을 다시 깐 기존 사용자)은 첫 고르기 없이 기본 챌린지 홈이다(10/26)', async () => {
+    const { api } = jest.requireMock('@/lib/api');
+    await AsyncStorage.removeItem('acttub.challenge.firstEntryDone');
+    await AsyncStorage.removeItem('acttub.challenge.browsed');
+    listChallenges.mockResolvedValue(page([card()], { featured: today() }));
+    const noted = (day: number) => ({ created_at: `2026-10-0${day}T00:00:00Z`, note: { next_take: '다음 테이크' } });
+    api.listPracticeGroups.mockResolvedValue({ groups: [{ practices: [noted(1), noted(2), noted(3)] }] });
+    api.listMyChallengeEntries.mockResolvedValue({ entries: [], next_cursor: null });
+    try {
+      await render(<ChallengesScreen />);
+      expect(await screen.findByText('“나는 아직 여기 있어”')).toBeOnTheScreen();
+      await waitFor(async () => expect(await AsyncStorage.getItem('acttub.challenge.browsed')).toBe('1'));
+      expect(screen.queryByRole('radio', { name: '챌린지 둘러보기' })).not.toBeOnTheScreen();
+    } finally {
+      api.listPracticeGroups.mockReset();
+      api.listMyChallengeEntries.mockReset();
+      await AsyncStorage.removeItem('acttub.challenge.browsed');
+    }
+  });
+
+  test('참여작을 올린 적이 있는 계정은 기기 기록이 없어도 첫 참여를 끝낸 것으로 적는다(10/26)', async () => {
+    const { api } = jest.requireMock('@/lib/api');
+    await AsyncStorage.removeItem('acttub.challenge.firstEntryDone');
+    await AsyncStorage.removeItem('acttub.challenge.browsed');
+    listChallenges.mockResolvedValue(page([card()], { featured: today() }));
+    api.listMyChallengeEntries.mockResolvedValue({ entries: [{ id: 'e1', created_at: '2026-10-01T00:00:00Z' }], next_cursor: null });
+    try {
+      await render(<ChallengesScreen />);
+      expect(await screen.findByText('“나는 아직 여기 있어”')).toBeOnTheScreen();
+      await waitFor(async () => expect(await AsyncStorage.getItem('acttub.challenge.firstEntryDone')).toBe('1'));
+      expect(screen.queryByRole('radio', { name: '챌린지 둘러보기' })).not.toBeOnTheScreen();
+    } finally {
+      api.listMyChallengeEntries.mockReset();
+      await AsyncStorage.removeItem('acttub.challenge.firstEntryDone');
+    }
   });
 
   test('한 번 둘러본 기기는 다음에 와도 첫 챌린지 고르기 대신 기본 챌린지 홈이다', async () => {

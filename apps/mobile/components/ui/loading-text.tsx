@@ -29,5 +29,5 @@ export function LoadingText({
 }
 
 const styles = StyleSheet.create({
-  text: { fontSize: 14, fontWeight: '500', color: palette.textDim, textAlign: 'center' },
+  text: { fontSize: 14, fontWeight: '500', color: palette.textSub, textAlign: 'center' },
 });

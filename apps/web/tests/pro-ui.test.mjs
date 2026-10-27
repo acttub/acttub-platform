@@ -44,13 +44,19 @@ test("요금 안내는 무료와 Pro의 차이를 같은 말로 보인다", () =
 
   const pro = screen.getByRole("heading", { name: "Pro" }).closest("section");
   assert.match(pro.textContent, /월 3,900원/);
-  assert.match(pro.textContent, /발음·딕션 피드백 \(Pro 전용 · 준비 중\)/);
+  assert.match(pro.textContent, /발음 보고서 \(Pro 전용 · 준비 중\)/);
   assert.match(pro.textContent, /구독 표시이며 배우의 실력이나 자격을 인증하는 표시는 아니에요\./);
   const table = screen.getByRole("table");
   assert.deepEqual(
     within(table).getByRole("rowheader", { name: "AI 연기 코칭" }).closest("tr").textContent,
-    "AI 연기 코칭하루 1회제한 없음",
+    "AI 연기 코칭하루 3회제한 없음",
   );
+  assert.equal(within(table).getByRole("rowheader", { name: "리딩 대본 보관" }).closest("tr").textContent, "리딩 대본 보관3개제한 없음");
+  // 코칭 고도화 세 가지(상위 모델·습관 기억·자세한 노트)는 Pro 혜택이다.
+  assert.match(pro.textContent, /상위 AI 모델로 코칭/);
+  assert.match(pro.textContent, /습관을 기억하는 코칭/);
+  assert.match(pro.textContent, /더 자세한 코칭 노트/);
+  assert.match(pro.textContent, /연습 중 광고 없음/);
 });
 
 test("환불정책은 이용한 날짜만큼 빼는 기준과 30일 예시 금액을 보인다", () => {
@@ -79,4 +85,45 @@ test("Pro 구독하기 바로 아래에 해지·환불 기준을 짧게 알리�
   assert.equal(within(pro).getByRole("link", { name: "Pro 구독하기" }).getAttribute("href"), "/pg-review");
   assert.match(pro.textContent, /이용한 뒤에는 이용한 날짜만큼 빼고 환불해요\./);
   assert.equal(screen.getByRole("link", { name: "해지·환불 정책 전문 →" }).getAttribute("href"), "/refund");
+});
+
+test("요금 안내는 11월 1일 결제 시작, 앱 연 구독, 고품질 목소리 Pro 혜택을 같은 말로 보인다(SOMA-818)", () => {
+  render(h(PricingPage));
+
+  assert.equal(screen.queryByText(/11월 시작을 준비/), null);
+  assert.match(screen.getByRole("complementary", { name: "결제 시작 안내" }).textContent, /2026년 11월 1일부터 결제를 시작해요\./);
+  const pro = screen.getByRole("heading", { name: "Pro" }).closest("section");
+  assert.match(pro.textContent, /연 32,500원\(부가세 포함\) 연 구독/);
+  assert.match(pro.textContent, /리딩 고품질 목소리/);
+  const table = screen.getByRole("table");
+  assert.equal(
+    within(table).getByRole("rowheader", { name: "리딩 고품질 목소리" }).closest("tr").textContent,
+    "리딩 고품질 목소리10월 31일까지 무료포함",
+  );
+  assert.equal(screen.queryByText(/딕션/), null);
+});
+
+test("환불정책은 앱 결제의 스토어 환불, 앱 전용 연 구독, 탈퇴와 스토어 해지가 별개임을 알린다(SOMA-818)", () => {
+  render(h(RefundPage));
+
+  assert.equal(screen.queryByText("판매 시작 전"), null);
+  const app = screen.getByRole("heading", { name: "앱에서 결제한 구독은 스토어 절차를 따라요" }).closest("section");
+  assert.match(app.textContent, /연 구독은 앱에서만 팔고/);
+  assert.match(app.textContent, /회사는 Apple 결제를 직접 환불할 수 없어서/);
+  assert.match(app.textContent, /Google Play가 허용하는 범위에서 회사가 처리해요/);
+  assert.match(app.textContent, /회원을 탈퇴해도 스토어 구독은 해지되지 않아요/);
+  assert.match(screen.getByRole("heading", { name: "자동결제 해지와 즉시 종료는 달라요" }).closest("section").textContent, /결제주기는 결제일부터 1개월\(다음 달 같은 날까지\)이에요\./);
+});
+
+test("요금 안내 푸터와 환불정책 하단은 개인정보 처리방침을 /privacy 로, 이용약관을 /terms 로 보낸다", () => {
+  render(h(PricingPage));
+  const footers = document.querySelectorAll("footer");
+  const footer = footers[footers.length - 1];
+  assert.equal(within(footer).getByRole("link", { name: "개인정보 처리방침" }).getAttribute("href"), "/privacy");
+  assert.equal(within(footer).getByRole("link", { name: "이용약관" }).getAttribute("href"), "/terms");
+  cleanup();
+
+  render(h(RefundPage));
+  assert.equal(screen.getByRole("link", { name: "개인정보 처리방침" }).getAttribute("href"), "/privacy");
+  assert.equal(screen.getByRole("link", { name: "이용약관" }).getAttribute("href"), "/terms");
 });

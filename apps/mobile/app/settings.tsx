@@ -1,15 +1,18 @@
 import Constants from 'expo-constants';
-import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
 import { pt } from '@/components/ui/anchored-menu';
 import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { proVisible, settingsSub, settingsTarget, type BillingMe } from '@/lib/billing';
 import { languagePreference, saveLanguagePreference, translate as t, type LanguagePreference } from '@/lib/i18n';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
@@ -45,6 +48,20 @@ export default function SettingsScreen() {
   useEffect(() => {
     void loadVoiceFeedbackEnabled().then(setVoiceFeedback);
   }, []);
+  // Pro 구독 줄(SOMA-818) — 서버가 결제 기능을 닫아 두었으면(404)·앱 스위치가 꺼져 있고 Pro 도 아니면 숨긴다.
+  const [billing, setBilling] = useState<BillingMe | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      Promise.resolve()
+        .then(() => api.billingMe())
+        .then((me) => alive && setBilling(me))
+        .catch(() => alive && setBilling(null));
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
   const toggleVoiceFeedback = (value: boolean) => {
     setVoiceFeedback(value);
     void saveVoiceFeedbackEnabled(value).catch(() => setVoiceFeedback(!value));
@@ -76,6 +93,22 @@ export default function SettingsScreen() {
       <NavHeader title={t('settings.title')} left={<NavBackButton onPress={() => router.back()} />} />
 
       <ScrollView contentContainerStyle={styles.list}>
+        <AdSlot slot="settings_top" />
+        {billing && proVisible(billing) && (
+          <>
+            <SectionTitle>{t('pro.settingsSection')}</SectionTitle>
+            <View style={styles.group}>
+              <SettingsCard
+                position="single"
+                icon="award"
+                title={t('pro.settingsTitle')}
+                sub={settingsSub(billing)}
+                onPress={() => router.push(settingsTarget(billing))}
+              />
+            </View>
+          </>
+        )}
+
         <SectionTitle>{t('settings.profile')}</SectionTitle>
         <View style={styles.group}>
           <SettingsCard position="first" icon="user" title={t('settings.profileEditTitle')} sub={t('settings.profileEditBody')} onPress={() => router.push('/profile-edit')} />
@@ -169,18 +202,18 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
   },
   logoutText: { fontSize: 16, fontWeight: '800', color: palette.danger },
   deleteRow: { alignItems: 'center', paddingTop: 20, paddingBottom: 14 },
-  deleteText: { fontSize: 14, fontWeight: '600', color: palette.textFaint },
+  deleteText: { fontSize: 14, fontWeight: '600', color: palette.textMeta },
   previewRow: {
     borderWidth: 1,
-    borderColor: palette.borderSoft,
+    borderColor: palette.border,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  previewText: { fontSize: 13.5, fontWeight: '800', color: palette.textFaint },
-  version: { marginTop: 8, textAlign: 'center', fontSize: 13, fontWeight: '500', color: palette.textFaint },
+  previewText: { fontSize: 13.5, fontWeight: '800', color: palette.textMeta },
+  version: { marginTop: 8, textAlign: 'center', fontSize: 13, fontWeight: '500', color: palette.textMeta },
 });

@@ -110,7 +110,7 @@ export function RatingBox<Value extends string>({
             onPress={() => choose(key)}
             accessibilityRole="button"
             accessibilityState={{ selected: rating === key }}>
-            <Feather name={icon} size={15} color={rating === key ? palette.blueDeep : palette.textDim} />
+            <Feather name={icon} size={15} color={rating === key ? palette.blueDeep : palette.textSub} />
             <Text style={[styles.chipText, rating === key && styles.chipTextOn]}>{label}</Text>
           </Pressable>
         ))}
@@ -123,7 +123,7 @@ export function RatingBox<Value extends string>({
             value={draft}
             onChangeText={setDraft}
             placeholder={placeholder}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.textMeta}
             maxLength={commentMax}
             onFocus={onInputFocus}
           />
@@ -151,12 +151,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   chipOn: { backgroundColor: palette.blueSoft },
-  chipText: { fontSize: 15, fontWeight: '700', color: palette.textDim },
+  chipText: { fontSize: 15, fontWeight: '700', color: palette.textSub },
   chipTextOn: { color: palette.blueDeep },
   inputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   input: {
     flex: 1,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 12,

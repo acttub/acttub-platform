@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AdSlot } from '@/components/ad-slot';
 import { palette } from '@/constants/palette';
 import { MASCOT } from '@/components/ui/mascot';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -33,6 +34,8 @@ export function UploadWaitPanel({
           </View>
         )}
       </View>
+      {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 버튼 묶음 바로 위(footer 위 여백 16 + 8 = 24). */}
+      {!failed && <AdSlot slot="upload_wait" style={{ marginHorizontal: 24, marginBottom: 8 }} />}
       <View style={styles.footer}>
         {failed ? (
           <PrimaryButton label={t('upload.waitRetry')} onPress={onRetry} />
@@ -52,10 +55,10 @@ const styles = StyleSheet.create({
   body: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 16, paddingHorizontal: 24 },
   mascot: { width: 84, height: 94 },
   title: { alignSelf: 'stretch', fontSize: 21, fontWeight: '800', lineHeight: 30, color: palette.text, textAlign: 'center' },
-  sub: { alignSelf: 'stretch', fontSize: 15, lineHeight: 22, color: palette.textDim, textAlign: 'center' },
+  sub: { alignSelf: 'stretch', fontSize: 15, lineHeight: 22, color: palette.textSub, textAlign: 'center' },
   track: { width: 240, height: 8, borderRadius: 4, backgroundColor: palette.bgSoft, overflow: 'hidden' },
   fill: { width: '50%', height: 8, borderRadius: 4, backgroundColor: palette.blue },
   footer: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 13, gap: 8 },
   cancel: { height: 52, borderRadius: 14, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  cancelText: { fontSize: 16, fontWeight: '700', lineHeight: 23, color: palette.textStrong },
+  cancelText: { fontSize: 16, fontWeight: '700', lineHeight: 23, color: palette.text },
 });

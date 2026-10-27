@@ -42,6 +42,7 @@ export type ImportStop =
   | { kind: 'no_characters' } // R2.13
   | { kind: 'too_long' } // R2.12
   | { kind: 'script_limit' } // R2.12
+  | { kind: 'free_limit' } // 무료 대본 3개(SOMA-818, pen WLdNc). 서버 무료 한도 플래그가 켜졌을 때만 온다
   | { kind: 'busy' } // R2.12, 서버의 읽기 자리가 없다. 올린 파일은 그대로 두고 [다음]에서 다시 읽는다
   | { kind: 'upload_used' } // 이미 대본이 된 원본. runScriptImport 가 다시 올려 한 번 더 보낸다
   | { kind: 'error'; message: string }; // R2.12 공용
@@ -77,6 +78,7 @@ const STOP_BY_CODE: Record<string, ImportStop> = {
   script_file_unreadable: { kind: 'file_unreadable' },
   script_too_long: { kind: 'too_long' },
   script_limit: { kind: 'script_limit' },
+  free_script_limit: { kind: 'free_limit' },
   script_upload_busy: { kind: 'busy' },
   script_upload_used: { kind: 'upload_used' },
   // 404 의 detail 은 코드 글자라 그대로 보이면 안 된다. 원본이 없어졌으면 파일을 다시 고르게, 작업이 없어졌으면 공용 문구.
@@ -221,6 +223,7 @@ export function importAlert(stop: ImportStop): { title: string; message: string 
     case 'consent':
     case 'duplicate':
     case 'not_script':
+    case 'free_limit':
       return null;
     case 'file_too_large':
       return { title: t('reading.readFail'), message: t('reading.fileTooLarge') };

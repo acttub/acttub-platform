@@ -58,12 +58,12 @@ export function TitleEditDialog({
               value={title}
               onChangeText={setTitle}
               placeholder={t('reading.untitled')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
               autoFocus
             />
             {!!title && (
               <Pressable hitSlop={8} onPress={() => setTitle('')} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="title_edit_clear">
-                <Feather name="x-circle" size={18} color={palette.textFaint} />
+                <Feather name="x-circle" size={18} color={palette.iconFaint} />
               </Pressable>
             )}
           </View>
@@ -89,7 +89,7 @@ export function TitleEditDialog({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
   // pen Dialog/Confirm — 폭 334, 모서리 22, 안쪽 [24,22,18,22]. 저장은 바뀐 게 없으면 막혀야 해서 공통 DialogButtons 대신 같은 수치로 둔다.
-  card: { width: '100%', maxWidth: 334, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18 },
+  card: { width: '100%', maxWidth: 334, backgroundColor: palette.bg, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18 },
   title: { fontSize: 17, fontWeight: '800', color: palette.text, textAlign: 'center' },
   field: {
     flexDirection: 'row',
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   buttons: { flexDirection: 'row', gap: 8, marginTop: 22 },
   button: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', minHeight: 50 },
   cancel: { backgroundColor: palette.bgSoft },
-  cancelText: { fontSize: 15, fontWeight: '700', color: palette.textDim },
+  cancelText: { fontSize: 15, fontWeight: '700', color: palette.textSub },
   save: { backgroundColor: palette.blue },
   saveOff: { opacity: 0.5 },
   saveText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },

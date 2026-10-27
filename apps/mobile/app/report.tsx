@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
 import { NoteSections } from '@/components/note-sections';
 import { ReportRating } from '@/components/report-rating';
@@ -165,6 +166,7 @@ export default function ReportScreen() {
             </View>
           )}
           <ScrollView contentContainerStyle={styles.body}>
+            <AdSlot slot="report_top" style={{ marginBottom: 16 }} />
             <View ref={noteTarget.ref} onLayout={noteTarget.onLayout} style={styles.noteBlock}>
             <View style={styles.heading}>
               <Text style={styles.title}>{title}</Text>
@@ -194,8 +196,8 @@ export default function ReportScreen() {
           {/* 저장하고 마치기·다음 테이크는 노트 길이와 상관없이 화면 아래에 붙여 둔다(pen OL9mWG, SOMA-770 피드백 14). */}
           {!sample && (
             <CtaBar safeBottom={false}>
-              <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
               <SecondaryButton label={t('history.nextTake')} onPress={nextTake} />
+              <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
             </CtaBar>
           )}
         </>
@@ -208,7 +210,7 @@ export default function ReportScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 28 },
-  loadingText: { fontSize: 14, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
+  loadingText: { fontSize: 14, fontWeight: '600', color: palette.textMeta, textAlign: 'center' },
   errorText: { fontSize: 14, fontWeight: '700', color: palette.danger, textAlign: 'center' },
 
   statusRow: {
@@ -232,12 +234,10 @@ const styles = StyleSheet.create({
   sampleDone: {
     gap: 8,
     borderRadius: 20,
-    backgroundColor: palette.blueMist,
-    borderWidth: 1,
-    borderColor: palette.blueLine,
+    backgroundColor: palette.blueSoft,
     padding: 18,
   },
   sampleDoneTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  sampleDoneBody: { fontSize: 14, color: palette.textDim, lineHeight: 21, marginBottom: 6 },
+  sampleDoneBody: { fontSize: 14, color: palette.textSub, lineHeight: 21, marginBottom: 6 },
   stretch: { alignSelf: 'stretch' },
 });

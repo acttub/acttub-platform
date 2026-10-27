@@ -39,6 +39,7 @@ public class PracticeService {
     private final PracticePosters posters;
     private final boolean threeLayersEnabled;
     private final boolean guestDailyAnalysisLimitEnabled;
+    private final CoachingPlan plan;
     private final Clock clock;
 
     public PracticeService(
@@ -48,6 +49,18 @@ public class PracticeService {
             boolean threeLayersEnabled,
             boolean guestDailyAnalysisLimitEnabled,
             Clock clock) {
+        this(practices, legacy, posters, threeLayersEnabled, guestDailyAnalysisLimitEnabled, CoachingPlan.UNLIMITED, clock);
+    }
+
+    public PracticeService(
+            PracticeRepository practices,
+            LegacyPracticeReader legacy,
+            PracticePosters posters,
+            boolean threeLayersEnabled,
+            boolean guestDailyAnalysisLimitEnabled,
+            CoachingPlan plan,
+            Clock clock) {
+        this.plan = plan;
         this.practices = practices;
         this.legacy = legacy;
         this.posters = posters;
@@ -70,12 +83,14 @@ public class PracticeService {
             // 영상 없이 말로 하는 코칭(SOMA-745): 분석할 영상이 없어 분석 작업 없이 바로 대화 단계로 연다. 분석 한도도 쓰지 않는다.
             // 말로 하는 코치는 새 코치(three_layers_v1)에만 있다 — 계약 헤더와 상관없이 새 코치로 연다.
             // 가릴 영상이 없어 얼굴 가리기는 무시한다.
-            return answer(practices.startWithoutVideo(userId, newPractice(withFaceMosaic(draft, null), contractHeader, true),
-                    clock.instant()));
+            Quota free = freeQuota(userId);
+            return answer(practices.startWithoutVideo(userId, newPractice(withFaceMosaic(draft, null), contractHeader, true), free,
+                    clock.instant()), free);
         }
         // 얼굴 가리기는 켰을 때만 남긴다 — 끈 것과 뺀 것은 같고, 지문도 이 변경 전과 같다.
+        Quota quota = coachingQuota(userId, guest);
         return answer(practices.start(userId, newPractice(withFaceMosaic(draft, Boolean.TRUE.equals(draft.faceMosaic()) ? true : null),
-                contractHeader), quota(guest), clock.instant()));
+                contractHeader), quota, clock.instant()), quota);
     }
 
     /**
@@ -84,8 +99,9 @@ public class PracticeService {
      */
     public PracticeView continueGroup(UUID userId, boolean guest, String contractHeader, UUID from, Draft draft) {
         // 이어하기는 늘 영상으로 한다. 영상 없는 묶음을 이으려면 새 영상을 보낸다(없으면 422 video_not_ready).
+        Quota quota = coachingQuota(userId, guest);
         return answer(practices.continueGroup(
-                userId, from, draft.videoId(), newPractice(draft, contractHeader), quota(guest), clock.instant()));
+                userId, from, draft.videoId(), newPractice(draft, contractHeader), quota, clock.instant()), quota);
     }
 
     /**
@@ -245,6 +261,23 @@ public class PracticeService {
                 draft.faceMosaic());
     }
 
+    /**
+     * 새 회차의 하루 한도. 무료 코칭 한도(SOMA-818)가 걸리는 사람은 그것만 본다(하루 3회차). 게스트의 분석 한도는 그때 보지 않는다.
+     * 그 밖에는 게스트의 분석 한도다.
+     */
+    private Quota coachingQuota(UUID userId, boolean guest) {
+        Quota free = freeQuota(userId);
+        return free != null ? free : quota(guest);
+    }
+
+    private Quota freeQuota(UUID userId) {
+        if (!plan.freeLimited(userId)) {
+            return null;
+        }
+        Instant midnight = LocalDate.now(clock.withZone(SEOUL)).atStartOfDay(SEOUL).toInstant();
+        return new Quota(PracticeRules.FREE_DAILY_COACHING_SESSIONS, midnight, Quota.Kind.SESSIONS);
+    }
+
     /** 게스트만 하루 한도가 있다. 하루는 한국 시간 자정에 끊는다. */
     private Quota quota(boolean guest) {
         if (!guest || !guestDailyAnalysisLimitEnabled) {
@@ -267,11 +300,17 @@ public class PracticeService {
     }
 
     private PracticeView answer(Started started) {
+        return answer(started, null);
+    }
+
+    private PracticeView answer(Started started, Quota quota) {
         return switch (started.outcome()) {
             case CREATED, REPLAYED -> poster(started.practice());
             case VIDEO_NOT_READY -> throw new ApiException(422, "video_not_ready");
             case IN_PROGRESS -> throw new ApiException(409, "practice_in_progress");
-            case QUOTA -> throw new ApiException(429, "guest_daily_analysis_limit");
+            case QUOTA -> throw quota != null && quota.kind() == Quota.Kind.SESSIONS
+                    ? new ApiException(429, "free_daily_coaching_limit")
+                    : new ApiException(429, "guest_daily_analysis_limit");
             case FINGERPRINT_MISMATCH -> throw new ApiException(422, "request_fingerprint_mismatch");
             case NOT_FAILED -> throw new ApiException(409, "analysis_not_failed");
             case NOT_FOUND -> throw notFound();

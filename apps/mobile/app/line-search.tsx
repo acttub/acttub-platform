@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -68,11 +69,11 @@ export default function LineSearchScreen() {
       </View>
 
       <View style={styles.searchBox}>
-        <Feather name="search" size={16} color={palette.textFaint} />
+        <Feather name="search" size={16} color={palette.iconFaint} />
         <TextInput
           style={styles.input}
           placeholder={t('lineSearch.placeholder')}
-          placeholderTextColor={palette.textFaint}
+          placeholderTextColor={palette.textMeta}
           value={query}
           onChangeText={setQuery}
           autoFocus
@@ -81,12 +82,13 @@ export default function LineSearchScreen() {
         />
         {!!query && (
           <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.delete')} ph-label="line_search_clear">
-            <Feather name="x" size={16} color={palette.textFaint} />
+            <Feather name="x" size={16} color={palette.iconFaint} />
           </Pressable>
         )}
       </View>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <AdSlot slot="line_search_top" style={{ marginBottom: 12 }} />
         {!searchable(query) && <Text style={styles.hint}>{t('lineSearch.minLength', { count: SEARCH_MIN_LENGTH })}</Text>}
         {loading && !results?.length && <SkeletonRows count={4} avatar={false} card={false} style={{ paddingHorizontal: 0 }} />}
         {error && <Text style={styles.error}>{error}</Text>}
@@ -108,7 +110,7 @@ export default function LineSearchScreen() {
                 {participantsLabel(challenge.participants, challenge.more_count)}
               </Text>
             </View>
-            <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            <Feather name="chevron-right" size={18} color={palette.iconFaint} />
           </Pressable>
         ))}
 
@@ -143,7 +145,7 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, fontSize: 15, color: palette.text },
   body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60, gap: 4 },
-  hint: { fontSize: 13, color: palette.textFaint, paddingVertical: 12 },
+  hint: { fontSize: 13, color: palette.textMeta, paddingVertical: 12 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', paddingVertical: 12 },
   row: {
     flexDirection: 'row',
@@ -151,13 +153,13 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
+    borderBottomColor: palette.border,
   },
   rowBody: { flex: 1, gap: 4 },
   rowLine: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 23 },
-  rowMeta: { fontSize: 12, color: palette.textFaint },
+  rowMeta: { fontSize: 12, color: palette.textMeta },
   empty: { alignItems: 'center', gap: 14, paddingVertical: 40 },
-  emptyText: { fontSize: 14.5, color: palette.textDim },
+  emptyText: { fontSize: 14.5, color: palette.textSub },
   registerBtn: {
     flexDirection: 'row',
     alignItems: 'center',

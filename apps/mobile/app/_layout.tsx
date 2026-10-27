@@ -20,7 +20,9 @@ import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from
 import 'react-native-reanimated';
 
 import '@/lib/global-font';
+import { useStoreRecovery } from '@/hooks/use-store-recovery';
 import { logScreenView } from '@/lib/analytics';
+import { initAdMob } from '@/lib/ads-native';
 import { initMetaSdk } from '@/lib/meta-events';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
@@ -129,6 +131,8 @@ function RootNavigator() {
   // 다시 읽는 중(checking)에는 그대로 둔다 — 팝업 안에서 다시 읽는 동안 스피너로 남고,
   // 앱을 처음 켤 때의 판정 대기에는 열리지 않는다.
   const reconsentEligible = status === 'signedIn' && !updateRequired && !signupPending;
+  // 결제는 됐는데 Pro 가 안 켜진 스토어 구매를 앱을 켜거나 앞으로 가져올 때 다시 확인받는다(SOMA-818 2단계).
+  useStoreRecovery(reconsentEligible && consentEntry.status === 'allowed');
   const [reconsentOpen, setReconsentOpen] = useState(false);
   useEffect(() => {
     if (!reconsentEligible || consentEntry.status === 'allowed') setReconsentOpen(false);
@@ -400,10 +404,10 @@ function RootNavigator() {
                 // 뒤로 가기를 붙잡았다 다시 보내는 화면(예시 코치)이 닫힐 때 네이티브 헤더가 그 버튼을 두 번 붙이려다
                 // 앱이 꺼졌다(SOMA-665). 0.1.3 처럼 헤더에 우리 조각을 넣지 않으면 그 길을 타지 않는다.
                 headerBackIcon: { type: 'image', source: require('@/assets/images/header-back.png') },
-                // pen NavHeader(SOMA-748) — 가운데 제목 17/700, 아래 줄 없음. iOS 의 AppHeader 와 모양을 맞춘다.
+                // 디자인 시스템 NavHeader — 가운데 제목 headline(17/600), 아래 줄 없음. iOS 의 AppHeader 와 모양을 맞춘다.
                 headerTitleAlign: 'center',
                 headerShadowVisible: false,
-                headerTitleStyle: { fontSize: 17, fontWeight: '700', color: palette.text },
+                headerTitleStyle: { fontSize: 17, fontWeight: '600', color: palette.text },
               }
         }>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
@@ -435,6 +439,7 @@ function RootNavigator() {
             한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
         <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
         <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="ad/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="auditions/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
         <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
@@ -456,6 +461,10 @@ function RootNavigator() {
         <Stack.Screen name="reading/pronunciation" options={{ title: t('reading.pronReportRow') }} />
         {/* 자체 헤더(← 설정 · 제목)를 그린다 — 기본 헤더를 겹치면 라우트 이름 "memory"가 제목으로 나온다. */}
         <Stack.Screen name="memory" options={{ headerShown: false }} />
+        {/* 앱 Pro 정기결제(SOMA-818). 서버 플래그가 꺼져 있으면 진입점(설정 줄·한도 시트)이 없어 열리지 않는다. */}
+        <Stack.Screen name="pro" options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="pro-done" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="pro-manage" options={{ headerShown: false }} />
       </Stack>
       <ReconsentPopup visible={reconsentOpen} />
       {/* 가입 동의·재동의의 광고성 정보 처리 결과(S5.13)를 다음 화면 위에 띄운다. */}
@@ -498,14 +507,18 @@ export default function RootLayout() {
   // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.
   useEffect(() => {
     if (!fontsLoaded) return;
-    const initialize = () => initMetaSdk(() => beforeTrackingRequest({
-      platform: Platform.OS,
-      getStatus: async () => (await getTrackingPermissionsAsync()).status,
-      getSeen: () => AsyncStorage.getItem(TRACKING_INTRO_KEY),
-      markSeen: () => AsyncStorage.setItem(TRACKING_INTRO_KEY, '1'),
-      // pen S1.2 — 설명 화면 없이 로그인 화면 위에 바로 iOS 시스템 팝업만 띄운다.
-      show: async () => undefined,
-    }));
+    // AdMob(SOMA-876)은 ATT 답을 받은 뒤 초기화한다 — 같은 팝업을 다시 묻지 않는다.
+    const initialize = async () => {
+      await initMetaSdk(() => beforeTrackingRequest({
+        platform: Platform.OS,
+        getStatus: async () => (await getTrackingPermissionsAsync()).status,
+        getSeen: () => AsyncStorage.getItem(TRACKING_INTRO_KEY),
+        markSeen: () => AsyncStorage.setItem(TRACKING_INTRO_KEY, '1'),
+        // pen S1.2 — 설명 화면 없이 로그인 화면 위에 바로 iOS 시스템 팝업만 띄운다.
+        show: async () => undefined,
+      }));
+      await initAdMob();
+    };
     // 설치 귀속 결과는 SDK 초기화 뒤 곧 온다. 받는 쪽은 먼저 세워 둔다(SOMA-588).
     startSignupAttributionListener();
     if (AppState.currentState === 'active') {

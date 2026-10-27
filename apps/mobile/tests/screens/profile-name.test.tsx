@@ -111,7 +111,7 @@ async function answerToDirections() {
 async function startWithoutDiscovery() {
   (readAttributedChannel as jest.Mock).mockResolvedValue('facebook');
   await start();
-  await waitFor(() => expect(screen.getByText('1/6')).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByText('1 / 6')).toBeOnTheScreen());
 }
 
 const PAYLOAD = {
@@ -132,7 +132,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     // 닉네임 — 로그인 제공자가 준 이름으로 시작한다. 글자를 다 적었는지는 알 수 없으니 「다음」만 둔다.
     expect(await screen.findByDisplayValue('민지')).toBeOnTheScreen();
     expect(screen.getByText('뭐라고 불러 드릴까요?')).toBeOnTheScreen();
-    expect(screen.getByText('1/7')).toBeOnTheScreen();
+    expect(screen.getByText('1 / 7')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByDisplayValue('민지'), '  ');
     expect(next()).toBeDisabled();
     await fireEvent.changeText(screen.getByLabelText('닉네임'), '민지');
@@ -140,7 +140,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
 
     // 생년월일 — 연·월·일 돌림판. 돌려도 「다음」을 눌러야 넘어간다.
     expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
-    expect(screen.getByText('2/7')).toBeOnTheScreen();
+    expect(screen.getByText('2 / 7')).toBeOnTheScreen();
     await setBirth(2004, 3, 14);
     expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
     await fireEvent.press(next());
@@ -154,7 +154,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await fireEvent.press(radio('여성'));
 
     expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
-    expect(screen.getByText('4/7')).toBeOnTheScreen();
+    expect(screen.getByText('4 / 7')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
     await fireEvent.press(radio('전문 배우'));
 
@@ -194,7 +194,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await fireEvent.press(next());
 
     expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
-    expect(screen.getByText('7/7')).toBeOnTheScreen();
+    expect(screen.getByText('7 / 7')).toBeOnTheScreen();
     await fireEvent.press(radio('기타'));
     expect(saveProfile).not.toHaveBeenCalled();
     expect(done()).toBeDisabled();

@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.bg },
   body: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 },
   title: { fontSize: 24, fontWeight: '800', lineHeight: 32, color: palette.text },
-  sub: { fontSize: 15, fontWeight: '500', lineHeight: 22, color: palette.textFaint, marginTop: 8 },
+  sub: { fontSize: 15, fontWeight: '500', lineHeight: 22, color: palette.textMeta, marginTop: 8 },
   choices: { gap: 8, marginTop: 24 },
   bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10 },
 });

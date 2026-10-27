@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { ReportRating } from '@/components/report-rating';
@@ -105,13 +106,15 @@ export default function CoachingDoneScreen() {
           </View>
         )}
       </KeyboardAwareScroll>
+      {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 버튼 묶음 바로 위(CtaBar 위 여백 12 + 12 = 24). */}
+      <AdSlot slot="coaching_done" style={{ marginHorizontal: 24, marginBottom: 12 }} />
       <CtaBar safeBottom={false}>
         {/* pen P16.1·P16.2 — 아래 버튼은 「확인」, 누르면 홈. */}
-        <PrimaryButton label={t('note.doneConfirm')} onPress={() => router.dismissTo('/(tabs)')} />
         <Pressable style={styles.share} onPress={share} accessibilityRole="button" ph-label="coaching_done_share">
           <Feather name="share-2" size={16} color={palette.blueDeep} />
           <Text style={styles.shareText}>{t('journal.endShare')}</Text>
         </Pressable>
+        <PrimaryButton label={t('note.doneConfirm')} onPress={() => router.dismissTo('/(tabs)')} />
       </CtaBar>
       </KeyboardLift>
     </SafeAreaView>
@@ -127,7 +130,7 @@ const styles = StyleSheet.create({
   mascot: { width: 52, height: 58 },
   title: { flex: 1, fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text },
   nextCard: { gap: 6, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: palette.bgSoft },
-  nextLabel: { fontSize: 12, fontWeight: '800', color: palette.textMuted },
+  nextLabel: { fontSize: 12, fontWeight: '800', color: palette.textMeta },
   nextText: { fontSize: 16, fontWeight: '800', lineHeight: 23, color: palette.text },
   reminder: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: palette.blueSoft },
   reminderText: { flex: 1, fontSize: 14, fontWeight: '700', color: palette.blueDeep },

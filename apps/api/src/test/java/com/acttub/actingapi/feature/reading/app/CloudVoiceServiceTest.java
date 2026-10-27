@@ -125,6 +125,40 @@ class CloudVoiceServiceTest {
     }
 
     @Test
+    void afterFreePeriodOnlyProCanUseAndStatusHidesFreeDate() {
+        repository.consent = "granted";
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        CloudVoiceService free = new CloudVoiceService(repository, storage, synthesizer, ended,
+                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false);
+        assertThat(free.status(USER).available()).isFalse();
+        assertThat(free.status(USER).freeUntil()).isNull();
+        assertDetail(free, 503, "cloud_voice_unavailable");
+
+        CloudVoiceService pro = new CloudVoiceService(repository, storage, synthesizer, ended,
+                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true);
+        assertThat(pro.status(USER).available()).isTrue();
+        assertThat(pro.status(USER).freeUntil()).isNull();
+        assertThat(pro.synthesize(USER, "안녕하세요.", "F1")).isNotNull();
+    }
+
+    @Test
+    void duringFreePeriodEveryoneCanUseAndStatusShowsFreeDate() {
+        CloudVoiceService target = new CloudVoiceService(repository, storage, synthesizer, settings(),
+                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false);
+        assertThat(target.status(USER).available()).isTrue();
+        assertThat(target.status(USER).freeUntil()).isEqualTo(OffsetDateTime.parse("2026-11-30T23:59:59+09:00"));
+    }
+
+    @Test
+    void proStillRespectsMonthlyCap() {
+        repository.monthly = 75_000;
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        CloudVoiceService pro = new CloudVoiceService(repository, storage, synthesizer, ended,
+                Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true);
+        assertThat(pro.status(USER).available()).isFalse();
+    }
+
+    @Test
     void mapsEveryPreset() {
         assertThat(CloudVoiceService.VOICES).containsExactlyEntriesOf(Map.of(
                 "M1", "Charon", "M2", "Puck", "M3", "Orus", "M4", "Fenrir", "M5", "Enceladus",

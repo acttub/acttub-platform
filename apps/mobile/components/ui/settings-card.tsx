@@ -10,7 +10,7 @@ type FeatherName = React.ComponentProps<typeof Feather>['name'];
 export type SettingsCardPosition = 'single' | 'first' | 'middle' | 'last';
 
 /**
- * pen 「설정 카드」(S2/SetCard) — 흰 바탕 · 1px #CBD1D8 테두리 · 안쪽 16 · 칸 사이 14.
+ * pen 「설정 카드」(S2/SetCard) — 흰 바탕 · 1px `border` 테두리 · 안쪽 16 · 칸 사이 14.
  * 왼쪽 파란 아이콘(18, 44 칸) · 제목 15.5/800 · 4 띄워 설명 12.5/400 #8B95A1 · 꺾쇠 18.
  * 묶음 안 카드는 사이 6, 모서리는 첫 줄 위 18 · 끝 줄 아래 18 · 나머지 6.
  * `right`를 주면 꺾쇠 대신 그것(스위치 등)을 둔다.
@@ -41,7 +41,7 @@ export function SettingsCard({
         <Text style={styles.title}>{title}</Text>
         {!!sub && <Text style={styles.sub}>{sub}</Text>}
       </View>
-      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.checkOff} /> : null)}
+      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.iconFaint} /> : null)}
     </>
   );
   const shape = radiusFor(position);
@@ -73,12 +73,12 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: palette.borderStrong,
-    backgroundColor: palette.card,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
   },
   pressed: { backgroundColor: palette.bgSubtle },
   iconCell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, minWidth: 0, gap: 4 },
   title: { fontSize: 15.5, fontWeight: '800', lineHeight: 21, color: palette.text },
-  sub: { fontSize: 12.5, fontWeight: '400', lineHeight: 18, color: palette.textFaint },
+  sub: { fontSize: 12.5, fontWeight: '400', lineHeight: 18, color: palette.textMeta },
 });

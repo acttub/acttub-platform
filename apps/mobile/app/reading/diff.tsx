@@ -149,21 +149,21 @@ export default function ReadingDiff() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  emptyText: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24, textAlign: 'center' },
-  dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
+  emptyText: { color: palette.textSub, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24, textAlign: 'center' },
+  dim: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 15 },
   content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 14 },
   count: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 13 },
   // 지문 — 리딩 화면(R9.10)처럼 왼쪽 회색.
-  direction: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
+  direction: { color: palette.textDisabled, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
   // 그냥 지나간 줄 — 작은 회색 배역 + 회색 대사(pen 「지난 줄」).
   row: { gap: 3, paddingHorizontal: 4 },
   // 다르게 말한 줄 — 회색 카드 · 파란 테두리 1.5 · 모서리 16 · 안쪽 [16,18].
   rowDifferent: { gap: 8, backgroundColor: palette.bgSoft, borderRadius: 16, borderWidth: 1.5, borderColor: palette.blue, paddingVertical: 16, paddingHorizontal: 18 },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  role: { color: palette.textFaint, fontFamily: 'Pretendard-Bold', fontSize: 12.5 },
+  role: { color: palette.textMeta, fontFamily: 'Pretendard-Bold', fontSize: 12.5 },
   roleMine: { color: palette.blueDeep },
-  roleCard: { color: palette.textStrong, fontFamily: 'Pretendard-Bold', fontSize: 13 },
-  text: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 15, lineHeight: 22 },
+  roleCard: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 13 },
+  text: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 15, lineHeight: 22 },
   textCard: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 19, lineHeight: 27 },
   // 「▷ 내 녹음」 알약.
   playBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blueSoft, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 10 },

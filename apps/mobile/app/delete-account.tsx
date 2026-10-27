@@ -1,12 +1,15 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { DangerButton, SecondaryButton } from '@/components/ui/buttons';
+import { Checkbox } from '@/components/ui/checkbox';
+import { openStoreSubscriptions } from '@/hooks/use-store-purchase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { storeSubscribed } from '@/lib/billing';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
@@ -24,6 +27,9 @@ import { translate as t } from '@/lib/i18n';
  *
  * 실수 탈퇴는 두 번 확인으로 막는다 — "연습·노트는 돌아오지 않아요" 확인 줄을 눌러야 버튼이
  * 켜지고, 누르면 확인 창이 한 번 더 묻는다. 복구 요청은 받지 않는다.
+ *
+ * App Store·Google Play 에서 산 구독은 탈퇴해도 해지되지 않는다(스토어와 이용자 사이의 거래라 우리가 끌 수 없다, SOMA-818).
+ * 그래서 누구에게나 그 사실을 적고, 지금 스토어 구독이 돌고 있는 사람에게는 스토어 구독 관리 링크를 화면 안에 함께 보인다.
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
@@ -31,6 +37,21 @@ export default function DeleteAccountScreen() {
   const { confirm, alert, dialog } = useAppDialog();
   const [working, setWorking] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [storeActive, setStoreActive] = useState(false);
+
+  // 결제가 닫힌 서버·게스트·네트워크 오류면 링크만 숨긴다 — 안내 문구는 그대로 보인다.
+  useEffect(() => {
+    let live = true;
+    api
+      .billingMe()
+      .then((me) => {
+        if (live) setStoreActive(storeSubscribed(me));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const run = async () => {
     const ok = await confirm({
@@ -78,6 +99,18 @@ export default function DeleteAccountScreen() {
           <Bullet>{t('deleteAccount.keptComment')}</Bullet>
         </Section>
 
+        <Section label={t('deleteAccount.secStore')}>
+          <Bullet>{t('deleteAccount.storeNote')}</Bullet>
+          {storeActive && (
+            <Pressable
+              onPress={() => void openStoreSubscriptions().catch(() => undefined)}
+              accessibilityRole="link"
+              hitSlop={8}>
+              <Text style={styles.storeLink}>{t('pro.manageStore')}</Text>
+            </Pressable>
+          )}
+        </Section>
+
         <Section label={t('deleteAccount.secRestart')}>
           <Bullet>{t('deleteAccount.restartBody')}</Bullet>
         </Section>
@@ -88,11 +121,7 @@ export default function DeleteAccountScreen() {
           disabled={working}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: acknowledged, disabled: working }}>
-          <Feather
-            name="check-circle"
-            size={20}
-            color={acknowledged ? palette.danger : palette.checkOff}
-          />
+          <Checkbox checked={acknowledged} danger />
           <Text style={[styles.ackText, acknowledged && styles.ackTextOn]}>
             {t('deleteAccount.acknowledge')}
           </Text>
@@ -135,25 +164,26 @@ const styles = StyleSheet.create({
   // pen S17.1 — 좌우 20, 위 20. 제목 21/900, 이메일 13.5/600, 묶음마다 위 24 + 윗선 · 안쪽 16.
   body: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 4 },
   title: { fontSize: 21, fontWeight: '900', color: palette.text, lineHeight: 31 },
-  account: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint, marginTop: 6 },
+  account: { fontSize: 13.5, fontWeight: '600', color: palette.textMeta, marginTop: 6 },
 
   section: {
     marginTop: 24,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: palette.borderSoft,
+    borderTopColor: palette.border,
     gap: 8,
   },
-  sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textFaint },
+  sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textMeta },
   bullet: { flexDirection: 'row', gap: 8 },
-  dot: { fontSize: 14, fontWeight: '900', color: palette.checkOff, lineHeight: 23 },
+  dot: { fontSize: 14, fontWeight: '900', color: palette.textDisabled, lineHeight: 23 },
   bulletText: {
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-    color: palette.textDim,
+    color: palette.textSub,
     lineHeight: 23,
   },
+  storeLink: { fontSize: 14, fontWeight: '700', color: palette.blue, paddingVertical: 4 },
 
   ack: {
     marginTop: 28,
@@ -166,7 +196,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   ackOn: { backgroundColor: palette.dangerSoft },
-  ackText: { flex: 1, fontSize: 14.5, fontWeight: '800', color: palette.textDim },
+  ackText: { flex: 1, fontSize: 14.5, fontWeight: '800', color: palette.textSub },
   ackTextOn: { color: palette.text },
 
   danger: { marginTop: 12 },

@@ -345,7 +345,11 @@ describe('처음 온 사람', () => {
     </>
   );
 
+  // 「대본을 넣어 보세요」는 올린 대본이 없는 계정에만 뜬다(10/26) — 아래 둘은 빈 목록에서 본다.
+  const noScripts = () => (listScripts as jest.Mock).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
+
   test('예전 「리딩 한 바퀴」 시트는 띄우지 않고 본 것으로 적은 뒤 새 대본 안내를 띄운다(SOMA-748)', async () => {
+    noScripts();
     (hasSeenReadingTutorial as jest.Mock).mockResolvedValue(false);
     (hasSeenSpotlight as jest.Mock).mockResolvedValue(false);
     await render(withHost);
@@ -357,12 +361,22 @@ describe('처음 온 사람', () => {
   });
 
   test('튜토리얼을 본 사람에게는 새 대본 안내만 한 번 띄우고, 닫으면 본 것으로 적는다', async () => {
+    noScripts();
     (hasSeenSpotlight as jest.Mock).mockResolvedValue(false);
     await render(withHost);
 
     expect(await screen.findByText('대본을 넣어 보세요')).toBeOnTheScreen();
     expect(screen.queryByText('대본 리딩 한 바퀴 해볼까요?')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByText('알겠어요'));
+    await waitFor(() => expect(markSpotlightSeen).toHaveBeenCalledWith('reading'));
+    expect(screen.queryByText('대본을 넣어 보세요')).not.toBeOnTheScreen();
+  });
+
+  test('대본을 이미 올린 계정(앱을 다시 깐 기존 사용자)에게는 「대본을 넣어 보세요」를 띄우지 않고 본 것으로 적는다(10/26)', async () => {
+    (hasSeenSpotlight as jest.Mock).mockResolvedValue(false);
+    await render(withHost);
+
+    expect(await screen.findByText('옥상 장면')).toBeOnTheScreen();
     await waitFor(() => expect(markSpotlightSeen).toHaveBeenCalledWith('reading'));
     expect(screen.queryByText('대본을 넣어 보세요')).not.toBeOnTheScreen();
   });

@@ -15,7 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
+import { CoachingLimitSheet } from '@/components/pro-ui';
 import { pt, type MenuAnchor } from '@/components/ui/anchored-menu';
+import { Checkbox } from '@/components/ui/checkbox';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
 import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';
@@ -159,7 +161,9 @@ export default function UploadScreen() {
   const [uploadOptions, setUploadOptions] = useState<UploadOptions | null>(null);
   // 망설임 페이지를 닫으면 연 곳으로 돌아간다 — 뒤로 가기로 열었으면 목적 단계, 영상 단계 링크로 열었으면 영상 단계.
   const reasonBackRef = useRef<UploadStep>('purpose');
-  const showReason = () => { reasonBackRef.current = 'purpose'; setReasonSheet(true); };
+  // 뒤로 가기로 여는 망설임 페이지는 이 화면에서 한 번만 연다 — 매번 끼어들면 나가려는 사람이 뒤로를 세 번 눌러야 했다(10/26).
+  const reasonAskedOnBack = useRef(false);
+  const showReason = () => { reasonAskedOnBack.current = true; reasonBackRef.current = 'purpose'; setReasonSheet(true); };
   const showReasonFromLink = () => { reasonBackRef.current = 'source'; setReasonSheet(true); };
   const closeReason = () => { setReasonSheet(false); setStep(reasonBackRef.current); };
   const reasonRoute = (go: () => void) => {
@@ -183,7 +187,7 @@ export default function UploadScreen() {
       return;
     }
     const back = previousUploadStep(step);
-    if (back && !sample && !picked) showReason();
+    if (back && !sample && !picked && !reasonAskedOnBack.current) showReason();
     else if (back) setStep(back);
   });
   const leaveThen = (go: () => void) => {
@@ -199,6 +203,8 @@ export default function UploadScreen() {
   const tutorialGuide = useTutorialSpotlight('upload');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 무료 코칭 하루 3회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.
+  const [freeLimit, setFreeLimit] = useState(false);
   const attemptRef = useRef<RequestAttempt | null>(null);
   const startLockRef = useRef(false);
 
@@ -453,6 +459,10 @@ export default function UploadScreen() {
         setError(t('start.inProgressBody'));
         return;
       }
+      if (failure.kind === 'free_limit') {
+        setFreeLimit(true);
+        return;
+      }
       if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
       setError(
         failure.kind === 'video_not_ready'
@@ -690,9 +700,7 @@ export default function UploadScreen() {
               disabled={locked}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: agreedRights, disabled: locked }}>
-              <View style={[styles.check, agreedRights && styles.checkOn]}>
-                {agreedRights && <Text style={styles.checkMark}>✓</Text>}
-              </View>
+              <Checkbox checked={agreedRights} />
               <Text style={styles.rightsText}>{t('upload.rights')}</Text>
             </Pressable>
             <Pressable
@@ -740,6 +748,7 @@ export default function UploadScreen() {
       )}
       {dialog}
       {tutorialGuide.element}
+      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
     </SafeAreaView>
   );
 }
@@ -766,7 +775,7 @@ const styles = StyleSheet.create({
   pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   repick: { height: 28, borderRadius: 14, paddingHorizontal: 11, justifyContent: 'center', backgroundColor: palette.blueSoft },
   repickText: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
-  pickedMeta: { flex: 1, fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
+  pickedMeta: { flex: 1, fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textMeta },
   errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
 
   sendingBar: {
@@ -779,18 +788,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
-  // pen 03 「Rights」 — 네모 22(모서리 6), 10 띄워 글 15/700 #333D4B(줄 21).
+  // pen 03 「Rights」 — 네모 22(모서리 6), 10 띄워 글 15/700 `text`(줄 21).
   rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  checkMark: { color: palette.bg, fontSize: 13, fontWeight: '900' },
-  rightsText: { flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.textStrong },
+  rightsText: { flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.text },
 
   // pen 버튼/Primary — 높이 48 · 모서리 16 · 글자 17/700. 막혀 있으면 Disabled(#E5E8EB · #B0B8C1). 준비 전에도 눌러서
   // 무엇에 막혔는지 세야 해서(SOMA-698) 공통 Button(막히면 안 눌림) 대신 같은 모양을 직접 그린다.
   submit: { height: 52, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   submitDisabled: { backgroundColor: palette.border },
   submitText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
-  submitTextDisabled: { color: palette.checkOff },
-  submitHint: { fontSize: 14, fontWeight: '500', color: palette.textFaint, lineHeight: 18, textAlign: 'center', marginTop: 9 },
+  submitTextDisabled: { color: palette.textDisabled },
+  submitHint: { fontSize: 14, fontWeight: '500', color: palette.textMeta, lineHeight: 18, textAlign: 'center', marginTop: 9 },
 });

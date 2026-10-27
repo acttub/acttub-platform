@@ -19,13 +19,13 @@ export function ScriptCocreateEntry({ style }: { style?: StyleProp<ViewStyle> })
       ph-label="coaching_script_cocreate"
       style={({ pressed }) => [styles.row, style, pressed && styles.pressed]}>
       <View style={styles.icon}>
-        <Feather name="edit-3" size={18} color={palette.textMuted} />
+        <Feather name="edit-3" size={18} color={palette.textMeta} />
       </View>
       <View style={styles.text}>
         <Text style={styles.title}>{t('scriptCocreate.entryTitle')}</Text>
         <Text style={styles.sub}>{t('scriptCocreate.entrySub')}</Text>
       </View>
-      <Feather name="chevron-right" size={18} color={palette.checkOff} />
+      <Feather name="chevron-right" size={18} color={palette.iconFaint} />
     </Pressable>
   );
 }
@@ -46,5 +46,5 @@ const styles = StyleSheet.create({
   icon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bgSoft },
   text: { flex: 1, minWidth: 0, gap: 2 },
   title: { fontSize: 15, fontWeight: '800', color: palette.text },
-  sub: { fontSize: 12, fontWeight: '500', color: palette.textMuted },
+  sub: { fontSize: 12, fontWeight: '500', color: palette.textMeta },
 });

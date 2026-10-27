@@ -40,16 +40,22 @@ public final class CloudVoiceService {
     private final VoiceSynthesizer synthesizer;
     private final CloudVoiceSettings settings;
     private final Clock clock;
+    private final VoicePlan plan;
 
     public CloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
             VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock) {
+        this(repository, storage, synthesizer, settings, clock, VoicePlan.NONE);
+    }
+
+    public CloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
+            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock, VoicePlan plan) {
         this.repository = repository; this.storage = storage; this.synthesizer = synthesizer;
-        this.settings = settings; this.clock = clock;
+        this.settings = settings; this.clock = clock; this.plan = plan == null ? VoicePlan.NONE : plan;
     }
 
     public Status status(UUID userId) {
         LocalDate today = LocalDate.now(clock.withZone(SEOUL));
-        return new Status(available(), settings.freeUntil(), repository.consent(userId),
+        return new Status(available(userId), inFreePeriod() ? settings.freeUntil() : null, repository.consent(userId),
                 settings.dailyLineCap(), repository.dailyUsage(userId, today));
     }
 
@@ -57,7 +63,7 @@ public final class CloudVoiceService {
         String text = rawText == null ? "" : rawText.trim();
         String voice = preset == null ? null : VOICES.get(preset);
         if (text.isEmpty() || text.length() > MAX_CHARS || voice == null) throw new ApiException(400, "invalid_voice_request");
-        if (!available()) throw unavailable(null);
+        if (!available(userId)) throw unavailable(null);
         if (!"granted".equals(repository.consent(userId))) throw new ApiException(403, "cloud_voice_consent_required");
         String hash = hash(settings.model(), voice, text);
         CacheEntry cached = repository.findCache(hash);
@@ -119,10 +125,18 @@ public final class CloudVoiceService {
         return Character.isHighSurrogate(text.charAt(CHUNK_CHARS - 1)) ? CHUNK_CHARS - 1 : CHUNK_CHARS;
     }
 
-    private boolean available() {
-        if (!settings.modelConfigured() || !storage.configured() || settings.freeUntil() == null) return false;
-        if (clock.instant().isAfter(settings.freeUntil().toInstant())) return false;
+    /**
+     * 무료 기간({@code READING_VOICE_FREE_UNTIL}) 안에는 누구나, 그 뒤에는 Pro 만 쓴다(2026-11-01부터 Pro 혜택).
+     * 모델·저장소 설정과 월 한도는 무료 기간과 상관없이 늘 지킨다.
+     */
+    private boolean available(UUID userId) {
+        if (!settings.modelConfigured() || !storage.configured()) return false;
+        if (!inFreePeriod() && !plan.pro(userId)) return false;
         return repository.monthlyUsage(YearMonth.from(LocalDate.now(clock.withZone(SEOUL)))) < settings.monthlyLineCap();
+    }
+
+    private boolean inFreePeriod() {
+        return settings.freeUntil() != null && !clock.instant().isAfter(settings.freeUntil().toInstant());
     }
 
     private Result result(String objectKey, boolean cached) {

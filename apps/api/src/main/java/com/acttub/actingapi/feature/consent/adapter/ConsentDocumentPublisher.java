@@ -77,6 +77,8 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             /** 문서가 쓰인 말. 없으면 정본(한국어)이다 (SOMA-544). */
             String locale,
             String title,
+            /** 기존 회원 재동의 시작 시각(ISO-8601, 오프셋 포함). 발행에는 쓰지 않고 형식만 검증한다. */
+            String reconsentFrom,
             @JsonDeserialize(using = StrictBooleanDeserializer.class) Boolean required) {
 
         String localeOrCanonical() {
@@ -124,6 +126,14 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             }
             if (!ConsentLocale.isSupported(entry.localeOrCanonical())) {
                 throw new IllegalArgumentException("invalid consent locale: " + entry.locale());
+            }
+            if (entry.reconsentFrom() != null && !entry.reconsentFrom().isBlank()) {
+                try {
+                    java.time.OffsetDateTime.parse(entry.reconsentFrom());
+                } catch (java.time.format.DateTimeParseException invalid) {
+                    throw new IllegalArgumentException(
+                            "invalid consent reconsentFrom: " + entry.reconsentFrom(), invalid);
+                }
             }
             Resource body = resource(entry.file());
             if (!body.exists()) {

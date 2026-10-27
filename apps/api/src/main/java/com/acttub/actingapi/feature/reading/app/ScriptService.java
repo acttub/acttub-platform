@@ -40,8 +40,15 @@ public class ScriptService {
     private final ReadingRecordingCleanup cleanup;
     private final CanonicalJson canonical;
     private final Clock clock;
+    private final ScriptPlan plan;
 
     public ScriptService(ScriptRepository scripts, ReadingRecordingCleanup cleanup, CanonicalJson canonical, Clock clock) {
+        this(scripts, cleanup, canonical, clock, ScriptPlan.UNLIMITED);
+    }
+
+    public ScriptService(ScriptRepository scripts, ReadingRecordingCleanup cleanup, CanonicalJson canonical, Clock clock,
+            ScriptPlan plan) {
+        this.plan = plan;
         this.scripts = scripts;
         this.cleanup = cleanup;
         this.canonical = canonical;
@@ -61,11 +68,13 @@ public class ScriptService {
                 case TOO_LONG -> new ApiException(422, "script_too_long");
             };
         }
-        Creation creation = activeOnly(() -> scripts.create(
-                userId, requestId, fingerprint(draft), draft, ScriptRules.scriptLimit(guest)));
+        // 무료 대본 한도(SOMA-818)가 걸리는 사람은 3개까지다. 넘으면 앱이 「무료는 대본 3개까지 보관해요」를 띄운다.
+        boolean free = plan.freeLimited(userId);
+        int limit = free ? Math.min(ScriptPlan.FREE_SCRIPTS, ScriptRules.scriptLimit(guest)) : ScriptRules.scriptLimit(guest);
+        Creation creation = activeOnly(() -> scripts.create(userId, requestId, fingerprint(draft), draft, limit));
         switch (creation.outcome()) {
             case FINGERPRINT_MISMATCH -> throw new ApiException(422, "request_fingerprint_mismatch");
-            case OVER_LIMIT -> throw new ApiException(422, "script_limit");
+            case OVER_LIMIT -> throw free ? new ApiException(403, "free_script_limit") : new ApiException(422, "script_limit");
             default -> { }
         }
         return new Created(find(userId, creation.scriptId()), creation.created());

@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.consent.app;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -34,11 +35,14 @@ public class ConsentService implements PendingConsentGate, PendingConsentDocumen
     private final ConsentRepository consents;
     private final ConsentNoticeSource notices;
     private final Clock clock;
+    private final ReconsentSchedule schedule;
 
-    public ConsentService(ConsentRepository consents, ConsentNoticeSource notices, Clock clock) {
+    public ConsentService(
+            ConsentRepository consents, ConsentNoticeSource notices, Clock clock, ReconsentSchedule schedule) {
         this.consents = consents;
         this.notices = notices;
         this.clock = clock;
+        this.schedule = schedule;
     }
 
     /** 종류마다 현재 판 하나씩. 약관 · 수집·이용 동의 · AI 분석 · 탈퇴 후 보관 순이다. */
@@ -71,9 +75,45 @@ public class ConsentService implements PendingConsentGate, PendingConsentDocumen
      */
     public ConsentEntry entryFor(UUID userId, boolean guest) {
         List<ConsentDocument> documents = consents.listLatestDocuments();
+        List<ConsentEvent> events = consents.currentConsentsOf(userId);
         return ConsentEntry.evaluate(
-                guest ? documents.stream().filter(ConsentDocument::required).toList() : documents,
-                consents.currentConsentsOf(userId));
+                deferReconsent(guest ? documents.stream().filter(ConsentDocument::required).toList() : documents, events),
+                events);
+    }
+
+    /**
+     * 재동의 시작 시각({@code reconsentFrom}) 전에는, 그 종류에 이미 동의(결정)한 회원에게 새 판 대신
+     * <b>그 회원이 결정한 가장 최근 판</b>을 현황에 올린다 — 재동의를 묻지 않고 동의 상태 화면에도 옛 판의
+     * 결정이 그대로 보인다. 그 종류에 결정이 없는 사람(새 가입 전 등)과 새 판에 이미 결정한 사람은 그대로다.
+     * 시각이 지나면 이 치환이 저절로 사라져 기존 흐름대로 재동의가 뜬다.
+     */
+    private List<ConsentDocument> deferReconsent(List<ConsentDocument> documents, List<ConsentEvent> events) {
+        Instant now = clock.instant();
+        Map<UUID, ConsentDocument> known = new java.util.HashMap<>();
+        List<ConsentDocument> result = new ArrayList<>();
+        for (ConsentDocument document : documents) {
+            Instant from = schedule.reconsentFrom(document.type(), document.version());
+            if (from == null || !now.isBefore(from)
+                    || events.stream().anyMatch(event -> event.documentId().equals(document.id()))) {
+                result.add(document);
+                continue;
+            }
+            ConsentDocument previous = null;
+            Instant previousAt = null;
+            for (ConsentEvent event : events) {
+                ConsentDocument other = known.computeIfAbsent(event.documentId(), consents::findDocument);
+                if (other == null || !other.type().equals(document.type()) || other.id().equals(document.id())
+                        || !other.decidedBy(event.action())) {
+                    continue;
+                }
+                if (previousAt == null || event.occurredAt().isAfter(previousAt)) {
+                    previous = other;
+                    previousAt = event.occurredAt();
+                }
+            }
+            result.add(previous != null ? previous : document);
+        }
+        return result;
     }
 
     @Override

@@ -51,7 +51,7 @@ export function MonologueNameDialog({
               value={name}
               onChangeText={setName}
               placeholder={t('reading.monologueNamePlaceholder')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
               autoFocus
             />
           </View>
@@ -72,9 +72,9 @@ export function MonologueNameDialog({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
   // pen Dialog/Confirm 과 같은 틀 — 버튼은 하나(이름을 정해야 다음으로 간다).
-  card: { width: '100%', maxWidth: 334, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18 },
+  card: { width: '100%', maxWidth: 334, backgroundColor: palette.bg, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18 },
   title: { fontSize: 17, fontWeight: '800', color: palette.text, textAlign: 'center' },
-  body: { marginTop: 8, color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  body: { marginTop: 8, color: palette.textSub, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
   field: {
     marginTop: 18,
     borderWidth: 1.5,

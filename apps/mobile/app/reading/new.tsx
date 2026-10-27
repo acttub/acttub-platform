@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
 
+import { AdSlot } from '@/components/ad-slot';
 import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -43,10 +44,11 @@ import {
   scriptInputReducer,
   type ScriptTab,
 } from '@/lib/reading/script-input';
-import { loadIntoCurrent } from '@/lib/reading/store';
+import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
 import { isMonologue } from '@/lib/reading/monologue';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { MonologueNameDialog } from '@/components/monologue-name-dialog';
+import { ProSheetCard } from '@/components/pro-ui';
 import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
 import { newRequestId } from '@/lib/request-id';
 import { translate as t } from '@/lib/i18n';
@@ -103,7 +105,13 @@ type Popup =
   /** flags 는 [새로 넣기]·[그래도 나누기]가 다시 보낼 때 붙일 것이다. */
   | { kind: 'duplicate'; title: string; input: ImportInput; flags: ImportFlags } // R2.7
   | { kind: 'not_script'; input: ImportInput; flags: ImportFlags } // R2.8
-  | { kind: 'consent'; document: ConsentEntryDocument; resume: Resume; expanded: boolean; busy: boolean }; // R2.14
+  | { kind: 'consent'; document: ConsentEntryDocument; resume: Resume; expanded: boolean; busy: boolean } // R2.14
+  /** pen WLdNc 「무료는 대본 3개까지 보관해요」(SOMA-818) — 서버가 403 free_script_limit 을 줄 때만. */
+  | { kind: 'free_limit'; resume: Resume; busy: boolean }
+  /** 보관한 대본이 둘 이상이면 지울 대본을 먼저 고른다(무료 3개). */
+  | { kind: 'free_pick'; resume: Resume; scripts: { id: string; title: string }[] }
+  /** pen K7q5Vk 「지금 대본과 바꾸기」 확인 — 지우면 그 대본의 연습 기록도 함께 지워진다. */
+  | { kind: 'free_replace'; resume: Resume; scriptId: string; title: string; busy: boolean };
 
 export default function ReadingNew() {
   const router = useRouter();
@@ -146,6 +154,7 @@ export default function ReadingNew() {
         return failWith(error);
       }
     }
+    if (stop.kind === 'free_limit') return setPopup({ kind: 'free_limit', resume, busy: false });
     if (resume.kind !== 'import') return setPopup(null);
     const flags = { ...resume.flags, ...retryFlags(stop) };
     if (stop.kind === 'not_script') return setPopup({ kind: 'not_script', input: resume.input, flags });
@@ -154,6 +163,31 @@ export default function ReadingNew() {
       if (!existing) return failWith();
       setPopup({ kind: 'duplicate', title: existing.title, input: resume.input, flags });
     }
+  };
+
+  // 「대본 하나 지우고 넣기」 — 보관 중인 대본(무료는 3개까지)을 읽는다. 하나면 바로 확인을 묻고, 둘 이상이면 지울 대본을 고르게 한다.
+  const askReplace = async (resume: Resume) => {
+    setPopup({ kind: 'free_limit', resume, busy: true });
+    try {
+      const scripts = (await listScripts()).scripts.map(({ id, title }) => ({ id, title }));
+      if (scripts.length === 0) return setPopup(null);
+      if (scripts.length === 1) return setPopup({ kind: 'free_replace', resume, scriptId: scripts[0].id, title: scripts[0].title, busy: false });
+      setPopup({ kind: 'free_pick', resume, scripts });
+    } catch (error) {
+      failWith(error);
+    }
+  };
+
+  // 지우고 새 대본 넣기 — 지운 뒤 같은 입력으로 다시 나눈다.
+  const replaceAndRetry = async (popup: { resume: Resume; scriptId: string; title: string }) => {
+    setPopup({ kind: 'free_replace', ...popup, busy: true });
+    try {
+      await deleteScript(popup.scriptId);
+    } catch (error) {
+      return failWith(error);
+    }
+    if (popup.resume.kind === 'import') return void split(popup.resume.input, popup.resume.flags);
+    setPopup(null);
   };
 
   const split = async (next: ImportInput, flags: ImportFlags) => {
@@ -369,13 +403,13 @@ export default function ReadingNew() {
         <View style={styles.titleField}>
           <Text style={styles.titleLabel}>{t('reading.newTitleLabel')}</Text>
           <View style={styles.titleBox}>
-            <Feather name="file-text" size={18} color={palette.textFaint} />
+            <Feather name="file-text" size={18} color={palette.iconFaint} />
             <TextInput
               style={styles.titleInput}
               value={title}
               onChangeText={setTitle}
               placeholder={t('reading.newTitlePlaceholder')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
               maxLength={TITLE_MAX}
               editable={!working}
               returnKeyType="done"
@@ -392,7 +426,7 @@ export default function ReadingNew() {
             onChangeText={(text) => dispatch({ type: 'paste', text })}
             multiline
             placeholder={t('reading.pastePlaceholder')}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.textMeta}
             textAlignVertical="top"
           />
         )}
@@ -467,6 +501,56 @@ export default function ReadingNew() {
               </Pressable>
             </View>
           )}
+          {popup?.kind === 'free_limit' && (
+            <ProSheetCard
+              title={t('pro.scriptLimitTitle')}
+              body={t('pro.scriptLimitBody')}
+              primary={t('pro.explore')}
+              onPrimary={() => {
+                setPopup(null);
+                router.push('/pro');
+              }}
+              secondary={t('pro.scriptLimitReplace')}
+              onSecondary={() => void askReplace(popup.resume)}
+              busy={popup.busy}
+            />
+          )}
+          {popup?.kind === 'free_pick' && (
+            <View style={[styles.card, styles.optionCard]}>
+              <Text style={styles.optionTitle}>{t('pro.pickTitle')}</Text>
+              <Text style={styles.optionGuide}>{t('pro.pickGuide')}</Text>
+              {/* 11/1 전에 넣은 대본은 3개를 넘을 수 있어 목록은 스크롤한다. */}
+              <ScrollView style={styles.pickList} contentContainerStyle={styles.pickListBody}>
+                {popup.scripts.map((script) => (
+                  <Pressable
+                    key={script.id}
+                    style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
+                    accessibilityRole="button"
+                    onPress={() => setPopup({ kind: 'free_replace', resume: popup.resume, scriptId: script.id, title: script.title, busy: false })}>
+                    <Text style={styles.optionText} numberOfLines={1}>{script.title}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Pressable
+                style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
+                accessibilityRole="button"
+                onPress={() => setPopup(null)}>
+                <Text style={styles.optionText}>{t('pro.replaceCancel')}</Text>
+              </Pressable>
+            </View>
+          )}
+          {popup?.kind === 'free_replace' && (
+            <ProSheetCard
+              title={t('pro.replaceTitle', { title: popup.title })}
+              body={t('pro.replaceBody')}
+              primary={t('pro.replaceConfirm')}
+              onPrimary={() => void replaceAndRetry(popup)}
+              secondary={t('pro.replaceCancel')}
+              onSecondary={() => setPopup(null)}
+              busy={popup.busy}
+              destructive
+            />
+          )}
           {popup?.kind === 'not_script' && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{t('reading.notScriptTitle')}</Text>
@@ -489,7 +573,7 @@ export default function ReadingNew() {
               </View>
               <Pressable style={styles.more} hitSlop={8} onPress={() => setPopup({ ...popup, expanded: !popup.expanded })}>
                 <Text style={styles.moreText}>{t('reading.consentMore')}</Text>
-                <Feather name={popup.expanded ? 'chevron-down' : 'chevron-right'} size={15} color={palette.textDim} />
+                <Feather name={popup.expanded ? 'chevron-down' : 'chevron-right'} size={15} color={palette.textSub} />
               </Pressable>
               {popup.expanded && (
                 <ScrollView style={styles.docBody}>
@@ -520,6 +604,8 @@ function SplittingScreen({ progress, topInset }: { progress: ImportProgress | nu
       <Image source={MASCOT} style={styles.splitMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <Text style={styles.splitHeading}>{t('reading.splitTitle')}</Text>
       {total > 0 && <Text style={styles.splitProgress}>{t('reading.splitProgress', { pct, done, total })}</Text>}
+      {/* 광고 칸(SOMA-876) — 연습 중 칸, 위쪽 묶음 바로 아래 24. */}
+      <AdSlot slot="script_parse_wait" style={{ alignSelf: 'stretch', marginTop: 24 }} />
     </View>
   );
 }
@@ -536,7 +622,7 @@ function SheetPoint({ icon, text }: { icon: 'send' | 'archive'; text: string }) 
 function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3' | 'message-circle'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-      <Feather name={icon} size={16} color={on ? palette.blue : palette.textMuted} />
+      <Feather name={icon} size={16} color={on ? palette.blue : palette.textMeta} />
       <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
     </Pressable>
   );
@@ -550,10 +636,10 @@ const styles = StyleSheet.create({
   heroActy: { width: 128, height: 100 },
   heroText: { flex: 1, gap: 10 },
   title: { color: palette.text, fontSize: 24, fontWeight: '900', lineHeight: 32 },
-  heroSub: { color: palette.textMuted, fontSize: 14, fontWeight: '500', lineHeight: 21 },
+  heroSub: { color: palette.textMeta, fontSize: 14, fontWeight: '500', lineHeight: 21 },
   titleField: { gap: 10 },
-  titleLabel: { color: palette.textDim, fontSize: 14, fontWeight: '700' },
-  titleBox: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, backgroundColor: palette.card, borderColor: '#E3E8EF', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16 },
+  titleLabel: { color: palette.textSub, fontSize: 14, fontWeight: '700' },
+  titleBox: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, backgroundColor: palette.bg, borderColor: '#E3E8EF', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16 },
   titleInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, padding: 0 },
   segment: { flexDirection: 'row', backgroundColor: '#EEF2F8', borderRadius: 14, padding: 4 },
   segmentSlot: { flex: 1 },
@@ -561,10 +647,10 @@ const styles = StyleSheet.create({
   choice: { gap: 4, padding: 18, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
   choiceTitle: { fontSize: 16, fontWeight: '700', color: palette.text },
-  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMuted },
+  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMeta },
   segmentTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, height: 58, paddingHorizontal: 4 },
-  segmentTabOn: { backgroundColor: palette.card },
-  segmentText: { color: palette.textMuted, fontSize: 13, fontWeight: '700' },
+  segmentTabOn: { backgroundColor: palette.bg },
+  segmentText: { color: palette.textMeta, fontSize: 13, fontWeight: '700' },
   segmentTextOn: { color: palette.blue, fontWeight: '800' },
   dropzone: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
   // pen 「파일칸」 — 옅은 파랑 바탕, 점선 테두리(#BCD3F3), 모서리 22.
@@ -572,18 +658,18 @@ const styles = StyleSheet.create({
   uploadCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E6EFFD', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   dropTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
   dropTitleEmpty: { fontSize: 17 },
-  dropSub: { color: palette.textFaint, fontSize: 13, fontWeight: '500' },
+  dropSub: { color: palette.textMeta, fontSize: 13, fontWeight: '500' },
   pickBtn: { marginTop: 8, backgroundColor: '#E3EDFD', borderRadius: 22, height: 44, paddingHorizontal: 32, justifyContent: 'center' },
   pickBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
-  replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.card, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
+  replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
   replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  textArea: { flex: 1, minHeight: 256, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  textArea: { flex: 1, minHeight: 256, backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },
   footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },
+  card: { width: '100%', maxWidth: 340, backgroundColor: palette.bg, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },
   cardTitle: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
-  cardBody: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  cardBody: { color: palette.textSub, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
   cardButton: { alignSelf: 'stretch', marginTop: 12 },
   splitScreen: { paddingHorizontal: 24, gap: 14 },
   splitMascot: { width: 72, height: 80, marginBottom: 20 },
@@ -592,22 +678,24 @@ const styles = StyleSheet.create({
   optionCard: { alignItems: 'stretch', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24, gap: 6 },
   optionTitle: { color: palette.text, fontSize: 20, fontWeight: '900', lineHeight: 28 },
   optionGuide: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
-  optionName: { color: palette.textMuted, fontSize: 13, marginBottom: 6 },
+  optionName: { color: palette.textMeta, fontSize: 13, marginBottom: 6 },
   optionRow: { paddingVertical: 14, paddingHorizontal: 2, borderRadius: 10 },
   optionPressed: { backgroundColor: palette.bgSubtle },
+  pickList: { alignSelf: 'stretch', maxHeight: 264 },
+  pickListBody: { gap: 6 },
   optionText: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 24 },
-  sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 },
+  sheet: { alignSelf: 'stretch', backgroundColor: palette.bg, borderRadius: 22, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 18 },
   sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
-  sheetSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: 4 },
+  sheetSub: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13, marginTop: 4 },
   sheetPoints: { gap: 12, marginTop: 20 },
   point: { flexDirection: 'row', gap: 10 },
   pointIcon: { marginTop: 2 },
-  pointText: { flex: 1, color: palette.textStrong, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21 },
+  pointText: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21 },
   more: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', marginTop: 16 },
-  moreText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  moreText: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   docBody: { maxHeight: 220, marginTop: 10, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 12 },
   sheetButton: { marginTop: 22 },
   sheetCancel: { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
-  sheetCancelText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 15 },
+  sheetCancelText: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 15 },
 });

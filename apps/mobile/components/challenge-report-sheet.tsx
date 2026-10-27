@@ -74,7 +74,7 @@ export function ChallengeReportSheet({
             {reason === value ? (
               <Feather name="check" size={16} color={palette.blue} />
             ) : (
-              <Feather name="chevron-right" size={16} color={palette.checkOff} />
+              <Feather name="chevron-right" size={16} color={palette.iconFaint} />
             )}
           </Pressable>
         ))}
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, gap: 6 },
   footer: { paddingHorizontal: 16, paddingTop: 8 },
   title: { fontSize: 16, fontWeight: '900', color: palette.text },
-  subtitle: { fontSize: 12.5, color: palette.textFaint, marginBottom: 6 },
+  subtitle: { fontSize: 12.5, color: palette.textMeta, marginBottom: 6 },
   pressed: { opacity: 0.7 },
   row: {
     flexDirection: 'row',
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   rowText: { fontSize: 14.5, color: palette.text },
   rowTextOn: { fontWeight: '800', color: palette.blueDeep },
   noteBlock: { gap: 6, paddingTop: 6 },
-  noteLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
+  noteLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMeta },
   noteInput: {
     minHeight: 80,
     borderRadius: 12,
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: palette.text,
   },
-  noteCounter: { fontSize: 11.5, color: palette.textFaint, textAlign: 'right' },
+  noteCounter: { fontSize: 11.5, color: palette.textMeta, textAlign: 'right' },
   noteOver: { color: palette.danger },
   submit: { height: 50, borderRadius: 14, backgroundColor: palette.danger, alignItems: 'center', justifyContent: 'center', },
   submitOff: { backgroundColor: '#E2C8C8' },

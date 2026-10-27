@@ -286,7 +286,7 @@ export default function PracticeGroupScreen() {
               <View style={styles.headerActions}>
                 <NavIconButton
                   icon="more-horizontal"
-                  color={palette.textMuted}
+                  color={palette.textMeta}
                   label={t('history.menuOpen')}
                   phLabel="practice_group_menu"
                   onPress={() => setMenuOpen(true)}
@@ -294,7 +294,7 @@ export default function PracticeGroupScreen() {
                 <NavIconButton
                   icon="trash-2"
                   size={20}
-                  color={palette.textMuted}
+                  color={palette.textMeta}
                   label={t('history.hideConfirm')}
                   phLabel="practice_group_hide"
                   onPress={() => void toggleHidden({ leave: true })}
@@ -328,7 +328,7 @@ export default function PracticeGroupScreen() {
             video.url ? (
               <Pressable style={styles.round} onPress={() => setPlaying(true)} accessibilityRole="button">
                 <Text style={styles.openNote}>{t('history.viewVideo')}</Text>
-                <Feather name="play" size={18} color={palette.checkOff} />
+                <Feather name="play" size={18} color={palette.textDisabled} />
               </Pressable>
             ) : video.purged ? (
               <Text style={styles.roundMeta}>{t('history.videoPurged')}</Text>
@@ -349,7 +349,7 @@ export default function PracticeGroupScreen() {
               {round.note && (
                 <Pressable style={styles.round} onPress={() => openNote(round.id)} accessibilityRole="button">
                   <Text style={styles.openNote}>{t('history.openNote')}</Text>
-                  <Feather name="chevron-right" size={18} color={palette.checkOff} />
+                  <Feather name="chevron-right" size={18} color={palette.iconFaint} />
                 </Pressable>
               )}
               {round.conversation_id && (
@@ -415,29 +415,29 @@ const styles = StyleSheet.create({
   body: { padding: 20, paddingBottom: 48, gap: 14 },
   headRow: { gap: 4 },
   title: { fontSize: 22, fontWeight: '900', color: palette.text, lineHeight: 32 },
-  meta: { fontSize: 12.5, fontWeight: '700', color: palette.textFaint },
+  meta: { fontSize: 12.5, fontWeight: '700', color: palette.textMeta },
   card: { backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6 },
   chat: { gap: 12, paddingVertical: 8 },
   coachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 36 },
   coachBubble: { flexShrink: 1, backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
   meBubble: { alignSelf: 'flex-end', maxWidth: '78%', backgroundColor: palette.blue, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
   meText: { fontSize: 14.5, lineHeight: 22, color: palette.onAccent },
-  cardLabel: { fontSize: 12, fontWeight: '800', color: palette.textDim },
+  cardLabel: { fontSize: 12, fontWeight: '800', color: palette.textSub },
   cardText: { fontSize: 14.5, lineHeight: 23, color: palette.text },
-  sectionTitle: { fontSize: 14, fontWeight: '800', color: palette.textFaint, marginTop: 8 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: palette.textMeta, marginTop: 8 },
   round: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
+    borderBottomColor: palette.border,
   },
   roundBody: { flex: 1, gap: 3 },
   roundTitle: { fontSize: 15, fontWeight: '700', color: palette.text },
-  roundMeta: { fontSize: 12.5, color: palette.textFaint },
+  roundMeta: { fontSize: 12.5, color: palette.textMeta },
   openNote: { fontSize: 12.5, fontWeight: '800', color: palette.blueDeep },
   primaryWrap: { marginTop: 16 },
-  hideLink: { fontSize: 13, fontWeight: '800', color: palette.textFaint, textAlign: 'center', paddingVertical: 10 },
-  hideNotice: { fontSize: 12, color: palette.textFaint, textAlign: 'center', lineHeight: 19 },
+  hideLink: { fontSize: 13, fontWeight: '800', color: palette.textMeta, textAlign: 'center', paddingVertical: 10 },
+  hideNotice: { fontSize: 12, color: palette.textMeta, textAlign: 'center', lineHeight: 19 },
 });

@@ -85,10 +85,10 @@ export function LineSplitSheet({
 }
 
 const styles = StyleSheet.create({
-  sub: { fontSize: 14, color: palette.textMuted },
+  sub: { fontSize: 14, color: palette.textMeta },
   body: { flex: 1 },
   bodyContent: { gap: 10, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
-  label: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 13, marginTop: 6 },
+  label: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 13, marginTop: 6 },
   input: {
     backgroundColor: palette.bgSubtle,
     borderColor: palette.border,

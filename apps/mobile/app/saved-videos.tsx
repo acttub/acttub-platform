@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { SkeletonCards } from '@/components/ui/skeleton';
@@ -94,6 +95,7 @@ export default function SavedVideosScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
+        <AdSlot slot="saved_videos_top" />
         <Text style={styles.hint}>{t(tab === 'mine' ? 'savedVideos.hintMine' : 'savedVideos.hintSaved')}</Text>
         {!!error && <Text style={styles.empty}>{error}</Text>}
         {items === null && !error && <SkeletonCards count={4} columns={2} aspectRatio={0.78} style={{ paddingHorizontal: 0 }} />}
@@ -159,15 +161,15 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 9 },
-  tabOn: { backgroundColor: palette.card },
-  tabText: { fontSize: 13.5, fontWeight: '700', color: palette.textFaint },
+  tabOn: { backgroundColor: palette.bg },
+  tabText: { fontSize: 13.5, fontWeight: '700', color: palette.textMeta },
   tabTextOn: { color: palette.text },
   body: { padding: 16, paddingBottom: 40, gap: 12 },
-  hint: { fontSize: 12.5, color: palette.textFaint },
-  empty: { textAlign: 'center', color: palette.textDim, marginTop: 48 },
+  hint: { fontSize: 12.5, color: palette.textMeta },
+  empty: { textAlign: 'center', color: palette.textSub, marginTop: 48 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   cell: { width: '48%', gap: 6 },
-  thumb: { aspectRatio: 0.78, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.navy },
+  thumb: { aspectRatio: 0.78, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.text },
   thumbScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 60, backgroundColor: 'rgba(0,0,0,0.45)' },
   bookmark: {
     position: 'absolute',
@@ -192,5 +194,5 @@ const styles = StyleSheet.create({
   thumbName: { fontSize: 12.5, fontWeight: '800', color: '#FFFFFF' },
   likeChip: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   likeText: { fontSize: 11.5, fontWeight: '700', color: '#FFFFFF' },
-  cellLine: { fontSize: 12.5, fontWeight: '600', color: palette.textDim },
+  cellLine: { fontSize: 12.5, fontWeight: '600', color: palette.textSub },
 });

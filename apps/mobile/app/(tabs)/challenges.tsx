@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdSlot } from '@/components/ad-slot';
 import { ChallengeIntro } from '@/components/challenge-intro';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { BandGradient } from '@/components/ui/band-gradient';
@@ -13,6 +14,7 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
+import { space } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -25,7 +27,16 @@ import {
   participantsLabel,
   pinsFeatured,
 } from '@/lib/challenge/browse';
-import { hasBrowsedChallenges, hasFinishedFirstChallenge, hasSeenChallengeIntro, markChallengeIntroSeen, markChallengesBrowsed } from '@/lib/challenge/intro-state';
+import {
+  hasBrowsedChallenges,
+  hasFinishedFirstChallenge,
+  hasSeenChallengeIntro,
+  markChallengeIntroSeen,
+  markChallengesBrowsed,
+  markFirstChallengeFinished,
+} from '@/lib/challenge/intro-state';
+import { countedPractices } from '@/lib/practice/counted';
+import { skipsChallengeFirstPick } from '@/lib/returning-account';
 import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
@@ -69,6 +80,8 @@ export default function ChallengesScreen() {
   const [showGuide, setShowGuide] = useState(false);
   /** 첫 챌린지 화면에서 「챌린지 둘러보기」를 고른 적이 있으면 기본 챌린지 홈을 보인다(SOMA-827). */
   const [browsed, setBrowsed] = useState(false);
+  /** 첫 고르기 화면을 띄울지 기기·서버 기록으로 다 따져 봤는가. 따지기 전에는 띄우지 않는다. */
+  const [firstPickChecked, setFirstPickChecked] = useState(false);
   const unread = useUnreadNotifications();
   /** 첫 사용자용 고르기(C1.16·C1.18) — 고른 줄. 기본 선택은 없고 「다음」을 눌러야 넘어간다. */
   const [firstPick, setFirstPick] = useState<'perform' | 'browse' | null>(null);
@@ -127,12 +140,46 @@ export default function ChallengesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void hasFinishedFirstChallenge().then((done) => setShowGuide(!done));
-      void hasBrowsedChallenges().then(setBrowsed);
+      // 첫 고르기 화면은 기기 기록으로 정하는데, 앱을 다시 깐 기존 사용자에게도 다시 떴다(10/26). 기기 기록이 비었으면
+      // 서버 기록(올린 참여작·「연습 1회」)을 한 번 보고, 이미 써 본 계정이면 고르기 없이 기본 챌린지 홈을 보인다.
+      let live = true;
+      setFirstPickChecked(false);
+      void Promise.all([hasFinishedFirstChallenge(), hasBrowsedChallenges()]).then(async ([done, seenBrowse]) => {
+        if (!live) return;
+        setShowGuide(!done);
+        setBrowsed(seenBrowse);
+        if (done || seenBrowse) {
+          setFirstPickChecked(true);
+          return;
+        }
+        const [entries, groups] = await Promise.all([
+          Promise.resolve()
+            .then(() => api.listMyChallengeEntries())
+            .then((r) => r.entries)
+            .catch(() => []),
+          Promise.resolve()
+            .then(() => api.listPracticeGroups('all'))
+            .then((r) => r.groups)
+            .catch(() => []),
+        ]);
+        if (!live) return;
+        const countedPracticeCount = countedPractices({ groups, entries }).length;
+        if (entries.length > 0) {
+          void markFirstChallengeFinished();
+          setShowGuide(false);
+        } else if (skipsChallengeFirstPick({ entryCount: entries.length, countedPracticeCount })) {
+          void markChallengesBrowsed();
+          setBrowsed(true);
+        }
+        setFirstPickChecked(true);
+      });
       void api
         .listChallenges({ tab: 'ended' })
         .then((result) => setLastWeek(lastWeekResult(result.challenges)))
         .catch(() => setLastWeek(null));
+      return () => {
+        live = false;
+      };
     }, []),
   );
 
@@ -166,7 +213,7 @@ export default function ChallengesScreen() {
   const tapCard = (challenge: ChallengeCard) => openDetail(challenge);
 
   /** 첫 챌린지 참여를 끝내기 전에는 이번 주 대사 하나만 보여 주고 둘 중 하나를 고르게 한다. */
-  const selectMode = showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
+  const selectMode = firstPickChecked && showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
 
   const emptyText =
     tab === 'ended' ? t('challenges.emptyEnded') : tab === 'mine' ? t('challenges.emptyMine') : t('challenges.emptyRunning');
@@ -225,7 +272,7 @@ export default function ChallengesScreen() {
             <PickRow label={t('challenges.performCta')} selected={firstPick === 'perform'} onPress={() => setFirstPick('perform')} />
             <PickRow label={t('challenges.firstBrowse')} selected={firstPick === 'browse'} onPress={() => setFirstPick('browse')} />
           </ScrollView>
-          <CtaBar safeBottom={false} style={{ paddingBottom: tabBarSpace > 0 ? tabBarSpace : 10 }}>
+          <CtaBar safeBottom={false} style={{ paddingBottom: tabBarSpace > 0 ? tabBarSpace : space[3] }}>
             <PrimaryButton
               label={t('challenges.firstNext')}
               disabled={!firstPick}
@@ -252,14 +299,14 @@ export default function ChallengesScreen() {
             }}
             accessibilityRole="button"
             accessibilityLabel={t('challenges.resultBanner')}>
-            <Feather name="award" size={20} color={palette.flameDeep} />
+            <Feather name="award" size={20} color={palette.flame} />
             <View style={styles.flex}>
               <Text style={styles.bannerTitle}>{t('challenges.resultBanner')}</Text>
               <Text style={styles.bannerSub}>
                 {t('challenges.resultBannerSub', { count: Math.min(3, lastWeek.entry_count) })}
               </Text>
             </View>
-            <Feather name="chevron-right" size={20} color={palette.checkOff} />
+            <Feather name="chevron-right" size={20} color={palette.iconFaint} />
           </Pressable>
         )}
 
@@ -271,6 +318,8 @@ export default function ChallengesScreen() {
             onPerform={canPerform(featured) ? () => perform(featured) : undefined}
           />
         )}
+
+        <AdSlot slot="challenges_tab_top" />
 
         <View style={styles.tabRow}>
           {TABS.map(({ key, label }) => (
@@ -566,7 +615,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.flameSoft,
   },
   bannerTitle: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
-  bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMuted, lineHeight: 18, marginTop: 6 },
+  bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMeta, lineHeight: 18, marginTop: 6 },
   weekHero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, gap: 10, overflow: 'hidden' },
   weekHeroTop: { gap: 10 },
   weekChip: {
@@ -580,7 +629,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   weekLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
-  names: { fontSize: 11, fontWeight: '500', color: palette.textMuted, lineHeight: 16, flexShrink: 1 },
+  names: { fontSize: 11, fontWeight: '500', color: palette.textMeta, lineHeight: 16, flexShrink: 1 },
   likes: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   hero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, minHeight: 300, gap: 10, justifyContent: 'flex-end', overflow: 'hidden' },
   heroTop: { flex: 1, gap: 10, justifyContent: 'flex-end' },
@@ -595,7 +644,7 @@ const styles = StyleSheet.create({
   heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.18)' },
   sameHead: { gap: 4, marginTop: 6 },
   sameTitle: { fontSize: 18, fontWeight: '800', color: palette.text, lineHeight: 24 },
-  sameMeta: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 20 },
+  sameMeta: { fontSize: 13, fontWeight: '500', color: palette.textMeta, lineHeight: 20 },
   pick: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, borderWidth: 1, borderColor: palette.border, paddingVertical: 17, paddingHorizontal: 18 },
   pickOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   pickText: { fontSize: 16, fontWeight: '700', color: palette.text },
@@ -615,7 +664,7 @@ const styles = StyleSheet.create({
   tabRow: { flexDirection: 'row', gap: 4, paddingTop: 4 },
   tab: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 18 },
   tabOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 16 },
-  tabText: { fontSize: 15, fontWeight: '600', color: palette.textFaint, lineHeight: 23 },
+  tabText: { fontSize: 15, fontWeight: '600', color: palette.textMeta, lineHeight: 23 },
   tabTextOn: { fontWeight: '800', color: palette.blue },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
   row: { borderRadius: 18, gap: 12, padding: 16, backgroundColor: palette.onAccent, borderWidth: 1, borderColor: '#E8EDF5' },
@@ -623,7 +672,7 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, minWidth: 0, gap: 9 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   line: { fontSize: 17, fontWeight: '800', color: palette.text, lineHeight: 25 },
-  meta: { flex: 1, fontSize: 12, fontWeight: '500', color: palette.textFaint, lineHeight: 18 },
+  meta: { flex: 1, fontSize: 12, fontWeight: '500', color: palette.textMeta, lineHeight: 18 },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   avatars: { flexDirection: 'row' },
   avatar: {
@@ -640,7 +689,7 @@ const styles = StyleSheet.create({
   performGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.onAccent, alignItems: 'center', justifyContent: 'center' },
   performText: { fontSize: 15, fontWeight: '700', color: palette.blue },
   empty: { paddingVertical: 48, alignItems: 'center' },
-  emptyText: { fontSize: 14.5, color: palette.textDim, textAlign: 'center', lineHeight: 23 },
+  emptyText: { fontSize: 14.5, color: palette.textSub, textAlign: 'center', lineHeight: 23 },
   registerBtn: {
     flexDirection: 'row',
     alignItems: 'center',

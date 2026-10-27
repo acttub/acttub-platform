@@ -12,7 +12,7 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { StatusScreen } from '@/components/ui/status-screen';
-import { ProgressHeader } from '@/components/ui/step-header';
+import { StepHeader } from '@/components/ui/step-header';
 import { motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
@@ -230,7 +230,7 @@ export default function ProfileNameScreen() {
             <Text style={styles.introBadgeText}>{t('profileName.introBadge')}</Text>
           </View>
         </View>
-        <CtaBar safeBottom={false} style={styles.footer}>
+        <CtaBar safeBottom={false}>
           <PrimaryButton label={t('profileName.introCta')} onPress={() => setScreen(steps[0])} />
         </CtaBar>
       </SafeAreaView>
@@ -243,7 +243,6 @@ export default function ProfileNameScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <StatusScreen
-          size="large"
           onBack={goBack}
           mascot={MASCOT.coach}
           title={t('profileName.blockedTitle')}
@@ -283,7 +282,7 @@ export default function ProfileNameScreen() {
           <TextInput
             style={styles.input}
             placeholder={t('profileName.placeholder')}
-            placeholderTextColor={palette.checkOff}
+            placeholderTextColor={palette.textDisabled}
             value={form.name}
             onChangeText={(value) => update({ name: value })}
             autoFocus
@@ -396,7 +395,7 @@ export default function ProfileNameScreen() {
             <TextInput
               style={[styles.input, styles.otherInput]}
               placeholder={t('profileName.discoveryOtherPlaceholder')}
-              placeholderTextColor={palette.checkOff}
+              placeholderTextColor={palette.textDisabled}
               value={discovery.otherText}
               onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
               maxLength={DISCOVERY_OTHER_MAX_LENGTH * 2}
@@ -407,10 +406,6 @@ export default function ProfileNameScreen() {
       );
       footer = (
         <>
-          {nextButton(
-            () => advance('discovery'),
-            discovery.source !== null && (discovery.source !== 'other' || discovery.otherText.trim().length > 0),
-          )}
           <TextButton
             size="large"
             label={t('profileName.skip')}
@@ -420,6 +415,10 @@ export default function ProfileNameScreen() {
             }}
             disabled={busy}
           />
+          {nextButton(
+            () => advance('discovery'),
+            discovery.source !== null && (discovery.source !== 'other' || discovery.otherText.trim().length > 0),
+          )}
         </>
       );
       break;
@@ -428,7 +427,7 @@ export default function ProfileNameScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={keyboardHeight > 0 ? ['top'] : ['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ProgressHeader step={index} total={steps.length} onBack={goBack} />
+      <StepHeader step={index} total={steps.length} onBack={goBack} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         {/* 생년월일 휠을 만지는 동안은 화면이 같이 움직이지 않게 멈춘다(10/25). */}
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={!wheelTouch}>
@@ -443,7 +442,7 @@ export default function ProfileNameScreen() {
           {error && <Text style={styles.error}>{error}</Text>}
         </ScrollView>
         {footer && (
-          <CtaBar safeBottom={false} style={styles.footer}>
+          <CtaBar safeBottom={false}>
             {footer}
           </CtaBar>
         )}
@@ -512,7 +511,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     lineHeight: 24,
-    color: palette.textDim,
+    color: palette.textSub,
     textAlign: 'center',
   },
   introBadge: {
@@ -527,7 +526,6 @@ const styles = StyleSheet.create({
   },
   introBadgeText: { fontSize: 16, fontWeight: '700', color: palette.blueDeep },
   // 아래 버튼 칸 — 좌우 24, 주 버튼 52, 버튼 사이 8.
-  footer: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 12, gap: 8 },
 
   // 질문 화면 — 좌우 24. 말풍선 아래 답 칸까지 24, 고르는 줄 사이 8.
   body: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 24 },
@@ -542,11 +540,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
   },
   choiceOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft },
   choicePressed: { opacity: 0.7 },
-  choiceText: { flex: 1, fontSize: 16, fontWeight: '600', color: palette.textStrong },
+  choiceText: { flex: 1, fontSize: 16, fontWeight: '600', color: palette.text },
   choiceTextOn: { fontWeight: '700', color: palette.blueDeep },
   input: {
     height: 52,

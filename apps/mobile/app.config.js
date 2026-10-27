@@ -14,6 +14,37 @@ const AIRBRIDGE = 'airbridge-expo-sdk';
 const AIRBRIDGE_APP_NAME = 'acttub';
 const AIRBRIDGE_DISABLED_TOKEN = 'airbridge-disabled-without-token';
 const KAKAO_LOGIN = '@react-native-seoul/kakao-login';
+const GOOGLE_MOBILE_ADS = 'react-native-google-mobile-ads';
+
+// AdMob 앱 ID(SOMA-876). 공개값이다. 운영 API 를 보는 빌드만 실제 ID 를 쓰고, 개발·dev 빌드는 Google 공식 테스트 앱 ID 다.
+// 광고 단위 ID 는 앱 코드(lib/ads.ts)가 같은 기준(운영 API 주소)으로 고른다. ADMOB_*_APP_ID 로 덮어쓸 수 있다.
+const ADMOB_APP_IDS = {
+  test: {
+    android: 'ca-app-pub-3940256099942544~3347511713',
+    ios: 'ca-app-pub-3940256099942544~1458002511',
+  },
+  production: {
+    android: 'ca-app-pub-9577213564323927~5444482418',
+    ios: 'ca-app-pub-9577213564323927~1509940987',
+  },
+};
+
+// Google 권장 SKAdNetwork 목록(developers.google.com/admob/ios/quick-start, 2026-10 확인).
+const ADMOB_SKADNETWORK_ITEMS = [
+  'cstr6suwn9.skadnetwork', '4fzdc2evr5.skadnetwork', '2fnua5tdw4.skadnetwork', 'ydx93a7ass.skadnetwork',
+  'p78axxw29g.skadnetwork', 'v72qych5uu.skadnetwork', 'ludvb6z3bs.skadnetwork', 'cp8zw746q7.skadnetwork',
+  '3sh42y64q3.skadnetwork', 'c6k4g5qg8m.skadnetwork', 's39g8k73mm.skadnetwork', 'wg4vff78zm.skadnetwork',
+  '3qy4746246.skadnetwork', 'f38h382jlk.skadnetwork', 'hs6bdukanm.skadnetwork', 'mlmmfzh3r3.skadnetwork',
+  'v4nxqhlyqp.skadnetwork', 'wzmmz9fp6w.skadnetwork', 'su67r6k2v3.skadnetwork', 'yclnxrl5pm.skadnetwork',
+  't38b2kh725.skadnetwork', '7ug5zh24hu.skadnetwork', 'gta9lk7p23.skadnetwork', 'vutu7akeur.skadnetwork',
+  'y5ghdn5j9k.skadnetwork', 'v9wttpbfk9.skadnetwork', 'n38lu8286q.skadnetwork', '47vhws6wlr.skadnetwork',
+  'kbd757ywx3.skadnetwork', '9t245vhmpl.skadnetwork', 'a2p9lx4jpn.skadnetwork', '22mmun2rn5.skadnetwork',
+  '44jx6755aq.skadnetwork', 'k674qkevps.skadnetwork', '4468km3ulz.skadnetwork', '2u9pt9hc89.skadnetwork',
+  '8s468mfl3y.skadnetwork', 'klf5c3l5u5.skadnetwork', 'ppxm28t8ap.skadnetwork', 'kbmxgpxpgc.skadnetwork',
+  'uw77j35x4d.skadnetwork', '578prtvx9j.skadnetwork', '4dzt52r2t5.skadnetwork', 'tl55sbb4fm.skadnetwork',
+  'c3frkrj4fj.skadnetwork', 'e5fvkxwrpn.skadnetwork', '8c4e2ghe7u.skadnetwork', '3rd42ekr43.skadnetwork',
+  '97r2b46745.skadnetwork', '3qcr597p9d.skadnetwork',
+];
 
 // "462...-xxx.apps.googleusercontent.com" → "com.googleusercontent.apps.462...-xxx"
 function reversedClientId(iosClientId) {
@@ -76,6 +107,20 @@ module.exports = ({ config }) => {
   const kakaoAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY?.trim();
   plugins = plugins.filter((pl) => pluginName(pl) !== KAKAO_LOGIN);
   if (kakaoAppKey) plugins.push([KAKAO_LOGIN, { kakaoAppKey }]);
+
+  // AdMob(SOMA-876). iOS ATT 는 새로 묻지 않는다 — Meta SDK 초기화(lib/meta-events)가 이미 묻는 팝업을 같이 쓰고,
+  // 광고 SDK 초기화는 그 답을 받은 뒤에 한다(app/_layout). 그래서 userTrackingUsageDescription 을 여기서 넣지 않는다.
+  const admobIds = isProductionAirbridge ? ADMOB_APP_IDS.production : ADMOB_APP_IDS.test;
+  plugins = plugins.filter((pl) => pluginName(pl) !== GOOGLE_MOBILE_ADS);
+  plugins.push([
+    GOOGLE_MOBILE_ADS,
+    {
+      androidAppId: process.env.ADMOB_ANDROID_APP_ID?.trim() || admobIds.android,
+      iosAppId: process.env.ADMOB_IOS_APP_ID?.trim() || admobIds.ios,
+      delayAppMeasurementInit: true,
+      skAdNetworkItems: ADMOB_SKADNETWORK_ITEMS,
+    },
+  ]);
 
   const ios = { ...config.ios };
 

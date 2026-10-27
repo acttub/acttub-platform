@@ -1,3 +1,4 @@
+import { AdSlot } from '@/components/ad-slot';
 import { clearReachedEnd, markReachedEnd } from '@/lib/reading/progress-display';
 import Feather from '@expo/vector-icons/Feather';
 import { File, Paths } from 'expo-file-system';
@@ -110,6 +111,7 @@ import { ReadingRating } from '@/components/reading-rating';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { MASCOT as MASCOT_IMG, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
+import { skipsFirstReadingGuide } from '@/lib/returning-account';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
 import { exampleVoicesMatch, type ExampleAudio } from '@/lib/reading/example-audio';
@@ -758,14 +760,30 @@ export default function ReadingPlay() {
   // ── 첫 리딩 안내(SOMA-748) — 진행 상태를 보고 띄울 뿐, 진행 규칙은 건드리지 않는다 ─────────────
   useEffect(() => {
     let alive = true;
-    void hasSeenFirstReadingGuide().then((seen) => {
+    // 이어 읽는 회차거나 다른 대본을 읽어 본 계정(앱을 다시 깐 기존 사용자)은 첫 리딩이 아니다 — 안내 없이 본 것으로 남긴다(10/26).
+    const resumed = !!session && session.progress_seq > 0;
+    const scriptId = script?.id;
+    void hasSeenFirstReadingGuide().then(async (seen) => {
+      if (!alive || seen) return;
+      const scripts = resumed
+        ? null
+        : await Promise.resolve()
+            .then(() => api.listReadingScripts())
+            .then((r) => r.scripts)
+            .catch(() => null);
       if (!alive) return;
-      setCoachOn(!seen);
-      if (!seen) firstRunRef.current = true;
+      if (skipsFirstReadingGuide({ resumed, scriptId, scripts })) {
+        void markFirstReadingGuideSeen();
+        return;
+      }
+      setCoachOn(true);
+      firstRunRef.current = true;
     });
     return () => {
       alive = false;
     };
+    // 화면을 열 때 한 번만 정한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // pen 7-1: 두 번째 내 차례에서 한 번만, 대본 위를 어둡게 덮고 버튼 넷을 설명한다. 작은 힌트 말풍선은 더는 띄우지 않는다.
   const myTurnsBefore = run
@@ -921,7 +939,10 @@ export default function ReadingPlay() {
   const closeGuide = useCallback(() => {
     setCoachOn(false);
     void markFirstReadingGuideSeen();
+    // 안내를 읽는 동안 흐른 침묵으로 내 차례가 끝나 버리지 않게, 미뤄 둔 넘김을 버리고 이 차례를 처음부터 다시 듣는다(10/26).
+    deferredRef.current = null;
     releaseHold();
+    setAttempt((a) => a + 1);
   }, [releaseHold]);
 
   useEffect(() => {
@@ -1500,7 +1521,6 @@ export default function ReadingPlay() {
   if (phase.kind === 'need_mic') {
     return (
       <ReadingStatus
-        icon="mic-off"
         title={t('reading.micNeededTitle')}
         body={t('reading.micNeededBody')}
         onBack={exitToDetail}
@@ -1531,6 +1551,8 @@ export default function ReadingPlay() {
             </>
           )}
         </View>
+        {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래쪽 묶음 바로 위. */}
+        <AdSlot slot="voice_prepare_wait" style={{ marginBottom: download ? 24 : 0 }} />
         {download && (
           <View style={styles.prepNote}>
             <Feather name="info" size={18} color={palette.blueDeep} />
@@ -1578,7 +1600,6 @@ export default function ReadingPlay() {
   if (phase.kind === 'voice_unsupported') {
     return (
       <ReadingStatus
-        icon="smartphone"
         title={t('reading.voiceUnsupportedTitle')}
         body={t('reading.voiceUnsupportedBody')}
         onBack={exitToDetail}
@@ -1618,9 +1639,9 @@ export default function ReadingPlay() {
             </Text>
           </View>
           <Pressable style={styles.wrapRow} onPress={toCoach} accessibilityRole="button">
-            <Feather name="video" size={18} color={palette.textDim} />
+            <Feather name="video" size={18} color={palette.textSub} />
             <Text style={styles.wrapRowText}>{t('reading.wrapCoach')}</Text>
-            <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            <Feather name="chevron-right" size={18} color={palette.iconFaint} />
           </Pressable>
         {ratingCard}
         </ScrollView>
@@ -1644,7 +1665,7 @@ export default function ReadingPlay() {
     const goHomeButton = <PrimaryButton label={t('reading.goHome')} onPress={() => router.dismissTo('/(tabs)')} disabled={doneLocked} />;
     const otherScriptRow = (
       <Pressable style={[styles.readAgainRow, styles.otherScript]} onPress={() => router.dismissTo('/reading')} accessibilityRole="button">
-        <Feather name="file-text" size={16} color={palette.textDim} />
+        <Feather name="file-text" size={16} color={palette.textSub} />
         <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
       </Pressable>
     );
@@ -1709,7 +1730,7 @@ export default function ReadingPlay() {
             {completed && !fromTutorialRef.current && <><ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" /><PrimaryButton label={t('reading.recordForCoach')} onPress={toCoach} disabled={doneLocked} /></>}
             {!compared ? (
               <View style={styles.noteBox}>
-                <Feather name="info" size={16} color={palette.textMuted} />
+                <Feather name="info" size={16} color={palette.textMeta} />
                 <Text style={styles.noteText}>{t('reading.noSttNote')}</Text>
               </View>
             ) : (
@@ -1791,7 +1812,7 @@ export default function ReadingPlay() {
 
           {!completed ? null : !compared ? (
             <View style={styles.noteBox}>
-              <Feather name="info" size={16} color={palette.textMuted} />
+              <Feather name="info" size={16} color={palette.textMeta} />
               <Text style={styles.noteText}>{t('reading.noSttNote')}</Text>
             </View>
           ) : different.kind === 'waiting' ? (
@@ -1800,7 +1821,7 @@ export default function ReadingPlay() {
             </View>
           ) : different.kind === 'later' ? (
             <View style={styles.noteBox}>
-              <Feather name="wifi-off" size={16} color={palette.textMuted} />
+              <Feather name="wifi-off" size={16} color={palette.textMeta} />
               <Text style={styles.noteText}>{t('reading.differentLater')}</Text>
             </View>
           ) : different.kind === 'ready' && different.lines.length > 0 ? (
@@ -1902,7 +1923,7 @@ export default function ReadingPlay() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
         <Pressable style={styles.exitBtn} onPress={onExit} hitSlop={8}>
-          <Feather name="x" size={20} color={palette.textDim} />
+          <Feather name="x" size={20} color={palette.textSub} />
           <Text style={styles.exitText}>{t('reading.exitLeave')}</Text>
         </Pressable>
         {notice?.kind === 'dropped' ? <Text style={styles.droppedText}>{t('reading.recordingDropped', { count: notice.count })}</Text> : <View />}
@@ -2003,12 +2024,12 @@ export default function ReadingPlay() {
               </Text>
               <View style={styles.cardHeadRight}>
                 <View style={styles.chip}>
-                  {chip.icon === 'bars' ? <ListeningBars /> : <Feather name={chip.icon} size={14} color={myTurn ? palette.blueDeep : palette.textMuted} />}
+                  {chip.icon === 'bars' ? <ListeningBars /> : <Feather name={chip.icon} size={14} color={myTurn ? palette.blueDeep : palette.textMeta} />}
                   <Text style={[styles.chipText, myTurn && styles.chipTextMine]}>{chip.label}</Text>
                 </View>
                 {hold !== 'tip' && (
                   <Pressable onPress={openLineEdit} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('reading.lineEditTitle')} ph-label="reading_play_line_edit">
-                    <Feather name="edit-2" size={16} color={myTurn ? palette.blueDeep : palette.textMuted} />
+                    <Feather name="edit-2" size={16} color={myTurn ? palette.blueDeep : palette.textMeta} />
                   </Pressable>
                 )}
               </View>
@@ -2063,20 +2084,7 @@ export default function ReadingPlay() {
       )}
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
 
-      {hold === 'tip' ? (
-        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
-        <View style={[styles.backdrop, { top: tipTop }]}>
-          <View style={styles.startCard}>
-            {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
-            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
-            {startHint && (
-              <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
-                <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      ) : (
+      {/* 시작 전에는 아래 버튼 줄을 숨기되 자리는 남긴다 — 빼 버리면 대사 카드가 폰 아래 버튼 줄 밑으로 내려가 잘렸다(10/26). */}
       <>
       {hold === 'mask_sheet' && (
         // 대사 보기 고르기 — 시트 대신 컨트롤 바로 위에 세 칸으로 펼친다. 고르면 접히고, 펼친 동안은 자동 넘김이 멈춰 있다.
@@ -2091,15 +2099,19 @@ export default function ReadingPlay() {
           })}
         </View>
       )}
-      <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
+      <View
+        style={[styles.controls, { paddingBottom: insets.bottom + 12 }, hold === 'tip' && styles.controlsHidden]}
+        pointerEvents={hold === 'tip' ? 'none' : 'auto'}
+        accessibilityElementsHidden={hold === 'tip'}
+        importantForAccessibility={hold === 'tip' ? 'no-hide-descendants' : 'auto'}>
         <Pressable style={[styles.eyeBtn, masking && styles.eyeBtnOn]} onPress={openMaskSheet} hitSlop={4} accessibilityRole="button" accessibilityLabel={t('reading.maskSheetTitle')} ph-label="reading_play_mask">
-          <Feather name={masking ? 'eye-off' : 'eye'} size={20} color={masking ? palette.blueDeep : palette.textDim} />
+          <Feather name={masking ? 'eye-off' : 'eye'} size={20} color={masking ? palette.blueDeep : palette.textSub} />
           {masking && <View style={styles.eyeDot} />}
         </Pressable>
         {paused ? (
           <>
             <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={stopHere} accessibilityRole="button" ph-label="reading_play_stop">
-              <Feather name="square" size={16} color={palette.textDim} />
+              <Feather name="square" size={16} color={palette.textSub} />
               <Text style={styles.ctrlGhostText}>{t('reading.stopHere')}</Text>
             </Pressable>
             <Pressable style={[styles.ctrl, styles.ctrlPrimary]} onPress={doResume}>
@@ -2119,11 +2131,11 @@ export default function ReadingPlay() {
                 accessibilityRole="button"
                 accessibilityLabel={t('reading.prev')}
                 ph-label="reading_play_prev">
-                <Feather name="skip-back" size={20} color={palette.textDim} />
+                <Feather name="skip-back" size={20} color={palette.textSub} />
               </Pressable>
             )}
             <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={doPause}>
-              <Feather name="pause" size={16} color={palette.textDim} />
+              <Feather name="pause" size={16} color={palette.textSub} />
               <Text style={styles.ctrlGhostText}>{t('reading.pause')}</Text>
             </Pressable>
             <Pressable
@@ -2140,6 +2152,19 @@ export default function ReadingPlay() {
         )}
       </View>
       </>
+      {hold === 'tip' && (
+        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
+        <View style={[styles.backdrop, { top: tipTop }]}>
+          <View style={styles.startCard}>
+            {startHint && <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>}
+            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} />
+            {startHint && (
+              <Pressable onPress={() => void closeTip(true)} hitSlop={8} accessibilityRole="button">
+                <Text style={styles.startSkip}>{t('reading.startSkipNext')}</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
       )}
 
       {script && (
@@ -2219,7 +2244,7 @@ function ListeningBars() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 12, padding: 28 },
-  dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  dim: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 15, textAlign: 'center', lineHeight: 22 },
   downloadTrack: { alignSelf: 'stretch', height: 8, borderRadius: 999, backgroundColor: palette.bgSoft, overflow: 'hidden', marginTop: 8 },
   downloadFill: { height: 8, borderRadius: 999, backgroundColor: palette.blue },
   prepRoot: { paddingHorizontal: 24 },
@@ -2233,47 +2258,47 @@ const styles = StyleSheet.create({
   prepNoteText: { color: palette.blueDeep, fontSize: 13, lineHeight: 19 },
   primaryWide: { alignSelf: 'stretch', backgroundColor: palette.blue, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 12 },
   primaryWideText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  textButton: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 15, paddingVertical: 10 },
+  textButton: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 15, paddingVertical: 10 },
 
   monoNow: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18, lineHeight: 27, marginTop: 6 },
-  monoOther: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 23, marginTop: 6 },
-  monoRow: { alignSelf: 'stretch', gap: 2, paddingVertical: 8, borderBottomColor: palette.borderSoft, borderBottomWidth: 1 },
+  monoOther: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 23, marginTop: 6 },
+  monoRow: { alignSelf: 'stretch', gap: 2, paddingVertical: 8, borderBottomColor: palette.border, borderBottomWidth: 1 },
   monoRowText: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 15, lineHeight: 22 },
-  monoTag: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
+  monoTag: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12 },
   monoTagMissed: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   doneMascot: { width: 120, height: 120 },
   doneLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
   otherScript: { marginTop: 0 },
-  otherScriptText: { color: palette.textDim, fontSize: 15, fontWeight: '700' },
+  otherScriptText: { color: palette.textSub, fontSize: 15, fontWeight: '700' },
   firstDoneBar: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center', paddingVertical: 12 },
   firstDoneBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
   firstDoneTitle: { color: palette.text, fontSize: 24, fontWeight: '800', lineHeight: 32, textAlign: 'center', marginTop: 12 },
-  firstDoneMeta: { color: palette.textMuted, fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  firstDoneMeta: { color: palette.textMeta, fontSize: 14, lineHeight: 21, textAlign: 'center' },
   firstDoneActions: { alignSelf: 'stretch', gap: 8, marginTop: 24 },
   doneIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
   doneTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 4, textAlign: 'center' },
   doneContent: { alignItems: 'center', gap: 12, paddingHorizontal: 24, paddingBottom: 24 },
   doneStats: { alignSelf: 'stretch', backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6, alignItems: 'center' },
-  doneStat: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14, lineHeight: 21 },
-  doneStatFaint: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12 },
-  noteBox: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14 },
-  noteText: { flex: 1, color: palette.textDim, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
-  diffBox: { alignSelf: 'stretch', backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 12 },
-  diffHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', borderBottomColor: palette.borderSoft, borderBottomWidth: 1, paddingBottom: 10 },
+  doneStat: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 14, lineHeight: 21 },
+  doneStatFaint: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12 },
+  noteBox: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14 },
+  noteText: { flex: 1, color: palette.textSub, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
+  diffBox: { alignSelf: 'stretch', backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 12 },
+  diffHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', borderBottomColor: palette.border, borderBottomWidth: 1, paddingBottom: 10 },
   diffTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
   diffCount: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 13, backgroundColor: palette.amberSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
   diffRow: { gap: 4 },
-  diffNo: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  diffNo: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   diffAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2 },
   diffAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
-  maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, backgroundColor: palette.card },
-  maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.card },
+  maskRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, backgroundColor: palette.bg },
+  maskOpt: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 6, paddingVertical: 8, backgroundColor: palette.bg },
   maskOptOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
-  maskOptText: { fontSize: 13, fontWeight: '600', textAlign: 'center', color: palette.textDim },
+  maskOptText: { fontSize: 13, fontWeight: '600', textAlign: 'center', color: palette.textSub },
   maskOptTextOn: { color: palette.blueDeep, fontWeight: '800' },
   ratingSlot: { alignSelf: 'stretch' },
-  doneBar: { paddingHorizontal: 24, paddingTop: 12, gap: 10, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
+  doneBar: { paddingHorizontal: 24, paddingTop: 12, gap: 10, borderTopColor: palette.border, borderTopWidth: 1 },
   wrapContent: { paddingHorizontal: 24, paddingBottom: 24 },
   wrapBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.greenSoft, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
   wrapBadgeText: { color: palette.green, fontSize: 13, fontWeight: '800', lineHeight: 18 },
@@ -2281,22 +2306,22 @@ const styles = StyleSheet.create({
   wrapMascot: { width: 52, height: 58 },
   wrapHeading: { flex: 1, color: palette.text, fontSize: 22, fontWeight: '800', lineHeight: 29 },
   wrapCard: { backgroundColor: palette.bgSoft, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, gap: 6, marginTop: 18 },
-  wrapMeta: { color: palette.textMuted, fontSize: 12, fontWeight: '800', lineHeight: 17 },
+  wrapMeta: { color: palette.textMeta, fontSize: 12, fontWeight: '800', lineHeight: 17 },
   wrapNext: { color: palette.text, fontSize: 16, fontWeight: '800', lineHeight: 23 },
   readAgainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 },
   readAgainOff: { opacity: 0.4 },
   readAgainText: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   wrapRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 12 },
-  wrapRowText: { flex: 1, color: palette.textDim, fontSize: 14, fontWeight: '700', lineHeight: 20 },
-  startCard: { width: '100%', maxWidth: 334, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, gap: 10 },
+  wrapRowText: { flex: 1, color: palette.textSub, fontSize: 14, fontWeight: '700', lineHeight: 20 },
+  startCard: { width: '100%', maxWidth: 334, backgroundColor: palette.bg, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, gap: 10 },
   startHint: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21, textAlign: 'center' },
-  startSkip: { color: palette.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },
+  startSkip: { color: palette.textMeta, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },
 
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, gap: 8 },
   exitBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  exitText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  exitText: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
   droppedText: { color: palette.danger, fontFamily: 'Pretendard-Bold', fontSize: 12 },
-  counter: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  counter: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   progressTrack: { height: 4, backgroundColor: palette.bgSoft, marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', marginTop: 8 },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
   toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
@@ -2305,14 +2330,14 @@ const styles = StyleSheet.create({
 
   flow: { flex: 1 },
   flowContent: { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, gap: 18 },
-  direction: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
+  direction: { color: palette.textDisabled, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
   pastRow: { gap: 3, paddingHorizontal: 4 },
-  pastRole: { color: palette.checkOff, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  pastText: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  pastRole: { color: palette.textDisabled, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  pastText: { color: palette.textDisabled, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   pastRowPressed: { backgroundColor: palette.blueSoft, borderRadius: 12 },
   spoken: { gap: 2 },
-  differs: { textDecorationLine: 'underline', textDecorationColor: palette.flame, color: palette.textMuted },
-  spokenSaid: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12, lineHeight: 18 },
+  differs: { textDecorationLine: 'underline', textDecorationColor: palette.flame, color: palette.textMeta },
+  spokenSaid: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12, lineHeight: 18 },
   spokenLabel: { fontFamily: 'Pretendard-SemiBold' },
   card: { borderRadius: 16, paddingVertical: 16, paddingHorizontal: 18, gap: 10, borderWidth: 1.5 },
   cardOther: { backgroundColor: palette.bgSoft, borderColor: palette.bgSoft },
@@ -2322,34 +2347,35 @@ const styles = StyleSheet.create({
   cardRoleMine: { color: palette.blueDeep },
   cardHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  chipText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  chipText: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   chipTextMine: { color: palette.blueDeep },
   saidBox: { backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 12, gap: 4 },
-  saidLabel: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
+  saidLabel: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   saidText: { color: palette.text, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20 },
   lineText: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 21, lineHeight: 31 },
   firstWordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   firstWordRest: { flex: 1 },
   aidRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  aidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.card, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  aidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.bg, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   aidText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   bars: { gap: 8, justifyContent: 'center' },
   barPast: { height: 10, borderRadius: 5, backgroundColor: palette.bgSoft },
-  barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blueLine },
+  barCurrent: { height: 14, borderRadius: 7, backgroundColor: palette.blue },
   listenBars: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 16 },
   listenBar: { width: 3, borderRadius: 2, backgroundColor: palette.blue },
-  hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10, lineHeight: 19 },
+  hint: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10, lineHeight: 19 },
 
-  controls: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
+  controls: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.border, borderTopWidth: 1 },
+  controlsHidden: { opacity: 0 },
   eyeBtn: { width: 54, height: 52, borderRadius: 12, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   eyeBtnOn: { backgroundColor: palette.blueSoft },
   backBtnOff: { opacity: 0.4 },
   eyeDot: { position: 'absolute', top: 9, right: 9, width: 7, height: 7, borderRadius: 4, backgroundColor: palette.blue },
   ctrl: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 15 },
   ctrlGhost: { backgroundColor: palette.bgSoft },
-  ctrlGhostText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 16 },
+  ctrlGhostText: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 16 },
   ctrlPrimary: { backgroundColor: palette.blue },
-  ctrlOff: { backgroundColor: palette.checkOff },
+  ctrlOff: { backgroundColor: palette.textDisabled },
   ctrlPrimaryText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
   pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
   pillText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
