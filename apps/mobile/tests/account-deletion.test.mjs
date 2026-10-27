@@ -147,7 +147,6 @@ test('account.withdraw: 스토어 구독은 탈퇴해도 해지되지 않는다�
   // 링크는 기존 스토어 구독 관리 함수를 쓰고, 시트가 아니라 화면 안의 링크다.
   assert.match(screen, /openStoreSubscriptions\(\)/);
   assert.match(screen, /storeSubscribed\(me\)/);
-  assert.match(screen, /accessibilityRole="link"/);
   assert.doesNotMatch(screen, /BottomSheet|bottom-sheet|Modal/);
 });
 

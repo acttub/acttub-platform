@@ -123,7 +123,7 @@ export default function NotificationsScreen() {
         {groups === null && !error && <SkeletonRows count={6} card={false} style={styles.skeletonFlush} />}
         {!!error && <InlineError message={error} onRetry={() => void load()} />}
         {groups !== null && groups.length === 0 && !error && (
-          <InlineEmpty title={t('notifications.empty')} body={t('notifications.emptyBody')} />
+          <InlineEmpty title={t('notifications.empty')} description={t('notifications.emptyBody')} />
         )}
         <AdSlot slot="notifications_top" />
 
