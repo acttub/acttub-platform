@@ -201,7 +201,7 @@ export default function LoginScreen() {
           contentFit="contain"
         />
         <Text style={styles.tagline}>{t('login.tagline')}</Text>
-        <View style={[styles.progress, busy === null && styles.keepSpaceHidden]} accessibilityRole="progressbar" accessibilityElementsHidden={busy === null}>
+        <View style={[styles.progress, busy === null && styles.keepSpaceHidden]} accessibilityRole="progressbar" accessibilityElementsHidden={busy === null} importantForAccessibility={busy === null ? 'no-hide-descendants' : 'auto'}>
           <Text style={styles.progressText}>{t('login.signingIn')}</Text>
         </View>
       </View>

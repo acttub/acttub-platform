@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scrim: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
-  dialog: { width: '100%', backgroundColor: palette.bg, borderRadius: radius.xl, padding: space[6], gap: space[4] },
+  dialog: { width: '100%', maxWidth: 362, backgroundColor: palette.bg, borderRadius: radius.xl, padding: space[6], gap: space[4] },
   dialogTitle: { ...type.headline, color: palette.text },
   options: { gap: space[2] },
   option: {

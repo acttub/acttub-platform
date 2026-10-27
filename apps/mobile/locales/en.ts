@@ -68,9 +68,6 @@ const en: DeepStringShape<typeof ko> = {
     emailConflictUnavailable: 'This email is registered with {{provider}}.',
     emailConflictUnknown: 'This email is registered with another sign-in method.',
   },
-  splash: {
-    tagline: 'One step today, practice together',
-  },
   updateRequired: {
     title: 'Please update to the new version',
     body: 'This version can no longer be used. After updating, your practices and notes will be right where you left them.',
@@ -307,7 +304,7 @@ const en: DeepStringShape<typeof ko> = {
     commented: '{{count}} new comments',
     challengeEnded: 'A challenge you joined has ended',
     unavailable: 'This video isn’t available',
-    markAll: 'Mark all read',
+    markAll: 'Read all',
     empty: 'No notifications yet',
     emptyBody: 'Likes, comments and challenge news show up here',
     loadFail: "Couldn't load notifications",

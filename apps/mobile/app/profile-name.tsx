@@ -206,12 +206,13 @@ export default function ProfileNameScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         {profile.status === 'error' ? (
           <StatusScreen
+            header={t('profileName.screenTitle')}
             title={t('profileName.loadFail')}
             body={t('profileName.loadFailBody')}
             primary={{ label: t('common.retry'), onPress: () => void reloadProfile() }}
           />
         ) : (
-          <StatusScreen kind="loading" />
+          <StatusScreen kind="loading" header={t('profileName.screenTitle')} />
         )}
       </SafeAreaView>
     );
@@ -400,7 +401,7 @@ export default function ProfileNameScreen() {
               <TextField
                 placeholder={t('profileName.discoveryOtherPlaceholder')}
                 value={discovery.otherText}
-              onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
+                onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
                 maxLength={DISCOVERY_OTHER_MAX_LENGTH * 2}
                 autoFocus
               />

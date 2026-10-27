@@ -227,7 +227,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'center', alignItems: 'center', paddingHorizontal: space.gutter },
-  card: { width: '100%', maxHeight: '100%', gap: space[4], padding: space[6], borderRadius: radius.xl, backgroundColor: palette.bg },
+  card: { width: '100%', maxWidth: 362, maxHeight: '100%', gap: space[4], padding: space[6], borderRadius: radius.xl, backgroundColor: palette.bg },
   head: { gap: space[1.5] },
   title: { ...type.headline, color: palette.text },
   reason: { ...type.body2, color: palette.textSub },

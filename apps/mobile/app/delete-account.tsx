@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { DangerButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
+import { DangerButton, SecondaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
@@ -106,11 +106,9 @@ export default function DeleteAccountScreen() {
         <Section label={t('deleteAccount.secStore')}>
           <Bullet>{t('deleteAccount.storeNote')}</Bullet>
           {storeActive && (
-            <TextButton
-              tone="accent"
-              label={t('pro.manageStore')}
-              onPress={() => void openStoreSubscriptions().catch(() => undefined)}
-            />
+            <Pressable onPress={() => void openStoreSubscriptions().catch(() => undefined)} accessibilityRole="link" hitSlop={8}>
+              <Text style={styles.storeLink}>{t('pro.manageStore')}</Text>
+            </Pressable>
           )}
         </Section>
 
@@ -172,6 +170,7 @@ const styles = StyleSheet.create({
   bullet: { flexDirection: 'row', gap: space[2] },
   dot: { ...type.body2Bold, color: palette.iconFaint },
   bulletText: { flex: 1, ...type.body2, color: palette.textSub },
+  storeLink: { ...type.body2Bold, color: palette.blueDeep, paddingVertical: space[1] },
   ack: {
     minHeight: 52,
     flexDirection: 'row',
