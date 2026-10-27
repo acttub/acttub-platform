@@ -1,5 +1,8 @@
+import 'react-native-gesture-handler/jestSetup';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { Share } from 'react-native';
+import { State } from 'react-native-gesture-handler';
+import { fireGestureHandler, getByGestureTestId } from 'react-native-gesture-handler/jest-utils';
 
 import PortfolioEditScreen from '@/app/portfolio-edit';
 import { api } from '@/lib/api';
@@ -48,6 +51,21 @@ beforeEach(() => {
 
 const buttons = (name: string) => screen.getAllByRole('button', { name });
 
+/** 칸마다 크기를 알려 준 뒤 `id` 칸을 길게 눌러 `by`만큼 끌고 놓는다. */
+async function drag(ids: string[], id: string, axis: 'x' | 'y', by: number) {
+  for (const each of ids) {
+    await fireEvent(screen.getByTestId(`drag-item-${each}`), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 100, height: 72 } },
+    });
+  }
+  const move = axis === 'x' ? { translationX: by } : { translationY: by };
+  await act(async () => {
+    fireGestureHandler(getByGestureTestId(`drag-${id}`), [{ state: State.BEGAN }, { state: State.ACTIVE }, move, { state: State.END }]);
+  });
+}
+
+const creditOrder = () => screen.getAllByText(/ 역 · /).map((n) => n.props.children);
+
 async function loaded() {
   await render(<PortfolioEditScreen />);
   await screen.findByText('햄릿');
@@ -64,8 +82,8 @@ test('소개글·경력·사진·공유 상태를 보여 준다', async () => {
   expect(screen.getByLabelText('1번째 사진')).toBeOnTheScreen();
   expect(screen.getByText('2 / 10')).toBeOnTheScreen();
   expect(screen.getByText('지금은 꺼져 있어 아무도 볼 수 없어요. 다시 켜면 같은 주소가 열려요.')).toBeOnTheScreen();
-  expect(buttons('위로 옮기기')[0]).toBeDisabled();
-  expect(buttons('아래로 옮기기')[1]).toBeDisabled();
+  expect(screen.getAllByText('길게 눌러 순서를 바꿀 수 있어요')).toHaveLength(2);
+  expect(screen.queryByRole('button', { name: '위로 옮기기' })).not.toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
 });
 
@@ -75,18 +93,20 @@ test('비어 있으면 빈 안내를 보인다', async () => {
 
   expect(await screen.findByText('아직 적은 경력이 없어요.')).toBeOnTheScreen();
   expect(screen.getByText('아직 올린 사진이 없어요.')).toBeOnTheScreen();
+  expect(screen.queryByText('길게 눌러 순서를 바꿀 수 있어요')).not.toBeOnTheScreen();
   expect(screen.getByText('0 / 2000')).toBeOnTheScreen();
 });
 
 test.each([
   [new Error('네트워크 오류'), '네트워크 오류'],
-  ['boom', '포트폴리오를 불러오지 못했어요.'],
-])('못 불러오면 이유와 다시 불러오기를 둔다 (%#)', async (cause, message) => {
+  ['boom', '포트폴리오를 불러오지 못했어요'],
+])('못 불러오면 오류 화면과 다시 시도를 둔다 (%#)', async (cause, message) => {
   a.portfolio.mockRejectedValueOnce(cause);
   await render(<PortfolioEditScreen />);
 
-  expect(await screen.findByText(message)).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
+  expect((await screen.findAllByText('포트폴리오를 불러오지 못했어요')).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(message).length).toBeGreaterThan(0);
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
   expect(await screen.findByText('햄릿')).toBeOnTheScreen();
 });
 
@@ -160,8 +180,8 @@ describe('경력', () => {
     await fireEvent.changeText(roleInput, '기정 친구');
     await fireEvent.changeText(yearInput, '20a19');
     expect(screen.getByDisplayValue('2019')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '영화' }));
-    expect(screen.getByRole('button', { name: '영화' })).toBeSelected();
+    await fireEvent.press(screen.getByRole('radio', { name: '영화' }));
+    expect(screen.getByRole('radio', { name: '영화' })).toBeSelected();
     a.portfolio.mockResolvedValue(portfolio({ credits: [hamlet, drama, { id: 'c3', title: '기생충', role: '기정 친구', year: 2019, kind: 'film' }] }));
     const dialogSave = buttons('저장');
     await fireEvent.press(dialogSave[dialogSave.length - 1]);
@@ -206,7 +226,7 @@ describe('경력', () => {
     await fireEvent.press(buttons('수정')[0]);
     expect(screen.getByText('경력 수정')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByDisplayValue('햄릿 역'), '호레이쇼 역');
-    await fireEvent.press(screen.getByRole('button', { name: '드라마' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '드라마' }));
     let dialogSave = buttons('저장');
     await fireEvent.press(dialogSave[dialogSave.length - 1]);
     expect(a.updatePortfolioCredit).toHaveBeenCalledWith('c1', { role: '호레이쇼 역', kind: 'drama' });
@@ -227,7 +247,7 @@ describe('경력', () => {
 
     await fireEvent.press(buttons('수정')[0]);
     expect(screen.getByText('경력 수정')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '' }));
+    await fireEvent.press(screen.getByTestId('credit-dialog-backdrop'));
     expect(screen.queryByText('경력 수정')).not.toBeOnTheScreen();
 
     await fireEvent.press(buttons('수정')[1]);
@@ -256,23 +276,33 @@ describe('경력', () => {
     expect(screen.getByText('봄날')).toBeOnTheScreen();
   });
 
-  test('아래로 옮기면 바뀐 순서를 보낸다', async () => {
+  test('길게 눌러 아래로 끌어 놓으면 새 순서를 바로 보이고 그 순서를 보낸다', async () => {
     a.reorderPortfolioCredits.mockResolvedValue(portfolio({ credits: [drama, hamlet] }));
     await loaded();
 
-    await fireEvent.press(buttons('아래로 옮기기')[0]);
+    await drag(['c1', 'c2'], 'c1', 'y', 50);
 
     expect(a.reorderPortfolioCredits).toHaveBeenCalledWith({ ids: ['c2', 'c1'] });
-    await waitFor(() =>
-      expect(screen.getAllByText(/ 역 · /).map((n) => n.props.children)).toEqual(['친구 역 · 2024 · 드라마', '햄릿 역 · 2023 · 연극']),
-    );
+    expect(creditOrder()).toEqual(['친구 역 · 2024 · 드라마', '햄릿 역 · 2023 · 연극']);
   });
 
-  test('위로 옮기면 바뀐 순서를 보낸다', async () => {
-    a.reorderPortfolioCredits.mockResolvedValue(portfolio({ credits: [drama, hamlet] }));
+  test('이웃 칸 절반을 넘지 않고 놓으면 보내지 않는다', async () => {
     await loaded();
-    await fireEvent.press(buttons('위로 옮기기')[1]);
+    await drag(['c1', 'c2'], 'c1', 'y', 30);
+
+    expect(a.reorderPortfolioCredits).not.toHaveBeenCalled();
+    expect(creditOrder()).toEqual(['햄릿 역 · 2023 · 연극', '친구 역 · 2024 · 드라마']);
+  });
+
+  test('저장이 실패하면 원래 순서로 되돌리고 알린다', async () => {
+    a.reorderPortfolioCredits.mockRejectedValue('boom');
+    await loaded();
+
+    await drag(['c1', 'c2'], 'c2', 'y', -50);
+
     expect(a.reorderPortfolioCredits).toHaveBeenCalledWith({ ids: ['c2', 'c1'] });
+    expect(await screen.findByText('저장하지 못했어요')).toBeOnTheScreen();
+    expect(creditOrder()).toEqual(['햄릿 역 · 2023 · 연극', '친구 역 · 2024 · 드라마']);
   });
 
   test('50개면 더 넣을 수 없다고 알린다', async () => {
@@ -298,9 +328,8 @@ describe('사진', () => {
     expect(screen.getByText('3 / 10')).toBeOnTheScreen();
   });
 
-  test('지우기는 확인 뒤 지우고, 위로 옮기면 순서를 보낸다', async () => {
+  test('지우기는 확인 뒤 지운다', async () => {
     a.deletePortfolioPhoto.mockResolvedValue(undefined);
-    a.reorderPortfolioPhotos.mockResolvedValue(portfolio());
     await loaded();
 
     await fireEvent.press(buttons('삭제')[3]);
@@ -308,17 +337,16 @@ describe('사진', () => {
     const labels = screen.getAllByText('삭제');
     await fireEvent.press(labels[labels.length - 1]);
     expect(a.deletePortfolioPhoto).toHaveBeenCalledWith('ph2');
-
-    await waitFor(() => expect(buttons('위로 옮기기')[3]).toBeEnabled());
-    await fireEvent.press(buttons('위로 옮기기')[3]);
-    expect(a.reorderPortfolioPhotos).toHaveBeenCalledWith({ ids: ['ph2', 'ph1'] });
   });
 
-  test('아래로 옮기면 사진 순서를 보낸다', async () => {
-    a.reorderPortfolioPhotos.mockResolvedValue(portfolio());
+  test('사진을 길게 눌러 옆으로 끌어 놓으면 사진 순서를 보낸다', async () => {
+    a.reorderPortfolioPhotos.mockResolvedValue(portfolio({ photos: [{ id: 'ph2', url: null }, { id: 'ph1', url: 'https://cdn/1.jpg' }] }));
     await loaded();
-    await fireEvent.press(buttons('아래로 옮기기')[2]);
+
+    await drag(['ph1', 'ph2'], 'ph1', 'x', 60);
+
     expect(a.reorderPortfolioPhotos).toHaveBeenCalledWith({ ids: ['ph2', 'ph1'] });
+    expect(a.reorderPortfolioCredits).not.toHaveBeenCalled();
   });
 
   test('사진 지우기를 취소하면 보내지 않는다', async () => {
@@ -360,12 +388,12 @@ describe('저장이 실패하면', () => {
     [new ApiError(413, 'big', 'upload_too_large'), '사진이 너무 커서 올리지 못했어요. 다른 사진으로 시도해주세요.', 1],
     [new ApiError(422, 'bad', 'validation_failed', [{ field: 'x' }]), '입력값을 저장하지 못했어요. 앱을 최신 버전으로 업데이트한 뒤 다시 시도해주세요.', 1],
     [new Error('연결이 끊겼어요'), '연결이 끊겼어요', 1],
-    ['boom', '잠시 후 다시 시도해주세요.', 1],
+    ['boom', '잠시 후 다시 시도해 주세요.', 1],
   ])('사유 %#를 알리고 필요하면 다시 받는다', async (cause, message, loads) => {
     a.reorderPortfolioCredits.mockRejectedValue(cause);
     await loaded();
 
-    await fireEvent.press(buttons('아래로 옮기기')[0]);
+    await drag(['c1', 'c2'], 'c1', 'y', 50);
 
     expect(await screen.findByText('저장하지 못했어요')).toBeOnTheScreen();
     expect(screen.getByText(message)).toBeOnTheScreen();
