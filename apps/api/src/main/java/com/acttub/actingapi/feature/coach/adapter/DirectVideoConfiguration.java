@@ -102,11 +102,14 @@ public class DirectVideoConfiguration {
             @Value("${ACTTUB_COACH_MODEL_B_SHARE:0}") int modelBShare,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachFlows> flows,
             // 코치 흐름 비교(SOMA-636). false 면 모두 지금 흐름(A)이다(롤백).
-            @Value("${ACTTUB_COACH_FLOW_AB:true}") boolean flowAb,
+            @Value("${ACTTUB_COACH_FLOW_AB:false}") boolean flowAb,
             // "이미 그렇게 했다" 처리 비교(SOMA-855). 새 대화의 SHARE% 는 한 일 묻기 → 다르게 정리로 간다. 0 이면 모두 지금처럼(롤백).
             // 값을 주지 않으면 dev 에서만 50 이고 운영은 0 이다 — 운영 반영은 사용자 승인 뒤 운영 env 로 켠다.
             @Value("${ACTTUB_COACH_ALREADY_SHARE:-1}") int alreadyShare,
             @Value("${SITE_URL:}") String siteUrl,
+            // 첫 코칭 첫 말 비교. 값을 주지 않으면 dev 에서만 켜지고 운영은 꺼진다 — 운영 반영은 사용자 승인 뒤 운영 env 로 켠다.
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachOpenings> openings,
+            @Value("${ACTTUB_COACH_OPENING_AB:}") String openingAb,
             com.acttub.actingapi.feature.coach.app.CoachVideoCache videoCache,
             GeminiDirectVideoModel.Hedge coachHedge,
             // 정정에 답하는 '내려놓기'는 영상을 붙이지 않고 글만 보내 쓴다(SOMA-780). 영상이 붙으면 생각 루프에 빠져 15~20초 걸렸다.
@@ -128,7 +131,16 @@ public class DirectVideoConfiguration {
                         : com.acttub.actingapi.feature.coach.app.CoachFlows.NONE,
                 videoCache, letGoWithoutVideo, followUpMinimalThinking, layerOne)
                 .withFaceMosaic(faceMosaic.getIfAvailable(() -> com.acttub.actingapi.integration.media.FaceMosaic.NONE))
-                .withAlreadyShare(alreadyShare(alreadyShare, siteUrl));
+                .withAlreadyShare(alreadyShare(alreadyShare, siteUrl))
+                .withOpenings(openingAb(openingAb, siteUrl)
+                        ? openings.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachOpenings.NONE)
+                        : com.acttub.actingapi.feature.coach.app.CoachOpenings.NONE);
+    }
+
+    /** 첫 코칭 첫 말 비교를 켤지. 설정값이 있으면 그것, 없으면(빈 값) dev 와 운영에서 켠다(2026-10-27 흐름 비교를 A 로 끝내고 시작). */
+    static boolean openingAb(String configured, String siteUrl) {
+        if (configured != null && !configured.isBlank()) return Boolean.parseBoolean(configured.strip());
+        return "https://dev.acttub.com".equals(siteUrl) || "https://acttub.com".equals(siteUrl);
     }
 
     /** "이미 그렇게 했다" 비교의 실험 쪽 비율. 설정값이 있으면 그것, 없으면(음수) dev 만 50 이다. */

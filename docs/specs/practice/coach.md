@@ -61,6 +61,8 @@ coach_conversations.status — 회차의 코치 대화.
   | three_layers_v1 | 직접 영상 끔, 라우팅 켬(기본) | 「2층 대화 동작 분류와 코드 기반 프롬프트 선택」의 첫 응답 |
   | three_layers_v1 | 직접 영상 끔, 라우팅 끔 | 질문 하나(「첫 질문 개정」) |
 
+- 연습 루프의 첫 코칭 첫 말 비교: 이 배우의 첫 코칭(이전 코치 대화 없음)인 한국어 일반 배우만 계정 해시로 A(질문 한 줄)와 B(살아 있는 곳·본 것·다음 테이크를 먼저, 질문은 맨 끝, 180자 안쪽)로 나눈다. 배정은 첫 응답 전에 한 번 정해 `practice_loop.opening` 에 저장한다. 설정 `ACTTUB_COACH_OPENING_AB` 이 없으면 dev 와 운영에서 켜진다. 코치 흐름 비교(`ACTTUB_COACH_FLOW_AB`)는 2026-10-27 A 로 끝내 기본값이 꺼짐이다.
+
   직접 영상은 `ACTTUB_DIRECT_VIDEO_ENABLED`, 연습 루프는 `ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP`, 라우팅은
   `acttub.coaching.routed-enabled`이고 기본값은 각 절에 있다.
 - 목적 없는 질문 대화의 답 버튼은 지금 코치 질문의 예시 답 1~2개(`CoachConversation.answer_examples`) 뒤에 「잘 모르겠어요」를
