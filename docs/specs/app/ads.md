@@ -18,6 +18,11 @@
 - DIRECT 는 칸 규격의 이미지가 있어야 하고, HOUSE 는 `/` 로 시작하는 앱 안 경로와 이미지 또는 headline 이 있어야 한다.
 - 같은 단계 후보가 여럿이면 priority 가 가장 큰 것들 중 사람·칸·한국 날짜마다 하나로 고정해 돌린다.
 
+## 광고 콘텐츠 등급(AdMob)
+앱은 프로필 생년월일의 만 나이로 AdMob 요청 설정을 고른다(`adRequestConfigFor`). 만 19세 이상은 `maxAdContentRating` T 이고 그 밖의 설정은 기본이다.
+만 19세 미만은 G + `tagForUnderAgeOfConsent` + 비맞춤 광고(`requestNonPersonalizedAdsOnly`)이며, 만 13세 미만이면 `tagForChildDirectedTreatment` 도 켠다.
+생년월일이 없거나 프로필을 아직 받지 못했으면 청소년 기준(G·미성년·비맞춤)으로 본다. 프로필이 바뀌거나 로그아웃·계정 전환이 있으면 전역 설정을 다시 걸고, 배너는 요청마다 비맞춤 옵션을 넘긴다.
+
 ## 칸과 규격
 | 규격 | 크기 | 칸 |
 |---|---|---|

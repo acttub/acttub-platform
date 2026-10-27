@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   AD_SLOTS,
   PRODUCTION_BANNER_UNITS,
+  adRequestConfigFor,
   TEST_BANNER_UNIT,
   bannerUnitFor,
   renderableKind,
@@ -49,4 +50,43 @@ test('네이티브 모듈이 없으면(테스트·Expo Go) AdMob 초기화는 �
   await initAdMob();
   await initAdMob();
   assert.equal(loadBannerModule(), null);
+});
+
+test('성인(만 19세 이상)은 등급 T, 나머지 설정은 기본', () => {
+  assert.deepEqual(adRequestConfigFor('1995-03-02', '2026-10-26'), {
+    maxAdContentRating: 'T',
+    tagForUnderAgeOfConsent: false,
+    tagForChildDirectedTreatment: false,
+    requestNonPersonalizedAdsOnly: false,
+  });
+});
+
+test('만 18세는 G + 미성년 표시 + 비맞춤, 아동 표시는 켜지 않는다', () => {
+  assert.deepEqual(adRequestConfigFor('2008-05-01', '2026-10-26'), {
+    maxAdContentRating: 'G',
+    tagForUnderAgeOfConsent: true,
+    tagForChildDirectedTreatment: false,
+    requestNonPersonalizedAdsOnly: true,
+  });
+});
+
+test('만 12세는 아동 대상 처리도 켠다, 만 13세는 켜지 않는다', () => {
+  assert.equal(adRequestConfigFor('2014-10-27', '2026-10-26').tagForChildDirectedTreatment, true);
+  assert.equal(adRequestConfigFor('2013-10-26', '2026-10-26').tagForChildDirectedTreatment, false);
+});
+
+test('생년월일이 없거나 형식이 틀리면 청소년 기준(아동 표시 없이)이다', () => {
+  for (const value of [null, undefined, '', '19950302', 'abcd-ef-gh']) {
+    assert.deepEqual(adRequestConfigFor(value, '2026-10-26'), {
+      maxAdContentRating: 'G',
+      tagForUnderAgeOfConsent: true,
+      tagForChildDirectedTreatment: false,
+      requestNonPersonalizedAdsOnly: true,
+    });
+  }
+});
+
+test('만 19세 경계: 19번째 생일 전날은 G, 당일부터 T', () => {
+  assert.equal(adRequestConfigFor('2007-10-27', '2026-10-26').maxAdContentRating, 'G');
+  assert.equal(adRequestConfigFor('2007-10-26', '2026-10-26').maxAdContentRating, 'T');
 });
