@@ -8,11 +8,11 @@ import { radius, space, type } from '@/constants/tokens';
 import { Image } from 'expo-image';
 import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
-import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT as MASCOT_IMG, MASCOT_SIZE } from '@/components/ui/mascot';
 import { firstPracticeRange } from '@/lib/reading/redesign-748';
 import { useAppDialog } from '@/components/app-dialog';
+import { BlueSwitch } from '@/components/ui/list-rows';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -48,20 +48,16 @@ import { translate as t } from '@/lib/i18n';
  * 만든다. 방식은 읽어주기 하나이고 녹음은 늘 하므로 마이크 권한이 없으면 시작하지 못한다(R8.7).
  * 회차 상세 「이 구간으로 다시 연습」은 params roles(쉼표로 이은 배역 id)·start·end(줄 id)로 그 배역·구간을 골라 둔다.
  */
-const MASKS: { key: MaskMode; label: string }[] = [
-  { key: 'none', label: t('reading.maskNone') },
-  { key: 'mine', label: t('reading.maskMine') },
-  { key: 'all', label: t('reading.maskAll') },
-];
 
 /** suggest 는 첫 연습(회차 없음)의 추천 — 짧은 구간 · 처음부터 끝까지(pen 「새 · 연습 구역 첫 연습」). */
 type Tab = 'suggest' | 'recent' | 'scene' | 'line';
-const TAB_LABEL: Record<Tab, string> = {
+// 그릴 때 번역한다 — 언어를 바로 바꿀 수 있게(lib/i18n onLanguageChange).
+const tabLabel = (k: Tab): string => ({
   suggest: t('reading.bySuggest'),
   recent: t('reading.byRecent'),
   scene: t('reading.byScene'),
   line: t('reading.byLine'),
-};
+})[k];
 
 const NO_LINES: ScriptLine[] = [];
 
@@ -312,12 +308,15 @@ export default function ReadingRange() {
               : t('reading.rangeMultiNote')}
         </Text>
 
-        <View style={styles.bleed}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {MASKS.map((m) => (
-              <Chip key={m.key} label={m.label} role="radio" selected={mask === m.key} onPress={() => setMask(m.key)} phLabel="reading_range_mask" />
-            ))}
-          </ScrollView>
+        {/* 가리기는 「내 대사 가리기」 스위치 하나다(UX 가이드 10절 리딩, 10/23). 칩 셋이 오른쪽에서 잘렸다(10/28 폰 확인).
+            「모두 가리기」는 리딩 화면의 눈 버튼으로 바꿀 수 있다. */}
+        <View style={styles.maskRow}>
+          <Text style={styles.maskLabel}>{t('reading.maskMineSwitch')}</Text>
+          <BlueSwitch
+            value={mask !== 'none'}
+            onValueChange={(on) => setMask(on ? 'mine' : 'none')}
+            accessibilityLabel={t('reading.maskMineSwitch')}
+          />
         </View>
 
         <Text style={[styles.section, styles.sectionRange]}>{t('reading.rangeSection')}</Text>
@@ -330,7 +329,7 @@ export default function ReadingRange() {
                 const on = activeTab === k;
                 return (
                   <Pressable key={k} style={[styles.tab, on && styles.tabOn]} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-                    <Text style={[styles.tabText, on && styles.tabTextOn]} numberOfLines={1} adjustsFontSizeToFit>{TAB_LABEL[k]}</Text>
+                    <Text style={[styles.tabText, on && styles.tabTextOn]} numberOfLines={2}>{tabLabel(k)}</Text>
                   </Pressable>
                 );
               })}
@@ -445,6 +444,8 @@ const styles = StyleSheet.create({
   sectionRange: { marginTop: space[2] },
   hint: { ...type.caption, color: palette.textMeta },
   bleed: { marginHorizontal: -space.gutter },
+  maskRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 },
+  maskLabel: { ...type.body1, color: palette.text },
   chipRow: { gap: space[2], paddingHorizontal: space.gutter },
   roleChip: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], minHeight: 40, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: space[4] },
   roleChipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5 },

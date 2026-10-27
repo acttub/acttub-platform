@@ -163,10 +163,8 @@ describe('영상을 고르기 전', () => {
     expect(screen.getByText('목적')).toBeOnTheScreen();
     expect(screen.getByText('영상')).toBeOnTheScreen();
     expect(screen.queryByText('장면 · 질문')).not.toBeOnTheScreen();
-    // 기본 선택이 없어 고르기 전에는 「다음」이 막혀 있다.
-    expect(screen.getByRole('radio', { name: '평가 받기' })).not.toBeSelected();
-    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    expect(screen.queryByText('영상이 어디 있어요?')).not.toBeOnTheScreen();
+    // 첫 항목(평가 받기)을 미리 골라 둔다(UX 가이드 5절, 10/28) — 「다음」이 처음부터 켜져 있다.
+    expect(screen.getByRole('radio', { name: '평가 받기' })).toBeSelected();
     await toSourceStep();
     // 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있다 — 영상이 없으면 막혀 있다.
     expect(screen.getByRole('checkbox')).not.toBeChecked();

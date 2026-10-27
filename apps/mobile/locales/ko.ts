@@ -2234,6 +2234,7 @@ const ko = {
     start: '시작',
     startSkipNext: '시작하고 이 안내는 다음부터 숨기기',
     startTitle: '준비됐나요?',
+    maskMineSwitch: '내 대사 가리기',
     coachLabel: '액티 · {{n}}/{{total}}',
     coachPartner: '상대 대사는 앱이 읽어 줘요. 먼저 들어 보세요.',
     coachMine: '이제 내 대사를 소리 내어 읽어 보세요. 「듣는 중」이면 듣고 있어요.',

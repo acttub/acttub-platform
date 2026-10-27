@@ -133,7 +133,8 @@ test('홈 화면: 첫 사용자 질문 3개·오늘 할 것 카드·알림 종�
   assert.match(home, /t\('home\.firstQuestion'\)/);
   assert.match(home, /router\.push\('\/notifications'\)/);
   // 오늘 할 것 카드가 첫 가이드가 비추는 자리다.
-  assert.match(home, /ref=\{startTarget\.ref\}/);
+  // 카드 전체가 누르는 곳이라 첫 가이드 자리(ref)를 카드에 넘긴다(10/28).
+  assert.match(home, /cardRef=\{startTarget\.ref\}/);
 });
 
 test('primaryFeature: 최근 2주에 센 연습이 가장 많은 기능, 같으면 더 최근, 없으면 null', async () => {

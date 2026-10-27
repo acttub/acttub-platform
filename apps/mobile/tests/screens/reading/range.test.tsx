@@ -86,7 +86,8 @@ test('배역과 대사 보기를 골라 시작하면 회차를 만들고 대사 
   const server = await show();
   await fireEvent.press(screen.getByText('민재'));
   await fireEvent.press(screen.getByText('서연'));
-  await fireEvent.press(screen.getByText('내 대사만 가리기'));
+  // 가리기는 「내 대사 가리기」 스위치 하나다(UX 가이드, 10/28).
+  await fireEvent(screen.getByLabelText('내 대사 가리기'), 'valueChange', true);
 
   await fireEvent.press(startButton(5));
 

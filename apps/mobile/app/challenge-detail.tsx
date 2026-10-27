@@ -1,10 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
+import { LoadingText } from '@/components/ui/loading-text';
 import { useAppDialog, type DialogAction } from '@/components/app-dialog';
 import { ChallengeLineCard } from '@/components/challenge-line-card';
 import { ChallengeNotice } from '@/components/challenge-notice';
@@ -317,7 +318,7 @@ export default function ChallengeDetailScreen() {
             {cursor && (
               <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
                 {loadingMore ? (
-                  <ActivityIndicator color={palette.iconFaint} accessibilityLabel={t('loadingText.loading')} />
+                  <LoadingText label={t('loadingText.loading')} />
                 ) : (
                   <Text style={styles.moreText}>{t('challenges.moreEntries')}</Text>
                 )}

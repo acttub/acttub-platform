@@ -1,9 +1,10 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { SkeletonBlock } from '@/components/ui/skeleton';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -63,8 +64,11 @@ export default function EntryLinkScreen() {
         }
       />
       {state === 'loading' ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.iconFaint} accessibilityLabel={t('loadingText.loading')} />
+        // 처음 열 때는 스피너 대신 뼈대(UX 가이드 4절) — 영상 칸과 글 두 줄 모양.
+        <View style={styles.center} accessibilityRole="progressbar" accessibilityLabel={t('loadingText.loading')}>
+          <SkeletonBlock width="100%" height="70%" radius={12} />
+          <SkeletonBlock width="60%" height={16} style={{ marginTop: 16 }} />
+          <SkeletonBlock width="40%" height={12} style={{ marginTop: 8 }} />
         </View>
       ) : (
         <StatusScreen
@@ -79,5 +83,5 @@ export default function EntryLinkScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
 });

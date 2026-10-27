@@ -29,13 +29,8 @@ export function SettingsCard({
 }) {
   const body = (
     <>
-      {iconCircle ? (
-        <View style={styles.iconCircle}>
-          <Feather name={icon} size={20} color={palette.blueDeep} />
-        </View>
-      ) : (
-        <Feather name={icon} size={20} color={palette.textSub} />
-      )}
+      {/* 원형 아이콘 바탕은 쓰지 않는다(UX 가이드 6절 「칸칸」 금지). iconCircle 은 예전 호출과의 호환용이다. */}
+      <Feather name={icon} size={20} color={iconCircle ? palette.blueDeep : palette.textSub} />
       <View style={styles.body}>
         <Text style={styles.title}>{title}</Text>
         {!!sub && <Text style={styles.sub}>{sub}</Text>}
@@ -56,18 +51,17 @@ export function SettingsCard({
 }
 
 const styles = StyleSheet.create({
+  // 테두리 상자 없는 줄(UX 가이드 6절, 10/16·10/18 — 목록·메뉴 줄마다 상자를 씌우지 않는다).
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[3],
-    padding: space[4],
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: palette.border,
+    paddingVertical: space[3],
+    minHeight: 56,
+    borderRadius: radius.sm,
     backgroundColor: palette.bg,
   },
   pressed: { backgroundColor: palette.bgSubtle },
-  iconCircle: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, minWidth: 0, gap: 2 },
   title: { ...type.body1Bold, color: palette.text },
   sub: { ...type.caption, color: palette.textMeta },

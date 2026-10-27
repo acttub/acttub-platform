@@ -177,8 +177,8 @@ describe('인기 탭 첫 화면', () => {
     expect(screen.getByText('아직 참여한 배우가 없어요')).toBeOnTheScreen();
     expect(screen.getByText('좋아요 12')).toBeOnTheScreen();
 
-    // 오늘의 챌린지 카드는 통째로 누를 수 있어 이름에 안쪽 버튼 글자가 섞인다 — 버튼 글자로 센다.
-    expect(screen.getAllByText('나도 이 대사 연기하기')).toHaveLength(2);
+    // 「나도 이 대사 연기하기」는 오늘의 챌린지에만 있다 — 목록 카드 안에는 버튼을 두지 않는다(UX 가이드 5절, 10/28).
+    expect(screen.getAllByText('나도 이 대사 연기하기')).toHaveLength(1);
     expect(screen.getByRole('button', { name: endsWith('찾는 대사가 없나요? 직접 등록하기') })).toBeOnTheScreen();
     expect(screen.queryByText('진행 중인 챌린지가 아직 없어요')).not.toBeOnTheScreen();
   });
@@ -190,20 +190,14 @@ describe('인기 탭 첫 화면', () => {
     expect(screen.queryByText('주최자 탈퇴')).not.toBeOnTheScreen();
   });
 
-  test('카드를 누르면 상세로, 연기하기를 누르면 그 대사를 실어 촬영으로 간다', async () => {
+  test('카드를 누르면 상세로 가고, 목록 카드 안에는 연기하기 버튼이 없다(UX 가이드 5절, 10/28)', async () => {
     listChallenges.mockResolvedValue(page([card()]));
     await render(<ChallengesScreen />);
     await fireEvent.press(await screen.findByText('“나는 아직 여기 있어”'));
     expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/challenge-detail', params: { id: 'c1' } });
     expect(logged('challenge_open_detail')).toEqual([{ id: 'c1' }]);
-
-    await fireEvent.press(screen.getByRole('button', { name: endsWith('나도 이 대사 연기하기') }));
-    expect(mockRouter.push).toHaveBeenLastCalledWith({
-      pathname: '/record-video',
-      params: { mode: 'challenge', challengeId: 'c1', line: '나는 아직 여기 있어', work: '빗속의 집' },
-    });
-    expect(logged('challenge_perform_tap')).toEqual([{ id: 'c1' }]);
   });
+
 });
 
 describe('오늘의 챌린지', () => {
@@ -406,13 +400,13 @@ describe('대사 더 보기', () => {
 });
 
 describe('첫 챌린지 전(C1.16·C1.18)', () => {
-  test('이번 주 대사 하나와 고르기 두 줄만 보이고, 고르기 전에는 「다음」이 막혀 있다', async () => {
+  test('이번 주 대사 하나와 고르기 두 줄만 보이고, 첫 줄이 미리 골라져 있다(UX 가이드 5절, 10/28)', async () => {
     await AsyncStorage.removeItem('acttub.challenge.firstEntryDone');
     listChallenges.mockResolvedValue(page([card()], { featured: today() }));
     await render(<ChallengesScreen />);
     expect(await screen.findByText('같은 대사를 다른 배우는 어떻게 하는지 확인해 봐요.')).toBeOnTheScreen();
     expect(screen.queryByText('“나는 아직 여기 있어”')).not.toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '다음' })).toBeEnabled();
     await fireEvent.press(screen.getByRole('radio', { name: '나도 이 대사 연기하기' }));
     expect(screen.getByRole('radio', { name: '나도 이 대사 연기하기' })).toBeSelected();
     await fireEvent.press(screen.getByRole('button', { name: '다음' }));

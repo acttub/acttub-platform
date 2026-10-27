@@ -221,7 +221,7 @@ export default function ReadingList() {
     cloudVoice.status?.available ? (
       <View style={styles.voiceBar}>
         <MaterialCommunityIcons name="waveform" size={18} color={palette.blue} />
-        <Text style={styles.voiceText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+        <Text style={styles.voiceText} numberOfLines={2}>
           {t('cloudVoice.bannerLabel')}
         </Text>
         {!!voiceFreeUntil && <Text style={styles.voiceBadgeText}>{t('cloudVoice.bannerFree', { date: voiceFreeUntil })}</Text>}
@@ -322,7 +322,16 @@ export default function ReadingList() {
       ) : (
         <>
           {resume && !searching && (
-            <View style={styles.resumeCard}>
+            // 카드 전체를 누른다 — 카드 안에 따로 버튼을 두지 않는다(UX 가이드 5절, 10/23).
+            <Pressable
+              style={({ pressed }) => [styles.resumeCard, pressed && styles.pressed]}
+              onPress={() => void continueReading()}
+              disabled={resuming}
+              accessibilityRole="button"
+              accessibilityState={{ busy: resuming, disabled: resuming }}
+              accessibilityLabel={resuming ? t('loadingText.preparing') : t('reading.resumeGo')}
+              accessibilityHint={resume.script.title}
+              ph-label="reading_resume_card">
               <Feather name="moon" size={22} color={palette.onAccent} style={styles.resumeMoon} />
               <Image source={HERO_ACTY} style={styles.resumeActy} resizeMode="contain" accessibilityElementsHidden />
               <Text style={styles.resumeEyebrow}>{t('reading.resumeEyebrow')}</Text>
@@ -335,16 +344,11 @@ export default function ReadingList() {
                 })}
               </Text>
               <Text style={styles.resumeHint}>{t('reading.resumeHint')}</Text>
-              <Pressable
-                style={({ pressed }) => [styles.resumeBtn, pressed && styles.pressed]}
-                onPress={() => void continueReading()}
-                disabled={resuming}
-                accessibilityRole="button"
-                accessibilityState={{ busy: resuming, disabled: resuming }}>
+              <View style={styles.resumeBtn}>
                 <Text style={styles.resumeBtnText}>{resuming ? t('loadingText.preparing') : t('reading.resumeGo')}</Text>
-                {!resuming && <Feather name="arrow-right" size={16} color={palette.blueDeep} />}
-              </Pressable>
-            </View>
+                {!resuming && <Feather name="arrow-right" size={16} color={palette.onAccent} />}
+              </View>
+            </Pressable>
           )}
 
           <AdSlot slot="reading_tab_top" />
@@ -481,18 +485,8 @@ const styles = StyleSheet.create({
   resumeEyebrow: { ...type.caption, color: palette.onMediaSub },
   resumeTitle: { ...type.title2, color: palette.onAccent, maxWidth: '78%' },
   resumeHint: { ...type.caption, color: palette.onMediaSub, maxWidth: '64%' },
-  resumeBtn: {
-    alignSelf: 'flex-start',
-    height: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[1.5],
-    backgroundColor: palette.bg,
-    borderRadius: radius.full,
-    paddingHorizontal: space[4],
-    marginTop: space[1],
-  },
-  resumeBtnText: { ...type.body2Bold, color: palette.blueDeep },
+  resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[1] },
+  resumeBtnText: { ...type.body2Bold, color: palette.onAccent },
   pressed: { opacity: 0.85 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text },

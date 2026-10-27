@@ -214,11 +214,8 @@ describe('첫 사용자', () => {
     expect(screen.queryByText('이번 주 대사를 연기해요')).not.toBeOnTheScreen();
     await waitFor(() => expect(writeLastSeenStreak).toHaveBeenCalledWith(0));
 
-    // 기본 선택이 없고, 고르기 전엔 「다음」이 막혀 있다.
-    expect(screen.queryByRole('radio', { selected: true })).not.toBeOnTheScreen();
-    const blocked = screen.getByRole('button', { name: '다음' });
-    expect(blocked).toBeDisabled();
-    await fireEvent.press(blocked);
+    // 첫 항목(코칭)을 미리 골라 둔다(UX 가이드 5절, 10/28). 누르기 전엔 넘어가지 않는다.
+    expect(screen.getByRole('radio', { name: '연기 코칭을 받아볼래요?', selected: true })).toBeOnTheScreen();
     expect(mockRouter.push).not.toHaveBeenCalled();
 
     // 누르면 바로 가지 않고 골라 둔다.

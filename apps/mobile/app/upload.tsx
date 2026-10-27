@@ -137,12 +137,12 @@ export default function UploadScreen() {
   const [step, setStep] = useState<UploadStep>(() =>
     firstUploadStep({ sample, tutorial: currentTutorial()?.track === stageTrack('upload') }),
   );
-  const [purpose, setPurpose] = useState<SessionPurpose>(DEFAULT_PURPOSE);
-  // 기본 목적은 보내기용일 뿐이다 — 직접 고르기 전에는 고른 것처럼 칠하지 않는다(10/22 피드백).
-  const [purposePicked, setPurposePicked] = useState(false);
+  // 선택 목록은 첫 항목을 미리 골라 둔다(UX 가이드 5절, 10/23 결정 — 10/22 「칠하지 않기」를 바꿨다). 「다음」이 처음부터 켜져 있다.
+  const [purpose, setPurpose] = useState<SessionPurpose>(SESSION_PURPOSES[0] ?? DEFAULT_PURPOSE);
+  const [purposePicked, setPurposePicked] = useState(true);
   const [blockage, setBlockage] = useState<BlockageDraft>(() => ({
     ...emptyBlockageDraft,
-    category: blockageCategoryFor(DEFAULT_PURPOSE),
+    category: blockageCategoryFor(SESSION_PURPOSES[0] ?? DEFAULT_PURPOSE),
   }));
   const choosePurpose = (next: SessionPurpose) => {
     setPurpose(next);
