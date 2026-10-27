@@ -269,7 +269,7 @@ class ReadingExampleIT {
         String guest = consentedGuest();
         JsonNode started = json(post("/v2/reading/examples/{id}/start", "cafe").content(start(UUID.randomUUID())), 201, guest);
         assertThat(started.path("created").booleanValue()).isTrue();
-        assertThat(json(get("/v2/reading/examples"), 200, guest).path("examples")).hasSize(3);
+        assertThat(json(get("/v2/reading/examples"), 200, guest).path("examples")).hasSize(6);
         assertThat(Model.CALLS).isEmpty();
     }
 
@@ -385,7 +385,7 @@ class ReadingExampleIT {
             assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 404, bearer)).isEqualTo(noAudio);
             jdbc.update("UPDATE reading_examples SET audio='{\"voices\":[]}'::jsonb WHERE id='cafe'");
             assertThat(json(get("/v2/reading/scripts/{id}/example-audio", scriptId), 404, bearer)).as("깨진 칸은 음성 없음").isEqualTo(noAudio);
-            assertThat(json(get("/v2/reading/examples"), 200, bearer).path("examples")).as("깨진 칸이 목록을 막지 않는다").hasSize(3);
+            assertThat(json(get("/v2/reading/examples"), 200, bearer).path("examples")).as("깨진 칸이 목록을 막지 않는다").hasSize(6);
         } finally {
             jdbc.update("UPDATE reading_examples SET audio=CAST(? AS jsonb) WHERE id='cafe'", saved);
         }

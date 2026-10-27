@@ -454,7 +454,7 @@ class AccountProfileIT {
 
     // ---- helpers ----
 
-    /** 한국 시간 2026-10-02 의 오늘부터 400일째는 2027-11-07 이다. */
+    /** 한국 시간 2026-10-02 의 오늘부터 400일째는 2027-11-06 이다. */
     @Test
     void accountProfile_examDateIsSetOnlyByItsOwnEndpointAndKeptWhenTheProfileIsSaved() throws Exception {
         assertThat(save(profile()).getStatus()).isEqualTo(200);
@@ -471,14 +471,14 @@ class AccountProfileIT {
 
         // 범위 양 끝(오늘, 오늘+400일)은 받는다.
         assertThat(putExamDate("{\"exam_date\":\"2026-10-02\"}").getStatus()).isEqualTo(200);
-        assertThat(putExamDate("{\"exam_date\":\"2027-11-07\"}").getStatus()).isEqualTo(200);
+        assertThat(putExamDate("{\"exam_date\":\"2027-11-06\"}").getStatus()).isEqualTo(200);
 
         // 그 밖과 형식 오류는 422 이고 값은 그대로다.
-        for (String bad : List.of("2026-10-01", "2027-11-08", "2026/12/05", "내일", "")) {
+        for (String bad : List.of("2026-10-01", "2027-11-07", "2026/12/05", "내일", "")) {
             var rejected = putExamDate("{\"exam_date\":\"" + bad + "\"}");
             assertThat(rejected.getStatus()).as(bad).isEqualTo(422);
         }
-        assertThat(me().path("profile").path("exam_date").textValue()).isEqualTo("2027-11-07");
+        assertThat(me().path("profile").path("exam_date").textValue()).isEqualTo("2027-11-06");
 
         var cleared = putExamDate("{\"exam_date\":null}");
         assertThat(cleared.getStatus()).isEqualTo(200);

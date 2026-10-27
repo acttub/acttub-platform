@@ -77,6 +77,10 @@ public class UserProfileEntity {
     @Column(name = "signup_client")
     private String signupClient;
 
+    /** 실기 날짜(V71, 없을 수 있다). 저장소 native SQL 이 {@code PUT /v2/me/exam-date} 로만 쓴다. */
+    @Column(name = "exam_date")
+    private LocalDate examDate;
+
     @Column(name = "notify_analysis_done", nullable = false)
     private boolean notifyAnalysisDone = true;
 
