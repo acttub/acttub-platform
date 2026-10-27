@@ -68,7 +68,6 @@ export default function ConsentScreen() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
-  // 새 판(문서를 다시 받는 중)은 주의 상자, 그 밖의 실패는 빨간 한 줄로 보인다.
   const [error, setError] = useState<{ kind: 'outdated' } | { kind: 'fail'; message: string } | null>(null);
 
   const documents = useMemo<ConsentDocument[]>(() => signup?.documents ?? [], [signup?.documents]);
@@ -250,12 +249,10 @@ const styles = StyleSheet.create({
   title: { marginTop: space[3], ...type.title1, color: palette.text },
   hint: { marginTop: space[2], ...type.body2, color: palette.textMeta },
   lines: { marginTop: space[5] },
-  // 본문은 체크 칸(22 + 12)만큼 들인다.
   docBody: { paddingLeft: 34, paddingBottom: space[3] },
   cta: { gap: space[3] },
   outdated: { flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4], borderRadius: radius.md, backgroundColor: palette.amberSoft },
   outdatedText: { flex: 1, ...type.body2Bold, color: palette.amber },
-  // 모두 동의하기 — pen 「SelectCard」. 꺼짐 흰 바탕 + 1px border, 켜짐 blue-soft + 1.5px blue.
   allRow: {
     minHeight: 56,
     flexDirection: 'row',

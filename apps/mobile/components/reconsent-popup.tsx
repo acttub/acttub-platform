@@ -158,7 +158,7 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
               checked={choices[document.id] === 'granted'}
               locked={locked(document.id)}
               onToggle={() => toggleDocument(document)}
-              dense
+              inPopup
               arrow={{
                 icon: 'chevron-right',
                 onPress: () => setOpenDocument(document),

@@ -172,7 +172,6 @@ const styles = StyleSheet.create({
   bullet: { flexDirection: 'row', gap: space[2] },
   dot: { ...type.body2Bold, color: palette.iconFaint },
   bulletText: { flex: 1, ...type.body2, color: palette.textSub },
-  // 체크와 글자는 위쪽을 맞춘다(DESIGN-SYSTEM 「체크」).
   ack: {
     minHeight: 52,
     flexDirection: 'row',

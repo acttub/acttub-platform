@@ -459,8 +459,6 @@ export default function ProfileNameScreen() {
 }
 
 /**
- * 고르는 줄 — pen 「SelectCard」. 안쪽 20, 흰 바탕 · 1px 테두리, r-lg. 고르면 blue-soft 바탕 · 1.5px blue 테두리 · blue-deep 글자,
- * 여럿 고르는 줄만 오른쪽에 체크.
  * 하나만 고르는 질문은 radio, 여럿 고르는 질문(추구하는 방향)은 checkbox 로 읽힌다.
  */
 function ChoiceRow({
@@ -523,7 +521,6 @@ const styles = StyleSheet.create({
   },
   introBadgeText: { ...type.body2Bold, color: palette.blueDeep },
 
-  // 질문 화면 — 말풍선 아래 답 칸까지 24, 고르는 줄 사이 8.
   body: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[6] },
   current: { marginTop: space[6] },
   options: { gap: space[2] },

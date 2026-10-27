@@ -169,7 +169,6 @@ function SectionTitle({ children }: { children: string }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   list: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[2] },
-  // 묶음 사이는 줄 간격 8 위에 8 을 더 띄운다(pen 「gap」 8).
   sectionTitle: { ...type.captionBold, color: palette.textSub, marginTop: space[4] },
   logout: { paddingTop: space[6] },
   version: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingTop: space[1], paddingBottom: space[6] },

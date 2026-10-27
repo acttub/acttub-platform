@@ -201,8 +201,7 @@ export default function LoginScreen() {
           contentFit="contain"
         />
         <Text style={styles.tagline}>{t('login.tagline')}</Text>
-        {/* 자리를 늘 비워 두어 로그인 중에도 로고가 움직이지 않는다. */}
-        <View style={[styles.progress, busy === null && styles.hidden]} accessibilityRole="progressbar" accessibilityElementsHidden={busy === null}>
+        <View style={[styles.progress, busy === null && styles.keepSpaceHidden]} accessibilityRole="progressbar" accessibilityElementsHidden={busy === null}>
           <Text style={styles.progressText}>{t('login.signingIn')}</Text>
         </View>
       </View>
@@ -261,9 +260,8 @@ const styles = StyleSheet.create({
   logo: { width: 220, height: 74 },
   tagline: { ...type.body1, color: palette.textSub, textAlign: 'center' },
   progress: { paddingTop: space[10] },
-  hidden: { opacity: 0 },
+  keepSpaceHidden: { opacity: 0 },
   progressText: { ...type.body2, color: palette.textMeta },
-  // 아래 칸은 흔한 상태(버튼 둘 + 안내 한 줄)보다 낮아지지 않게 해 상태가 바뀌어도 로고가 뛰지 않는다.
   bottom: { minHeight: 168, justifyContent: 'flex-end', paddingBottom: space[8], gap: space[4] },
   // 켜진 제공자 수(2~4개)와 상관없이 가운데에 모은다 — 둘일 때 양 끝으로 벌어지지 않게.
   circleRow: { flexDirection: 'row', justifyContent: 'center', gap: space[5] },

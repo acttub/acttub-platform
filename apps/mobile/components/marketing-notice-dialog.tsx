@@ -14,8 +14,6 @@ const NOTICE_VISIBLE_MS = 7000;
 /**
  * S5.13 광고성 정보 수신 동의 결과 안내 — 다음 화면 아래쪽에 뜨는 어두운 토스트(제목 · 「이메일 · 앱 푸시 · Acttub · 처리일」 · 바꾸는 곳 안내).
  * 정보통신망법 제50조 제7항의 처리 결과(보낸 곳 · 처리일 · 매체별 결과)를 담는다. 화면을 막지 않고 일정 시간 뒤 사라지며, 누르면 닫힌다.
- *
- * 모양은 화면 pen 「root.marketing-notice-toast」 — 좌우 20, r-lg `toast` 카드, 안쪽 16, 제목 body2-bold `on-accent`, 둘째·셋째 줄 caption `on-media-sub`.
  */
 export function MarketingNoticeDialog({ notice, onClose }: { notice: MarketingNotice | null; onClose: () => void }) {
   const insets = useSafeAreaInsets();

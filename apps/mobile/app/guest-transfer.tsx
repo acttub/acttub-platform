@@ -218,7 +218,6 @@ const styles = StyleSheet.create({
   dialog: { width: '100%', backgroundColor: palette.bg, borderRadius: radius.xl, padding: space[6], gap: space[4] },
   dialogTitle: { ...type.headline, color: palette.text },
   options: { gap: space[2] },
-  // pen 「SelectCard」 — 꺼짐 흰 바탕 + 1px border, 켜짐 blue-soft + 1.5px blue. 체크와 글자는 위쪽을 맞춘다.
   option: {
     flexDirection: 'row',
     alignItems: 'flex-start',

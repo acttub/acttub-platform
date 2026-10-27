@@ -20,8 +20,7 @@ import { translate as t } from '@/lib/i18n';
 /**
  * A4 설정의 차단 목록(challenge.block).
  *
- * 차단한 사람을 이름(첫 글자 아바타)으로 보고 풀 수 있다. 상대에게는 차단 사실을 알리지 않고
- * 상대 화면에도 표시가 없다. 차단은 신고를 대신하지 않는다.
+ * 차단한 사람을 이름(첫 글자 아바타)으로 보고 풀 수 있다. 상대에게는 차단 사실을 알리지 않는다.
  */
 export default function BlockedUsersScreen() {
   const router = useRouter();
@@ -66,7 +65,6 @@ export default function BlockedUsersScreen() {
 
         {users?.map((user, i) => (
           <View key={user.user_id} style={[styles.row, i > 0 && styles.divider]}>
-            {/* 사람마다 같은 색의 기본 얼굴, 탈퇴한 사용자는 회색. */}
             <DefaultAvatar size={40} radius={20} seed={user.user_id} color={user.name.trim() ? undefined : DEFAULT_AVATAR_GONE} />
             <Text style={styles.name}>{blockedLabel(user)}</Text>
             <Button size="sm" variant="secondary" label={t('block.unblock')} onPress={() => void unblock(user)} />

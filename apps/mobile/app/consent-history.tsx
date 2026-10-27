@@ -18,7 +18,6 @@ import { translate as t } from '@/lib/i18n';
 import { isMarketingConsent, marketingDecisionNotice, type MarketingNotice } from '@/lib/marketing-consent';
 import { SkeletonRows } from '@/components/ui/skeleton';
 
-/** 「동의 · 2026.09.03」 / 「거부」 / 「미결정」. */
 function decisionLine(row: ConsentSettingsRow): string {
   if (row.decision === null) return t('settings.docUndecided');
   const word = t(row.decision === 'granted' ? 'settings.decisionGrantedShort' : 'settings.decisionDeclinedShort');

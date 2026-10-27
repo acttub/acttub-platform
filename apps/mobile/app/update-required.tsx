@@ -17,10 +17,6 @@ const STORE_URL = storeUrlFor({
   iosAppStoreUrl: process.env.EXPO_PUBLIC_IOS_APP_STORE_URL ?? '',
 });
 
-/**
- * 업데이트 안내(pen root.update-gate · update-required.no-store-url) — 서버가 426으로 답하면 _layout 게이트가 이 화면만 보여 준다.
- * StatusScreen 하나(마스코트 · 제목 · 설명 · 「업데이트하기」). 이 빌드로는 어떤 요청도 통하지 않으므로 닫는 길(뒤로 가기)을 두지 않는다.
- */
 export default function UpdateRequiredScreen() {
   const [openFailed, setOpenFailed] = useState(false);
 
