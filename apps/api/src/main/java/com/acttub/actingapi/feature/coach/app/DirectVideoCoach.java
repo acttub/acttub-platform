@@ -678,6 +678,7 @@ public final class DirectVideoCoach {
                         .filter(t -> !"ai".equals(t.role())).map(t -> t.text()).collect(java.util.stream.Collectors.joining("\n"))
                         + "\n" + (actorText == null ? "" : actorText));
                 shown = PurposeLoop.withoutPromises(shown);
+                if (purposeTurn != null && purposeTurn.wrap()) shown = PurposeLoop.withoutPlainTail(shown);
             }
             if (talk) {
                 shown = PurposeLoop.withoutUngroundedQuotes(shown, session.turns().stream().filter(t -> !"ai".equals(t.role()))
