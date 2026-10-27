@@ -19,7 +19,7 @@ export type ChallengeOrigin = 'team' | 'member';
  * 참여자 미리보기 — 이름만 보인다(사진·소개는 없다). 아바타는 앱이 첫 글자로 그린다.
  * user_id 는 차단에 쓴다(화면에 보이지 않는다).
  */
-export type Participant = { name: string; user_id: string };
+export type Participant = { name: string; user_id: string; founding_number?: number | null };
 
 export type ChallengeCard = {
   id: string;

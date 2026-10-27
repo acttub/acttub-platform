@@ -418,6 +418,10 @@ COLUMN external_operations.status ord=6 type=text len=- null=NO default='pending
 COLUMN external_operations.updated_at ord=14 type=timestamptz len=- null=NO default=now()
 COLUMN external_operations.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN external_operations.waiting_since ord=16 type=timestamptz len=- null=YES default=-
+COLUMN founding_members.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN founding_members.number ord=1 type=int4 len=- null=NO default=-
+COLUMN founding_members.provider ord=3 type=text len=- null=NO default=-
+COLUMN founding_members.user_id ord=2 type=uuid len=- null=YES default=-
 COLUMN guest_transfer_codes.code_hash ord=3 type=text len=- null=NO default=-
 COLUMN guest_transfer_codes.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN guest_transfer_codes.expires_at ord=5 type=timestamptz len=- null=NO default=-
@@ -1434,6 +1438,13 @@ CONSTRAINT external_operations external_operations_updated_at_not_null NOT NULL 
 CONSTRAINT external_operations external_operations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT external_operations external_operations_user_id_not_null NOT NULL user_id
 CONSTRAINT external_operations uq_external_operations_user_request UNIQUE (user_id, request_id)
+CONSTRAINT founding_members ck_founding_members_number CHECK (((number >= 1) AND (number <= 100)))
+CONSTRAINT founding_members founding_members_created_at_not_null NOT NULL created_at
+CONSTRAINT founding_members founding_members_number_not_null NOT NULL number
+CONSTRAINT founding_members founding_members_pkey PRIMARY KEY (number)
+CONSTRAINT founding_members founding_members_provider_not_null NOT NULL provider
+CONSTRAINT founding_members founding_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+CONSTRAINT founding_members uq_founding_members_user UNIQUE (user_id)
 CONSTRAINT guest_transfer_codes guest_transfer_codes_code_hash_not_null NOT NULL code_hash
 CONSTRAINT guest_transfer_codes guest_transfer_codes_created_at_not_null NOT NULL created_at
 CONSTRAINT guest_transfer_codes guest_transfer_codes_expires_at_not_null NOT NULL expires_at
@@ -2141,6 +2152,7 @@ INDEX CREATE UNIQUE INDEX entry_saves_pkey ON public.entry_saves USING btree (id
 INDEX CREATE UNIQUE INDEX entry_view_events_pkey ON public.entry_view_events USING btree (event_id)
 INDEX CREATE UNIQUE INDEX evening_reminder_sends_pkey ON public.evening_reminder_sends USING btree (user_id, day)
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
+INDEX CREATE UNIQUE INDEX founding_members_pkey ON public.founding_members USING btree (number)
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
 INDEX CREATE UNIQUE INDEX line_memorization_pkey ON public.line_memorization USING btree (id)
@@ -2220,6 +2232,7 @@ INDEX CREATE UNIQUE INDEX uq_entry_reports_request ON public.entry_reports USING
 INDEX CREATE UNIQUE INDEX uq_entry_reports_target ON public.entry_reports USING btree (target_type, target_id, reporter_id)
 INDEX CREATE UNIQUE INDEX uq_entry_saves_actor ON public.entry_saves USING btree (entry_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_external_operations_user_request ON public.external_operations USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_founding_members_user ON public.founding_members USING btree (user_id)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_code_hash ON public.guest_transfer_codes USING btree (code_hash) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_user ON public.guest_transfer_codes USING btree (user_id) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_line_memorization_user_line ON public.line_memorization USING btree (user_id, line_id)
@@ -2309,6 +2322,7 @@ TABLE entry_saves
 TABLE entry_view_events
 TABLE evening_reminder_sends
 TABLE external_operations
+TABLE founding_members
 TABLE guest_transfer_codes
 TABLE handoff_confirmations
 TABLE line_memorization

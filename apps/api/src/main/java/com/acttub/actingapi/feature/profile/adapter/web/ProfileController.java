@@ -450,7 +450,8 @@ class ProfileController {
                         profile.experience(),
                         profile.goal(),
                         view.photoUrl(),
-                        profile.bio()));
+                        profile.bio()),
+                view.foundingNumber());
     }
 
     private static SignupAttribution signupAttribution(SignupAttributionRequest body) {

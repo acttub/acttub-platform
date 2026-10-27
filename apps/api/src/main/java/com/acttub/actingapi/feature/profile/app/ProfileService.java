@@ -282,13 +282,15 @@ public class ProfileService implements ProfileGate {
 
     private AccountView view(Account account) {
         Profile profile = account.profile();
+        Integer founding = profiles.foundingNumber(account.id()).orElse(null);
         if (profile == null) {
-            return new AccountView(account, null, null);
+            return new AccountView(account, null, null, founding);
         }
         return new AccountView(
                 account,
                 profile.birthDate() == null ? null : KoreanAge.on(profile.birthDate(), today()),
-                profile.photoKey() == null ? null : photos.viewUrl(profile.photoKey(), PHOTO_VIEW_SECONDS));
+                profile.photoKey() == null ? null : photos.viewUrl(profile.photoKey(), PHOTO_VIEW_SECONDS),
+                founding);
     }
 
     private static Account require(Account account) {
@@ -319,8 +321,12 @@ public class ProfileService implements ProfileGate {
      *
      * @param age 생년월일이 없으면 {@code null}
      * @param photoUrl 사진이 없거나 스토리지가 설정돼 있지 않으면 {@code null}
+     * @param foundingNumber 창립 멤버 번호(SOMA-861), 아니면 {@code null}
      */
-    public record AccountView(Account account, Integer age, String photoUrl) {
+    public record AccountView(Account account, Integer age, String photoUrl, Integer foundingNumber) {
+        public AccountView(Account account, Integer age, String photoUrl) {
+            this(account, age, photoUrl, null);
+        }
     }
 
     public record NewPhotoUpload(String uploadUrl, Instant expiresAt) {

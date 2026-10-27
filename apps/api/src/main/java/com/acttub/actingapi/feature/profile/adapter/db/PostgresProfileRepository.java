@@ -92,6 +92,15 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
      * 없으면(LEFT JOIN 이 비면) 프로필은 {@code null} 이다.
      */
     @Override
+    public java.util.Optional<Integer> foundingNumber(UUID userId) {
+        List<?> rows = transaction.execute(tx -> entityManager
+                .createNativeQuery("SELECT number FROM founding_members WHERE user_id=:userId")
+                .setParameter("userId", userId)
+                .getResultList());
+        return rows.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(((Number) rows.get(0)).intValue());
+    }
+
+    @Override
     public Account find(UUID userId) {
         List<Tuple> rows = list(entityManager.createNativeQuery("""
                 SELECT users.id,users.email,users.status,

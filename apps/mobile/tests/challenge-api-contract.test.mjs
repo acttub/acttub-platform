@@ -8,23 +8,23 @@ import { api, httpResponses, id } from './helpers/practice-api.mjs';
 const card = (over = {}) => ({
   id: id(1), line: '가지 마.', work: '창작', character: null, scene_note: null, origin: 'team', host_name: null,
   is_host: false, starts_at: '2026-09-22T03:00:00Z', ends_at: '2026-09-29T03:00:00Z', featured_on: '2026-09-23',
-  moderation: 'visible', entry_count: 2, like_sum: 5, participants: [{ user_id: id(7), name: '니나' }], more_count: 1,
+  moderation: 'visible', entry_count: 2, like_sum: 5, participants: [{ user_id: id(7), name: '니나', founding_number: null }], more_count: 1,
   ranking_state: null, ...over,
 });
 const entry = (over = {}) => ({
-  id: id(2), challenge_id: id(1), author: { user_id: id(7), name: '니나' }, caption: null, like_count: 5,
+  id: id(2), challenge_id: id(1), author: { user_id: id(7), name: '니나', founding_number: null }, caption: null, like_count: 5,
   comment_count: 1, view_count: 3, rank: 1, final_like_count: null, published_at: '2026-09-23T03:00:00Z',
   playback_url: 'https://storage.test/v.mp4', original_playback_url: null, liked: false, saved: false, is_mine: false, is_new: false, ...over,
 });
 const mine = (over = {}) => {
-  const { is_new: _unused, ...base } = entry({ is_mine: true, author: { user_id: id(8), name: '나' } });
+  const { is_new: _unused, ...base } = entry({ is_mine: true, author: { user_id: id(8), name: '나', founding_number: null } });
   return { ...base, content_version: 1, visibility: 'public',
   status: 'visible', category: 'public', challenge_hidden: false,
   challenge: { id: id(1), line: '가지 마.', work: '창작', character: null, ends_at: '2026-09-29T03:00:00Z' },
   created_at: '2026-09-23T03:00:00Z', face_mosaic: false, mosaic_status: null, poster_url: null, ...over };
 };
 const comment = (over = {}) => ({
-  id: id(4), author: { user_id: id(7), name: '니나' }, body: '좋아요', created_at: '2026-09-23T03:00:00Z',
+  id: id(4), author: { user_id: id(7), name: '니나', founding_number: null }, body: '좋아요', created_at: '2026-09-23T03:00:00Z',
   is_mine: false, author_withdrawn: false, status: 'visible', ...over,
 });
 const group = (over = {}) => ({

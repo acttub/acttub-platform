@@ -22,7 +22,8 @@ import org.springframework.stereotype.Component;
 @Component
 class EntryCards {
     private static final String CARD = """
-            SELECT e.id,e.challenge_id,e.user_id,coalesce(ep.name,'배우') AS author_name,e.caption,e.content_version,
+            SELECT e.id,e.challenge_id,e.user_id,coalesce(ep.name,'배우') AS author_name,
+                   (SELECT fm.number FROM founding_members fm WHERE fm.user_id=e.user_id) AS founding_number,e.caption,e.content_version,
                    (SELECT count(*) FROM entry_likes l WHERE l.entry_id=e.id) AS like_count,
                    (SELECT count(*) FROM entry_comments cm WHERE cm.entry_id=e.id AND cm.status='visible'
                       AND cm.deleted_at IS NULL AND %s) AS comment_count,
@@ -92,7 +93,9 @@ class EntryCards {
     }
 
     private static Participant author(Tuple row) {
-        return new Participant(row.get("user_id", UUID.class), row.get("author_name", String.class));
+        Number founding = row.get("founding_number", Number.class);
+        return new Participant(row.get("user_id", UUID.class), row.get("author_name", String.class),
+                founding == null ? null : founding.intValue());
     }
 
     /** 확정된 순위만. 집계 중이거나 순위 밖이면 null. */
