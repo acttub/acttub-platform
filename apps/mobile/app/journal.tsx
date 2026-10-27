@@ -4,13 +4,20 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Image } from 'expo-image';
+
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineErrorLine } from '@/components/ui/inline-error';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { StatusScreen } from '@/components/ui/status-screen';
+import { TextField } from '@/components/ui/text-field';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { useWaitExit } from '@/hooks/use-wait-exit';
 import { api } from '@/lib/api';
@@ -211,15 +218,13 @@ export default function JournalScreen() {
       {phase === 'loading' && <SkeletonDetail lines={5} />}
       {phase === 'making' && (
         <View style={styles.center}>
-          {phase === 'making' && <Text style={styles.loadingText}>{t('journal.making')}</Text>}
+          <Image source={MASCOT.reading} style={MASCOT_SIZE.xl} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+          <Text style={styles.making}>{t('journal.making')}</Text>
         </View>
       )}
 
       {phase === 'error' && (
-        <View style={styles.center}>
-          <Text style={styles.errorText}>{error}</Text>
-          <PrimaryButton label={t('common.retry')} onPress={() => void load()} style={styles.stretch} />
-        </View>
+        <StatusScreen title={error ?? t('journal.loadFail')} body={t('journal.loadFailBody')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
       )}
 
       {/* 키보드가 뜨면 질문·입력칸과 「다음」이 키보드 위로 올라온다(iOS에서 아래 버튼이 키보드에 가렸다). */}
@@ -244,19 +249,18 @@ export default function JournalScreen() {
                 ))}
               </View>
             )}
-            <TextInput
+            <TextField
               key={question.id}
               style={styles.input}
               value={draft.text}
               onChangeText={(text) => setDraft({ ...draft, text })}
               placeholder={question.placeholder}
-              placeholderTextColor={palette.textMeta}
               multiline
               maxLength={300}
               accessibilityLabel={question.title}
             />
             <Text style={styles.hint}>{t('journal.hint', { action: last ? t('journal.make') : t('journal.next') })}</Text>
-            {error && <Text style={styles.errorText}>{error}</Text>}
+            {error && <InlineErrorLine message={error} />}
           </KeyboardAwareScroll>
           <CtaBar safeBottom={false}>
             <TextButton label={t('journal.skip')} onPress={skip} phLabel="journal_skip" />
@@ -272,7 +276,11 @@ export default function JournalScreen() {
       {phase === 'view' && journal && (
         <KeyboardLift aboveSafeBottom>
           <JournalBody journal={journal} edit={edit} onEdit={setEdit} open={open} onToggle={(key) => setOpen((was) => ({ ...was, [key]: !was[key] }))} footer={rating.element} />
-          {error && <Text style={[styles.errorText, styles.footerError]}>{error}</Text>}
+          {error && (
+            <View style={styles.footerError}>
+              <InlineErrorLine message={error} />
+            </View>
+          )}
           {(fromCoach || edit) && (
             <CtaBar safeBottom={false}>
               <PrimaryButton label={t('journal.save')} loading={saving} disabled={saving} onPress={() => void saveAndFinish()} />
@@ -453,60 +461,40 @@ function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; on
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  flex: { flex: 1, gap: 4 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 28 },
-  loadingText: { fontSize: 14, fontWeight: '600', color: palette.textMeta, textAlign: 'center' },
-  errorText: { fontSize: 14, fontWeight: '700', color: palette.danger, textAlign: 'center' },
-  footerError: { paddingHorizontal: 24, paddingBottom: 8 },
-  stretch: { alignSelf: 'stretch' },
-  body: { paddingTop: 12, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
+  flex: { flex: 1, gap: space[1] },
+  center: { flex: 1, alignItems: 'center', paddingTop: 96, gap: space[4], paddingHorizontal: space.gutter },
+  making: { ...type.title2, color: palette.text, textAlign: 'center' },
+  footerError: { paddingHorizontal: space.gutter, paddingBottom: space[2] },
+  body: { paddingTop: space[3], paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[4] },
 
-  step: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
-  question: { fontSize: 22, fontWeight: '800', lineHeight: 31, color: palette.text },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  input: {
-    minHeight: 96,
-    borderRadius: 14,
-    backgroundColor: palette.bgSubtle,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    lineHeight: 22,
-    color: palette.text,
-    textAlignVertical: 'top',
-  },
-  hint: { fontSize: 13, lineHeight: 19, color: palette.textMeta },
+  step: { ...type.captionBold, color: palette.blueDeep },
+  question: { ...type.title2, color: palette.text },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  input: { minHeight: 96, paddingVertical: space[3], textAlignVertical: 'top' },
+  hint: { ...type.caption, color: palette.textMeta },
 
-  meta: { fontSize: 13, fontWeight: '700', color: palette.textMeta },
-  title: { fontSize: 22, fontWeight: '800', lineHeight: 31, color: palette.text },
-  reviewBox: { gap: 12, backgroundColor: palette.bgSubtle, borderRadius: 18, padding: 18 },
-  review: { fontSize: 17, fontWeight: '800', lineHeight: 26, color: palette.text },
-  reviewInput: { fontSize: 17, fontWeight: '800', lineHeight: 26, color: palette.text, padding: 0, textAlignVertical: 'top' },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { backgroundColor: palette.bg, borderRadius: 9999, paddingVertical: 6, paddingHorizontal: 12 },
-  tagText: { fontSize: 13, fontWeight: '700', color: palette.textSub },
+  meta: { ...type.captionBold, color: palette.textMeta },
+  title: { ...type.title2, color: palette.text },
+  reviewBox: { gap: space[3], backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4] },
+  review: { ...type.headline, color: palette.text },
+  reviewInput: { ...type.headline, color: palette.text, padding: 0, textAlignVertical: 'top' },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  tag: { backgroundColor: palette.bg, borderRadius: radius.full, paddingVertical: space[1.5], paddingHorizontal: space[3] },
+  tagText: { ...type.captionBold, color: palette.textSub },
   tagAccent: { color: palette.blueDeep },
-  editHint: { fontSize: 12, color: palette.blueDeep },
-  nextBlock: { gap: 6 },
-  nextLabel: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
-  next: { fontSize: 16, fontWeight: '700', lineHeight: 24, color: palette.text },
-  nextInput: { fontSize: 16, fontWeight: '700', lineHeight: 24, color: palette.text, padding: 0, textAlignVertical: 'top' },
-  notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
+  editHint: { ...type.caption, color: palette.blueDeep },
+  nextBlock: { gap: space[1.5] },
+  nextLabel: { ...type.captionBold, color: palette.blueDeep },
+  next: { ...type.body1Bold, color: palette.text },
+  nextInput: { ...type.body1Bold, color: palette.text, padding: 0, textAlignVertical: 'top' },
+  notice: { ...type.captionBold, color: palette.amber },
   list: { gap: 0 },
-  row: { gap: 8, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
-  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowLabel: { fontSize: 15, fontWeight: '700', color: palette.text },
-  rowPreview: { fontSize: 13, color: palette.textMeta },
-  rowLine: { fontSize: 14, lineHeight: 21, color: palette.textSub },
-  editField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: palette.bgSubtle,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  editPrefix: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
-  editInput: { flex: 1, fontSize: 13, lineHeight: 19, color: palette.textSub, padding: 0 },
+  row: { gap: space[2], paddingVertical: space[3], borderBottomWidth: 1, borderBottomColor: palette.border },
+  rowHead: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  rowLabel: { ...type.body2Bold, color: palette.text },
+  rowPreview: { ...type.caption, color: palette.textMeta },
+  rowLine: { ...type.body2, color: palette.textSub },
+  editField: { flexDirection: 'row', alignItems: 'center', gap: space[2], backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingHorizontal: space[3], paddingVertical: space[2] },
+  editPrefix: { ...type.captionBold, color: palette.blueDeep },
+  editInput: { flex: 1, ...type.caption, color: palette.textSub, padding: 0 },
 });
