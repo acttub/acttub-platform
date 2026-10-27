@@ -15,7 +15,7 @@ type LinkState = 'loading' | 'gone' | 'error';
 /** 상태 → 상태 화면 글. 둘 다 「이번 주 챌린지 보러 가기」로 챌린지 탭에 보낸다(pen entry-link.gone·error). */
 const STATUS_COPY = {
   gone: { title: 'challenges.goneTitle', body: 'challenges.goneSub' },
-  error: { title: 'challenges.loadFail', body: 'challenges.loadFailSub' },
+  error: { title: 'challenges.loadFailTitle', body: 'challenges.loadFailSub' },
 } as const;
 
 /**

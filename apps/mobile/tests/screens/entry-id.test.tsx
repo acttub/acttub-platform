@@ -47,7 +47,7 @@ test('없거나 막힌 참여작(404)이면 볼 수 없다고 안내하고 챌�
 test('다른 오류면 챌린지를 불러오지 못했다고 안내한다', async () => {
   getEntry.mockRejectedValue(Object.assign(new Error('boom'), { status: 500 }));
   await render(<EntryLinkScreen />);
-  expect(await screen.findByText('챌린지를 불러오지 못했어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('챌린지를 불러오지 못했어요')).toBeOnTheScreen();
   expect(screen.getByText('잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
   // 탭 묶음을 하나 더 쌓지 않고 이미 있는 챌린지 탭까지 내려간다(SOMA-853).
   await fireEvent.press(screen.getByRole('button', { name: '이번 주 챌린지 보러 가기' }));
