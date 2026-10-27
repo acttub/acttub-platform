@@ -74,29 +74,33 @@ export function AnchoredMenu({
   );
 }
 
-/** 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘. */
+/** 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘, `selected`(고른 값)는 blue-deep 글자 + 오른쪽 체크. */
 export function MenuItem({
   label,
   onPress,
   destructive,
+  selected,
   icon,
 }: {
   label: string;
   onPress: () => void;
   destructive?: boolean;
+  selected?: boolean;
   icon?: ComponentProps<typeof Feather>['name'];
 }) {
-  const color = destructive ? palette.danger : palette.text;
+  const color = destructive ? palette.danger : selected ? palette.blueDeep : palette.text;
   return (
     <Pressable
       style={({ pressed }) => [styles.item, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={selected === undefined ? undefined : { selected }}
       onPress={onPress}>
       {icon ? <Feather name={icon} size={18} color={color} /> : null}
       <Text style={[styles.label, { color }]} numberOfLines={1}>
         {label}
       </Text>
+      {selected ? <Feather name="check" size={18} color={palette.blue} style={styles.check} /> : null}
     </Pressable>
   );
 }
@@ -115,4 +119,5 @@ const styles = StyleSheet.create({
   item: { minHeight: MENU_ITEM_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingHorizontal: space[4] },
   pressed: { backgroundColor: palette.bgSoft },
   label: { ...type.body2Bold, flexShrink: 1 },
+  check: { marginLeft: 'auto' },
 });
