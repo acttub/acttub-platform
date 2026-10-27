@@ -161,6 +161,7 @@ public final class SplitDraft {
         }
         List<Traced> traced = new ArrayList<>();
         String[] carried = null;
+        int width = LineReview.width(lines);
         for (NumberedLine line : lines) {
             Row model = rows.get(line.no());
             Row row = rows.get(line.no());
@@ -180,6 +181,18 @@ public final class SplitDraft {
             String shown = ScriptText.visible(line.text()).stripLeading();
             if (inner != null) {
                 header = shown.substring(inner[0], inner[1]);
+            }
+            // 제 머리를 단 대사 바로 뒤에서 같은 화자로 판정된 머리 없는 줄이 다른 배역의 이름표로 시작하면 그 배역의 새 대사다 — 앞 대사에
+            // 붙이지 않는다(2026-10-27 운영 뮤지컬 대본(SOMA-903): 「지수 네?」 뒤 「구두쇠 내 동전 밟았어요!」 꼴의 줄이 지수 대사 하나가 됐다).
+            Traced previous = traced.isEmpty() ? null : traced.getLast();
+            if (kind == Kind.DIALOGUE && header.isEmpty() && inner == null && previous != null && previous.kind() == Kind.DIALOGUE
+                    && !previous.header().isBlank() && previous.into() != null && previous.into() == (assembled.isEmpty() ? null : assembled.getLast())
+                    && previous.model() != null && previous.model().speaker().equals(row.speaker()) && !LineReview.cut(previous.line().text(), width)) {
+                String[] other = otherLabel(shown, row.speaker(), known, listed, heads);
+                if (other != null) {
+                    row = new Row(line.no(), Kind.DIALOGUE, other[0], other[1]);
+                    header = other[1];
+                }
             }
             String body = inner != null ? shown.substring(inner[1]).strip() : body(line.text(), header);
             Assembled into = null;
@@ -288,6 +301,36 @@ public final class SplitDraft {
         }
         return new Assembly(new ScriptDraft(title(title, modelTitle, fileName), rawText, source, characters, draftLines,
                 traitsOf(characters, traits, merged)), speakers, sourceHeads);
+    }
+
+    /** 줄 맨 앞의 이름표 후보 — 글자·숫자 두~열 자 + 공백·탭·U+3000 + 말. */
+    private static final Pattern LABEL = Pattern.compile("([\\p{L}\\p{N}]{2,10})[ \\t\\u3000]+(?=\\S)");
+
+    /**
+     * 줄이 화자와 다른 배역의 이름표로 시작하면 {배역 이름, 뗄 머리}, 아니면 null (2026-10-27 운영, SOMA-903). 이름표는 이 대본의 배역
+     * 이름(배역 목록·모델 화자)이나 배역 목록·등장인물 소개 줄에 나온 이름이고, 원문 두 줄 이상이 그 이름 + 공백으로 시작해야 한다 — 대사
+     * 첫 낱말(「그래 」)이나 부르는 말 한 번을 이름표로 보지 않는다. 화자의 줄인·변형 이름(「지수」↔「김지수」)과 함께 말하기 머리는 보지 않는다.
+     * 나누기 답이 이 줄 화자를 비워 앞 대사 화자로 채워졌거나(fillSpeakers), 목록의 「민호의 친구들[(1)구두쇠, …]」 같은 이름 때문에 이름표를
+     * 화자로 쓰지 못한 줄이다. 배역 이름과 띄어쓰기만 다르면 그 표기, 아니면 원문 이름표를 화자로 쓴다.
+     */
+    private static String[] otherLabel(String shown, String speaker, List<String> known, String listed, Heads heads) {
+        Matcher label = LABEL.matcher(shown);
+        if (!label.lookingAt()) {
+            return null;
+        }
+        String name = label.group(1);
+        if (GROUP_HEAD.matcher(name).matches() || relation(name, speaker) != null || typo(name, speaker, heads.known)
+                || !heads.known.contains(name) && !listed.contains(name)) {
+            return null;
+        }
+        Pattern started = Pattern.compile(Pattern.quote(name) + "[ \\t\\u3000]+\\S");
+        long labelled = heads.lines.stream().filter(line -> started.matcher(ScriptText.visible(line.text()).stripLeading()).lookingAt())
+                .limit(2).count();
+        if (labelled < 2) {
+            return null;
+        }
+        String cast = known.stream().filter(listedName -> CharacterNames.squash(listedName).equals(name)).findFirst().orElse(name);
+        return new String[] {cast, label.group()};
     }
 
     /** 블록 형식의 이름 줄 — 글자가 있는 짧은 무시 줄이다. 쪽 번호(「- 16 -」)는 글자가 없다. */
