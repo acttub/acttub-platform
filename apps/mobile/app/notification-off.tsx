@@ -2,6 +2,8 @@ import { Stack, useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { StatusScreen } from '@/components/ui/status-screen';
@@ -20,16 +22,14 @@ export default function NotificationOffScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('settings.notifications')} left={<NavBackButton onPress={back} />} />
-      <StatusScreen
-        mascot={MASCOT.whisper}
-        title={t('settings.notifPermissionTitle')}
-        body={t('settings.notifOffHint')}
-        primary={{
-          label: t('settings.notifOffOpen'),
-          onPress: () => void openNotificationPermissionSettings().catch(() => undefined),
-        }}
-        secondary={{ label: t('settings.notifOffSkip'), onPress: back }}
-      />
+      <StatusScreen mascot={MASCOT.nervous} title={t('settings.notifPermissionTitle')} body={t('settings.notifOffHint')} />
+      <CtaBar safeBottom={false}>
+        <TextButton label={t('settings.notifOffSkip')} onPress={back} />
+        <PrimaryButton
+          label={t('settings.notifOffOpen')}
+          onPress={() => void openNotificationPermissionSettings().catch(() => undefined)}
+        />
+      </CtaBar>
     </SafeAreaView>
   );
 }

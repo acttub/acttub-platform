@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import type { ReactNode } from 'react';
 import { type ImageSourcePropType, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,6 +31,7 @@ export function StatusScreen({
   note,
   primary,
   secondary,
+  children,
   safeArea = false,
 }: {
   kind?: 'error' | 'empty' | 'loading';
@@ -42,6 +44,8 @@ export function StatusScreen({
   note?: string | null;
   primary?: StatusAction;
   secondary?: StatusAction;
+  /** 설명 아래, 버튼 위에 두는 한 줄(누른 일 실패의 InlineError/Line, 버튼 대신 굵은 안내 등). */
+  children?: ReactNode;
   /** 화면 전체를 이 부품이 차지할 때 위·아래 안전 영역을 띄운다. */
   safeArea?: boolean;
 }) {
@@ -73,6 +77,7 @@ export function StatusScreen({
           {title ? <Text style={[styles.title, empty && styles.titleEmpty]}>{title}</Text> : null}
           {body ? <Text style={styles.text}>{body}</Text> : null}
           {note ? <Text style={styles.note}>{note}</Text> : null}
+          {children}
           {primary || secondary ? (
             <View style={styles.actions}>
               {primary ? <Button size="md" label={primary.label} onPress={primary.onPress} loading={primary.loading} /> : null}

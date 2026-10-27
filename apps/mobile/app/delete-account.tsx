@@ -4,13 +4,16 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { DangerButton, SecondaryButton } from '@/components/ui/buttons';
+import { DangerButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { openStoreSubscriptions } from '@/hooks/use-store-purchase';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { storeSubscribed } from '@/lib/billing';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -79,8 +82,9 @@ export default function DeleteAccountScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: t('deleteAccount.screenTitle'), headerShadowVisible: false }} />
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <NavHeader title={t('deleteAccount.screenTitle')} left={<NavBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/settings'))} disabled={working} />} />
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>{t('deleteAccount.title')}</Text>
         {!!user?.email && <Text style={styles.account}>{user.email}</Text>}
@@ -102,19 +106,21 @@ export default function DeleteAccountScreen() {
         <Section label={t('deleteAccount.secStore')}>
           <Bullet>{t('deleteAccount.storeNote')}</Bullet>
           {storeActive && (
-            <Pressable
+            <TextButton
+              tone="accent"
+              label={t('pro.manageStore')}
               onPress={() => void openStoreSubscriptions().catch(() => undefined)}
-              accessibilityRole="link"
-              hitSlop={8}>
-              <Text style={styles.storeLink}>{t('pro.manageStore')}</Text>
-            </Pressable>
+            />
           )}
         </Section>
 
         <Section label={t('deleteAccount.secRestart')}>
           <Bullet>{t('deleteAccount.restartBody')}</Bullet>
         </Section>
+      </ScrollView>
 
+      {/* 회원 탈퇴만 주 버튼이 위, 「그대로 쓸게요」가 맨 아래(DESIGN-SYSTEM 「의도된 차이」). */}
+      <CtaBar>
         <Pressable
           style={[styles.ack, acknowledged && styles.ackOn]}
           onPress={() => setAcknowledged((value) => !value)}
@@ -122,20 +128,17 @@ export default function DeleteAccountScreen() {
           accessibilityRole="checkbox"
           accessibilityState={{ checked: acknowledged, disabled: working }}>
           <Checkbox checked={acknowledged} danger />
-          <Text style={[styles.ackText, acknowledged && styles.ackTextOn]}>
-            {t('deleteAccount.acknowledge')}
-          </Text>
+          <Text style={[styles.ackText, acknowledged && styles.ackTextOn]}>{t('deleteAccount.acknowledge')}</Text>
         </Pressable>
-
         <DangerButton
           label={t('deleteAccount.cta')}
           onPress={() => void run()}
           disabled={!acknowledged || working}
           loading={working}
-          style={styles.danger}
+          loadingLabel={t('deleteAccount.working')}
         />
-        <SecondaryButton label={t('deleteAccount.keep')} onPress={() => router.back()} disabled={working} style={styles.ghost} />
-      </ScrollView>
+        <SecondaryButton label={t('deleteAccount.keep')} onPress={() => router.back()} disabled={working} />
+      </CtaBar>
       {dialog}
     </SafeAreaView>
   );
@@ -161,44 +164,26 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  // pen S17.1 — 좌우 20, 위 20. 제목 21/900, 이메일 13.5/600, 묶음마다 위 24 + 윗선 · 안쪽 16.
-  body: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 4 },
-  title: { fontSize: 21, fontWeight: '900', color: palette.text, lineHeight: 31 },
-  account: { fontSize: 13.5, fontWeight: '600', color: palette.textMeta, marginTop: 6 },
-
-  section: {
-    marginTop: 24,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-    gap: 8,
-  },
-  sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textMeta },
-  bullet: { flexDirection: 'row', gap: 8 },
-  dot: { fontSize: 14, fontWeight: '900', color: palette.textDisabled, lineHeight: 23 },
-  bulletText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: palette.textSub,
-    lineHeight: 23,
-  },
-  storeLink: { fontSize: 14, fontWeight: '700', color: palette.blue, paddingVertical: 4 },
-
+  body: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[6], gap: space[4] },
+  title: { ...type.title2, color: palette.text },
+  account: { ...type.caption, color: palette.textMeta, marginTop: -space[3] },
+  section: { paddingTop: space[4], borderTopWidth: 1, borderTopColor: palette.border, gap: space[1.5] },
+  sectionLabel: { ...type.captionBold, color: palette.textMeta },
+  bullet: { flexDirection: 'row', gap: space[2] },
+  dot: { ...type.body2Bold, color: palette.iconFaint },
+  bulletText: { flex: 1, ...type.body2, color: palette.textSub },
+  // 체크와 글자는 위쪽을 맞춘다(DESIGN-SYSTEM 「체크」).
   ack: {
-    marginTop: 28,
+    minHeight: 52,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: palette.bgSubtle,
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    alignItems: 'flex-start',
+    gap: space[2],
+    paddingHorizontal: space[4],
     paddingVertical: 15,
+    borderRadius: radius.md,
+    backgroundColor: palette.bgSubtle,
   },
   ackOn: { backgroundColor: palette.dangerSoft },
-  ackText: { flex: 1, fontSize: 14.5, fontWeight: '800', color: palette.textSub },
-  ackTextOn: { color: palette.text },
-
-  danger: { marginTop: 12 },
-  ghost: { marginTop: 10 },
+  ackText: { flex: 1, ...type.body2Bold, color: palette.textSub },
+  ackTextOn: { color: palette.danger },
 });

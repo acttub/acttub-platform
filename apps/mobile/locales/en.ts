@@ -1580,6 +1580,7 @@ const en: DeepStringShape<typeof ko> = {
     body: 'Bring the practices and scripts you tried on the web without signing in into this account. Videos, analyses, chats, and notes come along.',
     codeLabel: 'Six-digit transfer code',
     cta: 'Bring them in',
+    submitting: 'Bringing them in…',
     hint: 'Get the code from “Move to the app” on the web. It works once, for 10 minutes.',
     codeNotFound: 'The code is wrong or has expired',
     rateLimited: 'Too many attempts. Please try again in a moment.',
@@ -1625,6 +1626,7 @@ const en: DeepStringShape<typeof ko> = {
     restartBody:
       'You can sign up again with the same account — but it’ll be a fresh start, not connected to your past practice history.',
     cta: 'Delete account',
+    working: 'Deleting…',
     keep: 'I’ll stay',
   },
   memory: {

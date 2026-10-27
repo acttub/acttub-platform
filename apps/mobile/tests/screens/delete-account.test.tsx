@@ -30,13 +30,13 @@ test('스토어 구독은 탈퇴해도 해지되지 않는다고 누구에게나
   expect(screen.getByText('스토어 구독')).toBeOnTheScreen();
   expect(screen.getByText(STORE_NOTE)).toBeOnTheScreen();
   await waitFor(() => expect(mockBillingMe).toHaveBeenCalledTimes(1));
-  expect(screen.queryByRole('link', { name: '스토어에서 구독 관리' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '스토어에서 구독 관리' })).not.toBeOnTheScreen();
 });
 
 test('스토어 구독이 돌고 있으면 화면 안에 「스토어에서 구독 관리」 링크를 보이고 누르면 스토어 구독 관리를 연다', async () => {
   mockBillingMe.mockResolvedValue(billing('google', 'active'));
   await render(<DeleteAccountScreen />);
-  const link = await screen.findByRole('link', { name: '스토어에서 구독 관리' });
+  const link = await screen.findByRole('button', { name: '스토어에서 구독 관리' });
   await fireEvent.press(link);
   expect(mockOpenStore).toHaveBeenCalledTimes(1);
 });
@@ -46,7 +46,7 @@ test('웹(토스) 구독이나 이미 해지한 스토어 구독에는 스토어
     mockBillingMe.mockResolvedValue(me);
     const view = await render(<DeleteAccountScreen />);
     await waitFor(() => expect(mockBillingMe).toHaveBeenCalled());
-    expect(screen.queryByRole('link', { name: '스토어에서 구독 관리' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '스토어에서 구독 관리' })).not.toBeOnTheScreen();
     expect(screen.getByText(STORE_NOTE)).toBeOnTheScreen();
     await view.unmount();
     mockBillingMe.mockClear();
@@ -107,7 +107,7 @@ test('오류 객체가 아니면 일반 실패 문구를 보여 준다', async (
   const labels = await screen.findAllByText('탈퇴하기');
   await fireEvent.press(labels[labels.length - 1]);
 
-  expect(await screen.findByText('잠시 후 다시 시도해주세요. 계정은 그대로 있어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('잠시 후 다시 시도해 주세요. 계정은 그대로 있어요.')).toBeOnTheScreen();
 });
 
 test('그대로 쓰기를 누르면 이전 화면으로 돌아간다', async () => {
