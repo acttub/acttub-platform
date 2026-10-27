@@ -653,8 +653,7 @@ export default function UploadScreen() {
                     </View>
                   )}
                   {!sample && (
-                    <Pressable
-                      style={styles.repick}
+                    <Pressable style={styles.repick}
                       onPress={(e) => { setSourceAnchor(pt(e)); setSourceSheet(true); }}
                       disabled={locked}
                       accessibilityRole="button"

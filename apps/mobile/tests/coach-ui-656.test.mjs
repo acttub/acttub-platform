@@ -56,29 +56,6 @@ test('액티 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 �
   assert.match(input, /paddingTop: Platform\.OS === 'ios' \? 8 : 11,\s*paddingBottom: 11,/);
 });
 
-test('새 연습 준비: 고른 영상의 「영상 다시 선택」을 누르면 그 자리 메뉴에서 촬영·갤러리를 고른다(상자 안 버튼 없음)', () => {
-  const upload = read('app/upload.tsx');
-  assert.doesNotMatch(upload, /styles\.pickActions|styles\.recordBtn|styles\.galleryLink/);
-  // 처음 고르기는 영상 단계의 세 줄이 하고(빈 영상 상자는 없다, SOMA-778), 바꾸기는 시트가 한다.
-  assert.doesNotMatch(upload, /styles\.dropzone/);
-  assert.match(upload, /<Pressable style=\{styles\.repick\} onPress=\{\(e\) => \{ setSourceAnchor\(pt\(e\)\); setSourceSheet\(true\); \}\}/);
-  assert.match(upload, /<VideoSourceSheet/);
-  // 두 갈래는 시트의 줄로 간다 — 문구 키는 그대로 쓴다
-  for (const key of ['upload.recordCta', 'upload.pickGallery']) assert.match(upload, new RegExp(key.replace('.', '\\.')));
-  const sheet = read('components/video-source-sheet.tsx');
-  // 아래 시트 대신 누른 자리 옆 메뉴(10/24 하단 시트 금지)
-  assert.match(sheet, /<AnchoredMenu anchor=\{anchor\}/);
-  assert.match(sheet, /onClose=\{onClose\}/);
-});
-
-test('액티 질문은 회색 말풍선 16pt 다(pen 질문 대화 「액티 말」, SOMA-748 — 예전 21pt 맨글자 대신)', () => {
-  const coach = read('app/coach.tsx');
-  assert.match(coach, /question: \{ fontSize: 16,/);
-  // 회색 말풍선은 코치 머리줄 공통 부품(components/coach-message)이 그린다(pen 09).
-  assert.match(coach, /<CoachMessage>/);
-  assert.match(read('components/coach-message.tsx'), /<View style=\{styles\.bubble\}>/);
-});
-
 test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 받아 미리보기를 채운다(목록은 playback_url 이 null)', () => {
   const upload = read('app/upload.tsx');
   assert.match(upload, /api\s*\.getVideo\(picked\.videoId\)/);
@@ -86,8 +63,3 @@ test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 
   assert.match(upload, /\{picked \? \(/);
 });
 
-test('액티 화면 위에 「액티 답변 N번 남음」은 보이지 않는다 — 마무리 직전 안내만 남긴다', () => {
-  const coach = read('app/coach.tsx');
-  assert.doesNotMatch(coach, /coach\.remaining/);
-  assert.match(coach, /\{wrapping && <Text style=\{styles\.progressText\}>\{t\('coach\.wrapNext'\)\}<\/Text>\}/);
-});

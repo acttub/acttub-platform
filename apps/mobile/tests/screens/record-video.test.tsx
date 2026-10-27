@@ -932,6 +932,17 @@ describe('용도 고르기(하단 탭에서 곧장 연 촬영)', () => {
     expect(await swipe(-120, 10)).toEqual({ onTouch: true, onMove: true });
   });
 
+  test('녹화를 시작해도 안내 자리와 용도 줄을 치우지 않아 셔터가 움직이지 않는다(SOMA-737)', async () => {
+    mockParams = { mode: 'ai', picker: '1' };
+    await render(<RecordVideoScreen />);
+    expect(screen.getByText('옆으로 넘겨 용도를 바꿔요')).toBeOnTheScreen();
+
+    await startRecording();
+
+    expect(screen.getByText('5분 남았어요')).toBeOnTheScreen();
+    expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel ?? null)).toHaveLength(3);
+  });
+
   test('녹화 중에는 넘겨도 용도가 바뀌지 않는다', async () => {
     mockParams = { mode: 'ai', picker: '1', challengeId: 'c1', line: '대사', work: '작품' };
     await render(<RecordVideoScreen />);
