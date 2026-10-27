@@ -202,6 +202,19 @@ class ScriptCocreateServiceTest {
     }
 
     @Test
+    @DisplayName("분량이 벗어나 막히면 다음 시도 프롬프트에 실제 글자 수와 허용 범위를 붙여 다시 만든다")
+    void retriesWithLengthFeedback() {
+        model.replies.add(p -> script(1, 20, "가".repeat(22), "지수", "f"));
+        model.replies.add(p -> script(1, 12));
+
+        View view = service.generate(USER, UUID.randomUUID(), request(1, 1));
+
+        assertThat(view.script().lines()).isNotEmpty();
+        assertThat(model.prompts.get(0)).doesNotContain("[직전 시도 결과]");
+        assertThat(model.prompts.get(1)).contains("[직전 시도 결과]").contains("440자").contains("225~375자").contains("더 짧게");
+    }
+
+    @Test
     @DisplayName("걸린 줄만 고치기 프롬프트로 고친다 — 걸리지 않은 줄 번호는 무시하고, 안전 문제가 남으면 보이지 않는다")
     void fixesOnlyFlaggedLines() {
         ObjectNode bad = (ObjectNode) read(script(1, 12));
