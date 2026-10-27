@@ -548,4 +548,75 @@ class CoachVideoCacheTest {
         assertThat(cache.warmingSource(new CoachVideoCache.Key(UUID.randomUUID(), null, "e"))).isFalse();
         cache.close();
     }
+
+    // 10/27: 미리 준비가 늦으면 같은 준비를 하나 더 시작해 먼저 끝난 쪽을 쓴다.
+    @Test void slowWarmIsRacedByASecondPreparationAndTheLoserIsDeleted() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        var key = new CoachVideoCache.Key(UUID.randomUUID(), "owned/video.mp4", "etag");
+        var release = new java.util.concurrent.CountDownLatch(1);
+        cache.warm(key, () -> {
+            try {
+                release.await();
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            return new CoachVideoCache.Prepared(null, file);
+        });
+        var claimed = cache.claimWarm(key, Duration.ofSeconds(5), Duration.ofMillis(100),
+                () -> new CoachVideoCache.Prepared(null, other));
+        assertThat(claimed.video()).isEqualTo(other);
+        // 늦게 끝난 미리 준비의 영상은 끝나는 대로 지운다.
+        release.countDown();
+        verify(model, timeout(2000)).delete(file);
+        verify(model, never()).delete(other);
+        cache.close();
+    }
+
+    @Test void fastWarmNeverStartsTheSecondPreparation() {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        var key = new CoachVideoCache.Key(UUID.randomUUID(), "owned/video.mp4", "etag");
+        cache.warm(key, () -> new CoachVideoCache.Prepared(null, file));
+        var hedged = new java.util.concurrent.atomic.AtomicBoolean();
+        var claimed = cache.claimWarm(key, Duration.ofSeconds(5), Duration.ofSeconds(2), () -> {
+            hedged.set(true);
+            return new CoachVideoCache.Prepared(null, other);
+        });
+        assertThat(claimed.video()).isEqualTo(file);
+        assertThat(hedged).isFalse();
+        cache.close();
+    }
+
+    @Test void failedSecondPreparationStillWaitsForTheWarm() throws Exception {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        var key = new CoachVideoCache.Key(UUID.randomUUID(), "owned/video.mp4", "etag");
+        cache.warm(key, () -> {
+            try {
+                Thread.sleep(400);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            return new CoachVideoCache.Prepared(null, file);
+        });
+        var claimed = cache.claimWarm(key, Duration.ofSeconds(5), Duration.ofMillis(100), () -> {
+            throw new IllegalStateException("upload failed");
+        });
+        assertThat(claimed.video()).isEqualTo(file);
+        verify(model, after(300).never()).delete(any());
+        cache.close();
+    }
+
+    @Test void bothPreparationsFailingFallsBackToTheDirectPath() {
+        var cache = new CoachVideoCache(model, Duration.ofMinutes(20), clock, failures);
+        var key = new CoachVideoCache.Key(UUID.randomUUID(), "owned/video.mp4", "etag");
+        cache.warm(key, () -> {
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            throw new IllegalStateException("warm failed");
+        });
+        assertThat(cache.claimWarm(key, Duration.ofSeconds(5), Duration.ofMillis(100), () -> null)).isNull();
+        cache.close();
+    }
 }
