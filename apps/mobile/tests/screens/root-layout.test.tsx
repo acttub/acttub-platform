@@ -13,7 +13,7 @@ import { installNavigationGuard } from '@/lib/navigation-guard';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
-import { logScreenView } from '@/lib/analytics';
+import { logEvent, logScreenView } from '@/lib/analytics';
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { useAuth } from '@/lib/auth';
@@ -64,7 +64,7 @@ jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn(), hideAs
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('react-native-reanimated', () => ({}));
 jest.mock('@/lib/global-font', () => ({}));
-jest.mock('@/lib/analytics', () => ({ logScreenView: jest.fn() }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(), logScreenView: jest.fn() }));
 jest.mock('expo-tracking-transparency', () => ({
   getTrackingPermissionsAsync: jest.fn(),
   requestTrackingPermissionsAsync: jest.fn(),
@@ -483,6 +483,14 @@ describe('푸시를 누르면', () => {
     await renderLayout();
     pushListener?.({ kind: 'evening_reminder' });
     expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+  });
+
+  test('안 읽은 대본 알림은 그 대본을 찾아 여는 화면으로 가고 누른 것을 남긴다(SOMA-862)', async () => {
+    await renderLayout();
+    const id = '12345678-1234-1234-1234-123456789abc';
+    pushListener?.({ kind: 'evening_reminder', reminder_kind: 'unread_script', script_id: id, template_id: 'unread.a' });
+    expect(mockRouter.replace).toHaveBeenCalledWith(`/reminder-open?kind=unread_script&id=${id}`);
+    expect(logEvent).toHaveBeenCalledWith('reminder_open', { reminder_kind: 'unread_script', template_id: 'unread.a', target: 'resolve' });
   });
 
   test('챌린지 알림은 알림함을 연다', async () => {
