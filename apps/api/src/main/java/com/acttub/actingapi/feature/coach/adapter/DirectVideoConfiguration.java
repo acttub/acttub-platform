@@ -126,7 +126,9 @@ public class DirectVideoConfiguration {
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.media.FaceMosaic> faceMosaic,
             // Pro 지난 연습 기억(SOMA-900). Pro 판정 스위치는 ACTTUB_COACH_PRO(값이 없으면 dev 만 켜짐).
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachPro> coachPro,
-            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachProMemory> proMemory) {
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachProMemory> proMemory,
+            // 리딩 녹음 코칭(SOMA-791)의 소리·대본. 스위치(ACTTUB_READING_VOICE_COACHING_ENABLED)가 꺼졌으면 없다.
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachReadingAudio> readingAudio) {
         var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null
                 : new GeminiDirectVideoModel(client, modelB.strip()).withHedge(coachHedge);
         return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
@@ -137,6 +139,7 @@ public class DirectVideoConfiguration {
                         : com.acttub.actingapi.feature.coach.app.CoachFlows.NONE,
                 videoCache, letGoWithoutVideo, followUpMinimalThinking, layerOne)
                 .withFaceMosaic(faceMosaic.getIfAvailable(() -> com.acttub.actingapi.integration.media.FaceMosaic.NONE))
+                .withReadingAudio(readingAudio.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachReadingAudio.NONE))
                 .withAlreadyShare(alreadyShare(alreadyShare, siteUrl))
                 .withProMemory(coachPro.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPro.NONE),
                         proMemory.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachProMemory.NONE))

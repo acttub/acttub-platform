@@ -6,7 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.ToDoubleFunction;
 
-import com.acttub.actingapi.feature.reading.domain.RecordingCoachMaterial.Clip;
+import com.acttub.actingapi.feature.reading.domain.ReadingVoiceMaterial.Clip;
 
 /**
  * 리딩 녹음 코치가 말해도 되는 소리를 서버가 잰 값으로 고른다(SOMA-791).

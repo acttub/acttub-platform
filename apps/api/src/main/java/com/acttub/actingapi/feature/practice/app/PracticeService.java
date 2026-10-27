@@ -41,6 +41,7 @@ public class PracticeService {
     private final boolean guestDailyAnalysisLimitEnabled;
     private final CoachingPlan plan;
     private final Clock clock;
+    private ReadingVoice readingVoice = ReadingVoice.OFF;
 
     public PracticeService(
             PracticeRepository practices,
@@ -91,6 +92,31 @@ public class PracticeService {
         Quota quota = coachingQuota(userId, guest);
         return answer(practices.start(userId, newPractice(withFaceMosaic(draft, Boolean.TRUE.equals(draft.faceMosaic()) ? true : null),
                 contractHeader), quota, clock.instant()), quota);
+    }
+
+    /** 리딩 녹음으로 시작하는 코칭(SOMA-791)의 확인 자리를 끼운다. 기본은 꺼짐이다. */
+    public PracticeService withReadingVoice(ReadingVoice readingVoice) {
+        this.readingVoice = readingVoice == null ? ReadingVoice.OFF : readingVoice;
+        return this;
+    }
+
+    /**
+     * 리딩 녹음으로 시작하는 묶음 첫 회차(SOMA-791). 목적은 고르지 않는다(서버가 {@code reading} 으로 둔다). 분석 없이 바로 대화이고,
+     * 무료라 코칭 한도를 쓰지 않는다. 그 리딩 회차로 이미 시작했으면 그 회차를 돌려준다. 말로 하는 코치와 같이 새 코치에만 있다.
+     */
+    public PracticeView startFromReading(UUID userId, UUID requestId, UUID readingSessionId) {
+        switch (readingVoice.check(userId, readingSessionId)) {
+            case OFF, NOT_FOUND -> throw new ApiException(404, "session_not_found");
+            case NOT_ENOUGH_AUDIO -> throw new ApiException(422, "reading_voice_not_enough_audio");
+            case READY -> { }
+        }
+        String payload = "practice_start|reading|" + readingSessionId;
+        // 장면·막힘 칸은 적지 않은 시작과 같은 빈 값이다(표의 NOT NULL 기본).
+        NewPractice practice = new NewPractice(requestId, fingerprint(payload), null,
+                ExperienceVersion.THREE_LAYERS_V1.dbValue(), PracticeRules.scene(null), PracticeRules.scene(null),
+                PracticeRules.scene(null), PracticeRules.blockage(null), PracticeRules.blockage(null), PracticeRules.note(null),
+                null, PracticeRules.READING_PURPOSE, null);
+        return answer(practices.startFromReading(userId, practice, readingSessionId, clock.instant()));
     }
 
     /**

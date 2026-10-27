@@ -459,7 +459,6 @@ function RootNavigator() {
         <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
         <Stack.Screen name="reading/play" options={{ headerShown: false }} />
         <Stack.Screen name="reading/diff" options={{ title: t('reading.diffTitle') }} />
-        <Stack.Screen name="reading/coach" options={{ title: t('readingCoach.coachName') }} />
         <Stack.Screen name="reading/pronunciation" options={{ title: t('reading.pronReportRow') }} />
         {/* 자체 헤더(← 설정 · 제목)를 그린다 — 기본 헤더를 겹치면 라우트 이름 "memory"가 제목으로 나온다. */}
         <Stack.Screen name="memory" options={{ headerShown: false }} />

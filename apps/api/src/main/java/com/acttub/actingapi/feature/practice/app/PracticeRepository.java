@@ -36,6 +36,15 @@ public interface PracticeRepository {
      */
     Started startWithoutVideo(UUID userId, NewPractice practice, Quota quota, Instant now);
 
+    /**
+     * 리딩 녹음으로 시작하는 묶음 첫 회차(SOMA-791). 분석 없이 바로 대화다. 한도를 쓰지 않는다. 그 리딩 회차로 이미 만든
+     * 회차가 있으면 그것을 {@code REPLAYED} 로 돌려준다.
+     */
+    Started startFromReading(UUID userId, NewPractice practice, UUID readingSessionId, Instant now);
+
+    /** 그 리딩 회차로 시작한 내 코칭 회차 id. 없으면 {@code null}. */
+    UUID existingFromReading(UUID userId, UUID readingSessionId);
+
     Started continueGroup(UUID userId, UUID from, UUID videoId, NewPractice practice, Quota quota, Instant now);
 
     /**

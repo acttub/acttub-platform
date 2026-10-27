@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { markSegments, markedLineCount, pronunciationSettled } from '../lib/reading/pronunciation-report.ts';
-import { recordingCoachFailure, recordingCoachOnFromProbe } from '../lib/reading/recording-coach.ts';
+import { readingNextLine, voiceCoachCardState } from '../lib/reading/voice-coaching.ts';
 
 const mark = (index, word) => ({ index, word, lpr: -4, startMs: 100, endMs: 300 });
 
@@ -33,12 +33,21 @@ test('발음 보고서: 칠한 줄 수와 기다림 끝 상태', () => {
   assert.equal(pronunciationSettled('skipped'), true);
 });
 
-test('녹음 액티: 없는 대화 물음의 오류 코드로 켜짐을 본다(SOMA-791)', () => {
-  assert.equal(recordingCoachOnFromProbe({ code: 'recording_coach_not_found' }), true);
-  assert.equal(recordingCoachOnFromProbe({ code: 'Not Found' }), false);
-  assert.equal(recordingCoachOnFromProbe(new Error('network')), false);
-  assert.equal(recordingCoachFailure({ code: 'recording_coach_not_enough_audio' }), 'not_enough_audio');
-  assert.equal(recordingCoachFailure({ code: 'recording_coach_unavailable' }), 'unavailable');
-  assert.equal(recordingCoachFailure({ code: 'session_not_found' }), 'gone');
-  assert.equal(recordingCoachFailure({ code: 'network_error' }), 'other');
+test('리딩 녹음 코칭 카드: available 참일 때만 보이고 거짓·오류(null)는 숨기며 이미 시작한 회차를 알려 준다(SOMA-791)', () => {
+  assert.deepEqual(voiceCoachCardState({ available: true, practice_id: null }), { show: true, practiceId: null });
+  assert.deepEqual(voiceCoachCardState({ available: true, practice_id: 'p1' }), { show: true, practiceId: 'p1' });
+  assert.deepEqual(voiceCoachCardState({ available: false, practice_id: null }), { show: false, practiceId: null });
+  assert.deepEqual(voiceCoachCardState(null), { show: false, practiceId: null });
+  assert.deepEqual(voiceCoachCardState(undefined), { show: false, practiceId: null });
+});
+
+test('리딩 녹음 코칭: 끝에 영상으로 찍을 줄은 card.next.text 의 첫 따옴표 안 글이다', () => {
+  const base = { purpose: 'reading', step: 'wrap', choices: [], scene: null, lines: [{ at: null, text: '무시' }], card: null, character_card: null };
+  const next = (text) => ({ ...base, card: { good: null, issue: null, next: { at: null, text } } });
+  assert.equal(readingNextLine(next('"가자"에서 끝을 내려 봐요')), '가자');
+  assert.equal(readingNextLine(next('“그만 가, 제발”에서 천천히 “둘째” 말해요')), '그만 가, 제발');
+  assert.equal(readingNextLine(next('따옴표 없이 해 봐요')), null);
+  assert.equal(readingNextLine(base), null);
+  assert.equal(readingNextLine({ ...next('"x"에서'), purpose: 'stuck' }), null);
+  assert.equal(readingNextLine(null), null);
 });

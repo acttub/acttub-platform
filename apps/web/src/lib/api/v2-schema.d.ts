@@ -3887,6 +3887,12 @@ export interface components {
             session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
             /** Face Mosaic */
             face_mosaic?: boolean | null;
+            /**
+             * Reading Session Id
+             * Format: uuid
+             * @description 리딩 녹음으로 시작(SOMA-791). 내 리딩 회차 id. 보내면 video_id·session_purpose 는 빼고, 서버가 목적을 reading 으로 둔다. 그 회차의 소리 든 내 대사 녹음이 3줄 미만이면 422 reading_voice_not_enough_audio, 남의·없는 회차면 404 session_not_found. 같은 리딩 회차로 이미 시작했으면 그 회차를 돌려준다.
+             */
+            reading_session_id?: string | null;
         };
         /** PracticeScene */
         PracticeScene: {
@@ -3956,7 +3962,7 @@ export interface components {
             /** Previous Conversations */
             previous_conversations: components["schemas"]["PreviousConversation"][];
             /** Session Purpose */
-            session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
+            session_purpose?: ("evaluate" | "stuck" | "character" | "concern" | "reading") | null;
         };
         /** PracticeJob */
         PracticeJob: {

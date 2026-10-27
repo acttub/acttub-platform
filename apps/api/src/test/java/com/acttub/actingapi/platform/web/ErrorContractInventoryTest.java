@@ -499,14 +499,8 @@ class ErrorContractInventoryTest {
             covered("feature.reading.app.ScriptCocreateService|502|sample_script_revision_failed", 2,
                     "feature.reading.app.ScriptCocreateServiceTest"),
             // 리딩 녹음 코치(reading.recording-coach, 실험). 모델 실패와 빈 답은 같은 503 이다.
-            covered("feature.reading.app.RecordingCoachService|404|recording_coach_not_found", 1,
-                    "feature.reading.app.RecordingCoachServiceTest"),
-            covered("feature.reading.app.RecordingCoachService|404|session_not_found", 2,
-                    "feature.reading.app.RecordingCoachServiceTest"),
-            covered("feature.reading.app.RecordingCoachService|422|recording_coach_not_enough_audio", 2,
-                    "feature.reading.app.RecordingCoachServiceTest"),
-            covered("feature.reading.app.RecordingCoachService|503|recording_coach_unavailable", 2,
-                    "feature.reading.app.RecordingCoachServiceTest"),
+            covered("feature.reading.adapter.web.ReadingVoiceController|404|session_not_found", 1,
+                    "feature.reading.ReadingVoiceCoachingIT"),
             // 고품질 목소리. 모델·스토리지·기간·월 상한과 외부 실패는 한 503 헬퍼로 모인다.
             covered("feature.reading.app.CloudVoiceService|400|invalid_voice_request", 1,
                     "feature.reading.app.CloudVoiceServiceTest"),
@@ -571,6 +565,10 @@ class ErrorContractInventoryTest {
                     "feature.feedback.ExitSurveyIT"),
             // 연습 회차·묶음(practice.start, practice.resume, practice.analyze). 409 는 코드만이고 진행 중 회차 id 는
             // 묶음 조회에서 얻는다.
+            covered("feature.practice.app.PracticeService|404|session_not_found", 1,
+                    "feature.reading.ReadingVoiceCoachingIT"),
+            covered("feature.practice.app.PracticeService|422|reading_voice_not_enough_audio", 1,
+                    "feature.reading.ReadingVoiceCoachingIT"),
             covered("feature.practice.app.PracticeService|404|practice_not_found", 1,
                     "feature.practice.PracticeLifecycleIT"),
             covered("feature.practice.app.PracticeService|409|analysis_already_finished", 1,

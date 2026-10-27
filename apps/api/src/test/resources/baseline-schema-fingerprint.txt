@@ -556,6 +556,7 @@ COLUMN practices.hidden_at ord=20 type=timestamptz len=- null=YES default=-
 COLUMN practices.id ord=1 type=uuid len=- null=NO default=-
 COLUMN practices.legacy_hidden_at ord=21 type=timestamptz len=- null=YES default=-
 COLUMN practices.ordinal ord=5 type=int4 len=- null=NO default=-
+COLUMN practices.reading_session_id ord=26 type=uuid len=- null=YES default=-
 COLUMN practices.request_fingerprint ord=10 type=bpchar len=64 null=YES default=-
 COLUMN practices.request_id ord=9 type=uuid len=- null=YES default=-
 COLUMN practices.root_id ord=4 type=uuid len=- null=NO default=-
@@ -598,18 +599,6 @@ COLUMN reading_pronunciation_reports.result ord=9 type=jsonb len=- null=YES defa
 COLUMN reading_pronunciation_reports.status ord=4 type=text len=- null=NO default=-
 COLUMN reading_pronunciation_reports.updated_at ord=12 type=timestamptz len=- null=NO default=now()
 COLUMN reading_pronunciation_reports.user_id ord=3 type=uuid len=- null=NO default=-
-COLUMN reading_recording_coaches.actor_reply ord=9 type=text len=- null=YES default=-
-COLUMN reading_recording_coaches.clip_count ord=5 type=int4 len=- null=NO default=-
-COLUMN reading_recording_coaches.created_at ord=11 type=timestamptz len=- null=NO default=now()
-COLUMN reading_recording_coaches.first_design ord=6 type=text len=- null=YES default=-
-COLUMN reading_recording_coaches.first_message ord=7 type=text len=- null=NO default=-
-COLUMN reading_recording_coaches.focus_line_id ord=8 type=uuid len=- null=YES default=-
-COLUMN reading_recording_coaches.id ord=1 type=uuid len=- null=NO default=-
-COLUMN reading_recording_coaches.model ord=4 type=text len=- null=NO default=-
-COLUMN reading_recording_coaches.reading_session_id ord=3 type=uuid len=- null=NO default=-
-COLUMN reading_recording_coaches.second_message ord=10 type=text len=- null=YES default=-
-COLUMN reading_recording_coaches.updated_at ord=12 type=timestamptz len=- null=NO default=now()
-COLUMN reading_recording_coaches.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN reading_recordings.attempt_no ord=6 type=int4 len=- null=NO default=-
 COLUMN reading_recordings.byte_size ord=9 type=int8 len=- null=NO default=-
 COLUMN reading_recordings.content_type ord=8 type=text len=- null=NO default=-
@@ -1613,7 +1602,7 @@ CONSTRAINT practices ck_practices_blockage_branch CHECK ((((blockage_kind = '분
 CONSTRAINT practices ck_practices_close_reason CHECK ((close_reason = ANY (ARRAY['analysis_failed'::text, 'cancelled'::text, 'conversation_closed'::text])))
 CONSTRAINT practices ck_practices_experience_version CHECK ((experience_version = ANY (ARRAY['legacy'::text, 'three_layers_v1'::text])))
 CONSTRAINT practices ck_practices_ordinal CHECK ((ordinal >= 1))
-CONSTRAINT practices ck_practices_session_purpose CHECK ((session_purpose = ANY (ARRAY['evaluate'::text, 'stuck'::text, 'character'::text, 'concern'::text])))
+CONSTRAINT practices ck_practices_session_purpose CHECK ((session_purpose = ANY (ARRAY['evaluate'::text, 'stuck'::text, 'character'::text, 'concern'::text, 'reading'::text])))
 CONSTRAINT practices ck_practices_stage CHECK ((stage = ANY (ARRAY['analyzing'::text, 'conversing'::text, 'closed'::text])))
 CONSTRAINT practices practices_blockage_kind_not_null NOT NULL blockage_kind
 CONSTRAINT practices practices_character_context_not_null NOT NULL character_context
@@ -1625,6 +1614,7 @@ CONSTRAINT practices practices_goal_not_null NOT NULL goal
 CONSTRAINT practices practices_id_not_null NOT NULL id
 CONSTRAINT practices practices_ordinal_not_null NOT NULL ordinal
 CONSTRAINT practices practices_pkey PRIMARY KEY (id)
+CONSTRAINT practices practices_reading_session_id_fkey FOREIGN KEY (reading_session_id) REFERENCES reading_sessions(id) ON DELETE SET NULL
 CONSTRAINT practices practices_root_id_fkey FOREIGN KEY (root_id) REFERENCES practices(id)
 CONSTRAINT practices practices_root_id_not_null NOT NULL root_id
 CONSTRAINT practices practices_situation_not_null NOT NULL situation
@@ -1667,18 +1657,6 @@ CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_status_no
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_updated_at_not_null NOT NULL updated_at
 CONSTRAINT reading_pronunciation_reports reading_pronunciation_reports_user_id_not_null NOT NULL user_id
 CONSTRAINT reading_pronunciation_reports uq_reading_pronunciation_reports_session UNIQUE (reading_session_id)
-CONSTRAINT reading_recording_coaches reading_recording_coaches_clip_count_not_null NOT NULL clip_count
-CONSTRAINT reading_recording_coaches reading_recording_coaches_created_at_not_null NOT NULL created_at
-CONSTRAINT reading_recording_coaches reading_recording_coaches_first_message_not_null NOT NULL first_message
-CONSTRAINT reading_recording_coaches reading_recording_coaches_id_not_null NOT NULL id
-CONSTRAINT reading_recording_coaches reading_recording_coaches_model_not_null NOT NULL model
-CONSTRAINT reading_recording_coaches reading_recording_coaches_pkey PRIMARY KEY (id)
-CONSTRAINT reading_recording_coaches reading_recording_coaches_reading_session_id_fkey FOREIGN KEY (reading_session_id) REFERENCES reading_sessions(id) ON DELETE CASCADE
-CONSTRAINT reading_recording_coaches reading_recording_coaches_reading_session_id_not_null NOT NULL reading_session_id
-CONSTRAINT reading_recording_coaches reading_recording_coaches_updated_at_not_null NOT NULL updated_at
-CONSTRAINT reading_recording_coaches reading_recording_coaches_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-CONSTRAINT reading_recording_coaches reading_recording_coaches_user_id_not_null NOT NULL user_id
-CONSTRAINT reading_recording_coaches uq_reading_recording_coaches_session UNIQUE (reading_session_id)
 CONSTRAINT reading_recordings ck_reading_recordings_attempt_no CHECK ((attempt_no >= 1))
 CONSTRAINT reading_recordings ck_reading_recordings_transcript_source CHECK ((transcript_source = ANY (ARRAY['stt'::text, 'none'::text])))
 CONSTRAINT reading_recordings reading_recordings_attempt_no_not_null NOT NULL attempt_no
@@ -2108,7 +2086,6 @@ INDEX CREATE INDEX ix_notifications_due ON public.notifications USING btree (pus
 INDEX CREATE INDEX ix_notifications_entry ON public.notifications USING btree (entry_id)
 INDEX CREATE INDEX ix_notifications_expires ON public.notifications USING btree (expires_at)
 INDEX CREATE INDEX ix_notifications_inbox ON public.notifications USING btree (user_id, group_key, created_at DESC)
-INDEX CREATE INDEX ix_reading_recording_coaches_user ON public.reading_recording_coaches USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_script_cocreations_user ON public.script_cocreations USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX ix_user_blocks_received ON public.user_blocks USING btree (blocked_id, blocker_id)
 INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_cleanup_operations USING btree (id)
@@ -2169,11 +2146,11 @@ INDEX CREATE UNIQUE INDEX practice_reminder_sends_pkey ON public.practice_remind
 INDEX CREATE UNIQUE INDEX practice_reports_pkey ON public.practice_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_sessions_pkey ON public.practice_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX practices_pkey ON public.practices USING btree (id)
+INDEX CREATE UNIQUE INDEX practices_reading_session_uq ON public.practices USING btree (reading_session_id) WHERE (reading_session_id IS NOT NULL)
 INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
 INDEX CREATE UNIQUE INDEX reading_examples_pkey ON public.reading_examples USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_pronunciation_reports_pkey ON public.reading_pronunciation_reports USING btree (id)
-INDEX CREATE UNIQUE INDEX reading_recording_coaches_pkey ON public.reading_recording_coaches USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_recordings_pkey ON public.reading_recordings USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_session_ratings_pkey ON public.reading_session_ratings USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_sessions_pkey ON public.reading_sessions USING btree (id)
@@ -2248,7 +2225,6 @@ INDEX CREATE UNIQUE INDEX uq_practices_open_root ON public.practices USING btree
 INDEX CREATE UNIQUE INDEX uq_practices_root_ordinal ON public.practices USING btree (root_id, ordinal)
 INDEX CREATE UNIQUE INDEX uq_practices_user_request ON public.practices USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_reading_pronunciation_reports_session ON public.reading_pronunciation_reports USING btree (reading_session_id)
-INDEX CREATE UNIQUE INDEX uq_reading_recording_coaches_session ON public.reading_recording_coaches USING btree (reading_session_id)
 INDEX CREATE UNIQUE INDEX uq_reading_recordings_session_line ON public.reading_recordings USING btree (reading_session_id, line_id)
 INDEX CREATE UNIQUE INDEX uq_reading_recordings_user_request ON public.reading_recordings USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_reading_session_ratings_session_user ON public.reading_session_ratings USING btree (session_id, user_id)
@@ -2341,7 +2317,6 @@ TABLE practices
 TABLE push_tokens
 TABLE reading_examples
 TABLE reading_pronunciation_reports
-TABLE reading_recording_coaches
 TABLE reading_recordings
 TABLE reading_session_ratings
 TABLE reading_sessions

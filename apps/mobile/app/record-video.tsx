@@ -450,10 +450,12 @@ export default function RecordVideoScreen() {
 
   const remaining = Math.max(0, maxSec - elapsed);
   // 위에 띄우는 글: 챌린지 대사 카드 또는 코칭 촬영 대본 카드. 있으면 시간 알약과 가리기 버튼이 함께 보인다.
-  const cover = isChallenge ? (line ? 'line' : null) : recordScript ? 'script' : null;
+  // 리딩 녹음 코칭 끝에서 오면(next=upload + line, SOMA-791) 챌린지가 아니어도 찍을 한 줄을 띄운다.
+  const coachLine = !isChallenge && !picker && toUpload && !!line;
+  const cover = isChallenge ? (line ? 'line' : null) : coachLine ? 'line' : recordScript ? 'script' : null;
   const coverHidden = cover === 'line' ? lineHidden : scriptHidden;
   const toggleCover = () => (cover === 'line' ? setLineHidden((v) => !v) : setScriptHidden((v) => !v));
-  const showPill = recording || isChallenge || !!recordScript;
+  const showPill = recording || isChallenge || !!recordScript || coachLine;
   const hintText = recording
     ? remainingLabel(remaining)
     : isChallenge

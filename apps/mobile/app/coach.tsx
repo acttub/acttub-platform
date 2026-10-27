@@ -42,6 +42,7 @@ import {
 import { splitTimestamps } from '@/lib/practice/coach-timestamps';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
 import type { CoachConversation, CoachTurnResult } from '@/lib/practice/types';
+import { readingNextLine } from '@/lib/reading/voice-coaching';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
 import { newRequestId } from '@/lib/request-id';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -95,6 +96,8 @@ export default function CoachScreen() {
 function CoachTalk() {
   const router = useRouter();
   const navigation = useNavigation();
+  // 리딩 녹음으로 시작하면(SOMA-791) 첫 답까지 녹음을 듣는 시간이라 기다림 문구가 다르다.
+  const { purpose: purposeParam } = useLocalSearchParams<{ purpose?: string }>();
   const keyboardHeight = useKeyboardHeight();
   const keyboardVisible = keyboardHeight > 0;
   const [practice] = useState(() => getPractice());
@@ -285,6 +288,34 @@ function CoachTalk() {
   }, [applyResult, conversation, loop, reloadConversation, sample, waiting]);
 
   /** 닫힌 대화에서 다시 코칭하려면 새 회차다 — 「다음 테이크 찍기」로 영상을 새로 고른다(SOMA-672). */
+  const readingPurpose = conversation?.purpose?.purpose === 'reading';
+  /** 리딩 녹음 코칭이 끝나면 영상 한 줄로 같은 묶음을 이어 간다 — 다음 테이크와 같은 이어하기 길(upload → continuePractice). */
+  const readingEnd = readingPurpose && !sample && (conversation?.purpose?.step === 'wrap' || closed);
+  const [closingForVideo, setClosingForVideo] = useState(false);
+  const startReadingVideo = async () => {
+    if (!practice || !conversation || closingForVideo) return;
+    const line = readingNextLine(conversation?.purpose);
+    // 대화가 아직 열려 있으면(마무리 뒤에도 배우가 더 물을 수 있다) 이어하기가 409 라 먼저 마치기와 같은 길(reply 에 끝 신호)로 닫는다.
+    if (!closed) {
+      setClosingForVideo(true);
+      setError(null);
+      try {
+        const result = await loop.replyToCoach(buildReplyBody({ conversation, requestId: newRequestId(), text: COACH_END_WORD }), streamCallbacks);
+        if (!mountedRef.current) return;
+        applyResult(result);
+        if (!isClosed(result.conversation)) throw new Error('not closed');
+      } catch {
+        if (mountedRef.current) setError(t('coach.readingCloseFailed'));
+        return;
+      } finally {
+        if (mountedRef.current) setClosingForVideo(false);
+      }
+    }
+    setContinueOrigin({ kind: 'group', rootId: practice.rootId, practiceId: practice.practiceId });
+    clearPractice();
+    leaveThen(() => router.replace({ pathname: '/record-video', params: line ? { mode: 'ai', next: 'upload', line } : { mode: 'ai', next: 'upload' } }));
+  };
+
   const startNextTake = () => {
     if (!practice) return;
     setContinueOrigin({ kind: 'group', rootId: practice.rootId, practiceId: practice.practiceId });
@@ -499,8 +530,8 @@ function CoachTalk() {
 
           {connecting && !latestQuestion && !streamText ? (
             <View style={styles.loading}>
-              <Text style={styles.loadingText}>{t('coach.wrapping')}</Text>
-              <Text style={styles.loadingHint}>{t('coach.wrappingHint')}</Text>
+              <Text style={styles.loadingText}>{t(purposeParam === 'reading' ? 'coach.listeningRecording' : 'coach.wrapping')}</Text>
+              <Text style={styles.loadingHint}>{t(purposeParam === 'reading' ? 'coach.listeningRecordingHint' : 'coach.wrappingHint')}</Text>
             </View>
           ) : (
             // 카톡처럼 쌓이는 대화(10/23 pen) — 코치 말은 왼쪽 마스코트 말풍선, 내 답은 오른쪽 파란 말풍선. 지난 문답을 접지 않는다.
@@ -586,17 +617,27 @@ function CoachTalk() {
           )}
         </ScrollView>
 
-        {closed && (
+        {(closed || readingEnd) && (
           <CtaBar safeBottom={false}>
             {/* 영상 없이 말로 한 대화(말로 코칭)는 찍은 테이크가 없어 「다음 테이크 찍기」를 두지 않는다. 예시 회차도 없다. */}
             {!sample && sceneVideo && (
               <SecondaryButton label={t('history.nextTake')} phLabel="coach_next_take" onPress={startNextTake} />
             )}
-            <PrimaryButton
-              label={practice.note ? t('coach.seeSummary') : t('coach.finishBtn')}
-              phLabel="coach_finish"
-              onPress={practice.note ? goToNote : finishWithoutNote}
-            />
+            {readingEnd && <PrimaryButton label={t('coach.readingVideoCta')} phLabel="reading_voice_coach_video" loading={closingForVideo} disabled={waiting || closingForVideo} onPress={() => void startReadingVideo()} />}
+            {readingEnd ? (
+              <SecondaryButton
+                label={t('coach.readingVideoLater')}
+                phLabel="reading_voice_coach_later"
+                disabled={waiting || closingForVideo}
+                onPress={practice.note ? goToNote : finishWithoutNote}
+              />
+            ) : (
+              <PrimaryButton
+                label={practice.note ? t('coach.seeSummary') : t('coach.finishBtn')}
+                phLabel="coach_finish"
+                onPress={practice.note ? goToNote : finishWithoutNote}
+              />
+            )}
           </CtaBar>
         )}
 

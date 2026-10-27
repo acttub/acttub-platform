@@ -6,34 +6,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * 리딩 녹음 코치(reading.recording-coach, 실험)가 모델에 보일 재료 — 구간의 대본 줄과 그 회차의 내 대사 녹음.
+ * 리딩 녹음 코칭(reading.voice-coaching, SOMA-791)이 코치 모델에 보일 재료 — 구간의 대본 줄과 그 회차의 내 대사 녹음.
  *
- * <p>무엇을 "소리가 든 녹음"으로 볼지와 대본을 어떤 글로 펼칠지, 모델 출력에서 숨은 칸을 어떻게 걷을지를 여기서 정한다.
+ * <p>무엇을 "소리가 든 녹음"으로 볼지와 대본·줄 시간을 어떤 글로 펼칠지를 여기서 정한다.
  * 저장·모델 호출은 모른다.
  *
  * <p>소리가 든 녹음: 기기가 받아쓴 글이 있으면(stt) 그 글이 비지 않아야 하고, 받아쓰기가 없으면(none) 길이가
  * {@link #SILENT_MAX_MS} 보다 길어야 한다. 10/19 QA 에서 말하지 않아도 리딩이 끝나 빈 녹음이 남은 일이 있어서다.
  * 같은 줄을 다시 녹음했으면 마지막 시도만 쓴다(저장소가 그렇게 준다).
  */
-public final class RecordingCoachMaterial {
+public final class ReadingVoiceMaterial {
 
-    /** 소리가 든 내 대사 녹음이 이만큼은 있어야 코치를 연다(리딩 완료 화면 카드 조건, SOMA-791). */
+    /** 소리가 든 내 대사 녹음이 이만큼은 있어야 코칭을 연다(리딩 완료 화면 카드 조건, SOMA-791). */
     public static final int MIN_CLIPS = 3;
     /** 한 번에 모델에 보이는 녹음 수. 넘으면 앞에서부터 이만큼만 쓴다. */
     public static final int MAX_CLIPS = 20;
-    /** 인라인으로 보내는 소리의 합계 상한(Gemini 인라인 요청 20MB 아래). 넘는 녹음부터 뺀다. */
+    /** 잇는 녹음 파일의 합계 상한. 넘는 녹음부터 뺀다. */
     public static final long MAX_TOTAL_BYTES = 15L * 1024 * 1024;
     /** 받아쓰기가 없는 녹음은 이보다 짧으면 소리가 없는 것으로 본다. */
     public static final int SILENT_MAX_MS = 800;
 
-    private static final Pattern DESIGN = Pattern.compile("<설계>(.*?)</설계>", Pattern.DOTALL);
-    private static final Pattern CHOSEN = Pattern.compile("고른\\s*녹음\\s*[:：]\\s*(\\d+)");
 
-    private RecordingCoachMaterial() {
+    private ReadingVoiceMaterial() {
     }
 
     /** 구간 안의 대본 한 줄. {@code characterName} 은 지문·장면이면 {@code null}. */
@@ -63,10 +59,6 @@ public final class RecordingCoachMaterial {
             }
             return clips.stream().filter(c -> c.number() == clipNumber).map(Clip::lineId).findFirst().orElse(null);
         }
-    }
-
-    /** 모델 출력을 나눈 것. {@code design} 은 배우에게 보이지 않는 칸, {@code chosenClip} 은 "고른 녹음: n" 의 n. */
-    public record Output(String design, String message, Integer chosenClip) {
     }
 
     public static boolean audible(Recording recording) {
@@ -133,45 +125,33 @@ public final class RecordingCoachMaterial {
         return new Prepared(script.toString(), List.copyOf(clips));
     }
 
-    /** 숨은 칸을 걷고 배우에게 보낼 말만 남긴다. 숨은 칸이 닫히지 않았으면 여는 꼬리표 뒤를 모두 숨은 칸으로 본다. */
-    public static Output parse(String raw) {
-        String text = raw == null ? "" : raw;
-        String design = null;
-        Matcher matcher = DESIGN.matcher(text);
-        if (matcher.find()) {
-            design = matcher.group(1).strip();
-            text = text.substring(0, matcher.start()) + text.substring(matcher.end());
-        } else {
-            int open = text.indexOf("<설계>");
-            if (open >= 0) {
-                design = text.substring(open + "<설계>".length()).strip();
-                text = text.substring(0, open);
-            }
-        }
-        text = text.replace("</설계>", "").strip();
-        Integer chosen = null;
-        if (design != null) {
-            Matcher number = CHOSEN.matcher(design);
-            while (number.find()) {
-                chosen = Integer.parseInt(number.group(1));
-            }
-        }
-        return new Output(design, text, chosen);
-    }
+    /** 이은 소리 안에서 줄 사이에 두는 빈 소리 길이. 모델이 줄을 나눠 듣게 한다. */
+    public static final int GAP_MS = 600;
 
     /**
-     * 코치가 소리를 평가하는 말. 프롬프트로 막아도 둘째 차례에 "잘 맞네요", "잘 어울려요", "소리로는 충분하니"가 나왔다
-     * (dev 10/21). 이런 말은 배우에게 녹음이 잘됐다는 판정으로 읽히는데, 서버가 잰 소리는 다르다는 것뿐이지 좋다는 근거가 아니다.
+     * 코치 모델에 보일 글(SOMA-791): 대본, 이은 소리 안 줄별 시간, 서버가 잰 소리. 줄 시간은 녹음 길이에 {@link #GAP_MS} 를 더해
+     * 앞에서부터 쌓는다(이을 때 줄마다 뒤에 빈 소리를 붙인다).
+     *
+     * @param durationsMs 줄 id → 그 줄 녹음 길이
+     * @param soundCues {@link RecordingSoundCues#block} 의 글
      */
-    static final Pattern EVALUATIVE = Pattern.compile(
-            "잘\\s*[가-힣]+|충분|훌륭|좋(아요|네요|았|은\\s*소리)|자연스러|어색|완벽|멋지|대단|인상적|느껴지");
-    /** 큰따옴표로 따온 대사("나도 잘 모르겠어")는 코치의 평가가 아니다. */
-    private static final Pattern QUOTED = Pattern.compile("[\"“][^\"”]*[\"”]");
+    public static String modelText(Prepared prepared, Map<UUID, Integer> durationsMs, String soundCues) {
+        StringBuilder out = new StringBuilder("[리딩 녹음]\n");
+        out.append(prepared.script());
+        out.append("\n[소리 안 줄별 시간] 내 대사 녹음을 대본 순서대로 이었다. 줄 사이에는 짧은 빈 소리가 있다.\n");
+        long at = 0;
+        for (Clip clip : prepared.clips()) {
+            int duration = Math.max(0, durationsMs.getOrDefault(clip.lineId(), 0));
+            out.append("- ").append(clip.label()).append(": ").append(clock(at)).append("~").append(clock(at + duration))
+                    .append(" \"").append(clip.text().strip()).append("\"\n");
+            at += duration + GAP_MS;
+        }
+        out.append(soundCues == null ? "" : soundCues);
+        return out.toString();
+    }
 
-    /** 배우에게 보낼 말에 평가하는 말이 있으면 그 말. 없으면 {@code null}. 따온 대사 안은 보지 않는다. */
-    public static String evaluative(String message) {
-        String own = QUOTED.matcher(message == null ? "" : message).replaceAll(" ");
-        Matcher m = EVALUATIVE.matcher(own);
-        return m.find() ? m.group() : null;
+    private static String clock(long ms) {
+        long seconds = Math.round(ms / 1000.0);
+        return seconds / 60 + ":" + String.format(java.util.Locale.ROOT, "%02d", seconds % 60);
     }
 }
