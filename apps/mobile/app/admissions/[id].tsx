@@ -13,8 +13,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import {
   countdown,
@@ -46,13 +48,16 @@ export default function UniversityDetailScreen() {
   const [payload, setPayload] = useState<AdmissionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
     if (!id) return;
+    setError(null);
     api
       .admissionsByUniversity(id)
       .then(setPayload)
-      .catch(() => setError('입시 정보를 불러오지 못했어요.'));
-  }, [id]);
+      .catch(() => setError('입시 정보를 불러오지 못했어요'));
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [id]);
 
   const university = payload?.universities[0] ?? null;
   const today = localDate();
@@ -67,8 +72,16 @@ export default function UniversityDetailScreen() {
       {!payload && !error && (
         <SkeletonDetail lines={6} />
       )}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {payload && !university && <Text style={styles.error}>해당 대학을 찾을 수 없어요.</Text>}
+      {error && (
+        <View style={styles.errorBox}>
+          <InlineError message={error} onRetry={load} />
+        </View>
+      )}
+      {payload && !university && (
+        <View style={styles.errorBox}>
+          <InlineErrorLine message="해당 대학을 찾을 수 없어요." />
+        </View>
+      )}
 
       {payload && university && (
         <ScrollView contentContainerStyle={styles.list}>
@@ -77,7 +90,7 @@ export default function UniversityDetailScreen() {
 
           <View style={styles.notice}>
             {/* Pretendard 서브셋에 원문자(U+2460~24FF)가 없어 'ⓘ'는 두부로 나온다. */}
-            <Feather name="info" size={14} color="#B45309" />
+            <Feather name="info" size={14} color={palette.amber} />
             <Text style={styles.noticeText}>{payload.disclaimer}</Text>
           </View>
 
@@ -231,8 +244,8 @@ const BAR_COLOR: Record<string, string> = {
   practical: palette.blue,
   transcript: palette.textMeta,
   csat: palette.textDisabled,
-  interview: '#00C7AE',
-  portfolio: '#F5A623',
+  interview: palette.green,
+  portfolio: palette.amber,
   other: palette.border,
 };
 
@@ -447,121 +460,108 @@ function Block({ label, value }: { label: string; value?: string | null }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bgSoft },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 14,
-  },
-  headerTitle: { flex: 1, fontSize: 17, fontWeight: '800', color: palette.text },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  error: { padding: 30, textAlign: 'center', color: palette.danger, fontWeight: '600' },
-  list: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 72, gap: 16 },
-  uniHead: { gap: 8 },
-  uniName: { fontSize: 22, fontWeight: '800', color: palette.text },
-  region: { fontSize: 12, fontWeight: '700', color: palette.textMeta },
+  safe: { flex: 1, backgroundColor: palette.bg },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], flexWrap: 'wrap' },
+  errorBox: { paddingHorizontal: space.gutter, paddingTop: space[2] },
+  list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[4] },
+  uniHead: { gap: space[2] },
+  uniName: { ...type.title1, color: palette.text },
+  region: { ...type.captionBold, color: palette.textMeta },
   tag: {
-    paddingHorizontal: 8,
+    paddingHorizontal: space[2],
     height: 20,
     lineHeight: 20,
-    borderRadius: 10,
+    borderRadius: radius.full,
     overflow: 'hidden',
     backgroundColor: palette.bgSoft,
-    fontSize: 10.5,
-    fontWeight: '800',
+    ...type.micro,
     color: palette.textSub,
   },
   notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    padding: 16,
-    borderRadius: 16,
+    gap: space[2],
+    paddingVertical: space[3],
+    paddingHorizontal: space[4],
+    borderRadius: radius.md,
     backgroundColor: palette.amberSoft,
   },
-  noticeText: { flex: 1, color: '#B45309', fontSize: 12, fontWeight: '700', lineHeight: 19 },
+  noticeText: { flex: 1, ...type.captionBold, color: palette.amber },
   card: {
-    padding: 20,
-    borderRadius: 20,
+    padding: space[5],
+    borderRadius: radius.lg,
     backgroundColor: palette.bg,
-    gap: 14,
-    shadowColor: '#191F28',
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: palette.border,
+    gap: space[3],
   },
   track: {
-    paddingHorizontal: 8,
+    paddingHorizontal: space[2],
     height: 20,
-    borderRadius: 10,
+    borderRadius: radius.full,
     backgroundColor: palette.blueSoft,
     justifyContent: 'center',
   },
-  trackText: { fontSize: 10, fontWeight: '800', color: palette.blue },
-  dept: { fontSize: 18, fontWeight: '800', color: palette.text },
-  screening: { marginTop: -8, fontSize: 12.5, fontWeight: '700', color: palette.textSub },
-  remain: { marginLeft: 'auto', fontSize: 11, fontWeight: '800', color: palette.blue },
-  closed: { marginLeft: 'auto', fontSize: 11, fontWeight: '700', color: palette.textMeta },
-  schedule: { padding: 14, borderRadius: 14, backgroundColor: palette.bgSoft, gap: 2 },
-  fieldRow: { flexDirection: 'row', gap: 14 },
-  fieldLabel: { width: 62, fontSize: 12.5, fontWeight: '600', color: palette.textMeta, lineHeight: 20 },
-  fieldValue: { flex: 1, fontSize: 12.5, fontWeight: '700', color: palette.text, lineHeight: 20 },
-  bar: { marginTop: 8, flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden' },
-  legend: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  dot: { width: 7, height: 7, borderRadius: 4 },
-  legendText: { fontSize: 11.5, fontWeight: '700', color: palette.textSub },
-  stage: { marginTop: 8, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: palette.border, gap: 6 },
+  trackText: { ...type.micro, color: palette.blueDeep },
+  dept: { ...type.title2, color: palette.text },
+  screening: { marginTop: -space[2], ...type.captionBold, color: palette.textSub },
+  remain: { marginLeft: 'auto', ...type.micro, color: palette.blueDeep },
+  closed: { marginLeft: 'auto', ...type.micro, color: palette.textMeta },
+  schedule: { padding: space[4], borderRadius: radius.md, backgroundColor: palette.bgSubtle, gap: 2 },
+  fieldRow: { flexDirection: 'row', gap: space[3] },
+  fieldLabel: { width: 64, ...type.caption, color: palette.textMeta },
+  fieldValue: { flex: 1, ...type.captionBold, color: palette.text },
+  bar: { marginTop: space[2], flexDirection: 'row', height: 8, borderRadius: radius.xs, overflow: 'hidden' },
+  legend: { marginTop: space[2], flexDirection: 'row', flexWrap: 'wrap', gap: space[3] },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  dot: { width: 8, height: 8, borderRadius: radius.full },
+  legendText: { ...type.captionBold, color: palette.textSub },
+  stage: { marginTop: space[2], padding: space[4], borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, gap: space[1.5] },
   stageNo: {
-    paddingHorizontal: 8,
+    paddingHorizontal: space[2],
     height: 20,
-    borderRadius: 10,
+    borderRadius: radius.full,
     backgroundColor: palette.text,
     justifyContent: 'center',
   },
-  stageNoText: { fontSize: 10, fontWeight: '800', color: '#FFFFFF' },
-  stageName: { fontSize: 13.5, fontWeight: '800', color: palette.text },
-  stageWeight: { marginLeft: 'auto', fontSize: 11.5, fontWeight: '700', color: palette.textSub },
-  stageMeta: { fontSize: 11.5, fontWeight: '600', color: palette.textSub, lineHeight: 18 },
-  item: { marginTop: 8, padding: 14, borderRadius: 14, backgroundColor: palette.bgSoft, gap: 4 },
-  itemName: { fontSize: 13, fontWeight: '800', color: palette.text },
-  itemLabel: { flex: 1, fontSize: 12, fontWeight: '600', color: palette.textSub },
-  itemMeta: { fontSize: 11.5, fontWeight: '700', color: palette.textSub },
-  blockLabel: { fontSize: 12, fontWeight: '800', color: palette.text },
-  blockValue: { marginTop: 5, fontSize: 12.5, fontWeight: '600', color: palette.textSub, lineHeight: 21 },
-  sectionTitle: { fontSize: 12, fontWeight: '800', color: palette.text },
-  resultBox: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: palette.border, gap: 6 },
-  resultLine: { fontSize: 12.5, fontWeight: '600', color: palette.textSub, lineHeight: 20 },
-  link: { fontSize: 13, fontWeight: '800', color: palette.blue },
-  dim: { fontSize: 13, fontWeight: '600', color: palette.textMeta, lineHeight: 21 },
-  dimSmall: { fontSize: 11.5, fontWeight: '600', color: palette.textMeta, lineHeight: 18 },
-  resourceBox: { gap: 12 },
-  tipBox: { gap: 10 },
-  tipGroup: { gap: 6 },
-  tipGroupLabel: { fontSize: 11.5, fontWeight: '800', color: palette.textSub },
-  tip: { padding: 14, borderRadius: 14, backgroundColor: palette.bgSoft, gap: 6 },
-  tipText: { fontSize: 12.5, fontWeight: '600', color: palette.text, lineHeight: 21 },
-  tipLink: { fontSize: 11, fontWeight: '800', color: palette.blue },
-  tipHost: { fontSize: 10.5, fontWeight: '700', color: palette.textDisabled },
-  resource: { padding: 16, borderRadius: 14, backgroundColor: palette.bg, gap: 8 },
+  stageNoText: { ...type.micro, color: palette.onAccent },
+  stageName: { ...type.body2Bold, color: palette.text },
+  stageWeight: { marginLeft: 'auto', ...type.captionBold, color: palette.textSub },
+  stageMeta: { ...type.caption, color: palette.textSub },
+  item: { marginTop: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: palette.bgSubtle, gap: space[1] },
+  itemName: { ...type.captionBold, color: palette.text },
+  itemLabel: { flex: 1, ...type.caption, color: palette.textSub },
+  itemMeta: { ...type.captionBold, color: palette.textSub },
+  blockLabel: { ...type.captionBold, color: palette.text },
+  blockValue: { marginTop: space[1], ...type.caption, color: palette.textSub },
+  sectionTitle: { ...type.body2Bold, color: palette.text },
+  resultBox: { padding: space[4], borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, gap: space[1.5] },
+  resultLine: { ...type.caption, color: palette.textSub },
+  link: { ...type.body2Bold, color: palette.blueDeep },
+  dim: { ...type.body2, color: palette.textMeta },
+  dimSmall: { ...type.caption, color: palette.textMeta },
+  resourceBox: { gap: space[3] },
+  tipBox: { gap: space[3] },
+  tipGroup: { gap: space[1.5] },
+  tipGroupLabel: { ...type.captionBold, color: palette.textSub },
+  tip: { padding: space[4], borderRadius: radius.md, backgroundColor: palette.bgSubtle, gap: space[1.5] },
+  tipText: { ...type.caption, color: palette.text },
+  tipLink: { ...type.micro, color: palette.blueDeep },
+  tipHost: { ...type.micro, color: palette.textMeta },
+  resource: { padding: space[4], borderRadius: radius.lg, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border, gap: space[2] },
   badge: {
-    paddingHorizontal: 7,
-    height: 18,
-    borderRadius: 9,
+    paddingHorizontal: space[1.5],
+    height: 20,
+    borderRadius: radius.full,
     backgroundColor: palette.bgSoft,
     justifyContent: 'center',
   },
   badgeOfficial: { backgroundColor: palette.blueSoft },
-  badgeAcademy: { backgroundColor: '#FFF0F0' },
-  badgeText: { fontSize: 10, fontWeight: '800', color: palette.textSub },
-  badgeTextOfficial: { color: palette.blue },
+  badgeAcademy: { backgroundColor: palette.dangerSoft },
+  badgeText: { ...type.micro, color: palette.textSub },
+  badgeTextOfficial: { color: palette.blueDeep },
   badgeTextAcademy: { color: palette.danger },
-  publisher: { flex: 1, fontSize: 11, fontWeight: '700', color: palette.textMeta },
-  resourceTitle: { fontSize: 13, fontWeight: '700', color: palette.text, lineHeight: 19 },
-  foot: { marginTop: 8, fontSize: 11.5, fontWeight: '600', color: palette.textMeta, lineHeight: 19 },
+  publisher: { flex: 1, ...type.micro, color: palette.textMeta },
+  resourceTitle: { ...type.body2Bold, color: palette.text },
+  foot: { marginTop: space[2], ...type.caption, color: palette.textMeta },
 });
