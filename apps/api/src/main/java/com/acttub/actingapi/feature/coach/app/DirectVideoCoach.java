@@ -1434,7 +1434,9 @@ public final class DirectVideoCoach {
         Path file = null;
         DirectVideoModel.Video sent = null;
         try {
-            file = Files.createTempFile("coach-hedge-", ".video");
+            // 주인만 읽고 쓰게 만든다 — 공용 임시 폴더에 다른 사용자가 끼어들 수 없게.
+            file = Files.createTempFile("coach-hedge-", ".video", java.nio.file.attribute.PosixFilePermissions.asFileAttribute(
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
             var metadata = storage.downloadToPath(source.objectKey(), file);
             if (source.etag() != null && !source.etag().isBlank() && metadata != null && metadata.etag() != null
                     && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
