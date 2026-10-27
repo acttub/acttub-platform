@@ -32,12 +32,16 @@ public class PracticeReminderService {
     private final FailureReporter failures;
     private final Clock clock;
     private final String minimumVersion;
+    /** 연습 알림을 받지 않는 비교군 비율(%, SOMA-870). 0 이면 비교군 없음. */
+    private final int holdoutPercent;
 
     public PracticeReminderService(PracticeReminderRepository reminders, PushTokenRepository tokens, PushSender sender,
             FailureReporter failures, Clock clock,
-            @Value("${EVENING_REMINDER_MIN_APP_VERSION:0.1.2}") String minimumVersion) {
+            @Value("${EVENING_REMINDER_MIN_APP_VERSION:0.1.2}") String minimumVersion,
+            @Value("${PRACTICE_REMINDER_HOLDOUT_PERCENT:10}") int holdoutPercent) {
         this.reminders = reminders; this.tokens = tokens; this.sender = sender;
         this.failures = failures; this.clock = clock; this.minimumVersion = minimumVersion;
+        this.holdoutPercent = holdoutPercent;
     }
 
     public void sendDue() {
@@ -77,6 +81,9 @@ public class PracticeReminderService {
                 deliver(c, today, out, korean -> ReminderContent.practice(new ReminderContent.PracticeInput(
                         c.userId(), today, k, c.neverPracticed(), c.lastWasReading(), resume, homework, korean,
                         pendingVideo, unreadScript, sentThisWeek), recent));
+            } else if (c.neverPracticed() && PracticeReminderPolicy.firstNudgeDue(now, c.firstPracticeAt())) {
+                Map<String, LocalDate> recent = reminders.recentTemplates(c.userId(), today.minusDays(ReminderContent.NO_REPEAT_DAYS));
+                deliver(c, today, out, korean -> ReminderContent.firstNudge(c.userId(), today, korean, recent));
             }
         }
 
@@ -95,6 +102,11 @@ public class PracticeReminderService {
     private void deliver(Candidate c, LocalDate today, List<PushMessage> out,
                          java.util.function.Function<Boolean, ReminderCopy> compose) {
         ReminderCopy primary = compose.apply(c.targets().getFirst().korean());
+        if (PracticeReminderPolicy.inHoldout(c.userId(), holdoutPercent)) {
+            // 비교군: 보낼 때였다는 사실과 보냈을 문구만 남기고 보내지 않는다. 같은 날 같은 칸은 이 기록이 막는다.
+            reminders.claim(c.userId(), today, primary.asHoldout());
+            return;
+        }
         if (!reminders.claim(c.userId(), today, primary)) return;
         ReminderCopy korean = null;
         ReminderCopy other = null;

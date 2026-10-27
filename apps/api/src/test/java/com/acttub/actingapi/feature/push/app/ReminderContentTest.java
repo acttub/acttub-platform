@@ -183,7 +183,7 @@ class ReminderContentTest {
     private static Stream<List<Template>> koreanPools() {
         return Stream.of(ReminderTemplates.GENERAL_1_KO, ReminderTemplates.GENERAL_2_3_KO, ReminderTemplates.GENERAL_4_7_KO,
                 ReminderTemplates.HOMEWORK_1_KO, ReminderTemplates.HOMEWORK_2_3_KO, ReminderTemplates.HOMEWORK_4_7_KO,
-                ReminderTemplates.READING_KO, ReminderTemplates.FIRST_PRACTICE_KO, ReminderTemplates.STREAK_KO);
+                ReminderTemplates.READING_KO, ReminderTemplates.FIRST_PRACTICE_KO, ReminderTemplates.FIRST_NUDGE_KO, ReminderTemplates.STREAK_KO);
     }
 
     /** 승인된 문구 그대로 세 개씩인 새 종류. 5~10개 규칙에서는 빼고 길이·금지어만 점검한다. */
@@ -209,7 +209,7 @@ class ReminderContentTest {
     void templateIdsAreUniqueAndStable() {
         List<Template> all = Stream.concat(Stream.concat(koreanPools(), pendingPools()).flatMap(List::stream),
                 Stream.of(ReminderTemplates.GENERAL_EN, ReminderTemplates.HOMEWORK_EN, ReminderTemplates.READING_EN,
-                        ReminderTemplates.FIRST_PRACTICE_EN, ReminderTemplates.STREAK_EN,
+                        ReminderTemplates.FIRST_PRACTICE_EN, ReminderTemplates.FIRST_NUDGE_EN, ReminderTemplates.STREAK_EN,
                         ReminderTemplates.VIDEO_EN, ReminderTemplates.SCRIPT_EN).flatMap(List::stream)).toList();
         assertThat(all).extracting(Template::id).doesNotHaveDuplicates();
         assertThat(ReminderTemplates.GENERAL_1_KO.getFirst().id()).isEqualTo("general.1.a");

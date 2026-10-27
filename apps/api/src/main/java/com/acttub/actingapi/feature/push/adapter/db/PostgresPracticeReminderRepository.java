@@ -94,7 +94,7 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
                     pick AS (SELECT * FROM practiced UNION ALL SELECT * FROM never)
                     SELECT pick.user_id, to_char(pick.last_day,'YYYY-MM-DD') AS last_day, pick.first_at, pick.last_kind,
                            (pick.last_kind IS NULL) AS never_practiced,
-                           (pick.last_day=CAST(:today AS date)) AS practiced_today,
+                           (pick.last_kind IS NOT NULL AND pick.last_day=CAST(:today AS date)) AS practiced_today,
                            COALESCE((SELECT string_agg(s.slot,',') FROM practice_reminder_sends s
                                      WHERE s.user_id=pick.user_id AND s.day=CAST(:today AS date)),'') AS sent_slots
                     FROM pick
