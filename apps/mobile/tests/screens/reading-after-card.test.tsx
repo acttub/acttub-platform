@@ -104,7 +104,8 @@ test('녹음 액티: 액티가 답하지 못하면 알리고 「다시 시도」
   mockParams = { sessionId: 's1' };
   startCoach.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'recording_coach_unavailable' })).mockResolvedValue(coach());
   await render(<ReadingCoachScreen />);
-  expect(await screen.findByText('액티가 지금 답하지 못했어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('액티가 답하지 못했어요')).toBeOnTheScreen();
+  expect(screen.getByText('잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
   expect(await screen.findByText('「가자」 끝이 올라갔어요. 그때 서연은 뭘 원했어요?')).toBeOnTheScreen();
   expect(startCoach).toHaveBeenCalledTimes(2);
@@ -118,12 +119,37 @@ test('녹음 액티: 둘째 차례에 찍을 줄이 없으면 닫기만 둔다',
   expect(mockRouter.back).toHaveBeenCalled();
 });
 
-test('녹음 액티: 오른쪽 위 「그만하기」는 아이콘 칸처럼 44 높이·좌우 10 을 두고 눌러 나간다(SOMA-837)', async () => {
+test('녹음 액티: 답 보내기가 실패하면 입력칸 위에 알리고 「다시 시도」로 같은 답을 다시 보낸다', async () => {
+  mockParams = { sessionId: 's1' };
+  startCoach.mockResolvedValue(coach());
+  reply.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'recording_coach_unavailable' })).mockResolvedValue(coach({ status: 'answered', video_line: null }));
+  await render(<ReadingCoachScreen />);
+  await fireEvent.changeText(await screen.findByLabelText('생각나는 대로 답해 주세요'), '붙잡고 싶었어요');
+  await fireEvent.press(screen.getByRole('button', { name: '보내기' }));
+
+  expect(await screen.findByText('액티가 지금 답하지 못했어요')).toBeOnTheScreen();
+  expect(screen.getByText('「가자」 끝이 올라갔어요. 그때 서연은 뭘 원했어요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('다시 시도'));
+  expect(reply).toHaveBeenLastCalledWith('c1', '붙잡고 싶었어요');
+  expect(await screen.findByRole('button', { name: '닫기' })).toBeOnTheScreen();
+});
+
+test('녹음 액티: 회차 없이 열리면 리딩을 찾지 못했다고 알리고 닫기만 둔다', async () => {
+  mockParams = {};
+  await render(<ReadingCoachScreen />);
+  expect(screen.getByText('이 리딩을 찾지 못했어요')).toBeOnTheScreen();
+  expect(screen.getByText('리딩 완료 화면에서 다시 열어 주세요.')).toBeOnTheScreen();
+  expect(startCoach).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
+  expect(mockRouter.back).toHaveBeenCalled();
+});
+
+test('녹음 액티: 오른쪽 위 「그만하기」는 아이콘 칸처럼 44 높이를 두고 눌러 나간다(SOMA-837)', async () => {
   mockParams = { sessionId: 's1' };
   startCoach.mockResolvedValue(coach());
   await render(<ReadingCoachScreen />);
   const quit = await screen.findByRole('button', { name: '그만하기' });
-  expect(quit).toHaveStyle({ height: 44, paddingHorizontal: 10 });
+  expect(quit).toHaveStyle({ height: 44 });
   await fireEvent.press(quit);
   expect(mockRouter.back).toHaveBeenCalled();
 });
