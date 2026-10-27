@@ -2234,7 +2234,8 @@ const styles = StyleSheet.create({
   maskOptOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
   maskOptText: { ...type.captionBold, textAlign: 'center', color: palette.textSub },
   maskOptTextOn: { color: palette.blueDeep, fontWeight: '800' },
-  startDock: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: palette.bg, paddingHorizontal: space.gutter, paddingTop: space[4], gap: space[2], borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+  // 화면 흐름 안에 둔다(겹쳐 덮지 않는다) — 위 대사 칸이 이 안내 위로 올라가 첫 줄이 가려지지 않는다.
+  startDock: { backgroundColor: palette.bg, paddingHorizontal: space.gutter, paddingTop: space[4], gap: space[2], borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
   startRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   startText: { flex: 1, gap: space[1] },
   startTitle: { ...type.headline, color: palette.text },
@@ -2290,7 +2291,8 @@ const styles = StyleSheet.create({
   hint: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10 },
 
   controls: { flexDirection: 'row', gap: space[2], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
-  controlsHidden: { opacity: 0 },
+  // 시작 안내가 조작 자리를 대신하는 동안은 자리를 차지하지 않는다.
+  controlsHidden: { display: 'none' },
   eyeBtn: { width: 48, height: 48, borderRadius: radius.lg, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   eyeBtnOn: { backgroundColor: palette.blueSoft },
   backBtnOff: { opacity: 0.4 },
