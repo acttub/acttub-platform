@@ -119,7 +119,7 @@ class AccountProfileIT {
                  "status":"active","account_type":"member","profile_complete":true,
                  "profile":{"name":"김배우","gender":"female","birth_date":"2001-03-14","age":25,
                             "directions":["media"],"experience":"exam_prep","goal":"professional",
-                            "photo_url":null,"bio":null}}
+                            "photo_url":null,"bio":null},"founding_number":null}
                 """.formatted(userId)));
         // 사진과 소개 없이도 게이트를 지난다.
         assertThat(protectedApi().getStatus()).as("같은 토큰으로 허용된다").isEqualTo(200);
