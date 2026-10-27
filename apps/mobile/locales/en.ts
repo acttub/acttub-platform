@@ -2286,6 +2286,7 @@ const en: DeepStringShape<typeof ko> = {
     emptyTitle: 'No saved scripts yet',
     emptySub: 'Want to make one with Acti first?',
     failed: "Couldn't load your scripts. Please try again in a moment.",
+    opening: 'Opening…',
   },
   scriptCocreate: {
     startAsk: 'Which script would you like?',
