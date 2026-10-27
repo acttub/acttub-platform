@@ -25,6 +25,7 @@ import {
   browseFailure,
   browseFailureMessage,
   canPerform,
+  canRetryBrowse,
   dDayLabel,
   participantsLabel,
   pinsFeatured,
@@ -33,8 +34,6 @@ import {
 import {
   hasBrowsedChallenges,
   hasFinishedFirstChallenge,
-  hasSeenChallengeIntro,
-  markChallengeIntroSeen,
   markChallengesBrowsed,
   markFirstChallengeFinished,
 } from '@/lib/challenge/intro-state';
@@ -123,7 +122,9 @@ export default function ChallengesScreen() {
       setChallenges((prev) => [...(prev ?? []), ...result.challenges]);
       setCursor(result.next_cursor);
     } catch (e) {
-      setError(browseFailure(e));
+      // 순위가 바뀌어 커서가 만료되면 처음부터 다시 읽는다(상세와 같다).
+      if (browseFailure(e).kind === 'cursor_expired') void load(tab);
+      else setError(browseFailure(e));
     } finally {
       setLoadingMore(false);
     }
@@ -132,10 +133,6 @@ export default function ChallengesScreen() {
   useFocusEffect(
     useCallback(() => {
       void load(tab);
-      // 예전 「챌린지 시작 안내」 3장은 새 디자인의 첫 사용자 화면(이번 주 대사 + 고르기, pen ⑰)이 대신한다 — 더 띄우지 않고 본 것으로 적는다.
-      void hasSeenChallengeIntro().then((seen) => {
-        if (!seen) void markChallengeIntroSeen();
-      });
     }, [load, tab]),
   );
 
@@ -329,7 +326,7 @@ export default function ChallengesScreen() {
               label={t(label)}
               role="radio"
               selected={tab === key}
-              style={styles.chip}
+              size="sm"
               phLabel={`challenge_tab_${key}`}
               onPress={() => {
                 setTab(key);
@@ -340,13 +337,8 @@ export default function ChallengesScreen() {
           ))}
         </View>
 
-        {/* 회원 전용·순위 바뀜은 다시 시도로 풀리지 않아 한 줄로만 알린다. 나머지는 다시 시도. */}
-        {error && (error.kind === 'member_only' || error.kind === 'cursor_expired') && (
-          <InlineErrorLine message={browseFailureMessage(error)} />
-        )}
-        {error && error.kind !== 'member_only' && error.kind !== 'cursor_expired' && (
-          <InlineError message={browseFailureMessage(error)} onRetry={() => void load(tab)} />
-        )}
+        {error && !canRetryBrowse(error) && <InlineErrorLine message={browseFailureMessage(error)} />}
+        {error && canRetryBrowse(error) && <InlineError message={browseFailureMessage(error)} onRetry={() => void load(tab)} />}
         {challenges === null && !error && <SkeletonRows count={4} avatar={false} style={styles.flush} />}
 
         {challenges?.map((challenge) => (
@@ -652,7 +644,6 @@ const styles = StyleSheet.create({
   heroChipText: { ...type.micro, color: palette.onAccent },
   heroLine: { ...type.headline, fontWeight: '700', color: palette.onAccent, marginTop: 'auto' },
   tabRow: { flexDirection: 'row', gap: space[1.5], paddingTop: space[1] },
-  chip: { minHeight: 32, paddingVertical: space[1] },
   row: { borderRadius: radius.lg, gap: space[3], padding: space[4], backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   rowMain: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   rowBody: { flex: 1, minWidth: 0, gap: space[2] },

@@ -167,20 +167,20 @@ export default function AuditionsScreen() {
                   label={`${t(`auditions.groups.${key}`)} ${count}`}
                   role="radio"
                   selected={filters.group === key}
-                  style={styles.chip}
+                  size="sm"
                   onPress={() => setFilters((was) => ({ ...was, group: key }))}
                 />
               ))}
             </ScrollView>
 
             <View style={styles.toggleRow}>
-              <Chip label={t('auditions.filterWeek')} role="checkbox" selected={filters.week} style={styles.chip} onPress={() => toggle('week')} />
-              <Chip label={t('auditions.filterPaid')} role="checkbox" selected={filters.paid} style={styles.chip} onPress={() => toggle('paid')} />
+              <Chip label={t('auditions.filterWeek')} role="checkbox" selected={filters.week} size="sm" onPress={() => toggle('week')} />
+              <Chip label={t('auditions.filterPaid')} role="checkbox" selected={filters.paid} size="sm" onPress={() => toggle('paid')} />
               <Chip
                 label={t('auditions.filterStarred')}
                 role="checkbox"
                 selected={filters.starred}
-                style={styles.chip}
+                size="sm"
                 onPress={() => toggle('starred')}
               />
               {dirty && (
@@ -355,7 +355,6 @@ const styles = StyleSheet.create({
   },
   search: { flex: 1, ...type.body1, lineHeight: undefined, color: palette.text },
   chipRow: { gap: space[1.5] },
-  chip: { minHeight: 32, paddingVertical: space[1], paddingHorizontal: space[3] },
   toggleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[1.5] },
   reset: { paddingHorizontal: space[1.5], height: 32, justifyContent: 'center' },
 

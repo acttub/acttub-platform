@@ -13,7 +13,7 @@ import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { browseFailure, browseFailureMessage, rankingNotice, ranksHidden, type BrowseFailure } from '@/lib/challenge/browse';
+import { browseFailure, browseFailureMessage, canRetryBrowse, rankingNotice, ranksHidden, type BrowseFailure } from '@/lib/challenge/browse';
 import type { ChallengeDetail, EntryCard, MyEntryCard } from '@/lib/challenge/types';
 import { periodLabel, pickedEntries } from '@/lib/challenge/week-result';
 import { translate as t } from '@/lib/i18n';
@@ -78,8 +78,8 @@ export default function ChallengeResultScreen() {
       <Stack.Screen options={{ headerShown: true, title: t('challengeResult.title') }} />
       <ScrollView contentContainerStyle={styles.content}>
         {!challenge && !error && <SkeletonDetail lines={3} style={styles.flush} />}
-        {error?.kind === 'not_found' && <InlineErrorLine message={browseFailureMessage(error)} />}
-        {error && error.kind !== 'not_found' && (
+        {error && !canRetryBrowse(error) && <InlineErrorLine message={browseFailureMessage(error)} />}
+        {error && canRetryBrowse(error) && (
           <InlineError message={browseFailureMessage(error)} onRetry={() => setReload((n) => n + 1)} />
         )}
 

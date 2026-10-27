@@ -25,6 +25,7 @@ import {
   browseFailure,
   browseFailureMessage,
   canPerform,
+  canRetryBrowse,
   dDayLabel,
   detailTitleKey,
   firstBadgeLabel,
@@ -219,8 +220,8 @@ export default function ChallengeDetailScreen() {
       />
       <ScrollView contentContainerStyle={styles.content}>
         {!challenge && !error && <SkeletonDetail media lines={3} style={styles.flush} />}
-        {error?.kind === 'not_found' && <InlineErrorLine message={browseFailureMessage(error)} />}
-        {error && error.kind !== 'not_found' && (
+        {error && !canRetryBrowse(error) && <InlineErrorLine message={browseFailureMessage(error)} />}
+        {error && canRetryBrowse(error) && (
           <InlineError message={browseFailureMessage(error)} onRetry={() => void load(sort)} />
         )}
 
@@ -256,7 +257,7 @@ export default function ChallengeDetailScreen() {
                     label={t(label)}
                     role="radio"
                     selected={sort === key}
-                    style={styles.sortChip}
+                    size="sm"
                     phLabel={`challenge_detail_sort_${key}`}
                     onPress={() => {
                       setSort(key);
@@ -360,7 +361,6 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space[1] },
   sectionTitle: { ...type.headline, color: palette.text },
   tabRow: { flexDirection: 'row', gap: space[1.5] },
-  sortChip: { minHeight: 32, paddingVertical: space[1] },
   entry: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[4] },
   rankCell: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   rank: { ...type.title2, color: palette.blueDeep },

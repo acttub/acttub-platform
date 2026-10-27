@@ -96,7 +96,7 @@ export default function ChallengeOthersScreen() {
               label={t(label)}
               role="radio"
               selected={sort === key}
-              style={styles.chip}
+              size="sm"
               phLabel={`challenge_others_sort_${key}`}
               onPress={() => setSort(key)}
             />
@@ -172,7 +172,6 @@ const styles = StyleSheet.create({
   line: { ...type.title2, color: palette.text },
   meta: { ...type.caption, color: palette.textMeta },
   tabs: { flexDirection: 'row', gap: space[1.5], marginVertical: space[2] },
-  chip: { minHeight: 32, paddingVertical: space[1] },
   empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], gap: space[1.5], alignItems: 'center' },
   emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
   emptyText: { ...type.caption, color: palette.textMeta, textAlign: 'center' },

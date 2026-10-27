@@ -113,13 +113,13 @@ export default function AdmissionsScreen() {
             <Chip
               label="접수 가능만"
               role="checkbox"
-              style={styles.chip}
+              size="sm"
               selected={filters.openOnly}
               onPress={() => setFilters((was) => ({ ...was, openOnly: !was.openOnly }))}
             />
             <Chip
               label={activeCount > 0 ? `필터 ${activeCount}` : '필터'}
-              style={styles.chip}
+              size="sm"
               selected={activeCount > 0}
               onPress={() => setFilterOpen((was) => !was)}
             />
@@ -133,7 +133,7 @@ export default function AdmissionsScreen() {
                     key={region}
                     label={region}
                     role="checkbox"
-                    style={styles.chip}
+                    size="sm"
                     selected={filters.regions.includes(region)}
                     onPress={() => toggle('regions', region)}
                   />
@@ -145,7 +145,7 @@ export default function AdmissionsScreen() {
                     key={track}
                     label={track}
                     role="checkbox"
-                    style={styles.chip}
+                    size="sm"
                     selected={filters.tracks.includes(track)}
                     onPress={() => toggle('tracks', track)}
                   />
@@ -157,7 +157,7 @@ export default function AdmissionsScreen() {
                     key={discipline}
                     label={DISCIPLINE_LABEL[discipline] ?? discipline}
                     role="checkbox"
-                    style={styles.chip}
+                    size="sm"
                     selected={filters.disciplines.includes(discipline)}
                     onPress={() => toggle('disciplines', discipline)}
                   />
@@ -169,7 +169,7 @@ export default function AdmissionsScreen() {
                     key={category}
                     label={PRACTICAL_LABEL[category] ?? category}
                     role="checkbox"
-                    style={styles.chip}
+                    size="sm"
                     selected={filters.practicals.includes(category)}
                     onPress={() => toggle('practicals', category)}
                   />
@@ -181,7 +181,7 @@ export default function AdmissionsScreen() {
                     key={type}
                     label={TYPE_LABEL[type] ?? type}
                     role="checkbox"
-                    style={styles.chip}
+                    size="sm"
                     selected={filters.types.includes(type)}
                     onPress={() => toggle('types', type)}
                   />
@@ -189,7 +189,7 @@ export default function AdmissionsScreen() {
                 <Chip
                   label="수능 최저 없음"
                   role="checkbox"
-                  style={styles.chip}
+                  size="sm"
                   selected={filters.noCsatOnly}
                   onPress={() => setFilters((was) => ({ ...was, noCsatOnly: !was.noCsatOnly }))}
                 />
@@ -322,7 +322,6 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3] },
   filterLabel: { width: 56, paddingTop: space[1.5], ...type.captionBold, color: palette.textSub },
   chips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
-  chip: { minHeight: 32, paddingVertical: space[1], paddingHorizontal: space[3] },
   empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], alignItems: 'center' },
   emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
   safe: { flex: 1, backgroundColor: palette.bg },

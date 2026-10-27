@@ -112,7 +112,6 @@ const endsWith = (label: string) => new RegExp(`${label.replace(/[.*+?^${}()|[\]
 beforeEach(async () => {
   jest.clearAllMocks();
   mockParams = {};
-  await AsyncStorage.setItem('acttub.challenge.introSeen', '1');
   await markFirstChallengeFinished();
   (api.listChallengeEntries as jest.Mock).mockResolvedValue({ entries: [], next_cursor: null });
   (api.unreadNotificationCount as jest.Mock).mockResolvedValue({ count: 0 });
@@ -308,6 +307,20 @@ describe('목록을 못 불러오면', () => {
     expect(screen.queryByRole('button', { name: '대사 더 보기' })).not.toBeOnTheScreen();
   });
 
+  test('순위가 바뀌어 커서가 만료되면 멈추지 않고 처음부터 다시 읽는다', async () => {
+    listChallenges.mockResolvedValueOnce(page([card()], { next_cursor: 'cur-1' }));
+    await render(<ChallengesScreen />);
+    await screen.findByText('“나는 아직 여기 있어”');
+
+    listChallenges
+      .mockRejectedValueOnce(new ApiError(410, '만료', 'cursor_expired', 'cursor_expired'))
+      .mockResolvedValueOnce(page([card({ id: 'c3', line: '다시 읽은 대사' })]));
+    await fireEvent.press(screen.getByRole('button', { name: '대사 더 보기' }));
+
+    expect(await screen.findByText('“다시 읽은 대사”')).toBeOnTheScreen();
+    expect(screen.queryByText('순위가 바뀌었어요. 다시 불러올게요.')).not.toBeOnTheScreen();
+  });
+
   test('회원 전용은 다시 시도로 풀리지 않아 한 줄로만, 연결 끊김은 다시 시도로 다시 읽는다', async () => {
     listChallenges.mockRejectedValueOnce(new ApiError(403, '회원만', 'member_only', 'member_only'));
     const first = await render(<ChallengesScreen />);
@@ -361,10 +374,10 @@ describe('대사 더 보기', () => {
     await render(<ChallengesScreen />);
     await screen.findByText('“나는 아직 여기 있어”');
 
-    listChallenges.mockRejectedValueOnce(new ApiError(410, '만료', 'cursor_expired', 'cursor_expired'));
+    listChallenges.mockRejectedValueOnce(new ApiError(503, '점검', 'unavailable', 'unavailable'));
     await fireEvent.press(screen.getByRole('button', { name: '대사 더 보기' }));
 
-    expect(await screen.findByText('순위가 바뀌었어요. 다시 불러올게요.')).toBeOnTheScreen();
+    expect(await screen.findByText('연결이 끊겼어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
     expect(screen.getByText('“나는 아직 여기 있어”')).toBeOnTheScreen();
   });
 
@@ -385,16 +398,6 @@ describe('대사 더 보기', () => {
     expect(screen.queryByText('“인기 탭 두 번째 장”')).not.toBeOnTheScreen();
     expect(screen.getByText('“종료 탭 대사”')).toBeOnTheScreen();
   });
-});
-
-describe('시작 안내', () => {
-  test('기기에서 처음 들어와도 예전 세 장 안내는 띄우지 않고(첫 사용자 화면이 대신함) 본 것으로 적는다', async () => {
-    await AsyncStorage.removeItem('acttub.challenge.introSeen');
-    await render(<ChallengesScreen />);
-    await screen.findByText('“나는 아직 여기 있어”');
-    await waitFor(async () => expect(await AsyncStorage.getItem('acttub.challenge.introSeen')).toBe('1'));
-  });
-
 });
 
 describe('첫 챌린지 전(C1.16·C1.18)', () => {

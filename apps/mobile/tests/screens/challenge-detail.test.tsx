@@ -180,6 +180,13 @@ test('불러오지 못하면 이유를 보여 준다', async () => {
   expect(header().queryAllByRole('button')).toHaveLength(0);
 });
 
+test('회원 전용이면 다시 시도로 풀리지 않아 한 줄로만 알린다', async () => {
+  getChallenge.mockRejectedValue(httpError(403, 'member_only'));
+  await render(<ChallengeDetailScreen />);
+  expect(await screen.findByText('챌린지는 회원만 이용할 수 있어요.')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
+});
+
 test('연결이 끊겨 못 불러오면 다시 시도로 다시 읽는다', async () => {
   getChallenge.mockRejectedValueOnce(Object.assign(new TypeError('Network request failed'))).mockResolvedValue(detail());
   await render(<ChallengeDetailScreen />);

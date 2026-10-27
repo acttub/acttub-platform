@@ -393,21 +393,6 @@ export default function ChallengePlayScreen() {
             </View>
           )}
         </Pressable>
-        {isActive && playFailed && (
-          <View style={styles.playFail}>
-            <DialogCard title={t('challenges.playFailTitle')} message={t('challenges.playFailSub')}>
-              <DialogButtons
-                cancelLabel={t('challenges.playFailClose')}
-                onCancel={() => router.back()}
-                confirmLabel={t('challenges.playFailRetry')}
-                onConfirm={() => {
-                  setPlayFailed(false);
-                  setRetryTick((n) => n + 1);
-                }}
-              />
-            </DialogCard>
-          </View>
-        )}
         <View style={styles.scrimTop} pointerEvents="none" />
         <View style={styles.scrimBottom} pointerEvents="none" />
 
@@ -514,6 +499,21 @@ export default function ChallengePlayScreen() {
             )}
           </View>
         </View>
+        {isActive && playFailed && (
+          <View style={styles.playFail}>
+            <DialogCard title={t('challenges.playFailTitle')} message={t('challenges.playFailSub')}>
+              <DialogButtons
+                cancelLabel={t('challenges.playFailClose')}
+                onCancel={() => router.back()}
+                confirmLabel={t('challenges.playFailRetry')}
+                onConfirm={() => {
+                  setPlayFailed(false);
+                  setRetryTick((n) => n + 1);
+                }}
+              />
+            </DialogCard>
+          </View>
+        )}
       </View>
     );
   };

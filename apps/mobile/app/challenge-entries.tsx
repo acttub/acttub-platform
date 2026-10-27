@@ -239,7 +239,7 @@ export default function ChallengeEntriesScreen() {
             label={label}
             role="radio"
             selected={filter === key}
-            style={styles.chip}
+            size="sm"
             phLabel={`challenge_entries_filter_${key}`}
             onPress={() => setFilter(key)}
           />
@@ -329,7 +329,6 @@ const styles = StyleSheet.create({
   flush: { paddingHorizontal: 0 },
   tabsScroll: { flexGrow: 0 },
   tabs: { gap: space[1.5], paddingHorizontal: space.gutter, paddingVertical: space[3] },
-  chip: { minHeight: 32, paddingVertical: space[1] },
   body: { paddingHorizontal: space.gutter, paddingBottom: space[10] },
   empty: { backgroundColor: palette.bgSubtle, borderRadius: radius.md, paddingVertical: space[6], paddingHorizontal: space[4], gap: space[1.5], alignItems: 'center' },
   emptyTitle: { ...type.body2Bold, color: palette.textSub, textAlign: 'center' },
