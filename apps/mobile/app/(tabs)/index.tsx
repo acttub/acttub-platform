@@ -29,7 +29,7 @@ import { upcomingNotices, type AdmissionsResponse } from '@/lib/admissions';
 import { isKorean, translate as t, translateList } from '@/lib/i18n';
 import { firstTimeStateFrom, setFirstTimeState } from '@/lib/practice/first-time';
 import { currentFirstUseOwner, hasGraduatedFirstUse } from '@/lib/practice/first-use-graduation';
-import { challengeDaysLeft, pickToday, primaryFeature, wasYesterday, type TodayItem } from '@/lib/home-today';
+import { challengeDaysLeft, pickToday, primaryFeature, type TodayItem } from '@/lib/home-today';
 import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
 import type { ChallengeCard } from '@/lib/challenge/types';
 import { loadIntoCurrent } from '@/lib/reading/store';
@@ -285,11 +285,7 @@ export default function HomeScreen() {
 
   // 입시생(만 19세 이하)은 입시만, 만 20세 이상 입시생은 둘 다, 나머지는 오디션만 본다(SOMA-654).
   const sections = homeDeadlineSections(profile.me?.profile, kstDate());
-  // 「입시·오디션 공고」 줄의 「이번 주 마감 N개」 — 오늘부터 7일 안에 마감하는 공고 수.
-  const auditionsClosingSoon = useMemo(
-    () => (auditions && isKorean() ? urgentAuditions(auditions.items, kstDate(), 1000).filter((r) => r.days <= 7).length : 0),
-    [auditions],
-  );
+
 
   const { days } = useMemo(() => buildWeekActivity(activityDays ?? []), [activityDays]);
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
@@ -531,16 +527,6 @@ export default function HomeScreen() {
     if (rows.length > 0) deadlineBlocks.push({ key: 'auditions', title: t('home.auditionsTitle'), a11y: t('home.auditionsA11y'), route: '/auditions', rows });
   }
 
-  // 맨 위 한 줄 인사 — 메인 카드에 맞춘다.
-  const greeting = waitingUpload.card
-    ? t('home.greetingUploading')
-    : today.main.kind === 'reading'
-      ? wasYesterday(today.main.script.last_practiced_at, new Date())
-        ? t('home.greetingReadingYesterday')
-        : t('home.greetingReading')
-      : today.main.kind === 'challenge'
-        ? t('home.greetingChallenge')
-        : t('home.greeting');
 
   const bell = (
     <Pressable
