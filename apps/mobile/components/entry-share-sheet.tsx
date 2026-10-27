@@ -233,7 +233,7 @@ export function EntryShareSheet({
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
       <View style={[styles.page, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <NavHeader
-          title={t('entryShare.title')}
+          title={t(entry.is_mine ? 'entryShare.title' : 'entryShare.titleOthers')}
           left={<NavIconButton icon="x" label={t('entryShare.close')} phLabel="challenge_share_close" onPress={onClose} />}
         />
         <ScrollView contentContainerStyle={styles.body}>

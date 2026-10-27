@@ -485,7 +485,8 @@ describe('언어(SOMA-827 후속)', () => {
     await fireEvent.press(screen.getByText('English'));
 
     expect(saveLanguagePreference).toHaveBeenCalledWith('en');
-    expect(await screen.findByText('앱을 완전히 껐다 켜면 English로 바뀌어요.')).toBeOnTheScreen();
+    // 저장하면 앱 뿌리가 바로 새 언어로 다시 그린다 — 「다시 켜면 바뀐다」 안내는 더 띄우지 않는다(10/28).
+    expect(screen.queryByText('앱을 완전히 껐다 켜면 English로 바뀌어요.')).not.toBeOnTheScreen();
   });
 
   test('지금과 같은 것을 고르면 저장하지 않는다', async () => {

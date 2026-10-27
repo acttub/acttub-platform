@@ -60,8 +60,8 @@ export default function ProScreen() {
         <Text style={styles.title}>{t('pro.title')}</Text>
         <Text style={styles.tagline}>{t('pro.tagline')}</Text>
         <ProCompareTable />
-      </ScrollView>
-      <CtaBar>
+        {/* 요금제·가격·안내·링크는 스크롤 안으로 옮겼다. 아래 고정 칸에 다 넣어 위쪽이 한 줄 높이만 남아 비교표가 안 보였다
+            (10/28 폰 확인). 아래 고정 칸에는 시작 버튼만 둔다(UX 가이드 「결제 화면은 정보를 적게」). */}
         {buyable ? (
           <View style={styles.notice}>
             <PlanPicker plan={plan} prices={purchase.prices} onPick={setPlan} disabled={purchase.busy} />
@@ -85,17 +85,19 @@ export default function ProScreen() {
           </Pressable>
         </View>
         {buyable && (
-          <>
-            <Pressable onPress={purchase.restore} disabled={purchase.busy} accessibilityRole="button" hitSlop={8}
-              style={styles.restore}>
-              <Text style={styles.link}>{t('pro.restore')}</Text>
-            </Pressable>
-            <PrimaryButton label={purchase.busy && purchase.status ? purchase.status : t('pro.start')}
-              onPress={() => purchase.begin(plan)} disabled={!purchase.available || purchase.busy || !purchase.prices[plan]}
-              phLabel={plan === 'yearly' ? 'pro_start_yearly' : 'pro_start'} />
-          </>
+          <Pressable onPress={purchase.restore} disabled={purchase.busy} accessibilityRole="button" hitSlop={8}
+            style={styles.restore}>
+            <Text style={styles.link}>{t('pro.restore')}</Text>
+          </Pressable>
         )}
-      </CtaBar>
+      </ScrollView>
+      {buyable && (
+        <CtaBar>
+          <PrimaryButton label={purchase.busy && purchase.status ? purchase.status : t('pro.start')}
+            onPress={() => purchase.begin(plan)} disabled={!purchase.available || purchase.busy || !purchase.prices[plan]}
+            phLabel={plan === 'yearly' ? 'pro_start_yearly' : 'pro_start'} />
+        </CtaBar>
+      )}
       {dialog}
     </SafeAreaView>
   );

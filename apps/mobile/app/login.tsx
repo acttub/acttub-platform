@@ -194,14 +194,16 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.hero}>
+      {/* 두 View 를 펼치지 않는다(collapsable={false}). 「로그인하는 중」 줄의 투명도가 바뀔 때 안드로이드 새 구조(Fabric)가 이 줄을
+          SafeAreaView 바로 아래로 펼쳤다 다시 묶다가 「View already has a parent」로 앱이 꺼졌다(10/28 새 계정 Google 로그인 직후). */}
+      <View style={styles.hero} collapsable={false}>
         <Image
           source={require('@/assets/images/logo-wordmark.png')}
           style={styles.logo}
           contentFit="contain"
         />
         <Text style={styles.tagline}>{t('login.tagline')}</Text>
-        <View style={[styles.progress, busy === null && styles.keepSpaceHidden]} accessibilityRole="progressbar" accessibilityElementsHidden={busy === null} importantForAccessibility={busy === null ? 'no-hide-descendants' : 'auto'}>
+        <View style={[styles.progress, busy === null && styles.keepSpaceHidden]} collapsable={false} accessibilityRole="progressbar" accessibilityElementsHidden={busy === null} importantForAccessibility={busy === null ? 'no-hide-descendants' : 'auto'}>
           <Text style={styles.progressText}>{t('login.signingIn')}</Text>
         </View>
       </View>

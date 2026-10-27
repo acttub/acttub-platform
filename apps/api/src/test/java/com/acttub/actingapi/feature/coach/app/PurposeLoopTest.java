@@ -227,6 +227,17 @@ class PurposeLoopTest {
         assertThat(DirectVideoPracticeLoop.parse(raw).message()).isEqualTo("\"취소해\"에선 화내는 사람처럼 들려요. 그때 상대한테 뭘 하고 싶었어요?");
     }
 
+    @Test void aStrayJamoStuckToTheEndOfAChoiceIsDropped() {
+        var out = PurposeLoop.extract("""
+                <보기>
+                - 연습 방법을 바꾸고 싶어요
+                - 객관적인 상태가 궁금해요ㄴ
+                - 웃겨요 ㅋㅋ
+                </보기>""");
+        assertThat(out.choices()).extracting(PurposeView.Choice::label)
+                .containsExactly("연습 방법을 바꾸고 싶어요", "객관적인 상태가 궁금해요", "웃겨요 ㅋㅋ");
+    }
+
     @Test void theResultCardAndTheCharacterCardAreParsed() {
         var card = PurposeLoop.extract("""
                 붙잡는 게 보였어요.

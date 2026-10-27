@@ -355,6 +355,8 @@ const ko = {
     withdrawn: '탈퇴한 사용자',
     underReview: '확인 중인 댓글이에요.',
     delete: '삭제',
+    deleteTitle: '이 댓글을 지울까요?',
+    deleteConfirm: '지우기',
     report: '신고',
     emptyTitle: '아직 댓글이 없어요',
     empty: '첫 댓글을 남겨 보세요.',
@@ -506,6 +508,8 @@ const ko = {
   // SOMA-819 참여작 공유 시트 (pen ⑩ 공유 시트 · SNS에 공유하기)
   entryShare: {
     title: '내 연기 공유하기',
+    // 다른 배우의 참여작을 공유할 때(10/28 폰 확인 — 남의 연기에도 「내 연기」로 보였다).
+    titleOthers: '이 연기 공유하기',
     previewSub: '{{name}}의 연기 · acttub 챌린지',
     instagram: '인스타',
     kakao: '카카오톡',

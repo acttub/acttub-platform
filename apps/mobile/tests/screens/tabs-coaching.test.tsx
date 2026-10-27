@@ -99,8 +99,8 @@ test('노트가 있는 묶음이 있으면 저번 코치 메모 카드와 입구
   };
   await go('새 영상으로 코칭 받기');
   expect(mockRouter.push).toHaveBeenLastCalledWith('/upload');
-  await go('이전 코칭 이어 하기');
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/history');
+  // 「이전 코칭 이어 하기」는 「지난 코칭 다시 보기」와 같은 화면이라 뺐다(10/28).
+  expect(screen.queryByRole('button', { name: '이전 코칭 이어 하기' })).not.toBeOnTheScreen();
   await go('영상 없이 말로 코칭 받기');
   expect(mockRouter.push).toHaveBeenLastCalledWith('/talk');
   await go('찍을 대사부터 같이 만들기');

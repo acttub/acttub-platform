@@ -40,8 +40,19 @@ function storedPreference(): LanguagePreference {
   }
 }
 
-const preference = storedPreference();
-const language = preference === 'system' ? deviceLanguage() : preference;
+let preference = storedPreference();
+let language = preference === 'system' ? deviceLanguage() : preference;
+const languageListeners = new Set<() => void>();
+
+/**
+ * 설정에서 언어를 바꾸면 부른다 — 앱 뿌리가 화면을 다시 그려 껐다 켜지 않아도 바로 바뀐다(10/28 폰 확인: 다시 켜야 바뀌었다).
+ */
+export function onLanguageChange(listener: () => void): () => void {
+  languageListeners.add(listener);
+  return () => {
+    languageListeners.delete(listener);
+  };
+}
 
 /** 이번 실행이 쓰는 설정 값(켤 때 읽은 것). */
 export function languagePreference(): LanguagePreference {
@@ -56,6 +67,9 @@ export async function saveLanguagePreference(next: LanguagePreference): Promise<
   };
   if (next === 'system') await store.deleteItemAsync(LANGUAGE_KEY);
   else await store.setItemAsync(LANGUAGE_KEY, next);
+  preference = next;
+  language = next === 'system' ? deviceLanguage() : next;
+  for (const listener of languageListeners) listener();
 }
 const tables: Record<'ko' | 'en', object> = { ko, en };
 

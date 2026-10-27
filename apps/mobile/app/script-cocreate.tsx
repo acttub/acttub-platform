@@ -302,12 +302,6 @@ export default function ScriptCocreateScreen() {
                 />
               ))}
             </View>
-            <TextButton
-              label={`${t('scriptCocreate.regenerate')} · ${t('scriptCocreate.freeLeftOf', { count: freeLeft(script.revisions_left, regenUsed) })}`}
-              phLabel="script_cocreate_regenerate"
-              onPress={regenerate}
-              disabled={busy || freeLeft(script.revisions_left, regenUsed) <= 0}
-            />
             {script.version > 1 ? (
               <TextButton label={t('scriptCocreate.restore')} phLabel="script_cocreate_restore" onPress={restorePrevious} disabled={busy} />
             ) : null}
@@ -315,6 +309,13 @@ export default function ScriptCocreateScreen() {
             {error ? <InlineErrorLine message={error} /> : null}
           </ScrollView>
           <CtaBar>
+            {/* 「다시 만들기」는 긴 대본 맨 아래에 있어 스크롤해야 보였다(10/28 폰 확인) — 주 버튼 위 글자 버튼으로 올렸다. */}
+            <TextButton
+              label={`${t('scriptCocreate.regenerate')} · ${t('scriptCocreate.freeLeftOf', { count: freeLeft(script.revisions_left, regenUsed) })}`}
+              phLabel="script_cocreate_regenerate"
+              onPress={regenerate}
+              disabled={busy || freeLeft(script.revisions_left, regenUsed) <= 0}
+            />
             <SecondaryButton
               label={t('scriptCocreate.edit')}
               phLabel="script_cocreate_edit"

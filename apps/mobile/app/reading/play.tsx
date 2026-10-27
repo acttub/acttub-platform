@@ -178,7 +178,8 @@ const MONO_POSITION_MS = 700;
  * 준비 중은 기다리는 자세, 끝난 화면은 들어올 때마다 밝은 자세 하나, 세지 않은 회차는 민망한 자세.
  */
 const PREP_POSES: readonly MascotPose[] = ['breathe', 'reading', 'hamlet'];
-const DONE_POSES: readonly MascotPose[] = ['love', 'jump', 'dance', 'wink', 'smug', 'bow'];
+// 'smug'(팔짱·곁눈질)는 뺐다 — 리딩을 끝낸 칭찬 화면에서 못마땅해 보였다(10/28 폰 확인).
+const DONE_POSES: readonly MascotPose[] = ['love', 'jump', 'dance', 'wink', 'bow'];
 const NOT_COUNTED_POSE: MascotPose = 'flat';
 const FIRST_DONE_POSE: MascotPose = 'jump';
 function pickPose(poses: readonly MascotPose[]): MascotPose {

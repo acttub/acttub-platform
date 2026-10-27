@@ -691,6 +691,8 @@ describe('댓글', () => {
     expect(screen.getByText('6')).toBeOnTheScreen();
 
     await fireEvent.press(screen.getAllByRole('button', { name: '삭제' })[0]);
+    // 지우기 전에 한 번 묻는다(10/28).
+    await fireEvent.press(await screen.findByRole('button', { name: '지우기' }));
     expect(await screen.findByText('댓글 1')).toBeOnTheScreen();
     expect(screen.getByText('5')).toBeOnTheScreen();
   });
@@ -734,7 +736,8 @@ describe('공유', () => {
     await renderFeed([entry({ id: 'e 1' })]);
     await fireEvent.press(screen.getByRole('button', { name: '공유' }));
 
-    expect(await screen.findByText('내 연기 공유하기')).toBeOnTheScreen();
+    // 남의 참여작이라 「내 연기」가 아니다(10/28 폰 확인).
+    expect(await screen.findByText('이 연기 공유하기')).toBeOnTheScreen();
     expect(logged('challenge_share')).toEqual([{ id: 'e 1' }]);
     expect(screen.queryByText('인스타')).not.toBeOnTheScreen();
     expect(screen.queryByText('영상으로 저장')).not.toBeOnTheScreen();

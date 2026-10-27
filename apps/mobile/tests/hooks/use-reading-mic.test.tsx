@@ -1,7 +1,9 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 
-import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/use-reading-mic';
+import { Platform } from 'react-native';
+
+import { hasMicPermission, micPermissionGranted, micPermissionState, requestMicPermission, useReadingMic } from '@/hooks/use-reading-mic';
 import type { VadEvent } from '@/lib/reading/vad';
 
 const mockRecorder = {
@@ -66,16 +68,46 @@ describe('hasMicPermission', () => {
     expect(await hasMicPermission()).toBe(false);
   });
 
-  test('거절해서 다시 물을 수 없으면 false', async () => {
+  test('거절해서 다시 물을 수 없으면 요청이 바로 거절로 돌아와 false', async () => {
     jest.mocked(getRecordingPermissionsAsync).mockResolvedValue(permission(false, false));
+    jest.mocked(requestRecordingPermissionsAsync).mockResolvedValue(permission(false, false));
 
     expect(await hasMicPermission()).toBe(false);
-    expect(requestRecordingPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  // 안드로이드에서 「이번만 허용」이 끝나면 조회는 canAskAgain=false 지만 요청하면 OS 창이 다시 뜬다(10/28 폰 확인).
+  test('조회가 다시 못 묻는다고 해도 한 번은 요청하고 허용하면 true', async () => {
+    jest.mocked(getRecordingPermissionsAsync).mockResolvedValue(permission(false, false));
+    jest.mocked(requestRecordingPermissionsAsync).mockResolvedValue(permission(true));
+
+    expect(await hasMicPermission()).toBe(true);
+    expect(requestRecordingPermissionsAsync).toHaveBeenCalledTimes(1);
   });
 
   test('권한을 읽지 못하면 false', async () => {
     jest.mocked(getRecordingPermissionsAsync).mockRejectedValue(new Error('no module'));
     expect(await hasMicPermission()).toBe(false);
+  });
+});
+
+describe('requestMicPermission · micPermissionState', () => {
+  const originalOS = Platform.OS;
+  afterEach(() => Object.defineProperty(Platform, 'OS', { value: originalOS }));
+
+  test('조회가 다시 못 묻는다고 해도 요청해 허용하면 granted, 정말 막혔으면 blocked', async () => {
+    jest.mocked(getRecordingPermissionsAsync).mockResolvedValue(permission(false, false));
+    jest.mocked(requestRecordingPermissionsAsync).mockResolvedValueOnce(permission(true)).mockResolvedValueOnce(permission(false, false));
+
+    expect(await requestMicPermission()).toBe('granted');
+    expect(await requestMicPermission()).toBe('blocked');
+  });
+
+  test('안드로이드는 조회만으로 blocked 라고 하지 않고 ask 로 둔다', async () => {
+    jest.mocked(getRecordingPermissionsAsync).mockResolvedValue(permission(false, false));
+    Object.defineProperty(Platform, 'OS', { value: 'android' });
+    expect(await micPermissionState()).toBe('ask');
+    Object.defineProperty(Platform, 'OS', { value: 'ios' });
+    expect(await micPermissionState()).toBe('blocked');
   });
 });
 

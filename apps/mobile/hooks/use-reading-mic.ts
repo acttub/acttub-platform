@@ -5,6 +5,7 @@ import {
   useAudioRecorder,
 } from 'expo-audio';
 import { useCallback, useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 
 import { DEFAULT_VAD, createSilenceDetector, meteringToRms, type SilenceDetector, type VadEvent } from '@/lib/reading/vad';
 
@@ -21,12 +22,15 @@ export type MicHandle = {
   stop: () => Promise<{ uri: string | null; durationMs: number } | null>;
 };
 
-/** 권한이 없고 다시 물을 수 있으면 OS 팝업으로 묻는다. */
+/**
+ * 권한이 없으면 OS 팝업으로 묻는다. 조회의 canAskAgain 만 보고 묻지 않으면 안 된다 — 안드로이드에서 「이번만 허용」이 끝난
+ * 뒤에는 조회가 canAskAgain=false 를 주지만 실제로 물으면 OS 창이 다시 뜬다(10/28 폰 확인). 정말 막혔으면 요청이 창 없이
+ * 바로 거절로 돌아온다.
+ */
 export async function hasMicPermission(): Promise<boolean> {
   try {
     const current = await getRecordingPermissionsAsync();
     if (current.granted) return true;
-    if (!current.canAskAgain) return false;
     return (await requestRecordingPermissionsAsync()).granted;
   } catch {
     return false;
@@ -50,6 +54,8 @@ export async function micPermissionState(): Promise<MicPermission> {
   try {
     const current = await getRecordingPermissionsAsync();
     if (current.granted) return 'granted';
+    // 안드로이드의 조회 canAskAgain 은 「이번만 허용」이 끝난 뒤에도 false 라 믿지 않는다 — 시작 버튼에서 실제로 물어 본다.
+    if (Platform.OS === 'android') return 'ask';
     return current.canAskAgain ? 'ask' : 'blocked';
   } catch {
     return 'ask';
@@ -64,7 +70,7 @@ export async function requestMicPermission(): Promise<'granted' | 'denied' | 'bl
   try {
     const current = await getRecordingPermissionsAsync();
     if (current.granted) return 'granted';
-    if (!current.canAskAgain) return 'blocked';
+    // 조회가 다시 못 묻는다고 해도 한 번은 요청한다(위 hasMicPermission 설명). 막혔으면 창 없이 blocked 로 돌아온다.
     const asked = await requestRecordingPermissionsAsync();
     if (asked.granted) return 'granted';
     return asked.canAskAgain ? 'denied' : 'blocked';

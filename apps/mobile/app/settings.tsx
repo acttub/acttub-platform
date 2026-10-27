@@ -40,10 +40,8 @@ export default function SettingsScreen() {
   const chooseLanguage = (next: LanguagePreference) => {
     if (next === language) return;
     void saveLanguagePreference(next)
-      .then(() => {
-        setLanguage(next);
-        void alert({ title: t('settings.languageChangedTitle'), message: t('settings.languageChangedBody', { language: LANGUAGE_LABEL[next] }) });
-      })
+      // 저장하면 앱 뿌리가 새 언어로 다시 그린다(lib/i18n onLanguageChange). 이 화면도 함께 내려가므로 안내 창은 띄우지 않는다.
+      .then(() => setLanguage(next))
       .catch(() => void alert({ title: t('settings.languageTitle'), message: t('settings.languageSaveFail') }));
   };
   // 실험 기능 — 발음 피드백. 기본 꺼짐, 기기에만 저장.

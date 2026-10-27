@@ -3,7 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -222,6 +222,17 @@ export default function ChallengeUploadScreen() {
     }
   }, [caption, challengeId, faceMosaic, pendingId, submitting, user?.id, videoId, visibility]);
 
+  // 올리기를 마친 뒤 뒤로 가면 촬영 화면으로 돌아갔다(10/28 폰 확인). 완료 화면에서 뒤로는 챌린지(없으면 홈)로 간다.
+  useEffect(() => {
+    if (!created) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (challengeId) router.dismissTo({ pathname: '/challenge-detail', params: { id: challengeId } });
+      else router.dismissTo('/');
+      return true;
+    });
+    return () => sub.remove();
+  }, [created, challengeId, router]);
+
   if (created) {
     const day = challenge ? resultDay(challenge.ends_at) : null;
     const date = day
@@ -246,6 +257,8 @@ export default function ChallengeUploadScreen() {
     };
     return (
       <>
+        {/* iOS 밀어서 뒤로도 촬영 화면으로 가지 않게 막는다 — 완료 화면의 버튼으로 나간다. */}
+        <Stack.Screen options={{ gestureEnabled: false }} />
         <ChallengeDone
           title={created.first ? t('challengeDone.titleFirst') : t(isPublic ? 'challengeDone.titlePublic' : 'challengeDone.titlePrivate')}
           sub={parts.join(' · ')}

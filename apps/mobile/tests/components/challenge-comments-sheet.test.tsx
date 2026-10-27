@@ -294,6 +294,8 @@ describe('쓰기', () => {
     expect(await screen.findByText('댓글 2')).toBeOnTheScreen();
 
     await fireEvent.press(screen.getAllByRole('button', { name: '삭제' })[1]);
+    // 지우기 전에 한 번 묻는다(10/28).
+    await fireEvent.press(await screen.findByRole('button', { name: '지우기' }));
     expect(await screen.findByText('댓글 1')).toBeOnTheScreen();
     expect(screen.queryByText('댓글 c1')).not.toBeOnTheScreen();
   });
@@ -326,6 +328,8 @@ describe('지우기·신고', () => {
     await screen.findByText('댓글 2');
 
     await fireEvent.press(screen.getByRole('button', { name: '삭제' }));
+    // 지우기 전에 한 번 묻는다(10/28).
+    await fireEvent.press(await screen.findByRole('button', { name: '지우기' }));
 
     expect(deleteComment.mock.calls).toEqual([['c1']]);
     expect(await screen.findByText('댓글 1')).toBeOnTheScreen();
@@ -340,6 +344,8 @@ describe('지우기·신고', () => {
     await screen.findByText('댓글 1');
 
     await fireEvent.press(screen.getByRole('button', { name: '삭제' }));
+    // 지우기 전에 한 번 묻는다(10/28).
+    await fireEvent.press(await screen.findByRole('button', { name: '지우기' }));
 
     expect(await screen.findByText('이 영상은 더 이상 볼 수 없어요.')).toBeOnTheScreen();
     expect(screen.getByText('댓글 c1')).toBeOnTheScreen();
