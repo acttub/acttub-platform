@@ -13,6 +13,7 @@ import java.util.List;
  * <p>여섯 항목이 전부 비어 있을 수 있다. 0.1.0 이전 회원은 옛 닉네임만 {@link #name} 에 들고 온다.
  *
  * @param photoKey 저장소의 객체 키. 응답에 실을 주소로 바꾸는 일은 서비스가 한다
+ * @param examDate 실기 날짜(V71, 없을 수 있다). 프로필 저장은 이 값을 건드리지 않고 {@code PUT /v2/me/exam-date} 만 바꾼다
  */
 public record Profile(
         String name,
@@ -22,10 +23,17 @@ public record Profile(
         String experience,
         String goal,
         String photoKey,
-        String bio) {
+        String bio,
+        LocalDate examDate) {
 
     public Profile {
         directions = List.copyOf(directions);
+    }
+
+    /** 실기 날짜 없이 만든다(프로필 저장 경로). */
+    public Profile(String name, String gender, LocalDate birthDate, List<String> directions, String experience,
+            String goal, String photoKey, String bio) {
+        this(name, gender, birthDate, directions, experience, goal, photoKey, bio, null);
     }
 
     /** 필수 여섯 항목이 다 찼는가. 게이트가 이것을 본다. 사진과 소개는 선택이라 세지 않는다. */

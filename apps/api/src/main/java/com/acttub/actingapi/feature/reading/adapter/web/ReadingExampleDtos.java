@@ -29,11 +29,12 @@ final class ReadingExampleDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String summary,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"general", "exam"}) String category,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int dialogueCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> characters,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<PreviewLine> preview) {
         static ExampleResponse of(ReadingExample example) {
-            return new ExampleResponse(example.id(), example.title(), example.summary(), example.dialogueCount(),
+            return new ExampleResponse(example.id(), example.title(), example.summary(), example.category(), example.dialogueCount(),
                     example.characters(), example.preview().stream().map(p -> new PreviewLine(p.speaker(), p.text())).toList());
         }
     }

@@ -22,6 +22,9 @@ import com.acttub.actingapi.feature.push.app.ReminderTemplates.Template;
 public final class ReminderContent {
     private ReminderContent() {}
 
+    /** 실기 알림을 보내는 기간(일): 실기 날짜가 오늘부터 이 날수 안일 때. */
+    public static final int EXAM_WINDOW_DAYS = 30;
+
     /** 같은 문구를 다시 보내지 않는 기간(일). */
     public static final int NO_REPEAT_DAYS = 14;
 
@@ -44,7 +47,22 @@ public final class ReminderContent {
      */
     public record PracticeInput(UUID userId, LocalDate today, int skippedDays, boolean neverPracticed,
                                 boolean lastWasReading, Resume resume, Homework homework, boolean korean,
-                                UUID pendingVideoId, UUID unreadScriptId, Map<String, Integer> sentThisWeek) {
+                                UUID pendingVideoId, UUID unreadScriptId, Map<String, Integer> sentThisWeek,
+                                boolean examPrep, LocalDate examDate) {
+        public PracticeInput(UUID userId, LocalDate today, int skippedDays, boolean neverPracticed,
+                             boolean lastWasReading, Resume resume, Homework homework, boolean korean,
+                             UUID pendingVideoId, UUID unreadScriptId, Map<String, Integer> sentThisWeek) {
+            this(userId, today, skippedDays, neverPracticed, lastWasReading, resume, homework, korean,
+                    pendingVideoId, unreadScriptId, sentThisWeek, false, null);
+        }
+
+        /** 입시 준비 회원이고 실기가 오늘~{@value ReminderContent#EXAM_WINDOW_DAYS}일 안이면 남은 날 수, 아니면 -1. */
+        int examDaysLeft() {
+            if (!examPrep || examDate == null) return -1;
+            long left = java.time.temporal.ChronoUnit.DAYS.between(today, examDate);
+            return left >= 0 && left <= EXAM_WINDOW_DAYS ? (int) left : -1;
+        }
+
         public PracticeInput(UUID userId, LocalDate today, int skippedDays, boolean neverPracticed,
                              boolean lastWasReading, Resume resume, Homework homework, boolean korean) {
             this(userId, today, skippedDays, neverPracticed, lastWasReading, resume, homework, korean, null, null, Map.of());
@@ -59,10 +77,24 @@ public final class ReminderContent {
         if (in.unreadScriptId() != null && available(ReminderKind.UNREAD_SCRIPT, in, recentUse)) {
             return fromPool(ReminderKind.UNREAD_SCRIPT, in, recentUse, null);
         }
-        if (in.neverPracticed()) return fromPool(ReminderKind.FIRST_PRACTICE, in, recentUse, null);
+        int examDays = in.examDaysLeft();
+        if (in.neverPracticed()) return examDays >= 0 ? exam(in, recentUse, examDays) : fromPool(ReminderKind.FIRST_PRACTICE, in, recentUse, null);
         if (in.homework() != null) return fromPool(ReminderKind.HOMEWORK, in, recentUse, in.homework());
+        if (examDays >= 0) return exam(in, recentUse, examDays);
         if (in.lastWasReading()) return fromPool(ReminderKind.READING, in, recentUse, null);
         return fromPool(ReminderKind.GENERAL, in, recentUse, null);
+    }
+
+    /** 실기 알림(SOMA-864): 제목에 남은 날 수(D-n). 당일은 "오늘 실기예요". */
+    private static ReminderCopy exam(PracticeInput in, Map<String, LocalDate> recentUse, int daysLeft) {
+        List<Template> pool = ReminderTemplates.pool(ReminderKind.EXAM, in.skippedDays(), in.korean());
+        Template template = pick(pool, in.userId(), in.today(), ReminderKind.EXAM.slot(), recentUse);
+        String title = in.korean()
+                ? (daysLeft == 0 ? ReminderTemplates.EXAM_TODAY_TITLE_KO : template.title().replace(ReminderTemplates.COUNT, Integer.toString(daysLeft)))
+                : (daysLeft == 0 ? ReminderTemplates.EXAM_TODAY_TITLE_EN
+                        : daysLeft == 1 ? ReminderTemplates.EXAM_TOMORROW_TITLE_EN
+                        : template.title().replace(ReminderTemplates.COUNT, Integer.toString(daysLeft)));
+        return new ReminderCopy(ReminderKind.EXAM, in.skippedDays(), template.id(), title, template.body(), null, null);
     }
 
     /** 가입 30분 알림(first_nudge, SOMA-870). 연습한 적 없는 가입 당일 회원에게 한 번. */

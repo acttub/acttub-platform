@@ -169,6 +169,19 @@ public final class ReminderTemplates {
             new Template("streak.en.a", COUNT + "-day streak going", "One quick practice keeps it alive today."),
             new Template("streak.en.b", "Keep your " + COUNT + "-day streak", "A single line counts."));
 
+    // ── 실기(exam, SOMA-864): 입시 준비 회원의 실기 날짜가 오늘~30일 안일 때 일반·리딩·첫 연습 대신 간다.
+    // 제목의 {n} 은 남은 날 수(D-n). 당일(0)과 하루 전(영어)은 아래 제목으로 바꾼다. 날짜·대본 제목은 본문에 넣지 않는다.
+    public static final String EXAM_TODAY_TITLE_KO = "오늘 실기예요";
+    public static final String EXAM_TODAY_TITLE_EN = "Your exam is today";
+    public static final String EXAM_TOMORROW_TITLE_EN = "Your exam is tomorrow";
+    public static final List<Template> EXAM_KO = List.of(
+            new Template("exam.a", "실기까지 D-" + COUNT, "오늘 대사 한 번만 소리 내 읽어 봐요."),
+            new Template("exam.b", "실기까지 D-" + COUNT, "입시 대사 한 번, 30초면 돼요."),
+            new Template("exam.c", "실기까지 D-" + COUNT, "한 줄만 소리 내 읽어도 충분해요."));
+    public static final List<Template> EXAM_EN = List.of(
+            new Template("exam.en.a", COUNT + " days to your exam", "Read your audition piece out loud once today."),
+            new Template("exam.en.b", COUNT + " days to your exam", "One read-through takes 30 seconds."));
+
     /** 종류·건너뛴 날 수·언어에 맞는 돌려쓰기 후보 목록. 바로 이어 하기는 따로 고르므로 여기에 없다. */
     public static List<Template> pool(ReminderKind kind, int skippedDays, boolean korean) {
         return switch (kind) {
@@ -178,6 +191,7 @@ public final class ReminderTemplates {
                     : HOMEWORK_EN;
             case READING -> korean ? READING_KO : READING_EN;
             case FIRST_PRACTICE -> korean ? FIRST_PRACTICE_KO : FIRST_PRACTICE_EN;
+            case EXAM -> korean ? EXAM_KO : EXAM_EN;
             case FIRST_NUDGE -> korean ? FIRST_NUDGE_KO : FIRST_NUDGE_EN;
             case PENDING_VIDEO -> korean ? VIDEO_KO : VIDEO_EN;
             case UNREAD_SCRIPT -> korean ? SCRIPT_KO : SCRIPT_EN;
