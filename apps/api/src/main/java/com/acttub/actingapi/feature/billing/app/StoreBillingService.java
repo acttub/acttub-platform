@@ -172,7 +172,8 @@ public class StoreBillingService {
 
     /** RevenueCat 의 현재 상태를 이 사람의 구독 줄에 쓴다. 같은 상태를 여러 번 써도 결과가 같다. */
     Outcome apply(UUID userId, Instant now) {
-        Optional<StoreState> state = revenueCat.entitlement(userId.toString()).flatMap(sub -> storeState(sub, now, allowSandbox));
+        Optional<StoreSubscription> raw = revenueCat.entitlement(userId.toString());
+        Optional<StoreState> state = raw.flatMap(sub -> storeState(sub, now, allowSandbox));
         Optional<Subscription> existing = repository.find(userId);
         boolean webActive = existing.isPresent() && existing.get().toss() && existing.get().status() != Status.EXPIRED;
         if (state.isEmpty()) {
@@ -196,6 +197,10 @@ public class StoreBillingService {
         if (saved == StoreSave.BLOCKED) {
             // 그사이 토스 결제가 들어왔거나 사람이 없다(탈퇴).
             return nextPro && existing.isPresent() ? Outcome.BLOCKED : Outcome.UNCHANGED;
+        }
+        // 실제 유료 구매만 창립 번호를 받는다 — 샌드박스(테스트) 구매와 환불·만료는 세지 않는다.
+        if (nextPro && !raw.get().sandbox() && (next.status() == Status.ACTIVE || next.status() == Status.CANCELED)) {
+            subscriptions.assignFounding(userId, next.provider());
         }
         return Outcome.APPLIED;
     }
