@@ -90,7 +90,12 @@ export function tabIcon(
     return (
       <View ref={target?.ref} onLayout={target?.onLayout} style={[styles.item, IOS && focused && styles.itemOn]}>
         <Ionicons size={IOS ? 26 : 22} name={name} color={color} />
-        {IOS ? null : <Text style={[styles.label, focused && styles.labelOn]}>{label}</Text>}
+        {/* 안드로이드는 지금 들어가 있는 탭만 이름을 보인다(10/23 결정, 10/28 대표 재확인). 다른 탭은 자리만 남겨 아이콘 높이를 맞춘다. */}
+        {IOS ? null : (
+          <Text style={[styles.label, focused ? styles.labelOn : styles.labelHidden]} importantForAccessibility="no">
+            {label}
+          </Text>
+        )}
         {badge ? <Badge label={badge} style={styles.badge} /> : null}
       </View>
     );
@@ -113,5 +118,6 @@ const styles = StyleSheet.create({
   itemOn: { backgroundColor: IOS_PILL },
   label: { ...type.micro, color: palette.textMeta },
   labelOn: { color: palette.blueDeep },
+  labelHidden: { opacity: 0 },
   badge: { position: 'absolute', top: space[1.5], left: '50%', marginLeft: space[2] },
 });
