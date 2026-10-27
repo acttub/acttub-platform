@@ -334,6 +334,8 @@ export default function ReadingPlay() {
   const [monoResult, setMonoResult] = useState<ReturnType<typeof monologueResults> | null>(null);
   const monoItemY = useRef<Record<number, number>>({});
   const monoCardY = useRef(0);
+  // 대화 카드 위치 — 받아쓰기(인식 결과)가 늘어나 내용이 길어져도 맨 아래로 끌지 않고 지금 대사 카드 위쪽에 맞춘다(SOMA-913).
+  const dialogueCardY = useRef(0);
 
   // 서버가 정한 「내 배역이 아닐 때 읽을 목소리」. 내 배역 줄은 읽지 않으니 빼지 않아도 된다.
   const voiceByName = useMemo(() => new Map((script?.characters ?? []).map((c) => [c.name, c.voice] as const)), [script]);
@@ -1877,7 +1879,7 @@ export default function ReadingPlay() {
         ref={scrollRef}
         style={styles.flow}
         contentContainerStyle={styles.flowContent}
-        onContentSizeChange={() => !monologue && scrollRef.current?.scrollToEnd({ animated: true })}>
+        onContentSizeChange={() => !monologue && scrollRef.current?.scrollTo({ y: Math.max(0, dialogueCardY.current - 12), animated: true })}>
         {/* 지나간 대사를 누르면 그 줄부터 다시 한다(SOMA-785). 탭 기록에 대본 글이 실리지 않게 ph-label 을 붙인다. */}
         {past.map(({ key, index, lines }) => {
           const l = lines[0].line;
@@ -1951,7 +1953,7 @@ export default function ReadingPlay() {
         )}
 
         {isDialogue && !monologue && (
-          <View style={[styles.card, myTurn ? styles.cardMine : styles.cardOther]}>
+          <View style={[styles.card, myTurn ? styles.cardMine : styles.cardOther]} onLayout={(e) => (dialogueCardY.current = e.nativeEvent.layout.y)}>
             <View style={styles.cardHead}>
               <Text style={[styles.cardRole, myTurn && styles.cardRoleMine]}>
                 {labelOf((line as DialogueLine).role)}
