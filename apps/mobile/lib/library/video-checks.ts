@@ -46,3 +46,10 @@ export function videoErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   return error instanceof Error && error.message ? error.message : t('errors.uploadFail');
 }
+
+/** 보관함이 받지 않은 영상의 알림. 제목은 결과 문장, 본문은 할 수 있는 것이다. */
+export function videoRejectDialog(code: 'video_too_long' | 'video_empty'): { title: string; message: string } {
+  return code === 'video_too_long'
+    ? { title: t('archive.tooLongTitle'), message: t('archive.tooLongBody') }
+    : { title: t('archive.emptyTitle'), message: t('archive.emptyBody') };
+}

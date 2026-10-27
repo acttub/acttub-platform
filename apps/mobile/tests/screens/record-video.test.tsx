@@ -64,7 +64,7 @@ jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchPar
 jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mockUser }) }));
-jest.mock('@/lib/api', () => ({ api: { listChallenges: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { listChallenges: jest.fn(), listVideos: jest.fn(async () => ({ videos: [], next_cursor: null })) } }));
 jest.mock('@/lib/account-files', () => ({ keepDeviceFile: jest.fn(async () => undefined) }));
 jest.mock('@/lib/library/library-runner', () => ({ saveRecordingToLibrary: jest.fn() }));
 
@@ -171,9 +171,9 @@ test('코칭 촬영에 넘긴 대본이 있으면 카드로 띄우고, 숨김·�
   expect(takeRecordScript()).toBeNull();
   expect(screen.getByText('카페 앞 골목, 저녁')).toBeOnTheScreen();
   expect(screen.getByText(/이 딸기케이크 주려고 잠깐 들른 거야\./)).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('대사 숨김'));
+  await fireEvent.press(screen.getByLabelText('대사 숨김'));
   expect(screen.queryByText('대본 · 네가 좋아하는 케이크')).not.toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('대사 보기'));
+  await fireEvent.press(screen.getByLabelText('대사 보기'));
   expect(screen.getByText('대본 · 네가 좋아하는 케이크')).toBeOnTheScreen();
 });
 
@@ -194,7 +194,7 @@ test('대본으로 찍을 때 녹화 전·녹화 중 모두 닫기가 눌린다 
   expect(mockRouter.replace).not.toHaveBeenCalled();
 });
 
-test('대본으로 코칭 녹화 중 남은 시간은 「4분 48초 남음」처럼 분과 초로 센다(pen P2.14)', async () => {
+test('대본으로 코칭 녹화 중 남은 시간은 「4분 48초 남았어요」처럼 분과 초로 센다(pen P2.14)', async () => {
   jest.useFakeTimers();
   mockParams = { mode: 'ai', next: 'upload' };
   setRecordScript({ title: '옥상, 밤', lines: [{ kind: 'dialogue', speaker: '윤서', text: '나 이제 진짜 갈게.', mine: true }] });
@@ -203,7 +203,7 @@ test('대본으로 코칭 녹화 중 남은 시간은 「4분 48초 남음」처
   await act(async () => {
     jest.advanceTimersByTime(12_000);
   });
-  expect(screen.getByText('4분 48초 남음')).toBeOnTheScreen();
+  expect(screen.getByText('4분 48초 남았어요')).toBeOnTheScreen();
   jest.useRealTimers();
 });
 
@@ -308,7 +308,7 @@ describe('카메라·마이크 권한', () => {
     expect(mockRequestCam).not.toHaveBeenCalled();
   });
 
-  test('권한 상태를 아직 못 읽었으면 묻지 않고 뒤로만 보인다', async () => {
+  test('권한 상태를 아직 못 읽었으면 묻지 않고 닫기만 보인다', async () => {
     mockCamPerm = null;
     mockMicPerm = null;
 
@@ -316,14 +316,13 @@ describe('카메라·마이크 권한', () => {
 
     expect(screen.queryByText('카메라와 마이크가 필요해요')).not.toBeOnTheScreen();
     expect(mockRequestCam).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: '닫기' })).not.toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+    await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('기본 촬영 화면', () => {
-  test('카메라 전환은 앞뒤를 오가고, 녹화 중에는 전환 대신 남은 시간을 센다', async () => {
+  test('카메라 전환은 앞뒤를 오가고, 녹화 중에는 전환을 숨긴 채 빨간 시간 알약과 남은 시간을 센다', async () => {
     jest.useFakeTimers();
     mockParams = { mode: 'ai' };
     await render(<RecordVideoScreen />);
@@ -336,14 +335,16 @@ describe('기본 촬영 화면', () => {
 
     await startRecording();
     expect(mockCamera.recordAsync).toHaveBeenCalledWith({ maxDuration: 300 });
-    expect(screen.getByText('5:00')).toBeOnTheScreen();
+    expect(screen.getByText('0:00 / 5:00')).toBeOnTheScreen();
+    expect(screen.getByText('5분 남았어요')).toBeOnTheScreen();
     expect(screen.queryByLabelText('카메라 전환')).not.toBeOnTheScreen();
-    expect(screen.getByText('✕')).toBeOnTheScreen();
+    expect(screen.getByLabelText('닫기')).toBeOnTheScreen();
 
     await act(async () => {
       jest.advanceTimersByTime(63_000);
     });
-    expect(screen.getByText('3:57')).toBeOnTheScreen();
+    expect(screen.getByText('1:03 / 5:00')).toBeOnTheScreen();
+    expect(screen.getByText('3분 57초 남았어요')).toBeOnTheScreen();
   });
 
   test('카메라가 준비되기 전에는 셔터를 받지 않고, 준비 신호가 안 와도 1.5초 뒤에는 찍을 수 있다 (iOS 제보)', async () => {
@@ -373,13 +374,13 @@ describe('기본 촬영 화면', () => {
       jest.advanceTimersByTime(4_100);
     });
     expect(await screen.findByText('촬영이 제대로 시작되지 않았어요')).toBeOnTheScreen();
-    expect(screen.getByText('✕')).toBeOnTheScreen();
+    expect(screen.getByLabelText('닫기')).toBeOnTheScreen();
     expect(mockRouter.back).not.toHaveBeenCalled();
   });
 
   test('닫기를 누르면 찍지 않고 돌아간다', async () => {
     await render(<RecordVideoScreen />);
-    await fireEvent.press(screen.getByText('✕'));
+    await fireEvent.press(screen.getByLabelText('닫기'));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
     expect(peekRecordedVideo()).toBeNull();
   });
@@ -455,8 +456,8 @@ describe('기본 촬영 화면', () => {
 
     await recordAndStop();
 
-    expect(await screen.findByText('영상 업로드에 실패했어요. 네트워크를 확인해주세요.')).toBeOnTheScreen();
-    expect(screen.getByText('영상 저장')).toBeOnTheScreen();
+    expect(await screen.findByText('영상을 읽지 못했어요')).toBeOnTheScreen();
+    expect(screen.getByText('다른 영상을 골라 주세요.')).toBeOnTheScreen();
     expect(mockRouter.replace).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByText('확인'));
 
@@ -546,6 +547,65 @@ describe('기본 촬영 화면', () => {
   });
 });
 
+describe('모든 촬영의 앨범 버튼', () => {
+  test('AI 코칭 촬영에도 앨범이 있고, 고른 영상은 보관함에 넣어 그 준비 화면으로 돌아간다', async () => {
+    mockParams = { mode: 'ai' };
+    launchPicker.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///clip.mp4', duration: 42_000, fileName: 'clip.mp4' }] });
+    await render(<RecordVideoScreen />);
+
+    await fireEvent.press(screen.getByLabelText('앨범에서 고르기'));
+
+    await waitFor(() => expect(mockRouter.back).toHaveBeenCalledTimes(1));
+    expect(saveToLibrary).toHaveBeenCalledWith({ uri: 'file:///clip.mp4', durationMs: 42_000, owner: 'u1' });
+    expect(takePickedVideo()).toEqual(expect.objectContaining({ pendingId: 'pend1', uri: 'file:///lib/pend1.mov', durationMs: 42_000 }));
+  });
+
+  test('너무 긴 영상을 고르면 「영상이 너무 길어요」 알림을 띄운다', async () => {
+    mockParams = { mode: 'plain' };
+    saveToLibrary.mockResolvedValue({ kind: 'rejected', code: 'video_too_long' });
+    launchPicker.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///long.mp4', duration: 400_000, fileName: 'long.mp4' }] });
+    await render(<RecordVideoScreen />);
+
+    await fireEvent.press(screen.getByLabelText('앨범에서 고르기'));
+
+    expect(await screen.findByText('영상이 너무 길어요')).toBeOnTheScreen();
+    expect(screen.getByText('5분까지 올릴 수 있어요. 더 짧은 영상을 골라 주세요.')).toBeOnTheScreen();
+  });
+
+  test('앨범 버튼은 보관함의 가장 최근 영상 첫 장면을 보이고, 첫 장면이 없으면 아이콘이다', async () => {
+    const listVideos = api.listVideos as jest.Mock;
+    const video = (id: string, poster: string | null, purged: string | null = null) => ({ id, poster_url: poster, purged_at: purged });
+    listVideos.mockResolvedValueOnce({
+      videos: [video('v0', null), video('v1', 'https://cdn/x/old.jpg', '2026-10-01'), video('v2', 'https://cdn/p/new.jpg?sig=1')],
+      next_cursor: null,
+    });
+    mockParams = { mode: 'ai' };
+    const first = await render(<RecordVideoScreen />);
+    const thumbs = (uri: string) => screen.container.queryAll((n) => JSON.stringify(n.props.source ?? null).includes(uri));
+
+    await waitFor(() => expect(thumbs('https://cdn/p/new.jpg?sig=1').length).toBeGreaterThan(0));
+    expect(thumbs('https://cdn/x/old.jpg')).toEqual([]);
+    await first.unmount();
+
+    listVideos.mockRejectedValueOnce(new Error('offline'));
+    await render(<RecordVideoScreen />);
+    await waitFor(() => expect(listVideos).toHaveBeenCalledTimes(2));
+    expect(thumbs('https://cdn/')).toEqual([]);
+  });
+
+  test('AI 코칭 대기엔 시간 알약이 없고, 녹화를 시작하면 빨간 알약이 뜨며 앨범은 눌리지 않는다', async () => {
+    mockParams = { mode: 'ai' };
+    await render(<RecordVideoScreen />);
+    expect(screen.queryByText('0:00 / 5:00')).not.toBeOnTheScreen();
+
+    await startRecording();
+
+    expect(screen.getByText('0:00 / 5:00')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('앨범에서 고르기'));
+    expect(launchPicker).not.toHaveBeenCalled();
+  });
+});
+
 describe('챌린지 촬영', () => {
   const CHALLENGE = { mode: 'challenge', challengeId: 'c1', line: '나는 아직 끝나지 않았어', work: '봄날' };
 
@@ -577,11 +637,11 @@ describe('챌린지 촬영', () => {
     expect(screen.getByText('오늘의 대사 · 《봄날》')).toBeOnTheScreen();
     expect(screen.getByText('나는 아직 끝나지 않았어')).toBeOnTheScreen();
     expect(screen.getByText('0:00 / 1:00')).toBeOnTheScreen();
-    expect(screen.getByText('최대 60초 · 촬영 후 공유할지, 저장만 할지 고를 수 있어요')).toBeOnTheScreen();
+    expect(screen.getByText('최대 60초 · 찍은 뒤 공유할지, 저장만 할지 고를 수 있어요')).toBeOnTheScreen();
 
-    await fireEvent.press(screen.getByText('대사 숨김'));
+    await fireEvent.press(screen.getByLabelText('대사 숨김'));
     expect(screen.queryByText('나는 아직 끝나지 않았어')).not.toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('대사 보기'));
+    await fireEvent.press(screen.getByLabelText('대사 보기'));
     expect(screen.getByText('나는 아직 끝나지 않았어')).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByLabelText('카메라 전환'));
@@ -609,12 +669,12 @@ describe('챌린지 촬영', () => {
 
     await startRecording();
     expect(mockCamera.recordAsync).toHaveBeenCalledWith({ maxDuration: 60 });
-    expect(screen.getByText('60초 남음')).toBeOnTheScreen();
+    expect(screen.getByText('1분 남았어요')).toBeOnTheScreen();
     expect(screen.queryByLabelText('카메라 전환')).not.toBeOnTheScreen();
     await act(async () => {
       jest.advanceTimersByTime(2_000);
     });
-    expect(screen.getByText('58초 남음')).toBeOnTheScreen();
+    expect(screen.getByText('58초 남았어요')).toBeOnTheScreen();
     expect(screen.getByText('0:02 / 1:00')).toBeOnTheScreen();
 
     await stopRecording();
@@ -644,7 +704,7 @@ describe('챌린지 촬영', () => {
     await act(async () => {
       jest.advanceTimersByTime(3_000);
     });
-    expect(screen.getByText('58초 남음')).toBeOnTheScreen();
+    expect(screen.getByText('58초 남았어요')).toBeOnTheScreen();
   });
 
   test('챌린지 대사 없이 챌린지 촬영을 마치면 대사 고르기로 간다', async () => {
@@ -699,7 +759,7 @@ describe('챌린지 촬영', () => {
     launchPicker.mockResolvedValue({ canceled: true, assets: null });
     await render(<RecordVideoScreen />);
 
-    await fireEvent.press(screen.getByText('업로드'));
+    await fireEvent.press(screen.getByLabelText('앨범에서 고르기'));
 
     expect(launchPicker).toHaveBeenCalledWith({ mediaTypes: ['videos'], allowsEditing: false, preferredAssetRepresentationMode: 'current' });
     expect(logged('challenge_video_source')).toEqual([{ source: 'gallery', result: 'cancelled' }]);
@@ -712,7 +772,7 @@ describe('챌린지 촬영', () => {
     launchPicker.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///clip.mp4', duration: 12_345.6, fileName: 'clip.mp4' }] });
     await render(<RecordVideoScreen />);
 
-    await fireEvent.press(screen.getByText('업로드'));
+    await fireEvent.press(screen.getByLabelText('앨범에서 고르기'));
 
     expect(logged('challenge_video_source')).toEqual([{ source: 'gallery', result: 'selected' }]);
     expect(keepDeviceFile).toHaveBeenCalledWith('file:///clip.mp4');
@@ -728,8 +788,8 @@ describe('챌린지 촬영', () => {
     launchPicker.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///clip2.mp4', duration: null, fileName: null }] });
     await render(<RecordVideoScreen />);
 
-    await fireEvent.press(screen.getByText('업로드'));
-    await fireEvent.press(screen.getByText('업로드'));
+    await fireEvent.press(screen.getByLabelText('앨범에서 고르기'));
+    await fireEvent.press(screen.getByLabelText('앨범에서 고르기'));
 
     expect(peekRecordedVideo()?.durationMs).toBeNull();
     expect(peekRecordedVideo()?.name).toMatch(/^video-\d+\.mp4$/);
@@ -741,7 +801,7 @@ describe('챌린지 촬영', () => {
     launchPicker.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///clip.mp4', duration: 5_000, fileName: 'clip.mp4' }] });
     await render(<RecordVideoScreen />);
 
-    await fireEvent.press(screen.getByText('업로드'));
+    await fireEvent.press(screen.getByLabelText('앨범에서 고르기'));
     await recordAndStop();
 
     expect(peekRecordedVideo()?.uri).toBe('file:///clip.mp4');
@@ -842,7 +902,8 @@ describe('용도 고르기(하단 탭에서 곧장 연 촬영)', () => {
 
     await fireEvent.press(screen.getByRole('tab', { name: '오늘의 대사' }));
 
-    expect(await screen.findByText('오늘의 대사가 아직 없어요. 챌린지 탭에서 대사를 골라 주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('오늘의 대사가 아직 없어요')).toBeOnTheScreen();
+    expect(screen.getByText('챌린지 탭에서 대사를 골라 주세요.')).toBeOnTheScreen();
   });
 
   test('화면을 왼쪽으로 충분히 넘기면 다음 용도로, 오른쪽으로 넘기면 이전 용도로 간다', async () => {
