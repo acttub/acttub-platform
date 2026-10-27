@@ -69,11 +69,10 @@ test('⑨ 질문 대화: 제목 「질문 대화」 고정, 그만하기 17/700,
   assert.match(ko, /composerPh: '직접 써도 돼요'/);
 });
 
-test('⑨ 영상 보는 중: 경과 15/500, 안내 15 · 14.5/700, 「끝나면 알려 주세요」 회색 48 · 18/700, 그만두기 15/700', () => {
+test('⑨ 영상 보는 중: 경과 15/500, 예시 안내 15, 「끝나면 알려 주세요」 회색 48 · 18/700, 그만두기 15/700', () => {
   const waiting = read('components/coach-waiting.tsx');
   assert.match(waiting, /elapsed: \{ fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette\.textMeta \}/);
   assert.match(waiting, /notice: \{ fontSize: 15, fontWeight: '500', lineHeight: 19,/);
-  assert.match(waiting, /leaveHint: \{ fontSize: 14\.5, fontWeight: '700', lineHeight: 19,/);
   assert.match(waiting, /notify: \{ alignSelf: 'stretch', height: 48, borderRadius: 16, backgroundColor: palette\.bgSoft,/);
   assert.match(waiting, /notifyText: \{ fontSize: 18, fontWeight: '700', color: palette\.text \}/);
   assert.match(waiting, /link: \{ color: palette\.textMeta, fontSize: 15, fontWeight: '700'/);

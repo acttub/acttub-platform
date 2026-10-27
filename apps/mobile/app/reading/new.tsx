@@ -13,10 +13,13 @@ import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { DialogButtons } from '@/components/ui/dialog';
+import { InfoBanner } from '@/components/ui/info-banner';
 import { ReadingStatus } from '@/components/ui/reading-status';
 import { isSplitFailure } from '@/lib/reading/redesign-748';
 import { Markdown } from '@/components/markdown';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
+import { useWaitExit } from '@/hooks/use-wait-exit';
+import { type } from '@/constants/tokens';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -289,9 +292,12 @@ export default function ReadingNew() {
     dispatch({ type: 'tab', tab });
   };
   const closable = popup !== null && popup.kind !== 'splitting' && !(popup.kind === 'consent' && popup.busy);
-  // 파일을 올리는 중·나누는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일과 나누기가 버려진다(SOMA-664).
+  // 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 다 되면 대본 목록에 생긴다.
+  const splitting = popup?.kind === 'splitting';
+  useWaitExit(splitting, '/reading');
+  // 파일을 올리는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일이 버려진다(SOMA-664).
   // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
-  const working = input.file.kind === 'reading' || popup?.kind === 'splitting';
+  const working = input.file.kind === 'reading' && !splitting;
   usePreventRemove(working, () => undefined);
 
   if (popup?.kind === 'failed') {
@@ -313,7 +319,7 @@ export default function ReadingNew() {
     );
   }
 
-  // pen F4 「배역과 대사 찾는 중」 — 팝업이 아니라 전체 화면이다. 나누는 동안은 떠나지 못하므로 닫기(X)는 두지 않는다.
+  // pen F4 「배역과 대사 찾는 중」 — 팝업이 아니라 전체 화면이다. 머리 뒤로 가기는 리딩 탭으로 나간다(useWaitExit).
   if (popup?.kind === 'splitting') {
     return <SplittingScreen progress={popup.progress} topInset={insets.top} />;
   }
@@ -600,12 +606,13 @@ function SplittingScreen({ progress, topInset }: { progress: ImportProgress | nu
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   return (
     <View style={[styles.root, styles.splitScreen, { paddingTop: topInset + 120 }]}>
-      <Stack.Screen options={{ gestureEnabled: false }} />
       <Image source={MASCOT} style={styles.splitMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <Text style={styles.splitHeading}>{t('reading.splitTitle')}</Text>
+      <Text style={styles.splitSub}>{t('reading.splitSub')}</Text>
       {total > 0 && <Text style={styles.splitProgress}>{t('reading.splitProgress', { pct, done, total })}</Text>}
       {/* 광고 칸(SOMA-876) — 연습 중 칸, 위쪽 묶음 바로 아래 24. */}
       <AdSlot slot="script_parse_wait" style={{ alignSelf: 'stretch', marginTop: 24 }} />
+      <InfoBanner title={t('reading.splitLeaveTitle')} body={t('reading.splitLeaveBody')} style={styles.splitBanner} />
     </View>
   );
 }
@@ -675,6 +682,8 @@ const styles = StyleSheet.create({
   splitMascot: { width: 72, height: 80, marginBottom: 20 },
   splitHeading: { color: palette.text, fontSize: 28, fontWeight: '800', lineHeight: 38 },
   splitProgress: { color: palette.blue, fontSize: 17, fontWeight: '800' },
+  splitSub: { ...type.body2, color: palette.textSub },
+  splitBanner: { alignSelf: 'stretch', marginTop: 'auto', marginBottom: 24 },
   optionCard: { alignItems: 'stretch', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24, gap: 6 },
   optionTitle: { color: palette.text, fontSize: 20, fontWeight: '900', lineHeight: 28 },
   optionGuide: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },

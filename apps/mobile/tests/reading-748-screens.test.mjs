@@ -89,7 +89,8 @@ test('대본 넣기: 파일·글 붙여넣기·대본 같이 만들기 셋 중 �
 
 test('대본 넣기: 사진 탭과 「다른 거 하고 있을게요」(알림)는 없다', () => {
   const screen = src('app/reading/new.tsx');
-  assert.doesNotMatch(screen, /tabPhoto|splitLeave/);
+  assert.doesNotMatch(screen, /tabPhoto/);
+  assert.doesNotMatch(src('locales/ko.ts'), /다른 거 하고 있을게요/);
   assert.match(screen, /isSplitFailure\(/);
 });
 

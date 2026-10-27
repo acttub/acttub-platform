@@ -12,6 +12,7 @@ import { KeyboardLift } from '@/components/keyboard-lift';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { palette } from '@/constants/palette';
 import { useAppRating } from '@/hooks/use-app-rating';
+import { useWaitExit } from '@/hooks/use-wait-exit';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import {
@@ -138,7 +139,11 @@ export default function JournalScreen() {
     advance(cleared);
   };
 
+  // 일지를 만드는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다(10-27 정함). 일지는 서버가 마저 만들고 연습 기록에서 다시 연다.
+  const leaveMaking = useWaitExit(phase === 'making', '/coaching');
+
   const back = () => {
+    if (phase === 'making') return leaveMaking();
     if (phase === 'questions' && step > 0) {
       setStep(step - 1);
       return;
@@ -200,7 +205,7 @@ export default function JournalScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: phase !== 'making' }} />
+      <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('journal.title')} left={<NavBackButton onPress={back} phLabel="journal_back" />} right={headerRight} />
 
       {phase === 'loading' && <SkeletonDetail lines={5} />}

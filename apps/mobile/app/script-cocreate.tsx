@@ -7,12 +7,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
+import { InfoBanner } from '@/components/ui/info-banner';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { KeyboardLift } from '@/components/keyboard-lift';
+import { useWaitExit } from '@/hooks/use-wait-exit';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
@@ -243,7 +245,11 @@ export default function ScriptCocreateScreen() {
     }
   };
 
+  // 만드는 중에 뒤로 가면 시작한 탭(대본 올리기에서 왔으면 리딩, 코칭 입구면 코칭)의 첫 화면으로 간다(10-27 정함).
+  const leaveWaiting = useWaitExit(step === 'generating', readingMode ? '/reading' : '/coaching');
+
   const back = () => {
+    if (step === 'generating') return leaveWaiting();
     if (step === 'emotion' && readingMode && !skipStart) return setStep('start');
     if (step === 'failed') return setStep('direction');
     if (step === 'situation') return setStep('emotion');
@@ -263,6 +269,7 @@ export default function ScriptCocreateScreen() {
         <View style={styles.center}>
           <Text style={styles.waitTitle}>{t('scriptCocreate.generating')}</Text>
           <Text style={styles.waitSub}>{t('scriptCocreate.generatingSub')}</Text>
+          <InfoBanner title={t('scriptCocreate.generatingLeaveTitle')} body={t('scriptCocreate.generatingLeaveBody')} style={styles.waitBanner} />
         </View>
       ) : step === 'result' && script ? (
         <View style={styles.flex}>
@@ -606,6 +613,7 @@ const styles = StyleSheet.create({
   failTitle: { fontSize: 21, fontWeight: '800', lineHeight: 30, color: palette.text, textAlign: 'center' },
   failSub: { fontSize: 15, lineHeight: 22, color: palette.textMeta, textAlign: 'center' },
   waitSub: { fontSize: 14, fontWeight: '500', color: palette.textMeta, textAlign: 'center' },
+  waitBanner: { alignSelf: 'stretch', marginTop: 14 },
   body: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   input: {

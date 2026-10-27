@@ -19,6 +19,7 @@ import { deleteDeviceFile } from '@/lib/account-files';
 import { hasSeenFirstReadingGuide, hideAutoAdvanceTip, isAutoAdvanceTipHidden, markFirstReadingGuideSeen } from '@/lib/reading/guide-flag';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InfoBanner } from '@/components/ui/info-banner';
 import { ReadingGuideOverlay } from '@/components/ui/reading-guide-overlay';
 import { ReadingStatus } from '@/components/ui/reading-status';
 import { readingCoachScene, wrapUpProgress } from '@/lib/reading/redesign-748';
@@ -28,6 +29,7 @@ import { onReadingLiveEvent, readingKeepsRunning, startReadingLive, stopReadingL
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { Image } from 'expo-image';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
+import { useWaitExit } from '@/hooks/use-wait-exit';
 import { currentTutorial } from '@/lib/tutorial';
 import { currentNetworkType } from '@/lib/reading/network';
 import { speakableText } from '@/lib/reading/tts/speakable';
@@ -1416,6 +1418,8 @@ export default function ReadingPlay() {
     commit(next);
   };
 
+  // 목소리를 내려받는(준비하는) 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 내려받기는 화면을 떠나도 이어진다.
+  useWaitExit(phase.kind === 'preparing', '/reading');
   // 안드로이드 뒤로 가기·스와이프도 확인 없이 같은 「저장하고 나가기」로 간다. 나가는 중(exiting)에는 풀어 준다.
   usePreventRemove(phase.kind === 'running' && !exiting && run?.status !== 'done', () => leaveReading());
 
@@ -1554,13 +1558,7 @@ export default function ReadingPlay() {
         {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래쪽 묶음 바로 위. */}
         <AdSlot slot="voice_prepare_wait" style={{ marginBottom: download ? 24 : 0 }} />
         {download && (
-          <View style={styles.prepNote}>
-            <Feather name="info" size={18} color={palette.blueDeep} />
-            <View style={styles.prepNoteBody}>
-              <Text style={styles.prepNoteTitle}>{t('reading.voiceDownloadNoteTitle')}</Text>
-              <Text style={styles.prepNoteText}>{t('reading.voiceDownloadNoteBody')}</Text>
-            </View>
-          </View>
+          <InfoBanner title={t('reading.voiceDownloadNoteTitle')} body={t('reading.voiceDownloadNoteBody')} />
         )}
         {dialog}
       </View>
@@ -2252,10 +2250,6 @@ const styles = StyleSheet.create({
   prepMascot: { width: 84, height: 94, marginBottom: 8 },
   prepTitle: { color: palette.text, fontSize: 24, fontWeight: '800', lineHeight: 34, textAlign: 'center' },
   prepProgress: { color: palette.blue, fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  prepNote: { flexDirection: 'row', gap: 10, backgroundColor: palette.blueSoft, borderRadius: 14, padding: 16 },
-  prepNoteBody: { flex: 1, gap: 4 },
-  prepNoteTitle: { color: palette.blueDeep, fontSize: 14, fontWeight: '700' },
-  prepNoteText: { color: palette.blueDeep, fontSize: 13, lineHeight: 19 },
   primaryWide: { alignSelf: 'stretch', backgroundColor: palette.blue, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 12 },
   primaryWideText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 16 },
   textButton: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 15, paddingVertical: 10 },
