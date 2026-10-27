@@ -254,12 +254,12 @@ export default function JournalScreen() {
             {error && <Text style={styles.errorText}>{error}</Text>}
           </KeyboardAwareScroll>
           <CtaBar safeBottom={false}>
+            <TextButton label={t('journal.skip')} onPress={skip} phLabel="journal_skip" />
             <PrimaryButton
               label={last ? t('journal.make') : t('journal.next')}
               disabled={!canAnswer(draft)}
               onPress={() => advance(drafts)}
             />
-            <TextButton label={t('journal.skip')} onPress={skip} phLabel="journal_skip" />
           </CtaBar>
         </KeyboardLift>
       )}

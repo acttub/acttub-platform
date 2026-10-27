@@ -70,17 +70,6 @@ export default function ProScreen() {
           <Text style={styles.price}>{me?.pro ? t('pro.alreadyPro') : t('pro.price')}</Text>
         )}
         {purchase.error && <Text style={styles.error}>{purchase.error}</Text>}
-        {buyable && (
-          <>
-            <PrimaryButton label={purchase.busy && purchase.status ? purchase.status : t('pro.start')}
-              onPress={() => purchase.begin(plan)} disabled={!purchase.available || purchase.busy || !purchase.prices[plan]}
-              phLabel={plan === 'yearly' ? 'pro_start_yearly' : 'pro_start'} />
-            <Pressable onPress={purchase.restore} disabled={purchase.busy} accessibilityRole="button" hitSlop={8}
-              style={styles.restore}>
-              <Text style={styles.link}>{t('pro.restore')}</Text>
-            </Pressable>
-          </>
-        )}
         <View style={styles.links}>
           <Pressable onPress={() => void openHistory()} accessibilityRole="link" hitSlop={6}>
             <Text style={styles.link}>{t('pro.history')}</Text>
@@ -92,6 +81,17 @@ export default function ProScreen() {
             <Text style={styles.link}>{t('pro.refund')}</Text>
           </Pressable>
         </View>
+        {buyable && (
+          <>
+            <Pressable onPress={purchase.restore} disabled={purchase.busy} accessibilityRole="button" hitSlop={8}
+              style={styles.restore}>
+              <Text style={styles.link}>{t('pro.restore')}</Text>
+            </Pressable>
+            <PrimaryButton label={purchase.busy && purchase.status ? purchase.status : t('pro.start')}
+              onPress={() => purchase.begin(plan)} disabled={!purchase.available || purchase.busy || !purchase.prices[plan]}
+              phLabel={plan === 'yearly' ? 'pro_start_yearly' : 'pro_start'} />
+          </>
+        )}
       </CtaBar>
       {dialog}
     </SafeAreaView>

@@ -6,7 +6,8 @@ import { Button, DangerButton, PrimaryButton, SecondaryButton, TextButton } from
 import { Chip } from '@/components/ui/chip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { ActionSheetCard, DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { AnchoredMenu, MenuItem } from '@/components/ui/anchored-menu';
+import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
@@ -214,24 +215,32 @@ describe('확인창·시트', () => {
     expect(screen.getByRole('button', { name: '확인' })).toBeDisabled();
   });
 
-  test('선택 시트는 항목과 취소를 따로 전한다', async () => {
-    const pick = jest.fn();
-    const cancel = jest.fn();
+  test('확인창 버튼은 48 두 칸이고 위험한 확인은 빨강이다', async () => {
     await render(
-      <ActionSheetCard
-        title="선택"
-        items={[
-          { label: '공유', onPress: pick },
-          { label: '삭제', onPress: pick, destructive: true },
-        ]}
-        cancelLabel="취소"
-        onCancel={cancel}
-      />,
+      <DialogCard title="지울까요?">
+        <DialogButtons cancelLabel="취소" onCancel={jest.fn()} confirmLabel="지우기" onConfirm={jest.fn()} destructive />
+      </DialogCard>,
     );
-    await fireEvent.press(screen.getByText('삭제'));
-    await fireEvent.press(screen.getByText('취소'));
+    const box = (name: string) => StyleSheet.flatten(screen.getByRole('button', { name }).props.style);
+    expect([box('취소').height, box('취소').backgroundColor]).toEqual([48, '#F2F4F6']);
+    expect([box('지우기').height, box('지우기').backgroundColor]).toEqual([48, '#E42939']);
+    expect(StyleSheet.flatten(screen.getByText('지울까요?').props.style).fontWeight).toBe('600');
+  });
+
+  test('메뉴는 폭 200 · 1px 테두리 카드에 44 항목을 두고, 삭제는 빨강이다', async () => {
+    const pick = jest.fn();
+    await render(
+      <AnchoredMenu anchor={{ x: 300, y: 80 }} estimatedHeight={100} onClose={jest.fn()}>
+        <MenuItem label="제목 수정" icon="edit-2" onPress={pick} />
+        <MenuItem label="대본 삭제" destructive onPress={pick} />
+      </AnchoredMenu>,
+    );
+    const card = StyleSheet.flatten(screen.getByTestId('anchored-menu').props.style);
+    expect([card.width, card.borderWidth, card.borderRadius, card.overflow]).toEqual([200, 1, 12, undefined]);
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: '제목 수정' }).props.style).height).toBe(44);
+    expect(StyleSheet.flatten(screen.getByText('대본 삭제').props.style).color).toBe('#E42939');
+    await fireEvent.press(screen.getByRole('button', { name: '대본 삭제' }));
     expect(pick).toHaveBeenCalledTimes(1);
-    expect(cancel).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -278,13 +287,14 @@ describe('상태 화면·말풍선·아래 칸', () => {
     expect(screen.getByText('보조 한 줄')).toBeOnTheScreen();
   });
 
-  test('아래 칸은 안에 둔 버튼을 그린다', async () => {
+  test('아래 칸은 위 구분선 없이 안쪽 위 12 · 좌우 20 으로 버튼을 그린다', async () => {
     await render(
-      <CtaBar divider>
+      <CtaBar safeBottom={false}>
         <Text>저장하고 마치기</Text>
       </CtaBar>,
     );
-    expect(screen.getByText('저장하고 마치기')).toBeOnTheScreen();
+    const bar = StyleSheet.flatten(screen.getByText('저장하고 마치기').parent?.props.style);
+    expect([bar.paddingTop, bar.paddingHorizontal, bar.paddingBottom, bar.gap, bar.borderTopWidth]).toEqual([12, 20, 12, 8, undefined]);
   });
 });
 

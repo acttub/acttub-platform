@@ -69,16 +69,6 @@ test('⑨ 질문 대화: 제목 「질문 대화」 고정, 그만하기 17/700,
   assert.match(ko, /composerPh: '직접 써도 돼요'/);
 });
 
-test('⑨ 「여기서 마칠까요?」 창: 폭 292 · 모서리 20 · 제목 18/800 · 설명 16 · 버튼 46 · 17/700', () => {
-  const dialog = read('components/ui/dialog.tsx');
-  assert.match(dialog, /compactCard: \{ maxWidth: 292, borderRadius: 20, paddingTop: 20, paddingHorizontal: 19, paddingBottom: 15 \}/);
-  assert.match(dialog, /compactTitle: \{ fontSize: 18, lineHeight: 23 \}/);
-  assert.match(dialog, /compactMessage: \{ fontSize: 16, lineHeight: 20 \}/);
-  assert.match(dialog, /compactButton: \{ minHeight: 46, paddingVertical: 0 \}/);
-  assert.match(dialog, /compactButtonText: \{ fontSize: 17, fontWeight: '700' \}/);
-  assert.match(read('app/coach.tsx'), /confirmLabel: t\('coach\.endConfirm'\),\s*compact: true,/);
-});
-
 test('⑨ 영상 보는 중: 경과 15/500, 안내 15 · 14.5/700, 「끝나면 알려 주세요」 회색 48 · 18/700, 그만두기 15/700', () => {
   const waiting = read('components/coach-waiting.tsx');
   assert.match(waiting, /elapsed: \{ fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette\.textMeta \}/);

@@ -196,8 +196,8 @@ export default function ReportScreen() {
           {/* 저장하고 마치기·다음 테이크는 노트 길이와 상관없이 화면 아래에 붙여 둔다(pen OL9mWG, SOMA-770 피드백 14). */}
           {!sample && (
             <CtaBar safeBottom={false}>
-              <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
               <SecondaryButton label={t('history.nextTake')} onPress={nextTake} />
+              <PrimaryButton label={t('note.saveFinish')} onPress={finish} />
             </CtaBar>
           )}
         </>

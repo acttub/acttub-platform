@@ -110,11 +110,11 @@ export default function CoachingDoneScreen() {
       <AdSlot slot="coaching_done" style={{ marginHorizontal: 24, marginBottom: 12 }} />
       <CtaBar safeBottom={false}>
         {/* pen P16.1·P16.2 — 아래 버튼은 「확인」, 누르면 홈. */}
-        <PrimaryButton label={t('note.doneConfirm')} onPress={() => router.dismissTo('/(tabs)')} />
         <Pressable style={styles.share} onPress={share} accessibilityRole="button" ph-label="coaching_done_share">
           <Feather name="share-2" size={16} color={palette.blueDeep} />
           <Text style={styles.shareText}>{t('journal.endShare')}</Text>
         </Pressable>
+        <PrimaryButton label={t('note.doneConfirm')} onPress={() => router.dismissTo('/(tabs)')} />
       </CtaBar>
       </KeyboardLift>
     </SafeAreaView>

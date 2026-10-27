@@ -364,7 +364,6 @@ function CoachTalk() {
       message: t('coach.endMsg'),
       cancelLabel: t('coach.endContinue'),
       confirmLabel: t('coach.endConfirm'),
-      compact: true,
     });
     if (ok) await sendText(COACH_END_WORD);
   };

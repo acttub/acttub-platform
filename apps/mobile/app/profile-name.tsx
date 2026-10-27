@@ -230,7 +230,7 @@ export default function ProfileNameScreen() {
             <Text style={styles.introBadgeText}>{t('profileName.introBadge')}</Text>
           </View>
         </View>
-        <CtaBar safeBottom={false} style={styles.footer}>
+        <CtaBar safeBottom={false}>
           <PrimaryButton label={t('profileName.introCta')} onPress={() => setScreen(steps[0])} />
         </CtaBar>
       </SafeAreaView>
@@ -406,10 +406,6 @@ export default function ProfileNameScreen() {
       );
       footer = (
         <>
-          {nextButton(
-            () => advance('discovery'),
-            discovery.source !== null && (discovery.source !== 'other' || discovery.otherText.trim().length > 0),
-          )}
           <TextButton
             size="large"
             label={t('profileName.skip')}
@@ -419,6 +415,10 @@ export default function ProfileNameScreen() {
             }}
             disabled={busy}
           />
+          {nextButton(
+            () => advance('discovery'),
+            discovery.source !== null && (discovery.source !== 'other' || discovery.otherText.trim().length > 0),
+          )}
         </>
       );
       break;
@@ -442,7 +442,7 @@ export default function ProfileNameScreen() {
           {error && <Text style={styles.error}>{error}</Text>}
         </ScrollView>
         {footer && (
-          <CtaBar safeBottom={false} style={styles.footer}>
+          <CtaBar safeBottom={false}>
             {footer}
           </CtaBar>
         )}
@@ -526,7 +526,6 @@ const styles = StyleSheet.create({
   },
   introBadgeText: { fontSize: 16, fontWeight: '700', color: palette.blueDeep },
   // 아래 버튼 칸 — 좌우 24, 주 버튼 52, 버튼 사이 8.
-  footer: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 12, gap: 8 },
 
   // 질문 화면 — 좌우 24. 말풍선 아래 답 칸까지 24, 고르는 줄 사이 8.
   body: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 24 },

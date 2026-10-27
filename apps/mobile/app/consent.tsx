@@ -216,7 +216,7 @@ export default function ConsentScreen() {
         <View style={styles.lines}>{lines.map(renderLine)}</View>
       </ScrollView>
 
-      <CtaBar safeBottom={false} style={styles.footer}>
+      <CtaBar safeBottom={false}>
         {error && <Text style={styles.error}>{error}</Text>}
         <Pressable
           style={[styles.allRow, everythingGranted && styles.allRowOn]}
@@ -242,7 +242,6 @@ const styles = StyleSheet.create({
   hint: { marginTop: 8, fontSize: 15, fontWeight: '400', lineHeight: 22, color: palette.textMeta },
   lines: { marginTop: 20 },
   docBody: { paddingHorizontal: 14, paddingBottom: 12 },
-  footer: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 12, gap: 8 },
   // 모두 동의하기(pen S4.1) — 안쪽 18, 모서리 16, 칸 사이 12. 꺼짐 #F9FAFB → 켜짐 #EAF3FE.
   allRow: {
     flexDirection: 'row',

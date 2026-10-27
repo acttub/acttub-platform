@@ -1,8 +1,10 @@
-import { type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { type ComponentProps, type ReactNode } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { radius, shadowOverlay, space, type } from '@/constants/tokens';
 
 export type MenuAnchor = { x: number; y: number };
 
@@ -33,13 +35,18 @@ export function placeMenu(
   return { left, top, width };
 }
 
+/** 메뉴 항목 높이와 카드 안쪽 위아래 — 메뉴 높이를 어림할 때 쓴다. */
+export const MENU_ITEM_HEIGHT = 44;
+export const MENU_PAD = space[1.5];
+
 /**
- * 누른 자리 근처에 뜨는 작은 메뉴(아래 시트 대신). 어두운 배경 없이 투명 오버레이만 깔고, 바깥을 누르면 닫힌다.
+ * ⋯ 동작 목록 — 디자인 시스템 pen 「Menu」. 누른 자리 바로 아래에 뜨고 덮개가 없다(투명 오버레이, 바깥을 누르면 닫힌다).
+ * 폭 200, 1px `border`, r-md, 안쪽 위아래 6, shadow-overlay, clip 없음. 항목은 MenuItem 으로 그리고 삭제는 맨 아래에 둔다.
  * 높이는 항목 수로 어림해 자리를 잡는다(estimatedHeight).
  */
 export function AnchoredMenu({
   anchor,
-  width = 220,
+  width = 200,
   estimatedHeight,
   onClose,
   children,
@@ -67,17 +74,45 @@ export function AnchoredMenu({
   );
 }
 
+/** 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘. */
+export function MenuItem({
+  label,
+  onPress,
+  destructive,
+  icon,
+}: {
+  label: string;
+  onPress: () => void;
+  destructive?: boolean;
+  icon?: ComponentProps<typeof Feather>['name'];
+}) {
+  const color = destructive ? palette.danger : palette.text;
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.item, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}>
+      {icon ? <Feather name={icon} size={18} color={color} /> : null}
+      <Text style={[styles.label, { color }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'transparent' },
   card: {
     position: 'absolute',
     backgroundColor: palette.bg,
-    borderRadius: 14,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius.md,
+    paddingVertical: MENU_PAD,
+    ...shadowOverlay,
   },
+  item: { height: MENU_ITEM_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingHorizontal: space[4] },
+  pressed: { backgroundColor: palette.bgSoft },
+  label: { ...type.body2Bold, flexShrink: 1 },
 });
