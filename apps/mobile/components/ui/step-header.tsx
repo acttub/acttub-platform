@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fill: { height: 7, borderRadius: 4, backgroundColor: palette.blue },
-  count: { fontSize: 15, fontWeight: '700', color: palette.textFaint },
+  count: { fontSize: 15, fontWeight: '700', color: palette.textMeta },
 
   dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 6, paddingHorizontal: 6, backgroundColor: palette.bg },
   dotsSide: { width: 56, flexDirection: 'row', alignItems: 'center' },
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   dots: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.border },
   dotOn: { width: 18, backgroundColor: palette.blue },
-  stepText: { fontSize: 12.5, fontWeight: '700', color: palette.textFaint },
+  stepText: { fontSize: 12.5, fontWeight: '700', color: palette.textMeta },
 
   backOnly: { height: 52, justifyContent: 'center', paddingHorizontal: 3 },
 });

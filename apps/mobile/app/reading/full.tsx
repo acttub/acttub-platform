@@ -159,15 +159,15 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 8, gap: 4, paddingBottom: 60 },
   headCard: { backgroundColor: palette.blueSoft, borderRadius: 16, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 18, gap: 4, marginBottom: 10 },
   title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 24 },
-  hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
+  hint: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13 },
   row: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8, marginHorizontal: -8 },
   /** 묶인 대사의 줄 — 한 대사로 보이게 위아래를 좁힌다. */
   rowHead: { paddingBottom: 1 },
   rowJoined: { paddingVertical: 1 },
   rowPressed: { backgroundColor: palette.bgSoft },
   // pen R3.4 지문 — 왼쪽 옅은 세로줄과 흐린 기울임 글자.
-  direction: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21, borderLeftColor: palette.border, borderLeftWidth: 2, paddingLeft: 12 },
-  scene: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 6 },
+  direction: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21, borderLeftColor: palette.border, borderLeftWidth: 2, paddingLeft: 12 },
+  scene: { color: palette.textSub, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 6 },
   role: { width: 48, color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16 },
   line: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
   roleMine: { color: palette.blueDeep },

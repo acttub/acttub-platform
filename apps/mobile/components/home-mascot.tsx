@@ -76,13 +76,13 @@ export function HomeMascot({ streak }: { streak: number }) {
 const styles = StyleSheet.create({
   col: { width: 118, alignItems: 'center', gap: 4 },
   bubble: {
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderColor: palette.border,
     borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  bubbleText: { fontSize: 11.5, fontWeight: '700', color: palette.textDim, textAlign: 'center', lineHeight: 16 },
+  bubbleText: { fontSize: 11.5, fontWeight: '700', color: palette.textSub, textAlign: 'center', lineHeight: 16 },
   mascot: { width: 96, height: 108 },
 });

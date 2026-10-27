@@ -283,7 +283,7 @@ export default function ProfileNameScreen() {
           <TextInput
             style={styles.input}
             placeholder={t('profileName.placeholder')}
-            placeholderTextColor={palette.checkOff}
+            placeholderTextColor={palette.textDisabled}
             value={form.name}
             onChangeText={(value) => update({ name: value })}
             autoFocus
@@ -396,7 +396,7 @@ export default function ProfileNameScreen() {
             <TextInput
               style={[styles.input, styles.otherInput]}
               placeholder={t('profileName.discoveryOtherPlaceholder')}
-              placeholderTextColor={palette.checkOff}
+              placeholderTextColor={palette.textDisabled}
               value={discovery.otherText}
               onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
               maxLength={DISCOVERY_OTHER_MAX_LENGTH * 2}
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     lineHeight: 24,
-    color: palette.textDim,
+    color: palette.textSub,
     textAlign: 'center',
   },
   introBadge: {
@@ -542,11 +542,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
   },
   choiceOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft },
   choicePressed: { opacity: 0.7 },
-  choiceText: { flex: 1, fontSize: 16, fontWeight: '600', color: palette.textStrong },
+  choiceText: { flex: 1, fontSize: 16, fontWeight: '600', color: palette.text },
   choiceTextOn: { fontWeight: '700', color: palette.blueDeep },
   input: {
     height: 52,

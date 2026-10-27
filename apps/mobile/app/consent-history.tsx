@@ -163,8 +163,8 @@ const styles = StyleSheet.create({
   reloadBtn: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 10 },
   reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   docBody: { paddingBottom: 12, gap: 10 },
-  docMeta: { fontSize: 13, fontWeight: '500', color: palette.textMuted },
+  docMeta: { fontSize: 13, fontWeight: '500', color: palette.textMeta },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   switchLabel: { fontSize: 15, fontWeight: '700', color: palette.text },
-  note: { marginTop: 8, fontSize: 13, fontWeight: '600', lineHeight: 18, color: palette.textMuted },
+  note: { marginTop: 8, fontSize: 13, fontWeight: '600', lineHeight: 18, color: palette.textMeta },
 });

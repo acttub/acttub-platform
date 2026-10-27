@@ -14,8 +14,8 @@ export type VideoSourceOption = {
 
 const ICON_TONE: Record<VideoSourceOption['icon'], { bg: string; fg: string }> = {
   archive: { bg: palette.blueSoft, fg: palette.blue },
-  video: { bg: '#FFF1DE', fg: palette.hintIcon },
-  image: { bg: palette.bgSoft, fg: palette.textMuted },
+  video: { bg: '#FFF1DE', fg: palette.flame },
+  image: { bg: palette.bgSoft, fg: palette.textMeta },
 };
 
 /**
@@ -64,12 +64,12 @@ export function VideoSourceSheet({
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 13, fontWeight: '700', color: palette.textMuted, paddingHorizontal: 16, paddingTop: 12 },
-  sub: { fontSize: 12, color: palette.textFaint, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 4 },
+  title: { fontSize: 13, fontWeight: '700', color: palette.textMeta, paddingHorizontal: 16, paddingTop: 12 },
+  sub: { fontSize: 12, color: palette.textMeta, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8 },
   pressed: { backgroundColor: palette.bgSoft },
   icon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   text: { flex: 1, gap: 2 },
   rowTitle: { fontSize: 16, fontWeight: '600', color: palette.text },
-  rowSub: { fontSize: 12, color: palette.textMuted },
+  rowSub: { fontSize: 12, color: palette.textMeta },
 });

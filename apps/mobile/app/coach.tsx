@@ -614,7 +614,7 @@ function CoachTalk() {
                 ref={inputRef}
                 style={styles.input}
                 placeholder={t('coach.composerPh')}
-                placeholderTextColor={palette.textFaint}
+                placeholderTextColor={palette.textMeta}
                 accessibilityLabel={t('coach.composerLabel')}
                 value={input}
                 onChangeText={setInput}
@@ -654,27 +654,27 @@ const styles = StyleSheet.create({
 
   // 글자 버튼도 아이콘 칸(NavIconButton)처럼 높이 44·좌우 10 을 둬 화면 끝에서 떨어뜨린다(SOMA-837).
   endButton: { height: 44, paddingHorizontal: 10, justifyContent: 'center' },
-  endText: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.textMuted },
+  endText: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.textMeta },
 
   // 대화 위 한 줄 「AI가 본 장면 · …」 — 옅은 파랑 띠, 글 13/700 한 줄.
   sceneBar: { backgroundColor: palette.blueSoft, paddingVertical: 9, paddingHorizontal: 24 },
   sceneBarText: { fontSize: 13, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
 
-  progressText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
+  progressText: { fontSize: 12.5, fontWeight: '700', color: palette.textSub },
 
   // pen 09 본문 안쪽 [14,21,0,21].
   body: { paddingTop: 14, paddingHorizontal: 21, paddingBottom: 20, gap: 14 },
 
   loading: { alignItems: 'center', gap: 12, paddingTop: 24 },
-  loadingText: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint },
-  loadingHint: { fontSize: 12.5, lineHeight: 18, color: palette.textFaint, textAlign: 'center', paddingHorizontal: 24 },
+  loadingText: { fontSize: 13.5, fontWeight: '600', color: palette.textMeta },
+  loadingHint: { fontSize: 12.5, lineHeight: 18, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 24 },
 
   // 코치 질문 — 머리줄(CoachMessage) 말풍선 안 16/500(줄 22).
   question: { fontSize: 16, fontWeight: '500', color: palette.text, lineHeight: 22 },
   timeLink: { color: palette.blueDeep, fontWeight: '800', textDecorationLine: 'underline' },
 
   thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 39 },
-  thinkingText: { fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  thinkingText: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
 
   // 카톡식 대화 — 말풍선 사이 14. 코치 말은 CoachMessage(마스코트·이름·회색 말풍선)다.
   thread: { gap: 14 },
@@ -684,7 +684,7 @@ const styles = StyleSheet.create({
   mineText: { fontSize: 15, fontWeight: '500', color: palette.onAccent, lineHeight: 22 },
 
   errorText: { fontSize: 13, fontWeight: '700', color: palette.danger },
-  doneText: { fontSize: 14, fontWeight: '600', color: palette.textDim, lineHeight: 23 },
+  doneText: { fontSize: 14, fontWeight: '600', color: palette.textSub, lineHeight: 23 },
 
   // pen 09 「Composer」 — 안쪽 [0,21,11,21]: 파란 안내 15/700 · 12 · 빠른 답 · 9 · 입력 줄.
   composer: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11 },
@@ -711,5 +711,5 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   send: { width: 39, height: 39, borderRadius: 20, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginBottom: 2.5 },
-  sendOff: { backgroundColor: palette.blueLine },
+  sendOff: { backgroundColor: palette.blueSoft },
 });

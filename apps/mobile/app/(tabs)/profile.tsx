@@ -308,7 +308,7 @@ function CardGrid({
       <Image source={{ uri: card.poster.uri, cacheKey: card.poster.cacheKey }} style={StyleSheet.absoluteFill} contentFit="cover" />
     ) : (
       <View style={styles.thumbEmpty}>
-        <Feather name="play" size={22} color={palette.checkOff} />
+        <Feather name="play" size={22} color={palette.textDisabled} />
       </View>
     );
   return (
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: palette.borderSoft,
+    borderColor: palette.border,
     backgroundColor: palette.bgSubtle,
   },
   photo: {
@@ -406,30 +406,30 @@ const styles = StyleSheet.create({
   photoImg: { width: '100%', height: '100%' },
   meText: { flex: 1, minWidth: 0, gap: 6 },
   name: { fontSize: 20, fontWeight: '800', color: palette.text },
-  bio: { fontSize: 14, fontWeight: '400', lineHeight: 20, color: palette.textDim },
-  bioEmpty: { color: palette.textFaint },
+  bio: { fontSize: 14, fontWeight: '400', lineHeight: 20, color: palette.textSub },
+  bioEmpty: { color: palette.textMeta },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 4 },
-  chip: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.card },
-  chipText: { fontSize: 12, fontWeight: '500', color: palette.textDim },
+  chip: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
+  chipText: { fontSize: 12, fontWeight: '500', color: palette.textSub },
   editBtn: { alignSelf: 'flex-start', backgroundColor: palette.bgSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
-  editText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
+  editText: { fontSize: 13, fontWeight: '700', color: palette.textSub },
 
 
   month: { flexDirection: 'row', paddingVertical: 6 },
   monthCell: { flex: 1, alignItems: 'center', gap: 2 },
   monthHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   monthDot: { width: 6, height: 6, borderRadius: 3 },
-  monthLabel: { fontSize: 13, fontWeight: '500', color: palette.textDim },
+  monthLabel: { fontSize: 13, fontWeight: '500', color: palette.textSub },
   monthCount: { fontSize: 18, fontWeight: '800', color: palette.text },
 
   tabs: { marginTop: 24, flexDirection: 'row', gap: 4, padding: 4, borderRadius: 12, backgroundColor: palette.bgSoft },
   tab: { flex: 1, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  tabOn: { backgroundColor: palette.card },
-  tabText: { fontSize: 14, fontWeight: '600', color: palette.textMuted },
+  tabOn: { backgroundColor: palette.bg },
+  tabText: { fontSize: 14, fontWeight: '600', color: palette.textMeta },
   tabTextOn: { fontWeight: '800', color: palette.text },
 
   loading: { marginTop: 32 },
-  empty: { marginTop: 28, textAlign: 'center', fontSize: 14, fontWeight: '600', color: palette.textFaint },
+  empty: { marginTop: 28, textAlign: 'center', fontSize: 14, fontWeight: '600', color: palette.textMeta },
   gridWrap: { marginTop: 12, gap: 12 },
   grid: { gap: 4 },
   gridRow: { flexDirection: 'row', gap: 4 },
@@ -456,8 +456,8 @@ const styles = StyleSheet.create({
   lock: { position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#0000007A', alignItems: 'center', justifyContent: 'center' },
   infoBelow: { paddingHorizontal: 2, gap: 3 },
   titleBelow: { fontSize: 12, fontWeight: '700', lineHeight: 16, color: palette.text },
-  likes: { fontSize: 11.5, fontWeight: '700', color: palette.textDim },
-  metaBelow: { flexShrink: 1, fontSize: 11.5, fontWeight: '500', color: palette.textMuted },
+  likes: { fontSize: 11.5, fontWeight: '700', color: palette.textSub },
+  metaBelow: { flexShrink: 1, fontSize: 11.5, fontWeight: '500', color: palette.textMeta },
   more: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 },
   moreText: { fontSize: 14, fontWeight: '700', color: palette.blue },
 });

@@ -51,7 +51,7 @@ export function OptionCard({
         <Text style={styles.cardTitle}>{title}</Text>
         {sub ? <Text style={styles.cardSub}>{sub}</Text> : null}
       </View>
-      {right ?? <Feather name="chevron-right" size={18} color={palette.checkOff} />}
+      {right ?? <Feather name="chevron-right" size={18} color={palette.textDisabled} />}
     </Pressable>
   );
 }
@@ -106,7 +106,7 @@ export function IconOptionRow({
       {mark === 'none' ? null : mark === 'check' && selected ? (
         <Feather name="check" size={22} color={palette.blue} />
       ) : (
-        <Feather name="chevron-right" size={22} color={palette.textFaint} />
+        <Feather name="chevron-right" size={22} color={palette.iconFaint} />
       )}
     </Pressable>
   );
@@ -163,14 +163,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
   },
   pressed: { backgroundColor: palette.bgSubtle },
   dim: { opacity: 0.5 },
   cardIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   cardBody: { flex: 1, minWidth: 0, gap: 2 },
   cardTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
-  cardSub: { fontSize: 12, fontWeight: '400', color: palette.textFaint },
+  cardSub: { fontSize: 12, fontWeight: '400', color: palette.textMeta },
 
   row: {
     flexDirection: 'row',
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 13, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
   title: { fontSize: 18, fontWeight: '700', lineHeight: 23, color: palette.text },
   titleOn: { color: palette.blueDeep },
-  sub: { fontSize: 16, fontWeight: '500', lineHeight: 21, color: palette.textFaint },
+  sub: { fontSize: 16, fontWeight: '500', lineHeight: 21, color: palette.textMeta },
 
   option: {
     minHeight: 49,
@@ -205,15 +205,15 @@ const styles = StyleSheet.create({
   optionBody: { flex: 1, minWidth: 0, gap: 4 },
   optionText: { fontSize: 17, fontWeight: '700', color: palette.text },
   optionTextOn: { color: palette.blueDeep },
-  optionSub: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textFaint },
-  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: palette.checkOff },
+  optionSub: { fontSize: 13, fontWeight: '500', lineHeight: 18, color: palette.textMeta },
+  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: palette.textDisabled },
   radioOn: { borderWidth: 5, borderColor: palette.blue },
   checkbox: {
     width: 16,
     height: 16,
     borderRadius: 2,
     borderWidth: 1.5,
-    borderColor: palette.checkOff,
+    borderColor: palette.textDisabled,
     alignItems: 'center',
     justifyContent: 'center',
   },

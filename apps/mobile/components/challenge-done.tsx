@@ -64,7 +64,7 @@ export function ChallengeDone({
                   <Text style={styles.rowTitle}>{row.title}</Text>
                   <Text style={styles.rowSub}>{row.sub}</Text>
                 </View>
-                <Feather name="chevron-right" size={18} color={palette.checkOff} />
+                <Feather name="chevron-right" size={18} color={palette.textDisabled} />
               </Pressable>
             ))}
           </View>
@@ -88,12 +88,12 @@ const styles = StyleSheet.create({
   mascot: { width: 130, height: 148 },
   mascotFirst: { width: 150, height: 170 },
   title: { fontSize: 24, fontWeight: '800', lineHeight: 33, letterSpacing: -0.5, color: palette.text, textAlign: 'center', marginTop: 12 },
-  sub: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textFaint, textAlign: 'center', marginTop: 12 },
+  sub: { fontSize: 14, fontWeight: '500', lineHeight: 20, color: palette.textMeta, textAlign: 'center', marginTop: 12 },
   rows: { alignSelf: 'stretch', gap: 0, paddingTop: 16 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 4 },
   rowIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   rowTitle: { fontSize: 16, fontWeight: '700', color: palette.text, lineHeight: 22 },
-  rowSub: { fontSize: 13, fontWeight: '500', color: palette.textFaint, lineHeight: 18 },
+  rowSub: { fontSize: 13, fontWeight: '500', color: palette.textMeta, lineHeight: 18 },
   pressed: { opacity: 0.85 },
 });

@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   },
   permNoticeBody: { flex: 1, gap: 2 },
   permNoticeTitle: { fontSize: 13.5, fontWeight: '700', color: palette.text },
-  permNoticeText: { fontSize: 12, lineHeight: 17, color: palette.textDim },
+  permNoticeText: { fontSize: 12, lineHeight: 17, color: palette.textSub },
   permNoticeAction: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
   camera: { ...StyleSheet.absoluteFillObject },
   overlay: { flex: 1, justifyContent: 'space-between' },

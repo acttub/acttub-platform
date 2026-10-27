@@ -35,9 +35,9 @@ export function CoachVideoRow({ open, sub, onPress }: { open: boolean; sub: stri
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   rowOn: { opacity: 0.6 },
-  thumb: { width: 56, height: 56, borderRadius: 14, backgroundColor: palette.textDim, alignItems: 'center', justifyContent: 'center' },
-  thumbPlay: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.textStrong, alignItems: 'center', justifyContent: 'center' },
+  thumb: { width: 56, height: 56, borderRadius: 14, backgroundColor: palette.textSub, alignItems: 'center', justifyContent: 'center' },
+  thumbPlay: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.text, alignItems: 'center', justifyContent: 'center' },
   text: { flex: 1, gap: 4 },
   title: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.text },
-  sub: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
+  sub: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textMeta },
 });

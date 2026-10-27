@@ -312,7 +312,7 @@ export default function ScriptCocreateScreen() {
               value={edit.text}
               onChangeText={(text) => setEdit((was) => ({ ...was, text }))}
               placeholder={t('scriptCocreate.editPlaceholder')}
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
               maxLength={FREE_TEXT_MAX.revision}
               multiline
               style={styles.input}
@@ -408,7 +408,7 @@ export default function ScriptCocreateScreen() {
                   value={situation}
                   onChangeText={setSituation}
                   placeholder={t('scriptCocreate.situationPlaceholder')}
-                  placeholderTextColor={palette.textFaint}
+                  placeholderTextColor={palette.textMeta}
                   maxLength={FREE_TEXT_MAX.situation}
                   style={styles.input}
                   accessibilityLabel={t('scriptCocreate.situationAsk')}
@@ -423,7 +423,7 @@ export default function ScriptCocreateScreen() {
                   value={direction}
                   onChangeText={setDirection}
                   placeholder={t('scriptCocreate.directionPlaceholder')}
-                  placeholderTextColor={palette.checkOff}
+                  placeholderTextColor={palette.textDisabled}
                   maxLength={FREE_TEXT_MAX.direction}
                   multiline
                   style={[styles.input, styles.directionInput]}
@@ -604,8 +604,8 @@ const styles = StyleSheet.create({
   waitTitle: { marginTop: 6, fontSize: 17, fontWeight: '700', color: palette.text },
   failMascot: { width: 84, height: 94 },
   failTitle: { fontSize: 21, fontWeight: '800', lineHeight: 30, color: palette.text, textAlign: 'center' },
-  failSub: { fontSize: 15, lineHeight: 22, color: palette.textMuted, textAlign: 'center' },
-  waitSub: { fontSize: 14, fontWeight: '500', color: palette.textMuted, textAlign: 'center' },
+  failSub: { fontSize: 15, lineHeight: 22, color: palette.textMeta, textAlign: 'center' },
+  waitSub: { fontSize: 14, fontWeight: '500', color: palette.textMeta, textAlign: 'center' },
   body: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   input: {
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: palette.text,
   },
-  label: { marginTop: 6, fontSize: 13, fontWeight: '700', color: palette.textMuted },
+  label: { marginTop: 6, fontSize: 13, fontWeight: '700', color: palette.textMeta },
   // pen P14.1~P14.3 고르는 칸 — 흰 바탕 · 테두리 #E5E8EB, 고르면 옅은 파랑 · 파란 테두리 · 파란 글자 700.
   box: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
   boxOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
@@ -637,22 +637,22 @@ const styles = StyleSheet.create({
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   pill: { maxWidth: '100%', borderRadius: 12, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: palette.blueSoft },
   pillText: { fontSize: 13, fontWeight: '600', lineHeight: 18, color: palette.blueDeep },
-  hint: { fontSize: 12.5, fontWeight: '500', color: palette.textFaint },
+  hint: { fontSize: 12.5, fontWeight: '500', color: palette.textMeta },
   error: { fontSize: 14, fontWeight: '600', color: palette.danger },
   // 결과(pen 「대본 같이 만들기 · 결과」) — 제목 20/800, 요약 13/600, 대본은 넓게 대사 15.
   resultBody: { paddingTop: 12, paddingHorizontal: 20, paddingBottom: 20, gap: 8 },
   scriptTitle: { fontSize: 20, fontWeight: '800', color: palette.text },
-  summary: { fontSize: 13, fontWeight: '600', color: palette.textMuted },
+  summary: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
   note: { fontSize: 13.5, fontWeight: '600', color: palette.blueDeep },
   paper: { marginTop: 8, gap: 10, padding: 18, borderRadius: 18, backgroundColor: palette.bgSoft },
   lineRow: { gap: 2 },
-  speaker: { fontSize: 12.5, fontWeight: '700', color: palette.textMuted },
+  speaker: { fontSize: 12.5, fontWeight: '700', color: palette.textMeta },
   dialogue: { fontSize: 15, lineHeight: 23, color: palette.text },
-  sceneLine: { fontSize: 13, fontWeight: '700', color: palette.textMuted },
-  direction: { fontSize: 14, lineHeight: 20, color: palette.textFaint },
+  sceneLine: { fontSize: 13, fontWeight: '700', color: palette.textMeta },
+  direction: { fontSize: 14, lineHeight: 20, color: palette.textMeta },
   choice: { gap: 4, padding: 18, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
   choiceTitle: { fontSize: 16, fontWeight: '700', color: palette.text },
-  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMuted },
-  left: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
+  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMeta },
+  left: { fontSize: 12.5, fontWeight: '600', color: palette.textMeta, textAlign: 'center' },
 });

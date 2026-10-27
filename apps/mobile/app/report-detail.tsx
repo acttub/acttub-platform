@@ -159,9 +159,9 @@ const styles = StyleSheet.create({
   heading: { gap: 6 },
   kind: { fontSize: 12, fontWeight: '800', color: palette.blue },
   title: { fontSize: 23, fontWeight: '900', color: palette.text, lineHeight: 33 },
-  date: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
+  date: { fontSize: 12.5, fontWeight: '600', color: palette.textMeta },
   fallback: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
-  label: { fontSize: 12, fontWeight: '800', color: palette.textDim },
+  label: { fontSize: 12, fontWeight: '800', color: palette.textSub },
   primary: {
     height: 52,
     borderRadius: 14,

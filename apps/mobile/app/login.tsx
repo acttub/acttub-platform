@@ -269,10 +269,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 28 },
   hero: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
   logo: { width: 220, height: 88 },
-  tagline: { fontSize: 15, fontWeight: '500', color: palette.textDim, textAlign: 'center', lineHeight: 22 },
+  tagline: { fontSize: 15, fontWeight: '500', color: palette.textSub, textAlign: 'center', lineHeight: 22 },
   // 로그인하는 중 — 돌림 표시와 한 줄 문구.
   progress: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 56 },
-  progressText: { fontSize: 14, fontWeight: '500', color: palette.textMuted },
+  progressText: { fontSize: 14, fontWeight: '500', color: palette.textMeta },
   bottom: { paddingBottom: 28, gap: 18 },
   // 켜진 제공자 수(2~4개)와 상관없이 가운데에 모은다 — 둘일 때 양 끝으로 벌어지지 않게.
   circleRow: { flexDirection: 'row', justifyContent: 'center', gap: 20 },

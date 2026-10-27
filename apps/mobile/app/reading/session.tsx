@@ -303,7 +303,7 @@ export default function ReadingSession() {
           rows.map(scriptRow)
         ) : recorded.length === 0 ? (
           <View style={styles.empty}>
-            <Feather name="mic-off" size={26} color={palette.textFaint} />
+            <Feather name="mic-off" size={26} color={palette.iconFaint} />
             <Text style={styles.emptyTitle}>{t('reading.noRecordings')}</Text>
             <Text style={styles.emptyHint}>{t('reading.noRecordingsHint')}</Text>
           </View>
@@ -335,12 +335,12 @@ export default function ReadingSession() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15 },
+  dim: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 15 },
   content: { paddingHorizontal: 20, paddingTop: 4 },
   head: { gap: 6, paddingTop: 4, paddingBottom: 18 },
   title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  meta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
+  meta: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13 },
   chip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
   chipText: { fontFamily: 'Pretendard-SemiBold', fontSize: 11.5 },
   listenAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4, borderRadius: 12, paddingVertical: 13, backgroundColor: palette.blueSoft },
@@ -348,26 +348,26 @@ const styles = StyleSheet.create({
   sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, paddingTop: 16, paddingBottom: 10 },
   tabs: { flexDirection: 'row', padding: 3, borderRadius: 10, backgroundColor: palette.bgSoft, marginBottom: 6 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8 },
-  tabOn: { backgroundColor: palette.card },
-  tabText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13.5 },
+  tabOn: { backgroundColor: palette.bg },
+  tabText: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 13.5 },
   tabTextOn: { color: palette.text, fontFamily: 'Pretendard-Bold' },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomColor: palette.borderSoft, borderBottomWidth: 1 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomColor: palette.border, borderBottomWidth: 1 },
   lineBody: { flex: 1, gap: 2 },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  role: { color: palette.textMuted, fontFamily: 'Pretendard-Bold', fontSize: 12 },
+  role: { color: palette.textMeta, fontFamily: 'Pretendard-Bold', fontSize: 12 },
   roleMine: { color: palette.blueDeep },
   resumeTag: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: palette.blueSoft },
   resumeTagText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
-  direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21, paddingVertical: 14 },
-  scene: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15, paddingVertical: 14 },
-  recLabel: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
+  direction: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21, paddingVertical: 14 },
+  scene: { color: palette.textSub, fontFamily: 'Pretendard-Bold', fontSize: 15, paddingVertical: 14 },
+  recLabel: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   recLabelOn: { color: palette.blue },
   playBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   playBtnOn: { backgroundColor: palette.blue },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 44 },
-  emptyTitle: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  emptyHint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center' },
-  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1, backgroundColor: palette.bg },
+  emptyTitle: { color: palette.textSub, fontFamily: 'Pretendard-Bold', fontSize: 15 },
+  emptyHint: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center' },
+  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.border, borderTopWidth: 1, backgroundColor: palette.bg },
   primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 15, backgroundColor: palette.blue },
   primaryText: { color: palette.onAccent, fontFamily: 'Pretendard-Bold', fontSize: 16 },
   pill: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },

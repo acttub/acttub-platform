@@ -140,7 +140,7 @@ export default function ReadingDetail() {
           <SkeletonRows count={3} />
         ) : sessions.length === 0 ? (
           <View style={styles.empty}>
-            <Feather name="mic" size={24} color={palette.textFaint} />
+            <Feather name="mic" size={24} color={palette.iconFaint} />
             <Text style={styles.emptyTitle}>{t('reading.noSessions')}</Text>
             <Text style={styles.emptyHint}>{t('reading.noSessionsHint')}</Text>
           </View>
@@ -210,7 +210,7 @@ function SessionRow({ card, onOpen, onDelete }: { card: SessionCard; onOpen: () 
         <View style={[styles.chip, { backgroundColor: tone.bg }]}>
           <Text style={[styles.chipText, { color: tone.color }]}>{chip.label}</Text>
         </View>
-        <Feather name="chevron-right" size={16} color={palette.textFaint} />
+        <Feather name="chevron-right" size={16} color={palette.iconFaint} />
       </Pressable>
     </ReanimatedSwipeable>
   );
@@ -221,15 +221,15 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 4 },
   head: { gap: 5, paddingBottom: 20 },
   title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 24 },
-  meta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13 },
+  meta: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13 },
   viewScript: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', paddingTop: 6 },
   viewScriptText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13.5 },
   // pen 「SecHead」 — 위 칸과 옅은 선으로 나눈다.
-  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, paddingTop: 18, paddingBottom: 4, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
+  sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16, paddingTop: 18, paddingBottom: 4, borderTopColor: palette.border, borderTopWidth: 1 },
   loading: { paddingVertical: 40 },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 44 },
-  emptyTitle: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14.5 },
-  emptyHint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12.5, textAlign: 'center' },
+  emptyTitle: { color: palette.textSub, fontFamily: 'Pretendard-SemiBold', fontSize: 14.5 },
+  emptyHint: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12.5, textAlign: 'center' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -243,12 +243,12 @@ const styles = StyleSheet.create({
   rowOrdinal: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
   rowBody: { flex: 1, gap: 2 },
   rowRange: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  rowSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
+  rowSub: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 12 },
   chip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
   chipText: { fontFamily: 'Pretendard-SemiBold', fontSize: 11.5 },
   swipeDelete: { width: 84, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: palette.danger },
   swipeDeleteText: { color: palette.onAccent, fontFamily: 'Pretendard-Bold', fontSize: 13 },
-  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1, backgroundColor: palette.bg },
+  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.border, borderTopWidth: 1, backgroundColor: palette.bg },
   primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 15, backgroundColor: palette.blue },
   primaryText: { color: palette.onAccent, fontFamily: 'Pretendard-Bold', fontSize: 16 },
 });

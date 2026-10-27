@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   iconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   cardText: { flex: 1, gap: 2 },
   cardTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  cardSub: { fontSize: 13, color: palette.textMuted, lineHeight: 18 },
+  cardSub: { fontSize: 13, color: palette.textMeta, lineHeight: 18 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadError: { color: palette.danger, fontSize: 14, textAlign: 'center', paddingHorizontal: 24 },
   reloadBtn: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 10 },

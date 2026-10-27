@@ -76,10 +76,10 @@ export function VoiceFeedbackSummary({ items }: { items: LineFeedback[] }) {
 const styles = StyleSheet.create({
   box: { alignSelf: 'stretch', backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 10, marginTop: 12 },
   title: { fontSize: 15, fontWeight: '900', color: palette.text },
-  note: { fontSize: 12, color: palette.textFaint, marginTop: -6 },
-  row: { gap: 4, paddingTop: 10, borderTopWidth: 1, borderTopColor: palette.borderSoft },
-  lineNo: { fontSize: 12, fontWeight: '800', color: palette.textFaint },
-  line: { fontSize: 14.5, lineHeight: 22, color: palette.textDim, fontWeight: '600' },
-  mark: { color: palette.flameDeep, fontWeight: '900', backgroundColor: palette.flameSoft },
-  heard: { fontSize: 13, lineHeight: 19, color: palette.flameDeep, fontWeight: '700' },
+  note: { fontSize: 12, color: palette.textMeta, marginTop: -6 },
+  row: { gap: 4, paddingTop: 10, borderTopWidth: 1, borderTopColor: palette.border },
+  lineNo: { fontSize: 12, fontWeight: '800', color: palette.textMeta },
+  line: { fontSize: 14.5, lineHeight: 22, color: palette.textSub, fontWeight: '600' },
+  mark: { color: palette.text, fontWeight: '900', backgroundColor: palette.flameSoft },
+  heard: { fontSize: 13, lineHeight: 19, color: palette.text, fontWeight: '700' },
 });

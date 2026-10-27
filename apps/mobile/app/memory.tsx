@@ -192,7 +192,7 @@ export default function MemoryScreen() {
                   value={draft}
                   onChangeText={(t) => setDrafts((d) => ({ ...d, [field]: t }))}
                   placeholder={placeholder}
-                  placeholderTextColor={palette.textFaint}
+                  placeholderTextColor={palette.textMeta}
                   multiline
                   maxLength={MEMORY_VALUE_MAX}
                 />
@@ -254,7 +254,7 @@ export default function MemoryScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   header: { paddingHorizontal: 20, paddingTop: 8 },
-  back: { color: palette.textMuted, fontSize: 15 },
+  back: { color: palette.textMeta, fontSize: 15 },
   screenTitle: {
     fontSize: 24,
     fontWeight: '700',
@@ -265,11 +265,11 @@ const styles = StyleSheet.create({
   screenHint: {
     fontSize: 14,
     lineHeight: 21,
-    color: palette.textMuted,
+    color: palette.textMeta,
     paddingHorizontal: 20,
     paddingTop: 8,
   },
-  bold: { fontWeight: '700', color: palette.textDim },
+  bold: { fontWeight: '700', color: palette.textSub },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { padding: 20, paddingBottom: 48, gap: 14 },
   emptyCard: {
@@ -278,8 +278,8 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 6,
   },
-  emptyTitle: { fontSize: 15, fontWeight: '700', color: palette.textStrong },
-  emptyBody: { fontSize: 14, lineHeight: 20, color: palette.textMuted },
+  emptyTitle: { fontSize: 15, fontWeight: '700', color: palette.text },
+  emptyBody: { fontSize: 14, lineHeight: 20, color: palette.textMeta },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -289,21 +289,21 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
   },
-  profileText: { flex: 1, fontSize: 13.5, lineHeight: 21, color: palette.textDim },
+  profileText: { flex: 1, fontSize: 13.5, lineHeight: 21, color: palette.textSub },
   profileLink: { fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
   card: {
     borderWidth: 1,
-    borderColor: palette.borderSoft,
+    borderColor: palette.border,
     borderRadius: 14,
     padding: 16,
     gap: 8,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   label: { fontSize: 16, fontWeight: '700', color: palette.text },
-  hint: { fontSize: 13, color: palette.textFaint },
+  hint: { fontSize: 13, color: palette.textMeta },
   tagCoach: { fontSize: 12, color: palette.blue },
-  tagMine: { fontSize: 12, color: palette.textDim, fontWeight: '700' },
-  tagEmpty: { fontSize: 12, color: palette.checkOff },
+  tagMine: { fontSize: 12, color: palette.textSub, fontWeight: '700' },
+  tagEmpty: { fontSize: 12, color: palette.textDisabled },
   input: {
     borderWidth: 1,
     borderColor: palette.border,
@@ -318,19 +318,19 @@ const styles = StyleSheet.create({
   sourceLink: { fontSize: 13, color: palette.blue },
   actions: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   spacer: { flex: 1 },
-  removeText: { fontSize: 14, color: palette.textMuted },
+  removeText: { fontSize: 14, color: palette.textMeta },
   saveBtn: {
     backgroundColor: palette.blue,
     borderRadius: 10,
     paddingHorizontal: 18,
     paddingVertical: 9,
   },
-  saveBtnOff: { backgroundColor: palette.checkOff },
+  saveBtnOff: { backgroundColor: palette.textDisabled },
   saveBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
   removeAll: {
     marginTop: 10,
     alignItems: 'center',
     paddingVertical: 14,
   },
-  removeAllText: { fontSize: 14, color: palette.textMuted },
+  removeAllText: { fontSize: 14, color: palette.textMeta },
 });

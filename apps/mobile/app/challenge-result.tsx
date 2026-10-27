@@ -104,7 +104,7 @@ export default function ChallengeResultScreen() {
                     {t('challengeResult.pickedSub', { count: entry.final_like_count ?? entry.like_count })}
                   </Text>
                 </View>
-                <Feather name="chevron-right" size={20} color={palette.checkOff} />
+                <Feather name="chevron-right" size={20} color={palette.textDisabled} />
               </Pressable>
             ))}
 
@@ -118,7 +118,7 @@ export default function ChallengeResultScreen() {
                   onPress={() => router.push('/challenge-entries')}
                   accessibilityRole="button">
                   <Text style={styles.mineText}>{mineLabel}</Text>
-                  <Feather name="chevron-right" size={18} color={palette.textFaint} />
+                  <Feather name="chevron-right" size={18} color={palette.iconFaint} />
                 </Pressable>
               ) : (
                 <Text style={styles.mineText}>{t('challengeResult.mineNone')}</Text>
@@ -144,16 +144,16 @@ const styles = StyleSheet.create({
   period: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.67)', lineHeight: 20 },
   line: { fontSize: 19, fontWeight: '800', color: '#FFFFFF', lineHeight: 27 },
   section: { fontSize: 15, fontWeight: '800', color: palette.text, marginTop: 8 },
-  sectionDim: { color: palette.textDim },
+  sectionDim: { color: palette.textSub },
   notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
-  muted: { fontSize: 14, color: palette.textMuted, lineHeight: 21 },
+  muted: { fontSize: 14, color: palette.textMeta, lineHeight: 21 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 12 },
   rank: { width: 24, fontSize: 16, fontWeight: '800', color: palette.blue, textAlign: 'center' },
   rowBody: { flex: 1, minWidth: 0, gap: 6 },
   name: { fontSize: 16, fontWeight: '800', color: palette.text },
-  sub: { fontSize: 13, fontWeight: '600', color: palette.textFaint, lineHeight: 20 },
+  sub: { fontSize: 13, fontWeight: '600', color: palette.textMeta, lineHeight: 20 },
   mine: { paddingTop: 12, paddingBottom: 6, gap: 6 },
-  mineLabel: { fontSize: 14, fontWeight: '800', color: palette.textDim },
+  mineLabel: { fontSize: 14, fontWeight: '800', color: palette.textSub },
   mineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   mineText: { fontSize: 15, fontWeight: '700', color: palette.text },
 });

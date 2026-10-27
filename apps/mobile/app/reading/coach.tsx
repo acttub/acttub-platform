@@ -146,7 +146,7 @@ export default function ReadingCoachScreen() {
             value={input}
             onChangeText={setInput}
             placeholder={t('readingCoach.inputPh')}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.textMeta}
             accessibilityLabel={t('readingCoach.inputPh')}
             multiline
             maxLength={RECORDING_COACH_REPLY_MAX}
@@ -172,19 +172,19 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 24, paddingVertical: 20, gap: 14 },
   // 글자 버튼도 아이콘 칸(NavIconButton)처럼 높이 44·좌우 10 을 둬 화면 끝에서 떨어뜨린다(SOMA-837).
   quitButton: { height: 44, paddingHorizontal: 10, justifyContent: 'center' },
-  quit: { color: palette.textMuted, fontSize: 15, fontWeight: '600' },
+  quit: { color: palette.textMeta, fontSize: 15, fontWeight: '600' },
   waiting: { alignItems: 'center', gap: 12, paddingVertical: 48 },
-  waitingText: { color: palette.textDim, fontSize: 15, lineHeight: 22, textAlign: 'center' },
+  waitingText: { color: palette.textSub, fontSize: 15, lineHeight: 22, textAlign: 'center' },
   bubble: { maxWidth: '88%', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12, gap: 4 },
   coachBubble: { alignSelf: 'flex-start', backgroundColor: palette.bgSoft },
   actorBubble: { alignSelf: 'flex-end', backgroundColor: palette.blue },
-  coachName: { color: palette.coachName, fontSize: 12, fontWeight: '700' },
+  coachName: { color: palette.text, fontSize: 12, fontWeight: '700' },
   bubbleText: { color: palette.text, fontSize: 16, lineHeight: 24 },
   actorText: { color: palette.onAccent },
   thinking: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  thinkingText: { color: palette.textMuted, fontSize: 14 },
+  thinkingText: { color: palette.textMeta, fontSize: 14 },
   failure: { gap: 8, paddingVertical: 4 },
-  failureText: { color: palette.textDim, fontSize: 15, lineHeight: 22 },
+  failureText: { color: palette.textSub, fontSize: 15, lineHeight: 22 },
   retry: { color: palette.blueDeep, fontSize: 15, fontWeight: '700' },
   videoCard: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 20, gap: 8, marginTop: 6 },
   videoTitle: { color: palette.blueDeep, fontSize: 14, fontWeight: '700' },

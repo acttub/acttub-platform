@@ -237,7 +237,7 @@ export function EntryShareSheet({
         <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.preview}>
           <View style={styles.thumb}>
-            <Feather name="play" size={18} color={palette.textMuted} />
+            <Feather name="play" size={18} color={palette.textMeta} />
           </View>
           <View style={styles.previewText}>
             <Text style={styles.previewLine} numberOfLines={1}>
@@ -310,11 +310,11 @@ const styles = StyleSheet.create({
   thumb: { width: 44, height: 56, borderRadius: 8, backgroundColor: palette.border, alignItems: 'center', justifyContent: 'center' },
   previewText: { flex: 1, gap: 2 },
   previewLine: { fontSize: 15, fontWeight: '700', color: palette.text },
-  previewSub: { fontSize: 13, fontWeight: '500', color: palette.textMuted },
+  previewSub: { fontSize: 13, fontWeight: '500', color: palette.textMeta },
   targets: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 20 },
   target: { alignItems: 'center', gap: 8, minWidth: 56 },
   circle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  targetLabel: { fontSize: 12, fontWeight: '600', color: palette.textMuted },
+  targetLabel: { fontSize: 12, fontWeight: '600', color: palette.textMeta },
   save: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 22, paddingVertical: 14, borderRadius: 14, backgroundColor: palette.bgSoft },
   saveText: { fontSize: 15, fontWeight: '600', color: palette.text },
   status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14 },

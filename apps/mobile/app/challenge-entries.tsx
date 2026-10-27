@@ -281,7 +281,7 @@ export default function ChallengeEntriesScreen() {
               )}
             </View>
             <Pressable onPress={(e) => openMenu(entry, e)} hitSlop={10} accessibilityRole="button" ph-label="challenge_entries_more">
-              <Feather name="more-horizontal" size={20} color={palette.textFaint} />
+              <Feather name="more-horizontal" size={20} color={palette.iconFaint} />
             </Pressable>
           </Pressable>
         ))}
@@ -321,18 +321,18 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
   tab: { borderRadius: 999, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 12, paddingVertical: 7 },
   tabOn: { backgroundColor: palette.text, borderColor: palette.text },
-  tabText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
+  tabText: { fontSize: 12.5, fontWeight: '700', color: palette.textSub },
   tabTextOn: { color: '#FFFFFF' },
   body: { padding: 16, paddingBottom: 60 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', paddingVertical: 16, textAlign: 'center' },
-  empty: { color: palette.textDim, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
+  empty: { color: palette.textSub, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
+    borderBottomColor: palette.border,
   },
   thumb: {
     width: 64,
@@ -345,8 +345,8 @@ const styles = StyleSheet.create({
   },
   rowBody: { flex: 1, gap: 4 },
   rowLine: { fontSize: 15, fontWeight: '700', color: palette.text },
-  rowMeta: { fontSize: 12, color: palette.textFaint },
-  rowStatus: { fontSize: 12, fontWeight: '700', color: palette.textMuted },
+  rowMeta: { fontSize: 12, color: palette.textMeta },
+  rowStatus: { fontSize: 12, fontWeight: '700', color: palette.textMeta },
   editor: {
     position: 'absolute',
     left: 0,
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
-  editorLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
+  editorLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMeta },
   editorInput: {
     minHeight: 80,
     borderRadius: 12,
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   editorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 16 },
-  editorCancel: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
+  editorCancel: { fontSize: 14, fontWeight: '700', color: palette.textMeta },
   editorSave: { backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 11 },
   editorSaveText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
 });

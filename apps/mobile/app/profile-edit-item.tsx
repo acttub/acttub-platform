@@ -116,7 +116,7 @@ export default function ProfileEditItemScreen() {
       <Feather
         name={multi ? (selected ? 'check-square' : 'square') : selected ? 'check-circle' : 'circle'}
         size={22}
-        color={selected ? palette.blue : palette.checkOff}
+        color={selected ? palette.blue : palette.textDisabled}
       />
     </Pressable>
   );
@@ -133,7 +133,7 @@ export default function ProfileEditItemScreen() {
             value={form.name}
             onChangeText={(name) => update({ name })}
             placeholder={t('profileName.placeholder')}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.textMeta}
             autoFocus
             accessibilityLabel={t(TITLE_KEYS.name)}
           />
@@ -152,7 +152,7 @@ export default function ProfileEditItemScreen() {
             value={bio}
             onChangeText={setBio}
             placeholder={t('profileName.bioPlaceholder')}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.textMeta}
             multiline
             autoFocus
             accessibilityLabel={t(TITLE_KEYS.bio)}
@@ -174,7 +174,7 @@ export default function ProfileEditItemScreen() {
             value={form.birthDate}
             onChangeText={(text) => update({ birthDate: formatBirthDateInput(text) })}
             placeholder={t('profileName.birthPlaceholder')}
-            placeholderTextColor={palette.textFaint}
+            placeholderTextColor={palette.textMeta}
             keyboardType="number-pad"
             maxLength={10}
             autoFocus
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   hint: { fontSize: 14, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
   gap: { height: 8 },
   done: { fontSize: 16, fontWeight: '800', color: palette.blue },
-  doneOff: { color: palette.checkOff },
+  doneOff: { color: palette.textDisabled },
   option: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 12 },
   optionText: { flex: 1, fontSize: 16, fontWeight: '600', color: palette.text },
   input: {
@@ -248,6 +248,6 @@ const styles = StyleSheet.create({
     color: palette.text,
   },
   multiline: { minHeight: 96, textAlignVertical: 'top' },
-  fieldHint: { marginTop: 8, fontSize: 12.5, color: palette.textFaint },
+  fieldHint: { marginTop: 8, fontSize: 12.5, color: palette.textMeta },
   fieldError: { marginTop: 8, fontSize: 12.5, color: palette.danger },
 });

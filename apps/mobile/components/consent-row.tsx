@@ -53,9 +53,9 @@ export function ConsentRow({
         accessibilityLabel={tag ? `${tag.text} ${label}` : undefined}
         accessibilityState={{ checked, disabled: locked }}>
         {tag ? (
-          <Feather name="check-circle" size={24} color={checked ? palette.blue : palette.checkOff} />
+          <Feather name="check-circle" size={24} color={checked ? palette.blue : palette.textDisabled} />
         ) : (
-          <Feather name="check" size={18} color={checked ? palette.blue : palette.checkOff} />
+          <Feather name="check" size={18} color={checked ? palette.blue : palette.textDisabled} />
         )}
         {tag && (
           <View style={[styles.tag, tag.required ? styles.tagRequired : styles.tagOptional]}>
@@ -72,7 +72,7 @@ export function ConsentRow({
             accessibilityRole="button"
             accessibilityLabel={arrow.accessibilityLabel}
             ph-label="consent_row_open">
-            <Feather name={arrow.icon} size={18} color={palette.checkOff} />
+            <Feather name={arrow.icon} size={18} color={palette.textDisabled} />
           </Pressable>
         )}
       </Pressable>
@@ -82,7 +82,7 @@ export function ConsentRow({
 }
 
 const styles = StyleSheet.create({
-  dividedWrap: { borderBottomWidth: 1, borderBottomColor: palette.borderSoft },
+  dividedWrap: { borderBottomWidth: 1, borderBottomColor: palette.border },
   dividedRow: { minHeight: undefined, paddingVertical: 16, paddingHorizontal: 0, gap: 12 },
   dividedLabel: { fontSize: 15, fontWeight: '600' },
   row: {
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   tagOptional: { backgroundColor: palette.bgSoft },
   tagText: { fontSize: 12, fontWeight: '700' },
   tagTextRequired: { color: palette.blueDeep },
-  tagTextOptional: { color: palette.textMuted },
+  tagTextOptional: { color: palette.textMeta },
   tagLabel: { fontSize: 16, fontWeight: '600' },
-  label: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.textStrong },
+  label: { flex: 1, fontSize: 16, fontWeight: '700', color: palette.text },
 });

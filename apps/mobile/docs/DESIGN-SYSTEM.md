@@ -45,35 +45,35 @@
 
 ## 색
 
-24색입니다. 외부 브랜드 색(카카오·네이버·구글)은 로그인 버튼 안에서만 씁니다. 「코드 이름」은 지금 `constants/palette.ts` 의
-키이고, palette 를 이 토큰으로 옮기면 이 열을 지웁니다.
+24색입니다. 코드는 `constants/palette.ts` 에 같은 이름의 camelCase 키로 있습니다(`text-sub` → `textSub`). 외부 브랜드
+색(카카오·네이버·구글)은 로그인 버튼 안에서만 씁니다.
 
-| 토큰 | 값 | 쓰는 곳 | 코드 이름 |
-|---|---|---|---|
-| bg | #FFFFFF | 화면·카드 바탕 | bg, card |
-| bg-soft | #F2F4F6 | 보조 버튼·칩 바탕 | bgSoft |
-| bg-subtle | #F9FAFB | 카드 안 묶음 | bgSubtle |
-| border | #E5E8EB | 모든 테두리·구분선 | border |
-| text | #191F28 | 제목·본문 | text |
-| text-sub | #4E5968 | 보조 본문, 회색 글자 버튼 | textDim |
-| text-meta | #6B7684 | 캡션·메타 글자 | textMuted |
-| text-disabled | #B0B8C1 | 꺼진 글자·체크, 꺼진 스위치 | checkOff |
-| icon-faint | #8B95A1 | 아이콘만(글자에 쓰지 않음) | textFaint |
-| blue | #4880EE | 주 버튼·선택 테두리·스위치 | blue |
-| blue-deep | #3268D8 | 선택된 글자·링크 | blueDeep |
-| blue-soft | #EAF3FE | 선택 바탕·아이콘 원 | blueSoft |
-| danger | #E42939 | 오류 글자·삭제 | danger |
-| danger-soft | #FFF0F0 | 오류 상자 바탕 | dangerSoft |
-| green | #009959 | 완료 | green |
-| green-soft | #E5F8EF | 완료 바탕 | greenSoft |
-| amber | #8A4B00 | 주의 글자 | amber |
-| amber-soft | #FFF8EC | 주의 바탕 | amberSoft |
-| flame | #FF6B2C | 연속일 불꽃 아이콘·채움만 | flame |
-| flame-soft | #FFF1E8 | 연속일 바탕 | flameSoft |
-| on-accent | #FFFFFF | 색·영상 위 글자 | onAccent |
-| on-media-sub | #FFFFFFB3 | 영상 위 보조 글자 | — |
-| scrim | #0F141E73 | 다이얼로그·시트·영상 위 덮개 | scrim |
-| toast | #191F28E6 | 토스트 바탕 | — |
+| 토큰 | 값 | 쓰는 곳 |
+|---|---|---|
+| bg | #FFFFFF | 화면·카드 바탕 |
+| bg-soft | #F2F4F6 | 보조 버튼·칩 바탕 |
+| bg-subtle | #F9FAFB | 카드 안 묶음 |
+| border | #E5E8EB | 모든 테두리·구분선 |
+| text | #191F28 | 제목·본문 |
+| text-sub | #4E5968 | 보조 본문, 회색 글자 버튼 |
+| text-meta | #6B7684 | 캡션·메타 글자 |
+| text-disabled | #B0B8C1 | 꺼진 글자·체크, 꺼진 스위치 |
+| icon-faint | #8B95A1 | 아이콘만(글자에 쓰지 않음) |
+| blue | #4880EE | 주 버튼·선택 테두리·스위치 |
+| blue-deep | #3268D8 | 선택된 글자·링크 |
+| blue-soft | #EAF3FE | 선택 바탕·아이콘 원 |
+| danger | #E42939 | 오류 글자·삭제 |
+| danger-soft | #FFF0F0 | 오류 상자 바탕 |
+| green | #009959 | 완료 |
+| green-soft | #E5F8EF | 완료 바탕 |
+| amber | #8A4B00 | 주의 글자 |
+| amber-soft | #FFF8EC | 주의 바탕 |
+| flame | #FF6B2C | 연속일 불꽃 아이콘·채움만 |
+| flame-soft | #FFF1E8 | 연속일 바탕 |
+| on-accent | #FFFFFF | 색·영상 위 글자 |
+| on-media-sub | #FFFFFFB3 | 영상 위 보조 글자 |
+| scrim | #0F141E73 | 다이얼로그·시트·영상 위 덮개 |
+| toast | #191F28E6 | 토스트 바탕 |
 
 조합 규칙:
 

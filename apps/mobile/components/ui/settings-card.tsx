@@ -41,7 +41,7 @@ export function SettingsCard({
         <Text style={styles.title}>{title}</Text>
         {!!sub && <Text style={styles.sub}>{sub}</Text>}
       </View>
-      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.checkOff} /> : null)}
+      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.textDisabled} /> : null)}
     </>
   );
   const shape = radiusFor(position);
@@ -73,12 +73,12 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: palette.borderStrong,
-    backgroundColor: palette.card,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
   },
   pressed: { backgroundColor: palette.bgSubtle },
   iconCell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, minWidth: 0, gap: 4 },
   title: { fontSize: 15.5, fontWeight: '800', lineHeight: 21, color: palette.text },
-  sub: { fontSize: 12.5, fontWeight: '400', lineHeight: 18, color: palette.textFaint },
+  sub: { fontSize: 12.5, fontWeight: '400', lineHeight: 18, color: palette.textMeta },
 });

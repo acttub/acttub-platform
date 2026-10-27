@@ -210,7 +210,7 @@ export default function ReportScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 28 },
-  loadingText: { fontSize: 14, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
+  loadingText: { fontSize: 14, fontWeight: '600', color: palette.textMeta, textAlign: 'center' },
   errorText: { fontSize: 14, fontWeight: '700', color: palette.danger, textAlign: 'center' },
 
   statusRow: {
@@ -234,12 +234,12 @@ const styles = StyleSheet.create({
   sampleDone: {
     gap: 8,
     borderRadius: 20,
-    backgroundColor: palette.blueMist,
+    backgroundColor: palette.blueSoft,
     borderWidth: 1,
-    borderColor: palette.blueLine,
+    borderColor: palette.blueSoft,
     padding: 18,
   },
   sampleDoneTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  sampleDoneBody: { fontSize: 14, color: palette.textDim, lineHeight: 21, marginBottom: 6 },
+  sampleDoneBody: { fontSize: 14, color: palette.textSub, lineHeight: 21, marginBottom: 6 },
   stretch: { alignSelf: 'stretch' },
 });

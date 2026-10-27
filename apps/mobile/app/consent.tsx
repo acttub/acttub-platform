@@ -227,7 +227,7 @@ export default function ConsentScreen() {
           accessibilityRole="checkbox"
           accessibilityHint={t('consent.allAgreeHint')}
           accessibilityState={{ checked: everythingGranted }}>
-          <Feather name="check-circle" size={24} color={everythingGranted ? palette.blue : palette.checkOff} />
+          <Feather name="check-circle" size={24} color={everythingGranted ? palette.blue : palette.textDisabled} />
           <Text style={styles.allLabel}>{t('consent.allAgreeStart')}</Text>
         </Pressable>
         <PrimaryButton label={t('consent.ctaStart')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} />
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   // 좌우 여백 24 · 제목 26/800 줄높이 1.34 · 설명 15/400 줄높이 1.5(제목과 6~8 사이).
   list: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
   title: { marginTop: 8, fontSize: 24, fontWeight: '800', lineHeight: 32, color: palette.text },
-  hint: { marginTop: 8, fontSize: 15, fontWeight: '400', lineHeight: 22, color: palette.textMuted },
+  hint: { marginTop: 8, fontSize: 15, fontWeight: '400', lineHeight: 22, color: palette.textMeta },
   lines: { marginTop: 20 },
   docBody: { paddingHorizontal: 14, paddingBottom: 12 },
   footer: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 12, gap: 8 },

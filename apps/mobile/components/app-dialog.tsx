@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     padding: 28,
   },
   full: { width: '100%', alignItems: 'center' },
-  menuTitle: { fontSize: 13, fontWeight: '700', color: palette.textMuted, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  menuTitle: { fontSize: 13, fontWeight: '700', color: palette.textMeta, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   // pen R1.6 더보기 메뉴 — 카드 안쪽 6, 줄 모서리 10 · 안쪽 12 · 아이콘과 글자 사이 12, 글자 15/600.
   menuList: { padding: MENU_PAD },
   menuRow: { minHeight: MENU_ROW, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, borderRadius: 10 },

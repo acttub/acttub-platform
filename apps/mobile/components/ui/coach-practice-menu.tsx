@@ -41,12 +41,12 @@ export function PracticeMenu({
               onPress={item.onPress}
               accessibilityRole="button"
               accessibilityLabel={item.title}>
-              <Feather name={item.icon} size={22} color={item.danger ? palette.danger : palette.textDim} />
+              <Feather name={item.icon} size={22} color={item.danger ? palette.danger : palette.textSub} />
               <View style={styles.body}>
                 <Text style={[styles.rowTitle, item.danger && styles.danger]}>{item.title}</Text>
                 {item.sub ? <Text style={styles.sub}>{item.sub}</Text> : null}
               </View>
-              <Feather name="chevron-right" size={20} color={palette.textFaint} />
+              <Feather name="chevron-right" size={20} color={palette.iconFaint} />
             </Pressable>
           ))}
         </Pressable>
@@ -57,12 +57,12 @@ export function PracticeMenu({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 360, backgroundColor: palette.card, borderRadius: 24, paddingHorizontal: 24, paddingTop: 26, paddingBottom: 16 },
+  card: { width: '100%', maxWidth: 360, backgroundColor: palette.bg, borderRadius: 24, paddingHorizontal: 24, paddingTop: 26, paddingBottom: 16 },
   title: { fontSize: 20, fontWeight: '800', color: palette.text, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18 },
   pressed: { opacity: 0.6 },
   body: { flex: 1, gap: 4 },
   rowTitle: { fontSize: 17, fontWeight: '700', color: palette.text },
   danger: { color: palette.danger },
-  sub: { fontSize: 13, fontWeight: '500', color: palette.textMuted },
+  sub: { fontSize: 13, fontWeight: '500', color: palette.textMeta },
 });

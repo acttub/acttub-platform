@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   row: { gap: 4 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
-  label: { fontSize: 12, fontWeight: '700', lineHeight: 17, color: palette.textMuted },
+  label: { fontSize: 12, fontWeight: '700', lineHeight: 17, color: palette.textMeta },
   value: { fontSize: 14, lineHeight: 21, color: palette.text },
   source: { fontSize: 12, fontWeight: '600', color: palette.blueDeep, alignSelf: 'flex-start' },
   time: { borderRadius: 8, paddingVertical: 1, paddingHorizontal: 6, backgroundColor: palette.blueSoft },

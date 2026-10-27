@@ -102,8 +102,8 @@ const styles = StyleSheet.create({
   iconCircle: { width: 84, height: 84, borderRadius: 42, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 23, fontWeight: '900', lineHeight: 33, color: palette.text, textAlign: 'center' },
   titleLarge: { fontSize: 24, fontWeight: '800', lineHeight: 34 },
-  bodyText: { fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette.textDim, textAlign: 'center', alignSelf: 'stretch' },
+  bodyText: { fontSize: 15, fontWeight: '500', lineHeight: 23, color: palette.textSub, textAlign: 'center', alignSelf: 'stretch' },
   bodyBlue: { fontWeight: '700', color: palette.blueDeep },
-  bodyTextLarge: { fontSize: 16, fontWeight: '500', lineHeight: 26, color: palette.textMuted, textAlign: 'center' },
-  note: { fontSize: 13, fontWeight: '500', lineHeight: 19, color: palette.textFaint, textAlign: 'center', marginTop: -10 },
+  bodyTextLarge: { fontSize: 16, fontWeight: '500', lineHeight: 26, color: palette.textMeta, textAlign: 'center' },
+  note: { fontSize: 13, fontWeight: '500', lineHeight: 19, color: palette.textMeta, textAlign: 'center', marginTop: -10 },
 });

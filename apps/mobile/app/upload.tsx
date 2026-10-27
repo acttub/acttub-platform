@@ -776,7 +776,7 @@ const styles = StyleSheet.create({
   pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   repick: { height: 28, borderRadius: 14, paddingHorizontal: 11, justifyContent: 'center', backgroundColor: palette.blueSoft },
   repickText: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
-  pickedMeta: { flex: 1, fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
+  pickedMeta: { flex: 1, fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textMeta },
   errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
 
   sendingBar: {
@@ -791,16 +791,16 @@ const styles = StyleSheet.create({
   sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
   // pen 03 「Rights」 — 네모 22(모서리 6), 10 띄워 글 15/700 #333D4B(줄 21).
   rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: palette.textDisabled, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   checkMark: { color: palette.bg, fontSize: 13, fontWeight: '900' },
-  rightsText: { flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.textStrong },
+  rightsText: { flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.text },
 
   // pen 버튼/Primary — 높이 48 · 모서리 16 · 글자 17/700. 막혀 있으면 Disabled(#E5E8EB · #B0B8C1). 준비 전에도 눌러서
   // 무엇에 막혔는지 세야 해서(SOMA-698) 공통 Button(막히면 안 눌림) 대신 같은 모양을 직접 그린다.
   submit: { height: 52, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   submitDisabled: { backgroundColor: palette.border },
   submitText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
-  submitTextDisabled: { color: palette.checkOff },
-  submitHint: { fontSize: 14, fontWeight: '500', color: palette.textFaint, lineHeight: 18, textAlign: 'center', marginTop: 9 },
+  submitTextDisabled: { color: palette.textDisabled },
+  submitHint: { fontSize: 14, fontWeight: '500', color: palette.textMeta, lineHeight: 18, textAlign: 'center', marginTop: 9 },
 });

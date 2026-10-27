@@ -76,7 +76,7 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
             <Text style={styles.proText}>PRO</Text>
           </View>
           <View style={styles.flex} />
-          <Feather name="chevron-right" size={16} color={palette.textFaint} />
+          <Feather name="chevron-right" size={16} color={palette.iconFaint} />
         </Pressable>
       )}
     </View>
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   wrap: { alignSelf: 'stretch', gap: 6, marginTop: 8 },
   card: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 20, gap: 6 },
   title: { color: palette.text, fontSize: 17, fontWeight: '700', lineHeight: 24 },
-  sub: { color: palette.textDim, fontSize: 14, lineHeight: 21 },
+  sub: { color: palette.textSub, fontSize: 14, lineHeight: 21 },
   cta: {
     marginTop: 10,
     minHeight: 44,
@@ -102,8 +102,8 @@ const styles = StyleSheet.create({
   },
   ctaText: { color: palette.onAccent, fontSize: 15, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 8 },
-  rowText: { color: palette.textDim, fontSize: 15, fontWeight: '600' },
-  pro: { backgroundColor: palette.navy, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  rowText: { color: palette.textSub, fontSize: 15, fontWeight: '600' },
+  pro: { backgroundColor: palette.text, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   proText: { color: palette.onAccent, fontSize: 11, fontWeight: '800' },
   flex: { flex: 1 },
   pressed: { opacity: 0.8 },

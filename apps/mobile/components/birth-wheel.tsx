@@ -174,6 +174,6 @@ const styles = StyleSheet.create({
   item: { height: WHEEL_ITEM_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   itemText: { fontSize: 17, fontWeight: '600', color: palette.text },
   itemOn: { fontSize: 20, fontWeight: '800', color: palette.text },
-  itemNear: { color: palette.checkOff },
+  itemNear: { color: palette.textDisabled },
   itemFar: { color: palette.border },
 });

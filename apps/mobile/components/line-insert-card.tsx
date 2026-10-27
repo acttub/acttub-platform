@@ -74,7 +74,7 @@ export function LineInsertCard({
         maxLength={5000}
         textAlignVertical="top"
         placeholder={t('reading.lineInsertPlaceholder')}
-        placeholderTextColor={palette.textFaint}
+        placeholderTextColor={palette.textMeta}
         accessibilityLabel={t('reading.lineInsertPlaceholder')}
       />
       {failed && <Text style={styles.error}>{t('reading.lineEditFailed')}</Text>}
@@ -96,16 +96,16 @@ export function LineInsertCard({
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 12, gap: 10, marginVertical: 6 },
+  card: { backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 12, gap: 10, marginVertical: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { borderRadius: 999, backgroundColor: palette.bgSoft, paddingHorizontal: 12, paddingVertical: 6 },
   chipOn: { backgroundColor: palette.blueSoft },
-  chipText: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 13 },
+  chipText: { color: palette.textSub, fontFamily: 'Pretendard-Bold', fontSize: 13 },
   chipTextOn: { color: palette.blueDeep },
   input: { color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22, minHeight: 44, maxHeight: 140, padding: 0 },
   error: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
   buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 18 },
-  cancel: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  cancel: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
   add: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 14 },
   addOff: { opacity: 0.4 },
 });

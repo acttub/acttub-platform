@@ -116,10 +116,10 @@ export function SamplePickerBody({ list, entry, pick }: { list: ExampleList; ent
 const styles = StyleSheet.create({
   card: { gap: 8, padding: 18, borderRadius: 18, backgroundColor: palette.bgSoft },
   cardTitle: { fontSize: 20, fontWeight: '800', color: palette.text },
-  meta: { fontSize: 13, fontWeight: '600', color: palette.textMuted },
+  meta: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
   row: { gap: 2 },
   speaker: { fontSize: 12.5, fontWeight: '700', color: palette.blue },
   line: { fontSize: 15, lineHeight: 23, color: palette.text },
-  label: { fontSize: 13, fontWeight: '700', color: palette.textMuted },
+  label: { fontSize: 13, fontWeight: '700', color: palette.textMeta },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

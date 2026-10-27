@@ -27,7 +27,7 @@ export function CoachMessage({ children, below }: { children: ReactNode; below?:
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   content: { flex: 1, minWidth: 0, gap: 3 },
-  name: { fontSize: 15, fontWeight: '800', lineHeight: 19, color: palette.coachName },
+  name: { fontSize: 15, fontWeight: '800', lineHeight: 19, color: palette.text },
   bubble: { alignSelf: 'flex-start', gap: 6, backgroundColor: palette.bgSoft, borderRadius: 18, paddingVertical: 13, paddingHorizontal: 12 },
   below: { marginTop: 4 },
 });

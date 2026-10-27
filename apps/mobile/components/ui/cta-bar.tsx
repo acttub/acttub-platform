@@ -34,5 +34,5 @@ export function CtaBar({
 
 const styles = StyleSheet.create({
   bar: { backgroundColor: palette.bg, paddingTop: 12, paddingHorizontal: 24, paddingBottom: 10, gap: 10 },
-  divider: { borderTopWidth: 1, borderTopColor: palette.borderSoft },
+  divider: { borderTopWidth: 1, borderTopColor: palette.border },
 });

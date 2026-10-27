@@ -90,13 +90,13 @@ export default function AdmissionsScreen() {
           </View>
 
           <View style={styles.searchBox}>
-            <Feather name="search" size={15} color={palette.textFaint} />
+            <Feather name="search" size={15} color={palette.iconFaint} />
             <TextInput
               style={styles.search}
               value={filters.query}
               onChangeText={(query) => setFilters((was) => ({ ...was, query }))}
               placeholder="대학·학과·지역 검색"
-              placeholderTextColor={palette.textFaint}
+              placeholderTextColor={palette.textMeta}
             />
           </View>
 
@@ -243,7 +243,7 @@ function UniversityCard({
             </Text>
           </View>
         )}
-        <Feather name="chevron-right" size={18} color={palette.checkOff} />
+        <Feather name="chevron-right" size={18} color={palette.textDisabled} />
       </View>
     </Pressable>
   );
@@ -293,19 +293,19 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgSoft,
     fontSize: 10,
     fontWeight: '800',
-    color: palette.textDim,
+    color: palette.textSub,
   },
   filterBar: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   filterPanel: {
     padding: 16,
     borderRadius: 16,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
     gap: 12,
   },
   filterRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  filterLabel: { width: 58, paddingTop: 7, fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
+  filterLabel: { width: 58, paddingTop: 7, fontSize: 11.5, fontWeight: '800', color: palette.textMeta },
   chips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     paddingHorizontal: 12,
@@ -315,9 +315,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipOn: { backgroundColor: palette.blue },
-  chipText: { fontSize: 11.5, fontWeight: '800', color: palette.textDim },
+  chipText: { fontSize: 11.5, fontWeight: '800', color: palette.textSub },
   chipTextOn: { color: '#FFFFFF' },
-  empty: { paddingVertical: 40, textAlign: 'center', fontSize: 13, fontWeight: '600', color: palette.textFaint },
+  empty: { paddingVertical: 40, textAlign: 'center', fontSize: 13, fontWeight: '600', color: palette.textMeta },
   safe: { flex: 1, backgroundColor: palette.bgSoft },
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
@@ -355,14 +355,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     height: 52,
     borderRadius: 16,
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
   },
   search: { flex: 1, fontSize: 14, color: palette.text },
-  count: { marginTop: 2, marginBottom: 2, fontSize: 12, fontWeight: '700', color: palette.textFaint },
+  count: { marginTop: 2, marginBottom: 2, fontSize: 12, fontWeight: '700', color: palette.textMeta },
   card: {
-    backgroundColor: palette.card,
+    backgroundColor: palette.bg,
     borderRadius: 20,
     shadowColor: '#191F28',
     shadowOpacity: 0.06,
@@ -372,12 +372,12 @@ const styles = StyleSheet.create({
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 20 },
   uniName: { fontSize: 18, fontWeight: '800', color: palette.text },
-  region: { fontSize: 11, fontWeight: '600', color: palette.textFaint },
-  deptLine: { marginTop: 7, fontSize: 12.5, fontWeight: '600', color: palette.textFaint, lineHeight: 18 },
-  dday: { paddingHorizontal: 11, height: 28, borderRadius: 14, backgroundColor: palette.navy, justifyContent: 'center' },
+  region: { fontSize: 11, fontWeight: '600', color: palette.textMeta },
+  deptLine: { marginTop: 7, fontSize: 12.5, fontWeight: '600', color: palette.textMeta, lineHeight: 18 },
+  dday: { paddingHorizontal: 11, height: 28, borderRadius: 14, backgroundColor: palette.text, justifyContent: 'center' },
   ddayText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
   ddayMuted: { backgroundColor: palette.bgSoft },
-  ddayTextMuted: { color: palette.textFaint },
+  ddayTextMuted: { color: palette.textMeta },
   link: { fontSize: 13, fontWeight: '800', color: palette.blue },
-  foot: { marginTop: 16, fontSize: 11.5, fontWeight: '600', color: palette.textFaint, lineHeight: 19 },
+  foot: { marginTop: 16, fontSize: 11.5, fontWeight: '600', color: palette.textMeta, lineHeight: 19 },
 });
