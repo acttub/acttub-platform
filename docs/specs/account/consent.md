@@ -83,10 +83,10 @@
 가입 동의 화면(A0.1)은 제목 「Acttub를 쓰려면 동의가 필요해요」 아래에 파란 안내 줄 하나로 지금 누를 곳을 알린다. 만 14세 확인과
 필수 문서를 다 고르기 전에는 「「전체 동의」 한 번이면 준비 끝이에요!」, 다 고르면 「준비 끝! 이제 「동의하고 계속하기」만 누르면
 돼요」다. 고른 것을 다시 비워 계속할 수 없게 되면 첫 문구로 돌아간다(SOMA-790, pen 파이프라인 반영버전).
-cloud_voice와 script_split은 가입·게이트에서 묻지 않고 그 기능을 쓸 때 묻는다([reading.cloud-voice](../reading/cloud-voice.md),
-[reading.script](../reading/script.md#규칙제약) 「나누기 작업」). 진입에서 묻게 하면 새 판을 올린 날 모든 회원이 쓰지도 않을
-기능의 동의 화면을 다시 본다(`ConsentDocument.askedAtEntry`). script_split 문서가 발행되지 않은 서버는
-나누기를 403으로 막는다.
+cloud_voice와 script_split은 가입·게이트에서 묻지 않는다. 개인정보 수집·이용 동의 v9부터 두 처리가 그 동의에 들어 있어(SOMA-726)
+서버는 v9 이상 동의자를 두 기능의 동의자로 본다. cloud_voice는 v9 이전 동의자에게 그 기능을 쓸 때 묻고([reading.cloud-voice](../reading/cloud-voice.md)),
+script_split은 앱·웹 어디서도 따로 묻지 않는다 — 필수 판이 v10이라 묻는 팝업이 뜰 일이 없다(10-27, [reading.script](../reading/script.md#규칙제약)
+「나누기 작업」). 진입에서 묻게 하면 새 판을 올린 날 모든 회원이 쓰지도 않을 기능의 동의 화면을 다시 본다(`ConsentDocument.askedAtEntry`).
 
 ## 규칙·제약
 - 필수 문서는 설정에서 내용만 보고 바꿀 수 없다. 필수 동의를 거두는 길은 탈퇴뿐이며 화면에 그렇게
