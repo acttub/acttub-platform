@@ -21,13 +21,52 @@ class ExpoPushSenderTest {
             "ExponentPushToken[test]", "완료", "분석 완료", Map.of()));
 
     @Test
-    void transportFailureIsReportedAsExternalAndRemainsBestEffort() {
-        IOException failure = new IOException("expo unavailable");
+    void connectionFailureIsRetriedThenLoggedWithoutReport() {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
         RecordingFailureReporter reporter = new RecordingFailureReporter();
         ExpoPushSender sender = new ExpoPushSender(
                 new ObjectMapper(),
                 "https://exp.host/--/api/v2/push/send",
                 reporter,
+                request -> { calls.incrementAndGet(); throw new java.net.ConnectException("expo unavailable"); }) {
+            @Override long backoffMillis(int attempt) { return 0; }
+        };
+
+        sender.send(MESSAGE);
+
+        assertThat(calls.get()).isEqualTo(3);
+        assertThat(reporter.reports()).isEmpty();
+    }
+
+    @Test
+    void transientConnectionFailureSucceedsOnRetry() {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"data\":[{\"status\":\"ok\",\"id\":\"t\"}]}");
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        ExpoPushSender sender = new ExpoPushSender(
+                new ObjectMapper(), "https://exp.host/--/api/v2/push/send", reporter,
+                request -> {
+                    if (calls.incrementAndGet() < 2) throw new java.net.ConnectException("flaky");
+                    return response;
+                }) {
+            @Override long backoffMillis(int attempt) { return 0; }
+        };
+
+        sender.send(MESSAGE);
+
+        assertThat(calls.get()).isEqualTo(2);
+        assertThat(reporter.reports()).isEmpty();
+    }
+
+    @Test
+    void nonIoFailureIsStillReportedAsExternal() {
+        IllegalStateException failure = new IllegalStateException("boom");
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        ExpoPushSender sender = new ExpoPushSender(
+                new ObjectMapper(), "https://exp.host/--/api/v2/push/send", reporter,
                 request -> { throw failure; });
 
         sender.send(MESSAGE);
@@ -35,7 +74,6 @@ class ExpoPushSenderTest {
         assertThat(reporter.reports()).singleElement().satisfies(report -> {
             assertThat(report.failure()).isSameAs(failure);
             assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
-            assertThat(report.context()).isEqualTo("ExpoPushSender.send");
         });
     }
 

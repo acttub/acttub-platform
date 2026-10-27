@@ -27,8 +27,8 @@ import org.springframework.stereotype.Component;
  * Expo Push API 로 보낸다. 토큰 하나로 iOS·Android 둘 다 커버되고 별도 인증이 없다 —
  * APNs·FCM 자격은 EAS 프로젝트가 들고 있고, 이 서버는 Expo 에 위탁만 한다.
  *
- * <p>실패는 호출 결과에서는 삼키고 운영자에게 보고한다({@link PushSender} 계약). 재시도도 하지
- * 않는다 — 알림은 최선 노력이고, 놓친 알림의 대체 경로(앱을 열면 홈이 이어서 안내)가 이미 있다.
+ * <p>실패는 호출 결과에서는 삼키고 운영자에게 보고한다({@link PushSender} 계약). 연결 실패 같은
+ * 일시 오류만 짧게 두 번 더 시도하고(백오프), 그래도 실패하면 경고 로그만 남긴다 — 알림은 최선 노력이고, 놓친 알림의 대체 경로(앱을 열면 홈이 이어서 안내)가 이미 있다.
  */
 @Component
 class ExpoPushSender implements PushSender {
@@ -37,6 +37,9 @@ class ExpoPushSender implements PushSender {
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     /** Expo 는 요청 하나에 메시지를 100건까지 받고, 넘으면 요청 전체를 HTTP 400 으로 거절한다. */
     private static final int MAX_MESSAGES_PER_REQUEST = 100;
+
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long[] BACKOFF_MILLIS = {300, 1000};
 
     private final RequestSender sender;
     private final ObjectMapper json;
@@ -81,7 +84,7 @@ class ExpoPushSender implements PushSender {
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(messages)))
                     .build();
-            HttpResponse<String> response = sender.send(request);
+            HttpResponse<String> response = sendWithRetry(request);
             if (response.statusCode() / 100 != 2) {
                 LOGGER.warning("expo push rejected: HTTP " + response.statusCode());
                 failureReporter.report(
@@ -95,6 +98,9 @@ class ExpoPushSender implements PushSender {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             LOGGER.warning("expo push interrupted");
+        } catch (java.io.IOException exception) {
+            // 재시도 뒤에도 연결이 안 되는 일시 오류는 경고 로그만 남긴다. 놓친 알림은 앱을 열면 홈이 이어서 안내한다.
+            LOGGER.log(Level.WARNING, "expo push unreachable after " + MAX_ATTEMPTS + " attempts", exception);
         } catch (Exception exception) {
             LOGGER.log(Level.WARNING, "expo push failed", exception);
             failureReporter.report(
@@ -103,6 +109,23 @@ class ExpoPushSender implements PushSender {
                     new FailureContext("ExpoPushSender.send"));
         }
         return List.of();
+    }
+
+    /** 연결 실패·입출력 오류만 다시 시도한다. HTTP 응답이 온 경우는 그대로 돌려준다. */
+    private HttpResponse<String> sendWithRetry(HttpRequest request) throws Exception {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return sender.send(request);
+            } catch (java.io.IOException exception) {
+                if (attempt >= MAX_ATTEMPTS) throw exception;
+                LOGGER.log(Level.FINE, "expo push attempt " + attempt + " failed, retrying", exception);
+                Thread.sleep(backoffMillis(attempt));
+            }
+        }
+    }
+
+    long backoffMillis(int attempt) {
+        return BACKOFF_MILLIS[attempt - 1];
     }
 
     /**
