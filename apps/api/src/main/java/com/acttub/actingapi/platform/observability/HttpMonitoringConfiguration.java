@@ -1,6 +1,7 @@
 package com.acttub.actingapi.platform.observability;
 
 import java.util.Map;
+import java.util.Set;
 
 import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
@@ -21,11 +22,17 @@ public class HttpMonitoringConfiguration {
     static final Map<String, String> ACTIVE_POST_ROUTES = Map.of(
             "/v2/coach/start", "coach", "/v2/coach/reply", "coach",
             "/v2/coach/start/stream", "coach", "/v2/coach/reply/stream", "coach");
+    // AI 가 음성·대본을 만드는 자리다. 몇 초~몇 분이 정상이라 일반 요청 p95 지연 경고에서 뺀다.
+    static final Set<String> LONG_POST_ROUTES = Set.of(
+            "/v2/reading/voice",
+            "/v2/sample-scripts",
+            "/v2/sample-scripts/{sample_script_id}/revisions");
 
     static String latencyClass(ServerRequestObservationContext context) {
         String route = context.getPathPattern();
         boolean longRunning = "POST".equals(context.getCarrier().getMethod()) && route != null
                 && (ACTIVE_POST_ROUTES.containsKey(route)
+                || LONG_POST_ROUTES.contains(route)
                 // 0.1.0 의 회차 시작·재시도도 분석을 거는 자리다 — 옛 `/v2/practice-sessions/**` 는 내렸다(§6-15).
                 || route.equals("/v2/practices")
                 || route.equals("/v2/practices/{practice_id}/analyze"));
