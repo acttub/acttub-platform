@@ -160,7 +160,7 @@ test('서버 이름을 아직 못 읽었으면 기기에 적어 둔 이름을 �
   expect(screen.queryByText('민')).not.toBeOnTheScreen();
   expect(screen.getByText('이달 마친 연습')).toBeOnTheScreen();
   expect(screen.getAllByText('0')).toHaveLength(4);
-  expect(screen.getByText('한 줄 소개를 적어보세요')).toBeOnTheScreen();
+  expect(screen.getByText('한 줄 소개를 적어 보세요')).toBeOnTheScreen();
 });
 
 test('이름이 어디에도 없으면 이메일 앞부분으로 부른다', async () => {
@@ -192,7 +192,8 @@ test('목록을 못 읽으면 0으로 두고 빈 안내를 보인다', async () 
 
   await render(<ProfileScreen />);
 
-  expect(await screen.findByText('아직 연습 기록이 없어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('아직 연습 기록이 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('코칭이나 리딩을 하면 여기에 쌓여요')).toBeOnTheScreen();
   expect(listEntries).toHaveBeenCalledTimes(1);
   expect(screen.getAllByText('0')).toHaveLength(4);
   expect(screen.queryByText(/개$/)).not.toBeOnTheScreen();

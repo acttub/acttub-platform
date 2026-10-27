@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { within, act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ProfileEditScreen from '@/app/profile-edit';
 import ProfileEditItemScreen from '@/app/profile-edit-item';
@@ -436,14 +436,30 @@ describe('설정의 프로필 편집', () => {
     expect(button('완료')).toBeDisabled();
   });
 
+  /** 「사진 편집」을 눌러 메뉴를 띄우고 그 안의 항목을 누른다. */
+  async function photoMenu(item: '사진 바꾸기' | '사진 지우기') {
+    await fireEvent.press(button('사진 편집'));
+    expect(screen.getByText('프로필 사진')).toBeOnTheScreen();
+    await fireEvent.press(within(screen.getByTestId('anchored-menu')).getByRole('button', { name: item }));
+  }
+
+  test('사진 자리에는 「사진 편집」 하나만 있고, 누르면 사진 바꾸기·사진 지우기 메뉴가 뜬다', async () => {
+    await render(<ProfileEditScreen />);
+
+    expect(screen.queryByRole('button', { name: '사진 지우기' })).not.toBeOnTheScreen();
+    await fireEvent.press(button('사진 편집'));
+    const items = within(screen.getByTestId('anchored-menu')).getAllByRole('button').map((b) => b.props.accessibilityLabel);
+    expect(items).toEqual(['사진 바꾸기', '사진 지우기']);
+  });
+
   test('사진을 바꾸면 새 계정 정보로 갈아 끼우고, 고르지 않으면 그대로 둔다', async () => {
     const nextMe = { id: 'u1', profile: { ...fullProfile, photo_url: 'https://cdn/new.jpg' } };
     (pickAndUploadProfilePhoto as jest.Mock).mockResolvedValueOnce(nextMe).mockResolvedValueOnce(null);
     await render(<ProfileEditScreen />);
 
-    await fireEvent.press(screen.getAllByRole('button', { name: '사진 수정' })[0]);
+    await photoMenu('사진 바꾸기');
     expect(setMe).toHaveBeenCalledWith(nextMe);
-    await fireEvent.press(screen.getAllByRole('button', { name: '사진 수정' })[0]);
+    await photoMenu('사진 바꾸기');
     expect(setMe).toHaveBeenCalledTimes(1);
   });
 
@@ -452,42 +468,44 @@ describe('설정의 프로필 편집', () => {
     (removeProfilePhoto as jest.Mock).mockResolvedValue(nextMe);
     await render(<ProfileEditScreen />);
 
-    await fireEvent.press(button('사진 지우기'));
+    await photoMenu('사진 지우기');
     expect(setMe).toHaveBeenCalledWith(nextMe);
   });
 
   test.each([
-    ['올리기', '사진 수정', pickAndUploadProfilePhoto as jest.Mock],
-    ['지우기', '사진 지우기', removeProfilePhoto as jest.Mock],
-  ])('사진 %s가 실패하면 이유를 보인다', async (_name, name, fn) => {
+    ['올리기', '사진 바꾸기' as const, pickAndUploadProfilePhoto as jest.Mock],
+    ['지우기', '사진 지우기' as const, removeProfilePhoto as jest.Mock],
+  ])('사진 %s가 실패하면 요약 카드 아래 한 줄로 이유를 보인다', async (_name, item, fn) => {
     fn.mockRejectedValueOnce(new Error('사진 파일을 읽지 못했어요.')).mockRejectedValueOnce('boom');
     await render(<ProfileEditScreen />);
 
-    await fireEvent.press(screen.getAllByRole('button', { name })[0]);
+    await photoMenu(item);
     expect(await screen.findByText('사진 파일을 읽지 못했어요.')).toBeOnTheScreen();
-    await fireEvent.press(screen.getAllByRole('button', { name })[0]);
+    await photoMenu(item);
     expect(await screen.findByText('사진을 올리지 못했어요. 잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
     expect(setMe).not.toHaveBeenCalled();
   });
 
-  test('올리는 동안 사진 버튼을 막는다', async () => {
+  test('올리는 동안 사진 편집을 막는다', async () => {
     let finish!: (v: null) => void;
     (pickAndUploadProfilePhoto as jest.Mock).mockReturnValue(new Promise((r) => (finish = r)));
     await render(<ProfileEditScreen />);
 
-    await fireEvent.press(screen.getAllByRole('button', { name: '사진 수정' })[0]);
-    for (const photo of screen.getAllByRole('button', { name: '사진 수정' })) expect(photo).toBeDisabled();
-    expect(button('사진 지우기')).toBeDisabled();
+    await photoMenu('사진 바꾸기');
+    expect(button('사진 편집')).toBeDisabled();
     await act(async () => finish(null));
-    for (const photo of screen.getAllByRole('button', { name: '사진 수정' })) expect(photo).toBeEnabled();
+    expect(button('사진 편집')).toBeEnabled();
   });
 
-  test('사진이 없으면 기본 얼굴(pen S6.3 P/DefaultAvatar)을 보이고 지우기는 두지 않는다', async () => {
+  test('사진이 없으면 기본 얼굴을 보이고, 사진 편집은 메뉴 없이 바로 고른다', async () => {
     auth({ id: 'u1', profile: { ...fullProfile, photo_url: null, bio: null } });
+    (pickAndUploadProfilePhoto as jest.Mock).mockResolvedValueOnce(null);
     await render(<ProfileEditScreen />);
 
     expect(screen.getByTestId('default-avatar')).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: '사진 지우기' })).not.toBeOnTheScreen();
+    await fireEvent.press(button('사진 편집'));
+    expect(pickAndUploadProfilePhoto).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('anchored-menu')).not.toBeOnTheScreen();
   });
 
   test('이름을 비우면 완료를 막는다', async () => {
