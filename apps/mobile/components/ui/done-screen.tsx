@@ -36,7 +36,7 @@ export function DoneScreen({
           {title}
         </Text>
         {scriptName ? <Text style={styles.script}>{scriptName}</Text> : null}
-        {children}
+        {children ? <View style={styles.content}>{children}</View> : null}
       </ScrollView>
       <CtaBar>
         <PrimaryButton label={t('challengeDone.home')} onPress={onHome} />
@@ -50,4 +50,6 @@ const styles = StyleSheet.create({
   body: { paddingTop: 96, paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3], alignItems: 'center' },
   title: { ...type.title1, color: palette.text, textAlign: 'center' },
   script: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  // 요약·다음 행동 칸은 화면 폭을 채운다(pen 「content slot」 fill).
+  content: { alignSelf: 'stretch' },
 });
