@@ -2323,6 +2323,8 @@ const ko = {
     lengthHint: '분량은 대사 글자 수로 어림한 값이에요. 말하는 속도에 따라 달라져요.',
     generate: '대본 만들기',
     generating: '대본을 만들고 있어요',
+    confirming: '확정하는 중…',
+    revising: '고치는 중…',
     generatingSub: '30초에서 1분쯤 걸려요. 화면을 닫지 말고 기다려 주세요.',
     leaveTitle: '지금 나가면 만들던 대본이 사라져요',
     leaveBody: '나간 뒤에는 이 대본을 다시 볼 수 없어요.',

@@ -2325,6 +2325,8 @@ const en: DeepStringShape<typeof ko> = {
     lengthHint: 'Length is estimated from the number of characters. It depends on how fast you speak.',
     generate: 'Create script',
     generating: 'Writing your script',
+    confirming: 'Saving…',
+    revising: 'Revising…',
     generatingSub: 'This takes 30 seconds to a minute. Please keep this screen open.',
     leaveTitle: "If you leave now, this script will be lost",
     leaveBody: "You won't be able to see it again after you leave.",
