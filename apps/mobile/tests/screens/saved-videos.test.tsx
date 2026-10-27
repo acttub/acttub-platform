@@ -39,9 +39,8 @@ test('기본은 저장한 영상 탭이고 두 탭의 개수를 보여 준다', 
   expect(await screen.findByText('눈빛 참고')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '저장한 영상 2' })).toBeSelected();
   expect(screen.getByRole('button', { name: '내 영상 1' })).not.toBeSelected();
-  expect(screen.getByText('다른 사람 연기에서 참고할 부분을 모아뒀어요.')).toBeOnTheScreen();
-  expect(screen.getByText('태오')).toBeOnTheScreen();
-  expect(screen.getByText('12')).toBeOnTheScreen();
+  expect(screen.getByText('다른 사람 연기에서 참고할 부분을 모아 뒀어요.')).toBeOnTheScreen();
+  expect(screen.getByText('12 · 태오')).toBeOnTheScreen();
   expect(screen.queryByText('첫 도전')).not.toBeOnTheScreen();
 });
 
@@ -102,7 +101,8 @@ test('저장한 영상이 없으면 빈 안내를 보여 준다', async () => {
   listSaved.mockResolvedValue({ entries: [] });
   await render(<SavedVideosScreen />);
 
-  expect(await screen.findByText('아직 저장한 영상이 없어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('아직 저장한 영상이 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('챌린지에서 마음에 드는 연기를 저장해 보세요')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '저장한 영상 0' })).toBeOnTheScreen();
 });
 
@@ -111,7 +111,7 @@ test('목록을 못 불러오면 실패 이유만 보여 주고 빈 안내는 �
   await render(<SavedVideosScreen />);
 
   expect(await screen.findByText('없는 챌린지예요.')).toBeOnTheScreen();
-  expect(screen.queryByText('아직 저장한 영상이 없어요.')).not.toBeOnTheScreen();
+  expect(screen.queryByText('아직 저장한 영상이 없어요')).not.toBeOnTheScreen();
 });
 
 test('뒤로 버튼은 이전 화면으로 돌아간다', async () => {
@@ -121,8 +121,12 @@ test('뒤로 버튼은 이전 화면으로 돌아간다', async () => {
   await screen.findByText('눈빛 참고');
 });
 
-test('불러오기가 그 밖의 이유로 실패하면 「저장한 영상을 불러오지 못했어요.」라고 알린다(pen C12.5)', async () => {
-  listSaved.mockRejectedValue(new ApiError(400, 'bad'));
+test('불러오기가 그 밖의 이유로 실패하면 InlineError 로 알리고 다시 시도로 다시 읽는다', async () => {
+  listSaved.mockRejectedValueOnce(new ApiError(400, 'bad'));
   await render(<SavedVideosScreen />);
-  expect(await screen.findByText('저장한 영상을 불러오지 못했어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('저장한 영상을 불러오지 못했어요')).toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByText('눈빛 참고')).toBeOnTheScreen();
+  expect(screen.queryByText('저장한 영상을 불러오지 못했어요')).not.toBeOnTheScreen();
 });
