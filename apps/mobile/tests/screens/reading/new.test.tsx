@@ -159,7 +159,7 @@ test('「대본 같이 만들기」는 화면을 넘기지 않고 아래에 예�
 
   // 예시 대본 고르기 — 그 아래에 예시 카드와 고르기 칩이 바로 보인다.
   await fireEvent.press(screen.getByText('예시 대본 고르기'));
-  expect(screen.getByText('대본 목록')).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: '옥상, 밤' })).toBeOnTheScreen();
   expect(screen.getByText('이 대본으로 하기')).toBeOnTheScreen();
   expect(mockRouter.push).not.toHaveBeenCalled();
 

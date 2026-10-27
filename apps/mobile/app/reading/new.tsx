@@ -336,7 +336,7 @@ export default function ReadingNew() {
                 onPress={() => setMakeChoice(key)}
               />
             ))}
-            {makeChoice === 'sample' && <SamplePickerBody list={picker.list} entry={picker.entry} pick={picker.pick} />}
+            {makeChoice === 'sample' && <SamplePickerBody list={picker.list} entry={picker.entry} pick={picker.pick} inline />}
           </View>
         )}
 

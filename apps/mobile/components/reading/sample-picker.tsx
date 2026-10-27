@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useAppDialog } from '@/components/app-dialog';
 import { Chip } from '@/components/ui/chip';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { loadExamples, localExamples, type ExampleEntry, type ExampleList } from '@/lib/reading/examples';
@@ -52,7 +53,7 @@ export function useSamplePicker({ onNeedName, onLocal }: Options) {
 
   const entry = list.examples.find((e) => e.id === pickedId) ?? list.examples[0];
 
-  const fail = (message: string) => void alert({ title: t('common.save'), message });
+  const fail = (message: string) => void alert({ title: t('reading.sampleOpenFailTitle'), message });
 
   const startFromServer = async (id: string) => {
     if (busyRef.current) return;
@@ -86,40 +87,69 @@ export function useSamplePicker({ onNeedName, onLocal }: Options) {
   return { list, entry, pick: setPickedId, busy, confirm, dialog };
 }
 
-/** 고른 예시의 미리보기 카드와 예시 고르기 칩. */
-export function SamplePickerBody({ list, entry, pick }: { list: ExampleList; entry: ExampleEntry; pick: (id: string) => void }) {
-  return (
+/**
+ * 고른 예시의 미리보기와 예시 고르기 칩. 예시 대본 화면은 테두리 카드 아래 「예시 대본」 칩 줄(pen reading-sample.server),
+ * 새 대본 안에 펼칠 때는 칩 줄 아래 bg-subtle 미리보기(pen reading-new.make-sample)다.
+ */
+export function SamplePickerBody({
+  list,
+  entry,
+  pick,
+  inline = false,
+}: {
+  list: ExampleList;
+  entry: ExampleEntry;
+  pick: (id: string) => void;
+  inline?: boolean;
+}) {
+  const lead = entry.preview.find((l) => l.speaker)?.speaker;
+  const preview = (
+    <View style={[styles.card, inline ? styles.cardInline : styles.cardBordered]} accessibilityLabel={entry.title}>
+      <Text style={styles.cardTitle}>{entry.title}</Text>
+      <Text style={styles.meta}>
+        {entry.summary}
+        {entry.dialogueCount > 0 ? ` · ${t('reading.samplePickLines', { count: entry.dialogueCount })}` : ''}
+      </Text>
+      {entry.preview.map((l, i) => (
+        <View key={i} style={styles.row}>
+          {l.speaker ? <Text style={[styles.speaker, l.speaker === lead && styles.speakerLead]}>{l.speaker}</Text> : null}
+          <Text style={[styles.line, !l.speaker && styles.direction]}>{l.text}</Text>
+        </View>
+      ))}
+    </View>
+  );
+  const chips = (
+    <View style={styles.chips}>
+      {list.examples.map((s) => (
+        <Chip key={s.id} label={s.title} role="radio" selected={entry.id === s.id} phLabel="reading_sample_chip" onPress={() => pick(s.id)} />
+      ))}
+    </View>
+  );
+  return inline ? (
     <>
-      <View style={styles.card} accessibilityLabel={entry.title}>
-        <Text style={styles.cardTitle}>{entry.title}</Text>
-        <Text style={styles.meta}>
-          {entry.summary}
-          {entry.dialogueCount > 0 ? ` · ${t('reading.samplePickLines', { count: entry.dialogueCount })}` : ''}
-        </Text>
-        {entry.preview.map((l, i) => (
-          <View key={i} style={styles.row}>
-            {l.speaker ? <Text style={styles.speaker}>{l.speaker}</Text> : null}
-            <Text style={styles.line}>{l.text}</Text>
-          </View>
-        ))}
-      </View>
+      {chips}
+      {preview}
+    </>
+  ) : (
+    <>
+      {preview}
       <Text style={styles.label}>{t('reading.samplePickList')}</Text>
-      <View style={styles.chips}>
-        {list.examples.map((s) => (
-          <Chip key={s.id} label={s.title} role="radio" selected={entry.id === s.id} phLabel="reading_sample_chip" onPress={() => pick(s.id)} />
-        ))}
-      </View>
+      {chips}
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { gap: 8, padding: 18, borderRadius: 18, backgroundColor: palette.bgSoft },
-  cardTitle: { fontSize: 20, fontWeight: '800', color: palette.text },
-  meta: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
-  row: { gap: 2 },
-  speaker: { fontSize: 12.5, fontWeight: '700', color: palette.blue },
-  line: { fontSize: 15, lineHeight: 23, color: palette.text },
-  label: { fontSize: 13, fontWeight: '700', color: palette.textMeta },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  card: { gap: space[2], padding: space[4], borderRadius: radius.lg },
+  cardBordered: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  cardInline: { backgroundColor: palette.bgSubtle },
+  cardTitle: { ...type.headline, color: palette.text },
+  meta: { ...type.caption, color: palette.textMeta },
+  row: { flexDirection: 'row', gap: space[3] },
+  speaker: { ...type.body2Bold, width: 32, color: palette.text },
+  speakerLead: { color: palette.blueDeep },
+  line: { ...type.body2, flex: 1, color: palette.text },
+  direction: { color: palette.textMeta },
+  label: { ...type.body2Bold, color: palette.textSub },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
 });
