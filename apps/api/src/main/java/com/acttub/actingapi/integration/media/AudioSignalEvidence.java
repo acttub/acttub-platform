@@ -12,7 +12,24 @@ public final class AudioSignalEvidence {
     private static final String PEAK = "lavfi.astats.Overall.Peak_level=";
     private static final String SAMPLES = "lavfi.astats.Overall.Number_of_samples=";
 
+    private static final java.util.logging.Logger LOGGER =
+            java.util.logging.Logger.getLogger(AudioSignalEvidence.class.getName());
+    private static final int ATTEMPTS = 2;
+
+    /** 일시적인 ffmpeg 실패(자원 부족·시간 초과)로 배우 흐름이 막히지 않게 한 번 더 검사한다. 끝까지 실패하면 소리 없음으로 바꾸지 않고 예외를 낸다. */
     public boolean hasSignal(Path source) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return inspectOnce(source);
+            } catch (IllegalStateException failure) {
+                if (Thread.currentThread().isInterrupted() || attempt >= ATTEMPTS) throw failure;
+                LOGGER.log(java.util.logging.Level.WARNING,
+                        "audio signal inspection failed, retrying: " + failure.getCause(), failure);
+            }
+        }
+    }
+
+    private boolean inspectOnce(Path source) {
         Path metadata = null;
         try {
             metadata = Files.createTempFile("coach-audio-evidence-", ".txt");
@@ -86,18 +103,30 @@ public final class AudioSignalEvidence {
         return maximum != Double.NEGATIVE_INFINITY;
     }
 
-    private static void run(List<String> command, Path output) throws IOException, InterruptedException {
-        Process process = new ProcessBuilder(command).redirectOutput(output.toFile())
-                .redirectError(ProcessBuilder.Redirect.DISCARD).start();
+    private static String tail(Path errors) {
         try {
-            if (!process.waitFor(90, TimeUnit.SECONDS) || process.exitValue() != 0) {
-                throw new IOException("audio signal command failed");
+            String text = Files.readString(errors).strip();
+            return text.substring(Math.max(0, text.length() - 300));
+        } catch (IOException | RuntimeException unreadable) {
+            return "";
+        }
+    }
+
+    private static void run(List<String> command, Path output) throws IOException, InterruptedException {
+        Path errors = Files.createTempFile("coach-audio-evidence-err-", ".txt");
+        Process process = new ProcessBuilder(command).redirectOutput(output.toFile())
+                .redirectError(errors.toFile()).start();
+        try {
+            if (!process.waitFor(90, TimeUnit.SECONDS)) throw new IOException("audio signal command timed out");
+            if (process.exitValue() != 0) {
+                throw new IOException("audio signal command failed: exit " + process.exitValue() + " " + tail(errors));
             }
         } finally {
             if (process.isAlive()) {
                 process.destroyForcibly();
                 process.waitFor();
             }
+            try { Files.deleteIfExists(errors); } catch (IOException ignored) { errors.toFile().deleteOnExit(); }
         }
     }
 }
