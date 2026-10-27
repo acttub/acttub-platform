@@ -441,6 +441,8 @@ const en: DeepStringShape<typeof ko> = {
     rolePh: 'e.g. Yoonseo',
     next: 'Next',
     submit: 'Add line',
+    lineOverMax: 'You can write up to {{max}} characters.',
+    submitting: 'Registering…',
   },
   archive: {
     title: 'Save video',
