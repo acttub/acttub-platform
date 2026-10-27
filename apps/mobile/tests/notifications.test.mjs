@@ -25,6 +25,8 @@ const notificationsModule = {
   addNotificationResponseReceivedListener: fn => { state.listeners.tapped = fn; return { remove: () => { delete state.listeners.tapped; } }; },
   getPermissionsAsync: async () => state.permission,
   requestPermissionsAsync: async () => { state.calls.push(['requestPermission']); return { granted: state.requestGrants, canAskAgain: false }; },
+  AndroidImportance: { DEFAULT: 3 },
+  setNotificationChannelAsync: async (id) => { state.calls.push(['channel', id]); },
   getExpoPushTokenAsync: async () => ({ data: state.token }),
   cancelAllScheduledNotificationsAsync: async () => { state.calls.push(['cancelAll']); },
 };
@@ -172,11 +174,11 @@ test('시뮬레이터·웹·권한 거부·토큰 없음이면 등록하지 않�
   }
 });
 
-test('권한을 아직 묻지 않았으면 게이트에서 묻고, 허락하면 등록한다', async () => {
+test('안드로이드는 권한을 묻기 전에 알림 채널부터 만들고(13+ 필수), 허락하면 등록한다', async () => {
   state.permission = { granted: false, canAskAgain: true };
   state.os = 'android';
   await n.syncNotificationsAfterGate();
-  assert.deepEqual(state.calls.slice(0, 3), [['GET settings'], ['requestPermission'], ['register', 'ExponentPushToken[abc]', 'android']]);
+  assert.deepEqual(state.calls.slice(0, 4), [['GET settings'], ['channel', 'default'], ['requestPermission'], ['register', 'ExponentPushToken[abc]', 'android']]);
 });
 
 test('토큰을 받다가 실패해도 조용히 끝낸다', async () => {

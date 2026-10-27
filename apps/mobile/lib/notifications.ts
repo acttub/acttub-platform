@@ -42,6 +42,27 @@ try {
   device = null;
 }
 
+/** 안드로이드 13+ 는 알림 채널이 하나라도 있어야 권한 창을 띄운다. 채널 없이 묻으면 창이 안 뜬다. */
+export const DEFAULT_ANDROID_CHANNEL_ID = 'default';
+
+/**
+ * OS 알림 권한을 묻는다. 안드로이드에서는 묻기 전에 기본 채널을 먼저 만든다 —
+ * 채널이 없으면 POST_NOTIFICATIONS 창이 뜨지 않고 권한이 영영 거부 상태로 남는다.
+ */
+async function requestOsPermission(
+  module: NotificationsModule,
+): Promise<Awaited<ReturnType<NotificationsModule['requestPermissionsAsync']>>> {
+  if (Platform.OS === 'android') {
+    await module
+      .setNotificationChannelAsync(DEFAULT_ANDROID_CHANNEL_ID, {
+        name: 'default',
+        importance: module.AndroidImportance.DEFAULT,
+      })
+      .catch(() => undefined);
+  }
+  return module.requestPermissionsAsync();
+}
+
 /** 'acttub.' 접두사 — 탈퇴 시 local-account-data 가 이 접두사를 통째로 지운다. */
 const SETTINGS_KEY = 'acttub.push.settings';
 /** 0.1.0 이전의 기기 토글. 한 번 서버로 옮기고 지운다(legacyOptOutPatch). */
@@ -192,7 +213,7 @@ async function registerThisDevice({
   try {
     let permission = await notifications.getPermissionsAsync();
     if (!permission.granted && permission.canAskAgain && askPermission) {
-      permission = await notifications.requestPermissionsAsync();
+      permission = await requestOsPermission(notifications);
     }
     if (!permission.granted) return;
     const token = (await notifications.getExpoPushTokenAsync()).data;
@@ -252,7 +273,7 @@ export async function setNotificationToggle(
       canAskAgain: permission.canAskAgain,
     });
     if (prompt === 'request') {
-      blocked = !(await notifications.requestPermissionsAsync()).granted;
+      blocked = !(await requestOsPermission(notifications)).granted;
     } else if (prompt === 'open_settings') {
       blocked = true;
     }
@@ -323,7 +344,7 @@ export async function scheduleUploadLaterReminder(
   if (!notifications) return 'unavailable';
   try {
     let status = (await notifications.getPermissionsAsync()).status;
-    if (status !== 'granted') status = (await notifications.requestPermissionsAsync()).status;
+    if (status !== 'granted') status = (await requestOsPermission(notifications)).status;
     if (status !== 'granted') return 'denied';
     const existing = (await notifications.getAllScheduledNotificationsAsync?.()) ?? [];
     for (const item of existing) {
