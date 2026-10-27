@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChoiceCard } from '@/components/choice-card';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
 import { palette } from '@/constants/palette';
+import { space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 
@@ -19,8 +20,6 @@ const KEYS = { face: 'hFace', short: 'hShort', later: 'hLater' } as const;
 export function UploadReasonSheet({ onFace, onShort, onLater }: {
   onFace: () => void; onShort: () => void; onLater: () => void;
 }) {
-  // 화면 전체를 덮는 겹침 화면이라 부모의 아래 여백을 못 받는다 — 폰 아래 바만큼 직접 띄운다.
-  const insets = useSafeAreaInsets();
   const [choice, setChoice] = useState<UploadHesitation | null>(null);
   const next = () => {
     if (!choice) return;
@@ -48,18 +47,18 @@ export function UploadReasonSheet({ onFace, onShort, onLater }: {
           ))}
         </View>
       </ScrollView>
-      <View style={[styles.bottom, { paddingBottom: 10 + insets.bottom }]}>
+      {/* 화면 전체를 덮는 겹침 화면이라 부모의 아래 여백을 못 받는다 — 아래 바가 안전영역만큼 띄운다. */}
+      <CtaBar>
         <PrimaryButton label={t('uploadFlow.next')} phLabel="upload_hesitate_next" disabled={!choice} onPress={next} />
-      </View>
+      </CtaBar>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.bg },
-  body: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 },
-  title: { fontSize: 24, fontWeight: '800', lineHeight: 32, color: palette.text },
-  sub: { fontSize: 15, fontWeight: '500', lineHeight: 22, color: palette.textMeta, marginTop: 8 },
-  choices: { gap: 8, marginTop: 24 },
-  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10 },
+  body: { paddingHorizontal: space.gutter, paddingTop: space[6], paddingBottom: space[6] },
+  title: { ...type.title2, color: palette.text },
+  sub: { ...type.caption, color: palette.textMeta, marginTop: space[1] },
+  choices: { gap: space[3], marginTop: space[5] },
 });

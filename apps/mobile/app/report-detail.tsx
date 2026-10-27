@@ -1,6 +1,7 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
@@ -9,7 +10,11 @@ import { purgeVideoFileIfDue } from '@/lib/practice/upload-options';
 import { NoteSections } from '@/components/note-sections';
 import { SkeletonDetail } from '@/components/ui/skeleton';
 import { ReportRating } from '@/components/report-rating';
+import { PrimaryButton } from '@/components/ui/buttons';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
@@ -35,19 +40,20 @@ export default function ReportDetailScreen() {
   // 준비 화면이 409 로 그 대화에 돌려보낸다.
   const [group, setGroup] = useState<Pick<PracticeGroupDetail, 'in_progress_practice_id'> | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // 노트를 읽지 못함(회차 id 없음·요청 실패)은 StatusScreen 오류, 노트가 아직 없음은 InlineEmpty 다.
+  const [problem, setProblem] = useState<'load_fail' | 'none' | null>(null);
   const { alert, dialog } = useAppDialog();
   const loadRevision = useRef(0);
 
   const load = useCallback(async () => {
     const revision = ++loadRevision.current;
     if (!practiceId) {
-      setError(t('note.loadFail'));
+      setProblem('load_fail');
       setLoading(false);
       return;
     }
     setLoading(true);
-    setError(null);
+    setProblem(null);
     setNote(null);
     try {
       const [loadedNote, loadedPractice, journal] = await Promise.all([
@@ -65,9 +71,9 @@ export default function ReportDetailScreen() {
       // 노트가 열렸으면 분석이 끝난 것이다 — 「분석 끝나면 영상 바로 지우기」를 골랐다면 지금 지운다.
       if (loadedNote) void purgeVideoFileIfDue(practiceId).catch(() => undefined);
       setPractice(loadedPractice);
-      if (!loadedNote) setError(t('note.none'));
+      if (!loadedNote) setProblem('none');
     } catch {
-      if (revision === loadRevision.current) setError(t('note.loadFail'));
+      if (revision === loadRevision.current) setProblem('load_fail');
     } finally {
       if (revision === loadRevision.current) setLoading(false);
     }
@@ -121,11 +127,17 @@ export default function ReportDetailScreen() {
       {loading && (
         <SkeletonDetail lines={6} />
       )}
-      {!loading && !note && <Text style={styles.error}>{error ?? t('note.none')}</Text>}
-      {!loading && error === t('note.loadFail') && (
-        <Pressable onPress={() => void load()} accessibilityRole="button">
-          <Text style={styles.label}>{t('common.retry')}</Text>
-        </Pressable>
+      {!loading && problem === 'load_fail' && (
+        <StatusScreen
+          title={t('note.loadFailTitle')}
+          body={t('note.loadFailBody')}
+          primary={{ label: t('common.retry'), onPress: () => void load() }}
+        />
+      )}
+      {!loading && problem === 'none' && (
+        <View style={styles.body}>
+          <InlineEmpty title={t('note.noneTitle')} description={t('note.noneDetailBody')} />
+        </View>
       )}
       {note && (
         <KeyboardAwareScroll contentContainerStyle={styles.body}>
@@ -133,7 +145,12 @@ export default function ReportDetailScreen() {
             <Text style={styles.kind}>{noteKindLabel(note.kind)}</Text>
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.date}>{formatKoreanDate(note.created_at, { month: 'long', day: 'numeric' })}</Text>
-            {fallbackNotice && <Text style={styles.fallback}>{fallbackNotice}</Text>}
+            {fallbackNotice && (
+              <View style={styles.fallback}>
+                <Feather name="alert-circle" size={14} color={palette.amber} />
+                <Text style={styles.fallbackText}>{fallbackNotice}</Text>
+              </View>
+            )}
           </View>
 
           <NoteSections note={note} />
@@ -141,9 +158,7 @@ export default function ReportDetailScreen() {
           {/* 지난 노트에서도 평가를 남기고 고친다 — 초기값은 이미 남긴 평가다(practice.note). */}
           {practiceId && <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} />}
 
-          <Pressable style={styles.primary} onPress={continuePractice} accessibilityRole="button">
-            <Text style={styles.primaryText}>{t(continueActionLabel(action))}</Text>
-          </Pressable>
+          <PrimaryButton label={t(continueActionLabel(action))} phLabel="report_detail_continue" onPress={continuePractice} />
         </KeyboardAwareScroll>
       )}
       {dialog}
@@ -153,22 +168,11 @@ export default function ReportDetailScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  center: { paddingVertical: 48, alignItems: 'center' },
-  error: { color: palette.danger, textAlign: 'center', paddingVertical: 24 },
-  body: { padding: 20, paddingBottom: 48, gap: 20 },
-  heading: { gap: 6 },
-  kind: { fontSize: 12, fontWeight: '800', color: palette.blue },
-  title: { fontSize: 23, fontWeight: '900', color: palette.text, lineHeight: 33 },
-  date: { fontSize: 12.5, fontWeight: '600', color: palette.textMeta },
-  fallback: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
-  label: { fontSize: 12, fontWeight: '800', color: palette.textSub },
-  primary: {
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: palette.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  primaryText: { fontSize: 15, fontWeight: '900', color: palette.bg },
+  body: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[10], gap: space[4] },
+  heading: { gap: space[1] },
+  kind: { ...type.micro, color: palette.blueDeep },
+  title: { ...type.title2, color: palette.text },
+  date: { ...type.caption, color: palette.textMeta },
+  fallback: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[2], padding: space[3], borderRadius: radius.md, backgroundColor: palette.amberSoft },
+  fallbackText: { flex: 1, ...type.captionBold, color: palette.amber },
 });

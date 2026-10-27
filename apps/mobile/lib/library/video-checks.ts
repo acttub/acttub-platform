@@ -43,6 +43,17 @@ export function videoErrorMessage(error: unknown): string {
   if (error === 'video_empty') return t('errors.uploadFail');
   const code = videoErrorCodeOf(error);
   if (code) return t(MESSAGE_KEY[code]);
-  if (error instanceof ApiError) return error.message;
+  if (error instanceof ApiError) {
+    if (error.code === 'video_not_found') return t('archive.notFound');
+    // 모르는 4xx 는 friendlyError 가 서버 코드(detail)를 그대로 메시지로 둔다 — 코드를 화면에 보이지 않는다.
+    return error.message === error.code ? t('errors.uploadFail') : error.message;
+  }
   return error instanceof Error && error.message ? error.message : t('errors.uploadFail');
+}
+
+/** 보관함이 받지 않은 영상의 알림. 제목은 결과 문장, 본문은 할 수 있는 것이다. */
+export function videoRejectDialog(code: 'video_too_long' | 'video_empty'): { title: string; message: string } {
+  return code === 'video_too_long'
+    ? { title: t('archive.tooLongTitle'), message: t('archive.tooLongBody') }
+    : { title: t('archive.emptyTitle'), message: t('archive.emptyBody') };
 }

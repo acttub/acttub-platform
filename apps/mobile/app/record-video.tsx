@@ -8,8 +8,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { RecordAlbumButton } from '@/components/record-album-button';
 import { RecordModeSlider } from '@/components/record-mode-slider';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { keepDeviceFile } from '@/lib/account-files';
 import { formatClipDuration } from '@/lib/archive-format';
 import { logEvent } from '@/lib/analytics';
@@ -20,7 +22,7 @@ import { translate as t } from '@/lib/i18n';
 import { takeRecordScript } from '@/lib/practice/record-script';
 import { RECORD_MODES, recordModeAfterSwipe, type RecordMode } from '@/lib/record-modes';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
-import { VIDEO_MAX_MS, videoErrorMessage } from '@/lib/library/video-checks';
+import { VIDEO_MAX_MS, videoRejectDialog } from '@/lib/library/video-checks';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
 import { peekRecordedVideo, setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
 import { setPickedVideo } from '@/lib/practice/picked-video';
@@ -41,19 +43,24 @@ const STOP_WATCH_MS = 4000;
  * 멈추고(서버·업로드 상한과 같은 값), 결과를 recorded-video 핸드오프에 얹어
  * 업로드 화면으로 돌아간다.
  *
- * mode=challenge 면 pen A18 "촬영 대기" 화면이 된다 — 대사 카드를 위에 띄우고, 60초 상한,
- * 카메라 전환은 오른쪽 위, 아래엔 업로드(갤러리)·셔터·대사 숨김. 찍고 나면 챌린지 올리기로.
+ * mode=challenge 면 대사 카드를 위에 띄우고 60초 상한이다. 찍고 나면 챌린지 올리기로.
+ *
+ * 버튼 자리는 모든 촬영이 같다(pen record-video.*): 위 닫기·시간 알약·대사 가리기, 아래 앨범·셔터·카메라 전환.
+ * 녹화 중엔 앨범·전환이 자리를 둔 채 숨고, 셔터는 멈춤 네모, 시간 알약은 빨강이다.
  *
  * 촬영이 끝나면(A2.1, practice.record) 기기에 먼저 저장하고 업로드 대기 큐에 넣는다 — 서버 확정 전에는 "기기에 저장 ·
  * 업로드 대기", 확정 뒤에는 "보관함 저장"이다. 어디로 보낼지 정하지 않아도 보관함에 남는다.
  *
  * 시뮬레이터엔 카메라가 없어 실기기에서만 실제로 돈다.
  */
-/** 남은 시간 한 줄 — 1분 이상이면 「4분 48초 남음」(pen P2.14), 그 아래는 「48초 남음」. */
+/** 촬영 화면이 지금 하는 일. 녹화와 오늘의 대사 불러오기는 겹치지 않는다. */
+type Phase = 'idle' | 'loadingToday' | 'recording';
+
+/** 남은 시간 한 줄 — 「5분 남았어요」·「4분 48초 남았어요」·「48초 남았어요」. */
 function remainingLabel(sec: number): string {
-  return sec >= 60
-    ? t('record.remainingMin', { min: Math.floor(sec / 60), sec: sec % 60 })
-    : t('record.remaining', { sec });
+  if (sec < 60) return t('record.remaining', { sec });
+  const min = Math.floor(sec / 60);
+  return sec % 60 === 0 ? t('record.remainingWholeMin', { min }) : t('record.remainingMin', { min, sec: sec % 60 });
 }
 
 export default function RecordVideoScreen() {
@@ -74,13 +81,11 @@ export default function RecordVideoScreen() {
     challengeId?: string;
     picker?: string;
     next?: string;
-    first?: string;
     maxSec?: string;
   }>();
   const picker = params.picker === '1';
   // next=upload: 코칭 탭 「지금 찍어서 코칭 받기」 → 찍는 법 → 여기. 준비 화면이 뒤에 없으니 찍은 뒤 새로 연다.
   const toUpload = params.next === 'upload';
-  const firstCoaching = params.first === '1';
   const [mode, setMode] = useState<string | undefined>(params.mode);
   // 오늘의 대사로 넘기면 여기에 그 챌린지를 채운다 — 챌린지 화면에서 오면 처음부터 들어 있다.
   const [challengeParams, setChallengeParams] = useState({
@@ -89,7 +94,6 @@ export default function RecordVideoScreen() {
     work: params.work,
   });
   const { challengeId, line, work } = challengeParams;
-  const [loadingToday, setLoadingToday] = useState(false);
   const isChallenge = mode === 'challenge';
   // maxSec 파라미터(올리기 망설임 「길게 찍기 부담돼요」의 10초)는 기본 길이보다 짧을 때만 따른다.
   const limitParam = Number(params.maxSec);
@@ -99,7 +103,8 @@ export default function RecordVideoScreen() {
   const [camPerm, requestCam, readCam] = useCameraPermissions();
   const [micPerm, requestMic, readMic] = useMicrophonePermissions();
   const [facing, setFacing] = useState<'front' | 'back'>('back');
-  const [recording, setRecording] = useState(false);
+  const [phase, setPhase] = useState<Phase>('idle');
+  const recording = phase === 'recording';
   const [elapsed, setElapsed] = useState(0);
   // iOS 는 카메라 세션이 준비되기 전(onCameraReady 전)에 녹화를 부르면 녹화가 시작되지도 끝나지도 않아 화면이 멈춘 듯 보이고,
   // 녹화 중엔 닫기 대신 시간이 떠서 나갈 수도 없었다(10/23 iOS 제보). 준비 신호를 받은 뒤에만 셔터를 받는다.
@@ -215,7 +220,7 @@ export default function RecordVideoScreen() {
     if (!video || !user?.id) return null;
     const outcome = await saveRecordingToLibrary({ uri: video.uri, durationMs: video.durationMs, owner: user.id });
     if (outcome.kind === 'rejected') {
-      await alert({ title: t('archive.title'), message: videoErrorMessage(outcome.code) });
+      await alert(videoRejectDialog(outcome.code));
       return null;
     }
     return { id: outcome.entry.id, uri: outcome.entry.uri };
@@ -227,27 +232,27 @@ export default function RecordVideoScreen() {
    */
   const changeMode = useCallback(
     async (next: RecordMode) => {
-      if (recording || loadingToday || next === mode) return;
+      if (phase !== 'idle' || next === mode) return;
       if (next !== 'challenge' || challengeId) {
         setMode(next);
         return;
       }
-      setLoadingToday(true);
+      setPhase('loadingToday');
       try {
         const { featured } = await api.listChallenges({ tab: 'popular' });
         if (!featured) {
-          void alert({ title: t('recordMode.challenge'), message: t('recordMode.noToday') });
+          void alert({ title: t('recordMode.noTodayTitle'), message: t('recordMode.noToday') });
           return;
         }
         setChallengeParams({ challengeId: featured.id, line: featured.line, work: featured.work });
         setMode('challenge');
       } catch {
-        void alert({ title: t('recordMode.challenge'), message: t('recordMode.noToday') });
+        void alert({ title: t('recordMode.noTodayTitle'), message: t('recordMode.noToday') });
       } finally {
-        setLoadingToday(false);
+        setPhase('idle');
       }
     },
-    [alert, challengeId, loadingToday, mode, recording],
+    [alert, challengeId, mode, phase],
   );
 
   // 화면을 옆으로 넘겨도 용도가 바뀐다(인스타처럼). 가로로 충분히 움직였을 때만 가로챈다 — 버튼 누르기는 그대로다.
@@ -264,19 +269,6 @@ export default function RecordVideoScreen() {
       }),
     [changeMode, mode, picker],
   );
-  // 녹화 중에도 용도 줄 자리를 비워 두지 않는다 — 치우면 아래 정렬이라 정지 버튼이 그만큼 내려간다(SOMA-737).
-  const slider = picker ? (
-    <View style={recording ? styles.hiddenKeepSpace : undefined} pointerEvents={recording ? 'none' : 'auto'} collapsable={false}>
-      <RecordModeSlider
-        modes={RECORD_MODES}
-        value={(mode ?? 'ai') as RecordMode}
-        onChange={(next) => void changeMode(next)}
-        disabled={loadingToday}
-      />
-      {loadingToday && <Text style={styles.hint}>{t('recordMode.loadingToday')}</Text>}
-    </View>
-  ) : null;
-
   const goNext = useCallback(() => {
     if (isChallenge) {
       leavingRef.current = true;
@@ -308,7 +300,7 @@ export default function RecordVideoScreen() {
         // 하단 탭에서 곧장 왔으면 새 준비 화면을 연다. 준비 화면의 촬영 버튼에서 왔으면 그 화면으로 돌아간다 —
         // 새 준비 화면을 또 열면 다음 테이크(이어하기)가 새 연습으로 바뀐다(SOMA-672).
         if (picker) router.replace('/upload');
-        else if (toUpload) router.replace({ pathname: '/upload', params: firstCoaching ? { first: '1' } : {} });
+        else if (toUpload) router.replace('/upload');
         else router.back();
       });
       return;
@@ -323,7 +315,7 @@ export default function RecordVideoScreen() {
     }
     leavingRef.current = true;
     router.back();
-  }, [challengeId, firstCoaching, isChallenge, line, mode, picker, router, saveToLibrary, toUpload, work]);
+  }, [challengeId, isChallenge, line, mode, picker, router, saveToLibrary, toUpload, work]);
 
   // 닫기는 녹화 중·멈춘 뒤에도 받는다 — 예전엔 녹화 중 막혀 있어, iOS 에서 멈춤 뒤 녹화가 늦게 끝나면 위쪽 닫기가 안 눌렸다(10/25 QA).
   // 찍던 것은 버린다. 먼저 끝남·떠남 표시를 해서 녹화가 끝나도 저장·이동하지 않게 한다.
@@ -357,8 +349,8 @@ export default function RecordVideoScreen() {
   );
 
   const startRecording = useCallback(async () => {
-    if (!cameraRef.current || recording || !cameraReady) return;
-    setRecording(true);
+    if (!cameraRef.current || phase !== 'idle' || !cameraReady) return;
+    setPhase('recording');
     setElapsed(0);
     startedAtRef.current = Date.now();
     try {
@@ -375,9 +367,9 @@ export default function RecordVideoScreen() {
       finishWith(null);
     } finally {
       // 곧바로 다른 화면으로 넘어갔으면 녹화 표시를 되돌리지 않는다 — 같은 순간에 바꾸면 안드로이드에서 꺼진다.
-      if (!leavingRef.current) setRecording(false);
+      if (!leavingRef.current) setPhase('idle');
     }
-  }, [recording, cameraReady, finishWith, isChallenge, maxSec]);
+  }, [phase, cameraReady, finishWith, isChallenge, maxSec]);
 
   const stopRecording = useCallback(() => {
     if (!cameraRef.current || !recording) return;
@@ -387,7 +379,7 @@ export default function RecordVideoScreen() {
     stopWatchRef.current = setTimeout(() => {
       stopWatchRef.current = null;
       if (finishedRef.current || leavingRef.current) return;
-      setRecording(false);
+      setPhase('idle');
       setElapsed(0);
       void alert({ title: t('record.stuckTitle'), message: t('record.stuckBody') });
     }, STOP_WATCH_MS);
@@ -400,6 +392,7 @@ export default function RecordVideoScreen() {
 
   // 챌린지 모드 "업로드" — 찍는 대신 갤러리에서 골라 그대로 올리기로 간다.
   const pickFromGallery = useCallback(async () => {
+    if (recording) return;
     const result = await ImagePicker.launchImageLibraryAsync(VIDEO_PICKER_OPTIONS);
     const picked = !result.canceled && !!result.assets[0];
     if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('gallery', picked ? 'selected' : 'cancelled'));
@@ -416,32 +409,26 @@ export default function RecordVideoScreen() {
       source: 'gallery',
     });
     goNext();
-  }, [goNext, isChallenge]);
+  }, [goNext, isChallenge, recording]);
+
+
+  const flip = () => setFacing((f) => (f === 'back' ? 'front' : 'back'));
 
   // 권한이 아직 없으면 촬영 화면 그대로(검은 바탕) 두고 화면 안에서 묻는다 — 닫기는 늘 보인다.
-  // 모양은 pen P2.1~P2.3(10/24, 지성 개편 스타일): 확인·OS 팝업 중엔 가운데 돌아가는 표시, 거절됐으면 아래 노란 띠에서
-  // 다시 묻거나(허용하기) 설정을 연다(다시 물을 수 없을 때). 예전 흰 안내 한 장은 OS 팝업 뒤에 떠서 따로 노는 화면이었다.
+  // OS 팝업이 떠 있는 동안은 띠를 숨기고, 거절됐으면 아래 띠에서 다시 묻거나(허용하기) 설정을 연다(다시 물을 수 없을 때).
   if (!ready) {
     const known = !!camPerm && !!micPerm;
     const showNotice = known && appActive && !asking;
     return (
-      <View style={styles.permDark}>
+      <View style={styles.root}>
         <StatusBar style="light" />
-        <View style={[styles.permSafe, safePad]}>
-          <View style={styles.topRow}>
-            <Pressable
-              style={styles.closeBtn}
-              onPress={() => router.back()}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.back')}
-              ph-label="record_perm_close">
-              <Text style={styles.closeText}>✕</Text>
-            </Pressable>
+        <View style={[styles.overlay, safePad]}>
+          <View style={styles.topBar}>
+            <CloseButton phLabel="record_perm_close" onPress={() => router.back()} />
           </View>
-          <View style={styles.permCenter}></View>
           {showNotice && (
             <View style={styles.permNotice}>
-              <Feather name="camera-off" size={16} color={palette.amber} />
+              <Feather name="camera-off" size={20} color={palette.amber} />
               <View style={styles.permNoticeBody}>
                 <Text style={styles.permNoticeTitle}>{t('record.permissionTitle')}</Text>
                 <Text style={styles.permNoticeText}>{blocked ? t('record.deniedBody') : t('record.permissionBody')}</Text>
@@ -462,103 +449,31 @@ export default function RecordVideoScreen() {
   }
 
   const remaining = Math.max(0, maxSec - elapsed);
-
-  // ---------- 챌린지 모드: pen A18 촬영 대기 ----------
-  if (isChallenge) {
-    return (
-      <View style={styles.safe}>
-        {/* 검은 카메라 화면 — 상태 표시줄 글자를 흰색으로(앱 기본은 검은 글자라 시간·배터리가 안 보였다). */}
-        <StatusBar style="light" />
-        <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setCameraReady(true)} />
-        {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
-        <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
-
-        <View style={[styles.overlay, safePad]} pointerEvents="box-none">
-          <View>
-            <View style={styles.chTopRow}>
-              <Pressable
-                style={styles.closeBtn}
-                onPress={close}
-                accessibilityRole="button"
-                accessibilityLabel={t('common.close')}
-                ph-label="record_close">
-                <Feather name="x" size={22} color="#FFFFFF" />
-              </Pressable>
-              <View style={[styles.timerPill, recording && styles.timerPillRec]}>
-                <View style={[styles.recDot, !recording && styles.recDotIdle]} />
-                <Text style={styles.timerText}>
-                  {formatClipDuration(elapsed)} / {formatClipDuration(maxSec)}
-                </Text>
-              </View>
-              {recording ? (
-                <View style={styles.closeBtn} />
-              ) : (
-                <Pressable
-                  style={styles.closeBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('record.flip')}
-                  ph-label="record_flip"
-                  onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
-                  <Feather name="refresh-cw" size={20} color="#FFFFFF" />
-                </Pressable>
-              )}
-            </View>
-
-            {!lineHidden && !!line && (
-              <View style={styles.lineCard}>
-                <View style={styles.lineLabelRow}>
-                  <Feather name="message-square" size={12} color="#8FA5FF" />
-                  <Text style={styles.lineLabel}>
-                    {t('record.lineLabel')}
-                    {work ? ` · 《${work}》` : ''}
-                  </Text>
-                </View>
-                <Text style={styles.lineText}>{line}</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.bottomGroup}>
-            <View style={styles.chBottomRow}>
-              <Pressable
-                style={styles.sideBtn}
-                onPress={() => void pickFromGallery()}
-                disabled={recording}
-                accessibilityRole="button"
-                ph-label="record_gallery">
-                <Feather name="image" size={24} color="#FFFFFF" />
-                <Text style={styles.sideLabel}>{t('record.upload')}</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={recording ? t('record.stop') : t('record.start')}
-                ph-label="record_shutter"
-                onPress={() => (recording ? stopRecording() : void startRecording())}
-                style={[styles.shutter, recording && styles.shutterRecording]}>
-                <View style={recording ? styles.shutterInnerStop : styles.shutterInnerRed} />
-              </Pressable>
-              <Pressable style={styles.sideBtn} onPress={() => setLineHidden((v) => !v)} accessibilityRole="button" ph-label="record_toggle_line">
-                <Feather name={lineHidden ? 'eye-off' : 'eye'} size={24} color="#FFFFFF" />
-                <Text style={styles.sideLabel}>{t(lineHidden ? 'record.showLine' : 'record.hideLine')}</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.hint}>
-              {recording ? t('record.remaining', { sec: remaining }) : t('record.challengeHint')}
-            </Text>
-            {slider}
-          </View>
-        </View>
-        {dialog}
-      </View>
+  // 위에 띄우는 글: 챌린지 대사 카드 또는 코칭 촬영 대본 카드. 있으면 시간 알약과 가리기 버튼이 함께 보인다.
+  const cover = isChallenge ? (line ? 'line' : null) : recordScript ? 'script' : null;
+  const coverHidden = cover === 'line' ? lineHidden : scriptHidden;
+  const toggleCover = () => (cover === 'line' ? setLineHidden((v) => !v) : setScriptHidden((v) => !v));
+  const showPill = recording || isChallenge || !!recordScript;
+  const hintText = recording
+    ? remainingLabel(remaining)
+    : isChallenge
+      ? t('record.challengeHint')
+      : picker
+        ? t('recordMode.swipeHint')
+        : maxSec < baseMaxSec
+          ? t('record.hintShort', { sec: maxSec })
+          : t('record.hint');
+  // 「오늘의 대사 불러오는 중」은 안내 자리에 둔다 — 셔터가 움직이지 않는다.
+  const hint =
+    phase === 'loadingToday' ? (
+      <Text style={styles.hint}>{t('recordMode.loadingToday')}</Text>
+    ) : (
+      <Text style={styles.hint}>{hintText}</Text>
     );
-  }
-
-  // ---------- 기본 모드(업로드/탭 촬영): 종전 화면 ----------
-  const remainMin = Math.floor(remaining / 60);
-  const remainSec = remaining % 60;
 
   return (
-    <View style={styles.safe}>
+    <View style={styles.root}>
+      {/* 검은 카메라 화면 — 상태 표시줄 글자를 흰색으로(앱 기본은 검은 글자라 시간·배터리가 안 보였다). */}
       <StatusBar style="light" />
       <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setCameraReady(true)} />
       {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
@@ -566,132 +481,98 @@ export default function RecordVideoScreen() {
 
       <View style={[styles.overlay, safePad]} pointerEvents="box-none">
         <View style={styles.topGroup} pointerEvents="box-none">
-        {recordScript ? (
-          // 대본으로 찍을 때(pen P2.14) — 닫기 · 시간 알약 `0:12 / 5:00` · 카메라 돌리기를 한 줄로 두고, 대본 카드는 그 아래.
-          <View style={styles.chTopRow}>
-            <Pressable
-              style={styles.closeBtn}
-              onPress={close}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.close')}
-              ph-label="record_close">
-              <Feather name="x" size={22} color="#FFFFFF" />
-            </Pressable>
-            <View style={[styles.timerPill, recording && styles.timerPillRec]}>
-              <View style={[styles.recDot, !recording && styles.recDotIdle]} />
-              <Text style={styles.timerText}>
-                {formatClipDuration(elapsed)} / {formatClipDuration(maxSec)}
-              </Text>
-            </View>
-            {recording ? (
-              <View style={styles.closeBtn} />
-            ) : (
-              <Pressable
-                style={styles.closeBtn}
-                accessibilityRole="button"
-                accessibilityLabel={t('record.flip')}
-                ph-label="record_flip"
-                onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
-                <Feather name="refresh-cw" size={20} color="#FFFFFF" />
-              </Pressable>
-            )}
-          </View>
-        ) : (
-        // 녹화 중엔 닫기 · 남은 시간 · 빈 칸으로 남은 시간을 가운데에 둔다.
-        <View style={recording ? styles.chTopRow : styles.topRow}>
-          <Pressable
-            style={styles.closeBtn}
-            onPress={close}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.close')}
-            ph-label="record_close">
-            <Text style={styles.closeText}>✕</Text>
-          </Pressable>
-          {recording && (
-            <>
-              <View style={styles.timerPill}>
-                <View style={styles.recDot} />
+          <View style={styles.topBar}>
+            <CloseButton phLabel="record_close" onPress={close} />
+            {showPill && (
+              <View style={[styles.timerPill, recording && styles.timerPillRec]}>
+                <View style={[styles.recDot, recording && styles.recDotRec]} />
                 <Text style={styles.timerText}>
-                  {remainMin}:{String(remainSec).padStart(2, '0')}
+                  {formatClipDuration(elapsed)} / {formatClipDuration(maxSec)}
                 </Text>
               </View>
+            )}
+            {cover ? (
+              <Pressable
+                style={styles.roundBtn}
+                onPress={toggleCover}
+                accessibilityRole="button"
+                accessibilityLabel={t(coverHidden ? 'record.showLine' : 'record.hideLine')}
+                ph-label={cover === 'script' ? 'record_toggle_script' : 'record_toggle_line'}>
+                <Feather name={coverHidden ? 'eye-off' : 'eye'} size={22} color={palette.onAccent} />
+              </Pressable>
+            ) : (
               <View style={styles.closeBtn} />
-            </>
-          )}
-        </View>
-        )}
-        {recordScript && !scriptHidden ? (
-          <View style={styles.scriptCard}>
-            <Text style={styles.lineLabel} numberOfLines={1}>{t('record.scriptLabel', { title: recordScript.title })}</Text>
-            <ScrollView style={[styles.scriptScroll, { maxHeight: Math.round(windowHeight * 0.24) }]} contentContainerStyle={styles.scriptBody}>
-              {recordScript.lines.map((line, i) =>
-                line.kind === 'dialogue' ? (
-                  <Text key={i} style={[styles.scriptLine, line.mine && styles.scriptLineMine]}>
-                    {line.speaker ? <Text style={[styles.scriptSpeaker, line.mine && styles.scriptSpeakerMine]}>{`${line.speaker}  `}</Text> : null}
-                    {line.text}
-                  </Text>
-                ) : (
-                  <Text key={i} style={styles.scriptDirection}>{line.kind === 'scene' || line.text.trim().startsWith('(') ? line.text : `(${line.text})`}</Text>
-                ),
-              )}
-            </ScrollView>
+            )}
           </View>
-        ) : null}
+          {cover === 'line' && !lineHidden && (
+            <View style={styles.card}>
+              <View style={styles.cardLabelRow}>
+                <Feather name="message-square" size={12} color={palette.blueSoft} />
+                <Text style={styles.cardLabel}>
+                  {t('record.lineLabel')}
+                  {work ? ` · 《${work}》` : ''}
+                </Text>
+              </View>
+              <Text style={styles.lineText}>{line}</Text>
+            </View>
+          )}
+          {cover === 'script' && recordScript && !scriptHidden && (
+            <View style={styles.card}>
+              <Text style={styles.cardLabel} numberOfLines={1}>{t('record.scriptLabel', { title: recordScript.title })}</Text>
+              {/* 대본 카드는 화면 4분의 1 안쪽 — 대사가 많으면 안에서 넘긴다(작은 폰에서 얼굴 위치를 가리지 않게). */}
+              <ScrollView style={{ maxHeight: Math.round(windowHeight * 0.24) }} contentContainerStyle={styles.scriptBody}>
+                {recordScript.lines.map((l, i) =>
+                  l.kind === 'dialogue' ? (
+                    <Text key={i} style={[styles.scriptLine, l.mine && styles.scriptLineMine]}>
+                      {l.speaker ? <Text style={[styles.scriptSpeaker, l.mine && styles.scriptSpeakerMine]}>{`${l.speaker}  `}</Text> : null}
+                      {l.text}
+                    </Text>
+                  ) : (
+                    <Text key={i} style={styles.scriptDirection}>{l.kind === 'scene' || l.text.trim().startsWith('(') ? l.text : `(${l.text})`}</Text>
+                  ),
+                )}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         <View style={styles.bottomGroup}>
-          <Text style={[styles.hint, recording && !recordScript && styles.hiddenKeepSpace]}>{recording && recordScript ? remainingLabel(remaining) : picker
-              ? t('recordMode.swipeHint')
-              : maxSec < baseMaxSec
-                ? t('record.hintShort', { sec: maxSec })
-                : t('record.hint')}</Text>
-          {recordScript ? (
-            // pen P2.14 — 왼쪽 「업로드」· 가운데 셔터 · 오른쪽 「대사 숨김/보기」. 힌트는 녹화 중엔 남은 시간.
-            <View style={styles.chBottomRow}>
-              <Pressable style={styles.sideBtn} onPress={() => void pickFromGallery()} disabled={recording} accessibilityRole="button" ph-label="record_gallery">
-                <Feather name="image" size={24} color="#FFFFFF" />
-                <Text style={styles.sideLabel}>{t('record.upload')}</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={recording ? t('record.stop') : t('record.start')}
-                ph-label="record_shutter"
-                onPress={() => (recording ? stopRecording() : void startRecording())}
-                style={[styles.shutter, recording && styles.shutterRecording]}>
-                <View style={recording ? styles.shutterInnerStop : styles.shutterInner} />
-              </Pressable>
-              <Pressable style={styles.sideBtn} onPress={() => setScriptHidden((v) => !v)} accessibilityRole="button" ph-label="record_toggle_script">
-                <Feather name={scriptHidden ? 'eye-off' : 'eye'} size={24} color="#FFFFFF" />
-                <Text style={styles.sideLabel}>{t(scriptHidden ? 'record.showLine' : 'record.hideLine')}</Text>
-              </Pressable>
-            </View>
-          ) : (
-          <View style={styles.bottomRow}>
-            {/* 왼쪽 슬롯: 녹화 중엔 빈 칸으로 둬서 셔터가 늘 가운데에 오게 한다. */}
-            {recording ? (
-              <View style={styles.flipBtn} />
-            ) : (
-              <Pressable
-                style={styles.flipBtn}
-                accessibilityRole="button"
-                accessibilityLabel={t('record.flip')}
-                ph-label="record_flip"
-                onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}>
-                <Text style={styles.flipIcon}>⟲</Text>
-              </Pressable>
-            )}
+          {!isChallenge && hint}
+          <View style={styles.controls}>
+            {/* 녹화 중엔 앨범·전환을 자리를 둔 채 숨긴다 — 셔터가 늘 가운데에 머문다. */}
+            <RecordAlbumButton hidden={recording} onPress={() => void pickFromGallery()} />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={recording ? t('record.stop') : t('record.start')}
               ph-label="record_shutter"
               onPress={() => (recording ? stopRecording() : void startRecording())}
-              style={[styles.shutter, recording && styles.shutterRecording]}>
-              <View style={recording ? styles.shutterInnerStop : styles.shutterInner} />
+              style={styles.shutter}>
+              <View style={recording ? styles.shutterStop : styles.shutterIn} />
             </Pressable>
-            <View style={styles.flipBtn} />
+            <Pressable
+              style={[styles.roundBtn, recording && styles.hiddenKeepSpace]}
+              disabled={recording}
+              accessibilityRole="button"
+              accessibilityLabel={t('record.flip')}
+              accessibilityElementsHidden={recording}
+              importantForAccessibility={recording ? 'no-hide-descendants' : 'auto'}
+              ph-label="record_flip"
+              onPress={flip}>
+              <Feather name="refresh-cw" size={22} color={palette.onAccent} />
+            </Pressable>
           </View>
+          {isChallenge && hint}
+          {/* 녹화 중에도 용도 줄 자리를 비워 두지 않는다 — 치우면 아래 정렬이라 셔터가 그만큼 내려간다(SOMA-737). */}
+          {picker && (
+            <View style={recording ? styles.hiddenKeepSpace : undefined} pointerEvents={recording ? 'none' : 'auto'} collapsable={false}>
+              <RecordModeSlider
+                modes={RECORD_MODES}
+                value={(mode ?? 'ai') as RecordMode}
+                onChange={(next) => void changeMode(next)}
+                disabled={phase === 'loadingToday'}
+              />
+            </View>
           )}
-          {slider}
         </View>
       </View>
       {dialog}
@@ -699,124 +580,103 @@ export default function RecordVideoScreen() {
   );
 }
 
+function CloseButton({ onPress, phLabel }: { onPress: () => void; phLabel: string }) {
+  return (
+    <Pressable
+      style={styles.closeBtn}
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={t('common.close')}
+      ph-label={phLabel}>
+      <Feather name="x" size={30} color={palette.onAccent} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#000' },
-  permDark: { flex: 1, backgroundColor: '#0B0D12' },
-  permSafe: { flex: 1 },
-  permCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  // pen R8.7 「MicNotice」와 같은 노란 띠 — 안쪽 [12,14] · 모서리 12 · 사이 10.
-  permNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginHorizontal: 16,
-    marginBottom: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: palette.amberSoft,
-  },
-  permNoticeBody: { flex: 1, gap: 2 },
-  permNoticeTitle: { fontSize: 13.5, fontWeight: '700', color: palette.text },
-  permNoticeText: { fontSize: 12, lineHeight: 17, color: palette.textSub },
-  permNoticeAction: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
+  root: { flex: 1, backgroundColor: palette.text },
   camera: { ...StyleSheet.absoluteFillObject },
   overlay: { flex: 1, justifyContent: 'space-between' },
-  topRow: { flexDirection: 'row', justifyContent: 'flex-start', padding: 16 },
-  chTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
-  closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+  topGroup: { flexShrink: 1, gap: space[2] },
+  topBar: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: space[3],
+  },
+  closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  roundBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.full,
+    backgroundColor: palette.scrim,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
   timerPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+    gap: space[1.5],
+    height: 32,
+    paddingHorizontal: space[3],
+    borderRadius: radius.full,
+    backgroundColor: palette.scrim,
   },
-  timerPillRec: { backgroundColor: 'rgba(0,0,0,0.7)' },
-  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.danger },
-  recDotIdle: { opacity: 0.7 },
-  timerText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  lineCard: {
-    marginHorizontal: 16,
-    backgroundColor: 'rgba(10,14,24,0.78)',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 6,
+  timerPillRec: { backgroundColor: palette.danger },
+  recDot: { width: 8, height: 8, borderRadius: radius.full, backgroundColor: palette.danger },
+  recDotRec: { backgroundColor: palette.onAccent },
+  timerText: { ...type.body2Bold, color: palette.onAccent, fontVariant: ['tabular-nums'] },
+  card: {
+    marginHorizontal: space[3],
+    padding: space[4],
+    paddingTop: space[3],
+    borderRadius: radius.lg,
+    backgroundColor: palette.toast,
+    gap: space[1.5],
   },
-  lineLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  topGroup: { flexShrink: 1 },
-  topRowSpread: { justifyContent: 'space-between', alignItems: 'center' },
-  scriptToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  scriptToggleText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  scriptCard: {
-    marginHorizontal: 16,
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 6,
-    borderRadius: 16,
-    backgroundColor: 'rgba(10,14,24,0.78)',
-    gap: 8,
-  },
-  // 대본 카드는 화면 4분의 1 안쪽 — 대사가 많으면 안에서 넘긴다. 예전 300 고정은 작은 폰에서 화면 절반을 덮어 얼굴 위치를 못 봤다(10/24 폰).
-  scriptScroll: { maxHeight: 300 },
-  scriptBody: { gap: 6, paddingBottom: 6 },
-  scriptLine: { color: 'rgba(255,255,255,0.72)', fontSize: 15, fontWeight: '500', lineHeight: 22 },
-  scriptLineMine: { color: '#FFFFFF', fontWeight: '700' },
-  scriptSpeaker: { color: 'rgba(255,255,255,0.6)', fontWeight: '700' },
-  scriptSpeakerMine: { color: '#8FA5FF' },
-  scriptDirection: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '500', lineHeight: 19 },
-  lineLabel: { color: '#8FA5FF', fontSize: 12, fontWeight: '800' },
-  lineText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', lineHeight: 25 },
-  bottomGroup: { gap: 12 },
-  bottomRow: {
+  cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  cardLabel: { ...type.micro, color: palette.blueSoft },
+  lineText: { ...type.headline, color: palette.onAccent },
+  scriptBody: { gap: space[1.5] },
+  scriptLine: { ...type.body2, color: palette.onMediaSub },
+  scriptLineMine: { ...type.body2Bold, color: palette.onAccent },
+  scriptSpeaker: { ...type.body2Bold, color: palette.onMediaSub },
+  scriptSpeakerMine: { color: palette.blueSoft },
+  scriptDirection: { ...type.caption, color: palette.onMediaSub },
+  bottomGroup: { gap: space[4], paddingBottom: space[3] },
+  controls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 40,
-    paddingBottom: 8,
+    paddingHorizontal: space[6],
   },
-  chBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 36,
-  },
-  sideBtn: { width: 72, alignItems: 'center', gap: 6 },
-  sideLabel: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', opacity: 0.9 },
-  flipBtn: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
-  flipIcon: { color: '#FFFFFF', fontSize: 26 },
   shutter: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
+    width: 84,
+    height: 84,
+    borderRadius: radius.full,
     borderWidth: 4,
-    borderColor: '#FFFFFF',
+    borderColor: palette.onAccent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shutterRecording: { borderColor: palette.danger },
-  shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFFFFF' },
-  shutterInnerRed: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E5645C' },
-  shutterInnerStop: { width: 30, height: 30, borderRadius: 6, backgroundColor: palette.danger },
+  shutterIn: { width: 68, height: 68, borderRadius: radius.full, backgroundColor: palette.danger },
+  shutterStop: { width: 32, height: 32, borderRadius: radius.sm, backgroundColor: palette.danger },
   hiddenKeepSpace: { opacity: 0 },
-  hint: { color: '#FFFFFF', textAlign: 'center', fontSize: 13, opacity: 0.85, paddingBottom: 8 },
+  hint: { ...type.caption, color: palette.onMediaSub, textAlign: 'center' },
+  permNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    marginHorizontal: space[4],
+    marginBottom: space[6],
+    padding: space[4],
+    borderRadius: radius.lg,
+    backgroundColor: palette.amberSoft,
+  },
+  permNoticeBody: { flex: 1, gap: space[1] },
+  permNoticeTitle: { ...type.body2Bold, color: palette.text },
+  permNoticeText: { ...type.caption, color: palette.textSub },
+  permNoticeAction: { ...type.body2Bold, color: palette.blueDeep },
 });

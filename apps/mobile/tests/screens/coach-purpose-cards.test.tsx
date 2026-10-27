@@ -7,9 +7,9 @@ test('평가 결과의 세 항목과 영상 시간을 보인다', async () => {
   const seek = jest.fn();
   await render(<CoachPurposeCards purpose={base} hasVideo onSeek={seek} />);
   expect(screen.getByText('평가 결과')).toBeOnTheScreen();
-  // pen ⓐ1 정리 카드 — 잘된 곳 · 아쉬운 곳 · 다음 테이크에서, 시간은 「▶ 0:12」 알약.
+  // pen ⓐ1 정리 카드 — 잘된 곳 · 아쉬운 곳 · 다음 테이크에서, 시간은 「▷ 0:12」 알약.
   for (const text of ['잘된 곳', '아쉬운 곳', '다음 테이크에서', '상대를 봐요']) expect(screen.getByText(text)).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('▶ 0:12')); expect(seek).toHaveBeenCalledWith(12);
+  await fireEvent.press(screen.getByText('▷ 0:12')); expect(seek).toHaveBeenCalledWith(12);
 });
 test('영상 없는 막힌 곳 정리는 시간 버튼을 숨긴다', async () => {
   await render(<CoachPurposeCards purpose={{ ...base, purpose: 'stuck', step: 'wrap' }} hasVideo={false} onSeek={jest.fn()} />);
@@ -22,12 +22,13 @@ test('막힌 곳 정리는 막힌 곳 · 해 볼 것 · 이미 잘 되는 곳 �
   expect(labels).toEqual(['막힌 곳', '해 볼 것', '이미 잘 되는 곳']);
   expect(screen.getByText('시선이 흩어져요')).toBeOnTheScreen();
 });
-test('인물 카드의 출처와 아직 비어 있는 칸을 보인다', async () => {
+test('인물 카드는 칸 이름과 값만 보이고 출처(역할 코드)는 보이지 않으며, 빈 칸은 대체 문구다', async () => {
   await render(<CoachPurposeCards purpose={{ ...base, purpose: 'character', character_card: { cells: [
     ...['내 말', '대본', '같이 찾음', '영상'].map((source, i) => ({ key: String(i), label: `칸${i}`, value: `내용${i}`, source })),
     { key: 'empty', label: '빈 칸', value: '', source: '' },
   ] } }} hasVideo={false} onSeek={jest.fn()} />);
-  for (const text of ['인물 카드', '내 말', '대본', '같이 찾음', '영상', '아직 함께 찾는 중이에요']) expect(screen.getByText(text)).toBeOnTheScreen();
+  for (const text of ['인물 카드', '칸0', '내용0', '칸3', '내용3', '아직 함께 찾는 중이에요']) expect(screen.getByText(text)).toBeOnTheScreen();
+  for (const source of ['내 말', '대본', '같이 찾음', '영상']) expect(screen.queryByText(source)).not.toBeOnTheScreen();
 });
 test.each([null, { ...base, purpose: 'stuck' as const, step: 'reason' }, { ...base, card: null }])('아직 결과가 없으면 카드를 만들지 않는다', async (purpose) => {
   await render(<CoachPurposeCards purpose={purpose} hasVideo={false} onSeek={jest.fn()} />);
