@@ -198,6 +198,14 @@ function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(status, friendlyError(status, body), code, detail, body);
 }
 
+/**
+ * 하루·횟수 한도에 걸린 429(daily_entry_limit, free_daily_coaching_limit 같은 `*_limit`)인지. 잠깐 붐빈 429
+ * (rate limit exceeded, script_upload_busy)와 달리 다시 보내도 풀리지 않으니 기다리지 않고 바로 알린다.
+ */
+export function isQuotaLimit(error: unknown): boolean {
+  return errorStatus(error) === 429 && /_limit$/.test(errorCode(error) ?? '');
+}
+
 /** 오류의 사유 코드와 상태. ApiError 가 아니어도 code·status 칸의 모양만 본다. */
 export function errorCode(error: unknown): string | null {
   if (error === null || typeof error !== 'object') return null;
@@ -647,6 +655,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
         } else if (
           error instanceof ApiError &&
           error.status === 429 &&
+          !isQuotaLimit(error) &&
           rateLimitAttempts < 4
         ) {
           reason = 'rate_limited';

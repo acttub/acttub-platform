@@ -197,6 +197,20 @@ test('postIdempotent: 429 대기가 마감을 다 쓰면 마지막 429 를 던�
   assert.equal(calls.length, 1);
 });
 
+test('postIdempotent: 하루 한도 429(*_limit)는 기다리지 않고 바로 던진다', async () => {
+  const clock = fakeClock();
+  const waits = [];
+  const { client, calls } = makeClient({ fetchImpl: () => json({ detail: 'daily_entry_limit' }, 429), clock });
+  const error = await client
+    .postIdempotent('/v2/challenges/c1/entries', { a: 1 }, { onWait: info => waits.push(info) })
+    .catch(e => e);
+  assert.equal(error.status, 429);
+  assert.equal(error.code, 'daily_entry_limit');
+  assert.deepEqual(waits, []);
+  assert.equal(calls.length, 1);
+  assert.equal(clock.pending, 0);
+});
+
 test('postIdempotent: 재시도 대기 중에 취소하면 대기 타이머를 지우고 cancelled', async () => {
   const clock = fakeClock();
   const controller = new AbortController();
