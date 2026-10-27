@@ -2,19 +2,22 @@ import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { ChallengeIntro } from '@/components/challenge-intro';
-import { SkeletonRows } from '@/components/ui/skeleton';
-import { BandGradient } from '@/components/ui/band-gradient';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { defaultAvatarColor } from '@/components/ui/default-avatar';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { palette } from '@/constants/palette';
-import { space } from '@/constants/tokens';
+import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -23,15 +26,15 @@ import {
   browseFailure,
   browseFailureMessage,
   canPerform,
+  canRetryBrowse,
   dDayLabel,
   participantsLabel,
   pinsFeatured,
+  type BrowseFailure,
 } from '@/lib/challenge/browse';
 import {
   hasBrowsedChallenges,
   hasFinishedFirstChallenge,
-  hasSeenChallengeIntro,
-  markChallengeIntroSeen,
   markChallengesBrowsed,
   markFirstChallengeFinished,
 } from '@/lib/challenge/intro-state';
@@ -41,7 +44,6 @@ import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
-import { LoadingText } from '@/components/ui/loading-text';
 
 /**
  * A16 대사 목록(challenge.browse) — 챌린지는 대사 한 줄과 기간이다.
@@ -72,8 +74,7 @@ export default function ChallengesScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   /** 지금 보이는 탭. 이어 받는 중에 탭을 바꾸면 늦게 온 옛 탭의 결과를 버린다. */
   const shownTab = useRef<ChallengeTab>('popular');
-  const [error, setError] = useState<string | null>(null);
-  const [intro, setIntro] = useState(false);
+  const [error, setError] = useState<BrowseFailure | null>(null);
   /** 지난주 결과 띠 — 끝난 지 7일 안의 공식 챌린지. 못 읽으면 띠만 없다. */
   const [lastWeek, setLastWeek] = useState<ChallengeCard | null>(null);
   /** 파란 「누를 것 안내」는 첫 챌린지 참여를 끝낼 때까지만. */
@@ -107,7 +108,7 @@ export default function ChallengesScreen() {
       setChallenges([]);
       setFeatured(null);
       setCursor(null);
-      setError(browseFailureMessage(browseFailure(e)));
+      setError(browseFailure(e));
     }
   }, []);
 
@@ -122,7 +123,9 @@ export default function ChallengesScreen() {
       setChallenges((prev) => [...(prev ?? []), ...result.challenges]);
       setCursor(result.next_cursor);
     } catch (e) {
-      setError(browseFailureMessage(browseFailure(e)));
+      // 순위가 바뀌어 커서가 만료되면 처음부터 다시 읽는다(상세와 같다).
+      if (browseFailure(e).kind === 'cursor_expired') void load(tab);
+      else setError(browseFailure(e));
     } finally {
       setLoadingMore(false);
     }
@@ -131,10 +134,6 @@ export default function ChallengesScreen() {
   useFocusEffect(
     useCallback(() => {
       void load(tab);
-      // 예전 「챌린지 시작 안내」 3장은 새 디자인의 첫 사용자 화면(이번 주 대사 + 고르기, pen ⑰)이 대신한다 — 더 띄우지 않고 본 것으로 적는다.
-      void hasSeenChallengeIntro().then((seen) => {
-        if (!seen) void markChallengeIntroSeen();
-      });
     }, [load, tab]),
   );
 
@@ -323,23 +322,25 @@ export default function ChallengesScreen() {
 
         <View style={styles.tabRow}>
           {TABS.map(({ key, label }) => (
-            <Pressable
+            <Chip
               key={key}
-              style={[styles.tab, tab === key && styles.tabOn]}
+              label={t(label)}
+              role="radio"
+              selected={tab === key}
+              size="sm"
+              phLabel={`challenge_tab_${key}`}
               onPress={() => {
                 setTab(key);
                 setChallenges(null);
                 logEvent('challenge_tab', { tab: key });
               }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: tab === key }}>
-              <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>{t(label)}</Text>
-            </Pressable>
+            />
           ))}
         </View>
 
-        {error && <Text style={styles.error}>{error}</Text>}
-        {challenges === null && !error && <SkeletonRows count={4} avatar={false} style={{ paddingHorizontal: 0 }} />}
+        {error && !canRetryBrowse(error) && <InlineErrorLine message={browseFailureMessage(error)} />}
+        {error && canRetryBrowse(error) && <InlineError message={browseFailureMessage(error)} onRetry={() => void load(tab)} />}
+        {challenges === null && !error && <SkeletonRows count={4} avatar={false} style={styles.flush} />}
 
         {challenges?.map((challenge) => (
           <Card
@@ -352,55 +353,36 @@ export default function ChallengesScreen() {
 
         {cursor && (
           <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
-            {loadingMore ? <LoadingText label={t('loadingText.loading')} color={palette.blue} /> : <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>}
+            {loadingMore ? (
+              <ActivityIndicator color={palette.iconFaint} accessibilityLabel={t('loadingText.loading')} />
+            ) : (
+              <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>
+            )}
           </Pressable>
         )}
 
         {challenges !== null && challenges.length === 0 && !featured && !error && (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>{emptyText}</Text>
-          </View>
+          <InlineEmpty title={emptyText} />
         )}
 
         {tab !== 'mine' && (
           <Pressable style={styles.registerBtn} onPress={() => router.push('/line-new')} accessibilityRole="button">
-            <Feather name="plus" size={15} color={palette.blue} />
+            <Feather name="plus" size={16} color={palette.blueDeep} />
             <Text style={styles.registerText}>{t('challenges.registerCta')}</Text>
           </Pressable>
         )}
       </ScrollView>
       )}
-
-      <ChallengeIntro
-        visible={intro}
-        onDone={(seeWeek) => {
-          setIntro(false);
-          void markChallengeIntroSeen();
-          if (seeWeek && featured) openDetail(featured);
-        }}
-        canSeeWeek={Boolean(featured)}
-      />
     </SafeAreaView>
   );
 }
-
-/** 이번 주 대사 카드 바탕(pen grFk4 Hero) — 위는 밝은 파랑, 아래로 갈수록 짙은 남색. */
-const HERO_STOPS = [
-  [0, '#2366DE'],
-  [0.35, '#1553C4'],
-  [0.7, '#033596'],
-  [1, '#00267A'],
-] as const;
-
-/** pen 기본 아바타 바탕색(P/DefaultAvatar) — 참여자 순서대로 돌려 쓴다. 글자는 이름 첫 글자다. */
-const AVATAR_TINTS = ['#F3C4AE', '#B9CADB', '#C6BCE6'] as const;
 
 function Avatars({ participants, border }: { participants: ChallengeCard['participants']; border: string }) {
   if (participants.length === 0) return null;
   return (
     <View style={styles.avatars}>
       {participants.slice(0, 3).map((p, i) => (
-        <View key={`${p.name}-${i}`} style={[styles.avatar, { backgroundColor: AVATAR_TINTS[i % AVATAR_TINTS.length], borderColor: border }]}>
+        <View key={`${p.name}-${i}`} style={[styles.avatar, { backgroundColor: defaultAvatarColor(p.name), borderColor: border }]}>
           <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
         </View>
       ))}
@@ -427,10 +409,9 @@ function WeekHero({
   const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
   return (
     <View style={styles.weekHero}>
-      <BandGradient stops={HERO_STOPS} />
       <Pressable style={styles.weekHeroTop} onPress={onOpen} accessibilityRole="button">
         <View style={styles.weekChip}>
-          <Feather name="zap" size={15} color={palette.onAccent} />
+          <Feather name="zap" size={12} color={palette.onAccent} />
           <Text style={styles.heroChipText}>
             {`${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
           </Text>
@@ -444,7 +425,7 @@ function WeekHero({
           </Text>
         )}
         <View style={styles.statRow}>
-          <Avatars participants={challenge.participants} border={palette.text} />
+          <Avatars participants={challenge.participants} border={palette.blue} />
           <Text style={styles.heroStat} numberOfLines={1}>
             {t('challenges.entryCount', { count: challenge.entry_count })} · {t('challenges.likeSum', { count: challenge.like_sum })}
           </Text>
@@ -459,7 +440,7 @@ function WeekHero({
           accessibilityLabel={t('challenges.performCta')}>
           <View style={styles.heroPerformSpacer} />
           <View style={styles.heroPerformLabel}>
-            <Feather name="video" size={18} color="#13205A" />
+            <Feather name="video" size={18} color={palette.text} />
             <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
           </View>
           <View style={styles.heroGo}>
@@ -520,7 +501,7 @@ function PickRow({ label, selected, onPress }: { label: string; selected: boolea
       accessibilityLabel={label}
       accessibilityState={{ selected }}>
       <Text style={[styles.pickText, selected && styles.pickTextOn]}>{label}</Text>
-      {selected && <Feather name="check" size={20} color={palette.blue} />}
+      {selected && <Checkbox checked />}
     </Pressable>
   );
 }
@@ -544,19 +525,19 @@ function Card({
             “{challenge.line}”
           </Text>
           <View style={styles.metaRow}>
-            <Feather name={challenge.origin === 'team' ? 'check-circle' : 'square'} size={13} color={palette.blue} />
+            <Feather name={challenge.origin === 'team' ? 'check-circle' : 'user'} size={13} color={palette.iconFaint} />
             <Text style={styles.meta} numberOfLines={1}>
               {host} · {t('challenges.entryCount', { count: challenge.entry_count })} · {dDayLabel(challenge)}
             </Text>
           </View>
           <View style={styles.statRow}>
-            <Feather name="message-circle" size={18} color={palette.blue} />
+            <Feather name="message-circle" size={16} color={palette.iconFaint} />
             <Avatars participants={challenge.participants} border={palette.onAccent} />
             <Text style={styles.names} numberOfLines={1}>
               {participantsLabel(challenge.participants, challenge.more_count)}
             </Text>
             <View style={styles.likes}>
-              <Feather name="heart" size={12} color="#F0506E" />
+              <Feather name="heart" size={12} color={palette.danger} />
               <Text style={styles.names}>{t('challenges.likeSum', { count: challenge.like_sum })}</Text>
             </View>
           </View>
@@ -566,11 +547,11 @@ function Card({
         <Pressable style={styles.performBtn} onPress={onPerform} accessibilityRole="button" accessibilityLabel={t('challenges.performCta')}>
           <View style={styles.heroPerformSpacer} />
           <View style={styles.heroPerformLabel}>
-            <Feather name="video" size={18} color={palette.blue} />
+            <Feather name="video" size={18} color={palette.blueDeep} />
             <Text style={styles.performText}>{t('challenges.performCta')}</Text>
           </View>
           <View style={styles.performGo}>
-            <Feather name="chevron-right" size={18} color={palette.blue} />
+            <Feather name="chevron-right" size={18} color={palette.blueDeep} />
           </View>
         </Pressable>
       )}
@@ -580,21 +561,21 @@ function Card({
 
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
-  pressed: { opacity: 0.85 },
-  moreBtn: { alignItems: 'center', paddingVertical: 14 },
-  moreText: { color: palette.blue, fontSize: 14, fontWeight: '600' },
+  flush: { paddingHorizontal: 0 },
+  pressed: { opacity: 0.7 },
+  moreBtn: { alignItems: 'center', paddingVertical: space[3] },
+  moreText: { ...type.body2Bold, color: palette.blueDeep },
   safe: { flex: 1, backgroundColor: palette.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: 6,
+    height: 72,
+    paddingHorizontal: space.gutter,
   },
-  title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
+  title: { ...type.display, color: palette.text },
   titleGrow: { flex: 1 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   iconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   badgeDot: {
     position: 'absolute',
@@ -602,103 +583,95 @@ const styles = StyleSheet.create({
     right: 1,
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: radius.full,
     backgroundColor: palette.danger,
   },
-  body: { paddingHorizontal: 24, paddingTop: 6, gap: 12 },
+  body: { paddingHorizontal: space.gutter, paddingTop: space[1.5], gap: space[3] },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 14,
-    borderRadius: 16,
+    gap: space[3],
+    padding: space[4],
+    borderRadius: radius.lg,
     backgroundColor: palette.flameSoft,
   },
-  bannerTitle: { fontSize: 15, fontWeight: '800', color: palette.text, lineHeight: 22 },
-  bannerSub: { fontSize: 12, fontWeight: '600', color: palette.textMeta, lineHeight: 18, marginTop: 6 },
-  weekHero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, gap: 10, overflow: 'hidden' },
-  weekHeroTop: { gap: 10 },
+  bannerTitle: { ...type.body2Bold, color: palette.text },
+  bannerSub: { ...type.caption, color: palette.textMeta, marginTop: space[1] },
+  weekHero: { backgroundColor: palette.blue, borderRadius: radius.lg, padding: space[5], gap: space[3] },
+  weekHeroTop: { gap: space[2] },
   weekChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space[1],
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: palette.blueDeep,
+    borderRadius: radius.full,
+    paddingHorizontal: space[2],
+    paddingVertical: space[1],
   },
-  weekLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 27 },
-  names: { fontSize: 11, fontWeight: '500', color: palette.textMeta, lineHeight: 16, flexShrink: 1 },
-  likes: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  hero: { backgroundColor: '#033596', borderRadius: 20, padding: 18, minHeight: 300, gap: 10, justifyContent: 'flex-end', overflow: 'hidden' },
-  heroTop: { flex: 1, gap: 10, justifyContent: 'flex-end' },
-  heroGuide: { fontSize: 14, fontWeight: '700', color: 'rgba(255, 255, 255, 0.65)' },
-  heroMeta: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.67)' },
-  heroStat: { fontSize: 12.5, fontWeight: '700', color: 'rgba(255, 255, 255, 0.67)' },
-  heroPerform: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 6, backgroundColor: palette.onAccent },
-  heroPerformSpacer: { width: 36, height: 36 },
-  heroPerformLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  heroPerformText: { fontSize: 15, fontWeight: '700', color: '#13205A' },
-  heroGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.18)' },
-  sameHead: { gap: 4, marginTop: 6 },
-  sameTitle: { fontSize: 18, fontWeight: '800', color: palette.text, lineHeight: 24 },
-  sameMeta: { fontSize: 13, fontWeight: '500', color: palette.textMeta, lineHeight: 20 },
-  pick: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, borderWidth: 1, borderColor: palette.border, paddingVertical: 17, paddingHorizontal: 18 },
-  pickOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  pickText: { fontSize: 16, fontWeight: '700', color: palette.text },
+  weekLine: { ...type.headline, fontWeight: '700', color: palette.onAccent },
+  names: { ...type.caption, color: palette.textMeta, flexShrink: 1 },
+  likes: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  hero: { backgroundColor: palette.blue, borderRadius: radius.lg, padding: space[5], minHeight: 300, gap: space[3], justifyContent: 'flex-end', overflow: 'hidden' },
+  heroTop: { flex: 1, gap: space[3], justifyContent: 'flex-end' },
+  heroGuide: { ...type.body2Bold, color: palette.onMediaSub },
+  heroMeta: { ...type.caption, color: palette.onMediaSub },
+  heroStat: { ...type.caption, color: palette.onMediaSub },
+  heroPerform: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: radius.full, paddingHorizontal: space[1.5], backgroundColor: palette.onAccent },
+  heroPerformSpacer: { width: 32, height: 32 },
+  heroPerformLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2] },
+  heroPerformText: { ...type.headline, color: palette.text },
+  heroGo: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
+  sameHead: { gap: space[1], marginTop: space[1.5] },
+  sameTitle: { ...type.title2, color: palette.text },
+  sameMeta: { ...type.caption, color: palette.textMeta },
+  pick: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, paddingVertical: space[4], paddingHorizontal: space[4] },
+  pickOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5, paddingVertical: space[4] - 0.5 },
+  pickText: { ...type.body1Bold, color: palette.text },
   pickTextOn: { color: palette.blueDeep },
   heroChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space[1.5],
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: palette.scrim,
+    borderRadius: radius.full,
+    paddingHorizontal: space[3],
+    paddingVertical: space[1.5],
   },
-  heroChipText: { fontSize: 13, fontWeight: '800', color: palette.onAccent, lineHeight: 20 },
-  heroLine: { fontSize: 18, fontWeight: '800', color: palette.onAccent, lineHeight: 26, marginTop: 'auto' },
-  tabRow: { flexDirection: 'row', gap: 4, paddingTop: 4 },
-  tab: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 18 },
-  tabOn: { backgroundColor: palette.blueSoft, paddingHorizontal: 16 },
-  tabText: { fontSize: 15, fontWeight: '600', color: palette.textMeta, lineHeight: 23 },
-  tabTextOn: { fontWeight: '800', color: palette.blue },
-  error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
-  row: { borderRadius: 18, gap: 12, padding: 16, backgroundColor: palette.onAccent, borderWidth: 1, borderColor: '#E8EDF5' },
-  rowMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rowBody: { flex: 1, minWidth: 0, gap: 9 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  line: { fontSize: 17, fontWeight: '800', color: palette.text, lineHeight: 25 },
-  meta: { flex: 1, fontSize: 12, fontWeight: '500', color: palette.textMeta, lineHeight: 18 },
-  statRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroChipText: { ...type.micro, color: palette.onAccent },
+  heroLine: { ...type.headline, fontWeight: '700', color: palette.onAccent, marginTop: 'auto' },
+  tabRow: { flexDirection: 'row', gap: space[1.5], paddingTop: space[1] },
+  row: { borderRadius: radius.lg, gap: space[3], padding: space[4], backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  rowMain: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  rowBody: { flex: 1, minWidth: 0, gap: space[2] },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  line: { ...type.headline, fontWeight: '700', color: palette.text },
+  meta: { ...type.caption, flex: 1, color: palette.textMeta },
+  statRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   avatars: { flexDirection: 'row' },
   avatar: {
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: -6,
+    marginRight: -space[1.5],
     borderWidth: 1,
   },
-  avatarText: { fontSize: 10.5, fontWeight: '900', color: palette.text },
-  performBtn: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 6, backgroundColor: palette.blueSoft },
-  performGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.onAccent, alignItems: 'center', justifyContent: 'center' },
-  performText: { fontSize: 15, fontWeight: '700', color: palette.blue },
-  empty: { paddingVertical: 48, alignItems: 'center' },
-  emptyText: { fontSize: 14.5, color: palette.textSub, textAlign: 'center', lineHeight: 23 },
+  avatarText: { ...type.micro, color: palette.text },
+  performBtn: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: radius.full, paddingHorizontal: space[1.5], backgroundColor: palette.blueSoft },
+  performGo: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.onAccent, alignItems: 'center', justifyContent: 'center' },
+  performText: { ...type.headline, color: palette.blueDeep },
   registerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: space[1.5],
     backgroundColor: palette.blueSoft,
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginTop: 10,
+    borderRadius: radius.md,
+    paddingVertical: space[3],
   },
-  registerText: { fontSize: 14, fontWeight: '800', color: palette.blue },
+  registerText: { ...type.body2Bold, color: palette.blueDeep },
 });

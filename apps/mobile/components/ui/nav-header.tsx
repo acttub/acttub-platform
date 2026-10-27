@@ -66,7 +66,7 @@ export function NavIconButton({
   icon: FeatherName;
   label: string;
   phLabel: string;
-  /** 누른 이벤트를 받으면 ⋯ 메뉴를 누른 자리 아래에 띄울 수 있다(`pt(e)`). */
+  /** ⋯ 메뉴는 누른 자리 아래에 띄우려고 이벤트를 받는다. */
   onPress: (e: GestureResponderEvent) => void;
   color?: string;
   size?: number;

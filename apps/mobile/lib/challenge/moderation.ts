@@ -90,11 +90,15 @@ export function reportFailureMessage(failure: ReportFailure): string {
   }
 }
 
-/** 접수 뒤 안내 — 참여작·댓글은 바로 숨겨지고 챌린지는 운영이 본다. */
+const REPORT_DONE_KEY = {
+  challenge: 'videoReport.doneChallenge',
+  entry: 'videoReport.doneMessage',
+  comment: 'videoReport.doneComment',
+} as const satisfies Record<ReportTarget, string>;
+
+/** 접수 뒤 안내 — 참여작은 피드에서 빠지고 댓글은 검토까지 숨겨지며, 챌린지는 검토한 뒤 처리한다. */
 export function reportDoneMessage(target: ReportTarget): string {
-  return target === 'challenge'
-    ? translate('videoReport.doneChallenge')
-    : translate('videoReport.doneMessage');
+  return translate(REPORT_DONE_KEY[target]);
 }
 
 // ─── 차단 ─────────────────────────────────────────────────────────────────────

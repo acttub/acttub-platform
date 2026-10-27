@@ -22,7 +22,9 @@ import 'react-native-reanimated';
 import '@/lib/global-font';
 import { useStoreRecovery } from '@/hooks/use-store-recovery';
 import { logScreenView } from '@/lib/analytics';
-import { initAdMob } from '@/lib/ads-native';
+import { adRequestConfigFor } from '@/lib/ads';
+import { initAdMob, setAdRequestConfig } from '@/lib/ads-native';
+import { kstDate } from '@/lib/auditions';
 import { initMetaSdk } from '@/lib/meta-events';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
@@ -103,6 +105,11 @@ function RootNavigator() {
     updateRequired,
   } = useAuth();
   const profileStatus = profile.status;
+  // SOMA-876 — 나이에 따라 AdMob 요청 설정을 다시 건다. 로그아웃·프로필 미수신은 청소년 기준이다.
+  const adBirthDate = user ? (profile.me?.profile?.birth_date ?? null) : null;
+  useEffect(() => {
+    void setAdRequestConfig(adRequestConfigFor(adBirthDate, kstDate()));
+  }, [adBirthDate]);
   const signupPending = signup !== null;
   const segments = useSegments();
   const pathname = usePathname();

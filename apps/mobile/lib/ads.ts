@@ -6,6 +6,7 @@
  */
 
 import { isProductionApiUrl } from './api-env.ts';
+import { fullYearsOn } from './profile-form.ts';
 
 export type AdSize = 'LARGE_BANNER' | 'BANNER' | 'MEDIUM_RECTANGLE';
 export type AdKind = 'DIRECT' | 'HOUSE' | 'NETWORK' | 'NONE';
@@ -89,11 +90,45 @@ export const AD_LABEL = {
 /** 연습 중 칸과 아래쪽 버튼 묶음 사이 간격. */
 export const AD_BUTTON_GAP = 24;
 
+/** 만 19세 미만은 청소년이다(청소년 보호법 기준). */
+export const AD_ADULT_AGE = 19;
+/** 만 13세 미만은 아동 대상 처리(tagForChildDirectedTreatment)도 켠다. */
+export const AD_CHILD_AGE = 13;
+
+export type AdRequestConfig = {
+  /** 전역 요청 설정 — mobileAds().setRequestConfiguration 에 그대로 넘긴다. */
+  maxAdContentRating: 'G' | 'T';
+  tagForUnderAgeOfConsent: boolean;
+  tagForChildDirectedTreatment: boolean;
+  /** 배너별 요청 옵션 — BannerAd requestOptions.requestNonPersonalizedAdsOnly. */
+  requestNonPersonalizedAdsOnly: boolean;
+};
+
 /**
- * AdMob 광고 콘텐츠 등급(maxAdContentRating). 사용자 결정 전이라 비워 둔다 — 비어 있으면 AdMob 계정 설정을 따른다.
- * 정해지면 'G' | 'PG' | 'T' | 'MA' 중 하나를 넣는다.
+ * 나이로 AdMob 요청 설정을 고른다(SOMA-876).
+ * - 만 19세 이상: 콘텐츠 등급 T, 그 밖의 설정은 기본(맞춤 광고 허용).
+ * - 만 19세 미만: G + 미성년 표시 + 비맞춤 광고. 만 13세 미만이면 아동 대상 처리도 켠다.
+ * - 생년월일이 없거나(null·형식 오류) 프로필을 아직 못 받았으면 청소년 기준(G·미성년·비맞춤)이다. 아동 표시는 켜지 않는다.
+ * today 와 birthDate 는 'YYYY-MM-DD'.
  */
-export const AD_MAX_CONTENT_RATING: 'G' | 'PG' | 'T' | 'MA' | null = null;
+export function adRequestConfigFor(birthDate: string | null | undefined, today: string): AdRequestConfig {
+  const valid = !!birthDate && /^\d{4}-\d{2}-\d{2}$/.test(birthDate);
+  const age = valid ? fullYearsOn(birthDate, today) : null;
+  if (age !== null && age >= AD_ADULT_AGE) {
+    return {
+      maxAdContentRating: 'T',
+      tagForUnderAgeOfConsent: false,
+      tagForChildDirectedTreatment: false,
+      requestNonPersonalizedAdsOnly: false,
+    };
+  }
+  return {
+    maxAdContentRating: 'G',
+    tagForUnderAgeOfConsent: true,
+    tagForChildDirectedTreatment: age !== null && age < AD_CHILD_AGE,
+    requestNonPersonalizedAdsOnly: true,
+  };
+}
 
 /** Google 공식 테스트 배너 광고 단위. 개발·dev 빌드는 늘 이것만 쓴다. */
 export const TEST_BANNER_UNIT = {

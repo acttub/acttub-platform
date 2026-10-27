@@ -21,6 +21,10 @@ jest.mock('@/lib/ads-native', () => ({
     };
   },
 }));
+let mockBirthDate: string | null = null;
+jest.mock('@/lib/auth', () => ({
+  useAuth: () => ({ profile: { me: mockBirthDate ? { profile: { birth_date: mockBirthDate } } : null } }),
+}));
 jest.mock('@/lib/api', () => ({
   api: { getAdSlot: jest.fn(), recordAdEvent: jest.fn(() => Promise.resolve()) },
 }));
@@ -35,6 +39,7 @@ const creative = (over: Record<string, unknown>) => ({
 beforeEach(() => {
   jest.clearAllMocks();
   setFirstTimeState('practiced');
+  mockBirthDate = null;
 });
 
 test('첫 사용자면 서버에 묻지 않고 아무것도 그리지 않는다', async () => {
@@ -90,4 +95,16 @@ test('서버 오류(게스트 403 등)면 칸을 비운다', async () => {
   getAdSlot.mockRejectedValue(Object.assign(new Error('member_only'), { status: 403 }));
   const view = await render(<AdSlot slot="line_search_top" />);
   await waitFor(() => expect(view.toJSON()).toBeNull());
+});
+
+test('NETWORK 배너는 생년월일이 없으면 비맞춤, 성인이면 맞춤으로 요청한다', async () => {
+  getAdSlot.mockResolvedValue({ kind: 'NETWORK', slot: 'home_top', size: 'BANNER', width: 320, height: 50, ad: null });
+  const first = await render(<AdSlot slot="home_top" />);
+  const none = await screen.findByTestId('admob-banner');
+  expect(none.props.requestOptions).toEqual({ requestNonPersonalizedAdsOnly: true });
+  first.unmount();
+  mockBirthDate = '1990-01-01';
+  await render(<AdSlot slot="home_top" />);
+  const adult = await screen.findByTestId('admob-banner');
+  expect(adult.props.requestOptions).toEqual({ requestNonPersonalizedAdsOnly: false });
 });

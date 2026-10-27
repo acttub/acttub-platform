@@ -145,6 +145,11 @@ export function browseFailure(error: unknown): BrowseFailure {
   return { kind: 'other' };
 }
 
+/** 다시 시도로 풀리는 실패인가 — 없는 챌린지·회원 전용은 다시 불러와도 같아 한 줄로만 알린다. */
+export function canRetryBrowse(failure: BrowseFailure): boolean {
+  return failure.kind !== 'not_found' && failure.kind !== 'member_only';
+}
+
 export function browseFailureMessage(failure: BrowseFailure): string {
   switch (failure.kind) {
     case 'member_only':

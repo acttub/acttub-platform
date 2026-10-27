@@ -124,6 +124,14 @@ describe('목록', () => {
     expect(screen.getByText('댓글 0')).toBeOnTheScreen();
   });
 
+  test('불러오지 못했을 때 다시 시도하면 다시 받아 보여 준다', async () => {
+    listComments.mockRejectedValueOnce(new ApiError(503, 'down'));
+    await open();
+    await fireEvent.press(await screen.findByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('아직 댓글이 없어요')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
+  });
+
   test('다시 열면 새로 불러온다', async () => {
     const { view, ...props } = await open();
     await screen.findByText('아직 댓글이 없어요');
