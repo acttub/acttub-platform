@@ -105,7 +105,7 @@ const page = (challenges: ChallengeCard[], over: { featured?: ChallengeCard | nu
 });
 
 const logged = (name: string) => (logEvent as jest.Mock).mock.calls.filter(([n]) => n === name).map(([, p]) => p);
-const tabButton = (name: string) => screen.getByRole('button', { name });
+const tabButton = (name: string) => screen.getByRole('radio', { name });
 /** 아이콘 글리프가 이름 앞에 붙는 버튼은 보이는 글자로 끝나는지로 찾는다. */
 const endsWith = (label: string) => new RegExp(`${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 
@@ -306,6 +306,20 @@ describe('목록을 못 불러오면', () => {
     expect(screen.queryByText('진행 중인 챌린지가 아직 없어요.')).not.toBeOnTheScreen();
     expect(screen.queryByText('“오늘은 내가 주인공이야”')).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '대사 더 보기' })).not.toBeOnTheScreen();
+  });
+
+  test('회원 전용은 다시 시도로 풀리지 않아 한 줄로만, 연결 끊김은 다시 시도로 다시 읽는다', async () => {
+    listChallenges.mockRejectedValueOnce(new ApiError(403, '회원만', 'member_only', 'member_only'));
+    const first = await render(<ChallengesScreen />);
+    expect(await screen.findByText('챌린지는 회원만 이용할 수 있어요.')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
+    await first.unmount();
+
+    listChallenges.mockRejectedValueOnce(new ApiError(503, '점검', 'unavailable', 'unavailable'));
+    await render(<ChallengesScreen />);
+    expect(await screen.findByText('연결이 끊겼어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('“나는 아직 여기 있어”')).toBeOnTheScreen();
   });
 });
 
