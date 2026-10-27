@@ -7,7 +7,7 @@ import { radius, space, type } from '@/constants/tokens';
 
 /**
  * 챌린지 대사 카드 — 챌린지 상세·지난주 결과가 같이 쓴다. `text` 바탕, r-lg, 안쪽 20.
- * 위 알약(주최·기간) → 대사(title2) → 작품·인물 → 그 아래 줄(caption `on-media-sub`).
+ * 위 알약(주최·기간) → 대사(headline 700) → 작품·인물 → 그 아래 줄(caption `on-media-sub`).
  */
 export function ChallengeLineCard({
   pill,
@@ -51,6 +51,6 @@ const styles = StyleSheet.create({
     paddingVertical: space[1],
   },
   pillText: { ...type.micro, color: palette.onAccent },
-  line: { ...type.title2, color: palette.onAccent },
+  line: { ...type.headline, fontWeight: '700', color: palette.onAccent },
   meta: { ...type.caption, color: palette.onMediaSub },
 });
