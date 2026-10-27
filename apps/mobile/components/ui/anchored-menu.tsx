@@ -74,10 +74,7 @@ export function AnchoredMenu({
   );
 }
 
-/**
- * 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘, `selected`(고른 값)는 blue-deep 글자 + 오른쪽 체크.
- * `badge`는 이름 옆 작은 표시(목소리 메뉴의 「추천」, blue-soft · micro blue-deep).
- */
+/** 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘, `selected`(고른 값)는 blue-deep 글자 + 오른쪽 체크. */
 export function MenuItem({
   label,
   onPress,

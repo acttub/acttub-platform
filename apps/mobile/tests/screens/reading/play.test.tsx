@@ -141,7 +141,6 @@ beforeEach(async () => {
   mockRemoveListeners.length = 0;
   mockFileOps.length = 0;
   await AsyncStorage.clear();
-  // 기본은 자동 넘김 안내를 아직 숨기지 않은 기기 — 준비가 끝나면 시작 팝업이 뜬다.
   await AsyncStorage.setItem('acttub.reading.firstGuideSeen', '1');
   mic = null;
   recognizer = null;
@@ -1125,7 +1124,6 @@ test('완료 화면이 뜬 직후에는 다시 연습·완료를 받지 않고, 
   await speechEnds();
 
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
-  // 그 뒤 리딩 완료에만 리딩 평가를 둔다(DESIGN-SYSTEM 「완료 화면」).
   expect(screen.getByText('이번 리딩 어땠나요?')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '다시 읽기' })).toBeDisabled();
   await fireEvent.press(screen.getByText('다시 읽기'));

@@ -14,8 +14,6 @@ import { translate as t } from '@/lib/i18n';
 /**
  * 완료 화면 틀 — 디자인 시스템 pen 「DoneScreen」. 첫 완료와 그 뒤 완료가 같은 꼴이다.
  * 머리 없음 · 마스코트 120 · 제목 title1 · 대본 이름 body2 `text-sub` · 내용 칸(요약 · 다음 행동, `children`) · 아래 고정 「홈으로 가기」 하나.
- * `mascotTop`은 아래 내용이 많은 그 뒤 리딩 완료(DESIGN-SYSTEM 「의도된 차이」) — 마스코트를 상태 막대 바로 아래(24)에 둔다.
- * `footer`는 아래 고정 바에서 「홈으로 가기」 바로 위에 두는 보조 줄이다. 내용 칸의 입력칸이 키보드에 가리지 않게 키보드만큼 올린다.
  */
 export function DoneScreen({
   mascot = MASCOT.jump,

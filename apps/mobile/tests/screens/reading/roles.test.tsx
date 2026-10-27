@@ -93,13 +93,11 @@ test('목소리 메뉴에서 고르면 그 목소리로 미리 들려주고, 저
   const server = await show();
 
   await fireEvent.press(screen.getByText('밝은 청년'));
-  // 그 성별 목소리 다섯만 메뉴에 나오고, 추천 목소리에 표시가 붙는다.
   expect(screen.getByText('남성 목소리')).toBeOnTheScreen();
   expect(screen.getByText('추천')).toBeOnTheScreen();
   expect(screen.queryByText('따뜻한 노년')).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('묵직한 노년'));
   await waitFor(() => expect(engine.preview).toHaveBeenCalledWith('M5'));
-  // 고르면 닫힌다.
   expect(screen.queryByText('남성 목소리')).not.toBeOnTheScreen();
   expect(screen.getByText('묵직한 노년')).toBeOnTheScreen();
 
@@ -112,7 +110,6 @@ test('남녀를 누르면 그 성별의 추천 목소리로 바뀌어 미리 들
   const server = await show();
 
   await fireEvent.press(screen.getByLabelText('남성 목소리, 눌러서 바꾸기'));
-  // 서연이 F1 을 쓰고 있어 추천 여성 목소리는 F2(밝은 소녀).
   await waitFor(() => expect(engine.preview).toHaveBeenCalledWith('F2'));
   expect(screen.getAllByText('여성')).toHaveLength(2);
   expect(screen.getByText('밝은 소녀')).toBeOnTheScreen();

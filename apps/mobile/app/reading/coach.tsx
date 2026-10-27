@@ -78,7 +78,6 @@ export default function ReadingCoachScreen() {
   const canSend = !!coach && coach.status === 'asked' && !!input.trim() && input.trim().length <= RECORDING_COACH_REPLY_MAX && !busy;
   const answered = coach?.status === 'answered';
   const close = () => router.back();
-  // 대화가 시작되기 전 실패·녹음 부족·리딩 없음은 화면 전체(StatusScreen), 답 보내기 실패는 입력칸 위 InlineError 다.
   const screenFailure = failure && (!coach || failure === 'not_enough_audio' || failure === 'gone') ? failure : null;
   const retryable = failure === 'unavailable' || failure === 'other';
 
@@ -201,7 +200,6 @@ export default function ReadingCoachScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   body: { paddingHorizontal: space.gutter, paddingVertical: space[4], gap: space[3] },
-  // 글자 버튼도 아이콘 칸(NavIconButton)처럼 높이 44 를 둬 화면 끝에서 떨어뜨린다(SOMA-837).
   quitButton: { height: 44, paddingHorizontal: space[2], justifyContent: 'center' },
   quit: { ...type.body2Bold, color: palette.textSub },
   waiting: { alignItems: 'center', gap: space[4], paddingTop: 96 },

@@ -592,10 +592,6 @@ export default function ReadingPlay() {
     setEngine(next);
   }, []);
 
-  /**
-   * 준비가 끝나면 시작한다. 보일 시작 안내(자동 넘김·독백)가 있으면 그 팝업(pen reading-play.start-popup)에서 [시작]을 누를 때까지
-   * 첫 줄을 열지 않는다(SOMA-772). 안내를 숨겼거나 옛 회차(advance=manual)라 안내가 없으면 팝업 없이 바로 시작한다(SOMA-886).
-   */
   const startRunning = useCallback(() => {
     const hold = !tipHiddenRef.current && session?.advance === 'silence' ? 'tip' : null;
     if (!hold) startedRef.current = true;
@@ -1620,7 +1616,6 @@ export default function ReadingPlay() {
     const roles = config.myNames.join(', ');
     // 「홈으로 가기」·「다른 대본으로」 — replace 하면 탭 묶음이 하나 더 쌓여 뒤로가기가 엉뚱한 탭으로 가서, 이미 있는 탭까지 내려간다(SOMA-853).
     const goHome = () => router.dismissTo('/(tabs)');
-    // 다시 읽기는 실행 중 [다음] 자리(아래 오른쪽)를 피해 본문에 둔다 — 연타로 새 연습이 바로 시작되지 않게(SOMA-772).
     const links = (
       <View style={styles.doneLinks}>
         <Pressable
@@ -1657,12 +1652,10 @@ export default function ReadingPlay() {
         <Text style={styles.noteText}>{text}</Text>
       </View>
     );
-    // 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다.
     const rating = coaching && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
     const reportRow = coaching ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
 
     if (!completed) {
-      // pen reading-play.done-not-counted — 설명이 대본 이름보다 위다.
       return (
         <>
           <DoneScreen mascot={MASCOT_IMG[NOT_COUNTED_POSE]} title={t('reading.notCountedTitle')} onHome={goHome} homeDisabled={doneLocked}>
@@ -1681,7 +1674,6 @@ export default function ReadingPlay() {
       );
     }
     if (firstRunRef.current || fromTutorialRef.current) {
-      // pen reading-play.done-first — 같은 DoneScreen 에 축하 제목. 코칭 권유·평가는 그 뒤 완료에만 둔다.
       const total = wrapUpProgress(run.lines, run.endIndex).total;
       return (
         <>
@@ -1697,7 +1689,6 @@ export default function ReadingPlay() {
       );
     }
     if (monologue) {
-      // 독백 결과(pen reading-play.done-monologue-results) — 끝난 뒤 녹음 전체를 문장별로 맞춘 결과. 「원문과 다르게 말한 대사」 칸은 두지 않는다.
       const compared = sttMode?.kind === 'stt' && !!monoResult;
       const total = monoResult?.rows.length ?? 0;
       const statusLabel = { read: t('reading.monologueStatusRead'), missed: t('reading.monologueStatusMissed'), different: t('reading.monologueStatusDifferent') };
@@ -1714,7 +1705,6 @@ export default function ReadingPlay() {
                 <Text style={styles.doneDesc}>{script.title}</Text>
               </View>
               {summary(`${roles} · ${mmss(run.elapsedMs)}`)}
-              {/* 녹음 코치(무료, 위에 크게)·발음 보고서(아래 고정 바 작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
               {coaching && (
                 <>
                   <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />
@@ -1772,7 +1762,6 @@ export default function ReadingPlay() {
           <View style={styles.doneBody}>
             {summary(t('reading.doneLineStats', { roles, count: readCount, time: mmss(run.elapsedMs) }))}
             {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
-            {/* 녹음 코치(무료, 위에 크게)·발음 보고서(아래 고정 바 작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
             {coaching && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
             <VoiceFeedbackSummary items={lineFeedback} />
             {!compared ? (
