@@ -147,7 +147,6 @@ export default function SavedVideosScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  // 화면 안 탭(Segmented) — bg-soft r12 안쪽 4, 칸 36 r8.
   tabs: {
     flexDirection: 'row',
     gap: space[1],

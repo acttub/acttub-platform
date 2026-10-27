@@ -303,7 +303,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space[1.5],
   },
-  // pen home.spotlight-* 안내 카드 — 액티 72×82, 흰 말풍선 r16 · 안쪽 16 · 사이 12, 아래 Button md.
   mascot: { width: 72, height: 82 },
   bubble: { flex: 1, minWidth: 0, backgroundColor: palette.bg, borderRadius: radius.lg, padding: space[4], gap: space[3] },
   // 말꼬리 — 마스코트 쪽으로 돌린 작은 네모.

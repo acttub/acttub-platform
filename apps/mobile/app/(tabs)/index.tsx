@@ -613,7 +613,6 @@ export default function HomeScreen() {
               <Image source={require('@/assets/images/home/hero-acty-book.png')} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
               {bell}
             </View>
-            {/* 이번 주 연습 카드 — 연속 일수와 요일별 점. 한 날은 파란 체크, 오늘은 파란 테두리. */}
             <View style={styles.weekCard} testID="home-week">
               <View style={styles.weekHead}>
                 <Text style={styles.weekTitle}>{t('home.weekTitle')}</Text>
@@ -1002,7 +1001,6 @@ const styles = StyleSheet.create({
   stepNumText: { ...type.micro, color: palette.blueDeep },
   stepText: { flex: 1, ...type.body2, color: palette.text },
 
-  // 히어로 띠(pen 「홈」) — blue-soft, 아래 모서리 24, 안쪽 좌우·아래 20. 인사 글은 왼쪽, 액티는 오른쪽, 알림 버튼은 오른쪽 위.
   heroBand: {
     backgroundColor: palette.blueSoft,
     borderBottomLeftRadius: radius.xl,
@@ -1044,7 +1042,6 @@ const styles = StyleSheet.create({
     borderColor: palette.bg,
   },
 
-  // 이번 주 연습 카드 — 흰 카드 r16 + 1px border, 안쪽 16, 요일 점 36.
   weekCard: {
     backgroundColor: palette.bg,
     borderRadius: radius.lg,
@@ -1063,7 +1060,6 @@ const styles = StyleSheet.create({
   weekLabel: { ...type.micro, color: palette.textMeta },
   weekLabelToday: { color: palette.text },
 
-  // 오늘 할 것 카드 — text 바탕 r16, 안쪽 20, 흰 글자, 흰 버튼(md 40). 올리는 중 카드도 같은 모양이다.
   todayCard: {
     backgroundColor: palette.text,
     borderRadius: radius.lg,
@@ -1087,7 +1083,6 @@ const styles = StyleSheet.create({
   },
   todayCtaText: { ...type.body2Bold, color: palette.blueDeep },
 
-  // 이것도 해 볼까요? · 마감 구역 — ListRow(흰 r16 + 1px border, 안쪽 16, 타일 40 r12).
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text },
   sectionAll: { ...type.captionBold, color: palette.blueDeep },

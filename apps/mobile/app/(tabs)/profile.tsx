@@ -140,7 +140,6 @@ export default function ProfileScreen() {
       />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + space[5] }]}>
 
-        {/* 프로필 카드 — 흰 카드(r16 + 테두리) 안에 사진 · 이름 · 소개 · 칩, 오른쪽에 편집. */}
         <View style={styles.me}>
           <View style={styles.photo}>
             {/* 사진이 없으면 pen 기본 얼굴(P/DefaultAvatar). */}
@@ -415,7 +414,6 @@ const styles = StyleSheet.create({
   monthLabel: { ...type.caption, color: palette.textSub },
   monthCount: { ...type.headline, color: palette.text },
 
-  // 화면 안 탭(Segmented) — bg-soft r12 안쪽 4, 칸 36 r8, 고른 칸 흰 바탕 text, 나머지 text-meta.
   tabs: { flexDirection: 'row', gap: space[1], padding: space[1], borderRadius: radius.md, backgroundColor: palette.bgSoft },
   tab: { flex: 1, height: 36, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   tabOn: { backgroundColor: palette.bg },
