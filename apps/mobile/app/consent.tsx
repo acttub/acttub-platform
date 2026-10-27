@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -8,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { BareBackButton } from '@/components/ui/nav-header';
@@ -227,7 +227,7 @@ export default function ConsentScreen() {
           accessibilityRole="checkbox"
           accessibilityHint={t('consent.allAgreeHint')}
           accessibilityState={{ checked: everythingGranted }}>
-          <Feather name="check-circle" size={24} color={everythingGranted ? palette.blue : palette.textDisabled} />
+          <Checkbox checked={everythingGranted} />
           <Text style={styles.allLabel}>{t('consent.allAgreeStart')}</Text>
         </Pressable>
         <PrimaryButton label={t('consent.ctaStart')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} />

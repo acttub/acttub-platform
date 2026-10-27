@@ -54,7 +54,7 @@ export function ListRow({
         {title}
       </Text>
       {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-      {right ?? (onPress && !danger ? <Feather name="chevron-right" size={18} color={palette.textDisabled} /> : null)}
+      {right ?? (onPress && !danger ? <Feather name="chevron-right" size={20} color={palette.iconFaint} /> : null)}
     </>
   );
   if (!onPress) return <View style={styles.row}>{body}</View>;
@@ -69,7 +69,7 @@ export function ListRow({
   );
 }
 
-/** 앱 공통 스위치 — 켜지면 파랑(pen S2/Switch). */
+/** 앱 공통 스위치 — pen 「Switch/On」·「Switch/Off」: 켜짐 blue, 꺼짐 text-disabled. */
 export function BlueSwitch({
   value,
   onValueChange,
@@ -86,9 +86,9 @@ export function BlueSwitch({
       value={value}
       onValueChange={onValueChange}
       disabled={disabled}
-      trackColor={{ true: palette.blue, false: palette.border }}
+      trackColor={{ true: palette.blue, false: palette.textDisabled }}
       thumbColor={palette.onAccent}
-      ios_backgroundColor={palette.border}
+      ios_backgroundColor={palette.textDisabled}
       accessibilityLabel={accessibilityLabel}
     />
   );
@@ -112,7 +112,7 @@ export function TwoLineRow({
         <Text style={styles.twoLineTitle}>{title}</Text>
         {sub ? <Text style={styles.twoLineSub}>{sub}</Text> : null}
       </View>
-      {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.textDisabled} /> : null)}
+      {right ?? (onPress ? <Feather name="chevron-right" size={20} color={palette.iconFaint} /> : null)}
     </>
   );
   if (!onPress) return <View style={styles.twoLine}>{body}</View>;

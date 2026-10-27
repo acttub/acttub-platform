@@ -243,7 +243,7 @@ function UniversityCard({
             </Text>
           </View>
         )}
-        <Feather name="chevron-right" size={18} color={palette.textDisabled} />
+        <Feather name="chevron-right" size={18} color={palette.iconFaint} />
       </View>
     </Pressable>
   );

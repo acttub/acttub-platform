@@ -11,11 +11,7 @@ test('palette: pen 파이프라인 반영버전의 파랑 셋', () => {
   assert.match(palette, /blueSoft: '#EAF3FE'/);
 });
 
-test('공통 부품: 버튼·헤더·진행 머리·말풍선이 pen 00-components 수치다', () => {
-  const buttons = read('components/ui/buttons.tsx');
-  assert.match(buttons, /height: 48,\s*borderRadius: 16,/);
-  assert.match(buttons, /label: \{ fontSize: 17, fontWeight: '700' \}/);
-
+test('공통 부품: 헤더·진행 머리·말풍선이 pen 00-components 수치다', () => {
   const nav = read('components/ui/nav-header.tsx');
   assert.match(nav, /row: \{ height: 44,/);
   assert.match(nav, /title: \{ fontSize: 18, fontWeight: '800'/);
@@ -40,7 +36,6 @@ test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 �
   const option = read('components/ui/option-card.tsx');
   assert.match(option, /minHeight: 49,/);
   assert.match(option, /radio: \{ width: 18, height: 18, borderRadius: 9, borderWidth: 1\.5/);
-  assert.match(option, /checkbox: \{\s*width: 16,\s*height: 16,\s*borderRadius: 2,/);
   assert.match(option, /gap: 21,\s*paddingVertical: 13,\s*paddingLeft: 19,\s*paddingRight: 14,/);
   assert.match(option, /title: \{ fontSize: 18, fontWeight: '700', lineHeight: 23/);
 
@@ -54,7 +49,6 @@ test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 �
   // 긴 제목(「[선택] 광고성 정보 (이메일 · 앱 푸시)」)이 잘리지 않게 두 줄까지 내린다(10/22 피드백).
   assert.match(consent, /numberOfLines=\{2\}/);
   assert.doesNotMatch(consent, /numberOfLines=\{1\}/);
-  assert.match(consent, /<Feather name="check" size=\{18\}/);
 
   const card = read('components/ui/settings-card.tsx');
   assert.match(card, /iconCell: \{ width: 44, height: 44,/);

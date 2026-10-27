@@ -1643,7 +1643,7 @@ export default function ReadingPlay() {
           <Pressable style={styles.wrapRow} onPress={toCoach} accessibilityRole="button">
             <Feather name="video" size={18} color={palette.textSub} />
             <Text style={styles.wrapRowText}>{t('reading.wrapCoach')}</Text>
-            <Feather name="chevron-right" size={18} color={palette.textDisabled} />
+            <Feather name="chevron-right" size={18} color={palette.iconFaint} />
           </Pressable>
         {ratingCard}
         </ScrollView>

@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Checkbox } from '@/components/ui/checkbox';
 import { palette } from '@/constants/palette';
 
 type Arrow = {
@@ -52,11 +53,7 @@ export function ConsentRow({
         accessibilityRole="checkbox"
         accessibilityLabel={tag ? `${tag.text} ${label}` : undefined}
         accessibilityState={{ checked, disabled: locked }}>
-        {tag ? (
-          <Feather name="check-circle" size={24} color={checked ? palette.blue : palette.textDisabled} />
-        ) : (
-          <Feather name="check" size={18} color={checked ? palette.blue : palette.textDisabled} />
-        )}
+        <Checkbox checked={checked} />
         {tag && (
           <View style={[styles.tag, tag.required ? styles.tagRequired : styles.tagOptional]}>
             <Text style={[styles.tagText, tag.required ? styles.tagTextRequired : styles.tagTextOptional]}>{tag.text}</Text>
@@ -72,7 +69,7 @@ export function ConsentRow({
             accessibilityRole="button"
             accessibilityLabel={arrow.accessibilityLabel}
             ph-label="consent_row_open">
-            <Feather name={arrow.icon} size={18} color={palette.textDisabled} />
+            <Feather name={arrow.icon} size={18} color={palette.iconFaint} />
           </Pressable>
         )}
       </Pressable>

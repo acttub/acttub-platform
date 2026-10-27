@@ -74,7 +74,7 @@ export function ChallengeReportSheet({
             {reason === value ? (
               <Feather name="check" size={16} color={palette.blue} />
             ) : (
-              <Feather name="chevron-right" size={16} color={palette.textDisabled} />
+              <Feather name="chevron-right" size={16} color={palette.iconFaint} />
             )}
           </Pressable>
         ))}

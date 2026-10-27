@@ -110,7 +110,7 @@ export default function LineSearchScreen() {
                 {participantsLabel(challenge.participants, challenge.more_count)}
               </Text>
             </View>
-            <Feather name="chevron-right" size={18} color={palette.textDisabled} />
+            <Feather name="chevron-right" size={18} color={palette.iconFaint} />
           </Pressable>
         ))}
 

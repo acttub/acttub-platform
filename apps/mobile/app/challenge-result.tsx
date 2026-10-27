@@ -104,7 +104,7 @@ export default function ChallengeResultScreen() {
                     {t('challengeResult.pickedSub', { count: entry.final_like_count ?? entry.like_count })}
                   </Text>
                 </View>
-                <Feather name="chevron-right" size={20} color={palette.textDisabled} />
+                <Feather name="chevron-right" size={20} color={palette.iconFaint} />
               </Pressable>
             ))}
 

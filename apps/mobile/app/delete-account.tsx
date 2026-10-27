@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { DangerButton, SecondaryButton } from '@/components/ui/buttons';
+import { Checkbox } from '@/components/ui/checkbox';
 import { openStoreSubscriptions } from '@/hooks/use-store-purchase';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -121,11 +121,7 @@ export default function DeleteAccountScreen() {
           disabled={working}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: acknowledged, disabled: working }}>
-          <Feather
-            name="check-circle"
-            size={20}
-            color={acknowledged ? palette.danger : palette.textDisabled}
-          />
+          <Checkbox checked={acknowledged} danger />
           <Text style={[styles.ackText, acknowledged && styles.ackTextOn]}>
             {t('deleteAccount.acknowledge')}
           </Text>

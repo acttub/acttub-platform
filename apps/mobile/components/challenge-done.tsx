@@ -64,7 +64,7 @@ export function ChallengeDone({
                   <Text style={styles.rowTitle}>{row.title}</Text>
                   <Text style={styles.rowSub}>{row.sub}</Text>
                 </View>
-                <Feather name="chevron-right" size={18} color={palette.textDisabled} />
+                <Feather name="chevron-right" size={18} color={palette.iconFaint} />
               </Pressable>
             ))}
           </View>

@@ -349,7 +349,7 @@ export default function PracticeGroupScreen() {
               {round.note && (
                 <Pressable style={styles.round} onPress={() => openNote(round.id)} accessibilityRole="button">
                   <Text style={styles.openNote}>{t('history.openNote')}</Text>
-                  <Feather name="chevron-right" size={18} color={palette.textDisabled} />
+                  <Feather name="chevron-right" size={18} color={palette.iconFaint} />
                 </Pressable>
               )}
               {round.conversation_id && (
