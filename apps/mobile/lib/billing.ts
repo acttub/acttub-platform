@@ -87,6 +87,7 @@ export function planTitle(me: BillingMe): string {
 /** 설정 「ACTTUB Pro」 줄의 아래 글. */
 export function settingsSub(me: BillingMe): string {
   if (me.status === 'past_due') return t('pro.settingsPastDue');
+  if (me.status === 'canceled' && me.pro) return t('pro.settingsCanceled', { date: monthDay(me.period_end) ?? '' });
   return me.pro ? t('pro.settingsPro') : t('pro.settingsFree');
 }
 
@@ -106,6 +107,36 @@ export function purchaseOpen(me: BillingMe | null): boolean {
 /** 설정 줄을 누르면 갈 곳 — Pro 이거나 구독이 있으면 구독 관리, 없으면 Pro 안내. */
 export function settingsTarget(me: BillingMe): '/pro-manage' | '/pro' {
   return me.pro || (me.status !== 'none' && me.status !== 'expired') ? '/pro-manage' : '/pro';
+}
+
+/**
+ * 스토어(App Store·Play) 구독 줄이 아직 살아 있는가(active·canceled·past_due). 이 줄은 서버가 RevenueCat 을 다시 읽어야 해지·만료가
+ * 반영되므로, 화면에 들어올 때 서버 동기화를 한 번 부탁한다(SOMA-851).
+ */
+export function storeLive(me: BillingMe | null | undefined): boolean {
+  if (!me || (me.provider !== 'apple' && me.provider !== 'google')) return false;
+  return me.status === 'active' || me.status === 'canceled' || me.status === 'past_due';
+}
+
+/** 스토어 동기화를 두 번 연속 보내지 않는 최소 간격. */
+export const BILLING_SYNC_MIN_INTERVAL_MS = 30_000;
+
+/**
+ * 구독 상태를 새로 받는다. 스토어 구독이 살아 있으면 서버에 RevenueCat 을 다시 읽어 달라고 한 결과(해지 예약·만료 반영)를 쓰고,
+ * 동기화가 실패하거나 간격 안이면 방금 받은 /me 를 쓴다. 오래된 값을 돌려주지 않는다.
+ */
+export async function loadBilling(deps: {
+  me: () => Promise<BillingMe>;
+  sync: () => Promise<BillingMe>;
+  syncAllowed: boolean;
+}): Promise<{ me: BillingMe; synced: boolean }> {
+  const me = await deps.me();
+  if (!deps.syncAllowed || !storeLive(me)) return { me, synced: false };
+  try {
+    return { me: await deps.sync(), synced: true };
+  } catch {
+    return { me, synced: false };
+  }
 }
 
 /**

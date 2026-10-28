@@ -893,6 +893,7 @@ const ko = {
     settingsTitle: 'ACTTUB Pro',
     settingsFree: '무료 이용 중 · Pro 알아보기',
     settingsPro: 'Pro 이용 중',
+    settingsCanceled: '{{date}}까지 이용 · 해지 예정',
     settingsPastDue: '결제하지 못했어요 · 확인이 필요해요',
     badge: 'PRO',
     title: 'ACTTUB Pro',

@@ -1,5 +1,5 @@
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,8 +7,8 @@ import { NavBackButton, NavHeader } from '@/components/app-header';
 import { ProBadge, ProBenefitRow } from '@/components/pro-ui';
 import { palette } from '@/constants/palette';
 import { openStoreSubscriptions } from '@/hooks/use-store-purchase';
-import { api } from '@/lib/api';
-import { billingClosed, managedNote, planLine, planTitle, type BillingMe } from '@/lib/billing';
+import { useBillingMe } from '@/hooks/use-billing-me';
+import { billingClosed, managedNote, planLine, planTitle } from '@/lib/billing';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -18,23 +18,16 @@ import { translate as t } from '@/lib/i18n';
  */
 export default function ProManageScreen() {
   const router = useRouter();
-  const [me, setMe] = useState<BillingMe | null>(null);
-
-  const load = useCallback(() => {
-    void api
-      .billingMe()
-      .then(setMe)
-      .catch((e) => {
-        if (billingClosed(e)) router.back();
-      });
-  }, [router]);
-  useFocusEffect(load);
+  const { me, loading, error } = useBillingMe();
+  useEffect(() => {
+    if (error && billingClosed(error)) router.back();
+  }, [error, router]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('pro.manageTitle')} left={<NavBackButton onPress={() => router.back()} />} />
-      {!me ? (
+      {!me || loading ? (
         <Text style={styles.loading}>{t('pro.loadingPlan')}</Text>
       ) : (
         <>

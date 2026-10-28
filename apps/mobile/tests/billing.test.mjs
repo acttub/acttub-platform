@@ -121,3 +121,32 @@ test('창립 멤버(SOMA-861) — 남은 자리가 1 이상일 때만 줄 숫자
   assert.equal(isFoundingNumber(null), false);
   assert.equal(isFoundingNumber(3.5), false);
 });
+
+test('해지 예약한 스토어 구독은 설정에 「해지 예정」으로 보인다(SOMA-851)', async () => {
+  const { settingsSub, planLine, storeLive, loadBilling } = await import('../lib/billing.ts');
+  const canceled = me({ status: 'canceled', pro: true, provider: 'google', period_end: '2026-11-23T03:00:00Z' });
+  assert.equal(settingsSub(canceled), '11월 23일까지 이용 · 해지 예정');
+  assert.match(planLine(canceled), /자동결제 해지됨/);
+  assert.equal(storeLive(canceled), true);
+  assert.equal(storeLive(me({ provider: 'toss' })), false);
+  assert.equal(storeLive(me({ provider: 'google', status: 'expired', pro: false })), false);
+  assert.equal(storeLive(null), false);
+  void loadBilling;
+});
+
+test('loadBilling: 스토어 구독이면 동기화 결과를 쓰고, 실패하거나 간격 안이면 방금 받은 값을 쓴다', async () => {
+  const { loadBilling } = await import('../lib/billing.ts');
+  const stale = me({ status: 'active', pro: true, provider: 'google' });
+  const fresh = me({ status: 'expired', pro: false, provider: 'google' });
+  const ok = await loadBilling({ me: async () => stale, sync: async () => fresh, syncAllowed: true });
+  assert.deepEqual([ok.me.status, ok.synced], ['expired', true]);
+  const failed = await loadBilling({ me: async () => stale, sync: async () => { throw new Error('x'); }, syncAllowed: true });
+  assert.deepEqual([failed.me.status, failed.synced], ['active', false]);
+  let called = false;
+  const throttled = await loadBilling({ me: async () => stale, sync: async () => { called = true; return fresh; }, syncAllowed: false });
+  assert.equal(called, false);
+  assert.equal(throttled.me.status, 'active');
+  const toss = await loadBilling({ me: async () => me({ provider: 'toss' }), sync: async () => { called = true; return fresh; }, syncAllowed: true });
+  assert.equal(called, false);
+  assert.equal(toss.synced, false);
+});

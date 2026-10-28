@@ -132,6 +132,11 @@ entitlement 를 읽어 사람당 한 줄을 덮어쓴다 — 여러 번 불러�
   `canceled` 는 기간 끝까지만. 토스 구독의 판정은 그대로다.
 - 스토어 구독은 서버에서 해지·재시도하지 않는다(409 `managed_by_store`). 스케줄러는 `toss` 줄만 집는다. 탈퇴한(활성 아닌) 사람의 줄은 쓰지 않는다.
 - `store_transaction_id` 는 마지막으로 본 스토어 거래 ID 기록일 뿐 유일하지 않다.
+- 해지 예약(자동 갱신 끔)은 서버가 RevenueCat 을 다시 읽을 때만 `canceled`·`canceled_at`(= `unsubscribe_detected_at`)으로 기록되고, 다시 구독하면
+  `active`·`canceled_at` 비움으로 돌아온다. 서버는 알림을 기다리기만 하지 않는다 — 앱이 시작할 때·앞으로 돌아올 때·설정/구독 관리 화면에 들어올 때
+  스토어 구독(apple·google)이 `active`·`canceled`·`past_due` 이면 `POST /v2/billing/store/sync` 를 한 번 부탁한다(화면 쪽은 30초 안에 한 번). (SOMA-851)
+- 앱 화면: 설정 「ACTTUB Pro」 줄과 구독 관리 상자는 상태를 받는 동안 이전 값을 확정처럼 보이지 않고 「구독 정보를 불러오는 중이에요」를 보인다.
+  `canceled` 이면 설정은 「{날짜}까지 이용 · 해지 예정」, 구독 관리는 「{날짜}까지 Pro · 자동결제 해지됨」. 토스 줄은 동기화하지 않는다.
 
 ### 웹훅 (RevenueCat 서버 호출 — 앱 헤더·토큰·동의 게이트 밖)
 - `POST /v2/billing/store-notify/revenuecat` — RevenueCat 대시보드 웹훅. `Authorization` 헤더 전체가 `REVENUECAT_WEBHOOK_AUTH` 와 같아야 한다(SHA-256 뒤 상수
