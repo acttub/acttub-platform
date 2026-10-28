@@ -10,7 +10,8 @@ import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { useScrollSettle } from "@/features/site/scroll-settle";
-import { ActyCoachDemo } from "@/features/site/acty-coach-demo";
+import { LandingHeroB } from "@/features/site/landing-hero-b";
+import { DEFAULT_HERO_MEDIA, type HeroMedia } from "@/features/site/landing-hero-media";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import {
@@ -63,8 +64,6 @@ type Feature = {
   kicker: string;
   title: [string, string];
   body: string;
-  /** B 안에서만 쓰는 배우 말투 설명. */
-  bodyB: string;
   bullets: string[];
   appLabel: string;
   web?: { href: string; label: string };
@@ -72,7 +71,14 @@ type Feature = {
   shotAlt: string;
 };
 
-export default function LandingClient({ variant = "a" }: { variant?: LandingVariant }) {
+export default function LandingClient({
+  variant = "a",
+  heroMedia = DEFAULT_HERO_MEDIA,
+}: {
+  variant?: LandingVariant;
+  /** B 첫 화면 휴대폰 안 영상. 서버(landing-page-view)가 public 에 있는 파일만 골라 넘긴다. */
+  heroMedia?: HeroMedia;
+}) {
   const isB = variant === "b";
   const campaignSearch = useCampaignSearch();
   const practiceHref = preserveWebAttributionFromSearch("/practice/new", campaignSearch);
@@ -140,7 +146,6 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
       kicker: "연기 코칭",
       title: ["단정하지 않고,", "장면을 같이 봐요"],
       body: "찍어 둔 연기 영상을 올리면 코치가 장면을 보고 질문해요. 답하다 보면 막힌 곳이 보이고, 대화가 끝나면 연습 노트가 남아요.",
-      bodyB: "대본 외우고, 찍고, 코멘트 받고, 다시. 영상을 올리면 코치가 장면을 보고 질문해요. 답하다 보면 막힌 곳이 보이고, 연습 노트가 남아요.",
       bullets: ["영상 없이 말로 고민을 털어놔도 돼요", "다음 테이크에서 해 볼 것 하나를 정해 줘요"],
       appLabel: "앱에서 코칭 받기",
       web: { href: practiceHref, label: "웹에서 해 보기" },
@@ -152,7 +157,6 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
       kicker: "대본 리딩",
       title: ["혼자여도,", "대사는 오가요"],
       body: "대본을 넣고 내 배역을 고르면 상대역 대사를 AI가 소리 내 읽어 줘요. 내 대사는 가리고 호흡을 맞춰 봐요.",
-      bodyB: "상대역이 없을 때도 대본을 맞춰 볼 수 있어요. 대본을 넣고 내 배역을 고르면 상대역 대사를 AI가 소리 내 읽어 줘요. 내 대사는 가리고 호흡을 맞춰 봐요.",
       bullets: ["TXT·DOCX·PDF·HWP 파일이나 붙여넣기로 넣어요", "예시 대본으로 바로 시작할 수도 있어요"],
       appLabel: "앱에서 리딩하기",
       web: { href: readingHref, label: "웹에서 해 보기" },
@@ -164,7 +168,6 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
       kicker: "챌린지",
       title: ["이번 주 대사,", "다른 배우는 어떻게 했을까"],
       body: "매주 공식 대사가 열려요. 같은 대사를 다른 배우들이 어떻게 연기했는지 보고, 나도 찍어서 올려요.",
-      bodyB: "매주 공식 대사가 열려요. 같은 대사를 다른 배우는 어떻게 했는지 구경하고, 나도 찍어서 올려요.",
       bullets: ["참여·좋아요·댓글은 앱에서 해요"],
       appLabel: "앱에서 참여하기",
       shot: "/site/shot-challenge.jpg",
@@ -180,6 +183,15 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
       <main>
         {/* 첫 화면과 아래 요약 줄을 한 구간으로 묶어 데스크톱에서 한 화면을 채운다. */}
         <div data-snap className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
+          {isB ? (
+            <LandingHeroB
+              appHref={appHref}
+              webHref={returningGuest ? homeHref : practiceHref}
+              returningGuest={returningGuest}
+              campaignSearch={campaignSearch}
+              media={heroMedia}
+            />
+          ) : (
           <section id="hero" className="bg-gradient-to-b from-white to-[#f5f9ff] lg:flex lg:flex-1 lg:items-center">
             <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-5 pb-0 pt-10 sm:px-8 lg:flex-row lg:gap-16 lg:pb-16 lg:pt-[72px]">
               <div className="w-full flex-1">
@@ -223,24 +235,18 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
                   </Link>
                 </p>
               </div>
-              {isB ? (
-                <div className="relative h-[330px] w-[350px] shrink-0 overflow-hidden sm:h-[420px] sm:w-[380px] lg:h-[560px] lg:w-[480px] lg:overflow-visible">
-                  <ActyCoachDemo />
-                </div>
-              ) : (
-                <div className="relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible">
-                  <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" className="absolute left-0 top-0 z-10 w-[260px] lg:w-[300px]" />
-                  <Phone
-                    src="/site/shot-reading.jpg"
-                    alt="앱의 대본 리딩 화면"
-                    className="absolute left-[200px] top-[70px] hidden w-[240px] rotate-[4deg] lg:block"
-                  />
-                </div>
-              )}
+              <div className="relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible">
+                <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" className="absolute left-0 top-0 z-10 w-[260px] lg:w-[300px]" />
+                <Phone
+                  src="/site/shot-reading.jpg"
+                  alt="앱의 대본 리딩 화면"
+                  className="absolute left-[200px] top-[70px] hidden w-[240px] rotate-[4deg] lg:block"
+                />
+              </div>
             </div>
           </section>
+          )}
 
-          {isB ? null : (
           <div className="border-b border-[#edf0f3]">
             <ul className="mx-auto flex max-w-[1200px] flex-col items-center gap-2 px-5 py-6 text-[15px] font-semibold text-[#4e5968] sm:flex-row sm:justify-center sm:gap-14">
               <li>코치가 <b className="text-[#191f28]">질문하며</b> 장면을 같이 봐요</li>
@@ -248,7 +254,6 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
               <li>매주 <b className="text-[#191f28]">공식 대사 챌린지</b></li>
             </ul>
           </div>
-          )}
         </div>
 
         {/* 기능 셋. 모든 구간이 같은 방식으로 내려가도록 고정·스크롤 연동 없이 글과 휴대폰을 나란히 둔다.
@@ -272,7 +277,7 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
                   <br />
                   {f.title[1]}
                 </h2>
-                <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{isB ? f.bodyB : f.body}</p>
+                <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{f.body}</p>
                 <ul className="mt-5 space-y-2">
                   {f.bullets.map((b) => (
                     <li key={b} className="flex gap-2.5 text-[15px] text-[#333d4b] sm:text-base">

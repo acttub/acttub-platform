@@ -15,9 +15,6 @@ const {
   LANDING_VARIANT_REWRITE_HEADER,
   landingVariantPath,
 } = await import("../src/lib/landing-variant.ts");
-const { DEMO_ANSWER, DEMO_NEXT_TAKE, DEMO_QUESTION, DEMO_TIMELINE, demoFrameAt } = await import(
-  "../src/features/site/acty-coach-demo.tsx"
-);
 const { proxy } = await import("../src/proxy.ts");
 const { NextRequest } = await import("next/server");
 
@@ -127,17 +124,43 @@ test("프록시: rewrite 는 표시를 실어 보내고, next dev 가 그 주소
 // ── 화면 ────────────────────────────────────────────────────────────────────
 
 class FakeIntersectionObserver {
-  observe() {}
+  static all = [];
+  constructor(callback) {
+    this.callback = callback;
+    this.targets = [];
+    FakeIntersectionObserver.all.push(this);
+  }
+  observe(target) {
+    this.targets.push(target);
+  }
   unobserve() {}
   disconnect() {}
+  static fire(isIntersecting) {
+    for (const observer of FakeIntersectionObserver.all) {
+      observer.callback(observer.targets.map((target) => ({ target, isIntersecting })));
+    }
+  }
 }
 
 const events = [];
+const mediaCalls = [];
+const { HTMLMediaElement } = window;
+const originalPlay = HTMLMediaElement.prototype.play;
+const originalPause = HTMLMediaElement.prototype.pause;
 
 beforeEach(() => {
+  FakeIntersectionObserver.all = [];
   globalThis.IntersectionObserver = FakeIntersectionObserver;
   resetNavigation("/");
   events.length = 0;
+  mediaCalls.length = 0;
+  HTMLMediaElement.prototype.play = function play() {
+    mediaCalls.push("play");
+    return Promise.resolve();
+  };
+  HTMLMediaElement.prototype.pause = function pause() {
+    mediaCalls.push("pause");
+  };
   window.gtag = (...args) => events.push(args);
   window.history.replaceState(null, "", "/");
 });
@@ -146,78 +169,101 @@ afterEach(() => {
   cleanup();
   delete window.gtag;
   delete globalThis.IntersectionObserver;
+  HTMLMediaElement.prototype.play = originalPlay;
+  HTMLMediaElement.prototype.pause = originalPause;
 });
 
-const SUMMARY = ["코치가 질문하며 장면을 같이 봐요", "상대역이 없어도 대사가 오가요", "매주 공식 대사 챌린지"];
+const SUMMARY_LAST = "매주 공식 대사 챌린지";
+const FEATURE_BODY = "찍어 둔 연기 영상을 올리면 코치가 장면을 보고 질문해요.";
+const VIDEO_MEDIA = {
+  poster: "/site/landing/coach-demo-poster.jpg",
+  sources: [
+    { src: "/site/landing/coach-demo.webm", type: "video/webm" },
+    { src: "/site/landing/coach-demo.mp4", type: "video/mp4" },
+  ],
+};
 
-test("A 는 기존 화면 그대로다: 요약 카드 셋이 있고 액티는 없고 기존 설명이다", () => {
+function renderB(props = {}) {
+  return render(react.createElement(LandingClient, { variant: "b", ...props }));
+}
+
+test("A 는 기존 첫 화면 그대로다: 휴대폰 두 대와 큰 QR 카드·스토어 배지", () => {
   const { container } = render(react.createElement(LandingClient, { variant: "a" }));
-  assert.ok(screen.getByText(/매주/, { selector: "li" }));
-  assert.equal(SUMMARY.length, 3);
-  assert.equal(container.querySelectorAll('img[src*="acty"]').length, 0);
-  assert.ok(container.textContent.includes("찍어 둔 연기 영상을 올리면 코치가 장면을 보고 질문해요."));
-  assert.ok(!container.textContent.includes("대본 외우고, 찍고, 코멘트 받고, 다시."));
+  const hero = container.querySelector("#hero");
+  assert.equal(hero.querySelectorAll('img[src*="shot-"]').length, 2);
+  assert.equal(hero.querySelectorAll('img[alt$="에서 다운로드"]').length, 2);
+  assert.ok(hero.textContent.includes("혼자 연습하는 배우를 위한 AI 코치"));
+  assert.equal(hero.querySelector("video"), null);
 });
 
-test("B 는 요약 카드를 빼고, 액티는 첫 화면 코칭 시연 하나만 두고, 설명만 배우 말투로 바꾼다", () => {
-  const { container } = render(react.createElement(LandingClient, { variant: "b" }));
-  assert.equal(container.querySelector("ul.sm\\:justify-center"), null);
-  assert.equal(screen.queryByText("매주", { selector: "li b" }), null);
+test("B 는 첫 화면만 다르고 아래 본문(요약 줄·기능 설명·요금)은 A 와 같다", () => {
+  const a = render(react.createElement(LandingClient, { variant: "a" })).container;
+  const below = (root) => [...root.querySelectorAll("main > *")].slice(0).map((node) => node.cloneNode(true));
+  const aBelow = below(a).map((node) => {
+    node.querySelector("#hero")?.remove();
+    return node.outerHTML;
+  });
+  cleanup();
+  const b = renderB().container;
+  const bBelow = below(b).map((node) => {
+    node.querySelector("#hero")?.remove();
+    return node.outerHTML;
+  });
+  assert.deepEqual(bBelow, aBelow);
+  assert.ok(screen.getByText(/매주/, { selector: "li" }).textContent.includes(SUMMARY_LAST));
+  assert.ok(b.textContent.includes(FEATURE_BODY));
+  assert.equal(b.querySelectorAll('img[src*="acty"]').length, 0);
+});
 
-  // 액티는 첫 화면 시연 안에만 있다. 테스트 환경은 next/image 가 /_next/image?url=... 로 감싼다.
-  const acty = [...container.querySelectorAll('img[src*="acty"]')];
-  assert.deepEqual(
-    acty.map((img) => decodeURIComponent(img.getAttribute("src")).match(/acty\/([\w-]+\.png)/)[1]),
-    ["hero-watch.png", "hero-cheer.png"],
+test("B 첫 화면: 같은 제목, 짧은 설명, 주 버튼 하나, 작은 웹 체험 링크, 휴대폰 한 대", () => {
+  const { container } = renderB();
+  const hero = container.querySelector("#hero");
+  assert.equal(
+    screen.getByRole("heading", { level: 1 }).textContent,
+    "내 연기를 같이 봐 줄사람이 없을 때, 액터브",
   );
-  const demo = container.querySelector(".acty-demo");
-  assert.ok(acty.every((img) => demo.contains(img) && img.getAttribute("alt") === ""));
-  assert.equal(container.querySelectorAll("#coaching img[src*='acty'], #reading img[src*='acty'], #challenge img[src*='acty']").length, 0);
-  // 정적 스크린샷 대신 HTML 로 그린 휴대폰이다.
-  assert.equal(container.querySelectorAll('#hero img[src*="shot-"]').length, 0);
-
-  assert.ok(container.textContent.includes("대본 외우고, 찍고, 코멘트 받고, 다시."));
-  assert.ok(container.textContent.includes("상대역이 없을 때도 대본을 맞춰 볼 수 있어요."));
-  assert.ok(container.textContent.includes("다른 배우는 어떻게 했는지 구경하고"));
-  // 제목·요금은 그대로.
-  assert.ok(screen.getByRole("heading", { name: /단정하지 않고,\s*장면을 같이 봐요/ }));
-  assert.ok(container.textContent.includes("월 3,900원"));
+  assert.ok(hero.textContent.includes("연기 영상을 올리면 코치가 장면을 보고 질문해요."));
+  // 주 버튼은 하나, 큰 QR 카드·스토어 배지 이미지는 없다(작은 글자 링크만).
+  assert.equal(hero.querySelectorAll('a[data-app-download]:not([data-app-download-store])').length, 1);
+  assert.equal(hero.querySelectorAll('img[alt$="에서 다운로드"]').length, 0);
+  assert.deepEqual(
+    [...hero.querySelectorAll("a[data-app-download-store]")].map((a) => a.textContent),
+    ["App Store", "Google Play"],
+  );
+  assert.ok(within(hero).getByRole("link", { name: "웹에서 먼저 해 보기 →" }));
+  assert.ok(!hero.textContent.includes("혼자 연습하는 배우를 위한 AI 코치"));
+  // 영상이 아직 없으면 기존 코칭 화면 한 장만 보이고 video 는 만들지 않는다.
+  const shots = [...hero.querySelectorAll('img[src*="shot-"]')];
+  assert.equal(shots.length, 1);
+  assert.match(decodeURIComponent(shots[0].getAttribute("src")), /shot-coach\.jpg/);
+  assert.equal(hero.querySelector("video"), null);
 });
 
-test("B 첫 화면 시연: 움직이는 영역은 읽지 않고, 같은 대화를 스크린리더용 문장으로 한 번 읽어 준다", () => {
-  const { container } = render(react.createElement(LandingClient, { variant: "b" }));
-  const demo = container.querySelector(".acty-demo");
-  assert.equal(demo.getAttribute("aria-hidden"), "true");
-  const srOnly = [...container.querySelectorAll("#hero .sr-only")].map((node) => node.textContent);
-  assert.equal(srOnly.length, 1);
-  for (const text of [DEMO_QUESTION, DEMO_ANSWER, DEMO_NEXT_TAKE]) {
-    assert.ok(srOnly[0].includes(text), text);
-    // 휴대폰 안에도 실제 글자로 있다(질문은 글자마다 나뉘어 있다).
-    assert.ok(demo.textContent.includes(text), text);
-  }
-  // 화면에 들어오기 전(IntersectionObserver 미발화)에는 멈춰 있고 첫 장면이다.
-  assert.equal(demo.getAttribute("data-paused"), "");
-  assert.equal(demo.getAttribute("data-step"), "0");
+test("B 첫 화면 영상: 소리 없이 반복, 인라인, 메타데이터만 미리, poster 와 파일 순서대로", () => {
+  const { container } = renderB({ heroMedia: VIDEO_MEDIA });
+  const video = container.querySelector("#hero video");
+  assert.ok(video.muted);
+  assert.ok(video.hasAttribute("loop"));
+  assert.ok(video.hasAttribute("playsinline"));
+  assert.equal(video.getAttribute("preload"), "metadata");
+  assert.equal(video.getAttribute("poster"), VIDEO_MEDIA.poster);
+  assert.deepEqual(
+    [...video.querySelectorAll("source")].map((source) => [source.getAttribute("src"), source.getAttribute("type")]),
+    VIDEO_MEDIA.sources.map((source) => [source.src, source.type]),
+  );
+  // 정지 화면이 영상 밑에 깔려 있다.
+  assert.ok(decodeURIComponent(container.querySelector("#hero img[alt*='코치']").getAttribute("src")).includes("coach-demo-poster.jpg"));
 });
 
-test("B 첫 화면 시연 시간표: 영상 → 질문 타이핑 → 답 → 다음 테이크 → 처음부터, 한 바퀴 5~7초", () => {
-  const T = DEMO_TIMELINE;
-  const chars = Array.from(DEMO_QUESTION).length;
-  assert.ok(T.LOOP >= 5000 && T.LOOP <= 7000, String(T.LOOP));
-  assert.ok(T.PLAY_MS < T.ASK && T.ASK < T.TYPE_START && T.TYPE_END < T.ANSWER && T.ANSWER < T.NEXT && T.NEXT < T.LOOP);
-  assert.deepEqual(demoFrameAt(0), { loop: 0, step: 0, typed: 0 });
-  assert.equal(demoFrameAt(T.ASK).step, 1);
-  const mid = demoFrameAt((T.TYPE_START + T.TYPE_END) / 2);
-  assert.ok(mid.typed > 0 && mid.typed < chars);
-  assert.equal(demoFrameAt(T.TYPE_END).typed, chars);
-  assert.equal(demoFrameAt(T.ANSWER).step, 2);
-  assert.equal(demoFrameAt(T.NEXT).step, 3);
-  // 다음 바퀴: 처음 잠깐은 앞 질문이 사라지는 동안 글자를 그대로 두고, 그 뒤 비운다.
-  assert.deepEqual(demoFrameAt(T.LOOP + 10), { loop: 1, step: 0, typed: chars });
-  assert.deepEqual(demoFrameAt(T.LOOP + 400), { loop: 1, step: 0, typed: 0 });
+test("B 첫 화면 영상: 화면에 들어오면 재생하고 나가면 멈춘다", () => {
+  renderB({ heroMedia: VIDEO_MEDIA });
+  assert.deepEqual(mediaCalls, []);
+  FakeIntersectionObserver.fire(true);
+  FakeIntersectionObserver.fire(false);
+  assert.deepEqual(mediaCalls, ["play", "pause"]);
 });
 
-test("B 첫 화면 시연: 움직임 줄이기면 마지막 장면(질문·답·다음 테이크)을 멈춘 채 보인다", () => {
+test("B 첫 화면 영상: 움직임 줄이기면 화면에 들어와도 재생하지 않는다", () => {
   const original = window.matchMedia;
   window.matchMedia = (query) => ({
     matches: query.includes("prefers-reduced-motion"),
@@ -226,12 +272,9 @@ test("B 첫 화면 시연: 움직임 줄이기면 마지막 장면(질문·답·
     removeEventListener() {},
   });
   try {
-    const { container } = render(react.createElement(LandingClient, { variant: "b" }));
-    const demo = container.querySelector(".acty-demo");
-    assert.equal(demo.getAttribute("data-step"), "3");
-    assert.equal(demo.getAttribute("data-paused"), "");
-    assert.equal(demo.querySelectorAll(".acty-demo-rest").length, 0);
-    assert.equal(demo.querySelectorAll(".acty-demo-caret").length, 0);
+    renderB({ heroMedia: VIDEO_MEDIA });
+    FakeIntersectionObserver.fire(true);
+    assert.ok(!mediaCalls.includes("play"));
   } finally {
     window.matchMedia = original;
   }
