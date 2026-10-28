@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.challenge.app.EntryRepository.MyEntries;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository.MyEntry;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository.NewEntry;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
@@ -35,6 +36,7 @@ public class EntryService {
 
     public EntryRepository.Creation create(UUID owner, UUID challengeId, UUID requestId, UUID videoId,
                                            String rawCaption, String visibility, boolean faceMosaic) {
+        InputCharset.require(rawCaption);
         String caption = caption(rawCaption);
         visibility(visibility, true);
         // 얼굴 모자이크를 켠 요청만 지문에 더한다 — 이 필드 전에 보낸 요청의 재전송이 같은 지문으로 맞는다.
@@ -61,6 +63,7 @@ public class EntryService {
     }
 
     public MyEntry update(UUID owner, UUID entryId, String rawCaption, String visibility, Boolean faceMosaic) {
+        InputCharset.require(rawCaption);
         String caption = rawCaption == null ? null : caption(rawCaption);
         if (visibility != null) visibility(visibility, false);
         return entries.update(owner, entryId, rawCaption == null ? null : caption == null ? "" : caption, visibility,

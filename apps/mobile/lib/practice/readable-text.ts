@@ -1,5 +1,5 @@
 /**
- * 코칭 답의 허용 글자 범위. 서버 ActorTextCharset 과 같은 범위다 — 범위 밖 글자가 하나라도 있으면 보내지 않는다.
+ * 자유 입력칸 공용 허용 글자 범위(코칭 답·댓글·신고 메모·이름 등. SOMA-922 에서 공용으로 쓴다). 서버 ActorTextCharset 과 같은 범위다 — 범위 밖 글자가 하나라도 있으면 보내지 않는다.
  * 10/27 운영에 글자마다 결합 기호를 쌓은 글(자고 텍스트)이 들어와서 생겼다. 영문·숫자·기본 기호(ASCII), 한글,
  * 자주 쓰는 문장부호, 이모지만 허용하고 결합 기호·보이지 않는 글자·제어 문자·그 밖의 문자는 막는다.
  */
@@ -69,4 +69,49 @@ export function stripUnreadable(text: string): string {
     }
   }
   return removed ? out : text;
+}
+
+/**
+ * 입력 규칙 두 가지.
+ * - strict: 위 허용 범위 안의 글자만(코칭·댓글·신고·이름 등 짧은 자유 입력).
+ * - loose: 대본 글처럼 한국어·영어·일본어·중국어 등 여러 문자가 정상으로 들어오는 곳. 문자 종류는 막지 않고
+ *   결합 기호를 {@link MAX_COMBINING_RUN}개 넘게 쌓는 것과 제어 문자만 뺀다. 서버 InputCharset.stacked 와 같다.
+ */
+export type InputCharsetMode = 'strict' | 'loose';
+
+export const MAX_COMBINING_RUN = 4;
+
+const COMBINING = /[\p{Mn}\p{Me}]/u;
+
+function stackedMark(ch: string, c: number): boolean {
+  return COMBINING.test(ch) || c === 0x200d || c === 0xfe0e || c === 0xfe0f;
+}
+
+/** 대본용: 결합 기호 연속 상한 초과분과 제어 문자(줄바꿈·탭 제외)를 뺀다. 뺀 게 없으면 받은 문자열 그대로. */
+export function stripStacked(text: string): string {
+  let out = '';
+  let run = 0;
+  let removed = false;
+  for (const ch of text) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (/\p{Cc}/u.test(ch) && c !== 0x0a && c !== 0x0d && c !== 0x09) {
+      removed = true;
+      continue;
+    }
+    if (stackedMark(ch, c)) {
+      if (++run > MAX_COMBINING_RUN) {
+        removed = true;
+        continue;
+      }
+    } else {
+      run = 0;
+    }
+    out += ch;
+  }
+  return removed ? out : text;
+}
+
+/** 입력칸에 들어오는 글을 규칙에 맞게 고른다. 아무것도 빠지지 않으면 받은 문자열 그대로. */
+export function sanitizeInput(text: string, mode: InputCharsetMode = 'strict'): string {
+  return mode === 'loose' ? stripStacked(text) : stripUnreadable(text);
 }

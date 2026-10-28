@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.memory.domain.MemoryValue;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.stereotype.Service;
 
@@ -43,6 +44,7 @@ public class ActorMemoryService {
         if (value == null) {
             throw new BlankMemoryValue();
         }
+        InputCharset.require(value);
         ActorMemory written = store.writeAsActor(userId, field, value);
         if (written == null) {
             throw new ApiException(403, "account_deactivated");

@@ -187,3 +187,18 @@ test('입력칸은 허용 범위 밖 글자를 받지 않는다(SOMA-905)', asyn
   assert.ok(Object.is(stripUnreadable(same), same));
   assert.equal(stripUnreadable('a\uFE0F\uFE0F'), 'a\uFE0F');
 });
+
+test('SOMA-922 공용 입력 규칙: strict 는 코칭 규칙 그대로, loose 는 문자 종류를 막지 않고 쌓은 결합 기호만 뺀다', async () => {
+  const { sanitizeInput, stripStacked } = await import('../lib/practice/readable-text.ts');
+  const stacked = 'Z\u0325\u031c\u0318\u0316\u0323\u0344\u0303a';
+  assert.equal(sanitizeInput('안녕 ❤️ ok'), '안녕 ❤️ ok');
+  assert.equal(sanitizeInput('안녕こんにちは'), '안녕');
+  assert.equal(sanitizeInput(`a${stacked}`, 'strict'), 'aZa');
+  const script = '안녕하세요 こんにちは 你好 Привет café 😂 ❤️‍🔥 ‘대사’\n둘째 줄';
+  assert.equal(sanitizeInput(script, 'loose'), script);
+  assert.equal(stripStacked('e\u0301 a\u0301\u0302'), 'e\u0301 a\u0301\u0302');
+  assert.equal(stripStacked(`x${stacked}`), 'xZ\u0325\u031c\u0318\u0316a');
+  assert.equal(stripStacked('a\u0007b'), 'ab');
+  const same = '그대로';
+  assert.equal(stripStacked(same), same);
+});

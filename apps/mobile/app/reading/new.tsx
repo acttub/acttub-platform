@@ -365,6 +365,7 @@ export default function ReadingNew() {
         {!makeOpen && (input.tab === 'paste' || file.kind === 'ready') && (
           <View style={styles.titleField}>
             <TextField
+            charset="loose"
               label={t('reading.newTitleLabel')}
               value={title}
               onChangeText={(next) => dispatch({ type: 'title', title: next })}
@@ -378,6 +379,7 @@ export default function ReadingNew() {
 
         {!makeOpen && input.tab === 'paste' && (
           <TextField
+            charset="loose"
             label={t('reading.pasteLabel')}
             style={styles.textArea}
             value={input.paste.text}

@@ -15,6 +15,7 @@ import com.acttub.actingapi.feature.portfolio.app.PortfolioRepository.PendingPho
 import com.acttub.actingapi.feature.portfolio.domain.CreditRules;
 import com.acttub.actingapi.feature.portfolio.domain.Portfolio;
 import com.acttub.actingapi.integration.storage.PhotoUploadType;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.dao.DataIntegrityViolationException;
 
@@ -72,6 +73,7 @@ public class PortfolioService {
 
     /** {@code null} 이나 빈 글이면 지운다. */
     public PortfolioView saveIntro(UUID userId, String intro) {
+        InputCharset.require(intro);
         String kept = intro == null || intro.isBlank() ? null : intro.strip();
         return activeOnly(() -> {
             portfolios.saveIntro(userId, kept);
@@ -80,6 +82,7 @@ public class PortfolioService {
     }
 
     public Portfolio.Credit addCredit(UUID userId, String title, String role, int year, String kind) {
+        InputCharset.require(title, role);
         Portfolio.Credit added = activeOnly(() ->
                 portfolios.addCredit(userId, title.strip(), role.strip(), year, kind, CreditRules.CREDIT_MAX));
         if (added == null) {
@@ -90,6 +93,7 @@ public class PortfolioService {
 
     public Portfolio.Credit updateCredit(
             UUID userId, UUID creditId, String title, String role, Integer year, String kind) {
+        InputCharset.require(title, role);
         Portfolio.Credit updated = portfolios.updateCredit(
                 userId, creditId, title == null ? null : title.strip(), role == null ? null : role.strip(), year, kind);
         if (updated == null) {

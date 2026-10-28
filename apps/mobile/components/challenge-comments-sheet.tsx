@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
+import { useReadableInput } from '@/hooks/use-readable-input';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
@@ -64,6 +65,7 @@ export function ChallengeCommentsSheet({
   const [comments, setComments] = useState<EntryComment[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const readable = useReadableInput(setDraft);
   const [sending, setSending] = useState(false);
   /** 목록을 못 받았을 때(다시 시도) 와 보내기·지우기가 실패했을 때(입력줄 위 한 줄)를 따로 둔다. */
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -195,7 +197,7 @@ export function ChallengeCommentsSheet({
           />
 
           <View style={styles.inputBar}>
-            {!!error && <InlineErrorLine message={error} />}
+            {!!(error || readable.hint) && <InlineErrorLine message={(error || readable.hint) as string} />}
             <View style={styles.inputPill}>
               <TextInput
                 style={styles.input}
@@ -203,7 +205,7 @@ export function ChallengeCommentsSheet({
                 placeholderTextColor={palette.textMeta}
                 accessibilityLabel={t('comments.placeholder')}
                 value={draft}
-                onChangeText={setDraft}
+                onChangeText={readable.onChangeText}
                 maxLength={COMMENT_MAX}
                 multiline
               />

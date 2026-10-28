@@ -1239,6 +1239,9 @@ const ko = {
     leaveBody: '보통 30초쯤 걸려요. 다 되면 알림으로 알려 드릴게요.',
     notifyMe: '끝나면 알려 주세요',
   },
+  input: {
+    stripped: '읽을 수 없는 글자는 빼고 넣었어요.',
+  },
   coach: {
     purposeResult: '평가 결과',
     purposeStuck: '막힌 곳 정리',

@@ -4,6 +4,7 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import { Button, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { InlineErrorLine } from '@/components/ui/inline-error';
+import { useReadableInput } from '@/hooks/use-readable-input';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
@@ -31,6 +32,7 @@ export function LineInsertCard({
 }) {
   const [speaker, setSpeaker] = useState<string>(() => defaultInsertSpeaker(characters.map((c) => c.id), lineCharacterId));
   const [text, setText] = useState('');
+  const readable = useReadableInput(setText, 'loose');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const draft = { speaker, text };
@@ -62,7 +64,7 @@ export function LineInsertCard({
       <TextInput
         style={styles.input}
         value={text}
-        onChangeText={setText}
+        onChangeText={readable.onChangeText}
         multiline
         autoFocus
         maxLength={5000}
@@ -71,6 +73,7 @@ export function LineInsertCard({
         placeholderTextColor={palette.textMeta}
         accessibilityLabel={t('reading.lineInsertPlaceholder')}
       />
+      {readable.hint ? <InlineErrorLine message={readable.hint} /> : null}
       {failed && <InlineErrorLine message={t('reading.lineEditFailed')} />}
       <View style={styles.buttons}>
         <TextButton label={t('common.cancel')} onPress={() => onClose(false)} disabled={busy} />

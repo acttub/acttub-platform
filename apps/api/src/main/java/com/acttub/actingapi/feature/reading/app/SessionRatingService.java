@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.SessionRatingStore.Rating;
 import com.acttub.actingapi.feature.reading.app.SessionRatingStore.Saved;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 
 /**
@@ -35,6 +36,7 @@ public class SessionRatingService {
      * @param comment 다듬기 전의 한 줄. {@code null} 이면 없음
      */
     public Rating rate(UUID userId, UUID sessionId, UUID requestId, String rating, String comment) {
+        InputCharset.require(comment);
         String trimmed = comment == null ? null : comment.strip();
         String normalized = trimmed == null || trimmed.isEmpty() ? null : trimmed;
         if (normalized != null && normalized.codePointCount(0, normalized.length()) > COMMENT_MAX_CHARS) {

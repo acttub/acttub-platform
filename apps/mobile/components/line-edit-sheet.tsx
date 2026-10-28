@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useReadableInput } from '@/hooks/use-readable-input';
 import { palette } from '@/constants/palette';
 import { radius, type } from '@/constants/tokens';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
@@ -41,6 +42,8 @@ export function LineEditSheet({
   const [base, setBase] = useState<LineDraft | null>(original);
   const [draft, setDraft] = useState<LineDraft | null>(original);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const renameInput = useReadableInput(setRenaming as (text: string) => void, 'loose');
+  const textInput = useReadableInput((text) => setDraft((was) => (was ? { ...was, text } : was)), 'loose');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -157,7 +160,7 @@ export function LineEditSheet({
                 <TextInput
                   style={styles.input}
                   value={renaming}
-                  onChangeText={setRenaming}
+                  onChangeText={renameInput.onChangeText}
                   autoFocus
                   maxLength={40}
                   placeholder={selected.name}
@@ -172,12 +175,13 @@ export function LineEditSheet({
         <TextInput
           style={[styles.input, styles.textInput]}
           value={draft.text}
-          onChangeText={(text) => setDraft({ ...draft, text })}
+          onChangeText={textInput.onChangeText}
           multiline
           maxLength={5000}
           textAlignVertical="top"
           accessibilityLabel={t('reading.lineEditText')}
         />
+        {(renameInput.hint || textInput.hint) && <Text style={styles.error}>{renameInput.hint || textInput.hint}</Text>}
         {failed && <Text style={styles.error}>{t('reading.lineEditFailed')}</Text>}
       </ScrollView>
     </LinePage>

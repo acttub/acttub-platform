@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
 import { Button } from '@/components/ui/buttons';
 import { InlineEmpty } from '@/components/ui/inline-empty';
@@ -77,7 +78,7 @@ export default function LineSearchScreen() {
           placeholder={t('lineSearch.placeholder')}
           placeholderTextColor={palette.textMeta}
           value={query}
-          onChangeText={setQuery}
+          onChangeText={(text) => setQuery(sanitizeInput(text, 'loose'))}
           autoFocus
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}

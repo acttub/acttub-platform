@@ -119,6 +119,7 @@ export default function LineNewScreen() {
               placeholder={t('lineNew.linePh')}
               value={draft.line}
               onChangeText={(line) => set({ line })}
+              charset="loose"
               accessibilityLabel={t('lineNew.title1')}
               multiline
               autoFocus
@@ -145,8 +146,8 @@ export default function LineNewScreen() {
           <>
             <Text style={styles.title}>{t('lineNew.title2')}</Text>
             <Text style={styles.sub}>{t('lineNew.sub2')}</Text>
-            <TextField label={t('lineNew.workLabel')} placeholder={t('lineNew.workPh')} value={draft.work} onChangeText={(work) => set({ work })} autoFocus />
-            <TextField label={t('lineNew.roleLabel')} placeholder={t('lineNew.rolePh')} value={draft.character} onChangeText={(character) => set({ character })} />
+            <TextField charset="loose" label={t('lineNew.workLabel')} placeholder={t('lineNew.workPh')} value={draft.work} onChangeText={(work) => set({ work })} autoFocus />
+            <TextField charset="loose" label={t('lineNew.roleLabel')} placeholder={t('lineNew.rolePh')} value={draft.character} onChangeText={(character) => set({ character })} />
             <TextField
               label={t('lineNew.noteLabel')}
               placeholder={t('lineNew.notePh')}

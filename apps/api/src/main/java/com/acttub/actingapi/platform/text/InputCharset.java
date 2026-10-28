@@ -1,16 +1,59 @@
-package com.acttub.actingapi.feature.coach.app;
+package com.acttub.actingapi.platform.text;
 
+import com.acttub.actingapi.platform.web.ApiException;
 import java.text.Normalizer;
 
 /**
- * 배우가 코칭에 쓰는 말의 허용 글자 범위. 범위 밖 글자가 하나라도 있으면 받지 않는다.
+ * 배우가 자유롭게 적는 글(코칭 답·댓글·신고 메모·이름 등)의 허용 글자 범위. 범위 밖 글자가 하나라도 있으면 받지 않는다.
  *
  * <p>10/27 운영에서 글자 위아래에 결합 기호를 수십 개씩 쌓은 글(자고 텍스트)이 코칭 답으로 들어왔다.
  * 영문·숫자·기본 기호(ASCII), 한글, 자주 쓰는 문장부호, 이모지만 허용하고 결합 기호·보이지 않는 글자·
  * 제어 문자·그 밖의 문자는 막는다. 앱({@code apps/mobile/lib/practice/readable-text.ts})도 같은 범위로 먼저 막는다.
  */
-public final class ActorTextCharset {
-    private ActorTextCharset() {
+public final class InputCharset {
+    private InputCharset() {
+    }
+
+    /** 클라이언트가 보는 오류 코드. 앱은 이 코드를 "읽을 수 없는 글자" 안내로 바꾼다. */
+    public static final String ERROR_CODE = "unreadable_text";
+
+    /** 대본처럼 여러 문자가 정상으로 들어오는 곳에서 허용하는 결합 기호 연속 상한. 한글·가나·한자·라틴 악센트는 1~2개면 충분하다. */
+    public static final int MAX_COMBINING_RUN = 4;
+
+    /**
+     * 비어 있지 않은 글이면 허용 범위 안이어야 한다. 값이 없거나 공백뿐이면 그 칸의 필수·길이 규칙에 맡긴다.
+     * 하나라도 범위 밖이면 400 {@code unreadable_text}.
+     */
+    public static void require(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank() && !readable(value)) throw new ApiException(400, "unreadable_text");
+        }
+    }
+
+    /** {@link #require} 의 대본용: 문자 종류는 막지 않고 결합 기호·이모지 연결 글자·제어 문자를 쌓는 것만 막는다. */
+    public static void requireNoStacking(String... values) {
+        for (String value : values) {
+            if (value != null && stacked(value)) throw new ApiException(400, "unreadable_text");
+        }
+    }
+
+    /** 결합 기호가 {@link #MAX_COMBINING_RUN}개를 넘게 이어지거나, 줄바꿈·탭을 뺀 제어 문자가 섞였는지. */
+    public static boolean stacked(String text) {
+        if (text == null) return false;
+        int run = 0;
+        for (int i = 0; i < text.length(); ) {
+            int c = text.codePointAt(i);
+            i += Character.charCount(c);
+            int type = Character.getType(c);
+            if (type == Character.NON_SPACING_MARK || type == Character.ENCLOSING_MARK || c == 0x200D || c == 0xFE0E || c == 0xFE0F) {
+                // 이모지 변형(FE0F)·연결(200D)은 이모지 하나에 1~2개씩 정상으로 붙는다. 이어 붙는 수만 센다.
+                if (++run > MAX_COMBINING_RUN) return true;
+            } else {
+                run = 0;
+            }
+            if (type == Character.CONTROL && c != '\n' && c != '\r' && c != '\t') return true;
+        }
+        return false;
     }
 
     /** 허용 범위 글자로만 되어 있고, 보이는 글자가 하나 이상인지. */
