@@ -24,14 +24,23 @@ class FaceMosaicRendererTest {
                 frame[p] = v; frame[p + 1] = v; frame[p + 2] = v;
             }
         }
-        // 얼굴 상자 (80,80)~(120,120). 넓히면 x 70~130, y 66~128 이다.
+        // 얼굴 상자 (80,80)~(120,120). 넓히면 x 64~136, y 60~134 이다.
         FaceMosaicRenderer.pixelate(frame, width, height, List.<double[]>of(new double[] {0.4, 0.4, 0.2, 0.2}));
         assertThat(pixel(frame, width, 100, 100)).isBetween(90, 110);
-        assertThat(pixel(frame, width, 71, 67)).isBetween(90, 110);   // 넓힌 귀퉁이도 가린다
-        assertThat(pixel(frame, width, 129, 127)).isBetween(90, 110);
-        assertThat(pixel(frame, width, 60, 100)).isIn(0, 200);       // 밖은 그대로
-        assertThat(pixel(frame, width, 100, 140)).isIn(0, 200);
+        assertThat(pixel(frame, width, 65, 61)).isBetween(90, 110);   // 넓힌 귀퉁이도 가린다
+        assertThat(pixel(frame, width, 135, 133)).isBetween(90, 110);
+        assertThat(pixel(frame, width, 55, 100)).isIn(0, 200);       // 밖은 그대로
+        assertThat(pixel(frame, width, 100, 145)).isIn(0, 200);
         assertThat(pixel(frame, width, 100, 50)).isIn(0, 200);
+    }
+
+    @Test void blockCountAcrossTheFaceStaysTheSameAtAnyResolution() {
+        for (int faceWidth : new int[] {60, 120, 240, 480}) {
+            int block = FaceMosaicRenderer.blockSize(faceWidth, faceWidth * 1.2);
+            assertThat(faceWidth / (double) block).isLessThanOrEqualTo(8).isGreaterThanOrEqualTo(3);
+        }
+        // 얼굴이 아주 작으면 칸이 하한보다 작아지지 않는다.
+        assertThat(FaceMosaicRenderer.blockSize(16, 20)).isEqualTo(FaceMosaicRenderer.MIN_BLOCK);
     }
 
     @Test void pixelateClipsBoxesAtTheFrameEdge() {

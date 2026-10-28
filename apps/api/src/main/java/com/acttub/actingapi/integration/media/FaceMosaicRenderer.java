@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
  * 참여작 영상의 얼굴을 픽셀 모자이크로 가린 사본을 만든다 (challenge.entry 얼굴 모자이크). 원본은 건드리지 않는다.
  *
  * <p>두 번 읽는다. <b>찾기</b>는 ffmpeg 가 30fps·작은 크기로 풀어 준 프레임에서 {@value #STRIDE} 프레임마다 얼굴을
- * 찾는다. <b>그리기</b>는 같은 30fps 로 다시 풀어 프레임마다 그 근처에서 찾은 상자를 모두 넓혀 모자이크하고 ffmpeg 로
+ * 찾는다(긴 변 {@value #DETECT_LONG_SIDE}). <b>그리기</b>는 같은 30fps 로 다시 풀어 프레임마다 그 근처에서 찾은 상자를 모두 넓혀 모자이크하고 ffmpeg 로
  * 다시 압축하며 원본 소리를 붙인다. 근처란 앞으로 {@value #LEAD_FRAMES} 프레임·뒤로 {@value #HOLD_FRAMES}
  * 프레임(1초)이다 — 찾기 사이에 얼굴이 움직여도, 한동안 놓쳐도 직전 상자가 남는다. 상자는 좌우로
  * {@value #SIDE_MARGIN}배, 위로 {@value #TOP_MARGIN}배, 아래로 {@value #BOTTOM_MARGIN}배를 더 넓혀 머리선·턱까지 덮는다.
@@ -34,14 +34,14 @@ public final class FaceMosaicRenderer implements FaceMosaic {
     static final int STRIDE = 3;
     static final int LEAD_FRAMES = STRIDE + 3;
     static final int HOLD_FRAMES = FPS;
-    static final double SIDE_MARGIN = 0.25;
-    static final double TOP_MARGIN = 0.35;
-    static final double BOTTOM_MARGIN = 0.2;
-    /** 모자이크 칸은 얼굴 상자의 긴 변을 이만큼으로 나눈다(얼굴 하나가 대략 8×8 칸). */
-    static final int BLOCKS_PER_FACE = 8;
+    static final double SIDE_MARGIN = 0.4;
+    static final double TOP_MARGIN = 0.5;
+    static final double BOTTOM_MARGIN = 0.35;
+    /** 모자이크 칸은 찾은 얼굴의 폭(넓히기 전)을 이만큼으로 나눈다 — 얼굴 폭 하나가 가로 4칸 안팎이다. */
+    static final int BLOCKS_PER_FACE = 4;
     static final int MIN_BLOCK = 8;
     private static final int OUTPUT_LONG_SIDE = 1280;
-    private static final int DETECT_LONG_SIDE = 640;
+    private static final int DETECT_LONG_SIDE = 960;
     private static final Duration TIMEOUT = Duration.ofMinutes(10);
     private static final Pattern EXECUTABLE = Pattern.compile(Pattern.quote(File.pathSeparator));
 
@@ -257,7 +257,7 @@ public final class FaceMosaicRenderer implements FaceMosaic {
             if (x1 <= x0 || y1 <= y0) {
                 continue;
             }
-            int block = Math.max(MIN_BLOCK, (int) Math.round(Math.max(x1 - x0, y1 - y0) / (double) BLOCKS_PER_FACE));
+            int block = blockSize(bw, bh);
             for (int by = y0; by < y1; by += block) {
                 int ey = Math.min(by + block, y1);
                 for (int bx = x0; bx < x1; bx += block) {
@@ -290,6 +290,11 @@ public final class FaceMosaicRenderer implements FaceMosaic {
                 }
             }
         }
+    }
+
+    /** 칸 한 변(픽셀). 찾은 얼굴의 폭(세로가 더 길면 세로의 0.8배) 기준이라 해상도가 높아도 칸 수는 같다. */
+    static int blockSize(double faceWidth, double faceHeight) {
+        return Math.max(MIN_BLOCK, (int) Math.round(Math.max(faceWidth, faceHeight * 0.8) / BLOCKS_PER_FACE));
     }
 
     private static int clamp(int value, int limit) {
