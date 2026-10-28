@@ -61,6 +61,23 @@ class PostgresPosterRepository implements PosterRepository {
     }
 
     @Override
+    public List<Poster> history(String platform, String locale, Instant now, int limit) {
+        return list(entityManager.createNativeQuery("SELECT " + COLUMNS + """
+                 FROM app_posters
+                WHERE (starts_at IS NULL OR starts_at <= :now)
+                  AND :platform = ANY(platforms)
+                  AND (locale IS NULL OR locale = CAST(:locale AS text))
+                ORDER BY COALESCE(starts_at, created_at) DESC, id
+                LIMIT :limit
+                """, Tuple.class)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("platform", platform)
+                .setParameter("locale", locale)
+                .setParameter("limit", limit))
+                .stream().map(PostgresPosterRepository::poster).toList();
+    }
+
+    @Override
     public List<Poster> all() {
         return list(entityManager.createNativeQuery("SELECT " + COLUMNS
                 + " FROM app_posters ORDER BY active DESC, priority DESC, updated_at DESC, id", Tuple.class))

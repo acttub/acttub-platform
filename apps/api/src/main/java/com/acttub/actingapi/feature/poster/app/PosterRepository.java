@@ -17,6 +17,12 @@ public interface PosterRepository {
      */
     List<Poster> live(String platform, String locale, Instant now);
 
+    /**
+     * 앱 공지사항 목록용. 아직 시작 전인 것을 뺀 모든 포스터(꺼진 것·기간이 끝난 것 포함)에서 플랫폼이 맞고 언어가 없거나
+     * 같은 것을 시작일(없으면 만든 날) 늦은 순으로 {@code limit} 개까지.
+     */
+    List<Poster> history(String platform, String locale, Instant now, int limit);
+
     /** 꺼진 것까지 전부. 켜진 것, 우선순위 큰 것, 최근에 고친 것 순. */
     List<Poster> all();
 
