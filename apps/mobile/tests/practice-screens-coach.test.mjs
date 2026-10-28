@@ -84,7 +84,7 @@ test('practice.library: 홈은 한국 시간 연속일과 이번 주 요일 점�
   const home = read('app/(tabs)/index.tsx');
 
   assert.match(home, /practiceStreak/);
-  assert.match(home, /buildWeekActivity/);
+  assert.match(home, /buildRecentActivity/); // 오늘이 맨 오른쪽인 최근 7일(SOMA-923)
   assert.doesNotMatch(home, /recentGroups\(/);
 });
 

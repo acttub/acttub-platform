@@ -63,9 +63,7 @@ function Chip({ icon, label }: { icon: IconName; label: string }) {
   return (
     <View style={styles.chip}>
       <MaterialCommunityIcons name={icon} size={15} color={VIOLET} />
-      <Text style={styles.chipText} numberOfLines={1}>
-        {label}
-      </Text>
+      <Text style={styles.chipText}>{label}</Text>
     </View>
   );
 }
@@ -93,20 +91,19 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '800', color: INK },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   sub: { flexShrink: 1, fontSize: 13.5, fontWeight: '600', color: '#4E5A7A' },
-  chips: { flexDirection: 'row', gap: 6 },
+  // 칩은 글자 길이만큼 넓고, 폭이 모자라면 다음 줄로 내려간다(좁은 폰에서 글자가 잘렸다).
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
-    flex: 1,
-    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
     height: 32,
     borderRadius: 999,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     backgroundColor: '#FFFFFFB3',
     borderWidth: 1,
     borderColor: '#FFFFFF',
   },
-  chipText: { flexShrink: 1, fontSize: 12, fontWeight: '700', color: INK },
+  chipText: { fontSize: 12, fontWeight: '700', color: INK },
 });
