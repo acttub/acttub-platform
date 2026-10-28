@@ -23,6 +23,7 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `GET /v2/app/posters` | 헤더 `Authorization`(회원·게스트), 질의 `platform`(ios·android, 필수), `locale`(두 글자, 선택), `app_version`(점으로 이은 숫자, 선택) | `AppPosterList` 200: 띄울 수 있는 포스터 최대 5장 | 질의 값이 빠지거나 틀리면 422(배열) |
+| `GET /v2/app/notices` | 헤더 `Authorization`(회원·게스트), 질의 `platform`(ios·android, 필수), `locale`(두 글자, 선택) | `AppNoticeList` 200: 아직 시작 전이 아닌 모든 포스터(꺼진 것·기간이 끝난 것 포함)를 공지한 날(`starts_at`, 없으면 만든 날) 늦은 순으로 최대 50건. 건마다 `live`(켜져 있고 기간 안), `published_at`, `ends_at` 과 팝업과 같은 제목·본문·이미지·버튼 | 질의 값이 빠지거나 틀리면 422(배열) |
 | `GET /v2/admin/posters` | 헤더 `Authorization: Bearer $ADMIN_OPS_TOKEN` | `{posters: AdminPoster[]}` 200: 꺼진 것까지 전부, 저장된 값 그대로 | 토큰이 없거나 틀리면 401 `Unauthorized` |
 | `POST /v2/admin/posters` | 운영 토큰, 본문 `AdminPosterFields`(아래 「필드」, id·revision·시각 제외, 모르는 칸은 422) | `AdminPoster` 201 | 같은 (slug, locale) `duplicate_poster` 422, 칸 규칙 위반 422(배열), 401 |
 | `PATCH /v2/admin/posters/{id}` | 운영 토큰, 바꿀 칸만 담은 객체, 선택 `bump_revision: true` | `AdminPoster` 200 | 없으면 `poster_not_found` 404, `duplicate_poster` 422, 칸 규칙 위반·모르는 칸 422(배열), 401 |
@@ -69,6 +70,7 @@ revision 이 포스터와 다르면 그 slug 의 기록은 없던 것으로 본�
   granted) 사람.
 - 띄우는 순간 그 날을 본 날로 적는다. 「다시 보지 않기」는 그 판에서 다시 띄우지 않는다.
 - `every`(SOMA-799): 홈에 다시 들어오거나 앱이 앞으로 돌아올 때마다 서버를 다시 읽어 띄운다. 닫기 버튼은 「오늘 하루 안 보기」(기기 현지 날짜로 그날만 숨김, 판이 바뀌어도 그날은 유지)와 일반 닫기다. 일반 닫기 뒤에는 다음으로 보일 수 있는 공지를 이어서 띄워, 앞의 `every` 공지가 다른 공지를 가리지 않게 한다. `every` 로 바꾼 공지는 예전 「다시 보지 않기」 기록을 무시한다.
+- 공지사항 화면(SOMA-919): 설정 「공지사항」 → 목록 → 상세 전체 화면이다(팝업·시트 없음, 받는 동안 뼈대). 목록은 `GET /v2/app/notices` 를 그대로 순서대로 보이고 진행 중·종료 표시와 공지한 날(한국 날짜)을 붙인다. 상세는 팝업과 같은 그림·배지·제목·본문이며, 버튼은 지금 떠 있는(`live`) 공지의 `route`·`url` 만 보인다(`cloud_voice_enable` 은 동의 시트가 필요해 목록에서 열지 않는다). 기기의 봤음·다시 보지 않기 기록과 `audience`·`min_app_version` 은 따지지 않는다.
 - 띄우는 조건은 0.1.2 팝업과 같다: 로그인 상태, 첫 실행 온보딩 직후가 아님, 다른 시트(소개·가이드·연속 기록 축하)가 떠 있지 않음.
 - 버튼: `cloud_voice_enable` 은 포스터를 닫고 0.35초 뒤 동의 시트를 연다(iOS 는 모달 위에 모달을 올리지 못한다). `route` 는
   닫고 그 앱 경로로 간다. `url` 은 닫고 외부 브라우저로 연다.

@@ -118,6 +118,66 @@ class PosterEndpointIT {
     }
 
     @Test
+    void noticesRequireLoginAndValidQueries() throws Exception {
+        assertThat(mvc.perform(get("/v2/app/notices").param("platform", "ios")).andReturn().getResponse().getStatus())
+                .isEqualTo(401);
+        JsonNode missing = app(get("/v2/app/notices"), 422);
+        assertThat(missing.path("detail").get(0).path("loc").toString()).isEqualTo("[\"query\",\"platform\"]");
+        JsonNode badLocale = app(get("/v2/app/notices").param("platform", "ios").param("locale", "korean"), 422);
+        assertThat(badLocale.path("detail").get(0).path("loc").toString()).isEqualTo("[\"query\",\"locale\"]");
+    }
+
+    @Test
+    void noticesListLiveAndEndedNewestFirstWithoutUpcomingOrOtherPlatformAndLanguage() throws Exception {
+        insert("live-old", 1, true, now.minusDays(10), null, "{ios,android}", null, null);
+        insert("ended-new", 1, true, now.minusDays(2), now.minusDays(1), "{ios,android}", null, null);
+        insert("off-oldest", 1, false, now.minusDays(30), null, "{ios,android}", null, null);
+        insert("upcoming", 1, true, now.plusDays(1), null, "{ios,android}", null, null);
+        insert("android-only", 1, true, now.minusDays(3), null, "{android}", null, null);
+        insert("english", 1, true, now.minusDays(4), null, "{ios,android}", "en", null);
+        insert("korean", 1, true, now.minusDays(5), null, "{ios,android}", "ko", null);
+
+        JsonNode ko = app(get("/v2/app/notices").param("platform", "ios").param("locale", "ko"), 200);
+        assertThat(noticeSlugs(ko)).containsExactly("ended-new", "korean", "live-old", "off-oldest");
+        assertThat(ko.path("notices").get(0).path("live").booleanValue()).isFalse();
+        assertThat(ko.path("notices").get(1).path("live").booleanValue()).isTrue();
+        assertThat(ko.path("notices").get(3).path("live").booleanValue()).isFalse();
+        assertThat(noticeSlugs(app(get("/v2/app/notices").param("platform", "ios").param("locale", "en"), 200)))
+                .containsExactly("ended-new", "english", "live-old", "off-oldest");
+        assertThat(noticeSlugs(app(get("/v2/app/notices").param("platform", "android"), 200)))
+                .containsExactly("ended-new", "android-only", "live-old", "off-oldest");
+    }
+
+    @Test
+    void noticesShowTheContractShapeAndFallBackToTheCreatedDay() throws Exception {
+        String key = "posters/" + UUID.randomUUID() + ".png";
+        insert("stored", 1, true, null, null, "{ios,android}", null, null);
+        jdbc.update("""
+                UPDATE app_posters SET image=?,badge='배지',body='본문',cta_label='보기',cta_action='route',
+                       cta_target='/pricing',revision=2 WHERE slug='stored'
+                """, key);
+        insert("bundled", 1, true, now.minusDays(1), null, "{ios,android}", null, null);
+        jdbc.update("UPDATE app_posters SET image='asset:mascot-reading' WHERE slug='bundled'");
+
+        JsonNode notices = app(get("/v2/app/notices").param("platform", "ios").param("locale", "ko"), 200)
+                .path("notices");
+        assertThat(noticeSlugs(app(get("/v2/app/notices").param("platform", "ios").param("locale", "ko"), 200)))
+                .containsExactly("stored", "bundled");
+        JsonNode stored = notices.get(0);
+        assertThat(stored.fieldNames()).toIterable().containsExactly("slug", "revision", "live", "published_at",
+                "ends_at", "badge", "title", "body", "image_url", "image_asset", "cta_label", "cta_action",
+                "cta_target");
+        assertThat(stored.path("image_url").textValue()).isEqualTo("signed:" + key + ":3600");
+        assertThat(stored.path("image_asset").isNull()).isTrue();
+        assertThat(stored.path("published_at").textValue()).isNotBlank();
+        assertThat(stored.path("ends_at").isNull()).isTrue();
+        assertThat(stored.path("title").textValue()).isEqualTo("stored 제목");
+        assertThat(stored.path("revision").intValue()).isEqualTo(2);
+        assertThat(notices.get(1).path("image_asset").textValue()).isEqualTo("mascot-reading");
+        assertThat(notices.get(1).path("image_url").isNull()).isTrue();
+    }
+
+    @Test
     void appListBreaksPriorityTiesByLatestUpdateAndKeepsAtMostFive() throws Exception {
         for (int index = 0; index < 7; index++) {
             insert("same-" + index, 3, true, null, null, "{ios,android}", null, null);
@@ -335,6 +395,12 @@ class PosterEndpointIT {
                 INSERT INTO app_posters(slug,priority,active,starts_at,ends_at,platforms,locale,min_app_version,title)
                 VALUES (?,?,?,?,?,?::text[],?,?,?)
                 """, slug, priority, active, startsAt, endsAt, platforms, locale, minAppVersion, slug + " 제목");
+    }
+
+    private static List<String> noticeSlugs(JsonNode body) {
+        List<String> slugs = new ArrayList<>();
+        body.path("notices").forEach(notice -> slugs.add(notice.path("slug").textValue()));
+        return slugs;
     }
 
     private MockHttpServletRequestBuilder appList(String platform, String locale, String appVersion) {

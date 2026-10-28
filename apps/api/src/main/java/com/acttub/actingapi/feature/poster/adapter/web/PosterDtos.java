@@ -7,6 +7,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.poster.app.AppNotice;
 import com.acttub.actingapi.feature.poster.app.AppPoster;
 import com.acttub.actingapi.feature.poster.domain.Poster;
 import com.acttub.actingapi.feature.poster.domain.PosterDraft;
@@ -58,6 +59,39 @@ final class PosterDtos {
             return new AppPosterItem(poster.slug(), poster.revision(), poster.frequency(), poster.audience(),
                     poster.dismissible(), poster.badge(), poster.title(), poster.body(), poster.imageUrl(),
                     poster.imageAsset(), poster.audioAsset(), poster.ctaLabel(), poster.ctaAction(), poster.ctaTarget());
+        }
+    }
+
+    @Schema(name = "AppNoticeList", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record AppNoticeList(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AppNoticeItem> notices) {
+    }
+
+    @Schema(name = "AppNotice", additionalProperties = Schema.AdditionalPropertiesValue.FALSE,
+            description = "앱 공지사항 한 건. 팝업 포스터와 같은 제목·본문·이미지. image_url 과 image_asset 은 많아야 하나가 차 있다.")
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record AppNoticeItem(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String slug,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int revision,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "지금 팝업으로 떠 있는 공지인가") boolean live,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "공지한 날(시작일, 없으면 만든 날)")
+            Instant publishedAt,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Instant endsAt,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String badge,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String body,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "1시간 주소")
+            String imageUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true, description = "앱 번들 이미지 이름")
+            String imageAsset,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String ctaLabel,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = {"none", "cloud_voice_enable", "route", "url"}) String ctaAction,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String ctaTarget) {
+
+        static AppNoticeItem of(AppNotice notice) {
+            return new AppNoticeItem(notice.slug(), notice.revision(), notice.live(), notice.publishedAt(),
+                    notice.endsAt(), notice.badge(), notice.title(), notice.body(), notice.imageUrl(),
+                    notice.imageAsset(), notice.ctaLabel(), notice.ctaAction(), notice.ctaTarget());
         }
     }
 

@@ -394,6 +394,7 @@ describe('설정', () => {
     ['알림', '/notification-settings'],
     ['챌린지', '/challenge-entries'],
     ['차단한 사용자', '/blocked-users'],
+    ['공지사항', '/notices'],
     ['동의 내역', '/consent-history'],
     ['회원 탈퇴', '/delete-account'],
   ])('%s 줄은 그 화면으로 간다', async (label, path) => {

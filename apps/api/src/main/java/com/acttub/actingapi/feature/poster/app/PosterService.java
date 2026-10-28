@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.poster.app;
 
 import java.math.BigInteger;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,6 +26,9 @@ public final class PosterService {
     /** 운영자가 이미지를 올릴 자리의 수명. */
     public static final int IMAGE_UPLOAD_TTL_SECONDS = 600;
 
+    /** 공지사항 목록에 내는 최대 건수. */
+    public static final int MAX_NOTICES = 50;
+
     public static final long MAX_IMAGE_BYTES = 10L * 1024 * 1024;
 
     private static final Map<String, String> IMAGE_SUFFIXES = Map.of(
@@ -46,6 +50,14 @@ public final class PosterService {
     public List<AppPoster> forApp(String platform, String locale, String appVersion) {
         return PosterRules.forApp(posters.live(platform, locale, clock.instant()), appVersion).stream()
                 .map(this::toApp)
+                .toList();
+    }
+
+    /** 앱 공지사항 목록. 지금 떠 있는 것과 이미 끝난 것을 공지한 날 늦은 순으로 낸다. */
+    public List<AppNotice> notices(String platform, String locale) {
+        Instant now = clock.instant();
+        return posters.history(platform, locale, now, MAX_NOTICES).stream()
+                .map(poster -> toNotice(poster, now))
                 .toList();
     }
 
@@ -81,6 +93,18 @@ public final class PosterService {
     }
 
     public record ImageUpload(String key, String uploadUrl, int expiresIn) {
+    }
+
+    private AppNotice toNotice(Poster poster, Instant now) {
+        PosterDraft draft = poster.draft();
+        boolean live = draft.active() && (draft.endsAt() == null || draft.endsAt().isAfter(now));
+        String imageUrl = PosterRules.isObjectKey(draft.image())
+                ? images.viewUrl(draft.image(), IMAGE_VIEW_TTL_SECONDS)
+                : null;
+        Instant publishedAt = draft.startsAt() != null ? draft.startsAt() : poster.createdAt();
+        return new AppNotice(draft.slug(), poster.revision(), live, publishedAt, draft.endsAt(), draft.badge(),
+                draft.title(), draft.body(), imageUrl, PosterRules.assetName(draft.image()), draft.ctaLabel(),
+                draft.ctaAction(), draft.ctaTarget());
     }
 
     private AppPoster toApp(Poster poster) {

@@ -134,6 +134,7 @@ export default function SettingsScreen() {
         <SectionTitle>{t('settings.sectionEtc')}</SectionTitle>
         <SettingsCard icon="bell" title={t('settings.notifications')} sub={t('settings.notificationsSub')} onPress={() => router.push('/notification-settings')} />
         <SettingsCard icon="award" title={t('settings.challengeRecordRow')} sub={t('settings.challengeRecordSub')} onPress={() => router.push('/challenge-entries')} />
+        <SettingsCard icon="bell" title={t('settings.notices')} sub={t('settings.noticesSub')} onPress={() => router.push('/notices')} />
         <SettingsCard icon="file-text" title={t('settings.consentHistory')} sub={t('settings.consentHistorySub')} onPress={() => router.push('/consent-history')} />
         {/* 실험 기능 — 발음 피드백. 기본 꺼짐, 기기에만 저장. */}
         <SettingsCard

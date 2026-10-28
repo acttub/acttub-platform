@@ -116,6 +116,7 @@ import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voi
 import type { PronunciationState } from '@/lib/reading/pronunciation-report';
 import type { ReadingVoiceCoaching } from '@/lib/reading/voice-coaching';
 import type { VoiceModelFiles } from '@/lib/reading/tts/assets';
+import type { NoticesResponse } from '@/lib/notices';
 import type { PostersResponse } from '@/lib/poster';
 import type { AdDetail, AdSlotPick } from '@/lib/ads';
 import { currentLanguage, translate } from './i18n.ts';
@@ -420,6 +421,12 @@ export const api = {
   getPosters(params: { platform: 'ios' | 'android'; locale: 'ko' | 'en'; app_version: string }): Promise<PostersResponse> {
     const query = new URLSearchParams(params);
     return request(`/v2/app/posters?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
+  },
+
+  /** 앱 공지사항(SOMA-919). 팝업으로 떠 있는 공지와 끝난 공지를 공지한 날 늦은 순으로 받는다. */
+  getNotices(params: { platform: 'ios' | 'android'; locale: 'ko' | 'en' }): Promise<NoticesResponse> {
+    const query = new URLSearchParams(params);
+    return request(`/v2/app/notices?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
   /** 광고 칸 하나에 띄울 것(app.ads, SOMA-876). DIRECT·HOUSE·NETWORK·NONE 중 서버가 고른다. */

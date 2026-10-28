@@ -5392,6 +5392,58 @@
         } ]
       }
     },
+    "/v2/app/notices" : {
+      "get" : {
+        "tags" : [ "v2-app" ],
+        "summary" : "List App Notices",
+        "description" : "앱 공지사항 화면용. 팝업으로 떠 있는 공지와 이미 끝난(꺼졌거나 기간이 지난) 공지를 공지한 날(시작일,\n없으면 만든 날) 늦은 순으로 최대 50건. 아직 시작 전인 것은 빠지고 플랫폼이 맞고 언어가 없거나 같은\n것만 낸다. live 는 지금 팝업 대상인지다.",
+        "operationId" : "list_notices_v2_app_notices_get",
+        "parameters" : [ {
+          "name" : "platform",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          }
+        }, {
+          "name" : "locale",
+          "in" : "query",
+          "description" : "앱 표시 언어(두 글자). 없으면 언어 없는 공지만",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Locale"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AppNoticeList"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/ads" : {
       "get" : {
         "tags" : [ "v2-ads" ],
@@ -13008,6 +13060,117 @@
         },
         "required" : [ "posters" ],
         "title" : "AppPosterList"
+      },
+      "AppNotice" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "앱 공지사항 한 건. 팝업 포스터와 같은 제목·본문·이미지. image_url 과 image_asset 은 많아야 하나가 차 있다.",
+        "properties" : {
+          "slug" : {
+            "type" : "string",
+            "title" : "Slug"
+          },
+          "revision" : {
+            "type" : "integer",
+            "title" : "Revision"
+          },
+          "live" : {
+            "type" : "boolean",
+            "description" : "지금 팝업으로 떠 있는 공지인가",
+            "title" : "Live"
+          },
+          "published_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "공지한 날(시작일, 없으면 만든 날)",
+            "title" : "Published At"
+          },
+          "ends_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ends At"
+          },
+          "badge" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Badge"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "body" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Body"
+          },
+          "image_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "1시간 주소"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Url"
+          },
+          "image_asset" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앱 번들 이미지 이름"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Asset"
+          },
+          "cta_label" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Label"
+          },
+          "cta_action" : {
+            "type" : "string",
+            "enum" : [ "none", "cloud_voice_enable", "route", "url" ],
+            "title" : "Cta Action"
+          },
+          "cta_target" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Target"
+          }
+        },
+        "required" : [ "badge", "body", "cta_action", "cta_label", "cta_target", "ends_at", "image_asset", "image_url", "live", "published_at", "revision", "slug", "title" ],
+        "title" : "AppNotice"
+      },
+      "AppNoticeList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "notices" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AppNotice"
+            },
+            "title" : "Notices"
+          }
+        },
+        "required" : [ "notices" ],
+        "title" : "AppNoticeList"
       },
       "AdCreative" : {
         "type" : "object",
