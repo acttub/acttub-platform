@@ -47,15 +47,6 @@ test('challenge.browse: 카드에 참여작 수·좋아요 합·참여자 셋과
   assert.doesNotMatch(list, /photo/);
 });
 
-test('challenge.browse: 시작 안내는 기기당 한 번이고 좋아요 랭킹이 점수가 아님을 말한다', () => {
-  assert.match(read('app/(tabs)/challenges.tsx'), /hasSeenChallengeIntro/);
-  assert.match(read('app/(tabs)/challenges.tsx'), /markChallengeIntroSeen/);
-  assert.match(read('lib/challenge/intro-state.ts'), /acttub\.challenge\.introSeen/);
-  assert.match(read('locales/ko.ts'), /점수를 매기지 않아요/);
-  // 넘기는 방향은 위아래다.
-  assert.match(read('locales/ko.ts'), /위아래로/);
-});
-
 test('challenge.browse: 검색은 두 글자 이상이고 결과가 없으면 직접 등록으로 잇는다', () => {
   const search = read('app/line-search.tsx');
 

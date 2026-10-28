@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Checkbox } from '@/components/ui/checkbox';
 import { palette } from '@/constants/palette';
 
 type Arrow = {
@@ -53,7 +54,8 @@ export function ConsentRow({
         accessibilityLabel={tag ? `${tag.text} ${label}` : undefined}
         accessibilityState={{ checked, disabled: locked }}>
         {tag ? (
-          <Feather name="check-circle" size={24} color={checked ? palette.blue : palette.checkOff} />
+          // 가입 동의 화면의 체크는 개편전(dev) 동그라미 체크 부품이다(SOMA-923).
+          <Checkbox checked={checked} />
         ) : (
           <Feather name="check" size={18} color={checked ? palette.blue : palette.checkOff} />
         )}

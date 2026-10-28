@@ -302,6 +302,11 @@ const en: DeepStringShape<typeof ko> = {
     visibilityPublic: 'Public',
     visibilityPrivate: 'Only me',
     seeAll: 'See all',
+    emptyPracticeTitle: 'No practice yet',
+    emptyEntriesTitle: 'No challenge entries yet',
+    emptyEntriesBody: 'Join a challenge and your entries gather here',
+    emptyPracticeBodyFirst: 'Finish your first practice and it shows up here',
+    emptyPracticeBody: 'Coaching and reading sessions show up here',
   },
   notifications: {
     title: 'Notifications',
@@ -315,6 +320,7 @@ const en: DeepStringShape<typeof ko> = {
     loadFail: "Couldn't load notifications.",
     pushOff: 'Challenge push is off. They still pile up here.',
     keep: 'Notifications are kept for 90 days.',
+    emptyBody: 'Likes, comments and challenge news show up here',
   },
   react: {
     mute: 'Mute',
@@ -348,6 +354,7 @@ const en: DeepStringShape<typeof ko> = {
     loadFail: "Couldn't load your blocked users.",
     settingsLink: 'Blocked users',
     settingsHint: 'Blocked people’s entries and comments stay hidden from you',
+    unblockFail: "Couldn't unblock",
   },
   comments: {
     close: 'Close',
@@ -395,6 +402,10 @@ const en: DeepStringShape<typeof ko> = {
     hintMine: 'Your performances posted to challenges.',
     empty: 'No saved videos yet.',
     loadFail: "Couldn't load your saved videos.",
+    emptyTitle: 'No saved videos yet',
+    emptyBody: 'Save performances you like from challenges',
+    emptyMineTitle: 'No videos yet',
+    emptyMineBody: 'Join a challenge and your videos gather here',
   },
   lineSearch: {
     minLength: 'Type at least two characters.',
@@ -435,6 +446,8 @@ const en: DeepStringShape<typeof ko> = {
     rolePh: 'e.g. Yoonseo',
     next: 'Next',
     submit: 'Add line',
+    lineOverMax: 'You can write up to {{max}} characters.',
+    submitting: 'Registering…',
   },
   archive: {
     title: 'Save video',
@@ -1059,6 +1072,12 @@ const en: DeepStringShape<typeof ko> = {
     notifOffOpen: 'Turn on in Settings',
     notifOffSkip: "I'll go without",
     notifLoadFail: "Couldn't load notification settings",
+    consentOutdatedTitle: 'The consent documents changed',
+    consentOutdatedBody: 'We reloaded the list. Please check what changed.',
+    consentLoadFail: "Couldn't load your consents",
+    retryLater: 'Please try again in a moment.',
+    decisionGrantedShort: 'Agreed',
+    decisionDeclinedShort: 'Declined',
   },
   notices: {
     title: 'Notices',
@@ -1385,6 +1404,7 @@ const en: DeepStringShape<typeof ko> = {
     endHome: 'Go home',
     endShare: 'Share on social',
     shareText: 'I practiced acting on Acttub today.',
+    loadFailBody: 'Check your internet connection.',
   },
   noteCheer: {
     one: 'Great work on today’s take.\nCheering you on for the next one!',
@@ -2248,6 +2268,8 @@ const en: DeepStringShape<typeof ko> = {
     scriptLimitBody: 'You can keep up to 100 scripts. Delete one you no longer use to add another.',
     busyTitle: 'You can’t add a script right now',
     importFailTitle: 'Couldn’t add the script',
+    sampleOpenFailTitle: 'Couldn’t open the sample script',
+    noMatchSub: 'Search by title or role name',
   },
   time: {
     justNow: 'Just now',

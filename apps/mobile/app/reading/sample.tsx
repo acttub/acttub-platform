@@ -3,13 +3,14 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { MonologueNameDialog } from '@/components/monologue-name-dialog';
-import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
-import { PrimaryButton } from '@/components/ui/buttons';
-import { CtaBar } from '@/components/ui/cta-bar';
-import { MascotBubble } from '@/components/ui/mascot-bubble';
-import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { MonologueNameDialog } from '@/components/ds/monologue-name-dialog';
+import { SamplePickerBody, useSamplePicker } from '@/components/ds/reading/sample-picker';
+import { PrimaryButton } from '@/components/ds/ui/buttons';
+import { CtaBar } from '@/components/ds/ui/cta-bar';
+import { MascotBubble } from '@/components/ds/ui/mascot-bubble';
+import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
 import { palette } from '@/constants/palette';
+import { space } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -28,7 +29,7 @@ export default function SampleScriptPicker() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader
         title={t('reading.samplePickTitle')}
-        left={<NavIconButton icon="chevron-left" size={24} label={t('common.back')} phLabel="reading_sample_back" onPress={() => router.back()} />}
+        left={<NavBackButton phLabel="reading_sample_back" onPress={() => router.back()} />}
       />
       <ScrollView contentContainerStyle={styles.body}>
         <MascotBubble title={t('reading.samplePickAsk')} guide={t('reading.samplePickGuide')} />
@@ -39,6 +40,7 @@ export default function SampleScriptPicker() {
           label={t('reading.samplePickConfirm')}
           phLabel="reading_sample_confirm"
           loading={picker.busy}
+          loadingLabel={t('loadingText.preparing')}
           onPress={picker.confirm}
         />
       </CtaBar>
@@ -56,5 +58,5 @@ export default function SampleScriptPicker() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
+  body: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[4] },
 });

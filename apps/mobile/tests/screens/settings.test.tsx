@@ -112,8 +112,8 @@ describe('동의 내역', () => {
       '광고성 이메일 (선택)',
       'AI 분석 보관 (선택)',
     ]);
-    expect(screen.getAllByText('동의함 · 2026.02.01')).toHaveLength(2);
-    expect(screen.getByText('거절함')).toBeOnTheScreen();
+    expect(screen.getAllByText('동의 · 2026.02.01')).toHaveLength(2);
+    expect(screen.getByText('거부')).toBeOnTheScreen();
     expect(screen.getByText('아직 결정하지 않음')).toBeOnTheScreen();
     expect(screen.getByText('필수 동의는 내용만 볼 수 있어요. 선택 동의는 눌러서 바꿀 수 있어요.')).toBeOnTheScreen();
     expect(screen.queryByRole('switch')).not.toBeOnTheScreen();
@@ -168,7 +168,7 @@ describe('동의 내역', () => {
 
     expect(recordConsent).toHaveBeenCalledWith('d-ret', 'granted');
     expect(sw().props.value).toBe(true);
-    expect(screen.getByText('동의함 · 2026.10.20')).toBeOnTheScreen();
+    expect(screen.getByText('동의 · 2026.10.20')).toBeOnTheScreen();
     expect(screen.queryByText('광고성 정보 수신에 동의했어요')).not.toBeOnTheScreen();
   });
 
@@ -192,7 +192,8 @@ describe('동의 내역', () => {
 
     await fireEvent(sw(), 'valueChange', true);
 
-    expect(await screen.findByText('동의 문서가 새로 바뀌었어요. 다시 확인해 주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText('동의 문서가 새로 바뀌었어요')).toBeOnTheScreen();
+    expect(screen.getByText('목록을 다시 불러왔어요. 바뀐 내용을 확인해 주세요.')).toBeOnTheScreen();
     expect(consentEntry).toHaveBeenCalledTimes(2);
   });
 
@@ -227,19 +228,17 @@ describe('동의 내역', () => {
     expect(ret().props.disabled).toBe(false);
   });
 
-  test.each([
-    [new Error('네트워크 오류'), '네트워크 오류'],
-    ['boom', '동의 문서를 불러오지 못했어요.'],
-  ])('못 불러오면 이유와 다시 불러오기를 둔다 (%#)', async (cause, message) => {
-    consentEntry.mockRejectedValueOnce(cause);
+  test('못 불러오면 화면 전체 오류와 다시 불러오기를 둔다', async () => {
+    consentEntry.mockRejectedValueOnce(new Error('네트워크 오류'));
     await render(<ConsentHistoryScreen />);
 
-    expect(await screen.findByText(message)).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('다시 불러오기'));
+    expect(await screen.findByText('동의 내역을 불러오지 못했어요')).toBeOnTheScreen();
+    expect(screen.getByText('잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
     expect(await screen.findByText('이용약관')).toBeOnTheScreen();
   });
 
-  test('아직 결정하지 않은 필수 문서는 동의함으로 보이지 않는다', async () => {
+  test('아직 결정하지 않은 필수 문서는 동의로 보이지 않는다', async () => {
     consentEntry.mockResolvedValue({
       entry_status: 'decision_required',
       documents: [doc('d-terms', 'terms', '이용약관', true, null)],
@@ -248,7 +247,7 @@ describe('동의 내역', () => {
     await render(<ConsentHistoryScreen />);
 
     expect(await screen.findByText('아직 결정하지 않음')).toBeOnTheScreen();
-    expect(screen.queryByText(/동의함/)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/^동의 · /)).not.toBeOnTheScreen();
   });
 
   test('문서가 없으면 안내만 둔다', async () => {
@@ -314,12 +313,15 @@ describe('알림 설정', () => {
     expect(notifSwitch(0).props.value).toBe(true);
   });
 
-  test('못 불러오면 오류 상자와 다시 시도를 둔다', async () => {
-    (loadNotificationSettings as jest.Mock).mockRejectedValueOnce(new Error('네트워크 오류'));
+  test.each([
+    [new Error('네트워크 오류'), '네트워크 오류'],
+    ['boom', '잠시 후 다시 시도해주세요.'],
+  ])('못 불러오면 이유와 다시 불러오기를 둔다 (%#)', async (cause, message) => {
+    (loadNotificationSettings as jest.Mock).mockRejectedValueOnce(cause);
     await render(<NotificationSettingsScreen />);
 
-    expect(await screen.findByText('알림 설정을 불러오지 못했어요')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText(message)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('다시 불러오기'));
     expect(await screen.findByText('분석 완료')).toBeOnTheScreen();
   });
 });

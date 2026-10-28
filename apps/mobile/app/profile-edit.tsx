@@ -6,7 +6,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DefaultAvatar } from '@/components/ui/default-avatar';
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useAuth } from '@/lib/auth';
 import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t, translateList } from '@/lib/i18n';
@@ -104,49 +106,47 @@ export default function ProfileEditScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('profileName.editTitle') }} />
       <ScrollView contentContainerStyle={styles.body}>
+        {/* 프로필 카드 — 모양·색은 개편전(dev), 여백·패딩은 개편후(롤백) 값(SOMA-923). */}
         <View style={styles.summary}>
-        <View style={styles.photoBox}>
-          <Pressable onPress={() => void changePhoto()} disabled={photoBusy} accessibilityRole="button" accessibilityLabel={t('profileName.editPhoto')}>
-            <View style={styles.photo}>
-              {photoBusy ? (
-                <LoadingText label={t('loadingText.uploading')} style={{ fontSize: 12 }} />
-              ) : photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.photoImg} contentFit="cover" />
-              ) : (
-                <DefaultAvatar size={84} seed={user?.id} />
-              )}
-            </View>
-          </Pressable>
-          <View style={styles.photoLinks}>
-            <Pressable onPress={() => void changePhoto()} disabled={photoBusy} hitSlop={6} accessibilityRole="button">
+          <View style={styles.summaryTop}>
+            <Pressable style={styles.photoBox} onPress={() => void changePhoto()} disabled={photoBusy} accessibilityRole="button" accessibilityLabel={t('profileName.editPhoto')}>
+              <View style={styles.photo}>
+                {photoBusy ? (
+                  <LoadingText label={t('loadingText.uploading')} style={styles.photoBusy} />
+                ) : photoUri ? (
+                  <Image source={{ uri: photoUri }} style={styles.photoImg} contentFit="cover" />
+                ) : (
+                  <DefaultAvatar size={72} seed={user?.id} />
+                )}
+              </View>
               <Text style={styles.photoLink}>{t('profileName.editPhoto')}</Text>
+              {/* 사진 지우기는 롤백 화면처럼 바로 누르는 글자로 둔다(메뉴 없음). */}
+              {!!photoUri && (
+                <Pressable onPress={() => void removePhoto()} disabled={photoBusy} hitSlop={6} accessibilityRole="button">
+                  <Text style={styles.photoRemove}>{t('profileName.photoRemove')}</Text>
+                </Pressable>
+              )}
             </Pressable>
-            {!!photoUri && (
-              <Pressable onPress={() => void removePhoto()} disabled={photoBusy} hitSlop={6} accessibilityRole="button">
-                <Text style={styles.photoRemove}>{t('profileName.photoRemove')}</Text>
-              </Pressable>
-            )}
-          </View>
-          {photoError && <Text style={styles.error}>{photoError}</Text>}
-        </View>
-        <View style={styles.summaryText}>
-          <Text style={styles.summaryName} numberOfLines={1}>{p?.name ?? ''}</Text>
-          <Text style={[styles.summaryBio, !p?.bio?.trim() && styles.summaryBioEmpty]} numberOfLines={2}>{p?.bio?.trim() || t('profileName.editBioEmpty')}</Text>
-          <View style={styles.chipRow}>
-            {!!p?.birth_date && (
-              <View style={styles.chip}>
-                <Feather name="gift" size={13} color={palette.textMuted} />
-                <Text style={styles.chipText}>{p.birth_date.replace(/-/g, '.')}</Text>
+            <View style={styles.summaryText}>
+              <Text style={styles.summaryName} numberOfLines={1}>{p?.name ?? ''}</Text>
+              <Text style={[styles.summaryBio, !p?.bio?.trim() && styles.summaryBioEmpty]} numberOfLines={2}>{p?.bio?.trim() || t('profileName.editBioEmpty')}</Text>
+              <View style={styles.chipRow}>
+                {!!p?.birth_date && (
+                  <View style={styles.chip}>
+                    <Feather name="gift" size={12} color={palette.iconFaint} />
+                    <Text style={styles.chipText}>{p.birth_date.replace(/-/g, '.')}</Text>
+                  </View>
+                )}
+                {!!p?.gender && (
+                  <View style={styles.chip}>
+                    <Feather name="user" size={12} color={palette.iconFaint} />
+                    <Text style={styles.chipText}>{t(GENDER_LABEL_KEYS[p.gender])}</Text>
+                  </View>
+                )}
               </View>
-            )}
-            {!!p?.gender && (
-              <View style={styles.chip}>
-                <Feather name="user" size={13} color={palette.textMuted} />
-                <Text style={styles.chipText}>{t(GENDER_LABEL_KEYS[p.gender])}</Text>
-              </View>
-            )}
+            </View>
           </View>
-        </View>
+          {photoError && <InlineErrorLine message={photoError} />}
         </View>
 
         {rows.map((row) => (
@@ -179,6 +179,8 @@ export default function ProfileEditScreen() {
 }
 
 const styles = StyleSheet.create({
+  photoBusy: { ...type.micro, color: palette.textMeta },
+  summaryTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 18 },
   safe: { flex: 1, backgroundColor: palette.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   reload: { paddingHorizontal: 16, paddingVertical: 8 },
@@ -186,21 +188,30 @@ const styles = StyleSheet.create({
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
   // pen S6.3 — 좌우 16, 카드 위 16, 줄 사이 9.
   body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 9 },
-  // 프로필 카드 — 여백·패딩은 개편후(16·8), 모양·색은 개편전(SOMA-923).
-  summary: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, marginBottom: 8, borderRadius: 20, backgroundColor: palette.bgSubtle, borderWidth: 1, borderColor: palette.borderSoft },
+  summary: { gap: space[3], padding: 18, marginBottom: 6, borderRadius: radius.lg, backgroundColor: palette.bgSubtle },
   summaryText: { flex: 1, gap: 6 },
-  summaryName: { fontSize: 20, fontWeight: '800', color: palette.text },
+  summaryName: { ...type.headline, color: palette.text },
   // pen S6.4 소개가 있으면 #4E5968, 없으면 안내 #8B95A1.
-  summaryBio: { fontSize: 14, color: palette.textDim, lineHeight: 20 },
-  summaryBioEmpty: { color: palette.textFaint },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: 8, paddingVertical: 4 },
-  chipText: { fontSize: 12, fontWeight: '500', color: palette.textDim },
-  photoBox: { alignItems: 'center', gap: 8 },
+  summaryBio: { ...type.body2, color: palette.textSub },
+  summaryBioEmpty: { color: palette.textMeta },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[1],
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  chipText: { ...type.micro, color: palette.textSub },
+  photoBox: { alignItems: 'center', gap: space[2] },
   photo: {
-    width: 84,
-    height: 84,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: radius.full,
     backgroundColor: palette.bgSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -208,7 +219,7 @@ const styles = StyleSheet.create({
   },
   photoImg: { width: '100%', height: '100%' },
   photoLinks: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  photoLink: { fontSize: 12, fontWeight: '700', color: palette.blue },
+  photoLink: { ...type.micro, fontWeight: '700', color: palette.blueDeep },
   photoRemove: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
   divider: { height: 1, backgroundColor: palette.borderSoft },
   // pen S6.3 줄 — 높이 53(위아래 15), 왼 16 · 오른 12, 모서리 16, 칸 사이 10.

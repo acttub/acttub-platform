@@ -6,9 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
-import { Button } from '@/components/ds/ui/buttons';
-import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError } from '@/components/ui/inline-error';
+import { NavBackButton, NavHeader, NavIconButton } from '@/components/ds/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -17,7 +15,7 @@ import { browseFailure, browseFailureMessage, dDayLabel, participantsLabel, sear
 import type { ChallengeCard } from '@/lib/challenge/types';
 import { SEARCH_MIN_LENGTH } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
-import { SkeletonRows } from '@/components/ds/ui/skeleton';
+import { SkeletonRows } from '@/components/ui/skeleton';
 
 /**
  * A16.1 대사 검색(challenge.browse).
@@ -27,6 +25,7 @@ import { SkeletonRows } from '@/components/ds/ui/skeleton';
  */
 export default function LineSearchScreen() {
   const router = useRouter();
+  const [focused, setFocused] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ChallengeCard[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -63,41 +62,39 @@ export default function LineSearchScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      {/* 위쪽 바(머리·검색칸)는 개편전, 아래 결과는 개편후 모양(SOMA-923). */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="line_search_back">
-          <Feather name="chevron-left" size={26} color={palette.text} />
-        </Pressable>
-        <Text style={styles.title}>{t('lineSearch.title')}</Text>
-        <Pressable onPress={register} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('challenges.addLine')} ph-label="line_search_add">
-          <Feather name="plus" size={26} color={palette.blue} />
-        </Pressable>
-      </View>
+      {/* 위쪽 바(머리·검색칸)는 개편전(dev), 아래 결과는 개편후(롤백) 모양(SOMA-923). */}
+      <NavHeader
+        title={t('lineSearch.title')}
+        left={<NavBackButton phLabel="line_search_back" onPress={() => router.back()} />}
+        right={<NavIconButton icon="plus" label={t('challenges.addLine')} phLabel="line_search_add" onPress={register} />}
+      />
 
-      <View style={styles.searchBox}>
-        <Feather name="search" size={16} color={palette.textFaint} />
+      <View style={[styles.searchBox, focused && styles.searchBoxFocus]}>
+        <Feather name="search" size={18} color={palette.iconFaint} />
         <TextInput
           style={styles.input}
           placeholder={t('lineSearch.placeholder')}
-          placeholderTextColor={palette.textFaint}
+          placeholderTextColor={palette.textMeta}
           value={query}
           onChangeText={(text) => setQuery(sanitizeInput(text, 'loose'))}
           autoFocus
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           returnKeyType="search"
           onSubmitEditing={() => void search(query)}
         />
         {!!query && (
           <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.delete')} ph-label="line_search_clear">
-            <Feather name="x" size={16} color={palette.textFaint} />
+            <Feather name="x" size={18} color={palette.iconFaint} />
           </Pressable>
         )}
       </View>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <AdSlot slot="line_search_top" style={styles.ad} />
+        <AdSlot slot="line_search_top" style={{ marginBottom: 12 }} />
         {!searchable(query) && <Text style={styles.hint}>{t('lineSearch.minLength', { count: SEARCH_MIN_LENGTH })}</Text>}
-        {loading && !results?.length && <SkeletonRows count={4} avatar={false} card={false} style={styles.skeleton} />}
-        {error && <InlineError message={error} onRetry={() => void search(query)} />}
+        {loading && !results?.length && <SkeletonRows count={4} avatar={false} card={false} style={{ paddingHorizontal: 0 }} />}
+        {error && <Text style={styles.error}>{error}</Text>}
 
         {results?.map((challenge) => (
           <Pressable
@@ -116,21 +113,17 @@ export default function LineSearchScreen() {
                 {participantsLabel(challenge.participants, challenge.more_count)}
               </Text>
             </View>
-            <Feather name="chevron-right" size={18} color={palette.iconFaint} />
+            <Feather name="chevron-right" size={18} color={palette.checkOff} />
           </Pressable>
         ))}
 
         {results !== null && results.length === 0 && !loading && !error && (
           <View style={styles.empty}>
-            <InlineEmpty title={t('lineSearch.empty')} description={t('lineSearch.emptySub')} />
-            <Button
-              size="sm"
-              label={t('lineSearch.registerCta')}
-              icon={<Feather name="plus" size={16} color={palette.blueDeep} />}
-              onPress={register}
-              phLabel="line_search_register"
-              style={styles.register}
-            />
+            <Text style={styles.emptyText}>{t('lineSearch.empty')}</Text>
+            <Pressable style={styles.registerBtn} onPress={register} accessibilityRole="button">
+              <Feather name="plus" size={15} color={palette.blue} />
+              <Text style={styles.registerText}>{t('lineSearch.registerCta')}</Text>
+            </Pressable>
           </View>
         )}
       </ScrollView>
@@ -139,36 +132,47 @@ export default function LineSearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  title: { flex: 1, fontSize: 18, fontWeight: '800', color: palette.text },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6, minHeight: 48 },
+  searchBoxFocus: { borderWidth: 1.5, borderColor: palette.blue, paddingHorizontal: space[4] - 0.5 },
   safe: { flex: 1, backgroundColor: palette.bg },
+  flex: { flex: 1 },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    backgroundColor: palette.bgSoft,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 46,
+    gap: space[2],
+    marginHorizontal: space.gutter,
+    marginTop: space[2],
+    backgroundColor: palette.bg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius.md,
+    paddingHorizontal: space[4],
+    height: 48,
   },
-  input: { flex: 1, fontSize: 15, color: palette.text },
-  body: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[10], gap: space[1] },
-  ad: { marginBottom: space[3] },
-  skeleton: { paddingHorizontal: 0 },
-  hint: { ...type.caption, color: palette.textMeta },
+  input: { ...type.body1, lineHeight: undefined, flex: 1, color: palette.text, padding: 0 },
+  body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60, gap: 4 },
+  hint: { fontSize: 13, color: palette.textFaint, paddingVertical: 12 },
+  error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', paddingVertical: 12 },
   row: {
-    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[3],
-    paddingVertical: space[3],
+    gap: 10,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    borderBottomColor: palette.borderSoft,
   },
-  rowBody: { flex: 1, gap: space[1] },
-  rowLine: { ...type.body1Bold, color: palette.text },
-  rowMeta: { ...type.caption, color: palette.textMeta },
-  empty: { gap: space[3] },
-  register: { height: 48 },
+  rowBody: { flex: 1, gap: 4 },
+  rowLine: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 23 },
+  rowMeta: { fontSize: 12, color: palette.textFaint },
+  empty: { alignItems: 'center', gap: 14, paddingVertical: 40 },
+  emptyText: { fontSize: 14.5, color: palette.textDim },
+  registerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.blueSoft,
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 18,
+  },
+  registerText: { fontSize: 14, fontWeight: '800', color: palette.blue },
 });

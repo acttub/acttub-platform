@@ -1,16 +1,20 @@
 import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
-import { palette } from '@/constants/palette';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
+import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
 import { SkeletonCards } from '@/components/ui/skeleton';
+import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { avatarLetter, browseFailure, browseFailureMessage } from '@/lib/challenge/browse';
+import { browseFailure, browseFailureMessage } from '@/lib/challenge/browse';
 import { reactFailure, reactFailureMessage } from '@/lib/challenge/react';
 import type { EntryCard } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
@@ -32,8 +36,10 @@ export default function SavedVideosScreen() {
   const [saved, setSaved] = useState<SavedItem[] | null>(null);
   const [mine, setMine] = useState<SavedItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [unsaveError, setUnsaveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setError(null);
     try {
       const [savedList, myList] = await Promise.all([api.listSavedEntries(), api.listMyChallengeEntries()]);
       setSaved(savedList.entries);
@@ -55,10 +61,11 @@ export default function SavedVideosScreen() {
   /** 저장 풀기 — 멱등이라 두 번 눌러도 문제가 없다. */
   const unsave = async (entry: SavedItem) => {
     setSaved((prev) => (prev ?? []).filter((e) => e.id !== entry.id));
+    setUnsaveError(null);
     try {
       await api.saveEntry(entry.id, false);
     } catch (e) {
-      setError(reactFailureMessage(reactFailure(e)));
+      setUnsaveError(reactFailureMessage(reactFailure(e)));
       void load();
     }
   };
@@ -71,10 +78,7 @@ export default function SavedVideosScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <NavHeader
-        title={t('savedVideos.title')}
-        left={<NavIconButton icon="chevron-left" label={t('common.back')} phLabel="saved_videos_back" onPress={() => router.back()} />}
-      />
+      <NavHeader title={t('savedVideos.title')} left={<NavBackButton phLabel="saved_videos_back" onPress={() => router.back()} />} />
 
       <View style={styles.tabs}>
         {(
@@ -97,16 +101,19 @@ export default function SavedVideosScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         <AdSlot slot="saved_videos_top" />
         <Text style={styles.hint}>{t(tab === 'mine' ? 'savedVideos.hintMine' : 'savedVideos.hintSaved')}</Text>
-        {!!error && <Text style={styles.empty}>{error}</Text>}
-        {items === null && !error && <SkeletonCards count={4} columns={2} aspectRatio={0.78} style={{ paddingHorizontal: 0 }} />}
+        {!!error && <InlineError message={error} onRetry={() => void load()} />}
+        {!!unsaveError && <InlineErrorLine message={unsaveError} />}
+        {items === null && !error && <SkeletonCards count={4} columns={2} aspectRatio={0.78} style={styles.skeleton} />}
         {items !== null && items.length === 0 && !error ? (
-          <Text style={styles.empty}>{t('savedVideos.empty')}</Text>
+          <InlineEmpty
+            title={t(tab === 'mine' ? 'savedVideos.emptyMineTitle' : 'savedVideos.emptyTitle')}
+            description={t(tab === 'mine' ? 'savedVideos.emptyMineBody' : 'savedVideos.emptyBody')}
+          />
         ) : (
           <View style={styles.grid}>
             {items?.map((entry) => (
               <Pressable key={entry.id} style={styles.cell} onPress={() => open(entry)} accessibilityRole="button">
                 <View style={styles.thumb}>
-                  <View style={styles.thumbScrim} />
                   {tab === 'saved' && (
                     <Pressable
                       style={styles.bookmark}
@@ -114,23 +121,21 @@ export default function SavedVideosScreen() {
                       onPress={() => void unsave(entry)}
                       accessibilityRole="button"
                       accessibilityLabel={t('react.menuSave')}>
-                      <Feather name="bookmark" size={14} color="#FFD84D" />
+                      <Feather name="bookmark" size={14} color={palette.onAccent} />
                     </Pressable>
                   )}
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{avatarLetter(entry.author.name)}</Text>
-                  </View>
-                  <View style={styles.thumbFooter}>
-                    <Text style={styles.thumbName}>{entry.author.name}</Text>
-                    <View style={styles.likeChip}>
-                      <Feather name="heart" size={11} color="#FFFFFF" />
-                      <Text style={styles.likeText}>{entry.like_count}</Text>
-                    </View>
-                  </View>
                 </View>
-                <Text style={styles.cellLine} numberOfLines={1}>
-                  {entry.caption ?? ''}
-                </Text>
+                {!!entry.caption && (
+                  <Text style={styles.caption} numberOfLines={1}>
+                    {entry.caption}
+                  </Text>
+                )}
+                <View style={styles.metaRow}>
+                  <Ionicons name="heart-outline" size={12} color={palette.danger} />
+                  <Text style={styles.meta} numberOfLines={1}>
+                    {entry.like_count} · {entry.author.name}
+                  </Text>
+                </View>
               </Pressable>
             ))}
           </View>
@@ -141,58 +146,37 @@ export default function SavedVideosScreen() {
 }
 
 const styles = StyleSheet.create({
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { fontSize: 15, fontWeight: '900', color: '#FFFFFF' },
   safe: { flex: 1, backgroundColor: palette.bg },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8 },
-  title: { fontSize: 20, fontWeight: '800', color: palette.text },
   tabs: {
     flexDirection: 'row',
-    marginHorizontal: 16,
+    gap: space[1],
+    marginHorizontal: space.gutter,
     backgroundColor: palette.bgSoft,
-    borderRadius: 12,
-    padding: 4,
+    borderRadius: radius.md,
+    padding: space[1],
   },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 9 },
-  tabOn: { backgroundColor: palette.card },
-  tabText: { fontSize: 13.5, fontWeight: '700', color: palette.textFaint },
+  tab: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  tabOn: { backgroundColor: palette.bg },
+  tabText: { ...type.body2Bold, color: palette.textMeta },
   tabTextOn: { color: palette.text },
-  body: { padding: 16, paddingBottom: 40, gap: 12 },
-  hint: { fontSize: 12.5, color: palette.textFaint },
-  empty: { textAlign: 'center', color: palette.textDim, marginTop: 48 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  cell: { width: '48%', gap: 6 },
-  thumb: { aspectRatio: 0.78, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.navy },
-  thumbScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 60, backgroundColor: 'rgba(0,0,0,0.45)' },
+  body: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[10], gap: space[3] },
+  hint: { ...type.caption, color: palette.textMeta },
+  skeleton: { paddingHorizontal: 0 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[3] },
+  cell: { width: '47%', flexGrow: 1, gap: space[1] },
+  thumb: { aspectRatio: 0.8, borderRadius: radius.md, overflow: 'hidden', backgroundColor: palette.bgSoft },
   bookmark: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: space[2],
+    right: space[2],
     width: 28,
     height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: radius.full,
+    backgroundColor: palette.scrim,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  thumbFooter: {
-    position: 'absolute',
-    left: 10,
-    right: 10,
-    bottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  thumbName: { fontSize: 12.5, fontWeight: '800', color: '#FFFFFF' },
-  likeChip: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  likeText: { fontSize: 11.5, fontWeight: '700', color: '#FFFFFF' },
-  cellLine: { fontSize: 12.5, fontWeight: '600', color: palette.textDim },
+  caption: { ...type.captionBold, color: palette.text, marginTop: space[1] },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  meta: { flexShrink: 1, ...type.micro, color: palette.textMeta },
 });

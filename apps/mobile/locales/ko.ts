@@ -295,6 +295,11 @@ const ko = {
     visibilityPublic: '공개',
     visibilityPrivate: '나만 보기',
     seeAll: '전체 보기',
+    emptyPracticeTitle: '아직 연습 기록이 없어요',
+    emptyEntriesTitle: '아직 참여한 챌린지가 없어요',
+    emptyEntriesBody: '챌린지에 참여하면 여기에 모여요',
+    emptyPracticeBodyFirst: '첫 연습을 끝내면 여기에 쌓여요',
+    emptyPracticeBody: '코칭이나 리딩을 하면 여기에 쌓여요',
   },
   notifications: {
     title: '알림',
@@ -308,6 +313,7 @@ const ko = {
     loadFail: '알림을 불러오지 못했어요.',
     pushOff: '챌린지 알림이 꺼져 있어요. 여기에는 계속 쌓여요.',
     keep: '알림은 90일 동안 보관해요.',
+    emptyBody: '좋아요·댓글·챌린지 소식이 여기에 와요',
   },
   react: {
     mute: '소리 끄기',
@@ -341,6 +347,7 @@ const ko = {
     loadFail: '차단 목록을 불러오지 못했어요.',
     settingsLink: '차단한 사용자',
     settingsHint: '차단하면 그 사람의 참여작과 댓글이 보이지 않아요',
+    unblockFail: '차단을 풀지 못했어요',
   },
   comments: {
     close: '닫기',
@@ -388,6 +395,10 @@ const ko = {
     hintMine: '챌린지에 올린 내 연기 영상이에요.',
     empty: '아직 저장한 영상이 없어요.',
     loadFail: '저장한 영상을 불러오지 못했어요.',
+    emptyTitle: '아직 저장한 영상이 없어요',
+    emptyBody: '챌린지에서 마음에 드는 연기를 저장해 보세요',
+    emptyMineTitle: '아직 올린 영상이 없어요',
+    emptyMineBody: '챌린지에 참여하면 여기에 모여요',
   },
   lineSearch: {
     minLength: '두 글자 이상 적어 주세요.',
@@ -428,6 +439,8 @@ const ko = {
     rolePh: '예: 윤서',
     next: '다음',
     submit: '등록하기',
+    lineOverMax: '{{max}}자까지 적을 수 있어요.',
+    submitting: '등록하는 중…',
   },
   archive: {
     title: '영상 저장',
@@ -1054,6 +1067,12 @@ const ko = {
     notifOffOpen: '설정에서 켜기',
     notifOffSkip: '알림 없이 할게요',
     notifLoadFail: '알림 설정을 불러오지 못했어요',
+    consentOutdatedTitle: '동의 문서가 새로 바뀌었어요',
+    consentOutdatedBody: '목록을 다시 불러왔어요. 바뀐 내용을 확인해 주세요.',
+    consentLoadFail: '동의 내역을 불러오지 못했어요',
+    retryLater: '잠시 후 다시 시도해 주세요.',
+    decisionGrantedShort: '동의',
+    decisionDeclinedShort: '거부',
   },
   notices: {
     title: '공지사항',
@@ -1382,6 +1401,7 @@ const ko = {
     endHome: '홈으로 가기',
     endShare: 'SNS에 공유하기',
     shareText: '오늘 Acttub에서 연기 연습을 했어요.',
+    loadFailBody: '인터넷 연결을 확인해 주세요.',
   },
   noteCheer: {
     one: '오늘 촬영도 수고했어요.\n다음 촬영도 응원할게요!',
@@ -2247,6 +2267,8 @@ const ko = {
     scriptLimitBody: '대본은 100개까지 둘 수 있어요. 안 쓰는 대본을 지우면 다시 넣을 수 있어요.',
     busyTitle: '지금은 대본을 넣을 수 없어요',
     importFailTitle: '대본을 넣지 못했어요',
+    sampleOpenFailTitle: '예시 대본을 열지 못했어요',
+    noMatchSub: '작품명이나 배역 이름으로 찾아보세요',
   },
   time: {
     justNow: '방금',

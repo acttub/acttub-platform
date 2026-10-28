@@ -1,4 +1,4 @@
-// 10/27 디자인 개편 모양 그대로(SOMA-923). 개편후 모양을 유지하기로 한 화면만 쓴다.
+// 10/27 디자인 개편(개편전 = dev) 모양 그대로(SOMA-923). 개편전 모양을 쓰기로 한 화면만 쓴다.
 import { Image } from 'expo-image';
 import type { ReactNode } from 'react';
 import { type ImageSourcePropType, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ds/ui/buttons';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
-import { SkeletonBlock, SkeletonGroup } from '@/components/ds/ui/skeleton';
+import { SkeletonBlock, SkeletonGroup } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 
@@ -34,6 +34,7 @@ export function StatusScreen({
   secondary,
   children,
   safeArea = false,
+  centered = false,
 }: {
   kind?: 'error' | 'empty' | 'loading';
   header?: string;
@@ -49,6 +50,8 @@ export function StatusScreen({
   children?: ReactNode;
   /** 화면 전체를 이 부품이 차지할 때 위·아래 안전 영역을 띄운다. */
   safeArea?: boolean;
+  /** 위 머리와 상관없이 화면 위아래 끝의 가운데쯤에 둔다(머리 높이 52의 절반만큼 올린다, SOMA-923). */
+  centered?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const empty = kind === 'empty';
@@ -67,7 +70,7 @@ export function StatusScreen({
         </SkeletonGroup>
       ) : (
         // 작은 기기·큰 글자에서도 버튼까지 닿게 본문을 스크롤로 둔다.
-        <ScrollView contentContainerStyle={styles.body}>
+        <ScrollView contentContainerStyle={[styles.body, centered && styles.bodyCentered]}>
           <Image
             source={mascot}
             style={empty ? MASCOT_SIZE.empty : MASCOT_SIZE.xl}
@@ -95,6 +98,7 @@ export function StatusScreen({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
+  bodyCentered: { flexGrow: 1, justifyContent: 'center', paddingTop: 0, paddingBottom: 52 },
   body: { paddingTop: 96, paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3], alignItems: 'center' },
   title: { ...type.title1, color: palette.text, textAlign: 'center' },
   titleEmpty: type.title2,

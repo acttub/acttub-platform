@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConsentRow } from '@/components/consent-row';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -227,7 +228,7 @@ export default function ConsentScreen() {
           accessibilityRole="checkbox"
           accessibilityHint={t('consent.allAgreeHint')}
           accessibilityState={{ checked: everythingGranted }}>
-          <Feather name="check-circle" size={24} color={everythingGranted ? palette.blue : palette.checkOff} />
+          <Checkbox checked={everythingGranted} />
           <Text style={styles.allLabel}>{t('consent.allAgreeStart')}</Text>
         </Pressable>
         <PrimaryButton label={t('consent.ctaStart')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} />

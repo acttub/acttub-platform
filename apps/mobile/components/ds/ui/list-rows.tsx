@@ -1,4 +1,4 @@
-// 10/27 디자인 개편 모양 그대로(SOMA-923). 개편후 모양을 유지하기로 한 화면만 쓴다.
+// 10/27 디자인 개편(개편전 = dev) 모양 그대로(SOMA-923). 개편전 모양을 쓰기로 한 화면만 쓴다.
 import { Switch } from 'react-native';
 
 import { palette } from '@/constants/palette';

@@ -192,7 +192,8 @@ test('목록을 못 읽으면 0으로 두고 빈 안내를 보인다', async () 
 
   await render(<ProfileScreen />);
 
-  expect(await screen.findByText('아직 연습 기록이 없어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('아직 연습 기록이 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('코칭이나 리딩을 하면 여기에 쌓여요')).toBeOnTheScreen();
   expect(listEntries).toHaveBeenCalledTimes(1);
   expect(screen.getAllByText('0')).toHaveLength(4);
   expect(screen.queryByText(/개$/)).not.toBeOnTheScreen();

@@ -6,14 +6,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { useAppDialog } from '@/components/ds/app-dialog';
-import { pt } from '@/components/ds/ui/anchored-menu';
-import { Chip } from '@/components/ds/ui/chip';
-import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError } from '@/components/ui/inline-error';
-import { NavIconButton } from '@/components/ds/ui/nav-header';
-import { SkeletonRows } from '@/components/ds/ui/skeleton';
+import { useAppDialog } from '@/components/app-dialog';
+import { SkeletonRows } from '@/components/ui/skeleton';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
+import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
@@ -22,6 +18,8 @@ import { translate as t } from '@/lib/i18n';
 import { filterGroups, groupPoster, groupRowTarget, groupTitle } from '@/lib/practice/groups';
 import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
 import type { GestureResponderEvent } from 'react-native';
+
+import { pt } from '@/components/ui/anchored-menu';
 
 type Row = {
   id: string;
@@ -34,7 +32,7 @@ type Row = {
   /** 썸네일 오른쪽 아래 배지 — 묶음의 회차 수. */
   count: string;
   onPress: () => void;
-  onMenu: (e?: GestureResponderEvent) => void;
+  onLongPress?: () => void;
   chips: string[];
   /** 열린 테이크가 있는 묶음 — 「대화 중」 배지를 붙이고 누르면 그 대화로 간다(SOMA-672). */
   talking: boolean;
@@ -77,12 +75,13 @@ export default function HistoryScreen() {
 
   const openGroup = (rootId: string) => router.push({ pathname: '/practice-group', params: { rootId } });
 
-  /** 숨김은 묶음 전체이고 되돌릴 수 있다 — 노트·대화·기억은 그대로고 영상은 보관함에 남는다. */
+  /** 숨김은 묶음 전체다 — 노트·대화·기억은 그대로고 영상은 보관함에 남는다. */
   const hideGroup = async (group: PracticeGroup) => {
     const ok = await confirm({
       title: t('history.hideTitle'),
       message: t('history.hideNotice'),
       confirmLabel: t('history.hideConfirm'),
+      destructive: true,
     });
     if (!ok) return;
     try {
@@ -115,7 +114,7 @@ export default function HistoryScreen() {
           label: group.favorite ? t('history.favOff') : t('history.favOn'),
           onPress: () => void toggleFavorite(group),
         },
-        { label: t('history.menuHide'), onPress: () => void hideGroup(group) },
+        { label: t('history.hideConfirm'), destructive: true, onPress: () => void hideGroup(group) },
       ],
     });
   };
@@ -134,7 +133,7 @@ export default function HistoryScreen() {
         chips: group.tags ?? [],
         talking: Boolean(group.in_progress_practice_id),
         onPress: () => router.push(groupRowTarget(group)),
-        onMenu: (e?: GestureResponderEvent) => onGroupMenu(group, e),
+        onLongPress: (e?: GestureResponderEvent) => onGroupMenu(group, e),
       }))
       .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -165,15 +164,10 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* 위쪽(제목·총 연습 요약)은 개편전, 아래 영상 목록은 개편후 모양(SOMA-923). */}
-      <View style={styles.header}>
-        <Pressable onPress={goBack} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="history_back">
-          <Feather name="chevron-left" size={26} color={palette.text} />
-        </Pressable>
-        <Text style={styles.title}>{t('history.title')}</Text>
-      </View>
+      {/* 위쪽(제목·총 연습 요약)은 개편전(dev), 아래 필터·영상 목록은 롤백 모양(SOMA-923). */}
+      <NavHeader title={t('history.title')} left={<NavBackButton onPress={goBack} phLabel="history_back" />} />
 
-      <ScrollView contentContainerStyle={[styles.list, { paddingBottom: tabBarSpace + space[5] }]}>
+      <ScrollView contentContainerStyle={[styles.list, { paddingBottom: tabBarSpace + 20 }]}>
         <View style={styles.summary}>
           <Stat value={t('history.countTimes', { count: roundTotal })} label={t('history.statTotal')} />
           <View style={styles.statDivider} />
@@ -188,26 +182,34 @@ export default function HistoryScreen() {
               ['recent30', 'history.filterRecent'],
             ] as const
           ).map(([key, label]) => (
-            <Chip key={key} label={t(label)} selected={filter === key} role="radio" onPress={() => setFilter(key)} />
+            <Pressable
+              key={key}
+              style={[styles.filterChip, filter === key && styles.filterChipOn]}
+              onPress={() => setFilter(key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: filter === key }}>
+              <Text style={[styles.filterText, filter === key && styles.filterTextOn]}>{t(label)}</Text>
+            </Pressable>
           ))}
         </View>
 
-        <AdSlot slot="archive_top" />
+        <AdSlot slot="archive_top" style={{ marginBottom: 12 }} />
 
-        {loading && <SkeletonRows count={5} avatar card={false} />}
-        {error && <InlineError message={error} onRetry={() => void load()} />}
+        {loading && (
+          <SkeletonRows count={5} avatar card={false} />
+        )}
+        {error && <Text style={styles.error}>{error}</Text>}
 
         {monthGroups.map((group) => (
-          <View key={group.label} style={styles.month}>
+          <View key={group.label}>
             <Text style={styles.monthHeader}>{group.label}</Text>
             {group.items.map((row) => (
               <Pressable
                 key={row.id}
                 style={styles.row}
                 onPress={row.onPress}
-                onLongPress={row.onMenu}
-                accessibilityRole="button"
-                accessibilityLabel={row.title}>
+                onLongPress={row.onLongPress}
+                accessibilityRole="button">
                 {/* 영상 목록처럼 왼쪽에 큰 첫 장면 사진, 오른쪽 아래에 회차 수(SOMA-671). 사진이 없으면 아이콘. */}
                 <View style={styles.thumb}>
                   {row.poster ? (
@@ -241,19 +243,13 @@ export default function HistoryScreen() {
                     </View>
                   )}
                 </View>
-                <View style={styles.more}>
-                  <NavIconButton icon="more-horizontal" size={20} color={palette.iconFaint} label={t('history.groupMenu')} phLabel="history_group_menu" onPress={row.onMenu} />
-                </View>
               </Pressable>
             ))}
           </View>
         ))}
 
         {!loading && !error && rows.length === 0 && (
-          <InlineEmpty
-            title={filter === 'favorite' ? t('history.favEmpty') : t('history.empty')}
-            description={filter === 'favorite' ? t('history.favEmptyBody') : t('history.emptyBody')}
-          />
+          <Text style={styles.empty}>{filter === 'favorite' ? t('history.favEmpty') : t('history.empty')}</Text>
         )}
       </ScrollView>
       {dialog}
@@ -272,38 +268,45 @@ function Stat({ value, label }: { value: string; label: string }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  title: { fontSize: 20, fontWeight: '800', color: palette.text, letterSpacing: -0.3 },
-  list: { paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[4] },
+  list: { paddingHorizontal: 20, paddingTop: 8 },
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.card,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: palette.borderSoft,
-    paddingVertical: 18,
-    paddingHorizontal: 8,
+    borderColor: palette.border,
+    paddingVertical: space[4],
   },
-  stat: { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 20, fontWeight: '800', color: palette.text },
-  statLabel: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
-  statDivider: { width: 1, height: 28, backgroundColor: palette.borderSoft },
-  filters: { flexDirection: 'row', gap: space[2] },
-  month: { gap: space[2] },
-  monthHeader: { ...type.body2Bold, color: palette.textSub },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3], paddingVertical: space[2] },
+  stat: { flex: 1, alignItems: 'center', gap: space[1] },
+  statValue: { ...type.headline, color: palette.text },
+  statLabel: { ...type.caption, color: palette.textMeta },
+  statDivider: { width: 1, height: 28, backgroundColor: palette.border },
+  filters: { flexDirection: 'row', gap: 8, marginTop: 16, marginBottom: 6 },
+  filterChip: {
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  filterChipOn: { backgroundColor: palette.text, borderColor: palette.text },
+  filterText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
+  filterTextOn: { color: '#FFFFFF' },
+  center: { paddingVertical: 40, alignItems: 'center' },
+  error: { color: palette.danger, textAlign: 'center', paddingVertical: 10 },
+  empty: { color: palette.textDim, textAlign: 'center', marginTop: 48, fontSize: 15, lineHeight: 24 },
+  monthHeader: { fontSize: 14, fontWeight: '800', color: palette.textFaint, marginTop: 18, marginBottom: 4 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 10,
+  },
   thumb: {
-    width: '40%',
+    width: '44%',
     aspectRatio: 16 / 9,
-    borderRadius: radius.sm,
+    borderRadius: 12,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -311,21 +314,20 @@ const styles = StyleSheet.create({
   },
   thumbBadge: {
     position: 'absolute',
-    right: space[1.5],
-    bottom: space[1.5],
-    borderRadius: radius.full,
-    backgroundColor: palette.toast,
-    paddingVertical: space[1] / 2,
-    paddingHorizontal: space[2],
+    right: 6,
+    bottom: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
   },
-  thumbBadgeText: { ...type.micro, color: palette.onAccent },
-  rowBody: { flex: 1, gap: space[1] },
-  rowTitle: { ...type.body1Bold, color: palette.text },
-  rowMeta: { ...type.caption, color: palette.textMeta },
-  more: { marginTop: -space[3], marginRight: -space[3] },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5], marginTop: space[1] },
-  chip: { borderRadius: radius.full, backgroundColor: palette.bgSoft, paddingVertical: space[1] / 2, paddingHorizontal: space[2] },
-  chipText: { ...type.micro, color: palette.textSub },
+  thumbBadgeText: { fontSize: 11.5, fontWeight: '800', color: '#fff' },
+  rowBody: { flex: 1, gap: 4, paddingTop: 2 },
+  rowTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 21 },
+  rowMeta: { fontSize: 12.5, color: palette.textFaint },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 3 },
+  chip: { borderRadius: 9999, backgroundColor: palette.bgSoft, paddingVertical: 3, paddingHorizontal: 9 },
+  chipText: { fontSize: 11.5, fontWeight: '700', color: palette.textMuted },
   talkingChip: { alignSelf: 'flex-start', backgroundColor: palette.blueSoft },
-  talkingChipText: { color: palette.blueDeep },
+  talkingChipText: { fontWeight: '800', color: palette.blueDeep },
 });

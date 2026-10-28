@@ -5,11 +5,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { NavHeader, NavIconButton } from '@/components/app-header';
-import { useAppDialog } from '@/components/app-dialog';
-import { ProBadge, ProCompareTable } from '@/components/pro-ui';
-import { PrimaryButton } from '@/components/ui/buttons';
-import { CtaBar } from '@/components/ui/cta-bar';
+import { NavHeader, NavIconButton } from '@/components/ds/app-header';
+import { useAppDialog } from '@/components/ds/app-dialog';
+import { ProBadge, ProCompareTable } from '@/components/ds/pro-ui';
+import { PrimaryButton } from '@/components/ds/ui/buttons';
+import { CtaBar } from '@/components/ds/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -147,27 +147,27 @@ function PlanPicker({ plan, prices, onPick, disabled }: {
 
 const styles = StyleSheet.create({
   plans: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  plan: { flex: 1, borderWidth: 1.5, borderColor: palette.border, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: palette.card },
-  planOn: { borderColor: palette.blue, backgroundColor: palette.blueMist },
+  plan: { flex: 1, borderWidth: 1.5, borderColor: palette.border, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: palette.bg },
+  planOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
   planOff: { opacity: 0.5 },
   planHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  planLabel: { fontSize: 15, fontWeight: '700', color: palette.textStrong },
+  planLabel: { fontSize: 15, fontWeight: '700', color: palette.text },
   planLabelOn: { color: palette.blueDeep },
   planBadge: { fontSize: 11, fontWeight: '800', color: palette.onAccent, backgroundColor: palette.blue, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden' },
-  planSub: { fontSize: 13, color: palette.textDim },
-  planHint: { fontSize: 11, color: palette.textFaint, marginTop: 2 },
+  planSub: { fontSize: 13, color: palette.textSub },
+  planHint: { fontSize: 11, color: palette.textMeta, marginTop: 2 },
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24, gap: 10 },
   founding: { ...type.captionBold, color: palette.blueDeep, backgroundColor: palette.blueSoft, borderRadius: radius.full, alignSelf: 'center', paddingHorizontal: space[3], paddingVertical: space[1], overflow: 'hidden' },
   mascot: { ...MASCOT_SIZE.lg, marginBottom: 6 },
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
-  tagline: { fontSize: 15, color: palette.textDim, lineHeight: 22, marginBottom: 14 },
+  tagline: { fontSize: 15, color: palette.textSub, lineHeight: 22, marginBottom: 14 },
   price: { fontSize: 15, fontWeight: '700', color: palette.text, textAlign: 'center', marginBottom: 12 },
   notice: { marginBottom: 4 },
-  noticeName: { fontSize: 13, color: palette.textDim, textAlign: 'center', marginBottom: 2 },
-  noticeBody: { fontSize: 12, color: palette.textFaint, lineHeight: 17, textAlign: 'center', marginBottom: 12 },
+  noticeName: { fontSize: 13, color: palette.textSub, textAlign: 'center', marginBottom: 2 },
+  noticeBody: { fontSize: 12, color: palette.textMeta, lineHeight: 17, textAlign: 'center', marginBottom: 12 },
   restore: { alignSelf: 'center', paddingVertical: 10 },
   error: { fontSize: 13, color: palette.danger, textAlign: 'center', marginBottom: 8 },
   links: { flexDirection: 'row', justifyContent: 'center', gap: 18, marginTop: 14 },
-  link: { fontSize: 12, color: palette.textFaint },
+  link: { fontSize: 12, color: palette.textMeta },
 });

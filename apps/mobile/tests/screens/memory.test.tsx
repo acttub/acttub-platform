@@ -47,7 +47,7 @@ test('칸마다 누가 적었는지와 근거 연습 링크를 보여 준다', a
   await render(<MemoryScreen />);
 
   expect(await screen.findByDisplayValue('입시 합격')).toBeOnTheScreen();
-  expect(screen.getByText('← 설정')).toBeOnTheScreen();
+  expect(screen.getByText('코치가 기억하는 것')).toBeOnTheScreen();
   expect(screen.getByText('코치가 적음')).toBeOnTheScreen();
   expect(screen.getByText('내가 적은 값')).toBeOnTheScreen();
   expect(screen.getAllByText('비어 있음')).toHaveLength(2);
@@ -56,13 +56,6 @@ test('칸마다 누가 적었는지와 근거 연습 링크를 보여 준다', a
 
   await fireEvent.press(screen.getByRole('button', { name: '이 말이 나온 연습 보기' }));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/report-detail', params: { practiceId: 'p7' } });
-});
-
-test('프로필에서 왔으면 뒤로 글자가 프로필이다', async () => {
-  mockParams = { from: 'profile' };
-  await render(<MemoryScreen />);
-  await fireEvent.press(await screen.findByText('← 프로필'));
-  expect(mockRouter.back).toHaveBeenCalledTimes(1);
 });
 
 test('아무것도 없으면 빈 안내를 보이고 전부 지우기는 없다', async () => {
@@ -115,11 +108,10 @@ test('저장하는 동안 그 칸의 버튼은 저장 중이다', async () => {
 
   await fireEvent.changeText(input('예) 입시에서 자유연기로 합격하기'), '연극영화과 합격');
   await fireEvent.press(saveButtons()[0]);
-  expect(screen.getByRole('button', { name: '저장' , busy: true })).toBeDisabled();
-  expect(screen.getByText('저장하는 중…')).toBeOnTheScreen();
+  expect(screen.getByText('저장 중')).toBeDisabled();
 
   await act(async () => finish(item({ field: 'goal', value: '연극영화과 합격', written_by_actor: true })));
-  expect(screen.queryByText('저장하는 중…')).not.toBeOnTheScreen();
+  expect(screen.queryByText('저장 중')).not.toBeOnTheScreen();
 });
 
 test('1,000자를 넘으면 저장하지 않고 알린다', async () => {
