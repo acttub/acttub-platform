@@ -6,6 +6,10 @@ export type CloudVoiceStatus = {
   consent: CloudVoiceConsent;
   daily_limit: number;
   daily_used: number;
+  /** 왜 쓸 수 있는가(SOMA-917). 못 쓰면 null. 옛 서버 응답에는 없다. */
+  reason?: 'free_period' | 'pro' | 'first_reading' | null;
+  /** 설정·한도는 괜찮은데 Pro 가 아니고 첫 리딩도 아니라서 못 쓰는 상태 — 「Pro는 계속 이 목소리로」 안내를 띄울 때다. */
+  pro_only?: boolean;
 };
 
 export type CloudVoicePreset = 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'F1' | 'F2' | 'F3' | 'F4' | 'F5';

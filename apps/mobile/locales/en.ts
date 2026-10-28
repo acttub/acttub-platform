@@ -2096,6 +2096,7 @@ const en: DeepStringShape<typeof ko> = {
     autoAdvanceTip: 'It moves on when you finish speaking',
     dontShowAgain: 'Don’t show again',
     cloudFallbackToast: 'Couldn’t get the premium voice, reading with the device voice',
+    proVoiceHint: 'Pro keeps practicing with this voice',
     recordingDropped: '{{count}} recording(s) not saved',
     chipReading: 'Reading',
     chipTextOnly: 'Text only',
