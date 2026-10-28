@@ -159,6 +159,10 @@ export function startAnalytics(): void {
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}`;
   document.head.appendChild(script);
+
+  // 태그가 오르기 전에 쌓인 랜딩 이벤트를 내보낸다.
+  const queued = pendingLandingEvents.splice(0);
+  for (const [name, params] of queued) window.gtag("event", name, params);
 }
 
 let consentGranted = false;
@@ -288,4 +292,40 @@ export function trackPageView(pathname: string): void {
     // 씻지 않은 주소가 그대로 나간다.
     page_referrer: referrer,
   });
+}
+
+// ── 랜딩 첫 화면 A/B(SOMA-918) ─────────────────────────────────────────────────
+// 모든 이벤트에 `landing_variant`(a|b) 를 싣는다. 경로·UTM·클릭 식별자는 싣지 않는다.
+// 태그는 동의 흐름 뒤에야 오르는 수가 있어, 그 전에 난 이벤트는 잠깐 쌓았다가 올릴 때 내보낸다.
+const pendingLandingEvents: Array<[string, Record<string, string>]> = [];
+const PENDING_LANDING_MAX = 20;
+
+export type LandingVariantParam = "a" | "b";
+
+function sendLandingEvent(name: string, params: Record<string, string>): void {
+  if (typeof window === "undefined") return;
+  if (window.gtag) {
+    window.gtag("event", name, { ...params, transport_type: "beacon" });
+    return;
+  }
+  if (pendingLandingEvents.length < PENDING_LANDING_MAX) pendingLandingEvents.push([name, params]);
+}
+
+/** 랜딩이 화면에 올라온 시점. 어느 안이 보였는지. */
+export function trackLandingVariantView(variant: LandingVariantParam): void {
+  sendLandingEvent("landing_variant_view", { landing_variant: variant });
+}
+
+/** 앱 다운로드 버튼·스토어 배지·QR 옆 링크를 누른 시점. surface 는 store-links 의 화면 이름. */
+export function trackLandingDownloadClick(
+  variant: LandingVariantParam,
+  surface: string,
+  store: "app_store" | "google_play" | "auto",
+): void {
+  sendLandingEvent("app_download_click", { landing_variant: variant, surface, store });
+}
+
+/** 「웹에서 해 보기」·「이어서 연습하기」를 누른 시점. */
+export function trackLandingWebTryClick(variant: LandingVariantParam, surface: string): void {
+  sendLandingEvent("web_try_click", { landing_variant: variant, surface });
 }

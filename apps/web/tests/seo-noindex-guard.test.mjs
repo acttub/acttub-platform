@@ -53,6 +53,11 @@ const INDEXABLE_PAGES = [
     page: path.join("guide", "page.tsx"),
     builder: "buildGuideIndexMetadata",
   },
+  // `/` 요청을 src/proxy.ts 가 이 페이지로 다시 쓴다(첫 화면 A/B). 주소는 `/` 이므로 색인 대상이다.
+  {
+    page: path.join("landing-variants", "[variant]", "page.tsx"),
+    builder: "buildLandingMetadata",
+  },
   {
     page: path.join("guide", "[slug]", "page.tsx"),
     builder: "buildKeywordPageMetadata",

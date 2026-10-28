@@ -12,7 +12,14 @@ import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { useScrollSettle } from "@/features/site/scroll-settle";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
+import {
+  trackLandingDownloadClick,
+  trackLandingVariantView,
+  trackLandingWebTryClick,
+} from "@/lib/analytics/ga";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
+import { APP_DOWNLOAD_ATTR, APP_DOWNLOAD_STORE_ATTR } from "@/lib/app-download/store-links";
+import type { LandingVariant } from "@/lib/landing-variant";
 
 /**
  * 공개 홈(/). 앱을 쓰게 하는 소개와, 웹이 공식 창구라는 것을 함께 보인다(SOMA-834 웹 개편 v2).
@@ -37,6 +44,29 @@ function Phone({ src, alt, className = "" }: { src: string; alt: string; classNa
   );
 }
 
+// 액티(앱 마스코트). B 안에서만 쓴다. 장식이라 읽어 주지 않고, 글자·버튼 위에 얹지 않는다.
+const ACTY = {
+  hero: { src: "/site/acty/hero-bow.png", width: 206, height: 190 },
+  coaching: { src: "/site/acty/coaching-script.png", width: 257, height: 227 },
+  reading: { src: "/site/acty/reading-whisper.png", width: 211, height: 208 },
+  challenge: { src: "/site/acty/challenge-slate.png", width: 252, height: 227 },
+  download: { src: "/site/acty/download-curtain.png", width: 226, height: 257 },
+} as const;
+
+function Acty({ pose, className }: { pose: keyof typeof ACTY; className: string }) {
+  const art = ACTY[pose];
+  return (
+    <Image
+      src={art.src}
+      alt=""
+      aria-hidden="true"
+      width={art.width}
+      height={art.height}
+      className={`pointer-events-none absolute select-none ${className}`}
+    />
+  );
+}
+
 function Qr({ size }: { size: number }) {
   return (
     <Image
@@ -50,11 +80,19 @@ function Qr({ size }: { size: number }) {
   );
 }
 
+const FEATURE_ACTY: Record<string, keyof typeof ACTY> = {
+  coaching: "coaching",
+  reading: "reading",
+  challenge: "challenge",
+};
+
 type Feature = {
   id: string;
   kicker: string;
   title: [string, string];
   body: string;
+  /** B 안에서만 쓰는 배우 말투 설명. */
+  bodyB: string;
   bullets: string[];
   appLabel: string;
   web?: { href: string; label: string };
@@ -62,7 +100,8 @@ type Feature = {
   shotAlt: string;
 };
 
-export default function LandingClient() {
+export default function LandingClient({ variant = "a" }: { variant?: LandingVariant }) {
+  const isB = variant === "b";
   const campaignSearch = useCampaignSearch();
   const practiceHref = preserveWebAttributionFromSearch("/practice/new", campaignSearch);
   const readingHref = preserveWebAttributionFromSearch("/reading", campaignSearch);
@@ -99,12 +138,37 @@ export default function LandingClient() {
     };
   }, []);
 
+  // 어느 안이 보였는지, 어느 안에서 다운로드·웹 체험을 눌렀는지 GA4 에 남긴다(SOMA-918).
+  // 클릭은 문서 캡처 단계에서 듣는다 — 다운로드 가로채기 스크립트가 곧바로 이동시키기 전에 먼저 받는다.
+  useEffect(() => {
+    trackLandingVariantView(variant);
+    const onClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const download = target.closest(`[${APP_DOWNLOAD_ATTR}]`);
+      if (download) {
+        const store = download.getAttribute(APP_DOWNLOAD_STORE_ATTR);
+        trackLandingDownloadClick(
+          variant,
+          download.getAttribute(APP_DOWNLOAD_ATTR) ?? "unknown",
+          store === "app_store" || store === "google_play" ? store : "auto",
+        );
+        return;
+      }
+      const web = target.closest("[data-landing-web]");
+      if (web) trackLandingWebTryClick(variant, web.getAttribute("data-landing-web") ?? "unknown");
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [variant]);
+
   const features: Feature[] = [
     {
       id: "coaching",
       kicker: "연기 코칭",
       title: ["단정하지 않고,", "장면을 같이 봐요"],
       body: "찍어 둔 연기 영상을 올리면 코치가 장면을 보고 질문해요. 답하다 보면 막힌 곳이 보이고, 대화가 끝나면 연습 노트가 남아요.",
+      bodyB: "대본 외우고, 찍고, 코멘트 받고, 다시. 영상을 올리면 코치가 장면을 보고 질문해요. 답하다 보면 막힌 곳이 보이고, 연습 노트가 남아요.",
       bullets: ["영상 없이 말로 고민을 털어놔도 돼요", "다음 테이크에서 해 볼 것 하나를 정해 줘요"],
       appLabel: "앱에서 코칭 받기",
       web: { href: practiceHref, label: "웹에서 해 보기" },
@@ -116,6 +180,7 @@ export default function LandingClient() {
       kicker: "대본 리딩",
       title: ["혼자여도,", "대사는 오가요"],
       body: "대본을 넣고 내 배역을 고르면 상대역 대사를 AI가 소리 내 읽어 줘요. 내 대사는 가리고 호흡을 맞춰 봐요.",
+      bodyB: "상대역이 없을 때도 대본을 맞춰 볼 수 있어요. 대본을 넣고 내 배역을 고르면 상대역 대사를 AI가 소리 내 읽어 줘요. 내 대사는 가리고 호흡을 맞춰 봐요.",
       bullets: ["TXT·DOCX·PDF·HWP 파일이나 붙여넣기로 넣어요", "예시 대본으로 바로 시작할 수도 있어요"],
       appLabel: "앱에서 리딩하기",
       web: { href: readingHref, label: "웹에서 해 보기" },
@@ -127,6 +192,7 @@ export default function LandingClient() {
       kicker: "챌린지",
       title: ["이번 주 대사,", "다른 배우는 어떻게 했을까"],
       body: "매주 공식 대사가 열려요. 같은 대사를 다른 배우들이 어떻게 연기했는지 보고, 나도 찍어서 올려요.",
+      bodyB: "매주 공식 대사가 열려요. 같은 대사를 다른 배우는 어떻게 했는지 구경하고, 나도 찍어서 올려요.",
       bullets: ["참여·좋아요·댓글은 앱에서 해요"],
       appLabel: "앱에서 참여하기",
       shot: "/site/shot-challenge.jpg",
@@ -178,6 +244,7 @@ export default function LandingClient() {
                   {returningGuest ? "이 브라우저에서 하던 연습이 있어요 " : "설치 전에 "}
                   <Link
                     href={returningGuest ? homeHref : practiceHref}
+                    data-landing-web="landing_hero"
                     className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}
                   >
                     {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
@@ -191,10 +258,12 @@ export default function LandingClient() {
                   alt="앱의 대본 리딩 화면"
                   className="absolute left-[200px] top-[70px] hidden w-[240px] rotate-[4deg] lg:block"
                 />
+                {isB ? <Acty pose="hero" className="-bottom-[54px] -left-[116px] z-20 hidden w-[128px] drop-shadow-[0_10px_8px_rgba(25,31,40,0.12)] xl:block" /> : null}
               </div>
             </div>
           </section>
 
+          {isB ? null : (
           <div className="border-b border-[#edf0f3]">
             <ul className="mx-auto flex max-w-[1200px] flex-col items-center gap-2 px-5 py-6 text-[15px] font-semibold text-[#4e5968] sm:flex-row sm:justify-center sm:gap-14">
               <li>코치가 <b className="text-[#191f28]">질문하며</b> 장면을 같이 봐요</li>
@@ -202,6 +271,7 @@ export default function LandingClient() {
               <li>매주 <b className="text-[#191f28]">공식 대사 챌린지</b></li>
             </ul>
           </div>
+          )}
         </div>
 
         {/* 기능 셋. 모든 구간이 같은 방식으로 내려가도록 고정·스크롤 연동 없이 글과 휴대폰을 나란히 둔다.
@@ -220,12 +290,20 @@ export default function LandingClient() {
             >
               <div className="w-full flex-1">
                 <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
-                <h2 id={`${f.id}-title`} className="mt-3 text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
-                  {f.title[0]}
-                  <br />
-                  {f.title[1]}
-                </h2>
-                <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{f.body}</p>
+                <div className="relative mt-3 w-fit max-w-full">
+                  <h2 id={`${f.id}-title`} className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
+                    {f.title[0]}
+                    <br />
+                    {f.title[1]}
+                  </h2>
+                  {isB && f.id in FEATURE_ACTY ? (
+                    <Acty
+                      pose={FEATURE_ACTY[f.id]}
+                      className="bottom-full right-0 -mb-1 w-[64px] sm:-mb-2 sm:w-[96px]"
+                    />
+                  ) : null}
+                </div>
+                <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{isB ? f.bodyB : f.body}</p>
                 <ul className="mt-5 space-y-2">
                   {f.bullets.map((b) => (
                     <li key={b} className="flex gap-2.5 text-[15px] text-[#333d4b] sm:text-base">
@@ -245,6 +323,7 @@ export default function LandingClient() {
                   {f.web ? (
                     <Link
                       href={f.web.href}
+                      data-landing-web={`landing_${f.id}`}
                       className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
                     >
                       {f.web.label}
@@ -327,7 +406,9 @@ export default function LandingClient() {
       </main>
       <div>
         <section aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
-          <div data-reveal className="mx-auto flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
+          <div data-reveal className="relative mx-auto max-w-[1200px]">
+          {isB ? <Acty pose="download" className="bottom-full right-8 w-[64px] sm:right-16 sm:w-[96px] lg:right-24 lg:w-[96px]" /> : null}
+          <div className="relative flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
             <div className="flex-1">
               <h2 id="band-title" className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.03em] sm:text-4xl">
                 오늘 찍은 연기,
@@ -342,6 +423,7 @@ export default function LandingClient() {
               <Qr size={128} />
             </div>
             <StoreBadges surface="landing_cta" className="lg:flex-col" />
+          </div>
           </div>
         </section>
         <SiteFooter showBadges={false} />
