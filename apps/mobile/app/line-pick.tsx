@@ -16,6 +16,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { browseFailure, browseFailureMessage, canPerform, dDayLabel } from '@/lib/challenge/browse';
+import { useExampleUrl } from '@/lib/challenge/use-example-url';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
@@ -39,7 +40,6 @@ export default function LinePickScreen() {
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   const [list, setList] = useState<ChallengeCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [exampleUrl, setExampleUrl] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -65,18 +65,7 @@ export default function LinePickScreen() {
 
   const featuredId = featured?.id ?? null;
   const featuredCount = featured?.entry_count ?? 0;
-  useEffect(() => {
-    setExampleUrl(null);
-    if (!featuredId || featuredCount === 0) return;
-    let alive = true;
-    void api
-      .listChallengeEntries(featuredId, { sort: 'likes' })
-      .then((r) => alive && setExampleUrl(r.entries.find((e) => e.playback_url)?.playback_url ?? null))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [featuredId, featuredCount]);
+  const exampleUrl = useExampleUrl(featuredId, featuredCount);
 
   const choose = useCallback(
     (challenge: ChallengeCard) => {
