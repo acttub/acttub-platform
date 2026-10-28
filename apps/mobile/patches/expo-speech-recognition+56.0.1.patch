@@ -1,8 +1,50 @@
+diff --git a/node_modules/expo-speech-recognition/ios/ExpoSpeechObjCCatcher.h b/node_modules/expo-speech-recognition/ios/ExpoSpeechObjCCatcher.h
+new file mode 100644
+index 0000000..7a3ebee
+--- /dev/null
++++ b/node_modules/expo-speech-recognition/ios/ExpoSpeechObjCCatcher.h
+@@ -0,0 +1,11 @@
++#import <Foundation/Foundation.h>
++
++NS_ASSUME_NONNULL_BEGIN
++
++/// AVAudioEngine 의 connect·installTap 은 입력 하드웨어 포맷이 어긋나면 Objective-C 예외(NSException)를 던진다.
++/// Swift do/catch 로는 못 잡아 앱이 꺼지므로 여기서 잡아 NSError 로 바꾼다(acttub SOMA-916).
++@interface ExpoSpeechObjCCatcher : NSObject
+++ (BOOL)runBlock:(NS_NOESCAPE void (^)(void))block error:(NSError *_Nullable *_Nullable)error NS_SWIFT_NAME(run(_:));
++@end
++
++NS_ASSUME_NONNULL_END
+diff --git a/node_modules/expo-speech-recognition/ios/ExpoSpeechObjCCatcher.m b/node_modules/expo-speech-recognition/ios/ExpoSpeechObjCCatcher.m
+new file mode 100644
+index 0000000..1075860
+--- /dev/null
++++ b/node_modules/expo-speech-recognition/ios/ExpoSpeechObjCCatcher.m
+@@ -0,0 +1,19 @@
++#import "ExpoSpeechObjCCatcher.h"
++
++@implementation ExpoSpeechObjCCatcher
++
+++ (BOOL)runBlock:(NS_NOESCAPE void (^)(void))block error:(NSError *_Nullable *_Nullable)error {
++  @try {
++    block();
++    return YES;
++  } @catch (NSException *exception) {
++    if (error) {
++      *error = [NSError errorWithDomain:@"expo.modules.speechrecognition.objc"
++                                   code:1
++                               userInfo:@{NSLocalizedDescriptionKey : exception.reason ?: exception.name}];
++    }
++    return NO;
++  }
++}
++
++@end
 diff --git a/node_modules/expo-speech-recognition/ios/ExpoSpeechRecognizer.swift b/node_modules/expo-speech-recognition/ios/ExpoSpeechRecognizer.swift
-index c474f80..ef66ac4 100644
+index c474f80..850e1ee 100644
 --- a/node_modules/expo-speech-recognition/ios/ExpoSpeechRecognizer.swift
 +++ b/node_modules/expo-speech-recognition/ios/ExpoSpeechRecognizer.swift
-@@ -347,7 +347,8 @@ actor ExpoSpeechRecognizer: ObservableObject {
+@@ -347,14 +347,21 @@ actor ExpoSpeechRecognizer: ObservableObject {
      let inputNode = audioEngine.inputNode
      let audioFormat = Self.getAudioFormat(forEngine: audioEngine)
  
@@ -12,7 +54,59 @@ index c474f80..ef66ac4 100644
        print("expo-speech-recognition: ERROR - input is busy \(audioFormat)")
        throw RecognizerError.audioInputBusy
      }
-@@ -795,7 +796,7 @@ actor ExpoSpeechRecognizer: ObservableObject {
+ 
+     let mixerNode = AVAudioMixerNode()
+     audioEngine.attach(mixerNode)
+-    audioEngine.connect(inputNode, to: mixerNode, format: audioFormat)
++    // 검사와 연결 사이에 하드웨어 포맷이 바뀌면 connect 가 NSException 을 던진다 — 잡아서 오류로 끝낸다(SOMA-916).
++    do {
++      try ExpoSpeechObjCCatcher.run { audioEngine.connect(inputNode, to: mixerNode, format: audioFormat) }
++    } catch {
++      print("expo-speech-recognition: ERROR - connect failed \(error)")
++      throw RecognizerError.audioInputBusy
++    }
+ 
+     // Configure voice processing if enabled
+     if options.iosVoiceProcessingEnabled == true {
+@@ -660,6 +667,8 @@ actor ExpoSpeechRecognizer: ObservableObject {
+       // converter?.channelMap = [0]
+     }
+ 
++    var tapInstalled = false
++    try? ExpoSpeechObjCCatcher.run {
+     mixerNode.installTap(
+       onBus: 0,
+       bufferSize: 1024,
+@@ -684,6 +693,9 @@ actor ExpoSpeechRecognizer: ObservableObject {
+           downsampledFormat: outputFormat)
+       }
+     }
++    tapInstalled = true
++    }
++    guard tapInstalled else { throw RecognizerError.audioInputBusy }
+ 
+     // Install separate tap with a longer buffer size to listen for volume changes
+     if options.volumeChangeEventOptions?.enabled == true {
+@@ -693,6 +705,8 @@ actor ExpoSpeechRecognizer: ObservableObject {
+ 
+       let volumeMixerNode = AVAudioMixerNode()
+       audioEngine.attach(volumeMixerNode)
++      var volumeTapInstalled = false
++      try? ExpoSpeechObjCCatcher.run {
+       audioEngine.connect(mixerNode, to: volumeMixerNode, format: audioFormat)
+ 
+       volumeMixerNode.installTap(
+@@ -712,6 +726,9 @@ actor ExpoSpeechRecognizer: ObservableObject {
+         // Send the volume change event
+         volumeChangeHandler?(scaledValue)
+       }
++      volumeTapInstalled = true
++      }
++      guard volumeTapInstalled else { throw RecognizerError.audioInputBusy }
+     }
+ 
+     audioEngine.prepare()
+@@ -795,13 +812,17 @@ actor ExpoSpeechRecognizer: ObservableObject {
      let inputNode = newEngine.inputNode
      let audioFormat = Self.getAudioFormat(forEngine: newEngine)
  
@@ -21,3 +115,14 @@ index c474f80..ef66ac4 100644
        return false
      }
  
+     let mixerNode = AVAudioMixerNode()
+     newEngine.attach(mixerNode)
+-    newEngine.connect(inputNode, to: mixerNode, format: audioFormat)
++    do {
++      try ExpoSpeechObjCCatcher.run { newEngine.connect(inputNode, to: mixerNode, format: audioFormat) }
++    } catch {
++      return false
++    }
+ 
+     do {
+       try Self.prepareEngine(
