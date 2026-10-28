@@ -41,6 +41,8 @@ const CASES = [
     { method: 'get', path: '/v2/consents/entry' }, { body: sample('ConsentEntryResponse') }],
   ['getPosters', () => api.getPosters({ platform: 'ios', locale: 'ko', app_version: '0.1.0' }),
     { method: 'get', path: '/v2/app/posters?platform=ios&locale=ko&app_version=0.1.0' }, { body: sample('AppPosterList') }],
+  ['getNotices', () => api.getNotices({ platform: 'ios', locale: 'ko' }),
+    { method: 'get', path: '/v2/app/notices?platform=ios&locale=ko' }, { body: sample('AppNoticeList') }],
   ['getCloudVoiceStatus', () => api.getCloudVoiceStatus(),
     { method: 'get', path: '/v2/reading/voice/status' },
     { body: { available: true, free_until: '2026-12-31T15:00:00Z', consent: 'granted', daily_limit: 30, daily_used: 2 } }],
