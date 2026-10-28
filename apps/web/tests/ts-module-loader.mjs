@@ -23,9 +23,12 @@ registerHooks({
   resolve(specifier, context, nextResolve) {
     // "@/" 는 번들러만 아는 별칭이라 Node 에게는 파일 URL 로 바꿔 준다.
     const aliased = specifier.startsWith("@/");
+    // next 의 서버 진입점은 exports 맵이 없어 확장자까지 적어야 Node 가 찾는다.
     const target = aliased
       ? pathToFileURL(path.join(srcRoot, specifier.slice(2))).href
-      : specifier;
+      : specifier === "next/server"
+        ? "next/server.js"
+        : specifier;
     try {
       return nextResolve(target, context);
     } catch (error) {

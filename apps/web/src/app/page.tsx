@@ -1,31 +1,9 @@
-import LandingClient from "./landing-client";
-import {
-  buildOrganizationJsonLd,
-  buildSoftwareApplicationJsonLd,
-  buildWebSiteJsonLd,
-} from "@/lib/seo/json-ld";
-import { JsonLd } from "@/lib/seo/json-ld-scripts";
-import { buildAppDownloadBootstrapScript } from "@/lib/app-download/store-links";
+import LandingPageView from "./landing-page-view";
 import { buildLandingMetadata } from "@/lib/seo/site-metadata";
 
 export const metadata = buildLandingMetadata();
 
+// 프록시(src/proxy.ts)가 `/` 를 안별 페이지로 다시 쓴다. 프록시를 못 거친 요청은 기존 랜딩(A)이다.
 export default function LandingPage() {
-  const jsonLdValues = [
-    buildWebSiteJsonLd(),
-    buildSoftwareApplicationJsonLd(),
-    buildOrganizationJsonLd(),
-  ];
-
-  return (
-    <>
-      <JsonLd values={jsonLdValues} />
-      {/* 버튼보다 앞에 둔다 — 클릭 가로채기를 먼저 걸어 두면 버튼이 아직 안 그려졌어도
-          누르는 순간 스토어로 간다. 뒤에 두면 그 사이 파싱하는 동안 `/app` 으로 샌다. */}
-      <script
-        dangerouslySetInnerHTML={{ __html: buildAppDownloadBootstrapScript() }}
-      />
-      <LandingClient />
-    </>
-  );
+  return <LandingPageView variant="a" />;
 }
