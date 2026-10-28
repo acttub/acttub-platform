@@ -74,7 +74,7 @@ class CloudVoiceIT {
         assertThat(response.getStatus()).isEqualTo(200);
         JsonNode body = mapper.readTree(response.getContentAsString());
         assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
-                "available", "free_until", "consent", "daily_limit", "daily_used");
+                "available", "free_until", "consent", "daily_limit", "daily_used", "reason", "pro_only");
         assertThat(body.path("available").booleanValue()).isTrue();
         assertThat(body.path("consent").textValue()).isEqualTo("granted");
         assertThat(body.path("daily_limit").intValue()).isEqualTo(300);

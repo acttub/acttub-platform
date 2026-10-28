@@ -4385,14 +4385,16 @@
           "in" : "query",
           "required" : false,
           "schema" : {
-            "type" : "string"
+            "type" : "string",
+            "title" : "Script Id"
           }
         }, {
           "name" : "session_id",
           "in" : "query",
           "required" : false,
           "schema" : {
-            "type" : "string"
+            "type" : "string",
+            "title" : "Session Id"
           }
         } ],
         "responses" : {
