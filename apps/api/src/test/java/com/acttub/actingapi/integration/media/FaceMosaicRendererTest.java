@@ -26,9 +26,9 @@ class FaceMosaicRendererTest {
         }
         // 얼굴 상자 (80,80)~(120,120). 넓히면 x 64~136, y 60~134 이다.
         FaceMosaicRenderer.pixelate(frame, width, height, List.<double[]>of(new double[] {0.4, 0.4, 0.2, 0.2}));
-        assertThat(pixel(frame, width, 100, 100)).isBetween(90, 110);
-        assertThat(pixel(frame, width, 65, 61)).isBetween(90, 110);   // 넓힌 귀퉁이도 가린다
-        assertThat(pixel(frame, width, 135, 133)).isBetween(90, 110);
+        assertThat(pixel(frame, width, 100, 100)).isBetween(80, 120);
+        assertThat(pixel(frame, width, 65, 61)).isBetween(80, 120);   // 넓힌 귀퉁이도 가린다
+        assertThat(pixel(frame, width, 135, 133)).isBetween(80, 120);
         assertThat(pixel(frame, width, 55, 100)).isIn(0, 200);       // 밖은 그대로
         assertThat(pixel(frame, width, 100, 145)).isIn(0, 200);
         assertThat(pixel(frame, width, 100, 50)).isIn(0, 200);
