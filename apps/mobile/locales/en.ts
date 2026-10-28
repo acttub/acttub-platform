@@ -2235,6 +2235,7 @@ const en: DeepStringShape<typeof ko> = {
     start: 'Start',
     startSkipNext: 'Start and hide this tip next time',
     startTitle: 'Ready?',
+    maskMineSwitch: 'Hide my lines',
     coachLabel: 'Acttub · {{n}}/{{total}}',
     coachPartner: 'The app reads your partner’s lines. Listen first.',
     coachMine: 'Now read your line out loud. “Listening” means we hear you.',

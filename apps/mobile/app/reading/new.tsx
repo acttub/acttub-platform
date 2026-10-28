@@ -3,7 +3,7 @@ import { usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import * as DocumentPicker from 'expo-document-picker';
 
@@ -349,7 +349,8 @@ export default function ReadingNew() {
         {!makeOpen && input.tab === 'file' && file.kind !== 'empty' && (
           <View style={styles.fileCard}>
             <View style={styles.fileIcon}>
-              {file.kind === 'reading' ? <ActivityIndicator color={palette.blue} /> : <Feather name="file-text" size={22} color={palette.blue} />}
+              {/* 읽는 중에도 스피너 없이 파일 아이콘 — 아래 줄의 「읽는 중」 문구가 상태를 알린다(UX 가이드 4절). */}
+              <Feather name="file-text" size={22} color={palette.blue} />
             </View>
             <View style={styles.fileText}>
               <Text style={styles.fileName} numberOfLines={1}>{file.file.name}</Text>
@@ -530,7 +531,7 @@ function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
       <Feather name={icon} size={16} color={on ? palette.text : palette.iconFaint} />
-      <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
+      <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={2}>{label}</Text>
     </Pressable>
   );
 }

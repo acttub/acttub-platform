@@ -26,7 +26,8 @@ import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id'
  */
 export default function TalkScreen() {
   const router = useRouter();
-  const [picked, setPicked] = useState<TalkPurpose | null>(null);
+  // 첫 항목을 미리 골라 둔다(UX 가이드 5절, 10/23).
+  const [picked, setPicked] = useState<TalkPurpose | null>(TALK_PURPOSES[0] ?? null);
   const [starting, setStarting] = useState<TalkPurpose | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 무료 코칭 하루 3회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.

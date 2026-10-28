@@ -363,14 +363,17 @@ export default function PracticeGroupScreen() {
                 </Pressable>
               )}
               {round.conversation_id && (
-                <Pressable style={styles.roundLine} onPress={() => void openConversation(round.conversation_id!)} accessibilityRole="button">
+                <Pressable style={styles.roundLine} onPress={() => void openConversation(round.conversation_id!)} accessibilityRole="button" accessibilityLabel={t('history.conversation')}>
                   <Text style={styles.roundLineLabel}>{t('history.conversation')}</Text>
+                  {/* 같은 줄끼리 모양을 맞춘다 — 「노트 보기」는 다른 화면으로 가는 꺾쇠, 대화는 이 자리에 펼치는 꺾쇠(10/28 폰 확인). */}
+                  <Feather name={openId === round.conversation_id ? 'chevron-up' : 'chevron-down'} size={18} color={palette.iconFaint} />
                 </Pressable>
               )}
               {round.conversation_id && renderOpen(round.conversation_id)}
               {round.previous_conversations.map((previous) => (
-                <Pressable key={previous.id} style={styles.roundLine} onPress={() => void openConversation(previous.id)} accessibilityRole="button">
+                <Pressable key={previous.id} style={styles.roundLine} onPress={() => void openConversation(previous.id)} accessibilityRole="button" accessibilityLabel={`${t('history.previousConversation')} · ${dayLabel(previous.created_at)}`}>
                   <Text style={styles.roundLineLabel}>{t('history.previousConversation')} · {dayLabel(previous.created_at)}</Text>
+                  <Feather name={openId === previous.id ? 'chevron-up' : 'chevron-down'} size={18} color={palette.iconFaint} />
                 </Pressable>
               ))}
               {round.previous_conversations.map((previous) => renderOpen(previous.id))}

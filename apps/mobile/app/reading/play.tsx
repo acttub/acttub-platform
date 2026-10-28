@@ -161,7 +161,8 @@ function exampleLineSignature(line: ScriptLine | undefined): string {
   return line?.type === 'dialogue' ? `${line.role}\n${line.text}` : '';
 }
 
-const MASKS: { key: MaskMode; label: string; desc: string }[] = [
+// 그릴 때 번역한다 — 언어를 바꾸면 껐다 켜지 않고 바로 바뀌어야 한다(lib/i18n onLanguageChange).
+const masks = (): { key: MaskMode; label: string; desc: string }[] => [
   { key: 'none', label: t('reading.maskNone'), desc: t('reading.maskNoneDesc') },
   { key: 'mine', label: t('reading.maskMine'), desc: t('reading.maskMineDesc') },
   { key: 'all', label: t('reading.maskAll'), desc: t('reading.maskAllDesc') },
@@ -308,7 +309,6 @@ export default function ReadingPlay() {
   const [restarting, setRestarting] = useState(false);
   /** 시작 전 [시작] 위에 자동 넘김 안내를 보일지 — 숨기지 않았고 자동 넘김 회차일 때만. */
   /** 시작 팝업의 어두운 덮개가 시작하는 높이 — 진행 막대 아래부터 덮는다. */
-  const [tipTop, setTipTop] = useState(0);
   /** 완료 화면이 뜬 직후 잠깐은 버튼을 받지 않는다 — 실행 중 [다음]을 연타하다 새 연습이 바로 시작되지 않게(SOMA-772). */
   const [doneLocked, setDoneLocked] = useState(true);
   /** 완료 화면 [완료] 뒤의 리딩 마무리(pen 「새 · 리딩 마무리」). */
@@ -1880,7 +1880,7 @@ export default function ReadingPlay() {
         {notice?.kind === 'dropped' ? <Text style={styles.droppedText}>{t('reading.recordingDropped', { count: notice.count })}</Text> : <View />}
         <Text style={styles.counter}>{monoCounter ?? formatProgress(run)}</Text>
       </View>
-      <View style={styles.progressTrack} onLayout={(e) => setTipTop(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
+      <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.round((progressOf(run).done / Math.max(1, progressOf(run).total)) * 100)}%` }]} />
       </View>
       {notice?.kind === 'cloud_fallback' && (
@@ -2040,7 +2040,7 @@ export default function ReadingPlay() {
       {hold === 'mask_sheet' && (
         // 대사 보기 고르기 — 시트 대신 컨트롤 바로 위에 세 칸으로 펼친다. 고르면 접히고, 펼친 동안은 자동 넘김이 멈춰 있다.
         <View style={styles.maskRow} accessibilityRole="radiogroup">
-          {MASKS.map((m) => {
+          {masks().map((m) => {
             const on = maskMode === m.key;
             return (
               <Pressable key={m.key} style={[styles.maskOpt, on && styles.maskOptOn]} onPress={() => changeMask(m.key)} accessibilityRole="radio" accessibilityState={{ checked: on }} ph-label="reading_play_mask_pick">
@@ -2104,15 +2104,18 @@ export default function ReadingPlay() {
       </View>
       </>
       {hold === 'tip' && (
-        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 가운데 팝업으로 띄운다(SOMA-839). 위 [나가기]는 덮지 않아 시작 전에도 나갈 수 있다.
-        <View style={[styles.backdrop, { top: tipTop }]}>
-          <View style={styles.startCard} accessibilityViewIsModal>
-            <Image source={MASCOT_IMG.reading} style={MASCOT_SIZE.md} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-            <Text style={styles.startTitle} accessibilityRole="header">{t('reading.startTitle')}</Text>
-            <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>
-            <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} style={styles.startButton} />
-            <TextButton label={t('reading.startSkipNext')} onPress={() => void closeTip(true)} />
+        // 리딩 시작 전 — 자동 넘김 안내와 [시작]을 아래 조작 자리에 둔다(SOMA-839). 예전엔 화면을 어둡게 덮는 가운데 팝업이었는데
+        // UX 가이드 「가운데 팝업은 되돌릴 수 없는 일에만」에 어긋나 화면 안 안내로 바꿨다(10/28). 대본 첫 줄이 가려지지 않는다.
+        <View style={[styles.startDock, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={styles.startRow}>
+            <Image source={MASCOT_IMG.reading} style={MASCOT_SIZE.bubble} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+            <View style={styles.startText}>
+              <Text style={styles.startTitle} accessibilityRole="header">{t('reading.startTitle')}</Text>
+              <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>
+            </View>
           </View>
+          <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} style={styles.startButton} />
+          <TextButton label={t('reading.startSkipNext')} onPress={() => void closeTip(true)} />
         </View>
       )}
 
@@ -2231,9 +2234,12 @@ const styles = StyleSheet.create({
   maskOptOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
   maskOptText: { ...type.captionBold, textAlign: 'center', color: palette.textSub },
   maskOptTextOn: { color: palette.blueDeep, fontWeight: '800' },
-  startCard: { width: '100%', maxWidth: 362, backgroundColor: palette.bg, borderRadius: radius.xl, padding: space[6], paddingBottom: space[2], gap: space[2], alignItems: 'center' },
-  startTitle: { ...type.headline, color: palette.text, textAlign: 'center' },
-  startHint: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  // 화면 흐름 안에 둔다(겹쳐 덮지 않는다) — 위 대사 칸이 이 안내 위로 올라가 첫 줄이 가려지지 않는다.
+  startDock: { backgroundColor: palette.bg, paddingHorizontal: space.gutter, paddingTop: space[4], gap: space[2], borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+  startRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  startText: { flex: 1, gap: space[1] },
+  startTitle: { ...type.headline, color: palette.text },
+  startHint: { ...type.body2, color: palette.textSub },
   startButton: { alignSelf: 'stretch', marginTop: space[2] },
 
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, gap: 8 },
@@ -2285,7 +2291,8 @@ const styles = StyleSheet.create({
   hint: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 10 },
 
   controls: { flexDirection: 'row', gap: space[2], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
-  controlsHidden: { opacity: 0 },
+  // 시작 안내가 조작 자리를 대신하는 동안은 자리를 차지하지 않는다.
+  controlsHidden: { display: 'none' },
   eyeBtn: { width: 48, height: 48, borderRadius: radius.lg, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   eyeBtnOn: { backgroundColor: palette.blueSoft },
   backBtnOff: { opacity: 0.4 },
@@ -2296,5 +2303,4 @@ const styles = StyleSheet.create({
   ctrlPrimary: { backgroundColor: palette.blue },
   ctrlPrimaryText: { ...type.body1Bold, color: palette.onAccent },
 
-  backdrop: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
 });

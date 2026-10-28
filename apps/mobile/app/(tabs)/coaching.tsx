@@ -174,7 +174,13 @@ export default function CoachingTab() {
       ) : (
         <ScrollView contentContainerStyle={[styles.nextBody, { paddingBottom: tabBarSpace + space[5] }]}>
           {/* 저번 코치 메모(노트의 다음 테이크 문장) 또는 하던 코칭 — 맨 위 카드 */}
-          <View style={styles.memo}>
+          {/* 카드 전체를 누른다 — 카드 안에 따로 버튼을 두지 않는다(UX 가이드 5절, 10/23). */}
+          <Pressable
+            onPress={again}
+            accessibilityRole="button"
+            accessibilityLabel={t(resuming ? 'coachingTab.resume' : 'coachingTab.again')}
+            ph-label={resuming ? 'coaching_resume' : 'coaching_again'}
+            style={({ pressed }) => [styles.memo, pressed && styles.pressed]}>
             <View style={styles.memoHead}>
               <View style={styles.memoAvatar}>
                 <Image source={MASCOT.coach} style={styles.memoMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
@@ -194,17 +200,12 @@ export default function CoachingTab() {
               </View>
             ) : null}
             <View style={styles.memoFooter}>
-              <Pressable
-                onPress={again}
-                accessibilityRole="button"
-                accessibilityLabel={t(resuming ? 'coachingTab.resume' : 'coachingTab.again')}
-                ph-label={resuming ? 'coaching_resume' : 'coaching_again'}
-                style={({ pressed }) => [styles.againBtn, pressed && styles.pressed]}>
-                <Feather name={resuming ? 'play' : 'rotate-ccw'} size={15} color={palette.onAccent} />
+              <View style={styles.againBtn}>
                 <Text style={styles.againText}>{t(resuming ? 'coachingTab.resume' : 'coachingTab.again')}</Text>
-              </Pressable>
+                <Feather name="arrow-right" size={15} color={palette.blue} />
+              </View>
             </View>
-          </View>
+          </Pressable>
 
           <View style={styles.tiles}>
             <Tile icon="video" title={t('coachingTab.newVideo')} sub={t('coachingTab.newVideoSub')} accent phLabel="coaching_new_video" onPress={startNew} />
@@ -362,8 +363,8 @@ const styles = StyleSheet.create({
   quoteLabel: { ...type.micro, color: palette.blueDeep },
   quoteText: { ...type.body1, color: palette.text },
   memoFooter: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
-  againBtn: { height: 32, flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingHorizontal: space[3], borderRadius: radius.full, backgroundColor: palette.blue },
-  againText: { ...type.body2Bold, color: palette.onAccent },
+  againBtn: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  againText: { ...type.body2Bold, color: palette.blue },
   tiles: { flexDirection: 'row', gap: space[2], paddingTop: space[3] },
   tile: { flex: 1, gap: space[2], padding: space[3], borderRadius: radius.lg, backgroundColor: palette.bgSoft },
   tileAccent: { backgroundColor: palette.blueSoft },

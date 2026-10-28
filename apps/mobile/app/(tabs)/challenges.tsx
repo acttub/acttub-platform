@@ -2,10 +2,11 @@ import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
+import { LoadingText } from '@/components/ui/loading-text';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
@@ -84,8 +85,8 @@ export default function ChallengesScreen() {
   /** 첫 고르기 화면을 띄울지 기기·서버 기록으로 다 따져 봤는가. 따지기 전에는 띄우지 않는다. */
   const [firstPickChecked, setFirstPickChecked] = useState(false);
   const unread = useUnreadNotifications();
-  /** 첫 사용자용 고르기(C1.16·C1.18) — 고른 줄. 기본 선택은 없고 「다음」을 눌러야 넘어간다. */
-  const [firstPick, setFirstPick] = useState<'perform' | 'browse' | null>(null);
+  /** 첫 사용자용 고르기(C1.16·C1.18) — 고른 줄. 첫 항목을 미리 골라 두고(UX 가이드 5절, 10/23) 「다음」을 눌러야 넘어간다. */
+  const [firstPick, setFirstPick] = useState<'perform' | 'browse' | null>('perform');
   /** 이번 주 대사 카드에 틀어 줄 참여작 예시 영상(좋아요 많은 순 첫 공개 참여작). 없으면 카드만 둔다. */
   const [exampleUrl, setExampleUrl] = useState<string | null>(null);
 
@@ -347,14 +348,13 @@ export default function ChallengesScreen() {
             key={challenge.id}
             challenge={challenge}
             onOpen={() => tapCard(challenge)}
-            onPerform={() => perform(challenge)}
           />
         ))}
 
         {cursor && (
           <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
             {loadingMore ? (
-              <ActivityIndicator color={palette.iconFaint} accessibilityLabel={t('loadingText.loading')} />
+              <LoadingText label={t('loadingText.loading')} />
             ) : (
               <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>
             )}
@@ -438,14 +438,9 @@ function WeekHero({
           onPress={onPerform}
           accessibilityRole="button"
           accessibilityLabel={t('challenges.performCta')}>
-          <View style={styles.heroPerformSpacer} />
-          <View style={styles.heroPerformLabel}>
-            <Feather name="video" size={18} color={palette.text} />
-            <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
-          </View>
-          <View style={styles.heroGo}>
-            <Feather name="chevron-right" size={18} color={palette.blue} />
-          </View>
+          {/* 작은 흰색 반투명 버튼(10/23 결정). 큰 알약형은 쓰지 않는다(UX 가이드 5절). */}
+          <Feather name="video" size={16} color={palette.text} />
+          <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
         </Pressable>
       )}
     </View>
@@ -510,11 +505,9 @@ function PickRow({ label, selected, onPress }: { label: string; selected: boolea
 function Card({
   challenge,
   onOpen,
-  onPerform,
 }: {
   challenge: ChallengeCard;
   onOpen: () => void;
-  onPerform: () => void;
 }) {
   const host = challenge.origin === 'team' ? t('challenges.hostTeam') : t('challenges.hostMemberShort');
   return (
@@ -543,18 +536,7 @@ function Card({
           </View>
         </View>
       </Pressable>
-      {canPerform(challenge) && (
-        <Pressable style={styles.performBtn} onPress={onPerform} accessibilityRole="button" accessibilityLabel={t('challenges.performCta')}>
-          <View style={styles.heroPerformSpacer} />
-          <View style={styles.heroPerformLabel}>
-            <Feather name="video" size={18} color={palette.blueDeep} />
-            <Text style={styles.performText}>{t('challenges.performCta')}</Text>
-          </View>
-          <View style={styles.performGo}>
-            <Feather name="chevron-right" size={18} color={palette.blueDeep} />
-          </View>
-        </Pressable>
-      )}
+      {/* 목록 카드 안에는 「나도 이 대사 연기하기」 버튼을 두지 않는다 — 카드를 누르면 챌린지 화면에서 찍는다(UX 가이드 5절 「카드 안 버튼 금지」). */}
     </View>
   );
 }
@@ -617,11 +599,8 @@ const styles = StyleSheet.create({
   heroGuide: { ...type.body2Bold, color: palette.onMediaSub },
   heroMeta: { ...type.caption, color: palette.onMediaSub },
   heroStat: { ...type.caption, color: palette.onMediaSub },
-  heroPerform: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: radius.full, paddingHorizontal: space[1.5], backgroundColor: palette.onAccent },
-  heroPerformSpacer: { width: 32, height: 32 },
-  heroPerformLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2] },
-  heroPerformText: { ...type.headline, color: palette.text },
-  heroGo: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  heroPerform: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[1.5], height: 36, borderRadius: radius.sm, paddingHorizontal: space[3], backgroundColor: palette.onMediaSub },
+  heroPerformText: { ...type.body2Bold, color: palette.text },
   heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
   sameHead: { gap: space[1], marginTop: space[1.5] },
   sameTitle: { ...type.title2, color: palette.text },
@@ -661,9 +640,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   avatarText: { ...type.micro, color: palette.text },
-  performBtn: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: radius.full, paddingHorizontal: space[1.5], backgroundColor: palette.blueSoft },
-  performGo: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.onAccent, alignItems: 'center', justifyContent: 'center' },
-  performText: { ...type.headline, color: palette.blueDeep },
   registerBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -140,7 +140,8 @@ export default function HomeScreen() {
   const [onboardingJustFinished, setOnboardingJustFinished] = useState(false);
   const startTarget = useSpotlightTarget(TARGET.homeStart);
   // 첫 사용자 홈에서 고른 카드 — 고르기 전엔 아래 버튼이 「하나를 골라 주세요」로 막혀 있다.
-  const [firstPick, setFirstPick] = useState<FirstPick | null>(null);
+  // 첫 항목(코칭)을 미리 골라 둔다(UX 가이드 5절 — 첫 사용자 홈 포함, 10/23). 다른 것을 누르면 바뀌고 「다음」으로 넘어간다.
+  const [firstPick, setFirstPick] = useState<FirstPick | null>('coaching');
   const tabBarSpace = useTabBarSpace();
   const firstName = profile.me?.profile?.name?.trim() ?? '';
   // 졸업 표시(SOMA-827)는 계정별이라 내 계정을 알고 나서 읽는다. 앱을 막 켰을 때 계정보다 먼저 읽으면 「아니」로 굳었다.
@@ -657,8 +658,11 @@ export default function HomeScreen() {
           {/* 주 기능 카드 하나 — 첫 가이드가 비추는 자리다. 올리는 중이면 올리는 카드가 대신한다. */}
           {waitingUpload.card && <HomeUploadCard upload={waitingUpload} />}
           {!waitingUpload.card && (
-            <View ref={startTarget.ref} onLayout={startTarget.onLayout} collapsable={false} style={styles.todayCard}>
               <TodayCardBody
+                // 첫 가이드가 비추는 자리 — 카드(TodayCardBody 안 Pressable)에 준다.
+                cardRef={startTarget.ref}
+                onCardLayout={startTarget.onLayout}
+                onPress={() => openItem(today.main)}
                 item={today.main}
                 challengeEntered={today.main.kind === 'challenge' && enteredChallengeIds.has(today.main.challenge.id)}
                 progress={
@@ -668,9 +672,7 @@ export default function HomeScreen() {
                 }
                 perLine={today.main.kind === 'reading' && readingProgress ? readingProgress.perLine : undefined}
                 nextTake={today.main.kind === 'coaching' ? nextTakes[today.main.notePracticeId] ?? null : null}
-                onPress={() => openItem(today.main)}
               />
-            </View>
           )}
 
           {/* 이것도 해 볼까요? — 카드 줄(pen P1.1). */}
@@ -794,6 +796,8 @@ function TodayCardBody({
   progress,
   perLine,
   onPress,
+  cardRef,
+  onCardLayout,
 }: {
   item: TodayItem;
   /** 이 챌린지에 이미 참여작을 올렸는가 — 그러면 다시 찍으라고 하지 않고 다른 연기를 보러 가게 한다. */
@@ -802,6 +806,8 @@ function TodayCardBody({
   progress: SessionProgress | null;
   perLine?: number;
   onPress: () => void;
+  cardRef?: Ref<View>;
+  onCardLayout?: ComponentProps<typeof View>['onLayout'];
 }) {
   let eyebrow: string;
   let icon: ComponentProps<typeof Feather>['name'] | 'trophy' = 'video';
@@ -858,8 +864,18 @@ function TodayCardBody({
     cta = t('home.todayStartCta');
   }
 
+  // 카드 전체를 누른다 — 카드 안에 따로 버튼을 두지 않는다(UX 가이드 5절, 10/23). 읽어 주는 이름은 갈 곳(cta), 설명은 제목.
   return (
-    <>
+    <Pressable
+      ref={cardRef}
+      onLayout={onCardLayout}
+      collapsable={false}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={cta}
+      accessibilityHint={title}
+      ph-label="home_today_card"
+      style={({ pressed }) => [styles.todayCard, pressed && styles.pressed]}>
       <View style={styles.eyebrowRow}>
         {icon === 'trophy' ? (
           <Ionicons name="trophy-outline" size={16} color={palette.onAccent} />
@@ -871,22 +887,19 @@ function TodayCardBody({
       <Text style={styles.todayTitle} numberOfLines={3}>{title}</Text>
       {sub ? <Text style={styles.todaySub} numberOfLines={2}>{sub}</Text> : null}
       <View style={styles.todaySpacer} />
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={cta}
-        style={({ pressed }) => [styles.todayCta, pressed && styles.pressed]}>
+      {/* 버튼 모양이 아니라 카드가 어디로 가는지 알려 주는 글자 줄이다 — 누르는 곳은 카드 전체. */}
+      <View style={styles.todayCta}>
         <Text style={styles.todayCtaText}>{cta}</Text>
-        <Feather name="arrow-right" size={16} color={palette.blueDeep} />
-      </Pressable>
-    </>
+        <Feather name="arrow-right" size={16} color={palette.onAccent} />
+      </View>
+    </Pressable>
   );
 }
 
 /**
  * 첫 사용자 홈의 선택 카드(pen P1.12~P1.14) — 안 골랐을 땐 회색 카드(모서리 16)에 흰 아이콘 칸·제목 18/700·설명 14·오른쪽 빈 라디오.
  * 고르면 옅은 파랑 바탕·파란 테두리·파란 제목에 라디오가 파랗게 차고, 카드 안에 「이렇게 진행돼요」 세 단계가 펼쳐진다(`steps`가 있을 때).
- * 기본 선택은 없고 아래 「다음」을 눌러야 넘어간다.
+ * 첫 항목을 미리 골라 두고(10/23), 아래 「다음」을 눌러야 넘어간다.
  */
 function FirstChoice({
   icon,
@@ -1085,17 +1098,8 @@ const styles = StyleSheet.create({
   todayTitle: { ...type.title2, color: palette.onAccent },
   todaySub: { ...type.caption, color: palette.onMediaSub },
   todaySpacer: { height: space[2] },
-  todayCta: {
-    alignSelf: 'flex-start',
-    height: 40,
-    borderRadius: radius.lg,
-    paddingHorizontal: space[4],
-    backgroundColor: palette.bg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[1.5],
-  },
-  todayCtaText: { ...type.body2Bold, color: palette.blueDeep },
+  todayCta: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  todayCtaText: { ...type.body2Bold, color: palette.onAccent },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text },

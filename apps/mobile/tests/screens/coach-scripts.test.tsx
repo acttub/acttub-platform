@@ -50,7 +50,8 @@ test('저장한 대본을 고르고 「다음」을 누르면 장면 칸을 채�
   expect(await screen.findByText('어떤 대본으로 찍을까요?')).toBeOnTheScreen();
   expect(screen.getByText('대사 16개 · 지훈')).toBeOnTheScreen();
   expect(screen.getByText('대사 16개 · 배역 안 고름')).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+  // 첫 대본을 미리 골라 둬 「다음」이 처음부터 켜져 있다(UX 가이드 5절, 10/28).
+  expect(screen.getByRole('button', { name: '다음' })).toBeEnabled();
 
   await fireEvent.press(screen.getByText('네가 좋아하는 케이크'));
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));

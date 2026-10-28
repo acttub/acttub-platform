@@ -262,7 +262,7 @@ function MonthCell({ dot, label, count }: { dot?: string; label: string; count: 
       <Text style={styles.monthCount}>{count}</Text>
       <View style={styles.monthHead}>
         {!!dot && <View style={[styles.monthDot, { backgroundColor: dot }]} />}
-        <Text style={styles.monthLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+        <Text style={styles.monthLabel} numberOfLines={2}>
           {label}
         </Text>
       </View>

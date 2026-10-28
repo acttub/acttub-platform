@@ -37,7 +37,8 @@ test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 �
   assert.doesNotMatch(consent, /numberOfLines=\{1\}/);
 
   const card = read('components/ui/settings-card.tsx');
-  assert.match(card, /borderColor: palette\.border,/);
+  // 설정 줄은 테두리 상자 없이 줄로 둔다(UX 가이드 6절 「칸칸」 금지, 10/28).
+  assert.doesNotMatch(card, /borderWidth: 1,/);
   // 설정 화면은 카드 줄로 그린다 — 보관함 줄은 없다.
   const settings = read('app/settings.tsx');
   assert.match(settings, /settings-card/);

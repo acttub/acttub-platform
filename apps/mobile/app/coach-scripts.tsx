@@ -42,7 +42,11 @@ export default function CoachScriptsScreen() {
         ),
       )
       .then((cards) => {
-        if (!cancelled) setScripts(cards);
+        if (!cancelled) {
+          setScripts(cards);
+          // 첫 대본을 미리 골라 둔다(UX 가이드 5절, 10/23).
+          setPicked((was) => was ?? cards[0]?.id ?? null);
+        }
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
