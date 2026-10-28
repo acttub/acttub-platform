@@ -9,13 +9,14 @@ import { FaqSection } from "@/features/landing/faq-section";
 import { ChallengeSection, CoachingSection, ReadingSection } from "@/features/landing/feature-sections";
 import { LandingHero } from "@/features/landing/hero";
 import { PricingSection } from "@/features/landing/pricing-section";
-import { VerbBand } from "@/features/landing/verb-band";
+import { serifKr } from "@/features/landing/serif-font";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
 
 /**
- * 공개 홈(/). SOMA-918 개편: 큰 글자와 액티가 첫 화면을 이끌고, 코칭·리딩·챌린지는 서로 다른 짜임으로 보여 준다.
+ * 공개 홈(/). SOMA-918 개편: 무대·영화처럼 차분한 먹색 화면에 실제 앱 화면을 조명 받는 물건처럼 세운다.
+ * 바탕은 먹색과 미색 두 가지만 쓰고, 액티는 구간마다 많아야 하나 작게 둔다.
  * 구간은 src/features/landing 에 하나씩 나뉘어 있어 따로 고칠 수 있다.
  * 앱 받기 링크·QR·스토어 배지는 기존 다운로드 경로(useAppDownloadHref, StoreBadges, 클릭 가로채기)를 그대로 쓴다.
  */
@@ -53,11 +54,10 @@ export default function LandingClient() {
   }, []);
 
   return (
-    <div className="min-h-dvh break-keep bg-white text-[#191f28]">
-      <SiteHeader current="home" />
+    <div className={`${serifKr.variable} min-h-dvh break-keep bg-[#14110e] text-[#f2ebe0]`}>
+      <SiteHeader current="home" tone="dark" />
       <main>
         <LandingHero returningGuest={returningGuest} webHref={practiceHref} homeHref={homeHref} />
-        <VerbBand />
         <CoachingSection webHref={practiceHref} />
         <ReadingSection webHref={readingHref} />
         <ChallengeSection />
@@ -65,8 +65,8 @@ export default function LandingClient() {
         <FaqSection />
       </main>
       <DownloadBand />
-      <SiteFooter showBadges={false} />
-      <StickyDownloadBar heroId="hero" />
+      <SiteFooter showBadges={false} tone="dark" />
+      <StickyDownloadBar heroId="hero" tone="dark" />
     </div>
   );
 }

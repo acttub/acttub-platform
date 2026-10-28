@@ -150,22 +150,58 @@ html.reveal-ready [data-reveal]:not([data-shown]) {
   }
 }
 
-/* 랜딩 첫 화면 등장 효과(SOMA-918). 짧게 한 번만 올라오고, 움직임을 줄인 환경에서는 바로 보인다. */
-@keyframes landing-enter {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+/* 랜딩(SOMA-918 2차). 무대 조명·필름 그레인·제목 명조. */
+.landing-serif {
+  font-family: var(--font-serif-kr), "AppleMyungjo", "Batang", serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+/* 위에서 내려오는 핀 조명 하나. 화면 오른쪽(휴대폰 자리)에만 빛이 고인다. */
+.landing-spot {
+  background:
+    radial-gradient(38% 58% at 72% 34%, rgba(255, 226, 184, 0.13), transparent 70%),
+    radial-gradient(70% 90% at 72% 0%, rgba(255, 214, 160, 0.06), transparent 70%),
+    radial-gradient(120% 80% at 50% 120%, rgba(0, 0, 0, 0.55), transparent 60%);
+}
+
+@media (max-width: 1023px) {
+  .landing-spot {
+    background:
+      radial-gradient(80% 40% at 50% 74%, rgba(255, 226, 184, 0.12), transparent 70%),
+      radial-gradient(120% 80% at 50% 120%, rgba(0, 0, 0, 0.5), transparent 60%);
   }
 }
 
-@keyframes landing-pop {
+/* 위에서 비스듬히 퍼지는 빛줄기. 흐리게 번져 가장자리가 보이지 않는다. */
+.landing-beam {
+  filter: blur(18px);
+}
+
+.landing-beam::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom, rgba(255, 232, 196, 0.2), rgba(255, 226, 184, 0.07) 55%, rgba(255, 226, 184, 0) 92%);
+}
+
+/* 무대 바닥에 고인 빛 */
+.landing-floor {
+  background: radial-gradient(closest-side, rgba(255, 222, 176, 0.22), rgba(255, 222, 176, 0.06) 60%, transparent);
+}
+
+.landing-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* 첫 화면 등장 효과. 짧게 한 번만 올라오고, 움직임을 줄인 환경에서는 바로 보인다. */
+@keyframes landing-enter {
   from {
     opacity: 0;
-    transform: translateY(24px) scale(0.92);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -174,12 +210,8 @@ html.reveal-ready [data-reveal]:not([data-shown]) {
 }
 
 [data-enter] {
-  animation: landing-enter 0.5s ease-out both;
+  animation: landing-enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--d, 0ms);
-}
-
-[data-enter="pop"] {
-  animation-name: landing-pop;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useAppDownloadHref } from "@/features/app-download/app-download-button";
 import { StoreBadges } from "@/features/app-download/store-badges";
 
-import { Acty, FOCUS_ON_DARK, Phone, Qr } from "./shared";
+import { Acty, FOCUS_ON_DARK, Grain, Phone, PRIMARY_BUTTON, Qr, SERIF } from "./shared";
 
 /**
- * 첫 화면. 큰 글자가 그림 역할을 하고, 액티가 주인공이다.
- * 아래쪽 휴대폰은 화면 밑에서 올라오는 것처럼 잘라 보여 준다.
+ * 첫 화면. 먹색 무대에 핀 조명 하나가 앱 화면을 비추고, 액티는 그 발치에서 작게 인사한다.
+ * 조명은 이 구간에만 있다. 나머지 구간은 빛 없이 바탕만 깐다.
  */
 export function LandingHero({
   returningGuest,
@@ -23,72 +23,69 @@ export function LandingHero({
   const appHref = useAppDownloadHref("landing_hero");
 
   return (
-    <section id="hero" className="relative overflow-hidden bg-[#151a30] text-white">
-      <div className="relative mx-auto flex max-w-[1200px] flex-col items-center px-5 pt-8 text-center sm:px-8 lg:pt-14">
-        <div
-          data-enter="pop"
-          style={{ "--d": "120ms" } as React.CSSProperties}
-          className="mb-3 lg:absolute lg:right-[-10px] lg:top-[110px] lg:mb-0 lg:rotate-[6deg]"
-        >
-          <Acty name="home" alt="액티, 액터브의 캐릭터" size={280} priority className="w-[112px] sm:w-[140px] lg:w-[250px]" />
-        </div>
-        <p data-enter style={{ "--d": "0ms" } as React.CSSProperties} className="rounded-full border border-white/25 px-4 py-2 text-sm font-bold text-[#ffd9a0] sm:text-[15px]">
-          혼자 연습하는 배우를 위한 AI 코치, 액터브
-        </p>
-        <h1
-          data-enter
-          style={{ "--d": "80ms" } as React.CSSProperties}
-          className="mt-6 text-[clamp(44px,12.5vw,104px)] font-black leading-[1.05] tracking-[-0.06em]"
-        >
-          찍어 올리면
-          <br />
-          <span className="text-[#ffa21f]">코치가 물어봐요</span>
-        </h1>
-        <p
-          data-enter
-          style={{ "--d": "160ms" } as React.CSSProperties}
-          className="mt-6 max-w-[620px] text-lg leading-[1.6] text-[#d5d9e6] sm:text-xl"
-        >
-          연기 영상을 올리면 코치가 장면을 보고 질문해요. 대본을 넣으면 상대역 대사를 AI 음성이 읽어 줘요.
-        </p>
+    <section id="hero" className="relative overflow-hidden bg-[#14110e] text-[#f2ebe0]">
+      {/* 핀 조명: 위에서 내려오는 빛줄기와 바닥에 고이는 빛 */}
+      <div aria-hidden="true" className="landing-spot pointer-events-none absolute inset-0" />
+      <Grain />
 
-        <div data-enter style={{ "--d": "240ms" } as React.CSSProperties} className="mt-9 flex w-full flex-col items-center gap-5">
-          <a
-            href={appHref}
-            data-app-download="landing_hero"
-            className={`flex h-16 w-full max-w-[420px] items-center justify-center rounded-full bg-[#ffa21f] text-lg font-extrabold text-[#151a30] transition hover:bg-[#ffb347] lg:hidden ${FOCUS_ON_DARK}`}
+      <div className="relative mx-auto grid max-w-[1200px] gap-12 px-6 pt-14 sm:px-8 lg:min-h-[min(calc(100dvh-72px),840px)] lg:grid-cols-[minmax(0,1fr)_440px] lg:items-center lg:gap-16 lg:pb-0 lg:pt-0">
+        <div className="relative z-10 lg:pb-6">
+          <h1 data-enter className={`${SERIF} text-[clamp(40px,5.6vw,74px)] leading-[1.16]`}>
+            찍고, 답하고,
+            <br />
+            다음 테이크로.
+          </h1>
+          <p
+            data-enter
+            style={{ "--d": "80ms" } as React.CSSProperties}
+            className="mt-6 max-w-[30em] text-[17px] leading-[1.7] text-[#b8ad9e] sm:text-[18px]"
           >
-            앱 열기 · 무료로 설치
-          </a>
-
-          <div className="hidden items-center gap-6 rounded-[28px] bg-white p-5 pr-8 text-left text-[#191f28] lg:flex">
-            <Qr size={116} />
-            <div>
-              <p className="text-lg font-extrabold">휴대폰 카메라로 찍으면 설치 화면으로 가요</p>
-              <p className="mt-1 text-sm text-[#4e5968]">iPhone · Android 무료</p>
-              <StoreBadges surface="landing_hero" className="mt-3" />
-            </div>
-          </div>
-
-          <p className="text-[15px] font-semibold text-[#d5d9e6] lg:text-base">
-            {returningGuest ? "이 브라우저에서 하던 연습이 있어요 " : "설치 전에 "}
-            <Link
-              href={returningGuest ? homeHref : webHref}
-              className={`rounded font-bold text-[#ffd9a0] underline underline-offset-4 ${FOCUS_ON_DARK}`}
-            >
-              {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
-            </Link>
+            연기 영상을 올리면 AI 코치가 장면을 보고 질문해요. 답하다 보면 다음 테이크에서 해 볼 것이 하나 정해져요.
           </p>
-        </div>
-      </div>
 
-      {/* 휴대폰은 윗부분만 보이게 자른다. */}
-      <div className="relative mx-auto mt-10 h-[300px] max-w-[1200px] sm:h-[400px] lg:h-[330px]">
-        <div className="absolute left-1/2 top-0 w-[250px] -translate-x-1/2 sm:w-[300px] lg:w-[340px]">
-          <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" priority />
+          <div data-enter style={{ "--d": "160ms" } as React.CSSProperties} className="mt-10">
+            <a
+              href={appHref}
+              data-app-download="landing_hero"
+              className={`${PRIMARY_BUTTON} w-full sm:w-auto lg:hidden`}
+            >
+              앱 열기 · 무료로 설치
+            </a>
+
+            <div className="hidden items-center gap-5 lg:flex">
+              <Qr size={92} />
+              <div>
+                <p className="text-[15px] text-[#b8ad9e]">휴대폰 카메라로 찍으면 설치 화면으로 가요</p>
+                <StoreBadges surface="landing_hero" className="mt-3" />
+              </div>
+            </div>
+
+            <p className="mt-6 text-[15px] text-[#b8ad9e]">
+              {returningGuest ? "이 브라우저에서 하던 연습이 있어요. " : "설치 전에 "}
+              <Link
+                href={returningGuest ? homeHref : webHref}
+                className={`rounded-sm text-[#f2ebe0] underline decoration-[#f2ebe0]/40 underline-offset-[5px] transition-colors hover:decoration-[#f2ebe0] ${FOCUS_ON_DARK}`}
+              >
+                {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
+              </Link>
+            </p>
+          </div>
         </div>
-        <div className="absolute left-1/2 top-[60px] hidden w-[270px] translate-x-[110px] rotate-[5deg] lg:block">
-          <Phone src="/site/shot-reading.jpg" alt="앱의 대본 리딩 화면" />
+
+        {/* 무대: 조명 받는 휴대폰 한 대, 그 발치의 액티 */}
+        <div className="relative mx-auto h-[500px] w-full max-w-[360px] sm:h-[600px] lg:h-[700px] lg:max-w-none">
+          <div aria-hidden="true" className="landing-beam pointer-events-none absolute left-1/2 top-[-120px] h-[620px] w-[460px] -translate-x-1/2 sm:h-[720px] lg:top-[-200px] lg:h-[920px] lg:w-[620px]" />
+          <div aria-hidden="true" className="landing-floor pointer-events-none absolute bottom-[10px] left-1/2 h-[110px] w-[440px] -translate-x-1/2 lg:bottom-[22px] lg:h-[120px] lg:w-[640px]" />
+          <div className="absolute left-1/2 top-[20px] w-[200px] -translate-x-1/2 sm:w-[240px] lg:top-[56px] lg:w-[280px]">
+            <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" priority />
+          </div>
+          <div
+            data-enter
+            style={{ "--d": "240ms" } as React.CSSProperties}
+            className="absolute bottom-[50px] left-[max(0px,calc(50%-176px))] w-[70px] sm:bottom-[30px] sm:left-[calc(50%-214px)] sm:w-[96px] lg:bottom-[40px] lg:left-[calc(50%-290px)] lg:w-[118px]"
+          >
+            <Acty pose="stage-bow" width={118} alt="인사하는 액티, 액터브의 캐릭터" priority className="w-full" />
+          </div>
         </div>
       </div>
     </section>

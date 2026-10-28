@@ -19,8 +19,16 @@ function isExtensionlessRelativeSpecifier(specifier) {
   );
 }
 
+const NEXT_FONT_STUB = `data:text/javascript,${encodeURIComponent(
+  'const font = () => ({ className: "", variable: "", style: { fontFamily: "serif" } }); export const Noto_Serif_KR = font;',
+)}`;
+
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    // next/font 는 빌드 때 컴파일러가 바꿔 넣는 자리라 Node 에는 실체가 없다. 빈 글꼴 대역을 준다.
+    if (specifier === "next/font/google") {
+      return { shortCircuit: true, url: NEXT_FONT_STUB };
+    }
     // "@/" 는 번들러만 아는 별칭이라 Node 에게는 파일 URL 로 바꿔 준다.
     const aliased = specifier.startsWith("@/");
     const target = aliased
