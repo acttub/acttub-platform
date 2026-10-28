@@ -16,7 +16,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { browseFailure, browseFailureMessage, canPerform, dDayLabel } from '@/lib/challenge/browse';
-import { loadExampleUrl } from '@/lib/challenge/example-pick';
+import { useExampleUrl } from '@/lib/challenge/use-example-url';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
@@ -40,7 +40,6 @@ export default function LinePickScreen() {
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   const [list, setList] = useState<ChallengeCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [exampleUrl, setExampleUrl] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -66,23 +65,7 @@ export default function LinePickScreen() {
 
   const featuredId = featured?.id ?? null;
   const featuredCount = featured?.entry_count ?? 0;
-  useEffect(() => {
-    setExampleUrl(null);
-    if (!featuredId) return;
-    let alive = true;
-    void api
-      .listChallenges({ tab: 'ended' })
-      .then((r) => r.challenges)
-      .catch(() => [] as ChallengeCard[])
-      .then((ended) =>
-        loadExampleUrl({ ended, featuredId, listEntries: (id) => api.listChallengeEntries(id, { sort: 'likes' }) }),
-      )
-      .then((url) => alive && setExampleUrl(url))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [featuredId, featuredCount]);
+  const exampleUrl = useExampleUrl(featuredId, featuredCount);
 
   const choose = useCallback(
     (challenge: ChallengeCard) => {
