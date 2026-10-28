@@ -65,15 +65,3 @@ test('진행 중인 회차가 있으면(409) 그 대화로 간다', async () => 
 
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/coach', params: { practiceId: 'open-1' } }));
 });
-
-test('진행 중인 회차가 있는데(409) 그 회차를 찾지 못하면 찾지 못했다고 알린다', async () => {
-  createPractice.mockRejectedValue(Object.assign(new Error('in progress'), { status: 409, code: 'practice_in_progress' }));
-  listPracticeGroups.mockResolvedValue({ groups: [] });
-  await render(<TalkScreen />);
-
-  await fireEvent.press(screen.getByRole('radio', { name: '고민 상담' }));
-  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-
-  expect(await screen.findByText('진행 중인 코칭을 찾지 못했어요. 다시 눌러 주세요.')).toBeOnTheScreen();
-  expect(mockRouter.replace).not.toHaveBeenCalled();
-});

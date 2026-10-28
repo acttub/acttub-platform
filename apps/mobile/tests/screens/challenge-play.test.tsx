@@ -638,8 +638,8 @@ describe('좋아요·저장', () => {
     await renderFeed();
     await fireEvent.press(screen.getByRole('button', { name: '좋아요' }));
 
-    expect(await screen.findByText('좋아요를 누르지 못했어요')).toBeOnTheScreen();
-    expect(screen.getByText('이 영상은 더 이상 볼 수 없어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('이 영상은 더 이상 볼 수 없어요.')).toBeOnTheScreen();
+    expect(screen.getAllByText('좋아요')).toHaveLength(1);
     expect(screen.getByText('3')).toBeOnTheScreen();
   });
 
@@ -767,24 +767,31 @@ describe('반응 메뉴', () => {
     await fireEvent.press(iconButtons().menu);
   }
 
-  const menuLabels = () => within(screen.getByTestId('anchored-menu')).getAllByRole('button').map((b) => b.props.accessibilityLabel);
+  const inMenu = () => within(screen.getByTestId('anchored-menu'));
 
-  test('화면에 버튼이 있는 좋아요·저장·공유는 빼고 영상 신고·대사 신고·차단만 둔다', async () => {
+  test('화면에 버튼이 있는 좋아요·저장·공유는 빼고 신고·대사 신고·차단만 둔다(SOMA-887)', async () => {
     await renderFeed();
     await openMenu();
-    expect(menuLabels()).toEqual(['영상 신고', '이 대사 신고', '이 사용자 차단']);
+
+    expect(inMenu().getByText('신고')).toBeOnTheScreen();
+    expect(inMenu().getByText('이 대사 신고')).toBeOnTheScreen();
+    expect(inMenu().getByText('이 사용자 차단')).toBeOnTheScreen();
+    expect(inMenu().queryByText('공유')).not.toBeOnTheScreen();
+    expect(inMenu().queryByText('좋아요')).not.toBeOnTheScreen();
   });
 
-  test('내 참여작 메뉴에는 영상 신고·차단이 없다 — 스스로 신고하지 않는다', async () => {
+  test('내 참여작 메뉴에는 신고·차단이 없다 — 스스로 신고하지 않는다', async () => {
     await renderFeed([entry({ is_mine: true, author: { name: '나', user_id: 'me' } })]);
     await openMenu();
-    expect(menuLabels()).toEqual(['이 대사 신고']);
+    expect(inMenu().getByText('이 대사 신고')).toBeOnTheScreen();
+    expect(inMenu().queryByText('신고')).not.toBeOnTheScreen();
+    expect(inMenu().queryByText('이 사용자 차단')).not.toBeOnTheScreen();
   });
 
   test('내가 연 대사의 내 참여작이면 메뉴에 할 일이 없어 ⋯ 를 두지 않는다', async () => {
     mocked.getChallenge.mockResolvedValue(challenge({ is_host: true }));
     await renderFeed([entry({ is_mine: true, author: { name: '나', user_id: 'me' } })]);
-    expect(screen.queryByRole('button', { name: '더보기' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '챌린지 더보기' })).not.toBeOnTheScreen();
   });
 
   test('내가 연 챌린지에서는 「이 대사 신고」를 두지 않는다', async () => {
@@ -804,7 +811,7 @@ describe('반응 메뉴', () => {
     mocked.createReport.mockResolvedValue({ id: 'r1', status: 'received' });
     await renderFeed([entry(), second()]);
     await fireEvent.press(iconButtonsAt(0).menu);
-    await fireEvent.press(screen.getByText('영상 신고'));
+    await fireEvent.press(screen.getByText('신고'));
 
     expect(screen.getByText('이 영상을 신고할까요?')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('radio', { name: startsWith('기타') }));
@@ -812,7 +819,7 @@ describe('반응 메뉴', () => {
     await fireEvent.changeText(screen.getByDisplayValue(''), '  출처가 의심돼요 ');
     await fireEvent.press(screen.getByRole('button', { name: '신고하기' }));
 
-    expect(await screen.findByText('이 참여작은 피드에서 빠져요.')).toBeOnTheScreen();
+    expect(await screen.findByText('운영 확인 전까지 이 영상은 숨겨져요.')).toBeOnTheScreen();
     expect(mocked.createReport).toHaveBeenCalledWith({
       request_id: expect.any(String),
       target_type: 'entry',
@@ -835,7 +842,7 @@ describe('반응 메뉴', () => {
     await fireEvent.press(screen.getByRole('radio', { name: startsWith('저작권 침해 — 대사·영상 출처 문제') }));
     await fireEvent.press(screen.getByRole('button', { name: '신고하기' }));
 
-    expect(await screen.findByText('검토한 뒤 처리할게요.')).toBeOnTheScreen();
+    expect(await screen.findByText('신고를 접수했어요. 운영이 확인할게요.')).toBeOnTheScreen();
     expect(mocked.createReport).toHaveBeenCalledWith({
       request_id: expect.any(String),
       target_type: 'challenge',
@@ -849,25 +856,25 @@ describe('반응 메뉴', () => {
     mocked.createReport.mockRejectedValue(serverError(429, 'daily_report_limit'));
     await renderFeed();
     await openMenu();
-    await fireEvent.press(screen.getByText('영상 신고'));
+    await fireEvent.press(screen.getByText('신고'));
     await fireEvent.press(screen.getByRole('radio', { name: startsWith('부적절한 콘텐츠') }));
     await fireEvent.press(screen.getByRole('button', { name: '신고하기' }));
 
-    expect(await screen.findByText('신고하지 못했어요')).toBeOnTheScreen();
-    expect(screen.getByText('신고는 하루 20건까지 할 수 있어요.')).toBeOnTheScreen();
+    expect(await screen.findByText('신고는 하루 20건까지 할 수 있어요.')).toBeOnTheScreen();
+    expect(screen.getByText('이 영상을 신고할까요?')).toBeOnTheScreen();
     expect(screen.getByText('첫 테이크')).toBeOnTheScreen();
   });
 
   test('신고 창을 닫으면 아무것도 보내지 않는다', async () => {
     await renderFeed();
     await openMenu();
-    await fireEvent.press(screen.getByText('영상 신고'));
+    await fireEvent.press(screen.getByText('신고'));
     await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
     expect(screen.queryByText('이 영상을 신고할까요?')).not.toBeOnTheScreen();
     expect(mocked.createReport).not.toHaveBeenCalled();
   });
 
-  test('차단을 확인하면 그 사람의 참여작이 바로 사라지고 차단했다고 알린다', async () => {
+  test('차단을 확인하면 그 사람의 참여작이 바로 사라지고 설정에서 풀 수 있다고 알린다', async () => {
     mocked.blockUser.mockResolvedValue(undefined);
     await renderFeed([entry(), second(), entry({ id: 'e3', caption: '민지 두 번째' })]);
     await fireEvent.press(iconButtonsAt(0).menu);
@@ -876,8 +883,7 @@ describe('반응 메뉴', () => {
     expect(screen.getByText('이 사람의 참여작과 댓글이 내 화면에서 사라져요. 상대에게는 알리지 않아요.')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('차단하기'));
 
-    expect(await screen.findByText('차단했어요')).toBeOnTheScreen();
-    expect(screen.getByText('이 사람의 참여작과 댓글이 더 보이지 않아요.')).toBeOnTheScreen();
+    expect(await screen.findByText('차단했어요. 설정에서 풀 수 있어요.')).toBeOnTheScreen();
     expect(mocked.blockUser).toHaveBeenCalledWith('u-minji', true);
     expect(screen.queryByText('민지')).not.toBeOnTheScreen();
     expect(screen.queryByText('민지 두 번째')).not.toBeOnTheScreen();
@@ -903,7 +909,7 @@ describe('반응 메뉴', () => {
     await waitFor(() => expect(mockPlayer.replaceAsync).toHaveBeenLastCalledWith('https://play/e2'));
 
     await fireEvent.press(iconButtonsAt(1).menu);
-    await fireEvent.press(screen.getByText('영상 신고'));
+    await fireEvent.press(screen.getByText('신고'));
     await fireEvent.press(screen.getByRole('radio', { name: startsWith('스팸·중복 업로드') }));
     await fireEvent.press(screen.getByRole('button', { name: '신고하기' }));
     expect(await screen.findByText('1 / 1')).toBeOnTheScreen();

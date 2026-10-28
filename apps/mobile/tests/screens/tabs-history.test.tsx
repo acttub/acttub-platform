@@ -1,4 +1,4 @@
-import { within, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import HistoryScreen from '@/app/(tabs)/history';
 import { api } from '@/lib/api';
@@ -105,61 +105,47 @@ test('필터를 바꾸면 그 묶음만 보이고, 즐겨찾기가 비면 그 �
   await render(<HistoryScreen />);
   await screen.findByText('카페 이별 장면');
 
-  await fireEvent.press(screen.getByRole('radio', { name: '즐겨찾기' }));
-  expect(screen.getByRole('radio', { name: '즐겨찾기' })).toBeSelected();
+  await fireEvent.press(screen.getByRole('button', { name: '즐겨찾기' }));
+  expect(screen.getByRole('button', { name: '즐겨찾기' })).toBeSelected();
   expect(screen.getByText('옥상 고백')).toBeOnTheScreen();
   expect(screen.queryByText('카페 이별 장면')).not.toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByRole('radio', { name: '최근 30일' }));
+  await fireEvent.press(screen.getByRole('button', { name: '최근 30일' }));
   expect(screen.getByText('옥상 고백')).toBeOnTheScreen();
   expect(screen.queryByText('장면 메모 없이 연습')).not.toBeOnTheScreen();
 
   listPracticeGroups.mockResolvedValue({ groups: [cafe] });
   await render(<HistoryScreen />);
   await screen.findByText('카페 이별 장면');
-  await fireEvent.press(screen.getByRole('radio', { name: '즐겨찾기' }));
-  expect(screen.getByText('즐겨찾기한 기록이 아직 없어요')).toBeOnTheScreen();
-  expect(screen.getByText('기록의 ⋯ 메뉴에서 즐겨찾기에 넣을 수 있어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '즐겨찾기' }));
+  expect(screen.getByText('즐겨찾기한 기록이 아직 없어요.')).toBeOnTheScreen();
 });
 
 test('기록이 없으면 첫 영상을 올리라고 안내한다', async () => {
   listPracticeGroups.mockResolvedValue({ groups: [] });
   await render(<HistoryScreen />);
-  expect(await screen.findByText('아직 기록이 없어요')).toBeOnTheScreen();
-  expect(screen.getByText('첫 영상을 올리면 여기에 카드가 쌓여요')).toBeOnTheScreen();
+  expect(await screen.findByText('아직 기록이 없어요.\n첫 영상을 올리면 여기에 카드가 쌓여요.')).toBeOnTheScreen();
   expect(screen.getByText('0회')).toBeOnTheScreen();
 });
 
-test('목록을 못 불러오면 InlineError 를 보이고 다시 시도로 다시 읽는다', async () => {
-  listPracticeGroups.mockRejectedValueOnce(new Error('연결이 끊겼어요'));
+test('목록을 못 불러오면 오류 문구를 보여 준다', async () => {
+  listPracticeGroups.mockRejectedValue(new Error('연결이 끊겼어요'));
   await render(<HistoryScreen />);
   expect(await screen.findByText('연결이 끊겼어요')).toBeOnTheScreen();
-  expect(screen.queryByText('아직 기록이 없어요')).not.toBeOnTheScreen();
-
-  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
-  expect(await screen.findByText('카페 이별 장면')).toBeOnTheScreen();
-  expect(screen.queryByText('연결이 끊겼어요')).not.toBeOnTheScreen();
+  expect(screen.queryByText('아직 기록이 없어요.\n첫 영상을 올리면 여기에 카드가 쌓여요.')).not.toBeOnTheScreen();
 });
 
 test('오류에 문구가 없으면 기본 문구를 쓴다', async () => {
   listPracticeGroups.mockRejectedValue('down');
   await render(<HistoryScreen />);
-  expect(await screen.findByText('연습 기록을 불러오지 못했어요')).toBeOnTheScreen();
+  expect(await screen.findByText('기록을 불러오지 못했어요.')).toBeOnTheScreen();
 });
 
-describe('묶음 ⋯ 메뉴', () => {
+describe('길게 누른 메뉴', () => {
   async function openMenu(title: string) {
     await render(<HistoryScreen />);
-    const row = await screen.findByRole('button', { name: title });
-    await fireEvent.press(within(row).getByRole('button', { name: '기록 메뉴' }));
+    await fireEvent(await screen.findByText(title), 'longPress');
   }
-
-  test('줄을 길게 눌러도 같은 메뉴가 뜨고 숨기기는 danger 가 아니다', async () => {
-    await render(<HistoryScreen />);
-    await fireEvent(await screen.findByText('카페 이별 장면'), 'longPress');
-    const menu = within(screen.getByTestId('anchored-menu'));
-    expect(menu.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['전체 보기', '즐겨찾기에 넣기', '기록에서 숨기기']);
-  });
 
   test('전체 보기는 묶음 상세로 간다', async () => {
     await openMenu('옥상 고백');
@@ -185,22 +171,22 @@ describe('묶음 ⋯ 메뉴', () => {
     await waitFor(() => expect(listPracticeGroups).toHaveBeenCalledTimes(2));
   });
 
-  test('기록에서 숨기기는 확인을 받은 뒤 묶음을 숨긴다', async () => {
+  test('삭제는 확인을 받은 뒤 묶음을 숨긴다', async () => {
     await openMenu('카페 이별 장면');
-    await fireEvent.press(screen.getByText('기록에서 숨기기'));
+    await fireEvent.press(screen.getByText('삭제'));
 
-    expect(screen.getByText('이 연습을 기록에서 숨길까요?')).toBeOnTheScreen();
-    expect(screen.getByText('목록에서 빠져요. 나중에 다시 보이게 할 수 있어요.')).toBeOnTheScreen();
+    expect(screen.getByText('이 연습을 기록에서 삭제할까요?')).toBeOnTheScreen();
+    expect(screen.getByText('기록에서 삭제해요. 영상은 그대로 남아요.')).toBeOnTheScreen();
     listPracticeGroups.mockResolvedValue({ groups: [roof, old] });
-    await fireEvent.press(screen.getByText('숨기기'));
+    await fireEvent.press(screen.getByText('삭제'));
 
     await waitFor(() => expect(screen.queryByText('카페 이별 장면')).not.toBeOnTheScreen());
     expect(patchPracticeGroup).toHaveBeenCalledWith('r-cafe', { hidden: true });
   });
 
-  test('숨기기 확인에서 취소하면 숨기지 않는다', async () => {
+  test('삭제 확인에서 취소하면 숨기지 않는다', async () => {
     await openMenu('카페 이별 장면');
-    await fireEvent.press(screen.getByText('기록에서 숨기기'));
+    await fireEvent.press(screen.getByText('삭제'));
     await fireEvent.press(screen.getByText('취소'));
 
     expect(patchPracticeGroup).not.toHaveBeenCalled();
@@ -209,14 +195,14 @@ describe('묶음 ⋯ 메뉴', () => {
 
   test.each([
     [new Error('권한이 없어요'), '권한이 없어요'],
-    ['down', '잠시 후 다시 시도해 주세요.'],
+    ['down', '삭제하지 못했어요.'],
   ])('숨기기가 실패하면 까닭을 알린다 (%s)', async (error, message) => {
     patchPracticeGroup.mockRejectedValue(error);
     await openMenu('카페 이별 장면');
-    await fireEvent.press(screen.getByText('기록에서 숨기기'));
-    await fireEvent.press(screen.getByText('숨기기'));
+    await fireEvent.press(screen.getByText('삭제'));
+    await fireEvent.press(screen.getByText('삭제'));
 
-    expect(await screen.findByText('숨기지 못했어요')).toBeOnTheScreen();
+    expect(await screen.findByText('삭제 실패')).toBeOnTheScreen();
     expect(screen.getByText(message)).toBeOnTheScreen();
   });
 });

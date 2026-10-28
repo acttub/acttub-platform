@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
-import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';

@@ -3,11 +3,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAppDialog } from '@/components/app-dialog';
-import { Button } from '@/components/ui/buttons';
+import { useAppDialog } from '@/components/ds/app-dialog';
+import { Button } from '@/components/ds/ui/buttons';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
-import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { DEFAULT_AVATAR_GONE, DefaultAvatar } from '@/components/ui/default-avatar';
 import { palette } from '@/constants/palette';

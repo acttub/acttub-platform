@@ -37,6 +37,7 @@ test('서버가 켜고 이 빌드가 지원하는 제공자 버튼만 그린다'
   expect(screen.getByText('다른 방법으로 계속하기')).toBeOnTheScreen();
   expect(screen.getByText('그 장면에서 뭘 하려 했는지부터')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: /Apple로 로그인/ })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: /Apple로 로그인/ })).toHaveStyle({ width: 56, height: 56, borderRadius: 28 });
   expect(screen.getByRole('button', { name: /카카오로 계속하기/ })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: /네이버로 계속하기/ })).not.toBeOnTheScreen();
   
@@ -90,12 +91,12 @@ test('꺼 둔 제공자였으면 목록을 다시 받아 버튼을 새로 그린
   expect(screen.getByRole('button', { name: /Google로 계속하기/ })).toBeOnTheScreen();
 });
 
-test('목록을 못 받으면 오류 상자의 다시 시도로 다시 받는다', async () => {
+test('목록을 못 받으면 다시 불러오기를 둔다', async () => {
   authProviders.mockRejectedValueOnce(new Error('down'));
   await render(<LoginScreen />);
 
-  expect(await screen.findByText('로그인 방식을 불러오지 못했어요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByText('로그인 방식을 불러오지 못했어요.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
 
   expect(await screen.findByRole('button', { name: /Google로 계속하기/ })).toBeOnTheScreen();
 });

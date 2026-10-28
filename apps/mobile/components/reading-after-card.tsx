@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
-import { radius, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { logEvent } from '@/lib/analytics';
@@ -124,7 +123,7 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
             <Text style={styles.proText}>PRO</Text>
           </View>
           <View style={styles.flex} />
-          <Feather name="chevron-right" size={16} color={palette.iconFaint} />
+          <Feather name="chevron-right" size={16} color={palette.textFaint} />
         </Pressable>
       )}
     </View>
@@ -134,8 +133,8 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
 const styles = StyleSheet.create({
   wrap: { alignSelf: 'stretch', gap: 6, marginTop: 8 },
   card: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 20, gap: 6 },
-  title: { ...type.headline, color: palette.text },
-  sub: { ...type.body2, color: palette.textSub },
+  title: { color: palette.text, fontSize: 17, fontWeight: '700', lineHeight: 24 },
+  sub: { color: palette.textDim, fontSize: 14, lineHeight: 21 },
   cta: {
     marginTop: 10,
     minHeight: 44,
@@ -144,16 +143,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: palette.blue,
-    borderRadius: radius.md,
+    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  errorText: { ...type.caption, color: palette.textSub },
-  ctaText: { ...type.body2Bold, color: palette.onAccent },
+  errorText: { fontSize: 13, lineHeight: 19, color: palette.textDim },
+  ctaText: { color: palette.onAccent, fontSize: 15, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 8 },
-  rowText: { ...type.body2Bold, color: palette.textSub },
-  pro: { backgroundColor: palette.text, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  proText: { ...type.micro, color: palette.onAccent },
+  rowText: { color: palette.textDim, fontSize: 15, fontWeight: '600' },
+  pro: { backgroundColor: palette.navy, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  proText: { color: palette.onAccent, fontSize: 11, fontWeight: '800' },
   flex: { flex: 1 },
   pressed: { opacity: 0.8 },
 });

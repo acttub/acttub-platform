@@ -7,8 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Feather from '@expo/vector-icons/Feather';
 
-import { Button, PrimaryButton } from '@/components/ui/buttons';
-import { Chip } from '@/components/ui/chip';
+import { Button, PrimaryButton } from '@/components/ds/ui/buttons';
+import { Chip } from '@/components/ds/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { palette } from '@/constants/palette';

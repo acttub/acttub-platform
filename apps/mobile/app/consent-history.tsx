@@ -4,12 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAppDialog } from '@/components/app-dialog';
-import { MarketingNoticeDialog } from '@/components/marketing-notice-dialog';
-import { Markdown } from '@/components/markdown';
-import { BlueSwitch } from '@/components/ui/list-rows';
-import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
-import { StatusScreen } from '@/components/ui/status-screen';
+import { useAppDialog } from '@/components/ds/app-dialog';
+import { MarketingNoticeDialog } from '@/components/ds/marketing-notice-dialog';
+import { Markdown } from '@/components/ds/markdown';
+import { BlueSwitch } from '@/components/ds/ui/list-rows';
+import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
+import { StatusScreen } from '@/components/ds/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';

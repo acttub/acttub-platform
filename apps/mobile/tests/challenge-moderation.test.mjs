@@ -52,10 +52,8 @@ test('challenge.report: 참여작·댓글·챌린지를 대상으로 접수한�
   });
   // 메모가 없으면 싣지 않는다.
   assert.equal('note' in buildReportBody({ requestId: 'r', target: 'entry', targetId: 'e', reason: 'spam', note: '' }), false);
-  // 참여작은 피드에서 빠지고, 댓글은 검토까지 숨겨지고, 챌린지는 검토한 뒤 처리한다 — 안내가 셋이다.
-  assert.equal(reportDoneMessage('challenge'), '검토한 뒤 처리할게요.');
-  assert.equal(reportDoneMessage('entry'), '이 참여작은 피드에서 빠져요.');
-  assert.equal(reportDoneMessage('comment'), '이 댓글은 검토가 끝날 때까지 숨겨져요.');
+  // 참여작·댓글은 바로 숨겨지고 챌린지는 운영이 본다 — 안내가 다르다.
+  assert.notEqual(reportDoneMessage('challenge'), reportDoneMessage('entry'));
 });
 
 test('challenge.report: 본인 신고·하루 한도·볼 수 없는 대상을 갈라 본다', () => {

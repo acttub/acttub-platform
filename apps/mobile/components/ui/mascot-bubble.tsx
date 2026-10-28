@@ -15,21 +15,24 @@ export function MascotBubble({
   title,
   body,
   guide,
+  roomy = false,
 }: {
   source?: ImageSourcePropType;
   title: string;
   body?: string | null;
   guide?: string | null;
+  /** 안쪽 여백을 조금 넓히고 글자를 한 단계 줄인다(가입 질문, SOMA-923). */
+  roomy?: boolean;
 }) {
   return (
     <View style={styles.row}>
       <View style={styles.mascot}>
         <Image source={source} style={MASCOT_SIZE.bubble} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       </View>
-      <View style={styles.bubble}>
-        <Text style={styles.title}>{title}</Text>
-        {guide ? <Text style={styles.guide}>{guide}</Text> : null}
-        {body ? <Text style={styles.body}>{body}</Text> : null}
+      <View style={[styles.bubble, roomy && styles.bubbleRoomy]}>
+        <Text style={[styles.title, roomy && styles.titleRoomy]}>{title}</Text>
+        {guide ? <Text style={[styles.guide, roomy && styles.smallRoomy]}>{guide}</Text> : null}
+        {body ? <Text style={[styles.body, roomy && styles.smallRoomy]}>{body}</Text> : null}
       </View>
     </View>
   );
@@ -53,7 +56,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgSoft,
     borderRadius: 16,
   },
+  bubbleRoomy: { paddingTop: 15, paddingBottom: 16, paddingHorizontal: 18 },
   title: { fontSize: 19, fontWeight: '700', lineHeight: 25, color: palette.text },
+  titleRoomy: { fontSize: 17, lineHeight: 23 },
+  smallRoomy: { fontSize: 14, lineHeight: 19 },
   guide: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.blueDeep },
-  body: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMeta },
+  body: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMuted },
 });

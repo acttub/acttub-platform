@@ -7,11 +7,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { Button, TextButton } from '@/components/ui/buttons';
+import { Button, TextButton } from '@/components/ds/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { SkeletonCards } from '@/components/ui/skeleton';
-import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { NavHeader, NavIconButton } from '@/components/ds/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
@@ -381,11 +381,14 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   content: { paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[4] },
 
+  // 한 줄 소개 카드 — 모양·색은 개편전(dev), 여백·패딩은 개편후(롤백) 값(SOMA-923).
   me: {
+    // 위 여백을 줄였다 — 머리와 카드 사이는 목록 안쪽 위 8만 남긴다(SOMA-923).
+    marginTop: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[4],
-    padding: space[4],
+    gap: 18,
+    padding: 18,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: palette.border,
@@ -401,12 +404,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   photoImg: { width: '100%', height: '100%' },
-  meText: { flex: 1, minWidth: 0, gap: space[1.5] },
+  meText: { flex: 1, minWidth: 0, gap: 6 },
   name: { ...type.title2, color: palette.text },
   bio: { ...type.body2, color: palette.textSub },
   bioEmpty: { color: palette.textMeta },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
-  chip: { paddingVertical: space[1], paddingHorizontal: space[2], borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 4 },
+  chip: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
   chipText: { ...type.micro, color: palette.textSub },
 
   month: { flexDirection: 'row' },
@@ -439,7 +442,8 @@ const styles = StyleSheet.create({
   },
   thumbEmpty: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: palette.scrim },
-  cardTitle: { ...type.micro, color: palette.onAccent },
+  // 연습 기록 칸 제목을 한 단계 줄였다(SOMA-923).
+  cardTitle: { ...type.micro, fontSize: 11, lineHeight: 14, color: palette.onAccent },
   cardMeta: { ...type.micro, color: palette.onMediaSub },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   cellEmpty: { flex: 1, borderRadius: radius.sm, backgroundColor: palette.bgSoft },

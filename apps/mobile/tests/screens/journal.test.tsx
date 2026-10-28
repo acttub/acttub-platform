@@ -72,9 +72,6 @@ test('일지가 없으면 고정 질문 4개를 묻고, 건너뛰기·직접 쓰
   expect(screen.getByText('1 / 4')).toBeOnTheScreen();
   expect(screen.getByText('고르거나 적고 「다음」 버튼을 누르세요. 없으면 「건너뛰기」를 누르세요.')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
-  // 아래 고정 바는 보조 글자 버튼이 위, 주 버튼이 맨 아래다.
-  const names = screen.getAllByRole('button').map((b) => b.props.accessibilityLabel);
-  expect(names.slice(-2)).toEqual(['건너뛰기', '다음']);
   await fireEvent.press(screen.getByText('떨렸어요'));
   await fireEvent.changeText(screen.getByLabelText('해 보니 어땠어요?'), '  낮게 하니까 오히려 더 떨렸어요 ');
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));

@@ -1,7 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -12,7 +10,6 @@ import {
   Text,
   useWindowDimensions,
   View,
-  type GestureResponderEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
@@ -23,24 +20,23 @@ import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { pt } from '@/components/ui/anchored-menu';
-import { DialogButtons, DialogCard } from '@/components/ui/dialog';
-import { Toast } from '@/components/ui/toast';
 import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { avatarLetter, browseFailure, browseFailureMessage, canPerform, isEnded, rankEntries } from '@/lib/challenge/browse';
 import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import { commentCountAfter } from '@/lib/challenge/entry';
-import { playMenuItems, type PlayMenuItem } from '@/lib/challenge/menu';
 import { canReact, optimisticLike, optimisticSave, reactFailure, reactFailureMessage } from '@/lib/challenge/react';
 import type { ChallengeDetail, EntryCard, ReportReason, ReportTarget } from '@/lib/challenge/types';
+import { playMenuItems, type PlayMenuItem } from '@/lib/challenge/menu';
 import { createViewTracker, VIEW_THRESHOLD_MS } from '@/lib/challenge/views';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { newRequestId } from '@/lib/request-id';
 import { limitVideoBuffer } from '@/lib/video-memory';
+import type { GestureResponderEvent } from 'react-native';
+
 
 /**
  * A15 챌린지 피드 — 고른 챌린지 **안에서만** 참여작을 위아래로 넘겨 본다.
@@ -301,7 +297,7 @@ export default function ChallengePlayScreen() {
       patchEntry(entry.id, { liked: result.liked, like_count: result.like_count });
     } catch (e) {
       patchEntry(entry.id, { liked: before.liked, like_count: before.likeCount });
-      void alert({ title: t('react.likeFailTitle'), message: reactFailureMessage(reactFailure(e)) });
+      void alert({ title: t('react.menuLike'), message: reactFailureMessage(reactFailure(e)) });
     } finally {
       setBusy(false);
     }
@@ -318,7 +314,7 @@ export default function ChallengePlayScreen() {
       patchEntry(entry.id, { saved: result.saved });
     } catch (e) {
       patchEntry(entry.id, { saved: entry.saved });
-      void alert({ title: t('react.saveFailTitle'), message: reactFailureMessage(reactFailure(e)) });
+      void alert({ title: t('react.menuSave'), message: reactFailureMessage(reactFailure(e)) });
     } finally {
       setBusy(false);
     }
@@ -339,9 +335,9 @@ export default function ChallengePlayScreen() {
       await api.blockUser(authorId as string, true);
       setEntries((prev) => removeAuthored(prev ?? [], authorId as string));
       setActive(0);
-      void alert({ title: t('react.blockDoneTitle'), message: t('react.blockDone') });
+      void alert({ title: t('react.menuBlock'), message: t('react.blockDone') });
     } catch (e) {
-      void alert({ title: t('react.blockFailTitle'), message: blockFailureMessage(e) });
+      void alert({ title: t('react.menuBlock'), message: blockFailureMessage(e) });
     }
   };
 
@@ -359,11 +355,11 @@ export default function ChallengePlayScreen() {
         setEntries((prev) => (prev ?? []).filter((e) => e.id !== target.id));
       }
     } catch (e) {
-      void alert({ title: t('videoReport.failTitle'), message: reportFailureMessage(reportFailure(e)) });
+      void alert({ title: t('videoReport.title'), message: reportFailureMessage(reportFailure(e)) });
     }
   };
 
-  /** ⋯ 메뉴 — 화면에 버튼이 있는 좋아요·저장·공유는 빼고 신고·차단만(lib/challenge/menu). */
+  /** ⋯ 메뉴(SOMA-887) — 좋아요·저장·댓글·공유는 화면 버튼에 있어 신고·차단만 둔다. 할 수 있는 사람에게만 줄이 보인다. */
   const menuFor = (entry: EntryCard) => playMenuItems({ entry, challenge, myId: user?.id ?? null });
   const openMenu = (entry: EntryCard, e?: GestureResponderEvent) => {
     const action: Record<PlayMenuItem, DialogAction> = {
@@ -376,7 +372,7 @@ export default function ChallengePlayScreen() {
       },
       block: { label: t('react.menuBlock'), icon: 'slash', destructive: true, onPress: () => void blockAuthor(entry) },
     };
-    void sheet({ anchor: pt(e), actions: menuFor(entry).map((item) => action[item]) });
+    void sheet({ anchor: pt(e), title: entry.author.name, actions: menuFor(entry).map((item) => action[item]) });
   };
 
   const renderItem = ({ item, index }: { item: EntryCard; index: number }) => {
@@ -390,17 +386,41 @@ export default function ChallengePlayScreen() {
         <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button" ph-label="challenge_play_toggle">
           {isActive && !playing && (
             <View style={styles.pauseCenter}>
-              <Feather name="play" size={40} color={palette.onAccent} />
+              <Feather name="play" size={40} color="rgba(255,255,255,0.9)" />
             </View>
           )}
         </Pressable>
+        {isActive && playFailed && (
+          <View style={styles.playFail} pointerEvents="box-none">
+            <View style={styles.playFailCard}>
+              <Feather name="video-off" size={26} color="#FFFFFF" />
+              <Text style={styles.playFailTitle}>{t('challenges.playFailTitle')}</Text>
+              <Text style={styles.playFailText}>{t('challenges.playFailSub')}</Text>
+              <View style={styles.playFailRow}>
+                <Pressable style={styles.playFailClose} onPress={() => router.back()} accessibilityRole="button" ph-label="challenge_play_fail_close">
+                  <Text style={styles.playFailCloseText}>{t('challenges.playFailClose')}</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.playFailRetry}
+                  onPress={() => {
+                    setPlayFailed(false);
+                    setRetryTick((n) => n + 1);
+                  }}
+                  accessibilityRole="button"
+                  ph-label="challenge_play_fail_retry">
+                  <Text style={styles.playFailRetryText}>{t('challenges.playFailRetry')}</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
         <View style={styles.scrimTop} pointerEvents="none" />
         <View style={styles.scrimBottom} pointerEvents="none" />
 
         <View style={[styles.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]} pointerEvents="box-none">
           <View style={styles.top}>
             <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_close">
-              <Feather name="x" size={24} color={palette.onAccent} />
+              <Feather name="x" size={26} color="#FFFFFF" />
             </Pressable>
             <View style={styles.author}>
               <View style={styles.avatar}>
@@ -416,16 +436,11 @@ export default function ChallengePlayScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t(muted ? 'react.unmute' : 'react.mute')}
                 ph-label="challenge_play_mute">
-                <Feather name={muted ? 'volume-x' : 'volume-2'} size={22} color={palette.onAccent} />
+                <Feather name={muted ? 'volume-x' : 'volume-2'} size={22} color="#FFFFFF" />
               </Pressable>
               {menuFor(item).length > 0 ? (
-                <Pressable
-                  onPress={(e) => openMenu(item, e)}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('react.moreA11y')}
-                  ph-label="challenge_play_more">
-                  <Feather name="more-horizontal" size={24} color={palette.onAccent} />
+                <Pressable onPress={(e) => openMenu(item, e)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('challenges.moreA11y')} ph-label="challenge_play_more">
+                  <Feather name="more-horizontal" size={24} color="#FFFFFF" />
                 </Pressable>
               ) : null}
             </View>
@@ -448,7 +463,7 @@ export default function ChallengePlayScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t(originalFor === item.id ? 'challenges.showMosaic' : 'challenges.showOriginal')}
                 ph-label="challenge_play_original_toggle">
-                <Feather name={originalFor === item.id ? 'eye-off' : 'eye'} size={14} color={palette.onAccent} />
+                <Feather name={originalFor === item.id ? 'eye-off' : 'eye'} size={14} color="#FFFFFF" />
                 <Text style={styles.originalToggleText}>{t(originalFor === item.id ? 'challenges.showMosaic' : 'challenges.showOriginal')}</Text>
               </Pressable>
             )}
@@ -461,11 +476,7 @@ export default function ChallengePlayScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('react.menuLike')}
                 ph-label="challenge_play_like">
-                {item.liked ? (
-                  <MaterialCommunityIcons name="heart" size={22} color={palette.danger} testID="liked-heart" />
-                ) : (
-                  <Feather name="heart" size={22} color={palette.onAccent} />
-                )}
+                <Feather name="heart" size={22} color={item.liked ? palette.danger : '#FFFFFF'} />
                 <Text style={styles.actionText}>{item.like_count}</Text>
               </Pressable>
               <Pressable
@@ -475,18 +486,14 @@ export default function ChallengePlayScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('react.menuSave')}
                 ph-label="challenge_play_save">
-                {item.saved ? (
-                  <MaterialCommunityIcons name="bookmark-check" size={24} color={palette.onAccent} testID="saved-bookmark" />
-                ) : (
-                  <Feather name="bookmark" size={22} color={palette.onAccent} />
-                )}
+                <Feather name="bookmark" size={22} color={item.saved ? '#FFD84D' : '#FFFFFF'} />
               </Pressable>
               <Pressable style={styles.action} onPress={() => setCommentsOpen(true)} accessibilityRole="button" accessibilityLabel={t('react.menuComment')} ph-label="challenge_play_comment">
-                <Feather name="message-circle" size={22} color={palette.onAccent} />
+                <Feather name="message-circle" size={22} color="#FFFFFF" />
                 <Text style={styles.actionText}>{item.comment_count}</Text>
               </Pressable>
               <Pressable style={styles.action} onPress={() => share(item)} accessibilityRole="button" accessibilityLabel={t('react.menuShare')} ph-label="challenge_play_share">
-                <Feather name="share-2" size={22} color={palette.onAccent} />
+                <Feather name="share-2" size={22} color="#FFFFFF" />
               </Pressable>
             </View>
 
@@ -495,27 +502,12 @@ export default function ChallengePlayScreen() {
                 style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
                 onPress={perform}
                 accessibilityRole="button">
-                <Feather name="video" size={16} color={palette.onAccent} />
+                <Feather name="video" size={16} color="#FFFFFF" />
                 <Text style={styles.performText}>{t('challenges.performCta')}</Text>
               </Pressable>
             )}
           </View>
         </View>
-        {isActive && playFailed && (
-          <View style={styles.playFail}>
-            <DialogCard title={t('challenges.playFailTitle')} message={t('challenges.playFailSub')}>
-              <DialogButtons
-                cancelLabel={t('challenges.playFailClose')}
-                onCancel={() => router.back()}
-                confirmLabel={t('challenges.playFailRetry')}
-                onConfirm={() => {
-                  setPlayFailed(false);
-                  setRetryTick((n) => n + 1);
-                }}
-              />
-            </DialogCard>
-          </View>
-        )}
       </View>
     );
   };
@@ -523,30 +515,25 @@ export default function ChallengePlayScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style="light" />
-      {!!error && (
-        <View style={[styles.error, { paddingTop: 56 + insets.top }]}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
+      {!!error && <Text style={styles.error}>{error}</Text>}
       {/* 불러오는 중이거나 실패했을 때도 항상 닫을 수 있게 한다(SOMA-738). */}
       {(entries === null || !!error) && (
         <View style={[styles.loadingClose, { paddingTop: 8 + insets.top }]} pointerEvents="box-none">
           <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.close')} ph-label="challenge_play_close">
-            <Feather name="x" size={24} color={palette.onAccent} />
+            <Feather name="x" size={26} color="#FFFFFF" />
           </Pressable>
         </View>
       )}
       {entries !== null && entries.length === 0 && !error && (
         <View style={[styles.emptyWrap, { paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom }]}>
           <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" ph-label="challenge_play_close" style={styles.emptyClose}>
-            <Feather name="x" size={24} color={palette.onAccent} />
+            <Feather name="x" size={26} color="#FFFFFF" />
           </Pressable>
           <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
           <Text style={styles.empty}>{t('challenges.emptyEntries')}</Text>
           {challenge && !isEnded(challenge) && (
             <Pressable style={styles.performBtn} onPress={perform} accessibilityRole="button">
-              <Feather name="video" size={16} color={palette.onAccent} />
+              <Feather name="video" size={16} color="#FFFFFF" />
               <Text style={styles.performText}>{t('challenges.performCta')}</Text>
             </Pressable>
           )}
@@ -566,11 +553,9 @@ export default function ChallengePlayScreen() {
         />
       )}
       {atEnd && (
-        <Toast
-          icon="info"
-          message={t('challenges.feedEnd')}
-          bottom={insets.bottom + space[4] + ACTION_ROW + space[3] + (challenge && !isEnded(challenge) ? 48 + space[3] : 0)}
-        />
+        <View style={styles.endNotice} pointerEvents="none">
+          <Text style={styles.endText}>{t('challenges.feedEnd')}</Text>
+        </View>
       )}
       <ChallengeCommentsSheet
         visible={commentsOpen}
@@ -602,59 +587,74 @@ function sourceOf(entry: EntryCard, originalFor: string | null): string | null {
   return originalFor === entry.id && entry.original_playback_url ? entry.original_playback_url : entry.playback_url;
 }
 
-/** 아래 행동 줄(좋아요·저장·댓글·공유) 높이 — 토스트를 그 위에 띄운다. */
-const ACTION_ROW = 32;
-
 const styles = StyleSheet.create({
-  playFail: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
-  error: { position: 'absolute', left: 0, right: 0, paddingHorizontal: space.gutter },
-  errorText: { ...type.body2, color: palette.onAccent, textAlign: 'center' },
-  loadingClose: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: space[4] },
-  emptyWrap: { flex: 1, padding: space[6], gap: space[3], justifyContent: 'center' },
-  emptyClose: { position: 'absolute', top: space[4], left: space[4] },
-  empty: { ...type.body1, color: palette.onMediaSub },
-  root: { flex: 1, backgroundColor: palette.text },
+  loading: { flex: 1 },
+  endNotice: { position: 'absolute', left: 0, right: 0, bottom: 120, alignItems: 'center' },
+  endText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  loadingClose: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16 },
+  playFail: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  playFailCard: { alignItems: 'center', gap: 8, borderRadius: 20, backgroundColor: 'rgba(30,30,30,0.85)', paddingVertical: 22, paddingHorizontal: 24, alignSelf: 'stretch' },
+  playFailTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textAlign: 'center', marginTop: 4 },
+  playFailText: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '500', textAlign: 'center' },
+  playFailRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  playFailClose: { height: 44, minWidth: 80, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  playFailCloseText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  playFailRetry: { height: 44, minWidth: 100, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  playFailRetryText: { color: '#191F28', fontSize: 14, fontWeight: '800' },
+  error: { color: '#FFFFFF', textAlign: 'center', marginTop: 80, paddingHorizontal: 24 },
+  emptyWrap: { flex: 1, padding: 24, gap: 14, justifyContent: 'center' },
+  emptyClose: { position: 'absolute', top: 16, left: 16 },
+  empty: { color: 'rgba(255,255,255,0.8)', fontSize: 15, lineHeight: 24 },
+  root: { flex: 1, backgroundColor: '#000000' },
   flex: { flex: 1 },
   pauseCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scrimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 160, backgroundColor: palette.scrim },
-  scrimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 420, backgroundColor: palette.scrim },
+  scrimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 160, backgroundColor: 'rgba(0,0,0,0.3)' },
+  scrimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 420, backgroundColor: 'rgba(0,0,0,0.5)' },
   overlay: { flex: 1, justifyContent: 'space-between' },
-  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space[4], paddingTop: space[2] },
-  author: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  authorName: { ...type.body2Bold, color: palette.onAccent },
-  avatar: { width: 24, height: 24, borderRadius: radius.full, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { ...type.micro, color: palette.textSub },
-  bottom: { paddingHorizontal: space.gutter, paddingBottom: space[4], gap: space[2] },
-  storyLabel: { ...type.micro, color: palette.onMediaSub },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
+  author: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  authorName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  bottom: { paddingHorizontal: 20, paddingBottom: 16, gap: 10 },
+  storyLabel: { fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.8)' },
   originalToggle: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[1.5],
-    marginTop: space[2],
-    paddingHorizontal: space[3],
-    paddingVertical: space[1.5],
-    borderRadius: radius.full,
-    backgroundColor: palette.scrim,
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  originalToggleText: { ...type.captionBold, color: palette.onAccent },
-  line: { ...type.title2, color: palette.onAccent },
-  work: { ...type.caption, color: palette.onMediaSub },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: space[5], height: ACTION_ROW, marginTop: space[1] },
-  topRight: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
-  action: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  originalToggleText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  line: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', lineHeight: 30 },
+  work: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
+  actions: { flexDirection: 'row', gap: 22, marginTop: 6 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actionOff: { opacity: 0.4 },
-  actionText: { ...type.body2Bold, color: palette.onAccent },
+  actionText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
   performBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: space[2],
+    gap: 8,
     backgroundColor: palette.blue,
-    borderRadius: radius.lg,
+    borderRadius: 14,
     height: 48,
-    marginTop: space[1],
+    marginTop: 6,
   },
   pressed: { opacity: 0.85 },
-  performText: { ...type.headline, color: palette.onAccent },
+  performText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
 });

@@ -68,3 +68,9 @@ test('대본 탭 위에 고품질 목소리 켜기 줄이 있고 설정에서는
   assert.doesNotMatch(read('app/settings.tsx'), /useCloudVoice|cloudVoice\.settingsTitle/);
 });
 
+test('연습 기록에서 빼는 동작은 「삭제」라고 부른다(영상은 보관함에 남는다)', () => {
+  const ko = read('locales/ko.ts');
+  assert.match(ko, /hideConfirm: '삭제',/);
+  assert.match(ko, /hideTitle: '이 연습을 기록에서 삭제할까요\?',/);
+  assert.doesNotMatch(ko, /hideConfirm: '숨기기'/);
+});

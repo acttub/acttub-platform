@@ -8,13 +8,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton } from '@/components/ui/buttons';
-import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { InlineErrorLine } from '@/components/ui/inline-error';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
-import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { BareBackButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import type { ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
@@ -68,7 +65,7 @@ export default function ConsentScreen() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ kind: 'outdated' } | { kind: 'fail'; message: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const documents = useMemo<ConsentDocument[]>(() => signup?.documents ?? [], [signup?.documents]);
   const layout = useMemo(() => signupScreenLayout(documents), [documents]);
@@ -163,10 +160,10 @@ export default function ConsentScreen() {
     } catch (cause) {
       if (signupFailureAction(cause) === 'reload_documents') {
         // 보는 사이 새 판이 나왔다. 문서를 다시 받아 화면을 새로 그린다.
-        setError({ kind: 'outdated' });
+        setError(t('consent.outdated'));
         await reloadSignupDocuments().catch(() => undefined);
       } else {
-        setError({ kind: 'fail', message: errorMessage(cause, t('consent.agreeFail')) });
+        setError(errorMessage(cause, t('consent.agreeFail')));
       }
     } finally {
       setBusy(false);
@@ -210,7 +207,9 @@ export default function ConsentScreen() {
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ headerShown: false }} />
       {/* 나가면 아무것도 남지 않는다. 계정도, 제공자가 준 이름도. */}
-      <NavHeader left={<NavBackButton label={t('consent.exit')} phLabel="consent_exit" disabled={busy} onPress={() => cancelSignup()} />} />
+      <View style={styles.header}>
+        <BareBackButton label={t('consent.exit')} phLabel="consent_exit" disabled={busy} onPress={() => cancelSignup()} />
+      </View>
 
       <ScrollView contentContainerStyle={styles.list}>
         <Image source={MASCOT.coach} style={MASCOT_SIZE.bubble} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
@@ -219,25 +218,20 @@ export default function ConsentScreen() {
         <View style={styles.lines}>{lines.map(renderLine)}</View>
       </ScrollView>
 
-      <CtaBar safeBottom={false} style={styles.cta}>
-        {error?.kind === 'outdated' && (
-          <View style={styles.outdated} accessibilityRole="alert">
-            <Feather name="alert-triangle" size={20} color={palette.amber} />
-            <Text style={styles.outdatedText}>{t('consent.outdated')}</Text>
-          </View>
-        )}
-        {error?.kind === 'fail' && <InlineErrorLine message={error.message} />}
+      <CtaBar safeBottom={false} style={styles.footer}>
+        {error && <Text style={styles.error}>{error}</Text>}
         <Pressable
-          style={[styles.allRow, everythingGranted && styles.allRowOn, busy && styles.locked]}
+          style={[styles.allRow, everythingGranted && styles.allRowOn]}
           onPress={toggleEverything}
           disabled={busy}
           accessibilityRole="checkbox"
           accessibilityHint={t('consent.allAgreeHint')}
           accessibilityState={{ checked: everythingGranted }}>
-          <Checkbox checked={everythingGranted} />
+          {/* 꺼져 있어도 빈 원이 아니라 회색 체크 모양을 보인다(SOMA-923). */}
+          <Feather name="check-circle" size={22} color={everythingGranted ? palette.blue : palette.textDisabled} />
           <Text style={[styles.allLabel, everythingGranted && styles.allLabelOn]}>{t('consent.allAgreeStart')}</Text>
         </Pressable>
-        <PrimaryButton label={t('consent.ctaStart')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} loadingLabel={t('consent.saving')} />
+        <PrimaryButton label={t('consent.ctaStart')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} />
       </CtaBar>
     </SafeAreaView>
   );
@@ -245,27 +239,29 @@ export default function ConsentScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[4] },
-  title: { marginTop: space[3], ...type.title1, color: palette.text },
-  hint: { marginTop: space[2], ...type.body2, color: palette.textMeta },
-  lines: { marginTop: space[5] },
-  docBody: { paddingLeft: 34, paddingBottom: space[3] },
-  cta: { gap: space[3] },
-  outdated: { flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4], borderRadius: radius.md, backgroundColor: palette.amberSoft },
-  outdatedText: { flex: 1, ...type.body2Bold, color: palette.amber },
+  header: { height: 44, justifyContent: 'center', paddingHorizontal: 24 },
+  // 좌우 여백 24 · 제목 26/800 줄높이 1.34 · 설명 15/400 줄높이 1.5(제목과 6~8 사이).
+  list: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
+  title: { marginTop: 8, fontSize: 24, fontWeight: '800', lineHeight: 32, color: palette.text },
+  hint: { marginTop: 8, fontSize: 15, fontWeight: '400', lineHeight: 22, color: palette.textMuted },
+  lines: { marginTop: 20 },
+  docBody: { paddingHorizontal: 14, paddingBottom: 12 },
+  footer: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 12, gap: 8 },
+  // 모두 동의하기(pen S4.1) — 안쪽 18, 모서리 16, 칸 사이 12. 꺼짐 #F9FAFB → 켜짐 #EAF3FE.
+  // 「모두 동의하기」 상자는 개편전(dev) 모양 — 흰 바탕·1px 테두리, 켜면 파란 테두리·옅은 파랑(SOMA-923).
   allRow: {
     minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[3],
-    paddingHorizontal: space[4],
-    borderRadius: radius.lg,
+    gap: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.bg,
   },
-  allRowOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft, paddingHorizontal: space[4] - 0.5 },
-  locked: { opacity: 0.6 },
-  allLabel: { flex: 1, ...type.headline, color: palette.text },
+  allRowOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft, paddingHorizontal: 15.5 },
+  allLabel: { flex: 1, fontSize: 17, fontWeight: '600', lineHeight: 26, color: palette.text },
   allLabelOn: { color: palette.blueDeep },
+  error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
 });

@@ -75,7 +75,7 @@ test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 
   const start = screen.getByRole('button', { name: '영상 보여 주고 코칭 받기' });
   expect(start.props['ph-label']).toBe('coaching_first_next');
   await fireEvent.press(start);
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/upload');
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/upload', params: { first: '1' } });
   // 영상 없이 말로 — 목적 화면으로(SOMA-745).
   await fireEvent.press(screen.getByRole('button', { name: '영상 없이 말로 코칭 받기' }));
   expect(mockRouter.push).toHaveBeenLastCalledWith('/talk');
@@ -98,7 +98,7 @@ test('노트가 있는 묶음이 있으면 저번 코치 메모 카드와 입구
     await fireEvent.press(screen.getByRole('button', { name }));
   };
   await go('새 영상으로 코칭 받기');
-  expect(mockRouter.push).toHaveBeenLastCalledWith('/upload');
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/upload', params: {} });
   // 「이전 코칭 이어 하기」는 「지난 코칭 다시 보기」와 같은 화면이라 뺐다(10/28).
   expect(screen.queryByRole('button', { name: '이전 코칭 이어 하기' })).not.toBeOnTheScreen();
   await go('영상 없이 말로 코칭 받기');

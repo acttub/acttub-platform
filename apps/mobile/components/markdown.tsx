@@ -18,7 +18,7 @@ import { palette } from '@/constants/palette';
 export function Markdown({ source }: { source: string }) {
   const blocks = useMemo(() => parseMarkdown(source), [source]);
   const size = compactSizes;
-  const baseColor = palette.textSub;
+  const baseColor = palette.textDim;
 
   /**
    * 굵기는 각 Text가 자기 스타일로 들고 있어야 한다([[global-font]] — 굵기별 폰트 파일을 고르는
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
     marginTop: 10,
   },
-  quoteText: { color: palette.textSub },
+  quoteText: { color: palette.textDim },
   rule: { height: 1, backgroundColor: palette.border, marginVertical: 14 },
   list: { marginTop: 8, gap: 4 },
   listItem: { flexDirection: 'row', gap: 8 },

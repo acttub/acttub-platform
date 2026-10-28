@@ -125,7 +125,6 @@ test('그 밖의 실패는 공용 오류 안내이고, 다시 누르면 같은 �
   await waitFor(() => expect(screen.getByRole('radio', { name: '버스 정류장' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: '이 대본으로 하기' }));
   expect(await screen.findByText('서버 오류가 발생했어요. 잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
-  expect(screen.getByText('예시 대본을 열지 못했어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '확인' }));
   await fireEvent.press(screen.getByRole('button', { name: '이 대본으로 하기' }));
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));

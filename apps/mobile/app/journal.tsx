@@ -7,13 +7,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
 import { useReadableNote } from '@/hooks/use-readable-input';
-import { PrimaryButton, TextButton } from '@/components/ui/buttons';
-import { Chip } from '@/components/ui/chip';
-import { CtaBar } from '@/components/ui/cta-bar';
+import { PrimaryButton, TextButton } from '@/components/ds/ui/buttons';
+import { Chip } from '@/components/ds/ui/chip';
+import { CtaBar } from '@/components/ds/ui/cta-bar';
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
-import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
-import { StatusScreen } from '@/components/ui/status-screen';
+import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
+import { StatusScreen } from '@/components/ds/ui/status-screen';
 import { TextField } from '@/components/ui/text-field';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
@@ -225,7 +225,7 @@ export default function JournalScreen() {
       )}
 
       {phase === 'error' && (
-        <StatusScreen title={error ?? t('journal.loadFail')} body={t('journal.loadFailBody')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
+        <StatusScreen centered title={error ?? t('journal.loadFail')} body={t('journal.loadFailBody')} primary={{ label: t('common.retry'), onPress: () => void load() }} />
       )}
 
       {/* 키보드가 뜨면 질문·입력칸과 「다음」이 키보드 위로 올라온다(iOS에서 아래 버튼이 키보드에 가렸다). */}
@@ -467,7 +467,8 @@ function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; on
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1, gap: space[1] },
-  center: { flex: 1, alignItems: 'center', paddingTop: 96, gap: space[4], paddingHorizontal: space.gutter },
+  // 만드는 중 안내는 화면 위아래 끝의 가운데쯤(머리 52의 절반만큼 올림, SOMA-923).
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 52, gap: space[4], paddingHorizontal: space.gutter },
   making: { ...type.title2, color: palette.text, textAlign: 'center' },
   footerError: { paddingHorizontal: space.gutter, paddingBottom: space[2] },
   body: { paddingTop: space[3], paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[4] },

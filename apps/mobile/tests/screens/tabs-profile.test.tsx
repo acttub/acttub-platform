@@ -160,7 +160,7 @@ test('서버 이름을 아직 못 읽었으면 기기에 적어 둔 이름을 �
   expect(screen.queryByText('민')).not.toBeOnTheScreen();
   expect(screen.getByText('이달 마친 연습')).toBeOnTheScreen();
   expect(screen.getAllByText('0')).toHaveLength(4);
-  expect(screen.getByText('한 줄 소개를 적어 보세요')).toBeOnTheScreen();
+  expect(screen.getByText('한 줄 소개를 적어보세요')).toBeOnTheScreen();
 });
 
 test('이름이 어디에도 없으면 이메일 앞부분으로 부른다', async () => {

@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -11,10 +11,7 @@ import {
   MEMORY_VALUE_MAX,
   memoryValueTooLong,
 } from '@/lib/practice/memory';
-import { Button } from '@/components/ui/buttons';
-import { InlineEmpty } from '@/components/ui/inline-empty';
-import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
-import { TextField } from '@/components/ui/text-field';
+import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { translate } from '@/lib/i18n';
@@ -45,6 +42,7 @@ const FIELDS: { field: MemoryField; label: string; hint: string; placeholder: st
 
 export default function MemoryScreen() {
   const router = useRouter();
+  // 설정·프로필 두 곳에서 들어온다 — 뒤로 글자를 들어온 곳에 맞춘다(SOMA-713).
   const [items, setItems] = useState<Record<string, MemoryItem>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -145,6 +143,7 @@ export default function MemoryScreen() {
   }, [confirm, alert]);
 
   const hasAny = Object.keys(items).length > 0;
+
   const intro = (
     <Text style={styles.screenHint}>
       {translate('memory.introBody')}
@@ -156,7 +155,9 @@ export default function MemoryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* 「아직 적힌 게 없어요」 위(머리·안내)는 개편전(dev), 그 블록부터 아래는 롤백 모양(SOMA-923). */}
       <NavHeader title={translate('memory.screenTitle')} left={<NavBackButton onPress={() => router.back()} />} />
+
       {loading ? (
         <>
           {intro}
@@ -165,7 +166,12 @@ export default function MemoryScreen() {
       ) : (
         <KeyboardAwareScroll contentContainerStyle={styles.list}>
           {intro}
-          {!hasAny && <InlineEmpty title={translate('memory.emptyTitle')} description={translate('memory.emptyBody')} />}
+          {!hasAny && (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>{translate('memory.emptyTitle')}</Text>
+              <Text style={styles.emptyBody}>{translate('memory.emptyBody')}</Text>
+            </View>
+          )}
 
           {FIELDS.map(({ field, label, hint, placeholder }) => {
             const item = items[field];
@@ -185,12 +191,12 @@ export default function MemoryScreen() {
                 </View>
                 <Text style={styles.hint}>{hint}</Text>
 
-                <TextField
+                <TextInput
                   style={styles.input}
                   value={draft}
                   onChangeText={(t) => setDrafts((d) => ({ ...d, [field]: t }))}
                   placeholder={placeholder}
-                  accessibilityLabel={label}
+                  placeholderTextColor={palette.textFaint}
                   multiline
                   maxLength={MEMORY_VALUE_MAX}
                 />
@@ -216,15 +222,14 @@ export default function MemoryScreen() {
                     </Pressable>
                   )}
                   <View style={styles.spacer} />
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    label={savedField === field ? translate('common.saved') : translate('common.save')}
-                    loading={saving === field}
-                    loadingLabel={translate('loadingText.saving')}
-                    disabled={!dirty || !draft.trim()}
+                  <Pressable
+                    style={[styles.saveBtn, (!dirty || !draft.trim()) && styles.saveBtnOff]}
                     onPress={() => void save(field)}
-                  />
+                    disabled={!dirty || !draft.trim() || saving === field}>
+                    <Text style={styles.saveBtnText}>
+                      {saving === field ? translate('common.saving') : savedField === field ? translate('common.saved') : translate('common.save')}
+                    </Text>
+                  </Pressable>
                 </View>
               </View>
             );
@@ -254,22 +259,67 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   screenHint: { ...type.body2, color: palette.textSub },
   bold: { ...type.body2Bold, color: palette.text },
-  list: { padding: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[4] },
-  profileCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3], backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4] },
-  profileText: { flex: 1, ...type.body2, color: palette.textSub },
-  profileLink: { ...type.body2Bold, color: palette.blueDeep },
-  card: { borderWidth: 1, borderColor: palette.border, borderRadius: radius.lg, padding: space[4], gap: space[2] },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[2] },
-  label: { ...type.body1Bold, color: palette.text },
-  hint: { ...type.caption, color: palette.textMeta },
-  tagCoach: { ...type.captionBold, color: palette.blueDeep },
-  tagMine: { ...type.captionBold, color: palette.textSub },
-  tagEmpty: { ...type.caption, color: palette.textMeta },
-  input: { minHeight: 68, paddingVertical: space[3], textAlignVertical: 'top' },
-  sourceLink: { ...type.body2Bold, color: palette.blueDeep },
-  actions: { flexDirection: 'row', alignItems: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  list: { padding: 20, paddingBottom: 48, gap: 14 },
+  emptyCard: {
+    borderRadius: 14,
+    backgroundColor: palette.bgSubtle,
+    padding: 16,
+    gap: 6,
+  },
+  emptyTitle: { fontSize: 15, fontWeight: '700', color: palette.textStrong },
+  emptyBody: { fontSize: 14, lineHeight: 20, color: palette.textMuted },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    backgroundColor: palette.bgSubtle,
+    borderRadius: 14,
+    padding: 16,
+  },
+  profileText: { flex: 1, fontSize: 13.5, lineHeight: 21, color: palette.textDim },
+  profileLink: { fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
+  card: {
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
+    borderRadius: 14,
+    padding: 16,
+    gap: 8,
+  },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  label: { fontSize: 16, fontWeight: '700', color: palette.text },
+  hint: { fontSize: 13, color: palette.textFaint },
+  tagCoach: { fontSize: 12, color: palette.blue },
+  tagMine: { fontSize: 12, color: palette.textDim, fontWeight: '700' },
+  tagEmpty: { fontSize: 12, color: palette.checkOff },
+  input: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 10,
+    padding: 12,
+    minHeight: 68,
+    fontSize: 15,
+    lineHeight: 22,
+    color: palette.text,
+    textAlignVertical: 'top',
+  },
+  sourceLink: { fontSize: 13, color: palette.blue },
+  actions: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   spacer: { flex: 1 },
-  removeText: { ...type.body2Bold, color: palette.textSub },
-  removeAll: { alignItems: 'center', justifyContent: 'center', height: 48 },
-  removeAllText: { ...type.body2Bold, color: palette.danger },
+  removeText: { fontSize: 14, color: palette.textMuted },
+  saveBtn: {
+    backgroundColor: palette.blue,
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+  },
+  saveBtnOff: { backgroundColor: palette.checkOff },
+  saveBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  removeAll: {
+    marginTop: 10,
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  removeAllText: { fontSize: 14, color: palette.textMuted },
 });

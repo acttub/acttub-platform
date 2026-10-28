@@ -113,10 +113,10 @@ export default function ReadingCompare() {
   if (!script) return <ReadingNoScript />;
   if (loaded.status === 'loading') return <View style={styles.root} />;
   if (loaded.status === 'failed') {
-    return <StatusScreen kind="error" mascot={MASCOT.reading} title={t('reading.compareLoadFail')} primary={{ label: t('common.retry'), onPress: () => void load() }} />;
+    return <StatusScreen mascot={MASCOT.reading} title={t('reading.compareLoadFail')} primary={{ label: t('common.retry'), onPress: () => void load() }} />;
   }
   if (rows.length === 0) {
-    return <StatusScreen kind="empty" mascot={MASCOT.reading} title={t('reading.compareEmpty')} primary={{ label: t('reading.diffBack'), onPress: () => router.back() }} />;
+    return <StatusScreen mascot={MASCOT.reading} title={t('reading.compareEmpty')} primary={{ label: t('reading.diffBack'), onPress: () => router.back() }} />;
   }
 
   const lineOf = (lineId: string) => script.lines[script.lineIds.indexOf(lineId)];

@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MASCOT } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
-import { radius, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -32,13 +31,12 @@ export function ReadingGuideOverlay({ onClose }: { onClose: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  // 덮개 위에 흰 안내 문장을 바로 얹어서 scrim(45%)으로는 대비가 모자라 더 진하게 둔다.
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,20,30,0.82)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12, zIndex: 50 },
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,24,39,0.82)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12, zIndex: 50 },
   mascot: { width: 132, height: 148 },
-  head: { ...type.headline, color: palette.onAccent, textAlign: 'center' },
+  head: { color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 24, textAlign: 'center' },
   list: { alignSelf: 'stretch', gap: 8, marginTop: 4 },
   bubble: { backgroundColor: palette.bgSoft, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 16 },
-  bubbleText: { ...type.body2Bold, color: palette.text },
-  ok: { alignSelf: 'stretch', height: 52, borderRadius: radius.lg, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  okText: { ...type.headline, color: palette.onAccent },
+  bubbleText: { color: palette.text, fontSize: 15, fontWeight: '700', lineHeight: 22 },
+  ok: { alignSelf: 'stretch', height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  okText: { color: palette.onAccent, fontSize: 17, fontWeight: '800' },
 });

@@ -5,13 +5,13 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAppDialog } from '@/components/app-dialog';
+import { useAppDialog } from '@/components/ds/app-dialog';
 import { KeyboardLift } from '@/components/keyboard-lift';
-import { Button, TextButton } from '@/components/ui/buttons';
-import { Chip } from '@/components/ui/chip';
+import { Button, TextButton } from '@/components/ds/ui/buttons';
+import { Chip } from '@/components/ds/ui/chip';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
-import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { NavHeader, NavIconButton } from '@/components/ds/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
@@ -26,7 +26,7 @@ import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
 import type { GestureResponderEvent } from 'react-native';
 
-import { pt } from '@/components/ui/anchored-menu';
+import { pt } from '@/components/ds/ui/anchored-menu';
 
 /**
  * P03 프로필 챌린지 기록(challenge.browse · challenge.entry).
@@ -240,6 +240,7 @@ export default function ChallengeEntriesScreen() {
             label={label}
             role="radio"
             selected={filter === key}
+            darkSelected
             size="sm"
             phLabel={`challenge_entries_filter_${key}`}
             onPress={() => setFilter(key)}

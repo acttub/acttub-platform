@@ -1,4 +1,4 @@
-import { within, act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ProfileEditScreen from '@/app/profile-edit';
 import ProfileEditItemScreen from '@/app/profile-edit-item';
@@ -112,7 +112,7 @@ async function answerToDirections() {
 async function startWithoutDiscovery() {
   (readAttributedChannel as jest.Mock).mockResolvedValue('facebook');
   await start();
-  await waitFor(() => expect(screen.getByText('1 / 6')).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByText('1/6')).toBeOnTheScreen());
 }
 
 const PAYLOAD = {
@@ -133,7 +133,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     // 닉네임 — 로그인 제공자가 준 이름으로 시작한다. 글자를 다 적었는지는 알 수 없으니 「다음」만 둔다.
     expect(await screen.findByDisplayValue('민지')).toBeOnTheScreen();
     expect(screen.getByText('뭐라고 불러 드릴까요?')).toBeOnTheScreen();
-    expect(screen.getByText('1 / 7')).toBeOnTheScreen();
+    expect(screen.getByText('1/7')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByDisplayValue('민지'), '  ');
     expect(next()).toBeDisabled();
     await fireEvent.changeText(screen.getByLabelText('닉네임'), '민지');
@@ -141,7 +141,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
 
     // 생년월일 — 연·월·일 돌림판. 돌려도 「다음」을 눌러야 넘어간다.
     expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
-    expect(screen.getByText('2 / 7')).toBeOnTheScreen();
+    expect(screen.getByText('2/7')).toBeOnTheScreen();
     await setBirth(2004, 3, 14);
     expect(screen.getByText('민지님, 생년월일을 알려 주세요')).toBeOnTheScreen();
     await fireEvent.press(next());
@@ -155,7 +155,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await fireEvent.press(radio('여성'));
 
     expect(screen.getByText('민지님, 연기는 어떤 이유로 하고 있어요?')).toBeOnTheScreen();
-    expect(screen.getByText('4 / 7')).toBeOnTheScreen();
+    expect(screen.getByText('4/7')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
     await fireEvent.press(radio('전문 배우'));
 
@@ -199,7 +199,7 @@ describe('가입 게이트 — 한 화면에 질문 하나, 하나 고르는 질
     await fireEvent.press(next());
 
     expect(await screen.findByText('민지님, 액터브는 어디서 알게 됐어요?')).toBeOnTheScreen();
-    expect(screen.getByText('8 / 8')).toBeOnTheScreen(); // 입시생이라 실기 날짜 단계가 하나 더 있다(SOMA-864)
+    expect(screen.getByText('8/8')).toBeOnTheScreen(); // 입시생이라 실기 날짜 단계가 하나 더 있다(SOMA-864)
     await fireEvent.press(radio('기타'));
     expect(saveProfile).not.toHaveBeenCalled();
     expect(done()).toBeDisabled();
@@ -380,13 +380,12 @@ describe('내 계정을 아직 못 읽었으면', () => {
     expect(screen.queryByText('프로필을 불러오지 못했어요.')).not.toBeOnTheScreen();
   });
 
-  test('실패했으면 화면 전체 오류와 다시 시도를 둔다', async () => {
+  test('실패했으면 다시 불러오기를 둔다', async () => {
     auth(null, 'error');
     await render(<ProfileNameScreen />);
-    expect(screen.getByText('프로필을 불러오지 못했어요')).toBeOnTheScreen();
-    expect(screen.getByText('인터넷 연결을 확인해 주세요.')).toBeOnTheScreen();
-    await fireEvent.press(button('다시 시도'));
+    await fireEvent.press(button('다시 불러오기'));
     expect(reloadProfile).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('프로필을 불러오지 못했어요.')).toBeOnTheScreen();
   });
 });
 
@@ -441,30 +440,14 @@ describe('설정의 프로필 편집', () => {
     expect(button('완료')).toBeDisabled();
   });
 
-  /** 「사진 편집」을 눌러 메뉴를 띄우고 그 안의 항목을 누른다. */
-  async function photoMenu(item: '사진 바꾸기' | '사진 지우기') {
-    await fireEvent.press(button('사진 편집'));
-    expect(screen.getByText('프로필 사진')).toBeOnTheScreen();
-    await fireEvent.press(within(screen.getByTestId('anchored-menu')).getByRole('button', { name: item }));
-  }
-
-  test('사진 자리에는 「사진 편집」 하나만 있고, 누르면 사진 바꾸기·사진 지우기 메뉴가 뜬다', async () => {
-    await render(<ProfileEditScreen />);
-
-    expect(screen.queryByRole('button', { name: '사진 지우기' })).not.toBeOnTheScreen();
-    await fireEvent.press(button('사진 편집'));
-    const items = within(screen.getByTestId('anchored-menu')).getAllByRole('button').map((b) => b.props.accessibilityLabel);
-    expect(items).toEqual(['사진 바꾸기', '사진 지우기']);
-  });
-
   test('사진을 바꾸면 새 계정 정보로 갈아 끼우고, 고르지 않으면 그대로 둔다', async () => {
     const nextMe = { id: 'u1', profile: { ...fullProfile, photo_url: 'https://cdn/new.jpg' } };
     (pickAndUploadProfilePhoto as jest.Mock).mockResolvedValueOnce(nextMe).mockResolvedValueOnce(null);
     await render(<ProfileEditScreen />);
 
-    await photoMenu('사진 바꾸기');
+    await fireEvent.press(screen.getAllByRole('button', { name: '사진 수정' })[0]);
     expect(setMe).toHaveBeenCalledWith(nextMe);
-    await photoMenu('사진 바꾸기');
+    await fireEvent.press(screen.getAllByRole('button', { name: '사진 수정' })[0]);
     expect(setMe).toHaveBeenCalledTimes(1);
   });
 
@@ -473,44 +456,42 @@ describe('설정의 프로필 편집', () => {
     (removeProfilePhoto as jest.Mock).mockResolvedValue(nextMe);
     await render(<ProfileEditScreen />);
 
-    await photoMenu('사진 지우기');
+    await fireEvent.press(button('사진 지우기'));
     expect(setMe).toHaveBeenCalledWith(nextMe);
   });
 
   test.each([
-    ['올리기', '사진 바꾸기' as const, pickAndUploadProfilePhoto as jest.Mock],
-    ['지우기', '사진 지우기' as const, removeProfilePhoto as jest.Mock],
-  ])('사진 %s가 실패하면 요약 카드 아래 한 줄로 이유를 보인다', async (_name, item, fn) => {
+    ['올리기', '사진 수정', pickAndUploadProfilePhoto as jest.Mock],
+    ['지우기', '사진 지우기', removeProfilePhoto as jest.Mock],
+  ])('사진 %s가 실패하면 이유를 보인다', async (_name, name, fn) => {
     fn.mockRejectedValueOnce(new Error('사진 파일을 읽지 못했어요.')).mockRejectedValueOnce('boom');
     await render(<ProfileEditScreen />);
 
-    await photoMenu(item);
+    await fireEvent.press(screen.getAllByRole('button', { name })[0]);
     expect(await screen.findByText('사진 파일을 읽지 못했어요.')).toBeOnTheScreen();
-    await photoMenu(item);
+    await fireEvent.press(screen.getAllByRole('button', { name })[0]);
     expect(await screen.findByText('사진을 올리지 못했어요. 잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
     expect(setMe).not.toHaveBeenCalled();
   });
 
-  test('올리는 동안 사진 편집을 막는다', async () => {
+  test('올리는 동안 사진 버튼을 막는다', async () => {
     let finish!: (v: null) => void;
     (pickAndUploadProfilePhoto as jest.Mock).mockReturnValue(new Promise((r) => (finish = r)));
     await render(<ProfileEditScreen />);
 
-    await photoMenu('사진 바꾸기');
-    expect(button('사진 편집')).toBeDisabled();
+    await fireEvent.press(screen.getAllByRole('button', { name: '사진 수정' })[0]);
+    for (const photo of screen.getAllByRole('button', { name: '사진 수정' })) expect(photo).toBeDisabled();
+    expect(button('사진 지우기')).toBeDisabled();
     await act(async () => finish(null));
-    expect(button('사진 편집')).toBeEnabled();
+    for (const photo of screen.getAllByRole('button', { name: '사진 수정' })) expect(photo).toBeEnabled();
   });
 
-  test('사진이 없으면 기본 얼굴을 보이고, 사진 편집은 메뉴 없이 바로 고른다', async () => {
+  test('사진이 없으면 기본 얼굴(pen S6.3 P/DefaultAvatar)을 보이고 지우기는 두지 않는다', async () => {
     auth({ id: 'u1', profile: { ...fullProfile, photo_url: null, bio: null } });
-    (pickAndUploadProfilePhoto as jest.Mock).mockResolvedValueOnce(null);
     await render(<ProfileEditScreen />);
 
     expect(screen.getByTestId('default-avatar')).toBeOnTheScreen();
-    await fireEvent.press(button('사진 편집'));
-    expect(pickAndUploadProfilePhoto).toHaveBeenCalledTimes(1);
-    expect(screen.queryByTestId('anchored-menu')).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '사진 지우기' })).not.toBeOnTheScreen();
   });
 
   test('이름을 비우면 완료를 막는다', async () => {

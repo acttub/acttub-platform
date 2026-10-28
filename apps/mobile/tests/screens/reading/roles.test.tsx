@@ -68,7 +68,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
   resetReadingState();
   await render(<ReadingRoles />);
 
-  expect(screen.getByText('대본이 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('대본이 없어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본으로'));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
 });
@@ -153,7 +153,7 @@ test('저장에 실패하면 알리고 고른 목소리를 그대로 두어 다�
 
   await fireEvent.press(screen.getByText('저장'));
   expect(await screen.findByText('목소리를 저장하지 못했어요')).toBeOnTheScreen();
-  expect(screen.getByText('고른 목소리는 그대로 두었으니 다시 저장해 주세요.')).toBeOnTheScreen();
+  expect(screen.getByText('목소리를 저장하지 못했어요. 고른 목소리는 그대로 두었으니 다시 저장해 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('확인'));
   expect(screen.getByText('따뜻한 노년')).toBeOnTheScreen();
 

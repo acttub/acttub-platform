@@ -84,7 +84,7 @@ test('practice.library: 홈은 한국 시간 연속일과 이번 주 요일 점�
   const home = read('app/(tabs)/index.tsx');
 
   assert.match(home, /practiceStreak/);
-  assert.match(home, /buildWeekActivity/);
+  assert.match(home, /buildRecentActivity/); // 오늘이 맨 오른쪽인 최근 7일(SOMA-923)
   assert.doesNotMatch(home, /recentGroups\(/);
 });
 
@@ -97,6 +97,16 @@ test('practice.library: 묶음 상세는 회차 흐름과 「대화 이어 가�
   assert.match(group, /continueActionLabel\(/);
   assert.match(group, /setContinueOrigin\(\{ kind: 'group'/);
   assert.doesNotMatch(group, /history\.continueCta|kind: 'history'/);
+});
+
+test('practice.library: 묶음 상세 헤더에서 바로 숨기고 목록으로 돌아간다 — 영상은 보관함에 남는다', () => {
+  const group = read('app/practice-group.tsx');
+
+  assert.match(group, /headerRight/);
+  assert.match(group, /toggleHidden\(\{ leave: true \}\)/);
+  assert.match(group, /patchPracticeGroup\(group\.root_id, \{ hidden: hiding \}\)/);
+  assert.match(group, /router\.back\(\)/);
+  assert.match(group, /history\.hideNotice/);
 });
 
 // 한줄평·이탈 설문은 SOMA-494에서 걷고 앱 평가 요청으로 바꿨다 — 코치·노트 화면은 나갈 때 붙잡지 않는다.

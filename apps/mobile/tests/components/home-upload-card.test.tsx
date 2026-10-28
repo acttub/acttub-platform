@@ -28,12 +28,14 @@ describe('HomeUploadCard', () => {
     expect(screen.queryByTestId('home-upload-card')).toBeNull();
   });
 
-  it('올리는 중에는 제목과 안내만 보이고 진행 막대·버튼은 두지 않는다', async () => {
-    await render(<HomeUploadCard upload={make('uploading')} />);
+  it('올리는 중에는 제목과 올리는 중 버튼(비활성)을 보인다', async () => {
+    const upload = make('uploading');
+    await render(<HomeUploadCard upload={upload} />);
     expect(screen.getByText('올리는 중')).toBeTruthy();
     expect(screen.getByText('카페, 헤어지자는 말')).toBeTruthy();
-    expect(screen.getByText('다 올라가면 바로 봐 드려요')).toBeTruthy();
-    expect(screen.queryByRole('button')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('올리는 중…'));
+    expect(upload.begin).not.toHaveBeenCalled();
+    expect(upload.retry).not.toHaveBeenCalled();
   });
 
   it('다 올라가면 질문 받기를 눌러 코칭을 시작한다', async () => {

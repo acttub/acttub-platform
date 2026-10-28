@@ -3,7 +3,6 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 
 import { useReadableInput } from '@/hooks/use-readable-input';
 import { palette } from '@/constants/palette';
-import { radius, type } from '@/constants/tokens';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
 import { LinePage } from '@/components/line-page';
 import { translate as t } from '@/lib/i18n';
@@ -164,7 +163,7 @@ export function LineEditSheet({
                   autoFocus
                   maxLength={40}
                   placeholder={selected.name}
-                  placeholderTextColor={palette.textMeta}
+                  placeholderTextColor={palette.textFaint}
                   accessibilityLabel={t('reading.lineEditRename', { name: selected.name })}
                 />
               ))}
@@ -189,33 +188,34 @@ export function LineEditSheet({
 }
 
 const styles = StyleSheet.create({
-  sub: { ...type.body2, color: palette.textMeta },
+  sub: { fontSize: 14, color: palette.textMuted },
   body: { flex: 1 },
   bodyContent: { gap: 10, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
-  kinds: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: 4 },
+  kinds: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: 12, padding: 4 },
   kind: { flex: 1, alignItems: 'center', borderRadius: 9, paddingVertical: 10 },
-  kindOn: { backgroundColor: palette.bg },
-  kindText: { ...type.body2Bold, color: palette.textMeta },
-  kindTextOn: { color: palette.text },
-  label: { ...type.captionBold, color: palette.textSub, marginTop: 6 },
+  kindOn: { backgroundColor: palette.card, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  kindText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  kindTextOn: { color: palette.text, fontFamily: 'Pretendard-Bold' },
+  label: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 13, marginTop: 6 },
   roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  role: { maxWidth: '100%', borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: palette.bg },
+  role: { maxWidth: '100%', borderRadius: 999, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: palette.card },
   roleOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
-  roleText: { ...type.body2Bold, color: palette.textSub },
+  roleText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
   roleTextOn: { color: palette.blueDeep },
   renameLink: { alignSelf: 'flex-start' },
-  renameLinkText: { ...type.caption, color: palette.textMeta, textDecorationLine: 'underline' },
+  renameLinkText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textDecorationLine: 'underline' },
   input: {
     backgroundColor: palette.bgSubtle,
     borderColor: palette.border,
     borderWidth: 1,
-    borderRadius: radius.md,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: palette.text,
-    ...type.body1,
+    fontFamily: 'Pretendard',
+    fontSize: 15,
   },
   textInput: { minHeight: 96, maxHeight: 180, lineHeight: 22 },
-  error: { ...type.caption, color: palette.danger },
+  error: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
   button: { flex: 1 },
 });

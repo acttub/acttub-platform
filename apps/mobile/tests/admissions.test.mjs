@@ -278,7 +278,6 @@ test("수능 최저는 '없음'이라고 확인된 것만 없음으로 센다", 
 test('목록 배지는 다가오는 일정 → 마감 → 미정 → 준비 중 순으로 고른다', () => {
   const open = [{ id: 'a', university_id: 'u', apply_start: '2026-09-08', apply_end: '2026-09-11' }];
   assert.deepEqual(cardBadge(open, '2026-08-04'), { label: 'D-35', tone: 'live' });
-  assert.deepEqual(cardBadge(open, '2026-09-11'), { label: 'D-DAY', tone: 'today' });
   const closed = [{ id: 'a', university_id: 'u', apply_start: '2026-06-22', apply_end: '2026-06-25' }];
   assert.deepEqual(cardBadge(closed, '2026-08-04'), { label: '접수 마감', tone: 'muted' });
   const unknown = [{ id: 'a', university_id: 'u', apply_start: null, apply_end: null }];

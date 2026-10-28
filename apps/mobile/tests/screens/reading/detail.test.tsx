@@ -58,7 +58,7 @@ test('서버에서 대본이 사라졌으면 내 대본으로 돌아가는 길�
   server.get.mockRejectedValue(new ApiError(404, 'gone', 'script_not_found'));
   await render(<ReadingDetail />);
 
-  expect(await screen.findByText('대본이 없어요')).toBeOnTheScreen();
+  expect(await screen.findByText('대본이 없어요.')).toBeOnTheScreen();
 });
 
 test('대본 제목·대사 수와 연습 기록을 보이고, 회차를 누르면 회차 상세로 간다', async () => {

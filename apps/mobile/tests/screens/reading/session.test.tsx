@@ -97,7 +97,7 @@ test('회차를 못 불러오면 알리고 다시 시도로 불러온다', async
   server.getSession.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(sessionDetail());
   await render(<ReadingSession />);
 
-  expect(await screen.findByText('회차를 불러오지 못했어요')).toBeOnTheScreen();
+  expect(await screen.findByText('회차를 불러오지 못했어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('다시 시도'));
   expect(await screen.findByText('처음부터 끝까지')).toBeOnTheScreen();
   expect(server.getSession).toHaveBeenCalledWith('r1');

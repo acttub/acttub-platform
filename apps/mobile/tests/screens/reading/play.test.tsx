@@ -142,6 +142,7 @@ beforeEach(async () => {
   mockRemoveListeners.length = 0;
   mockFileOps.length = 0;
   await AsyncStorage.clear();
+  await AsyncStorage.setItem('acttub.reading.autoAdvanceTipHidden', '1');
   await AsyncStorage.setItem('acttub.reading.firstGuideSeen', '1');
   mic = null;
   recognizer = null;
@@ -231,7 +232,7 @@ test('현재 대본이나 회차가 없으면 내 대본으로 돌아가는 길�
 
 test('회차 구간의 줄이 대본에 없으면 실행하지 않는다', async () => {
   await startPlay({ start_line_id: 'gone' }, undefined, { begin: false });
-  expect(screen.getByText('대본이 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('대본이 없어요.')).toBeOnTheScreen();
 });
 
 test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 넘기고, 끝까지 가면 완료 화면을 보인다', async () => {
@@ -860,22 +861,28 @@ test('자동 넘김 안내를 [시작]으로 닫으면 다음에 또 띄운다',
   expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBeNull();
 });
 
-test('자동 넘김 안내를 숨겼으면 시작 팝업 없이 준비가 끝나는 대로 읽는다(SOMA-886)', async () => {
-  await AsyncStorage.setItem('acttub.reading.autoAdvanceTipHidden', '1');
+test('자동 넘김 안내를 숨겼어도 준비가 끝나면 바로 읽지 않고 [시작]을 기다린다(SOMA-772)', async () => {
   await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
+  expect(await screen.findByText('시작')).toBeOnTheScreen();
+  expect(screen.queryByText('말이 끝나면 저절로 넘어가요. 준비되면 「시작」을 누르세요.')).not.toBeOnTheScreen();
+  expect(screen.queryByText('시작하고 이 안내는 다음부터 숨기기')).not.toBeOnTheScreen();
+  await act(async () => undefined);
+  expect(queue.take).not.toHaveBeenCalled();
+  expect(tts.play).not.toHaveBeenCalled();
+
+  await begin();
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(tts.play).toHaveBeenCalledWith('file:///speech.wav');
-  expect(screen.queryByText('준비됐나요?')).not.toBeOnTheScreen();
-  expect(screen.queryByText('시작')).not.toBeOnTheScreen();
 });
 
 test('버튼으로 넘기는 옛 회차에는 자동 넘김 안내가 없고 말이 끝나도 넘어가지 않는다', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
   await startPlay({ advance: 'manual' }, undefined, { begin: false });
-  await screen.findByText('듣는 중');
-  expect(screen.queryByText('준비됐나요?')).not.toBeOnTheScreen();
+  expect(await screen.findByText('시작')).toBeOnTheScreen();
   expect(screen.queryByText('말이 끝나면 저절로 넘어가요. 준비되면 「시작」을 누르세요.')).not.toBeOnTheScreen();
+  await begin();
+  await screen.findByText('듣는 중');
 
   await speechEnds();
   expect(screen.getByText(ME)).toBeOnTheScreen();
@@ -1154,7 +1161,7 @@ test('완료 화면의 다시 연습은 같은 설정으로 새 회차를 시작
   await screen.findByText('듣는 중');
   await speechEnds();
 
-  await pressWhenReady('다시 읽기');
+  await pressWhenReady('다시 연습');
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play'));
   expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({
     my_character_ids: ['c1'],
@@ -1172,7 +1179,7 @@ test('다시 연습을 시작하지 못하면 이유를 알린다', async () => 
   await screen.findByText('듣는 중');
   await speechEnds();
 
-  await pressWhenReady('다시 읽기');
+  await pressWhenReady('다시 연습');
   expect(await screen.findByText('연습을 시작하지 못했어요')).toBeOnTheScreen();
   expect(mockRouter.replace).not.toHaveBeenCalledWith('/reading/play');
 });
@@ -1183,13 +1190,12 @@ test('완료 화면이 뜬 직후에는 다시 연습·완료를 받지 않고, 
   await speechEnds();
 
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
-  expect(screen.getByText('이번 리딩 어땠나요?')).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '다시 읽기' })).toBeDisabled();
-  await fireEvent.press(screen.getByText('다시 읽기'));
+  expect(screen.getByRole('button', { name: '다시 연습' })).toBeDisabled();
+  await fireEvent.press(screen.getByText('다시 연습'));
   await fireEvent.press(screen.getByText('홈으로 가기'));
   expect(server.startSession).not.toHaveBeenCalled();
   expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/(tabs)');
-  await waitFor(() => expect(screen.getByRole('button', { name: '다시 읽기' })).toBeEnabled(), { timeout: 2000 });
+  await waitFor(() => expect(screen.getByRole('button', { name: '다시 연습' })).toBeEnabled(), { timeout: 2000 });
 });
 
 test('올리는 중인 녹음이 있으면 완료 화면에 수를 보인다', async () => {
@@ -1220,7 +1226,7 @@ test('튜토리얼로 온 리딩은 여기서 튜토리얼을 끝내고, 완료 
 
   mockStt.finish.mockResolvedValueOnce('괜찮아');
   await speechEnds(() => recognizer);
-  expect(await screen.findByText(/처음인데 끝까지 읽었어요/)).toBeOnTheScreen();
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
   expect(mockAskRating).not.toHaveBeenCalled();
   await waitFor(async () => expect(await AsyncStorage.getItem('acttub.tutorial.reading.seen')).not.toBeNull());
@@ -1443,7 +1449,7 @@ test('다시 연습을 여러 번 눌러도 새 회차는 하나만 시작한다
   await screen.findByText('듣는 중');
   await speechEnds();
 
-  await pressWhenReady('다시 읽기');
+  await pressWhenReady('다시 연습');
   // SOMA-828: 누른 뒤에는 버튼 글자가 「준비하는 중…」으로 바뀐다. 그 버튼을 한 번 더 눌러도 새 회차는 하나다.
   await fireEvent.press(screen.getByText('준비하는 중…'));
   await act(async () => started());
@@ -2013,7 +2019,7 @@ test('완료 화면은 액티 · 대사 줄 수 줄 아래에 홈으로 가기�
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
 });
 
-test('첫 리딩이면 같은 완료 화면에 칭찬 제목과 「다시 읽기 · 다른 대본으로」, 아래 고정 홈으로 가기를 보이고 평가는 묻지 않는다', async () => {
+test('첫 리딩이면 끝에서 칭찬과 큰 홈으로 가기, 그 밑에 한 번 더 읽기만 보인다(pen R9.51)', async () => {
   await AsyncStorage.removeItem('acttub.reading.firstGuideSeen');
   await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
   await screen.findByText('듣는 중');
@@ -2021,11 +2027,8 @@ test('첫 리딩이면 같은 완료 화면에 칭찬 제목과 「다시 읽기
 
   expect(await screen.findByText(/처음인데 끝까지 읽었어요/)).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
-  expect(screen.getByText('봄날의 대화')).toBeOnTheScreen();
-  expect(screen.getByText('민재 · 3줄 중 1줄')).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '다시 읽기' })).toBeOnTheScreen();
-  expect(screen.getByText('다른 대본으로')).toBeOnTheScreen();
-  expect(screen.queryByText('이번 리딩 어땠나요?')).not.toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '한 번 더 읽기' })).toBeOnTheScreen();
+  expect(screen.queryByText('다른 대본으로')).not.toBeOnTheScreen();
   // 탭 묶음을 하나 더 쌓지 않고 이미 있는 홈 탭까지 내려간다(SOMA-853).
   await pressWhenReady('홈으로 가기');
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');

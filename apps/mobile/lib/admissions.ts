@@ -300,8 +300,7 @@ export function countdown(notice: AdmissionNotice, today: string): Countdown | n
   return null;
 }
 
-/** today 는 오늘 마감(D-DAY, danger-soft), live 는 다가오는 일정(blue-soft), muted 는 날짜 없음·마감(bg-soft). */
-export type CardBadge = { label: string; tone: 'today' | 'live' | 'muted' };
+export type CardBadge = { label: string; tone: 'live' | 'muted' };
 
 /**
  * 목록 카드 오른쪽 배지. 대학마다 하나씩, 빈 자리가 없게 만든다.
@@ -318,7 +317,7 @@ export function cardBadge(notices: AdmissionNotice[], today: string | null): Car
     .filter((value): value is Countdown => value !== null)
     .sort((a, b) => a.days - b.days)[0];
   if (soonest) {
-    return soonest.days === 0 ? { label: 'D-DAY', tone: 'today' } : { label: `D-${soonest.days}`, tone: 'live' };
+    return { label: `D-${soonest.days === 0 ? 'DAY' : soonest.days}`, tone: 'live' };
   }
 
   // 날짜를 하나라도 아는데 전부 지났으면 '마감', 하나도 모르면 '미정'이다.

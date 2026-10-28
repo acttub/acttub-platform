@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
@@ -22,13 +21,10 @@ type ButtonProps = {
   phLabel?: string;
 };
 
-/** lg 48(headline) · md 40(body2-bold) · sm 32(body2-bold, 옅은 파랑 바탕). */
-export type ButtonSize = 'lg' | 'md' | 'sm';
-
 /**
- * 앱의 기본 버튼 — 디자인 시스템 pen 「Button/*」. 높이 48·40·32, 모서리 16(32 는 12).
- * primary: blue · on-accent / secondary: bg-soft · text-sub / danger: danger · on-accent. sm 은 blue-soft · blue-deep, secondary sm 은 bg-soft · text-sub(pen 「Button/Secondary-sm」).
- * 막혀 있으면 어느 모양이든 Disabled(border 바탕 · text-disabled 글자), 처리 중이면 60% 흐림과 「~하는 중…」 문구.
+ * 앱의 기본 버튼 하나 — pen 「버튼 / Primary」(파이프라인 반영버전). 높이 48, 모서리 16, 글자 17/700.
+ * primary: 파랑 #4880EE · 흰 글자 / secondary: #F2F4F6 · #4E5968 / danger: 빨강 · 흰 글자.
+ * 막혀 있으면 어느 모양이든 Disabled(#E5E8EB 바탕 · #B0B8C1 글자)로 바뀐다. 모든 화면의 큰 버튼은 이것만 쓴다.
  */
 export function Button({
   label,
@@ -41,15 +37,9 @@ export function Button({
   accessibilityLabel,
   phLabel,
   variant = 'primary',
-  size = 'lg',
-}: ButtonProps & { variant?: ButtonVariant; size?: ButtonSize }) {
+}: ButtonProps & { variant?: ButtonVariant }) {
   const off = disabled || loading;
-  const small = size === 'sm';
-  const filled = variant !== 'secondary' && !small;
-  const labelStyle = [
-    size === 'lg' ? styles.label : styles.labelSmall,
-    small && variant !== 'secondary' ? styles.smLabel : filled ? styles.filledLabel : styles.secondaryLabel,
-  ];
+  const filled = variant !== 'secondary';
   return (
     <Pressable
       onPress={onPress}
@@ -61,23 +51,19 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         styles[variant],
-        size === 'md' && styles.md,
-        small && styles.sm,
-        small && variant === 'secondary' && styles.secondary,
         disabled && styles.disabled,
-        loading && styles.busy,
         pressed && !off && styles.pressed,
         style,
       ]}>
       {loading ? (
         // 로딩 표시 대신 문구를 보여 준다(SOMA-828).
-        <Text style={labelStyle}>
+        <Text style={[styles.label, filled ? styles.filledLabel : styles.secondaryLabel]}>
           {loadingLabel ?? t('loadingText.wait')}
         </Text>
       ) : (
         <>
           {icon}
-          <Text style={[labelStyle, disabled && styles.disabledLabel]}>
+          <Text style={[styles.label, filled ? styles.filledLabel : styles.secondaryLabel, disabled && styles.disabledLabel]}>
             {label}
           </Text>
         </>
@@ -99,9 +85,9 @@ export function DangerButton(props: ButtonProps) {
 }
 
 /**
- * 글자 버튼 — pen 「Button/Text」·「Button/Text-link」. 높이 40, 안쪽 좌우 16, body2-bold.
- * 보조 선택지는 text-sub, tone="accent"(링크·강조)는 blue-deep.
- * size="large"는 버튼 자리를 대신하는 글자 — pen 가입 7/7 「건너뛰기」(높이 56 · headline).
+ * 글자만 있는 낮은 버튼(「건너뛰기」 같은 보조 링크) — 14/700 회색. 큰 버튼 아래 둘째·셋째 선택지에 쓴다.
+ * tone="accent"는 파란 글자 링크 — pen S3.2·S5.2 「다시 불러오기」(안쪽 [8,16]).
+ * size="large"는 버튼 자리를 대신하는 글자 — pen 가입 7/7 「건너뛰기」(높이 56 · 17/700 #8B95A1).
  */
 export function TextButton({
   label,
@@ -122,6 +108,7 @@ export function TextButton({
       hitSlop={8}
       style={({ pressed }) => [
         styles.text,
+        tone === 'accent' && styles.textAccent,
         size === 'large' && styles.textLarge,
         pressed && styles.pressed,
       ]}>
@@ -135,30 +122,26 @@ export function TextButton({
 const styles = StyleSheet.create({
   base: {
     height: 48,
-    borderRadius: radius.lg,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: space[2],
-    paddingHorizontal: space[4],
+    gap: 8,
+    paddingHorizontal: 16,
   },
-  md: { height: 40 },
-  sm: { height: 32, borderRadius: radius.md, paddingHorizontal: space[3], backgroundColor: palette.blueSoft },
   primary: { backgroundColor: palette.blue },
   secondary: { backgroundColor: palette.bgSoft },
   danger: { backgroundColor: palette.danger },
   disabled: { backgroundColor: palette.border },
-  busy: { opacity: 0.6 },
   pressed: { opacity: 0.85 },
-  label: type.headline,
-  labelSmall: type.body2Bold,
+  label: { fontSize: 17, fontWeight: '700' },
   filledLabel: { color: palette.onAccent },
-  secondaryLabel: { color: palette.textSub },
-  smLabel: { color: palette.blueDeep },
-  disabledLabel: { color: palette.textDisabled },
-  text: { alignSelf: 'center', height: 40, justifyContent: 'center', paddingHorizontal: space[4] },
-  textLabel: { ...type.body2Bold, color: palette.textSub },
-  textLabelAccent: { color: palette.blueDeep },
-  textLarge: { height: 56 },
-  textLabelLarge: type.headline,
+  secondaryLabel: { color: palette.textDim },
+  disabledLabel: { color: palette.checkOff },
+  text: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12 },
+  textLabel: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
+  textAccent: { paddingHorizontal: 16 },
+  textLabelAccent: { color: palette.blue },
+  textLarge: { height: 56, justifyContent: 'center', paddingVertical: 0 },
+  textLabelLarge: { fontSize: 17 },
 });

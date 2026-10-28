@@ -1,15 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, StyleSheet, Text, View } from 'react-native';
+import { Pressable, BackHandler, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { PrimaryButton } from '@/components/ui/buttons';
-import { Chip } from '@/components/ui/chip';
-import { CtaBar } from '@/components/ui/cta-bar';
+import { PrimaryButton } from '@/components/ds/ui/buttons';
+import { Chip } from '@/components/ds/ui/chip';
+import { CtaBar } from '@/components/ds/ui/cta-bar';
 import { InlineErrorLine } from '@/components/ui/inline-error';
-import { StepHeader } from '@/components/ui/step-header';
 import { TextField } from '@/components/ui/text-field';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
@@ -103,8 +102,17 @@ export default function LineNewScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* 위 진행 바는 개편후(롤백) 모양, 아래 본문은 개편전(dev) 모양(SOMA-923). */}
       <View style={styles.header} testID="line-new-header">
-        <StepHeader step={step + 1} total={3} onBack={back} />
+        <Pressable onPress={back} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="line_new_back">
+          <Feather name={step === 0 ? 'x' : 'chevron-left'} size={26} color={palette.text} />
+        </Pressable>
+        <View style={styles.dots}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={[styles.dot, i === step && styles.dotOn]} />
+          ))}
+        </View>
+        <Text style={styles.stepText}>{t('lineNew.stepLabel', { step: step + 1 })}</Text>
       </View>
 
       {/* 키보드가 뜨면 「다음」 버튼까지 키보드 위로 올린다 — iOS에서 아래 버튼이 키보드에 가렸다. */}
@@ -204,9 +212,13 @@ export default function LineNewScreen() {
 }
 
 const styles = StyleSheet.create({
+  stepText: { fontSize: 12.5, fontWeight: '700', color: palette.textFaint },
+  dotOn: { width: 18, backgroundColor: palette.blue },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.border },
+  dots: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center' },
   safe: { flex: 1, backgroundColor: palette.bg },
   // iOS 모달(pageSheet)은 위 안전 영역이 0이라 SafeAreaView만으로는 닫기 버튼이 시트 위 끝에 붙는다.
-  header: { paddingTop: space[3] },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 16 },
   content: { paddingHorizontal: space.gutter, paddingTop: space[5], paddingBottom: space[10], gap: space[3] },
   title: { ...type.title2, color: palette.text },
   sub: { ...type.caption, color: palette.textSub, paddingBottom: space[1] },

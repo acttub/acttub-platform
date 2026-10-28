@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdSlot } from '@/components/ad-slot';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
-import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
 import { SkeletonCards } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';

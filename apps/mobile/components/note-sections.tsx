@@ -11,7 +11,7 @@ import type { PracticeNote } from '@/lib/practice/types';
  * 연습 노트의 본문 칸들(요약 →(Pro) 대사별로 본 것 → 다음 한 가지 → 응원). 방금 끝낸 노트(A13)와 지난 노트(A12)가 같은 모양으로 그린다.
  * 응원 칸은 고정 문장 대신 마스코트 말풍선(무작위 한마디)으로 그린다(SOMA-662).
  * 칸 사이 간격은 부모의 gap 을 따르도록 감싸지 않고 칸을 그대로 늘어놓는다.
- * 「이번에 해 본 것」 인용은 bg-subtle 카드(출처 micro), 「다음에 해 볼 것」은 blue-soft 카드에 굵게 둔다 — 코칭 끝 화면과 같은 카드다.
+ * 모양은 pen 「새 · 배우 일지 첫 연습」(SOMA-748) — 「다음에 해 볼 것」은 옅은 파랑 카드에 굵게 둔다.
  */
 export function NoteSections({ note }: { note: PracticeNote }) {
   return (
@@ -50,13 +50,13 @@ export function NoteSections({ note }: { note: PracticeNote }) {
 }
 
 const styles = StyleSheet.create({
-  section: { gap: space[2] },
-  label: { ...type.captionBold, color: palette.textSub },
-  text: { ...type.body2, color: palette.text },
-  nextCard: { gap: space[1], backgroundColor: palette.blueSoft, borderRadius: radius.lg, padding: space[4] },
-  nextLabel: { ...type.micro, color: palette.blueDeep },
-  next: { ...type.body2Bold, color: palette.text },
-  quote: { gap: space[1], backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4] },
-  quoteText: { ...type.body1, color: palette.text },
-  quoteSource: { ...type.micro, color: palette.textMeta },
+  section: { gap: 10 },
+  label: { fontSize: 13, fontWeight: '800', lineHeight: 20, color: palette.textDim },
+  text: { fontSize: 15, fontWeight: '600', lineHeight: 22, color: palette.text },
+  nextCard: { gap: 6, backgroundColor: palette.blueMist, borderRadius: 18, padding: 14 },
+  nextLabel: { color: palette.blueDeep },
+  next: { fontSize: 16, fontWeight: '800', lineHeight: 24, color: palette.text },
+  quote: { gap: 4, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 14 },
+  quoteText: { fontSize: 15.5, lineHeight: 25, color: palette.text },
+  quoteSource: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
 });

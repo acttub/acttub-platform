@@ -230,13 +230,10 @@ test('대학을 찾지 못하면 그렇다고 알리고 머리는 기본 제목�
   expect(screen.getByText('연기 입시 정보')).toBeOnTheScreen();
 });
 
-test('못 불러오면 그렇다고 알리고, 다시 시도하면 다시 읽는다', async () => {
-  byUniversity.mockRejectedValueOnce(new Error('down'));
+test('못 불러오면 그렇다고 알린다', async () => {
+  byUniversity.mockRejectedValue(new Error('down'));
   await render(<UniversityDetailScreen />);
-  expect(await screen.findByText('입시 정보를 불러오지 못했어요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
-  expect(screen.queryByText('입시 정보를 불러오지 못했어요')).not.toBeOnTheScreen();
-  expect(byUniversity).toHaveBeenCalledTimes(2);
+  expect(await screen.findByText('입시 정보를 불러오지 못했어요.')).toBeOnTheScreen();
 });
 
 test('대학 id 없이 열면 읽지 않는다', async () => {

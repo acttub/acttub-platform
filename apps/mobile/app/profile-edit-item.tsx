@@ -1,15 +1,12 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { InlineErrorLine } from '@/components/ui/inline-error';
-import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
-import { space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
-import { Checkbox } from '@/components/ui/checkbox';
 import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t, translateList } from '@/lib/i18n';
 import {
@@ -99,7 +96,7 @@ export default function ProfileEditItemScreen() {
 
   const headerRight = () =>
     busy ? (
-      <LoadingText label={t('loadingText.saving')} style={styles.saving} />
+      <LoadingText label={t('loadingText.saving')} />
     ) : (
       <Pressable onPress={() => void save()} disabled={!valid} hitSlop={10} accessibilityRole="button">
         <Text style={[styles.done, !valid && styles.doneOff]}>{t('profileName.done')}</Text>
@@ -115,8 +112,12 @@ export default function ProfileEditItemScreen() {
       onPress={onPress}
       accessibilityRole={multi ? 'checkbox' : 'radio'}
       accessibilityState={multi ? { checked: selected } : { selected }}>
-      <Text style={[styles.optionText, selected && styles.optionTextOn]}>{label}</Text>
-      <Checkbox checked={selected} />
+      <Text style={styles.optionText}>{label}</Text>
+      <Feather
+        name={multi ? (selected ? 'check-square' : 'square') : selected ? 'check-circle' : 'circle'}
+        size={22}
+        color={selected ? palette.blue : palette.checkOff}
+      />
     </Pressable>
   );
 
@@ -127,15 +128,18 @@ export default function ProfileEditItemScreen() {
       hint = t('profileName.hintWrite');
       body = (
         <>
-          <TextField
+          <TextInput
+            style={styles.input}
             value={form.name}
             onChangeText={(name) => update({ name })}
             placeholder={t('profileName.placeholder')}
+            placeholderTextColor={palette.textFaint}
             autoFocus
             accessibilityLabel={t(TITLE_KEYS.name)}
-            error={nameLength > NAME_MAX_LENGTH ? t('profileName.nameTooLong') : null}
           />
-          {nameLength > NAME_MAX_LENGTH ? null : <Text style={styles.fieldHint}>{t('profileName.nameHint')}</Text>}
+          <Text style={nameLength > NAME_MAX_LENGTH ? styles.fieldError : styles.fieldHint}>
+            {nameLength > NAME_MAX_LENGTH ? t('profileName.nameTooLong') : t('profileName.nameHint')}
+          </Text>
         </>
       );
       break;
@@ -143,19 +147,21 @@ export default function ProfileEditItemScreen() {
       hint = t('profileName.hintWrite');
       body = (
         <>
-          <TextField
-            style={styles.multiline}
+          <TextInput
+            style={[styles.input, styles.multiline]}
             value={bio}
             onChangeText={setBio}
             placeholder={t('profileName.bioPlaceholder')}
+            placeholderTextColor={palette.textFaint}
             multiline
             autoFocus
             accessibilityLabel={t(TITLE_KEYS.bio)}
-            error={isBioValid(bio) ? null : t('profileName.bioTooLong')}
           />
-          {isBioValid(bio) ? (
-            <Text style={styles.fieldHint}>{t('profileName.bioCount', { count: [...bio.trim()].length, max: BIO_MAX_LENGTH })}</Text>
-          ) : null}
+          <Text style={isBioValid(bio) ? styles.fieldHint : styles.fieldError}>
+            {isBioValid(bio)
+              ? t('profileName.bioCount', { count: [...bio.trim()].length, max: BIO_MAX_LENGTH })
+              : t('profileName.bioTooLong')}
+          </Text>
         </>
       );
       break;
@@ -163,22 +169,19 @@ export default function ProfileEditItemScreen() {
       hint = t('profileName.hintWrite');
       body = (
         <>
-          <TextField
+          <TextInput
+            style={styles.input}
             value={form.birthDate}
             onChangeText={(text) => update({ birthDate: formatBirthDateInput(text) })}
             placeholder={t('profileName.birthPlaceholder')}
+            placeholderTextColor={palette.textFaint}
             keyboardType="number-pad"
             maxLength={10}
             autoFocus
             accessibilityLabel={t(TITLE_KEYS.birth)}
-            error={
-              birthCheck.kind === 'invalid'
-                ? t('profileName.birthInvalid')
-                : birthCheck.kind === 'under_minimum'
-                  ? t('profileName.under14')
-                  : null
-            }
           />
+          {birthCheck.kind === 'invalid' && <Text style={styles.fieldError}>{t('profileName.birthInvalid')}</Text>}
+          {birthCheck.kind === 'under_minimum' && <Text style={styles.fieldError}>{t('profileName.under14')}</Text>}
         </>
       );
       break;
@@ -219,8 +222,9 @@ export default function ProfileEditItemScreen() {
       <Stack.Screen options={{ title: t(TITLE_KEYS[field]), headerRight }} />
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>{hint}</Text>
-        <View style={styles.field}>{body}</View>
-        {error && <InlineErrorLine message={error} />}
+        <View style={styles.gap} />
+        {body}
+        {error && <Text style={styles.fieldError}>{error}</Text>}
       </ScrollView>
     </SafeAreaView>
   );
@@ -228,15 +232,22 @@ export default function ProfileEditItemScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[8], gap: space[3] },
-  hint: { ...type.captionBold, color: palette.blueDeep },
-  field: { gap: space[2] },
-  done: { ...type.body2Bold, color: palette.blueDeep },
-  doneOff: { color: palette.textDisabled },
-  saving: { ...type.body2Bold, color: palette.textMeta },
-  option: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space[3], borderBottomWidth: 1, borderBottomColor: palette.border },
-  optionText: { flex: 1, ...type.body1, color: palette.text },
-  optionTextOn: { fontWeight: '700' },
-  multiline: { minHeight: 96, paddingTop: space[3], textAlignVertical: 'top' },
-  fieldHint: { ...type.caption, color: palette.textMeta },
+  body: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
+  hint: { fontSize: 14, fontWeight: '700', lineHeight: 20, color: palette.blueDeep },
+  gap: { height: 8 },
+  done: { fontSize: 16, fontWeight: '800', color: palette.blue },
+  doneOff: { color: palette.checkOff },
+  option: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  optionText: { flex: 1, fontSize: 16, fontWeight: '600', color: palette.text },
+  input: {
+    backgroundColor: palette.bgSoft,
+    borderRadius: 14,
+    padding: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  multiline: { minHeight: 96, textAlignVertical: 'top' },
+  fieldHint: { marginTop: 8, fontSize: 12.5, color: palette.textFaint },
+  fieldError: { marginTop: 8, fontSize: 12.5, color: palette.danger },
 });

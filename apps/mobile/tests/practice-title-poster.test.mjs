@@ -68,6 +68,27 @@ test('practice.list: 연습 기록 목록은 썸네일이 있으면 사진을, �
   }
 });
 
+test('practice.upload: 장면·연습 제목 칸 없음·업로드 중 버튼·처리 중 잠금', () => {
+  const src = read('app/upload.tsx');
+  // 연습 제목 칸은 없앴다(SOMA-771) — 제목은 연습 기록에서 바꾼다.
+  assert.doesNotMatch(src, /t\('upload\.titleLabel'\)/);
+  assert.doesNotMatch(src, /buildStartBody\(\{[^}]*title/);
+  // 올리는 중이면 버튼 글자가 「업로드 중」이다.
+  assert.match(src, /uploading \? t\('upload\.submitUploading'\)/);
+  // 시작을 누른 뒤에는 영상 다시 선택·권리 체크가 잠긴다(적을 칸은 SOMA-778 에서 없앴다).
+  assert.match(src, /const locked = starting;/);
+  assert.doesNotMatch(src, /<TextInput/);
+  assert.match(src, /setSourceSheet\(true\); \}\} disabled=\{locked\}/);
+  assert.match(src, /accessibilityState=\{\{ checked: agreedRights, disabled: locked \}\}/);
+  const ko = read('locales/ko.ts');
+  assert.match(ko, /submitUploading: '업로드 중…'/);
+});
+
+test('practice.upload: 올리는 중이면 안내도 「올리는 중」이다 — 「영상을 채워주세요」와 겹쳐 말하지 않는다', () => {
+  const src = read('app/upload.tsx');
+  assert.match(src, /: !sample && uploading\s*\? uploadFailed\s*\? t\('start\.uploadFailed'\)\s*: t\('start\.stillUploading'\)\s*: !sample && !canStart\(videoId\)/);
+});
+
 test('practice.history: 연습 기록은 영상 목록처럼 왼쪽에 큰 16:9 사진, 두 줄 제목, 사진 위 회차 배지다', () => {
   const src = read('app/(tabs)/history.tsx');
   assert.match(src, /aspectRatio: 16 \/ 9/);

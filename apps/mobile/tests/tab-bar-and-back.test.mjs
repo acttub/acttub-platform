@@ -12,7 +12,7 @@ test('스택 화면의 뒤로 버튼은 설정 화면과 같은 꺾쇠 버튼이
   assert.match(header, /options\.headerLeft\?\.\(/);
   assert.match(header, /options\.headerRight\?\.\(/);
   const back = read('components/header-back.tsx');
-  assert.match(back, /<NavBackButton onPress=\{\(\) => router\.back\(\)\} \/>/);
+  assert.match(back, /name="chevron-left" size=\{24\}/);
   assert.match(back, /router\.back\(\)/);
   assert.match(back, /canGoBack\(\)/);
   // 노트 화면은 뒤로 버튼을 두지 않는다(원래대로).

@@ -56,8 +56,6 @@ export default function NoticeDetailScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <StatusScreen
-          kind="empty"
-          header={t('notices.title')}
           onBack={back}
           title={t('notices.notFound')}
           body={t('notices.notFoundBody')}

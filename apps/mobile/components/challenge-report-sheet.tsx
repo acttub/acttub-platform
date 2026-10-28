@@ -1,15 +1,10 @@
+import Feather from '@expo/vector-icons/Feather';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KeyboardLift } from '@/components/keyboard-lift';
-import { Button } from '@/components/ui/buttons';
-import { Checkbox } from '@/components/ui/checkbox';
-import { CtaBar } from '@/components/ui/cta-bar';
-import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
-import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import {
   REPORT_REASONS,
   canSendReport,
@@ -54,65 +49,68 @@ export function ChallengeReportSheet({
         ? t('videoReport.titleChallenge')
         : t('videoReport.title');
 
-  const ready = canSendReport({ reason, note });
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={close}>
       {/* 키보드가 뜨면 아래 고정 버튼이 키보드 위로 올라오게 비운다. */}
       <KeyboardLift style={[styles.page, { paddingTop: insets.top }]}>
-        <NavHeader
-          title={t('videoReport.pageTitle')}
-          left={<NavIconButton icon="x" label={t('videoReport.close')} phLabel="report_close" onPress={close} />}
-        />
+        <View style={styles.header}>
+          <Pressable style={styles.close} onPress={close} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('videoReport.close')}>
+            <Feather name="x" size={22} color={palette.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>{t('videoReport.pageTitle')}</Text>
+        </View>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <View style={styles.head}>
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.subtitle}>{t('videoReport.subtitle')}</Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.subtitle}>{t('videoReport.subtitle')}</Text>
+
+        {REPORT_REASONS.map((value) => (
+          <Pressable
+            key={value}
+            style={({ pressed }) => [styles.row, reason === value && styles.rowOn, pressed && styles.pressed]}
+            onPress={() => setReason(value)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: reason === value }}>
+            <Text style={[styles.rowText, reason === value && styles.rowTextOn]}>{t(`videoReport.${value}`)}</Text>
+            {reason === value ? (
+              <Feather name="check" size={16} color={palette.blue} />
+            ) : (
+              <Feather name="chevron-right" size={16} color={palette.checkOff} />
+            )}
+          </Pressable>
+        ))}
+
+        {reason !== null && needsNote(reason) && (
+          <View style={styles.noteBlock}>
+            <Text style={styles.noteLabel}>{t('videoReport.noteLabel')}</Text>
+            <TextInput
+              style={styles.noteInput}
+              value={note}
+              onChangeText={setNote}
+              maxLength={REPORT_NOTE_MAX}
+              multiline
+              textAlignVertical="top"
+            />
+            <Text style={[styles.noteCounter, noteTooLong(note) && styles.noteOver]}>
+              {t('videoReport.noteCounter', { count: [...note].length, max: REPORT_NOTE_MAX })}
+            </Text>
           </View>
+        )}
 
-          {REPORT_REASONS.map((value) => (
-            <Pressable
-              key={value}
-              style={({ pressed }) => [styles.row, reason === value && styles.rowOn, pressed && styles.pressed]}
-              onPress={() => setReason(value)}
-              accessibilityRole="radio"
-              accessibilityLabel={t(`videoReport.${value}`)}
-              accessibilityState={{ selected: reason === value }}>
-              <Checkbox checked={reason === value} />
-              <Text style={[styles.rowText, reason === value && styles.rowTextOn]}>{t(`videoReport.${value}`)}</Text>
-            </Pressable>
-          ))}
-
-          {reason !== null && needsNote(reason) && (
-            <View style={styles.noteBlock}>
-              <TextField
-                label={t('videoReport.noteLabel')}
-                value={note}
-                onChangeText={setNote}
-                maxLength={REPORT_NOTE_MAX}
-                multiline
-                textAlignVertical="top"
-                style={styles.noteInput}
-              />
-              <Text style={[styles.noteCounter, noteTooLong(note) && styles.noteOver]}>
-                {t('videoReport.noteCounter', { count: [...note].length, max: REPORT_NOTE_MAX })}
-              </Text>
-            </View>
-          )}
         </ScrollView>
-        <CtaBar>
-          <Button
-            variant="danger"
-            label={t('videoReport.submit')}
-            disabled={!ready}
-            phLabel="report_submit"
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
+          <Pressable
+            style={[styles.submit, !canSendReport({ reason, note }) && styles.submitOff]}
+            disabled={!canSendReport({ reason, note })}
             onPress={() => {
               if (!reason) return;
               onSubmit(reason, note);
               setReason(null);
               setNote('');
             }}
-          />
-        </CtaBar>
+            accessibilityRole="button">
+            <Text style={styles.submitText}>{t('videoReport.submit')}</Text>
+          </Pressable>
+        </View>
       </KeyboardLift>
     </Modal>
   );
@@ -120,28 +118,39 @@ export function ChallengeReportSheet({
 
 const styles = StyleSheet.create({
   page: { backgroundColor: palette.bg },
+  header: { height: 48, justifyContent: 'center' },
+  close: { position: 'absolute', left: 12, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  headerTitle: { fontSize: 15, fontWeight: '800', color: palette.text, textAlign: 'center' },
   scroll: { flex: 1 },
-  body: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[3], gap: space[2] },
-  head: { gap: space[1], marginBottom: space[2] },
-  title: { ...type.title2, color: palette.text },
-  subtitle: { ...type.caption, color: palette.textMeta },
+  body: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, gap: 6 },
+  footer: { paddingHorizontal: 16, paddingTop: 8 },
+  title: { fontSize: 16, fontWeight: '900', color: palette.text },
+  subtitle: { fontSize: 12.5, color: palette.textFaint, marginBottom: 6 },
   pressed: { opacity: 0.7 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[3],
-    minHeight: 52,
-    paddingHorizontal: space[4],
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
   },
-  rowOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue, borderWidth: 1.5, paddingHorizontal: space[4] - 0.5 },
-  rowText: { ...type.body1, flex: 1, color: palette.text },
-  rowTextOn: { ...type.body1Bold, color: palette.blueDeep },
-  noteBlock: { gap: space[1.5], paddingTop: space[2] },
-  noteInput: { minHeight: 96, paddingTop: space[3] },
-  noteCounter: { ...type.caption, color: palette.textMeta, textAlign: 'right' },
+  rowOn: { backgroundColor: palette.blueSoft },
+  rowText: { fontSize: 14.5, color: palette.text },
+  rowTextOn: { fontWeight: '800', color: palette.blueDeep },
+  noteBlock: { gap: 6, paddingTop: 6 },
+  noteLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
+  noteInput: {
+    minHeight: 80,
+    borderRadius: 12,
+    backgroundColor: palette.bgSoft,
+    padding: 12,
+    fontSize: 14,
+    color: palette.text,
+  },
+  noteCounter: { fontSize: 11.5, color: palette.textFaint, textAlign: 'right' },
   noteOver: { color: palette.danger },
+  submit: { height: 50, borderRadius: 14, backgroundColor: palette.danger, alignItems: 'center', justifyContent: 'center', },
+  submitOff: { backgroundColor: '#E2C8C8' },
+  submitText: { fontSize: 15, fontWeight: '900', color: '#FFFFFF' },
 });

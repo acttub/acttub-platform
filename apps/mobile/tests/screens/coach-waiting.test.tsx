@@ -373,8 +373,7 @@ describe('분석이 끝나면', () => {
     getStatus.mockResolvedValue(status({ stage: 'conversing', analysis_status: 'partial' }));
     await render(<CoachScreen />);
 
-    expect(await screen.findByText('일부 구간은 보지 못했어요')).toBeOnTheScreen();
-    expect(screen.getByText('본 만큼으로 이야기를 시작할게요.')).toBeOnTheScreen();
+    expect(await screen.findByText('일부 구간은 보지 못했어요. 본 만큼으로 이야기를 시작할게요.')).toBeOnTheScreen();
     staysWaiting();
 
     await fireEvent.press(screen.getByText('확인'));
@@ -513,7 +512,7 @@ describe('다시 읽는 때', () => {
   test('못 본 구간 안내를 보는 사이 다른 조회가 시작되면 확인을 눌러도 넘어가지 않는다', async () => {
     getStatus.mockResolvedValueOnce(status({ stage: 'conversing', analysis_status: 'partial' })).mockImplementation(never);
     await render(<CoachScreen />);
-    await screen.findByText('본 만큼으로 이야기를 시작할게요.');
+    await screen.findByText('일부 구간은 보지 못했어요. 본 만큼으로 이야기를 시작할게요.');
 
     await act(async () => appStateListener?.('active'));
     await fireEvent.press(screen.getByText('확인'));
