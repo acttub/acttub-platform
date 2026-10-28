@@ -586,7 +586,7 @@ test('무료 배우의 두 번째 리딩부터 Pro 안내 한 줄을 보이고 �
   jest.mocked(api.getCloudVoiceStatus).mockResolvedValue({ available: false, free_until: null, consent: 'granted', daily_limit: 10, daily_used: 0, reason: null, pro_only: true });
   await startPlay(PARTNER_FIRST);
 
-  expect(await screen.findByText('Pro는 계속 이 목소리로 연습해요')).toBeOnTheScreen();
+  expect(await screen.findByText('Pro는 계속 고품질 목소리로 연습해요')).toBeOnTheScreen();
   expect(logEvent).toHaveBeenCalledWith('pro_hint_shown', { trigger: 'reading_voice' });
   expect(api.getCloudVoiceStatus).toHaveBeenCalledWith({ sessionId: expect.any(String) });
 });
@@ -598,7 +598,7 @@ test('첫 리딩이거나 Pro·무료 기간이면 Pro 안내 한 줄을 보이�
   await startPlay(PARTNER_FIRST);
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(screen.queryByText('Pro는 계속 이 목소리로 연습해요')).not.toBeOnTheScreen();
+  expect(screen.queryByText('Pro는 계속 고품질 목소리로 연습해요')).not.toBeOnTheScreen();
   expect(logEvent).not.toHaveBeenCalledWith('pro_hint_shown', expect.anything());
 });
 

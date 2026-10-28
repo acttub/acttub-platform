@@ -2111,7 +2111,7 @@ const ko = {
     autoAdvanceTip: '말이 끝나면 저절로 넘어가요',
     dontShowAgain: '다시 보지 않기',
     cloudFallbackToast: '고품질 목소리를 못 받아 기기 목소리로 읽어요',
-    proVoiceHint: 'Pro는 계속 이 목소리로 연습해요',
+    proVoiceHint: 'Pro는 계속 고품질 목소리로 연습해요',
     recordingDropped: '녹음 {{count}}개 저장 못 함',
     chipReading: '읽는 중',
     chipTextOnly: '글로 보기',
