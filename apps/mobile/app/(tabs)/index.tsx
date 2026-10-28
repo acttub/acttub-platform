@@ -610,6 +610,8 @@ export default function HomeScreen() {
           {/* 히어로(pen 「홈」) — blue-soft 띠(아래 모서리 24) 안에 인사·책 읽는 액티·알림 버튼과 이번 주 연습 카드. */}
           {/* 요소·배치는 개편전(dev), 배경(위에서 옅어지는 파랑 띠·창문 빛·연한 바탕)은 롤백 그대로(SOMA-923). */}
           <View style={styles.heroBand}>
+            {/* iOS 에서 위로 당기면(바운스) 히어로 위가 비어 스크롤 바탕색이 띠처럼 보였다 — 히어로 첫 색을 위로 길게 깐다(SOMA-924). */}
+            <View style={styles.overscrollFill} pointerEvents="none" />
             <View style={styles.heroBg} pointerEvents="none">
               {HERO_FADE.map((c, i) => (
                 <View key={i} style={{ height: i === 0 ? 190 : 10, backgroundColor: c }} />
@@ -1003,6 +1005,7 @@ const styles = StyleSheet.create({
   safeHero: { backgroundColor: '#E4EEFC' },
   scrollBg: { backgroundColor: '#F7FAFE' },
   heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 250 },
+  overscrollFill: { position: 'absolute', top: -1000, left: 0, right: 0, height: 1000, backgroundColor: '#E4EEFC' },
   heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
   skeleton: { flex: 1, gap: space[3], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
   skeletonHero: { gap: space[2], paddingBottom: space[4] },
