@@ -19,6 +19,7 @@ const ko = {
     analyzing: '살펴보는 중…',
     coachWriting: '코치가 답을 쓰는 중…',
     checking: '확인하는 중…',
+    starting: '시작하는 중…',
   },
   common: {
     confirm: '확인',
@@ -197,6 +198,7 @@ const ko = {
       concern: '오디션·입시·연습 고민이 있으면',
     },
     failed: '코칭을 시작하지 못했어요. 다시 눌러 주세요.',
+    inProgressMissing: '진행 중인 코칭을 찾지 못했어요. 다시 눌러 주세요.',
   },
   coachingTab: {
     firstTitle: '코칭이 처음이죠?',
@@ -497,6 +499,13 @@ const ko = {
     publicTitle: '공개로 바꿀까요?',
     publicBody: '다른 배우들이 이 참여작을 볼 수 있어요. 「공개로 바꾸기」를 누르세요.',
     publicConfirm: '공개로 바꾸기',
+    captionFailTitle: '캡션을 저장하지 못했어요',
+    visibilityFailTitle: '공개 범위를 바꾸지 못했어요',
+    mosaicFailTitle: '얼굴 모자이크를 바꾸지 못했어요',
+    deleteFailTitle: '참여작을 지우지 못했어요',
+    cannotPublishTitle: '공개로 바꿀 수 없어요',
+    emptyTitle: '아직 참여한 챌린지가 없어요',
+    emptySub: '챌린지에 참여하면 여기에 모여요.',
   },
   // SOMA-819 참여작 공유 시트 (pen ⑩ 공유 시트 · SNS에 공유하기)
   entryShare: {

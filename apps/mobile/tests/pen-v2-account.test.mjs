@@ -8,10 +8,10 @@ const read = (relativePath) => readFileSync(path.join(appRoot, relativePath), 'u
 
 // SOMA-822 홈·계정 — pen 「갈아엎기 복사본」 efbe836 기준으로 맞춘 자리를 못박는다.
 
-test('동의 제목 24, 모두 동의 바탕은 꺼짐 #F9FAFB(S4.1)', () => {
+test('동의 제목 24, 모두 동의 상자는 흰 바탕·1px 테두리(SOMA-923)', () => {
   const consent = read('app/consent.tsx');
   assert.match(consent, /title: \{ marginTop: 8, fontSize: 24,/);
-  assert.match(consent, /backgroundColor: palette\.bgSubtle,\n    borderRadius: 16,\n    padding: 18,/);
+  assert.match(consent, /borderWidth: 1,\n    borderColor: palette\.border,\n    backgroundColor: palette\.bg,/);
 });
 
 test('회원 탈퇴 묶음은 윗선 · 위 16 안쪽, 제목 21/900(S17.1)', () => {

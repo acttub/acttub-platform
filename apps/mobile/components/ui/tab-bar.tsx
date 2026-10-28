@@ -1,24 +1,31 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
-import type { Ref } from 'react';
-import { Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { useEffect, useRef, type Ref } from 'react';
+import { Animated, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { Badge } from '@/components/ui/badge';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { palette } from '@/constants/palette';
+import { shadowOverlay, space, type } from '@/constants/tokens';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const IOS = Platform.OS === 'ios';
+// 디자인 시스템 「의도된 차이」 — iOS 고른 탭 알약은 text 8% 회색이다(24색 밖, 탭바에서만).
+const IOS_PILL = '#191F2814';
+const IOS_BAR = 64;
+const ITEM = 56;
+// 탭 이름 줄 높이(micro 16) + 간격 2 의 절반 — 고르지 않은 탭의 아이콘을 칸 가운데로 내린다.
+const LABEL_SHIFT = 9;
 
 /**
- * 하단 탭바 공통 부품 — pen 「TabBar」(SOMA-770).
+ * 하단 탭바 — 디자인 시스템 pen 「TabBar」. 플랫폼마다 일부러 다르다(DESIGN-SYSTEM.md 「의도된 차이」).
  *
- * iOS: 화면 위에 뜬 흰 알약(좌우 20 — pen TabBar 폭 350, 높이 64, 모서리 32, 1px #EDF0F3 테두리, 그림자 #191F28 18% · 아래 12 · 흐림 24).
- * 안드로이드: 바닥에 붙은 전체 폭 막대(pen 일반 홈 BTT6at 하단).
- * 아이콘은 활성·비활성 모두 윤곽선(24). 활성은 파랑(palette.blue) + 옅은 파랑 알약(48×34, 모서리 17), 비활성은 회색 #8B95A1 · 바탕 없음.
- * 탭 이름 글자는 쓰지 않고 아이콘만 탭바 세로 가운데에 둔다(SOMA-838). 화면 읽기 이름은 탭 버튼(tabBarAccessibilityLabel)에 있다.
+ * iOS: 화면 위에 뜬 알약(좌우 20, 높이 64, 모서리 32, 안쪽 4, shadow-overlay). 글자 없이 아이콘 26, 고른 탭은 칸을 채우는 회색 알약.
+ *   견본의 반투명 바탕 + 흐림 24 는 흐림 모듈(expo-blur)이 앱에 없어 흰 바탕 + 1px `border` 로 둔다.
+ * 안드로이드: 바닥에 붙은 막대(위 1px `border`). 아이콘 22 아래 탭 이름(micro), 고른 탭은 알약 없이 `blue-deep`.
  */
 export function useTabBarStyle(): ViewStyle {
   const insets = useSafeAreaInsets();
@@ -26,33 +33,33 @@ export function useTabBarStyle(): ViewStyle {
     ? {
         position: 'absolute',
         // 라이브러리 기본 start·end: 0 이 left·right 를 이겨서 start·end 로 준다.
-        start: 20,
-        end: 20,
+        start: space.gutter,
+        end: space.gutter,
         bottom: Math.max(insets.bottom - 14, 12),
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: palette.card,
+        height: IOS_BAR,
+        borderRadius: IOS_BAR / 2,
+        backgroundColor: palette.bg,
         borderTopWidth: 0,
         borderWidth: 1,
-        borderColor: palette.borderSoft,
-        paddingTop: 6,
-        paddingBottom: 6,
-        shadowColor: palette.navy,
-        shadowOpacity: 0.18,
-        shadowRadius: 24,
-        shadowOffset: { width: 0, height: 12 },
+        borderColor: palette.border,
+        paddingTop: space[1],
+        paddingBottom: space[1],
+        paddingHorizontal: space[1],
+        ...shadowOverlay,
       }
     : {
         position: 'absolute',
         left: 0,
         right: 0,
         bottom: 0,
-        height: 72 + insets.bottom,
-        backgroundColor: palette.card,
-        borderTopWidth: 0,
-        paddingTop: 12,
-        paddingBottom: insets.bottom + 12,
-        elevation: 16,
+        height: space[2] + ITEM + space[2] + insets.bottom,
+        backgroundColor: palette.bg,
+        borderTopWidth: 1,
+        borderTopColor: palette.border,
+        paddingTop: space[2],
+        paddingBottom: space[2] + insets.bottom,
+        paddingHorizontal: space[2],
+        elevation: 0,
       };
 }
 
@@ -65,24 +72,46 @@ export function useTabBarSpace(): number {
   const insets = useSafeAreaInsets();
   const firstTime = useFirstTimeUser();
   if (firstTime) return insets.bottom;
-  return IOS ? Math.max(insets.bottom - 14, 12) + 64 + 12 : 72 + insets.bottom + 12;
+  return IOS ? Math.max(insets.bottom - 14, 12) + IOS_BAR + space[3] : space[2] + ITEM + space[2] + insets.bottom + space[3];
 }
 
 /** 탭바를 숨긴 모양 — 첫 사용자(연습한 날 없음)는 모든 탭에서 숨긴다(lib/practice/first-time, bHxn1I). */
 export const TAB_BAR_HIDDEN: ViewStyle = { display: 'none' };
 
-/** 탭 아이콘 — 위 설명대로. `target`은 첫 가이드가 이 탭을 비출 때 자리를 재는 ref. */
+/**
+ * 탭 아이콘 — 위 설명대로. 안드로이드는 아이콘 아래에 `label`을 둔다. `badge`가 있으면 공용 Badge 를 칸 오른쪽 위에 단다.
+ * `target`은 첫 가이드가 이 탭을 비출 때 자리를 재는 ref.
+ */
 export function tabIcon(
   name: IoniconName,
-  target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void },
+  label: string,
+  { target, badge }: { target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void }; badge?: string | null } = {},
 ) {
-  const TabIcon = ({ color, focused }: { color: string; focused: boolean }) => (
-    <View ref={target?.ref} onLayout={target?.onLayout} style={styles.item}>
-      <View style={[styles.pill, focused && styles.pillOn]}>
-        <Ionicons size={22} name={name} color={color} />
+  const TabIcon = ({ focused }: { focused: boolean }) => {
+    const color = IOS ? (focused ? palette.text : palette.textSub) : focused ? palette.blueDeep : palette.iconFaint;
+    // 안드로이드 — 평소엔 아이콘만 칸 가운데에 있고, 고르면 아이콘이 위로 올라가며 아래에 탭 이름이 나타난다(SOMA-923).
+    const shown = useRef(new Animated.Value(focused ? 1 : 0)).current;
+    useEffect(() => {
+      Animated.timing(shown, { toValue: focused ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+    }, [focused, shown]);
+    return (
+      <View ref={target?.ref} onLayout={target?.onLayout} style={[styles.item, IOS && focused && styles.itemOn]}>
+        {IOS ? (
+          <Ionicons size={26} name={name} color={color} />
+        ) : (
+          // 아이콘+이름 묶음을 이름 높이의 절반만큼 내려 두면 아이콘이 가운데다. 고르면 제자리로 올라오고 이름이 보인다.
+          <Animated.View
+            style={[styles.stack, { transform: [{ translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [LABEL_SHIFT, 0] }) }] }]}>
+            <Ionicons size={22} name={name} color={color} />
+            <Animated.Text style={[styles.label, focused && styles.labelOn, { opacity: shown }]} importantForAccessibility="no">
+              {label}
+            </Animated.Text>
+          </Animated.View>
+        )}
+        {badge ? <Badge label={badge} style={styles.badge} /> : null}
       </View>
-    </View>
-  );
+    );
+  };
   TabIcon.displayName = `TabIcon(${name})`;
   return TabIcon;
 }
@@ -95,7 +124,12 @@ export function tabButton(phLabel: string) {
 }
 
 const styles = StyleSheet.create({
-  item: { minWidth: 56, alignItems: 'center', justifyContent: 'center' },
-  pill: { minWidth: 44, minHeight: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
-  pillOn: IOS ? { backgroundColor: palette.blueSoft } : {},
+  item: IOS
+    ? { width: 70, height: ITEM, borderRadius: ITEM / 2, alignItems: 'center', justifyContent: 'center' }
+    : { width: 72, height: ITEM, gap: 2, alignItems: 'center', justifyContent: 'center' },
+  itemOn: { backgroundColor: IOS_PILL },
+  label: { ...type.micro, color: palette.textMeta },
+  labelOn: { color: palette.blueDeep },
+  stack: { alignItems: 'center', gap: 2 },
+  badge: { position: 'absolute', top: space[1.5], left: '50%', marginLeft: space[2] },
 });

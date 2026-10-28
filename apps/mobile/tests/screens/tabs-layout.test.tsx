@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 
 import TabLayout from '@/app/(tabs)/_layout';
 import { api } from '@/lib/api';
@@ -34,7 +34,6 @@ jest.mock('expo-router', () => {
               accessibilityState={{ selected: on }}
               onPress={() => setFocused(name)}>
               <Icon focused={on} color={on ? screenOptions.tabBarActiveTintColor : screenOptions.tabBarInactiveTintColor} />
-              {options.tabBarBadge !== undefined && <Text>{`${options.title} 배지 ${options.tabBarBadge}`}</Text>}
             </Button>
           );
         })}
@@ -83,7 +82,7 @@ test('아이콘만 있는 탭마다 읽어 줄 이름과 누름 기록 이름을
   ]);
 });
 
-test('활성·비활성 모두 윤곽 아이콘이고 탭 이름 글자는 어느 탭에도 쓰지 않는다(SOMA-838)', async () => {
+test('iOS 는 활성·비활성 모두 윤곽 아이콘이고 탭 이름 글자는 어느 탭에도 쓰지 않는다(SOMA-838)', async () => {
   await render(<TabLayout />);
 
   expect(screen.getByText('아이콘 home-outline')).toBeOnTheScreen();
@@ -129,7 +128,7 @@ test('읽지 않은 알림 묶음이 있으면 챌린지 탭에 그 수를 단�
 
   await render(<TabLayout />);
 
-  expect(await screen.findByText('챌린지 배지 99+')).toBeOnTheScreen();
+  expect(await within(screen.getByRole('tab', { name: '챌린지' })).findByText('99+')).toBeOnTheScreen();
 });
 
 test('읽지 않은 알림이 없거나 못 읽으면 배지를 달지 않는다', async () => {
@@ -139,11 +138,11 @@ test('읽지 않은 알림이 없거나 못 읽으면 배지를 달지 않는다
   await act(async () => undefined);
 
   expect(unreadCount).toHaveBeenCalledTimes(1);
-  expect(screen.queryByText(/배지/)).not.toBeOnTheScreen();
+  expect(screen.queryByText(/^\d+\+?$/)).not.toBeOnTheScreen();
   expect(screen.getByRole('tab', { name: '챌린지' })).toBeOnTheScreen();
 });
 
-test('안드로이드도 탭 이름 글자를 쓰지 않고 접근성 이름은 남긴다(SOMA-838)', async () => {
+test('안드로이드는 아이콘 아래에 탭 이름을 두고, 고른 탭 이름만 blue-deep 이다', async () => {
   // 플랫폼은 모듈을 읽을 때 정해지므로, 안드로이드로 바꾼 별도 모듈 묶음에서 레이아웃과 렌더러를 함께 읽는다.
   // 설정 파일의 안전 영역 목은 바깥 묶음의 React 로 컨텍스트를 읽어서, 이 시험 동안 고정 여백을 돌려주게 한다.
   const safeArea = jest.requireMock('react-native-safe-area-context') as { useSafeAreaInsets: jest.Mock };
@@ -158,11 +157,13 @@ test('안드로이드도 탭 이름 글자를 쓰지 않고 접근성 이름은 
       const view = await rtl.render(<AndroidLayout />);
 
       // 화면 매처는 바깥 묶음의 screen 을 보므로 이 묶음의 질의 결과를 직접 본다.
-      for (const name of TAB_NAMES) expect(view.queryByText(name)).toBeNull();
+      const { StyleSheet } = require('react-native');
+      const colorOf = (name: string) => StyleSheet.flatten(view.getByText(name).props.style).color;
+      for (const name of TAB_NAMES) expect(view.getByText(name)).toBeTruthy();
 
       await rtl.fireEvent.press(view.getByRole('tab', { name: '리딩' }));
 
-      for (const name of TAB_NAMES) expect(view.queryByText(name)).toBeNull();
+      expect([colorOf('리딩'), colorOf('홈')]).toEqual(['#3268D8', '#6B7684']);
       expect(view.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(TAB_NAMES);
       await view.unmount();
     });

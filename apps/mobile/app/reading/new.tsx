@@ -608,7 +608,8 @@ const styles = StyleSheet.create({
   segmentTextOn: { color: palette.blue, fontWeight: '800' },
   dropzone: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
   // pen 「파일칸」 — 옅은 파랑 바탕, 점선 테두리(#BCD3F3), 모서리 22.
-  dropzoneEmpty: { minHeight: 228, gap: 6, padding: 20, borderRadius: 22, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#BCD3F3', backgroundColor: '#F5F9FE' },
+  // 「대본 파일 첨부」 상자의 바탕·테두리만 개편전(dev) 값 — 1px 파란 실선, 옅은 회색 바탕(SOMA-923).
+  dropzoneEmpty: { minHeight: 228, gap: 6, padding: 20, borderRadius: 22, borderWidth: 1, borderColor: palette.blue, backgroundColor: palette.bgSubtle },
   uploadCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E6EFFD', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   dropTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
   dropTitleEmpty: { fontSize: 17 },

@@ -19,6 +19,7 @@ export function Chip({
   role = 'button',
   size = 'md',
   style,
+  darkSelected = false,
 }: {
   label: string;
   selected?: boolean;
@@ -28,6 +29,8 @@ export function Chip({
   role?: 'button' | 'radio' | 'checkbox';
   size?: 'md' | 'sm';
   style?: StyleProp<ViewStyle>;
+  /** 고른 칩을 검정 바탕·흰 글자로 칠한다(챌린지 기록 필터, SOMA-923). */
+  darkSelected?: boolean;
 }) {
   const state =
     role === 'checkbox'
@@ -41,13 +44,15 @@ export function Chip({
       accessibilityLabel={label}
       accessibilityState={state}
       ph-label={phLabel}
-      style={({ pressed }) => [styles.chip, size === 'sm' && styles.sm, selected && (size === 'sm' ? styles.onSm : styles.on), pressed && styles.pressed, disabled && styles.dim, style]}>
-      <Text style={[styles.label, selected && styles.labelOn]}>{label}</Text>
+      style={({ pressed }) => [styles.chip, size === 'sm' && styles.sm, selected && (size === 'sm' ? styles.onSm : styles.on), selected && darkSelected && styles.onDark, pressed && styles.pressed, disabled && styles.dim, style]}>
+      <Text style={[styles.label, selected && styles.labelOn, selected && darkSelected && styles.labelOnDark]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  onDark: { backgroundColor: palette.text, borderColor: palette.text },
+  labelOnDark: { color: palette.onAccent },
   chip: {
     minHeight: 40,
     justifyContent: 'center',

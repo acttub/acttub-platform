@@ -67,17 +67,17 @@ beforeEach(() => {
 
 async function openMenuFor(line: string) {
   await fireEvent(await screen.findByText(line), 'longPress');
-  expect(await screen.findByText('이 참여작')).toBeOnTheScreen();
+  expect(await screen.findByTestId('anchored-menu')).toBeOnTheScreen();
 }
 
 test('서버가 센 분류 수와 지우지 않은 참여작을 상태와 함께 보여 준다', async () => {
   await render(<ChallengeEntriesScreen />);
 
   expect(await screen.findByText('“사느냐 죽느냐”')).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '전체 3' })).toBeSelected();
-  expect(screen.getByRole('button', { name: '공개 1' })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '비공개 1' })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '확인 중 1' })).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: '전체 3' })).toBeSelected();
+  expect(screen.getByRole('radio', { name: '공개 1' })).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: '비공개 1' })).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: '확인 중 1' })).toBeOnTheScreen();
   expect(screen.getByText('햄릿 · 햄릿 · 3월 5일')).toBeOnTheScreen();
   expect(screen.getByText('바람과 함께 · 3월 5일')).toBeOnTheScreen();
   expect(screen.getByText('조회 12 · 좋아요 3')).toBeOnTheScreen();
@@ -101,12 +101,12 @@ test('분류를 고르면 그 분류만 보이고, 없으면 빈 안내를 띄�
   await render(<ChallengeEntriesScreen />);
   await screen.findByText('“사느냐 죽느냐”');
 
-  await fireEvent.press(screen.getByRole('button', { name: '비공개 1' }));
+  await fireEvent.press(screen.getByRole('radio', { name: '비공개 1' }));
   expect(screen.getByText('“내일은 내일의 해가”')).toBeOnTheScreen();
   expect(screen.queryByText('“사느냐 죽느냐”')).not.toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByRole('button', { name: '확인 중 1' }));
-  expect(screen.getByText('아직 참여한 챌린지가 없어요.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('radio', { name: '확인 중 1' }));
+  expect(screen.getByText('아직 참여한 챌린지가 없어요')).toBeOnTheScreen();
 });
 
 test('다음 쪽이 있으면 이어 받아 한 목록으로 보여 준다', async () => {
@@ -126,13 +126,14 @@ test('100쪽을 받아도 더 있으면 최근 것만 보여 준다고 알린다
   expect(listMine).toHaveBeenCalledTimes(100);
 });
 
-test('못 불러오면 이유만 보여 준다', async () => {
-  listMine.mockRejectedValue(httpError(403));
+test('못 불러오면 이유와 다시 시도를 보이고, 다시 시도하면 다시 읽는다', async () => {
+  listMine.mockRejectedValueOnce(httpError(403));
   await render(<ChallengeEntriesScreen />);
 
   expect(await screen.findByText('챌린지는 회원만 이용할 수 있어요.')).toBeOnTheScreen();
-  expect(screen.queryByText('아직 참여한 챌린지가 없어요.')).not.toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '전체 0' })).toBeOnTheScreen();
+  expect(screen.queryByText('아직 참여한 챌린지가 없어요')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByText('“사느냐 죽느냐”')).toBeOnTheScreen();
 });
 
 test('참여작을 누르면 그 참여작부터 재생하고, 뒤로는 이전 화면으로 간다', async () => {
@@ -314,5 +315,5 @@ test('행 오른쪽 더 보기 버튼도 같은 메뉴를 연다', async () => {
 
   const buttons = screen.getAllByRole('button');
   await fireEvent.press(buttons[buttons.length - 1]);
-  expect(await screen.findByText('이 참여작')).toBeOnTheScreen();
+  expect(await screen.findByTestId('anchored-menu')).toBeOnTheScreen();
 });

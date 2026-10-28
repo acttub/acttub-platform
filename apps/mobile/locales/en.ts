@@ -27,6 +27,7 @@ const en: DeepStringShape<typeof ko> = {
     analyzing: 'Reviewing…',
     coachWriting: 'Your coach is writing…',
     checking: 'Checking…',
+    starting: 'Starting…',
   },
   common: {
     confirm: 'OK',
@@ -205,6 +206,7 @@ const en: DeepStringShape<typeof ko> = {
       concern: 'Auditions, exams or practice on your mind',
     },
     failed: "Couldn't start coaching. Please tap again.",
+    inProgressMissing: "Couldn't find your coaching in progress. Please tap again.",
   },
   coachingTab: {
     firstTitle: 'First time with coaching?',
@@ -504,6 +506,13 @@ const en: DeepStringShape<typeof ko> = {
     publicTitle: 'Make it public?',
     publicBody: 'Other actors will be able to watch this entry. Tap “Make public”.',
     publicConfirm: 'Make public',
+    captionFailTitle: 'Couldn\'t save the caption',
+    visibilityFailTitle: 'Couldn\'t change who can see it',
+    mosaicFailTitle: 'Couldn\'t change the face mosaic',
+    deleteFailTitle: 'Couldn\'t delete the entry',
+    cannotPublishTitle: 'Can\'t make it public',
+    emptyTitle: 'No challenge entries yet',
+    emptySub: 'Your challenge entries gather here.',
   },
   // SOMA-819 entry share sheet
   entryShare: {

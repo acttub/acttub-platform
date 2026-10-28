@@ -6,7 +6,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConsentRow } from '@/components/consent-row';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Markdown } from '@/components/markdown';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -228,8 +227,9 @@ export default function ConsentScreen() {
           accessibilityRole="checkbox"
           accessibilityHint={t('consent.allAgreeHint')}
           accessibilityState={{ checked: everythingGranted }}>
-          <Checkbox checked={everythingGranted} />
-          <Text style={styles.allLabel}>{t('consent.allAgreeStart')}</Text>
+          {/* 꺼져 있어도 빈 원이 아니라 회색 체크 모양을 보인다(SOMA-923). */}
+          <Feather name="check-circle" size={22} color={everythingGranted ? palette.blue : palette.textDisabled} />
+          <Text style={[styles.allLabel, everythingGranted && styles.allLabelOn]}>{t('consent.allAgreeStart')}</Text>
         </Pressable>
         <PrimaryButton label={t('consent.ctaStart')} onPress={() => void proceed()} disabled={!canProceed} loading={busy} />
       </CtaBar>
@@ -248,15 +248,20 @@ const styles = StyleSheet.create({
   docBody: { paddingHorizontal: 14, paddingBottom: 12 },
   footer: { paddingTop: 8, paddingHorizontal: 24, paddingBottom: 12, gap: 8 },
   // 모두 동의하기(pen S4.1) — 안쪽 18, 모서리 16, 칸 사이 12. 꺼짐 #F9FAFB → 켜짐 #EAF3FE.
+  // 「모두 동의하기」 상자는 개편전(dev) 모양 — 흰 바탕·1px 테두리, 켜면 파란 테두리·옅은 파랑(SOMA-923).
   allRow: {
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: palette.bgSubtle,
+    paddingHorizontal: 16,
     borderRadius: 16,
-    padding: 18,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
   },
-  allRowOn: { backgroundColor: palette.blueSoft },
-  allLabel: { flex: 1, fontSize: 18, fontWeight: '700', lineHeight: 27, color: palette.text },
+  allRowOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft, paddingHorizontal: 15.5 },
+  allLabel: { flex: 1, fontSize: 17, fontWeight: '600', lineHeight: 26, color: palette.text },
+  allLabelOn: { color: palette.blueDeep },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
 });
