@@ -16,6 +16,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { browseFailure, browseFailureMessage, canPerform, dDayLabel } from '@/lib/challenge/browse';
+import { loadExampleUrl } from '@/lib/challenge/example-pick';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
@@ -67,11 +68,16 @@ export default function LinePickScreen() {
   const featuredCount = featured?.entry_count ?? 0;
   useEffect(() => {
     setExampleUrl(null);
-    if (!featuredId || featuredCount === 0) return;
+    if (!featuredId) return;
     let alive = true;
     void api
-      .listChallengeEntries(featuredId, { sort: 'likes' })
-      .then((r) => alive && setExampleUrl(r.entries.find((e) => e.playback_url)?.playback_url ?? null))
+      .listChallenges({ tab: 'ended' })
+      .then((r) => r.challenges)
+      .catch(() => [] as ChallengeCard[])
+      .then((ended) =>
+        loadExampleUrl({ ended, featuredId, listEntries: (id) => api.listChallengeEntries(id, { sort: 'likes' }) }),
+      )
+      .then((url) => alive && setExampleUrl(url))
       .catch(() => undefined);
     return () => {
       alive = false;

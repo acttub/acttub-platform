@@ -41,6 +41,7 @@ import {
 } from '@/lib/challenge/intro-state';
 import { countedPractices } from '@/lib/practice/counted';
 import { skipsChallengeFirstPick } from '@/lib/returning-account';
+import { loadExampleUrl } from '@/lib/challenge/example-pick';
 import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
@@ -87,7 +88,7 @@ export default function ChallengesScreen() {
   const unread = useUnreadNotifications();
   /** 첫 사용자용 고르기(C1.16·C1.18) — 고른 줄. 첫 항목을 미리 골라 두고(UX 가이드 5절, 10/23) 「다음」을 눌러야 넘어간다. */
   const [firstPick, setFirstPick] = useState<'perform' | 'browse' | null>('perform');
-  /** 이번 주 대사 카드에 틀어 줄 참여작 예시 영상(좋아요 많은 순 첫 공개 참여작). 없으면 카드만 둔다. */
+  /** 이번 주 대사 카드에 틀어 줄 참여작 예시 영상(지난주 선정작 우선, 없으면 이번 주 좋아요 순). 없으면 카드만 둔다. */
   const [exampleUrl, setExampleUrl] = useState<string | null>(null);
 
   const load = useCallback(async (next: ChallengeTab) => {
@@ -189,8 +190,13 @@ export default function ChallengesScreen() {
     if (!featuredId) return;
     let alive = true;
     void api
-      .listChallengeEntries(featuredId, { sort: 'likes' })
-      .then((list) => alive && setExampleUrl(list.entries.find((e) => e.playback_url)?.playback_url ?? null))
+      .listChallenges({ tab: 'ended' })
+      .then((r) => r.challenges)
+      .catch(() => [] as ChallengeCard[])
+      .then((ended) =>
+        loadExampleUrl({ ended, featuredId, listEntries: (id) => api.listChallengeEntries(id, { sort: 'likes' }) }),
+      )
+      .then((url) => alive && setExampleUrl(url))
       .catch(() => undefined);
     return () => {
       alive = false;
