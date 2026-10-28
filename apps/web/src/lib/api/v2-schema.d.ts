@@ -3286,6 +3286,8 @@ export interface components {
             text?: string;
             /** Voice */
             voice?: string;
+            /** Session Id */
+            session_id?: string;
         };
         /** SynthesizeResponse */
         SynthesizeResponse: {
@@ -5076,6 +5078,10 @@ export interface components {
             daily_limit?: number;
             /** Daily Used */
             daily_used?: number;
+            /** Reason */
+            reason?: string;
+            /** Pro Only */
+            pro_only?: boolean;
         };
         /** FileResponse */
         FileResponse: {
@@ -9410,7 +9416,10 @@ export interface operations {
     };
     status: {
         parameters: {
-            query?: never;
+            query?: {
+                script_id?: string;
+                session_id?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

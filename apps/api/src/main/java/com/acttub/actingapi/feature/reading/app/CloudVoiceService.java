@@ -54,16 +54,29 @@ public final class CloudVoiceService {
     }
 
     public Status status(UUID userId) {
+        return status(userId, null, null);
+    }
+
+    /**
+     * 대본 정보(scriptId 또는 회차 sessionId)가 있으면 무료 배우의 「대본마다 첫 리딩」도 가려 준다(SOMA-917).
+     * 둘 다 있으면 회차가 먼저다. 없으면(옛 앱) 예전과 똑같다.
+     */
+    public Status status(UUID userId, UUID scriptId, UUID sessionId) {
         LocalDate today = LocalDate.now(clock.withZone(SEOUL));
-        return new Status(available(userId), inFreePeriod() ? settings.freeUntil() : null, repository.consent(userId),
-                settings.dailyLineCap(), repository.dailyUsage(userId, today));
+        Access access = access(userId, scriptId, sessionId);
+        return new Status(access.available(), inFreePeriod() ? settings.freeUntil() : null, repository.consent(userId),
+                settings.dailyLineCap(), repository.dailyUsage(userId, today), access.reason(), access == Access.PRO_ONLY);
     }
 
     public Result synthesize(UUID userId, String rawText, String preset) {
+        return synthesize(userId, rawText, preset, null);
+    }
+
+    public Result synthesize(UUID userId, String rawText, String preset, UUID sessionId) {
         String text = rawText == null ? "" : rawText.trim();
         String voice = preset == null ? null : VOICES.get(preset);
         if (text.isEmpty() || text.length() > MAX_CHARS || voice == null) throw new ApiException(400, "invalid_voice_request");
-        if (!available(userId)) throw unavailable(null);
+        if (!access(userId, null, sessionId).available()) throw unavailable(null);
         if (!"granted".equals(repository.consent(userId))) throw new ApiException(403, "cloud_voice_consent_required");
         String hash = hash(settings.model(), voice, text);
         CacheEntry cached = repository.findCache(hash);
@@ -127,12 +140,25 @@ public final class CloudVoiceService {
 
     /**
      * 무료 기간({@code READING_VOICE_FREE_UNTIL}) 안에는 누구나, 그 뒤에는 Pro 만 쓴다(2026-11-01부터 Pro 혜택).
-     * 모델·저장소 설정과 월 한도는 무료 기간과 상관없이 늘 지킨다.
+     * 무료 배우도 (배우, 대본)마다 가장 먼저 시작한 리딩 회차 하나는 쓴다(SOMA-917) — 서버가 회차 표로 가리고 앱 값은 믿지 않는다.
+     * 모델·저장소 설정과 월 한도는 어느 경우에도 늘 지킨다.
      */
-    private boolean available(UUID userId) {
-        if (!settings.modelConfigured() || !storage.configured()) return false;
-        if (!inFreePeriod() && !plan.pro(userId)) return false;
-        return repository.monthlyUsage(YearMonth.from(LocalDate.now(clock.withZone(SEOUL)))) < settings.monthlyLineCap();
+    private Access access(UUID userId, UUID scriptId, UUID sessionId) {
+        if (!settings.modelConfigured() || !storage.configured()) return Access.NONE;
+        if (repository.monthlyUsage(YearMonth.from(LocalDate.now(clock.withZone(SEOUL)))) >= settings.monthlyLineCap()) return Access.NONE;
+        if (inFreePeriod()) return Access.FREE_PERIOD;
+        if (plan.pro(userId)) return Access.PRO;
+        boolean first = sessionId != null ? repository.firstReadingSession(userId, sessionId)
+                : scriptId != null && repository.firstReadingScript(userId, scriptId);
+        return first ? Access.FIRST_READING : Access.PRO_ONLY;
+    }
+
+    private enum Access {
+        NONE(null), FREE_PERIOD("free_period"), PRO("pro"), FIRST_READING("first_reading"), PRO_ONLY(null);
+        private final String reason;
+        Access(String reason) { this.reason = reason; }
+        String reason() { return reason; }
+        boolean available() { return reason != null; }
     }
 
     private boolean inFreePeriod() {
@@ -156,6 +182,7 @@ public final class CloudVoiceService {
         return Hashing.sha256Hex(model + "\n" + voice + "\n" + text + "\n" + CACHE_FORMAT);
     }
 
-    public record Status(boolean available, java.time.OffsetDateTime freeUntil, String consent, int dailyLimit, int dailyUsed) {}
+    public record Status(boolean available, java.time.OffsetDateTime freeUntil, String consent, int dailyLimit, int dailyUsed,
+            String reason, boolean proOnly) {}
     public record Result(String audioUrl, boolean cached, int expiresIn) {}
 }

@@ -12,6 +12,7 @@
 지금처럼 기기 음성([reading.cast](cast.md))으로 읽는다. 출시 기념으로 무료 기간(2026-10-31까지) 동안 모두에게 열고,
 앱을 켤 때 하루 한 번 알리는 팝업을 띄운다. 2026-11-01부터는 Pro 혜택이다(SOMA-818) — 무료 기간이 끝나면
 결제했거나 서버가 준 Pro 기간(`billing_pro_grants`) 안인 사람만 쓰고, 상태 응답의 `free_until`은 무료 기간에만 내려간다.
+다만 무료 배우도 대본마다 **첫 리딩 1회**는 쓴다(SOMA-917) — 두 번째 리딩부터 기기 음성으로 읽고, 리딩 화면에 「Pro는 계속 이 목소리로 연습해요」 한 줄을 보인다.
 
 ## 의도
 기기 음성은 무료·오프라인이지만 억양이 단조롭다. 상대역이 사람처럼 읽으면 리딩이 실제 맞춰 보기에 가까워진다.
@@ -23,8 +24,8 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `GET /v2/reading/voice/status` | 헤더 `Authorization`(회원) | `StatusResponse` 200: 지금 쓸 수 있는지(`available`), 무료 종료 시각, cloud_voice 현재 판에 대한 결정(granted·denied·undecided — 거절·철회는 denied), 오늘 한도와 쓴 양 | 게스트 `member_only` 403 |
-| `POST /v2/reading/voice` | 헤더 `Authorization`(회원), `SynthesizeRequest`: `text`(앞뒤 공백을 걷은 1~5,000자), `voice`(M1~M5·F1~F5) | `SynthesizeResponse` 200: WAV(24kHz, 16-bit, mono) 재생 주소(600초), 캐시 적중 여부 | `invalid_voice_request` 400, `cloud_voice_consent_required` 403, `cloud_voice_daily_limit` 429, `cloud_voice_unavailable` 503, 게스트 `member_only` 403 |
+| `GET /v2/reading/voice/status` | 헤더 `Authorization`(회원), 선택 쿼리 `session_id`(리딩 회차) 또는 `script_id`(대본). 둘 다 있으면 회차가 먼저 | `StatusResponse` 200: 지금 쓸 수 있는지(`available`), 왜 쓸 수 있는지(`reason`: `free_period`·`pro`·`first_reading`, 못 쓰면 null), 설정·한도는 괜찮은데 Pro 전용이라 못 쓰는지(`pro_only`), 무료 종료 시각, cloud_voice 현재 판에 대한 결정(granted·denied·undecided — 거절·철회는 denied), 오늘 한도와 쓴 양 | 게스트 `member_only` 403 |
+| `POST /v2/reading/voice` | 헤더 `Authorization`(회원), `SynthesizeRequest`: `text`(앞뒤 공백을 걷은 1~5,000자), `voice`(M1~M5·F1~F5), 선택 `session_id`(리딩 회차) | `SynthesizeResponse` 200: WAV(24kHz, 16-bit, mono) 재생 주소(600초), 캐시 적중 여부 | `invalid_voice_request` 400, `cloud_voice_consent_required` 403, `cloud_voice_daily_limit` 429, `cloud_voice_unavailable` 503, 게스트 `member_only` 403 |
 
 ## 상태
 없음. 캐시는 문장마다 한 번 만들고 사용량은 회원·한국 날짜마다 센 줄 수다.
@@ -56,11 +57,27 @@
   첫 실행 온보딩 직후와 다른 시트가 떠 있을 때는 띄우지 않는다. 「들어보기」는 앱에 들어 있는 샘플 한 줄을 튼다(서버 호출 없음).
 - 탈퇴하면 그 회원의 사용량 행을 바로 지운다. 게스트는 쓸 수 없어 이관할 것이 없다.
 
+## 무료 배우의 첫 리딩(SOMA-917)
+- 무료 기간이 끝난 뒤 Pro가 아닌 배우도 (배우, 대본)마다 **가장 먼저 시작한 리딩 회차 하나**는 고품질 목소리를 쓴다. 판정 키는 리딩 회차다:
+  `reading_sessions`에서 그 회원의 같은 대본 회차 가운데 `(started_at, id)`가 가장 앞선 회차가 첫 회차다. 중간에 그만둔(`stopped`) 회차도
+  첫 회차이므로, 나갔다 다시 시작해도 두 번째 회차는 무료가 아니다. 새 표·마이그레이션은 없다.
+- 서버가 판정한다. `session_id`가 내 회차가 아니거나 없는 회차면(남의 대본·없는 대본 포함) 무료가 아니다. 모르는 형식의 값은 없는 것으로 본다.
+  `POST /v2/reading/voice`도 같은 `session_id`로 다시 판정한다(상태 응답을 믿지 않는다).
+- 회차를 만들기 전(동의를 받는 시점)에는 `script_id`로 묻는다. 내 대본이고 그 대본의 회차가 아직 하나도 없으면 `first_reading`이다.
+- 우선순위: 무료 기간(`free_period`) → Pro(`pro`) → 첫 리딩(`first_reading`). 모델·저장소 설정, 월 한도, 하루 300줄, 동의 규칙은 그대로다.
+- `session_id`·`script_id`를 안 보내는 옛 앱 요청은 예전과 똑같다(무료 기간 또는 Pro만). 응답에 늘어난 `reason`·`pro_only`는 옛 앱이 무시한다.
+- 앱: 대본의 첫 리딩이면 [시작하기] 직후 회차를 만들기 전에 `cloud_voice` 동의가 undecided일 때만 기존 동의 창(가운데 카드 모달, 바텀시트 아님)을 띄운다.
+  동의하면 첫 리딩부터 고품질이고, 거절하면 기기 목소리로 그대로 시작한다. 거절(denied)한 사람과 스위치를 꺼 둔 사람에게는 다시 묻지 않는다. 무료 기간·Pro에는 이 창을 띄우지 않는다.
+- 앱: 리딩 실행 화면에서 상태 응답이 `pro_only`이면(두 번째 리딩부터) 위쪽에 한 줄 「Pro는 계속 이 목소리로 연습해요」를 보이고, 누르면 Pro 안내(`/pro`)로 간다.
+  이때 분석 이벤트 `pro_hint_shown`(`trigger='reading_voice'`)을 회차 화면마다 한 번 남긴다. 무료 기간·Pro·첫 리딩에는 보이지 않는다.
+- 무료 기간이 끝나면 리딩 탭의 「고품질 목소리」 띠·스위치는 무료 배우에게 사라진다(회차 없이 묻는 상태는 `available=false`). 첫 리딩은 이 띠와 상관없이 위 흐름(동의 → 시작 → 회차 번호로 판정)으로 쓴다. 스위치를 직접 꺼 둔 사람은 그 뜻을 따라 기기 목소리로 읽는다.
+- 한계: 회차를 지우면 그 대본의 다음 회차가 첫 회차가 된다.
+
 ## 예외
 - 네트워크 실패·5xx·다운로드 실패: 그 줄만 기기에서 읽는다. 기기 음성 모델이 있으면 그 목소리, 없으면 기기 기본
   목소리(OS 음성), 기기에 한국어 음성도 없으면 글로 보기다. 회차에서 처음 기기 목소리로 바뀔 때 위쪽에 "고품질
   목소리를 못 받아 기기 목소리로 읽어요"를 잠깐 보인다(R9.9).
-- 동의 시트에서 거절: 설정은 꺼진 채 남는다.
+- 동의 시트에서 거절: 설정은 꺼진 채 남는다. 첫 리딩 앞에서 거절해도 리딩은 기기 목소리로 시작한다.
 - 동의 시트에서 동의·거절 기록 실패: 시트를 닫지 않고 "동의 기록에 실패했어요. 다시 시도해주세요."를 보인다. 설정은 바뀌지 않고, 다시 누르면 다시 기록한다.
 - text가 비었거나 5,000자 초과, 모르는 voice: 400 invalid_voice_request. 앱은 그 회차에서 그 줄을 서버에 다시 보내지 않고
   네트워크 실패와 같은 대체 순서로 읽는다.
@@ -77,6 +94,9 @@
   한 번 뜬다. 기기 음성 모델이 없는 기기: 기기 기본 목소리로 이어지고 「읽는 중」인 채 멈추지 않는다.
 - 켠 앱의 R3 미리 듣기: 서버 요청 없이 그 프리셋의 Gemini 샘플이 나온다.
 - 팝업: 같은 날 두 번째 실행에는 뜨지 않는다. 「다시 보지 않기」 뒤에는 다음 날에도 뜨지 않는다. 켠 뒤에는 뜨지 않는다.
+
+- 무료 기간이 지난 뒤 무료 배우의 첫 리딩: `session_id`로 상태·합성을 하면 `reason=first_reading`이고, 같은 대본의 두 번째 회차는 `available=false`·`pro_only=true`·합성 503이다.
+  `session_id` 없이는 예전과 같다.
 
 ## 범위 밖
 - 웹 리딩. (ADR-033)
