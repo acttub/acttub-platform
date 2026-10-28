@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   body: {
     fontSize: 13,
     fontFamily: 'Pretendard',
-    color: palette.textSub,
+    color: palette.textDim,
   },
   label: {
     position: 'absolute',

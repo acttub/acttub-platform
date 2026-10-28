@@ -13,7 +13,6 @@ import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { DEFAULT_NOTIFICATION_SETTINGS } from '@/lib/push-policy';
 import { translate as t } from '@/lib/i18n';
@@ -80,7 +79,7 @@ export default function CoachingDoneScreen() {
       <KeyboardLift aboveSafeBottom>
       <KeyboardAwareScroll contentContainerStyle={styles.body}>
         <View style={styles.badge}>
-          <Feather name="check-circle" size={12} color={palette.green} />
+          <Feather name="check-circle" size={16} color={palette.green} />
           <Text style={styles.badgeText}>{t('note.doneBadge')}</Text>
         </View>
         <View style={styles.head}>
@@ -97,7 +96,7 @@ export default function CoachingDoneScreen() {
         )}
         {reminderOn && (
           <View style={styles.reminder}>
-            <Feather name="bell" size={16} color={palette.iconFaint} />
+            <Feather name="bell" size={18} color={palette.blueDeep} />
             <Text style={styles.reminderText}>{t('note.doneReminder')}</Text>
           </View>
         )}
@@ -108,14 +107,14 @@ export default function CoachingDoneScreen() {
         )}
       </KeyboardAwareScroll>
       {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 버튼 묶음 바로 위(CtaBar 위 여백 12 + 12 = 24). */}
-      <AdSlot slot="coaching_done" style={styles.ad} />
+      <AdSlot slot="coaching_done" style={{ marginHorizontal: 24, marginBottom: 12 }} />
       <CtaBar safeBottom={false}>
         {/* pen P16.1·P16.2 — 아래 버튼은 「확인」, 누르면 홈. */}
+        <PrimaryButton label={t('note.doneConfirm')} onPress={() => router.dismissTo('/(tabs)')} />
         <Pressable style={styles.share} onPress={share} accessibilityRole="button" ph-label="coaching_done_share">
-          <Feather name="share-2" size={16} color={palette.textSub} />
+          <Feather name="share-2" size={16} color={palette.blueDeep} />
           <Text style={styles.shareText}>{t('journal.endShare')}</Text>
         </Pressable>
-        <PrimaryButton label={t('note.doneConfirm')} onPress={() => router.dismissTo('/(tabs)')} />
       </CtaBar>
       </KeyboardLift>
     </SafeAreaView>
@@ -124,19 +123,18 @@ export default function CoachingDoneScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[6], paddingBottom: space[6], gap: space[4] },
-  badge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[1], paddingVertical: space[1], paddingHorizontal: space[2], borderRadius: radius.full, backgroundColor: palette.greenSoft },
-  badgeText: { ...type.micro, color: palette.green },
-  head: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  body: { flexGrow: 1, padding: 24, gap: 16 },
+  badge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 9999, backgroundColor: palette.greenSoft },
+  badgeText: { fontSize: 13, fontWeight: '800', color: palette.green },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   mascot: { width: 52, height: 58 },
-  title: { flex: 1, ...type.title2, color: palette.text },
-  nextCard: { gap: space[1], padding: space[4], borderRadius: radius.lg, backgroundColor: palette.blueSoft },
-  nextLabel: { ...type.micro, color: palette.blueDeep },
-  nextText: { ...type.body2Bold, color: palette.text },
-  reminder: { flexDirection: 'row', alignItems: 'center', gap: space[2], padding: space[3], borderRadius: radius.md, backgroundColor: palette.bgSubtle },
-  reminderText: { flex: 1, ...type.caption, color: palette.textSub },
-  rating: { alignSelf: 'stretch', marginTop: space[2] },
-  ad: { marginHorizontal: space.gutter, marginBottom: space[3] },
-  share: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], height: 40 },
-  shareText: { ...type.body2Bold, color: palette.textSub },
+  title: { flex: 1, fontSize: 22, fontWeight: '800', lineHeight: 30, color: palette.text },
+  nextCard: { gap: 6, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: palette.bgSoft },
+  nextLabel: { fontSize: 12, fontWeight: '800', color: palette.textMuted },
+  nextText: { fontSize: 16, fontWeight: '800', lineHeight: 23, color: palette.text },
+  reminder: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: palette.blueSoft },
+  reminderText: { flex: 1, fontSize: 14, fontWeight: '700', color: palette.blueDeep },
+  rating: { alignSelf: 'stretch', marginTop: 4 },
+  share: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
+  shareText: { fontSize: 15, fontWeight: '700', color: palette.blueDeep },
 });

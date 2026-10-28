@@ -1,3 +1,6 @@
+import type Feather from '@expo/vector-icons/Feather';
+import type { ReactNode } from 'react';
+
 import { MASCOT } from '@/components/ui/mascot';
 import { StatusScreen, type StatusAction } from '@/components/ui/status-screen';
 
@@ -12,6 +15,8 @@ export function ReadingStatus(props: {
   primary?: StatusAction;
   secondary?: StatusAction;
   onBack?: () => void;
+  icon?: React.ComponentProps<typeof Feather>['name'];
+  children?: ReactNode;
 }) {
   return <StatusScreen mascot={MASCOT.reading} safeArea {...props} />;
 }

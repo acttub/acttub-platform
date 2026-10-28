@@ -245,9 +245,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   circleOn: { backgroundColor: palette.blue },
-  circleText: { fontSize: 13, fontWeight: '700', lineHeight: 16, color: palette.textMeta },
+  circleText: { fontSize: 13, fontWeight: '700', lineHeight: 16, color: palette.textFaint },
   circleTextOn: { color: palette.bg },
-  stepperLabel: { fontSize: 14, fontWeight: '700', color: palette.textMeta },
+  stepperLabel: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
   stepperLabelOn: { color: palette.text },
 
   progress: {
@@ -257,21 +257,21 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    borderBottomColor: palette.borderSoft,
   },
   progressLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   steps: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  stepDone: { width: 18, height: 3, borderRadius: 9999, backgroundColor: palette.blue },
+  stepDone: { width: 18, height: 3, borderRadius: 9999, backgroundColor: palette.blueLine },
   stepNow: { width: 26, height: 3, borderRadius: 9999, backgroundColor: palette.blue },
-  stepLabel: { fontSize: 12.5, fontWeight: '700', color: palette.textSub },
+  stepLabel: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
 
   // padding 으로 누르는 칸을 넓히고 같은 크기의 음수 margin 으로 되돌린다 — 진행 줄의
   // 높이는 목업 그대로 두면서 손가락이 닿는 면적만 키운다.
   foldTarget: { paddingVertical: 8, paddingHorizontal: 8, marginVertical: -8, marginHorizontal: -8 },
   foldTargetOn: { opacity: 0.4 },
-  foldLink: { fontSize: 12, fontWeight: '700', color: palette.textMeta },
+  foldLink: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
   foldBody: { paddingHorizontal: 20, paddingTop: 14 },
-  foldEmpty: { fontSize: 12.5, fontWeight: '600', color: palette.textMeta },
+  foldEmpty: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
   video: { width: '100%', aspectRatio: 16 / 9, borderRadius: 14, backgroundColor: palette.bgSoft },
   seekBadge: {
     position: 'absolute',
@@ -284,26 +284,26 @@ const styles = StyleSheet.create({
   },
   seekBadgeText: { fontSize: 12, fontWeight: '800', color: palette.onAccent },
 
-  summaryWithTitle: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 20 },
-  summaryTitle: { fontSize: 11.5, fontWeight: '900', color: palette.textMeta },
+  summaryWithTitle: { borderTopWidth: 1, borderTopColor: palette.borderSoft, paddingTop: 20 },
+  summaryTitle: { fontSize: 11.5, fontWeight: '900', color: palette.textFaint },
   rows: { paddingTop: 14, gap: 12 },
   row: { flexDirection: 'row', gap: 12 },
   rowLabelCell: { width: 52 },
-  rowLabel: { fontSize: 12.5, fontWeight: '700', color: palette.textDisabled },
-  rowValue: { flex: 1, fontSize: 13.5, fontWeight: '600', color: palette.textSub, lineHeight: 22 },
+  rowLabel: { fontSize: 12.5, fontWeight: '700', color: palette.checkOff },
+  rowValue: { flex: 1, fontSize: 13.5, fontWeight: '600', color: palette.textDim, lineHeight: 22 },
   quote: {
     borderLeftWidth: 2,
     borderLeftColor: palette.border,
     paddingLeft: 14,
     paddingVertical: 2,
   },
-  quoteText: { fontSize: 13, fontWeight: '600', color: palette.textMeta, lineHeight: 22 },
+  quoteText: { fontSize: 13, fontWeight: '600', color: palette.textMuted, lineHeight: 22 },
 
   footer: { gap: 8 },
   footerText: {
     fontSize: 11.5,
     fontWeight: '600',
-    color: palette.textDisabled,
+    color: palette.checkOff,
     lineHeight: 18,
   },
 });

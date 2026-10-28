@@ -16,7 +16,7 @@ export function TalkEntryButton({ onPress }: { onPress: () => void }) {
       accessibilityLabel={t('coachingTab.talk')}
       ph-label="coaching_talk"
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-      <Feather name="message-circle" size={15} color={palette.textSub} />
+      <Feather name="message-circle" size={15} color={palette.textDim} />
       <Text style={styles.text}>{t('coachingTab.talk')}</Text>
     </Pressable>
   );
@@ -25,5 +25,5 @@ export function TalkEntryButton({ onPress }: { onPress: () => void }) {
 const styles = StyleSheet.create({
   button: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   pressed: { opacity: 0.85 },
-  text: { fontSize: 15, fontWeight: '600', color: palette.textSub },
+  text: { fontSize: 15, fontWeight: '600', color: palette.textDim },
 });

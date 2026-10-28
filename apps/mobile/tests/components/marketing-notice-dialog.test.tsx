@@ -17,13 +17,14 @@ const granted = marketingDecisionNotice(
 
 afterEach(() => jest.useRealTimers());
 
-test('어두운 토스트에 제목 · 매체 · 보낸 곳 · 처리일 · 바꾸는 곳 안내를 보이고, 누르면 닫는다', async () => {
+test('S5.13처럼 어두운 토스트에 제목 · 매체 · 보낸 곳 · 처리일 · 바꾸는 곳 안내를 보이고, 누르면 닫는다', async () => {
   const onClose = jest.fn();
   await render(<MarketingNoticeDialog notice={granted} onClose={onClose} />);
 
   expect(screen.getByText('광고성 정보 수신에 동의했어요')).toBeOnTheScreen();
   expect(screen.getByText('이메일 · 앱 푸시 · Acttub · 2026.10.19')).toBeOnTheScreen();
   expect(screen.getByText('설정 > 동의 내역에서 언제든 바꿀 수 있어요.')).toBeOnTheScreen();
+  expect(screen.getByTestId('marketing-notice-card')).toHaveStyle({ backgroundColor: '#2B2F36', borderRadius: 12 });
 
   await fireEvent.press(screen.getByTestId('marketing-notice-card'));
   expect(onClose).toHaveBeenCalledTimes(1);

@@ -17,13 +17,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
-import { InlineEmpty } from '@/components/ui/inline-empty';
-import { Chip } from '@/components/ui/chip';
-import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
-import { SkeletonRows } from '@/components/ui/skeleton';
 import { StatusScreen } from '@/components/ui/status-screen';
+import { SkeletonRows } from '@/components/ui/skeleton';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { readAuditionMarks, writeAuditionMarks } from '@/lib/audition-marks';
 import {
@@ -146,13 +143,13 @@ export default function AuditionsScreen() {
         <>
           <View style={styles.controls}>
             <View style={styles.searchBox}>
-              <Feather name="search" size={15} color={palette.iconFaint} />
+              <Feather name="search" size={15} color={palette.textFaint} />
               <TextInput
                 style={styles.search}
                 value={filters.query}
                 onChangeText={(query) => setFilters((was) => ({ ...was, query: sanitizeInput(query) }))}
                 placeholder={t('auditions.searchPh')}
-                placeholderTextColor={palette.textMeta}
+                placeholderTextColor={palette.textFaint}
                 returnKeyType="search"
                 clearButtonMode="while-editing"
               />
@@ -166,23 +163,20 @@ export default function AuditionsScreen() {
               {chips.map(({ key, count }) => (
                 <Chip
                   key={key}
-                  label={`${t(`auditions.groups.${key}`)} ${count}`}
-                  role="radio"
-                  selected={filters.group === key}
-                  size="sm"
+                  label={t(`auditions.groups.${key}`)}
+                  count={count}
+                  on={filters.group === key}
                   onPress={() => setFilters((was) => ({ ...was, group: key }))}
                 />
               ))}
             </ScrollView>
 
             <View style={styles.toggleRow}>
-              <Chip label={t('auditions.filterWeek')} role="checkbox" selected={filters.week} size="sm" onPress={() => toggle('week')} />
-              <Chip label={t('auditions.filterPaid')} role="checkbox" selected={filters.paid} size="sm" onPress={() => toggle('paid')} />
+              <Chip label={t('auditions.filterWeek')} on={filters.week} onPress={() => toggle('week')} />
+              <Chip label={t('auditions.filterPaid')} on={filters.paid} onPress={() => toggle('paid')} />
               <Chip
                 label={t('auditions.filterStarred')}
-                role="checkbox"
-                selected={filters.starred}
-                size="sm"
+                on={filters.starred}
                 onPress={() => toggle('starred')}
               />
               {dirty && (
@@ -200,7 +194,7 @@ export default function AuditionsScreen() {
             sections={sections}
             keyExtractor={(item) => item.id}
             stickySectionHeadersEnabled={false}
-            ListHeaderComponent={<AdSlot slot="auditions_top" style={styles.ad} />}
+            ListHeaderComponent={<AdSlot slot="auditions_top" style={{ marginTop: 8, marginBottom: 8 }} />}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             contentContainerStyle={styles.list}
@@ -228,14 +222,14 @@ export default function AuditionsScreen() {
             ListEmptyComponent={
               // 조건으로 걸러 비었으면 마스코트와 함께 「초기화」를 알린다(pen NQ33xk). 그 밖의 빈 목록은 한 줄 안내다.
               filtered ? (
-                <StatusScreen kind="empty" title={t('auditions.emptyFiltered')} body={t('auditions.emptyFilteredHint')} />
+                <StatusScreen title={t('auditions.emptyFiltered')} body={t('auditions.emptyFilteredHint')} bodyTone="blue" />
               ) : (
-                <InlineEmpty title={emptyText} />
+                <Text style={styles.empty}>{emptyText}</Text>
               )
             }
             ListFooterComponent={
               <View style={styles.footer}>
-                <Feather name="info" size={13} color={palette.iconFaint} />
+                <Feather name="info" size={13} color={palette.textFaint} />
                 <Text style={styles.footerText}>{t('auditions.footer')}</Text>
               </View>
             }
@@ -329,81 +323,140 @@ function AuditionCard({
         accessibilityLabel={starred ? t('auditions.unstarA11y') : t('auditions.starA11y')}
         ph-label="auditions_star"
         style={styles.star}>
-        <Ionicons name={starred ? 'star' : 'star-outline'} size={20} color={starred ? palette.blue : palette.iconFaint} />
+        <Ionicons name={starred ? 'star' : 'star-outline'} size={20} color={starred ? palette.hintIcon : palette.checkOff} />
       </Pressable>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bg },
-  headerMeta: { paddingHorizontal: space.gutter, paddingBottom: space[1.5], ...type.caption, color: palette.textMeta },
-  link: { ...type.body2Bold, color: palette.blueDeep },
-  ad: { marginVertical: space[2] },
+function Chip({
+  label,
+  count,
+  on,
+  onPress,
+}: {
+  label: string;
+  count?: number;
+  on: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      style={[styles.chip, on && styles.chipOn]}>
+      <Text style={[styles.chipText, on && styles.chipTextOn]}>
+        {label}
+        {count !== undefined && <Text style={[styles.chipCount, on && styles.chipTextOn]}> {count}</Text>}
+      </Text>
+    </Pressable>
+  );
+}
 
-  controls: { paddingHorizontal: space.gutter, gap: space[3], paddingBottom: space[1.5] },
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: palette.bgSoft },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 12,
+  },
+  headerTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
+  headerMeta: { paddingHorizontal: 24, paddingBottom: 6, fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  link: { fontSize: 13, fontWeight: '800', color: palette.blue },
+
+  controls: { paddingHorizontal: 20, gap: 10, paddingBottom: 6 },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[2],
-    paddingHorizontal: space[4],
-    height: 48,
-    borderRadius: radius.md,
-    backgroundColor: palette.bg,
+    gap: 8,
+    paddingHorizontal: 16,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: palette.card,
     borderWidth: 1,
     borderColor: palette.border,
   },
-  search: { flex: 1, ...type.body1, lineHeight: undefined, color: palette.text },
-  chipRow: { gap: space[1.5] },
-  toggleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[1.5] },
-  reset: { paddingHorizontal: space[1.5], height: 32, justifyContent: 'center' },
+  search: { flex: 1, fontSize: 14, color: palette.text },
+  chipRow: { gap: 6 },
+  toggleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  reset: { paddingHorizontal: 6, height: 30, justifyContent: 'center' },
+  chip: {
+    paddingHorizontal: 12,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: palette.card,
+    borderWidth: 1,
+    borderColor: palette.border,
+    justifyContent: 'center',
+  },
+  chipOn: { backgroundColor: palette.blue, borderColor: palette.blue },
+  chipText: { fontSize: 11.5, fontWeight: '800', color: palette.textDim },
+  chipCount: { fontWeight: '600', color: palette.textFaint },
+  chipTextOn: { color: '#FFFFFF' },
 
-  list: { paddingHorizontal: space.gutter, paddingTop: space[1], paddingBottom: space[10] },
-  sectionTitle: { marginTop: space[3], marginBottom: space[3], ...type.body2Bold, color: palette.textSub },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1.5], marginTop: space[6] },
-  footerText: { ...type.caption, color: palette.textMeta },
+  list: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 72 },
+  sectionTitle: { marginTop: 14, marginBottom: 10, fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
+  empty: {
+    paddingVertical: 48,
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '600',
+    color: palette.textFaint,
+    lineHeight: 20,
+  },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 22 },
+  footerText: { fontSize: 11.5, fontWeight: '600', color: palette.textFaint },
 
   card: {
-    marginBottom: space[3],
+    marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[3],
-    paddingVertical: space[4],
-    paddingLeft: space[4],
-    paddingRight: space[3],
-    borderRadius: radius.lg,
-    backgroundColor: palette.bg,
-    borderWidth: 1,
-    borderColor: palette.border,
+    gap: 12,
+    paddingVertical: 14,
+    paddingLeft: 14,
+    paddingRight: 10,
+    borderRadius: 18,
+    backgroundColor: palette.card,
+    shadowColor: '#191F28',
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
   },
-  cardSeen: { opacity: 0.5 },
-  cardPressed: { opacity: 0.7 },
-  body: { flex: 1, gap: space[1] },
-  tags: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  cardSeen: { opacity: 0.55 },
+  cardPressed: { opacity: 0.85 },
+  body: { flex: 1, gap: 5 },
+  tags: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   tag: {
-    paddingHorizontal: space[1.5],
-    ...type.micro,
-    height: 20,
-    lineHeight: 20,
-    borderRadius: radius.full,
+    paddingHorizontal: 7,
+    height: 18,
+    lineHeight: 18,
+    borderRadius: 9,
     overflow: 'hidden',
+    fontSize: 10,
+    fontWeight: '800',
   },
-  tagNew: { backgroundColor: palette.blue, color: palette.onAccent },
-  tagCategory: { backgroundColor: palette.bgSoft, color: palette.textSub },
-  source: { flexShrink: 1, ...type.micro, color: palette.textMeta },
-  title: { ...type.body2Bold, color: palette.text },
-  meta: { ...type.caption, color: palette.textMeta },
-  star: { padding: space[1] },
+  tagNew: { backgroundColor: palette.blue, color: '#FFFFFF' },
+  tagCategory: { backgroundColor: palette.bgSoft, color: palette.textDim },
+  source: { flexShrink: 1, fontSize: 11, fontWeight: '600', color: palette.textFaint },
+  title: { fontSize: 14.5, fontWeight: '700', color: palette.text, lineHeight: 20 },
+  meta: { fontSize: 12, fontWeight: '500', color: palette.textFaint },
+  star: { padding: 4 },
 
-  dday: { width: 60, paddingVertical: space[2], borderRadius: radius.md, alignItems: 'center', gap: 2 },
+  dday: { width: 62, paddingVertical: 8, borderRadius: 12, alignItems: 'center', gap: 2 },
   ddayUrgent: { backgroundColor: palette.dangerSoft },
   ddaySoon: { backgroundColor: palette.amberSoft },
   ddayOk: { backgroundColor: palette.blueSoft },
   ddayNone: { backgroundColor: palette.bgSoft },
-  ddayText: { ...type.body2Bold },
+  ddayText: { fontSize: 14, fontWeight: '800' },
   ddayTextUrgent: { color: palette.danger },
   ddayTextSoon: { color: palette.amber },
-  ddayTextOk: { color: palette.blueDeep },
-  ddayTextNone: { ...type.captionBold, color: palette.textSub },
-  ddaySub: { ...type.micro, fontWeight: '400', color: palette.textMeta },
+  ddayTextOk: { color: palette.blue },
+  ddayTextNone: { fontSize: 12.5, color: palette.textDim },
+  ddaySub: { fontSize: 9.5, fontWeight: '600', color: palette.textFaint },
 });

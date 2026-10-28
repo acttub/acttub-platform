@@ -83,6 +83,7 @@ test('challenge.block: 설정에서 차단 목록을 보고 풀 수 있다', () 
 
   assert.match(screen, /api\.listBlocks/);
   assert.match(screen, /api\.blockUser\(user\.user_id, false\)/);
+  assert.match(screen, /<DefaultAvatar size=\{44\}/); // 사람 모양 기본 얼굴(pen S18.4 S/BlockRow)
   assert.match(screen, /DEFAULT_AVATAR_GONE/); // 탈퇴한 사용자는 회색 얼굴
   assert.match(read('app/settings.tsx'), /'\/blocked-users'/);
 });
@@ -94,7 +95,11 @@ test('challenge.react: 저장한 영상에서 저장을 풀 수 있다', () => {
   assert.match(screen, /api\.listSavedEntries/);
 });
 
-test('challenge.react: 공유는 참여작 딥링크다', () => {
+test('challenge.react: 공유는 참여작 딥링크이고 볼 수 없으면 안내만 한다', () => {
   assert.match(read('app/challenge-play.tsx'), /entryShare\.open\(entry\)/);
   assert.match(read('lib/challenge/share.ts'), /entryShareUrl\(entry\.id\)/);
+  const link = read('app/entry/[id].tsx');
+  assert.match(link, /\.getEntry\(id\)/);
+  assert.match(link, /react\.linkGone/);
+  assert.match(link, /pathname: '\/challenge-play'/);
 });

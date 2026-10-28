@@ -22,8 +22,8 @@ test('challenge: 상세 제목 — 오늘의 챌린지로 뽑힌 진행 중 챌�
 
 test('challenge: 목록 카드·오늘의 챌린지 카드는 종료면 참여 버튼을 그리지 않고, 참여 동작도 종료면 촬영으로 가지 않는다', () => {
   const src = readFileSync(new URL('../app/(tabs)/challenges.tsx', import.meta.url), 'utf8');
-  // 줄 카드 안에는 참여 버튼이 없다(UX 가이드 「카드 안 버튼 금지」, 10/28) — 카드를 누르면 상세에서 찍는다.
-  assert.equal((src.match(/<Pressable[^>]*style=\{styles\.performBtn\}/g) ?? []).length, 0, '줄 카드 참여 버튼은 없다');
+  const performCtas = src.match(/canPerform\(challenge\) && \(\s*<Pressable[^>]*onPress=\{onPerform\}/g) ?? [];
+  assert.equal(performCtas.length, 1, '줄 카드는 canPerform 으로 감싼다');
   assert.match(src, /onPerform=\{canPerform\(featured\) \?/, '이번 주 대사의 파란 버튼도 canPerform 으로 감싼다');
   const perform = src.slice(src.indexOf('const perform = (challenge: ChallengeCard)'), src.indexOf("pathname: '/record-video'"));
   assert.match(perform, /if \(!canPerform\(challenge\)\) return;/);

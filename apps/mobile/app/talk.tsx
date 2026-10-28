@@ -1,15 +1,13 @@
 import { Stack, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CoachingLimitSheet } from '@/components/pro-ui';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
+import { ChoiceCard } from '@/components/choice-card';
 import { PrimaryButton } from '@/components/ui/buttons';
-import { CtaBar } from '@/components/ui/cta-bar';
-import { InlineErrorLine } from '@/components/ui/inline-error';
-import { SelectCard } from '@/components/ui/select-card';
 import { palette } from '@/constants/palette';
-import { space } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
@@ -26,8 +24,7 @@ import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id'
  */
 export default function TalkScreen() {
   const router = useRouter();
-  // 첫 항목을 미리 골라 둔다(UX 가이드 5절, 10/23).
-  const [picked, setPicked] = useState<TalkPurpose | null>(TALK_PURPOSES[0] ?? null);
+  const [picked, setPicked] = useState<TalkPurpose | null>(null);
   const [starting, setStarting] = useState<TalkPurpose | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 무료 코칭 하루 3회를 다 썼다(SOMA-818) — pen a5y1Qr 시트.
@@ -73,7 +70,7 @@ export default function TalkScreen() {
           return;
         }
       }
-      setError(failure.kind === 'offline' ? t('start.offline') : failure.kind === 'in_progress' ? t('talk.inProgressMissing') : t('talk.failed'));
+      setError(failure.kind === 'offline' ? t('start.offline') : t('talk.failed'));
     } finally {
       lockRef.current = false;
       setStarting(null);
@@ -81,13 +78,13 @@ export default function TalkScreen() {
   };
 
   return (
-    <View style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('talk.title'), headerShadowVisible: false }} />
       <ScrollView contentContainerStyle={styles.body}>
         <CoachBubble title={t('talk.bubble')} guide={t('talk.guide')} />
         <View style={styles.choices}>
           {TALK_PURPOSES.map((item) => (
-            <SelectCard
+            <ChoiceCard
               key={item}
               title={t(`talk.purpose.${item}`)}
               sub={t(`talk.purposeSub.${item}`)}
@@ -98,25 +95,20 @@ export default function TalkScreen() {
             />
           ))}
         </View>
-        {error ? <InlineErrorLine message={error} /> : null}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
       <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
-      <CtaBar>
-        <PrimaryButton
-          label={t('talk.next')}
-          phLabel="talk_next"
-          disabled={!picked}
-          loading={starting !== null}
-          loadingLabel={t('loadingText.starting')}
-          onPress={() => picked && void start(picked)}
-        />
-      </CtaBar>
-    </View>
+      <View style={styles.footer}>
+        <PrimaryButton label={t('talk.next')} phLabel="talk_next" disabled={!picked || starting !== null} onPress={() => picked && void start(picked)} />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { flexGrow: 1, paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3] },
-  choices: { gap: space[3] },
+  body: { flexGrow: 1, paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
+  choices: { gap: 8, marginTop: 14 },
+  footer: { paddingHorizontal: 24, paddingBottom: 12 },
+  errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
 });

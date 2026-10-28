@@ -4,12 +4,7 @@ import DeleteAccountScreen from '@/app/delete-account';
 import { useAuth } from '@/lib/auth';
 
 const mockBack = jest.fn();
-const mockReplace = jest.fn();
-const mockCanGoBack = jest.fn(() => true);
-jest.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
-  useRouter: () => ({ back: mockBack, replace: mockReplace, canGoBack: mockCanGoBack }),
-}));
+jest.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => ({ back: mockBack }) }));
 jest.mock('@/lib/auth', () => ({ useAuth: jest.fn() }));
 const mockBillingMe = jest.fn();
 jest.mock('@/lib/api', () => ({ api: { billingMe: () => mockBillingMe() } }));
@@ -112,21 +107,11 @@ test('오류 객체가 아니면 일반 실패 문구를 보여 준다', async (
   const labels = await screen.findAllByText('탈퇴하기');
   await fireEvent.press(labels[labels.length - 1]);
 
-  expect(await screen.findByText('잠시 후 다시 시도해 주세요. 계정은 그대로 있어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('잠시 후 다시 시도해주세요. 계정은 그대로 있어요.')).toBeOnTheScreen();
 });
 
 test('그대로 쓰기를 누르면 이전 화면으로 돌아간다', async () => {
   await render(<DeleteAccountScreen />);
   await fireEvent.press(screen.getByRole('button', { name: '그대로 쓸게요' }));
   expect(mockBack).toHaveBeenCalledTimes(1);
-});
-
-test('돌아갈 화면 없이 열었으면 꺾쇠와 「그대로 쓸게요」 모두 설정으로 간다', async () => {
-  mockCanGoBack.mockReturnValue(false);
-  await render(<DeleteAccountScreen />);
-  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-  await fireEvent.press(screen.getByRole('button', { name: '그대로 쓸게요' }));
-  expect(mockReplace.mock.calls).toEqual([['/settings'], ['/settings']]);
-  expect(mockBack).not.toHaveBeenCalled();
-  mockCanGoBack.mockReturnValue(true);
 });

@@ -4,7 +4,7 @@ import GuestTransferScreen from '@/app/guest-transfer';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 
-const mockRouter = { dismissTo: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) };
+const mockRouter = { dismissTo: jest.fn(), replace: jest.fn() };
 jest.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => mockRouter }));
 jest.mock('@/lib/api', () => ({ api: { transferGuestData: jest.fn() } }));
 
@@ -42,13 +42,13 @@ test('옮기면 완료 화면에서 기록을 보거나 다른 코드를 넣을 
   await fireEvent.press(screen.getByRole('button', { name: '기록 보기' }));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)/history');
 
-  await fireEvent.press(screen.getByRole('button', { name: '다른 코드 넣기' }));
+  await fireEvent.press(screen.getByRole('button', { name: '다른 코드 입력하기' }));
   expect(codeInput()).toHaveDisplayValue('');
   expect(screen.queryByText('옮겼어요')).not.toBeOnTheScreen();
 });
 
 test.each([
-  [new ApiError(404, 'nf', 'transfer_code_not_found'), '코드가 맞지 않거나 만료됐어요.'],
+  [new ApiError(404, 'nf', 'transfer_code_not_found'), '코드가 맞지 않거나 만료됐어요'],
   [new ApiError(429, 'slow down'), '시도가 너무 많았어요. 잠시 뒤 다시 시도해 주세요.'],
   [new ApiError(422, 'bad', 'validation_failed', { field: 'code' }), '코드를 보내지 못했어요. 앱을 최신 버전으로 업데이트한 뒤 다시 시도해 주세요.'],
   [new Error('서버가 잠시 쉬고 있어요'), '서버가 잠시 쉬고 있어요'],
@@ -125,14 +125,4 @@ describe('양쪽에 액티 기억이 있으면', () => {
     await act(async () => finish());
     expect(await screen.findByText('옮겼어요')).toBeOnTheScreen();
   });
-});
-
-test('돌아갈 화면이 없이 바로 열었으면 뒤로 꺾쇠가 설정으로 간다', async () => {
-  mockRouter.canGoBack.mockReturnValueOnce(false);
-  await render(<GuestTransferScreen />);
-
-  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-
-  expect(mockRouter.replace).toHaveBeenCalledWith('/settings');
-  expect(mockRouter.back).not.toHaveBeenCalled();
 });

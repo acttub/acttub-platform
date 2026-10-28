@@ -25,12 +25,12 @@ const styles = StyleSheet.create({
   mascot: { width: 72, height: 72 },
   bubble: {
     flex: 1,
-    backgroundColor: palette.bg,
+    backgroundColor: palette.card,
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 18,
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
-  text: { fontSize: 14.5, fontWeight: '600', color: palette.textSub, lineHeight: 22 },
+  text: { fontSize: 14.5, fontWeight: '600', color: palette.textDim, lineHeight: 22 },
 });

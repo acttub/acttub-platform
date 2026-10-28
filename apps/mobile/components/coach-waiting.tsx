@@ -1,7 +1,7 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -9,11 +9,9 @@ import { useAppDialog } from '@/components/app-dialog';
 import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
-import { PrimaryButton, TextButton } from '@/components/ui/buttons';
-import { CtaBar } from '@/components/ui/cta-bar';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { InfoBanner } from '@/components/ui/info-banner';
 import { palette } from '@/constants/palette';
-import { space, type } from '@/constants/tokens';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { useWaitExit } from '@/hooks/use-wait-exit';
@@ -141,7 +139,7 @@ export function CoachWaiting({
         pendingHandleRef.current = null;
       }
       const notice = analysis ? analysisPartialNotice(analysis) : null;
-      if (notice) await alert({ title: t('analysis.partialTitle'), message: notice });
+      if (notice) await alert({ title: t('analyzing.screenTitle'), message: notice });
       if (signal.aborted) {
         return;
       }
@@ -413,33 +411,39 @@ export function CoachWaiting({
         {error && (
           <View style={styles.errorActions}>
             {recovery !== 'none' && (
-              <PrimaryButton label={t('common.retry')} phLabel="analyzing_retry" onPress={() => void retry()} loading={retrying} style={styles.wide} />
+              <PrimaryButton label={t('common.retry')} onPress={() => void retry()} loading={retrying} style={styles.wide} />
             )}
-            <TextButton label={t('analyzing.leaveLater')} phLabel="analyzing_leave_later" onPress={() => router.dismissTo('/(tabs)')} />
+            <Pressable onPress={() => router.dismissTo('/(tabs)')} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.link}>{t('analyzing.leaveLater')}</Text>
+            </Pressable>
           </View>
         )}
       </ScrollView>
 
       {/* 광고 칸(SOMA-876) — 연습 중 칸이라 무료 사용자 일부만 받는다. 아래 버튼 묶음 바로 위, 24 띄운다. */}
-      {!error && !sample && <AdSlot slot="analyzing_wait" style={styles.ad} />}
+      {!error && !sample && <AdSlot slot="analyzing_wait" style={{ marginHorizontal: 24, marginBottom: 24 }} />}
 
-      {/* 아래 바 — 안내 띠, 보조 글자 버튼 「그만두기」 위, 주 버튼 「끝나면 알려 주세요」 맨 아래. */}
       {!error && (
-        <CtaBar safeBottom={false}>
+        <View style={styles.bottom}>
           {sample ? (
             <Text style={styles.notice}>{t('tutorial.sampleAnalyzing')}</Text>
           ) : (
-            <InfoBanner title={t('analyzing.leaveTitle')} body={t('analyzing.leaveBody')} style={styles.banner} />
+            <>
+              <InfoBanner title={t('analyzing.leaveTitle')} body={t('analyzing.leaveBody')} style={styles.wide} />
+              {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 뒤로 가기와 같은 코칭 탭으로 나간다. */}
+              <Pressable
+                style={({ pressed }) => [styles.notify, pressed && styles.pressed]}
+                onPress={leave}
+                accessibilityRole="button"
+                accessibilityLabel={t('analyzing.notifyMe')}>
+                <Text style={styles.notifyText}>{t('analyzing.notifyMe')}</Text>
+              </Pressable>
+            </>
           )}
-          <TextButton
-            label={stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}
-            phLabel="analyzing_stop"
-            disabled={stopping}
-            onPress={() => void stop()}
-          />
-          {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 뒤로 가기와 같은 코칭 탭으로 나간다. */}
-          {!sample && <PrimaryButton label={t('analyzing.notifyMe')} phLabel="analyzing_notify_me" onPress={leave} />}
-        </CtaBar>
+          <Pressable style={styles.quit} onPress={() => void stop()} disabled={stopping} hitSlop={8} accessibilityRole="button">
+            <Text style={styles.link}>{stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}</Text>
+          </Pressable>
+        </View>
       )}
       {dialog}
       {tutorialGuide.element}
@@ -449,21 +453,27 @@ export function CoachWaiting({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingTop: space[4], paddingHorizontal: space[4], paddingBottom: space[5], gap: space[3] },
+  // pen 09 본문 안쪽 [14,21,0,21] · 오늘 영상 줄과 코치 줄 사이 14.
+  body: { paddingTop: 14, paddingHorizontal: 21, paddingBottom: 20, gap: 14 },
   wide: { alignSelf: 'stretch' },
-  ad: { marginHorizontal: space.gutter, marginBottom: space[3] },
-  banner: { marginBottom: space[2] },
+  pressed: { opacity: 0.75 },
 
-  // 말풍선 안 — 「영상 보는 중이에요」 body1-bold, 아래 단계 문구 caption.
-  watchingBox: { gap: space[1] },
-  typingRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  watching: { ...type.body1Bold, color: palette.text },
-  stageText: { ...type.caption, color: palette.textSub },
-  elapsed: { ...type.caption, color: palette.textMeta },
+  // 말풍선 안 — 도는 표시 · 「영상 보는 중이에요」 17/700, 아래 단계 문구 15/500 #333D4B.
+  watchingBox: { gap: 6 },
+  typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  watching: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.text },
+  stageText: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textStrong },
+  elapsed: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint },
 
-  errorTitle: { ...type.body1Bold, color: palette.text },
-  errorBody: { ...type.caption, color: palette.danger },
-  errorActions: { alignItems: 'center', gap: space[2], paddingLeft: space[10] },
+  errorTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 21 },
+  errorBody: { fontSize: 15, fontWeight: '600', color: palette.danger, lineHeight: 21 },
+  errorActions: { alignItems: 'center', gap: 12, paddingLeft: 39 },
 
-  notice: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
+  // pen 09 아래 — 안쪽 [0,21,11,21], 안내 15/500 회색 · 14 · 파란 안내 14.5/700 · 10 · 회색 버튼 48 · 13 · 그만두기 15/700.
+  bottom: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11, alignItems: 'center' },
+  notice: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textFaint, textAlign: 'center' },
+  notify: { alignSelf: 'stretch', height: 48, borderRadius: 16, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  notifyText: { fontSize: 18, fontWeight: '700', color: palette.textStrong },
+  quit: { marginTop: 7 },
+  link: { color: palette.textFaint, fontSize: 15, fontWeight: '700', lineHeight: 19, textAlign: 'center', paddingVertical: 6 },
 });

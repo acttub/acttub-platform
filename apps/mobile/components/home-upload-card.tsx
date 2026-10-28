@@ -2,7 +2,6 @@ import Feather from '@expo/vector-icons/Feather';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import type { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { translate as t } from '@/lib/i18n';
 
@@ -18,8 +17,9 @@ export function HomeUploadCard({ upload }: { upload: ReturnType<typeof useWaitin
   const eyebrow =
     state === 'ready' ? t('home.uploadReadyEyebrow') : state === 'failed' ? t('home.uploadFailedEyebrow') : t('home.uploadEyebrow');
   const sub = state === 'failed' ? t('home.uploadFailedSub') : t('home.uploadSub');
-  const action =
-    state === 'ready' ? { cta: t('home.uploadReadyCta'), press: begin } : state === 'failed' ? { cta: t('home.uploadFailedCta'), press: retry } : null;
+  const cta = state === 'ready' ? t('home.uploadReadyCta') : state === 'failed' ? t('home.uploadFailedCta') : t('home.uploadCta');
+  const bar = state === 'ready' ? '100%' : state === 'failed' ? '0%' : '50%';
+  const press = state === 'ready' ? begin : state === 'failed' ? retry : undefined;
   return (
     <View style={styles.card} testID="home-upload-card">
       <View style={styles.eyebrowRow}>
@@ -29,40 +29,52 @@ export function HomeUploadCard({ upload }: { upload: ReturnType<typeof useWaitin
       </View>
       <Text style={styles.title} numberOfLines={3}>{title}</Text>
       <Text style={styles.sub}>{error ?? sub}</Text>
-      {action ? (
+      {/* pen 「틈」 1×2 — 막대·버튼은 부연 바로 아래에 붙는다. */}
+      <View style={styles.spacer} />
+      {press ? (
         <Pressable
-          onPress={() => void action.press()}
+          onPress={() => void press()}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityLabel={action.cta}
+          accessibilityLabel={cta}
           style={({ pressed }) => [styles.cta, busy && styles.ctaOff, pressed && styles.pressed]}>
-          <Text style={styles.ctaText}>{action.cta}</Text>
-          <Feather name="arrow-right" size={16} color={palette.blueDeep} />
+          <Text style={styles.ctaText}>{cta}</Text>
+          <Feather name="arrow-right" size={16} color={palette.blue} />
         </Pressable>
-      ) : null}
+      ) : (
+        <View style={styles.track} accessibilityLabel={cta}>
+          <View style={[styles.fill, { width: bar }]} />
+        </View>
+      )}
     </View>
   );
 }
 
-/** 홈 「오늘 할 것」 카드와 같은 모양 — text 바탕 r16, 안쪽 20, 흰 글자, 흰 버튼(md 40). 진행률을 받지 않아 막대는 두지 않는다. */
+/** 올리는 중 카드(pen 「P1 신규 · 일반 홈 · 영상 올리는 중」) — 추천 연습 카드와 같은 어두운 바탕에 진행 막대. */
 const styles = StyleSheet.create({
-  card: { backgroundColor: palette.text, borderRadius: radius.lg, padding: space[5], gap: space[2] },
-  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  eyebrow: { ...type.caption, color: palette.onMediaSub },
-  title: { ...type.title2, color: palette.onAccent },
-  sub: { ...type.caption, color: palette.onMediaSub },
-  cta: {
-    alignSelf: 'flex-start',
-    marginTop: space[2],
-    height: 40,
-    borderRadius: radius.lg,
-    paddingHorizontal: space[4],
-    backgroundColor: palette.bg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[1.5],
+  card: {
+    minHeight: 196,
+    backgroundColor: '#202121',
+    borderRadius: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    gap: 8,
+    overflow: 'hidden',
+    shadowColor: '#2F6EF2',
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
-  ctaOff: { opacity: 0.6 },
-  ctaText: { ...type.body2Bold, color: palette.blueDeep },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  eyebrow: { fontSize: 13, fontWeight: '600', lineHeight: 18, color: 'rgba(255,255,255,0.9)' },
+  title: { fontSize: 20, fontWeight: '800', lineHeight: 27, color: palette.onAccent, maxWidth: 260 },
+  sub: { fontSize: 12, fontWeight: '400', lineHeight: 18, color: 'rgba(255,255,255,0.8)' },
+  spacer: { height: 2 },
+  track: { height: 8, width: 200, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4, backgroundColor: palette.onAccent },
+  cta: { alignSelf: 'flex-start', height: 42, borderRadius: 21, paddingHorizontal: 22, backgroundColor: palette.onAccent, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  ctaOff: { opacity: 0.5 },
+  ctaText: { fontSize: 15, fontWeight: '800', color: palette.blue },
   pressed: { opacity: 0.85 },
 });

@@ -1,15 +1,13 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
-import { InlineError } from '@/components/ui/inline-error';
+import Feather from '@expo/vector-icons/Feather';
 import { BlueSwitch } from '@/components/ui/list-rows';
-import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
-import { space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
@@ -41,16 +39,16 @@ export default function NotificationSettingsScreen() {
   const { alert, dialog } = useAppDialog();
   const [notif, setNotif] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [updatingToggle, setUpdatingToggle] = useState<keyof NotificationSettings | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setLoadError(false);
+    setLoadError(null);
     try {
       setNotif(await loadNotificationSettings());
-    } catch {
-      setLoadError(true);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : t('common.tryLater'));
     } finally {
       setLoading(false);
     }
@@ -91,28 +89,31 @@ export default function NotificationSettingsScreen() {
       {loading ? (
         <SkeletonRows count={5} avatar={false} />
       ) : loadError ? (
-        <View style={styles.list}>
-          <InlineError message={t('settings.notifLoadFail')} onRetry={() => void load()} />
+        <View style={styles.center}>
+          <Text style={styles.loadError}>{loadError}</Text>
+          <Pressable style={styles.reloadBtn} onPress={() => void load()} accessibilityRole="button">
+            <Text style={styles.reloadText}>{t('consent.reload')}</Text>
+          </Pressable>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
           <Text style={styles.section}>{t('settings.pushSection')}</Text>
           {NOTIFICATION_TOGGLES.map((toggle) => (
-            <SettingsCard
-              key={toggle.key}
-              iconCircle
-              icon={TOGGLE_ICON[toggle.key] ?? 'bell'}
-              title={t(toggle.titleKey)}
-              sub={t(toggle.subKey)}
-              right={
-                <BlueSwitch
-                  value={notif[toggle.key]}
-                  onValueChange={(v) => void toggleNotification(toggle.key, v)}
-                  disabled={updatingToggle !== null}
-                  accessibilityLabel={t(toggle.titleKey)}
-                />
-              }
-            />
+            <View key={toggle.key} style={styles.card}>
+              <View style={styles.iconWrap}>
+                <Feather name={TOGGLE_ICON[toggle.key] ?? 'bell'} size={20} color={palette.blue} />
+              </View>
+              <View style={styles.cardText}>
+                <Text style={styles.cardTitle}>{t(toggle.titleKey)}</Text>
+                <Text style={styles.cardSub}>{t(toggle.subKey)}</Text>
+              </View>
+              <BlueSwitch
+                value={notif[toggle.key]}
+                onValueChange={(v) => void toggleNotification(toggle.key, v)}
+                disabled={updatingToggle !== null}
+                accessibilityLabel={t(toggle.titleKey)}
+              />
+            </View>
           ))}
         </ScrollView>
       )}
@@ -123,6 +124,23 @@ export default function NotificationSettingsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[6], gap: space[2] },
-  section: { ...type.captionBold, color: palette.textSub },
+  list: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, gap: 10 },
+  section: { fontSize: 15, fontWeight: '800', color: palette.text, marginBottom: 4 },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 22,
+  },
+  iconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  cardText: { flex: 1, gap: 2 },
+  cardTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
+  cardSub: { fontSize: 13, color: palette.textMuted, lineHeight: 18 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadError: { color: palette.danger, fontSize: 14, textAlign: 'center', paddingHorizontal: 24 },
+  reloadBtn: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
 });

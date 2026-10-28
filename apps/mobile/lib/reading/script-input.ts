@@ -19,7 +19,8 @@ export type ScriptInput = {
   tab: ScriptTab;
   file: FileSlot;
   paste: { text: string; source: ScriptSource | null };
-  title: Record<ScriptTab, string>;
+  /** 파일을 한 번이라도 골랐다(읽기 실패 포함). 그 뒤로는 예시 링크를 보이지 않는다. */
+  triedFile: boolean;
 };
 
 export type ScriptInputAction =
@@ -28,14 +29,13 @@ export type ScriptInputAction =
   | { type: 'fileUploaded'; uploadId: string }
   | { type: 'fileFailed' }
   | { type: 'paste'; text: string }
-  | { type: 'title'; title: string }
   | { type: 'sample'; id?: string };
 
 const EMPTY_PASTE: ScriptInput['paste'] = { text: '', source: null };
 
 /** 기본은 파일 탭. 예시로 들어오면 글 탭에 예시를 채운 채 연다. */
 export function initialScriptInput(sample: boolean | string): ScriptInput {
-  const base: ScriptInput = { tab: 'file', file: { kind: 'empty' }, paste: EMPTY_PASTE, title: { file: '', paste: '' } };
+  const base: ScriptInput = { tab: 'file', file: { kind: 'empty' }, paste: EMPTY_PASTE, triedFile: false };
   if (!sample) return base;
   return scriptInputReducer(base, { type: 'sample', id: typeof sample === 'string' && sample !== '1' ? sample : undefined });
 }
@@ -45,13 +45,11 @@ export function scriptInputReducer(state: ScriptInput, action: ScriptInputAction
     case 'tab':
       return { ...state, tab: action.tab };
     case 'fileReading':
-      return { ...state, file: { kind: 'reading', file: action.file }, title: { ...state.title, file: titleFromFileName(action.file.name) } };
+      return { ...state, file: { kind: 'reading', file: action.file }, triedFile: true };
     case 'fileUploaded':
       return state.file.kind === 'empty' ? state : { ...state, file: { kind: 'ready', file: state.file.file, uploadId: action.uploadId } };
     case 'fileFailed':
       return { ...state, file: { kind: 'empty' } };
-    case 'title':
-      return { ...state, title: { ...state.title, [state.tab]: action.title } };
     case 'paste':
       return { ...state, paste: { text: action.text, source: nextTextSource(state.paste.source, state.paste.text, action.text) } };
     case 'sample':
@@ -70,10 +68,9 @@ export function pendingScript(state: ScriptInput): ImportInput | null {
   return text ? { kind: 'text', text, source: state.paste.source ?? 'typed' } : null;
 }
 
-export function titleFromFileName(name: string): string {
-  const dot = name.lastIndexOf('.');
-  const stem = dot >= 0 ? name.slice(0, dot) : name;
-  return stem.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+/** 「예시 대본으로 시작해보기」는 아무것도 넣지 않은 빈 상태에만 보인다. */
+export function showsSampleLink(state: ScriptInput): boolean {
+  return !state.triedFile && state.paste.text.length === 0;
 }
 
 export function formatFileSize(bytes: number): string {

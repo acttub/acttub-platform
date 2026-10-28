@@ -96,7 +96,7 @@ test('노트가 아직 없으면 정리 없음만 보여 주고 다시 시도는
   getPracticeNote.mockRejectedValue(Object.assign(new Error('nf'), { code: 'note_not_found' }));
   await render(<ReportDetailScreen />);
 
-  expect(await screen.findByText('아직 정리가 없어요')).toBeOnTheScreen();
+  expect(await screen.findByText('아직 정리 없음')).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
 });
 
@@ -104,7 +104,7 @@ test('노트를 못 읽으면 다시 시도로 다시 불러온다', async () =>
   getPracticeNote.mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce(note());
   await render(<ReportDetailScreen />);
 
-  expect(await screen.findByText('연습 노트를 불러오지 못했어요')).toBeOnTheScreen();
+  expect(await screen.findByText('연습 노트를 불러오지 못했어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
 
   expect(await screen.findByText('첫 대사의 숨')).toBeOnTheScreen();
@@ -115,7 +115,7 @@ test('회차 id 없이 열면 서버에 묻지 않고 불러오기 실패를 보
   mockParams = {};
   await render(<ReportDetailScreen />);
 
-  expect(await screen.findByText('연습 노트를 불러오지 못했어요')).toBeOnTheScreen();
+  expect(await screen.findByText('연습 노트를 불러오지 못했어요.')).toBeOnTheScreen();
   expect(getPracticeNote).not.toHaveBeenCalled();
 });
 
@@ -129,7 +129,7 @@ test('먼저 보낸 요청이 늦게 오면 버리고 나중 결과만 보여 �
 
   mockParams = { practiceId: 'p2' };
   await view.rerender(<ReportDetailScreen />);
-  expect(await screen.findByText('연습 노트를 불러오지 못했어요')).toBeOnTheScreen();
+  expect(await screen.findByText('연습 노트를 불러오지 못했어요.')).toBeOnTheScreen();
 
   resolveFirst(note({ title: '첫 번째' }));
   await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
@@ -150,7 +150,7 @@ test('늦게 온 실패도 버린다', async () => {
   expect(await screen.findByText('나중 노트')).toBeOnTheScreen();
 
   rejectFirst(new Error('late'));
-  await waitFor(() => expect(screen.queryByText('연습 노트를 불러오지 못했어요')).not.toBeOnTheScreen());
+  await waitFor(() => expect(screen.queryByText('연습 노트를 불러오지 못했어요.')).not.toBeOnTheScreen());
   expect(screen.getByText('나중 노트')).toBeOnTheScreen();
 });
 

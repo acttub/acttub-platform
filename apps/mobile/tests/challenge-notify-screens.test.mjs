@@ -45,6 +45,7 @@ test('challenge.notification: 토글을 꺼도 알림함에 쌓인다고 알린�
 });
 
 test('challenge.notification: 탭 배지는 읽지 않은 묶음 수이고 푸시를 누르면 알림함이 열린다', () => {
+  assert.match(read('app/(tabs)/_layout.tsx'), /tabBarBadge: unread\.badge/);
   assert.match(read('hooks/use-unread-notifications.ts'), /unreadNotificationCount\(\)/);
   assert.match(read('hooks/use-unread-notifications.ts'), /badgeText/);
   const root = read('app/_layout.tsx');

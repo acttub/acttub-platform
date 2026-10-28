@@ -67,9 +67,9 @@ test('결과가 없으면 적은 말을 그대로 들고 직접 등록으로 간
   await render(<LineSearchScreen />);
 
   await fireEvent.changeText(input(), '없는 대사 ');
-  await fireEvent.press(await screen.findByRole('button', { name: '직접 등록하기' }));
+  await fireEvent.press(await screen.findByRole('button', { name: /찾는 대사가 없어요\? 직접 등록하기/ }));
 
-  expect(screen.getByText('검색 결과가 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('검색 결과가 없어요.')).toBeOnTheScreen();
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/line-new', params: { line: '없는 대사' } });
 });
 
@@ -80,7 +80,7 @@ test('찾지 못하면 실패 이유를 보여 주고 빈 결과 안내는 띄�
   await fireEvent.changeText(input(), '햄릿');
 
   expect(await screen.findByText('챌린지는 회원만 이용할 수 있어요.')).toBeOnTheScreen();
-  expect(screen.queryByText('검색 결과가 없어요')).not.toBeOnTheScreen();
+  expect(screen.queryByText('검색 결과가 없어요.')).not.toBeOnTheScreen();
 });
 
 test('지우기를 누르면 입력과 결과가 비고, 키보드 검색은 바로 찾는다', async () => {
@@ -116,12 +116,12 @@ test('다시 찾는 동안에는 빈 결과 안내를 거뒀다가 끝나면 다
   await render(<LineSearchScreen />);
 
   await fireEvent.changeText(input(), '햄릿');
-  expect(await screen.findByText('검색 결과가 없어요')).toBeOnTheScreen();
+  expect(await screen.findByText('검색 결과가 없어요.')).toBeOnTheScreen();
 
   await fireEvent(input(), 'submitEditing');
-  expect(screen.queryByText('검색 결과가 없어요')).not.toBeOnTheScreen();
+  expect(screen.queryByText('검색 결과가 없어요.')).not.toBeOnTheScreen();
 
   await act(async () => resolve({ featured: null, challenges: [] }));
-  expect(screen.getByText('검색 결과가 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('검색 결과가 없어요.')).toBeOnTheScreen();
   expect(listChallenges).toHaveBeenCalledTimes(2);
 });

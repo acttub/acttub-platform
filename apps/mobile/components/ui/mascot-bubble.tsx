@@ -55,5 +55,5 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 19, fontWeight: '700', lineHeight: 25, color: palette.text },
   guide: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.blueDeep },
-  body: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMeta },
+  body: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMuted },
 });

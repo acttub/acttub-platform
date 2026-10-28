@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 
 import { palette } from '@/constants/palette';
-import { space, type } from '@/constants/tokens';
+import { useReadableNote } from '@/hooks/use-readable-input';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
-import { InlineErrorLine } from '@/components/ui/inline-error';
-import { TextField } from '@/components/ui/text-field';
 import { LinePage } from '@/components/line-page';
 import { translate as t } from '@/lib/i18n';
 import { splitGuess } from '@/lib/reading/line-edit';
@@ -29,6 +27,8 @@ export function LineSplitSheet({
   const [parts, setParts] = useState<[string, string]>(['', '']);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // 허용 글자 범위(SOMA-922) — 대본 글이라 loose.
+  const note = useReadableNote('loose');
 
   useEffect(() => {
     if (text !== null) setParts(splitGuess(text));
@@ -52,16 +52,18 @@ export function LineSplitSheet({
   };
 
   const field = (index: 0 | 1, label: string) => (
-    <TextField
-      charset="loose"
-      label={label}
-      style={styles.input}
-      value={parts[index]}
-      onChangeText={(value) => setParts(index === 0 ? [value, parts[1]] : [parts[0], value])}
-      multiline
-      maxLength={5000}
-      textAlignVertical="top"
-    />
+    <>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        style={styles.input}
+        value={parts[index]}
+        onChangeText={note.wrap((value) => setParts(index === 0 ? [value, parts[1]] : [parts[0], value]))}
+        multiline
+        maxLength={5000}
+        textAlignVertical="top"
+        accessibilityLabel={label}
+      />
+    </>
   );
 
   return (
@@ -72,23 +74,39 @@ export function LineSplitSheet({
       footer={
         <>
           <SecondaryButton label={t('common.cancel')} onPress={() => onClose(false)} disabled={busy} style={styles.button} />
-          <PrimaryButton label={t('reading.lineSplitSave')} onPress={() => void save()} disabled={!canSave} loading={busy} loadingLabel={t('loadingText.saving')} style={styles.button} />
+          <PrimaryButton label={t('reading.lineSplitSave')} onPress={() => void save()} disabled={!canSave} loading={busy} style={styles.button} />
         </>
       }>
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.sub}>{t('reading.lineSplitSub')}</Text>
         {field(0, t('reading.lineSplitFirst'))}
         {field(1, t('reading.lineSplitSecond'))}
-        {failed && <InlineErrorLine message={t('reading.lineEditFailed')} />}
+        {note.hint ? <Text style={styles.error}>{note.hint}</Text> : null}
+        {failed && <Text style={styles.error}>{t('reading.lineEditFailed')}</Text>}
       </ScrollView>
     </LinePage>
   );
 }
 
 const styles = StyleSheet.create({
-  sub: { ...type.body2, color: palette.textSub },
+  sub: { fontSize: 14, color: palette.textMuted },
   body: { flex: 1 },
-  bodyContent: { gap: space[4], paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[4] },
-  input: { minHeight: 72, maxHeight: 160, paddingTop: space[3], paddingBottom: space[3] },
+  bodyContent: { gap: 10, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
+  label: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 13, marginTop: 6 },
+  input: {
+    backgroundColor: palette.bgSubtle,
+    borderColor: palette.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: palette.text,
+    fontFamily: 'Pretendard',
+    fontSize: 15,
+    minHeight: 72,
+    maxHeight: 160,
+    lineHeight: 22,
+  },
+  error: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
   button: { flex: 1 },
 });

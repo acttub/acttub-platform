@@ -7,15 +7,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { Button, TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
-import { InlineEmpty } from '@/components/ui/inline-empty';
 import { SkeletonCards } from '@/components/ui/skeleton';
-import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { api } from '@/lib/api';
@@ -128,19 +125,17 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* 첫 사용자는 탭바가 숨으므로 홈으로 돌아갈 꺾쇠를 단다(탭바 없이는 딥링크로만 온다) — 탭바가 보이면 두지 않는다. */}
-      <NavHeader
-        large
-        title={t('profileTab.title')}
-        left={
-          firstTime ? (
-            <NavIconButton icon="chevron-left" size={26} label={t('common.back')} phLabel="profile_back_home" onPress={() => router.navigate('/')} />
-          ) : null
-        }
-        right={<NavIconButton icon="settings" label={t('settings.title')} phLabel="profile_settings" onPress={() => router.push('/settings')} />}
-      />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + space[5] }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + 20 }]}>
+        <View style={styles.top}>
+          {/* 첫 사용자는 탭바가 숨으므로 홈으로 돌아갈 꺾쇠를 단다(탭바 없이는 딥링크로만 온다) — 탭바가 보이면 두지 않는다. */}
+          {firstTime && (
+            <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="profile_back_home" onPress={() => router.navigate('/')} />
+          )}
+          <Text style={[styles.title, styles.titleGrow]}>{t('profileTab.title')}</Text>
+          <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="profile_settings" onPress={() => router.push('/settings')} />
+        </View>
 
+        {/* pen S14 ProfileCard — 옅은 바탕 카드 안에 사진 · 이름 · 소개 · 칩, 오른쪽에 편집. */}
         <View style={styles.me}>
           <View style={styles.photo}>
             {/* 사진이 없으면 pen 기본 얼굴(P/DefaultAvatar). */}
@@ -168,10 +163,12 @@ export default function ProfileScreen() {
               </View>
             )}
           </View>
-          <Button size="sm" variant="secondary" label={t('profileTab.edit')} phLabel="profile_edit" onPress={() => router.push('/profile-edit')} />
+          <Pressable style={styles.editBtn} onPress={() => router.push('/profile-edit')} accessibilityRole="button" ph-label="profile_edit">
+            <Text style={styles.editText}>{t('profileTab.edit')}</Text>
+          </Pressable>
         </View>
 
-        <AdSlot slot="profile_top" />
+        <AdSlot slot="profile_top" style={{ marginTop: 12 }} />
 
         {/* 「코치가 기억하는 것」 바로가기는 뺐다(10/25 결정) — 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다. */}
         <View style={styles.month}>
@@ -203,7 +200,7 @@ export default function ProfileScreen() {
         {tab === 'practice' && (
           <CardGrid
             loading={practiceCards === null}
-            empty={[t('profileTab.emptyPracticeTitle'), t(firstTime ? 'profileTab.emptyPracticeBodyFirst' : 'profileTab.emptyPracticeBody')]}
+            empty={t('profileTab.emptyPractice')}
             more={groups && groups.length > CARD_LIMIT ? () => router.push('/history') : undefined}
             cards={(practiceCards ?? []).map(({ group, at }) => ({
               key: group.root_id,
@@ -217,7 +214,7 @@ export default function ProfileScreen() {
         {tab === 'entries' && (
           <CardGrid
             loading={entryCards === null}
-            empty={[t('profileTab.emptyEntriesTitle'), t('profileTab.emptyEntriesBody')]}
+            empty={t('challengeEntries.empty')}
             // P03 내 참여작 — 공개 범위 바꾸기·지우기는 원래 화면에서 한다(challenge.browse).
             more={() => router.push('/challenge-entries')}
             below
@@ -237,7 +234,7 @@ export default function ProfileScreen() {
         {tab === 'saved' && (
           <CardGrid
             loading={savedCards === null}
-            empty={[t('savedVideos.emptyTitle'), t('savedVideos.emptyBody')]}
+            empty={t('savedVideos.empty')}
             more={saved && saved.length > CARD_LIMIT ? () => router.push('/saved-videos') : undefined}
             below
             cards={(savedCards ?? []).map((entry) => ({
@@ -262,7 +259,7 @@ function MonthCell({ dot, label, count }: { dot?: string; label: string; count: 
       <Text style={styles.monthCount}>{count}</Text>
       <View style={styles.monthHead}>
         {!!dot && <View style={[styles.monthDot, { backgroundColor: dot }]} />}
-        <Text style={styles.monthLabel} numberOfLines={2}>
+        <Text style={styles.monthLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
           {label}
         </Text>
       </View>
@@ -294,15 +291,14 @@ function CardGrid({
   below = false,
 }: {
   loading: boolean;
-  /** 빈 상태 InlineEmpty 의 제목·설명. */
-  empty: [string, string];
+  empty: string;
   cards: Card[];
   more?: () => void;
   /** 참여작·저장됨(pen S14.4·S14.5) — 썸네일 152 아래에 제목·하트 줄. 아니면 연습 기록처럼 썸네일 위에 글을 얹는다. */
   below?: boolean;
 }) {
-  if (loading) return <SkeletonCards count={3} columns={3} aspectRatio={0.8} style={styles.skeleton} />;
-  if (cards.length === 0) return <InlineEmpty title={empty[0]} description={empty[1]} />;
+  if (loading) return <SkeletonCards count={3} columns={3} aspectRatio={0.8} style={{ paddingHorizontal: 0 }} />;
+  if (cards.length === 0) return <Text style={styles.empty}>{empty}</Text>;
   const rows: (Card | null)[][] = [];
   for (let i = 0; i < cards.length; i += PER_ROW) {
     const row: (Card | null)[] = cards.slice(i, i + PER_ROW);
@@ -314,7 +310,7 @@ function CardGrid({
       <Image source={{ uri: card.poster.uri, cacheKey: card.poster.cacheKey }} style={StyleSheet.absoluteFill} contentFit="cover" />
     ) : (
       <View style={styles.thumbEmpty}>
-        <Feather name="play" size={22} color={palette.textDisabled} />
+        <Feather name="play" size={22} color={palette.checkOff} />
       </View>
     );
   return (
@@ -340,7 +336,7 @@ function CardGrid({
                       {card.title}
                     </Text>
                     <View style={styles.metaRow}>
-                      <Ionicons name="heart-outline" size={12} color={palette.danger} />
+                      <Ionicons name="heart" size={12} color={HEART} />
                       <Text style={styles.likes}>{card.likes ?? 0}</Text>
                       {!!card.meta && (
                         <Text style={styles.metaBelow} numberOfLines={1}>
@@ -359,7 +355,7 @@ function CardGrid({
                     {card.title}
                   </Text>
                   <View style={styles.metaRow}>
-                    <Feather name="play" size={10} color={palette.onMediaSub} />
+                    <Feather name="play" size={10} color="#FFFFFFD9" />
                     <Text style={styles.cardMeta} numberOfLines={1}>
                       {card.meta}
                     </Text>
@@ -371,86 +367,99 @@ function CardGrid({
         ))}
       </View>
       {more && (
-        <TextButton tone="accent" label={t('profileTab.seeAll')} onPress={more} />
+        <Pressable style={styles.more} onPress={more} accessibilityRole="button">
+          <Text style={styles.moreText}>{t('profileTab.seeAll')}</Text>
+        </Pressable>
       )}
     </View>
   );
 }
 
+/** pen 하트 #FF3B5C. */
+const HEART = '#FF3B5C';
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[4] },
+  content: { paddingHorizontal: 20, paddingTop: 4 },
+  top: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginRight: -10 },
+  title: { fontSize: 22, fontWeight: '800', color: palette.text },
+  titleGrow: { flex: 1 },
 
   me: {
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[4],
-    padding: space[4],
-    borderRadius: radius.lg,
+    gap: 18,
+    padding: 18,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
+    borderColor: palette.borderSoft,
+    backgroundColor: palette.bgSubtle,
   },
   photo: {
     width: 84,
     height: 84,
-    borderRadius: radius.full,
+    borderRadius: 32,
     backgroundColor: palette.bgSoft,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   photoImg: { width: '100%', height: '100%' },
-  meText: { flex: 1, minWidth: 0, gap: space[1.5] },
-  name: { ...type.title2, color: palette.text },
-  bio: { ...type.body2, color: palette.textSub },
-  bioEmpty: { color: palette.textMeta },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
-  chip: { paddingVertical: space[1], paddingHorizontal: space[2], borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
-  chipText: { ...type.micro, color: palette.textSub },
+  meText: { flex: 1, minWidth: 0, gap: 6 },
+  name: { fontSize: 20, fontWeight: '800', color: palette.text },
+  bio: { fontSize: 14, fontWeight: '400', lineHeight: 20, color: palette.textDim },
+  bioEmpty: { color: palette.textFaint },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 4 },
+  chip: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.card },
+  chipText: { fontSize: 12, fontWeight: '500', color: palette.textDim },
+  editBtn: { alignSelf: 'flex-start', backgroundColor: palette.bgSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
+  editText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
 
-  month: { flexDirection: 'row' },
-  monthCell: { flex: 1, alignItems: 'center', gap: space[1] },
-  monthHead: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  monthDot: { width: 6, height: 6, borderRadius: radius.full },
-  monthLabel: { ...type.caption, color: palette.textSub },
-  monthCount: { ...type.headline, color: palette.text },
 
-  tabs: { flexDirection: 'row', gap: space[1], padding: space[1], borderRadius: radius.md, backgroundColor: palette.bgSoft },
-  tab: { flex: 1, height: 36, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  tabOn: { backgroundColor: palette.bg },
-  tabText: { ...type.body2Bold, color: palette.textMeta },
-  tabTextOn: { color: palette.text },
+  month: { flexDirection: 'row', paddingVertical: 6 },
+  monthCell: { flex: 1, alignItems: 'center', gap: 2 },
+  monthHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  monthDot: { width: 6, height: 6, borderRadius: 3 },
+  monthLabel: { fontSize: 13, fontWeight: '500', color: palette.textDim },
+  monthCount: { fontSize: 18, fontWeight: '800', color: palette.text },
 
-  skeleton: { paddingHorizontal: 0 },
-  gridWrap: { gap: space[3] },
-  grid: { gap: space[1] },
-  gridRow: { flexDirection: 'row', gap: space[1] },
+  tabs: { marginTop: 24, flexDirection: 'row', gap: 4, padding: 4, borderRadius: 12, backgroundColor: palette.bgSoft },
+  tab: { flex: 1, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  tabOn: { backgroundColor: palette.card },
+  tabText: { fontSize: 14, fontWeight: '600', color: palette.textMuted },
+  tabTextOn: { fontWeight: '800', color: palette.text },
+
+  loading: { marginTop: 32 },
+  empty: { marginTop: 28, textAlign: 'center', fontSize: 14, fontWeight: '600', color: palette.textFaint },
+  gridWrap: { marginTop: 12, gap: 12 },
+  grid: { gap: 4 },
+  gridRow: { flexDirection: 'row', gap: 4 },
   card: {
     flex: 1,
     height: 154,
-    borderRadius: radius.sm,
+    borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: palette.bgSoft,
     justifyContent: 'flex-end',
-    paddingHorizontal: space[2],
-    paddingBottom: space[2],
-    gap: space[1],
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    gap: 3,
   },
   thumbEmpty: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: palette.scrim },
-  cardTitle: { ...type.micro, color: palette.onAccent },
-  cardMeta: { ...type.micro, color: palette.onMediaSub },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  cellEmpty: { flex: 1, borderRadius: radius.sm, backgroundColor: palette.bgSoft },
+  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: '#00000066' },
+  cardTitle: { fontSize: 11, fontWeight: '700', lineHeight: 14, color: palette.onAccent },
+  cardMeta: { fontSize: 10.5, fontWeight: '600', color: '#FFFFFFD9' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  cellEmpty: { flex: 1, borderRadius: 8, backgroundColor: palette.bgSoft },
   cellEmptyBelow: { height: 152 },
-  cardBelow: { flex: 1, gap: space[1.5] },
-  thumbBelow: { height: 152, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: palette.bgSoft },
-  lock: { position: 'absolute', top: space[1.5], right: space[1.5], width: 22, height: 22, borderRadius: radius.full, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center' },
-  infoBelow: { gap: space[1] },
-  titleBelow: { ...type.captionBold, color: palette.text },
-  likes: { ...type.micro, color: palette.textMeta },
-  metaBelow: { flexShrink: 1, ...type.micro, color: palette.textMeta },
-  more: { alignSelf: 'center' },
-  moreText: { ...type.body2Bold, color: palette.blueDeep },
+  cardBelow: { flex: 1, gap: 6 },
+  thumbBelow: { height: 152, borderRadius: 8, overflow: 'hidden', backgroundColor: palette.bgSoft },
+  lock: { position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#0000007A', alignItems: 'center', justifyContent: 'center' },
+  infoBelow: { paddingHorizontal: 2, gap: 3 },
+  titleBelow: { fontSize: 12, fontWeight: '700', lineHeight: 16, color: palette.text },
+  likes: { fontSize: 11.5, fontWeight: '700', color: palette.textDim },
+  metaBelow: { flexShrink: 1, fontSize: 11.5, fontWeight: '500', color: palette.textMuted },
+  more: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 },
+  moreText: { fontSize: 14, fontWeight: '700', color: palette.blue },
 });

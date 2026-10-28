@@ -69,9 +69,7 @@ export const MASCOT_SIZE = {
   lg: { width: 84, height: 94 },
   /** 첫 가이드 말풍선(86×96). */
   guide: { width: 86, height: 96 },
-  /** 빈 상태(96×106). */
-  empty: { width: 96, height: 106 },
-  /** 상태 화면 오류·완료 화면(120×132). */
+  /** 가입할 수 없어요(120×132). */
   xl: { width: 120, height: 132 },
   /** 가입 시작·광고성 정보 결과 팝업 뒤(127×142). */
   intro: { width: 127, height: 142 },

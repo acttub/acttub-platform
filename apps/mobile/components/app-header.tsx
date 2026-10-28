@@ -21,7 +21,7 @@ export function AppHeader({ options, back }: NativeStackHeaderProps) {
     <View style={[styles.bar, { paddingTop: insets.top }]}>
       <NavHeader
         title={title}
-        left={left}
+        left={left ? <View style={styles.back}>{left}</View> : null}
         right={right ? <View style={styles.rightInner}>{right}</View> : null}
       />
     </View>
@@ -30,5 +30,6 @@ export function AppHeader({ options, back }: NativeStackHeaderProps) {
 
 const styles = StyleSheet.create({
   bar: { backgroundColor: palette.bg },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   rightInner: { flexDirection: 'row', alignItems: 'center', paddingRight: 8, gap: 16 },
 });

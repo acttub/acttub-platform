@@ -6,13 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
-import { TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
-import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError } from '@/components/ui/inline-error';
-import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
@@ -81,7 +76,7 @@ export default function NotificationsScreen() {
     const target = targetOf(group);
     logEvent('notification_open', { kind: group.kind, target: target.kind });
     if (target.kind === 'unavailable') {
-      void alert({ title: unavailableMessage(target) });
+      void alert({ title: t('notifications.title'), message: unavailableMessage(target) });
       return;
     }
     if (target.kind === 'home') {
@@ -107,45 +102,44 @@ export default function NotificationsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <NavHeader
-        title={t('notifications.title')}
-        left={<NavBackButton onPress={() => router.back()} phLabel="notifications_back" />}
-        right={<TextButton tone="accent" label={t('notifications.markAll')} onPress={() => void readAll()} />}
-      />
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          ph-label="notifications_back">
+          <Feather name="chevron-left" size={26} color={palette.text} />
+        </Pressable>
+        <Text style={styles.title}>{t('notifications.title')}</Text>
+        <View style={styles.flex} />
+        <Pressable onPress={() => void readAll()} hitSlop={10} accessibilityRole="button">
+          <Text style={styles.readAll}>{t('notifications.markAll')}</Text>
+        </Pressable>
+      </View>
 
-      <ScrollView contentContainerStyle={styles.body} onMomentumScrollEnd={() => void loadMore()}>
-        {!pushEnabled && (
-          <View style={styles.pushOff}>
-            <Feather name="bell-off" size={16} color={palette.amber} />
-            <Text style={styles.pushOffText}>{toggleOffNotice(pushEnabled)}</Text>
-          </View>
-        )}
+      <ScrollView
+        contentContainerStyle={styles.body}
+        onMomentumScrollEnd={() => void loadMore()}>
+        {!pushEnabled && <Text style={styles.pushOff}>{toggleOffNotice(pushEnabled)}</Text>}
         {groups === null && !error && <SkeletonRows count={6} card={false} style={styles.skeletonFlush} />}
-        {!!error && <InlineError message={error} onRetry={() => void load()} />}
-        {groups !== null && groups.length === 0 && !error && (
-          <InlineEmpty title={t('notifications.empty')} description={t('notifications.emptyBody')} />
-        )}
-        <AdSlot slot="notifications_top" />
+        {!!error && <Text style={styles.error}>{error}</Text>}
+        {groups !== null && groups.length === 0 && !error && <Text style={styles.empty}>{t('notifications.empty')}</Text>}
+        <AdSlot slot="notifications_top" style={{ marginBottom: 12 }} />
 
-        <View>
-          {groups?.map((group, i) => (
-            <Pressable
-              key={group.group_key}
-              style={[styles.row, i > 0 && styles.divider]}
-              onPress={() => void open(group)}
-              accessibilityRole="button">
-              {/* 알림함은 모든 알림에 민트 기본 얼굴(DESIGN-SYSTEM 「의도된 차이」). */}
-              <DefaultAvatar size={40} radius={20} />
-              <View style={styles.rowBody}>
-                <Text style={[styles.rowText, !group.read && styles.rowTextUnread]} numberOfLines={2}>
-                  {groupLabel(group)}
-                </Text>
-                <Text style={styles.rowMeta}>{relativeDayLabel(group.latest_at)}</Text>
-              </View>
-              {!group.read && <View style={styles.dot} />}
-            </Pressable>
-          ))}
-        </View>
+        {groups?.map((group) => (
+          <Pressable key={group.group_key} style={styles.row} onPress={() => void open(group)} accessibilityRole="button">
+            {/* pen S/NotifRow — 읽음과 상관없이 기본 얼굴(Mint) 44. */}
+            <DefaultAvatar size={44} radius={22} />
+            <View style={styles.rowBody}>
+              <Text style={[styles.rowText, !group.read && styles.rowTextUnread]} numberOfLines={2}>
+                {groupLabel(group)}
+              </Text>
+              <Text style={styles.rowMeta}>{relativeDayLabel(group.latest_at)}</Text>
+            </View>
+            {!group.read && <View style={styles.dot} />}
+          </Pressable>
+        ))}
 
         {groups !== null && groups.length > 0 && <Text style={styles.keep}>{t('notifications.keep')}</Text>}
       </ScrollView>
@@ -157,23 +151,36 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   skeletonFlush: { paddingHorizontal: 0 },
   safe: { flex: 1, backgroundColor: palette.bg },
-  body: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[2] },
+  flex: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
+  title: { fontSize: 18, fontWeight: '800', color: palette.text },
+  readAll: { fontSize: 13, fontWeight: '800', color: palette.blueDeep },
+  // pen S19.4 본문 — 좌우 22, 위 16.
+  body: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 48 },
   pushOff: {
+    fontSize: 12.5,
+    color: palette.amber,
+    backgroundColor: palette.amberSoft,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    lineHeight: 19,
+  },
+  error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
+  empty: { color: palette.textDim, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
+  // pen S/NotifRow — 위아래 18, 아래 선 #EDF0F3, 칸 사이 14.
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[2],
-    paddingVertical: space[3],
-    paddingHorizontal: space[4],
-    borderRadius: radius.md,
-    backgroundColor: palette.amberSoft,
+    gap: 14,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSoft,
   },
-  pushOffText: { flex: 1, ...type.captionBold, color: palette.amber },
-  row: { minHeight: 80, flexDirection: 'row', alignItems: 'center', gap: space[3] },
-  divider: { borderTopWidth: 1, borderTopColor: palette.border },
-  rowBody: { flex: 1, gap: 2 },
-  rowText: { ...type.body1, color: palette.text },
-  rowTextUnread: type.body1Bold,
-  rowMeta: { ...type.caption, color: palette.textMeta },
-  dot: { width: 8, height: 8, borderRadius: radius.full, backgroundColor: palette.blue },
-  keep: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingVertical: space[2] },
+  rowBody: { flex: 1, gap: 4 },
+  rowText: { fontSize: 15.5, fontWeight: '400', color: palette.textDim, lineHeight: 22 },
+  rowTextUnread: { fontWeight: '800', color: palette.text },
+  rowMeta: { fontSize: 13, color: palette.textFaint },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.blue },
+  keep: { fontSize: 12, fontWeight: '700', color: palette.blueDeep, textAlign: 'center', paddingTop: 16 },
 });

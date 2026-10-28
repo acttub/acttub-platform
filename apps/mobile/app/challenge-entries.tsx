@@ -2,20 +2,13 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { KeyboardLift } from '@/components/keyboard-lift';
-import { Button, TextButton } from '@/components/ui/buttons';
-import { Chip } from '@/components/ui/chip';
-import { InlineEmpty } from '@/components/ui/inline-empty';
-import { InlineError } from '@/components/ui/inline-error';
-import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
-import { TextField } from '@/components/ui/text-field';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { browseFailure, browseFailureMessage, isEnded } from '@/lib/challenge/browse';
@@ -91,10 +84,10 @@ export default function ChallengeEntriesScreen() {
     try {
       await api.updateEntry(editing.id, { caption: draft.trim() });
       setEditing(null);
-      void alert({ title: t('challengeEntries.captionSaved') });
+      void alert({ title: t('challengeEntries.captionTitle'), message: t('challengeEntries.captionSaved') });
       void load();
     } catch (e) {
-      void alert({ title: t('challengeEntries.captionFailTitle'), message: entryFailureMessage(entryFailure(e)) });
+      void alert({ title: t('challengeEntries.captionTitle'), message: entryFailureMessage(entryFailure(e)) });
     }
   };
 
@@ -126,7 +119,7 @@ export default function ChallengeEntriesScreen() {
       logEvent('challenge_entry_visibility', { to: next });
       void load();
     } catch (e) {
-      void alert({ title: t('challengeEntries.visibilityFailTitle'), message: entryFailureMessage(entryFailure(e)) });
+      void alert({ title: t('challengeEntries.menuTitle'), message: entryFailureMessage(entryFailure(e)) });
     }
   };
 
@@ -146,7 +139,7 @@ export default function ChallengeEntriesScreen() {
       void logEvent('challenge_entry_face_mosaic', { on });
       void load();
     } catch (e) {
-      void alert({ title: t('challengeEntries.mosaicFailTitle'), message: entryFailureMessage(entryFailure(e)) });
+      void alert({ title: t('challengeEntries.menuTitle'), message: entryFailureMessage(entryFailure(e)) });
     }
   };
 
@@ -163,7 +156,7 @@ export default function ChallengeEntriesScreen() {
       logEvent('challenge_entry_deleted', {});
       void load();
     } catch (e) {
-      void alert({ title: t('challengeEntries.deleteFailTitle'), message: entryFailureMessage(entryFailure(e)) });
+      void alert({ title: t('challengeUpload.deleteTitle'), message: entryFailureMessage(entryFailure(e)) });
     }
   };
 
@@ -176,6 +169,7 @@ export default function ChallengeEntriesScreen() {
     });
     void sheet({
       anchor: pt(e),
+      title: t('challengeEntries.menuTitle'),
       actions: [
         {
           label: t('challengeUpload.editCaption'),
@@ -189,7 +183,7 @@ export default function ChallengeEntriesScreen() {
           onPress: () => {
             if (entry.visibility === 'private' && !canPublish) {
               void alert({
-                title: t('challengeEntries.cannotPublishTitle'),
+                title: t('challengeEntries.menuTitle'),
                 message:
                   entry.status !== 'visible'
                     ? t('challengeUpload.errHidden')
@@ -219,14 +213,13 @@ export default function ChallengeEntriesScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <KeyboardLift>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader
         title={t('challengeEntries.title')}
         left={<NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenge_entries_back" onPress={() => router.back()} />}
       />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
+      <View style={styles.tabs}>
         {(
           [
             ['all', t('challengeEntries.tabAll', { count: counts.all })],
@@ -235,24 +228,21 @@ export default function ChallengeEntriesScreen() {
             ['under_review', t('challengeEntries.tabReview', { count: counts.under_review })],
           ] as const
         ).map(([key, label]) => (
-          <Chip
+          <Pressable
             key={key}
-            label={label}
-            role="radio"
-            selected={filter === key}
-            size="sm"
-            phLabel={`challenge_entries_filter_${key}`}
+            style={[styles.tab, filter === key && styles.tabOn]}
             onPress={() => setFilter(key)}
-          />
+            accessibilityRole="button"
+            accessibilityState={{ selected: filter === key }}>
+            <Text style={[styles.tabText, filter === key && styles.tabTextOn]}>{label}</Text>
+          </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        {entries === null && !error && <SkeletonRows count={4} avatar style={styles.flush} />}
-        {!!error && <InlineError message={error} onRetry={() => void load()} />}
-        {entries !== null && shown.length === 0 && !error && (
-          <InlineEmpty title={t('challengeEntries.emptyTitle')} description={t('challengeEntries.emptySub')} />
-        )}
+        {entries === null && !error && <SkeletonRows count={4} avatar style={{ paddingHorizontal: 0 }} />}
+        {!!error && <Text style={styles.error}>{error}</Text>}
+        {entries !== null && shown.length === 0 && !error && <Text style={styles.empty}>{t('challengeEntries.empty')}</Text>}
 
         {shown.map((entry) => (
           <Pressable
@@ -291,32 +281,34 @@ export default function ChallengeEntriesScreen() {
               )}
             </View>
             <Pressable onPress={(e) => openMenu(entry, e)} hitSlop={10} accessibilityRole="button" ph-label="challenge_entries_more">
-              <Feather name="more-horizontal" size={20} color={palette.iconFaint} />
+              <Feather name="more-horizontal" size={20} color={palette.textFaint} />
             </Pressable>
           </Pressable>
         ))}
-        {truncated && <Text style={styles.truncated}>{t('challengeEntries.truncated')}</Text>}
+        {truncated && <Text style={styles.empty}>{t('challengeEntries.truncated')}</Text>}
       </ScrollView>
 
-      {/* 캡션 편집 줄은 스크롤 밖 형제라 KeyboardLift 가 비운 만큼 키보드 위로 올라온다(키보드에 가리던 문제). */}
       {editing && (
         <View style={styles.editor}>
-          <TextField
-            label={t('challengeEntries.captionTitle')}
+          <Text style={styles.editorLabel}>{t('challengeEntries.captionTitle')}</Text>
+          <TextInput
+            style={styles.editorInput}
             value={draft}
             onChangeText={setDraft}
             maxLength={CAPTION_MAX}
             multiline
             autoFocus
-            style={styles.editorInput}
           />
           <View style={styles.editorRow}>
-            <TextButton label={t('common.cancel')} onPress={() => setEditing(null)} />
-            <Button size="md" label={t('common.save')} onPress={() => void saveCaption()} style={styles.editorSave} />
+            <Pressable onPress={() => setEditing(null)} accessibilityRole="button">
+              <Text style={styles.editorCancel}>{t('common.cancel')}</Text>
+            </Pressable>
+            <Pressable style={styles.editorSave} onPress={() => void saveCaption()} accessibilityRole="button">
+              <Text style={styles.editorSaveText}>{t('common.save')}</Text>
+            </Pressable>
           </View>
         </View>
       )}
-      </KeyboardLift>
       {dialog}
     </SafeAreaView>
   );
@@ -324,41 +316,60 @@ export default function ChallengeEntriesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  flush: { paddingHorizontal: 0 },
-  tabsScroll: { flexGrow: 0 },
-  tabs: { gap: space[1.5], paddingHorizontal: space.gutter, paddingVertical: space[3] },
-  body: { paddingHorizontal: space.gutter, paddingBottom: space[10] },
-  truncated: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingVertical: space[6] },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
+  title: { fontSize: 18, fontWeight: '800', color: palette.text },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  tab: { borderRadius: 999, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 12, paddingVertical: 7 },
+  tabOn: { backgroundColor: palette.text, borderColor: palette.text },
+  tabText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
+  tabTextOn: { color: '#FFFFFF' },
+  body: { padding: 16, paddingBottom: 60 },
+  error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', paddingVertical: 16, textAlign: 'center' },
+  empty: { color: palette.textDim, fontSize: 14.5, textAlign: 'center', paddingVertical: 48 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[3],
-    paddingVertical: space[3],
+    gap: 10,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    borderBottomColor: palette.borderSoft,
   },
   thumb: {
     width: 64,
     aspectRatio: 9 / 16,
-    borderRadius: radius.sm,
+    borderRadius: 10,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  rowBody: { flex: 1, gap: space[1] },
-  rowLine: { ...type.body1Bold, color: palette.text },
-  rowMeta: { ...type.caption, color: palette.textMeta },
-  rowStatus: { ...type.captionBold, color: palette.textMeta },
+  rowBody: { flex: 1, gap: 4 },
+  rowLine: { fontSize: 15, fontWeight: '700', color: palette.text },
+  rowMeta: { fontSize: 12, color: palette.textFaint },
+  rowStatus: { fontSize: 12, fontWeight: '700', color: palette.textMuted },
   editor: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: palette.bg,
     borderTopWidth: 1,
     borderTopColor: palette.border,
-    paddingHorizontal: space.gutter,
-    paddingVertical: space[3],
-    gap: space[3],
+    padding: 16,
+    gap: 10,
   },
-  editorInput: { minHeight: 80, paddingTop: space[3], textAlignVertical: 'top' },
-  editorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: space[2] },
-  editorSave: { paddingHorizontal: space[5] },
+  editorLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
+  editorInput: {
+    minHeight: 80,
+    borderRadius: 12,
+    backgroundColor: palette.bgSoft,
+    padding: 12,
+    fontSize: 14,
+    color: palette.text,
+    textAlignVertical: 'top',
+  },
+  editorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 16 },
+  editorCancel: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
+  editorSave: { backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 11 },
+  editorSaveText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
 });

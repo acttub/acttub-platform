@@ -47,6 +47,15 @@ test('challenge.browse: 카드에 참여작 수·좋아요 합·참여자 셋과
   assert.doesNotMatch(list, /photo/);
 });
 
+test('challenge.browse: 시작 안내는 기기당 한 번이고 좋아요 랭킹이 점수가 아님을 말한다', () => {
+  assert.match(read('app/(tabs)/challenges.tsx'), /hasSeenChallengeIntro/);
+  assert.match(read('app/(tabs)/challenges.tsx'), /markChallengeIntroSeen/);
+  assert.match(read('lib/challenge/intro-state.ts'), /acttub\.challenge\.introSeen/);
+  assert.match(read('locales/ko.ts'), /점수를 매기지 않아요/);
+  // 넘기는 방향은 위아래다.
+  assert.match(read('locales/ko.ts'), /위아래로/);
+});
+
 test('challenge.browse: 검색은 두 글자 이상이고 결과가 없으면 직접 등록으로 잇는다', () => {
   const search = read('app/line-search.tsx');
 
@@ -86,6 +95,15 @@ test('challenge.browse: 상세는 좋아요순·최신순을 고르고 종료·�
   assert.match(detail, /firstBadgeLabel/);
   assert.match(detail, /hostLabel/);
   assert.match(detail, /challenges\.newBadge/);
+});
+
+test('challenge.create: 참여작이 없는 자기 챌린지만 상세에서 지울 수 있다', () => {
+  const detail = read('app/challenge-detail.tsx');
+
+  // 지울 수 있는지는 ⋯ 메뉴 항목을 정하는 detailHeader 가 canDelete 로 가른다(SOMA-887, lib/challenge/menu).
+  assert.match(detail, /detailHeader\(challenge\)/);
+  assert.match(detail, /api\.deleteChallenge/);
+  assert.match(detail, /challenges\.deleteHasEntries/);
 });
 
 test('challenge.browse: 챌린지 탭은 앱 언어와 상관없이 회원에게 열리고 게스트는 안내를 본다', async () => {

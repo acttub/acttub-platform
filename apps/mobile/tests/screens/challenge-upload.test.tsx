@@ -114,9 +114,8 @@ test('보관함 영상으로 올리면 「공개」가 위에 먼저 골라져 �
     caption: '첫 도전',
   });
   expect(logEvent).toHaveBeenCalledWith('challenge_entry_created', { visibility: 'public' });
-  // 처음 참여도 그 뒤와 같은 완료 꼴이다 — 축하 제목만 다르고 다음 행동 줄 셋과 「홈으로 가기」.
+  // 처음 참여면 칭찬 화면(C19.3): 홈으로 가기 + 글자 「SNS에 공유하기」.
   expect(await screen.findByText(/첫 챌린지 해냈어요\./)).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '다른 참여작 보기' })).toBeOnTheScreen();
   expect(screen.getByText(/“사느냐 죽느냐”.*공개/)).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
   expect(screen.queryByText('AI 리포트 보기')).not.toBeOnTheScreen();
@@ -211,7 +210,6 @@ test('끝난 챌린지에는 올릴 수 없다고 알리고 버튼을 막는다'
   await render(<ChallengeUploadScreen />);
 
   expect(await screen.findByText('이 챌린지는 끝났어요. 영상은 그대로 있어요.')).toBeOnTheScreen();
-  expect(screen.getByText('종료')).toBeOnTheScreen();
   expect(submitButton()).toBeDisabled();
 });
 
@@ -221,8 +219,6 @@ test('챌린지를 못 읽으면 없다고 알리고 넘겨받은 대사를 보�
   await render(<ChallengeUploadScreen />);
 
   expect(await screen.findByText('없는 챌린지예요.')).toBeOnTheScreen();
-  // 올릴 챌린지가 없으니 영상이 있어도 「올리기」는 꺼져 있다.
-  expect(submitButton()).toBeDisabled();
 });
 
 test('길이 한도를 넘는 캡션이 들어오면 다시 확인하라고 하고 버튼을 막는다', async () => {

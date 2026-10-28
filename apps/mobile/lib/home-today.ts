@@ -134,3 +134,10 @@ export function tipIndex(now: Date, count: number): number {
   const day = Math.floor((now.getTime() - now.getTimezoneOffset() * 60_000) / DAY_MS);
   return ((day % count) + count) % count;
 }
+
+/** 그 시각이 한국 날짜로 어제인가(홈 인사 「어제 읽던 데서…」). */
+export function wasYesterday(iso: string | null | undefined, now: Date): boolean {
+  const at = iso ? Date.parse(iso) : Number.NaN;
+  if (!Number.isFinite(at)) return false;
+  return kstDayIndex(now.getTime()) - kstDayIndex(at) === 1;
+}

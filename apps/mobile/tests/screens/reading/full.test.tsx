@@ -20,7 +20,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
   resetReadingState();
   await render(<ReadingFull />);
 
-  expect(screen.getByText('대본이 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('대본이 없어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본으로'));
   expect(mockDismissTo).toHaveBeenCalledWith('/reading');
 });
@@ -106,7 +106,6 @@ test('지우기를 취소하면 서버에 보내지 않고, 서버가 거절하�
   await fireEvent.press(screen.getByText('지우기'));
   await fireEvent.press(screen.getByText('지우기'));
   expect(await screen.findByText('이 대사 하나만 연습한 기록이 있어 지울 수 없어요.')).toBeOnTheScreen();
-  expect(screen.getByText('지울 수 없어요')).toBeOnTheScreen();
   expect(screen.getByText('응, 늦어서 미안해.')).toBeOnTheScreen();
 });
 

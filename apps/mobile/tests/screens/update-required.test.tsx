@@ -44,10 +44,10 @@ test('iOS 스토어 주소가 있으면 업데이트 버튼이 그 주소를 연
   await lib.render(<Screen />);
 
   expect(lib.screen.getAllByText('새 버전으로 업데이트해 주세요')).toHaveLength(1);
-  await lib.fireEvent.press(lib.screen.getByRole('button', { name: '업데이트하기' }));
+  await lib.fireEvent.press(lib.screen.getByRole('button', { name: '업데이트' }));
 
   expect(openURL).toHaveBeenCalledWith('https://apps.apple.com/app/id123');
-  expect(lib.screen.queryAllByText('스토어를 열지 못했어요. 스토어에서 Acttub을 직접 찾아 주세요.')).toHaveLength(0);
+  expect(lib.screen.queryAllByText('스토어를 열지 못했어요. 스토어에서 Acttub을 직접 찾아주세요.')).toHaveLength(0);
 });
 
 test('스토어를 열지 못하면 직접 찾으라고 안내한다', async () => {
@@ -55,9 +55,9 @@ test('스토어를 열지 못하면 직접 찾으라고 안내한다', async () 
   jest.spyOn(RN.Linking, 'openURL').mockRejectedValue(new Error('no handler'));
   await lib.render(<Screen />);
 
-  await lib.fireEvent.press(lib.screen.getByRole('button', { name: '업데이트하기' }));
+  await lib.fireEvent.press(lib.screen.getByRole('button', { name: '업데이트' }));
 
-  expect(await lib.screen.findAllByText('스토어를 열지 못했어요. 스토어에서 Acttub을 직접 찾아 주세요.')).toHaveLength(1);
+  expect(await lib.screen.findAllByText('스토어를 열지 못했어요. 스토어에서 Acttub을 직접 찾아주세요.')).toHaveLength(1);
 });
 
 test('안드로이드는 패키지 이름으로 플레이 스토어 주소를 만든다', async () => {
@@ -65,7 +65,7 @@ test('안드로이드는 패키지 이름으로 플레이 스토어 주소를 �
   const openURL = jest.spyOn(RN.Linking, 'openURL').mockResolvedValue(true);
   await lib.render(<Screen />);
 
-  await lib.fireEvent.press(lib.screen.getByRole('button', { name: '업데이트하기' }));
+  await lib.fireEvent.press(lib.screen.getByRole('button', { name: '업데이트' }));
 
   expect(openURL).toHaveBeenCalledWith('https://play.google.com/store/apps/details?id=com.acttub.app');
 });
@@ -74,7 +74,7 @@ test('스토어 주소를 모르면 버튼 없이 직접 업데이트하라고 �
   const { lib, Screen } = load('ios', undefined);
   await lib.render(<Screen />);
 
-  expect(lib.screen.getAllByText('스토어에서 Acttub을 찾아 업데이트해 주세요.')).toHaveLength(1);
+  expect(lib.screen.getAllByText('스토어에서 Acttub을 찾아 업데이트해주세요.')).toHaveLength(1);
   expect(lib.screen.queryAllByRole('button')).toHaveLength(0);
 });
 

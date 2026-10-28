@@ -1,14 +1,14 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
-import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 import type { CoachPurpose } from '@/lib/practice/types';
 
 type CardKey = 'good' | 'issue' | 'next';
 
-// 평가 결과 · 막힌 곳 정리 — 항목마다 점 색(green 잘된 곳 · danger 아쉬운/막힌 곳 · blue 다음/해 볼 것).
-const DOT: Record<CardKey, string> = { good: palette.green, issue: palette.danger, next: palette.blue };
+// pen ⓐ1 평가 결과 · ⓑ5 막힌 곳 정리 — 항목마다 점 색(초록 잘된 곳 · 주황 아쉬운/막힌 곳 · 파랑 다음/해 볼 것).
+// palette 에 아직 없는 초록·주황 점 값은 여기 둔다.
+const DOT: Record<CardKey, string> = { good: '#2FA05A', issue: '#E2711D', next: palette.blue };
 const ORDER: Record<'evaluate' | 'stuck', readonly CardKey[]> = {
   evaluate: ['good', 'issue', 'next'],
   stuck: ['issue', 'next', 'good'],
@@ -38,6 +38,7 @@ export function CoachPurposeCards({ purpose, hasVideo, onSeek }: {
         <View key={cell.key} style={styles.row}>
           <Text style={styles.label}>{cell.label}</Text>
           <Text style={styles.value}>{cell.value || t('coach.purposeEmpty')}</Text>
+          {cell.value && cell.source ? <Text style={styles.source}>{cell.source}</Text> : null}
         </View>
       )) : card ? ORDER[kind].map((key) => {
         const item = card[key];
@@ -47,7 +48,7 @@ export function CoachPurposeCards({ purpose, hasVideo, onSeek }: {
             <View style={[styles.dot, { backgroundColor: DOT[key] }]} />
             <Text style={styles.label} testID="coach-purpose-label">{t(LABEL[kind][key])}</Text>
             {hasVideo && item.at != null ? <Pressable style={styles.time} accessibilityRole="button" hitSlop={8} onPress={() => onSeek(item.at!)}>
-              <Text style={styles.timeText}>{`▷ ${clock(item.at)}`}</Text>
+              <Text style={styles.timeText}>{`▶ ${clock(item.at)}`}</Text>
             </Pressable> : null}
           </View>
           <Text style={styles.value}>{item.text}</Text>
@@ -57,16 +58,16 @@ export function CoachPurposeCards({ purpose, hasVideo, onSeek }: {
   );
 }
 
-// 테두리 카드 — 흰 바탕 · 1px border · r-lg · 안쪽 16. 제목 body2-bold, 항목 머리 micro 회색, 글 body2. 인물 카드의 출처(배우·코치)는
-// 보이지 않는다 — 역할 코드가 화면에 그대로 나오던 자리다.
+// pen ⓐ1 「평가 결과」 카드 — 흰 바탕 · 테두리 · 모서리 16 · 안쪽 14 · 사이 10. 제목 14/800, 항목 머리 12/700 회색, 글 14/400(줄 21).
 const styles = StyleSheet.create({
-  card: { padding: space[4], borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, gap: space[3] },
-  title: { ...type.body2Bold, color: palette.text },
-  row: { gap: space[1] },
-  head: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  dot: { width: 8, height: 8, borderRadius: radius.full },
-  label: { ...type.micro, color: palette.textMeta },
-  value: { ...type.body2, color: palette.text },
-  time: { borderRadius: radius.full, paddingVertical: 2, paddingHorizontal: space[2], backgroundColor: palette.blueSoft },
-  timeText: { ...type.micro, color: palette.blueDeep },
+  card: { padding: 14, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, gap: 10 },
+  title: { fontSize: 14, fontWeight: '800', lineHeight: 20, color: palette.text },
+  row: { gap: 4 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
+  label: { fontSize: 12, fontWeight: '700', lineHeight: 17, color: palette.textMuted },
+  value: { fontSize: 14, lineHeight: 21, color: palette.text },
+  source: { fontSize: 12, fontWeight: '600', color: palette.blueDeep, alignSelf: 'flex-start' },
+  time: { borderRadius: 8, paddingVertical: 1, paddingHorizontal: 6, backgroundColor: palette.blueSoft },
+  timeText: { fontSize: 11, fontWeight: '700', lineHeight: 15, color: palette.blueDeep },
 });

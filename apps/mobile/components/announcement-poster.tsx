@@ -175,17 +175,17 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(25,31,40,0.55)', justifyContent: 'center', paddingHorizontal: 24 },
-  card: { borderRadius: 24, backgroundColor: palette.bg, padding: 16, paddingBottom: 8 },
+  card: { borderRadius: 24, backgroundColor: palette.card, padding: 16, paddingBottom: 8 },
   art: { height: 150, borderRadius: 16, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   mascot: { width: 130, height: 130 },
-  badge: { alignSelf: 'flex-start', overflow: 'hidden', marginTop: 18, backgroundColor: palette.flameSoft, color: palette.text, borderRadius: 9999, paddingHorizontal: 12, paddingVertical: 6, fontSize: 13, fontWeight: '800' },
+  badge: { alignSelf: 'flex-start', overflow: 'hidden', marginTop: 18, backgroundColor: palette.flameSoft, color: palette.flameDeep, borderRadius: 9999, paddingHorizontal: 12, paddingVertical: 6, fontSize: 13, fontWeight: '800' },
   title: { marginTop: 12, color: palette.text, fontSize: 21, lineHeight: 28, fontWeight: '800' },
-  body: { color: palette.textMeta, fontSize: 15, lineHeight: 22, fontWeight: '400', marginTop: 8 },
+  body: { color: palette.textMuted, fontSize: 15, lineHeight: 22, fontWeight: '400', marginTop: 8 },
   sample: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderRadius: 12, backgroundColor: palette.blueSoft, paddingHorizontal: 14, height: 44 },
   sampleText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   enable: { marginTop: 20, height: 52, borderRadius: 12, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   enableText: { color: palette.onAccent, fontSize: 17, fontWeight: '700' },
   footer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   footerBtn: { height: 44, paddingHorizontal: 8, justifyContent: 'center' },
-  dismissText: { color: palette.textMeta, fontSize: 14, fontWeight: '600' },
+  dismissText: { color: palette.textMuted, fontSize: 14, fontWeight: '600' },
 });

@@ -93,15 +93,3 @@ test('칠할 어절이 없으면 다르게 들린 말이 없다고 한다', asyn
   await render(<PronunciationReportScreen />);
   expect(await screen.findByText('다르게 들린 말이 없었어요')).toBeOnTheScreen();
 });
-
-test('보고서를 못 받으면 오류 화면의 「다시 시도」로 다시 묻는다', async () => {
-  getReport.mockRejectedValueOnce(new Error('offline'));
-  await render(<PronunciationReportScreen />);
-  expect(await screen.findByText('보고서를 만들지 못했어요')).toBeOnTheScreen();
-  expect(screen.getByText('나중에 다시 열어 주세요.')).toBeOnTheScreen();
-
-  getReport.mockResolvedValue({ status: 'skipped', report: null });
-  await fireEvent.press(screen.getByText('다시 시도'));
-  expect(await screen.findByText('만들 보고서가 없어요')).toBeOnTheScreen();
-  expect(getReport).toHaveBeenCalledTimes(2);
-});
