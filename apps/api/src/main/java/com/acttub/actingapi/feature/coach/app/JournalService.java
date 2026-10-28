@@ -17,6 +17,7 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -181,6 +182,7 @@ public class JournalService {
 
     private static String strip(String value) {
         if (value == null) return null;
+        InputCharset.require(value);
         String stripped = value.strip();
         return stripped.isEmpty() ? null : stripped;
     }

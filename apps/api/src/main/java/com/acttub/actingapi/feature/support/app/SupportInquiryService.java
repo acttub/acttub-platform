@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.support.app.SupportInquiryStore.Inquiry;
 import com.acttub.actingapi.feature.support.app.SupportInquiryStore.NewInquiry;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import org.springframework.stereotype.Service;
 
@@ -30,6 +31,7 @@ public class SupportInquiryService {
 
     /** 본문은 다듬은 뒤 길이를 본다 — 공백만 채운 10자는 10자가 아니다. */
     public Accepted submit(String category, String email, String body, UUID userId, String client) {
+        InputCharset.require(body);
         String trimmedEmail = SupportInquiryRules.normalize(email);
         String trimmedBody = SupportInquiryRules.normalize(body);
         int length = trimmedBody == null ? 0 : SupportInquiryRules.length(trimmedBody);

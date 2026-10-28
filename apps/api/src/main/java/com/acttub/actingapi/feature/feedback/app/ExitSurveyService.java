@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyStore.Accepted;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyStore.NewSurvey;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,7 @@ public class ExitSurveyService {
      * @param dismissed 배우가 그냥 나갔으면 참 — 그때만 본문이 없어도 된다
      */
     public Accepted submit(NewSurvey requested, boolean dismissed) {
+        InputCharset.require(requested.body());
         String body = ExitSurveyRules.normalize(requested.body());
         if (!dismissed && body == null) {
             throw new ApiException(422, "feedback_body_required");

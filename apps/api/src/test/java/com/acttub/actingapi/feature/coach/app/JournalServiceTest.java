@@ -227,4 +227,12 @@ class JournalServiceTest {
             return next;
         }
     }
+
+    @org.junit.jupiter.api.Test
+    void cleanRejectsStackedCombiningMarks() {
+        var answers = new ActorJournal.Answers(null, new ActorJournal.Unknown(false, "Z\u0325\u031c\u0318\u0316\u0323x"), null, null);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> JournalService.clean(answers))
+                .isInstanceOf(com.acttub.actingapi.platform.web.ApiException.class)
+                .hasMessageContaining("unreadable_text");
+    }
 }

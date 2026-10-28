@@ -239,6 +239,9 @@ class ErrorContractInventoryTest {
                     "feature.coach.adapter.web.DirectVideoControllerTest"),
             covered("feature.coach.adapter.web.DirectVideoController|422|empty_video", 1,
                     "feature.coach.adapter.web.DirectVideoControllerTest"),
+            // 자유 입력칸 공용 글자 범위(SOMA-922). 댓글·신고·이름·대본 등이 같은 한 곳에서 거절한다.
+            covered("platform.text.InputCharset|400|unreadable_text", 2,
+                    "platform.text.InputCharsetTest"),
             covered("feature.coach.app.ConversationService|400|unreadable_text", 1,
                     "feature.coach.app.ConversationServiceTest"),
             covered("feature.coach.app.DirectVideoSessions|400|unreadable_text", 1,

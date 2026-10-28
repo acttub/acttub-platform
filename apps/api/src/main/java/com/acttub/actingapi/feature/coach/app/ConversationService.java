@@ -17,6 +17,7 @@ import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.schema.ExperienceVersion;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -240,7 +241,7 @@ public class ConversationService {
 
     private Turn replyTurn(UUID userId, UUID conversationId, UUID requestId, String text, Long revision, CoachStream stream) {
         // 결합 기호를 쌓은 글자 같은 허용 범위 밖 글자는 저장하지도 코치에게 넘기지도 않는다.
-        if (!ActorTextCharset.readable(text)) throw new ApiException(400, "unreadable_text");
+        if (!InputCharset.readable(text)) throw new ApiException(400, "unreadable_text");
         Loaded loaded = require(conversations.loadByConversation(userId, conversationId));
         String fingerprint = fingerprint("coach_reply|" + conversationId + "|" + text);
         Replay replayed = conversations.findReplay(conversationId, requestId, fingerprint);

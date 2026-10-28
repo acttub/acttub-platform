@@ -25,6 +25,7 @@ import com.acttub.actingapi.feature.reading.domain.CocreateRules.Issue;
 import com.acttub.actingapi.feature.reading.domain.CocreateRules.Slot;
 import com.acttub.actingapi.feature.reading.domain.CocreatedScript;
 import com.acttub.actingapi.feature.reading.app.ScriptCocreateRepository.Row;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -128,6 +129,7 @@ public class ScriptCocreateService {
 
     /** 만들기. 같은 요청 id 로 다시 오면 먼저 만든 것을 준다({@code created=false}). */
     public View generate(UUID userId, UUID requestId, Request request) {
+        InputCharset.require(request.goal(), request.emotion(), request.situation(), request.direction());
         if (!CocreateRules.allowedCount(request.characterCount()) || !CocreateRules.allowedLength(request.minutes())) {
             throw new ApiException(422, "sample_script_invalid_options");
         }
@@ -171,6 +173,7 @@ public class ScriptCocreateService {
 
     /** 고치기. 실패하면 원본과 횟수는 그대로다. */
     public View revise(UUID userId, UUID id, Revision revision) {
+        InputCharset.require(revision.text());
         Row row = ready(userId, id);
         if (row.scriptId() != null) {
             throw new ApiException(409, "sample_script_saved");

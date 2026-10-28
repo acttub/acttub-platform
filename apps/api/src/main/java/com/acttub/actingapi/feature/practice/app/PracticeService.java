@@ -16,6 +16,7 @@ import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.StatusView;
 import com.acttub.actingapi.feature.practice.domain.PracticeRules;
 import com.acttub.actingapi.platform.schema.ExperienceVersion;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
 
@@ -75,6 +76,7 @@ public class PracticeService {
      * 수정과 같은 자리다.
      */
     public PracticeView start(UUID userId, boolean guest, String contractHeader, Draft draft) {
+        requireReadable(draft);
         boolean withVideo = draft.videoId() != null;
         if (!PracticeRules.videoMatchesPurpose(withVideo, PracticeRules.sessionPurpose(draft.sessionPurpose()))) {
             // 요청 검증(PracticeCreateRequest)이 먼저 422 배열로 거절한다. 여기 닿으면 부르는 쪽의 잘못이다.
@@ -124,6 +126,7 @@ public class PracticeService {
      * 422 {@code video_not_ready} 이고 새 영상으로는 된다.
      */
     public PracticeView continueGroup(UUID userId, boolean guest, String contractHeader, UUID from, Draft draft) {
+        requireReadable(draft);
         // 이어하기는 늘 영상으로 한다. 영상 없는 묶음을 이으려면 새 영상을 보낸다(없으면 422 video_not_ready).
         Quota quota = coachingQuota(userId, guest);
         return answer(practices.continueGroup(
@@ -201,6 +204,7 @@ public class PracticeService {
     }
 
     public GroupView updateGroup(UUID userId, UUID rootId, Boolean favorite, Boolean hidden, String title) {
+        InputCharset.require(title);
         GroupView group = practices.updateGroup(userId, rootId, favorite, hidden, title, clock.instant());
         if (group == null) {
             throw notFound();
@@ -239,6 +243,10 @@ public class PracticeService {
             this(requestId, videoId, situation, characterContext, goal, blockageKind, subBranch, blockageNote, title,
                     sessionPurpose, null);
         }
+    }
+
+    private static void requireReadable(Draft draft) {
+        InputCharset.require(draft.situation(), draft.characterContext(), draft.goal(), draft.blockageNote(), draft.title());
     }
 
     private NewPractice newPractice(Draft draft, String contractHeader) {
