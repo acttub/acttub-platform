@@ -37,7 +37,7 @@ class FaceMosaicRendererTest {
     @Test void blockCountAcrossTheFaceStaysTheSameAtAnyResolution() {
         for (int faceWidth : new int[] {60, 120, 240, 480}) {
             int block = FaceMosaicRenderer.blockSize(faceWidth, faceWidth * 1.2);
-            assertThat(faceWidth / (double) block).isLessThanOrEqualTo(8).isGreaterThanOrEqualTo(3);
+            assertThat(faceWidth / (double) block).isLessThanOrEqualTo(8).isGreaterThanOrEqualTo(2);
         }
         // 얼굴이 아주 작으면 칸이 하한보다 작아지지 않는다.
         assertThat(FaceMosaicRenderer.blockSize(16, 20)).isEqualTo(FaceMosaicRenderer.MIN_BLOCK);

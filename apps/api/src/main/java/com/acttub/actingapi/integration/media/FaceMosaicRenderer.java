@@ -37,8 +37,8 @@ public final class FaceMosaicRenderer implements FaceMosaic {
     static final double SIDE_MARGIN = 0.4;
     static final double TOP_MARGIN = 0.5;
     static final double BOTTOM_MARGIN = 0.35;
-    /** 모자이크 칸은 찾은 얼굴의 폭(넓히기 전)을 이만큼으로 나눈다 — 얼굴 폭 하나가 가로 4칸 안팎이다. */
-    static final int BLOCKS_PER_FACE = 4;
+    /** 모자이크 칸은 찾은 얼굴의 폭(넓히기 전)을 이만큼으로 나눈다 — 얼굴 폭 하나가 가로 3칸 안팎이다. */
+    static final int BLOCKS_PER_FACE = 3;
     static final int MIN_BLOCK = 8;
     private static final int OUTPUT_LONG_SIDE = 1280;
     private static final int DETECT_LONG_SIDE = 960;
