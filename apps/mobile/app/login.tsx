@@ -38,7 +38,6 @@ const GOOGLE_TEXT = '#1F1F1F';
 // 카카오·네이버 로그인 버튼 규격 색(각 브랜드 가이드).
 const KAKAO_YELLOW = '#FEE500';
 const KAKAO_TEXT = '#191919';
-const KAKAO_SYMBOL = '#000000';
 const NAVER_GREEN = '#03C75A';
 
 type ProviderList =
@@ -146,8 +145,13 @@ export default function LoginScreen() {
         ) : (
           <Text style={styles.appleGlyph}></Text>
         ))}
-      {provider === 'kakao' && <KakaoSymbol />}
-      {provider === 'naver' && <Text style={styles.naverN}>N</Text>}
+      {/* 카카오·네이버 공식 로그인 리소스(카카오 디벨로퍼스 심볼, 네이버 로그인 BI 아이콘)를 그대로 쓴다. */}
+      {provider === 'kakao' && (
+        <Image source={require('@/assets/images/kakao-symbol.png')} style={size === 'wide' ? styles.kakaoLogoWide : styles.kakaoLogo} contentFit="contain" />
+      )}
+      {provider === 'naver' && (
+        <Image source={require('@/assets/images/naver-login-icon.png')} style={size === 'wide' ? styles.naverLogoWide : styles.naverLogo} contentFit="contain" />
+      )}
     </>
   );
   const renderWide = (provider: LoginProvider) => {
@@ -196,7 +200,7 @@ export default function LoginScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       {/* 두 View 를 펼치지 않는다(collapsable={false}). 「로그인하는 중」 줄의 투명도가 바뀔 때 안드로이드 새 구조(Fabric)가 이 줄을
           SafeAreaView 바로 아래로 펼쳤다 다시 묶다가 「View already has a parent」로 앱이 꺼졌다(10/28 새 계정 Google 로그인 직후). */}
-      <View style={styles.hero} collapsable={false}>
+      <View style={styles.hero} collapsable={false} pointerEvents="box-none">
         <Image
           source={require('@/assets/images/logo-wordmark.png')}
           style={styles.logo}
@@ -210,6 +214,7 @@ export default function LoginScreen() {
         )}
       </View>
 
+      <View style={styles.flexSpacer} />
       <View style={styles.bottom}>
         {loginNotice?.kind === 'notice' && (
           <Text style={styles.notice}>{loginNotice.message}</Text>
@@ -223,8 +228,8 @@ export default function LoginScreen() {
 
         {list.status === 'loading' ? (
           <SkeletonGroup style={styles.wideStack}>
-            <SkeletonBlock height={56} radius={16} />
-            <SkeletonBlock height={56} radius={16} />
+            <SkeletonBlock height={62} radius={16} />
+            <SkeletonBlock height={62} radius={16} />
           </SkeletonGroup>
         ) : list.status === 'error' ? (
           <View style={styles.reloadBox}>
@@ -257,30 +262,22 @@ export default function LoginScreen() {
   );
 }
 
-/** 카카오 로그인 버튼 가이드의 심볼(검은 말풍선). 아이콘 글꼴에 같은 모양이 없어 도형으로 그린다. */
-function KakaoSymbol() {
-  return (
-    <View style={styles.kakaoSymbol}>
-      <View style={styles.kakaoBubble} />
-      <View style={styles.kakaoTail} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 28 },
-  hero: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
+  // 로고·문구는 화면 위아래 끝의 정가운데에 둔다(아래 버튼 영역과 상관없이).
+  hero: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', gap: 16 },
+  flexSpacer: { flex: 1 },
   logo: { width: 220, height: 88 },
   tagline: { fontSize: 15, fontWeight: '500', color: palette.textDim, textAlign: 'center', lineHeight: 22 },
   // 로그인하는 중 — 돌림 표시와 한 줄 문구.
-  progress: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 56 },
+  progress: { position: 'absolute', top: '62%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
   progressText: { fontSize: 14, fontWeight: '500', color: palette.textMuted },
   bottom: { paddingBottom: 28, gap: 18 },
   // 켜진 제공자 수(2~4개)와 상관없이 가운데에 모은다 — 둘일 때 양 끝으로 벌어지지 않게.
   circleRow: { flexDirection: 'row', justifyContent: 'center', gap: 20 },
   providerBox: { gap: 18 },
   wideStack: { gap: 14 },
-  wide: { height: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  wide: { height: 62, paddingHorizontal: 20, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   wideLabel: { fontSize: 16, fontWeight: '600' },
   googleLogoWide: { width: 20, height: 20 },
   recentBadge: { position: 'absolute', top: -9, right: 14, backgroundColor: palette.blue, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 3 },
@@ -290,23 +287,10 @@ const styles = StyleSheet.create({
   dividerText: { fontSize: 13, color: '#8A8D95' },
   circle: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   googleLogo: { width: 24, height: 24 },
-  naverN: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
-  kakaoSymbol: { width: 26, height: 25 },
-  kakaoBubble: { width: 26, height: 21, borderRadius: 13, backgroundColor: KAKAO_SYMBOL },
-  kakaoTail: {
-    position: 'absolute',
-    left: 6,
-    top: 17,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 3,
-    borderRightWidth: 3,
-    borderTopWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: KAKAO_SYMBOL,
-    transform: [{ rotate: '25deg' }],
-  },
+  naverLogo: { width: 56, height: 56 },
+  naverLogoWide: { width: 28, height: 28 },
+  kakaoLogo: { width: 26, height: 26 },
+  kakaoLogoWide: { width: 22, height: 22 },
   pressed: { opacity: 0.7 },
   dim: { opacity: 0.5 },
   appleGlyph: { fontFamily: 'System', fontSize: 26, color: '#FFFFFF' },

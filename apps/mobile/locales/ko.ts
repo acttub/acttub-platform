@@ -395,6 +395,7 @@ const ko = {
     placeholder: '대사·작품·배우 검색',
     empty: '검색 결과가 없어요.',
     registerCta: '찾는 대사가 없어요? 직접 등록하기',
+    emptySub: '찾는 대사가 없으면 직접 등록할 수 있어요.',
   },
   lineNew: {
     stepLabel: '{{step}} / 3',
@@ -869,6 +870,10 @@ const ko = {
     purgeBody: '이 연습의 영상 파일이 서버와 기기에서 지워져요. 노트와 대화는 남아요.',
     purgeConfirm: '영상 지우기',
     purgeDone: '영상을 지웠어요.',
+    menuHide: '기록에서 숨기기',
+    groupMenu: '기록 메뉴',
+    favEmptyBody: '기록의 ⋯ 메뉴에서 즐겨찾기에 넣을 수 있어요',
+    emptyBody: '첫 영상을 올리면 여기에 카드가 쌓여요',
   },
   pro: {
     settingsSection: 'ACTTUB Pro',
@@ -1048,6 +1053,7 @@ const ko = {
     notifOffHint: '알림을 받으려면 「설정에서 켜기」를 누르세요.',
     notifOffOpen: '설정에서 켜기',
     notifOffSkip: '알림 없이 할게요',
+    notifLoadFail: '알림 설정을 불러오지 못했어요',
   },
   notices: {
     title: '공지사항',
@@ -1613,6 +1619,9 @@ const ko = {
       out_of_range: '1900년부터 내년까지의 연도를 네 자리로 적어주세요.',
     },
     reorderHint: '길게 눌러 순서를 바꿀 수 있어요',
+    creditTitlePlaceholder: '예: 연극 〈갈매기〉',
+    creditRolePlaceholder: '예: 니나',
+    creditYearPlaceholder: '예: 2025',
   },
   guestTransfer: {
     title: '웹 연습 가져오기',
@@ -2321,6 +2330,7 @@ const ko = {
     emptyTitle: '아직 저장한 대본이 없어요',
     emptySub: '액티랑 대본부터 같이 만들어 볼까요?',
     failed: '대본 목록을 못 불러왔어요. 잠시 뒤 다시 열어 주세요.',
+    opening: '여는 중…',
   },
   scriptCocreate: {
     startAsk: '어떤 대본으로 할까요?',
@@ -2387,6 +2397,8 @@ const ko = {
     errorBusy: '아직 처리 중이에요. 잠시 뒤 다시 시도해 주세요.',
     errorConflict: '대본이 그사이 바뀌었어요. 화면을 다시 열어 주세요.',
     errorScriptLimit: '내 대본이 가득 찼어요. 리딩에서 안 쓰는 대본을 지운 뒤 다시 확정해 주세요.',
+    confirming: '확정하는 중…',
+    revising: '고치는 중…',
   },
   uploadFlow: {
     hesitateTitle: '영상 올리기가\n망설여지나요?',

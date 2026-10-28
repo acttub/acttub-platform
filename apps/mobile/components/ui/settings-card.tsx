@@ -79,6 +79,7 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: palette.bgSubtle },
   iconCell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, minWidth: 0, gap: 4 },
-  title: { fontSize: 15.5, fontWeight: '800', lineHeight: 21, color: palette.text },
-  sub: { fontSize: 12.5, fontWeight: '400', lineHeight: 18, color: palette.textFaint },
+  // 설정 화면 글자를 한 단계 줄였다(SOMA-923).
+  title: { fontSize: 14.5, fontWeight: '800', lineHeight: 20, color: palette.text },
+  sub: { fontSize: 12, fontWeight: '400', lineHeight: 17, color: palette.textFaint },
 });

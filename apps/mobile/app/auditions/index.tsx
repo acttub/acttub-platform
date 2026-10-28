@@ -355,7 +355,7 @@ function Chip({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bgSoft },
+  safe: { flex: 1, backgroundColor: palette.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

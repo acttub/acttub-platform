@@ -180,9 +180,9 @@ function SectionTitle({ children }: { children: string }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bgSubtle },
+  safe: { flex: 1, backgroundColor: palette.bg },
   list: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 10 },
-  sectionTitle: { fontSize: 13.5, fontWeight: '800', color: palette.text, paddingTop: 12 },
+  sectionTitle: { fontSize: 13, fontWeight: '800', color: palette.text, paddingTop: 12 },
   group: { gap: 6 },
   rowPressed: { opacity: 0.6 },
   logout: {

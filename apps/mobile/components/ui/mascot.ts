@@ -69,6 +69,8 @@ export const MASCOT_SIZE = {
   lg: { width: 84, height: 94 },
   /** 첫 가이드 말풍선(86×96). */
   guide: { width: 86, height: 96 },
+  /** 빈 상태(96×106) — 개편후 모양 화면(components/ds)이 쓴다. */
+  empty: { width: 96, height: 106 },
   /** 가입할 수 없어요(120×132). */
   xl: { width: 120, height: 132 },
   /** 가입 시작·광고성 정보 결과 팝업 뒤(127×142). */

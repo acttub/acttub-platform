@@ -402,6 +402,7 @@ const en: DeepStringShape<typeof ko> = {
     placeholder: 'Search lines, works, actors',
     empty: 'No results.',
     registerCta: "Can't find the line? Add it yourself",
+    emptySub: 'If you can’t find the line, you can add it yourself.',
   },
   lineNew: {
     stepLabel: '{{step}} / 3',
@@ -874,6 +875,10 @@ const en: DeepStringShape<typeof ko> = {
     purgeBody: 'The video file for this practice is removed from the server and your device. Notes and conversations stay.',
     purgeConfirm: 'Delete video',
     purgeDone: 'Video deleted.',
+    menuHide: 'Hide from history',
+    groupMenu: 'Record menu',
+    favEmptyBody: 'Add one from a record’s ⋯ menu',
+    emptyBody: 'Upload your first video and cards will pile up here',
   },
   pro: {
     settingsSection: 'ACTTUB Pro',
@@ -1053,6 +1058,7 @@ const en: DeepStringShape<typeof ko> = {
     notifOffHint: 'To get notifications, tap “Turn on in Settings”.',
     notifOffOpen: 'Turn on in Settings',
     notifOffSkip: "I'll go without",
+    notifLoadFail: "Couldn't load notification settings",
   },
   notices: {
     title: 'Notices',
@@ -1614,6 +1620,9 @@ const en: DeepStringShape<typeof ko> = {
       out_of_range: 'Enter a four-digit year from 1900 to next year.',
     },
     reorderHint: 'Press and hold to reorder',
+    creditTitlePlaceholder: 'e.g. The Seagull (play)',
+    creditRolePlaceholder: 'e.g. Nina',
+    creditYearPlaceholder: 'e.g. 2025',
   },
   guestTransfer: {
     title: 'Bring web practices',
@@ -2322,6 +2331,7 @@ const en: DeepStringShape<typeof ko> = {
     emptyTitle: 'No saved scripts yet',
     emptySub: 'Want to make one with Acti first?',
     failed: "Couldn't load your scripts. Please try again in a moment.",
+    opening: 'Opening…',
   },
   scriptCocreate: {
     startAsk: 'Which script would you like?',
@@ -2388,6 +2398,8 @@ const en: DeepStringShape<typeof ko> = {
     errorBusy: 'Still working on it. Please try again shortly.',
     errorConflict: 'The script changed in the meantime. Please reopen this screen.',
     errorScriptLimit: 'My scripts is full. Delete an unused script in Reading and try again.',
+    confirming: 'Saving…',
+    revising: 'Revising…',
   },
   uploadFlow: {
     hesitateTitle: 'Hesitant about\nuploading a video?',

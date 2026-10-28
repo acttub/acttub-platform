@@ -314,15 +314,12 @@ describe('알림 설정', () => {
     expect(notifSwitch(0).props.value).toBe(true);
   });
 
-  test.each([
-    [new Error('네트워크 오류'), '네트워크 오류'],
-    ['boom', '잠시 후 다시 시도해주세요.'],
-  ])('못 불러오면 이유와 다시 불러오기를 둔다 (%#)', async (cause, message) => {
-    (loadNotificationSettings as jest.Mock).mockRejectedValueOnce(cause);
+  test('못 불러오면 오류 상자와 다시 시도를 둔다', async () => {
+    (loadNotificationSettings as jest.Mock).mockRejectedValueOnce(new Error('네트워크 오류'));
     await render(<NotificationSettingsScreen />);
 
-    expect(await screen.findByText(message)).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('다시 불러오기'));
+    expect(await screen.findByText('알림 설정을 불러오지 못했어요')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
     expect(await screen.findByText('분석 완료')).toBeOnTheScreen();
   });
 });

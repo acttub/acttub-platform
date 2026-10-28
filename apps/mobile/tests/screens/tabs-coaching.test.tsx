@@ -69,7 +69,7 @@ test('노트가 있는 묶음이 없으면(1턴만 하고 나감) 처음 화면 
   expect(screen.getByText('인정받고 싶었던 것 같아요')).toBeOnTheScreen();
   expect(getPracticeNote).not.toHaveBeenCalled();
 
-  // 찍기·올리기가 같은 곳으로 가서 시작 버튼은 하나다 — 새 연습 준비(목적 → 영상). 첫 코칭이라 파란 안내를 켠다.
+  // 찍기·올리기가 같은 곳으로 가서 시작 버튼은 하나다 — 새 연습 준비(목적 → 영상).
   expect(screen.queryByRole('button', { name: '지금 찍어서 코칭 받기' })).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '찍어 둔 영상 올리기' })).not.toBeOnTheScreen();
   const start = screen.getByRole('button', { name: '영상 보여 주고 코칭 받기' });

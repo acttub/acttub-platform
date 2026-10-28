@@ -59,8 +59,8 @@ test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 �
   const card = read('components/ui/settings-card.tsx');
   assert.match(card, /iconCell: \{ width: 44, height: 44,/);
   assert.match(card, /borderColor: palette\.borderStrong,/);
-  assert.match(card, /title: \{ fontSize: 15\.5, fontWeight: '800'/);
-  assert.match(card, /sub: \{ fontSize: 12\.5,/);
+  assert.match(card, /title: \{ fontSize: 14\.5, fontWeight: '800'/);
+  assert.match(card, /sub: \{ fontSize: 12,/);
   // 설정 화면(pen S15.3)은 묶음 카드(18/6 모서리)로 그린다 — 보관함·Pro 줄은 없다.
   const settings = read('app/settings.tsx');
   assert.match(settings, /settings-card/);

@@ -8,6 +8,7 @@ import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { KeyboardLift } from '@/components/keyboard-lift';
+import { StepHeader } from '@/components/ds/ui/step-header';
 import { palette } from '@/constants/palette';
 import { useReadableNote } from '@/hooks/use-readable-input';
 import { InlineErrorLine } from '@/components/ui/inline-error';
@@ -103,16 +104,9 @@ export default function LineNewScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* 위 진행 바는 개편후 모양(StepHeader), 아래 본문은 개편전 모양(SOMA-923). */}
       <View style={styles.header} testID="line-new-header">
-        <Pressable onPress={back} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="line_new_back">
-          <Feather name={step === 0 ? 'x' : 'chevron-left'} size={26} color={palette.text} />
-        </Pressable>
-        <View style={styles.dots}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[styles.dot, i === step && styles.dotOn]} />
-          ))}
-        </View>
-        <Text style={styles.stepText}>{t('lineNew.stepLabel', { step: step + 1 })}</Text>
+        <StepHeader step={step + 1} total={3} onBack={back} />
       </View>
 
       {/* 키보드가 뜨면 「다음」 버튼까지 키보드 위로 올린다 — iOS에서 아래 버튼이 키보드에 가렸다. */}
@@ -224,11 +218,7 @@ export default function LineNewScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   // iOS 모달(pageSheet)은 위 안전 영역이 0이라 SafeAreaView만으로는 닫기 버튼이 시트 위 끝에 붙는다.
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 16 },
-  dots: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center' },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.border },
-  dotOn: { width: 18, backgroundColor: palette.blue },
-  stepText: { fontSize: 12.5, fontWeight: '700', color: palette.textFaint },
+  header: { paddingTop: 16 },
   fieldLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted, marginTop: 10 },
   content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 10 },
   title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },

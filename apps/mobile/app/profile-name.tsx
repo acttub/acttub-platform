@@ -239,7 +239,8 @@ export default function ProfileNameScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.introCenter}>
+        {/* 인사 묶음은 화면 위아래 끝의 정가운데에 둔다(아래 버튼과 따로 겹친다). */}
+        <View style={styles.introCenter} pointerEvents="box-none">
           <Image source={MASCOT.home} style={MASCOT_SIZE.intro} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.introTitle}>{t('profileName.introTitle')}</Text>
           <Text style={styles.introBody}>{t('profileName.introBody', { count: steps.length })}</Text>
@@ -248,8 +249,9 @@ export default function ProfileNameScreen() {
             <Text style={styles.introBadgeText}>{t('profileName.introBadge')}</Text>
           </View>
         </View>
+        <View style={styles.introSpacer} />
         <CtaBar safeBottom={false} style={styles.footer}>
-          <PrimaryButton label={t('profileName.introCta')} onPress={() => setScreen(steps[0])} />
+          <PrimaryButton label={t('profileName.introCta')} onPress={() => setScreen(steps[0])} style={styles.introCtaButton} />
         </CtaBar>
       </SafeAreaView>
     );
@@ -560,7 +562,9 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
 
   // pen 01 가입 시작 — 위에서 168(상태 막대 35 포함) 아래에 액티 127×142, 16 · 제목 26/800 · 8 · 설명 16/400 · 13 · 「1분이면 끝나요」.
-  introCenter: { flex: 1, alignItems: 'center', paddingTop: 133, paddingHorizontal: 24 },
+  introCenter: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  introSpacer: { flex: 1 },
+  introCtaButton: { height: 60 },
   introTitle: { marginTop: 16, fontSize: 26, fontWeight: '800', lineHeight: 35, color: palette.text, textAlign: 'center' },
   introBody: {
     marginTop: 8,

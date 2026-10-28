@@ -115,10 +115,11 @@ test('저장하는 동안 그 칸의 버튼은 저장 중이다', async () => {
 
   await fireEvent.changeText(input('예) 입시에서 자유연기로 합격하기'), '연극영화과 합격');
   await fireEvent.press(saveButtons()[0]);
-  expect(screen.getByText('저장 중')).toBeDisabled();
+  expect(screen.getByRole('button', { name: '저장' , busy: true })).toBeDisabled();
+  expect(screen.getByText('저장하는 중…')).toBeOnTheScreen();
 
   await act(async () => finish(item({ field: 'goal', value: '연극영화과 합격', written_by_actor: true })));
-  expect(screen.queryByText('저장 중')).not.toBeOnTheScreen();
+  expect(screen.queryByText('저장하는 중…')).not.toBeOnTheScreen();
 });
 
 test('1,000자를 넘으면 저장하지 않고 알린다', async () => {

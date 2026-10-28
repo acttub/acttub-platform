@@ -186,14 +186,15 @@ const styles = StyleSheet.create({
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
   // pen S6.3 — 좌우 16, 카드 위 16, 줄 사이 9.
   body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 9 },
-  summary: { flexDirection: 'row', alignItems: 'center', gap: 18, padding: 18, marginBottom: 6, borderRadius: 20, backgroundColor: palette.bgSubtle, borderWidth: 1, borderColor: palette.borderSoft },
+  // 프로필 카드 — 여백·패딩은 개편후(16·8), 모양·색은 개편전(SOMA-923).
+  summary: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, marginBottom: 8, borderRadius: 20, backgroundColor: palette.bgSubtle, borderWidth: 1, borderColor: palette.borderSoft },
   summaryText: { flex: 1, gap: 6 },
   summaryName: { fontSize: 20, fontWeight: '800', color: palette.text },
   // pen S6.4 소개가 있으면 #4E5968, 없으면 안내 #8B95A1.
   summaryBio: { fontSize: 14, color: palette.textDim, lineHeight: 20 },
   summaryBioEmpty: { color: palette.textFaint },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: 9, paddingVertical: 4 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg, paddingHorizontal: 8, paddingVertical: 4 },
   chipText: { fontSize: 12, fontWeight: '500', color: palette.textDim },
   photoBox: { alignItems: 'center', gap: 8 },
   photo: {

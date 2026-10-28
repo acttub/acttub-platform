@@ -213,13 +213,13 @@ export default function JournalScreen() {
 
       {phase === 'loading' && <SkeletonDetail lines={5} />}
       {phase === 'making' && (
-        <View style={styles.center}>
+        <View style={styles.center} pointerEvents="box-none">
           {phase === 'making' && <Text style={styles.loadingText}>{t('journal.making')}</Text>}
         </View>
       )}
 
       {phase === 'error' && (
-        <View style={styles.center}>
+        <View style={styles.center} pointerEvents="box-none">
           <Text style={styles.errorText}>{error}</Text>
           <PrimaryButton label={t('common.retry')} onPress={() => void load()} style={styles.stretch} />
         </View>
@@ -461,7 +461,8 @@ function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; on
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1, gap: 4 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 28 },
+  // 만드는 중·오류 안내는 머리와 상관없이 화면 위아래 끝의 정가운데에 둔다(SOMA-923).
+  center: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 28 },
   loadingText: { fontSize: 14, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
   errorText: { fontSize: 14, fontWeight: '700', color: palette.danger, textAlign: 'center' },
   footerError: { paddingHorizontal: 24, paddingBottom: 8 },
