@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { Button } from '@/components/ui/buttons';
@@ -365,7 +366,7 @@ export default function ReadingList() {
             <TextInput
               style={styles.searchInput}
               value={q}
-              onChangeText={setQ}
+              onChangeText={(text) => setQ(sanitizeInput(text, 'loose'))}
               placeholder={t('reading.searchPlaceholder')}
               placeholderTextColor={palette.textMeta}
             />

@@ -1231,6 +1231,9 @@ const en: DeepStringShape<typeof ko> = {
     leaveBody: "It usually takes about 30 seconds. We'll send you a notification when it's done.",
     notifyMe: 'Let me know when it’s done',
   },
+  input: {
+    stripped: "Characters that can't be read were left out.",
+  },
   coach: {
     purposeResult: 'Evaluation',
     purposeStuck: 'Where you got stuck',

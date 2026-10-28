@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
 
+import { useReadableNote } from '@/hooks/use-readable-input';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
@@ -309,6 +310,7 @@ function JournalBody({
   /** 스크롤 맨 아래에 놓는 칸 — 앱 평가 카드(SOMA-821: 시트 대신 화면 안 카드). */
   footer?: ReactNode;
 }) {
+  const note = useReadableNote();
   const summary = journalSummary(journal);
   const notice =
     journal.draft_status === 'failed' ? t('journal.draftFailed') : journal.draft_status === 'pending' ? t('journal.draftPending') : null;
@@ -327,7 +329,7 @@ function JournalBody({
             <TextInput
               style={styles.reviewInput}
               value={edit.review}
-              onChangeText={(review) => onEdit({ ...edit, review })}
+              onChangeText={note.wrap((review) => onEdit({ ...edit, review }))}
               multiline
               maxLength={300}
               placeholder={t('journal.q4Ph')}
@@ -362,7 +364,7 @@ function JournalBody({
             <TextInput
               style={styles.nextInput}
               value={edit.next}
-              onChangeText={(next) => onEdit({ ...edit, next })}
+              onChangeText={note.wrap((next) => onEdit({ ...edit, next }))}
               multiline
               maxLength={300}
               placeholder={t('journal.q3Ph')}
@@ -376,6 +378,7 @@ function JournalBody({
       )}
 
       {notice && <Text style={styles.notice}>{notice}</Text>}
+      {edit && note.hint ? <InlineErrorLine message={note.hint} /> : null}
 
       <View style={styles.list}>
         {summary.rows.map((row) =>
@@ -418,6 +421,7 @@ function JournalBody({
 
 /** 편집 중 목록 한 줄 — 줄마다 입력 칸(연필). 해 보니의 고른 칩은 그대로 두고 글만 고친다. */
 function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; onEdit: (edit: JournalEdit) => void }) {
+  const note = useReadableNote();
   const field = (index: number): { value: string; set: (text: string) => void } => {
     switch (row.key) {
       case 'feeling':
@@ -438,6 +442,7 @@ function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; on
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{row.label}</Text>
+      {note.hint ? <InlineErrorLine message={note.hint} /> : null}
       {row.lines.map((line, i) => {
         const { value, set } = field(indexes[i]);
         return (
@@ -446,7 +451,7 @@ function EditRow({ row, edit, onEdit }: { row: JournalRow; edit: JournalEdit; on
             <TextInput
               style={styles.editInput}
               value={value}
-              onChangeText={set}
+              onChangeText={note.wrap(set)}
               multiline
               maxLength={200}
               accessibilityLabel={row.label}

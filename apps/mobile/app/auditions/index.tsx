@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { Chip } from '@/components/ui/chip';
@@ -149,7 +150,7 @@ export default function AuditionsScreen() {
               <TextInput
                 style={styles.search}
                 value={filters.query}
-                onChangeText={(query) => setFilters((was) => ({ ...was, query }))}
+                onChangeText={(query) => setFilters((was) => ({ ...was, query: sanitizeInput(query) }))}
                 placeholder={t('auditions.searchPh')}
                 placeholderTextColor={palette.textMeta}
                 returnKeyType="search"

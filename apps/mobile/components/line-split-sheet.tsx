@@ -53,6 +53,7 @@ export function LineSplitSheet({
 
   const field = (index: 0 | 1, label: string) => (
     <TextField
+      charset="loose"
       label={label}
       style={styles.input}
       value={parts[index]}

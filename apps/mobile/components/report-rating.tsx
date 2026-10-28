@@ -2,6 +2,8 @@ import Feather from '@expo/vector-icons/Feather';
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useReadableInput } from '@/hooks/use-readable-input';
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -68,6 +70,7 @@ export function RatingBox<Value extends string>({
   // 서버에 붙어 있는(또는 보내는 중인) 한 줄. 칩을 바꿔도 이 한 줄은 그대로 함께 보낸다.
   const [comment, setComment] = useState<string | null>(initial?.comment ?? null);
   const [draft, setDraft] = useState(initial?.comment ?? '');
+  const readable = useReadableInput(setDraft);
   const [thanked, setThanked] = useState(false);
   const [focused, setFocused] = useState(false);
   // 겹쳐 누른 칩의 늦은 실패가 나중 선택을 되돌리지 않게, 마지막 요청만 화면을 바꾼다.
@@ -123,7 +126,7 @@ export function RatingBox<Value extends string>({
           <TextInput
             style={[styles.input, focused && styles.inputFocus]}
             value={draft}
-            onChangeText={setDraft}
+            onChangeText={readable.onChangeText}
             placeholder={placeholder}
             placeholderTextColor={palette.textMeta}
             maxLength={commentMax}
@@ -138,6 +141,7 @@ export function RatingBox<Value extends string>({
           </Pressable>
         </View>
       )}
+      {rating && !thanked && readable.hint ? <InlineErrorLine message={readable.hint} /> : null}
     </View>
   );
 }
