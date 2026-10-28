@@ -46,7 +46,7 @@ function Phone({ src, alt, className = "" }: { src: string; alt: string; classNa
 
 // 액티(앱 마스코트). B 안에서만 쓴다. 장식이라 읽어 주지 않고, 글자·버튼 위에 얹지 않는다.
 const ACTY = {
-  hero: { src: "/site/acty/hero-bow.png", width: 206, height: 190 },
+  hero: { src: "/site/acty/hero-cheer.png", width: 520, height: 474 },
   coaching: { src: "/site/acty/coaching-script.png", width: 257, height: 227 },
   reading: { src: "/site/acty/reading-whisper.png", width: 211, height: 208 },
   challenge: { src: "/site/acty/challenge-slate.png", width: 252, height: 227 },
@@ -251,14 +251,20 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
                   </Link>
                 </p>
               </div>
-              <div className="relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible">
+              <div
+                className={
+                  isB
+                    ? "relative h-[330px] w-[350px] shrink-0 overflow-hidden sm:h-[420px] sm:w-[380px] lg:h-[560px] lg:w-[440px] lg:overflow-visible"
+                    : "relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible"
+                }
+              >
                 <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" className="absolute left-0 top-0 z-10 w-[260px] lg:w-[300px]" />
                 <Phone
                   src="/site/shot-reading.jpg"
                   alt="앱의 대본 리딩 화면"
                   className="absolute left-[200px] top-[70px] hidden w-[240px] rotate-[4deg] lg:block"
                 />
-                {isB ? <Acty pose="hero" className="-bottom-[54px] -left-[116px] z-20 hidden w-[128px] drop-shadow-[0_10px_8px_rgba(25,31,40,0.12)] xl:block" /> : null}
+                {isB ? <Acty pose="hero" className="bottom-0 right-0 z-20 w-[120px] drop-shadow-[0_10px_8px_rgba(25,31,40,0.12)] sm:w-[150px] lg:-bottom-8 lg:-left-[215px] lg:right-auto lg:w-[240px]" /> : null}
               </div>
             </div>
           </section>
@@ -299,7 +305,7 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
                   {isB && f.id in FEATURE_ACTY ? (
                     <Acty
                       pose={FEATURE_ACTY[f.id]}
-                      className="bottom-full right-0 -mb-1 w-[64px] sm:-mb-2 sm:w-[96px]"
+                      className="bottom-full right-0 -mb-1 w-[96px] sm:-mb-2 sm:w-[140px]"
                     />
                   ) : null}
                 </div>
@@ -407,7 +413,7 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
       <div>
         <section aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
           <div data-reveal className="relative mx-auto max-w-[1200px]">
-          {isB ? <Acty pose="download" className="bottom-full right-8 w-[64px] sm:right-16 sm:w-[96px] lg:right-24 lg:w-[96px]" /> : null}
+          {isB ? <Acty pose="download" className="bottom-full right-8 w-[96px] sm:right-16 sm:w-[140px] lg:right-24 lg:w-[140px]" /> : null}
           <div className="relative flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
             <div className="flex-1">
               <h2 id="band-title" className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.03em] sm:text-4xl">

@@ -142,7 +142,7 @@ test("B 는 요약 카드를 빼고, 액티를 구간당 하나씩 두고, 설�
   const acty = [...container.querySelectorAll('img[src*="acty"]')];
   assert.deepEqual(
     acty.map((img) => decodeURIComponent(img.getAttribute("src")).match(/acty\/([\w-]+\.png)/)[1]),
-    ["hero-bow.png", "coaching-script.png", "reading-whisper.png", "challenge-slate.png", "download-curtain.png"],
+    ["hero-cheer.png", "coaching-script.png", "reading-whisper.png", "challenge-slate.png", "download-curtain.png"],
   );
   assert.ok(acty.every((img) => img.getAttribute("alt") === "" && img.getAttribute("aria-hidden") === "true"));
 
