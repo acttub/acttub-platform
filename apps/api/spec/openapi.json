@@ -4380,6 +4380,23 @@
         "tags" : [ "v2-reading" ],
         "summary" : "Cloud voice status",
         "operationId" : "status",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Script Id"
+          }
+        }, {
+          "name" : "session_id",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Session Id"
+          }
+        } ],
         "responses" : {
           "200" : {
             "description" : "OK",
@@ -7500,6 +7517,10 @@
           "voice" : {
             "type" : "string",
             "title" : "Voice"
+          },
+          "session_id" : {
+            "type" : "string",
+            "title" : "Session Id"
           }
         },
         "title" : "SynthesizeRequest"
@@ -11417,6 +11438,14 @@
           "daily_used" : {
             "type" : "integer",
             "title" : "Daily Used"
+          },
+          "reason" : {
+            "type" : "string",
+            "title" : "Reason"
+          },
+          "pro_only" : {
+            "type" : "boolean",
+            "title" : "Pro Only"
           }
         },
         "title" : "StatusResponse"

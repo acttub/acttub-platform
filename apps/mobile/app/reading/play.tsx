@@ -260,6 +260,9 @@ export default function ReadingPlay() {
   // 말 끝 판단은 다시 그리기 전에 온다 — 받아쓴 글을 바로 읽을 수 있게 따로 든다(SOMA-804).
   const saidRef = useRef('');
   const [notice, setNotice] = useState<Notice>(null);
+  /** 무료 배우의 두 번째 리딩부터 「Pro는 계속 이 목소리로」 한 줄을 보인다(SOMA-917). */
+  const [proVoiceHint, setProVoiceHint] = useState(false);
+  const proVoiceHintLogged = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [sttMode, setSttMode] = useState<SttPolicy | null>(null);
   // commit 은 정책이 바뀌어도 다시 만들지 않는다 — 완료 판정은 최신 정책을 ref 로 읽는다.
@@ -346,14 +349,15 @@ export default function ReadingPlay() {
     if (!script || !config) return null;
     if (!speechQueue.current) speechQueue.current = tts.createQueueFor(script.id, {
       cloud: engineRef.current === 'cloud',
-      synthesizeCloud: synthesizeCloudSpeech,
+      // 서버가 이 회차가 무료 첫 리딩인지 가리도록 회차 번호를 함께 보낸다(SOMA-917).
+      synthesizeCloud: (text, scriptId, preset, lang) => synthesizeCloudSpeech(text, scriptId, preset, lang, session?.id),
     });
     const upcoming = config.lines.slice(from, config.endIndex + 1)
       .filter((line): line is DialogueLine => line.type === 'dialogue' && !config.myRoles.includes(line.role))
       .flatMap((line) => speechParts(line).map((part) => ({ text: speakableText(part.text), preset: presetFor(line.role), lang: part.lang })));
     speechQueue.current.prime(upcoming);
     return speechQueue.current;
-  }, [script, config, presetFor]);
+  }, [script, config, presetFor, session?.id]);
 
   const flash = useCallback((next: Exclude<Notice, null>) => {
     setNotice((prev) => (next.kind === 'dropped' && prev?.kind === 'dropped' ? { kind: 'dropped', count: prev.count + next.count } : next));
@@ -612,11 +616,18 @@ export default function ReadingPlay() {
     }
     // 예시 대본인지는 서버가 안다(입력 경로 sample 은 짐작일 뿐) — 임시 주소라 시작할 때마다 새로 받는다.
     const [cloudEnabled, cloudStatus, support, deviceVoice, example] = await Promise.all([
-      loadCloudVoiceEnabled(), api.getCloudVoiceStatus().catch(() => null), readAppVoiceSupport(), hasDeviceVoice(),
+      loadCloudVoiceEnabled(), api.getCloudVoiceStatus(session ? { sessionId: session.id } : undefined).catch(() => null), readAppVoiceSupport(), hasDeviceVoice(),
       script ? loadExampleAudio(script.id, { fresh: true }) : Promise.resolve(null),
     ]);
     if (!mounted.current) return;
     deviceVoiceRef.current = deviceVoice;
+    if (cloudStatus?.pro_only) {
+      setProVoiceHint(true);
+      if (!proVoiceHintLogged.current) {
+        proVoiceHintLogged.current = true;
+        void logEvent('pro_hint_shown', { trigger: 'reading_voice' });
+      }
+    }
     // 이번 회차에 서버 음성으로 만들 상대 대사 수 — 남은 한도로 끝까지 못 읽으면 서버 음성을 쓰지 않는다(SOMA-912).
     const cloudLines = new Set<string>();
     if (config) {
@@ -713,7 +724,7 @@ export default function ReadingPlay() {
       const neededBytes = (e as { neededBytes?: unknown } | null)?.neededBytes;
       setPhase({ kind: 'voice_failed', failure: { kind, neededBytes: typeof neededBytes === 'number' ? neededBytes : undefined } });
     }
-  }, [confirm, hasPartnerLines, primeSpeech, startRunning, chooseEngine, script, config, presetFor]);
+  }, [confirm, session, hasPartnerLines, primeSpeech, startRunning, chooseEngine, script, config, presetFor]);
 
   useEffect(() => {
     mounted.current = true;
@@ -1883,6 +1894,11 @@ export default function ReadingPlay() {
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.round((progressOf(run).done / Math.max(1, progressOf(run).total)) * 100)}%` }]} />
       </View>
+      {proVoiceHint && (
+        <Pressable style={styles.proHint} onPress={() => router.push('/pro')} accessibilityRole="button" accessibilityLabel={t('reading.proVoiceHint')}>
+          <Text style={styles.proHintText}>{t('reading.proVoiceHint')}</Text>
+        </Pressable>
+      )}
       {notice?.kind === 'cloud_fallback' && (
         <View style={styles.toast}>
           <Text style={styles.toastText}>{t('reading.cloudFallbackToast')}</Text>
@@ -2250,6 +2266,8 @@ const styles = StyleSheet.create({
   progressTrack: { height: 4, backgroundColor: palette.bgSoft, marginHorizontal: 16, borderRadius: 2, overflow: 'hidden', marginTop: 8 },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.blue },
   toast: { marginHorizontal: 16, marginTop: 10, backgroundColor: palette.text, borderRadius: radius.lg, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
+  proHint: { marginHorizontal: 16, marginTop: 10, paddingVertical: 8, alignItems: 'center' },
+  proHintText: { ...type.captionBold, color: palette.flame, textDecorationLine: 'underline' },
   toastText: { ...type.captionBold, color: palette.onAccent },
   jumpToast: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 0, marginBottom: 10 },
 

@@ -17,6 +17,8 @@ const mockRouter = { dismissTo: jest.fn(), replace: jest.fn() };
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams }));
 jest.mock('@/hooks/use-reading-mic', () => ({ micPermissionState: jest.fn(), requestMicPermission: jest.fn() }));
+const mockAskFirstReading = jest.fn(async (_scriptId: string) => undefined);
+jest.mock('@/hooks/use-cloud-voice', () => ({ useCloudVoice: () => ({ askFirstReading: mockAskFirstReading, consentSheet: null }) }));
 jest.mock('@/lib/reading/tts/engine', () => ({ prefetchIfWifi: jest.fn(async () => undefined) }));
 
 const TWO_SCENES = scriptDetail(
@@ -80,6 +82,16 @@ test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역
   await fireEvent.press(screen.getByText('민재'));
   expect(screen.queryByText('내 배역을 골라 주세요')).not.toBeOnTheScreen();
   expect(startButton(5)).toBeOnTheScreen();
+});
+
+test('시작하기 전에 대본의 첫 리딩 고품질 목소리 동의를 먼저 확인한다(SOMA-917)', async () => {
+  const server = await show();
+  await fireEvent.press(screen.getByText('민재'));
+  await fireEvent.press(startButton(5));
+
+  await waitFor(() => expect(server.startSession).toHaveBeenCalledTimes(1));
+  expect(mockAskFirstReading).toHaveBeenCalledWith('s1');
+  expect(mockAskFirstReading.mock.invocationCallOrder[0]).toBeLessThan(server.startSession.mock.invocationCallOrder[0]);
 });
 
 test('배역과 대사 보기를 골라 시작하면 회차를 만들고 대사 보기를 기억한 뒤 실행 화면으로 간다', async () => {

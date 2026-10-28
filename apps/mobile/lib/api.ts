@@ -464,12 +464,17 @@ export const api = {
     return request(`/v2/reading/scripts/${encodeURIComponent(scriptId)}/example-audio`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
-  getCloudVoiceStatus(): Promise<CloudVoiceStatus> {
-    return request('/v2/reading/voice/status', {}, { auth: true, timeoutMs: 10_000 });
+  /** scope 를 주면 서버가 그 대본·회차가 무료 첫 리딩인지도 답한다(SOMA-917). 안 주면 예전과 같다. */
+  getCloudVoiceStatus(scope?: { scriptId?: string; sessionId?: string }): Promise<CloudVoiceStatus> {
+    const query = new URLSearchParams();
+    if (scope?.scriptId) query.set('script_id', scope.scriptId);
+    if (scope?.sessionId) query.set('session_id', scope.sessionId);
+    const suffix = query.toString();
+    return request(`/v2/reading/voice/status${suffix ? `?${suffix}` : ''}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
-  synthesizeCloudVoice(text: string, voice: CloudVoicePreset): Promise<CloudVoiceResponse> {
-    return request('/v2/reading/voice', jsonInit({ text: text.trim(), voice }), { auth: true, timeoutMs: 30_000 });
+  synthesizeCloudVoice(text: string, voice: CloudVoicePreset, sessionId?: string): Promise<CloudVoiceResponse> {
+    return request('/v2/reading/voice', jsonInit({ text: text.trim(), voice, ...(sessionId ? { session_id: sessionId } : {}) }), { auth: true, timeoutMs: 30_000 });
   },
 
   // 내 계정 ---------------------------------------------------------------------

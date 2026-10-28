@@ -58,6 +58,26 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
     }
 
     @Override
+    public boolean firstReadingSession(UUID userId, UUID sessionId) {
+        return Boolean.TRUE.equals(entityManager.createNativeQuery("""
+                SELECT EXISTS (
+                    SELECT 1 FROM reading_sessions s
+                    WHERE s.id=:sessionId AND s.user_id=:userId
+                      AND NOT EXISTS (SELECT 1 FROM reading_sessions e
+                          WHERE e.user_id=s.user_id AND e.script_id=s.script_id
+                            AND (e.started_at, e.id) < (s.started_at, s.id)))
+                """).setParameter("userId", userId).setParameter("sessionId", sessionId).getSingleResult());
+    }
+
+    @Override
+    public boolean firstReadingScript(UUID userId, UUID scriptId) {
+        return Boolean.TRUE.equals(entityManager.createNativeQuery("""
+                SELECT EXISTS (SELECT 1 FROM scripts WHERE id=:scriptId AND user_id=:userId)
+                   AND NOT EXISTS (SELECT 1 FROM reading_sessions WHERE script_id=:scriptId AND user_id=:userId)
+                """).setParameter("userId", userId).setParameter("scriptId", scriptId).getSingleResult());
+    }
+
+    @Override
     public CacheEntry findCache(String hash) {
         var rows = list(entityManager.createNativeQuery("SELECT hash FROM reading_voice_cache WHERE hash=:hash", Tuple.class)
                 .setParameter("hash", hash));

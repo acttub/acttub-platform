@@ -36,6 +36,7 @@ import {
   type LineRange,
 } from '@/lib/reading/session-plan';
 import { getCurrent, listSessions, startSession, updateCurrent, type MaskMode } from '@/lib/reading/store';
+import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import * as engine from '@/lib/reading/tts/engine';
 import type { ScriptLine, SessionCard } from '@/lib/reading/types';
 import { newRequestId } from '@/lib/request-id';
@@ -65,6 +66,7 @@ export default function ReadingRange() {
   const router = useRouter();
   const params = useLocalSearchParams<{ roles?: string; start?: string; end?: string }>();
   const { alert, confirm, dialog } = useAppDialog();
+  const { askFirstReading, consentSheet } = useCloudVoice();
   const script = getCurrent();
   const lines = script?.lines ?? NO_LINES;
   const scenes = useMemo(
@@ -199,6 +201,8 @@ export default function ReadingRange() {
     }
     setBusy(true);
     try {
+      // 무료 배우의 대본 첫 리딩이면 시작 전에 고품질 목소리 동의를 한 번 받는다(SOMA-917). 거절해도 기기 목소리로 그대로 시작한다.
+      await askFirstReading(script.id);
       await startSession(
         script.id,
         buildStartBody({
@@ -428,6 +432,7 @@ export default function ReadingRange() {
         </View>
       </CtaBar>
       {dialog}
+      {consentSheet}
       {tutorialGuide.element}
     </View>
   );
