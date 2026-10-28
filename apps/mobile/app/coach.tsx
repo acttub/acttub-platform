@@ -668,7 +668,8 @@ function CoachTalk() {
               <TextInput
                 ref={inputRef}
                 style={styles.input}
-                placeholder={t('coach.composerPh')}
+                // 코치가 질문을 만드는 동안은 입력칸 안내로 그 상태를 알린다(SOMA-923).
+                placeholder={waiting || connecting ? t('coach.composerPhWaiting') : t('coach.composerPh')}
                 placeholderTextColor={palette.textFaint}
                 accessibilityLabel={t('coach.composerLabel')}
                 value={input}

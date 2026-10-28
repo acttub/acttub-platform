@@ -239,8 +239,8 @@ export default function ProfileNameScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
-        {/* 인사 묶음은 화면 위아래 끝의 정가운데에 둔다(아래 버튼과 따로 겹친다). */}
-        <View style={styles.introCenter} pointerEvents="box-none">
+        {/* 인사 묶음은 화면 맨 위와 시작하기 버튼 사이의 가운데에 둔다(SOMA-923). */}
+        <View style={styles.introCenter}>
           <Image source={MASCOT.home} style={MASCOT_SIZE.intro} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.introTitle}>{t('profileName.introTitle')}</Text>
           <Text style={styles.introBody}>{t('profileName.introBody', { count: steps.length })}</Text>
@@ -249,7 +249,6 @@ export default function ProfileNameScreen() {
             <Text style={styles.introBadgeText}>{t('profileName.introBadge')}</Text>
           </View>
         </View>
-        <View style={styles.introSpacer} />
         <CtaBar safeBottom={false} style={styles.footer}>
           <PrimaryButton label={t('profileName.introCta')} onPress={() => setScreen(steps[0])} style={styles.introCtaButton} />
         </CtaBar>
@@ -490,7 +489,7 @@ export default function ProfileNameScreen() {
         {/* 생년월일 휠을 만지는 동안은 화면이 같이 움직이지 않게 멈춘다(10/25). */}
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={!wheelTouch}>
           {/* 하나 고르는 질문은 누르면 바로 넘어간다(SOMA-827) — 그 사실을 말풍선 아래 줄로 알린다. */}
-          <MascotBubble title={t(ASK_KEYS[step], { name })} guide={TAP_TO_NEXT[step] ? t(TAP_TO_NEXT[step]) : null} />
+          <MascotBubble roomy title={t(ASK_KEYS[step], { name })} guide={TAP_TO_NEXT[step] ? t(TAP_TO_NEXT[step]) : null} />
           <Animated.View
             key={step}
             entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}
@@ -562,8 +561,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
 
   // pen 01 가입 시작 — 위에서 168(상태 막대 35 포함) 아래에 액티 127×142, 16 · 제목 26/800 · 8 · 설명 16/400 · 13 · 「1분이면 끝나요」.
-  introCenter: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  introSpacer: { flex: 1 },
+  introCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   introCtaButton: { height: 60 },
   introTitle: { marginTop: 16, fontSize: 26, fontWeight: '800', lineHeight: 35, color: palette.text, textAlign: 'center' },
   introBody: {

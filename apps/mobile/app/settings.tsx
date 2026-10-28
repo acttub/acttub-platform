@@ -8,6 +8,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
 import { pt } from '@/components/ui/anchored-menu';
+import { SettingsProCard } from '@/components/settings-pro-card';
 import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -85,16 +86,7 @@ export default function SettingsScreen() {
         <AdSlot slot="settings_top" />
         {billing && proVisible(billing) && (
           <>
-            <SectionTitle>{t('pro.settingsSection')}</SectionTitle>
-            <View style={styles.group}>
-              <SettingsCard
-                position="single"
-                icon="award"
-                title={t('pro.settingsTitle')}
-                sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)}
-                onPress={() => router.push(settingsTarget(billing))}
-              />
-            </View>
+            <SettingsProCard sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)} onPress={() => router.push(settingsTarget(billing))} />
           </>
         )}
 

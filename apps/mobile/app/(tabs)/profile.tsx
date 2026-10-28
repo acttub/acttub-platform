@@ -383,7 +383,8 @@ const styles = StyleSheet.create({
 
   // 한 줄 소개 카드 — 모양·색은 개편전(dev), 여백·패딩은 개편후(롤백) 값(SOMA-923).
   me: {
-    marginTop: 8,
+    // 위 여백을 줄였다 — 머리와 카드 사이는 목록 안쪽 위 8만 남긴다(SOMA-923).
+    marginTop: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 18,

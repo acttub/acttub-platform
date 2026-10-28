@@ -38,9 +38,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bgSoft,
+    // 흰 바탕에 한 단계 진한 2px 테두리(SOMA-923).
+    borderWidth: 2,
+    borderColor: palette.borderStrong,
+    backgroundColor: palette.bg,
   },
   pressed: { opacity: 0.85 },
   icon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bgSoft },

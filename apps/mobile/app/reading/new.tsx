@@ -23,7 +23,6 @@ import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { useWaitExit } from '@/hooks/use-wait-exit';
 import { type } from '@/constants/tokens';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { api } from '@/lib/api';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -210,9 +209,9 @@ export default function ReadingNew() {
     // 이름 없는 독백은 누구의 대사인지 이름부터 받는다(SOMA-597). 닫으면 대본 상세로.
     const solo = saved.characters.filter((c) => !isGroupCharacter(c));
     if (isMonologue(saved.characters) && solo[0].unnamed) return setNaming({ scriptId: saved.id, characterId: solo[0].id });
-    // 목소리는 넣을 때 자동으로 정한다 — 바꾸기는 대본 상세 ⋯ 에서만(pen R2).
-    router.replace('/reading/detail');
-    if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
+    // 나눈 뒤 목소리 정하기(2단계)를 거친다(SOMA-923). 목소리는 자동으로 골라 둔 채 열리고, 저장하면 목소리 화면이
+    // 대본 상세(튜토리얼이면 구간 고르기까지)로 넘긴다(lib/tutorial afterVoicesSaved).
+    router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
   };
 
   /** 올리고 읽힌 파일이면 [다음]이 보낼 입력을 돌려준다. 실패·읽기 자리 없음은 팝업을 띄우고 null. */
@@ -298,7 +297,7 @@ export default function ReadingNew() {
 
   // pen F4 「배역과 대사 찾는 중」 — 팝업이 아니라 전체 화면이다. 머리 뒤로 가기는 리딩 탭으로 나간다(useWaitExit).
   if (popup?.kind === 'splitting') {
-    return <SplittingScreen progress={popup.progress} topInset={insets.top} />;
+    return <SplittingScreen progress={popup.progress} topInset={insets.top} bottomInset={insets.bottom} />;
   }
 
   return (
@@ -556,12 +555,13 @@ export default function ReadingNew() {
 }
 
 /** pen F4. 진행은 서버가 알려 주는 만큼만 — 줄 수를 세기 전에는 퍼센트 없이 제목만 보인다. */
-function SplittingScreen({ progress, topInset }: { progress: ImportProgress | null; topInset: number }) {
+function SplittingScreen({ progress, topInset, bottomInset }: { progress: ImportProgress | null; topInset: number; bottomInset: number }) {
   const total = progress?.total ?? 0;
   const done = progress?.done ?? 0;
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   return (
-    <View style={[styles.root, styles.splitScreen, { paddingTop: topInset + 120 }]}>
+    // 아래 안내가 안드로이드 내비게이션 바에 가리지 않게 아래 안전 영역만큼 띄운다(SOMA-923).
+    <View style={[styles.root, styles.splitScreen, { paddingTop: topInset + 120, paddingBottom: bottomInset }]}>
       <Image source={MASCOT} style={styles.splitMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <Text style={styles.splitHeading}>{t('reading.splitTitle')}</Text>
       <Text style={styles.splitSub}>{t('reading.splitSub')}</Text>
@@ -608,8 +608,7 @@ const styles = StyleSheet.create({
   segmentTextOn: { color: palette.blue, fontWeight: '800' },
   dropzone: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
   // pen 「파일칸」 — 옅은 파랑 바탕, 점선 테두리(#BCD3F3), 모서리 22.
-  // 「대본 파일 첨부」 상자의 바탕·테두리만 개편전(dev) 값 — 1px 파란 실선, 옅은 회색 바탕(SOMA-923).
-  dropzoneEmpty: { minHeight: 228, gap: 6, padding: 20, borderRadius: 22, borderWidth: 1, borderColor: palette.blue, backgroundColor: palette.bgSubtle },
+  dropzoneEmpty: { minHeight: 228, gap: 6, padding: 20, borderRadius: 22, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#BCD3F3', backgroundColor: '#F5F9FE' },
   uploadCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E6EFFD', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   dropTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
   dropTitleEmpty: { fontSize: 17 },

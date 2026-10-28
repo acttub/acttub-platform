@@ -163,7 +163,7 @@ export default function CoachingTab() {
           </ScrollView>
           {/* 찍기·올리기는 같은 화면(app/upload)에서 고르므로 버튼 하나로 두고, 엄지 닿는 아래쪽에 붙인다(SOMA-842). */}
           <View style={[styles.firstFooter, { paddingBottom: 8 + tabBarSpace }]}>
-            <PrimaryButton label={t('coachingTab.choice.video')} phLabel="coaching_first_next" onPress={startNew} />
+            <PrimaryButton label={t('coachingTab.choice.video')} phLabel="coaching_first_next" onPress={startNew} style={styles.firstCta} />
             <Pressable onPress={() => router.push('/talk')} accessibilityRole="button" accessibilityLabel={t('coachingTab.choice.talk')} ph-label="coaching_first_talk" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
               <Feather name="message-circle" size={15} color={palette.textDim} />
               <Text style={styles.linkText}>{t('coachingTab.choice.talk')}</Text>
@@ -328,9 +328,10 @@ const styles = StyleSheet.create({
   firstBody: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 16 },
   introRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 13, paddingLeft: 6 },
   introMascot: { width: 52, height: 61, marginBottom: 4 },
-  introBubble: { flex: 1, minWidth: 0, gap: 5, paddingTop: 11, paddingHorizontal: 14, paddingBottom: 12, borderRadius: 16, backgroundColor: palette.bgSoft },
-  introTitle: { fontSize: 19, fontWeight: '700', lineHeight: 25, color: palette.text },
-  introBody: { fontSize: 15, fontWeight: '600', lineHeight: 20, color: palette.textMuted },
+  // 첫 화면 말풍선 — 안쪽 여백을 조금 넓히고 글자를 한 단계 줄였다(SOMA-923).
+  introBubble: { flex: 1, minWidth: 0, gap: 5, paddingTop: 15, paddingHorizontal: 18, paddingBottom: 16, borderRadius: 16, backgroundColor: palette.bgSoft },
+  introTitle: { fontSize: 17, fontWeight: '700', lineHeight: 23, color: palette.text },
+  introBody: { fontSize: 14, fontWeight: '600', lineHeight: 19, color: palette.textMuted },
   exampleLabel: { paddingTop: 28, paddingBottom: 10, fontSize: 13, fontWeight: '700', color: palette.textMuted },
   example: { gap: 10, padding: 16, borderRadius: 20, backgroundColor: palette.bgSoft },
   exampleVideo: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 10, paddingVertical: 8, paddingLeft: 8, paddingRight: 12, borderRadius: 14, backgroundColor: palette.card },
@@ -372,9 +373,11 @@ const styles = StyleSheet.create({
   tileTitle: { fontSize: 16, fontWeight: '700', lineHeight: 22, color: palette.text },
   tileTitleAccent: { color: palette.blueDeep },
   tileSub: { fontSize: 12.5, fontWeight: '500', color: palette.textFaint },
-  link: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  // 첫 화면 아래 두 버튼은 높이를 키웠다(SOMA-923).
+  link: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   linkText: { fontSize: 15, fontWeight: '600', color: palette.textDim },
   entryGap: { marginTop: 12 },
+  firstCta: { height: 58 },
   entryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSoft },
   entryIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bgSoft },
   entryText: { flex: 1, minWidth: 0, gap: 2 },

@@ -100,14 +100,14 @@ test('처음에는 파일 탭을 보이고, 넣은 것이 없으면 다음을 �
   expect(screen.getByText('다음')).toBeDisabled();
 });
 
-test('붙여넣은 글과 제목을 보내 나누고, 대본 상세로 간다(목소리는 자동)', async () => {
+test('붙여넣은 글과 제목을 보내 나누고, 목소리 정하기(2단계)로 간다', async () => {
   await render(<ReadingNew />);
   await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '  봄날의 대화  ');
   await paste();
 
   await fireEvent.press(screen.getByText('다음'));
 
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
   expect(api.importScript).toHaveBeenCalledWith({
     request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     allow_duplicate: false,
@@ -119,13 +119,13 @@ test('붙여넣은 글과 제목을 보내 나누고, 대본 상세로 간다(�
   expect(server.get).toHaveBeenCalledWith('s1');
 });
 
-test('배역이 하나뿐인 대본은 나눈 뒤 대본 상세로 간다', async () => {
+test('배역이 하나뿐인 대본도 나눈 뒤 목소리 정하기로 간다', async () => {
   server.get.mockResolvedValue(scriptDetail([['dialogue', '민재', '혼자야.']]));
   await render(<ReadingNew />);
   await paste('민재: 혼자야.');
 
   await fireEvent.press(screen.getByText('다음'));
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
   expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'typed', raw_text: '민재: 혼자야.' }));
 });
 
@@ -154,13 +154,13 @@ test('SOMA-597: 이름 없는 독백으로 나뉘면 「혼자 하는 대본이�
   expect(server.patch).toHaveBeenCalledWith('s1', { characters: [{ id: 'c1', name: '민지' }] });
 });
 
-test('SOMA-597: 이름이 있는 독백은 이름을 묻지 않고 대본 상세로 간다', async () => {
+test('SOMA-597: 이름이 있는 독백은 이름을 묻지 않고 목소리 정하기로 간다', async () => {
   server.get.mockResolvedValue(scriptDetail(MONO_LINES));
   await render(<ReadingNew />);
   await paste('민지: 그래서 더 말하기 싫었어.');
 
   await fireEvent.press(screen.getByText('다음'));
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
   expect(screen.queryByText('혼자 하는 대본이에요')).not.toBeOnTheScreen();
 });
 
@@ -226,7 +226,7 @@ test('같은 글의 대본이 있으면 그 대본을 열거나 새로 넣을 �
   expect(screen.getByText('「그 대본 열기」를 누르면 하던 데서 이어져요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('그래도 넣기'));
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
   expect(jest.mocked(api.importScript).mock.calls[1][0]).toEqual(expect.objectContaining({ allow_duplicate: true, raw_text: PASTED }));
 });
 

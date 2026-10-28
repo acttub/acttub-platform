@@ -25,14 +25,29 @@ export function colorAt(stops: readonly Stop[], p: number): string {
   return stops[stops.length - 1][1];
 }
 
-export function BandGradient({ stops, bands = 28, style }: { stops: readonly Stop[]; bands?: number; style?: StyleProp<ViewStyle> }) {
+export function BandGradient({
+  stops,
+  bands = 28,
+  style,
+  horizontal = false,
+}: {
+  stops: readonly Stop[];
+  bands?: number;
+  style?: StyleProp<ViewStyle>;
+  /** 왼쪽에서 오른쪽으로 쌓는다(설정 Pro 카드, SOMA-923). */
+  horizontal?: boolean;
+}) {
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
       {/* 띠를 조금씩 겹쳐 둬서 소수점 높이에서 생기는 가는 이음매 선이 보이지 않게 한다. */}
       {Array.from({ length: bands }, (_, i) => (
         <View
           key={i}
-          style={{ position: 'absolute', left: 0, right: 0, top: `${(i / bands) * 100}%`, height: `${100 / bands + 1.5}%`, backgroundColor: colorAt(stops, (i + 0.5) / bands) }}
+          style={
+            horizontal
+              ? { position: 'absolute', top: 0, bottom: 0, left: `${(i / bands) * 100}%`, width: `${100 / bands + 1.5}%`, backgroundColor: colorAt(stops, (i + 0.5) / bands) }
+              : { position: 'absolute', left: 0, right: 0, top: `${(i / bands) * 100}%`, height: `${100 / bands + 1.5}%`, backgroundColor: colorAt(stops, (i + 0.5) / bands) }
+          }
         />
       ))}
     </View>
