@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,9 +13,9 @@ import { BlueSwitch } from '@/components/ui/list-rows';
 import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
 import { space, type } from '@/constants/tokens';
-import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { proVisible, settingsSub, settingsTarget, type BillingMe } from '@/lib/billing';
+import { useBillingMe } from '@/hooks/use-billing-me';
+import { proVisible, settingsSub, settingsTarget } from '@/lib/billing';
 import { languagePreference, saveLanguagePreference, translate as t, type LanguagePreference } from '@/lib/i18n';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
@@ -50,19 +50,8 @@ export default function SettingsScreen() {
     void loadVoiceFeedbackEnabled().then(setVoiceFeedback);
   }, []);
   // Pro 구독 줄(SOMA-818) — 서버가 결제 기능을 닫아 두었으면(404)·앱 스위치가 꺼져 있고 Pro 도 아니면 숨긴다.
-  const [billing, setBilling] = useState<BillingMe | null>(null);
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      Promise.resolve()
-        .then(() => api.billingMe())
-        .then((me) => alive && setBilling(me))
-        .catch(() => alive && setBilling(null));
-      return () => {
-        alive = false;
-      };
-    }, []),
-  );
+  // 들어올 때·앱이 돌아올 때 새로 받고, 받는 동안은 이전 값을 확정처럼 보이지 않는다(SOMA-851).
+  const { me: billing, loading: billingLoading } = useBillingMe();
   const toggleVoiceFeedback = (value: boolean) => {
     setVoiceFeedback(value);
     void saveVoiceFeedbackEnabled(value).catch(() => setVoiceFeedback(!value));
@@ -100,7 +89,7 @@ export default function SettingsScreen() {
             <SettingsCard
               icon="award"
               title={t('pro.settingsTitle')}
-              sub={settingsSub(billing)}
+              sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)}
               onPress={() => router.push(settingsTarget(billing))}
             />
           </>

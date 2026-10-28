@@ -12,6 +12,7 @@ import { syncStore } from '@/hooks/use-store-purchase';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { forget, identify, Purchases, revenueCatAvailable, storePlatform } from '@/lib/revenuecat';
+import { storeLive } from '@/lib/billing';
 import { needsRecovery, recoveryDue } from '@/lib/store-billing';
 
 /** RevenueCat entitlement ID(서버 REVENUECAT_ENTITLEMENT_ID 기본값과 같다). */
@@ -36,6 +37,12 @@ export function useStoreRecovery(active: boolean): void {
       lastRun.current = now;
       try {
         const me = await api.billingMe().catch(() => null);
+        // 스토어 구독이 이미 Pro 여도 앱을 켜거나 돌아올 때 한 번 서버에 다시 읽어 달라고 한다 — 해지 예약·만료는 알림이
+        // 늦거나 못 와도 여기서 따라잡는다(SOMA-851).
+        if (storeLive(me)) {
+          await syncStore(false);
+          return;
+        }
         if (!needsRecovery(me)) return;
         await identify(userId);
         const info = await Purchases.getCustomerInfo();

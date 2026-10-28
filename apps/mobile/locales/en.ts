@@ -898,6 +898,7 @@ const en: DeepStringShape<typeof ko> = {
     settingsTitle: 'ACTTUB Pro',
     settingsFree: 'Free plan · See Pro',
     settingsPro: 'Pro is on',
+    settingsCanceled: 'Pro until {{date}} · Cancels',
     settingsPastDue: 'Payment failed · Please check',
     badge: 'PRO',
     title: 'ACTTUB Pro',
