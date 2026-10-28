@@ -10,6 +10,7 @@ import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { useScrollSettle } from "@/features/site/scroll-settle";
+import { ActyCoachDemo } from "@/features/site/acty-coach-demo";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
 import {
@@ -44,29 +45,6 @@ function Phone({ src, alt, className = "" }: { src: string; alt: string; classNa
   );
 }
 
-// 액티(앱 마스코트). B 안에서만 쓴다. 장식이라 읽어 주지 않고, 글자·버튼 위에 얹지 않는다.
-const ACTY = {
-  hero: { src: "/site/acty/hero-cheer.png", width: 520, height: 474 },
-  coaching: { src: "/site/acty/coaching-script.png", width: 257, height: 227 },
-  reading: { src: "/site/acty/reading-whisper.png", width: 211, height: 208 },
-  challenge: { src: "/site/acty/challenge-slate.png", width: 252, height: 227 },
-  download: { src: "/site/acty/download-curtain.png", width: 226, height: 257 },
-} as const;
-
-function Acty({ pose, className }: { pose: keyof typeof ACTY; className: string }) {
-  const art = ACTY[pose];
-  return (
-    <Image
-      src={art.src}
-      alt=""
-      aria-hidden="true"
-      width={art.width}
-      height={art.height}
-      className={`pointer-events-none absolute select-none ${className}`}
-    />
-  );
-}
-
 function Qr({ size }: { size: number }) {
   return (
     <Image
@@ -79,12 +57,6 @@ function Qr({ size }: { size: number }) {
     />
   );
 }
-
-const FEATURE_ACTY: Record<string, keyof typeof ACTY> = {
-  coaching: "coaching",
-  reading: "reading",
-  challenge: "challenge",
-};
 
 type Feature = {
   id: string;
@@ -251,21 +223,20 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
                   </Link>
                 </p>
               </div>
-              <div
-                className={
-                  isB
-                    ? "relative h-[330px] w-[350px] shrink-0 overflow-hidden sm:h-[420px] sm:w-[380px] lg:h-[560px] lg:w-[440px] lg:overflow-visible"
-                    : "relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible"
-                }
-              >
-                <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" className="absolute left-0 top-0 z-10 w-[260px] lg:w-[300px]" />
-                <Phone
-                  src="/site/shot-reading.jpg"
-                  alt="앱의 대본 리딩 화면"
-                  className="absolute left-[200px] top-[70px] hidden w-[240px] rotate-[4deg] lg:block"
-                />
-                {isB ? <Acty pose="hero" className="bottom-0 right-0 z-20 w-[120px] drop-shadow-[0_10px_8px_rgba(25,31,40,0.12)] sm:w-[150px] lg:-bottom-8 lg:-left-[215px] lg:right-auto lg:w-[240px]" /> : null}
-              </div>
+              {isB ? (
+                <div className="relative h-[330px] w-[350px] shrink-0 overflow-hidden sm:h-[420px] sm:w-[380px] lg:h-[560px] lg:w-[480px] lg:overflow-visible">
+                  <ActyCoachDemo />
+                </div>
+              ) : (
+                <div className="relative h-[330px] w-[260px] shrink-0 overflow-hidden sm:h-[420px] lg:h-[560px] lg:w-[440px] lg:overflow-visible">
+                  <Phone src="/site/shot-coach.jpg" alt="앱의 코칭 질문 대화 화면" className="absolute left-0 top-0 z-10 w-[260px] lg:w-[300px]" />
+                  <Phone
+                    src="/site/shot-reading.jpg"
+                    alt="앱의 대본 리딩 화면"
+                    className="absolute left-[200px] top-[70px] hidden w-[240px] rotate-[4deg] lg:block"
+                  />
+                </div>
+              )}
             </div>
           </section>
 
@@ -296,19 +267,11 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
             >
               <div className="w-full flex-1">
                 <p className="text-sm font-extrabold text-[#4880ee] sm:text-base">{f.kicker}</p>
-                <div className="relative mt-3 w-fit max-w-full">
-                  <h2 id={`${f.id}-title`} className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
-                    {f.title[0]}
-                    <br />
-                    {f.title[1]}
-                  </h2>
-                  {isB && f.id in FEATURE_ACTY ? (
-                    <Acty
-                      pose={FEATURE_ACTY[f.id]}
-                      className="bottom-full right-0 -mb-1 w-[96px] sm:-mb-2 sm:w-[140px]"
-                    />
-                  ) : null}
-                </div>
+                <h2 id={`${f.id}-title`} className="mt-3 text-[26px] font-extrabold leading-[1.3] tracking-[-0.035em] sm:text-[42px]">
+                  {f.title[0]}
+                  <br />
+                  {f.title[1]}
+                </h2>
                 <p className="mt-4 text-base leading-[1.7] text-[#4e5968] sm:text-lg">{isB ? f.bodyB : f.body}</p>
                 <ul className="mt-5 space-y-2">
                   {f.bullets.map((b) => (
@@ -412,9 +375,7 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
       </main>
       <div>
         <section aria-labelledby="band-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
-          <div data-reveal className="relative mx-auto max-w-[1200px]">
-          {isB ? <Acty pose="download" className="bottom-full right-8 w-[96px] sm:right-16 sm:w-[140px] lg:right-24 lg:w-[140px]" /> : null}
-          <div className="relative flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
+          <div data-reveal className="mx-auto flex max-w-[1200px] flex-col gap-6 rounded-[32px] bg-[#1e2430] px-7 py-10 text-white lg:flex-row lg:items-center lg:gap-10 lg:px-16 lg:py-[52px]">
             <div className="flex-1">
               <h2 id="band-title" className="text-[26px] font-extrabold leading-[1.3] tracking-[-0.03em] sm:text-4xl">
                 오늘 찍은 연기,
@@ -429,7 +390,6 @@ export default function LandingClient({ variant = "a" }: { variant?: LandingVari
               <Qr size={128} />
             </div>
             <StoreBadges surface="landing_cta" className="lg:flex-col" />
-          </div>
           </div>
         </section>
         <SiteFooter showBadges={false} />

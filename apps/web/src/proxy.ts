@@ -6,6 +6,7 @@ import {
   LANDING_VARIANT_COOKIE_MAX_AGE,
   LANDING_VARIANT_PATH_PREFIX,
   LANDING_VARIANT_QUERY,
+  LANDING_VARIANT_REWRITE_HEADER,
   landingVariantPath,
 } from "@/lib/landing-variant";
 
@@ -16,8 +17,11 @@ import {
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  // 안별 페이지를 주소로 직접 열면 같은 내용이 두 주소로 보인다. 홈으로 돌려보낸다.
   if (pathname.startsWith(LANDING_VARIANT_PATH_PREFIX)) {
+    // `next dev` 는 rewrite 한 주소로 프록시를 한 번 더 부른다(`next start` 는 안 부른다). 그때 이 표시가
+    // 실려 오므로 그대로 통과시킨다. 표시 없이 안별 페이지를 주소로 직접 열면 같은 내용이 두 주소로
+    // 보이니 홈으로 돌려보낸다. 표시를 지어내 직접 열어도 보이는 건 공개 랜딩뿐이다.
+    if (request.headers.get(LANDING_VARIANT_REWRITE_HEADER) === "1") return NextResponse.next();
     return NextResponse.redirect(new URL("/", request.url), 308);
   }
 
@@ -28,7 +32,11 @@ export function proxy(request: NextRequest): NextResponse {
     random: Math.random,
   });
 
-  const response = NextResponse.rewrite(new URL(landingVariantPath(decision.variant), request.url));
+  const forwardedHeaders = new Headers(request.headers);
+  forwardedHeaders.set(LANDING_VARIANT_REWRITE_HEADER, "1");
+  const response = NextResponse.rewrite(new URL(landingVariantPath(decision.variant), request.url), {
+    request: { headers: forwardedHeaders },
+  });
   if (decision.setCookie) {
     response.cookies.set(LANDING_VARIANT_COOKIE, decision.variant, {
       maxAge: LANDING_VARIANT_COOKIE_MAX_AGE,

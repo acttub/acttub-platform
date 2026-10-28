@@ -50,6 +50,9 @@ export function decideLandingVariant(input: {
 /** 안마다 미리 만든 정적 페이지 경로. 주소창에는 보이지 않는다. */
 export const LANDING_VARIANT_PATH_PREFIX = "/landing-variants";
 
+/** 프록시가 rewrite 하며 요청에 붙이는 표시. `next dev` 의 두 번째 프록시 호출을 직접 접근과 가른다. */
+export const LANDING_VARIANT_REWRITE_HEADER = "x-acttub-landing-rewrite";
+
 export function landingVariantPath(variant: LandingVariant): string {
   return `${LANDING_VARIANT_PATH_PREFIX}/${variant}`;
 }
