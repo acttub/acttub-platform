@@ -27,8 +27,6 @@ import sys
 
 WEIGHTS = {
     "Pretendard-Regular": "Regular",
-    # 안드로이드는 같은 굵기도 더 두껍게 그려져 한 단계 가볍게 쓴다 — 600 자리에 Medium(10/29).
-    "Pretendard-Medium": "Medium",
     "Pretendard-SemiBold": "SemiBold",
     "Pretendard-Bold": "Bold",
 }

@@ -526,7 +526,6 @@ export default function RootLayout() {
     ...Feather.font,
     // 굵기별 static 서브셋 — 가변폰트는 안드로이드에서 fontWeight가 안 먹는다([[global-font]]).
     Pretendard: require('@/assets/fonts/Pretendard-Regular.subset.ttf'),
-    'Pretendard-Medium': require('@/assets/fonts/Pretendard-Medium.subset.ttf'),
     'Pretendard-SemiBold': require('@/assets/fonts/Pretendard-SemiBold.subset.ttf'),
     'Pretendard-Bold': require('@/assets/fonts/Pretendard-Bold.subset.ttf'),
   });
