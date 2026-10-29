@@ -264,6 +264,15 @@ describe('목록을 못 불러왔을 때', () => {
 
     expect(screen.getByText('동의 문서를 불러오지 못했어요.')).toBeOnTheScreen();
   });
+
+  test('다시 불러와도 풀리지 않을 때를 위해 로그아웃으로 나갈 수 있다(SOMA-925)', async () => {
+    const signOut = jest.fn().mockResolvedValue(undefined);
+    mockAuth = { ...mockAuth, consentEntry: { status: 'error', entry: null, error: new Error('세션이 만료됐어요') }, signOut };
+    await render(<ReconsentPopup visible />);
+
+    await fireEvent.press(screen.getByRole('button', { name: '로그아웃' }));
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
 });
 
 test('문서 보기는 시트로 본문을 열고, 닫기나 뒤로 가기는 시트만 닫는다', async () => {

@@ -191,6 +191,20 @@ for (const scenario of [
   });
 }
 
+test('SOMA-925: 탈퇴한 계정은 refresh 도 403 account_deactivated — 탈퇴 신호를 내 기기 세션을 지우게 한다', async () => {
+  let deactivated = 0;
+  const { client } = createClient(async (url) => {
+    if (String(url).endsWith('/v2/auth/refresh')) return jsonResponse({ detail: 'account_deactivated' }, 403);
+    return jsonResponse({ detail: 'expired access' }, 401);
+  }, undefined, { emitAccountDeactivated: () => { deactivated += 1; } });
+
+  await assert.rejects(
+    client.request('/v2/consents/entry'),
+    (error) => error instanceof ApiError && error.status === 403 && error.code === 'account_deactivated',
+  );
+  assert.equal(deactivated, 1);
+});
+
 test('S3: 한 caller 취소는 shared refresh를 죽이지 않고 취소 caller의 추가 fetch를 막는다', async () => {
   let resolveRefresh;
   const refreshResponse = new Promise((resolve) => {
