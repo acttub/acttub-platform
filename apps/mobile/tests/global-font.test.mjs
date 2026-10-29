@@ -26,8 +26,17 @@ test('아이콘 글꼴처럼 패밀리를 직접 정한 글자는 건드리지 �
 test('안드로이드는 굵기 이름으로 고른 Pretendard 도 한 단계 가볍게 한다', () => {
   globalThis.__platform.OS = 'android';
   assert.equal(fontStyleFor({ fontWeight: '700' }).fontFamily, 'Pretendard-SemiBold');
-  assert.deepEqual(fontStyleFor({ fontFamily: 'Pretendard-Bold' }), { fontFamily: 'Pretendard-SemiBold' });
+  assert.deepEqual(fontStyleFor({ fontFamily: 'Pretendard-Bold' }), { fontFamily: 'Pretendard-SemiBold', includeFontPadding: false });
   assert.equal(fontStyleFor({ fontFamily: 'Feather' }), null);
+});
+
+test('안드로이드 Pretendard 글자는 폰트 여백을 빼고, 화면이 정한 값과 아이콘은 그대로 둔다', () => {
+  globalThis.__platform.OS = 'android';
+  assert.equal(fontStyleFor({ fontSize: 14 }).includeFontPadding, false);
+  assert.equal(fontStyleFor({ fontFamily: 'Pretendard' }).includeFontPadding, false);
+  assert.equal(fontStyleFor({ includeFontPadding: true }).includeFontPadding, undefined);
+  globalThis.__platform.OS = 'ios';
+  assert.equal(fontStyleFor({ fontSize: 14 }).includeFontPadding, undefined);
 });
 
 // 예전 패치는 RN 0.81 에서 아무 일도 안 했는데 시험은 가짜 Text 로 통과했다. 설치된 RN 이 실제로 이 함수를 부르는지 본다.
