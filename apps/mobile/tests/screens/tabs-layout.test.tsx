@@ -85,7 +85,7 @@ test('아이콘만 있는 탭마다 읽어 줄 이름과 누름 기록 이름을
 test('iOS 는 활성·비활성 모두 윤곽 아이콘이고 탭 이름 글자는 어느 탭에도 쓰지 않는다(SOMA-838)', async () => {
   await render(<TabLayout />);
 
-  expect(screen.getByText('아이콘 home-outline')).toBeOnTheScreen();
+  expect(screen.getByText('아이콘 chatbubble-outline')).toBeOnTheScreen();
   expect(screen.getByText('아이콘 book-outline')).toBeOnTheScreen();
   for (const name of TAB_NAMES) expect(screen.queryByText(name)).not.toBeOnTheScreen();
 

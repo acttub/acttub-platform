@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { useEffect, useRef, type Ref } from 'react';
-import { Animated, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { Animated, Image, Platform, StyleSheet, View, type ImageSourcePropType, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -79,16 +79,24 @@ export function useTabBarSpace(): number {
 export const TAB_BAR_HIDDEN: ViewStyle = { display: 'none' };
 
 /**
- * 탭 아이콘 — 위 설명대로. 안드로이드는 아이콘 아래에 `label`을 둔다. `badge`가 있으면 공용 Badge 를 칸 오른쪽 위에 단다.
+ * 탭 아이콘 — 위 설명대로. `icon`은 Ionicons 이름이거나 pen 에서 꺼낸 그림(require)이고, 그림은 `tintColor`로 같은 색을 입힌다.
+ * 안드로이드는 아이콘 아래에 `label`을 둔다. `badge`가 있으면 공용 Badge 를 칸 오른쪽 위에 단다.
  * `target`은 첫 가이드가 이 탭을 비출 때 자리를 재는 ref.
  */
 export function tabIcon(
-  name: IoniconName,
+  icon: IoniconName | ImageSourcePropType,
   label: string,
   { target, badge }: { target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void }; badge?: string | null } = {},
 ) {
   const TabIcon = ({ focused }: { focused: boolean }) => {
-    const color = IOS ? (focused ? palette.text : palette.textSub) : focused ? palette.blueDeep : palette.iconFaint;
+    const color = focused ? (IOS ? palette.text : palette.blueDeep) : palette.iconFaint;
+    const size = IOS ? 26 : 22;
+    const glyph =
+      typeof icon === 'string' ? (
+        <Ionicons size={size} name={icon} color={color} />
+      ) : (
+        <Image source={icon} style={{ width: size, height: size, tintColor: color }} />
+      );
     // 안드로이드 — 평소엔 아이콘만 칸 가운데에 있고, 고르면 아이콘이 위로 올라가며 아래에 탭 이름이 나타난다(SOMA-923).
     const shown = useRef(new Animated.Value(focused ? 1 : 0)).current;
     useEffect(() => {
@@ -97,12 +105,12 @@ export function tabIcon(
     return (
       <View ref={target?.ref} onLayout={target?.onLayout} style={[styles.item, IOS && focused && styles.itemOn]}>
         {IOS ? (
-          <Ionicons size={26} name={name} color={color} />
+          glyph
         ) : (
           // 아이콘+이름 묶음을 이름 높이의 절반만큼 내려 두면 아이콘이 가운데다. 고르면 제자리로 올라오고 이름이 보인다.
           <Animated.View
             style={[styles.stack, { transform: [{ translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [LABEL_SHIFT, 0] }) }] }]}>
-            <Ionicons size={22} name={name} color={color} />
+            {glyph}
             <Animated.Text style={[styles.label, focused && styles.labelOn, { opacity: shown }]} importantForAccessibility="no">
               {label}
             </Animated.Text>
@@ -112,7 +120,7 @@ export function tabIcon(
       </View>
     );
   };
-  TabIcon.displayName = `TabIcon(${name})`;
+  TabIcon.displayName = `TabIcon(${label})`;
   return TabIcon;
 }
 
