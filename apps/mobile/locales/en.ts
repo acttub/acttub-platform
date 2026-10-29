@@ -424,6 +424,7 @@ const en: DeepStringShape<typeof ko> = {
     sub3New: 'When it ends, new entries close and the ranking is set.',
     duration7: '7 days',
     duration14: '14 days',
+    durationDays: '{{days}} days',
     noteLabel: 'Scene note (optional)',
     notePh: 'e.g. Catching someone who turns away on the rooftop',
     counter: '{{count}} / {{max}}',

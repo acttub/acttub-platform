@@ -27,10 +27,9 @@ import { normalizeVideoDurationMs } from '@/lib/upload-input';
 import { peekRecordedVideo, setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
 import { setPickedVideo } from '@/lib/practice/picked-video';
 import { VIDEO_PICKER_OPTIONS } from '@/lib/video-picker-options';
+import { getAppConfig } from '@/lib/app-config';
 
 const MAX_SEC = Math.floor(VIDEO_MAX_MS / 1000);
-/** 챌린지(오늘의 대사) 촬영은 60초 — pen A18 촬영 대기 화면과 같은 상한. */
-const CHALLENGE_MAX_SEC = 60;
 /** onCameraReady 가 안 오는 기기에서 셔터를 열어 주는 시간. */
 const CAMERA_READY_FALLBACK_MS = 1500;
 /** 멈춤을 누른 뒤 녹화가 끝나기를 기다리는 시간. 넘으면 화면을 풀어 준다. */
@@ -97,7 +96,8 @@ export default function RecordVideoScreen() {
   const isChallenge = mode === 'challenge';
   // maxSec 파라미터(올리기 망설임 「길게 찍기 부담돼요」의 10초)는 기본 길이보다 짧을 때만 따른다.
   const limitParam = Number(params.maxSec);
-  const baseMaxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
+  // 챌린지(오늘의 대사) 촬영 상한은 참여 영상 상한과 같다 — 기본 60초(pen A18), 서버 설정(SOMA-939).
+  const baseMaxSec = isChallenge ? getAppConfig().challenge.entryMaxSeconds : MAX_SEC;
   const maxSec = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, baseMaxSec) : baseMaxSec;
   const cameraRef = useRef<CameraView>(null);
   const [camPerm, requestCam, readCam] = useCameraPermissions();

@@ -5437,6 +5437,26 @@
         } ]
       }
     },
+    "/v2/app/config" : {
+      "get" : {
+        "tags" : [ "v2-app" ],
+        "summary" : "Get App Config",
+        "description" : "앱 출시 없이 바꾸는 운영 값 — 평가 요청 빈도, 리딩 자동 넘김·독백 판정 기준, 대본 같이 만들기 칩, 홈 오늘의 팁,\n챌린지 영상 길이·기간. 서버 설정 APP_CONFIG_FILE 로 바꾸고 api 를 다시 띄우면 바뀐다. 앱은 못 받으면\n마지막으로 받은 값(없으면 앱에 든 값)을 쓴다.",
+        "operationId" : "get_app_config_v2_app_config_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AppConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/ads" : {
       "get" : {
         "tags" : [ "v2-ads" ],
@@ -13132,6 +13152,158 @@
         },
         "required" : [ "notices" ],
         "title" : "AppNoticeList"
+      },
+      "AppConfig" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "rating" : {
+            "$ref" : "#/components/schemas/AppConfigRating"
+          },
+          "reading" : {
+            "$ref" : "#/components/schemas/AppConfigReading"
+          },
+          "cocreate" : {
+            "$ref" : "#/components/schemas/AppConfigCocreate"
+          },
+          "home_tips" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            },
+            "description" : "언어(ko·en)별 홈 「오늘의 연기 팁」",
+            "title" : "Home Tips"
+          },
+          "challenge" : {
+            "$ref" : "#/components/schemas/AppConfigChallenge"
+          }
+        },
+        "required" : [ "challenge", "cocreate", "home_tips", "rating", "reading" ],
+        "title" : "AppConfig"
+      },
+      "AppConfigChallenge" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "챌린지 참여 영상 길이(초)와 기간(일). 최대 길이·기간은 서버 규칙과 같은 값",
+        "properties" : {
+          "entry_min_seconds" : {
+            "type" : "integer",
+            "title" : "Entry Min Seconds"
+          },
+          "entry_max_seconds" : {
+            "type" : "integer",
+            "title" : "Entry Max Seconds"
+          },
+          "durations_days" : {
+            "type" : "array",
+            "items" : {
+              "type" : "integer"
+            },
+            "title" : "Durations Days"
+          }
+        },
+        "required" : [ "durations_days", "entry_max_seconds", "entry_min_seconds" ],
+        "title" : "AppConfigChallenge"
+      },
+      "AppConfigCocreate" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "대본 같이 만들기 칩. 감정은 서버가 받는 목록 안의 값만, 보이는 순서대로",
+        "properties" : {
+          "emotions" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Emotions"
+          },
+          "situations" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Situations"
+          }
+        },
+        "required" : [ "emotions", "situations" ],
+        "title" : "AppConfigCocreate"
+      },
+      "AppConfigRating" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "앱 평가 요청 — 코칭·리딩 몇 번마다 묻는지, 최소 간격(일), 최대 횟수",
+        "properties" : {
+          "coach_every" : {
+            "type" : "integer",
+            "title" : "Coach Every"
+          },
+          "reading_every" : {
+            "type" : "integer",
+            "title" : "Reading Every"
+          },
+          "min_gap_days" : {
+            "type" : "integer",
+            "title" : "Min Gap Days"
+          },
+          "max_asks" : {
+            "type" : "integer",
+            "title" : "Max Asks"
+          }
+        },
+        "required" : [ "coach_every", "max_asks", "min_gap_days", "reading_every" ],
+        "title" : "AppConfigRating"
+      },
+      "AppConfigReading" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "리딩 자동 넘김(침묵 감지·말 끝 여유·말한 비율)과 독백 판정. monologue_pass 는 서버 판정과 같은 값",
+        "properties" : {
+          "vad_threshold" : {
+            "type" : "number",
+            "title" : "Vad Threshold"
+          },
+          "silence_ms" : {
+            "type" : "integer",
+            "title" : "Silence Ms"
+          },
+          "min_speech_ms" : {
+            "type" : "integer",
+            "title" : "Min Speech Ms"
+          },
+          "max_listen_ms" : {
+            "type" : "integer",
+            "title" : "Max Listen Ms"
+          },
+          "speech_end_grace_ms" : {
+            "type" : "integer",
+            "title" : "Speech End Grace Ms"
+          },
+          "advance_coverage" : {
+            "type" : "number",
+            "title" : "Advance Coverage"
+          },
+          "monologue_pass" : {
+            "type" : "number",
+            "title" : "Monologue Pass"
+          },
+          "monologue_missed_below" : {
+            "type" : "number",
+            "title" : "Monologue Missed Below"
+          },
+          "monologue_next_at" : {
+            "type" : "number",
+            "title" : "Monologue Next At"
+          },
+          "monologue_touch_min" : {
+            "type" : "integer",
+            "title" : "Monologue Touch Min"
+          }
+        },
+        "required" : [ "advance_coverage", "max_listen_ms", "min_speech_ms", "monologue_missed_below", "monologue_next_at", "monologue_pass", "monologue_touch_min", "silence_ms", "speech_end_grace_ms", "vad_threshold" ],
+        "title" : "AppConfigReading"
       },
       "AdCreative" : {
         "type" : "object",

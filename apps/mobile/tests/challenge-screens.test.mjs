@@ -58,7 +58,8 @@ test('challenge.browse: 검색은 두 글자 이상이고 결과가 없으면 �
 test('challenge.create: 등록은 세 단계이고 기간은 7·14일, 요청 id 로 멱등하다', () => {
   const create = read('app/line-new.tsx');
 
-  assert.match(create, /CHALLENGE_DURATIONS/);
+  // 기간 선택지는 서버 설정(기본 7·14일, SOMA-939)을 읽는다.
+  assert.match(create, /getAppConfig\(\)\.challenge\.durationsDays/);
   assert.match(create, /attemptFor/);
   assert.match(create, /api\.createChallenge/);
   assert.match(create, /newRequestId/);

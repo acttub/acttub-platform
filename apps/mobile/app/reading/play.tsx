@@ -93,7 +93,7 @@ import { formatDownloadProgress, loadPercent, type VoiceProgress } from '@/lib/r
 import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
 import * as tts from '@/lib/reading/tts/engine';
-import { DEFAULT_VAD, type VadEvent } from '@/lib/reading/vad';
+import { currentVad, type VadEvent } from '@/lib/reading/vad';
 import { formatMegabytes, modelDownloadPrompt } from '@/lib/reading/voice-policy';
 import {
   choosePartnerVoice,
@@ -1000,7 +1000,7 @@ export default function ReadingPlay() {
     deferredRef.current = null;
     if (!deferred || runRef.current?.status === 'paused') return;
     if (deferred.kind === 'advance') goNext(deferred.from);
-    else deferredTimer.current = setTimeout(() => void endMyTurnRef.current(deferred.from), DEFAULT_VAD.silenceMs);
+    else deferredTimer.current = setTimeout(() => void endMyTurnRef.current(deferred.from), currentVad().silenceMs);
   }, [goNext]);
 
   useEffect(() => {
