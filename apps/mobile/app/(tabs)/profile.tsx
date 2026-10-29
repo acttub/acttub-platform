@@ -440,7 +440,8 @@ const styles = StyleSheet.create({
   cardTitle: { ...type.micro, color: palette.onAccent },
   cardMeta: { ...type.micro, color: palette.onMediaSub },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  cellEmpty: { flex: 1, borderRadius: radius.sm, backgroundColor: palette.bgSoft },
+  // 줄을 채우는 빈 자리 — 칸 폭만 지키고 보이지 않는다. 회색으로 칠하니 영상이 1개여도 3개처럼 보였다(10/29).
+  cellEmpty: { flex: 1 },
   cellEmptyBelow: { height: 152 },
   cardBelow: { flex: 1, gap: space[1.5] },
   thumbBelow: { height: 152, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: palette.bgSoft },
