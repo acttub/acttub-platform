@@ -13,6 +13,7 @@ import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
 import { SkeletonRows } from '@/components/ui/skeleton';
+import { heroCard } from '@/constants/hero-card';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
@@ -335,9 +336,11 @@ export default function ReadingList() {
               accessibilityLabel={resuming ? t('loadingText.preparing') : t('reading.resumeGo')}
               accessibilityHint={resume.script.title}
               ph-label="reading_resume_card">
-              <Feather name="moon" size={22} color={palette.onAccent} style={styles.resumeMoon} />
+              {/* 10/29 시안 — 진한 파랑 카드, 위 흰 반투명 알약, 오른쪽 아래 책 위의 액티, 아래 흰 알약 [이어서 읽기 →]. */}
               <Image source={HERO_ACTY} style={styles.resumeActy} resizeMode="contain" accessibilityElementsHidden />
-              <Text style={styles.resumeEyebrow}>{t('reading.resumeEyebrow')}</Text>
+              <View style={styles.resumeChip}>
+                <Text style={styles.resumeEyebrow}>{t('reading.resumeEyebrow')}</Text>
+              </View>
               <Text style={styles.resumeTitle}>
                 {t('reading.resumeHeadline', {
                   title: resume.script.title,
@@ -349,7 +352,7 @@ export default function ReadingList() {
               <Text style={styles.resumeHint}>{t('reading.resumeHint')}</Text>
               <View style={styles.resumeBtn}>
                 <Text style={styles.resumeBtnText}>{resuming ? t('loadingText.preparing') : t('reading.resumeGo')}</Text>
-                {!resuming && <Feather name="arrow-right" size={16} color={palette.onAccent} />}
+                {!resuming && <Feather name="arrow-right" size={18} color={heroCard.ctaBlue} />}
               </View>
             </Pressable>
           )}
@@ -479,14 +482,24 @@ const styles = StyleSheet.create({
   onMediaSub: { color: palette.onMediaSub },
   entryGo: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   entryGoPlain: { borderWidth: 1, borderColor: palette.border },
-  resumeCard: { backgroundColor: palette.blue, borderRadius: radius.lg, padding: space[5], gap: space[2], overflow: 'hidden' },
-  resumeMoon: { position: 'absolute', right: space[5], top: space[5] },
-  resumeActy: { position: 'absolute', right: 0, bottom: 0, width: 96, height: 106 },
-  resumeEyebrow: { ...type.caption, color: palette.onMediaSub },
-  resumeTitle: { ...type.title2, color: palette.onAccent, maxWidth: '78%' },
-  resumeHint: { ...type.caption, color: palette.onMediaSub, maxWidth: '64%' },
-  resumeBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[1] },
-  resumeBtnText: { ...type.body2Bold, color: palette.onAccent },
+  resumeCard: { backgroundColor: heroCard.bg, borderRadius: radius.xl, padding: space[5], gap: space[2], overflow: 'hidden' },
+  resumeActy: { position: 'absolute', right: -space[2], bottom: -space[1], width: 150, height: 160 },
+  resumeChip: { alignSelf: 'flex-start', backgroundColor: heroCard.chipLight, borderRadius: radius.full, paddingHorizontal: space[3], paddingVertical: space[1] },
+  resumeEyebrow: { ...type.captionBold, color: palette.onAccent },
+  resumeTitle: { ...type.title2, color: palette.onAccent, maxWidth: '70%', marginTop: space[1] },
+  resumeHint: { ...type.body2, color: palette.onMediaSub, maxWidth: '58%' },
+  resumeBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[2],
+    marginTop: space[3],
+    height: 48,
+    paddingHorizontal: space[6],
+    borderRadius: radius.full,
+    backgroundColor: palette.bg,
+  },
+  resumeBtnText: { ...type.body1Bold, color: heroCard.ctaBlue },
   pressed: { opacity: 0.85 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text },

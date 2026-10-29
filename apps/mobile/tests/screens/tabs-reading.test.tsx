@@ -112,7 +112,7 @@ test('이어 읽을 회차가 있으면 pen R1.3처럼 「이전에 하던 데�
   (listSessions as jest.Mock).mockResolvedValue([{ id: 'r1', status: 'in_progress', progress: { done: 8, total: 15 } }]);
   await render(<ReadingList />);
 
-  expect(await screen.findByText('이전에 하던 데부터')).toBeOnTheScreen();
+  expect(await screen.findByText('이전에 하던 대본부터')).toBeOnTheScreen();
   expect(screen.getByText('옥상 장면 · 민지\n8/15줄에서 멈췄어요')).toBeOnTheScreen();
   expect(screen.getByText('「이어서 읽기」를 누르면 멈춘 대목부터 읽어요.')).toBeOnTheScreen();
   expect(screen.getByText('이어서 읽기')).toBeOnTheScreen();

@@ -2224,7 +2224,7 @@ const ko = {
     entrySampleSub: '대본이 없어도 바로 해 볼 수 있어요',
     entryMake: '대본 만들기',
     entryMakeSub: '감정·상황만 고르면 AI가 대본을 만들어 줘요',
-    resumeEyebrow: '이전에 하던 데부터',
+    resumeEyebrow: '이전에 하던 대본부터',
     resumeHeadline: '{{title}} · {{roles}}\n{{done}}/{{total}}줄에서 멈췄어요',
     resumeHint: '「이어서 읽기」를 누르면 멈춘 대목부터 읽어요.',
     resumeGo: '이어서 읽기',
