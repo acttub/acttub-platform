@@ -62,6 +62,7 @@ import {
   pause as pauseRun,
   progressOf,
   progressPayload,
+  stoppedProgressPayload,
   recordSaid,
   resume as resumeRun,
   resumeRun as resumeAt,
@@ -1402,10 +1403,12 @@ export default function ReadingPlay() {
       const heard = monoHeard();
       monoDone.current = heard;
       monoPiece.current = '';
-      const idx = sentenceIndexes(cur, monoFrom.current ?? cur.index).filter((i) => i <= cur.index);
+      // 아무것도 못 알아들었으면 지금 문장도 읽지 않은 것으로 센다 — 끝 화면과 이어 읽기 카드가 같은 줄 수를 보이게(10/29).
+      const upTo = heard.trim() ? cur.index : cur.index - 1;
+      const idx = sentenceIndexes(cur, monoFrom.current ?? cur.index).filter((i) => i <= upTo);
       const result = monologueResults(idx.map((i) => cur.lineIds[i]), idx.map((i) => cur.lines[i].text), heard);
       setMonoResult(result);
-      const trimmed: RunState = { ...cur, endIndex: Math.max(cur.startIndex - 1, Math.min(cur.endIndex, cur.index)) };
+      const trimmed: RunState = { ...cur, endIndex: Math.max(cur.startIndex - 1, Math.min(cur.endIndex, upTo)) };
       next = finishMonologueRun(trimmed, sttModeRef.current?.kind === 'stt' ? result.said : {});
     } else {
       next = stopRun(cur);
@@ -1415,7 +1418,8 @@ export default function ReadingPlay() {
     stt.abort();
     void mic.stop();
     stoppedEarlyRef.current = true;
-    queueRef.current?.push(progressPayload(cur));
+    // 끝 화면이 센 마지막 읽은 줄 다음을 저장한다 — 이어 읽기 카드의 「K/N줄」이 끝 화면과 같아진다(10/29).
+    queueRef.current?.push(stoppedProgressPayload(cur, next));
     commit(next);
   };
   /** 첫 리딩의 「그만 읽기」 — 읽는 중이면 멈춘 뒤 여기까지로 끝내고 첫 리딩 끝 화면으로 간다(10/29). */
