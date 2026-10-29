@@ -2,7 +2,6 @@ package com.acttub.actingapi.feature.ads.adapter.web;
 
 import java.math.BigInteger;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -98,22 +97,22 @@ final class AdAdminDtos {
     @Schema(name = "AdminAdStats", additionalProperties = Schema.AdditionalPropertiesValue.FALSE,
             description = "from~to(양 끝 포함, 한국 날짜 YYYY-MM-DD) 날짜별 노출·클릭과 기간 합계. 기록 없는 날은 0.")
     record AdminAdStats(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) LocalDate from,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) LocalDate to,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "시작일 YYYY-MM-DD") String from,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "종료일 YYYY-MM-DD(포함)") String to,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<StatsDay> days,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "기간 노출 합계(사람·날짜당 한 번)") long impressions,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "기간 클릭 합계(누른 횟수)") long clicks) {
 
         static AdminAdStats of(AdStats.Period period) {
-            return new AdminAdStats(period.from(), period.to(),
-                    period.days().stream().map(day -> new StatsDay(day.day(), day.impressions(), day.clicks())).toList(),
+            return new AdminAdStats(period.from().toString(), period.to().toString(),
+                    period.days().stream().map(day -> new StatsDay(day.day().toString(), day.impressions(), day.clicks())).toList(),
                     period.impressions(), period.clicks());
         }
     }
 
     @Schema(name = "AdminAdStatsDay", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record StatsDay(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) LocalDate day,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "한국 날짜 YYYY-MM-DD") String day,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long impressions,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long clicks) {
     }

@@ -277,6 +277,15 @@ class ErrorContractInventoryTest {
                     "feature.poster.PosterEndpointIT"),
             covered("feature.poster.app.PosterService|422|duplicate_poster", 1,
                     "feature.poster.PosterEndpointIT"),
+            // 앱 광고(app.ads) 운영 경로도 같은 토큰 검사를 진다.
+            covered("feature.ads.adapter.web.AdAdminController|401|Unauthorized", 1,
+                    "feature.ads.AdAdminEndpointIT"),
+            covered("feature.ads.app.AdAdminService|404|ad_not_found", 1,
+                    "feature.ads.AdAdminEndpointIT"),
+            covered("feature.ads.app.AdAdminService|413|upload_too_large", 1,
+                    "feature.ads.AdAdminEndpointIT"),
+            covered("feature.ads.app.AdAdminService|415|unsupported_media_type", 1,
+                    "feature.ads.AdAdminEndpointIT"),
             covered("feature.admissions.app.AdmissionsService|404|university_not_found", 1,
                     "feature.admissions.AdmissionsEndpointIT"),
 
@@ -621,7 +630,7 @@ class ErrorContractInventoryTest {
             covered("feature.support.adapter.web.SupportInquiryController|429|rate limit exceeded", 1,
                     "feature.support.SupportInquiryIT"),
             // 앱 광고 칸(app.ads, SOMA-876). 상세와 노출·클릭 기록이 없는 광고에 같은 404 를 낸다.
-            covered("feature.ads.adapter.web.AdController|404|ad_not_found", 2,
+            covered("feature.ads.adapter.web.AdController|404|ad_not_found", 1,
                     "feature.ads.AdEndpointIT"),
             covered("feature.transfer.adapter.web.GuestTransferController|404|transfer_code_not_found", 1,
                     "feature.transfer.GuestTransferIT"),
