@@ -90,6 +90,8 @@ jest.mock('@/lib/auth', () => ({ AuthProvider: ({ children }: { children: unknow
 jest.mock('@/components/app-header', () => ({ AppHeader: () => require('react').createElement(require('react-native').Text, null, '앱 머리') }));
 jest.mock('@/components/header-back', () => ({ HeaderBack: () => require('react').createElement(require('react-native').Text, null, '뒤로 꺾쇠') }));
 jest.mock('@/components/spotlight-guide', () => ({ SpotlightHost: () => null }));
+// 진입 화면은 onShown 을 부르지 않는다 — 여기서 hideAsync 는 진입 화면을 닫았다는 뜻이다.
+jest.mock('@/components/launch-splash-screen', () => ({ LaunchSplashScreen: () => require('react').createElement(require('react-native').Text, null, '진입 화면') }));
 jest.mock('@/components/reconsent-popup', () => ({
   ReconsentPopup: ({ visible }: { visible: boolean }) =>
     visible ? require('react').createElement(require('react-native').Text, null, '재동의 팝업') : null,
@@ -449,9 +451,11 @@ describe('홈을 기다리는 로고', () => {
   test('홈으로 들어가면 홈이 첫 데이터를 받을 때까지 로고를 유지한다', async () => {
     await renderLayout();
     expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+    expect(screen.getByText('진입 화면')).toBeOnTheScreen();
 
     await act(async () => markHomeReady());
     expect(SplashScreen.hideAsync).toHaveBeenCalled();
+    expect(screen.queryByText('진입 화면')).not.toBeOnTheScreen();
   });
 
   test('홈이 3초 안에 준비되지 않으면 로고를 닫는다', async () => {
