@@ -879,6 +879,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/push-opens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Push Open
+         * @description 푸시 알림을 눌러 앱을 연 것을 기록한다. 보낸 기록과 이어 푸시로 돌아온 사람을 재는 데 쓴다.
+         *     로그인한 회원이면 되고 동의가 남아 있어도 받는다. 게스트는 403 member_only. 한 회원이 분당
+         *     60회까지다.
+         */
+        post: operations["record_push_open_v2_push_opens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/practices": {
         parameters: {
             query?: never;
@@ -3862,6 +3884,17 @@ export interface components {
              * @enum {string}
              */
             platform: "ios" | "android";
+        };
+        /** RecordPushOpenRequest */
+        RecordPushOpenRequest: {
+            /** Kind */
+            kind: string;
+            /** Reminder Kind */
+            reminder_kind?: string | null;
+            /** Template Id */
+            template_id?: string | null;
+            /** Platform */
+            platform?: ("ios" | "android") | null;
         };
         /** PracticeBlockage */
         PracticeBlockage: {
@@ -7780,6 +7813,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ReadingExampleStarted"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_push_open_v2_push_opens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordPushOpenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

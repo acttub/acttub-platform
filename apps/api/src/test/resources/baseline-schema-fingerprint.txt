@@ -574,6 +574,14 @@ COLUMN practices.title ord=17 type=text len=- null=YES default=-
 COLUMN practices.updated_at ord=23 type=timestamptz len=- null=NO default=now()
 COLUMN practices.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN practices.video_id ord=3 type=uuid len=- null=YES default=-
+COLUMN push_opens.app_version ord=7 type=text len=- null=YES default=-
+COLUMN push_opens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN push_opens.kind ord=3 type=text len=- null=NO default=-
+COLUMN push_opens.opened_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN push_opens.platform ord=6 type=text len=- null=YES default=-
+COLUMN push_opens.reminder_kind ord=4 type=text len=- null=YES default=-
+COLUMN push_opens.template_id ord=5 type=text len=- null=YES default=-
+COLUMN push_opens.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN push_tokens.app_version ord=8 type=text len=- null=YES default=-
 COLUMN push_tokens.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -1639,6 +1647,12 @@ CONSTRAINT practices practices_user_id_not_null NOT NULL user_id
 CONSTRAINT practices practices_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id)
 CONSTRAINT practices uq_practices_root_ordinal UNIQUE (root_id, ordinal)
 CONSTRAINT practices uq_practices_user_request UNIQUE (user_id, request_id)
+CONSTRAINT push_opens push_opens_id_not_null NOT NULL id
+CONSTRAINT push_opens push_opens_kind_not_null NOT NULL kind
+CONSTRAINT push_opens push_opens_opened_at_not_null NOT NULL opened_at
+CONSTRAINT push_opens push_opens_pkey PRIMARY KEY (id)
+CONSTRAINT push_opens push_opens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT push_opens push_opens_user_id_not_null NOT NULL user_id
 CONSTRAINT push_tokens push_tokens_created_at_not_null NOT NULL created_at
 CONSTRAINT push_tokens push_tokens_id_not_null NOT NULL id
 CONSTRAINT push_tokens push_tokens_locale_not_null NOT NULL locale
@@ -2046,6 +2060,8 @@ INDEX CREATE INDEX idx_practice_sessions_user_visible_created ON public.practice
 INDEX CREATE INDEX idx_practices_root ON public.practices USING btree (root_id, ordinal)
 INDEX CREATE INDEX idx_practices_user_created ON public.practices USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX idx_practices_video ON public.practices USING btree (video_id)
+INDEX CREATE INDEX idx_push_opens_opened ON public.push_opens USING btree (opened_at)
+INDEX CREATE INDEX idx_push_opens_user_opened ON public.push_opens USING btree (user_id, opened_at)
 INDEX CREATE INDEX idx_push_tokens_user ON public.push_tokens USING btree (user_id)
 INDEX CREATE INDEX idx_reading_pronunciation_reports_queue ON public.reading_pronunciation_reports USING btree (status, lease_until) WHERE (status = ANY (ARRAY['queued'::text, 'running'::text]))
 INDEX CREATE INDEX idx_reading_recordings_user ON public.reading_recordings USING btree (user_id)
@@ -2161,6 +2177,7 @@ INDEX CREATE UNIQUE INDEX practice_reports_pkey ON public.practice_reports USING
 INDEX CREATE UNIQUE INDEX practice_sessions_pkey ON public.practice_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX practices_pkey ON public.practices USING btree (id)
 INDEX CREATE UNIQUE INDEX practices_reading_session_uq ON public.practices USING btree (reading_session_id) WHERE (reading_session_id IS NOT NULL)
+INDEX CREATE UNIQUE INDEX push_opens_pkey ON public.push_opens USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
 INDEX CREATE UNIQUE INDEX reading_examples_pkey ON public.reading_examples USING btree (id)
@@ -2328,6 +2345,7 @@ TABLE practice_reminder_sends
 TABLE practice_reports
 TABLE practice_sessions
 TABLE practices
+TABLE push_opens
 TABLE push_tokens
 TABLE reading_examples
 TABLE reading_pronunciation_reports

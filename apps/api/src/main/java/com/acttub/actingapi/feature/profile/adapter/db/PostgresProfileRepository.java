@@ -454,6 +454,9 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
         entityManager.createNativeQuery("DELETE FROM practice_reminder_sends WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM push_opens WHERE user_id=:guestId")
+                .setParameter("guestId", guestId)
+                .executeUpdate();
         entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
@@ -857,6 +860,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                     .executeUpdate();
             // 연습 알림 보낸 기록(V47)도 사람과 끊어 남기지 않고 지운다.
             entityManager.createNativeQuery("DELETE FROM practice_reminder_sends WHERE user_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            // 푸시를 눌러 연 기록(V72)도 같다.
+            entityManager.createNativeQuery("DELETE FROM push_opens WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
             entityManager.createNativeQuery("""

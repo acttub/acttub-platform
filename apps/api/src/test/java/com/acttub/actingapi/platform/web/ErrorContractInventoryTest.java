@@ -613,6 +613,11 @@ class ErrorContractInventoryTest {
                     "feature.video.VideoLibraryIT"),
             covered("feature.push.adapter.web.PushController|429|rate limit exceeded", 1,
                     "feature.push.AccountNotificationIT"),
+            // 푸시 탭 기록(push.open, SOMA-926). 게스트는 푸시 토큰이 없어 회원 전용이다.
+            covered("feature.push.adapter.web.PushOpenController|403|member_only", 1,
+                    "feature.auth.AccountGuestIT"),
+            covered("feature.push.adapter.web.PushOpenController|429|rate limit exceeded", 1,
+                    "feature.push.PushOpenIT"),
             covered("feature.support.adapter.web.SupportInquiryController|429|rate limit exceeded", 1,
                     "feature.support.SupportInquiryIT"),
             // 앱 광고 칸(app.ads, SOMA-876). 상세와 노출·클릭 기록이 없는 광고에 같은 404 를 낸다.
