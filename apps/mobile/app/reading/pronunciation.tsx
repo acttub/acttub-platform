@@ -38,6 +38,8 @@ export default function PronunciationReportScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
   const [state, setState] = useState<PronunciationState | null>(null);
   const [failed, setFailed] = useState(false);
+  /** 서버가 이 사람에게 아직 보고서를 열지 않았다(404 pronunciation_not_available) — 실패가 아니라 준비 중. */
+  const [notReady, setNotReady] = useState(false);
   const [recordings, setRecordings] = useState<SessionRecording[]>([]);
   const [playing, setPlaying] = useState<string | null>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
@@ -65,8 +67,10 @@ export default function PronunciationReportScreen() {
         setState(next);
         tries += 1;
         if (!pronunciationSettled(next.status) && tries < POLL_MAX) timer = setTimeout(() => void poll(), POLL_MS);
-      } catch {
-        if (mounted.current) setFailed(true);
+      } catch (e) {
+        if (!mounted.current) return;
+        if ((e as { code?: unknown } | null)?.code === 'pronunciation_not_available') setNotReady(true);
+        else setFailed(true);
       }
     };
     void poll();
@@ -122,6 +126,13 @@ export default function PronunciationReportScreen() {
     setPlaying(key);
   };
 
+  if (notReady) {
+    return (
+      <View style={[styles.root, styles.center]}>
+        <Text style={styles.dim}>{t('pronReport.notReady')}</Text>
+      </View>
+    );
+  }
   if (failed || !sessionId) {
     return (
       <View style={[styles.root, styles.center]}>

@@ -13,7 +13,9 @@ import { voiceCoachCardState } from '@/lib/reading/voice-coaching';
 
 /**
  * 리딩 완료 화면의 다음 걸음 — 위에 크게 「방금 읽은 대본으로 코칭도 받아볼까요?」(무료, SOMA-791),
- * 아래 작은 줄 「발음 보고서 보기 PRO」(SOMA-606). 코칭 카드는 서버가 available 을 줄 때만 보인다(404·오류·거짓은 숨김).
+ * 아래 작은 줄 「발음 보고서 받기 PRO」(SOMA-606). 코칭 카드는 서버가 available 을 줄 때만 보인다(404·오류·거짓은 숨김).
+ * 발음 보고서 줄은 무료·Pro 모두에게 보인다. Pro 는 보고서 화면으로 가고, 무료는 눌러도 들어가지 않고 줄 아래에
+ * 「Pro 기능」 안내를 한 줄 띄운다(팝업 없음, 10/24 팝업 규칙). 발음은 Pro 만 — 예전 무료 실험 스위치는 뺐다(10/29).
  * 누르면 한 번에 시작한다: createPractice({request_id, reading_session_id}) → 코치 화면. 이미 시작한 회차가 있으면 그 회차를 연다.
  * 녹음이 아직 올라가는 중(`ready` 거짓)이면 묻지 않는다.
  */
@@ -24,6 +26,9 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
   const router = useRouter();
   const [coachOn, setCoachOn] = useState(false);
   const [reportOn, setReportOn] = useState(false);
+  /** Pro 인가 — 모르면 null(받는 중·실패). 실패하면 무료로 본다. */
+  const [pro, setPro] = useState<boolean | null>(null);
+  const [proNote, setProNote] = useState(false);
   const [openPracticeId, setOpenPracticeId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,11 +51,14 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
       );
     }
     if (wantReport) {
-      Promise.resolve().then(() => api.getPronunciationReport(sessionId)).then(
-        () => {
-          if (alive) setReportOn(true);
+      setReportOn(true);
+      Promise.resolve().then(() => api.billingMe()).then(
+        (me) => {
+          if (alive) setPro(me?.pro === true);
         },
-        () => undefined,
+        () => {
+          if (alive) setPro(false);
+        },
       );
     }
     return () => {
@@ -91,6 +99,20 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
     }
   };
 
+  const openReport = async () => {
+    let isPro = pro;
+    if (isPro === null) {
+      isPro = await Promise.resolve().then(() => api.billingMe()).then((me) => me?.pro === true, () => false);
+      setPro(isPro);
+    }
+    if (!isPro) {
+      setProNote(true);
+      void logEvent('reading_pron_report_locked', {});
+      return;
+    }
+    router.push({ pathname: '/reading/pronunciation', params: { sessionId } });
+  };
+
   if (!(wantCoach && coachOn) && !(wantReport && reportOn)) return null;
   return (
     <View style={styles.wrap}>
@@ -113,7 +135,7 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
       )}
       {wantReport && reportOn && (
         <Pressable
-          onPress={() => router.push({ pathname: '/reading/pronunciation', params: { sessionId } })}
+          onPress={() => void openReport()}
           accessibilityRole="button"
           accessibilityLabel={t('reading.pronReportGet')}
           ph-label="reading_pron_report_open"
@@ -126,11 +148,22 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
           <Feather name="chevron-right" size={16} color={palette.textFaint} />
         </Pressable>
       )}
+      {wantReport && reportOn && proNote && (
+        <View style={styles.proNote}>
+          <Text style={styles.proNoteText}>{t('reading.pronReportProOnly')}</Text>
+          <Pressable onPress={() => router.push('/pro')} accessibilityRole="link" hitSlop={8} ph-label="reading_pron_report_pro">
+            <Text style={styles.proNoteLink}>{t('reading.pronReportProLink')}</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  proNote: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingHorizontal: 4 },
+  proNoteText: { fontSize: 13, color: palette.textMuted },
+  proNoteLink: { fontSize: 13, fontWeight: '700', color: palette.blueDeep },
   wrap: { alignSelf: 'stretch', gap: 6, marginTop: 8 },
   card: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 20, gap: 6 },
   title: { color: palette.text, fontSize: 17, fontWeight: '700', lineHeight: 24 },

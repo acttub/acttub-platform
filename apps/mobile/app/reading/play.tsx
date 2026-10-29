@@ -1,7 +1,6 @@
 import { AdSlot } from '@/components/ad-slot';
 import { clearReachedEnd, markReachedEnd } from '@/lib/reading/progress-display';
 import Feather from '@expo/vector-icons/Feather';
-import { File, Paths } from 'expo-file-system';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
@@ -33,14 +32,14 @@ import { useWaitExit } from '@/hooks/use-wait-exit';
 import { currentTutorial } from '@/lib/tutorial';
 import { currentNetworkType } from '@/lib/reading/network';
 import { speakableText } from '@/lib/reading/tts/speakable';
-import { isKoreanLine, lineLanguage, speechLocaleFor, speechParts } from '@/lib/reading/line-language';
+import { lineLanguage, speechLocaleFor, speechParts } from '@/lib/reading/line-language';
 import type { LineDraft } from '@/lib/reading/line-edit';
 import type { DialogueLine, ScriptLine } from '@/lib/reading/types';
 import { closeProgressQueue, openProgressQueue, trackLeavingSave, type ProgressQueue } from '@/lib/reading/progress-queue';
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { buildStartBody, dialogueNumbers, roleLabel, turnRoles } from '@/lib/reading/session-plan';
+import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan';
 import { saidEnough } from '@/lib/reading/line-coverage';
 import { diffWords } from '@/lib/reading/word-diff';
 import { finishMonologueRun, isMonologue, livePosition, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
@@ -101,10 +100,6 @@ import {
   readAppVoiceSupport,
   type PartnerVoiceEngine,
 } from '@/lib/reading/voice-capability';
-import { pronunciationNotes } from '@/lib/reading/pronunciation-notes';
-import { pronunciationServerUrl, scorePronunciation } from '@/lib/reading/pronunciation-server';
-import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
-import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
 import { ReadingAfterCard } from '@/components/reading-after-card';
 import { LoadingText } from '@/components/ui/loading-text';
 import { ReadingCompareLink } from '@/components/reading/compare-link';
@@ -320,9 +315,6 @@ export default function ReadingPlay() {
   /** 첫 리딩 안내 — 본 적이 없을 때만. done 은 이미 지나간 안내. */
   const [coachOn, setCoachOn] = useState(false);
   const firstRunRef = useRef(false);
-  /** 발음 피드백(실험). 켜져 있으면 내 차례마다 받아쓴 글을 대본과 맞춰 끝난 화면에 다르게 들린 어구를 모은다. */
-  const voiceFeedbackOn = useRef(false);
-  const [lineFeedback, setLineFeedback] = useState<LineFeedback[]>([]);
   /**
    * 독백(SOMA-597) — 배역이 하나뿐인 대본은 처음부터 끝까지 끊지 않고 한 번에 녹음한다. 인식기가 스스로 끝나거나(오래 쉼·시간 한도)
    * 녹음이 3분에 이르면 그 조각만 거두고 곧바로 지금 문장에서 새 조각을 연다. 받아쓴 글은 조각을 넘어 이어 붙이고, 끝낸 뒤 문장별로 맞춘다.
@@ -398,53 +390,10 @@ export default function ReadingPlay() {
   }, [session]);
 
   useEffect(() => {
-    void loadVoiceFeedbackEnabled().then((on) => { voiceFeedbackOn.current = on; });
-  }, []);
-
-  useEffect(() => {
     void pendingRecordingUploads().then((n) => mounted.current && setPendingUploads(n));
     return onRecordingQueueChange((n) => mounted.current && setPendingUploads(n));
   }, []);
 
-  /**
-   * 발음 피드백(실험) — 두 갈래로 다르게 들린 곳을 모은다.
-   * ① 기기 STT 가 받아쓴 글과 대본의 어절 대조(즉시). ② 채점 서버가 켜져 있으면 줄 녹음을 보내 음소 단위 결과(나중에 채워짐).
-   * 녹음 파일은 올리기·지우기와 다투지 않게 복사본을 보낸다. 실패해도 진행·녹음에는 영향이 없다.
-   */
-  const collectPronunciation = useCallback(
-    (lineId: string, said: string, audio: { uri: string; contentType: string } | null) => {
-      try {
-        const cur = runRef.current;
-        const idx = cur ? cur.lineIds.indexOf(lineId) : -1;
-        if (!cur || idx < 0) return;
-        const line = cur.lines[idx] as DialogueLine;
-        // 발음 피드백은 한국어 발음 모델·한국어 어절 대조라 외국어 줄은 건너뛴다(SOMA-751).
-        if (!isKoreanLine(line)) return;
-        const no = dialogueNumbers(cur.lines)[idx];
-        const upsert = (patch: Partial<LineFeedback>) =>
-          setLineFeedback((prev) => {
-            const old = prev.find((x) => x.lineId === lineId) ?? { lineId, no, text: line.text, notes: [], acoustic: [] };
-            return [...prev.filter((x) => x.lineId !== lineId), { ...old, ...patch }].sort((x, y) => (x.no ?? 0) - (y.no ?? 0));
-          });
-        if (said.trim()) {
-          const notes = pronunciationNotes(line.text, said);
-          upsert({ notes });
-          logEvent('reading_pronunciation_feedback', { notes: notes.length });
-        }
-        if (audio && pronunciationServerUrl()) {
-          const ext = audio.contentType === 'audio/wav' ? 'wav' : 'm4a';
-          const copy = new File(Paths.cache, `pron-${Date.now()}-${lineId.slice(0, 8)}.${ext}`);
-          new File(audio.uri).copy(copy);
-          upsert({ pending: true });
-          void scorePronunciation({ uri: copy.uri, contentType: audio.contentType, text: line.text })
-            .then((acoustic) => upsert({ acoustic, pending: false }))
-            .catch(() => upsert({ pending: false }))
-            .finally(() => { try { copy.delete(); } catch {} });
-        }
-      } catch {}
-    },
-    [],
-  );
 
   /**
    * 내 차례의 녹음을 거둬 큐에 넣는다(reading.recording). STT 가 켜져 있으면 인식기가 남긴 파일(wav)을, 아니면
@@ -488,8 +437,6 @@ export default function ReadingPlay() {
       const detached = sttUsed ? stt.detachRecording() : Promise.resolve(null);
       const closed = recordingClosed.current;
       const startedAt = turnStartedAt.current;
-      const span = runRef.current ? turnSpan(runRef.current) : null;
-      const single = !span || span.start === span.end;
       const fromMic = await mic.stop();
       const settled = (async () => {
         let uri: string | null = null;
@@ -504,8 +451,6 @@ export default function ReadingPlay() {
           durationMs = fromMic.durationMs || durationMs;
           kind = fromMic.uri ? 'recorder' : kind;
         }
-        // 발음 피드백은 줄 하나의 녹음·받아쓴 글을 그 줄 원문과 견주므로 묶인 차례(SOMA-806)는 건너뛴다.
-        if (voiceFeedbackOn.current && single) collectPronunciation(lineId, sttUsed ? text : '', uri ? { uri, contentType: contentTypeFor(uri, kind) } : null);
         if (!uri) return;
         if (!session?.record || closed) {
           await deleteDeviceFile(uri).catch(() => undefined);
@@ -515,7 +460,7 @@ export default function ReadingPlay() {
       })().catch(() => undefined);
       return { settled };
     },
-    [collectPronunciation, enqueueTurn, mic, session, stt],
+    [enqueueTurn, mic, session, stt],
   );
 
   // 다시 들어와 이어 읽으면 이전의 「끝까지 갔다」 표시는 지운다.
@@ -1051,7 +996,7 @@ export default function ReadingPlay() {
               void mic.start(onEvent);
             },
           },
-          { persist: !!session.record || (voiceFeedbackOn.current && !!pronunciationServerUrl()), locale: speechLocaleFor(lineLanguage(mine)) },
+          { persist: !!session.record, locale: speechLocaleFor(lineLanguage(mine)) },
         );
         sttActive.current = ok;
         opened = ok;
@@ -1856,7 +1801,6 @@ export default function ReadingPlay() {
           {completed && !wholeScript && <Text style={styles.doneStatFaint}>{t('reading.donePartialNote')}</Text>}
           {/* 녹음 코치(무료, 위에 크게)·발음 보고서(작은 줄) — 서버 스위치를 켠 배포·허용된 사람만(SOMA-791·606). */}
           {completed && !fromTutorialRef.current && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
-          <VoiceFeedbackSummary items={lineFeedback} />
 
           {!completed ? null : !compared ? (
             <View style={styles.noteBox}>
