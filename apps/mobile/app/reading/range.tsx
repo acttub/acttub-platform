@@ -33,7 +33,8 @@ import {
   turnRoles,
   type LineRange,
 } from '@/lib/reading/session-plan';
-import { getCurrent, listSessions, startSession, updateCurrent, type MaskMode } from '@/lib/reading/store';
+import { getCurrent, getCurrentSession, listSessions, startSession, updateCurrent, type MaskMode } from '@/lib/reading/store';
+import { setFirstReadingSession } from '@/lib/reading/first-reading';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import * as engine from '@/lib/reading/tts/engine';
 import type { ScriptLine, SessionCard } from '@/lib/reading/types';
@@ -69,7 +70,12 @@ const NO_LINES: ScriptLine[] = [];
 export default function ReadingRange() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ roles?: string; start?: string; end?: string }>();
+  const params = useLocalSearchParams<{ roles?: string; start?: string; end?: string; first?: string }>();
+  /**
+   * 첫 리딩 모드(10/29) — 리딩을 한 번도 끝내지 않은 계정이 대본을 막 넣고 왔다. 「누구 대사를 읽을까요?」 하나만 묻고
+   * 대사 보기·구간은 고르지 않는다(대본 전체를 처음부터, 대사는 다 보인다). 독백이면 배역도 묻지 않고 바로 시작한다.
+   */
+  const firstMode = params.first === '1';
   const { alert, confirm, dialog } = useAppDialog();
   const { askFirstReading, consentSheet } = useCloudVoice();
   const script = getCurrent();
@@ -95,7 +101,7 @@ export default function ReadingRange() {
   const [picked, setPicked] = useState<LineRange | null>(() => (script ? rangeOfLineIds(script.lineIds, params.start, params.end) : null));
   const [tab, setTab] = useState<Tab | null>(null);
   const [picking, setPicking] = useState<'start' | 'end'>('start');
-  const [mask, setMask] = useState<MaskMode>(script?.maskMode ?? 'none');
+  const [mask, setMask] = useState<MaskMode>(firstMode ? 'none' : (script?.maskMode ?? 'none'));
   /** 회차 목록. null 은 불러오는 중. */
   const [sessions, setSessions] = useState<SessionCard[] | null>(hasHistory ? null : []);
   /** null 은 확인 중. 묻는 건 [시작]을 누를 때다(SOMA-772). */
@@ -148,6 +154,15 @@ export default function ReadingRange() {
     [sessions, lines],
   );
 
+  // 첫 리딩 모드의 독백은 고를 배역이 없다 — 마이크 상태를 안 뒤 한 번 바로 시작한다(권한 창·고품질 목소리 동의는 그대로 뜬다).
+  const startRef = useRef<(() => void) | null>(null);
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!firstMode || cast.length !== 1 || mic === null || autoStarted.current) return;
+    autoStarted.current = true;
+    startRef.current?.();
+  }, [firstMode, cast.length, mic]);
+
   if (!script) return <ReadingNoScript />;
 
   const whole = snapRangeToDialogues(lines, 0, lines.length - 1) ?? { startIndex: 0, endIndex: Math.max(0, lines.length - 1) };
@@ -156,7 +171,7 @@ export default function ReadingRange() {
   const myTurnRoles = turnRoles(script.characters, pickedCast.map((c) => c.id));
   // 첫 연습이면 처음부터 대사 10줄을 짧은 구간으로 골라 둔다 — 기기에서만 정한다.
   const short = hasHistory ? null : firstPracticeRange(lines, myTurnRoles);
-  const range = picked ?? recents[0]?.range ?? short ?? whole;
+  const range = firstMode ? whole : (picked ?? recents[0]?.range ?? short ?? whole);
   const showRecent = hasHistory && (sessions === null || recents.length > 0);
   const tabs: Tab[] = showRecent ? ['recent', 'scene', 'line'] : short ? ['suggest', 'scene', 'line'] : ['scene', 'line'];
   const activeTab = tab && tabs.includes(tab) ? tab : tabs[0];
@@ -164,7 +179,7 @@ export default function ReadingRange() {
   const dlgIn = dialogues.filter((x) => x.i >= range.startIndex && x.i <= range.endIndex).length;
   // 고른 배역의 대사가 구간 안에 거의 없으면 처음 안내 대신 알린다 — 시작은 막지 않는다(SOMA-709).
   const few = fewLines(lines, myTurnRoles, range.startIndex, range.endIndex);
-  const loadingDefault = picked === null && sessions === null;
+  const loadingDefault = !firstMode && picked === null && sessions === null;
   const gate = startGate({ roleCount: selected.length, micGranted: mic === null ? null : true, loading: loadingDefault });
   const wholeDialogues = dialogues.length;
 
@@ -220,6 +235,7 @@ export default function ReadingRange() {
         }),
       );
       await updateCurrent({ maskMode: mask });
+      setFirstReadingSession(firstMode ? (getCurrentSession()?.id ?? null) : null);
       router.replace('/reading/play');
     } catch (e) {
       const code = (e as { code?: string })?.code;
@@ -235,12 +251,15 @@ export default function ReadingRange() {
     }
   };
 
+  startRef.current = () => void onStart();
   const mono = cast.length === 1;
   const firstRun = !hasHistory;
   const micAsk = mic !== 'granted';
   const mainLabel = busy
     ? t('reading.startingSession')
-    : gate === 'pickRole'
+    : firstMode
+      ? t('reading.firstPickStart')
+      : gate === 'pickRole'
       ? t('reading.startNeedsRole')
       : micAsk
         ? t('reading.startWithMic')
@@ -285,11 +304,37 @@ export default function ReadingRange() {
         <View style={styles.mascotRow}>
           <Image source={MASCOT} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <View style={styles.bubble}>
-            <Text style={styles.title}>{t('reading.rangeHeading')}</Text>
-            <Text style={styles.sub}>{firstRun && micAsk ? t('reading.rangeFirstGuide') : `${script.title} · ${t('reading.dialogueCount', { count: script.dialogueCount })}`}</Text>
+            <Text style={styles.title}>{t(firstMode ? 'reading.firstPickTitle' : 'reading.rangeHeading')}</Text>
+            <Text style={styles.sub}>{firstMode ? t('reading.firstPickSub') : firstRun && micAsk ? t('reading.rangeFirstGuide') : `${script.title} · ${t('reading.dialogueCount', { count: script.dialogueCount })}`}</Text>
           </View>
         </View>
 
+        {firstMode ? (
+          // 첫 리딩 — 배역만 세로 목록으로. 이름 · 대사 수 · 그 배역의 첫 대사를 보여 주고, 여럿 골라도 된다.
+          <View ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout} style={styles.list}>
+            {cast.map((c) => {
+              const on = selected.includes(c.id);
+              const firstLine = dialogues.find((x) => x.l.type === 'dialogue' && x.l.role === c.name)?.l as Extract<ScriptLine, { type: 'dialogue' }> | undefined;
+              const sub = `${t('reading.dialogueCount', { count: roleLineCount(c, lines, script.characters) })}${firstLine ? ` · ${firstLine.text}` : ''}`;
+              return (
+                <Pressable
+                  key={c.id}
+                  style={[styles.card, on && styles.cardOn]}
+                  onPress={() => toggleRole(c.id)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  ph-label="reading_first_role">
+                  <View style={styles.rowBody}>
+                    <Text style={styles.cardTitle}>{c.name}</Text>
+                    <Text style={styles.cardSub} numberOfLines={1}>{sub}</Text>
+                  </View>
+                  {on && <Feather name="check" size={18} color={palette.blue} />}
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : (
+          <>
         <Text style={styles.section}>{t('reading.myRolesLabel')}</Text>
         {/* pen R8.6 「칩 줄」 — 배역이 많으면 옆으로 민다. */}
         <View ref={rangePickTarget.ref} onLayout={rangePickTarget.onLayout} style={styles.bleed}>
@@ -418,6 +463,8 @@ export default function ReadingRange() {
               </View>
             ))}
           </View>
+        )}
+          </>
         )}
       </ScrollView>
 

@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { SAMPLE_SCRIPT } from '@/lib/reading/sample';
 import { resetReadingState } from '@/lib/reading/store';
+import { setFirstUseOwner } from '@/lib/practice/first-use-graduation';
 import type { ScriptImport } from '@/lib/reading/types';
 
 import { closeModalOf, fakeServer, scriptDetail, TWO_ROLE_LINES } from './fixtures';
@@ -39,6 +40,7 @@ jest.mock('@/lib/api', () => ({
     completeScriptUpload: jest.fn(),
     consentEntry: jest.fn(),
     recordConsent: jest.fn(),
+    listReadingScripts: jest.fn(),
   },
 }));
 
@@ -546,4 +548,28 @@ test('무료 대본 시트의 [Pro 알아보기]는 Pro 안내로 간다', async
   await fireEvent.press(screen.getByText('다음'));
   await fireEvent.press(await screen.findByText('Pro 알아보기'));
   expect(mockRouter.push).toHaveBeenCalledWith('/pro');
+});
+
+// ── 첫 리딩(10/29) ─────────────────────────────────────────────────────────────────────
+test('리딩 탭 첫 화면 「내 대본 올리기」로 오면(pick=file) 들어오자마자 파일 고르기 창을 연다', async () => {
+  mockParams = { pick: 'file' };
+  jest.mocked(DocumentPicker.getDocumentAsync).mockResolvedValue({ canceled: true, assets: null } as never);
+  await render(<ReadingNew />);
+  await waitFor(() => expect(DocumentPicker.getDocumentAsync).toHaveBeenCalledTimes(1));
+});
+
+test('리딩을 한 번도 끝내지 않은 계정은 나눈 뒤 목소리·대본 상세를 건너뛰고 배역 고르기(첫 모드)로 간다', async () => {
+  setFirstUseOwner('first-user');
+  jest.mocked(api.listReadingScripts).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 } as never);
+  await render(<ReadingNew />);
+  await waitFor(() => expect(api.listReadingScripts).toHaveBeenCalled());
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/range', params: { first: '1' } }));
+  expect(mockRouter.replace).not.toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } });
+  setFirstUseOwner(null);
 });

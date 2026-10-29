@@ -198,7 +198,8 @@ export default function ReadingList() {
   const listPending = list === null && !error;
 
   const goEntry = (choice: EntryKey) => {
-    if (choice === 'upload') router.push('/reading/new');
+    // 「내 대본 올리기」는 같은 고르기(파일·붙여넣기·만들기)를 한 번 더 보이지 않고 바로 파일 고르기 창을 연다(10/29).
+    if (choice === 'upload') router.push({ pathname: '/reading/new', params: { pick: 'file' } });
     else if (choice === 'sample') router.push('/reading/sample');
     else if (choice === 'make') router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } });
   };

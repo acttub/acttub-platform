@@ -12,6 +12,7 @@ import { currentNetworkType } from '@/lib/reading/network';
 import { deleteDeviceFile } from '@/lib/account-files';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { getLastRunReview, resetReadingState, setCurrentSession, updateCurrent } from '@/lib/reading/store';
+import { setFirstReadingSession } from '@/lib/reading/first-reading';
 import { takeContinueOrigin } from '@/lib/practice/session-state';
 import { missingModelBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
 import { hasDeviceVoice, speakWithDevice } from '@/lib/reading/tts/device-voice';
@@ -1974,33 +1975,53 @@ test('첫 리딩이면 끝에서 칭찬과 큰 홈으로 가기, 그 밑에 한 
   expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
 });
 
-test('첫 리딩 버튼 안내가 떠 있는 동안은 말이 끝나도 넘기지 않고, 「알겠어요」를 누르면 이어 간다', async () => {
+test('첫 리딩이면 화면을 덮지 않고 지금 차례에 맞는 말풍선을 하나씩 띄우며, 읽기는 멈추지 않는다(10/29)', async () => {
   await AsyncStorage.removeItem('acttub.reading.firstGuideSeen');
-  await startPlay();
+  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
   await screen.findByText('듣는 중');
-  await speechEnds();
 
-  expect(await screen.findByText('알겠어요')).toBeOnTheScreen();
-  // 안내가 떠 있는 동안 말이 끝나도 넘기지 않는다.
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 300));
-  });
-  if (mic) await speechEnds();
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 300));
-  });
-  expect(screen.queryByText('리딩 완료')).not.toBeOnTheScreen();
-  expect(screen.queryByText(/처음인데 끝까지 읽었어요/)).not.toBeOnTheScreen();
-  expect(screen.getByText('알겠어요')).toBeOnTheScreen();
-
-  await fireEvent.press(screen.getByText('알겠어요'));
+  // 내 차례 — 소리 내어 읽으라는 말풍선 하나만. 예전 버튼 넷 설명 덮개는 없다.
+  expect(await screen.findByText(/이제 내 대사를 소리 내어 읽어 보세요/)).toBeOnTheScreen();
   expect(screen.queryByText('알겠어요')).not.toBeOnTheScreen();
-  // 안내 중에 끝난 말은 닫은 뒤에 넘긴다(미뤄 둔 넘김). 아직 듣는 중이면 말이 끝나야 넘어간다.
-  if (mic) await speechEnds();
+  expect(screen.queryByText(/아래 버튼 네 개만 알려 줄게요/)).not.toBeOnTheScreen();
+
+  // 말풍선이 떠 있어도 말이 끝나면 그대로 이어 간다.
+  await speechEnds();
   expect(await screen.findByText(/처음인데 끝까지 읽었어요/, {}, { timeout: 4000 })).toBeOnTheScreen();
 });
 
-test('다른 대본을 읽어 본 계정(앱을 다시 깐 기존 사용자)에게는 첫 리딩 버튼 안내를 띄우지 않고 본 것으로 적는다(10/26)', async () => {
+test('첫 리딩 말풍선은 누르면 닫히고 같은 리딩에서 다시 뜨지 않는다', async () => {
+  await AsyncStorage.removeItem('acttub.reading.firstGuideSeen');
+  await startPlay();
+  await screen.findByText('듣는 중');
+  const mark = await screen.findByText(/이제 내 대사를 소리 내어 읽어 보세요/);
+  await fireEvent.press(mark);
+  expect(screen.queryByText(/이제 내 대사를 소리 내어 읽어 보세요/)).not.toBeOnTheScreen();
+});
+
+test('첫 리딩으로 시작한 회차는 위 「그만 읽기」로 언제든 끝내고 첫 리딩 끝 화면을 보인다(10/29)', async () => {
+  setFirstReadingSession(sessionDetail({}).id);
+  try {
+    await startPlay();
+    await screen.findByText('듣는 중');
+    await fireEvent.press(screen.getByText('그만 읽기'));
+
+    expect(await screen.findByText(/첫 리딩을 해 봤어요/)).toBeOnTheScreen();
+    expect(screen.getByText('첫 리딩 끝')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '한 번 더 읽기' })).toBeOnTheScreen();
+  } finally {
+    setFirstReadingSession(null);
+  }
+});
+
+test('첫 리딩이 아닌 회차에는 「그만 읽기」를 두지 않는다', async () => {
+  await startPlay();
+  await screen.findByText('듣는 중');
+  expect(screen.queryByText('그만 읽기')).not.toBeOnTheScreen();
+});
+
+test('다른 대본을 읽어 본 계정(앱을 다시 깐 기존 사용자)에게는 첫 리딩 말풍선 안내를 띄우지 않고 본 것으로 적는다(10/26)', async () => {
   await AsyncStorage.removeItem('acttub.reading.firstGuideSeen');
   jest.mocked(api.listReadingScripts).mockResolvedValue({
     scripts: [{ id: 'other-script', last_practiced_at: '2026-10-16T02:00:00Z' }],
@@ -2015,7 +2036,7 @@ test('다른 대본을 읽어 본 계정(앱을 다시 깐 기존 사용자)에�
     await act(async () => {
       await new Promise((r) => setTimeout(r, 300));
     });
-    expect(screen.queryByText('알겠어요')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/이제 내 대사를 소리 내어 읽어 보세요/)).not.toBeOnTheScreen();
   } finally {
     jest.mocked(api.listReadingScripts).mockReset();
   }

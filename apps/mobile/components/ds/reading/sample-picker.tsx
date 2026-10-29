@@ -16,6 +16,8 @@ import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { loadIntoCurrent } from '@/lib/reading/store';
 import { newRequestId } from '@/lib/request-id';
 import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
+import { useFirstReading } from '@/hooks/use-first-reading';
+import { FIRST_READING_HREF } from '@/lib/reading/first-reading';
 
 type Options = {
   /** 이름 없는 독백이면 이름부터 받는다(SOMA-597). */
@@ -33,6 +35,9 @@ type Options = {
  */
 export function useSamplePicker({ onNeedName, onLocal, exam = false }: Options) {
   const router = useRouter();
+  const firstReading = useFirstReading();
+  const firstReadingRef = useRef<boolean | null>(null);
+  firstReadingRef.current = firstReading;
   const { alert, dialog } = useAppDialog();
   const [list, setList] = useState<ExampleList>(localExamples);
   const [pickedId, setPickedId] = useState<string>(() => localExamples().examples[0].id);
@@ -75,6 +80,8 @@ export function useSamplePicker({ onNeedName, onLocal, exam = false }: Options) 
       // 대본 넣기 끝과 같은 길 — 이름 없는 독백은 이름부터, 아니면 대본 상세(SOMA-597).
       const solo = saved.characters.filter((c) => !isGroupCharacter(c));
       if (isMonologue(saved.characters) && solo[0].unnamed) return onNeedName({ scriptId: saved.id, characterId: solo[0].id });
+      // 첫 리딩이면 대본 상세·구간을 건너뛰고 배역만 고른다(10/29).
+      if (firstReadingRef.current) return router.replace(FIRST_READING_HREF);
       router.replace('/reading/detail');
       if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
     } catch (error) {
