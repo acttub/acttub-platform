@@ -421,6 +421,11 @@ export const api = {
     return request(`/v2/app/posters?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
+  /** 서버가 내려주는 앱 설정(SOMA-939). 로그인 없이 받는다 — 검사·기본값은 lib/app-config 의 parseAppConfig 가 한다. */
+  getAppConfig(): Promise<unknown> {
+    return request('/v2/app/config', {}, { auth: false, timeoutMs: 10_000 });
+  },
+
   /** 앱 공지사항(SOMA-919). 팝업으로 떠 있는 공지와 끝난 공지를 공지한 날 늦은 순으로 받는다. */
   getNotices(params: { platform: 'ios' | 'android'; locale: 'ko' | 'en' }): Promise<NoticesResponse> {
     const query = new URLSearchParams(params);

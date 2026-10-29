@@ -6,10 +6,14 @@
  * 그친 것으로 본다. 조르지 않도록 최소 7일 간격·최대 3번(iOS 인앱 평점 창의 1년 한도와 같다)만 묻는다.
  */
 
-export const RATING_COACH_EVERY = 2;
-export const RATING_READING_EVERY = 2;
-export const RATING_MIN_GAP_MS = 7 * 24 * 60 * 60 * 1000;
-export const RATING_MAX_ASKS = 3;
+import { DEFAULT_APP_CONFIG, getAppConfig } from './app-config.ts';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+// 아래 상수는 기본값이다. 판정은 쓰는 순간 서버 설정(getAppConfig().rating)을 읽는다(SOMA-939).
+export const RATING_COACH_EVERY = DEFAULT_APP_CONFIG.rating.coachEvery;
+export const RATING_READING_EVERY = DEFAULT_APP_CONFIG.rating.readingEvery;
+export const RATING_MIN_GAP_MS = DEFAULT_APP_CONFIG.rating.minGapDays * DAY_MS;
+export const RATING_MAX_ASKS = DEFAULT_APP_CONFIG.rating.maxAsks;
 /** 같은 연습을 두 번 세지 않으려고 기억하는 최근 연습 id 수 */
 const REMEMBERED_PRACTICES = 20;
 
@@ -40,15 +44,16 @@ export const EMPTY_RATING_STATE: RatingState = {
 export type RatingEvent = { kind: 'coach'; practiceId: string } | { kind: 'reading' };
 
 function mayAsk(state: RatingState, now: number): boolean {
-  if (state.rated || state.asks >= RATING_MAX_ASKS) return false;
-  return state.lastAskAt === null || now - state.lastAskAt >= RATING_MIN_GAP_MS;
+  const { maxAsks, minGapDays } = getAppConfig().rating;
+  if (state.rated || state.asks >= maxAsks) return false;
+  return state.lastAskAt === null || now - state.lastAskAt >= minGapDays * DAY_MS;
 }
 
 /** 사건을 세고 지금 물어야 하는지 답한다. 묻기로 했으면 보여 준 뒤 {@link afterAsk} 로 남긴다. */
 export function recordEvent(state: RatingState, event: RatingEvent, now: number): { state: RatingState; ask: boolean } {
   if (event.kind === 'reading') {
     const next: RatingState = { ...state, readingSinceAsk: state.readingSinceAsk + 1 };
-    return { state: next, ask: next.readingSinceAsk >= RATING_READING_EVERY && mayAsk(next, now) };
+    return { state: next, ask: next.readingSinceAsk >= getAppConfig().rating.readingEvery && mayAsk(next, now) };
   }
   if (state.counted.includes(event.practiceId)) return { state, ask: false };
   const next: RatingState = {
@@ -56,7 +61,7 @@ export function recordEvent(state: RatingState, event: RatingEvent, now: number)
     coachSinceAsk: state.coachSinceAsk + 1,
     counted: [...state.counted, event.practiceId].slice(-REMEMBERED_PRACTICES),
   };
-  return { state: next, ask: next.coachSinceAsk >= RATING_COACH_EVERY && mayAsk(next, now) };
+  return { state: next, ask: next.coachSinceAsk >= getAppConfig().rating.coachEvery && mayAsk(next, now) };
 }
 
 /** 시트를 보여 준 뒤 — "나중에"를 눌러도 이 간격은 지킨다. */

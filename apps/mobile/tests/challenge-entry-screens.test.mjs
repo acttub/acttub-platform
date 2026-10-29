@@ -49,7 +49,8 @@ test('challenge.entry: 찍은 영상은 보관함을 거쳐 확정된 뒤 올라
   assert.match(upload, /challengeUpload\.waitingVideo/);
   // 촬영 화면은 60초 상한과 대사를 띄우고 챌린지 id 를 넘긴다(A18).
   const record = read('app/record-video.tsx');
-  assert.match(record, /CHALLENGE_MAX_SEC = 60/);
+  // 상한은 서버 설정(기본 60초, SOMA-939)을 읽는다 — 60 은 app-config 테스트가 잠근다.
+  assert.match(record, /isChallenge \? getAppConfig\(\)\.challenge\.entryMaxSeconds : MAX_SEC/);
   assert.match(record, /challengeId: challengeId \?\? ''/);
 });
 

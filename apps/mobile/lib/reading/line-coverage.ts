@@ -1,9 +1,11 @@
+import { DEFAULT_APP_CONFIG, getAppConfig } from '../app-config.ts';
+
 /**
  * 내 대사를 얼마나 말했는지(SOMA-804). 받아쓴 글자 수가 대본 글자 수의 90% 이상이 된 뒤의 침묵만 줄 끝으로 친다 —
  * 대사 중간의 긴 사이에 다음 줄로 넘어가 버리는 일을 막는다. 글자는 {@link diffWords} 와 같은 규칙으로 센다
- * (띄어쓰기·문장부호·괄호 안 지시·낱자모 빼고).
+ * (띄어쓰기·문장부호·괄호 안 지시·낱자모 빼고). 90%는 기본값이고, 판정은 서버 설정을 쓰는 순간 읽는다(SOMA-939).
  */
-export const ADVANCE_COVERAGE = 0.9;
+export const ADVANCE_COVERAGE = DEFAULT_APP_CONFIG.reading.advanceCoverage;
 
 const OPEN = /[(（[【]/;
 const CLOSE = /[)）\]】]/;
@@ -33,5 +35,5 @@ export function spokenCoverage(target: string, said: string): number {
 
 /** 침묵으로 넘겨도 될 만큼 말했는가. */
 export function saidEnough(target: string, said: string): boolean {
-  return spokenCoverage(target, said) >= ADVANCE_COVERAGE;
+  return spokenCoverage(target, said) >= getAppConfig().reading.advanceCoverage;
 }

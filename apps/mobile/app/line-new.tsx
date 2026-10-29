@@ -27,11 +27,8 @@ import {
   stepComplete,
   type ChallengeDraft,
 } from '@/lib/challenge/create';
-import {
-  CHALLENGE_DURATIONS,
-  LINE_MAX,
-  type ChallengeDuration,
-} from '@/lib/challenge/types';
+import { LINE_MAX } from '@/lib/challenge/types';
+import { getAppConfig } from '@/lib/app-config';
 import { translate as t } from '@/lib/i18n';
 import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 
@@ -164,13 +161,16 @@ export default function LineNewScreen() {
             <Text style={styles.title}>{t('lineNew.title3New')}</Text>
             <Text style={styles.sub}>{t('lineNew.sub3New')}</Text>
             <View style={styles.durationRow}>
-              {CHALLENGE_DURATIONS.map((days) => (
+              {/* 기간 선택지는 서버 설정이다(SOMA-939). 7·14일 말고는 「N일」로 보인다. */}
+              {getAppConfig().challenge.durationsDays.map((days) => (
                 <Chip
                   key={days}
                   role="radio"
-                  label={t(days === 7 ? 'lineNew.duration7' : 'lineNew.duration14')}
+                  label={
+                    days === 7 ? t('lineNew.duration7') : days === 14 ? t('lineNew.duration14') : t('lineNew.durationDays', { days })
+                  }
                   selected={draft.durationDays === days}
-                  onPress={() => set({ durationDays: days as ChallengeDuration })}
+                  onPress={() => set({ durationDays: days })}
                   style={styles.duration}
                 />
               ))}

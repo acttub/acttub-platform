@@ -152,6 +152,8 @@ class EntityMappingIT {
             "billing_subscriptions", "billing_checkouts", "billing_payments", "billing_pro_grants",
             // 앱 광고 칸(V66, SOMA-876)은 광고 저장소의 native SQL(고르기·노출 upsert·클릭)만 쓴다.
             "ads", "ad_events",
+            // 화면별 광고 칸 스위치(V76, SOMA-876)는 광고 칸 스위치 저장소의 native SELECT 만 쓴다.
+            "ad_slot_switches",
             // 푸시 탭 기록(V72, SOMA-926)은 푸시 탭 저장소의 native INSERT 와 탈퇴 파기만 쓴다.
             "push_opens");
 

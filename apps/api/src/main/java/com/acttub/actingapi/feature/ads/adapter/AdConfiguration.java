@@ -6,6 +6,7 @@ import com.acttub.actingapi.feature.ads.app.AdAdminService;
 import com.acttub.actingapi.feature.ads.app.AdImages;
 import com.acttub.actingapi.feature.ads.app.AdRepository;
 import com.acttub.actingapi.feature.ads.app.AdService;
+import com.acttub.actingapi.feature.ads.app.AdSlotSwitches;
 import com.acttub.actingapi.feature.ads.app.ProStatusReader;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,12 +20,13 @@ class AdConfiguration {
     @Bean
     AdService adService(
             AdRepository repository,
+            AdSlotSwitches switches,
             ObjectProvider<ProStatusReader> proStatus,
             Clock clock,
             @Value("${ADS_ENABLED:true}") boolean enabled,
             @Value("${ADS_PRACTICE_SLOT_PERCENT:50}") int practiceSlotPercent) {
         return new AdService(repository, proStatus.getIfAvailable(() -> ProStatusReader.ALWAYS_FREE),
-                new AdService.Settings(enabled, practiceSlotPercent), clock);
+                new AdService.Settings(enabled, practiceSlotPercent), switches, clock);
     }
 
     @Bean

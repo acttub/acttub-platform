@@ -505,7 +505,7 @@ test('나가기는 저장이 닿기를 기다리지 않고 바로 상세로 간�
   await act(async () => land());
 });
 
-test('대사를 읽고 나서라도 중간에 그만하기를 누르면 연습으로 세지 않고 멈춘 위치만 저장한다(10/29)', async () => {
+test('내 대사를 한 줄 읽고 그만하기를 누르면 읽은 데까지로 끝내고 연습으로 센다(10/29)', async () => {
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   mockMic.stop.mockResolvedValue(null);
   const server = await startPlay();
@@ -516,9 +516,13 @@ test('대사를 읽고 나서라도 중간에 그만하기를 누르면 연습�
 
   await fireEvent.press(screen.getByText('일시정지'));
   await fireEvent.press(screen.getByText('그만하기'));
-  expect(await screen.findByText('연습으로 세지 않았어요')).toBeOnTheScreen();
-  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: false })));
-  expect(server.saveProgress).not.toHaveBeenCalledWith('r1', expect.objectContaining({ complete: true }));
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
+  await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({
+    complete: true,
+    line_results: [{ line_id: 'l2', said: '오늘 왔구나' }],
+  })));
+  // 끝까지 가 본 건 아니다 — 첫 사용자 졸업 표시는 남기지 않는다(SOMA-827).
   expect(markFirstUseGraduated).not.toHaveBeenCalled();
 });
 

@@ -34,6 +34,7 @@ import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { api } from '@/lib/api';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
+import { loadAppConfig } from '@/lib/app-config-load';
 import { tabBackTitle } from '@/lib/tab-back-title';
 import { HOME_SPLASH_HOLD_MS, isHomeReady, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
 import { AppHeader } from '@/components/app-header';
@@ -80,6 +81,8 @@ void sweepDeviceFiles();
 installNavigationGuard(router);
 // 리딩 기기 목소리 모델은 서버가 주는 fp16 묶음 주소로 받는다(SOMA-747). 못 받으면 원본 fp32.
 setVoiceModelSource(() => api.getVoiceModel());
+// 운영이 바꾸는 값(평가 요청 주기·리딩 감지·칩 목록 등)을 서버에서 받는다(SOMA-939). 기다리지 않는다 — 받기 전엔 기본값이다.
+void loadAppConfig();
 
 export const unstable_settings = {
   anchor: '(tabs)',

@@ -125,6 +125,23 @@ class AdEndpointIT {
     }
 
     @Test
+    @DisplayName("ad_slot_switches 에서 끈 칸은 광고가 있어도 NONE, 다시 켜면 돌아온다 — 다른 칸은 그대로")
+    void slotSwitch() throws Exception {
+        insertAd("direct", "{settings_top}", "all", "https://cdn/banner.png", null);
+        finishReading();
+        try {
+            assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("DIRECT");
+            jdbc.update("UPDATE ad_slot_switches SET enabled=false WHERE slot_key='settings_top'");
+            assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("NONE");
+            assertThat(json(get("/v2/ads").param("slot", "home_top"), 200).path("kind").asText()).isEqualTo("NETWORK");
+            jdbc.update("UPDATE ad_slot_switches SET enabled=true WHERE slot_key='settings_top'");
+            assertThat(json(get("/v2/ads").param("slot", "settings_top"), 200).path("kind").asText()).isEqualTo("DIRECT");
+        } finally {
+            jdbc.update("UPDATE ad_slot_switches SET enabled=true");
+        }
+    }
+
+    @Test
     @DisplayName("노출은 하루 한 번, 클릭은 누를 때마다 남는다. 없는 광고 404, 모르는 칸·사건 422")
     void events() throws Exception {
         UUID ad = insertAd("direct", "{home_top}", "all", "https://cdn/b.png", null);

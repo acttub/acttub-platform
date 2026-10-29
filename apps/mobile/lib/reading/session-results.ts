@@ -68,6 +68,16 @@ export function readDialogueCount(lines: ScriptLine[], startIndex: number, endIn
   return n;
 }
 
+/** 읽은 내 대사 — 구간 안 내 배역 대사 줄 수. 「그만하기」로 끝낸 회차를 연습으로 칠지 이것으로 본다(10/29). */
+export function readMyDialogueCount(lines: ScriptLine[], startIndex: number, endIndex: number, myRoles: readonly string[]): number {
+  let n = 0;
+  for (let i = Math.max(0, startIndex); i <= endIndex && i < lines.length; i++) {
+    const line = lines[i];
+    if (line.type === 'dialogue' && myRoles.includes(line.role)) n += 1;
+  }
+  return n;
+}
+
 /** 대본 흐름(실행·회차 상세·전체 보기)의 지문. 나눌 때 괄호를 떼어 저장하므로 보일 때 다시 싼다. */
 export function directionLabel(text: string): string {
   return /^[(（].*[)）]$/.test(text.trim()) ? text : `(${text})`;
