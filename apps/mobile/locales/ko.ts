@@ -945,7 +945,7 @@ const ko = {
     titlePron: '발음 보고서를 받아 보세요',
     benefitUnlimited: '코칭·대본 보관 제한 없이',
     benefitModel: '상위 AI 모델로 더 자세한 코칭',
-    benefitExtras: '발음 보고서 · 고품질 목소리 · 광고 없음',
+    benefitExtras: '발음 보고서 · 고품질 목소리 · 연습 중 광고 없음',
     benefitCoaching: '코칭 횟수 제한 없이',
     benefitHabit: '반복되는 버릇을 기억해 짚어 줘요',
     benefitScripts: '리딩 대본 보관 제한 없이',

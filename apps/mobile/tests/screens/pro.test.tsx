@@ -83,7 +83,7 @@ test('Pro 안내 — 앱 결제가 닫혀 있으면 제목·혜택 세 줄만 �
   expect(screen.getByText('Pro로 제한 없이 연습해요')).toBeOnTheScreen();
   expect(screen.getByText('코칭·대본 보관 제한 없이')).toBeOnTheScreen();
   expect(screen.getByText('상위 AI 모델로 더 자세한 코칭')).toBeOnTheScreen();
-  expect(screen.getByText('발음 보고서 · 고품질 목소리 · 광고 없음')).toBeOnTheScreen();
+  expect(screen.getByText('발음 보고서 · 고품질 목소리 · 연습 중 광고 없음')).toBeOnTheScreen();
   await waitFor(() => expect(billingMe).toHaveBeenCalled());
   expect(screen.queryByText('월 구독')).not.toBeOnTheScreen();
   expect(screen.queryByText('Pro 시작하기')).not.toBeOnTheScreen();
