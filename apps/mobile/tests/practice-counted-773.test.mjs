@@ -79,3 +79,14 @@ test('홈·프로필·리딩이 이 기준 하나를 쓴다', () => {
   assert.match(home, /countedPractices\(/);
   assert.match(read('app/reading/play.tsx'), /readingRunCompleted\(/);
 });
+
+test('리딩은 대본 끝까지 가야 센다 — 중간에 「그만하기」로 끝낸 회차는 완료로 보내지 않는다(10/29)', () => {
+  const play = read('app/reading/play.tsx');
+  const stopHere = play.slice(play.indexOf('const stopHere = () =>'), play.indexOf('useWaitExit('));
+  assert.match(stopHere, /stoppedEarlyRef\.current = true;/);
+  assert.doesNotMatch(stopHere, /readingRunCompleted\(/);
+  assert.match(stopHere, /queueRef\.current\?\.push\(progressPayload\(cur\)\)/);
+  // 완료 판정(진행 저장·별점·완료 화면)은 모두 그만하기 여부를 먼저 본다.
+  assert.equal((play.match(/!stoppedEarlyRef\.current && readingRunCompleted\(/g) ?? []).length, 2);
+  assert.doesNotMatch(play, /stopUncountedRef/);
+});
