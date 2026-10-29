@@ -85,7 +85,9 @@ test('쓸 줄이 없거나 실패·허용 밖이면 그 이유만 보인다', as
 
   getReport.mockRejectedValue(Object.assign(new Error('x'), { code: 'pronunciation_not_available' }));
   await render(<PronunciationReportScreen />);
-  expect(await screen.findByText(/보고서를 만들지 못했어요/)).toBeOnTheScreen();
+  // 허용 밖(아직 이 사람에게 열지 않음)은 실패가 아니라 준비 중이라고 알린다(10/29).
+  expect(await screen.findByText(/발음 보고서는 준비 중이에요/)).toBeOnTheScreen();
+  expect(screen.queryByText(/보고서를 만들지 못했어요/)).not.toBeOnTheScreen();
 });
 
 test('칠할 어절이 없으면 다르게 들린 말이 없다고 한다', async () => {

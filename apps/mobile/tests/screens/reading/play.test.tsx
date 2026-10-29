@@ -1232,7 +1232,7 @@ test('튜토리얼로 온 리딩은 여기서 튜토리얼을 끝내고, 완료 
   await waitFor(async () => expect(await AsyncStorage.getItem('acttub.tutorial.reading.seen')).not.toBeNull());
 });
 
-test('발음 피드백을 켜면 받아쓴 글과 대본이 다르게 들린 어구를 완료 화면에 모은다', async () => {
+test('예전에 기기에서 발음 피드백(실험)을 켜 두었어도 완료 화면에 무료 발음 피드백을 보이지 않는다 — 발음은 Pro 발음 보고서만', async () => {
   await AsyncStorage.setItem('acttub.reading.voiceFeedback', '1');
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   mockMic.stop.mockResolvedValue(null);
@@ -1242,59 +1242,10 @@ test('발음 피드백을 켜면 받아쓴 글과 대본이 다르게 들린 어
   mockStt.finish.mockResolvedValueOnce('오늘 갔구나');
   await speechEnds(() => recognizer);
 
-  expect(await screen.findByText('발음 피드백')).toBeOnTheScreen();
-  expect(screen.getByText('실험 기능 · 받아쓴 내 대사 1줄 중 1줄에 다르게 들린 곳')).toBeOnTheScreen();
-  expect(screen.getByText('‘왔구나’ → ‘갔구나’로 들렸어요')).toBeOnTheScreen();
-  expect(logEvent).toHaveBeenCalledWith('reading_pronunciation_feedback', { notes: 1 });
-});
-
-test('발음 채점 서버가 켜져 있으면 줄 녹음의 복사본을 보내 소리 단위 결과를 모으고 복사본은 지운다', async () => {
-  process.env.EXPO_PUBLIC_PRON_URL = 'http://pron.test/';
-  let reply: () => void = () => undefined;
-  const fetchMock = jest.fn(() => new Promise((resolve) => (reply = () => resolve({
-    ok: true,
-    json: async () => ({ notes: [{ word: '왔구나', phones: [{ expected: 'ㅘ', heard: 'ㅏ' }] }] }),
-  }))));
-  global.fetch = fetchMock as never;
-  await AsyncStorage.setItem('acttub.reading.voiceFeedback', '1');
-  try {
-    await startPlay({ start_line_id: 'l2', end_line_id: 'l2' });
-    await screen.findByText('듣는 중');
-    await speechEnds();
-
-    expect(await screen.findByText('소리 분석 중…')).toBeOnTheScreen();
-    expect(fetchMock.mock.calls[0][0]).toBe('http://pron.test/score');
-    await act(async () => reply());
-    expect(await screen.findByText('‘왔구나’ — ㅘ이(가) ㅏ처럼 들렸어요')).toBeOnTheScreen();
-    expect(screen.queryByText('소리 분석 중…')).not.toBeOnTheScreen();
-    const [copy] = mockFileOps;
-    expect(copy.slice(0, 2)).toEqual(['copy', 'file:///turn.m4a']);
-    expect(copy[2]).toMatch(/^file:\/\/\/cache\/pron-\d+-l2\.m4a$/);
-    expect(mockFileOps.at(-1)).toEqual(['delete', copy[2]]);
-  } finally {
-    delete process.env.EXPO_PUBLIC_PRON_URL;
-  }
-});
-
-test('발음 채점 서버가 실패해도 완료 화면은 받아쓴 글 대조만 보인다', async () => {
-  process.env.EXPO_PUBLIC_PRON_URL = 'http://pron.test';
-  global.fetch = jest.fn(async () => { throw new Error('down'); }) as never;
-  await AsyncStorage.setItem('acttub.reading.voiceFeedback', '1');
-  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
-  mockMic.stop.mockResolvedValue(null);
-  mockStt.finish.mockResolvedValue('오늘 왔구나');
-  try {
-    await startPlay({ start_line_id: 'l2', end_line_id: 'l2', record: false });
-    await screen.findByText('아직 인식된 말이 없어요');
-    expect(mockStt.start).toHaveBeenCalledWith(expect.anything(), { persist: true, locale: 'ko-KR' });
-    await speechEnds(() => recognizer);
-
-    expect(await screen.findByText('실험 기능 · 받아쓴 내 대사 1줄 중 0줄에 다르게 들린 곳')).toBeOnTheScreen();
-    await waitFor(() => expect(screen.queryByText('소리 분석 중…')).not.toBeOnTheScreen());
-    expect(mockFileOps.at(-1)?.[0]).toBe('delete');
-  } finally {
-    delete process.env.EXPO_PUBLIC_PRON_URL;
-  }
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(screen.queryByText('발음 피드백')).not.toBeOnTheScreen();
+  expect(screen.queryByText('‘왔구나’ → ‘갔구나’로 들렸어요')).not.toBeOnTheScreen();
+  expect(logEvent).not.toHaveBeenCalledWith('reading_pronunciation_feedback', expect.anything());
 });
 
 test('녹음을 끈 회차는 음성 인식에 녹음을 남기라고 하지 않는다', async () => {
@@ -1303,17 +1254,6 @@ test('녹음을 끈 회차는 음성 인식에 녹음을 남기라고 하지 않
 
   await screen.findByText('아직 인식된 말이 없어요');
   expect(mockStt.start).toHaveBeenCalledWith(expect.anything(), { persist: false, locale: 'ko-KR' });
-});
-
-test('발음 피드백이 켜져 있어도 받아쓰지 않은 줄은 다르게 들린 곳을 찾지 않는다', async () => {
-  await AsyncStorage.setItem('acttub.reading.voiceFeedback', '1');
-  await startPlay({ start_line_id: 'l2', end_line_id: 'l2' });
-  await screen.findByText('듣는 중');
-  await speechEnds();
-
-  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
-  expect(screen.queryByText('발음 피드백')).not.toBeOnTheScreen();
-  expect(logEvent).not.toHaveBeenCalledWith('reading_pronunciation_feedback', expect.anything());
 });
 
 test('못 보낸 녹음이 이어지면 수를 더해 알리고 잠시 뒤 지운다', async () => {

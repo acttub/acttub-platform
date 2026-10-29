@@ -8,7 +8,6 @@ import SettingsScreen from '@/app/settings';
 import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { loadNotificationSettings, openNotificationPermissionSettings, setNotificationToggle } from '@/lib/notifications';
-import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
 
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => true) };
@@ -17,7 +16,6 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useFocusEffect: (effect: () => void) => require('react').useEffect(effect, [effect]),
 }));
-jest.mock('@/lib/reading/voice-feedback-setting', () => ({ loadVoiceFeedbackEnabled: jest.fn(), saveVoiceFeedbackEnabled: jest.fn() }));
 jest.mock('@/lib/api', () => ({ api: { consentEntry: jest.fn(), recordConsent: jest.fn(), billingMe: jest.fn(() => Promise.reject(Object.assign(new Error('closed'), { status: 404, code: 'billing_unavailable' }))) } }));
 jest.mock('@/lib/store-review', () => ({ openStoreReviewPage: jest.fn() }));
 jest.mock('@/lib/auth', () => ({ useAuth: jest.fn() }));
@@ -73,8 +71,6 @@ beforeEach(() => {
   consentEntry.mockResolvedValue({ entry_status: 'allowed', documents: docs, undecided_documents: [] });
   recordConsent.mockResolvedValue(undefined);
   (loadNotificationSettings as jest.Mock).mockResolvedValue(settings);
-  (loadVoiceFeedbackEnabled as jest.Mock).mockResolvedValue(false);
-  (saveVoiceFeedbackEnabled as jest.Mock).mockResolvedValue(undefined);
 });
 
 // 설정은 pen 「설정 및 활동」(Qs1wj)대로 묶음 목록만 두고, 알림 토글은 「알림」(z3sqdj), 동의 목록은 「동의 내역」(OJWak),
@@ -371,24 +367,9 @@ describe('설정', () => {
     expect(screen.getByRole('button', { name: '회원 탈퇴' })).toBeOnTheScreen();
   });
 
-  describe('발음 피드백(실험)', () => {
-    test('기기에 저장된 값을 보여 주고 바꾸면 저장한다', async () => {
-      (loadVoiceFeedbackEnabled as jest.Mock).mockResolvedValue(true);
-      await settingsLoaded();
-      await waitFor(() => expect(switches()[0].props.value).toBe(true));
-
-      await fireEvent(switches()[0], 'valueChange', false);
-      expect(saveVoiceFeedbackEnabled).toHaveBeenCalledWith(false);
-      expect(switches()[0].props.value).toBe(false);
-    });
-
-    test('저장이 실패하면 되돌린다', async () => {
-      (saveVoiceFeedbackEnabled as jest.Mock).mockRejectedValue(new Error('disk full'));
-      await settingsLoaded();
-
-      await fireEvent(switches()[0], 'valueChange', true);
-      await waitFor(() => expect(switches()[0].props.value).toBe(false));
-    });
+  test('발음 피드백(실험) 스위치는 없다 — 발음은 Pro 발음 보고서로만 본다', async () => {
+    await settingsLoaded();
+    expect(screen.queryByText('발음 피드백 (실험)')).not.toBeOnTheScreen();
   });
 
   test.each([

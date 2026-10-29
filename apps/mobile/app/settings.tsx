@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View, type GestureResponderEvent } from 'react-native';
+import { useState } from 'react';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -17,7 +17,6 @@ import { useAuth } from '@/lib/auth';
 import { useBillingMe } from '@/hooks/use-billing-me';
 import { proVisible, settingsSub, settingsTarget } from '@/lib/billing';
 import { languagePreference, saveLanguagePreference, translate as t, type LanguagePreference } from '@/lib/i18n';
-import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { openStoreReviewPage } from '@/lib/store-review';
 
 /**
@@ -44,18 +43,9 @@ export default function SettingsScreen() {
       .then(() => setLanguage(next))
       .catch(() => void alert({ title: t('settings.languageTitle'), message: t('settings.languageSaveFail') }));
   };
-  // 실험 기능 — 발음 피드백. 기본 꺼짐, 기기에만 저장.
-  const [voiceFeedback, setVoiceFeedback] = useState(false);
-  useEffect(() => {
-    void loadVoiceFeedbackEnabled().then(setVoiceFeedback);
-  }, []);
   // Pro 구독 줄(SOMA-818) — 서버가 결제 기능을 닫아 두었으면(404)·앱 스위치가 꺼져 있고 Pro 도 아니면 숨긴다.
   // 들어올 때·앱이 돌아올 때 새로 받고, 받는 동안은 이전 값을 확정처럼 보이지 않는다(SOMA-851).
   const { me: billing, loading: billingLoading } = useBillingMe();
-  const toggleVoiceFeedback = (value: boolean) => {
-    setVoiceFeedback(value);
-    void saveVoiceFeedbackEnabled(value).catch(() => setVoiceFeedback(!value));
-  };
 
   const confirmLogout = async () => {
     const ok = await confirm({
@@ -125,25 +115,7 @@ export default function SettingsScreen() {
           <SettingsCard position="first" icon="bell" title={t('settings.notifications')} sub={t('settings.notificationsSub')} onPress={() => router.push('/notification-settings')} />
           <SettingsCard position="middle" icon="award" title={t('settings.challengeRecordRow')} sub={t('settings.challengeRecordSub')} onPress={() => router.push('/challenge-entries')} />
           <SettingsCard position="middle" icon="bell" title={t('settings.notices')} sub={t('settings.noticesSub')} onPress={() => router.push('/notices')} />
-          <SettingsCard position="middle" icon="file-text" title={t('settings.consentHistory')} sub={t('settings.consentHistorySub')} onPress={() => router.push('/consent-history')} />
-          {/* 실험 기능 — 발음 피드백. 기본 꺼짐, 기기에만 저장. */}
-          <SettingsCard
-            position="last"
-            icon="mic"
-            iconColor={palette.flame}
-            title={t('voiceFeedback.settingsTitle')}
-            sub={t('voiceFeedback.settingsBody')}
-            right={
-              <Switch
-                value={voiceFeedback}
-                onValueChange={toggleVoiceFeedback}
-                accessibilityLabel={t('voiceFeedback.settingsTitle')}
-                trackColor={{ true: palette.flame, false: palette.border }}
-                thumbColor={palette.onAccent}
-                ios_backgroundColor={palette.border}
-              />
-            }
-          />
+          <SettingsCard position="last" icon="file-text" title={t('settings.consentHistory')} sub={t('settings.consentHistorySub')} onPress={() => router.push('/consent-history')} />
         </View>
 
         <Pressable style={({ pressed }) => [styles.logout, pressed && styles.rowPressed]} onPress={() => void confirmLogout()} accessibilityRole="button" accessibilityLabel={t('settings.logout')}>
