@@ -471,7 +471,13 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
         ? supersededRefreshResult(expectedEpoch)
         : { kind: 'invalid' };
     }
-    if (!response.ok) throw toApiError(response.status, payload);
+    if (!response.ok) {
+      const error = toApiError(response.status, payload);
+      // 탈퇴한 계정은 refresh 도 403 account_deactivated 다. 다시 시도로 풀리지 않으니 탈퇴 신호를 내 기기 세션을 지운다 —
+      // 내지 않으면 재동의 창이 「다시 불러오기」만 되풀이하고 로그인으로 나갈 길이 없었다(SOMA-925).
+      emitForbiddenSideEffects(error);
+      throw error;
+    }
     const tokens = payload as {
       access_token: string;
       refresh_token: string;

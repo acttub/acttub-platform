@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
 import { SkeletonBlock } from '@/components/ui/skeleton';
 import { api, type ConsentEntryDocument } from '@/lib/api';
@@ -55,7 +55,7 @@ function requiredFirst(documents: ConsentEntryDocument[]): ConsentEntryDocument[
  * 실패한 줄의 체크만 풀어 다시 누르게 한다.
  */
 export function ReconsentPopup({ visible }: { visible: boolean }) {
-  const { consentEntry, refreshConsentEntry } = useAuth();
+  const { consentEntry, refreshConsentEntry, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const entry = consentEntry.entry;
@@ -150,6 +150,8 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
             onPress={() => void refreshConsentEntry().catch(() => undefined)}
             style={styles.stretch}
           />
+          {/* 다시 불러와도 풀리지 않는 경우(끊긴 세션 등)에도 로그인으로 나갈 길을 남긴다(SOMA-925). */}
+          <TextButton label={t('settings.logout')} phLabel="reconsent_logout" onPress={() => void signOut()} />
         </View>
       );
     }
