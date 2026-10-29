@@ -317,3 +317,13 @@ export function manageView(me: BillingMe, os: StoreOs): ManageView {
     rows: [{ kind: 'store', label: t(copy.manage) }, ...tail],
   };
 }
+
+/** 결제 완료 화면의 요약 줄(요금제 · 다음 결제). 서버가 값을 주지 않은 줄은 뺀다. */
+export function doneSummary(me: BillingMe | null): { label: string; value: string }[] {
+  if (!me?.pro) return [];
+  const next = monthDay(me.next_billing_at);
+  return [
+    me.amount > 0 ? { label: t('pro.summaryPlan'), value: planSummary(me) } : null,
+    next ? { label: t('pro.summaryNext'), value: next } : null,
+  ].filter((row) => row !== null);
+}

@@ -193,16 +193,59 @@ test('이미 Pro(웹 결제 등)이면 요금제·구매 버튼 대신 상태 �
   expect(mockRc.configure).not.toHaveBeenCalled();
 });
 
-test('구독 관리 — 스토어 구독이면 「스토어에서 구독 관리」가 스토어 구독 관리 화면을 연다(Android 는 월·연 어느 쪽이든 이 앱의 정기 결제 목록)', async () => {
+test('구독 관리 — 이 기기 스토어 구독이면 PRO · 요금제 · 다음 결제와 스토어 구독 관리 줄이 스토어 화면을 연다(Android 는 이 앱의 정기 결제 목록)', async () => {
   billingMe.mockResolvedValue({ ...active, provider: 'google' });
+  syncStorePurchases.mockResolvedValue({ ...active, provider: 'google' });
   const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
-  await render(<ProManageScreen />);
-  await fireEvent.press(await screen.findByText('스토어에서 구독 관리'));
+  const { unmount } = await render(<ProManageScreen />);
+  expect(await screen.findByText('월 구독 · 3,900원')).toBeOnTheScreen();
+  expect(screen.getByText('PRO')).toBeOnTheScreen();
+  expect(screen.getByText('다음 결제 11월 23일')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('Play 스토어에서 구독 관리'));
   expect(openURL).toHaveBeenCalledWith('https://play.google.com/store/account/subscriptions?package=com.acttub.app');
+  await unmount();
+
   Platform.OS = 'ios';
-  await fireEvent.press(screen.getByText('스토어에서 구독 관리'));
+  billingMe.mockResolvedValue({ ...active, provider: 'apple' });
+  syncStorePurchases.mockResolvedValue({ ...active, provider: 'apple' });
+  await render(<ProManageScreen />);
+  await fireEvent.press(await screen.findByText('App Store에서 구독 관리'));
   expect(openURL).toHaveBeenLastCalledWith('https://apps.apple.com/account/subscriptions');
   openURL.mockRestore();
+});
+
+test('구독 관리 — 결제하지 못한(past_due) 스토어 구독은 결제 수단 확인을 말하고 환불·복원 줄과 [결제 수단 확인하기]가 스토어를 연다', async () => {
+  Platform.OS = 'ios';
+  billingMe.mockResolvedValue({ ...active, provider: 'apple', status: 'past_due', pro: false, app_enabled: true });
+  syncStorePurchases.mockResolvedValue({ ...active, provider: 'apple', status: 'past_due', pro: false, app_enabled: true });
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  await render(<ProManageScreen />);
+  expect(await screen.findByText('결제하지 못했어요')).toBeOnTheScreen();
+  expect(screen.getByText('월 구독')).toBeOnTheScreen();
+  expect(screen.getByText('App Store에서 결제 수단을 확인해 주세요')).toBeOnTheScreen();
+  expect(screen.getByText('환불 기준')).toBeOnTheScreen();
+  expect(screen.getByText('구매 복원')).toBeOnTheScreen();
+  expect(screen.queryByText('PRO')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('결제 수단 확인하기'));
+  expect(openURL).toHaveBeenLastCalledWith('https://apps.apple.com/account/subscriptions');
+  openURL.mockRestore();
+});
+
+test('구독 관리 — 무료면 「무료 이용 중」과 [Pro 알아보기], 구매 복원은 스토어 복원 뒤 서버가 없다고 하면 알린다', async () => {
+  billingMe.mockResolvedValue({ ...none, app_enabled: true });
+  mockRc.getOfferings.mockResolvedValue(offerings({ monthly: monthlyPkg }));
+  syncStorePurchases.mockResolvedValue({ ...none, app_enabled: true });
+  await render(<ProManageScreen />);
+  expect(await screen.findByText('무료 이용 중')).toBeOnTheScreen();
+  expect(screen.getByText('지금 요금제')).toBeOnTheScreen();
+  expect(screen.getByText('코칭 하루 3회 · 대본 3개 보관')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('구매 복원'));
+  expect(await screen.findByText('복원할 구독이 없어요')).toBeOnTheScreen();
+  expect(mockRc.restorePurchases).toHaveBeenCalledTimes(1);
+  await fireEvent.press(screen.getByText('환불 기준'));
+  expect(WebBrowser.openBrowserAsync).toHaveBeenLastCalledWith('https://acttub.com/refund');
+  await fireEvent.press(screen.getByText('Pro 알아보기'));
+  expect(mockRouter.push).toHaveBeenCalledWith('/pro');
 });
 
 test('연 구독(30% 할인) — 연을 고르면 연 패키지·연 가격·1년 자동 갱신 안내가 보이고 연 패키지($rc_annual)로 결제한다', async () => {
@@ -238,18 +281,25 @@ test('연 패키지가 오퍼링에 아직 없으면 연 구독은 고를 수 �
   await waitFor(() => expect(mockRc.purchasePackage).toHaveBeenCalledWith(monthlyPkg));
 });
 
-test('결제 완료(kqeG6) — [계속하기]는 들어온 곳으로 돌아간다', async () => {
+test('결제 완료 — 요금제·다음 결제를 요약하고 [확인]은 들어온 곳으로 돌아간다', async () => {
+  billingMe.mockResolvedValue({ ...active, provider: 'apple', amount: 32500 });
   await render(<ProDoneScreen />);
-  expect(screen.getByText('이제 Pro예요!')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('계속하기'));
+  expect(screen.getByText('이제 Pro예요')).toBeOnTheScreen();
+  expect(screen.getByText('코칭과 대본 보관을 제한 없이 쓸 수 있어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('연 구독 · 32,500원')).toBeOnTheScreen();
+  expect(screen.getByText('다음 결제')).toBeOnTheScreen();
+  expect(screen.getByText('11월 23일')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('확인'));
   expect(mockRouter.back).toHaveBeenCalled();
 });
 
-test('구독 관리(GmTw6) — 웹에서 결제한 구독은 상태와 「웹에서 결제한 구독이에요」만, 변경·해지 버튼과 링크는 없다', async () => {
+test('구독 관리 — 웹에서 결제한 구독은 상태와 환불 기준 줄만, 변경·해지·복원 버튼과 웹 링크는 없다', async () => {
   billingMe.mockResolvedValue(active);
   await render(<ProManageScreen />);
-  expect(await screen.findByText('다음 결제 11월 23일 · 3,900원 · 신한카드 ····1234')).toBeOnTheScreen();
-  expect(screen.getByText('웹에서 결제한 구독이에요')).toBeOnTheScreen();
+  expect(await screen.findByText('웹에서 결제한 구독이에요')).toBeOnTheScreen();
+  expect(screen.getByText('월 구독 · 다음 결제 11월 23일')).toBeOnTheScreen();
+  expect(screen.getByText('환불 기준')).toBeOnTheScreen();
+  expect(screen.queryByText('구매 복원')).not.toBeOnTheScreen();
   expect(screen.queryByText('자동결제 해지')).not.toBeOnTheScreen();
   expect(screen.queryByText('결제 수단 바꾸기')).not.toBeOnTheScreen();
   expect(screen.queryByText(/acttub\.com/)).not.toBeOnTheScreen();

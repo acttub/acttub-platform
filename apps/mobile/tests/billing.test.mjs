@@ -231,3 +231,16 @@ test('billing: 구독 관리 — 웹(토스) 구독은 상태만 말하고 웹 �
   });
   assert.doesNotMatch(JSON.stringify(view), /acttub\.com|pricing|http/);
 });
+
+test('billing: 결제 완료 요약은 요금제·다음 결제를 보이고 서버가 주지 않은 줄은 뺀다', async () => {
+  const { doneSummary } = await import('../lib/billing.ts');
+  assert.deepEqual(doneSummary(me({ provider: 'apple' })), [
+    { label: '요금제', value: '월 구독 · 3,900원' },
+    { label: '다음 결제', value: '11월 23일' },
+  ]);
+  assert.deepEqual(doneSummary(me({ provider: 'google', amount: 32500, next_billing_at: null })), [
+    { label: '요금제', value: '연 구독 · 32,500원' },
+  ]);
+  assert.deepEqual(doneSummary(me({ status: 'none', pro: true, amount: 0, next_billing_at: null })), []);
+  assert.deepEqual(doneSummary(null), []);
+});
