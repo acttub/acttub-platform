@@ -23,10 +23,10 @@ test('아이콘 글꼴처럼 패밀리를 직접 정한 글자는 건드리지 �
   assert.equal(fontStyleFor({ fontFamily: 'Pretendard-Bold' }), null);
 });
 
-test('안드로이드는 굵기 이름으로 고른 Pretendard 도 한 단계 가볍게 한다', () => {
+test('안드로이드도 iOS 와 같은 굵기 파일을 고르고, 이름으로 고른 폰트는 그대로 둔다', () => {
   globalThis.__platform.OS = 'android';
-  assert.equal(fontStyleFor({ fontWeight: '700' }).fontFamily, 'Pretendard-SemiBold');
-  assert.deepEqual(fontStyleFor({ fontFamily: 'Pretendard-Bold' }), { fontFamily: 'Pretendard-SemiBold', includeFontPadding: false });
+  assert.equal(fontStyleFor({ fontWeight: '700' }).fontFamily, 'Pretendard-Bold');
+  assert.deepEqual(fontStyleFor({ fontFamily: 'Pretendard-Bold' }), { includeFontPadding: false });
   assert.equal(fontStyleFor({ fontFamily: 'Feather' }), null);
 });
 
