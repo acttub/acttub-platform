@@ -240,8 +240,6 @@ export default function ReadingPlay() {
   const leavingRef = useRef(false);
   /** 멈춘 채 「그만하기」로 끝냈다 — 끝까지 간 게 아니므로 「끝까지 갔다」 표시를 남기지 않는다. */
   const stoppedEarlyRef = useRef(false);
-  /** 「그만하기」를 지나간 대사 없이 눌렀다 — 받아쓰기를 못 쓰는 기기여도 완료로 세지 않는다. */
-  const stopUncountedRef = useRef(false);
   const [engine, setEngine] = useState<PartnerVoiceEngine>('supertonic');
   /** 지금 상대 줄을 실제로 내는 방식(서버 음성을 못 받은 줄은 engine 과 다르다). */
   const [lineEngine, setLineEngine] = useState<PartnerVoiceEngine | null>(null);
@@ -530,9 +528,8 @@ export default function ReadingPlay() {
     setRun(next);
     if (!prev || !session) return;
     if (next.status === 'done') {
-      // 인식된 대사 없이 끝까지 넘기기만 했으면 완료로 보내지 않는다 — 회차는 열린 채 남고 별점도 묻지 않는다(SOMA-773).
-      // 음성 인식을 못 쓰는 기기(typing)는 끝까지 가면 완료다.
-      const completed = !stopUncountedRef.current && readingRunCompleted({
+      // 대본(고른 구간) 끝까지 가야 완료다 — 중간에 「그만하기」로 끝낸 회차는 열린 채 남고 별점도 묻지 않는다(SOMA-773, 10/29).
+      const completed = !stoppedEarlyRef.current && readingRunCompleted({
         reachedEnd: true,
         said: next.said,
         priorRecognized: sessionHasRecognized(session),
@@ -1429,8 +1426,8 @@ export default function ReadingPlay() {
   }, [exiting]);
 
   /**
-   * 멈춘 채 「그만하기」 — 여기까지로 이번 회차를 끝내고 「리딩 완료」로 간다. 알아들은 대사가 없으면 완료로 남기지 않고
-   * (끝까지 간 때와 같다) 멈춘 위치만 저장해 다음에 이어 읽게 한다.
+   * 멈춘 채 「그만하기」 — 여기까지로 이번 회차를 끝낸다. 끝까지 간 게 아니므로 연습으로 세지 않고(10/29 정함)
+   * 멈춘 위치만 저장해 다음에 이어 읽게 한다.
    */
   const stopHere = () => {
     const cur = runRef.current;
@@ -1454,14 +1451,7 @@ export default function ReadingPlay() {
     stt.abort();
     void mic.stop();
     stoppedEarlyRef.current = true;
-    stopUncountedRef.current = readDialogueCount(next.lines, next.startIndex, next.endIndex) === 0;
-    const completed = !stopUncountedRef.current && readingRunCompleted({
-      reachedEnd: true,
-      said: next.said,
-      priorRecognized: sessionHasRecognized(session),
-      recognition: sttModeRef.current?.kind ?? null,
-    });
-    if (!completed) queueRef.current?.push(progressPayload(cur));
+    queueRef.current?.push(progressPayload(cur));
     commit(next);
   };
 
@@ -1701,7 +1691,7 @@ export default function ReadingPlay() {
   }
 
   if (phase.kind === 'done') {
-    const completed = !stopUncountedRef.current && readingRunCompleted({
+    const completed = !stoppedEarlyRef.current && readingRunCompleted({
       reachedEnd: true,
       said: run.said,
       priorRecognized: sessionHasRecognized(session),
