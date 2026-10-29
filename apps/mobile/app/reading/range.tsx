@@ -8,8 +8,6 @@ import { palette } from '@/constants/palette';
 import { Image } from 'expo-image';
 import { ReadingNoScript } from '@/components/reading/no-script';
 import { PrimaryButton } from '@/components/ui/buttons';
-import { isMonologue } from '@/lib/reading/monologue';
-import { firstPracticeRange } from '@/lib/reading/redesign-748';
 import { useAppDialog } from '@/components/app-dialog';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -57,10 +55,8 @@ const MASKS: { key: MaskMode; label: string }[] = [
 
 const MASCOT = require('@/assets/images/mascot-reading.png');
 
-/** suggest 는 첫 연습(회차 없음)의 추천 — 짧은 구간 · 처음부터 끝까지(pen 「새 · 연습 구역 첫 연습」). */
-type Tab = 'suggest' | 'recent' | 'scene' | 'line';
+type Tab = 'recent' | 'scene' | 'line';
 const TAB_LABEL: Record<Tab, string> = {
-  suggest: t('reading.bySuggest'),
   recent: t('reading.byRecent'),
   scene: t('reading.byScene'),
   line: t('reading.byLine'),
@@ -170,12 +166,10 @@ export default function ReadingRange() {
   const pickedCast = cast.filter((c) => selected.includes(c.id));
   // 내 차례로 읽는 배역 — 고른 배역과 그 배역이 든 함께 말하는 줄의 묶음 배역(play 와 같은 turnRoles, SOMA-709·785).
   const myTurnRoles = turnRoles(script.characters, pickedCast.map((c) => c.id));
-  // 첫 연습이면 처음부터 대사 10줄을 짧은 구간으로 골라 둔다 — 기기에서만 정한다.
-  // 독백은 리딩 화면이 10줄씩 말풍선으로 끊어 보이므로 줄이지 않고 전체를 기본으로 잡는다(SOMA-934).
-  const short = hasHistory || isMonologue(script.characters) ? null : firstPracticeRange(lines, myTurnRoles);
-  const range = firstMode ? whole : (picked ?? recents[0]?.range ?? short ?? whole);
+  // 첫 연습도 전체가 기본이다 — 예전엔 처음 대사 10줄을 짧은 구간으로 골라 뒀는데, 이제 리딩 화면이 10줄씩 끊어 보인다(SOMA-934).
+  const range = firstMode ? whole : (picked ?? recents[0]?.range ?? whole);
   const showRecent = hasHistory && (sessions === null || recents.length > 0);
-  const tabs: Tab[] = showRecent ? ['recent', 'scene', 'line'] : short ? ['suggest', 'scene', 'line'] : ['scene', 'line'];
+  const tabs: Tab[] = showRecent ? ['recent', 'scene', 'line'] : ['scene', 'line'];
   const activeTab = tab && tabs.includes(tab) ? tab : tabs[0];
   const isActive = (r: LineRange) => r.startIndex === range.startIndex && r.endIndex === range.endIndex;
   const dlgIn = dialogues.filter((x) => x.i >= range.startIndex && x.i <= range.endIndex).length;
@@ -393,12 +387,6 @@ export default function ReadingRange() {
               })}
             </View>
 
-            {activeTab === 'suggest' && short && (
-              <View style={styles.list}>
-                {renderRangeCard('short', t('reading.rangeChipSuggest', { count: short.dialogueCount }), t('reading.dialogueCount', { count: short.dialogueCount }), short)}
-                {wholeCard}
-              </View>
-            )}
             {activeTab === 'recent' && (
               <View style={styles.list}>
                 {recents.map(({ card, range: r }) =>
