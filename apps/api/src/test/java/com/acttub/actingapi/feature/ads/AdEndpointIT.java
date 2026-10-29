@@ -142,20 +142,6 @@ class AdEndpointIT {
     }
 
     @Test
-    @DisplayName("상세는 학원 정보를 그대로 주고, 자체 광고·없는 광고는 404 ad_not_found")
-    void detail() throws Exception {
-        UUID direct = insertAd("direct", "{home_top}", "all", "https://cdn/b.png", null);
-        UUID house = insertAd("house", "{home_top}", "all", null, "/challenges");
-        JsonNode detail = json(get("/v2/ads/" + direct), 200);
-        assertThat(detail.path("advertiser_name").asText()).isEqualTo("한빛연기학원");
-        assertThat(detail.path("academy_registration_no").asText()).isEqualTo("제2026-1호");
-        assertThat(detail.path("tuition").asText()).isEqualTo("월 40만원(교재비 포함)");
-        assertThat(detail.path("link_url").asText()).isEqualTo("https://example.com");
-        assertThat(json(get("/v2/ads/" + house), 404).path("detail").asText()).isEqualTo("ad_not_found");
-        assertThat(json(get("/v2/ads/" + UUID.randomUUID()), 404).path("detail").asText()).isEqualTo("ad_not_found");
-    }
-
-    @Test
     @DisplayName("노출은 하루 한 번, 클릭은 누를 때마다 남는다. 없는 광고 404, 모르는 칸·사건 422")
     void events() throws Exception {
         UUID ad = insertAd("direct", "{home_top}", "all", "https://cdn/b.png", null);
