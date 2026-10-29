@@ -25,7 +25,7 @@
 |---|---|---|---|
 | `POST /v2/reading/scripts/{script_id}/sessions` | `X-Request-Id`(선택, 있으면 본문과 같아야 한다), `ReadingSessionCreateRequest`(request_id·my_character_ids·mode·start_line_id·end_line_id·advance·record) | `ReadingSession` 201, 같은 요청 재전송 200 | `invalid_characters`·`invalid_line`·`empty_range`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `script_not_found` 404 |
 | `GET /v2/reading/scripts/{script_id}/sessions` | `script_id` | `ReadingSessionList` 200(카드마다 `range_name`·`progress`) | `script_not_found` 404 |
-| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200(`range_name`·`progress`, 원문과 다르게 말한 대사 `different_lines`, 내 평가 `my_rating` 포함) | `session_not_found` 404 |
+| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200(`range_name`·`progress`, 원문과 다르게 말한 대사 `different_lines`, 내 평가 `my_rating`, 말풍선 줄 수 `chunk_lines` 포함) | `session_not_found` 404 |
 | `GET /v2/reading/scripts/{script_id}`(장면) | `script_id` | `ReadingScript` 200의 `scenes` | `script_not_found` 404 |
 | `PATCH /v2/reading/sessions/{session_id}/progress` | `ReadingSessionProgressRequest`(progress_seq 필수, current_line_id·elapsed_seconds·line_results·complete 선택, 줄 결과는 line_id와 said 또는 outcome·misses) | `ReadingSessionProgress` 200(옛 progress_seq도 현재 값, `different_lines` 포함) | `session_closed` 409, `invalid_line` 422, `session_not_found` 404 |
 | `PUT /v2/reading/sessions/{session_id}/rating` | `ReadingSessionRatingRequest`(request_id·rating 필수, comment 선택) | `ReadingSessionRating`(rating·comment·updated_at) 200, 같은 요청 재전송도 200 같은 응답 | `comment_too_long`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `session_not_found` 404 |
@@ -370,3 +370,12 @@ current_line_id가 남아 있어 이어 할 수 있다.
 
 ## 열린 질문
 - 새 앱이 옛 앱에서 시작한 quiz 진행 중 회차를 이어 열 때 어떻게 할지(최소 지원 판을 올리며 read로 옮기기 전까지).
+
+## 말풍선 줄 수 `chunk_lines` (SOMA-938)
+
+- 회차 시작·조회 응답(`ReadingSession`)에 `chunk_lines`(1 이상 정수)가 실린다. 리딩 화면이 말풍선 하나에 담는 대사 수다 —
+  독백은 이 수만큼씩 말풍선을 끊고(SOMA-934), 일반 대본은 같은 배역이 연달아 말하는 줄 묶음을 이 수에서 끊는다.
+- 값은 서버 설정 `READING_CHUNK_LINES`(기본 10, 1보다 작으면 10)다. 바꿀 때는 서버 설정만 고치고 API 를 다시 띄운다 —
+  앱 출시가 필요 없다. 새로 시작·조회하는 회차부터 적용된다.
+- 옛 앱은 이 칸을 모르고 10으로 끊는다. 앱은 칸이 없거나 1보다 작으면 10을 쓴다.
+
