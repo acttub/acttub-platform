@@ -69,6 +69,9 @@ const en: DeepStringShape<typeof ko> = {
     emailConflictUnavailable: 'This email is registered with {{provider}}.',
     emailConflictUnknown: 'This email is registered with another sign-in method.',
   },
+  launch: {
+    tagline: 'One more step today, let’s practice together',
+  },
   updateRequired: {
     title: 'Please update to the new version',
     body: 'This version can no longer be used. After updating, your practices and notes will be right where you left them.',

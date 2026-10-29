@@ -15,7 +15,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { getTrackingPermissionsAsync } from 'expo-tracking-transparency';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import 'react-native-reanimated';
 
@@ -49,6 +49,7 @@ import {
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
 import { sweepDeviceFiles } from '@/lib/account-files';
+import { LaunchSplashScreen } from '@/components/launch-splash-screen';
 import { MarketingNoticeHost } from '@/components/marketing-notice-dialog';
 import { ReconsentPopup } from '@/components/reconsent-popup';
 import { SpotlightHost } from '@/components/spotlight-guide';
@@ -382,6 +383,14 @@ function RootNavigator() {
     holdExpired: homeHoldExpired,
   });
 
+  // 한 번 닫은 진입 화면은 다시 띄우지 않는다(로그아웃 등으로 조건이 바뀌어도).
+  const [launchDone, setLaunchDone] = useState(false);
+  const hideNativeSplash = useCallback(() => void SplashScreen.hideAsync(), []);
+  // 진입 화면이 그려지기 전에 끝나는 길(그 화면이 아예 뜨지 않음)도 네이티브 스플래시를 닫는다.
+  useEffect(() => {
+    if (launchDone) hideNativeSplash();
+  }, [launchDone, hideNativeSplash]);
+
   useEffect(() => {
     const consentScreenReady =
       consentEntry.status === 'error' ||
@@ -398,9 +407,7 @@ function RootNavigator() {
               (profileStatus === 'complete' &&
                 recovery.status === 'ready' &&
                 recovery.owner === user?.id)))));
-    if (readyToShow && !holdSplashForHome) {
-      void SplashScreen.hideAsync();
-    }
+    if (readyToShow && !holdSplashForHome) setLaunchDone(true);
   }, [
     holdSplashForHome,
     updateRequired,
@@ -488,6 +495,8 @@ function RootNavigator() {
       <ReconsentPopup visible={reconsentOpen} />
       {/* 가입 동의·재동의의 광고성 정보 처리 결과(S5.13)를 다음 화면 위에 띄운다. */}
       <MarketingNoticeHost />
+      {/* 네이티브 스플래시(단색) 뒤를 이어 디자인 진입 화면이 앱 준비가 끝날 때까지 덮는다. */}
+      {!launchDone && <LaunchSplashScreen onShown={hideNativeSplash} />}
     </>
   );
 }
@@ -563,12 +572,13 @@ export default function RootLayout() {
       <AuthProvider>
         <ThemeProvider value={theme}>
           <ScreenTracker />
+          {/* 진입 화면의 흰 상태바(components/launch-splash-screen)가 이 값을 덮도록 화면들보다 먼저 둔다. */}
+          <StatusBar style="dark" />
           {/* 언어를 바꾸면 화면 전체를 새로 그린다 — 홈부터 다시 열리지만 껐다 켤 필요는 없다. */}
           <RootNavigator key={languageKey} />
           {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
               비출 자리의 좌표가 맞는다 (SOMA-550). */}
           <SpotlightHost />
-          <StatusBar style="dark" />
         </ThemeProvider>
       </AuthProvider>
     </View>
