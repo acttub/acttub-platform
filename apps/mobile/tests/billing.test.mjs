@@ -105,23 +105,6 @@ test('billing: 코칭 시작이 무료 한도에 걸리면 free_limit — 게스
   assert.deepEqual(startFailure({ status: 429, code: 'guest_daily_analysis_limit' }), { kind: 'daily_limit' });
 });
 
-test('창립 멤버(SOMA-861) — 남은 자리가 1 이상일 때만 줄 숫자를 주고, 0·없음·잘못된 값은 숨긴다', async () => {
-  const { foundingRemaining, isFoundingNumber } = await import('../lib/billing.ts');
-  assert.equal(foundingRemaining(null), null);
-  assert.equal(foundingRemaining(me({})), null);
-  assert.equal(foundingRemaining(me({ founding_remaining: 0 })), null);
-  assert.equal(foundingRemaining(me({ founding_remaining: -3 })), null);
-  assert.equal(foundingRemaining(me({ founding_remaining: Number.NaN })), null);
-  assert.equal(foundingRemaining(me({ founding_remaining: 37 })), 37);
-  assert.equal(foundingRemaining(me({ founding_remaining: 250 })), 100);
-  assert.equal(isFoundingNumber(1), true);
-  assert.equal(isFoundingNumber(100), true);
-  assert.equal(isFoundingNumber(0), false);
-  assert.equal(isFoundingNumber(101), false);
-  assert.equal(isFoundingNumber(null), false);
-  assert.equal(isFoundingNumber(3.5), false);
-});
-
 test('해지 예약한 스토어 구독은 설정에 「해지 예정」으로 보인다(SOMA-851)', async () => {
   const { settingsSub, planLine, storeLive, loadBilling } = await import('../lib/billing.ts');
   const canceled = me({ status: 'canceled', pro: true, provider: 'google', period_end: '2026-11-23T03:00:00Z' });

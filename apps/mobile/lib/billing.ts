@@ -26,9 +26,6 @@ export type BillingMe = {
   grant_ends_at?: string | null;
   /** 앱의 Pro 화면·구매 진입을 여는 서버 스위치(BILLING_APP_ENABLED). */
   app_enabled?: boolean;
-  /** 창립 멤버 남은 자리(0~100)와 내 번호(SOMA-861). 옛 서버는 두 값을 주지 않는다. */
-  founding_remaining?: number;
-  founding_number?: number | null;
 };
 
 export const TERMS_URL = 'https://acttub.com/terms';
@@ -163,15 +160,4 @@ export function freeLimitOf(error: unknown): FreeLimit | null {
   if (code === 'free_daily_coaching_limit') return 'coaching';
   if (code === 'free_script_limit') return 'script';
   return null;
-}
-
-/** 결제 화면 맨 위 「창립 멤버 n/100 남음」의 n. 남은 자리가 없거나 값이 없으면 null(줄을 숨긴다). */
-export function foundingRemaining(me: BillingMe | null): number | null {
-  const left = me?.founding_remaining;
-  return typeof left === 'number' && Number.isFinite(left) && left > 0 ? Math.min(100, Math.floor(left)) : null;
-}
-
-/** 이름 옆 「창립 멤버」 배지를 그릴 번호인가 — 1~100 정수만. */
-export function isFoundingNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 100;
 }

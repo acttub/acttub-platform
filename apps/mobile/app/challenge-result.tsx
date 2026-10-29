@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { SkeletonDetail, SkeletonRows } from '@/components/ui/skeleton';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -101,7 +100,6 @@ export default function ChallengeResultScreen() {
                   <Text style={styles.name} numberOfLines={1}>
                     {entry.author.name}
                   </Text>
-                  <FoundingBadge number={entry.author.founding_number} />
                   <Text style={styles.sub} numberOfLines={1}>
                     {t('challengeResult.pickedSub', { count: entry.final_like_count ?? entry.like_count })}
                   </Text>

@@ -479,8 +479,7 @@ class ProfileController {
                         profile.goal(),
                         view.photoUrl(),
                         profile.bio(),
-                        profile.examDate() == null ? null : profile.examDate().toString()),
-                view.foundingNumber());
+                        profile.examDate() == null ? null : profile.examDate().toString()));
     }
 
     private static SignupAttribution signupAttribution(SignupAttributionRequest body) {

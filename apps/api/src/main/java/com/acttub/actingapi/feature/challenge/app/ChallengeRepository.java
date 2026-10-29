@@ -28,13 +28,7 @@ public interface ChallengeRepository {
 
     @Schema(name = "ChallengeParticipant", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record Participant(@Schema(requiredMode = REQUIRED) UUID userId, @Schema(requiredMode = REQUIRED) String name,
-                       @Schema(requiredMode = REQUIRED, nullable = true)
-                       Integer foundingNumber) {
-        public Participant(UUID userId, String name) {
-            this(userId, name, null);
-        }
-    }
+    record Participant(@Schema(requiredMode = REQUIRED) UUID userId, @Schema(requiredMode = REQUIRED) String name) { }
     @Schema(name = "Challenge", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record Card(@Schema(requiredMode = REQUIRED) UUID id,

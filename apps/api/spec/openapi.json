@@ -6669,17 +6669,9 @@
             }, {
               "type" : "null"
             } ]
-          },
-          "founding_number" : {
-            "anyOf" : [ {
-              "type" : "integer"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Founding Number"
           }
         },
-        "required" : [ "account_type", "email", "founding_number", "id", "profile", "profile_complete", "status" ],
+        "required" : [ "account_type", "email", "id", "profile", "profile_complete", "status" ],
         "title" : "MeResponse"
       },
       "Profile" : {
@@ -9564,17 +9556,9 @@
           "name" : {
             "type" : "string",
             "title" : "Name"
-          },
-          "founding_number" : {
-            "anyOf" : [ {
-              "type" : "integer"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Founding Number"
           }
         },
-        "required" : [ "founding_number", "name", "user_id" ],
+        "required" : [ "name", "user_id" ],
         "title" : "ChallengeParticipant"
       },
       "EntryComment" : {

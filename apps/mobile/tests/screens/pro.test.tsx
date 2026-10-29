@@ -296,16 +296,3 @@ test('코칭 시작이 무료 한도(free_daily_coaching_limit)에 걸리면 「
   await fireEvent.press(screen.getByText('Pro 알아보기'));
   expect(mockRouter.push).toHaveBeenCalledWith('/pro');
 });
-
-test('창립 멤버(SOMA-861) — 결제 화면 맨 위에 「창립 멤버 n자리 남음」 한 줄이 보이고, 0이면 숨는다', async () => {
-  billingMe.mockResolvedValue({ ...none, app_enabled: false, founding_remaining: 63 });
-  await render(<ProScreen />);
-  expect(await screen.findByText('창립 멤버 63자리 남음')).toBeOnTheScreen();
-});
-
-test('창립 멤버(SOMA-861) — 남은 자리가 0이면 줄이 없다', async () => {
-  billingMe.mockResolvedValue({ ...none, app_enabled: false, founding_remaining: 0 });
-  await render(<ProScreen />);
-  expect(screen.getByText('ACTTUB Pro')).toBeOnTheScreen();
-  expect(screen.queryByText(/창립 멤버/)).not.toBeOnTheScreen();
-});

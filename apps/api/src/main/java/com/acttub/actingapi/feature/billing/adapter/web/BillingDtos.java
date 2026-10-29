@@ -34,14 +34,12 @@ final class BillingDtos {
             @JsonProperty("limits_enforced") boolean limitsEnforced,
             String provider,
             @JsonProperty("grant_ends_at") Instant grantEndsAt,
-            @JsonProperty("app_enabled") boolean appEnabled,
-            @JsonProperty("founding_remaining") int foundingRemaining,
-            @JsonProperty("founding_number") Integer foundingNumber) {
+            @JsonProperty("app_enabled") boolean appEnabled) {
 
         static MeResponse of(View view) {
             return new MeResponse(view.status(), view.pro(), view.amount(), view.periodEnd(), view.nextBillingAt(),
                     view.cardCompany(), view.cardLast4(), view.retryCount(), view.limitsEnforced(), view.provider(),
-                    view.grantEndsAt(), view.appEnabled(), view.foundingRemaining(), view.foundingNumber());
+                    view.grantEndsAt(), view.appEnabled());
         }
     }
 }

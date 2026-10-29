@@ -13,7 +13,6 @@ import { InlineEmpty } from '@/components/ui/inline-empty';
 import { SkeletonCards } from '@/components/ui/skeleton';
 import { NavHeader, NavIconButton } from '@/components/ds/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
-import { FoundingBadge } from '@/components/founding-badge';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
@@ -154,7 +153,6 @@ export default function ProfileScreen() {
             <Text style={styles.name} numberOfLines={1}>
               {display}
             </Text>
-            <FoundingBadge number={profile.me?.founding_number} />
             <Text style={[styles.bio, !bio && styles.bioEmpty]} numberOfLines={2}>
               {bio || t('profileTab.introEmpty')}
             </Text>
