@@ -21,6 +21,8 @@ export type RunConfig = {
   endIndex: number;
   /** 독백 대본이면 같은 배역 연속 대사를 묶지 않는다(SOMA-806). */
   monologue?: boolean;
+  /** 말풍선(묶음) 하나에 담는 대사 수 — 회차 응답 chunk_lines(SOMA-938). 없으면 10. */
+  chunkLines?: number;
 };
 
 export type RunState = RunConfig & {
@@ -48,7 +50,7 @@ function isMine(run: RunConfig, index: number): boolean {
 
 /** 줄이 속한 같은 배역 묶음을 구간으로 자른 것(SOMA-806). 묶음은 한 차례다. */
 function groupOf(run: RunConfig, index: number): LineGroup {
-  const g = lineGroups(run.lines, { monologue: !!run.monologue }).find((x) => x.start <= index && index <= x.end) ?? { start: index, end: index };
+  const g = lineGroups(run.lines, { monologue: !!run.monologue, maxLines: run.chunkLines }).find((x) => x.start <= index && index <= x.end) ?? { start: index, end: index };
   return { start: Math.max(g.start, run.startIndex), end: Math.min(g.end, run.endIndex) };
 }
 

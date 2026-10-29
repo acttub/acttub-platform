@@ -35,7 +35,7 @@ test('구간 안만 나누고, 10줄 이하면 말풍선 하나다', () => {
 
 test('리딩 화면 — 독백은 지금 읽는 줄이 든 말풍선까지만 그리고, 지나간 말풍선은 흐리게 남긴다', () => {
   const src = read('app/reading/play.tsx');
-  assert.match(src, /const monoChunks = monologue \? monologueChunks\(run\.lines, run\.startIndex, run\.endIndex\) : \[\];/);
+  assert.match(src, /const monoChunks = monologue \? monologueChunks\(run\.lines, run\.startIndex, run\.endIndex, run\.chunkLines\) : \[\];/);
   assert.match(src, /monoChunks\.filter\(\(c\) => c\.start <= Math\.max\(run\.index, run\.startIndex\)\)/);
   assert.match(src, /styles\.cardPast/);
 });

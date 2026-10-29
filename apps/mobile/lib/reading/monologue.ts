@@ -195,8 +195,9 @@ export function monologueChunks(
   lines: readonly { type: string }[],
   startIndex: number,
   endIndex: number,
-  size: number = MONOLOGUE_CHUNK,
+  sizeIn?: number,
 ): { start: number; end: number }[] {
+  const size = sizeIn && sizeIn >= 1 ? sizeIn : MONOLOGUE_CHUNK;
   const chunks: { start: number; end: number }[] = [];
   let chunkStart = startIndex;
   let count = 0;

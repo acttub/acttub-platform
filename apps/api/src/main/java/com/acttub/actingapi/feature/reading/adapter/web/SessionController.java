@@ -41,6 +41,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,11 +66,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v2/reading")
 class SessionController {
+    static final int DEFAULT_CHUNK_LINES = 10;
+
     private final SessionService sessions;
     private final SessionRatingService ratings;
     private final AccessGate auth;
 
-    SessionController(SessionService sessions, SessionRatingService ratings, AccessGate auth) {
+    /** 말풍선 하나에 담는 대사 수(SOMA-938). 앱 출시 없이 바꾸려고 서버 설정으로 둔다. 1보다 작으면 기본 10. */
+    private final int chunkLines;
+
+    SessionController(SessionService sessions, SessionRatingService ratings, AccessGate auth,
+            @Value("${READING_CHUNK_LINES:10}") int chunkLines) {
+        this.chunkLines = chunkLines >= 1 ? chunkLines : DEFAULT_CHUNK_LINES;
         this.sessions = sessions;
         this.ratings = ratings;
         this.auth = auth;
@@ -288,7 +296,7 @@ class SessionController {
         return card.progress() == null ? null : new ProgressCountResponse(card.progress().done(), card.progress().total());
     }
 
-    private static DetailResponse detail(SessionViews.SessionDetailView view, SessionRatingStore.Rating rating) {
+    private DetailResponse detail(SessionViews.SessionDetailView view, SessionRatingStore.Rating rating) {
         SessionViews.SessionCardView card = view.card();
         return new DetailResponse(
                 card.id(),
@@ -323,6 +331,7 @@ class SessionController {
                                 recording.playbackExpiresAt()))
                         .toList(),
                 differentLines(view.differentLines()),
-                SessionRatingResponse.of(rating));
+                SessionRatingResponse.of(rating),
+                chunkLines);
     }
 }
