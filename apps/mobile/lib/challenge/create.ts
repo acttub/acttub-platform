@@ -1,7 +1,7 @@
 import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
+import { getAppConfig } from '../app-config.ts';
 import { translate } from '../i18n.ts';
 import {
-  CHALLENGE_DURATIONS,
   CHARACTER_MAX,
   LINE_MAX,
   SCENE_NOTE_MAX,
@@ -47,8 +47,9 @@ export function stepComplete(draft: ChallengeDraft, step: 0 | 1 | 2): boolean {
   return isDuration(draft.durationDays);
 }
 
+/** 서버 설정의 기간 선택지 가운데 하나인가(SOMA-939). */
 export function isDuration(value: number): value is ChallengeDuration {
-  return (CHALLENGE_DURATIONS as readonly number[]).includes(value);
+  return getAppConfig().challenge.durationsDays.includes(value);
 }
 
 /** 서버가 422로 막기 전에 화면이 먼저 막는다. 넘친 칸 이름을 돌려준다. */

@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * JavaScript 문자열처럼 다룬다 — 편집 거리는 UTF-16 단위로, 한도는 코드 포인트로 잰다.
  */
 public final class LineMatch {
-    static final double PASS_THRESHOLD = 0.72;
+    public static final double PASS_THRESHOLD = 0.72;
 
     /**
      * 원문·말한 것 각각의 상한(코드 포인트). 넘으면 비교하지 않는다. 편집 거리는 자모 길이 m·⌈n/64⌉, 다르게 말한 어절은

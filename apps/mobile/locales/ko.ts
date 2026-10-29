@@ -417,6 +417,7 @@ const ko = {
     sub3New: '기간이 끝나면 새 참여가 닫히고 순위가 굳어요.',
     duration7: '7일',
     duration14: '14일',
+    durationDays: '{{days}}일',
     noteLabel: '장면 메모 (선택)',
     notePh: '예: 옥상에서 돌아서는 상대를 붙잡는 장면',
     counter: '{{count}} / {{max}}',

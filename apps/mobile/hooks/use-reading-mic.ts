@@ -7,7 +7,7 @@ import {
 import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
-import { DEFAULT_VAD, createSilenceDetector, meteringToRms, type SilenceDetector, type VadEvent } from '@/lib/reading/vad';
+import { createSilenceDetector, currentVad, meteringToRms, type SilenceDetector, type VadEvent } from '@/lib/reading/vad';
 
 /**
  * 내 차례의 마이크 — 녹음기의 미터링(dBFS)만 침묵 감지기에 넣는다(reading.session). 소리 자체는 이 훅
@@ -117,7 +117,7 @@ export function useReadingMic(): MicHandle {
         return false;
       }
       active.current = true;
-      detector.current = createSilenceDetector(DEFAULT_VAD, Date.now());
+      detector.current = createSilenceDetector(currentVad(), Date.now());
       timer.current = setInterval(() => {
         if (!active.current || !detector.current) return;
         let rms = 0;

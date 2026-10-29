@@ -4,6 +4,7 @@
  *
  * 앱은 expo-audio 녹음기의 미터링(dBFS)을 RMS 로 바꿔 넣는다(meteringToRms).
  */
+import { DEFAULT_APP_CONFIG, getAppConfig, type AppConfig } from '../app-config.ts';
 
 export interface VadOptions {
   /** 0~1. 이 이상이면 소리가 난다고 본다 */
@@ -22,13 +23,18 @@ export interface SilenceDetector {
   feed(rms: number, now: number): VadEvent;
 }
 
-/** 웹 현행 상수를 앱에도 그대로(확정 결정 7). */
-export const DEFAULT_VAD: VadOptions = {
-  threshold: 0.015,
-  silenceMs: 1800, // 연기는 대사 중간에 사이가 길어서 여유 있게
-  minSpeechMs: 400,
-  maxListenMs: 60000,
-};
+/** 웹 현행 상수를 앱에도 그대로(확정 결정 7). 침묵은 연기 대사 중간의 긴 사이 때문에 여유 있게 1.8초. 기본값일 뿐이다. */
+export const DEFAULT_VAD: VadOptions = vadFrom(DEFAULT_APP_CONFIG);
+
+/** 지금 쓸 감지 설정 — 서버 설정(SOMA-939)을 쓰는 순간 읽는다. */
+export function currentVad(): VadOptions {
+  return vadFrom(getAppConfig());
+}
+
+function vadFrom(config: AppConfig): VadOptions {
+  const r = config.reading;
+  return { threshold: r.vadThreshold, silenceMs: r.silenceMs, minSpeechMs: r.minSpeechMs, maxListenMs: r.maxListenMs };
+}
 
 export function createSilenceDetector(opts: VadOptions, startedAt: number): SilenceDetector {
   let listenStart = startedAt;

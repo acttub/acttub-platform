@@ -15,10 +15,11 @@ test('reading.stt: 인식기가 알린 말 끝으로도 넘긴다 — 일반 인
   assert.match(handler, /armSpeechEnd\(\)/);
   const arm = hook.slice(hook.indexOf('const armSpeechEnd'), hook.indexOf("useSpeechRecognitionEvent('result'"));
   assert.match(arm, /callbacks\.current\?\.onEvent\('speech_end'\)/);
-  assert.match(arm, /setTimeout\([\s\S]*?SPEECH_END_GRACE_MS\)/, '말 끝 뒤 조금 더 기다렸다가 넘긴다');
+  // 기다리는 시간은 서버 설정을 쓰는 순간 읽는다(SOMA-939) — 기본값 1300ms 는 app-config 가 잠근다.
+  assert.match(arm, /setTimeout\([\s\S]*?getAppConfig\(\)\.reading\.speechEndGraceMs\)/, '말 끝 뒤 조금 더 기다렸다가 넘긴다');
   // 아이폰 인식기는 말 끝을 주지 않는다 — 받아쓴 글이 있는 결과가 끊기면 말 끝으로 본다(SOMA-801).
   assert.match(hook, /Platform\.OS === 'ios' && whole\) armSpeechEnd\(\)/);
-  assert.match(hook, /export const SPEECH_END_GRACE_MS = 1300;/);
+  assert.match(hook, /export const SPEECH_END_GRACE_MS = DEFAULT_APP_CONFIG\.reading\.speechEndGraceMs;/);
   assert.match(hook, /useSpeechRecognitionEvent\('speechstart', \(\) => \{\s*cancelSpeechEnd\(\);/, '기다리는 동안 다시 말하면 취소');
   assert.match(hook, /useSpeechRecognitionEvent\('speechstart'[\s\S]*?onEvent\('speech_start'\)/);
 });
