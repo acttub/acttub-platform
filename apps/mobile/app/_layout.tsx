@@ -37,7 +37,7 @@ import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
 import { loadAppConfig } from '@/lib/app-config-load';
 import { tabBackTitle } from '@/lib/tab-back-title';
-import { HOME_SPLASH_HOLD_MS, isHomeReady, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
+import { HOME_SPLASH_HOLD_MS, isHomeReady, LANGUAGE_SPLASH_MIN_MS, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
 import { AppHeader } from '@/components/app-header';
 import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
@@ -103,7 +103,8 @@ const theme = {
 };
 
 /** (426 업데이트 안내 →) 인증 → 동의 → 프로필 → pending 분석 순서로 최초 화면을 게이트한다. */
-function RootNavigator() {
+/** @param minSplashMs 진입 화면을 두는 최소 시간 — 언어를 바꿔 다시 그릴 때만 0보다 크다. */
+function RootNavigator({ minSplashMs = 0 }: { minSplashMs?: number }) {
   const {
     status,
     user,
@@ -386,6 +387,13 @@ function RootNavigator() {
 
   // 한 번 닫은 진입 화면은 다시 띄우지 않는다(로그아웃 등으로 조건이 바뀌어도).
   const [launchDone, setLaunchDone] = useState(false);
+  // 언어를 바꿔 다시 그릴 때는 준비가 이미 끝나 있어 진입 화면이 깜빡이고 사라졌다 — 최소 시간만큼 둔다(10/29).
+  const [minSplashElapsed, setMinSplashElapsed] = useState(minSplashMs <= 0);
+  useEffect(() => {
+    if (minSplashMs <= 0) return;
+    const timer = setTimeout(() => setMinSplashElapsed(true), minSplashMs);
+    return () => clearTimeout(timer);
+  }, [minSplashMs]);
   const hideNativeSplash = useCallback(() => void SplashScreen.hideAsync(), []);
   // 진입 화면이 그려지기 전에 끝나는 길(그 화면이 아예 뜨지 않음)도 네이티브 스플래시를 닫는다.
   useEffect(() => {
@@ -408,8 +416,9 @@ function RootNavigator() {
               (profileStatus === 'complete' &&
                 recovery.status === 'ready' &&
                 recovery.owner === user?.id)))));
-    if (readyToShow && !holdSplashForHome) setLaunchDone(true);
+    if (readyToShow && !holdSplashForHome && minSplashElapsed) setLaunchDone(true);
   }, [
+    minSplashElapsed,
     holdSplashForHome,
     updateRequired,
     status,
@@ -577,7 +586,7 @@ export default function RootLayout() {
           {/* 진입 화면의 흰 상태바(components/launch-splash-screen)가 이 값을 덮도록 화면들보다 먼저 둔다. */}
           <StatusBar style="dark" />
           {/* 언어를 바꾸면 화면 전체를 새로 그린다 — 홈부터 다시 열리지만 껐다 켤 필요는 없다. */}
-          <RootNavigator key={languageKey} />
+          <RootNavigator key={languageKey} minSplashMs={languageKey > 0 ? LANGUAGE_SPLASH_MIN_MS : 0} />
           {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
               비출 자리의 좌표가 맞는다 (SOMA-550). */}
           <SpotlightHost />
