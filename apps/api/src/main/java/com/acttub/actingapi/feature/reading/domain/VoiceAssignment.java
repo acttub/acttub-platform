@@ -18,7 +18,9 @@ import com.acttub.actingapi.platform.schema.CharacterGender;
  *   <li>고정한 프리셋(목록 안의 값만)을 먼저 「쓴 것」으로 센다.</li>
  *   <li>자동 배역을 저장 순서로 돌며, 성별을 알면 성별·나이대의 선호 목록에서 아직 쓰지 않은 첫 프리셋을 준다. 그 성별을 다
  *       썼으면 목록의 첫 값(겹침 허용).</li>
- *   <li>성별을 모르면 F1·M1·F2·M2… 순환을 이어 돌되 쓴 프리셋은 건너뛴다. 다 썼으면 순환 자리의 값을 그대로 준다.</li>
+ *   <li>성별을 모르면, 대본에서 성별을 아는 배역과 앞서 성별을 짐작해 준 배역을 세어 적은 쪽 성별의 「나이대 모름」 목록에서
+ *       아직 쓰지 않은 첫 프리셋을 준다(SOMA-912 — 여자 둘에 성별 모를 남자 하나인 대본이 순환의 F1 을 받아 남자 배역을 여자
+ *       목소리로 읽었다). 양쪽 수가 같으면 F1·M1·F2·M2… 순환을 이어 돌되 쓴 프리셋은 건너뛴다. 다 썼으면 순환 자리의 값을 그대로 준다.</li>
  *   <li>준 값도 「쓴 것」에 더한다.</li>
  * </ol>
  *
@@ -77,6 +79,16 @@ public final class VoiceAssignment {
                 used.add(role.preset());
             }
         }
+        int male = 0;
+        int female = 0;
+        for (Cast role : cast) {
+            CharacterGender gender = role.gender();
+            if (gender == CharacterGender.MALE) {
+                male++;
+            } else if (gender == CharacterGender.FEMALE) {
+                female++;
+            }
+        }
         List<String> voices = new ArrayList<>(cast.size());
         int pointer = 0;
         for (Cast role : cast) {
@@ -86,6 +98,15 @@ public final class VoiceAssignment {
             }
             String pick;
             List<String> preferred = preferences(role.gender(), role.ageBand());
+            if (preferred == null && male != female) {
+                CharacterGender fewer = male < female ? CharacterGender.MALE : CharacterGender.FEMALE;
+                preferred = preferences(fewer, role.ageBand());
+                if (fewer == CharacterGender.MALE) {
+                    male++;
+                } else {
+                    female++;
+                }
+            }
             if (preferred != null) {
                 pick = preferred.stream().filter(preset -> !used.contains(preset)).findFirst().orElse(preferred.getFirst());
             } else {

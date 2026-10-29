@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
+import { Button, TextButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
+import { InlineErrorLine } from '@/components/ui/inline-error';
+import { useReadableInput } from '@/hooks/use-readable-input';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 import { canInsertLine, defaultInsertSpeaker, insertLineOf } from '@/lib/reading/line-edit';
 import { insertScriptLineAfter } from '@/lib/reading/store';
@@ -27,6 +32,7 @@ export function LineInsertCard({
 }) {
   const [speaker, setSpeaker] = useState<string>(() => defaultInsertSpeaker(characters.map((c) => c.id), lineCharacterId));
   const [text, setText] = useState('');
+  const readable = useReadableInput(setText, 'loose');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const draft = { speaker, text };
@@ -44,20 +50,10 @@ export function LineInsertCard({
     }
   };
 
-  const chip = (value: string, label: string) => {
-    const on = speaker === value;
-    return (
-      <Pressable
-        key={value}
-        style={[styles.chip, on && styles.chipOn]}
-        onPress={() => setSpeaker(value)}
-        disabled={busy}
-        accessibilityRole="radio"
-        accessibilityState={{ selected: on }}>
-        <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
-      </Pressable>
-    );
-  };
+  const chip = (value: string, label: string) => (
+    <Chip key={value} size="sm" role="radio" label={label} selected={speaker === value} disabled={busy} onPress={() => setSpeaker(value)} />
+  );
+  const off = busy || !canInsertLine(draft);
 
   return (
     <View style={styles.card}>
@@ -68,7 +64,7 @@ export function LineInsertCard({
       <TextInput
         style={styles.input}
         value={text}
-        onChangeText={setText}
+        onChangeText={readable.onChangeText}
         multiline
         autoFocus
         maxLength={5000}
@@ -77,35 +73,19 @@ export function LineInsertCard({
         placeholderTextColor={palette.textMeta}
         accessibilityLabel={t('reading.lineInsertPlaceholder')}
       />
-      {failed && <Text style={styles.error}>{t('reading.lineEditFailed')}</Text>}
+      {readable.hint ? <InlineErrorLine message={readable.hint} /> : null}
+      {failed && <InlineErrorLine message={t('reading.lineEditFailed')} />}
       <View style={styles.buttons}>
-        <Pressable hitSlop={8} onPress={() => onClose(false)} disabled={busy} accessibilityRole="button">
-          <Text style={styles.cancel}>{t('common.cancel')}</Text>
-        </Pressable>
-        <Pressable
-          hitSlop={8}
-          onPress={() => void save()}
-          disabled={busy || !canInsertLine(draft)}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: busy || !canInsertLine(draft) }}>
-          <Text style={[styles.add, (busy || !canInsertLine(draft)) && styles.addOff]}>{t('reading.lineInsertSave')}</Text>
-        </Pressable>
+        <TextButton label={t('common.cancel')} onPress={() => onClose(false)} disabled={busy} />
+        <Button size="sm" label={t('reading.lineInsertSave')} onPress={() => void save()} disabled={off} loading={busy} loadingLabel={t('loadingText.saving')} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: palette.bg, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 12, gap: 10, marginVertical: 6 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { borderRadius: 999, backgroundColor: palette.bgSoft, paddingHorizontal: 12, paddingVertical: 6 },
-  chipOn: { backgroundColor: palette.blueSoft },
-  chipText: { color: palette.textSub, fontFamily: 'Pretendard-Bold', fontSize: 13 },
-  chipTextOn: { color: palette.blueDeep },
-  input: { color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22, minHeight: 44, maxHeight: 140, padding: 0 },
-  error: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
-  buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 18 },
-  cancel: { color: palette.textMeta, fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  add: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 14 },
-  addOff: { opacity: 0.4 },
+  card: { backgroundColor: palette.bg, borderColor: palette.blue, borderWidth: 1.5, borderRadius: radius.lg, padding: space[3], gap: space[3], marginVertical: space[1.5] },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
+  input: { ...type.body2, color: palette.text, minHeight: 44, maxHeight: 140, padding: 0 },
+  buttons: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: space[2] },
 });

@@ -36,6 +36,49 @@ class PurposeLoopTest {
         assertThat(PurposeLoop.Purpose.of("worry")).isNull();
     }
 
+    /** 리딩 녹음 코칭(SOMA-791): 들린 것 → 해 볼 것 → 정리. 정리 뒤 물음에는 정리를 다시 하지 않고 답한다. */
+    @Test void readingStartsShortAndMovesToTryThenWrap() {
+        assertThat(PurposeLoop.Purpose.READING.steps).containsExactly("hear", "try", "wrap");
+        assertThat(PurposeLoop.Purpose.of("reading")).isEqualTo(PurposeLoop.Purpose.READING);
+        assertThat(PurposeLoop.Purpose.of("talk:reading")).as("리딩 녹음은 말로 하는 갈래가 아니다").isNull();
+        var heard = state("{\"step\":0,\"questions\":1,\"choices\":[{\"label\":\"남아 줄게\",\"at\":null}]}");
+        var tried = PurposeLoop.decide(PurposeLoop.Purpose.READING, heard, "남아 줄게", PurposeLoop.pressed(heard, "남아 줄게"), null, 1);
+        assertThat(tried.doing()).isEqualTo("try");
+        assertThat(tried.answeredStep()).isEqualTo("hear");
+        var trying = state("{\"step\":1,\"questions\":2}");
+        assertThat(PurposeLoop.decide(PurposeLoop.Purpose.READING, trying, "달래면서요", null, ANSWERED, 2).wrap()).isTrue();
+        var wrapped = state("{\"step\":2,\"questions\":2}");
+        var asked = PurposeLoop.decide(PurposeLoop.Purpose.READING, wrapped, "예시로 읽어줄 수 있어요?", null,
+                kind(PracticeLoopRouter.Kind.QUESTION), 3);
+        assertThat(asked.doing()).isEqualTo("answer");
+        assertThat(PurposeLoop.answersAfterWrap(asked)).isTrue();
+        assertThat(PurposeLoop.firstPrompt(PurposeLoop.Purpose.READING)).contains("[리딩 녹음으로 하는 코칭]")
+                .doesNotContain("[영상 없이 말로 하는 코칭]");
+    }
+
+    /** 10/27 dev 실제 녹음: 두 문장짜리 대사의 앞 문장과 여는 따옴표가 빠진 다음 테이크를 대본 줄 그대로 되살린다. */
+    @Test void aReadingTakeIsRestoredToTheWholeScriptLine() {
+        String material = "[리딩 녹음]\n[소리 안 줄별 시간]\n- 녹음 1: 0:00~0:03 \"안녕.\"\n"
+                + "- 녹음 2: 0:04~0:09 \"그래서 더 말하기 싫었어. 네가 그걸 아니까.\"\n[서버가 잰 소리]\n";
+        assertThat(PurposeLoop.readingTake("네가 그걸 아니까.\"에서 윤서가 걱정하지 않게 달래며 말해 봐도 좋아요", material))
+                .isEqualTo("\"그래서 더 말하기 싫었어. 네가 그걸 아니까.\"에서 윤서가 걱정하지 않게 달래며 말해 봐도 좋아요");
+        assertThat(PurposeLoop.readingTake("“그래서 더\n말하기 싫었어. 네가 그걸 아니까.”에서 달래기", material))
+                .isEqualTo("\"그래서 더 말하기 싫었어. 네가 그걸 아니까.\"에서 달래기");
+        assertThat(PurposeLoop.readingTake("상대를 보며 말해 봐도 좋아요", material)).as("대본 줄과 안 겹치면 그대로")
+                .isEqualTo("상대를 보며 말해 봐도 좋아요");
+    }
+
+    /** 10/27 dev 합성 음성 시험: 정리 끝에 해요체가 아닌 다음 테이크 메모가 붙어 보였다. */
+    @Test void aReadingWrapDropsAPlainMemoTail() {
+        assertThat(PurposeLoop.withoutPlainTail("\"괜찮아, 진짜 괜찮다니까\"에서 웃으며 보내 봐요.\n영상으로 찍으면 더 깊게 코칭할 수 있어요.\n"
+                + "\"나 혼자서도 잘 지내\"까지 웃으며 보내 주기."))
+                .isEqualTo("\"괜찮아, 진짜 괜찮다니까\"에서 웃으며 보내 봐요.\n영상으로 찍으면 더 깊게 코칭할 수 있어요.");
+        assertThat(PurposeLoop.withoutPlainTail("영상으로 찍어 볼래요?")).isEqualTo("영상으로 찍어 볼래요?");
+        assertThat(PurposeLoop.withoutPlainTail("웃으며 보내 주기.")).as("다 떼면 그대로").isEqualTo("웃으며 보내 주기.");
+        assertThat(PurposeLoop.withoutPlainTail("\"가지 마\"에서 붙잡아 봐도 좋아요.\n영상으로 올리면 더 깊게 볼게요.")).as("그대로")
+                .isEqualTo("\"가지 마\"에서 붙잡아 봐도 좋아요.\n영상으로 올리면 더 깊게 볼게요.");
+    }
+
     @Test void evaluateGoesFromTheCardToFixingTogether() {
         var card = state("{\"step\":0,\"choices\":[{\"label\":\"코치와 같이 고치기\",\"at\":null},{\"label\":\"다른 것도 봐 주세요\",\"at\":null}]}");
         String pressed = PurposeLoop.pressed(card, "코치와 같이 고치기");
@@ -184,6 +227,17 @@ class PurposeLoopTest {
         assertThat(DirectVideoPracticeLoop.parse(raw).message()).isEqualTo("\"취소해\"에선 화내는 사람처럼 들려요. 그때 상대한테 뭘 하고 싶었어요?");
     }
 
+    @Test void aStrayJamoStuckToTheEndOfAChoiceIsDropped() {
+        var out = PurposeLoop.extract("""
+                <보기>
+                - 연습 방법을 바꾸고 싶어요
+                - 객관적인 상태가 궁금해요ㄴ
+                - 웃겨요 ㅋㅋ
+                </보기>""");
+        assertThat(out.choices()).extracting(PurposeView.Choice::label)
+                .containsExactly("연습 방법을 바꾸고 싶어요", "객관적인 상태가 궁금해요", "웃겨요 ㅋㅋ");
+    }
+
     @Test void theResultCardAndTheCharacterCardAreParsed() {
         var card = PurposeLoop.extract("""
                 붙잡는 게 보였어요.
@@ -281,7 +335,8 @@ class PurposeLoopTest {
         names.addAll(List.of("common/answer", "common/accept", "common/easy", "common/propose", "common/method",
                 "evaluate/another", "evaluate/wrap", "stuck/line", "stuck/seen", "stuck/wrap",
                 "character/cell", "character/wrap", "talk/mode", "talk/stuck/line", "talk/stuck/wrap",
-                "talk/character/cell", "talk/character/wrap", "talk/concern/need", "talk/concern/wrap"));
+                "talk/character/cell", "talk/character/wrap", "talk/concern/need", "talk/concern/wrap",
+                "reading/mode", "reading/try", "reading/wrap"));
         for (String name : names) assertThat(DirectVideoPrompts.purposeResource(name)).as(name).isNotBlank();
         for (var purpose : PurposeLoop.Purpose.values()) {
             assertThat(PurposeLoop.firstPrompt(purpose)).startsWith("역할:").contains("<설계>", "</코치>");

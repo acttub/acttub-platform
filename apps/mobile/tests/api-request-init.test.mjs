@@ -50,6 +50,8 @@ const CASES = [
     { method: 'PATCH', path: '/v2/me/notification-settings', contentType: 'application/json', body: '{"evening":false}' }],
   ['registerPushToken', () => api.registerPushToken('tok', 'ios'),
     { method: 'POST', path: '/v2/push-tokens', contentType: 'application/json', body: '{"token":"tok","platform":"ios"}' }],
+  ['recordPushOpen', () => api.recordPushOpen({ kind: 'evening_reminder', platform: 'ios' }),
+    { method: 'POST', path: '/v2/push-opens', contentType: 'application/json', body: '{"kind":"evening_reminder","platform":"ios"}' }],
   ['unregisterPushToken', () => api.unregisterPushToken('tok'),
     { method: 'DELETE', path: '/v2/push-tokens', contentType: 'application/json', body: '{"token":"tok"}' }],
   ['saveActorMemory', () => api.saveActorMemory('goal', '붙잡기'),

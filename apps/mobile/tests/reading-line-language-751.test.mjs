@@ -66,7 +66,7 @@ test('reading.line-language: 한 줄에 다른 말이 이어지면 조각마다 
   assert.deepEqual(speechParts({ text: '안녕' }), [{ lang: 'ko', text: '안녕' }]);
 });
 
-test('reading.play: 상대 대사·받아쓰기·발음 피드백이 줄의 말을 따른다(SOMA-751)', () => {
+test('reading.play: 상대 대사·받아쓰기가 줄의 말을 따른다(SOMA-751, 무료 발음 피드백은 10/29 뺌)', () => {
   const play = read('../app/reading/play.tsx');
   assert.match(play, /\.flatMap\(\(l\) => speechParts\(l\)\)/);
   assert.match(play, /for \(const \{ text, lang \} of parts\)/);
@@ -74,7 +74,6 @@ test('reading.play: 상대 대사·받아쓰기·발음 피드백이 줄의 말�
   assert.match(play, /speakWithDevice\(text, preset, \{ locale: speechLocaleFor\(lang\) \}\)/);
   assert.match(play, /\.flatMap\(\(line\) => speechParts\(line\)\.map/);
   assert.match(play, /locale: speechLocaleFor\(lineLanguage\(mine\)\)/);
-  assert.match(play, /if \(!isKoreanLine\(line\)\) return;/);
   const hook = read('../hooks/use-reading-stt.ts');
-  assert.match(hook, /lang: options\?\.locale \?\? speechLocale\(\),/);
+  assert.match(hook, /const lang = options\?\.locale \?\? speechLocale\(\);/);
 });

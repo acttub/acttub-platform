@@ -153,10 +153,7 @@ test('account.withdraw: 스토어 구독은 탈퇴해도 해지되지 않는다�
 
 test('설정에서 탈퇴로 들어갈 수 있다', () => {
   const settings = readSource('app/settings.tsx');
-  const layout = readSource('app/_layout.tsx');
-
   assert.match(settings, /settings\.withdraw/);
   assert.match(readSource('locales/ko.ts'), /회원 탈퇴/);
   assert.match(settings, /push\('\/delete-account'\)/);
-  assert.match(layout, /name="delete-account"/);
 });

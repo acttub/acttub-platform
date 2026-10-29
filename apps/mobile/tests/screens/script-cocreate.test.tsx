@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ScriptCocreateScreen from '@/app/script-cocreate';
 import { ScriptCocreateEntry } from '@/components/script-cocreate-entry';
@@ -12,6 +12,7 @@ const mockRouter = { dismissTo: jest.fn(), push: jest.fn(), replace: jest.fn(), 
 
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, Stack: { Screen: () => null } }));
 jest.mock('expo-image', () => ({ Image: () => null }));
+jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({
     profile: { me: { profile: { experience: 'exam_prep', age: 19, gender: 'male', goal: 'audition' } } },
@@ -362,4 +363,37 @@ test('내 대본 올리기에서 「새로 만들기」를 고르고 오면 처�
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(mockRouter.back).toHaveBeenCalled();
   expect(screen.queryByText('어떤 대본으로 할까요?')).not.toBeOnTheScreen();
+});
+
+test('만드는 중 — 화면을 닫지 말라고 안내하고, 뒤로 가면 코칭 탭 첫 화면으로 간다(코칭 입구에서 열었을 때)', async () => {
+  createSampleScript.mockReturnValue(new Promise(() => undefined));
+  await reachDirection();
+  void fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+
+  expect(await screen.findByText('30초에서 1분쯤 걸려요. 화면을 닫지 말고 기다려 주세요.')).toBeOnTheScreen();
+  expect(screen.queryByText('화면을 나가도 대본은 계속 만들어져요')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+  // 나가면 만든 대본을 다시 찾을 수 없어 먼저 묻는다. 「계속 기다리기」면 남는다.
+  expect(await screen.findByText('지금 나가면 만들던 대본이 사라져요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '계속 기다리기' }));
+  expect(mockRouter.dismissTo).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+  await fireEvent.press(await screen.findByRole('button', { name: '나가기' }));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching'));
+  expect(mockRouter.back).not.toHaveBeenCalled();
+});
+
+test('만드는 중 — 대본 올리기(리딩)에서 열었으면 안드로이드 뒤로 키·밀어서 나가기도 리딩 탭 첫 화면으로 간다', async () => {
+  mockParams.mode = 'reading';
+  mockParams.start = 'make';
+  createSampleScript.mockReturnValue(new Promise(() => undefined));
+  await reachDirection();
+  void fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  expect(await screen.findByText('30초에서 1분쯤 걸려요. 화면을 닫지 말고 기다려 주세요.')).toBeOnTheScreen();
+
+  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+  await act(async () => preventRemove.mock.calls.at(-1)[1]({ data: { action: { type: 'GO_BACK' } } }));
+  await fireEvent.press(await screen.findByRole('button', { name: '나가기' }));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading'));
 });

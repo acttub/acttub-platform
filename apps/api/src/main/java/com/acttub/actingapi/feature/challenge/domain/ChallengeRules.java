@@ -27,6 +27,13 @@ public final class ChallengeRules {
     public static final int CHALLENGE_REPORT_THRESHOLD = 3;
     /** 얼굴 모자이크본을 만들려고 한 참여작을 집는 횟수의 상한. 넘으면 실패로 닫는다(다른 사람에게 보이지 않는다). */
     public static final int MOSAIC_MAX_ATTEMPTS = 3;
+    /** 공개 참여작 AI 검사를 집는 횟수의 상한. 넘으면 실패로 닫고 운영 확인으로 올린다(영상은 보이게 둔다). */
+    public static final int MODERATION_MAX_ATTEMPTS = 3;
+    /**
+     * AI 검사를 통과한 참여작은 처리되지 않은 사람 신고가 서로 다른 이만큼의 사람에게서 모여야 숨긴다. 검사 전·실패·애매
+     * 판정의 참여작은 지금처럼 신고 하나에 숨긴다.
+     */
+    public static final int PASSED_ENTRY_REPORT_THRESHOLD = 2;
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private ChallengeRules() { }
 

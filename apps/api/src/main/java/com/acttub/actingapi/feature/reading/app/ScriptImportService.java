@@ -12,6 +12,7 @@ import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptText;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.acttub.actingapi.platform.web.Hashing;
@@ -58,6 +59,7 @@ public class ScriptImportService {
         String rawText = unmapped(submission.uploadId() == null ? submission.rawText() : uploads.text(userId, submission.uploadId(), requestId,
                 submission.allowDuplicate()));
         String source = submission.source();
+        InputCharset.requireNoStacking(title, rawText);
         if (ScriptRules.length(rawText) > ScriptRules.TEXT_MAX) {
             throw new ApiException(422, "script_too_long");
         }

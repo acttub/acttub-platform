@@ -50,7 +50,8 @@ public final class AdPicker {
             return Pick.none(slot);
         }
         List<Ad> direct = candidates.stream()
-                .filter(ad -> Ad.DIRECT.equals(ad.kind()) && ad.targets(slot) && ad.imageFor(slot.size()) != null)
+                .filter(ad -> Ad.DIRECT.equals(ad.kind()) && ad.targets(slot) && ad.imageFor(slot.size()) != null
+                        && AdRules.validLink(ad.linkUrl()))
                 .toList();
         if (!direct.isEmpty()) {
             return new Pick(Kind.DIRECT, slot, rotate(direct, viewer.userId(), slot, day));

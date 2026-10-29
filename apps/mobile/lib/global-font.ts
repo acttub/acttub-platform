@@ -1,11 +1,15 @@
-import React from 'react';
-import { StyleSheet, Text, TextInput, type TextStyle } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 
-import { fontFamilyForWeight } from '@/lib/font-weight';
+import { androidLighterFamily, fontFamilyForWeight, PRETENDARD_REGULAR } from '@/lib/font-weight';
 
 /**
  * 앱 전역 기본 폰트를 Pretendard로 강제한다.
  * iOS(SF)·Android(Roboto)의 글자체/두께 렌더 차이로 디자인이 달라 보이는 문제를 없앤다.
+ *
+ * 실제로 덧씌우는 곳은 patches/react-native+*.patch 가 고친 RN 의 Text·TextInput 이다. 둘은 펼친 스타일을
+ * 여기 등록한 fontStyleFor 에 넘기고 돌려받은 스타일을 뒤에 붙인다. RN 0.81 의 Text 는 일반 함수라 예전처럼
+ * Text.render 를 바꿔치기할 수 없었고(그 패치는 아무 일도 안 했다), RN 안에서 고쳐야 Animated.Text 처럼
+ * Text 모듈을 직접 가져다 쓰는 곳까지 닿는다.
  *
  * 왜 가변폰트를 버렸나
  *   전엔 PretendardVariable.ttf 하나만 깔고 fontWeight로 두께를 골랐는데, RN은 가변폰트의
@@ -13,33 +17,24 @@ import { fontFamilyForWeight } from '@/lib/font-weight';
  *   무시되거나 가짜 볼드가 돼 "볼드가 안 먹는" 상태였다.
  *   → 굵기별 static 서브셋(scripts/build-fonts.py)을 싣고, fontWeight를 폰트 파일 선택으로 바꾼다.
  *
- * 주의: 굵기는 각 Text가 자기 스타일에 fontWeight를 가지고 있어야 결정된다.
- *       부모 Text의 굵기를 자식이 물려받던 동작에는 기대지 말 것.
+ * 중첩 Text 는 패밀리도 굵기도 없으면 부모 폰트를 그대로 물려받는다(RN 패치가 이때는 부르지 않는다).
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function applyGlobalFont(Component: any) {
-  if (!Component || Component.__globalFontApplied || typeof Component.render !== 'function') return;
-  const original = Component.render;
-  Component.__globalFontApplied = true;
-  Component.render = function patchedRender(...args: any[]) {
-    const element = original.apply(this, args);
-    if (!element) return element;
-    const style = element.props?.style;
-    const flattened = (StyleSheet.flatten(style) ?? {}) as TextStyle;
-    // 아이콘 폰트(Feather 등)처럼 패밀리를 직접 지정한 건 건드리지 않는다.
-    if (flattened.fontFamily) return element;
-    return React.cloneElement(element, {
-      style: [
-        style,
-        {
-          fontFamily: fontFamilyForWeight(flattened.fontWeight),
-          // 실제 굵은 폰트를 싣고 있으므로 가짜 볼드를 덧씌우지 않게 굵기는 중립으로 되돌린다.
-          fontWeight: 'normal' as const,
-        },
-      ],
-    });
+export function fontStyleFor(style: TextStyle | null | undefined): TextStyle | null {
+  const android = Platform.OS === 'android';
+  const family = style?.fontFamily;
+  // 안드로이드는 글자 위아래에 폰트 여백을 더해 같은 글자도 iOS 보다 상자가 높다. Pretendard 글자만 빼서 iOS 와 높이를 맞춘다.
+  const padding = android && style?.includeFontPadding == null ? { includeFontPadding: false } : null;
+  // 패밀리를 직접 지정한 건 그대로 둔다(아이콘 폰트 등). 단 안드로이드에서 Pretendard 굵기를 이름으로 고른 것은 한 단계 가볍게.
+  if (family) {
+    if (!android || !family.startsWith(PRETENDARD_REGULAR)) return null;
+    return { fontFamily: androidLighterFamily(family), ...padding };
+  }
+  return {
+    fontFamily: fontFamilyForWeight(style?.fontWeight, Platform.OS),
+    // 실제 굵은 폰트를 싣고 있으므로 가짜 볼드를 덧씌우지 않게 굵기는 중립으로 되돌린다.
+    fontWeight: 'normal',
+    ...padding,
   };
 }
 
-applyGlobalFont(Text);
-applyGlobalFont(TextInput);
+(globalThis as { __fontStyleFor?: typeof fontStyleFor }).__fontStyleFor = fontStyleFor;

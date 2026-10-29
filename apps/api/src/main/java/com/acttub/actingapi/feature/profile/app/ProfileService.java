@@ -20,6 +20,7 @@ import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
 import com.acttub.actingapi.integration.airbridge.AirbridgeAttributionClient;
 import com.acttub.actingapi.integration.storage.PhotoUploadType;
 import com.acttub.actingapi.platform.security.ProfileGate;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -107,6 +108,7 @@ public class ProfileService implements ProfileGate {
 
     /** {@code signupClient} 는 가입을 끝낸 클라이언트 판이다. 프로필이 이미 완성돼 있었으면(설정의 수정) 남기지 않는다. */
     public AccountView saveProfile(UUID userId, Profile submitted, String signupClient) {
+        InputCharset.require(submitted.name(), submitted.bio(), submitted.goal());
         Account before = require(profiles.find(userId));
         if (KoreanAge.underMinimum(submitted.birthDate(), today())) {
             if (before.profileComplete()) {
@@ -198,6 +200,7 @@ public class ProfileService implements ProfileGate {
      * 적을 수 없는 계정(없음·탈퇴)은 유입 광고 기록과 같이 거절한다.
      */
     public void recordDiscoveryAnswer(UUID userId, DiscoveryAnswer answer) {
+        InputCharset.require(answer.otherText());
         if (!profiles.recordDiscoveryAnswer(userId, answer)) {
             throw refused(userId);
         }

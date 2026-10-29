@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { ScrollView, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
@@ -20,17 +21,25 @@ export function DoneScreen({
   scriptName,
   children,
   onHome,
+  homeDisabled,
+  mascotTop,
+  footer,
+  scrollRef,
 }: {
   mascot?: ImageSourcePropType;
   title: string;
   scriptName?: string | null;
   children?: ReactNode;
   onHome: () => void;
+  homeDisabled?: boolean;
+  mascotTop?: boolean;
+  footer?: ReactNode;
+  scrollRef?: Ref<ScrollView>;
 }) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <ScrollView contentContainerStyle={styles.body}>
+    <KeyboardLift style={[styles.root, { paddingTop: insets.top }]}>
+      <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.body, mascotTop && styles.bodyTop]}>
         <Image source={mascot} style={MASCOT_SIZE.xl} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
         <Text style={styles.title} accessibilityRole="header">
           {title}
@@ -39,15 +48,17 @@ export function DoneScreen({
         {children ? <View style={styles.content}>{children}</View> : null}
       </ScrollView>
       <CtaBar>
-        <PrimaryButton label={t('challengeDone.home')} onPress={onHome} />
+        {footer}
+        <PrimaryButton label={t('challengeDone.home')} onPress={onHome} disabled={homeDisabled} />
       </CtaBar>
-    </View>
+    </KeyboardLift>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   body: { paddingTop: 96, paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3], alignItems: 'center' },
+  bodyTop: { paddingTop: space[6] },
   title: { ...type.title1, color: palette.text, textAlign: 'center' },
   script: { ...type.body2, color: palette.textSub, textAlign: 'center' },
   // 요약·다음 행동 칸은 화면 폭을 채운다(pen 「content slot」 fill).

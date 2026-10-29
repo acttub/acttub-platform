@@ -1,7 +1,7 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -9,10 +9,14 @@ import { useAppDialog } from '@/components/app-dialog';
 import { CoachMessage } from '@/components/coach-message';
 import { CoachVideoRow } from '@/components/coach-video-row';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
-import { PrimaryButton } from '@/components/ui/buttons';
+import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { InfoBanner } from '@/components/ui/info-banner';
 import { palette } from '@/constants/palette';
+import { space, type } from '@/constants/tokens';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { useWaitExit } from '@/hooks/use-wait-exit';
 import { logEvent } from '@/lib/analytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { api } from '@/lib/api';
@@ -20,7 +24,7 @@ import { useAuth } from '@/lib/auth';
 import { translate as t, translateList } from '@/lib/i18n';
 import { localCopyFor } from '@/lib/library/library-runner';
 import { logMetaEvent } from '@/lib/meta-events';
-import { onPushReceived } from '@/lib/notifications';
+import { hideForegroundPush, onPushReceived } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import {
   analysisFailureMessage,
@@ -85,6 +89,8 @@ export function CoachWaiting({
   // 튜토리얼 예시(SOMA-494) — 조회도 분석도 없이 몇 초 뒤 대화를 연다.
   // 설명(스포트라이트)을 다 본 뒤에 넘긴다 — 읽는 도중에 화면이 바뀌면 안 된다.
   const sample = isSamplePracticeId(practiceId);
+  // 영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다(10-27 정함). 분석은 서버에서 계속되고 끝나면 완료 푸시가 온다.
+  const leave = useWaitExit(!sample && !error, '/coaching');
   const [sampleReady, setSampleReady] = useState(false);
   const [guideDone, setGuideDone] = useState(false);
   const progressTarget = useSpotlightTarget(TARGET.analyzingProgress);
@@ -135,7 +141,7 @@ export function CoachWaiting({
         pendingHandleRef.current = null;
       }
       const notice = analysis ? analysisPartialNotice(analysis) : null;
-      if (notice) await alert({ title: t('analyzing.screenTitle'), message: notice });
+      if (notice) await alert({ title: t('analysis.partialTitle'), message: notice });
       if (signal.aborted) {
         return;
       }
@@ -241,13 +247,20 @@ export function CoachWaiting({
   }, [practiceId]);
 
   // 화면을 떠나면 조회만 멈춘다(작업은 서버에서 계속 돈다). 돌아오면 기다리지 않고 다시 읽는다.
+  // 이 화면을 보는 동안에는 이 연습의 분석 완료 알림을 배너로 띄우지 않는다(화면이 바로 결과를
+  // 읽는다). 다른 화면으로 가면 풀려서 알림이 뜬다.
   useFocusEffect(
     useCallback(() => {
       void run();
+      const showPushAgain =
+        practiceId && !preview
+          ? hideForegroundPush((data) => analysisPushTarget(data)?.practiceId === practiceId)
+          : undefined;
       return () => {
         controllerRef.current?.abort();
+        showPushAgain?.();
       };
-    }, [run]),
+    }, [run, practiceId, preview]),
   );
 
   // 배경에서 돌아온 직후에도 다음 조회를 기다리지 않는다.
@@ -400,40 +413,33 @@ export function CoachWaiting({
         {error && (
           <View style={styles.errorActions}>
             {recovery !== 'none' && (
-              <PrimaryButton label={t('common.retry')} onPress={() => void retry()} loading={retrying} style={styles.wide} />
+              <PrimaryButton label={t('common.retry')} phLabel="analyzing_retry" onPress={() => void retry()} loading={retrying} style={styles.wide} />
             )}
-            <Pressable onPress={() => router.dismissTo('/(tabs)')} hitSlop={8} accessibilityRole="button">
-              <Text style={styles.link}>{t('analyzing.leaveLater')}</Text>
-            </Pressable>
+            <TextButton label={t('analyzing.leaveLater')} phLabel="analyzing_leave_later" onPress={() => router.dismissTo('/(tabs)')} />
           </View>
         )}
       </ScrollView>
 
       {/* 광고 칸(SOMA-876) — 연습 중 칸이라 무료 사용자 일부만 받는다. 아래 버튼 묶음 바로 위, 24 띄운다. */}
-      {!error && !sample && <AdSlot slot="analyzing_wait" style={{ marginHorizontal: 24, marginBottom: 24 }} />}
+      {!error && !sample && <AdSlot slot="analyzing_wait" style={styles.ad} />}
 
+      {/* 아래 바 — 안내 띠, 보조 글자 버튼 「그만두기」 위, 주 버튼 「끝나면 알려 주세요」 맨 아래. */}
       {!error && (
-        <View style={styles.bottom}>
+        <CtaBar safeBottom={false}>
           {sample ? (
             <Text style={styles.notice}>{t('tutorial.sampleAnalyzing')}</Text>
           ) : (
-            <>
-              <Text style={styles.notice}>{t('analyzing.usualTime')}</Text>
-              <Text style={styles.leaveHint}>{t('analyzing.leaveHint')}</Text>
-              {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 여기서는 홈으로 나간다. */}
-              <Pressable
-                style={({ pressed }) => [styles.notify, pressed && styles.pressed]}
-                onPress={() => router.dismissTo('/(tabs)')}
-                accessibilityRole="button"
-                accessibilityLabel={t('analyzing.notifyMe')}>
-                <Text style={styles.notifyText}>{t('analyzing.notifyMe')}</Text>
-              </Pressable>
-            </>
+            <InfoBanner title={t('analyzing.leaveTitle')} body={t('analyzing.leaveBody')} style={styles.banner} />
           )}
-          <Pressable style={styles.quit} onPress={() => void stop()} disabled={stopping} hitSlop={8} accessibilityRole="button">
-            <Text style={styles.link}>{stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}</Text>
-          </Pressable>
-        </View>
+          <TextButton
+            label={stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}
+            phLabel="analyzing_stop"
+            disabled={stopping}
+            onPress={() => void stop()}
+          />
+          {/* 분석은 서버에서 계속 돌고 끝나면 완료 푸시가 온다(account.notification) — 뒤로 가기와 같은 코칭 탭으로 나간다. */}
+          {!sample && <PrimaryButton label={t('analyzing.notifyMe')} phLabel="analyzing_notify_me" onPress={leave} />}
+        </CtaBar>
       )}
       {dialog}
       {tutorialGuide.element}
@@ -443,28 +449,21 @@ export function CoachWaiting({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  // pen 09 본문 안쪽 [14,21,0,21] · 오늘 영상 줄과 코치 줄 사이 14.
-  body: { paddingTop: 14, paddingHorizontal: 21, paddingBottom: 20, gap: 14 },
+  body: { paddingTop: space[4], paddingHorizontal: space[4], paddingBottom: space[5], gap: space[3] },
   wide: { alignSelf: 'stretch' },
-  pressed: { opacity: 0.75 },
+  ad: { marginHorizontal: space.gutter, marginBottom: space[3] },
+  banner: { marginBottom: space[2] },
 
-  // 말풍선 안 — 도는 표시 · 「영상 보는 중이에요」 17/700, 아래 단계 문구 15/500 `text`.
-  watchingBox: { gap: 6 },
-  typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  watching: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.text },
-  stageText: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.text },
-  elapsed: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textMeta },
+  // 말풍선 안 — 「영상 보는 중이에요」 body1-bold, 아래 단계 문구 caption.
+  watchingBox: { gap: space[1] },
+  typingRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  watching: { ...type.body1Bold, color: palette.text },
+  stageText: { ...type.caption, color: palette.textSub },
+  elapsed: { ...type.caption, color: palette.textMeta },
 
-  errorTitle: { fontSize: 17, fontWeight: '700', color: palette.text, lineHeight: 21 },
-  errorBody: { fontSize: 15, fontWeight: '600', color: palette.danger, lineHeight: 21 },
-  errorActions: { alignItems: 'center', gap: 12, paddingLeft: 39 },
+  errorTitle: { ...type.body1Bold, color: palette.text },
+  errorBody: { ...type.caption, color: palette.danger },
+  errorActions: { alignItems: 'center', gap: space[2], paddingLeft: space[10] },
 
-  // pen 09 아래 — 안쪽 [0,21,11,21], 안내 15/500 회색 · 14 · 파란 안내 14.5/700 · 10 · 회색 버튼 48 · 13 · 그만두기 15/700.
-  bottom: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11, alignItems: 'center' },
-  notice: { fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textMeta, textAlign: 'center' },
-  leaveHint: { fontSize: 14.5, fontWeight: '700', lineHeight: 19, color: palette.blueDeep, textAlign: 'center', marginTop: 14 },
-  notify: { alignSelf: 'stretch', height: 48, borderRadius: 16, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
-  notifyText: { fontSize: 18, fontWeight: '700', color: palette.text },
-  quit: { marginTop: 7 },
-  link: { color: palette.textMeta, fontSize: 15, fontWeight: '700', lineHeight: 19, textAlign: 'center', paddingVertical: 6 },
+  notice: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
 });

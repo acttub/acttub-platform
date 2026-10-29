@@ -13,7 +13,21 @@ class PracticeCreateRequestValidationTest {
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     private int violations(UUID videoId, String purpose) {
-        return validator.validate(new PracticeDtos.CreateRequest(UUID.randomUUID(), videoId, null, null, null, purpose, null)).size();
+        return violations(videoId, purpose, null);
+    }
+
+    private int violations(UUID videoId, String purpose, UUID readingSessionId) {
+        return validator.validate(new PracticeDtos.CreateRequest(UUID.randomUUID(), videoId, null, null, null, purpose, null,
+                readingSessionId)).size();
+    }
+
+    /** 리딩 녹음으로 시작(SOMA-791): 리딩 회차만 보내고 영상·목적은 뺀다. 목적 값 reading 은 앱이 보낼 수 없다. */
+    @Test void aReadingStartCarriesNeitherAVideoNorAPurpose() {
+        UUID reading = UUID.randomUUID();
+        assertThat(violations(null, null, reading)).isZero();
+        assertThat(violations(UUID.randomUUID(), null, reading)).isEqualTo(1);
+        assertThat(violations(null, "character", reading)).isEqualTo(1);
+        assertThat(violations(null, "reading", null)).as("reading 은 요청 목적 값이 아니다").isPositive();
     }
 
     @Test void withoutAVideoOnlyTheTalkPurposesPass() {

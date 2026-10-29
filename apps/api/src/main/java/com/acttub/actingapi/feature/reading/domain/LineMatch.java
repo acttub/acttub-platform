@@ -11,11 +11,14 @@ import java.util.regex.Pattern;
  * 괄호 안 지시와 낱자모 추임새를 빼고 문자·숫자만 소문자로 남긴 뒤 자모 단위 편집 거리로 잰 가까움이 통과선 이상이면 통과다. 가까움은
  * 저장하지도 응답에 싣지도 않는다(README 「판정 금지」).
  *
- * <p>앱 {@code lib/reading/match.ts} 에서 옮긴 규칙이고 웹 {@code quiz/match.ts} 와 같다. 기기와 결과가 같도록 글자를
+ * <p>대사를 끝까지 말하고 뒤에 말을 덧붙였으면(「방 더러워...」를 「방 더러워 안 쳤어」로) 말한 것의 앞부분만 대본과 견준다 —
+ * 대사는 다 말했으니 맞게 읽은 것이다(SOMA-727). 앞에 덧붙인 말은 그대로 견준다.
+ *
+ * <p>앱 {@code lib/reading/match.ts} 에서 옮긴 규칙이고 웹 {@code quiz/match.ts} 와 같다(덧붙인 말 규칙은 서버만). 기기와 결과가 같도록 글자를
  * JavaScript 문자열처럼 다룬다 — 편집 거리는 UTF-16 단위로, 한도는 코드 포인트로 잰다.
  */
 public final class LineMatch {
-    static final double PASS_THRESHOLD = 0.72;
+    public static final double PASS_THRESHOLD = 0.72;
 
     /**
      * 원문·말한 것 각각의 상한(코드 포인트). 넘으면 비교하지 않는다. 편집 거리는 자모 길이 m·⌈n/64⌉, 다르게 말한 어절은
@@ -50,7 +53,38 @@ public final class LineMatch {
         if (normalize(said).isEmpty()) {
             return Result.NO_SPEECH;
         }
-        return similarity(said, target) >= PASS_THRESHOLD ? Result.PASS : Result.MISS;
+        return similarity(said, target) >= PASS_THRESHOLD || saidThenMore(said, target) >= PASS_THRESHOLD ? Result.PASS : Result.MISS;
+    }
+
+    /**
+     * 말한 것의 앞부분 가운데 대본과 가장 가까운 것의 가까움 — 대사 뒤에 덧붙인 말은 세지 않는다(SOMA-727). 가까움은 같은 자모
+     * 편집 거리로 재고, 앞부분이 대본보다 짧거나 길면 긴 쪽 길이로 나눈다. 말한 것이 대본보다 길지 않으면 {@link #similarity} 와 같다.
+     */
+    static double saidThenMore(String said, String target) {
+        String a = toJamo(normalize(said));
+        String b = toJamo(normalize(target));
+        int m = b.length();
+        if (a.length() <= m || m == 0) {
+            return similarity(said, target);
+        }
+        // 열 j 는 「말한 것 앞 j 자모」 대 「대본 앞 i 자모」의 편집 거리. 마지막 행이 대본 전체와 앞 j 자모의 거리다.
+        int[] col = new int[m + 1];
+        for (int i = 0; i <= m; i++) {
+            col[i] = i;
+        }
+        double best = 0;
+        for (int j = 1; j <= a.length(); j++) {
+            int diagonal = col[0];
+            col[0] = j;
+            char c = a.charAt(j - 1);
+            for (int i = 1; i <= m; i++) {
+                int up = col[i];
+                col[i] = Math.min(Math.min(up + 1, col[i - 1] + 1), diagonal + (b.charAt(i - 1) == c ? 0 : 1));
+                diagonal = up;
+            }
+            best = Math.max(best, 1 - (double) col[m] / Math.max(m, j));
+        }
+        return best;
     }
 
     static String normalize(String text) {

@@ -5,11 +5,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryButton } from '@/components/ui/buttons';
+import Feather from '@expo/vector-icons/Feather';
+
+import { Button, PrimaryButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { InlineError } from '@/components/ui/inline-error';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { browseFailure, browseFailureMessage, canPerform, dDayLabel } from '@/lib/challenge/browse';
+import { useExampleUrl } from '@/lib/challenge/use-example-url';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
@@ -33,7 +40,7 @@ export default function LinePickScreen() {
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   const [list, setList] = useState<ChallengeCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [exampleUrl, setExampleUrl] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -54,22 +61,11 @@ export default function LinePickScreen() {
     return () => {
       alive = false;
     };
-  }, [tab]);
+  }, [tab, attempt]);
 
   const featuredId = featured?.id ?? null;
   const featuredCount = featured?.entry_count ?? 0;
-  useEffect(() => {
-    setExampleUrl(null);
-    if (!featuredId || featuredCount === 0) return;
-    let alive = true;
-    void api
-      .listChallengeEntries(featuredId, { sort: 'likes' })
-      .then((r) => alive && setExampleUrl(r.entries.find((e) => e.playback_url)?.playback_url ?? null))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [featuredId, featuredCount]);
+  const exampleUrl = useExampleUrl(featuredId, featuredCount);
 
   const choose = useCallback(
     (challenge: ChallengeCard) => {
@@ -109,19 +105,12 @@ export default function LinePickScreen() {
         <Text style={styles.ask}>{t('linePick.ask')}</Text>
         <View style={styles.tabs}>
           {TABS.map(({ key, label }) => (
-            <Pressable
-              key={key}
-              hitSlop={6}
-              onPress={() => setTab(key)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: tab === key }}>
-              <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>{t(label)}</Text>
-            </Pressable>
+            <Chip key={key} size="sm" role="radio" label={t(label)} selected={tab === key} onPress={() => setTab(key)} phLabel="line_pick_tab" />
           ))}
         </View>
-        {list === null && !error && <SkeletonRows count={4} avatar={false} card={false} style={{ paddingHorizontal: 0 }} />}
-        {error && <Text style={styles.meta}>{error}</Text>}
-        {list?.length === 0 && !error && <Text style={styles.meta}>{t('linePick.empty')}</Text>}
+        {list === null && !error && <SkeletonRows count={4} avatar={false} card={false} style={styles.skeleton} />}
+        {error && <InlineError message={error} onRetry={() => setAttempt((n) => n + 1)} />}
+        {list?.length === 0 && !error && <InlineEmpty title={t('linePick.empty')} />}
         {list?.map((challenge) => {
           const open = canPerform(challenge);
           return (
@@ -141,13 +130,14 @@ export default function LinePickScreen() {
             </Pressable>
           );
         })}
-        <Pressable
-          style={({ pressed }) => [styles.register, pressed && styles.pressed]}
+        <Button
+          size="sm"
+          label={t('challenges.registerCta')}
+          icon={<Feather name="plus" size={16} color={palette.blueDeep} />}
           onPress={() => router.push('/line-new')}
-          accessibilityRole="button"
-          ph-label="line_pick_register">
-          <Text style={styles.registerText}>+ {t('challenges.registerCta')}</Text>
-        </Pressable>
+          phLabel="line_pick_register"
+          style={styles.register}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -190,23 +180,21 @@ function Hero({ challenge, videoUrl }: { challenge: ChallengeCard; videoUrl: str
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 32, gap: 8 },
-  hero: { height: 220, borderRadius: 20, overflow: 'hidden', backgroundColor: palette.blue, justifyContent: 'flex-end', padding: 16, marginBottom: 8 },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
-  chip: { position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  chipText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  heroLine: { color: '#fff', fontSize: 20, fontWeight: '800', lineHeight: 27 },
-  sameHead: { marginTop: 16, gap: 6 },
-  sameTitle: { fontSize: 18, fontWeight: '800', lineHeight: 24, color: palette.text },
-  meta: { fontSize: 13, fontWeight: '500', lineHeight: 19, color: palette.textMeta },
-  ask: { fontSize: 16, fontWeight: '700', color: palette.text, marginTop: 20 },
-  tabs: { flexDirection: 'row', gap: 14, marginVertical: 8 },
-  tabText: { fontSize: 15, fontWeight: '700', color: palette.textMeta },
-  tabTextOn: { color: palette.text },
-  row: { paddingVertical: 12, gap: 4 },
-  rowOff: { opacity: 0.45 },
-  rowLine: { fontSize: 16, fontWeight: '700', lineHeight: 23, color: palette.text },
-  register: { height: 52, borderRadius: 14, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
-  registerText: { fontSize: 15, fontWeight: '700', color: palette.blue },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[8], gap: space[2] },
+  hero: { height: 220, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: palette.blue, justifyContent: 'flex-end', padding: space[4], marginBottom: space[1] },
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
+  chip: { position: 'absolute', top: space[3], left: space[3], backgroundColor: palette.scrim, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: space[1] },
+  chipText: { ...type.micro, color: palette.onAccent },
+  heroLine: { ...type.title2, color: palette.onAccent },
+  sameHead: { marginTop: space[2], gap: space[1] },
+  sameTitle: { ...type.headline, color: palette.text },
+  meta: { ...type.caption, color: palette.textMeta },
+  ask: { ...type.headline, color: palette.text, marginTop: space[2] },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], marginBottom: space[1] },
+  skeleton: { paddingHorizontal: 0 },
+  row: { paddingVertical: space[3], gap: space[1] },
+  rowOff: { opacity: 0.5 },
+  rowLine: { ...type.body1Bold, color: palette.text },
+  register: { height: 48, marginTop: space[4] },
   pressed: { opacity: 0.85 },
 });

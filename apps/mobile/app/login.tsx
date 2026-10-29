@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -6,10 +5,11 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { TextButton } from '@/components/ui/buttons';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { recordHandledError } from '@/lib/crashlytics';
 import { translate as t } from '@/lib/i18n';
 import { lastProviderStore } from '@/lib/last-provider';
@@ -38,8 +38,9 @@ const GOOGLE_TEXT = '#1F1F1F';
 // 카카오·네이버 로그인 버튼 규격 색(각 브랜드 가이드).
 const KAKAO_YELLOW = '#FEE500';
 const KAKAO_TEXT = '#191919';
-const KAKAO_SYMBOL = '#000000';
 const NAVER_GREEN = '#03C75A';
+// 넓은 로그인 버튼 높이 — 버튼 토큰(48)보다 크게(디자인 시스템 「의도된 차이」).
+const WIDE_HEIGHT = 62;
 
 type ProviderList =
   | { status: 'loading' }
@@ -142,12 +143,17 @@ export default function LoginScreen() {
       )}
       {provider === 'apple' &&
         (SymbolView ? (
-          <SymbolView name="apple.logo" tintColor="#FFFFFF" size={size === 'wide' ? 22 : 24} />
+          <SymbolView name="apple.logo" tintColor={palette.onAccent} size={size === 'wide' ? 22 : 24} />
         ) : (
           <Text style={styles.appleGlyph}></Text>
         ))}
-      {provider === 'kakao' && <KakaoSymbol />}
-      {provider === 'naver' && <Text style={styles.naverN}>N</Text>}
+      {/* 카카오·네이버 공식 로그인 리소스(카카오 디벨로퍼스 심볼, 네이버 로그인 BI 아이콘)를 그대로 쓴다. */}
+      {provider === 'kakao' && (
+        <Image source={require('@/assets/images/kakao-symbol.png')} style={size === 'wide' ? styles.kakaoLogoWide : styles.kakaoLogo} contentFit="contain" />
+      )}
+      {provider === 'naver' && (
+        <Image source={require('@/assets/images/naver-login-icon.png')} style={size === 'wide' ? styles.naverLogoWide : styles.naverLogo} contentFit="contain" />
+      )}
     </>
   );
   const renderWide = (provider: LoginProvider) => {
@@ -194,44 +200,35 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.hero}>
+      {/* 두 View 를 펼치지 않는다(collapsable={false}). 「로그인하는 중」 줄의 투명도가 바뀔 때 안드로이드 새 구조(Fabric)가 이 줄을
+          SafeAreaView 바로 아래로 펼쳤다 다시 묶다가 「View already has a parent」로 앱이 꺼졌다(10/28 새 계정 Google 로그인 직후). */}
+      <View style={styles.hero} collapsable={false}>
         <Image
           source={require('@/assets/images/logo-wordmark.png')}
           style={styles.logo}
           contentFit="contain"
         />
         <Text style={styles.tagline}>{t('login.tagline')}</Text>
-        {busy !== null && (
-          <View style={styles.progress} accessibilityRole="progressbar">
-            <Text style={styles.progressText}>{t('login.signingIn')}</Text>
-          </View>
-        )}
+        <View style={[styles.progress, busy === null && styles.keepSpaceHidden]} collapsable={false} accessibilityRole="progressbar" accessibilityElementsHidden={busy === null} importantForAccessibility={busy === null ? 'no-hide-descendants' : 'auto'}>
+          <Text style={styles.progressText}>{t('login.signingIn')}</Text>
+        </View>
       </View>
 
       <View style={styles.bottom}>
         {loginNotice?.kind === 'notice' && (
           <Text style={styles.notice}>{loginNotice.message}</Text>
         )}
-        {failed && (
-          <View style={styles.failBox} accessibilityRole="alert">
-            <Feather name="help-circle" size={20} color={palette.danger} />
-            <Text style={styles.failText}>{t('login.failed')}</Text>
-          </View>
-        )}
+        {failed && <InlineErrorLine message={t('login.failed')} />}
 
         {list.status === 'loading' ? (
           <SkeletonGroup style={styles.wideStack}>
-            <SkeletonBlock height={56} radius={16} />
-            <SkeletonBlock height={56} radius={16} />
+            <SkeletonBlock height={WIDE_HEIGHT} radius={radius.lg} />
+            <SkeletonBlock height={WIDE_HEIGHT} radius={radius.lg} />
           </SkeletonGroup>
         ) : list.status === 'error' ? (
-          <View style={styles.reloadBox}>
-            <Text style={styles.error}>{t('login.providersFail')}</Text>
-            {/* pen S3.2 — 빨간 한 줄 아래 파란 글자 링크(간격 4). */}
-            <TextButton tone="accent" label={t('login.reload')} onPress={() => void loadProviders()} />
-          </View>
+          <InlineError message={t('login.providersFail')} onRetry={() => void loadProviders()} />
         ) : providers.length === 0 ? (
-          <Text style={styles.error}>{t('login.providersEmpty')}</Text>
+          <Text style={styles.empty}>{t('login.providersEmpty')}</Text>
         ) : (
           <View style={styles.providerBox}>
             {primary === null ? (
@@ -255,82 +252,55 @@ export default function LoginScreen() {
   );
 }
 
-/** 카카오 로그인 버튼 가이드의 심볼(검은 말풍선). 아이콘 글꼴에 같은 모양이 없어 도형으로 그린다. */
-function KakaoSymbol() {
-  return (
-    <View style={styles.kakaoSymbol}>
-      <View style={styles.kakaoBubble} />
-      <View style={styles.kakaoTail} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: 28 },
-  hero: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  logo: { width: 220, height: 88 },
-  tagline: { fontSize: 15, fontWeight: '500', color: palette.textSub, textAlign: 'center', lineHeight: 22 },
-  // 로그인하는 중 — 돌림 표시와 한 줄 문구.
-  progress: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 56 },
-  progressText: { fontSize: 14, fontWeight: '500', color: palette.textMeta },
-  bottom: { paddingBottom: 28, gap: 18 },
+  safe: { flex: 1, backgroundColor: palette.bg, paddingHorizontal: space.gutter },
+  hero: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: space[4] },
+  logo: { width: 220, height: 74 },
+  tagline: { ...type.body1, color: palette.textSub, textAlign: 'center' },
+  progress: { paddingTop: space[10] },
+  keepSpaceHidden: { opacity: 0 },
+  progressText: { ...type.body2, color: palette.textMeta },
+  bottom: { minHeight: 168, justifyContent: 'flex-end', paddingBottom: space[8], gap: space[4] },
   // 켜진 제공자 수(2~4개)와 상관없이 가운데에 모은다 — 둘일 때 양 끝으로 벌어지지 않게.
-  circleRow: { flexDirection: 'row', justifyContent: 'center', gap: 20 },
-  providerBox: { gap: 18 },
-  wideStack: { gap: 14 },
-  wide: { height: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  wideLabel: { fontSize: 16, fontWeight: '600' },
+  circleRow: { flexDirection: 'row', justifyContent: 'center', gap: space[5] },
+  providerBox: { gap: space[4] },
+  wideStack: { gap: space[3] },
+  wide: { height: WIDE_HEIGHT, paddingHorizontal: space[5], borderRadius: radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2] },
+  wideLabel: type.headline,
   googleLogoWide: { width: 20, height: 20 },
-  recentBadge: { position: 'absolute', top: -9, right: 14, backgroundColor: palette.blue, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 3 },
-  recentBadgeText: { fontSize: 11, fontWeight: '700', color: palette.onAccent },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 4, paddingHorizontal: 8 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#E6E7EB' },
-  dividerText: { fontSize: 13, color: '#8A8D95' },
-  circle: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  googleLogo: { width: 24, height: 24 },
-  naverN: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
-  kakaoSymbol: { width: 26, height: 25 },
-  kakaoBubble: { width: 26, height: 21, borderRadius: 13, backgroundColor: KAKAO_SYMBOL },
-  kakaoTail: {
+  recentBadge: {
     position: 'absolute',
-    left: 6,
-    top: 17,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 3,
-    borderRightWidth: 3,
-    borderTopWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: KAKAO_SYMBOL,
-    transform: [{ rotate: '25deg' }],
+    top: -space[2],
+    right: space[4],
+    height: 20,
+    justifyContent: 'center',
+    paddingHorizontal: space[2],
+    borderRadius: radius.full,
+    backgroundColor: palette.blue,
   },
+  recentBadgeText: { ...type.micro, color: palette.onAccent },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingTop: space[1], paddingHorizontal: space[2] },
+  dividerLine: { flex: 1, height: 1, backgroundColor: palette.border },
+  dividerText: { ...type.caption, color: palette.textMeta },
+  circle: { width: 56, height: 56, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  googleLogo: { width: 24, height: 24 },
+  naverLogo: { width: 56, height: 56 },
+  naverLogoWide: { width: 28, height: 28 },
+  kakaoLogo: { width: 26, height: 26 },
+  kakaoLogoWide: { width: 22, height: 22 },
   pressed: { opacity: 0.7 },
   dim: { opacity: 0.5 },
-  appleGlyph: { fontFamily: 'System', fontSize: 26, color: '#FFFFFF' },
+  appleGlyph: { fontFamily: 'System', fontSize: 26, color: palette.onAccent },
   notice: {
+    ...type.caption,
     color: palette.text,
     backgroundColor: palette.bgSubtle,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 13.5,
-    lineHeight: 20,
+    borderRadius: radius.md,
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
     textAlign: 'center',
   },
-  // 로그인 실패 — 옅은 빨강 칸에 물음표 아이콘과 두 줄 문구(pen S3.8b).
-  failBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: palette.dangerSoft,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  failText: { flex: 1, fontSize: 14, fontWeight: '700', lineHeight: 21, color: palette.danger },
-  reloadBox: { alignItems: 'center', gap: 4 },
-  error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
+  empty: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
 });
 
 /** 제공자별 버튼 모양. 각 브랜드 가이드의 규격 색을 지킨다. */

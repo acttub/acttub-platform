@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.ads.domain.Ad;
@@ -14,7 +13,7 @@ import com.acttub.actingapi.feature.ads.domain.AdSlot;
 /**
  * 광고 칸 고르기와 노출·클릭 기록(SOMA-876).
  * {@code ADS_ENABLED=false} 면 모든 칸이 NONE 이다(앱 빌드 없이 끄는 길). 연습 중 칸은 {@code ADS_PRACTICE_SLOT_PERCENT}
- * (기본 50)% 의 무료 사용자에게만 켠다.
+ * (기본 50)% 의 무료 사용자에게만 켠다. 칸 하나만 끄려면 {@code ad_slot_switches} 에서 그 칸을 enabled=false 로 둔다.
  */
 public class AdService {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -27,17 +26,24 @@ public class AdService {
     private final AdRepository repository;
     private final ProStatusReader proStatus;
     private final Settings settings;
+    private final AdSlotSwitches switches;
     private final Clock clock;
 
     public AdService(AdRepository repository, ProStatusReader proStatus, Settings settings, Clock clock) {
+        this(repository, proStatus, settings, AdSlotSwitches.ALWAYS_ON, clock);
+    }
+
+    public AdService(AdRepository repository, ProStatusReader proStatus, Settings settings, AdSlotSwitches switches,
+            Clock clock) {
         this.repository = repository;
         this.proStatus = proStatus;
         this.settings = settings;
+        this.switches = switches;
         this.clock = clock;
     }
 
     public AdPicker.Pick pick(UUID userId, AdSlot slot) {
-        if (!settings.enabled()) {
+        if (!settings.enabled() || switches.off(slot.key())) {
             return new AdPicker.Pick(AdPicker.Kind.NONE, slot, null);
         }
         boolean practiced = repository.practiced(userId);
@@ -48,11 +54,6 @@ public class AdService {
         AdPicker.Viewer viewer = new AdPicker.Viewer(
                 userId, true, proStatus.pro(userId), AdPicker.practiceOn(userId, settings.practiceSlotPercent()));
         return AdPicker.pick(slot, viewer, repository.activeFor(slot.key(), now), today(now));
-    }
-
-    /** 광고 상세 화면 — 학원 직접 광고만. */
-    public Optional<Ad> direct(UUID adId) {
-        return repository.find(adId).filter(ad -> Ad.DIRECT.equals(ad.kind()));
     }
 
     /** @return 광고가 없으면 false */

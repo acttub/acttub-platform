@@ -110,3 +110,11 @@ test('앱을 앞으로 가져올 때 간격(30초)이 지났으면 다시 확인
   await waitFor(() => expect(billingMe).toHaveBeenCalledTimes(2));
   now.mockRestore();
 });
+
+test('스토어 구독이 이미 Pro 여도 시작할 때 서버에 다시 읽어 달라고 한다(해지 예약·만료 따라잡기, SOMA-851)', async () => {
+  billingMe.mockResolvedValue({ app_enabled: true, pro: true, status: 'active', provider: 'google' });
+  sync.mockResolvedValue({ pro: false, status: 'expired', provider: 'google' });
+  await render(<Probe active />);
+  await waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+  expect(mockRc.getCustomerInfo).not.toHaveBeenCalled();
+});

@@ -15,7 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { easing, motion } from '@/constants/motion';
 import { MASCOT } from '@/components/ui/mascot';
+import { Button } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import {
   captionPlacement,
@@ -279,12 +281,7 @@ export function SpotlightHost() {
             <Text style={styles.title}>{t(`${step.text}Title`)}</Text>
             <Text style={styles.body}>{t(`${step.text}Body`)}</Text>
           </Animated.View>
-          <Pressable
-            style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
-            onPress={next}
-            accessibilityRole="button">
-            <Text style={styles.ctaText}>{t(last ? 'guide.gotIt' : 'guide.next')}</Text>
-          </Pressable>
+          <Button size="md" label={t(last ? 'guide.gotIt' : 'guide.next')} onPress={next} />
         </View>
       </View>
     </Animated.View>
@@ -294,21 +291,23 @@ export function SpotlightHost() {
 const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100 },
   shroud: { position: 'absolute', backgroundColor: 'rgba(0, 0, 0, 0.55)' },
-  shroudRing: { position: 'absolute', borderColor: 'rgba(0, 0, 0, 0.55)' },
+  // overflow hidden 이 있어야 iOS 가 이 두꺼운 반투명 테두리를 Core Animation(GPU)으로 그린다. 없으면 RN 이 테두리를
+  // 그림으로 직접 그리는데, 덮개가 화면 대각선의 두 배라 한 장이 수백 MB 급이고 구멍이 움직일 때마다 다시 그려 버벅였다(SOMA-924).
+  shroudRing: { position: 'absolute', overflow: 'hidden', borderColor: 'rgba(0, 0, 0, 0.55)' },
   hole: { position: 'absolute' },
   // 밝은 배경 위에서도 보이게 파랑으로 두른다 — 흰 테두리는 흰 화면에 묻힌다.
-  ring: { ...StyleSheet.absoluteFillObject, borderWidth: 3, borderColor: palette.blue },
+  // 고리도 같은 까닭으로 overflow hidden(SOMA-924).
+  ring: { ...StyleSheet.absoluteFillObject, overflow: 'hidden', borderWidth: 3, borderColor: palette.blue },
   caption: {
     position: 'absolute',
-    left: 14,
-    right: 16,
+    left: space[3],
+    right: space[4],
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space[1.5],
   },
-  // pen 「대본 탭 · 첫 안내 말풍선」 코치마크 — 액티 72×82, 흰 말풍선 모서리 20 · 안쪽 [15,15,13,14].
   mascot: { width: 72, height: 82 },
-  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.bg, borderRadius: 20, paddingTop: 15, paddingRight: 15, paddingBottom: 13, paddingLeft: 14, gap: 8 },
+  bubble: { flex: 1, minWidth: 0, backgroundColor: palette.bg, borderRadius: radius.lg, padding: space[4], gap: space[3] },
   // 말꼬리 — 마스코트 쪽으로 돌린 작은 네모.
   tail: {
     position: 'absolute',
@@ -320,13 +319,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bg,
     transform: [{ rotate: '45deg' }],
   },
-  captionInner: { gap: 4 },
+  captionInner: { gap: space[1] },
   progress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  step: { fontSize: 13, fontWeight: '700', lineHeight: 18, color: palette.text },
-  title: { fontSize: 18, fontWeight: '700', color: palette.text, lineHeight: 23 },
-  body: { fontSize: 14, fontWeight: '400', color: palette.textSub, lineHeight: 18 },
-  skip: { fontSize: 13, fontWeight: '500', color: palette.textMeta },
-  cta: { height: 38, borderRadius: 19, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.9 },
-  ctaText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
+  step: { ...type.captionBold, color: palette.blueDeep },
+  title: { ...type.headline, color: palette.text },
+  body: { ...type.body2, color: palette.textSub },
+  skip: { ...type.body2Bold, color: palette.textSub },
 });

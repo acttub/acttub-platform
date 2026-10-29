@@ -19,6 +19,7 @@ import { createSampleLoop, SAMPLE_PRACTICE_ID, type LoopApi } from '@/lib/tutori
  * 조회 주기·푸시·복귀·그만두기·다시 시도·복구 기록·튜토리얼 예시. 「코치로 넘어간다」는 이제 같은 화면에서 대화가 열리는 것이다.
  */
 const mockRouter = { dismissTo: jest.fn(), replace: jest.fn(), dismissAll: jest.fn() };
+const mockNavDispatch = jest.fn();
 let mockParams: Record<string, unknown> = {};
 let mockUser: { id: string } | null = { id: 'u1' };
 let mockFocusEffect: () => (() => void) | void = () => undefined;
@@ -66,11 +67,12 @@ jest.mock('@/lib/tutorial-loop', () => ({
   loopApiFor: (practiceId: string | null | undefined) => (practiceId === 'tutorial-sample-practice' ? mockSampleLoop : mockLoop),
 }));
 jest.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ dispatch: jest.fn() }),
-  usePreventRemove: () => undefined,
+  useNavigation: () => ({ dispatch: mockNavDispatch }),
+  usePreventRemove: jest.fn(),
 }));
 jest.mock('@/components/mic-button', () => ({ MicButton: () => null }));
 jest.mock('@/lib/notifications', () => ({
+  hideForegroundPush: () => () => undefined,
   onPushReceived: (listener: (data: unknown) => void) => {
     mockPushListener = listener;
     return () => {
@@ -207,8 +209,8 @@ describe('기다리는 동안', () => {
     expect(screen.queryByText('3단계 · 질문 준비 중')).not.toBeOnTheScreen();
     staysWaiting();
     expect(screen.getByText('0초 경과')).toBeOnTheScreen();
-    expect(screen.getByText('보통 30초쯤 걸려요.')).toBeOnTheScreen();
-    expect(screen.getByText('기다리지 않아도 돼요. 「끝나면 알려 주세요」를 누르고 나가세요.')).toBeOnTheScreen();
+    expect(screen.getByText('화면을 나가도 분석은 계속돼요')).toBeOnTheScreen();
+    expect(screen.getByText('보통 30초쯤 걸려요. 다 되면 알림으로 알려 드릴게요.')).toBeOnTheScreen();
     expect(getStatus).toHaveBeenCalledWith('p1', { signal: expect.any(AbortSignal) });
     await waitFor(() => expect(getPracticeApi).toHaveBeenCalledWith('p1'));
     await waitFor(async () => expect(await pendingKeys()).toEqual([PENDING_KEY]));
@@ -218,9 +220,35 @@ describe('기다리는 동안', () => {
       practice_id: 'p1',
     });
 
-    // 기다리지 않고 나가면 홈으로 간다 — 분석은 서버에서 계속 돌고 끝나면 알림이 온다.
+    // 기다리지 않고 나가면 코칭 탭 첫 화면으로 간다 — 분석은 서버에서 계속 돌고 끝나면 알림이 온다.
     await fireEvent.press(screen.getByRole('button', { name: '끝나면 알려 주세요' }));
-    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
+  });
+
+  test('영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다', async () => {
+    getStatus.mockResolvedValue(status({ job: { id: 'j1', status: 'pending' } }));
+    await render(<CoachScreen />);
+    expect(await screen.findByText(QUEUED)).toBeOnTheScreen();
+    staysWaiting();
+
+    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    const back = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
+    await act(async () => back({ data: { action: { type: 'POP' } } }));
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
+    expect(preventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
+  });
+
+  test('영상 보는 중에도 뒤로 가기가 아닌 이동(다른 회차로 replace 등)은 막지 않고 그대로 보낸다', async () => {
+    getStatus.mockResolvedValue(status({ job: { id: 'j1', status: 'pending' } }));
+    await render(<CoachScreen />);
+    expect(await screen.findByText(QUEUED)).toBeOnTheScreen();
+
+    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    const leave = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
+    const action = { type: 'REPLACE', payload: { name: 'coach' } };
+    await act(async () => leave({ data: { action } }));
+    expect(mockNavDispatch).toHaveBeenCalledWith({ type: 'REPLACE', payload: { name: 'coach' } });
+    expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/coaching');
   });
 
   test('작업이 돌기 시작하면 단계 문구로 바뀌고, 영상·장면 보기를 펼치면 기기에 있는 영상을 튼다', async () => {
@@ -345,7 +373,8 @@ describe('분석이 끝나면', () => {
     getStatus.mockResolvedValue(status({ stage: 'conversing', analysis_status: 'partial' }));
     await render(<CoachScreen />);
 
-    expect(await screen.findByText('일부 구간은 보지 못했어요. 본 만큼으로 이야기를 시작할게요.')).toBeOnTheScreen();
+    expect(await screen.findByText('일부 구간은 보지 못했어요')).toBeOnTheScreen();
+    expect(screen.getByText('본 만큼으로 이야기를 시작할게요.')).toBeOnTheScreen();
     staysWaiting();
 
     await fireEvent.press(screen.getByText('확인'));
@@ -484,7 +513,7 @@ describe('다시 읽는 때', () => {
   test('못 본 구간 안내를 보는 사이 다른 조회가 시작되면 확인을 눌러도 넘어가지 않는다', async () => {
     getStatus.mockResolvedValueOnce(status({ stage: 'conversing', analysis_status: 'partial' })).mockImplementation(never);
     await render(<CoachScreen />);
-    await screen.findByText('일부 구간은 보지 못했어요. 본 만큼으로 이야기를 시작할게요.');
+    await screen.findByText('본 만큼으로 이야기를 시작할게요.');
 
     await act(async () => appStateListener?.('active'));
     await fireEvent.press(screen.getByText('확인'));

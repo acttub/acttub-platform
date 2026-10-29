@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.reading.domain.RecordingCoachMaterial.Clip;
+import com.acttub.actingapi.feature.reading.domain.ReadingVoiceMaterial.Clip;
 import com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Cue;
 import com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Sound;
 import org.assertj.core.groups.Tuple;

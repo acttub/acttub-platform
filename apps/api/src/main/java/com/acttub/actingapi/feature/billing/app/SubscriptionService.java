@@ -102,20 +102,29 @@ public class SubscriptionService {
         return termsPublishedAt;
     }
 
-    private boolean legacyGrace(UUID userId) {
-        if (!clock.instant().isBefore(settings.legacyLimitsFrom())) {
-            return false;
-        }
+    /** 가입 시각 — 바뀌지 않으므로 프로세스 안에 기억한다. 모르면 null. */
+    private Instant signupTime(UUID userId) {
         Instant signedUp = signupTimes.get(userId);
         if (signedUp == null) {
             signedUp = repository.signedUpAt(userId).orElse(null);
             if (signedUp == null) {
-                return false;
+                return null;
             }
             if (signupTimes.size() >= SIGNUP_CACHE_MAX) {
                 signupTimes.clear();
             }
             signupTimes.put(userId, signedUp);
+        }
+        return signedUp;
+    }
+
+    private boolean legacyGrace(UUID userId) {
+        if (!clock.instant().isBefore(settings.legacyLimitsFrom())) {
+            return false;
+        }
+        Instant signedUp = signupTime(userId);
+        if (signedUp == null) {
+            return false;
         }
         Instant cutoff = legacyCutoff();
         return cutoff == null || signedUp.isBefore(cutoff);
@@ -130,7 +139,7 @@ public class SubscriptionService {
     public View view(UUID userId) {
         requireAvailable();
         Instant now = clock.instant();
-        Optional<Instant> grantEnd = repository.grantEnd(userId, now);
+        Optional<Instant> grantEnd = grantEnd(userId, now);
         Optional<Subscription> found = repository.find(userId);
         if (found.isEmpty()) {
             return View.none(limitsEnforced(userId), grantEnd.orElse(null), settings.appEnabled());
@@ -157,7 +166,20 @@ public class SubscriptionService {
         boolean subscribed = repository.find(userId)
                 .map(sub -> BillingRules.pro(sub.status(), sub.periodEnd(), now, sub.provider()))
                 .orElse(false);
-        return subscribed || repository.grantEnd(userId, now).isPresent();
+        return subscribed || grantEnd(userId, now).isPresent();
+    }
+
+    /**
+     * 카드 없이 받은 Pro 기간의 끝 — 서버가 준 기간(billing_pro_grants)과 출시 주간 Pro(BillingRules.launchWeekEnd) 중 늦은 것.
+     */
+    Optional<Instant> grantEnd(UUID userId, Instant now) {
+        Optional<Instant> stored = repository.grantEnd(userId, now);
+        Instant launch = BillingRules.launchWeekEnd(
+                now.isBefore(BillingRules.LAUNCH_WEEK_START) || !now.isBefore(BillingRules.LAUNCH_WEEK_END) ? null : signupTime(userId), now);
+        if (launch == null) {
+            return stored;
+        }
+        return Optional.of(stored.filter(end -> end.isAfter(launch)).orElse(launch));
     }
 
     // ── 카드 등록 창 ────────────────────────────────────────────────

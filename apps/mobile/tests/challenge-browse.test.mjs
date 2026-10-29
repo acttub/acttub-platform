@@ -119,7 +119,11 @@ test('challenge.browse: 진행 중은 D-N, 끝났으면 종료로 보인다', ()
   const now = Date.parse('2026-09-21T00:00:00Z');
 
   assert.match(dDayLabel({ ends_at: '2026-09-24T00:00:00Z' }, now), /3/);
-  assert.match(dDayLabel({ ends_at: '2026-09-21T06:00:00Z' }, now), /1/);
+  // 마감 당일(한국 9/21 15:00 마감)은 D-DAY — 홈의 challengeDaysLeft 와 같은 한국 날짜 기준이다.
+  assert.equal(dDayLabel({ ends_at: '2026-09-21T06:00:00Z' }, now), 'D-DAY');
+  // 이틀 뒤 오후 마감은 남은 시간을 올림하지 않고 날짜로 센다(홈 D-2, 탭 D-3 로 갈리던 사례).
+  const late = Date.parse('2026-10-27T15:40:00Z'); // 한국 10/28 00:40
+  assert.equal(dDayLabel({ ends_at: '2026-10-30T06:02:40Z' }, late), 'D-2');
   assert.doesNotMatch(dDayLabel({ ends_at: '2026-09-20T00:00:00Z' }, now), /D-/);
 });
 

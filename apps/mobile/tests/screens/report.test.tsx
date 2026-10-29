@@ -63,7 +63,7 @@ test('대화와 함께 온 노트를 바로 보여 주고 서버에서 다시 �
   await render(<ReportScreen />);
 
   expect(screen.getByText('첫 대사의 숨')).toBeOnTheScreen();
-  expect(screen.getByText('다음에 해볼 것까지')).toBeOnTheScreen();
+  expect(screen.getByText('다음에 해 볼 것까지')).toBeOnTheScreen();
   expect(screen.getByText('첫 줄 전에 한 박자 쉬기')).toBeOnTheScreen();
   expect(mockGetNote).not.toHaveBeenCalled();
 });
@@ -139,7 +139,9 @@ test('진행 중인 연습이 없으면 그렇다고 알리고, 홈으로는 평
   (getPractice as jest.Mock).mockReturnValue(null);
   await render(<ReportScreen />);
 
-  expect(screen.getByText('진행 중인 연습이 없어요.')).toBeOnTheScreen();
+  expect(screen.getByText('진행 중인 연습이 없어요')).toBeOnTheScreen();
+  // 다시 읽어도 같으니 「다시 시도」는 없다.
+  expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('홈으로'));
 
   expect(after).not.toHaveBeenCalled();
@@ -152,7 +154,7 @@ test('노트를 못 읽으면 다시 시도로 다시 읽는다', async () => {
   mockGetNote.mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce(practiceNote());
   await render(<ReportScreen />);
 
-  expect(await screen.findByText('연습 노트를 불러오지 못했어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('연습 노트를 불러오지 못했어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('다시 시도'));
 
   expect(await screen.findByText('첫 대사의 숨')).toBeOnTheScreen();
@@ -163,7 +165,7 @@ test('정리된 노트가 없으면 정리 없음을 보여 준다', async () =>
   mockGetNote.mockRejectedValue(Object.assign(new Error('nf'), { code: 'note_not_found' }));
   await render(<ReportScreen />);
 
-  expect(await screen.findByText('아직 정리 없음')).toBeOnTheScreen();
+  expect(await screen.findByText('아직 정리가 없어요')).toBeOnTheScreen();
 });
 
 test('화면을 떠난 뒤 온 노트나 실패는 반영하지 않는다', async () => {

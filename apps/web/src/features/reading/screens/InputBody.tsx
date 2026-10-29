@@ -143,7 +143,7 @@ function fileSizeLabel(bytes: number): string {
 }
 
 /** 확인 하나로 닫는 알림. 문구는 앱 pen 의 R2 장들과 같은 뜻이다. */
-const NOTICE_COPY: Record<Exclude<ImportDialog["kind"], "duplicate" | "not_script" | "consent_required" | "failed">, { title: string; body: string }> = {
+const NOTICE_COPY: Record<Exclude<ImportDialog["kind"], "duplicate" | "not_script" | "failed">, { title: string; body: string }> = {
   no_characters: { title: "배역을 찾지 못했어요", body: "대본에 말하는 사람 이름이 있는지 확인하고 다시 넣어 주세요." },
   daily_limit: { title: "오늘은 대본을 더 넣을 수 없어요", body: "대본은 하루 20번까지 나눌 수 있어요. 내일 다시 넣어 주세요." },
   split_unavailable: { title: "아직 웹에서는 내 대본을 넣을 수 없어요", body: "예시 대본으로 먼저 해 볼 수 있어요." },
@@ -214,35 +214,6 @@ export function ImportDialogs({ importer, onOpen }: { importer: ScriptImporter; 
           <p className="text-[13px] text-ink-sub leading-relaxed">배역 이름과 대사가 있는 글이 필요해요.</p>
         </DialogShell>
       );
-    case "consent_required":
-      return (
-        <DialogShell
-          title="대본을 나누려면 동의가 필요해요"
-          stacked
-          actions={
-            <>
-              <Button onClick={importer.agree}>동의하고 나누기</Button>
-              <Button variant="ghost" onClick={importer.close}>
-                취소
-              </Button>
-            </>
-          }
-        >
-          <p className="text-[13px] text-ink-sub leading-relaxed">동의해야 대본을 넣을 수 있어요.</p>
-          <ul className="flex flex-col gap-1 text-[13px] text-ink-3 leading-relaxed list-disc pl-4">
-            <li>대본 글을 OpenAI로 보내 배역과 대사를 나눠요.</li>
-            <li>넣은 파일은 대본과 함께 보관하고, 대본을 지우면 같이 지워요.</li>
-          </ul>
-          <a href="/terms" target="_blank" rel="noreferrer" className="self-start text-[12.5px] font-semibold text-ink-4 underline underline-offset-2">
-            자세히 보기
-          </a>
-          {dialog.error && (
-            <p role="alert" className="text-[12.5px] text-red">
-              {dialog.error}
-            </p>
-          )}
-        </DialogShell>
-      );
     case "failed":
       return (
         <DialogShell title="저장하지 못했어요" actions={ok}>
@@ -266,13 +237,13 @@ function DuplicateTitle({ scriptId }: { scriptId: string }) {
   return <p className="script-text text-[14px] font-black">「{script.data.title}」</p>;
 }
 
-function DialogShell({ title, children, actions, stacked = false }: { title: string; children: ReactNode; actions?: ReactNode; stacked?: boolean }) {
+function DialogShell({ title, children, actions }: { title: string; children: ReactNode; actions?: ReactNode }) {
   return (
     <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center p-4">
       <div className="w-full md:max-w-[420px] bg-surface rounded-[18px] p-5 flex flex-col gap-3">
         <p className="text-[15px] font-black">{title}</p>
         {children}
-        {actions && <div className={stacked ? "flex flex-col gap-1" : "flex gap-2"}>{actions}</div>}
+        {actions && <div className="flex gap-2">{actions}</div>}
       </div>
     </div>
   );

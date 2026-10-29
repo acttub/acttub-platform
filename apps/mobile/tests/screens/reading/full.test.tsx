@@ -20,7 +20,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
   resetReadingState();
   await render(<ReadingFull />);
 
-  expect(screen.getByText('대본이 없어요.')).toBeOnTheScreen();
+  expect(screen.getByText('대본이 없어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본으로'));
   expect(mockDismissTo).toHaveBeenCalledWith('/reading');
 });
@@ -106,6 +106,7 @@ test('지우기를 취소하면 서버에 보내지 않고, 서버가 거절하�
   await fireEvent.press(screen.getByText('지우기'));
   await fireEvent.press(screen.getByText('지우기'));
   expect(await screen.findByText('이 대사 하나만 연습한 기록이 있어 지울 수 없어요.')).toBeOnTheScreen();
+  expect(screen.getByText('지울 수 없어요')).toBeOnTheScreen();
   expect(screen.getByText('응, 늦어서 미안해.')).toBeOnTheScreen();
 });
 
@@ -237,4 +238,12 @@ test('아래에 추가에서 지문을 고르면 배역 없이 보내고, 취소
   expect(await screen.findByText('저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.')).toBeOnTheScreen();
   expect(server.insertLineAfter).toHaveBeenCalledWith('s1', 'l4', { kind: 'direction', text: '(사이)' });
   expect(screen.getByLabelText('새 대사를 적어 주세요')).toBeOnTheScreen();
+});
+
+test('SOMA-727: 대사가 한 줄뿐인 대본은 위 안내가 「나누기」로 나눠 읽을 수 있다고 알린다', async () => {
+  await openFixtureScript(scriptDetail([['dialogue', '세훈', '안 돼 편지까지 썼잖아 이제는 정말 안 돼 솔직하게 말씀드리자']]));
+  await render(<ReadingFull />);
+
+  expect(screen.getByText('대사가 한 줄뿐이에요. 줄을 눌러 「나누기」로 문장마다 나눠 읽을 수 있어요')).toBeOnTheScreen();
+  expect(screen.queryByText('혼자 하는 대본이라 문장마다 나눴어요')).not.toBeOnTheScreen();
 });

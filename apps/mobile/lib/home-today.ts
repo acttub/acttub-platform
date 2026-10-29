@@ -1,3 +1,4 @@
+import { getAppConfig } from './app-config.ts';
 import { coachingEntry } from './practice/coaching-entry.ts';
 import type { CountedPractice, PracticeKind } from './practice/counted.ts';
 import type { PracticeGroup } from './practice/types.ts';
@@ -135,9 +136,8 @@ export function tipIndex(now: Date, count: number): number {
   return ((day % count) + count) % count;
 }
 
-/** 그 시각이 한국 날짜로 어제인가(홈 인사 「어제 읽던 데서…」). */
-export function wasYesterday(iso: string | null | undefined, now: Date): boolean {
-  const at = iso ? Date.parse(iso) : Number.NaN;
-  if (!Number.isFinite(at)) return false;
-  return kstDayIndex(now.getTime()) - kstDayIndex(at) === 1;
+/** 오늘의 연기 팁 문장(SOMA-939) — 서버 설정의 팁 목록(기본값은 locales 의 home.tips)에서 고른다. 목록이 비면 null. */
+export function todayTip(now: Date, language: 'ko' | 'en'): string | null {
+  const tips = getAppConfig().homeTips[language];
+  return tips.length > 0 ? tips[tipIndex(now, tips.length)] : null;
 }

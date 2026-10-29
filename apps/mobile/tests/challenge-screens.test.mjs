@@ -47,15 +47,6 @@ test('challenge.browse: 카드에 참여작 수·좋아요 합·참여자 셋과
   assert.doesNotMatch(list, /photo/);
 });
 
-test('challenge.browse: 시작 안내는 기기당 한 번이고 좋아요 랭킹이 점수가 아님을 말한다', () => {
-  assert.match(read('app/(tabs)/challenges.tsx'), /hasSeenChallengeIntro/);
-  assert.match(read('app/(tabs)/challenges.tsx'), /markChallengeIntroSeen/);
-  assert.match(read('lib/challenge/intro-state.ts'), /acttub\.challenge\.introSeen/);
-  assert.match(read('locales/ko.ts'), /점수를 매기지 않아요/);
-  // 넘기는 방향은 위아래다.
-  assert.match(read('locales/ko.ts'), /위아래로/);
-});
-
 test('challenge.browse: 검색은 두 글자 이상이고 결과가 없으면 직접 등록으로 잇는다', () => {
   const search = read('app/line-search.tsx');
 
@@ -67,7 +58,8 @@ test('challenge.browse: 검색은 두 글자 이상이고 결과가 없으면 �
 test('challenge.create: 등록은 세 단계이고 기간은 7·14일, 요청 id 로 멱등하다', () => {
   const create = read('app/line-new.tsx');
 
-  assert.match(create, /CHALLENGE_DURATIONS/);
+  // 기간 선택지는 서버 설정(기본 7·14일, SOMA-939)을 읽는다.
+  assert.match(create, /getAppConfig\(\)\.challenge\.durationsDays/);
   assert.match(create, /attemptFor/);
   assert.match(create, /api\.createChallenge/);
   assert.match(create, /newRequestId/);
@@ -95,14 +87,6 @@ test('challenge.browse: 상세는 좋아요순·최신순을 고르고 종료·�
   assert.match(detail, /firstBadgeLabel/);
   assert.match(detail, /hostLabel/);
   assert.match(detail, /challenges\.newBadge/);
-});
-
-test('challenge.create: 참여작이 없는 자기 챌린지만 상세에서 지울 수 있다', () => {
-  const detail = read('app/challenge-detail.tsx');
-
-  assert.match(detail, /canDelete\(challenge\)/);
-  assert.match(detail, /api\.deleteChallenge/);
-  assert.match(detail, /challenges\.deleteHasEntries/);
 });
 
 test('challenge.browse: 챌린지 탭은 앱 언어와 상관없이 회원에게 열리고 게스트는 안내를 본다', async () => {

@@ -1,19 +1,27 @@
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
+import { useFirstReading } from '@/hooks/use-first-reading';
+import { FIRST_READING_HREF } from '@/lib/reading/first-reading';
 import { useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
-import { MASCOT } from '@/components/ui/mascot';
+import { InlineErrorLine } from '@/components/ui/inline-error';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
-import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
+import { SelectCard } from '@/components/ui/select-card';
+import { TextField } from '@/components/ui/text-field';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { KeyboardLift } from '@/components/keyboard-lift';
+import { useAppDialog } from '@/components/app-dialog';
+import { useWaitExit } from '@/hooks/use-wait-exit';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { useAuth } from '@/lib/auth';
@@ -22,6 +30,7 @@ import { recordScriptFromCocreated, setRecordScript } from '@/lib/practice/recor
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { loadIntoCurrent, rememberMyRoles } from '@/lib/reading/store';
 import { newRequestId } from '@/lib/request-id';
+import { getAppConfig } from '@/lib/app-config';
 import {
   ANY_EMOTION,
   ANY_SITUATION,
@@ -29,7 +38,6 @@ import {
   coachSceneFor,
   generateWithWait,
   myRole,
-  EMOTIONS,
   errorKey,
   freeLeft,
   REVISION_CHIPS,
@@ -39,7 +47,6 @@ import {
   LENGTH_OPTIONS,
   revisionBody,
   revisionChanged,
-  SITUATIONS,
   summaryLine,
   type ReviseSampleScriptBody,
   type SampleScript,
@@ -61,6 +68,9 @@ const GENERATION_POLL_MS = 5_000;
 
 export default function ScriptCocreateScreen() {
   const router = useRouter();
+  const firstReading = useFirstReading();
+  const firstReadingRef = useRef<boolean | null>(null);
+  firstReadingRef.current = firstReading;
   // 만든 대본 상세는 대본 탭 바로 위에 하나만 둔다. 「내 대본 올리기」에서 열었을 때 replace 하면 그 화면이 상세 밑에 남아
   // 뒤로가기가 대본 올리기로 갔다.
   const toReadingDetail = () => {
@@ -72,6 +82,7 @@ export default function ScriptCocreateScreen() {
   const skipStart = start === 'make';
   const readingMode = mode === 'reading';
   const { profile } = useAuth();
+  const { confirm: ask, dialog } = useAppDialog();
   const me = profile.me?.profile ?? null;
   const [step, setStep] = useState<Step>(readingMode && !skipStart ? 'start' : 'emotion');
   const [startChoice, setStartChoice] = useState<'sample' | 'make' | null>(null);
@@ -206,6 +217,12 @@ export default function ScriptCocreateScreen() {
       if (readingMode) {
         const loaded = await loadIntoCurrent(saved.script_id);
         if (!loaded) throw new Error('saved_script_not_found');
+        if (firstReadingRef.current) {
+          // 첫 리딩이면 만든 대본의 상세·구간을 건너뛰고 배역 고르기로(10/29). 뒤로 가면 리딩 탭이다.
+          router.dismissTo('/reading');
+          router.push(FIRST_READING_HREF);
+          return;
+        }
         toReadingDetail();
         if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
       } else {
@@ -243,7 +260,20 @@ export default function ScriptCocreateScreen() {
     }
   };
 
+  // 만드는 중에 뒤로 가면 시작한 탭(대본 올리기에서 왔으면 리딩, 코칭 입구면 코칭)의 첫 화면으로 간다(10-27 정함).
+  // 나간 뒤에는 만든 대본을 다시 찾을 길이 없어 나가기 전에 묻는다.
+  const leaveWaiting = useWaitExit(step === 'generating', readingMode ? '/reading' : '/coaching', () =>
+    ask({
+      title: t('scriptCocreate.leaveTitle'),
+      message: t('scriptCocreate.leaveBody'),
+      cancelLabel: t('scriptCocreate.leaveStay'),
+      confirmLabel: t('scriptCocreate.leaveGo'),
+      destructive: true,
+    }),
+  );
+
   const back = () => {
+    if (step === 'generating') return leaveWaiting();
     if (step === 'emotion' && readingMode && !skipStart) return setStep('start');
     if (step === 'failed') return setStep('direction');
     if (step === 'situation') return setStep('emotion');
@@ -257,10 +287,11 @@ export default function ScriptCocreateScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader
         title={t('scriptCocreate.title')}
-        left={<NavIconButton icon="chevron-left" size={24} label={t('common.back')} phLabel="script_cocreate_back" onPress={back} />}
+        left={<NavBackButton phLabel="script_cocreate_back" onPress={back} />}
       />
       {step === 'generating' ? (
-        <View style={styles.center}>
+        <View style={styles.wait}>
+          <Image source={MASCOT.reading} style={MASCOT_SIZE.empty} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.waitTitle}>{t('scriptCocreate.generating')}</Text>
           <Text style={styles.waitSub}>{t('scriptCocreate.generatingSub')}</Text>
         </View>
@@ -273,6 +304,7 @@ export default function ScriptCocreateScreen() {
               {REVISION_CHIPS.map((chip) => (
                 <Chip
                   key={chip}
+                  size="sm"
                   label={t(`scriptCocreate.chip${chip === 'shorter' ? 'Shorter' : chip === 'stronger' ? 'Stronger' : 'MoreMine'}`)}
                   phLabel="script_cocreate_chip"
                   disabled={busy || freeLeft(script.revisions_left, regenUsed) <= 0}
@@ -280,42 +312,41 @@ export default function ScriptCocreateScreen() {
                 />
               ))}
             </View>
+            {script.version > 1 ? (
+              <TextButton label={t('scriptCocreate.restore')} phLabel="script_cocreate_restore" onPress={restorePrevious} disabled={busy} />
+            ) : null}
+            {freeLeft(script.revisions_left, regenUsed) <= 0 ? <Text style={styles.left}>{t('scriptCocreate.errorRevisionLimit')}</Text> : null}
+            {error ? <InlineErrorLine message={error} /> : null}
+          </ScrollView>
+          <CtaBar>
+            {/* 「다시 만들기」는 긴 대본 맨 아래에 있어 스크롤해야 보였다(10/28 폰 확인) — 주 버튼 위 글자 버튼으로 올렸다. */}
             <TextButton
               label={`${t('scriptCocreate.regenerate')} · ${t('scriptCocreate.freeLeftOf', { count: freeLeft(script.revisions_left, regenUsed) })}`}
               phLabel="script_cocreate_regenerate"
               onPress={regenerate}
               disabled={busy || freeLeft(script.revisions_left, regenUsed) <= 0}
             />
-            {script.version > 1 ? (
-              <TextButton label={t('scriptCocreate.restore')} phLabel="script_cocreate_restore" onPress={restorePrevious} disabled={busy} />
-            ) : null}
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-          </ScrollView>
-          <CtaBar>
-            {freeLeft(script.revisions_left, regenUsed) <= 0 ? (
-              <Text style={styles.left}>{t('scriptCocreate.errorRevisionLimit')}</Text>
-            ) : null}
             <SecondaryButton
               label={t('scriptCocreate.edit')}
               phLabel="script_cocreate_edit"
               onPress={openEdit}
               disabled={busy || freeLeft(script.revisions_left, regenUsed) <= 0}
             />
-            <PrimaryButton label={t('scriptCocreate.confirm')} phLabel="script_cocreate_confirm" onPress={confirm} loading={busy} />
+            <PrimaryButton label={t('scriptCocreate.confirm')} phLabel="script_cocreate_confirm" onPress={confirm} loading={busy} loadingLabel={t('scriptCocreate.confirming')} />
           </CtaBar>
         </View>
       ) : step === 'edit' && script ? (
         <KeyboardLift>
           <KeyboardAwareScroll contentContainerStyle={styles.body}>
             <MascotBubble title={t('scriptCocreate.editAsk')} body={t('scriptCocreate.editSub')} />
-            <TextInput
+            <TextField
               value={edit.text}
               onChangeText={(text) => setEdit((was) => ({ ...was, text }))}
               placeholder={t('scriptCocreate.editPlaceholder')}
-              placeholderTextColor={palette.textMeta}
               maxLength={FREE_TEXT_MAX.revision}
               multiline
-              style={styles.input}
+              textAlignVertical="top"
+              style={styles.area}
               accessibilityLabel={t('scriptCocreate.editAsk')}
             />
             <CastAndLength
@@ -324,7 +355,7 @@ export default function ScriptCocreateScreen() {
               onCount={(n) => setEdit((was) => ({ ...was, characterCount: n }))}
               onMinutes={(n) => setEdit((was) => ({ ...was, minutes: n }))}
             />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <InlineErrorLine message={error} /> : null}
           </KeyboardAwareScroll>
           <CtaBar>
             <PrimaryButton
@@ -332,21 +363,20 @@ export default function ScriptCocreateScreen() {
               phLabel="script_cocreate_apply_edit"
               onPress={applyEdit}
               loading={busy}
+              loadingLabel={t('scriptCocreate.revising')}
               disabled={!revisionChanged(script, edit)}
             />
           </CtaBar>
         </KeyboardLift>
       ) : step === 'failed' ? (
         <View style={styles.flex}>
-          {/* pen P14.9 — 갸웃하는 액티 84×94 · 제목 21/800 · 설명 15/400. */}
-          <View style={styles.center}>
-            <Image source={MASCOT.coach} style={styles.failMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+          <View style={styles.fail}>
+            <Image source={MASCOT.coach} style={MASCOT_SIZE.xl} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
             <Text style={styles.failTitle}>{t('scriptCocreate.failTitle')}</Text>
-            <Text style={styles.failSub}>{t('scriptCocreate.failSub')}</Text>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <Text style={styles.failSub}>{error ?? t('scriptCocreate.failSub')}</Text>
           </View>
           <CtaBar>
-            <SecondaryButton label={t('scriptCocreate.failOwn')} phLabel="script_cocreate_fail_own" onPress={() => router.dismissTo('/reading/new')} />
+            <TextButton label={t('scriptCocreate.failOwn')} phLabel="script_cocreate_fail_own" onPress={() => router.dismissTo('/reading/new')} />
             <PrimaryButton label={t('scriptCocreate.failRetry')} phLabel="script_cocreate_fail_retry" onPress={() => void generate()} />
           </CtaBar>
         </View>
@@ -355,16 +385,14 @@ export default function ScriptCocreateScreen() {
           <ScrollView contentContainerStyle={styles.body}>
             <MascotBubble title={t('scriptCocreate.startAsk')} guide={t('scriptCocreate.pickNext')} />
             {(['sample', 'make'] as const).map((key) => (
-              <Pressable
+              <SelectCard
                 key={key}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: startChoice === key }}
-                ph-label={`script_cocreate_start_${key}`}
+                title={t(key === 'sample' ? 'scriptCocreate.startSample' : 'scriptCocreate.startMake')}
+                sub={t(key === 'sample' ? 'scriptCocreate.startSampleSub' : 'scriptCocreate.startMakeSub')}
+                selected={startChoice === key}
+                phLabel={`script_cocreate_start_${key}`}
                 onPress={() => setStartChoice(key)}
-                style={[styles.choice, startChoice === key && styles.choiceOn]}>
-                <Text style={styles.choiceTitle}>{t(key === 'sample' ? 'scriptCocreate.startSample' : 'scriptCocreate.startMake')}</Text>
-                <Text style={styles.choiceSub}>{t(key === 'sample' ? 'scriptCocreate.startSampleSub' : 'scriptCocreate.startMakeSub')}</Text>
-              </Pressable>
+              />
             ))}
           </ScrollView>
           <CtaBar>
@@ -382,11 +410,11 @@ export default function ScriptCocreateScreen() {
           <ScrollView contentContainerStyle={styles.resultBody}>
             <MascotBubble title={t('scriptCocreate.savedTitle')} body={t('scriptCocreate.savedSub')} />
             <ScriptPaper script={script} />
-            <TextButton label={t('scriptCocreate.openInReading')} phLabel="script_cocreate_open_reading" onPress={() => void openInReading()} disabled={busy} />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <TextButton tone="accent" label={t('scriptCocreate.openInReading')} phLabel="script_cocreate_open_reading" onPress={() => void openInReading()} disabled={busy} />
+            {error ? <InlineErrorLine message={error} /> : null}
           </ScrollView>
           <CtaBar>
-            <SecondaryButton label={t('scriptCocreate.later')} phLabel="script_cocreate_later" onPress={() => router.back()} />
+            <TextButton label={t('scriptCocreate.later')} phLabel="script_cocreate_later" onPress={() => router.back()} />
             <PrimaryButton label={t('scriptCocreate.recordNow')} phLabel="script_cocreate_record_now" onPress={recordNow} />
           </CtaBar>
         </View>
@@ -397,20 +425,18 @@ export default function ScriptCocreateScreen() {
             {step === 'emotion' ? (
               <>
                 <MascotBubble title={t('scriptCocreate.emotionAsk')} guide={t('scriptCocreate.pickNext')} />
-                <ChoiceGrid options={[...EMOTIONS, ANY_EMOTION]} value={emotion} phLabel="script_cocreate_emotion" onPick={setEmotion} />
+                <ChoiceGrid options={[...getAppConfig().cocreate.emotions, ANY_EMOTION]} value={emotion} phLabel="script_cocreate_emotion" onPick={setEmotion} />
               </>
             ) : step === 'situation' ? (
               <>
                 <MascotBubble title={t('scriptCocreate.situationAsk')} guide={t('scriptCocreate.pickNext')} />
-                <ChoiceGrid options={[...SITUATIONS, ANY_SITUATION]} value={situation} phLabel="script_cocreate_situation" onPick={setSituation} />
+                <ChoiceGrid options={[...getAppConfig().cocreate.situations, ANY_SITUATION]} value={situation} phLabel="script_cocreate_situation" onPick={setSituation} />
                 {/* 칩에 없는 상황은 직접 쓴다(pen 에는 없는 칸 — 서버가 자유 글을 받으므로 남겨 둔다). */}
-                <TextInput
+                <TextField
                   value={situation}
                   onChangeText={setSituation}
                   placeholder={t('scriptCocreate.situationPlaceholder')}
-                  placeholderTextColor={palette.textMeta}
                   maxLength={FREE_TEXT_MAX.situation}
-                  style={styles.input}
                   accessibilityLabel={t('scriptCocreate.situationAsk')}
                 />
               </>
@@ -419,14 +445,14 @@ export default function ScriptCocreateScreen() {
                 <MascotBubble title={t('scriptCocreate.directionAsk')} guide={t('scriptCocreate.directionSub')} />
                 {/* pen P14.3 — 인원 → 바라는 것(큰 칸) → 고른 것 알약 순서. 분량은 pen 에 없지만 서버 값이라 아래에 남긴다. */}
                 <CastPicker characterCount={characterCount} onCount={setCharacterCount} />
-                <TextInput
+                <TextField
                   value={direction}
                   onChangeText={setDirection}
                   placeholder={t('scriptCocreate.directionPlaceholder')}
-                  placeholderTextColor={palette.textDisabled}
                   maxLength={FREE_TEXT_MAX.direction}
                   multiline
-                  style={[styles.input, styles.directionInput]}
+                  textAlignVertical="top"
+                  style={styles.area}
                   accessibilityLabel={t('scriptCocreate.directionAsk')}
                 />
                 <View style={styles.pills} testID="cocreate-picked">
@@ -437,7 +463,7 @@ export default function ScriptCocreateScreen() {
                   ))}
                 </View>
                 <LengthPicker minutes={minutes} onMinutes={setMinutes} />
-                {error ? <Text style={styles.error}>{error}</Text> : null}
+                {error ? <InlineErrorLine message={error} /> : null}
               </>
             )}
           </KeyboardAwareScroll>
@@ -466,6 +492,7 @@ export default function ScriptCocreateScreen() {
           ) : null}
         </KeyboardLift>
       )}
+      {dialog}
     </SafeAreaView>
   );
 }
@@ -490,28 +517,22 @@ function CastAndLength({
   );
 }
 
-/** pen P14.3 「인원」 — 제목 15/700, 같은 너비 칸(높이 46 · 모서리 12) 한 줄. 「3명 이상」은 서버가 아직 받지 않아 두지 않는다. */
 function CastPicker({ characterCount, onCount }: { characterCount: number; onCount: (n: number) => void }) {
   return (
     <View style={styles.castBlock}>
-      <Text style={styles.castLabel}>{t('scriptCocreate.castLabel')}</Text>
+      <Text style={styles.label}>{t('scriptCocreate.castLabel')}</Text>
       <View style={styles.castRow}>
-        {CAST_OPTIONS.map((n) => {
-          const label = n === 1 ? t('scriptCocreate.castSolo') : t('scriptCocreate.castPair');
-          const on = characterCount === n;
-          return (
-            <Pressable
-              key={n}
-              style={[styles.box, styles.castBox, on && styles.boxOn]}
-              onPress={() => onCount(n)}
-              accessibilityRole="radio"
-              accessibilityLabel={label}
-              accessibilityState={{ selected: on }}
-              ph-label="script_cocreate_cast">
-              <Text style={[styles.castText, on && styles.boxTextOn]}>{label}</Text>
-            </Pressable>
-          );
-        })}
+        {CAST_OPTIONS.map((n) => (
+          <Chip
+            key={n}
+            label={n === 1 ? t('scriptCocreate.castSolo') : t('scriptCocreate.castPair')}
+            role="radio"
+            selected={characterCount === n}
+            phLabel="script_cocreate_cast"
+            onPress={() => onCount(n)}
+            style={[styles.gridBox, styles.castBox]}
+          />
+        ))}
       </View>
     </View>
   );
@@ -525,6 +546,7 @@ function LengthPicker({ minutes, onMinutes }: { minutes: number; onMinutes: (n: 
         {LENGTH_OPTIONS.map((n) => (
           <Chip
             key={n}
+            size="sm"
             label={t('scriptCocreate.lengthMinutes', { count: n })}
             role="radio"
             selected={minutes === n}
@@ -538,7 +560,6 @@ function LengthPicker({ minutes, onMinutes }: { minutes: number; onMinutes: (n: 
   );
 }
 
-/** pen P14.1·P14.2 「Choices」 — 두 칸씩(높이 52 · 모서리 14 · 사이 10), 마지막(잘 모르겠어요·아무거나 좋아요)은 한 줄 전체. */
 function ChoiceGrid({
   options,
   value,
@@ -552,28 +573,24 @@ function ChoiceGrid({
 }) {
   return (
     <View style={styles.grid}>
-      {options.map((label, i) => {
-        const on = value === label;
-        const full = i === options.length - 1 && options.length % 2 === 1;
-        return (
-          <Pressable
-            key={label}
-            style={[styles.box, styles.gridBox, full && styles.gridFull, on && styles.boxOn]}
-            onPress={() => onPick(label)}
-            accessibilityRole="radio"
-            accessibilityLabel={label}
-            accessibilityState={{ selected: on }}
-            ph-label={phLabel}>
-            <Text style={[styles.gridText, on && styles.boxTextOn]}>{label}</Text>
-          </Pressable>
-        );
-      })}
+      {options.map((label, i) => (
+        <Chip
+          key={label}
+          label={label}
+          role="radio"
+          selected={value === label}
+          phLabel={phLabel}
+          onPress={() => onPick(label)}
+          style={[styles.gridBox, i === options.length - 1 && options.length % 2 === 1 && styles.gridFull]}
+        />
+      ))}
     </View>
   );
 }
 
 /** 만든 대본 한 장 — 제목·요약·메모와 줄(장면·지문·대사). 결과 화면과 저장 화면이 같이 쓴다. */
 function ScriptPaper({ script }: { script: SampleScript }) {
+  const mine = myRole(script);
   return (
     <>
       <Text style={styles.scriptTitle}>{script.title}</Text>
@@ -583,11 +600,11 @@ function ScriptPaper({ script }: { script: SampleScript }) {
         {script.lines.map((line, i) =>
           line.kind === 'dialogue' ? (
             <View key={i} style={styles.lineRow}>
-              <Text style={styles.speaker}>{line.character}</Text>
+              <Text style={[styles.speaker, line.character === mine && styles.speakerMine]}>{line.character}</Text>
               <Text style={styles.dialogue}>{line.text}</Text>
             </View>
           ) : (
-            <Text key={i} style={line.kind === 'scene' ? styles.sceneLine : styles.direction}>
+            <Text key={i} style={styles.direction}>
               {line.kind === 'scene' ? line.text : `(${line.text})`}
             </Text>
           ),
@@ -600,59 +617,35 @@ function ScriptPaper({ script }: { script: SampleScript }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1, minWidth: 0 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 32 },
-  waitTitle: { marginTop: 6, fontSize: 17, fontWeight: '700', color: palette.text },
-  failMascot: { width: 84, height: 94 },
-  failTitle: { fontSize: 21, fontWeight: '800', lineHeight: 30, color: palette.text, textAlign: 'center' },
-  failSub: { fontSize: 15, lineHeight: 22, color: palette.textMeta, textAlign: 'center' },
-  waitSub: { fontSize: 14, fontWeight: '500', color: palette.textMeta, textAlign: 'center' },
-  body: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 24, gap: 14 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  input: {
-    minHeight: 48,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: palette.bgSoft,
-    fontSize: 15,
-    lineHeight: 21,
-    color: palette.text,
-  },
-  label: { marginTop: 6, fontSize: 13, fontWeight: '700', color: palette.textMeta },
-  // pen P14.1~P14.3 고르는 칸 — 흰 바탕 · 테두리 #E5E8EB, 고르면 옅은 파랑 · 파란 테두리 · 파란 글자 700.
-  box: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
-  boxOn: { borderColor: palette.blue, backgroundColor: palette.blueSoft },
-  boxTextOn: { fontWeight: '700', color: palette.blueDeep },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  gridBox: { flexBasis: '47%', flexGrow: 1, height: 52, borderRadius: 14 },
+  wait: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space[3], paddingHorizontal: space.gutter },
+  waitTitle: { ...type.title2, color: palette.text, textAlign: 'center' },
+  waitSub: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  fail: { flex: 1, alignItems: 'center', paddingTop: 96, gap: space[3], paddingHorizontal: space.gutter },
+  failTitle: { ...type.title1, color: palette.text, textAlign: 'center' },
+  failSub: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  body: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3] },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  area: { minHeight: 96, paddingTop: space[3], paddingBottom: space[3] },
+  label: { ...type.body2Bold, color: palette.textSub, marginTop: space[1] },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  gridBox: { flexBasis: '47%', flexGrow: 1, borderRadius: radius.md, alignItems: 'center' },
   gridFull: { flexBasis: '100%' },
-  gridText: { fontSize: 16, fontWeight: '600', lineHeight: 22, color: palette.text },
-  castBlock: { gap: 8 },
-  castLabel: { fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.text },
-  castRow: { flexDirection: 'row', gap: 8 },
-  castBox: { flex: 1, height: 46, borderRadius: 12 },
-  castText: { fontSize: 15, fontWeight: '600', lineHeight: 21, color: palette.text },
-  // pen P14.3 「Input」 — #F9FAFB · 테두리 · 모서리 16 · 높이 120.
-  directionInput: { minHeight: 120, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSubtle, textAlignVertical: 'top' },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  pill: { maxWidth: '100%', borderRadius: 12, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: palette.blueSoft },
-  pillText: { fontSize: 13, fontWeight: '600', lineHeight: 18, color: palette.blueDeep },
-  hint: { fontSize: 12.5, fontWeight: '500', color: palette.textMeta },
-  error: { fontSize: 14, fontWeight: '600', color: palette.danger },
-  // 결과(pen 「대본 같이 만들기 · 결과」) — 제목 20/800, 요약 13/600, 대본은 넓게 대사 15.
-  resultBody: { paddingTop: 12, paddingHorizontal: 20, paddingBottom: 20, gap: 8 },
-  scriptTitle: { fontSize: 20, fontWeight: '800', color: palette.text },
-  summary: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
-  note: { fontSize: 13.5, fontWeight: '600', color: palette.blueDeep },
-  paper: { marginTop: 8, gap: 10, padding: 18, borderRadius: 18, backgroundColor: palette.bgSoft },
-  lineRow: { gap: 2 },
-  speaker: { fontSize: 12.5, fontWeight: '700', color: palette.textMeta },
-  dialogue: { fontSize: 15, lineHeight: 23, color: palette.text },
-  sceneLine: { fontSize: 13, fontWeight: '700', color: palette.textMeta },
-  direction: { fontSize: 14, lineHeight: 20, color: palette.textMeta },
-  choice: { gap: 4, padding: 18, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
-  choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
-  choiceTitle: { fontSize: 16, fontWeight: '700', color: palette.text },
-  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMeta },
-  left: { fontSize: 12.5, fontWeight: '600', color: palette.textMeta, textAlign: 'center' },
+  castBlock: { gap: space[2] },
+  castRow: { flexDirection: 'row', gap: space[2] },
+  castBox: { flexBasis: 0 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
+  pill: { maxWidth: '100%', borderRadius: radius.full, paddingVertical: space[1], paddingHorizontal: space[2], backgroundColor: palette.blueSoft },
+  pillText: { ...type.micro, color: palette.blueDeep },
+  hint: { ...type.caption, color: palette.textMeta },
+  resultBody: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[5], gap: space[2] },
+  scriptTitle: { ...type.title2, color: palette.text, marginTop: space[2] },
+  summary: { ...type.caption, color: palette.textMeta },
+  note: { ...type.captionBold, color: palette.blueDeep },
+  paper: { marginTop: space[2], gap: space[2], padding: space[4], borderRadius: radius.lg, backgroundColor: palette.bgSubtle },
+  lineRow: { flexDirection: 'row', gap: space[3] },
+  speaker: { ...type.body2Bold, minWidth: 40, color: palette.text },
+  speakerMine: { color: palette.blueDeep },
+  dialogue: { ...type.body2, flex: 1, color: palette.text },
+  direction: { ...type.caption, color: palette.textMeta },
+  left: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
 });

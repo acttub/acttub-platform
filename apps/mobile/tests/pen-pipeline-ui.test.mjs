@@ -32,17 +32,14 @@ test('공통 부품: 선택 행·요약 행·동의 행·선택 카드·설정 �
   assert.match(summary, /value: \{ flexShrink: 1, fontSize: 16, fontWeight: '700'/);
 
   const consent = read('components/consent-row.tsx');
-  assert.match(consent, /minHeight: 55,/);
   // 긴 제목(「[선택] 광고성 정보 (이메일 · 앱 푸시)」)이 잘리지 않게 두 줄까지 내린다(10/22 피드백).
   assert.match(consent, /numberOfLines=\{2\}/);
   assert.doesNotMatch(consent, /numberOfLines=\{1\}/);
 
   const card = read('components/ui/settings-card.tsx');
-  assert.match(card, /iconCell: \{ width: 44, height: 44,/);
-  assert.match(card, /borderColor: palette\.border,/);
-  assert.match(card, /title: \{ fontSize: 15\.5, fontWeight: '800'/);
-  assert.match(card, /sub: \{ fontSize: 12\.5,/);
-  // 설정 화면(pen S15.3)은 묶음 카드(18/6 모서리)로 그린다 — 보관함·Pro 줄은 없다.
+  // 설정 줄은 테두리 상자 없이 줄로 둔다(UX 가이드 6절 「칸칸」 금지, 10/28).
+  assert.doesNotMatch(card, /borderWidth: 1,/);
+  // 설정 화면은 카드 줄로 그린다 — 보관함 줄은 없다.
   const settings = read('app/settings.tsx');
   assert.match(settings, /settings-card/);
   assert.doesNotMatch(settings, /library|보관함|ACTTUB Pro/);

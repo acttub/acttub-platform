@@ -82,4 +82,39 @@ class CoachLayerOneTest {
             assertThat(layer.ready(id)).isEmpty();
         }
     }
+
+    @Test
+    void proActorGetsLayerOneEvenWhenShareIsZero() throws Exception {
+        java.util.UUID proUser = java.util.UUID.randomUUID();
+        java.util.UUID freeUser = java.util.UUID.randomUUID();
+        CoachPro pro = proUser::equals;
+        try (var layer = new CoachLayerOne((v, m, s, p, u) -> "## 1층 관찰\nseen", 0, null, pro)) {
+            java.util.UUID practice = java.util.UUID.randomUUID();
+            assertThat(layer.arm(practice, proUser)).isEqualTo(CoachLayerOne.PRO);
+            assertThat(layer.arm(practice, freeUser)).isEqualTo(CoachLayerOne.OFF);
+            assertThat(CoachLayerOne.on(CoachLayerOne.PRO)).isTrue();
+            assertThat(CoachLayerOne.on(CoachLayerOne.OFF)).isFalse();
+            java.nio.file.Path video = java.nio.file.Files.createTempFile("pro-layer1-", ".mp4");
+            try {
+                layer.start(practice, proUser, video, "video/mp4", null);
+                java.util.UUID other = java.util.UUID.randomUUID();
+                layer.start(other, freeUser, video, "video/mp4", null);
+                long until = System.nanoTime() + 5_000_000_000L;
+                while (layer.ready(practice).isEmpty() && System.nanoTime() < until) Thread.sleep(20);
+                assertThat(layer.ready(practice)).contains("1층 관찰");
+                assertThat(layer.pending(other)).isFalse();
+                assertThat(layer.ready(other)).isEmpty();
+            } finally {
+                java.nio.file.Files.deleteIfExists(video);
+            }
+        }
+    }
+
+    @Test
+    void brokenProCheckCountsAsFree() {
+        CoachPro broken = userId -> { throw new IllegalStateException("db down"); };
+        try (var layer = new CoachLayerOne((v, m, s, p, u) -> "x", 0, null, broken)) {
+            assertThat(layer.arm(java.util.UUID.randomUUID(), java.util.UUID.randomUUID())).isEqualTo(CoachLayerOne.OFF);
+        }
+    }
 }

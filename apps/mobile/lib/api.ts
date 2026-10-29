@@ -73,6 +73,7 @@ import type {
   CoachTurnResult,
   ContinuePracticeBody,
   CreatePracticeBody,
+  CreateReadingPracticeBody,
   CreateTalkPracticeBody,
   FeedbackBody,
   GroupPatch,
@@ -113,10 +114,11 @@ import type {
 } from '@/lib/reading/types';
 import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voice';
 import type { PronunciationState } from '@/lib/reading/pronunciation-report';
-import { RECORDING_COACH_PROBE_ID, type RecordingCoach } from '@/lib/reading/recording-coach';
+import type { ReadingVoiceCoaching } from '@/lib/reading/voice-coaching';
 import type { VoiceModelFiles } from '@/lib/reading/tts/assets';
+import type { NoticesResponse } from '@/lib/notices';
 import type { PostersResponse } from '@/lib/poster';
-import type { AdDetail, AdSlotPick } from '@/lib/ads';
+import type { AdSlotPick } from '@/lib/ads';
 import { currentLanguage, translate } from './i18n.ts';
 
 import type { BillingMe } from '@/lib/billing';
@@ -419,14 +421,20 @@ export const api = {
     return request(`/v2/app/posters?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
+  /** 서버가 내려주는 앱 설정(SOMA-939). 로그인 없이 받는다 — 검사·기본값은 lib/app-config 의 parseAppConfig 가 한다. */
+  getAppConfig(): Promise<unknown> {
+    return request('/v2/app/config', {}, { auth: false, timeoutMs: 10_000 });
+  },
+
+  /** 앱 공지사항(SOMA-919). 팝업으로 떠 있는 공지와 끝난 공지를 공지한 날 늦은 순으로 받는다. */
+  getNotices(params: { platform: 'ios' | 'android'; locale: 'ko' | 'en' }): Promise<NoticesResponse> {
+    const query = new URLSearchParams(params);
+    return request(`/v2/app/notices?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
+  },
+
   /** 광고 칸 하나에 띄울 것(app.ads, SOMA-876). DIRECT·HOUSE·NETWORK·NONE 중 서버가 고른다. */
   getAdSlot(slot: string): Promise<AdSlotPick> {
     return request(`/v2/ads?${new URLSearchParams({ slot }).toString()}`, {}, { auth: true, timeoutMs: 8_000 });
-  },
-
-  /** 학원 직접 광고 상세. */
-  getAd(adId: string): Promise<AdDetail> {
-    return request(`/v2/ads/${encodeURIComponent(adId)}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
   /** 직접·자체 광고 노출(한 사람·광고·하루 1회는 서버가 거른다)·클릭 기록. */
@@ -461,12 +469,17 @@ export const api = {
     return request(`/v2/reading/scripts/${encodeURIComponent(scriptId)}/example-audio`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
-  getCloudVoiceStatus(): Promise<CloudVoiceStatus> {
-    return request('/v2/reading/voice/status', {}, { auth: true, timeoutMs: 10_000 });
+  /** scope 를 주면 서버가 그 대본·회차가 무료 첫 리딩인지도 답한다(SOMA-917). 안 주면 예전과 같다. */
+  getCloudVoiceStatus(scope?: { scriptId?: string; sessionId?: string }): Promise<CloudVoiceStatus> {
+    const query = new URLSearchParams();
+    if (scope?.scriptId) query.set('script_id', scope.scriptId);
+    if (scope?.sessionId) query.set('session_id', scope.sessionId);
+    const suffix = query.toString();
+    return request(`/v2/reading/voice/status${suffix ? `?${suffix}` : ''}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
-  synthesizeCloudVoice(text: string, voice: CloudVoicePreset): Promise<CloudVoiceResponse> {
-    return request('/v2/reading/voice', jsonInit({ text: text.trim(), voice }), { auth: true, timeoutMs: 30_000 });
+  synthesizeCloudVoice(text: string, voice: CloudVoicePreset, sessionId?: string): Promise<CloudVoiceResponse> {
+    return request('/v2/reading/voice', jsonInit({ text: text.trim(), voice, ...(sessionId ? { session_id: sessionId } : {}) }), { auth: true, timeoutMs: 30_000 });
   },
 
   // 내 계정 ---------------------------------------------------------------------
@@ -936,6 +949,19 @@ export const api = {
     );
   },
 
+  /**
+   * 푸시를 눌러 앱을 연 것을 남긴다(측정). 204. 동의가 남은 회원도 받는다. 게스트는 403.
+   * 부르는 쪽(lib/push-open)이 기다리지 않고 실패를 삼킨다.
+   */
+  recordPushOpen(body: {
+    kind: string;
+    reminder_kind?: string;
+    template_id?: string;
+    platform?: 'ios' | 'android';
+  }): Promise<void> {
+    return request<void>('/v2/push-opens', jsonInit(body), { timeoutMs: 15_000 });
+  },
+
   // 코치의 기억 -----------------------------------------------------------------
   /**
    * 코치가 나에 대해 기억하는 것 전부. 빈 칸은 행이 없으므로 4개보다 적게 온다.
@@ -1076,7 +1102,7 @@ export const api = {
    * 하나가 한 트랜잭션으로 생긴다. 같은 request_id 의 재전송은 같은 회차이고, 같은 id 에 다른
    * 본문이면 422 request_fingerprint_mismatch 다. 확정 전 영상은 422 video_not_ready.
    */
-  createPractice(body: CreatePracticeBody | CreateTalkPracticeBody, options: ApiCallOptions = {}): Promise<Practice> {
+  createPractice(body: CreatePracticeBody | CreateTalkPracticeBody | CreateReadingPracticeBody, options: ApiCallOptions = {}): Promise<Practice> {
     return postIdempotent<Practice>('/v2/practices', body, {
       requestId: body.request_id,
       timeoutMs: 30_000,
@@ -1257,22 +1283,9 @@ export const api = {
     return request<PronunciationState>(`/v2/reading/sessions/${encodeURIComponent(sessionId)}/pronunciation`, {}, { timeoutMs: 15_000 });
   },
 
-  /** 리딩 녹음 코치(SOMA-791, 실험) 켜짐 확인 — 없는 대화를 물어 오류 코드만 본다(lib/reading/recording-coach). */
-  probeRecordingCoach(): Promise<RecordingCoach> {
-    return request<RecordingCoach>(`/v2/recording-coaches/${RECORDING_COACH_PROBE_ID}`, {}, { timeoutMs: 10_000 });
-  },
-
-  /** 회차 녹음으로 첫 차례를 만든다(모델을 요청 안에서 부른다). 그 회차에 이미 있으면 같은 대화. */
-  startRecordingCoach(readingSessionId: string): Promise<RecordingCoach> {
-    return request<RecordingCoach>('/v2/recording-coaches', jsonInit({ reading_session_id: readingSessionId }), { timeoutMs: 90_000 });
-  },
-
-  replyRecordingCoach(coachId: string, text: string): Promise<RecordingCoach> {
-    return request<RecordingCoach>(
-      `/v2/recording-coaches/${encodeURIComponent(coachId)}/reply`,
-      jsonInit({ text: text.trim() }),
-      { timeoutMs: 90_000 },
-    );
+  /** 리딩 녹음으로 바로 코칭(SOMA-791) 가능 여부. 스위치 꺼짐·없는 회차는 404 — 호출한 쪽이 카드를 숨긴다. */
+  getReadingVoiceCoaching(sessionId: string): Promise<ReadingVoiceCoaching> {
+    return request<ReadingVoiceCoaching>(`/v2/reading/sessions/${encodeURIComponent(sessionId)}/voice-coaching`, {}, { timeoutMs: 10_000 });
   },
 
   /** 리딩 평가(reading.session, SOMA-661) — 리딩 회차 하나에 사람 하나, 다시 보내면 덮어쓴다. */

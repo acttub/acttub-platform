@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused, usePreventRemove } from '@react-navigation/native';
@@ -18,6 +19,7 @@ import { Stepper } from '@/components/practice-chrome';
 import { CoachingLimitSheet } from '@/components/pro-ui';
 import { pt, type MenuAnchor } from '@/components/ui/anchored-menu';
 import { Checkbox } from '@/components/ui/checkbox';
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { UploadReasonSheet } from '@/components/upload-reason-sheet';
 import { UploadOptionsPage, type UploadOptions } from '@/components/upload-options-page';
@@ -27,18 +29,19 @@ import { setFaceMosaicForUploads, rememberPurgeAfterAnalysis } from '@/lib/pract
 import { UploadWaitPanel } from '@/components/upload-wait-panel';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { forgetWaitingUpload, rememberWaitingUpload } from '@/hooks/use-waiting-upload';
+import { RenameDialog } from '@/components/ui/coach-rename-dialog';
 import { CoachBubble } from '@/components/ui/mascot-bubble';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { ChoiceCard, type ChoiceTint } from '@/components/choice-card';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { LoadingText } from '@/components/ui/loading-text';
 import { translate as t } from '@/lib/i18n';
 import {
   confirmedVideoFor,
@@ -48,17 +51,17 @@ import {
   removePendingUpload,
   saveRecordingToLibrary,
 } from '@/lib/library/library-runner';
-import { videoErrorMessage } from '@/lib/library/video-checks';
+import { videoErrorMessage, videoRejectDialog } from '@/lib/library/video-checks';
 import { initialPickedVideo, takePickedVideo, type PickedVideo } from '@/lib/practice/picked-video';
 import { canStart, planFor, type StartPlan } from '@/lib/practice/resume';
 import {
-  BLOCKAGE_NOTE_MAX,
   blockageNoteOverflow,
   buildContinueBody,
   buildStartBody,
   emptyBlockageDraft,
   fingerprintOf,
   inProgressPracticeId,
+  PRACTICE_TITLE_MAX,
   sceneOverflow,
   startFailure,
   type BlockageDraft,
@@ -110,11 +113,11 @@ import { VIDEO_PICKER_OPTIONS } from '@/lib/video-picker-options';
  * 같은 시도의 재전송은 같은 요청 id 라 회차는 하나다. 묶음에 진행 중 회차가 있으면(409) 그
  * 회차로 돌려보낸다. 이론 선택은 0.1.0에서 뺐다.
  */
-// pen P3.0 목적 카드의 아이콘 칸 — 평가(파랑)·막힌 곳(노랑)·인물(보라).
+// 목적 카드의 아이콘 칸 — 평가(파랑)·막힌 곳(주황)·인물(초록).
 const PURPOSE_ICON: Record<SessionPurpose, { icon: 'star' | 'unlock' | 'users'; tint: ChoiceTint }> = {
   review: { icon: 'star', tint: 'blue' },
   unblock: { icon: 'unlock', tint: 'amber' },
-  character: { icon: 'users', tint: 'violet' },
+  character: { icon: 'users', tint: 'green' },
 };
 export default function UploadScreen() {
   const router = useRouter();
@@ -122,10 +125,8 @@ export default function UploadScreen() {
   const { alert, dialog } = useAppDialog();
 
   // 튜토리얼의 예시(SOMA-494) — 예시 영상과 장면을 채워 두고, 시작하면 서버 없이 예시 회차로 간다.
-  const params = useLocalSearchParams<{ sample?: string; first?: string }>();
+  const params = useLocalSearchParams<{ sample?: string }>();
   const sample = params.sample === '1';
-  // 첫 코칭을 마치기 전에만 파란 안내(어디를 누르면 되는지)를 보인다 — 코칭 탭이 처음 화면에서 넘겨 준다.
-  const firstTime = params.first === '1';
   const firstTimeUser = useFirstTimeUser();
   const [plan] = useState<StartPlan>(() => planFor(sample ? null : takeContinueOrigin()));
   const [picked, setPicked] = useState<PickedVideo | null>(() =>
@@ -138,12 +139,12 @@ export default function UploadScreen() {
   const [step, setStep] = useState<UploadStep>(() =>
     firstUploadStep({ sample, tutorial: currentTutorial()?.track === stageTrack('upload') }),
   );
-  const [purpose, setPurpose] = useState<SessionPurpose>(DEFAULT_PURPOSE);
-  // 기본 목적은 보내기용일 뿐이다 — 직접 고르기 전에는 고른 것처럼 칠하지 않는다(10/22 피드백).
-  const [purposePicked, setPurposePicked] = useState(false);
+  // 선택 목록은 첫 항목을 미리 골라 둔다(UX 가이드 5절, 10/23 결정 — 10/22 「칠하지 않기」를 바꿨다). 「다음」이 처음부터 켜져 있다.
+  const [purpose, setPurpose] = useState<SessionPurpose>(SESSION_PURPOSES[0] ?? DEFAULT_PURPOSE);
+  const [purposePicked, setPurposePicked] = useState(true);
   const [blockage, setBlockage] = useState<BlockageDraft>(() => ({
     ...emptyBlockageDraft,
-    category: blockageCategoryFor(DEFAULT_PURPOSE),
+    category: blockageCategoryFor(SESSION_PURPOSES[0] ?? DEFAULT_PURPOSE),
   }));
   const choosePurpose = (next: SessionPurpose) => {
     setPurpose(next);
@@ -156,9 +157,21 @@ export default function UploadScreen() {
   // 영상 단계의 고른 길(기본 없음) — 권리 체크 뒤 「질문 받기」를 누르면 그 길로 간다.
   const [sourceChoice, setSourceChoice] = useState<'record' | 'gallery' | null>(null);
   const [reasonSheet, setReasonSheet] = useState(false);
+  const [waitPanel, setWaitPanel] = useState(false);
   // P3.26 올리기 옵션 — 고르면 시작 요청에 싣는다. 고르지 않으면 null(옵션 없이 올린다).
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [uploadOptions, setUploadOptions] = useState<UploadOptions | null>(null);
+  // 연습 제목(10/29) — 화면에 입력칸을 두지 않고, 새 연습에 영상을 처음 고른 직후 가운데 팝업으로 한 번 묻는다.
+  // 건너뛰거나 비우면 싣지 않아 지금처럼 노트 첫 줄이 제목이 된다. 다음 테이크는 묶음에 이미 제목이 있어 묻지 않는다.
+  const [title, setTitle] = useState('');
+  const [titleOpen, setTitleOpen] = useState(false);
+  const titleAskedRef = useRef(false);
+  const askTitleOnce = useCallback(() => {
+    if (sample || plan.continueFrom || titleAskedRef.current) return;
+    titleAskedRef.current = true;
+    // iOS 는 닫히는 화면(촬영·사진 선택) 위에 새 모달을 띄우지 못한다 — 닫힌 뒤에 연다.
+    setTimeout(() => setTitleOpen(true), Platform.OS === 'ios' ? 450 : 0);
+  }, [sample, plan.continueFrom]);
   // 망설임 페이지를 닫으면 연 곳으로 돌아간다 — 뒤로 가기로 열었으면 목적 단계, 영상 단계 링크로 열었으면 영상 단계.
   const reasonBackRef = useRef<UploadStep>('purpose');
   // 뒤로 가기로 여는 망설임 페이지는 이 화면에서 한 번만 연다 — 매번 끼어들면 나가려는 사람이 뒤로를 세 번 눌러야 했다(10/26).
@@ -176,7 +189,11 @@ export default function UploadScreen() {
     if (result === 'denied') void alert({ title: t('uploadFlow.hLater'), message: t('uploadFlow.laterDenied') });
     reasonRoute(() => router.dismissTo('/(tabs)'));
   };
-  usePreventRemove(!leaving && (optionsOpen || reasonSheet || previousUploadStep(step) !== null), () => {
+  usePreventRemove(!leaving && (waitPanel || optionsOpen || reasonSheet || previousUploadStep(step) !== null), () => {
+    if (waitPanel) {
+      leaveWaiting();
+      return;
+    }
     if (optionsOpen) {
       setOptionsOpen(false);
       setReasonSheet(true);
@@ -251,8 +268,9 @@ export default function UploadScreen() {
         setError(null);
         setStep('source');
         notePicked(next.source ?? 'library', next);
+        askTitleOnce();
       }
-    }, [notePicked]),
+    }, [notePicked, askTitleOnce]),
   );
 
   // 보관함 목록은 재생 주소를 주지 않는다(상세에서만 준다) — 목록에서 고른 영상은 상세로 받아 미리보기를 채운다.
@@ -325,30 +343,28 @@ export default function UploadScreen() {
     };
   }, [picked?.pendingId, picked?.videoId, user?.id]);
 
-  // 「영상 올리는 중」 한 장(SOMA-817) — 올리는 중에 질문 받기를 누르면 다 올라갈 때까지 기다린다. 홈으로 나가도 계속 올라가고,
-  // 홈 맨 위 카드가 이어서 코칭을 시작하게 한다.
-  const [waitPanel, setWaitPanel] = useState(false);
-  const waitHome = () => {
-    if (!user?.id || !picked?.pendingId) return;
-    const owner = user.id;
-    const pendingId = picked.pendingId;
-    void rememberWaitingUpload({
-      owner,
-      pendingId,
-      videoId: null,
-      requestId: newRequestId(),
-      continueFrom: plan.continueFrom,
-      scene,
-      blockage,
-      savedAt: Date.now(),
-    }).then(() => leaveThen(() => router.dismissTo('/(tabs)')));
-  };
-  const waitCancel = () => {
+  // 「영상 올리는 중」 한 장(SOMA-817) — 올리는 중에 질문 받기를 누르면 다 올라갈 때까지 기다린다. 뒤로 가면(실패면 「나중에 할게요」도)
+  // 기다리는 업로드로 남기고 홈으로 간다. 나가도 계속 올라가고, 홈 맨 위 카드가 이어서 코칭을 시작하게 한다.
+  // 올리던 영상을 버리는 길은 두지 않는다.
+  const leaveWaiting = () => {
+    if (leaving) return;
+    // 기록이 끝나기 전에 다시 누르거나 업로드가 끝나 코칭이 먼저 시작되지 않게 바로 막는다.
+    setLeaving(true);
     const pendingId = picked?.pendingId;
-    setWaitPanel(false);
-    setPicked(null);
-    if (pendingId) void removePendingUpload(pendingId).catch(() => undefined);
-    if (user?.id) void forgetWaitingUpload(user.id);
+    const remembered = user?.id && pendingId
+      ? rememberWaitingUpload({
+          owner: user.id,
+          pendingId,
+          videoId: null,
+          requestId: newRequestId(),
+          continueFrom: plan.continueFrom,
+          scene,
+          blockage,
+          title: title.trim() || undefined,
+          savedAt: Date.now(),
+        })
+      : Promise.resolve();
+    void remembered.catch(() => undefined).then(() => leaveThen(() => router.dismissTo('/(tabs)')));
   };
   // 압축 실패(P3.27) — 영상을 버리고 고르기로 돌아간다.
   const pickOther = () => {
@@ -382,13 +398,14 @@ export default function UploadScreen() {
     const durationMs = normalizeVideoDurationMs(asset.duration ?? null);
     const outcome = await saveRecordingToLibrary({ uri: asset.uri, durationMs, owner: user.id });
     if (outcome.kind === 'rejected') {
-      void alert({ title: t('upload.titleNew'), message: videoErrorMessage(outcome.code) });
+      void alert(videoRejectDialog(outcome.code));
       return;
     }
     const next = { videoId: null, pendingId: outcome.entry.id, uri: outcome.entry.uri, playbackUrl: null, durationMs };
     setPicked(next);
     setStep('source');
     notePicked('gallery', next);
+    askTitleOnce();
   };
 
   const start = async () => {
@@ -430,7 +447,7 @@ export default function UploadScreen() {
       const continueFrom = plan.continueFrom;
       const baseBody = continueFrom
         ? buildContinueBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage })
-        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage });
+        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId, scene, blockage, title });
       // 얼굴 가리기는 켠 때만 싣는다 — 서버가 아직 모르면 무시하는 선택 필드다.
       const body = uploadOptions?.faceMosaic ? { ...baseBody, face_mosaic: true } : baseBody;
       const attempt = attemptFor(attemptRef.current, fingerprintOf(body), newRequestId);
@@ -480,7 +497,7 @@ export default function UploadScreen() {
   };
 
   useEffect(() => {
-    if (waitPanel && !uploading && videoId && !starting) {
+    if (waitPanel && !uploading && videoId && !starting && !leaving) {
       setWaitPanel(false);
       void start();
     }
@@ -554,6 +571,14 @@ export default function UploadScreen() {
         ? t('upload.missingVideo')
         : t('upload.missingRights');
 
+  const submitLabel = starting
+    ? t('loadingText.sending')
+    : uploading
+      ? t('upload.submitUploading')
+      : plan.prefilled
+        ? t('upload.submitRetake')
+        : t('upload.submitNew');
+
   const sourceOptions = [
     { key: 'record', icon: 'video' as const, title: t('upload.recordCta'), sub: t('upload.recordSub'), onPress: fromSheet(record) },
     { key: 'gallery', icon: 'image' as const, title: t('upload.pickGallery'), sub: t('upload.gallerySub'), onPress: fromSheet(() => void pickFromGallery()) },
@@ -610,7 +635,7 @@ export default function UploadScreen() {
       )}
 
       {step === 'source' && waitPanel && (
-        <UploadWaitPanel failed={uploadFailed} onHome={waitHome} onRetry={waitRetry} onCancel={waitCancel} />
+        <UploadWaitPanel failed={uploadFailed} onLater={leaveWaiting} onRetry={waitRetry} />
       )}
 
       {step === 'source' && !waitPanel && compressFailed && (
@@ -635,7 +660,7 @@ export default function UploadScreen() {
                 {previewUri ? (
                   <VideoView style={styles.preview} player={player} nativeControls contentFit="contain" />
                 ) : (
-                  <View style={[styles.preview, styles.previewEmpty]} />
+                  <View style={styles.preview} />
                 )}
                 <View style={styles.pickedRow}>
                   {sample && (
@@ -644,17 +669,24 @@ export default function UploadScreen() {
                     </View>
                   )}
                   {!sample && (
-                    <Pressable style={styles.repick} onPress={(e) => { setSourceAnchor(pt(e)); setSourceSheet(true); }} disabled={locked}>
+                    <Pressable style={styles.repick}
+                      onPress={(e) => { setSourceAnchor(pt(e)); setSourceSheet(true); }}
+                      disabled={locked}
+                      accessibilityRole="button"
+                      ph-label="upload_repick">
                       <Text style={styles.repickText}>{t('upload.repick')}</Text>
                     </Pressable>
                   )}
-                  <Text style={styles.pickedMeta} numberOfLines={1}>
-                    {sample
-                      ? t('tutorial.sample.situation')
-                      : uploading
-                        ? t('archive.statusUploading')
-                        : t('archive.statusSaved')}
-                  </Text>
+                  {sample ? (
+                    <Text style={styles.pickedMeta} numberOfLines={1}>{t('tutorial.sample.situation')}</Text>
+                  ) : (
+                    <View style={styles.pickedStatus}>
+                      {!uploading && <Feather name="check-circle" size={14} color={palette.green} />}
+                      <Text style={[styles.pickedMeta, !uploading && styles.pickedSaved]} numberOfLines={1}>
+                        {uploading ? t('archive.statusUploading') : t('archive.statusSaved')}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
             ) : (
@@ -672,7 +704,7 @@ export default function UploadScreen() {
                   title={t('upload.pickGallery')}
                   sub={t('upload.sourceGallerySub')}
                   icon="image"
-                  tint="violet"
+                  tint="green"
                   mark="chevron"
                   selected={sourceChoice === 'gallery'}
                   phLabel="upload_source_gallery"
@@ -687,7 +719,7 @@ export default function UploadScreen() {
                 <Text style={styles.sendingText}>{t('upload.sending')}</Text>
               </View>
             )}
-            {error && <Text style={styles.errorText}>{error}</Text>}
+            {error && <InlineErrorLine message={error} />}
           </ScrollView>
 
           {/* 영상 단계 맨 아래 — 권리 체크(pen 옛 장면 단계의 체크 모양), 시작 버튼, 무엇이 모자란지(SOMA-778). */}
@@ -706,19 +738,14 @@ export default function UploadScreen() {
             <Pressable
               ref={startTarget.ref}
               onLayout={startTarget.onLayout}
-              style={[styles.submit, (!canSubmit || starting) && styles.submitDisabled]}
+              style={[styles.submit, uploading || starting ? styles.submitBusy : !canSubmit && styles.submitDisabled]}
               onPress={submitPress}
               disabled={starting}
               accessibilityRole="button"
+              accessibilityLabel={submitLabel}
               accessibilityState={{ disabled: !canSubmit || starting }}>
-              {starting ? (
-                <LoadingText label={t('loadingText.sending')} color={palette.bg} />
-              ) : (
-                <Text style={[styles.submitText, (!canSubmit || starting) && styles.submitTextDisabled]}>
-                  {/* 영상이 아직 올라가는 중이면 무엇을 기다리는지 버튼이 말한다(SOMA-671). */}
-                  {uploading ? t('upload.submitUploading') : plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}
-                </Text>
-              )}
+              {/* 보내는 중·영상이 아직 올라가는 중이면 무엇을 기다리는지 버튼이 말한다(SOMA-671). */}
+              <Text style={[styles.submitText, !canSubmit && !uploading && !starting && styles.submitTextDisabled]}>{submitLabel}</Text>
             </Pressable>
             {hint && picked && <Text style={styles.submitHint}>{hint}</Text>}
           </View>
@@ -746,6 +773,19 @@ export default function UploadScreen() {
           onDone={(options) => { setUploadOptions(options); setFaceMosaicForUploads(options.faceMosaic); setOptionsOpen(false); setStep('source'); }}
         />
       )}
+      <RenameDialog
+        visible={titleOpen}
+        title={t('upload.titleLabel')}
+        initial={title}
+        placeholder={t('upload.titlePh')}
+        hint={t('upload.titleHint')}
+        failText={t('upload.titleTooLong')}
+        cancelLabel={t('upload.titleSkip')}
+        saveLabel={t('common.save')}
+        maxLength={PRACTICE_TITLE_MAX}
+        onSave={async (next) => setTitle(next)}
+        onClose={() => setTitleOpen(false)}
+      />
       {dialog}
       {tutorialGuide.element}
       <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
@@ -756,47 +796,51 @@ export default function UploadScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  // pen 03 「Stepper」 — 머리 아래 1 띄워 가운데, 21 띄워 말풍선. 본문 좌우 20, 말풍선과 선택지 사이 14.
-  stepRow: { alignItems: 'center', paddingTop: 1 },
-  hesitate: { alignSelf: 'center', paddingTop: 2, paddingBottom: 4 },
-  hesitateText: { fontSize: 14, fontWeight: '600', lineHeight: 20, color: palette.blueDeep },
-  stepBody: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 24, gap: 14 },
-  // pen P3.0 「Choices」 — 카드 사이 12.
-  choices: { gap: 12, marginTop: 14 },
-  // pen 03 「Footer」 — 안쪽 [0,20,10,20]: 권리 체크 · 14 · 버튼 48 · 9 · 안내 14/500.
-  bottom: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 10, backgroundColor: palette.bg },
+  stepRow: { alignItems: 'center' },
+  hesitate: { alignSelf: 'center', paddingBottom: space[1] },
+  hesitateText: { ...type.captionBold, color: palette.blueDeep },
+  stepBody: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3] },
+  choices: { gap: space[3], marginTop: space[1] },
+  bottom: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[3], backgroundColor: palette.bg },
 
-  sampleBadge: { backgroundColor: palette.blueSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  sampleBadgeText: { fontSize: 12.5, fontWeight: '800', color: palette.blue },
-  // pen 09 「새 연습 · 영상 고름」 — 영상 높이 178 · 모서리 22, 8 띄워 「영상 다시 선택」 알약(28) · 7 · 「보관함 저장」.
-  pickedBlock: { gap: 8 },
-  preview: { width: '100%', height: 178, borderRadius: 22, overflow: 'hidden', backgroundColor: palette.text },
-  previewEmpty: { alignItems: 'center', justifyContent: 'center' },
-  pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  repick: { height: 28, borderRadius: 14, paddingHorizontal: 11, justifyContent: 'center', backgroundColor: palette.blueSoft },
-  repickText: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
-  pickedMeta: { flex: 1, fontSize: 15, fontWeight: '500', lineHeight: 19, color: palette.textMeta },
-  errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
+  sampleBadge: { backgroundColor: palette.blueSoft, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: space[1] },
+  sampleBadgeText: { ...type.micro, color: palette.blueDeep },
+  pickedBlock: { gap: space[3] },
+  preview: { width: '100%', height: 144, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: palette.text },
+  pickedRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  repick: { height: 28, borderRadius: radius.sm, paddingHorizontal: space[3], justifyContent: 'center', backgroundColor: palette.bgSoft },
+  repickText: { ...type.captionBold, color: palette.textSub },
+  pickedStatus: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  pickedMeta: { flexShrink: 1, ...type.caption, color: palette.textMeta },
+  pickedSaved: { color: palette.green },
 
   sendingBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space[2],
     backgroundColor: palette.blueSoft,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    paddingVertical: space[3],
+    paddingHorizontal: space[4],
   },
-  sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
-  // pen 03 「Rights」 — 네모 22(모서리 6), 10 띄워 글 15/700 `text`(줄 21).
-  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  rightsText: { flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 21, color: palette.text },
+  sendingText: { flex: 1, ...type.captionBold, color: palette.blueDeep },
+  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2] },
+  rightsText: { flex: 1, ...type.caption, color: palette.textSub },
 
-  // pen 버튼/Primary — 높이 48 · 모서리 16 · 글자 17/700. 막혀 있으면 Disabled(#E5E8EB · #B0B8C1). 준비 전에도 눌러서
-  // 무엇에 막혔는지 세야 해서(SOMA-698) 공통 Button(막히면 안 눌림) 대신 같은 모양을 직접 그린다.
-  submit: { height: 52, borderRadius: 16, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  // 버튼/Primary 모양. 준비 전에도 눌러서 무엇에 막혔는지 세야 해서(SOMA-698) 공통 Button(막히면 안 눌림) 대신 같은 모양을 직접 그린다.
+  submit: {
+    height: 48,
+    borderRadius: radius.lg,
+    backgroundColor: palette.blue,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space[2],
+    marginTop: space[3],
+  },
   submitDisabled: { backgroundColor: palette.border },
-  submitText: { fontSize: 17, fontWeight: '700', color: palette.onAccent },
+  submitBusy: { opacity: 0.6 },
+  submitText: { ...type.headline, color: palette.onAccent },
   submitTextDisabled: { color: palette.textDisabled },
-  submitHint: { fontSize: 14, fontWeight: '500', color: palette.textMeta, lineHeight: 18, textAlign: 'center', marginTop: 9 },
+  submitHint: { ...type.caption, color: palette.textMeta, textAlign: 'center', marginTop: space[2] },
 });

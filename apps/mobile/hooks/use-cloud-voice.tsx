@@ -19,7 +19,10 @@ export function useCloudVoice() {
   const [document, setDocument] = useState<ConsentEntryDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [decideFailed, setDecideFailed] = useState(false);
-  const sourceRef = useRef<'promo' | 'settings'>('settings');
+  const sourceRef = useRef<'promo' | 'settings' | 'first_reading'>('settings');
+  /** 첫 리딩 동의를 기다리는 쪽(askFirstReading)을 깨우는 함수. */
+  const settleRef = useRef<(() => void) | null>(null);
+  const settle = useCallback(() => { settleRef.current?.(); settleRef.current = null; }, []);
 
   const refresh = useCallback(async () => {
     const [stored, next] = await Promise.all([loadCloudVoiceEnabled(), api.getCloudVoiceStatus()]);
@@ -31,7 +34,7 @@ export function useCloudVoice() {
 
   useEffect(() => { void refresh().catch(() => setStatusFailed(true)); }, [refresh]);
 
-  const finishEnable = useCallback(async (source: 'promo' | 'settings') => {
+  const finishEnable = useCallback(async (source: 'promo' | 'settings' | 'first_reading') => {
     await saveCloudVoiceEnabled(true);
     setEnabled(true);
     setStatus((current) => current ? { ...current, consent: 'granted' } : current);
@@ -59,6 +62,28 @@ export function useCloudVoice() {
     } catch { return false; } finally { setBusy(false); }
   }, [busy, finishEnable]);
 
+  /**
+   * 무료 배우의 대본 첫 리딩을 시작하기 전(SOMA-917): 그 리딩이 무료 고품질이고 동의가 아직 결정되지 않았으면 기존 동의 창을 띄워
+   * 결정이 날 때까지 기다린다. 동의하든 거절하든 끝나면 돌아오고, 호출한 쪽은 그대로 리딩을 시작한다. 이미 결정했거나(거절 포함)
+   * 끈 사람, 무료 첫 리딩이 아닌 경우, 상태를 못 받은 경우에는 묻지 않고 바로 돌아온다.
+   */
+  const askFirstReading = useCallback(async (scriptId: string): Promise<void> => {
+    try {
+      if (!(await loadCloudVoiceEnabled())) return;
+      const current = await api.getCloudVoiceStatus({ scriptId });
+      if (current.reason !== 'first_reading' || current.consent !== 'undecided') return;
+      const entry = await api.consentEntry();
+      const cloudDocument = entry.documents.find((item) => item.type === 'cloud_voice') ?? null;
+      if (!cloudDocument) return;
+      sourceRef.current = 'first_reading';
+      setDecideFailed(false);
+      await new Promise<void>((resolve) => {
+        settleRef.current = resolve;
+        setDocument(cloudDocument);
+      });
+    } catch { /* 물어보지 못해도 리딩은 기기 목소리로 시작한다 */ }
+  }, []);
+
   const decide = useCallback(async (granted: boolean) => {
     if (!document || busy) return;
     setBusy(true);
@@ -66,6 +91,7 @@ export function useCloudVoice() {
     try {
       await api.recordConsent(document.id, granted ? 'granted' : 'declined');
       setDocument(null);
+      settle();
       if (granted) await finishEnable(sourceRef.current);
       else {
         await saveCloudVoiceEnabled(false);
@@ -73,7 +99,7 @@ export function useCloudVoice() {
         setStatus((current) => current ? { ...current, consent: 'denied' } : current);
       }
     } catch { setDecideFailed(true); } finally { setBusy(false); }
-  }, [busy, document, finishEnable]);
+  }, [busy, document, finishEnable, settle]);
 
   const disable = useCallback(async () => {
     await saveCloudVoiceEnabled(false);
@@ -82,7 +108,7 @@ export function useCloudVoice() {
 
   const consentSheet = (
     <>
-    <Modal visible={!!document} transparent animationType="fade" onRequestClose={() => !busy && setDocument(null)}>
+    <Modal visible={!!document} transparent animationType="fade" onRequestClose={() => { if (!busy) { setDocument(null); settle(); } }}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <Text style={styles.title}>{document?.title}</Text>
@@ -101,7 +127,7 @@ export function useCloudVoice() {
     </>
   );
 
-  return { status, statusFailed, enabled, busy, refresh, enable, disable, consentSheet };
+  return { status, statusFailed, enabled, busy, refresh, enable, disable, askFirstReading, consentSheet };
 }
 
 const styles = StyleSheet.create({

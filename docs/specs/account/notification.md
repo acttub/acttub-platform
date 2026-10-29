@@ -4,7 +4,7 @@
 
 - 도입: 0.1.0
 - 화면: A4 설정
-- 테이블: user_profiles, push_tokens, evening_reminder_sends, practice_reminder_sends
+- 테이블: user_profiles, push_tokens, evening_reminder_sends, practice_reminder_sends, push_opens
 
 ## 기능
 알림은 세 종류다. 서버가 보내는 푸시 셋(분석 완료, 챌린지 활동, 저녁 8시 연습 리마인드)이다.
@@ -25,6 +25,7 @@
 | `PATCH /v2/me/notification-settings` | 헤더 `Authorization`(게이트 통과 회원), `NotificationSettingsPatch`: 바꿀 토글만 | `NotificationSettings` 200(토글 셋 전체: `analysis_done`·`challenge`·`evening_reminder`) | 게스트 `member_only` 403, 빈 본문·모르는 키·불리언 아닌 값 422 배열 |
 | `POST /v2/push-tokens` | 헤더 `Authorization`(게이트 통과 회원), `RegisterPushTokenRequest`: `token`·`platform` | 204. 알림 토글 셋이 다 꺼졌거나 다른 기기의 탈퇴와 겹치면 저장하지 않고 204 | 게스트 `member_only` 403, 422 배열 |
 | `DELETE /v2/push-tokens` | `UnregisterPushTokenRequest`: `token`. 로그인 없이 받는다(공통 규칙) | 204 | 422 배열, IP 한도 429 |
+| `POST /v2/push-opens` | 헤더 `Authorization`(로그인한 회원, 동의·프로필 게이트 밖), `RecordPushOpenRequest`: `kind`(1~40자)·`reminder_kind`(40자 이하)·`template_id`(60자 이하)·`platform`(ios/android), 뒤의 셋은 없어도 된다 | 204. push_opens 에 한 줄 | 게스트 `member_only` 403, 422 배열, 한 회원당 분당 60회 초과 429 |
 | `PushService#onAnalysisComplete` (분석 워커가 분석을 끝낼 때) | 분석 세션 | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시 | 실패는 밖으로 내보내지 않고 보고한다. `DeviceNotRegistered` 토큰은 지운다 |
 | 챌린지 알림 발송 | 챌린지 사건 | 챌린지 토글이 켜진 회원에게 푸시 | 정본은 challenge.notification |
 | `EveningReminderScheduler` (매일 한국 시간 20시) | 저녁 리마인드 대상 회원(「규칙·제약」). `PRACTICE_REMINDER_ENABLED`가 꺼져 있을 때만 돈다 | 대상 회원의 토큰에 Expo 푸시, 한국 날짜마다 한 번 | 실패는 보고한다. `DeviceNotRegistered` 토큰은 지운다 |
@@ -42,6 +43,7 @@
 - 토큰 삭제는 로그인 없이 받는다. 푸시 토큰을 갖고 있다는 것이 본인 확인이다. 로그아웃하면 기기에
   액세스 토큰이 없어 다음 실행 때의 재시도가 인증을 통과할 수 없기 때문이다. 토큰은 추측할 수 없는
   값이고 남이 지워도 피해는 알림을 못 받는 것뿐이다. 삭제 요청은 IP별로 분당 60회까지다.
+- 푸시를 눌러 앱을 연 것은 서버에 한 줄 남긴다(push_opens: 회원, `kind`, 연습 알림이면 `reminder_kind`·`template_id`, 플랫폼, 앱 버전, 연 시각). `kind` 는 푸시 data 의 kind 그대로(evening_reminder·analysis_complete·entry_liked 등)이고 모르면 `unknown` 이다. 보낸 기록(practice_reminder_sends 의 template_id·kind, notifications.kind)과 이어 푸시로 돌아온 사람을 재려는 측정이다. 동의가 남은 회원이 눌러도 남기고, 앱이 꺼져 있다가 푸시로 열린 경우와 로그인보다 먼저 눌린 경우도 로그인 뒤에 보낸다. 앱은 기다리지 않고 실패는 한 번만 다시 보낸다. 탈퇴하면 이 기록도 지운다. 기존 `reminder_open` 분석 이벤트는 그대로다.
 - 토글 셋의 기본값은 모두 켜짐이다. 알림 권한을 허용한 사람은 설정을 건드리지 않아도 바로 받는다.
 - 토큰을 지우는 때: 로그아웃, 탈퇴, 알림 토글 셋을 다 끔, 발송 결과가 "등록되지 않은 기기"일 때.
   잘못된 토큰이 쌓이지 않게 한다. 토글 하나만 꺼져 있으면 토큰은 두고 서버가 보내기 전에 프로필의
@@ -70,6 +72,11 @@
     있으면 보내지 않는다.
   - 연습 권유와 연속 기록 알림은 칸이 달라 하루 최대 둘이다. 토글(`notify_evening_reminder`)·활성 회원·앱 판 조건은 저녁 리마인드와 같고,
     "최근 30일 활동" 조건은 7일 한도로 대신한다.
+  - **가입 30분 알림**(`first_nudge`, SOMA-870): 연습한 적 없는 회원이 가입한 한국 날짜에, 가입 30분 뒤부터 2시간 전까지 한 번 보낸다. 보내는 순간이
+    23:00~09:00이면 보내지 않고 미루지도 않는다. practice 칸을 쓰므로 그날 다른 연습 권유와 겹치지 않고, 다음 날부터는 위 `first_practice` 규칙(가입 시각이 F)이 그대로 돈다.
+  - **비교군**(SOMA-870): 회원 id로 정해지는 고정 10%(서버 설정 `PRACTICE_REMINDER_HOLDOUT_PERCENT`, 기본 10, 0이면 없음)는 연습 알림(연습 권유·가입 30분·연속 기록)을
+    받지 않는다. 보낼 때가 되면 보냈을 문구를 고른 뒤 `practice_reminder_sends`에 `template_id` 앞에 `holdout:`을 붙여 기록만 남긴다. 발송 수를 셀 때는
+    `template_id LIKE 'holdout:%'` 행을 빼고, 알림 효과는 같은 때 보낼 차례였던 두 무리(발송·비교군)의 다음 연습을 비교한다.
   - **연습 권유의 내용**은 처음 맞는 것 하나다. 순서는 `resume`(k=1) → `pending_video` → `unread_script` → `first_practice` → `homework` → `reading` → `general`이다.
     (1) k=1이고 가장 최근 코칭 대화가 열려 있으며 마지막
     메시지가 코치의 질문이고 그 대화에 마저 하기 알림을 보낸 적이 없으면 `resume`: 제목 "아까 하던 코칭 마저 할까요?", 본문은 배우가 답한 적이 없으면 "코치 질문이 남아 있어요: …", 있으면
@@ -91,8 +98,10 @@
   - **문구**는 `ReminderTemplates` 한 곳에 있다. 종류마다 5~10개이고 일반·숙제는 건너뛴 날 수(1 / 2~3 / 4~7)별로 따로 있으며 문구마다 고정 id가 있다. 최근 14일 안에
     이 회원에게 보낸 id는 피하고(모두 썼으면 가장 오래전에 쓴 것), 고르는 것은 회원·날짜·칸으로 정해진다. 한국어가 아닌 설정에는 최소한의 영어 문구를 쓴다.
     작품 제목·대사·이벤트·홍보는 넣지 않는다.
-  - **푸시 data**: `kind`는 `evening_reminder`로 둔다(지금 앱이 이 값일 때 누르면 홈으로 보내므로 앱 빌드 없이 동작 유지), 실제 종류는 `reminder_kind`(resume·pending_video·unread_script·homework·reading·general·first_practice·streak), `skipped_days`, `template_id`, resume이면 `conversation_id`와
-    `practice_id`(새 앱은 해당 회차 코치 화면을 열고, 기존 앱은 홈), homework이면 `practice_id`, pending_video이면 `video_id`, unread_script이면 `script_id`(pending_video·unread_script는 앱에서 아직 쓰지 않는다). 앱 판 0.1.x의 탭 처리는 `evening_reminder`만 홈으로 보내므로 새 종류를 눌러도 앱이 열릴 뿐 특정 화면으로 가지 않는다(새 앱은 resume만 해당 코치 대화로 바로 간다).
+  - **푸시 data**: `kind`는 `evening_reminder`로 둔다(지금 앱이 이 값일 때 누르면 홈으로 보내므로 앱 빌드 없이 동작 유지), 실제 종류는 `reminder_kind`(resume·pending_video·unread_script·homework·reading·general·first_practice·first_nudge·streak), `skipped_days`, `template_id`, resume이면 `conversation_id`와
+    `practice_id`(새 앱은 해당 회차 코치 화면을 열고, 기존 앱은 홈), homework이면 `practice_id`, pending_video이면 `video_id`, unread_script이면 `script_id`. 앱 판 0.1.x의 탭 처리는 `evening_reminder`만 홈으로 보내므로 새 종류를 눌러도 앱이 열릴 뿐 특정 화면으로 가지 않는다.
+    1.1.0부터 앱은 알림이 말한 화면을 바로 연다(SOMA-862): resume은 그 코치 대화, homework는 그 묶음의 다음 테이크 준비 화면, pending_video는 그 영상을 얹은 새 연습 준비 화면, unread_script는 그 대본의 리딩 준비 화면, first_practice·first_nudge는 예시 대본 고르기(첫 예시가 골라져 있다). 대상 id가 없거나, 대상이 지워졌거나(영상 파일 파기 포함) 못 찾으면 홈이다. reading·general·streak은 홈이다.
+    누르면 앱이 `reminder_open`(reminder_kind·template_id·target)을 남기고, 대상을 찾아 여는 세 종류는 `reminder_target`(reminder_kind·result=opened|home)을 한 번 더 남긴다.
   - 보낼 자리는 보내기 전에 `practice_reminder_sends`에 먼저 넣어 선점하고(`ON CONFLICT DO NOTHING`), 선점한 쪽만 보낸다. 탈퇴와 게스트 파기는 이 기록을 지운다.
 - 리마인드 토글을 끄면 서버 발송 대상에서 제외한다. 업데이트한 앱은 옛 판이 예약한 로컬 알람을 모두
   취소하고 새 로컬 알람을 만들지 않는다.
@@ -109,6 +118,7 @@
   새 로그인으로 등록에 성공하면 앱은 밀린 삭제를 버린다. 순서가 뒤집혀 새 회원의 등록을 지우지 않기
   위해서다.
 - 탈퇴: 서버는 토글을 끄고 토큰을 지운다([account.withdraw](withdraw.md#규칙제약)). 앱은 옛 판이 남긴 로컬 알람도 취소한다.
+- 앱 알림함·알림 설정 목록을 불러오지 못하면 화면 안 오류 상자에 「다시 시도」를 두고, 누르면 같은 목록을 다시 묻는다.
 - 다른 기기의 탈퇴와 겹친 토글 저장은 [공통 규칙](../common.md#탈퇴와-겹친-쓰기)을 따른다. 푸시 토큰 등록은 그
   예외다(입구 표).
 

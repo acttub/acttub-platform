@@ -17,6 +17,7 @@ import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.schema.ExperienceVersion;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -56,6 +57,8 @@ public class ConversationService {
     private final CoachProfile profiles;
     private final CoachMemory memory;
     private final FailureReporter failureReporter;
+    /** Pro 「대사별로 본 것」(SOMA-900). 없으면 붙이지 않는다. */
+    private final LineNoteWriter lineNotes;
     private final Set<RequestKey> generating = ConcurrentHashMap.newKeySet();
     /** 회차별로 모델을 부르고 있는 시작(SOMA-780). 앱의 시작 요청과 서버의 첫 질문 미리 쓰기가 같은 첫 질문을 두 번 쓰지 않게 한다. */
     private final java.util.Map<UUID, java.util.concurrent.CompletableFuture<Void>> starting = new ConcurrentHashMap<>();
@@ -73,6 +76,20 @@ public class ConversationService {
             CoachProfile profiles,
             CoachMemory memory,
             FailureReporter failureReporter) {
+        this(conversations, coach, notes, clock, closedListener, profiles, memory, failureReporter, null);
+    }
+
+    public ConversationService(
+            ConversationRepository conversations,
+            CoachEngine coach,
+            NoteWriter notes,
+            Clock clock,
+            ConversationClosedListener closedListener,
+            CoachProfile profiles,
+            CoachMemory memory,
+            FailureReporter failureReporter,
+            LineNoteWriter lineNotes) {
+        this.lineNotes = lineNotes;
         this.conversations = conversations;
         this.coach = coach;
         this.notes = notes;
@@ -81,6 +98,16 @@ public class ConversationService {
         this.profiles = profiles;
         this.memory = memory;
         this.failureReporter = failureReporter;
+    }
+
+    /** 노트가 저장된 뒤 Pro 의 「대사별로 본 것」을 배경에서 쓰게 맡긴다. 기다리지 않고 실패해도 대화에 영향이 없다. */
+    private void scheduleLineNotes(CoachResult result, UUID conversationId, NoteView note) {
+        if (lineNotes == null || note == null) return;
+        try {
+            lineNotes.schedule(result.session(), conversationId, note);
+        } catch (RuntimeException ignored) {
+            // 덤이다 — 노트와 닫기 응답은 이미 정해졌다.
+        }
     }
 
     /** 분석이 끝난 회차에서 대화를 연다. 이미 열린 대화가 있으면 그것을 재개한다. */
@@ -193,6 +220,7 @@ public class ConversationService {
         Loaded saved = require(conversations.loadByConversation(userId, conversationId));
         NoteView note = closing && !rejected
                 ? activeOnly(() -> notes.write(opened, result, saved.session().stateRevision(), clock.instant())) : null;
+        scheduleLineNotes(result, conversationId, note);
         if (closing && !rejected && closedListener != null) closedListener.onConversationClosed(userId, practiceId);
         return turn(saved.session(), conversationId, note);
     }
@@ -212,6 +240,8 @@ public class ConversationService {
     }
 
     private Turn replyTurn(UUID userId, UUID conversationId, UUID requestId, String text, Long revision, CoachStream stream) {
+        // 결합 기호를 쌓은 글자 같은 허용 범위 밖 글자는 저장하지도 코치에게 넘기지도 않는다.
+        if (!InputCharset.readable(text)) throw new ApiException(400, "unreadable_text");
         Loaded loaded = require(conversations.loadByConversation(userId, conversationId));
         String fingerprint = fingerprint("coach_reply|" + conversationId + "|" + text);
         Replay replayed = conversations.findReplay(conversationId, requestId, fingerprint);
@@ -265,6 +295,8 @@ public class ConversationService {
                 ? activeOnly(() -> resumed ? notes.write(loaded, result, saved.revision(), clock.instant(), true)
                         : notes.write(loaded, result, saved.revision(), clock.instant()))
                 : null;
+        // 방금 쓴 노트에만 붙인다 — 이어 가던 대화에서 새로 못 만들어 옛 노트를 보여 주는 경우는 그대로 둔다.
+        scheduleLineNotes(result, conversationId, note);
         if (closing && resumed && note == null) note = conversations.note(userId, loaded.practiceId());
         if (closing && !resumed && closedListener != null) {
             // 노트가 남은 뒤에 알린다 — 확인 연습을 세는 쪽이 이번 회차의 노트를 보아야 한다.

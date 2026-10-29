@@ -18,13 +18,13 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
- * 참여작 영상의 얼굴을 픽셀 모자이크로 가린 사본을 만든다 (challenge.entry 얼굴 모자이크). 원본은 건드리지 않는다.
+ * 참여작 영상의 얼굴을 타원 흐림으로 가린 사본을 만든다 (challenge.entry 얼굴 모자이크). 원본은 건드리지 않는다.
  *
  * <p>두 번 읽는다. <b>찾기</b>는 ffmpeg 가 30fps·작은 크기로 풀어 준 프레임에서 {@value #STRIDE} 프레임마다 얼굴을
- * 찾는다. <b>그리기</b>는 같은 30fps 로 다시 풀어 프레임마다 그 근처에서 찾은 상자를 모두 넓혀 모자이크하고 ffmpeg 로
+ * 찾는다(긴 변 {@value #DETECT_LONG_SIDE}). <b>그리기</b>는 같은 30fps 로 다시 풀어 프레임마다 그 근처에서 찾은 얼굴을 모두 타원으로 흐리고 ffmpeg 로
  * 다시 압축하며 원본 소리를 붙인다. 근처란 앞으로 {@value #LEAD_FRAMES} 프레임·뒤로 {@value #HOLD_FRAMES}
- * 프레임(1초)이다 — 찾기 사이에 얼굴이 움직여도, 한동안 놓쳐도 직전 상자가 남는다. 상자는 좌우로
- * {@value #SIDE_MARGIN}배, 위로 {@value #TOP_MARGIN}배, 아래로 {@value #BOTTOM_MARGIN}배를 더 넓혀 머리선·턱까지 덮는다.
+ * 프레임(1초)이다 — 찾기 사이에 얼굴이 움직여도, 한동안 놓쳐도 직전 상자가 남는다. 타원은 이마부터
+ * 턱 바로 아래까지이고 목은 남긴다({@link #blurFaces}).
  *
  * <p><b>얼굴을 한 번도 찾지 못하면 {@link NoFaceFound} 다</b> — 부르는 쪽은 모자이크본 없이 실패로 닫는다(가리지 못한
  * 사본을 공개용으로 내지 않는다). 각 단계는 {@link FfmpegLock} 을 따로 잡는다 — 다른 영상 일이 그 사이에 끼어든다.
@@ -34,14 +34,19 @@ public final class FaceMosaicRenderer implements FaceMosaic {
     static final int STRIDE = 3;
     static final int LEAD_FRAMES = STRIDE + 3;
     static final int HOLD_FRAMES = FPS;
-    static final double SIDE_MARGIN = 0.25;
-    static final double TOP_MARGIN = 0.35;
-    static final double BOTTOM_MARGIN = 0.2;
-    /** 모자이크 칸은 얼굴 상자의 긴 변을 이만큼으로 나눈다(얼굴 하나가 대략 8×8 칸). */
-    static final int BLOCKS_PER_FACE = 8;
-    static final int MIN_BLOCK = 8;
+    /** 타원 가로 반지름 = 찾은 얼굴 폭 × 이 값. 귀 앞까지 덮는다. */
+    static final double OVAL_RX = 0.62;
+    /** 타원 세로 반지름 = 찾은 얼굴 높이 × 이 값. */
+    static final double OVAL_RY = 0.68;
+    /** 타원 중심을 얼굴 높이의 이만큼 올린다 — 이마는 덮고 목은 남긴다. */
+    static final double OVAL_LIFT = 0.1;
+    /** 타원 바깥쪽 이 비율 구간에서 흐림이 원본으로 서서히 돌아간다. */
+    static final double FEATHER = 0.14;
+    /** 흐림 반경 = 찾은 얼굴 폭 / 이 값. */
+    static final int BLUR_PER_FACE = 7;
+    static final int MIN_RADIUS = 4;
     private static final int OUTPUT_LONG_SIDE = 1280;
-    private static final int DETECT_LONG_SIDE = 640;
+    private static final int DETECT_LONG_SIDE = 960;
     private static final Duration TIMEOUT = Duration.ofMinutes(10);
     private static final Pattern EXECUTABLE = Pattern.compile(Pattern.quote(File.pathSeparator));
 
@@ -176,7 +181,7 @@ public final class FaceMosaicRenderer implements FaceMosaic {
             byte[] frame = new byte[width * height * 3];
             int index = 0;
             while (readFrame(in, frame)) {
-                pixelate(frame, width, height, plan.boxes(index));
+                blurFaces(frame, width, height, plan.boxes(index));
                 sink.write(frame);
                 index++;
             }
@@ -242,54 +247,122 @@ public final class FaceMosaicRenderer implements FaceMosaic {
     }
 
     /**
-     * 비율 상자들을 넓혀 그 안을 칸마다 평균색으로 칠한다. 프레임은 bgr24 이고 제자리에서 바뀐다.
+     * 찾은 얼굴마다 이마부터 턱 바로 아래까지 타원을 잡아 그 안을 부드럽게 흐린다. 타원 가장자리
+     * ({@value #FEATHER}) 는 서서히 원본으로 돌아가 칸 모양 경계가 생기지 않고, 목·손은 그대로 둔다.
+     * 프레임은 bgr24 이고 제자리에서 바뀐다.
      *
      * @param boxes {x, y, w, h} — 프레임 크기에 대한 비율
      */
-    static void pixelate(byte[] frame, int width, int height, List<double[]> boxes) {
+    static void blurFaces(byte[] frame, int width, int height, List<double[]> boxes) {
+        List<double[]> ovals = new ArrayList<>();
+        double faceWidth = 0;
+        double left = width;
+        double top = height;
+        double right = 0;
+        double bottom = 0;
         for (double[] box : boxes) {
-            double bw = box[2] * width;
-            double bh = box[3] * height;
-            int x0 = clamp((int) Math.floor(box[0] * width - bw * SIDE_MARGIN), width);
-            int x1 = clamp((int) Math.ceil(box[0] * width + bw * (1 + SIDE_MARGIN)), width);
-            int y0 = clamp((int) Math.floor(box[1] * height - bh * TOP_MARGIN), height);
-            int y1 = clamp((int) Math.ceil(box[1] * height + bh * (1 + BOTTOM_MARGIN)), height);
-            if (x1 <= x0 || y1 <= y0) {
+            double fw = box[2] * width;
+            double fh = box[3] * height;
+            if (fw <= 0 || fh <= 0) {
                 continue;
             }
-            int block = Math.max(MIN_BLOCK, (int) Math.round(Math.max(x1 - x0, y1 - y0) / (double) BLOCKS_PER_FACE));
-            for (int by = y0; by < y1; by += block) {
-                int ey = Math.min(by + block, y1);
-                for (int bx = x0; bx < x1; bx += block) {
-                    int ex = Math.min(bx + block, x1);
-                    long b = 0;
-                    long g = 0;
-                    long r = 0;
-                    for (int y = by; y < ey; y++) {
-                        int row = y * width * 3;
-                        for (int x = bx; x < ex; x++) {
-                            int p = row + x * 3;
-                            b += frame[p] & 0xff;
-                            g += frame[p + 1] & 0xff;
-                            r += frame[p + 2] & 0xff;
-                        }
+            double cx = box[0] * width + fw / 2;
+            double cy = box[1] * height + fh / 2 - fh * OVAL_LIFT;
+            double rx = fw * OVAL_RX;
+            double ry = fh * OVAL_RY;
+            ovals.add(new double[] {cx, cy, rx, ry});
+            faceWidth = Math.max(faceWidth, fw);
+            left = Math.min(left, cx - rx);
+            right = Math.max(right, cx + rx);
+            top = Math.min(top, cy - ry);
+            bottom = Math.max(bottom, cy + ry);
+        }
+        if (ovals.isEmpty()) {
+            return;
+        }
+        int radius = blurRadius(faceWidth);
+        int x0 = clamp((int) Math.floor(left) - radius, width);
+        int x1 = clamp((int) Math.ceil(right) + radius, width);
+        int y0 = clamp((int) Math.floor(top) - radius, height);
+        int y1 = clamp((int) Math.ceil(bottom) + radius, height);
+        if (x1 <= x0 || y1 <= y0) {
+            return;
+        }
+        int w = x1 - x0;
+        int h = y1 - y0;
+        float[] alpha = new float[w * h];
+        boolean any = false;
+        for (int y = 0; y < h; y++) {
+            double py = y0 + y + 0.5;
+            for (int x = 0; x < w; x++) {
+                double px = x0 + x + 0.5;
+                double a = 0;
+                for (double[] o : ovals) {
+                    double dx = (px - o[0]) / o[2];
+                    double dy = (py - o[1]) / o[3];
+                    double e = Math.sqrt(dx * dx + dy * dy);
+                    double t = e <= 1 - FEATHER ? 1 : e >= 1 ? 0 : (1 - e) / FEATHER;
+                    a = Math.max(a, t * t * (3 - 2 * t));
+                }
+                alpha[y * w + x] = (float) a;
+                any |= a > 0;
+            }
+        }
+        if (!any) {
+            return;
+        }
+        int[] channel = new int[w * h];
+        int[] scratch = new int[w * h];
+        for (int c = 0; c < 3; c++) {
+            for (int y = 0; y < h; y++) {
+                int row = ((y0 + y) * width + x0) * 3 + c;
+                for (int x = 0; x < w; x++) {
+                    channel[y * w + x] = frame[row + x * 3] & 0xff;
+                }
+            }
+            // 상자 흐림 세 번 ≈ 가우스 흐림
+            for (int pass = 0; pass < 3; pass++) {
+                boxBlur(channel, scratch, w, h, radius, true);
+                boxBlur(scratch, channel, w, h, radius, false);
+            }
+            for (int y = 0; y < h; y++) {
+                int row = ((y0 + y) * width + x0) * 3 + c;
+                for (int x = 0; x < w; x++) {
+                    float a = alpha[y * w + x];
+                    if (a <= 0) {
+                        continue;
                     }
-                    long count = (long) (ey - by) * (ex - bx);
-                    byte mb = (byte) (b / count);
-                    byte mg = (byte) (g / count);
-                    byte mr = (byte) (r / count);
-                    for (int y = by; y < ey; y++) {
-                        int row = y * width * 3;
-                        for (int x = bx; x < ex; x++) {
-                            int p = row + x * 3;
-                            frame[p] = mb;
-                            frame[p + 1] = mg;
-                            frame[p + 2] = mr;
-                        }
-                    }
+                    int p = row + x * 3;
+                    int original = frame[p] & 0xff;
+                    frame[p] = (byte) Math.round(original + (channel[y * w + x] - original) * a);
                 }
             }
         }
+    }
+
+    /** 한 방향 상자 흐림. 가장자리 밖은 가장자리 값으로 본다. */
+    private static void boxBlur(int[] src, int[] dst, int w, int h, int radius, boolean horizontal) {
+        int length = horizontal ? w : h;
+        int lines = horizontal ? h : w;
+        int span = 2 * radius + 1;
+        for (int line = 0; line < lines; line++) {
+            int base = horizontal ? line * w : line;
+            int step = horizontal ? 1 : w;
+            long sum = 0;
+            for (int i = -radius; i <= radius; i++) {
+                sum += src[base + Math.max(0, Math.min(length - 1, i)) * step];
+            }
+            for (int i = 0; i < length; i++) {
+                dst[base + i * step] = (int) (sum / span);
+                sum += src[base + Math.min(length - 1, i + radius + 1) * step]
+                    - src[base + Math.max(0, i - radius) * step];
+            }
+        }
+    }
+
+    /** 흐림 반경(픽셀). 찾은 얼굴 폭에 비례해 해상도가 달라도 흐린 정도가 같다. */
+    static int blurRadius(double faceWidth) {
+        return Math.max(MIN_RADIUS, (int) Math.round(faceWidth / BLUR_PER_FACE));
     }
 
     private static int clamp(int value, int limit) {

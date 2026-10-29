@@ -40,7 +40,9 @@ coach_conversations.status — 회차의 코치 대화.
 
 ## 규칙·제약
 - 열린 대화는 같은 id로 재개하고(앱: 「대화 이어 가기」·「대화 중」 줄), 닫힌 뒤 다시 코칭하려면 새 회차(practice.resume)다. 앱의
-  닫힌 대화 화면은 「다음 테이크 찍기」로 새 영상을 골라 새 회차를 연다(SOMA-672). 옛 자료의 복수 대화는 옛 읽기 경로로만
+  닫힌 대화 화면은 「다음 테이크 찍기」로 새 영상을 골라 새 회차를 연다(SOMA-672). 닫힌 대화를 다시 여는 길(SOMA-782)은 대화
+  끝의 옅은 파랑 「대화 이어 가기」 카드이고, 아래 고정 바는 「다음 테이크 찍기」 위 · 「일지 쓰고 마치기」 맨 아래다. 코치 말 속
+  「0:38」 같은 시간은 파란 굵은 글자로, 누르면 영상이 그 초부터 재생된다(영상 있는 회차만). 옛 자료의 복수 대화는 옛 읽기 경로로만
   본다([「0.1.0 스키마 전환」](README.md#010-스키마-전환)).
 - 시작 요청의 request_id는 대화의 start_request_id이고(영상만 올린 첫 시작에는 배우 메시지가 없다), 배우 메시지는
   (conversation_id, request_id) 유일이다. 재전송은 [공통 규칙 「요청 재전송」](../common.md#요청-재전송)을 따르고, 대화를 닫은 답장의
@@ -564,7 +566,7 @@ false를 명시하면 위의 분류·지침 경로로 돌아간다(롤백). dev 
 - `scene`: AI가 본 장면(situation·character·partner, 모르는 칸은 빈 문자열). 배우가 대화에서 바로잡으면 코치가 고친 값을 낸다.
 - `lines`: 받아 적은 대사와 영상 시간(초). 소리가 없거나 대사를 확인하지 못했으면 빈 목록이다.
 - `card`: 결과 카드(good·issue·next, 각 `at`·`text`). 평가 받기의 첫 답·다른 곳·정리, 막힌 곳 정리에서 채운다.
-- `character_card.cells`: 인물 카드 칸(key who·before·relation·want·obstacle·action, label, value, source 내 말·같이 찾음·영상·대본).
+- `character_card.cells`: 인물 카드 칸(key who·before·relation·want·obstacle·action, label, value, source 내 말·같이 찾음·영상·대본). 앱은 칸 이름과 값만 보이고 source 는 보이지 않는다(역할 코드가 그대로 보이던 자리).
 
 ### 영상 없이 말로 (SOMA-745)
 영상 없이 시작한 회차([practice.start](start.md#규칙제약))는 같은 목적별 코칭을 영상 없는 모드로 탄다. 별도 코치가 아니다.
@@ -585,6 +587,10 @@ false를 명시하면 위의 분류·지침 경로로 돌아간다(롤백). dev 
   정해진 마무리 문장은 올릴 테이크가 없어 「오늘은 여기까지 해요. 다음에 또 이야기해요.」(영어 "That's it for today. Let's talk again next
   time.")다. 영상 있는 회차는 「오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.」 그대로다.
 - 응답 `purpose.purpose` 는 저장된 목적 그대로(stuck·character·concern)이고, `step` 은 위 표의 단계다. 영상 시간(`at`)은 늘 null, `lines` 는 빈 목록이다.
+
+### 리딩 녹음으로 (SOMA-791)
+목적 reading 회차는 영상 대신 리딩 녹음을 이은 소리와 대본을 받고 hear(들린 것) → try(해 볼 것) → wrap(정리·영상 권유)로 간다.
+정리 뒤 물음에는 말로 하는 코칭처럼 답한다. 규칙·프롬프트는 [reading.voice-coaching](../reading/voice-coaching.md).
 
 ### 얼굴 가리기
 얼굴 가리기를 켠 회차([practice.start](start.md#규칙제약))는 코치가 원본 대신 얼굴을 가린 사본만 모델에 올린다. 분석 작업이 미리 준비한

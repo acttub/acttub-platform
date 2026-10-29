@@ -802,4 +802,130 @@ class SplitDraftTest {
         assertThat(draft.lines()).extracting(ScriptDraft.Line::text).containsExactly("나한테는 말해도 되잖아.", "왜 자꾸 숨겨?", "그래.", "Anna 왜?");
         assertThat(draft.characterNames()).contains("배우1 NA", "배우1");
     }
+
+    @Test
+    @DisplayName("SOMA-903: 제 머리를 단 대사 뒤 같은 화자로 판정된 줄이 다른 배역 이름표로 시작하면 앞 대사에 붙이지 않고 그 배역의 대사다")
+    void doesNotGlueLineStartingWithAnotherLabel() {
+        String raw = """
+                등장인물
+                지수 – 카페 주인
+                민호의 친구들[(1)구두쇠, (2)허세남]
+                구두쇠 저기요! 잠깐만요!
+                지수 (목소리를 바꿔서) 네?
+                구두쇠 제 동전 밟으셨어요!
+                지수 아, 네 죄송해요!
+                구두쇠 됐어요, 그냥 가세요.
+                """;
+        List<NumberedLine> lines = NumberedLine.of(raw);
+        // 나누기 답이 6 의 화자를 비워 앞 대사 화자(지수)로 채워진 꼴 — 머리도 비었다
+        Map<Integer, Row> rows = new LinkedHashMap<>();
+        rows.put(1, new Row(1, Kind.CAST, "", ""));
+        rows.put(2, new Row(2, Kind.CAST, "", ""));
+        rows.put(3, new Row(3, Kind.CAST, "", ""));
+        rows.put(4, new Row(4, Kind.DIALOGUE, "구두쇠", "구두쇠 "));
+        rows.put(5, new Row(5, Kind.DIALOGUE, "지수", "지수 "));
+        rows.put(6, new Row(6, Kind.DIALOGUE, "지수", ""));
+        rows.put(7, new Row(7, Kind.DIALOGUE, "지수", "지수 "));
+        rows.put(8, new Row(8, Kind.DIALOGUE, "구두쇠", "구두쇠 "));
+
+        ScriptDraft draft = SplitDraft.assemble(null, raw, "file", lines, rows, List.of("지수", "구두쇠", "허세남"));
+
+        assertThat(spoken(draft)).containsExactly("구두쇠|저기요! 잠깐만요!", "지수|(목소리를 바꿔서) 네?", "구두쇠|제 동전 밟으셨어요!",
+                "지수|아, 네 죄송해요!", "구두쇠|됐어요, 그냥 가세요.");
+
+        // 모델이 이름표 「구두쇠」를 화자로 한 번도 쓰지 않았어도(목록의 소개 줄 이름을 썼어도) 등장인물 소개에 나온 이름표면 그 배역이다
+        Map<Integer, Row> junk = new LinkedHashMap<>(rows);
+        junk.put(4, new Row(4, Kind.DIALOGUE, "민호의 친구들[(1)구두쇠, (2)허세남]", ""));
+        junk.put(8, new Row(8, Kind.DIALOGUE, "민호의 친구들[(1)구두쇠, (2)허세남]", ""));
+        assertThat(spoken(SplitDraft.assemble(null, raw, "file", lines, junk, List.of())))
+                .contains("지수|(목소리를 바꿔서) 네?", "구두쇠|제 동전 밟으셨어요!");
+    }
+
+    @Test
+    @DisplayName("SOMA-903: 호칭이 붙은 이름·쌍점 머리 대본의 지문·띄움 모양이 다른 이름은 다른 배역 이름표로 보지 않고 지금처럼 앞 대사에 잇는다")
+    void keepsGluingNamesInsideSpeech() {
+        // 「민호 씨가 …」는 지수 대사 속 이름이다(운영 대본 759편 대조에서 나온 꼴)
+        String titled = """
+                민호 안녕하세요.
+                지수 아버지한테 미리 말해 두는 게 낫겠네요.
+                민호 씨가 오늘 찾아올지도 몰라요.
+                민호 네, 그럴게요.
+                """;
+        Map<Integer, Row> titledRows = new LinkedHashMap<>();
+        titledRows.put(1, new Row(1, Kind.DIALOGUE, "민호", "민호 "));
+        titledRows.put(2, new Row(2, Kind.DIALOGUE, "지수", "지수 "));
+        titledRows.put(3, new Row(3, Kind.DIALOGUE, "지수", ""));
+        titledRows.put(4, new Row(4, Kind.DIALOGUE, "민호", "민호 "));
+        assertThat(spoken(SplitDraft.assemble(null, titled, "file", NumberedLine.of(titled), titledRows, List.of("지수", "민호"))))
+                .noneMatch(line -> line.startsWith("민호|씨가"));
+
+        // 쌍점 머리 대본에서 부호 없는 「경비 퇴장하면,」은 이름표가 아니다
+        String colon = """
+                경비 : 어서 오세요.
+                지수 : 네 수고하세요.
+                경비 퇴장하면,
+                경비 : 안녕히 가세요.
+                """;
+        Map<Integer, Row> colonRows = new LinkedHashMap<>();
+        colonRows.put(1, new Row(1, Kind.DIALOGUE, "경비", "경비 : "));
+        colonRows.put(2, new Row(2, Kind.DIALOGUE, "지수", "지수 : "));
+        colonRows.put(3, new Row(3, Kind.DIALOGUE, "지수", ""));
+        colonRows.put(4, new Row(4, Kind.DIALOGUE, "경비", "경비 : "));
+        assertThat(spoken(SplitDraft.assemble(null, colon, "file", NumberedLine.of(colon), colonRows, List.of("지수", "경비"))))
+                .noneMatch(line -> line.startsWith("경비|퇴장하면"));
+
+        // 이름 뒤를 여러 칸 띄우는 대본에서 한 칸 띄운 「민호 김.」은 부르는 말이다
+        String spaced = """
+                민호   안녕.
+                지수   (다가가며)
+                민호 김. 이렇게 가까이 있다니.
+                민호   반가워.
+                """;
+        Map<Integer, Row> spacedRows = new LinkedHashMap<>();
+        spacedRows.put(1, new Row(1, Kind.DIALOGUE, "민호", "민호   "));
+        spacedRows.put(2, new Row(2, Kind.DIALOGUE, "지수", "지수   "));
+        spacedRows.put(3, new Row(3, Kind.DIALOGUE, "지수", ""));
+        spacedRows.put(4, new Row(4, Kind.DIALOGUE, "민호", "민호   "));
+        assertThat(spoken(SplitDraft.assemble(null, spaced, "file", NumberedLine.of(spaced), spacedRows, List.of("지수", "민호"))))
+                .noneMatch(line -> line.startsWith("민호|김."));
+    }
+
+    @Test
+    @DisplayName("2026-10-27: 다른 배역 이름으로 시작해도 원문이 그 이름을 이름표로 두 줄 이상 쓰지 않았거나 앞 줄이 줄 너비에서 끊겼으면 앞 대사에 잇는다")
+    void keepsGluingVocativesAndWrappedLines() {
+        // 「수진 」으로 시작하는 줄이 하나뿐이면 이름표가 아니라 부르는 말일 수 있다 — 앞 대사에 잇는다
+        String once = """
+                민호 오늘 누가 와?
+                지수 수진이요.
+                민호 그래?
+                수진 그 사람 정말 와?
+                """;
+        Map<Integer, Row> onceRows = new LinkedHashMap<>();
+        onceRows.put(1, new Row(1, Kind.DIALOGUE, "민호", "민호 "));
+        onceRows.put(2, new Row(2, Kind.DIALOGUE, "지수", "지수 "));
+        onceRows.put(3, new Row(3, Kind.DIALOGUE, "민호", "민호 "));
+        onceRows.put(4, new Row(4, Kind.DIALOGUE, "민호", ""));
+        assertThat(spoken(SplitDraft.assemble(null, once, "file", NumberedLine.of(once), onceRows, List.of("민호", "지수", "수진"))))
+                .endsWith("민호|그래? 수진 그 사람 정말 와?");
+
+        // 앞 줄이 문서 줄 너비에서 문장 끝 부호 없이 끊겼으면 다음 줄 첫 낱말이 이름이어도 그 말을 잇는 줄이다
+        String wrapped = """
+                지수 오늘은 정말 하고 싶은 말이 많아서 이렇게 길게 늘어놓고 있는데 그래서
+                민호 너도 들어 줬으면 좋겠어
+                민호 응.
+                지수 고마워.
+                """;
+        Map<Integer, Row> wrappedRows = new LinkedHashMap<>();
+        wrappedRows.put(1, new Row(1, Kind.DIALOGUE, "지수", "지수 "));
+        wrappedRows.put(2, new Row(2, Kind.DIALOGUE, "지수", ""));
+        wrappedRows.put(3, new Row(3, Kind.DIALOGUE, "민호", "민호 "));
+        wrappedRows.put(4, new Row(4, Kind.DIALOGUE, "지수", "지수 "));
+        assertThat(spoken(SplitDraft.assemble(null, wrapped, "file", NumberedLine.of(wrapped), wrappedRows, List.of())).getFirst())
+                .isEqualTo("지수|오늘은 정말 하고 싶은 말이 많아서 이렇게 길게 늘어놓고 있는데 그래서 민호 너도 들어 줬으면 좋겠어");
+    }
+
+    private static List<String> spoken(ScriptDraft draft) {
+        return draft.lines().stream().filter(line -> line.characterIndex() != null)
+                .map(line -> draft.characterNames().get(line.characterIndex()) + "|" + line.text()).toList();
+    }
 }

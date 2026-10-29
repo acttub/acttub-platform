@@ -3,17 +3,14 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
-/** 묶음 안에서의 자리 — 첫 줄은 위가, 끝 줄은 아래가 크게 둥글다(pen 설정 묶음: 18 / 6). */
-export type SettingsCardPosition = 'single' | 'first' | 'middle' | 'last';
-
 /**
- * pen 「설정 카드」(S2/SetCard) — 흰 바탕 · 1px `border` 테두리 · 안쪽 16 · 칸 사이 14.
- * 왼쪽 파란 아이콘(18, 44 칸) · 제목 15.5/800 · 4 띄워 설명 12.5/400 #8B95A1 · 꺾쇠 18.
- * 묶음 안 카드는 사이 6, 모서리는 첫 줄 위 18 · 끝 줄 아래 18 · 나머지 6.
- * `right`를 주면 꺾쇠 대신 그것(스위치 등)을 둔다.
+ * 테두리 카드 줄 — 화면 pen 「ListRow/Card」(설정·알림 설정). 흰 바탕 · 1px `border` · r-lg · 안쪽 16 · 칸 사이 12.
+ * 왼쪽 아이콘 20(`text-sub`), `iconCircle`이면 40 `blue-soft` 원 안 `blue-deep` 아이콘. 제목 body1-bold · 2 띄워 설명 caption `text-meta`.
+ * 오른쪽은 꺾쇠 18(`icon-faint`), `right`를 주면 그것(스위치 등)을 둔다.
  */
 export function SettingsCard({
   icon,
@@ -21,22 +18,19 @@ export function SettingsCard({
   sub,
   onPress,
   right,
-  iconColor = palette.blue,
-  position = 'single',
+  iconCircle,
 }: {
   icon: FeatherName;
   title: string;
   sub?: string;
   onPress?: (e?: GestureResponderEvent) => void;
   right?: ReactNode;
-  iconColor?: string;
-  position?: SettingsCardPosition;
+  iconCircle?: boolean;
 }) {
   const body = (
     <>
-      <View style={styles.iconCell}>
-        <Feather name={icon} size={18} color={iconColor} />
-      </View>
+      {/* 원형 아이콘 바탕은 쓰지 않는다(UX 가이드 6절 「칸칸」 금지). iconCircle 은 예전 호출과의 호환용이다. */}
+      <Feather name={icon} size={20} color={iconCircle ? palette.blueDeep : palette.textSub} />
       <View style={styles.body}>
         <Text style={styles.title}>{title}</Text>
         {!!sub && <Text style={styles.sub}>{sub}</Text>}
@@ -44,11 +38,10 @@ export function SettingsCard({
       {right ?? (onPress ? <Feather name="chevron-right" size={18} color={palette.iconFaint} /> : null)}
     </>
   );
-  const shape = radiusFor(position);
-  if (!onPress) return <View style={[styles.card, shape]}>{body}</View>;
+  if (!onPress) return <View style={styles.card}>{body}</View>;
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, shape, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={title}>
@@ -57,28 +50,19 @@ export function SettingsCard({
   );
 }
 
-function radiusFor(position: SettingsCardPosition) {
-  const big = 18;
-  const small = 6;
-  if (position === 'single') return { borderRadius: big };
-  if (position === 'first') return { borderTopLeftRadius: big, borderTopRightRadius: big, borderBottomLeftRadius: small, borderBottomRightRadius: small };
-  if (position === 'last') return { borderTopLeftRadius: small, borderTopRightRadius: small, borderBottomLeftRadius: big, borderBottomRightRadius: big };
-  return { borderRadius: small };
-}
-
 const styles = StyleSheet.create({
+  // 테두리 상자 없는 줄(UX 가이드 6절, 10/16·10/18 — 목록·메뉴 줄마다 상자를 씌우지 않는다).
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
+    gap: space[3],
+    paddingVertical: space[3],
+    minHeight: 56,
+    borderRadius: radius.sm,
     backgroundColor: palette.bg,
   },
   pressed: { backgroundColor: palette.bgSubtle },
-  iconCell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  body: { flex: 1, minWidth: 0, gap: 4 },
-  title: { fontSize: 15.5, fontWeight: '800', lineHeight: 21, color: palette.text },
-  sub: { fontSize: 12.5, fontWeight: '400', lineHeight: 18, color: palette.textMeta },
+  body: { flex: 1, minWidth: 0, gap: 2 },
+  title: { ...type.body1Bold, color: palette.text },
+  sub: { ...type.caption, color: palette.textMeta },
 });

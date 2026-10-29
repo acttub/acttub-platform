@@ -18,7 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
 class FaceMosaicFfmpegTest {
     @TempDir Path temporary;
 
-    @Test void aVideoWithAFaceComesBackPixelatedWithItsSound() throws Exception {
+    @Test void aVideoWithAFaceComesBackWithTheFaceBlurredAndItsSound() throws Exception {
         Path source = video("take");
         // 프레임 가운데에 늘 얼굴이 있다고 한다.
         var renderer = new FaceMosaicRenderer(() -> (bgr, width, height) ->
@@ -29,11 +29,13 @@ class FaceMosaicFfmpegTest {
         assertThat(out).exists().hasParent(source.toAbsolutePath().getParent());
         assertThat(Files.size(out)).isPositive();
         assertThat(streams(out)).contains("video", "audio");
-        // 가운데 칸 안은 한 색이다(평균으로 칠했다).
+        // testsrc 는 x=160 에 파랑→노랑 경계가 세로로 선다. 얼굴 타원(가운데 y≈230) 안에서는 그 경계가 흐려지고,
+        // 타원 아래(y=320, 목 자리)에서는 그대로 날카롭다.
+        byte[] original = firstFrame(source, 320, 480);
         byte[] frame = firstFrame(out, 320, 480);
-        int center = (240 * 320 + 160) * 3;
-        int neighbour = (242 * 320 + 162) * 3;
-        assertThat(Math.abs((frame[center] & 0xff) - (frame[neighbour] & 0xff))).isLessThanOrEqualTo(6);
+        assertThat(maxStep(original, 230)).isGreaterThan(100);
+        assertThat(maxStep(frame, 230)).isLessThan(64);
+        assertThat(maxStep(frame, 320)).isGreaterThan(100);
         Files.delete(out);
     }
 
@@ -61,6 +63,16 @@ class FaceMosaicFfmpegTest {
         String out = new String(probe.getInputStream().readAllBytes());
         probe.waitFor(30, TimeUnit.SECONDS);
         return out;
+    }
+
+    /** 한 줄의 x 140~180 에서 이웃 화소 사이 파랑 값 차이의 최댓값. */
+    private static int maxStep(byte[] frame, int y) {
+        int max = 0;
+        for (int x = 140; x < 180; x++) {
+            int p = (y * 320 + x) * 3;
+            max = Math.max(max, Math.abs((frame[p] & 0xff) - (frame[p + 3] & 0xff)));
+        }
+        return max;
     }
 
     private static byte[] firstFrame(Path file, int width, int height) throws Exception {

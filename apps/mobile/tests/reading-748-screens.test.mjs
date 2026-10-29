@@ -89,7 +89,8 @@ test('대본 넣기: 파일·글 붙여넣기·대본 같이 만들기 셋 중 �
 
 test('대본 넣기: 사진 탭과 「다른 거 하고 있을게요」(알림)는 없다', () => {
   const screen = src('app/reading/new.tsx');
-  assert.doesNotMatch(screen, /tabPhoto|splitLeave/);
+  assert.doesNotMatch(screen, /tabPhoto/);
+  assert.doesNotMatch(src('locales/ko.ts'), /다른 거 하고 있을게요/);
   assert.match(screen, /isSplitFailure\(/);
 });
 
@@ -115,10 +116,14 @@ test('첫 리딩 안내는 기기에 한 번 본 것으로 남고, 못 읽으면
 test('리딩 실행: 시작 전 안내는 팝업 대신 아래 [시작]이고, 첫 리딩 안내는 진행 상태로만 띄운다', () => {
   const play = src('app/reading/play.tsx');
   assert.match(play, /t\(monologue \? 'reading\.monologueStartHint' : 'reading\.startHint'\)/);
-  assert.match(play, /onPress=\{\(\) => void closeTip\(false\)\}/);
+  assert.match(play, /onPress=\{\(\) => void closeTip\(\)\}/);
+  // 「시작하고 이 안내는 다음부터 숨기기」는 없다 — [시작]이 곧 다음부터 숨기기다(10/29).
+  assert.doesNotMatch(play, /startSkipNext/);
   assert.doesNotMatch(play, /visible=\{hold === 'tip'\}/);
-  assert.match(play, /<ReadingGuideOverlay onClose=\{closeGuide\} \/>/);
-  assert.match(play, /myTurnsBefore >= 1/);
+  // 첫 리딩 안내는 화면을 덮는 버튼 설명이 아니라, 지금 차례에 맞는 말풍선을 하나씩 띄운다(10/29 되살림).
+  assert.doesNotMatch(play, /ReadingGuideOverlay/);
+  assert.match(play, /coachMarkFor\(\{ done: coachDone/);
+  assert.match(play, /<ReadingCoachMark/);
 });
 
 test('리딩 → 코칭: 대본 제목·장면을 상황 칸에, 내 배역을 인물 칸에 채우고 원하는 것은 비운다(SOMA-772)', async () => {
@@ -142,7 +147,8 @@ test('리딩 3번: 첫 연습 구간의 내 대사는 내 배역이 든 함께 �
   const lines = [...Array.from({ length: 9 }, () => d('태오')), d('윤서, 태오'), d('윤서'), d('윤서')];
   assert.equal(firstPracticeRange(lines, ['윤서']), null, '이름 줄만 보면 내 대사가 없다');
   assert.deepEqual(firstPracticeRange(lines, ['윤서', '윤서, 태오'])?.myCount, 1);
-  assert.match(src('app/reading/range.tsx'), /firstPracticeRange\(lines, myTurnRoles\)/);
+  // 구간 고르기는 더 이상 처음 10줄을 추천하지 않는다 — 리딩 화면이 10줄씩 끊어 보인다(SOMA-934).
+  assert.doesNotMatch(src('app/reading/range.tsx'), /firstPracticeRange\(/);
   assert.match(src('app/reading/range.tsx'), /fewLines\(lines, myTurnRoles,/);
   assert.match(src('app/reading/range.tsx'), /roleLineCount\(c, lines, script\.characters\)/);
 });

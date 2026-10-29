@@ -15,7 +15,7 @@ class PosterRulesMissingFieldTest {
     private static PosterDraft draft(String slug, List<String> platforms, String minAppVersion, Instant endsAt,
             String frequency, String audience, String audio, String ctaAction) {
         return new PosterDraft(slug, true, 1, START, endsAt, platforms, null, minAppVersion, frequency, audience,
-                true, null, "제목", "본문", null, audio, null, ctaAction, null);
+                true, null, "제목", "본문", null, audio, null, ctaAction, null, null, null);
     }
 
     private static PosterDraft valid() {

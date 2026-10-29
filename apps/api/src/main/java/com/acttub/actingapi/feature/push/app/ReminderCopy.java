@@ -28,5 +28,12 @@ public record ReminderCopy(ReminderKind kind, int skippedDays, String templateId
         return data;
     }
 
+    /** 비교군(SOMA-870)에게는 보내지 않고 이 문구를 보냈을 자리만 남긴다. 기록의 template_id 앞에 이 표시가 붙는다. */
+    public static final String HOLDOUT_PREFIX = "holdout:";
+
+    public ReminderCopy asHoldout() {
+        return new ReminderCopy(kind, skippedDays, HOLDOUT_PREFIX + templateId, title, body, conversationId, practiceId, videoId, scriptId);
+    }
+
     public PushMessage messageTo(String token) { return new PushMessage(token, title, body, data()); }
 }

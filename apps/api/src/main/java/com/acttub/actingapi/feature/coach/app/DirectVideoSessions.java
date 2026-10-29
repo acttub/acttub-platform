@@ -18,6 +18,7 @@ import com.acttub.actingapi.integration.observation.DirectVideoModel;
 import com.acttub.actingapi.integration.observation.DirectVideoModel.Message;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -70,6 +71,7 @@ public final class DirectVideoSessions implements AutoCloseable {
     public View get(UUID owner, UUID id) { return view(owned(owner, id)); }
 
     public View send(UUID owner, UUID id, String text) {
+        if (!InputCharset.readable(text)) throw new ApiException(400, "unreadable_text");
         Session session = owned(owner, id);
         synchronized (session) {
             if (session.messages.size() >= 19) throw new ApiException(409, "direct_video_turn_limit");

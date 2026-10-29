@@ -11,7 +11,7 @@
 어절만 노랗게 칠하고 말한 것을 아래에 둔다([reading.session](session.md#규칙제약)). 웹 암기 대조는 넘어가기·다시·원문
 보기·아직 안 나온 줄로 보여 준다. (상대역 리딩 흐름 메모, 기획 6절)
 실험 기능 [reading.voice-feedback](voice-feedback.md)(기본 꺼짐)은 이 원칙의 예외로 다르게 들린 어구를 보인다 — 정식 도입은 제품 결정이 필요하다.
-실험 기능 [reading.recording-coach](recording-coach.md)(기본 꺼짐, 회원 전용)는 이 원칙과 아래 「서버는 음성을 분석하지 않는다」의 예외다 — 녹음을 AI 코치가 듣고 들린 것 하나를 짚는다.
+[reading.voice-coaching](voice-coaching.md)(리딩 녹음으로 코칭 받기, 기본 꺼짐)는 이 원칙과 아래 「서버는 음성을 분석하지 않는다」의 예외다 — 녹음을 AI 코치가 듣고 들린 것 하나를 짚는다.
 
 서버는 음성을 분석하지 않는다. 침묵 감지와 말한 것을 글자로 바꾸기(STT)는 우리 서버에서 돌지 않는다. 배역 나누기는 서버가
 한다 — 대본 글을 OpenAI(gpt-6-luna)로 보내 배역·대사로 나누며([reading.script](script.md#규칙제약) 「나누기 작업」), 이 처리는

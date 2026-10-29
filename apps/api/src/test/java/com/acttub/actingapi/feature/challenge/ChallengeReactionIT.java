@@ -12,7 +12,12 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.challenge.app.AiReportRepository;
 import com.acttub.actingapi.feature.challenge.app.EntryMedia;
+import com.acttub.actingapi.feature.challenge.app.EntryModerationModel;
+import com.acttub.actingapi.feature.challenge.app.EntryModerationRepository;
+import com.acttub.actingapi.feature.challenge.app.EntryModerationVerdict;
+import com.acttub.actingapi.feature.challenge.app.EntryModerationWorker;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
@@ -52,6 +57,21 @@ class ChallengeReactionIT {
 
     @TestConfiguration
     static class Media {
+        /** AI 검사 모델이 차례로 낼 출력. 문자열은 출력, 예외는 실패다. 비면 통과를 낸다. */
+        static final java.util.Deque<Object> MODERATION = new java.util.concurrent.ConcurrentLinkedDeque<>();
+
+        @Bean @Primary EntryModerationModel stubModerationModel() {
+            return new EntryModerationModel() {
+                @Override public boolean available() { return true; }
+                @Override public Output judge(AiReportRepository.Video video, String instruction) {
+                    Object next = MODERATION.poll();
+                    if (next == null) next = "{\"verdict\":\"pass\",\"category\":\"none\"}";
+                    if (next instanceof RuntimeException failure) throw failure;
+                    return new Output((String) next, "stub-moderation");
+                }
+            };
+        }
+
         @Bean @Primary EntryMedia stubReactionMedia() {
             return new EntryMedia() {
                 @Override public int durationMs(String objectKey) { return 30_000; }
@@ -78,12 +98,15 @@ class ChallengeReactionIT {
     @Autowired JwtService jwt;
     @Autowired MutableClock clock;
     @Autowired EntryRepository entryRepository;
+    @Autowired EntryModerationWorker moderationWorker;
+    @Autowired EntryModerationRepository moderationRepository;
     UUID me;
     String bearer;
     UUID challenge;
 
     @BeforeEach void prepare() {
         clock.set(NOW);
+        Media.MODERATION.clear();
         jdbc.execute("TRUNCATE users,challenges RESTART IDENTITY CASCADE");
         me = member("나");
         bearer = token(me);
@@ -468,6 +491,97 @@ class ChallengeReactionIT {
     }
 
     // ── 도우미 ──────────────────────────────────────────────────────────────
+
+    // ── 공개 참여작 AI 검사 (SOMA-907) ─────────────────────────────────────
+
+    @Test void challengeModeration_aHideVerdictHidesTheEntryAndQueuesAnAiReportThatOpsCanRestore() throws Exception {
+        UUID entry = entry(challenge, member("배우"));
+        pending(entry);
+        Media.MODERATION.add("{\"verdict\":\"hide\",\"category\":\"sexual\",\"reason\":\"노출이 있다\"}");
+        assertThat(moderationWorker.runOnce()).isTrue();
+        assertThat(moderationWorker.runOnce()).isFalse();
+        assertThat(jdbc.queryForMap("SELECT status,moderation_status,moderation_model FROM challenge_entries WHERE id=?", entry))
+                .containsEntry("status", "hidden_by_report").containsEntry("moderation_status", "flagged")
+                .containsEntry("moderation_model", "stub-moderation");
+        var ai = jdbc.queryForMap("SELECT id,reporter_id,source,reason,note,status FROM entry_reports WHERE target_id=?", entry);
+        assertThat(ai).containsEntry("source", "ai").containsEntry("reason", "inappropriate").containsEntry("status", "received");
+        assertThat(ai.get("reporter_id")).isNull();
+        assertThat((String) ai.get("note")).isEqualTo("AI 검사: 숨김 (sexual) 노출이 있다");
+        JsonNode queue = response(get("/v2/admin/reports"), 200, OPS);
+        assertThat(queue.at("/reports/0/id").asText()).isEqualTo(ai.get("id").toString());
+        assertThat(queue.at("/reports/0/target_state").asText()).isEqualTo("hidden_by_report");
+        resolve(ai.get("id").toString(), "restored", 200);
+        assertThat(jdbc.queryForMap("SELECT status,moderation_status FROM challenge_entries WHERE id=?", entry))
+                .containsEntry("status", "visible").containsEntry("moderation_status", "passed");
+        // 사람이 보고 푼 영상은 한 사람의 신고로 내려가지 않는다.
+        response(post("/v2/reports").content(report("entry", entry.toString(), "spam", null)), 201, token(member("첫 신고자")));
+        assertThat(entryStatus(entry)).isEqualTo("visible");
+        response(post("/v2/reports").content(report("entry", entry.toString(), "spam", null)), 201, token(member("둘째 신고자")));
+        assertThat(entryStatus(entry)).isEqualTo("hidden_by_report");
+    }
+
+    @Test void challengeModeration_passReviewAndFailureKeepTheEntryVisibleAndOnlyNonPassedOnesHideOnOneReport() throws Exception {
+        UUID passed = entry(challenge, member("통과"));
+        pending(passed);
+        assertThat(moderationWorker.runOnce()).isTrue();
+        assertThat(moderationOf(passed)).isEqualTo("passed");
+        assertThat(count("entry_reports")).isZero();
+        String single = response(post("/v2/reports").content(report("entry", passed.toString(), "inappropriate", null)), 201,
+                token(member("신고 1"))).path("id").asText();
+        assertThat(entryStatus(passed)).isEqualTo("visible");
+        // 운영이 숨김 유지를 고르면 아직 보이던 참여작도 숨긴다.
+        resolve(single, "kept_hidden", 200);
+        assertThat(entryStatus(passed)).isEqualTo("hidden_by_report");
+
+        UUID unsure = entry(challenge, member("애매"));
+        pending(unsure);
+        Media.MODERATION.add("{\"verdict\":\"review\",\"category\":\"unrelated\",\"reason\":\"연기가 아닌 화면 녹화\"}");
+        assertThat(moderationWorker.runOnce()).isTrue();
+        assertThat(entryStatus(unsure)).isEqualTo("visible");
+        assertThat(moderationOf(unsure)).isEqualTo("review");
+        assertThat(jdbc.queryForObject("SELECT reason FROM entry_reports WHERE target_id=? AND source='ai'", String.class, unsure))
+                .isEqualTo("other");
+        response(post("/v2/reports").content(report("entry", unsure.toString(), "spam", null)), 201, token(member("신고 2")));
+        assertThat(entryStatus(unsure)).isEqualTo("hidden_by_report");
+
+        UUID broken = entry(challenge, member("실패"));
+        pending(broken);
+        for (int i = 0; i < 3; i++) {
+            Media.MODERATION.add(new IllegalStateException("model timeout"));
+            assertThat(moderationWorker.runOnce()).isTrue();
+        }
+        assertThat(moderationWorker.runOnce()).isFalse();
+        assertThat(jdbc.queryForMap("SELECT status,moderation_status,moderation_attempts FROM challenge_entries WHERE id=?", broken))
+                .containsEntry("status", "visible").containsEntry("moderation_status", "failed").containsEntry("moderation_attempts", 3);
+        assertThat(jdbc.queryForObject("SELECT note FROM entry_reports WHERE target_id=? AND source='ai'", String.class, broken))
+                .isEqualTo(EntryModerationVerdict.failureNote());
+    }
+
+    @Test void challengeModeration_aVerdictForAnOlderCaptionIsDropped() {
+        UUID entry = entry(challenge, member("배우"));
+        pending(entry);
+        var job = moderationRepository.claim(3, NOW);
+        assertThat(job.entryId()).isEqualTo(entry);
+        assertThat(job.line()).startsWith("대사 ");
+        jdbc.update("UPDATE challenge_entries SET caption='바뀐 캡션',content_version=2,moderation_attempts=0 WHERE id=?", entry);
+        moderationRepository.judged(job, new EntryModerationVerdict(EntryModerationVerdict.Decision.HIDE, "spam", "광고"),
+                "stub-moderation", NOW);
+        assertThat(entryStatus(entry)).isEqualTo("visible");
+        assertThat(moderationOf(entry)).isEqualTo("pending");
+        assertThat(count("entry_reports")).isZero();
+    }
+
+    private void pending(UUID entry) {
+        jdbc.update("UPDATE challenge_entries SET moderation_status='pending' WHERE id=?", entry);
+    }
+
+    private String moderationOf(UUID entry) {
+        return jdbc.queryForObject("SELECT moderation_status FROM challenge_entries WHERE id=?", String.class, entry);
+    }
+
+    private String entryStatus(UUID entry) {
+        return jdbc.queryForObject("SELECT status FROM challenge_entries WHERE id=?", String.class, entry);
+    }
 
     private UUID member(String name) {
         UUID id = UUID.randomUUID();

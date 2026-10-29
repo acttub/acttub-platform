@@ -25,11 +25,17 @@ public class PushService implements AnalysisCompletionListener {
     public static final Set<String> PLATFORMS = Set.of("ios", "android");
 
     private final PushTokenRepository tokens;
+    private final PushOpenRepository opens;
     private final PushSender sender;
     private final FailureReporter failureReporter;
 
-    public PushService(PushTokenRepository tokens, PushSender sender, FailureReporter failureReporter) {
+    public PushService(
+            PushTokenRepository tokens,
+            PushOpenRepository opens,
+            PushSender sender,
+            FailureReporter failureReporter) {
         this.tokens = tokens;
+        this.opens = opens;
         this.sender = sender;
         this.failureReporter = failureReporter;
     }
@@ -41,6 +47,12 @@ public class PushService implements AnalysisCompletionListener {
      */
     public void register(UUID userId, String token, String platform, String appVersion) {
         tokens.register(userId, token, platform, appVersion);
+    }
+
+    /** 푸시를 눌러 앱을 연 한 번을 남긴다. 보낸 기록과 잇기 위한 측정이라 이 외의 일은 하지 않는다. */
+    public void recordOpen(UUID userId, String kind, String reminderKind, String templateId, String platform,
+            String appVersion) {
+        opens.record(userId, kind, reminderKind, templateId, platform, appVersion);
     }
 
     public void unregister(String token) {

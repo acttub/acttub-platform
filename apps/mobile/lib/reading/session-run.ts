@@ -21,6 +21,8 @@ export type RunConfig = {
   endIndex: number;
   /** 독백 대본이면 같은 배역 연속 대사를 묶지 않는다(SOMA-806). */
   monologue?: boolean;
+  /** 말풍선(묶음) 하나에 담는 대사 수 — 회차 응답 chunk_lines(SOMA-938). 없으면 10. */
+  chunkLines?: number;
 };
 
 export type RunState = RunConfig & {
@@ -48,7 +50,7 @@ function isMine(run: RunConfig, index: number): boolean {
 
 /** 줄이 속한 같은 배역 묶음을 구간으로 자른 것(SOMA-806). 묶음은 한 차례다. */
 function groupOf(run: RunConfig, index: number): LineGroup {
-  const g = lineGroups(run.lines, { monologue: !!run.monologue }).find((x) => x.start <= index && index <= x.end) ?? { start: index, end: index };
+  const g = lineGroups(run.lines, { monologue: !!run.monologue, maxLines: run.chunkLines }).find((x) => x.start <= index && index <= x.end) ?? { start: index, end: index };
   return { start: Math.max(g.start, run.startIndex), end: Math.min(g.end, run.endIndex) };
 }
 
@@ -286,6 +288,17 @@ export function discardOnExit(input: { started: boolean; progressSeq: number; re
 }
 
 /** 진행 저장 본문(순번은 큐가 붙인다). line_results 는 이번 실행에서 말한 내 줄을 줄 순서로. */
+/**
+ * 「그만하기」·「그만 읽기」로 끝낸 회차의 저장 위치(10/29). 끝 화면은 멈춘 판(stopped)의 마지막 읽은 줄까지를 「N줄」로 세므로,
+ * 서버에도 그다음 대사 줄을 현재 줄로 보내 이어 읽기 카드의 「K/N줄」과 같은 수가 되게 한다. 다음 대사가 없으면 멈추기 전 위치 그대로.
+ * 끝까지 간 게 아니므로 complete 는 보내지 않는다.
+ */
+export function stoppedProgressPayload(before: RunState, stopped: RunState): ReturnType<typeof progressPayload> {
+  const base = progressPayload(before);
+  const next = nextDialogue(before.lines, stopped.endIndex + 1, before.endIndex);
+  return { ...base, current_line_id: next < 0 ? base.current_line_id : before.lineIds[next], complete: false };
+}
+
 export function progressPayload(run: RunState): {
   current_line_id: string | null;
   elapsed_seconds: number;

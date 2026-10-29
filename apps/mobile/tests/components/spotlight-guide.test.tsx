@@ -44,7 +44,7 @@ test('단계마다 설명과 진행을 보이고, 다음·알겠어요로 끝까
 
   expect(screen.getByText('액티 · 1/2')).toBeOnTheScreen();
   expect(screen.getByText('여기서 연습을 시작해요')).toBeOnTheScreen();
-  expect(screen.getByText('찍어 둔 연기 영상을 올리면 질문으로 되짚어 주고, 다음 테이크에서 해볼 한 가지를 남겨요.')).toBeOnTheScreen();
+  expect(screen.getByText('찍어 둔 연기 영상을 올리면 질문으로 되짚어 주고, 다음 테이크에서 해 볼 한 가지를 남겨요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
 

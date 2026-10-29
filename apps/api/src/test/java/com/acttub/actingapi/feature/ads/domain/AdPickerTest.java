@@ -15,12 +15,12 @@ class AdPickerTest {
     private static final UUID USER = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     private static Ad direct(String slot, String large, String banner, int priority) {
-        return new Ad(UUID.randomUUID(), Ad.DIRECT, List.of(slot), "all", priority, "학원", "제1234호", "연기", "월 30만원",
+        return new Ad(UUID.randomUUID(), Ad.DIRECT, List.of(slot), "all", priority, "학원",
                 null, null, large, banner, null, "https://example.com", null);
     }
 
     private static Ad house(String slot, String audience, String headline, String path) {
-        return new Ad(UUID.randomUUID(), Ad.HOUSE, List.of(slot), audience, 0, null, null, null, null,
+        return new Ad(UUID.randomUUID(), Ad.HOUSE, List.of(slot), audience, 0, null,
                 headline, null, null, null, null, null, path);
     }
 

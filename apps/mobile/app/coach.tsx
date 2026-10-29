@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
+import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -12,10 +13,15 @@ import { CoachVideoRow } from '@/components/coach-video-row';
 import { CoachWaiting } from '@/components/coach-waiting';
 import type { MicButtonProps } from '@/components/mic-button';
 import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
-import { CoachNotice } from '@/components/ui/coach-notice';
+import { PrimaryButton, SecondaryButton, TextButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineErrorLine } from '@/components/ui/inline-error';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
 import { observedSceneLine } from '@/lib/practice/analysis-summary';
@@ -36,7 +42,9 @@ import {
 import { splitTimestamps } from '@/lib/practice/coach-timestamps';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
 import type { CoachConversation, CoachTurnResult } from '@/lib/practice/types';
+import { readingNextLine } from '@/lib/reading/voice-coaching';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
+import { hasUnreadableText, stripUnreadable } from '@/lib/practice/readable-text';
 import { newRequestId } from '@/lib/request-id';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
@@ -89,6 +97,8 @@ export default function CoachScreen() {
 function CoachTalk() {
   const router = useRouter();
   const navigation = useNavigation();
+  // 리딩 녹음으로 시작하면(SOMA-791) 첫 답까지 녹음을 듣는 시간이라 기다림 문구가 다르다.
+  const { purpose: purposeParam } = useLocalSearchParams<{ purpose?: string }>();
   const keyboardHeight = useKeyboardHeight();
   const keyboardVisible = keyboardHeight > 0;
   const [practice] = useState(() => getPractice());
@@ -109,6 +119,13 @@ function CoachTalk() {
   const [conversation, setConversation] = useState<CoachConversation | null>(null);
   const messages = useMemo(() => (conversation ? orderedMessages(conversation) : []), [conversation]);
   const [input, setInput] = useState('');
+  // 허용 범위 밖 글자(결합 기호를 쌓은 글 등)는 입력칸에 들어오지 않는다(SOMA-905). 뺀 게 있으면 한 줄 알린다.
+  const [strippedInput, setStrippedInput] = useState(false);
+  const changeInput = useCallback((text: string) => {
+    const kept = stripUnreadable(text);
+    setStrippedInput(kept !== text);
+    setInput(kept);
+  }, []);
   const inputRef = useRef<TextInput>(null);
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
@@ -279,6 +296,34 @@ function CoachTalk() {
   }, [applyResult, conversation, loop, reloadConversation, sample, waiting]);
 
   /** 닫힌 대화에서 다시 코칭하려면 새 회차다 — 「다음 테이크 찍기」로 영상을 새로 고른다(SOMA-672). */
+  const readingPurpose = conversation?.purpose?.purpose === 'reading';
+  /** 리딩 녹음 코칭이 끝나면 영상 한 줄로 같은 묶음을 이어 간다 — 다음 테이크와 같은 이어하기 길(upload → continuePractice). */
+  const readingEnd = readingPurpose && !sample && (conversation?.purpose?.step === 'wrap' || closed);
+  const [closingForVideo, setClosingForVideo] = useState(false);
+  const startReadingVideo = async () => {
+    if (!practice || !conversation || closingForVideo) return;
+    const line = readingNextLine(conversation?.purpose);
+    // 대화가 아직 열려 있으면(마무리 뒤에도 배우가 더 물을 수 있다) 이어하기가 409 라 먼저 마치기와 같은 길(reply 에 끝 신호)로 닫는다.
+    if (!closed) {
+      setClosingForVideo(true);
+      setError(null);
+      try {
+        const result = await loop.replyToCoach(buildReplyBody({ conversation, requestId: newRequestId(), text: COACH_END_WORD }), streamCallbacks);
+        if (!mountedRef.current) return;
+        applyResult(result);
+        if (!isClosed(result.conversation)) throw new Error('not closed');
+      } catch {
+        if (mountedRef.current) setError(t('coach.readingCloseFailed'));
+        return;
+      } finally {
+        if (mountedRef.current) setClosingForVideo(false);
+      }
+    }
+    setContinueOrigin({ kind: 'group', rootId: practice.rootId, practiceId: practice.practiceId });
+    clearPractice();
+    leaveThen(() => router.replace({ pathname: '/record-video', params: line ? { mode: 'ai', next: 'upload', line } : { mode: 'ai', next: 'upload' } }));
+  };
+
   const startNextTake = () => {
     if (!practice) return;
     setContinueOrigin({ kind: 'group', rootId: practice.rootId, practiceId: practice.practiceId });
@@ -349,8 +394,13 @@ function CoachTalk() {
 
   if (!practice) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <Text style={styles.errorText}>{t('coach.noPractice')}</Text>
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <StatusScreen
+          mascot={MASCOT.coach}
+          title={t('report.noPracticeTitle')}
+          body={t('report.noPracticeBody')}
+          primary={{ label: t('common.goHome'), onPress: () => router.dismissTo('/(tabs)') }}
+        />
       </SafeAreaView>
     );
   }
@@ -412,12 +462,11 @@ function CoachTalk() {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <Stack.Screen options={{ title: t('coach.fallbackTitle'), headerShadowVisible: false }} />
-        <CoachNotice
-          title={t('coach.interruptedTitle')}
-          body={t('coach.interruptedBody')}
-          primary={{ label: t('coach.interruptedResume'), onPress: () => void startConversation() }}
-          secondary={{ label: t('coach.interruptedLater'), onPress: () => leaveThen(() => router.dismissAll()) }}
-        />
+        <StatusScreen mascot={MASCOT.coach} title={t('coach.interruptedTitle')} body={t('coach.interruptedBody')} />
+        <CtaBar safeBottom={false}>
+          <TextButton label={t('coach.interruptedLater')} phLabel="coach_interrupted_later" onPress={() => leaveThen(() => router.dismissAll())} />
+          <PrimaryButton label={t('coach.interruptedResume')} phLabel="coach_interrupted_resume" onPress={() => void startConversation()} />
+        </CtaBar>
         {dialog}
       </SafeAreaView>
     );
@@ -480,12 +529,17 @@ function CoachTalk() {
           <CoachPurposeCards purpose={conversation?.purpose} hasVideo={!!sceneVideo} onSeek={(at) => seekTo(at, String(at))} />
 
           {/* 마무리 직전에만 알린다 — 남은 코치 답변 수는 보이지 않는다. */}
-          {wrapping && <Text style={styles.progressText}>{t('coach.wrapNext')}</Text>}
+          {wrapping && (
+            <View style={styles.wrapBadge}>
+              <Feather name="flag" size={12} color={palette.amber} />
+              <Text style={styles.wrapText}>{t('coach.wrapNext')}</Text>
+            </View>
+          )}
 
           {connecting && !latestQuestion && !streamText ? (
             <View style={styles.loading}>
-              <Text style={styles.loadingText}>{t('coach.wrapping')}</Text>
-              <Text style={styles.loadingHint}>{t('coach.wrappingHint')}</Text>
+              <Text style={styles.loadingText}>{t(purposeParam === 'reading' ? 'coach.listeningRecording' : 'coach.wrapping')}</Text>
+              <Text style={styles.loadingHint}>{t(purposeParam === 'reading' ? 'coach.listeningRecordingHint' : 'coach.wrappingHint')}</Text>
             </View>
           ) : (
             // 카톡처럼 쌓이는 대화(10/23 pen) — 코치 말은 왼쪽 마스코트 말풍선, 내 답은 오른쪽 파란 말풍선. 지난 문답을 접지 않는다.
@@ -540,7 +594,7 @@ function CoachTalk() {
             </View>
           )}
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          {error && <InlineErrorLine message={error} />}
           {openFailed && !REOPEN_USELESS.has(startFailureKind ?? '') && (
             <SecondaryButton label={t('coach.reconnect')} onPress={() => void startConversation()} />
           )}
@@ -549,25 +603,51 @@ function CoachTalk() {
             <>
               <Text style={styles.doneText}>{conversation?.close_reason === 'system_failure'
                 ? t('coach.doneFailure') : practice.note ? t('coach.doneNormal') : t('coach.doneShort')}</Text>
+              {/* 「대화 이어 가기」는 아래 버튼 줄이 아니라 대화 끝의 옅은 파랑 카드다. 예시 회차는 서버에 없어 이어 갈 수 없다. */}
               {canContinueConversation(conversation, sample) && (
                 <Pressable
                   onPress={() => void continueTalk()}
                   disabled={waiting}
-                  style={styles.continueTalk}
+                  style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
                   accessibilityRole="button"
+                  accessibilityLabel={t('coach.continueTalk')}
+                  ph-label="coach_continue_talk"
                   testID="coach-continue-talk">
-                  <Text style={styles.continueTalkText}>{t('coach.continueTalk')}</Text>
+                  <Image source={MASCOT.coach} style={MASCOT_SIZE.chat} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+                  <View style={styles.continueText}>
+                    <Text style={styles.continueTitle}>{t('coach.continueTalk')}</Text>
+                    <Text style={styles.continueSub}>{t('coach.continueTalkSub')}</Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color={palette.blueDeep} />
                 </Pressable>
-              )}
-              <PrimaryButton label={practice.note ? t('coach.seeSummary') : t('coach.finishBtn')} onPress={practice.note ? goToNote : finishWithoutNote} />
-              {/* 예시 회차는 서버에 없어 이어 갈 수 없다. */}
-              {/* 영상 없이 말로 한 대화(말로 코칭)는 찍은 테이크가 없어 「다음 테이크 찍기」를 두지 않는다. */}
-              {!sample && sceneVideo && (
-                <SecondaryButton label={t('history.nextTake')} onPress={startNextTake} />
               )}
             </>
           )}
         </ScrollView>
+
+        {(closed || readingEnd) && (
+          <CtaBar safeBottom={false}>
+            {/* 영상 없이 말로 한 대화(말로 코칭)는 찍은 테이크가 없어 「다음 테이크 찍기」를 두지 않는다. 예시 회차도 없다. */}
+            {!sample && sceneVideo && (
+              <SecondaryButton label={t('history.nextTake')} phLabel="coach_next_take" onPress={startNextTake} />
+            )}
+            {readingEnd && <PrimaryButton label={t('coach.readingVideoCta')} phLabel="reading_voice_coach_video" loading={closingForVideo} disabled={waiting || closingForVideo} onPress={() => void startReadingVideo()} />}
+            {readingEnd ? (
+              <SecondaryButton
+                label={t('coach.readingVideoLater')}
+                phLabel="reading_voice_coach_later"
+                disabled={waiting || closingForVideo}
+                onPress={practice.note ? goToNote : finishWithoutNote}
+              />
+            ) : (
+              <PrimaryButton
+                label={practice.note ? t('coach.seeSummary') : t('coach.finishBtn')}
+                phLabel="coach_finish"
+                onPress={practice.note ? goToNote : finishWithoutNote}
+              />
+            )}
+          </CtaBar>
+        )}
 
         {!closed && (
           <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
@@ -575,19 +655,19 @@ function CoachTalk() {
             {!keyboardVisible && conversation?.purpose?.choices.length ? (
               <View style={styles.purposeChoices}>
                 {conversation.purpose.choices.map((choice, index) => (
-                  // pen ⓐ3·ⓑ4 「방법 고르기」 — 흰 바탕 · 파란 테두리 알약(모서리 16, 안쪽 7·13), 글 13.5/600 진파랑, 왼쪽 정렬로 쌓는다.
-                  <Pressable
+                  // 목적별 「방법 고르기」 — 시간이 붙은 답은 파란 글자 Chip(「▷ 0:12 첫 대사」), 왼쪽 정렬로 쌓는다.
+                  <Chip
                     key={index}
-                    style={({ pressed }) => [styles.purposeChoice, pressed && styles.purposeChoiceOn, (waiting || connecting) && styles.purposeChoiceOff]}
+                    size="sm"
+                    label={choice.label}
                     disabled={waiting || connecting}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: waiting || connecting }}
+                    phLabel="coach_purpose_choice"
+                    style={styles.choiceChip}
                     onPress={() => {
                       if (sceneVideo && choice.at != null) seekTo(choice.at, String(choice.at));
                       void sendText(choice.label);
-                    }}>
-                    <Text style={styles.purposeChoiceText}>{choice.label}</Text>
-                  </Pressable>
+                    }}
+                  />
                 ))}
               </View>
             ) : null}
@@ -597,26 +677,21 @@ function CoachTalk() {
             {!keyboardVisible && choices.length > 0 && (
               <View style={styles.exampleChoices} testID="coach-answer-examples">
                 {choices.map((label) => (
-                  <Pressable
-                    key={label}
-                    style={({ pressed }) => [styles.purposeChoice, pressed && styles.purposeChoiceOn]}
-                    onPress={() => pressChoice(label)}
-                    accessibilityRole="button">
-                    <Text style={styles.purposeChoiceText}>{label}</Text>
-                  </Pressable>
+                  <Chip key={label} size="sm" label={label} phLabel="coach_example_answer" style={styles.choiceChip} onPress={() => pressChoice(label)} />
                 ))}
               </View>
             )}
             <View style={styles.inputRow}>
-              {MicButton && !sample && <MicButton onText={setInput} disabled={connecting || waiting || !conversation} />}
+              {MicButton && !sample && <MicButton onText={changeInput} disabled={connecting || waiting || !conversation} />}
               <TextInput
                 ref={inputRef}
                 style={styles.input}
-                placeholder={t('coach.composerPh')}
+                // 코치가 질문을 만드는 동안은 입력칸 안내로 그 상태를 알린다.
+                placeholder={waiting || connecting ? t('coach.composerPhWaiting') : t('coach.composerPh')}
                 placeholderTextColor={palette.textMeta}
                 accessibilityLabel={t('coach.composerLabel')}
                 value={input}
-                onChangeText={setInput}
+                onChangeText={changeInput}
                 maxLength={COACH_ANSWER_MAX}
                 multiline
                 editable={!connecting && !waiting && !!conversation}
@@ -628,9 +703,14 @@ function CoachTalk() {
                 accessibilityRole="button"
                 accessibilityLabel={t('coach.send')}>
                 {/* SOMA-828: 전송 중 스피너 제거, 아래 "코치 생각 중" 문구가 대신한다 */}
-                <Feather name="arrow-up" size={21} color={canSend ? palette.onAccent : palette.textDisabled} />
+                <Feather name="arrow-up" size={20} color={canSend ? palette.onAccent : palette.textDisabled} />
               </Pressable>
             </View>
+            {strippedInput && input.trim() ? (
+              <InlineErrorLine message={t('coach.answerStripped')} />
+            ) : (
+              hasUnreadableText(input) && <InlineErrorLine message={t('coach.answerUnreadable')} />
+            )}
           </View>
         )}
       </View>
@@ -641,74 +721,84 @@ function CoachTalk() {
 }
 
 const styles = StyleSheet.create({
-  continueTalk: { alignItems: 'center', paddingVertical: 12 },
-  continueTalkText: { fontSize: 15, fontWeight: '700', color: palette.blueDeep },
-  purposeChoices: { flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginBottom: 10 },
-  purposeChoice: { alignSelf: 'flex-start', maxWidth: '100%', borderRadius: 16, borderWidth: 1, borderColor: palette.blue, backgroundColor: palette.bg, paddingVertical: 7, paddingHorizontal: 13 },
-  purposeChoiceOn: { backgroundColor: palette.blueSoft },
-  purposeChoiceOff: { opacity: 0.5 },
-  purposeChoiceText: { fontSize: 13.5, fontWeight: '600', lineHeight: 19, color: palette.blueDeep },
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
+  pressed: { opacity: 0.7 },
 
-  // 글자 버튼도 아이콘 칸(NavIconButton)처럼 높이 44·좌우 10 을 둬 화면 끝에서 떨어뜨린다(SOMA-837).
-  endButton: { height: 44, paddingHorizontal: 10, justifyContent: 'center' },
-  endText: { fontSize: 17, fontWeight: '700', lineHeight: 21, color: palette.textMeta },
+  // 글자 버튼도 아이콘 칸(NavIconButton)처럼 높이 44 를 둬 화면 끝에서 떨어뜨린다(SOMA-837).
+  endButton: { height: 44, paddingHorizontal: space[3], justifyContent: 'center' },
+  endText: { ...type.body2Bold, color: palette.textSub },
 
-  // 대화 위 한 줄 「AI가 본 장면 · …」 — 옅은 파랑 띠, 글 13/700 한 줄.
-  sceneBar: { backgroundColor: palette.blueSoft, paddingVertical: 9, paddingHorizontal: 24 },
-  sceneBarText: { fontSize: 13, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
+  // 대화 위 한 줄 「AI가 본 장면 · …」 — 옅은 파랑 띠.
+  sceneBar: { backgroundColor: palette.blueSoft, paddingVertical: space[2], paddingHorizontal: space.gutter },
+  sceneBarText: { ...type.captionBold, color: palette.blueDeep },
 
-  progressText: { fontSize: 12.5, fontWeight: '700', color: palette.textSub },
+  wrapBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[1],
+    paddingVertical: space[1],
+    paddingHorizontal: space[2],
+    borderRadius: radius.full,
+    backgroundColor: palette.amberSoft,
+  },
+  wrapText: { ...type.micro, color: palette.amber },
 
-  // pen 09 본문 안쪽 [14,21,0,21].
-  body: { paddingTop: 14, paddingHorizontal: 21, paddingBottom: 20, gap: 14 },
+  body: { paddingTop: space[4], paddingHorizontal: space[4], paddingBottom: space[5], gap: space[3] },
 
-  loading: { alignItems: 'center', gap: 12, paddingTop: 24 },
-  loadingText: { fontSize: 13.5, fontWeight: '600', color: palette.textMeta },
-  loadingHint: { fontSize: 12.5, lineHeight: 18, color: palette.textMeta, textAlign: 'center', paddingHorizontal: 24 },
+  loading: { alignItems: 'center', gap: space[2], paddingTop: space[6], paddingHorizontal: space[4] },
+  loadingText: { ...type.body2Bold, color: palette.text },
+  loadingHint: { ...type.caption, color: palette.textMeta, textAlign: 'center' },
 
-  // 코치 질문 — 머리줄(CoachMessage) 말풍선 안 16/500(줄 22).
-  question: { fontSize: 16, fontWeight: '500', color: palette.text, lineHeight: 22 },
-  timeLink: { color: palette.blueDeep, fontWeight: '800', textDecorationLine: 'underline' },
+  // 코치 질문 — Chat/Bubble/Coach 안 body1.
+  question: { ...type.body1, color: palette.text },
+  timeLink: { color: palette.blueDeep, fontWeight: '700' },
 
-  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 39 },
-  thinkingText: { fontSize: 13, fontWeight: '600', color: palette.textMeta },
+  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingLeft: space[10] },
+  thinkingText: { ...type.caption, color: palette.textMeta },
 
-  // 카톡식 대화 — 말풍선 사이 14. 코치 말은 CoachMessage(마스코트·이름·회색 말풍선)다.
-  thread: { gap: 14 },
-  bubble: { maxWidth: '85%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18 },
-  // 내 답 — 파란 말풍선(palette.blue)에 흰 글자, 오른쪽 위만 뾰족.
-  mine: { alignSelf: 'flex-end', backgroundColor: palette.blue, borderTopRightRadius: 4 },
-  mineText: { fontSize: 15, fontWeight: '500', color: palette.onAccent, lineHeight: 22 },
+  thread: { gap: space[3] },
+  // 내 답 — Chat/Bubble/Me: blue-deep 바탕 · on-accent 글자, 꼬리 쪽(오른쪽 위) 모서리만 r-xs.
+  bubble: { maxWidth: '85%', paddingVertical: space[3], paddingHorizontal: space[4], borderRadius: radius.lg },
+  mine: { alignSelf: 'flex-end', backgroundColor: palette.blueDeep, borderTopRightRadius: radius.xs },
+  mineText: { ...type.body1, color: palette.onAccent },
 
-  errorText: { fontSize: 13, fontWeight: '700', color: palette.danger },
-  doneText: { fontSize: 14, fontWeight: '600', color: palette.textSub, lineHeight: 23 },
+  doneText: { ...type.caption, color: palette.textSub },
+  continueCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    padding: space[4],
+    borderRadius: radius.lg,
+    backgroundColor: palette.blueSoft,
+  },
+  continueText: { flex: 1, gap: space[1] },
+  continueTitle: { ...type.body2Bold, color: palette.blueDeep },
+  continueSub: { ...type.caption, color: palette.textSub },
 
-  // pen 09 「Composer」 — 안쪽 [0,21,11,21]: 파란 안내 15/700 · 12 · 빠른 답 · 9 · 입력 줄.
-  composer: { paddingHorizontal: 21, paddingTop: 10, paddingBottom: 11 },
-  chipGuide: { fontSize: 15, fontWeight: '700', lineHeight: 19, color: palette.blueDeep },
-  // 예시 답 칩 — 목적별 답 버튼과 같은 알약을 세로로 한 줄씩, 글자 길이만큼(10/23 pen: 13.5/600, 사이 6).
-  exampleChoices: { flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 },
-  // 마이크 39 · 입력칸 44(모서리 22, 안쪽 좌우 14, 17/500) · 보내기 39, 사이 7. 글이 늘면 칸만 커지고 두 버튼은 아래에 붙는다.
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 7, marginTop: 9 },
-  // 한 줄로 시작해 글이 늘면 커지고, 다섯 줄쯤부터는 칸 안에서 스크롤한다(SOMA-656). pen 「칸」 회색 알약.
+  composer: { paddingHorizontal: space[4], paddingTop: space[3], paddingBottom: space[3] },
+  chipGuide: { ...type.captionBold, color: palette.blueDeep },
+  purposeChoices: { alignItems: 'flex-start', gap: space[2], marginBottom: space[3] },
+  exampleChoices: { alignItems: 'flex-start', gap: space[2], marginTop: space[2] },
+  choiceChip: { alignSelf: 'flex-start', maxWidth: '100%' },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space[2], marginTop: space[3] },
+  // Chat/Composer — bg-soft 알약, 최소 44, 안쪽 좌우 16, body1. 한 줄로 시작해 다섯 줄쯤부터 칸 안에서 스크롤한다(SOMA-656).
   input: {
     flex: 1,
     minHeight: 44,
     maxHeight: 144,
-    borderRadius: 22,
+    borderRadius: radius.full,
     backgroundColor: palette.bgSoft,
     // 줄 간격을 따로 주면 안드로이드가 남는 간격을 글자 위에 몰아 한 줄일 때 글자가 아래로 처진다 — 기본 줄 간격에
     // 위아래 여백을 같게 둔다. iOS 여러 줄 입력칸은 위에 자체 여백이 더 붙어 그만큼 위 여백을 줄인다.
     paddingTop: Platform.OS === 'ios' ? 8 : 11,
     paddingBottom: 11,
-    paddingHorizontal: 14,
-    fontSize: 17,
-    fontWeight: '500',
+    paddingHorizontal: space[4],
+    fontSize: type.body1.fontSize,
     color: palette.text,
     textAlignVertical: 'center',
   },
-  send: { width: 39, height: 39, borderRadius: 20, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginBottom: 2.5 },
+  send: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
   sendOff: { backgroundColor: palette.border },
 });

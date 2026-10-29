@@ -822,6 +822,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   앞서 준 값을 건너뛰고, 성별을 모르면 건너뛰는 순환이다(표는 reading.cast). 앱이 같은 규칙을 그대로 따라 한다.
   성별·나이대는 나누기 작업만 쓴다: `ScriptSplitWorker` 가 배역 목록 답(`SplitResponse.rosterTraits`)이나 한 조각 대본의 답 끝
   「배역」 블록(`SplitResponse.traits`)을 읽고 `SplitDraft` 가 이름을 맞춰 `ScriptDraft.characterTraits` 로 넘기면
+  (긴 대본은 그 뒤 성별을 모르는 배역만 `LateCastTraits` 대목으로 한 번 더 물어 빈 칸만 채운다, SOMA-937)
   `PostgresScriptRepository#create` 가 저장한다. 다른 경로의 대본은 NULL 이고 PATCH 로 고치는 칸은 없다.
 - OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`·`gender`·`age_band`(둘은 nullable), `ReadingSessionRangeName`·
   `ReadingSessionProgressCount`(`ReadingSessionCard`·`ReadingSession` 의 `range_name`·`progress`, `progress` 는 completed 면 null).
@@ -895,7 +896,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
   나누기는 늘 403 `script_split_consent_required` 다.
 - 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
-  `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
+  `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING`·`SCRIPT_LANGUAGE`(SOMA-751)·`SCRIPT_CAST`(SOMA-937) 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
   실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
   본다 — 모델이 판마다 다르게 읽는 자리가 있어 묶음마다 90% 를 하한으로 둔다.
@@ -1187,6 +1188,17 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 좋아요 수는 연결 행을 다시 센다(§7 머리말 1번).
 - POST `/v2/reports`는 옛 연습 리포트 작업(`create_report_v2_reports_post`)이 아니라 챌린지 신고
   (`create_challenge_report_v2_reports_post`)다. V19는 `entry_saves`·`entry_comments`·`entry_reports`를 더한다.
+- **공개 참여작 AI 검사**(V70, SOMA-907): 공개 참여작은 검사를 기다리지 않고 바로 보인다. 공개로 만들거나, 처음 공개로
+  바꾸거나, 공개 중 캡션이 바뀌면 `challenge_entries.moderation_status='pending'` 이 되고, `challenge/app/EntryModerationWorker`
+  가 집기(시도 수를 올려 커밋) · 판정 받기(`EntryModerationModel`, Gemini — 원본 영상 + 챌린지 대사 + 캡션, 트랜잭션 밖) ·
+  붙이기로 돈다. 붙이기는 신고와 같은 순서(챌린지 마감 집계 → 참여작 행)로 잡고, 집은 뒤 캡션이 바뀌었거나 다른 시도가
+  앞섰으면 버린다. 판정은 `passed`(그대로) · `flagged`(신고 숨김으로 돌리고 AI 신고를 남긴다) · `review`(보이게 두고 AI 신고)
+  이고, `ChallengeRules.MODERATION_MAX_ATTEMPTS` 번 실패하면 `failed`(보이게 두고 AI 신고)다. AI 신고는
+  `entry_reports.source='ai'`, `reporter_id` 없음이며 운영 판정 화면에 사람 신고와 함께 나온다. 운영이 풀면(restored·dismissed)
+  AI 판정은 `passed` 가 되고, 숨김 유지(kept_hidden)는 아직 보이던 참여작도 숨긴다. `passed` 참여작은 처리 전 사람 신고가
+  서로 다른 `PASSED_ENTRY_REPORT_THRESHOLD` 명에게서 모여야 숨기고, 그 밖의 참여작은 지금처럼 신고 하나에 숨긴다. 스위치는
+  `ANALYSIS_WORKER_ENABLED` 와 `CHALLENGE_MODERATION_ENABLED`(테스트는 후자를 전역으로 끈다), 모델은
+  `CHALLENGE_MODERATION_MODEL`(없으면 `GEMINI_MODEL`)이다. V70 은 이미 공개된 참여작을 한 번 검사 차례로 둔다.
 
 ### 6-19. 챌린지 AI 리포트 (0.1.0)
 
@@ -1399,16 +1411,16 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `entry_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은 `Cache-Control: private, no-store`다.
   live 운영 조회 전용이며, 저장되는 `ops-core`에는 댓글 본문을 넣지 않는다.
 
-### 6-28. 리딩 녹음 코치 (실험, SOMA-791)
+### 6-28. 리딩 녹음으로 코칭 받기 (SOMA-791)
 
-- 스위치 `ACTTUB_RECORDING_COACH_ENABLED=true` 일 때만 서비스·경로(`/v2/recording-coaches`)가 생기는 조건부 빈이다. 관리용
-  경로처럼 OpenAPI 스냅샷(`spec/openapi.json`)과 웹 생성 타입에 들지 않는다. 행동 계약은
-  [reading.recording-coach](../../docs/specs/reading/recording-coach.md)가 정본이고, `ReadingRecordingCoachIT`(스위치 켬)가 지킨다.
-- 표 `reading_recording_coaches`(V48)는 native SQL 만 쓴다(Schema Entity 없음). 회차마다 한 행(`uq_reading_recording_coaches_session`),
-  회차·사람 ON DELETE CASCADE. 넣기는 `INSERT … SELECT FROM reading_sessions WHERE id AND user_id … ON CONFLICT DO NOTHING` 로
-  소유권과 겹친 요청을 한 문장에서 가른다.
-- 모델 호출(저장소에서 녹음 받기 포함)은 트랜잭션 밖이다(§5-4). 모델은 @Primary 코칭 키 클라이언트와
-  `ACTTUB_RECORDING_COACH_MODEL`(비면 `GEMINI_MODEL`)을 쓴다.
+- 스위치 `ACTTUB_READING_VOICE_COACHING_ENABLED=true` 일 때만 카드 확인 경로(`GET /v2/reading/sessions/{id}/voice-coaching`,
+  `@Hidden`)와 리딩 녹음 재료 빈이 생긴다. 시작은 연습 시작(`POST /v2/practices`)의 `reading_session_id` 다 — 스위치가 꺼졌으면
+  404 `session_not_found`. 행동 계약은 [reading.voice-coaching](../../docs/specs/reading/voice-coaching.md)가 정본이고
+  `ReadingVoiceCoachingIT`(스위치 켬)가 지킨다.
+- `practices.reading_session_id`(V69, reading_sessions ON DELETE SET NULL, 부분 유일 인덱스)로 묶음 첫 회차를 리딩 회차에 잇는다.
+  시작은 사용자 행 잠금 뒤 있는지 보고 넣는다. 무료 코칭 한도는 `reading_session_id IS NULL` 회차만 센다.
+  예전 실험 표 `reading_recording_coaches`(V48)는 V69 가 지웠다.
+- 녹음 내려받기·잇기(ffmpeg)·모델 업로드는 코치 턴 안(트랜잭션 밖, §5-4)이다.
 
 ### 6-29. 찍을 대사 같이 만들기 (SOMA-721)
 

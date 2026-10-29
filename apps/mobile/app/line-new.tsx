@@ -1,14 +1,19 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BackHandler, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineErrorLine } from '@/components/ui/inline-error';
+import { StepHeader } from '@/components/ui/step-header';
+import { TextField } from '@/components/ui/text-field';
 import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
@@ -22,11 +27,8 @@ import {
   stepComplete,
   type ChallengeDraft,
 } from '@/lib/challenge/create';
-import {
-  CHALLENGE_DURATIONS,
-  LINE_MAX,
-  type ChallengeDuration,
-} from '@/lib/challenge/types';
+import { LINE_MAX } from '@/lib/challenge/types';
+import { getAppConfig } from '@/lib/app-config';
 import { translate as t } from '@/lib/i18n';
 import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 
@@ -99,15 +101,7 @@ export default function LineNewScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header} testID="line-new-header">
-        <Pressable onPress={back} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')} ph-label="line_new_back">
-          <Feather name={step === 0 ? 'x' : 'chevron-left'} size={26} color={palette.text} />
-        </Pressable>
-        <View style={styles.dots}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[styles.dot, i === step && styles.dotOn]} />
-          ))}
-        </View>
-        <Text style={styles.stepText}>{t('lineNew.stepLabel', { step: step + 1 })}</Text>
+        <StepHeader step={step + 1} total={3} onBack={back} />
       </View>
 
       {/* 키보드가 뜨면 「다음」 버튼까지 키보드 위로 올린다 — iOS에서 아래 버튼이 키보드에 가렸다. */}
@@ -117,20 +111,30 @@ export default function LineNewScreen() {
           <>
             <Text style={styles.title}>{t('lineNew.title1')}</Text>
             <Text style={styles.sub}>{t('lineNew.sub1')}</Text>
-            <TextInput
+            <TextField
               style={styles.lineInput}
               placeholder={t('lineNew.linePh')}
-              placeholderTextColor={palette.textMeta}
               value={draft.line}
               onChangeText={(line) => set({ line })}
+              charset="loose"
+              accessibilityLabel={t('lineNew.title1')}
               multiline
               autoFocus
               textAlignVertical="top"
+              error={overflow === 'line' ? t('lineNew.lineOverMax', { max: LINE_MAX }) : null}
             />
-            <Text style={styles.counter}>{t('lineNew.counter', { count: [...normalizeChallengeLine(draft.line)].length, max: LINE_MAX })}</Text>
             <View style={styles.hintRow}>
-              <Feather name="zap" size={13} color={palette.blue} />
-              <Text style={styles.hint}>{t('lineNew.hint1')}</Text>
+              {overflow === 'line' ? (
+                <View style={styles.fill} />
+              ) : (
+                <>
+                  <Feather name="zap" size={14} color={palette.blue} />
+                  <Text style={styles.hint}>{t('lineNew.hint1')}</Text>
+                </>
+              )}
+              <Text style={[styles.counter, overflow === 'line' && styles.counterOver]}>
+                {t('lineNew.counter', { count: [...normalizeChallengeLine(draft.line)].length, max: LINE_MAX })}
+              </Text>
             </View>
           </>
         )}
@@ -139,28 +143,11 @@ export default function LineNewScreen() {
           <>
             <Text style={styles.title}>{t('lineNew.title2')}</Text>
             <Text style={styles.sub}>{t('lineNew.sub2')}</Text>
-            <Text style={styles.fieldLabel}>{t('lineNew.workLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('lineNew.workPh')}
-              placeholderTextColor={palette.textMeta}
-              value={draft.work}
-              onChangeText={(work) => set({ work })}
-              autoFocus
-            />
-            <Text style={styles.fieldLabel}>{t('lineNew.roleLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('lineNew.rolePh')}
-              placeholderTextColor={palette.textMeta}
-              value={draft.character}
-              onChangeText={(character) => set({ character })}
-            />
-            <Text style={styles.fieldLabel}>{t('lineNew.noteLabel')}</Text>
-            <TextInput
-              style={[styles.input, styles.noteInput]}
+            <TextField charset="loose" label={t('lineNew.workLabel')} placeholder={t('lineNew.workPh')} value={draft.work} onChangeText={(work) => set({ work })} autoFocus />
+            <TextField charset="loose" label={t('lineNew.roleLabel')} placeholder={t('lineNew.rolePh')} value={draft.character} onChangeText={(character) => set({ character })} />
+            <TextField
+              label={t('lineNew.noteLabel')}
               placeholder={t('lineNew.notePh')}
-              placeholderTextColor={palette.textMeta}
               value={draft.sceneNote}
               onChangeText={(sceneNote) => set({ sceneNote })}
               multiline
@@ -174,17 +161,18 @@ export default function LineNewScreen() {
             <Text style={styles.title}>{t('lineNew.title3New')}</Text>
             <Text style={styles.sub}>{t('lineNew.sub3New')}</Text>
             <View style={styles.durationRow}>
-              {CHALLENGE_DURATIONS.map((days) => (
-                <Pressable
+              {/* 기간 선택지는 서버 설정이다(SOMA-939). 7·14일 말고는 「N일」로 보인다. */}
+              {getAppConfig().challenge.durationsDays.map((days) => (
+                <Chip
                   key={days}
-                  style={[styles.duration, draft.durationDays === days && styles.durationOn]}
-                  onPress={() => set({ durationDays: days as ChallengeDuration })}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: draft.durationDays === days }}>
-                  <Text style={[styles.durationText, draft.durationDays === days && styles.durationTextOn]}>
-                    {t(days === 7 ? 'lineNew.duration7' : 'lineNew.duration14')}
-                  </Text>
-                </Pressable>
+                  role="radio"
+                  label={
+                    days === 7 ? t('lineNew.duration7') : days === 14 ? t('lineNew.duration14') : t('lineNew.durationDays', { days })
+                  }
+                  selected={draft.durationDays === days}
+                  onPress={() => set({ durationDays: days })}
+                  style={styles.duration}
+                />
               ))}
             </View>
             <View style={styles.preview}>
@@ -192,13 +180,13 @@ export default function LineNewScreen() {
               <Text style={styles.previewMeta}>
                 {[draft.work.trim(), draft.character.trim()].filter(Boolean).join(' \u00B7 ')}
               </Text>
-              {!!draft.sceneNote.trim() && <Text style={styles.previewNote}>{draft.sceneNote.trim()}</Text>}
+              {!!draft.sceneNote.trim() && <Text style={styles.previewMeta}>{draft.sceneNote.trim()}</Text>}
             </View>
           </>
         )}
 
-        {!!overflow && <Text style={styles.error}>{t('lineNew.errInvalid')}</Text>}
-        {!!error && <Text style={styles.error}>{error}</Text>}
+        {!!overflow && overflow !== 'line' && <InlineErrorLine message={t('lineNew.errInvalid')} />}
+        {!!error && <InlineErrorLine message={error} />}
       </KeyboardAwareScroll>
 
       <CtaBar safeBottom={false}>
@@ -207,6 +195,7 @@ export default function LineNewScreen() {
           onPress={next}
           disabled={!canNext}
           loading={submitting}
+          loadingLabel={t('lineNew.submitting')}
         />
       </CtaBar>
       </KeyboardLift>
@@ -217,46 +206,19 @@ export default function LineNewScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   // iOS 모달(pageSheet)은 위 안전 영역이 0이라 SafeAreaView만으로는 닫기 버튼이 시트 위 끝에 붙는다.
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 16 },
-  dots: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center' },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.border },
-  dotOn: { width: 18, backgroundColor: palette.blue },
-  stepText: { fontSize: 12.5, fontWeight: '700', color: palette.textMeta },
-  fieldLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMeta, marginTop: 10 },
-  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 10 },
-  title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
-  sub: { fontSize: 14, color: palette.textSub, lineHeight: 22, paddingBottom: 6 },
-  label: { fontSize: 17, fontWeight: '800', color: palette.text, marginTop: 18 },
-  lineInput: {
-    minHeight: 120,
-    borderRadius: 14,
-    backgroundColor: palette.bgSoft,
-    padding: 16,
-    fontSize: 17,
-    lineHeight: 26,
-    color: palette.text,
-  },
-  input: { borderRadius: 12, backgroundColor: palette.bgSoft, padding: 14, fontSize: 15, color: palette.text },
-  noteInput: { minHeight: 90 },
-  counter: { fontSize: 12, color: palette.textMeta, textAlign: 'right' },
-  hintRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  hint: { fontSize: 12.5, color: palette.textMeta },
-  durationRow: { flexDirection: 'row', gap: 10, paddingTop: 6 },
-  duration: {
-    flex: 1,
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  durationOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  durationText: { fontSize: 15, fontWeight: '700', color: palette.textSub },
-  durationTextOn: { color: palette.blueDeep },
-  preview: { backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6, marginTop: 14 },
-  previewLine: { fontSize: 16, fontWeight: '800', color: palette.text, lineHeight: 25 },
-  previewMeta: { fontSize: 12.5, color: palette.textMeta },
-  previewNote: { fontSize: 12.5, color: palette.textMeta, lineHeight: 19 },
-  error: { fontSize: 13.5, fontWeight: '700', color: palette.danger, marginTop: 8 },
+  header: { paddingTop: space[3] },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[5], paddingBottom: space[10], gap: space[3] },
+  title: { ...type.title2, color: palette.text },
+  sub: { ...type.caption, color: palette.textSub, paddingBottom: space[1] },
+  lineInput: { minHeight: 120, paddingTop: space[3], paddingBottom: space[3] },
+  hintRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  fill: { flex: 1 },
+  hint: { ...type.caption, flex: 1, color: palette.textMeta },
+  counter: { ...type.caption, color: palette.textMeta },
+  counterOver: { color: palette.danger },
+  durationRow: { flexDirection: 'row', gap: space[2] },
+  duration: { flex: 1, borderRadius: radius.md, alignItems: 'center' },
+  preview: { backgroundColor: palette.bgSubtle, borderRadius: radius.lg, padding: space[4], gap: space[1] },
+  previewLine: { ...type.headline, color: palette.text },
+  previewMeta: { ...type.caption, color: palette.textMeta },
 });

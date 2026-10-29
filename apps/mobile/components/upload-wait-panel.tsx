@@ -1,64 +1,53 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { AdSlot } from '@/components/ad-slot';
+import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { InfoBanner } from '@/components/ui/info-banner';
+import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
+import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
-import { MASCOT } from '@/components/ui/mascot';
-import { PrimaryButton } from '@/components/ui/buttons';
+import { space, type } from '@/constants/tokens';
 import { translate as t } from '@/lib/i18n';
 
 /**
- * pen P3.2·P3.24 「⑧ 새 연습 · 영상 올리는 중」(SOMA-817) — 영상이 다 올라가기를 기다리는 한 장.
- * 올리기 큐는 진행률 숫자를 주지 않아 막대는 단계로만 채운다(올리는 중 절반·실패 비움). 나가도 계속 올라간다.
+ * 「새 연습 · 영상 올리는 중」(SOMA-817, pen upload.wait-panel) — 영상이 다 올라가기를 기다리는 한 장.
+ * 버튼은 없다. 뒤로 가면 기다리는 업로드로 남기고 홈으로 나간다. 올리기 큐가 진행률을 주지 않아 막대도 없다.
+ * 실패하면 StatusScreen 오류 틀에 아래 바 「나중에 할게요」(뒤로 가기와 같은 길) 위 · 「다시 올리기」 아래.
  */
-export function UploadWaitPanel({
-  failed,
-  onHome,
-  onRetry,
-  onCancel,
-}: {
-  failed: boolean;
-  onHome: () => void;
-  onRetry: () => void;
-  onCancel: () => void;
-}) {
+export function UploadWaitPanel({ failed, onLater, onRetry }: { failed: boolean; onLater: () => void; onRetry: () => void }) {
+  if (failed) {
+    return (
+      <View style={styles.root}>
+        <StatusScreen title={t('upload.waitFailedTitle')} body={t('upload.waitFailedSub')} />
+        <CtaBar safeBottom={false}>
+          <TextButton label={t('upload.waitLater')} phLabel="upload_wait_later" onPress={onLater} />
+          <PrimaryButton label={t('upload.waitRetry')} phLabel="upload_wait_retry" onPress={onRetry} />
+        </CtaBar>
+      </View>
+    );
+  }
   return (
     <View style={styles.root}>
       <View style={styles.body}>
-        <Image source={MASCOT.coach} style={styles.mascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
-        <Text style={styles.title}>{failed ? t('upload.waitFailedTitle') : t('upload.waitTitle')}</Text>
-        <Text style={styles.sub}>{failed ? t('upload.waitFailedSub') : t('upload.waitBody')}</Text>
-        {!failed && (
-          <View style={styles.track} accessibilityRole="progressbar">
-            <View style={styles.fill} />
-          </View>
-        )}
+        <Image source={MASCOT.coach} style={MASCOT_SIZE.xl} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+        <Text style={styles.title}>{t('upload.waitTitle')}</Text>
+        <Text style={styles.sub}>{t('upload.waitBody')}</Text>
       </View>
-      {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 버튼 묶음 바로 위(footer 위 여백 16 + 8 = 24). */}
-      {!failed && <AdSlot slot="upload_wait" style={{ marginHorizontal: 24, marginBottom: 8 }} />}
       <View style={styles.footer}>
-        {failed ? (
-          <PrimaryButton label={t('upload.waitRetry')} onPress={onRetry} />
-        ) : (
-          <PrimaryButton label={t('upload.waitHome')} onPress={onHome} />
-        )}
-        <Pressable style={styles.cancel} onPress={onCancel} accessibilityRole="button">
-          <Text style={styles.cancelText}>{failed ? t('upload.waitLater') : t('upload.waitCancel')}</Text>
-        </Pressable>
+        {/* 광고 칸(SOMA-876) — 연습 중 칸, 아래 안내 바로 위. */}
+        <AdSlot slot="upload_wait" />
+        <InfoBanner title={t('upload.waitLeaveTitle')} body={t('upload.waitLeaveBody')} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  body: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 16, paddingHorizontal: 24 },
-  mascot: { width: 84, height: 94 },
-  title: { alignSelf: 'stretch', fontSize: 21, fontWeight: '800', lineHeight: 30, color: palette.text, textAlign: 'center' },
-  sub: { alignSelf: 'stretch', fontSize: 15, lineHeight: 22, color: palette.textSub, textAlign: 'center' },
-  track: { width: 240, height: 8, borderRadius: 4, backgroundColor: palette.bgSoft, overflow: 'hidden' },
-  fill: { width: '50%', height: 8, borderRadius: 4, backgroundColor: palette.blue },
-  footer: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 13, gap: 8 },
-  cancel: { height: 52, borderRadius: 14, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  cancelText: { fontSize: 16, fontWeight: '700', lineHeight: 23, color: palette.text },
+  root: { flex: 1, backgroundColor: palette.bg },
+  body: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space[2], paddingHorizontal: space.gutter },
+  title: { ...type.title2, color: palette.text, textAlign: 'center' },
+  sub: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  footer: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[3], gap: space[2] },
 });

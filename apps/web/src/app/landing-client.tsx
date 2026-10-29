@@ -10,9 +10,18 @@ import { StoreBadges } from "@/features/app-download/store-badges";
 import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
 import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { useScrollSettle } from "@/features/site/scroll-settle";
+import { LandingHeroB } from "@/features/site/landing-hero-b";
+import { DEFAULT_HERO_MEDIA, type HeroMedia } from "@/features/site/landing-hero-media";
 import { SiteFooter, SiteHeader } from "@/features/site/site-chrome";
 import { preserveWebAttributionFromSearch } from "@/lib/analytics/web-attribution";
+import {
+  trackLandingDownloadClick,
+  trackLandingVariantView,
+  trackLandingWebTryClick,
+} from "@/lib/analytics/ga";
 import { hasGuestSession, subscribeAuthChange } from "@/lib/auth/token-store";
+import { APP_DOWNLOAD_ATTR, APP_DOWNLOAD_STORE_ATTR } from "@/lib/app-download/store-links";
+import type { LandingVariant } from "@/lib/landing-variant";
 
 /**
  * 공개 홈(/). 앱을 쓰게 하는 소개와, 웹이 공식 창구라는 것을 함께 보인다(SOMA-834 웹 개편 v2).
@@ -62,7 +71,15 @@ type Feature = {
   shotAlt: string;
 };
 
-export default function LandingClient() {
+export default function LandingClient({
+  variant = "a",
+  heroMedia = DEFAULT_HERO_MEDIA,
+}: {
+  variant?: LandingVariant;
+  /** B 첫 화면 휴대폰 안 영상. 서버(landing-page-view)가 public 에 있는 파일만 골라 넘긴다. */
+  heroMedia?: HeroMedia;
+}) {
+  const isB = variant === "b";
   const campaignSearch = useCampaignSearch();
   const practiceHref = preserveWebAttributionFromSearch("/practice/new", campaignSearch);
   const readingHref = preserveWebAttributionFromSearch("/reading", campaignSearch);
@@ -98,6 +115,30 @@ export default function LandingClient() {
       root.classList.remove("reveal-ready");
     };
   }, []);
+
+  // 어느 안이 보였는지, 어느 안에서 다운로드·웹 체험을 눌렀는지 GA4 에 남긴다(SOMA-918).
+  // 클릭은 문서 캡처 단계에서 듣는다 — 다운로드 가로채기 스크립트가 곧바로 이동시키기 전에 먼저 받는다.
+  useEffect(() => {
+    trackLandingVariantView(variant);
+    const onClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const download = target.closest(`[${APP_DOWNLOAD_ATTR}]`);
+      if (download) {
+        const store = download.getAttribute(APP_DOWNLOAD_STORE_ATTR);
+        trackLandingDownloadClick(
+          variant,
+          download.getAttribute(APP_DOWNLOAD_ATTR) ?? "unknown",
+          store === "app_store" || store === "google_play" ? store : "auto",
+        );
+        return;
+      }
+      const web = target.closest("[data-landing-web]");
+      if (web) trackLandingWebTryClick(variant, web.getAttribute("data-landing-web") ?? "unknown");
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [variant]);
 
   const features: Feature[] = [
     {
@@ -142,6 +183,15 @@ export default function LandingClient() {
       <main>
         {/* 첫 화면과 아래 요약 줄을 한 구간으로 묶어 데스크톱에서 한 화면을 채운다. */}
         <div data-snap className="lg:flex lg:min-h-[calc(100dvh-72px)] lg:flex-col">
+          {isB ? (
+            <LandingHeroB
+              appHref={appHref}
+              webHref={returningGuest ? homeHref : practiceHref}
+              returningGuest={returningGuest}
+              campaignSearch={campaignSearch}
+              media={heroMedia}
+            />
+          ) : (
           <section id="hero" className="bg-gradient-to-b from-white to-[#f5f9ff] lg:flex lg:flex-1 lg:items-center">
             <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-5 pb-0 pt-10 sm:px-8 lg:flex-row lg:gap-16 lg:pb-16 lg:pt-[72px]">
               <div className="w-full flex-1">
@@ -178,6 +228,7 @@ export default function LandingClient() {
                   {returningGuest ? "이 브라우저에서 하던 연습이 있어요 " : "설치 전에 "}
                   <Link
                     href={returningGuest ? homeHref : practiceHref}
+                    data-landing-web="landing_hero"
                     className={`rounded font-bold text-[#3268d8] hover:underline ${FOCUS}`}
                   >
                     {returningGuest ? "이어서 연습하기 →" : "웹에서 먼저 해 보기 →"}
@@ -194,6 +245,7 @@ export default function LandingClient() {
               </div>
             </div>
           </section>
+          )}
 
           <div className="border-b border-[#edf0f3]">
             <ul className="mx-auto flex max-w-[1200px] flex-col items-center gap-2 px-5 py-6 text-[15px] font-semibold text-[#4e5968] sm:flex-row sm:justify-center sm:gap-14">
@@ -245,6 +297,7 @@ export default function LandingClient() {
                   {f.web ? (
                     <Link
                       href={f.web.href}
+                      data-landing-web={`landing_${f.id}`}
                       className={`inline-flex h-12 items-center rounded-[14px] bg-[#f2f4f6] px-[18px] text-[15px] font-bold text-[#333d4b] transition hover:bg-[#e5e8eb] ${FOCUS}`}
                     >
                       {f.web.label}

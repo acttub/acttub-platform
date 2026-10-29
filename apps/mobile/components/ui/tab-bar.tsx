@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
-import type { Ref } from 'react';
-import { Platform, StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { useEffect, useRef, type Ref } from 'react';
+import { Animated, Image, Platform, StyleSheet, View, type ImageSourcePropType, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -17,6 +17,8 @@ const IOS = Platform.OS === 'ios';
 const IOS_PILL = '#191F2814';
 const IOS_BAR = 64;
 const ITEM = 56;
+// 탭 이름 줄 높이(micro 16) + 간격 2 의 절반 — 고르지 않은 탭의 아이콘을 칸 가운데로 내린다.
+const LABEL_SHIFT = 9;
 
 /**
  * 하단 탭바 — 디자인 시스템 pen 「TabBar」. 플랫폼마다 일부러 다르다(DESIGN-SYSTEM.md 「의도된 차이」).
@@ -77,25 +79,48 @@ export function useTabBarSpace(): number {
 export const TAB_BAR_HIDDEN: ViewStyle = { display: 'none' };
 
 /**
- * 탭 아이콘 — 위 설명대로. 안드로이드는 아이콘 아래에 `label`을 둔다. `badge`가 있으면 공용 Badge 를 칸 오른쪽 위에 단다.
+ * 탭 아이콘 — 위 설명대로. `icon`은 Ionicons 이름이거나 pen 에서 꺼낸 그림(require)이고, 그림은 `tintColor`로 같은 색을 입힌다.
+ * 안드로이드는 아이콘 아래에 `label`을 둔다. `badge`가 있으면 공용 Badge 를 칸 오른쪽 위에 단다.
  * `target`은 첫 가이드가 이 탭을 비출 때 자리를 재는 ref.
  */
 export function tabIcon(
-  name: IoniconName,
+  icon: IoniconName | ImageSourcePropType,
   label: string,
   { target, badge }: { target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void }; badge?: string | null } = {},
 ) {
   const TabIcon = ({ focused }: { focused: boolean }) => {
-    const color = IOS ? (focused ? palette.text : palette.textSub) : focused ? palette.blueDeep : palette.iconFaint;
+    const color = focused ? (IOS ? palette.text : palette.blueDeep) : palette.iconFaint;
+    const size = IOS ? 26 : 22;
+    const glyph =
+      typeof icon === 'string' ? (
+        <Ionicons size={size} name={icon} color={color} />
+      ) : (
+        <Image source={icon} style={{ width: size, height: size, tintColor: color }} />
+      );
+    // 안드로이드 — 평소엔 아이콘만 칸 가운데에 있고, 고르면 아이콘이 위로 올라가며 아래에 탭 이름이 나타난다(SOMA-923).
+    const shown = useRef(new Animated.Value(focused ? 1 : 0)).current;
+    useEffect(() => {
+      Animated.timing(shown, { toValue: focused ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+    }, [focused, shown]);
     return (
       <View ref={target?.ref} onLayout={target?.onLayout} style={[styles.item, IOS && focused && styles.itemOn]}>
-        <Ionicons size={IOS ? 26 : 22} name={name} color={color} />
-        {IOS ? null : <Text style={[styles.label, focused && styles.labelOn]}>{label}</Text>}
+        {IOS ? (
+          glyph
+        ) : (
+          // 아이콘+이름 묶음을 이름 높이의 절반만큼 내려 두면 아이콘이 가운데다. 고르면 제자리로 올라오고 이름이 보인다.
+          <Animated.View
+            style={[styles.stack, { transform: [{ translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [LABEL_SHIFT, 0] }) }] }]}>
+            {glyph}
+            <Animated.Text style={[styles.label, focused && styles.labelOn, { opacity: shown }]} importantForAccessibility="no">
+              {label}
+            </Animated.Text>
+          </Animated.View>
+        )}
         {badge ? <Badge label={badge} style={styles.badge} /> : null}
       </View>
     );
   };
-  TabIcon.displayName = `TabIcon(${name})`;
+  TabIcon.displayName = `TabIcon(${label})`;
   return TabIcon;
 }
 
@@ -113,5 +138,6 @@ const styles = StyleSheet.create({
   itemOn: { backgroundColor: IOS_PILL },
   label: { ...type.micro, color: palette.textMeta },
   labelOn: { color: palette.blueDeep },
+  stack: { alignItems: 'center', gap: 2 },
   badge: { position: 'absolute', top: space[1.5], left: '50%', marginLeft: space[2] },
 });

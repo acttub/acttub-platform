@@ -11,7 +11,10 @@ import {
   registrablePlatform,
   type NotificationSettings,
 } from './push-policy';
+import { createPushOpenRecorder, pushOpenRecord } from './push-open';
 import { createPushTokenLifecycle } from './push-token-lifecycle';
+
+export { pushOpenRecord };
 
 export * from './push-policy';
 
@@ -42,6 +45,27 @@ try {
   device = null;
 }
 
+/** 안드로이드 13+ 는 알림 채널이 하나라도 있어야 권한 창을 띄운다. 채널 없이 묻으면 창이 안 뜬다. */
+export const DEFAULT_ANDROID_CHANNEL_ID = 'default';
+
+/**
+ * OS 알림 권한을 묻는다. 안드로이드에서는 묻기 전에 기본 채널을 먼저 만든다 —
+ * 채널이 없으면 POST_NOTIFICATIONS 창이 뜨지 않고 권한이 영영 거부 상태로 남는다.
+ */
+async function requestOsPermission(
+  module: NotificationsModule,
+): Promise<Awaited<ReturnType<NotificationsModule['requestPermissionsAsync']>>> {
+  if (Platform.OS === 'android') {
+    await module
+      .setNotificationChannelAsync(DEFAULT_ANDROID_CHANNEL_ID, {
+        name: 'default',
+        importance: module.AndroidImportance.DEFAULT,
+      })
+      .catch(() => undefined);
+  }
+  return module.requestPermissionsAsync();
+}
+
 /** 'acttub.' 접두사 — 탈퇴 시 local-account-data 가 이 접두사를 통째로 지운다. */
 const SETTINGS_KEY = 'acttub.push.settings';
 /** 0.1.0 이전의 기기 토글. 한 번 서버로 옮기고 지운다(legacyOptOutPatch). */
@@ -68,19 +92,48 @@ const notificationSync = createNotificationSync({
   now: () => Date.now(),
 });
 
+/** 지금 보고 있는 화면이 숨기라고 걸어 둔 조건들. 하나라도 맞으면 그 알림은 띄우지 않는다. */
+const foregroundHiders = new Set<(data: unknown) => boolean>();
+
 /**
- * 포그라운드에서도 알림을 배너로 보여준다. 앱 기동 시 한 번 부른다.
+ * 보고 있는 화면이 같은 내용을 이미 보여 주는 알림만 앱이 떠 있을 때 숨긴다(예: 그 연습의
+ * 분석 대기 화면에서 받은 분석 완료). 화면에 들어올 때 걸고, 돌려준 함수로 떠날 때 푼다.
+ */
+export function hideForegroundPush(match: (data: unknown) => boolean): () => void {
+  foregroundHiders.add(match);
+  return () => {
+    foregroundHiders.delete(match);
+  };
+}
+
+function shouldShowInForeground(data: unknown): boolean {
+  for (const match of foregroundHiders) {
+    try {
+      if (match(data)) return false;
+    } catch {
+      // 조건이 깨져도 알림은 띄운다.
+    }
+  }
+  return true;
+}
+
+/**
+ * 앱이 떠 있을 때도 알림을 배너로 보여 준다. 다만 보고 있는 화면이 숨기라고 한 알림은 배너·목록
+ * 모두 띄우지 않는다(안드로이드는 목록만 켜도 화면에 뜬다). 앱 기동 시 한 번 부른다.
  * 모듈이 없으면 아무 일도 하지 않는다.
  */
 export function configureNotificationHandling(): void {
   if (!notifications) return;
   notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-    }),
+    handleNotification: async (notification?: { request?: { content?: { data?: unknown } } }) => {
+      const show = shouldShowInForeground(notification?.request?.content?.data ?? null);
+      return {
+        shouldShowBanner: show,
+        shouldShowList: show,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    },
   });
 }
 
@@ -100,12 +153,60 @@ export function onPushReceived(listener: (data: unknown) => void): () => void {
  * 푸시를 눌러 앱이 열렸을 때. 잠금 화면 문구에는 이름·본문이 없고 알림 식별자만 있으므로
  * 그 자료로 어디를 열지 정한다(challenge.notification). 모듈이 없으면 구독하지 않는다.
  */
-export function onPushTapped(listener: (data: unknown) => void): () => void {
+export function onPushTapped(
+  listener: (data: unknown, identifier?: string) => void,
+): () => void {
   if (!notifications) return () => undefined;
   const subscription = notifications.addNotificationResponseReceivedListener((event) => {
-    listener(event?.notification?.request?.content?.data ?? null);
+    listener(
+      event?.notification?.request?.content?.data ?? null,
+      event?.notification?.request?.identifier,
+    );
   });
   return () => subscription.remove();
+}
+
+const pushOpens = createPushOpenRecorder({
+  send: (body) => api.recordPushOpen(body),
+  platform: () => registrablePlatform(Platform.OS),
+});
+
+/** 마지막으로 처리해 둔 콜드 스타트 탭의 알림 식별자. 같은 탭을 다음 실행에서 또 세지 않으려는 것이다. */
+const LAST_COLD_START_KEY = 'device.lastPushOpenId';
+
+/** 푸시를 눌러 연 것을 서버에 남긴다(측정). 기다리지 않고 실패는 삼키며 화면 이동에 영향이 없다. */
+export function capturePushOpen(data: unknown, identifier?: string | null): void {
+  try {
+    pushOpens.capture(identifier, data);
+    // 켜진 앱에서 센 탭도 적어 둔다. 다음 실행의 콜드 스타트 조회가 같은 탭을 또 세지 않게 한다.
+    if (identifier) void AsyncStorage.setItem(LAST_COLD_START_KEY, identifier).catch(() => undefined);
+  } catch {
+    // 측정이 앱을 막으면 안 된다.
+  }
+}
+
+/** 로그인한 회원이 생기면(또는 없어지면) 알린다. 켜지는 순간 로그인 전에 눌린 탭을 보낸다. */
+export function setPushOpenSignedIn(signedIn: boolean): void {
+  pushOpens.setSignedIn(signedIn);
+}
+
+
+/**
+ * 꺼진 앱을 푸시로 연 경우 리스너가 붙기 전에 탭이 지나갔을 수 있다. 앱을 처음 띄울 때 한 번 마지막 탭을
+ * 조회해 남긴다. 이미 남긴 식별자(저장해 둔 것)는 건너뛴다. 화면 이동은 건드리지 않는다.
+ */
+export async function recordColdStartPushOpen(): Promise<void> {
+  if (!notifications?.getLastNotificationResponseAsync) return;
+  try {
+    const last = await notifications.getLastNotificationResponseAsync();
+    const identifier = last?.notification?.request?.identifier;
+    if (!last || !identifier) return;
+    if ((await AsyncStorage.getItem(LAST_COLD_START_KEY).catch(() => null)) === identifier) return;
+    await AsyncStorage.setItem(LAST_COLD_START_KEY, identifier).catch(() => undefined);
+    capturePushOpen(last.notification.request.content?.data ?? null, identifier);
+  } catch {
+    // 조회 실패는 삼킨다.
+  }
 }
 
 /** 기기에 적어 둔 마지막 서버 값. 서버를 못 읽을 때(오프라인) 쓴다. */
@@ -163,7 +264,7 @@ async function registerThisDevice({
   try {
     let permission = await notifications.getPermissionsAsync();
     if (!permission.granted && permission.canAskAgain && askPermission) {
-      permission = await notifications.requestPermissionsAsync();
+      permission = await requestOsPermission(notifications);
     }
     if (!permission.granted) return;
     const token = (await notifications.getExpoPushTokenAsync()).data;
@@ -223,7 +324,7 @@ export async function setNotificationToggle(
       canAskAgain: permission.canAskAgain,
     });
     if (prompt === 'request') {
-      blocked = !(await notifications.requestPermissionsAsync()).granted;
+      blocked = !(await requestOsPermission(notifications)).granted;
     } else if (prompt === 'open_settings') {
       blocked = true;
     }
@@ -294,7 +395,7 @@ export async function scheduleUploadLaterReminder(
   if (!notifications) return 'unavailable';
   try {
     let status = (await notifications.getPermissionsAsync()).status;
-    if (status !== 'granted') status = (await notifications.requestPermissionsAsync()).status;
+    if (status !== 'granted') status = (await requestOsPermission(notifications)).status;
     if (status !== 'granted') return 'denied';
     const existing = (await notifications.getAllScheduledNotificationsAsync?.()) ?? [];
     for (const item of existing) {

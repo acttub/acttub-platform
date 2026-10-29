@@ -62,41 +62,52 @@ export function AnchoredMenu({
   const pos = placeMenu(anchor, { width, height: estimatedHeight }, screen, insets);
   return (
     <Modal transparent statusBarTranslucent visible animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
+      {/* 덮개·카드가 접근성 요소가 되면 메뉴 항목이 하나로 묶여 따로 누를 수 없다. 닫기는 스크린리더 닫기 동작으로. */}
+      <Pressable style={styles.overlay} onPress={onClose} accessible={false}>
         <Pressable
           testID="anchored-menu"
+          accessible={false}
           style={[styles.card, { left: pos.left, top: pos.top, width: pos.width }]}
           onPress={(e) => e.stopPropagation()}>
-          <View accessibilityViewIsModal>{children}</View>
+          <View accessibilityViewIsModal onAccessibilityEscape={onClose}>
+            {children}
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
   );
 }
 
-/** 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘. */
+/** 메뉴 항목 한 줄 — 높이 44, 좌우 16, body2-bold. `destructive`는 danger 글자·아이콘, `selected`(고른 값)는 blue-deep 글자 + 오른쪽 체크. */
 export function MenuItem({
   label,
   onPress,
   destructive,
+  selected,
   icon,
+  badge,
 }: {
   label: string;
   onPress: () => void;
   destructive?: boolean;
+  selected?: boolean;
   icon?: ComponentProps<typeof Feather>['name'];
+  badge?: string;
 }) {
-  const color = destructive ? palette.danger : palette.text;
+  const color = destructive ? palette.danger : selected ? palette.blueDeep : palette.text;
   return (
     <Pressable
       style={({ pressed }) => [styles.item, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={selected === undefined ? undefined : { selected }}
       onPress={onPress}>
       {icon ? <Feather name={icon} size={18} color={color} /> : null}
       <Text style={[styles.label, { color }]} numberOfLines={1}>
         {label}
       </Text>
+      {badge ? <Text style={styles.badge}>{badge}</Text> : null}
+      {selected ? <Feather name="check" size={18} color={palette.blue} style={styles.check} /> : null}
     </Pressable>
   );
 }
@@ -115,4 +126,6 @@ const styles = StyleSheet.create({
   item: { minHeight: MENU_ITEM_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: space[1.5], paddingHorizontal: space[4] },
   pressed: { backgroundColor: palette.bgSoft },
   label: { ...type.body2Bold, flexShrink: 1 },
+  check: { marginLeft: 'auto' },
+  badge: { ...type.micro, color: palette.blueDeep, backgroundColor: palette.blueSoft, borderRadius: radius.full, overflow: 'hidden', paddingHorizontal: space[2], paddingVertical: 2 },
 });

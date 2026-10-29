@@ -42,6 +42,10 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
 
     private static final String JUDGMENT_PREFIX = "대본\t";
     /** 종류 칸에 배역을 붙여 쓴 답 — {@code d=샬럿}. */
+    /** 등장인물 소개를 옮긴 배역 이름의 대시 뒤 설명 — 대시 앞이나 뒤에 공백이 있을 때만(「J-1」은 이름이다). */
+    private static final Pattern DESCRIBED = Pattern.compile("(?:\\s+[-–—]|[-–—]\\s+).*$");
+    /** 이름 뒤 대괄호에 쉼표·빗금으로 늘어놓은 배역들. */
+    private static final Pattern LISTED_ROLES = Pattern.compile("[^\\[\\]]*\\[([^\\[\\]]*[,，/][^\\[\\]]*)]");
     private static final Pattern NUMBERED = Pattern.compile("(?m)^\\s*~?\\d+\\t");
     private static final Pattern NAMED_KIND = Pattern.compile("([a-zA-Z])\\s*=\\s*(.+)");
     /** 「배역」 블록의 머리 줄. 지시문({@code ScriptSplitPrompt})과 같은 글자다. */
@@ -165,14 +169,29 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
         return traits;
     }
 
-    /** {@code 이름<TAB>성별<TAB>나이대} 한 줄. 이름이 비면 버린다. 목록 밖 값은 모름이다. */
+    /**
+     * {@code 이름<TAB>성별<TAB>나이대} 한 줄. 이름이 비면 버린다. 목록 밖 값은 모름이다. 등장인물 소개 줄을 통째로 옮긴 이름은 이름만 남긴다 —
+     * 대시 뒤 설명(「멀티맨(남)- 할아버지 손님」)은 떼고, 대괄호에 늘어놓은 배역들(「민호의 친구들[(1)구두쇠, (2)허세남]」)은 하나씩
+     * 받는다(2026-10-27 운영, SOMA-903). 목록은 나누기 지시문에 쉼표로 이어 붙어, 쉼표가 든 이름은 모델이 배역을 가르지 못하고 그 이름을 화자로 썼다.
+     */
     private static void castLine(String raw, Map<String, CharacterTraits> traits) {
         String[] fields = raw.split("\t", -1);
-        String name = fields[0].strip().replaceFirst("^[-*•\\d.)\\s]+", "").strip();
+        String name = DESCRIBED.matcher(fields[0].strip().replaceFirst("^[-*•\\d.)\\s]+", "")).replaceFirst("").strip();
         if (name.isEmpty()) {
             return;
         }
-        traits.putIfAbsent(name, CharacterTraits.parse(fields.length > 1 ? fields[1] : null, fields.length > 2 ? fields[2] : null));
+        CharacterTraits value = CharacterTraits.parse(fields.length > 1 ? fields[1] : null, fields.length > 2 ? fields[2] : null);
+        Matcher listed = LISTED_ROLES.matcher(name);
+        if (listed.matches()) {
+            for (String part : listed.group(1).split("[,，/]")) {
+                String role = part.strip().replaceFirst("^(?:\\(\\d+\\)|\\d+[.)])\\s*", "").strip();
+                if (!role.isEmpty()) {
+                    traits.putIfAbsent(role, value);
+                }
+            }
+            return;
+        }
+        traits.putIfAbsent(name, value);
     }
 
     private static Boolean judgment(String raw) {

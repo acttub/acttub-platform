@@ -2,19 +2,23 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BirthWheel, formatBirthParts, parseBirthDate, type BirthParts } from '@/components/birth-wheel';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { Checkbox } from '@/components/ui/checkbox';
 import { CtaBar } from '@/components/ui/cta-bar';
+import { InlineErrorLine } from '@/components/ui/inline-error';
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { StepHeader } from '@/components/ui/step-header';
+import { TextField } from '@/components/ui/text-field';
 import { motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -54,7 +58,6 @@ import {
   type ProfileFormState,
 } from '@/lib/profile-form';
 import { readAttributedChannel, recordSignupCompleted } from '@/lib/signup-attribution-runtime';
-import { SkeletonDetail } from '@/components/ui/skeleton';
 
 
 type Screen = 'intro' | OnboardingStep | 'blocked';
@@ -202,15 +205,14 @@ export default function ProfileNameScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         {profile.status === 'error' ? (
-        <View style={styles.center}>
-            <>
-              <Text style={styles.loadError}>{t('profileName.loadFail')}</Text>
-              {/* pen S5.2 — 빨간 한 줄 아래 파란 글자 링크. */}
-              <TextButton tone="accent" label={t('profileName.reload')} onPress={() => void reloadProfile()} />
-            </>
-        </View>
+          <StatusScreen
+            header={t('profileName.screenTitle')}
+            title={t('profileName.loadFail')}
+            body={t('profileName.loadFailBody')}
+            primary={{ label: t('common.retry'), onPress: () => void reloadProfile() }}
+          />
         ) : (
-          <SkeletonDetail lines={2} />
+          <StatusScreen kind="loading" header={t('profileName.screenTitle')} />
         )}
       </SafeAreaView>
     );
@@ -221,12 +223,13 @@ export default function ProfileNameScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
+        {/* 인사 묶음은 화면 맨 위와 시작하기 버튼 사이의 가운데에 둔다(디자인 시스템 「의도된 차이」). */}
         <View style={styles.introCenter}>
           <Image source={MASCOT.home} style={MASCOT_SIZE.intro} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <Text style={styles.introTitle}>{t('profileName.introTitle')}</Text>
           <Text style={styles.introBody}>{t('profileName.introBody', { count: steps.length })}</Text>
           <View style={styles.introBadge}>
-            <Feather name="clock" size={17} color={palette.blueDeep} />
+            <Feather name="clock" size={16} color={palette.blueDeep} />
             <Text style={styles.introBadgeText}>{t('profileName.introBadge')}</Text>
           </View>
         </View>
@@ -243,6 +246,7 @@ export default function ProfileNameScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <StatusScreen
+          header={t('profileName.screenTitle')}
           onBack={goBack}
           mascot={MASCOT.coach}
           title={t('profileName.blockedTitle')}
@@ -279,18 +283,16 @@ export default function ProfileNameScreen() {
     case 'name':
       body = (
         <>
-          <TextInput
-            style={styles.input}
+          <TextField
             placeholder={t('profileName.placeholder')}
-            placeholderTextColor={palette.textDisabled}
             value={form.name}
             onChangeText={(value) => update({ name: value })}
+            error={nameTooLong ? t('profileName.nameTooLong') : null}
             autoFocus
             returnKeyType="next"
             onSubmitEditing={() => ready && advance('name')}
             accessibilityLabel={t('profileName.nicknameLabel')}
           />
-          {nameTooLong && <Text style={styles.fieldError}>{t('profileName.nameTooLong')}</Text>}
         </>
       );
       footer = nextButton(() => advance('name'), ready);
@@ -307,7 +309,11 @@ export default function ProfileNameScreen() {
               update({ birthDate: formatBirthParts(parts) });
             }}
           />
-          {(birthInvalid || checkBirthDate(form.birthDate, new Date()).kind === 'invalid') && <Text style={styles.fieldError}>{t('profileName.birthInvalid')}</Text>}
+          {(birthInvalid || checkBirthDate(form.birthDate, new Date()).kind === 'invalid') && (
+            <View style={styles.fieldError}>
+              <InlineErrorLine message={t('profileName.birthInvalid')} />
+            </View>
+          )}
         </>
       );
       footer = nextButton(() => advance('birth'), ready);
@@ -392,22 +398,21 @@ export default function ProfileNameScreen() {
             ))}
           </View>
           {discovery.source === 'other' && (
-            <TextInput
-              style={[styles.input, styles.otherInput]}
-              placeholder={t('profileName.discoveryOtherPlaceholder')}
-              placeholderTextColor={palette.textDisabled}
-              value={discovery.otherText}
-              onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
-              maxLength={DISCOVERY_OTHER_MAX_LENGTH * 2}
-              autoFocus
-            />
+            <View style={styles.otherInput}>
+              <TextField
+                placeholder={t('profileName.discoveryOtherPlaceholder')}
+                value={discovery.otherText}
+                onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
+                maxLength={DISCOVERY_OTHER_MAX_LENGTH * 2}
+                autoFocus
+              />
+            </View>
           )}
         </>
       );
       footer = (
         <>
           <TextButton
-            size="large"
             label={t('profileName.skip')}
             onPress={() => {
               setDiscovery(EMPTY_DISCOVERY);
@@ -432,14 +437,18 @@ export default function ProfileNameScreen() {
         {/* 생년월일 휠을 만지는 동안은 화면이 같이 움직이지 않게 멈춘다(10/25). */}
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={!wheelTouch}>
           {/* 하나 고르는 질문은 누르면 바로 넘어간다(SOMA-827) — 그 사실을 말풍선 아래 줄로 알린다. */}
-          <MascotBubble title={t(ASK_KEYS[step], { name })} guide={TAP_TO_NEXT[step] ? t(TAP_TO_NEXT[step]) : null} />
+          <MascotBubble question title={t(ASK_KEYS[step], { name })} guide={TAP_TO_NEXT[step] ? t(TAP_TO_NEXT[step]) : null} />
           <Animated.View
             key={step}
             entering={reduceMotion ? undefined : FadeInDown.duration(motion.standard)}
             style={styles.current}>
             {body}
           </Animated.View>
-          {error && <Text style={styles.error}>{error}</Text>}
+          {error && (
+            <View style={styles.error}>
+              <InlineErrorLine message={error} />
+            </View>
+          )}
         </ScrollView>
         {footer && (
           <CtaBar safeBottom={false}>
@@ -452,7 +461,6 @@ export default function ProfileNameScreen() {
 }
 
 /**
- * 고르는 줄(pen S5.20~S5.24) — 높이 56, 흰 바탕 · 1px 테두리, 모서리 16. 고르면 옅은 파랑 바탕 · 파란 테두리 · 파란 글자와 오른쪽 체크.
  * 하나만 고르는 질문은 radio, 여럿 고르는 질문(추구하는 방향)은 checkbox 로 읽힌다.
  */
 function ChoiceRow({
@@ -474,7 +482,7 @@ function ChoiceRow({
       accessibilityState={multi ? { checked: selected } : { selected }}
       accessibilityLabel={label}>
       <Text style={[styles.choiceText, selected && styles.choiceTextOn]}>{label}</Text>
-      {selected && <Feather name="check" size={20} color={palette.blue} />}
+      {multi && selected && <Checkbox checked />}
     </Pressable>
   );
 }
@@ -500,63 +508,39 @@ const ASK_KEYS: Record<OnboardingStep, string> = {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
 
-  // pen 01 가입 시작 — 위에서 168(상태 막대 35 포함) 아래에 액티 127×142, 16 · 제목 26/800 · 8 · 설명 16/400 · 13 · 「1분이면 끝나요」.
-  introCenter: { flex: 1, alignItems: 'center', paddingTop: 133, paddingHorizontal: 24 },
-  introTitle: { marginTop: 16, fontSize: 26, fontWeight: '800', lineHeight: 35, color: palette.text, textAlign: 'center' },
-  introBody: {
-    marginTop: 8,
-    maxWidth: 290,
-    fontSize: 16,
-    fontWeight: '400',
-    lineHeight: 24,
-    color: palette.textSub,
-    textAlign: 'center',
-  },
+  introCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space[3], paddingHorizontal: space.gutter },
+  introTitle: { ...type.title1, color: palette.text, textAlign: 'center' },
+  introBody: { maxWidth: 290, ...type.body1, color: palette.textSub, textAlign: 'center' },
   introBadge: {
-    marginTop: 13,
-    height: 34,
+    height: 32,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space[1.5],
+    paddingHorizontal: space[3],
+    borderRadius: radius.full,
     backgroundColor: palette.blueSoft,
-    borderRadius: 17,
-    paddingHorizontal: 16,
   },
-  introBadgeText: { fontSize: 16, fontWeight: '700', color: palette.blueDeep },
-  // 아래 버튼 칸 — 좌우 24, 주 버튼 52, 버튼 사이 8.
+  introBadgeText: { ...type.body2Bold, color: palette.blueDeep },
 
-  // 질문 화면 — 좌우 24. 말풍선 아래 답 칸까지 24, 고르는 줄 사이 8.
-  body: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 24 },
-  current: { marginTop: 24 },
-  options: { gap: 8 },
+  body: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[6] },
+  current: { marginTop: space[6] },
+  options: { gap: space[2] },
   choice: {
-    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    borderRadius: 16,
+    gap: space[3],
+    padding: space[5],
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.bg,
   },
-  choiceOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft },
+  choiceOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft, padding: space[5] - 0.5 },
   choicePressed: { opacity: 0.7 },
-  choiceText: { flex: 1, fontSize: 16, fontWeight: '600', color: palette.text },
-  choiceTextOn: { fontWeight: '700', color: palette.blueDeep },
-  input: {
-    height: 52,
-    backgroundColor: palette.bgSoft,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  otherInput: { marginTop: 8 },
-  fieldError: { marginTop: 8, fontSize: 13, color: palette.danger },
-  error: { marginTop: 12, color: palette.danger, fontSize: 13 },
-  loadError: { color: palette.danger, fontSize: 13, textAlign: 'center' },
+  choiceText: { flex: 1, ...type.body1Bold, color: palette.text },
+  choiceTextOn: { color: palette.blueDeep },
+  otherInput: { marginTop: space[2] },
+  fieldError: { marginTop: space[2] },
+  error: { marginTop: space[3] },
 });

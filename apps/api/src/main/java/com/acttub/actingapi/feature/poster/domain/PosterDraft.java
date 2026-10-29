@@ -28,7 +28,9 @@ public record PosterDraft(
         String audio,
         String ctaLabel,
         String ctaAction,
-        String ctaTarget) {
+        String ctaTarget,
+        String footnote,
+        String imageBg) {
 
     public PosterDraft {
         platforms = platforms == null ? null : List.copyOf(platforms);
@@ -36,56 +38,56 @@ public record PosterDraft(
 
     public PosterDraft withSlug(String value) {
         return new PosterDraft(value, active, priority, startsAt, endsAt, platforms, locale, minAppVersion, frequency,
-                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget);
+                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 
     public PosterDraft withTitle(String value) {
         return new PosterDraft(slug, active, priority, startsAt, endsAt, platforms, locale, minAppVersion, frequency,
-                audience, dismissible, badge, value, body, image, audio, ctaLabel, ctaAction, ctaTarget);
+                audience, dismissible, badge, value, body, image, audio, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 
     public PosterDraft withPlatforms(List<String> value) {
         return new PosterDraft(slug, active, priority, startsAt, endsAt, value, locale, minAppVersion, frequency,
-                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget);
+                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 
     public PosterDraft withLocale(String value) {
         return new PosterDraft(slug, active, priority, startsAt, endsAt, platforms, value, minAppVersion, frequency,
-                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget);
+                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 
     public PosterDraft withMinAppVersion(String value) {
         return new PosterDraft(slug, active, priority, startsAt, endsAt, platforms, locale, value, frequency,
-                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget);
+                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 
     public PosterDraft withFrequency(String value) {
         return new PosterDraft(slug, active, priority, startsAt, endsAt, platforms, locale, minAppVersion, value,
-                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget);
+                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 
     public PosterDraft withAudience(String value) {
         return new PosterDraft(slug, active, priority, startsAt, endsAt, platforms, locale, minAppVersion, frequency,
-                value, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget);
+                value, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 
     public PosterDraft withImage(String value) {
         return new PosterDraft(slug, active, priority, startsAt, endsAt, platforms, locale, minAppVersion, frequency,
-                audience, dismissible, badge, title, body, value, audio, ctaLabel, ctaAction, ctaTarget);
+                audience, dismissible, badge, title, body, value, audio, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 
     public PosterDraft withAudio(String value) {
         return new PosterDraft(slug, active, priority, startsAt, endsAt, platforms, locale, minAppVersion, frequency,
-                audience, dismissible, badge, title, body, image, value, ctaLabel, ctaAction, ctaTarget);
+                audience, dismissible, badge, title, body, image, value, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 
     public PosterDraft withCta(String action, String target) {
         return new PosterDraft(slug, active, priority, startsAt, endsAt, platforms, locale, minAppVersion, frequency,
-                audience, dismissible, badge, title, body, image, audio, ctaLabel, action, target);
+                audience, dismissible, badge, title, body, image, audio, ctaLabel, action, target, footnote, imageBg);
     }
 
     public PosterDraft withPeriod(Instant start, Instant end) {
         return new PosterDraft(slug, active, priority, start, end, platforms, locale, minAppVersion, frequency,
-                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget);
+                audience, dismissible, badge, title, body, image, audio, ctaLabel, ctaAction, ctaTarget, footnote, imageBg);
     }
 }

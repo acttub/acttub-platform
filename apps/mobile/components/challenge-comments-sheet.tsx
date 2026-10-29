@@ -11,10 +11,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { palette } from '@/constants/palette';
+import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
+import { useReadableInput } from '@/hooks/use-readable-input';
+import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
+import { useAppDialog } from '@/components/app-dialog';
 import { avatarLetter } from '@/lib/challenge/browse';
 import {
   buildCommentBody,
@@ -56,15 +61,20 @@ export function ChallengeCommentsSheet({
   // 키보드만큼 아래 여백을 늘려 입력줄을 올린다 — 모달 안에서는 창이 줄지 않아 입력줄이 키보드 뒤로 숨었다.
   // KeyboardAvoidingView 가 edge-to-edge 에서 어긋나는 까닭은 use-keyboard-height 에 적었다.
   const keyboard = useKeyboardHeight();
+  const { confirm, dialog } = useAppDialog();
   const [comments, setComments] = useState<EntryComment[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const readable = useReadableInput(setDraft);
   const [sending, setSending] = useState(false);
+  /** 목록을 못 받았을 때(다시 시도) 와 보내기·지우기가 실패했을 때(입력줄 위 한 줄)를 따로 둔다. */
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<RequestAttempt | null>(null);
 
   const load = useCallback(async () => {
     if (!entryId) return;
+    setLoadError(null);
     setError(null);
     try {
       const result = await api.listComments(entryId);
@@ -72,7 +82,7 @@ export function ChallengeCommentsSheet({
       setCursor(result.next_cursor);
     } catch (e) {
       setComments([]);
-      setError(reactFailureMessage(reactFailure(e)));
+      setLoadError(reactFailureMessage(reactFailure(e)));
     }
   }, [entryId]);
 
@@ -108,7 +118,15 @@ export function ChallengeCommentsSheet({
     }
   };
 
+  // 지우면 되돌릴 수 없으니 한 번 묻는다(UX 가이드 3절, 10/28 폰 확인 — 누르자마자 지워졌다).
   const remove = async (comment: EntryComment) => {
+    const ok = await confirm({
+      title: t('comments.deleteTitle'),
+      confirmLabel: t('comments.deleteConfirm'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteComment(comment.id);
       setComments((prev) => (prev ?? []).filter((c) => c.id !== comment.id));
@@ -123,21 +141,18 @@ export function ChallengeCommentsSheet({
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
-      <View style={[styles.page, { paddingTop: insets.top, paddingBottom: keyboard > 0 ? keyboard + 6 : insets.bottom + 6 }]}>
-        <View style={styles.header}>
-          <Pressable
-            style={styles.close}
-            onPress={onClose}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('comments.close')}>
-            <Feather name="x" size={22} color={palette.text} />
-          </Pressable>
-          <Text style={styles.title}>{t('comments.title', { count: comments?.length ?? 0 })}</Text>
-        </View>
+      <View style={[styles.page, { paddingTop: insets.top, paddingBottom: keyboard > 0 ? keyboard + space[1.5] : insets.bottom + space[1.5] }]}>
+        <NavHeader
+          title={t('comments.title', { count: comments?.length ?? 0 })}
+          left={<NavIconButton icon="x" label={t('comments.close')} phLabel="comments_close" onPress={onClose} />}
+        />
         <View style={styles.divider} />
-          {comments === null && !error && <SkeletonRows count={4} card={false} />}
-          {!!error && <Text style={styles.error}>{error}</Text>}
+          {comments === null && !loadError && <SkeletonRows count={4} card={false} />}
+          {!!loadError && (
+            <View style={styles.errorBox}>
+              <InlineError message={loadError} onRetry={() => void load()} />
+            </View>
+          )}
 
           <FlatList
             data={comments ?? []}
@@ -148,7 +163,7 @@ export function ChallengeCommentsSheet({
             onEndReached={() => void loadMore()}
             onEndReachedThreshold={0.3}
             ListEmptyComponent={
-              comments !== null && !error ? (
+              comments !== null && !loadError ? (
                 <View style={styles.emptyBox}>
                   <Text style={styles.emptyTitle}>{t('comments.emptyTitle')}</Text>
                   <Text style={styles.empty}>{t('comments.empty')}</Text>
@@ -182,13 +197,15 @@ export function ChallengeCommentsSheet({
           />
 
           <View style={styles.inputBar}>
+            {!!(error || readable.hint) && <InlineErrorLine message={(error || readable.hint) as string} />}
             <View style={styles.inputPill}>
               <TextInput
                 style={styles.input}
                 placeholder={t('comments.placeholder')}
                 placeholderTextColor={palette.textMeta}
+                accessibilityLabel={t('comments.placeholder')}
                 value={draft}
-                onChangeText={setDraft}
+                onChangeText={readable.onChangeText}
                 maxLength={COMMENT_MAX}
                 multiline
               />
@@ -209,50 +226,48 @@ export function ChallengeCommentsSheet({
             )}
           </View>
       </View>
+      {dialog}
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: palette.bg },
-  header: { height: 48, justifyContent: 'center' },
-  close: { position: 'absolute', left: 12, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
-  title: { fontSize: 15, fontWeight: '800', color: palette.text, textAlign: 'center' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: palette.border },
-  error: { color: palette.danger, fontSize: 13, fontWeight: '700', paddingVertical: 8, paddingHorizontal: 16 },
+  errorBox: { paddingHorizontal: space.gutter, paddingTop: space[3] },
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, gap: 18 },
-  emptyBox: { alignItems: 'center', paddingVertical: 48, gap: 6 },
-  emptyTitle: { color: palette.text, fontSize: 17, fontWeight: '800' },
-  empty: { color: palette.textMeta, fontSize: 13.5, textAlign: 'center' },
-  row: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 13, fontWeight: '900', color: palette.blueDeep },
-  body: { flex: 1, gap: 3 },
-  meta: { fontSize: 12, color: palette.textMeta },
-  name: { fontSize: 12.5, fontWeight: '800', color: palette.text },
-  text: { fontSize: 14, lineHeight: 20, color: palette.text },
-  hidden: { fontStyle: 'italic', color: palette.textMeta },
-  action: { fontSize: 12, fontWeight: '700', color: palette.textMeta, marginTop: 4 },
+  listContent: { paddingHorizontal: space.gutter, paddingTop: space[4], paddingBottom: space[3], gap: space[5] },
+  emptyBox: { alignItems: 'center', paddingVertical: space[10], gap: space[1.5] },
+  emptyTitle: { ...type.headline, color: palette.text },
+  empty: { ...type.body2, color: palette.textMeta, textAlign: 'center' },
+  row: { flexDirection: 'row', gap: space[3], alignItems: 'flex-start' },
+  avatar: { width: 32, height: 32, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { ...type.captionBold, color: palette.blueDeep },
+  body: { flex: 1, gap: space[1] },
+  meta: { ...type.caption, color: palette.textMeta },
+  name: { ...type.captionBold, color: palette.text },
+  text: { ...type.body2, color: palette.text },
+  hidden: { color: palette.textMeta },
+  action: { ...type.captionBold, color: palette.danger, marginTop: space[1] },
   inputBar: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.border,
-    paddingHorizontal: 12,
-    paddingTop: 8,
+    paddingHorizontal: space[3],
+    paddingTop: space[2],
+    gap: space[2],
   },
   inputPill: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: palette.border,
-    paddingLeft: 16,
-    paddingRight: 5,
-    paddingVertical: 5,
+    gap: space[2],
+    borderRadius: radius.full,
+    backgroundColor: palette.bgSoft,
+    paddingLeft: space[4],
+    paddingRight: space[1],
+    paddingVertical: space[1],
   },
-  input: { flex: 1, minHeight: 34, maxHeight: 110, paddingVertical: 7, fontSize: 14, color: palette.text },
-  send: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, minHeight: 36, maxHeight: 110, paddingVertical: space[2], ...type.body1, lineHeight: undefined, color: palette.text },
+  send: { width: 36, height: 36, borderRadius: radius.full, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   sendOff: { backgroundColor: palette.border },
-  counter: { fontSize: 11, color: palette.textMeta, textAlign: 'right', paddingTop: 4, paddingRight: 6 },
+  counter: { ...type.caption, color: palette.textMeta, textAlign: 'right', paddingRight: space[1.5] },
 });

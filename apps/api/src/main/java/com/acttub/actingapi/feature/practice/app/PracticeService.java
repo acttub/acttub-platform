@@ -16,6 +16,7 @@ import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.StatusView;
 import com.acttub.actingapi.feature.practice.domain.PracticeRules;
 import com.acttub.actingapi.platform.schema.ExperienceVersion;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
 
@@ -41,6 +42,7 @@ public class PracticeService {
     private final boolean guestDailyAnalysisLimitEnabled;
     private final CoachingPlan plan;
     private final Clock clock;
+    private ReadingVoice readingVoice = ReadingVoice.OFF;
 
     public PracticeService(
             PracticeRepository practices,
@@ -74,6 +76,7 @@ public class PracticeService {
      * 수정과 같은 자리다.
      */
     public PracticeView start(UUID userId, boolean guest, String contractHeader, Draft draft) {
+        requireReadable(draft);
         boolean withVideo = draft.videoId() != null;
         if (!PracticeRules.videoMatchesPurpose(withVideo, PracticeRules.sessionPurpose(draft.sessionPurpose()))) {
             // 요청 검증(PracticeCreateRequest)이 먼저 422 배열로 거절한다. 여기 닿으면 부르는 쪽의 잘못이다.
@@ -93,11 +96,37 @@ public class PracticeService {
                 contractHeader), quota, clock.instant()), quota);
     }
 
+    /** 리딩 녹음으로 시작하는 코칭(SOMA-791)의 확인 자리를 끼운다. 기본은 꺼짐이다. */
+    public PracticeService withReadingVoice(ReadingVoice readingVoice) {
+        this.readingVoice = readingVoice == null ? ReadingVoice.OFF : readingVoice;
+        return this;
+    }
+
+    /**
+     * 리딩 녹음으로 시작하는 묶음 첫 회차(SOMA-791). 목적은 고르지 않는다(서버가 {@code reading} 으로 둔다). 분석 없이 바로 대화이고,
+     * 무료라 코칭 한도를 쓰지 않는다. 그 리딩 회차로 이미 시작했으면 그 회차를 돌려준다. 말로 하는 코치와 같이 새 코치에만 있다.
+     */
+    public PracticeView startFromReading(UUID userId, UUID requestId, UUID readingSessionId) {
+        switch (readingVoice.check(userId, readingSessionId)) {
+            case OFF, NOT_FOUND -> throw new ApiException(404, "session_not_found");
+            case NOT_ENOUGH_AUDIO -> throw new ApiException(422, "reading_voice_not_enough_audio");
+            case READY -> { }
+        }
+        String payload = "practice_start|reading|" + readingSessionId;
+        // 장면·막힘 칸은 적지 않은 시작과 같은 빈 값이다(표의 NOT NULL 기본).
+        NewPractice practice = new NewPractice(requestId, fingerprint(payload), null,
+                ExperienceVersion.THREE_LAYERS_V1.dbValue(), PracticeRules.scene(null), PracticeRules.scene(null),
+                PracticeRules.scene(null), PracticeRules.blockage(null), PracticeRules.blockage(null), PracticeRules.note(null),
+                null, PracticeRules.READING_PURPOSE, null);
+        return answer(practices.startFromReading(userId, practice, readingSessionId, clock.instant()));
+    }
+
     /**
      * 같은 묶음의 다음 회차. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다 — 그 영상이 파기됐으면
      * 422 {@code video_not_ready} 이고 새 영상으로는 된다.
      */
     public PracticeView continueGroup(UUID userId, boolean guest, String contractHeader, UUID from, Draft draft) {
+        requireReadable(draft);
         // 이어하기는 늘 영상으로 한다. 영상 없는 묶음을 이으려면 새 영상을 보낸다(없으면 422 video_not_ready).
         Quota quota = coachingQuota(userId, guest);
         return answer(practices.continueGroup(
@@ -175,6 +204,7 @@ public class PracticeService {
     }
 
     public GroupView updateGroup(UUID userId, UUID rootId, Boolean favorite, Boolean hidden, String title) {
+        InputCharset.require(title);
         GroupView group = practices.updateGroup(userId, rootId, favorite, hidden, title, clock.instant());
         if (group == null) {
             throw notFound();
@@ -213,6 +243,10 @@ public class PracticeService {
             this(requestId, videoId, situation, characterContext, goal, blockageKind, subBranch, blockageNote, title,
                     sessionPurpose, null);
         }
+    }
+
+    private static void requireReadable(Draft draft) {
+        InputCharset.require(draft.situation(), draft.characterContext(), draft.goal(), draft.blockageNote(), draft.title());
     }
 
     private NewPractice newPractice(Draft draft, String contractHeader) {

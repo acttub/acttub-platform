@@ -118,7 +118,7 @@ test('묶음 제목·회차 흐름·노트 보기를 보여 준다', async () =>
 
   expect(await screen.findByText('2회')).toBeOnTheScreen();
   expect(getGroup).toHaveBeenCalledWith('root1');
-  expect(header().getByText('이별 통보 장면')).toBeOnTheScreen();
+  expect(screen.getByText('이별 통보 장면')).toBeOnTheScreen();
   expect(screen.getByText('1차 · 대화 4개 · 첫 숨')).toBeOnTheScreen();
   expect(screen.getByText('2차 · 대화 0개 · 아직 정리 없음')).toBeOnTheScreen();
   expect(screen.getByText('3월 5일')).toBeOnTheScreen();
@@ -130,10 +130,11 @@ test('묶음 제목·회차 흐름·노트 보기를 보여 준다', async () =>
   expect(screen.queryByRole('button', { name: '연습 영상 보기' })).not.toBeOnTheScreen();
 });
 
-test('대화를 누르면 순서대로 펼치고, 못 읽으면 다시 누르라고 한다', async () => {
+test('대화를 누르면 순서대로 펼치고, 못 읽으면 InlineError 의 다시 시도로 다시 받는다', async () => {
   getConversation
     .mockResolvedValueOnce(conversation([[2, 'coach', '어땠어요?'], [1, 'actor', '긴장했어요']]))
-    .mockRejectedValueOnce(new Error('down'));
+    .mockRejectedValueOnce(new Error('down'))
+    .mockResolvedValueOnce(conversation([[1, 'coach', '다시 받은 말']]));
   await render(<PracticeGroupScreen />);
 
   await fireEvent.press(await screen.findByRole('button', { name: '마지막 대화' }));
@@ -144,8 +145,13 @@ test('대화를 누르면 순서대로 펼치고, 못 읽으면 다시 누르라
 
   await fireEvent.press(screen.getByRole('button', { name: '이전 대화 · 3월 6일' }));
   expect(getConversation).toHaveBeenLastCalledWith('conv-old');
-  expect(await screen.findByText('대화를 불러오지 못했어요. 다시 눌러 주세요.')).toBeOnTheScreen();
+  expect(await screen.findByText('대화를 불러오지 못했어요')).toBeOnTheScreen();
   expect(screen.queryByText('긴장했어요')).not.toBeOnTheScreen();
+
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(getConversation).toHaveBeenLastCalledWith('conv-old');
+  expect(await screen.findByText('다시 받은 말')).toBeOnTheScreen();
+  expect(screen.queryByText('대화를 불러오지 못했어요')).not.toBeOnTheScreen();
 });
 
 test('마지막 대화가 회차 대화와 같아도 누른 줄 아래에 한 번만 펼친다', async () => {
@@ -184,7 +190,7 @@ test('먼저 누른 대화가 늦게 오면 버린다', async () => {
     rejectSecond(new Error('late'));
   });
   expect(screen.queryByText('첫 번째')).not.toBeOnTheScreen();
-  expect(screen.queryByText('대화를 불러오지 못했어요. 다시 눌러 주세요.')).not.toBeOnTheScreen();
+  expect(screen.queryByText('대화를 불러오지 못했어요')).not.toBeOnTheScreen();
 });
 
 test('열린 테이크가 없으면 다음 테이크를 마지막 회차에 이어 만든다', async () => {
@@ -214,13 +220,13 @@ test('회차가 없으면 묶음 id로 다음 테이크를 만든다', async () 
   getGroup.mockResolvedValue(group({ practices: [], video_id: null, last_conversation_id: null, title: null, situation: '옥상 장면' }));
   await render(<PracticeGroupScreen />);
 
-  expect(await screen.findAllByText('옥상 장면')).toHaveLength(2);
+  expect(await screen.findByText('옥상 장면')).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '연습 영상 보기' })).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '다음 테이크 찍기' }));
   expect(setContinueOrigin).toHaveBeenCalledWith({ kind: 'group', rootId: 'root1', practiceId: 'root1' });
 });
 
-test('대화 중인 테이크가 있으면 맨 위에서 그 대화로 돌아간다', async () => {
+test('대화 중인 테이크가 있으면 그 회차 카드에서 대화로 돌아간다', async () => {
   getGroup.mockResolvedValue(group({ in_progress_practice_id: 'p2' }));
   await render(<PracticeGroupScreen />);
 
@@ -230,19 +236,106 @@ test('대화 중인 테이크가 있으면 맨 위에서 그 대화로 돌아간
   expect(hasSeenSpotlight).not.toHaveBeenCalled();
 });
 
-describe('삭제(숨김)', () => {
-  test('확인하면 숨기고 다시 보이기로 바꾼다', async () => {
+const purgeVideoFile = api.purgeVideoFile as jest.Mock;
+const getVideo = api.getVideo as jest.Mock;
+
+async function openMenu() {
+  await screen.findByText('2회');
+  await fireEvent.press(header().getByRole('button', { name: '연습 메뉴' }));
+}
+
+describe('머리 ⋯ 메뉴', () => {
+  test('제목 바꾸기·기록에서 숨기기·영상 지우기를 이 순서로 보인다', async () => {
+    getVideo.mockResolvedValue({ id: 'v1', playback_url: 'https://cdn/v1.mp4', purged_at: null });
+    await render(<PracticeGroupScreen />);
+    await openMenu();
+
+    expect(screen.getByText('이 연습')).toBeOnTheScreen();
+    const items = within(screen.getByTestId('anchored-menu')).getAllByRole('button').map((b) => b.props.accessibilityLabel);
+    expect(items).toEqual(['제목 바꾸기', '기록에서 숨기기', '영상 지우기']);
+    expect(header().getAllByRole('button')).toHaveLength(1);
+  });
+
+  test('영상이 없거나 이미 지웠으면 영상 지우기를 두지 않는다', async () => {
+    getVideo.mockResolvedValue({ id: 'v1', playback_url: null, purged_at: '2026-10-20T00:00:00Z' });
+    await render(<PracticeGroupScreen />);
+    await screen.findByText('영상이 지워졌어요');
+    await openMenu();
+
+    expect(screen.queryByText('영상 지우기')).not.toBeOnTheScreen();
+  });
+
+  test('제목 바꾸기는 묶음 제목을 보낸다', async () => {
+    patchGroup.mockResolvedValue(group({ title: '새 제목' }));
+    await render(<PracticeGroupScreen />);
+    await openMenu();
+    await fireEvent.press(screen.getByText('제목 바꾸기'));
+
+    const input = await screen.findByDisplayValue('이별 통보 장면');
+    await fireEvent.changeText(input, ' 새 제목 ');
+    await fireEvent.press(screen.getByRole('button', { name: '저장' }));
+
+    expect(patchGroup).toHaveBeenCalledWith('root1', { title: '새 제목' });
+    expect(await screen.findByText('새 제목')).toBeOnTheScreen();
+  });
+
+  test('제목을 못 바꾸면 칸 아래에 실패 줄을 보인다', async () => {
+    patchGroup.mockRejectedValue(new Error('down'));
+    await render(<PracticeGroupScreen />);
+    await openMenu();
+    await fireEvent.press(screen.getByText('제목 바꾸기'));
+    await fireEvent.press(await screen.findByRole('button', { name: '저장' }));
+
+    expect(await screen.findByText('제목을 바꾸지 못했어요. 다시 눌러 주세요.')).toBeOnTheScreen();
+    expect(screen.queryByText('비우면 노트 첫 줄을 제목으로 써요')).not.toBeOnTheScreen();
+  });
+
+  test('영상 지우기는 확인 뒤 영상 파일만 지우고 결과를 알린다', async () => {
+    getVideo.mockResolvedValue({ id: 'v1', playback_url: 'https://cdn/v1.mp4', purged_at: null });
+    purgeVideoFile.mockResolvedValue(undefined);
+    await render(<PracticeGroupScreen />);
+    await screen.findByRole('button', { name: /연습 영상 보기/ });
+    await openMenu();
+    await fireEvent.press(screen.getByText('영상 지우기'));
+
+    expect(await screen.findByText('영상을 지울까요?')).toBeOnTheScreen();
+    expect(screen.getByText('노트와 대화는 남아요. 영상은 다시 볼 수 없어요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '지우기' }));
+
+    expect(purgeVideoFile).toHaveBeenCalledWith('v1');
+    expect(await screen.findByText('영상을 지웠어요')).toBeOnTheScreen();
+    expect(patchGroup).not.toHaveBeenCalled();
+  });
+});
+
+describe('기록에서 숨기기', () => {
+  async function hide() {
+    await openMenu();
+    await fireEvent.press(screen.getByText('기록에서 숨기기'));
+    expect(await screen.findByText('이 연습을 기록에서 숨길까요?')).toBeOnTheScreen();
+    expect(screen.getByText('목록에서 빠져요. 나중에 다시 보이게 할 수 있어요.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '숨기기' }));
+  }
+
+  test('확인하면 숨기고 돌아갈 목록이 있으면 그 목록으로 간다', async () => {
+    mockRouter.canGoBack.mockReturnValue(true);
     patchGroup.mockResolvedValue(group({ hidden_at: '2026-10-20T00:00:00Z' }));
     await render(<PracticeGroupScreen />);
-
-    await fireEvent.press(await screen.findByText('삭제'));
-    expect(await screen.findByText('이 연습을 기록에서 삭제할까요?')).toBeOnTheScreen();
-    const labels = screen.getAllByText('삭제');
-    await fireEvent.press(labels[labels.length - 1]);
+    await hide();
 
     expect(patchGroup).toHaveBeenCalledWith('root1', { hidden: true });
-    expect(await screen.findByText('다시 보이기')).toBeOnTheScreen();
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+
+  test('돌아갈 곳이 없으면 머리 버튼을 지우고 아래에 다시 보이기를 둔다', async () => {
+    mockRouter.canGoBack.mockReturnValue(false);
+    patchGroup.mockResolvedValue(group({ hidden_at: '2026-10-20T00:00:00Z' }));
+    await render(<PracticeGroupScreen />);
+    await hide();
+
+    expect(await screen.findByRole('button', { name: '다시 보이기' })).toBeOnTheScreen();
     expect(header().queryByRole('button')).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '다음 테이크 찍기' })).toBeOnTheScreen();
   });
 
   test('다시 보이기는 묻지 않고 되돌린다', async () => {
@@ -250,75 +343,50 @@ describe('삭제(숨김)', () => {
     patchGroup.mockResolvedValue(group());
     await render(<PracticeGroupScreen />);
 
-    await fireEvent.press(await screen.findByText('다시 보이기'));
+    await fireEvent.press(await screen.findByRole('button', { name: '다시 보이기' }));
     expect(patchGroup).toHaveBeenCalledWith('root1', { hidden: false });
-    expect(await screen.findByText('삭제')).toBeOnTheScreen();
-  });
-
-  test('머리의 삭제는 숨긴 뒤 목록으로 돌아간다', async () => {
-    mockRouter.canGoBack.mockReturnValue(true);
-    patchGroup.mockResolvedValue(group({ hidden_at: '2026-10-20T00:00:00Z' }));
-    await render(<PracticeGroupScreen />);
-    await screen.findByText('2회');
-
-    await fireEvent.press(header().getByRole('button', { name: '삭제' }));
-    const labels = await screen.findAllByText('삭제');
-    await fireEvent.press(labels[labels.length - 1]);
-
-    expect(patchGroup).toHaveBeenCalledWith('root1', { hidden: true });
-    expect(mockRouter.back).toHaveBeenCalledTimes(1);
-  });
-
-  test('돌아갈 곳이 없으면 머리의 삭제도 화면에 남는다', async () => {
-    mockRouter.canGoBack.mockReturnValue(false);
-    patchGroup.mockResolvedValue(group({ hidden_at: '2026-10-20T00:00:00Z' }));
-    await render(<PracticeGroupScreen />);
-    await screen.findByText('2회');
-
-    await fireEvent.press(header().getByRole('button', { name: '삭제' }));
-    const labels = await screen.findAllByText('삭제');
-    await fireEvent.press(labels[labels.length - 1]);
-
-    expect(await screen.findByText('다시 보이기')).toBeOnTheScreen();
-    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(await header().findByRole('button', { name: '연습 메뉴' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '다시 보이기' })).not.toBeOnTheScreen();
   });
 
   test('취소하면 보내지 않는다', async () => {
     await render(<PracticeGroupScreen />);
-    await fireEvent.press(await screen.findByText('삭제'));
-    await fireEvent.press(await screen.findByText('취소'));
+    await openMenu();
+    await fireEvent.press(screen.getByText('기록에서 숨기기'));
+    await fireEvent.press(await screen.findByRole('button', { name: '취소' }));
     expect(patchGroup).not.toHaveBeenCalled();
-    expect(screen.getByText('삭제')).toBeOnTheScreen();
   });
 
   test.each([
     [new Error('권한 없음'), '권한 없음'],
-    ['boom', '삭제하지 못했어요.'],
-  ])('실패하면 이유를 알린다 (%#)', async (cause, message) => {
+    ['boom', '잠시 후 다시 시도해 주세요.'],
+  ])('실패하면 결과 문장 제목으로 알린다 (%#)', async (cause, message) => {
     patchGroup.mockRejectedValue(cause);
     await render(<PracticeGroupScreen />);
-    await fireEvent.press(await screen.findByText('삭제'));
-    const labels = await screen.findAllByText('삭제');
-    await fireEvent.press(labels[labels.length - 1]);
+    await hide();
 
-    expect(await screen.findByText('삭제 실패')).toBeOnTheScreen();
+    expect(await screen.findByText('숨기지 못했어요')).toBeOnTheScreen();
     expect(screen.getByText(message)).toBeOnTheScreen();
   });
 });
 
-test('못 불러오면 그렇다고 알리고 머리 제목은 연습 기록이다', async () => {
-  getGroup.mockRejectedValue(new Error('down'));
+test('못 불러오면 오류 화면을 보이고 다시 시도로 다시 읽는다', async () => {
+  getGroup.mockRejectedValueOnce(new Error('down'));
   await render(<PracticeGroupScreen />);
 
-  expect(await screen.findByText('연습 기록을 불러오지 못했어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('연습 기록을 불러오지 못했어요')).toBeOnTheScreen();
   expect(header().getByText('연습 기록')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByText('2회')).toBeOnTheScreen();
+  expect(getGroup).toHaveBeenCalledTimes(2);
 });
 
-test('묶음 id 없이 열면 읽지 않는다', async () => {
+test('묶음 id 없이 열면 읽지 않고 뼈대 대신 오류 화면을 보인다', async () => {
   mockParams = {};
   await render(<PracticeGroupScreen />);
+  expect(await screen.findByText('연습 기록을 불러오지 못했어요')).toBeOnTheScreen();
   expect(getGroup).not.toHaveBeenCalled();
-  expect(header().getByText('연습 기록')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
 });
 
 describe('처음 한 번 비추는 안내', () => {

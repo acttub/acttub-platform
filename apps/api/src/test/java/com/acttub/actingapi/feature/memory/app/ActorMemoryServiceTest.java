@@ -60,4 +60,11 @@ class ActorMemoryServiceTest {
                 .isInstanceOf(BlankMemoryValue.class);
         assertThat(writes).isEmpty();
     }
+
+    @Test
+    void valueWithStackedCombiningMarksIsRejectedAndNotStored() {
+        assertThatThrownBy(() -> new ActorMemoryService(store).write(USER, "goal", "Z\u0325\u031c\u0318\u0316\u0323x"))
+                .isInstanceOf(ApiException.class).hasMessageContaining("unreadable_text");
+        assertThat(writes).isEmpty();
+    }
 }

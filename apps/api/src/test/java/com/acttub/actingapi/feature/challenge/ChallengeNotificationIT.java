@@ -297,6 +297,13 @@ class ChallengeNotificationIT {
         assertThat(response(get("/v2/me/notifications"), 200).at("/groups/0/actor_name").asText()).isEqualTo("탈퇴한 사용자");
         jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", mine);
         assertThat(response(get("/v2/me/notifications"), 200).at("/groups/0/target_available").asBoolean()).isFalse();
+        assertThat(response(get("/v2/me/notifications"), 200).at("/groups/0/target_hidden").asBoolean()).isFalse();
+        // 내 참여작이 신고·AI 검사로 운영 확인 중이면 열 수는 없지만 그 이유를 알 수 있다.
+        jdbc.update("UPDATE challenge_entries SET visibility='public',status='hidden_by_report' WHERE id=?", mine);
+        var hiddenInbox = response(get("/v2/me/notifications"), 200);
+        assertThat(hiddenInbox.at("/groups/0/target_available").asBoolean()).isFalse();
+        assertThat(hiddenInbox.at("/groups/0/target_hidden").asBoolean()).isTrue();
+        jdbc.update("UPDATE challenge_entries SET status='visible',visibility='private' WHERE id=?", mine);
         UUID other = entry(challenge, me);
         response(put("/v2/entries/{id}/like", other), 200, token(member("남는 팬")));
         response(delete("/v2/entries/{id}", other), 204);

@@ -178,6 +178,7 @@ class AccountWithdrawIT {
                 member.id(), java.sql.Date.valueOf(today().minusDays(3)));
         jdbc.update("INSERT INTO practice_reminder_sends(user_id,day,slot,kind,skipped_days,template_id) VALUES (?,?,'practice','general',1,'general.1.a')",
                 member.id(), java.sql.Date.valueOf(today().minusDays(1)));
+        jdbc.update("INSERT INTO push_opens(user_id,kind) VALUES (?,'evening_reminder')", member.id());
 
         var response = withdraw(member.accessToken());
 
@@ -203,6 +204,7 @@ class AccountWithdrawIT {
         assertThat(count("push_tokens")).isZero();
         assertThat(count("user_active_days")).as("접속일은 사람과 끊어 남기지 않고 지운다").isZero();
         assertThat(count("practice_reminder_sends")).as("연습 알림 보낸 기록도 지운다").isZero();
+        assertThat(count("push_opens")).as("푸시를 눌러 연 기록도 지운다").isZero();
         assertThat(count("guest_transfer_codes")).isZero();
         assertThat(count("portfolios")).isZero();
         assertThat(count("portfolio_credits")).isZero();

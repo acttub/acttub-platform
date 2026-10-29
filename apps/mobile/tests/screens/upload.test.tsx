@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer } from 'expo-video';
@@ -11,6 +12,7 @@ import {
   flushLibraryUploads,
   onLibraryChange,
   pendingLibraryUploads,
+  removePendingUpload,
   saveRecordingToLibrary,
 } from '@/lib/library/library-runner';
 import { setPickedVideo, takePickedVideo } from '@/lib/practice/picked-video';
@@ -70,6 +72,7 @@ jest.mock('@/lib/library/library-runner', () => {
     }),
     pendingLibraryUploads: jest.fn(async () => []),
     saveRecordingToLibrary: jest.fn(),
+    removePendingUpload: jest.fn(async () => undefined),
     __emit: () => listeners.forEach((fn) => fn()),
   };
 });
@@ -160,10 +163,8 @@ describe('영상을 고르기 전', () => {
     expect(screen.getByText('목적')).toBeOnTheScreen();
     expect(screen.getByText('영상')).toBeOnTheScreen();
     expect(screen.queryByText('장면 · 질문')).not.toBeOnTheScreen();
-    // 기본 선택이 없어 고르기 전에는 「다음」이 막혀 있다.
-    expect(screen.getByRole('radio', { name: '평가 받기' })).not.toBeSelected();
-    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-    expect(screen.queryByText('영상이 어디 있어요?')).not.toBeOnTheScreen();
+    // 첫 항목(평가 받기)을 미리 골라 둔다(UX 가이드 5절, 10/28) — 「다음」이 처음부터 켜져 있다.
+    expect(screen.getByRole('radio', { name: '평가 받기' })).toBeSelected();
     await toSourceStep();
     // 영상 단계 맨 아래에 권리 체크와 시작 버튼이 있다 — 영상이 없으면 막혀 있다.
     expect(screen.getByRole('checkbox')).not.toBeChecked();
@@ -187,7 +188,6 @@ describe('영상을 고르기 전', () => {
   });
 
   test('첫 코칭이어도 단계마다 「처음이면 ~를 누르세요」를 반복하지 않고, (10/20 피드백)', async () => {
-    mockParams = { first: '1' };
     await render(<UploadScreen />);
     expect(screen.queryByText('처음이면 「평가 받기」를 누르세요.')).not.toBeOnTheScreen();
     await toSourceStep();
@@ -242,29 +242,54 @@ describe('갤러리에서 고르기', () => {
     await render(<UploadScreen />);
     await pickFromGallery();
 
-    expect(await screen.findByText('올리는 중…')).toBeOnTheScreen();
+    // 영상 옆 상태와 질문 받기 버튼이 함께 「올리는 중…」이다.
+    expect(await screen.findAllByText('올리는 중…')).toHaveLength(2);
     expect(saveRecordingToLibrary).toHaveBeenCalledWith({ uri: 'file:///g.mov', durationMs: 42_000, owner: 'u1' });
     expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith({ mediaTypes: ['videos'], allowsEditing: false, preferredAssetRepresentationMode: 'current' });
     expect(useVideoPlayer).toHaveBeenLastCalledWith('file:///doc/g.mov', expect.any(Function));
     expect(mockPlayer.pause).toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: '업로드 중…' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '올리는 중…' })).toBeOnTheScreen();
     expect(screen.getByText('영상을 아직 올리는 중이에요. 잠시 뒤에 다시 눌러 주세요.')).toBeOnTheScreen();
     expect(logged('practice_video_picked')).toEqual([{ source: 'gallery', needs_upload: 'yes', length: '30_60s' }]);
 
     // 권리 체크를 풀고 누르면 막힌 이유를 세고 업로드를 다시 민다.
     await fireEvent.press(screen.getByText(RIGHTS));
-    await fireEvent.press(screen.getByRole('button', { name: '업로드 중…' }));
+    await fireEvent.press(screen.getByRole('button', { name: '올리는 중…' }));
     expect(flushLibraryUploads).toHaveBeenCalledWith('u1');
     expect(logged('practice_start_blocked')).toEqual([{ reason: 'uploading' }]);
     expect(api.createPractice).not.toHaveBeenCalled();
     // 체크한 채 누르면 「영상을 올리고 있어요」 한 장으로 기다린다.
     await fireEvent.press(screen.getByText(RIGHTS));
-    await fireEvent.press(screen.getByRole('button', { name: '업로드 중…' }));
+    await fireEvent.press(screen.getByRole('button', { name: '올리는 중…' }));
     expect(await screen.findByText('영상을 올리고 있어요')).toBeOnTheScreen();
-    // 홈으로 나가면 이미 있는 홈 탭까지 내려간다 — 탭 묶음을 하나 더 쌓지 않는다(SOMA-853).
-    await fireEvent.press(screen.getByRole('button', { name: '홈에서 기다리기' }));
+    expect(screen.getByText('영상 길이에 따라 1분쯤 걸려요.')).toBeOnTheScreen();
+    expect(screen.getByText('화면을 나가도 영상은 계속 올라가요')).toBeOnTheScreen();
+    expect(screen.getByText('홈에서 올라가는 모습을 이어서 볼 수 있어요.')).toBeOnTheScreen();
+    // 버튼·진행 막대 없이 기다린다. 올리던 영상을 버리는 길도 없다(10-27).
+    expect(screen.queryAllByRole('button')).toEqual([]);
+    expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+    // 뒤로 가면 기다리는 업로드로 남기고 홈으로 간다(기다리는 업로드 카드가 홈에 있다) — 탭 묶음을 하나 더 쌓지 않는다(SOMA-853).
+    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+    await act(async () => preventRemove.mock.calls[preventRemove.mock.calls.length - 1][1]());
     await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
-    expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
+    expect(JSON.parse((await AsyncStorage.getItem('acttub.waitingUpload:u1')) as string)).toMatchObject({ owner: 'u1', pendingId: 'pend-1', videoId: null });
+    expect(removePendingUpload).not.toHaveBeenCalled();
+  });
+
+  test('올리기가 끊겨 실패 한 장이 뜨면 「나중에 할게요」는 영상을 버리지 않고 뒤로 가기와 같이 홈으로 나간다', async () => {
+    (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///g.mov' }] });
+    (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'pend-1', uri: 'file:///doc/g.mov' } });
+    (pendingLibraryUploads as jest.Mock).mockResolvedValue([{ id: 'pend-1', status: 'failed' }]);
+    await render(<UploadScreen />);
+    await pickFromGallery();
+    await fireEvent.press(screen.getByRole('button', { name: '올리는 중…' }));
+
+    expect(await screen.findByText('영상을 다 올리지 못했어요')).toBeOnTheScreen();
+    expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['나중에 할게요', '다시 올리기']);
+    await fireEvent.press(screen.getByText('나중에 할게요'));
+    await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)'));
+    expect(removePendingUpload).not.toHaveBeenCalled();
   });
 
   test('올리기가 실패로 남으면 다시 올려 볼 수 있다고 알린다', async () => {
@@ -293,7 +318,7 @@ describe('갤러리에서 고르기', () => {
     (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'pend-1', uri: 'file:///doc/g.mov' } });
     await render(<UploadScreen />);
     await pickFromGallery();
-    await screen.findByRole('button', { name: '업로드 중…' });
+    await screen.findByRole('button', { name: '올리는 중…' });
 
     (confirmedVideoFor as jest.Mock).mockImplementation((id: string) => (id === 'pend-1' ? 'v9' : null));
     await act(async () => emitLibraryChange());
@@ -311,7 +336,7 @@ describe('갤러리에서 고르기', () => {
     await render(<UploadScreen />);
     await pickFromGallery();
 
-    expect(await screen.findByText('영상이 너무 길어요(5분 이내)')).toBeOnTheScreen();
+    expect(await screen.findByText('5분까지 올릴 수 있어요. 더 짧은 영상을 골라 주세요.')).toBeOnTheScreen();
     // 영상 고르기 단계에 그대로 머문다.
     expect(screen.getByText('영상이 어디 있어요?')).toBeOnTheScreen();
     expect(logged('practice_video_picked')).toEqual([]);
@@ -502,12 +527,28 @@ describe('보내기 전에 화면이 먼저 막는 길이', () => {
     expect(api.createPractice).not.toHaveBeenCalled();
   });
 
-  test('준비 화면에 장면·연습 제목 칸이 없고 시작 본문에 title 이 실리지 않는다', async () => {
+  test('준비 화면에 장면·연습 제목 칸이 없고, 영상을 고르면 가운데 팝업으로 연습 제목을 한 번 묻는다', async () => {
     await renderWithSavedVideo();
-    expect(screen.queryByText('연습 제목')).not.toBeOnTheScreen();
     expect(screen.queryByText('상황')).not.toBeOnTheScreen();
     expect(screen.queryByText('원하는 것')).not.toBeOnTheScreen();
-    expect(screen.queryAllByPlaceholderText(/^예: /)).toHaveLength(0);
+    // 팝업은 촬영·사진 선택 창이 닫힌 뒤에 뜬다.
+    expect(await screen.findByText('연습 제목')).toBeOnTheScreen();
+    expect(screen.getByPlaceholderText('예: 카페 이별 장면 2차')).toBeOnTheScreen();
+    expect(screen.getByText('비워 두면 노트 첫 줄이 제목이 돼요')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByPlaceholderText('예: 카페 이별 장면 2차'), '  카페 이별 장면 2차 ');
+    await fireEvent.press(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(screen.queryByText('연습 제목')).not.toBeOnTheScreen());
+    await checkRightsAndStart();
+
+    await waitFor(() => expect(api.createPractice).toHaveBeenCalled());
+    expect((api.createPractice as jest.Mock).mock.calls[0][0]).toMatchObject({ title: '카페 이별 장면 2차' });
+  });
+
+  test('제목 팝업을 건너뛰면 시작 본문에 title 이 실리지 않는다', async () => {
+    await renderWithSavedVideo();
+    expect(await screen.findByText('연습 제목')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '건너뛰기' }));
+    await waitFor(() => expect(screen.queryByText('연습 제목')).not.toBeOnTheScreen());
     await checkRightsAndStart();
 
     await waitFor(() => expect(api.createPractice).toHaveBeenCalled());

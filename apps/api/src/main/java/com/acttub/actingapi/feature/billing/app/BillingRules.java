@@ -25,6 +25,21 @@ public final class BillingRules {
     public static final Duration STORE_RENEWAL_SKEW = Duration.ofHours(6);
     /** 구글 결제 유예(IN_GRACE_PERIOD) 때 만료 시각 뒤로 Pro 를 이어 주는 기간. 알림이 상태를 바로잡는다. */
     public static final Duration GOOGLE_GRACE = Duration.ofDays(7);
+
+    /**
+     * 출시 주간 Pro(SOMA-899, 10/26 대표 결정) — 11/1 0시(한국) 전에 가입한 사람은 11/1 0시부터 11/8 0시 전까지(11/1~11/7) 카드 없이
+     * Pro 다. 운영 DB 에 줄을 넣지 않고 가입 시각으로 판정하므로, 11/1 직전까지 가입한 사람도 빠지지 않는다.
+     */
+    public static final Instant LAUNCH_WEEK_START = Instant.parse("2026-10-31T15:00:00Z");
+    public static final Instant LAUNCH_WEEK_END = Instant.parse("2026-11-07T15:00:00Z");
+
+    /** 출시 주간 Pro 의 끝 — 지금이 그 주간이고 가입이 시작 전이면 끝 시각, 아니면 null. 가입 시각을 모르면 null. */
+    public static Instant launchWeekEnd(Instant signedUpAt, Instant now) {
+        if (signedUpAt == null || now.isBefore(LAUNCH_WEEK_START) || !now.isBefore(LAUNCH_WEEK_END)) {
+            return null;
+        }
+        return signedUpAt.isBefore(LAUNCH_WEEK_START) ? LAUNCH_WEEK_END : null;
+    }
     public static final String ORDER_NAME = "ACTTUB Pro 월 구독";
     public static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     /** 무료 코칭은 한국 시간 하루에 회차 3개. */

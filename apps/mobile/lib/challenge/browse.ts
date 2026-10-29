@@ -53,12 +53,20 @@ export function detailTitleKey(
   return challenge?.featured_on && !isEnded(challenge, now) ? 'challenges.detailTitle' : 'challenges.title';
 }
 
-/** 진행 중이면 "D-N", 끝났으면 종료다. 마감 당일은 D-0 이 아니라 D-1 로 센다(남은 날). */
+/**
+ * 진행 중이면 "D-N", 끝났으면 종료다. N 은 한국 날짜로 센 마감일까지의 날 수이고, 마감 당일은 D-DAY 다.
+ * 홈(lib/home-today challengeDaysLeft)과 같은 기준이라 같은 챌린지가 화면마다 다른 D-day 로 보이지 않는다.
+ */
 export function dDayLabel(challenge: Pick<ChallengeCard, 'ends_at'>, now: number = Date.now()): string {
   if (isEnded(challenge, now)) return translate('challenges.ended');
-  const ends = Date.parse(challenge.ends_at);
-  const days = Math.max(1, Math.ceil((ends - now) / DAY_MS));
-  return translate('challenges.dday', { days });
+  const days = Math.max(0, kstDayIndex(Date.parse(challenge.ends_at)) - kstDayIndex(now));
+  return days === 0 ? translate('challenges.ddayToday') : translate('challenges.dday', { days });
+}
+
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function kstDayIndex(ms: number): number {
+  return Math.floor((ms + KST_OFFSET_MS) / DAY_MS);
 }
 
 /** 주최자 줄 — 기획팀 챌린지는 주최자가 없고, 탈퇴한 주최자는 그렇게 보인다. */
@@ -143,6 +151,11 @@ export function browseFailure(error: unknown): BrowseFailure {
   if (status === 404) return { kind: 'not_found' };
   if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other' };
+}
+
+/** 다시 시도로 풀리는 실패인가 — 없는 챌린지·회원 전용은 다시 불러와도 같아 한 줄로만 알린다. */
+export function canRetryBrowse(failure: BrowseFailure): boolean {
+  return failure.kind !== 'not_found' && failure.kind !== 'member_only';
 }
 
 export function browseFailureMessage(failure: BrowseFailure): string {

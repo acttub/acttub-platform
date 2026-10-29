@@ -3,6 +3,7 @@
  *
  * 분량은 서버가 대사 5자 = 1초로 어림한 추정치다. 실제 낭독 시간으로 보정한 값이 아니므로 「약 1분」처럼만 보인다.
  */
+import { DEFAULT_APP_CONFIG } from './app-config.ts';
 
 export type SampleScriptExperience = 'beginner' | 'exam' | 'experienced';
 
@@ -57,11 +58,14 @@ export type ReviseSampleScriptBody = {
   length_minutes?: number | null;
 };
 
-/** 감정 칩(서버의 고정 목록과 같다) + 「잘 모르겠어요」. 보이는 순서는 pen P14.1(서운함부터). */
-export const EMOTIONS = ['서운함', '설렘', '분노', '슬픔', '긴장', '담담함'] as const;
+/**
+ * 감정 칩(서버의 고정 목록과 같다) + 「잘 모르겠어요」. 보이는 순서는 pen P14.1(서운함부터).
+ * 감정·상황 칩은 기본값이고, 화면은 서버 설정(getAppConfig().cocreate)을 그릴 때 읽는다(SOMA-939).
+ */
+export const EMOTIONS: readonly string[] = DEFAULT_APP_CONFIG.cocreate.emotions;
 export const ANY_EMOTION = '잘 모르겠어요';
 /** 상황 칩(pen P14.2) — 고르거나 직접 쓴다. 「아무거나 좋아요」면 서버가 고른다. 서버는 자유 글로 받는다. */
-export const SITUATIONS = ['오랜만의 재회', '이별', '오디션 직전', '가족 다툼', '고백', '사과'] as const;
+export const SITUATIONS: readonly string[] = DEFAULT_APP_CONFIG.cocreate.situations;
 export const ANY_SITUATION = '아무거나 좋아요';
 /** 코칭은 혼자 찍으므로 독백이 기본이다. 2인은 상대역 대사가 있는 장면. */
 export const CAST_OPTIONS = [1, 2] as const;

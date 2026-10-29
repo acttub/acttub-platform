@@ -1,41 +1,48 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { stubModules } from './helpers/stub-modules.mjs';
 
-// RN 의 Text·TextInput 대신 render 를 가진 가짜 컴포넌트를 주고, 모듈을 불러온 뒤 그린 결과의 글꼴을 본다.
-globalThis.__globalFont = {
-  Text: { render: props => ({ type: 'Text', props: { style: props.style, children: props.children } }) },
-  TextInput: { render: () => null },
-};
-stubModules({
-  'react-native': `const s = globalThis.__globalFont;
-    const flatten = style => Array.isArray(style) ? Object.assign({}, ...style.map(flatten)) : (style ?? undefined);
-    export const StyleSheet = { flatten };
-    export const Text = s.Text;
-    export const TextInput = s.TextInput;`,
-  react: `export default { cloneElement: (element, props) => ({ ...element, props: { ...element.props, ...props } }) };`,
-});
+// 기기 종류는 시험마다 바꾼다 — fontStyleFor 는 부를 때마다 Platform.OS 를 읽는다.
+globalThis.__platform = { OS: 'ios' };
+stubModules({ 'react-native': 'export const Platform = globalThis.__platform;' });
 await import('../lib/global-font.ts');
-await import('../lib/global-font.ts');
-const { Text, TextInput } = globalThis.__globalFont;
-const draw = style => Text.render({ style, children: '안녕' });
+const fontStyleFor = globalThis.__fontStyleFor;
 
 test('글자 굵기에 맞는 Pretendard 파일을 고르고 가짜 볼드는 끈다', () => {
-  assert.deepEqual(draw([{ fontSize: 14 }, { fontWeight: '700' }]).props.style, [
-    [{ fontSize: 14 }, { fontWeight: '700' }],
-    { fontFamily: 'Pretendard-Bold', fontWeight: 'normal' },
-  ]);
-  assert.equal(draw({ fontWeight: '600' }).props.style[1].fontFamily, 'Pretendard-SemiBold');
-  assert.equal(draw(undefined).props.style[1].fontFamily, 'Pretendard');
+  globalThis.__platform.OS = 'ios';
+  assert.deepEqual(fontStyleFor({ fontSize: 14, fontWeight: '700' }), { fontFamily: 'Pretendard-Bold', fontWeight: 'normal' });
+  assert.equal(fontStyleFor({ fontWeight: '600' }).fontFamily, 'Pretendard-SemiBold');
+  assert.equal(fontStyleFor(undefined).fontFamily, 'Pretendard');
 });
 
 test('아이콘 글꼴처럼 패밀리를 직접 정한 글자는 건드리지 않는다', () => {
-  assert.deepEqual(draw({ fontFamily: 'Feather' }).props.style, { fontFamily: 'Feather' });
+  globalThis.__platform.OS = 'ios';
+  assert.equal(fontStyleFor({ fontFamily: 'Feather' }), null);
+  assert.equal(fontStyleFor({ fontFamily: 'Pretendard-Bold' }), null);
 });
 
-test('그릴 것이 없으면 그대로 두고, 두 번 불러와도 한 번만 덧씌운다', () => {
-  assert.equal(TextInput.render({}), null);
-  assert.equal(Text.__globalFontApplied, true);
-  assert.equal(draw({}).props.style.length, 2);
+test('안드로이드는 굵기 이름으로 고른 Pretendard 도 한 단계 가볍게 한다', () => {
+  globalThis.__platform.OS = 'android';
+  assert.equal(fontStyleFor({ fontWeight: '700' }).fontFamily, 'Pretendard-SemiBold');
+  assert.deepEqual(fontStyleFor({ fontFamily: 'Pretendard-Bold' }), { fontFamily: 'Pretendard-SemiBold', includeFontPadding: false });
+  assert.equal(fontStyleFor({ fontFamily: 'Feather' }), null);
+});
+
+test('안드로이드 Pretendard 글자는 폰트 여백을 빼고, 화면이 정한 값과 아이콘은 그대로 둔다', () => {
+  globalThis.__platform.OS = 'android';
+  assert.equal(fontStyleFor({ fontSize: 14 }).includeFontPadding, false);
+  assert.equal(fontStyleFor({ fontFamily: 'Pretendard' }).includeFontPadding, false);
+  assert.equal(fontStyleFor({ includeFontPadding: true }).includeFontPadding, undefined);
+  globalThis.__platform.OS = 'ios';
+  assert.equal(fontStyleFor({ fontSize: 14 }).includeFontPadding, undefined);
+});
+
+// 예전 패치는 RN 0.81 에서 아무 일도 안 했는데 시험은 가짜 Text 로 통과했다. 설치된 RN 이 실제로 이 함수를 부르는지 본다.
+test('설치된 RN 의 Text·TextInput 이 등록한 함수를 부른다', () => {
+  for (const file of ['Libraries/Text/Text.js', 'Libraries/Components/TextInput/TextInput.js']) {
+    const source = readFileSync(new URL(`../node_modules/react-native/${file}`, import.meta.url), 'utf8');
+    assert.match(source, /__fontStyleFor/, `${file} 에 patches/react-native+*.patch 가 적용되지 않았다`);
+  }
 });

@@ -60,7 +60,7 @@ class PracticeReminderServiceTest {
                 Set<String> sent = new HashSet<>();
                 for (String slot : List.of("practice", "streak")) if (claims.contains(s.userId() + "|" + today + "|" + slot)) sent.add(slot);
                 out.add(new Candidate(s.userId(), s.targets(), s.first(), s.lastDay(), s.never(), s.reading(),
-                        s.practicedToday() || s.lastDay().equals(today), sent));
+                        s.practicedToday() || (!s.never() && s.lastDay().equals(today)), sent));
             }
             return out;
         }
@@ -91,6 +91,7 @@ class PracticeReminderServiceTest {
     private final List<String> unregistered = new ArrayList<>();
     private final RecordingFailureReporter failures = new RecordingFailureReporter();
     private List<String> deadTokens = List.of();
+    private int holdoutPercent = 0;
 
     private static PushTokenRepository noTokens() {
         return new PushTokenRepository() {
@@ -108,7 +109,7 @@ class PracticeReminderServiceTest {
             @Override public void unregister(String token) { unregistered.add(token); }
             @Override public List<PushTarget> analysisDoneTargets(UUID sessionId) { return List.of(); }
         };
-        new PracticeReminderService(repo, tokens, sender, failures, clock, "0.1.2").sendDue();
+        new PracticeReminderService(repo, tokens, sender, failures, clock, "0.1.2", holdoutPercent).sendDue();
     }
 
     private static Set<LocalDate> days(int... daysAgoFrom20211021) {
@@ -184,6 +185,62 @@ class PracticeReminderServiceTest {
         sent.clear();
         run("2026-10-26T12:00");
         assertThat(sent).isEmpty();
+    }
+
+    private void addNever(String signupKst) {
+        repo.states.add(new FakeRepo.State(USER, List.of(new PushTarget("tok", "ko")), kst(signupKst),
+                PracticeReminderPolicy.kstDate(kst(signupKst)), true, false, false, days()));
+    }
+
+    @Test
+    void signupDayNudgeGoesOnceThirtyMinutesAfterSignupThenTheUsualFirstPracticeNextDay() {
+        addNever("2026-10-21T10:00");
+        run("2026-10-21T10:20");
+        assertThat(sent).isEmpty();
+        run("2026-10-21T10:30");
+        assertThat(sent).hasSize(1);
+        assertThat(sent.getFirst().data()).containsEntry("kind", "evening_reminder").containsEntry("reminder_kind", "first_nudge")
+                .containsEntry("skipped_days", "0");
+        assertThat(sent.getFirst().data().get("template_id")).startsWith("nudge.");
+        run("2026-10-21T10:40");
+        run("2026-10-21T11:50");
+        assertThat(sent).hasSize(1);
+        run("2026-10-22T09:30");
+        assertThat(sent).hasSize(2);
+        assertThat(sent.get(1).data()).containsEntry("reminder_kind", "first_practice").containsEntry("skipped_days", "1");
+    }
+
+    @Test
+    void signupNudgeIsSkippedWhenLateOrAtNight() {
+        addNever("2026-10-21T10:00");
+        run("2026-10-21T12:00");
+        assertThat(sent).as("2시간이 지나면 늦었으니 보내지 않는다").isEmpty();
+        repo.states.clear();
+        addNever("2026-10-21T22:45");
+        run("2026-10-21T23:20");
+        assertThat(sent).as("밤 시간에는 보내지 않고 미루지도 않는다").isEmpty();
+        assertThat(repo.claims).isEmpty();
+    }
+
+    @Test
+    void holdoutGetsNothingButTheWouldBeSendIsRecordedOnce() {
+        holdoutPercent = 100;
+        repo.add(USER, "2026-10-20T20:00", false, days());
+        run("2026-10-21T19:30");
+        run("2026-10-21T19:40");
+        assertThat(sent).isEmpty();
+        assertThat(repo.claimedCopies).hasSize(1);
+        assertThat(repo.claimedCopies.getFirst().templateId()).startsWith(ReminderCopy.HOLDOUT_PREFIX + "general.");
+        assertThat(repo.claimedCopies.getFirst().kind()).isEqualTo(ReminderKind.GENERAL);
+    }
+
+    @Test
+    void holdoutAlsoSkipsSignupNudge() {
+        holdoutPercent = 100;
+        addNever("2026-10-21T10:00");
+        run("2026-10-21T10:30");
+        assertThat(sent).isEmpty();
+        assertThat(repo.claimedCopies).extracting(ReminderCopy::templateId).allMatch(id -> id.startsWith(ReminderCopy.HOLDOUT_PREFIX));
     }
 
     @Test
@@ -294,7 +351,7 @@ class PracticeReminderServiceTest {
         };
         racing.states.addAll(repo.states);
         Clock clock = Clock.fixed(kst("2026-10-21T19:30"), ZoneOffset.UTC);
-        new PracticeReminderService(racing, noTokens(), messages -> { sent.addAll(messages); return List.of(); }, failures, clock, "0.1.2").sendDue();
+        new PracticeReminderService(racing, noTokens(), messages -> { sent.addAll(messages); return List.of(); }, failures, clock, "0.1.2", 0).sendDue();
         assertThat(racing.claimCalls).isEqualTo(1);
         assertThat(sent).isEmpty();
     }
@@ -321,7 +378,7 @@ class PracticeReminderServiceTest {
         };
         flaky.states.addAll(repo.states);
         Clock clock = Clock.fixed(kst("2026-10-21T19:30"), ZoneOffset.UTC);
-        new PracticeReminderService(flaky, noTokens(), messages -> { sent.addAll(messages); return List.of(); }, failures, clock, "0.1.2").sendDue();
+        new PracticeReminderService(flaky, noTokens(), messages -> { sent.addAll(messages); return List.of(); }, failures, clock, "0.1.2", 0).sendDue();
         assertThat(sent).extracting(PushMessage::to).containsExactly("tok-" + OTHER);
         assertThat(failures.reports()).hasSize(1);
     }

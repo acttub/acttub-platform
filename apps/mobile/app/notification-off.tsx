@@ -21,7 +21,7 @@ export default function NotificationOffScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader title={t('settings.notifications')} left={<NavBackButton onPress={back} />} />
       <StatusScreen
-        mascot={MASCOT.whisper}
+        mascot={MASCOT.nervous}
         title={t('settings.notifPermissionTitle')}
         body={t('settings.notifOffHint')}
         primary={{

@@ -8,6 +8,7 @@ import { LineEditSheet } from '@/components/line-edit-sheet';
 import { LineInsertCard } from '@/components/line-insert-card';
 import { LineSplitSheet } from '@/components/line-split-sheet';
 import { palette } from '@/constants/palette';
+import { space, type } from '@/constants/tokens';
 import { classifyUnprocessable } from '@/lib/api-request';
 import type { LineDraft } from '@/lib/reading/line-edit';
 import { deleteScriptLine, getCurrent, isMyRole, type SavedScript } from '@/lib/reading/store';
@@ -54,7 +55,7 @@ export default function ReadingFull() {
     } catch (e) {
       const kind = classifyUnprocessable(e);
       const key = kind?.kind === 'reason' ? DELETE_REFUSED[kind.code] : undefined;
-      void alert({ title: t('reading.lineMenuDelete'), message: t(key ?? 'reading.lineEditFailed') });
+      void alert({ title: t(key ? 'reading.lineDeleteRefusedTitle' : 'reading.lineDeleteFailTitle'), message: t(key ?? 'reading.lineEditFailed') });
     }
   };
 
@@ -79,6 +80,7 @@ export default function ReadingFull() {
   };
 
   const monologue = isMonologue(script.characters);
+  const singleLine = script.lines.filter((l) => l.type === 'dialogue').length === 1;
   /** 줄 하나 — 묶인 대사(SOMA-806) 안에서도 줄마다 눌러 메뉴를 연다. */
   const row = (i: number, body: React.ReactNode, joined?: 'head' | 'rest') => (
     <View key={script.lineIds[i] ?? i}>
@@ -108,10 +110,13 @@ export default function ReadingFull() {
     <>
       {/* 줄 아래에 대사를 더할 때(LineInsertCard) 입력칸이 키보드에 가리지 않게 따라 올라간다. */}
       <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.content}>
-        <View style={styles.headCard}>
+        <View style={styles.head}>
           <Text style={styles.title}>{script.title}</Text>
           {/* 독백은 서버가 문장마다 나눠 둔다(SOMA-597) — 그 안내가 줄 고치기 안내 자리에 온다(pen UQWzz). */}
-          <Text style={styles.hint}>{t(monologue ? 'reading.monologueFullNote' : 'reading.lineEditHint')}</Text>
+          {/* 대사가 한 줄뿐이면 줄 메뉴의 「나누기」로 나눠 읽을 수 있다고 같은 자리에 알린다(SOMA-727). */}
+          <Text style={styles.hint}>
+            {t(singleLine ? 'reading.singleLineHint' : monologue ? 'reading.monologueFullNote' : 'reading.lineEditHint')}
+          </Text>
         </View>
         {/* 같은 배역 연속 대사는 배역 이름 하나 아래 줄마다 이어 보인다(SOMA-806). 저장된 줄은 그대로다. */}
         {lineGroups(script.lines, { monologue }).map(({ start, end }) => {
@@ -156,21 +161,20 @@ export default function ReadingFull() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  content: { paddingHorizontal: 20, paddingTop: 8, gap: 4, paddingBottom: 60 },
-  headCard: { backgroundColor: palette.blueSoft, borderRadius: 16, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 18, gap: 4, marginBottom: 10 },
-  title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 24 },
-  hint: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 13 },
-  row: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8, marginHorizontal: -8 },
+  content: { paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[1], paddingBottom: space[10] },
+  head: { gap: space[1], marginBottom: space[3] },
+  title: { ...type.title2, color: palette.text },
+  hint: { ...type.caption, color: palette.textMeta },
+  row: { borderRadius: 8, paddingHorizontal: space[2], paddingVertical: space[2], marginHorizontal: -space[2] },
   /** 묶인 대사의 줄 — 한 대사로 보이게 위아래를 좁힌다. */
   rowHead: { paddingBottom: 1 },
   rowJoined: { paddingVertical: 1 },
   rowPressed: { backgroundColor: palette.bgSoft },
-  // pen R3.4 지문 — 왼쪽 옅은 세로줄과 흐린 기울임 글자.
-  direction: { color: palette.textMeta, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21, borderLeftColor: palette.border, borderLeftWidth: 2, paddingLeft: 12 },
-  scene: { color: palette.textSub, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 6 },
-  role: { width: 48, color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16 },
-  line: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  direction: { ...type.caption, color: palette.textMeta, borderLeftColor: palette.border, borderLeftWidth: 2, paddingLeft: space[3] },
+  scene: { ...type.body2Bold, color: palette.textSub, marginTop: space[1.5] },
+  role: { ...type.captionBold, width: 44, color: palette.text, paddingTop: 1 },
+  line: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3] },
   roleMine: { color: palette.blueDeep },
-  text: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 16, lineHeight: 24 },
-  textJoined: { marginLeft: 62 },
+  text: { ...type.body2, flex: 1, color: palette.text },
+  textJoined: { marginLeft: 56 },
 });

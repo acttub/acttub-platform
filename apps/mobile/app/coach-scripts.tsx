@@ -5,11 +5,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChoiceCard } from '@/components/choice-card';
 import { SkeletonRows } from '@/components/ui/skeleton';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/buttons';
+import { PrimaryButton, TextButton } from '@/components/ui/buttons';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
+import { space } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 import { recordScriptFromDetail, setRecordScript } from '@/lib/practice/record-script';
@@ -41,7 +42,11 @@ export default function CoachScriptsScreen() {
         ),
       )
       .then((cards) => {
-        if (!cancelled) setScripts(cards);
+        if (!cancelled) {
+          setScripts(cards);
+          // 첫 대본을 미리 골라 둔다(UX 가이드 5절, 10/23).
+          setPicked((was) => was ?? cards[0]?.id ?? null);
+        }
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
@@ -82,7 +87,7 @@ export default function CoachScriptsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader
         title={t('coachScripts.title')}
-        left={<NavIconButton icon="chevron-left" size={24} label={t('common.back')} phLabel="coach_scripts_back" onPress={() => router.back()} />}
+        left={<NavIconButton icon="chevron-left" size={26} label={t('common.back')} phLabel="coach_scripts_back" onPress={() => router.back()} />}
       />
       {scripts === null && !failed ? (
         <SkeletonRows count={4} />
@@ -116,8 +121,15 @@ export default function CoachScriptsScreen() {
               <PrimaryButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
             ) : (
               <>
-                <SecondaryButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
-                <PrimaryButton label={t('coachScripts.next')} phLabel="coach_scripts_next" disabled={!picked} loading={opening} onPress={() => void record()} />
+                <TextButton label={t('coachScripts.make')} phLabel="coach_scripts_make" onPress={() => router.replace('/script-cocreate')} />
+                <PrimaryButton
+                  label={t('coachScripts.next')}
+                  phLabel="coach_scripts_next"
+                  disabled={!picked}
+                  loading={opening}
+                  loadingLabel={t('coachScripts.opening')}
+                  onPress={() => void record()}
+                />
               </>
             )}
           </CtaBar>
@@ -130,6 +142,5 @@ export default function CoachScriptsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  body: { paddingTop: 15, paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
+  body: { paddingTop: space[4], paddingHorizontal: space.gutter, paddingBottom: space[6], gap: space[3] },
 });

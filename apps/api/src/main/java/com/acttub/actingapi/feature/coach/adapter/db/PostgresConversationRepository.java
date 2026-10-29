@@ -44,7 +44,9 @@ class PostgresConversationRepository implements ConversationRepository {
      * 영상 없는 갈래를 탄다({@code PurposeLoop}). 저장된 값과 API 의 목적은 붙이지 않은 그대로다.
      */
     private static final String SESSION_PURPOSE =
-            "CASE WHEN p.video_id IS NULL AND p.session_purpose IS NOT NULL THEN 'talk:' || p.session_purpose ELSE p.session_purpose END";
+            // 리딩 녹음으로 시작한 회차(SOMA-791, reading)는 영상이 없어도 말 표시를 붙이지 않는다 — 소리를 듣는 따로 된 갈래다.
+            "CASE WHEN p.video_id IS NULL AND p.session_purpose IS NOT NULL AND p.session_purpose<>'reading'"
+            + " THEN 'talk:' || p.session_purpose ELSE p.session_purpose END";
 
     @Override
     public Loaded loadByPractice(UUID userId, UUID practiceId) {
@@ -354,6 +356,20 @@ class PostgresConversationRepository implements ConversationRepository {
     }
 
     @Override
+    public void saveLineNotes(UUID conversationId, JsonNode lineNotes) {
+        transaction.execute(tx -> {
+            entityManager.createNativeQuery("""
+                    UPDATE coach_notes SET line_notes=CAST(:lineNotes AS jsonb)
+                    WHERE conversation_id=CAST(:conversationId AS uuid)
+                    """)
+                    .setParameter("lineNotes", text(lineNotes))
+                    .setParameter("conversationId", conversationId)
+                    .executeUpdate();
+            return null;
+        });
+    }
+
+    @Override
     public NoteView replaceNote(UUID conversationId, NewNote note, Instant now) {
         return transaction.execute(tx -> {
             if (!lockActiveOwner(conversationId)) return null;
@@ -370,7 +386,8 @@ class PostgresConversationRepository implements ConversationRepository {
                         summary_quotes=EXCLUDED.summary_quotes,next_take=EXCLUDED.next_take,
                         actor_words=EXCLUDED.actor_words,corrections=EXCLUDED.corrections,tags=EXCLUDED.tags,
                         fallback=EXCLUDED.fallback,source_revision=EXCLUDED.source_revision,
-                        legacy_report=EXCLUDED.legacy_report
+                        legacy_report=EXCLUDED.legacy_report,
+                        line_notes='[]'::jsonb
                     """)
                     .setParameter("id", UUID.randomUUID())
                     .setParameter("conversationId", conversationId)
@@ -536,7 +553,8 @@ class PostgresConversationRepository implements ConversationRepository {
                 SELECT n.id,n.conversation_id,n.format,n.kind,n.title,CAST(n.summary_quotes AS text) AS summary_quotes,
                        n.next_take,CAST(n.actor_words AS text) AS actor_words,
                        CAST(n.corrections AS text) AS corrections,CAST(n.tags AS text) AS tags,
-                       n.fallback,n.source_revision,CAST(n.legacy_report AS text) AS legacy_report,n.created_at
+                       n.fallback,n.source_revision,CAST(n.legacy_report AS text) AS legacy_report,n.created_at,
+                       CAST(n.line_notes AS text) AS line_notes
                 FROM coach_notes n
                 JOIN coach_conversations c ON c.id=n.conversation_id
                 WHERE %s
@@ -560,7 +578,8 @@ class PostgresConversationRepository implements ConversationRepository {
                 row.get("fallback", Boolean.class),
                 ((Number) row.get("source_revision")).longValue(),
                 json(row.get("legacy_report", String.class)),
-                row.get("created_at", Instant.class));
+                row.get("created_at", Instant.class),
+                json(row.get("line_notes", String.class)));
     }
 
     @Override

@@ -48,10 +48,13 @@ const PREFERENCE: Record<'m' | 'f', Record<'young' | 'adult' | 'senior' | 'unkno
 
 /**
  * 서버 VoiceAssignment 와 같은 배정. 고정한 목소리는 쓴 것으로 치고, 자동 배역은 순서대로 — 성별을 알면 그 목록에서 아직
- * 안 쓴 첫 목소리(다 썼으면 첫 목소리), 모르면 예전 순환에서 아직 안 쓴 다음 목소리(다 썼으면 순환 그대로)를 받는다.
+ * 안 쓴 첫 목소리(다 썼으면 첫 목소리), 모르면 성별 아는 배역이 적은 쪽 성별 목록에서, 양쪽이 같으면 예전 순환에서 아직 안 쓴 다음 목소리(다 썼으면 순환 그대로)를 받는다.
  */
 function assign(characters: (Omit<VoicedCharacter, 'voice'>)[]): Record<string, VoicePreset> {
   const used = new Set<VoicePreset>(characters.flatMap((c) => (isKnownPreset(c.voice_preset) ? [c.voice_preset] : [])));
+  // 성별 모름 배역은 성별을 아는 배역이 적은 쪽 성별로 준다 — 서버와 같다(SOMA-912).
+  const count = { m: 0, f: 0 };
+  for (const c of characters) if (c.gender === 'm' || c.gender === 'f') count[c.gender] += 1;
   let ptr = 0;
   const out: Record<string, VoicePreset> = {};
   for (const c of characters) {
@@ -60,9 +63,14 @@ function assign(characters: (Omit<VoicedCharacter, 'voice'>)[]): Record<string, 
       continue;
     }
     let pick: VoicePreset;
-    if (c.gender === 'm' || c.gender === 'f') {
+    let gender = c.gender === 'm' || c.gender === 'f' ? c.gender : null;
+    if (!gender && count.m !== count.f) {
+      gender = count.m < count.f ? 'm' : 'f';
+      count[gender] += 1;
+    }
+    if (gender) {
       const age = c.age_band === 'child' ? 'young' : c.age_band ?? 'unknown';
-      const list = PREFERENCE[c.gender][age];
+      const list = PREFERENCE[gender][age];
       pick = list.find((v) => !used.has(v)) ?? list[0];
     } else {
       const n = AUTO_ROTATION.length;
@@ -140,10 +148,65 @@ export function voiceName(preset: string | null | undefined): string {
   return isKnownPreset(preset) ? translate(`reading.voiceName.${preset}`) : preset;
 }
 
-/** 목소리 칩 글 — 「여성 · 따뜻한 노년」. 자동 배정도 「자동」 없이 성별과 이름으로 보인다(SOMA-742). */
-export function voiceLabel(preset: string | null | undefined): string {
-  if (!preset) return '-';
-  if (!isKnownPreset(preset)) return preset;
-  const gender = translate(preset.startsWith('M') ? 'reading.voiceGenderMale' : 'reading.voiceGenderFemale');
-  return `${gender} · ${voiceName(preset)}`;
+export type VoiceGender = 'm' | 'f';
+
+export function genderOfVoice(preset: VoicePreset): VoiceGender {
+  return preset.startsWith('M') ? 'm' : 'f';
+}
+
+export const VOICES_BY_GENDER: Record<VoiceGender, VoicePreset[]> = {
+  m: ['M1', 'M4', 'M3', 'M2', 'M5'],
+  f: ['F2', 'F4', 'F1', 'F3', 'F5'],
+};
+
+export function recommendedVoice(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+  gender: VoiceGender,
+): VoicePreset {
+  const shown = shownVoices(characters, chosen);
+  const taken = new Set(characters.filter((c) => c.id !== characterId).map((c) => shown[c.id]));
+  const band = characters.find((c) => c.id === characterId)?.age_band;
+  const list = PREFERENCE[gender][band === 'child' ? 'young' : band ?? 'unknown'];
+  return list.find((v) => !taken.has(v)) ?? list[0];
+}
+
+export function voiceChoice(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+  preset: VoicePreset,
+): Record<string, VoicePreset | null> {
+  const before = shownVoices(characters, chosen);
+  const patch: Record<string, VoicePreset | null> = {
+    [characterId]: autoVoiceOf(characters, chosen, characterId) === preset ? null : preset,
+  };
+  for (let round = 0; round <= characters.length; round++) {
+    const after = shownVoices(characters, { ...chosen, ...patch });
+    let moved = false;
+    if (after[characterId] !== preset) {
+      patch[characterId] = preset;
+      moved = true;
+    }
+    for (const c of characters) {
+      const was = before[c.id];
+      if (c.id !== characterId && was && after[c.id] !== was) {
+        patch[c.id] = was;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return patch;
+}
+
+export function switchGender(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+): Record<string, VoicePreset | null> {
+  const now = shownVoices(characters, chosen)[characterId];
+  const target: VoiceGender = now && genderOfVoice(now) === 'm' ? 'f' : 'm';
+  return voiceChoice(characters, chosen, characterId, recommendedVoice(characters, chosen, characterId, target));
 }

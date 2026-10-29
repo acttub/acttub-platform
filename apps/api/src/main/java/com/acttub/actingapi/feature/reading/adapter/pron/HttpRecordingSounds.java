@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 import com.acttub.actingapi.feature.reading.app.RecordingSounds;
-import com.acttub.actingapi.feature.reading.domain.RecordingCoachMaterial.Clip;
+import com.acttub.actingapi.feature.reading.domain.ReadingVoiceMaterial.Clip;
 import com.acttub.actingapi.feature.reading.domain.RecordingSoundCues.Sound;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.fasterxml.jackson.databind.JsonNode;

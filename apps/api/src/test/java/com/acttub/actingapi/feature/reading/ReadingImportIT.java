@@ -118,6 +118,11 @@ class ReadingImportIT {
                 return instructions.contains("띄어쓰기를 고친다");
             }
 
+            /** 성별을 모르는 배역만 다시 묻는 호출(SOMA-937). */
+            boolean cast() {
+                return instructions.contains("처음 나오기 직전 줄");
+            }
+
             List<String[]> lines() {
                 List<String[]> lines = new ArrayList<>();
                 for (String line : input.split("\n")) {
@@ -161,6 +166,9 @@ class ReadingImportIT {
                     out.append(line[0]).append('\t').append(RESTORED.getOrDefault(line[1], line[1])).append('\n');
                 }
                 return out.toString();
+            }
+            if (call.cast()) {
+                return "";
             }
             if (call.judging()) {
                 out.append("대본\t예\n");
@@ -509,7 +517,7 @@ class ReadingImportIT {
         assertThat(worker.runOnce(clock.instant())).isTrue();
 
         List<Model.Call> calls = Model.CALLS;
-        assertThat(calls).hasSize(6);
+        assertThat(calls).hasSize(7);
         assertThat(calls.get(0).roster()).isTrue();
         assertThat(calls.get(0).judging()).isTrue();
         assertThat(calls.get(0).input()).startsWith("1\t등장인물: 뱅코우, 맥베스\n2\t맥베스: 대사 2\n").endsWith("400\t맥베스: 대사 400");
@@ -526,6 +534,8 @@ class ReadingImportIT {
         assertThat(calls.get(4).instructions()).contains("\"~\"가 없는 줄만");
         assertThat(calls.get(4).input()).isEqualTo(context(1, 11, 4, 7) + "\n" + context(196, 204, 200));
         assertThat(calls.get(5).input()).as("다시 받은 답은 의심 이름이어도 받는다").isEqualTo(context(3, 11, 7));
+        assertThat(calls.get(6).cast()).as("배역 목록이 성별을 비운 두 배역은 나눈 뒤 한 번 더 묻는다(SOMA-937)").isTrue();
+        assertThat(calls.get(6).input()).startsWith("## ").contains("## 맥베스\n", "## 뱅코우\n");
 
         JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
         assertThat(done.path("status").textValue()).isEqualTo("succeeded");
@@ -1086,7 +1096,32 @@ class ReadingImportIT {
         assertThat(script.path("characters")).extracting(character -> character.path("name").textValue() + "|"
                         + character.path("gender").textValue() + "|" + character.path("age_band").textValue() + "|"
                         + character.path("voice").textValue())
-                .as("대사 수가 같으면 먼저 말한 순 — 성별 모르는 뱅코우·마녀는 순환(F1, 다음 M1)").containsExactly("뱅코우|null|senior|F1", "맥베스|m|adult|M3", "마녀|null|null|M1");
+                .as("대사 수가 같으면 먼저 말한 순 — 성별 아는 배역이 남자 하나라 성별 모르는 뱅코우는 적은 쪽(여자)·나이대 목록의 F5, 그 뒤 수가 같아진 마녀는 순환의 F1 (SOMA-912)").containsExactly("뱅코우|null|senior|F5", "맥베스|m|adult|M3", "마녀|null|null|F1");
+    }
+
+    @Test
+    @DisplayName("SOMA-937: 긴 대본에서 배역 목록이 성별을 비운 배역만 첫 등장 대목으로 다시 묻고, 빈 칸만 채운다(아는 나이대는 지킨다)")
+    void longScriptAsksLateCastTraits() throws Exception {
+        StringBuilder text = new StringBuilder();
+        for (int line = 1; line <= 160; line++) {
+            text.append(line % 2 == 0 ? "맥베스: 대사 " : "뱅코우: 대사 ").append(line).append('\n');
+        }
+        text.append("마녀: 마지막 대사구먼\n");
+        Model.answer = call -> {
+            if (call.roster()) return "대본\t예\n맥베스\tm\tadult\n뱅코우\t?\tsenior\n";
+            if (call.cast()) return "뱅코우\tf\tyoung\n마녀\tm\tsenior\n맥베스\tf\tchild\n";
+            return Model.oracle(call);
+        };
+
+        String scriptId = split(text.toString());
+
+        List<Model.Call> casts = Model.CALLS.stream().filter(Model.Call::cast).toList();
+        assertThat(casts).hasSize(1);
+        assertThat(casts.getFirst().input()).doesNotContain("## 맥베스").contains("## 뱅코우\n", "## 마녀\n")
+                .contains("마녀: 마지막 대사구먼");
+        assertThat(jdbc.queryForList("SELECT name,gender,age_band FROM script_characters WHERE script_id = ?::uuid ORDER BY sort_order", scriptId))
+                .extracting(row -> row.get("name") + "|" + row.get("gender") + "|" + row.get("age_band"))
+                .containsExactlyInAnyOrder("맥베스|m|adult", "뱅코우|f|senior", "마녀|m|senior");
     }
 
     /** 글을 접수하고 워커를 한 번 돌려 만든 대본 id. */

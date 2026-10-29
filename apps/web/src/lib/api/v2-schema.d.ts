@@ -879,6 +879,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/push-opens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Push Open
+         * @description 푸시 알림을 눌러 앱을 연 것을 기록한다. 보낸 기록과 이어 푸시로 돌아온 사람을 재는 데 쓴다.
+         *     로그인한 회원이면 되고 동의가 남아 있어도 받는다. 게스트는 403 member_only. 한 회원이 분당
+         *     60회까지다.
+         */
+        post: operations["record_push_open_v2_push_opens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/practices": {
         parameters: {
             query?: never;
@@ -3286,6 +3308,8 @@ export interface components {
             text?: string;
             /** Voice */
             voice?: string;
+            /** Session Id */
+            session_id?: string;
         };
         /** SynthesizeResponse */
         SynthesizeResponse: {
@@ -3861,6 +3885,17 @@ export interface components {
              */
             platform: "ios" | "android";
         };
+        /** RecordPushOpenRequest */
+        RecordPushOpenRequest: {
+            /** Kind */
+            kind: string;
+            /** Reminder Kind */
+            reminder_kind?: string | null;
+            /** Template Id */
+            template_id?: string | null;
+            /** Platform */
+            platform?: ("ios" | "android") | null;
+        };
         /** PracticeBlockage */
         PracticeBlockage: {
             /** Category */
@@ -3887,6 +3922,12 @@ export interface components {
             session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
             /** Face Mosaic */
             face_mosaic?: boolean | null;
+            /**
+             * Reading Session Id
+             * Format: uuid
+             * @description 리딩 녹음으로 시작(SOMA-791). 내 리딩 회차 id. 보내면 video_id·session_purpose 는 빼고, 서버가 목적을 reading 으로 둔다. 그 회차의 소리 든 내 대사 녹음이 3줄 미만이면 422 reading_voice_not_enough_audio, 남의·없는 회차면 404 session_not_found. 같은 리딩 회차로 이미 시작했으면 그 회차를 돌려준다.
+             */
+            reading_session_id?: string | null;
         };
         /** PracticeScene */
         PracticeScene: {
@@ -3956,7 +3997,7 @@ export interface components {
             /** Previous Conversations */
             previous_conversations: components["schemas"]["PreviousConversation"][];
             /** Session Purpose */
-            session_purpose?: ("evaluate" | "stuck" | "character" | "concern") | null;
+            session_purpose?: ("evaluate" | "stuck" | "character" | "concern" | "reading") | null;
         };
         /** PracticeJob */
         PracticeJob: {
@@ -5070,6 +5111,10 @@ export interface components {
             daily_limit?: number;
             /** Daily Used */
             daily_used?: number;
+            /** Reason */
+            reason?: string;
+            /** Pro Only */
+            pro_only?: boolean;
         };
         /** FileResponse */
         FileResponse: {
@@ -5496,6 +5541,11 @@ export interface components {
              * @description 대상이 삭제·비공개·숨김으로 볼 수 없으면 false(본인 AI 리포트는 예외)
              */
             target_available: boolean;
+            /**
+             * Target Hidden
+             * @description 대상이 받는 사람 본인의 참여작이고 신고·AI 검사로 운영 확인 중이라 숨겨졌으면 true
+             */
+            target_hidden: boolean;
         };
         /** ChallengeNotifications */
         ChallengeNotifications: {
@@ -5758,6 +5808,10 @@ export interface components {
             cta_action: "none" | "cloud_voice_enable" | "route" | "url";
             /** Cta Target */
             cta_target: string | null;
+            /** Footnote */
+            footnote: string | null;
+            /** Image Bg */
+            image_bg: string | null;
         };
         /** AppPosterList */
         AppPosterList: {
@@ -7775,6 +7829,37 @@ export interface operations {
             };
         };
     };
+    record_push_open_v2_push_opens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordPushOpenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_push_token_v2_push_tokens_post: {
         parameters: {
             query?: never;
@@ -9399,7 +9484,10 @@ export interface operations {
     };
     status: {
         parameters: {
-            query?: never;
+            query?: {
+                script_id?: string;
+                session_id?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

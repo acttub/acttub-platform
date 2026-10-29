@@ -2,6 +2,8 @@ package com.acttub.actingapi.feature.poster.adapter.web;
 
 import java.util.List;
 
+import com.acttub.actingapi.feature.poster.adapter.web.PosterDtos.AppNoticeItem;
+import com.acttub.actingapi.feature.poster.adapter.web.PosterDtos.AppNoticeList;
 import com.acttub.actingapi.feature.poster.adapter.web.PosterDtos.AppPosterItem;
 import com.acttub.actingapi.feature.poster.adapter.web.PosterDtos.AppPosterList;
 import com.acttub.actingapi.feature.poster.app.PosterService;
@@ -81,5 +83,46 @@ class PosterController {
         return new AppPosterList(posters.forApp(platform, locale, appVersion).stream()
                 .map(AppPosterItem::of)
                 .toList());
+    }
+
+    @Operation(
+            summary = "List App Notices",
+            description = """
+                    앱 공지사항 화면용. 팝업으로 떠 있는 공지와 이미 끝난(꺼졌거나 기간이 지난) 공지를 공지한 날(시작일,
+                    없으면 만든 날) 늦은 순으로 최대 50건. 아직 시작 전인 것은 빠지고 플랫폼이 맞고 언어가 없거나 같은
+                    것만 낸다. live 는 지금 팝업 대상인지다.""",
+            operationId = "list_notices_v2_app_notices_get",
+            tags = "v2-app",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = AppNoticeList.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @GetMapping("/notices")
+    AppNoticeList notices(
+            @Parameter(required = true, schema = @Schema(type = "string", allowableValues = {"ios", "android"}))
+            @RequestParam(name = "platform", required = false) String platform,
+            @Parameter(description = "앱 표시 언어(두 글자). 없으면 언어 없는 공지만", schema = @Schema(type = "string"))
+            @RequestParam(name = "locale", required = false) String locale,
+            HttpServletRequest request) {
+        auth.gatedUser(request);
+        if (platform == null) {
+            throw ApiValidationException.missing(List.of("query", "platform"), null);
+        }
+        if (!PosterRules.PLATFORMS.contains(platform)) {
+            throw ApiValidationException.valueError(List.of("query", "platform"),
+                    "Value error, platform must be ios or android", platform);
+        }
+        if (locale != null && !PosterRules.validLocale(locale)) {
+            throw ApiValidationException.valueError(List.of("query", "locale"),
+                    "Value error, locale must be a two-letter language code", locale);
+        }
+        return new AppNoticeList(posters.notices(platform, locale).stream().map(AppNoticeItem::of).toList());
     }
 }

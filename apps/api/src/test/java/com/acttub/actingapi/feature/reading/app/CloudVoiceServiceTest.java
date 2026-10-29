@@ -158,6 +158,72 @@ class CloudVoiceServiceTest {
         assertThat(pro.status(USER).available()).isFalse();
     }
 
+    private CloudVoiceService endedFree() {
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        return new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> false);
+    }
+
+    @Test
+    void freeActorGetsTheFirstReadingOfAScriptOnly() {
+        repository.consent = "granted";
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        repository.firstSessions.add(first);
+        var firstStatus = endedFree().status(USER, null, first);
+        assertThat(firstStatus.available()).isTrue();
+        assertThat(firstStatus.reason()).isEqualTo("first_reading");
+        assertThat(firstStatus.proOnly()).isFalse();
+        assertThat(endedFree().synthesize(USER, "안녕하세요.", "F1", first)).isNotNull();
+
+        var secondStatus = endedFree().status(USER, null, second);
+        assertThat(secondStatus.available()).isFalse();
+        assertThat(secondStatus.reason()).isNull();
+        assertThat(secondStatus.proOnly()).isTrue();
+        assertThatThrownBy(() -> endedFree().synthesize(USER, "안녕하세요.", "F1", second))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(503));
+    }
+
+    @Test
+    void scriptWithoutAnySessionYetCountsAsFirstReadingForStatus() {
+        UUID script = UUID.randomUUID();
+        repository.freshScripts.add(script);
+        assertThat(endedFree().status(USER, script, null).reason()).isEqualTo("first_reading");
+        assertThat(endedFree().status(USER, UUID.randomUUID(), null).available()).isFalse();
+    }
+
+    @Test
+    void oldAppRequestsWithoutScriptInfoBehaveAsBefore() {
+        repository.firstSessions.add(UUID.randomUUID());
+        var status = endedFree().status(USER);
+        assertThat(status.available()).isFalse();
+        assertThat(status.reason()).isNull();
+        assertDetail(endedFree(), 503, "cloud_voice_unavailable");
+    }
+
+    @Test
+    void firstReadingStillNeedsConsentAndRespectsLimits() {
+        UUID first = UUID.randomUUID();
+        repository.firstSessions.add(first);
+        assertThatThrownBy(() -> endedFree().synthesize(USER, "안녕하세요.", "F1", first))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.getMessage()).isEqualTo("cloud_voice_consent_required"));
+        repository.consent = "granted";
+        repository.daily = 300;
+        assertThatThrownBy(() -> endedFree().synthesize(USER, "안녕하세요.", "F1", first))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(429));
+        repository.monthly = 75_000;
+        assertThat(endedFree().status(USER, null, first).available()).isFalse();
+        assertThat(endedFree().status(USER, null, first).proOnly()).isFalse();
+    }
+
+    @Test
+    void reasonIsProOrFreePeriod() {
+        CloudVoiceSettings ended = new CloudVoiceSettings("tts-model", "key", OffsetDateTime.parse("2026-09-30T23:59:59+09:00"), 300, 75_000);
+        var pro = new CloudVoiceService(repository, storage, synthesizer, ended, Clock.fixed(NOW, ZoneId.of("Asia/Seoul")), userId -> true);
+        assertThat(pro.status(USER).reason()).isEqualTo("pro");
+        assertThat(pro.status(USER).proOnly()).isFalse();
+        assertThat(service(settings()).status(USER).reason()).isEqualTo("free_period");
+    }
+
     @Test
     void mapsEveryPreset() {
         assertThat(CloudVoiceService.VOICES).containsExactlyEntriesOf(Map.of(
@@ -189,6 +255,10 @@ class CloudVoiceServiceTest {
         boolean cached;
         int increments;
         final Map<String, CacheEntry> rows = new HashMap<>();
+        final java.util.Set<UUID> firstSessions = new java.util.HashSet<>();
+        final java.util.Set<UUID> freshScripts = new java.util.HashSet<>();
+        public boolean firstReadingSession(UUID userId, UUID sessionId) { return firstSessions.contains(sessionId); }
+        public boolean firstReadingScript(UUID userId, UUID scriptId) { return freshScripts.contains(scriptId); }
         public String consent(UUID userId) { return consent; }
         public int dailyUsage(UUID userId, java.time.LocalDate day) { return daily; }
         public int monthlyUsage(java.time.YearMonth month) { return monthly; }

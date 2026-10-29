@@ -87,7 +87,7 @@ class AccessGateTest {
                 {"POST", "/v2/auth/login"}, {"POST", "/v2/auth/signup"}, {"POST", "/v2/auth/refresh"},
                 {"POST", "/v2/auth/logout"}, {"GET", "/v2/consents/documents"}, {"GET", "/v2/consents/pending"},
                 {"GET", "/v2/consents/entry"}, {"POST", "/v2/consents"}, {"GET", "/v2/me"},
-                {"DELETE", "/v2/me"}, {"DELETE", "/v2/push-tokens"}, {"GET", "/v2/admissions"},
+                {"DELETE", "/v2/me"}, {"DELETE", "/v2/push-tokens"}, {"POST", "/v2/push-opens"}, {"GET", "/v2/admissions"},
                 {"GET", "/v2/admissions/snu"}, {"GET", "/v2/auditions"}, {"GET", "/v2/admin/sessions"},
                 {"POST", "/v2/support/inquiries"}, {"GET", "/health"}}) {
             assertThat(ConsentGateInterceptor.gateFor(open[0], open[1]))

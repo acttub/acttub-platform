@@ -48,7 +48,8 @@ export default function TabLayout() {
           name="index"
           options={{
             ...tab('home'),
-            tabBarIcon: tabIcon('home-outline', t('tabs.home')),
+            // pen 의 lucide house(선 300)는 Ionicons 에 없어서 pen 에서 꺼낸 그림을 쓴다(SOMA-942).
+            tabBarIcon: tabIcon(require('@/assets/images/tab-home.png'), t('tabs.home')),
           }}
         />
         <Tabs.Screen

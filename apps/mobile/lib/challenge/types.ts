@@ -5,6 +5,7 @@
  * 실제 api.ts 호출을 서버 스키마로 대조한다.
  * 챌린지에는 다른 사람의 **현재 프로필 이름만** 보인다 — 사진·소개는 없고 아바타는 이름 첫 글자다.
  */
+import { DEFAULT_APP_CONFIG } from '../app-config.ts';
 
 /** 대사 목록의 탭. 오늘의 챌린지는 인기·최신에만 고정한다. */
 export type ChallengeTab = 'popular' | 'latest' | 'ended' | 'mine';
@@ -100,10 +101,10 @@ export type EntryVisibility = 'public' | 'private';
 /** 신고 숨김은 작성자가 풀 수 없고, 삭제는 행을 남긴 채 표시만 바뀐다. */
 export type EntryStatus = 'visible' | 'hidden_by_report' | 'deleted';
 
-/** 챌린지 영상은 60초 이내다(촬영 상한도 같다). */
-export const ENTRY_VIDEO_MAX_SEC = 60;
-/** 참여 영상 최소 길이(초). 사용자 결정으로 3초다(SOMA-738). */
-export const ENTRY_VIDEO_MIN_SEC = 3;
+/** 챌린지 영상은 60초 이내다(촬영 상한도 같다). 기본값이고, 판정은 서버 설정을 쓰는 순간 읽는다(SOMA-939). */
+export const ENTRY_VIDEO_MAX_SEC = DEFAULT_APP_CONFIG.challenge.entryMaxSeconds;
+/** 참여 영상 최소 길이(초). 사용자 결정으로 3초다(SOMA-738). 기본값이다(SOMA-939). */
+export const ENTRY_VIDEO_MIN_SEC = DEFAULT_APP_CONFIG.challenge.entryMinSeconds;
 
 /** 캡션은 300자까지, 선택이다. */
 export const CAPTION_MAX = 300;
@@ -160,10 +161,11 @@ export type CreateChallengeBody = {
   duration_days: number;
 };
 
-/** 기간 선택지는 API 상수다(DB가 아니라). */
-export const CHALLENGE_DURATIONS = [7, 14] as const;
+/** 기간 선택지 기본값. 화면·검사는 서버 설정(getAppConfig().challenge.durationsDays)을 읽는다(SOMA-939). */
+export const CHALLENGE_DURATIONS: readonly number[] = DEFAULT_APP_CONFIG.challenge.durationsDays;
 
-export type ChallengeDuration = (typeof CHALLENGE_DURATIONS)[number];
+/** 기간(일). 선택지가 서버 설정이라 타입으로 좁히지 않는다(SOMA-939). */
+export type ChallengeDuration = number;
 
 /** 글자 수는 앱·서버가 같은 유니코드 코드 포인트로 센다(이모지 하나 = 1자). */
 export const LINE_MAX = 200;
@@ -252,6 +254,8 @@ export type NotificationGroup = {
   read: boolean;
   /** 대상이 삭제·비공개·숨김·차단으로 보이지 않으면 거짓이다(본인 리포트는 예외). */
   target_available: boolean;
+  /** 대상이 내 참여작이고 신고·AI 검사로 운영 확인 중이라 숨겨졌으면 참이다. 예전 서버는 보내지 않는다. */
+  target_hidden?: boolean;
 };
 
 export type NotificationsResponse = {

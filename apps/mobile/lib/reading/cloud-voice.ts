@@ -6,14 +6,29 @@ export type CloudVoiceStatus = {
   consent: CloudVoiceConsent;
   daily_limit: number;
   daily_used: number;
+  /** 왜 쓸 수 있는가(SOMA-917). 못 쓰면 null. 옛 서버 응답에는 없다. */
+  reason?: 'free_period' | 'pro' | 'first_reading' | null;
+  /** 설정·한도는 괜찮은데 Pro 가 아니고 첫 리딩도 아니라서 못 쓰는 상태 — 「Pro는 계속 이 목소리로」 안내를 띄울 때다. */
+  pro_only?: boolean;
 };
 
 export type CloudVoicePreset = 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'F1' | 'F2' | 'F3' | 'F4' | 'F5';
 export const CLOUD_VOICE_KEY = 'acttub.cloudVoice';
 
-export function shouldUseCloudVoice(input: { enabled: boolean; status: CloudVoiceStatus | null }): boolean {
-  const { enabled, status } = input;
-  return !!(enabled && status?.available && status.consent === 'granted' && status.daily_used < status.daily_limit);
+/**
+ * lines 는 이번 회차에 서버 음성으로 읽을 상대 대사 수. 남은 하루 한도가 그보다 적으면 회차 중간에 한도(429)에 걸려 남은 줄을
+ * 기기 목소리로 읽게 되고, 같은 배역의 목소리가 중간에 바뀐다(SOMA-912). 그런 회차는 처음부터 앱 목소리로 읽는다.
+ * 서버에 저장본이 있는 줄은 한도를 쓰지 않지만 기기는 알 수 없어 모두 센다.
+ */
+export function shouldUseCloudVoice(input: { enabled: boolean; status: CloudVoiceStatus | null; lines?: number }): boolean {
+  const { enabled, status, lines = 0 } = input;
+  return !!(
+    enabled &&
+    status?.available &&
+    status.consent === 'granted' &&
+    status.daily_used < status.daily_limit &&
+    lines <= status.daily_limit - status.daily_used
+  );
 }
 
 export function shouldStopCloudVoiceForSession(error: { status?: number } | null | undefined): boolean {

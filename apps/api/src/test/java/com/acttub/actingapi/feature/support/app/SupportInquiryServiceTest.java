@@ -77,4 +77,12 @@ class SupportInquiryServiceTest {
         service.submit("other", "a@b.co", "😀".repeat(10), null, null);
         assertThat(saved).hasSize(1);
     }
+
+    @Test
+    @DisplayName("결합 기호를 쌓은 본문은 400 unreadable_text 로 거절한다")
+    void rejectsUnreadableBody() {
+        assertThatThrownBy(() -> service.submit("bug", "a@b.co", "문의 본문입니다 " + "Z\u0325\u031c\u0318\u0316\u0323x", null, null))
+                .isInstanceOf(com.acttub.actingapi.platform.web.ApiException.class)
+                .hasMessageContaining("unreadable_text");
+    }
 }

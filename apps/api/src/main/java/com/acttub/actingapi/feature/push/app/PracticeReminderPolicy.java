@@ -9,6 +9,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * 연습 알림을 언제 보낼지의 순수 규칙(시계·DB 없음). 날짜는 모두 한국(Asia/Seoul) 기준이다.
@@ -31,6 +32,11 @@ public final class PracticeReminderPolicy {
     public static final LocalTime QUIET_END = LocalTime.of(9, 0);
     public static final LocalTime STREAK_FROM = LocalTime.of(22, 0);
     static final Duration FIRST_DELAY = Duration.ofMinutes(23 * 60 + 30);
+    /** 가입 30분 알림(SOMA-870): 가입 뒤 이만큼 지나면 보내고, {@link #NUDGE_UNTIL} 이 지나면 늦었으니 보내지 않는다. */
+    public static final Duration NUDGE_DELAY = Duration.ofMinutes(30);
+    public static final Duration NUDGE_UNTIL = Duration.ofHours(2);
+    /** 비교군 배정에 섞는 값. 바꾸면 회원들의 배정이 새로 섞인다. */
+    static final String HOLDOUT_SALT = ":reminder-holdout-1";
 
     public static LocalDate kstDate(Instant instant) { return instant.atZone(SEOUL).toLocalDate(); }
 
@@ -80,6 +86,25 @@ public final class PracticeReminderPolicy {
             if (kstDate(due).equals(today) && !now.isBefore(due)) return Optional.of(k);
         }
         return Optional.empty();
+    }
+
+    /**
+     * 가입 30분 알림을 보낼 때인가(SOMA-870). 연습한 적 없는 회원에게만 부른다. 가입한 한국 날짜가 오늘이고,
+     * 가입 30분~2시간 사이이며, 밤 시간(23~9시)이 아닐 때다. 밤으로 밀지 않고 건너뛴다(다음 날 첫 연습 알림이 따로 있다).
+     */
+    public static boolean firstNudgeDue(Instant now, Instant signupAt) {
+        if (!kstDate(signupAt).equals(kstDate(now))) return false;
+        if (inQuietHours(now)) return false;
+        return !now.isBefore(signupAt.plus(NUDGE_DELAY)) && now.isBefore(signupAt.plus(NUDGE_UNTIL));
+    }
+
+    /**
+     * 연습 알림을 받지 않는 비교군인가(SOMA-870). 회원 id 로 정해져 늘 같은 쪽이다. percent 가 0 이하면 아무도 아니다.
+     * 문자열 hashCode 는 자바 명세로 고정된 값이라 서버를 다시 띄워도 배정이 바뀌지 않는다.
+     */
+    public static boolean inHoldout(UUID userId, int percent) {
+        if (percent <= 0) return false;
+        return Math.floorMod((userId + HOLDOUT_SALT).hashCode(), 100) < percent;
     }
 
     /**

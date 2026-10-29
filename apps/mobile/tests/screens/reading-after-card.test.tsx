@@ -1,129 +1,100 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
-import ReadingCoachScreen from '@/app/reading/coach';
 import { ReadingAfterCard } from '@/components/reading-after-card';
 import { api } from '@/lib/api';
 
 const mockRouter = { push: jest.fn(), back: jest.fn() };
-let mockParams: Record<string, string> = {};
 
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
-  useLocalSearchParams: () => mockParams,
-  Stack: { Screen: ({ options }: { options: { headerRight?: () => unknown } }) => options.headerRight?.() ?? null },
 }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   api: {
-    probeRecordingCoach: jest.fn(),
-    getPronunciationReport: jest.fn(),
-    startRecordingCoach: jest.fn(),
-    replyRecordingCoach: jest.fn(),
+    getReadingVoiceCoaching: jest.fn(),
+    billingMe: jest.fn(),
+    createPractice: jest.fn(),
   },
 }));
 
-const probe = api.probeRecordingCoach as jest.Mock;
-const report = api.getPronunciationReport as jest.Mock;
-const startCoach = api.startRecordingCoach as jest.Mock;
-const reply = api.replyRecordingCoach as jest.Mock;
-
-const coach = (over: object = {}) => ({
-  id: 'c1',
-  reading_session_id: 's1',
-  status: 'asked',
-  messages: [{ role: 'coach', text: '「가자」 끝이 올라갔어요. 그때 서연은 뭘 원했어요?' }],
-  video_line: null,
-  created_at: '2026-10-22T00:00:00Z',
-  updated_at: '2026-10-22T00:00:00Z',
-  ...over,
-});
+const voice = api.getReadingVoiceCoaching as jest.Mock;
+const billing = api.billingMe as jest.Mock;
+const create = api.createPractice as jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockParams = {};
 });
 
-test('서버 스위치가 켜져 있으면 액티 카드(위)와 발음 보고서 줄(아래)을 보이고 각 화면으로 간다(SOMA-791·606)', async () => {
-  probe.mockRejectedValue(Object.assign(new Error('x'), { code: 'recording_coach_not_found' }));
-  report.mockResolvedValue({ status: 'queued', report: null });
+test('available 이면 코칭 카드(위)와 발음 보고서 줄(아래)을 보이고, 코칭 받기는 회차를 만들어 코치 화면으로 간다 — Pro 는 발음 보고서로 간다(SOMA-791·606)', async () => {
+  voice.mockResolvedValue({ available: true, practice_id: null });
+  billing.mockResolvedValue({ pro: true });
+  create.mockResolvedValue({ id: 'p1', root_id: 'p1', ordinal: 1 });
   await render(<ReadingAfterCard sessionId="s1" ready />);
 
-  await fireEvent.press(await screen.findByRole('button', { name: '얘기해 보기' }));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/reading/coach', params: { sessionId: 's1' } });
+  expect(await screen.findByText('방금 읽은 대본으로 코칭도 받아볼까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '코칭 받기' }));
+  await waitFor(() => expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { purpose: 'reading' } }));
+  expect(create).toHaveBeenCalledWith(expect.objectContaining({ reading_session_id: 's1', request_id: expect.any(String) }));
   await fireEvent.press(await screen.findByText('발음 보고서 받기'));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/reading/pronunciation', params: { sessionId: 's1' } });
 });
 
-test('스위치가 꺼져 있거나 허용 밖이면 아무것도 그리지 않고, 녹음이 올라가는 중이면 묻지 않는다', async () => {
-  probe.mockRejectedValue(Object.assign(new Error('x'), { code: 'Not Found' }));
-  report.mockRejectedValue(Object.assign(new Error('x'), { code: 'pronunciation_not_available' }));
+test('이미 시작한 회차가 있으면 새로 만들지 않고 그 회차를 연다', async () => {
+  voice.mockResolvedValue({ available: true, practice_id: 'p9' });
+  billing.mockRejectedValue(new Error('x'));
+  await render(<ReadingAfterCard sessionId="s1" ready />);
+  await fireEvent.press(await screen.findByRole('button', { name: '코칭 받기' }));
+  expect(create).not.toHaveBeenCalled();
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/coach', params: { practiceId: 'p9' } });
+});
+
+test('available 거짓·오류(404 포함)면 코칭 카드를 그리지 않고, 녹음이 올라가는 중이면 묻지 않는다', async () => {
+  voice.mockResolvedValue({ available: false, practice_id: null });
+  billing.mockResolvedValue({ pro: false });
   const view = await render(<ReadingAfterCard sessionId="s1" ready />);
-  await waitFor(() => expect(report).toHaveBeenCalled());
-  expect(screen.queryByText('얘기해 보기')).not.toBeOnTheScreen();
-  expect(screen.queryByText('발음 보고서 받기')).not.toBeOnTheScreen();
+  await waitFor(() => expect(voice).toHaveBeenCalled());
+  expect(screen.queryByText('코칭 받기')).not.toBeOnTheScreen();
   await view.unmount();
+
+  voice.mockRejectedValue(Object.assign(new Error('x'), { code: 'Not Found' }));
+  const view2 = await render(<ReadingAfterCard sessionId="s1" ready />);
+  await waitFor(() => expect(voice).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText('코칭 받기')).not.toBeOnTheScreen();
+  await view2.unmount();
 
   jest.clearAllMocks();
   await render(<ReadingAfterCard sessionId="s1" ready={false} />);
-  expect(probe).not.toHaveBeenCalled();
-  expect(report).not.toHaveBeenCalled();
+  expect(voice).not.toHaveBeenCalled();
+  expect(billing).not.toHaveBeenCalled();
 });
 
-test('녹음 액티: 첫 차례를 보이고 답하면 둘째 차례와 「이 한 줄 찍기」로 영상 촬영에 잇는다', async () => {
-  mockParams = { sessionId: 's1' };
-  startCoach.mockResolvedValue(coach());
-  reply.mockResolvedValue(
-    coach({
-      status: 'answered',
-      messages: [...coach().messages, { role: 'actor', text: '붙잡고 싶었어요' }, { role: 'coach', text: '소리로는 여기까지예요. 이 한 줄 찍어 봐요.' }],
-      video_line: { line_id: 'l3', text: '가자' },
-    }),
-  );
-  await render(<ReadingCoachScreen />);
+test('발음 보고서 줄은 무료에게도 보이지만, 누르면 들어가지 않고 줄 아래에 Pro 기능 안내를 띄운다(10/29)', async () => {
+  voice.mockResolvedValue({ available: false, practice_id: null });
+  billing.mockResolvedValue({ pro: false });
+  await render(<ReadingAfterCard sessionId="s1" ready part="report" />);
+  await waitFor(() => expect(billing).toHaveBeenCalled());
+  expect(screen.queryByText('발음 보고서는 Pro 기능이라 지금은 쓸 수 없어요.')).not.toBeOnTheScreen();
 
-  expect(await screen.findByText('「가자」 끝이 올라갔어요. 그때 서연은 뭘 원했어요?')).toBeOnTheScreen();
-  expect(startCoach).toHaveBeenCalledWith('s1');
-  await fireEvent.changeText(screen.getByLabelText('생각나는 대로 답해 주세요'), '붙잡고 싶었어요');
-  await fireEvent.press(screen.getByRole('button', { name: '보내기' }));
-  expect(reply).toHaveBeenCalledWith('c1', '붙잡고 싶었어요');
-  expect(await screen.findByText('「가자」')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '이 한 줄 찍기' }));
-  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
+  await fireEvent.press(await screen.findByText('발음 보고서 받기'));
+  expect(await screen.findByText('발음 보고서는 Pro 기능이라 지금은 쓸 수 없어요.')).toBeOnTheScreen();
+  expect(mockRouter.push).not.toHaveBeenCalled();
+
+  await fireEvent.press(screen.getByText('Pro 알아보기'));
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/pro', params: { from: 'pron' } });
 });
 
-test('녹음 액티: 소리가 든 녹음이 셋보다 적으면 이유를 알리고 닫기만 둔다', async () => {
-  mockParams = { sessionId: 's1' };
-  startCoach.mockRejectedValue(Object.assign(new Error('x'), { code: 'recording_coach_not_enough_audio' }));
-  await render(<ReadingCoachScreen />);
-  expect(await screen.findByText(/3줄 이상 있어야/)).toBeOnTheScreen();
-  expect(screen.queryByLabelText('생각나는 대로 답해 주세요')).not.toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
-  expect(mockRouter.back).toHaveBeenCalled();
+test('구독 상태를 못 받으면 무료로 보고 안내를 띄운다', async () => {
+  billing.mockRejectedValue(Object.assign(new Error('x'), { code: 'Not Found' }));
+  await render(<ReadingAfterCard sessionId="s1" ready part="report" />);
+  await fireEvent.press(await screen.findByText('발음 보고서 받기'));
+  expect(await screen.findByText('발음 보고서는 Pro 기능이라 지금은 쓸 수 없어요.')).toBeOnTheScreen();
+  expect(mockRouter.push).not.toHaveBeenCalled();
 });
 
-test('녹음 액티: 액티가 답하지 못하면 알리고 「다시 시도」로 다시 시작한다', async () => {
-  mockParams = { sessionId: 's1' };
-  startCoach.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'recording_coach_unavailable' })).mockResolvedValue(coach());
-  await render(<ReadingCoachScreen />);
-  expect(await screen.findByText('액티가 지금 답하지 못했어요.')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
-  expect(await screen.findByText('「가자」 끝이 올라갔어요. 그때 서연은 뭘 원했어요?')).toBeOnTheScreen();
-  expect(startCoach).toHaveBeenCalledTimes(2);
-});
-
-test('녹음 액티: 둘째 차례에 찍을 줄이 없으면 닫기만 둔다', async () => {
-  mockParams = { sessionId: 's1' };
-  startCoach.mockResolvedValue(coach({ status: 'answered', video_line: null }));
-  await render(<ReadingCoachScreen />);
-  await fireEvent.press(await screen.findByRole('button', { name: '닫기' }));
-  expect(mockRouter.back).toHaveBeenCalled();
-});
-
-test('녹음 액티: 오른쪽 위 「그만하기」는 아이콘 칸처럼 44 높이·좌우 10 을 두고 눌러 나간다(SOMA-837)', async () => {
-  mockParams = { sessionId: 's1' };
-  startCoach.mockResolvedValue(coach());
-  await render(<ReadingCoachScreen />);
-  const quit = await screen.findByRole('button', { name: '그만하기' });
-  expect(quit).toHaveStyle({ height: 44, paddingHorizontal: 10 });
-  await fireEvent.press(quit);
-  expect(mockRouter.back).toHaveBeenCalled();
+test('시작이 실패하면 카드 안에 이유를 알린다', async () => {
+  voice.mockResolvedValue({ available: true, practice_id: null });
+  create.mockRejectedValue(Object.assign(new Error('x'), { code: 'reading_voice_not_enough_audio' }));
+  await render(<ReadingAfterCard sessionId="s1" ready part="coach" />);
+  await fireEvent.press(await screen.findByRole('button', { name: '코칭 받기' }));
+  expect(await screen.findByText('소리가 든 내 대사 녹음이 3줄 이상 있어야 해요.')).toBeOnTheScreen();
 });

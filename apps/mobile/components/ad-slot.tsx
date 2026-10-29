@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import {
@@ -9,7 +9,9 @@ import {
   AD_RADIUS,
   AD_SIZES,
   AD_SLOTS,
+  adRequestConfigFor,
   bannerUnitFor,
+  isHttpLink,
   renderableKind,
   shouldRequestSlot,
   type AdSlotKey,
@@ -18,6 +20,8 @@ import {
 import { loadBannerModule } from '@/lib/ads-native';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
+import { kstDate } from '@/lib/auditions';
+import { useAuth } from '@/lib/auth';
 import { getFirstTimeState, subscribeFirstTimeState } from '@/lib/practice/first-time';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -41,6 +45,7 @@ type Props = {
  */
 export function AdSlot({ slot, style }: Props) {
   const router = useRouter();
+  const { profile } = useAuth();
   const firstTime = useSyncExternalStore(subscribeFirstTimeState, getFirstTimeState, getFirstTimeState);
   const [pick, setPick] = useState<AdSlotPick | null>(() => lastPick.get(slot) ?? null);
   const [loaded, setLoaded] = useState(() => lastPick.has(slot));
@@ -93,6 +98,10 @@ export function AdSlot({ slot, style }: Props) {
         <BannerAd
           unitId={bannerUnitFor(slot, Platform.OS === 'ios' ? 'ios' : 'android', API_URL)}
           size={BannerAdSize[size]}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: adRequestConfigFor(profile.me?.profile?.birth_date, kstDate())
+              .requestNonPersonalizedAdsOnly,
+          }}
           onAdLoaded={() => void logEvent('ad_network_loaded', { slot })}
           onAdFailedToLoad={() => setFailed(true)}
         />
@@ -109,7 +118,8 @@ export function AdSlot({ slot, style }: Props) {
   const onPress = () => {
     api.recordAdEvent(ad.id, slot, 'click').catch(() => undefined);
     if (kind === 'DIRECT') {
-      router.push({ pathname: '/ad/[id]', params: { id: ad.id } });
+      // 상세는 광고주 쪽 페이지다 — 앱 밖 브라우저로 바로 연다
+      if (isHttpLink(ad.link_url)) Linking.openURL(ad.link_url).catch(() => undefined);
     } else if (ad.app_path) {
       router.push(ad.app_path as Href);
     }

@@ -29,7 +29,7 @@ function storage(): Storage {
   return require('@react-native-async-storage/async-storage').default as Storage;
 }
 
-/** 저장된 {dayKey → 대표 ISO 시각}. 값은 buildWeekActivity 에 그대로 먹일 created_at. */
+/** 저장된 {dayKey → 대표 ISO 시각}. 값은 buildRecentActivity 에 그대로 먹일 created_at. */
 type Stored = Record<string, string>;
 
 async function read(userId: string): Promise<Stored> {

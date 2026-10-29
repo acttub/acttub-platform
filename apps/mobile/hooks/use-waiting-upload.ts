@@ -111,9 +111,10 @@ export function useWaitingUpload() {
     const videoId = waiting.videoId as string;
     try {
       const input = { requestId: waiting.requestId, videoId, scene: waiting.scene, blockage: waiting.blockage };
+      const startInput = typeof waiting.title === 'string' ? { ...input, title: waiting.title } : input;
       const practice = waiting.continueFrom
         ? await api.continuePractice(waiting.continueFrom.practiceId, buildContinueBody(input))
-        : await api.createPractice(buildStartBody(input));
+        : await api.createPractice(buildStartBody(startInput));
       await forgetWaitingUpload(waiting.owner);
       router.push({ pathname: '/coach', params: { practiceId: practice.id } });
     } catch (e) {

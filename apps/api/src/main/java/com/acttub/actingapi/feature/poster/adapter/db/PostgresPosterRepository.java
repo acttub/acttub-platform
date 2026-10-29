@@ -33,6 +33,7 @@ class PostgresPosterRepository implements PosterRepository {
     private static final String COLUMNS = """
             id,slug,revision,active,priority,starts_at,ends_at,array_to_string(platforms,',') AS platforms,locale,
             min_app_version,frequency,audience,dismissible,badge,title,body,image,audio,cta_label,cta_action,cta_target,
+            footnote,image_bg,
             created_at,updated_at""";
 
     private final EntityManager entityManager;
@@ -61,6 +62,23 @@ class PostgresPosterRepository implements PosterRepository {
     }
 
     @Override
+    public List<Poster> history(String platform, String locale, Instant now, int limit) {
+        return list(entityManager.createNativeQuery("SELECT " + COLUMNS + """
+                 FROM app_posters
+                WHERE (starts_at IS NULL OR starts_at <= :now)
+                  AND :platform = ANY(platforms)
+                  AND (locale IS NULL OR locale = CAST(:locale AS text))
+                ORDER BY COALESCE(starts_at, created_at) DESC, id
+                LIMIT :limit
+                """, Tuple.class)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("platform", platform)
+                .setParameter("locale", locale)
+                .setParameter("limit", limit))
+                .stream().map(PostgresPosterRepository::poster).toList();
+    }
+
+    @Override
     public List<Poster> all() {
         return list(entityManager.createNativeQuery("SELECT " + COLUMNS
                 + " FROM app_posters ORDER BY active DESC, priority DESC, updated_at DESC, id", Tuple.class))
@@ -80,11 +98,11 @@ class PostgresPosterRepository implements PosterRepository {
                 WITH inserted AS (
                     INSERT INTO app_posters(id,slug,revision,active,priority,starts_at,ends_at,platforms,locale,
                                             min_app_version,frequency,audience,dismissible,badge,title,body,image,audio,
-                                            cta_label,cta_action,cta_target,created_at,updated_at)
+                                            cta_label,cta_action,cta_target,footnote,image_bg,created_at,updated_at)
                     VALUES (:id,:slug,1,:active,:priority,CAST(:startsAt AS timestamptz),CAST(:endsAt AS timestamptz),
                             CAST(:platforms AS text[]),CAST(:locale AS text),CAST(:minAppVersion AS text),:frequency,
                             :audience,:dismissible,CAST(:badge AS text),:title,CAST(:body AS text),CAST(:image AS text),
-                            CAST(:audio AS text),CAST(:ctaLabel AS text),:ctaAction,CAST(:ctaTarget AS text),:now,:now)
+                            CAST(:audio AS text),CAST(:ctaLabel AS text),:ctaAction,CAST(:ctaTarget AS text),CAST(:footnote AS text),CAST(:imageBg AS text),:now,:now)
                     ON CONFLICT DO NOTHING
                     RETURNING *
                 )
@@ -104,7 +122,8 @@ class PostgresPosterRepository implements PosterRepository {
                         min_app_version=CAST(:minAppVersion AS text),frequency=:frequency,audience=:audience,
                         dismissible=:dismissible,badge=CAST(:badge AS text),title=:title,body=CAST(:body AS text),
                         image=CAST(:image AS text),audio=CAST(:audio AS text),cta_label=CAST(:ctaLabel AS text),
-                        cta_action=:ctaAction,cta_target=CAST(:ctaTarget AS text),updated_at=:now
+                        cta_action=:ctaAction,cta_target=CAST(:ctaTarget AS text),footnote=CAST(:footnote AS text),
+                        image_bg=CAST(:imageBg AS text),updated_at=:now
                     WHERE id=:id
                       AND NOT EXISTS (SELECT 1 FROM app_posters other
                                       WHERE other.id<>:id AND other.slug=:slug
@@ -138,6 +157,8 @@ class PostgresPosterRepository implements PosterRepository {
                 .setParameter("ctaLabel", draft.ctaLabel())
                 .setParameter("ctaAction", draft.ctaAction())
                 .setParameter("ctaTarget", draft.ctaTarget())
+                .setParameter("footnote", draft.footnote())
+                .setParameter("imageBg", draft.imageBg())
                 .setParameter("now", now.atOffset(ZoneOffset.UTC));
     }
 
@@ -166,7 +187,9 @@ class PostgresPosterRepository implements PosterRepository {
                 row.get("audio", String.class),
                 row.get("cta_label", String.class),
                 row.get("cta_action", String.class),
-                row.get("cta_target", String.class));
+                row.get("cta_target", String.class),
+                row.get("footnote", String.class),
+                row.get("image_bg", String.class));
         return new Poster(row.get("id", UUID.class), row.get("revision", Integer.class), draft,
                 instant(row, "created_at"), instant(row, "updated_at"));
     }

@@ -25,6 +25,8 @@ const notificationsModule = {
   addNotificationResponseReceivedListener: fn => { state.listeners.tapped = fn; return { remove: () => { delete state.listeners.tapped; } }; },
   getPermissionsAsync: async () => state.permission,
   requestPermissionsAsync: async () => { state.calls.push(['requestPermission']); return { granted: state.requestGrants, canAskAgain: false }; },
+  AndroidImportance: { DEFAULT: 3 },
+  setNotificationChannelAsync: async (id) => { state.calls.push(['channel', id]); },
   getExpoPushTokenAsync: async () => ({ data: state.token }),
   cancelAllScheduledNotificationsAsync: async () => { state.calls.push(['cancelAll']); },
 };
@@ -63,11 +65,32 @@ beforeEach(async () => {
   });
 });
 
-test('포그라운드에서도 배너와 목록으로 보여 주고 소리는 내지 않는다', async () => {
+test('앱이 떠 있을 때도 알림은 배너와 목록으로 보여 주고 소리는 내지 않는다', async () => {
   n.configureNotificationHandling();
-  assert.deepEqual(await state.handler.handleNotification(), {
+  assert.deepEqual(await state.handler.handleNotification({ request: { content: { data: { kind: 'analysis_complete', practice_id: 'p1' } } } }), {
     shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false,
   });
+  assert.equal((await state.handler.handleNotification()).shouldShowBanner, true);
+});
+
+test('보고 있는 화면이 숨기라고 건 알림만 숨기고, 풀면 다시 띄운다', async () => {
+  n.configureNotificationHandling();
+  const mine = { request: { content: { data: { kind: 'analysis_complete', practice_id: 'p1' } } } };
+  const other = { request: { content: { data: { kind: 'analysis_complete', practice_id: 'p2' } } } };
+  const release = n.hideForegroundPush((data) => data?.practice_id === 'p1');
+  assert.deepEqual(await state.handler.handleNotification(mine), {
+    shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false,
+  });
+  assert.equal((await state.handler.handleNotification(other)).shouldShowBanner, true);
+  release();
+  assert.equal((await state.handler.handleNotification(mine)).shouldShowBanner, true);
+});
+
+test('숨김 조건이 오류를 내도 알림은 띄운다', async () => {
+  n.configureNotificationHandling();
+  const release = n.hideForegroundPush(() => { throw new Error('boom'); });
+  assert.equal((await state.handler.handleNotification({ request: { content: { data: {} } } })).shouldShowBanner, true);
+  release();
 });
 
 test('받은 푸시와 누른 푸시의 자료를 넘기고, 끊으면 더 듣지 않는다', () => {
@@ -151,11 +174,11 @@ test('시뮬레이터·웹·권한 거부·토큰 없음이면 등록하지 않�
   }
 });
 
-test('권한을 아직 묻지 않았으면 게이트에서 묻고, 허락하면 등록한다', async () => {
+test('안드로이드는 권한을 묻기 전에 알림 채널부터 만들고(13+ 필수), 허락하면 등록한다', async () => {
   state.permission = { granted: false, canAskAgain: true };
   state.os = 'android';
   await n.syncNotificationsAfterGate();
-  assert.deepEqual(state.calls.slice(0, 3), [['GET settings'], ['requestPermission'], ['register', 'ExponentPushToken[abc]', 'android']]);
+  assert.deepEqual(state.calls.slice(0, 4), [['GET settings'], ['channel', 'default'], ['requestPermission'], ['register', 'ExponentPushToken[abc]', 'android']]);
 });
 
 test('토큰을 받다가 실패해도 조용히 끝낸다', async () => {

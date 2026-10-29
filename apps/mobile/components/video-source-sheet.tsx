@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AnchoredMenu, type MenuAnchor } from '@/components/ui/anchored-menu';
 import { palette } from '@/constants/palette';
+import { space, type } from '@/constants/tokens';
 
 export type VideoSourceOption = {
   key: string;
@@ -10,12 +11,6 @@ export type VideoSourceOption = {
   title: string;
   sub: string;
   onPress: () => void;
-};
-
-const ICON_TONE: Record<VideoSourceOption['icon'], { bg: string; fg: string }> = {
-  archive: { bg: palette.blueSoft, fg: palette.blue },
-  video: { bg: '#FFF1DE', fg: palette.flame },
-  image: { bg: palette.bgSoft, fg: palette.textMeta },
 };
 
 /**
@@ -50,9 +45,7 @@ export function VideoSourceSheet({
           onPress={option.onPress}
           accessibilityRole="button"
           accessibilityLabel={option.title}>
-          <View style={[styles.icon, { backgroundColor: ICON_TONE[option.icon].bg }]}>
-            <Feather name={option.icon} size={18} color={ICON_TONE[option.icon].fg} />
-          </View>
+          <Feather name={option.icon} size={18} color={palette.textSub} />
           <View style={styles.text}>
             <Text style={styles.rowTitle}>{option.title}</Text>
             <Text style={styles.rowSub}>{option.sub}</Text>
@@ -64,12 +57,11 @@ export function VideoSourceSheet({
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 13, fontWeight: '700', color: palette.textMeta, paddingHorizontal: 16, paddingTop: 12 },
-  sub: { fontSize: 12, color: palette.textMeta, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8 },
+  title: { ...type.body2Bold, color: palette.text, paddingHorizontal: space[4], paddingTop: space[3] },
+  sub: { ...type.caption, color: palette.textMeta, paddingHorizontal: space[4], paddingBottom: space[1] },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space[3], minHeight: 56, paddingHorizontal: space[4], paddingVertical: space[2] },
   pressed: { backgroundColor: palette.bgSoft },
-  icon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  text: { flex: 1, gap: 2 },
-  rowTitle: { fontSize: 16, fontWeight: '600', color: palette.text },
-  rowSub: { fontSize: 12, color: palette.textMeta },
+  text: { flex: 1 },
+  rowTitle: { ...type.body2, color: palette.text },
+  rowSub: { ...type.caption, color: palette.textMeta },
 });

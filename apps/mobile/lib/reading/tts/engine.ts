@@ -215,17 +215,40 @@ async function synthesizeOne(text: string, scriptId: string, preset: string, spe
   return out.uri;
 }
 
-/** 저장본의 길이가 아직 0이어도 실제 재생 완료를 기다린다(Expo SDK 54 playbackStatusUpdate). */
+/** 재생이 시작됐다는 상태가 이만큼 안 오면 멈춘 것으로 본다 — 소리 없이 「읽는 중」에 갇히지 않게(SOMA-906). */
+export const PLAYBACK_START_TIMEOUT_MS = 5_000;
+/** 소리 길이를 안 뒤로는 남은 길이에 이만큼 더 기다려도 끝 사건이 없으면 끝난 것으로 본다. */
+export const PLAYBACK_END_MARGIN_MS = 3_000;
+
+/**
+ * 저장본의 길이가 아직 0이어도 실제 재생 완료를 기다린다(Expo SDK 54 playbackStatusUpdate).
+ * 다만 끝 사건만 믿고 끝없이 기다리지는 않는다(SOMA-906, iOS 0.1.5에서 소리 없이 줄이 멈춤):
+ * - 재생기가 실패를 알리거나 정해진 시간 안에 재생을 시작하지 못하면 reject 한다. 부르는 쪽이 다른 목소리로 넘긴다.
+ * - 재생은 시작했는데 끝 사건이 오지 않으면 소리 길이 + 여유 뒤에 끝난 것으로 본다.
+ */
 export async function play(uri: string): Promise<void> {
   stop();
   const current = createAudioPlayer({ uri });
   player = current;
   await new Promise<void>((resolve, reject) => {
     let subscription: { remove(): void } | null = null;
+    let startTimer: ReturnType<typeof setTimeout> | null = null;
+    let endTimer: ReturnType<typeof setTimeout> | null = null;
+    let started = false;
+    const clearTimers = () => {
+      if (startTimer) clearTimeout(startTimer);
+      if (endTimer) clearTimeout(endTimer);
+      startTimer = endTimer = null;
+    };
+    const release = () => {
+      clearTimers();
+      subscription?.remove();
+      subscription = null;
+      if (finishPlayback === finish) finishPlayback = null;
+    };
     // ended: 끝까지 재생돼 끝났다(재생기 사건). 아니면 stop() 이 끊은 것 — 그때는 stop() 이 바로 놓는다.
     const finish = (ended = false) => {
-      subscription?.remove();
-      if (finishPlayback === finish) finishPlayback = null;
+      release();
       if (ended && player === current) {
         // 다 쓴 재생기는 바로 놓는다. 남겨 두면 다음 줄까지 상태 갱신이 계속 돌아 메모리가 찬다(0.1.2 안드로이드 OOM).
         // 사건 처리 도중에 놓지 않도록 한 박자 뒤에.
@@ -234,18 +257,46 @@ export async function play(uri: string): Promise<void> {
       }
       resolve();
     };
+    const fail = (reason: string) => {
+      release();
+      if (player === current) {
+        player = null;
+        setTimeout(() => disposeAudioPlayer(current), 0);
+      }
+      reject(new VoicePrepareError('playback', `재생 실패: ${reason}`));
+    };
     finishPlayback = finish;
     subscription = current.addListener('playbackStatusUpdate', (status) => {
-      if (status.didJustFinish) finish(true);
+      if (status.didJustFinish) return finish(true);
+      if (status.playbackState === 'failed') return fail('failed');
+      if (!started && (status.playing || (status.currentTime ?? 0) > 0)) {
+        started = true;
+        if (startTimer) clearTimeout(startTimer);
+        startTimer = null;
+      }
+      if (started && !endTimer && (status.duration ?? 0) > 0) {
+        const left = Math.max(0, status.duration - (status.currentTime ?? 0));
+        endTimer = setTimeout(() => finish(true), left * 1000 + PLAYBACK_END_MARGIN_MS);
+      }
     });
+    startTimer = setTimeout(() => {
+      if (!started) fail('not_started');
+    }, PLAYBACK_START_TIMEOUT_MS);
     try {
       current.play();
     } catch (error) {
-      subscription.remove();
-      if (finishPlayback === finish) finishPlayback = null;
+      release();
       reject(error);
     }
   });
+}
+
+/** 재생에 실패한 저장본을 지운다 — 다음에는 다시 받거나 다시 만든다. 지우지 못해도 넘어간다. */
+export function discardSpeechFile(uri: string): void {
+  try {
+    const file = new File(uri);
+    if (file.exists) file.delete();
+  } catch {}
 }
 
 /** 만들어 둔 것이 없을 때 — 만들고 바로 튼다. */

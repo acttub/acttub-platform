@@ -152,6 +152,13 @@ class ConversationServiceTest {
                 .isEqualTo(ConversationService.THREE_LAYERS_REPLY_LIMIT);
     }
 
+    @Test void anAnswerWithCharactersOutsideTheAllowedRangeIsRejected() {
+        // 10/27 운영: 글자마다 결합 기호를 쌓은 글. 저장도, 코치 호출도 하지 않는다.
+        assertThatThrownBy(() -> service(listener).reply(user, conversation, UUID.randomUUID(), "Z\u0325\u031c\u0318algo", 2L))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(400))
+                .hasMessage("unreadable_text");
+    }
+
     @Test void readingAMissingConversationOrNoteIsNotFound() {
         assertThatThrownBy(() -> service(listener).conversation(user, conversation)).hasMessage("conversation_not_found");
         assertThatThrownBy(() -> service(listener).note(user, practice)).hasMessage("note_not_found");

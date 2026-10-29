@@ -13,7 +13,7 @@ import { installNavigationGuard } from '@/lib/navigation-guard';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
-import { logScreenView } from '@/lib/analytics';
+import { logEvent, logScreenView } from '@/lib/analytics';
 import { postHog, syncPostHog } from '@/lib/posthog';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { useAuth } from '@/lib/auth';
@@ -64,7 +64,7 @@ jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn(), hideAs
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('react-native-reanimated', () => ({}));
 jest.mock('@/lib/global-font', () => ({}));
-jest.mock('@/lib/analytics', () => ({ logScreenView: jest.fn() }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn(), logScreenView: jest.fn() }));
 jest.mock('expo-tracking-transparency', () => ({
   getTrackingPermissionsAsync: jest.fn(),
   requestTrackingPermissionsAsync: jest.fn(),
@@ -82,11 +82,16 @@ jest.mock('@/lib/notifications', () => ({
   configureNotificationHandling: jest.fn(),
   flushPendingPushTokenDeletions: jest.fn(),
   onPushTapped: jest.fn(),
+  capturePushOpen: jest.fn(),
+  recordColdStartPushOpen: jest.fn(() => Promise.resolve()),
+  setPushOpenSignedIn: jest.fn(),
 }));
 jest.mock('@/lib/auth', () => ({ AuthProvider: ({ children }: { children: unknown }) => children, useAuth: jest.fn() }));
 jest.mock('@/components/app-header', () => ({ AppHeader: () => require('react').createElement(require('react-native').Text, null, '앱 머리') }));
 jest.mock('@/components/header-back', () => ({ HeaderBack: () => require('react').createElement(require('react-native').Text, null, '뒤로 꺾쇠') }));
 jest.mock('@/components/spotlight-guide', () => ({ SpotlightHost: () => null }));
+// 진입 화면은 onShown 을 부르지 않는다 — 여기서 hideAsync 는 진입 화면을 닫았다는 뜻이다.
+jest.mock('@/components/launch-splash-screen', () => ({ LaunchSplashScreen: () => require('react').createElement(require('react-native').Text, null, '진입 화면') }));
 jest.mock('@/components/reconsent-popup', () => ({
   ReconsentPopup: ({ visible }: { visible: boolean }) =>
     visible ? require('react').createElement(require('react-native').Text, null, '재동의 팝업') : null,
@@ -446,9 +451,11 @@ describe('홈을 기다리는 로고', () => {
   test('홈으로 들어가면 홈이 첫 데이터를 받을 때까지 로고를 유지한다', async () => {
     await renderLayout();
     expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
+    expect(screen.getByText('진입 화면')).toBeOnTheScreen();
 
     await act(async () => markHomeReady());
     expect(SplashScreen.hideAsync).toHaveBeenCalled();
+    expect(screen.queryByText('진입 화면')).not.toBeOnTheScreen();
   });
 
   test('홈이 3초 안에 준비되지 않으면 로고를 닫는다', async () => {
@@ -483,6 +490,14 @@ describe('푸시를 누르면', () => {
     await renderLayout();
     pushListener?.({ kind: 'evening_reminder' });
     expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+  });
+
+  test('안 읽은 대본 알림은 그 대본을 찾아 여는 화면으로 가고 누른 것을 남긴다(SOMA-862)', async () => {
+    await renderLayout();
+    const id = '12345678-1234-1234-1234-123456789abc';
+    pushListener?.({ kind: 'evening_reminder', reminder_kind: 'unread_script', script_id: id, template_id: 'unread.a' });
+    expect(mockRouter.replace).toHaveBeenCalledWith(`/reminder-open?kind=unread_script&id=${id}`);
+    expect(logEvent).toHaveBeenCalledWith('reminder_open', { reminder_kind: 'unread_script', template_id: 'unread.a', target: 'resolve' });
   });
 
   test('챌린지 알림은 알림함을 연다', async () => {

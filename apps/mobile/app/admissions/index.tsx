@@ -11,10 +11,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
+import { Chip } from '@/components/ui/chip';
+import { InlineEmpty } from '@/components/ui/inline-empty';
+import { InlineError } from '@/components/ui/inline-error';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import {
   activeFilterCount,
@@ -42,12 +47,14 @@ export default function AdmissionsScreen() {
   const [filters, setFilters] = useState<AdmissionFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
+    setError(null);
     api
       .admissions()
       .then(setPayload)
-      .catch(() => setError('입시 정보를 불러오지 못했어요.'));
-  }, []);
+      .catch(() => setError('입시 정보를 불러오지 못했어요'));
+  };
+  useEffect(load, []);
 
   const today = localDate();
   const groups = useMemo(
@@ -77,7 +84,11 @@ export default function AdmissionsScreen() {
       {!payload && !error && (
         <SkeletonRows count={6} />
       )}
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && (
+        <View style={styles.errorBox}>
+          <InlineError message={error} onRetry={load} />
+        </View>
+      )}
 
       {payload && (
         <ScrollView contentContainerStyle={styles.list}>
@@ -85,7 +96,7 @@ export default function AdmissionsScreen() {
           <View style={styles.notice}>
             {/* Pretendard 서브셋에 원문자(U+2460~24FF)가 없어 'ⓘ'는 두부로 나온다.
                 아이콘 폰트는 서브셋 대상이 아니라서 Feather 로 그린다. */}
-            <Feather name="info" size={14} color="#B45309" />
+            <Feather name="info" size={14} color={palette.amber} />
             <Text style={styles.noticeText}>{payload.disclaimer}</Text>
           </View>
 
@@ -94,7 +105,7 @@ export default function AdmissionsScreen() {
             <TextInput
               style={styles.search}
               value={filters.query}
-              onChangeText={(query) => setFilters((was) => ({ ...was, query }))}
+              onChangeText={(query) => setFilters((was) => ({ ...was, query: sanitizeInput(query) }))}
               placeholder="대학·학과·지역 검색"
               placeholderTextColor={palette.textMeta}
             />
@@ -103,12 +114,15 @@ export default function AdmissionsScreen() {
           <View style={styles.filterBar}>
             <Chip
               label="접수 가능만"
-              on={filters.openOnly}
+              role="checkbox"
+              size="sm"
+              selected={filters.openOnly}
               onPress={() => setFilters((was) => ({ ...was, openOnly: !was.openOnly }))}
             />
             <Chip
               label={activeCount > 0 ? `필터 ${activeCount}` : '필터'}
-              on={activeCount > 0}
+              size="sm"
+              selected={activeCount > 0}
               onPress={() => setFilterOpen((was) => !was)}
             />
           </View>
@@ -120,7 +134,9 @@ export default function AdmissionsScreen() {
                   <Chip
                     key={region}
                     label={region}
-                    on={filters.regions.includes(region)}
+                    role="checkbox"
+                    size="sm"
+                    selected={filters.regions.includes(region)}
                     onPress={() => toggle('regions', region)}
                   />
                 ))}
@@ -130,7 +146,9 @@ export default function AdmissionsScreen() {
                   <Chip
                     key={track}
                     label={track}
-                    on={filters.tracks.includes(track)}
+                    role="checkbox"
+                    size="sm"
+                    selected={filters.tracks.includes(track)}
                     onPress={() => toggle('tracks', track)}
                   />
                 ))}
@@ -140,7 +158,9 @@ export default function AdmissionsScreen() {
                   <Chip
                     key={discipline}
                     label={DISCIPLINE_LABEL[discipline] ?? discipline}
-                    on={filters.disciplines.includes(discipline)}
+                    role="checkbox"
+                    size="sm"
+                    selected={filters.disciplines.includes(discipline)}
                     onPress={() => toggle('disciplines', discipline)}
                   />
                 ))}
@@ -150,7 +170,9 @@ export default function AdmissionsScreen() {
                   <Chip
                     key={category}
                     label={PRACTICAL_LABEL[category] ?? category}
-                    on={filters.practicals.includes(category)}
+                    role="checkbox"
+                    size="sm"
+                    selected={filters.practicals.includes(category)}
                     onPress={() => toggle('practicals', category)}
                   />
                 ))}
@@ -160,13 +182,17 @@ export default function AdmissionsScreen() {
                   <Chip
                     key={type}
                     label={TYPE_LABEL[type] ?? type}
-                    on={filters.types.includes(type)}
+                    role="checkbox"
+                    size="sm"
+                    selected={filters.types.includes(type)}
                     onPress={() => toggle('types', type)}
                   />
                 ))}
                 <Chip
                   label="수능 최저 없음"
-                  on={filters.noCsatOnly}
+                  role="checkbox"
+                  size="sm"
+                  selected={filters.noCsatOnly}
                   onPress={() => setFilters((was) => ({ ...was, noCsatOnly: !was.noCsatOnly }))}
                 />
               </FilterRow>
@@ -190,7 +216,9 @@ export default function AdmissionsScreen() {
             />
           ))}
 
-          {visible.length === 0 && <Text style={styles.empty}>조건에 맞는 대학이 없어요.</Text>}
+          {visible.length === 0 && (
+            <InlineEmpty title="조건에 맞는 대학이 없어요" />
+          )}
 
           <Text style={styles.foot}>
             {payload.updated_at} 기준 · 확인한 곳부터 차례로 채우고 있어요{'\n'}
@@ -237,8 +265,8 @@ function UniversityCard({
           </Text>
         </View>
         {badge && (
-          <View style={[styles.dday, badge.tone === 'muted' && styles.ddayMuted]}>
-            <Text style={[styles.ddayText, badge.tone === 'muted' && styles.ddayTextMuted]}>
+          <View style={[styles.dday, BADGE_TONE[badge.tone].box]}>
+            <Text style={[styles.ddayText, BADGE_TONE[badge.tone].text]}>
               {badge.label}
             </Text>
           </View>
@@ -271,113 +299,71 @@ function FilterRow({
   );
 }
 
-function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: on }}
-      style={[styles.chip, on && styles.chipOn]}>
-      <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   campus: {
-    paddingHorizontal: 7,
-    height: 18,
-    lineHeight: 18,
-    borderRadius: 9,
+    paddingHorizontal: space[1.5],
+    ...type.micro,
+    height: 20,
+    lineHeight: 20,
+    borderRadius: radius.full,
     overflow: 'hidden',
     backgroundColor: palette.bgSoft,
-    fontSize: 10,
-    fontWeight: '800',
     color: palette.textSub,
   },
-  filterBar: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  filterBar: { flexDirection: 'row', gap: space[1.5], flexWrap: 'wrap' },
   filterPanel: {
-    padding: 16,
-    borderRadius: 16,
+    padding: space[4],
+    borderRadius: radius.lg,
     backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
-    gap: 12,
+    gap: space[3],
   },
-  filterRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  filterLabel: { width: 58, paddingTop: 7, fontSize: 11.5, fontWeight: '800', color: palette.textMeta },
-  chips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: {
-    paddingHorizontal: 12,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: palette.bgSoft,
-    justifyContent: 'center',
-  },
-  chipOn: { backgroundColor: palette.blue },
-  chipText: { fontSize: 11.5, fontWeight: '800', color: palette.textSub },
-  chipTextOn: { color: '#FFFFFF' },
-  empty: { paddingVertical: 40, textAlign: 'center', fontSize: 13, fontWeight: '600', color: palette.textMeta },
-  safe: { flex: 1, backgroundColor: palette.bgSoft },
+  filterRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3] },
+  filterLabel: { width: 56, paddingTop: space[1.5], ...type.captionBold, color: palette.textSub },
+  chips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
+  safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 14,
-  },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  error: { padding: 30, textAlign: 'center', color: palette.danger, fontWeight: '600' },
-  list: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 72, gap: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], flexWrap: 'wrap' },
+  errorBox: { paddingHorizontal: space.gutter, paddingTop: space[2] },
+  list: { paddingHorizontal: space.gutter, paddingTop: space[2], paddingBottom: space[10], gap: space[3] },
   notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    padding: 16,
-    borderRadius: 16,
+    gap: space[2],
+    paddingVertical: space[3],
+    paddingHorizontal: space[4],
+    borderRadius: radius.md,
     backgroundColor: palette.amberSoft,
   },
-  noticeText: {
-    flex: 1,
-    color: '#B45309',
-    fontSize: 12,
-    fontWeight: '700',
-    lineHeight: 19,
-  },
+  noticeText: { flex: 1, ...type.captionBold, color: palette.amber },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 18,
-    height: 52,
-    borderRadius: 16,
+    gap: space[2],
+    paddingHorizontal: space[4],
+    height: 48,
+    borderRadius: radius.md,
     backgroundColor: palette.bg,
     borderWidth: 1,
     borderColor: palette.border,
   },
-  search: { flex: 1, fontSize: 14, color: palette.text },
-  count: { marginTop: 2, marginBottom: 2, fontSize: 12, fontWeight: '700', color: palette.textMeta },
-  card: {
-    backgroundColor: palette.bg,
-    borderRadius: 20,
-    shadowColor: '#191F28',
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 1,
-  },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 20 },
-  uniName: { fontSize: 18, fontWeight: '800', color: palette.text },
-  region: { fontSize: 11, fontWeight: '600', color: palette.textMeta },
-  deptLine: { marginTop: 7, fontSize: 12.5, fontWeight: '600', color: palette.textMeta, lineHeight: 18 },
-  dday: { paddingHorizontal: 11, height: 28, borderRadius: 14, backgroundColor: palette.text, justifyContent: 'center' },
-  ddayText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
-  ddayMuted: { backgroundColor: palette.bgSoft },
-  ddayTextMuted: { color: palette.textMeta },
-  link: { fontSize: 13, fontWeight: '800', color: palette.blue },
-  foot: { marginTop: 16, fontSize: 11.5, fontWeight: '600', color: palette.textMeta, lineHeight: 19 },
+  search: { flex: 1, ...type.body1, lineHeight: undefined, color: palette.text },
+  count: { ...type.body2Bold, color: palette.textSub },
+  card: { backgroundColor: palette.bg, borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4] },
+  uniName: { ...type.body1Bold, color: palette.text },
+  region: { ...type.caption, color: palette.textMeta },
+  deptLine: { marginTop: space[1], ...type.caption, color: palette.textMeta },
+  dday: { paddingHorizontal: space[2], height: 24, borderRadius: radius.full, justifyContent: 'center' },
+  ddayText: { ...type.micro },
+  link: { ...type.body2Bold, color: palette.blueDeep },
+  foot: { marginTop: space[4], ...type.caption, color: palette.textMeta },
 });
+
+/** 배지 tone → 색. 오늘 마감은 danger-soft, 다가오는 일정은 blue-soft, 그 밖은 bg-soft. */
+const BADGE_TONE = {
+  today: StyleSheet.create({ box: { backgroundColor: palette.dangerSoft }, text: { color: palette.danger } }),
+  live: StyleSheet.create({ box: { backgroundColor: palette.blueSoft }, text: { color: palette.blueDeep } }),
+  muted: StyleSheet.create({ box: { backgroundColor: palette.bgSoft }, text: { color: palette.textSub } }),
+};

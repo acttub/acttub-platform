@@ -18,6 +18,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptListView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptView;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.acttub.actingapi.platform.web.Hashing;
@@ -60,6 +61,9 @@ public class ScriptService {
      * 재전송은 개수 검사보다 먼저라 마지막 허용 대본의 재시도가 실패하지 않는다.
      */
     public Created create(UUID userId, boolean guest, UUID requestId, ScriptDraft draft) {
+        InputCharset.requireNoStacking(draft.title(), draft.rawText());
+        draft.characterNames().forEach(InputCharset::requireNoStacking);
+        draft.lines().forEach(line -> InputCharset.requireNoStacking(line.text()));
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
         if (rejection != null) {
             throw switch (rejection) {
@@ -89,6 +93,7 @@ public class ScriptService {
     }
 
     public ScriptListView list(UUID userId, String query) {
+        InputCharset.requireNoStacking(query);
         return scripts.list(userId, query == null ? "" : query.strip());
     }
 
@@ -97,6 +102,8 @@ public class ScriptService {
      * {@code invalid_characters} 다. 배역 id 와 줄의 연결, 목소리, 지문은 그대로다.
      */
     public ScriptView update(UUID userId, UUID scriptId, String title, List<CharacterPatch> characters) {
+        InputCharset.requireNoStacking(title);
+        characters.forEach(patch -> InputCharset.requireNoStacking(patch.name()));
         List<CharacterPatch> normalized = new ArrayList<>();
         for (CharacterPatch patch : characters) {
             String name = patch.name() == null ? null : ScriptRules.normalizedName(patch.name());
@@ -124,6 +131,7 @@ public class ScriptService {
      * 생성 지문은 바꾸지 않는다 — 고친 뒤에 원래 생성 요청이 다시 와도 같은(고친) 대본이다.
      */
     public ScriptView editLine(UUID userId, UUID scriptId, UUID lineId, LinePatch patch) {
+        InputCharset.requireNoStacking(patch.text());
         LineEditOutcome outcome = activeOnly(() -> scripts.editLine(userId, scriptId, lineId, patch));
         if (outcome == null) {
             throw notFound();
@@ -150,6 +158,7 @@ public class ScriptService {
 
     /** 줄 하나를 둘로 나눈다(SOMA-785). 앞 조각은 그 줄 id 에 남아 회차·녹음·외운 줄이 그대로 이어진다. */
     public ScriptView splitLine(UUID userId, UUID scriptId, UUID lineId, String first, String second) {
+        InputCharset.requireNoStacking(first, second);
         LineEditOutcome outcome = activeOnly(() -> scripts.splitLine(userId, scriptId, lineId, first, second));
         if (outcome == null) {
             throw notFound();
@@ -160,6 +169,7 @@ public class ScriptService {
 
     /** 고른 줄 바로 아래에 새 줄을 넣는다(SOMA-816). 기존 줄의 id 는 그대로라 회차·녹음·외운 줄이 이어진다. */
     public ScriptView insertLineAfter(UUID userId, UUID scriptId, UUID lineId, String kind, UUID characterId, String text) {
+        InputCharset.requireNoStacking(text);
         LineEditOutcome outcome = activeOnly(() -> scripts.insertLineAfter(userId, scriptId, lineId, kind, characterId, text));
         if (outcome == null) {
             throw notFound();

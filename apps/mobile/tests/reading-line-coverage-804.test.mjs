@@ -27,3 +27,9 @@ test('SOMA-804: 받아쓰기가 켜진 내 차례는 충분히 말했을 때만 
   assert.match(src, /if \(sttActive\.current && !sttGaveUp\(\) && !saidEnough\(turnText, saidRef\.current\)\) return;/);
   assert.match(src, /const sttGaveUp = \(\) => sttStopped \|\| stt\.failed\(\) \|\| !saidRef\.current\.trim\(\);/);
 });
+
+test('SOMA-727: 대사 속 괄호 지문 자리에서 멈춰도 지문 앞까지만 말했으면 침묵으로 넘기지 않는다', () => {
+  const line = '관장님!!(지선은 관장을 따라 들어와 매달려 조른다) 관장님! 저 빨리 권투 가르쳐 주세요!';
+  assert.equal(saidEnough(line, '관장님'), false);
+  assert.equal(saidEnough(line, '관장님 관장님 저 빨리 권투 가르쳐 주세요'), true);
+});

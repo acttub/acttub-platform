@@ -17,6 +17,7 @@ import com.acttub.actingapi.feature.challenge.app.ReportRepository.AdminReportPa
 import com.acttub.actingapi.feature.challenge.app.ReportRepository.Filed;
 import com.acttub.actingapi.feature.challenge.app.ReportRepository.NewReport;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
+import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.acttub.actingapi.platform.web.Hashing;
@@ -46,6 +47,7 @@ public class ReactionService {
     public CommentPage comments(UUID viewer, UUID entryId, String cursor) { return reactions.comments(viewer, entryId, cursor); }
 
     public CommentCreation comment(UUID viewer, UUID entryId, UUID requestId, String rawBody) {
+        InputCharset.require(rawBody);
         String body = ChallengeRules.trim(rawBody);
         if (!ChallengeRules.length(body, 1, ChallengeRules.COMMENT_MAX)) {
             throw ApiValidationException.valueError(List.of("body", "body"), "Value error, invalid length", rawBody);
@@ -67,6 +69,7 @@ public class ReactionService {
         if (!REASONS.contains(reason)) {
             throw ApiValidationException.valueError(List.of("body", "reason"), "Value error, invalid reason", reason);
         }
+        InputCharset.require(rawNote);
         String note = rawNote == null ? "" : ChallengeRules.trim(rawNote);
         if (!ChallengeRules.length(note, 0, ChallengeRules.REPORT_NOTE_MAX)) {
             throw ApiValidationException.valueError(List.of("body", "note"), "Value error, invalid length", rawNote);

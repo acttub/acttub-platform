@@ -198,6 +198,14 @@ function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(status, friendlyError(status, body), code, detail, body);
 }
 
+/**
+ * 하루·횟수 한도에 걸린 429(daily_entry_limit, free_daily_coaching_limit 같은 `*_limit`)인지. 잠깐 붐빈 429
+ * (rate limit exceeded, script_upload_busy)와 달리 다시 보내도 풀리지 않으니 기다리지 않고 바로 알린다.
+ */
+export function isQuotaLimit(error: unknown): boolean {
+  return errorStatus(error) === 429 && /_limit$/.test(errorCode(error) ?? '');
+}
+
 /** 오류의 사유 코드와 상태. ApiError 가 아니어도 code·status 칸의 모양만 본다. */
 export function errorCode(error: unknown): string | null {
   if (error === null || typeof error !== 'object') return null;
@@ -463,7 +471,13 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
         ? supersededRefreshResult(expectedEpoch)
         : { kind: 'invalid' };
     }
-    if (!response.ok) throw toApiError(response.status, payload);
+    if (!response.ok) {
+      const error = toApiError(response.status, payload);
+      // 탈퇴한 계정은 refresh 도 403 account_deactivated 다. 다시 시도로 풀리지 않으니 탈퇴 신호를 내 기기 세션을 지운다 —
+      // 내지 않으면 재동의 창이 「다시 불러오기」만 되풀이하고 로그인으로 나갈 길이 없었다(SOMA-925).
+      emitForbiddenSideEffects(error);
+      throw error;
+    }
     const tokens = payload as {
       access_token: string;
       refresh_token: string;
@@ -647,6 +661,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
         } else if (
           error instanceof ApiError &&
           error.status === 429 &&
+          !isQuotaLimit(error) &&
           rateLimitAttempts < 4
         ) {
           reason = 'rate_limited';

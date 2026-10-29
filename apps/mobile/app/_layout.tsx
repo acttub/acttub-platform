@@ -1,4 +1,4 @@
-import { reminderTarget } from '@/lib/reminder-target';
+import { reminderOpenEvent, reminderTarget } from '@/lib/reminder-target';
 import Feather from '@expo/vector-icons/Feather';
 import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
@@ -15,14 +15,17 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { getTrackingPermissionsAsync } from 'expo-tracking-transparency';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import 'react-native-reanimated';
 
+import { fontFamilyForWeight } from '@/lib/font-weight';
 import '@/lib/global-font';
 import { useStoreRecovery } from '@/hooks/use-store-recovery';
-import { logScreenView } from '@/lib/analytics';
-import { initAdMob } from '@/lib/ads-native';
+import { logEvent, logScreenView } from '@/lib/analytics';
+import { adRequestConfigFor } from '@/lib/ads';
+import { initAdMob, setAdRequestConfig } from '@/lib/ads-native';
+import { kstDate } from '@/lib/auditions';
 import { initMetaSdk } from '@/lib/meta-events';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { beforeTrackingRequest, TRACKING_INTRO_KEY } from '@/lib/tracking-intro';
@@ -32,6 +35,7 @@ import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { api } from '@/lib/api';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { setVoiceModelSource } from '@/lib/reading/tts/assets';
+import { loadAppConfig } from '@/lib/app-config-load';
 import { tabBackTitle } from '@/lib/tab-back-title';
 import { HOME_SPLASH_HOLD_MS, isHomeReady, shouldHoldSplashForHome, subscribeHomeReady } from '@/lib/launch-splash';
 import { AppHeader } from '@/components/app-header';
@@ -46,6 +50,7 @@ import {
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
 import { sweepDeviceFiles } from '@/lib/account-files';
+import { LaunchSplashScreen } from '@/components/launch-splash-screen';
 import { MarketingNoticeHost } from '@/components/marketing-notice-dialog';
 import { ReconsentPopup } from '@/components/reconsent-popup';
 import { SpotlightHost } from '@/components/spotlight-guide';
@@ -53,17 +58,20 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import {
   configureNotificationHandling,
   flushPendingPushTokenDeletions,
+  capturePushOpen,
   onPushTapped,
+  recordColdStartPushOpen,
+  setPushOpenSignedIn,
 } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
-import { translate as t } from '@/lib/i18n';
+import { onLanguageChange, translate as t } from '@/lib/i18n';
 
 // 아이콘 폰트가 로드되기 전에 UI가 그려지면 탭바 아이콘이 빈칸으로 뜬다.
 // 로드가 끝날 때까지 스플래시를 유지해 아이콘 누락(회귀)을 막는다.
 SplashScreen.preventAutoHideAsync();
 
-// 포그라운드에서도 알림 배너가 뜨게 한다. 모듈이 없는 빌드에서는 아무 일도 하지 않는다.
+// 포그라운드에서도 알림 배너가 뜨게 한다(보고 있는 화면과 겹치는 알림만 숨긴다). 모듈이 없는 빌드에서는 아무 일도 하지 않는다.
 configureNotificationHandling();
 // 로그아웃 때 지우지 못한 푸시 토큰을 앱을 열 때 다시 보낸다 — 로그인 없이 받는 요청이라
 // 로그인 화면에서도 된다. 저녁 리마인드는 게이트를 통과한 뒤에 맞춘다(lib/auth.tsx).
@@ -75,6 +83,8 @@ void sweepDeviceFiles();
 installNavigationGuard(router);
 // 리딩 기기 목소리 모델은 서버가 주는 fp16 묶음 주소로 받는다(SOMA-747). 못 받으면 원본 fp32.
 setVoiceModelSource(() => api.getVoiceModel());
+// 운영이 바꾸는 값(평가 요청 주기·리딩 감지·칩 목록 등)을 서버에서 받는다(SOMA-939). 기다리지 않는다 — 받기 전엔 기본값이다.
+void loadAppConfig();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -103,6 +113,11 @@ function RootNavigator() {
     updateRequired,
   } = useAuth();
   const profileStatus = profile.status;
+  // SOMA-876 — 나이에 따라 AdMob 요청 설정을 다시 건다. 로그아웃·프로필 미수신은 청소년 기준이다.
+  const adBirthDate = user ? (profile.me?.profile?.birth_date ?? null) : null;
+  useEffect(() => {
+    void setAdRequestConfig(adRequestConfigFor(adBirthDate, kstDate()));
+  }, [adBirthDate]);
   const signupPending = signup !== null;
   const segments = useSegments();
   const pathname = usePathname();
@@ -213,8 +228,11 @@ function RootNavigator() {
 
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
-    return onPushTapped((data) => {
-      // analysis_complete·evening_reminder resume은 같은 회차, 나머지 리마인드는 기존 홈이다.
+    return onPushTapped((data, identifier) => {
+      capturePushOpen(data, identifier);
+      // analysis_complete·resume은 같은 회차, 다른 연습 알림은 알림이 말한 화면(SOMA-862), 못 정하면 홈이다.
+      const opened = reminderOpenEvent(data);
+      if (opened) void logEvent('reminder_open', opened);
       const reminder = reminderTarget(data);
       if (reminder) {
         router.replace(reminder as Parameters<typeof router.replace>[0]);
@@ -223,6 +241,16 @@ function RootNavigator() {
       if (challengePushTarget(data)) router.push('/notifications');
     });
   }, [router]);
+
+  // 꺼진 앱을 푸시로 열었다면 리스너보다 탭이 먼저 지나갔을 수 있어 한 번 조회해 남긴다(측정만, 이동은 그대로).
+  useEffect(() => {
+    void recordColdStartPushOpen();
+  }, []);
+
+  // 푸시 탭이 로그인보다 먼저 와도 로그인한 회원이 생기면 그때 보낸다.
+  useEffect(() => {
+    setPushOpenSignedIn(status === 'signedIn' && !!user);
+  }, [status, user]);
 
   useEffect(() => {
     const bootstrap = resolveBootstrapStep({
@@ -356,6 +384,14 @@ function RootNavigator() {
     holdExpired: homeHoldExpired,
   });
 
+  // 한 번 닫은 진입 화면은 다시 띄우지 않는다(로그아웃 등으로 조건이 바뀌어도).
+  const [launchDone, setLaunchDone] = useState(false);
+  const hideNativeSplash = useCallback(() => void SplashScreen.hideAsync(), []);
+  // 진입 화면이 그려지기 전에 끝나는 길(그 화면이 아예 뜨지 않음)도 네이티브 스플래시를 닫는다.
+  useEffect(() => {
+    if (launchDone) hideNativeSplash();
+  }, [launchDone, hideNativeSplash]);
+
   useEffect(() => {
     const consentScreenReady =
       consentEntry.status === 'error' ||
@@ -372,9 +408,7 @@ function RootNavigator() {
               (profileStatus === 'complete' &&
                 recovery.status === 'ready' &&
                 recovery.owner === user?.id)))));
-    if (readyToShow && !holdSplashForHome) {
-      void SplashScreen.hideAsync();
-    }
+    if (readyToShow && !holdSplashForHome) setLaunchDone(true);
   }, [
     holdSplashForHome,
     updateRequired,
@@ -407,7 +441,8 @@ function RootNavigator() {
                 // 디자인 시스템 NavHeader — 가운데 제목 headline(17/600), 아래 줄 없음. iOS 의 AppHeader 와 모양을 맞춘다.
                 headerTitleAlign: 'center',
                 headerShadowVisible: false,
-                headerTitleStyle: { fontSize: 17, fontWeight: '600', color: palette.text },
+                // 네이티브 헤더 제목은 RN Text 를 거치지 않아 전역 폰트가 닿지 않는다 — 600 굵기 파일을 직접 고른다.
+                headerTitleStyle: { fontSize: 17, fontFamily: fontFamilyForWeight('600', 'android'), color: palette.text },
               }
         }>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
@@ -416,14 +451,9 @@ function RootNavigator() {
         <Stack.Screen name="profile-name" options={{ headerShown: false }} />
         <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
         <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
-        <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
         <Stack.Screen
           name="(tabs)"
           options={({ route }) => ({ headerShown: false, title: tabBackTitle(getFocusedRouteNameFromRoute(route)) })}
-        />
-        <Stack.Screen
-          name="delete-account"
-          options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
         />
         <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
         <Stack.Screen name="talk" options={{ title: t('talk.title') }} />
@@ -439,7 +469,6 @@ function RootNavigator() {
             한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
         <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
         <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="ad/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="auditions/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
         <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
@@ -457,7 +486,6 @@ function RootNavigator() {
         <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
         <Stack.Screen name="reading/play" options={{ headerShown: false }} />
         <Stack.Screen name="reading/diff" options={{ title: t('reading.diffTitle') }} />
-        <Stack.Screen name="reading/coach" options={{ title: t('readingCoach.coachName') }} />
         <Stack.Screen name="reading/pronunciation" options={{ title: t('reading.pronReportRow') }} />
         {/* 자체 헤더(← 설정 · 제목)를 그린다 — 기본 헤더를 겹치면 라우트 이름 "memory"가 제목으로 나온다. */}
         <Stack.Screen name="memory" options={{ headerShown: false }} />
@@ -469,6 +497,8 @@ function RootNavigator() {
       <ReconsentPopup visible={reconsentOpen} />
       {/* 가입 동의·재동의의 광고성 정보 처리 결과(S5.13)를 다음 화면 위에 띄운다. */}
       <MarketingNoticeHost />
+      {/* 네이티브 스플래시(단색) 뒤를 이어 디자인 진입 화면이 앱 준비가 끝날 때까지 덮는다. */}
+      {!launchDone && <LaunchSplashScreen onShown={hideNativeSplash} />}
     </>
   );
 }
@@ -490,10 +520,13 @@ function ScreenTracker() {
 }
 
 export default function RootLayout() {
+  const [languageKey, setLanguageKey] = useState(0);
+  useEffect(() => onLanguageChange(() => setLanguageKey((k) => k + 1)), []);
   const [fontsLoaded] = useFonts({
     ...Feather.font,
     // 굵기별 static 서브셋 — 가변폰트는 안드로이드에서 fontWeight가 안 먹는다([[global-font]]).
     Pretendard: require('@/assets/fonts/Pretendard-Regular.subset.ttf'),
+    'Pretendard-Medium': require('@/assets/fonts/Pretendard-Medium.subset.ttf'),
     'Pretendard-SemiBold': require('@/assets/fonts/Pretendard-SemiBold.subset.ttf'),
     'Pretendard-Bold': require('@/assets/fonts/Pretendard-Bold.subset.ttf'),
   });
@@ -541,11 +574,13 @@ export default function RootLayout() {
       <AuthProvider>
         <ThemeProvider value={theme}>
           <ScreenTracker />
-          <RootNavigator />
+          {/* 진입 화면의 흰 상태바(components/launch-splash-screen)가 이 값을 덮도록 화면들보다 먼저 둔다. */}
+          <StatusBar style="dark" />
+          {/* 언어를 바꾸면 화면 전체를 새로 그린다 — 홈부터 다시 열리지만 껐다 켤 필요는 없다. */}
+          <RootNavigator key={languageKey} />
           {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
               비출 자리의 좌표가 맞는다 (SOMA-550). */}
           <SpotlightHost />
-          <StatusBar style="dark" />
         </ThemeProvider>
       </AuthProvider>
     </View>

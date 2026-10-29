@@ -232,3 +232,63 @@ test('거절 기록이 실패해도 시트에 남아 실패를 알린다', async
   seen('동의하지 않기');
   seen('consent:undecided');
 });
+
+test('무료 첫 리딩이고 동의가 아직이면 동의 창을 띄우고, 결정이 나면 돌아온다(SOMA-917)', async () => {
+  await show();
+  apiMock.getCloudVoiceStatus.mockResolvedValue(status({ available: true, reason: 'first_reading' }));
+  let done = false;
+  let pending: Promise<void> = Promise.resolve();
+  await act(async () => { pending = voice.askFirstReading('script-1').then(() => { done = true; }); });
+  await flush();
+
+  expect(apiMock.getCloudVoiceStatus).toHaveBeenLastCalledWith({ scriptId: 'script-1' });
+  seen('고품질 목소리 동의');
+  expect(done).toBe(false);
+
+  await fireEvent.press(screen.getByText('동의하지 않기'));
+  await flush();
+  await pending;
+
+  expect(apiMock.recordConsent).toHaveBeenCalledWith('doc-cloud', 'declined');
+  expect(done).toBe(true);
+  expect(await AsyncStorage.getItem('acttub.cloudVoice')).toBe('off');
+});
+
+test('첫 리딩에서 동의하면 기록하고 켠 채로 돌아온다', async () => {
+  await show();
+  apiMock.getCloudVoiceStatus.mockResolvedValue(status({ available: true, reason: 'first_reading' }));
+  let pending: Promise<void> = Promise.resolve();
+  await act(async () => { pending = voice.askFirstReading('script-1'); });
+  await flush();
+  await fireEvent.press(screen.getByText('동의하고 켜기'));
+  await flush();
+  await pending;
+
+  expect(apiMock.recordConsent).toHaveBeenCalledWith('doc-cloud', 'granted');
+  expect(logEvent).toHaveBeenCalledWith('cloud_voice_enabled', { source: 'first_reading' });
+});
+
+test.each([
+  ['이미 거절했으면 다시 묻지 않는다', { available: true, reason: 'first_reading', consent: 'denied' }],
+  ['이미 동의했으면 묻지 않는다', { available: true, reason: 'first_reading', consent: 'granted' }],
+  ['무료 첫 리딩이 아니면 묻지 않는다', { available: false, reason: null, pro_only: true }],
+  ['무료 기간이면 묻지 않는다', { available: true, reason: 'free_period' }],
+])('%s', async (_name, over) => {
+  await show();
+  apiMock.getCloudVoiceStatus.mockResolvedValue(status(over));
+  await act(async () => { await voice.askFirstReading('script-1'); });
+  expect(apiMock.consentEntry).not.toHaveBeenCalled();
+  expect(screen.queryByText('동의하고 켜기')).not.toBeOnTheScreen();
+});
+
+test('고품질 목소리를 꺼 둔 사람과 상태를 못 받은 경우에는 묻지 않고 돌아온다', async () => {
+  await AsyncStorage.setItem('acttub.cloudVoice', 'off');
+  await show();
+  await act(async () => { await voice.askFirstReading('script-1'); });
+  expect(apiMock.consentEntry).not.toHaveBeenCalled();
+
+  await AsyncStorage.setItem('acttub.cloudVoice', 'on');
+  apiMock.getCloudVoiceStatus.mockRejectedValue(new Error('down'));
+  await act(async () => { await voice.askFirstReading('script-1'); });
+  expect(apiMock.consentEntry).not.toHaveBeenCalled();
+});

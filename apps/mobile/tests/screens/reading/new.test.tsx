@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { SAMPLE_SCRIPT } from '@/lib/reading/sample';
 import { resetReadingState } from '@/lib/reading/store';
+import { setFirstUseOwner } from '@/lib/practice/first-use-graduation';
 import type { ScriptImport } from '@/lib/reading/types';
 
 import { closeModalOf, fakeServer, scriptDetail, TWO_ROLE_LINES } from './fixtures';
@@ -15,14 +16,14 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = require('@react-native-async-storage/async-storage/jest/async-storage-mock');
   return { __esModule: true, default: storage };
 });
-const mockRouter = { replace: jest.fn(), push: jest.fn() };
+const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn() };
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn() }));
+jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('expo-file-system', () => ({
   File: class {
@@ -37,8 +38,7 @@ jest.mock('@/lib/api', () => ({
     createScriptUpload: jest.fn(),
     startUploadToUrl: jest.fn(),
     completeScriptUpload: jest.fn(),
-    consentEntry: jest.fn(),
-    recordConsent: jest.fn(),
+    listReadingScripts: jest.fn(),
   },
 }));
 
@@ -47,18 +47,6 @@ const PASTED = '민재: 오늘 왔구나.\n서연: 응, 늦어서 미안해.\n�
 function job(over: Partial<ScriptImport> = {}): ScriptImport {
   return { id: 'i1', status: 'succeeded', progress: { done_lines: 3, total_lines: 3 }, script_id: 's1', failure: null, ...over };
 }
-
-const CONSENT_DOC = {
-  id: 'd1',
-  type: 'script_split',
-  version: '1',
-  title: '대본 나누기 동의',
-  body: '# 대본 나누기 동의\n\n대본 글을 나누는 데만 써요.',
-  required: false,
-  published_at: '2026-10-01T00:00:00Z',
-  current_decision: null,
-};
-const consentRequired = () => new ApiError(403, 'consent', 'script_split_consent_required');
 
 let server: ReturnType<typeof fakeServer>;
 
@@ -72,8 +60,6 @@ beforeEach(() => {
   jest.mocked(api.createScriptUpload).mockResolvedValue({ upload_id: 'u1', upload_url: 'https://upload.test/u1', content_type: 'text/plain', expires_at: '2026-10-20T00:15:00Z' });
   jest.mocked(api.startUploadToUrl).mockReturnValue({ result: Promise.resolve({ kind: 'uploaded' }), cancel: jest.fn() });
   jest.mocked(api.completeScriptUpload).mockResolvedValue(undefined);
-  jest.mocked(api.consentEntry).mockResolvedValue({ entry_status: 'decision_required', documents: [CONSENT_DOC], undecided_documents: [CONSENT_DOC] } as never);
-  jest.mocked(api.recordConsent).mockResolvedValue(undefined);
   jest.mocked(DocumentPicker.getDocumentAsync).mockResolvedValue({
     canceled: false,
     assets: [{ uri: 'file:///cache/대본.txt', name: '대본.txt', size: 2048 }],
@@ -94,20 +80,20 @@ test('처음에는 파일 탭을 보이고, 넣은 것이 없으면 다음을 �
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
   expect(screen.getByText('TXT · DOCX · PDF · HWP · 50MB까지')).toBeOnTheScreen();
   expect(screen.getByText('파일 선택하기')).toBeOnTheScreen();
-  expect(screen.getByPlaceholderText('예) 옥상, 밤 · 갈매기 · 입시 1차 등')).toBeOnTheScreen();
+  expect(screen.queryByLabelText('제목 (선택)')).not.toBeOnTheScreen();
   // 예시 대본은 「대본 같이 만들기」에서 고른다 — 이 화면에는 링크가 없다(10/25).
   expect(screen.queryByText('예시 대본으로 시작해보기')).not.toBeOnTheScreen();
   expect(screen.getByText('다음')).toBeDisabled();
 });
 
-test('붙여넣은 글과 제목을 보내 나누고, 대본 상세로 간다(목소리는 자동)', async () => {
+test('붙여넣은 글과 제목을 보내 나누고, 목소리 정하기(2단계)로 간다', async () => {
   await render(<ReadingNew />);
-  await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '  봄날의 대화  ');
   await paste();
+  await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '  봄날의 대화  ');
 
   await fireEvent.press(screen.getByText('다음'));
 
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
   expect(api.importScript).toHaveBeenCalledWith({
     request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     allow_duplicate: false,
@@ -119,13 +105,13 @@ test('붙여넣은 글과 제목을 보내 나누고, 대본 상세로 간다(�
   expect(server.get).toHaveBeenCalledWith('s1');
 });
 
-test('배역이 하나뿐인 대본은 나눈 뒤 대본 상세로 간다', async () => {
+test('배역이 하나뿐인 대본도 나눈 뒤 목소리 정하기로 간다', async () => {
   server.get.mockResolvedValue(scriptDetail([['dialogue', '민재', '혼자야.']]));
   await render(<ReadingNew />);
   await paste('민재: 혼자야.');
 
   await fireEvent.press(screen.getByText('다음'));
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
   expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'typed', raw_text: '민재: 혼자야.' }));
 });
 
@@ -154,13 +140,13 @@ test('SOMA-597: 이름 없는 독백으로 나뉘면 「혼자 하는 대본이�
   expect(server.patch).toHaveBeenCalledWith('s1', { characters: [{ id: 'c1', name: '민지' }] });
 });
 
-test('SOMA-597: 이름이 있는 독백은 이름을 묻지 않고 대본 상세로 간다', async () => {
+test('SOMA-597: 이름이 있는 독백은 이름을 묻지 않고 목소리 정하기로 간다', async () => {
   server.get.mockResolvedValue(scriptDetail(MONO_LINES));
   await render(<ReadingNew />);
   await paste('민지: 그래서 더 말하기 싫었어.');
 
   await fireEvent.press(screen.getByText('다음'));
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
   expect(screen.queryByText('혼자 하는 대본이에요')).not.toBeOnTheScreen();
 });
 
@@ -174,7 +160,7 @@ test('「대본 같이 만들기」는 화면을 넘기지 않고 아래에 예�
 
   // 예시 대본 고르기 — 그 아래에 예시 카드와 고르기 칩이 바로 보인다.
   await fireEvent.press(screen.getByText('예시 대본 고르기'));
-  expect(screen.getByText('대본 목록')).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: '옥상, 밤' })).toBeOnTheScreen();
   expect(screen.getByText('이 대본으로 하기')).toBeOnTheScreen();
   expect(mockRouter.push).not.toHaveBeenCalled();
 
@@ -195,7 +181,7 @@ test('튜토리얼 예시로 들어오면 예시 대본을 채운 채 연다', a
   expect(screen.getByDisplayValue(SAMPLE_SCRIPT)).toBeOnTheScreen();
 });
 
-test('나누는 동안 서버가 알려 주는 줄 수를 보인다', async () => {
+test('나누는 동안 서버가 알려 주는 줄 수와 나가도 계속된다는 안내를 보이고, 뒤로 가면 리딩 탭 첫 화면으로 간다', async () => {
   jest.mocked(api.getScriptImport)
     .mockResolvedValueOnce(job({ status: 'running', progress: { done_lines: 3, total_lines: 10 }, script_id: null }))
     .mockResolvedValue(job());
@@ -203,9 +189,14 @@ test('나누는 동안 서버가 알려 주는 줄 수를 보인다', async () =
   await paste();
 
   const pressing = fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('배역과 대사를 찾고 있어요…')).toBeOnTheScreen();
+  expect(await screen.findByText('배역과 대사를 찾고 있어요')).toBeOnTheScreen();
   expect(await screen.findByText('30% · 3 / 10줄')).toBeOnTheScreen();
-  expect(usePreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+  expect(screen.getByText('대본 길이에 따라 1분쯤 걸려요.')).toBeOnTheScreen();
+  expect(screen.getByText('화면을 나가도 나누기는 계속돼요')).toBeOnTheScreen();
+  expect(screen.getByText('다 되면 리딩 탭 대본 목록에 생겨요.')).toBeOnTheScreen();
+  const back = jest.mocked(usePreventRemove).mock.calls.filter(([on]) => on).at(-1)![1];
+  await act(async () => back({ data: { action: { type: 'GO_BACK' } } } as never));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
   await act(async () => pressing);
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
 });
@@ -217,11 +208,10 @@ test('같은 글의 대본이 있으면 그 대본을 열거나 새로 넣을 �
 
   await fireEvent.press(screen.getByText('다음'));
   expect(await screen.findByText('이미 넣은 대본이에요')).toBeOnTheScreen();
-  expect(screen.getByText('「봄날의 대화」')).toBeOnTheScreen();
-  expect(screen.getByText('「그 대본 열기」를 누르면 하던 데서 이어져요.')).toBeOnTheScreen();
+  expect(screen.getByText('「봄날의 대화」 대본과 같아요. 그 대본을 열면 하던 데서 이어져요.')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('그래도 넣기'));
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
   expect(jest.mocked(api.importScript).mock.calls[1][0]).toEqual(expect.objectContaining({ allow_duplicate: true, raw_text: PASTED }));
 });
 
@@ -278,7 +268,7 @@ test('배역을 못 찾으면 「대본을 못 나눴어요」 화면에 이유�
 
 test.each([
   ['하루 한도를 넘으면', () => jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(429, 'limit', 'script_split_daily_limit')), '오늘은 대본을 더 넣을 수 없어요', '대본은 하루 20번까지 나눌 수 있어요.\n내일 다시 넣어 주세요.'],
-  ['대본이 너무 길면', () => jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'script_too_long', script_id: null })), '저장', '대본이 너무 길어요. 원문 100,000자까지 저장할 수 있어요.'],
+  ['대본이 너무 길면', () => jest.mocked(api.getScriptImport).mockResolvedValueOnce(job({ status: 'failed', failure: 'script_too_long', script_id: null })), '대본이 너무 길어요', '원문 100,000자까지 저장할 수 있어요.'],
 ])('%s 알리고 확인을 누르면 닫는다', async (_name, arrange, title, message) => {
   arrange();
   await render(<ReadingNew />);
@@ -290,6 +280,20 @@ test.each([
   await fireEvent.press(screen.getByText('확인'));
   expect(screen.queryByText(message)).not.toBeOnTheScreen();
   expect(mockRouter.replace).not.toHaveBeenCalled();
+});
+
+test('나누기 동의가 없다는 403은 동의를 묻지 않고 알림 하나로 끝낸다', async () => {
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'consent', 'script_split_consent_required'));
+  await render(<ReadingNew />);
+  await paste();
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('대본을 넣지 못했어요')).toBeOnTheScreen();
+  expect(screen.getByText('이 작업을 할 권한이 없어요.')).toBeOnTheScreen();
+  expect(screen.queryByText('대본을 못 나눴어요')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('확인'));
+  expect(screen.queryByText('대본을 넣지 못했어요')).not.toBeOnTheScreen();
+  expect(api.importScript).toHaveBeenCalledTimes(1);
 });
 
 test('나눈 대본을 불러오지 못하면 연결 문구를 띄운다', async () => {
@@ -313,95 +317,47 @@ test('알림은 뒤로 가기로도 닫힌다', async () => {
   expect(screen.queryByText('오늘은 대본을 더 넣을 수 없어요')).not.toBeOnTheScreen();
 });
 
-test('나누기 동의가 없으면 동의를 받고, 동의하면 같은 글을 이어서 나눈다', async () => {
-  jest.mocked(api.importScript).mockRejectedValueOnce(consentRequired());
-  await render(<ReadingNew />);
-  await paste();
-
-  await fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('대본을 나누려면 동의가 필요해요')).toBeOnTheScreen();
-  expect(screen.getByText('대본 글을 OpenAI로 보내 배역과 대사를 나눠요.')).toBeOnTheScreen();
-  expect(screen.queryByText('대본 글을 나누는 데만 써요.')).not.toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('자세히 보기'));
-  expect(screen.getByText('대본 글을 나누는 데만 써요.')).toBeOnTheScreen();
-  await closeModalOf('대본을 나누려면 동의가 필요해요');
-  expect(screen.queryByText('대본을 나누려면 동의가 필요해요')).not.toBeOnTheScreen();
-
-  jest.mocked(api.importScript).mockRejectedValueOnce(consentRequired());
-  await fireEvent.press(screen.getByText('다음'));
-  await fireEvent.press(await screen.findByText('동의하고 나누기'));
-
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
-  expect(api.recordConsent).toHaveBeenCalledWith('d1', 'granted');
-  expect(api.importScript).toHaveBeenCalledTimes(3);
-});
-
-test('동의 시트에서 취소하면 닫고 나누지 않는다', async () => {
-  jest.mocked(api.importScript).mockRejectedValueOnce(consentRequired());
-  await render(<ReadingNew />);
-  await paste();
-  await fireEvent.press(screen.getByText('다음'));
-
-  await fireEvent.press(await screen.findByText('취소'));
-  expect(screen.queryByText('대본을 나누려면 동의가 필요해요')).not.toBeOnTheScreen();
-  expect(api.recordConsent).not.toHaveBeenCalled();
-});
-
-test('동의를 기록하지 못하면 이유를 알린다', async () => {
-  jest.mocked(api.importScript).mockRejectedValueOnce(consentRequired());
-  jest.mocked(api.recordConsent).mockRejectedValue(new Error('동의를 저장하지 못했어요'));
-  await render(<ReadingNew />);
-  await paste();
-  await fireEvent.press(screen.getByText('다음'));
-
-  await fireEvent.press(await screen.findByText('동의하고 나누기'));
-  expect(await screen.findByText('동의를 저장하지 못했어요')).toBeOnTheScreen();
-  expect(api.importScript).toHaveBeenCalledTimes(1);
-});
-
-test('동의할 문서가 아직 없으면 권한 없음으로 알린다', async () => {
-  jest.mocked(api.importScript).mockRejectedValueOnce(consentRequired());
-  jest.mocked(api.consentEntry).mockResolvedValue({ entry_status: 'allowed', documents: [], undecided_documents: [] } as never);
-  await render(<ReadingNew />);
-  await paste();
-
-  await fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('이 작업을 할 권한이 없어요.')).toBeOnTheScreen();
-});
-
-test('동의 문서를 불러오지 못하면 이유를 알린다', async () => {
-  jest.mocked(api.importScript).mockRejectedValueOnce(consentRequired());
-  jest.mocked(api.consentEntry).mockRejectedValue(new Error('동의 항목을 못 불러왔어요'));
-  await render(<ReadingNew />);
-  await paste();
-
-  await fireEvent.press(screen.getByText('다음'));
-  expect(await screen.findByText('동의 항목을 못 불러왔어요')).toBeOnTheScreen();
-});
-
 test('파일을 고르면 올려 두고 이름과 크기를 보인 뒤, 다음을 누르면 그 파일로 나눈다', async () => {
   let uploaded: (v: { kind: 'uploaded' }) => void = () => undefined;
   jest.mocked(api.startUploadToUrl).mockReturnValue({ result: new Promise((resolve) => (uploaded = resolve)), cancel: jest.fn() });
   await render(<ReadingNew />);
 
   const picking = fireEvent.press(screen.getByText('대본 파일 첨부'));
-  expect(await screen.findByText('읽는 중…')).toBeOnTheScreen();
-  expect(screen.getByText('대본.txt · 2KB')).toBeOnTheScreen();
+  expect(await screen.findByText('읽는 중… · 2KB')).toBeOnTheScreen();
+  expect(screen.getByText('대본.txt')).toBeOnTheScreen();
+  expect(screen.queryByLabelText('제목 (선택)')).not.toBeOnTheScreen();
   expect(usePreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   await act(async () => uploaded({ kind: 'uploaded' }));
   await act(async () => picking);
 
   expect(screen.getByText('대본.txt')).toBeOnTheScreen();
   expect(screen.getByText('2KB')).toBeOnTheScreen();
-  expect(screen.getByText('다른 파일로 바꾸기')).toBeOnTheScreen();
-  expect(screen.queryByText('예시 대본으로 시작해보기')).not.toBeOnTheScreen();
+  expect(screen.getByText('다른 파일')).toBeOnTheScreen();
+  expect(screen.getByDisplayValue('대본')).toBeOnTheScreen();
+  expect(screen.getByText('파일 이름으로 채웠어요. 고쳐도 돼요.')).toBeOnTheScreen();
   expect(api.createScriptUpload).toHaveBeenCalledWith({ file_name: '대본.txt', byte_size: 2048 });
   expect(api.startUploadToUrl).toHaveBeenCalledWith('https://upload.test/u1', 'file:///cache/대본.txt', 'text/plain');
 
   await fireEvent.press(screen.getByText('다음'));
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
-  expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'file', upload_id: 'u1' }));
+  expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'file', upload_id: 'u1', title: '대본' }));
   expect(jest.mocked(api.completeScriptUpload).mock.calls).toEqual([['u1'], ['u1']]);
+});
+
+test('파일 이름으로 채운 제목을 고치면 고친 제목으로 나누고, 제목 팝업은 띄우지 않는다', async () => {
+  jest.mocked(DocumentPicker.getDocumentAsync).mockResolvedValue({
+    canceled: false,
+    assets: [{ uri: 'file:///cache/b.txt', name: '버스정류장_대본.txt', size: 900 }],
+  } as never);
+  await render(<ReadingNew />);
+  await fireEvent.press(screen.getByText('대본 파일 첨부'));
+
+  expect(await screen.findByDisplayValue('버스정류장 대본')).toBeOnTheScreen();
+  await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '정류장 장면');
+  await fireEvent.press(screen.getByText('다음'));
+
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } }));
+  expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'file', title: '정류장 장면' }));
 });
 
 test('크기를 알려 주지 않는 파일은 파일에서 크기를 읽는다', async () => {
@@ -471,34 +427,10 @@ test('올리는 중에 끊기면 연결 문구를 띄우고 파일을 비운다'
   expect(screen.getByText('대본 파일 첨부')).toBeOnTheScreen();
 });
 
-test('파일을 올리다 동의가 필요하면 동의 뒤 올리기부터 나누기까지 잇는다', async () => {
-  jest.mocked(api.completeScriptUpload).mockRejectedValueOnce(consentRequired());
-  await render(<ReadingNew />);
-  await fireEvent.changeText(screen.getByLabelText('제목 (선택)'), '파일 대본');
-
-  await fireEvent.press(screen.getByText('대본 파일 첨부'));
-  await fireEvent.press(await screen.findByText('동의하고 나누기'));
-
-  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/reading/detail'));
-  expect(api.createScriptUpload).toHaveBeenCalledTimes(2);
-  expect(jest.mocked(api.importScript).mock.calls[0][0]).toEqual(expect.objectContaining({ source: 'file', upload_id: 'u1', title: '파일 대본' }));
-});
-
-test('동의 뒤 다시 올리다 실패하면 나누지 않는다', async () => {
-  jest.mocked(api.completeScriptUpload).mockRejectedValueOnce(consentRequired()).mockRejectedValueOnce(new ApiError(422, 'bad', 'script_file_unreadable'));
-  await render(<ReadingNew />);
-
-  await fireEvent.press(screen.getByText('대본 파일 첨부'));
-  await fireEvent.press(await screen.findByText('동의하고 나누기'));
-
-  expect(await screen.findByText('대본을 읽지 못했어요. 스캔한 PDF이거나 지원하지 않는 형식일 수 있어요. 복사해서 붙여넣어 주세요.')).toBeOnTheScreen();
-  expect(api.importScript).not.toHaveBeenCalled();
-});
-
 test('나누다 원본을 읽을 수 없다고 하면 파일 칸을 비운다', async () => {
   await render(<ReadingNew />);
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
-  await screen.findByText('다른 파일로 바꾸기');
+  await screen.findByText('다른 파일');
   jest.mocked(api.completeScriptUpload).mockRejectedValueOnce(new ApiError(404, 'gone', 'script_upload_not_found'));
 
   await fireEvent.press(screen.getByText('다음'));
@@ -510,7 +442,7 @@ test('나누다 원본을 읽을 수 없다고 하면 파일 칸을 비운다', 
 test('이미 대본이 된 원본이면 다시 올려 새 원본으로 나눈다', async () => {
   await render(<ReadingNew />);
   await fireEvent.press(screen.getByText('대본 파일 첨부'));
-  await screen.findByText('다른 파일로 바꾸기');
+  await screen.findByText('다른 파일');
   jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(409, 'used', 'script_upload_used'));
   jest.mocked(api.createScriptUpload).mockResolvedValueOnce({ upload_id: 'u2', upload_url: 'https://upload.test/u2', content_type: 'text/plain', expires_at: '2026-10-20T00:15:00Z' });
 
@@ -526,7 +458,7 @@ test('나누는 중에 화면을 떠나면 끝나도 다른 화면으로 옮기�
   await paste();
 
   const pressing = fireEvent.press(screen.getByText('다음'));
-  await screen.findByText('배역과 대사를 찾고 있어요…');
+  await screen.findByText('배역과 대사를 찾고 있어요');
   await screen.unmount();
   finish(job());
   await act(async () => pressing);
@@ -559,9 +491,9 @@ test('무료 대본 한도(free_script_limit)에서 보관 대본이 하나면 �
   await fireEvent.press(screen.getByText('다음'));
 
   expect(await screen.findByText('무료는 대본 3개까지 보관해요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('대본 하나 지우고 넣기'));
-  expect(await screen.findByText('「옥상, 밤」을 지우고\n새 대본을 넣을까요?')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('지우고 새 대본 넣기'));
+  await fireEvent.press(screen.getByText('하나 지우기'));
+  expect(await screen.findByText('『옥상, 밤』을 지울까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('지우고 넣기'));
 
   await waitFor(() => expect(server.remove).toHaveBeenCalledWith('old'));
   await waitFor(() => expect(api.importScript).toHaveBeenCalledTimes(2));
@@ -581,13 +513,13 @@ test('무료 대본 3개가 차 있으면 지울 대본을 고르고, 고른 대
   await paste();
   await fireEvent.press(screen.getByText('다음'));
 
-  await fireEvent.press(await screen.findByText('대본 하나 지우고 넣기'));
+  await fireEvent.press(await screen.findByText('하나 지우기'));
   expect(await screen.findByText('어떤 대본을 지울까요?')).toBeOnTheScreen();
   expect(screen.getByText('옥상, 밤')).toBeOnTheScreen();
   expect(screen.getByText('세 자매')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('갈매기'));
-  expect(await screen.findByText('「갈매기」을 지우고\n새 대본을 넣을까요?')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('지우고 새 대본 넣기'));
+  expect(await screen.findByText('『갈매기』을 지울까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('지우고 넣기'));
 
   await waitFor(() => expect(server.remove).toHaveBeenCalledWith('b'));
   expect(server.remove).toHaveBeenCalledTimes(1);
@@ -604,17 +536,41 @@ test('지울 대본 고르기에서 취소하면 아무것도 지우지 않는�
   await render(<ReadingNew />);
   await paste();
   await fireEvent.press(screen.getByText('다음'));
-  await fireEvent.press(await screen.findByText('대본 하나 지우고 넣기'));
+  await fireEvent.press(await screen.findByText('하나 지우기'));
   await fireEvent.press(await screen.findByText('취소'));
   await waitFor(() => expect(screen.queryByText('어떤 대본을 지울까요?')).not.toBeOnTheScreen());
   expect(server.remove).not.toHaveBeenCalled();
 });
 
-test('무료 대본 시트의 [Pro 알아보기]는 Pro 안내로 간다', async () => {
+test('무료 대본 팝업의 [Pro 보기]는 대본 한도에서 온 Pro 안내로 간다', async () => {
   jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'));
   await render(<ReadingNew />);
   await paste();
   await fireEvent.press(screen.getByText('다음'));
-  await fireEvent.press(await screen.findByText('Pro 알아보기'));
-  expect(mockRouter.push).toHaveBeenCalledWith('/pro');
+  await fireEvent.press(await screen.findByText('Pro 보기'));
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/pro', params: { from: 'script' } });
+});
+
+// ── 첫 리딩(10/29) ─────────────────────────────────────────────────────────────────────
+test('리딩 탭 첫 화면 「내 대본 올리기」로 오면(pick=file) 들어오자마자 파일 고르기 창을 연다', async () => {
+  mockParams = { pick: 'file' };
+  jest.mocked(DocumentPicker.getDocumentAsync).mockResolvedValue({ canceled: true, assets: null } as never);
+  await render(<ReadingNew />);
+  await waitFor(() => expect(DocumentPicker.getDocumentAsync).toHaveBeenCalledTimes(1));
+});
+
+test('리딩을 한 번도 끝내지 않은 계정은 나눈 뒤 목소리·대본 상세를 건너뛰고 배역 고르기(첫 모드)로 간다', async () => {
+  setFirstUseOwner('first-user');
+  jest.mocked(api.listReadingScripts).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 } as never);
+  await render(<ReadingNew />);
+  await waitFor(() => expect(api.listReadingScripts).toHaveBeenCalled());
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/reading/range', params: { first: '1' } }));
+  expect(mockRouter.replace).not.toHaveBeenCalledWith({ pathname: '/reading/roles', params: { from: 'new' } });
+  setFirstUseOwner(null);
 });

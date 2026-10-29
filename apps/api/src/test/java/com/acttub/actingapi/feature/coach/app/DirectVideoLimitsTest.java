@@ -60,6 +60,16 @@ class DirectVideoLimitsTest {
         }
     }
 
+    @Test void aMessageWithCharactersOutsideTheAllowedRangeIsRejected() throws Exception {
+        try (var sessions = service()) {
+            UUID id = start(sessions, owner);
+            settled(sessions, owner, id);
+            assertThatThrownBy(() -> sessions.send(owner, id, "G\u0338\u0356\u0333cbh"))
+                    .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(400))
+                    .hasMessage("unreadable_text");
+        }
+    }
+
     @Test void perOwnerAndGlobalCapacityReturn429() throws Exception {
         try (var sessions = service()) {
             settled(sessions, owner, start(sessions, owner));

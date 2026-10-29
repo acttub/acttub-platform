@@ -2112,6 +2112,42 @@
         }
       }
     },
+    "/v2/push-opens" : {
+      "post" : {
+        "tags" : [ "v2-push" ],
+        "summary" : "Record Push Open",
+        "description" : "푸시 알림을 눌러 앱을 연 것을 기록한다. 보낸 기록과 이어 푸시로 돌아온 사람을 재는 데 쓴다.\n로그인한 회원이면 되고 동의가 남아 있어도 받는다. 게스트는 403 member_only. 한 회원이 분당\n60회까지다.",
+        "operationId" : "record_push_open_v2_push_opens_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RecordPushOpenRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/practices" : {
       "get" : {
         "tags" : [ "v2-practices" ],
@@ -4337,6 +4373,23 @@
         "tags" : [ "v2-reading" ],
         "summary" : "Cloud voice status",
         "operationId" : "status",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Script Id"
+          }
+        }, {
+          "name" : "session_id",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Session Id"
+          }
+        } ],
         "responses" : {
           "200" : {
             "description" : "OK",
@@ -5332,20 +5385,29 @@
         } ]
       }
     },
-    "/v2/ads" : {
+    "/v2/app/notices" : {
       "get" : {
-        "tags" : [ "v2-ads" ],
-        "summary" : "Pick Ad For Slot",
-        "description" : "칸 하나에 띄울 광고를 고른다. 학원 직접 광고(DIRECT) → 우리 앱 광고(HOUSE) → AdMob(NETWORK) 순이고,\n첫 연습을 끝내기 전이면 NONE 이다. 연습 중 칸은 Pro 면 NONE, 무료면 A/B 로 켠 사람만 받는다.",
-        "operationId" : "pick_ad_v2_ads_get",
+        "tags" : [ "v2-app" ],
+        "summary" : "List App Notices",
+        "description" : "앱 공지사항 화면용. 팝업으로 떠 있는 공지와 이미 끝난(꺼졌거나 기간이 지난) 공지를 공지한 날(시작일,\n없으면 만든 날) 늦은 순으로 최대 50건. 아직 시작 전인 것은 빠지고 플랫폼이 맞고 언어가 없거나 같은\n것만 낸다. live 는 지금 팝업 대상인지다.",
+        "operationId" : "list_notices_v2_app_notices_get",
         "parameters" : [ {
-          "name" : "slot",
+          "name" : "platform",
           "in" : "query",
-          "description" : "칸 키(예: home_top)",
           "required" : true,
           "schema" : {
             "type" : "string",
-            "title" : "Slot"
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          }
+        }, {
+          "name" : "locale",
+          "in" : "query",
+          "description" : "앱 표시 언어(두 글자). 없으면 언어 없는 공지만",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Locale"
           }
         } ],
         "responses" : {
@@ -5354,7 +5416,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/AdSlotPick"
+                  "$ref" : "#/components/schemas/AppNoticeList"
                 }
               }
             }
@@ -5375,20 +5437,40 @@
         } ]
       }
     },
-    "/v2/ads/{ad_id}" : {
+    "/v2/app/config" : {
+      "get" : {
+        "tags" : [ "v2-app" ],
+        "summary" : "Get App Config",
+        "description" : "앱 출시 없이 바꾸는 운영 값 — 평가 요청 빈도, 리딩 자동 넘김·독백 판정 기준, 대본 같이 만들기 칩, 홈 오늘의 팁,\n챌린지 영상 길이·기간. 서버 설정 APP_CONFIG_FILE 로 바꾸고 api 를 다시 띄우면 바뀐다. 앱은 못 받으면\n마지막으로 받은 값(없으면 앱에 든 값)을 쓴다.",
+        "operationId" : "get_app_config_v2_app_config_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AppConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/ads" : {
       "get" : {
         "tags" : [ "v2-ads" ],
-        "summary" : "Get Direct Ad",
-        "description" : "학원 직접 광고의 상세 화면 정보. 없거나 자체 광고면 404 ad_not_found.",
-        "operationId" : "get_ad_v2_ads__ad_id__get",
+        "summary" : "Pick Ad For Slot",
+        "description" : "칸 하나에 띄울 광고를 고른다. 광고주 직접 광고(DIRECT) → 우리 앱 광고(HOUSE) → AdMob(NETWORK) 순이고,\n첫 연습을 끝내기 전이면 NONE 이다. 연습 중 칸은 Pro 면 NONE, 무료면 A/B 로 켠 사람만 받는다.",
+        "operationId" : "pick_ad_v2_ads_get",
         "parameters" : [ {
-          "name" : "ad_id",
-          "in" : "path",
+          "name" : "slot",
+          "in" : "query",
+          "description" : "칸 키(예: home_top)",
           "required" : true,
           "schema" : {
             "type" : "string",
-            "format" : "uuid",
-            "title" : "Ad Id"
+            "title" : "Slot"
           }
         } ],
         "responses" : {
@@ -5397,7 +5479,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/AdDetail"
+                  "$ref" : "#/components/schemas/AdSlotPick"
                 }
               }
             }
@@ -7404,6 +7486,10 @@
           "voice" : {
             "type" : "string",
             "title" : "Voice"
+          },
+          "session_id" : {
+            "type" : "string",
+            "title" : "Session Id"
           }
         },
         "title" : "SynthesizeRequest"
@@ -8265,9 +8351,15 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "chunk_lines" : {
+            "type" : "integer",
+            "description" : "리딩 화면이 말풍선 하나에 담는 대사 수 — 독백 말풍선, 같은 배역 연속 대사 묶음의 상한(SOMA-938). 서버 설정 READING_CHUNK_LINES(기본 10)라 앱 출시 없이 바꾼다",
+            "exclusiveMinimum" : 1.0,
+            "title" : "Chunk Lines"
           }
         },
-        "required" : [ "advance", "current_line_id", "different_lines", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "progress_seq", "range", "range_name", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
+        "required" : [ "advance", "chunk_lines", "current_line_id", "different_lines", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "progress_seq", "range", "range_name", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
         "title" : "ReadingSession"
       },
       "ReadingSessionProgressCount" : {
@@ -8519,6 +8611,47 @@
         "required" : [ "platform", "token" ],
         "title" : "RegisterPushTokenRequest"
       },
+      "RecordPushOpenRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "maxLength" : 40,
+            "minLength" : 1,
+            "title" : "Kind"
+          },
+          "reminder_kind" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 40
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Reminder Kind"
+          },
+          "template_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 60
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Template Id"
+          },
+          "platform" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "ios", "android" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Platform"
+          }
+        },
+        "required" : [ "kind" ],
+        "title" : "RecordPushOpenRequest"
+      },
       "PracticeBlockage" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -8612,6 +8745,16 @@
               "type" : "null"
             } ],
             "title" : "Face Mosaic"
+          },
+          "reading_session_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid",
+              "description" : "리딩 녹음으로 시작(SOMA-791). 내 리딩 회차 id. 보내면 video_id·session_purpose 는 빼고, 서버가 목적을 reading 으로 둔다. 그 회차의 소리 든 내 대사 녹음이 3줄 미만이면 422 reading_voice_not_enough_audio, 남의·없는 회차면 404 session_not_found. 같은 리딩 회차로 이미 시작했으면 그 회차를 돌려준다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Reading Session Id"
           }
         },
         "required" : [ "request_id" ],
@@ -8809,7 +8952,7 @@
           "session_purpose" : {
             "anyOf" : [ {
               "type" : "string",
-              "enum" : [ "evaluate", "stuck", "character", "concern" ]
+              "enum" : [ "evaluate", "stuck", "character", "concern", "reading" ]
             }, {
               "type" : "null"
             } ],
@@ -9800,6 +9943,14 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "line_notes" : {
+            "type" : "array",
+            "description" : "Pro 의 대사별로 본 것. 없으면 빈 배열",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachNoteLine"
+            },
+            "title" : "Line Notes"
           }
         },
         "required" : [ "actor_words", "conversation_id", "corrections", "created_at", "fallback", "format", "id", "kind", "source_revision", "summary_quotes", "tags" ],
@@ -10004,6 +10155,26 @@
         },
         "required" : [ "conversation", "message" ],
         "title" : "CoachTurnResult"
+      },
+      "CoachNoteLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "line" : {
+            "type" : "string",
+            "title" : "Line"
+          },
+          "seen" : {
+            "type" : "string",
+            "title" : "Seen"
+          },
+          "try" : {
+            "type" : "string",
+            "title" : "Try"
+          }
+        },
+        "required" : [ "line", "seen", "try" ],
+        "title" : "CoachNoteLine"
       },
       "CoachReplyRequest" : {
         "type" : "object",
@@ -11275,6 +11446,14 @@
           "daily_used" : {
             "type" : "integer",
             "title" : "Daily Used"
+          },
+          "reason" : {
+            "type" : "string",
+            "title" : "Reason"
+          },
+          "pro_only" : {
+            "type" : "boolean",
+            "title" : "Pro Only"
           }
         },
         "title" : "StatusResponse"
@@ -12212,9 +12391,14 @@
             "type" : "boolean",
             "description" : "대상이 삭제·비공개·숨김으로 볼 수 없으면 false(본인 AI 리포트는 예외)",
             "title" : "Target Available"
+          },
+          "target_hidden" : {
+            "type" : "boolean",
+            "description" : "대상이 받는 사람 본인의 참여작이고 신고·AI 검사로 운영 확인 중이라 숨겨졌으면 true",
+            "title" : "Target Hidden"
           }
         },
-        "required" : [ "actor_count", "actor_name", "challenge_id", "comment_excerpt", "comment_id", "entry_id", "event_count", "group_key", "kind", "latest_at", "read", "target_available" ],
+        "required" : [ "actor_count", "actor_name", "challenge_id", "comment_excerpt", "comment_id", "entry_id", "event_count", "group_key", "kind", "latest_at", "read", "target_available", "target_hidden" ],
         "title" : "ChallengeNotificationGroup"
       },
       "ChallengeNotifications" : {
@@ -12808,9 +12992,27 @@
               "type" : "null"
             } ],
             "title" : "Cta Target"
+          },
+          "footnote" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "작은 각주"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Footnote"
+          },
+          "image_bg" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "이미지 배경색 #RRGGBB"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Bg"
           }
         },
-        "required" : [ "audience", "audio_asset", "badge", "body", "cta_action", "cta_label", "cta_target", "dismissible", "frequency", "image_asset", "image_url", "revision", "slug", "title" ],
+        "required" : [ "audience", "audio_asset", "badge", "body", "cta_action", "cta_label", "cta_target", "dismissible", "footnote", "frequency", "image_asset", "image_bg", "image_url", "revision", "slug", "title" ],
         "title" : "AppPoster"
       },
       "AppPosterList" : {
@@ -12828,10 +13030,291 @@
         "required" : [ "posters" ],
         "title" : "AppPosterList"
       },
+      "AppNotice" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "앱 공지사항 한 건. 팝업 포스터와 같은 제목·본문·이미지. image_url 과 image_asset 은 많아야 하나가 차 있다.",
+        "properties" : {
+          "slug" : {
+            "type" : "string",
+            "title" : "Slug"
+          },
+          "revision" : {
+            "type" : "integer",
+            "title" : "Revision"
+          },
+          "live" : {
+            "type" : "boolean",
+            "description" : "지금 팝업으로 떠 있는 공지인가",
+            "title" : "Live"
+          },
+          "published_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "공지한 날(시작일, 없으면 만든 날)",
+            "title" : "Published At"
+          },
+          "ends_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ends At"
+          },
+          "badge" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Badge"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "body" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Body"
+          },
+          "image_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "1시간 주소"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Url"
+          },
+          "image_asset" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앱 번들 이미지 이름"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Asset"
+          },
+          "cta_label" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Label"
+          },
+          "cta_action" : {
+            "type" : "string",
+            "enum" : [ "none", "cloud_voice_enable", "route", "url" ],
+            "title" : "Cta Action"
+          },
+          "cta_target" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Target"
+          },
+          "footnote" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "작은 각주"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Footnote"
+          },
+          "image_bg" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "이미지 배경색 #RRGGBB"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Bg"
+          }
+        },
+        "required" : [ "badge", "body", "cta_action", "cta_label", "cta_target", "ends_at", "footnote", "image_asset", "image_bg", "image_url", "live", "published_at", "revision", "slug", "title" ],
+        "title" : "AppNotice"
+      },
+      "AppNoticeList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "notices" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AppNotice"
+            },
+            "title" : "Notices"
+          }
+        },
+        "required" : [ "notices" ],
+        "title" : "AppNoticeList"
+      },
+      "AppConfig" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "rating" : {
+            "$ref" : "#/components/schemas/AppConfigRating"
+          },
+          "reading" : {
+            "$ref" : "#/components/schemas/AppConfigReading"
+          },
+          "cocreate" : {
+            "$ref" : "#/components/schemas/AppConfigCocreate"
+          },
+          "home_tips" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              }
+            },
+            "description" : "언어(ko·en)별 홈 「오늘의 연기 팁」",
+            "title" : "Home Tips"
+          },
+          "challenge" : {
+            "$ref" : "#/components/schemas/AppConfigChallenge"
+          }
+        },
+        "required" : [ "challenge", "cocreate", "home_tips", "rating", "reading" ],
+        "title" : "AppConfig"
+      },
+      "AppConfigChallenge" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "챌린지 참여 영상 길이(초)와 기간(일). 최대 길이·기간은 서버 규칙과 같은 값",
+        "properties" : {
+          "entry_min_seconds" : {
+            "type" : "integer",
+            "title" : "Entry Min Seconds"
+          },
+          "entry_max_seconds" : {
+            "type" : "integer",
+            "title" : "Entry Max Seconds"
+          },
+          "durations_days" : {
+            "type" : "array",
+            "items" : {
+              "type" : "integer"
+            },
+            "title" : "Durations Days"
+          }
+        },
+        "required" : [ "durations_days", "entry_max_seconds", "entry_min_seconds" ],
+        "title" : "AppConfigChallenge"
+      },
+      "AppConfigCocreate" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "대본 같이 만들기 칩. 감정은 서버가 받는 목록 안의 값만, 보이는 순서대로",
+        "properties" : {
+          "emotions" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Emotions"
+          },
+          "situations" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Situations"
+          }
+        },
+        "required" : [ "emotions", "situations" ],
+        "title" : "AppConfigCocreate"
+      },
+      "AppConfigRating" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "앱 평가 요청 — 코칭·리딩 몇 번마다 묻는지, 최소 간격(일), 최대 횟수",
+        "properties" : {
+          "coach_every" : {
+            "type" : "integer",
+            "title" : "Coach Every"
+          },
+          "reading_every" : {
+            "type" : "integer",
+            "title" : "Reading Every"
+          },
+          "min_gap_days" : {
+            "type" : "integer",
+            "title" : "Min Gap Days"
+          },
+          "max_asks" : {
+            "type" : "integer",
+            "title" : "Max Asks"
+          }
+        },
+        "required" : [ "coach_every", "max_asks", "min_gap_days", "reading_every" ],
+        "title" : "AppConfigRating"
+      },
+      "AppConfigReading" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "리딩 자동 넘김(침묵 감지·말 끝 여유·말한 비율)과 독백 판정. monologue_pass 는 서버 판정과 같은 값",
+        "properties" : {
+          "vad_threshold" : {
+            "type" : "number",
+            "title" : "Vad Threshold"
+          },
+          "silence_ms" : {
+            "type" : "integer",
+            "title" : "Silence Ms"
+          },
+          "min_speech_ms" : {
+            "type" : "integer",
+            "title" : "Min Speech Ms"
+          },
+          "max_listen_ms" : {
+            "type" : "integer",
+            "title" : "Max Listen Ms"
+          },
+          "speech_end_grace_ms" : {
+            "type" : "integer",
+            "title" : "Speech End Grace Ms"
+          },
+          "advance_coverage" : {
+            "type" : "number",
+            "title" : "Advance Coverage"
+          },
+          "monologue_pass" : {
+            "type" : "number",
+            "title" : "Monologue Pass"
+          },
+          "monologue_missed_below" : {
+            "type" : "number",
+            "title" : "Monologue Missed Below"
+          },
+          "monologue_next_at" : {
+            "type" : "number",
+            "title" : "Monologue Next At"
+          },
+          "monologue_touch_min" : {
+            "type" : "integer",
+            "title" : "Monologue Touch Min"
+          }
+        },
+        "required" : [ "advance_coverage", "max_listen_ms", "min_speech_ms", "monologue_missed_below", "monologue_next_at", "monologue_pass", "monologue_touch_min", "silence_ms", "speech_end_grace_ms", "vad_threshold" ],
+        "title" : "AppConfigReading"
+      },
       "AdCreative" : {
         "type" : "object",
         "additionalProperties" : false,
-        "description" : "직접·자체 광고 한 건. DIRECT 는 image_url 이 늘 있고 누르면 광고 상세 화면으로, HOUSE 는 app_path 로 간다.",
+        "description" : "직접·자체 광고 한 건. DIRECT 는 image_url·link_url 이 늘 있고 누르면 link_url 을 앱 밖 브라우저로 연다. HOUSE 는 app_path 로 간다.",
         "properties" : {
           "id" : {
             "type" : "string",
@@ -12879,9 +13362,18 @@
               "type" : "null"
             } ],
             "title" : "Advertiser Name"
+          },
+          "link_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "DIRECT 의 광고주 링크(http/https)"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Link Url"
           }
         },
-        "required" : [ "advertiser_name", "app_path", "body", "headline", "id", "image_url" ],
+        "required" : [ "advertiser_name", "app_path", "body", "headline", "id", "image_url", "link_url" ],
         "title" : "AdCreative"
       },
       "AdSlotPick" : {
@@ -12921,89 +13413,6 @@
         },
         "required" : [ "ad", "height", "kind", "size", "slot", "width" ],
         "title" : "AdSlotPick"
-      },
-      "AdDetail" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "description" : "학원 직접 광고의 상세 화면 정보. 학원 정보는 광고주가 낸 그대로 보인다.",
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Id"
-          },
-          "advertiser_name" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Advertiser Name"
-          },
-          "academy_registration_no" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "학원 등록번호"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Academy Registration No"
-          },
-          "course_name" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "교습과정"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Course Name"
-          },
-          "tuition" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "교습비(추가 경비 포함)"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Tuition"
-          },
-          "headline" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Headline"
-          },
-          "body" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Body"
-          },
-          "image_url" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "큰 이미지(300x250 → 320x100 → 320x50 순)"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Image Url"
-          },
-          "link_url" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "외부 링크"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Link Url"
-          }
-        },
-        "required" : [ "academy_registration_no", "advertiser_name", "body", "course_name", "headline", "id", "image_url", "link_url", "tuition" ],
-        "title" : "AdDetail"
       },
       "AdmissionNotice" : {
         "type" : "object",

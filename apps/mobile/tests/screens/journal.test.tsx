@@ -6,13 +6,14 @@ import { api } from '@/lib/api';
 import type { PracticeJournal } from '@/lib/practice/journal';
 import { clearPractice, getPractice } from '@/lib/practice/session-state';
 
-const mockRouter = { push: jest.fn(), dismissAll: jest.fn(), back: jest.fn(), replace: jest.fn() };
+const mockRouter = { push: jest.fn(), dismissAll: jest.fn(), back: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() };
 let mockParams: { practiceId?: string; from?: string } = {};
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
+jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
@@ -193,4 +194,22 @@ test('일지를 못 만들면 질문에 남아 다시 시도할 수 있다', asy
   expect(await screen.findByText('일지를 만들지 못했어요. 다시 시도해 주세요.')).toBeOnTheScreen();
   expect(createJournal).toHaveBeenCalledWith('p1', { feeling: null, unknown: null, next: null, review: null });
   expect(screen.getByText('오늘 연습을 한 줄로 남긴다면?')).toBeOnTheScreen();
+});
+
+test('일지를 만드는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다 — 안드로이드 뒤로 키·밀어서 나가기도 같다', async () => {
+  getJournal.mockImplementation(missing);
+  createJournal.mockReturnValue(new Promise(() => undefined));
+  await render(<JournalScreen />);
+
+  await fireEvent.press(await screen.findByText('건너뛰기'));
+  await fireEvent.press(screen.getByText('건너뛰기'));
+  await fireEvent.press(screen.getByText('건너뛰기'));
+  void fireEvent.press(screen.getByText('건너뛰기'));
+  expect(await screen.findByText('일지를 만들고 있어요…')).toBeOnTheScreen();
+
+  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
+  expect(mockRouter.back).not.toHaveBeenCalled();
 });

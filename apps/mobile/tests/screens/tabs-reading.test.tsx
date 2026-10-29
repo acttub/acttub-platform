@@ -100,9 +100,9 @@ test('대본 카드마다 배역·대사 수·상태를 보여 준다', async ()
   expect(voice.refresh).toHaveBeenCalled();
   expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
   expect(screen.getByText('전체 3개')).toBeOnTheScreen();
-  expect(screen.getByText('민지 · 대사 12개 · 연습 중')).toBeOnTheScreen();
+  expect(screen.getByText('연습 중 · 민지 · 대사 12개')).toBeOnTheScreen();
   expect(screen.getByText('배역 미선택 · 대사 12개')).toBeOnTheScreen();
-  expect(screen.getByText('민지 · 대사 12개 · 연습 완료')).toBeOnTheScreen();
+  expect(screen.getByText('연습 완료 · 민지 · 대사 12개')).toBeOnTheScreen();
   expect(screen.queryByText('고품질 AI 목소리로 리딩해요')).not.toBeOnTheScreen();
   // pen R1.3 — 대본이 있으면 큰 제목은 「내 대본」
   expect(screen.getByRole('header', { name: '내 대본' })).toBeOnTheScreen();
@@ -112,7 +112,7 @@ test('이어 읽을 회차가 있으면 pen R1.3처럼 「이전에 하던 데�
   (listSessions as jest.Mock).mockResolvedValue([{ id: 'r1', status: 'in_progress', progress: { done: 8, total: 15 } }]);
   await render(<ReadingList />);
 
-  expect(await screen.findByText('이전에 하던 데부터')).toBeOnTheScreen();
+  expect(await screen.findByText('이전에 하던 대본부터')).toBeOnTheScreen();
   expect(screen.getByText('옥상 장면 · 민지\n8/15줄에서 멈췄어요')).toBeOnTheScreen();
   expect(screen.getByText('「이어서 읽기」를 누르면 멈춘 대목부터 읽어요.')).toBeOnTheScreen();
   expect(screen.getByText('이어서 읽기')).toBeOnTheScreen();
@@ -129,7 +129,8 @@ test('대본이 없으면 새 대본으로 시작하라고 안내한다', async 
   expect(screen.queryByText('새 대본')).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '다음' })).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본 올리기'));
-  expect(mockRouter.push).toHaveBeenCalledWith('/reading/new');
+  // 같은 고르기를 한 번 더 보이지 않고 바로 파일 고르기 창을 연다(10/29).
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/reading/new', params: { pick: 'file' } });
   expect(screen.getByText('파일 · 글 붙여넣기')).toBeOnTheScreen();
   expect(screen.getByText('대본이 없어도 바로 해 볼 수 있어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('예시 대본으로 시작하기'));
@@ -153,19 +154,25 @@ test('검색어는 잠깐 기다렸다가 서버에 묻고, 맞는 대본이 없
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '햄릿');
   expect(listScripts).toHaveBeenCalledTimes(1);
 
-  expect(await screen.findByText('검색 결과가 없어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('검색 결과가 없어요')).toBeOnTheScreen();
+  expect(screen.getByText('작품명이나 배역 이름으로 찾아보세요')).toBeOnTheScreen();
   expect(listScripts).toHaveBeenLastCalledWith('햄릿');
   expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
   expect(screen.queryByText('대사를 같이 맞춰 읽으며\n연기 감각을 키워보세요.')).not.toBeOnTheScreen();
 });
 
 test('늦게 온 이전 검색 결과는 버린다', async () => {
+  // 검색칸은 첫 목록을 받은 뒤에 보인다(SOMA-932) — 첫 목록을 받고, 느린 검색 뒤에 빠른 검색을 이어 친다.
   let resolveFirst: (v: unknown) => void = () => undefined;
   (listScripts as jest.Mock)
+    .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 })
     .mockReturnValueOnce(new Promise((r) => (resolveFirst = r)))
     .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 });
   await render(<ReadingList />);
+  await fireEvent.changeText(await screen.findByPlaceholderText('작품명 또는 배역 검색'), '옥상');
+  await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '카페');
+  await waitFor(() => expect(listScripts).toHaveBeenCalledTimes(3));
 
   expect(await screen.findByText('카페 장면')).toBeOnTheScreen();
   await act(async () => resolveFirst({ scripts: [rooftop], total_count: 1, in_progress_count: 1 }));
@@ -175,10 +182,14 @@ test('늦게 온 이전 검색 결과는 버린다', async () => {
 test('늦게 실패한 이전 요청은 오류로 덮지 않는다', async () => {
   let rejectFirst: (e: unknown) => void = () => undefined;
   (listScripts as jest.Mock)
+    .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 })
     .mockReturnValueOnce(new Promise((_, reject) => (rejectFirst = reject)))
     .mockResolvedValueOnce({ scripts: [cafe], total_count: 1, in_progress_count: 0 });
   await render(<ReadingList />);
+  await fireEvent.changeText(await screen.findByPlaceholderText('작품명 또는 배역 검색'), '옥상');
+  await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
   await fireEvent.changeText(screen.getByPlaceholderText('작품명 또는 배역 검색'), '카페');
+  await waitFor(() => expect(listScripts).toHaveBeenCalledTimes(3));
 
   expect(await screen.findByText('카페 장면')).toBeOnTheScreen();
   await act(async () => rejectFirst(new Error('down')));
@@ -355,7 +366,7 @@ describe('처음 온 사람', () => {
     await render(withHost);
 
     expect(await screen.findByText('대본을 넣어 보세요')).toBeOnTheScreen();
-    expect(screen.queryByText('대본 리딩 한 바퀴 해볼까요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('대본 리딩 한 바퀴 해 볼까요?')).not.toBeOnTheScreen();
     expect(markReadingTutorialSeen).toHaveBeenCalled();
     expect(hasSeenSpotlight).toHaveBeenCalledWith('reading');
   });
@@ -366,7 +377,7 @@ describe('처음 온 사람', () => {
     await render(withHost);
 
     expect(await screen.findByText('대본을 넣어 보세요')).toBeOnTheScreen();
-    expect(screen.queryByText('대본 리딩 한 바퀴 해볼까요?')).not.toBeOnTheScreen();
+    expect(screen.queryByText('대본 리딩 한 바퀴 해 볼까요?')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByText('알겠어요'));
     await waitFor(() => expect(markSpotlightSeen).toHaveBeenCalledWith('reading'));
     expect(screen.queryByText('대본을 넣어 보세요')).not.toBeOnTheScreen();

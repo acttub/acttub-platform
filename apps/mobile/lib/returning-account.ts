@@ -19,6 +19,14 @@ export function skipsChallengeFirstPick(input: { entryCount: number; countedPrac
   return input.entryCount > 0 || input.countedPracticeCount >= RETURNING_MIN_PRACTICES;
 }
 
+/**
+ * 코칭 기록 상세 「이어서 연습할 수 있어요!」 — 같은 장면을 이어 찍은 적이 있거나(회차 2개 이상인 묶음) 「연습 1회」가 기준 이상
+ * 쌓였으면 건너뛴다. 10/28 폰 확인 — 코칭 16번 한 계정에 다시 떴다.
+ */
+export function skipsGroupGuide(input: { countedPracticeCount: number; continuedBefore: boolean }): boolean {
+  return input.continuedBefore || input.countedPracticeCount >= RETURNING_MIN_PRACTICES;
+}
+
 /** 리딩 탭 — 이미 올린 대본이 있으면 「대본을 넣어 보세요」를 띄우지 않는다. */
 export function skipsReadingTabGuide(scriptCount: number): boolean {
   return scriptCount > 0;

@@ -26,7 +26,8 @@ class LineMatchTest {
         assertThat(LineMatch.compare("가나다라마바사아자차카타파하", target)).isEqualTo(LineMatch.Result.PASS);
         String said71 = "가나다라마바사아자차카타xxxxxxxxxxxx";
         assertThat(LineMatch.similarity(said71, target)).isEqualTo(0.6666666666666667);
-        assertThat(LineMatch.compare(said71, target)).isEqualTo(LineMatch.Result.MISS);
+        // 대사 앞 대부분을 말하고 뒤에 다른 말을 덧붙인 꼴이라 덧붙인 말을 빼고 견주면 통과다(SOMA-727).
+        assertThat(LineMatch.compare(said71, target)).isEqualTo(LineMatch.Result.PASS);
 
         String hundred = "a".repeat(100);
         String exactly72 = "a".repeat(72) + "b".repeat(28);
@@ -99,5 +100,18 @@ class LineMatchTest {
             }
         }
         return d[a.length()][b.length()];
+    }
+
+    @Test
+    @DisplayName("SOMA-727: 대사를 끝까지 말하고 덧붙였으면 맞게 읽은 것이다 — 대사를 덜 말했거나 앞에 다른 말을 했으면 그대로 견준다")
+    void passesWhenTheLineIsSaidThenMore() {
+        assertThat(LineMatch.compare("방 더러워 안 쳤어", "방 더러워...")).isEqualTo(LineMatch.Result.PASS);
+        assertThat(LineMatch.compare("폭력으로 얻은 고백은 진실이 아닐 수도 있습니다 아직 늦지 않았습니다 회개하십시오",
+                "폭력으로 얻은 고백은 진실이 아닐 수도 있습니다.")).isEqualTo(LineMatch.Result.PASS);
+        assertThat(LineMatch.compare("방 안 치웠어 더러워", "방 더러워...")).as("순서를 바꿔 말한 것").isEqualTo(LineMatch.Result.MISS);
+        assertThat(LineMatch.compare("방", "방 더러워 정말")).as("덜 말한 것").isEqualTo(LineMatch.Result.MISS);
+        assertThat(LineMatch.compare("전혀 다른 말을 길게 하고 있어요", "방 더러워")).isEqualTo(LineMatch.Result.MISS);
+        assertThat(LineMatch.saidThenMore("방더러워", "방 더러워")).isEqualTo(1.0);
+        assertThat(LineMatch.saidThenMore("방 더러운 안 쳤어", "방 더러워")).isGreaterThanOrEqualTo(0.72);
     }
 }

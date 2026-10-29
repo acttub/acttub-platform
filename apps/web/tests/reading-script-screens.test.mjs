@@ -12,7 +12,7 @@ const { renderToStaticMarkup } = await import("react-dom/server");
 const { ImportDialogs, InputBody } = await import("../src/features/reading/screens/InputBody.tsx");
 const { COPYRIGHT_NOTICE } = await import("../src/features/reading/script-list.ts");
 
-const importer = (view) => ({ view, start: () => {}, retry: () => {}, agree: () => {}, close: () => {} });
+const importer = (view) => ({ view, start: () => {}, retry: () => {}, close: () => {} });
 
 function render(element) {
   // 정적 마크업의 글자만 본다. 태그 사이에 끊긴 문장은 없다.
@@ -52,11 +52,4 @@ test("reading.script: 결과마다 앱 pen R2 장과 같은 뜻의 대화상자�
   );
   assert.equal(inDialog({ kind: "failed", message: "네트워크 연결을 확인하고 다시 시도해주세요." }), "저장하지 못했어요네트워크 연결을 확인하고 다시 시도해주세요.확인");
   assert.equal(inDialog({ kind: "duplicate", scriptId: "script-1" }), "이미 넣은 대본이에요내 대본에 같은 글이 있어요.새로 넣기그 대본 열기");
-});
-
-test("reading.script: 동의 대화상자(R2.14)는 무엇을 보내고 보관하는지 알리고, 동의를 저장하지 못했으면 그 까닭을 함께 보인다", () => {
-  const body =
-    "대본을 나누려면 동의가 필요해요동의해야 대본을 넣을 수 있어요.대본 글을 OpenAI로 보내 배역과 대사를 나눠요.넣은 파일은 대본과 함께 보관하고, 대본을 지우면 같이 지워요.자세히 보기";
-  assert.equal(inDialog({ kind: "consent_required" }), `${body}동의하고 나누기취소`);
-  assert.equal(inDialog({ kind: "consent_required", error: "회원만 할 수 있어요." }), `${body}회원만 할 수 있어요.동의하고 나누기취소`);
 });
