@@ -99,6 +99,18 @@ class AdServiceTest {
     }
 
     @Test
+    @DisplayName("서버에서 꺼 둔 칸만 NONE, 나머지 칸은 그대로 고른다")
+    void slotSwitch() {
+        FakeRepository repo = new FakeRepository();
+        repo.ads.add(direct());
+        AdSlotSwitches homeOff = slotKey -> "home_top".equals(slotKey);
+        var service = new AdService(repo, ProStatusReader.ALWAYS_FREE, new AdService.Settings(true, 100), homeOff, CLOCK);
+        assertThat(service.pick(USER, AdSlot.HOME_TOP).kind()).isEqualTo(AdPicker.Kind.NONE);
+        assertThat(service.pick(USER, AdSlot.SETTINGS_TOP).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        assertThat(service.pick(USER, AdSlot.UPLOAD_WAIT).kind()).isEqualTo(AdPicker.Kind.NETWORK);
+    }
+
+    @Test
     @DisplayName("Pro 판정을 결제 도메인에 묻고, 연습 중 칸 비율 0% 면 무료도 NONE, 100% 면 채운다")
     void proAndPercent() {
         FakeRepository repo = new FakeRepository();
