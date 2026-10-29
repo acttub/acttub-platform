@@ -46,8 +46,8 @@ import { diffWords } from '@/lib/reading/word-diff';
 import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
 import { beatMs, directionsBefore } from '@/lib/reading/direction-beat';
-import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
-import { readingRunCompleted, sessionHasRecognized } from '@/lib/practice/counted';
+import { directionLabel, readDialogueCount, readMyDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
+import { readingRunCompleted, readingStopCounted, sessionHasRecognized } from '@/lib/practice/counted';
 import { markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
 import { isFirstReadingSession, markReadingFinished } from '@/lib/reading/first-reading';
 import {
@@ -251,6 +251,8 @@ export default function ReadingPlay() {
   const leavingRef = useRef(false);
   /** 멈춘 채 「그만하기」로 끝냈다 — 끝까지 간 게 아니므로 「끝까지 갔다」 표시를 남기지 않는다. */
   const stoppedEarlyRef = useRef(false);
+  /** 「그만하기」로 끝냈는데 내 대사를 한 줄도 못 읽었다 — 연습으로 세지 않는다(10/29). */
+  const stopUncountedRef = useRef(false);
   const [engine, setEngine] = useState<PartnerVoiceEngine>('supertonic');
   /** 지금 상대 줄을 실제로 내는 방식(서버 음성을 못 받은 줄은 engine 과 다르다). */
   const [lineEngine, setLineEngine] = useState<PartnerVoiceEngine | null>(null);
@@ -489,8 +491,9 @@ export default function ReadingPlay() {
     setRun(next);
     if (!prev || !session) return;
     if (next.status === 'done') {
-      // 대본(고른 구간) 끝까지 가야 완료다 — 중간에 「그만하기」로 끝낸 회차는 열린 채 남고 별점도 묻지 않는다(SOMA-773, 10/29).
-      const completed = !stoppedEarlyRef.current && readingRunCompleted({
+      // 대본(고른 구간) 끝까지 갔거나, 「그만하기」 전에 내 대사를 한 줄이라도 읽었으면 완료다. 내 대사를 못 읽고 그만한 회차는
+      // 열린 채 남고 별점도 묻지 않는다(SOMA-773, 10/29).
+      const completed = !stopUncountedRef.current && readingRunCompleted({
         reachedEnd: true,
         said: next.said,
         priorRecognized: sessionHasRecognized(session),
@@ -1468,8 +1471,8 @@ export default function ReadingPlay() {
   }, [exiting]);
 
   /**
-   * 멈춘 채 「그만하기」 — 여기까지로 이번 회차를 끝낸다. 끝까지 간 게 아니므로 연습으로 세지 않고(10/29 정함)
-   * 멈춘 위치만 저장해 다음에 이어 읽게 한다.
+   * 멈춘 채 「그만하기」 — 여기까지로 이번 회차를 끝낸다. 내 대사를 한 줄이라도 읽었으면 연습으로 세고(완료로 보낸다),
+   * 한 줄도 못 읽었으면 세지 않고 멈춘 위치만 저장해 다음에 이어 읽게 한다(10/29 정함).
    */
   const stopHere = () => {
     const cur = runRef.current;
@@ -1495,8 +1498,10 @@ export default function ReadingPlay() {
     stt.abort();
     void mic.stop();
     stoppedEarlyRef.current = true;
-    // 끝 화면이 센 마지막 읽은 줄 다음을 저장한다 — 이어 읽기 카드의 「K/N줄」이 끝 화면과 같아진다(10/29).
-    queueRef.current?.push(stoppedProgressPayload(cur, next));
+    stopUncountedRef.current = !readingStopCounted(readMyDialogueCount(next.lines, next.startIndex, next.endIndex, next.myRoles));
+    // 세지 않는 회차는 끝 화면이 센 마지막 읽은 줄 다음을 저장한다 — 이어 읽기 카드의 「K/N줄」이 끝 화면과 같아진다(10/29).
+    // 세는 회차는 commit 이 완료(complete)로 보낸다.
+    if (stopUncountedRef.current) queueRef.current?.push(stoppedProgressPayload(cur, next));
     commit(next);
   };
   /** 첫 리딩의 「그만 읽기」 — 읽는 중이면 멈춘 뒤 여기까지로 끝내고 첫 리딩 끝 화면으로 간다(10/29). */
@@ -1700,7 +1705,7 @@ export default function ReadingPlay() {
   }
 
   if (phase.kind === 'done') {
-    const completed = !stoppedEarlyRef.current && readingRunCompleted({
+    const completed = !stopUncountedRef.current && readingRunCompleted({
       reachedEnd: true,
       said: run.said,
       priorRecognized: sessionHasRecognized(session),

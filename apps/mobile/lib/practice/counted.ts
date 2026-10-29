@@ -37,7 +37,8 @@ export function countedPracticeDates(input: CountedPracticeInput): { created_at:
 
 /**
  * 리딩 한 회차를 완료로 칠지(SOMA-773 #25 → 10/25 사용자 결정). 끝까지 갔으면 완료다 — 인식된 내 대사가 없어도 센다.
- * (예전엔 인식된 대사가 한 줄 이상이어야 했다.) 중간에 그만한 회차는 부르는 쪽(play.tsx stoppedEarly)이 뺀다(10/29).
+ * (예전엔 인식된 대사가 한 줄 이상이어야 했다.) 중간에 그만한 회차는 내 대사를 한 줄도 못 읽었을 때만 부르는 쪽(play.tsx
+ * stopUncounted)이 뺀다(10/29, readingStopCounted).
  * said·priorRecognized·recognition 은 부르는 쪽 호환으로 받기만 한다.
  */
 export function readingRunCompleted(input: {
@@ -47,6 +48,14 @@ export function readingRunCompleted(input: {
   recognition?: 'stt' | 'typing' | null;
 }): boolean {
   return input.reachedEnd;
+}
+
+/** 중간에 「그만하기」로 끝내도 내 배역 대사를 이만큼 읽었으면 연습으로 센다(10/29 사용자 결정: 한 줄). */
+export const READING_STOP_MIN_MY_LINES = 1;
+
+/** 「그만하기」로 끝낸 회차를 연습으로 칠지 — 읽은 내 대사 줄 수로 본다. 상대 대사는 앱이 읽어 주므로 세지 않는다. */
+export function readingStopCounted(myLinesRead: number): boolean {
+  return myLinesRead >= READING_STOP_MIN_MY_LINES;
 }
 
 /** 이어하기 전 서버가 받은 인식이 있는지 — 녹음 전사나 원문 대조에 말한 것이 남아 있으면 있다. */

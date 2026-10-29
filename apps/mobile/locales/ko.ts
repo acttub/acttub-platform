@@ -2099,7 +2099,7 @@ const ko = {
     stopHere: '그만하기',
     completeTitle: '리딩 완료',
     notCountedTitle: '연습으로 세지 않았어요',
-    notCountedBody: '끝까지 읽지 않아서 이번 리딩은 연습으로 세지 않았어요. 다음에 멈춘 곳부터 이어 읽고 끝까지 가면 세요.',
+    notCountedBody: '내 대사를 한 줄도 읽기 전에 멈춰서 이번 리딩은 연습으로 세지 않았어요. 다음에 멈춘 곳부터 이어 읽어 보세요.',
     rateTitle: '이번 리딩 어땠나요?',
     rateGood: '좋았어요',
     rateBad: '아쉬웠어요',

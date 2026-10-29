@@ -2100,7 +2100,7 @@ const en: DeepStringShape<typeof ko> = {
     stopHere: 'Stop',
     completeTitle: 'Reading complete',
     notCountedTitle: 'Not counted as practice',
-    notCountedBody: 'You stopped before the end, so this reading wasn’t counted. Pick up where you left off and finish it to count.',
+    notCountedBody: 'You stopped before reading any of your lines, so this reading wasn’t counted. Pick up where you left off next time.',
     rateTitle: 'How was this reading?',
     rateGood: 'Good',
     rateBad: 'Not great',
