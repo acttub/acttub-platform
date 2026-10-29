@@ -104,6 +104,7 @@ export default function NoticeDetailScreen() {
             <Text style={styles.meta}>{formatNoticeDate(notice.published_at, dateLocale())}</Text>
           </View>
           {notice.body ? <Text style={styles.text}>{notice.body}</Text> : null}
+          {notice.footnote ? <Text style={styles.footnote}>{notice.footnote}</Text> : null}
           {cta ? (
             <View style={styles.cta}>
               <Button label={cta.label} onPress={press} loading={opening} loadingLabel={t('notices.openingLink')} />
@@ -127,5 +128,6 @@ const styles = StyleSheet.create({
   statusLive: { color: palette.blueDeep },
   meta: { ...type.caption, color: palette.textMeta },
   text: { ...type.body1, color: palette.textSub },
+  footnote: { marginTop: 14, fontSize: 12, lineHeight: 17, color: palette.textFaint },
   cta: { marginTop: space[3] },
 });

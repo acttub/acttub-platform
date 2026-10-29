@@ -166,7 +166,7 @@ class PosterEndpointIT {
         JsonNode stored = notices.get(0);
         assertThat(stored.fieldNames()).toIterable().containsExactly("slug", "revision", "live", "published_at",
                 "ends_at", "badge", "title", "body", "image_url", "image_asset", "cta_label", "cta_action",
-                "cta_target");
+                "cta_target", "footnote", "image_bg");
         assertThat(stored.path("image_url").textValue()).isEqualTo("signed:" + key + ":3600");
         assertThat(stored.path("image_asset").isNull()).isTrue();
         assertThat(stored.path("published_at").textValue()).isNotBlank();
@@ -203,7 +203,7 @@ class PosterEndpointIT {
         JsonNode stored = posters.get(0);
         assertThat(stored.fieldNames()).toIterable().containsExactly("slug", "revision", "frequency", "audience",
                 "dismissible", "badge", "title", "body", "image_url", "image_asset", "audio_asset", "cta_label",
-                "cta_action", "cta_target");
+                "cta_action", "cta_target", "footnote", "image_bg");
         assertThat(stored.path("revision").intValue()).isEqualTo(3);
         assertThat(stored.path("frequency").textValue()).isEqualTo("once");
         assertThat(stored.path("dismissible").booleanValue()).isFalse();
@@ -258,13 +258,29 @@ class PosterEndpointIT {
     }
 
     @Test
+    void footnoteAndImageBgRoundTripFromAdminCreateToAppList() throws Exception {
+        JsonNode created = json(admin(post("/v2/admin/posters"), """
+                {"slug":"fresh","title":"새 공지","active":true,"footnote":"* 10월 31일까지","image_bg":"#E8F1FF"}
+                """), 201);
+        assertThat(created.path("footnote").textValue()).isEqualTo("* 10월 31일까지");
+        assertThat(created.path("image_bg").textValue()).isEqualTo("#E8F1FF");
+        JsonNode poster = app(appList("ios", "ko", "0.1.3"), 200).path("posters").get(0);
+        assertThat(poster.path("footnote").textValue()).isEqualTo("* 10월 31일까지");
+        assertThat(poster.path("image_bg").textValue()).isEqualTo("#E8F1FF");
+        JsonNode bad = json(admin(post("/v2/admin/posters"), """
+                {"slug":"bad","title":"t","image_bg":"blue"}
+                """), 422);
+        assertThat(bad.toString()).contains("image_bg");
+    }
+
+    @Test
     void adminCreatesWithDefaultsAndListsEverythingIncludingInactive() throws Exception {
         JsonNode created = json(admin(post("/v2/admin/posters"), """
                 {"slug":"summer","title":"여름 공지","locale":"ko","ends_at":"2026-12-01T00:00:00+09:00"}
                 """), 201);
         assertThat(created.fieldNames()).toIterable().containsExactly("id", "slug", "revision", "active", "priority",
                 "starts_at", "ends_at", "platforms", "locale", "min_app_version", "frequency", "audience",
-                "dismissible", "badge", "title", "body", "image", "audio", "cta_label", "cta_action", "cta_target",
+                "dismissible", "badge", "title", "body", "image", "audio", "cta_label", "cta_action", "cta_target", "footnote", "image_bg",
                 "created_at", "updated_at");
         assertThat(created.path("revision").intValue()).isEqualTo(1);
         assertThat(created.path("active").booleanValue()).isFalse();

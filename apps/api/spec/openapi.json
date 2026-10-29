@@ -13118,9 +13118,27 @@
               "type" : "null"
             } ],
             "title" : "Cta Target"
+          },
+          "footnote" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "작은 각주"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Footnote"
+          },
+          "image_bg" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "이미지 배경색 #RRGGBB"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Bg"
           }
         },
-        "required" : [ "audience", "audio_asset", "badge", "body", "cta_action", "cta_label", "cta_target", "dismissible", "frequency", "image_asset", "image_url", "revision", "slug", "title" ],
+        "required" : [ "audience", "audio_asset", "badge", "body", "cta_action", "cta_label", "cta_target", "dismissible", "footnote", "frequency", "image_asset", "image_bg", "image_url", "revision", "slug", "title" ],
         "title" : "AppPoster"
       },
       "AppPosterList" : {
@@ -13229,9 +13247,27 @@
               "type" : "null"
             } ],
             "title" : "Cta Target"
+          },
+          "footnote" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "작은 각주"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Footnote"
+          },
+          "image_bg" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "이미지 배경색 #RRGGBB"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Bg"
           }
         },
-        "required" : [ "badge", "body", "cta_action", "cta_label", "cta_target", "ends_at", "image_asset", "image_url", "live", "published_at", "revision", "slug", "title" ],
+        "required" : [ "badge", "body", "cta_action", "cta_label", "cta_target", "ends_at", "footnote", "image_asset", "image_bg", "image_url", "live", "published_at", "revision", "slug", "title" ],
         "title" : "AppNotice"
       },
       "AppNoticeList" : {
