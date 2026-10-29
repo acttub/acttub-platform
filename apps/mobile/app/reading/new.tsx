@@ -52,7 +52,6 @@ import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store'
 import { isMonologue } from '@/lib/reading/monologue';
 import { isGroupCharacter } from '@/lib/reading/session-plan';
 import { MonologueNameDialog } from '@/components/monologue-name-dialog';
-import { ProSheetCard } from '@/components/pro-ui';
 import { SamplePickerBody, useSamplePicker } from '@/components/reading/sample-picker';
 import { newRequestId } from '@/lib/request-id';
 import { useFirstReading } from '@/hooks/use-first-reading';
@@ -462,18 +461,19 @@ export default function ReadingNew() {
             </DialogCard>
           )}
           {popup?.kind === 'free_limit' && (
-            <ProSheetCard
-              title={t('pro.scriptLimitTitle')}
-              body={t('pro.scriptLimitBody')}
-              primary={t('pro.explore')}
-              onPrimary={() => {
-                setPopup(null);
-                router.push('/pro');
-              }}
-              secondary={t('pro.scriptLimitReplace')}
-              onSecondary={() => void askReplace(popup.resume)}
-              busy={popup.busy}
-            />
+            <DialogCard title={t('pro.scriptLimitTitle')} message={t('pro.scriptLimitBody')}>
+              {/* 지울 대본 목록을 읽는 동안(busy)은 어느 버튼도 다시 받지 않는다. */}
+              <DialogButtons
+                cancelLabel={t('pro.scriptLimitReplace')}
+                onCancel={() => !popup.busy && void askReplace(popup.resume)}
+                confirmLabel={t('pro.scriptLimitPro')}
+                onConfirm={() => {
+                  setPopup(null);
+                  router.push({ pathname: '/pro', params: { from: 'script' } });
+                }}
+                confirmDisabled={popup.busy}
+              />
+            </DialogCard>
           )}
           {popup?.kind === 'free_pick' && (
             <DialogCard title={t('pro.pickTitle')} message={t('pro.pickGuide')}>
@@ -493,16 +493,16 @@ export default function ReadingNew() {
             </DialogCard>
           )}
           {popup?.kind === 'free_replace' && (
-            <ProSheetCard
-              title={t('pro.replaceTitle', { title: popup.title })}
-              body={t('pro.replaceBody')}
-              primary={t('pro.replaceConfirm')}
-              onPrimary={() => void replaceAndRetry(popup)}
-              secondary={t('pro.replaceCancel')}
-              onSecondary={() => setPopup(null)}
-              busy={popup.busy}
-              destructive
-            />
+            <DialogCard title={t('pro.replaceTitle', { title: popup.title })} message={t('pro.replaceBody')}>
+              <DialogButtons
+                cancelLabel={t('pro.replaceCancel')}
+                onCancel={() => setPopup(null)}
+                confirmLabel={t('pro.replaceConfirm')}
+                onConfirm={() => void replaceAndRetry(popup)}
+                busy={popup.busy}
+                destructive
+              />
+            </DialogCard>
           )}
           {popup?.kind === 'not_script' && (
             <DialogCard title={t('reading.notScriptTitle')} message={t('reading.notScriptBody')}>

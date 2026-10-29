@@ -491,9 +491,9 @@ test('무료 대본 한도(free_script_limit)에서 보관 대본이 하나면 �
   await fireEvent.press(screen.getByText('다음'));
 
   expect(await screen.findByText('무료는 대본 3개까지 보관해요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('대본 하나 지우고 넣기'));
-  expect(await screen.findByText('「옥상, 밤」을 지우고\n새 대본을 넣을까요?')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('지우고 새 대본 넣기'));
+  await fireEvent.press(screen.getByText('하나 지우기'));
+  expect(await screen.findByText('『옥상, 밤』을 지울까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('지우고 넣기'));
 
   await waitFor(() => expect(server.remove).toHaveBeenCalledWith('old'));
   await waitFor(() => expect(api.importScript).toHaveBeenCalledTimes(2));
@@ -513,13 +513,13 @@ test('무료 대본 3개가 차 있으면 지울 대본을 고르고, 고른 대
   await paste();
   await fireEvent.press(screen.getByText('다음'));
 
-  await fireEvent.press(await screen.findByText('대본 하나 지우고 넣기'));
+  await fireEvent.press(await screen.findByText('하나 지우기'));
   expect(await screen.findByText('어떤 대본을 지울까요?')).toBeOnTheScreen();
   expect(screen.getByText('옥상, 밤')).toBeOnTheScreen();
   expect(screen.getByText('세 자매')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('갈매기'));
-  expect(await screen.findByText('「갈매기」을 지우고\n새 대본을 넣을까요?')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('지우고 새 대본 넣기'));
+  expect(await screen.findByText('『갈매기』을 지울까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('지우고 넣기'));
 
   await waitFor(() => expect(server.remove).toHaveBeenCalledWith('b'));
   expect(server.remove).toHaveBeenCalledTimes(1);
@@ -536,19 +536,19 @@ test('지울 대본 고르기에서 취소하면 아무것도 지우지 않는�
   await render(<ReadingNew />);
   await paste();
   await fireEvent.press(screen.getByText('다음'));
-  await fireEvent.press(await screen.findByText('대본 하나 지우고 넣기'));
+  await fireEvent.press(await screen.findByText('하나 지우기'));
   await fireEvent.press(await screen.findByText('취소'));
   await waitFor(() => expect(screen.queryByText('어떤 대본을 지울까요?')).not.toBeOnTheScreen());
   expect(server.remove).not.toHaveBeenCalled();
 });
 
-test('무료 대본 시트의 [Pro 알아보기]는 Pro 안내로 간다', async () => {
+test('무료 대본 팝업의 [Pro 보기]는 대본 한도에서 온 Pro 안내로 간다', async () => {
   jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'));
   await render(<ReadingNew />);
   await paste();
   await fireEvent.press(screen.getByText('다음'));
-  await fireEvent.press(await screen.findByText('Pro 알아보기'));
-  expect(mockRouter.push).toHaveBeenCalledWith('/pro');
+  await fireEvent.press(await screen.findByText('Pro 보기'));
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/pro', params: { from: 'script' } });
 });
 
 // ── 첫 리딩(10/29) ─────────────────────────────────────────────────────────────────────
