@@ -2271,6 +2271,7 @@ const ko = {
     wrapMeta: '{{title}} · {{total}}줄 중',
     wrapNext: '{{readTo}}줄까지 읽었어요. 다음엔 {{next}}줄부터 이어 읽어요.',
     wrapAll: '끝까지 읽었어요. 다음엔 처음부터 다시 읽어 봐요.',
+    wrapContinue: '이어서 {{next}}줄부터 읽기',
     wrapCoach: '이 장면, 찍어서 액티에게 보여 주기',
     titleSaveFail: '저장하지 못했어요. 다시 시도해 주세요.',
     recordForCoach: '이 대본으로 찍어서 코칭받기',

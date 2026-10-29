@@ -2272,6 +2272,7 @@ const en: DeepStringShape<typeof ko> = {
     wrapMeta: '{{title}} · of {{total}} lines',
     wrapNext: 'You read up to line {{readTo}}. Next time, start from line {{next}}.',
     wrapAll: 'You read to the end. Next time, try it again from the top.',
+    wrapContinue: 'Keep reading from line {{next}}',
     wrapCoach: 'Film this scene and show it to the coach',
     titleSaveFail: 'Couldn’t save. Please try again.',
     recordForCoach: 'Film this script for coaching',

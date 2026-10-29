@@ -1968,10 +1968,27 @@ test('첫 리딩이면 끝에서 칭찬과 큰 홈으로 가기, 그 밑에 한 
   expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '한 번 더 읽기' })).toBeOnTheScreen();
   expect(screen.queryByText('다른 대본으로')).not.toBeOnTheScreen();
+  // 대본 끝 대사까지 읽었으니 이어 읽기는 없다(SOMA-934).
+  expect(screen.queryByText(/줄부터 읽기/)).not.toBeOnTheScreen();
   // 탭 묶음을 하나 더 쌓지 않고 이미 있는 홈 탭까지 내려간다(SOMA-853).
   await pressWhenReady('홈으로 가기');
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
   expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
+});
+
+test('첫 리딩 구간 뒤에 대사가 남았으면 「이어서 N줄부터 읽기」로 같은 배역의 남은 줄을 바로 시작한다(SOMA-934)', async () => {
+  await AsyncStorage.removeItem('acttub.reading.firstGuideSeen');
+  const server = await startPlay({ start_line_id: 'l2', end_line_id: 'l2' });
+  server.startSession.mockResolvedValue(sessionDetail({ id: 'r2', start_line_id: 'l4', end_line_id: 'l5' }));
+  await screen.findByText('듣는 중');
+  await speechEnds();
+
+  expect(await screen.findByText(/처음인데 끝까지 읽었어요/)).toBeOnTheScreen();
+  await pressWhenReady('이어서 2줄부터 읽기');
+  await waitFor(() =>
+    expect(server.startSession).toHaveBeenCalledWith('s1', expect.objectContaining({ my_character_ids: ['c1'], start_line_id: 'l4', end_line_id: 'l5' })),
+  );
+  expect(mockRouter.replace).toHaveBeenCalledWith('/reading/play');
 });
 
 test('첫 리딩 버튼 안내가 떠 있는 동안은 말이 끝나도 넘기지 않고, 「알겠어요」를 누르면 이어 간다', async () => {

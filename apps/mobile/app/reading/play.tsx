@@ -21,7 +21,7 @@ import { CtaBar } from '@/components/ui/cta-bar';
 import { InfoBanner } from '@/components/ui/info-banner';
 import { ReadingGuideOverlay } from '@/components/ui/reading-guide-overlay';
 import { ReadingStatus } from '@/components/ui/reading-status';
-import { readingCoachScene, wrapUpProgress } from '@/lib/reading/redesign-748';
+import { continueRange, readingCoachScene, wrapUpProgress } from '@/lib/reading/redesign-748';
 import { keepReadingInBackground } from '@/lib/reading/ios-audio-restore';
 import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
 import { onReadingLiveEvent, readingKeepsRunning, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
@@ -1451,6 +1451,31 @@ export default function ReadingPlay() {
     }
   };
 
+  /** 마무리 화면 「이어서 N줄부터 읽기」 — 같은 배역으로 남은 줄(읽은 끝 뒤 ~ 대본 끝)을 새 회차로 바로 시작한다(SOMA-934). */
+  const continueRest = async (range: { startIndex: number; endIndex: number }) => {
+    if (doneLocked || !script || !session || restarting) return;
+    setRestarting(true);
+    try {
+      const from = script.lineIds[range.startIndex];
+      readAgainRequestIds.current[from] ??= newRequestId();
+      const next = await startSession(
+        script.id,
+        buildStartBody({
+          requestId: readAgainRequestIds.current[from],
+          myCharacterIds: session.my_character_ids,
+          startLineId: script.lineIds[range.startIndex],
+          endLineId: script.lineIds[range.endIndex],
+        }),
+      );
+      setCurrentSession(next);
+      router.replace('/reading/play');
+    } catch (e) {
+      void alert({ title: t('reading.startFailed'), message: scriptErrorMessage(e) });
+    } finally {
+      if (mounted.current) setRestarting(false);
+    }
+  };
+
   // ── 잠금 화면·알림의 진행(SOMA-802) ─────────────────────────────────────────────
   const holdNow = phase.kind === 'running' ? phase.hold : null;
   const myTurnNow = !!run && (run.status === 'mine' || (run.status === 'paused' && run.resumeTo === 'mine'));
@@ -1651,6 +1676,21 @@ export default function ReadingPlay() {
         <Text style={styles.otherScriptText}>{t('reading.otherScript')}</Text>
       </Pressable>
     );
+    // 구간 끝까지 읽었고 뒤에 대사가 남았으면 같은 배역으로 남은 줄을 바로 이어 읽는다(SOMA-934) — 첫 연습의 처음 10줄 뒤 등.
+    const rest = completed ? continueRange(run.lines, run.endIndex) : null;
+    const continueRow = rest ? (
+      <Pressable
+        style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
+        onPress={() => void continueRest(rest)}
+        disabled={doneLocked || restarting}
+        accessibilityRole="button"
+        accessibilityLabel={t('reading.wrapContinue', { next: rest.fromDialogue })}
+        accessibilityState={{ disabled: doneLocked || restarting }}
+        ph-label="reading_done_continue">
+        <Feather name="play-circle" size={16} color={palette.blueDeep} />
+        <Text style={styles.readAgainText}>{t('reading.wrapContinue', { next: rest.fromDialogue })}</Text>
+      </Pressable>
+    ) : null;
     if (completed && (firstRunRef.current || fromTutorialRef.current)) {
       // pen R9.51 첫 리딩 끝 — 액티 칭찬 아래 가운데에 큰 「홈으로 가기」, 그 밑에 「한 번 더 읽기」. 하단 버튼 영역은 없다.
       const total = wrapUpProgress(run.lines, run.endIndex).total;
@@ -1663,6 +1703,7 @@ export default function ReadingPlay() {
             <Text style={styles.firstDoneMeta}>{t('reading.firstDoneMeta', { title: script.title, roles: config.myNames.join(', '), total, count: readDialogueCount(run.lines, run.startIndex, run.endIndex) })}</Text>
             <View style={styles.firstDoneActions}>
               {goHomeButton}
+              {continueRow}
               <Pressable
                 style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
                 onPress={() => void readAgain()}
@@ -1739,6 +1780,7 @@ export default function ReadingPlay() {
               </View>
             )}
             <View style={styles.doneLinks}>
+            {continueRow}
             <Pressable
               style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
               onPress={() => void readAgain()}
@@ -1827,6 +1869,7 @@ export default function ReadingPlay() {
 
           {/* 다시 연습은 실행 중 [다음] 자리(아래 오른쪽)를 피해 본문에 둔다 — 연타로 새 연습이 바로 시작되지 않게(SOMA-772). */}
           <View style={styles.doneLinks}>
+            {continueRow}
           <Pressable
             style={[styles.readAgainRow, (doneLocked || restarting) && styles.readAgainOff]}
             onPress={() => void readAgain()}

@@ -56,6 +56,30 @@ export function wrapUpProgress(lines: readonly ScriptLine[], endIndex: number): 
   return { readTo, total, next: readTo < total ? readTo + 1 : null };
 }
 
+/**
+ * 마무리 화면의 「이어서 N줄부터 읽기」(SOMA-934) — 읽은 끝 줄 뒤의 첫 대사부터 대본 마지막 대사까지.
+ * 뒤에 대사가 없으면 null. fromDialogue 는 시작 대사의 번호(1부터, wrapUpProgress 의 next 와 같다).
+ */
+export function continueRange(
+  lines: readonly ScriptLine[],
+  endIndex: number,
+): { startIndex: number; endIndex: number; fromDialogue: number } | null {
+  let count = 0;
+  let start = -1;
+  let fromDialogue = 0;
+  let last = -1;
+  lines.forEach((l, i) => {
+    if (l.type !== 'dialogue') return;
+    count += 1;
+    if (i > endIndex && start < 0) {
+      start = i;
+      fromDialogue = count;
+    }
+    last = i;
+  });
+  return start < 0 ? null : { startIndex: start, endIndex: last, fromDialogue };
+}
+
 /** 첫 리딩 안내(pen 「리딩 실행 · 처음」) — 진행 상태를 보고 하나씩 띄운다. 진행 규칙은 바꾸지 않는다. */
 export const COACH_MARKS = ['partner', 'mine', 'next', 'alone'] as const;
 export type CoachMark = (typeof COACH_MARKS)[number];
