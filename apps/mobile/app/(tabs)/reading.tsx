@@ -75,7 +75,6 @@ export default function ReadingList() {
   const { confirm, sheet, alert, dialog } = useAppDialog();
   const [list, setList] = useState<ScriptListResponse | null>(null);
   const [q, setQ] = useState('');
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ScriptCard | null>(null);
   /** 「이전에 하던 데부터」 카드 — 연습 중 대본의 진행 중 회차(pen 「새 · 내 대본」). */
@@ -121,8 +120,6 @@ export default function ReadingList() {
       }
     } catch (e) {
       if (mine === generation.current) setError(scriptErrorMessage(e));
-    } finally {
-      if (mine === generation.current) setLoading(false);
     }
   }, []);
 
@@ -197,6 +194,8 @@ export default function ReadingList() {
   const scripts = list?.scripts ?? [];
   const searching = q.trim().length > 0;
   const empty = !!list && scripts.length === 0 && !searching;
+  // 목록을 받기 전에는 「내 대본」 화면을 그리지 않는다 — 대본이 없는 첫 사용자에게 그 화면이 먼저 보였다가 입구로 바뀌었다(SOMA-932).
+  const listPending = list === null && !error;
 
   const goEntry = (choice: EntryKey) => {
     if (choice === 'upload') router.push('/reading/new');
@@ -256,7 +255,7 @@ export default function ReadingList() {
       <View style={styles.headWrap}>
         <NavHeader
           large
-          title={empty ? '' : t('reading.listTitle')}
+          title={empty || listPending ? '' : t('reading.listTitle')}
           left={firstTime ? <NavBackButton onPress={() => router.navigate('/')} phLabel="reading_back_home" /> : undefined}
           right={
             <View style={styles.headRight}>
@@ -264,7 +263,7 @@ export default function ReadingList() {
               {firstTime && (
                 <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
               )}
-              {!empty && (
+              {!empty && !listPending && (
                 <View ref={newTarget.ref} onLayout={newTarget.onLayout}>
                   <Button
                     size="md"
@@ -281,11 +280,13 @@ export default function ReadingList() {
       </View>
 
       {/* 고품질 목소리 띠 — 대본이 있어도 머리 아래에 둔다(10/25 사용자 결정, 기본 켜짐). */}
-      {!empty && voiceBar}
+      {!empty && !listPending && voiceBar}
 
       {error && <InlineError message={t('reading.listLoadFail')} onRetry={() => void load(q)} />}
 
-      {empty ? (
+      {listPending ? (
+        <SkeletonRows count={6} avatar card={false} />
+      ) : empty ? (
         // pen R1.13 — 큰 「리딩」 제목과 책 위 액티, 고품질 목소리 알약, 그라데이션 입구 카드 셋(누르면 바로 들어감).
         <View style={styles.entry}>
           <View style={styles.hero}>
@@ -378,9 +379,6 @@ export default function ReadingList() {
               placeholderTextColor={palette.textMeta}
             />
           </View>
-          {loading && !list && (
-            <SkeletonRows count={6} avatar card={false} />
-          )}
           <View style={styles.list}>
             {scripts.map((s) => {
               const chip = statusChip(s);
