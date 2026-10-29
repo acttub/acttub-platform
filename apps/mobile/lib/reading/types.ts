@@ -283,6 +283,8 @@ export type SessionDetail = SessionCard & {
   progress_seq: number;
   recordings: SessionRecording[];
   different_lines: DifferentLine[];
+  /** 말풍선 하나에 담는 대사 수(SOMA-938) — 서버 설정 READING_CHUNK_LINES. 옛 서버는 안 준다(앱은 10). */
+  chunk_lines?: number;
 };
 
 /** PATCH /v2/reading/sessions/{id}/progress. seq 가 저장값보다 클 때만 반영된다. */

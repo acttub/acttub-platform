@@ -226,6 +226,8 @@ export default function ReadingPlay() {
       endIndex,
       // 같은 배역 연속 대사는 한 차례로 묶는다(SOMA-806). 독백은 문장마다 따로 맞춘다.
       monologue: isMonologue(script.characters),
+      // 말풍선 줄 수는 서버가 정한다(SOMA-938) — 바꿀 때 앱을 다시 내지 않는다.
+      chunkLines: session.chunk_lines ?? undefined,
     };
   }, [script, session]);
 
@@ -1918,7 +1920,7 @@ export default function ReadingPlay() {
   // 지나간 줄은 같은 배역 묶음(SOMA-806)마다 하나로 쌓는다. 독백은 문장 목록이 지금 카드 안에 다 있어 위로 쌓지 않는다(pen c1MiZ).
   const past: { key: string; index: number; lines: { id: string; line: ScriptLine }[] }[] = [];
   if (!monologue) {
-    for (const g of lineGroups(run.lines, { monologue })) {
+    for (const g of lineGroups(run.lines, { monologue, maxLines: run.chunkLines })) {
       const start = Math.max(g.start, run.startIndex);
       const end = Math.min(g.end, (beatOn ? beatLines[0] : run.index) - 1, run.endIndex);
       if (start > end) continue;
@@ -1932,7 +1934,7 @@ export default function ReadingPlay() {
   const span = turnSpan(run);
   const restLines = isDialogue && !monologue ? run.lines.slice(span.start + 1, span.end + 1) : [];
   const monoIndexes = monologue ? sentenceIndexes(run, run.startIndex) : [];
-  const monoChunks = monologue ? monologueChunks(run.lines, run.startIndex, run.endIndex) : [];
+  const monoChunks = monologue ? monologueChunks(run.lines, run.startIndex, run.endIndex, run.chunkLines) : [];
   // 독백은 뒤에 말풍선이 남았으면 아래 주 버튼이 「다음 대사」, 마지막 말풍선에서만 「끝내기」다(SOMA-934).
   const monoNow = monoChunks.findIndex((c) => Math.max(run.index, run.startIndex) <= c.end);
   const monoNext = monoNow >= 0 ? (monoChunks[monoNow + 1] ?? null) : null;

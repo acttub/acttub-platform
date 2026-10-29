@@ -149,7 +149,7 @@ class ReadingSessionIT {
                 "my_dialogue_count", "recorded_line_count", "elapsed_seconds", "started_at", "ended_at", "script_id", "mode",
                 "advance", "record",
                 "start_line_id", "end_line_id", "current_line_id", "progress_seq", "line_results", "recordings",
-                "different_lines", "my_rating");
+                "different_lines", "my_rating", "chunk_lines");
         assertThat(started.path("status").textValue()).isEqualTo("in_progress");
         assertThat(started.path("current_line_id").textValue()).as("구간의 첫 대사 줄").isEqualTo(script.dialogue(1).toString());
         assertThat(Instant.parse(started.path("started_at").textValue())).as("시각은 앱 시계로 찍는다").isEqualTo(clock.instant());
@@ -169,6 +169,7 @@ class ReadingSessionIT {
         assertThat(started.path("mode").textValue()).isEqualTo("read");
         assertThat(started.path("advance").textValue()).isEqualTo("silence");
         assertThat(started.path("record").booleanValue()).isTrue();
+        assertThat(started.path("chunk_lines").intValue()).as("말풍선 줄 수 — READING_CHUNK_LINES, 없으면 10(SOMA-938)").isEqualTo(10);
         assertThat(started.path("script_id").textValue()).isEqualTo(script.id.toString());
 
         JsonNode replayed = json(post("/v2/reading/scripts/{id}/sessions", script.id).content(body.toString()), 200);
