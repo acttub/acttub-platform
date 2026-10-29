@@ -2152,13 +2152,23 @@ export default function ReadingPlay() {
           </View>
         )}
 
-        {isDialogue && myTurn && sttMode?.kind === 'stt' && (
+        {!monologue && isDialogue && myTurn && sttMode?.kind === 'stt' && (
           <View style={styles.saidBox}>
             <Text style={styles.saidLabel}>{t('reading.saidLabel')}</Text>
             <Text style={styles.saidText}>{said || t('reading.noSpeechYet')}</Text>
           </View>
         )}
       </ScrollView>
+
+      {/* 독백은 받아쓴 글이 끝까지 쌓여 스크롤 끝에 두면 길어지다 버튼 줄에 잘렸다 — 버튼 줄 바로 위에 고정하고 최근 두 줄만 보인다(SOMA-934). */}
+      {monologue && isDialogue && myTurn && sttMode?.kind === 'stt' && (
+        <View style={[styles.saidBox, styles.monoSaidBar]}>
+          <Text style={styles.saidLabel}>{t('reading.saidLabel')}</Text>
+          <Text style={styles.saidText} numberOfLines={2} ellipsizeMode="head">
+            {said || t('reading.noSpeechYet')}
+          </Text>
+        </View>
+      )}
 
       {notice?.kind === 'jump' && (
         <View style={[styles.toast, styles.jumpToast]}>
@@ -2436,6 +2446,7 @@ const styles = StyleSheet.create({
   chipText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   chipTextMine: { color: palette.blueDeep },
   saidBox: { backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 12, gap: 4 },
+  monoSaidBar: { marginHorizontal: 16, marginBottom: 8 },
   saidLabel: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   saidText: { color: palette.text, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20 },
   lineText: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 21, lineHeight: 31 },
