@@ -172,6 +172,6 @@ test('account.guest: 여섯 자리가 아닌 코드는 서버에 보내지 않�
 test('account.guest: 틀린 코드의 화면 문구는 "코드가 맞지 않거나 만료됐어요"다', async () => {
   const { default: ko } = await import('../locales/ko.ts');
 
-  assert.equal(ko.guestTransfer.codeNotFound, '코드가 맞지 않거나 만료됐어요');
+  assert.equal(ko.guestTransfer.codeNotFound, '코드가 맞지 않거나 만료됐어요.');
   assert.match(ko.guestTransfer.rateLimited, /잠시 뒤 다시 시도/);
 });

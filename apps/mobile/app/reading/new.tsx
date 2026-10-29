@@ -3,26 +3,27 @@ import { usePreventRemove } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import * as DocumentPicker from 'expo-document-picker';
 
 import { AdSlot } from '@/components/ad-slot';
+import { KeyboardLift } from '@/components/keyboard-lift';
 import { palette } from '@/constants/palette';
-import { useReadableNote } from '@/hooks/use-readable-input';
-import { InlineErrorLine } from '@/components/ui/inline-error';
 import { Image } from 'expo-image';
-import { PrimaryButton } from '@/components/ui/buttons';
-import { DialogButtons } from '@/components/ui/dialog';
+import { Button, PrimaryButton, TextButton } from '@/components/ui/buttons';
+import { CtaBar } from '@/components/ui/cta-bar';
+import { DialogButtons, DialogCard } from '@/components/ui/dialog';
 import { InfoBanner } from '@/components/ui/info-banner';
+import { MASCOT_SIZE } from '@/components/ui/mascot';
 import { ReadingStatus } from '@/components/ui/reading-status';
+import { SelectCard } from '@/components/ui/select-card';
+import { TextField } from '@/components/ui/text-field';
 import { isSplitFailure } from '@/lib/reading/redesign-748';
-import { Markdown } from '@/components/markdown';
-import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { useWaitExit } from '@/hooks/use-wait-exit';
-import { type } from '@/constants/tokens';
+import { radius, space, type } from '@/constants/tokens';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { api } from '@/lib/api';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -98,7 +99,6 @@ const DEPS: ScriptImportDeps = {
   newRequestId,
 };
 
-/** 동의 뒤 이어 할 일 — 멈춘 그 요청. 파일은 올리다가, 글은 나누다가 동의를 물었다. */
 type Resume = { kind: 'import'; input: ImportInput; flags: ImportFlags } | { kind: 'upload'; file: PickedScriptFile };
 
 /** R2 위 팝업 하나. iOS 는 닫히는 모달 위에 새 모달을 띄우지 못해 모든 장을 한 모달에 그린다. */
@@ -118,11 +118,7 @@ type Popup =
   | { kind: 'free_replace'; resume: Resume; scriptId: string; title: string; busy: boolean };
 
 export default function ReadingNew() {
-  // 허용 글자 범위(SOMA-922) — 제목·대본 글은 loose.
-  const looseNote = useReadableNote('loose');
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const keyboard = useKeyboardHeight();
   // 대본 리딩 튜토리얼의 예시(SOMA-494) — 예시 대본을 채운 채 연다.
   const { sample = '', pick } = useLocalSearchParams<{ sample?: string; pick?: string }>();
   // 첫 리딩(리딩을 한 번도 끝내지 않은 계정)이면 나눈 뒤 목소리·대본 상세를 건너뛰고 배역 고르기로 간다(10/29). 확인 전이면 기존 흐름.
@@ -132,8 +128,7 @@ export default function ReadingNew() {
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [popup, setPopup] = useState<Popup | null>(null);
   const [naming, setNaming] = useState<{ scriptId: string; characterId: string } | null>(null);
-  // 배우가 적는 대본 제목(SOMA-669). 비우면 서버가 대본에서 찾아 붙인다.
-  const [title, setTitle] = useState('');
+  const title = input.title[input.tab];
   const pasteTabTarget = useSpotlightTarget(TARGET.readingDrop);
   const nextTarget = useSpotlightTarget(TARGET.readingNext);
   const tutorialGuide = useTutorialSpotlight('readingNew');
@@ -146,9 +141,9 @@ export default function ReadingNew() {
     return () => controller.abort();
   }, []);
 
-  // 대본을 다시 읽지 못한 것처럼 원인이 남지 않은 실패는 R2.12 공용 문구다.
-  const failWith = (error?: unknown) =>
-    setPopup({ kind: 'alert', title: t('common.save'), message: error === undefined ? t('errors.network') : scriptErrorMessage(error) });
+  const failWith = (error: unknown) =>
+    setPopup({ kind: 'alert', title: t('reading.importFailTitle'), message: scriptErrorMessage(error) });
+  const failToOpen = () => setPopup({ kind: 'alert', title: t('reading.openFailTitle'), message: t('errors.network') });
 
   const showStop = async (stop: ImportStop, resume: Resume) => {
     const alert = importAlert(stop);
@@ -160,7 +155,7 @@ export default function ReadingNew() {
     if (stop.kind === 'not_script') return setPopup({ kind: 'not_script', input: resume.input, flags });
     if (stop.kind === 'duplicate') {
       const existing = await loadIntoCurrent(stop.scriptId);
-      if (!existing) return failWith();
+      if (!existing) return failToOpen();
       setPopup({ kind: 'duplicate', title: existing.title, input: resume.input, flags });
     }
   };
@@ -210,15 +205,15 @@ export default function ReadingNew() {
     if (result.kind !== 'saved') return showStop(result, { kind: 'import', input, flags });
     const saved = await loadIntoCurrent(result.scriptId);
     if (signal?.aborted) return;
-    if (!saved) return failWith();
+    if (!saved) return failToOpen();
     setPopup(null);
     // 이름 없는 독백은 누구의 대사인지 이름부터 받는다(SOMA-597). 닫으면 대본 상세로.
     const solo = saved.characters.filter((c) => !isGroupCharacter(c));
     if (isMonologue(saved.characters) && solo[0].unnamed) return setNaming({ scriptId: saved.id, characterId: solo[0].id });
-    // 나눈 뒤 목소리 정하기(2단계)를 거친다(SOMA-923). 목소리는 자동으로 골라 둔 채 열리고, 저장하면 목소리 화면이
-    // 대본 상세(튜토리얼이면 구간 고르기까지)로 넘긴다(lib/tutorial afterVoicesSaved).
     if (firstReadingRef.current) return router.replace(FIRST_READING_HREF);
-    router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
+    // 목소리는 넣을 때 자동으로 정한다 — 바꾸기는 대본 상세 ⋯ 에서만(pen R2).
+    router.replace('/reading/detail');
+    if (afterVoicesSaved(true, currentTutorial()) === 'detail_then_range') router.push('/reading/range');
   };
 
   /** 올리고 읽힌 파일이면 [다음]이 보낼 입력을 돌려준다. 실패·읽기 자리 없음은 팝업을 띄우고 null. */
@@ -265,7 +260,7 @@ export default function ReadingNew() {
     if (resume.kind === 'import') return split(resume.input, resume.flags);
     setPopup(null);
     const next = await upload(resume.file);
-    if (next) await split(next, { title });
+    if (next) await split(next, { title: input.title.file });
   };
 
   // 세 번째 선택지 「대본 같이 만들기」(10/25) — 화면을 넘기지 않고 아래에 「예시 대본 고르기 · 새 대본 만들기」를 펼친다.
@@ -297,8 +292,7 @@ export default function ReadingNew() {
     return (
       <ReadingStatus
         title={t('reading.splitFailTitle')}
-        body={t('reading.splitFailBody')}
-        note={popup.message}
+        body={popup.message}
         onBack={() => setPopup(null)}
         primary={{ label: t('reading.splitRetry'), onPress: () => void retryFailed(popup.resume) }}
         secondary={{
@@ -314,14 +308,14 @@ export default function ReadingNew() {
 
   // pen F4 「배역과 대사 찾는 중」 — 팝업이 아니라 전체 화면이다. 머리 뒤로 가기는 리딩 탭으로 나간다(useWaitExit).
   if (popup?.kind === 'splitting') {
-    return <SplittingScreen progress={popup.progress} topInset={insets.top} bottomInset={insets.bottom} />;
+    return <SplittingScreen progress={popup.progress} />;
   }
 
+  const file = input.file;
   return (
-    <View style={[styles.root, { paddingBottom: keyboard }]}>
+    <KeyboardLift style={styles.root}>
       <Stack.Screen options={{ gestureEnabled: !working }} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* pen R2.1 「히어로」 — 대본 읽는 액티(128×100) 옆에 큰 제목과 한 줄 설명. */}
         <View style={styles.hero}>
           <Image source={HERO_ACTY} style={styles.heroActy} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
           <View style={styles.heroText}>
@@ -343,107 +337,85 @@ export default function ReadingNew() {
         {makeOpen && (
           <View style={styles.makeArea}>
             {(['sample', 'make'] as const).map((key) => (
-              <Pressable
+              <SelectCard
                 key={key}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: makeChoice === key }}
-                ph-label={`reading_new_make_${key}`}
+                title={t(key === 'sample' ? 'scriptCocreate.startSample' : 'scriptCocreate.startMake')}
+                sub={t(key === 'sample' ? 'scriptCocreate.startSampleSub' : 'scriptCocreate.startMakeSub')}
+                selected={makeChoice === key}
+                phLabel={`reading_new_make_${key}`}
                 onPress={() => setMakeChoice(key)}
-                style={[styles.choice, makeChoice === key && styles.choiceOn]}>
-                <Text style={styles.choiceTitle}>{t(key === 'sample' ? 'scriptCocreate.startSample' : 'scriptCocreate.startMake')}</Text>
-                <Text style={styles.choiceSub}>{t(key === 'sample' ? 'scriptCocreate.startSampleSub' : 'scriptCocreate.startMakeSub')}</Text>
-              </Pressable>
+              />
             ))}
-            {makeChoice === 'sample' && <SamplePickerBody list={picker.list} entry={picker.entry} pick={picker.pick} />}
+            {makeChoice === 'sample' && <SamplePickerBody list={picker.list} entry={picker.entry} pick={picker.pick} inline />}
           </View>
         )}
 
-        {!makeOpen && input.tab === 'file' && (
-          <Pressable
-            style={[styles.dropzone, input.file.kind === 'empty' && styles.dropzoneEmpty]}
-            onPress={onPickFile}
-            disabled={input.file.kind === 'reading'}>
-            {input.file.kind === 'empty' && (
-              <>
-                <View style={styles.uploadCircle}>
-                  <Feather name="upload" size={26} color={palette.blue} />
-                </View>
-                <Text style={[styles.dropTitle, styles.dropTitleEmpty]}>{t('reading.attach')}</Text>
-                <Text style={styles.dropSub}>{t('reading.attachHint')}</Text>
-                <View style={styles.pickBtn}>
-                  <Text style={styles.pickBtnText}>{t('reading.attachPick')}</Text>
-                </View>
-              </>
-            )}
-            {input.file.kind === 'reading' && (
-              <>
-                <Text style={styles.dropTitle}>{t('reading.attachReading')}</Text>
-                <Text style={styles.dropSub} numberOfLines={1}>
-                  {`${input.file.file.name} · ${formatFileSize(input.file.file.size)}`}
-                </Text>
-              </>
-            )}
-            {input.file.kind === 'ready' && (
-              <>
-                <Feather name="file-text" size={30} color={palette.blue} />
-                <Text style={styles.dropTitle} numberOfLines={1}>{input.file.file.name}</Text>
-                <Text style={styles.dropSub}>{formatFileSize(input.file.file.size)}</Text>
-                <View style={styles.replace}>
-                  <Feather name="refresh-cw" size={13} color={palette.blueDeep} />
-                  <Text style={styles.replaceText}>{t('reading.replaceFile')}</Text>
-                </View>
-              </>
-            )}
+        {!makeOpen && input.tab === 'file' && file.kind === 'empty' && (
+          <Pressable style={({ pressed }) => [styles.dropzone, pressed && styles.pressed]} onPress={onPickFile} accessibilityRole="button" accessibilityLabel={t('reading.attachPick')}>
+            <View style={styles.uploadCircle}>
+              <Feather name="upload" size={22} color={palette.blue} />
+            </View>
+            <Text style={styles.dropTitle}>{t('reading.attach')}</Text>
+            <Text style={styles.dropSub}>{t('reading.attachHint')}</Text>
+            <View style={styles.pickButton}>
+              <Text style={styles.pickLabel}>{t('reading.attachPick')}</Text>
+            </View>
           </Pressable>
         )}
 
-        {/* pen 「제목 입력」 — 라벨 위, 문서 아이콘이 든 흰 칸. 비우면 서버가 대본에서 찾아 붙인다(SOMA-669). */}
-        {!makeOpen && (
-        <View style={styles.titleField}>
-          <Text style={styles.titleLabel}>{t('reading.newTitleLabel')}</Text>
-          <View style={styles.titleBox}>
-            <Feather name="file-text" size={18} color={palette.textFaint} />
-            <TextInput
-              style={styles.titleInput}
-              value={title}
-              onChangeText={looseNote.wrap(setTitle)}
-              placeholder={t('reading.newTitlePlaceholder')}
-              placeholderTextColor={palette.textFaint}
-              maxLength={TITLE_MAX}
-              editable={!working}
-              returnKeyType="done"
-              accessibilityLabel={t('reading.newTitleLabel')}
-            />
+        {!makeOpen && input.tab === 'file' && file.kind !== 'empty' && (
+          <View style={styles.fileCard}>
+            <View style={styles.fileIcon}>
+              {/* 읽는 중에도 스피너 없이 파일 아이콘 — 아래 줄의 「읽는 중」 문구가 상태를 알린다(UX 가이드 4절). */}
+              <Feather name="file-text" size={22} color={palette.blue} />
+            </View>
+            <View style={styles.fileText}>
+              <Text style={styles.fileName} numberOfLines={1}>{file.file.name}</Text>
+              <Text style={styles.fileMeta}>
+                {file.kind === 'reading' ? `${t('reading.attachReading')} · ${formatFileSize(file.file.size)}` : formatFileSize(file.file.size)}
+              </Text>
+            </View>
+            {file.kind === 'ready' && <Button variant="secondary" size="sm" label={t('reading.replaceFile')} onPress={onPickFile} phLabel="reading_new_replace_file" />}
           </View>
-        </View>
+        )}
+
+        {!makeOpen && (input.tab === 'paste' || file.kind === 'ready') && (
+          <View style={styles.titleField}>
+            <TextField
+            charset="loose"
+              label={t('reading.newTitleLabel')}
+              value={title}
+              onChangeText={(next) => dispatch({ type: 'title', title: next })}
+              placeholder={t('reading.newTitlePlaceholder')}
+              maxLength={TITLE_MAX}
+              returnKeyType="done"
+            />
+            {input.tab === 'file' && <Text style={styles.titleHint}>{t('reading.newTitleFromFile')}</Text>}
+          </View>
         )}
 
         {!makeOpen && input.tab === 'paste' && (
-          <TextInput
+          <TextField
+            charset="loose"
+            label={t('reading.pasteLabel')}
             style={styles.textArea}
             value={input.paste.text}
-            onChangeText={looseNote.wrap((text) => dispatch({ type: 'paste', text }))}
+            onChangeText={(text) => dispatch({ type: 'paste', text })}
             multiline
             placeholder={t('reading.pastePlaceholder')}
-            placeholderTextColor={palette.textFaint}
             textAlignVertical="top"
           />
         )}
-
-        {!makeOpen && looseNote.hint ? <InlineErrorLine message={looseNote.hint} /> : null}
-
-        {!makeOpen && (input.tab === 'paste' || input.file.kind !== 'empty') && (
-          <Text style={styles.guide}>{input.tab === 'file' ? t('reading.newGuideFile') : t('reading.newGuidePaste')}</Text>
-        )}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: (keyboard > 0 ? 0 : insets.bottom) + 10 }]}>
+      <CtaBar>
         <View ref={nextTarget.ref} onLayout={nextTarget.onLayout}>
           {makeOpen ? (
             <PrimaryButton
               label={makeChoice === 'sample' ? t('reading.samplePickConfirm') : t('reading.next')}
               phLabel="reading_new_make_next"
               loading={makeChoice === 'sample' && picker.busy}
+              loadingLabel={t('loadingText.preparing')}
               disabled={!makeChoice}
               onPress={() =>
                 makeChoice === 'sample'
@@ -459,7 +431,7 @@ export default function ReadingNew() {
             />
           )}
         </View>
-      </View>
+      </CtaBar>
 
       {picker.dialog}
       <MonologueNameDialog
@@ -470,37 +442,24 @@ export default function ReadingNew() {
         }}
       />
       <Modal transparent statusBarTranslucent visible={!!popup} animationType="fade" onRequestClose={() => closable && setPopup(null)}>
-        {/* 하단 시트를 쓰지 않는다(10/24 규칙) — 대본 나누기 동의도 가운데 팝업이다. */}
         <View style={styles.backdrop}>
           {popup?.kind === 'alert' && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{popup.title}</Text>
-              <Text style={styles.cardBody}>{popup.message}</Text>
-              <PrimaryButton label={t('common.confirm')} onPress={() => setPopup(null)} style={styles.cardButton} />
-            </View>
+            <DialogCard title={popup.title} message={popup.message}>
+              <DialogButtons confirmLabel={t('common.confirm')} onConfirm={() => setPopup(null)} />
+            </DialogCard>
           )}
           {popup?.kind === 'duplicate' && (
-            // pen 「이미 넣은 대본이에요」 — 세로 선택지 둘.
-            <View style={[styles.card, styles.optionCard]}>
-              <Text style={styles.optionTitle}>{t('reading.duplicateTitle')}</Text>
-              <Text style={styles.optionGuide}>{t('reading.duplicateGuide')}</Text>
-              <Text style={styles.optionName} numberOfLines={1}>{t('reading.duplicateName', { title: popup.title })}</Text>
-              <Pressable
-                style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
-                accessibilityRole="button"
-                onPress={() => {
+            <DialogCard title={t('reading.duplicateTitle')} message={t('reading.duplicateBody', { title: popup.title })}>
+              <DialogButtons
+                cancelLabel={t('reading.duplicateNew')}
+                onCancel={() => void split(popup.input, popup.flags)}
+                confirmLabel={t('reading.duplicateOpen')}
+                onConfirm={() => {
                   setPopup(null);
                   router.replace('/reading/detail');
-                }}>
-                <Text style={styles.optionText}>{t('reading.duplicateOpen')}</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
-                accessibilityRole="button"
-                onPress={() => void split(popup.input, popup.flags)}>
-                <Text style={styles.optionText}>{t('reading.duplicateNew')}</Text>
-              </Pressable>
-            </View>
+                }}
+              />
+            </DialogCard>
           )}
           {popup?.kind === 'free_limit' && (
             <ProSheetCard
@@ -517,28 +476,21 @@ export default function ReadingNew() {
             />
           )}
           {popup?.kind === 'free_pick' && (
-            <View style={[styles.card, styles.optionCard]}>
-              <Text style={styles.optionTitle}>{t('pro.pickTitle')}</Text>
-              <Text style={styles.optionGuide}>{t('pro.pickGuide')}</Text>
+            <DialogCard title={t('pro.pickTitle')} message={t('pro.pickGuide')}>
               {/* 11/1 전에 넣은 대본은 3개를 넘을 수 있어 목록은 스크롤한다. */}
-              <ScrollView style={styles.pickList} contentContainerStyle={styles.pickListBody}>
+              <ScrollView style={styles.pickList}>
                 {popup.scripts.map((script) => (
                   <Pressable
                     key={script.id}
-                    style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
+                    style={({ pressed }) => [styles.pickRow, pressed && styles.pressed]}
                     accessibilityRole="button"
                     onPress={() => setPopup({ kind: 'free_replace', resume: popup.resume, scriptId: script.id, title: script.title, busy: false })}>
-                    <Text style={styles.optionText} numberOfLines={1}>{script.title}</Text>
+                    <Text style={styles.pickText} numberOfLines={1}>{script.title}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
-              <Pressable
-                style={({ pressed }) => [styles.optionRow, pressed && styles.optionPressed]}
-                accessibilityRole="button"
-                onPress={() => setPopup(null)}>
-                <Text style={styles.optionText}>{t('pro.replaceCancel')}</Text>
-              </Pressable>
-            </View>
+              <TextButton label={t('pro.replaceCancel')} onPress={() => setPopup(null)} />
+            </DialogCard>
           )}
           {popup?.kind === 'free_replace' && (
             <ProSheetCard
@@ -553,38 +505,42 @@ export default function ReadingNew() {
             />
           )}
           {popup?.kind === 'not_script' && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{t('reading.notScriptTitle')}</Text>
-              <Text style={styles.cardBody}>{t('reading.notScriptBody')}</Text>
+            <DialogCard title={t('reading.notScriptTitle')} message={t('reading.notScriptBody')}>
               <DialogButtons
                 cancelLabel={t('reading.notScriptSplit')}
                 onCancel={() => void split(popup.input, popup.flags)}
                 confirmLabel={t('reading.notScriptRepick')}
                 onConfirm={() => setPopup(null)}
               />
-            </View>
+            </DialogCard>
           )}
         </View>
       </Modal>
       {tutorialGuide.element}
-    </View>
+    </KeyboardLift>
   );
 }
 
 /** pen F4. 진행은 서버가 알려 주는 만큼만 — 줄 수를 세기 전에는 퍼센트 없이 제목만 보인다. */
-function SplittingScreen({ progress, topInset, bottomInset }: { progress: ImportProgress | null; topInset: number; bottomInset: number }) {
+function SplittingScreen({ progress }: { progress: ImportProgress | null }) {
   const total = progress?.total ?? 0;
   const done = progress?.done ?? 0;
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   return (
-    // 아래 안내가 안드로이드 내비게이션 바에 가리지 않게 아래 안전 영역만큼 띄운다(SOMA-923).
-    <View style={[styles.root, styles.splitScreen, { paddingTop: topInset + 120, paddingBottom: bottomInset }]}>
-      <Image source={MASCOT} style={styles.splitMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+    <View style={[styles.root, styles.splitScreen]}>
+      <Image source={MASCOT} style={MASCOT_SIZE.empty} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       <Text style={styles.splitHeading}>{t('reading.splitTitle')}</Text>
       <Text style={styles.splitSub}>{t('reading.splitSub')}</Text>
-      {total > 0 && <Text style={styles.splitProgress}>{t('reading.splitProgress', { pct, done, total })}</Text>}
+      {total > 0 && (
+        <View style={styles.splitProgress}>
+          <View style={styles.track} accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }}>
+            <View style={[styles.fill, { width: `${pct}%` }]} />
+          </View>
+          <Text style={styles.splitCount}>{t('reading.splitProgress', { pct, done, total })}</Text>
+        </View>
+      )}
       {/* 광고 칸(SOMA-876) — 연습 중 칸, 위쪽 묶음 바로 아래 24. */}
-      <AdSlot slot="script_parse_wait" style={{ alignSelf: 'stretch', marginTop: 24 }} />
+      <AdSlot slot="script_parse_wait" style={styles.ad} />
       <InfoBanner title={t('reading.splitLeaveTitle')} body={t('reading.splitLeaveBody')} style={styles.splitBanner} />
     </View>
   );
@@ -593,8 +549,8 @@ function SplittingScreen({ progress, topInset, bottomInset }: { progress: Import
 function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3' | 'message-circle'; label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.segmentTab, on && styles.segmentTabOn]} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-      <Feather name={icon} size={16} color={on ? palette.blue : palette.textMuted} />
-      <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
+      <Feather name={icon} size={16} color={on ? palette.text : palette.iconFaint} />
+      <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={2}>{label}</Text>
     </Pressable>
   );
 }
@@ -602,73 +558,62 @@ function SegmentTab({ icon, label, on, onPress }: { icon: 'paperclip' | 'edit-3'
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   scroll: { flex: 1 },
-  content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 14 },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 114 },
+  content: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[5], paddingBottom: space[4], gap: space[4] },
+  pressed: { opacity: 0.85 },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   heroActy: { width: 128, height: 100 },
-  heroText: { flex: 1, gap: 10 },
-  title: { color: palette.text, fontSize: 24, fontWeight: '900', lineHeight: 32 },
-  heroSub: { color: palette.textMuted, fontSize: 14, fontWeight: '500', lineHeight: 21 },
-  titleField: { gap: 10 },
-  titleLabel: { color: palette.textDim, fontSize: 14, fontWeight: '700' },
-  titleBox: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, backgroundColor: palette.card, borderColor: '#E3E8EF', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16 },
-  titleInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, padding: 0 },
-  segment: { flexDirection: 'row', backgroundColor: '#EEF2F8', borderRadius: 14, padding: 4 },
+  heroText: { flex: 1, gap: space[2] },
+  title: { ...type.title1, color: palette.text },
+  heroSub: { ...type.body2, color: palette.textSub },
+  segment: { flexDirection: 'row', backgroundColor: palette.bgSoft, borderRadius: radius.md, padding: space[1], gap: space[1] },
   segmentSlot: { flex: 1 },
-  makeArea: { gap: 12 },
-  choice: { gap: 4, padding: 18, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
-  choiceOn: { backgroundColor: palette.bgSoft, borderColor: palette.blue },
-  choiceTitle: { fontSize: 16, fontWeight: '700', color: palette.text },
-  choiceSub: { fontSize: 13.5, fontWeight: '500', color: palette.textMuted },
-  segmentTab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 10, height: 58, paddingHorizontal: 4 },
-  segmentTabOn: { backgroundColor: palette.card },
-  segmentText: { color: palette.textMuted, fontSize: 13, fontWeight: '700' },
-  segmentTextOn: { color: palette.blue, fontWeight: '800' },
-  dropzone: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, borderRadius: 16 },
-  // pen 「파일칸」 — 옅은 파랑 바탕, 점선 테두리(#BCD3F3), 모서리 22.
-  dropzoneEmpty: { minHeight: 228, gap: 6, padding: 20, borderRadius: 22, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#BCD3F3', backgroundColor: '#F5F9FE' },
-  uploadCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E6EFFD', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  dropTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
-  dropTitleEmpty: { fontSize: 17 },
-  dropSub: { color: palette.textFaint, fontSize: 13, fontWeight: '500' },
-  pickBtn: { marginTop: 8, backgroundColor: '#E3EDFD', borderRadius: 22, height: 44, paddingHorizontal: 32, justifyContent: 'center' },
-  pickBtnText: { color: palette.blueDeep, fontSize: 15, fontWeight: '800' },
-  replace: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: palette.card, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
-  replaceText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  textArea: { flex: 1, minHeight: 256, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
-  guide: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', lineHeight: 20, textAlign: 'center' },
-  footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: palette.bg },
-  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  card: { width: '100%', maxWidth: 340, backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, alignItems: 'center', gap: 10 },
-  cardTitle: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
-  cardBody: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21, textAlign: 'center' },
-  cardButton: { alignSelf: 'stretch', marginTop: 12 },
-  splitScreen: { paddingHorizontal: 24, gap: 14 },
-  splitMascot: { width: 72, height: 80, marginBottom: 20 },
-  splitHeading: { color: palette.text, fontSize: 28, fontWeight: '800', lineHeight: 38 },
-  splitProgress: { color: palette.blue, fontSize: 17, fontWeight: '800' },
-  splitSub: { ...type.body2, color: palette.textSub },
-  splitBanner: { alignSelf: 'stretch', marginTop: 'auto', marginBottom: 24 },
-  optionCard: { alignItems: 'stretch', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24, gap: 6 },
-  optionTitle: { color: palette.text, fontSize: 20, fontWeight: '900', lineHeight: 28 },
-  optionGuide: { color: palette.blueDeep, fontSize: 14, fontWeight: '700', lineHeight: 21 },
-  optionName: { color: palette.textMuted, fontSize: 13, marginBottom: 6 },
-  optionRow: { paddingVertical: 14, paddingHorizontal: 2, borderRadius: 10 },
-  optionPressed: { backgroundColor: palette.bgSubtle },
-  pickList: { alignSelf: 'stretch', maxHeight: 264 },
-  pickListBody: { gap: 6 },
-  optionText: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 24 },
-  sheet: { alignSelf: 'stretch', backgroundColor: palette.card, borderRadius: 22, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.border, marginBottom: 18 },
-  sheetTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 18 },
-  sheetSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, marginTop: 4 },
-  sheetPoints: { gap: 12, marginTop: 20 },
-  point: { flexDirection: 'row', gap: 10 },
-  pointIcon: { marginTop: 2 },
-  pointText: { flex: 1, color: palette.textStrong, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21 },
-  more: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', marginTop: 16 },
-  moreText: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
-  docBody: { maxHeight: 220, marginTop: 10, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 12 },
-  sheetButton: { marginTop: 22 },
-  sheetCancel: { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
-  sheetCancelText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 15 },
+  segmentTab: { flex: 1, height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1], borderRadius: radius.sm, paddingHorizontal: space[1] },
+  segmentTabOn: { backgroundColor: palette.bg },
+  segmentText: { ...type.captionBold, color: palette.textMeta, flexShrink: 1 },
+  segmentTextOn: { color: palette.text },
+  makeArea: { gap: space[3] },
+  dropzone: {
+    alignItems: 'center',
+    gap: space[2],
+    padding: space[6],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: palette.blue,
+    backgroundColor: palette.bgSubtle,
+  },
+  uploadCircle: { width: 48, height: 48, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  dropTitle: { ...type.body1Bold, color: palette.text },
+  dropSub: { ...type.caption, color: palette.textMeta },
+  pickButton: { height: 32, justifyContent: 'center', paddingHorizontal: space[3], borderRadius: radius.md, backgroundColor: palette.blueSoft },
+  pickLabel: { ...type.body2Bold, color: palette.blueDeep },
+  fileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    padding: space[4],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bg,
+  },
+  fileIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  fileText: { flex: 1, gap: space[1] },
+  fileName: { ...type.body1Bold, color: palette.text },
+  fileMeta: { ...type.caption, color: palette.textMeta },
+  titleField: { gap: space[2] },
+  titleHint: { ...type.caption, color: palette.textMeta },
+  textArea: { minHeight: 240, paddingTop: space[3], paddingBottom: space[3] },
+  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
+  pickList: { alignSelf: 'stretch', maxHeight: 264, marginTop: space[2] },
+  pickRow: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space[1] },
+  pickText: { ...type.body1Bold, color: palette.text },
+  splitScreen: { alignItems: 'center', paddingTop: 96, paddingHorizontal: space.gutter, gap: space[3] },
+  splitHeading: { ...type.title2, color: palette.text, textAlign: 'center' },
+  splitSub: { ...type.body2, color: palette.textSub, textAlign: 'center' },
+  splitProgress: { alignSelf: 'stretch', gap: space[2], marginTop: space[3] },
+  track: { height: 8, borderRadius: radius.full, backgroundColor: palette.bgSoft, overflow: 'hidden' },
+  fill: { height: 8, backgroundColor: palette.blue },
+  splitCount: { ...type.body2Bold, color: palette.blueDeep, textAlign: 'center' },
+  ad: { alignSelf: 'stretch', marginTop: space[6] },
+  splitBanner: { alignSelf: 'stretch', marginTop: 'auto', marginBottom: space[6] },
 });

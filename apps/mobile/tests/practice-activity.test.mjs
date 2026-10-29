@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildRecentActivity, buildWeekActivity } from '../lib/practice-activity.ts';
+import { buildWeekActivity } from '../lib/practice-activity.ts';
 
 /** 로컬 자정 기준으로 Date를 만든다(테스트가 실행 타임존에 흔들리지 않게). */
 function local(y, m, d, h = 12) {
@@ -81,18 +81,4 @@ test('F4: 잘못된 created_at은 무시한다', () => {
     days.map((d) => d.count),
     [0, 0, 1, 0, 0, 0, 0],
   );
-});
-
-test('홈 최근 7일: 오늘이 맨 오른쪽이고 앞 6일이 왼쪽으로 이어지며 요일 이름은 날짜를 따른다(SOMA-923)', () => {
-  // 2026-07-29는 수요일
-  const { days } = buildRecentActivity(
-    [{ created_at: local(2026, 7, 24).toISOString() }, { created_at: local(2026, 7, 29, 9).toISOString() }, { created_at: local(2026, 7, 22).toISOString() }],
-    local(2026, 7, 29),
-  );
-
-  assert.deepEqual(days.map((d) => d.label), ['목', '금', '토', '일', '월', '화', '수']);
-  assert.deepEqual(days.map((d) => d.key), ['2026-7-23', '2026-7-24', '2026-7-25', '2026-7-26', '2026-7-27', '2026-7-28', '2026-7-29']);
-  assert.deepEqual(days.map((d) => d.count), [0, 1, 0, 0, 0, 0, 1]);
-  assert.deepEqual(days.map((d) => d.isToday), [false, false, false, false, false, false, true]);
-  assert.ok(days.every((d) => !d.isFuture));
 });

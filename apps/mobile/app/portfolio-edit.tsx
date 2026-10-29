@@ -1,27 +1,27 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import {
-  Image,
-  Modal,
-  Pressable,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Image, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { DragReorderList } from '@/components/drag-reorder';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { MASCOT } from '@/components/ui/mascot';
-import { palette } from '@/constants/palette';
-import { api } from '@/lib/api';
+import { KeyboardLift } from '@/components/keyboard-lift';
+import { Button } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
+import { DialogButtons, DialogCard } from '@/components/ui/dialog';
+import { InlineErrorLine } from '@/components/ui/inline-error';
+import { BlueSwitch } from '@/components/ui/list-rows';
 import { LoadingText } from '@/components/ui/loading-text';
+import { MASCOT } from '@/components/ui/mascot';
+import { SkeletonDetail } from '@/components/ui/skeleton';
+import { StatusScreen } from '@/components/ui/status-screen';
+import { TextField } from '@/components/ui/text-field';
+import { palette } from '@/constants/palette';
+import { radius, space, type } from '@/constants/tokens';
+import { api } from '@/lib/api';
 import { translate as t, translateList } from '@/lib/i18n';
 import {
   CREDIT_KINDS,
@@ -46,7 +46,6 @@ import {
   type PortfolioPhoto,
 } from '@/lib/portfolio';
 import { pickAndUploadPortfolioPhoto } from '@/lib/profile-photo-upload';
-import { SkeletonDetail } from '@/components/ui/skeleton';
 
 /** 편집 중인 경력. id 가 null 이면 새 경력이다. */
 type Editing = { id: string | null; draft: CreditDraft; errors: CreditDraftErrors };
@@ -54,8 +53,8 @@ type Editing = { id: string | null; draft: CreditDraft; errors: CreditDraftError
 /**
  * 포트폴리오 편집 — 배우가 오디션에 낼 소개글·경력·사진을 적어 두고 공유 링크로 보여 준다.
  *
- * 항목마다 따로 저장한다. 소개글은 저장 버튼으로, 경력·사진의 추가·수정·삭제·순서와 공유
- * 링크는 바꾸는 즉시 저장한다. 전부 선택 항목이라 빈 채로도 된다. 사진은 올리기 전에 항상
+ * 항목마다 따로 저장한다. 소개글은 저장 버튼으로, 경력·사진의 추가·수정·삭제와 공유 링크는 바꾸는 즉시
+ * 저장한다. 순서는 길게 눌러 끌어서 바꾸고 놓는 순간 저장하며, 실패하면 원래 순서로 되돌린다. 전부 선택 항목이라 빈 채로도 된다. 사진은 올리기 전에 항상
  * 긴 변 2048px 의 JPEG 로 줄인다(profile-photo). 공유 주소는 서버가 주는 url 을 그대로 쓴다.
  *
  * 다른 기기에서 그 사이 고쳤으면(순서 불일치 422, 이미 지운 것 404) 목록을 다시 받는다.
@@ -66,6 +65,7 @@ export default function PortfolioEditScreen() {
   const [intro, setIntro] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [dragging, setDragging] = useState(false);
   const { confirm, alert, dialog } = useAppDialog();
   const kindLabels = translateList('portfolio.kindOptions');
 
@@ -87,9 +87,7 @@ export default function PortfolioEditScreen() {
     void load();
   }, [load]);
 
-  /** 요청 하나를 돌린다. 실패하면 사유에 맞는 안내를 띄우고, 필요하면 목록을 다시 받는다. */
-  // 끄는 동안은 화면 스크롤을 멈춘다 — 끄는 손가락이 스크롤로 먹히지 않게.
-  const [dragging, setDragging] = useState(false);
+  /** 요청 하나를 돌린다. 실패하면 `undo`로 되돌리고 사유에 맞는 안내를 띄우며, 필요하면 목록을 다시 받는다. */
   const run = useCallback(
     async (key: string, task: () => Promise<void>, undo?: () => void) => {
       if (busy) return;
@@ -119,14 +117,7 @@ export default function PortfolioEditScreen() {
       <SafeAreaView style={styles.safe} edges={['bottom']}>
         <Stack.Screen options={{ title: t('portfolio.title') }} />
         {loadError ? (
-        <View style={styles.center}>
-            <>
-              <Text style={styles.error}>{loadError}</Text>
-              <Pressable style={styles.linkBtn} onPress={() => void load()} accessibilityRole="button">
-                <Text style={styles.linkText}>{t('portfolio.reload')}</Text>
-              </Pressable>
-            </>
-        </View>
+          <StatusScreen title={t('portfolio.loadFail')} body={loadError} primary={{ label: t('common.retry'), onPress: () => void load() }} />
         ) : (
           <SkeletonDetail lines={5} />
         )}
@@ -177,7 +168,7 @@ export default function PortfolioEditScreen() {
     });
   };
 
-  // 길게 눌러 끌어 순서를 바꾼다(SOMA-884). 바꾼 순서를 바로 보이고, 저장이 실패하면 run 이 다시 불러온다.
+  /** 끌어서 바꾼 순서를 바로 보여 주고 보낸다. 실패하면 원래 순서로 되돌린다. */
   const reorderCredits = (next: PortfolioCredit[]) => {
     const before = portfolio.credits;
     setPortfolio((current) => (current ? { ...current, credits: next } : current));
@@ -188,6 +179,15 @@ export default function PortfolioEditScreen() {
     );
   };
 
+  const reorderPhotos = (next: PortfolioPhoto[]) => {
+    const before = portfolio.photos;
+    setPortfolio((current) => (current ? { ...current, photos: next } : current));
+    void run(
+      'photos',
+      async () => apply(await api.reorderPortfolioPhotos(orderPayload(next))),
+      () => setPortfolio((current) => (current ? { ...current, photos: before } : current)),
+    );
+  };
 
   const addPhoto = () =>
     run('photo', async () => {
@@ -208,17 +208,6 @@ export default function PortfolioEditScreen() {
     });
   };
 
-  const reorderPhotos = (next: PortfolioPhoto[]) => {
-    const before = portfolio.photos;
-    setPortfolio((current) => (current ? { ...current, photos: next } : current));
-    void run(
-      'photos',
-      async () => apply(await api.reorderPortfolioPhotos(orderPayload(next))),
-      () => setPortfolio((current) => (current ? { ...current, photos: before } : current)),
-    );
-  };
-
-
   const toggleShare = (enabled: boolean) =>
     run('share', async () => {
       const share = await api.setPortfolioShare(enabled);
@@ -233,6 +222,7 @@ export default function PortfolioEditScreen() {
   const kindLabel = (kind: CreditKind) => kindLabels[CREDIT_KINDS.indexOf(kind)] ?? kind;
 
   return (
+    <GestureHandlerRootView style={styles.safe}>
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('portfolio.title') }} />
       <KeyboardAwareScroll contentContainerStyle={styles.content} scrollEnabled={!dragging}>
@@ -246,38 +236,36 @@ export default function PortfolioEditScreen() {
           <Image source={MASCOT.cheer} style={styles.heroMascot} resizeMode="contain" accessibilityIgnoresInvertColors />
         </View>
 
-        {/* 소개글 */}
         <Section title={t('portfolio.introTitle')} right={t('portfolio.count', { count: [...intro.trim()].length, max: INTRO_MAX })}>
-          <TextInput
+          <TextField
             style={styles.textarea}
             placeholder={t('portfolio.introPlaceholder')}
-            placeholderTextColor={palette.textFaint}
             value={intro}
             onChangeText={setIntro}
             multiline
             textAlignVertical="top"
+            error={introTooLong ? t('portfolio.introTooLong') : null}
           />
-          <View style={styles.rowBetween}>
-            <Text style={introTooLong ? styles.fieldError : styles.hint}>
-              {introTooLong ? t('portfolio.introTooLong') : ''}
-            </Text>
-            <SmallButton
-              label={t('portfolio.save')}
-              onPress={saveIntro}
-              disabled={!introChanged || introTooLong || busy !== null}
-              busy={busy === 'intro'}
-            />
-          </View>
+          <Button
+            size="sm"
+            label={t('portfolio.save')}
+            onPress={saveIntro}
+            disabled={!introChanged || introTooLong || busy !== null}
+            loading={busy === 'intro'}
+            loadingLabel={t('loadingText.saving')}
+            style={styles.end}
+          />
         </Section>
 
-        {/* 경력 */}
-        <Section title={t('portfolio.creditsTitle')} right={t('portfolio.count', { count: portfolio.credits.length, max: CREDIT_MAX })}>
+        <Section
+          title={t('portfolio.creditsTitle')}
+          right={t('portfolio.count', { count: portfolio.credits.length, max: CREDIT_MAX })}
+          hint={portfolio.credits.length > 0 ? t('portfolio.reorderHint') : null}>
           {portfolio.credits.length === 0 && <Text style={styles.hint}>{t('portfolio.creditsEmpty')}</Text>}
-          {portfolio.credits.length > 0 && <Text style={styles.hint}>{t('portfolio.reorderHint')}</Text>}
           <DragReorderList
             items={portfolio.credits}
             axis="y"
-            gap={8}
+            gap={space[2]}
             disabled={busy !== null}
             onReorder={reorderCredits}
             onDragChange={setDragging}
@@ -285,9 +273,7 @@ export default function PortfolioEditScreen() {
               <View style={styles.item}>
                 <View style={styles.itemBody}>
                   <Text style={styles.itemTitle}>{credit.title}</Text>
-                  <Text style={styles.itemSub}>
-                    {[credit.role, String(credit.year), kindLabel(credit.kind)].join(' · ')}
-                  </Text>
+                  <Text style={styles.itemSub}>{[credit.role, String(credit.year), kindLabel(credit.kind)].join(' · ')}</Text>
                 </View>
                 <IconButton
                   icon="edit-2"
@@ -295,34 +281,30 @@ export default function PortfolioEditScreen() {
                   onPress={() => setEditing({ id: credit.id, draft: creditDraftFrom(credit), errors: {} })}
                   disabled={busy !== null}
                 />
-                <IconButton
-                  icon="trash-2"
-                  label={t('portfolio.delete')}
-                  onPress={() => void removeCredit(credit)}
-                  disabled={busy !== null}
-                />
+                <IconButton icon="trash-2" label={t('portfolio.delete')} onPress={() => void removeCredit(credit)} disabled={busy !== null} />
               </View>
             )}
           />
-          <View style={styles.rowBetween}>
-            <View />
-            <SmallButton
-              label={t('portfolio.creditAdd')}
-              onPress={() => setEditing({ id: null, draft: emptyCreditDraft(), errors: {} })}
-              disabled={!canAddCredit(portfolio) || busy !== null}
-            />
-          </View>
+          <Button
+            size="sm"
+            label={t('portfolio.creditAdd')}
+            icon={<Feather name="plus" size={16} color={palette.blueDeep} />}
+            onPress={() => setEditing({ id: null, draft: emptyCreditDraft(), errors: {} })}
+            disabled={!canAddCredit(portfolio) || busy !== null}
+            style={styles.end}
+          />
           {!canAddCredit(portfolio) && <Text style={styles.hint}>{t('portfolio.fail.credit_limit')}</Text>}
         </Section>
 
-        {/* 사진 */}
-        <Section title={t('portfolio.photosTitle')} right={t('portfolio.count', { count: portfolio.photos.length, max: PHOTO_MAX })}>
-          {portfolio.photos.length > 0 && <Text style={styles.hint}>{t('portfolio.reorderHint')}</Text>}
+        <Section
+          title={t('portfolio.photosTitle')}
+          right={t('portfolio.count', { count: portfolio.photos.length, max: PHOTO_MAX })}
+          hint={portfolio.photos.length > 0 ? t('portfolio.reorderHint') : null}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={!dragging} contentContainerStyle={styles.photoRow}>
             <DragReorderList
               items={portfolio.photos}
               axis="x"
-              gap={8}
+              gap={space[2]}
               disabled={busy !== null}
               onReorder={reorderPhotos}
               onDragChange={setDragging}
@@ -340,7 +322,7 @@ export default function PortfolioEditScreen() {
                     hitSlop={6}
                     accessibilityRole="button"
                     accessibilityLabel={t('portfolio.delete')}>
-                    <Feather name="x" size={14} color="#FFFFFF" />
+                    <Feather name="x" size={14} color={palette.onAccent} />
                   </Pressable>
                 </View>
               )}
@@ -355,7 +337,7 @@ export default function PortfolioEditScreen() {
                 <LoadingText label={t('loadingText.uploading')} />
               ) : (
                 <>
-                  <Feather name="plus" size={22} color={palette.blue} />
+                  <Feather name="plus" size={22} color={palette.blueDeep} />
                   <Text style={styles.photoAddText}>{t('portfolio.photoAdd')}</Text>
                 </>
               )}
@@ -368,14 +350,12 @@ export default function PortfolioEditScreen() {
         {/* 공유 링크 — 기본은 꺼짐이다. 켠 동안만 링크를 아는 사람이 로그인 없이 본다. */}
         <Section title={t('portfolio.shareTitle')}>
           <View style={styles.rowBetween}>
-            <Text style={[styles.itemBody, styles.itemSub]}>{t('portfolio.shareBody')}</Text>
-            <Switch
+            <Text style={styles.shareBody}>{t('portfolio.shareBody')}</Text>
+            <BlueSwitch
               value={portfolio.share.enabled}
               onValueChange={(value) => void toggleShare(value)}
               disabled={busy !== null}
-              trackColor={{ true: palette.blue, false: palette.border }}
-              thumbColor="#FFFFFF"
-              ios_backgroundColor={palette.border}
+              accessibilityLabel={t('portfolio.shareTitle')}
             />
           </View>
           {shareUrl ? (
@@ -384,7 +364,7 @@ export default function PortfolioEditScreen() {
               <Text style={styles.url} selectable>
                 {shareUrl}
               </Text>
-              <SmallButton label={t('portfolio.shareSend')} onPress={sendUrl} disabled={busy !== null} />
+              <Button size="sm" label={t('portfolio.shareSend')} onPress={sendUrl} disabled={busy !== null} style={styles.start} />
             </>
           ) : (
             <Text style={styles.hint}>{t('portfolio.shareOffHint')}</Text>
@@ -393,124 +373,93 @@ export default function PortfolioEditScreen() {
       </KeyboardAwareScroll>
 
       {/* 경력 추가·수정 */}
-      <Modal
-        visible={editing !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEditing(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setEditing(null)} accessibilityRole="button" />
-        {editing && (
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              {t(editing.id ? 'portfolio.creditEditTitle' : 'portfolio.creditAddTitle')}
-            </Text>
-            <LabeledInput
-              label={t('portfolio.creditTitleLabel')}
-              value={editing.draft.title}
-              error={editing.errors.title}
-              onChangeText={(title) =>
-                setEditing({ ...editing, draft: { ...editing.draft, title }, errors: { ...editing.errors, title: undefined } })
-              }
-            />
-            <LabeledInput
-              label={t('portfolio.creditRoleLabel')}
-              value={editing.draft.role}
-              error={editing.errors.role}
-              onChangeText={(role) =>
-                setEditing({ ...editing, draft: { ...editing.draft, role }, errors: { ...editing.errors, role: undefined } })
-              }
-            />
-            <LabeledInput
-              label={t('portfolio.creditYearLabel')}
-              value={editing.draft.year}
-              error={editing.errors.year}
-              numeric
-              onChangeText={(text) =>
-                setEditing({
-                  ...editing,
-                  draft: { ...editing.draft, year: text.replace(/[^0-9]/g, '').slice(0, 4) },
-                  errors: { ...editing.errors, year: undefined },
-                })
-              }
-            />
-            <Text style={styles.fieldLabel}>{t('portfolio.creditKindLabel')}</Text>
-            <View style={styles.chips}>
-              {CREDIT_KINDS.map((kind) => {
-                const selected = editing.draft.kind === kind;
-                return (
-                  <Pressable
-                    key={kind}
-                    style={[styles.chip, selected && styles.chipOn]}
-                    onPress={() =>
-                      setEditing({ ...editing, draft: { ...editing.draft, kind }, errors: { ...editing.errors, kind: undefined } })
-                    }
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}>
-                    <Text style={[styles.chipText, selected && styles.chipTextOn]}>{kindLabel(kind)}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {editing.errors.kind && <Text style={styles.fieldError}>{t('portfolio.fieldError.required')}</Text>}
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalBtn} onPress={() => setEditing(null)} accessibilityRole="button">
-                <Text style={styles.modalBtnText}>{t('common.cancel')}</Text>
+      <Modal visible={editing !== null} transparent statusBarTranslucent animationType="fade" onRequestClose={() => setEditing(null)}>
+        <KeyboardLift>
+          <Pressable testID="credit-dialog-backdrop" style={styles.backdrop} onPress={() => setEditing(null)}>
+            {editing && (
+              <Pressable style={styles.stop} onPress={(e) => e.stopPropagation()}>
+                <DialogCard title={t(editing.id ? 'portfolio.creditEditTitle' : 'portfolio.creditAddTitle')}>
+                  <View style={styles.form}>
+                    <TextField
+                      label={t('portfolio.creditTitleLabel')}
+                      placeholder={t('portfolio.creditTitlePlaceholder')}
+                      value={editing.draft.title}
+                      error={editing.errors.title ? t(`portfolio.fieldError.${editing.errors.title}`) : null}
+                      onChangeText={(title) =>
+                        setEditing({ ...editing, draft: { ...editing.draft, title }, errors: { ...editing.errors, title: undefined } })
+                      }
+                    />
+                    <TextField
+                      label={t('portfolio.creditRoleLabel')}
+                      placeholder={t('portfolio.creditRolePlaceholder')}
+                      value={editing.draft.role}
+                      error={editing.errors.role ? t(`portfolio.fieldError.${editing.errors.role}`) : null}
+                      onChangeText={(role) =>
+                        setEditing({ ...editing, draft: { ...editing.draft, role }, errors: { ...editing.errors, role: undefined } })
+                      }
+                    />
+                    <TextField
+                      label={t('portfolio.creditYearLabel')}
+                      placeholder={t('portfolio.creditYearPlaceholder')}
+                      value={editing.draft.year}
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      error={editing.errors.year ? t(`portfolio.fieldError.${editing.errors.year}`) : null}
+                      onChangeText={(text) =>
+                        setEditing({
+                          ...editing,
+                          draft: { ...editing.draft, year: text.replace(/[^0-9]/g, '').slice(0, 4) },
+                          errors: { ...editing.errors, year: undefined },
+                        })
+                      }
+                    />
+                    <Text style={styles.fieldLabel}>{t('portfolio.creditKindLabel')}</Text>
+                    <View style={styles.chips}>
+                      {CREDIT_KINDS.map((kind) => (
+                        <Chip
+                          key={kind}
+                          label={kindLabel(kind)}
+                          role="radio"
+                          selected={editing.draft.kind === kind}
+                          onPress={() =>
+                            setEditing({ ...editing, draft: { ...editing.draft, kind }, errors: { ...editing.errors, kind: undefined } })
+                          }
+                        />
+                      ))}
+                    </View>
+                    {editing.errors.kind && <InlineErrorLine message={t('portfolio.fieldError.required')} />}
+                  </View>
+                  <DialogButtons
+                    cancelLabel={t('common.cancel')}
+                    onCancel={() => setEditing(null)}
+                    confirmLabel={t('portfolio.save')}
+                    onConfirm={saveCredit}
+                    busy={busy !== null}
+                  />
+                </DialogCard>
               </Pressable>
-              <Pressable
-                style={[styles.modalBtn, styles.modalBtnPrimary, busy !== null && styles.disabled]}
-                onPress={saveCredit}
-                disabled={busy !== null}
-                accessibilityRole="button">
-                {busy === 'credit' ? (
-                  <LoadingText label={t('loadingText.saving')} color="#FFFFFF" />
-                ) : (
-                  <Text style={[styles.modalBtnText, styles.modalBtnTextPrimary]}>{t('portfolio.save')}</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        )}
+            )}
+          </Pressable>
+        </KeyboardLift>
       </Modal>
       {dialog}
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
-function Section({ title, right, children }: { title: string; right?: string; children: ReactNode }) {
+function Section({ title, right, hint, children }: { title: string; right?: string; hint?: string | null; children: ReactNode }) {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {right ? <Text style={styles.sectionCount}>{right}</Text> : null}
+        <View style={styles.sectionTop}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {right ? <Text style={styles.sectionCount}>{right}</Text> : null}
+        </View>
+        {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       </View>
       {children}
     </View>
-  );
-}
-
-function SmallButton({
-  label,
-  onPress,
-  disabled,
-  busy,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  busy?: boolean;
-}) {
-  return (
-    <Pressable
-      style={[styles.smallBtn, disabled && styles.disabled]}
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button">
-      {busy ? (
-        <LoadingText label={t('loadingText.wait')} color={palette.blueDeep} />
-      ) : (
-        <Text style={styles.smallBtnText}>{label}</Text>
-      )}
-    </Pressable>
   );
 }
 
@@ -520,183 +469,86 @@ function IconButton({
   onPress,
   disabled,
 }: {
-  icon: 'arrow-up' | 'arrow-down' | 'edit-2' | 'trash-2';
+  icon: 'edit-2' | 'trash-2';
   label: string;
   onPress: () => void;
   disabled?: boolean;
 }) {
   return (
     <Pressable
-      style={[styles.iconBtn, disabled && styles.disabled]}
+      style={({ pressed }) => [styles.iconBtn, (disabled || pressed) && styles.disabled]}
       onPress={onPress}
       disabled={disabled}
       hitSlop={6}
       accessibilityRole="button"
       accessibilityLabel={label}>
-      <Feather name={icon} size={17} color={palette.textDim} />
+      <Feather name={icon} size={20} color={palette.iconFaint} />
     </Pressable>
   );
 }
 
-function LabeledInput({
-  label,
-  value,
-  error,
-  numeric,
-  onChangeText,
-}: {
-  label: string;
-  value: string;
-  error?: string;
-  numeric?: boolean;
-  onChangeText: (text: string) => void;
-}) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={numeric ? 'number-pad' : 'default'}
-        maxLength={numeric ? 4 : undefined}
-      />
-      {error && <Text style={styles.fieldError}>{t(`portfolio.fieldError.${error}`)}</Text>}
-    </View>
-  );
-}
-
-// 개편후(롤백) 모양에서 글자만 한 단계씩 줄였다(SOMA-923).
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  content: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
-  hero: { paddingBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  heroText: { flex: 1, gap: 8 },
-  heroMascot: { width: 92, height: 92 },
-  heroTitle: { fontSize: 21, fontWeight: '800', lineHeight: 29, color: palette.text },
-  lead: { fontSize: 12.5, lineHeight: 19, color: palette.textDim },
-  section: {
-    borderTopWidth: 1,
-    borderTopColor: palette.borderSoft,
-    paddingVertical: 22,
-    gap: 14,
+  content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[10] },
+  hero: { paddingBottom: space[5], flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  heroText: { flex: 1, gap: space[2] },
+  heroMascot: { width: 72, height: 72 },
+  heroTitle: { ...type.title2, color: palette.text },
+  lead: { ...type.body2, color: palette.textSub },
+  section: { borderTopWidth: 1, borderTopColor: palette.border, paddingVertical: space[5], gap: space[3] },
+  sectionHead: { gap: space[1] },
+  sectionTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { ...type.headline, color: palette.text },
+  sectionCount: { ...type.caption, color: palette.textMeta },
+  hint: { ...type.caption, color: palette.textMeta },
+  end: { alignSelf: 'flex-end' },
+  start: { alignSelf: 'flex-start' },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3] },
+  shareBody: { flex: 1, ...type.body2, color: palette.textSub },
+  textarea: { minHeight: 120, paddingTop: space[3], paddingBottom: space[3] },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[1],
+    padding: space[4],
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius.lg,
+    backgroundColor: palette.bg,
   },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
-  sectionCount: { fontSize: 13.5, fontWeight: '500', color: palette.textFaint },
-  photoRow: { gap: 10 },
-  photoTile: { width: 104, height: 140 },
-  photoImg: { width: 104, height: 140, borderRadius: 16, backgroundColor: palette.bgSoft },
+  itemBody: { flex: 1, gap: space[1] },
+  itemTitle: { ...type.body1Bold, color: palette.text },
+  itemSub: { ...type.caption, color: palette.textMeta },
+  iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  disabled: { opacity: 0.4 },
+  photoRow: { flexDirection: 'row', gap: space[2] },
+  photoTile: { width: 100, height: 130 },
+  photoImg: { width: 100, height: 130, borderRadius: radius.md, backgroundColor: palette.bgSoft },
   photoX: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: space[2],
+    right: space[2],
     width: 24,
     height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: radius.full,
+    backgroundColor: palette.scrim,
     alignItems: 'center',
     justifyContent: 'center',
   },
   photoAdd: {
-    width: 104,
-    height: 140,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.blueSoft,
+    width: 100,
+    height: 130,
+    borderRadius: radius.md,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: space[1.5],
   },
-  photoAddText: { fontSize: 13, fontWeight: '700', color: palette.blue },
-  creditKind: { fontSize: 13, color: palette.textFaint },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  hint: { fontSize: 12, color: palette.textFaint, lineHeight: 18 },
-  error: { color: palette.danger, fontSize: 14, textAlign: 'center' },
-  fieldError: { fontSize: 12.5, color: palette.danger },
-  linkBtn: { paddingHorizontal: 16, paddingVertical: 8 },
-  linkText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
-  textarea: {
-    minHeight: 120,
-    backgroundColor: palette.bg,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    color: palette.text,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
-    marginBottom: 8,
-  },
-  itemBody: { flex: 1 },
-  itemTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
-  itemSub: { fontSize: 12, color: palette.textDim, lineHeight: 18, marginTop: 2 },
-  thumb: { width: 52, height: 52, borderRadius: 10, backgroundColor: palette.bgSoft, marginRight: 6 },
-  iconBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
-  smallBtn: {
-    minWidth: 76,
-    minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: palette.blueSoft,
-    borderRadius: 9999,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  smallBtnText: { fontSize: 13, fontWeight: '800', color: palette.blueDeep },
-  disabled: { opacity: 0.4 },
-  url: { fontSize: 12.5, fontWeight: '600', color: palette.text, lineHeight: 20 },
-
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalCard: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    top: '12%',
-    backgroundColor: palette.card,
-    borderRadius: 18,
-    padding: 20,
-    gap: 12,
-  },
-  modalTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  field: { gap: 6 },
-  fieldLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
-  input: {
-    backgroundColor: palette.bgSoft,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    color: palette.text,
-    fontSize: 15,
-  },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-  },
-  chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  chipText: { fontSize: 13.5, fontWeight: '700', color: palette.textDim },
-  chipTextOn: { color: palette.blueDeep },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
-  modalBtn: { minWidth: 72, alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 10 },
-  modalBtnPrimary: { backgroundColor: palette.blue },
-  modalBtnText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
-  modalBtnTextPrimary: { color: '#FFFFFF' },
+  photoAddText: { ...type.captionBold, color: palette.blueDeep },
+  url: { ...type.body2Bold, color: palette.text },
+  backdrop: { flex: 1, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space[5] },
+  stop: { width: '100%', alignItems: 'center' },
+  form: { gap: space[3], paddingTop: space[2] },
+  fieldLabel: { ...type.body2Bold, color: palette.textSub },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
 });

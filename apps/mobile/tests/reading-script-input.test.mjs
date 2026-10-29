@@ -7,18 +7,36 @@ import {
   initialScriptInput,
   pendingScript,
   scriptInputReducer,
-  showsSampleLink,
+  titleFromFileName,
 } from '../lib/reading/script-input.ts';
 
 const run = (state, ...actions) => actions.reduce(scriptInputReducer, state);
 const A_TXT = { uri: 'file:///a.txt', name: 'a.txt', size: 2048 };
 const PASTED = '윤서: 여기 있을 줄 알았어.\n태오: 어떻게 알았어.\n윤서: 너 힘들면 항상 높은 데로 가잖아.';
 
-test('reading.script(R2): 처음엔 파일 탭이고 보낼 것이 없어 [다음]이 꺼진다. 예시 링크는 보인다', () => {
+test('reading.script(R2): 처음엔 파일 탭이고 보낼 것이 없어 [다음]이 꺼진다', () => {
   const state = initialScriptInput(false);
   assert.equal(state.tab, 'file');
   assert.equal(pendingScript(state), null);
-  assert.equal(showsSampleLink(state), true);
+});
+
+test('reading.script(R2): 파일 이름으로 제목을 채운다 — 확장자를 떼고 밑줄은 띄어쓰기', () => {
+  const cases = [
+    ['버스정류장_대본.txt', '버스정류장 대본'],
+    ['갈매기 3막.pdf', '갈매기 3막'],
+    ['Scene_1__final.v2.DOCX', 'Scene 1 final.v2'],
+    ['_옥상_밤_.hwp', '옥상 밤'],
+    ['확장자없음_대본', '확장자없음 대본'],
+    ['.hwp', ''],
+  ];
+  for (const [name, title] of cases) assert.equal(titleFromFileName(name), title, name);
+});
+
+test('reading.script(R2): 파일을 고르면 파일 탭 제목이 채워지고, 고친 제목은 그 탭에만 남는다', () => {
+  const picked = run(initialScriptInput(false), { type: 'fileReading', file: { uri: 'file:///b.txt', name: '버스정류장_대본.txt', size: 900 } });
+  assert.deepEqual(picked.title, { file: '버스정류장 대본', paste: '' });
+  const edited = run(picked, { type: 'title', title: '정류장' }, { type: 'tab', tab: 'paste' }, { type: 'title', title: '옥상' });
+  assert.deepEqual(edited.title, { file: '정류장', paste: '옥상' });
 });
 
 test('reading.script(R2): 파일은 서버가 다 읽어야 보낼 수 있고, [다음]은 올려 둔 upload_id 를 보낸다', () => {
@@ -49,17 +67,14 @@ test('reading.script(R2): 탭마다 내용을 따로 들고 [다음]은 보고 �
   assert.equal(pendingScript(run(initialScriptInput(false), { type: 'tab', tab: 'paste' }, { type: 'paste', text: '  \n ' })), null);
 });
 
-test('reading.script(R2): 예시 링크는 아무것도 넣지 않은 빈 상태에만 — 누르면 글 탭에 예시가 채워진다', () => {
+test('reading.script(R2): 예시를 고르면 글 탭에 예시가 채워진다', () => {
   const sample = run(initialScriptInput(false), { type: 'sample' });
   assert.equal(sample.tab, 'paste');
   assert.deepEqual(pendingScript(sample), { kind: 'text', text: SAMPLE_SCRIPT.trim(), source: 'sample' });
-  assert.equal(showsSampleLink(sample), false);
   assert.deepEqual(initialScriptInput(true), sample, '튜토리얼 예시로 들어오면 처음부터 같은 상태');
 
   const failed = run(initialScriptInput(false), { type: 'fileReading', file: { uri: 'file:///big.pdf', name: 'big.pdf', size: 30_000_000 } }, { type: 'fileFailed' });
   assert.equal(failed.file.kind, 'empty');
-  assert.equal(showsSampleLink(failed), false, '파일 읽기에 실패해도 한 번 넣었으면 숨긴다');
-  assert.equal(showsSampleLink(run(initialScriptInput(false), { type: 'tab', tab: 'paste' })), true, '빈 글 탭에도 보인다');
 });
 
 test('reading.script(R2): 파일 크기는 1MB 아래면 KB, 넘으면 소수 한 자리 MB', () => {

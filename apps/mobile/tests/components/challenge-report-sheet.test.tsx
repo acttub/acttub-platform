@@ -26,7 +26,7 @@ test.each([
 ] as const)('%s 신고는 대상에 맞는 제목을 보인다', async (target, title) => {
   await setup(target);
   expect(screen.getByText(title)).toBeOnTheScreen();
-  expect(screen.getByText('접수되면 운영 확인 전까지 바로 숨김 처리돼요')).toBeOnTheScreen();
+  expect(screen.getByText('접수되면 검토가 끝날 때까지 바로 숨겨져요.')).toBeOnTheScreen();
 });
 
 test('닫혀 있으면 아무것도 보이지 않는다', async () => {

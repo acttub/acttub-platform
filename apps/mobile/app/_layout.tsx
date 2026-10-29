@@ -427,10 +427,10 @@ function RootNavigator() {
                 // 뒤로 가기를 붙잡았다 다시 보내는 화면(예시 코치)이 닫힐 때 네이티브 헤더가 그 버튼을 두 번 붙이려다
                 // 앱이 꺼졌다(SOMA-665). 0.1.3 처럼 헤더에 우리 조각을 넣지 않으면 그 길을 타지 않는다.
                 headerBackIcon: { type: 'image', source: require('@/assets/images/header-back.png') },
-                // pen NavHeader(SOMA-748) — 가운데 제목 17/700, 아래 줄 없음. iOS 의 AppHeader 와 모양을 맞춘다.
+                // 디자인 시스템 NavHeader — 가운데 제목 headline(17/600), 아래 줄 없음. iOS 의 AppHeader 와 모양을 맞춘다.
                 headerTitleAlign: 'center',
                 headerShadowVisible: false,
-                headerTitleStyle: { fontSize: 17, fontWeight: '700', color: palette.text },
+                headerTitleStyle: { fontSize: 17, fontWeight: '600', color: palette.text },
               }
         }>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
@@ -439,14 +439,9 @@ function RootNavigator() {
         <Stack.Screen name="profile-name" options={{ headerShown: false }} />
         <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
         <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
-        <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
         <Stack.Screen
           name="(tabs)"
           options={({ route }) => ({ headerShown: false, title: tabBackTitle(getFocusedRouteNameFromRoute(route)) })}
-        />
-        <Stack.Screen
-          name="delete-account"
-          options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
         />
         <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
         <Stack.Screen name="talk" options={{ title: t('talk.title') }} />

@@ -5,12 +5,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { useAppDialog } from '@/components/ds/app-dialog';
-import { TextButton } from '@/components/ds/ui/buttons';
+import { useAppDialog } from '@/components/app-dialog';
+import { TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
-import { NavBackButton, NavHeader } from '@/components/ds/ui/nav-header';
+import { NavBackButton, NavHeader } from '@/components/ui/nav-header';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
@@ -114,8 +114,6 @@ export default function NotificationsScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.body} onMomentumScrollEnd={() => void loadMore()}>
-        {/* 광고는 맨 위에 둔다(SOMA-923). */}
-        <AdSlot slot="notifications_top" />
         {!pushEnabled && (
           <View style={styles.pushOff}>
             <Feather name="bell-off" size={16} color={palette.amber} />
@@ -127,6 +125,8 @@ export default function NotificationsScreen() {
         {groups !== null && groups.length === 0 && !error && (
           <InlineEmpty title={t('notifications.empty')} description={t('notifications.emptyBody')} />
         )}
+        <AdSlot slot="notifications_top" />
+
         <View>
           {groups?.map((group, i) => (
             <Pressable

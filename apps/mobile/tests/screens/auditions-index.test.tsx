@@ -93,11 +93,11 @@ test('카드에 분야·출처·출연료·등록일과 새 공고 표시를 단
 test('분야 칩은 건수를 달고, 고르면 그 분야만 보인다', async () => {
   await loaded();
 
-  expect(screen.getByRole('button', { name: '전체 5' })).toBeSelected();
-  expect(screen.getByRole('button', { name: '영화·드라마 2' })).toBeOnTheScreen();
+  expect(screen.getByRole('radio', { name: '전체 5' })).toBeSelected();
+  expect(screen.getByRole('radio', { name: '영화·드라마 2' })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: /^숏폼/ })).not.toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByRole('button', { name: '영화·드라마 2' }));
+  await fireEvent.press(screen.getByRole('radio', { name: '영화·드라마 2' }));
 
   expect(titles()).toEqual(['장편 영화 주연', '웹드라마 조연']);
   expect(screen.getByText('2시간 전 수집 · 2건')).toBeOnTheScreen();
@@ -109,9 +109,9 @@ test.each([
   ['출연료 명시', ['장편 영화 주연']],
 ])('%s 토글로 거른다', async (label, expected) => {
   await loaded();
-  await fireEvent.press(screen.getByRole('button', { name: label }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: label }));
   expect(titles()).toEqual(expected);
-  expect(screen.getByRole('button', { name: label })).toBeSelected();
+  expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
 });
 
 test('검색어는 제목·출연료·출처를 모두 찾고, 없으면 조건에 맞는 공고가 없다고 한다', async () => {
@@ -137,7 +137,7 @@ describe('찜', () => {
 
     expect(writeAuditionMarks).toHaveBeenCalledWith('starred', new Set(['a3']));
     expect(screen.getByRole('button', { name: '찜 해제' })).toBeSelected();
-    await fireEvent.press(screen.getByRole('button', { name: '찜한 공고' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: '찜한 공고' }));
     expect(titles()).toEqual(['광고 모델']);
 
     await fireEvent.press(screen.getByRole('button', { name: '찜 해제' }));

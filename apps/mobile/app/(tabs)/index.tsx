@@ -7,14 +7,14 @@ import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, ToastAn
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
-import { PrimaryButton } from '@/components/ds/ui/buttons';
+import { PrimaryButton } from '@/components/ui/buttons';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT } from '@/components/ui/mascot';
-import { MascotBubble } from '@/components/ds/ui/mascot-bubble';
+import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
-import { buildRecentActivity } from '@/lib/practice-activity';
+import { buildWeekActivity } from '@/lib/practice-activity';
 import { practiceStreak, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
@@ -37,9 +37,9 @@ import { loadIntoCurrent } from '@/lib/reading/store';
 import { DEFAULT_SEC_PER_LINE, displayProgress, hasReachedEnd, remainingMinutes, secPerLine } from '@/lib/reading/progress-display';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
-import { StreakCelebrationScreen } from '@/components/ds/streak-celebration-screen';
+import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { AnnouncementPoster } from '@/components/announcement-poster';
-import { HomeUploadCard } from '@/components/ds/home-upload-card';
+import { HomeUploadCard } from '@/components/home-upload-card';
 import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { useAuth } from '@/lib/auth';
 import { homeDeadlineSections } from '@/lib/home-sections';
@@ -289,8 +289,7 @@ export default function HomeScreen() {
   const sections = homeDeadlineSections(profile.me?.profile, kstDate());
 
 
-  // 오늘이 맨 오른쪽인 최근 7일(SOMA-923).
-  const { days } = useMemo(() => buildRecentActivity(activityDays ?? []), [activityDays]);
+  const { days } = useMemo(() => buildWeekActivity(activityDays ?? []), [activityDays]);
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
   const streak = useMemo(() => practiceStreak((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
   const activityLoaded = activityDays !== null;
@@ -605,18 +604,9 @@ export default function HomeScreen() {
           </View>
         </View>
       ) : (
-        <ScrollView style={styles.scrollBg} contentContainerStyle={{ paddingBottom: tabBarSpace + space[5] }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ paddingBottom: tabBarSpace + space[5] }} showsVerticalScrollIndicator={false}>
           {/* 히어로(pen 「홈」) — blue-soft 띠(아래 모서리 24) 안에 인사·책 읽는 액티·알림 버튼과 이번 주 연습 카드. */}
-          {/* 요소·배치는 개편전(dev), 배경(위에서 옅어지는 파랑 띠·창문 빛·연한 바탕)은 롤백 그대로(SOMA-923). */}
           <View style={styles.heroBand}>
-            {/* iOS 에서 위로 당기면(바운스) 히어로 위가 비어 스크롤 바탕색이 띠처럼 보였다 — 히어로 첫 색을 위로 길게 깐다(SOMA-924). */}
-            <View style={styles.overscrollFill} pointerEvents="none" />
-            <View style={styles.heroBg} pointerEvents="none">
-              {HERO_FADE.map((c, i) => (
-                <View key={i} style={{ height: i === 0 ? 190 : 10, backgroundColor: c }} />
-              ))}
-            </View>
-            <Image source={require('@/assets/images/home/window-light.png')} style={styles.heroWindow} contentFit="cover" accessibilityIgnoresInvertColors />
             <View style={styles.hero}>
               <View style={styles.heroText}>
                 <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
@@ -984,16 +974,9 @@ function HomeSkeleton() {
   );
 }
 
-/** 홈 위 배경 — 위에서 아래로 옅어지는 파랑(롤백 배경 유지). */
-const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  safeHero: { backgroundColor: '#E4EEFC' },
-  scrollBg: { backgroundColor: '#F7FAFE' },
-  heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 250 },
-  overscrollFill: { position: 'absolute', top: -1000, left: 0, right: 0, height: 1000, backgroundColor: '#E4EEFC' },
-  heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
+  safeHero: { backgroundColor: palette.blueSoft },
   skeleton: { flex: 1, gap: space[3], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
   skeletonHero: { gap: space[2], paddingBottom: space[4] },
   skeletonGap: { marginTop: space[1.5] },
@@ -1033,9 +1016,11 @@ const styles = StyleSheet.create({
   stepText: { flex: 1, ...type.body2, color: palette.text },
 
   heroBand: {
+    backgroundColor: palette.blueSoft,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
     paddingHorizontal: space.gutter,
-    // 이번 주 연습 카드 아래 여백을 절반으로(20 → 10, SOMA-923).
-    paddingBottom: space[5] / 2,
+    paddingBottom: space[5],
     gap: space[2],
   },
   hero: { height: 180 },
@@ -1072,8 +1057,6 @@ const styles = StyleSheet.create({
   },
 
   weekCard: {
-    // 위 인사와 카드 사이 여백(SOMA-923).
-    marginTop: space[3],
     backgroundColor: palette.bg,
     borderRadius: radius.lg,
     borderWidth: 1,

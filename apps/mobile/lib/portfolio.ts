@@ -125,23 +125,6 @@ export function canAddPhoto(portfolio: Pick<Portfolio, 'photos'>): boolean {
   return portfolio.photos.length < PHOTO_MAX;
 }
 
-/**
- * 한 칸 위나 아래로 옮긴 새 목록. 순서가 그대로면(맨 위를 위로, 없는 id) null — 요청을 보내지
- * 않는다. 원본은 건드리지 않아 서버가 거절하면 그대로 되돌릴 수 있다.
- */
-export function moveItem<T extends { id: string }>(
-  items: readonly T[],
-  id: string,
-  direction: 'up' | 'down',
-): T[] | null {
-  const from = items.findIndex((item) => item.id === id);
-  const to = direction === 'up' ? from - 1 : from + 1;
-  if (from < 0 || to < 0 || to >= items.length) return null;
-  const next = [...items];
-  [next[from], next[to]] = [next[to], next[from]];
-  return next;
-}
-
 /** 순서 바꾸기는 지금 있는 id 를 원하는 순서로 전부 보낸다. */
 export function orderPayload(items: readonly { id: string }[]): { ids: string[] } {
   return { ids: items.map((item) => item.id) };

@@ -37,6 +37,9 @@ test('없거나 막힌 참여작(404)이면 볼 수 없다고 안내하고 챌�
   await render(<EntryLinkScreen />);
 
   expect(await screen.findByText('볼 수 없는 영상이에요')).toBeOnTheScreen();
+  // 검은 바탕 대신 흰 상태 화면 — 머리 「참여작」과 설명 한 줄.
+  expect(screen.getByRole('header', { name: '참여작' })).toBeOnTheScreen();
+  expect(screen.getByText('올린 사람이 지웠거나 나만 보기로 바꿨어요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '이번 주 챌린지 보러 가기' }));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/challenges');
 });
@@ -44,7 +47,8 @@ test('없거나 막힌 참여작(404)이면 볼 수 없다고 안내하고 챌�
 test('다른 오류면 챌린지를 불러오지 못했다고 안내한다', async () => {
   getEntry.mockRejectedValue(Object.assign(new Error('boom'), { status: 500 }));
   await render(<EntryLinkScreen />);
-  expect(await screen.findByText('챌린지를 불러오지 못했어요.')).toBeOnTheScreen();
+  expect(await screen.findByText('챌린지를 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.getByText('잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
   // 탭 묶음을 하나 더 쌓지 않고 이미 있는 챌린지 탭까지 내려간다(SOMA-853).
   await fireEvent.press(screen.getByRole('button', { name: '이번 주 챌린지 보러 가기' }));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/challenges');

@@ -110,7 +110,7 @@ describe('동의 내역', () => {
     ]);
     expect(screen.getAllByText('동의 · 2026.02.01')).toHaveLength(2);
     expect(screen.getByText('거부')).toBeOnTheScreen();
-    expect(screen.getByText('아직 결정하지 않음')).toBeOnTheScreen();
+    expect(screen.getByText('미결정')).toBeOnTheScreen();
     expect(screen.getByText('필수 동의는 내용만 볼 수 있어요. 선택 동의는 눌러서 바꿀 수 있어요.')).toBeOnTheScreen();
     expect(screen.queryByRole('switch')).not.toBeOnTheScreen();
   });
@@ -177,7 +177,7 @@ describe('동의 내역', () => {
 
     expect(recordConsent).toHaveBeenCalledWith('d-ret', 'granted');
     expect(sw().props.value).toBe(true);
-    expect(screen.queryByText('변경 실패')).not.toBeOnTheScreen();
+    expect(screen.queryByText('바꾸지 못했어요')).not.toBeOnTheScreen();
   });
 
   test('보는 사이 새 판이 나왔으면 다시 받기를 시도하고 알린다', async () => {
@@ -203,7 +203,7 @@ describe('동의 내역', () => {
 
     await fireEvent(sw(), 'valueChange', true);
 
-    expect(await screen.findByText('변경 실패')).toBeOnTheScreen();
+    expect(await screen.findByText('바꾸지 못했어요')).toBeOnTheScreen();
     expect(screen.getByText(message)).toBeOnTheScreen();
     expect(sw().props.value).toBe(false);
   });
@@ -242,7 +242,7 @@ describe('동의 내역', () => {
     });
     await render(<ConsentHistoryScreen />);
 
-    expect(await screen.findByText('아직 결정하지 않음')).toBeOnTheScreen();
+    expect(await screen.findByText('미결정')).toBeOnTheScreen();
     expect(screen.queryByText(/^동의 · /)).not.toBeOnTheScreen();
   });
 
@@ -309,15 +309,12 @@ describe('알림 설정', () => {
     expect(notifSwitch(0).props.value).toBe(true);
   });
 
-  test.each([
-    [new Error('네트워크 오류'), '네트워크 오류'],
-    ['boom', '잠시 후 다시 시도해주세요.'],
-  ])('못 불러오면 이유와 다시 불러오기를 둔다 (%#)', async (cause, message) => {
-    (loadNotificationSettings as jest.Mock).mockRejectedValueOnce(cause);
+  test('못 불러오면 오류 상자와 다시 시도를 둔다', async () => {
+    (loadNotificationSettings as jest.Mock).mockRejectedValueOnce(new Error('네트워크 오류'));
     await render(<NotificationSettingsScreen />);
 
-    expect(await screen.findByText(message)).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('다시 불러오기'));
+    expect(await screen.findByText('알림 설정을 불러오지 못했어요')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
     expect(await screen.findByText('분석 완료')).toBeOnTheScreen();
   });
 });
@@ -417,7 +414,7 @@ describe('설정', () => {
         expect(openURL).toHaveBeenCalledWith(`mailto:acttub0527@gmail.com?subject=${encodeURIComponent('[Acttub] 문의·신고')}`),
       );
       expect(canOpen).not.toHaveBeenCalled();
-      expect(screen.queryByText('메일 앱을 열지 못했어요. acttub0527@gmail.com 으로 보내주세요.')).not.toBeOnTheScreen();
+      expect(screen.queryByText('메일 앱을 열지 못했어요')).not.toBeOnTheScreen();
     });
 
     test('받을 메일 앱이 정말 없어 열기가 실패하면 주소를 알려 준다', async () => {
@@ -426,7 +423,8 @@ describe('설정', () => {
 
       await fireEvent.press(screen.getByRole('button', { name: '문의·신고 메일 보내기' }));
 
-      expect(await screen.findByText('메일 앱을 열지 못했어요. acttub0527@gmail.com 으로 보내주세요.')).toBeOnTheScreen();
+      expect(await screen.findByText('메일 앱을 열지 못했어요')).toBeOnTheScreen();
+      expect(screen.getByText('acttub0527@gmail.com 으로 보내 주세요.')).toBeOnTheScreen();
     });
   });
 
@@ -464,7 +462,8 @@ describe('언어(SOMA-827 후속)', () => {
     expect(screen.getByText('언어')).toBeOnTheScreen();
     expect(screen.getByText('기기 설정 따름')).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('언어'));
-    expect(screen.getByText('한국어')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '기기 설정 따름', selected: true })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '한국어', selected: false })).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('English'));
 
     expect(saveLanguagePreference).toHaveBeenCalledWith('en');

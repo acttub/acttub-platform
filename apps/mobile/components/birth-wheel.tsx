@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { palette } from '@/constants/palette';
@@ -45,13 +45,6 @@ function Wheel({
 }) {
   const ref = useRef<ScrollView>(null);
   const index = Math.max(0, values.indexOf(selected));
-  // 굵게 칠하는 줄은 마지막으로 고른 값이 아니라 지금 가운데 칸에 걸린 줄이다 — 스크롤하는 동안에도 따라간다(SOMA-923).
-  const [live, setLive] = useState(index);
-  useEffect(() => setLive(index), [index]);
-  const track = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const at = Math.min(values.length - 1, Math.max(0, Math.round(event.nativeEvent.contentOffset.y / WHEEL_ITEM_HEIGHT)));
-    setLive((current) => (current === at ? current : at));
-  };
   // 값이 밖에서 바뀌면(달이 바뀌어 일 수가 줄어든 경우 등) 그 자리로 옮긴다.
   useEffect(() => {
     ref.current?.scrollTo({ y: index * WHEEL_ITEM_HEIGHT, animated: false });
@@ -79,8 +72,6 @@ function Wheel({
       onTouchEnd={() => onTouchActive?.(false)}
       onTouchCancel={() => onTouchActive?.(false)}
       onMomentumScrollEnd={settle}
-      onScroll={track}
-      scrollEventThrottle={16}
       accessibilityRole="adjustable"
       accessibilityLabel={label}
       accessibilityValue={{ text: `${selected}${unit}` }}
@@ -91,7 +82,7 @@ function Wheel({
         if (next !== undefined) onSelect(next);
       }}>
       {values.map((value) => {
-        const distance = Math.abs(values.indexOf(value) - live);
+        const distance = Math.abs(values.indexOf(value) - index);
         return (
           <View key={value} style={styles.item}>
             <Text
@@ -177,15 +168,12 @@ const styles = StyleSheet.create({
     top: PAD,
     height: WHEEL_ITEM_HEIGHT,
     borderRadius: 12,
-    // 고르는 칸을 진하게 — 옅은 파랑 바탕에 파란 테두리(SOMA-923).
-    borderWidth: 1.5,
-    borderColor: palette.blue,
-    backgroundColor: palette.blueSoft,
+    backgroundColor: palette.bgSoft,
   },
   column: { flex: 1 },
   item: { height: WHEEL_ITEM_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   itemText: { fontSize: 17, fontWeight: '600', color: palette.text },
   itemOn: { fontSize: 20, fontWeight: '800', color: palette.text },
-  itemNear: { color: palette.checkOff },
+  itemNear: { color: palette.textDisabled },
   itemFar: { color: palette.border },
 });

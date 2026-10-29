@@ -190,9 +190,6 @@
         "projectId": "6c0ea180-5d00-40a7-b109-9225f05fe291"
       }
     },
-    "owner": "ryujisung",
-    "androidNavigationBar": {
-      "enforceContrast": false
-    }
+    "owner": "ryujisung"
   }
 }

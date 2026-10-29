@@ -1,17 +1,16 @@
 import Constants from 'expo-constants';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { NavBackButton, NavHeader } from '@/components/app-header';
 import { useAppDialog } from '@/components/app-dialog';
 import { pt } from '@/components/ui/anchored-menu';
-import { SettingsProCard } from '@/components/settings-pro-card';
+import { SecondaryButton, TextButton } from '@/components/ui/buttons';
 import { SettingsCard } from '@/components/ui/settings-card';
 import { palette } from '@/constants/palette';
-import { api } from '@/lib/api';
 import { space, type } from '@/constants/tokens';
 import { useAuth } from '@/lib/auth';
 import { useBillingMe } from '@/hooks/use-billing-me';
@@ -51,7 +50,6 @@ export default function SettingsScreen() {
     const ok = await confirm({
       title: t('settings.logoutTitle'),
       confirmLabel: t('settings.logout'),
-      destructive: true,
     });
     if (ok) void signOut();
   };
@@ -63,7 +61,7 @@ export default function SettingsScreen() {
     try {
       await Linking.openURL(url);
     } catch {
-      void alert({ title: t('settings.contactMailFail'), message: 'acttub0527@gmail.com' });
+      void alert({ title: t('settings.contactMailFail'), message: t('settings.contactMailFailBody', { email: 'acttub0527@gmail.com' }) });
     }
   };
 
@@ -76,61 +74,54 @@ export default function SettingsScreen() {
         <AdSlot slot="settings_top" />
         {billing && proVisible(billing) && (
           <>
-            <SettingsProCard sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)} onPress={() => router.push(settingsTarget(billing))} />
+            <SectionTitle>{t('pro.settingsSection')}</SectionTitle>
+            <SettingsCard
+              icon="award"
+              title={t('pro.settingsTitle')}
+              sub={billingLoading ? t('pro.loadingPlan') : settingsSub(billing)}
+              onPress={() => router.push(settingsTarget(billing))}
+            />
           </>
         )}
 
         <SectionTitle>{t('settings.profile')}</SectionTitle>
-        <View style={styles.group}>
-          <SettingsCard position="first" icon="user" title={t('settings.profileEditTitle')} sub={t('settings.profileEditBody')} onPress={() => router.push('/profile-edit')} />
-          <SettingsCard
-            position="middle"
-            icon="globe"
-            title={t('settings.languageTitle')}
-            sub={LANGUAGE_LABEL[language]}
-            onPress={(e?: GestureResponderEvent) =>
-              void sheet({
-                anchor: pt(e),
-                title: t('settings.languageTitle'),
-                actions: (['system', 'ko', 'en'] as const).map((value) => ({ label: LANGUAGE_LABEL[value], onPress: () => chooseLanguage(value) })),
-              })
-            }
-          />
-          {/* 웹에서 로그인 없이 해 본 연습·대본을 여섯 자리 코드로 이 계정에 가져온다. */}
-          <SettingsCard position="last" icon="download" title={t('settings.transferTitle')} sub={t('settings.transferBody')} onPress={() => router.push('/guest-transfer')} />
-        </View>
+        <SettingsCard icon="user" title={t('settings.profileEditTitle')} sub={t('settings.profileEditBody')} onPress={() => router.push('/profile-edit')} />
+        <SettingsCard
+          icon="globe"
+          title={t('settings.languageTitle')}
+          sub={LANGUAGE_LABEL[language]}
+          onPress={(e?: GestureResponderEvent) =>
+            void sheet({
+              anchor: pt(e),
+              title: t('settings.languageTitle'),
+              actions: (['system', 'ko', 'en'] as const).map((value) => ({ label: LANGUAGE_LABEL[value], selected: value === language, onPress: () => chooseLanguage(value) })),
+            })
+          }
+        />
+        {/* 웹에서 로그인 없이 해 본 연습·대본을 여섯 자리 코드로 이 계정에 가져온다. */}
+        <SettingsCard icon="download" title={t('settings.transferTitle')} sub={t('settings.transferBody')} onPress={() => router.push('/guest-transfer')} />
 
         <SectionTitle>{t('settings.feedbackSection')}</SectionTitle>
-        <View style={styles.group}>
-          {/* 앱 평가하기 — 스토어의 리뷰 쓰기 화면을 바로 연다. */}
-          <SettingsCard position="first" icon="star" title={t('settings.storeReviewTitle')} sub={t('settings.storeReviewSub')} onPress={() => void openStoreReviewPage()} />
-          {/* 차단은 챌린지에서만 쓰인다(challenge.block). */}
-          <SettingsCard position="middle" icon="slash" title={t('block.settingsLink')} sub={t('settings.blockedSub')} onPress={() => router.push('/blocked-users')} />
-          {/* 문의·신고 (SOMA-499, App Store 1.2 — 앱 안에서 부적절 활동을 신고할 창구) */}
-          <SettingsCard position="last" icon="mail" title={t('settings.contactAction')} sub={t('settings.contactSub')} onPress={() => void openContactMail()} />
-        </View>
+        {/* 앱 평가하기 — 스토어의 리뷰 쓰기 화면을 바로 연다. */}
+        <SettingsCard icon="star" title={t('settings.storeReviewTitle')} sub={t('settings.storeReviewSub')} onPress={() => void openStoreReviewPage()} />
+        {/* 차단은 챌린지에서만 쓰인다(challenge.block). */}
+        <SettingsCard icon="slash" title={t('block.settingsLink')} sub={t('settings.blockedSub')} onPress={() => router.push('/blocked-users')} />
+        {/* 문의·신고 (SOMA-499, App Store 1.2 — 앱 안에서 부적절 활동을 신고할 창구) */}
+        <SettingsCard icon="mail" title={t('settings.contactAction')} sub={t('settings.contactSub')} onPress={() => void openContactMail()} />
 
         <SectionTitle>{t('settings.sectionEtc')}</SectionTitle>
-        <View style={styles.group}>
-          <SettingsCard position="first" icon="bell" title={t('settings.notifications')} sub={t('settings.notificationsSub')} onPress={() => router.push('/notification-settings')} />
-          <SettingsCard position="middle" icon="award" title={t('settings.challengeRecordRow')} sub={t('settings.challengeRecordSub')} onPress={() => router.push('/challenge-entries')} />
-          <SettingsCard position="middle" icon="bell" title={t('settings.notices')} sub={t('settings.noticesSub')} onPress={() => router.push('/notices')} />
-          <SettingsCard position="last" icon="file-text" title={t('settings.consentHistory')} sub={t('settings.consentHistorySub')} onPress={() => router.push('/consent-history')} />
-        </View>
+        <SettingsCard icon="bell" title={t('settings.notifications')} sub={t('settings.notificationsSub')} onPress={() => router.push('/notification-settings')} />
+        <SettingsCard icon="award" title={t('settings.challengeRecordRow')} sub={t('settings.challengeRecordSub')} onPress={() => router.push('/challenge-entries')} />
+        <SettingsCard icon="bell" title={t('settings.notices')} sub={t('settings.noticesSub')} onPress={() => router.push('/notices')} />
+        <SettingsCard icon="file-text" title={t('settings.consentHistory')} sub={t('settings.consentHistorySub')} onPress={() => router.push('/consent-history')} />
 
-        <Pressable style={({ pressed }) => [styles.logout, pressed && styles.rowPressed]} onPress={() => void confirmLogout()} accessibilityRole="button" accessibilityLabel={t('settings.logout')}>
-          <Text style={styles.logoutText}>{t('settings.logout')}</Text>
-        </Pressable>
-        <Pressable style={styles.deleteRow} onPress={() => router.push('/delete-account')} accessibilityRole="button" accessibilityLabel={t('settings.withdraw')}>
-          <Text style={styles.deleteText}>{t('settings.withdraw')}</Text>
-        </Pressable>
+        <View style={styles.logout}>
+          <SecondaryButton label={t('settings.logout')} onPress={() => void confirmLogout()} />
+        </View>
+        <TextButton label={t('settings.withdraw')} onPress={() => router.push('/delete-account')} />
 
         {/* 개발 빌드에서만 보인다. 영상 업로드·분석을 지나지 않고 화면만 확인하는 통로. */}
-        {__DEV__ && (
-          <Pressable style={styles.previewRow} onPress={() => router.push('/ui-preview')}>
-            <Text style={styles.previewText}>{t('settings.uiPreview')}</Text>
-          </Pressable>
-        )}
+        {__DEV__ && <TextButton label={t('settings.uiPreview')} onPress={() => router.push('/ui-preview')} />}
 
         <Text style={styles.version}>{t('settings.version', { version: Constants.expoConfig?.version ?? '' })}</Text>
       </ScrollView>
@@ -145,29 +136,8 @@ function SectionTitle({ children }: { children: string }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  list: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 10 },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: palette.text, paddingTop: 12 },
-  group: { gap: 6 },
-  rowPressed: { opacity: 0.6 },
-  logout: {
-    marginTop: 24,
-    alignItems: 'center',
-    paddingVertical: 17,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.card,
-  },
-  logoutText: { fontSize: 16, fontWeight: '800', color: palette.danger },
-  deleteRow: { alignItems: 'center', paddingTop: 20, paddingBottom: 14 },
-  deleteText: { fontSize: 14, fontWeight: '600', color: palette.textFaint },
-  previewRow: {
-    borderWidth: 1,
-    borderColor: palette.borderSoft,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  previewText: { fontSize: 13.5, fontWeight: '800', color: palette.textFaint },
-  version: { marginTop: 8, textAlign: 'center', fontSize: 13, fontWeight: '500', color: palette.textFaint },
+  list: { flexGrow: 1, paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[2] },
+  sectionTitle: { ...type.captionBold, color: palette.textSub, marginTop: space[4] },
+  logout: { paddingTop: space[6] },
+  version: { ...type.caption, color: palette.textMeta, textAlign: 'center', paddingTop: space[1], paddingBottom: space[6] },
 });
