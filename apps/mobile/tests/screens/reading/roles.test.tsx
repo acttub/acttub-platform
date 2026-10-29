@@ -80,9 +80,9 @@ test('배역마다 대사 수와 서버가 정한 목소리를 보이고, 전체
   expect(screen.getByText('대사 2줄')).toBeOnTheScreen();
   expect(screen.getByText('대사 1줄')).toBeOnTheScreen();
   expect(screen.getByText('남성')).toBeOnTheScreen();
-  expect(screen.getByText('밝은 청년')).toBeOnTheScreen();
+  expect(screen.getByText('10대')).toBeOnTheScreen();
   expect(screen.getByText('여성')).toBeOnTheScreen();
-  expect(screen.getByText('또렷한 성인')).toBeOnTheScreen();
+  expect(screen.getByText('30대')).toBeOnTheScreen();
   expect(engine.prefetchIfWifi).toHaveBeenCalledTimes(1);
 
   await fireEvent.press(screen.getByText('전체 보기'));
@@ -92,14 +92,15 @@ test('배역마다 대사 수와 서버가 정한 목소리를 보이고, 전체
 test('목소리 메뉴에서 고르면 그 목소리로 미리 들려주고, 저장하면 바꾼 배역만 서버에 보낸 뒤 돌아간다', async () => {
   const server = await show();
 
-  await fireEvent.press(screen.getByText('밝은 청년'));
+  await fireEvent.press(screen.getByText('10대'));
   expect(screen.getByText('남성 목소리')).toBeOnTheScreen();
   expect(screen.getByText('추천')).toBeOnTheScreen();
-  expect(screen.queryByText('따뜻한 노년')).not.toBeOnTheScreen();
-  await fireEvent.press(screen.getByText('묵직한 노년'));
+  // 남성 메뉴라 여성 50대는 없다 — 남성 50대 하나뿐.
+  expect(screen.getAllByText('50대')).toHaveLength(1);
+  await fireEvent.press(screen.getByText('50대'));
   await waitFor(() => expect(engine.preview).toHaveBeenCalledWith('M5'));
   expect(screen.queryByText('남성 목소리')).not.toBeOnTheScreen();
-  expect(screen.getByText('묵직한 노년')).toBeOnTheScreen();
+  expect(screen.getByText('50대')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('저장'));
   await waitFor(() => expect(mockRouter.back).toHaveBeenCalledTimes(1));
@@ -112,7 +113,7 @@ test('남녀를 누르면 그 성별의 추천 목소리로 바뀌어 미리 들
   await fireEvent.press(screen.getByLabelText('남성 목소리, 눌러서 바꾸기'));
   await waitFor(() => expect(engine.preview).toHaveBeenCalledWith('F2'));
   expect(screen.getAllByText('여성')).toHaveLength(2);
-  expect(screen.getByText('밝은 소녀')).toBeOnTheScreen();
+  expect(screen.getByText('10대')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('저장'));
   await waitFor(() => expect(server.patch).toHaveBeenCalledWith('s1', { characters: [{ id: 'c1', voice_preset: 'F2' }] }));
@@ -148,27 +149,27 @@ test('리딩 튜토리얼 중이면 저장 뒤 대본 상세를 거쳐 새 연�
 test('저장에 실패하면 알리고 고른 목소리를 그대로 두어 다시 저장할 수 있다', async () => {
   const server = await show();
   server.patch.mockRejectedValueOnce(new Error('offline'));
-  await fireEvent.press(screen.getByText('또렷한 성인'));
-  await fireEvent.press(screen.getByText('따뜻한 노년'));
+  await fireEvent.press(screen.getByText('30대'));
+  await fireEvent.press(screen.getByText('50대'));
 
   await fireEvent.press(screen.getByText('저장'));
   expect(await screen.findByText('목소리를 저장하지 못했어요')).toBeOnTheScreen();
   expect(screen.getByText('고른 목소리는 그대로 두었으니 다시 저장해 주세요.')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('확인'));
-  expect(screen.getByText('따뜻한 노년')).toBeOnTheScreen();
+  expect(screen.getByText('50대')).toBeOnTheScreen();
 
   await fireEvent.press(screen.getByText('저장'));
   await waitFor(() => expect(mockRouter.back).toHaveBeenCalledTimes(1));
   expect(server.patch).toHaveBeenLastCalledWith('s1', { characters: [{ id: 'c1', voice_preset: 'M1' }, { id: 'c2', voice_preset: 'F5' }] });
-  expect(screen.getByText('밝은 청년')).toBeOnTheScreen();
+  expect(screen.getByText('10대')).toBeOnTheScreen();
 });
 
 test('저장하는 동안은 버튼이 저장 중으로 바뀐다', async () => {
   const server = await show();
   let answer: () => void = () => undefined;
   server.patch.mockImplementation(() => new Promise((resolve) => (answer = () => resolve(scriptDetail(TWO_ROLE_LINES)))));
-  await fireEvent.press(screen.getByText('밝은 청년'));
-  await fireEvent.press(screen.getByText('낮은 중년'));
+  await fireEvent.press(screen.getByText('10대'));
+  await fireEvent.press(screen.getByText('40대'));
 
   const saving = fireEvent.press(screen.getByText('저장'));
   expect(await screen.findByText('저장하는 중…')).toBeOnTheScreen();
@@ -270,10 +271,10 @@ test('자동 목소리를 받을 수 없는 배역은 미리 듣기를 하지 �
 
 test('목소리 버튼을 다시 누르면 고르지 않고 메뉴가 닫힌다', async () => {
   await show();
-  await fireEvent.press(screen.getByText('밝은 청년'));
+  await fireEvent.press(screen.getByText('10대'));
   expect(screen.getByText('남성 목소리')).toBeOnTheScreen();
 
-  await fireEvent.press(screen.getAllByText('밝은 청년')[0]);
+  await fireEvent.press(screen.getAllByText('10대')[0]);
   expect(screen.queryByText('남성 목소리')).not.toBeOnTheScreen();
   expect(engine.preview).not.toHaveBeenCalled();
 });
@@ -289,7 +290,7 @@ const EXAMPLE = {
 test('예시에서 온 대본(sample)은 목소리 모델을 미리 받지 않는다', async () => {
   await show(SAMPLE());
 
-  expect(screen.getByText('밝은 청년')).toBeOnTheScreen();
+  expect(screen.getByText('10대')).toBeOnTheScreen();
   expect(engine.prefetchIfWifi).not.toHaveBeenCalled();
 });
 
@@ -313,8 +314,8 @@ test('예시 대본이어도 예시 목소리와 다른 목소리를 고르면 �
   jest.mocked(loadExampleAudio).mockResolvedValue(EXAMPLE);
   await show(SAMPLE());
 
-  await fireEvent.press(screen.getByText('밝은 청년'));
-  await fireEvent.press(screen.getByText('부드러운 청년'));
+  await fireEvent.press(screen.getByText('10대'));
+  await fireEvent.press(screen.getByText('20대'));
   expect(await screen.findByText('음성 엔진이 준비되지 않았어요. 잠시 후 다시 들어 보세요.')).toBeOnTheScreen();
   expect(engine.play).not.toHaveBeenCalled();
   expect(engine.ensureReady).not.toHaveBeenCalled();

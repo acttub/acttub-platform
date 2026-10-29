@@ -605,9 +605,18 @@ export default function HomeScreen() {
           </View>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: tabBarSpace + space[5] }} showsVerticalScrollIndicator={false}>
-          {/* 히어로(pen 「홈」) — blue-soft 띠(아래 모서리 24) 안에 인사·책 읽는 액티·알림 버튼과 이번 주 연습 카드. */}
+        <ScrollView style={styles.scrollBg} contentContainerStyle={{ paddingBottom: tabBarSpace + space[5] }} showsVerticalScrollIndicator={false}>
+          {/* 히어로(pen 「홈」) — 인사·책 읽는 액티·알림 버튼과 이번 주 연습 카드. */}
+          {/* 요소·배치는 개편본, 배경(위에서 옅어지는 파랑 띠·창문 빛·연한 바탕)은 예전 것(SOMA-923). */}
           <View style={styles.heroBand}>
+            {/* iOS 에서 위로 당기면(바운스) 히어로 위가 비어 스크롤 바탕색이 띠처럼 보였다 — 히어로 첫 색을 위로 길게 깐다(SOMA-924). */}
+            <View style={styles.overscrollFill} pointerEvents="none" />
+            <View style={styles.heroBg} pointerEvents="none">
+              {HERO_FADE.map((c, i) => (
+                <View key={i} style={{ height: i === 0 ? 190 : 10, backgroundColor: c }} />
+              ))}
+            </View>
+            <Image source={require('@/assets/images/home/window-light.png')} style={styles.heroWindow} contentFit="cover" accessibilityIgnoresInvertColors />
             <View style={styles.hero}>
               <View style={styles.heroText}>
                 <Text style={styles.heroTitle} accessibilityRole="header">{t('home.heroTitle')}</Text>
@@ -975,9 +984,16 @@ function HomeSkeleton() {
   );
 }
 
+/** 홈 위 배경 — 위에서 아래로 옅어지는 파랑(예전 배경, SOMA-923). */
+const HERO_FADE = ['#E4EEFC', '#E6EFFC', '#E9F1FD', '#ECF3FD', '#EFF5FD', '#F2F7FE', '#F5F9FE', '#F7FAFE'];
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  safeHero: { backgroundColor: palette.blueSoft },
+  safeHero: { backgroundColor: '#E4EEFC' },
+  scrollBg: { backgroundColor: '#F7FAFE' },
+  heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 250 },
+  overscrollFill: { position: 'absolute', top: -1000, left: 0, right: 0, height: 1000, backgroundColor: '#E4EEFC' },
+  heroWindow: { position: 'absolute', top: 0, left: 0, width: 440, height: 265, opacity: 0.9 },
   skeleton: { flex: 1, gap: space[3], paddingHorizontal: space.gutter, paddingTop: space[3], backgroundColor: palette.bg },
   skeletonHero: { gap: space[2], paddingBottom: space[4] },
   skeletonGap: { marginTop: space[1.5] },
@@ -1017,9 +1033,6 @@ const styles = StyleSheet.create({
   stepText: { flex: 1, ...type.body2, color: palette.text },
 
   heroBand: {
-    backgroundColor: palette.blueSoft,
-    borderBottomLeftRadius: radius.xl,
-    borderBottomRightRadius: radius.xl,
     paddingHorizontal: space.gutter,
     paddingBottom: space[3],
     gap: space[2],

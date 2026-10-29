@@ -1399,12 +1399,11 @@ export default function ReadingPlay() {
     setPhase({ kind: 'running', hold: 'mask_sheet' });
   };
 
-  const closeTip = async (hide: boolean) => {
+  // [시작]을 한 번 누르면 이 기기에서는 다음부터 시작 전 안내를 띄우지 않는다 — 따로 「숨기기」를 고르게 하지 않는다(10/29).
+  const closeTip = async () => {
     startedRef.current = true;
-    if (hide) {
-      tipHiddenRef.current = true;
-      await hideAutoAdvanceTip();
-    }
+    tipHiddenRef.current = true;
+    await hideAutoAdvanceTip();
     releaseHold();
   };
 
@@ -2256,8 +2255,7 @@ export default function ReadingPlay() {
               <Text style={styles.startHint}>{t(monologue ? 'reading.monologueStartHint' : 'reading.startHint')}</Text>
             </View>
           </View>
-          <PrimaryButton label={t('reading.start')} onPress={() => void closeTip(false)} style={styles.startButton} />
-          <TextButton label={t('reading.startSkipNext')} onPress={() => void closeTip(true)} />
+          <PrimaryButton label={t('reading.start')} onPress={() => void closeTip()} style={styles.startButton} />
         </View>
       )}
 

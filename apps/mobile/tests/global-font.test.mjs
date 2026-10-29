@@ -12,6 +12,8 @@ stubModules({
   'react-native': `const s = globalThis.__globalFont;
     const flatten = style => Array.isArray(style) ? Object.assign({}, ...style.map(flatten)) : (style ?? undefined);
     export const StyleSheet = { flatten };
+    // 기기 종류는 ios 로 둔다 — 안드로이드 한 단계 가볍게(10/29)는 font-weight.test.mjs 가 본다.
+    export const Platform = { OS: 'ios' };
     export const Text = s.Text;
     export const TextInput = s.TextInput;`,
   react: `export default { cloneElement: (element, props) => ({ ...element, props: { ...element.props, ...props } }) };`,

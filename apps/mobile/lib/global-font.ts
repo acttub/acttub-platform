@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, TextInput, type TextStyle } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, type TextStyle } from 'react-native';
 
-import { fontFamilyForWeight } from '@/lib/font-weight';
+import { androidLighterFamily, fontFamilyForWeight } from '@/lib/font-weight';
 
 /**
  * 앱 전역 기본 폰트를 Pretendard로 강제한다.
@@ -26,13 +26,17 @@ function applyGlobalFont(Component: any) {
     if (!element) return element;
     const style = element.props?.style;
     const flattened = (StyleSheet.flatten(style) ?? {}) as TextStyle;
-    // 아이콘 폰트(Feather 등)처럼 패밀리를 직접 지정한 건 건드리지 않는다.
-    if (flattened.fontFamily) return element;
+    // 패밀리를 직접 지정한 건 그대로 둔다(아이콘 폰트 등). 단 안드로이드에서 Pretendard 굵기를 이름으로 고른 것은 한 단계 가볍게.
+    if (flattened.fontFamily) {
+      if (Platform.OS !== 'android') return element;
+      const lighter = androidLighterFamily(flattened.fontFamily);
+      return lighter === flattened.fontFamily ? element : React.cloneElement(element, { style: [style, { fontFamily: lighter }] });
+    }
     return React.cloneElement(element, {
       style: [
         style,
         {
-          fontFamily: fontFamilyForWeight(flattened.fontWeight),
+          fontFamily: fontFamilyForWeight(flattened.fontWeight, Platform.OS),
           // 실제 굵은 폰트를 싣고 있으므로 가짜 볼드를 덧씌우지 않게 굵기는 중립으로 되돌린다.
           fontWeight: 'normal' as const,
         },

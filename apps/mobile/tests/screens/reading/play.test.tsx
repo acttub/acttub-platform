@@ -908,7 +908,7 @@ test('구간에 상대 대사가 없으면 목소리를 준비하지 않는다',
   expect(tts.ensureReady).not.toHaveBeenCalled();
 });
 
-test('자동 넘김 안내를 숨기지 않았으면 [시작] 위에 안내를 보이고, 숨기기를 누르면 이 기기에 남긴 뒤 시작한다', async () => {
+test('자동 넘김 안내를 숨기지 않았으면 [시작] 위에 안내를 보이고, [시작]을 누르면 다음부터 숨기도록 이 기기에 남긴 뒤 시작한다(10/29)', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
   await startPlay(PARTNER_FIRST, undefined, { begin: false });
 
@@ -916,7 +916,8 @@ test('자동 넘김 안내를 숨기지 않았으면 [시작] 위에 안내를 �
   expect(screen.getByText('시작 전')).toBeOnTheScreen();
   expect(queue.take).not.toHaveBeenCalled();
 
-  await fireEvent.press(screen.getByText('시작하고 이 안내는 다음부터 숨기기'));
+  expect(screen.queryByText('시작하고 이 안내는 다음부터 숨기기')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('시작'));
   expect(await screen.findByText(ME)).toBeOnTheScreen();
   expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBe('1');
 });
@@ -930,12 +931,12 @@ test('시작 팝업이 떠 있어도 [나가기]로 나가고, 시작 전이라 
   expect(server.deleteSession).toHaveBeenCalledWith('r1');
 });
 
-test('자동 넘김 안내를 [시작]으로 닫으면 다음에 또 띄운다', async () => {
+test('자동 넘김 안내를 [시작]으로 닫으면 다음부터 띄우지 않는다(10/29 — 예전엔 다음에 또 띄웠다)', async () => {
   await AsyncStorage.removeItem('acttub.reading.autoAdvanceTipHidden');
   await startPlay(PARTNER_FIRST);
 
   expect(await screen.findByText(ME)).toBeOnTheScreen();
-  expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBeNull();
+  expect(await AsyncStorage.getItem('acttub.reading.autoAdvanceTipHidden')).toBe('1');
 });
 
 test('자동 넘김 안내를 숨겼으면 시작 팝업 없이 준비가 끝나는 대로 읽는다(SOMA-886)', async () => {

@@ -1,11 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
+import { MASCOT } from '@/components/ui/mascot';
 import { LoadingText } from '@/components/ui/loading-text';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,6 +19,7 @@ import { InlineError, InlineErrorLine } from '@/components/ui/inline-error';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
+import { heroCard } from '@/constants/hero-card';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
@@ -413,10 +416,12 @@ function WeekHero({
 }) {
   const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
   return (
+    // 10/29 시안 — 진한 파랑 카드, 노란 번개가 든 남색 알약, 오른쪽 아래 슬레이트 든 액티, 아래 흰 알약 [나도 이 대사 연기하기].
     <View style={styles.weekHero}>
+      <Image source={MASCOT.slate} style={styles.weekActy} contentFit="contain" cachePolicy="memory-disk" accessibilityElementsHidden />
       <Pressable style={styles.weekHeroTop} onPress={onOpen} accessibilityRole="button">
         <View style={styles.weekChip}>
-          <Feather name="zap" size={12} color={palette.onAccent} />
+          <Feather name="zap" size={13} color={heroCard.bolt} />
           <Text style={styles.heroChipText}>
             {`${challenge.origin === 'team' ? t('challenges.weekLabel') : t('challenges.featuredLabel')} · ${dDayLabel(challenge)}`}
           </Text>
@@ -430,7 +435,7 @@ function WeekHero({
           </Text>
         )}
         <View style={styles.statRow}>
-          <Avatars participants={challenge.participants} border={palette.blue} />
+          <Avatars participants={challenge.participants} border={heroCard.bg} />
           <Text style={styles.heroStat} numberOfLines={1}>
             {t('challenges.entryCount', { count: challenge.entry_count })} · {t('challenges.likeSum', { count: challenge.like_sum })}
           </Text>
@@ -443,8 +448,8 @@ function WeekHero({
           onPress={onPerform}
           accessibilityRole="button"
           accessibilityLabel={t('challenges.performCta')}>
-          {/* 작은 흰색 반투명 버튼(10/23 결정). 큰 알약형은 쓰지 않는다(UX 가이드 5절). */}
-          <Feather name="video" size={16} color={palette.text} />
+          {/* 흰 알약 버튼(10/29 시안). */}
+          <Feather name="video" size={18} color={heroCard.ctaNavy} />
           <Text style={styles.heroPerformText}>{t('challenges.performCta')}</Text>
         </Pressable>
       )}
@@ -584,19 +589,20 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { ...type.body2Bold, color: palette.text },
   bannerSub: { ...type.caption, color: palette.textMeta, marginTop: space[1] },
-  weekHero: { backgroundColor: palette.blue, borderRadius: radius.lg, padding: space[5], gap: space[3] },
-  weekHeroTop: { gap: space[2] },
+  weekHero: { backgroundColor: heroCard.bg, borderRadius: radius.xl, padding: space[5], gap: space[3], overflow: 'hidden' },
+  weekHeroTop: { gap: space[2], maxWidth: '68%' },
+  weekActy: { position: 'absolute', right: -space[2], bottom: space[1], width: 140, height: 130 },
   weekChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[1],
     alignSelf: 'flex-start',
-    backgroundColor: palette.blueDeep,
+    backgroundColor: heroCard.chipNavy,
     borderRadius: radius.full,
-    paddingHorizontal: space[2],
-    paddingVertical: space[1],
+    paddingHorizontal: space[3],
+    paddingVertical: space[1.5],
   },
-  weekLine: { ...type.headline, fontWeight: '700', color: palette.onAccent },
+  weekLine: { ...type.title1, color: palette.onAccent, marginTop: space[1] },
   names: { ...type.caption, color: palette.textMeta, flexShrink: 1 },
   likes: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   hero: { backgroundColor: palette.blue, borderRadius: radius.lg, padding: space[5], minHeight: 300, gap: space[3], justifyContent: 'flex-end', overflow: 'hidden' },
@@ -604,8 +610,8 @@ const styles = StyleSheet.create({
   heroGuide: { ...type.body2Bold, color: palette.onMediaSub },
   heroMeta: { ...type.caption, color: palette.onMediaSub },
   heroStat: { ...type.caption, color: palette.onMediaSub },
-  heroPerform: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[1.5], height: 36, borderRadius: radius.sm, paddingHorizontal: space[3], backgroundColor: palette.onMediaSub },
-  heroPerformText: { ...type.body2Bold, color: palette.text },
+  heroPerform: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[2], height: 48, borderRadius: radius.full, paddingHorizontal: space[5], backgroundColor: palette.bg },
+  heroPerformText: { ...type.body1Bold, color: heroCard.ctaNavy },
   heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
   sameHead: { gap: space[1], marginTop: space[1.5] },
   sameTitle: { ...type.title2, color: palette.text },
